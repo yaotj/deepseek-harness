@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.acc.es.server.mapper.TblTktEsReportMapper">
+  <resultMap id="BaseResultMap" type="com.chinasofti.huateng.acc.es.server.model.TblTktEsReport">
+    <id column="TASK_NO" jdbcType="DECIMAL" property="taskNo" />
+    <id column="ES_CODE" jdbcType="CHAR" property="esCode" />
+    <result column="CHECKIN_NO" jdbcType="CHAR" property="checkinNo" />
+    <result column="TASK_NUM" jdbcType="DECIMAL" property="taskNum" />
+    <result column="BEGIN_NO" jdbcType="DECIMAL" property="beginNo" />
+    <result column="END_NO" jdbcType="DECIMAL" property="endNo" />
+    <result column="FINISH_NUM" jdbcType="DECIMAL" property="finishNum" />
+    <result column="WASTE_NUM" jdbcType="DECIMAL" property="wasteNum" />
+    <result column="BEGIN_TIME" jdbcType="CHAR" property="beginTime" />
+    <result column="END_TIME" jdbcType="CHAR" property="endTime" />
+    <result column="TASK_TYPE" jdbcType="CHAR" property="taskType" />
+    <result column="LAST_UPD_ID" jdbcType="VARCHAR" property="lastUpdId" />
+    <result column="LAST_UPD_TMS" jdbcType="TIMESTAMP" property="lastUpdTms" />
+  </resultMap>
+  <sql id="Base_Column_List">
+    TASK_NO, ES_CODE, CHECKIN_NO, TASK_NUM, BEGIN_NO, END_NO, FINISH_NUM, WASTE_NUM, 
+    BEGIN_TIME, END_TIME, LAST_UPD_ID, LAST_UPD_TMS,TASK_TYPE
+  </sql>
+  <select id="selectByPrimaryKey" resultMap="BaseResultMap">
+    select 
+    <include refid="Base_Column_List" />
+    from TBL_TKT_ES_REPORT
+    where TASK_NO = #{taskNo,jdbcType=DECIMAL}
+      and ES_CODE = #{esCode,jdbcType=CHAR}
+  </select>
+    <select id="quaryAll" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsReport" resultMap="BaseResultMap">
+      SELECT <include refid="Base_Column_List"/>
+      FROM
+      TBL_TKT_ES_REPORT
+      <where>
+        <if test="esCode != null and esCode != ''">
+          AND ES_CODE = #{esCode}
+        </if>
+        <if test="taskNo != null and taskNo != ''">
+          AND TASK_NO = #{taskNo}
+        </if>
+        <if test="taskType != null and taskType != ''">
+          AND TASK_TYPE = #{taskType}
+        </if>
+      </where>
+      ORDER BY TASK_NO DESC, ES_CODE
+
+    </select>
+    <delete id="deleteByPrimaryKey">
+    delete from TBL_TKT_ES_REPORT
+    where TASK_NO = #{taskNo,jdbcType=DECIMAL}
+      and ES_CODE = #{esCode,jdbcType=CHAR}
+  </delete>
+  <insert id="insert" keyColumn="TASK_NO" keyProperty="taskNo" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsReport" useGeneratedKeys="true">
+    insert into TBL_TKT_ES_REPORT (TASK_NO,ES_CODE, CHECKIN_NO, TASK_NUM,
+      BEGIN_NO, END_NO, FINISH_NUM, 
+      WASTE_NUM, BEGIN_TIME, END_TIME, 
+      LAST_UPD_ID, LAST_UPD_TMS,TASK_TYPE)
+    values (#{taskNo,jdbcType=CHAR},#{esCode,jdbcType=CHAR}, #{checkinNo,jdbcType=CHAR}, #{taskNum,jdbcType=DECIMAL},
+      #{beginNo,jdbcType=DECIMAL}, #{endNo,jdbcType=DECIMAL}, #{finishNum,jdbcType=DECIMAL}, 
+      #{wasteNum,jdbcType=DECIMAL}, #{beginTime,jdbcType=CHAR}, #{endTime,jdbcType=CHAR}, 
+      #{lastUpdId,jdbcType=VARCHAR}, SYSDATE,#{taskType,jdbcType=VARCHAR})
+  </insert>
+  <insert id="insertSelective" keyColumn="TASK_NO" keyProperty="taskNo" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsReport" useGeneratedKeys="true">
+    insert into TBL_TKT_ES_REPORT
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="esCode != null">
+        ES_CODE,
+      </if>
+      <if test="checkinNo != null">
+        CHECKIN_NO,
+      </if>
+      <if test="taskNum != null">
+        TASK_NUM,
+      </if>
+      <if test="beginNo != null">
+        BEGIN_NO,
+      </if>
+      <if test="endNo != null">
+        END_NO,
+      </if>
+      <if test="finishNum != null">
+        FINISH_NUM,
+      </if>
+      <if test="wasteNum != null">
+        WASTE_NUM,
+      </if>
+      <if test="beginTime != null">
+        BEGIN_TIME,
+      </if>
+      <if test="endTime != null">
+        END_TIME,
+      </if>
+      <if test="lastUpdId != null">
+        LAST_UPD_ID,
+      </if>
+      <if test="lastUpdTms != null">
+        LAST_UPD_TMS,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="esCode != null">
+        #{esCode,jdbcType=CHAR},
+      </if>
+      <if test="checkinNo != null">
+        #{checkinNo,jdbcType=CHAR},
+      </if>
+      <if test="taskNum != null">
+        #{taskNum,jdbcType=DECIMAL},
+      </if>
+      <if test="beginNo != null">
+        #{beginNo,jdbcType=DECIMAL},
+      </if>
+      <if test="endNo != null">
+        #{endNo,jdbcType=DECIMAL},
+      </if>
+      <if test="finishNum != null">
+        #{finishNum,jdbcType=DECIMAL},
+      </if>
+      <if test="wasteNum != null">
+        #{wasteNum,jdbcType=DECIMAL},
+      </if>
+      <if test="beginTime != null">
+        #{beginTime,jdbcType=CHAR},
+      </if>
+      <if test="endTime != null">
+        #{endTime,jdbcType=CHAR},
+      </if>
+      <if test="lastUpdId != null">
+        #{lastUpdId,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdTms != null">
+        SYSDATE,
+      </if>
+    </trim>
+  </insert>
+  <update id="updateByPrimaryKeySelective" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsReport">
+    update TBL_TKT_ES_REPORT
+    <set>
+      <if test="checkinNo != null">
+        CHECKIN_NO = #{checkinNo,jdbcType=CHAR},
+      </if>
+      <if test="taskNum != null">
+        TASK_NUM = #{taskNum,jdbcType=DECIMAL},
+      </if>
+      <if test="beginNo != null">
+        BEGIN_NO = #{beginNo,jdbcType=DECIMAL},
+      </if>
+      <if test="endNo != null">
+        END_NO = #{endNo,jdbcType=DECIMAL},
+      </if>
+      <if test="finishNum != null">
+        FINISH_NUM = #{finishNum,jdbcType=DECIMAL},
+      </if>
+      <if test="wasteNum != null">
+        WASTE_NUM = #{wasteNum,jdbcType=DECIMAL},
+      </if>
+      <if test="beginTime != null">
+        BEGIN_TIME = #{beginTime,jdbcType=CHAR},
+      </if>
+      <if test="endTime != null">
+        END_TIME = #{endTime,jdbcType=CHAR},
+      </if>
+      <if test="lastUpdId != null">
+        LAST_UPD_ID = #{lastUpdId,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdTms != null">
+        LAST_UPD_TMS = SYSDATE,
+      </if>
+    </set>
+    where TASK_NO = #{taskNo,jdbcType=DECIMAL}
+      and ES_CODE = #{esCode,jdbcType=CHAR}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsReport">
+    update TBL_TKT_ES_REPORT
+    set CHECKIN_NO = #{checkinNo,jdbcType=CHAR},
+      TASK_NUM = #{taskNum,jdbcType=DECIMAL},
+      BEGIN_NO = #{beginNo,jdbcType=DECIMAL},
+      END_NO = #{endNo,jdbcType=DECIMAL},
+      FINISH_NUM = #{finishNum,jdbcType=DECIMAL},
+      WASTE_NUM = #{wasteNum,jdbcType=DECIMAL},
+      BEGIN_TIME = #{beginTime,jdbcType=CHAR},
+      END_TIME = #{endTime,jdbcType=CHAR},
+      LAST_UPD_ID = #{lastUpdId,jdbcType=VARCHAR},
+      LAST_UPD_TMS = SYSDATE
+    where TASK_NO = #{taskNo,jdbcType=DECIMAL}
+      and ES_CODE = #{esCode,jdbcType=CHAR}
+  </update>
+</mapper>

@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.paysign.mapper.PayTxnDetailMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.paysign.entity.PayTxnDetail">
+        <id column="ID" jdbcType="NUMERIC" property="id"/>
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="PAY_TYPE" jdbcType="VARCHAR" property="payType"/>
+        <result column="PAY_STATUS" jdbcType="VARCHAR" property="payStatus"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
+        <result column="PAYMENT_VENDOR" jdbcType="VARCHAR" property="paymentVendor"/>
+        <result column="PAY_CHANNEL_CODE" jdbcType="VARCHAR" property="payChannelCode"/>
+        <result column="REQUEST_SIGN_SEQ" jdbcType="VARCHAR" property="requestSignSeq"/>
+        <result column="AMOUNT" jdbcType="NUMERIC" property="amount"/>
+        <result column="TOTAL_AMOUNT" jdbcType="NUMERIC" property="totalAmount"/>
+        <result column="CASH_AMOUNT" jdbcType="NUMERIC" property="cashAmount"/>
+        <result column="COUPON_AMOUNT" jdbcType="NUMERIC" property="couponAmount"/>
+        <result column="REFUND_STATUS" jdbcType="VARCHAR" property="refundStatus"/>
+        <result column="REFUND_AMOUNT" jdbcType="NUMERIC" property="refundAmount"/>
+        <result column="LAST_REFUND_TIME" jdbcType="TIMESTAMP" property="lastRefundTime"/>
+        <result column="MERCHANT_ORDER_NO" jdbcType="VARCHAR" property="merchantOrderNo"/>
+        <result column="CHANNEL_ORDER_NO" jdbcType="VARCHAR" property="channelOrderNo"/>
+        <result column="PAY_USER_ID" jdbcType="VARCHAR" property="payUserId"/>
+        <result column="REQUEST_COUNT" jdbcType="NUMERIC" property="requestCount"/>
+        <result column="NEXT_REQUEST_TIME" jdbcType="TIMESTAMP" property="nextRequestTime"/>
+        <result column="LAST_REQUEST_TIME" jdbcType="TIMESTAMP" property="lastRequestTime"/>
+        <result column="FIRST_REQUEST_TIME" jdbcType="TIMESTAMP" property="firstRequestTime"/>
+        <result column="RESPONSE_TIME" jdbcType="TIMESTAMP" property="responseTime"/>
+        <result column="PAY_TIME" jdbcType="VARCHAR" property="payTime"/>
+        <result column="TXN_DATE" jdbcType="VARCHAR" property="txnDate"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ID, ORDER_NO, PAY_TYPE, PAY_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE,
+        PAYMENT_VENDOR, PAY_CHANNEL_CODE, REQUEST_SIGN_SEQ, AMOUNT, TOTAL_AMOUNT,
+        CASH_AMOUNT, COUPON_AMOUNT, REFUND_STATUS, REFUND_AMOUNT, LAST_REFUND_TIME,
+        MERCHANT_ORDER_NO, CHANNEL_ORDER_NO, PAY_USER_ID, REQUEST_COUNT,
+        NEXT_REQUEST_TIME, LAST_REQUEST_TIME, FIRST_REQUEST_TIME, RESPONSE_TIME,
+        PAY_TIME, TXN_DATE, CREATE_TIME, UPDATE_TIME
+    </sql>
+
+    <!-- 首次创建支付订单。ORDER_NO 由地铁侧生成，同时作为调用支付网关的 orderNo。 -->
+    <insert id="insert" parameterType="com.chinasofti.huateng.paysign.entity.PayTxnDetail">
+        INSERT INTO PAY_TXN_DETAIL (
+            ID, ORDER_NO, PAY_TYPE, PAY_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE,
+            PAYMENT_VENDOR, PAY_CHANNEL_CODE, REQUEST_SIGN_SEQ, AMOUNT, TOTAL_AMOUNT,
+            CASH_AMOUNT, COUPON_AMOUNT, REFUND_STATUS, REFUND_AMOUNT, LAST_REFUND_TIME,
+            MERCHANT_ORDER_NO, CHANNEL_ORDER_NO, PAY_USER_ID, REQUEST_COUNT,
+            NEXT_REQUEST_TIME, LAST_REQUEST_TIME, FIRST_REQUEST_TIME, RESPONSE_TIME,
+            PAY_TIME, TXN_DATE, CREATE_TIME, UPDATE_TIME
+        ) VALUES (
+            SEQ_PAY_TXN_DETAIL.NEXTVAL,
+            #{orderNo,jdbcType=VARCHAR},
+            #{payType,jdbcType=VARCHAR},
+            #{payStatus,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR},
+            #{cardId,jdbcType=VARCHAR},
+            #{cardType,jdbcType=VARCHAR},
+            #{paymentVendor,jdbcType=VARCHAR},
+            #{payChannelCode,jdbcType=VARCHAR},
+            #{requestSignSeq,jdbcType=VARCHAR},
+            #{amount,jdbcType=NUMERIC},
+            #{totalAmount,jdbcType=NUMERIC},
+            #{cashAmount,jdbcType=NUMERIC},
+            #{couponAmount,jdbcType=NUMERIC},
+            #{refundStatus,jdbcType=VARCHAR},
+            #{refundAmount,jdbcType=NUMERIC},
+            #{lastRefundTime,jdbcType=TIMESTAMP},
+            #{merchantOrderNo,jdbcType=VARCHAR},
+            #{channelOrderNo,jdbcType=VARCHAR},
+            #{payUserId,jdbcType=VARCHAR},
+            #{requestCount,jdbcType=NUMERIC},
+            #{nextRequestTime,jdbcType=TIMESTAMP},
+            #{lastRequestTime,jdbcType=TIMESTAMP},
+            #{firstRequestTime,jdbcType=TIMESTAMP},
+            #{responseTime,jdbcType=TIMESTAMP},
+            #{payTime,jdbcType=VARCHAR},
+            #{txnDate,jdbcType=VARCHAR},
+            #{createTime,jdbcType=TIMESTAMP},
+            #{updateTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM PAY_TXN_DETAIL
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </select>
+
+    <!-- 每次真正调用支付网关前增加请求次数，并记录首次/最近请求时间。 -->
+    <update id="markRequesting">
+        UPDATE PAY_TXN_DETAIL
+        SET REQUEST_COUNT = NVL(REQUEST_COUNT, 0) + 1,
+            PAY_STATUS = 'PROCESSING',
+            FIRST_REQUEST_TIME = NVL(FIRST_REQUEST_TIME, SYSTIMESTAMP),
+            LAST_REQUEST_TIME = SYSTIMESTAMP,
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+
+    <!-- 同步请求支付网关后的返回结果，只保留关键订单号和状态，详细报文写日志。 -->
+    <update id="updateRequestResult" parameterType="com.chinasofti.huateng.paysign.entity.PayTxnDetail">
+        UPDATE PAY_TXN_DETAIL
+        SET PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
+            MERCHANT_ORDER_NO = #{merchantOrderNo,jdbcType=VARCHAR},
+            CHANNEL_ORDER_NO = #{channelOrderNo,jdbcType=VARCHAR},
+            RESPONSE_TIME = #{responseTime,jdbcType=TIMESTAMP},
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+
+    <!-- 支付回调以支付平台最终状态为准，回写金额、渠道账户和完成时间。 -->
+    <update id="updatePayCallback" parameterType="com.chinasofti.huateng.paysign.entity.PayTxnDetail">
+        UPDATE PAY_TXN_DETAIL
+        SET PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
+            MERCHANT_ORDER_NO = #{merchantOrderNo,jdbcType=VARCHAR},
+            CHANNEL_ORDER_NO = #{channelOrderNo,jdbcType=VARCHAR},
+            TOTAL_AMOUNT = #{totalAmount,jdbcType=NUMERIC},
+            CASH_AMOUNT = #{cashAmount,jdbcType=NUMERIC},
+            COUPON_AMOUNT = #{couponAmount,jdbcType=NUMERIC},
+            PAY_USER_ID = #{payUserId,jdbcType=VARCHAR},
+            PAYMENT_VENDOR = #{paymentVendor,jdbcType=VARCHAR},
+            PAY_TIME = #{payTime,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+
+    <!-- 退款成功后回写原支付订单退款汇总。 -->
+    <update id="updateRefundSummary">
+        UPDATE PAY_TXN_DETAIL
+        SET REFUND_AMOUNT = NVL(REFUND_AMOUNT, 0) + #{refundAmount,jdbcType=NUMERIC},
+            REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR},
+            LAST_REFUND_TIME = SYSTIMESTAMP,
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+</mapper>

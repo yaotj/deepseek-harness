@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.para.mapper.fare.FareMatrixMapper">
+    <delete id="deleteByParaVerNo">
+        DELETE FROM TBL_FARE_MATRIX WHERE PARA_VER_NO = #{paraVerNo,jdbcType=NUMERIC}
+    </delete>
+
+    <insert id="insertBatch">
+        INSERT ALL
+        <foreach collection="list" item="item">
+            INTO TBL_FARE_MATRIX (PARA_VER_NO, BEGIN_STAT_CODE, END_STAT_CODE, FARE_TIER)
+            VALUES (#{item.paraVerNo,jdbcType=NUMERIC}, #{item.beginStatCode,jdbcType=VARCHAR},
+                    #{item.endStatCode,jdbcType=VARCHAR}, #{item.fareTier,jdbcType=NUMERIC})
+        </foreach>
+        SELECT 1 FROM DUAL
+    </insert>
+</mapper>

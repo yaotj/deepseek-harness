@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.online.mapper.OnlineOrderMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.online.entity.OnlineOrder">
+        <id column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="ORDER_TYPE" jdbcType="VARCHAR" property="orderType"/>
+        <result column="DEVICE_ID" jdbcType="VARCHAR" property="deviceId"/>
+        <result column="ENTRY_STATION_CODE" jdbcType="VARCHAR" property="entryStationCode"/>
+        <result column="EXIT_STATION_CODE" jdbcType="VARCHAR" property="exitStationCode"/>
+        <result column="TICKET_PRICE" jdbcType="INTEGER" property="ticketPrice"/>
+        <result column="TICKET_NUM" jdbcType="INTEGER" property="ticketNum"/>
+        <result column="SINGLE_TICKET_TYPE" jdbcType="VARCHAR" property="singleTicketType"/>
+        <result column="TRANS_TYPE" jdbcType="VARCHAR" property="transType"/>
+        <result column="ADMIN_TRANS_TYPE" jdbcType="VARCHAR" property="adminTransType"/>
+        <result column="OPERATOR_ID" jdbcType="VARCHAR" property="operatorId"/>
+        <result column="SHIFT_ID" jdbcType="VARCHAR" property="shiftId"/>
+        <result column="BOM_OPT_SEQ" jdbcType="VARCHAR" property="bomOptSeq"/>
+        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="TICKET_LOGIC_NUM" jdbcType="VARCHAR" property="ticketLogicNum"/>
+        <result column="TICKET_PHYSICS_NUM" jdbcType="VARCHAR" property="ticketPhysicsNum"/>
+        <result column="BEFORE_AMOUNT" jdbcType="INTEGER" property="beforeAmount"/>
+        <result column="TRANS_AMOUNT" jdbcType="INTEGER" property="transAmount"/>
+        <result column="AFTER_AMOUNT" jdbcType="INTEGER" property="afterAmount"/>
+        <result column="PAY_CHANNEL_CODE" jdbcType="VARCHAR" property="payChannelCode"/>
+        <result column="PAYMENT_VENDOR" jdbcType="VARCHAR" property="paymentVendor"/>
+        <result column="PAY_RESULT" jdbcType="VARCHAR" property="payResult"/>
+        <result column="PAY_RESULT_DESC" jdbcType="VARCHAR" property="payResultDesc"/>
+        <result column="ORDER_STATUS" jdbcType="VARCHAR" property="orderStatus"/>
+        <result column="ORDER_STATUS_DESC" jdbcType="VARCHAR" property="orderStatusDesc"/>
+        <result column="QRCODE_GEN_DATE" jdbcType="TIMESTAMP" property="qrcodeGenDate"/>
+        <result column="RANDOM_FACT" jdbcType="VARCHAR" property="randomFact"/>
+        <result column="ACTUAL_TAKE_TICKET_NUM" jdbcType="INTEGER" property="actualTakeTicketNum"/>
+        <result column="TAKE_TICKET_DATE" jdbcType="TIMESTAMP" property="takeTicketDate"/>
+        <result column="TOPUP_STATUS" jdbcType="VARCHAR" property="topupStatus"/>
+        <result column="BUSINESS_RESULT" jdbcType="VARCHAR" property="businessResult"/>
+        <result column="BUSINESS_RESULT_DESC" jdbcType="VARCHAR" property="businessResultDesc"/>
+        <result column="FAULT_OCCUR_DATE" jdbcType="TIMESTAMP" property="faultOccurDate"/>
+        <result column="FAULT_SLIP_SEQ" jdbcType="VARCHAR" property="faultSlipSeq"/>
+        <result column="ERROR_CODE" jdbcType="VARCHAR" property="errorCode"/>
+        <result column="ERROR_MESSAGE" jdbcType="VARCHAR" property="errorMessage"/>
+        <result column="CREATE_TMS" jdbcType="TIMESTAMP" property="createTms"/>
+        <result column="UPDATE_TMS" jdbcType="TIMESTAMP" property="updateTms"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ORDER_NO, ORDER_TYPE, DEVICE_ID, ENTRY_STATION_CODE, EXIT_STATION_CODE, TICKET_PRICE, TICKET_NUM,
+        SINGLE_TICKET_TYPE, TRANS_TYPE, ADMIN_TRANS_TYPE, OPERATOR_ID, SHIFT_ID, BOM_OPT_SEQ, CARD_ID,
+        TICKET_LOGIC_NUM, TICKET_PHYSICS_NUM, BEFORE_AMOUNT, TRANS_AMOUNT, AFTER_AMOUNT, PAY_CHANNEL_CODE,
+        PAYMENT_VENDOR, PAY_RESULT, PAY_RESULT_DESC, ORDER_STATUS, ORDER_STATUS_DESC, QRCODE_GEN_DATE,
+        RANDOM_FACT, ACTUAL_TAKE_TICKET_NUM, TAKE_TICKET_DATE, TOPUP_STATUS, BUSINESS_RESULT,
+        BUSINESS_RESULT_DESC, FAULT_OCCUR_DATE, FAULT_SLIP_SEQ, ERROR_CODE, ERROR_MESSAGE, CREATE_TMS, UPDATE_TMS
+    </sql>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from ONLINE_ORDER
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByTakeTicketCode" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from ONLINE_ORDER
+        where DEVICE_ID = #{deviceId,jdbcType=VARCHAR}
+          and QRCODE_GEN_DATE = #{qrcodeGenDate,jdbcType=TIMESTAMP}
+          and RANDOM_FACT = #{randomFact,jdbcType=VARCHAR}
+        limit 1
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.online.entity.OnlineOrder">
+        insert into ONLINE_ORDER (
+            ORDER_NO, ORDER_TYPE, DEVICE_ID, ENTRY_STATION_CODE, EXIT_STATION_CODE, TICKET_PRICE, TICKET_NUM,
+            SINGLE_TICKET_TYPE, TRANS_TYPE, ADMIN_TRANS_TYPE, OPERATOR_ID, SHIFT_ID, BOM_OPT_SEQ, CARD_ID,
+            TICKET_LOGIC_NUM, TICKET_PHYSICS_NUM, BEFORE_AMOUNT, TRANS_AMOUNT, AFTER_AMOUNT, PAY_CHANNEL_CODE,
+            PAYMENT_VENDOR, PAY_RESULT, PAY_RESULT_DESC, ORDER_STATUS, ORDER_STATUS_DESC, QRCODE_GEN_DATE,
+            RANDOM_FACT, ACTUAL_TAKE_TICKET_NUM, TAKE_TICKET_DATE, TOPUP_STATUS, BUSINESS_RESULT,
+            BUSINESS_RESULT_DESC, FAULT_OCCUR_DATE, FAULT_SLIP_SEQ, ERROR_CODE, ERROR_MESSAGE, CREATE_TMS, UPDATE_TMS
+        ) values (
+            #{orderNo,jdbcType=VARCHAR}, #{orderType,jdbcType=VARCHAR}, #{deviceId,jdbcType=VARCHAR},
+            #{entryStationCode,jdbcType=VARCHAR}, #{exitStationCode,jdbcType=VARCHAR}, #{ticketPrice,jdbcType=INTEGER},
+            #{ticketNum,jdbcType=INTEGER}, #{singleTicketType,jdbcType=VARCHAR}, #{transType,jdbcType=VARCHAR},
+            #{adminTransType,jdbcType=VARCHAR}, #{operatorId,jdbcType=VARCHAR}, #{shiftId,jdbcType=VARCHAR},
+            #{bomOptSeq,jdbcType=VARCHAR}, #{cardId,jdbcType=VARCHAR}, #{ticketLogicNum,jdbcType=VARCHAR},
+            #{ticketPhysicsNum,jdbcType=VARCHAR}, #{beforeAmount,jdbcType=INTEGER}, #{transAmount,jdbcType=INTEGER},
+            #{afterAmount,jdbcType=INTEGER}, #{payChannelCode,jdbcType=VARCHAR}, #{paymentVendor,jdbcType=VARCHAR},
+            #{payResult,jdbcType=VARCHAR}, #{payResultDesc,jdbcType=VARCHAR}, #{orderStatus,jdbcType=VARCHAR},
+            #{orderStatusDesc,jdbcType=VARCHAR}, #{qrcodeGenDate,jdbcType=TIMESTAMP}, #{randomFact,jdbcType=VARCHAR},
+            #{actualTakeTicketNum,jdbcType=INTEGER}, #{takeTicketDate,jdbcType=TIMESTAMP}, #{topupStatus,jdbcType=VARCHAR},
+            #{businessResult,jdbcType=VARCHAR}, #{businessResultDesc,jdbcType=VARCHAR}, #{faultOccurDate,jdbcType=TIMESTAMP},
+            #{faultSlipSeq,jdbcType=VARCHAR}, #{errorCode,jdbcType=VARCHAR}, #{errorMessage,jdbcType=VARCHAR},
+            #{createTms,jdbcType=TIMESTAMP}, #{updateTms,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <update id="updateByOrderNo" parameterType="com.chinasofti.huateng.online.entity.OnlineOrder">
+        update ONLINE_ORDER
+        set ORDER_TYPE = #{orderType,jdbcType=VARCHAR},
+            DEVICE_ID = #{deviceId,jdbcType=VARCHAR},
+            ENTRY_STATION_CODE = #{entryStationCode,jdbcType=VARCHAR},
+            EXIT_STATION_CODE = #{exitStationCode,jdbcType=VARCHAR},
+            TICKET_PRICE = #{ticketPrice,jdbcType=INTEGER},
+            TICKET_NUM = #{ticketNum,jdbcType=INTEGER},
+            SINGLE_TICKET_TYPE = #{singleTicketType,jdbcType=VARCHAR},
+            TRANS_TYPE = #{transType,jdbcType=VARCHAR},
+            ADMIN_TRANS_TYPE = #{adminTransType,jdbcType=VARCHAR},
+            OPERATOR_ID = #{operatorId,jdbcType=VARCHAR},
+            SHIFT_ID = #{shiftId,jdbcType=VARCHAR},
+            BOM_OPT_SEQ = #{bomOptSeq,jdbcType=VARCHAR},
+            CARD_ID = #{cardId,jdbcType=VARCHAR},
+            TICKET_LOGIC_NUM = #{ticketLogicNum,jdbcType=VARCHAR},
+            TICKET_PHYSICS_NUM = #{ticketPhysicsNum,jdbcType=VARCHAR},
+            BEFORE_AMOUNT = #{beforeAmount,jdbcType=INTEGER},
+            TRANS_AMOUNT = #{transAmount,jdbcType=INTEGER},
+            AFTER_AMOUNT = #{afterAmount,jdbcType=INTEGER},
+            PAY_CHANNEL_CODE = #{payChannelCode,jdbcType=VARCHAR},
+            PAYMENT_VENDOR = #{paymentVendor,jdbcType=VARCHAR},
+            PAY_RESULT = #{payResult,jdbcType=VARCHAR},
+            PAY_RESULT_DESC = #{payResultDesc,jdbcType=VARCHAR},
+            ORDER_STATUS = #{orderStatus,jdbcType=VARCHAR},
+            ORDER_STATUS_DESC = #{orderStatusDesc,jdbcType=VARCHAR},
+            QRCODE_GEN_DATE = #{qrcodeGenDate,jdbcType=TIMESTAMP},
+            RANDOM_FACT = #{randomFact,jdbcType=VARCHAR},
+            ACTUAL_TAKE_TICKET_NUM = #{actualTakeTicketNum,jdbcType=INTEGER},
+            TAKE_TICKET_DATE = #{takeTicketDate,jdbcType=TIMESTAMP},
+            TOPUP_STATUS = #{topupStatus,jdbcType=VARCHAR},
+            BUSINESS_RESULT = #{businessResult,jdbcType=VARCHAR},
+            BUSINESS_RESULT_DESC = #{businessResultDesc,jdbcType=VARCHAR},
+            FAULT_OCCUR_DATE = #{faultOccurDate,jdbcType=TIMESTAMP},
+            FAULT_SLIP_SEQ = #{faultSlipSeq,jdbcType=VARCHAR},
+            ERROR_CODE = #{errorCode,jdbcType=VARCHAR},
+            ERROR_MESSAGE = #{errorMessage,jdbcType=VARCHAR},
+            UPDATE_TMS = #{updateTms,jdbcType=TIMESTAMP}
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+</mapper>

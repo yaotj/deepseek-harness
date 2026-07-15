@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.online.mapper.QRCodeStatusMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.online.entity.QRCodeStatus">
+        <id column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="ITP_USER_ID" jdbcType="VARCHAR" property="itpUserId"/>
+        <result column="PROVIDER_ID" jdbcType="VARCHAR" property="providerId"/>
+        <result column="MSISDN" jdbcType="VARCHAR" property="msisdn"/>
+        <result column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
+        <result column="CARD_STATUS" jdbcType="VARCHAR" property="cardStatus"/>
+        <result column="ISSUE_CHANNEL_CODE" jdbcType="VARCHAR" property="issueChannelCode"/>
+        <result column="SIGN_CHANNEL_CODE" jdbcType="VARCHAR" property="signChannelCode"/>
+        <result column="LAST_LINE_CODE" jdbcType="VARCHAR" property="lastLineCode"/>
+        <result column="LAST_STATION_CODE" jdbcType="VARCHAR" property="lastStationCode"/>
+        <result column="LAST_HANDLE_DATE_TIME" jdbcType="TIMESTAMP" property="lastHandleDateTime"/>
+        <result column="LAST_TRANS_AMOUNT" jdbcType="INTEGER" property="lastTransAmount"/>
+        <result column="LAST_TICKET_TRANS_SEQ" jdbcType="VARCHAR" property="lastTicketTransSeq"/>
+        <result column="INDUSTRY_DATA" jdbcType="VARCHAR" property="industryData"/>
+        <result column="HCE_DATA" jdbcType="VARCHAR" property="hceData"/>
+        <result column="QUERY_LOCKED_YN" jdbcType="VARCHAR" property="queryLockedYn"/>
+        <result column="LAST_DEVICE_ID" jdbcType="VARCHAR" property="lastDeviceId"/>
+        <result column="CREATE_TMS" jdbcType="TIMESTAMP" property="createTms"/>
+        <result column="UPDATE_TMS" jdbcType="TIMESTAMP" property="updateTms"/>
+    </resultMap>
+
+    <select id="selectByCardId" resultMap="BaseResultMap">
+        select CARD_ID, ITP_USER_ID, PROVIDER_ID, MSISDN, CARD_TYPE, CARD_STATUS, ISSUE_CHANNEL_CODE, SIGN_CHANNEL_CODE,
+               LAST_LINE_CODE, LAST_STATION_CODE, LAST_HANDLE_DATE_TIME, LAST_TRANS_AMOUNT, LAST_TICKET_TRANS_SEQ,
+               INDUSTRY_DATA, HCE_DATA, QUERY_LOCKED_YN, LAST_DEVICE_ID, CREATE_TMS, UPDATE_TMS
+        from QR_CODE_STATUS
+        where CARD_ID = #{cardId,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByItpUserId" resultMap="BaseResultMap">
+        select CARD_ID, ITP_USER_ID, PROVIDER_ID, MSISDN, CARD_TYPE, CARD_STATUS, ISSUE_CHANNEL_CODE, SIGN_CHANNEL_CODE,
+               LAST_LINE_CODE, LAST_STATION_CODE, LAST_HANDLE_DATE_TIME, LAST_TRANS_AMOUNT, LAST_TICKET_TRANS_SEQ,
+               INDUSTRY_DATA, HCE_DATA, QUERY_LOCKED_YN, LAST_DEVICE_ID, CREATE_TMS, UPDATE_TMS
+        from QR_CODE_STATUS
+        where ITP_USER_ID = #{itpUserId,jdbcType=VARCHAR}
+        limit 1
+    </select>
+
+    <insert id="upsert" parameterType="com.chinasofti.huateng.online.entity.QRCodeStatus">
+        insert into QR_CODE_STATUS (
+            CARD_ID, ITP_USER_ID, PROVIDER_ID, MSISDN, CARD_TYPE, CARD_STATUS, ISSUE_CHANNEL_CODE, SIGN_CHANNEL_CODE,
+            LAST_LINE_CODE, LAST_STATION_CODE, LAST_HANDLE_DATE_TIME, LAST_TRANS_AMOUNT, LAST_TICKET_TRANS_SEQ,
+            INDUSTRY_DATA, HCE_DATA, QUERY_LOCKED_YN, LAST_DEVICE_ID, CREATE_TMS, UPDATE_TMS
+        ) values (
+            #{cardId,jdbcType=VARCHAR}, #{itpUserId,jdbcType=VARCHAR}, #{providerId,jdbcType=VARCHAR},
+            #{msisdn,jdbcType=VARCHAR}, #{cardType,jdbcType=VARCHAR}, #{cardStatus,jdbcType=VARCHAR},
+            #{issueChannelCode,jdbcType=VARCHAR}, #{signChannelCode,jdbcType=VARCHAR}, #{lastLineCode,jdbcType=VARCHAR},
+            #{lastStationCode,jdbcType=VARCHAR}, #{lastHandleDateTime,jdbcType=TIMESTAMP}, #{lastTransAmount,jdbcType=INTEGER},
+            #{lastTicketTransSeq,jdbcType=VARCHAR}, #{industryData,jdbcType=VARCHAR}, #{hceData,jdbcType=VARCHAR},
+            #{queryLockedYn,jdbcType=VARCHAR}, #{lastDeviceId,jdbcType=VARCHAR}, #{createTms,jdbcType=TIMESTAMP},
+            #{updateTms,jdbcType=TIMESTAMP}
+        )
+        on duplicate key update
+            ITP_USER_ID = values(ITP_USER_ID),
+            PROVIDER_ID = values(PROVIDER_ID),
+            MSISDN = values(MSISDN),
+            CARD_TYPE = values(CARD_TYPE),
+            CARD_STATUS = values(CARD_STATUS),
+            ISSUE_CHANNEL_CODE = values(ISSUE_CHANNEL_CODE),
+            SIGN_CHANNEL_CODE = values(SIGN_CHANNEL_CODE),
+            LAST_LINE_CODE = values(LAST_LINE_CODE),
+            LAST_STATION_CODE = values(LAST_STATION_CODE),
+            LAST_HANDLE_DATE_TIME = values(LAST_HANDLE_DATE_TIME),
+            LAST_TRANS_AMOUNT = values(LAST_TRANS_AMOUNT),
+            LAST_TICKET_TRANS_SEQ = values(LAST_TICKET_TRANS_SEQ),
+            INDUSTRY_DATA = values(INDUSTRY_DATA),
+            HCE_DATA = values(HCE_DATA),
+            QUERY_LOCKED_YN = values(QUERY_LOCKED_YN),
+            LAST_DEVICE_ID = values(LAST_DEVICE_ID),
+            UPDATE_TMS = values(UPDATE_TMS)
+    </insert>
+</mapper>

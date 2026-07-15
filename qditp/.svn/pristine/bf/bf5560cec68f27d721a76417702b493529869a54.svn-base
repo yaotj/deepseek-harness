@@ -1,0 +1,28 @@
+ package com.chinasofti.huateng.collectpay.mapper;
+
+ import com.chinasofti.huateng.collectpay.entity.AppPayLogs;
+ import org.apache.ibatis.annotations.Mapper;
+ import org.apache.ibatis.annotations.Param;
+
+ @Mapper
+ public interface AppPayLogsMapper {
+     /**
+      * 根据订单号查询支付记录。
+      */
+     AppPayLogs selectByOrderNo(@Param("orderNo") String orderNo);
+
+     /**
+      * 根据用户ID查询支付记录列表。
+      */
+     java.util.List<AppPayLogs> selectByUserId(@Param("userId") String userId);
+
+     /**
+      * 插入支付记录。
+      */
+     int insert(AppPayLogs record);
+
+     /**
+      * 更新支付记录。
+      */
+     int updateByOrderNo(AppPayLogs record);
+ }

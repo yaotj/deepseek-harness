@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.alipay.paysign.mapper.AlipaySignLogMapper">
+    <insert id="insert" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipaySignLog" useGeneratedKeys="false">
+        INSERT INTO ALIPAY_SIGN_LOG (
+            ID, REQUEST_SEQ, RESPONSE_SEQ, THIRD_USER_ID, CARD_ID, CARD_TYPE,
+            CHANNEL, AGREEMENT_CODE, OPERATION_TYPE, REQUEST_BODY, RESPONSE_BODY,
+            RESULT_CODE, RESULT_MSG, OPERATOR, IP, REMARK,
+            VERSION, CREATE_TIME, CREATE_BY
+        ) VALUES (
+            SEQ_ALIPAY_SIGN_LOG.NEXTVAL, #{requestSeq,jdbcType=VARCHAR}, #{responseSeq,jdbcType=VARCHAR}, #{thirdUserId,jdbcType=VARCHAR}, #{cardId,jdbcType=VARCHAR}, #{cardType,jdbcType=VARCHAR},
+            #{channel,jdbcType=VARCHAR}, #{agreementCode,jdbcType=VARCHAR}, #{operationType,jdbcType=VARCHAR}, #{requestBody,jdbcType=VARCHAR}, #{responseBody,jdbcType=VARCHAR},
+            #{resultCode,jdbcType=VARCHAR}, #{resultMsg,jdbcType=VARCHAR}, #{operator,jdbcType=VARCHAR}, #{ip,jdbcType=VARCHAR}, #{remark,jdbcType=VARCHAR},
+            #{version,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP}, #{createBy,jdbcType=VARCHAR}
+        )
+    </insert>
+</mapper>

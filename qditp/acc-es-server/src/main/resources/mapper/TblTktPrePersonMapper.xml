@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.acc.es.server.mapper.TblTktPrePersonMapper">
+  <resultMap id="BaseResultMap" type="com.chinasofti.huateng.acc.es.server.model.TblTktPrePerson">
+    <id column="TASK_NO" jdbcType="DECIMAL" property="taskNo" />
+    <id column="PHY_CODE" jdbcType="VARCHAR" property="phyCode" />
+    <result column="PERSON_TYPE" jdbcType="VARCHAR" property="personType" />
+    <result column="USER_NAME" jdbcType="VARCHAR" property="userName" />
+    <result column="ID_TYPE" jdbcType="VARCHAR" property="idType" />
+    <result column="ID" jdbcType="VARCHAR" property="id" />
+    <result column="EMP_NO" jdbcType="VARCHAR" property="empNo" />
+    <result column="WORK_UNIT" jdbcType="VARCHAR" property="workUnit" />
+  </resultMap>
+  <sql id="Base_Column_List">
+    <!--@mbg.generated-->
+    TASK_NO, PHY_CODE, PERSON_TYPE, USER_NAME, ID_TYPE, ID, EMP_NO, WORK_UNIT
+  </sql>
+  <insert id="insert"  parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktPrePerson">
+    <!--@mbg.generated-->
+    insert into TBL_TKT_PRE_PERSON (TASK_NO,PHY_CODE, PERSON_TYPE, USER_NAME,
+      ID_TYPE, ID, EMP_NO, 
+      WORK_UNIT)
+    values (#{taskNo,jdbcType=NUMERIC},#{phyCode,jdbcType=VARCHAR}, #{personType,jdbcType=VARCHAR}, #{userName,jdbcType=VARCHAR},
+      #{idType,jdbcType=VARCHAR}, #{id,jdbcType=VARCHAR}, #{empNo,jdbcType=VARCHAR}, 
+      #{workUnit,jdbcType=VARCHAR})
+  </insert>
+  <insert id="insertSelective" keyColumn="TASK_NO" keyProperty="taskNo" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktPrePerson" useGeneratedKeys="true">
+    <!--@mbg.generated-->
+    insert into TBL_TKT_PRE_PERSON
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="phyCode != null">
+        PHY_CODE,
+      </if>
+      <if test="personType != null">
+        PERSON_TYPE,
+      </if>
+      <if test="userName != null">
+        USER_NAME,
+      </if>
+      <if test="idType != null">
+        ID_TYPE,
+      </if>
+      <if test="id != null">
+        ID,
+      </if>
+      <if test="empNo != null">
+        EMP_NO,
+      </if>
+      <if test="workUnit != null">
+        WORK_UNIT,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="phyCode != null">
+        #{phyCode,jdbcType=VARCHAR},
+      </if>
+      <if test="personType != null">
+        #{personType,jdbcType=VARCHAR},
+      </if>
+      <if test="userName != null">
+        #{userName,jdbcType=VARCHAR},
+      </if>
+      <if test="idType != null">
+        #{idType,jdbcType=VARCHAR},
+      </if>
+      <if test="id != null">
+        #{id,jdbcType=VARCHAR},
+      </if>
+      <if test="empNo != null">
+        #{empNo,jdbcType=VARCHAR},
+      </if>
+      <if test="workUnit != null">
+        #{workUnit,jdbcType=VARCHAR},
+      </if>
+    </trim>
+  </insert>
+  <update id="updateByPrimaryKeySelective" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktPrePerson">
+    <!--@mbg.generated-->
+    update TBL_TKT_PRE_PERSON
+    <set>
+      <if test="personType != null">
+        PERSON_TYPE = #{personType,jdbcType=VARCHAR},
+      </if>
+      <if test="userName != null">
+        USER_NAME = #{userName,jdbcType=VARCHAR},
+      </if>
+      <if test="idType != null">
+        ID_TYPE = #{idType,jdbcType=VARCHAR},
+      </if>
+      <if test="id != null">
+        ID = #{id,jdbcType=VARCHAR},
+      </if>
+      <if test="empNo != null">
+        EMP_NO = #{empNo,jdbcType=VARCHAR},
+      </if>
+      <if test="workUnit != null">
+        WORK_UNIT = #{workUnit,jdbcType=VARCHAR},
+      </if>
+    </set>
+    where TASK_NO = #{taskNo,jdbcType=DECIMAL}
+      and PHY_CODE = #{phyCode,jdbcType=VARCHAR}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktPrePerson">
+    <!--@mbg.generated-->
+    update TBL_TKT_PRE_PERSON
+    set PERSON_TYPE = #{personType,jdbcType=VARCHAR},
+      USER_NAME = #{userName,jdbcType=VARCHAR},
+      ID_TYPE = #{idType,jdbcType=VARCHAR},
+      ID = #{id,jdbcType=VARCHAR},
+      EMP_NO = #{empNo,jdbcType=VARCHAR},
+      WORK_UNIT = #{workUnit,jdbcType=VARCHAR}
+    where TASK_NO = #{taskNo,jdbcType=DECIMAL}
+      and PHY_CODE = #{phyCode,jdbcType=VARCHAR}
+  </update>
+    <select id="selectSelective"
+            resultMap="BaseResultMap">
+      SELECT
+      <include refid="Base_Column_List"/>
+      from
+      TBL_TKT_PRE_PERSON
+      <where>
+        <if test="taskNo != null and taskNo != ''">
+          TASK_NO = #{taskNo,jdbcType=NUMERIC}
+        </if>
+      </where>
+    </select>
+  <select id="selectByPrimary" resultMap="BaseResultMap">
+    SELECT
+    <include refid="Base_Column_List"/>
+    FROM
+    TBL_TKT_PRE_PERSON
+    WHERE
+    TASK_NO = #{taskNo,jdbcType=NUMERIC}
+    AND PHY_CODE = #{phyCode,jdbcType=VARCHAR}
+  </select>
+</mapper>

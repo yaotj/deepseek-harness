@@ -1,0 +1,40 @@
+package com.chinasofti.huateng.collectpay.model.request;
+
+/**
+ * IF8A-13 退款查询请求报文。
+ */
+public class RefundQueryReqDTO {
+    /**
+     * 退款订单号。
+     */
+    private String refundOrderNo;
+
+    /**
+     * 商户退款订单号。
+     */
+    private String merchantRefundNo;
+
+    public String getRefundOrderNo() {
+        return refundOrderNo;
+    }
+
+    public void setRefundOrderNo(String refundOrderNo) {
+        this.refundOrderNo = refundOrderNo;
+    }
+
+    public String getMerchantRefundNo() {
+        return merchantRefundNo;
+    }
+
+    public void setMerchantRefundNo(String merchantRefundNo) {
+        this.merchantRefundNo = merchantRefundNo;
+    }
+
+    @Override
+    public String toString() {
+        return "RefundQueryReqDTO{" +
+                "refundOrderNo='" + refundOrderNo + '\'' +
+                ", merchantRefundNo='" + merchantRefundNo + '\'' +
+                '}';
+    }
+}

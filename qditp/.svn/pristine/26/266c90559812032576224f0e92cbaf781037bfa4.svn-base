@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.account.mapper.UserItpRegLogMapper">
+    <insert id="insert" parameterType="com.chinasofti.huateng.account.entity.UserItpRegLog">
+        insert into User_ITP_Reg_log (
+            CARD_ID, CARD_TYPE, THIRD_USER_ID, MSISDN, OPER_DATE_TIME, OPER_TYPE
+        ) values (
+            #{cardId,jdbcType=VARCHAR},
+            #{cardType,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR},
+            #{msisdn,jdbcType=VARCHAR},
+            #{operDateTime,jdbcType=TIMESTAMP},
+            #{operType,jdbcType=INTEGER}
+        )
+    </insert>
+</mapper>

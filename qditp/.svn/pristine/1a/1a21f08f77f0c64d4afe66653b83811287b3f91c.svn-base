@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.ticket.mapper.QRCodeTxnDetailMapper">
+    <insert id="insert" parameterType="com.chinasofti.huateng.ticket.entity.QRCodeTxnDetail">
+        INSERT INTO QRCODE_TXN_DETAIL (
+            ID,
+            DEVICE_ID,
+            ITP_USER_ID,
+            TRX_TYPE,
+            ISSUE_CHANNEL_CODE,
+            SIGN_CHANNEL_CODE,
+            CARD_ID,
+            CARD_TYPE,
+            HANDLE_DATE_TIME,
+            TXN_DATE,
+            HANDLE_STATION_CODE,
+            TRX_AMOUNT,
+            OVERTIME_AMOUNT,
+            LAST_TICKET_STATUS,
+            HANDLE_RESULT_CODE,
+            LAST_HANDLE_STATION_CODE,
+            LAST_HANDLE_DATE_TIME,
+            TICKET_TRANS_SEQ,
+            RESERVE1,
+            RESERVE2,
+            CREATE_TIME
+        ) VALUES (
+            SEQ_QRCODE_TXN_DETAIL.NEXTVAL,
+            #{deviceId,jdbcType=VARCHAR},
+            #{itpUserId,jdbcType=VARCHAR},
+            #{trxType,jdbcType=VARCHAR},
+            #{issueChannelCode,jdbcType=VARCHAR},
+            #{signChannelCode,jdbcType=VARCHAR},
+            #{cardId,jdbcType=VARCHAR},
+            #{cardType,jdbcType=VARCHAR},
+            #{handleDateTime,jdbcType=VARCHAR},
+            #{txnDate,jdbcType=VARCHAR},
+            #{handleStationCode,jdbcType=VARCHAR},
+            #{trxAmount,jdbcType=NUMERIC},
+            #{overtimeAmount,jdbcType=NUMERIC},
+            #{lastTicketStatus,jdbcType=VARCHAR},
+            #{handleResultCode,jdbcType=VARCHAR},
+            #{lastHandleStationCode,jdbcType=VARCHAR},
+            #{lastHandleDateTime,jdbcType=VARCHAR},
+            #{ticketTransSeq,jdbcType=VARCHAR},
+            #{reserve1,jdbcType=VARCHAR},
+            #{reserve2,jdbcType=VARCHAR},
+            #{createTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+</mapper>

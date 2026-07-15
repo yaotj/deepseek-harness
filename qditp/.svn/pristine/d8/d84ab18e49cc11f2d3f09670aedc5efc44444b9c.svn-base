@@ -1,0 +1,20 @@
+package com.chinasofti.huateng;
+
+import com.chinasofti.huateng.micro.mybatis.adaptor.EnableDefaultMybatisAutoConfig;
+import com.chinasofti.huateng.paysign.config.PaySignProperties;
+import com.chinasofti.huateng.rpc.EnableRpcAccount;
+import com.chinasofti.huateng.rpc.EnableRpcRoute;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+
+@SpringBootApplication
+@EnableDefaultMybatisAutoConfig
+@EnableRpcRoute
+@EnableRpcAccount
+@EnableConfigurationProperties(PaySignProperties.class)
+public class PaySignServer {
+    public static void main(String[] args) {
+        SpringApplication.run(PaySignServer.class, args);
+    }
+}

@@ -1,0 +1,58 @@
+package com.chinasofti.huateng.common.response;
+
+public final class ResultMapper {
+    private ResultMapper() {
+    }
+
+    public static <T> ResultVO<T> ok() {
+        return new ResultVO<>();
+    }
+
+    public static <T> ResultVO<T> ok(T data) {
+        return new ResultVO<>(ResultVO.SUCCESS_CODE, ResultVO.SUCCESS_MSG, data);
+    }
+
+    public static <T> ResultVO<T> error() {
+        return new ResultVO<>(ResultVO.ERROR_CODE, ResultVO.ERROR_MSG);
+    }
+
+    public static <T> ResultVO<T> error(String msg) {
+        return new ResultVO<>(ResultVO.ERROR_CODE, isBlank(msg) ? ResultVO.ERROR_MSG : msg);
+    }
+
+    public static <T> ResultVO<T> illegalParams() {
+        return new ResultVO<>(ResultVO.ILLEGAL_PARAMS_CODE, ResultVO.ILLEGAL_PARAMS_MSG);
+    }
+
+    public static <T> ResultVO<T> illegalParams(String msg) {
+        return new ResultVO<>(ResultVO.ILLEGAL_PARAMS_CODE, isBlank(msg) ? ResultVO.ILLEGAL_PARAMS_MSG : msg);
+    }
+
+    public static <T> ResultVO<T> signError() {
+        return new ResultVO<>(ResultVO.SIGN_ERROR_CODE, ResultVO.SIGN_ERROR_MSG);
+    }
+
+    public static <T> ResultVO<T> signError(String msg) {
+        return new ResultVO<>(ResultVO.SIGN_ERROR_CODE, isBlank(msg) ? ResultVO.SIGN_ERROR_MSG : msg);
+    }
+
+    public static <T> ResultVO<T> circuitBreakerError() {
+        return new ResultVO<>(ResultVO.CIRCUIT_BREAKER_CODE, ResultVO.CIRCUIT_BREAKER_MSG);
+    }
+
+    public static <T> ResultVO<T> circuitBreakerError(String msg) {
+        return new ResultVO<>(ResultVO.CIRCUIT_BREAKER_CODE, isBlank(msg) ? ResultVO.CIRCUIT_BREAKER_MSG : msg);
+    }
+
+    public static <T> ResultVO<T> hsmUnavailable() {
+        return new ResultVO<>(ResultVO.HSM_UNAVAILABLE_CODE, ResultVO.HSM_UNAVAILABLE_MSG);
+    }
+
+    public static <T> ResultVO<T> hsmUnavailable(String msg) {
+        return new ResultVO<>(ResultVO.HSM_UNAVAILABLE_CODE, isBlank(msg) ? ResultVO.HSM_UNAVAILABLE_MSG : msg);
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+}

@@ -1,0 +1,286 @@
+openapi: 3.0.3
+info:
+  title: 青岛地铁 ITP 查询交易记录接口
+  description: IF8A-05 请求查询交易记录，供 Apifox 导入测试使用。
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: 本地开发环境
+paths:
+  /ci/app/requestTransList:
+    post:
+      tags:
+        - APP
+      summary: IF8A-05 请求查询交易记录
+      description: |
+        APP 发起交易记录查询请求，fep-app-server 接收后透传到 ticket-server 执行。
+        请求报文采用 application/x-www-form-urlencoded 格式，业务参数放在 bizData 字段中（JSON 字符串）。
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - providerId
+                - charset
+                - format
+                - timestamp
+                - deviceId
+                - signType
+                - sign
+                - bizData
+              properties:
+                providerId:
+                  type: string
+                  description: 服务提供商编码
+                  example: "01"
+                charset:
+                  type: string
+                  description: 字符集
+                  example: "UTF-8"
+                format:
+                  type: string
+                  description: 报文格式
+                  example: "json"
+                timestamp:
+                  type: string
+                  description: 请求时间戳 yyyyMMddHHmmss
+                  example: "20260626120000"
+                deviceId:
+                  type: string
+                  description: 设备编码
+                  example: "APP"
+                signType:
+                  type: string
+                  description: 签名类型 00 表示无签名
+                  example: "00"
+                sign:
+                  type: string
+                  description: 签名字段
+                  example: ""
+                bizData:
+                  type: string
+                  description: 业务参数 JSON 字符串
+                  example: '{"thirdUserId":"1001","cardId":"9900000000000001","cardType":"0441","pageNumber":1,"pageSize":10}'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  retCode:
+                    type: string
+                    description: 返回码
+                    example: "0000"
+                  retMsg:
+                    type: string
+                    description: 返回消息
+                    example: "成功"
+                  pageNumber:
+                    type: string
+                    description: 当前页
+                    example: "1"
+                  pageSize:
+                    type: string
+                    description: 每页记录数
+                    example: "10"
+                  totalPage:
+                    type: string
+                    description: 总页数
+                    example: "5"
+                  transList:
+                    type: array
+                    description: 交易记录列表
+                    items:
+                      $ref: '#/components/schemas/TransRecordDTO'
+        default:
+          description: 错误响应
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  retCode:
+                    type: string
+                    example: "9999"
+                  retMsg:
+                    type: string
+                    example: "系统内部错误"
+components:
+  schemas:
+    RequestTransListReqDTO:
+      type: object
+      description: IF8A-05 请求查询交易记录业务参数
+      properties:
+        thirdUserId:
+          type: string
+          description: 第三方用户id
+          example: "1001"
+        cardId:
+          type: string
+          description: 地铁会员卡号，支持多卡逗号隔开
+          example: "9900000000000001"
+        cardType:
+          type: string
+          description: 卡类型编码
+          example: "0441"
+        pageNumber:
+          type: integer
+          description: 当前页
+          example: 1
+        pageSize:
+          type: integer
+          description: 一页记录条数
+          example: 10
+        totalPage:
+          type: integer
+          description: 总页数
+          example: 5
+        startDate:
+          type: string
+          description: 开始日期 yyyy-MM-dd（非必填）
+          example: "2026-06-01"
+        endDate:
+          type: string
+          description: 结束日期 yyyy-MM-dd（非必填）
+          example: "2026-06-30"
+        debitRequestResult:
+          type: string
+          description: 扣款结果 空=全部，0=成功，1=失败
+          example: "0"
+        ticketCode:
+          type: string
+          description: 日票票号
+          example: ""
+    RequestTransListResult:
+      type: object
+      description: IF8A-05 应答
+      properties:
+        retCode:
+          type: string
+          description: 返回码
+          example: "0000"
+        retMsg:
+          type: string
+          description: 返回消息
+          example: "成功"
+        pageNumber:
+          type: string
+          description: 当前页
+          example: "1"
+        pageSize:
+          type: string
+          description: 一页记录条数
+          example: "10"
+        totalPage:
+          type: string
+          description: 总页数
+          example: "5"
+        ticketTransRecord:
+          type: array
+          description: 交易记录列表
+          items:
+            $ref: '#/components/schemas/TransRecordDTO'
+    TransRecordDTO:
+      type: object
+      description: IF8A-05 单条交易记录
+      properties:
+        entryStationName:
+          type: string
+          description: 进站名称
+          example: "青岛站"
+        entryDate:
+          type: string
+          description: 进站时间 YYYYMMDDHHmmss
+          example: "20260626120000"
+        exitStationName:
+          type: string
+          description: 出站名称
+          example: "五四广场站"
+        exitDate:
+          type: string
+          description: 出站时间 YYYYMMDDHHmmss
+          example: "20260626121000"
+        payAmount:
+          type: string
+          description: 支付金额（分）
+          example: "200"
+        orderExpType:
+          type: string
+          description: 订单异常类型
+          example: ""
+        tradeOrderNo:
+          type: string
+          description: 商户订单号
+          example: "202606261200000001"
+        payTradeOrderNo:
+          type: string
+          description: 支付交易订单号
+          example: ""
+        payOrderNoDate:
+          type: string
+          description: 扣款时间
+          example: "20260626120005"
+        payChannelCode:
+          type: string
+          description: 支付通道编码
+          example: "ALIPAY"
+        debitRequestResult:
+          type: string
+          description: 扣款结果
+          example: "0"
+        discountFee:
+          type: integer
+          description: 优惠金额（分）
+          example: 0
+        discountInfo:
+          type: array
+          description: 优惠详情（json数组）
+          example: []
+          items:
+            type: object
+            properties:
+              discountType:
+                type: string
+                description: 优惠类型
+              discountAmount:
+                type: integer
+                description: 优惠金额（分）
+              discountDesc:
+                type: string
+                description: 优惠描述
+        companionFlag:
+          type: string
+          description: 同行票标识 Y/N
+          example: "N"
+        cardNum:
+          type: string
+          description: 卡号
+          example: "9900000000000001"
+        ticketCode:
+          type: string
+          description: 日票的票号
+          example: ""
+        countingTimes:
+          type: integer
+          description: 计次票扣减次数
+          example: 1
+        countingFlag:
+          type: string
+          description: 是否是计次票 Y/N
+          example: "N"
+        offlineFlag:
+          type: string
+          description: 离线码标识
+          example: "N"
+        attributableParty:
+          type: string
+          description: 订单应收商户
+          example: "QD"
+        receivingParty:
+          type: string
+          description: 订单实收商户
+          example: "QD"

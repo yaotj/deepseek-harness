@@ -1,0 +1,171 @@
+package com.chinasofti.huateng.paysign.service.impl;
+
+import com.alibaba.fastjson2.JSON;
+import com.chinasofti.huateng.paysign.entity.PaySignRequest;
+import com.chinasofti.huateng.paysign.mapper.PaySignRequestMapper;
+import com.chinasofti.huateng.paysign.service.AppNotifyService;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+import jakarta.annotation.PreDestroy;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+@Service
+public class AppNotifyServiceImpl implements AppNotifyService {
+    private static final Logger log = LoggerFactory.getLogger(AppNotifyServiceImpl.class);
+
+    @Autowired
+    private PaySignRequestMapper paySignRequestMapper;
+
+    @Value("${app.notify.sign-result-url:http://dtcustomer.bestonepay.com/testngback/ci/app/receiveSignResult}")
+    private String notifySignResultUrl;
+
+    @Value("${app.notify.termination-result-url:http://127.0.0.1:8080/ci/app/receiveTerminationResultFromItp}")
+    private String notifyTerminationResultUrl;
+
+    // 异步线程池
+    private final ExecutorService notifyExecutor = Executors.newFixedThreadPool(4, r -> {
+        Thread t = new Thread(r, "app-notify-" + System.nanoTime());
+        t.setDaemon(true);
+        return t;
+    });
+
+    private final OkHttpClient httpClient = new OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .build();
+
+    @Override
+    public void asyncNotifySignResult(PaySignRequest request) {
+        notifyExecutor.submit(() -> {
+            try {
+                doNotifySignResult(request);
+            } catch (Exception e) {
+                log.error("异步通知App签约结果异常, requestSignSeq={}", request.getRequestSignSeq(), e);
+                updateNotifyStatus(request, false, "异步异常:" + e.getMessage());
+            }
+        });
+    }
+
+    @Override
+    public void asyncNotifyTerminationResult(PaySignRequest request) {
+        notifyExecutor.submit(() -> {
+            try {
+                doNotifyTerminationResult(request);
+            } catch (Exception e) {
+                log.error("异步通知App解约结果异常, requestSignSeq={}", request.getRequestSignSeq(), e);
+                updateNotifyStatus(request, false, "异步异常:" + e.getMessage());
+            }
+        });
+    }
+
+    private void doNotifySignResult(PaySignRequest request) {
+        try {
+            Map<String, Object> bizData = new HashMap<>();
+            bizData.put("requestSignSeq", request.getRequestSignSeq());
+            bizData.put("thirdUserId", request.getThirdUserId());
+            bizData.put("paymentVendor", request.getPaymentVendor());
+            bizData.put("signStatus", request.getSignStatus());
+            bizData.put("notifyTime", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")));
+
+            RequestBody requestBody = new MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("bizData", JSON.toJSONString(bizData))
+                    .build();
+
+            Request httpRequest = new Request.Builder()
+                    .url(notifySignResultUrl)
+                    .post(requestBody)
+                    .build();
+
+            try (Response response = httpClient.newCall(httpRequest).execute()) {
+                boolean success = response.isSuccessful();
+                updateNotifyStatus(request, success, success ? "通知成功" : "HTTP" + response.code());
+            }
+        } catch (Exception e) {
+            log.error("通知App签约结果异常, requestSignSeq={}", request.getRequestSignSeq(), e);
+            updateNotifyStatus(request, false, "异常:" + e.getMessage());
+        }
+    }
+
+    private void doNotifyTerminationResult(PaySignRequest request) {
+        try {
+            Map<String, Object> bizData = new HashMap<>();
+            bizData.put("requestSignSeq", request.getRequestSignSeq());
+            bizData.put("thirdUserId", request.getThirdUserId());
+            bizData.put("paymentVendor", request.getPaymentVendor());
+            bizData.put("signStatus", request.getSignStatus());
+            bizData.put("notifyTime", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")));
+
+            RequestBody requestBody = new MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("bizData", JSON.toJSONString(bizData))
+                    .build();
+
+            Request httpRequest = new Request.Builder()
+                    .url(notifyTerminationResultUrl)
+                    .post(requestBody)
+                    .build();
+
+            try (Response response = httpClient.newCall(httpRequest).execute()) {
+                boolean success = response.isSuccessful();
+                updateNotifyStatus(request, success, success ? "通知成功" : "HTTP" + response.code());
+            }
+        } catch (Exception e) {
+            log.error("通知App解约结果异常, requestSignSeq={}", request.getRequestSignSeq(), e);
+            updateNotifyStatus(request, false, "异常:" + e.getMessage());
+        }
+    }
+
+    @Override
+    @Scheduled(fixedDelay = 300000) // 每5分钟执行一次
+    public void compensateNotify() {
+        log.info("开始执行通知补偿任务");
+        List<PaySignRequest> failedList = paySignRequestMapper.selectByNotifyStatus("FAILED", 3);
+        for (PaySignRequest request : failedList) {
+            log.info("补偿通知, requestSignSeq={}, retryCount={}",
+                    request.getRequestSignSeq(), request.getNotifyRetryCount());
+
+            // 异步重试
+            if ("RECEIVE_SIGN_RESULT".equals(request.getOperationType())) {
+                notifyExecutor.submit(() -> doNotifySignResult(request));
+            } else {
+                notifyExecutor.submit(() -> doNotifyTerminationResult(request));
+            }
+        }
+        log.info("通知补偿任务完成, 处理{}条记录", failedList.size());
+    }
+
+    private void updateNotifyStatus(PaySignRequest request, boolean success, String result) {
+        PaySignRequest update = new PaySignRequest();
+        update.setId(request.getId());
+        update.setNotifyStatus(success ? "SUCCESS" : "FAILED");
+        update.setNotifyTime(LocalDateTime.now());
+        update.setNotifyResult(result);
+        if (!success) {
+            update.setNotifyRetryCount(request.getNotifyRetryCount() + 1);
+        }
+        paySignRequestMapper.updateNotifyStatus(update);
+    }
+
+    @PreDestroy
+    public void shutdown() {
+        notifyExecutor.shutdown();
+    }
+}

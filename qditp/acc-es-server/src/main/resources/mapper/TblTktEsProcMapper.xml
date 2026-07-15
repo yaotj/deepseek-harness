@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.acc.es.server.mapper.TblTktEsProcMapper">
+  <resultMap id="BaseResultMap" type="com.chinasofti.huateng.acc.es.server.model.TblTktEsProc">
+    <id column="TASK_NO" jdbcType="DECIMAL" property="taskNo" />
+    <id column="ES_CODE" jdbcType="CHAR" property="esCode" />
+    <id column="FILE_SEQ_NO" jdbcType="DECIMAL" property="fileSeqNo" />
+    <result column="REPORT_DATE" jdbcType="CHAR" property="reportDate" />
+    <result column="FILE_NM" jdbcType="VARCHAR" property="fileNm" />
+    <result column="REC_NUM" jdbcType="DECIMAL" property="recNum" />
+    <result column="PROC_NUM" jdbcType="DECIMAL" property="procNum" />
+    <result column="PROC_STAT" jdbcType="CHAR" property="procStat" />
+    <result column="LAST_UPD_ID" jdbcType="VARCHAR" property="lastUpdId" />
+    <result column="LAST_UPD_TMS" jdbcType="TIMESTAMP" property="lastUpdTms" />
+  </resultMap>
+  <sql id="Base_Column_List">
+    TASK_NO, ES_CODE, FILE_SEQ_NO, REPORT_DATE, FILE_NM, REC_NUM, PROC_NUM, PROC_STAT, 
+    LAST_UPD_ID, LAST_UPD_TMS
+  </sql>
+  <select id="selectByPrimaryKey" resultMap="BaseResultMap">
+    select 
+    <include refid="Base_Column_List" />
+    from TBL_TKT_ES_PROC
+    where TASK_NO = #{taskNo,jdbcType=DECIMAL}
+      and ES_CODE = #{esCode,jdbcType=CHAR}
+      and FILE_SEQ_NO = #{fileSeqNo,jdbcType=DECIMAL}
+  </select>
+    <select id="queryAll" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsProc" resultMap="BaseResultMap">
+      SELECT
+        <include refid="Base_Column_List"/>
+      FROM
+          TBL_TKT_ES_PROC
+        <where>
+          <if test="esCode != null and esCode != ''">
+            AND ES_CODE = #{esCode}
+          </if>
+          <if test="taskNo != null and taskNo != ''">
+            AND TASK_NO = #{taskNo}
+          </if>
+          <if test="fileNm != null and fileNm != ''">
+            AND FILE_NM = #{fileNm}
+          </if>
+          <if test="reportDate != null and reportDate != ''">
+            AND REPORT_DATE = #{reportDate}
+          </if>
+        </where>
+      ORDER BY TASK_NO DESC, ES_CODE, FILE_SEQ_NO
+
+    </select>
+    <delete id="deleteByPrimaryKey">
+    delete from TBL_TKT_ES_PROC
+    where TASK_NO = #{taskNo,jdbcType=DECIMAL}
+      and ES_CODE = #{esCode,jdbcType=CHAR}
+      and FILE_SEQ_NO = #{fileSeqNo,jdbcType=DECIMAL}
+  </delete>
+  <insert id="insert" keyColumn="TASK_NO" keyProperty="taskNo" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsProc" useGeneratedKeys="true">
+    insert into TBL_TKT_ES_PROC (TASK_NO,ES_CODE, FILE_SEQ_NO, REPORT_DATE,
+      FILE_NM, REC_NUM, PROC_NUM, 
+      PROC_STAT, LAST_UPD_ID, LAST_UPD_TMS
+      )
+    values (#{taskNo,jdbcType=CHAR},#{esCode,jdbcType=CHAR}, #{fileSeqNo,jdbcType=DECIMAL}, #{reportDate,jdbcType=CHAR},
+      #{fileNm,jdbcType=VARCHAR}, #{recNum,jdbcType=DECIMAL}, #{procNum,jdbcType=DECIMAL}, 
+      #{procStat,jdbcType=CHAR}, #{lastUpdId,jdbcType=VARCHAR}, SYSDATE
+      )
+  </insert>
+  <insert id="insertSelective" keyColumn="TASK_NO" keyProperty="taskNo" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsProc" useGeneratedKeys="true">
+    insert into TBL_TKT_ES_PROC
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="esCode != null">
+        ES_CODE,
+      </if>
+      <if test="fileSeqNo != null">
+        FILE_SEQ_NO,
+      </if>
+      <if test="reportDate != null">
+        REPORT_DATE,
+      </if>
+      <if test="fileNm != null">
+        FILE_NM,
+      </if>
+      <if test="recNum != null">
+        REC_NUM,
+      </if>
+      <if test="procNum != null">
+        PROC_NUM,
+      </if>
+      <if test="procStat != null">
+        PROC_STAT,
+      </if>
+      <if test="lastUpdId != null">
+        LAST_UPD_ID,
+      </if>
+      <if test="lastUpdTms != null">
+        LAST_UPD_TMS,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="esCode != null">
+        #{esCode,jdbcType=CHAR},
+      </if>
+      <if test="fileSeqNo != null">
+        #{fileSeqNo,jdbcType=DECIMAL},
+      </if>
+      <if test="reportDate != null">
+        #{reportDate,jdbcType=CHAR},
+      </if>
+      <if test="fileNm != null">
+        #{fileNm,jdbcType=VARCHAR},
+      </if>
+      <if test="recNum != null">
+        #{recNum,jdbcType=DECIMAL},
+      </if>
+      <if test="procNum != null">
+        #{procNum,jdbcType=DECIMAL},
+      </if>
+      <if test="procStat != null">
+        #{procStat,jdbcType=CHAR},
+      </if>
+      <if test="lastUpdId != null">
+        #{lastUpdId,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdTms != null">
+        SYSDATE,
+      </if>
+    </trim>
+  </insert>
+  <update id="updateByPrimaryKeySelective" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsProc">
+    update TBL_TKT_ES_PROC
+    <set>
+      <if test="reportDate != null">
+        REPORT_DATE = #{reportDate,jdbcType=CHAR},
+      </if>
+      <if test="fileNm != null">
+        FILE_NM = #{fileNm,jdbcType=VARCHAR},
+      </if>
+      <if test="recNum != null">
+        REC_NUM = #{recNum,jdbcType=DECIMAL},
+      </if>
+      <if test="procNum != null">
+        PROC_NUM = #{procNum,jdbcType=DECIMAL},
+      </if>
+      <if test="procStat != null">
+        PROC_STAT = #{procStat,jdbcType=CHAR},
+      </if>
+      <if test="lastUpdId != null">
+        LAST_UPD_ID = #{lastUpdId,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdTms != null">
+        LAST_UPD_TMS = SYSDATE,
+      </if>
+    </set>
+    where TASK_NO = #{taskNo,jdbcType=DECIMAL}
+      and ES_CODE = #{esCode,jdbcType=CHAR}
+      and FILE_SEQ_NO = #{fileSeqNo,jdbcType=DECIMAL}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsProc">
+    update TBL_TKT_ES_PROC
+    set REPORT_DATE = #{reportDate,jdbcType=CHAR},
+      FILE_NM = #{fileNm,jdbcType=VARCHAR},
+      REC_NUM = #{recNum,jdbcType=DECIMAL},
+      PROC_NUM = #{procNum,jdbcType=DECIMAL},
+      PROC_STAT = #{procStat,jdbcType=CHAR},
+      LAST_UPD_ID = #{lastUpdId,jdbcType=VARCHAR},
+      LAST_UPD_TMS = SYSDATE
+    where TASK_NO = #{taskNo,jdbcType=DECIMAL}
+      and ES_CODE = #{esCode,jdbcType=CHAR}
+      and FILE_SEQ_NO = #{fileSeqNo,jdbcType=DECIMAL}
+  </update>
+</mapper>

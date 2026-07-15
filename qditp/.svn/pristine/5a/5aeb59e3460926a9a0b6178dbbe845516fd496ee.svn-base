@@ -1,0 +1,172 @@
+ package com.chinasofti.huateng.collectpay.model.response;
+
+ /**
+  * IF8A-10 支付查询响应报文。
+  */
+ public class PayQueryRespDTO {
+     /**
+      * 返回码。
+      */
+     private String retCode;
+
+     /**
+      * 返回消息。
+      */
+     private String retMsg;
+
+     /**
+      * 订单号。
+      */
+     private String orderNo;
+
+     /**
+      * 商户订单号。
+      */
+     private String merchantOrderNo;
+
+     /**
+      * 渠道订单号。
+      */
+     private String channelOrderNo;
+
+     /**
+      * 交易状态。
+      */
+     private String status;
+
+     /**
+      * 支付时间（格式：yyyyMMddHHmmss）。
+      */
+     private String payDate;
+
+     /**
+      * 订单总金额（分）。
+      */
+     private Integer totalAmount;
+
+     /**
+      * 现金支付金额（分）。
+      */
+     private Integer cashAmount;
+
+     /**
+      * 优惠金额（分）。
+      */
+     private Integer couponAmount;
+
+     /**
+      * 渠道账户。
+      */
+     private String channelAccount;
+
+     /**
+      * 支付方式。
+      */
+     private String paymentVendor;
+
+     public String getRetCode() {
+         return retCode;
+     }
+
+     public void setRetCode(String retCode) {
+         this.retCode = retCode;
+     }
+
+     public String getRetMsg() {
+         return retMsg;
+     }
+
+     public void setRetMsg(String retMsg) {
+         this.retMsg = retMsg;
+     }
+
+     public String getOrderNo() {
+         return orderNo;
+     }
+
+     public void setOrderNo(String orderNo) {
+         this.orderNo = orderNo;
+     }
+
+     public String getMerchantOrderNo() {
+         return merchantOrderNo;
+     }
+
+     public void setMerchantOrderNo(String merchantOrderNo) {
+         this.merchantOrderNo = merchantOrderNo;
+     }
+
+     public String getChannelOrderNo() {
+         return channelOrderNo;
+     }
+
+     public void setChannelOrderNo(String channelOrderNo) {
+         this.channelOrderNo = channelOrderNo;
+     }
+
+     public String getStatus() {
+         return status;
+     }
+
+     public void setStatus(String status) {
+         this.status = status;
+     }
+
+     public String getPayDate() {
+         return payDate;
+     }
+
+     public void setPayDate(String payDate) {
+         this.payDate = payDate;
+     }
+
+     public Integer getTotalAmount() {
+         return totalAmount;
+     }
+
+     public void setTotalAmount(Integer totalAmount) {
+         this.totalAmount = totalAmount;
+     }
+
+     public Integer getCashAmount() {
+         return cashAmount;
+     }
+
+     public void setCashAmount(Integer cashAmount) {
+         this.cashAmount = cashAmount;
+     }
+
+     public Integer getCouponAmount() {
+         return couponAmount;
+     }
+
+     public void setCouponAmount(Integer couponAmount) {
+         this.couponAmount = couponAmount;
+     }
+
+     public String getChannelAccount() {
+         return channelAccount;
+     }
+
+     public void setChannelAccount(String channelAccount) {
+         this.channelAccount = channelAccount;
+     }
+
+     public String getPaymentVendor() {
+         return paymentVendor;
+     }
+
+     public void setPaymentVendor(String paymentVendor) {
+         this.paymentVendor = paymentVendor;
+     }
+
+     @Override
+     public String toString() {
+         return "PayQueryRespDTO{" +
+                 "retCode='" + retCode + '\'' +
+                 ", retMsg='" + retMsg + '\'' +
+                 ", orderNo='" + orderNo + '\'' +
+                 ", status='" + status + '\'' +
+                 '}';
+     }
+ }

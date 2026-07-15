@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.ticket.mapper.QRCodeStatusMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.ticket.entity.QRCodeStatus">
+        <id column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="USE_COUNT" jdbcType="INTEGER" property="useCount"/>
+        <result column="CHANNEL" jdbcType="VARCHAR" property="channel"/>
+        <result column="CODE_STATUS" jdbcType="VARCHAR" property="codeStatus"/>
+        <result column="GATE_IN_TIME" jdbcType="VARCHAR" property="gateInTime"/>
+        <result column="GATE_IN_STATION" jdbcType="VARCHAR" property="gateInStation"/>
+        <result column="LAST_TXN_TIME" jdbcType="VARCHAR" property="lastTxnTime"/>
+        <result column="LAST_TXN_STATION" jdbcType="VARCHAR" property="lastTxnStation"/>
+        <result column="TXN_SEQ" jdbcType="VARCHAR" property="txnSeq"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
+        <result column="GATE_STATUS" jdbcType="VARCHAR" property="gateStatus"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        CARD_ID, USE_COUNT, CHANNEL, CODE_STATUS, GATE_IN_TIME, GATE_IN_STATION,
+        LAST_TXN_TIME, LAST_TXN_STATION, TXN_SEQ, CREATE_TIME, UPDATE_TIME, GATE_STATUS
+    </sql>
+
+    <select id="selectByCardId" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from QRCODE_STATUS
+        where CARD_ID = #{cardId,jdbcType=VARCHAR}
+    </select>
+
+    <insert id="upsert" parameterType="com.chinasofti.huateng.ticket.entity.QRCodeStatus">
+        MERGE INTO QRCODE_STATUS T
+        USING (
+            SELECT
+                #{cardId,jdbcType=VARCHAR} AS CARD_ID,
+                #{useCount,jdbcType=INTEGER} AS USE_COUNT,
+                #{channel,jdbcType=VARCHAR} AS CHANNEL,
+                #{codeStatus,jdbcType=VARCHAR} AS CODE_STATUS,
+                #{gateInTime,jdbcType=VARCHAR} AS GATE_IN_TIME,
+                #{gateInStation,jdbcType=VARCHAR} AS GATE_IN_STATION,
+                #{lastTxnTime,jdbcType=VARCHAR} AS LAST_TXN_TIME,
+                #{lastTxnStation,jdbcType=VARCHAR} AS LAST_TXN_STATION,
+                #{txnSeq,jdbcType=VARCHAR} AS TXN_SEQ,
+                #{createTime,jdbcType=TIMESTAMP} AS CREATE_TIME,
+                #{updateTime,jdbcType=TIMESTAMP} AS UPDATE_TIME,
+                #{gateStatus,jdbcType=VARCHAR} AS GATE_STATUS
+            FROM DUAL
+        ) S
+        ON (T.CARD_ID = S.CARD_ID)
+        WHEN MATCHED THEN UPDATE SET
+            T.USE_COUNT = S.USE_COUNT,
+            T.CHANNEL = S.CHANNEL,
+            T.CODE_STATUS = S.CODE_STATUS,
+            T.GATE_IN_TIME = S.GATE_IN_TIME,
+            T.GATE_IN_STATION = S.GATE_IN_STATION,
+            T.LAST_TXN_TIME = S.LAST_TXN_TIME,
+            T.LAST_TXN_STATION = S.LAST_TXN_STATION,
+            T.TXN_SEQ = S.TXN_SEQ,
+            T.UPDATE_TIME = S.UPDATE_TIME,
+            T.GATE_STATUS = S.GATE_STATUS
+        WHEN NOT MATCHED THEN INSERT (
+            CARD_ID, USE_COUNT, CHANNEL, CODE_STATUS, GATE_IN_TIME, GATE_IN_STATION,
+            LAST_TXN_TIME, LAST_TXN_STATION, TXN_SEQ, CREATE_TIME, UPDATE_TIME, GATE_STATUS
+        ) VALUES (
+            S.CARD_ID, S.USE_COUNT, S.CHANNEL, S.CODE_STATUS, S.GATE_IN_TIME, S.GATE_IN_STATION,
+            S.LAST_TXN_TIME, S.LAST_TXN_STATION, S.TXN_SEQ, S.CREATE_TIME, S.UPDATE_TIME, S.GATE_STATUS
+        )
+    </insert>
+</mapper>

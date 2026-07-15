@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.account.mapper.UserAccTicketNoMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.account.entity.UserAccTicketNo">
+        <id column="ID" jdbcType="INTEGER" property="id"/>
+        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="INSERT_TMS" jdbcType="TIMESTAMP" property="insertTms"/>
+        <result column="REG_TMS" jdbcType="TIMESTAMP" property="regTms"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ID, CARD_ID, THIRD_USER_ID, INSERT_TMS, REG_TMS
+    </sql>
+
+    <select id="selectUnusedCard" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from (
+            select
+            <include refid="Base_Column_List"/>
+            from User_ACC_TicketNo
+            where THIRD_USER_ID is null
+            order by INSERT_TMS asc
+        ) T
+        where rownum = 1
+    </select>
+
+    <select id="countUnusedCards" resultType="java.lang.Long">
+        select count(1)
+        from User_ACC_TicketNo
+        where THIRD_USER_ID is null
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.account.entity.UserAccTicketNo">
+        insert into User_ACC_TicketNo (
+            CARD_ID, THIRD_USER_ID, INSERT_TMS, REG_TMS
+        ) values (
+            #{cardId,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR},
+            #{insertTms,jdbcType=TIMESTAMP},
+            #{regTms,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <insert id="batchInsert">
+        insert all
+        <foreach collection="list" item="item">
+            into User_ACC_TicketNo (
+                CARD_ID, THIRD_USER_ID, INSERT_TMS, REG_TMS
+            ) values (
+                #{item.cardId,jdbcType=VARCHAR},
+                #{item.thirdUserId,jdbcType=VARCHAR},
+                #{item.insertTms,jdbcType=TIMESTAMP},
+                #{item.regTms,jdbcType=TIMESTAMP}
+            )
+        </foreach>
+        select 1 from dual
+    </insert>
+
+    <update id="updateAllocateCard">
+        update User_ACC_TicketNo
+        set THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR},
+            REG_TMS = #{regTms,jdbcType=TIMESTAMP}
+        where ID = #{id,jdbcType=INTEGER}
+          and THIRD_USER_ID is null
+    </update>
+</mapper>

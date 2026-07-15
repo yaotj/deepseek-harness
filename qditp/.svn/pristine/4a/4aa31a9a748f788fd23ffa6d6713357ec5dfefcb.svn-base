@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.ticket.mapper.QRCodeTxnDetailMapper">
+    <insert id="insert" parameterType="com.chinasofti.huateng.ticket.entity.QRCodeTxnDetail">
+        INSERT INTO QRCODE_TXN_DETAIL (
+            ID,
+            DEVICE_ID,
+            ITP_USER_ID,
+            TRX_TYPE,
+            ISSUE_CHANNEL_CODE,
+            SIGN_CHANNEL_CODE,
+            CARD_ID,
+            CARD_TYPE,
+            HANDLE_DATE_TIME,
+            TXN_DATE,
+            HANDLE_STATION_CODE,
+            TRX_AMOUNT,
+            OVERTIME_AMOUNT,
+            LAST_TICKET_STATUS,
+            HANDLE_RESULT_CODE,
+            LAST_HANDLE_STATION_CODE,
+            LAST_HANDLE_DATE_TIME,
+            TICKET_TRANS_SEQ,
+            RESERVE1,
+            RESERVE2,
+            CREATE_TIME
+        ) VALUES (
+            SEQ_QRCODE_TXN_DETAIL.NEXTVAL,
+            #{deviceId,jdbcType=VARCHAR},
+            #{itpUserId,jdbcType=VARCHAR},
+            #{trxType,jdbcType=VARCHAR},
+            #{issueChannelCode,jdbcType=VARCHAR},
+            #{signChannelCode,jdbcType=VARCHAR},
+            #{cardId,jdbcType=VARCHAR},
+            #{cardType,jdbcType=VARCHAR},
+            #{handleDateTime,jdbcType=VARCHAR},
+            #{txnDate,jdbcType=VARCHAR},
+            #{handleStationCode,jdbcType=VARCHAR},
+            #{trxAmount,jdbcType=NUMERIC},
+            #{overtimeAmount,jdbcType=NUMERIC},
+            #{lastTicketStatus,jdbcType=VARCHAR},
+            #{handleResultCode,jdbcType=VARCHAR},
+            #{lastHandleStationCode,jdbcType=VARCHAR},
+            #{lastHandleDateTime,jdbcType=VARCHAR},
+            #{ticketTransSeq,jdbcType=VARCHAR},
+            #{reserve1,jdbcType=VARCHAR},
+            #{reserve2,jdbcType=VARCHAR},
+            #{createTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <select id="selectLatestByCardId" resultType="com.chinasofti.huateng.ticket.entity.QRCodeTxnDetail">
+        SELECT *
+        FROM (
+            SELECT
+                ID AS id,
+                DEVICE_ID AS deviceId,
+                ITP_USER_ID AS itpUserId,
+                TRX_TYPE AS trxType,
+                ISSUE_CHANNEL_CODE AS issueChannelCode,
+                SIGN_CHANNEL_CODE AS signChannelCode,
+                CARD_ID AS cardId,
+                CARD_TYPE AS cardType,
+                HANDLE_DATE_TIME AS handleDateTime,
+                TXN_DATE AS txnDate,
+                HANDLE_STATION_CODE AS handleStationCode,
+                TRX_AMOUNT AS trxAmount,
+                OVERTIME_AMOUNT AS overtimeAmount,
+                LAST_TICKET_STATUS AS lastTicketStatus,
+                HANDLE_RESULT_CODE AS handleResultCode,
+                LAST_HANDLE_STATION_CODE AS lastHandleStationCode,
+                LAST_HANDLE_DATE_TIME AS lastHandleDateTime,
+                TICKET_TRANS_SEQ AS ticketTransSeq,
+                RESERVE1 AS reserve1,
+                RESERVE2 AS reserve2,
+                CREATE_TIME AS createTime
+            FROM QRCODE_TXN_DETAIL
+            WHERE CARD_ID = #{cardId,jdbcType=VARCHAR}
+            ORDER BY HANDLE_DATE_TIME DESC, ID DESC
+        )
+        WHERE ROWNUM = 1
+    </select>
+</mapper>

@@ -1,0 +1,36 @@
+package com.chinasofti.huateng.ticket.constant;
+
+/**
+ * ticket-server 错误码枚举。
+ */
+public enum TicketErrorCodeEnum {
+    SUCCESS("0000", "成功"),
+    FAIL("9999", "失败"),
+    SYSTEM_ERROR("9001", "系统内部错误"),
+    INVALID_PARAM("8001", "无效的参数"),
+    QR_CODE_NOT_FOUND("8004", "没有账号卡片数据"),
+    CODE_STATUS_NORMAL("8301", "码状态正常，无需更新"),
+    EXIT_STATION_SUCCESS("8302", "补出站成功"),
+    ENTRY_STATION_SUCCESS("8303", "补进站成功"),
+    AGM_RETURN_STATUS_ABNORMAL1("8401", "AGM返回值状态异常"),
+    AGM_RETURN_STATUS_ABNORMAL2("8402", "AGM返回值状态异常"),
+    ACC_COMM_ERROR("8501", "ACC通讯异常"),
+    ACC_RETURN_STATUS_ABNORMAL("8502", "ACC返回值状态异常"),
+    NO_ENTRY_RECORD("8304", "没有进站记录，无法补出站");
+
+    private final String code;
+    private final String msg;
+
+    TicketErrorCodeEnum(String code, String msg) {
+        this.code = code;
+        this.msg = msg;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public String getMsg() {
+        return msg;
+    }
+}

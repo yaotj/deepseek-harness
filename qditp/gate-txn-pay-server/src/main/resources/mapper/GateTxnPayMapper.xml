@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.gatetxnpay.mapper.GateTxnPayMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.gatetxnpay.entity.GateTxnPay">
+        <id column="ID" jdbcType="NUMERIC" property="id"/>
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="DEBIT_STATUS" jdbcType="VARCHAR" property="debitStatus"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
+        <result column="DEVICE_ID" jdbcType="VARCHAR" property="deviceId"/>
+        <result column="TRX_TYPE" jdbcType="VARCHAR" property="trxType"/>
+        <result column="TICKET_TRANS_SEQ" jdbcType="VARCHAR" property="ticketTransSeq"/>
+        <result column="IN_STATION" jdbcType="VARCHAR" property="inStation"/>
+        <result column="IN_TIME" jdbcType="VARCHAR" property="inTime"/>
+        <result column="OUT_STATION" jdbcType="VARCHAR" property="outStation"/>
+        <result column="OUT_TIME" jdbcType="VARCHAR" property="outTime"/>
+        <result column="TXN_DATE" jdbcType="VARCHAR" property="txnDate"/>
+        <result column="TRX_AMOUNT" jdbcType="NUMERIC" property="trxAmount"/>
+        <result column="OVERTIME_AMOUNT" jdbcType="NUMERIC" property="overtimeAmount"/>
+        <result column="TOTAL_AMOUNT" jdbcType="NUMERIC" property="totalAmount"/>
+        <result column="ISSUE_CHANNEL_CODE" jdbcType="VARCHAR" property="issueChannelCode"/>
+        <result column="SIGN_CHANNEL_CODE" jdbcType="VARCHAR" property="signChannelCode"/>
+        <result column="REMARK" jdbcType="VARCHAR" property="remark"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ID, ORDER_NO, DEBIT_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE, DEVICE_ID,
+        TRX_TYPE, TICKET_TRANS_SEQ, IN_STATION, IN_TIME, OUT_STATION, OUT_TIME,
+        TXN_DATE, TRX_AMOUNT, OVERTIME_AMOUNT, TOTAL_AMOUNT, ISSUE_CHANNEL_CODE,
+        SIGN_CHANNEL_CODE, REMARK, CREATE_TIME, UPDATE_TIME
+    </sql>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.gatetxnpay.entity.GateTxnPay">
+        INSERT INTO GATE_TXN_PAY (
+            ID, ORDER_NO, DEBIT_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE, DEVICE_ID,
+            TRX_TYPE, TICKET_TRANS_SEQ, IN_STATION, IN_TIME, OUT_STATION, OUT_TIME,
+            TXN_DATE, TRX_AMOUNT, OVERTIME_AMOUNT, TOTAL_AMOUNT, ISSUE_CHANNEL_CODE,
+            SIGN_CHANNEL_CODE, REMARK, CREATE_TIME, UPDATE_TIME
+        ) VALUES (
+            SEQ_GATE_TXN_PAY.NEXTVAL,
+            #{orderNo,jdbcType=VARCHAR},
+            #{debitStatus,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR},
+            #{cardId,jdbcType=VARCHAR},
+            #{cardType,jdbcType=VARCHAR},
+            #{deviceId,jdbcType=VARCHAR},
+            #{trxType,jdbcType=VARCHAR},
+            #{ticketTransSeq,jdbcType=VARCHAR},
+            #{inStation,jdbcType=VARCHAR},
+            #{inTime,jdbcType=VARCHAR},
+            #{outStation,jdbcType=VARCHAR},
+            #{outTime,jdbcType=VARCHAR},
+            #{txnDate,jdbcType=VARCHAR},
+            #{trxAmount,jdbcType=NUMERIC},
+            #{overtimeAmount,jdbcType=NUMERIC},
+            #{totalAmount,jdbcType=NUMERIC},
+            #{issueChannelCode,jdbcType=VARCHAR},
+            #{signChannelCode,jdbcType=VARCHAR},
+            #{remark,jdbcType=VARCHAR},
+            #{createTime,jdbcType=TIMESTAMP},
+            #{updateTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <select id="selectByBizKey" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM GATE_TXN_PAY
+        WHERE CARD_ID = #{cardId,jdbcType=VARCHAR}
+          AND TRX_TYPE = #{trxType,jdbcType=VARCHAR}
+          AND OUT_TIME = #{outTime,jdbcType=VARCHAR}
+          AND NVL(TICKET_TRANS_SEQ, ' ') = NVL(#{ticketTransSeq,jdbcType=VARCHAR}, ' ')
+          AND NVL(DEVICE_ID, ' ') = NVL(#{deviceId,jdbcType=VARCHAR}, ' ')
+          AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
+    </select>
+
+    <update id="updateStatus">
+        UPDATE GATE_TXN_PAY
+        SET DEBIT_STATUS = #{debitStatus,jdbcType=VARCHAR},
+            REMARK = #{remark,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
+    </update>
+</mapper>

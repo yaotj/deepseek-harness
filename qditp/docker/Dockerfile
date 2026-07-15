@@ -1,0 +1,3 @@
+FROM os-harbor-svc.default.svc.cloudos:443/itp/jdk:21
+
+COPY app.jar /app.jar

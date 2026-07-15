@@ -1,0 +1,198 @@
+openapi: 3.0.3
+info:
+  title: 青岛地铁 ITP - 支付宝出行接口规范（开户与签约）
+  description: 支付宝出行开户、签约、解约相关接口。与 IF8A 标准接口体系独立，路径前缀为 /channel。
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: 本地开发环境
+paths:
+  /channel/addContract:
+    post:
+      summary: 支付宝出行-添加签约信息
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripAddContractRespDTO'
+  /channel/terminateContract:
+    post:
+      summary: 支付宝出行-解约登记
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripTerminateContractRespDTO'
+  /channel/requestApplication:
+    post:
+      summary: 支付宝出行-开卡申请
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripRequestApplicationRespDTO'
+  /channel/requestIndustryData:
+    post:
+      summary: 支付宝出行-获取行业数据
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripRequestIndustryDataRespDTO'
+components:
+  schemas:
+    CommonFormRequest:
+      type: object
+      description: FormData 格式公共请求包装类，bizData 为 JSON 字符串。
+      properties:
+        providerId:
+          type: string
+          example: "01"
+        charset:
+          type: string
+          example: "UTF-8"
+        format:
+          type: string
+          example: "json"
+        timestamp:
+          type: string
+          example: "20260626120000"
+        deviceId:
+          type: string
+          example: "APP"
+        signType:
+          type: string
+          example: "00"
+        sign:
+          type: string
+          example: ""
+        bizData:
+          type: string
+          example: "{}"
+    CommonResult:
+      type: object
+      description: 通用响应基类
+      properties:
+        retCode:
+          type: string
+          example: "0000"
+        retMsg:
+          type: string
+          example: "成功"
+    AlipayTripAddContractReqDTO:
+      type: object
+      description: 添加签约信息请求参数
+      properties:
+        channel:
+          type: string
+          example: "ALIPAY"
+        thirdUserId:
+          type: string
+          example: "1001"
+        agreementCode:
+          type: string
+          example: "AGT2026062600001"
+        channelAgreementCode:
+          type: string
+          example: "2026062600001"
+        channelUserAccount:
+          type: string
+          example: "2088xxx"
+        cardIssueCode:
+          type: string
+          example: "0007"
+    AlipayTripAddContractRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+    AlipayTripTerminateContractReqDTO:
+      type: object
+      description: 解约登记请求参数
+      properties:
+        agreementCode:
+          type: string
+          example: "AGT2026062600001"
+        merchantNo:
+          type: string
+          example: "MCH001"
+    AlipayTripTerminateContractRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+    AlipayTripRequestApplicationReqDTO:
+      type: object
+      description: 开卡申请请求参数
+      properties:
+        thirdUserId:
+          type: string
+          example: "1001"
+        cardType:
+          type: string
+          example: "02"
+        msisdn:
+          type: string
+          example: "74955953457"
+        extend1:
+          type: string
+        extend2:
+          type: string
+        cardIssueCode:
+          type: string
+          example: "0007"
+    AlipayTripRequestApplicationRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            cardId:
+              type: string
+              example: "9900000000000001"
+    AlipayTripRequestIndustryDataReqDTO:
+      type: object
+      description: 获取行业数据请求参数
+      properties:
+        thirdUserId:
+          type: string
+          example: "1001"
+        cardId:
+          type: string
+          example: "9900000000000001"
+        cardType:
+          type: string
+          example: "02"
+    AlipayTripRequestIndustryDataRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object

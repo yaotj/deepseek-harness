@@ -1,0 +1,25 @@
+package com.chinasofti.huateng.paysign.controller.ci.app;
+
+import com.chinasofti.huateng.model.app.RequestSignInfoReqDTO;
+import com.chinasofti.huateng.model.app.RequestSignInfoResult;
+import com.chinasofti.huateng.paysign.service.PaySignService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class PaySignController {
+    private static final Logger log = LoggerFactory.getLogger(PaySignController.class);
+
+    @Autowired
+    private PaySignService paySignService;
+
+    @PostMapping("/requestSignInfo")
+    public RequestSignInfoResult requestSignInfo(@RequestBody RequestSignInfoReqDTO request) {
+        log.info("接收到请求签约信息报文: {}", request);
+        return paySignService.requestSignInfo(request);
+    }
+}

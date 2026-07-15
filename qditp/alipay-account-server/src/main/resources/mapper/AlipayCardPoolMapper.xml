@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.alipay.account.mapper.AlipayCardPoolMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.alipay.account.entity.AlipayCardPool">
+        <id column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="STATUS" jdbcType="VARCHAR" property="status"/>
+        <result column="INSERT_TMS" jdbcType="TIMESTAMP" property="insertTms"/>
+        <result column="REG_TMS" jdbcType="TIMESTAMP" property="regTms"/>
+        <result column="DELETE_FLAG" jdbcType="VARCHAR" property="deleteFlag"/>
+        <result column="VERSION" jdbcType="VARCHAR" property="version"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        CARD_ID, THIRD_USER_ID, STATUS, INSERT_TMS, REG_TMS, DELETE_FLAG, VERSION, CREATE_TIME, UPDATE_TIME
+    </sql>
+
+    <select id="selectNextAvailableCard" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from ALIPAY_CARD_POOL
+        where DELETE_FLAG = '0'
+          and STATUS = 'UNASSIGNED'
+        order by CARD_ID
+        fetch first 1 rows only
+    </select>
+
+    <update id="updateCardStatus" parameterType="com.chinasofti.huateng.alipay.account.entity.AlipayCardPool">
+        update ALIPAY_CARD_POOL
+        set STATUS = #{status,jdbcType=VARCHAR},
+            THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR},
+            REG_TMS = SYSDATE,
+            UPDATE_TIME = SYSDATE
+        where CARD_ID = #{cardId,jdbcType=VARCHAR}
+          and DELETE_FLAG = '0'
+    </update>
+
+    <select id="selectUnusedCard" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from ALIPAY_CARD_POOL
+        where DELETE_FLAG = '0'
+          and STATUS = 'UNASSIGNED'
+        order by CARD_ID
+        fetch first 1 rows only
+    </select>
+
+    <select id="countUnusedCards" resultType="long">
+        select count(*) from ALIPAY_CARD_POOL
+        where DELETE_FLAG = '0'
+          and STATUS = 'UNASSIGNED'
+    </select>
+
+    <update id="updateAllocateCard">
+        update ALIPAY_CARD_POOL
+        set STATUS = 'ASSIGNED',
+            THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR},
+            REG_TMS = #{regTms,jdbcType=TIMESTAMP},
+            UPDATE_TIME = SYSDATE
+        where CARD_ID = #{id,jdbcType=VARCHAR}
+          and DELETE_FLAG = '0'
+          and STATUS = 'UNASSIGNED'
+    </update>
+
+    <insert id="batchInsert" parameterType="com.chinasofti.huateng.alipay.account.entity.AlipayCardPool">
+        insert all
+        <foreach collection="list" item="item">
+            into ALIPAY_CARD_POOL (
+                CARD_ID, STATUS, DELETE_FLAG, VERSION, CREATE_TIME, UPDATE_TIME, INSERT_TMS
+            ) values (
+                #{item.cardId,jdbcType=VARCHAR},
+                'UNASSIGNED',
+                '0',
+                '1',
+                SYSDATE,
+                SYSDATE,
+                SYSDATE
+            )
+        </foreach>
+        select 1 from dual
+    </insert>
+</mapper>

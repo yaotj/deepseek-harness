@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.collectticket.mapper.TicketCollectLogDetailMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.collectticket.entity.TicketCollectLogDetail">
+        <id column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="ACTUAL_TAKE_TICKET_NUM" jdbcType="INTEGER" property="actualTakeTicketNum"/>
+        <result column="IN_ORDER_NO" jdbcType="INTEGER" property="inOrderNo"/>
+        <result column="TAKE_TICKET_DATE" jdbcType="TIMESTAMP" property="takeTickeDate"/>
+        <result column="TICKET_LOGIC_NUM" jdbcType="VARCHAR" property="ticketLogicNum"/>
+        <result column="TRANS_DATE" jdbcType="TIMESTAMP" property="transDate"/>
+        <result column="TRANS_AMOUNT" jdbcType="VARCHAR" property="transAmount"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ORDER_NO, ACTUAL_TAKE_TICKET_NUM, IN_ORDER_NO, TAKE_TICKET_DATE, TICKET_LOGIC_NUM,
+        TRANS_DATE, TRANS_AMOUNT
+    </sql>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from Ticket_Collect_Log_Detail
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+        order by IN_ORDER_NO
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.collectticket.entity.TicketCollectLogDetail">
+        insert into Ticket_Collect_Log_Detail (
+            ORDER_NO, ACTUAL_TAKE_TICKET_NUM, IN_ORDER_NO, TAKE_TICKET_DATE, TICKET_LOGIC_NUM,
+            TRANS_DATE, TRANS_AMOUNT
+        ) values (
+            #{orderNo,jdbcType=VARCHAR},
+            #{actualTakeTicketNum,jdbcType=INTEGER},
+            #{inOrderNo,jdbcType=INTEGER},
+            #{takeTickeDate,jdbcType=TIMESTAMP},
+            #{ticketLogicNum,jdbcType=VARCHAR},
+            #{transDate,jdbcType=TIMESTAMP},
+            #{transAmount,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <insert id="insertBatch" parameterType="java.util.List">
+        insert into Ticket_Collect_Log_Detail (
+            ORDER_NO, ACTUAL_TAKE_TICKET_NUM, IN_ORDER_NO, TAKE_TICKET_DATE, TICKET_LOGIC_NUM,
+            TRANS_DATE, TRANS_AMOUNT
+        ) values
+        <foreach collection="list" item="item" separator=",">
+            (
+                #{item.orderNo,jdbcType=VARCHAR},
+                #{item.actualTakeTicketNum,jdbcType=INTEGER},
+                #{item.inOrderNo,jdbcType=INTEGER},
+                #{item.takeTickeDate,jdbcType=TIMESTAMP},
+                #{item.ticketLogicNum,jdbcType=VARCHAR},
+                #{item.transDate,jdbcType=TIMESTAMP},
+                #{item.transAmount,jdbcType=VARCHAR}
+            )
+        </foreach>
+    </insert>
+</mapper>

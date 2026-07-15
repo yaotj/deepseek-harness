@@ -1,0 +1,38 @@
+package com.chinasofti.huateng.ticket.service;
+
+import com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO;
+import com.chinasofti.huateng.model.ticket.NotifyVerifyResultRespDTO;
+import com.chinasofti.huateng.model.ticket.QueryStatusReqDTO;
+import com.chinasofti.huateng.model.ticket.QueryStatusRespDTO;
+import com.chinasofti.huateng.model.ticket.RegisterRideStatusReqDTO;
+import com.chinasofti.huateng.model.ticket.RegisterRideStatusRespDTO;
+
+/**
+ * 乘车状态服务。
+ * 负责维护二维码乘车状态，并按互联网业务规范输出行业数据。
+ */
+public interface TicketRideStatusService {
+    /**
+     * 开户成功后初始化用户乘车状态。
+     */
+    RegisterRideStatusRespDTO registerRideStatus(RegisterRideStatusReqDTO request);
+
+
+    /**
+     * 获取乘车状态
+     *
+     * @param request
+     * @return
+     */
+    QueryStatusRespDTO queryQrCodeStatus(QueryStatusReqDTO request);
+
+    /**
+     * IF1A-01 闸机检票通知。
+     *
+     * @param request 闸机检票通知业务参数
+     * @return 处理结果
+     */
+    NotifyVerifyResultRespDTO notifyVerifyResult(NotifyVerifyResultReqDTO request);
+
+
+}

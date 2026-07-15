@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.online.mapper.OnlineDeviceHeartbeatMapper">
+    <insert id="upsert" parameterType="com.chinasofti.huateng.online.entity.OnlineDeviceHeartbeat">
+        insert into ONLINE_DEVICE_HEARTBEAT (
+            PROVIDER_ID, DEVICE_ID, LAST_HEARTBEAT_TMS, STATUS, UPDATE_TMS
+        ) values (
+            #{providerId,jdbcType=VARCHAR}, #{deviceId,jdbcType=VARCHAR}, #{lastHeartbeatTms,jdbcType=TIMESTAMP},
+            #{status,jdbcType=VARCHAR}, #{updateTms,jdbcType=TIMESTAMP}
+        )
+        on duplicate key update
+            LAST_HEARTBEAT_TMS = values(LAST_HEARTBEAT_TMS),
+            STATUS = values(STATUS),
+            UPDATE_TMS = values(UPDATE_TMS)
+    </insert>
+</mapper>

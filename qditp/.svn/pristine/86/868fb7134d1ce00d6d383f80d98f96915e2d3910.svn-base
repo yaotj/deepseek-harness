@@ -1,0 +1,3 @@
+-s ../settings.xml
+-Dfile.encoding=UTF-8
+-Dproject.build.sourceEncoding=UTF-8

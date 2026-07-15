@@ -1,0 +1,91 @@
+package com.chinasofti.huateng.acc.es.server.service.impl;
+
+import com.chinasofti.huateng.acc.es.server.enumns.TaskAssignStat;
+import com.chinasofti.huateng.acc.es.server.mapper.TblTktEsAssignMapper;
+import com.chinasofti.huateng.acc.es.server.model.TblTktEsAssign;
+import com.chinasofti.huateng.acc.es.server.service.IEsAssignService;
+import com.chinasofti.huateng.acc.es.server.service.IEsTaskService;
+import com.chinasofti.huateng.common.response.ResultMapper;
+import com.chinasofti.huateng.common.response.ResultVO;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+
+@Service
+public class EsAssignServiceImpl implements IEsAssignService {
+
+    @Autowired
+    private TblTktEsAssignMapper esAssignMapper;
+
+    @Autowired
+    private IEsTaskService esTaskService;
+
+    @Value("${spring.application.name}")
+    private String serverName;
+
+    /**
+     * 任务分配
+     * @param esAssign
+     * @return
+     */
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public ResultVO<?> save(TblTktEsAssign esAssign) {
+        esAssignMapper.deleteByTaskNo(esAssign.getTaskNo());
+        esAssign.setLastUpdTms(null);
+        esAssign.setLastUpdId(serverName);
+        esAssignMapper.insert(esAssign);
+        //更新分配状态
+        esTaskService.changeAssignStat(esAssign.getTaskNo(), TaskAssignStat.ASSIGNED.code());
+        return ResultMapper.ok();
+    }
+
+    /**
+     * 查询单个任务分配
+     * @param taskId
+     * @param esId
+     * @return
+     */
+    @Override
+    public ResultVO<?> assign(Integer taskId, String esId) {
+        return ResultMapper.ok(esAssignMapper.queryById(taskId,esId));
+    }
+
+    /**
+     * 根据taskNo和EsCode修改任务分配
+     * @param taskNo
+     * @param esNo
+     * @return
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ResultVO<?> updateByTaskNoAndEsCode(Integer taskNo, String esNo,TblTktEsAssign assign) {
+        assign.setTaskNo(taskNo);
+        assign.setEsCode(esNo);
+        esAssignMapper.updateByTaskNoAndEsCode(assign);
+        return ResultMapper.ok();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int delete(Integer taskNo, String esCode) {
+        int count = esAssignMapper.deleteByPrimaryKey(taskNo,esCode);
+        esTaskService.changeAssignStat(taskNo, TaskAssignStat.UN_ASSIGNED.code());
+        return count;
+    }
+
+    @Override
+    public void customFile(TblTktEsAssign esAssign) {
+        esTaskService.customFile(esAssign);
+    }
+
+    @Override
+    public TblTktEsAssign getAssignByTaskNo(Integer taskNo) {
+        return esAssignMapper.selectByTaskNo(taskNo);
+    }
+
+
+}

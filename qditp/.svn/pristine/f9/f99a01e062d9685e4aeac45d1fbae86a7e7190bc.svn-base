@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.paysign.mapper.PayRefundDetailMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.paysign.entity.PayRefundDetail">
+        <id column="ID" jdbcType="NUMERIC" property="id"/>
+        <result column="REFUND_ORDER_NO" jdbcType="VARCHAR" property="refundOrderNo"/>
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="REFUND_STATUS" jdbcType="VARCHAR" property="refundStatus"/>
+        <result column="REFUND_AMOUNT" jdbcType="NUMERIC" property="refundAmount"/>
+        <result column="REFUND_REASON" jdbcType="VARCHAR" property="refundReason"/>
+        <result column="MERCHANT_REFUND_NO" jdbcType="VARCHAR" property="merchantRefundNo"/>
+        <result column="REFUND_NO" jdbcType="VARCHAR" property="refundNo"/>
+        <result column="CHANNEL_REFUND_NO" jdbcType="VARCHAR" property="channelRefundNo"/>
+        <result column="REQUEST_COUNT" jdbcType="NUMERIC" property="requestCount"/>
+        <result column="NEXT_REQUEST_TIME" jdbcType="TIMESTAMP" property="nextRequestTime"/>
+        <result column="LAST_REQUEST_TIME" jdbcType="TIMESTAMP" property="lastRequestTime"/>
+        <result column="REFUND_TIME" jdbcType="VARCHAR" property="refundTime"/>
+        <result column="TXN_DATE" jdbcType="VARCHAR" property="txnDate"/>
+        <result column="RET_CODE" jdbcType="VARCHAR" property="retCode"/>
+        <result column="RET_MSG" jdbcType="VARCHAR" property="retMsg"/>
+        <result column="PAY_CENTER_CODE" jdbcType="VARCHAR" property="payCenterCode"/>
+        <result column="PAY_CENTER_MSG" jdbcType="VARCHAR" property="payCenterMsg"/>
+        <result column="REQUEST_BODY" jdbcType="CLOB" property="requestBody"/>
+        <result column="RESPONSE_BODY" jdbcType="CLOB" property="responseBody"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
+    </resultMap>
+
+    <!-- 新建一笔退款明细，REFUND_ORDER_NO 由 pay-sign 生成。 -->
+    <insert id="insert" parameterType="com.chinasofti.huateng.paysign.entity.PayRefundDetail">
+        INSERT INTO PAY_REFUND_DETAIL (
+            ID, REFUND_ORDER_NO, ORDER_NO, REFUND_STATUS, REFUND_AMOUNT, REFUND_REASON,
+            MERCHANT_REFUND_NO, REFUND_NO, CHANNEL_REFUND_NO, REQUEST_COUNT,
+            NEXT_REQUEST_TIME, LAST_REQUEST_TIME, REFUND_TIME, TXN_DATE,
+            RET_CODE, RET_MSG, PAY_CENTER_CODE, PAY_CENTER_MSG,
+            REQUEST_BODY, RESPONSE_BODY, CREATE_TIME, UPDATE_TIME
+        ) VALUES (
+            SEQ_PAY_REFUND_DETAIL.NEXTVAL,
+            #{refundOrderNo,jdbcType=VARCHAR},
+            #{orderNo,jdbcType=VARCHAR},
+            #{refundStatus,jdbcType=VARCHAR},
+            #{refundAmount,jdbcType=NUMERIC},
+            #{refundReason,jdbcType=VARCHAR},
+            #{merchantRefundNo,jdbcType=VARCHAR},
+            #{refundNo,jdbcType=VARCHAR},
+            #{channelRefundNo,jdbcType=VARCHAR},
+            #{requestCount,jdbcType=NUMERIC},
+            #{nextRequestTime,jdbcType=TIMESTAMP},
+            #{lastRequestTime,jdbcType=TIMESTAMP},
+            #{refundTime,jdbcType=VARCHAR},
+            #{txnDate,jdbcType=VARCHAR},
+            #{retCode,jdbcType=VARCHAR},
+            #{retMsg,jdbcType=VARCHAR},
+            #{payCenterCode,jdbcType=VARCHAR},
+            #{payCenterMsg,jdbcType=VARCHAR},
+            #{requestBody,jdbcType=CLOB},
+            #{responseBody,jdbcType=CLOB},
+            #{createTime,jdbcType=TIMESTAMP},
+            #{updateTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <!-- 调用支付中心前记录请求次数和本次请求业务快照。 -->
+    <update id="markRequesting">
+        UPDATE PAY_REFUND_DETAIL
+        SET REQUEST_COUNT = NVL(REQUEST_COUNT, 0) + 1,
+            REFUND_STATUS = 'PROCESSING',
+            LAST_REQUEST_TIME = SYSTIMESTAMP,
+            REQUEST_BODY = #{requestBody,jdbcType=CLOB},
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
+          AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
+    </update>
+
+    <!-- 回写支付中心退款受理结果。 -->
+    <update id="updateRequestResult" parameterType="com.chinasofti.huateng.paysign.entity.PayRefundDetail">
+        UPDATE PAY_REFUND_DETAIL
+        SET REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR},
+            MERCHANT_REFUND_NO = #{merchantRefundNo,jdbcType=VARCHAR},
+            REFUND_NO = #{refundNo,jdbcType=VARCHAR},
+            CHANNEL_REFUND_NO = #{channelRefundNo,jdbcType=VARCHAR},
+            REFUND_TIME = #{refundTime,jdbcType=VARCHAR},
+            RET_CODE = #{retCode,jdbcType=VARCHAR},
+            RET_MSG = #{retMsg,jdbcType=VARCHAR},
+            PAY_CENTER_CODE = #{payCenterCode,jdbcType=VARCHAR},
+            PAY_CENTER_MSG = #{payCenterMsg,jdbcType=VARCHAR},
+            RESPONSE_BODY = #{responseBody,jdbcType=CLOB},
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
+          AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
+    </update>
+</mapper>

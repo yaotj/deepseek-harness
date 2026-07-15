@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.para.mapper.ParaVersionMapper">
+    <resultMap id="ParaVersionMap" type="com.chinasofti.huateng.para.entity.ParaVersion">
+        <id column="PARA_TYPE" property="paraType"/>
+        <result column="CURRENT_VER_NO" property="currentVerNo"/>
+        <result column="CURRENT_FILE_NAME" property="currentFileName"/>
+        <result column="VALID_DATE_TIME" property="validDateTime"/>
+        <result column="MD5_VALUE" property="md5Value"/>
+        <result column="LAST_UPD_USER" property="lastUpdUser"/>
+        <result column="LAST_UPD_TMS" property="lastUpdTms"/>
+    </resultMap>
+
+    <select id="selectByParaType" resultMap="ParaVersionMap">
+        SELECT PARA_TYPE, CURRENT_VER_NO, CURRENT_FILE_NAME, VALID_DATE_TIME, MD5_VALUE,
+               LAST_UPD_USER, LAST_UPD_TMS
+        FROM TBL_PARA_VERSION
+        WHERE PARA_TYPE = #{paraType,jdbcType=VARCHAR}
+    </select>
+
+    <insert id="upsert">
+        MERGE INTO TBL_PARA_VERSION target
+        USING (
+            SELECT #{paraType,jdbcType=VARCHAR} PARA_TYPE,
+                   #{currentVerNo,jdbcType=NUMERIC} CURRENT_VER_NO,
+                   #{currentFileName,jdbcType=VARCHAR} CURRENT_FILE_NAME,
+                   #{validDateTime,jdbcType=VARCHAR} VALID_DATE_TIME,
+                   #{md5Value,jdbcType=VARCHAR} MD5_VALUE,
+                   #{lastUpdUser,jdbcType=VARCHAR} LAST_UPD_USER,
+                   #{lastUpdTms,jdbcType=TIMESTAMP} LAST_UPD_TMS
+            FROM DUAL
+        ) source
+        ON (target.PARA_TYPE = source.PARA_TYPE)
+        WHEN MATCHED THEN UPDATE SET
+            target.CURRENT_VER_NO = source.CURRENT_VER_NO,
+            target.CURRENT_FILE_NAME = source.CURRENT_FILE_NAME,
+            target.VALID_DATE_TIME = source.VALID_DATE_TIME,
+            target.MD5_VALUE = source.MD5_VALUE,
+            target.LAST_UPD_USER = source.LAST_UPD_USER,
+            target.LAST_UPD_TMS = source.LAST_UPD_TMS
+        WHEN NOT MATCHED THEN INSERT (
+            PARA_TYPE, CURRENT_VER_NO, CURRENT_FILE_NAME, VALID_DATE_TIME,
+            MD5_VALUE, LAST_UPD_USER, LAST_UPD_TMS
+        ) VALUES (
+            source.PARA_TYPE, source.CURRENT_VER_NO, source.CURRENT_FILE_NAME, source.VALID_DATE_TIME,
+            source.MD5_VALUE, source.LAST_UPD_USER, source.LAST_UPD_TMS
+        )
+    </insert>
+</mapper>

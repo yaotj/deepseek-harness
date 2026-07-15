@@ -1,0 +1,34 @@
+package com.chinasofti.huateng.model.app;
+
+/**
+ * 过闸扣费请求支付参数。
+ */
+public class GatePayRequestDTO extends RequestPayReqDTO {
+    private String cardId;
+    private String cardType;
+    private String payChannelCode;
+
+    public String getCardId() {
+        return cardId;
+    }
+
+    public void setCardId(String cardId) {
+        this.cardId = cardId;
+    }
+
+    public String getCardType() {
+        return cardType;
+    }
+
+    public void setCardType(String cardType) {
+        this.cardType = cardType;
+    }
+
+    public String getPayChannelCode() {
+        return payChannelCode;
+    }
+
+    public void setPayChannelCode(String payChannelCode) {
+        this.payChannelCode = payChannelCode;
+    }
+}

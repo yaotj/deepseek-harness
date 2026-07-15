@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.dailyticket.mapper.DailyTicketPayLogMapper">
+    <insert id="insert" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketPayLog">
+        insert into DAILY_TICKET_PAY_LOG (
+            ID, ORDER_NO, BIZ_TYPE, PAY_CHANNEL_CODE, REQUEST_BODY,
+            RESPONSE_BODY, RESULT_CODE, RESULT_MSG, CREATE_TIME
+        ) values (
+            #{id,jdbcType=VARCHAR}, #{orderNo,jdbcType=VARCHAR}, #{bizType,jdbcType=VARCHAR},
+            #{payChannelCode,jdbcType=VARCHAR}, #{requestBody,jdbcType=CLOB},
+            #{responseBody,jdbcType=CLOB}, #{resultCode,jdbcType=VARCHAR},
+            #{resultMsg,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+</mapper>

@@ -1,0 +1,14 @@
+package com.chinasofti.huateng.alipay.paysign.mapper;
+
+import com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+@Mapper
+public interface AlipayPayLogMapper {
+    AlipayPayLog selectByOrderNo(@Param("orderNo") String orderNo);
+    AlipayPayLog selectByPaySeq(@Param("paySeq") String paySeq);
+    int insert(AlipayPayLog payLog);
+    int updatePayStatus(@Param("paySeq") String paySeq, @Param("payStatus") String payStatus, @Param("updateTime") java.time.LocalDateTime updateTime);
+    int updateRefundSummary(@Param("orderNo") String orderNo, @Param("refundAmount") String refundAmount, @Param("refundStatus") String refundStatus);
+}

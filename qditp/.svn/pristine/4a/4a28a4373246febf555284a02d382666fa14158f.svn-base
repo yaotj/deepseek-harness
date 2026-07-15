@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.paysign.mapper.PayCallbackLogMapper">
+    <!-- 保存支付/退款回调原文。该表只追加，不参与订单最终态覆盖。 -->
+    <insert id="insert" parameterType="com.chinasofti.huateng.paysign.entity.PayCallbackLog">
+        INSERT INTO PAY_CALLBACK_LOG (
+            ID, ORDER_NO, CALLBACK_TYPE, CALLBACK_STATUS, REFUND_ORDER_NO,
+            MERCHANT_ORDER_NO, CHANNEL_ORDER_NO, MERCHANT_REFUND_NO, REFUND_NO,
+            CHANNEL_REFUND_NO, PAY_TIME, REFUND_TIME, TOTAL_AMOUNT, CASH_AMOUNT,
+            COUPON_AMOUNT, REFUND_AMOUNT, PAY_USER_ID, PAYMENT_VENDOR, TXN_DATE,
+            RAW_BODY, HANDLE_STATUS, HANDLE_MSG, CREATE_TIME
+        ) VALUES (
+            SEQ_PAY_CALLBACK_LOG.NEXTVAL,
+            #{orderNo,jdbcType=VARCHAR},
+            #{callbackType,jdbcType=VARCHAR},
+            #{callbackStatus,jdbcType=VARCHAR},
+            #{refundOrderNo,jdbcType=VARCHAR},
+            #{merchantOrderNo,jdbcType=VARCHAR},
+            #{channelOrderNo,jdbcType=VARCHAR},
+            #{merchantRefundNo,jdbcType=VARCHAR},
+            #{refundNo,jdbcType=VARCHAR},
+            #{channelRefundNo,jdbcType=VARCHAR},
+            #{payTime,jdbcType=VARCHAR},
+            #{refundTime,jdbcType=VARCHAR},
+            #{totalAmount,jdbcType=NUMERIC},
+            #{cashAmount,jdbcType=NUMERIC},
+            #{couponAmount,jdbcType=NUMERIC},
+            #{refundAmount,jdbcType=NUMERIC},
+            #{payUserId,jdbcType=VARCHAR},
+            #{paymentVendor,jdbcType=VARCHAR},
+            #{txnDate,jdbcType=VARCHAR},
+            #{rawBody,jdbcType=CLOB},
+            #{handleStatus,jdbcType=VARCHAR},
+            #{handleMsg,jdbcType=VARCHAR},
+            #{createTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+</mapper>

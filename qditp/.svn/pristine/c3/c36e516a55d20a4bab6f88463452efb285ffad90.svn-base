@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.para.mapper.AppParaQueryMapper">
+    <!--
+        IF8A-07：查询当前路网参数版本下的线路代码。
+        PARA_TYPE = '0001' 表示路网拓扑参数，CURRENT_VER_NO 是当前已入库并生效的版本号。
+    -->
+    <select id="selectLineCodeList" resultType="com.chinasofti.huateng.model.app.LineCodeRecordDTO">
+        SELECT LINE_CODE lineCode,
+               LINE_NM lineNameZH,
+               LINE_E_NM lineNameEN,
+               LINE_CODE orderIndex
+        FROM TBL_LINE_INFO
+        WHERE PARA_VER_NO = (
+            SELECT CURRENT_VER_NO FROM TBL_PARA_VERSION WHERE PARA_TYPE = '0001'
+        )
+        ORDER BY LINE_CODE
+    </select>
+
+    <!--
+        IF8A-08：查询当前路网参数版本下的车站代码，可按线路过滤。
+        transferYn 通过换乘站参数表判断，只要车站出现在换乘关系中即认为是换乘站。
+    -->
+    <select id="selectStationCodeList" resultType="com.chinasofti.huateng.model.app.StationCodeRecordDTO">
+        SELECT s.OWNER_LINE_ID lineCode,
+               s.STATION_CODE stationCode,
+               s.STATION_NM stationNameZH,
+               s.STATION_E_NM stationNameEN,
+               CASE WHEN EXISTS (
+                   SELECT 1 FROM TBL_TSF_INFO t
+                   WHERE t.PARA_VER_NO = s.PARA_VER_NO
+                     AND (t.FROM_STAT_CODE = s.STATION_CODE OR t.TO_STAT_CODE = s.STATION_CODE)
+               ) THEN 'Y' ELSE 'N' END transferYn
+        FROM TBL_STATION_INFO s
+        WHERE s.PARA_VER_NO = (
+            SELECT CURRENT_VER_NO FROM TBL_PARA_VERSION WHERE PARA_TYPE = '0001'
+        )
+        <if test="lineCode != null and lineCode != ''">
+            AND s.OWNER_LINE_ID = #{lineCode,jdbcType=VARCHAR}
+        </if>
+        ORDER BY s.OWNER_LINE_ID, s.STATION_CODE
+    </select>
+
+    <!--
+        IF8A-10：按进出站查询当前费率参数版本中的费率等级。
+        PARA_TYPE = '0004' 表示费率参数，FARE_MATRIX 保存站点到站点的费率等级。
+    -->
+    <select id="selectFareTier" resultType="java.lang.Integer">
+        SELECT FARE_TIER
+        FROM TBL_FARE_MATRIX
+        WHERE PARA_VER_NO = (
+            SELECT CURRENT_VER_NO FROM TBL_PARA_VERSION WHERE PARA_TYPE = '0004'
+        )
+          AND BEGIN_STAT_CODE = #{entryStationCode,jdbcType=VARCHAR}
+          AND END_STAT_CODE = #{exitStationCode,jdbcType=VARCHAR}
+    </select>
+
+    <!--
+        IF8A-10：按费率等级查询当前费率参数版本中的基础票价。
+        APP 入参没有票价类型，按默认 FARE_TYPE = 0 查询基础票价。
+    -->
+    <select id="selectTicketPrice" resultType="java.lang.Integer">
+        SELECT TICKET_PRICE
+        FROM TBL_BASE_FARE
+        WHERE PARA_VER_NO = (
+            SELECT CURRENT_VER_NO FROM TBL_PARA_VERSION WHERE PARA_TYPE = '0004'
+        )
+          AND FARE_TIER = #{fareTier,jdbcType=NUMERIC}
+          AND FARE_TYPE = 0
+    </select>
+
+    <!--
+        内部服务查询：按车站代码查询当前路网参数版本中的车站中文名称。
+        ticket-server 查询上一笔行程时使用该接口补充站名。
+    -->
+    <select id="selectStationName" resultType="java.lang.String">
+        SELECT STATION_NM
+        FROM TBL_STATION_INFO
+        WHERE PARA_VER_NO = (
+            SELECT CURRENT_VER_NO FROM TBL_PARA_VERSION WHERE PARA_TYPE = '0001'
+        )
+          AND STATION_CODE = #{stationCode,jdbcType=VARCHAR}
+    </select>
+</mapper>

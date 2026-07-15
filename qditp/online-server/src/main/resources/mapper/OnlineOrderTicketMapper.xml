@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.online.mapper.OnlineOrderTicketMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.online.entity.OnlineOrderTicket">
+        <id column="ID" jdbcType="BIGINT" property="id"/>
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="TICKET_LOGIC_NUM" jdbcType="VARCHAR" property="ticketLogicNum"/>
+        <result column="TICKET_PHYSICS_NUM" jdbcType="VARCHAR" property="ticketPhysicsNum"/>
+        <result column="TRANS_DATE" jdbcType="TIMESTAMP" property="transDate"/>
+        <result column="TRANS_AMOUNT" jdbcType="INTEGER" property="transAmount"/>
+        <result column="CREATE_TMS" jdbcType="TIMESTAMP" property="createTms"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.online.entity.OnlineOrderTicket" useGeneratedKeys="true" keyProperty="id">
+        insert into ONLINE_ORDER_TICKET (
+            ORDER_NO, TICKET_LOGIC_NUM, TICKET_PHYSICS_NUM, TRANS_DATE, TRANS_AMOUNT, CREATE_TMS
+        ) values (
+            #{orderNo,jdbcType=VARCHAR}, #{ticketLogicNum,jdbcType=VARCHAR}, #{ticketPhysicsNum,jdbcType=VARCHAR},
+            #{transDate,jdbcType=TIMESTAMP}, #{transAmount,jdbcType=INTEGER}, #{createTms,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        select ID, ORDER_NO, TICKET_LOGIC_NUM, TICKET_PHYSICS_NUM, TRANS_DATE, TRANS_AMOUNT, CREATE_TMS
+        from ONLINE_ORDER_TICKET
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+        order by ID asc
+    </select>
+
+    <delete id="deleteByOrderNo">
+        delete from ONLINE_ORDER_TICKET
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </delete>
+</mapper>

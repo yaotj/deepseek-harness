@@ -1,0 +1,57 @@
+package com.chinasofti.huateng.para.service;
+
+import com.chinasofti.huateng.model.app.RequestLineCodeListReqDTO;
+import com.chinasofti.huateng.model.app.RequestLineCodeListResult;
+import com.chinasofti.huateng.model.app.RequestLineStationCodeVersionReqDTO;
+import com.chinasofti.huateng.model.app.RequestLineStationCodeVersionResult;
+import com.chinasofti.huateng.model.app.RequestStationCodeListReqDTO;
+import com.chinasofti.huateng.model.app.RequestStationCodeListResult;
+import com.chinasofti.huateng.model.app.RequestStationNameReqDTO;
+import com.chinasofti.huateng.model.app.RequestStationNameResult;
+import com.chinasofti.huateng.model.app.RequestTicketPriceByStationReqDTO;
+import com.chinasofti.huateng.model.app.RequestTicketPriceByStationResult;
+
+/**
+ * APP 线路、车站、票价参数查询服务。
+ */
+public interface AppParaService {
+    /**
+     * IF8A-07 获取线路代码。
+     *
+     * @param request 请求参数，当前无业务字段
+     * @return 当前生效线路代码列表
+     */
+    RequestLineCodeListResult requestLineCodeList(RequestLineCodeListReqDTO request);
+
+    /**
+     * IF8A-08 获取车站代码。
+     *
+     * @param request 请求参数，可按线路代码过滤
+     * @return 当前生效车站代码列表
+     */
+    RequestStationCodeListResult requestStationCodeList(RequestStationCodeListReqDTO request);
+
+    /**
+     * IF8A-10 根据进出站计算票价。
+     *
+     * @param request 进站车站代码、出站车站代码
+     * @return 票价计算结果
+     */
+    RequestTicketPriceByStationResult requestTicketPriceByStation(RequestTicketPriceByStationReqDTO request);
+
+    /**
+     * IF8A-17 获取线路、车站代码版本。
+     *
+     * @param request 请求参数，当前无业务字段
+     * @return 当前路网参数版本信息
+     */
+    RequestLineStationCodeVersionResult requestLineStationCodeVersion(RequestLineStationCodeVersionReqDTO request);
+
+    /**
+     * 根据车站代码查询车站名称。
+     *
+     * @param request 车站代码
+     * @return 当前路网参数版本中的车站中文名称
+     */
+    RequestStationNameResult requestStationName(RequestStationNameReqDTO request);
+}

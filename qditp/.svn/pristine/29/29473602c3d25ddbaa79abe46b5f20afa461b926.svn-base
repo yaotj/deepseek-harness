@@ -1,0 +1,35 @@
+package com.chinasofti.huateng.ticket.mapper.alipay;
+
+import com.chinasofti.huateng.ticket.entity.alipay.AlipayTravelRecord;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+
+@Mapper
+public interface AlipayTravelRecordMapper {
+    /**
+     * 支付宝出行-查询乘车记录列表。
+     */
+    List<AlipayTravelRecord> selectTravelList(@Param("thirdUserId") String thirdUserId,
+                                               @Param("cardId") String cardId,
+                                               @Param("startDate") String startDate,
+                                               @Param("endDate") String endDate,
+                                               @Param("offset") int offset,
+                                               @Param("limit") int limit);
+
+    /**
+     * 支付宝出行-查询乘车记录总数。
+     */
+    int countTravelList(@Param("thirdUserId") String thirdUserId,
+                        @Param("cardId") String cardId,
+                        @Param("startDate") String startDate,
+                        @Param("endDate") String endDate);
+
+    /**
+     * 支付宝出行-查询乘车记录详情。
+     */
+    AlipayTravelRecord selectTravelDetail(@Param("thirdUserId") String thirdUserId,
+                                           @Param("orderNo") String orderNo,
+                                           @Param("cardId") String cardId);
+}

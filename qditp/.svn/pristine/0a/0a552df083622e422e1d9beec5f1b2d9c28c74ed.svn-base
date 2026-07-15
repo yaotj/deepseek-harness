@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.alipay.paysign.mapper.AlipayPayLogMapper">
+    <select id="selectByOrderNo" resultType="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog">
+        SELECT * FROM ALIPAY_PAY_LOG WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </select>
+
+    <select id="selectByPaySeq" resultType="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog">
+        SELECT * FROM ALIPAY_PAY_LOG WHERE PAY_SEQ = #{paySeq,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog" useGeneratedKeys="false">
+        INSERT INTO ALIPAY_PAY_LOG (
+            PAY_SEQ, THIRD_USER_ID, CARD_ID, ORDER_NO, TRADE_NO,
+            PAY_AMOUNT, PAY_STATUS, PAY_TYPE, SCENE, PAYMENT_VENDOR,
+            INDUSTRY_TYPE, SUBJECT, BODY, REQUEST_SIGN_SEQ, ORDER_TIME_OUT,
+            AUTH_CODE, NOTIFY_URL, RETURN_URL, IP_ADDRESS, INDUSTRY_DETAIL,
+            REQUEST_BODY, RESPONSE_BODY, RESULT_CODE, RESULT_MSG, OPERATOR,
+            IP, REMARK, DELETE_FLAG, VERSION, CREATE_TIME, UPDATE_TIME, CREATE_BY
+        ) VALUES (
+            #{paySeq,jdbcType=VARCHAR}, #{thirdUserId,jdbcType=VARCHAR}, #{cardId,jdbcType=VARCHAR}, #{orderNo,jdbcType=VARCHAR}, #{tradeNo,jdbcType=VARCHAR},
+            #{payAmount,jdbcType=VARCHAR}, #{payStatus,jdbcType=VARCHAR}, #{payType,jdbcType=VARCHAR}, #{scene,jdbcType=VARCHAR}, #{paymentVendor,jdbcType=VARCHAR},
+            #{industryType,jdbcType=VARCHAR}, #{subject,jdbcType=VARCHAR}, #{body,jdbcType=VARCHAR}, #{requestSignSeq,jdbcType=VARCHAR}, #{orderTimeOut,jdbcType=VARCHAR},
+            #{authCode,jdbcType=VARCHAR}, #{notifyUrl,jdbcType=VARCHAR}, #{returnUrl,jdbcType=VARCHAR}, #{ipAddress,jdbcType=VARCHAR}, #{industryDetail,jdbcType=VARCHAR},
+            #{requestBody,jdbcType=VARCHAR}, #{responseBody,jdbcType=VARCHAR}, #{resultCode,jdbcType=VARCHAR}, #{resultMsg,jdbcType=VARCHAR}, #{operator,jdbcType=VARCHAR},
+            #{ip,jdbcType=VARCHAR}, #{remark,jdbcType=VARCHAR}, #{deleteFlag,jdbcType=VARCHAR}, #{version,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}, #{createBy,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <update id="updatePayStatus">
+        UPDATE ALIPAY_PAY_LOG
+        SET PAY_STATUS = #{payStatus,jdbcType=VARCHAR}, UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        WHERE PAY_SEQ = #{paySeq,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </update>
+
+    <update id="updateRefundSummary">
+        UPDATE ALIPAY_PAY_LOG
+        SET REFUND_AMOUNT = NVL(REFUND_AMOUNT, 0) + #{refundAmount,jdbcType=VARCHAR},
+            REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </update>
+</mapper>

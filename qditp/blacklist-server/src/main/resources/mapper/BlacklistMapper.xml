@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.blacklist.mapper.BlacklistMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.blacklist.entity.Blacklist">
+        <id column="ID" jdbcType="NUMERIC" property="id"/>
+        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="REASON" jdbcType="VARCHAR" property="reason"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+    </resultMap>
+
+    <select id="countByCardIds" resultType="int">
+        select count(1)
+        from BLACKLIST
+        where CARD_ID in
+        <foreach collection="cardIds" item="cardId" open="(" separator="," close=")">
+            #{cardId,jdbcType=VARCHAR}
+        </foreach>
+    </select>
+
+    <select id="selectByCardIds" resultMap="BaseResultMap">
+        select ID, CARD_ID, THIRD_USER_ID, REASON, CREATE_TIME
+        from BLACKLIST
+        where CARD_ID in
+        <foreach collection="cardIds" item="cardId" open="(" separator="," close=")">
+            #{cardId,jdbcType=VARCHAR}
+        </foreach>
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.blacklist.entity.Blacklist">
+        insert into BLACKLIST (
+            CARD_ID, THIRD_USER_ID, REASON, CREATE_TIME
+        ) values (
+            #{cardId,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR},
+            #{reason,jdbcType=VARCHAR},
+            SYSTIMESTAMP
+        )
+    </insert>
+
+    <delete id="deleteByCardIds">
+        delete from BLACKLIST
+        where CARD_ID in
+        <foreach collection="cardIds" item="cardId" open="(" separator="," close=")">
+            #{cardId,jdbcType=VARCHAR}
+        </foreach>
+    </delete>
+</mapper>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.para.mapper.fare.FareGroupMapper">
+    <delete id="deleteByParaVerNo">
+        DELETE FROM TBL_FARE_GROUP WHERE PARA_VER_NO = #{paraVerNo,jdbcType=NUMERIC}
+    </delete>
+
+    <insert id="insertBatch">
+        INSERT ALL
+        <foreach collection="list" item="item">
+            INTO TBL_FARE_GROUP (PARA_VER_NO, DATE_TYPE, FARE_TYPE, INTERVAL_NO, FARE_GROUP, LAST_UPD_USER, LAST_UPD_TMS)
+            VALUES (#{item.paraVerNo,jdbcType=NUMERIC}, #{item.dateType,jdbcType=NUMERIC},
+                    #{item.fareType,jdbcType=NUMERIC}, #{item.intervalNo,jdbcType=NUMERIC},
+                    #{item.fareGroup,jdbcType=NUMERIC}, #{item.lastUpdUser,jdbcType=VARCHAR},
+                    #{item.lastUpdTms,jdbcType=TIMESTAMP})
+        </foreach>
+        SELECT 1 FROM DUAL
+    </insert>
+</mapper>

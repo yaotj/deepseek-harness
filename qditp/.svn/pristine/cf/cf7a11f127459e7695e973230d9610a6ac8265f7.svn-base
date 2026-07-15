@@ -1,0 +1,613 @@
+package com.chinasofti.huateng.collectpay.service.impl;
+
+import com.alibaba.fastjson2.JSON;
+import com.chinasofti.huateng.collectpay.config.PayCenterProperties;
+import com.chinasofti.huateng.collectpay.constant.CollectPayErrorCodeEnum;
+import com.chinasofti.huateng.collectpay.entity.AppPayLogs;
+import com.chinasofti.huateng.collectpay.mapper.AppPayLogsMapper;
+import com.chinasofti.huateng.collectpay.model.request.PayCenterRequest;
+import com.chinasofti.huateng.collectpay.model.request.PayQueryReqDTO;
+import com.chinasofti.huateng.collectpay.model.request.RefundQueryReqDTO;
+import com.chinasofti.huateng.collectpay.model.request.RequestPayReqDTO;
+import com.chinasofti.huateng.collectpay.model.request.RequestRefundReqDTO;
+import com.chinasofti.huateng.collectpay.model.response.PayCenterResponse;
+import com.chinasofti.huateng.collectpay.model.response.PayQueryRespDTO;
+import com.chinasofti.huateng.collectpay.model.response.RequestPayRespDTO;
+import com.chinasofti.huateng.collectpay.model.response.RequestRefundRespDTO;
+import com.chinasofti.huateng.collectpay.model.response.RefundQueryRespDTO;
+import com.chinasofti.huateng.collectpay.service.CollectPayService;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Signature;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+@Service
+public class CollectPayServiceImpl implements CollectPayService {
+    private static final Logger log = LoggerFactory.getLogger(CollectPayServiceImpl.class);
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final MediaType MEDIA_TYPE_JSON = MediaType.parse("application/json; charset=utf-8");
+    private static final String SIGN_ALGORITHM = "SHA256WithRSA";
+
+    private static final int PAY_TYPE_PAY = 0;
+    private static final int PAY_TYPE_REFUND = 1;
+    private static final int PAY_RESULT_SUCCESS = 100;
+    private static final int PAY_RESULT_FAIL = 1;
+
+    private static final int DEFAULT_ORDER_TIMEOUT = 60;
+
+    private final OkHttpClient httpClient;
+
+    @Autowired
+    private PayCenterProperties payCenterProperties;
+    @Autowired
+    private AppPayLogsMapper appPayLogsMapper;
+
+    public CollectPayServiceImpl() {
+        this.httpClient = new OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public RequestPayRespDTO requestPay(RequestPayReqDTO request) {
+        try {
+            log.info("开始处理请求支付, request={}", request);
+            RequestPayRespDTO response = new RequestPayRespDTO();
+
+            String validMsg = validateRequestPay(request);
+            if (validMsg != null) {
+                response.setRetCode(CollectPayErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg(validMsg);
+                return response;
+            }
+
+            LocalDateTime now = LocalDateTime.now();
+            String merchantOrderNo = generateMerchantOrderNo();
+
+            AppPayLogs payLog = buildPayLog(request, merchantOrderNo, now);
+            appPayLogsMapper.insert(payLog);
+
+            PayCenterRequest payCenterRequest = buildPayCenterRequest(request, merchantOrderNo);
+            PayCenterResponse payCenterResponse = callPayCenter("/api/payment/requestPay", payCenterRequest);
+
+            if (payCenterResponse != null && Boolean.TRUE.equals(payCenterResponse.getSuccess())) {
+                Map<String, Object> data = payCenterResponse.getData();
+                if (data != null) {
+                    response.setOrderNo(request.getOrderNo());
+                    response.setMerchantOrderNo(merchantOrderNo);
+                    response.setChannelOrderNo(getStringFromData(data, "channelOrderNo"));
+                    response.setData(getStringFromData(data, "data"));
+                    response.setRetCode(CollectPayErrorCodeEnum.SUCCESS.getCode());
+                    response.setRetMsg(CollectPayErrorCodeEnum.SUCCESS.getMsg());
+                } else {
+                    response.setRetCode(CollectPayErrorCodeEnum.PAY_CENTER_ERROR.getCode());
+                    response.setRetMsg("支付中心返回数据为空");
+                }
+            } else {
+                String errorMsg = payCenterResponse != null ? payCenterResponse.getMsg() : "调用支付中心失败";
+                response.setRetCode(CollectPayErrorCodeEnum.PAY_CENTER_ERROR.getCode());
+                response.setRetMsg(errorMsg);
+            }
+            return response;
+        } catch (Exception e) {
+            log.error("处理请求支付异常", e);
+            RequestPayRespDTO response = new RequestPayRespDTO();
+            response.setRetCode(CollectPayErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg(CollectPayErrorCodeEnum.SYSTEM_ERROR.getMsg());
+            return response;
+        }
+    }
+
+    @Override
+    public PayQueryRespDTO payQuery(PayQueryReqDTO request) {
+        try {
+            log.info("开始处理支付查询, request={}", request);
+            PayQueryRespDTO response = new PayQueryRespDTO();
+
+            String validMsg = validatePayQuery(request);
+            if (validMsg != null) {
+                response.setRetCode(CollectPayErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg(validMsg);
+                return response;
+            }
+
+            AppPayLogs payLog = findPayLog(request);
+            if (payLog == null) {
+                response.setRetCode(CollectPayErrorCodeEnum.ORDER_NOT_EXIST.getCode());
+                response.setRetMsg(CollectPayErrorCodeEnum.ORDER_NOT_EXIST.getMsg());
+                return response;
+            }
+
+            PayCenterRequest payCenterRequest = buildQueryPayCenterRequest(request);
+            PayCenterResponse payCenterResponse = callPayCenter("/api/payment/payQuery", payCenterRequest);
+
+            if (payCenterResponse != null && Boolean.TRUE.equals(payCenterResponse.getSuccess())) {
+                Map<String, Object> data = payCenterResponse.getData();
+                if (data != null) {
+                    String status = getStringFromData(data, "status");
+                    response.setRetCode(CollectPayErrorCodeEnum.SUCCESS.getCode());
+                    response.setRetMsg(CollectPayErrorCodeEnum.SUCCESS.getMsg());
+                    response.setOrderNo(getStringFromData(data, "orderNo"));
+                    response.setMerchantOrderNo(getStringFromData(data, "merchantOrderNo"));
+                    response.setChannelOrderNo(getStringFromData(data, "channelOrderNo"));
+                    response.setStatus(status);
+                    response.setPayDate(getStringFromData(data, "payDate"));
+                    response.setTotalAmount(getIntFromData(data, "totalAmount"));
+                    response.setCashAmount(getIntFromData(data, "cashAmount"));
+                    response.setCouponAmount(getIntFromData(data, "couponAmount"));
+                    response.setChannelAccount(getStringFromData(data, "channelAccount"));
+                    response.setPaymentVendor(getStringFromData(data, "paymentVendor"));
+
+                    payLog.setPayResult(convertPayStatus(status));
+                    appPayLogsMapper.updateByOrderNo(payLog);
+                }
+            } else {
+                response.setRetCode(CollectPayErrorCodeEnum.PAY_CENTER_ERROR.getCode());
+                response.setRetMsg(payCenterResponse != null ? payCenterResponse.getMsg() : "查询失败");
+            }
+            return response;
+        } catch (Exception e) {
+            log.error("处理支付查询异常", e);
+            PayQueryRespDTO response = new PayQueryRespDTO();
+            response.setRetCode(CollectPayErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg(CollectPayErrorCodeEnum.SYSTEM_ERROR.getMsg());
+            return response;
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public RequestRefundRespDTO requestRefund(RequestRefundReqDTO request) {
+        try {
+            log.info("开始处理请求退款, request={}", request);
+            RequestRefundRespDTO response = new RequestRefundRespDTO();
+
+            String validMsg = validateRequestRefund(request);
+            if (validMsg != null) {
+                response.setRetCode(CollectPayErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg(validMsg);
+                return response;
+            }
+
+            AppPayLogs payLog = appPayLogsMapper.selectByOrderNo(request.getOrderNo());
+            if (payLog == null) {
+                response.setRetCode(CollectPayErrorCodeEnum.ORDER_NOT_EXIST.getCode());
+                response.setRetMsg(CollectPayErrorCodeEnum.ORDER_NOT_EXIST.getMsg());
+                return response;
+            }
+
+            if (payLog.getPayResult() == null || payLog.getPayResult() != PAY_RESULT_SUCCESS) {
+                log.warn("原订单支付未成功，无法退款, orderNo={}, payResult={}", request.getOrderNo(), payLog.getPayResult());
+                response.setRetCode(CollectPayErrorCodeEnum.ORDER_STATUS_ERROR.getCode());
+                response.setRetMsg("原订单支付未成功，无法退款");
+                return response;
+            }
+
+            if (payLog.getPayAmount() != null && request.getRefundAmount() > payLog.getPayAmount()) {
+                log.warn("退款金额超过原支付金额, orderNo={}, payAmount={}, refundAmount={}",
+                        request.getOrderNo(), payLog.getPayAmount(), request.getRefundAmount());
+                response.setRetCode(CollectPayErrorCodeEnum.REFUND_FAILED.getCode());
+                response.setRetMsg("退款金额不能超过原支付金额");
+                return response;
+            }
+
+            LocalDateTime now = LocalDateTime.now();
+
+            AppPayLogs refundLog = buildRefundLog(request, now);
+            appPayLogsMapper.insert(refundLog);
+
+            PayCenterRequest payCenterRequest = buildRefundPayCenterRequest(request);
+            PayCenterResponse payCenterResponse = callPayCenter("/api/refund/requestRefund", payCenterRequest);
+
+            if (payCenterResponse != null && Boolean.TRUE.equals(payCenterResponse.getSuccess())) {
+                Map<String, Object> data = payCenterResponse.getData();
+                if (data != null) {
+                    response.setRetCode(CollectPayErrorCodeEnum.SUCCESS.getCode());
+                    response.setRetMsg(CollectPayErrorCodeEnum.SUCCESS.getMsg());
+                    response.setMerchantRefundNo(getStringFromData(data, "merchantRefundNo"));
+                    response.setRefundNo(getStringFromData(data, "refundNo"));
+                    response.setChannelRefundNo(getStringFromData(data, "channelRefundNo"));
+                    response.setRefundTime(getStringFromData(data, "refundTime"));
+                } else {
+                    response.setRetCode(CollectPayErrorCodeEnum.PAY_CENTER_ERROR.getCode());
+                    response.setRetMsg("退款请求成功但返回数据为空");
+                }
+            } else {
+                response.setRetCode(CollectPayErrorCodeEnum.PAY_CENTER_ERROR.getCode());
+                response.setRetMsg(payCenterResponse != null ? payCenterResponse.getMsg() : "退款失败");
+            }
+            return response;
+        } catch (Exception e) {
+            log.error("处理请求退款异常", e);
+            RequestRefundRespDTO response = new RequestRefundRespDTO();
+            response.setRetCode(CollectPayErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg(CollectPayErrorCodeEnum.SYSTEM_ERROR.getMsg());
+            return response;
+        }
+    }
+
+    @Override
+    public RefundQueryRespDTO refundQuery(RefundQueryReqDTO request) {
+        try {
+            log.info("开始处理退款查询, request={}", request);
+            RefundQueryRespDTO response = new RefundQueryRespDTO();
+
+            String validMsg = validateRefundQuery(request);
+            if (validMsg != null) {
+                response.setRetCode(CollectPayErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg(validMsg);
+                return response;
+            }
+
+            PayCenterRequest payCenterRequest = buildRefundQueryPayCenterRequest(request);
+            PayCenterResponse payCenterResponse = callPayCenter("/api/refund/refundQuery", payCenterRequest);
+
+            if (payCenterResponse != null && Boolean.TRUE.equals(payCenterResponse.getSuccess())) {
+                Map<String, Object> data = payCenterResponse.getData();
+                if (data != null) {
+                    response.setRetCode(CollectPayErrorCodeEnum.SUCCESS.getCode());
+                    response.setRetMsg(CollectPayErrorCodeEnum.SUCCESS.getMsg());
+                    response.setRefundOrderNo(getStringFromData(data, "refundOrderNo"));
+                    response.setMerchantRefundNo(getStringFromData(data, "merchantRefundNo"));
+                    response.setChannelRefundNo(getStringFromData(data, "channelRefundNo"));
+                    response.setOrderNo(getStringFromData(data, "orderNo"));
+                    response.setStatus(getStringFromData(data, "status"));
+                    response.setRefundAmount(getIntFromData(data, "refundAmount"));
+                    response.setRefundTime(getStringFromData(data, "refundTime"));
+                }
+            } else {
+                response.setRetCode(CollectPayErrorCodeEnum.PAY_CENTER_ERROR.getCode());
+                response.setRetMsg(payCenterResponse != null ? payCenterResponse.getMsg() : "查询失败");
+            }
+            return response;
+        } catch (Exception e) {
+            log.error("处理退款查询异常", e);
+            RefundQueryRespDTO response = new RefundQueryRespDTO();
+            response.setRetCode(CollectPayErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg(CollectPayErrorCodeEnum.SYSTEM_ERROR.getMsg());
+            return response;
+        }
+    }
+
+    private String validateRequestPay(RequestPayReqDTO request) {
+        if (request == null) {
+            return "请求报文不能为空";
+        }
+        if (!StringUtils.hasText(request.getOrderNo())) {
+            return "orderNo不能为空";
+        }
+        if (!StringUtils.hasText(request.getScene())) {
+            return "scene不能为空";
+        }
+        if (!StringUtils.hasText(request.getPaymentVendor())) {
+            return "paymentVendor不能为空";
+        }
+        if (request.getAmount() == null || request.getAmount() <= 0) {
+            return "amount必须大于0";
+        }
+        if (!StringUtils.hasText(request.getIndustryType())) {
+            return "industryType不能为空";
+        }
+        if (!StringUtils.hasText(request.getSubject())) {
+            return "subject不能为空";
+        }
+        if (!StringUtils.hasText(request.getBody())) {
+            return "body不能为空";
+        }
+        return null;
+    }
+
+    private String validatePayQuery(PayQueryReqDTO request) {
+        if (request == null) {
+            return "请求报文不能为空";
+        }
+        if (!StringUtils.hasText(request.getOrderNo()) && !StringUtils.hasText(request.getMerchantOrderNo())) {
+            return "orderNo和merchantOrderNo至少填一个";
+        }
+        return null;
+    }
+
+    private String validateRequestRefund(RequestRefundReqDTO request) {
+        if (request == null) {
+            return "请求报文不能为空";
+        }
+        if (!StringUtils.hasText(request.getRefundOrderNo())) {
+            return "refundOrderNo不能为空";
+        }
+        if (!StringUtils.hasText(request.getOrderNo())) {
+            return "orderNo不能为空";
+        }
+        if (request.getRefundAmount() == null || request.getRefundAmount() <= 0) {
+            return "refundAmount必须大于0";
+        }
+        return null;
+    }
+
+    private String validateRefundQuery(RefundQueryReqDTO request) {
+        if (request == null) {
+            return "请求报文不能为空";
+        }
+        if (!StringUtils.hasText(request.getRefundOrderNo()) && !StringUtils.hasText(request.getMerchantRefundNo())) {
+            return "refundOrderNo和merchantRefundNo至少填一个";
+        }
+        return null;
+    }
+
+    private PayCenterRequest buildPayCenterRequest(RequestPayReqDTO request, String merchantOrderNo) {
+        PayCenterRequest payCenterRequest = new PayCenterRequest();
+        payCenterRequest.setMerchantNo(payCenterProperties.getMerchantNo());
+        payCenterRequest.setApiVersion(payCenterProperties.getApiVersion());
+        payCenterRequest.setSignType(payCenterProperties.getSignType());
+        payCenterRequest.setCharset(payCenterProperties.getCharset());
+
+        Map<String, Object> bizDataMap = new LinkedHashMap<>();
+        bizDataMap.put("orderNo", request.getOrderNo());
+        bizDataMap.put("merchantOrderNo", merchantOrderNo);
+        bizDataMap.put("scene", request.getScene());
+        bizDataMap.put("paymentVendor", request.getPaymentVendor());
+        bizDataMap.put("amount", request.getAmount());
+        bizDataMap.put("industryType", request.getIndustryType());
+        bizDataMap.put("subject", request.getSubject());
+        bizDataMap.put("body", request.getBody());
+        if (StringUtils.hasText(request.getRequestSignSeq())) {
+            bizDataMap.put("requestSignSeq", request.getRequestSignSeq());
+        }
+        if (StringUtils.hasText(request.getThirdUserId())) {
+            bizDataMap.put("thirdUserId", request.getThirdUserId());
+        }
+        if (StringUtils.hasText(request.getIndustryDetail())) {
+            bizDataMap.put("industryDetail", request.getIndustryDetail());
+        }
+        if (request.getOrderTimeOut() != null && request.getOrderTimeOut() > 0) {
+            bizDataMap.put("orderTimeOut", request.getOrderTimeOut());
+        } else {
+            bizDataMap.put("orderTimeOut", DEFAULT_ORDER_TIMEOUT);
+        }
+        if (StringUtils.hasText(request.getAuthCode())) {
+            bizDataMap.put("authCode", request.getAuthCode());
+        }
+        if (StringUtils.hasText(request.getNotifyUrl())) {
+            bizDataMap.put("notifyUrl", request.getNotifyUrl());
+        } else if (StringUtils.hasText(payCenterProperties.getCallbackUrl())) {
+            bizDataMap.put("notifyUrl", payCenterProperties.getCallbackUrl());
+        }
+        if (StringUtils.hasText(request.getReturnUrl())) {
+            bizDataMap.put("returnUrl", request.getReturnUrl());
+        }
+        if (StringUtils.hasText(request.getIpAddress())) {
+            bizDataMap.put("ipAddress", request.getIpAddress());
+        }
+        if (StringUtils.hasText(request.getRemark())) {
+            bizDataMap.put("remark", request.getRemark());
+        }
+
+        payCenterRequest.setBizData(JSON.toJSONString(bizDataMap));
+        signRequest(payCenterRequest);
+        return payCenterRequest;
+    }
+
+    private PayCenterRequest buildQueryPayCenterRequest(PayQueryReqDTO request) {
+        PayCenterRequest payCenterRequest = new PayCenterRequest();
+        payCenterRequest.setMerchantNo(payCenterProperties.getMerchantNo());
+        payCenterRequest.setApiVersion(payCenterProperties.getApiVersion());
+        payCenterRequest.setSignType(payCenterProperties.getSignType());
+        payCenterRequest.setCharset(payCenterProperties.getCharset());
+
+        Map<String, Object> bizDataMap = new LinkedHashMap<>();
+        if (StringUtils.hasText(request.getOrderNo())) {
+            bizDataMap.put("orderNo", request.getOrderNo());
+        }
+        if (StringUtils.hasText(request.getMerchantOrderNo())) {
+            bizDataMap.put("merchantOrderNo", request.getMerchantOrderNo());
+        }
+        payCenterRequest.setBizData(JSON.toJSONString(bizDataMap));
+        signRequest(payCenterRequest);
+        return payCenterRequest;
+    }
+
+    private PayCenterRequest buildRefundPayCenterRequest(RequestRefundReqDTO request) {
+        PayCenterRequest payCenterRequest = new PayCenterRequest();
+        payCenterRequest.setMerchantNo(payCenterProperties.getMerchantNo());
+        payCenterRequest.setApiVersion(payCenterProperties.getApiVersion());
+        payCenterRequest.setSignType(payCenterProperties.getSignType());
+        payCenterRequest.setCharset(payCenterProperties.getCharset());
+
+        Map<String, Object> bizDataMap = new LinkedHashMap<>();
+        bizDataMap.put("refundOrderNo", request.getRefundOrderNo());
+        if (StringUtils.hasText(request.getMerchantOrderNo())) {
+            bizDataMap.put("merchantOrderNo", request.getMerchantOrderNo());
+        }
+        bizDataMap.put("orderNo", request.getOrderNo());
+        bizDataMap.put("refundAmount", request.getRefundAmount());
+        payCenterRequest.setBizData(JSON.toJSONString(bizDataMap));
+        signRequest(payCenterRequest);
+        return payCenterRequest;
+    }
+
+    private PayCenterRequest buildRefundQueryPayCenterRequest(RefundQueryReqDTO request) {
+        PayCenterRequest payCenterRequest = new PayCenterRequest();
+        payCenterRequest.setMerchantNo(payCenterProperties.getMerchantNo());
+        payCenterRequest.setApiVersion(payCenterProperties.getApiVersion());
+        payCenterRequest.setSignType(payCenterProperties.getSignType());
+        payCenterRequest.setCharset(payCenterProperties.getCharset());
+
+        Map<String, Object> bizDataMap = new LinkedHashMap<>();
+        if (StringUtils.hasText(request.getRefundOrderNo())) {
+            bizDataMap.put("refundOrderNo", request.getRefundOrderNo());
+        }
+        if (StringUtils.hasText(request.getMerchantRefundNo())) {
+            bizDataMap.put("merchantRefundNo", request.getMerchantRefundNo());
+        }
+        payCenterRequest.setBizData(JSON.toJSONString(bizDataMap));
+        signRequest(payCenterRequest);
+        return payCenterRequest;
+    }
+
+    private AppPayLogs buildPayLog(RequestPayReqDTO request, String merchantOrderNo, LocalDateTime now) {
+        AppPayLogs payLog = new AppPayLogs();
+        payLog.setOrderNo(merchantOrderNo);
+        payLog.setUserId(request.getThirdUserId());
+        payLog.setPayType(PAY_TYPE_PAY);
+        payLog.setChannelCode(request.getScene());
+        payLog.setCreateTms(now);
+        payLog.setTradeNo(request.getOrderNo());
+        payLog.setPayChannelCode(request.getPaymentVendor());
+        payLog.setPayAmount(request.getAmount());
+        payLog.setPayResult(PAY_RESULT_FAIL);
+        return payLog;
+    }
+
+    private AppPayLogs buildRefundLog(RequestRefundReqDTO request, LocalDateTime now) {
+        AppPayLogs refundLog = new AppPayLogs();
+        refundLog.setOrderNo(request.getRefundOrderNo());
+        refundLog.setUserId("");
+        refundLog.setPayType(PAY_TYPE_REFUND);
+        refundLog.setChannelCode("");
+        refundLog.setCreateTms(now);
+        refundLog.setTradeNo(request.getOrderNo());
+        refundLog.setPayAmount(request.getRefundAmount());
+        refundLog.setPayResult(PAY_RESULT_FAIL);
+        return refundLog;
+    }
+
+    private AppPayLogs findPayLog(PayQueryReqDTO request) {
+        if (StringUtils.hasText(request.getMerchantOrderNo())) {
+            return appPayLogsMapper.selectByOrderNo(request.getMerchantOrderNo());
+        }
+        return appPayLogsMapper.selectByOrderNo(request.getOrderNo());
+    }
+
+    private int convertPayStatus(String status) {
+        if ("SUCCESS".equalsIgnoreCase(status)) {
+            return PAY_RESULT_SUCCESS;
+        }
+        return PAY_RESULT_FAIL;
+    }
+
+    private PayCenterResponse callPayCenter(String path, PayCenterRequest request) {
+        try {
+            String url = payCenterProperties.getGatewayUrl() + path;
+            String jsonBody = JSON.toJSONString(request);
+            log.info("调用支付中心, url={}, request={}", url, jsonBody);
+
+            RequestBody body = RequestBody.create(jsonBody, MEDIA_TYPE_JSON);
+            Request httpRequest = new Request.Builder()
+                    .url(url)
+                    .post(body)
+                    .build();
+
+            try (Response httpResponse = httpClient.newCall(httpRequest).execute()) {
+                if (httpResponse.isSuccessful() && httpResponse.body() != null) {
+                    String responseBody = httpResponse.body().string();
+                    log.info("支付中心响应, response={}", responseBody);
+                    return JSON.parseObject(responseBody, PayCenterResponse.class);
+                } else {
+                    log.error("调用支付中心失败, code={}, message={}",
+                            httpResponse.code(), httpResponse.message());
+                    return null;
+                }
+            }
+        } catch (IOException e) {
+            log.error("调用支付中心异常", e);
+            return null;
+        }
+    }
+
+    private void signRequest(PayCenterRequest request) {
+        String privateKey = payCenterProperties.getMerchantPrivateKey();
+        if (StringUtils.hasText(privateKey)) {
+            String signData = buildSignData(request);
+            String sign = signWithRsa(signData, privateKey);
+            request.setSign(sign);
+        }
+    }
+
+    private String buildSignData(PayCenterRequest request) {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("merchantNo", request.getMerchantNo());
+        params.put("apiVersion", request.getApiVersion());
+        params.put("signType", request.getSignType());
+        params.put("charset", request.getCharset());
+        params.put("bizData", request.getBizData());
+
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> entry : params.entrySet()) {
+            if (sb.length() > 0) {
+                sb.append("&");
+            }
+            sb.append(entry.getKey()).append("=").append(entry.getValue());
+        }
+        return sb.toString();
+    }
+
+    private String signWithRsa(String data, String privateKey) {
+        try {
+            if (!StringUtils.hasText(privateKey)) {
+                log.warn("商户私钥为空");
+                return "";
+            }
+            byte[] keyBytes = Base64.getDecoder().decode(privateKey);
+            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            PrivateKey key = keyFactory.generatePrivate(keySpec);
+
+            Signature signature = Signature.getInstance(SIGN_ALGORITHM);
+            signature.initSign(key);
+            signature.update(data.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(signature.sign());
+        } catch (Exception e) {
+            log.error("RSA签名异常", e);
+            return "";
+        }
+    }
+
+    private String generateMerchantOrderNo() {
+        return "M" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private String getStringFromData(Map<String, Object> data, String key) {
+        Object value = data.get(key);
+        return value != null ? value.toString() : null;
+    }
+
+    private Integer getIntFromData(Map<String, Object> data, String key) {
+        Object value = data.get(key);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        try {
+            return Integer.parseInt(value.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+}

@@ -1,0 +1,698 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.acc.es.server.mapper.TblTktEsTaskMapper" >
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.acc.es.server.model.TblTktEsTask">
+        <id column="TASK_NO" jdbcType="VARCHAR" property="taskNo" />
+        <result column="PLAN_NO" jdbcType="VARCHAR" property="planNo" />
+        <result column="CHECKOUT_NO" jdbcType="CHAR" property="checkoutNo" />
+        <result column="TASK_TYPE" jdbcType="CHAR" property="taskType" />
+        <result column="PLAN_DATE" jdbcType="CHAR" property="planDate" />
+        <result column="ACT_DATE" jdbcType="CHAR" property="actDate" />
+        <result column="TICKET_MAIN_TYPE" jdbcType="DECIMAL" property="ticketMainType" />
+        <result column="TICKET_TYPE" jdbcType="DECIMAL" property="ticketType" />
+        <result column="TICKET_SUB_TYPE" jdbcType="DECIMAL" property="ticketSubType" />
+        <result column="TEST_FLG" jdbcType="CHAR" property="testFlg" />
+        <result column="VER_NO" jdbcType="CHAR" property="verNo" />
+        <result column="BATCH_NO" jdbcType="CHAR" property="batchNo" />
+        <result column="TICKET_BATCH_NO" jdbcType="CHAR" property="ticketBatchNo" />
+        <result column="TASK_NUM" jdbcType="DECIMAL" property="taskNum" />
+        <result column="BEGIN_NO" jdbcType="DECIMAL" property="beginNo" />
+        <result column="SVT_TICKET_TYPE" jdbcType="DECIMAL" property="svtTicketType" />
+        <result column="END_NO" jdbcType="DECIMAL" property="endNo" />
+        <result column="DEP_AMT" jdbcType="DECIMAL" property="depAmt" />
+        <result column="INIT_AMT" jdbcType="DECIMAL" property="initAmt" />
+        <result column="REWARD_AMT" jdbcType="DECIMAL" property="rewardAmt" />
+        <result column="VALID_DAYS" jdbcType="DECIMAL" property="validDays" />
+        <result column="BEGIN_DATE" jdbcType="CHAR" property="beginDate" />
+        <result column="FINISH_NUM" jdbcType="DECIMAL" property="finishNum" />
+        <result column="WASTE_NUM" jdbcType="DECIMAL" property="wasteNum" />
+        <result column="TICK_USE_TIMES" jdbcType="DECIMAL" property="tickUseTimes" />
+        <result column="IS_MONTH_CARD" jdbcType="CHAR" property="isMonthCard" />
+        <result column="RIDE_PRIMESSION" jdbcType="CHAR" property="ridePrimession" />
+        <result column="IS_NAMED_CARD" jdbcType="CHAR" property="isNamedCard" />
+        <result column="IS_ACTIVE" jdbcType="CHAR" property="isActive" />
+        <result column="IS_PRINT_PHOTO" jdbcType="CHAR" property="isPrintPhoto" />
+        <result column="TASK_ASSN_STAT" jdbcType="CHAR" property="taskAssnStat" />
+        <result column="TASK_EXEC_STAT" jdbcType="CHAR" property="taskExecStat" />
+        <result column="GEN_TMS" jdbcType="TIMESTAMP" property="genTms" />
+        <result column="LAST_UPD_ID" jdbcType="VARCHAR" property="lastUpdId" />
+        <result column="LAST_UPD_TMS" jdbcType="TIMESTAMP" property="lastUpdTms" />
+        <result column="IS_MEMORIAL" jdbcType="CHAR" property="isMemorial" />
+        <result column="WALLET_UNIT" jdbcType="CHAR" property="walletUnit" />
+        <result column="APPR_DATE" jdbcType="VARCHAR" property="apprDate" />
+        <result column="APPR_USER" jdbcType="VARCHAR" property="apprUser" />
+        <result column="APPR_STAT" jdbcType="VARCHAR" property="apprStat" />
+        <result column="FILE_NAME" jdbcType="VARCHAR" property="fileName" />
+        <result column="RIDE_NUM_TYPE" jdbcType="VARCHAR" property="rideNumType" />
+        <result column="SPECIFY_STATIONS" jdbcType="VARCHAR" property="specifyStations" />
+        <result column="SPECIFY_AREAS" jdbcType="VARCHAR" property="specifyAreas" />
+        <result column="SPECIFY_LINES" jdbcType="VARCHAR" property="specifyLines" />
+        <result column="CREATE_USER" jdbcType="VARCHAR" property="createUser"/>
+        <result column="TICKET_STATUS" jdbcType="VARCHAR" property="ticketStatus"/>
+        <association property="esAssign" javaType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAssign" column="TASK_NO">
+            <id column="ATASK_NO" jdbcType="VARCHAR" property="taskNo"/>
+            <result column="AES_CODE" property="esCode" jdbcType="VARCHAR"/>
+            <result column="ABEGIN_NO" property="beginNo" jdbcType="NUMERIC"/>
+            <result column="ATASK_NUM" property="taskNum" jdbcType="NUMERIC"/>
+            <result column="AEND_NO" property="endNo" jdbcType="NUMERIC"/>
+            <result column="ATASK_STAT" property="taskStat" jdbcType="CHAR"/>
+            <result column="AFILE_NM" property="fileNm" jdbcType="VARCHAR"/>
+            <result column="ALAST_UPD_ID" property="lastUpdId" jdbcType="VARCHAR"/>
+            <result column="ALAST_UPD_TMS" property="lastUpdTms" jdbcType="TIMESTAMP"/>
+        </association>
+    </resultMap>
+    <sql id="Base_Column_List">
+    TASK_NO, PLAN_NO, CHECKOUT_NO, TASK_TYPE, PLAN_DATE, ACT_DATE, TICKET_MAIN_TYPE,
+    TICKET_TYPE, TICKET_SUB_TYPE, TEST_FLG, VER_NO, BATCH_NO, TICKET_BATCH_NO, TASK_NUM,
+    BEGIN_NO, SVT_TICKET_TYPE, END_NO, DEP_AMT, INIT_AMT, REWARD_AMT, VALID_DAYS, BEGIN_DATE,
+    FINISH_NUM, WASTE_NUM, TICK_USE_TIMES, IS_MONTH_CARD, RIDE_PRIMESSION, IS_NAMED_CARD,
+    IS_ACTIVE, IS_PRINT_PHOTO, TASK_ASSN_STAT, TASK_EXEC_STAT, GEN_TMS, LAST_UPD_ID,LAST_UPD_TMS,
+    IS_MEMORIAL,WALLET_UNIT,APPR_DATE,APPR_USER,APPR_STAT,FILE_NAME,RIDE_NUM_TYPE,SPECIFY_STATIONS,SPECIFY_AREAS,SPECIFY_LINES,CREATE_USER,TICKET_STATUS
+  </sql>
+
+    <update id="updateTaskAssignStat">
+        UPDATE TBL_TKT_ES_TASK SET TASK_ASSN_STAT = #{assigen} WHERE TASK_NO = #{taskNo}
+    </update>
+    <update id="reportPublishTaskReport" parameterType="com.chinasofti.huateng.acc.es.server.netty.data.PublishTaskReport">
+        UPDATE TBL_TKT_ES_TASK
+            SET LAST_UPD_ID = #{operator},
+             LAST_UPD_TMS = SYSDATE,
+             FINISH_NUM = #{completedNum},
+             WASTE_NUM = #{wastedNum},
+             TASK_EXEC_STAT = '3',
+             ACT_DATE = TO_CHAR(sysdate,'yyyymmdd')
+        WHERE TASK_NO = #{taskNo}
+    </update>
+    <update id="reportPreAssignTaskReport" parameterType="com.chinasofti.huateng.acc.es.server.netty.data.PreAssignTaskReport">
+        UPDATE TBL_TKT_ES_TASK
+            SET LAST_UPD_ID = #{operator},
+             LAST_UPD_TMS = SYSDATE,
+             FINISH_NUM = #{completedNum},
+             WASTE_NUM = #{errorNum},
+             TASK_EXEC_STAT = '3',
+             ACT_DATE = TO_CHAR(sysdate,'yyyymmdd')
+        WHERE TASK_NO = #{taskNo}
+    </update>
+    <update id="reportHandCancelTaskReport" parameterType="com.chinasofti.huateng.acc.es.server.netty.data.HandCancelTaskReport">
+        UPDATE TBL_TKT_ES_TASK
+            SET LAST_UPD_ID = #{operator},
+             LAST_UPD_TMS = SYSDATE,
+             FINISH_NUM = #{completedNum},
+             WASTE_NUM = #{errorNum},
+             TASK_EXEC_STAT = '3',
+             ACT_DATE = TO_CHAR(sysdate,'yyyymmdd')
+        WHERE TASK_NO = #{taskNo}
+
+    </update>
+    <update id="reportCancelTaskReport" parameterType="com.chinasofti.huateng.acc.es.server.netty.data.CancelTaskReport">
+        UPDATE TBL_TKT_ES_TASK
+            SET LAST_UPD_ID = #{operator},
+             LAST_UPD_TMS = SYSDATE,
+             FINISH_NUM = #{completedNum},
+             WASTE_NUM = #{errorNum},
+             TASK_EXEC_STAT = '3',
+             ACT_DATE =  TO_CHAR(sysdate,'yyyymmdd')
+        WHERE TASK_NO = #{taskNo}
+    </update>
+    <update id="reportRecodeTaskReport" parameterType="com.chinasofti.huateng.acc.es.server.netty.data.RecodeTaskReport">
+        UPDATE TBL_TKT_ES_TASK
+            SET LAST_UPD_ID = #{operator},
+             LAST_UPD_TMS = SYSDATE,
+             FINISH_NUM = #{completeNum},
+             WASTE_NUM = #{wastedNum},
+            TASK_EXEC_STAT = '3',
+             ACT_DATE = TO_CHAR(sysdate,'yyyymmdd')
+        WHERE TASK_NO = #{taskNo}
+    </update>
+
+    <select id="sumTaskByPlanNo" resultType="int">
+        SELECT SUM(TASK_NUM) FROM TBL_TKT_ES_TASK WHERE PLAN_NO = #{planNo}
+    </select>
+
+    <select id="select2" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsTask" resultMap="BaseResultMap">
+        select
+        TASK.TASK_NO,TASK.PLAN_NO,TASK.CHECKOUT_NO,TASK.TASK_TYPE,TASK.PLAN_DATE,TASK.ACT_DATE, TASK.TICKET_MAIN_TYPE,
+        TASK.TICKET_TYPE, TASK.TICKET_SUB_TYPE, TASK.TEST_FLG, TASK.VER_NO, TASK.BATCH_NO, TASK.TICKET_BATCH_NO, TASK.TASK_NUM,
+        TASK.BEGIN_NO, TASK.SVT_TICKET_TYPE, TASK.END_NO, TASK.DEP_AMT, TASK.INIT_AMT, TASK.REWARD_AMT, TASK.VALID_DAYS, TASK.BEGIN_DATE,
+        TASK.FINISH_NUM, TASK.WASTE_NUM, TASK.TICK_USE_TIMES, TASK.IS_MONTH_CARD, TASK.RIDE_PRIMESSION, TASK.IS_NAMED_CARD,
+        TASK.IS_ACTIVE, TASK.IS_PRINT_PHOTO, TASK.TASK_ASSN_STAT, TASK.TASK_EXEC_STAT, TASK.GEN_TMS, TASK.LAST_UPD_ID,
+        TASK.LAST_UPD_TMS,TASK.IS_MEMORIAL,TASK.WALLET_UNIT,TASK.APPR_DATE,TASK.APPR_USER,TASK.APPR_STAT,TASK.CREATE_USER,TASK.TICKET_STATUS,
+        ASSIGN.TASK_NO ATASK_NO,ASSIGN.ES_CODE AES_CODE,ASSIGN.BEGIN_NO ABEGIN_NO,ASSIGN.TASK_NUM ATASK_NUM,ASSIGN.END_NO AEND_NO,ASSIGN.TASK_STAT ATASK_STAT,ASSIGN.FILE_NM AFILE_NM,
+        ASSIGN.LAST_UPD_ID ALAST_UPD_ID,ASSIGN.LAST_UPD_TMS ALAST_UPD_TMS
+        from
+        TBL_TKT_ES_TASK TASK
+        LEFT JOIN
+        TBL_TKT_ES_ASSIGN ASSIGN
+        ON TASK.TASK_NO = ASSIGN.TASK_NO
+        WHERE TASK_TYPE &gt; '2' AND TASK_TYPE &lt; '7'
+        <if test="taskNo != null and taskNo != ''">
+            AND TASK.TASK_NO = #{taskNo}
+        </if>
+        <if test="planNo != null and planNo != ''">
+            AND TASK.PLAN_NO = #{planNo}
+        </if>
+        <if test="taskAssnStat != null and taskAssnStat != ''">
+            AND TASK.TASK_ASSN_STAT = #{taskAssnStat}
+        </if>
+        <if test="taskExecStat != null and taskExecStat != ''">
+            AND TASK.TASK_EXEC_STAT = #{taskExecStat}
+        </if>
+        ORDER BY TASK.TASK_NO DESC
+
+
+    </select>
+
+    <select id="queryAllTasks" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsTask" resultMap="BaseResultMap">
+        select
+         TASK.TASK_NO,TASK.PLAN_NO,TASK.CHECKOUT_NO,TASK.TASK_TYPE,TASK.PLAN_DATE,TASK.ACT_DATE, TASK.TICKET_MAIN_TYPE,
+    TASK.TICKET_TYPE, TASK.TICKET_SUB_TYPE, TASK.TEST_FLG, TASK.VER_NO, TASK.BATCH_NO, TASK.TICKET_BATCH_NO, TASK.TASK_NUM,
+    TASK.BEGIN_NO, TASK.SVT_TICKET_TYPE, TASK.END_NO, TASK.DEP_AMT, TASK.INIT_AMT, TASK.REWARD_AMT, TASK.VALID_DAYS, TASK.BEGIN_DATE,
+    TASK.FINISH_NUM, TASK.WASTE_NUM, TASK.TICK_USE_TIMES, TASK.IS_MONTH_CARD, TASK.RIDE_PRIMESSION, TASK.IS_NAMED_CARD,
+    TASK.IS_ACTIVE, TASK.IS_PRINT_PHOTO, TASK.TASK_ASSN_STAT, TASK.TASK_EXEC_STAT, TASK.GEN_TMS, TASK.LAST_UPD_ID,
+    TASK.LAST_UPD_TMS,TASK.IS_MEMORIAL,TASK.WALLET_UNIT,TASK.APPR_DATE,TASK.APPR_USER,TASK.APPR_STAT,TASK.TICKET_STATUS,
+    ASSIGN.TASK_NO ATASK_NO,ASSIGN.ES_CODE AES_CODE,ASSIGN.BEGIN_NO ABEGIN_NO,ASSIGN.TASK_NUM ATASK_NUM,ASSIGN.END_NO AEND_NO,ASSIGN.TASK_STAT ATASK_STAT,ASSIGN.FILE_NM AFILE_NM,
+    ASSIGN.LAST_UPD_ID ALAST_UPD_ID,ASSIGN.LAST_UPD_TMS ALAST_UPD_TMS
+         from
+         TBL_TKT_ES_TASK TASK
+         LEFT JOIN
+         TBL_TKT_ES_ASSIGN ASSIGN
+         ON TASK.TASK_NO = ASSIGN.TASK_NO
+         WHERE TASK_TYPE BETWEEN '1' AND '2'
+         <if test="taskNo != null and taskNo != ''">
+             AND TASK.TASK_NO = #{taskNo}
+         </if>
+         <if test="planNo != null and planNo != ''">
+             AND TASK.PLAN_NO = #{planNo}
+         </if>
+         <if test="taskAssnStat != null and taskAssnStat != ''">
+             AND TASK.TASK_ASSN_STAT = #{taskAssnStat}
+         </if>
+         <if test="taskExecStat != null and taskExecStat != ''">
+             AND TASK.TASK_EXEC_STAT = #{taskExecStat}
+         </if>
+        <if test="ticketType != null and ticketType != ''">
+            AND TASK.TICKET_TYPE = #{ticketType}
+        </if>
+        ORDER BY TASK.TASK_NO DESC
+
+
+    </select>
+    <select id="tasksByDateAndEsNodeId"
+            resultMap="BaseResultMap">
+        select
+        TASK.TASK_NO,TASK.PLAN_NO,TASK.CHECKOUT_NO,TASK.TASK_TYPE,TASK.PLAN_DATE,TASK.ACT_DATE, TASK.TICKET_MAIN_TYPE,
+    TASK.TICKET_TYPE, TASK.TICKET_SUB_TYPE, TASK.TEST_FLG, TASK.VER_NO, TASK.BATCH_NO, TASK.TICKET_BATCH_NO, TASK.TASK_NUM,
+    TASK.BEGIN_NO, TASK.SVT_TICKET_TYPE, TASK.END_NO, TASK.DEP_AMT, TASK.INIT_AMT, TASK.REWARD_AMT, TASK.VALID_DAYS, TASK.BEGIN_DATE,
+    TASK.FINISH_NUM, TASK.WASTE_NUM, TASK.TICK_USE_TIMES, TASK.IS_MONTH_CARD, TASK.RIDE_PRIMESSION, TASK.IS_NAMED_CARD,
+    TASK.IS_ACTIVE, TASK.IS_PRINT_PHOTO, TASK.TASK_ASSN_STAT, TASK.TASK_EXEC_STAT, TASK.GEN_TMS, TASK.LAST_UPD_ID,
+    TASK.LAST_UPD_TMS,TASK.IS_MEMORIAL,TASK.WALLET_UNIT,TASK.APPR_DATE,TASK.APPR_USER,TASK.APPR_STAT,TASK.TICKET_STATUS
+        from
+        TBL_TKT_ES_TASK TASK
+         LEFT JOIN
+         TBL_TKT_ES_ASSIGN ASSIGN
+         ON TASK.TASK_NO = ASSIGN.TASK_NO
+         where
+         task.TASK_ASSN_STAT = '1'
+         and TASK.TASK_EXEC_STAT = '0'
+         and TASK.PLAN_DATE = #{date}
+         AND ASSIGN.ES_CODE = #{esCode}
+    </select>
+    <select id="getTaskTypeByTaskNo" resultType="java.lang.String">
+        SELECT TASK_TYPE FROM TBL_TKT_ES_TASK WHERE TASK_NO = #{value}
+    </select>
+
+    <select id="selectByPrimaryKey" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List" />
+        from TBL_TKT_ES_TASK
+        where TASK_NO = #{taskNo,jdbcType=VARCHAR}
+    </select>
+    <select id="selectThePlanNoTasks"
+            resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM
+        TBL_TKT_ES_TASK
+        WHERE
+        PLAN_NO = #{planNo}
+        order by GEN_TMS
+    </select>
+    <select id="allCustomTask" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsTask" resultMap="BaseResultMap">
+        SELECT
+        TASK.TASK_NO,TASK.PLAN_NO,TASK.CHECKOUT_NO,TASK.TASK_TYPE,TASK.PLAN_DATE,TASK.ACT_DATE, TASK.TICKET_MAIN_TYPE,
+        TASK.TICKET_TYPE, TASK.TICKET_SUB_TYPE, TASK.TEST_FLG, TASK.VER_NO, TASK.BATCH_NO, TASK.TICKET_BATCH_NO, TASK.TASK_NUM,
+        TASK.BEGIN_NO, TASK.SVT_TICKET_TYPE, TASK.END_NO, TASK.DEP_AMT, TASK.INIT_AMT, TASK.REWARD_AMT, TASK.VALID_DAYS, TASK.BEGIN_DATE,
+        TASK.FINISH_NUM, TASK.WASTE_NUM, TASK.TICK_USE_TIMES, TASK.IS_MONTH_CARD, TASK.RIDE_PRIMESSION, TASK.IS_NAMED_CARD,
+        TASK.IS_ACTIVE, TASK.IS_PRINT_PHOTO, TASK.TASK_ASSN_STAT, TASK.TASK_EXEC_STAT, TASK.GEN_TMS, TASK.LAST_UPD_ID,
+        TASK.LAST_UPD_TMS,TASK.IS_MEMORIAL,TASK.WALLET_UNIT,TASK.APPR_DATE,TASK.APPR_USER,TASK.APPR_STAT,
+        TASK.FILE_NAME,TASK.RIDE_NUM_TYPE,TASK.SPECIFY_STATIONS,TASK.SPECIFY_AREAS,TASK.SPECIFY_LINES,TASK.CREATE_USER,
+        ASSIGN.TASK_NO ATASK_NO,ASSIGN.ES_CODE AES_CODE,ASSIGN.BEGIN_NO ABEGIN_NO,ASSIGN.TASK_NUM ATASK_NUM,ASSIGN.END_NO AEND_NO,ASSIGN.TASK_STAT ATASK_STAT,ASSIGN.FILE_NM FILE_NM,
+        ASSIGN.LAST_UPD_ID ALAST_UPD_ID,ASSIGN.LAST_UPD_TMS ALAST_UPD_TMS
+        from
+        TBL_TKT_ES_TASK TASK
+        LEFT JOIN
+        TBL_TKT_ES_ASSIGN ASSIGN
+        ON TASK.TASK_NO = ASSIGN.TASK_NO
+
+        <trim prefix="WHERE" prefixOverrides="AND |OR ">
+            <if test="taskNo != null and taskNo != ''">
+                AND TASK.TASK_NO = #{taskNo,jdbcType=VARCHAR}
+            </if>
+            <if test="apprStat != null and apprStat != ''">
+                AND TASK.APPR_STAT = #{apprStat,jdbcType=CHAR}
+            </if>
+            <if test="taskAssnStat != null and taskAssnStat != ''">
+                AND TASK.TASK_ASSN_STAT = #{taskAssnStat,jdbcType=CHAR}
+            </if>
+            <if test="taskExecStat != null and taskExecStat != ''">
+                AND TASK.TASK_EXEC_STAT = #{taskExecStat,jdbcType=CHAR}
+            </if>
+            AND TASK.TASK_TYPE = #{taskType,jdbcType=CHAR}
+        </trim>
+        ORDER BY TASK.TASK_NO DESC
+
+</select>
+    <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
+    delete from TBL_TKT_ES_TASK
+    where TASK_NO = #{taskNo,jdbcType=VARCHAR}
+  </delete>
+    <insert id="insert" keyColumn="TASK_NO" keyProperty="taskNo" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsTask">
+    <selectKey order="BEFORE" resultType="java.lang.Integer" keyProperty="taskNo">
+        SELECT ES_TASK_SEQ.NEXTVAL AS taskNo FROM DUAL
+    </selectKey>
+    insert into TBL_TKT_ES_TASK (TASK_NO,PLAN_NO, CHECKOUT_NO, TASK_TYPE,
+      PLAN_DATE, ACT_DATE, TICKET_MAIN_TYPE,
+      TICKET_TYPE, TICKET_SUB_TYPE, TEST_FLG,
+      VER_NO, BATCH_NO, TICKET_BATCH_NO,
+      TASK_NUM, BEGIN_NO, SVT_TICKET_TYPE,
+      END_NO, DEP_AMT, INIT_AMT,
+      REWARD_AMT, VALID_DAYS, BEGIN_DATE,
+      FINISH_NUM, WASTE_NUM, TICK_USE_TIMES,
+      IS_MONTH_CARD, RIDE_PRIMESSION, IS_NAMED_CARD,
+      IS_ACTIVE, IS_PRINT_PHOTO, TASK_ASSN_STAT,
+      TASK_EXEC_STAT, GEN_TMS, LAST_UPD_ID,
+      LAST_UPD_TMS,IS_MEMORIAL,WALLET_UNIT,APPR_DATE,APPR_USER,APPR_STAT,FILE_NAME,RIDE_NUM_TYPE,SPECIFY_STATIONS,SPECIFY_AREAS,SPECIFY_LINES,CREATE_USER,TICKET_STATUS)
+    values (#{taskNo,jdbcType=NUMERIC},#{planNo,jdbcType=CHAR}, #{checkoutNo,jdbcType=CHAR}, #{taskType,jdbcType=CHAR},
+      #{planDate,jdbcType=CHAR}, #{actDate,jdbcType=CHAR}, #{ticketMainType,jdbcType=DECIMAL},
+      #{ticketType,jdbcType=DECIMAL}, #{ticketSubType,jdbcType=DECIMAL}, #{testFlg,jdbcType=CHAR},
+      #{verNo,jdbcType=CHAR}, #{batchNo,jdbcType=CHAR}, #{ticketBatchNo,jdbcType=CHAR},
+      #{taskNum,jdbcType=DECIMAL}, #{beginNo,jdbcType=DECIMAL}, #{svtTicketType,jdbcType=DECIMAL},
+      #{endNo,jdbcType=DECIMAL}, #{depAmt,jdbcType=DECIMAL}, #{initAmt,jdbcType=DECIMAL},
+      #{rewardAmt,jdbcType=DECIMAL}, #{validDays,jdbcType=DECIMAL}, #{beginDate,jdbcType=CHAR},
+      #{finishNum,jdbcType=DECIMAL}, #{wasteNum,jdbcType=DECIMAL}, #{tickUseTimes,jdbcType=DECIMAL},
+      #{isMonthCard,jdbcType=CHAR}, #{ridePrimession,jdbcType=CHAR}, #{isNamedCard,jdbcType=CHAR},
+      #{isActive,jdbcType=CHAR}, #{isPrintPhoto,jdbcType=CHAR}, #{taskAssnStat,jdbcType=CHAR},
+      #{taskExecStat,jdbcType=CHAR}, SYSDATE, #{lastUpdId,jdbcType=VARCHAR},
+      SYSDATE,#{isMemorial,jdbcType=CHAR},#{walletUnit,jdbcType=CHAR},#{apprDate,jdbcType=CHAR},#{apprUser,jdbcType=VARCHAR},#{apprStat,jdbcType=CHAR},#{fileName,jdbcType=CHAR},#{rideNumType,jdbcType=CHAR},
+            #{specifyStations,jdbcType=VARCHAR},#{specifyAreas,jdbcType=VARCHAR},#{specifyLines,jdbcType=VARCHAR},#{createUser,jdbcType=VARCHAR},#{ticketStatus,jdbcType=VARCHAR})
+
+  </insert>
+    <insert id="insertSelective" keyColumn="TASK_NO" keyProperty="taskNo" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsTask" useGeneratedKeys="true">
+        insert into TBL_TKT_ES_TASK
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="planNo != null">
+                PLAN_NO,
+            </if>
+            <if test="checkoutNo != null">
+                CHECKOUT_NO,
+            </if>
+            <if test="taskType != null">
+                TASK_TYPE,
+            </if>
+            <if test="planDate != null">
+                PLAN_DATE,
+            </if>
+            <if test="actDate != null">
+                ACT_DATE,
+            </if>
+            <if test="ticketMainType != null">
+                TICKET_MAIN_TYPE,
+            </if>
+            <if test="ticketType != null">
+                TICKET_TYPE,
+            </if>
+            <if test="ticketSubType != null">
+                TICKET_SUB_TYPE,
+            </if>
+            <if test="testFlg != null">
+                TEST_FLG,
+            </if>
+            <if test="verNo != null">
+                VER_NO,
+            </if>
+            <if test="batchNo != null">
+                BATCH_NO,
+            </if>
+            <if test="ticketBatchNo != null">
+                TICKET_BATCH_NO,
+            </if>
+            <if test="taskNum != null">
+                TASK_NUM,
+            </if>
+            <if test="beginNo != null">
+                BEGIN_NO,
+            </if>
+            <if test="svtTicketType != null">
+                SVT_TICKET_TYPE,
+            </if>
+            <if test="endNo != null">
+                END_NO,
+            </if>
+            <if test="depAmt != null">
+                DEP_AMT,
+            </if>
+            <if test="initAmt != null">
+                INIT_AMT,
+            </if>
+            <if test="rewardAmt != null">
+                REWARD_AMT,
+            </if>
+            <if test="validDays != null">
+                VALID_DAYS,
+            </if>
+            <if test="beginDate != null">
+                BEGIN_DATE,
+            </if>
+            <if test="finishNum != null">
+                FINISH_NUM,
+            </if>
+            <if test="wasteNum != null">
+                WASTE_NUM,
+            </if>
+            <if test="tickUseTimes != null">
+                TICK_USE_TIMES,
+            </if>
+            <if test="isMonthCard != null">
+                IS_MONTH_CARD,
+            </if>
+            <if test="ridePrimession != null">
+                RIDE_PRIMESSION,
+            </if>
+            <if test="isNamedCard != null">
+                IS_NAMED_CARD,
+            </if>
+            <if test="isActive != null">
+                IS_ACTIVE,
+            </if>
+            <if test="isPrintPhoto != null">
+                IS_PRINT_PHOTO,
+            </if>
+            <if test="taskAssnStat != null">
+                TASK_ASSN_STAT,
+            </if>
+            <if test="taskExecStat != null">
+                TASK_EXEC_STAT,
+            </if>
+            <if test="genTms != null">
+                GEN_TMS,
+            </if>
+            <if test="lastUpdId != null">
+                LAST_UPD_ID,
+            </if>
+            <if test="lastUpdTms != null">
+                LAST_UPD_TMS,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="planNo != null">
+                #{planNo,jdbcType=VARCHAR},
+            </if>
+            <if test="checkoutNo != null">
+                #{checkoutNo,jdbcType=CHAR},
+            </if>
+            <if test="taskType != null">
+                #{taskType,jdbcType=CHAR},
+            </if>
+            <if test="planDate != null">
+                #{planDate,jdbcType=CHAR},
+            </if>
+            <if test="actDate != null">
+                #{actDate,jdbcType=CHAR},
+            </if>
+            <if test="ticketMainType != null">
+                #{ticketMainType,jdbcType=DECIMAL},
+            </if>
+            <if test="ticketType != null">
+                #{ticketType,jdbcType=DECIMAL},
+            </if>
+            <if test="ticketSubType != null">
+                #{ticketSubType,jdbcType=DECIMAL},
+            </if>
+            <if test="testFlg != null">
+                #{testFlg,jdbcType=CHAR},
+            </if>
+            <if test="verNo != null">
+                #{verNo,jdbcType=CHAR},
+            </if>
+            <if test="batchNo != null">
+                #{batchNo,jdbcType=CHAR},
+            </if>
+            <if test="ticketBatchNo != null">
+                #{ticketBatchNo,jdbcType=CHAR},
+            </if>
+            <if test="taskNum != null">
+                #{taskNum,jdbcType=DECIMAL},
+            </if>
+            <if test="beginNo != null">
+                #{beginNo,jdbcType=DECIMAL},
+            </if>
+            <if test="svtTicketType != null">
+                #{svtTicketType,jdbcType=DECIMAL},
+            </if>
+            <if test="endNo != null">
+                #{endNo,jdbcType=DECIMAL},
+            </if>
+            <if test="depAmt != null">
+                #{depAmt,jdbcType=DECIMAL},
+            </if>
+            <if test="initAmt != null">
+                #{initAmt,jdbcType=DECIMAL},
+            </if>
+            <if test="rewardAmt != null">
+                #{rewardAmt,jdbcType=DECIMAL},
+            </if>
+            <if test="validDays != null">
+                #{validDays,jdbcType=DECIMAL},
+            </if>
+            <if test="beginDate != null">
+                #{beginDate,jdbcType=CHAR},
+            </if>
+            <if test="finishNum != null">
+                #{finishNum,jdbcType=DECIMAL},
+            </if>
+            <if test="wasteNum != null">
+                #{wasteNum,jdbcType=DECIMAL},
+            </if>
+            <if test="tickUseTimes != null">
+                #{tickUseTimes,jdbcType=DECIMAL},
+            </if>
+            <if test="isMonthCard != null">
+                #{isMonthCard,jdbcType=CHAR},
+            </if>
+            <if test="ridePrimession != null">
+                #{ridePrimession,jdbcType=CHAR},
+            </if>
+            <if test="isNamedCard != null">
+                #{isNamedCard,jdbcType=CHAR},
+            </if>
+            <if test="isActive != null">
+                #{isActive,jdbcType=CHAR},
+            </if>
+            <if test="isPrintPhoto != null">
+                #{isPrintPhoto,jdbcType=CHAR},
+            </if>
+            <if test="taskAssnStat != null">
+                #{taskAssnStat,jdbcType=CHAR},
+            </if>
+            <if test="taskExecStat != null">
+                #{taskExecStat,jdbcType=CHAR},
+            </if>
+            <if test="genTms != null">
+                SYSDATE,
+            </if>
+            <if test="lastUpdId != null">
+                #{lastUpdId,jdbcType=VARCHAR},
+            </if>
+            <if test="lastUpdTms != null">
+                SYSDATE,
+            </if>
+        </trim>
+    </insert>
+    <update id="updateByPrimaryKeySelective" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsTask">
+        update TBL_TKT_ES_TASK
+        <set>
+            <if test="planNo != null">
+                PLAN_NO = #{planNo,jdbcType=VARCHAR},
+            </if>
+            <if test="checkoutNo != null">
+                CHECKOUT_NO = #{checkoutNo,jdbcType=CHAR},
+            </if>
+            <if test="taskType != null">
+                TASK_TYPE = #{taskType,jdbcType=CHAR},
+            </if>
+            <if test="planDate != null">
+                PLAN_DATE = #{planDate,jdbcType=CHAR},
+            </if>
+            <if test="actDate != null">
+                ACT_DATE = #{actDate,jdbcType=CHAR},
+            </if>
+            <if test="ticketMainType != null">
+                TICKET_MAIN_TYPE = #{ticketMainType,jdbcType=DECIMAL},
+            </if>
+            <if test="ticketType != null">
+                TICKET_TYPE = #{ticketType,jdbcType=DECIMAL},
+            </if>
+            <if test="ticketSubType != null">
+                TICKET_SUB_TYPE = #{ticketSubType,jdbcType=DECIMAL},
+            </if>
+            <if test="testFlg != null">
+                TEST_FLG = #{testFlg,jdbcType=CHAR},
+            </if>
+            <if test="verNo != null">
+                VER_NO = #{verNo,jdbcType=CHAR},
+            </if>
+            <if test="batchNo != null">
+                BATCH_NO = #{batchNo,jdbcType=CHAR},
+            </if>
+            <if test="ticketBatchNo != null">
+                TICKET_BATCH_NO = #{ticketBatchNo,jdbcType=CHAR},
+            </if>
+            <if test="taskNum != null">
+                TASK_NUM = #{taskNum,jdbcType=DECIMAL},
+            </if>
+            <if test="beginNo != null">
+                BEGIN_NO = #{beginNo,jdbcType=DECIMAL},
+            </if>
+            <if test="svtTicketType != null">
+                SVT_TICKET_TYPE = #{svtTicketType,jdbcType=DECIMAL},
+            </if>
+            <if test="endNo != null">
+                END_NO = #{endNo,jdbcType=DECIMAL},
+            </if>
+            <if test="depAmt != null">
+                DEP_AMT = #{depAmt,jdbcType=DECIMAL},
+            </if>
+            <if test="initAmt != null">
+                INIT_AMT = #{initAmt,jdbcType=DECIMAL},
+            </if>
+            <if test="rewardAmt != null">
+                REWARD_AMT = #{rewardAmt,jdbcType=DECIMAL},
+            </if>
+            <if test="validDays != null">
+                VALID_DAYS = #{validDays,jdbcType=DECIMAL},
+            </if>
+            <if test="beginDate != null">
+                BEGIN_DATE = #{beginDate,jdbcType=CHAR},
+            </if>
+            <if test="finishNum != null">
+                FINISH_NUM = #{finishNum,jdbcType=DECIMAL},
+            </if>
+            <if test="wasteNum != null">
+                WASTE_NUM = #{wasteNum,jdbcType=DECIMAL},
+            </if>
+            <if test="tickUseTimes != null">
+                TICK_USE_TIMES = #{tickUseTimes,jdbcType=DECIMAL},
+            </if>
+            <if test="isMonthCard != null">
+                IS_MONTH_CARD = #{isMonthCard,jdbcType=CHAR},
+            </if>
+            <if test="ridePrimession != null">
+                RIDE_PRIMESSION = #{ridePrimession,jdbcType=CHAR},
+            </if>
+            <if test="isNamedCard != null">
+                IS_NAMED_CARD = #{isNamedCard,jdbcType=CHAR},
+            </if>
+            <if test="isActive != null">
+                IS_ACTIVE = #{isActive,jdbcType=CHAR},
+            </if>
+            <if test="isPrintPhoto != null">
+                IS_PRINT_PHOTO = #{isPrintPhoto,jdbcType=CHAR},
+            </if>
+            <if test="taskAssnStat != null">
+                TASK_ASSN_STAT = #{taskAssnStat,jdbcType=CHAR},
+            </if>
+            <if test="taskExecStat != null">
+                TASK_EXEC_STAT = #{taskExecStat,jdbcType=CHAR},
+            </if>
+            <if test="genTms != null">
+                GEN_TMS = SYSDATE,
+            </if>
+            <if test="lastUpdId != null">
+                LAST_UPD_ID = #{lastUpdId,jdbcType=VARCHAR},
+            </if>
+            <if test="lastUpdTms != null">
+                LAST_UPD_TMS = SYSDATE,
+            </if>
+        </set>
+        where TASK_NO = #{taskNo,jdbcType=VARCHAR}
+    </update>
+    <update id="updateByPrimaryKey" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsTask">
+    update TBL_TKT_ES_TASK
+    set PLAN_NO = #{planNo,jdbcType=VARCHAR},
+      CHECKOUT_NO = #{checkoutNo,jdbcType=CHAR},
+      TASK_TYPE = #{taskType,jdbcType=CHAR},
+      PLAN_DATE = #{planDate,jdbcType=CHAR},
+      ACT_DATE = #{actDate,jdbcType=CHAR},
+      TICKET_MAIN_TYPE = #{ticketMainType,jdbcType=DECIMAL},
+      TICKET_TYPE = #{ticketType,jdbcType=DECIMAL},
+      TICKET_SUB_TYPE = #{ticketSubType,jdbcType=DECIMAL},
+      TEST_FLG = #{testFlg,jdbcType=CHAR},
+      VER_NO = #{verNo,jdbcType=CHAR},
+      BATCH_NO = #{batchNo,jdbcType=CHAR},
+      TICKET_BATCH_NO = #{ticketBatchNo,jdbcType=CHAR},
+      TASK_NUM = #{taskNum,jdbcType=DECIMAL},
+      BEGIN_NO = #{beginNo,jdbcType=DECIMAL},
+      SVT_TICKET_TYPE = #{svtTicketType,jdbcType=DECIMAL},
+      END_NO = #{endNo,jdbcType=DECIMAL},
+      DEP_AMT = #{depAmt,jdbcType=DECIMAL},
+      INIT_AMT = #{initAmt,jdbcType=DECIMAL},
+      REWARD_AMT = #{rewardAmt,jdbcType=DECIMAL},
+      VALID_DAYS = #{validDays,jdbcType=DECIMAL},
+      BEGIN_DATE = #{beginDate,jdbcType=CHAR},
+      FINISH_NUM = #{finishNum,jdbcType=DECIMAL},
+      WASTE_NUM = #{wasteNum,jdbcType=DECIMAL},
+      TICK_USE_TIMES = #{tickUseTimes,jdbcType=DECIMAL},
+      IS_MONTH_CARD = #{isMonthCard,jdbcType=CHAR},
+        RIDE_PRIMESSION = #{ridePrimession,jdbcType=CHAR},
+      IS_NAMED_CARD = #{isNamedCard,jdbcType=CHAR},
+      IS_ACTIVE = #{isActive,jdbcType=CHAR},
+      IS_PRINT_PHOTO = #{isPrintPhoto,jdbcType=CHAR},
+      TASK_ASSN_STAT = #{taskAssnStat,jdbcType=CHAR},
+      TASK_EXEC_STAT = #{taskExecStat,jdbcType=CHAR},
+      GEN_TMS = SYSDATE,
+      LAST_UPD_ID = #{lastUpdId,jdbcType=VARCHAR},
+      LAST_UPD_TMS = SYSDATE,
+        IS_MEMORIAL = #{isMemorial,jdbcType=CHAR},
+        WALLET_UNIT = #{walletUnit,jdbcType=CHAR},
+        APPR_DATE = #{apprDate,jdbcType=CHAR},
+        APPR_USER = #{apprUser,jdbcType=VARCHAR},
+        APPR_STAT = #{apprStat,jdbcType=CHAR},
+        FILE_NAME = #{fileName,jdbcType=VARCHAR},
+        RIDE_NUM_TYPE = #{rideNumType,jdbcType=VARCHAR},
+        SPECIFY_STATIONS = #{specifyStations,jdbcType=VARCHAR},
+        SPECIFY_AREAS = #{specifyAreas,jdbcType=VARCHAR},
+        SPECIFY_LINES = #{specifyLines,jdbcType=VARCHAR},
+        CREATE_USER = #{createUser,jdbcType = VARCHAR},
+        TICKET_STATUS = #{ticketStatus,jdbcType = VARCHAR}
+    where TASK_NO = #{taskNo,jdbcType=VARCHAR}
+  </update>
+    <update id="updateToExecuting" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsTask">
+        UPDATE TBL_TKT_ES_TASK SET TASK_EXEC_STAT = '1' WHERE TASK_NO = #{taskNo,jdbcType = VARCHAR}
+    </update>
+    <update id="reportCustomTaskReport" parameterType="com.chinasofti.huateng.acc.es.server.netty.data.CustomTaskReport">
+        UPDATE TBL_TKT_ES_TASK
+        SET LAST_UPD_ID = #{operator},
+            LAST_UPD_TMS = SYSDATE,
+            FINISH_NUM = #{completedNum},
+            WASTE_NUM = #{wastedNum},
+            TASK_EXEC_STAT = '3',
+            ACT_DATE = TO_CHAR(sysdate,'yyyymmdd')
+        WHERE TASK_NO = #{taskNo}
+    </update>
+
+
+    <update id="updateTaskToFail">
+        update TBL_TKT_ES_TASK SET TASK_EXEC_STAT = '2' WHERE TASK_NO = #{taskNo}
+    </update>
+
+
+</mapper>

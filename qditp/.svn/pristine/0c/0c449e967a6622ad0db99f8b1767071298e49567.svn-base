@@ -1,0 +1,227 @@
+package com.chinasofti.huateng.collectpay.model.request;
+
+/**
+ * IF8A-09 请求支付请求报文。
+ */
+public class RequestPayReqDTO {
+    /**
+     * 订单号。
+     */
+    private String orderNo;
+
+    /**
+     * 支付类型/场景。
+     */
+    private String scene;
+
+    /**
+     * 支付方式。
+     */
+    private String paymentVendor;
+
+    /**
+     * 支付金额（单位：分）。
+     */
+    private Integer amount;
+
+    /**
+     * 行业类型：1-地铁 2-公交 3-打车 4-购物。
+     */
+    private String industryType;
+
+    /**
+     * 订单标题。
+     */
+    private String subject;
+
+    /**
+     * 订单描述。
+     */
+    private String body;
+
+    /**
+     * 签约流水号（免密场景必填）。
+     */
+    private String requestSignSeq;
+
+    /**
+     * 用户ID。
+     */
+    private String thirdUserId;
+
+    /**
+     * 行业详情。
+     */
+    private String industryDetail;
+
+    /**
+     * 订单超时时间（秒）。
+     */
+    private Long orderTimeOut;
+
+    /**
+     * 授权码（部分渠道主动支付需要）。
+     */
+    private String authCode;
+
+    /**
+     * 回调地址。
+     */
+    private String notifyUrl;
+
+    /**
+     * 返回前端页面地址。
+     */
+    private String returnUrl;
+
+    /**
+     * 用户IP地址。
+     */
+    private String ipAddress;
+
+    /**
+     * 备注。
+     */
+    private String remark;
+
+    public String getOrderNo() {
+        return orderNo;
+    }
+
+    public void setOrderNo(String orderNo) {
+        this.orderNo = orderNo;
+    }
+
+    public String getScene() {
+        return scene;
+    }
+
+    public void setScene(String scene) {
+        this.scene = scene;
+    }
+
+    public String getPaymentVendor() {
+        return paymentVendor;
+    }
+
+    public void setPaymentVendor(String paymentVendor) {
+        this.paymentVendor = paymentVendor;
+    }
+
+    public Integer getAmount() {
+        return amount;
+    }
+
+    public void setAmount(Integer amount) {
+        this.amount = amount;
+    }
+
+    public String getIndustryType() {
+        return industryType;
+    }
+
+    public void setIndustryType(String industryType) {
+        this.industryType = industryType;
+    }
+
+    public String getSubject() {
+        return subject;
+    }
+
+    public void setSubject(String subject) {
+        this.subject = subject;
+    }
+
+    public String getBody() {
+        return body;
+    }
+
+    public void setBody(String body) {
+        this.body = body;
+    }
+
+    public String getRequestSignSeq() {
+        return requestSignSeq;
+    }
+
+    public void setRequestSignSeq(String requestSignSeq) {
+        this.requestSignSeq = requestSignSeq;
+    }
+
+    public String getThirdUserId() {
+        return thirdUserId;
+    }
+
+    public void setThirdUserId(String thirdUserId) {
+        this.thirdUserId = thirdUserId;
+    }
+
+    public String getIndustryDetail() {
+        return industryDetail;
+    }
+
+    public void setIndustryDetail(String industryDetail) {
+        this.industryDetail = industryDetail;
+    }
+
+    public Long getOrderTimeOut() {
+        return orderTimeOut;
+    }
+
+    public void setOrderTimeOut(Long orderTimeOut) {
+        this.orderTimeOut = orderTimeOut;
+    }
+
+    public String getAuthCode() {
+        return authCode;
+    }
+
+    public void setAuthCode(String authCode) {
+        this.authCode = authCode;
+    }
+
+    public String getNotifyUrl() {
+        return notifyUrl;
+    }
+
+    public void setNotifyUrl(String notifyUrl) {
+        this.notifyUrl = notifyUrl;
+    }
+
+    public String getReturnUrl() {
+        return returnUrl;
+    }
+
+    public void setReturnUrl(String returnUrl) {
+        this.returnUrl = returnUrl;
+    }
+
+    public String getIpAddress() {
+        return ipAddress;
+    }
+
+    public void setIpAddress(String ipAddress) {
+        this.ipAddress = ipAddress;
+    }
+
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
+    }
+
+    @Override
+    public String toString() {
+        return "RequestPayReqDTO{" +
+                "orderNo='" + orderNo + '\'' +
+                ", scene='" + scene + '\'' +
+                ", paymentVendor='" + paymentVendor + '\'' +
+                ", amount=" + amount +
+                ", industryType='" + industryType + '\'' +
+                ", subject='" + subject + '\'' +
+                ", thirdUserId='" + thirdUserId + '\'' +
+                '}';
+    }
+}

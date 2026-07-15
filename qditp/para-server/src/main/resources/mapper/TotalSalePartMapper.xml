@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.para.mapper.ticket.TotalSalePartMapper">
+    <delete id="deleteByParaVerNo">
+        DELETE FROM TBL_TOTAL_SALE_PART WHERE PARA_VER_NO = #{paraVerNo,jdbcType=NUMERIC}
+    </delete>
+
+    <insert id="insertBatch">
+        INSERT ALL
+        <foreach collection="list" item="item">
+            INTO TBL_TOTAL_SALE_PART (
+                PARA_VER_NO, TICKET_TYPE, PART_SEQ_NO, BEGIN_TOTAL_SALE, END_TOTAL_SALE,
+                SALE_RATIO, LAST_UPD_USER, LAST_UPD_TMS
+            )
+            VALUES (
+                #{item.paraVerNo,jdbcType=NUMERIC}, #{item.ticketType,jdbcType=NUMERIC},
+                #{item.partSeqNo,jdbcType=NUMERIC}, #{item.beginTotalSale,jdbcType=NUMERIC},
+                #{item.endTotalSale,jdbcType=NUMERIC}, #{item.saleRatio,jdbcType=NUMERIC},
+                #{item.lastUpdUser,jdbcType=VARCHAR}, #{item.lastUpdTms,jdbcType=TIMESTAMP}
+            )
+        </foreach>
+        SELECT 1 FROM DUAL
+    </insert>
+</mapper>

@@ -1,0 +1,94 @@
+ package com.chinasofti.huateng.collectpay.model.response;
+
+ /**
+  * IF8A-12 请求退款响应报文。
+  */
+ public class RequestRefundRespDTO {
+     /**
+      * 返回码。
+      */
+     private String retCode;
+
+     /**
+      * 返回消息。
+      */
+     private String retMsg;
+
+     /**
+      * 商户退款单号。
+      */
+     private String merchantRefundNo;
+
+     /**
+      * 退款单号。
+      */
+     private String refundNo;
+
+     /**
+      * 渠道退款单号。
+      */
+     private String channelRefundNo;
+
+     /**
+      * 退款时间（格式：yyyyMMddHHmmss）。
+      */
+     private String refundTime;
+
+     public String getRetCode() {
+         return retCode;
+     }
+
+     public void setRetCode(String retCode) {
+         this.retCode = retCode;
+     }
+
+     public String getRetMsg() {
+         return retMsg;
+     }
+
+     public void setRetMsg(String retMsg) {
+         this.retMsg = retMsg;
+     }
+
+     public String getMerchantRefundNo() {
+         return merchantRefundNo;
+     }
+
+     public void setMerchantRefundNo(String merchantRefundNo) {
+         this.merchantRefundNo = merchantRefundNo;
+     }
+
+     public String getRefundNo() {
+         return refundNo;
+     }
+
+     public void setRefundNo(String refundNo) {
+         this.refundNo = refundNo;
+     }
+
+     public String getChannelRefundNo() {
+         return channelRefundNo;
+     }
+
+     public void setChannelRefundNo(String channelRefundNo) {
+         this.channelRefundNo = channelRefundNo;
+     }
+
+     public String getRefundTime() {
+         return refundTime;
+     }
+
+     public void setRefundTime(String refundTime) {
+         this.refundTime = refundTime;
+     }
+
+     @Override
+     public String toString() {
+         return "RequestRefundRespDTO{" +
+                 "retCode='" + retCode + '\'' +
+                 ", retMsg='" + retMsg + '\'' +
+                 ", refundNo='" + refundNo + '\'' +
+                 ", channelRefundNo='" + channelRefundNo + '\'' +
+                 '}';
+     }
+ }

@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.chinasofti.huateng.acc.es.server.mapper.TblTktTaskPlanMapper" >
+    <resultMap id="BaseMap" type="com.chinasofti.huateng.acc.es.server.model.TblTktTaskPlan">
+        <id column="PLAN_NO" property="planNo" jdbcType="NUMERIC"/>
+        <result column="TASK_TYPE" property="taskType" jdbcType="VARCHAR"/>
+        <result column="TICKET_MAIN_TYPE" property="ticketMainType" jdbcType="NUMERIC"/>
+        <result column="TICKET_TYPE" property="ticketType" jdbcType="NUMERIC"/>
+        <result column="TICKET_SUB_TYPE" property="ticketSubType" jdbcType="NUMERIC"/>
+        <result column="PLAN_NUM" property="planNum" jdbcType="NUMERIC"/>
+        <result column="ACT_NUM" property="actNum" jdbcType="NUMERIC"/>
+        <result column="ASSIGN_NUM" property="assignNum" jdbcType="NUMERIC"/>
+        <result column="INIT_AMT" property="initAmt" jdbcType="NUMERIC"/>
+        <result column="PLAN_TMS" property="planTms" jdbcType="TIMESTAMP"/>
+        <result column="TASK_PLAN_STAT" property="taskPlanStat" jdbcType="VARCHAR"/>
+        <result column="LAST_UPD_ID" property="lastUpdId" jdbcType="VARCHAR"/>
+        <result column="LAST_UPD_TMS" property="lastUpdTms" jdbcType="TIMESTAMP"/>
+        <result column="CREATE_USER" property="createUser" jdbcType="VARCHAR"/>
+        <result column="APPROVE_USER" property="approveUser" jdbcType="VARCHAR"/>
+        <result column="TICKET_STATUS" property="ticketStatus" jdbcType="VARCHAR"/>
+    </resultMap>
+
+    <sql id="baseSql">
+        PLAN_NO,TASK_TYPE,TICKET_MAIN_TYPE,TICKET_TYPE,TICKET_SUB_TYPE,PLAN_NUM,ACT_NUM,ASSIGN_NUM,INIT_AMT,PLAN_TMS,TASK_PLAN_STAT,LAST_UPD_ID,LAST_UPD_TMS,CREATE_USER,APPROVE_USER,TICKET_STATUS
+    </sql>
+    <update id="approve" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktTaskPlan">
+        UPDATE TBL_TKT_TASK_PLAN SET ACT_NUM = #{actNum},TASK_PLAN_STAT = #{taskPlanStat},APPROVE_USER = #{approveUser,jdbcType=VARCHAR} where PLAN_NO = #{planNo}
+    </update>
+    <update id="changeStat" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktTaskPlan">
+        UPDATE TBL_TKT_TASK_PLAN SET TASK_PLAN_STAT = #{taskPlanStat} where PLAN_NO = #{planNo}
+    </update >
+    <update id="assignTask" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktTaskPlan">
+        UPDATE TBL_TKT_TASK_PLAN SET ASSIGN_NUM = ASSIGN_NUM + #{assignNum},TASK_PLAN_STAT = #{taskPlanStat} where PLAN_NO = #{planNo}
+    </update>
+    <select id="selectByPrimaryKey" parameterType="java.lang.Integer" resultMap="BaseMap">
+        select
+        <include refid="baseSql" />
+        from TBL_TKT_TASK_PLAN
+        where PLAN_NO = #{planNo,jdbcType=NUMERIC}
+    </select>
+    <select id="queryAll" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktTaskPlan" resultMap="BaseMap">
+        SELECT
+            <include refid="baseSql"/>
+        from
+        TBL_TKT_TASK_PLAN
+        <where>
+            <if test="planNo != null and planNo != ''">
+                AND PLAN_NO = #{planNo}
+            </if>
+            <if test="taskType != null and taskType != ''">
+                AND TASK_TYPE = #{taskType}
+            </if>
+            <if test="ticketMainType != null and ticketMainType != ''">
+                AND TICKET_MAIN_TYPE = #{ticketMainType}
+            </if>
+            <if test="ticketType != null and ticketType != ''">
+                AND TICKET_TYPE = #{ticketType}
+            </if>
+            <if test="ticketSubType != null and ticketSubType != ''">
+                AND TICKET_SUB_TYPE = #{ticketSubType}
+            </if>
+            <if test="planNum != null and planNum != ''">
+                AND PLAN_NUM = #{planNum}
+            </if>
+            <if test="actNum != null and actNum != ''">
+                AND ACT_NUM = #{actNum}
+            </if>
+            <if test="assignNum != null and assignNum != ''">
+                AND ASSIGN_NUM = #{assignNum}
+            </if>
+            <if test="initAmt != null and initAmt != ''">
+                AND INIT_AMT = #{initAmt}
+            </if>
+            <if test="planTms != null and planTms != ''">
+                AND PLAN_TMS = #{planTms}
+            </if>
+            <if test="taskPlanStat != null and taskPlanStat != ''">
+                AND TASK_PLAN_STAT = #{taskPlanStat}
+            </if>
+            <if test="lastUpdId != null and lastUpdId != ''">
+                AND LAST_UPD_ID = #{lastUpdId}
+            </if>
+            <if test="lastUpdTms != null and lastUpdTms != ''">
+                AND LAST_UPD_TMS = #{lastUpdTms}
+            </if>
+        </where>
+        ORDER BY PLAN_NO DESC
+    </select>
+    <select id="queryAllAvailable"
+            resultMap="BaseMap">
+        select <include refid="baseSql"/>
+        from
+        TBL_TKT_TASK_PLAN
+        where
+        TASK_PLAN_STAT = '02'
+        OR
+        TASK_PLAN_STAT = '04'
+        ORDER BY PLAN_NO
+    </select>
+    <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
+    delete from TBL_TKT_TASK_PLAN
+    where PLAN_NO = #{planNo,jdbcType=NUMERIC}
+  </delete>
+    <insert id="insert" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktTaskPlan">
+        <selectKey keyProperty="planNo" resultType="java.lang.Integer" order="BEFORE">
+            SELECT ES_PLAN_SEQ.NEXTVAL FROM DUAL
+        </selectKey>
+    insert into TBL_TKT_TASK_PLAN (PLAN_NO,TASK_TYPE, TICKET_MAIN_TYPE, TICKET_TYPE,
+      TICKET_SUB_TYPE, PLAN_NUM, ACT_NUM,
+      ASSIGN_NUM, INIT_AMT, PLAN_TMS,
+      TASK_PLAN_STAT, LAST_UPD_ID, LAST_UPD_TMS,CREATE_USER,APPROVE_USER,TICKET_STATUS
+      )
+    values (#{planNo,jdbcType=NUMERIC},#{taskType,jdbcType=VARCHAR}, #{ticketMainType,jdbcType=NUMERIC}, #{ticketType,jdbcType=NUMERIC},
+      #{ticketSubType,jdbcType=DECIMAL}, #{planNum,jdbcType=DECIMAL}, #{actNum,jdbcType=DECIMAL},
+      #{assignNum,jdbcType=DECIMAL}, #{initAmt,jdbcType=DECIMAL}, SYSDATE,
+      #{taskPlanStat,jdbcType=VARCHAR}, #{lastUpdId,jdbcType=VARCHAR}, SYSDATE,#{createUser,jdbcType=VARCHAR},#{approveUser,jdbcType=VARCHAR},#{ticketStatus,jdbcType=VARCHAR}
+      )
+  </insert>
+    <insert id="insertSelective" keyColumn="PLAN_NO" keyProperty="planNo" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktTaskPlan" useGeneratedKeys="true">
+        insert into TBL_TKT_TASK_PLAN
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="taskType != null">
+                TASK_TYPE,
+            </if>
+            <if test="ticketMainType != null">
+                TICKET_MAIN_TYPE,
+            </if>
+            <if test="ticketType != null">
+                TICKET_TYPE,
+            </if>
+            <if test="ticketSubType != null">
+                TICKET_SUB_TYPE,
+            </if>
+            <if test="planNum != null">
+                PLAN_NUM,
+            </if>
+            <if test="actNum != null">
+                ACT_NUM,
+            </if>
+            <if test="assignNum != null">
+                ASSIGN_NUM,
+            </if>
+            <if test="initAmt != null">
+                INIT_AMT,
+            </if>
+            <if test="planTms != null">
+                PLAN_TMS,
+            </if>
+            <if test="taskPlanStat != null">
+                TASK_PLAN_STAT,
+            </if>
+            <if test="lastUpdId != null">
+                LAST_UPD_ID,
+            </if>
+            <if test="lastUpdTms != null">
+                LAST_UPD_TMS,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="taskType != null">
+                #{taskType,jdbcType=VARCHAR},
+            </if>
+            <if test="ticketMainType != null">
+                #{ticketMainType,jdbcType=DECIMAL},
+            </if>
+            <if test="ticketType != null">
+                #{ticketType,jdbcType=DECIMAL},
+            </if>
+            <if test="ticketSubType != null">
+                #{ticketSubType,jdbcType=DECIMAL},
+            </if>
+            <if test="planNum != null">
+                #{planNum,jdbcType=DECIMAL},
+            </if>
+            <if test="actNum != null">
+                #{actNum,jdbcType=DECIMAL},
+            </if>
+            <if test="assignNum != null">
+                #{assignNum,jdbcType=DECIMAL},
+            </if>
+            <if test="initAmt != null">
+                #{initAmt,jdbcType=DECIMAL},
+            </if>
+            <if test="planTms != null">
+                SYSDATE,
+            </if>
+            <if test="taskPlanStat != null">
+                #{taskPlanStat,jdbcType=VARCHAR},
+            </if>
+            <if test="lastUpdId != null">
+                #{lastUpdId,jdbcType=VARCHAR},
+            </if>
+            <if test="lastUpdTms != null">
+                SYSDATE,
+            </if>
+        </trim>
+    </insert>
+    <update id="updateByPrimaryKeySelective" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktTaskPlan">
+        update TBL_TKT_TASK_PLAN
+        <set>
+            <if test="taskType != null">
+                TASK_TYPE = #{taskType,jdbcType=VARCHAR},
+            </if>
+            <if test="ticketMainType != null">
+                TICKET_MAIN_TYPE = #{ticketMainType,jdbcType=DECIMAL},
+            </if>
+            <if test="ticketType != null">
+                TICKET_TYPE = #{ticketType,jdbcType=DECIMAL},
+            </if>
+            <if test="ticketSubType != null">
+                TICKET_SUB_TYPE = #{ticketSubType,jdbcType=DECIMAL},
+            </if>
+            <if test="planNum != null">
+                PLAN_NUM = #{planNum,jdbcType=DECIMAL},
+            </if>
+            <if test="actNum != null">
+                ACT_NUM = #{actNum,jdbcType=DECIMAL},
+            </if>
+            <if test="assignNum != null">
+                ASSIGN_NUM = #{assignNum,jdbcType=DECIMAL},
+            </if>
+            <if test="initAmt != null">
+                INIT_AMT = #{initAmt,jdbcType=DECIMAL},
+            </if>
+            <if test="planTms != null">
+                PLAN_TMS = SYSDATE,
+            </if>
+            <if test="taskPlanStat != null">
+                TASK_PLAN_STAT = #{taskPlanStat,jdbcType=VARCHAR},
+            </if>
+            <if test="lastUpdId != null">
+                LAST_UPD_ID = #{lastUpdId,jdbcType=VARCHAR},
+            </if>
+            <if test="lastUpdTms != null">
+                LAST_UPD_TMS = SYSDATE,
+            </if>
+        </set>
+        where PLAN_NO = #{planNo,jdbcType=VARCHAR}
+    </update>
+    <update id="updateByPrimaryKey" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktTaskPlan">
+    update TBL_TKT_TASK_PLAN
+    set TASK_TYPE = #{taskType,jdbcType=VARCHAR},
+      TICKET_MAIN_TYPE = #{ticketMainType,jdbcType=DECIMAL},
+      TICKET_TYPE = #{ticketType,jdbcType=DECIMAL},
+      TICKET_SUB_TYPE = #{ticketSubType,jdbcType=DECIMAL},
+      PLAN_NUM = #{planNum,jdbcType=DECIMAL},
+      ACT_NUM = #{actNum,jdbcType=DECIMAL},
+      ASSIGN_NUM = #{assignNum,jdbcType=DECIMAL},
+      INIT_AMT = #{initAmt,jdbcType=DECIMAL},
+      PLAN_TMS = SYSDATE,
+      TASK_PLAN_STAT = '01',
+      LAST_UPD_ID = #{lastUpdId,jdbcType=VARCHAR},
+      LAST_UPD_TMS = SYSDATE,
+      CREATE_USER = #{createUser,jdbcType=VARCHAR},
+      TICKET_STATUS = #{ticketStatus,jdbcType=VARCHAR}
+    where PLAN_NO = #{planNo,jdbcType=VARCHAR}
+  </update>
+
+</mapper>

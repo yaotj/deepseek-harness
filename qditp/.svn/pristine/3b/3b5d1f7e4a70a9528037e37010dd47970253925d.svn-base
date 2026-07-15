@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.acc.es.server.mapper.TblTktEsFileProcLogMapper">
+  <resultMap id="BaseResultMap" type="com.chinasofti.huateng.acc.es.server.model.TblTktEsFileProcLog">
+    <id column="TASK_NO" jdbcType="DECIMAL" property="taskNo" />
+    <id column="ES_CODE" jdbcType="CHAR" property="esCode" />
+    <id column="RECORD_NO" jdbcType="DECIMAL" property="recordNo" />
+    <result column="TASK_TYPE" jdbcType="CHAR" property="taskType" />
+    <result column="FILE_NM" jdbcType="VARCHAR" property="fileNm" />
+    <result column="FILE_PROC_STATE" jdbcType="CHAR" property="fileProcState" />
+    <result column="PROC_REC_NUM" jdbcType="DECIMAL" property="procRecNum" />
+    <result column="PROC_SUCCESS_NUM" jdbcType="DECIMAL" property="procSuccessNum" />
+    <result column="PROC_FAIL_NUM" jdbcType="DECIMAL" property="procFailNum" />
+    <result column="RECORD_CONTENT" jdbcType="VARCHAR" property="recordContent" />
+    <result column="LAST_UPD_ID" jdbcType="VARCHAR" property="lastUpdId" />
+    <result column="LAST_UPD_TMS" jdbcType="TIMESTAMP" property="lastUpdTms" />
+  </resultMap>
+  <sql id="Base_Column_List">
+    TASK_NO, ES_CODE, RECORD_NO, TASK_TYPE, FILE_NM, FILE_PROC_STATE, PROC_REC_NUM, PROC_SUCCESS_NUM, 
+    PROC_FAIL_NUM, RECORD_CONTENT, LAST_UPD_ID, LAST_UPD_TMS
+  </sql>
+  <select id="selectByPrimaryKey" resultMap="BaseResultMap">
+    select 
+    <include refid="Base_Column_List" />
+    from TBL_TKT_ES_FILE_PROC_LOG
+    where TASK_NO = #{taskNo,jdbcType=DECIMAL}
+      and ES_CODE = #{esCode,jdbcType=CHAR}
+      and RECORD_NO = #{recordNo,jdbcType=DECIMAL}
+  </select>
+  <delete id="deleteByPrimaryKey">
+    delete from TBL_TKT_ES_FILE_PROC_LOG
+    where TASK_NO = #{taskNo,jdbcType=DECIMAL}
+      and ES_CODE = #{esCode,jdbcType=CHAR}
+      and RECORD_NO = #{recordNo,jdbcType=DECIMAL}
+  </delete>
+  <insert id="insert" keyColumn="TASK_NO" keyProperty="taskNo" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsFileProcLog" useGeneratedKeys="true">
+    insert into TBL_TKT_ES_FILE_PROC_LOG (TASK_NO,ES_CODE, RECORD_NO, TASK_TYPE,
+      FILE_NM, FILE_PROC_STATE, PROC_REC_NUM, 
+      PROC_SUCCESS_NUM, PROC_FAIL_NUM, RECORD_CONTENT, 
+      LAST_UPD_ID, LAST_UPD_TMS)
+    values (#{taskNo,jdbcType = CHAR},#{esCode,jdbcType=CHAR}, #{recordNo,jdbcType=DECIMAL}, #{taskType,jdbcType=CHAR},
+      #{fileNm,jdbcType=VARCHAR}, #{fileProcState,jdbcType=CHAR}, #{procRecNum,jdbcType=DECIMAL}, 
+      #{procSuccessNum,jdbcType=DECIMAL}, #{procFailNum,jdbcType=DECIMAL}, #{recordContent,jdbcType=VARCHAR}, 
+      #{lastUpdId,jdbcType=VARCHAR}, SYSDATE)
+  </insert>
+  <insert id="insertSelective" keyColumn="TASK_NO" keyProperty="taskNo" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsFileProcLog" useGeneratedKeys="true">
+    insert into TBL_TKT_ES_FILE_PROC_LOG
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="esCode != null">
+        ES_CODE,
+      </if>
+      <if test="recordNo != null">
+        RECORD_NO,
+      </if>
+      <if test="taskType != null">
+        TASK_TYPE,
+      </if>
+      <if test="fileNm != null">
+        FILE_NM,
+      </if>
+      <if test="fileProcState != null">
+        FILE_PROC_STATE,
+      </if>
+      <if test="procRecNum != null">
+        PROC_REC_NUM,
+      </if>
+      <if test="procSuccessNum != null">
+        PROC_SUCCESS_NUM,
+      </if>
+      <if test="procFailNum != null">
+        PROC_FAIL_NUM,
+      </if>
+      <if test="recordContent != null">
+        RECORD_CONTENT,
+      </if>
+      <if test="lastUpdId != null">
+        LAST_UPD_ID,
+      </if>
+      <if test="lastUpdTms != null">
+        LAST_UPD_TMS,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="esCode != null">
+        #{esCode,jdbcType=CHAR},
+      </if>
+      <if test="recordNo != null">
+        #{recordNo,jdbcType=DECIMAL},
+      </if>
+      <if test="taskType != null">
+        #{taskType,jdbcType=CHAR},
+      </if>
+      <if test="fileNm != null">
+        #{fileNm,jdbcType=VARCHAR},
+      </if>
+      <if test="fileProcState != null">
+        #{fileProcState,jdbcType=CHAR},
+      </if>
+      <if test="procRecNum != null">
+        #{procRecNum,jdbcType=DECIMAL},
+      </if>
+      <if test="procSuccessNum != null">
+        #{procSuccessNum,jdbcType=DECIMAL},
+      </if>
+      <if test="procFailNum != null">
+        #{procFailNum,jdbcType=DECIMAL},
+      </if>
+      <if test="recordContent != null">
+        #{recordContent,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdId != null">
+        #{lastUpdId,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdTms != null">
+        SYSDATE,
+      </if>
+    </trim>
+  </insert>
+  <update id="updateByPrimaryKeySelective" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsFileProcLog">
+    update TBL_TKT_ES_FILE_PROC_LOG
+    <set>
+      <if test="taskType != null">
+        TASK_TYPE = #{taskType,jdbcType=CHAR},
+      </if>
+      <if test="fileNm != null">
+        FILE_NM = #{fileNm,jdbcType=VARCHAR},
+      </if>
+      <if test="fileProcState != null">
+        FILE_PROC_STATE = #{fileProcState,jdbcType=CHAR},
+      </if>
+      <if test="procRecNum != null">
+        PROC_REC_NUM = #{procRecNum,jdbcType=DECIMAL},
+      </if>
+      <if test="procSuccessNum != null">
+        PROC_SUCCESS_NUM = #{procSuccessNum,jdbcType=DECIMAL},
+      </if>
+      <if test="procFailNum != null">
+        PROC_FAIL_NUM = #{procFailNum,jdbcType=DECIMAL},
+      </if>
+      <if test="recordContent != null">
+        RECORD_CONTENT = #{recordContent,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdId != null">
+        LAST_UPD_ID = #{lastUpdId,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdTms != null">
+        LAST_UPD_TMS = SYSDATE,
+      </if>
+    </set>
+    where TASK_NO = #{taskNo,jdbcType=DECIMAL}
+      and ES_CODE = #{esCode,jdbcType=CHAR}
+      and RECORD_NO = #{recordNo,jdbcType=DECIMAL}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsFileProcLog">
+    update TBL_TKT_ES_FILE_PROC_LOG
+    set TASK_TYPE = #{taskType,jdbcType=CHAR},
+      FILE_NM = #{fileNm,jdbcType=VARCHAR},
+      FILE_PROC_STATE = #{fileProcState,jdbcType=CHAR},
+      PROC_REC_NUM = #{procRecNum,jdbcType=DECIMAL},
+      PROC_SUCCESS_NUM = #{procSuccessNum,jdbcType=DECIMAL},
+      PROC_FAIL_NUM = #{procFailNum,jdbcType=DECIMAL},
+      RECORD_CONTENT = #{recordContent,jdbcType=VARCHAR},
+      LAST_UPD_ID = #{lastUpdId,jdbcType=VARCHAR},
+      LAST_UPD_TMS = SYSDATE
+    where TASK_NO = #{taskNo,jdbcType=DECIMAL}
+      and ES_CODE = #{esCode,jdbcType=CHAR}
+      and RECORD_NO = #{recordNo,jdbcType=DECIMAL}
+  </update>
+</mapper>

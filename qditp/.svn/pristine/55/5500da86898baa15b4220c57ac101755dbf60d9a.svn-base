@@ -1,0 +1,401 @@
+package com.chinasofti.huateng.fep.app.controller;
+
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
+import com.chinasofti.huateng.fep.app.constant.FepAppErrorCodeEnum;
+import com.chinasofti.huateng.fep.app.model.CommonFormRequest;
+import com.chinasofti.huateng.fep.app.model.CommonRequest;
+import com.chinasofti.huateng.fep.app.service.AppService;
+import com.chinasofti.huateng.model.app.PaySignCallbackResult;
+import com.chinasofti.huateng.model.app.PayCenterCommonRequest;
+import com.chinasofti.huateng.model.app.QueryBlackListReqDTO;
+import com.chinasofti.huateng.model.app.QueryBlackListResult;
+import com.chinasofti.huateng.model.app.QueryUserItineraryReqDTO;
+import com.chinasofti.huateng.model.app.QueryUserItineraryResult;
+import com.chinasofti.huateng.model.app.ReceivePayResultReqDTO;
+import com.chinasofti.huateng.model.app.ReceiveSignResultReqDTO;
+import com.chinasofti.huateng.model.app.ReceiveTerminationResultReqDTO;
+import com.chinasofti.huateng.model.app.RequestAddPayChannelReqDTO;
+import com.chinasofti.huateng.model.app.RequestAddPayChannelResult;
+import com.chinasofti.huateng.model.app.RequestApplicationReqDTO;
+import com.chinasofti.huateng.model.app.RequestApplicationResult;
+import com.chinasofti.huateng.model.app.RequestExcessFareReqDTO;
+import com.chinasofti.huateng.model.app.RequestExcessFareResult;
+import com.chinasofti.huateng.model.app.RequestExcessFareReqDTO;
+import com.chinasofti.huateng.model.app.RequestExcessFareResult;
+import com.chinasofti.huateng.model.app.RequestIndustryDataReqDTO;
+import com.chinasofti.huateng.model.app.RequestIndustryDataResult;
+import com.chinasofti.huateng.model.app.RequestKeyListReqDTO;
+import com.chinasofti.huateng.model.app.RequestKeyListResult;
+import com.chinasofti.huateng.model.app.RequestNoSignalDataReqDTO;
+import com.chinasofti.huateng.model.app.RequestNoSignalDataResult;
+import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelReqDTO;
+import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelResult;
+import com.chinasofti.huateng.model.app.RequestSignInfoReqDTO;
+import com.chinasofti.huateng.model.app.RequestSignInfoResult;
+import com.chinasofti.huateng.model.app.RequestTerminationReqDTO;
+import com.chinasofti.huateng.model.app.RequestTerminationResult;
+import com.chinasofti.huateng.model.app.RequestTransListReqDTO;
+import com.chinasofti.huateng.model.app.RequestTransListResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
+@RestController
+@RequestMapping("/ci/app")
+public class FepAppController {
+    private static final Logger log = LoggerFactory.getLogger(FepAppController.class);
+
+    @Autowired
+    AppService appService;
+
+
+    /**
+     * 请求开户（FormData 格式）。
+     *
+     * <p>APP 端以 {@code application/x-www-form-urlencoded} 提交，公共字段平铺，
+     * 业务参数放在 {@code bizData} 中（JSON 字符串）。本层将其反序列化为
+     * {@link RequestApplicationReqDTO} 后，继续以 JSON 方式透传给 account-server。</p>
+     *
+     * @param request FormData 格式的公共请求报文
+     * @return 请求开户结果
+     */
+    @PostMapping("/requestApplication")
+    public RequestApplicationResult requestApplication(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-01 请求开户，请求参数：{}", request);
+        RequestApplicationReqDTO bizData = JSON.parseObject(request.getBizData(), RequestApplicationReqDTO.class);
+        RequestApplicationResult result = appService.userRegister(bizData);
+        return result;
+    }
+
+    /**
+     * IF8A-02 请求同步密钥（FormData 格式）。
+     *
+     * <p>fep-app-server 只承接 APP 公共报文并转发 bizData，
+     * 不直接连接数据库；CA 密钥查询、ACC 安全接口调用和 keyList 组装由 key-server 完成。</p>
+     *
+     * @param request FormData 格式的公共请求报文
+     * @return 请求同步密钥结果
+     */
+    @PostMapping("/requestKeyList")
+    public RequestKeyListResult requestKeyList(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-02 请求同步密钥,请求参数: {}", request);
+        RequestKeyListReqDTO bizData = JSON.parseObject(request.getBizData(), RequestKeyListReqDTO.class);
+        return appService.requestKeyList(bizData);
+    }
+
+    /**
+     * IF8A-23 请求添加支付通道（FormData 格式）。
+     *
+     * @param request FormData 格式的公共请求报文
+     * @return 请求添加支付通道结果
+     */
+    @PostMapping("/requestAddPayChannel")
+    public RequestAddPayChannelResult requestAddPayChannel(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-23 请求添加支付通道, 请求参数: {}", request);
+        RequestAddPayChannelReqDTO bizData = JSON.parseObject(request.getBizData(), RequestAddPayChannelReqDTO.class);
+        return appService.requestAddPayChannel(bizData);
+    }
+
+    /**
+     * IF8A-24 请求设置默认支付通道（FormData 格式）。
+     *
+     * @param request FormData 格式的公共请求报文
+     * @return 请求设置默认支付通道结果
+     */
+    @PostMapping("/requestSetDefaultPayChannel")
+    public RequestSetDefaultPayChannelResult requestSetDefaultPayChannel(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-24 请求设置默认支付通道, 请求参数: {}", request);
+        RequestSetDefaultPayChannelReqDTO bizData = JSON.parseObject(request.getBizData(), RequestSetDefaultPayChannelReqDTO.class);
+        return appService.requestSetDefaultPayChannel(bizData);
+    }
+
+    /**
+     * IF8A-03 请求行业数据（FormData 格式）。
+     *
+     * @param request FormData 格式的公共请求报文
+     * @return 请求行业数据结果
+     */
+    @PostMapping("/requestIndustryData")
+    public RequestIndustryDataResult requestIndustryData(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-03 请求行业数据, 请求参数: {}", request);
+        RequestIndustryDataReqDTO bizData = JSON.parseObject(request.getBizData(), RequestIndustryDataReqDTO.class);
+        return appService.requestIndustryData(bizData);
+    }
+
+    /**
+     * IF8D_03 获取离线码数据（FormData 格式）。
+     *
+     * @param request FormData 格式的公共请求报文
+     * @return 获取离线码数据结果
+     */
+    @PostMapping("/requestNoSignalData")
+    public RequestNoSignalDataResult requestNoSignalData(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8D_03 获取离线码数据, 请求参数: {}", request);
+        RequestNoSignalDataReqDTO bizData = JSON.parseObject(request.getBizData(), RequestNoSignalDataReqDTO.class);
+        return appService.requestNoSignalData(bizData);
+    }
+
+    /**
+     * IF8A-16 请求签约信息（FormData 格式）。
+     *
+     * @param request FormData 格式的公共请求报文
+     * @return 请求签约信息结果
+     */
+    @PostMapping("/requestSignInfo")
+    public RequestSignInfoResult requestSignInfo(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-16 请求签约信息,请求参数：{}", request);
+        RequestSignInfoReqDTO bizData = JSON.parseObject(request.getBizData(), RequestSignInfoReqDTO.class);
+        RequestSignInfoResult result = appService.requestSignInfo(bizData);
+        return result;
+    }
+
+    /**
+     * IF8A-06 请求解约（FormData 格式）。
+     *
+     * <p>APP 调用 fep-app 后，由 fep-app 转发到 pay-sign-server；
+     * pay-sign-server 再按支付 API 2.3 请求解约接口组装新报文并发送到支付平台。
+     * 支付平台受理成功即返回成功，最终解约结果以后续 5.3 回调为准。</p>
+     *
+     * @param request FormData 格式的公共请求报文
+     * @return 请求解约受理结果
+     */
+    @PostMapping("/requestTermination")
+    public RequestTerminationResult requestTermination(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-06 请求解约,请求参数: {}", request);
+        RequestTerminationReqDTO bizData = JSON.parseObject(request.getBizData(), RequestTerminationReqDTO.class);
+        log.info("IF8A-06 requestTermination decoded bizData={}", JSON.toJSONString(bizData));
+        RequestTerminationResult result = appService.requestTermination(bizData);
+        log.info("IF8A-06 requestTermination response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    /**
+     * 签约结果回调
+     * @param request
+     * @return
+     */
+    @PostMapping("/receiveSignResult")
+    public PaySignCallbackResult receiveSignResult(@RequestBody PayCenterCommonRequest request) {
+        log.info("IF8A-06 签约结果回调,请求参数: {}", request);
+        if (request == null || request.getBizData() == null) {
+            PaySignCallbackResult result = new PaySignCallbackResult();
+            result.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+            result.setRetMsg("无效的参数");
+            return result;
+        }
+
+        ReceiveSignResultReqDTO bizData = parseSignResultBizData(request.getBizData());
+        if (bizData == null) {
+            PaySignCallbackResult result = new PaySignCallbackResult();
+            result.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+            result.setRetMsg("无效参数");
+            return result;
+        }
+        log.info("IPD02 签约结果通知,支付中心公共请求参数：{}", JSON.toJSONString(request));
+        return appService.receiveSignResult(bizData);
+    }
+
+    /**
+     * 支付 API 5.3 解约回调入口。
+     *
+     * <p>兼容两种报文形态：一是支付平台通用报文，业务字段放在 bizData；
+     * 二是支付平台直接把 5.3 表格中的字段作为 JSON 根节点回调。
+     * fep-app 解析后透传给 pay-sign-server，由 pay-sign-server 更新解约业务并发送 IF8B-02 APP 解约结果通知。</p>
+     *
+     * @param requestBody 支付平台解约回调原始报文
+     * @return 回调接收处理结果
+     */
+    @PostMapping("/receiveTerminationResult")
+    public PaySignCallbackResult receiveTerminationResult(@RequestBody String requestBody) {
+        log.info("pay termination callback raw request={}", requestBody);
+        ReceiveTerminationResultReqDTO bizData = parseTerminationResultBizData(requestBody);
+        if (bizData == null) {
+            PaySignCallbackResult result = new PaySignCallbackResult();
+            result.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+            result.setRetMsg("无效的参数");
+            log.info("pay termination callback response={}", JSON.toJSONString(result));
+            return result;
+        }
+        log.info("pay termination callback decoded bizData={}", JSON.toJSONString(bizData));
+        PaySignCallbackResult result = appService.receiveTerminationResult(bizData);
+        log.info("pay termination callback response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    /**
+     * 支付 API 5.1 支付回调入口。
+     *
+     * <p>兼容两种报文形态：一是支付平台通用报文，业务字段放在 bizData；
+     * 二是支付平台直接把 5.1 表格中的字段作为 JSON 根节点回调。
+     * fep-app 解析后透传给 pay-sign-server，由 pay-sign-server 回写支付订单状态。</p>
+     *
+     * @param requestBody 支付平台支付回调原始报文
+     * @return 回调接收处理结果
+     */
+    @PostMapping("/receivePayResult")
+    public PaySignCallbackResult receivePayResult(@RequestBody String requestBody) {
+        log.info("pay callback raw request={}", requestBody);
+        ReceivePayResultReqDTO bizData = parsePayResultBizData(requestBody);
+        if (bizData == null) {
+            PaySignCallbackResult result = new PaySignCallbackResult();
+            result.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+            result.setRetMsg("无效的参数");
+            log.info("pay callback response={}", JSON.toJSONString(result));
+            return result;
+        }
+        log.info("pay callback decoded bizData={}", JSON.toJSONString(bizData));
+        PaySignCallbackResult result = appService.receivePayResult(bizData);
+        log.info("pay callback response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    /**
+     * IF8A-73 查询黑名单，兼容 /ci/app 前缀入口（FormData 格式）。
+     *
+     * @param request FormData 格式的公共请求报文
+     * @return 查询黑名单结果
+     */
+    @PostMapping("/ticket/queryBlackList")
+    public QueryBlackListResult queryBlackList(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-73 查询黑名单,请求参数: {}", request);
+        QueryBlackListReqDTO bizData = JSON.parseObject(request.getBizData(), QueryBlackListReqDTO.class);
+        return appService.queryBlackList(bizData);
+    }
+
+    /**
+     * IF8A-29 查询用户上次行程（FormData 格式）。
+     *
+     * @param request FormData 格式的公共请求报文
+     * @return 用户当前行程信息
+     */
+    @PostMapping("/queryUserItinerary")
+    public QueryUserItineraryResult queryUserItinerary(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-29 查询用户上次行程,请求参数: {}", request);
+        QueryUserItineraryReqDTO bizData = JSON.parseObject(request.getBizData(), QueryUserItineraryReqDTO.class);
+        return appService.queryUserItinerary(bizData);
+    }
+
+    /**
+     * IF8A-04 请求自助补站（FormData 格式）。
+     *
+     * @param request FormData 格式的公共请求报文
+     * @return 请求自助补站结果
+     */
+    @PostMapping("/requestExcessFare")
+    public RequestExcessFareResult requestExcessFare(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-04 请求自助补站,请求参数: {}", request);
+        RequestExcessFareReqDTO bizData = JSON.parseObject(request.getBizData(), RequestExcessFareReqDTO.class);
+        return appService.requestExcessFare(bizData);
+    }
+
+    /**
+     * IF8A-05 请求查询交易记录（FormData 格式）。
+     *
+     * @param request FormData 格式的公共请求报文
+     * @return 交易记录列表
+     */
+    @PostMapping("/requestTransList")
+    public RequestTransListResult requestTransList(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-05 请求查询交易记录,请求参数: {}", request);
+        RequestTransListReqDTO bizData = JSON.parseObject(request.getBizData(), RequestTransListReqDTO.class);
+        return appService.requestTransList(bizData);
+    }
+
+    private CommonRequest<JSONObject> parseRequest(String requestBody) {
+        try {
+            JSONObject jsonObject = JSON.parseObject(requestBody);
+            CommonRequest<JSONObject> request = new CommonRequest<>();
+            request.setProviderId(jsonObject.getString("providerId"));
+            request.setCharset(jsonObject.getString("charset"));
+            request.setFormat(jsonObject.getString("format"));
+            request.setTimestamp(jsonObject.getString("timestamp"));
+            request.setDeviceId(jsonObject.getString("deviceId"));
+            request.setSignType(jsonObject.getString("signType"));
+            request.setSign(jsonObject.getString("sign"));
+            JSONObject bizData = jsonObject.getJSONObject("bizData");
+            if (bizData == null && jsonObject.getString("bizData") != null) {
+                bizData = JSON.parseObject(jsonObject.getString("bizData"));
+            }
+            request.setBizData(bizData);
+            return request;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 解析支付 API 5.3 解约回调业务参数。
+     *
+     * <p>支付 API 文档的回调章节只列出了业务字段；为了兼容通用回调包装，
+     * 这里会先尝试读取 bizData，读取不到时再按根节点业务字段解析。</p>
+     */
+    private ReceiveTerminationResultReqDTO parseTerminationResultBizData(String requestBody) {
+        try {
+            JSONObject jsonObject = JSON.parseObject(requestBody);
+            Object bizData = jsonObject.get("bizData");
+            if (bizData instanceof JSONObject) {
+                return ((JSONObject) bizData).toJavaObject(ReceiveTerminationResultReqDTO.class);
+            }
+            if (bizData instanceof String && ((String) bizData).trim().length() > 0) {
+                String decodedBizData = decodeBizData((String) bizData);
+                log.info("pay termination callback bizData decoded={}", decodedBizData);
+                return JSON.parseObject(decodedBizData, ReceiveTerminationResultReqDTO.class);
+            }
+            return jsonObject.toJavaObject(ReceiveTerminationResultReqDTO.class);
+        } catch (Exception e) {
+            log.error("解析支付 API 5.3 解约回调失败, requestBody={}", requestBody, e);
+            return null;
+        }
+    }
+
+    /**
+     * 解析支付 API 5.1 支付回调业务参数。
+     */
+    private ReceivePayResultReqDTO parsePayResultBizData(String requestBody) {
+        try {
+            JSONObject jsonObject = JSON.parseObject(requestBody);
+            Object bizData = jsonObject.get("bizData");
+            if (bizData instanceof JSONObject) {
+                return ((JSONObject) bizData).toJavaObject(ReceivePayResultReqDTO.class);
+            }
+            if (bizData instanceof String && ((String) bizData).trim().length() > 0) {
+                String decodedBizData = decodeBizData((String) bizData);
+                log.info("pay callback bizData decoded={}", decodedBizData);
+                return JSON.parseObject(decodedBizData, ReceivePayResultReqDTO.class);
+            }
+            return jsonObject.toJavaObject(ReceivePayResultReqDTO.class);
+        } catch (Exception e) {
+            log.error("解析支付 API 5.1 支付回调失败, requestBody={}", requestBody, e);
+            return null;
+        }
+    }
+
+    private ReceiveSignResultReqDTO parseSignResultBizData(String bizData) {
+
+        try {
+            String decodedBizData = decodeBizData(bizData);
+            log.info("IPD02签约结果回调Base64解析结果, decodedBizData={}", decodedBizData);
+            return JSON.parseObject(decodedBizData, ReceiveSignResultReqDTO.class);
+        } catch (Exception e) {
+            log.error("IPD02签约结果回调解析失败, bizData={}", bizData, e);
+            return null;
+        }
+    }
+
+    private String decodeBizData(String bizData) {
+        try {
+            return new String(Base64.getDecoder().decode(bizData), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return bizData;
+        }
+    }
+}

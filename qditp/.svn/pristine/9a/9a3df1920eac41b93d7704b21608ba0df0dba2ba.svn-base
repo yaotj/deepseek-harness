@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.collectpay.mapper.TvmSubTicketMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.collectpay.entity.TvmSubTicket">
+        <result column="MAIN_TICKET_ID" jdbcType="BIGINT" property="mainTicketId"/>
+        <result column="TICKET_LOGIC_NUM" jdbcType="VARCHAR" property="ticketLogicNum"/>
+        <result column="TRANS_DATE" jdbcType="VARCHAR" property="transDate"/>
+        <result column="TRANS_AMOUNT" jdbcType="VARCHAR" property="transAmount"/>
+        <result column="create_Time" jdbcType="VARCHAR" property="createTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        MAIN_TICKET_ID, TICKET_LOGIC_NUM, TRANS_DATE, TRANS_AMOUNT,create_Time
+    </sql>
+
+
+    <select id="selectByMainTicketId" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from TBL_TVM_SUB_TICKET
+        where MAIN_TICKET_ID = #{mainTicketId,jdbcType=BIGINT}
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.collectpay.entity.TvmSubTicket">
+        insert into TBL_TVM_SUB_TICKET (
+            MAIN_TICKET_ID, TICKET_LOGIC_NUM, TRANS_DATE, TRANS_AMOUNT,create_Time
+        ) values (
+            #{mainTicketId,jdbcType=BIGINT},
+            #{ticketLogicNum,jdbcType=VARCHAR},
+            #{transDate,jdbcType=VARCHAR},
+            #{transAmount,jdbcType=VARCHAR},
+            #{createTime,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <insert id="batchInsert">
+        insert into TBL_TVM_SUB_TICKET (
+            MAIN_TICKET_ID, TICKET_LOGIC_NUM, TRANS_DATE, TRANS_AMOUNT,create_Time
+        ) values
+        <foreach collection="list" item="item" separator=",">
+            (
+                #{item.mainTicketId,jdbcType=BIGINT},
+                #{item.ticketLogicNum,jdbcType=VARCHAR},
+                #{item.transDate,jdbcType=VARCHAR},
+                #{item.transAmount,jdbcType=VARCHAR}
+                #{item.createTime,jdbcType=VARCHAR}
+            )
+        </foreach>
+    </insert>
+</mapper>

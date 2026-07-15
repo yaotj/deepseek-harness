@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.chinasofti.huateng.acc.es.server.mapper.TblTktEsInfoMapper" >
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.acc.es.server.model.TblTktEsInfo">
+        <id column="ES_CODE" jdbcType="VARCHAR" property="esCode" />
+        <result column="ES_NAME" jdbcType="VARCHAR" property="esName" />
+        <result column="INST_NO" jdbcType="VARCHAR" property="instNo" />
+        <result column="MAKE_NUM" jdbcType="DECIMAL" property="makeNum" />
+        <result column="WASH_NUM" jdbcType="DECIMAL" property="washNum" />
+        <result column="WALE_NUM" jdbcType="DECIMAL" property="waleNum" />
+        <result column="CANCEL_NUM" jdbcType="DECIMAL" property="cancelNum" />
+        <result column="WORK_TIMES" jdbcType="DECIMAL" property="workTimes" />
+        <result column="ES_STAT" jdbcType="CHAR" property="esStat" />
+        <result column="LOGIN_STAT" jdbcType="CHAR" property="loginStat" />
+        <result column="LOGIN_USER" jdbcType="VARCHAR" property="loginUser" />
+        <result column="LAST_UPD_ID" jdbcType="VARCHAR" property="lastUpdId" />
+        <result column="LAST_UPD_TMS" jdbcType="TIMESTAMP" property="lastUpdTms" />
+    </resultMap>
+    <update id="signOut" parameterType="com.chinasofti.huateng.acc.es.server.netty.data.DeviceSignOut">
+        UPDATE TBL_TKT_ES_INFO SET LOGIN_STAT = '0',LOGIN_USER = #{operator,jdbcType=VARCHAR} WHERE ES_CODE = #{nodeId}
+    </update>
+
+
+    <update id="updateStat" parameterType="com.chinasofti.huateng.acc.es.server.netty.data.DeviceStatReport">
+        UPDATE TBL_TKT_ES_INFO SET ES_STAT = #{stat} WHERE ES_CODE = #{nodeId}
+    </update>
+
+    <sql id="Base_Column_List">
+    ES_CODE, ES_NAME, INST_NO, MAKE_NUM, WASH_NUM, WALE_NUM, CANCEL_NUM, WORK_TIMES,
+    ES_STAT, LOGIN_STAT, LOGIN_USER, LAST_UPD_ID, LAST_UPD_TMS
+  </sql>
+    <select id="selectByPrimaryKey" parameterType="java.lang.String" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List" />
+        from TBL_TKT_ES_INFO
+        where ES_CODE = #{esCode,jdbcType=VARCHAR}
+    </select>
+    <select id="queryAll" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsInfo" resultMap="BaseResultMap">
+        SELECT
+            <include refid="Base_Column_List"/>
+        FROM
+            TBL_TKT_ES_INFO
+        <trim prefix="WHERE" prefixOverrides="AND |OR ">
+            <if test="esCode != null and esCode != ''">
+                AND ES_CODE = #{esCode}
+            </if>
+            <if test="esName != null and esName != ''">
+                AND ES_NAME = #{esName}
+            </if>
+            <if test="instNo != null and instNo != ''">
+                AND INST_NO = #{instNo}
+            </if>
+            <if test="makeNum != null">
+                AND MAKE_NUM = #{makeNum}
+            </if>
+            <if test="washNum != null">
+                AND WASH_NUM = #{washNum}
+            </if>
+            <if test="waleNum != null">
+                AND WALE_NUM = #{waleNum}
+            </if>
+            <if test="cancelNum != null">
+                AND CANCEL_NUM = #{cancelNum}
+            </if>
+            <if test="workTimes != null">
+                AND WORK_TIMES = #{workTimes}
+            </if>
+            <if test="esStat != null and esStat != ''">
+                AND ES_STAT = #{esStat}
+            </if>
+            <if test="loginStat != null and loginStat != ''">
+                AND LOGIN_STAT = #{loginStat}
+            </if>
+            <if test="loginUser != null and loginUser != ''">
+                AND LOGIN_USER = #{loginUser}
+            </if>
+            <if test="lastUpdId != null and lastUpdId != ''">
+                AND LAST_UPD_ID = #{lastUpdId}
+            </if>
+            <if test="lastUpdTms != null">
+                AND LAST_UPD_TMS = #{lastUpdTms}
+            </if>
+        </trim>
+        ORDER BY ES_CODE
+    </select>
+    <select id="selectAll" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from
+        TBL_TKT_ES_INFO
+    </select>
+
+    <delete id="deleteByPrimaryKey" parameterType="java.lang.String">
+    delete from TBL_TKT_ES_INFO
+    where ES_CODE = #{esCode,jdbcType=VARCHAR}
+  </delete>
+    <insert id="insert"   parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsInfo" >
+    insert into TBL_TKT_ES_INFO (ES_CODE,ES_NAME, INST_NO, MAKE_NUM,
+      WASH_NUM, WALE_NUM, CANCEL_NUM,
+      WORK_TIMES, ES_STAT, LOGIN_STAT,
+      LOGIN_USER, LAST_UPD_ID, LAST_UPD_TMS
+      )
+    values (#{esCode,jdbcType=VARCHAR},#{esName,jdbcType=VARCHAR}, #{instNo,jdbcType=VARCHAR}, #{makeNum,jdbcType=DECIMAL},
+      #{washNum,jdbcType=DECIMAL}, #{waleNum,jdbcType=DECIMAL}, #{cancelNum,jdbcType=DECIMAL},
+      #{workTimes,jdbcType=DECIMAL}, #{esStat,jdbcType=CHAR}, #{loginStat,jdbcType=CHAR},
+      #{loginUser,jdbcType=VARCHAR}, #{lastUpdId,jdbcType=VARCHAR}, SYSDATE
+      )
+  </insert>
+    <insert id="insertSelective" keyColumn="ES_CODE" keyProperty="esCode" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsInfo" useGeneratedKeys="true">
+        insert into TBL_TKT_ES_INFO
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="esName != null">
+                ES_NAME,
+            </if>
+            <if test="instNo != null">
+                INST_NO,
+            </if>
+            <if test="makeNum != null">
+                MAKE_NUM,
+            </if>
+            <if test="washNum != null">
+                WASH_NUM,
+            </if>
+            <if test="waleNum != null">
+                WALE_NUM,
+            </if>
+            <if test="cancelNum != null">
+                CANCEL_NUM,
+            </if>
+            <if test="workTimes != null">
+                WORK_TIMES,
+            </if>
+            <if test="esStat != null">
+                ES_STAT,
+            </if>
+            <if test="loginStat != null">
+                LOGIN_STAT,
+            </if>
+            <if test="loginUser != null">
+                LOGIN_USER,
+            </if>
+            <if test="lastUpdId != null">
+                LAST_UPD_ID,
+            </if>
+            <if test="lastUpdTms != null">
+                LAST_UPD_TMS,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="esName != null">
+                #{esName,jdbcType=VARCHAR},
+            </if>
+            <if test="instNo != null">
+                #{instNo,jdbcType=VARCHAR},
+            </if>
+            <if test="makeNum != null">
+                #{makeNum,jdbcType=DECIMAL},
+            </if>
+            <if test="washNum != null">
+                #{washNum,jdbcType=DECIMAL},
+            </if>
+            <if test="waleNum != null">
+                #{waleNum,jdbcType=DECIMAL},
+            </if>
+            <if test="cancelNum != null">
+                #{cancelNum,jdbcType=DECIMAL},
+            </if>
+            <if test="workTimes != null">
+                #{workTimes,jdbcType=DECIMAL},
+            </if>
+            <if test="esStat != null">
+                #{esStat,jdbcType=CHAR},
+            </if>
+            <if test="loginStat != null">
+                #{loginStat,jdbcType=CHAR},
+            </if>
+            <if test="loginUser != null">
+                #{loginUser,jdbcType=VARCHAR},
+            </if>
+            <if test="lastUpdId != null">
+                #{lastUpdId,jdbcType=VARCHAR},
+            </if>
+            <if test="lastUpdTms != null">
+                SYSDATE,
+            </if>
+        </trim>
+    </insert>
+    <update id="updateByPrimaryKeySelective" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsInfo">
+        update TBL_TKT_ES_INFO
+        <set>
+            <if test="esName != null">
+                ES_NAME = #{esName,jdbcType=VARCHAR},
+            </if>
+            <if test="instNo != null">
+                INST_NO = #{instNo,jdbcType=VARCHAR},
+            </if>
+            <if test="makeNum != null">
+                MAKE_NUM = #{makeNum,jdbcType=DECIMAL},
+            </if>
+            <if test="washNum != null">
+                WASH_NUM = #{washNum,jdbcType=DECIMAL},
+            </if>
+            <if test="waleNum != null">
+                WALE_NUM = #{waleNum,jdbcType=DECIMAL},
+            </if>
+            <if test="cancelNum != null">
+                CANCEL_NUM = #{cancelNum,jdbcType=DECIMAL},
+            </if>
+            <if test="workTimes != null">
+                WORK_TIMES = #{workTimes,jdbcType=DECIMAL},
+            </if>
+            <if test="esStat != null">
+                ES_STAT = #{esStat,jdbcType=CHAR},
+            </if>
+            <if test="loginStat != null">
+                LOGIN_STAT = #{loginStat,jdbcType=CHAR},
+            </if>
+            <if test="loginUser != null">
+                LOGIN_USER = #{loginUser,jdbcType=VARCHAR},
+            </if>
+            <if test="lastUpdId != null">
+                LAST_UPD_ID = #{lastUpdId,jdbcType=VARCHAR},
+            </if>
+            <if test="lastUpdTms != null">
+                LAST_UPD_TMS = SYSDATE,
+            </if>
+        </set>
+        where ES_CODE = #{esCode,jdbcType=VARCHAR}
+    </update>
+    <update id="updateByPrimaryKey" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsInfo">
+    update TBL_TKT_ES_INFO
+    set ES_NAME = #{esName,jdbcType=VARCHAR},
+      INST_NO = #{instNo,jdbcType=VARCHAR},
+      MAKE_NUM = #{makeNum,jdbcType=DECIMAL},
+      WASH_NUM = #{washNum,jdbcType=DECIMAL},
+      WALE_NUM = #{waleNum,jdbcType=DECIMAL},
+      CANCEL_NUM = #{cancelNum,jdbcType=DECIMAL},
+      WORK_TIMES = #{workTimes,jdbcType=DECIMAL},
+      ES_STAT = #{esStat,jdbcType=CHAR},
+      LOGIN_STAT = #{loginStat,jdbcType=CHAR},
+      LOGIN_USER = #{loginUser,jdbcType=VARCHAR},
+      LAST_UPD_ID = #{lastUpdId,jdbcType=VARCHAR},
+      LAST_UPD_TMS = SYSDATE
+    where ES_CODE = #{esCode,jdbcType=VARCHAR}
+  </update>
+
+
+</mapper>

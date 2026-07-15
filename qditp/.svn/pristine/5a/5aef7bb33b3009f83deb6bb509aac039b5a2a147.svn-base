@@ -1,0 +1,62 @@
+package com.chinasofti.huateng.model.alipaytrip;
+
+import com.chinasofti.huateng.common.response.CommonResult;
+
+/**
+ * 支付宝出行-行业数据推送请求参数。
+ * 与APP行业数据通知参数相同。
+ */
+public class AlipayTripReceiveCardDataReqDTO {
+
+    /**
+     * 第三方用户ID
+     */
+    private String thirdUserId;
+
+    /**
+     * 卡片ID/逻辑卡号
+     */
+    private String cardId;
+
+    /**
+     * 卡片类型
+     */
+    private String cardType;
+
+    /**
+     * 行业数据JSON
+     */
+    private String cardData;
+
+    public String getThirdUserId() {
+        return thirdUserId;
+    }
+
+    public void setThirdUserId(String thirdUserId) {
+        this.thirdUserId = thirdUserId;
+    }
+
+    public String getCardId() {
+        return cardId;
+    }
+
+    public void setCardId(String cardId) {
+        this.cardId = cardId;
+    }
+
+    public String getCardType() {
+        return cardType;
+    }
+
+    public void setCardType(String cardType) {
+        this.cardType = cardType;
+    }
+
+    public String getCardData() {
+        return cardData;
+    }
+
+    public void setCardData(String cardData) {
+        this.cardData = cardData;
+    }
+}

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.collectpay.mapper.BomNoCashOrderMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.collectpay.entity.BomNoCashOrder">
+        <id column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="DEVICE_ID" jdbcType="VARCHAR" property="deviceId"/>
+        <result column="TRANS_TYPE" jdbcType="VARCHAR" property="transType"/>
+        <result column="ADMIN_TRANS_TYPE" jdbcType="VARCHAR" property="adminTransType"/>
+        <result column="OPERATER_ID" jdbcType="VARCHAR" property="operaterId"/>
+        <result column="SHIFT_ID" jdbcType="VARCHAR" property="shiftId"/>
+        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="TRANS_AOUNT" jdbcType="VARCHAR" property="transAount"/>
+        <result column="BOM_OPT_SEQ" jdbcType="VARCHAR" property="bomOptSeq"/>
+        <result column="STATUS" jdbcType="VARCHAR" property="status"/>
+        <result column="MSG" jdbcType="VARCHAR" property="msg"/>
+        <result column="PAYMENT_CODE" jdbcType="VARCHAR" property="paymentCode"/>
+        <result column="PAYMENT_VENDOR" jdbcType="VARCHAR" property="paymentVendor"/>
+        <result column="CHANNEL" jdbcType="VARCHAR" property="channel"/>
+        <result column="URL" jdbcType="VARCHAR" property="url"/>
+        <result column="CREATE_TIME" jdbcType="VARCHAR" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="VARCHAR" property="updateTime"/>
+        <result column="RSV1" jdbcType="VARCHAR" property="rsv1"/>
+        <result column="RSV2" jdbcType="VARCHAR" property="rsv2"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ORDER_NO, DEVICE_ID, TRANS_TYPE, ADMIN_TRANS_TYPE, OPERATER_ID, SHIFT_ID,
+        CARD_ID, TRANS_AOUNT, BOM_OPT_SEQ, STATUS, MSG, PAYMENT_CODE, PAYMENT_VENDOR,
+        CHANNEL, URL, CREATE_TIME, UPDATE_TIME, RSV1, RSV2
+    </sql>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from TBL_BOM_ORDER_PAY
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.collectpay.entity.BomNoCashOrder">
+        insert into TBL_BOM_ORDER_PAY (
+            ORDER_NO, DEVICE_ID, TRANS_TYPE, ADMIN_TRANS_TYPE, OPERATER_ID, SHIFT_ID,
+            CARD_ID, TRANS_AOUNT, BOM_OPT_SEQ, STATUS, MSG, PAYMENT_CODE, PAYMENT_VENDOR,
+            CHANNEL, URL, CREATE_TIME, UPDATE_TIME, RSV1, RSV2
+        ) values (
+            #{orderNo,jdbcType=VARCHAR},
+            #{deviceId,jdbcType=VARCHAR},
+            #{transType,jdbcType=VARCHAR},
+            #{adminTransType,jdbcType=VARCHAR},
+            #{operaterId,jdbcType=VARCHAR},
+            #{shiftId,jdbcType=VARCHAR},
+            #{cardId,jdbcType=VARCHAR},
+            #{transAount,jdbcType=VARCHAR},
+            #{bomOptSeq,jdbcType=VARCHAR},
+            #{status,jdbcType=VARCHAR},
+            #{msg,jdbcType=VARCHAR},
+            #{paymentCode,jdbcType=VARCHAR},
+            #{paymentVendor,jdbcType=VARCHAR},
+            #{channel,jdbcType=VARCHAR},
+            #{url,jdbcType=VARCHAR},
+            #{createTime,jdbcType=VARCHAR},
+            #{updateTime,jdbcType=VARCHAR},
+            #{rsv1,jdbcType=VARCHAR},
+            #{rsv2,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <update id="updateByOrderNo" parameterType="java.util.Map">
+        update TBL_BOM_ORDER_PAY
+        <set>
+            <if test="status != null">STATUS = #{status,jdbcType=VARCHAR},</if>
+            <if test="msg != null">MSG = #{msg,jdbcType=VARCHAR},</if>
+            <if test="paymentCode != null">PAYMENT_CODE = #{paymentCode,jdbcType=VARCHAR},</if>
+            <if test="paymentVendor != null">PAYMENT_VENDOR = #{paymentVendor,jdbcType=VARCHAR},</if>
+            <if test="channel != null">CHANNEL = #{channel,jdbcType=VARCHAR},</if>
+            <if test="url != null">URL = #{url,jdbcType=VARCHAR},</if>
+            <if test="updateTime != null">UPDATE_TIME = #{updateTime,jdbcType=VARCHAR},</if>
+            <if test="rsv1 != null">RSV1 = #{rsv1,jdbcType=VARCHAR},</if>
+            <if test="rsv2 != null">RSV2 = #{rsv2,jdbcType=VARCHAR},</if>
+        </set>
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+</mapper>

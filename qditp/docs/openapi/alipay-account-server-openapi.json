@@ -1,0 +1,126 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "alipay-account-server OpenAPI",
+    "description": "支付宝出行 account-server 开卡申请接口文档，供测试使用。",
+    "version": "2.0.2"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:9106",
+      "description": "本地开发环境"
+    }
+  ],
+  "paths": {
+    "/channel/requestApplication": {
+      "post": {
+        "tags": [
+          "支付宝出行-开卡申请"
+        ],
+        "summary": "支付宝出行开卡申请",
+        "description": "接收 fep-alipay-server 转发的支付宝出行开卡申请请求，分配卡号并注册乘车状态。",
+        "operationId": "requestApplication",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlipayTripRequestApplicationReqDTO"
+              },
+              "example": {
+                "thirdUserId": "ALIPAY_8823456789012345",
+                "cardType": "02",
+                "msisdn": "74955953457",
+                "extend1": "",
+                "extend2": "",
+                "cardIssueCode": "0007"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "开卡申请响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlipayTripRequestApplicationRespDTO"
+                },
+                "example": {
+                  "retCode": "0000",
+                  "retMsg": "成功",
+                  "cardId": "9900000000000001",
+                  "cardType": "02",
+                  "status": "ACTIVE"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AlipayTripRequestApplicationReqDTO": {
+        "type": "object",
+        "required": [
+          "thirdUserId",
+          "cardType",
+          "cardIssueCode"
+        ],
+        "properties": {
+          "thirdUserId": {
+            "type": "string",
+            "description": "第三方用户ID，格式化后的用户标识"
+          },
+          "cardType": {
+            "type": "string",
+            "description": "卡片类型，如：02"
+          },
+          "msisdn": {
+            "type": "string",
+            "description": "用户手机号码"
+          },
+          "extend1": {
+            "type": "string",
+            "description": "扩展字段1"
+          },
+          "extend2": {
+            "type": "string",
+            "description": "扩展字段2（可选）"
+          },
+          "cardIssueCode": {
+            "type": "string",
+            "description": "发卡渠道代码 0007支付宝出行"
+          }
+        }
+      },
+      "AlipayTripRequestApplicationRespDTO": {
+        "type": "object",
+        "properties": {
+          "retCode": {
+            "type": "string",
+            "description": "返回码，0000 表示成功，9999 表示系统错误，8001 表示参数错误"
+          },
+          "retMsg": {
+            "type": "string",
+            "description": "返回消息"
+          },
+          "cardId": {
+            "type": "string",
+            "description": "卡片ID/逻辑卡号，开卡成功后返回"
+          },
+          "cardType": {
+            "type": "string",
+            "description": "卡片类型"
+          },
+          "status": {
+            "type": "string",
+            "description": "用户状态，如 ACTIVE"
+          }
+        }
+      }
+    }
+  }
+}

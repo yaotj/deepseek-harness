@@ -1,0 +1,8 @@
+package com.chinasofti.huateng.fep.app.service;
+
+import com.chinasofti.huateng.model.app.RequestIndustryDataReqDTO;
+import com.chinasofti.huateng.model.app.RequestIndustryDataResult;
+
+public interface IndustryDataService {
+    RequestIndustryDataResult requestIndustryData(RequestIndustryDataReqDTO request);
+}

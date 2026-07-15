@@ -1,0 +1,1105 @@
+openapi: 3.0.3
+info:
+  title: 青岛地铁 ITP - 支付宝出行接口规范（开户与签约）
+  description: 支付宝出行开户、签约、解约相关接口。与 IF8A 标准接口体系独立，路径前缀为 /channel。
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: 本地开发环境
+paths:
+  /channel/addContract:
+    post:
+      summary: 支付宝出行-添加签约信息
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripAddContractRespDTO'
+  /channel/terminateContract:
+    post:
+      summary: 支付宝出行-解约登记
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripTerminateContractRespDTO'
+  /channel/requestApplication:
+    post:
+      summary: 支付宝出行-开卡申请
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripRequestApplicationRespDTO'
+  /channel/requestIndustryData:
+    post:
+      summary: 支付宝出行-获取行业数据
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripRequestIndustryDataRespDTO'
+  /channel/findTravelList:
+    post:
+      summary: 支付宝出行-查询乘车记录列表
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripFindTravelListRespDTO'
+  /channel/findTravelDetail:
+    post:
+      summary: 支付宝出行-查询乘车记录详情
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripFindTravelDetailRespDTO'
+  /api/payment/requestPay:
+    post:
+      summary: 支付宝出行-支付申请
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlipayTripRequestPayReqDTO'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripRequestPayRespDTO'
+  /api/payment/payQuery:
+    post:
+      summary: 支付宝出行-支付结果查询
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlipayTripPayQueryReqDTO'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripPayQueryRespDTO'
+  /api/payment/requestRefund:
+    post:
+      summary: 支付宝出行-退款申请
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlipayTripRequestRefundReqDTO'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripRequestRefundRespDTO'
+components:
+  schemas:
+    CommonFormRequest:
+      type: object
+      description: FormData 格式公共请求包装类，bizData 为 JSON 字符串。
+      properties:
+        providerId:
+          type: string
+          example: "01"
+        charset:
+          type: string
+          example: "UTF-8"
+        format:
+          type: string
+          example: "json"
+        timestamp:
+          type: string
+          example: "20260626120000"
+        deviceId:
+          type: string
+          example: "APP"
+        signType:
+          type: string
+          example: "00"
+        sign:
+          type: string
+          example: ""
+        bizData:
+          type: string
+          example: "{}"
+    CommonResult:
+      type: object
+      description: 通用响应基类
+      properties:
+        retCode:
+          type: string
+          example: "0000"
+        retMsg:
+          type: string
+          example: "成功"
+    AlipayTripAddContractReqDTO:
+      type: object
+      description: 添加签约信息请求参数
+      properties:
+        channel:
+          type: string
+          example: "ALIPAY"
+        thirdUserId:
+          type: string
+          example: "1001"
+        agreementCode:
+          type: string
+          example: "AGT2026062600001"
+        channelAgreementCode:
+          type: string
+          example: "2026062600001"
+        channelUserAccount:
+          type: string
+          example: "2088xxx"
+        cardIssueCode:
+          type: string
+          example: "0007"
+    AlipayTripAddContractRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+    AlipayTripTerminateContractReqDTO:
+      type: object
+      description: 解约登记请求参数
+      properties:
+        agreementCode:
+          type: string
+          example: "AGT2026062600001"
+        merchantNo:
+          type: string
+          example: "MCH001"
+    AlipayTripTerminateContractRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+    AlipayTripRequestApplicationReqDTO:
+      type: object
+      description: 开卡申请请求参数
+      properties:
+        thirdUserId:
+          type: string
+          example: "1001"
+        cardType:
+          type: string
+          example: "02"
+        msisdn:
+          type: string
+          example: "74955953457"
+        extend1:
+          type: string
+        extend2:
+          type: string
+        cardIssueCode:
+          type: string
+          example: "0007"
+    AlipayTripRequestApplicationRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            cardId:
+              type: string
+              example: "9900000000000001"
+            cardType:
+              type: string
+              example: "02"
+    AlipayTripRequestIndustryDataReqDTO:
+      type: object
+      description: 获取行业数据请求参数
+      properties:
+        thirdUserId:
+          type: string
+          example: "1001"
+        cardId:
+          type: string
+          example: "9900000000000001"
+        cardType:
+          type: string
+          example: "02"
+    AlipayTripRequestIndustryDataRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          cardData:
+            type: string
+            description: 卡数据HexString
+          signType:
+            type: string
+            description: 签名类型
+          sign:
+            type: string
+            description: 签名
+
+    AlipayTripCloseResultReqDTO:
+      type: object
+      description: 业务关闭结果通知请求参数
+      properties:
+        result:
+          type: boolean
+          description: 是否同意关闭 true-同意 false-拒绝
+          example: true
+        agreementNo:
+          type: string
+          description: 协议号
+          example: "AGT2026062600001"
+
+    AlipayTripCloseResultRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+
+    AlipayTripPushTransDataReqDTO:
+      type: object
+      description: 行程数据推送请求参数
+      properties:
+        thirdUserId:
+          type: string
+          description: 第三方用户ID
+          example: "1001"
+        trxType:
+          type: string
+          description: 本次交易类型 01:进站 02:出站 03:超时出站
+          example: "01"
+        ticketStatus:
+          type: string
+          description: 车票状态
+          example: "04"
+        signChannelCode:
+          type: string
+          description: 支付渠道编码
+          example: "03"
+        cardId:
+          type: string
+          description: 逻辑卡号
+          example: "9900000000000001"
+        cardType:
+          type: string
+          description: 卡类型
+          example: "0441"
+        handleDateTime:
+          type: string
+          description: 处理时间 yyyyMMddHHmmss
+          example: "20260626120000"
+        handleStationCode:
+          type: string
+          description: 站点编码
+          example: "0101"
+        trxAmount:
+          type: string
+          description: 本次交易金额（分）
+          example: "200"
+        overtimeAmount:
+          type: string
+          description: 超时附加金额（分）
+          example: "0"
+        lastTicketStatus:
+          type: string
+          description: 上一次票卡状态
+          example: "05"
+        lastHandleStationCode:
+          type: string
+          description: 上一次处理车站编码
+          example: "0101"
+        lastHandleDateTime:
+          type: string
+          description: 上一次处理时间 yyyyMMddHHmmss
+          example: "20260626110000"
+        tikcetTransSeq:
+          type: string
+          description: 票卡交易序列号
+          example: "TXN2026062600001"
+        deviceId:
+          type: string
+          description: 设备编号
+          example: "AGM001"
+        channelType:
+          type: string
+          description: 渠道类型 00:闸机 01:蓝牙 02:BOM 03:自助补站
+          example: "00"
+        companionFlag:
+          type: string
+          description: 同行票标识 Y:同行票 C:第三方
+          example: "N"
+        countingFlag:
+          type: string
+          description: 日票标识
+          example: "N"
+        transData:
+          type: string
+          description: 行程数据JSON
+          example: "{}"
+
+    AlipayTripPushTransDataRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+
+    AlipayTripReceiveCardDataReqDTO:
+      type: object
+      description: 行业数据推送请求参数
+      properties:
+        thirdUserId:
+          type: string
+          description: 第三方用户ID
+          example: "1001"
+        cardId:
+          type: string
+          description: 卡片ID/逻辑卡号
+          example: "9900000000000001"
+        cardType:
+          type: string
+          description: 卡片类型
+          example: "02"
+        cardData:
+          type: string
+          description: 卡数据HexString
+          example: "00A4..."
+        companionFlag:
+          type: string
+          description: 同行票标识
+          example: "N"
+        entryDeviceCode:
+          type: string
+          description: 进站设备码
+        exitDeviceCode:
+          type: string
+          description: 出站设备码
+
+    AlipayTripReceiveCardDataRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+
+    AlipayTripReceiveBlackListReqDTO:
+      type: object
+      description: 黑名单状态变更通知请求参数
+      properties:
+        thirdUserId:
+          type: string
+          description: 第三方用户ID
+          example: "1001"
+        cardId:
+          type: string
+          description: 卡片ID/逻辑卡号
+          example: "9900000000000001"
+        blacklistStatus:
+          type: string
+          description: 黑名单状态
+          example: "1"
+        reason:
+          type: string
+          description: 变更原因
+          example: "余额不足"
+
+    AlipayTripReceiveBlackListRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+
+    AlipayTripTravelRecordDTO:
+      type: object
+      description: 查询乘车记录单条记录
+      properties:
+        entryStationName:
+          type: string
+          description: 进站站点名称
+          example: "青岛站"
+        entryDate:
+          type: string
+          description: 进站时间 yyyyMMddHHmmss
+          example: "20260626120000"
+        exitStationName:
+          type: string
+          description: 出站站点名称
+          example: "五四广场"
+        exitDate:
+          type: string
+          description: 出站时间 yyyyMMddHHmmss
+          example: "20260626121000"
+        payAmount:
+          type: string
+          description: 实付金额（单位：分）
+          example: "200"
+        totalAmount:
+          type: string
+          description: 总金额（单位：分）
+          example: "200"
+        orderExpType:
+          type: string
+          description: 订单扩展类型
+          example: "000"
+        tradeOrderNo:
+          type: string
+          description: 交易订单号
+          example: "0"
+        payTradeOrderNo:
+          type: string
+          description: 支付交易订单号
+        payOrderNoDate:
+          type: string
+          description: 支付订单日期
+          example: "20260626120000"
+        payChannelCode:
+          type: string
+          description: 支付渠道代码
+          example: "03"
+        debitRequestResult:
+          type: string
+          description: 扣款请求结果
+          example: "04"
+        discountFee:
+          type: string
+          description: 优惠金额
+          example: "0"
+        discountInfo:
+          type: string
+          description: 优惠信息
+          example: "[]"
+        companionFlag:
+          type: string
+          description: 同行票标识
+          example: "02"
+        cardNum:
+          type: string
+          description: 卡号
+          example: "9900000000000001"
+        ticketCode:
+          type: string
+          description: 日票票号
+          example: "0441"
+        countingTimes:
+          type: string
+          description: 计次次数（预留）
+        countingFlag:
+          type: string
+          description: 计次标识（预留）
+    AlipayTripFindTravelListRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          description: 查询乘车记录响应参数
+          properties:
+            pageNumber:
+              type: integer
+              description: 当前页码
+              example: 0
+            pageSize:
+              type: integer
+              description: 每页大小
+              example: 10
+            totalPage:
+              type: integer
+              description: 总页数
+              example: 1
+            totalCount:
+              type: integer
+              description: 总记录数
+              example: 10
+            ticketTransRecord:
+              type: array
+              description: 乘车记录列表
+              items:
+                $ref: '#/components/schemas/AlipayTripTravelRecordDTO'
+
+    AlipayTripFindTravelDetailReqDTO:
+      type: object
+      description: 查询乘车记录详情请求参数
+      properties:
+        thirdUserId:
+          type: string
+          description: 第三方用户ID
+          example: "1001"
+        orderNo:
+          type: string
+          description: 订单号
+          example: "202606261200000001"
+
+    AlipayTripFindTravelDetailRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          description: 查询乘车记录详情响应参数
+          properties:
+            entryStationName:
+              type: string
+              description: 进站站点名称
+              example: "青岛站"
+            entryDate:
+              type: string
+              description: 进站时间 yyyyMMddHHmmss
+              example: "20260626120000"
+            exitStationName:
+              type: string
+              description: 出站站点名称
+              example: "五四广场"
+            exitDate:
+              type: string
+              description: 出站时间 yyyyMMddHHmmss
+              example: "20260626121000"
+            payAmount:
+              type: string
+              description: 实付金额（单位：分）
+              example: "200"
+            totalAmount:
+              type: string
+              description: 总金额（单位：分）
+              example: "200"
+            orderExpType:
+              type: string
+              description: 订单扩展类型
+              example: "000"
+            tradeOrderNo:
+              type: string
+              description: 交易订单号
+              example: "0"
+            payTradeOrderNo:
+              type: string
+              description: 支付交易订单号
+              example: null
+            payOrderNoDate:
+              type: string
+              description: 支付订单日期
+              example: "20260626120000"
+            payChannelCode:
+              type: string
+              description: 支付渠道代码
+              example: "03"
+            debitRequestResult:
+              type: string
+              description: 扣款请求结果
+              example: "04"
+            discountFee:
+              type: string
+              description: 优惠金额
+              example: "0"
+            discountInfo:
+              type: string
+              description: 优惠信息
+              example: "[]"
+            companionFlag:
+              type: string
+              description: 同行票标识
+              example: "02"
+            cardNum:
+              type: string
+              description: 卡号
+              example: "9900000000000001"
+            ticketCode:
+              type: string
+              description: 日票票号
+              example: "0441"
+            countingTimes:
+              type: string
+              description: 计次次数（预留）
+              example: null
+            countingFlag:
+              type: string
+              description: 计次标识（预留）
+              example: null
+
+    AlipayTripFindTravelListReqDTO:
+      type: object
+      description: 查询乘车记录请求参数
+      properties:
+        thirdUserId:
+          type: string
+          description: 第三方用户ID
+          example: "1001"
+        page:
+          type: string
+          description: 页码，从0开始
+          example: "0"
+        size:
+          type: string
+          description: 每页大小
+          example: "10"
+        debitRequestResult:
+          type: string
+          description: 扣款请求结果筛选（可选）
+        invoice:
+          type: string
+          description: 发票状态筛选（可选）
+        startDate:
+          type: string
+          description: 开始日期（可选）
+        endDate:
+          type: string
+          description: 结束日期（可选）
+
+    AlipayTripRequestPayReqDTO:
+      type: object
+      description: 支付申请请求参数
+      properties:
+        orderNo:
+          type: string
+          description: 订单号
+          example: "202606261200000001"
+        scene:
+          type: string
+          description: 支付类型/场景
+          example: "metro"
+        paymentVendor:
+          type: string
+          description: 支付方式
+          example: "ALIPAY"
+        amount:
+          type: integer
+          description: 支付金额（单位：分）
+          example: 200
+        industryType:
+          type: string
+          description: 行业类型
+          example: "1"
+        subject:
+          type: string
+          description: 订单标题
+          example: "地铁乘车"
+        body:
+          type: string
+          description: 订单描述
+        requestSignSeq:
+          type: string
+          description: 签约流水号（免密场景必填）
+        thirdUserId:
+          type: string
+          description: 用户ID
+          example: "1001"
+        orderTimeOut:
+          type: integer
+          description: 订单超时时间（秒），默认60秒
+          example: 60
+        authCode:
+          type: string
+          description: 授权码（部分渠道主动支付需要）
+        notifyUrl:
+          type: string
+          description: 回调地址
+        returnUrl:
+          type: string
+          description: 返回前端页面地址（可提前配置）
+        ipAddress:
+          type: string
+          description: 用户IP地址
+        remark:
+          type: string
+          description: 备注
+        industryDetail:
+          type: string
+          description: 行业详情，json格式
+
+    AlipayTripRequestPayRespDTO:
+      type: object
+      description: 支付申请响应参数
+      properties:
+        retCode:
+          type: string
+          example: "0000"
+        retMsg:
+          type: string
+          example: "成功"
+        orderNo:
+          type: string
+          description: 订单号
+
+    AlipayTripRequestRefundReqDTO:
+      type: object
+      description: 退款申请请求参数
+      properties:
+        orderNo:
+          type: string
+          description: 原订单号
+          example: "202606261200000001"
+        cardIssueCode:
+          type: string
+          description: 卡机构编号，支付宝0007
+          example: "0007"
+        cardNum:
+          type: string
+          description: 逻辑卡号
+          example: "9900000000000001"
+        channelAgreementNo:
+          type: string
+          description: 渠道协议号
+        refundAmount:
+          type: string
+          description: 退款金额，单位分
+          example: "100"
+        refundOrderNo:
+          type: string
+          description: 退款订单号
+
+    AlipayTripRequestRefundRespDTO:
+      type: object
+      description: 退款申请响应参数
+      properties:
+        retCode:
+          type: string
+          example: "0000"
+        retMsg:
+          type: string
+          example: "成功"
+
+    AlipayTripPayQueryReqDTO:
+      type: object
+      description: 支付结果查询请求参数
+      properties:
+        orderNo:
+          type: string
+          description: 订单号
+          example: "202606261200000001"
+        cardIssueCode:
+          type: string
+          description: 卡机构编号，支付宝0007
+          example: "0007"
+        cardNum:
+          type: string
+          description: 逻辑卡号
+          example: "9900000000000001"
+        channelAgreementNo:
+          type: string
+          description: 渠道协议号
+
+    AlipayTripPayQueryRespDTO:
+      type: object
+      description: 支付结果查询响应参数
+      properties:
+        retCode:
+          type: string
+          example: "0000"
+        retMsg:
+          type: string
+          example: "成功"
+        outTradeNo:
+          type: string
+          description: 订单号
+        paymentTime:
+          type: string
+          description: 支付时间
+          example: "2026-06-30 12:00:00"
+        tradeStatus:
+          type: string
+          description: 支付状态
+          example: "SUCCESS"
+        totalAmount:
+          type: string
+          description: 支付金额
+          example: "200"
+        tradeNo:
+          type: string
+          description: 支付渠道订单号
+        tradeDesc:
+          type: string
+          description: 支付结果
+          example: "支付成功"
+
+    AlipayTripCloseResultReqDTO:
+      type: object
+      description: 业务关闭结果通知请求参数
+      properties:
+        result:
+          type: boolean
+          description: 是否同意关闭 true-同意 false-拒绝
+          example: true
+        agreementNo:
+          type: string
+          description: 协议号
+          example: "AGT2026062600001"
+
+    AlipayTripCloseResultRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          description: 业务关闭结果通知响应参数
+
+    AlipayTripPushTransDataReqDTO:
+      type: object
+      description: 行程数据推送请求参数
+      properties:
+        thirdUserId:
+          type: string
+          description: 第三方用户ID
+          example: "1001"
+        trxType:
+          type: string
+          description: 本次交易类型 01:进站 02:出站 03:超时出站
+          example: "01"
+        ticketStatus:
+          type: string
+          description: 车票状态 02:结束行程 03:SJT发售 04:已进站 05:已出站 06:超时出站 08:20分钟内免费更新 09:20分钟外付费更新 10:入站码更新 80:自助补出站 81:自助补进站
+          example: "04"
+        signChannelCode:
+          type: string
+          description: 支付渠道编码
+          example: "03"
+        cardId:
+          type: string
+          description: 逻辑卡号
+          example: "9900000000000001"
+        cardType:
+          type: string
+          description: 卡类型 0441:二维码后付费单程票 0442:HCE后付费单程票 0443:新版HCE后付费单程票 0444:员工票 0445:一日票 0446:三日票 0447:七日票 0448:月票 044A:爱山东
+          example: "0441"
+        handleDateTime:
+          type: string
+          description: 处理时间 yyyyMMddHHmmss
+          example: "20260626120000"
+        handleStationCode:
+          type: string
+          description: 站点编码
+          example: "0101"
+        trxAmount:
+          type: string
+          description: 本次交易金额（分）
+          example: "200"
+        overtimeAmount:
+          type: string
+          description: 超时附加金额（分）
+          example: "0"
+        lastTicketStatus:
+          type: string
+          description: 上一次票卡状态
+          example: "05"
+        lastHandleStationCode:
+          type: string
+          description: 上一次处理车站编码
+          example: "0101"
+        lastHandleDateTime:
+          type: string
+          description: 上一次处理时间 yyyyMMddHHmmss
+          example: "20260626110000"
+        tikcetTransSeq:
+          type: string
+          description: 票卡交易序列号
+          example: "TXN2026062600001"
+        deviceId:
+          type: string
+          description: 设备编号
+          example: "AGM001"
+        channelType:
+          type: string
+          description: 渠道类型 00:闸机 01:蓝牙 02:BOM 03:自助补站
+          example: "00"
+        companionFlag:
+          type: string
+          description: 同行票标识 Y:同行票 C:第三方
+          example: "N"
+        countingFlag:
+          type: string
+          description: 日票标识
+          example: "N"
+        transData:
+          type: string
+          description: 行程数据JSON
+          example: "{}"
+
+    AlipayTripPushTransDataRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          description: 行程数据推送响应参数
+
+    AlipayTripReceiveCardDataReqDTO:
+      type: object
+      description: 行业数据推送请求参数
+      properties:
+        thirdUserId:
+          type: string
+          description: 第三方用户ID
+          example: "1001"
+        cardId:
+          type: string
+          description: 卡片ID/逻辑卡号
+          example: "9900000000000001"
+        cardType:
+          type: string
+          description: 卡片类型
+          example: "02"
+        cardData:
+          type: string
+          description: 卡数据HexString
+          example: "00A4..."
+        companionFlag:
+          type: string
+          description: 同行票标识
+          example: "N"
+        entryDeviceCode:
+          type: string
+          description: 进站设备码
+          example: ""
+        exitDeviceCode:
+          type: string
+          description: 出站设备码
+          example: ""
+
+    AlipayTripReceiveCardDataRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          description: 行业数据推送响应参数
+
+    AlipayTripReceiveBlackListReqDTO:
+      type: object
+      description: 黑名单状态变更通知请求参数
+      properties:
+        thirdUserId:
+          type: string
+          description: 第三方用户ID
+          example: "1001"
+        cardId:
+          type: string
+          description: 卡片ID/逻辑卡号
+          example: "9900000000000001"
+        blacklistStatus:
+          type: string
+          description: 黑名单状态
+          example: "1"
+        reason:
+          type: string
+          description: 变更原因
+          example: "余额不足"
+
+    AlipayTripReceiveBlackListRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          description: 黑名单状态变更通知响应参数
+
+    AlipayTripTravelRecordDTO:
+      type: object
+      description: 查询乘车记录单条记录
+      properties:
+        entryStationName:
+          type: string
+          description: 进站站点名称
+          example: "青岛站"
+        entryDate:
+          type: string
+          description: 进站时间 yyyyMMddHHmmss
+          example: "20260626120000"
+        exitStationName:
+          type: string
+          description: 出站站点名称
+          example: "五四广场"
+        exitDate:
+          type: string
+          description: 出站时间 yyyyMMddHHmmss
+          example: "20260626121000"
+        payAmount:
+          type: string
+          description: 实付金额（单位：分）
+          example: "200"
+        totalAmount:
+          type: string
+          description: 总金额（单位：分）
+          example: "200"
+        orderExpType:
+          type: string
+          description: 订单扩展类型
+          example: "000"
+        tradeOrderNo:
+          type: string
+          description: 交易订单号
+          example: "0"
+        payTradeOrderNo:
+          type: string
+          description: 支付交易订单号
+          example: null
+        payOrderNoDate:
+          type: string
+          description: 支付订单日期
+          example: "20260626120000"
+        payChannelCode:
+          type: string
+          description: 支付渠道代码
+          example: "03"
+        debitRequestResult:
+          type: string
+          description: 扣款请求结果
+          example: "04"
+        discountFee:
+          type: string
+          description: 优惠金额
+          example: "0"
+        discountInfo:
+          type: string
+          description: 优惠信息
+          example: "[]"
+        companionFlag:
+          type: string
+          description: 同行票标识
+          example: "02"
+        cardNum:
+          type: string
+          description: 卡号
+          example: "9900000000000001"
+        ticketCode:
+          type: string
+          description: 日票票号
+          example: "0441"
+        countingTimes:
+          type: string
+          description: 计次次数（预留）
+          example: null
+        countingFlag:
+          type: string
+          description: 计次标识（预留）
+          example: null

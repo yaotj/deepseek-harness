@@ -1,0 +1,371 @@
+package com.chinasofti.huateng.ticket.service.impl;
+
+import com.chinasofti.huateng.model.ticket.QueryStatusReqDTO;
+import com.chinasofti.huateng.model.ticket.QueryStatusRespDTO;
+import com.chinasofti.huateng.model.app.MemberItineraryDTO;
+import com.chinasofti.huateng.model.app.QueryUserItineraryReqDTO;
+import com.chinasofti.huateng.model.app.QueryUserItineraryResult;
+import com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO;
+import com.chinasofti.huateng.model.ticket.NotifyVerifyResultRespDTO;
+import com.chinasofti.huateng.model.ticket.RegisterRideStatusReqDTO;
+import com.chinasofti.huateng.model.ticket.RegisterRideStatusRespDTO;
+import com.chinasofti.huateng.ticket.constant.TicketErrorCodeEnum;
+import com.chinasofti.huateng.ticket.entity.QRCodeStatus;
+import com.chinasofti.huateng.ticket.entity.QRCodeTxnDetail;
+import com.chinasofti.huateng.ticket.entity.StationInfo;
+import com.chinasofti.huateng.ticket.mapper.QRCodeStatusMapper;
+import com.chinasofti.huateng.ticket.mapper.QRCodeTxnDetailMapper;
+import com.chinasofti.huateng.ticket.mapper.StationInfoMapper;
+import com.chinasofti.huateng.ticket.service.AppNotifyService;
+import com.chinasofti.huateng.ticket.service.TicketRideStatusService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.math.BigInteger;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+@Service
+public class TicketRideStatusServiceImpl implements TicketRideStatusService {
+    private static final Logger log = LoggerFactory.getLogger(TicketRideStatusServiceImpl.class);
+    private static final String RET_SUCCESS = "0000";
+    private static final String RET_INVALID_PARAM = "8001";
+    private static final DateTimeFormatter BIZ_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
+    @Value("${ticket.default-channel:01}")
+    private String defaultChannel;
+
+    @Value("${ticket.default-code-status:03}")
+    private String defaultCodeStatus;
+
+    @Value("${ticket.default-gate-status:00}")
+    private String defaultGateStatus;
+
+    @Value("${ticket.default-last-txn-station:FFFF}")
+    private String defaultLastTxnStation;
+
+    @Value("${ticket.default-gate-in-station:FFFF}")
+    private String defaultGateInStation;
+
+    @Autowired
+    private QRCodeStatusMapper qrCodeStatusMapper;
+
+    @Autowired
+    private QRCodeTxnDetailMapper qrCodeTxnDetailMapper;
+
+    @Autowired
+    private StationInfoMapper stationInfoMapper;
+
+    @Autowired
+    private AppNotifyService appNotifyService;
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public RegisterRideStatusRespDTO registerRideStatus(RegisterRideStatusReqDTO request) {
+        RegisterRideStatusRespDTO response = new RegisterRideStatusRespDTO();
+        if (request == null || !StringUtils.hasText(request.getCardId())) {
+            response.setRetCode(RET_INVALID_PARAM);
+            response.setRetMsg("cardId不能为空");
+            return response;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        QRCodeStatus qrCodeStatus = qrCodeStatusMapper.selectByCardId(request.getCardId());
+        if (qrCodeStatus == null) {
+            qrCodeStatus = new QRCodeStatus();
+            qrCodeStatus.setCardId(request.getCardId());
+            qrCodeStatus.setCreateTime(now);
+            qrCodeStatus.setUseCount(0);
+        }
+
+        qrCodeStatus.setChannel(defaultString(request.getChannel(), defaultChannel));
+        qrCodeStatus.setCodeStatus(defaultCodeStatus);
+        qrCodeStatus.setLastTxnTime("00000000000000");
+        qrCodeStatus.setLastTxnStation(defaultLastTxnStation);
+        qrCodeStatus.setTxnSeq("0");
+        qrCodeStatus.setGateStatus(defaultGateStatus);
+        qrCodeStatus.setGateInStation(defaultGateInStation);
+        qrCodeStatus.setGateInTime("00000000000000");
+        qrCodeStatus.setUpdateTime(now);
+        qrCodeStatusMapper.upsert(qrCodeStatus);
+
+        response.setRetCode(RET_SUCCESS);
+        response.setRetMsg("成功");
+        response.setCardId(qrCodeStatus.getCardId());
+        response.setItpUserId(request.getThirdUserId());
+        response.setCardStatus(qrCodeStatus.getCodeStatus());
+        return response;
+    }
+
+    @Override
+    public QueryStatusRespDTO queryQrCodeStatus(QueryStatusReqDTO request) {
+        QueryStatusRespDTO response = new QueryStatusRespDTO();
+        if (request == null || !StringUtils.hasText(request.getCardId())) {
+            response.setRetCode(RET_INVALID_PARAM);
+            response.setRetMsg("cardId不能为空");
+            return response;
+        }
+
+        QRCodeStatus qrCodeStatus = qrCodeStatusMapper.selectByCardId(request.getCardId());
+        if (qrCodeStatus == null) {
+            response.setRetCode(TicketErrorCodeEnum.QR_CODE_NOT_FOUND.getCode());
+            response.setRetMsg(TicketErrorCodeEnum.QR_CODE_NOT_FOUND.getMsg());
+            response.setCardId(request.getCardId());
+            response.setThirdUserId(request.getThirdUserId());
+            return response;
+        }
+
+        response.setThirdUserId(request.getThirdUserId());
+        response.setGateInTime(qrCodeStatus.getGateInTime());
+        response.setGateInStation(qrCodeStatus.getGateInStation());
+        response.setStatus(qrCodeStatus.getCodeStatus());
+        response.setCardId(qrCodeStatus.getCardId());
+        response.setLastTxnTime(qrCodeStatus.getLastTxnTime());
+        response.setLastTxnStation(qrCodeStatus.getLastTxnStation());
+        response.setTxnSeq(qrCodeStatus.getTxnSeq());
+
+        response.setRetCode(RET_SUCCESS);
+        response.setRetMsg("成功");
+
+
+        return response;
+    }
+
+    /**
+     * IF1A-01 闸机检票通知。
+     *
+     * <p>ticket-server 先查询当前卡状态，用当前状态填充交易明细中的上次交易字段；
+     * 再根据本次交易更新卡状态并写入交易明细；入库成功后异步推送 APP。</p>
+     *
+     * @param request 闸机检票通知业务参数
+     * @return 处理结果
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public NotifyVerifyResultRespDTO notifyVerifyResult(NotifyVerifyResultReqDTO request) {
+        NotifyVerifyResultRespDTO response = new NotifyVerifyResultRespDTO();
+        if (request == null || !StringUtils.hasText(request.getCardId())) {
+            response.setRetCode(RET_INVALID_PARAM);
+            response.setRetMsg("cardId不能为空");
+            return response;
+        }
+        if (!StringUtils.hasText(request.getHandleDateTime()) || request.getHandleDateTime().length() < 8) {
+            response.setRetCode(RET_INVALID_PARAM);
+            response.setRetMsg("handleDateTime不能为空且长度不能小于8");
+            return response;
+        }
+        if (!StringUtils.hasText(request.getTrxType())) {
+            response.setRetCode(RET_INVALID_PARAM);
+            response.setRetMsg("trxType不能为空");
+            return response;
+        }
+
+        QRCodeStatus currentStatus = qrCodeStatusMapper.selectByCardId(request.getCardId());
+        if (currentStatus == null) {
+            response.setRetCode(TicketErrorCodeEnum.QR_CODE_NOT_FOUND.getCode());
+            response.setRetMsg(TicketErrorCodeEnum.QR_CODE_NOT_FOUND.getMsg());
+            return response;
+        }
+
+        fillLastTicketFields(request, currentStatus);
+
+        QRCodeTxnDetail detail = buildTxnDetail(request);
+        log.info("IF1A-01 闸机交易明细入库, detail={}", com.alibaba.fastjson.JSON.toJSONString(detail));
+        try {
+            qrCodeTxnDetailMapper.insert(detail);
+        } catch (DuplicateKeyException e) {
+            log.info("IF1A-01 闸机交易明细重复上送, cardId={}, trxType={}, handleDateTime={}, ticketTransSeq={}, deviceId={}",
+                    request.getCardId(), request.getTrxType(), request.getHandleDateTime(),
+                    request.getTicketTransSeq(), request.getDeviceId());
+            response.setRetCode(RET_SUCCESS);
+            response.setRetMsg("成功");
+            return response;
+        }
+
+        QRCodeStatus nextStatus = buildNextStatus(request, currentStatus);
+        log.info("IF1A-01 更新二维码状态, status={}", com.alibaba.fastjson.JSON.toJSONString(nextStatus));
+        qrCodeStatusMapper.upsert(nextStatus);
+
+        appNotifyService.notifyVerifyResult(request, nextStatus);
+
+        response.setRetCode(RET_SUCCESS);
+        response.setRetMsg("成功");
+        return response;
+    }
+
+    /**
+     * IF8A-29 查询用户上次行程。
+     *
+     * <p>该接口只查询刷码后已经落库的状态和交易明细，不修改票卡状态。</p>
+     */
+    @Override
+    public QueryUserItineraryResult queryUserItinerary(QueryUserItineraryReqDTO request) {
+        QueryUserItineraryResult response = new QueryUserItineraryResult();
+        if (request == null || !StringUtils.hasText(request.getCardNum())) {
+            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
+            response.setRetMsg("cardNum不能为空");
+            return response;
+        }
+
+        QRCodeStatus currentStatus = qrCodeStatusMapper.selectByCardId(request.getCardNum());
+        if (currentStatus == null) {
+            response.setRetCode(TicketErrorCodeEnum.QR_CODE_NOT_FOUND.getCode());
+            response.setRetMsg(TicketErrorCodeEnum.QR_CODE_NOT_FOUND.getMsg());
+            return response;
+        }
+
+        QRCodeTxnDetail latestDetail = qrCodeTxnDetailMapper.selectLatestByCardId(request.getCardNum());
+        MemberItineraryDTO itinerary = buildMemberItinerary(currentStatus, latestDetail);
+        response.setMemberItinerary(itinerary);
+        response.setRetCode(RET_SUCCESS);
+        response.setRetMsg("成功");
+        return response;
+    }
+
+    private MemberItineraryDTO buildMemberItinerary(QRCodeStatus currentStatus, QRCodeTxnDetail latestDetail) {
+        MemberItineraryDTO itinerary = new MemberItineraryDTO();
+        itinerary.setTicketStatus(currentStatus.getCodeStatus());
+        itinerary.setPayStatus("00");
+
+        if (latestDetail == null) {
+            itinerary.setThisStationCode(currentStatus.getLastTxnStation());
+            itinerary.setThisStationName(resolveStationName(currentStatus.getLastTxnStation()));
+            itinerary.setThisTransTime(currentStatus.getLastTxnTime());
+            itinerary.setTransSeq(currentStatus.getTxnSeq());
+            return itinerary;
+        }
+
+        itinerary.setThisStationCode(latestDetail.getHandleStationCode());
+        itinerary.setThisStationName(resolveStationName(latestDetail.getHandleStationCode()));
+        itinerary.setThisTransTime(latestDetail.getHandleDateTime());
+        itinerary.setTransSeq(latestDetail.getTicketTransSeq());
+        itinerary.setTransValue(toInteger(latestDetail.getTrxAmount()));
+        itinerary.setOvertimeTransValue(toInteger(latestDetail.getOvertimeAmount()));
+
+        if (isExitTxn(latestDetail.getTrxType())) {
+            itinerary.setLastStationCode(latestDetail.getLastHandleStationCode());
+            itinerary.setLastStationName(resolveStationName(latestDetail.getLastHandleStationCode()));
+            itinerary.setLastTransTime(latestDetail.getLastHandleDateTime());
+        }
+        return itinerary;
+    }
+
+    private String resolveStationName(String stationCode) {
+        if (!StringUtils.hasText(stationCode)) {
+            return stationCode;
+        }
+        StationInfo stationInfo = stationInfoMapper.selectByStationCode(stationCode);
+        if (stationInfo == null || !StringUtils.hasText(stationInfo.getStationName())) {
+            return stationCode;
+        }
+        return stationInfo.getStationName();
+    }
+
+    private boolean isExitTxn(String trxType) {
+        return "02".equals(trxType) || "03".equals(trxType);
+    }
+
+    private Integer toInteger(Long value) {
+        return value == null ? null : value.intValue();
+    }
+
+    private void fillLastTicketFields(NotifyVerifyResultReqDTO request, QRCodeStatus currentStatus) {
+        request.setLastTicketStatus(currentStatus.getCodeStatus());
+        request.setLastHandleStationCode(currentStatus.getLastTxnStation());
+        request.setLastHandleDateTime(currentStatus.getLastTxnTime());
+    }
+
+    private QRCodeTxnDetail buildTxnDetail(NotifyVerifyResultReqDTO request) {
+        QRCodeTxnDetail detail = new QRCodeTxnDetail();
+        detail.setDeviceId(request.getDeviceId());
+        detail.setItpUserId(convertHexUserIdToDecimal(request.getItpUserId()));
+        detail.setTrxType(request.getTrxType());
+        detail.setIssueChannelCode(request.getIssueChannelCode());
+        detail.setSignChannelCode(request.getSignChannelCode());
+        detail.setCardId(request.getCardId());
+        detail.setCardType(request.getCardType());
+        detail.setHandleDateTime(request.getHandleDateTime());
+        detail.setTxnDate(request.getHandleDateTime().substring(0, 8));
+        detail.setHandleStationCode(request.getHandleStationCode());
+        detail.setTrxAmount(parseAmount(request.getTrxAmount()));
+        detail.setOvertimeAmount(parseAmount(request.getOvertimeAmount()));
+        detail.setLastTicketStatus(request.getLastTicketStatus());
+        detail.setHandleResultCode(request.getHandleResultCode());
+        detail.setLastHandleStationCode(request.getLastHandleStationCode());
+        detail.setLastHandleDateTime(request.getLastHandleDateTime());
+        detail.setTicketTransSeq(request.getTicketTransSeq());
+        detail.setReserve1(request.getReserve1());
+        detail.setReserve2(request.getReserve2());
+        detail.setCreateTime(LocalDateTime.now());
+        return detail;
+    }
+
+    private QRCodeStatus buildNextStatus(NotifyVerifyResultReqDTO request, QRCodeStatus currentStatus) {
+        QRCodeStatus nextStatus = new QRCodeStatus();
+        nextStatus.setCardId(request.getCardId());
+        nextStatus.setUseCount(currentStatus.getUseCount() == null ? 1 : currentStatus.getUseCount() + 1);
+        nextStatus.setChannel(defaultString(request.getIssueChannelCode(), currentStatus.getChannel()));
+        nextStatus.setCodeStatus(resolveCodeStatus(request.getTrxType()));
+        nextStatus.setLastTxnTime(request.getHandleDateTime());
+        nextStatus.setLastTxnStation(request.getHandleStationCode());
+        nextStatus.setTxnSeq(request.getTicketTransSeq());
+        nextStatus.setCreateTime(currentStatus.getCreateTime());
+        nextStatus.setUpdateTime(LocalDateTime.now());
+        nextStatus.setGateStatus(request.getTrxType());
+
+        if ("01".equals(request.getTrxType())) {
+            nextStatus.setGateInTime(request.getHandleDateTime());
+            nextStatus.setGateInStation(request.getHandleStationCode());
+        } else {
+            nextStatus.setGateInTime(currentStatus.getGateInTime());
+            nextStatus.setGateInStation(currentStatus.getGateInStation());
+        }
+        return nextStatus;
+    }
+
+    private String resolveCodeStatus(String trxType) {
+        if ("01".equals(trxType)) {
+            return "04";
+        }
+        if ("02".equals(trxType)) {
+            return "05";
+        }
+        if ("03".equals(trxType)) { 
+            return "06";
+        }
+        return defaultCodeStatus;
+    }
+
+    private Long parseAmount(String amount) {
+        if (!StringUtils.hasText(amount)) {
+            return null;
+        }
+        return Long.valueOf(amount);
+    }
+
+    private String convertHexUserIdToDecimal(String itpUserId) {
+        if (!StringUtils.hasText(itpUserId)) {
+            return itpUserId;
+        }
+        try {
+            return new BigInteger(itpUserId, 16).toString(10);
+        } catch (NumberFormatException e) {
+            log.warn("itpUserId不是合法16进制字符串，按原值入库, itpUserId={}", itpUserId);
+            return itpUserId;
+        }
+    }
+
+    private String formatBizTime(LocalDateTime dateTime) {
+        return dateTime.format(BIZ_TIME_FORMATTER);
+    }
+
+    private String defaultString(String value, String defaultValue) {
+        return StringUtils.hasText(value) ? value : defaultValue;
+    }
+}

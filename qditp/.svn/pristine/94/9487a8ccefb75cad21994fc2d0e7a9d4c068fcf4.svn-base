@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.account.mapper.UserItpRegInfoMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.account.entity.UserItpRegInfo">
+        <id column="ID" jdbcType="INTEGER" property="id"/>
+        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="MSISDN" jdbcType="VARCHAR" property="msisdn"/>
+        <result column="REG_TMS" jdbcType="TIMESTAMP" property="regTms"/>
+        <result column="DEL_YN" jdbcType="INTEGER" property="delYn"/>
+        <result column="DEL_THIRD_USER_ID" jdbcType="VARCHAR" property="delThirdUserId"/>
+        <result column="UN_REG_TMS" jdbcType="TIMESTAMP" property="unRegTms"/>
+        <result column="USER_NAME" jdbcType="VARCHAR" property="userName"/>
+        <result column="USER_ID" jdbcType="VARCHAR" property="userId"/>
+        <result column="CARD_ISSUE_CODE" jdbcType="VARCHAR" property="cardIssueCode"/>
+        <result column="THIRD_PAY_ID" jdbcType="VARCHAR" property="thirdPayId"/>
+        <result column="CHANNEL" jdbcType="VARCHAR" property="channel"/>
+        <result column="REQ_CONTRACT_NO" jdbcType="VARCHAR" property="reqContractNo"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ID, CARD_ID, CARD_TYPE, THIRD_USER_ID, MSISDN, REG_TMS, DEL_YN,
+        DEL_THIRD_USER_ID, UN_REG_TMS, USER_NAME, USER_ID, CARD_ISSUE_CODE,
+        THIRD_PAY_ID, CHANNEL, REQ_CONTRACT_NO
+    </sql>
+
+    <select id="selectActiveByThirdUserId" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from (
+            select
+            <include refid="Base_Column_List"/>
+            from User_ITP_Reg_Info
+            where THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+              and DEL_YN = 1
+            order by REG_TMS desc
+        ) T
+        where rownum = 1
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.account.entity.UserItpRegInfo">
+        insert into User_ITP_Reg_Info (
+            CARD_ID, CARD_TYPE, THIRD_USER_ID, MSISDN, REG_TMS, DEL_YN,
+            DEL_THIRD_USER_ID, UN_REG_TMS, USER_NAME, USER_ID, CARD_ISSUE_CODE,
+            THIRD_PAY_ID, CHANNEL, REQ_CONTRACT_NO
+        ) values (
+            #{cardId,jdbcType=VARCHAR},
+            #{cardType,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR},
+            #{msisdn,jdbcType=VARCHAR},
+            #{regTms,jdbcType=TIMESTAMP},
+            #{delYn,jdbcType=INTEGER},
+            #{delThirdUserId,jdbcType=VARCHAR},
+            #{unRegTms,jdbcType=TIMESTAMP},
+            #{userName,jdbcType=VARCHAR},
+            #{userId,jdbcType=VARCHAR},
+            #{cardIssueCode,jdbcType=VARCHAR},
+            #{thirdPayId,jdbcType=VARCHAR},
+            #{channel,jdbcType=VARCHAR},
+            #{reqContractNo,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <update id="updateDefaultPayChannelById" parameterType="com.chinasofti.huateng.account.entity.UserItpRegInfo">
+        update User_ITP_Reg_Info
+        set THIRD_PAY_ID = #{thirdPayId,jdbcType=VARCHAR},
+            CHANNEL = #{channel,jdbcType=VARCHAR},
+            REQ_CONTRACT_NO = #{reqContractNo,jdbcType=VARCHAR}
+        where ID = #{id,jdbcType=INTEGER}
+    </update>
+
+    <update id="clearDefaultPayChannelById">
+        update User_ITP_Reg_Info
+        set THIRD_PAY_ID = null,
+            CHANNEL = null,
+            REQ_CONTRACT_NO = null
+        where ID = #{id,jdbcType=INTEGER}
+    </update>
+</mapper>

@@ -1,0 +1,26 @@
+package com.chinasofti.huateng.ticket.mapper;
+
+import com.chinasofti.huateng.ticket.entity.QRCodeTxnDetail;
+import com.chinasofti.huateng.ticket.model.app.RequestTransListReqDTO;
+import com.chinasofti.huateng.ticket.model.app.TransRecordDTO;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+
+@Mapper
+public interface QRCodeTxnDetailMapper {
+    int insert(QRCodeTxnDetail record);
+
+    QRCodeTxnDetail selectLatestByCardId(@Param("cardId") String cardId);
+
+    /**
+     * IF8A-05 查询交易记录列表。
+     */
+    List<TransRecordDTO> selectTransList(RequestTransListReqDTO request);
+
+    /**
+     * IF8A-05 查询交易记录总数。
+     */
+    int countTransList(RequestTransListReqDTO request);
+}

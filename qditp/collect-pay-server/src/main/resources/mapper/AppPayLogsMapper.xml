@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.collectpay.mapper.AppPayLogsMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.collectpay.entity.AppPayLogs">
+        <id column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="USER_ID" jdbcType="VARCHAR" property="userId"/>
+        <result column="PAY_TYPE" jdbcType="INTEGER" property="payType"/>
+        <result column="CHANNEL_CODE" jdbcType="VARCHAR" property="channelCode"/>
+        <result column="CREATE_TMS" jdbcType="TIMESTAMP" property="createTms"/>
+        <result column="TRADE_NO" jdbcType="VARCHAR" property="tradeNo"/>
+        <result column="PAY_CHANNEL_CODE" jdbcType="VARCHAR" property="payChannelCode"/>
+        <result column="CHANNEL_TYPE" jdbcType="VARCHAR" property="channelType"/>
+        <result column="PAY_RESULT" jdbcType="INTEGER" property="payResult"/>
+        <result column="PAY_AMOUNT" jdbcType="INTEGER" property="payAmount"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ORDER_NO, USER_ID, PAY_TYPE, CHANNEL_CODE, CREATE_TMS, TRADE_NO,
+        PAY_CHANNEL_CODE, CHANNEL_TYPE, PAY_RESULT, PAY_AMOUNT
+    </sql>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from App_Pay_Logs
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByUserId" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from App_Pay_Logs
+        where USER_ID = #{userId,jdbcType=VARCHAR}
+        order by CREATE_TMS desc
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.collectpay.entity.AppPayLogs">
+        insert into App_Pay_Logs (
+            ORDER_NO, USER_ID, PAY_TYPE, CHANNEL_CODE, CREATE_TMS, TRADE_NO,
+            PAY_CHANNEL_CODE, CHANNEL_TYPE, PAY_RESULT, PAY_AMOUNT
+        ) values (
+            #{orderNo,jdbcType=VARCHAR},
+            #{userId,jdbcType=VARCHAR},
+            #{payType,jdbcType=INTEGER},
+            #{channelCode,jdbcType=VARCHAR},
+            #{createTms,jdbcType=TIMESTAMP},
+            #{tradeNo,jdbcType=VARCHAR},
+            #{payChannelCode,jdbcType=VARCHAR},
+            #{channelType,jdbcType=VARCHAR},
+            #{payResult,jdbcType=INTEGER},
+            #{payAmount,jdbcType=INTEGER}
+        )
+    </insert>
+
+    <update id="updateByOrderNo" parameterType="com.chinasofti.huateng.collectpay.entity.AppPayLogs">
+        update App_Pay_Logs
+        set USER_ID = #{userId,jdbcType=VARCHAR},
+            PAY_TYPE = #{payType,jdbcType=INTEGER},
+            CHANNEL_CODE = #{channelCode,jdbcType=VARCHAR},
+            TRADE_NO = #{tradeNo,jdbcType=VARCHAR},
+            PAY_CHANNEL_CODE = #{payChannelCode,jdbcType=VARCHAR},
+            CHANNEL_TYPE = #{channelType,jdbcType=VARCHAR},
+            PAY_RESULT = #{payResult,jdbcType=INTEGER},
+            PAY_AMOUNT = #{payAmount,jdbcType=INTEGER}
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+</mapper>

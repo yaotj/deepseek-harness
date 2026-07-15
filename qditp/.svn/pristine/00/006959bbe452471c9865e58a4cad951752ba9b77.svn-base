@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.chinasofti.huateng</groupId>
+    <artifactId>blacklist-server</artifactId>
+    <version>2.0.0</version>
+    <packaging>jar</packaging>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.6</version>
+        <relativePath/>
+    </parent>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <java.version>21</java.version>
+        <scope.compile>compile</scope.compile>
+        <scope.test>test</scope.test>
+
+        <web.version>2.0.0</web.version>
+        <sql-datasource.version>2.0.0</sql-datasource.version>
+        <mybatis-adaptor.version>2.0.0</mybatis-adaptor.version>
+        <rpc.version>2.0.0</rpc.version>
+        <model.version>2.0.0</model.version>
+        <ojdbc.version>19.18.0.0</ojdbc.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.chinasofti.huateng.micro</groupId>
+            <artifactId>web</artifactId>
+            <version>${web.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.chinasofti.huateng.micro</groupId>
+            <artifactId>sql-datasource</artifactId>
+            <version>${sql-datasource.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.chinasofti.huateng.micro</groupId>
+            <artifactId>mybatis-adaptor</artifactId>
+            <version>${mybatis-adaptor.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.oracle.database.jdbc</groupId>
+            <artifactId>ojdbc8</artifactId>
+            <version>${ojdbc.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.oracle.database.nls</groupId>
+            <artifactId>orai18n</artifactId>
+            <version>${ojdbc.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.chinasofti.huateng</groupId>
+            <artifactId>model</artifactId>
+            <version>${model.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.chinasofti.huateng</groupId>
+            <artifactId>rpc</artifactId>
+            <version>${rpc.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-install-plugin</artifactId>
+                <version>2.5.2</version>
+            </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

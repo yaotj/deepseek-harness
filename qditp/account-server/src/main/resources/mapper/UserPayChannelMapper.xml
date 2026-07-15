@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.account.mapper.UserPayChannelMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.account.entity.UserPayChannel">
+        <id column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <id column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
+        <id column="CHANNEL" jdbcType="VARCHAR" property="channel"/>
+        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="THIRD_PAY_ID" jdbcType="VARCHAR" property="thirdPayId"/>
+        <result column="REQ_CONTRACT_NO" jdbcType="VARCHAR" property="reqContractNo"/>
+        <result column="STATUS" jdbcType="VARCHAR" property="status"/>
+        <result column="CREATE_TMS" jdbcType="TIMESTAMP" property="createTms"/>
+        <result column="UPDATE_TMS" jdbcType="TIMESTAMP" property="updateTms"/>
+    </resultMap>
+
+    <select id="selectByThirdUserIdAndCardTypeAndChannel" resultMap="BaseResultMap">
+        select THIRD_USER_ID, CARD_ID, CARD_TYPE, CHANNEL, THIRD_PAY_ID, REQ_CONTRACT_NO, STATUS, CREATE_TMS, UPDATE_TMS
+        from APP_USER_PAY_CHANNEL
+        where THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+          and CARD_TYPE = #{cardType,jdbcType=VARCHAR}
+          and CHANNEL = #{channel,jdbcType=VARCHAR}
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.account.entity.UserPayChannel">
+        insert into APP_USER_PAY_CHANNEL (
+            THIRD_USER_ID, CARD_ID, CARD_TYPE, CHANNEL, THIRD_PAY_ID, REQ_CONTRACT_NO, STATUS, CREATE_TMS, UPDATE_TMS
+        ) values (
+            #{thirdUserId,jdbcType=VARCHAR},
+            #{cardId,jdbcType=VARCHAR},
+            #{cardType,jdbcType=VARCHAR},
+            #{channel,jdbcType=VARCHAR},
+            #{thirdPayId,jdbcType=VARCHAR},
+            #{reqContractNo,jdbcType=VARCHAR},
+            #{status,jdbcType=VARCHAR},
+            #{createTms,jdbcType=TIMESTAMP},
+            #{updateTms,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <delete id="deleteByThirdUserIdAndCardTypeAndChannel">
+        delete from APP_USER_PAY_CHANNEL
+        where THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+          and CARD_TYPE = #{cardType,jdbcType=VARCHAR}
+          and CHANNEL = #{channel,jdbcType=VARCHAR}
+    </delete>
+</mapper>

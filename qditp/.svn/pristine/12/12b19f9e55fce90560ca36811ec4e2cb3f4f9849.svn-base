@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.acc.es.server.mapper.TblStlTicketSetMapper">
+
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.acc.es.server.model.TblStlTicketSet">
+        <id column="TICKET_TYPE" property="ticketType" jdbcType="INTEGER"/>
+        <result column="TICKET_NAME" property="ticketName" jdbcType="VARCHAR"/>
+        <result column="ISSUE_ID" property="issueId" jdbcType="VARCHAR"/>
+        <result column="CYCLE_STLMT_FLG" property="cycleStlmtFlg" jdbcType="VARCHAR"/>
+        <result column="CARD_TYPE" property="cardType" jdbcType="VARCHAR"/>
+        <result column="PRICE_TYPE" property="priceType" jdbcType="VARCHAR"/>
+        <result column="TYPE1" property="type1" jdbcType="VARCHAR"/>
+        <result column="TYPE2" property="type2" jdbcType="VARCHAR"/>
+        <result column="TYPE3" property="type3" jdbcType="VARCHAR"/>
+        <result column="TYPE4" property="type4" jdbcType="VARCHAR"/>
+        <result column="TYPE5" property="type5" jdbcType="VARCHAR"/>
+        <result column="USE_FLG" property="useFlg" jdbcType="VARCHAR"/>
+        <result column="LAST_UPD_ID" property="lastUpdId" jdbcType="VARCHAR"/>
+        <result column="LAST_UPD_TMS" property="lastUpdTms" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        TICKET_TYPE, TICKET_NAME, ISSUE_ID, CYCLE_STLMT_FLG, CARD_TYPE, 
+        PRICE_TYPE, TYPE1, TYPE2, TYPE3, TYPE4, TYPE5, USE_FLG, 
+        LAST_UPD_ID, LAST_UPD_TMS
+    </sql>
+
+    <!-- 根据票卡类型查询 -->
+    <select id="findByTicketType" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM TBL_STL_TICKET_SET
+        WHERE TICKET_TYPE = #{ticketType,jdbcType=INTEGER}
+    </select>
+
+
+</mapper>

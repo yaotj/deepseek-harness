@@ -1,0 +1,559 @@
+package com.chinasofti.huateng.fep.alipay.service.impl;
+
+import com.alibaba.fastjson2.JSON;
+import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayQueryRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayQueryReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestApplicationReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestApplicationRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestIndustryDataReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestIndustryDataRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestPayReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestPayRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestRefundReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestRefundRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripAddContractReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripAddContractRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripTerminateContractReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripTerminateContractRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripPushTransDataReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripPushTransDataRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripCloseResultReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripCloseResultRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripReceiveCardDataReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripReceiveCardDataRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripReceiveBlackListReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripReceiveBlackListRespDTO;
+import com.chinasofti.huateng.model.app.IndustryCardDataBuildReqDTO;
+import com.chinasofti.huateng.model.app.IndustryCardDataBuildRespDTO;
+import com.chinasofti.huateng.model.app.QueryUserInfoReqDTO;
+import com.chinasofti.huateng.model.app.QueryUserInfoResult;
+import com.chinasofti.huateng.model.ticket.QueryStatusReqDTO;
+import com.chinasofti.huateng.model.ticket.QueryStatusRespDTO;
+import com.chinasofti.huateng.fep.alipay.service.AlipayTripService;
+import com.chinasofti.huateng.rpc.account.AccountClient;
+import com.chinasofti.huateng.rpc.alipay.paysign.AlipayPaySignClient;
+import com.chinasofti.huateng.rpc.industry.IndustryDataClient;
+import com.chinasofti.huateng.rpc.ticket.TicketClient;
+import okhttp3.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * 支付宝出行 Trip 服务实现（模拟响应）。
+ */
+@Service
+public class AlipayTripServiceImpl implements AlipayTripService {
+    private static final Logger log = LoggerFactory.getLogger(AlipayTripServiceImpl.class);
+
+    @Value("${alipay.notify.push-trans-data-url:https://openapi.alipay.com/gateway.do}")
+    private String alipayPushTransDataUrl;
+
+    @Value("${alipay.notify.close-result-url:https://openapi.alipay.com/gateway.do}")
+    private String alipayCloseResultUrl;
+
+    @Value("${alipay.notify.card-data-url:https://openapi.alipay.com/gateway.do}")
+    private String alipayCardDataUrl;
+
+    @Value("${alipay.notify.blacklist-url:https://openapi.alipay.com/gateway.do}")
+    private String alipayBlacklistUrl;
+
+    private final OkHttpClient okHttpClient = new OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build();
+
+    @Autowired
+    private AccountClient accountClient;
+
+    @Autowired
+    private AlipayPaySignClient alipayPaySignClient;
+
+    @Autowired
+    private TicketClient ticketClient;
+
+    @Autowired
+    private IndustryDataClient industryDataClient;
+
+    @Override
+    public AlipayTripAddContractRespDTO addContract(AlipayTripAddContractReqDTO request) {
+        log.info("支付宝出行-添加签约信息,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripAddContractRespDTO response;
+        try {
+            response = alipayPaySignClient.alipayTripAddContract(request);
+        } catch (Exception e) {
+            log.error("支付宝出行-添加签约信息 异常", e);
+            response = new AlipayTripAddContractRespDTO();
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-添加签约信息,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripTerminateContractRespDTO terminateContract(AlipayTripTerminateContractReqDTO request) {
+        log.info("支付宝出行-解约登记,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripTerminateContractRespDTO response;
+        try {
+            response = alipayPaySignClient.alipayTripTerminateContract(request);
+        } catch (Exception e) {
+            log.error("支付宝出行-解约登记 异常", e);
+            response = new AlipayTripTerminateContractRespDTO();
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-解约登记,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripRequestApplicationRespDTO requestApplication(AlipayTripRequestApplicationReqDTO request) {
+        log.info("支付宝出行-开卡申请,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripRequestApplicationRespDTO response;
+        try {
+            response = accountClient.alipayTripRequestApplication(request);
+        } catch (Exception e) {
+            log.error("支付宝出行-开卡申请 异常", e);
+            response = new AlipayTripRequestApplicationRespDTO();
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-开卡申请,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripRequestIndustryDataRespDTO requestIndustryData(AlipayTripRequestIndustryDataReqDTO request) {
+        log.info("支付宝出行-获取行业数据,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripRequestIndustryDataRespDTO response = new AlipayTripRequestIndustryDataRespDTO();
+        response.setSignType("00");
+        response.setSign("");
+        try {
+            String validMsg = validateRequest(request);
+            if (validMsg != null) {
+                response.setRetCode("1001");
+                response.setRetMsg(validMsg);
+                log.warn("支付宝出行-获取行业数据参数校验失败, request={}, msg={}", JSON.toJSONString(request), validMsg);
+                return response;
+            }
+
+            QueryUserInfoResult userInfo = queryUserInfo(request);
+            if (userInfo == null) {
+                response.setRetCode("9999");
+                response.setRetMsg("account-server调用失败，返回为空");
+                log.warn("支付宝出行-获取行业数据查询用户信息返回null, request={}", JSON.toJSONString(request));
+                return response;
+            }
+            if (!"0000".equals(userInfo.getRetCode())) {
+                response.setRetCode(userInfo.getRetCode());
+                response.setRetMsg(userInfo.getRetMsg());
+                return response;
+            }
+
+            String signChannelCode = resolveSignChannelCode(userInfo.getChannel());
+            if (!StringUtils.hasText(signChannelCode)) {
+                response.setRetCode("8001");
+                response.setRetMsg("用户签约渠道不能为空");
+                log.warn("支付宝出行-获取行业数据用户签约渠道为空, userInfo={}", JSON.toJSONString(userInfo));
+                return response;
+            }
+
+            QueryStatusRespDTO qrStatus = queryTicketStatus(request);
+            if (qrStatus == null) {
+                response.setRetCode("9999");
+                response.setRetMsg("ticket-server调用失败，返回为空");
+                log.warn("支付宝出行-获取行业数据查询二维码状态返回null, request={}", JSON.toJSONString(request));
+                return response;
+            }
+            if (!"0000".equals(qrStatus.getRetCode())) {
+                response.setRetCode(qrStatus.getRetCode());
+                response.setRetMsg(qrStatus.getRetMsg());
+                return response;
+            }
+
+            IndustryCardDataBuildReqDTO cardDataRequest = buildCardDataRequest(request, qrStatus, signChannelCode);
+            log.info("支付宝出行-获取行业数据调用industry-data-server生成卡数据, request={}", JSON.toJSONString(cardDataRequest));
+            IndustryCardDataBuildRespDTO cardDataResp = industryDataClient.buildCardData(cardDataRequest);
+            log.info("支付宝出行-获取行业数据调用industry-data-server生成卡数据完成, response={}", JSON.toJSONString(cardDataResp));
+            if (cardDataResp == null || !"0000".equals(cardDataResp.getRetCode())) {
+                response.setRetCode(cardDataResp == null ? "9999" : cardDataResp.getRetCode());
+                response.setRetMsg(cardDataResp == null ? "industry-data-server生成卡数据失败" : cardDataResp.getRetMsg());
+                return response;
+            }
+
+            response.setRetCode("0000");
+            response.setRetMsg("成功");
+            response.setCardData(cardDataResp.getCardData());
+            log.info("支付宝出行-获取行业数据成功, thirdUserId={}, cardId={}, cardType={}, cardData={}",
+                    request.getThirdUserId(), request.getCardId(), request.getCardType(), cardDataResp.getCardData());
+            return response;
+        } catch (Exception e) {
+            log.error("支付宝出行-获取行业数据异常, request={}", JSON.toJSONString(request), e);
+            response.setRetCode("9999");
+            response.setRetMsg("系统内部错误");
+            return response;
+        }
+    }
+
+    private QueryUserInfoResult queryUserInfo(AlipayTripRequestIndustryDataReqDTO request) {
+        QueryUserInfoReqDTO userInfoReq = new QueryUserInfoReqDTO();
+        userInfoReq.setThirdUserId(request.getThirdUserId().trim());
+        userInfoReq.setCardId(request.getCardId().trim());
+        userInfoReq.setCardType(request.getCardType().trim());
+        QueryUserInfoResult userInfo = accountClient.queryUserInfo(userInfoReq);
+        log.info("支付宝出行-获取行业数据查询用户信息结果, request={}, response={}", JSON.toJSONString(userInfoReq), JSON.toJSONString(userInfo));
+        return userInfo;
+    }
+
+    private QueryStatusRespDTO queryTicketStatus(AlipayTripRequestIndustryDataReqDTO request) {
+        QueryStatusReqDTO qrReq = new QueryStatusReqDTO();
+        qrReq.setThirdUserId(request.getThirdUserId().trim());
+        qrReq.setCardId(request.getCardId().trim());
+        QueryStatusRespDTO qrStatus = ticketClient.queryQrCodeStatus(qrReq);
+        log.info("支付宝出行-获取行业数据查询二维码状态结果, request={}, response={}", JSON.toJSONString(qrReq), JSON.toJSONString(qrStatus));
+        return qrStatus;
+    }
+
+    private String resolveSignChannelCode(String channel) {
+        if (!StringUtils.hasText(channel)) {
+            return null;
+        }
+        String normalized = channel.trim();
+        return normalized.length() >= 2 ? normalized.substring(0, 2) : normalized;
+    }
+
+    private IndustryCardDataBuildReqDTO buildCardDataRequest(AlipayTripRequestIndustryDataReqDTO request,
+                                                             QueryStatusRespDTO qrStatus,
+                                                             String signChannelCode) {
+        IndustryCardDataBuildReqDTO cardDataRequest = new IndustryCardDataBuildReqDTO();
+        cardDataRequest.setThirdUserId(request.getThirdUserId().trim());
+        cardDataRequest.setCardId(request.getCardId().trim());
+        cardDataRequest.setCardType(request.getCardType().trim());
+        cardDataRequest.setTicketStatus(qrStatus.getStatus());
+        cardDataRequest.setLastTxnStation(qrStatus.getLastTxnStation());
+        cardDataRequest.setLastTxnTime(qrStatus.getLastTxnTime());
+        cardDataRequest.setGateInStation(qrStatus.getGateInStation());
+        cardDataRequest.setGateInTime(qrStatus.getGateInTime());
+        cardDataRequest.setTxnSeq(qrStatus.getTxnSeq());
+        cardDataRequest.setIssueChannelCode("07");
+        cardDataRequest.setSignChannelCode(signChannelCode);
+        return cardDataRequest;
+    }
+
+    private String validateRequest(AlipayTripRequestIndustryDataReqDTO request) {
+        if (request == null) {
+            return "请求报文不能为空";
+        }
+        if (!StringUtils.hasText(request.getThirdUserId())) {
+            return "thirdUserId不能为空";
+        }
+        if (!StringUtils.hasText(request.getCardId())) {
+            return "cardId不能为空";
+        }
+        if (!StringUtils.hasText(request.getCardType())) {
+            return "cardType不能为空";
+        }
+        return null;
+    }
+
+    @Override
+    public AlipayTripFindTravelListRespDTO findTravelList(AlipayTripFindTravelListReqDTO request) {
+        log.info("支付宝出行-查询乘车记录列表,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripFindTravelListRespDTO response;
+        try {
+            response = ticketClient.alipayTripFindTravelList(request);
+        } catch (Exception e) {
+            log.error("支付宝出行-查询乘车记录列表 异常", e);
+            response = new AlipayTripFindTravelListRespDTO();
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-查询乘车记录列表,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripFindTravelDetailRespDTO findTravelDetail(AlipayTripFindTravelDetailReqDTO request) {
+        log.info("支付宝出行-查询乘车记录详情,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripFindTravelDetailRespDTO response;
+        try {
+            response = ticketClient.alipayTripFindTravelDetail(request);
+        } catch (Exception e) {
+            log.error("支付宝出行-查询乘车记录详情 异常", e);
+            response = new AlipayTripFindTravelDetailRespDTO();
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-查询乘车记录详情,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripRequestPayRespDTO requestPay(AlipayTripRequestPayReqDTO request) {
+        log.info("支付宝出行-支付申请,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripRequestPayRespDTO response;
+        try {
+            response = alipayPaySignClient.alipayTripRequestPay(request);
+        } catch (Exception e) {
+            log.error("支付宝出行-支付申请 异常", e);
+            response = new AlipayTripRequestPayRespDTO();
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-支付申请,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripRequestRefundRespDTO requestRefund(AlipayTripRequestRefundReqDTO request) {
+        log.info("支付宝出行-退款申请,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripRequestRefundRespDTO response;
+        try {
+            response = alipayPaySignClient.alipayTripRequestRefund(request);
+        } catch (Exception e) {
+            log.error("支付宝出行-退款申请 异常", e);
+            response = new AlipayTripRequestRefundRespDTO();
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-退款申请,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripPayQueryRespDTO payQuery(AlipayTripPayQueryReqDTO request) {
+        log.info("支付宝出行-支付结果查询,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripPayQueryRespDTO response;
+        try {
+            response = alipayPaySignClient.alipayTripPayQuery(request);
+        } catch (Exception e) {
+            log.error("支付宝出行-支付结果查询 异常", e);
+            response = new AlipayTripPayQueryRespDTO();
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-支付结果查询,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripPushTransDataRespDTO pushTransData(AlipayTripPushTransDataReqDTO request) {
+        log.info("支付宝出行-行程数据推送,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripPushTransDataRespDTO response = new AlipayTripPushTransDataRespDTO();
+        try {
+            // 构建 FormData 请求体（与 APP 通知格式一致）
+            RequestBody requestBody = new MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("bizData", JSON.toJSONString(request))
+                    .build();
+
+            Request httpRequest = new Request.Builder()
+                    .url(alipayPushTransDataUrl)
+                    .post(requestBody)
+                    .build();
+
+            try (Response httpResponse = okHttpClient.newCall(httpRequest).execute()) {
+                String responseBody = httpResponse.body() != null ? httpResponse.body().string() : null;
+                log.info("支付宝出行-行程数据推送,支付宝返回：code={}, body={}", 
+                        httpResponse.code(), responseBody);
+
+                if (!httpResponse.isSuccessful()) {
+                    log.error("支付宝出行-行程数据推送失败, url={}, code={}", 
+                            alipayPushTransDataUrl, httpResponse.code());
+                    response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                    response.setRetMsg("调用支付宝接口失败，HTTP状态码：" + httpResponse.code());
+                    return response;
+                }
+
+                // 解析支付宝响应
+                if (responseBody != null && !responseBody.isEmpty()) {
+                    AlipayTripPushTransDataRespDTO alipayResponse = JSON.parseObject(responseBody, AlipayTripPushTransDataRespDTO.class);
+                    if (alipayResponse != null) {
+                        response.setRetCode(alipayResponse.getRetCode());
+                        response.setRetMsg(alipayResponse.getRetMsg());
+                    } else {
+                        response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+                        response.setRetMsg(FepAppErrorCodeEnum.SUCCESS.getMsg());
+                    }
+                } else {
+                    response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+                    response.setRetMsg(FepAppErrorCodeEnum.SUCCESS.getMsg());
+                }
+            }
+        } catch (Exception e) {
+            log.error("支付宝出行-行程数据推送 异常", e);
+            response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+            response.setRetMsg("推送失败：" + e.getMessage());
+        }
+        log.info("支付宝出行-行程数据推送,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripCloseResultRespDTO closeResultForAlipay(AlipayTripCloseResultReqDTO request) {
+        log.info("支付宝出行-业务关闭结果通知,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripCloseResultRespDTO response = new AlipayTripCloseResultRespDTO();
+        try {
+            // 构建 FormData 请求体（与 APP 通知格式一致）
+            RequestBody requestBody = new MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("bizData", JSON.toJSONString(request))
+                    .build();
+
+            Request httpRequest = new Request.Builder()
+                    .url(alipayCloseResultUrl)
+                    .post(requestBody)
+                    .build();
+
+            try (Response httpResponse = okHttpClient.newCall(httpRequest).execute()) {
+                String responseBody = httpResponse.body() != null ? httpResponse.body().string() : null;
+                log.info("支付宝出行-业务关闭结果通知,支付宝返回：code={}, body={}",
+                        httpResponse.code(), responseBody);
+
+                if (!httpResponse.isSuccessful()) {
+                    log.error("支付宝出行-业务关闭结果通知失败, url={}, code={}",
+                            alipayCloseResultUrl, httpResponse.code());
+                    response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                    response.setRetMsg("调用支付宝接口失败，HTTP状态码：" + httpResponse.code());
+                    return response;
+                }
+
+                // 解析支付宝响应
+                if (responseBody != null && !responseBody.isEmpty()) {
+                    AlipayTripCloseResultRespDTO alipayResponse = JSON.parseObject(responseBody, AlipayTripCloseResultRespDTO.class);
+                    if (alipayResponse != null) {
+                        response.setRetCode(alipayResponse.getRetCode());
+                        response.setRetMsg(alipayResponse.getRetMsg());
+                    } else {
+                        response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+                        response.setRetMsg(FepAppErrorCodeEnum.SUCCESS.getMsg());
+                    }
+                } else {
+                    response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+                    response.setRetMsg(FepAppErrorCodeEnum.SUCCESS.getMsg());
+                }
+            }
+        } catch (Exception e) {
+            log.error("支付宝出行-业务关闭结果通知 异常", e);
+            response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+            response.setRetMsg("通知失败：" + e.getMessage());
+        }
+        log.info("支付宝出行-业务关闭结果通知,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripReceiveCardDataRespDTO receiveCardDataFromItp(AlipayTripReceiveCardDataReqDTO request) {
+        log.info("支付宝出行-行业数据推送,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripReceiveCardDataRespDTO response = new AlipayTripReceiveCardDataRespDTO();
+        try {
+            RequestBody requestBody = new MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("bizData", JSON.toJSONString(request))
+                    .build();
+
+            Request httpRequest = new Request.Builder()
+                    .url(alipayCardDataUrl)
+                    .post(requestBody)
+                    .build();
+
+            try (Response httpResponse = okHttpClient.newCall(httpRequest).execute()) {
+                String responseBody = httpResponse.body() != null ? httpResponse.body().string() : null;
+                log.info("支付宝出行-行业数据推送,支付宝返回：code={}, body={}",
+                        httpResponse.code(), responseBody);
+
+                if (!httpResponse.isSuccessful()) {
+                    log.error("支付宝出行-行业数据推送失败, url={}, code={}",
+                            alipayCardDataUrl, httpResponse.code());
+                    response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                    response.setRetMsg("调用支付宝接口失败，HTTP状态码：" + httpResponse.code());
+                    return response;
+                }
+
+                if (responseBody != null && !responseBody.isEmpty()) {
+                    AlipayTripReceiveCardDataRespDTO alipayResponse = JSON.parseObject(responseBody, AlipayTripReceiveCardDataRespDTO.class);
+                    if (alipayResponse != null) {
+                        response.setRetCode(alipayResponse.getRetCode());
+                        response.setRetMsg(alipayResponse.getRetMsg());
+                    } else {
+                        response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+                        response.setRetMsg(FepAppErrorCodeEnum.SUCCESS.getMsg());
+                    }
+                } else {
+                    response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+                    response.setRetMsg(FepAppErrorCodeEnum.SUCCESS.getMsg());
+                }
+            }
+        } catch (Exception e) {
+            log.error("支付宝出行-行业数据推送 异常", e);
+            response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+            response.setRetMsg("推送失败：" + e.getMessage());
+        }
+        log.info("支付宝出行-行业数据推送,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripReceiveBlackListRespDTO receiveBlackListFromItp(AlipayTripReceiveBlackListReqDTO request) {
+        log.info("支付宝出行-黑名单状态变更通知,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripReceiveBlackListRespDTO response = new AlipayTripReceiveBlackListRespDTO();
+        try {
+            RequestBody requestBody = new MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("bizData", JSON.toJSONString(request))
+                    .build();
+
+            Request httpRequest = new Request.Builder()
+                    .url(alipayBlacklistUrl)
+                    .post(requestBody)
+                    .build();
+
+            try (Response httpResponse = okHttpClient.newCall(httpRequest).execute()) {
+                String responseBody = httpResponse.body() != null ? httpResponse.body().string() : null;
+                log.info("支付宝出行-黑名单状态变更通知,支付宝返回：code={}, body={}",
+                        httpResponse.code(), responseBody);
+
+                if (!httpResponse.isSuccessful()) {
+                    log.error("支付宝出行-黑名单状态变更通知失败, url={}, code={}",
+                            alipayBlacklistUrl, httpResponse.code());
+                    response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                    response.setRetMsg("调用支付宝接口失败，HTTP状态码：" + httpResponse.code());
+                    return response;
+                }
+
+                if (responseBody != null && !responseBody.isEmpty()) {
+                    AlipayTripReceiveBlackListRespDTO alipayResponse = JSON.parseObject(responseBody, AlipayTripReceiveBlackListRespDTO.class);
+                    if (alipayResponse != null) {
+                        response.setRetCode(alipayResponse.getRetCode());
+                        response.setRetMsg(alipayResponse.getRetMsg());
+                    } else {
+                        response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+                        response.setRetMsg(FepAppErrorCodeEnum.SUCCESS.getMsg());
+                    }
+                } else {
+                    response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+                    response.setRetMsg(FepAppErrorCodeEnum.SUCCESS.getMsg());
+                }
+            }
+        } catch (Exception e) {
+            log.error("支付宝出行-黑名单状态变更通知 异常", e);
+            response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+            response.setRetMsg("通知失败：" + e.getMessage());
+        }
+        log.info("支付宝出行-黑名单状态变更通知,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+}

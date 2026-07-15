@@ -1,0 +1,160 @@
+package com.chinasofti.huateng.fep.app.service.impl;
+
+import com.alibaba.fastjson2.JSON;
+import com.chinasofti.huateng.fep.app.service.AppService;
+import com.chinasofti.huateng.fep.app.service.IndustryDataService;
+import com.chinasofti.huateng.model.app.PaySignCallbackResult;
+import com.chinasofti.huateng.model.app.QueryBlackListReqDTO;
+import com.chinasofti.huateng.model.app.QueryBlackListResult;
+import com.chinasofti.huateng.model.app.ReceivePayResultReqDTO;
+import com.chinasofti.huateng.model.app.ReceiveSignResultReqDTO;
+import com.chinasofti.huateng.model.app.ReceiveTerminationResultReqDTO;
+import com.chinasofti.huateng.model.app.RequestAddPayChannelReqDTO;
+import com.chinasofti.huateng.model.app.RequestAddPayChannelResult;
+import com.chinasofti.huateng.model.app.RequestApplicationReqDTO;
+import com.chinasofti.huateng.model.app.RequestApplicationResult;
+import com.chinasofti.huateng.model.app.RequestIndustryDataReqDTO;
+import com.chinasofti.huateng.model.app.RequestIndustryDataResult;
+import com.chinasofti.huateng.model.app.RequestKeyListReqDTO;
+import com.chinasofti.huateng.model.app.RequestKeyListResult;
+import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelReqDTO;
+import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelResult;
+import com.chinasofti.huateng.model.app.RequestSignInfoReqDTO;
+import com.chinasofti.huateng.model.app.RequestSignInfoResult;
+import com.chinasofti.huateng.model.app.RequestTerminationReqDTO;
+import com.chinasofti.huateng.model.app.RequestTerminationResult;
+import com.chinasofti.huateng.rpc.account.AccountClient;
+import com.chinasofti.huateng.rpc.blacklist.BlacklistClient;
+import com.chinasofti.huateng.rpc.key.KeyClient;
+import com.chinasofti.huateng.rpc.paySign.PaySignClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+/**
+ * @author zzm
+ * @date 2026/5/25 11:54
+ */
+@Service
+public class AppServiceImpl implements AppService {
+    private static final Logger log = LoggerFactory.getLogger(AppServiceImpl.class);
+
+    @Autowired
+    AccountClient accountClient;
+
+    @Autowired
+    private IndustryDataService industryDataService;
+
+
+    @Override
+    public RequestApplicationResult userRegister(RequestApplicationReqDTO request) {
+
+        RequestApplicationResult result = accountClient.requestApplication(request);
+
+        return result;
+    }
+
+    @Override
+    public RequestAddPayChannelResult requestAddPayChannel(RequestAddPayChannelReqDTO request) {
+        return accountClient.requestAddPayChannel(request);
+    }
+
+    @Override
+    public RequestSetDefaultPayChannelResult requestSetDefaultPayChannel(RequestSetDefaultPayChannelReqDTO request) {
+        return accountClient.requestSetDefaultPayChannel(request);
+    }
+
+    @Override
+    public RequestIndustryDataResult requestIndustryData(RequestIndustryDataReqDTO request) {
+        return industryDataService.requestIndustryData(request);
+    }
+
+    @Autowired
+    PaySignClient paySignClient;
+
+    @Autowired
+    BlacklistClient blacklistClient;
+
+    @Autowired
+    KeyClient keyClient;
+
+    @Override
+    public RequestSignInfoResult requestSignInfo(RequestSignInfoReqDTO request) {
+
+        log.info("call pay-sign requestSignInfo request={}", JSON.toJSONString(request));
+        RequestSignInfoResult result = paySignClient.requestSignInfo(request);
+        log.info("call pay-sign requestSignInfo response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    /**
+     * IF8A-06 请求解约。
+     *
+     * <p>fep-app 不直接连接数据库，也不直接调用支付平台；这里只把 APP bizData 转发给 pay-sign-server。</p>
+     *
+     * @param request 请求解约参数
+     * @return 请求解约受理结果
+     */
+    @Override
+    public RequestTerminationResult requestTermination(RequestTerminationReqDTO request) {
+        log.info("call pay-sign requestTermination request={}", JSON.toJSONString(request));
+        RequestTerminationResult result = paySignClient.requestTermination(request);
+        log.info("call pay-sign requestTermination response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    /**
+     * IF8A-02 请求同步密钥。
+     *
+     * @param request 请求同步密钥参数
+     * @return 请求同步密钥结果
+     */
+    @Override
+    public RequestKeyListResult requestKeyList(RequestKeyListReqDTO request) {
+        return keyClient.requestKeyList(request);
+    }
+
+    @Override
+    public PaySignCallbackResult receiveSignResult(ReceiveSignResultReqDTO request) {
+        log.info("call pay-sign receiveSignResult request={}", JSON.toJSONString(request));
+        PaySignCallbackResult result = paySignClient.receiveSignResult(request);
+        log.info("call pay-sign receiveSignResult response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    @Override
+    public PaySignCallbackResult receivePayResult(ReceivePayResultReqDTO request) {
+        log.info("call pay-sign receivePayResult request={}", JSON.toJSONString(request));
+        PaySignCallbackResult result = paySignClient.receivePayResult(request);
+        log.info("call pay-sign receivePayResult response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    /**
+     * 支付 API 5.3 解约回调。
+     *
+     * <p>fep-app 只承担回调入口和服务间透传，解约状态落库和 APP IF8B-02 通知由 pay-sign-server 完成。</p>
+     *
+     * @param request 解约回调业务参数
+     * @return 解约回调处理结果
+     */
+    @Override
+    public PaySignCallbackResult receiveTerminationResult(ReceiveTerminationResultReqDTO request) {
+        log.info("call pay-sign receiveTerminationResult request={}", JSON.toJSONString(request));
+        PaySignCallbackResult result = paySignClient.receiveTerminationResult(request);
+        log.info("call pay-sign receiveTerminationResult response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    /**
+     * IF8A-73 查询黑名单。
+     *
+     * @param request 查询黑名单请求参数
+     * @return 查询黑名单结果
+     */
+    @Override
+    public QueryBlackListResult queryBlackList(QueryBlackListReqDTO request) {
+        return blacklistClient.queryBlackList(request);
+    }
+}

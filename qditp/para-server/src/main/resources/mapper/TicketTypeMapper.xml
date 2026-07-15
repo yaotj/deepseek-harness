@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.para.mapper.ticket.TicketTypeMapper">
+    <delete id="deleteByParaVerNo">
+        DELETE FROM TBL_TICKET_TYPE WHERE PARA_VER_NO = #{paraVerNo,jdbcType=NUMERIC}
+    </delete>
+
+    <insert id="insertBatch">
+        INSERT ALL
+        <foreach collection="list" item="item">
+            INTO TBL_TICKET_TYPE (
+                PARA_VER_NO, TICKET_TYPE, TICKET_DESC_CH_PTR, TICKET_DESC_EN, TICKET_MAIN_TYPE,
+                ISSUER_TYPE, PRICE_TYPE, AREA_FLAG, PASSENGER_TIME, SALE_AMT, SIGN_TERM,
+                RETURN_TICKET_BATCH, MAX_USE_NUM, MAX_USE_DAYS, SOUND_TYPE, LAMP_COLOR_TYPE,
+                ADD_MIN_VALUE, MAX_REMAIN_VALUE, ENTER_MIN_VALUE, EXT_MIN_VALUE, DEP_AMT,
+                DEPRECIATION_AMT, MAX_RETURN_AMT, RETURN_FEE, MAX_TIMES, MAX_TIMES_CYCLE,
+                DURATION_TYPE, DURATION_DAYS, ACTIVE_VALID_DAYS, FIX_END_DATE, MAX_REENTR_PERIOD,
+                MAX_REENTR_FEE, OVERTIME_FEE, NO_EXIT_FEE, MISMATCH_FEE, TWICE_TXN_TIME,
+                SALE_WAY, CONT_SAF_TIME, CONT_SAF_ERROR_TIME, CONT_AMT, TOTAL_SALE_WAY,
+                UNFINISHED_CHARGE_AMT, INTERCONN_UPDATE_CTRL, LAST_UPD_USER, LAST_UPD_TMS
+            )
+            VALUES (
+                #{item.paraVerNo,jdbcType=NUMERIC}, #{item.ticketType,jdbcType=NUMERIC},
+                #{item.ticketDescChPtr,jdbcType=VARCHAR}, #{item.ticketDescEn,jdbcType=VARCHAR},
+                #{item.ticketMainType,jdbcType=NUMERIC}, #{item.issuerType,jdbcType=NUMERIC},
+                #{item.priceType,jdbcType=NUMERIC}, #{item.areaFlag,jdbcType=VARCHAR},
+                #{item.passengerTime,jdbcType=NUMERIC}, #{item.saleAmt,jdbcType=NUMERIC},
+                #{item.signTerm,jdbcType=VARCHAR}, #{item.returnTicketBatch,jdbcType=VARCHAR},
+                #{item.maxUseNum,jdbcType=NUMERIC}, #{item.maxUseDays,jdbcType=NUMERIC},
+                #{item.soundType,jdbcType=NUMERIC}, #{item.lampColorType,jdbcType=NUMERIC},
+                #{item.addMinValue,jdbcType=NUMERIC}, #{item.maxRemainValue,jdbcType=NUMERIC},
+                #{item.enterMinValue,jdbcType=NUMERIC}, #{item.extMinValue,jdbcType=NUMERIC},
+                #{item.depAmt,jdbcType=NUMERIC}, #{item.depreciationAmt,jdbcType=NUMERIC},
+                #{item.maxReturnAmt,jdbcType=NUMERIC}, #{item.returnFee,jdbcType=NUMERIC},
+                #{item.maxTimes,jdbcType=NUMERIC}, #{item.maxTimesCycle,jdbcType=NUMERIC},
+                #{item.durationType,jdbcType=NUMERIC}, #{item.durationDays,jdbcType=NUMERIC},
+                #{item.activeValidDays,jdbcType=NUMERIC}, #{item.fixEndDate,jdbcType=VARCHAR},
+                #{item.maxReentrPeriod,jdbcType=NUMERIC}, #{item.maxReentrFee,jdbcType=NUMERIC},
+                #{item.overtimeFee,jdbcType=NUMERIC}, #{item.noExitFee,jdbcType=NUMERIC},
+                #{item.mismatchFee,jdbcType=NUMERIC}, #{item.twiceTxnTime,jdbcType=NUMERIC},
+                #{item.saleWay,jdbcType=VARCHAR}, #{item.contSafTime,jdbcType=NUMERIC},
+                #{item.contSafErrorTime,jdbcType=NUMERIC}, #{item.contAmt,jdbcType=NUMERIC},
+                #{item.totalSaleWay,jdbcType=VARCHAR}, #{item.unfinishedChargeAmt,jdbcType=NUMERIC},
+                #{item.interconnUpdateCtrl,jdbcType=NUMERIC}, #{item.lastUpdUser,jdbcType=VARCHAR},
+                #{item.lastUpdTms,jdbcType=TIMESTAMP}
+            )
+        </foreach>
+        SELECT 1 FROM DUAL
+    </insert>
+</mapper>

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.ticket.mapper.alipay.AlipayTravelRecordMapper">
+    <resultMap id="alipayTravelRecordResultMap" type="com.chinasofti.huateng.ticket.entity.alipay.AlipayTravelRecord">
+        <result column="ORDER_NO" property="orderNo"/>
+        <result column="THIRD_USER_ID" property="thirdUserId"/>
+        <result column="CARD_ID" property="cardId"/>
+        <result column="CARD_TYPE" property="cardType"/>
+        <result column="CHANNEL" property="channel"/>
+        <result column="TRADE_ORDER_NO" property="tradeOrderNo"/>
+        <result column="TXN_SEQ" property="txnSeq"/>
+        <result column="ENTRY_STATION_NAME" property="entryStationName"/>
+        <result column="ENTRY_DATE" property="entryDate"/>
+        <result column="GATE_IN_STATION" property="gateInStation"/>
+        <result column="EXIT_STATION_NAME" property="exitStationName"/>
+        <result column="EXIT_DATE" property="exitDate"/>
+        <result column="GATE_OUT_STATION" property="gateOutStation"/>
+        <result column="PAY_METHOD" property="payMethod"/>
+        <result column="TOTAL_AMOUNT" property="totalAmount"/>
+        <result column="DISCOUNT_AMOUNT" property="discountAmount"/>
+        <result column="PAY_AMOUNT" property="payAmount"/>
+        <result column="STATUS" property="status"/>
+        <result column="DELETE_FLAG" property="deleteFlag"/>
+        <result column="VERSION" property="version"/>
+        <result column="CREATE_TIME" property="createTime"/>
+        <result column="UPDATE_TIME" property="updateTime"/>
+        <result column="CREATE_BY" property="createBy"/>
+    </resultMap>
+
+    <select id="selectTravelList" resultMap="alipayTravelRecordResultMap">
+        <bind name="offsetEnd" value="offset + limit" />
+        SELECT *
+        FROM (
+            SELECT
+                ORDER_NO,
+                THIRD_USER_ID,
+                CARD_ID,
+                CARD_TYPE,
+                CHANNEL,
+                TRADE_ORDER_NO,
+                TXN_SEQ,
+                ENTRY_STATION_NAME,
+                ENTRY_DATE,
+                GATE_IN_STATION,
+                EXIT_STATION_NAME,
+                EXIT_DATE,
+                GATE_OUT_STATION,
+                PAY_METHOD,
+                TOTAL_AMOUNT,
+                DISCOUNT_AMOUNT,
+                PAY_AMOUNT,
+                STATUS,
+                DELETE_FLAG,
+                VERSION,
+                CREATE_TIME,
+                UPDATE_TIME,
+                CREATE_BY,
+                ROW_NUMBER() OVER (ORDER BY CREATE_TIME DESC) AS rn
+            FROM ALIPAY_TRAVEL_RECORD
+            WHERE DELETE_FLAG = '0'
+              <if test="thirdUserId != null and thirdUserId != ''">
+                  AND THIRD_USER_ID = #{thirdUserId}
+              </if>
+              <if test="cardId != null and cardId != ''">
+                  AND CARD_ID = #{cardId}
+              </if>
+              <if test="startDate != null and startDate != ''">
+                  AND ENTRY_DATE &gt;= #{startDate}
+              </if>
+              <if test="endDate != null and endDate != ''">
+                  AND ENTRY_DATE &lt;= #{endDate}
+              </if>
+        )
+        WHERE rn &gt; #{offset} AND rn &lt;= #{offsetEnd}
+    </select>
+
+    <select id="countTravelList" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM ALIPAY_TRAVEL_RECORD
+        WHERE DELETE_FLAG = '0'
+          <if test="thirdUserId != null and thirdUserId != ''">
+              AND THIRD_USER_ID = #{thirdUserId}
+          </if>
+          <if test="cardId != null and cardId != ''">
+              AND CARD_ID = #{cardId}
+          </if>
+          <if test="startDate != null and startDate != ''">
+              AND ENTRY_DATE &gt;= #{startDate}
+          </if>
+          <if test="endDate != null and endDate != ''">
+              AND ENTRY_DATE &lt;= #{endDate}
+          </if>
+    </select>
+
+    <select id="selectTravelDetail" resultMap="alipayTravelRecordResultMap">
+        SELECT *
+        FROM ALIPAY_TRAVEL_RECORD
+        WHERE DELETE_FLAG = '0'
+          AND THIRD_USER_ID = #{thirdUserId}
+          AND ORDER_NO = #{orderNo}
+          <if test="cardId != null and cardId != ''">
+              AND CARD_ID = #{cardId}
+          </if>
+    </select>
+</mapper>

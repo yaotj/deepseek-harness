@@ -1,0 +1,1720 @@
+package com.chinasofti.huateng.paysign.service.impl;
+
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONWriter;
+import com.chinasofti.huateng.model.app.AppSignResultNotifyReqDTO;
+import com.chinasofti.huateng.model.app.AppTerminationResultNotifyReqDTO;
+import com.chinasofti.huateng.model.app.ItpCommonRequest;
+import com.chinasofti.huateng.model.app.PaySignCallbackResult;
+import com.chinasofti.huateng.model.app.QueryUserInfoReqDTO;
+import com.chinasofti.huateng.model.app.QueryUserInfoResult;
+import com.chinasofti.huateng.model.app.GatePayRequestDTO;
+import com.chinasofti.huateng.model.app.ReceivePayResultReqDTO;
+import com.chinasofti.huateng.model.app.ReceiveSignResultReqDTO;
+import com.chinasofti.huateng.model.app.RequestPayReqDTO;
+import com.chinasofti.huateng.model.app.RequestPayResult;
+import com.chinasofti.huateng.model.app.RequestRefundReqDTO;
+import com.chinasofti.huateng.model.app.RequestRefundResult;
+import com.chinasofti.huateng.model.app.RequestRemovePayChannelReqDTO;
+import com.chinasofti.huateng.model.app.RequestRemovePayChannelResult;
+import com.chinasofti.huateng.model.app.RequestSignInfoReqDTO;
+import com.chinasofti.huateng.model.app.RequestSignInfoResult;
+import com.chinasofti.huateng.paysign.config.PaySignProperties;
+import com.chinasofti.huateng.paysign.constant.PaySignErrorCodeEnum;
+import com.chinasofti.huateng.paysign.constant.PaymentVendorEnum;
+import com.chinasofti.huateng.paysign.entity.PayCallbackLog;
+import com.chinasofti.huateng.paysign.entity.PayRefundDetail;
+import com.chinasofti.huateng.paysign.entity.PaySignInfo;
+import com.chinasofti.huateng.paysign.entity.PaySignRequest;
+import com.chinasofti.huateng.paysign.entity.PayTxnDetail;
+import com.chinasofti.huateng.paysign.mapper.PayCallbackLogMapper;
+import com.chinasofti.huateng.paysign.mapper.PayRefundDetailMapper;
+import com.chinasofti.huateng.paysign.mapper.PaySignInfoMapper;
+import com.chinasofti.huateng.paysign.mapper.PaySignRequestMapper;
+import com.chinasofti.huateng.paysign.mapper.PayTxnDetailMapper;
+import com.chinasofti.huateng.paysign.model.request.PaySignGatewayRequest;
+import com.chinasofti.huateng.paysign.model.request.ReceiveTerminationResultReqDTO;
+import com.chinasofti.huateng.paysign.model.request.RequestContractAdvisoryReqDTO;
+import com.chinasofti.huateng.paysign.model.request.RequestContractResultReqDTO;
+import com.chinasofti.huateng.paysign.model.request.RequestTerminationReqDTO;
+import com.chinasofti.huateng.paysign.model.response.BaseRespDTO;
+import com.chinasofti.huateng.paysign.model.response.PaySignGatewayResponse;
+import com.chinasofti.huateng.paysign.model.response.RequestContractAdvisoryRespDTO;
+import com.chinasofti.huateng.paysign.model.response.RequestContractResultRespDTO;
+import com.chinasofti.huateng.paysign.model.response.RequestSignInfoRespDTO;
+import com.chinasofti.huateng.paysign.model.response.RequestTerminationRespDTO;
+import com.chinasofti.huateng.paysign.service.AppNotifyService;
+import com.chinasofti.huateng.paysign.service.PaySignService;
+import com.chinasofti.huateng.paysign.util.RSASignUtils;
+import com.chinasofti.huateng.rpc.account.AccountClient;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.MessageDigest;
+import java.security.PrivateKey;
+import java.security.Signature;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
+
+@Service
+public class PaySignServiceImpl implements PaySignService {
+    private static final Logger log = LoggerFactory.getLogger(PaySignServiceImpl.class);
+    private static final MediaType MEDIA_TYPE_JSON = MediaType.parse("application/json; charset=utf-8");
+    private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final String SIGN_ALGORITHM = "SHA256WithRSA";
+    private static final String STATUS_NOT_SIGNED = "NOT_SIGNED";
+    private static final String STATUS_SIGNING = "SIGNING";
+    private static final String STATUS_SIGNED = "SIGNED";
+    private static final String STATUS_UNSIGNED = "UNSIGNED";
+    private static final String STATUS_FAILED = "FAILED";
+    private static final Integer PAY_GATEWAY_SUCCESS_CODE = 200;
+
+    private final OkHttpClient httpClient;
+
+    @Autowired
+    private PaySignProperties paySignProperties;
+    @Autowired
+    private PaySignInfoMapper paySignInfoMapper;
+    @Autowired
+    private PaySignRequestMapper paySignRequestMapper;
+    @Autowired
+    private PayTxnDetailMapper payTxnDetailMapper;
+    @Autowired
+    private PayRefundDetailMapper payRefundDetailMapper;
+    @Autowired
+    private PayCallbackLogMapper payCallbackLogMapper;
+    @Autowired
+    private AppNotifyService appNotifyService;
+    @Autowired
+    private AccountClient accountClient;
+
+    @org.springframework.beans.factory.annotation.Value("${app.notify.sign-result-url:http://dtcustomer.bestonepay.com/testngback/ci/app/receiveSignResult}")
+    private String appNotifySignResultUrl;
+    @org.springframework.beans.factory.annotation.Value("${app.notify.termination-result-url:http://127.0.0.1:8080/ci/app/receiveTerminationResultFromItp}")
+    private String appNotifyTerminationResultUrl;
+
+    @org.springframework.beans.factory.annotation.Value("${itp.providerId:06}")
+    private String itpProviderId;
+    @org.springframework.beans.factory.annotation.Value("${itp.charset:UTF-8}")
+    private String itpCharset;
+    @org.springframework.beans.factory.annotation.Value("${itp.format:json}")
+    private String itpFormat;
+    @org.springframework.beans.factory.annotation.Value("${itp.deviceId:ITP-PAY-SIGN}")
+    private String itpDeviceId;
+    @org.springframework.beans.factory.annotation.Value("${itp.signType:null}")
+    private String itpSignType;
+    @org.springframework.beans.factory.annotation.Value("${itp.signKey:}")
+    private String itpSignKey;
+
+    public PaySignServiceImpl() {
+        this.httpClient = new OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(30, TimeUnit.SECONDS).build();
+    }
+
+    /**
+     * IF8A-16 请求签约信息。
+     * 按支付平台 2.2 contract 接口组装签约参数并发起请求，
+     * 将返回的业务数据 JSON 字符串放入 requestStartSdkInfo 中返回。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public RequestSignInfoResult requestSignInfo(RequestSignInfoReqDTO request) {
+        RequestSignInfoResult response = new RequestSignInfoResult();
+        try {
+            String validMsg = validateRequestSignInfo(request);
+            if (validMsg != null) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, validMsg);
+                writeLog("REQUEST_SIGN_INFO", request != null ? request.getThirdUserId() : null, request != null ? request.getRequestSignSeq() : null, request != null ? normalizeVendor(request.getPayChannelCode()) : null, request, response);
+                return response;
+            }
+
+            String paymentVendor = normalizeVendor(request.getPayChannelCode());
+
+            // 1. 校验是否已签约
+            PaySignInfo existingSign = paySignInfoMapper.selectByUserAndVendor(request.getThirdUserId(), paymentVendor);
+            if (existingSign != null) {
+                fillError(response, PaySignErrorCodeEnum.ALREADY_SIGNED, "该用户已签约此支付渠道");
+                writeLog("REQUEST_SIGN_INFO", request.getThirdUserId(), request.getRequestSignSeq(), paymentVendor, request, response);
+                return response;
+            }
+
+            // 2. 调用支付平台获取SDK参数
+            String sdkInfo = buildRequestStartSdkInfo(request, paymentVendor);
+            if (!StringUtils.hasText(sdkInfo)) {
+                fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, "请求支付签约接口失败");
+                writeLog("REQUEST_SIGN_INFO", request.getThirdUserId(), request.getRequestSignSeq(), paymentVendor, request, response);
+                return response;
+            }
+
+            // 3. 不操作 APP_PAY_SIGN_INFO，只记录流水
+            fillSuccess(response);
+            response.setRequestStartSdkInfo(sdkInfo);
+            writeLog("REQUEST_SIGN_INFO", request.getThirdUserId(), request.getRequestSignSeq(), paymentVendor, request, response);
+            return response;
+        } catch (Exception e) {
+            log.error("处理请求签约信息异常", e);
+            fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, PaySignErrorCodeEnum.SYSTEM_ERROR.getMsg());
+            writeLog("REQUEST_SIGN_INFO", request != null ? request.getThirdUserId() : null, request != null ? request.getRequestSignSeq() : null, request != null ? normalizeVendor(request.getPayChannelCode()) : null, request, response);
+            return response;
+        }
+    }
+
+    /**
+     * IF8A-21 信用能力咨询。
+     * 实际映射支付平台 creditQuery 接口，用于判断当前用户是否具备签约/代扣能力。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public RequestContractAdvisoryRespDTO requestContractAdvisory(RequestContractAdvisoryReqDTO request) {
+        RequestContractAdvisoryRespDTO response = new RequestContractAdvisoryRespDTO();
+        try {
+            if (request == null) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "请求报文不能为空");
+                writeLog("REQUEST_CONTRACT_ADVISORY", null, null, null, null, response);
+                return response;
+            }
+            String validMsg = validateContractQuery(request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor());
+            if (validMsg != null) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, validMsg);
+                writeLog("REQUEST_CONTRACT_ADVISORY", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), request, response);
+                return response;
+            }
+
+            PaySignGatewayResponse gatewayResponse = requestGatewaySimple(paySignProperties.getContractAdvisoryPath(), buildCreditQueryBizData(request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor()));
+            if (!isGatewaySuccess(gatewayResponse)) {
+                fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, gatewayErrorMsg(gatewayResponse, "请求支付签约咨询接口失败"));
+                writeLog("REQUEST_CONTRACT_ADVISORY", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), request, response);
+                return response;
+            }
+
+            fillSuccess(response);
+            writeLog("REQUEST_CONTRACT_ADVISORY", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), request, response);
+            return response;
+        } catch (Exception e) {
+            log.error("处理信用能力咨询异常", e);
+            fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, PaySignErrorCodeEnum.SYSTEM_ERROR.getMsg());
+            writeLog("REQUEST_CONTRACT_ADVISORY", request != null ? request.getThirdUserId() : null, request != null ? request.getRequestSignSeq() : null, request != null ? request.getPaymentVendor() : null, request, response);
+            return response;
+        }
+    }
+
+    /**
+     * IF8A-22 签约结果查询。
+     * 以 requestSignSeq 为主键向支付平台查询最新签约状态，并回填本地签约主表。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public RequestContractResultRespDTO requestContractResult(RequestContractResultReqDTO request) {
+        RequestContractResultRespDTO response = new RequestContractResultRespDTO();
+        try {
+            if (request == null) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "请求报文不能为空");
+                writeLog("REQUEST_CONTRACT_RESULT", null, null, null, null, response);
+                return response;
+            }
+            String validMsg = validateContractQuery(request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor());
+            if (validMsg != null) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, validMsg);
+                writeLog("REQUEST_CONTRACT_RESULT", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), request, response);
+                return response;
+            }
+
+            PaySignInfo signInfo = paySignInfoMapper.selectByUserAndVendor(request.getThirdUserId(), request.getPaymentVendor());
+
+            PaySignGatewayResponse gatewayResponse = requestGatewaySimple(paySignProperties.getContractResultPath(), buildQueryResultBizData(request.getRequestSignSeq()));
+
+            if (!isGatewaySuccess(gatewayResponse)) {
+                fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, gatewayErrorMsg(gatewayResponse, "request pay contract result failed"));
+                writeLog("REQUEST_CONTRACT_RESULT", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), request, response);
+                return response;
+            }
+
+            if (gatewayResponse.getData() != null) {
+                Map<String, Object> data = gatewayResponse.getData();
+                if (signInfo == null) {
+                    signInfo = new PaySignInfo();
+                    signInfo.setRequestSignSeq(request.getRequestSignSeq());
+                    signInfo.setThirdUserId(request.getThirdUserId());
+                    signInfo.setPaymentVendor(request.getPaymentVendor());
+                }
+                // 以支付平台返回结果为准，刷新本地签约状态和协议号。
+                signInfo.setContractStatus(stringValue(data.get("status"), signInfo.getContractStatus()));
+                signInfo.setPayAccountId(stringValue(data.get("payUserId"), signInfo.getPayAccountId()));
+                signInfo.setPayAgreementNo(stringValue(data.get("payAgreementNo"), signInfo.getPayAgreementNo()));
+                if (STATUS_SIGNED.equals(signInfo.getContractStatus())) {
+                    paySignInfoMapper.insert(signInfo);
+                }
+            } else if (signInfo == null) {
+                signInfo = new PaySignInfo();
+                signInfo.setThirdUserId(request.getThirdUserId());
+                signInfo.setRequestSignSeq(request.getRequestSignSeq());
+                signInfo.setPaymentVendor(request.getPaymentVendor());
+                signInfo.setContractStatus(STATUS_NOT_SIGNED);
+            }
+
+            fillSuccess(response);
+            response.setStatus(defaultString(signInfo.getContractStatus(), STATUS_NOT_SIGNED));
+            response.setPayUserId(signInfo.getPayAccountId());
+            response.setPayAccountId(signInfo.getPayAccountId());
+            response.setPayAgreementNo(signInfo.getPayAgreementNo());
+            writeLog("REQUEST_CONTRACT_RESULT", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), request, response);
+            return response;
+        } catch (Exception e) {
+            log.error("处理签约结果查询异常", e);
+            fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, PaySignErrorCodeEnum.SYSTEM_ERROR.getMsg());
+            writeLog("REQUEST_CONTRACT_RESULT", request != null ? request.getThirdUserId() : null, request != null ? request.getRequestSignSeq() : null, request != null ? request.getPaymentVendor() : null, request, response);
+            return response;
+        }
+    }
+
+    /**
+     * IF8A-06 请求解约。
+     * 对外仍保留 ITP 侧报文风格，但下游支付平台只要求 requestSignSeq。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public RequestTerminationRespDTO requestTermination(RequestTerminationReqDTO request) {
+        RequestTerminationRespDTO response = new RequestTerminationRespDTO();
+        try {
+            if (request == null) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "请求报文不能为空");
+                writeLog("REQUEST_TERMINATION", null, null, null, null, response);
+                return response;
+            }
+            String validMsg = validateRequestTermination(request);
+            if (validMsg != null) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, validMsg);
+                writeLog("REQUEST_TERMINATION", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), request, response);
+                return response;
+            }
+
+            // 1. 查询是否已签约（只做校验，不修改）
+            PaySignInfo signInfo = paySignInfoMapper.selectByUserAndVendor(request.getThirdUserId(), request.getPaymentVendor());
+            if (signInfo == null) {
+                fillError(response, PaySignErrorCodeEnum.USER_NOT_SIGNED, PaySignErrorCodeEnum.USER_NOT_SIGNED.getMsg());
+                writeLog("REQUEST_TERMINATION", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), request, response);
+                return response;
+            }
+
+            PaySignGatewayResponse gatewayResponse = requestGatewaySimple(paySignProperties.getTerminationPath(), buildDismissalBizData(request.getRequestSignSeq()));
+            if (!isGatewaySuccess(gatewayResponse)) {
+                fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, gatewayErrorMsg(gatewayResponse, "request pay termination failed"));
+                writeLog("REQUEST_TERMINATION", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), request, response);
+                return response;
+            }
+
+            // 请求解约只代表支付平台已接收请求，最终解约状态以后续 5.3 回调为准。
+            // 不操作 APP_PAY_SIGN_INFO，只记录流水
+            fillSuccess(response);
+            writeLog("REQUEST_TERMINATION", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), request, response);
+            return response;
+        } catch (Exception e) {
+            log.error("处理请求解约异常", e);
+            fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, PaySignErrorCodeEnum.SYSTEM_ERROR.getMsg());
+            writeLog("REQUEST_TERMINATION", request != null ? request.getThirdUserId() : null, request != null ? request.getRequestSignSeq() : null, request != null ? request.getPaymentVendor() : null, request, response);
+            return response;
+        }
+    }
+
+    /**
+     * 支付 API 1.1 请求支付。
+     * 内部调用方只传业务参数，支付网关公共参数和签名在 pay-sign-server 内统一完成。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public RequestPayResult requestPay(RequestPayReqDTO request) {
+        RequestPayResult response = new RequestPayResult();
+        try {
+            String validMsg = validateRequestPay(request);
+            if (validMsg != null) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, validMsg);
+                log.info("REQUEST_PAY 参数校验失败, request={}, response={}", JSON.toJSONString(request), JSON.toJSONString(response));
+                return response;
+            }
+
+            QueryUserInfoResult accountPayInfo = resolveAccountPayInfo(request, response);
+            if (accountPayInfo == null) {
+                log.info("REQUEST_PAY 查询用户签约支付信息失败, request={}, response={}",
+                        JSON.toJSONString(request), JSON.toJSONString(response));
+                return response;
+            }
+
+            ensurePayTxn(request, accountPayInfo);
+            payTxnDetailMapper.markRequesting(request.getOrderNo());
+
+            Map<String, Object> bizData = buildRequestPayBizData(request);
+            log.info("REQUEST_PAY 调用支付平台, orderNo={}, thirdUserId={}, paymentVendor={}, amount={}, bizData={}",
+                    request.getOrderNo(), request.getThirdUserId(), request.getPaymentVendor(), request.getAmount(), JSON.toJSONString(bizData));
+            PaySignGatewayResponse gatewayResponse = requestGatewaySimple(paySignProperties.getRequestPayPath(), bizData);
+            log.info("REQUEST_PAY 支付平台返回, orderNo={}, gatewayResponse={}", request.getOrderNo(), JSON.toJSONString(gatewayResponse));
+
+            if (!isGatewaySuccess(gatewayResponse)) {
+                fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, gatewayErrorMsg(gatewayResponse, "请求支付接口失败"));
+                fillGatewayFields(response, gatewayResponse);
+                updatePayRequestResult(request.getOrderNo(), "RETRY", response);
+                return response;
+            }
+
+            fillSuccess(response);
+            fillGatewayFields(response, gatewayResponse);
+            if (gatewayResponse.getData() != null) {
+                response.setOrderNo(stringValue(gatewayResponse.getData().get("orderNo"), request.getOrderNo()));
+                response.setMerchantOrderNo(stringValue(gatewayResponse.getData().get("merchantOrderNo"), null));
+                response.setChannelOrderNo(stringValue(gatewayResponse.getData().get("channelOrderNo"), null));
+                response.setPayData(stringValue(gatewayResponse.getData().get("data"), null));
+            } else {
+                response.setOrderNo(request.getOrderNo());
+            }
+            updatePayRequestResult(request.getOrderNo(), "PROCESSING", response);
+            return response;
+        } catch (Exception e) {
+            log.error("处理请求支付异常", e);
+            fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, PaySignErrorCodeEnum.SYSTEM_ERROR.getMsg());
+            if (request != null && StringUtils.hasText(request.getOrderNo())) {
+                updatePayRequestResult(request.getOrderNo(), "RETRY", response);
+            }
+            return response;
+        }
+    }
+
+    /**
+     * 支付 API 3.1 请求退款。
+     *
+     * <p>调用方只传 orderNo/refundAmount；pay-sign 根据原支付订单补齐 merchantOrderNo，
+     * 生成 refundOrderNo，并负责退款明细入库和原支付订单退款汇总回写。</p>
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public RequestRefundResult requestRefund(RequestRefundReqDTO request) {
+        RequestRefundResult response = new RequestRefundResult();
+        try {
+            String validMsg = validateRequestRefund(request);
+            if (validMsg != null) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, validMsg);
+                log.info("REQUEST_REFUND 参数校验失败, request={}, response={}", JSON.toJSONString(request), JSON.toJSONString(response));
+                return response;
+            }
+
+            PayTxnDetail payTxn = payTxnDetailMapper.selectByOrderNo(request.getOrderNo());
+            validMsg = validateRefundPayTxn(payTxn, request.getRefundAmount());
+            if (validMsg != null) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, validMsg);
+                log.info("REQUEST_REFUND 原支付订单校验失败, request={}, payTxn={}, response={}",
+                        JSON.toJSONString(request), JSON.toJSONString(payTxn), JSON.toJSONString(response));
+                return response;
+            }
+
+            PayRefundDetail refundDetail = buildPayRefundDetail(request, payTxn);
+            payRefundDetailMapper.insert(refundDetail);
+
+            Map<String, Object> bizData = buildRequestRefundBizData(refundDetail, payTxn);
+            payRefundDetailMapper.markRequesting(refundDetail.getRefundOrderNo(), refundDetail.getTxnDate(), JSON.toJSONString(bizData));
+            log.info("REQUEST_REFUND 调用支付平台, orderNo={}, refundOrderNo={}, bizData={}",
+                    refundDetail.getOrderNo(), refundDetail.getRefundOrderNo(), JSON.toJSONString(bizData));
+            PaySignGatewayResponse gatewayResponse = requestGatewaySimple(paySignProperties.getRequestRefundPath(), bizData);
+            log.info("REQUEST_REFUND 支付平台返回, orderNo={}, refundOrderNo={}, gatewayResponse={}",
+                    refundDetail.getOrderNo(), refundDetail.getRefundOrderNo(), JSON.toJSONString(gatewayResponse));
+
+            response.setOrderNo(refundDetail.getOrderNo());
+            response.setRefundOrderNo(refundDetail.getRefundOrderNo());
+            fillGatewayFields(response, gatewayResponse);
+
+            if (!isGatewaySuccess(gatewayResponse)) {
+                fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, gatewayErrorMsg(gatewayResponse, "请求退款接口失败"));
+                fillGatewayFields(response, gatewayResponse);
+                updateRefundRequestResult(refundDetail, "RETRY", response, gatewayResponse);
+                return response;
+            }
+
+            fillSuccess(response);
+            fillRefundResponseFields(response, refundDetail, gatewayResponse);
+            updateRefundRequestResult(refundDetail, "SUCCESS", response, gatewayResponse);
+            payTxnDetailMapper.updateRefundSummary(payTxn.getOrderNo(), request.getRefundAmount(),
+                    resolveRefundSummaryStatus(payTxn, request.getRefundAmount()));
+            return response;
+        } catch (Exception e) {
+            log.error("处理请求退款异常, request={}", JSON.toJSONString(request), e);
+            fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, PaySignErrorCodeEnum.SYSTEM_ERROR.getMsg());
+            return response;
+        }
+    }
+
+    /**
+     * IPD02 签约结果回调。
+     * 支付平台异步通知签约结果时，以回调报文为准刷新本地签约主表。
+     */
+    /**
+     * 支付 API 5.1 支付回调。
+     *
+     * <p>fep-app 负责接收支付平台回调并解析 bizData，pay-sign-server 负责保存回调流水
+     * 并回写 PAY_TXN_DETAIL 当前状态。</p>
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PaySignCallbackResult receivePayResult(ReceivePayResultReqDTO request, String rawBody) {
+        PaySignCallbackResult response = new PaySignCallbackResult();
+        try {
+            if (request == null || !StringUtils.hasText(request.getOrderNo())) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "orderNo不能为空");
+                return response;
+            }
+            PayCallbackLog callbackLog = buildPayCallbackLog(request, rawBody);
+            payCallbackLogMapper.insert(callbackLog);
+
+            PayTxnDetail update = new PayTxnDetail();
+            update.setOrderNo(request.getOrderNo());
+            update.setPayStatus(convertPayStatus(request.getStatus()));
+            update.setMerchantOrderNo(request.getMerchantOrderNo());
+            update.setChannelOrderNo(request.getChannelOrderNo());
+            update.setTotalAmount(request.getTotalAmount());
+            update.setCashAmount(request.getCashAmount());
+            update.setCouponAmount(request.getCouponAmount());
+            update.setPayUserId(request.getPayUserId());
+            update.setPaymentVendor(request.getPaymentVendor());
+            update.setPayTime(request.getPayTime());
+            payTxnDetailMapper.updatePayCallback(update);
+
+            fillSuccess(response);
+            return response;
+        } catch (Exception e) {
+            log.error("处理支付结果回调异常, request={}", JSON.toJSONString(request), e);
+            fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, PaySignErrorCodeEnum.SYSTEM_ERROR.getMsg());
+            return response;
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PaySignCallbackResult receiveSignResult(ReceiveSignResultReqDTO request) {
+        PaySignCallbackResult response = new PaySignCallbackResult();
+        try {
+            if (request == null) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "请求报文不能为空");
+                writeLog("RECEIVE_SIGN_RESULT", null, null, null, null, response);
+                return response;
+            }
+            String validMsg = validateReceiveSignResult(request);
+            if (validMsg != null) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, validMsg);
+                writeLog("RECEIVE_SIGN_RESULT", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), request, response);
+                return response;
+            }
+
+            // 支付平台回调可能不带 thirdUserId，尝试从流水表补充
+            String thirdUserId = resolveThirdUserId(request.getRequestSignSeq(), request.getThirdUserId());
+            if (!StringUtils.hasText(thirdUserId)) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "thirdUserId不能为空");
+                writeLog("RECEIVE_SIGN_RESULT", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), request, response);
+                return response;
+            }
+            request.setThirdUserId(thirdUserId);
+
+            // 支付平台回调可能不带 displayAccount，尝试从流水表补充
+            String displayAccount = resolveDisplayAccount(request.getRequestSignSeq(), request.getDisplayAccount());
+            request.setDisplayAccount(displayAccount);
+
+            boolean isSuccess = "SUCCESS".equalsIgnoreCase(request.getStatus());
+
+            log.info("签约成功，准备通知app--- {} ., displayAccount: {}",request,displayAccount);
+            if (isSuccess) {
+                // 1. INSERT 签约成功记录
+                PaySignInfo signInfo = new PaySignInfo();
+                signInfo.setRequestSignSeq(request.getRequestSignSeq());
+                signInfo.setThirdUserId(request.getThirdUserId());
+                signInfo.setPaymentVendor(request.getPaymentVendor());
+                signInfo.setDisplayAccount(request.getDisplayAccount());
+                signInfo.setPayAccountId(request.getPayUserId());
+                signInfo.setPayAgreementNo(request.getPayAgreementNo());
+                signInfo.setContractStatus(STATUS_SIGNED);
+                signInfo.setSignTime(parseDateTime(request.getSignTime(), null));
+                paySignInfoMapper.insert(signInfo);
+
+                // 2. 写入流水表
+                PaySignRequest logRecord = new PaySignRequest();
+                logRecord.setRequestSignSeq(request.getRequestSignSeq());
+                logRecord.setThirdUserId(request.getThirdUserId());
+                logRecord.setPaymentVendor(request.getPaymentVendor());
+                logRecord.setOperationType("RECEIVE_SIGN_RESULT");
+                logRecord.setSignStatus(STATUS_SIGNED);
+                logRecord.setCreateTms(LocalDateTime.now());
+                logRecord.setNotifyStatus("PENDING");
+                logRecord.setNotifyRetryCount(0);
+                paySignRequestMapper.insert(logRecord);
+
+                // 3. 异步通知App（不阻塞返回）
+                appNotifyService.asyncNotifySignResult(logRecord, signInfo, request);
+            } else {
+                // 签约失败，记录流水但不通知
+                writeLog("RECEIVE_SIGN_RESULT", request.getThirdUserId(), request.getRequestSignSeq(),
+                         request.getPaymentVendor(), request, response, STATUS_FAILED);
+            }
+
+            fillSuccess(response);
+            return response;
+        } catch (Exception e) {
+            log.error("处理签约结果通知异常", e);
+            fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, PaySignErrorCodeEnum.SYSTEM_ERROR.getMsg());
+            writeLog("RECEIVE_SIGN_RESULT", request != null ? request.getThirdUserId() : null, request != null ? request.getRequestSignSeq() : null, request != null ? request.getPaymentVendor() : null, request, response);
+            return response;
+        }
+    }
+
+    /**
+     * IPD03 解约结果回调。
+     * 支付平台异步通知解约结果时，补齐解约时间和最终状态。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public BaseRespDTO receiveTerminationResult(ReceiveTerminationResultReqDTO request) {
+        BaseRespDTO response = new BaseRespDTO();
+        try {
+            if (request == null) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "请求报文不能为空");
+                writeLog("RECEIVE_TERMINATION_RESULT", null, null, null, null, response);
+                return response;
+            }
+            String validMsg = validateReceiveTerminationResult(request);
+            if (validMsg != null) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, validMsg);
+                writeLog("RECEIVE_TERMINATION_RESULT", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), request, response);
+                return response;
+            }
+
+            // 支付平台回调可能不带 thirdUserId，尝试从流水表补充
+            String thirdUserId = resolveThirdUserId(request.getRequestSignSeq(), request.getThirdUserId());
+            if (!StringUtils.hasText(thirdUserId)) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "thirdUserId不能为空");
+                writeLog("RECEIVE_TERMINATION_RESULT", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), request, response);
+                return response;
+            }
+            request.setThirdUserId(thirdUserId);
+
+            // 支付平台回调可能不带 cardId/cardType，尝试从签约主表补充
+            resolveCardInfoFromSignInfo(request);
+
+            boolean isSuccess = "SUCCESS".equalsIgnoreCase(request.getStatus());
+
+            if (isSuccess) {
+                // 查询签约记录用于通知（删除前先查询）
+                PaySignInfo signInfo = paySignInfoMapper.selectByUserAndVendor(request.getThirdUserId(), request.getPaymentVendor());
+
+                // 1. DELETE 签约记录
+                paySignInfoMapper.deleteByUserAndVendor(request.getThirdUserId(), request.getPaymentVendor());
+
+                // 2. 清理账户支付通道
+                removeAccountPayChannel(request.getThirdUserId(), request.getPaymentVendor(), request.getCardId(), request.getCardType());
+
+                // 3. 写入流水表
+                PaySignRequest logRecord = new PaySignRequest();
+                logRecord.setRequestSignSeq(request.getRequestSignSeq());
+                logRecord.setThirdUserId(request.getThirdUserId());
+                logRecord.setPaymentVendor(request.getPaymentVendor());
+                logRecord.setOperationType("RECEIVE_TERMINATION_RESULT");
+                logRecord.setSignStatus(STATUS_UNSIGNED);
+                logRecord.setCreateTms(LocalDateTime.now());
+                logRecord.setNotifyStatus("PENDING");
+                logRecord.setNotifyRetryCount(0);
+                paySignRequestMapper.insert(logRecord);
+
+                // 4. 异步通知App（不阻塞返回）
+                appNotifyService.asyncNotifyTerminationResult(logRecord, signInfo, request);
+            } else {
+                // 解约失败，记录流水但不通知
+                writeLog("RECEIVE_TERMINATION_RESULT", request.getThirdUserId(), request.getRequestSignSeq(),
+                         request.getPaymentVendor(), request, response, STATUS_FAILED);
+            }
+
+            fillSuccess(response);
+            return response;
+        } catch (Exception e) {
+            log.error("处理解约结果通知异常", e);
+            fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, PaySignErrorCodeEnum.SYSTEM_ERROR.getMsg());
+            writeLog("RECEIVE_TERMINATION_RESULT", request != null ? request.getThirdUserId() : null, request != null ? request.getRequestSignSeq() : null, request != null ? request.getPaymentVendor() : null, request, response);
+            return response;
+        }
+    }
+
+    /**
+     * 校验签约请求必要字段。
+     */
+    private String validateRequestSignInfo(RequestSignInfoReqDTO request) {
+        if (request == null) {
+            return "请求报文不能为空";
+        }
+        if (!StringUtils.hasText(request.getThirdUserId())) {
+            return "thirdUserId不能为空";
+        }
+        if (!StringUtils.hasText(request.getDisplayAccount())) {
+            return "displayAccount不能为空";
+        }
+        if (!StringUtils.hasText(request.getPayChannelCode())) {
+            return "payChannelCode不能为空";
+        }
+        if (!StringUtils.hasText(request.getRequestSignSeq())) {
+            return "requestSignSeq不能为空";
+        }
+        return null;
+    }
+
+    /**
+     * 校验签约查询类接口的公共参数。
+     */
+    private String validateContractQuery(String thirdUserId, String requestSignSeq, String paymentVendor) {
+        if (!StringUtils.hasText(thirdUserId)) {
+            return "thirdUserId不能为空";
+        }
+        if (!StringUtils.hasText(requestSignSeq)) {
+            return "requestSignSeq不能为空";
+        }
+        if (!StringUtils.hasText(paymentVendor)) {
+            return "paymentVendor不能为空";
+        }
+        return null;
+    }
+
+    /**
+     * 校验解约请求必要字段。
+     */
+    private String validateRequestTermination(RequestTerminationReqDTO request) {
+        if (request == null) {
+            return "请求报文不能为空";
+        }
+        if (!StringUtils.hasText(request.getThirdUserId())) {
+            return "thirdUserId不能为空";
+        }
+        if (!StringUtils.hasText(request.getRequestSignSeq())) {
+            return "requestSignSeq不能为空";
+        }
+        return null;
+    }
+
+    /**
+     * 校验请求支付必要字段。
+     */
+    private String validateRequestPay(RequestPayReqDTO request) {
+        if (request == null) {
+            return "请求报文不能为空";
+        }
+        if (!StringUtils.hasText(request.getOrderNo())) {
+            return "orderNo不能为空";
+        }
+        if (!StringUtils.hasText(request.getScene())) {
+            return "scene不能为空";
+        }
+        if (!StringUtils.hasText(request.getThirdUserId())) {
+            return "thirdUserId不能为空";
+        }
+        if (request.getAmount() == null) {
+            return "amount不能为空";
+        }
+        if (request.getAmount() < 0) {
+            return "amount不能小于0";
+        }
+        if (!StringUtils.hasText(request.getIndustryType())) {
+            return "industryType不能为空";
+        }
+        if (!StringUtils.hasText(request.getSubject())) {
+            return "subject不能为空";
+        }
+        if (!StringUtils.hasText(request.getBody())) {
+            return "body不能为空";
+        }
+        if (request instanceof GatePayRequestDTO gatePayRequest) {
+            if (!StringUtils.hasText(gatePayRequest.getCardId())) {
+                return "cardId不能为空";
+            }
+            if (!StringUtils.hasText(gatePayRequest.getCardType())) {
+                return "cardType不能为空";
+            }
+        } else if (!StringUtils.hasText(request.getPaymentVendor()) || !StringUtils.hasText(request.getRequestSignSeq())) {
+            return "非过闸扣费请求需传paymentVendor和requestSignSeq";
+        }
+        return null;
+    }
+
+    /**
+     * 校验请求退款必要字段。
+     */
+    private String validateRequestRefund(RequestRefundReqDTO request) {
+        if (request == null) {
+            return "请求报文不能为空";
+        }
+        if (!StringUtils.hasText(request.getOrderNo())) {
+            return "orderNo不能为空";
+        }
+        if (request.getRefundAmount() == null) {
+            return "refundAmount不能为空";
+        }
+        if (request.getRefundAmount() <= 0) {
+            return "refundAmount必须大于0";
+        }
+        return null;
+    }
+
+    /**
+     * 校验原支付订单是否允许退款。
+     */
+    private String validateRefundPayTxn(PayTxnDetail payTxn, Integer refundAmount) {
+        if (payTxn == null) {
+            return "原支付订单不存在";
+        }
+        if (!"SUCCESS".equals(payTxn.getPayStatus())) {
+            return "原支付订单未支付成功";
+        }
+        if (!StringUtils.hasText(payTxn.getMerchantOrderNo())) {
+            return "原支付订单缺少merchantOrderNo";
+        }
+        int paidAmount = resolvePaidAmount(payTxn);
+        int refundedAmount = payTxn.getRefundAmount() == null ? 0 : payTxn.getRefundAmount();
+        if (refundAmount > paidAmount - refundedAmount) {
+            return "退款金额超出可退金额";
+        }
+        return null;
+    }
+
+    /**
+     * 校验签约结果回调必要字段。
+     */
+    private String validateReceiveSignResult(ReceiveSignResultReqDTO request) {
+        if (request == null) {
+            return "请求报文不能为空";
+        }
+        if (!StringUtils.hasText(request.getRequestSignSeq())) {
+            return "requestSignSeq不能为空";
+        }
+        if (!StringUtils.hasText(request.getPaymentVendor())) {
+            return "paymentVendor不能为空";
+        }
+        if (!StringUtils.hasText(request.getStatus())) {
+            return "status不能为空";
+        }
+        return null;
+    }
+
+    /**
+     * 校验解约结果回调必要字段。
+     */
+    private String validateReceiveTerminationResult(ReceiveTerminationResultReqDTO request) {
+        if (request == null) {
+            return "请求报文不能为空";
+        }
+        if (!StringUtils.hasText(request.getRequestSignSeq())) {
+            return "requestSignSeq不能为空";
+        }
+        if (!StringUtils.hasText(request.getPaymentVendor())) {
+            return "paymentVendor不能为空";
+        }
+        if (!StringUtils.hasText(request.getStatus())) {
+            return "status不能为空";
+        }
+        return null;
+    }
+
+    /**
+     * 统一封装失败应答。
+     * 兼容支付平台要求的 code/msg/success，同时保留 ITP 侧沿用的 retCode/retMsg。
+     */
+    private void fillError(BaseRespDTO response, PaySignErrorCodeEnum errorCode, String msg) {
+        response.setCode(-1);
+        response.setMsg(msg);
+        response.setSuccess(Boolean.FALSE);
+        response.setRetCode(errorCode.getCode());
+        response.setRetMsg(msg);
+    }
+
+    /**
+     * requestSignInfo 接口返回模型单独适配。
+     */
+    private void fillError(RequestSignInfoResult response, PaySignErrorCodeEnum errorCode, String msg) {
+        response.setRetCode(errorCode.getCode());
+        response.setRetMsg(msg);
+    }
+
+    private void fillError(PaySignCallbackResult response, PaySignErrorCodeEnum errorCode, String msg) {
+        response.setRetCode(errorCode.getCode());
+        response.setRetMsg(msg);
+    }
+
+    private void fillError(RequestPayResult response, PaySignErrorCodeEnum errorCode, String msg) {
+        response.setCode(-1);
+        response.setMsg(msg);
+        response.setSuccess(Boolean.FALSE);
+        response.setRetCode(errorCode.getCode());
+        response.setRetMsg(msg);
+    }
+
+    private void fillError(RequestRefundResult response, PaySignErrorCodeEnum errorCode, String msg) {
+        response.setCode(-1);
+        response.setMsg(msg);
+        response.setSuccess(Boolean.FALSE);
+        response.setRetCode(errorCode.getCode());
+        response.setRetMsg(msg);
+    }
+
+    /**
+     * 统一封装成功应答。
+     */
+    private void fillSuccess(BaseRespDTO response) {
+        response.setCode(0);
+        response.setMsg("成功");
+        response.setSuccess(Boolean.TRUE);
+        response.setRetCode(PaySignErrorCodeEnum.SUCCESS.getCode());
+        response.setRetMsg(PaySignErrorCodeEnum.SUCCESS.getMsg());
+    }
+
+    /**
+     * requestSignInfo 接口返回模型单独适配。
+     */
+    private void fillSuccess(RequestSignInfoResult response) {
+        response.setRetCode(PaySignErrorCodeEnum.SUCCESS.getCode());
+        response.setRetMsg(PaySignErrorCodeEnum.SUCCESS.getMsg());
+    }
+
+    private void fillSuccess(PaySignCallbackResult response) {
+        response.setRetCode(PaySignErrorCodeEnum.SUCCESS.getCode());
+        response.setRetMsg(PaySignErrorCodeEnum.SUCCESS.getMsg());
+    }
+
+    private void fillSuccess(RequestPayResult response) {
+        response.setCode(0);
+        response.setMsg("成功");
+        response.setSuccess(Boolean.TRUE);
+        response.setRetCode(PaySignErrorCodeEnum.SUCCESS.getCode());
+        response.setRetMsg(PaySignErrorCodeEnum.SUCCESS.getMsg());
+    }
+
+    private void fillSuccess(RequestRefundResult response) {
+        response.setCode(0);
+        response.setMsg("成功");
+        response.setSuccess(Boolean.TRUE);
+        response.setRetCode(PaySignErrorCodeEnum.SUCCESS.getCode());
+        response.setRetMsg(PaySignErrorCodeEnum.SUCCESS.getMsg());
+    }
+
+    /**
+     * 支付平台回调可能不带 thirdUserId，尝试从流水表补充。
+     */
+    private String resolveThirdUserId(String requestSignSeq, String thirdUserId) {
+        if (StringUtils.hasText(thirdUserId)) {
+            return thirdUserId;
+        }
+        if (!StringUtils.hasText(requestSignSeq)) {
+            return null;
+        }
+        try {
+            PaySignRequest record = paySignRequestMapper.selectByRequestSignSeq(requestSignSeq);
+            if (record != null && StringUtils.hasText(record.getThirdUserId())) {
+                log.info("从流水表补充 thirdUserId, requestSignSeq={}, thirdUserId={}", requestSignSeq, record.getThirdUserId());
+                return record.getThirdUserId();
+            }
+        } catch (Exception e) {
+            log.warn("查询流水表补充 thirdUserId 异常, requestSignSeq={}", requestSignSeq, e);
+        }
+        return null;
+    }
+
+    /**
+     * 支付平台回调可能不带 displayAccount，尝试从流水表补充。
+     */
+    private String resolveDisplayAccount(String requestSignSeq, String displayAccount) {
+        if (StringUtils.hasText(displayAccount)) {
+            return displayAccount;
+        }
+        if (!StringUtils.hasText(requestSignSeq)) {
+            return null;
+        }
+        try {
+            PaySignRequest record = paySignRequestMapper.selectByRequestSignSeq(requestSignSeq);
+            if (record != null && StringUtils.hasText(record.getDisplayAccount())) {
+                log.info("从流水表补充 displayAccount, requestSignSeq={}, displayAccount={}", requestSignSeq, record.getDisplayAccount());
+                return record.getDisplayAccount();
+            }
+        } catch (Exception e) {
+            log.warn("查询流水表补充 displayAccount 异常, requestSignSeq={}", requestSignSeq, e);
+        }
+        return null;
+    }
+
+    /**
+     * 支付平台回调可能不带 cardId/cardType，尝试从签约主表补充。
+     * 解约回调时，签约记录还存在（尚未 DELETE），可反查补齐。
+     */
+    private void resolveCardInfoFromSignInfo(ReceiveTerminationResultReqDTO request) {
+        if (StringUtils.hasText(request.getCardId()) && StringUtils.hasText(request.getCardType())) {
+            return;
+        }
+        if (!StringUtils.hasText(request.getRequestSignSeq())) {
+            return;
+        }
+        try {
+            PaySignInfo signInfo = paySignInfoMapper.selectBySeq(request.getRequestSignSeq(), request.getPaymentVendor());
+            if (signInfo != null) {
+                if (!StringUtils.hasText(request.getCardId()) && StringUtils.hasText(signInfo.getCardId())) {
+                    request.setCardId(signInfo.getCardId());
+                    log.info("从签约主表补充 cardId, requestSignSeq={}, cardId={}", request.getRequestSignSeq(), signInfo.getCardId());
+                }
+                if (!StringUtils.hasText(request.getCardType()) && StringUtils.hasText(signInfo.getCardType())) {
+                    request.setCardType(signInfo.getCardType());
+                    log.info("从签约主表补充 cardType, requestSignSeq={}, cardType={}", request.getRequestSignSeq(), signInfo.getCardType());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("查询签约主表补充 cardId/cardType 异常, requestSignSeq={}", request.getRequestSignSeq(), e);
+        }
+    }
+
+    /**
+     * 解约成功后清理 account-server 侧支付通道信息。
+     *
+     * <p>account-server 会先删除支付渠道表记录；如果该通道正好是注册信息里的默认支付通道，
+     * 会同步清空注册信息里的 thirdPayId/channel/reqContractNo。</p>
+     */
+    private boolean removeAccountPayChannel(String thirdUserId, String paymentVendor, String cardId, String cardType) {
+        try {
+            RequestRemovePayChannelReqDTO request = new RequestRemovePayChannelReqDTO();
+            request.setThirdUserId(thirdUserId);
+            request.setCardId(cardId);
+            request.setCardType(cardType);
+            request.setChannel(paymentVendor);
+            log.info("call account removePayChannel request={}", JSON.toJSONString(request));
+            RequestRemovePayChannelResult response = accountClient.requestRemovePayChannel(request);
+            log.info("call account removePayChannel response={}", JSON.toJSONString(response));
+            boolean success = response != null && PaySignErrorCodeEnum.SUCCESS.getCode().equals(response.getRetCode());
+            if (!success) {
+                log.error("清理账户支付通道失败, request={}, response={}", JSON.toJSONString(request), JSON.toJSONString(response));
+            }
+            return success;
+        } catch (Exception e) {
+            log.error("清理账户支付通道异常", e);
+            return false;
+        }
+    }
+
+    private String buildItpSign(ItpCommonRequest<?> request) {
+        if (!StringUtils.hasText(request.getSignType()) || "00".equals(request.getSignType())) {
+            return null;
+        }
+        String signSource = buildItpSignSource(request);
+        return switch (request.getSignType()) {
+            case "01" -> digest("SHA-1", signSource);
+            case "02" -> digest("MD5", signSource);
+            default -> null;
+        };
+    }
+
+    private String buildItpSignSource(ItpCommonRequest<?> request) {
+        List<String> parts = new ArrayList<>();
+        appendIfPresent(parts, "bizData", JSON.toJSONString(request.getBizData(), JSONWriter.Feature.MapSortField));
+        appendIfPresent(parts, "charset", request.getCharset());
+        appendIfPresent(parts, "deviceId", request.getDeviceId());
+        appendIfPresent(parts, "format", request.getFormat());
+        appendIfPresent(parts, "providerId", request.getProviderId());
+        appendIfPresent(parts, "signType", request.getSignType());
+        appendIfPresent(parts, "timestamp", request.getTimestamp());
+        Collections.sort(parts);
+        return String.join("&", parts) + "&key=" + defaultString(itpSignKey, "");
+    }
+
+    private void appendIfPresent(List<String> parts, String key, String value) {
+        if (StringUtils.hasText(value)) {
+            parts.add(key + "=" + value);
+        }
+    }
+
+    private String digest(String algorithm, String content) {
+        try {
+            MessageDigest messageDigest = MessageDigest.getInstance(algorithm);
+            byte[] bytes = messageDigest.digest(content.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(bytes.length * 2);
+            for (byte b : bytes) {
+                builder.append(String.format("%02x", b));
+            }
+            return builder.toString();
+        } catch (Exception e) {
+            log.error("生成APP通知签名失败", e);
+            return null;
+        }
+    }
+
+    /**
+     * 将 ITP 侧的 payChannelCode 归一化为支付平台侧 paymentVendor。
+     */
+    private String normalizeVendor(String payChannelCode) {
+        if (!StringUtils.hasText(payChannelCode)) {
+            return null;
+        }
+        String code = payChannelCode.trim();
+        if (!PaymentVendorEnum.isValid(code)) {
+            log.warn("未知的支付渠道编码: {}", code);
+        }
+        return code;
+    }
+
+    /**
+     * 解析签约回调地址。
+     * 优先使用请求中的 notifyUrl，其次使用配置默认值，最后退化为 returnUrl。
+     */
+    private String resolveNotifyUrl(RequestSignInfoReqDTO request) {
+        if (StringUtils.hasText(request.getNotifyUrl())) {
+            return request.getNotifyUrl();
+        }
+        if (StringUtils.hasText(paySignProperties.getDefaultNotifyUrl())) {
+            return paySignProperties.getDefaultNotifyUrl();
+        }
+        return request.getReturnUrl();
+    }
+
+    /**
+     * 将内部细分操作归并成新日志表设计中的 SIGN/UNSIGN。
+     */
+    private String convertOperationType(String operationType) {
+        if (!StringUtils.hasText(operationType)) {
+            return "SIGN";
+        }
+        String upper = operationType.toUpperCase();
+        if (upper.contains("TERMINATION") || upper.contains("UNSIGN")) {
+            return "UNSIGN";
+        }
+        return "SIGN";
+    }
+
+    /**
+     * URL 编码工具方法。
+     */
+    private String encode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * 解析支付平台返回的 yyyyMMddHHmmss 时间格式。
+     */
+    private LocalDateTime parseDateTime(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(value, DATETIME_FORMATTER);
+        } catch (Exception e) {
+            log.warn("解析时间失败, value={}", value);
+            return null;
+        }
+    }
+
+    private LocalDateTime parseDateTime(String value, LocalDateTime defaultValue) {
+        LocalDateTime parsed = parseDateTime(value);
+        return parsed == null ? defaultValue : parsed;
+    }
+
+    /**
+     * 从对象中安全提取字符串值。
+     */
+    private String stringValue(Object value, String defaultValue) {
+        return value == null ? defaultValue : value.toString();
+    }
+
+    /**
+     * 字符串为空时返回默认值。
+     */
+    private String defaultString(String value, String defaultValue) {
+        return StringUtils.hasText(value) ? value : defaultValue;
+    }
+
+    /**
+     * 组装 creditQuery 请求参数。
+     */
+    private Map<String, Object> buildCreditQueryBizData(String thirdUserId, String requestSignSeq, String paymentVendor) {
+        Map<String, Object> bizData = new LinkedHashMap<>();
+        bizData.put("thirdUserId", thirdUserId);
+        bizData.put("requestSignSeq", requestSignSeq);
+        bizData.put("paymentVendor", paymentVendor);
+        return bizData;
+    }
+
+    /**
+     * 组装 queryResult 请求参数。
+     */
+    private Map<String, Object> buildQueryResultBizData(String requestSignSeq) {
+        Map<String, Object> bizData = new LinkedHashMap<>();
+        bizData.put("requestSignSeq", requestSignSeq);
+        return bizData;
+    }
+
+    /**
+     * 组装 dismissal 解约请求参数。
+     */
+    private Map<String, Object> buildDismissalBizData(String requestSignSeq) {
+        Map<String, Object> bizData = new LinkedHashMap<>();
+        bizData.put("requestSignSeq", requestSignSeq);
+        return bizData;
+    }
+
+    /**
+     * 组装 requestPay 请求业务参数。
+     */
+    private Map<String, Object> buildRequestPayBizData(RequestPayReqDTO request) {
+        Map<String, Object> bizData = new LinkedHashMap<>();
+        bizData.put("orderNo", request.getOrderNo());
+        bizData.put("scene", request.getScene());
+        bizData.put("paymentVendor", request.getPaymentVendor());
+        bizData.put("amount", request.getAmount());
+        bizData.put("industryType", request.getIndustryType());
+        bizData.put("subject", request.getSubject());
+        bizData.put("body", request.getBody());
+        putIfHasText(bizData, "requestSignSeq", request.getRequestSignSeq());
+        putIfHasText(bizData, "thirdUserId", request.getThirdUserId());
+        putIfHasText(bizData, "industryDetail", request.getIndustryDetail());
+        if (request.getOrderTimeOut() != null) {
+            bizData.put("orderTimeOut", request.getOrderTimeOut());
+        }
+        putIfHasText(bizData, "authCode", request.getAuthCode());
+        putIfHasText(bizData, "notifyUrl", resolvePayNotifyUrl(request));
+        putIfHasText(bizData, "returnUrl", request.getReturnUrl());
+        putIfHasText(bizData, "ipAddress", request.getIpAddress());
+        putIfHasText(bizData, "remark", request.getRemark());
+        return bizData;
+    }
+
+    /**
+     * 创建支付订单当前态记录。
+     *
+     * <p>同一个 orderNo 重复请求时视为幂等，不重复插入，只继续走请求支付和次数累加。</p>
+     */
+    private void ensurePayTxn(RequestPayReqDTO request, QueryUserInfoResult accountPayInfo) {
+        PayTxnDetail existing = payTxnDetailMapper.selectByOrderNo(request.getOrderNo());
+        if (existing != null) {
+            return;
+        }
+        PayTxnDetail record = new PayTxnDetail();
+        record.setOrderNo(request.getOrderNo());
+        record.setPayType("PAY");
+        record.setPayStatus("INIT");
+        record.setThirdUserId(request.getThirdUserId());
+        if (request instanceof GatePayRequestDTO gatePayRequest) {
+            record.setCardId(gatePayRequest.getCardId());
+            record.setCardType(gatePayRequest.getCardType());
+            record.setPayChannelCode(gatePayRequest.getPayChannelCode());
+        }
+        record.setPaymentVendor(request.getPaymentVendor());
+        record.setRequestSignSeq(accountPayInfo.getReqContractNo());
+        record.setAmount(request.getAmount());
+        record.setRefundStatus("NONE");
+        record.setRefundAmount(0);
+        record.setRequestCount(0);
+        record.setTxnDate(resolveTxnDate(request.getOrderNo()));
+        record.setCreateTime(LocalDateTime.now());
+        record.setUpdateTime(LocalDateTime.now());
+        payTxnDetailMapper.insert(record);
+    }
+
+    /**
+     * 过闸扣费发起支付前，统一从 account-server 查询用户注册表中的默认支付通道。
+     *
+     * <p>USER_ITP_REG_INFO.REQ_CONTRACT_NO 就是签约流水号；支付平台免密扣款
+     * 需要使用这个签约流水号和默认渠道，而不是信任前置服务透传的渠道字段。</p>
+     */
+    private QueryUserInfoResult resolveAccountPayInfo(RequestPayReqDTO request, RequestPayResult response) {
+        if (!(request instanceof GatePayRequestDTO gatePayRequest)) {
+            QueryUserInfoResult result = new QueryUserInfoResult();
+            result.setThirdUserId(request.getThirdUserId());
+            result.setChannel(request.getPaymentVendor());
+            result.setReqContractNo(request.getRequestSignSeq());
+            return result;
+        }
+
+        QueryUserInfoReqDTO query = new QueryUserInfoReqDTO();
+        query.setThirdUserId(request.getThirdUserId());
+        query.setCardId(gatePayRequest.getCardId());
+        query.setCardType(gatePayRequest.getCardType());
+        log.info("REQUEST_PAY 调用account查询用户默认签约支付信息, orderNo={}, query={}",
+                request.getOrderNo(), JSON.toJSONString(query));
+        QueryUserInfoResult accountPayInfo = accountClient.queryUserInfo(query);
+        log.info("REQUEST_PAY account查询用户默认签约支付信息返回, orderNo={}, result={}",
+                request.getOrderNo(), JSON.toJSONString(accountPayInfo));
+
+        if (accountPayInfo == null || !PaySignErrorCodeEnum.SUCCESS.getCode().equals(accountPayInfo.getRetCode())) {
+            fillError(response, PaySignErrorCodeEnum.USER_NOT_SIGNED,
+                    accountPayInfo == null ? "未查询到用户签约支付信息" : accountPayInfo.getRetMsg());
+            return null;
+        }
+        if (!StringUtils.hasText(accountPayInfo.getChannel()) || !StringUtils.hasText(accountPayInfo.getReqContractNo())) {
+            fillError(response, PaySignErrorCodeEnum.USER_NOT_SIGNED, "用户未设置默认签约支付通道");
+            return null;
+        }
+
+        // 以 account 注册表中的默认通道和签约流水号为准，覆盖内部调用方透传值。
+        request.setPaymentVendor(accountPayInfo.getChannel());
+        request.setRequestSignSeq(accountPayInfo.getReqContractNo());
+        gatePayRequest.setPayChannelCode(accountPayInfo.getChannel());
+        return accountPayInfo;
+    }
+
+    private void updatePayRequestResult(String orderNo, String payStatus, RequestPayResult response) {
+        PayTxnDetail record = new PayTxnDetail();
+        record.setOrderNo(orderNo);
+        record.setPayStatus(payStatus);
+        record.setMerchantOrderNo(response.getMerchantOrderNo());
+        record.setChannelOrderNo(response.getChannelOrderNo());
+        record.setResponseTime(LocalDateTime.now());
+        payTxnDetailMapper.updateRequestResult(record);
+    }
+
+    /**
+     * 创建本地退款明细。
+     */
+    private PayRefundDetail buildPayRefundDetail(RequestRefundReqDTO request, PayTxnDetail payTxn) {
+        PayRefundDetail record = new PayRefundDetail();
+        record.setRefundOrderNo(buildRefundOrderNo(request.getOrderNo()));
+        record.setOrderNo(request.getOrderNo());
+        record.setRefundStatus("INIT");
+        record.setRefundAmount(request.getRefundAmount());
+        record.setRequestCount(0);
+        record.setTxnDate(resolveTxnDate(request.getOrderNo()));
+        record.setCreateTime(LocalDateTime.now());
+        record.setUpdateTime(LocalDateTime.now());
+        return record;
+    }
+
+    /**
+     * 组装支付平台请求退款 bizData。
+     */
+    private Map<String, Object> buildRequestRefundBizData(PayRefundDetail refundDetail, PayTxnDetail payTxn) {
+        Map<String, Object> bizData = new LinkedHashMap<>();
+        bizData.put("refundOrderNo", refundDetail.getRefundOrderNo());
+        bizData.put("merchantOrderNo", payTxn.getMerchantOrderNo());
+        bizData.put("orderNo", refundDetail.getOrderNo());
+        bizData.put("refundAmount", refundDetail.getRefundAmount());
+        return bizData;
+    }
+
+    private void updateRefundRequestResult(PayRefundDetail refundDetail, String refundStatus,
+                                           RequestRefundResult response, PaySignGatewayResponse gatewayResponse) {
+        PayRefundDetail update = new PayRefundDetail();
+        update.setRefundOrderNo(refundDetail.getRefundOrderNo());
+        update.setTxnDate(refundDetail.getTxnDate());
+        update.setRefundStatus(refundStatus);
+        update.setMerchantRefundNo(response.getMerchantRefundNo());
+        update.setRefundNo(response.getRefundNo());
+        update.setChannelRefundNo(response.getChannelRefundNo());
+        update.setRefundTime(response.getRefundTime());
+        update.setRetCode(response.getRetCode());
+        update.setRetMsg(response.getRetMsg());
+        update.setPayCenterCode(gatewayResponse == null ? null : String.valueOf(gatewayResponse.getCode()));
+        update.setPayCenterMsg(gatewayResponse == null ? null : gatewayResponse.getMsg());
+        update.setResponseBody(JSON.toJSONString(gatewayResponse));
+        payRefundDetailMapper.updateRequestResult(update);
+    }
+
+    private void fillRefundResponseFields(RequestRefundResult response, PayRefundDetail refundDetail,
+                                          PaySignGatewayResponse gatewayResponse) {
+        response.setOrderNo(refundDetail.getOrderNo());
+        response.setRefundOrderNo(refundDetail.getRefundOrderNo());
+        if (gatewayResponse == null || gatewayResponse.getData() == null) {
+            return;
+        }
+        response.setMerchantRefundNo(stringValue(gatewayResponse.getData().get("merchantRefundNo"), null));
+        response.setRefundNo(stringValue(gatewayResponse.getData().get("refundNo"), null));
+        response.setChannelRefundNo(stringValue(gatewayResponse.getData().get("channelRefundNo"), null));
+        response.setRefundTime(stringValue(gatewayResponse.getData().get("refundTime"), null));
+    }
+
+    private String resolveRefundSummaryStatus(PayTxnDetail payTxn, Integer currentRefundAmount) {
+        int paidAmount = resolvePaidAmount(payTxn);
+        int refundedAmount = payTxn.getRefundAmount() == null ? 0 : payTxn.getRefundAmount();
+        int totalRefunded = refundedAmount + (currentRefundAmount == null ? 0 : currentRefundAmount);
+        return totalRefunded >= paidAmount ? "SUCCESS" : "PARTIAL";
+    }
+
+    private int resolvePaidAmount(PayTxnDetail payTxn) {
+        if (payTxn.getTotalAmount() != null && payTxn.getTotalAmount() > 0) {
+            return payTxn.getTotalAmount();
+        }
+        return payTxn.getAmount() == null ? 0 : payTxn.getAmount();
+    }
+
+    private String buildRefundOrderNo(String orderNo) {
+        String suffix = orderNo;
+        if (suffix != null && suffix.length() > 8) {
+            suffix = suffix.substring(suffix.length() - 8);
+        }
+        return "RF" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS")) + defaultString(suffix, "");
+    }
+
+    /**
+     * 支付回调地址优先使用本次请求透传值，其次使用支付专用配置。
+     */
+    private String resolvePayNotifyUrl(RequestPayReqDTO request) {
+        if (StringUtils.hasText(request.getNotifyUrl())) {
+            return request.getNotifyUrl();
+        }
+        return paySignProperties.getRequestPayNotifyUrl();
+    }
+
+    private PayCallbackLog buildPayCallbackLog(ReceivePayResultReqDTO request, String rawBody) {
+        PayCallbackLog logRecord = new PayCallbackLog();
+        logRecord.setOrderNo(request.getOrderNo());
+        logRecord.setCallbackType("PAY");
+        logRecord.setCallbackStatus(request.getStatus());
+        logRecord.setMerchantOrderNo(request.getMerchantOrderNo());
+        logRecord.setChannelOrderNo(request.getChannelOrderNo());
+        logRecord.setPayTime(request.getPayTime());
+        logRecord.setTotalAmount(request.getTotalAmount());
+        logRecord.setCashAmount(request.getCashAmount());
+        logRecord.setCouponAmount(request.getCouponAmount());
+        logRecord.setPayUserId(request.getPayUserId());
+        logRecord.setPaymentVendor(request.getPaymentVendor());
+        logRecord.setTxnDate(resolveTxnDate(request.getOrderNo()));
+        logRecord.setRawBody(rawBody);
+        logRecord.setHandleStatus("SUCCESS");
+        logRecord.setCreateTime(LocalDateTime.now());
+        return logRecord;
+    }
+
+    private String convertPayStatus(String status) {
+        if (!StringUtils.hasText(status)) {
+            return "PROCESSING";
+        }
+        String normalized = status.trim().toUpperCase();
+        if ("SUCCESS".equals(normalized) || "PAID".equals(normalized)) {
+            return "SUCCESS";
+        }
+        if ("FAIL".equals(normalized) || "FAILED".equals(normalized)) {
+            return "FAIL";
+        }
+        return normalized;
+    }
+
+    private String resolveTxnDate(String orderNo) {
+        if (StringUtils.hasText(orderNo)) {
+            for (int i = 0; i <= orderNo.length() - 8; i++) {
+                String candidate = orderNo.substring(i, i + 8);
+                if (candidate.matches("\\d{8}")) {
+                    return candidate;
+                }
+            }
+        }
+        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+    }
+
+    private void putIfHasText(Map<String, Object> params, String key, String value) {
+        if (StringUtils.hasText(value)) {
+            params.put(key, value);
+        }
+    }
+
+    private void fillGatewayFields(RequestPayResult response, PaySignGatewayResponse gatewayResponse) {
+        if (gatewayResponse == null) {
+            return;
+        }
+        response.setCode(gatewayResponse.getCode());
+        response.setMsg(gatewayResponse.getMsg());
+        response.setSuccess(isGatewaySuccess(gatewayResponse));
+        response.setData(gatewayResponse.getData());
+    }
+
+    private void fillGatewayFields(RequestRefundResult response, PaySignGatewayResponse gatewayResponse) {
+        if (gatewayResponse == null) {
+            return;
+        }
+        response.setCode(gatewayResponse.getCode());
+        response.setMsg(gatewayResponse.getMsg());
+        response.setSuccess(isGatewaySuccess(gatewayResponse));
+        response.setData(gatewayResponse.getData());
+    }
+
+    /**
+     * 调用支付平台 contract 接口发起正式签约。
+     * 返回值为支付平台 data 节点的 JSON 字符串。
+     */
+    private String requestGatewaySignInfo(RequestSignInfoReqDTO request, String paymentVendor) {
+        Map<String, Object> bizData = new LinkedHashMap<>();
+        bizData.put("requestSignSeq", request.getRequestSignSeq());
+        bizData.put("paymentVendor", paymentVendor);
+        bizData.put("thirdUserId", request.getThirdUserId());
+        bizData.put("displayAccount", request.getDisplayAccount());
+        if (StringUtils.hasText(resolveNotifyUrl(request))) {
+            bizData.put("notifyUrl", resolveNotifyUrl(request));
+        }
+        if (StringUtils.hasText(request.getReturnUrl())) {
+            bizData.put("returnUrl", request.getReturnUrl());
+        }
+        if (StringUtils.hasText(request.getOptions())) {
+            bizData.put("options", request.getOptions());
+        }
+        if (StringUtils.hasText(request.getAuthCode())) {
+            bizData.put("authCode", request.getAuthCode());
+        }
+        // 下列字段为支付平台文档定义的通道扩展字段，按需透传。
+        if (StringUtils.hasText(request.getMobilePhone())) {
+            bizData.put("mobilePhone", request.getMobilePhone());
+        }
+        if (StringUtils.hasText(request.getCertNo())) {
+            bizData.put("certNo", request.getCertNo());
+        }
+        if (StringUtils.hasText(request.getCustName())) {
+            bizData.put("custName", request.getCustName());
+        }
+        if (StringUtils.hasText(request.getToken())) {
+            bizData.put("token", request.getToken());
+        }
+        if (StringUtils.hasText(request.getPayUserId())) {
+            bizData.put("payUserId", request.getPayUserId());
+        }
+        if (StringUtils.hasText(request.getBankCardNo())) {
+            bizData.put("bankCardNo", request.getBankCardNo());
+        }
+        log.info("IF8A-16调用支付平台签约, requestSignSeq={}, thirdUserId={}", request.getRequestSignSeq(), request.getThirdUserId());
+        PaySignGatewayResponse gatewayResponse = requestGatewaySimple(paySignProperties.getContractPath(), bizData);
+
+        log.info("IF8A-16支付平台返回, requestSignSeq={}, gatewayResponse={}", request.getRequestSignSeq(), JSON.toJSONString(gatewayResponse));
+        if (!isGatewaySuccess(gatewayResponse)) {
+            return null;
+        }
+        if (gatewayResponse.getData() == null) {
+            log.error("支付签约接口返回失败, code={}, msg={}", gatewayResponse.getCode(), gatewayResponse.getMsg());
+            return null;
+        }
+        return stringValue(gatewayResponse.getData().get("data"), JSON.toJSONString(gatewayResponse.getData()));
+    }
+
+    private String buildRequestStartSdkInfo(RequestSignInfoReqDTO request, String paymentVendor) {
+        String sdkInfo = requestGatewaySignInfo(request, paymentVendor);
+//        if (StringUtils.hasText(sdkInfo)) {
+        return sdkInfo;
+//        }
+//        return buildLocalSdkInfo(request, paymentVendor);
+    }
+
+    /**
+     * 调用支付平台通用网关。
+     * 按公共报文格式组装 merchantNo/apiVersion/signType/charset/bizData/sign。
+     */
+    private PaySignGatewayResponse requestGatewaySimple(String path, Map<String, Object> bizData) {
+        if (!StringUtils.hasText(paySignProperties.getGatewayUrl())) {
+            return null;
+        }
+        try {
+            PaySignGatewayRequest request = new PaySignGatewayRequest();
+            request.setMerchantNo(paySignProperties.getMerchantNo());
+            request.setApiVersion(paySignProperties.getApiVersion());
+            request.setSignType(paySignProperties.getSignType());
+            request.setCharset(paySignProperties.getCharset());
+            String bizDataJson = JSON.toJSONString(bizData);
+            request.setBizData(Base64.getEncoder().encodeToString(bizDataJson.getBytes(StandardCharsets.UTF_8)));
+            signRequest(request, bizDataJson);
+
+            String url = paySignProperties.getGatewayUrl() + path;
+            String requestBody = JSON.toJSONString(request);
+            Request httpRequest = new Request.Builder().url(url).post(RequestBody.create(requestBody, MEDIA_TYPE_JSON)).build();
+            log.info("pay gateway request path={}, url={}, bizDataJson={}, bizDataBase64={}, request={}",
+                    path, url, bizDataJson, request.getBizData(), requestBody);
+
+            log.info("支付网关请求地址：{},请求参数：{}",url,requestBody);
+            try (Response httpResponse = httpClient.newCall(httpRequest).execute()) {
+                if (!httpResponse.isSuccessful() || httpResponse.body() == null) {
+                    log.error("调用支付签约系统失败, url={}, code={}, message={}", url, httpResponse.code(), httpResponse.message());
+                    return null;
+                }
+                String responseBody = httpResponse.body().string();
+                log.info("支付签约系统响应, url={}, response={}", url, responseBody);
+                log.info("pay gateway response path={}, url={}, httpCode={}, response={}",
+                        path, url, httpResponse.code(), responseBody);
+                return JSON.parseObject(responseBody, PaySignGatewayResponse.class);
+            }
+        } catch (IOException e) {
+            log.error("调用支付签约系统异常, path={}", path, e);
+            return null;
+        } catch (Exception e) {
+            log.error("支付网关请求签名异常, path={}", path, e);
+            return null;
+        }
+    }
+
+    private boolean isGatewaySuccess(PaySignGatewayResponse response) {
+        return response != null && (Integer.valueOf(0).equals(response.getCode()) || PAY_GATEWAY_SUCCESS_CODE.equals(response.getCode()));
+    }
+
+    private String gatewayErrorMsg(PaySignGatewayResponse response, String defaultMsg) {
+        if (response == null || !StringUtils.hasText(response.getMsg())) {
+            return defaultMsg;
+        }
+        return response.getMsg();
+    }
+
+    /**
+     * 按支付平台文档要求进行签名：
+     * 除 sign 外，其余公共字段按字母顺序排序后拼接，再用商户私钥做 RSA 签名。
+     */
+    private void signRequest(PaySignGatewayRequest request, String bizDataJson) throws Exception {
+        //todo  临时写死私钥
+        String merchantPrivateKey="MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCX+asjrvFrtDlDhHxmrZyDHTXwbCb/p5zoxnuv4FW2/Z5sUjk2o4lGmcwG43pTwbjMamjvAczheZGWPKNlgASCfWp5WFZrpYevdG6nO/ykyTUwq3Gw3clcC2bbNyU57eW2mfuXbrNLY1F7O+gLhbRN0uDOJ9+oXpJSQq2oUYR7pQLJvhAgh9khkPaYX0LNU16gXSuyvJZcVh5e/fG3Hzjqid6pGpxgAK8z9bqUoPQJEsMQsoN5EBriDu8k4CevY7FkNmTkWKkVQjcbm3vyIw+3S8JmmHV8OQgr6JwthpYCTpMGU55Nhqw9Sc8dAbdYEsqvZiCuz4W4faVPaiKv+QZ5AgMBAAECggEAISt9DuzABKHxXass+7wozPUzMKZqXKJYvPWVSW3NR4NTcJEBq8tFywMGZPqBWIaPrw4KmR/rd8rw27mgcCbg1RpKgvGk6xnV45WmERomqlDAKz9AMTo3GL/kUzRWC67A1HoHT6X5vBqRTjRlER69m77LEjPhvP3nMc0b2gDwyYuBwjEXSKSp/8fWd/mA97uD/CNfBCc/AJm2c0Kma9svdl5b269NMcUkjyuWEYLbpwxcTDXIYGhX1XJTqwWnKjAiLOjdJ2+eA39fCvj3Zz0aRUhft/96H0nNPnZCLu9MW8g5BTvzxH4122aJY5/Y/ANlQ3D8aQfRHcJufmyWTIMOAQKBgQD7xuN+k3jrL1N5p0pDO0EFiXDDuhIKnKt2sIMHWuDs4aOgRsbtcrDEuYk9el2j9pyjwrkdQIDkqjL9FXwEjxvHaXVa8eqP7g+3syr95WxCXdeiAgEQIm2FQvYL5Rdzfj33ifw0hqa46yDhPFAO2SPC3CADmvZ6CpimsLkarE/EZQKBgQCahj0w4CxgaHimwLBUBdJIDsYfGlgFBarQry0j8bDsFBst4dc/Ot9EB5frr921Q5IgAqBC43/jNxrHui1nkUKJ0VJTiNLMEXsvndgcHPSgorZ4lUku9zgZ9OljhNQD9s+E6MfJ+9CWqCFl9t0+nn9UchaU4V+8i8FEeY25rU0mhQKBgE7OTOyUejea45TjYOI0TMDP6STKO9Vofl6zFwAZWOesJIwJO0CdMmkQ7bz5bQ/iI9s6GrjmNLHd+AGxVNUUegxrnNjveYy9ZdwIz38S7VTEjLbfy7diH0ej0uGcPj/fFsRBQ1ipgMvGhM8bEq/jFUdroPWf7l/6qxcZn4aSwpDlAoGAX+DbJvBxmIA6HH2C6x+RklRYagQWiUcy7blD8QGOHW18T8PJotoMnlF32i2NC2OZz3LRra8rMviGDVdfxNtExe6zflFvOl++Z5Uw+oCc6O8M+VTny9RpYvGrvqw0QSFrMbSeAp3UlyZLUtESBkCiEOuZR1dv57VvfeVOIt9892ECgYBj46ko/R2oy49/V/gggDv+A5kf1jRkF+eVVJirbp70Wc2ycqfcRmwaOEjMYNf/GF4+e+rSF0uO8SVWFC6MWj8epmPzQ+lMf0gazF1DdxWN0/a1zh8GRB6wDGYOrl8kRvh/SmMUfz15fTt3asH9EyHpuOU/vtauqmEEryZY5/2HQA==";
+//        if (!StringUtils.hasText(paySignProperties.getMerchantPrivateKey())) {
+//            return;
+//        }
+//        merchantPrivateKey = paySignProperties.getMerchantPrivateKey();
+        if (!StringUtils.hasText(merchantPrivateKey)) {
+            log.error("pay.sign.merchant-private-key is blank, 无法完成支付网关签名");
+            return;
+        }
+        String signSource = buildGatewayBizSignSource(bizDataJson);
+        log.info("pay gateway sign source charset=UTF-8, signSource={}", signSource);
+        request.setSign(RSASignUtils.sign(merchantPrivateKey, signSource));
+    }
+
+    private String buildGatewayBizSignSource(String bizDataJson) {
+        Map<String, Object> params = JSON.parseObject(bizDataJson, TreeMap.class);
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, Object> entry : params.entrySet()) {
+            if (entry.getValue() == null || !StringUtils.hasText(String.valueOf(entry.getValue()))) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append("&");
+            }
+            sb.append(entry.getKey()).append("=").append(gatewaySignValue(entry.getValue()));
+        }
+        return sb.toString();
+    }
+
+    private String gatewaySignValue(Object value) {
+        if (value instanceof Map || value instanceof List) {
+            return JSON.toJSONString(value, JSONWriter.Feature.MapSortField);
+        }
+        return String.valueOf(value);
+    }
+
+    /**
+     * 使用 RSA 私钥对明文进行签名，结果使用 Base64 输出。
+     */
+    private String signWithRsa(String data, String privateKey) {
+        try {
+            byte[] keyBytes = Base64.getDecoder().decode(privateKey);
+            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            PrivateKey key = keyFactory.generatePrivate(keySpec);
+            Signature signature = Signature.getInstance(SIGN_ALGORITHM);
+            signature.initSign(key);
+            signature.update(data.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(signature.sign());
+        } catch (Exception e) {
+            log.error("支付签约请求签名失败", e);
+            return "";
+        }
+    }
+
+    /**
+     * 支付平台未接通时的本地兜底签约参数拼装。
+     * 当前仅对支付宝、微信提供简单模拟，便于前端联调。
+     */
+    private String buildLocalSdkInfo(RequestSignInfoReqDTO request, String paymentVendor) {
+        if ("03".equals(paymentVendor)) {
+            String signParams = "app_id=" + encode(paySignProperties.getAlipayMerchantAppId()) + "&third_user_id=" + encode(request.getThirdUserId()) + "&display_account=" + encode(request.getDisplayAccount()) + "&request_sign_seq=" + encode(request.getRequestSignSeq()) + "&return_url=" + encode(request.getReturnUrl());
+            if (StringUtils.hasText(request.getAuthCode())) {
+                signParams = signParams + "&auth_code=" + encode(request.getAuthCode());
+            }
+            return "alipays://platformapi/startapp?appId=" + encode(paySignProperties.getAlipayAppId()) + "&appClearTop=false&startMultApp=YES&sign_params=" + encode(signParams);
+        }
+        if ("04".equals(paymentVendor)) {
+            String sdkInfo = paySignProperties.getWechatEntrustUrl() + "?appid=" + encode(paySignProperties.getWechatAppId()) + "&contract_code=" + encode(request.getRequestSignSeq()) + "&contract_display_account=" + encode(request.getDisplayAccount()) + "&notify_url=" + encode(request.getReturnUrl()) + "&request_serial=" + encode(request.getRequestSignSeq()) + "&third_user_id=" + encode(request.getThirdUserId());
+            if (StringUtils.hasText(request.getAuthCode())) {
+                sdkInfo = sdkInfo + "&auth_code=" + encode(request.getAuthCode());
+            }
+            return sdkInfo;
+        }
+        return "";
+    }
+
+    /**
+     * 从请求对象中提取 displayAccount，用于记录到流水表。
+     */
+    private String extractDisplayAccount(Object request) {
+        if (request == null) {
+            return null;
+        }
+        if (request instanceof RequestSignInfoReqDTO dto) {
+            return dto.getDisplayAccount();
+        }
+        if (request instanceof ReceiveSignResultReqDTO dto) {
+            return dto.getDisplayAccount();
+        }
+        return null;
+    }
+
+    /**
+     * 记录接口流水日志，保存请求/响应快照。
+     * 使用 APP_PAY_SIGN_REQUEST 流水表，每次 INSERT 新记录。
+     */
+    private void writeLog(String operationType, String thirdUserId, String requestSignSeq, String paymentVendor, Object request, Object response) {
+        if (!StringUtils.hasText(requestSignSeq)) {
+            return;
+        }
+        try {
+            PaySignRequest logRecord = new PaySignRequest();
+            logRecord.setRequestSignSeq(requestSignSeq);
+            logRecord.setThirdUserId(thirdUserId);
+            logRecord.setPaymentVendor(paymentVendor);
+            logRecord.setDisplayAccount(extractDisplayAccount(request));
+            logRecord.setOperationType(convertOperationType(operationType));
+            logRecord.setRequestBody(request == null ? null : JSON.toJSONString(request));
+            logRecord.setResponseBody(response == null ? null : JSON.toJSONString(response));
+            if (response instanceof BaseRespDTO baseRespDTO) {
+                logRecord.setResultCode(baseRespDTO.getRetCode());
+                logRecord.setResultMsg(baseRespDTO.getRetMsg());
+            }
+            logRecord.setCreateTms(LocalDateTime.now());
+            paySignRequestMapper.insert(logRecord);
+        } catch (Exception e) {
+            log.error("记录流水日志异常, requestSignSeq={}, 不影响主事务", requestSignSeq, e);
+        }
+    }
+
+    /**
+     * 记录接口流水日志（带签约状态）。
+     * 使用 APP_PAY_SIGN_REQUEST 流水表，每次 INSERT 新记录。
+     */
+    private void writeLog(String operationType, String thirdUserId, String requestSignSeq, String paymentVendor, Object request, Object response, String signStatus) {
+        if (!StringUtils.hasText(requestSignSeq)) {
+            return;
+        }
+        try {
+            PaySignRequest logRecord = new PaySignRequest();
+            logRecord.setRequestSignSeq(requestSignSeq);
+            logRecord.setThirdUserId(thirdUserId);
+            logRecord.setPaymentVendor(paymentVendor);
+            logRecord.setDisplayAccount(extractDisplayAccount(request));
+            logRecord.setOperationType(convertOperationType(operationType));
+            logRecord.setRequestBody(request == null ? null : JSON.toJSONString(request));
+            logRecord.setResponseBody(response == null ? null : JSON.toJSONString(response));
+            if (response instanceof BaseRespDTO baseRespDTO) {
+                logRecord.setResultCode(baseRespDTO.getRetCode());
+                logRecord.setResultMsg(baseRespDTO.getRetMsg());
+            }
+            logRecord.setSignStatus(signStatus);
+            logRecord.setCreateTms(LocalDateTime.now());
+            paySignRequestMapper.insert(logRecord);
+        } catch (Exception e) {
+            log.error("记录流水日志异常, requestSignSeq={}, 不影响主事务", requestSignSeq, e);
+        }
+    }
+}

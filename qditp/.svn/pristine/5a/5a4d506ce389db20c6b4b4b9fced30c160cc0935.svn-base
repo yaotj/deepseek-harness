@@ -1,0 +1,58 @@
+package com.chinasofti.huateng.account.service;
+
+import com.chinasofti.huateng.model.app.RequestAddPayChannelReqDTO;
+import com.chinasofti.huateng.model.app.RequestAddPayChannelResult;
+import com.chinasofti.huateng.model.app.RequestApplicationReqDTO;
+import com.chinasofti.huateng.model.app.RequestApplicationResult;
+import com.chinasofti.huateng.model.app.RequestRemovePayChannelReqDTO;
+import com.chinasofti.huateng.model.app.RequestRemovePayChannelResult;
+import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelReqDTO;
+import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelResult;
+import com.chinasofti.huateng.model.app.QueryUserInfoReqDTO;
+import com.chinasofti.huateng.model.app.QueryUserInfoResult;
+
+/**
+ * 账户开户与支付通道管理服务接口。
+ */
+public interface AccountApplicationService {
+
+    /**
+     * IF8A-01 请求开户。
+     *
+     * @param request 请求开户参数
+     * @return 请求开户结果
+     */
+    RequestApplicationResult requestApplication(RequestApplicationReqDTO request);
+
+    /**
+     * IF8A-23 请求添加支付通道。
+     *
+     * @param request 请求添加支付通道参数
+     * @return 请求添加支付通道结果
+     */
+    RequestAddPayChannelResult requestAddPayChannel(RequestAddPayChannelReqDTO request);
+
+    /**
+     * IF8A-24 请求设置默认支付通道。
+     *
+     * @param request 请求设置默认支付通道参数
+     * @return 请求设置默认支付通道结果
+     */
+    RequestSetDefaultPayChannelResult requestSetDefaultPayChannel(RequestSetDefaultPayChannelReqDTO request);
+
+    /**
+     * 请求删除支付通道。
+     *
+     * @param request 请求删除支付通道参数
+     * @return 请求删除支付通道结果
+     */
+    RequestRemovePayChannelResult requestRemovePayChannel(RequestRemovePayChannelReqDTO request);
+
+    /**
+     * 查询用户信息。
+     *
+     * @param request 查询用户信息参数
+     * @return 查询用户信息结果
+     */
+    QueryUserInfoResult queryUserInfo(QueryUserInfoReqDTO request);
+}

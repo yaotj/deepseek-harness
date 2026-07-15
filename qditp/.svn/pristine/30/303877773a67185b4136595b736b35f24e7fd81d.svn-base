@@ -1,0 +1,210 @@
+package com.chinasofti.huateng.gatetxnpay.service.impl;
+
+import com.alibaba.fastjson2.JSON;
+import com.chinasofti.huateng.gatetxnpay.entity.GateTxnPay;
+import com.chinasofti.huateng.gatetxnpay.mapper.GateTxnPayMapper;
+import com.chinasofti.huateng.gatetxnpay.service.GateTxnPayService;
+import com.chinasofti.huateng.model.app.GatePayRequestDTO;
+import com.chinasofti.huateng.model.app.RequestPayResult;
+import com.chinasofti.huateng.model.pay.GateTxnPayReqDTO;
+import com.chinasofti.huateng.model.pay.GateTxnPayRespDTO;
+import com.chinasofti.huateng.rpc.paySign.PaySignClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.math.BigInteger;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+@Service
+public class GateTxnPayServiceImpl implements GateTxnPayService {
+    private static final Logger log = LoggerFactory.getLogger(GateTxnPayServiceImpl.class);
+    private static final DateTimeFormatter ORDER_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+
+    @Autowired
+    private GateTxnPayMapper gateTxnPayMapper;
+    @Autowired
+    private PaySignClient paySignClient;
+
+    @Value("${gate.pay.scene:AGM_GATE}")
+    private String payScene;
+    @Value("${gate.pay.industry-type:1}")
+    private String industryType;
+    @Value("${gate.pay.subject:地铁乘车扣费}")
+    private String subject;
+    @Value("${gate.pay.body:地铁乘车费用}")
+    private String body;
+    @Value("${gate.pay.order-timeout-seconds:60}")
+    private Long orderTimeoutSeconds;
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public GateTxnPayRespDTO requestPay(GateTxnPayReqDTO request) {
+        GateTxnPayRespDTO response = new GateTxnPayRespDTO();
+        String validMsg = validate(request);
+        if (validMsg != null) {
+            response.setRetCode("8001");
+            response.setRetMsg(validMsg);
+            return response;
+        }
+
+        GateTxnPay order = buildOrder(request);
+        GateTxnPay existing = gateTxnPayMapper.selectByBizKey(order.getCardId(), order.getTrxType(), order.getOutTime(),
+                order.getTicketTransSeq(), order.getDeviceId(), order.getTxnDate());
+        if (existing != null) {
+            order = existing;
+            log.info("过闸扣费订单已存在, orderNo={}, cardId={}, outTime={}", order.getOrderNo(), order.getCardId(), order.getOutTime());
+        } else {
+            try {
+                gateTxnPayMapper.insert(order);
+                log.info("过闸扣费订单入库成功, orderNo={}, order={}", order.getOrderNo(), JSON.toJSONString(order));
+            } catch (DuplicateKeyException e) {
+                order = gateTxnPayMapper.selectByBizKey(order.getCardId(), order.getTrxType(), order.getOutTime(),
+                        order.getTicketTransSeq(), order.getDeviceId(), order.getTxnDate());
+                log.info("过闸扣费订单重复入库, 使用已存在订单, orderNo={}", order == null ? null : order.getOrderNo());
+            }
+        }
+
+        RequestPayResult payResult = requestPaySign(order);
+        String nextStatus = isSuccess(payResult) ? "PROCESSING" : "RETRY";
+        gateTxnPayMapper.updateStatus(order.getOrderNo(), order.getTxnDate(), nextStatus, payResult == null ? "调用pay-sign失败" : payResult.getRetMsg());
+
+        response.setRetCode("0000");
+        response.setRetMsg("成功");
+        response.setOrderNo(order.getOrderNo());
+        response.setPayStatus(nextStatus);
+        return response;
+    }
+
+    /**
+     * 只处理出站类交易扣费，进站交易只更新票卡状态，不进入扣款链路。
+     */
+    private String validate(GateTxnPayReqDTO request) {
+        if (request == null) {
+            return "请求报文不能为空";
+        }
+        if (!"02".equals(request.getTrxType()) && !"03".equals(request.getTrxType())) {
+            return "非出站扣费交易";
+        }
+        if (!StringUtils.hasText(request.getCardId())) {
+            return "cardId不能为空";
+        }
+        if (!StringUtils.hasText(request.getHandleDateTime()) || request.getHandleDateTime().length() < 8) {
+            return "handleDateTime不能为空且长度不能小于8";
+        }
+        return null;
+    }
+
+    /**
+     * 根据闸机交易报文生成本地过闸扣费订单。
+     *
+     * <p>itpUserId 入库前转换为十进制 thirdUserId；进出站信息保持简单字段，
+     * 后续查询或退款都通过 orderNo 关联支付明细。</p>
+     */
+    private GateTxnPay buildOrder(GateTxnPayReqDTO request) {
+        GateTxnPay order = new GateTxnPay();
+        order.setOrderNo(buildOrderNo(request));
+        order.setDebitStatus("INIT");
+        order.setThirdUserId(convertHexUserIdToDecimal(request.getItpUserId()));
+        order.setCardId(request.getCardId());
+        order.setCardType(request.getCardType());
+        order.setDeviceId(request.getDeviceId());
+        order.setTrxType(request.getTrxType());
+        order.setTicketTransSeq(request.getTicketTransSeq());
+        order.setInStation(request.getLastHandleStationCode());
+        order.setInTime(request.getLastHandleDateTime());
+        order.setOutStation(request.getHandleStationCode());
+        order.setOutTime(request.getHandleDateTime());
+        order.setTxnDate(request.getHandleDateTime().substring(0, 8));
+        order.setTrxAmount(parseAmount(request.getTrxAmount()));
+        order.setOvertimeAmount(parseAmount(request.getOvertimeAmount()));
+        order.setTotalAmount(order.getTrxAmount() + order.getOvertimeAmount());
+        order.setIssueChannelCode(request.getIssueChannelCode());
+        order.setSignChannelCode(request.getSignChannelCode());
+        order.setCreateTime(LocalDateTime.now());
+        order.setUpdateTime(LocalDateTime.now());
+        return order;
+    }
+
+    /**
+     * 调用 pay-sign 发起免密扣款。
+     *
+     * <p>这里不决定签约渠道和签约流水号，pay-sign 会根据 thirdUserId/cardId/cardType
+     * 去 account-server 查询 USER_ITP_REG_INFO 中的默认支付通道和 REQ_CONTRACT_NO。</p>
+     */
+    private RequestPayResult requestPaySign(GateTxnPay order) {
+        GatePayRequestDTO request = new GatePayRequestDTO();
+        request.setOrderNo(order.getOrderNo());
+        request.setScene(payScene);
+        request.setAmount(order.getTotalAmount());
+        request.setIndustryType(industryType);
+        request.setSubject(subject);
+        request.setBody(body);
+        request.setThirdUserId(order.getThirdUserId());
+        request.setCardId(order.getCardId());
+        request.setCardType(order.getCardType());
+        request.setOrderTimeOut(orderTimeoutSeconds);
+        request.setIndustryDetail(buildIndustryDetail(order));
+        log.info("调用pay-sign请求支付, 入参={}", JSON.toJSONString(request));
+        RequestPayResult response = paySignClient.requestPay(request);
+        log.info("调用pay-sign请求支付, 返回={}", JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
+     * 行业明细先存完整订单快照，便于支付中心侧排查交易来源。
+     */
+    private String buildIndustryDetail(GateTxnPay order) {
+        return JSON.toJSONString(order);
+    }
+
+    private boolean isSuccess(RequestPayResult result) {
+        return result != null && "0000".equals(result.getRetCode());
+    }
+
+    private String buildOrderNo(GateTxnPayReqDTO request) {
+        String time = LocalDateTime.now().format(ORDER_TIME_FORMATTER);
+        String suffix = request.getCardId();
+        if (suffix != null && suffix.length() > 6) {
+            suffix = suffix.substring(suffix.length() - 6);
+        }
+        return "GT" + time + (suffix == null ? "" : suffix);
+    }
+
+    /**
+     * 金额字段按分保存，空值按 0 处理。
+     */
+    private int parseAmount(String value) {
+        if (!StringUtils.hasText(value)) {
+            return 0;
+        }
+        return Integer.parseInt(value.trim());
+    }
+
+    /**
+     * 闸机报文里的 itpUserId 示例为十六进制字符串，入库统一转成 8 位十进制 thirdUserId。
+     */
+    private String convertHexUserIdToDecimal(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
+        try {
+            return leftPadToEight(new BigInteger(value.trim(), 16).toString(10));
+        } catch (Exception e) {
+            return value;
+        }
+    }
+
+    private String leftPadToEight(String value) {
+        if (!StringUtils.hasText(value) || value.length() >= 8) {
+            return value;
+        }
+        return "0".repeat(8 - value.length()) + value;
+    }
+}

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.paysign.mapper.PaySignLogMapper">
+    <update id="upsert" parameterType="com.chinasofti.huateng.paysign.entity.PaySignLog">
+        MERGE INTO APP_PAY_SIGN_LOG t
+        USING (
+            SELECT
+                #{requestSignSeq,jdbcType=VARCHAR} AS REQUEST_SIGN_SEQ,
+                #{thirdUserId,jdbcType=VARCHAR} AS THIRD_USER_ID,
+                #{paymentVendor,jdbcType=VARCHAR} AS PAYMENT_VENDOR,
+                #{operationType,jdbcType=VARCHAR} AS OPERATION_TYPE,
+                #{requestBody,jdbcType=VARCHAR} AS REQUEST_BODY,
+                #{responseBody,jdbcType=VARCHAR} AS RESPONSE_BODY,
+                #{resultCode,jdbcType=VARCHAR} AS RESULT_CODE,
+                #{resultMsg,jdbcType=VARCHAR} AS RESULT_MSG,
+                #{createTms,jdbcType=TIMESTAMP} AS CREATE_TMS
+            FROM DUAL
+        ) s
+        ON (t.REQUEST_SIGN_SEQ = s.REQUEST_SIGN_SEQ)
+        WHEN MATCHED THEN
+            UPDATE SET
+                t.THIRD_USER_ID = s.THIRD_USER_ID,
+                t.PAYMENT_VENDOR = s.PAYMENT_VENDOR,
+                t.OPERATION_TYPE = s.OPERATION_TYPE,
+                t.REQUEST_BODY = s.REQUEST_BODY,
+                t.RESPONSE_BODY = s.RESPONSE_BODY,
+                t.RESULT_CODE = s.RESULT_CODE,
+                t.RESULT_MSG = s.RESULT_MSG,
+                t.CREATE_TMS = s.CREATE_TMS
+        WHEN NOT MATCHED THEN
+            INSERT (
+                REQUEST_SIGN_SEQ, THIRD_USER_ID, PAYMENT_VENDOR, OPERATION_TYPE,
+                REQUEST_BODY, RESPONSE_BODY, RESULT_CODE, RESULT_MSG, CREATE_TMS
+            )
+            VALUES (
+                s.REQUEST_SIGN_SEQ, s.THIRD_USER_ID, s.PAYMENT_VENDOR, s.OPERATION_TYPE,
+                s.REQUEST_BODY, s.RESPONSE_BODY, s.RESULT_CODE, s.RESULT_MSG, s.CREATE_TMS
+            )
+    </update>
+</mapper>

@@ -1,0 +1,215 @@
+package com.chinasofti.huateng.ticket.service.impl;
+
+import com.alibaba.fastjson.JSON;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripPushTransDataReqDTO;
+import com.chinasofti.huateng.model.app.AppIndustryDataNotifyReqDTO;
+import com.chinasofti.huateng.model.app.IndustryCardDataBuildReqDTO;
+import com.chinasofti.huateng.model.app.IndustryCardDataBuildRespDTO;
+import com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO;
+import com.chinasofti.huateng.rpc.industry.IndustryDataClient;
+import com.chinasofti.huateng.ticket.entity.QRCodeStatus;
+import com.chinasofti.huateng.ticket.service.AppNotifyService;
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * APP 通知服务默认实现。
+ */
+@Service
+public class AppNotifyServiceImpl implements AppNotifyService {
+    private static final Logger log = LoggerFactory.getLogger(AppNotifyServiceImpl.class);
+
+    private final Executor appNotifyExecutor;
+    private final IndustryDataClient industryDataClient;
+
+    @Value("${app.notify.industry-data-url:http://127.0.0.1:8080/ci/app/receiveCardDataFromItp}")
+    private String industryDataNotifyUrl;
+
+    @Value("${app.notify.industry-data-enabled:true}")
+    private boolean industryDataNotifyEnabled;
+
+    @Value("${app.notify.alipay-industry-data-url:https://dtcustomer.bestonepay.com/ngopenplatform/notify/receiveCardDataFromItp}")
+    private String alipayIndustryDataNotifyUrl;
+
+    @Value("${app.notify.alipay-push-trans-data-url:https://dtcustomer.bestonepay.com/ngopenplatform/notify/pushTransData}")
+    private String alipayPushTransDataUrl;
+
+    private final OkHttpClient httpClient = new OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .build();
+
+    public AppNotifyServiceImpl(@Qualifier("appNotifyExecutor") Executor appNotifyExecutor,
+                                IndustryDataClient industryDataClient) {
+        this.appNotifyExecutor = appNotifyExecutor;
+        this.industryDataClient = industryDataClient;
+    }
+
+    @Override
+    public void notifyVerifyResult(NotifyVerifyResultReqDTO request, QRCodeStatus qrCodeStatus) {
+        appNotifyExecutor.execute(() -> {
+            try {
+                if (!industryDataNotifyEnabled) {
+                    log.info("APP行业数据推送已关闭, cardId={}, ticketTransSeq={}",
+                            request.getCardId(), request.getTicketTransSeq());
+                    return;
+                }
+                log.info("异步推送 APP 行业数据开始, request={}, qrCodeStatus={}",
+                        JSON.toJSONString(request), JSON.toJSONString(qrCodeStatus));
+
+                IndustryCardDataBuildReqDTO cardDataRequest = buildCardDataRequest(request, qrCodeStatus);
+                log.info("调用 industry-data-server 生成卡数据, request={}", JSON.toJSONString(cardDataRequest));
+                IndustryCardDataBuildRespDTO cardDataResp = industryDataClient.buildCardData(cardDataRequest);
+                log.info("调用 industry-data-server 生成卡数据完成, response={}", JSON.toJSONString(cardDataResp));
+                if (cardDataResp == null || !"0000".equals(cardDataResp.getRetCode())) {
+                    log.warn("异步推送 APP 行业数据失败, 生成卡数据失败, cardId={}, retCode={}, retMsg={}",
+                            request.getCardId(),
+                            cardDataResp == null ? null : cardDataResp.getRetCode(),
+                            cardDataResp == null ? null : cardDataResp.getRetMsg());
+                    return;
+                }
+
+                AppIndustryDataNotifyReqDTO notifyRequest = buildNotifyRequest(request, cardDataResp.getCardData());
+                String notifyUrl = "07".equals(request.getIssueChannelCode()) ? alipayIndustryDataNotifyUrl : industryDataNotifyUrl;
+                doNotifyIndustryData(notifyRequest, notifyUrl);
+            } catch (Exception e) {
+                log.error("异步推送 APP 行业数据异常, request={}", JSON.toJSONString(request), e);
+            }
+        });
+    }
+
+    private IndustryCardDataBuildReqDTO buildCardDataRequest(NotifyVerifyResultReqDTO request, QRCodeStatus qrCodeStatus) {
+        IndustryCardDataBuildReqDTO cardDataRequest = new IndustryCardDataBuildReqDTO();
+        cardDataRequest.setThirdUserId(convertHexUserIdToDecimal(request.getItpUserId()));
+        cardDataRequest.setCardId(request.getCardId());
+        cardDataRequest.setCardType(request.getCardType());
+        cardDataRequest.setTicketStatus(qrCodeStatus.getCodeStatus());
+        cardDataRequest.setLastTxnStation(qrCodeStatus.getLastTxnStation());
+        cardDataRequest.setLastTxnTime(qrCodeStatus.getLastTxnTime());
+        cardDataRequest.setGateInStation(qrCodeStatus.getGateInStation());
+        cardDataRequest.setGateInTime(qrCodeStatus.getGateInTime());
+        cardDataRequest.setTxnSeq(qrCodeStatus.getTxnSeq());
+        cardDataRequest.setIssueChannelCode(request.getIssueChannelCode());
+        cardDataRequest.setSignChannelCode(request.getSignChannelCode());
+        return cardDataRequest;
+    }
+
+    private AppIndustryDataNotifyReqDTO buildNotifyRequest(NotifyVerifyResultReqDTO request, String cardData) {
+        AppIndustryDataNotifyReqDTO notifyRequest = new AppIndustryDataNotifyReqDTO();
+        notifyRequest.setThirdUserId(convertHexUserIdToDecimal(request.getItpUserId()));
+        notifyRequest.setCardId(request.getCardId());
+        notifyRequest.setCardType(request.getCardType());
+        notifyRequest.setCardData(cardData);
+        notifyRequest.setSignType("00");
+        notifyRequest.setSign("");
+        return notifyRequest;
+    }
+
+    private void doNotifyIndustryData(AppIndustryDataNotifyReqDTO notifyRequest, String targetUrl) {
+        RequestBody requestBody = new MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("bizData", JSON.toJSONString(notifyRequest))
+                .build();
+
+        Request httpRequest = new Request.Builder()
+                .url(targetUrl)
+                .post(requestBody)
+                .build();
+
+        log.info("调用行业数据推送, url={}, request={}", targetUrl, JSON.toJSONString(notifyRequest));
+        try (Response response = httpClient.newCall(httpRequest).execute()) {
+            String responseBody = response.body() == null ? null : response.body().string();
+            log.info("调用行业数据推送完成, httpCode={}, response={}", response.code(), responseBody);
+        } catch (Exception e) {
+            log.error("调用行业数据推送异常, request={}", JSON.toJSONString(notifyRequest), e);
+        }
+    }
+
+    private String convertHexUserIdToDecimal(String itpUserId) {
+        if (itpUserId == null || itpUserId.trim().length() == 0) {
+            return itpUserId;
+        }
+        try {
+            return new java.math.BigInteger(itpUserId.trim(), 16).toString(10);
+        } catch (NumberFormatException e) {
+            log.warn("itpUserId不是合法16进制字符串，按原值推送APP, itpUserId={}", itpUserId);
+            return itpUserId;
+        }
+    }
+
+    @Override
+    public void pushAlipayTripData(NotifyVerifyResultReqDTO request, QRCodeStatus qrCodeStatus) {
+        try {
+            AlipayTripPushTransDataReqDTO pushRequest = buildAlipayTripPushRequest(request, qrCodeStatus);
+            log.info("推送行程数据给支付宝, request={}", JSON.toJSONString(pushRequest));
+            doNotifyAlipayTripData(pushRequest);
+        } catch (Exception e) {
+            log.error("推送行程数据给支付宝异常, request={}", JSON.toJSONString(request), e);
+        }
+    }
+
+    private AlipayTripPushTransDataReqDTO buildAlipayTripPushRequest(NotifyVerifyResultReqDTO request, QRCodeStatus qrCodeStatus) {
+        AlipayTripPushTransDataReqDTO pushRequest = new AlipayTripPushTransDataReqDTO();
+        pushRequest.setThirdUserId(convertHexUserIdToDecimal(request.getItpUserId()));
+        pushRequest.setTrxType(request.getTrxType());
+        pushRequest.setTicketStatus(qrCodeStatus.getCodeStatus());
+        pushRequest.setSignChannelCode(request.getSignChannelCode());
+        pushRequest.setCardId(request.getCardId());
+        pushRequest.setCardType(request.getCardType());
+        pushRequest.setHandleDateTime(request.getHandleDateTime());
+        pushRequest.setHandleStationCode(request.getHandleStationCode());
+        pushRequest.setTrxAmount(request.getTrxAmount());
+        pushRequest.setOvertimeAmount(request.getOvertimeAmount());
+        pushRequest.setLastTicketStatus(request.getLastTicketStatus());
+        pushRequest.setLastHandleStationCode(request.getLastHandleStationCode());
+        pushRequest.setLastHandleDateTime(request.getLastHandleDateTime());
+        pushRequest.setTikcetTransSeq(request.getTicketTransSeq());
+        pushRequest.setDeviceId(request.getDeviceId());
+        pushRequest.setChannelType("00");
+        pushRequest.setCompanionFlag("C");
+        pushRequest.setCountingFlag("0");
+        pushRequest.setTransData(buildTransData(request, qrCodeStatus));
+        return pushRequest;
+    }
+
+    private String buildTransData(NotifyVerifyResultReqDTO request, QRCodeStatus qrCodeStatus) {
+        com.alibaba.fastjson.JSONObject transData = new com.alibaba.fastjson.JSONObject();
+        transData.put("ticketStatus", qrCodeStatus.getCodeStatus());
+        transData.put("gateInTime", qrCodeStatus.getGateInTime());
+        transData.put("gateInStation", qrCodeStatus.getGateInStation());
+        transData.put("lastTxnTime", qrCodeStatus.getLastTxnTime());
+        transData.put("lastTxnStation", qrCodeStatus.getLastTxnStation());
+        transData.put("trxAmount", request.getTrxAmount());
+        transData.put("overtimeAmount", request.getOvertimeAmount());
+        return transData.toJSONString();
+    }
+
+    private void doNotifyAlipayTripData(AlipayTripPushTransDataReqDTO pushRequest) {
+        RequestBody requestBody = RequestBody.create(JSON.toJSONString(pushRequest), MediaType.get("application/json; charset=utf-8"));
+
+        Request httpRequest = new Request.Builder()
+                .url(alipayPushTransDataUrl)
+                .post(requestBody)
+                .build();
+
+        log.info("调用支付宝行程数据推送, url={}, request={}", alipayPushTransDataUrl, JSON.toJSONString(pushRequest));
+        try (Response response = httpClient.newCall(httpRequest).execute()) {
+            String responseBody = response.body() != null ? response.body().string() : "";
+            log.info("调用支付宝行程数据推送完成, httpCode={}, response={}", response.code(), responseBody);
+        } catch (Exception e) {
+            log.error("调用支付宝行程数据推送异常, request={}", JSON.toJSONString(pushRequest), e);
+        }
+    }
+}

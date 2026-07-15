@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.acc.es.server.mapper.TblTktEsAccountMapper">
+  <resultMap id="BaseResultMap" type="com.chinasofti.huateng.acc.es.server.model.TblTktEsAccount">
+    <!--@mbg.generated-->
+    <id column="USERNAME" jdbcType="VARCHAR" property="username" />
+    <result column="PASSWORD" jdbcType="VARCHAR" property="password" />
+    <result column="USER_TYPE" jdbcType="DECIMAL" property="userType" />
+    <result column="REMARK" jdbcType="VARCHAR" property="remark" />
+    <result column="ADD_DATE" jdbcType="VARCHAR" property="addDate" />
+    <result column="UPDATE_DATE" jdbcType="VARCHAR" property="updateDate" />
+    <result column="LAST_UPDATE_ID" jdbcType="VARCHAR" property="lastUpdateId" />
+  </resultMap>
+  <sql id="Base_Column_List">
+    <!--@mbg.generated-->
+    USERNAME, "PASSWORD", USER_TYPE, REMARK,ADD_DATE,UPDATE_DATE,LAST_UPDATE_ID
+  </sql>
+  <select id="selectByPrimaryKey" parameterType="java.lang.String" resultMap="BaseResultMap">
+    <!--@mbg.generated-->
+    select 
+    <include refid="Base_Column_List" />
+    from TBL_TKT_ES_ACCOUNT
+    where USERNAME = #{username,jdbcType=VARCHAR}
+  </select>
+  <select id="getEsUserTypeByUsernameAndPassword" resultType="java.lang.Integer">
+    SELECT USER_TYPE FROM TBL_TKT_ES_ACCOUNT WHERE USERNAME = #{username,jdbcType=VARCHAR} and PASSWORD = #{password,jdbcType=VARCHAR}
+  </select>
+    <select id="queryAccountByPage"
+            parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAccount"
+            resultMap="BaseResultMap">
+      SELECT
+      <include refid="Base_Column_List"/>
+      FROM
+      TBL_TKT_ES_ACCOUNT
+      <trim prefix="WHERE" prefixOverrides="AND |OR ">
+        <if test="username != null and username !=''">
+          AND USERNAME = #{username,jdbcType=VARCHAR}
+        </if>
+        <if test="userType != null">
+          AND USER_TYPE = #{userType,jdbcType=DECIMAL}
+        </if>
+      </trim>
+      ORDER BY USERNAME
+
+    </select>
+    <delete id="deleteByPrimaryKey" parameterType="java.lang.String">
+    <!--@mbg.generated-->
+    delete from TBL_TKT_ES_ACCOUNT
+    where USERNAME = #{username,jdbcType=VARCHAR}
+  </delete>
+  <insert id="insert" keyColumn="USERNAME" keyProperty="username" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAccount" useGeneratedKeys="true">
+    <!--@mbg.generated-->
+    insert into TBL_TKT_ES_ACCOUNT (USERNAME,"PASSWORD", USER_TYPE, REMARK,ADD_DATE,UPDATE_DATE,LAST_UPDATE_ID
+      )
+    values (#{username,jdbcType=VARCHAR},#{password,jdbcType=VARCHAR}, #{userType,jdbcType=DECIMAL}, #{remark,jdbcType=VARCHAR},
+    #{addDate,jdbcType=VARCHAR},#{updateDate,jdbcType=VARCHAR},#{lastUpdateId,jdbcType=VARCHAR}
+      )
+  </insert>
+  <insert id="insertSelective" keyColumn="USERNAME" keyProperty="username" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAccount" useGeneratedKeys="true">
+    <!--@mbg.generated-->
+    insert into TBL_TKT_ES_ACCOUNT
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+        USERNAME,
+      <if test="password != null">
+        "PASSWORD",
+      </if>
+      <if test="userType != null">
+        USER_TYPE,
+      </if>
+      <if test="remark != null">
+        REMARK,
+      </if>
+      <if test="addDate != null">
+        ADD_DATE,
+      </if>
+      <if test="updateDate != null">
+        UPDATE_DATE,
+      </if>
+      <if test="lastUpdateId != null">
+        LAST_UPDATE_ID,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+        #{username,jdbcType=VARCHAR},
+      <if test="password != null">
+        #{password,jdbcType=VARCHAR},
+      </if>
+      <if test="userType != null">
+        #{userType,jdbcType=DECIMAL},
+      </if>
+      <if test="remark != null">
+        #{remark,jdbcType=VARCHAR},
+      </if>
+      <if test="addDate != null">
+        #{addDate,jdbcType=VARCHAR},
+      </if>
+      <if test="updateDate != null">
+        #{updateDate,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdateId != null">
+        #{lastUpdateId,jdbcType=VARCHAR},
+      </if>
+    </trim>
+  </insert>
+  <update id="updateByPrimaryKeySelective" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAccount">
+    <!--@mbg.generated-->
+    update TBL_TKT_ES_ACCOUNT
+    <set>
+      <if test="password != null">
+        "PASSWORD" = #{password,jdbcType=VARCHAR},
+      </if>
+      <if test="userType != null">
+        USER_TYPE = #{userType,jdbcType=DECIMAL},
+      </if>
+      <if test="remark != null">
+        REMARK = #{remark,jdbcType=VARCHAR},
+      </if>
+      <if test="addDate != null">
+        ADD_DATE = #{addDate,jdbcType=VARCHAR},
+      </if>
+      <if test="updateDate != null">
+        UPDATE_DATE = #{updateDate,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdateId != null">
+        LAST_UPDATE_ID = #{lastUpdateId,jdbcType=VARCHAR},
+      </if>
+    </set>
+    where USERNAME = #{username,jdbcType=VARCHAR}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAccount">
+    <!--@mbg.generated-->
+    update TBL_TKT_ES_ACCOUNT
+    set "PASSWORD" = #{password,jdbcType=VARCHAR},
+      USER_TYPE = #{userType,jdbcType=DECIMAL},
+      REMARK = #{remark,jdbcType=VARCHAR},
+      ADD_DATE = #{addDate,jdbcType=VARCHAR},
+      UPDATE_DATE = #{updateDate,jdbcType=VARCHAR},
+      LAST_UPDATE_ID = #{lastUpdateId,jdbcType=VARCHAR}
+    where USERNAME = #{username,jdbcType=VARCHAR}
+  </update>
+</mapper>

@@ -1,0 +1,133 @@
+ package com.chinasofti.huateng.collectpay.model.response;
+
+ /**
+  * IF8A-13 退款查询响应报文。
+  */
+ public class RefundQueryRespDTO {
+     /**
+      * 返回码。
+      */
+     private String retCode;
+
+     /**
+      * 返回消息。
+      */
+     private String retMsg;
+
+     /**
+      * 退款订单号。
+      */
+     private String refundOrderNo;
+
+     /**
+      * 商户退款订单号。
+      */
+     private String merchantRefundNo;
+
+     /**
+      * 渠道退款订单号。
+      */
+     private String channelRefundNo;
+
+     /**
+      * 原支付订单号。
+      */
+     private String orderNo;
+
+     /**
+      * 退款状态。
+      */
+     private String status;
+
+     /**
+      * 退款金额（分）。
+      */
+     private Integer refundAmount;
+
+     /**
+      * 退款时间（格式：yyyyMMddHHmmss）。
+      */
+     private String refundTime;
+
+     public String getRetCode() {
+         return retCode;
+     }
+
+     public void setRetCode(String retCode) {
+         this.retCode = retCode;
+     }
+
+     public String getRetMsg() {
+         return retMsg;
+     }
+
+     public void setRetMsg(String retMsg) {
+         this.retMsg = retMsg;
+     }
+
+     public String getRefundOrderNo() {
+         return refundOrderNo;
+     }
+
+     public void setRefundOrderNo(String refundOrderNo) {
+         this.refundOrderNo = refundOrderNo;
+     }
+
+     public String getMerchantRefundNo() {
+         return merchantRefundNo;
+     }
+
+     public void setMerchantRefundNo(String merchantRefundNo) {
+         this.merchantRefundNo = merchantRefundNo;
+     }
+
+     public String getChannelRefundNo() {
+         return channelRefundNo;
+     }
+
+     public void setChannelRefundNo(String channelRefundNo) {
+         this.channelRefundNo = channelRefundNo;
+     }
+
+     public String getOrderNo() {
+         return orderNo;
+     }
+
+     public void setOrderNo(String orderNo) {
+         this.orderNo = orderNo;
+     }
+
+     public String getStatus() {
+         return status;
+     }
+
+     public void setStatus(String status) {
+         this.status = status;
+     }
+
+     public Integer getRefundAmount() {
+         return refundAmount;
+     }
+
+     public void setRefundAmount(Integer refundAmount) {
+         this.refundAmount = refundAmount;
+     }
+
+     public String getRefundTime() {
+         return refundTime;
+     }
+
+     public void setRefundTime(String refundTime) {
+         this.refundTime = refundTime;
+     }
+
+     @Override
+     public String toString() {
+         return "RefundQueryRespDTO{" +
+                 "retCode='" + retCode + '\'' +
+                 ", retMsg='" + retMsg + '\'' +
+                 ", refundOrderNo='" + refundOrderNo + '\'' +
+                 ", status='" + status + '\'' +
+                 '}';
+     }
+ }

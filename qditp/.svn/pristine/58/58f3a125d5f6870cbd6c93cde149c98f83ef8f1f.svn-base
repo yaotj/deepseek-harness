@@ -1,0 +1,13 @@
+server.port=8080
+spring.application.name=fep-alipay-notify
+
+# notify url configuration
+alipay.notify.close-result-url=https://openapi.alipay.com/gateway.do
+alipay.notify.push-trans-data-url=https://openapi.alipay.com/gateway.do
+alipay.notify.receive-card-data-url=https://openapi.alipay.com/gateway.do
+alipay.notify.receive-blacklist-url=https://openapi.alipay.com/gateway.do
+
+# okhttp configuration
+okhttp.connect-timeout=30
+okhttp.read-timeout=60
+okhttp.write-timeout=60

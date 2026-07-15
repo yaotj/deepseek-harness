@@ -1,0 +1,29 @@
+package com.chinasofti.huateng.fep.app.constant;
+
+/**
+ * fep-app-server 错误码枚举。
+ */
+public enum FepAppErrorCodeEnum {
+    SUCCESS("0000", "成功"),
+    FAIL("9999", "失败"),
+    SYSTEM_ERROR("9001", "系统内部错误"),
+    INVALID_PARAM("8001", "无效的参数"),
+    RPC_ERROR("9999", "下游服务调用失败"),
+    SIGN_ERROR("8005", "签名失败");
+
+    private final String code;
+    private final String msg;
+
+    FepAppErrorCodeEnum(String code, String msg) {
+        this.code = code;
+        this.msg = msg;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public String getMsg() {
+        return msg;
+    }
+}

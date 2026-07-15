@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.collectticket.mapper.TicketCollectLogsMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.collectticket.entity.TicketCollectLogs">
+        <id column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="USER_ID" jdbcType="VARCHAR" property="userId"/>
+        <result column="ENTRY_STATION_CODE" jdbcType="VARCHAR" property="entryStationCode"/>
+        <result column="EXIT_STATION_CODE" jdbcType="VARCHAR" property="exitStationCode"/>
+        <result column="TICKET_PRICE" jdbcType="INTEGER" property="ticketPrice"/>
+        <result column="SINGEL_TICKET_NUM" jdbcType="INTEGER" property="singelTicketNum"/>
+        <result column="SINGLE_TICKET_TYPE" jdbcType="INTEGER" property="singleTicketType"/>
+        <result column="CHANNEL_CODE" jdbcType="VARCHAR" property="channelCode"/>
+        <result column="ORDER_STATUS" jdbcType="INTEGER" property="orderStatus"/>
+        <result column="CREATE_TMS" jdbcType="TIMESTAMP" property="createTms"/>
+        <result column="COLLECT_TMS" jdbcType="TIMESTAMP" property="collectTms"/>
+        <result column="COLLECT_STATUS" jdbcType="INTEGER" property="collectStatus"/>
+        <result column="DEVICE_ID" jdbcType="VARCHAR" property="deviceId"/>
+        <result column="QRCODE_GEN_DATE" jdbcType="TIMESTAMP" property="qrcodeGenDate"/>
+        <result column="RANDOM_FACT" jdbcType="VARCHAR" property="randomFact"/>
+        <result column="ACTUAL_TAKE_TICKET_NUM" jdbcType="INTEGER" property="actualTakeTicketNum"/>
+        <result column="FAULT_SLIP_SEQ" jdbcType="VARCHAR" property="faultSlipSeq"/>
+        <result column="ERROR_CODE" jdbcType="VARCHAR" property="errorCode"/>
+        <result column="ERROR_MESSAGE" jdbcType="VARCHAR" property="errorMessage"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ORDER_NO, USER_ID, ENTRY_STATION_CODE, EXIT_STATION_CODE, TICKET_PRICE, SINGEL_TICKET_NUM,
+        SINGLE_TICKET_TYPE, CHANNEL_CODE, ORDER_STATUS, CREATE_TMS, COLLECT_TMS, COLLECT_STATUS,
+        DEVICE_ID, QRCODE_GEN_DATE, RANDOM_FACT, ACTUAL_TAKE_TICKET_NUM, FAULT_SLIP_SEQ,
+        ERROR_CODE, ERROR_MESSAGE
+    </sql>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from Ticket_Collect_Logs
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByUserId" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from Ticket_Collect_Logs
+        where USER_ID = #{userId,jdbcType=VARCHAR}
+        order by CREATE_TMS desc
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.collectticket.entity.TicketCollectLogs">
+        insert into Ticket_Collect_Logs (
+            ORDER_NO, USER_ID, ENTRY_STATION_CODE, EXIT_STATION_CODE, TICKET_PRICE, SINGEL_TICKET_NUM,
+            SINGLE_TICKET_TYPE, CHANNEL_CODE, ORDER_STATUS, CREATE_TMS, COLLECT_TMS, COLLECT_STATUS,
+            DEVICE_ID, QRCODE_GEN_DATE, RANDOM_FACT, ACTUAL_TAKE_TICKET_NUM, FAULT_SLIP_SEQ,
+            ERROR_CODE, ERROR_MESSAGE
+        ) values (
+            #{orderNo,jdbcType=VARCHAR},
+            #{userId,jdbcType=VARCHAR},
+            #{entryStationCode,jdbcType=VARCHAR},
+            #{exitStationCode,jdbcType=VARCHAR},
+            #{ticketPrice,jdbcType=INTEGER},
+            #{singelTicketNum,jdbcType=INTEGER},
+            #{singleTicketType,jdbcType=INTEGER},
+            #{channelCode,jdbcType=VARCHAR},
+            #{orderStatus,jdbcType=INTEGER},
+            #{createTms,jdbcType=TIMESTAMP},
+            #{collectTms,jdbcType=TIMESTAMP},
+            #{collectStatus,jdbcType=INTEGER},
+            #{deviceId,jdbcType=VARCHAR},
+            #{qrcodeGenDate,jdbcType=TIMESTAMP},
+            #{randomFact,jdbcType=VARCHAR},
+            #{actualTakeTicketNum,jdbcType=INTEGER},
+            #{faultSlipSeq,jdbcType=VARCHAR},
+            #{errorCode,jdbcType=VARCHAR},
+            #{errorMessage,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <update id="updateByOrderNo" parameterType="com.chinasofti.huateng.collectticket.entity.TicketCollectLogs">
+        update Ticket_Collect_Logs
+        set USER_ID = #{userId,jdbcType=VARCHAR},
+            ENTRY_STATION_CODE = #{entryStationCode,jdbcType=VARCHAR},
+            EXIT_STATION_CODE = #{exitStationCode,jdbcType=VARCHAR},
+            TICKET_PRICE = #{ticketPrice,jdbcType=INTEGER},
+            SINGEL_TICKET_NUM = #{singelTicketNum,jdbcType=INTEGER},
+            SINGLE_TICKET_TYPE = #{singleTicketType,jdbcType=INTEGER},
+            CHANNEL_CODE = #{channelCode,jdbcType=VARCHAR},
+            ORDER_STATUS = #{orderStatus,jdbcType=INTEGER},
+            COLLECT_TMS = #{collectTms,jdbcType=TIMESTAMP},
+            COLLECT_STATUS = #{collectStatus,jdbcType=INTEGER},
+            DEVICE_ID = #{deviceId,jdbcType=VARCHAR},
+            QRCODE_GEN_DATE = #{qrcodeGenDate,jdbcType=TIMESTAMP},
+            RANDOM_FACT = #{randomFact,jdbcType=VARCHAR},
+            ACTUAL_TAKE_TICKET_NUM = #{actualTakeTicketNum,jdbcType=INTEGER},
+            FAULT_SLIP_SEQ = #{faultSlipSeq,jdbcType=VARCHAR},
+            ERROR_CODE = #{errorCode,jdbcType=VARCHAR},
+            ERROR_MESSAGE = #{errorMessage,jdbcType=VARCHAR}
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+</mapper>

@@ -1,0 +1,46 @@
+server.port=8080
+server.tomcat.basedir=./logs
+spring.application.name=fep-alipay
+other.web.unSafeUrlChars=null
+other.web.enableLogRequestInFilter=true
+other.web.enableBodyCacheFilter=true
+other.web.enableLogTakeTimesInInterceptor=true
+knife4j.production=false
+
+service.account.url=http://127.0.0.1:9098
+service.account.openLogger=true
+
+service.security.url=http://127.0.0.1:9012
+service.security.openLogger=true
+
+service.paySign.url=http://127.0.0.1:9096
+service.paySign.openLogger=true
+
+service.blacklist.url=http://127.0.0.1:9102
+service.blacklist.openLogger=true
+
+service.key.url=http://127.0.0.1:9103
+service.key.openLogger=true
+
+service.ticket.url=http://127.0.0.1:9103
+service.ticket.openLogger=true
+
+service.industryData.url=http://127.0.0.1:9104
+service.industryData.openLogger=true
+
+service.para.url=http://127.0.0.1:9107
+service.para.openLogger=true
+
+industry.issue-channel-code=07
+
+# 支付宝出行-行程数据推送接口（ITP 主动推送给支付宝的外部接口地址）
+alipay.notify.push-trans-data-url=https://openapi.alipay.com/gateway.do
+
+# 支付宝出行-业务关闭结果通知接口（ITP 主动推送给支付宝的外部接口地址）
+alipay.notify.close-result-url=https://openapi.alipay.com/gateway.do
+
+# 支付宝出行-行业数据推送接口（ITP 主动推送给支付宝的外部接口地址）
+alipay.notify.card-data-url=https://openapi.alipay.com/gateway.do
+
+# 支付宝出行-黑名单状态变更通知接口（ITP 主动推送给支付宝的外部接口地址）
+alipay.notify.blacklist-url=https://openapi.alipay.com/gateway.do

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.alipay.paysign.mapper.AlipayTerminationRequestMapper">
+    <select id="selectByAgreementCode" resultType="com.chinasofti.huateng.alipay.paysign.entity.AlipayTerminationRequest">
+        SELECT * FROM ALIPAY_TERMINATION_REQUEST WHERE AGREEMENT_CODE = #{agreementCode,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayTerminationRequest" useGeneratedKeys="false">
+        INSERT INTO ALIPAY_TERMINATION_REQUEST (
+            TERMINATION_SEQ, AGREEMENT_CODE, THIRD_USER_ID, CARD_ID, CARD_TYPE, CHANNEL,
+            OPERATION_TYPE, STATUS, TERMINATION_RESULT, TERMINATION_TIME,
+            DELETE_FLAG, VERSION, CREATE_TIME, UPDATE_TIME, MERCHANT_NO
+        ) VALUES (
+            #{terminationSeq,jdbcType=VARCHAR}, #{agreementCode,jdbcType=VARCHAR}, #{thirdUserId,jdbcType=VARCHAR}, #{cardId,jdbcType=VARCHAR}, #{cardType,jdbcType=VARCHAR}, #{channel,jdbcType=VARCHAR},
+            #{operationType,jdbcType=VARCHAR}, #{status,jdbcType=VARCHAR}, #{terminationResult,jdbcType=VARCHAR}, #{terminationTime,jdbcType=TIMESTAMP},
+            #{deleteFlag,jdbcType=VARCHAR}, #{version,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}, #{merchantNo,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <update id="updateStatus">
+        UPDATE ALIPAY_TERMINATION_REQUEST
+        SET STATUS = #{status,jdbcType=VARCHAR}, UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        WHERE AGREEMENT_CODE = #{agreementCode,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </update>
+</mapper>

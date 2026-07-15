@@ -1,0 +1,37 @@
+package com.chinasofti.huateng.common.constant;
+
+/**
+ * fep-app-server 错误码枚举。
+ */
+public enum FepAppErrorCodeEnum {
+    SUCCESS("0000", "成功"),
+    FAIL("9999", "失败"),
+    SYSTEM_ERROR("9001", "系统内部错误"),
+    INVALID_PARAM("8001", "无效的参数"),
+    RPC_ERROR("9999", "下游服务调用失败"),
+    SIGN_ERROR("8005", "签名失败"),
+    CARD_USER_MISMATCH("8006", "账号和卡号不匹配"),
+    TERMINATION_AUDITING("8008", "解约审核中"),
+    NO_AVAILABLE_CA("8009", "ITP无可用CA证书"),
+    DUPLICATE_SIGN("8010", "请勿重复签约"),
+    USER_NOT_SIGNED("8011", "用户未签约"),
+    TERMINATION_SIGNED("8012", "解除签约"),
+    CANNOT_TERMINATE_DEFAULT("8013", "不允许解约默认支付渠道"),
+    INVALID_SIGN_DATA("8014", "无效的签约数据");
+
+    private final String code;
+    private final String msg;
+
+    FepAppErrorCodeEnum(String code, String msg) {
+        this.code = code;
+        this.msg = msg;
+    }
+
+    public String getCode() {
+        return code;
+    }
+
+    public String getMsg() {
+        return msg;
+    }
+}

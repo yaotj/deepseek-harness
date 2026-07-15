@@ -1,0 +1,29 @@
+package com.chinasofti.huateng.alipay.paysign.service;
+
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripAddContractReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripPayQueryReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripRequestPayReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripRequestRefundReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripTerminateContractReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripAddContractRespDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripPayQueryRespDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripRequestPayRespDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripRequestRefundRespDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripTerminateContractRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipaySignInfoDTO;
+
+/**
+ * 支付宝签约与支付服务接口。
+ */
+public interface AlipayPaySignService {
+    AlipayTripAddContractRespDTO addContract(AlipayTripAddContractReqDTO request);
+    AlipayTripTerminateContractRespDTO terminateContract(AlipayTripTerminateContractReqDTO request);
+    AlipayTripRequestPayRespDTO requestPay(AlipayTripRequestPayReqDTO request);
+    AlipayTripRequestRefundRespDTO requestRefund(AlipayTripRequestRefundReqDTO request);
+    AlipayTripPayQueryRespDTO payQuery(AlipayTripPayQueryReqDTO request);
+
+    /**
+     * 查询用户签约信息。
+     */
+    AlipaySignInfoDTO selectSignInfo(String thirdUserId);
+}

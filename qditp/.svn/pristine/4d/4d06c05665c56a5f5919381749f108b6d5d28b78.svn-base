@@ -1,0 +1,12 @@
+package com.chinasofti.huateng.ticket.mapper;
+
+import com.chinasofti.huateng.ticket.entity.QRCodeTxnDetail;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+@Mapper
+public interface QRCodeTxnDetailMapper {
+    int insert(QRCodeTxnDetail record);
+
+    QRCodeTxnDetail selectLatestByCardId(@Param("cardId") String cardId);
+}

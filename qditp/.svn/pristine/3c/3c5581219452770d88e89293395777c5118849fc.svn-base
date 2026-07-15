@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.collectticket.mapper.TicketCollectInfoMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.collectticket.entity.TicketCollectInfo">
+        <id column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="USER_ID" jdbcType="VARCHAR" property="userId"/>
+        <result column="ENTRY_STATION_CODE" jdbcType="VARCHAR" property="entryStationCode"/>
+        <result column="EXIT_STATION_CODE" jdbcType="VARCHAR" property="exitStationCode"/>
+        <result column="TICKET_PRICE" jdbcType="INTEGER" property="ticketPrice"/>
+        <result column="SINGEL_TICKET_NUM" jdbcType="INTEGER" property="singelTicketNum"/>
+        <result column="SINGLE_TICKET_TYPE" jdbcType="INTEGER" property="singleTicketType"/>
+        <result column="CHANNEL_CODE" jdbcType="VARCHAR" property="channelCode"/>
+        <result column="ORDER_STATUS" jdbcType="INTEGER" property="orderStatus"/>
+        <result column="CREATE_TMS" jdbcType="TIMESTAMP" property="createTms"/>
+        <result column="DEVICE_ID" jdbcType="VARCHAR" property="deviceId"/>
+        <result column="QRCODE_GEN_DATE" jdbcType="TIMESTAMP" property="qrcodeGenDate"/>
+        <result column="RANDOM_FACT" jdbcType="VARCHAR" property="randomFact"/>
+        <result column="COLLECT_TMS" jdbcType="TIMESTAMP" property="collectTms"/>
+        <result column="COLLECT_STATUS" jdbcType="INTEGER" property="collectStatus"/>
+        <result column="TRADE_NO" jdbcType="VARCHAR" property="tradeNo"/>
+        <result column="PAY_CHANNEL_CODE" jdbcType="VARCHAR" property="payChannelCode"/>
+        <result column="CHANNEL_TYPE" jdbcType="VARCHAR" property="channelType"/>
+        <result column="PAY_RESULT" jdbcType="INTEGER" property="payResult"/>
+        <result column="PAY_AMOUNT" jdbcType="INTEGER" property="payAmount"/>
+        <result column="PAY_DATE" jdbcType="TIMESTAMP" property="payDate"/>
+        <result column="REFUND_TMS" jdbcType="TIMESTAMP" property="refundTms"/>
+        <result column="REFUND_AMT" jdbcType="INTEGER" property="refundAmt"/>
+        <result column="REFUND_RESULT" jdbcType="INTEGER" property="refundResult"/>
+        <result column="REFUND_REASON" jdbcType="VARCHAR" property="refundReason"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ORDER_NO, USER_ID, ENTRY_STATION_CODE, EXIT_STATION_CODE, TICKET_PRICE, SINGEL_TICKET_NUM,
+        SINGLE_TICKET_TYPE, CHANNEL_CODE, ORDER_STATUS, CREATE_TMS, DEVICE_ID, QRCODE_GEN_DATE,
+        RANDOM_FACT, COLLECT_TMS, COLLECT_STATUS, TRADE_NO, PAY_CHANNEL_CODE, CHANNEL_TYPE,
+        PAY_RESULT, PAY_AMOUNT, PAY_DATE, REFUND_TMS, REFUND_AMT, REFUND_RESULT, REFUND_REASON
+    </sql>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from Ticket_Collect_Info
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByDeviceIdAndQrcodeDate" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from Ticket_Collect_Info
+        where DEVICE_ID = #{deviceId,jdbcType=VARCHAR}
+          and QRCODE_GEN_DATE = #{qrcodeGenDate,jdbcType=TIMESTAMP}
+    </select>
+
+    <select id="selectByUserId" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from Ticket_Collect_Info
+        where USER_ID = #{userId,jdbcType=VARCHAR}
+        order by CREATE_TMS desc
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.collectticket.entity.TicketCollectInfo">
+        insert into Ticket_Collect_Info (
+            ORDER_NO, USER_ID, ENTRY_STATION_CODE, EXIT_STATION_CODE, TICKET_PRICE, SINGEL_TICKET_NUM,
+            SINGLE_TICKET_TYPE, CHANNEL_CODE, ORDER_STATUS, CREATE_TMS, DEVICE_ID, QRCODE_GEN_DATE,
+            RANDOM_FACT, COLLECT_TMS, COLLECT_STATUS, TRADE_NO, PAY_CHANNEL_CODE, CHANNEL_TYPE,
+            PAY_RESULT, PAY_AMOUNT, PAY_DATE, REFUND_TMS, REFUND_AMT, REFUND_RESULT, REFUND_REASON
+        ) values (
+            #{orderNo,jdbcType=VARCHAR},
+            #{userId,jdbcType=VARCHAR},
+            #{entryStationCode,jdbcType=VARCHAR},
+            #{exitStationCode,jdbcType=VARCHAR},
+            #{ticketPrice,jdbcType=INTEGER},
+            #{singelTicketNum,jdbcType=INTEGER},
+            #{singleTicketType,jdbcType=INTEGER},
+            #{channelCode,jdbcType=VARCHAR},
+            #{orderStatus,jdbcType=INTEGER},
+            #{createTms,jdbcType=TIMESTAMP},
+            #{deviceId,jdbcType=VARCHAR},
+            #{qrcodeGenDate,jdbcType=TIMESTAMP},
+            #{randomFact,jdbcType=VARCHAR},
+            #{collectTms,jdbcType=TIMESTAMP},
+            #{collectStatus,jdbcType=INTEGER},
+            #{tradeNo,jdbcType=VARCHAR},
+            #{payChannelCode,jdbcType=VARCHAR},
+            #{channelType,jdbcType=VARCHAR},
+            #{payResult,jdbcType=INTEGER},
+            #{payAmount,jdbcType=INTEGER},
+            #{payDate,jdbcType=TIMESTAMP},
+            #{refundTms,jdbcType=TIMESTAMP},
+            #{refundAmt,jdbcType=INTEGER},
+            #{refundResult,jdbcType=INTEGER},
+            #{refundReason,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <update id="updateByOrderNo" parameterType="com.chinasofti.huateng.collectticket.entity.TicketCollectInfo">
+        update Ticket_Collect_Info
+        set USER_ID = #{userId,jdbcType=VARCHAR},
+            ENTRY_STATION_CODE = #{entryStationCode,jdbcType=VARCHAR},
+            EXIT_STATION_CODE = #{exitStationCode,jdbcType=VARCHAR},
+            TICKET_PRICE = #{ticketPrice,jdbcType=INTEGER},
+            SINGEL_TICKET_NUM = #{singelTicketNum,jdbcType=INTEGER},
+            SINGLE_TICKET_TYPE = #{singleTicketType,jdbcType=INTEGER},
+            CHANNEL_CODE = #{channelCode,jdbcType=VARCHAR},
+            ORDER_STATUS = #{orderStatus,jdbcType=INTEGER},
+            DEVICE_ID = #{deviceId,jdbcType=VARCHAR},
+            QRCODE_GEN_DATE = #{qrcodeGenDate,jdbcType=TIMESTAMP},
+            RANDOM_FACT = #{randomFact,jdbcType=VARCHAR},
+            COLLECT_TMS = #{collectTms,jdbcType=TIMESTAMP},
+            COLLECT_STATUS = #{collectStatus,jdbcType=INTEGER},
+            TRADE_NO = #{tradeNo,jdbcType=VARCHAR},
+            PAY_CHANNEL_CODE = #{payChannelCode,jdbcType=VARCHAR},
+            CHANNEL_TYPE = #{channelType,jdbcType=VARCHAR},
+            PAY_RESULT = #{payResult,jdbcType=INTEGER},
+            PAY_AMOUNT = #{payAmount,jdbcType=INTEGER},
+            PAY_DATE = #{payDate,jdbcType=TIMESTAMP},
+            REFUND_TMS = #{refundTms,jdbcType=TIMESTAMP},
+            REFUND_AMT = #{refundAmt,jdbcType=INTEGER},
+            REFUND_RESULT = #{refundResult,jdbcType=INTEGER},
+            REFUND_REASON = #{refundReason,jdbcType=VARCHAR}
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+</mapper>

@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.collectpay.mapper.TvmTopupOrderMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.collectpay.entity.TvmTopupOrder">
+        <id column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="TICKET_LOGIC_NUM" jdbcType="VARCHAR" property="ticketLogicNum"/>
+        <result column="TICKET_PHYSICS_NUM" jdbcType="VARCHAR" property="ticketPhysicsNum"/>
+        <result column="BEFORE_AMOUNT" jdbcType="VARCHAR" property="beforeAmount"/>
+        <result column="TRANS_AMOUNT" jdbcType="VARCHAR" property="transAmount"/>
+        <result column="AFTER_AMOUNT" jdbcType="VARCHAR" property="afterAmount"/>
+        <result column="STATUS" jdbcType="VARCHAR" property="status"/>
+        <result column="MSG" jdbcType="VARCHAR" property="msg"/>
+        <result column="CHANNEL" jdbcType="VARCHAR" property="channel"/>
+        <result column="PAY_TYPE" jdbcType="VARCHAR" property="payType"/>
+        <result column="URL" jdbcType="VARCHAR" property="url"/>
+        <result column="CREATE_TIME" jdbcType="VARCHAR" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="VARCHAR" property="updateTime"/>
+        <result column="DEVICE_ID" jdbcType="VARCHAR" property="deviceId"/>
+        <result column="RSV1" jdbcType="VARCHAR" property="rsv1"/>
+        <result column="RSV2" jdbcType="VARCHAR" property="rsv2"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ORDER_NO, TICKET_LOGIC_NUM, TICKET_PHYSICS_NUM, BEFORE_AMOUNT, TRANS_AMOUNT,
+        AFTER_AMOUNT, STATUS,MSG, CHANNEL, PAY_TYPE, URL, CREATE_TIME,
+        UPDATE_TIME, DEVICE_ID, RSV1, RSV2
+    </sql>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from TBL_TVM_ORDER_TOPUP
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.collectpay.entity.TvmTopupOrder">
+        insert into TBL_TVM_ORDER_TOPUP (
+            ORDER_NO, TICKET_LOGIC_NUM, TICKET_PHYSICS_NUM, BEFORE_AMOUNT, TRANS_AMOUNT,
+            AFTER_AMOUNT, STATUS,MSG, CHANNEL, PAY_TYPE,URL, CREATE_TIME,
+            UPDATE_TIME, DEVICE_ID,  RSV1, RSV2
+        ) values (
+            #{orderNo,jdbcType=VARCHAR},
+            #{ticketLogicNum,jdbcType=VARCHAR},
+            #{ticketPhysicsNum,jdbcType=VARCHAR},
+            #{beforeAmount,jdbcType=VARCHAR},
+            #{transAmount,jdbcType=VARCHAR},
+            #{afterAmount,jdbcType=VARCHAR},
+            #{status,jdbcType=VARCHAR},
+            #{msg,jdbcType=VARCHAR},
+            #{channel,jdbcType=VARCHAR},
+            #{payType,jdbcType=VARCHAR},
+            #{url,jdbcType=VARCHAR},
+            #{createTime,jdbcType=VARCHAR},
+            #{updateTime,jdbcType=VARCHAR},
+            #{deviceId,jdbcType=VARCHAR},
+            #{rsv1,jdbcType=VARCHAR},
+            #{rsv2,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <update id="updateByOrderNo" parameterType="java.util.Map">
+        update TBL_TVM_ORDER_TOPUP
+        <set>
+            <if test="ticketLogicNum != null">TICKET_LOGIC_NUM = #{ticketLogicNum,jdbcType=VARCHAR},</if>
+            <if test="ticketPhysicsNum != null">TICKET_PHYSICS_NUM = #{ticketPhysicsNum,jdbcType=VARCHAR},</if>
+            <if test="beforeAmount != null">BEFORE_AMOUNT = #{beforeAmount,jdbcType=VARCHAR},</if>
+            <if test="transAmount != null">TRANS_AMOUNT = #{transAmount,jdbcType=VARCHAR},</if>
+            <if test="afterAmount != null">AFTER_AMOUNT = #{afterAmount,jdbcType=VARCHAR},</if>
+            <if test="status != null">STATUS = #{status,jdbcType=VARCHAR},</if>
+            <if test="msg != null">MSG = #{msg,jdbcType=VARCHAR},</if>
+            <if test="channel != null">CHANNEL = #{channel,jdbcType=VARCHAR},</if>
+            <if test="payType != null">PAY_TYPE = #{payType,jdbcType=VARCHAR},</if>
+            <if test="url != null">URL = #{url,jdbcType=VARCHAR},</if>
+            <if test="updateTime != null">UPDATE_TIME = #{updateTime,jdbcType=VARCHAR},</if>
+            <if test="rsv1 != null">RSV1 = #{rsv1,jdbcType=VARCHAR},</if>
+            <if test="rsv2 != null">RSV2 = #{rsv2,jdbcType=VARCHAR},</if>
+        </set>
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+
+    <insert id="insertNotiy" parameterType="java.util.Map">
+        insert into TBL_TVM_Topup_Notiy (
+        ORDER_NO, TICKET_LOGIC_NUM, TICKET_PHYSICS_NUM, trans_Date, trans_Amount,
+        AFTER_AMOUNT, topupStatus ,trans_type,CREATE_TIME
+        ) values (
+        #{orderNo,jdbcType=VARCHAR},
+        #{ticketLogicNum,jdbcType=VARCHAR},
+        #{ticketPhysicsNum,jdbcType=VARCHAR},
+        #{transDate,jdbcType=VARCHAR},
+        #{transAmount,jdbcType=VARCHAR},
+        #{afterAmount,jdbcType=VARCHAR},
+        #{transType,jdbcType=VARCHAR},
+        #{createTime,jdbcType=VARCHAR}
+
+        )
+    </insert>
+
+    <insert id="insertFailtNotiy" parameterType="java.util.Map">
+        insert into TBL_TVM_Topup_Notiy (
+        ORDER_NO, TICKET_LOGIC_NUM, TICKET_PHYSICS_NUM, topupStatus,faultOccurDate, faultSlipSeq, errorCode,errorMessage,trans_type, CREATE_TIME
+        ) values (
+        #{orderNo,jdbcType=VARCHAR},
+        #{ticketLogicNum,jdbcType=VARCHAR},
+        #{ticketPhysicsNum,jdbcType=VARCHAR},
+        #{topupStatus,jdbcType=VARCHAR},
+        #{faultOccurDate,jdbcType=VARCHAR},
+        #{faultSlipSeq,jdbcType=VARCHAR},
+        #{errorCode,jdbcType=VARCHAR},
+        #{errorMessage,jdbcType=VARCHAR},
+        #{transType,jdbcType=VARCHAR},
+        #{createTime,jdbcType=VARCHAR}
+        )
+    </insert>
+</mapper>

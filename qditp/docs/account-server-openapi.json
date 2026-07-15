@@ -1,0 +1,148 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "account-server OpenAPI",
+    "description": "account-server 开卡申请接口文档（IF8A-01），供测试使用。",
+    "version": "2.0.1"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:9098",
+      "description": "本地开发环境"
+    }
+  ],
+  "paths": {
+    "/requestApplication": {
+      "post": {
+        "tags": [
+          "IF8A-01 请求开户"
+        ],
+        "summary": "请求开户",
+        "description": "接收地铁APP开户申请请求，分配卡号并注册乘车状态。",
+        "operationId": "requestApplication",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestApplicationReqDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "开户响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestApplicationResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RequestApplicationReqDTO": {
+        "type": "object",
+        "required": [
+          "thirdUserId",
+          "cardType",
+          "cardIssueCode",
+          "msisdn"
+        ],
+        "properties": {
+          "thirdUserId": {
+            "type": "string",
+            "description": "第三方用户ID"
+          },
+          "thirdPayId": {
+            "type": "string",
+            "description": "支付账户ID（签约回调）默认空"
+          },
+          "channel": {
+            "type": "string",
+            "description": "支付通道编码（默认空）"
+          },
+          "reqContractNo": {
+            "type": "string",
+            "description": "第三方签约流水号"
+          },
+          "cardType": {
+            "type": "string",
+            "description": "卡类型编码"
+          },
+          "msisdn": {
+            "type": "string",
+            "description": "手机号"
+          },
+          "userName": {
+            "type": "string",
+            "description": "姓名"
+          },
+          "userId": {
+            "type": "string",
+            "description": "用户身份证号"
+          },
+          "extend1": {
+            "type": "string",
+            "description": "扩展字段1"
+          },
+          "extend2": {
+            "type": "string",
+            "description": "扩展字段2"
+          },
+          "ticketCard": {
+            "type": "string",
+            "description": "NFC开卡使用字段 01 非钱包 02 钱包NFC卡 非必填"
+          },
+          "companionFlag": {
+            "type": "string",
+            "description": "通行票是Y 第三方是C 目前两种表示对应的卡类型都是 0441 非必填"
+          },
+          "ticketLimit": {
+            "type": "string",
+            "description": "车票显示：1.需要同一所属方限制开发数量为1 2.可开多张，每次请求都给一张新卡"
+          },
+          "cardIssueCode": {
+            "type": "string",
+            "description": "票卡所属方，不固定，目前有地铁APP、支付宝出行、海上巴士、其他互通APP等，不需要校验是否存在"
+          }
+        }
+      },
+      "RequestApplicationResult": {
+        "type": "object",
+        "properties": {
+          "retCode": {
+            "type": "string",
+            "description": "返回码"
+          },
+          "retMsg": {
+            "type": "string",
+            "description": "返回消息"
+          },
+          "cardId": {
+            "type": "string",
+            "description": "地铁会员卡号"
+          },
+          "cardType": {
+            "type": "string",
+            "description": "卡类型编码"
+          },
+          "signType": {
+            "type": "string",
+            "description": "01 sha1withrsa"
+          },
+          "sign": {
+            "type": "string",
+            "description": "私钥签名 sha1withrsa"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.chinasofti.huateng</groupId>
+    <artifactId>qd-itp</artifactId>
+    <version>1.0</version>
+    <packaging>pom</packaging>
+
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <image.prefix>${project.artifactId}</image.prefix>
+        <root.project.dir>${maven.multiModuleProjectDirectory}</root.project.dir>
+    </properties>
+
+    <modules>
+        <module>model</module>
+        <module>rpc</module>
+        <module>account-server</module>
+        <module>wallet-server</module>
+        <module>acc-secure-server</module>
+        <module>acc-security-server</module>
+        <module>acc-es-server</module>
+        <module>collect-ticket-server</module>
+        <module>collect-pay-server</module>
+        <module>pay-sign-server</module>
+        <module>online-server</module>
+        <module>ticket-server</module>
+        <module>industry-data-server</module>
+        <module>fep-app-server</module>
+        <module>fep-dev-server</module>
+        <module>gate-txn-pay-server</module>
+        <module>blacklist-server</module>
+        <module>key-server</module>
+        <module>para-server</module>
+    </modules>
+
+    <!-- 父 pom.xml -->
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.eclipse.jkube</groupId>
+                    <artifactId>kubernetes-maven-plugin</artifactId>
+                    <version>1.19.0</version>
+                    <configuration>
+                        <namespace>itp</namespace>
+                        <dockerHost>tcp://172.20.211.21:2375</dockerHost>
+                        <pushRegistry>os-harbor-svc.default.svc.cloudos:443</pushRegistry>
+                        <images>
+                            <image>
+                                <name>os-harbor-svc.default.svc.cloudos:443/itp/${image.prefix}:${project.version}</name>
+                                <build>
+                                    <dockerFile>${project.basedir}/../docker/Dockerfile</dockerFile>
+                                    <filter>true</filter>
+                                    <contextDir>${project.basedir}</contextDir>
+                                    <assembly>
+                                        <mode>dir</mode>
+                                        <targetDir>/</targetDir>
+                                        <inline>
+                                            <files>
+                                                <file>
+                                                    <source>${project.build.directory}/${project.build.finalName}.jar</source>
+<!--                                                    <outputDirectory>target</outputDirectory>-->
+                                                    <destName>app.jar</destName>
+                                                    <outputDirectory>.</outputDirectory>
+                                                </file>
+                                            </files>
+                                        </inline>
+                                    </assembly>
+                                </build>
+                            </image>
+                        </images>
+                        <generator>
+                            <excludes>
+                                <exclude>spring-boot</exclude>
+                            </excludes>
+                        </generator>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>build-image-after-package</id>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>build</goal>
+                                <goal>push</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

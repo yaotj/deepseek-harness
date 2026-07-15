@@ -1,0 +1,203 @@
+package com.chinasofti.huateng.model.app;
+
+/**
+ * @author zzm
+ * @date 2026/5/26 7:37
+ */
+public class RequestSignInfoReqDTO {
+
+    /**
+     * 用户ID
+     */
+    private String thirdUserId;
+
+    /**
+     * 证件号
+     */
+    private String certNo;
+
+    /**
+     * 回调地址
+     */
+    private String notifyUrl;
+
+    /**
+     * 跳转前端页面地址
+     */
+    private String returnUrl;
+
+    /**
+     * 附加参数
+     */
+    private String options;
+
+    /**
+     * 授权码
+     */
+    private String authCode;
+
+    /**
+     * 手机号
+     */
+    private String mobilePhone;
+
+    /**
+     * 支付渠道号
+     */
+    private String payChannelCode;
+
+    /**
+     * 签约流水号
+     */
+    private String requestSignSeq;
+
+    /**
+     * 展示账户
+     */
+    private String displayAccount;
+
+    /**
+     * 钱包推送token
+     */
+    private String token;
+
+    /**
+     * 支付用户ID
+     */
+    private String payUserId;
+
+    /**
+     * 银行卡号
+     */
+    private String bankCardNo;
+
+    /**
+     * 客户姓名
+     */
+    private String custName;
+
+    /**
+     * 其他
+     */
+    private String other;
+
+    public String getThirdUserId() {
+        return thirdUserId;
+    }
+
+    public void setThirdUserId(String thirdUserId) {
+        this.thirdUserId = thirdUserId;
+    }
+
+    public String getCertNo() {
+        return certNo;
+    }
+
+    public void setCertNo(String certNo) {
+        this.certNo = certNo;
+    }
+
+    public String getNotifyUrl() {
+        return notifyUrl;
+    }
+
+    public void setNotifyUrl(String notifyUrl) {
+        this.notifyUrl = notifyUrl;
+    }
+
+    public String getReturnUrl() {
+        return returnUrl;
+    }
+
+    public void setReturnUrl(String returnUrl) {
+        this.returnUrl = returnUrl;
+    }
+
+    public String getOptions() {
+        return options != null ? options : other;
+    }
+
+    public void setOptions(String options) {
+        this.options = options;
+    }
+
+    public String getAuthCode() {
+        return authCode;
+    }
+
+    public void setAuthCode(String authCode) {
+        this.authCode = authCode;
+    }
+
+    public String getMobilePhone() {
+        return mobilePhone;
+    }
+
+    public void setMobilePhone(String mobilePhone) {
+        this.mobilePhone = mobilePhone;
+    }
+
+    public String getPayChannelCode() {
+        return payChannelCode;
+    }
+
+    public void setPayChannelCode(String payChannelCode) {
+        this.payChannelCode = payChannelCode;
+    }
+
+    public String getRequestSignSeq() {
+        return requestSignSeq;
+    }
+
+    public void setRequestSignSeq(String requestSignSeq) {
+        this.requestSignSeq = requestSignSeq;
+    }
+
+    public String getDisplayAccount() {
+        return displayAccount;
+    }
+
+    public void setDisplayAccount(String displayAccount) {
+        this.displayAccount = displayAccount;
+    }
+
+    public String getToken() {
+        return token;
+    }
+
+    public void setToken(String token) {
+        this.token = token;
+    }
+
+    public String getPayUserId() {
+        return payUserId;
+    }
+
+    public void setPayUserId(String payUserId) {
+        this.payUserId = payUserId;
+    }
+
+    public String getBankCardNo() {
+        return bankCardNo;
+    }
+
+    public void setBankCardNo(String bankCardNo) {
+        this.bankCardNo = bankCardNo;
+    }
+
+    public String getCustName() {
+        return custName;
+    }
+
+    public void setCustName(String custName) {
+        this.custName = custName;
+    }
+
+    public String getOther() {
+        return other;
+    }
+
+    public void setOther(String other) {
+        this.other = other;
+    }
+}

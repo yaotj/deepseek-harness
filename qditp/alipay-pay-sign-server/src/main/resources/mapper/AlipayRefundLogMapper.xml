@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.alipay.paysign.mapper.AlipayRefundLogMapper">
+    <select id="selectByRefundOrderNo" resultType="com.chinasofti.huateng.alipay.paysign.entity.AlipayRefundLog">
+        SELECT * FROM ALIPAY_REFUND_LOG WHERE REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </select>
+
+    <select id="selectByOrderNo" resultType="com.chinasofti.huateng.alipay.paysign.entity.AlipayRefundLog">
+        SELECT * FROM ALIPAY_REFUND_LOG WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayRefundLog" useGeneratedKeys="false">
+        INSERT INTO ALIPAY_REFUND_LOG (
+            REFUND_SEQ, THIRD_USER_ID, CARD_ID, ORDER_NO, REFUND_AMOUNT,
+            REFUND_STATUS, REFUND_REASON, CARD_ISSUE_CODE, CHANNEL_AGREEMENT_NO, REFUND_ORDER_NO,
+            REQUEST_BODY, RESPONSE_BODY, RESULT_CODE, RESULT_MSG, OPERATOR,
+            IP, REMARK, DELETE_FLAG, VERSION, CREATE_TIME, UPDATE_TIME, CREATE_BY
+        ) VALUES (
+            #{refundSeq,jdbcType=VARCHAR}, #{thirdUserId,jdbcType=VARCHAR}, #{cardId,jdbcType=VARCHAR}, #{orderNo,jdbcType=VARCHAR}, #{refundAmount,jdbcType=VARCHAR},
+            #{refundStatus,jdbcType=VARCHAR}, #{refundReason,jdbcType=VARCHAR}, #{cardIssueCode,jdbcType=VARCHAR}, #{channelAgreementNo,jdbcType=VARCHAR}, #{refundOrderNo,jdbcType=VARCHAR},
+            #{requestBody,jdbcType=VARCHAR}, #{responseBody,jdbcType=VARCHAR}, #{resultCode,jdbcType=VARCHAR}, #{resultMsg,jdbcType=VARCHAR}, #{operator,jdbcType=VARCHAR},
+            #{ip,jdbcType=VARCHAR}, #{remark,jdbcType=VARCHAR}, #{deleteFlag,jdbcType=VARCHAR}, #{version,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}, #{createBy,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <update id="updateRefundStatus">
+        UPDATE ALIPAY_REFUND_LOG
+        SET REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR}, UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        WHERE REFUND_SEQ = #{refundSeq,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </update>
+</mapper>

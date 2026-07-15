@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.chinasofti.huateng</groupId>
+    <artifactId>qd-itp</artifactId>
+    <version>1.0</version>
+    <packaging>pom</packaging>
+
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <modules>
+        <module>model</module>
+        <module>rpc</module>
+        <module>account-server</module>
+        <module>wallet-server</module>
+        <module>acc-secure-server</module>
+        <module>acc-security-server</module>
+        <module>acc-es-server</module>
+        <module>collect-ticket-server</module>
+        <module>collect-pay-server</module>
+        <module>pay-sign-server</module>
+        <module>online-server</module>
+        <module>ticket-server</module>
+        <module>industry-data-server</module>
+        <module>fep-app-server</module>
+        <module>fep-dev-server</module>
+        <module>gate-txn-pay-server</module>
+        <module>blacklist-server</module>
+        <module>key-server</module>
+    </modules>
+
+</project>

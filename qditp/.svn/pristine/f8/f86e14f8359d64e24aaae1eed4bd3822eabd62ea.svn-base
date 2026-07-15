@@ -1,0 +1,202 @@
+package com.chinasofti.huateng.fep.app.service.impl;
+
+import com.alibaba.fastjson2.JSON;
+import com.chinasofti.huateng.fep.app.service.AlipayTripService;
+import com.chinasofti.huateng.model.alipaytrip.*;
+import com.chinasofti.huateng.rpc.account.AccountClient;
+import com.chinasofti.huateng.rpc.blacklist.BlacklistClient;
+import com.chinasofti.huateng.rpc.paySign.PaySignClient;
+import com.chinasofti.huateng.rpc.ticket.TicketClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+/**
+ * 支付宝出行专属接口服务默认实现。
+ * <p>
+ * 通过现有 RPC 客户端调用后端服务。
+ * </p>
+ */
+@Service
+public class AlipayTripServiceImpl implements AlipayTripService {
+    private static final Logger log = LoggerFactory.getLogger(AlipayTripServiceImpl.class);
+
+    @Autowired
+    private PaySignClient paySignClient;
+
+    @Autowired
+    private TicketClient ticketClient;
+
+    @Autowired
+    private BlacklistClient blacklistClient;
+
+    @Autowired
+    private AccountClient accountClient;
+
+    @Override
+    public AlipayTripAddContractRespDTO addContract(AlipayTripAddContractReqDTO request) {
+        log.info("支付宝出行-添加签约信息,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripAddContractRespDTO response;
+        try {
+            response = paySignClient.alipayTripAddContract(request);
+        } catch (Exception e) {
+            log.error("支付宝出行-添加签约信息 异常", e);
+            response = new AlipayTripAddContractRespDTO();
+            response.setRetCode("9999");
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-添加签约信息,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripTerminateContractRespDTO terminateContract(AlipayTripTerminateContractReqDTO request) {
+        log.info("支付宝出行-解约登记,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripTerminateContractRespDTO response;
+        try {
+            response = paySignClient.alipayTripTerminateContract(request);
+        } catch (Exception e) {
+            log.error("支付宝出行-解约登记 异常", e);
+            response = new AlipayTripTerminateContractRespDTO();
+            response.setRetCode("9999");
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-解约登记,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripRequestApplicationRespDTO requestApplication(AlipayTripRequestApplicationReqDTO request) {
+        log.info("支付宝出行-开卡申请,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripRequestApplicationRespDTO response;
+        try {
+            response = accountClient.alipayTripRequestApplication(request);
+        } catch (Exception e) {
+            log.error("支付宝出行-开卡申请 异常", e);
+            response = new AlipayTripRequestApplicationRespDTO();
+            response.setRetCode("9999");
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-开卡申请,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripRequestIndustryDataRespDTO requestIndustryData(AlipayTripRequestIndustryDataReqDTO request) {
+        log.info("支付宝出行-获取行业数据,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripRequestIndustryDataRespDTO response = new AlipayTripRequestIndustryDataRespDTO();
+        try {
+            // TODO: 行业数据接口需后续对接 security-server / account-server
+            response.setRetCode("0000");
+            response.setRetMsg("成功");
+        } catch (Exception e) {
+            log.error("支付宝出行-获取行业数据 异常", e);
+            response.setRetCode("9999");
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-获取行业数据,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripFindTravelListRespDTO findTravelList(AlipayTripFindTravelListReqDTO request) {
+        log.info("支付宝出行-查询乘车记录,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripFindTravelListRespDTO response;
+        try {
+            response = ticketClient.alipayTripFindTravelList(request);
+        } catch (Exception e) {
+            log.error("支付宝出行-查询乘车记录 异常", e);
+            response = new AlipayTripFindTravelListRespDTO();
+            response.setRetCode("9999");
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-查询乘车记录,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripFindTravelDetailRespDTO findTravelDetail(AlipayTripFindTravelDetailReqDTO request) {
+        log.info("支付宝出行-查询乘车记录详情,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripFindTravelDetailRespDTO response;
+        try {
+            response = ticketClient.alipayTripFindTravelDetail(request);
+        } catch (Exception e) {
+            log.error("支付宝出行-查询乘车记录详情 异常", e);
+            response = new AlipayTripFindTravelDetailRespDTO();
+            response.setRetCode("9999");
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-查询乘车记录详情,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripCloseResultRespDTO closeResultForAlipay(AlipayTripCloseResultReqDTO request) {
+        log.info("支付宝出行-业务关闭结果通知,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripCloseResultRespDTO response = new AlipayTripCloseResultRespDTO();
+        try {
+            // TODO: 业务关闭结果通知需后续对接 pay-sign-server 解约结果处理
+            response.setRetCode("0000");
+            response.setRetMsg("成功");
+        } catch (Exception e) {
+            log.error("支付宝出行-业务关闭结果通知 异常", e);
+            response.setRetCode("9999");
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-业务关闭结果通知,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripPushTransDataRespDTO pushTransData(AlipayTripPushTransDataReqDTO request) {
+        log.info("支付宝出行-行程数据推送,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripPushTransDataRespDTO response = new AlipayTripPushTransDataRespDTO();
+        try {
+            // TODO: 行程数据推送需后续对接 ticket-server / online-server
+            response.setRetCode("0000");
+            response.setRetMsg("成功");
+        } catch (Exception e) {
+            log.error("支付宝出行-行程数据推送 异常", e);
+            response = new AlipayTripPushTransDataRespDTO();
+            response.setRetCode("9999");
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-行程数据推送,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripReceiveCardDataRespDTO receiveCardDataFromItp(AlipayTripReceiveCardDataReqDTO request) {
+        log.info("支付宝出行-行业数据推送,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripReceiveCardDataRespDTO response = new AlipayTripReceiveCardDataRespDTO();
+        try {
+            // TODO: 行业数据推送需后续对接 account-server / security-server
+            response.setRetCode("0000");
+            response.setRetMsg("成功");
+        } catch (Exception e) {
+            log.error("支付宝出行-行业数据推送 异常", e);
+            response = new AlipayTripReceiveCardDataRespDTO();
+            response.setRetCode("9999");
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-行业数据推送,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    @Override
+    public AlipayTripReceiveBlackListRespDTO receiveBlackListFromItp(AlipayTripReceiveBlackListReqDTO request) {
+        log.info("支付宝出行-黑名单状态变更通知,请求参数：{}", JSON.toJSONString(request));
+        AlipayTripReceiveBlackListRespDTO response;
+        try {
+            response = blacklistClient.alipayTripReceiveBlackList(request);
+        } catch (Exception e) {
+            log.error("支付宝出行-黑名单状态变更通知 异常", e);
+            response = new AlipayTripReceiveBlackListRespDTO();
+            response.setRetCode("9999");
+            response.setRetMsg("系统内部错误");
+        }
+        log.info("支付宝出行-黑名单状态变更通知,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+}

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.dailyticket.mapper.DailyTicketInstanceMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.dailyticket.model.DailyTicketInstance">
+        <id column="ID" jdbcType="VARCHAR" property="id"/>
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="CARD_NUM" jdbcType="VARCHAR" property="cardNum"/>
+        <result column="CARD_ISSUE" jdbcType="VARCHAR" property="cardIssue"/>
+        <result column="APP_CARD_TYPE" jdbcType="VARCHAR" property="appCardType"/>
+        <result column="CODE_TICKET_TYPE" jdbcType="VARCHAR" property="codeTicketType"/>
+        <result column="TICKET_TYPE" jdbcType="VARCHAR" property="ticketType"/>
+        <result column="SHOW_TYPE" jdbcType="VARCHAR" property="showType"/>
+        <result column="TICKET_CODE" jdbcType="VARCHAR" property="ticketCode"/>
+        <result column="TICKET_NAME" jdbcType="VARCHAR" property="ticketName"/>
+        <result column="PERIOD" jdbcType="INTEGER" property="period"/>
+        <result column="ACTUAL_TIMES" jdbcType="INTEGER" property="actualTimes"/>
+        <result column="TRANS_SEQ" jdbcType="INTEGER" property="transSeq"/>
+        <result column="TRANS_AMOUNT" jdbcType="INTEGER" property="transAmount"/>
+        <result column="DISCOUNT_AMOUNT" jdbcType="INTEGER" property="discountAmount"/>
+        <result column="PAY_CHANNEL" jdbcType="VARCHAR" property="payChannel"/>
+        <result column="TICKET_STATUS" jdbcType="VARCHAR" property="ticketStatus"/>
+        <result column="COUNTING_START" jdbcType="BIGINT" property="countingStart"/>
+        <result column="COUNTING_END" jdbcType="BIGINT" property="countingEnd"/>
+        <result column="ACTIVATE_TIME" jdbcType="TIMESTAMP" property="activateTime"/>
+        <result column="FIRST_USE_TIME" jdbcType="TIMESTAMP" property="firstUseTime"/>
+        <result column="ACC_NOTICE_STATUS" jdbcType="VARCHAR" property="accNoticeStatus"/>
+        <result column="ACC_NOTICE_TIME" jdbcType="TIMESTAMP" property="accNoticeTime"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        ID, ORDER_NO, THIRD_USER_ID, CARD_NUM, CARD_ISSUE, APP_CARD_TYPE,
+        CODE_TICKET_TYPE, TICKET_TYPE, SHOW_TYPE, TICKET_CODE, TICKET_NAME,
+        PERIOD, ACTUAL_TIMES, TRANS_SEQ, TRANS_AMOUNT, DISCOUNT_AMOUNT,
+        PAY_CHANNEL, TICKET_STATUS, COUNTING_START, COUNTING_END,
+        ACTIVATE_TIME, FIRST_USE_TIME, ACC_NOTICE_STATUS, ACC_NOTICE_TIME,
+        CREATE_TIME, UPDATE_TIME
+    </sql>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from DAILY_TICKET_INSTANCE
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByCardNum" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from DAILY_TICKET_INSTANCE
+        where CARD_NUM = #{cardNum,jdbcType=VARCHAR}
+    </select>
+
+    <insert id="upsert" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketInstance">
+        MERGE INTO DAILY_TICKET_INSTANCE T
+        USING (
+            SELECT
+                #{id,jdbcType=VARCHAR} AS ID,
+                #{orderNo,jdbcType=VARCHAR} AS ORDER_NO,
+                #{thirdUserId,jdbcType=VARCHAR} AS THIRD_USER_ID,
+                #{cardNum,jdbcType=VARCHAR} AS CARD_NUM,
+                #{cardIssue,jdbcType=VARCHAR} AS CARD_ISSUE,
+                #{appCardType,jdbcType=VARCHAR} AS APP_CARD_TYPE,
+                #{codeTicketType,jdbcType=VARCHAR} AS CODE_TICKET_TYPE,
+                #{ticketType,jdbcType=VARCHAR} AS TICKET_TYPE,
+                #{showType,jdbcType=VARCHAR} AS SHOW_TYPE,
+                #{ticketCode,jdbcType=VARCHAR} AS TICKET_CODE,
+                #{ticketName,jdbcType=VARCHAR} AS TICKET_NAME,
+                #{period,jdbcType=INTEGER} AS PERIOD,
+                #{actualTimes,jdbcType=INTEGER} AS ACTUAL_TIMES,
+                #{transSeq,jdbcType=INTEGER} AS TRANS_SEQ,
+                #{transAmount,jdbcType=INTEGER} AS TRANS_AMOUNT,
+                #{discountAmount,jdbcType=INTEGER} AS DISCOUNT_AMOUNT,
+                #{payChannel,jdbcType=VARCHAR} AS PAY_CHANNEL,
+                #{ticketStatus,jdbcType=VARCHAR} AS TICKET_STATUS,
+                #{countingStart,jdbcType=BIGINT} AS COUNTING_START,
+                #{countingEnd,jdbcType=BIGINT} AS COUNTING_END,
+                #{activateTime,jdbcType=TIMESTAMP} AS ACTIVATE_TIME,
+                #{firstUseTime,jdbcType=TIMESTAMP} AS FIRST_USE_TIME,
+                #{accNoticeStatus,jdbcType=VARCHAR} AS ACC_NOTICE_STATUS,
+                #{accNoticeTime,jdbcType=TIMESTAMP} AS ACC_NOTICE_TIME,
+                #{createTime,jdbcType=TIMESTAMP} AS CREATE_TIME,
+                #{updateTime,jdbcType=TIMESTAMP} AS UPDATE_TIME
+            FROM DUAL
+        ) S
+        ON (T.ORDER_NO = S.ORDER_NO)
+        WHEN MATCHED THEN UPDATE SET
+            T.THIRD_USER_ID = S.THIRD_USER_ID,
+            T.CARD_NUM = S.CARD_NUM,
+            T.CARD_ISSUE = S.CARD_ISSUE,
+            T.APP_CARD_TYPE = S.APP_CARD_TYPE,
+            T.CODE_TICKET_TYPE = S.CODE_TICKET_TYPE,
+            T.TICKET_TYPE = S.TICKET_TYPE,
+            T.SHOW_TYPE = S.SHOW_TYPE,
+            T.TICKET_CODE = S.TICKET_CODE,
+            T.TICKET_NAME = S.TICKET_NAME,
+            T.PERIOD = S.PERIOD,
+            T.ACTUAL_TIMES = S.ACTUAL_TIMES,
+            T.TRANS_SEQ = S.TRANS_SEQ,
+            T.TRANS_AMOUNT = S.TRANS_AMOUNT,
+            T.DISCOUNT_AMOUNT = S.DISCOUNT_AMOUNT,
+            T.PAY_CHANNEL = S.PAY_CHANNEL,
+            T.TICKET_STATUS = S.TICKET_STATUS,
+            T.COUNTING_START = S.COUNTING_START,
+            T.ACTIVATE_TIME = S.ACTIVATE_TIME,
+            T.ACC_NOTICE_STATUS = S.ACC_NOTICE_STATUS,
+            T.UPDATE_TIME = S.UPDATE_TIME
+        WHEN NOT MATCHED THEN INSERT (
+            ID, ORDER_NO, THIRD_USER_ID, CARD_NUM, CARD_ISSUE, APP_CARD_TYPE,
+            CODE_TICKET_TYPE, TICKET_TYPE, SHOW_TYPE, TICKET_CODE, TICKET_NAME,
+            PERIOD, ACTUAL_TIMES, TRANS_SEQ, TRANS_AMOUNT, DISCOUNT_AMOUNT,
+            PAY_CHANNEL, TICKET_STATUS, COUNTING_START, COUNTING_END,
+            ACTIVATE_TIME, FIRST_USE_TIME, ACC_NOTICE_STATUS, ACC_NOTICE_TIME,
+            CREATE_TIME, UPDATE_TIME
+        ) VALUES (
+            S.ID, S.ORDER_NO, S.THIRD_USER_ID, S.CARD_NUM, S.CARD_ISSUE, S.APP_CARD_TYPE,
+            S.CODE_TICKET_TYPE, S.TICKET_TYPE, S.SHOW_TYPE, S.TICKET_CODE, S.TICKET_NAME,
+            S.PERIOD, S.ACTUAL_TIMES, S.TRANS_SEQ, S.TRANS_AMOUNT, S.DISCOUNT_AMOUNT,
+            S.PAY_CHANNEL, S.TICKET_STATUS, S.COUNTING_START, S.COUNTING_END,
+            S.ACTIVATE_TIME, S.FIRST_USE_TIME, S.ACC_NOTICE_STATUS, S.ACC_NOTICE_TIME,
+            S.CREATE_TIME, S.UPDATE_TIME
+        )
+    </insert>
+
+    <update id="markUsed" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketInstance">
+        update DAILY_TICKET_INSTANCE
+        set TICKET_STATUS = #{ticketStatus,jdbcType=VARCHAR},
+            COUNTING_END = #{countingEnd,jdbcType=BIGINT},
+            FIRST_USE_TIME = #{firstUseTime,jdbcType=TIMESTAMP},
+            ACC_NOTICE_STATUS = #{accNoticeStatus,jdbcType=VARCHAR},
+            ACC_NOTICE_TIME = #{accNoticeTime,jdbcType=TIMESTAMP},
+            UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        where CARD_NUM = #{cardNum,jdbcType=VARCHAR}
+    </update>
+</mapper>

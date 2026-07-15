@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.acc.es.server.mapper.TblStlPersonInfoMapper">
+  <resultMap id="BaseResultMap" type="com.chinasofti.huateng.acc.es.server.model.TblStlPersonInfo">
+    <!--@mbg.generated-->
+    <id column="TICKET_ID" jdbcType="VARCHAR" property="ticketId" />
+    <result column="PERSON_NAME" jdbcType="VARCHAR" property="personName" />
+    <result column="PERSON_SEX" jdbcType="CHAR" property="personSex" />
+    <result column="PID_CD" jdbcType="VARCHAR" property="pidCd" />
+    <result column="PID_CODE" jdbcType="VARCHAR" property="pidCode" />
+    <result column="PASSWD" jdbcType="VARCHAR" property="passwd" />
+    <result column="LANG_CD" jdbcType="VARCHAR" property="langCd" />
+    <result column="COMPANY_NM" jdbcType="VARCHAR" property="companyNm" />
+    <result column="EMP_NO" jdbcType="VARCHAR" property="empNo" />
+    <result column="CON_TEL_NO" jdbcType="VARCHAR" property="conTelNo" />
+    <result column="CON_MAIL" jdbcType="VARCHAR" property="conMail" />
+    <result column="ADDRESS" jdbcType="VARCHAR" property="address" />
+    <result column="POST_CD" jdbcType="VARCHAR" property="postCd" />
+    <result column="LAST_UPD_USER" jdbcType="VARCHAR" property="lastUpdUser" />
+    <result column="LAST_UPD_TMS" jdbcType="TIMESTAMP" property="lastUpdTms" />
+  </resultMap>
+  <resultMap extends="BaseResultMap" id="ResultMapWithBLOBs" type="com.chinasofti.huateng.acc.es.server.model.TblStlPersonInfo">
+    <!--@mbg.generated-->
+    <result column="PHOTO_BLOB" jdbcType="BLOB" property="photoBlob" />
+  </resultMap>
+  <sql id="Base_Column_List">
+    <!--@mbg.generated-->
+    TICKET_ID, PERSON_NAME, PERSON_SEX, PID_CD, PID_CODE, PASSWD, LANG_CD, COMPANY_NM, 
+    EMP_NO, CON_TEL_NO, CON_MAIL, ADDRESS, POST_CD, LAST_UPD_USER, LAST_UPD_TMS
+  </sql>
+  <sql id="Blob_Column_List">
+    <!--@mbg.generated-->
+    PHOTO_BLOB
+  </sql>
+  <select id="selectByPrimaryKey" parameterType="java.lang.String" resultMap="ResultMapWithBLOBs">
+    <!--@mbg.generated-->
+    select 
+    <include refid="Base_Column_List" />
+    ,
+    <include refid="Blob_Column_List" />
+    from TBL_STL_PERSON_INFO
+    where TICKET_ID = #{ticketId,jdbcType=VARCHAR}
+  </select>
+  <delete id="deleteByPrimaryKey" parameterType="java.lang.String">
+    <!--@mbg.generated-->
+    delete from TBL_STL_PERSON_INFO
+    where TICKET_ID = #{ticketId,jdbcType=VARCHAR}
+  </delete>
+  <insert id="insert" keyColumn="TICKET_ID" keyProperty="ticketId" parameterType="com.chinasofti.huateng.acc.es.server.model.TblStlPersonInfo" useGeneratedKeys="true">
+    <!--@mbg.generated-->
+    insert into TBL_STL_PERSON_INFO (TICKET_ID,PERSON_NAME, PERSON_SEX, PID_CD,
+      PID_CODE, PASSWD, LANG_CD, 
+      COMPANY_NM, EMP_NO, CON_TEL_NO, 
+      CON_MAIL, ADDRESS, POST_CD, 
+      LAST_UPD_USER, LAST_UPD_TMS, PHOTO_BLOB
+      )
+    values (#{ticketId,jdbcType=VARCHAR},#{personName,jdbcType=VARCHAR}, #{personSex,jdbcType=CHAR}, #{pidCd,jdbcType=VARCHAR},
+      #{pidCode,jdbcType=VARCHAR}, #{passwd,jdbcType=VARCHAR}, #{langCd,jdbcType=VARCHAR}, 
+      #{companyNm,jdbcType=VARCHAR}, #{empNo,jdbcType=VARCHAR}, #{conTelNo,jdbcType=VARCHAR}, 
+      #{conMail,jdbcType=VARCHAR}, #{address,jdbcType=VARCHAR}, #{postCd,jdbcType=VARCHAR}, 
+      #{lastUpdUser,jdbcType=VARCHAR}, #{lastUpdTms,jdbcType=TIMESTAMP}, #{photoBlob,jdbcType=BLOB}
+      )
+  </insert>
+  <insert id="insertSelective" keyColumn="TICKET_ID" keyProperty="ticketId" parameterType="com.chinasofti.huateng.acc.es.server.model.TblStlPersonInfo" useGeneratedKeys="true">
+    <!--@mbg.generated-->
+    insert into TBL_STL_PERSON_INFO
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="personName != null">
+        PERSON_NAME,
+      </if>
+      <if test="personSex != null">
+        PERSON_SEX,
+      </if>
+      <if test="pidCd != null">
+        PID_CD,
+      </if>
+      <if test="pidCode != null">
+        PID_CODE,
+      </if>
+      <if test="passwd != null">
+        PASSWD,
+      </if>
+      <if test="langCd != null">
+        LANG_CD,
+      </if>
+      <if test="companyNm != null">
+        COMPANY_NM,
+      </if>
+      <if test="empNo != null">
+        EMP_NO,
+      </if>
+      <if test="conTelNo != null">
+        CON_TEL_NO,
+      </if>
+      <if test="conMail != null">
+        CON_MAIL,
+      </if>
+      <if test="address != null">
+        ADDRESS,
+      </if>
+      <if test="postCd != null">
+        POST_CD,
+      </if>
+      <if test="lastUpdUser != null">
+        LAST_UPD_USER,
+      </if>
+      <if test="lastUpdTms != null">
+        LAST_UPD_TMS,
+      </if>
+      <if test="photoBlob != null">
+        PHOTO_BLOB,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="personName != null">
+        #{personName,jdbcType=VARCHAR},
+      </if>
+      <if test="personSex != null">
+        #{personSex,jdbcType=CHAR},
+      </if>
+      <if test="pidCd != null">
+        #{pidCd,jdbcType=VARCHAR},
+      </if>
+      <if test="pidCode != null">
+        #{pidCode,jdbcType=VARCHAR},
+      </if>
+      <if test="passwd != null">
+        #{passwd,jdbcType=VARCHAR},
+      </if>
+      <if test="langCd != null">
+        #{langCd,jdbcType=VARCHAR},
+      </if>
+      <if test="companyNm != null">
+        #{companyNm,jdbcType=VARCHAR},
+      </if>
+      <if test="empNo != null">
+        #{empNo,jdbcType=VARCHAR},
+      </if>
+      <if test="conTelNo != null">
+        #{conTelNo,jdbcType=VARCHAR},
+      </if>
+      <if test="conMail != null">
+        #{conMail,jdbcType=VARCHAR},
+      </if>
+      <if test="address != null">
+        #{address,jdbcType=VARCHAR},
+      </if>
+      <if test="postCd != null">
+        #{postCd,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdUser != null">
+        #{lastUpdUser,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdTms != null">
+        #{lastUpdTms,jdbcType=TIMESTAMP},
+      </if>
+      <if test="photoBlob != null">
+        #{photoBlob,jdbcType=BLOB},
+      </if>
+    </trim>
+  </insert>
+  <update id="updateByPrimaryKeySelective" parameterType="com.chinasofti.huateng.acc.es.server.model.TblStlPersonInfo">
+    <!--@mbg.generated-->
+    update TBL_STL_PERSON_INFO
+    <set>
+      <if test="personName != null">
+        PERSON_NAME = #{personName,jdbcType=VARCHAR},
+      </if>
+      <if test="personSex != null">
+        PERSON_SEX = #{personSex,jdbcType=CHAR},
+      </if>
+      <if test="pidCd != null">
+        PID_CD = #{pidCd,jdbcType=VARCHAR},
+      </if>
+      <if test="pidCode != null">
+        PID_CODE = #{pidCode,jdbcType=VARCHAR},
+      </if>
+      <if test="passwd != null">
+        PASSWD = #{passwd,jdbcType=VARCHAR},
+      </if>
+      <if test="langCd != null">
+        LANG_CD = #{langCd,jdbcType=VARCHAR},
+      </if>
+      <if test="companyNm != null">
+        COMPANY_NM = #{companyNm,jdbcType=VARCHAR},
+      </if>
+      <if test="empNo != null">
+        EMP_NO = #{empNo,jdbcType=VARCHAR},
+      </if>
+      <if test="conTelNo != null">
+        CON_TEL_NO = #{conTelNo,jdbcType=VARCHAR},
+      </if>
+      <if test="conMail != null">
+        CON_MAIL = #{conMail,jdbcType=VARCHAR},
+      </if>
+      <if test="address != null">
+        ADDRESS = #{address,jdbcType=VARCHAR},
+      </if>
+      <if test="postCd != null">
+        POST_CD = #{postCd,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdUser != null">
+        LAST_UPD_USER = #{lastUpdUser,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdTms != null">
+        LAST_UPD_TMS = #{lastUpdTms,jdbcType=TIMESTAMP},
+      </if>
+      <if test="photoBlob != null">
+        PHOTO_BLOB = #{photoBlob,jdbcType=BLOB},
+      </if>
+    </set>
+    where TICKET_ID = #{ticketId,jdbcType=VARCHAR}
+  </update>
+  <update id="updateByPrimaryKeyWithBLOBs" parameterType="com.chinasofti.huateng.acc.es.server.model.TblStlPersonInfo">
+    <!--@mbg.generated-->
+    update TBL_STL_PERSON_INFO
+    set PERSON_NAME = #{personName,jdbcType=VARCHAR},
+      PERSON_SEX = #{personSex,jdbcType=CHAR},
+      PID_CD = #{pidCd,jdbcType=VARCHAR},
+      PID_CODE = #{pidCode,jdbcType=VARCHAR},
+      PASSWD = #{passwd,jdbcType=VARCHAR},
+      LANG_CD = #{langCd,jdbcType=VARCHAR},
+      COMPANY_NM = #{companyNm,jdbcType=VARCHAR},
+      EMP_NO = #{empNo,jdbcType=VARCHAR},
+      CON_TEL_NO = #{conTelNo,jdbcType=VARCHAR},
+      CON_MAIL = #{conMail,jdbcType=VARCHAR},
+      ADDRESS = #{address,jdbcType=VARCHAR},
+      POST_CD = #{postCd,jdbcType=VARCHAR},
+      LAST_UPD_USER = #{lastUpdUser,jdbcType=VARCHAR},
+      LAST_UPD_TMS = #{lastUpdTms,jdbcType=TIMESTAMP},
+      PHOTO_BLOB = #{photoBlob,jdbcType=BLOB}
+    where TICKET_ID = #{ticketId,jdbcType=VARCHAR}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="com.chinasofti.huateng.acc.es.server.model.TblStlPersonInfo">
+    <!--@mbg.generated-->
+    update TBL_STL_PERSON_INFO
+    set PERSON_NAME = #{personName,jdbcType=VARCHAR},
+      PERSON_SEX = #{personSex,jdbcType=CHAR},
+      PID_CD = #{pidCd,jdbcType=VARCHAR},
+      PID_CODE = #{pidCode,jdbcType=VARCHAR},
+      PASSWD = #{passwd,jdbcType=VARCHAR},
+      LANG_CD = #{langCd,jdbcType=VARCHAR},
+      COMPANY_NM = #{companyNm,jdbcType=VARCHAR},
+      EMP_NO = #{empNo,jdbcType=VARCHAR},
+      CON_TEL_NO = #{conTelNo,jdbcType=VARCHAR},
+      CON_MAIL = #{conMail,jdbcType=VARCHAR},
+      ADDRESS = #{address,jdbcType=VARCHAR},
+      POST_CD = #{postCd,jdbcType=VARCHAR},
+      LAST_UPD_USER = #{lastUpdUser,jdbcType=VARCHAR},
+      LAST_UPD_TMS = #{lastUpdTms,jdbcType=TIMESTAMP}
+    where TICKET_ID = #{ticketId,jdbcType=VARCHAR}
+  </update>
+</mapper>

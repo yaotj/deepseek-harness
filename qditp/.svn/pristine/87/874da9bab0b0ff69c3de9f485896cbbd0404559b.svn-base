@@ -1,0 +1,79 @@
+package com.chinasofti.huateng.ticket.service.impl;
+
+import com.chinasofti.huateng.ticket.constant.TicketErrorCodeEnum;
+import com.chinasofti.huateng.ticket.mapper.QRCodeTxnDetailMapper;
+import com.chinasofti.huateng.ticket.model.app.RequestTransListReqDTO;
+import com.chinasofti.huateng.ticket.model.app.RequestTransListResult;
+import com.chinasofti.huateng.ticket.model.app.TransRecordDTO;
+import com.chinasofti.huateng.ticket.service.TicketTransService;
+import com.chinasofti.huateng.model.app.CardTypeMapping;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+/**
+ * IF8A-05 交易记录查询服务实现。
+ */
+@Service
+public class TicketTransServiceImpl implements TicketTransService {
+    private static final Logger log = LoggerFactory.getLogger(TicketTransServiceImpl.class);
+
+    @Autowired
+    private QRCodeTxnDetailMapper qrCodeTxnDetailMapper;
+
+    @Override
+    public RequestTransListResult requestTransList(RequestTransListReqDTO request) {
+        RequestTransListResult response = new RequestTransListResult();
+        try {
+            int pageNumber = request.getPageNumber() != null && request.getPageNumber() > 0 ? request.getPageNumber() : 1;
+            int pageSize = request.getPageSize() != null && request.getPageSize() > 0 ? request.getPageSize() : 10;
+            int offset = (pageNumber - 1) * pageSize;
+
+            // 日期格式标准化：支持 yyyy-MM-dd 和 yyyyMMdd，统一转为 yyyyMMdd
+            String startDate = request.getStartDate();
+            String endDate = request.getEndDate();
+            if (startDate != null && !startDate.isEmpty()) {
+                request.setStartDate(startDate.replace("-", ""));
+            }
+            if (endDate != null && !endDate.isEmpty()) {
+                request.setEndDate(endDate.replace("-", ""));
+            }
+
+            // 票卡类型转换：APP入参"02" -> 系统内"0441"
+            if (request.getCardType() != null && !request.getCardType().isEmpty()) {
+                request.setCardType(CardTypeMapping.toIssueCardType(request.getCardType()));
+            }
+
+            request.setOffset(offset);
+            request.setLimit(pageSize);
+
+            List<TransRecordDTO> records = qrCodeTxnDetailMapper.selectTransList(request);
+            int total = qrCodeTxnDetailMapper.countTransList(request);
+            int totalPage = (int) Math.ceil((double) total / pageSize);
+
+            // discountInfo 规范定义为 json数组，无数据时返回空数组而非 null
+            if (records != null) {
+                for (TransRecordDTO record : records) {
+                    if (record.getDiscountInfo() == null) {
+                        record.setDiscountInfo("[]");
+                    }
+                }
+            }
+
+            response.setRetCode(TicketErrorCodeEnum.SUCCESS.getCode());
+            response.setRetMsg(TicketErrorCodeEnum.SUCCESS.getMsg());
+            response.setPageNumber(String.valueOf(pageNumber));
+            response.setPageSize(String.valueOf(pageSize));
+            response.setTotalPage(String.valueOf(totalPage));
+            response.setTicketTransRecord(records);
+        } catch (Exception e) {
+            log.error("IF8A-05 查询交易记录异常, request={}", request, e);
+            response.setRetCode(TicketErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg(TicketErrorCodeEnum.SYSTEM_ERROR.getMsg());
+        }
+        return response;
+    }
+}

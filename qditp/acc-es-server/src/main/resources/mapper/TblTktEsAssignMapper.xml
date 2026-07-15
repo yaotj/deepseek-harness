@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.chinasofti.huateng.acc.es.server.mapper.TblTktEsAssignMapper" >
+    <resultMap id="baseMap" type="com.chinasofti.huateng.acc.es.server.model.TblTktEsAssign" >
+        <id column="TASK_NO" jdbcType="VARCHAR" property="taskNo"/>
+        <id column="ES_CODE" property="esCode" jdbcType="VARCHAR"/>
+        <result column="BEGIN_NO" property="beginNo" jdbcType="NUMERIC"/>
+        <result column="TASK_NUM" property="taskNum" jdbcType="NUMERIC"/>
+        <result column="END_NO" property="endNo" jdbcType="NUMERIC"/>
+        <result column="TASK_STAT" property="taskStat" jdbcType="CHAR"/>
+        <result column="FILE_NM" property="fileNm" jdbcType="VARCHAR"/>
+        <result column="LAST_UPD_ID" property="lastUpdId" jdbcType="VARCHAR"/>
+        <result column="LAST_UPD_TMS" property="lastUpdTms" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <sql id="baseSql">
+        TASK_NO,ES_CODE,BEGIN_NO,TASK_NUM,END_NO,TASK_STAT,FILE_NM,LAST_UPD_ID,LAST_UPD_TMS
+    </sql>
+    <update id="updateByTaskNoAndEsCode" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAssign">
+        UPDATE TBL_TKT_ES_ASSIGN SET BEGIN_NO = #{beginNo} ,TASK_NUM = #{taskNum},END_NO = #{endNo},TASK_STAT = #{taskStat},FILE_NM = #{fileNm},
+        LAST_UPD_ID = #{lastUpdId},LAST_UPD_TMS = sysdate
+        WHERE TASK_NO = #{taskNo,jdbcType=VARCHAR}
+        AND ES_CODE = #{esCode,jdbcType=VARCHAR}
+    </update>
+    <select id="queryById" resultType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAssign">
+        SELECT <include refid="baseSql"/> from TBL_TKT_ES_ASSIGN where TASK_NO = #{taskNo} and ES_CODE = #{esCode}
+    </select>
+
+    <select id="selectByPrimaryKey"  resultMap="baseMap">
+        select
+        <include refid="baseSql" />
+        from TBL_TKT_ES_ASSIGN
+        where TASK_NO = #{taskNo,jdbcType=VARCHAR}
+        and ES_CODE = #{esCode,jdbcType=VARCHAR}
+    </select>
+    <select id="selectByTaskNo" resultMap="baseMap">
+        SELECT <include refid="baseSql"/> from TBL_TKT_ES_ASSIGN where TASK_NO = #{taskNo}
+    </select>
+    <delete id="deleteByPrimaryKey">
+    delete from TBL_TKT_ES_ASSIGN
+    where TASK_NO = #{taskNo,jdbcType=VARCHAR}
+      and ES_CODE = #{esCode,jdbcType=VARCHAR}
+  </delete>
+    <delete id="deleteByTaskNo">
+        delete from TBL_TKT_ES_ASSIGN  where TASK_NO = #{taskNo,jdbcType=VARCHAR}
+    </delete>
+    <delete id="deleteByPlanNo">
+        delete from TBL_TKT_ES_ASSIGN
+        where TASK_NO in (
+            select TASK_NO from TBL_TKT_ES_TASK where PLAN_NO = #{planNo,jdbcType=VARCHAR}
+        )
+    </delete>
+    <insert id="insert" keyColumn="TASK_NO" keyProperty="taskNo" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAssign" useGeneratedKeys="true">
+    insert into TBL_TKT_ES_ASSIGN (TASK_NO,ES_CODE, TASK_NUM, BEGIN_NO,
+      END_NO, TASK_STAT, FILE_NM,
+      LAST_UPD_ID, LAST_UPD_TMS)
+    values (#{taskNo},#{esCode,jdbcType=VARCHAR}, #{taskNum,jdbcType=DECIMAL}, #{beginNo,jdbcType=DECIMAL},
+      #{endNo,jdbcType=DECIMAL}, #{taskStat,jdbcType=CHAR}, default,
+      #{lastUpdId,jdbcType=VARCHAR}, SYSDATE)
+  </insert>
+    <insert id="insertSelective" keyColumn="TASK_NO" keyProperty="taskNo" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAssign" useGeneratedKeys="true">
+        insert into TBL_TKT_ES_ASSIGN
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="esCode != null">
+                ES_CODE,
+            </if>
+            <if test="taskNum != null">
+                TASK_NUM,
+            </if>
+            <if test="beginNo != null">
+                BEGIN_NO,
+            </if>
+            <if test="endNo != null">
+                END_NO,
+            </if>
+            <if test="taskStat != null">
+                TASK_STAT,
+            </if>
+            <if test="fileNm != null">
+                FILE_NM,
+            </if>
+            <if test="lastUpdId != null">
+                LAST_UPD_ID,
+            </if>
+            <if test="lastUpdTms != null">
+                LAST_UPD_TMS,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="esCode != null">
+                #{esCode,jdbcType=VARCHAR},
+            </if>
+            <if test="taskNum != null">
+                #{taskNum,jdbcType=DECIMAL},
+            </if>
+            <if test="beginNo != null">
+                #{beginNo,jdbcType=DECIMAL},
+            </if>
+            <if test="endNo != null">
+                #{endNo,jdbcType=DECIMAL},
+            </if>
+            <if test="taskStat != null">
+                #{taskStat,jdbcType=CHAR},
+            </if>
+            <if test="fileNm != null">
+                #{fileNm,jdbcType=VARCHAR},
+            </if>
+            <if test="lastUpdId != null">
+                #{lastUpdId,jdbcType=VARCHAR},
+            </if>
+            <if test="lastUpdTms != null">
+                SYSDATE,
+            </if>
+        </trim>
+    </insert>
+    <update id="updateByPrimaryKeySelective" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAssign">
+        update TBL_TKT_ES_ASSIGN
+        <set>
+            <if test="taskNum != null">
+                TASK_NUM = #{taskNum,jdbcType=DECIMAL},
+            </if>
+            <if test="beginNo != null">
+                BEGIN_NO = #{beginNo,jdbcType=DECIMAL},
+            </if>
+            <if test="endNo != null">
+                END_NO = #{endNo,jdbcType=DECIMAL},
+            </if>
+            <if test="taskStat != null">
+                TASK_STAT = #{taskStat,jdbcType=CHAR},
+            </if>
+            <if test="fileNm != null">
+                FILE_NM = #{fileNm,jdbcType=VARCHAR},
+            </if>
+            <if test="lastUpdId != null">
+                LAST_UPD_ID = #{lastUpdId,jdbcType=VARCHAR},
+            </if>
+            <if test="lastUpdTms != null">
+                LAST_UPD_TMS = SYSDATE,
+            </if>
+        </set>
+        where TASK_NO = #{taskNo,jdbcType=VARCHAR}
+        and ES_CODE = #{esCode,jdbcType=VARCHAR}
+    </update>
+    <update id="updateByPrimaryKey" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAssign">
+    update TBL_TKT_ES_ASSIGN
+    set TASK_NUM = #{taskNum,jdbcType=DECIMAL},
+      BEGIN_NO = #{beginNo,jdbcType=DECIMAL},
+      END_NO = #{endNo,jdbcType=DECIMAL},
+      TASK_STAT = #{taskStat,jdbcType=CHAR},
+      FILE_NM = #{fileNm,jdbcType=VARCHAR},
+      LAST_UPD_ID = #{lastUpdId,jdbcType=VARCHAR},
+      LAST_UPD_TMS = SYSDATE
+    where TASK_NO = #{taskNo,jdbcType=VARCHAR}
+      and ES_CODE = #{esCode,jdbcType=VARCHAR}
+  </update>
+
+</mapper>

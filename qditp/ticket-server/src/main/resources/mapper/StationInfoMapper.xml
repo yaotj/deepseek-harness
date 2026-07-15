@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.ticket.mapper.StationInfoMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.ticket.entity.StationInfo">
+        <id column="STATION_CODE" jdbcType="VARCHAR" property="stationCode"/>
+        <result column="LINE_CODE" jdbcType="VARCHAR" property="lineCode"/>
+        <result column="STATION_NAME" jdbcType="VARCHAR" property="stationName"/>
+        <result column="STATION_EN_NAME" jdbcType="VARCHAR" property="stationEnName"/>
+    </resultMap>
+
+    <select id="selectByStationCode" resultMap="BaseResultMap">
+        SELECT STATION_CODE, LINE_CODE, STATION_NAME, STATION_EN_NAME
+        FROM STATION_INFO
+        WHERE STATION_CODE = #{stationCode,jdbcType=VARCHAR}
+    </select>
+</mapper>

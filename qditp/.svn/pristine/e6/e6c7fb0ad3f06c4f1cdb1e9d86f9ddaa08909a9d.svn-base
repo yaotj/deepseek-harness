@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.paysign.mapper.PaySignInfoMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.paysign.entity.PaySignInfo">
+        <id column="REQUEST_SIGN_SEQ" jdbcType="VARCHAR" property="requestSignSeq"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="SIGN_STATUS" jdbcType="VARCHAR" property="signStatus"/>
+        <result column="SIGN_CHANNEL" jdbcType="VARCHAR" property="signChannel"/>
+        <result column="PAYMENT_VENDOR" jdbcType="VARCHAR" property="paymentVendor"/>
+        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
+        <result column="PAY_ACCOUNT_ID" jdbcType="VARCHAR" property="payAccountId"/>
+        <result column="PAY_AGREEMENT_NO" jdbcType="VARCHAR" property="payAgreementNo"/>
+        <result column="DISPLAY_ACCOUNT" jdbcType="VARCHAR" property="displayAccount"/>
+        <result column="SIGN_TIME" jdbcType="TIMESTAMP" property="signTime"/>
+        <result column="TERMINATION_TIME" jdbcType="TIMESTAMP" property="terminationTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        REQUEST_SIGN_SEQ, THIRD_USER_ID, SIGN_STATUS, SIGN_CHANNEL, PAYMENT_VENDOR,
+        CARD_ID, CARD_TYPE, PAY_ACCOUNT_ID, PAY_AGREEMENT_NO, DISPLAY_ACCOUNT,
+        SIGN_TIME, TERMINATION_TIME
+    </sql>
+
+    <select id="selectBySeq" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from (
+            select <include refid="Base_Column_List"/>
+            from APP_PAY_SIGN_INFO
+            where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+            <if test="paymentVendor != null and paymentVendor != ''">
+                and PAYMENT_VENDOR = #{paymentVendor,jdbcType=VARCHAR}
+            </if>
+        )
+        where ROWNUM = 1
+    </select>
+
+    <!-- 新增：根据用户ID和支付渠道查询 -->
+    <select id="selectByUserAndVendor" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from APP_PAY_SIGN_INFO
+        where THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+          and PAYMENT_VENDOR = #{paymentVendor,jdbcType=VARCHAR}
+    </select>
+
+    <!-- 新增：纯INSERT -->
+    <insert id="insert" parameterType="com.chinasofti.huateng.paysign.entity.PaySignInfo">
+        INSERT INTO APP_PAY_SIGN_INFO (
+            REQUEST_SIGN_SEQ, THIRD_USER_ID, SIGN_STATUS, SIGN_CHANNEL, PAYMENT_VENDOR,
+            CARD_ID, CARD_TYPE, PAY_ACCOUNT_ID, PAY_AGREEMENT_NO, DISPLAY_ACCOUNT,
+            SIGN_TIME, TERMINATION_TIME
+        ) VALUES (
+            #{requestSignSeq,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR},
+            #{signStatus,jdbcType=VARCHAR},
+            #{signChannel,jdbcType=VARCHAR},
+            #{paymentVendor,jdbcType=VARCHAR},
+            #{cardId,jdbcType=VARCHAR},
+            #{cardType,jdbcType=VARCHAR},
+            #{payAccountId,jdbcType=VARCHAR},
+            #{payAgreementNo,jdbcType=VARCHAR},
+            #{displayAccount,jdbcType=VARCHAR},
+            #{signTime,jdbcType=TIMESTAMP},
+            #{terminationTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <!-- 新增：根据用户ID和支付渠道删除 -->
+    <delete id="deleteByUserAndVendor">
+        DELETE FROM APP_PAY_SIGN_INFO
+        WHERE THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+          AND PAYMENT_VENDOR = #{paymentVendor,jdbcType=VARCHAR}
+    </delete>
+
+    <!-- 废弃：原有的 upsert/MERGE -->
+    <!--
+    <update id="upsert" parameterType="com.chinasofti.huateng.paysign.entity.PaySignInfo">
+        MERGE INTO APP_PAY_SIGN_INFO t ...
+    </update>
+    -->
+</mapper>

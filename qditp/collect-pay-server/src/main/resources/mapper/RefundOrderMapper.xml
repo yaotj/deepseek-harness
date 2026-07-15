@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.collectpay.mapper.RefundOrderMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.collectpay.entity.RefundOrder">
+        <id column="REFUND_NO" jdbcType="VARCHAR" property="refundNo"/>
+        <result column="PAY_ORDER_NO" jdbcType="VARCHAR" property="payOrderNo"/>
+        <result column="MERCHANT_REFUND_NO" jdbcType="VARCHAR" property="merchantRefundNo"/>
+        <result column="CHANNEL_REFUND_NO" jdbcType="VARCHAR" property="channelRefundNo"/>
+        <result column="REFUND_AMOUNT" jdbcType="INTEGER" property="refundAmount"/>
+        <result column="REFUND_REASON" jdbcType="VARCHAR" property="refundReason"/>
+        <result column="REFUND_STATUS" jdbcType="VARCHAR" property="refundStatus"/>
+        <result column="REFUND_MSG" jdbcType="VARCHAR" property="refundMsg"/>
+        <result column="REFUND_TIME" jdbcType="VARCHAR" property="refundTime"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        REFUND_NO, PAY_ORDER_NO, MERCHANT_REFUND_NO, CHANNEL_REFUND_NO, REFUND_AMOUNT,
+        REFUND_REASON, REFUND_STATUS, REFUND_MSG,REFUND_TIME, CREATE_TIME
+    </sql>
+
+    <select id="selectByRefundNo" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from TBL_TVM_ORDER_REFUND
+        where REFUND_NO = #{refundNo,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByPayOderNo" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from TBL_TVM_ORDER_REFUND
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+        order by CREATE_TIME desc
+        limit 1
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.collectpay.entity.RefundOrder">
+        insert into TBL_TVM_ORDER_REFUND (
+            REFUND_NO, PAY_ORDER_NO, MERCHANT_REFUND_NO, CHANNEL_REFUND_NO, REFUND_AMOUNT,
+            REFUND_REASON, REFUND_STATUS, REFUND_MSG,REFUND_TIME, CREATE_TIME
+        ) values (
+            #{refundNo,jdbcType=VARCHAR},
+            #{payOrderNo,jdbcType=VARCHAR},
+            #{merchantRefundNo,jdbcType=VARCHAR},
+            #{channelRefundNo,jdbcType=VARCHAR},
+            #{refundAmount,jdbcType=INTEGER},
+            #{refundReason,jdbcType=VARCHAR},
+            #{refundStatus,jdbcType=VARCHAR},
+            #{refundMsg,jdbcType=VARCHAR},
+            #{refundTime,jdbcType=VARCHAR},
+            #{createTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <update id="updateRefundStatus" parameterType="com.chinasofti.huateng.collectpay.entity.RefundOrder">
+        update TBL_TVM_ORDER_REFUND
+        set REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR},REFUND_MSG = #{refundMsg,jdbcType=VARCHAR},
+            CHANNEL_REFUND_NO = #{channelRefundNo,jdbcType=VARCHAR},
+            REFUND_TIME = #{refundTime,jdbcType=VARCHAR}
+        where REFUND_NO = #{refundNo,jdbcType=VARCHAR}
+    </update>
+</mapper>

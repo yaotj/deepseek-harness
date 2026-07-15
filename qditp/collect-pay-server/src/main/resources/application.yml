@@ -1,0 +1,36 @@
+mybatis:
+  mapper-locations: classpath:mapper/*Mapper.xml
+other:
+  sql:
+    database: orcl
+    double-datasource: false
+    host: 130.251.235.198:1521
+    page:
+      type: oracle
+    password: qditp
+    type: oracle
+    username: qditp
+  web:
+    enableBodyCacheFilter: true
+    enableLogRequestInFilter: true
+    enableLogTakeTimesInInterceptor: true
+pay:
+  center:
+    api-version: 1.0
+    callback-url: http://localhost:9098/ci/app/ticketCollectPayNotify
+    charset: UTF-8
+    gateway-url: https://pay-gateway.example.com/api
+    merchant-no: JOPJ490HLK9Z
+    private-key: MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCX+asjrvFrtDlDhHxmrZyDHTXwbCb/p5zoxnuv4FW2/Z5sUjk2o4lGmcwG43pTwbjMamjvAczheZGWPKNlgASCfWp5WFZrpYevdG6nO/ykyTUwq3Gw3clcC2bbNyU57eW2mfuXbrNLY1F7O+gLhbRN0uDOJ9+oXpJSQq2oUYR7pQLJvhAgh9khkPaYX0LNU16gXSuyvJZcVh5e/fG3Hzjqid6pGpxgAK8z9bqUoPQJEsMQsoN5EBriDu8k4CevY7FkNmTkWKkVQjcbm3vyIw+3S8JmmHV8OQgr6JwthpYCTpMGU55Nhqw9Sc8dAbdYEsqvZiCuz4W4faVPaiKv+QZ5AgMBAAECggEAISt9DuzABKHxXass+7wozPUzMKZqXKJYvPWVSW3NR4NTcJEBq8tFywMGZPqBWIaPrw4KmR/rd8rw27mgcCbg1RpKgvGk6xnV45WmERomqlDAKz9AMTo3GL/kUzRWC67A1HoHT6X5vBqRTjRlER69m77LEjPhvP3nMc0b2gDwyYuBwjEXSKSp/8fWd/mA97uD/CNfBCc/AJm2c0Kma9svdl5b269NMcUkjyuWEYLbpwxcTDXIYGhX1XJTqwWnKjAiLOjdJ2+eA39fCvj3Zz0aRUhft/96H0nNPnZCLu9MW8g5BTvzxH4122aJY5/Y/ANlQ3D8aQfRHcJufmyWTIMOAQKBgQD7xuN+k3jrL1N5p0pDO0EFiXDDuhIKnKt2sIMHWuDs4aOgRsbtcrDEuYk9el2j9pyjwrkdQIDkqjL9FXwEjxvHaXVa8eqP7g+3syr95WxCXdeiAgEQIm2FQvYL5Rdzfj33ifw0hqa46yDhPFAO2SPC3CADmvZ6CpimsLkarE/EZQKBgQCahj0w4CxgaHimwLBUBdJIDsYfGlgFBarQry0j8bDsFBst4dc/Ot9EB5frr921Q5IgAqBC43/jNxrHui1nkUKJ0VJTiNLMEXsvndgcHPSgorZ4lUku9zgZ9OljhNQD9s+E6MfJ+9CWqCFl9t0+nn9UchaU4V+8i8FEeY25rU0mhQKBgE7OTOyUejea45TjYOI0TMDP6STKO9Vofl6zFwAZWOesJIwJO0CdMmkQ7bz5bQ/iI9s6GrjmNLHd+AGxVNUUegxrnNjveYy9ZdwIz38S7VTEjLbfy7diH0ej0uGcPj/fFsRBQ1ipgMvGhM8bEq/jFUdroPWf7l/6qxcZn4aSwpDlAoGAX+DbJvBxmIA6HH2C6x+RklRYagQWiUcy7blD8QGOHW18T8PJotoMnlF32i2NC2OZz3LRra8rMviGDVdfxNtExe6zflFvOl++Z5Uw+oCc6O8M+VTny9RpYvGrvqw0QSFrMbSeAp3UlyZLUtESBkCiEOuZR1dv57VvfeVOIt9892ECgYBj46ko/R2oy49/V/gggDv+A5kf1jRkF+eVVJirbp70Wc2ycqfcRmwaOEjMYNf/GF4+e+rSF0uO8SVWFC6MWj8epmPzQ+lMf0gazF1DdxWN0/a1zh8GRB6wDGYOrl8kRvh/SmMUfz15fTt3asH9EyHpuOU/vtauqmEEryZY5/2HQA==
+    refundReason: 出票数量不足
+    sign-type: RSA
+    pay-center-pay-url: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/payment/requestPay
+    pay-center-query-url: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/payment/payQuery
+    pay-center-refund-url: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/refund/requestRefund
+server:
+  port: 58101
+  tomcat:
+    basedir: /Users/zhoucong/logs
+spring:
+  application:
+    name: collect-pay

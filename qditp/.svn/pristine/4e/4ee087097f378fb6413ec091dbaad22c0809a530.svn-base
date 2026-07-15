@@ -1,0 +1,121 @@
+package com.chinasofti.huateng.fep.dev.service.impl;
+
+import com.alibaba.fastjson2.JSON;
+import com.chinasofti.huateng.fep.dev.constant.FepDevErrorCodeEnum;
+import com.chinasofti.huateng.fep.dev.model.RequestQrCodeStatusReqDTO;
+import com.chinasofti.huateng.fep.dev.model.RequestQrCodeStatusRespDTO;
+import com.chinasofti.huateng.fep.dev.service.DevService;
+import com.chinasofti.huateng.model.pay.GateTxnPayReqDTO;
+import com.chinasofti.huateng.model.pay.GateTxnPayRespDTO;
+import com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO;
+import com.chinasofti.huateng.model.ticket.NotifyVerifyResultRespDTO;
+import com.chinasofti.huateng.model.ticket.QueryStatusReqDTO;
+import com.chinasofti.huateng.model.ticket.QueryStatusRespDTO;
+import com.chinasofti.huateng.rpc.pay.GateTxnPayClient;
+import com.chinasofti.huateng.rpc.ticket.TicketClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+/**
+ * 设备请求处理服务默认实现。
+ */
+@Service
+public class DevServiceImpl implements DevService {
+    private static final Logger log = LoggerFactory.getLogger(DevServiceImpl.class);
+
+    @Autowired
+    private TicketClient ticketClient;
+    @Autowired
+    private GateTxnPayClient gateTxnPayClient;
+
+    @Override
+    public RequestQrCodeStatusRespDTO requestQrCodeStatus(RequestQrCodeStatusReqDTO request) {
+        RequestQrCodeStatusRespDTO response = new RequestQrCodeStatusRespDTO();
+        response.setItpUserId(request == null ? null : request.getItpUserId());
+        response.setCardId(request == null ? null : request.getCardId());
+
+            if (request == null || !StringUtils.hasText(request.getCardId())) {
+            response.setRetCode(FepDevErrorCodeEnum.INVALID_PARAM.getCode());
+            response.setRetMsg("cardId不能为空");
+            return response;
+        }
+
+        QueryStatusReqDTO ticketRequest = new QueryStatusReqDTO();
+        ticketRequest.setCardId(request.getCardId());
+        ticketRequest.setThirdUserId(request.getItpUserId());
+
+        log.info("IF1A-04 调用 ticket-server 查询票卡状态, 入参={}", JSON.toJSONString(ticketRequest));
+        QueryStatusRespDTO ticketResponse = ticketClient.queryQrCodeStatus(ticketRequest);
+        log.info("IF1A-04 调用 ticket-server 查询票卡状态, 返回={}", JSON.toJSONString(ticketResponse));
+
+        response.setRetCode(ticketResponse.getRetCode());
+        response.setRetMsg(ticketResponse.getRetMsg());
+        response.setItpUserId(request.getItpUserId());
+        response.setCardId(request.getCardId());
+        response.setLastTicketStatus(ticketResponse.getStatus());
+        response.setLastHandleDateTime(ticketResponse.getLastTxnTime());
+        return response;
+    }
+
+    @Override
+    public NotifyVerifyResultRespDTO notifyVerifyResult(NotifyVerifyResultReqDTO request) {
+        NotifyVerifyResultRespDTO response = new NotifyVerifyResultRespDTO();
+        if (request == null || !StringUtils.hasText(request.getCardId())) {
+            response.setRetCode(FepDevErrorCodeEnum.INVALID_PARAM.getCode());
+            response.setRetMsg("cardId不能为空");
+            return response;
+        }
+
+        log.info("IF1A-01 调用 ticket-server 闸机检票通知, 入参={}", JSON.toJSONString(request));
+        NotifyVerifyResultRespDTO ticketResponse = ticketClient.notifyVerifyResult(request);
+        log.info("IF1A-01 调用 ticket-server 闸机检票通知, 返回={}", JSON.toJSONString(ticketResponse));
+        if ("0000".equals(ticketResponse.getRetCode()) && shouldPay(request)) {
+            // todo 扣费也要分2种：地铁app扣费和支付宝交通乘车码扣费
+            String issueChannelCode = request.getIssueChannelCode();
+            if("07".equals(issueChannelCode)) {
+                // todo 支付宝交通乘车码扣费
+                log.warn("支付宝交通乘车码扣费： {}",request);
+            }else {
+                requestGateTxnPay(request);
+            }
+        }
+        return ticketResponse;
+    }
+
+    private boolean shouldPay(NotifyVerifyResultReqDTO request) {
+        return request != null && ("02".equals(request.getTrxType()) || "03".equals(request.getTrxType()));
+    }
+
+    private void requestGateTxnPay(NotifyVerifyResultReqDTO request) {
+        try {
+            GateTxnPayReqDTO payRequest = new GateTxnPayReqDTO();
+            payRequest.setDeviceId(request.getDeviceId());
+            payRequest.setItpUserId(request.getItpUserId());
+            payRequest.setTrxType(request.getTrxType());
+            payRequest.setIssueChannelCode(request.getIssueChannelCode());
+            payRequest.setSignChannelCode(request.getSignChannelCode());
+            payRequest.setCardId(request.getCardId());
+            payRequest.setCardType(request.getCardType());
+            payRequest.setHandleDateTime(request.getHandleDateTime());
+            payRequest.setHandleStationCode(request.getHandleStationCode());
+            payRequest.setTrxAmount(request.getTrxAmount());
+            payRequest.setOvertimeAmount(request.getOvertimeAmount());
+            payRequest.setLastTicketStatus(request.getLastTicketStatus());
+            payRequest.setHandleResultCode(request.getHandleResultCode());
+            payRequest.setLastHandleStationCode(request.getLastHandleStationCode());
+            payRequest.setLastHandleDateTime(request.getLastHandleDateTime());
+            payRequest.setTicketTransSeq(request.getTicketTransSeq());
+            payRequest.setReserve1(request.getReserve1());
+            payRequest.setReserve2(request.getReserve2());
+            log.info("IF1A-01 出站交易调用扣费交易服务, 入参={}", JSON.toJSONString(payRequest));
+            GateTxnPayRespDTO payResponse = gateTxnPayClient.requestGateTxnPay(payRequest);
+            log.info("IF1A-01 出站交易调用扣费交易服务, 返回={}", JSON.toJSONString(payResponse));
+        } catch (Exception e) {
+            log.error("IF1A-01 出站交易调用扣费交易服务异常, cardId={}, trxType={}, handleDateTime={}",
+                    request.getCardId(), request.getTrxType(), request.getHandleDateTime(), e);
+        }
+    }
+}

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.dailyticket.mapper.DailyTicketRefundMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.dailyticket.model.DailyTicketRefund">
+        <id column="ID" jdbcType="VARCHAR" property="id"/>
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="REFUND_ORDER_NO" jdbcType="VARCHAR" property="refundOrderNo"/>
+        <result column="REFUND_AMOUNT" jdbcType="INTEGER" property="refundAmount"/>
+        <result column="REFUND_STATUS" jdbcType="VARCHAR" property="refundStatus"/>
+        <result column="REFUND_TYPE" jdbcType="VARCHAR" property="refundType"/>
+        <result column="REFUND_DATE" jdbcType="TIMESTAMP" property="refundDate"/>
+        <result column="VERIFY_AFTER_TIME" jdbcType="TIMESTAMP" property="verifyAfterTime"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        select ID, ORDER_NO, REFUND_ORDER_NO, REFUND_AMOUNT, REFUND_STATUS,
+               REFUND_TYPE, REFUND_DATE, VERIFY_AFTER_TIME, CREATE_TIME, UPDATE_TIME
+        from DAILY_TICKET_REFUND
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketRefund">
+        insert into DAILY_TICKET_REFUND (
+            ID, ORDER_NO, REFUND_ORDER_NO, REFUND_AMOUNT, REFUND_STATUS,
+            REFUND_TYPE, REFUND_DATE, VERIFY_AFTER_TIME, CREATE_TIME, UPDATE_TIME
+        ) values (
+            #{id,jdbcType=VARCHAR}, #{orderNo,jdbcType=VARCHAR}, #{refundOrderNo,jdbcType=VARCHAR},
+            #{refundAmount,jdbcType=INTEGER}, #{refundStatus,jdbcType=VARCHAR},
+            #{refundType,jdbcType=VARCHAR}, #{refundDate,jdbcType=TIMESTAMP},
+            #{verifyAfterTime,jdbcType=TIMESTAMP}, #{createTime,jdbcType=TIMESTAMP},
+            #{updateTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <update id="updateResult" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketRefund">
+        update DAILY_TICKET_REFUND
+        set REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR},
+            REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR},
+            REFUND_DATE = #{refundDate,jdbcType=TIMESTAMP},
+            UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+</mapper>

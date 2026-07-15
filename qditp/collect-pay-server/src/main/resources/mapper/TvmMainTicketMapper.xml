@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.collectpay.mapper.TvmMainTicketMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.collectpay.entity.TvmMainTicket">
+        <id column="ID" jdbcType="BIGINT" property="id"/>
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="ACTUAL_TAKE_TICKET_NUM" jdbcType="INTEGER" property="actualTakeTicketNum"/>
+        <result column="BUY_TICKET_NUM" jdbcType="INTEGER" property="buyTicketNum"/>
+        <result column="TAKE_TICKE_DATE" jdbcType="VARCHAR" property="takeTickeDate"/>
+        <result column="NOTIFY_TYPE" jdbcType="INTEGER" property="notifyType"/>
+        <result column="FAULT_SLIP_SEQ" jdbcType="VARCHAR" property="faultSlipSeq"/>
+        <result column="ERROR_CODE" jdbcType="VARCHAR" property="errorCode"/>
+        <result column="ERROR_MESSAGE" jdbcType="VARCHAR" property="errorMessage"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ID, ORDER_NO, ACTUAL_TAKE_TICKET_NUM, BUY_TICKET_NUM,  TAKE_TICKE_DATE, NOTIFY_TYPE,
+        FAULT_SLIP_SEQ, ERROR_CODE, ERROR_MESSAGE, CREATE_TIME
+    </sql>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from tbl_tvm_main_ticket
+        where ID = #{id,jdbcType=BIGINT}
+    </select>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from tbl_tvm_main_ticket
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+        order by CREATE_TIME desc
+        limit 1
+    </select>
+
+    <select id="getTvmMainTicketSeq" resultType="java.lang.String">
+        SELECT tbl_tvm_main_ticket_ID_SEQ.NEXTVAL FROM DUAL
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.collectpay.entity.TvmMainTicket">
+        insert into tbl_tvm_main_ticket (
+            ID,ORDER_NO, ACTUAL_TAKE_TICKET_NUM, BUY_TICKET_NUM, TAKE_TICKE_DATE, NOTIFY_TYPE,
+            FAULT_SLIP_SEQ, ERROR_CODE, ERROR_MESSAGE, CREATE_TIME
+        ) values (
+            #{id,jdbcType=VARCHAR},
+            #{orderNo,jdbcType=VARCHAR},
+            #{actualTakeTicketNum,jdbcType=INTEGER},
+            #{buyTicketNum,jdbcType=INTEGER},
+            #{takeTickeDate,jdbcType=VARCHAR},
+            #{notifyType,jdbcType=INTEGER},
+            #{faultSlipSeq,jdbcType=VARCHAR},
+            #{errorCode,jdbcType=VARCHAR},
+            #{errorMessage,jdbcType=VARCHAR},
+            #{createTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+</mapper>

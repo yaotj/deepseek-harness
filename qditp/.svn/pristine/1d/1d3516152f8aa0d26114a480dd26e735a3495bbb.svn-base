@@ -1,0 +1,32 @@
+package com.chinasofti.huateng.gatetxnpay.controller;
+
+import com.alibaba.fastjson2.JSON;
+import com.chinasofti.huateng.gatetxnpay.service.GateTxnPayService;
+import com.chinasofti.huateng.model.pay.GateTxnPayReqDTO;
+import com.chinasofti.huateng.model.pay.GateTxnPayRespDTO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * 过闸扣费交易入口。
+ */
+@RestController
+public class GateTxnPayController {
+    private static final Logger log = LoggerFactory.getLogger(GateTxnPayController.class);
+
+    @Autowired
+    private GateTxnPayService gateTxnPayService;
+
+    @PostMapping("/ci/gateTxnPay/requestPay")
+    public GateTxnPayRespDTO requestPay(@RequestBody GateTxnPayReqDTO request) {
+        log.info("接收到过闸扣费交易, 入参={}", JSON.toJSONString(request));
+        GateTxnPayRespDTO response = gateTxnPayService.requestPay(request);
+        log.info("过闸扣费交易处理完成, 返回={}", JSON.toJSONString(response));
+        return response;
+    }
+}

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.paysign.mapper.PaySignRequestMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.paysign.entity.PaySignRequest">
+        <id column="ID" jdbcType="BIGINT" property="id"/>
+        <result column="REQUEST_SIGN_SEQ" jdbcType="VARCHAR" property="requestSignSeq"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="PAYMENT_VENDOR" jdbcType="VARCHAR" property="paymentVendor"/>
+        <result column="DISPLAY_ACCOUNT" jdbcType="VARCHAR" property="displayAccount"/>
+        <result column="OPERATION_TYPE" jdbcType="VARCHAR" property="operationType"/>
+        <result column="REQUEST_BODY" jdbcType="VARCHAR" property="requestBody"/>
+        <result column="RESPONSE_BODY" jdbcType="VARCHAR" property="responseBody"/>
+        <result column="RESULT_CODE" jdbcType="VARCHAR" property="resultCode"/>
+        <result column="RESULT_MSG" jdbcType="VARCHAR" property="resultMsg"/>
+        <result column="SIGN_STATUS" jdbcType="VARCHAR" property="signStatus"/>
+        <result column="SIGN_CHANNEL" jdbcType="VARCHAR" property="signChannel"/>
+        <result column="PAY_ACCOUNT_ID" jdbcType="VARCHAR" property="payAccountId"/>
+        <result column="PAY_AGREEMENT_NO" jdbcType="VARCHAR" property="payAgreementNo"/>
+        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
+        <result column="TERMINATION_TIME" jdbcType="VARCHAR" property="terminationTime"/>
+        <result column="CREATE_TMS" jdbcType="TIMESTAMP" property="createTms"/>
+        <result column="NOTIFY_STATUS" jdbcType="VARCHAR" property="notifyStatus"/>
+        <result column="NOTIFY_RETRY_COUNT" jdbcType="INTEGER" property="notifyRetryCount"/>
+        <result column="NOTIFY_TIME" jdbcType="TIMESTAMP" property="notifyTime"/>
+        <result column="NOTIFY_RESULT" jdbcType="VARCHAR" property="notifyResult"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ID, REQUEST_SIGN_SEQ, THIRD_USER_ID, PAYMENT_VENDOR, DISPLAY_ACCOUNT, OPERATION_TYPE,
+        REQUEST_BODY, RESPONSE_BODY, RESULT_CODE, RESULT_MSG, SIGN_STATUS, SIGN_CHANNEL,
+        PAY_ACCOUNT_ID, PAY_AGREEMENT_NO, CARD_ID, CARD_TYPE, TERMINATION_TIME,
+        CREATE_TMS, NOTIFY_STATUS, NOTIFY_RETRY_COUNT, NOTIFY_TIME, NOTIFY_RESULT
+    </sql>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.paysign.entity.PaySignRequest">
+        INSERT INTO APP_PAY_SIGN_REQUEST (
+            REQUEST_SIGN_SEQ, THIRD_USER_ID, PAYMENT_VENDOR, DISPLAY_ACCOUNT, OPERATION_TYPE,
+            REQUEST_BODY, RESPONSE_BODY, RESULT_CODE, RESULT_MSG, SIGN_STATUS, SIGN_CHANNEL,
+            PAY_ACCOUNT_ID, PAY_AGREEMENT_NO, CARD_ID, CARD_TYPE, TERMINATION_TIME,
+            CREATE_TMS, NOTIFY_STATUS, NOTIFY_RETRY_COUNT, NOTIFY_TIME, NOTIFY_RESULT
+        ) VALUES (
+            #{requestSignSeq,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR},
+            #{paymentVendor,jdbcType=VARCHAR},
+            #{displayAccount,jdbcType=VARCHAR},
+            #{operationType,jdbcType=VARCHAR},
+            #{requestBody,jdbcType=VARCHAR},
+            #{responseBody,jdbcType=VARCHAR},
+            #{resultCode,jdbcType=VARCHAR},
+            #{resultMsg,jdbcType=VARCHAR},
+            #{signStatus,jdbcType=VARCHAR},
+            #{signChannel,jdbcType=VARCHAR},
+            #{payAccountId,jdbcType=VARCHAR},
+            #{payAgreementNo,jdbcType=VARCHAR},
+            #{cardId,jdbcType=VARCHAR},
+            #{cardType,jdbcType=VARCHAR},
+            #{terminationTime,jdbcType=VARCHAR},
+            #{createTms,jdbcType=TIMESTAMP},
+            #{notifyStatus,jdbcType=VARCHAR},
+            #{notifyRetryCount,jdbcType=INTEGER},
+            #{notifyTime,jdbcType=TIMESTAMP},
+            #{notifyResult,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <select id="selectByRequestSignSeq" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from APP_PAY_SIGN_REQUEST
+        where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+        order by CREATE_TMS desc
+        fetch first 1 rows only
+    </select>
+
+    <select id="selectByNotifyStatus" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from APP_PAY_SIGN_REQUEST
+        where NOTIFY_STATUS = #{notifyStatus,jdbcType=VARCHAR}
+          and NOTIFY_RETRY_COUNT &lt; #{maxRetry,jdbcType=INTEGER}
+          and OPERATION_TYPE in ('RECEIVE_SIGN_RESULT', 'RECEIVE_TERMINATION_RESULT')
+        order by CREATE_TMS
+    </select>
+
+    <update id="updateNotifyStatus" parameterType="com.chinasofti.huateng.paysign.entity.PaySignRequest">
+        update APP_PAY_SIGN_REQUEST
+        set NOTIFY_STATUS = #{notifyStatus,jdbcType=VARCHAR},
+            NOTIFY_TIME = #{notifyTime,jdbcType=TIMESTAMP},
+            NOTIFY_RESULT = #{notifyResult,jdbcType=VARCHAR}
+            <if test="notifyRetryCount != null">
+                , NOTIFY_RETRY_COUNT = #{notifyRetryCount,jdbcType=INTEGER}
+            </if>
+        where ID = #{id,jdbcType=BIGINT}
+    </update>
+
+    <update id="increaseRetryCount">
+        update APP_PAY_SIGN_REQUEST
+        set NOTIFY_RETRY_COUNT = NOTIFY_RETRY_COUNT + 1,
+            NOTIFY_STATUS = 'FAILED',
+            NOTIFY_TIME = sysdate
+        where ID = #{id,jdbcType=BIGINT}
+    </update>
+</mapper>

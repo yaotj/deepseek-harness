@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.alipay.account.mapper.AlipayRegLogMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.alipay.account.entity.AlipayRegLog">
+        <id column="REQUEST_SEQ" jdbcType="VARCHAR" property="requestSeq"/>
+        <result column="RESPONSE_SEQ" jdbcType="VARCHAR" property="responseSeq"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
+        <result column="CARD_ISSUE_CODE" jdbcType="VARCHAR" property="cardIssueCode"/>
+        <result column="CHANNEL" jdbcType="VARCHAR" property="channel"/>
+        <result column="MSISDN" jdbcType="VARCHAR" property="msisdn"/>
+        <result column="EXTEND1" jdbcType="VARCHAR" property="extend1"/>
+        <result column="EXTEND2" jdbcType="VARCHAR" property="extend2"/>
+        <result column="REQUEST_BODY" jdbcType="CLOB" property="requestBody"/>
+        <result column="RESPONSE_BODY" jdbcType="CLOB" property="responseBody"/>
+        <result column="RESULT_CODE" jdbcType="VARCHAR" property="resultCode"/>
+        <result column="RESULT_MSG" jdbcType="VARCHAR" property="resultMsg"/>
+        <result column="OPERATOR" jdbcType="VARCHAR" property="operator"/>
+        <result column="IP" jdbcType="VARCHAR" property="ip"/>
+        <result column="REMARK" jdbcType="VARCHAR" property="remark"/>
+        <result column="VERSION" jdbcType="VARCHAR" property="version"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="CREATE_BY" jdbcType="VARCHAR" property="createBy"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        REQUEST_SEQ, RESPONSE_SEQ, THIRD_USER_ID, CARD_ID, CARD_TYPE, CARD_ISSUE_CODE,
+        CHANNEL, MSISDN, EXTEND1, EXTEND2, REQUEST_BODY, RESPONSE_BODY,
+        RESULT_CODE, RESULT_MSG, OPERATOR, IP, REMARK, VERSION, CREATE_TIME, CREATE_BY
+    </sql>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.alipay.account.entity.AlipayRegLog">
+        insert into ALIPAY_REG_LOG (
+            REQUEST_SEQ, RESPONSE_SEQ, THIRD_USER_ID, CARD_ID, CARD_TYPE, CARD_ISSUE_CODE,
+            CHANNEL, MSISDN, EXTEND1, EXTEND2, REQUEST_BODY, RESPONSE_BODY,
+            RESULT_CODE, RESULT_MSG, OPERATOR, IP, REMARK, VERSION, CREATE_TIME, CREATE_BY
+        ) values (
+            #{requestSeq,jdbcType=VARCHAR},
+            #{responseSeq,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR},
+            #{cardId,jdbcType=VARCHAR},
+            #{cardType,jdbcType=VARCHAR},
+            #{cardIssueCode,jdbcType=VARCHAR},
+            #{channel,jdbcType=VARCHAR},
+            #{msisdn,jdbcType=VARCHAR},
+            #{extend1,jdbcType=VARCHAR},
+            #{extend2,jdbcType=VARCHAR},
+            #{requestBody,jdbcType=CLOB},
+            #{responseBody,jdbcType=CLOB},
+            #{resultCode,jdbcType=VARCHAR},
+            #{resultMsg,jdbcType=VARCHAR},
+            #{operator,jdbcType=VARCHAR},
+            #{ip,jdbcType=VARCHAR},
+            #{remark,jdbcType=VARCHAR},
+            #{version,jdbcType=VARCHAR},
+            SYSDATE,
+            #{createBy,jdbcType=VARCHAR}
+        )
+    </insert>
+</mapper>

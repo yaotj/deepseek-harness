@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.para.mapper.network.ZoneDtlMapper">
+    <delete id="deleteByParaVerNo">
+        DELETE FROM TBL_ZONE_DTL WHERE PARA_VER_NO = #{paraVerNo,jdbcType=NUMERIC}
+    </delete>
+
+    <insert id="insertBatch">
+        INSERT ALL
+        <foreach collection="list" item="item">
+            INTO TBL_ZONE_DTL (PARA_VER_NO, ZONE_NO, SEQ_NO, STATION_CODE)
+            VALUES (#{item.paraVerNo,jdbcType=NUMERIC}, #{item.zoneNo,jdbcType=NUMERIC},
+                    #{item.seqNo,jdbcType=NUMERIC}, #{item.stationCode,jdbcType=VARCHAR})
+        </foreach>
+        SELECT 1 FROM DUAL
+    </insert>
+</mapper>

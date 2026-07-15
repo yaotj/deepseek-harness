@@ -1,0 +1,80 @@
+package com.chinasofti.huateng.para.controller;
+
+import com.chinasofti.huateng.model.app.RequestLineCodeListReqDTO;
+import com.chinasofti.huateng.model.app.RequestLineCodeListResult;
+import com.chinasofti.huateng.model.app.RequestLineStationCodeVersionReqDTO;
+import com.chinasofti.huateng.model.app.RequestLineStationCodeVersionResult;
+import com.chinasofti.huateng.model.app.RequestStationCodeListReqDTO;
+import com.chinasofti.huateng.model.app.RequestStationCodeListResult;
+import com.chinasofti.huateng.model.app.RequestTicketPriceByStationReqDTO;
+import com.chinasofti.huateng.model.app.RequestTicketPriceByStationResult;
+import com.chinasofti.huateng.para.service.AppParaService;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * APP 侧参数查询 RPC 接口。
+ *
+ * <p>fep-app-server 接收 APP 公共报文后，会通过 rpc 模块调用这里的接口；
+ * 本 Controller 不处理 APP 公共报文字段，只接收 fep-app 传入的 bizData 对象。</p>
+ */
+@RestController
+@RequestMapping("/ci/app")
+public class AppParaController {
+    /** APP 参数查询业务服务。 */
+    private final AppParaService appParaService;
+
+    public AppParaController(AppParaService appParaService) {
+        this.appParaService = appParaService;
+    }
+
+    /**
+     * IF8A-07 获取线路代码。
+     *
+     * @param request 请求参数；接口规范未定义业务字段，允许为空
+     * @return 当前生效路网版本中的线路代码列表
+     */
+    @PostMapping("/requestLineCodeList")
+    public RequestLineCodeListResult requestLineCodeList(@RequestBody(required = false) RequestLineCodeListReqDTO request) {
+        // 线路代码直接从当前生效的路网参数版本查询。
+        return appParaService.requestLineCodeList(request);
+    }
+
+    /**
+     * IF8A-08 获取车站代码。
+     *
+     * @param request 请求参数；lineCode 为空时返回全部线路车站
+     * @return 当前生效路网版本中的车站代码列表
+     */
+    @PostMapping("/requestStationCodeList")
+    public RequestStationCodeListResult requestStationCodeList(@RequestBody RequestStationCodeListReqDTO request) {
+        // 车站代码支持按线路过滤，具体过滤条件放在 Mapper XML 中处理。
+        return appParaService.requestStationCodeList(request);
+    }
+
+    /**
+     * IF8A-10 计算票价。
+     *
+     * @param request 进站车站代码和出站车站代码
+     * @return 两站间票价
+     */
+    @PostMapping("/requestTicketPriceByStation")
+    public RequestTicketPriceByStationResult requestTicketPriceByStation(@RequestBody RequestTicketPriceByStationReqDTO request) {
+        // 票价由费率矩阵先定位费率等级，再到基础费率表查询价格。
+        return appParaService.requestTicketPriceByStation(request);
+    }
+
+    /**
+     * IF8A-17 获取线路站点代码版本。
+     *
+     * @param request 请求参数；接口规范未定义业务字段，允许为空
+     * @return 当前路网参数版本，分别返回给线路代码版本和车站代码版本
+     */
+    @PostMapping("/requestLineStationCodeVersion")
+    public RequestLineStationCodeVersionResult requestLineStationCodeVersion(@RequestBody(required = false) RequestLineStationCodeVersionReqDTO request) {
+        // 线路、车站都来自路网参数文件，因此共用路网参数当前版本号。
+        return appParaService.requestLineStationCodeVersion(request);
+    }
+}

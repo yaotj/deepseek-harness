@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration monitorInterval="30" status="off">
+    <Properties>
+        <Property name="webLoggerLevel">${sys:webLoggerLevel}</Property>
+        <Property name="logPath">${sys:logPath}</Property>
+        <Property name="logBakDays">${sys:logBakDays}</Property>
+        <Property name="logBakGzCnt">${sys:logBakGzCnt}</Property>
+        <Property name="appName">${sys:appName}</Property>
+    </Properties>
+
+    <Appenders>
+        <RollingFile name="RollingFile" fileName="${logPath}/${appName}.log"
+            filePattern="${logPath}/bak/%d{yyyy-MM-dd}-${appName}-%i.log.gz">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %X{traceId} [%t] %-5level %l [] %msg%n" />
+            <ErrorInterceptorFilter>
+                <PatternLayout pattern="%d{HH:mm:ss.SSS} [%t] %-5level %l [] %msg%n" />
+            </ErrorInterceptorFilter>
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true" />
+                <SizeBasedTriggeringPolicy size="200 MB" />
+            </Policies>
+            <DefaultRolloverStrategy max="${logBakGzCnt}">
+                <Delete basePath="${logPath}/bak/" maxDepth="1">
+                    <IfFileName glob="*-${appName}-[0-9]*.log.gz">
+                        <IfLastModified age="${logBakDays}" />
+                    </IfFileName>
+                </Delete>
+            </DefaultRolloverStrategy>
+        </RollingFile>
+
+        <RollingFile name="tempFile" fileName="${logPath}/check-${appName}.log"
+            filePattern="${logPath}/bak/%d{yyyy-MM-dd}-${appName}-check-%i.log.gz">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %X{traceId} [%t] %-5level %l [] %msg%n" />
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="1" modulate="true" />
+                <SizeBasedTriggeringPolicy size="200 MB" />
+            </Policies>
+            <DefaultRolloverStrategy max="${logBakGzCnt}">
+                <Delete basePath="${logPath}/bak/" maxDepth="1">
+                    <IfFileName glob="*-${appName}-check-[0-9]*.log.gz">
+                        <IfLastModified age="3" />
+                    </IfFileName>
+                </Delete>
+            </DefaultRolloverStrategy>
+        </RollingFile>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+        </Console>
+
+    </Appenders>
+
+    <Loggers>
+        <Logger name="org.springframework.web.servlet.DispatcherServlet" level="${webLoggerLevel}" additivity="false">
+            <AppenderRef ref="RollingFile" />
+        </Logger>
+
+        <Logger name="org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping"
+            level="${webLoggerLevel}" additivity="false">
+            <AppenderRef ref="RollingFile" />
+        </Logger>
+
+        <Logger name="org.springframework.web.servlet.mvc.method.annotation.RequestResponseBodyMethodProcessor"
+            level="${webLoggerLevel}" additivity="false">
+            <AppenderRef ref="RollingFile" />
+        </Logger>
+
+        <Logger name="com.chinasofti.huateng.log4j2.CheckLoggerHealth" level="${webLoggerLevel}" additivity="false">
+            <AppenderRef ref="tempFile" />
+        </Logger>
+
+        <Root level="${webLoggerLevel}">
+            <AppenderRef ref="RollingFile" />
+            <AppenderRef ref="Console" />
+        </Root>
+    </Loggers>
+</Configuration>

@@ -1,0 +1,341 @@
+package com.chinasofti.huateng.paysign.service.impl;
+
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONWriter;
+import com.chinasofti.huateng.model.app.AppSignResultNotifyReqDTO;
+import com.chinasofti.huateng.model.app.AppTerminationResultNotifyReqDTO;
+import com.chinasofti.huateng.model.app.ItpCommonRequest;
+import com.chinasofti.huateng.model.app.PaySignCallbackResult;
+import com.chinasofti.huateng.model.app.ReceiveSignResultReqDTO;
+import com.chinasofti.huateng.paysign.model.request.ReceiveTerminationResultReqDTO;
+import com.chinasofti.huateng.paysign.entity.PaySignInfo;
+import com.chinasofti.huateng.paysign.entity.PaySignRequest;
+import com.chinasofti.huateng.paysign.mapper.PaySignInfoMapper;
+import com.chinasofti.huateng.paysign.mapper.PaySignRequestMapper;
+import com.chinasofti.huateng.paysign.service.AppNotifyService;
+import okhttp3.MultipartBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.task.TaskRejectedException;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+
+@Service
+public class AppNotifyServiceImpl implements AppNotifyService {
+    private static final Logger log = LoggerFactory.getLogger(AppNotifyServiceImpl.class);
+    private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
+    @Autowired
+    private PaySignRequestMapper paySignRequestMapper;
+
+    @Autowired
+    private PaySignInfoMapper paySignInfoMapper;
+
+    @Autowired
+    @Qualifier("notifyExecutor")
+    private Executor notifyExecutor;
+
+    @Value("${app.notify.sign-result-url:http://dtcustomer.bestonepay.com/testngback/ci/app/receiveSignResult}")
+    private String appNotifySignResultUrl;
+
+    @Value("${app.notify.termination-result-url:http://127.0.0.1:8080/ci/app/receiveTerminationResultFromItp}")
+    private String appNotifyTerminationResultUrl;
+
+    @Value("${itp.providerId:06}")
+    private String itpProviderId;
+
+    @Value("${itp.charset:UTF-8}")
+    private String itpCharset;
+
+    @Value("${itp.format:json}")
+    private String itpFormat;
+
+    @Value("${itp.deviceId:ITP-PAY-SIGN}")
+    private String itpDeviceId;
+
+    @Value("${itp.signType:null}")
+    private String itpSignType;
+
+    @Value("${itp.signKey:}")
+    private String itpSignKey;
+
+    private final OkHttpClient httpClient = new OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .build();
+
+    @Override
+    public void asyncNotifySignResult(PaySignRequest request, PaySignInfo signInfo, ReceiveSignResultReqDTO receiveRequest) {
+        submitNotifyTask(request, () -> {
+            try {
+                log.info("ready to exec 异步通知App签约结果, requestSignSeq={}", request.getRequestSignSeq());
+                doNotifySignResult(request, signInfo, receiveRequest);
+            } catch (Exception e) {
+                log.error("异步通知App签约结果异常, requestSignSeq={}", request.getRequestSignSeq(), e);
+                updateNotifyStatus(request, false, "异步异常:" + e.getMessage());
+            }
+        });
+    }
+
+    @Override
+    public void asyncNotifyTerminationResult(PaySignRequest request, PaySignInfo signInfo, ReceiveTerminationResultReqDTO receiveRequest) {
+        submitNotifyTask(request, () -> {
+            try {
+                doNotifyTerminationResult(request, signInfo, receiveRequest);
+            } catch (Exception e) {
+                log.error("异步通知App解约结果异常, requestSignSeq={}", request.getRequestSignSeq(), e);
+                updateNotifyStatus(request, false, "异步异常:" + e.getMessage());
+            }
+        });
+    }
+
+    private void doNotifySignResult(PaySignRequest request, PaySignInfo signInfo, ReceiveSignResultReqDTO receiveRequest) {
+        try {
+            ItpCommonRequest<AppSignResultNotifyReqDTO> notifyRequest = new ItpCommonRequest<>();
+            notifyRequest.setProviderId(itpProviderId);
+            notifyRequest.setCharset(itpCharset);
+            notifyRequest.setFormat(itpFormat);
+            notifyRequest.setTimestamp(LocalDateTime.now().format(DATETIME_FORMATTER));
+            notifyRequest.setDeviceId(itpDeviceId);
+            notifyRequest.setSignType(itpSignType);
+
+            AppSignResultNotifyReqDTO bizData = new AppSignResultNotifyReqDTO();
+            bizData.setThirdUserId(signInfo != null && StringUtils.hasText(signInfo.getThirdUserId())
+                    ? signInfo.getThirdUserId() : request.getThirdUserId());
+            bizData.setRequestSignSeq(request.getRequestSignSeq());
+            bizData.setPaymentVendor(stringValue(receiveRequest != null ? receiveRequest.getPaymentVendor() : null, signInfo != null ? signInfo.getPaymentVendor() : request.getPaymentVendor()));
+            bizData.setPayAccountId(stringValue(receiveRequest != null ? receiveRequest.getPayUserId() : null, signInfo != null ? signInfo.getPayAccountId() : null));
+            bizData.setPayAgreementNo(stringValue(receiveRequest != null ? receiveRequest.getPayAgreementNo() : null, signInfo != null ? signInfo.getPayAgreementNo() : null));
+            bizData.setSignResult(receiveRequest != null ? receiveRequest.getStatus() : request.getSignStatus());
+            bizData.setRealNameAuthResult(receiveRequest != null ? receiveRequest.getStatus() : request.getSignStatus());
+
+            notifyRequest.setBizData(bizData);
+            notifyRequest.setSign(buildItpSign(notifyRequest));
+
+            log.info("调用APP签约结果通知：{}", JSON.toJSONString(notifyRequest));
+
+            RequestBody requestBody = new MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("providerId", defaultString(notifyRequest.getProviderId(), ""))
+                    .addFormDataPart("charset", defaultString(notifyRequest.getCharset(), ""))
+                    .addFormDataPart("format", defaultString(notifyRequest.getFormat(), ""))
+                    .addFormDataPart("timestamp", defaultString(notifyRequest.getTimestamp(), ""))
+                    .addFormDataPart("deviceId", defaultString(notifyRequest.getDeviceId(), ""))
+                    .addFormDataPart("signType", defaultString(notifyRequest.getSignType(), ""))
+                    .addFormDataPart("sign", defaultString(notifyRequest.getSign(), ""))
+                    .addFormDataPart("bizData", JSON.toJSONString(bizData))
+                    .build();
+
+            Request httpRequest = new Request.Builder()
+                    .url(appNotifySignResultUrl)
+                    .post(requestBody)
+                    .build();
+
+            try (Response httpResponse = httpClient.newCall(httpRequest).execute()) {
+                String responseBody = httpResponse.body() == null ? null : httpResponse.body().string();
+                log.info("签约结果通知返回结果：code={}, body={}", httpResponse.code(), responseBody);
+
+                if (!httpResponse.isSuccessful()) {
+                    log.error("签约结果通知APP失败, url={}, code={}", appNotifySignResultUrl, httpResponse.code());
+                    updateNotifyStatus(request, false, "HTTP" + httpResponse.code());
+                    return;
+                }
+
+                if (!StringUtils.hasText(responseBody)) {
+                    updateNotifyStatus(request, true, "通知成功");
+                    return;
+                }
+
+                PaySignCallbackResult result = JSON.parseObject(responseBody, PaySignCallbackResult.class);
+                boolean success = result == null || "0000".equals(result.getRetCode());
+                updateNotifyStatus(request, success, success ? "通知成功" : ("业务失败:" + (result != null ? result.getRetMsg() : "null")));
+            }
+        } catch (Exception e) {
+            log.error("通知App签约结果异常, requestSignSeq={}", request.getRequestSignSeq(), e);
+            updateNotifyStatus(request, false, "异常:" + e.getMessage());
+        }
+    }
+
+    private void doNotifyTerminationResult(PaySignRequest request, PaySignInfo signInfo, ReceiveTerminationResultReqDTO receiveRequest) {
+        try {
+            ItpCommonRequest<AppTerminationResultNotifyReqDTO> notifyRequest = new ItpCommonRequest<>();
+            notifyRequest.setProviderId(itpProviderId);
+            notifyRequest.setCharset(itpCharset);
+            notifyRequest.setFormat(itpFormat);
+            notifyRequest.setTimestamp(LocalDateTime.now().format(DATETIME_FORMATTER));
+            notifyRequest.setDeviceId(itpDeviceId);
+            notifyRequest.setSignType(itpSignType);
+
+            AppTerminationResultNotifyReqDTO bizData = new AppTerminationResultNotifyReqDTO();
+            bizData.setThirdUserId(signInfo != null && StringUtils.hasText(signInfo.getThirdUserId())
+                    ? signInfo.getThirdUserId() : request.getThirdUserId());
+            bizData.setRequestSignSeq(request.getRequestSignSeq());
+            bizData.setCardId(stringValue(receiveRequest != null ? receiveRequest.getCardId() : null, signInfo != null ? signInfo.getCardId() : null));
+            bizData.setCardType(stringValue(receiveRequest != null ? receiveRequest.getCardType() : null, signInfo != null ? signInfo.getCardType() : null));
+            bizData.setTerminationResult(receiveRequest != null ? receiveRequest.getStatus() : request.getSignStatus());
+            bizData.setTerminationResultMsg("");
+            bizData.setTerminationTime(receiveRequest != null && StringUtils.hasText(receiveRequest.getDismissalTime())
+                    ? receiveRequest.getDismissalTime() : LocalDateTime.now().format(DATETIME_FORMATTER));
+
+            notifyRequest.setBizData(bizData);
+            notifyRequest.setSign(buildItpSign(notifyRequest));
+
+            log.info("调用APP解约结果通知：{}", JSON.toJSONString(notifyRequest));
+
+            RequestBody requestBody = new MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("providerId", defaultString(notifyRequest.getProviderId(), ""))
+                    .addFormDataPart("charset", defaultString(notifyRequest.getCharset(), ""))
+                    .addFormDataPart("format", defaultString(notifyRequest.getFormat(), ""))
+                    .addFormDataPart("timestamp", defaultString(notifyRequest.getTimestamp(), ""))
+                    .addFormDataPart("deviceId", defaultString(notifyRequest.getDeviceId(), ""))
+                    .addFormDataPart("signType", defaultString(notifyRequest.getSignType(), ""))
+                    .addFormDataPart("sign", defaultString(notifyRequest.getSign(), ""))
+                    .addFormDataPart("bizData", JSON.toJSONString(bizData))
+                    .build();
+
+            Request httpRequest = new Request.Builder()
+                    .url(appNotifyTerminationResultUrl)
+                    .post(requestBody)
+                    .build();
+
+            try (Response httpResponse = httpClient.newCall(httpRequest).execute()) {
+                String responseBody = httpResponse.body() == null ? null : httpResponse.body().string();
+                log.info("解约结果通知返回结果：code={}, body={}", httpResponse.code(), responseBody);
+
+                if (!httpResponse.isSuccessful()) {
+                    log.error("解约结果通知APP失败, url={}, code={}", appNotifyTerminationResultUrl, httpResponse.code());
+                    updateNotifyStatus(request, false, "HTTP" + httpResponse.code());
+                    return;
+                }
+
+                if (!StringUtils.hasText(responseBody)) {
+                    updateNotifyStatus(request, true, "通知成功");
+                    return;
+                }
+
+                PaySignCallbackResult result = JSON.parseObject(responseBody, PaySignCallbackResult.class);
+                boolean success = result == null || "0000".equals(result.getRetCode());
+                updateNotifyStatus(request, success, success ? "通知成功" : ("业务失败:" + (result != null ? result.getRetMsg() : "null")));
+            }
+        } catch (Exception e) {
+            log.error("通知App解约结果异常, requestSignSeq={}", request.getRequestSignSeq(), e);
+            updateNotifyStatus(request, false, "异常:" + e.getMessage());
+        }
+    }
+
+    @Override
+    @Scheduled(fixedDelay = 300000) // 每5分钟执行一次
+    public void compensateNotify() {
+        log.info("开始执行通知补偿任务");
+        List<PaySignRequest> failedList = paySignRequestMapper.selectByNotifyStatus("FAILED", 3);
+        for (PaySignRequest request : failedList) {
+            log.info("补偿通知, requestSignSeq={}, retryCount={}",
+                    request.getRequestSignSeq(), request.getNotifyRetryCount());
+
+            // 异步重试
+            if ("RECEIVE_SIGN_RESULT".equals(request.getOperationType())) {
+                PaySignInfo signInfo = paySignInfoMapper.selectBySeq(request.getRequestSignSeq(), request.getPaymentVendor());
+                submitNotifyTask(request, () -> doNotifySignResult(request, signInfo, null));
+            } else {
+                PaySignInfo signInfo = paySignInfoMapper.selectBySeq(request.getRequestSignSeq(), request.getPaymentVendor());
+                submitNotifyTask(request, () -> doNotifyTerminationResult(request, signInfo, null));
+            }
+        }
+        log.info("通知补偿任务完成, 处理{}条记录", failedList.size());
+    }
+
+    private void submitNotifyTask(PaySignRequest request, Runnable task) {
+        try {
+            notifyExecutor.execute(task);
+        } catch (TaskRejectedException e) {
+            log.error("通知线程池拒绝任务, requestSignSeq={}", request.getRequestSignSeq(), e);
+            updateNotifyStatus(request, false, "线程池拒绝:" + e.getMessage());
+        }
+    }
+
+    private void updateNotifyStatus(PaySignRequest request, boolean success, String result) {
+        PaySignRequest update = new PaySignRequest();
+        update.setId(request.getId());
+        update.setNotifyStatus(success ? "SUCCESS" : "FAILED");
+        update.setNotifyTime(LocalDateTime.now());
+        update.setNotifyResult(result);
+        if (!success) {
+            update.setNotifyRetryCount(request.getNotifyRetryCount() + 1);
+        }
+        paySignRequestMapper.updateNotifyStatus(update);
+    }
+
+    private String buildItpSign(ItpCommonRequest<?> request) {
+        if (!StringUtils.hasText(request.getSignType()) || "00".equals(request.getSignType())) {
+            return null;
+        }
+        String signSource = buildItpSignSource(request);
+        return switch (request.getSignType()) {
+            case "01" -> digest("SHA-1", signSource);
+            case "02" -> digest("MD5", signSource);
+            default -> null;
+        };
+    }
+
+    private String buildItpSignSource(ItpCommonRequest<?> request) {
+        List<String> parts = new ArrayList<>();
+        appendIfPresent(parts, "bizData", JSON.toJSONString(request.getBizData(), JSONWriter.Feature.MapSortField));
+        appendIfPresent(parts, "charset", request.getCharset());
+        appendIfPresent(parts, "deviceId", request.getDeviceId());
+        appendIfPresent(parts, "format", request.getFormat());
+        appendIfPresent(parts, "providerId", request.getProviderId());
+        appendIfPresent(parts, "signType", request.getSignType());
+        appendIfPresent(parts, "timestamp", request.getTimestamp());
+        Collections.sort(parts);
+        return String.join("&", parts) + "&key=" + defaultString(itpSignKey, "");
+    }
+
+    private void appendIfPresent(List<String> parts, String key, String value) {
+        if (StringUtils.hasText(value)) {
+            parts.add(key + "=" + value);
+        }
+    }
+
+    private String digest(String algorithm, String content) {
+        try {
+            MessageDigest messageDigest = MessageDigest.getInstance(algorithm);
+            byte[] bytes = messageDigest.digest(content.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(bytes.length * 2);
+            for (byte b : bytes) {
+                builder.append(String.format("%02x", b));
+            }
+            return builder.toString();
+        } catch (Exception e) {
+            log.error("生成APP通知签名失败", e);
+            return null;
+        }
+    }
+
+    private String stringValue(Object value, String defaultValue) {
+        return value == null ? defaultValue : value.toString();
+    }
+
+    private String defaultString(String value, String defaultValue) {
+        return StringUtils.hasText(value) ? value : defaultValue;
+    }
+}

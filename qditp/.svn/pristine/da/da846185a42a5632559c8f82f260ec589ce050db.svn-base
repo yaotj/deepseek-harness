@@ -1,0 +1,14 @@
+server.port=9105
+spring.application.name=industry-data-server
+other.web.unSafeUrlChars=null
+other.web.enableLogRequestInFilter=true
+other.web.enableBodyCacheFilter=true
+other.web.enableLogTakeTimesInInterceptor=true
+knife4j.production=false
+
+service.security.url=http://127.0.0.1:9012
+service.security.openLogger=true
+
+industry.issue-channel-code=01
+industry.ticket-type=0441
+industry.timestamp-expire-hours=4

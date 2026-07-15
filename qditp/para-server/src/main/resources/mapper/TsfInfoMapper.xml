@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.para.mapper.network.TsfInfoMapper">
+    <delete id="deleteByParaVerNo">
+        DELETE FROM TBL_TSF_INFO WHERE PARA_VER_NO = #{paraVerNo,jdbcType=NUMERIC}
+    </delete>
+
+    <insert id="insertBatch">
+        INSERT ALL
+        <foreach collection="list" item="item">
+            INTO TBL_TSF_INFO (
+                PARA_VER_NO, FROM_STAT_CODE, FROM_LINE_CODE, TO_LINE_CODE,
+                TO_STAT_CODE, TSF_STATION_TYPE, TSF_TIME, TSF_DISTANCE
+            )
+            VALUES (
+                #{item.paraVerNo,jdbcType=NUMERIC}, #{item.fromStatCode,jdbcType=VARCHAR},
+                #{item.fromLineCode,jdbcType=VARCHAR}, #{item.toLineCode,jdbcType=VARCHAR},
+                #{item.toStatCode,jdbcType=VARCHAR}, #{item.tsfStationType,jdbcType=VARCHAR},
+                #{item.tsfTime,jdbcType=NUMERIC}, #{item.tsfDistance,jdbcType=NUMERIC}
+            )
+        </foreach>
+        SELECT 1 FROM DUAL
+    </insert>
+</mapper>

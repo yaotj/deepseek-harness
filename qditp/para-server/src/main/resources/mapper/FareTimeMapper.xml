@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.para.mapper.calendar.FareTimeMapper">
+    <delete id="deleteByParaVerNo">
+        DELETE FROM TBL_FARE_TIME WHERE PARA_VER_NO = #{paraVerNo,jdbcType=NUMERIC}
+    </delete>
+
+    <insert id="insertBatch">
+        INSERT ALL
+        <foreach collection="list" item="item">
+            INTO TBL_FARE_TIME (PARA_VER_NO, FARE_TIER, ALLOWED_TIME, LAST_UPD_USER, LAST_UPD_TMS)
+            VALUES (#{item.paraVerNo,jdbcType=NUMERIC}, #{item.fareTier,jdbcType=NUMERIC},
+                    #{item.allowedTime,jdbcType=NUMERIC}, #{item.lastUpdUser,jdbcType=VARCHAR},
+                    #{item.lastUpdTms,jdbcType=TIMESTAMP})
+        </foreach>
+        SELECT 1 FROM DUAL
+    </insert>
+</mapper>

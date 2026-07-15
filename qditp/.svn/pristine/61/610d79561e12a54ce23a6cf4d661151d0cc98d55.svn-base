@@ -1,0 +1,50 @@
+package com.chinasofti.huateng.ticket.mapper;
+
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripTravelRecordDTO;
+import com.chinasofti.huateng.ticket.entity.QRCodeTxnDetail;
+import com.chinasofti.huateng.ticket.model.app.RequestTransListReqDTO;
+import com.chinasofti.huateng.ticket.model.app.TransRecordDTO;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+
+@Mapper
+public interface QRCodeTxnDetailMapper {
+    int insert(QRCodeTxnDetail record);
+
+    QRCodeTxnDetail selectLatestByCardId(@Param("cardId") String cardId);
+
+    /**
+     * IF8A-05 查询交易记录列表。
+     */
+    List<TransRecordDTO> selectTransList(RequestTransListReqDTO request);
+
+    /**
+     * IF8A-05 查询交易记录总数。
+     */
+    int countTransList(RequestTransListReqDTO request);
+
+    /**
+     * 支付宝出行-查询乘车记录列表。
+     */
+    List<AlipayTripTravelRecordDTO> selectAlipayTravelList(@Param("thirdUserId") String thirdUserId,
+                                                            @Param("startDate") String startDate,
+                                                            @Param("endDate") String endDate,
+                                                            @Param("offset") int offset,
+                                                            @Param("limit") int limit);
+
+    /**
+     * 支付宝出行-查询乘车记录总数。
+     */
+    int countAlipayTravelList(@Param("thirdUserId") String thirdUserId,
+                               @Param("startDate") String startDate,
+                               @Param("endDate") String endDate);
+
+    /**
+     * 支付宝出行-查询乘车记录详情。
+     */
+    AlipayTripTravelRecordDTO selectAlipayTravelDetail(@Param("thirdUserId") String thirdUserId,
+                                                       @Param("orderNo") String orderNo,
+                                                       @Param("cardId") String cardId);
+}

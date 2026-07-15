@@ -1,0 +1,23 @@
+package com.chinasofti.huateng.paysign.service;
+
+import com.chinasofti.huateng.paysign.entity.PaySignRequest;
+
+public interface AppNotifyService {
+    /**
+     * 异步通知App签约结果
+     * @param request 流水记录
+     */
+    void asyncNotifySignResult(PaySignRequest request);
+
+    /**
+     * 异步通知App解约结果
+     * @param request 流水记录
+     */
+    void asyncNotifyTerminationResult(PaySignRequest request);
+
+    /**
+     * 补偿通知（定时任务调用）
+     * 重试失败的通知
+     */
+    void compensateNotify();
+}

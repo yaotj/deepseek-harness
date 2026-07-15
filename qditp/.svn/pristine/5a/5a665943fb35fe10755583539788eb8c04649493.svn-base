@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.dailyticket.mapper.DailyTicketOrderMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.dailyticket.model.DailyTicketOrder">
+        <id column="ID" jdbcType="VARCHAR" property="id"/>
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="ORDER_TYPE" jdbcType="VARCHAR" property="orderType"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="USER_ID" jdbcType="VARCHAR" property="userId"/>
+        <result column="ORDER_SOURCE" jdbcType="VARCHAR" property="orderSource"/>
+        <result column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
+        <result column="SHOW_TYPE" jdbcType="VARCHAR" property="showType"/>
+        <result column="TICKET_NAME" jdbcType="VARCHAR" property="ticketName"/>
+        <result column="TICKET_PRICE" jdbcType="INTEGER" property="ticketPrice"/>
+        <result column="PAY_AMOUNT" jdbcType="INTEGER" property="payAmount"/>
+        <result column="PAY_CHANNEL_CODE" jdbcType="VARCHAR" property="payChannelCode"/>
+        <result column="CHANNEL_TYPE" jdbcType="VARCHAR" property="channelType"/>
+        <result column="PAY_SCENE" jdbcType="VARCHAR" property="payScene"/>
+        <result column="ORDER_STATUS" jdbcType="VARCHAR" property="orderStatus"/>
+        <result column="PAY_STATUS" jdbcType="VARCHAR" property="payStatus"/>
+        <result column="TRADE_NO" jdbcType="VARCHAR" property="tradeNo"/>
+        <result column="PAYMENT_ORDER_NO" jdbcType="VARCHAR" property="paymentOrderNo"/>
+        <result column="PAY_DATE" jdbcType="TIMESTAMP" property="payDate"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        ID, ORDER_NO, ORDER_TYPE, THIRD_USER_ID, USER_ID, ORDER_SOURCE, CARD_TYPE,
+        SHOW_TYPE, TICKET_NAME, TICKET_PRICE, PAY_AMOUNT, PAY_CHANNEL_CODE,
+        CHANNEL_TYPE, PAY_SCENE, ORDER_STATUS, PAY_STATUS, TRADE_NO,
+        PAYMENT_ORDER_NO, PAY_DATE, CREATE_TIME, UPDATE_TIME
+    </sql>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketOrder">
+        insert into DAILY_TICKET_ORDER (
+            ID, ORDER_NO, ORDER_TYPE, THIRD_USER_ID, USER_ID, ORDER_SOURCE, CARD_TYPE,
+            SHOW_TYPE, TICKET_NAME, TICKET_PRICE, PAY_AMOUNT, PAY_CHANNEL_CODE,
+            CHANNEL_TYPE, PAY_SCENE, ORDER_STATUS, PAY_STATUS, TRADE_NO,
+            PAYMENT_ORDER_NO, PAY_DATE, CREATE_TIME, UPDATE_TIME
+        ) values (
+            #{id,jdbcType=VARCHAR}, #{orderNo,jdbcType=VARCHAR}, #{orderType,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR}, #{userId,jdbcType=VARCHAR}, #{orderSource,jdbcType=VARCHAR},
+            #{cardType,jdbcType=VARCHAR}, #{showType,jdbcType=VARCHAR}, #{ticketName,jdbcType=VARCHAR},
+            #{ticketPrice,jdbcType=INTEGER}, #{payAmount,jdbcType=INTEGER}, #{payChannelCode,jdbcType=VARCHAR},
+            #{channelType,jdbcType=VARCHAR}, #{payScene,jdbcType=VARCHAR}, #{orderStatus,jdbcType=VARCHAR},
+            #{payStatus,jdbcType=VARCHAR}, #{tradeNo,jdbcType=VARCHAR}, #{paymentOrderNo,jdbcType=VARCHAR},
+            #{payDate,jdbcType=TIMESTAMP}, #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from DAILY_TICKET_ORDER
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </select>
+
+    <update id="updatePayRequest" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketOrder">
+        update DAILY_TICKET_ORDER
+        set THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR},
+            PAY_CHANNEL_CODE = #{payChannelCode,jdbcType=VARCHAR},
+            CHANNEL_TYPE = #{channelType,jdbcType=VARCHAR},
+            PAY_SCENE = #{payScene,jdbcType=VARCHAR},
+            ORDER_STATUS = #{orderStatus,jdbcType=VARCHAR},
+            PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
+            UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+
+    <update id="updatePayResult" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketOrder">
+        update DAILY_TICKET_ORDER
+        set ORDER_STATUS = #{orderStatus,jdbcType=VARCHAR},
+            PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
+            TRADE_NO = #{tradeNo,jdbcType=VARCHAR},
+            PAY_AMOUNT = #{payAmount,jdbcType=INTEGER},
+            PAY_DATE = #{payDate,jdbcType=TIMESTAMP},
+            UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+
+    <update id="updateOrderStatus">
+        update DAILY_TICKET_ORDER
+        set ORDER_STATUS = #{orderStatus,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSTIMESTAMP
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+</mapper>
