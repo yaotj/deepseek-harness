@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.alipay.paysign.mapper.AlipayPayLogMapper">
+    <select id="selectByOrderNo" resultType="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog">
+        SELECT * FROM ALIPAY_PAY_LOG WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </select>
+
+    <select id="selectByPaySeq" resultType="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog">
+        SELECT * FROM ALIPAY_PAY_LOG WHERE PAY_SEQ = #{paySeq,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog" useGeneratedKeys="false">
+        INSERT INTO ALIPAY_PAY_LOG (
+            PAY_SEQ, THIRD_USER_ID, CARD_ID, ORDER_NO, TRADE_NO,
+            PAY_AMOUNT, PAY_STATUS, PAY_TYPE, SCENE, PAYMENT_VENDOR,
+            INDUSTRY_TYPE, SUBJECT, BODY, REQUEST_SIGN_SEQ, ORDER_TIME_OUT,
+            AUTH_CODE, NOTIFY_URL, RETURN_URL, IP_ADDRESS, INDUSTRY_DETAIL,
+            REQUEST_BODY, RESPONSE_BODY, RESULT_CODE, RESULT_MSG, OPERATOR,
+            IP, REMARK, DELETE_FLAG, VERSION, CREATE_TIME, UPDATE_TIME, CREATE_BY
+        ) VALUES (
+            #{paySeq,jdbcType=VARCHAR}, #{thirdUserId,jdbcType=VARCHAR}, #{cardId,jdbcType=VARCHAR}, #{orderNo,jdbcType=VARCHAR}, #{tradeNo,jdbcType=VARCHAR},
+            #{payAmount,jdbcType=VARCHAR}, #{payStatus,jdbcType=VARCHAR}, #{payType,jdbcType=VARCHAR}, #{scene,jdbcType=VARCHAR}, #{paymentVendor,jdbcType=VARCHAR},
+            #{industryType,jdbcType=VARCHAR}, #{subject,jdbcType=VARCHAR}, #{body,jdbcType=VARCHAR}, #{requestSignSeq,jdbcType=VARCHAR}, #{orderTimeOut,jdbcType=VARCHAR},
+            #{authCode,jdbcType=VARCHAR}, #{notifyUrl,jdbcType=VARCHAR}, #{returnUrl,jdbcType=VARCHAR}, #{ipAddress,jdbcType=VARCHAR}, #{industryDetail,jdbcType=VARCHAR},
+            #{requestBody,jdbcType=VARCHAR}, #{responseBody,jdbcType=VARCHAR}, #{resultCode,jdbcType=VARCHAR}, #{resultMsg,jdbcType=VARCHAR}, #{operator,jdbcType=VARCHAR},
+            #{ip,jdbcType=VARCHAR}, #{remark,jdbcType=VARCHAR}, #{deleteFlag,jdbcType=VARCHAR}, #{version,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}, #{createBy,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <update id="updatePayStatus">
+        UPDATE ALIPAY_PAY_LOG
+        SET PAY_STATUS = #{payStatus,jdbcType=VARCHAR}, UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        WHERE PAY_SEQ = #{paySeq,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </update>
+
+    <update id="updatePayNotify">
+        UPDATE ALIPAY_PAY_LOG
+        SET PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
+            TRADE_NO = #{tradeNo,jdbcType=VARCHAR},
+            PAY_AMOUNT = #{payAmount,jdbcType=VARCHAR},
+            UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </update>
+
+    <update id="updateRefundSummary">
+        UPDATE ALIPAY_PAY_LOG
+        SET REFUND_AMOUNT = NVL(REFUND_AMOUNT, 0) + #{refundAmount,jdbcType=VARCHAR},
+            REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </update>
+
+    <select id="selectAlipayPayLogList" resultType="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog">
+        SELECT *
+        FROM (
+            SELECT
+                PAY_SEQ AS paySeq,
+                THIRD_USER_ID AS thirdUserId,
+                CARD_ID AS cardId,
+                ORDER_NO AS orderNo,
+                TRADE_NO AS tradeNo,
+                PAY_AMOUNT AS payAmount,
+                PAY_STATUS AS payStatus,
+                PAY_TYPE AS payType,
+                SCENE AS scene,
+                PAYMENT_VENDOR AS paymentVendor,
+                INDUSTRY_TYPE AS industryType,
+                SUBJECT AS subject,
+                BODY AS body,
+                REQUEST_SIGN_SEQ AS requestSignSeq,
+                ORDER_TIME_OUT AS orderTimeOut,
+                AUTH_CODE AS authCode,
+                NOTIFY_URL AS notifyUrl,
+                RETURN_URL AS returnUrl,
+                IP_ADDRESS AS ipAddress,
+                INDUSTRY_DETAIL AS industryDetail,
+                REQUEST_BODY AS requestBody,
+                RESPONSE_BODY AS responseBody,
+                RESULT_CODE AS resultCode,
+                RESULT_MSG AS resultMsg,
+                OPERATOR AS operator,
+                IP AS ip,
+                REMARK AS remark,
+                DELETE_FLAG AS deleteFlag,
+                VERSION AS version,
+                CREATE_TIME AS createTime,
+                UPDATE_TIME AS updateTime,
+                CREATE_BY AS createBy,
+                REFUND_AMOUNT AS refundAmount,
+                REFUND_STATUS AS refundStatus,
+                ROW_NUMBER() OVER (ORDER BY CREATE_TIME DESC, PAY_SEQ DESC) AS rn
+            FROM ALIPAY_PAY_LOG
+            WHERE DELETE_FLAG = '0'
+              <if test="thirdUserId != null and thirdUserId != ''">
+                  AND THIRD_USER_ID = #{thirdUserId}
+              </if>
+              <if test="cardId != null and cardId != ''">
+                  AND CARD_ID = #{cardId}
+              </if>
+              <if test="payStatus != null and payStatus != ''">
+                  AND PAY_STATUS = #{payStatus}
+              </if>
+              <if test="startTime != null and startTime != ''">
+                  AND CREATE_TIME &gt;= TO_DATE(#{startTime}, 'YYYY-MM-DD HH24:MI:SS')
+              </if>
+              <if test="endTime != null and endTime != ''">
+                  AND CREATE_TIME &lt;= TO_DATE(#{endTime}, 'YYYY-MM-DD HH24:MI:SS')
+              </if>
+        )
+        WHERE rn &gt; #{offset} AND rn &lt;= #{offsetEnd}
+    </select>
+
+    <select id="countAlipayPayLogList" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM ALIPAY_PAY_LOG
+        WHERE DELETE_FLAG = '0'
+          <if test="thirdUserId != null and thirdUserId != ''">
+              AND THIRD_USER_ID = #{thirdUserId}
+          </if>
+          <if test="cardId != null and cardId != ''">
+              AND CARD_ID = #{cardId}
+          </if>
+          <if test="payStatus != null and payStatus != ''">
+              AND PAY_STATUS = #{payStatus}
+          </if>
+          <if test="startTime != null and startTime != ''">
+              AND CREATE_TIME &gt;= TO_DATE(#{startTime}, 'YYYY-MM-DD HH24:MI:SS')
+          </if>
+          <if test="endTime != null and endTime != ''">
+              AND CREATE_TIME &lt;= TO_DATE(#{endTime}, 'YYYY-MM-DD HH24:MI:SS')
+          </if>
+    </select>
+</mapper>

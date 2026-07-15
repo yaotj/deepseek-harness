@@ -1,0 +1,277 @@
+package com.chinasofti.huateng.alipay.paysign.util;
+
+import com.alibaba.fastjson2.JSON;
+import com.chinasofti.huateng.alipay.paysign.config.PayCenterProperties;
+import com.chinasofti.huateng.alipay.paysign.model.request.PayCenterRequest;
+import com.chinasofti.huateng.alipay.paysign.model.response.PayCenterResponse;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import jakarta.annotation.PostConstruct;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Signature;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Base64;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * 支付中心调用工具类。
+ */
+@Component
+public class PayCenterClient {
+    private static final Logger log = LoggerFactory.getLogger(PayCenterClient.class);
+    private static final MediaType MEDIA_TYPE_JSON = MediaType.parse("application/json; charset=utf-8");
+    private static final String SIGN_ALGORITHM = "SHA256WithRSA";
+    private static final int DEFAULT_ORDER_TIMEOUT = 60;
+
+    private final OkHttpClient httpClient;
+    private final PayCenterProperties payCenterProperties;
+
+    @Autowired
+    public PayCenterClient(PayCenterProperties payCenterProperties) {
+        this.payCenterProperties = payCenterProperties;
+        this.httpClient = new OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .build();
+    }
+
+    /**
+     * 调用支付中心支付接口。
+     */
+    public PayCenterResponse requestPay(Map<String, Object> bizDataMap) {
+        PayCenterRequest request = buildRequest(bizDataMap);
+        return callPayCenter(request);
+    }
+
+    /**
+     * 调用支付宝退款接口。
+     */
+    public PayCenterResponse requestRefund(Map<String, Object> bizDataMap) {
+        PayCenterRequest request = buildRequest("/api/payment/requestRefund", bizDataMap);
+        return callPayCenter("/api/payment/requestRefund", request);
+    }
+
+    /**
+     * 调用支付中心支付查询接口。
+     */
+    public PayCenterResponse payQuery(Map<String, Object> bizDataMap) {
+        PayCenterRequest request = buildRequest("/api/payment/payQuery", bizDataMap);
+        return callPayCenter("/api/payment/payQuery", request);
+    }
+
+    /**
+     * 调用支付中心退款查询接口。
+     */
+    public PayCenterResponse refundQuery(Map<String, Object> bizDataMap) {
+        PayCenterRequest request = buildRequest("/api/refund/refundQuery", bizDataMap);
+        return callPayCenter("/api/refund/refundQuery", request);
+    }
+
+    /**
+     * 构建支付中心请求。
+     */
+    private PayCenterRequest buildRequest(Map<String, Object> bizDataMap) {
+        PayCenterRequest payCenterRequest = new PayCenterRequest();
+        payCenterRequest.setMerchantNo(payCenterProperties.getMerchantNo());
+        payCenterRequest.setApiVersion(payCenterProperties.getApiVersion());
+        payCenterRequest.setSignType(payCenterProperties.getSignType());
+        payCenterRequest.setCharset(payCenterProperties.getCharset());
+        payCenterRequest.setBizData(JSON.toJSONString(bizDataMap));
+        signRequest(payCenterRequest);
+        return payCenterRequest;
+    }
+
+    /**
+     * 构建支付中心请求（带路径）。
+     */
+    private PayCenterRequest buildRequest(String path, Map<String, Object> bizDataMap) {
+        PayCenterRequest payCenterRequest = new PayCenterRequest();
+        payCenterRequest.setMerchantNo(payCenterProperties.getMerchantNo());
+        payCenterRequest.setApiVersion(payCenterProperties.getApiVersion());
+        payCenterRequest.setSignType(payCenterProperties.getSignType());
+        payCenterRequest.setCharset(payCenterProperties.getCharset());
+        payCenterRequest.setBizData(JSON.toJSONString(bizDataMap));
+        signRequest(payCenterRequest);
+        return payCenterRequest;
+    }
+
+    /**
+     * 调用支付中心（支付接口专用）。
+     */
+    private PayCenterResponse callPayCenter(PayCenterRequest request) {
+        try {
+            String url = payCenterProperties.getRequestPayUrl();
+            if (url == null || url.trim().isEmpty()) {
+                log.error("支付接口地址未配置");
+                return null;
+            }
+            String jsonBody = JSON.toJSONString(request);
+            log.info("调用支付中心, url={}, request={}", url, jsonBody);
+
+            RequestBody body = RequestBody.create(jsonBody, MEDIA_TYPE_JSON);
+            Request httpRequest = new Request.Builder()
+                    .url(url)
+                    .post(body)
+                    .build();
+
+            try (Response httpResponse = httpClient.newCall(httpRequest).execute()) {
+                if (httpResponse.isSuccessful() && httpResponse.body() != null) {
+                    String responseBody = httpResponse.body().string();
+                    log.info("支付中心响应, response={}", responseBody);
+                    return JSON.parseObject(responseBody, PayCenterResponse.class);
+                } else {
+                    log.error("调用支付中心失败, code={}, message={}",
+                            httpResponse.code(), httpResponse.message());
+                    return null;
+                }
+            }
+        } catch (IOException e) {
+            log.error("调用支付中心异常", e);
+            return null;
+        }
+    }
+
+    /**
+     * 调用支付中心（通用）。
+     */
+    private PayCenterResponse callPayCenter(String path, PayCenterRequest request) {
+        try {
+            String baseUrl = payCenterProperties.getGatewayUrl();
+            String url = baseUrl.endsWith("/") ? baseUrl + path.substring(1) : baseUrl + path;
+            String jsonBody = JSON.toJSONString(request);
+            log.info("调用支付中心, url={}, request={}", url, jsonBody);
+
+            RequestBody body = RequestBody.create(jsonBody, MEDIA_TYPE_JSON);
+            Request httpRequest = new Request.Builder()
+                    .url(url)
+                    .post(body)
+                    .build();
+
+            try (Response httpResponse = httpClient.newCall(httpRequest).execute()) {
+                if (httpResponse.isSuccessful() && httpResponse.body() != null) {
+                    String responseBody = httpResponse.body().string();
+                    log.info("支付中心响应, response={}", responseBody);
+                    return JSON.parseObject(responseBody, PayCenterResponse.class);
+                } else {
+                    log.error("调用支付中心失败, code={}, message={}",
+                            httpResponse.code(), httpResponse.message());
+                    return null;
+                }
+            }
+        } catch (IOException e) {
+            log.error("调用支付中心异常", e);
+            return null;
+        }
+    }
+
+    /**
+     * RSA签名。
+     */
+    private void signRequest(PayCenterRequest request) {
+        String privateKey = payCenterProperties.getMerchantPrivateKey();
+        if (privateKey == null || privateKey.trim().isEmpty()) {
+            log.warn("商户私钥为空，跳过签名");
+            return;
+        }
+        try {
+            String signData = buildSignData(request);
+            String sign = signWithRsa(signData, privateKey);
+            request.setSign(sign);
+        } catch (Exception e) {
+            log.error("RSA签名异常", e);
+        }
+    }
+
+    /**
+     * 构建签名源数据。
+     */
+    private String buildSignData(PayCenterRequest request) {
+        Map<String, String> params = new java.util.LinkedHashMap<>();
+        params.put("merchantNo", request.getMerchantNo());
+        params.put("apiVersion", request.getApiVersion());
+        params.put("signType", request.getSignType());
+        params.put("charset", request.getCharset());
+        params.put("bizData", request.getBizData());
+
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> entry : params.entrySet()) {
+            if (sb.length() > 0) {
+                sb.append("&");
+            }
+            sb.append(entry.getKey()).append("=").append(entry.getValue());
+        }
+        return sb.toString();
+    }
+
+    /**
+     * RSA签名。
+     */
+    private String signWithRsa(String data, String privateKey) throws Exception {
+        byte[] keyBytes = Base64.getDecoder().decode(privateKey);
+        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+        PrivateKey priKey = keyFactory.generatePrivate(keySpec);
+
+        Signature signature = Signature.getInstance(SIGN_ALGORITHM);
+        signature.initSign(priKey);
+        signature.update(data.getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder().encodeToString(signature.sign());
+    }
+
+    /**
+     * 生成商户订单号。
+     */
+    public String generateMerchantOrderNo() {
+        return "M" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    /**
+     * 从响应数据中获取字符串值。
+     */
+    public String getStringFromData(PayCenterResponse response, String key) {
+        if (response == null || response.getData() == null) {
+            return null;
+        }
+        Object value = response.getData().get(key);
+        return value != null ? value.toString() : null;
+    }
+
+    /**
+     * 从响应数据中获取整数值。
+     */
+    public Integer getIntFromData(PayCenterResponse response, String key) {
+        if (response == null || response.getData() == null) {
+            return null;
+        }
+        Object value = response.getData().get(key);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        try {
+            return Integer.parseInt(value.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+}
