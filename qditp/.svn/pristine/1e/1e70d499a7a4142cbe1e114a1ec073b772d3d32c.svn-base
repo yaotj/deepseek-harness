@@ -1,0 +1,91 @@
+package com.chinasofti.huateng.alipay.paysign.service.impl;
+
+import com.chinasofti.huateng.model.alipaytrip.AlipaySignInfo;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTerminationRequest;
+import com.chinasofti.huateng.alipay.paysign.mapper.AlipaySignInfoMapper;
+import com.chinasofti.huateng.alipay.paysign.util.PayCenterClient;
+import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
+import com.chinasofti.huateng.common.response.AlipayCommonResponse;
+import com.alibaba.fastjson2.JSON;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+@Service
+public class TerminationNotifier {
+    private static final Logger log = LoggerFactory.getLogger(TerminationNotifier.class);
+    private static final String STATUS_TERMINATED = "TERMINATED";
+    private static final String STATUS_COMPLETED = "COMPLETED";
+    private static final String STATUS_FAIL = "FAIL";
+
+    @Autowired
+    private AlipaySignInfoMapper alipaySignInfoMapper;
+
+    @Autowired
+    private com.chinasofti.huateng.alipay.paysign.mapper.AlipayTerminationRequestMapper alipayTerminationRequestMapper;
+
+    @Autowired
+    private PayCenterClient payCenterClient;
+
+    public void execute(AlipayTerminationRequest terminationRequest) {
+        try {
+            AlipaySignInfo signInfo = alipaySignInfoMapper.selectByAgreementCode(terminationRequest.getAgreementCode());
+            if (signInfo == null) {
+                log.warn("执行解约失败，签约信息不存在, agreementCode={}", terminationRequest.getAgreementCode());
+                alipayTerminationRequestMapper.updateStatus(terminationRequest.getAgreementCode(), STATUS_FAIL, LocalDateTime.now());
+                return;
+            }
+
+            alipaySignInfoMapper.updateStatus(signInfo.getAgreementCode(), STATUS_TERMINATED, LocalDateTime.now());
+
+            AlipayCommonResponse notifyResponse = notifyCloseResult(terminationRequest.getAgreementCode(), true);
+            if (notifyResponse != null && "0000".equals(notifyResponse.getRetCode())) {
+                log.info("通知支付宝方解约结果成功, agreementCode={}", terminationRequest.getAgreementCode());
+            } else {
+                log.warn("通知支付宝方解约结果失败, agreementCode={}, retCode={}, retMsg={}",
+                        terminationRequest.getAgreementCode(),
+                        notifyResponse != null ? notifyResponse.getRetCode() : "null",
+                        notifyResponse != null ? notifyResponse.getRetMsg() : "null");
+            }
+
+            alipayTerminationRequestMapper.updateStatus(terminationRequest.getAgreementCode(), STATUS_COMPLETED, LocalDateTime.now());
+        } catch (Exception e) {
+            log.error("执行解约异常, agreementCode={}", terminationRequest.getAgreementCode(), e);
+            try {
+                alipayTerminationRequestMapper.updateStatus(terminationRequest.getAgreementCode(), STATUS_FAIL, LocalDateTime.now());
+            } catch (Exception ex) {
+                log.error("更新解约记录状态失败, agreementCode={}", terminationRequest.getAgreementCode(), ex);
+            }
+        }
+    }
+
+    private AlipayCommonResponse notifyCloseResult(String agreementCode, boolean result) {
+        AlipayCommonResponse response = new AlipayCommonResponse();
+        try {
+            Map<String, Object> bizDataMap = new LinkedHashMap<>();
+            bizDataMap.put("agreementNo", agreementCode);
+            bizDataMap.put("result", result);
+
+            log.info("支付宝出行-业务关闭结果通知,调用支付中心通知接口,请求参数: {}", JSON.toJSONString(bizDataMap));
+            com.chinasofti.huateng.alipay.paysign.model.response.PayCenterResponse payCenterResponse = payCenterClient.closeResultNotify(bizDataMap);
+            log.info("支付宝出行-业务关闭结果通知,支付中心响应结果: success={}, msg={}", payCenterResponse != null ? payCenterResponse.getSuccess() : "null", payCenterResponse != null ? payCenterResponse.getMsg() : "null");
+            if (payCenterResponse != null && "0".equals(payCenterResponse.getCode().toString())) {
+                response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+                response.setRetMsg("成功");
+            } else {
+                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg("通知推送失败");
+            }
+        } catch (Exception e) {
+            log.error("支付宝出行-业务关闭结果通知 异常, agreementCode={}, result={}", agreementCode, result, e);
+            response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+            response.setRetMsg("系统内部错误");
+        }
+        return response;
+    }
+}

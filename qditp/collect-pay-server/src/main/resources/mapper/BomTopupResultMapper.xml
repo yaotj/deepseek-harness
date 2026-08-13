@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.collectpay.mapper.BomTopupResultMapper">
+
+    <!-- 插入充值结果通知 -->
+    <insert id="insertNotiy" parameterType="map">
+        INSERT INTO TBL_BOM_TOPUP_RESULT (
+            ORDER_NO,
+            TICKET_LOGIC_NUM,
+            TICKET_PHYSICS_NUM,
+            TRANS_DATE,
+            TRANS_AMOUNT,
+            AFTER_AMOUNT,
+            TOPUP_STATUS,
+            TRANS_TYPE,
+            CREATE_TIME
+        ) VALUES (
+            #{orderNo},
+            #{ticketLogicNum},
+            #{ticketPhysicsNum},
+            #{transDate},
+            #{transAmount},
+            #{afterAmount},
+            #{topupStatus},
+            #{transType},
+            SYSDATE
+        )
+    </insert>
+
+</mapper>

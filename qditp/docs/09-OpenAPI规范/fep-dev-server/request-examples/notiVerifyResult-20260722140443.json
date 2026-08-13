@@ -1,0 +1,63 @@
+{
+  "request": {
+    "url": "/ci/agm/notiVerifyResult",
+    "method": "POST",
+    "contentType": "application/x-www-form-urlencoded",
+    "headers": {
+      "x-request-id": "6dc49d72-81d0-4e28-ae52-36f1901f0fc7",
+      "content-length": "725",
+      "x-forwarded-proto": "http",
+      "content-encoding": "UTF-8",
+      "x-forwarded-port": "48000",
+      "x-envoy-original-path": "/fep-dev/ci/agm/notiVerifyResult",
+      "x-real-ip": "172.20.202.10",
+      "host": "itp-gateway.itp-gateway.svc:50908",
+      "content-type": "application/x-www-form-urlencoded",
+      "user-agent": "Apache-HttpClient/4.5.3 (Java/1.8.0_162)"
+    },
+    "formData": {
+      "providerId": "04",
+      "charset": "UTF-8",
+      "format": "json",
+      "timestamp": "20260722140443",
+      "deviceId": "13330402",
+      "signType": "00",
+      "sign": "***",
+      "bizData": "{\"cardId\":\"2607031119541710\",\"cardType\":\"0441\",\"channelType\":\"00\",\"deviceId\":\"13330402\",\"handleDateTime\":\"20260722140443\",\"handleResultCode\":\"000\",\"handleStationCode\":\"1333\",\"issueChannelCode\":\"07\",\"itpUserId\":\"29B92CA7\",\"lastHandleDateTime\":\"20260721162931\",\"lastHandleStationCode\":\"1127\",\"lastTicketStatus\":\"05\",\"overtimeAmount\":\"0\",\"signChannelCode\":\"07\",\"tikcetTransSeq\":\"2\",\"trxAmount\":\"0\",\"trxType\":\"01\"}"
+    },
+    "bizDataParsed": {
+      "cardId": "2607031119541710",
+      "cardType": "0441",
+      "channelType": "00",
+      "deviceId": "13330402",
+      "handleDateTime": "20260722140443",
+      "handleResultCode": "000",
+      "handleStationCode": "1333",
+      "issueChannelCode": "07",
+      "itpUserId": "29B92CA7",
+      "lastHandleDateTime": "20260721162931",
+      "lastHandleStationCode": "1127",
+      "lastTicketStatus": "05",
+      "overtimeAmount": "0",
+      "signChannelCode": "07",
+      "tikcetTransSeq": "2",
+      "trxAmount": "0",
+      "trxType": "01"
+    },
+    "trace": {
+      "traceparent": "00-eb1a37e3e297b1aac7bf6f5b36a3040f-b5d083a2bfd3cd02-00",
+      "x-envoy-external-address": "10.251.81.65",
+      "x-envoy-attempt-count": "1"
+    }
+  },
+  "analysis": {
+    "interface": "IF1A-01 闸机检票通知",
+    "transactionType": "01-进站",
+    "handleResult": "000-成功",
+    "cardType": "0441",
+    "issueChannel": "07-支付宝",
+    "amount": "0",
+    "station": "1333",
+    "timestamp": "2026-07-22 14:04:43"
+  }
+}

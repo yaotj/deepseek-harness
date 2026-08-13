@@ -1,0 +1,660 @@
+{
+  "apifoxProject": "1.0.0",
+  "$schema": {
+    "app": "apifox",
+    "type": "project",
+    "version": "1.2.0"
+  },
+  "info": {
+    "name": "青岛itp",
+    "description": "可导入 Apifox 的 Postman Collection。接口使用 application/x-www-form-urlencoded 公共报文；请在环境变量或集合变量中填入 sign，若前置开启验签则 sign 不能为空。",
+    "mockRule": {
+      "rules": [],
+      "enableSystemRule": true
+    }
+  },
+  "projectSetting": {
+    "id": "8426515",
+    "auth": {},
+    "securityScheme": {},
+    "gateway": [],
+    "language": "zh-CN",
+    "apiStatuses": [
+      "developing",
+      "testing",
+      "released",
+      "deprecated"
+    ],
+    "mockSettings": {},
+    "preProcessors": [],
+    "postProcessors": [],
+    "advancedSettings": {
+      "allowAutomationWriteAutomationCreatedSprintBranch": true,
+      "enableJsonc": false,
+      "enableBigint": false,
+      "responseValidate": true,
+      "enableTestScenarioSetting": false,
+      "enableYAPICompatScript": false,
+      "isDefaultUrlEncoding": 2,
+      "publishedDocUrlRules": {
+        "defaultRule": "RESOURCE_KEY_ONLY",
+        "resourceKeyStandard": "NEW"
+      }
+    },
+    "initialDisabledMockIds": [],
+    "servers": [
+      {
+        "id": "default",
+        "name": "默认服务",
+        "importSourceServerId": "default",
+        "moduleId": 7900481
+      }
+    ],
+    "cloudMock": {
+      "enable": false,
+      "security": "free",
+      "tokenKey": "apifoxToken",
+      "isCreatedAutomaticallyByDefaultConfigFromAdmin": true
+    }
+  },
+  "apiCollection": [
+    {
+      "name": "根目录",
+      "id": 89777263,
+      "auth": {
+        "type": "noauth"
+      },
+      "securityScheme": {},
+      "parentId": 0,
+      "serverId": "",
+      "description": "",
+      "identityPattern": {
+        "httpApi": {
+          "type": "methodAndPath",
+          "bodyType": "",
+          "fields": []
+        }
+      },
+      "shareSettings": {},
+      "visibility": "SHARED",
+      "moduleId": 8100839,
+      "preProcessors": [
+        {
+          "id": "inheritProcessors",
+          "type": "inheritProcessors",
+          "data": {}
+        }
+      ],
+      "postProcessors": [
+        {
+          "id": "inheritProcessors",
+          "type": "inheritProcessors",
+          "data": {}
+        }
+      ],
+      "inheritPostProcessors": {},
+      "inheritPreProcessors": {},
+      "items": [
+        {
+          "name": "ALIPAY-006 查询乘车记录详情",
+          "api": {
+            "id": "480696772",
+            "method": "post",
+            "path": "/channel/findTravelDetail",
+            "parameters": {
+              "path": [],
+              "query": [],
+              "cookie": [],
+              "header": []
+            },
+            "auth": {},
+            "securityScheme": {},
+            "commonParameters": {},
+            "responses": [
+              {
+                "id": "171641334",
+                "code": "200",
+                "headers": [],
+                "jsonSchema": {
+                  "$ref": "#/definitions/289999237"
+                },
+                "itemSchema": {},
+                "description": "成功",
+                "contentType": "json",
+                "mediaType": "application/json",
+                "oasExtensions": ""
+              }
+            ],
+            "responseExamples": [],
+            "requestBody": {
+              "type": "application/x-www-form-urlencoded",
+              "parameters": [
+                {
+                  "id": "w4r28n50oh",
+                  "name": "providerId",
+                  "required": false,
+                  "enable": true,
+                  "description": "",
+                  "example": "01",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "01"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "9bujM9kLoE",
+                  "name": "charset",
+                  "required": false,
+                  "enable": true,
+                  "description": "",
+                  "example": "UTF-8",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "UTF-8"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "cXk4CG6eYQ",
+                  "name": "format",
+                  "required": false,
+                  "enable": true,
+                  "description": "",
+                  "example": "json",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "json"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "uAdgbTWvLO",
+                  "name": "timestamp",
+                  "required": false,
+                  "enable": true,
+                  "description": "",
+                  "example": "20260626120000",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "20260626120000"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "iBpeCdqAAA",
+                  "name": "deviceId",
+                  "required": false,
+                  "enable": true,
+                  "description": "",
+                  "example": "ALIPAY",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "ALIPAY"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "bLwSGQyu3n",
+                  "name": "signType",
+                  "required": false,
+                  "enable": true,
+                  "description": "",
+                  "example": "00",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "00"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "8eR9UTTsot",
+                  "name": "sign",
+                  "required": false,
+                  "enable": true,
+                  "description": "",
+                  "example": "",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      ""
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "Ef91U7pzUH",
+                  "name": "bizData",
+                  "required": false,
+                  "enable": true,
+                  "description": "业务参数 JSON 字符串",
+                  "example": "{\"thirdUserId\":\"ALIPAY_8823456789012345\",\"orderNo\":\"TXN2025060100001\"}",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "description": "业务参数 JSON 字符串",
+                    "examples": [
+                      "{\"thirdUserId\":\"ALIPAY_8823456789012345\",\"orderNo\":\"TXN2025060100001\"}"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                }
+              ],
+              "oasExtensions": "",
+              "required": true,
+              "additionalContentTypes": []
+            },
+            "description": "支付宝出行-查询乘车记录详情。根据第三方用户ID和订单号查询单条乘车记录的详细信息。",
+            "tags": [],
+            "status": "released",
+            "serverId": "",
+            "operationId": "findTravelDetail",
+            "sourceUrl": "",
+            "ordering": 0,
+            "cases": [
+              {
+                "id": 389597353,
+                "type": "DEBUG_CASE",
+                "path": null,
+                "name": "查询乘车记录详情-成功",
+                "responseId": "171641334",
+                "parameters": {
+                  "query": [],
+                  "path": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "header": [],
+                  "cookie": []
+                },
+                "requestBody": {
+                  "parameters": [
+                    {
+                      "id": "DNrmdc9oTR",
+                      "relatedId": "w4r28n50oh",
+                      "relatedName": "providerId",
+                      "value": "01",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          "01"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "wVzjzh3bBa",
+                      "relatedId": "9bujM9kLoE",
+                      "relatedName": "charset",
+                      "value": "UTF-8",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          "UTF-8"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "ZYF2ObKK5d",
+                      "relatedId": "cXk4CG6eYQ",
+                      "relatedName": "format",
+                      "value": "json",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          "json"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "whjuRcuCKL",
+                      "relatedId": "uAdgbTWvLO",
+                      "relatedName": "timestamp",
+                      "value": "20260626120000",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          "20260626120000"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "FbbuuIJdip",
+                      "relatedId": "iBpeCdqAAA",
+                      "relatedName": "deviceId",
+                      "value": "ALIPAY",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          "ALIPAY"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "a439dS0ybL",
+                      "relatedId": "bLwSGQyu3n",
+                      "relatedName": "signType",
+                      "value": "00",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          "00"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "YSBdy7tscj",
+                      "relatedId": "8eR9UTTsot",
+                      "relatedName": "sign",
+                      "value": "",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          ""
+                        ]
+                      }
+                    },
+                    {
+                      "id": "Y4mi6zu1Ui",
+                      "relatedId": "Ef91U7pzUH",
+                      "relatedName": "bizData",
+                      "value": "{\"thirdUserId\":\"ALIPAY_8823456789012345\",\"orderNo\":\"TXN2025060100001\"}",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          "{\"thirdUserId\":\"ALIPAY_8823456789012345\",\"orderNo\":\"TXN2025060100001\"}"
+                        ]
+                      }
+                    }
+                  ],
+                  "data": "",
+                  "generateMode": "normal"
+                },
+                "auth": {},
+                "securityScheme": {},
+                "advancedSettings": {
+                  "disabledSystemHeaders": {},
+                  "isDefaultUrlEncoding": 2,
+                  "disableUrlEncoding": false
+                },
+                "requestResult": "",
+                "visibility": "INHERITED",
+                "moduleId": 8100839,
+                "categoryId": 0,
+                "tagIds": [],
+                "apiTestDataList": [],
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              },
+              {
+                "id": 389597354,
+                "type": "DEBUG_CASE",
+                "path": null,
+                "name": "查询乘车记录详情-无记录",
+                "responseId": "171641334",
+                "parameters": {
+                  "query": [],
+                  "path": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "header": [],
+                  "cookie": []
+                },
+                "requestBody": {
+                  "parameters": [
+                    {
+                      "id": "DNrmdc9oTS",
+                      "relatedId": "w4r28n50oh",
+                      "relatedName": "providerId",
+                      "value": "01",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          "01"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "wVzjzh3bBb",
+                      "relatedId": "9bujM9kLoE",
+                      "relatedName": "charset",
+                      "value": "UTF-8",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          "UTF-8"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "ZYF2ObKK5e",
+                      "relatedId": "cXk4CG6eYQ",
+                      "relatedName": "format",
+                      "value": "json",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          "json"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "whjuRcuCKM",
+                      "relatedId": "uAdgbTWvLO",
+                      "relatedName": "timestamp",
+                      "value": "20260626120000",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          "20260626120000"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "FbbuuIJdiq",
+                      "relatedId": "iBpeCdqAAA",
+                      "relatedName": "deviceId",
+                      "value": "ALIPAY",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          "ALIPAY"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "a439dS0ybM",
+                      "relatedId": "bLwSGQyu3n",
+                      "relatedName": "signType",
+                      "value": "00",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          "00"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "YSBdy7tsck",
+                      "relatedId": "8eR9UTTsot",
+                      "relatedName": "sign",
+                      "value": "",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          ""
+                        ]
+                      }
+                    },
+                    {
+                      "id": "Y4mi6zu1Uj",
+                      "relatedId": "Ef91U7pzUH",
+                      "relatedName": "bizData",
+                      "value": "{\"thirdUserId\":\"ALIPAY_8823456789012345\",\"orderNo\":\"NOT_EXIST_ORDER\"}",
+                      "enable": true,
+                      "isDelete": false,
+                      "schema": {
+                        "type": "string",
+                        "examples": [
+                          "{\"thirdUserId\":\"ALIPAY_8823456789012345\",\"orderNo\":\"NOT_EXIST_ORDER\"}"
+                        ]
+                      }
+                    }
+                  ],
+                  "data": "",
+                  "generateMode": "normal"
+                },
+                "auth": {},
+                "securityScheme": {},
+                "advancedSettings": {
+                  "disabledSystemHeaders": {},
+                  "isDefaultUrlEncoding": 2,
+                  "disableUrlEncoding": false
+                },
+                "requestResult": "",
+                "visibility": "INHERITED",
+                "moduleId": 8100839,
+                "categoryId": 0,
+                "tagIds": [],
+                "apiTestDataList": [],
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            ],
+            "mocks": [],
+            "customApiFields": "{}",
+            "advancedSettings": {
+              "disabledSystemHeaders": {}
+            },
+            "mockScript": {},
+            "codeSamples": [],
+            "commonResponseStatus": {},
+            "responseChildren": [],
+            "visibility": "INHERITED",
+            "moduleId": 8100839,
+            "oasExtensions": "",
+            "type": "http",
+            "preProcessors": [],
+            "postProcessors": [],
+            "inheritPostProcessors": {},
+            "inheritPreProcessors": {}
+          }
+        }
+      ]
+    }
+  ],
+  "socketCollection": [],
+  "docCollection": [],
+  "webSocketCollection": [],
+  "mcpClientCollection": [],
+  "responseCollection": [],
+  "schemaCollection": [],
+  "securitySchemeCollection": [],
+  "oasComponentCollection": [],
+  "requestCollection": [
+    {
+      "name": "根目录",
+      "children": [],
+      "ordering": [
+        "requestFolder.9030198"
+      ],
+      "items": []
+    }
+  ],
+  "environments": [],
+  "commonScripts": [],
+  "globalVariables": [
+    {
+      "id": "8379611",
+      "variables": []
+    }
+  ],
+  "commonParameters": null,
+  "customFunctions": [],
+  "projectTestCaseCategories": [
+    {
+      "id": 10818920,
+      "name": "正向",
+      "description": "有效的输入和正确的预期结果,代表典型的用法。"
+    },
+    {
+      "id": 10818921,
+      "name": "负向",
+      "description": "消极的、无效的输入,如缺少字段、错误的类型、不支持的方法等。"
+    },
+    {
+      "id": 10818922,
+      "name": "边界值",
+      "description": "极端或边缘条件,如最大字符串长度、空值、零、null等"
+    },
+    {
+      "id": 10818923,
+      "name": "安全性",
+      "description": "可能暴露API安全性风险的测试用例。"
+    },
+    {
+      "id": 10818924,
+      "name": "其他",
+      "description": "其他未归属的测试用例。"
+    }
+  ]
+}

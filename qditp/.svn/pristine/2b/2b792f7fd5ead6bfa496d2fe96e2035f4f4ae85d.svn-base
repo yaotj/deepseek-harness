@@ -1,0 +1,16 @@
+package com.chinasofti.huateng.account.mapper;
+
+import com.chinasofti.huateng.account.entity.UserAccEmployeeCard;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.springframework.stereotype.Component;
+
+@Mapper
+@Component
+public interface UserAccEmployeeCardMapper {
+    UserAccEmployeeCard selectByCardNo(@Param("cardNo") String cardNo);
+
+    int insert(UserAccEmployeeCard record);
+
+    int update(UserAccEmployeeCard record);
+}

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.para.mapper.ticket.OrderRefundCycleMapper">
+    <!-- 票卡类型为业务主键，创建和修改时间统一由数据库时间生成。 -->
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.para.entity.ticket.OrderRefundCycle">
+        <id column="TICKET_TYPE" property="ticketType"/>
+        <result column="AUTO_REFUND_PERIOD" property="autoRefundPeriod"/>
+        <result column="CREATE_TIME" property="createTime"/>
+        <result column="UPDATE_TIME" property="updateTime"/>
+        <result column="REMARK" property="remark"/>
+    </resultMap>
+
+    <select id="selectPage" resultMap="BaseResultMap">
+        <!-- 票卡类型为精确筛选条件，保证配置查询可预期。 -->
+        SELECT TICKET_TYPE, AUTO_REFUND_PERIOD, CREATE_TIME, UPDATE_TIME, REMARK
+        FROM TBL_ORDER_REFUND_CYCLE
+        <where>
+            <if test="ticketType != null and ticketType != ''">
+                TICKET_TYPE = #{ticketType,jdbcType=VARCHAR}
+            </if>
+        </where>
+        ORDER BY TICKET_TYPE
+    </select>
+
+    <select id="selectByTicketType" resultMap="BaseResultMap">
+        SELECT TICKET_TYPE, AUTO_REFUND_PERIOD, CREATE_TIME, UPDATE_TIME, REMARK
+        FROM TBL_ORDER_REFUND_CYCLE
+        WHERE TICKET_TYPE = #{ticketType,jdbcType=VARCHAR}
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.para.entity.ticket.OrderRefundCycle">
+        INSERT INTO TBL_ORDER_REFUND_CYCLE (TICKET_TYPE, AUTO_REFUND_PERIOD, CREATE_TIME, UPDATE_TIME, REMARK)
+        VALUES (#{ticketType,jdbcType=VARCHAR}, #{autoRefundPeriod,jdbcType=NUMERIC}, SYSDATE, SYSDATE, #{remark,jdbcType=VARCHAR})
+    </insert>
+
+    <update id="update" parameterType="com.chinasofti.huateng.para.entity.ticket.OrderRefundCycle">
+        UPDATE TBL_ORDER_REFUND_CYCLE
+        SET AUTO_REFUND_PERIOD = #{autoRefundPeriod,jdbcType=NUMERIC},
+            REMARK = #{remark,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSDATE
+        WHERE TICKET_TYPE = #{ticketType,jdbcType=VARCHAR}
+    </update>
+
+    <delete id="deleteByTicketType">
+        DELETE FROM TBL_ORDER_REFUND_CYCLE
+        WHERE TICKET_TYPE = #{ticketType,jdbcType=VARCHAR}
+    </delete>
+</mapper>

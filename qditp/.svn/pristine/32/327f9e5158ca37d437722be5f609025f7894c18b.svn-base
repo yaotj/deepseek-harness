@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.para.mapper.risk.RiskGroupMapper">
+    <!-- 风险组基础映射，时间字段由数据库的 SYSDATE 维护。 -->
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.para.entity.risk.RiskGroup">
+        <id column="GROUP_ID" property="groupId"/>
+        <result column="GROUP_NAME" property="groupName"/>
+        <result column="GROUP_DESC" property="groupDesc"/>
+        <result column="CREATE_TIME" property="createTime"/>
+        <result column="UPDATE_TIME" property="updateTime"/>
+    </resultMap>
+    <select id="selectPage" resultMap="BaseResultMap">
+        <!-- 管理页按名称模糊查询，按最近修改时间优先展示。 -->
+        SELECT GROUP_ID, GROUP_NAME, GROUP_DESC, CREATE_TIME, UPDATE_TIME FROM TBL_RISK_GROUP
+        <where><if test="groupName != null and groupName != ''">GROUP_NAME LIKE '%' || #{groupName} || '%'</if></where>
+        ORDER BY UPDATE_TIME DESC, GROUP_ID DESC
+    </select>
+    <select id="selectOptions" resultMap="BaseResultMap">
+        <!-- 规则编辑页下拉选项，按名称排序便于选择。 -->
+        SELECT GROUP_ID, GROUP_NAME, GROUP_DESC, CREATE_TIME, UPDATE_TIME FROM TBL_RISK_GROUP ORDER BY GROUP_NAME
+    </select>
+    <insert id="insert" parameterType="com.chinasofti.huateng.para.entity.risk.RiskGroup" useGeneratedKeys="true" keyProperty="groupId">
+        INSERT INTO TBL_RISK_GROUP (GROUP_NAME, GROUP_DESC, CREATE_TIME, UPDATE_TIME)
+        VALUES (#{groupName}, #{groupDesc}, SYSDATE, SYSDATE)
+    </insert>
+    <update id="update" parameterType="com.chinasofti.huateng.para.entity.risk.RiskGroup">
+        UPDATE TBL_RISK_GROUP SET GROUP_NAME = #{groupName}, GROUP_DESC = #{groupDesc}, UPDATE_TIME = SYSDATE WHERE GROUP_ID = #{groupId}
+    </update>
+    <delete id="deleteById">DELETE FROM TBL_RISK_GROUP WHERE GROUP_ID = #{groupId}</delete>
+</mapper>

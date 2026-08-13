@@ -1,0 +1,1285 @@
+package com.chinasofti.huateng.alipay.paysign.service.impl;
+
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
+import com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog;
+import com.chinasofti.huateng.alipay.paysign.entity.AlipayRefundLog;
+import com.chinasofti.huateng.alipay.paysign.entity.AlipaySignLog;
+import com.chinasofti.huateng.model.alipaytrip.AlipaySignInfo;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTerminationRequest;
+import com.chinasofti.huateng.alipay.paysign.mapper.AlipayPayLogMapper;
+import com.chinasofti.huateng.alipay.paysign.mapper.AlipayRefundLogMapper;
+import com.chinasofti.huateng.alipay.paysign.mapper.AlipaySignInfoMapper;
+import com.chinasofti.huateng.alipay.paysign.mapper.AlipaySignLogMapper;
+import com.chinasofti.huateng.alipay.paysign.mapper.AlipayTerminationRequestMapper;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripAddContractReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripPayQueryReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripRequestPayReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripRequestRefundReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripTerminateContractReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripAddContractRespDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripPayQueryRespDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripRequestPayRespDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripRequestRefundRespDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripTerminateContractRespDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.PayCenterResponse;
+import com.chinasofti.huateng.common.response.AlipayCommonResponse;
+import com.chinasofti.huateng.model.alipaytrip.AlipaySignInfoDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayPayLogDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayBlackListNotifyReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayNotifyReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripCloseResultReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayUserInfoDTO;
+import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
+import com.chinasofti.huateng.alipay.paysign.service.AlipayPaySignService;
+import com.chinasofti.huateng.rpc.alipay.account.AlipayAccountClient;
+import com.chinasofti.huateng.rpc.ticket.TicketClient;
+import com.chinasofti.huateng.rpc.para.ParaClient;
+import com.chinasofti.huateng.alipay.paysign.util.PayCenterClient;
+import com.chinasofti.huateng.alipay.paysign.config.PayCenterProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * 支付宝签约与支付服务实现。
+ */
+@Service
+public class AlipayPaySignServiceImpl implements AlipayPaySignService {
+    private static final Logger log = LoggerFactory.getLogger(AlipayPaySignServiceImpl.class);
+    private static final String CHANNEL_ALIPAY = "ALIPAY";
+    private static final String STATUS_SIGNED = "SIGNED";
+    private static final String STATUS_TERMINATED = "TERMINATED";
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String STATUS_COMPLETED = "COMPLETED";
+    private static final String PAY_STATUS_SUCCESS = "SUCCESS";
+    private static final String PAY_STATUS_FAIL = "FAIL";
+    private static final String REFUND_STATUS_SUCCESS = "SUCCESS";
+    private static final String REFUND_STATUS_FAIL = "FAIL";
+
+    @Autowired
+    private AlipaySignInfoMapper alipaySignInfoMapper;
+
+    @Autowired
+    private AlipayTerminationRequestMapper alipayTerminationRequestMapper;
+
+    @Autowired
+    private AlipaySignLogMapper alipaySignLogMapper;
+
+    @Autowired
+    private AlipayPayLogMapper alipayPayLogMapper;
+
+    @Autowired
+    private AlipayRefundLogMapper alipayRefundLogMapper;
+
+    @Autowired
+    private AlipayAccountClient alipayAccountClient;
+
+    @Autowired
+    private TicketClient ticketClient;
+
+    @Autowired
+    private com.chinasofti.huateng.alipay.paysign.util.PayCenterClient payCenterClient;
+
+    @Autowired
+    private com.chinasofti.huateng.alipay.paysign.config.PayCenterProperties payCenterProperties;
+
+    @Autowired
+    private com.chinasofti.huateng.rpc.para.ParaClient paraClient;
+
+    @Value("${service.para.url:http://127.0.0.1:9107}")
+    private String paraServerUrl;
+    // ==================== 签约/解约 ====================
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AlipayTripAddContractRespDTO addContract(AlipayTripAddContractReqDTO request) {
+        AlipayTripAddContractRespDTO response = new AlipayTripAddContractRespDTO();
+        try {
+            log.info("接收到支付宝添加签约信息报文: {}", JSON.toJSONString(request));
+
+            if (request == null || !isValidAddContractRequest(request)) {
+                response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg("thirdUserId/channel/agreementCode/channelUserAccount不能为空");
+                return response;
+            }
+
+            // 1. 检查是否已签约
+            AlipaySignInfo existingSign = alipaySignInfoMapper.selectByThirdUserIdAndChannel(request.getThirdUserId(), CHANNEL_ALIPAY);
+            if (existingSign != null) {
+                response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+                response.setRetMsg("该用户已签约");
+                response.setAgreementCode(existingSign.getAgreementCode());
+                return response;
+            }
+
+            // 2. 查询用户开户信息，获取 cardId/cardType
+            AlipayUserInfoDTO userInfo = alipayAccountClient.selectByThirdUserId(request.getThirdUserId());
+            if (userInfo == null || userInfo.getCardId() == null) {
+                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg("用户未开户，无法签约");
+                log.warn("用户未开户，无法签约, thirdUserId={}", request.getThirdUserId());
+                return response;
+            }
+
+            // 3. 同步确认：直接写入签约主表
+            AlipaySignInfo signInfo = new AlipaySignInfo();
+            signInfo.setAgreementCode(request.getAgreementCode());
+            signInfo.setThirdUserId(request.getThirdUserId());
+            signInfo.setCardId(userInfo.getCardId());
+            signInfo.setCardType(userInfo.getCardType());
+            signInfo.setChannel(CHANNEL_ALIPAY);
+            signInfo.setChannelAgreementCode(request.getChannelAgreementCode());
+            signInfo.setChannelUserAccount(request.getChannelUserAccount());
+            signInfo.setSignStatus(STATUS_SIGNED);
+            signInfo.setOperationType("SIGN");
+            signInfo.setSignTime(LocalDateTime.now());
+            signInfo.setDeleteFlag("0");
+            signInfo.setVersion("1");
+            signInfo.setCreateTime(LocalDateTime.now());
+            signInfo.setUpdateTime(LocalDateTime.now());
+            alipaySignInfoMapper.insert(signInfo);
+
+            // 4. 补充支付通道信息（必须流程）
+            boolean updateSuccess = alipayAccountClient.updatePaymentChannel(
+                    request.getThirdUserId(),
+                    request.getChannelUserAccount(),
+                    request.getAgreementCode()
+            );
+            if (!updateSuccess) {
+                throw new RuntimeException("补充支付通道信息失败, thirdUserId=" + request.getThirdUserId());
+            }
+
+            // 5. 写入流水表
+            response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+            response.setRetMsg("成功");
+            response.setAgreementCode(request.getAgreementCode());
+
+            AlipaySignLog signLog = new AlipaySignLog();
+            signLog.setRequestSeq(request.getAgreementCode());
+            signLog.setThirdUserId(request.getThirdUserId());
+            signLog.setCardId(signInfo.getCardId());
+            signLog.setCardType(signInfo.getCardType());
+            signLog.setChannel(CHANNEL_ALIPAY);
+            signLog.setAgreementCode(request.getAgreementCode());
+            signLog.setOperationType("SIGN");
+            signLog.setRequestBody(JSON.toJSONString(request));
+            signLog.setResponseBody(JSON.toJSONString(response));
+            signLog.setResultCode(response.getRetCode());
+            signLog.setResultMsg(response.getRetMsg());
+            signLog.setVersion("1");
+            signLog.setCreateTime(LocalDateTime.now());
+            alipaySignLogMapper.insert(signLog);
+
+            log.info("支付宝签约成功, thirdUserId={}, agreementCode={}", request.getThirdUserId(), request.getAgreementCode());
+            return response;
+        } catch (Exception e) {
+            log.error("支付宝添加签约信息异常", e);
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+            return response;
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AlipayTripTerminateContractRespDTO terminateContract(AlipayTripTerminateContractReqDTO request) {
+        AlipayTripTerminateContractRespDTO response = new AlipayTripTerminateContractRespDTO();
+        try {
+            log.info("接收到支付宝解约登记报文: {}", JSON.toJSONString(request));
+
+            if (request == null || !isValidTerminateContractRequest(request)) {
+                response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg("agreementCode不能为空");
+                return response;
+            }
+
+
+            // 1. 检查是否已有该协议号的解约登记
+            com.chinasofti.huateng.model.alipaytrip.AlipayTerminationRequest existing = alipayTerminationRequestMapper.selectByAgreementCode(request.getAgreementCode());
+            if (existing != null) {
+                if (STATUS_PENDING.equals(existing.getStatus())) {
+                    // PENDING：幂等返回成功，仅更新时间
+                    alipayTerminationRequestMapper.updateStatus(existing.getAgreementCode(), STATUS_PENDING, LocalDateTime.now());
+                    response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+                    response.setRetMsg("成功");
+                    response.setAgreementCode(request.getAgreementCode());
+                    log.info("解约登记已存在且待执行，幂等返回, agreementCode={}", request.getAgreementCode());
+                    return response;
+                } else if ("COMPLETED".equals(existing.getStatus())) {
+                    // COMPLETED：返回错误
+                    response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+                    response.setRetMsg("该协议号已完成解约");
+                    response.setAgreementCode(request.getAgreementCode());
+                    log.warn("解约登记失败，该协议号已完成解约, agreementCode={}", request.getAgreementCode());
+                    return response;
+                } else if ("FAIL".equals(existing.getStatus())) {
+                    // FAIL：允许重新登记，重置为 PENDING 并更新时间
+                    alipayTerminationRequestMapper.updateStatus(existing.getAgreementCode(), STATUS_PENDING, LocalDateTime.now());
+                    log.info("解约登记重新发起，状态重置为 PENDING, agreementCode={}", request.getAgreementCode());
+                }
+            }
+
+            // 2. 构造解约登记记录
+            AlipayTerminationRequest terminationRequest = new AlipayTerminationRequest();
+            terminationRequest.setTerminationSeq(UUID.randomUUID().toString().replaceAll("-", ""));
+            terminationRequest.setAgreementCode(request.getAgreementCode());
+            terminationRequest.setThirdUserId(null);
+            terminationRequest.setCardId(null);
+            terminationRequest.setCardType(null);
+            terminationRequest.setChannel(CHANNEL_ALIPAY);
+            terminationRequest.setMerchantNo(request.getMerchantNo());
+            terminationRequest.setOperationType("TERMINATE");
+            terminationRequest.setStatus(STATUS_PENDING);
+            terminationRequest.setDeleteFlag("0");
+            terminationRequest.setVersion("1");
+            terminationRequest.setCreateTime(LocalDateTime.now());
+            terminationRequest.setUpdateTime(LocalDateTime.now());
+            // 2. 从签约信息补全字段
+            com.chinasofti.huateng.model.alipaytrip.AlipaySignInfo signInfo = alipaySignInfoMapper.selectByChannelAgreementCode(request.getAgreementCode());
+            if (signInfo != null) {
+                terminationRequest.setThirdUserId(signInfo.getThirdUserId());
+                terminationRequest.setCardId(signInfo.getCardId());
+                terminationRequest.setCardType(signInfo.getCardType());
+                terminationRequest.setChannel(signInfo.getChannel());
+                log.info("解约登记回填签约信息成功, agreementCode={}, thirdUserId={}, cardId={}",
+                        request.getAgreementCode(), signInfo.getThirdUserId(), signInfo.getCardId());
+            } else {
+                log.warn("解约登记未查到签约信息，仅登记基础字段, agreementCode={}", request.getAgreementCode());
+            }
+
+            // 3. 写入解约登记表
+            alipayTerminationRequestMapper.insert(terminationRequest);
+
+            response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+            response.setRetMsg("成功");
+            response.setAgreementCode(request.getAgreementCode());
+            log.info("支付宝解约登记成功, agreementCode={}", request.getAgreementCode());
+            return response;
+        } catch (Exception e) {
+            log.error("支付宝解约登记异常", e);
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+            return response;
+        }
+    }
+
+    // ==================== 支付/退款/查询 ====================
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AlipayTripRequestPayRespDTO requestPay(AlipayTripRequestPayReqDTO request) {
+        AlipayTripRequestPayRespDTO response = new AlipayTripRequestPayRespDTO();
+        try {
+            log.info("接收到支付宝支付申请报文: {}", JSON.toJSONString(request));
+
+            // 1. 校验参数
+            if (request == null || !isValidPayRequest(request)) {
+                response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg("订单号/支付金额/行业类型/订单标题/订单描述/行业详情不能为空");
+                return response;
+            }
+
+//            // 2. 条件必填校验：免密场景签约流水号不能为空
+            if (request.getRequestSignSeq() == null || request.getRequestSignSeq().trim().isEmpty()) {
+                response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg("免密场景签约流水号不能为空");
+                return response;
+            }
+
+            // 3. 查询签约信息
+            AlipaySignInfo signInfo = alipaySignInfoMapper.selectByThirdUserIdAndChannel(request.getThirdUserId(), CHANNEL_ALIPAY);
+            if (signInfo == null) {
+                response.setRetCode(FepAppErrorCodeEnum.USER_NOT_SIGNED.getCode());
+                response.setRetMsg("用户未签约");
+                return response;
+            }
+
+            // 4. 幂等性检查：查询是否已存在相同订单号的支付记录
+            AlipayPayLog existPayLog = alipayPayLogMapper.selectByOrderNo(request.getOrderNo());
+            if (existPayLog != null) {
+                log.info("支付订单已存在，直接返回，orderNo={}, payStatus={}", request.getOrderNo(), existPayLog.getPayStatus());
+                response.setRetCode(existPayLog.getPayStatus().equals(PAY_STATUS_SUCCESS) ? FepAppErrorCodeEnum.SUCCESS.getCode() : FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg(existPayLog.getResultMsg());
+                response.setOrderNo(existPayLog.getOrderNo());
+                return response;
+            }
+
+            // 5. 生成商户订单号
+//            String merchantOrderNo = payCenterClient.generateMerchantOrderNo();
+            request.setRequestSignSeq(signInfo.getAgreementCode());
+
+            // 5. 补充线路和车站中文名称
+            enrichIndustryDetailWithNames(request);
+
+            // 5.1 补充交易序列号和进出站编号
+            enrichIndustryDetailWithTripSeq(request);
+
+            // 6. 幂等性检查：查询是否已存在相同订单号的支付记录
+
+            // 6. 先写入 ALIPAY_PAY_LOG（初始状态为 FAIL，等待支付中心返回）
+            AlipayPayLog payLog = new AlipayPayLog();
+            payLog.setPaySeq(UUID.randomUUID().toString().replaceAll("-", ""));
+            payLog.setThirdUserId(request.getThirdUserId());
+            payLog.setCardId(signInfo.getCardId());
+            payLog.setOrderNo(request.getOrderNo());
+//            payLog.setTradeNo(merchantOrderNo);
+            payLog.setPayAmount(request.getAmount().toString());
+            payLog.setPayStatus(PAY_STATUS_FAIL);
+            payLog.setPayType("TRIP");
+            payLog.setScene(request.getScene());
+            payLog.setPaymentVendor(request.getPaymentVendor());
+            payLog.setIndustryType(request.getIndustryType());
+            payLog.setSubject(request.getSubject());
+            payLog.setBody(request.getBody());
+            payLog.setRequestSignSeq(request.getRequestSignSeq());
+            payLog.setOrderTimeOut(request.getOrderTimeOut() != null ? request.getOrderTimeOut().toString() : "60");
+            payLog.setAuthCode(request.getAuthCode());
+            payLog.setNotifyUrl(request.getNotifyUrl());
+            payLog.setReturnUrl(request.getReturnUrl());
+            payLog.setIpAddress(request.getIpAddress());
+            payLog.setIndustryDetail(request.getIndustryDetail());
+            payLog.setRequestBody(JSON.toJSONString(request));
+            payLog.setResponseBody("");
+            payLog.setResultCode("INIT");
+            payLog.setResultMsg("支付处理中");
+            payLog.setRefundAmount("0");
+            payLog.setRefundStatus("NONE");
+
+            // 从 industryDetail 解析进出站交易ID并写入支付流水
+            resolveEntryExitIdsFromIndustryDetail(request, payLog);
+
+            alipayPayLogMapper.insert(payLog);
+
+            // 7. 组装支付中心请求参数
+            Map<String, Object> bizDataMap = new java.util.LinkedHashMap<>();
+            bizDataMap.put("orderNo", request.getOrderNo());
+//            bizDataMap.put("merchantOrderNo", merchantOrderNo);
+            bizDataMap.put("scene", request.getScene());
+            bizDataMap.put("paymentVendor", request.getPaymentVendor());
+            bizDataMap.put("amount", request.getAmount());
+            bizDataMap.put("industryType", request.getIndustryType());
+            bizDataMap.put("subject", request.getSubject());
+            bizDataMap.put("body", request.getBody());
+            bizDataMap.put("requestSignSeq",request.getRequestSignSeq());
+//            bizDataMap.put("requestSignSeq","");
+            bizDataMap.put("thirdUserId", request.getThirdUserId());
+            if (request.getOrderTimeOut() != null && request.getOrderTimeOut() > 0) {
+                bizDataMap.put("orderTimeOut", request.getOrderTimeOut());
+            } else {
+                bizDataMap.put("orderTimeOut", 60);
+            }
+            if (request.getAuthCode() != null && !request.getAuthCode().trim().isEmpty()) {
+                bizDataMap.put("authCode", request.getAuthCode());
+            }
+            if (request.getNotifyUrl() != null && !request.getNotifyUrl().trim().isEmpty()) {
+                bizDataMap.put("notifyUrl", request.getNotifyUrl());
+            } else if (payCenterProperties.getCallbackUrl() != null && !payCenterProperties.getCallbackUrl().trim().isEmpty()) {
+                bizDataMap.put("notifyUrl", payCenterProperties.getCallbackUrl());
+            }
+            if (request.getReturnUrl() != null && !request.getReturnUrl().trim().isEmpty()) {
+                bizDataMap.put("returnUrl", request.getReturnUrl());
+            }
+            if (request.getIpAddress() != null && !request.getIpAddress().trim().isEmpty()) {
+                bizDataMap.put("ipAddress", request.getIpAddress());
+            }
+            if (request.getRemark() != null && !request.getRemark().trim().isEmpty()) {
+                bizDataMap.put("remark", request.getRemark());
+            }
+
+
+            bizDataMap.put("industryDetail", request.getIndustryDetail());
+
+            // 将签约信息的渠道协议号补充进 industryDetail，避免支付中心因空值失败
+            if (StringUtils.hasText(signInfo.getChannelAgreementCode())) {
+                try {
+                    JSONObject detailJson = JSON.parseObject(request.getIndustryDetail());
+                    detailJson.put("channelAgreementNo", signInfo.getChannelAgreementCode());
+                    bizDataMap.put("industryDetail", detailJson.toJSONString());
+                } catch (Exception e) {
+                    log.warn("industryDetail 解析失败，无法补充 channelAgreementNo, industryDetail={}", request.getIndustryDetail(), e);
+                }
+            }
+
+            // 8. 调用支付中心
+            log.info("请求支付中心参数, bizDataMap={}", JSON.toJSONString(bizDataMap));
+            PayCenterResponse payCenterResponse = payCenterClient.requestPay(bizDataMap);
+
+            // 9. 处理支付中心响应
+            boolean paySuccess = false;
+            String tradeNo = "";
+            String resultCode = FepAppErrorCodeEnum.SYSTEM_ERROR.getCode();
+            String resultMsg = "系统内部错误";
+
+            if (payCenterResponse != null && Boolean.TRUE.equals(payCenterResponse.getSuccess())) {
+                paySuccess = true;
+                resultCode = FepAppErrorCodeEnum.SUCCESS.getCode();
+                resultMsg = "支付成功";
+                tradeNo = payCenterClient.getStringFromData(payCenterResponse, "channelOrderNo");
+            } else if (payCenterResponse != null) {
+                resultCode = FepAppErrorCodeEnum.FAIL.getCode();
+                resultMsg = payCenterResponse.getMsg() != null ? payCenterResponse.getMsg() : "支付失败";
+            } else {
+                resultCode = FepAppErrorCodeEnum.SYSTEM_ERROR.getCode();
+                resultMsg = "调用支付中心失败";
+            }
+
+            // 10. 更新 ALIPAY_PAY_LOG
+            payLog.setTradeNo(tradeNo);
+            payLog.setPayStatus(paySuccess ? PAY_STATUS_SUCCESS : PAY_STATUS_FAIL);
+            payLog.setResponseBody(JSON.toJSONString(payCenterResponse));
+            payLog.setResultCode(resultCode);
+            payLog.setResultMsg(resultMsg);
+            alipayPayLogMapper.updatePayStatus(payLog.getPaySeq(), payLog.getPayStatus());
+
+            // 11. 返回支付结果
+            response.setRetCode(resultCode);
+            response.setRetMsg(resultMsg);
+            response.setOrderNo(request.getOrderNo());
+            log.info("支付宝支付申请完成, orderNo={}, merchantOrderNo={}, tradeNo={}, status={}",
+                    request.getOrderNo(), "", tradeNo, paySuccess ? "SUCCESS" : "FAIL");
+            return response;
+        } catch (Exception e) {
+            log.error("支付宝支付申请异常", e);
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+            return response;
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AlipayTripRequestRefundRespDTO requestRefund(AlipayTripRequestRefundReqDTO request) {
+        AlipayTripRequestRefundRespDTO response = new AlipayTripRequestRefundRespDTO();
+        try {
+            log.info("接收到支付宝退款申请报文: {}", JSON.toJSONString(request));
+
+            // 1. 校验参数：orderNo 必填，refundAmount 可选（不传则全额退款）
+            if (request == null || !isValidRefundRequest(request)) {
+                response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg("订单号不能为空");
+                return response;
+            }
+
+            // 2. 查询原支付记录
+            AlipayPayLog payLog = alipayPayLogMapper.selectByOrderNo(request.getOrderNo());
+            if (payLog == null) {
+                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg("原支付记录不存在");
+                return response;
+            }
+
+            // 3. 校验原支付订单是否允许退款
+            if (!PAY_STATUS_SUCCESS.equals(payLog.getPayStatus())) {
+                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg("原支付订单未支付成功");
+                return response;
+            }
+
+            // 4. 从支付单取逻辑卡号
+            String cardNum = payLog.getCardId();
+            if (!StringUtils.hasText(cardNum)) {
+                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg("原支付记录缺少逻辑卡号");
+                return response;
+            }
+
+            // 5. 查询签约信息，取渠道协议号
+            AlipaySignInfo signInfo = alipaySignInfoMapper.selectByCardIdAndChannel(cardNum, CHANNEL_ALIPAY);
+            String channelAgreementNo = signInfo != null ? signInfo.getChannelAgreementCode() : null;
+            if (!StringUtils.hasText(channelAgreementNo)) {
+                log.warn("退款申请未查到签约信息, cardNum={}", cardNum);
+            }
+
+            // 6. 计算退款金额：不传则默认全额退款
+            long paidAmount = parseAmount(payLog.getPayAmount());
+            long refundedAmount = payLog.getRefundAmount() != null ? parseAmount(payLog.getRefundAmount()) : 0;
+            long availableRefundAmount = paidAmount - refundedAmount;
+            String refundAmount = StringUtils.hasText(request.getRefundAmount()) ? request.getRefundAmount() : String.valueOf(availableRefundAmount);
+            long currentRefundAmount = parseAmount(refundAmount);
+
+            if (availableRefundAmount < 0) {
+                log.warn("退款金额异常，历史退款金额大于原订单金额, orderNo={}, paidAmount={}, refundedAmount={}", request.getOrderNo(), paidAmount, refundedAmount);
+                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg("退款金额异常");
+                return response;
+            }
+            if (currentRefundAmount > availableRefundAmount) {
+                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg("退款金额超出可退金额");
+                return response;
+            }
+            if (currentRefundAmount <= 0) {
+                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg("退款金额必须大于0");
+                return response;
+            }
+
+            // 7. 生成退款订单号（服务端生成，避免重复）
+            String refundOrderNo = "R" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0, 8);
+
+            // 8. 写入 ALIPAY_REFUND_LOG（初始状态为 FAIL，等待支付中心返回）
+            AlipayRefundLog refundLog = new AlipayRefundLog();
+            refundLog.setRefundSeq(UUID.randomUUID().toString().replaceAll("-", ""));
+            refundLog.setThirdUserId(payLog.getThirdUserId());
+            refundLog.setCardId(payLog.getCardId());
+            refundLog.setOrderNo(request.getOrderNo());
+            refundLog.setRefundAmount(refundAmount);
+            refundLog.setRefundStatus(REFUND_STATUS_FAIL);
+            refundLog.setCardIssueCode("0007");
+            refundLog.setChannelAgreementNo(channelAgreementNo);
+            refundLog.setRefundOrderNo(refundOrderNo);
+            refundLog.setRequestBody(JSON.toJSONString(request));
+            refundLog.setResponseBody("");
+            refundLog.setResultCode(FepAppErrorCodeEnum.FAIL.getCode());
+            refundLog.setResultMsg("退款处理中");
+            refundLog.setDeleteFlag("0");
+            refundLog.setVersion("1");
+            refundLog.setCreateTime(LocalDateTime.now());
+            refundLog.setUpdateTime(LocalDateTime.now());
+            alipayRefundLogMapper.insert(refundLog);
+
+            // 9. 组装支付宝退款请求参数
+            Map<String, Object> bizDataMap = new java.util.LinkedHashMap<>();
+            bizDataMap.put("orderNo", request.getOrderNo());
+            bizDataMap.put("cardIssueCode", "0007");
+            bizDataMap.put("cardNum", cardNum);
+            bizDataMap.put("channelAgreementNo", channelAgreementNo);
+            bizDataMap.put("refundAmount", refundAmount);
+            bizDataMap.put("refundOrderNo", refundOrderNo);
+
+            // 10. 调用支付宝退款接口
+            com.chinasofti.huateng.alipay.paysign.model.response.PayCenterResponse payCenterResponse = payCenterClient.requestRefund(bizDataMap);
+
+            // 11. 处理支付宝退款响应
+            boolean refundSuccess = false;
+            String resultCode = FepAppErrorCodeEnum.SYSTEM_ERROR.getCode();
+            String resultMsg = "系统内部错误";
+
+            if (payCenterResponse != null && Boolean.TRUE.equals(payCenterResponse.getSuccess())) {
+                refundSuccess = true;
+                resultCode = FepAppErrorCodeEnum.SUCCESS.getCode();
+                resultMsg = "退款成功";
+            } else if (payCenterResponse != null) {
+                resultCode = FepAppErrorCodeEnum.FAIL.getCode();
+                resultMsg = payCenterResponse.getMsg() != null ? payCenterResponse.getMsg() : "退款失败";
+            } else {
+                resultCode = FepAppErrorCodeEnum.SYSTEM_ERROR.getCode();
+                resultMsg = "调用支付宝退款接口失败";
+            }
+
+            // 12. 更新 ALIPAY_REFUND_LOG
+            refundLog.setRefundStatus(refundSuccess ? REFUND_STATUS_SUCCESS : REFUND_STATUS_FAIL);
+            refundLog.setResponseBody(JSON.toJSONString(payCenterResponse));
+            refundLog.setResultCode(resultCode);
+            refundLog.setResultMsg(resultMsg);
+            refundLog.setUpdateTime(LocalDateTime.now());
+            alipayRefundLogMapper.updateRefundStatus(
+                    refundLog.getRefundSeq(),
+                    refundLog.getRefundStatus(),
+                    refundLog.getResultCode(),
+                    refundLog.getResultMsg(),
+                    refundLog.getResponseBody(),
+                    refundLog.getUpdateTime()
+            );
+
+            // 13. 更新原支付订单退款汇总（参考地铁APP updateRefundSummary）
+            if (refundSuccess) {
+                long totalRefunded = refundedAmount + currentRefundAmount;
+                String refundStatus = totalRefunded >= paidAmount ? "SUCCESS" : "PARTIAL";
+                alipayPayLogMapper.updateRefundSummary(request.getOrderNo(), String.valueOf(currentRefundAmount), refundStatus);
+            }
+
+            // 14. 返回退款结果
+            response.setRetCode(resultCode);
+            response.setRetMsg(resultMsg);
+            log.info("支付宝退款申请完成, orderNo={}, refundOrderNo={}, cardNum={}, channelAgreementNo={}, refundAmount={}, status={}",
+                    request.getOrderNo(), refundOrderNo, cardNum, channelAgreementNo, refundAmount, refundSuccess ? "SUCCESS" : "FAIL");
+            return response;
+        } catch (Exception e) {
+            log.error("支付宝退款申请异常", e);
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+            return response;
+        }
+    }
+    @Override
+    public AlipayTripPayQueryRespDTO payQuery(AlipayTripPayQueryReqDTO request) {
+        AlipayTripPayQueryRespDTO response = new AlipayTripPayQueryRespDTO();
+        try {
+            if (request == null || !StringUtils.hasText(request.getOrderNo())) {
+                response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg("订单号不能为空");
+                return response;
+            }
+            AlipayPayLog payLog = alipayPayLogMapper.selectByOrderNo(request.getOrderNo());
+            if (payLog == null) {
+                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg("订单不存在");
+                return response;
+            }
+
+            // 调用支付中心查询支付结果
+            Map<String, Object> bizDataMap = new java.util.LinkedHashMap<>();
+            bizDataMap.put("orderNo", request.getOrderNo());
+            bizDataMap.put("cardIssueCode", "0007");
+            if (StringUtils.hasText(payLog.getCardId())) {
+                bizDataMap.put("cardNum", payLog.getCardId());
+            }
+            if (StringUtils.hasText(request.getChannelAgreementNo())) {
+                bizDataMap.put("channelAgreementNo", request.getChannelAgreementNo());
+            }
+
+            com.chinasofti.huateng.alipay.paysign.model.response.PayCenterResponse payCenterResponse = payCenterClient.payQuery(bizDataMap);
+
+            String payStatus = payLog.getPayStatus();
+            String tradeNo = payLog.getTradeNo();
+            String transTime = payLog.getTransTime();
+            String payAmount = payLog.getPayAmount();
+            String resultMsg = payLog.getResultMsg();
+
+            if (payCenterResponse != null && Boolean.TRUE.equals(payCenterResponse.getSuccess())) {
+                String centerTradeNo = payCenterClient.getStringFromData(payCenterResponse, "channelOrderNo");
+                String centerPayAmount = payCenterClient.getStringFromData(payCenterResponse, "transAmount");
+                String centerTransTime = payCenterClient.getStringFromData(payCenterResponse, "transTime");
+                String centerTransStatus = payCenterClient.getStringFromData(payCenterResponse, "transStatus");
+
+                if (StringUtils.hasText(centerTradeNo)) {
+                    tradeNo = centerTradeNo;
+                }
+                if (StringUtils.hasText(centerPayAmount)) {
+                    payAmount = centerPayAmount;
+                }
+                if (StringUtils.hasText(centerTransTime)) {
+                    transTime = centerTransTime;
+                }
+                if (StringUtils.hasText(centerTransStatus)) {
+                    payStatus = "1".equals(centerTransStatus) ? PAY_STATUS_SUCCESS : PAY_STATUS_FAIL;
+                    resultMsg = "1".equals(centerTransStatus) ? "支付成功" : "支付失败";
+                }
+
+                // 更新本地支付流水
+                alipayPayLogMapper.updatePayNotify(
+                        payLog.getOrderNo(),
+                        payStatus,
+                        tradeNo,
+                        transTime,
+                        payAmount,
+                        FepAppErrorCodeEnum.SUCCESS.getCode(),
+                        resultMsg
+                );
+            } else if (payCenterResponse != null) {
+                resultMsg = payCenterResponse.getMsg() != null ? payCenterResponse.getMsg() : "支付失败";
+                payStatus = PAY_STATUS_FAIL;
+                alipayPayLogMapper.updatePayNotify(
+                        payLog.getOrderNo(),
+                        payStatus,
+                        tradeNo,
+                        transTime,
+                        payAmount,
+                        FepAppErrorCodeEnum.FAIL.getCode(),
+                        resultMsg
+                );
+            }
+
+            // 重新查询最新状态
+            payLog = alipayPayLogMapper.selectByOrderNo(request.getOrderNo());
+
+            response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+            response.setRetMsg("查询成功");
+            response.setOutTradeNo(payLog.getOrderNo());
+            response.setTradeStatus(payLog.getPayStatus());
+            response.setTotalAmount(payLog.getPayAmount());
+            response.setTradeNo(payLog.getTradeNo());
+            response.setTradeDesc(payLog.getResultMsg());
+            response.setPaymentTime(payLog.getTransTime());
+            return response;
+        } catch (Exception e) {
+            log.error("支付宝支付查询异常", e);
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+            return response;
+        }
+    }
+
+    @Override
+    public boolean handlePayNotify(AlipayTripPayNotifyReqDTO request) {
+        try {
+            if (request == null || !StringUtils.hasText(request.getOrderNo())) {
+                log.warn("支付宝支付回调报文为空或订单号为空");
+                return false;
+            }
+            log.info("接收到支付宝支付结果回调: {}", JSON.toJSONString(request));
+            AlipayPayLog payLog = alipayPayLogMapper.selectByOrderNo(request.getOrderNo());
+            if (payLog == null) {
+                log.warn("支付回调未找到对应订单, orderNo={}", request.getOrderNo());
+                return false;
+            }
+            String payStatus = "1".equals(request.getTransStatus()) ? PAY_STATUS_SUCCESS : PAY_STATUS_FAIL;
+            String resultCode = "1".equals(request.getTransStatus()) ? FepAppErrorCodeEnum.SUCCESS.getCode() : FepAppErrorCodeEnum.FAIL.getCode();
+            String resultMsg = "1".equals(request.getTransStatus()) ? "支付成功" : "支付失败";
+            String tradeNo = StringUtils.hasText(request.getChannelVoucherId()) ? request.getChannelVoucherId() : payLog.getTradeNo();
+            String transTime = request.getTransTime();
+            String payAmount = StringUtils.hasText(request.getTransAmount()) ? request.getTransAmount() : payLog.getPayAmount();
+            alipayPayLogMapper.updatePayNotify(
+                    payLog.getOrderNo(),
+                    payStatus,
+                    tradeNo,
+                    transTime,
+                    payAmount,
+                    resultCode,
+                    resultMsg
+            );
+            log.info("支付宝支付回调处理完成, orderNo={}, payStatus={}", request.getOrderNo(), payStatus);
+            return true;
+        } catch (Exception e) {
+            log.error("支付宝支付回调处理异常", e);
+            return false;
+        }
+    }
+
+    @Override
+    public AlipaySignInfoDTO selectSignInfo(String thirdUserId) {
+        try {
+            if (!StringUtils.hasText(thirdUserId)) {
+                return null;
+            }
+            AlipaySignInfo signInfo = alipaySignInfoMapper.selectByThirdUserIdAndChannel(thirdUserId, CHANNEL_ALIPAY);
+            if (signInfo == null) {
+                return null;
+            }
+            AlipaySignInfoDTO dto = new AlipaySignInfoDTO();
+            dto.setThirdUserId(signInfo.getThirdUserId());
+            dto.setChannelAgreementCode(signInfo.getChannelAgreementCode());
+            dto.setCardId(signInfo.getCardId());
+            dto.setCardType(signInfo.getCardType());
+            return dto;
+        } catch (Exception e) {
+            log.error("查询签约信息异常, thirdUserId={}", thirdUserId, e);
+            return null;
+        }
+    }
+
+    @Override
+    public List<AlipayPayLog> selectAlipayPayLogList(String thirdUserId, String startTime, String endTime, int offset, int limit,
+                                                      String debitRequestResult, String invoice) {
+        try {
+            return alipayPayLogMapper.selectAlipayPayLogList(thirdUserId, startTime, endTime, offset, limit, debitRequestResult, invoice);
+        } catch (Exception e) {
+            log.error("查询支付宝出行订单列表异常", e);
+            return List.of();
+        }
+    }
+
+    @Override
+    public int countAlipayPayLogList(String thirdUserId, String startTime, String endTime,
+                                     String debitRequestResult, String invoice) {
+        try {
+            return alipayPayLogMapper.countAlipayPayLogList(thirdUserId, startTime, endTime, debitRequestResult, invoice);
+        } catch (Exception e) {
+            log.error("查询支付宝出行订单总数异常", e);
+            return 0;
+        }
+    }
+
+    @Override
+    public AlipayCommonResponse notifyCloseResult(String agreementCode, boolean result) {
+        com.chinasofti.huateng.common.response.AlipayCommonResponse response = new com.chinasofti.huateng.common.response.AlipayCommonResponse();
+        try {
+            log.info("支付宝出行-业务关闭结果通知, agreementCode={}, result={}", agreementCode, result);
+
+            if (!StringUtils.hasText(agreementCode)) {
+                response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg("agreementCode不能为空");
+                return response;
+            }
+
+            java.util.Map<String, Object> bizDataMap = new java.util.HashMap<>();
+            bizDataMap.put("agreementNo", agreementCode);
+            bizDataMap.put("result", result);
+
+            com.chinasofti.huateng.alipay.paysign.model.response.PayCenterResponse payCenterResponse = payCenterClient.closeResultNotify(bizDataMap);
+            if (payCenterResponse != null && "0".equals(payCenterResponse.getCode().toString())) {
+                response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+                response.setRetMsg("成功");
+            } else {
+                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg("通知推送失败");
+            }
+        } catch (Exception e) {
+            log.error("支付宝出行-业务关闭结果通知 异常, agreementCode={}, result={}", agreementCode, result, e);
+            response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+            response.setRetMsg("系统内部错误");
+        }
+        return response;
+    }
+    /**
+     * 构建支付宝开放平台业务关闭结果通知请求体。
+     */
+    private String buildAlipayCloseResultNotifyRequestBody(AlipayTripCloseResultReqDTO request) {
+        Map<String, Object> bizContent = new java.util.HashMap<>();
+        bizContent.put("agreement_no", request.getAgreementNo());
+        bizContent.put("result", request.getResult());
+
+        Map<String, Object> root = new java.util.HashMap<>();
+        root.put("method", "alipay.eco.cardCard.agreement.notify");
+        root.put("app_id", payCenterProperties.getMerchantNo());
+        root.put("charset", "UTF-8");
+        root.put("sign_type", "RSA");
+        root.put("timestamp", java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        root.put("version", "1.0");
+        root.put("biz_content", new com.alibaba.fastjson2.JSONObject(bizContent));
+
+        return com.alibaba.fastjson2.JSON.toJSONString(root);
+    }
+    @Override
+    public AlipayTripFindTravelDetailRespDTO findTravelDetail(AlipayTripFindTravelDetailReqDTO request) {
+        AlipayTripFindTravelDetailRespDTO response = new AlipayTripFindTravelDetailRespDTO();
+        try {
+            if (request == null || !StringUtils.hasText(request.getOrderNo())) {
+                response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg("订单号不能为空");
+                return response;
+            }
+            AlipayPayLog payLog = alipayPayLogMapper.selectByOrderNo(request.getOrderNo());
+            if (payLog == null) {
+                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg("未查询到支付流水");
+                return response;
+            }
+            response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+            response.setRetMsg("查询成功");
+            response.setPayOrderNoDate(payLog.getOrderNo());
+            response.setPayChannelCode(CHANNEL_ALIPAY);
+            response.setTradeOrderNo(payLog.getTradeNo());
+            response.setTotalAmount(payLog.getPayAmount());
+            response.setDebitRequestResult(payLog.getResultMsg());
+            return response;
+        } catch (Exception e) {
+            log.error("查询乘车记录详情异常", e);
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+            return response;
+        }
+    }
+
+    @Override
+    public com.chinasofti.huateng.model.alipaytrip.AlipayPayLogDTO selectByOrderNo(String orderNo) {
+        try {
+            if (!StringUtils.hasText(orderNo)) {
+                return null;
+            }
+            AlipayPayLog payLog = alipayPayLogMapper.selectByOrderNo(orderNo);
+            if (payLog == null) {
+                return null;
+            }
+            com.chinasofti.huateng.model.alipaytrip.AlipayPayLogDTO dto = new com.chinasofti.huateng.model.alipaytrip.AlipayPayLogDTO();
+            dto.setOrderNo(payLog.getOrderNo());
+            dto.setEntryId(payLog.getEntryId());
+            dto.setExitId(payLog.getExitId());
+            dto.setChannelOrderNo(payLog.getTradeNo());
+            dto.setPayStatus(payLog.getPayStatus());
+            dto.setInvoice(payLog.getInvoice());
+            dto.setCardId(payLog.getCardId());
+            return dto;
+        } catch (Exception e) {
+            log.error("按订单号查询支付流水异常, orderNo={}", orderNo, e);
+            return null;
+        }
+    }
+
+    @Override
+    public com.chinasofti.huateng.model.alipaytrip.AlipayPayLogDTO selectByEntryId(String entryId) {
+        try {
+            if (!StringUtils.hasText(entryId)) {
+                return null;
+            }
+            return alipayPayLogMapper.selectByEntryId(entryId);
+        } catch (Exception e) {
+            log.error("按进站交易ID查询支付流水异常, entryId={}", entryId, e);
+            return null;
+        }
+    }
+
+    @Override
+    public com.chinasofti.huateng.model.alipaytrip.AlipayPayLogDTO selectByExitId(String exitId) {
+        try {
+            if (!StringUtils.hasText(exitId)) {
+                return null;
+            }
+            return alipayPayLogMapper.selectByExitId(exitId);
+        } catch (Exception e) {
+            log.error("按出站交易ID查询支付流水异常, exitId={}", exitId, e);
+            return null;
+        }
+    }
+
+    @Override
+    public com.chinasofti.huateng.model.alipaytrip.AlipayPayLogDTO selectByTravelRecord(String thirdUserId, String entryDate, String cardNum) {
+        try {
+            String entryId = (StringUtils.hasText(cardNum) ? cardNum : "")
+                    + (StringUtils.hasText(entryDate) ? entryDate.replaceAll("[^0-9]", "") : "") + "01";
+            if (!StringUtils.hasText(entryId)) {
+                return null;
+            }
+            return alipayPayLogMapper.selectByEntryId(entryId);
+        } catch (Exception e) {
+            log.error("按乘车记录查询支付流水异常, thirdUserId={}, entryDate={}, cardNum={}", thirdUserId, entryDate, cardNum, e);
+            return null;
+        }
+    }
+
+    @Override
+    public com.chinasofti.huateng.common.response.AlipayCommonResponse notifyBlackListChange(com.chinasofti.huateng.model.alipaytrip.AlipayBlackListNotifyReqDTO request) {
+        com.chinasofti.huateng.common.response.AlipayCommonResponse response = new com.chinasofti.huateng.common.response.AlipayCommonResponse();
+        try {
+            if (request == null || !StringUtils.hasText(request.getCardId())) {
+                response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg("卡号不能为空");
+                return response;
+            }
+            log.info("接收到支付宝出行-黑名单状态变更通知: cardId={}, blackListType={}, reason={}",
+                    request.getCardId(), request.getBlackListType(), request.getReason());
+
+            // 组装黑名单通知 bizData（明文 JSON，不 Base64 编码）
+            Map<String, Object> bizDataMap = new java.util.LinkedHashMap<>();
+            Map<String, Object> record = new java.util.LinkedHashMap<>();
+            record.put("thirdUserId", request.getThirdUserId());
+            record.put("cardId", request.getCardId());
+            record.put("cardType", request.getCardType());
+            record.put("blackListType", request.getBlackListType());
+            record.put("optionDate", request.getOptionDate());
+            if ("1".equals(request.getBlackListType()) && StringUtils.hasText(request.getExpireTime())) {
+                record.put("expireTime", request.getExpireTime());
+            }
+            bizDataMap.put("blackList", Collections.singletonList(record));
+
+            // 调用支付中心黑名单变更通知接口
+            com.chinasofti.huateng.alipay.paysign.model.response.PayCenterResponse payCenterResponse = payCenterClient.blacklistNotify(bizDataMap);
+
+            if (payCenterResponse != null && Boolean.TRUE.equals(payCenterResponse.getSuccess())) {
+                response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+                response.setRetMsg("黑名单变更通知成功");
+            } else if (payCenterResponse != null) {
+                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg(payCenterResponse.getMsg() != null ? payCenterResponse.getMsg() : "黑名单变更通知失败");
+            } else {
+                response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+                response.setRetMsg("调用支付中心黑名单通知接口失败");
+            }
+            log.info("支付宝出行-黑名单状态变更通知完成, cardId={}, retCode={}", request.getCardId(), response.getRetCode());
+            return response;
+        } catch (Exception e) {
+            log.error("支付宝出行-黑名单状态变更通知异常, cardId={}", request != null ? request.getCardId() : null, e);
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+            return response;
+        }
+    }
+
+    // ==================== 私有方法 ====================
+
+    private boolean isValidAddContractRequest(AlipayTripAddContractReqDTO request) {
+        return request.getThirdUserId() != null && !request.getThirdUserId().trim().isEmpty()
+                && request.getChannel() != null && !request.getChannel().trim().isEmpty()
+                && request.getAgreementCode() != null && !request.getAgreementCode().trim().isEmpty()
+                && request.getChannelUserAccount() != null && !request.getChannelUserAccount().trim().isEmpty();
+    }
+
+    private boolean isValidTerminateContractRequest(AlipayTripTerminateContractReqDTO request) {
+        return request.getAgreementCode() != null && !request.getAgreementCode().trim().isEmpty();
+    }
+
+    private boolean isValidPayRequest(AlipayTripRequestPayReqDTO request) {
+        return request.getOrderNo() != null && !request.getOrderNo().trim().isEmpty()
+                && request.getAmount() != null
+                && request.getIndustryType() != null && !request.getIndustryType().trim().isEmpty()
+                && request.getSubject() != null && !request.getSubject().trim().isEmpty()
+                && request.getBody() != null && !request.getBody().trim().isEmpty()
+                && request.getIndustryDetail() != null && !request.getIndustryDetail().trim().isEmpty();
+    }
+
+    private boolean isValidRefundRequest(AlipayTripRequestRefundReqDTO request) {
+        return request != null && StringUtils.hasText(request.getOrderNo());
+    }
+
+    private long parseAmount(String amount) {
+        if (amount == null || amount.trim().isEmpty()) {
+            return 0;
+        }
+        try {
+            return Long.parseLong(amount.trim());
+        } catch (NumberFormatException e) {
+            log.error("退款金额格式异常, amount={}", amount, e);
+            throw new RuntimeException("退款金额格式异常: " + amount);
+        }
+    }
+
+    /**
+     * 补充 industryDetail 中的线路和车站中文名称。
+     */
+    private void enrichIndustryDetailWithNames(AlipayTripRequestPayReqDTO request) {
+        if (request == null || !StringUtils.hasText(request.getIndustryDetail())) {
+            return;
+        }
+        try {
+            com.alibaba.fastjson.JSONObject detailObj = com.alibaba.fastjson.JSON.parseObject(request.getIndustryDetail());
+
+            // 查询车站中文名
+            String exitStationCode = detailObj.getString("exitStationCode");
+            if (StringUtils.hasText(exitStationCode)) {
+                String stationName = queryStationName(exitStationCode);
+                if (StringUtils.hasText(stationName)) {
+                    detailObj.put("exitStationName", stationName);
+                }
+            }
+
+            String entryStationCode = detailObj.getString("entryStationCode");
+            if (StringUtils.hasText(entryStationCode)) {
+                String stationName = queryStationName(entryStationCode);
+                if (StringUtils.hasText(stationName)) {
+                    detailObj.put("entryStationName", stationName);
+                }
+            }
+
+            // 查询线路中文名，线路代码只保留2位
+            String exitLineCode = detailObj.getString("exitLineCode");
+            if (StringUtils.hasText(exitLineCode)) {
+                String shortLineCode = exitLineCode.length() > 2 ? exitLineCode.substring(0, 2) : exitLineCode;
+                detailObj.put("exitLineCode", shortLineCode);
+                String lineName = queryLineName(shortLineCode);
+                if (StringUtils.hasText(lineName)) {
+                    detailObj.put("exitLineName", lineName);
+                }
+            }
+
+            String entryLineCode = detailObj.getString("entryLineCode");
+            if (StringUtils.hasText(entryLineCode)) {
+                String shortLineCode = entryLineCode.length() > 2 ? entryLineCode.substring(0, 2) : entryLineCode;
+                detailObj.put("entryLineCode", shortLineCode);
+                String lineName = queryLineName(shortLineCode);
+                if (StringUtils.hasText(lineName)) {
+                    detailObj.put("entryLineName", lineName);
+                }
+            }
+
+            String updatedDetail = detailObj.toJSONString();
+            request.setIndustryDetail(updatedDetail);
+            log.info("补充中文名称后, industryDetail={}", updatedDetail);
+        } catch (Exception e) {
+            log.warn("补充 industryDetail 中文名称失败", e);
+        }
+    }
+
+    /**
+     * 补充 industryDetail 中的交易序列号和进出站编号。
+     * entryId 基于进站数据生成（trxType 固定为 01），
+     * exitId 基于出站数据生成（trxType 固定为 02），
+     * tikcetTransSeq 固定为 09。 废弃：还是直接用trans
+     */
+    private void enrichIndustryDetailWithTripSeq(AlipayTripRequestPayReqDTO request) {
+        if (request == null || !StringUtils.hasText(request.getIndustryDetail())) {
+            return;
+        }
+        try {
+            com.alibaba.fastjson.JSONObject detailObj = com.alibaba.fastjson.JSON.parseObject(request.getIndustryDetail());
+            String cardNum = detailObj.getString("cardNum");
+            String entryDate = detailObj.getString("entryDate");
+            String exitDate = detailObj.getString("exitDate");
+
+            // entryId：进站时的 cardNum + entryDateCompact + "01"
+            String entryDateCompact = StringUtils.hasText(entryDate) ? entryDate.replaceAll("[^0-9]", "") : "";
+            if (entryDateCompact.length() > 14) {
+                entryDateCompact = entryDateCompact.substring(0, 14);
+            }
+            String entryId = (StringUtils.hasText(cardNum) ? cardNum : "") +
+                    (StringUtils.hasText(entryDateCompact) ? entryDateCompact : "") + "01";
+
+            // exitId：出站时的 cardNum + exitDateCompact + "02"
+            String exitDateCompact = StringUtils.hasText(exitDate) ? exitDate.replaceAll("[^0-9]", "") : "";
+            if (exitDateCompact.length() > 14) {
+                exitDateCompact = exitDateCompact.substring(0, 14);
+            }
+            String exitId = (StringUtils.hasText(cardNum) ? cardNum : "") +
+                    (StringUtils.hasText(exitDateCompact) ? exitDateCompact : "") + "02";
+
+            // tikcetTransSeq：优先使用闸机传过来的二维码交易计数器
+            String ticketTransSeq = detailObj.getString("tikcetTransSeq");
+            if (!StringUtils.hasText(ticketTransSeq)) {
+                ticketTransSeq = request.getRequestSignSeq();
+            }
+
+            // 兜底：如果生成结果为空，使用支付订单号
+//            if (!StringUtils.hasText(ticketTransSeq)) {
+//                ticketTransSeq = request.getOrderNo() != null ? request.getOrderNo() : String.valueOf(System.currentTimeMillis());
+//            }
+            if (!StringUtils.hasText(entryId)) {
+                entryId = ticketTransSeq;
+            }
+            if (!StringUtils.hasText(exitId)) {
+                exitId = ticketTransSeq;
+            }
+
+            detailObj.put("tikcetTransSeq", ticketTransSeq);
+            detailObj.put("entryId", entryId);
+            detailObj.put("exitId", exitId);
+            String updatedDetail = detailObj.toJSONString();
+            request.setIndustryDetail(updatedDetail);
+            log.info("补充交易序列号后, industryDetail={}", updatedDetail);
+        } catch (Exception e) {
+            log.warn("补充 industryDetail 交易序列号失败", e);
+        }
+    }
+
+    private void resolveEntryExitIdsFromIndustryDetail(AlipayTripRequestPayReqDTO request, AlipayPayLog payLog) {
+        if (request == null || payLog == null || !StringUtils.hasText(request.getIndustryDetail())) {
+            return;
+        }
+        try {
+            com.alibaba.fastjson.JSONObject detailObj = com.alibaba.fastjson.JSON.parseObject(request.getIndustryDetail());
+            payLog.setEntryId(detailObj.getString("entryId"));
+            payLog.setExitId(detailObj.getString("exitId"));
+        } catch (Exception e) {
+            log.warn("解析 industryDetail 获取 entryId/exitId 失败", e);
+        }
+    }
+
+    /**
+     * 查询车站中文名称。
+     */
+    private String queryStationName(String stationCode) {
+        try {
+            com.chinasofti.huateng.model.app.RequestStationNameReqDTO req = new com.chinasofti.huateng.model.app.RequestStationNameReqDTO();
+            req.setStationCode(stationCode);
+            com.chinasofti.huateng.model.app.RequestStationNameResult result = paraClient.requestStationName(req);
+            if (result != null && StringUtils.hasText(result.getStationName())) {
+                return result.getStationName();
+            }
+        } catch (Exception e) {
+            log.warn("查询车站名称失败, stationCode={}", stationCode, e);
+        }
+        return null;
+    }
+
+    /**
+     * 查询线路中文名称。
+     */
+    private String queryLineName(String lineCode) {
+        try {
+            com.chinasofti.huateng.model.app.RequestLineCodeListReqDTO req = new com.chinasofti.huateng.model.app.RequestLineCodeListReqDTO();
+            com.chinasofti.huateng.model.app.RequestLineCodeListResult result = paraClient.requestLineCodeList(req);
+            if (result != null && result.getLineCodeRecord() != null) {
+                for (com.chinasofti.huateng.model.app.LineCodeRecordDTO record : result.getLineCodeRecord()) {
+                    if (lineCode.equals(record.getLineCode())) {
+                        return record.getLineNameZH();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("查询线路名称失败, lineCode={}", lineCode, e);
+        }
+        return null;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AlipayCommonResponse executeTermination(String agreementCode) {
+        com.chinasofti.huateng.common.response.AlipayCommonResponse response = new com.chinasofti.huateng.common.response.AlipayCommonResponse();
+        try {
+            log.info("支付宝出行-执行解约, agreementCode={}", agreementCode);
+
+            // 1. 查询待处理的解约记录
+            java.util.List<com.chinasofti.huateng.model.alipaytrip.AlipayTerminationRequest> pendingList;
+            if (org.springframework.util.StringUtils.hasText(agreementCode)) {
+                pendingList = new java.util.ArrayList<>();
+                com.chinasofti.huateng.model.alipaytrip.AlipayTerminationRequest request = alipayTerminationRequestMapper.selectByAgreementCode(agreementCode);
+                if (request != null && "PENDING".equals(request.getStatus())) {
+                    pendingList.add(request);
+                }
+            } else {
+                pendingList = new java.util.ArrayList<>();
+                log.warn("未传入agreementCode，无法执行解约");
+            }
+
+            if (pendingList.isEmpty()) {
+                response.setRetCode(com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum.SUCCESS.getCode());
+                response.setRetMsg("无待处理解约记录");
+                return response;
+            }
+
+            int successCount = 0;
+            int failCount = 0;
+
+            // 2. 逐个执行解约
+            for (com.chinasofti.huateng.model.alipaytrip.AlipayTerminationRequest terminationRequest : pendingList) {
+                try {
+                    // 2.1 查询签约信息
+                    com.chinasofti.huateng.model.alipaytrip.AlipaySignInfo signInfo = alipaySignInfoMapper.selectByChannelAgreementCode(terminationRequest.getAgreementCode());
+                    if (signInfo == null) {
+                        log.warn("执行解约失败，签约信息不存在, agreementCode={}", terminationRequest.getAgreementCode());
+                        failCount++;
+
+                        continue;
+                    }
+
+                    // 2.2 更新签约状态为 TERMINATED
+                    alipaySignInfoMapper.updateStatus(signInfo.getAgreementCode(), "TERMINATED", java.time.LocalDateTime.now());
+
+                    // 2.3 通知支付宝方解约结果
+                    String alipayResponse = notifyAlipayTerminationAsync(terminationRequest, signInfo);
+
+                    // 2.4 更新解约记录状态为 COMPLETED
+                    alipayTerminationRequestMapper.updateStatus(terminationRequest.getAgreementCode(), "COMPLETED", java.time.LocalDateTime.now());
+                    successCount++;
+                } catch (Exception e) {
+                    log.error("执行解约异常, agreementCode={}", terminationRequest.getAgreementCode(), e);
+                    // 更新解约记录状态为 FAIL
+                    try {
+                        alipayTerminationRequestMapper.updateStatus(terminationRequest.getAgreementCode(), "FAIL", java.time.LocalDateTime.now());
+                    } catch (Exception ex) {
+                        log.error("更新解约记录状态失败, agreementCode={}", terminationRequest.getAgreementCode(), ex);
+                    }
+                    failCount++;
+                }
+            }
+
+            response.setRetCode(com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum.SUCCESS.getCode());
+            response.setRetMsg("执行完成，成功：" + successCount + "，失败：" + failCount);
+        } catch (Exception e) {
+            log.error("执行解约异常", e);
+            response.setRetCode(com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+        }
+        return response;
+    }
+
+    private String notifyAlipayTerminationAsync(com.chinasofti.huateng.model.alipaytrip.AlipayTerminationRequest terminationRequest, com.chinasofti.huateng.model.alipaytrip.AlipaySignInfo signInfo) {
+        try {
+            com.chinasofti.huateng.common.response.AlipayCommonResponse notifyResponse = notifyCloseResult(terminationRequest.getAgreementCode(), true);
+            if (notifyResponse != null && "0000".equals(notifyResponse.getRetCode())) {
+                log.info("通知支付宝方解约结果成功, agreementCode={}", terminationRequest.getAgreementCode());
+            } else {
+                log.warn("通知支付宝方解约结果失败, agreementCode={}, retCode={}, retMsg={}",
+                        terminationRequest.getAgreementCode(),
+                        notifyResponse != null ? notifyResponse.getRetCode() : "null",
+                        notifyResponse != null ? notifyResponse.getRetMsg() : "null");
+            }
+            return notifyResponse != null ? notifyResponse.getRetCode() : null;
+        } catch (Exception e) {
+            log.error("通知支付宝方解约结果异常, agreementCode={}", terminationRequest.getAgreementCode(), e);
+            return null;
+        }
+    }
+}

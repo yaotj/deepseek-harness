@@ -1,0 +1,630 @@
+{
+  "id": "if8a-04-requestExcessFare",
+  "name": "IF8A-04 请求自助补站",
+  "protocol": "HTTP",
+  "method": "POST",
+  "path": "/ci/app/requestExcessFare",
+  "status": "design",
+  "description": "IF8A-04 请求自助补站。包含补进站、补出站、前置校验及反向用例。",
+  "request": {
+    "method": "POST",
+    "path": "/ci/app/requestExcessFare",
+    "body": {
+      "mode": "form",
+      "form": [
+        {
+          "key": "providerId",
+          "value": "01",
+          "type": "text",
+          "enabled": true
+        },
+        {
+          "key": "charset",
+          "value": "UTF-8",
+          "type": "text",
+          "enabled": true
+        },
+        {
+          "key": "format",
+          "value": "json",
+          "type": "text",
+          "enabled": true
+        },
+        {
+          "key": "timestamp",
+          "value": "20260626120000",
+          "type": "text",
+          "enabled": true
+        },
+        {
+          "key": "deviceId",
+          "value": "APP",
+          "type": "text",
+          "enabled": true
+        },
+        {
+          "key": "signType",
+          "value": "00",
+          "type": "text",
+          "enabled": true
+        },
+        {
+          "key": "sign",
+          "value": "",
+          "type": "text",
+          "enabled": true
+        },
+        {
+          "key": "bizData",
+          "value": "{\"thirdUserId\":\"1001\",\"cardId\":\"9900000000000001\",\"cardType\":\"0441\",\"upgradeAreaType\":\"01\",\"upgradeStationCode\":\"0101\",\"upgradeDateTime\":\"20260626120000\"}",
+          "type": "text",
+          "enabled": true
+        }
+      ]
+    }
+  },
+  "response": [
+    {
+      "id": "res-entrySuccess",
+      "name": "补进站成功",
+      "code": 200,
+      "body": {
+        "retCode": "0000",
+        "retMsg": "成功"
+      }
+    },
+    {
+      "id": "res-exitSuccess",
+      "name": "补出站成功",
+      "code": 200,
+      "body": {
+        "retCode": "0000",
+        "retMsg": "成功"
+      }
+    },
+    {
+      "id": "res-completedOnlyEntry",
+      "name": "已完成交易，只能补进站",
+      "code": 200,
+      "body": {
+        "retCode": "8001",
+        "retMsg": "当前已完成交易，只能补进站"
+      }
+    },
+    {
+      "id": "res-inEntryOnlyExit",
+      "name": "已进站，只能补出站",
+      "code": 200,
+      "body": {
+        "retCode": "8001",
+        "retMsg": "当前已进站，只能补出站"
+      }
+    },
+    {
+      "id": "res-exitWithoutEntry",
+      "name": "补出站但无进站记录",
+      "code": 200,
+      "body": {
+        "retCode": "8304",
+        "retMsg": "没有进站记录，无法补出站"
+      }
+    },
+    {
+      "id": "res-invalidParam",
+      "name": "必填参数缺失",
+      "code": 400,
+      "body": {
+        "retCode": "8001",
+        "retMsg": "cardId/upgradeAreaType/upgradeStationCode不能为空"
+      }
+    },
+    {
+      "id": "res-systemError",
+      "name": "系统异常",
+      "code": 500,
+      "body": {
+        "retCode": "9001",
+        "retMsg": "系统内部错误"
+      }
+    }
+  ],
+  "testCases": [
+    {
+      "id": "tc-entrySuccess",
+      "name": "TC-01 补进站成功",
+      "description": "票卡状态为未进站/初始状态，请求补进站，预期返回成功。",
+      "request": {
+        "body": {
+          "mode": "form",
+          "form": [
+            {
+              "key": "providerId",
+              "value": "01",
+              "type": "text"
+            },
+            {
+              "key": "charset",
+              "value": "UTF-8",
+              "type": "text"
+            },
+            {
+              "key": "format",
+              "value": "json",
+              "type": "text"
+            },
+            {
+              "key": "timestamp",
+              "value": "20260626120000",
+              "type": "text"
+            },
+            {
+              "key": "deviceId",
+              "value": "APP",
+              "type": "text"
+            },
+            {
+              "key": "signType",
+              "value": "00",
+              "type": "text"
+            },
+            {
+              "key": "sign",
+              "value": "",
+              "type": "text"
+            },
+            {
+              "key": "bizData",
+              "value": "{\"thirdUserId\":\"1001\",\"cardId\":\"9900000000000001\",\"cardType\":\"0441\",\"upgradeAreaType\":\"01\",\"upgradeStationCode\":\"0101\",\"upgradeDateTime\":\"20260626120000\"}",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "type": "statusCode",
+          "operator": "equals",
+          "value": 200
+        },
+        {
+          "type": "body",
+          "operator": "equals",
+          "path": "retCode",
+          "value": "0000"
+        },
+        {
+          "type": "body",
+          "operator": "equals",
+          "path": "retMsg",
+          "value": "成功"
+        }
+      ]
+    },
+    {
+      "id": "tc-exitSuccess",
+      "name": "TC-02 补出站成功",
+      "description": "票卡状态为已进站（04），请求补出站，预期返回成功。",
+      "request": {
+        "body": {
+          "mode": "form",
+          "form": [
+            {
+              "key": "providerId",
+              "value": "01",
+              "type": "text"
+            },
+            {
+              "key": "charset",
+              "value": "UTF-8",
+              "type": "text"
+            },
+            {
+              "key": "format",
+              "value": "json",
+              "type": "text"
+            },
+            {
+              "key": "timestamp",
+              "value": "20260626120000",
+              "type": "text"
+            },
+            {
+              "key": "deviceId",
+              "value": "APP",
+              "type": "text"
+            },
+            {
+              "key": "signType",
+              "value": "00",
+              "type": "text"
+            },
+            {
+              "key": "sign",
+              "value": "",
+              "type": "text"
+            },
+            {
+              "key": "bizData",
+              "value": "{\"thirdUserId\":\"1001\",\"cardId\":\"9900000000000001\",\"cardType\":\"0441\",\"upgradeAreaType\":\"02\",\"upgradeStationCode\":\"0102\",\"upgradeDateTime\":\"20260626120000\"}",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "type": "statusCode",
+          "operator": "equals",
+          "value": 200
+        },
+        {
+          "type": "body",
+          "operator": "equals",
+          "path": "retCode",
+          "value": "0000"
+        },
+        {
+          "type": "body",
+          "operator": "equals",
+          "path": "retMsg",
+          "value": "成功"
+        }
+      ]
+    },
+    {
+      "id": "tc-completedOnlyEntry",
+      "name": "TC-03 已完成交易，只能补进站",
+      "description": "票卡状态为已完成交易（05/06），请求补出站，预期拒绝并提示只能补进站。",
+      "request": {
+        "body": {
+          "mode": "form",
+          "form": [
+            {
+              "key": "providerId",
+              "value": "01",
+              "type": "text"
+            },
+            {
+              "key": "charset",
+              "value": "UTF-8",
+              "type": "text"
+            },
+            {
+              "key": "format",
+              "value": "json",
+              "type": "text"
+            },
+            {
+              "key": "timestamp",
+              "value": "20260626120000",
+              "type": "text"
+            },
+            {
+              "key": "deviceId",
+              "value": "APP",
+              "type": "text"
+            },
+            {
+              "key": "signType",
+              "value": "00",
+              "type": "text"
+            },
+            {
+              "key": "sign",
+              "value": "",
+              "type": "text"
+            },
+            {
+              "key": "bizData",
+              "value": "{\"thirdUserId\":\"1001\",\"cardId\":\"9900000000000001\",\"cardType\":\"0441\",\"upgradeAreaType\":\"02\",\"upgradeStationCode\":\"0102\",\"upgradeDateTime\":\"20260626120000\"}",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "type": "statusCode",
+          "operator": "equals",
+          "value": 200
+        },
+        {
+          "type": "body",
+          "operator": "equals",
+          "path": "retCode",
+          "value": "8001"
+        },
+        {
+          "type": "body",
+          "operator": "equals",
+          "path": "retMsg",
+          "value": "当前已完成交易，只能补进站"
+        }
+      ]
+    },
+    {
+      "id": "tc-inEntryOnlyExit",
+      "name": "TC-04 已进站，只能补出站",
+      "description": "票卡状态为已进站（04），请求补进站，预期拒绝并提示只能补出站。",
+      "request": {
+        "body": {
+          "mode": "form",
+          "form": [
+            {
+              "key": "providerId",
+              "value": "01",
+              "type": "text"
+            },
+            {
+              "key": "charset",
+              "value": "UTF-8",
+              "type": "text"
+            },
+            {
+              "key": "format",
+              "value": "json",
+              "type": "text"
+            },
+            {
+              "key": "timestamp",
+              "value": "20260626120000",
+              "type": "text"
+            },
+            {
+              "key": "deviceId",
+              "value": "APP",
+              "type": "text"
+            },
+            {
+              "key": "signType",
+              "value": "00",
+              "type": "text"
+            },
+            {
+              "key": "sign",
+              "value": "",
+              "type": "text"
+            },
+            {
+              "key": "bizData",
+              "value": "{\"thirdUserId\":\"1001\",\"cardId\":\"9900000000000001\",\"cardType\":\"0441\",\"upgradeAreaType\":\"01\",\"upgradeStationCode\":\"0101\",\"upgradeDateTime\":\"20260626120000\"}",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "type": "statusCode",
+          "operator": "equals",
+          "value": 200
+        },
+        {
+          "type": "body",
+          "operator": "equals",
+          "path": "retCode",
+          "value": "8001"
+        },
+        {
+          "type": "body",
+          "operator": "equals",
+          "path": "retMsg",
+          "value": "当前已进站，只能补出站"
+        }
+      ]
+    },
+    {
+      "id": "tc-exitWithoutEntry",
+      "name": "TC-05 补出站但无进站记录",
+      "description": "票卡状态无进站记录，请求补出站，预期返回 8304。",
+      "request": {
+        "body": {
+          "mode": "form",
+          "form": [
+            {
+              "key": "providerId",
+              "value": "01",
+              "type": "text"
+            },
+            {
+              "key": "charset",
+              "value": "UTF-8",
+              "type": "text"
+            },
+            {
+              "key": "format",
+              "value": "json",
+              "type": "text"
+            },
+            {
+              "key": "timestamp",
+              "value": "20260626120000",
+              "type": "text"
+            },
+            {
+              "key": "deviceId",
+              "value": "APP",
+              "type": "text"
+            },
+            {
+              "key": "signType",
+              "value": "00",
+              "type": "text"
+            },
+            {
+              "key": "sign",
+              "value": "",
+              "type": "text"
+            },
+            {
+              "key": "bizData",
+              "value": "{\"thirdUserId\":\"1001\",\"cardId\":\"9900000000000001\",\"cardType\":\"0441\",\"upgradeAreaType\":\"02\",\"upgradeStationCode\":\"0102\",\"upgradeDateTime\":\"20260626120000\"}",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "type": "statusCode",
+          "operator": "equals",
+          "value": 200
+        },
+        {
+          "type": "body",
+          "operator": "equals",
+          "path": "retCode",
+          "value": "8304"
+        },
+        {
+          "type": "body",
+          "operator": "equals",
+          "path": "retMsg",
+          "value": "没有进站记录，无法补出站"
+        }
+      ]
+    },
+    {
+      "id": "tc-invalidParam",
+      "name": "TC-06 必填参数缺失",
+      "description": "请求参数缺少 cardId，预期返回 8001 参数错误。",
+      "request": {
+        "body": {
+          "mode": "form",
+          "form": [
+            {
+              "key": "providerId",
+              "value": "01",
+              "type": "text"
+            },
+            {
+              "key": "charset",
+              "value": "UTF-8",
+              "type": "text"
+            },
+            {
+              "key": "format",
+              "value": "json",
+              "type": "text"
+            },
+            {
+              "key": "timestamp",
+              "value": "20260626120000",
+              "type": "text"
+            },
+            {
+              "key": "deviceId",
+              "value": "APP",
+              "type": "text"
+            },
+            {
+              "key": "signType",
+              "value": "00",
+              "type": "text"
+            },
+            {
+              "key": "sign",
+              "value": "",
+              "type": "text"
+            },
+            {
+              "key": "bizData",
+              "value": "{\"thirdUserId\":\"1001\",\"cardType\":\"0441\",\"upgradeAreaType\":\"01\",\"upgradeStationCode\":\"0101\",\"upgradeDateTime\":\"20260626120000\"}",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "type": "statusCode",
+          "operator": "equals",
+          "value": 200
+        },
+        {
+          "type": "body",
+          "operator": "equals",
+          "path": "retCode",
+          "value": "8001"
+        },
+        {
+          "type": "body",
+          "operator": "equals",
+          "path": "retMsg",
+          "value": "cardId/upgradeAreaType/upgradeStationCode不能为空"
+        }
+      ]
+    },
+    {
+      "id": "tc-systemError",
+      "name": "TC-07 系统异常",
+      "description": "模拟系统异常场景，预期返回 9001。",
+      "request": {
+        "body": {
+          "mode": "form",
+          "form": [
+            {
+              "key": "providerId",
+              "value": "01",
+              "type": "text"
+            },
+            {
+              "key": "charset",
+              "value": "UTF-8",
+              "type": "text"
+            },
+            {
+              "key": "format",
+              "value": "json",
+              "type": "text"
+            },
+            {
+              "key": "timestamp",
+              "value": "20260626120000",
+              "type": "text"
+            },
+            {
+              "key": "deviceId",
+              "value": "APP",
+              "type": "text"
+            },
+            {
+              "key": "signType",
+              "value": "00",
+              "type": "text"
+            },
+            {
+              "key": "sign",
+              "value": "",
+              "type": "text"
+            },
+            {
+              "key": "bizData",
+              "value": "{\"thirdUserId\":\"1001\",\"cardId\":\"9900000000000001\",\"cardType\":\"0441\",\"upgradeAreaType\":\"01\",\"upgradeStationCode\":\"0101\",\"upgradeDateTime\":\"20260626120000\"}",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "assertions": [
+        {
+          "type": "statusCode",
+          "operator": "equals",
+          "value": 200
+        },
+        {
+          "type": "body",
+          "operator": "equals",
+          "path": "retCode",
+          "value": "9001"
+        },
+        {
+          "type": "body",
+          "operator": "equals",
+          "path": "retMsg",
+          "value": "系统内部错误"
+        }
+      ]
+    }
+  ]
+}

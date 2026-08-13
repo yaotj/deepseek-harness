@@ -1,0 +1,76 @@
+package com.chinasofti.huateng.alipay.paysign.controller;
+
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripPayQueryReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripRequestPayReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripRequestRefundReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayNotifyReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripPayQueryRespDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripRequestPayRespDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripRequestRefundRespDTO;
+import com.chinasofti.huateng.alipay.paysign.service.AlipayTripPaymentService;
+import com.chinasofti.huateng.common.response.AlipayCommonResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * 支付宝出行支付 Controller。
+ */
+@RestController
+@RequestMapping("/api/payment")
+public class AlipayTripPaymentController {
+
+    private static final Logger log = LoggerFactory.getLogger(AlipayTripPaymentController.class);
+    private final AlipayTripPaymentService alipayTripPaymentService;
+
+    public AlipayTripPaymentController(AlipayTripPaymentService alipayTripPaymentService) {
+        this.alipayTripPaymentService = alipayTripPaymentService;
+    }
+
+    /**
+     * 支付申请。
+     */
+    @PostMapping("/requestPay")
+    public AlipayTripRequestPayRespDTO requestPay(@RequestBody AlipayTripRequestPayReqDTO request) {
+        log.info("收到支付申请: orderNo={}", request != null ? request.getOrderNo() : null);
+        AlipayTripRequestPayRespDTO response = alipayTripPaymentService.requestPay(request);
+        log.info("支付申请响应结果：{}", response != null ? response.getRetMsg() : "null");
+        return response;
+    }
+
+    /**
+     * 支付结果查询。
+     */
+    @PostMapping("/payQuery")
+    public AlipayTripPayQueryRespDTO payQuery(@RequestBody AlipayTripPayQueryReqDTO request) {
+        log.info("收到支付查询: orderNo={}", request != null ? request.getOrderNo() : null);
+        AlipayTripPayQueryRespDTO response = alipayTripPaymentService.payQuery(request);
+        log.info("支付查询响应结果：{}", response != null ? response.getRetMsg() : "null");
+        return response;
+    }
+
+    /**
+     * 退款申请。
+     */
+    @PostMapping("/requestRefund")
+    public AlipayTripRequestRefundRespDTO requestRefund(@RequestBody AlipayTripRequestRefundReqDTO request) {
+        log.info("收到退款申请: orderNo={}", request != null ? request.getOrderNo() : null);
+        AlipayTripRequestRefundRespDTO response = alipayTripPaymentService.requestRefund(request);
+        log.info("退款申请响应结果：{}", response != null ? response.getRetMsg() : "null");
+        return response;
+    }
+
+    /**
+     * 支付结果回调。
+     */
+    @PostMapping("/payNotify")
+    public boolean payNotify(@RequestBody AlipayTripPayNotifyReqDTO request) {
+        log.info("收到支付回调: orderNo={}", request != null ? request.getOrderNo() : null);
+        boolean response = alipayTripPaymentService.handlePayNotify(request);
+        log.info("支付回调响应结果：{}", response);
+        return response;
+    }
+}

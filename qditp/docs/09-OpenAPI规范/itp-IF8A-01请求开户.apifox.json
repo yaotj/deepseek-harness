@@ -1,0 +1,859 @@
+{
+  "apifoxProject": "1.0.0",
+  "$schema": {
+    "app": "apifox",
+    "type": "project",
+    "version": "1.2.0"
+  },
+  "info": {
+    "name": "青岛itp",
+    "description": "可导入 Apifox 的 Postman Collection。接口使用 application/x-www-form-urlencoded 公共报文；请在环境变量或集合变量中填入 sign，若前置开启验签则 sign 不能为空。下单成功后会自动保存返回的 orderNo 到 dailyTicketOrderNo，供日票支付请求使用。",
+    "mockRule": {
+      "rules": [],
+      "enableSystemRule": true
+    }
+  },
+  "projectSetting": {
+    "id": "8426515",
+    "auth": {},
+    "securityScheme": {},
+    "gateway": [],
+    "language": "zh-CN",
+    "apiStatuses": [
+      "developing",
+      "testing",
+      "released",
+      "deprecated"
+    ],
+    "mockSettings": {},
+    "preProcessors": [],
+    "postProcessors": [],
+    "advancedSettings": {
+      "allowAutomationWriteAutomationCreatedSprintBranch": true,
+      "enableJsonc": false,
+      "enableBigint": false,
+      "responseValidate": true,
+      "enableTestScenarioSetting": false,
+      "enableYAPICompatScript": false,
+      "isDefaultUrlEncoding": 2,
+      "publishedDocUrlRules": {
+        "defaultRule": "RESOURCE_KEY_ONLY",
+        "resourceKeyStandard": "NEW"
+      }
+    },
+    "initialDisabledMockIds": [],
+    "servers": [
+      {
+        "id": "default",
+        "name": "默认服务",
+        "moduleId": 7900481
+      },
+      {
+        "id": "8100839",
+        "name": "默认服务",
+        "moduleId": 8100839
+      },
+      {
+        "id": "8101811",
+        "name": "默认服务",
+        "moduleId": 8101811
+      },
+      {
+        "id": "8103904",
+        "name": "默认服务",
+        "moduleId": 8103904
+      },
+      {
+        "id": "8202336",
+        "name": "默认服务",
+        "moduleId": 8202336
+      },
+      {
+        "id": "8210224",
+        "name": "默认服务",
+        "moduleId": 8210224
+      },
+      {
+        "id": "8223148",
+        "name": "默认服务",
+        "moduleId": 8223148
+      }
+    ],
+    "cloudMock": {
+      "enable": false,
+      "security": "free",
+      "tokenKey": "apifoxToken",
+      "isCreatedAutomaticallyByDefaultConfigFromAdmin": true
+    }
+  },
+  "apiCollection": [
+    {
+      "name": "根目录",
+      "id": 87410103,
+      "auth": {},
+      "securityScheme": {},
+      "parentId": 0,
+      "serverId": "",
+      "description": "",
+      "identityPattern": {
+        "httpApi": {
+          "type": "methodAndPath",
+          "bodyType": "",
+          "fields": []
+        }
+      },
+      "shareSettings": {},
+      "visibility": "SHARED",
+      "moduleId": 7900481,
+      "preProcessors": [
+        {
+          "id": "inheritProcessors",
+          "type": "inheritProcessors",
+          "data": {}
+        }
+      ],
+      "postProcessors": [
+        {
+          "id": "inheritProcessors",
+          "type": "inheritProcessors",
+          "data": {}
+        }
+      ],
+      "inheritPostProcessors": {},
+      "inheritPreProcessors": {},
+      "items": [
+        {
+          "name": "IF8A-01",
+          "id": 87411363,
+          "auth": {},
+          "securityScheme": {},
+          "parentId": 0,
+          "serverId": "",
+          "description": "",
+          "identityPattern": {
+            "httpApi": {
+              "type": "inherit",
+              "bodyType": "",
+              "fields": []
+            }
+          },
+          "shareSettings": {},
+          "visibility": "INHERITED",
+          "moduleId": 7900481,
+          "preProcessors": [
+            {
+              "id": "inheritProcessors",
+              "type": "inheritProcessors",
+              "data": {}
+            }
+          ],
+          "postProcessors": [
+            {
+              "id": "inheritProcessors",
+              "type": "inheritProcessors",
+              "data": {}
+            }
+          ],
+          "inheritPostProcessors": {},
+          "inheritPreProcessors": {},
+          "items": [
+            {
+              "name": "IF8A-01 请求开户2",
+              "api": {
+                "id": "467631846",
+                "method": "post",
+                "path": "/ci/app/requestApplication",
+                "parameters": {
+                  "query": []
+                },
+                "auth": {},
+                "securityScheme": {},
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "responses": [
+                  {
+                    "id": "196512409",
+                    "code": 200,
+                    "name": "成功",
+                    "headers": [],
+                    "jsonSchema": {
+                      "type": "object",
+                      "properties": {}
+                    },
+                    "itemSchema": {},
+                    "description": "",
+                    "contentType": "json",
+                    "mediaType": ""
+                  }
+                ],
+                "responseExamples": [
+                  {
+                    "name": "成功",
+                    "data": "{\"code\":\"1ad2b330-3bf2-45ef-87e9-411afcb3f1f3\",\"msg\":null,\"data\":null}",
+                    "responseId": "196512409"
+                  }
+                ],
+                "requestBody": {
+                  "type": "multipart/form-data",
+                  "parameters": [
+                    {
+                      "required": false,
+                      "description": "",
+                      "type": "string",
+                      "id": "A2iQLpFtpa",
+                      "example": "01",
+                      "enable": true,
+                      "name": "providerId"
+                    },
+                    {
+                      "required": false,
+                      "description": "",
+                      "type": "string",
+                      "id": "XYgyjxwdbo",
+                      "example": "UTF-8",
+                      "enable": true,
+                      "name": "charset"
+                    },
+                    {
+                      "required": false,
+                      "description": "",
+                      "type": "string",
+                      "id": "Ma6FvyHxYD",
+                      "example": "json",
+                      "enable": true,
+                      "name": "format"
+                    },
+                    {
+                      "required": false,
+                      "description": "",
+                      "type": "string",
+                      "id": "8wMEIofwVj",
+                      "example": "202605251452",
+                      "enable": true,
+                      "name": "timestamp"
+                    },
+                    {
+                      "required": false,
+                      "description": "",
+                      "type": "string",
+                      "id": "nIIBtHeyK1",
+                      "example": "{{$string.numeric(length=10)}}",
+                      "enable": true,
+                      "name": "deviceId"
+                    },
+                    {
+                      "required": false,
+                      "description": "",
+                      "type": "string",
+                      "id": "rLvl22d4Pj",
+                      "example": "00",
+                      "enable": true,
+                      "name": "signType"
+                    },
+                    {
+                      "required": false,
+                      "description": "",
+                      "type": "string",
+                      "id": "NREkPgnLmh",
+                      "example": "",
+                      "enable": true,
+                      "name": "sign"
+                    },
+                    {
+                      "required": false,
+                      "description": "",
+                      "type": "string",
+                      "id": "5EDjdkYvDn",
+                      "example": "{\"thirdUserId\":\"{{dynamicThirdUserId}}\",\"companionFlag\":\"Y\",\"extend2\":\"\",\"channel\":\"\",\"reqContractNo\":\"\",\"cardType\":\"02\",\"extend1\":\"\",\"thirdPayId\":\"\",\"msisdn\":\"13047412310\",\"userName\":\"\",\"userId\":\"\",\"ticketCard\":\"01\"}",
+                      "enable": true,
+                      "name": "bizData"
+                    }
+                  ],
+                  "jsonSchema": {
+                    "type": "object",
+                    "properties": {}
+                  },
+                  "required": true,
+                  "mediaType": "",
+                  "examples": [
+                    {
+                      "mediaType": "application/json",
+                      "value": ""
+                    }
+                  ],
+                  "oasExtensions": ""
+                },
+                "description": "",
+                "tags": [],
+                "status": "developing",
+                "serverId": "",
+                "operationId": "",
+                "sourceUrl": "",
+                "ordering": 10,
+                "cases": [
+                  {
+                    "id": 380532458,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功开户",
+                    "responseId": "196512409",
+                    "parameters": {
+                      "query": [],
+                      "path": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {
+                      "query": [],
+                      "body": [],
+                      "header": [],
+                      "cookie": []
+                    },
+                    "requestBody": {
+                      "parameters": [
+                        {
+                          "id": "fGGZXX8f6Q",
+                          "relatedId": "A2iQLpFtpa",
+                          "relatedName": "providerId",
+                          "value": "01",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "IxBawU52NR",
+                          "relatedId": "XYgyjxwdbo",
+                          "relatedName": "charset",
+                          "value": "UTF-8",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "lZTjLh11az",
+                          "relatedId": "Ma6FvyHxYD",
+                          "relatedName": "format",
+                          "value": "json",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "zJDSbdM4C7",
+                          "relatedId": "8wMEIofwVj",
+                          "relatedName": "timestamp",
+                          "value": "202605251452",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "PwfSL8aubc",
+                          "relatedId": "nIIBtHeyK1",
+                          "relatedName": "deviceId",
+                          "value": "{{$string.numeric(length=10)}}",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "1f7b9ar7pw",
+                          "relatedId": "rLvl22d4Pj",
+                          "relatedName": "signType",
+                          "value": "00",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "YSBdy7tscj",
+                          "relatedId": "NREkPgnLmh",
+                          "relatedName": "sign",
+                          "value": "",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "Y4mi6zu1Ui",
+                          "relatedId": "5EDjdkYvDn",
+                          "relatedName": "bizData",
+                          "value": "{\"thirdUserId\":\"{{dynamicThirdUserId}}\",\"companionFlag\":\"Y\",\"extend2\":\"\",\"channel\":\"\",\"reqContractNo\":\"\",\"cardType\":\"02\",\"extend1\":\"\",\"thirdPayId\":\"\",\"msisdn\":\"13047412310\",\"userName\":\"\",\"userId\":\"\",\"ticketCard\":\"01\"}",
+                          "enable": true,
+                          "isDelete": false
+                        }
+                      ],
+                      "data": "",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {},
+                      "isDefaultUrlEncoding": 2,
+                      "disableUrlEncoding": false
+                    },
+                    "requestResult": "{\"id\":\"temp.80c3ae1b-d060-48d5-a9c5-eb81b56b1b0a\",\"cursor\":{\"position\":0,\"iteration\":0,\"length\":1,\"cycles\":1,\"empty\":false,\"eof\":false,\"bof\":true,\"cr\":false,\"ref\":\"80c3ae1b-d060-48d5-a9c5-eb81b56b1b0a\",\"requestIndex\":0,\"httpRequestId\":\"58bab718-f6d9-4b72-b6ce-15695ddfb111\"},\"type\":\"http\",\"response\":{\"id\":\"be75c506-ce69-4ef5-a5df-b80ef4773b8b\",\"status\":\"OK\",\"code\":200,\"header\":[{\"key\":\"content-type\",\"value\":\"application/json\"}],\"trailer\":[],\"stream\":{\"type\":\"Buffer\",\"data\":[123,34,114,101,116,67,111,100,101,34,58,34,56,48,48,50,34,44,34,114,101,116,77,115,103,34,58,34,229,183,178,229,143,145,229,141,161,34,44,34,99,97,114,100,73,100,34,58,34,48,49,55,56,48,52,54,55,56,52,54,51,49,53,56,55,34,44,34,99,97,114,100,84,121,112,101,34,58,34,48,50,34,44,34,115,105,103,110,84,121,112,101,34,58,34,48,48,34,44,34,115,105,103,110,34,58,34,34,125]},\"cookie\":[],\"responseTime\":30,\"responseSize\":109,\"type\":\"http\",\"tempFilePath\":\"\"},\"request\":{\"url\":{\"protocol\":\"http\",\"port\":\"30010\",\"path\":[\"ci\",\"app\",\"requestApplication\"],\"host\":[\"172\",\"20\",\"211\",\"200\"],\"query\":[],\"variable\":[]},\"header\":[{\"key\":\"User-Agent\",\"value\":\"Apifox/1.0.0 (https://apifox.com)\"},{\"key\":\"Accept\",\"value\":\"*/*\",\"system\":true}],\"method\":\"POST\",\"baseUrl\":\"http://172.20.211.200:30010\",\"body\":{\"mode\":\"formdata\",\"formdata\":[{\"disabled\":false,\"key\":\"providerId\",\"value\":\"01\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"charset\",\"value\":\"UTF-8\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"format\",\"value\":\"json\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"timestamp\",\"value\":\"202605251452\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"deviceId\",\"value\":\"9258319393\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"signType\",\"value\":\"00\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"sign\",\"value\":\"\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"bizData\",\"value\":\"{\\\"thirdUserId\\\":\\\"{{dynamicThirdUserId}}\\\",\\\"companionFlag\\\":\\\"Y\\\",\\\"extend2\\\":\\\"\\\",\\\"channel\\\":\\\"\\\",\\\"reqContractNo\\\":\\\"\\\",\\\"cardType\\\":\\\"02\\\",\\\"extend1\\\":\\\"\\\",\\\"thirdPayId\\\":\\\"\\\",\\\"msisdn\\\":\\\"13047412310\\\",\\\"userName\\\":\\\"\\\",\\\"userId\\\":\\\"\\\",\\\"ticketCard\\\":\\\"01\\\"}\",\"type\":\"string\"}]},\"type\":\"http\"},\"history\":{\"execution\":{\"verbose\":true,\"sessions\":{},\"data\":[{\"request\":{\"method\":\"POST\",\"href\":\"http://172.20.211.200:30010/ci/app/requestApplication\",\"headers\":[{\"key\":\"User-Agent\",\"value\":\"Apifox/1.0.0 (https://apifox.com)\"},{\"key\":\"Accept\",\"value\":\"*/*\",\"system\":true}],\"httpVersion\":\"1.1\"},\"response\":{\"statusCode\":200,\"headers\":[{\"key\":\"content-type\",\"value\":\"application/json\"}],\"httpVersion\":\"1.1\"}}]}},\"responseValidation\":{\"schema\":{\"valid\":true,\"message\":\"\",\"errors\":null},\"responseCode\":{\"valid\":true}},\"passed\":true,\"timings\":{\"started\":1780467966609,\"preProcessorsStarted\":1780467966609,\"preProcessorsCompleted\":1780467966609,\"postProcessorsStarted\":1780467966666,\"postProcessorsCompleted\":1780467966666,\"completed\":1780467966667},\"metaInfo\":{\"httpApiId\":467631846,\"httpApiCaseId\":380532458,\"httpApiName\":\"IF8A-01 请求开户\",\"httpApiPath\":\"/ci/app/requestApplication\",\"httpApiMethod\":\"post\",\"httpApiCaseName\":\"成功开户\",\"moduleId\":7900481,\"serverId\":\"default\"}}",
+                    "visibility": "INHERITED",
+                    "moduleId": 7900481,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [
+                      {
+                        "type": "customScript",
+                        "data": "// 在前置脚本(Pre-request Script)中执行\nconst timestamp = Date.now().toString().slice(-7); // 取时间戳后7位\nconst random = Math.floor(Math.random() * 1000).toString().padStart(3, '0'); // 3位随机数补零\nconst thirdUserId = (timestamp + random).padStart(10, '0'); // 拼接并确保总长10位\n\n// 写入变量供 Body 引用\npm.variables.set(\"dynamicThirdUserId\", thirdUserId);",
+                        "defaultEnable": false,
+                        "enable": true,
+                        "executionTiming": "prerequest"
+                      }
+                    ],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  },
+                  {
+                    "id": 380535485,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "开户失败-已发卡",
+                    "responseId": "196512409",
+                    "parameters": {
+                      "query": [],
+                      "path": [],
+                      "cookie": [],
+                      "header": []
+                    },
+                    "commonParameters": {
+                      "query": [],
+                      "body": [],
+                      "header": [],
+                      "cookie": []
+                    },
+                    "requestBody": {
+                      "parameters": [
+                        {
+                          "id": "Bb3ooGuZUX",
+                          "relatedId": "A2iQLpFtpa",
+                          "relatedName": "providerId",
+                          "value": "01",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "hTOaHVNnH8",
+                          "relatedId": "XYgyjxwdbo",
+                          "relatedName": "charset",
+                          "value": "UTF-8",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "4vYjJqUcxq",
+                          "relatedId": "Ma6FvyHxYD",
+                          "relatedName": "format",
+                          "value": "json",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "JR9urOGcrF",
+                          "relatedId": "8wMEIofwVj",
+                          "relatedName": "timestamp",
+                          "value": "202605251452",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "91RTnfeulY",
+                          "relatedId": "nIIBtHeyK1",
+                          "relatedName": "deviceId",
+                          "value": "{{$string.numeric(length=10)}}",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "HdAFu8gUhk",
+                          "relatedId": "rLvl22d4Pj",
+                          "relatedName": "signType",
+                          "value": "00",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "qL5HLkoOTX",
+                          "relatedId": "NREkPgnLmh",
+                          "relatedName": "sign",
+                          "value": "",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "4pycF0RQxj",
+                          "relatedId": "5EDjdkYvDn",
+                          "relatedName": "bizData",
+                          "value": "{\"thirdUserId\":\"00000018\",\"companionFlag\":\"Y\",\"extend2\":\"\",\"channel\":\"\",\"reqContractNo\":\"\",\"cardType\":\"02\",\"extend1\":\"\",\"thirdPayId\":\"\",\"msisdn\":\"13047412310\",\"userName\":\"\",\"userId\":\"\",\"ticketCard\":\"01\"}",
+                          "enable": true,
+                          "isDelete": false
+                        }
+                      ],
+                      "data": "",
+                      "generateMode": "normal"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {},
+                      "isDefaultUrlEncoding": 2,
+                      "disableUrlEncoding": false
+                    },
+                    "requestResult": "{\"id\":\"temp.4178eb15-4022-411b-bf81-fbaf8b6bc499\",\"cursor\":{\"position\":0,\"iteration\":0,\"length\":1,\"cycles\":1,\"empty\":false,\"eof\":false,\"bof\":true,\"cr\":false,\"ref\":\"4178eb15-4022-411b-bf81-fbaf8b6bc499\",\"requestIndex\":0,\"httpRequestId\":\"3b23e54a-483e-4519-99d2-8f6e41d8e1e1\"},\"type\":\"http\",\"response\":{\"id\":\"299f1670-1edf-4859-8037-2ba4723ec6f3\",\"status\":\"OK\",\"code\":200,\"header\":[{\"key\":\"content-type\",\"value\":\"application/json\"}],\"trailer\":[],\"stream\":{\"type\":\"Buffer\",\"data\":[123,34,114,101,116,67,111,100,101,34,58,34,48,48,48,48,34,44,34,114,101,116,77,115,103,34,58,34,230,136,144,229,138,159,34,44,34,99,97,114,100,73,100,34,58,34,48,49,55,56,48,52,54,55,56,57,48,51,52,54,57,56,34,44,34,99,97,114,100,84,121,112,101,34,58,34,48,50,34,44,34,115,105,103,110,84,121,112,101,34,58,34,48,48,34,44,34,115,105,103,110,34,58,34,34,125]},\"cookie\":[],\"responseTime\":89,\"responseSize\":106,\"type\":\"http\",\"tempFilePath\":\"\"},\"request\":{\"url\":{\"protocol\":\"http\",\"port\":\"30010\",\"path\":[\"ci\",\"app\",\"requestApplication\"],\"host\":[\"172\",\"20\",\"211\",\"200\"],\"query\":[],\"variable\":[]},\"header\":[{\"key\":\"User-Agent\",\"value\":\"Apifox/1.0.0 (https://apifox.com)\"},{\"key\":\"Accept\",\"value\":\"*/*\",\"system\":true}],\"method\":\"POST\",\"baseUrl\":\"http://172.20.211.200:30010\",\"body\":{\"mode\":\"formdata\",\"formdata\":[{\"disabled\":false,\"key\":\"providerId\",\"value\":\"01\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"charset\",\"value\":\"UTF-8\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"format\",\"value\":\"json\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"timestamp\",\"value\":\"202605251452\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"deviceId\",\"value\":\"0574575655\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"signType\",\"value\":\"00\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"sign\",\"value\":\"\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"bizData\",\"value\":\"{\\\"thirdUserId\\\":\\\"7891910922\\\",\\\"companionFlag\\\":\\\"Y\\\",\\\"extend2\\\":\\\"\\\",\\\"channel\\\":\\\"\\\",\\\"reqContractNo\\\":\\\"\\\",\\\"cardType\\\":\\\"02\\\",\\\"extend1\\\":\\\"\\\",\\\"thirdPayId\\\":\\\"\\\",\\\"msisdn\\\":\\\"13047412310\\\",\\\"userName\\\":\\\"\\\",\\\"userId\\\":\\\"\\\",\\\"ticketCard\\\":\\\"01\\\"}\",\"type\":\"string\"}]},\"type\":\"http\"},\"history\":{\"execution\":{\"verbose\":true,\"sessions\":{},\"data\":[{\"request\":{\"method\":\"POST\",\"href\":\"http://172.20.211.200:30010/ci/app/requestApplication\",\"headers\":[{\"key\":\"User-Agent\",\"value\":\"Apifox/1.0.0 (https://apifox.com)\"},{\"key\":\"Accept\",\"value\":\"*/*\",\"system\":true}],\"httpVersion\":\"1.1\"},\"response\":{\"statusCode\":200,\"headers\":[{\"key\":\"content-type\",\"value\":\"application/json\"}],\"httpVersion\":\"1.1\"}}]}},\"responseValidation\":{\"schema\":{\"valid\":true,\"message\":\"\",\"errors\":null},\"responseCode\":{\"valid\":true}},\"passed\":true,\"timings\":{\"started\":1780467891907,\"preProcessorsStarted\":1780467891907,\"preProcessorsCompleted\":1780467891911,\"postProcessorsStarted\":1780467892051,\"postProcessorsCompleted\":1780467892051,\"completed\":1780467892053},\"metaInfo\":{\"httpApiId\":467631846,\"httpApiName\":\"IF8A-01 请求开户\",\"httpApiPath\":\"/ci/app/requestApplication\",\"httpApiMethod\":\"post\",\"httpApiCaseName\":\"成功\",\"moduleId\":7900481,\"serverId\":\"default\"}}",
+                    "visibility": "INHERITED",
+                    "moduleId": 7900481,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  },
+                  {
+                    "id": 380915692,
+                    "type": "DEBUG_CASE",
+                    "path": null,
+                    "name": "成功-用户提供数据",
+                    "responseId": "196512409",
+                    "parameters": {
+                      "query": []
+                    },
+                    "commonParameters": {
+                      "query": [],
+                      "body": [],
+                      "header": [],
+                      "cookie": []
+                    },
+                    "requestBody": {
+                      "parameters": [
+                        {
+                          "id": "jVj2w7MW71",
+                          "relatedName": "providerId",
+                          "relatedId": "A2iQLpFtpa",
+                          "value": "01",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "ApK43gEuh4",
+                          "relatedName": "charset",
+                          "relatedId": "XYgyjxwdbo",
+                          "value": "UTF-8",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "gAg1rdHyX4",
+                          "relatedName": "format",
+                          "relatedId": "Ma6FvyHxYD",
+                          "value": "json",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "xzaDxkpL1A",
+                          "relatedName": "timestamp",
+                          "relatedId": "8wMEIofwVj",
+                          "value": "202605251452",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "9mc7HERCg0",
+                          "relatedName": "deviceId",
+                          "relatedId": "nIIBtHeyK1",
+                          "value": "{{$string.numeric(length=10)}}",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "e7o69nU154",
+                          "relatedName": "signType",
+                          "relatedId": "rLvl22d4Pj",
+                          "value": "00",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "9ljStM3wHA",
+                          "relatedName": "sign",
+                          "relatedId": "NREkPgnLmh",
+                          "value": "",
+                          "enable": true,
+                          "isDelete": false
+                        },
+                        {
+                          "id": "9TfwaWRg6K",
+                          "relatedName": "bizData",
+                          "relatedId": "5EDjdkYvDn",
+                          "value": "{\"thirdUserId\":\"00522866\",\"cardIssueCode\":\"5412\",\"channel\":\"03\",\"cardType\":\"02\",\"thirdPayId\":\"2088432319279437\",\"userName\":\"\",\"userId\":\"\",\"companionFlag\":\"N\",\"ticketLimit\":\"1\",\"extend2\":\"\",\"reqContractNo\":\"0052286601522598\",\"extend1\":\"\",\"msisdn\":\"16600001235\",\"ticketCard\":\"01\"}",
+                          "enable": true,
+                          "isDelete": false
+                        }
+                      ],
+                      "data": "",
+                      "type": "multipart/form-data"
+                    },
+                    "auth": {},
+                    "securityScheme": {},
+                    "advancedSettings": {
+                      "disabledSystemHeaders": {},
+                      "isDefaultUrlEncoding": 2,
+                      "disableUrlEncoding": false
+                    },
+                    "requestResult": "{\"id\":\"temp.225a6f02-acdf-4cbc-8f4a-5a3b52882956\",\"cursor\":{\"position\":0,\"iteration\":0,\"length\":1,\"cycles\":1,\"empty\":false,\"eof\":false,\"bof\":true,\"cr\":false,\"ref\":\"225a6f02-acdf-4cbc-8f4a-5a3b52882956\",\"requestIndex\":0,\"httpRequestId\":\"818b8b95-0a38-4655-a740-90c0b52ef1af\"},\"type\":\"http\",\"response\":{\"id\":\"f94ecd56-edf3-4038-acea-72493023994f\",\"status\":\"OK\",\"code\":200,\"header\":[{\"key\":\"content-type\",\"value\":\"application/json\"}],\"trailer\":[],\"stream\":{\"type\":\"Buffer\",\"data\":[123,34,114,101,116,67,111,100,101,34,58,34,48,48,48,48,34,44,34,114,101,116,77,115,103,34,58,34,230,136,144,229,138,159,34,44,34,99,97,114,100,73,100,34,58,34,48,49,55,56,48,53,52,52,50,56,52,54,48,48,53,48,34,44,34,99,97,114,100,84,121,112,101,34,58,34,48,50,34,44,34,115,105,103,110,84,121,112,101,34,58,34,48,48,34,44,34,115,105,103,110,34,58,34,34,125]},\"cookie\":[],\"responseTime\":96,\"responseSize\":106,\"type\":\"http\",\"tempFilePath\":\"\"},\"request\":{\"url\":{\"protocol\":\"http\",\"port\":\"30010\",\"path\":[\"ci\",\"app\",\"requestApplication\"],\"host\":[\"172\",\"20\",\"211\",\"200\"],\"query\":[],\"variable\":[]},\"header\":[{\"key\":\"User-Agent\",\"value\":\"Apifox/1.0.0 (https://apifox.com)\"},{\"key\":\"Accept\",\"value\":\"*/*\",\"system\":true}],\"method\":\"POST\",\"baseUrl\":\"http://172.20.211.200:30010\",\"body\":{\"mode\":\"formdata\",\"formdata\":[{\"disabled\":false,\"key\":\"providerId\",\"value\":\"01\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"charset\",\"value\":\"UTF-8\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"format\",\"value\":\"json\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"timestamp\",\"value\":\"202605251452\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"deviceId\",\"value\":\"1204495688\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"signType\",\"value\":\"00\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"sign\",\"value\":\"\",\"type\":\"string\"},{\"disabled\":false,\"key\":\"bizData\",\"value\":\"{\\\"thirdUserId\\\":\\\"00522866\\\",\\\"cardIssueCode\\\":\\\"5412\\\",\\\"channel\\\":\\\"03\\\",\\\"cardType\\\":\\\"02\\\",\\\"thirdPayId\\\":\\\"2088432319279437\\\",\\\"userName\\\":\\\"\\\",\\\"userId\\\":\\\"\\\",\\\"companionFlag\\\":\\\"N\\\",\\\"ticketLimit\\\":\\\"1\\\",\\\"extend2\\\":\\\"\\\",\\\"reqContractNo\\\":\\\"0052286601522598\\\",\\\"extend1\\\":\\\"\\\",\\\"msisdn\\\":\\\"16600001235\\\",\\\"ticketCard\\\":\\\"01\\\"}\",\"type\":\"string\"}]},\"type\":\"http\"},\"history\":{\"execution\":{\"verbose\":true,\"sessions\":{},\"data\":[{\"request\":{\"method\":\"POST\",\"href\":\"http://172.20.211.200:30010/ci/app/requestApplication\",\"headers\":[{\"key\":\"User-Agent\",\"value\":\"Apifox/1.0.0 (https://apifox.com)\"},{\"key\":\"Accept\",\"value\":\"*/*\",\"system\":true}],\"httpVersion\":\"1.1\"},\"response\":{\"statusCode\":200,\"headers\":[{\"key\":\"content-type\",\"value\":\"application/json\"}],\"httpVersion\":\"1.1\"}}]}},\"responseValidation\":{\"schema\":{\"valid\":true,\"message\":\"\",\"errors\":null},\"responseCode\":{\"valid\":true}},\"passed\":true,\"timings\":{\"started\":1780544283588,\"preProcessorsStarted\":1780544283588,\"preProcessorsCompleted\":1780544283588,\"postProcessorsStarted\":1780544283797,\"postProcessorsCompleted\":1780544283797,\"completed\":1780544283799},\"metaInfo\":{\"httpApiId\":467631846,\"httpApiName\":\"IF8A-01 请求开户2\",\"httpApiPath\":\"/ci/app/requestApplication\",\"httpApiMethod\":\"post\",\"httpApiCaseName\":\"成功\",\"moduleId\":7900481,\"serverId\":\"default\"}}",
+                    "visibility": "INHERITED",
+                    "moduleId": 7900481,
+                    "categoryId": 0,
+                    "tagIds": [],
+                    "apiTestDataList": [],
+                    "preProcessors": [],
+                    "postProcessors": [],
+                    "inheritPostProcessors": {},
+                    "inheritPreProcessors": {}
+                  }
+                ],
+                "mocks": [],
+                "customApiFields": "{}",
+                "advancedSettings": {
+                  "disabledSystemHeaders": {}
+                },
+                "mockScript": {},
+                "codeSamples": [],
+                "commonResponseStatus": {},
+                "responseChildren": [],
+                "visibility": "INHERITED",
+                "moduleId": 7900481,
+                "oasExtensions": "",
+                "type": "http",
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "socketCollection": [],
+  "docCollection": [],
+  "webSocketCollection": [],
+  "socketIOCollection": [],
+  "mcpClientCollection": [],
+  "responseCollection": [],
+  "schemaCollection": [],
+  "securitySchemeCollection": [],
+  "oasComponentCollection": [],
+  "requestCollection": [
+    {
+      "name": "根目录",
+      "children": [],
+      "ordering": [
+        "requestFolder.9030198"
+      ],
+      "items": []
+    }
+  ],
+  "environments": [],
+  "commonScripts": [],
+  "globalVariables": [
+    {
+      "id": "8379611",
+      "variables": []
+    }
+  ],
+  "commonParameters": null,
+  "customFunctions": [],
+  "projectTestCaseCategories": [
+    {
+      "id": 10818920,
+      "name": "正向",
+      "description": "有效的输入和正确的预期结果,代表典型的用法。"
+    },
+    {
+      "id": 10818921,
+      "name": "负向",
+      "description": "消极的、无效的输入,如缺少字段、错误的类型、不支持的方法等。"
+    },
+    {
+      "id": 10818922,
+      "name": "边界值",
+      "description": "极端或边缘条件,如最大字符串长度、空值、零、null等"
+    },
+    {
+      "id": 10818923,
+      "name": "安全性",
+      "description": "可能暴露API安全性风险的测试用例。"
+    },
+    {
+      "id": 10818924,
+      "name": "其他",
+      "description": "其他未归属的测试用例。"
+    }
+  ],
+  "projectTestCaseTags": [
+    {
+      "id": 51178534,
+      "name": "仅传必要字段",
+      "description": "仅发送具有有效值的必填字段,省略所有可选字段,以测试最小有效请求。"
+    },
+    {
+      "id": 51178535,
+      "name": "语义合法",
+      "description": "使用语法正确且在业务逻辑或域上下文中也有意义的值。"
+    },
+    {
+      "id": 51178536,
+      "name": "覆盖枚举组合",
+      "description": "对所有枚举型参数,应用正交设计系统地构建参数及其枚举值的测试用例组合,专用于测试枚举覆盖率"
+    },
+    {
+      "id": 51178537,
+      "name": "其他正向",
+      "description": "提供符合API规范的真实有效的输入,产生正确和预期的结果。"
+    },
+    {
+      "id": 51178538,
+      "name": "缺失必填字段",
+      "description": "在请求主体或参数中省略一个或多个必需字段。"
+    },
+    {
+      "id": 51178539,
+      "name": "无效值",
+      "description": "提供的值类型和格式正确,但在逻辑上对该字段无效。"
+    },
+    {
+      "id": 51178540,
+      "name": "类型错误",
+      "description": "使用数据类型不正确的值,例如发送字符串而不是整数。"
+    },
+    {
+      "id": 51178541,
+      "name": "格式错误",
+      "description": "以不正确的格式提供值,例如,错误的日期模式,格式错误的电子邮件地址。"
+    },
+    {
+      "id": 51178542,
+      "name": "语义非法",
+      "description": "使用语法正确且格式正确的值,这些值在逻辑上不可能或违反域规则。"
+    },
+    {
+      "id": 51178543,
+      "name": "其他负向",
+      "description": "提供无效或意外的输入,应触发错误处理或拒绝API。"
+    },
+    {
+      "id": 51178544,
+      "name": "Null",
+      "description": "必须是 JSON 字面量 `null`(不是空的,也不是 \"null\")。"
+    },
+    {
+      "id": 51178545,
+      "name": "零值",
+      "description": "必须是数字字面值0。"
+    },
+    {
+      "id": 51178546,
+      "name": "空值",
+      "description": "必须是\"\"。"
+    },
+    {
+      "id": 51178547,
+      "name": "极大值",
+      "description": "Max/min值 - 为数字或日期字段提供精确的最小值和最大值。"
+    },
+    {
+      "id": 51178548,
+      "name": "极小值",
+      "description": "Max/min值 - 为数字或日期字段提供精确的最小值和最大值。"
+    },
+    {
+      "id": 51178549,
+      "name": "超出最大边界值",
+      "description": "过长/过短字符串 - 提供超出允许的最小或最大边界的值。"
+    },
+    {
+      "id": 51178550,
+      "name": "超出最小边界值",
+      "description": "过长/过短字符串 - 提供超出允许的最小或最大边界的值。"
+    },
+    {
+      "id": 51178551,
+      "name": "字符串过长",
+      "description": "超出范围的值 - 提供大于允许的最大长度或小于要求的最小长度的字符串。"
+    },
+    {
+      "id": 51178552,
+      "name": "字符串过短",
+      "description": "超出范围的值 - 提供大于允许的最大长度或小于要求的最小长度的字符串。"
+    },
+    {
+      "id": 51178553,
+      "name": "对象级别授权缺失",
+      "description": "对象级别授权缺失 - 用户在没有适当授权的情况下访问或操作数据对象。"
+    },
+    {
+      "id": 51178554,
+      "name": "访问控制",
+      "description": "基于角色、权限或属性来限制用户能访问哪些资源、能执行哪些操作"
+    },
+    {
+      "id": 51178555,
+      "name": "认证失败",
+      "description": "认证失败 - 认证薄弱、配置错误或被绕过,导致未授权访问。"
+    },
+    {
+      "id": 51178556,
+      "name": "SQL注入",
+      "description": "在输入字段中插入恶意SQL代码,测试是否存在SQL注入漏洞。"
+    },
+    {
+      "id": 51178557,
+      "name": "XSS注入",
+      "description": "注入JavaScript或HTML标签来测试跨站点脚本漏洞。"
+    },
+    {
+      "id": 51178558,
+      "name": "模糊输入",
+      "description": "发送大型或随机生成的有效载荷,以测试输入的有效性和稳定性。"
+    },
+    {
+      "id": 51178559,
+      "name": "命令行注入",
+      "description": "将shell命令插入输入以测试命令执行漏洞。"
+    },
+    {
+      "id": 51178560,
+      "name": "JSON注入",
+      "description": "插入恶意或意外的JSON结构来测试解析和验证。"
+    },
+    {
+      "id": 51178561,
+      "name": "NoSQL注入",
+      "description": "提供NoSQL特定的恶意查询或操作符来测试注入漏洞。"
+    },
+    {
+      "id": 51178562,
+      "name": "其他",
+      "description": "其他未归属的测试用例。"
+    }
+  ],
+  "projectAssociations": [],
+  "moduleSettings": [
+    {
+      "id": "7900481",
+      "name": "默认模块",
+      "description": "IF8A-04 请求自助补站，供 Apifox 导入测试使用。",
+      "moduleVariables": [],
+      "openApiInfo": {}
+    }
+  ]
+}

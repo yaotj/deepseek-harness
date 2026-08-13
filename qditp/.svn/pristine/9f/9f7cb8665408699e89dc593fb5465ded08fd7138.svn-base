@@ -1,0 +1,66 @@
+package com.chinasofti.huateng.account.controller.page;
+
+import com.chinasofti.huateng.account.entity.UserItpRegInfo;
+import com.chinasofti.huateng.account.mapper.UserItpRegInfoMapper;
+import com.chinasofti.huateng.account.page.ItpUserSearchQuery;
+import com.chinasofti.huateng.account.page.ItpUserSearchView;
+import com.chinasofti.huateng.common.response.ResultMapper;
+import com.chinasofti.huateng.common.response.ResultVO;
+import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+/** 非支付宝用户运营查询，仅查询 USER_ITP_REG_INFO。 */
+@RestController
+@RequestMapping("/page/user/itp")
+public class ItpUserPageController {
+    private final UserItpRegInfoMapper userItpRegInfoMapper;
+
+    public ItpUserPageController(UserItpRegInfoMapper userItpRegInfoMapper) {
+        this.userItpRegInfoMapper = userItpRegInfoMapper;
+    }
+
+    /** 按三方用户ID、手机号或卡ID查询有效注册记录。 */
+    @GetMapping("/search")
+    public ResultVO<List<ItpUserSearchView>> search(ItpUserSearchQuery query) {
+        if (query == null || !StringUtils.hasText(query.getQueryType()) || !StringUtils.hasText(query.getKeyword())) {
+            return ResultMapper.illegalParams("查询类型和查询关键字不能为空");
+        }
+        String keyword = query.getKeyword().trim();
+        List<UserItpRegInfo> users = switch (query.getQueryType()) {
+            case "THIRD_USER_ID" -> userItpRegInfoMapper.selectActiveListByThirdUserId(keyword);
+            case "MSISDN" -> userItpRegInfoMapper.selectActiveListByMsisdn(keyword);
+            case "CARD_ID" -> {
+                UserItpRegInfo user = userItpRegInfoMapper.selectActiveByCardId(keyword);
+                yield user == null ? List.of() : List.of(user);
+            }
+            default -> null;
+        };
+        if (users == null) {
+            return ResultMapper.illegalParams("不支持的查询类型");
+        }
+        return ResultMapper.ok(users.stream().map(this::toView).toList());
+    }
+
+    private ItpUserSearchView toView(UserItpRegInfo user) {
+        // 运营查询只返回脱敏手机号和姓名，避免页面暴露完整个人信息。
+        ItpUserSearchView view = new ItpUserSearchView();
+        view.setThirdUserId(user.getThirdUserId());
+        view.setCardId(user.getCardId());
+        view.setCardType(user.getCardType());
+        view.setItpCardType(user.getItpCardType());
+        view.setMsisdn(maskPhone(user.getMsisdn()));
+        view.setUserName(maskName(user.getUserName()));
+        view.setCardIssueCode(user.getCardIssueCode());
+        view.setChannel(user.getChannel());
+        view.setStatus("有效");
+        view.setRegTms(user.getRegTms());
+        return view;
+    }
+
+    private String maskPhone(String value) { return value != null && value.length() >= 7 ? value.substring(0, 3) + "****" + value.substring(value.length() - 4) : value; }
+    private String maskName(String value) { return value != null && value.length() > 1 ? value.substring(0, 1) + "*" : value; }
+}

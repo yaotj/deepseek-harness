@@ -1,0 +1,83 @@
+<template>
+  <div class="app-container">
+    <el-form ref="queryRef" :model="queryParams" :inline="true">
+      <el-form-item label="查询字段" prop="queryType">
+        <el-select v-model="queryParams.queryType" style="width: 150px">
+          <el-option label="手机号" value="MSISDN" />
+          <el-option label="逻辑卡号" value="CARD_ID" />
+          <el-option label="第三方用户 ID" value="THIRD_USER_ID" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="查询关键字" prop="keyword">
+        <el-input v-model="queryParams.keyword" :placeholder="keywordPlaceholder" clearable style="width: 280px" @keyup.enter="handleQuery" />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
+        <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+      </el-form-item>
+    </el-form>
+
+    <el-alert title="当前页面仅查询支付宝注册表 ALIPAY_USER_INFO；可按逻辑卡号进入交易明细、扣费信息或乘车状态维护。" type="info" :closable="false" show-icon class="mb8" />
+
+    <el-table v-loading="loading" :data="users" border>
+      <el-table-column label="第三方用户 ID" prop="thirdUserId" min-width="220" show-overflow-tooltip />
+      <el-table-column label="逻辑卡号" prop="cardId" min-width="180" show-overflow-tooltip />
+      <el-table-column label="卡类型" prop="cardType" width="110" align="center" />
+      <el-table-column label="手机号" prop="msisdn" width="140" align="center" />
+      <el-table-column label="开户渠道" prop="channel" width="130" align="center" />
+      <el-table-column label="支付用户标识" prop="thirdPayId" min-width="160" show-overflow-tooltip />
+      <el-table-column label="用户状态" prop="status" width="110" align="center">
+        <template #default="{ row }"><el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{ row.status || '-' }}</el-tag></template>
+      </el-table-column>
+      <el-table-column label="注册时间" width="170" align="center"><template #default="{ row }">{{ parseTime(row.createTime) || '-' }}</template></el-table-column>
+      <el-table-column label="操作" width="300" fixed="right" align="center">
+        <template #default="{ row }">
+          <el-button link type="primary" icon="Document" @click="openTransactionDetail(row)">交易明细</el-button>
+          <el-button link type="primary" icon="Tickets" @click="openDebitDetail(row)">扣费信息</el-button>
+          <el-button link type="warning" icon="EditPen" @click="openRideStatus(row)">乘车状态</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+  </div>
+</template>
+
+<script setup name="AlipayUserSearch">
+import { searchAlipayUsers } from '@/api/trans/userSearch'
+
+const { proxy } = getCurrentInstance()
+const router = useRouter()
+const loading = ref(false)
+const users = ref([])
+const queryParams = reactive({ queryType: 'MSISDN', keyword: '' })
+const keywordPlaceholder = computed(() => ({ MSISDN: '请输入手机号', CARD_ID: '请输入逻辑卡号', THIRD_USER_ID: '请输入第三方用户 ID' })[queryParams.queryType])
+
+function handleQuery() {
+  if (!queryParams.keyword?.trim()) {
+    proxy.$modal.msgWarning('请输入查询关键字')
+    return
+  }
+  loading.value = true
+  searchAlipayUsers({ ...queryParams, keyword: queryParams.keyword.trim() }).then((response) => {
+    users.value = response.data || []
+    if (!users.value.length) proxy.$modal.msgInfo('未查询到支付宝注册用户')
+  }).finally(() => { loading.value = false })
+}
+
+function resetQuery() {
+  proxy.resetForm('queryRef')
+  queryParams.queryType = 'MSISDN'
+  users.value = []
+}
+
+function openTransactionDetail(row) {
+  router.push({ path: '/trans/user-detail/transaction-detail', query: { cardId: row.cardId } })
+}
+
+function openDebitDetail(row) {
+  router.push({ path: '/trans/user-detail/debit-detail', query: { cardId: row.cardId } })
+}
+
+function openRideStatus(row) {
+  router.push({ path: '/trans/user-detail/ride-status', query: { cardId: row.cardId, thirdUserId: row.thirdUserId } })
+}
+</script>

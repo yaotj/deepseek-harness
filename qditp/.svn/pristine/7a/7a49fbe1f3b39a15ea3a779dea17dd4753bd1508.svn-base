@@ -1,0 +1,765 @@
+package com.chinasofti.huateng.collectpay.service.impl;
+
+import com.alibaba.fastjson.JSONObject;
+import com.chinasofti.huateng.collectpay.common.PayCenterCommon;
+import com.chinasofti.huateng.collectpay.config.PayCenterProperties;
+import com.chinasofti.huateng.collectpay.constant.*;
+import com.chinasofti.huateng.collectpay.entity.AppRefundOrder;
+import com.chinasofti.huateng.collectpay.entity.BomRefundOrder;
+import com.chinasofti.huateng.collectpay.entity.RefundOrder;
+import com.chinasofti.huateng.collectpay.entity.TvmAppOrder;
+import com.chinasofti.huateng.collectpay.mapper.AppRefundOrderMapper;
+import com.chinasofti.huateng.collectpay.mapper.TvmAppOrderMapper;
+import com.chinasofti.huateng.collectpay.mapper.TvmOrderPreMapper;
+import com.chinasofti.huateng.collectpay.model.request.PayCenterRequest;
+import com.chinasofti.huateng.collectpay.model.request.app.RequestOrderReqDTO;
+import com.chinasofti.huateng.collectpay.model.request.app.RequestPayInfoReqDTO;
+import com.chinasofti.huateng.collectpay.model.request.app.RequestQueryActiveOrderReqDTO;
+import com.chinasofti.huateng.collectpay.model.request.tvm.APPRefundNotiResultReqDTO;
+import com.chinasofti.huateng.collectpay.model.request.tvm.PayNoticeReqDTO;
+import com.chinasofti.huateng.collectpay.model.request.tvm.RequestPayResultReqDTO;
+import com.chinasofti.huateng.collectpay.model.response.PayCenterResponse;
+import com.chinasofti.huateng.collectpay.model.response.app.AppActiveOrderModel;
+import com.chinasofti.huateng.collectpay.model.response.app.AppOrderResult;
+import com.chinasofti.huateng.collectpay.model.response.tvm.TvmOrderResult;
+import com.chinasofti.huateng.collectpay.service.AppOrderService;
+import com.chinasofti.huateng.collectpay.service.PayCenterService;
+import com.chinasofti.huateng.collectpay.service.TvmCommonService;
+import com.chinasofti.huateng.collectpay.utils.DateUtils;
+import com.chinasofti.huateng.collectpay.utils.TransforUtils;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.ObjectUtils;
+
+import java.math.BigDecimal;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+
+/**
+ * APP订单服务实现类。
+ * 实现APP下单、支付、支付结果查询和支付结果通知等业务逻辑。
+ */
+@Service
+@Slf4j
+public class AppOrderServiceImpl implements AppOrderService {
+
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final String DATE_yyyyMMddHHmmss = "yyyyMMddHHmmss";
+
+    @Autowired
+    private TvmAppOrderMapper tvmAppOrderMapper;
+
+    @Autowired
+    private PayCenterService payCenterService;
+
+    @Autowired
+    private PayCenterProperties payCenterProperties;
+
+    @Autowired
+    private PayCenterCommon payCenterCommon;
+    @Autowired
+    TvmOrderPreMapper tvmOrderPreMapper;
+    @Autowired
+    AppRefundOrderMapper appRefundOrderMapper;
+    @Autowired
+    TvmCommonService tvmCommonService;
+    @Autowired
+    Environment environment;
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public JSONObject requestOrder(RequestOrderReqDTO request) {
+        log.info("1.开始处理APP下单请求, request={}", request);
+
+        if (!validateOrderRequest(request)) {
+            log.info("2.参数校验失败");
+            return AppOrderResult.fail("8003", "非法参数");
+        }
+
+        String now = DateUtils.getNowTime();
+        String orderNo = generateOrderNo();
+        log.info("3.生成订单号: {}", orderNo);
+
+        TvmAppOrder order = buildTvmAppOrder(orderNo, request, now);
+        log.info("4.构建订单信息: {}", order);
+        // 保存支付订单前置信息
+        tvmOrderPreMapper.insert(getTvmOrderPre(order, request.getDeviceId()));
+        tvmAppOrderMapper.insert(order);
+        log.info("5.订单保存成功");
+
+        return AppOrderResult.successData(orderNo);
+    }
+
+    private Map<String, Object> getTvmOrderPre(TvmAppOrder order, String deviceId) {
+        Map<String, Object> preMap = new HashMap<>();
+        preMap.put("orderNo", order.getOrderNo());
+        preMap.put("transAmount", order.getTotalPrice());
+        preMap.put("deviceId", deviceId);
+        // 01-扫码购票  02-扫码充值
+        preMap.put("transType", BusinessTypeEnum.TVM_SCAN_QR_TAKETICKET.getCode());
+        preMap.put("createTime", DateUtils.getNowTime());
+        preMap.put("updateTime", "");
+        return preMap;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public JSONObject requestPayInfo(RequestPayInfoReqDTO request) {
+        log.info("1.开始处理APP请求支付信息, request={}", request);
+
+        if (!validatePayInfoRequest(request)) {
+            log.info("2.参数校验失败");
+            return AppOrderResult.fail("8001", "非法参数");
+        }
+
+        TvmAppOrder order = tvmAppOrderMapper.selectByOrderNo(request.getOrderNo());
+        if (order == null) {
+            log.info("2.订单不存在, orderNo={}", request.getOrderNo());
+            return AppOrderResult.fail("8006", "订单号错误");
+        }
+
+        if (!ItpStatusEnum.PAYING.getCode().equals(order.getPayStatus())) {
+            log.info("2.订单状态异常, payStatus={}", order.getPayStatus());
+            return AppOrderResult.fail("8999", "订单状态异常");
+        }
+
+        log.info("查询到订单 order is {}", order);
+
+        String paymentInfo = "";
+        String signType = "00";
+        String sign = "";
+        String merchantOrderNo = "";
+
+        BigDecimal totalAmount = new BigDecimal(order.getTicketPrice())
+                .multiply(new BigDecimal(order.getTicketNum()));
+
+        PayCenterRequest payCenterRequest = payCenterCommon.buildAppPayRequest(
+                order.getOrderNo(),
+                totalAmount.toString(),
+                request.getPayChannelCode(),
+                "APP单程票购票",
+                "地铁单程票", request.getPayChannelCode()
+        );
+
+        String payUrl = payCenterProperties.getPayCenterPayUrl();
+        log.info("3.调用支付中心预下单, payUrl={}, payCenterRequest={}", payUrl, payCenterRequest);
+
+        PayCenterResponse payResponse = payCenterService.callPayCenter(payUrl, payCenterRequest);
+        log.info("4.支付中心响应: {}", payResponse);
+
+        if (!ObjectUtils.isEmpty(payResponse)
+                && StringUtils.equals(payResponse.getCode(), PayCenterErrorCodeEnum.SUCCESS.getCode())) {
+            Map<String, Object> data = payResponse.getData();
+            if (data != null) {
+                paymentInfo = getStringFromData(data, "data");
+                signType = "00";
+                sign = "";
+                // todo 此处为支付中心返回的订单号
+                merchantOrderNo = getStringFromData(data, "orderNo");
+            }
+        }
+
+        Map<String, String> updateParams = new HashMap<>();
+        updateParams.clear();
+        updateParams.put("orderNo", request.getOrderNo());
+        updateParams.put("requestPayFlag", "1");
+        updateParams.put("merchantOrderNo", merchantOrderNo);
+        updateParams.put("paymentInfo", paymentInfo);
+        updateParams.put("updateTime", DateUtils.getNowTime());
+        tvmAppOrderMapper.updateByOrderNo(updateParams);
+
+        return AppOrderResult.successPayInfo(request.getPayChannelCode(), paymentInfo, signType, sign);
+    }
+
+    @Override
+    public JSONObject requestPayResult(RequestPayResultReqDTO request) {
+        log.info("1.开始处理APP支付结果查询, request={}", request);
+
+        String orderNo = request.getOrderNo();
+        if (!validatePayResultRequest(request)) {
+            log.info("2.参数校验失败");
+            return AppOrderResult.fail("8003", "非法参数");
+        }
+
+        TvmAppOrder order = tvmAppOrderMapper.selectByOrderNo(orderNo);
+        if (order == null) {
+            log.info("2.订单不存在, orderNo={}", orderNo);
+            return AppOrderResult.fail("8006", "订单号错误");
+        }
+
+        if (ItpStatusEnum.SUCCESS.getCode().equals(order.getPayStatus())) {
+            log.info("2.数据库查询结果为支付成功，直接返回");
+            return AppOrderResult.successPayResult(
+                    order.getMerchantOrderNo(),
+                    "SUCCESS",
+                    order.getPayAmount(),
+                    order.getPayTime()
+            );
+        }
+
+        if (ItpStatusEnum.FAILED.getCode().equals(order.getPayStatus())) {
+            log.info("2.数据库查询结果为支付失败，直接返回");
+            return AppOrderResult.successPayResult(
+                    order.getMerchantOrderNo(),
+                    "FAIL",
+                    order.getPayAmount(),
+                    order.getPayTime()
+            );
+        }
+
+        String queryUrl = payCenterProperties.getPayCenterQueryUrl();
+        PayCenterRequest queryRequest = payCenterCommon.buildQueryPayCenterRequest(order.getOrderNo());
+        log.info("3.调用支付中心查询支付结果, queryUrl={}, queryRequest={}", queryUrl, queryRequest);
+
+        PayCenterResponse queryResponse = payCenterService.callPayCenter(queryUrl, queryRequest);
+        log.info("4.支付中心查询响应: {}", queryResponse);
+
+        String nowTime = DateUtils.getNowTime();
+
+        if (!ObjectUtils.isEmpty(queryResponse)
+                && StringUtils.equals(queryResponse.getCode(), PayCenterErrorCodeEnum.SUCCESS.getCode())) {
+            Map<String, Object> data = queryResponse.getData();
+            if (data != null) {
+                String status = getStringFromData(data, "status");
+                String payCenterChannelOrderNo = getStringFromData(data, "channelOrderNo");
+                String payCenterOrderNo = getStringFromData(data, "payCenterOrderNo");
+                String payAmount = getStringFromData(data, "amount");
+                String payTime = getStringFromData(data, "payTime");
+
+                if (PayCenterStatusEnum.SUCCESS.getCode().equals(status)) {
+                    log.info("5.查询到支付成功");
+                    Map<String, String> updateParams = new HashMap<>();
+                    updateParams.put("orderNo", orderNo);
+                    updateParams.put("payStatus", ItpStatusEnum.SUCCESS.getCode());
+                    updateParams.put("msg", ItpStatusEnum.SUCCESS.getDesc());
+                    updateParams.put("payCenterOrderNo", payCenterOrderNo);
+                    updateParams.put("payCenterChannelOrderNo", payCenterChannelOrderNo);
+                    updateParams.put("payAmount", payAmount);
+                    updateParams.put("payTime", payTime);
+                    updateParams.put("updateTime", nowTime);
+                    tvmAppOrderMapper.updateByOrderNo(updateParams);
+
+                    return AppOrderResult.successPayResult(payCenterChannelOrderNo, "SUCCESS", payAmount, DateUtils.getNowTimeByFormat(DATE_yyyyMMddHHmmss));
+                } else if ("3".equals(status)) {
+                    log.info("5.查询到支付失败");
+                    Map<String, String> updateParams = new HashMap<>();
+                    updateParams.put("orderNo", orderNo);
+                    updateParams.put("payStatus", ItpStatusEnum.FAILED.getCode());
+                    updateParams.put("msg", ItpStatusEnum.FAILED.getDesc());
+                    updateParams.put("payCenterOrderNo", payCenterOrderNo);
+                    updateParams.put("payCenterChannelOrderNo", payCenterChannelOrderNo);
+                    updateParams.put("payAmount", payAmount);
+//                    updateParams.put("payDate", DateUtils.getNowTime());
+                    updateParams.put("updateTime", nowTime);
+                    tvmAppOrderMapper.updateByOrderNo(updateParams);
+
+                    return AppOrderResult.successPayResult(payCenterChannelOrderNo, "FAIL", payAmount, "");
+                }
+            }
+        }
+
+        log.info("5.支付结果不明确，返回支付中");
+        return AppOrderResult.fail("8999", "支付中");
+    }
+
+    /**
+     *
+     * 通知 app
+     */
+//    @Override
+    public JSONObject receivePaymentResult(JSONObject request) {
+        log.info("1.开始处理APP支付结果通知, request={}", request);
+
+        String orderNo = request.getString("orderNo");
+        String payResult = request.getString("payResult");
+
+        if (StringUtils.isEmpty(orderNo)) {
+            log.info("2.订单号为空");
+            return AppOrderResult.fail("8006", "订单号错误");
+        }
+
+        TvmAppOrder order = tvmAppOrderMapper.selectByOrderNo(orderNo);
+        if (order == null) {
+            log.info("2.订单不存在, orderNo={}", orderNo);
+            return AppOrderResult.fail("8006", "订单号错误");
+        }
+
+        Map<String, String> updateParams = new HashMap<>();
+        updateParams.put("orderNo", orderNo);
+        updateParams.put("updateTime", DateUtils.getNowTime());
+
+        if ("SUCCESS".equals(payResult)) {
+            log.info("3.支付成功，更新订单状态");
+            updateParams.put("payStatus", ItpStatusEnum.SUCCESS.getCode());
+            updateParams.put("tradeNo", request.getString("tradeNo"));
+            updateParams.put("payAmount", request.getString("payAmount"));
+            updateParams.put("payDate", request.getString("payDate"));
+            updateParams.put("voucher", request.getString("voucher"));
+        } else {
+            log.info("3.支付失败，更新订单状态");
+            updateParams.put("payStatus", ItpStatusEnum.FAILED.getCode());
+            updateParams.put("tradeNo", request.getString("tradeNo"));
+            updateParams.put("payAmount", request.getString("payAmount"));
+            updateParams.put("payDate", request.getString("payDate"));
+        }
+
+        tvmAppOrderMapper.updateByOrderNo(updateParams);
+
+        return AppOrderResult.success();
+    }
+
+    private boolean validateOrderRequest(RequestOrderReqDTO request) {
+        if (request == null) {
+            return false;
+        }
+        return StringUtils.isNotBlank(request.getUserId())
+                && StringUtils.isNotBlank(request.getEntryStationCode())
+                && StringUtils.isNotBlank(request.getExitStationCode())
+                && StringUtils.isNotBlank(request.getTicketPrice())
+                && StringUtils.isNotBlank(request.getSingelTicketNum())
+                && StringUtils.isNotBlank(request.getSingleTicketType());
+    }
+
+    private boolean validatePayInfoRequest(RequestPayInfoReqDTO request) {
+        if (request == null) {
+            return false;
+        }
+        return StringUtils.isNotBlank(request.getOrderNo())
+                && StringUtils.isNotBlank(request.getPayChannelCode());
+    }
+
+    private boolean validatePayResultRequest(RequestPayResultReqDTO request) {
+        if (request == null) {
+            return false;
+        }
+        return StringUtils.isNotBlank(request.getUserId())
+                && StringUtils.isNotBlank(request.getOrderNo());
+    }
+
+    private TvmAppOrder buildTvmAppOrder(String orderNo, RequestOrderReqDTO request, String now) {
+        TvmAppOrder order = new TvmAppOrder();
+        order.setOrderNo(orderNo);
+        order.setUserId(request.getUserId());
+        order.setInStationCode(request.getEntryStationCode());
+        order.setOutStationCode(request.getExitStationCode());
+        order.setTicketPrice(request.getTicketPrice());
+        order.setTicketNum(request.getSingelTicketNum());
+        String totalPrice = String.valueOf(new BigDecimal(request.getTicketPrice()).multiply(new BigDecimal(request.getSingelTicketNum())));
+        order.setTotalPrice(totalPrice);
+        order.setTicketType(request.getSingleTicketType());
+        order.setPayStatus(ItpStatusEnum.PAYING.getCode());
+        order.setMsg(ItpStatusEnum.PAYING.getDesc());
+        order.setRequestPayFlag("0");
+        order.setActivateFlag(ActivateFlagEnum.ACTIVATE_INIT.getCode());
+        order.setPayChannelCode("");
+//        order.setMerchantOrderNo("");
+        order.setPayAmount(totalPrice);
+        order.setPayTime("");
+        order.setPaymentInfo("");
+        order.setCreateTime(now);
+        order.setUpdateTime("");
+        order.setRsv1("");
+        order.setRsv2("");
+        return order;
+    }
+
+    private String generateOrderNo() {
+        return "00" + LocalDateTime.now().format(DATE_FORMATTER) + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    private String getStringFromData(Map<String, Object> data, String key) {
+        Object value = data.get(key);
+        return value != null ? value.toString() : null;
+    }
+
+    @Override
+    public JSONObject payNotice(PayNoticeReqDTO request) {
+
+        log.info("接收到 app下单 支付结果通知 request is {}", request);
+
+        TvmAppOrder order = tvmAppOrderMapper.selectByOrderNo(request.getMerchantOrderNo());
+        log.info("app下单 order is {}", order);
+        if (order == null) {
+            log.info("2.app下单 支付结果通知 订单不存在, orderNo={}", request.getOrderNo());
+            return TvmOrderResult.fail(TvmPayCodeEnum.ORDER_NO_ERROR.getCode(), TvmPayCodeEnum.ORDER_NO_ERROR.getMsg());
+        }
+
+        if (ItpStatusEnum.SUCCESS.getCode().equals(order.getPayStatus())) {
+            log.info("2.app下单 支付结果通知 数据库查询结果为支付成功，直接返回");
+            TvmOrderResult.success();
+        }
+
+        if (ItpStatusEnum.FAILED.getCode().equals(order.getPayStatus())) {
+            log.info("2.app下单 支付结果通知 数据库查询结果为支付失败，直接返回");
+            TvmOrderResult.success();
+        }
+
+        log.info("当前订单数据库没有确定的支付结果，开始修改数据库状态");
+
+        Map<String, String> uMap = new HashMap<>();
+        String status = request.getStatus();
+        // itp订单号
+        String orderNo = request.getMerchantOrderNo();
+        // 支付中心订单号
+        String payCenterOrderNo = request.getOrderNo();
+        // 渠道订单号
+        String payCenterChannelOrderNo = request.getChannelOrderNo();
+        String payAmount = request.getTotalAmount();
+        String payTime = request.getPayTime();
+
+        // todo 确认状态码
+        if (PayCenterStatusEnum.SUCCESS.getCode().equals(status)) {
+            log.info("5.app下单 支付结果通知  支付成功");
+            Map<String, String> updateParams = new HashMap<>();
+            updateParams.put("orderNo", orderNo);
+            updateParams.put("payStatus", ItpStatusEnum.SUCCESS.getCode());
+            updateParams.put("msg", ItpStatusEnum.SUCCESS.getDesc());
+            updateParams.put("payCenterOrderNo", payCenterOrderNo);
+            updateParams.put("payCenterChannelOrderNo", payCenterChannelOrderNo);
+            updateParams.put("payAmount", payAmount);
+            updateParams.put("payTime", payTime);
+            updateParams.put("updateTime", DateUtils.getNowTime());
+            tvmAppOrderMapper.updateByOrderNo(updateParams);
+
+            // todo 通知app支付结果
+
+            return TvmOrderResult.success();
+        } else if (PayCenterStatusEnum.FAILED.getCode().equals(status)) {
+            log.info("5.app下单 支付结果通知  支付失败");
+            Map<String, String> updateParams = new HashMap<>();
+            updateParams.put("orderNo", orderNo);
+            updateParams.put("payStatus", ItpStatusEnum.FAILED.getCode());
+            updateParams.put("msg", ItpStatusEnum.FAILED.getDesc());
+            updateParams.put("payCenterOrderNo", payCenterOrderNo);
+            updateParams.put("payCenterChannelOrderNo", payCenterChannelOrderNo);
+            updateParams.put("payAmount", payAmount);
+            updateParams.put("payDate", DateUtils.getNowTime());
+            updateParams.put("updateTime", DateUtils.getNowTime());
+            tvmAppOrderMapper.updateByOrderNo(updateParams);
+
+            // todo 通知app支付结果
+
+            return TvmOrderResult.success();
+        } else {
+            log.info("app下单 支付结果通知 支付状态不明确，不做处理");
+            return TvmOrderResult.fail();
+        }
+    }
+
+    @Override
+    public JSONObject requestRefundTicket(RequestPayResultReqDTO request) {
+
+        log.info("1.app订单开始退款 request is {}", request);
+        String payOrderNo = request.getOrderNo();
+        TvmAppOrder appOrder = tvmAppOrderMapper.selectByOrderNo(payOrderNo);
+        log.info("2.appOrder is {}", appOrder);
+        if (ObjectUtils.isEmpty(appOrder)) {
+            return AppOrderResult.fail(AppCodeEnum.FAIL.getCode(), "该订单无支付记录，不可退款");
+        }
+        String refundAmount = appOrder.getPayAmount();
+
+        log.info("开始发起退款");
+
+        return this.doRefund(payOrderNo, refundAmount);
+    }
+
+    public JSONObject doRefund(String payOrderNo, String refundAmount) {
+        try {
+
+            JSONObject result = new JSONObject();
+            result.put("orderNo", payOrderNo);
+            result.put("refundType", "00");
+            result.put("refundDate", getNowDate());
+            result.put("refundAmount", refundAmount);
+            String appRefundNoticeUrl = environment.getProperty("pay.center.app-refund-notice-url");
+            log.info("appRefundNoticeUrl is {}",appRefundNoticeUrl);
+            result.put("notifyUrl", appRefundNoticeUrl);
+
+            log.info("payOrderNo is {}   refundAmount is {} ", payOrderNo, refundAmount);
+
+            String now = DateUtils.getNowTime();
+            // 1. 生成退款单号
+            String refundNo = "RF" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")) + UUID.randomUUID().toString().substring(0, 6);
+
+            // 2. 保存退款记录
+            AppRefundOrder refundOrder = new AppRefundOrder();
+            refundOrder.setRefundNo(refundNo);
+            refundOrder.setPayOrderNo(payOrderNo);
+            refundOrder.setMerchantRefundNo(refundNo);
+            refundOrder.setRefundAmount(refundAmount);
+            refundOrder.setRefundReason("业务操作失败");
+            refundOrder.setRefundStatus(ItpStatusEnum.REFUND_ING.getCode()); // 0-退款中
+            refundOrder.setRefundMsg(ItpStatusEnum.REFUND_ING.getDesc());
+            refundOrder.setCreateTime(now);
+            refundOrder.setUpdateTime(now);
+            appRefundOrderMapper.insert(refundOrder);
+
+            PayCenterRequest payCenterRefundRequest = payCenterCommon.getRefundRequest(refundNo, payOrderNo, "", Integer.valueOf(refundAmount));
+
+            log.info("退款开始 payCenterRefundRequest is {}", payCenterRefundRequest);
+
+            // 3. 调用支付中心退款接口
+            PayCenterResponse payCenterResponse = payCenterService.callPayCenter(payCenterProperties.getPayCenterRefundUrl(), payCenterRefundRequest);
+
+            log.info("退款结束 payCenterResponse is {}", payCenterResponse);
+            log.info("3.1.app退款订单记录已入库, refundOrderNo={}", refundNo);
+            if (payCenterResponse != null && StringUtils.equals(payCenterResponse.getCode(), PayCenterErrorCodeEnum.SUCCESS.getCode())) {
+                log.info("退款返回成功, payOrderNo={}, refundNo={}, refundAmount={}", payOrderNo, refundNo, refundAmount);
+
+                result.put("refundResult", "PROCESSING");
+                result.put("refundResultDesc", "退款进行中");
+
+                return AppOrderResult.successData(result);
+
+            } else {
+                Map<String, String> upRefundOrder = new HashMap<>();
+                upRefundOrder.put("refundNo", refundNo);
+                upRefundOrder.put("refundStatus", ItpStatusEnum.REFUNDING_FAIL.getCode());
+                upRefundOrder.put("refundMsg", ItpStatusEnum.REFUNDING_FAIL.getDesc());
+                upRefundOrder.put("updateTime", now);
+
+                int iRefund = appRefundOrderMapper.updateByRefundNo(upRefundOrder);
+                log.info("退款失败，修改退款订单结束 i is {}", iRefund);
+
+                result.put("refundResult", "FAIL");
+                result.put("refundResultDesc", "退款失败");
+
+                return AppOrderResult.successData(result);
+            }
+
+        } catch (Exception e) {
+            log.error("发起退款异常, payOrderNo={}", payOrderNo);
+            log.error("发起退款异常, e is {}", e);
+            return AppOrderResult.failMessage("请求异常");
+        }
+    }
+
+    private String getNowDate() {
+        return new SimpleDateFormat("yyyyMMdd").format(new Date());
+    }
+
+    public static String getRefundTime(String refundTime) {
+
+        Date date = null;
+        try {
+            date = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss").parse(refundTime);
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+
+        String result = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(date);
+
+        return result;
+    }
+
+    @Override
+    public JSONObject requestRefundTicketResult(RequestPayResultReqDTO request) {
+
+        log.info("app开始查询退款订单");
+
+        String refundRrderNo = request.getOrderNo();
+
+        AppRefundOrder appRefundOrder = appRefundOrderMapper.selectByRefundNo(refundRrderNo);
+
+        if (ObjectUtils.isEmpty(appRefundOrder)) {
+            return AppOrderResult.fail(AppCodeEnum.FAIL.getCode(), "没有找到对应退款记录");
+        }
+
+        JSONObject result = new JSONObject();
+        result.put("orderNo", refundRrderNo);
+        result.put("refundType", "00");
+        result.put("refundDate", getNowDate());
+        result.put("refundAmount", appRefundOrder.getRefundAmount());
+
+        if (StringUtils.equals(appRefundOrder.getRefundStatus(), ItpStatusEnum.REFUND_SUCCESS.getCode())) {
+            result.put("refundResult", "SUCCESS");
+            result.put("refundResultDesc", "退款成功");
+            return AppOrderResult.successData(result);
+        } else if (StringUtils.equals(appRefundOrder.getRefundStatus(), ItpStatusEnum.REFUND_ING.getCode())) {
+
+            // 查询支付平台的退款结果
+            PayCenterResponse payCenterResponse =tvmCommonService.queryRefundResult(refundRrderNo);
+
+            if (payCenterResponse != null && StringUtils.equals(payCenterResponse.getCode(), PayCenterErrorCodeEnum.SUCCESS.getCode())) {
+
+                Map<String, Object> data = payCenterResponse.getData();
+                String refundResult = getStringFromData(data, "refundResult");
+                String refundTime = getStringFromData(data, "refundDate");
+
+                log.info("开始处理退款结果");
+                // 处理退款结果
+                String itpStatus = dealRefundResult(appRefundOrder.getPayOrderNo(), refundRrderNo, refundResult,refundTime);
+
+                log.info("退款结果处理结束 itpStatus is {}", itpStatus);
+
+                if (StringUtils.equals(itpStatus, ItpStatusEnum.REFUND_SUCCESS.getCode())) {
+                    result.put("refundResult", AppStatusEnum.REFUND_SUCCESS.getCode());
+                    result.put("refundResultDesc", AppStatusEnum.REFUND_SUCCESS.getDesc());
+                    return AppOrderResult.successData(result);
+                } else if (StringUtils.equals(itpStatus, ItpStatusEnum.REFUNDING_FAIL.getCode())) {
+                    result.put("refundResult",AppStatusEnum.REFUND_FAIL.getCode());
+                    result.put("refundResultDesc",AppStatusEnum.REFUND_FAIL.getDesc());
+                    return AppOrderResult.successData(result);
+                }else {
+                    result.put("refundResult", AppStatusEnum.REFUND_ING.getCode());
+                    result.put("refundResultDesc", AppStatusEnum.REFUND_ING.getDesc());
+                    return AppOrderResult.successData(result);
+                }
+
+            } else {
+                log.info("查询失败，不做处理");
+            }
+        } else {
+            result.put("refundResult", "FAIL");
+            result.put("refundResultDesc", "退款失败");
+            return AppOrderResult.successData(result);
+        }
+        result.put("refundResult", "FAIL");
+        result.put("refundResultDesc", "退款失败");
+        return AppOrderResult.failData(result);
+    }
+
+
+
+
+    @Override
+    public JSONObject requestPreActiveOrderList(RequestQueryActiveOrderReqDTO request) {
+
+        log.info("service 开始查询激活订单 request is {}", request);
+
+        // 01-青岛地铁
+        if (StringUtils.equals(request.getAppType(), "01")) {
+
+            log.info("青岛地铁查询");
+
+            List<AppActiveOrderModel> list = new ArrayList<>();
+            List<TvmAppOrder> tvmAppOrders = tvmAppOrderMapper.selectOrderLsByUserId(request.getUserId(), ActivateFlagEnum.ACTIVATE_ED.getCode());
+
+            log.info("tvmAppOrders.size is {}", tvmAppOrders);
+            for (TvmAppOrder order : tvmAppOrders) {
+
+                AppActiveOrderModel model = new AppActiveOrderModel();
+                model.setOrderNo(order.getOrderNo());
+                model.setEntryStationCode(order.getInStationCode());
+                model.setExitStationCode(order.getOutStationCode());
+                model.setTicketPrice(order.getTicketPrice());
+                model.setSingelTicketNum(order.getTicketNum());
+                model.setSingleTicketType(order.getTicketType());
+                model.setOrderDate(order.getCreateTime().replace("-", "").replace(" ", "").replace(":", ""));
+                model.setPayDate(order.getPayTime());
+                list.add(model);
+            }
+
+            log.info("组装查询结果 list.size is {}", tvmAppOrders);
+
+            JSONObject result = new JSONObject();
+            result.put("orderList", list);
+            return AppOrderResult.successData(result);
+
+        } else {
+
+            log.info("非青岛地铁查询，结束");
+
+            return AppOrderResult.fail(AppCodeEnum.FAIL.getCode(), "appType有误，请输入正确的值");
+        }
+
+    }
+
+    @Override
+    public JSONObject receiveRefundResult(APPRefundNotiResultReqDTO request) {
+
+        // 退款状态
+        String refundNo = request.getRefundNo();
+        String refundResult = request.getRefundResult();
+        String refundTime = request.getRefundDate();
+
+        log.info("当前退款订单号为 {} 退款状态为 {}", refundNo, refundResult);
+
+        AppRefundOrder appRefundOrder = appRefundOrderMapper.selectByRefundNo(refundNo);
+        if (ObjectUtils.isEmpty(appRefundOrder)) {
+            log.info("根据订单号查询退款订单为空");
+            return AppOrderResult.fail(AppCodeEnum.FAIL.getCode(), "订单号错误");
+        }
+
+        // itp数据库的退款状态
+        String dbRefundStatus = appRefundOrder.getRefundStatus();
+        if(StringUtils.equals(dbRefundStatus,ItpStatusEnum.REFUND_SUCCESS.getCode())){
+            log.info("数据库查询到 明确的退款成功，直接返回");
+            return AppOrderResult.success();
+        }
+        if(StringUtils.equals(dbRefundStatus,ItpStatusEnum.REFUNDING_FAIL.getCode())){
+            log.info("数据库查询到 退款失败结果，直接返回");
+            return AppOrderResult.success();
+        }
+
+        log.info("开始处理业务");
+        String itpStatus = dealRefundResult(appRefundOrder.getPayOrderNo(), refundNo, refundResult,refundTime);
+        log.info("业务处理结束 itpStatus is {}", itpStatus);
+
+        if (StringUtils.equals(itpStatus, ItpStatusEnum.REFUND_SUCCESS.getCode())) {
+            log.info("退款成功 处理结束 ");
+            return AppOrderResult.success();
+        } else if (StringUtils.equals(itpStatus, ItpStatusEnum.REFUNDING_FAIL.getCode())) {
+            log.info("退款失败 处理结束 ");
+            return AppOrderResult.success();
+        }else {
+            log.info("退款中 处理结束 ");
+            return AppOrderResult.success();
+        }
+
+
+    }
+
+    private String dealRefundResult(String payOrderNo, String refundNo, String refundResult,String refundTime) {
+
+        String nowTime = DateUtils.getNowTime();
+        if (StringUtils.equals(refundResult, PayCenterRefundStatusEnum.REFUND_SUCCESS.getCode())) {
+            log.info("查询到退款成功的结果");
+
+
+            Map<String, String> upRefundOrder = new HashMap<>();
+            upRefundOrder.put("refundNo", refundNo);
+            upRefundOrder.put("refundStatus", ItpStatusEnum.REFUND_SUCCESS.getCode());
+            upRefundOrder.put("refundMsg", ItpStatusEnum.REFUND_SUCCESS.getDesc());
+            upRefundOrder.put("refundTime", refundTime);
+            upRefundOrder.put("updateTime", nowTime);
+
+            int iRefund = appRefundOrderMapper.updateByRefundNo(upRefundOrder);
+            log.info("退款成功，修改退款订单结束 i is {}", iRefund);
+
+            Map<String, String> upPayMap = new HashMap<>();
+            upPayMap.put("orderNo", payOrderNo);
+            upPayMap.put("rsv2", refundNo);
+            upPayMap.put("updateTime", nowTime);
+            int iPay = tvmAppOrderMapper.updateByOrderNo(upPayMap);
+            log.info("退款成功，修改原支付订单结束 i is {}", iPay);
+
+            // 返回itp的退款成功码
+            return ItpStatusEnum.REFUND_SUCCESS.getCode();
+
+        } else if (StringUtils.equals(refundResult, PayCenterRefundStatusEnum.REFUNDING_FAIL.getCode())) {
+            log.info("查询到退款状态为 退款失败");
+            Map<String, String> upRefundOrder = new HashMap<>();
+            upRefundOrder.put("refundNo", refundNo);
+            upRefundOrder.put("refundStatus", ItpStatusEnum.REFUNDING_FAIL.getCode());
+            upRefundOrder.put("refundMsg", ItpStatusEnum.REFUNDING_FAIL.getDesc());
+            upRefundOrder.put("updateTime", nowTime);
+
+            int iRefund = appRefundOrderMapper.updateByRefundNo(upRefundOrder);
+            log.info("退款失败，修改退款订单结束 i is {}", iRefund);
+
+            return ItpStatusEnum.REFUNDING_FAIL.getCode();
+        } else {
+            log.info("查询到退款状态为 退款中/不明确 不做处理");
+
+            return ItpStatusEnum.REFUND_ING.getCode();
+        }
+    }
+}

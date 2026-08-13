@@ -1,0 +1,97 @@
+package com.chinasofti.huateng.paysign.service.impl;
+
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripAddContractReqDTO;
+import com.chinasofti.huateng.model.app.PaySignCallbackResult;
+import com.chinasofti.huateng.model.app.ReceivePayResultReqDTO;
+import com.chinasofti.huateng.model.app.ReceiveSignResultReqDTO;
+import com.chinasofti.huateng.model.app.RequestPayReqDTO;
+import com.chinasofti.huateng.model.app.RequestPayResult;
+import com.chinasofti.huateng.model.app.RequestRefundReqDTO;
+import com.chinasofti.huateng.model.app.RequestRefundResult;
+import com.chinasofti.huateng.model.app.RequestSignInfoReqDTO;
+import com.chinasofti.huateng.model.app.RequestSignInfoResult;
+import com.chinasofti.huateng.paysign.model.request.ReceiveTerminationResultReqDTO;
+import com.chinasofti.huateng.paysign.model.request.RequestContractAdvisoryReqDTO;
+import com.chinasofti.huateng.paysign.model.request.RequestContractResultReqDTO;
+import com.chinasofti.huateng.paysign.model.request.RequestTerminationReqDTO;
+import com.chinasofti.huateng.paysign.model.response.BaseRespDTO;
+import com.chinasofti.huateng.paysign.model.response.RequestContractAdvisoryRespDTO;
+import com.chinasofti.huateng.paysign.model.response.RequestContractResultRespDTO;
+import com.chinasofti.huateng.paysign.model.response.RequestTerminationRespDTO;
+import com.chinasofti.huateng.paysign.service.CallbackDomainService;
+import com.chinasofti.huateng.paysign.service.ContractDomainService;
+import com.chinasofti.huateng.paysign.service.PaySignService;
+import com.chinasofti.huateng.paysign.service.PaymentDomainService;
+import org.springframework.stereotype.Service;
+
+/**
+ * 支付签约应用服务门面。
+ *
+ * <p>保持原有 {@link PaySignService} 对外契约，按业务能力将请求路由到签约、支付、回调领域。
+ * Controller 和 RPC 调用方无需随内部重构修改；新的跨领域编排应放在此处，
+ * 具体业务规则则分别沉淀到对应领域服务。</p>
+ */
+@Service
+public class PaySignServiceImpl implements PaySignService {
+    private final ContractDomainService contractDomainService;
+    private final PaymentDomainService paymentDomainService;
+    private final CallbackDomainService callbackDomainService;
+
+    public PaySignServiceImpl(ContractDomainService contractDomainService,
+                              PaymentDomainService paymentDomainService,
+                              CallbackDomainService callbackDomainService) {
+        this.contractDomainService = contractDomainService;
+        this.paymentDomainService = paymentDomainService;
+        this.callbackDomainService = callbackDomainService;
+    }
+
+    @Override
+    public RequestSignInfoResult requestSignInfo(RequestSignInfoReqDTO request, String signChannel) {
+        return contractDomainService.requestSignInfo(request, signChannel);
+    }
+
+    @Override
+    public RequestSignInfoResult alipayTripRequestSignInfo(AlipayTripAddContractReqDTO request) {
+        return contractDomainService.alipayTripRequestSignInfo(request);
+    }
+
+    @Override
+    public RequestContractAdvisoryRespDTO requestContractAdvisory(RequestContractAdvisoryReqDTO request, String signChannel) {
+        return contractDomainService.requestContractAdvisory(request, signChannel);
+    }
+
+    @Override
+    public RequestContractResultRespDTO requestContractResult(RequestContractResultReqDTO request, String signChannel) {
+        return contractDomainService.requestContractResult(request, signChannel);
+    }
+
+    @Override
+    public RequestTerminationRespDTO requestTermination(RequestTerminationReqDTO request, String signChannel) {
+        return contractDomainService.requestTermination(request, signChannel);
+    }
+
+    @Override
+    public RequestPayResult requestPay(RequestPayReqDTO request) {
+        return paymentDomainService.requestPay(request);
+    }
+
+    @Override
+    public RequestRefundResult requestRefund(RequestRefundReqDTO request) {
+        return paymentDomainService.requestRefund(request);
+    }
+
+    @Override
+    public PaySignCallbackResult receiveSignResult(ReceiveSignResultReqDTO request, String signChannel) {
+        return callbackDomainService.receiveSignResult(request, signChannel);
+    }
+
+    @Override
+    public PaySignCallbackResult receivePayResult(ReceivePayResultReqDTO request, String rawBody) {
+        return callbackDomainService.receivePayResult(request, rawBody);
+    }
+
+    @Override
+    public BaseRespDTO receiveTerminationResult(ReceiveTerminationResultReqDTO request, String signChannel) {
+        return callbackDomainService.receiveTerminationResult(request, signChannel);
+    }
+}

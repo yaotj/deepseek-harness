@@ -1,0 +1,14 @@
+{
+  "java.home": "/Users/tuanjie/.local/share/mise/installs/java/oracle-21.0.11",
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.errors.incompleteClasspath": "warning",
+  "java.jdt.ls.java.home": "/Users/tuanjie/.local/share/mise/installs/java/oracle-21.0.11",
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-21",
+      "path": "/Users/tuanjie/.local/share/mise/installs/java/oracle-21.0.11",
+      "default": true
+    }
+  ]
+}

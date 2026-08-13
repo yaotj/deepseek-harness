@@ -1,0 +1,64 @@
+import request from '@/utils/request'
+
+/** 查询支付宝注册用户，仅对应 ALIPAY_USER_INFO。 */
+export function searchAlipayUsers(params) {
+  return request({
+    url: '/alipay-account-server/page/user/alipay/search',
+    method: 'get',
+    params
+  })
+}
+
+/** 查询其他渠道注册用户，仅对应 USER_ITP_REG_INFO。 */
+export function searchItpUsers(params) {
+  return request({
+    url: '/account-server/page/user/itp/search',
+    method: 'get',
+    params
+  })
+}
+
+/** 分页查询二维码票卡交易明细。 */
+export function listQRCodeTxnDetails(params) {
+  return request({
+    url: '/ticket-server/page/qrcode-txn-detail',
+    method: 'get',
+    params
+  })
+}
+
+/** 分页查询过闸扣费信息。 */
+export function listGateTxnPays(params) {
+  return request({
+    url: '/gate-txn-pay-server/page/gate-txn-pay',
+    method: 'get',
+    params
+  })
+}
+
+/** 对指定过闸扣费订单发起退款，退款金额单位为分。 */
+export function requestGateTxnPayRefund(orderNo, data) {
+  return request({
+    url: `/gate-txn-pay-server/page/gate-txn-pay/${encodeURIComponent(orderNo)}/refund`,
+    method: 'post',
+    data
+  })
+}
+
+/** 查询二维码当前乘车状态。 */
+export function getRideStatus(cardId) {
+  return request({
+    url: '/ticket-server/page/ride-status',
+    method: 'get',
+    params: { cardId }
+  })
+}
+
+/** 人工调整二维码当前乘车状态。 */
+export function updateRideStatus(cardId, data) {
+  return request({
+    url: `/ticket-server/page/ride-status/${encodeURIComponent(cardId)}`,
+    method: 'put',
+    data
+  })
+}

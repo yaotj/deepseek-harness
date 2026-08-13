@@ -1,0 +1,144 @@
+# ==========================================
+# Web 管理前端 - E7501 生产环境适配版
+# ==========================================
+
+# ⚠️ E7501 适配：注释掉 user 和 pid，避免容器权限问题导致 Pod CrashLoopBackOff
+# user  nginx;
+# pid   /var/run/nginx.pid;
+
+worker_processes auto;
+# ⚠️ E7501 适配：注释掉 error_log 文件路径，避免目录不存在报错
+# error_log /var/log/nginx/error.log warn;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    default_type  application/octet-stream;
+
+    # MIME 类型映射（E7501 资源包模式替代 /etc/nginx/mime.types）
+    types {
+        text/html                             html;
+        text/css                              css;
+        text/xml                              xml;
+        text/plain                            txt;
+        application/json                      json;
+        application/javascript                js;
+        application/xml+rss                   rss;
+        application/atom+xml                  atom;
+        image/svg+xml                         svg;
+        image/png                             png;
+        image/jpeg                            jpeg jpg;
+        image/gif                             gif;
+        image/webp                            webp;
+        font/woff                             woff;
+        font/woff2                            woff2;
+        application/vnd.ms-fontobject         eot;
+        font/ttf                              ttf;
+    }
+
+    # 日志格式（增加 request_time 便于排查慢接口）
+    log_format main '$remote_addr - [$time_local] "$request" '
+                    '$status $body_bytes_sent $request_time '
+                    '"$http_referer" "$http_user_agent" "$http_x_forwarded_for"';
+
+    # ⚠️ E7501 适配：注释掉 access_log 文件路径
+    # access_log /var/log/nginx/access.log main;
+
+    # Gzip 压缩
+    gzip  on;
+    gzip_min_length 1k;
+    gzip_comp_level 5;
+    gzip_types
+        text/plain
+        text/css
+        text/xml
+        text/javascript
+        application/json
+        application/javascript
+        application/xml+rss
+        application/atom+xml
+        image/svg+xml;
+
+    # 禁用服务器版本信息
+    server_tokens off;
+
+    # 上游后端服务
+    upstream web_backend {
+        server 172.20.211.23:30028;
+    }
+
+    server {
+        listen       80;
+        server_name  _;  # 替换为实际域名，如 admin.qdmetro.com
+
+        # 前端静态资源根目录
+        root   /usr/share/nginx/html;
+        index  index.html;
+
+        # 请求超时设置
+        proxy_connect_timeout 60s;
+        proxy_send_timeout    60s;
+        proxy_read_timeout    60s;
+
+        # ========== 安全响应头 ==========
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+        # ==========================================
+        # 前端静态资源缓存
+        # ==========================================
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable, no-transform";
+            add_header X-Content-Type-Options "nosniff";
+            access_log off;
+        }
+
+        # HTML 文件不缓存
+        location ~* \.html$ {
+            expires -1;
+            add_header Cache-Control "no-cache, no-store, must-revalidate";
+        }
+
+        # ==========================================
+        # 前端路由 History 模式支持
+        # ==========================================
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        # ========== 后端 API 反向代理 ==========
+        # /prod-api/users → 转发为 /users（末尾 / 实现去前缀）
+        location /prod-api/ {
+            # Istio Envoy 适配：必须使用 HTTP/1.1
+            proxy_http_version 1.1;
+            
+            # Istio Envoy 适配：显式设置 Connection 头，避免 Nginx 默认发送 close
+            proxy_set_header Connection "";
+
+            proxy_pass http://web_backend/;
+
+            proxy_set_header Host              $host;
+            proxy_set_header X-Real-IP         $remote_addr;
+            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            client_max_body_size 20M;
+        }
+
+        # ========== K8s 健康检查 ==========
+        location /health {
+            access_log off;
+            return 200 "healthy";
+            add_header Content-Type text/plain;
+        }
+
+        error_page 500 502 503 504 /50x.html;
+        location = /50x.html {
+            root /usr/share/nginx/html;
+        }
+    }
+}

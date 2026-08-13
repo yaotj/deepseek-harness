@@ -1,0 +1,251 @@
+{
+  "apifoxProject": "1.0.0",
+  "$schema": {
+    "app": "apifox",
+    "type": "project",
+    "version": "1.2.0"
+  },
+  "info": {
+    "name": "青岛itp",
+    "description": "可导入 Apifox 的 Postman Collection。接口使用 application/x-www-form-urlencoded；web管理控制台调用，执行待处理的解约登记。",
+    "mockRule": {
+      "rules": [],
+      "enableSystemRule": true
+    }
+  },
+  "projectSetting": {
+    "id": "8426515",
+    "auth": {},
+    "securityScheme": {},
+    "gateway": [],
+    "language": "zh-CN",
+    "apiStatuses": [
+      "developing",
+      "testing",
+      "released",
+      "deprecated"
+    ],
+    "mockSettings": {},
+    "preProcessors": [],
+    "postProcessors": [],
+    "advancedSettings": {
+      "allowAutomationWriteAutomationCreatedSprintBranch": true,
+      "enableJsonc": false,
+      "enableBigint": false,
+      "responseValidate": true,
+      "enableTestScenarioSetting": false,
+      "enableYAPICompatScript": false,
+      "isDefaultUrlEncoding": 2,
+      "publishedDocUrlRules": {
+        "defaultRule": "RESOURCE_KEY_ONLY",
+        "resourceKeyStandard": "NEW"
+      }
+    },
+    "initialDisabledMockIds": [],
+    "servers": [
+      {
+        "id": "default",
+        "name": "默认服务",
+        "importSourceServerId": "default",
+        "moduleId": 7900481
+      }
+    ],
+    "cloudMock": {
+      "enable": false,
+      "security": "free",
+      "tokenKey": "apifoxToken",
+      "isCreatedAutomaticallyByDefaultConfigFromAdmin": true
+    }
+  },
+  "apiCollection": [
+    {
+      "name": "根目录",
+      "id": 89777263,
+      "auth": {
+        "type": "noauth"
+      },
+      "securityScheme": {},
+      "parentId": 0,
+      "serverId": "",
+      "description": "",
+      "identityPattern": {
+        "httpApi": {
+          "type": "methodAndPath",
+          "bodyType": "",
+          "fields": []
+        }
+      },
+      "shareSettings": {},
+      "visibility": "SHARED",
+      "moduleId": 8100839,
+      "preProcessors": [
+        {
+          "id": "inheritProcessors",
+          "type": "inheritProcessors",
+          "data": {}
+        }
+      ],
+      "postProcessors": [
+        {
+          "id": "inheritProcessors",
+          "type": "inheritProcessors",
+          "data": {}
+        }
+      ],
+      "inheritPostProcessors": {},
+      "inheritPreProcessors": {},
+      "items": [
+        {
+          "name": "IF8B-02 执行解约",
+          "api": {
+            "id": "480696774",
+            "method": "post",
+            "path": "/api/payment/executeTermination",
+            "parameters": {
+              "path": [],
+              "query": [
+                {
+                  "id": "171641336",
+                  "name": "agreementCode",
+                  "value": "",
+                  "description": "协议号，可选；为空时返回无待处理解约记录",
+                  "required": false,
+                  "enable": true,
+                  "schema": {
+                    "type": "string"
+                  }
+                }
+              ],
+              "cookie": [],
+              "header": []
+            },
+            "auth": {},
+            "securityScheme": {},
+            "commonParameters": {},
+            "request": {
+              "body": {
+                "type": "form_data",
+                "params": [],
+                "encoding": "application/x-www-form-urlencoded"
+              },
+              "formUrlEncoded": {
+                "params": []
+              },
+              "multipartFormData": {
+                "params": [],
+                "text": false,
+                "fileType": "custom"
+              },
+              "json": null,
+              "xml": null,
+              "raw": null,
+              "html": null,
+              "file": null,
+              "graphql": null
+            },
+            "responses": [
+              {
+                "id": "171641337",
+                "code": "200",
+                "headers": [],
+                "description": "成功",
+                "jsonSchema": {
+                  "$ref": "#/definitions/289999238"
+                },
+                "responseExamples": [
+                  {
+                    "name": "成功",
+                    "value": "{\n  \"retCode\": \"0000\",\n  \"retMsg\": \"成功\"\n}"
+                  },
+                  {
+                    "name": "无待处理解约记录",
+                    "value": "{\n  \"retCode\": \"0000\",\n  \"retMsg\": \"无待处理解约记录\"\n}"
+                  }
+                ]
+              },
+              {
+                "id": "171641338",
+                "code": "400",
+                "headers": [],
+                "description": "无效的参数",
+                "jsonSchema": {
+                  "$ref": "#/definitions/289999238"
+                },
+                "responseExamples": [
+                  {
+                    "name": "参数错误",
+                    "value": "{\n  \"retCode\": \"1001\",\n  \"retMsg\": \"无效的参数\"\n}"
+                  }
+                ]
+              },
+              {
+                "id": "171641339",
+                "code": "500",
+                "headers": [],
+                "description": "系统内部错误",
+                "jsonSchema": {
+                  "$ref": "#/definitions/289999238"
+                },
+                "responseExamples": [
+                  {
+                    "name": "系统错误",
+                    "value": "{\n  \"retCode\": \"9999\",\n  \"retMsg\": \"系统内部错误\"\n}"
+                  }
+                ]
+              }
+            ],
+            "requestEncoding": "none",
+            "responseEncoding": "none",
+            "script": {
+              "pre": [],
+              "post": []
+            },
+            "advancedParams": [],
+            "importSource": null
+          },
+          "children": [],
+          "parentId": 0,
+          "serverId": "",
+          "shareSettings": {},
+          "visibility": "SHARED",
+          "moduleId": 8100839,
+          "preProcessors": [
+            {
+              "id": "inheritProcessors",
+              "type": "inheritProcessors",
+              "data": {}
+            }
+          ],
+          "postProcessors": [
+            {
+              "id": "inheritProcessors",
+              "type": "inheritProcessors",
+              "data": {}
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "definitions": [
+    {
+      "id": "289999238",
+      "type": "object",
+      "title": "BlackListOperateResult",
+      "properties": {
+        "retCode": {
+          "type": "string",
+          "description": "返回码"
+        },
+        "retMsg": {
+          "type": "string",
+          "description": "返回消息"
+        }
+      },
+      "required": [
+        "retCode",
+        "retMsg"
+      ]
+    }
+  ]
+}

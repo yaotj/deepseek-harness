@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.account.mapper.UserAccEmployeeCardMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.account.entity.UserAccEmployeeCard">
+        <id column="ID" jdbcType="BIGINT" property="id"/>
+        <result column="CARD_NO" jdbcType="VARCHAR" property="cardNo"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="PHONE" jdbcType="VARCHAR" property="phone"/>
+        <result column="EMPLOYEE_NAME" jdbcType="VARCHAR" property="employeeName"/>
+        <result column="ID_CARD_NO" jdbcType="VARCHAR" property="idCardNo"/>
+        <result column="COMPANY" jdbcType="VARCHAR" property="company"/>
+        <result column="CENTER" jdbcType="VARCHAR" property="center"/>
+        <result column="DEPARTMENT" jdbcType="VARCHAR" property="department"/>
+        <result column="POSITION" jdbcType="VARCHAR" property="position"/>
+        <result column="PHOTO_URL" jdbcType="CLOB" property="photoUrl"/>
+        <result column="CARD_STATUS" jdbcType="INTEGER" property="cardStatus"/>
+        <result column="OPEN_TMS" jdbcType="TIMESTAMP" property="openTms"/>
+        <result column="CANCEL_TMS" jdbcType="TIMESTAMP" property="cancelTms"/>
+        <result column="CREATE_TMS" jdbcType="TIMESTAMP" property="createTms"/>
+        <result column="UPDATE_TMS" jdbcType="TIMESTAMP" property="updateTms"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        <!-- 明确字段清单，避免全字段查询；只有员工码详情查询需要加载 PHOTO_URL。 -->
+        ID, CARD_NO, THIRD_USER_ID, PHONE, EMPLOYEE_NAME, ID_CARD_NO, COMPANY, CENTER,
+        DEPARTMENT, POSITION, PHOTO_URL, CARD_STATUS, OPEN_TMS, CANCEL_TMS, CREATE_TMS, UPDATE_TMS
+    </sql>
+
+    <select id="selectByCardNo" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from USER_ACC_EMPLOYEE_CARD
+        where CARD_NO = #{cardNo,jdbcType=VARCHAR}
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.account.entity.UserAccEmployeeCard">
+        insert into USER_ACC_EMPLOYEE_CARD (
+            CARD_NO, THIRD_USER_ID, PHONE, EMPLOYEE_NAME, ID_CARD_NO, COMPANY, CENTER,
+            DEPARTMENT, POSITION, PHOTO_URL, CARD_STATUS, OPEN_TMS, CANCEL_TMS, CREATE_TMS, UPDATE_TMS
+        ) values (
+            #{cardNo,jdbcType=VARCHAR}, #{thirdUserId,jdbcType=VARCHAR}, #{phone,jdbcType=VARCHAR},
+            #{employeeName,jdbcType=VARCHAR}, #{idCardNo,jdbcType=VARCHAR}, #{company,jdbcType=VARCHAR},
+            #{center,jdbcType=VARCHAR}, #{department,jdbcType=VARCHAR}, #{position,jdbcType=VARCHAR},
+            #{photoUrl,jdbcType=CLOB}, #{cardStatus,jdbcType=INTEGER}, #{openTms,jdbcType=TIMESTAMP},
+            #{cancelTms,jdbcType=TIMESTAMP}, #{createTms,jdbcType=TIMESTAMP}, #{updateTms,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.chinasofti.huateng.account.entity.UserAccEmployeeCard">
+        update USER_ACC_EMPLOYEE_CARD
+        set EMPLOYEE_NAME = #{employeeName,jdbcType=VARCHAR},
+            ID_CARD_NO = #{idCardNo,jdbcType=VARCHAR},
+            COMPANY = #{company,jdbcType=VARCHAR},
+            CENTER = #{center,jdbcType=VARCHAR},
+            DEPARTMENT = #{department,jdbcType=VARCHAR},
+            POSITION = #{position,jdbcType=VARCHAR},
+            PHOTO_URL = #{photoUrl,jdbcType=CLOB},
+            CARD_STATUS = #{cardStatus,jdbcType=INTEGER},
+            CANCEL_TMS = #{cancelTms,jdbcType=TIMESTAMP},
+            UPDATE_TMS = #{updateTms,jdbcType=TIMESTAMP}
+        where CARD_NO = #{cardNo,jdbcType=VARCHAR}
+    </update>
+</mapper>

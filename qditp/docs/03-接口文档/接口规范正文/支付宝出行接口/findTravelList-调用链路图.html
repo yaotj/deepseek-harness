@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>findTravelList 调用链路图</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        h2 {
+            color: #555;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 10px;
+            margin-top: 40px;
+        }
+        .diagram-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow-x: auto;
+        }
+        .mermaid {
+            text-align: center;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background: #4CAF50;
+            color: white;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        tr:hover {
+            background: #f5f5f5;
+        }
+        .code-block {
+            background: #f4f4f4;
+            border-left: 4px solid #4CAF50;
+            padding: 15px;
+            margin: 15px 0;
+            overflow-x: auto;
+            font-family: "Courier New", monospace;
+        }
+        .highlight {
+            background: #fff3cd;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>支付宝出行-查询乘车记录 调用链路图</h1>
+    <p style="text-align: center; color: #666;">
+        对应接口：<code>/channel/findTravelList</code> | 实现方案：方案 B（分页列表 + 进出站详情补全）
+    </p>
+
+    <h2>一、完整调用流程图</h2>
+    <div class="diagram-container">
+        <div class="mermaid">
+flowchart TD
+    Start([客户端/支付宝<br>POST /channel/findTravelList]) --> ParseBiz[FepAlipayTripController<br>解析 CommonFormRequest.bizData]
+    ParseBiz --> Validate{参数校验<br>thirdUserId 非空?}
+    
+    Validate -->|否| ReturnInvalid[返回 8001 无效参数]
+    Validate -->|是| CalcPage[计算分页参数<br>pageNum = page<br>pageSize = size]
+    
+    CalcPage --> CallPaySign[调用 alipay-pay-sign-server<br>POST /api/payment/payLog/travelList]
+    
+    subgraph alipay-pay-sign-server
+        CallPaySign --> PayLogCtrl[AlipayPayLogController<br>/api/payment/payLog/travelList]
+        PayLogCtrl --> PayLogSvc[AlipayPaySignService<br>selectAlipayPayLogListForTravel]
+        PayLogSvc --> QueryDB[(ALIPAY_PAY_LOG 表<br>分页查询)]
+        QueryDB --> BuildList[组装响应<br>list / total / pageNum / pageSize / totalPage]
+        BuildList --> ReturnPayLogs[返回支付流水列表]
+    end
+    
+    ReturnPayLogs --> CheckEmpty{支付流水列表<br>为空?}
+    CheckEmpty -->|是| ReturnEmpty[返回空列表]
+    CheckEmpty -->|否| LoopStart[开始循环<br>遍历每条支付流水]
+    
+    subgraph 循环组装每条乘车记录
+        LoopStart --> GetPayLog[获取当前支付流水<br>orderNo / entryId / exitId<br>channelOrderNo / payStatus]
+        
+        GetPayLog --> CheckEntry{entryId<br>非空?}
+        CheckEntry -->|是| CallEntryDetail[调用 ticket-server<br>POST /ci/channel/findTravelDetail<br>orderNo = entryId]
+        CheckEntry -->|否| SkipEntry[跳过进站查询]
+        
+        CallEntryDetail --> TicketEntryCtrl[ticket-server<br>AlipayTripController]
+        TicketEntryCtrl --> TicketEntrySvc[TicketTransServiceImpl<br>alipayTripFindTravelDetail]
+        TicketEntrySvc --> QueryEntryDB[(QRCODE_TXN_DETAIL 表<br>ISSUE_CHANNEL_CODE='07')]
+        QueryEntryDB --> EntryDetail[返回进站详情<br>entryStationName / entryDate]
+        
+        SkipEntry --> CheckExit
+        EntryDetail --> CheckExit
+        
+        CheckExit{exitId<br>非空?}
+        CheckExit -->|是| CallExitDetail[调用 ticket-server<br>POST /ci/channel/findTravelDetail<br>orderNo = exitId]
+        CheckExit -->|否| SkipExit[跳过出站查询]
+        
+        CallExitDetail --> TicketExitCtrl[ticket-server<br>AlipayTripController]
+        TicketExitCtrl --> TicketExitSvc[TicketTransServiceImpl<br>alipayTripFindTravelDetail]
+        TicketExitSvc --> QueryExitDB[(QRCODE_TXN_DETAIL 表<br>ISSUE_CHANNEL_CODE='07')]
+        QueryExitDB --> ExitDetail[返回出站详情<br>exitStationName / exitDate<br>payAmount / totalAmount]
+        
+        SkipExit --> BuildRecord
+        ExitDetail --> BuildRecord[组装 AlipayTripTravelRecordDTO<br>进出站信息 + 支付信息]
+        
+        BuildRecord --> AddToList[添加到记录列表]
+        AddToList --> LoopNext{还有更多<br>支付流水?}
+        LoopNext -->|是| GetPayLog
+        LoopNext -->|否| LoopEnd[循环结束]
+    end
+    
+    LoopEnd --> AssembleResp[组装最终响应<br>retCode / retMsg / pageNumber<br>pageSize / totalPage / totalCount<br>ticketTransRecord[]]
+    ReturnEmpty --> AssembleResp
+    
+    AssembleResp --> Return([返回响应])
+    
+    style Start fill:#e1f5ff
+    style Return fill:#e8f5e9
+    style alipay-pay-sign-server fill:#fff3e0
+    style 循环组装每条乘车记录 fill:#f3e5f5
+    
+    style QueryDB fill:#ffebee
+    style QueryEntryDB fill:#ffebee
+    style QueryExitDB fill:#ffebee
+        </div>
+    </div>
+
+    <h2>二、核心接口清单</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>接口</th>
+                <th>方法</th>
+                <th>路径</th>
+                <th>服务</th>
+                <th>说明</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>查询乘车记录列表</td>
+                <td>POST</td>
+                <td><code>/channel/findTravelList</code></td>
+                <td>fep-alipay-server</td>
+                <td>入口接口</td>
+            </tr>
+            <tr>
+                <td>查询支付流水列表</td>
+                <td>GET/POST</td>
+                <td><code>/api/payment/payLog/travelList</code></td>
+                <td>alipay-pay-sign-server</td>
+                <td>分页查 ALIPAY_PAY_LOG</td>
+            </tr>
+            <tr>
+                <td>查询进出站详情</td>
+                <td>POST</td>
+                <td><code>/ci/channel/findTravelDetail</code></td>
+                <td>ticket-server</td>
+                <td>查 QRCODE_TXN_DETAIL</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>三、数据表关系</h2>
+    <div class="diagram-container">
+        <div class="mermaid">
+erDiagram
+    ALIPAY_PAY_LOG ||--o| QRCODE_TXN_DETAIL : "entryId 关联"
+    ALIPAY_PAY_LOG ||--o| QRCODE_TXN_DETAIL : "exitId 关联"
+    
+    ALIPAY_PAY_LOG {
+        string orderNo PK "商户订单号"
+        string channelOrderNo "支付宝交易号"
+        string payStatus "支付状态"
+        string payAmount "支付金额"
+        string entryId "进站交易ID"
+        string exitId "出站交易ID"
+        string cardId "逻辑卡号"
+        string thirdUserId "第三方用户ID"
+    }
+    
+    QRCODE_TXN_DETAIL {
+        string ticketTransSeq PK "交易序列号"
+        string issueChannelCode "发卡渠道 07=支付宝"
+        string itpUserId "第三方用户ID"
+        string handleStationCode "进站设备编号"
+        string handleDateTime "进站时间"
+        string lastHandleStationCode "出站设备编号"
+        string lastHandleDateTime "出站时间"
+        string trxAmount "交易金额"
+    }
+        </div>
+    </div>
+
+    <h2>四、调用时序图</h2>
+    <div class="diagram-container">
+        <div class="mermaid">
+sequenceDiagram
+    participant Client as 客户端/支付宝
+    participant FepAlipay as fep-alipay-server
+    participant PaySign as alipay-pay-sign-server
+    participant DB1 as ALIPAY_PAY_LOG
+    participant Ticket as ticket-server
+    participant DB2 as QRCODE_TXN_DETAIL
+    
+    Client->>FepAlipay: POST /channel/findTravelList<br>(thirdUserId, page, size, ...)
+    
+    FepAlipay->>PaySign: POST /api/payment/payLog/travelList<br>(thirdUserId, startDate, endDate, pageNum, pageSize)
+    PaySign->>DB1: 分页查询支付流水
+    DB1-->>PaySign: 返回 payLogList + total
+    PaySign-->>FepAlipay: 返回 {list, total, pageNum, pageSize, totalPage}
+    
+    loop 对每条支付流水
+        FepAlipay->>Ticket: POST /ci/channel/findTravelDetail<br>(thirdUserId, orderNo=entryId)
+        Ticket->>DB2: 查询进站交易明细
+        DB2-->>Ticket: 返回 entryDetail
+        Ticket-->>FepAlipay: 返回进站详情
+        
+        FepAlipay->>Ticket: POST /ci/channel/findTravelDetail<br>(thirdUserId, orderNo=exitId)
+        Ticket->>DB2: 查询出站交易明细
+        DB2-->>Ticket: 返回 exitDetail
+        Ticket-->>FepAlipay: 返回出站详情
+        
+        FepAlipay->>FepAlipay: 组装 AlipayTripTravelRecordDTO
+    end
+    
+    FepAlipay-->>Client: 返回 AlipayTripFindTravelListRespDTO<br>(pageNumber, pageSize, totalPage, totalCount, ticketTransRecord[])
+        </div>
+    </div>
+
+    <h2>五、数据流转示例</h2>
+    <div class="code-block">
+<strong>请求参数:</strong><br>
+thirdUserId = "支付宝用户ID"<br>
+page = "0"<br>
+size = "10"<br>
+startDate = "20240101"<br>
+endDate = "20240131"<br><br>
+
+<strong>Step 1: alipay-pay-sign-server 返回</strong><br>
+list = [<br>
+&nbsp;&nbsp;{orderNo: "M20240101001", channelOrderNo: "20240101001", payStatus: "SUCCESS", entryId: "卡号202401010101", exitId: "卡号202401010102"},<br>
+&nbsp;&nbsp;{orderNo: "M20240101002", channelOrderNo: "20240101002", payStatus: "SUCCESS", entryId: "卡号202401010201", exitId: "卡号202401010202"}<br>
+]<br>
+total = 2<br>
+pageNum = 0<br>
+pageSize = 10<br>
+totalPage = 1<br><br>
+
+<strong>Step 2: 循环调用 ticket-server</strong><br>
+对 orderNo="M20240101001":<br>
+&nbsp;&nbsp;entryId="卡号202401010101" → ticket-server → entryStationName="青岛北站", entryDate="2024-01-01 08:30:00"<br>
+&nbsp;&nbsp;exitId="卡号202401010102"  → ticket-server → exitStationName="五四广场站", exitDate="2024-01-01 09:15:00"<br><br>
+
+对 orderNo="M20240101002":<br>
+&nbsp;&nbsp;entryId="卡号202401010201" → ticket-server → entryStationName="青岛站", entryDate="2024-01-02 10:00:00"<br>
+&nbsp;&nbsp;exitId="卡号202401010202"  → ticket-server → exitStationName="青岛北站", exitDate="2024-01-02 10:45:00"<br><br>
+
+<strong>Step 3: 最终响应</strong><br>
+ticketTransRecord = [<br>
+&nbsp;&nbsp;{<br>
+&nbsp;&nbsp;&nbsp;&nbsp;entryStationName: "青岛北站",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;entryDate: "2024-01-01 08:30:00",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;exitStationName: "五四广场站",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;exitDate: "2024-01-01 09:15:00",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;payAmount: "500",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;totalAmount: "500",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;tradeOrderNo: "M20240101001",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;payTradeOrderNo: "20240101001",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;payChannelCode: "07",<br>
+&nbsp;&nbsp;&nbsp;&nbsp;debitRequestResult: "SUCCESS"<br>
+&nbsp;&nbsp;},<br>
+&nbsp;&nbsp;...<br>
+]
+    </div>
+
+    <h2>六、异常处理</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>异常场景</th>
+                <th>处理方式</th>
+                <th>返回码</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>thirdUserId 为空</td>
+                <td>直接返回错误</td>
+                <td><span class="highlight">8001</span></td>
+            </tr>
+            <tr>
+                <td>alipay-pay-sign-server 返回空</td>
+                <td>返回系统错误</td>
+                <td><span class="highlight">9999</span></td>
+            </tr>
+            <tr>
+                <td>ticket-server 调用异常</td>
+                <td>记录日志，该条记录不加入列表</td>
+                <td>继续处理其他记录</td>
+            </tr>
+            <tr>
+                <td>部分字段查询失败</td>
+                <td>只填充成功查询到的字段</td>
+                <td>继续处理</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>七、关键代码位置</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>组件</th>
+                <th>文件</th>
+                <th>关键方法/端点</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>入口 Controller</td>
+                <td><code>fep-alipay-server/.../FepAlipayTripController.java</code></td>
+                <td><code>POST /channel/findTravelList</code></td>
+            </tr>
+            <tr>
+                <td>业务编排</td>
+                <td><code>fep-alipay-server/.../AlipayTripServiceImpl.java</code></td>
+                <td><code>findTravelList()</code>、<code>buildTravelRecord()</code></td>
+            </tr>
+            <tr>
+                <td>RPC 客户端</td>
+                <td><code>rpc/.../AlipayPaySignClient.java</code></td>
+                <td><code>selectAlipayPayLogListForTravel()</code></td>
+            </tr>
+            <tr>
+                <td>支付流水 Controller</td>
+                <td><code>alipay-pay-sign-server/.../AlipayPayLogController.java</code></td>
+                <td><code>GET/POST /api/payment/payLog/travelList</code></td>
+            </tr>
+            <tr>
+                <td>支付流水 Service</td>
+                <td><code>alipay-pay-sign-server/.../AlipayPaySignService.java</code></td>
+                <td><code>selectAlipayPayLogListForTravel()</code></td>
+            </tr>
+            <tr>
+                <td>详情查询 Controller</td>
+                <td><code>ticket-server/.../AlipayTripController.java</code></td>
+                <td><code>POST /ci/channel/findTravelDetail</code></td>
+            </tr>
+            <tr>
+                <td>详情查询 Service</td>
+                <td><code>ticket-server/.../TicketTransServiceImpl.java</code></td>
+                <td><code>alipayTripFindTravelDetail()</code></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            sequence: {
+                useMaxWidth: true
+            }
+        });
+    </script>
+</body>
+</html>

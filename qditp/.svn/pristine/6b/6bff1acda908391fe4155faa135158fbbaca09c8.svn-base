@@ -1,0 +1,100 @@
+package com.chinasofti.huateng.alipay.paysign.service;
+
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripAddContractReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripPayQueryReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripRequestPayReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripRequestRefundReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripTerminateContractReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripAddContractRespDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripPayQueryRespDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripRequestPayRespDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripRequestRefundRespDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripTerminateContractRespDTO;
+import com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayNotifyReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipaySignInfoDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripCloseResultReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayBlackListNotifyReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayPayLogDTO;
+
+import java.util.List;
+
+/**
+ * 支付宝签约与支付服务接口。
+ */
+public interface AlipayPaySignService {
+    AlipayTripAddContractRespDTO addContract(AlipayTripAddContractReqDTO request);
+    AlipayTripTerminateContractRespDTO terminateContract(AlipayTripTerminateContractReqDTO request);
+    AlipayTripRequestPayRespDTO requestPay(AlipayTripRequestPayReqDTO request);
+    AlipayTripRequestRefundRespDTO requestRefund(AlipayTripRequestRefundReqDTO request);
+    AlipayTripPayQueryRespDTO payQuery(AlipayTripPayQueryReqDTO request);
+
+    /**
+     * 处理支付宝支付结果回调。
+     */
+    com.chinasofti.huateng.common.response.AlipayCommonResponse handlePayNotify(AlipayTripPayNotifyReqDTO request);
+
+    /**
+     * 查询用户签约信息。
+     */
+    AlipaySignInfoDTO selectSignInfo(String thirdUserId);
+
+    /**
+     * 查询支付宝出行订单列表。
+     */
+    List<AlipayPayLog> selectAlipayPayLogList(String thirdUserId, String cardId, String payStatus, String startTime, String endTime, int offset, int limit);
+
+    /**
+     * 查询支付宝出行订单总数。
+     */
+    int countAlipayPayLogList(String thirdUserId, String cardId, String payStatus, String startTime, String endTime);
+
+    /**
+     * 业务关闭结果通知支付宝。
+     *
+     * @param agreementCode 协议号
+     * @param result 是否同意关闭，true-同意，false-拒绝
+     * @return 通知结果
+     */
+    com.chinasofti.huateng.common.response.AlipayCommonResponse notifyCloseResult(String agreementCode, boolean result);
+
+    /**
+     * 执行解约。
+     *
+     * @param agreementCode 协议号
+     * @return 执行结果
+     */
+    com.chinasofti.huateng.common.response.AlipayCommonResponse executeTermination(String agreementCode);
+
+    /**
+     * 通知支付宝黑名单变更。
+     *
+     * @param request 黑名单变更通知请求
+     * @return 通知结果
+     */
+    com.chinasofti.huateng.common.response.AlipayCommonResponse notifyBlackListChange(AlipayBlackListNotifyReqDTO request);
+
+    /**
+     * 按订单号查询支付日志。
+     *
+     * @param orderNo 订单号
+     * @return 支付日志传输对象
+     */
+    AlipayPayLogDTO selectByOrderNo(String orderNo);
+
+    /**
+     * 按进站交易ID查询支付流水。
+     *
+     * @param entryId 进站交易ID
+     * @return 支付日志传输对象
+     */
+    AlipayPayLogDTO selectByEntryId(String entryId);
+
+    /**
+     * 按出站交易ID查询支付流水。
+     *
+     * @param exitId 出站交易ID
+     * @return 支付日志传输对象
+     */
+    AlipayPayLogDTO selectByExitId(String exitId);
+}

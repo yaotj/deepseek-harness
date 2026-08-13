@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.key.mapper.MetroAgmKeyPoolMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.key.entity.MetroAgmKeyPool">
+        <result column="PROVIDER_ID" jdbcType="VARCHAR" property="providerId"/>
+        <result column="KEY_BATH_NUMBER" jdbcType="NUMERIC" property="keyBathNumber"/>
+        <result column="KEY_IDX" jdbcType="VARCHAR" property="keyIdx"/>
+        <result column="KEY_VALUE" jdbcType="VARCHAR" property="keyValue"/>
+        <result column="KEY_EFFECTIVE_DATE" jdbcType="VARCHAR" property="keyEffectiveDate"/>
+        <result column="RESERVE" jdbcType="VARCHAR" property="reserve"/>
+    </resultMap>
+
+    <select id="selectByProviderIdAndBatchNumber" resultMap="BaseResultMap">
+        select PROVIDER_ID, KEY_BATH_NUMBER, KEY_IDX, KEY_VALUE, KEY_EFFECTIVE_DATE, RESERVE
+        from METRO_AGM_KEY_POOL
+        where PROVIDER_ID = #{providerId}
+          and KEY_BATH_NUMBER = #{keyBathNumber}
+        order by KEY_IDX
+    </select>
+</mapper>

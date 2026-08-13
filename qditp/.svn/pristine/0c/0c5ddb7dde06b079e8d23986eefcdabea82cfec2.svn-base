@@ -1,0 +1,106 @@
+package com.chinasofti.huateng.alipay.paysign.service.impl;
+
+import com.chinasofti.huateng.alipay.paysign.config.PayCenterProperties;
+import com.chinasofti.huateng.model.alipaytrip.AlipayBlackListNotifyReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripCloseResultReqDTO;
+import com.chinasofti.huateng.alipay.paysign.util.PayCenterClient;
+import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
+import com.chinasofti.huateng.common.response.AlipayCommonResponse;
+import com.alibaba.fastjson2.JSON;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+@Service
+public class PaymentNotifyAdapter {
+    private static final Logger log = LoggerFactory.getLogger(PaymentNotifyAdapter.class);
+
+    @Autowired
+    private PayCenterClient payCenterClient;
+
+    @Autowired
+    private PayCenterProperties payCenterProperties;
+
+    public AlipayCommonResponse notifyBlackListChange(com.chinasofti.huateng.model.alipaytrip.AlipayBlackListNotifyReqDTO request) {
+        AlipayCommonResponse response = new AlipayCommonResponse();
+        try {
+            if (request == null || !org.springframework.util.StringUtils.hasText(request.getCardId())) {
+                response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg("卡号不能为空");
+                return response;
+            }
+            log.info("接收到支付宝出行-黑名单状态变更通知: cardId={}, blackListType={}, reason={}",
+                    request.getCardId(), request.getBlackListType(), request.getReason());
+
+            Map<String, Object> bizDataMap = new LinkedHashMap<>();
+            Map<String, Object> record = new LinkedHashMap<>();
+            record.put("thirdUserId", request.getThirdUserId());
+            record.put("cardId", request.getCardId());
+            record.put("cardType", request.getCardType());
+            record.put("blackListType", request.getBlackListType());
+            record.put("optionDate", request.getOptionDate());
+            if ("1".equals(request.getBlackListType()) && org.springframework.util.StringUtils.hasText(request.getExpireTime())) {
+                record.put("expireTime", request.getExpireTime());
+            }
+            bizDataMap.put("blackList", Collections.singletonList(record));
+
+            log.info("支付宝出行-黑名单状态变更通知,调用支付中心通知接口,请求参数: {}", JSON.toJSONString(bizDataMap));
+            com.chinasofti.huateng.alipay.paysign.model.response.PayCenterResponse payCenterResponse = payCenterClient.blacklistNotify(bizDataMap);
+            log.info("支付宝出行-黑名单状态变更通知,支付中心响应结果: success={}, msg={}", payCenterResponse != null ? payCenterResponse.getSuccess() : "null", payCenterResponse != null ? payCenterResponse.getMsg() : "null");
+
+            if (payCenterResponse != null && Boolean.TRUE.equals(payCenterResponse.getSuccess())) {
+                response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+                response.setRetMsg("黑名单变更通知成功");
+            } else if (payCenterResponse != null) {
+                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg(payCenterResponse.getMsg() != null ? payCenterResponse.getMsg() : "黑名单变更通知失败");
+            } else {
+                response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+                response.setRetMsg("调用支付中心黑名单通知接口失败");
+            }
+            log.info("支付宝出行-黑名单状态变更通知完成, cardId={}, retCode={}", request.getCardId(), response.getRetCode());
+            return response;
+        } catch (Exception e) {
+            log.error("支付宝出行-黑名单状态变更通知异常, cardId={}", request != null ? request.getCardId() : null, e);
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
+            return response;
+        }
+    }
+
+    public AlipayCommonResponse notifyCloseResult(String agreementCode, boolean result) {
+        AlipayCommonResponse response = new AlipayCommonResponse();
+        try {
+            log.info("支付宝出行-业务关闭结果通知, agreementCode={}, result={}", agreementCode, result);
+
+            if (!org.springframework.util.StringUtils.hasText(agreementCode)) {
+                response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg("agreementCode不能为空");
+                return response;
+            }
+
+            Map<String, Object> bizDataMap = new LinkedHashMap<>();
+            bizDataMap.put("agreementNo", agreementCode);
+            bizDataMap.put("result", result);
+
+            com.chinasofti.huateng.alipay.paysign.model.response.PayCenterResponse payCenterResponse = payCenterClient.closeResultNotify(bizDataMap);
+            if (payCenterResponse != null && "0".equals(payCenterResponse.getCode().toString())) {
+                response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
+                response.setRetMsg("成功");
+            } else {
+                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg("通知推送失败");
+            }
+        } catch (Exception e) {
+            log.error("支付宝出行-业务关闭结果通知 异常, agreementCode={}, result={}", agreementCode, result, e);
+            response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+            response.setRetMsg("系统内部错误");
+        }
+        return response;
+    }
+}

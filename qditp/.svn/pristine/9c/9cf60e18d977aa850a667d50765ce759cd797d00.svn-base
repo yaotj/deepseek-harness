@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.key.mapper.ComDeviceSynKeyMapper">
+    <insert id="merge" parameterType="com.chinasofti.huateng.key.entity.ComDeviceSynKey">
+        merge into COM_DEVICE_SYN_KEY target
+        using (select #{deviceId} as DEVICE_ID,
+                      #{agmKeyCurverList,jdbcType=CLOB} as AGM_KEY_CURVER_LIST,
+                      #{stationCode} as STATION_CODE
+               from dual) source
+        on (target.DEVICE_ID = source.DEVICE_ID)
+        when matched then update set
+            target.AGM_KEY_CURVER_LIST = source.AGM_KEY_CURVER_LIST,
+            target.REQ_SYN_KEY_DATE = systimestamp,
+            target.STATION_CODE = source.STATION_CODE
+        when not matched then insert
+            (DEVICE_ID, AGM_KEY_CURVER_LIST, REQ_SYN_KEY_DATE, STATION_CODE, REG_DATE)
+        values
+            (source.DEVICE_ID, source.AGM_KEY_CURVER_LIST, systimestamp, source.STATION_CODE, systimestamp)
+    </insert>
+</mapper>

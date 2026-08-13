@@ -1,0 +1,388 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "AppParaController API",
+    "description": "APP 侧参数查询 RPC 接口。fep-app-server 接收 APP 公共报文后，会通过 rpc 模块调用这里的接口；本 Controller 不处理 APP 公共报文字段，只接收 fep-app 传入的 bizData 对象。",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/ci/app/requestLineCodeList": {
+      "post": {
+        "tags": [
+          "AppPara"
+        ],
+        "summary": "IF8A-07 获取线路代码",
+        "description": "从当前生效路网版本中获取线路代码列表。接口规范未定义业务请求字段，允许为空。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestLineCodeListReqDTO"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "description": "成功响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestLineCodeListResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ci/app/requestStationCodeList": {
+      "post": {
+        "tags": [
+          "AppPara"
+        ],
+        "summary": "IF8A-08 获取车站代码",
+        "description": "从当前生效路网版本中获取车站代码列表。lineCode 为空时返回全部线路车站。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestStationCodeListReqDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestStationCodeListResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ci/app/requestTicketPriceByStation": {
+      "post": {
+        "tags": [
+          "AppPara"
+        ],
+        "summary": "IF8A-10 计算票价",
+        "description": "根据进站车站代码和出站车站代码计算两站间票价。票价由费率矩阵先定位费率等级，再到基础费率表查询价格。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestTicketPriceByStationReqDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestTicketPriceByStationResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ci/app/requestLineStationCodeVersion": {
+      "post": {
+        "tags": [
+          "AppPara"
+        ],
+        "summary": "IF8A-17 获取线路站点代码版本",
+        "description": "获取当前路网参数版本，分别返回线路代码版本和车站代码版本。接口规范未定义业务请求字段，允许为空。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestLineStationCodeVersionReqDTO"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "description": "成功响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestLineStationCodeVersionResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ci/app/requestStationName": {
+      "post": {
+        "tags": [
+          "AppPara"
+        ],
+        "summary": "查询车站名称",
+        "description": "查询当前路网参数版本中的车站中文名称。该接口给内部服务使用，例如 ticket-server 查询上一笔行程时按站点代码补充站名。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestStationNameReqDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "成功响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestStationNameResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CommonResult": {
+        "type": "object",
+        "description": "通用响应基类",
+        "properties": {
+          "retCode": {
+            "type": "string",
+            "description": "返回码"
+          },
+          "retMsg": {
+            "type": "string",
+            "description": "返回消息"
+          }
+        }
+      },
+      "RequestLineCodeListReqDTO": {
+        "type": "object",
+        "description": "IF8A-07 获取线路代码请求参数。接口规范未定义业务请求字段，保留空对象用于统一 bizData 反序列化。"
+      },
+      "RequestLineCodeListResult": {
+        "type": "object",
+        "description": "IF8A-07 获取线路代码响应参数",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CommonResult"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "lineCodeRecord": {
+                "type": "array",
+                "description": "线路代码记录列表",
+                "items": {
+                  "$ref": "#/components/schemas/LineCodeRecordDTO"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "LineCodeRecordDTO": {
+        "type": "object",
+        "description": "IF8A-07 获取线路代码响应中的单条线路记录",
+        "properties": {
+          "lineCode": {
+            "type": "string",
+            "description": "线路代码"
+          },
+          "lineNameZH": {
+            "type": "string",
+            "description": "线路中文名称"
+          },
+          "lineNameEN": {
+            "type": "string",
+            "description": "线路英文名称"
+          },
+          "orderIndex": {
+            "type": "string",
+            "description": "展示排序序号"
+          }
+        }
+      },
+      "RequestStationCodeListReqDTO": {
+        "type": "object",
+        "description": "IF8A-08 获取车站代码请求参数",
+        "properties": {
+          "lineCode": {
+            "type": "string",
+            "description": "线路代码；为空时返回全部线路车站"
+          }
+        }
+      },
+      "RequestStationCodeListResult": {
+        "type": "object",
+        "description": "IF8A-08 获取车站代码响应参数",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CommonResult"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "stationCodeRecord": {
+                "type": "array",
+                "description": "车站代码记录列表",
+                "items": {
+                  "$ref": "#/components/schemas/StationCodeRecordDTO"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "StationCodeRecordDTO": {
+        "type": "object",
+        "description": "IF8A-08 获取车站代码响应中的单条车站记录",
+        "properties": {
+          "lineCode": {
+            "type": "string",
+            "description": "所属线路代码"
+          },
+          "stationCode": {
+            "type": "string",
+            "description": "车站代码"
+          },
+          "stationNameZH": {
+            "type": "string",
+            "description": "车站中文名称"
+          },
+          "stationNameEN": {
+            "type": "string",
+            "description": "车站英文名称"
+          },
+          "transferYn": {
+            "type": "string",
+            "description": "是否换乘站，Y 是，N 否"
+          }
+        }
+      },
+      "RequestTicketPriceByStationReqDTO": {
+        "type": "object",
+        "description": "IF8A-10 计算票价请求参数",
+        "properties": {
+          "entryStationCode": {
+            "type": "string",
+            "description": "进站车站代码"
+          },
+          "exitStationCode": {
+            "type": "string",
+            "description": "出站车站代码"
+          }
+        },
+        "required": [
+          "entryStationCode",
+          "exitStationCode"
+        ]
+      },
+      "RequestTicketPriceByStationResult": {
+        "type": "object",
+        "description": "IF8A-10 计算票价响应参数",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CommonResult"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "ticketPrice": {
+                "type": "string",
+                "description": "票价，单位按参数表票价字段定义"
+              }
+            }
+          }
+        ]
+      },
+      "RequestLineStationCodeVersionReqDTO": {
+        "type": "object",
+        "description": "IF8A-17 获取线路站点代码版本请求参数。接口规范未定义业务请求字段，保留空对象用于统一 bizData 反序列化。"
+      },
+      "RequestLineStationCodeVersionResult": {
+        "type": "object",
+        "description": "IF8A-17 获取线路站点代码版本响应参数",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CommonResult"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "lineCodeIdx": {
+                "type": "string",
+                "description": "线路代码版本号"
+              },
+              "stationCodeIdx": {
+                "type": "string",
+                "description": "车站代码版本号"
+              },
+              "changeDate": {
+                "type": "string",
+                "description": "版本变更日期"
+              }
+            }
+          }
+        ]
+      },
+      "RequestStationNameReqDTO": {
+        "type": "object",
+        "description": "查询车站名称请求参数",
+        "properties": {
+          "stationCode": {
+            "type": "string",
+            "description": "车站代码"
+          }
+        },
+        "required": [
+          "stationCode"
+        ]
+      },
+      "RequestStationNameResult": {
+        "type": "object",
+        "description": "查询车站名称响应参数",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CommonResult"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "stationCode": {
+                "type": "string",
+                "description": "车站代码"
+              },
+              "stationName": {
+                "type": "string",
+                "description": "车站中文名称"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

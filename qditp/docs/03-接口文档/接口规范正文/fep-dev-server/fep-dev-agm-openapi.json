@@ -1,0 +1,604 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "fep-dev-server 闸机对外接口",
+    "description": "基于源码导出的 Apifox/OpenAPI 文档，服务名 fep-dev，端口 9104。所有接口统一采用 FormData 格式：公共请求头字段平铺在 form-data 中，业务参数放在 bizData JSON 字段内。",
+    "version": "1.0.0",
+    "contact": {
+      "name": "qditp-dev"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:9104",
+      "description": "本地开发"
+    }
+  ],
+  "paths": {
+    "/ci/agm/notiVerifyResult": {
+      "post": {
+        "operationId": "notiVerifyResult",
+        "summary": "IF1A-01 闸机检票通知",
+        "description": "接收闸机检票通知，解析 bizData 后调用 ticket-server 更新票卡状态；若需扣费，再调用支付相关服务。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "providerId": {
+                    "type": "string",
+                    "description": "提供方标识"
+                  },
+                  "charset": {
+                    "type": "string",
+                    "description": "字符集"
+                  },
+                  "format": {
+                    "type": "string",
+                    "description": "报文格式"
+                  },
+                  "timestamp": {
+                    "type": "string",
+                    "description": "时间戳"
+                  },
+                  "deviceId": {
+                    "type": "string",
+                    "description": "设备编号"
+                  },
+                  "signType": {
+                    "type": "string",
+                    "description": "签名类型"
+                  },
+                  "sign": {
+                    "type": "string",
+                    "description": "签名"
+                  },
+                  "bizData": {
+                    "type": "string",
+                    "description": "业务参数 JSON",
+                    "example": "{\"cardId\":\"123456\",\"trxType\":\"02\",\"handleDateTime\":\"20260101120000\"}"
+                  }
+                },
+                "required": ["bizData"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "处理结果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommonResult"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["AGM 设备接口"]
+      }
+    },
+    "/ci/agm/requestSynKeyList": {
+      "post": {
+        "operationId": "requestSynKeyList",
+        "summary": "IF1A-02 密钥同步",
+        "description": "设备请求密钥同步，业务参数 bizData 内包含密钥版本信息列表。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "providerId": {
+                    "type": "string"
+                  },
+                  "charset": {
+                    "type": "string"
+                  },
+                  "format": {
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "type": "string"
+                  },
+                  "deviceId": {
+                    "type": "string"
+                  },
+                  "signType": {
+                    "type": "string"
+                  },
+                  "sign": {
+                    "type": "string"
+                  },
+                  "bizData": {
+                    "type": "string",
+                    "description": "业务参数 JSON",
+                    "example": "{\"keyCurVerList\":[{\"issueChannelCode\":\"01\",\"keyId\":\"01\",\"keyBathNumber\":\"0\"}]}"
+                  }
+                },
+                "required": ["bizData"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "密钥同步响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestSynKeyListRespDTO"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["AGM 设备接口"]
+      }
+    },
+    "/ci/agm/requestQrCodeStatus": {
+      "post": {
+        "operationId": "requestQrCodeStatus",
+        "summary": "IF1A-04 查询票卡状态",
+        "description": "根据 cardId 查询票卡当前状态、上次交易时间等。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "providerId": {
+                    "type": "string"
+                  },
+                  "charset": {
+                    "type": "string"
+                  },
+                  "format": {
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "type": "string"
+                  },
+                  "deviceId": {
+                    "type": "string"
+                  },
+                  "signType": {
+                    "type": "string"
+                  },
+                  "sign": {
+                    "type": "string"
+                  },
+                  "bizData": {
+                    "type": "string",
+                    "description": "业务参数 JSON",
+                    "example": "{\"cardId\":\"123456\",\"itpUserId\":\"ABCD1234\"}"
+                  }
+                },
+                "required": ["bizData"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "票卡状态查询响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestQrCodeStatusRespDTO"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["AGM 设备接口"]
+      }
+    },
+    "/ci/agm/deviceHeartbeat": {
+      "post": {
+        "operationId": "deviceHeartbeat",
+        "summary": "IF1A-03 设备心跳",
+        "description": "设备链路心跳检测，不解析 bizData，直接返回成功。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "providerId": {
+                    "type": "string"
+                  },
+                  "charset": {
+                    "type": "string"
+                  },
+                  "format": {
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "type": "string"
+                  },
+                  "deviceId": {
+                    "type": "string"
+                  },
+                  "signType": {
+                    "type": "string"
+                  },
+                  "sign": {
+                    "type": "string"
+                  },
+                  "bizData": {
+                    "type": "string",
+                    "description": "业务参数 JSON，本接口不解析"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "心跳响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceHeartbeatRespDTO"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["AGM 设备接口"]
+      }
+    },
+    "/ci/agm/notiDeviceHeard": {
+      "post": {
+        "operationId": "notiDeviceHeard",
+        "summary": "IF1A-03 设备心跳（兼容路径）",
+        "description": "与 /ci/agm/deviceHeartbeat 为同一实现，兼容旧版设备路径。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "providerId": {
+                    "type": "string"
+                  },
+                  "charset": {
+                    "type": "string"
+                  },
+                  "format": {
+                    "type": "string"
+                  },
+                  "timestamp": {
+                    "type": "string"
+                  },
+                  "deviceId": {
+                    "type": "string"
+                  },
+                  "signType": {
+                    "type": "string"
+                  },
+                  "sign": {
+                    "type": "string"
+                  },
+                  "bizData": {
+                    "type": "string",
+                    "description": "业务参数 JSON，本接口不解析"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "心跳响应",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceHeartbeatRespDTO"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["AGM 设备接口"]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CommonResult": {
+        "type": "object",
+        "properties": {
+          "retCode": {
+            "type": "string",
+            "description": "返回码",
+            "example": "0000"
+          },
+          "retMsg": {
+            "type": "string",
+            "description": "返回消息",
+            "example": "成功"
+          }
+        }
+      },
+      "KeyCurVerReqDTO": {
+        "type": "object",
+        "properties": {
+          "issueChannelCode": {
+            "type": "string",
+            "description": "发卡方渠道编码",
+            "example": "01"
+          },
+          "keyId": {
+            "type": "string",
+            "description": "密钥标识",
+            "example": "01"
+          },
+          "keyBathNumber": {
+            "type": "string",
+            "description": "密钥批次号",
+            "example": "0"
+          }
+        }
+      },
+      "KeyCurVerRespDTO": {
+        "type": "object",
+        "properties": {
+          "issueChannelCode": {
+            "type": "string",
+            "example": "01"
+          },
+          "keyId": {
+            "type": "string",
+            "example": "01"
+          },
+          "keyBathNumber": {
+            "type": "string",
+            "example": "2"
+          },
+          "needUpdateYN": {
+            "type": "string",
+            "description": "是否需要更新，Y/N",
+            "example": "Y"
+          },
+          "keyList": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KeyItemDTO"
+            },
+            "description": "密钥列表"
+          }
+        }
+      },
+      "KeyItemDTO": {
+        "type": "object",
+        "properties": {
+          "issueChannelCode": {
+            "type": "string",
+            "example": "01"
+          },
+          "keyId": {
+            "type": "string",
+            "example": "01"
+          },
+          "keyVersion": {
+            "type": "string",
+            "example": "1"
+          },
+          "key": {
+            "type": "string",
+            "description": "密钥值",
+            "example": "AAAAAAAAAAAAAAAA"
+          },
+          "mac": {
+            "type": "string",
+            "example": "11111111"
+          }
+        }
+      },
+      "RequestSynKeyListReqDTO": {
+        "type": "object",
+        "properties": {
+          "keyCurVerList": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KeyCurVerReqDTO"
+            },
+            "description": "密钥当前版本信息列表"
+          }
+        }
+      },
+      "RequestSynKeyListRespDTO": {
+        "type": "object",
+        "properties": {
+          "retCode": {
+            "type": "string",
+            "example": "0000"
+          },
+          "retMsg": {
+            "type": "string",
+            "example": "成功"
+          },
+          "keyCurVerList": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KeyCurVerRespDTO"
+            },
+            "description": "密钥当前版本信息列表"
+          }
+        }
+      },
+      "RequestQrCodeStatusReqDTO": {
+        "type": "object",
+        "properties": {
+          "itpUserId": {
+            "type": "string",
+            "description": "ITP 用户 ID"
+          },
+          "cardId": {
+            "type": "string",
+            "description": "票卡 ID"
+          },
+          "trxType": {
+            "type": "string",
+            "description": "交易类型"
+          },
+          "ticketTransSeq": {
+            "type": "string",
+            "description": "票卡交易序号"
+          },
+          "qrType": {
+            "type": "string",
+            "description": "二维码类型"
+          }
+        }
+      },
+      "RequestQrCodeStatusRespDTO": {
+        "type": "object",
+        "properties": {
+          "retCode": {
+            "type": "string",
+            "example": "0000"
+          },
+          "retMsg": {
+            "type": "string",
+            "example": "成功"
+          },
+          "itpUserId": {
+            "type": "string"
+          },
+          "cardId": {
+            "type": "string"
+          },
+          "lastTicketStatus": {
+            "type": "string",
+            "description": "票卡最后状态"
+          },
+          "lastHandleDateTime": {
+            "type": "string",
+            "description": "最后处理时间"
+          }
+        }
+      },
+      "NotifyVerifyResultReqDTO": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "description": "设备编号，由公共头补充"
+          },
+          "itpUserId": {
+            "type": "string",
+            "description": "ITP 用户 ID"
+          },
+          "trxType": {
+            "type": "string",
+            "description": "交易类型"
+          },
+          "issueChannelCode": {
+            "type": "string",
+            "description": "发卡方渠道编码"
+          },
+          "signChannelCode": {
+            "type": "string",
+            "description": "签约渠道编码"
+          },
+          "cardId": {
+            "type": "string",
+            "description": "票卡 ID"
+          },
+          "cardType": {
+            "type": "string",
+            "description": "票卡类型"
+          },
+          "handleDateTime": {
+            "type": "string",
+            "description": "处理时间"
+          },
+          "handleStationCode": {
+            "type": "string",
+            "description": "处理站点编码"
+          },
+          "trxAmount": {
+            "type": "string",
+            "description": "交易金额，单位分"
+          },
+          "overtimeAmount": {
+            "type": "string",
+            "description": "超时金额，单位分"
+          },
+          "lastTicketStatus": {
+            "type": "string",
+            "description": "票卡上次状态"
+          },
+          "handleResultCode": {
+            "type": "string",
+            "description": "读写器处理结果码"
+          },
+          "lastHandleStationCode": {
+            "type": "string",
+            "description": "上次处理站点编码"
+          },
+          "lastHandleDateTime": {
+            "type": "string",
+            "description": "上次处理时间"
+          },
+          "ticketTransSeq": {
+            "type": "string",
+            "description": "票卡交易序号"
+          },
+          "reserve1": {
+            "type": "string",
+            "description": "预留字段1；HCE 卡时为 64 字节 HCE 卡数据"
+          },
+          "reserve2": {
+            "type": "string",
+            "description": "预留字段2"
+          }
+        }
+      },
+      "NotifyVerifyResultRespDTO": {
+        "type": "object",
+        "properties": {
+          "retCode": {
+            "type": "string",
+            "example": "0000"
+          },
+          "retMsg": {
+            "type": "string",
+            "example": "成功"
+          }
+        }
+      },
+      "DeviceHeartbeatRespDTO": {
+        "type": "object",
+        "properties": {
+          "retCode": {
+            "type": "string",
+            "example": "0000"
+          },
+          "retMsg": {
+            "type": "string",
+            "example": "成功"
+          }
+        }
+      }
+    },
+    "tags": [
+      {
+        "name": "AGM 设备接口",
+        "description": "闸机设备侧前置接口，统一以 FormData + bizData JSON 方式交互。"
+      }
+    ]
+  }
+}

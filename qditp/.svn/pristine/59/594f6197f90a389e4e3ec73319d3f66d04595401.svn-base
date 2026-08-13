@@ -1,0 +1,152 @@
+package com.chinasofti.huateng.model.alipaytrip;
+
+import java.time.LocalDateTime;
+
+/**
+ * 支付宝签约信息表实体。
+ */
+public class AlipaySignInfo {
+    /**
+     * 签约协议号（主键）。
+     */
+    private String agreementCode;
+
+    /**
+     * 支付宝用户ID。
+     */
+    private String thirdUserId;
+
+    private String cardId;
+    private String cardType;
+    private String channelAgreementCode;
+    private String channelUserAccount;
+    private String channel;
+    private String signStatus;
+    private String operationType;
+    private LocalDateTime signTime;
+    private LocalDateTime terminationTime;
+    private String deleteFlag;
+    private String version;
+    private LocalDateTime createTime;
+    private LocalDateTime updateTime;
+
+    public String getThirdUserId() {
+        return thirdUserId;
+    }
+
+    public void setThirdUserId(String thirdUserId) {
+        this.thirdUserId = thirdUserId;
+    }
+
+    public String getAgreementCode() {
+        return agreementCode;
+    }
+
+    public void setAgreementCode(String agreementCode) {
+        this.agreementCode = agreementCode;
+    }
+
+    public String getCardId() {
+        return cardId;
+    }
+
+    public void setCardId(String cardId) {
+        this.cardId = cardId;
+    }
+
+    public String getCardType() {
+        return cardType;
+    }
+
+    public void setCardType(String cardType) {
+        this.cardType = cardType;
+    }
+
+    public String getChannelAgreementCode() {
+        return channelAgreementCode;
+    }
+
+    public void setChannelAgreementCode(String channelAgreementCode) {
+        this.channelAgreementCode = channelAgreementCode;
+    }
+
+    public String getChannelUserAccount() {
+        return channelUserAccount;
+    }
+
+    public void setChannelUserAccount(String channelUserAccount) {
+        this.channelUserAccount = channelUserAccount;
+    }
+
+    public String getChannel() {
+        return channel;
+    }
+
+    public void setChannel(String channel) {
+        this.channel = channel;
+    }
+
+    public String getSignStatus() {
+        return signStatus;
+    }
+
+    public void setSignStatus(String signStatus) {
+        this.signStatus = signStatus;
+    }
+
+    public String getOperationType() {
+        return operationType;
+    }
+
+    public void setOperationType(String operationType) {
+        this.operationType = operationType;
+    }
+
+    public LocalDateTime getSignTime() {
+        return signTime;
+    }
+
+    public void setSignTime(LocalDateTime signTime) {
+        this.signTime = signTime;
+    }
+
+    public LocalDateTime getTerminationTime() {
+        return terminationTime;
+    }
+
+    public void setTerminationTime(LocalDateTime terminationTime) {
+        this.terminationTime = terminationTime;
+    }
+
+    public String getDeleteFlag() {
+        return deleteFlag;
+    }
+
+    public void setDeleteFlag(String deleteFlag) {
+        this.deleteFlag = deleteFlag;
+    }
+
+    public String getVersion() {
+        return version;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
+    }
+
+    public LocalDateTime getCreateTime() {
+        return createTime;
+    }
+
+    public void setCreateTime(LocalDateTime createTime) {
+        this.createTime = createTime;
+    }
+
+    public LocalDateTime getUpdateTime() {
+        return updateTime;
+    }
+
+    public void setUpdateTime(LocalDateTime updateTime) {
+        this.updateTime = updateTime;
+    }
+}

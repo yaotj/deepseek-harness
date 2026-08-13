@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.para.mapper.risk.RiskControlLogMapper">
+    <!-- 审计日志使用左关联：规则删除后仍可查询历史命中记录。 -->
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.para.entity.risk.RiskControlLog">
+        <id column="LOG_ID" property="logId"/>
+        <result column="CARD_ID" property="cardId"/><result column="USER_ORDER_NO" property="userOrderNo"/>
+        <result column="RULE_ID" property="ruleId"/><result column="RULE_NAME" property="ruleName"/>
+        <result column="RISK_HIT_TIME" property="riskHitTime"/><result column="CREATE_TIME" property="createTime"/>
+    </resultMap>
+    <select id="selectPage" resultMap="BaseResultMap">
+        <!-- 命中时间倒序，便于运营人员优先处理最新风险。 -->
+        SELECT L.LOG_ID, L.CARD_ID, L.USER_ORDER_NO, L.RULE_ID, R.RULE_NAME, L.RISK_HIT_TIME, L.CREATE_TIME
+        FROM TBL_RISK_CONTROL_LOG L LEFT JOIN TBL_RISK_RULE R ON R.RULE_ID = L.RULE_ID
+        <where>
+            <if test="cardId != null and cardId != ''">AND L.CARD_ID = #{cardId}</if>
+            <if test="userOrderNo != null and userOrderNo != ''">AND L.USER_ORDER_NO = #{userOrderNo}</if>
+            <if test="ruleId != null and ruleId != ''">AND L.RULE_ID = #{ruleId}</if>
+            <if test="riskHitTimeBegin != null and riskHitTimeBegin != ''">AND L.RISK_HIT_TIME &gt;= TO_DATE(#{riskHitTimeBegin}, 'YYYY-MM-DD HH24:MI:SS')</if>
+            <if test="riskHitTimeEnd != null and riskHitTimeEnd != ''">AND L.RISK_HIT_TIME &lt;= TO_DATE(#{riskHitTimeEnd}, 'YYYY-MM-DD HH24:MI:SS')</if>
+        </where>
+        ORDER BY L.RISK_HIT_TIME DESC, L.LOG_ID DESC
+    </select>
+</mapper>

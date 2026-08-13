@@ -1,0 +1,353 @@
+openapi: 3.0.3
+info:
+  title: 支付宝出行接口
+  version: 1.0.0
+  description: 支付宝出行支付、查询、退款、回调、订单查询接口定义
+
+servers:
+  - url: http://fep-alipay-server:8080
+
+paths:
+  /api/payment/requestPay:
+    post:
+      tags:
+        - 支付宝出行支付
+      summary: 支付申请
+      description: 支付宝出行请求扣费
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - orderNo
+                - scene
+                - paymentVendor
+                - amount
+                - industryType
+                - subject
+                - body
+                - industryDetail
+              properties:
+                orderNo:
+                  type: string
+                  description: 订单号
+                scene:
+                  type: string
+                  description: 支付类型/场景
+                paymentVendor:
+                  type: string
+                  description: 支付方式
+                amount:
+                  type: integer
+                  description: 支付金额（单位：分）
+                industryType:
+                  type: string
+                  description: 行业类型：1-地铁 2-公交 3-打车 4-购物
+                subject:
+                  type: string
+                  description: 订单标题
+                body:
+                  type: string
+                  description: 订单描述
+                requestSignSeq:
+                  type: string
+                  description: 签约流水号（免密场景必填）
+                thirdUserId:
+                  type: string
+                  description: 用户ID
+                orderTimeOut:
+                  type: integer
+                  description: 订单超时时间（秒），默认60秒
+                authCode:
+                  type: string
+                  description: 授权码，部分渠道主动支付需要
+                notifyUrl:
+                  type: string
+                  description: 回调地址
+                returnUrl:
+                  type: string
+                  description: 返回前端页面地址（可提前配置）
+                ipAddress:
+                  type: string
+                  description: 用户IP地址
+                remark:
+                  type: string
+                  description: 备注
+                industryDetail:
+                  type: string
+                  description: 行业详情，json格式
+      responses:
+        "200":
+          description: 正常返回
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  retCode:
+                    type: string
+                    description: 返回码
+                  retMsg:
+                    type: string
+                    description: 返回消息
+                  orderNo:
+                    type: string
+                    description: 订单号
+
+  /api/payment/payQuery:
+    post:
+      tags:
+        - 支付宝出行支付
+      summary: 支付结果查询
+      description: 支付宝出行查询扣费结果
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - orderNo
+                - cardIssueCode
+                - cardNum
+                - channelAgreementNo
+              properties:
+                orderNo:
+                  type: string
+                  description: 订单号
+                cardIssueCode:
+                  type: string
+                  description: 卡机构编号，支付宝0007
+                cardNum:
+                  type: string
+                  description: 逻辑卡号
+                channelAgreementNo:
+                  type: string
+                  description: 渠道协议号
+      responses:
+        "200":
+          description: 正常返回
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  retCode:
+                    type: string
+                    description: 返回码
+                  retMsg:
+                    type: string
+                    description: 返回消息
+                  outTradeNo:
+                    type: string
+                    description: 订单号
+                  paymentTime:
+                    type: string
+                    description: 支付时间
+                  tradeStatus:
+                    type: string
+                    description: 支付状态
+                  totalAmount:
+                    type: string
+                    description: 支付金额
+                  tradeNo:
+                    type: string
+                    description: 支付渠道订单号
+                  tradeDesc:
+                    type: string
+                    description: 支付结果
+
+  /api/payment/requestRefund:
+    post:
+      tags:
+        - 支付宝出行支付
+      summary: 退款申请
+      description: 支付宝出行退款
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - orderNo
+                - cardIssueCode
+                - cardNum
+                - channelAgreementNo
+                - refundAmount
+                - refundOrderNo
+              properties:
+                orderNo:
+                  type: string
+                  description: 原订单号
+                cardIssueCode:
+                  type: string
+                  description: 卡机构编号，支付宝0007
+                cardNum:
+                  type: string
+                  description: 逻辑卡号
+                channelAgreementNo:
+                  type: string
+                  description: 渠道协议号
+                refundAmount:
+                  type: string
+                  description: 退款金额，单位分
+                refundOrderNo:
+                  type: string
+                  description: 退款订单号
+      responses:
+        "200":
+          description: 正常返回
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  retCode:
+                    type: string
+                    description: 返回码
+                  retMsg:
+                    type: string
+                    description: 返回消息
+
+  /api/payment/payNotify:
+    post:
+      tags:
+        - 支付宝出行支付
+      summary: 支付结果回调
+      description: 支付宝出行支付结果回调
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - orderNo
+                - transStatus
+              properties:
+                orderNo:
+                  type: string
+                  description: 原订单号
+                channelVoucherId:
+                  type: string
+                  description: 支付渠道订单号
+                transAmount:
+                  type: string
+                  description: 支付金额，单位分
+                transTime:
+                  type: string
+                  description: 交易时间 yyyy-MM-dd HH:mm:ss
+                transStatus:
+                  type: string
+                  description: 交易状态 1-成功 2-失败
+                cardNo:
+                  type: string
+                  description: 支付宝逻辑卡号：卡机构编号+地铁逻辑卡号
+      responses:
+        "200":
+          description: 正常返回
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  retCode:
+                    type: string
+                    description: 返回码
+                  retMsg:
+                    type: string
+                    description: 返回消息
+
+  /api/payment/payLog/list:
+    get:
+      tags:
+        - 支付宝出行支付
+      summary: 查询支付宝出行订单列表
+      description: 查询支付宝出行订单列表
+      parameters:
+        - name: thirdUserId
+          in: query
+          description: 支付宝用户ID
+          schema:
+            type: string
+        - name: cardId
+          in: query
+          description: 逻辑卡号
+          schema:
+            type: string
+        - name: payStatus
+          in: query
+          description: 支付状态
+          schema:
+            type: string
+        - name: startTime
+          in: query
+          description: 开始时间
+          schema:
+            type: string
+        - name: endTime
+          in: query
+          description: 结束时间
+          schema:
+            type: string
+        - name: pageNum
+          in: query
+          description: 页码
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: 正常返回
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  list:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        paySeq:
+                          type: string
+                          description: 支付流水号
+                        thirdUserId:
+                          type: string
+                          description: 支付宝用户ID
+                        cardId:
+                          type: string
+                          description: 逻辑卡号
+                        orderNo:
+                          type: string
+                          description: 订单号
+                        tradeNo:
+                          type: string
+                          description: 支付宝交易号
+                        payAmount:
+                          type: string
+                          description: 支付金额（分）
+                        payStatus:
+                          type: string
+                          description: 支付状态（SUCCESS/FAIL）
+                        createTime:
+                          type: string
+                          description: 创建时间
+                  total:
+                    type: integer
+                    description: 总记录数
+                  pageNum:
+                    type: integer
+                    description: 当前页码
+                  pageSize:
+                    type: integer
+                    description: 每页数量

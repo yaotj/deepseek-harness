@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.key.mapper.MetroAgmKeyVersionMapper">
+    <select id="selectMaxApprovedBatchNumber" resultType="java.lang.Long">
+        select max(KEY_BATH_NUMBER)
+        from METRO_AGM_KEY_VERSION
+        where PROVIDER_ID = #{providerId}
+          and PUBLIC_KEY_VERSION_STATUS = '20020'
+    </select>
+</mapper>

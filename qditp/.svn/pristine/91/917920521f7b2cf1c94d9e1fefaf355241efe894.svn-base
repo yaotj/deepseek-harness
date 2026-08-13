@@ -1,0 +1,165 @@
+package com.chinasofti.huateng.alipay.paysign.service.impl;
+
+import com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog;
+import com.chinasofti.huateng.alipay.paysign.entity.AlipayRefundLog;
+import com.chinasofti.huateng.model.alipaytrip.AlipaySignInfo;
+import com.chinasofti.huateng.alipay.paysign.mapper.AlipayPayLogMapper;
+import com.chinasofti.huateng.alipay.paysign.mapper.AlipayRefundLogMapper;
+import com.chinasofti.huateng.alipay.paysign.mapper.AlipaySignInfoMapper;
+import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripRequestRefundReqDTO;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripRequestRefundRespDTO;
+import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
+import com.chinasofti.huateng.alipay.paysign.util.PayCenterClient;
+import com.chinasofti.huateng.alipay.paysign.exception.BusinessException;
+import com.alibaba.fastjson2.JSON;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.UUID;
+
+@Service
+public class PaymentRefundService {
+    private static final Logger log = LoggerFactory.getLogger(PaymentRefundService.class);
+    private static final String CHANNEL_ALIPAY = "ALIPAY";
+
+    @Autowired
+    private AlipayPayLogMapper alipayPayLogMapper;
+
+    @Autowired
+    private AlipayRefundLogMapper alipayRefundLogMapper;
+
+    @Autowired
+    private AlipaySignInfoMapper alipaySignInfoMapper;
+
+    @Autowired
+    private RefundAmountCalculator refundAmountCalculator;
+
+    @Autowired
+    private PayCenterClient payCenterClient;
+
+    @Transactional(rollbackFor = Exception.class)
+    public AlipayTripRequestRefundRespDTO requestRefund(AlipayTripRequestRefundReqDTO request) {
+        AlipayTripRequestRefundRespDTO response = new AlipayTripRequestRefundRespDTO();
+        log.info("接收到支付宝退款申请报文: {}", JSON.toJSONString(request));
+
+        if (request == null || !StringUtils.hasText(request.getOrderNo())) {
+            throw new BusinessException(FepAppErrorCodeEnum.INVALID_PARAM.getCode(), "订单号不能为空");
+        }
+
+        AlipayPayLog payLog = alipayPayLogMapper.selectByOrderNo(request.getOrderNo());
+        if (payLog == null) {
+            throw new BusinessException(FepAppErrorCodeEnum.FAIL.getCode(), "原支付记录不存在");
+        }
+
+        if (!"SUCCESS".equals(payLog.getPayStatus())) {
+            throw new BusinessException(FepAppErrorCodeEnum.FAIL.getCode(), "原支付订单未支付成功");
+        }
+
+        String cardNum = payLog.getCardId();
+        if (!StringUtils.hasText(cardNum)) {
+            throw new BusinessException(FepAppErrorCodeEnum.FAIL.getCode(), "原支付记录缺少逻辑卡号");
+        }
+
+        AlipaySignInfo signInfo = alipaySignInfoMapper.selectByCardIdAndChannel(cardNum, CHANNEL_ALIPAY);
+        String channelAgreementNo = signInfo != null ? signInfo.getChannelAgreementCode() : null;
+        if (!StringUtils.hasText(channelAgreementNo)) {
+            throw new BusinessException(FepAppErrorCodeEnum.FAIL.getCode(), "退款申请未查到签约信息, cardNum=" + cardNum);
+        }
+
+        String refundAmount = refundAmountCalculator.resolveRefundAmount(request.getRefundAmount(), payLog);
+        refundAmountCalculator.validateRefundAmount(refundAmount, payLog);
+
+        String refundOrderNo = "R" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0, 8);
+
+        AlipayRefundLog refundLog = new AlipayRefundLog();
+        refundLog.setRefundSeq(UUID.randomUUID().toString().replaceAll("-", ""));
+        refundLog.setThirdUserId(payLog.getThirdUserId());
+        refundLog.setCardId(payLog.getCardId());
+        refundLog.setOrderNo(request.getOrderNo());
+        refundLog.setRefundAmount(refundAmount);
+        refundLog.setRefundStatus("FAIL");
+        refundLog.setCardIssueCode("0007");
+        refundLog.setChannelAgreementNo(channelAgreementNo);
+        refundLog.setRefundOrderNo(refundOrderNo);
+        refundLog.setRequestBody(JSON.toJSONString(request));
+        refundLog.setResponseBody("");
+        refundLog.setResultCode(FepAppErrorCodeEnum.FAIL.getCode());
+        refundLog.setResultMsg("退款处理中");
+        alipayRefundLogMapper.insert(refundLog);
+
+        Map<String, Object> bizDataMap = new java.util.LinkedHashMap<>();
+        bizDataMap.put("orderNo", request.getOrderNo());
+        bizDataMap.put("cardIssueCode", "0007");
+        bizDataMap.put("cardNum", cardNum);
+        bizDataMap.put("channelAgreementNo", channelAgreementNo);
+        bizDataMap.put("refundAmount", refundAmount);
+        bizDataMap.put("refundOrderNo", refundOrderNo);
+
+        log.info("支付宝出行-退款申请,调用支付中心退款接口,请求参数: {}", JSON.toJSONString(bizDataMap));
+        com.chinasofti.huateng.alipay.paysign.model.response.PayCenterResponse payCenterResponse = payCenterClient.requestRefund(bizDataMap);
+        log.info("支付宝退款申请,支付中心响应结果: success={}, msg={}", payCenterResponse != null ? payCenterResponse.getSuccess() : "null", payCenterResponse != null ? payCenterResponse.getMsg() : "null");
+
+        boolean refundSuccess = false;
+        String resultCode = FepAppErrorCodeEnum.SYSTEM_ERROR.getCode();
+        String resultMsg = "系统内部错误";
+
+        if (payCenterResponse != null && Boolean.TRUE.equals(payCenterResponse.getSuccess())) {
+            refundSuccess = true;
+            resultCode = FepAppErrorCodeEnum.SUCCESS.getCode();
+            resultMsg = "退款成功";
+        } else if (payCenterResponse != null) {
+            resultCode = FepAppErrorCodeEnum.FAIL.getCode();
+            resultMsg = payCenterResponse.getMsg() != null ? payCenterResponse.getMsg() : "退款失败";
+        } else {
+            resultCode = FepAppErrorCodeEnum.SYSTEM_ERROR.getCode();
+            resultMsg = "调用支付宝退款接口失败";
+        }
+
+        refundLog.setRefundStatus(refundSuccess ? "SUCCESS" : "FAIL");
+        refundLog.setResponseBody(JSON.toJSONString(payCenterResponse));
+        refundLog.setResultCode(resultCode);
+        refundLog.setResultMsg(resultMsg);
+        refundLog.setUpdateTime(LocalDateTime.now());
+        alipayRefundLogMapper.updateRefundStatus(
+                refundLog.getRefundSeq(),
+                refundLog.getRefundStatus(),
+                refundLog.getResultCode(),
+                refundLog.getResultMsg(),
+                refundLog.getResponseBody(),
+                refundLog.getUpdateTime()
+        );
+
+        if (refundSuccess) {
+            long paid = parse(payLog.getPayAmount());
+            long refunded = payLog.getRefundAmount() != null ? parse(payLog.getRefundAmount()) : 0;
+            long totalRefunded = refunded + parse(refundAmount);
+            String refundStatus = totalRefunded >= paid ? "SUCCESS" : "PARTIAL";
+            alipayPayLogMapper.updateRefundSummary(request.getOrderNo(), refundAmount, refundStatus);
+        }
+
+        response.setRetCode(resultCode);
+        response.setRetMsg(resultMsg);
+        log.info("支付宝退款申请完成, orderNo={}, refundOrderNo={}, cardNum={}, channelAgreementNo={}, refundAmount={}, status={}",
+                request.getOrderNo(), refundOrderNo, cardNum, channelAgreementNo, refundAmount, refundSuccess ? "SUCCESS" : "FAIL");
+        return response;
+    }
+
+    private long parse(String amount) {
+        if (amount == null || amount.trim().isEmpty()) {
+            return 0;
+        }
+        try {
+            return Long.parseLong(amount.trim());
+        } catch (NumberFormatException e) {
+            log.error("退款金额格式异常, amount={}", amount, e);
+            throw new BusinessException("退款金额格式异常: " + amount);
+        }
+    }
+}
+

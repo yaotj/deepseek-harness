@@ -1,0 +1,463 @@
+package com.chinasofti.huateng.alipay.paysign.entity;
+
+import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
+import lombok.Data;
+import java.time.LocalDateTime;
+
+/**
+ * 支付宝支付流水表实体。
+ */
+@Data
+public class AlipayPayLog {
+    /**
+     * 支付流水号（主键）
+     */
+    private String paySeq;
+
+    /**
+     * 支付宝用户ID
+     */
+    private String thirdUserId;
+
+    /**
+     * 逻辑卡号
+     */
+    private String cardId;
+
+    /**
+     * 订单号
+     */
+    private String orderNo;
+
+    /**
+     * 支付宝交易号
+     */
+    private String tradeNo;
+
+    /**
+     * 支付金额（分）
+     */
+    private String payAmount;
+
+    /**
+     * 支付状态（SUCCESS/FAIL）
+     */
+    private String payStatus;
+
+    /**
+     * 支付类型
+     */
+    private String payType;
+
+    /**
+     * 支付类型/场景
+     */
+    private String scene;
+
+    /**
+     * 支付方式
+     */
+    private String paymentVendor;
+
+    /**
+     * 行业类型：1-地铁 2-公交 3-打车 4-购物
+     */
+    private String industryType;
+
+    /**
+     * 订单标题
+     */
+    private String subject;
+
+    /**
+     * 订单描述
+     */
+    private String body;
+
+    /**
+     * 签约流水号（免密场景）
+     */
+    private String requestSignSeq;
+
+    /**
+     * 订单超时时间（秒）
+     */
+    private String orderTimeOut;
+
+    /**
+     * 授权码
+     */
+    private String authCode;
+
+    /**
+     * 回调地址
+     */
+    private String notifyUrl;
+
+    /**
+     * 返回前端页面地址
+     */
+    private String returnUrl;
+
+    /**
+     * 用户IP地址
+     */
+    private String ipAddress;
+
+    /**
+     * 行业详情，json格式
+     */
+    private String industryDetail;
+
+    /**
+     * 进站交易id
+     */
+    private String entryId;
+
+    /**
+     * 出站交易id
+     */
+    private String exitId;
+
+    /**
+     * 原始请求报文
+     */
+    private String requestBody;
+
+    /**
+     * 原始响应报文
+     */
+    private String responseBody;
+
+    /**
+     * 响应码
+     */
+    private String resultCode;
+
+    /**
+     * 响应信息
+     */
+    private String resultMsg;
+
+    /**
+     * 操作人
+     */
+    private String operator;
+
+    /**
+     * 请求IP
+     */
+    private String ip;
+
+    /**
+     * 备注
+     */
+    private String remark;
+
+    /**
+     * 删除标记（0:正常 1:删除）
+     */
+    private String deleteFlag;
+
+    /**
+     * 乐观锁版本号
+     */
+    private String version;
+
+    /**
+     * 创建时间
+     */
+    private LocalDateTime createTime;
+
+    /**
+     * 更新时间
+     */
+    private LocalDateTime updateTime;
+
+    /**
+     * 创建人
+     */
+    private String createBy;
+
+    /**
+     * 已退款金额（分）
+     */
+    private String refundAmount;
+
+    /**
+     * 退款状态（SUCCESS-全额退款完成/PARTIAL-部分退款/NONE-无退款）
+     */
+    private String refundStatus;
+
+    public String getPaySeq() {
+        return paySeq;
+    }
+
+    public void setPaySeq(String paySeq) {
+        this.paySeq = paySeq;
+    }
+
+    public String getThirdUserId() {
+        return thirdUserId;
+    }
+
+    public void setThirdUserId(String thirdUserId) {
+        this.thirdUserId = thirdUserId;
+    }
+
+    public String getCardId() {
+        return cardId;
+    }
+
+    public void setCardId(String cardId) {
+        this.cardId = cardId;
+    }
+
+    public String getOrderNo() {
+        return orderNo;
+    }
+
+    public void setOrderNo(String orderNo) {
+        this.orderNo = orderNo;
+    }
+
+    public String getTradeNo() {
+        return tradeNo;
+    }
+
+    public void setTradeNo(String tradeNo) {
+        this.tradeNo = tradeNo;
+    }
+
+    public String getPayAmount() {
+        return payAmount;
+    }
+
+    public void setPayAmount(String payAmount) {
+        this.payAmount = payAmount;
+    }
+
+    public String getPayStatus() {
+        return payStatus;
+    }
+
+    public void setPayStatus(String payStatus) {
+        this.payStatus = payStatus;
+    }
+
+    public String getPayType() {
+        return payType;
+    }
+
+    public void setPayType(String payType) {
+        this.payType = payType;
+    }
+
+    public String getScene() {
+        return scene;
+    }
+
+    public void setScene(String scene) {
+        this.scene = scene;
+    }
+
+    public String getPaymentVendor() {
+        return paymentVendor;
+    }
+
+    public void setPaymentVendor(String paymentVendor) {
+        this.paymentVendor = paymentVendor;
+    }
+
+    public String getIndustryType() {
+        return industryType;
+    }
+
+    public void setIndustryType(String industryType) {
+        this.industryType = industryType;
+    }
+
+    public String getSubject() {
+        return subject;
+    }
+
+    public void setSubject(String subject) {
+        this.subject = subject;
+    }
+
+    public String getBody() {
+        return body;
+    }
+
+    public void setBody(String body) {
+        this.body = body;
+    }
+
+    public String getRequestSignSeq() {
+        return requestSignSeq;
+    }
+
+    public void setRequestSignSeq(String requestSignSeq) {
+        this.requestSignSeq = requestSignSeq;
+    }
+
+    public String getOrderTimeOut() {
+        return orderTimeOut;
+    }
+
+    public void setOrderTimeOut(String orderTimeOut) {
+        this.orderTimeOut = orderTimeOut;
+    }
+
+    public String getAuthCode() {
+        return authCode;
+    }
+
+    public void setAuthCode(String authCode) {
+        this.authCode = authCode;
+    }
+
+    public String getNotifyUrl() {
+        return notifyUrl;
+    }
+
+    public void setNotifyUrl(String notifyUrl) {
+        this.notifyUrl = notifyUrl;
+    }
+
+    public String getReturnUrl() {
+        return returnUrl;
+    }
+
+    public void setReturnUrl(String returnUrl) {
+        this.returnUrl = returnUrl;
+    }
+
+    public String getIpAddress() {
+        return ipAddress;
+    }
+
+    public void setIpAddress(String ipAddress) {
+        this.ipAddress = ipAddress;
+    }
+
+    public String getIndustryDetail() {
+        return industryDetail;
+    }
+
+    public void setIndustryDetail(String industryDetail) {
+        this.industryDetail = industryDetail;
+    }
+
+    public String getRequestBody() {
+        return requestBody;
+    }
+
+    public void setRequestBody(String requestBody) {
+        this.requestBody = requestBody;
+    }
+
+    public String getResponseBody() {
+        return responseBody;
+    }
+
+    public void setResponseBody(String responseBody) {
+        this.responseBody = responseBody;
+    }
+
+    public String getResultCode() {
+        return resultCode;
+    }
+
+    public void setResultCode(String resultCode) {
+        this.resultCode = resultCode;
+    }
+
+    public String getResultMsg() {
+        return resultMsg;
+    }
+
+    public void setResultMsg(String resultMsg) {
+        this.resultMsg = resultMsg;
+    }
+
+    public String getOperator() {
+        return operator;
+    }
+
+    public void setOperator(String operator) {
+        this.operator = operator;
+    }
+
+    public String getIp() {
+        return ip;
+    }
+
+    public void setIp(String ip) {
+        this.ip = ip;
+    }
+
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
+    }
+
+    public String getDeleteFlag() {
+        return deleteFlag;
+    }
+
+    public void setDeleteFlag(String deleteFlag) {
+        this.deleteFlag = deleteFlag;
+    }
+
+    public String getVersion() {
+        return version;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
+    }
+
+    public java.time.LocalDateTime getCreateTime() {
+        return createTime;
+    }
+
+    public void setCreateTime(java.time.LocalDateTime createTime) {
+        this.createTime = createTime;
+    }
+
+    public java.time.LocalDateTime getUpdateTime() {
+        return updateTime;
+    }
+
+    public void setUpdateTime(java.time.LocalDateTime updateTime) {
+        this.updateTime = updateTime;
+    }
+
+    public String getCreateBy() {
+        return createBy;
+    }
+
+    public void setCreateBy(String createBy) {
+        this.createBy = createBy;
+    }
+
+    public String getRefundAmount() {
+        return refundAmount;
+    }
+
+    public void setRefundAmount(String refundAmount) {
+        this.refundAmount = refundAmount;
+    }
+
+    public String getRefundStatus() {
+        return refundStatus;
+    }
+
+    public void setRefundStatus(String refundStatus) {
+        this.refundStatus = refundStatus;
+    }
+}

@@ -1,0 +1,1450 @@
+{
+  "apifoxProject": "1.0.0",
+  "$schema": {
+    "app": "apifox",
+    "type": "project",
+    "version": "1.2.0"
+  },
+  "info": {
+    "name": "青岛itp",
+    "description": "可导入 Apifox 的 Postman Collection。接口统一采用 application/x-www-form-urlencoded；公共请求头字段平铺在 form-data 中，业务参数放在 bizData JSON 字符串内。",
+    "mockRule": {
+      "rules": [],
+      "enableSystemRule": true
+    }
+  },
+  "projectSetting": {
+    "id": "8426515",
+    "auth": {},
+    "securityScheme": {},
+    "gateway": [],
+    "language": "zh-CN",
+    "apiStatuses": [
+      "developing",
+      "testing",
+      "released",
+      "deprecated"
+    ],
+    "mockSettings": {},
+    "preProcessors": [],
+    "postProcessors": [],
+    "advancedSettings": {
+      "allowAutomationWriteAutomationCreatedSprintBranch": true,
+      "enableJsonc": false,
+      "enableBigint": false,
+      "responseValidate": true,
+      "enableTestScenarioSetting": false,
+      "enableYAPICompatScript": false,
+      "isDefaultUrlEncoding": 2,
+      "publishedDocUrlRules": {
+        "defaultRule": "RESOURCE_KEY_ONLY",
+        "resourceKeyStandard": "NEW"
+      }
+    },
+    "initialDisabledMockIds": [],
+    "servers": [
+      {
+        "id": "default",
+        "name": "默认服务",
+        "importSourceServerId": "default",
+        "moduleId": 7900481
+      },
+      {
+        "id": "9104",
+        "name": "fep-dev-server",
+        "moduleId": 8101811
+      }
+    ],
+    "cloudMock": {
+      "enable": false,
+      "security": "free",
+      "tokenKey": "apifoxToken",
+      "isCreatedAutomaticallyByDefaultConfigFromAdmin": true
+    }
+  },
+  "apiCollection": [
+    {
+      "name": "根目录",
+      "id": 89777263,
+      "auth": {
+        "type": "noauth"
+      },
+      "securityScheme": {},
+      "parentId": 0,
+      "serverId": "",
+      "description": "",
+      "identityPattern": {
+        "httpApi": {
+          "type": "methodAndPath",
+          "bodyType": "",
+          "fields": []
+        }
+      },
+      "shareSettings": {},
+      "visibility": "SHARED",
+      "moduleId": 8100839,
+      "preProcessors": [
+        {
+          "id": "inheritProcessors",
+          "type": "inheritProcessors",
+          "data": {}
+        }
+      ],
+      "postProcessors": [
+        {
+          "id": "inheritProcessors",
+          "type": "inheritProcessors",
+          "data": {}
+        }
+      ],
+      "inheritPostProcessors": {},
+      "inheritPreProcessors": {},
+      "items": [
+        {
+          "name": "IF1A-01 闸机检票通知",
+          "api": {
+            "id": "480696772",
+            "method": "post",
+            "path": "/ci/agm/notiVerifyResult",
+            "parameters": {
+              "path": [],
+              "query": [],
+              "cookie": [],
+              "header": []
+            },
+            "auth": {},
+            "securityScheme": {},
+            "commonParameters": {},
+            "responses": [
+              {
+                "id": "171641334",
+                "code": "200",
+                "headers": [],
+                "jsonSchema": {
+                  "$ref": "#/definitions/289999237"
+                },
+                "itemSchema": {},
+                "description": "成功",
+                "contentType": "json",
+                "mediaType": "application/json",
+                "oasExtensions": ""
+              }
+            ],
+            "responseExamples": [],
+            "requestBody": {
+              "type": "application/x-www-form-urlencoded",
+              "parameters": [
+                {
+                  "id": "form-providerId",
+                  "name": "providerId",
+                  "required": false,
+                  "enable": true,
+                  "description": "提供方标识",
+                  "example": "01",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "01"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-charset",
+                  "name": "charset",
+                  "required": false,
+                  "enable": true,
+                  "description": "字符集",
+                  "example": "UTF-8",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "UTF-8"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-format",
+                  "name": "format",
+                  "required": false,
+                  "enable": true,
+                  "description": "报文格式",
+                  "example": "json",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "json"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-timestamp",
+                  "name": "timestamp",
+                  "required": false,
+                  "enable": true,
+                  "description": "时间戳",
+                  "example": "20260626120000",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "20260626120000"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-deviceId",
+                  "name": "deviceId",
+                  "required": false,
+                  "enable": true,
+                  "description": "设备编号",
+                  "example": "ALIPAY",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "ALIPAY"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-signType",
+                  "name": "signType",
+                  "required": false,
+                  "enable": true,
+                  "description": "签名类型",
+                  "example": "00",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "00"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-sign",
+                  "name": "sign",
+                  "required": false,
+                  "enable": true,
+                  "description": "签名",
+                  "example": "",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      ""
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "Ef91U7pzUH",
+                  "name": "bizData",
+                  "required": false,
+                  "enable": true,
+                  "description": "业务参数 JSON 字符串",
+                  "example": "{\"deviceId\": \"ALIPAY\", \"itpUserId\": \"41424344\", \"trxType\": \"02\", \"issueChannelCode\": \"07\", \"signChannelCode\": \"07\", \"cardId\": \"123456\", \"cardType\": \"02\", \"handleDateTime\": \"20260101120000\", \"handleStationCode\": \"0101\", \"trxAmount\": \"200\", \"overtimeAmount\": \"0\", \"lastTicketStatus\": \"03\", \"handleResultCode\": \"000\", \"lastHandleStationCode\": \"FFFF\", \"lastHandleDateTime\": \"20260101100000\", \"ticketTransSeq\": \"00000001\", \"reserve1\": \"\", \"reserve2\": \"\"}",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "description": "业务参数 JSON 字符串",
+                    "examples": [
+                      "{\"deviceId\": \"ALIPAY\", \"itpUserId\": \"41424344\", \"trxType\": \"02\", \"issueChannelCode\": \"07\", \"signChannelCode\": \"07\", \"cardId\": \"123456\", \"cardType\": \"02\", \"handleDateTime\": \"20260101120000\", \"handleStationCode\": \"0101\", \"trxAmount\": \"200\", \"overtimeAmount\": \"0\", \"lastTicketStatus\": \"03\", \"handleResultCode\": \"000\", \"lastHandleStationCode\": \"FFFF\", \"lastHandleDateTime\": \"20260101100000\", \"ticketTransSeq\": \"00000001\", \"reserve1\": \"\", \"reserve2\": \"\"}"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                }
+              ],
+              "oasExtensions": "",
+              "required": true,
+              "additionalContentTypes": []
+            },
+            "description": "接收闸机检票通知，解析 bizData 后调用 ticket-server 更新票卡状态；若需扣费，再调用支付相关服务。",
+            "tags": [],
+            "status": "released",
+            "serverId": "",
+            "operationId": "notiVerifyResult",
+            "sourceUrl": "",
+            "ordering": 0,
+            "cases": [
+              {
+                "id": 389597353,
+                "type": "DEBUG_CASE",
+                "path": null,
+                "name": "闸机检票通知-成功",
+                "responseId": "171641334",
+                "parameters": {
+                  "query": [],
+                  "path": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "header": [],
+                  "cookie": []
+                },
+                "requestBody": {
+                  "parameters": [
+                    {
+                      "id": "DNrmdc9oTR",
+                      "relatedId": "form-providerId",
+                      "relatedName": "providerId",
+                      "value": "01",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "wVzjzh3bBa",
+                      "relatedId": "form-charset",
+                      "relatedName": "charset",
+                      "value": "UTF-8",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "ZYF2ObKK5d",
+                      "relatedId": "form-format",
+                      "relatedName": "format",
+                      "value": "json",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "whjuRcuCKL",
+                      "relatedId": "form-timestamp",
+                      "relatedName": "timestamp",
+                      "value": "20260626120000",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "FbbuuIJdip",
+                      "relatedId": "form-deviceId",
+                      "relatedName": "deviceId",
+                      "value": "ALIPAY",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "a439dS0ybL",
+                      "relatedId": "form-signType",
+                      "relatedName": "signType",
+                      "value": "00",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "YSBdy7tscj",
+                      "relatedId": "form-sign",
+                      "relatedName": "sign",
+                      "value": "",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "Y4mi6zu1Ui",
+                      "relatedId": "Ef91U7pzUH",
+                      "relatedName": "bizData",
+                      "value": "{\"deviceId\": \"ALIPAY\", \"itpUserId\": \"41424344\", \"trxType\": \"02\", \"issueChannelCode\": \"07\", \"signChannelCode\": \"07\", \"cardId\": \"123456\", \"cardType\": \"02\", \"handleDateTime\": \"20260101120000\", \"handleStationCode\": \"0101\", \"trxAmount\": \"200\", \"overtimeAmount\": \"0\", \"lastTicketStatus\": \"03\", \"handleResultCode\": \"000\", \"lastHandleStationCode\": \"FFFF\", \"lastHandleDateTime\": \"20260101100000\", \"ticketTransSeq\": \"00000001\", \"reserve1\": \"\", \"reserve2\": \"\"}",
+                      "enable": true,
+                      "isDelete": false
+                    }
+                  ],
+                  "data": "",
+                  "generateMode": "normal"
+                },
+                "auth": {},
+                "securityScheme": {},
+                "advancedSettings": {
+                  "disabledSystemHeaders": {},
+                  "isDefaultUrlEncoding": 2,
+                  "disableUrlEncoding": false
+                },
+                "requestResult": "",
+                "visibility": "INHERITED",
+                "moduleId": 8100839,
+                "categoryId": 0,
+                "tagIds": [],
+                "apiTestDataList": [],
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              },
+              {
+                "id": 389597354,
+                "type": "DEBUG_CASE",
+                "path": null,
+                "name": "闸机检票通知-读写器返回非成功",
+                "responseId": "171641334",
+                "parameters": {
+                  "query": [],
+                  "path": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "header": [],
+                  "cookie": []
+                },
+                "requestBody": {
+                  "parameters": [
+                    {
+                      "id": "DNrmdc9oSa",
+                      "relatedId": "form-providerId",
+                      "relatedName": "providerId",
+                      "value": "01",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "wVzjzh3bCb",
+                      "relatedId": "form-charset",
+                      "relatedName": "charset",
+                      "value": "UTF-8",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "ZYF2ObKK5e",
+                      "relatedId": "form-format",
+                      "relatedName": "format",
+                      "value": "json",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "whjuRcuCKM",
+                      "relatedId": "form-timestamp",
+                      "relatedName": "timestamp",
+                      "value": "20260626120000",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "FbbuuIJdiq",
+                      "relatedId": "form-deviceId",
+                      "relatedName": "deviceId",
+                      "value": "ALIPAY",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "a439dS0ybM",
+                      "relatedId": "form-signType",
+                      "relatedName": "signType",
+                      "value": "00",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "YSBdy7tsck",
+                      "relatedId": "form-sign",
+                      "relatedName": "sign",
+                      "value": "",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "Y4mi6zu1Uj",
+                      "relatedId": "Ef91U7pzUH",
+                      "relatedName": "bizData",
+                      "value": "{\"deviceId\": \"ALIPAY\", \"itpUserId\": \"41424344\", \"trxType\": \"02\", \"issueChannelCode\": \"07\", \"signChannelCode\": \"07\", \"cardId\": \"123456\", \"cardType\": \"02\", \"handleDateTime\": \"20260101120000\", \"handleStationCode\": \"0101\", \"trxAmount\": \"200\", \"overtimeAmount\": \"0\", \"lastTicketStatus\": \"03\", \"handleResultCode\": \"999\", \"lastHandleStationCode\": \"FFFF\", \"lastHandleDateTime\": \"20260101100000\", \"ticketTransSeq\": \"00000001\", \"reserve1\": \"\", \"reserve2\": \"\"}",
+                      "enable": true,
+                      "isDelete": false
+                    }
+                  ],
+                  "data": "",
+                  "generateMode": "normal"
+                },
+                "auth": {},
+                "securityScheme": {},
+                "advancedSettings": {
+                  "disabledSystemHeaders": {},
+                  "isDefaultUrlEncoding": 2,
+                  "disableUrlEncoding": false
+                },
+                "requestResult": "",
+                "visibility": "INHERITED",
+                "moduleId": 8100839,
+                "categoryId": 0,
+                "tagIds": [],
+                "apiTestDataList": [],
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            ],
+            "mocks": [],
+            "customApiFields": "{}",
+            "advancedSettings": {
+              "disabledSystemHeaders": {}
+            },
+            "mockScript": {},
+            "codeSamples": [],
+            "commonResponseStatus": {},
+            "responseChildren": [],
+            "visibility": "INHERITED",
+            "moduleId": 8100839,
+            "oasExtensions": "",
+            "type": "http",
+            "preProcessors": [],
+            "postProcessors": [],
+            "inheritPostProcessors": {},
+            "inheritPreProcessors": {}
+          }
+        },
+        {
+          "name": "IF1A-02 密钥同步",
+          "api": {
+            "id": "480696773",
+            "method": "post",
+            "path": "/ci/agm/requestSynKeyList",
+            "parameters": {
+              "path": [],
+              "query": [],
+              "cookie": [],
+              "header": []
+            },
+            "auth": {},
+            "securityScheme": {},
+            "commonParameters": {},
+            "responses": [
+              {
+                "id": "171641335",
+                "code": "200",
+                "headers": [],
+                "jsonSchema": {
+                  "$ref": "#/definitions/289999240"
+                },
+                "itemSchema": {},
+                "description": "成功",
+                "contentType": "json",
+                "mediaType": "application/json",
+                "oasExtensions": ""
+              }
+            ],
+            "responseExamples": [],
+            "requestBody": {
+              "type": "application/x-www-form-urlencoded",
+              "parameters": [
+                {
+                  "id": "form-providerId",
+                  "name": "providerId",
+                  "required": false,
+                  "enable": true,
+                  "description": "提供方标识",
+                  "example": "01",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "01"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-charset",
+                  "name": "charset",
+                  "required": false,
+                  "enable": true,
+                  "description": "字符集",
+                  "example": "UTF-8",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "UTF-8"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-format",
+                  "name": "format",
+                  "required": false,
+                  "enable": true,
+                  "description": "报文格式",
+                  "example": "json",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "json"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-timestamp",
+                  "name": "timestamp",
+                  "required": false,
+                  "enable": true,
+                  "description": "时间戳",
+                  "example": "20260626120000",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "20260626120000"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-deviceId",
+                  "name": "deviceId",
+                  "required": false,
+                  "enable": true,
+                  "description": "设备编号",
+                  "example": "ALIPAY",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "ALIPAY"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-signType",
+                  "name": "signType",
+                  "required": false,
+                  "enable": true,
+                  "description": "签名类型",
+                  "example": "00",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "00"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-sign",
+                  "name": "sign",
+                  "required": false,
+                  "enable": true,
+                  "description": "签名",
+                  "example": "",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      ""
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "Ef91U7pzUI",
+                  "name": "bizData",
+                  "required": false,
+                  "enable": true,
+                  "description": "业务参数 JSON 字符串",
+                  "example": "{\"keyCurVerList\": [{\"issueChannelCode\": \"01\", \"keyId\": \"01\", \"keyBathNumber\": \"0\"}]}",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "description": "业务参数 JSON 字符串",
+                    "examples": [
+                      "{\"keyCurVerList\": [{\"issueChannelCode\": \"01\", \"keyId\": \"01\", \"keyBathNumber\": \"0\"}]}"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                }
+              ],
+              "oasExtensions": "",
+              "required": true,
+              "additionalContentTypes": []
+            },
+            "description": "设备请求密钥同步，业务参数 bizData 内包含密钥版本信息列表。",
+            "tags": [],
+            "status": "released",
+            "serverId": "",
+            "operationId": "requestSynKeyList",
+            "sourceUrl": "",
+            "ordering": 0,
+            "cases": [
+              {
+                "id": 389597361,
+                "type": "DEBUG_CASE",
+                "path": null,
+                "name": "密钥同步-成功",
+                "responseId": "171641335",
+                "parameters": {
+                  "query": [],
+                  "path": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "header": [],
+                  "cookie": []
+                },
+                "requestBody": {
+                  "parameters": [
+                    {
+                      "id": "A",
+                      "relatedId": "form-providerId",
+                      "relatedName": "providerId",
+                      "value": "01",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "B",
+                      "relatedId": "form-charset",
+                      "relatedName": "charset",
+                      "value": "UTF-8",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "C",
+                      "relatedId": "form-format",
+                      "relatedName": "format",
+                      "value": "json",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "D",
+                      "relatedId": "form-timestamp",
+                      "relatedName": "timestamp",
+                      "value": "20260626120000",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "E",
+                      "relatedId": "form-deviceId",
+                      "relatedName": "deviceId",
+                      "value": "ALIPAY",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "F",
+                      "relatedId": "form-signType",
+                      "relatedName": "signType",
+                      "value": "00",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "G",
+                      "relatedId": "form-sign",
+                      "relatedName": "sign",
+                      "value": "",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "H",
+                      "relatedId": "Ef91U7pzUI",
+                      "relatedName": "bizData",
+                      "value": "{\"keyCurVerList\": [{\"issueChannelCode\": \"01\", \"keyId\": \"01\", \"keyBathNumber\": \"0\"}]}",
+                      "enable": true,
+                      "isDelete": false
+                    }
+                  ],
+                  "data": "",
+                  "generateMode": "normal"
+                },
+                "auth": {},
+                "securityScheme": {},
+                "advancedSettings": {
+                  "disabledSystemHeaders": {},
+                  "isDefaultUrlEncoding": 2,
+                  "disableUrlEncoding": false
+                },
+                "requestResult": "",
+                "visibility": "INHERITED",
+                "moduleId": 8100839,
+                "categoryId": 0,
+                "tagIds": [],
+                "apiTestDataList": [],
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            ],
+            "mocks": [],
+            "customApiFields": "{}",
+            "advancedSettings": {
+              "disabledSystemHeaders": {}
+            },
+            "mockScript": {},
+            "codeSamples": [],
+            "commonResponseStatus": {},
+            "responseChildren": [],
+            "visibility": "INHERITED",
+            "moduleId": 8100839,
+            "oasExtensions": "",
+            "type": "http",
+            "preProcessors": [],
+            "postProcessors": [],
+            "inheritPostProcessors": {},
+            "inheritPreProcessors": {}
+          }
+        },
+        {
+          "name": "IF1A-04 查询票卡状态",
+          "api": {
+            "id": "480696774",
+            "method": "post",
+            "path": "/ci/agm/requestQrCodeStatus",
+            "parameters": {
+              "path": [],
+              "query": [],
+              "cookie": [],
+              "header": []
+            },
+            "auth": {},
+            "securityScheme": {},
+            "commonParameters": {},
+            "responses": [
+              {
+                "id": "171641336",
+                "code": "200",
+                "headers": [],
+                "jsonSchema": {
+                  "$ref": "#/definitions/289999241"
+                },
+                "itemSchema": {},
+                "description": "成功",
+                "contentType": "json",
+                "mediaType": "application/json",
+                "oasExtensions": ""
+              }
+            ],
+            "responseExamples": [],
+            "requestBody": {
+              "type": "application/x-www-form-urlencoded",
+              "parameters": [
+                {
+                  "id": "form-providerId",
+                  "name": "providerId",
+                  "required": false,
+                  "enable": true,
+                  "description": "提供方标识",
+                  "example": "01",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "01"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-charset",
+                  "name": "charset",
+                  "required": false,
+                  "enable": true,
+                  "description": "字符集",
+                  "example": "UTF-8",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "UTF-8"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-format",
+                  "name": "format",
+                  "required": false,
+                  "enable": true,
+                  "description": "报文格式",
+                  "example": "json",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "json"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-timestamp",
+                  "name": "timestamp",
+                  "required": false,
+                  "enable": true,
+                  "description": "时间戳",
+                  "example": "20260626120000",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "20260626120000"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-deviceId",
+                  "name": "deviceId",
+                  "required": false,
+                  "enable": true,
+                  "description": "设备编号",
+                  "example": "ALIPAY",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "ALIPAY"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-signType",
+                  "name": "signType",
+                  "required": false,
+                  "enable": true,
+                  "description": "签名类型",
+                  "example": "00",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "00"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-sign",
+                  "name": "sign",
+                  "required": false,
+                  "enable": true,
+                  "description": "签名",
+                  "example": "",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      ""
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "Ef91U7pzUJ",
+                  "name": "bizData",
+                  "required": false,
+                  "enable": true,
+                  "description": "业务参数 JSON 字符串",
+                  "example": "{\"cardId\": \"123456\", \"itpUserId\": \"41424344\", \"trxType\": \"01\", \"ticketTransSeq\": \"00000001\", \"qrType\": \"01\"}",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "description": "业务参数 JSON 字符串",
+                    "examples": [
+                      "{\"cardId\": \"123456\", \"itpUserId\": \"41424344\", \"trxType\": \"01\", \"ticketTransSeq\": \"00000001\", \"qrType\": \"01\"}"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                }
+              ],
+              "oasExtensions": "",
+              "required": true,
+              "additionalContentTypes": []
+            },
+            "description": "根据 cardId 查询票卡当前状态、上次交易时间等。",
+            "tags": [],
+            "status": "released",
+            "serverId": "",
+            "operationId": "requestQrCodeStatus",
+            "sourceUrl": "",
+            "ordering": 0,
+            "cases": [
+              {
+                "id": 389597362,
+                "type": "DEBUG_CASE",
+                "path": null,
+                "name": "查询票卡状态-存在",
+                "responseId": "171641336",
+                "parameters": {
+                  "query": [],
+                  "path": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "header": [],
+                  "cookie": []
+                },
+                "requestBody": {
+                  "parameters": [
+                    {
+                      "id": "A2",
+                      "relatedId": "form-providerId",
+                      "relatedName": "providerId",
+                      "value": "01",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "B2",
+                      "relatedId": "form-charset",
+                      "relatedName": "charset",
+                      "value": "UTF-8",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "C2",
+                      "relatedId": "form-format",
+                      "relatedName": "format",
+                      "value": "json",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "D2",
+                      "relatedId": "form-timestamp",
+                      "relatedName": "timestamp",
+                      "value": "20260626120000",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "E2",
+                      "relatedId": "form-deviceId",
+                      "relatedName": "deviceId",
+                      "value": "ALIPAY",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "F2",
+                      "relatedId": "form-signType",
+                      "relatedName": "signType",
+                      "value": "00",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "G2",
+                      "relatedId": "form-sign",
+                      "relatedName": "sign",
+                      "value": "",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "H2",
+                      "relatedId": "Ef91U7pzUJ",
+                      "relatedName": "bizData",
+                      "value": "{\"cardId\": \"123456\", \"itpUserId\": \"41424344\", \"trxType\": \"01\", \"ticketTransSeq\": \"00000001\", \"qrType\": \"01\"}",
+                      "enable": true,
+                      "isDelete": false
+                    }
+                  ],
+                  "data": "",
+                  "generateMode": "normal"
+                },
+                "auth": {},
+                "securityScheme": {},
+                "advancedSettings": {
+                  "disabledSystemHeaders": {},
+                  "isDefaultUrlEncoding": 2,
+                  "disableUrlEncoding": false
+                },
+                "requestResult": "",
+                "visibility": "INHERITED",
+                "moduleId": 8100839,
+                "categoryId": 0,
+                "tagIds": [],
+                "apiTestDataList": [],
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            ],
+            "mocks": [],
+            "customApiFields": "{}",
+            "advancedSettings": {
+              "disabledSystemHeaders": {}
+            },
+            "mockScript": {},
+            "codeSamples": [],
+            "commonResponseStatus": {},
+            "responseChildren": [],
+            "visibility": "INHERITED",
+            "moduleId": 8100839,
+            "oasExtensions": "",
+            "type": "http",
+            "preProcessors": [],
+            "postProcessors": [],
+            "inheritPostProcessors": {},
+            "inheritPreProcessors": {}
+          }
+        },
+        {
+          "name": "IF1A-03 设备心跳",
+          "api": {
+            "id": "480696775",
+            "method": "post",
+            "path": "/ci/agm/deviceHeartbeat",
+            "parameters": {
+              "path": [],
+              "query": [],
+              "cookie": [],
+              "header": []
+            },
+            "auth": {},
+            "securityScheme": {},
+            "commonParameters": {},
+            "responses": [
+              {
+                "id": "171641337",
+                "code": "200",
+                "headers": [],
+                "jsonSchema": {
+                  "$ref": "#/definitions/289999242"
+                },
+                "itemSchema": {},
+                "description": "成功",
+                "contentType": "json",
+                "mediaType": "application/json",
+                "oasExtensions": ""
+              }
+            ],
+            "responseExamples": [],
+            "requestBody": {
+              "type": "application/x-www-form-urlencoded",
+              "parameters": [
+                {
+                  "id": "form-providerId",
+                  "name": "providerId",
+                  "required": false,
+                  "enable": true,
+                  "description": "提供方标识",
+                  "example": "01",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "01"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-charset",
+                  "name": "charset",
+                  "required": false,
+                  "enable": true,
+                  "description": "字符集",
+                  "example": "UTF-8",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "UTF-8"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-format",
+                  "name": "format",
+                  "required": false,
+                  "enable": true,
+                  "description": "报文格式",
+                  "example": "json",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "json"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-timestamp",
+                  "name": "timestamp",
+                  "required": false,
+                  "enable": true,
+                  "description": "时间戳",
+                  "example": "20260626120000",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "20260626120000"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-deviceId",
+                  "name": "deviceId",
+                  "required": false,
+                  "enable": true,
+                  "description": "设备编号",
+                  "example": "ALIPAY",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "ALIPAY"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-signType",
+                  "name": "signType",
+                  "required": false,
+                  "enable": true,
+                  "description": "签名类型",
+                  "example": "00",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      "00"
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                },
+                {
+                  "id": "form-sign",
+                  "name": "sign",
+                  "required": false,
+                  "enable": true,
+                  "description": "签名",
+                  "example": "",
+                  "type": "string",
+                  "schema": {
+                    "type": "string",
+                    "examples": [
+                      ""
+                    ]
+                  },
+                  "omitGeneratedExample": false
+                }
+              ],
+              "oasExtensions": "",
+              "required": true,
+              "additionalContentTypes": []
+            },
+            "description": "设备链路心跳检测，不解析 bizData，直接返回成功。",
+            "tags": [],
+            "status": "released",
+            "serverId": "",
+            "operationId": "deviceHeartbeat",
+            "sourceUrl": "",
+            "ordering": 0,
+            "cases": [
+              {
+                "id": 389597363,
+                "type": "DEBUG_CASE",
+                "path": null,
+                "name": "设备心跳-正常",
+                "responseId": "171641337",
+                "parameters": {
+                  "query": [],
+                  "path": [],
+                  "cookie": [],
+                  "header": []
+                },
+                "commonParameters": {
+                  "query": [],
+                  "body": [],
+                  "header": [],
+                  "cookie": []
+                },
+                "requestBody": {
+                  "parameters": [
+                    {
+                      "id": "A3",
+                      "relatedId": "form-providerId",
+                      "relatedName": "providerId",
+                      "value": "01",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "B3",
+                      "relatedId": "form-charset",
+                      "relatedName": "charset",
+                      "value": "UTF-8",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "C3",
+                      "relatedId": "form-format",
+                      "relatedName": "format",
+                      "value": "json",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "D3",
+                      "relatedId": "form-timestamp",
+                      "relatedName": "timestamp",
+                      "value": "20260626120000",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "E3",
+                      "relatedId": "form-deviceId",
+                      "relatedName": "deviceId",
+                      "value": "ALIPAY",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "F3",
+                      "relatedId": "form-signType",
+                      "relatedName": "signType",
+                      "value": "00",
+                      "enable": true,
+                      "isDelete": false
+                    },
+                    {
+                      "id": "G3",
+                      "relatedId": "form-sign",
+                      "relatedName": "sign",
+                      "value": "",
+                      "enable": true,
+                      "isDelete": false
+                    }
+                  ],
+                  "data": "",
+                  "generateMode": "normal"
+                },
+                "auth": {},
+                "securityScheme": {},
+                "advancedSettings": {
+                  "disabledSystemHeaders": {},
+                  "isDefaultUrlEncoding": 2,
+                  "disableUrlEncoding": false
+                },
+                "requestResult": "",
+                "visibility": "INHERITED",
+                "moduleId": 8100839,
+                "categoryId": 0,
+                "tagIds": [],
+                "apiTestDataList": [],
+                "preProcessors": [],
+                "postProcessors": [],
+                "inheritPostProcessors": {},
+                "inheritPreProcessors": {}
+              }
+            ],
+            "mocks": [],
+            "customApiFields": "{}",
+            "advancedSettings": {
+              "disabledSystemHeaders": {}
+            },
+            "mockScript": {},
+            "codeSamples": [],
+            "commonResponseStatus": {},
+            "responseChildren": [],
+            "visibility": "INHERITED",
+            "moduleId": 8100839,
+            "oasExtensions": "",
+            "type": "http",
+            "preProcessors": [],
+            "postProcessors": [],
+            "inheritPostProcessors": {},
+            "inheritPreProcessors": {}
+          }
+        }
+      ]
+    }
+  ],
+  "socketCollection": [],
+  "docCollection": [],
+  "webSocketCollection": [],
+  "mcpClientCollection": [],
+  "responseCollection": [],
+  "schemaCollection": [],
+  "securitySchemeCollection": [],
+  "oasComponentCollection": [],
+  "requestCollection": [
+    {
+      "name": "根目录",
+      "children": [],
+      "ordering": [
+        "requestFolder.9030198"
+      ],
+      "items": []
+    }
+  ],
+  "environments": [],
+  "commonScripts": [],
+  "globalVariables": [
+    {
+      "id": "8379611",
+      "variables": []
+    }
+  ],
+  "commonParameters": null,
+  "customFunctions": [],
+  "projectTestCaseCategories": [
+    {
+      "id": 10818920,
+      "name": "正向",
+      "description": "有效的输入和正确的预期结果,代表典型的用法。"
+    },
+    {
+      "id": 10818921,
+      "name": "负向",
+      "description": "消极的、无效的输入,如缺少字段、错误的类型、不支持的方法等。"
+    },
+    {
+      "id": 10818922,
+      "name": "边界值",
+      "description": "极端或边缘条件,如最大字符串长度、空值、零、null等"
+    },
+    {
+      "id": 10818923,
+      "name": "安全性",
+      "description": "可能暴露API安全性风险的测试用例。"
+    },
+    {
+      "id": 10818924,
+      "name": "其他",
+      "description": "其他未归属的测试用例。"
+    }
+  ]
+}

@@ -1,0 +1,250 @@
+openapi: 3.0.3
+info:
+  title: 支付宝出行 查询乘车记录详情接口
+  description: |
+    支付宝出行-查询乘车记录详情。
+
+    业务流程：
+    1. 支付宝出行调用 `/channel/findTravelDetail`。
+    2. fep-alipay-server 解析请求参数，调用 alipay-pay-sign-server 按 `orderNo` 查询支付流水。
+    3. 从支付流水中获取 `entryId` / `exitId`。
+    4. 分别调用 ticket-server 查询进站和出站交易详情。
+    5. 组装进出站信息、支付信息及扩展字段后返回。
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: 本地开发环境
+paths:
+  /channel/findTravelDetail:
+    post:
+      tags:
+        - 支付宝出行
+      summary: 查询乘车记录详情
+      description: |
+        根据第三方用户 ID 和订单号查询单条乘车记录的详细信息。
+
+        请求报文采用 `application/x-www-form-urlencoded` 格式，业务参数放在 `bizData` 字段中（JSON 字符串）。
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - providerId
+                - charset
+                - format
+                - timestamp
+                - deviceId
+                - signType
+                - sign
+                - bizData
+              properties:
+                providerId:
+                  type: string
+                  description: 服务提供商编码
+                  example: "01"
+                charset:
+                  type: string
+                  description: 字符集
+                  example: "UTF-8"
+                format:
+                  type: string
+                  description: 报文格式
+                  example: "json"
+                timestamp:
+                  type: string
+                  description: 请求时间戳 yyyyMMddHHmmss
+                  example: "20260626120000"
+                deviceId:
+                  type: string
+                  description: 设备编码
+                  example: "APP"
+                signType:
+                  type: string
+                  description: 签名类型 00 表示无签名
+                  example: "00"
+                sign:
+                  type: string
+                  description: 签名字段
+                  example: ""
+                bizData:
+                  type: string
+                  description: 业务参数 JSON 字符串
+                  example: '{"thirdUserId":"0700001447","orderNo":"GT20260721162930787541710"}'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripFindTravelDetailResult'
+              examples:
+                querySuccess:
+                  summary: 查询乘车记录详情成功
+                  value:
+                    retCode: "0000"
+                    retMsg: "成功"
+                    entryStationName: "敦化路"
+                    entryDate: "20260721162915"
+                    exitStationName: "海洋大学"
+                    exitDate: "20260721162931"
+                    payAmount: "4"
+                    totalAmount: "4"
+                    orderExpType: "0"
+                    tradeOrderNo: "GT20260721162930787541710"
+                    payTradeOrderNo: "11111"
+                    payOrderNoDate: "GT20260721162930787541710"
+                    payChannelCode: "07"
+                    debitRequestResult: "0"
+                    discountFee: null
+                    discountInfo: null
+                    companionFlag: null
+                    cardNum: "9900000000000001"
+                    ticketCode: null
+                    countingTimes: null
+                    countingFlag: "N"
+                    invoice: null
+                orderNotFound:
+                  summary: 支付订单不存在
+                  value:
+                    retCode: "9999"
+                    retMsg: "支付订单不存在"
+                noTicketData:
+                  summary: 未查询到行程数据
+                  value:
+                    retCode: "9999"
+                    retMsg: "未查询到行程数据"
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripFindTravelDetailResult'
+              examples:
+                invalidParam:
+                  summary: 必填参数缺失
+                  value:
+                    retCode: "8001"
+                    retMsg: "无效的参数"
+        '500':
+          description: 系统内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripFindTravelDetailResult'
+              examples:
+                systemError:
+                  summary: 系统异常
+                  value:
+                    retCode: "9001"
+                    retMsg: "系统内部错误"
+components:
+  schemas:
+    AlipayTripFindTravelDetailReqDTO:
+      type: object
+      description: 支付宝出行-查询乘车记录详情请求参数
+      required:
+        - thirdUserId
+        - orderNo
+      properties:
+        thirdUserId:
+          type: string
+          description: 第三方用户ID
+          example: "0700001447"
+        orderNo:
+          type: string
+          description: 支付订单号
+          example: "GT20260721162930787541710"
+    AlipayTripFindTravelDetailResult:
+      type: object
+      description: 支付宝出行-查询乘车记录详情响应
+      properties:
+        retCode:
+          type: string
+          description: 返回码
+          example: "0000"
+        retMsg:
+          type: string
+          description: 返回消息
+          example: "成功"
+        entryStationName:
+          type: string
+          description: 进站站点名称。来源于 ticket-server `QRCODE_TXN_DETAIL.HANDLE_STATION_CODE`。
+          example: "敦化路"
+        entryDate:
+          type: string
+          description: 进站时间。来源于 ticket-server `QRCODE_TXN_DETAIL.HANDLE_DATE_TIME`。
+          example: "20260721162915"
+        exitStationName:
+          type: string
+          description: 出站站点名称。来源于 ticket-server `QRCODE_TXN_DETAIL.HANDLE_STATION_CODE`。
+          example: "海洋大学"
+        exitDate:
+          type: string
+          description: 出站时间。来源于 ticket-server `QRCODE_TXN_DETAIL.HANDLE_DATE_TIME`。
+          example: "20260721162931"
+        payAmount:
+          type: string
+          description: 实付金额（单位：分）。来源于 ticket-server `TRX_AMOUNT`。
+          example: "4"
+        totalAmount:
+          type: string
+          description: 总金额（单位：分）。来源于 ticket-server `TOTAL_AMOUNT`。
+          example: "4"
+        orderExpType:
+          type: string
+          description: 订单扩展类型。来源于 ticket-server；默认 "0"。
+          example: "0"
+        tradeOrderNo:
+          type: string
+          description: 交易订单号。来源于 ticket-server `TICKET_TRANS_SEQ`。
+          example: "GT20260721162930787541710"
+        payTradeOrderNo:
+          type: string
+          description: 支付交易订单号。来源于 alipay-pay-sign-server `CHANNEL_ORDER_NO`。
+          example: "11111"
+        payOrderNoDate:
+          type: string
+          description: 支付订单日期。当前实现使用支付订单号 `ORDER_NO`。
+          example: "GT20260721162930787541710"
+        payChannelCode:
+          type: string
+          description: 支付渠道代码。当前实现固定为 "07"。
+          example: "07"
+        debitRequestResult:
+          type: string
+          description: 扣款请求结果。当前实现映射为前端语义值：SUCCESS 返回 "0"，其他返回 "1"。
+          example: "0"
+        discountFee:
+          type: string
+          description: 优惠金额。来源于 ticket-server `QRCODE_TXN_DETAIL.RESERVE2`。
+          example: null
+        discountInfo:
+          type: string
+          description: 优惠信息。当前实现固定为 null。
+          example: null
+        companionFlag:
+          type: string
+          description: 同行票标识。来源于 ticket-server `QRCODE_TXN_DETAIL.TRX_TYPE`。
+          example: null
+        cardNum:
+          type: string
+          description: 卡号。来源于 alipay-pay-sign-server `ALIPAY_PAY_LOG.CARD_ID`。
+          example: "9900000000000001"
+        ticketCode:
+          type: string
+          description: 日票票号。当前实现未设置，返回 null。
+          example: null
+        countingTimes:
+          type: string
+          description: 计次次数（预留）。当前实现返回 null。
+          example: null
+        countingFlag:
+          type: string
+          description: 计次标识（预留）。当前实现固定为 "N"。
+          example: "N"
+        invoice:
+          type: string
+          description: 发票状态。来源于 alipay-pay-sign-server `ALIPAY_PAY_LOG.INVOICE`。
+          example: null

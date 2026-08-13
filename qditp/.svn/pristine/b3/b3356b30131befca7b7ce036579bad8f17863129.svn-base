@@ -1,0 +1,16 @@
+package com.chinasofti.huateng.collectpay.model.request.tvm;
+
+import com.chinasofti.huateng.collectpay.model.request.BaseRequestDTO;
+import lombok.Data;
+
+/**
+ * IF2A-03 查询支付结果请求报文（TVM -> ITP）。
+ */
+@Data
+public class RequestPayResultReqDTO extends BaseRequestDTO {
+    /**
+     * 订单号。
+     */
+    private String orderNo;
+    private String userId;
+}

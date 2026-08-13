@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.key.mapper.MetroMemberStaticKeyMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.key.entity.MetroMemberStaticKey">
+        <id column="ID" jdbcType="NUMERIC" property="id"/>
+        <result column="METRO_MEMBER_CARD_NUM" jdbcType="VARCHAR" property="metroMemberCardNum"/>
+        <result column="KEY_WRAP_VALUE1" jdbcType="VARCHAR" property="keyWrapValue1"/>
+        <result column="KEY_STATUS" jdbcType="NUMERIC" property="keyStatus"/>
+        <result column="UPDATE_DATE" jdbcType="TIMESTAMP" property="updateDate"/>
+        <result column="REG_DATE" jdbcType="TIMESTAMP" property="regDate"/>
+    </resultMap>
+
+    <select id="selectActiveByCardNum" resultMap="BaseResultMap">
+        select ID, METRO_MEMBER_CARD_NUM, KEY_WRAP_VALUE1, KEY_STATUS, UPDATE_DATE, REG_DATE
+        from METRO_MEMBER_STATIC_KEY
+        where METRO_MEMBER_CARD_NUM = #{metroMemberCardNum}
+          and KEY_STATUS = 1
+    </select>
+
+    <insert id="insertIfAbsent" parameterType="com.chinasofti.huateng.key.entity.MetroMemberStaticKey">
+        merge into METRO_MEMBER_STATIC_KEY target
+        using (select #{metroMemberCardNum} as METRO_MEMBER_CARD_NUM,
+                      #{keyWrapValue1} as KEY_WRAP_VALUE1
+               from dual) source
+        on (target.METRO_MEMBER_CARD_NUM = source.METRO_MEMBER_CARD_NUM)
+        when not matched then
+            insert (ID, METRO_MEMBER_CARD_NUM, KEY_WRAP_VALUE1, KEY_STATUS, UPDATE_DATE, REG_DATE)
+            values (SEQ_METRO_MEMBER_STATIC_KEY.nextval, source.METRO_MEMBER_CARD_NUM,
+                    source.KEY_WRAP_VALUE1, 1, systimestamp, systimestamp)
+    </insert>
+</mapper>

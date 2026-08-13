@@ -1,0 +1,89 @@
+package com.chinasofti.huateng.fep.alipay.controller;
+
+import com.alibaba.fastjson2.JSON;
+import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayQueryReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayQueryRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestRefundReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestRefundRespDTO;
+import com.chinasofti.huateng.fep.alipay.model.CommonFormRequest;
+import com.chinasofti.huateng.fep.alipay.service.AlipayTripService;
+import com.chinasofti.huateng.model.app.AddBlackListReqDTO;
+import com.chinasofti.huateng.model.app.BlackListOperateResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.web.bind.annotation.*;
+
+/**
+ * 支付宝出行支付 Controller。
+ */
+@RestController
+@RequestMapping("/api/payment")
+public class FepAlipayTripPaymentController {
+
+    private static final Logger log = LoggerFactory.getLogger(FepAlipayTripPaymentController.class);
+
+    private final AlipayTripService alipayTripService;
+
+    public FepAlipayTripPaymentController(AlipayTripService alipayTripService) {
+        this.alipayTripService = alipayTripService;
+    }
+
+    /**
+     * 支付结果查询。
+     */
+    @PostMapping("/payQuery")
+    public AlipayTripPayQueryRespDTO payQuery(@ModelAttribute CommonFormRequest request) {
+        log.info("支付宝出行-支付结果查询,请求参数：{}", request);
+        if (request == null || request.getBizData() == null) {
+            AlipayTripPayQueryRespDTO result = new AlipayTripPayQueryRespDTO();
+            result.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+            result.setRetMsg("无效的参数");
+            return result;
+        }
+        AlipayTripPayQueryReqDTO bizData = JSON.parseObject(request.getBizData(), AlipayTripPayQueryReqDTO.class);
+        log.info("支付宝出行-支付结果查询,解码后业务参数：{}", JSON.toJSONString(bizData));
+        return alipayTripService.payQuery(bizData);
+    }
+
+    /**
+     * 退款申请。
+     */
+    @PostMapping("/requestRefund")
+    public AlipayTripRequestRefundRespDTO requestRefund(@ModelAttribute CommonFormRequest request) {
+        log.info("支付宝出行-退款申请,请求参数：{}", request);
+        if (request == null || request.getBizData() == null) {
+            AlipayTripRequestRefundRespDTO result = new AlipayTripRequestRefundRespDTO();
+            result.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+            result.setRetMsg("无效的参数");
+            return result;
+        }
+        AlipayTripRequestRefundReqDTO bizData = JSON.parseObject(request.getBizData(), AlipayTripRequestRefundReqDTO.class);
+        log.info("支付宝出行-退款申请,解码后业务参数：{}", JSON.toJSONString(bizData));
+        return alipayTripService.requestRefund(bizData);
+    }
+
+    /**
+     * 支付宝出行-添加黑名单。
+     */
+    @PostMapping("/addBlackList")
+    public BlackListOperateResult addBlackList(@RequestBody AddBlackListReqDTO request) {
+        log.info("接收到支付宝出行-添加黑名单: {}", request);
+        BlackListOperateResult response = alipayTripService.addBlackListForAlipay(request);
+        log.info("支付宝出行-添加黑名单,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
+     * 支付宝出行-执行解约。
+     *
+     * <p>web管理控制台调用，执行待处理的解约登记。</p>
+     */
+    @PostMapping("/executeTermination")
+    public BlackListOperateResult executeTermination(@RequestParam(required = false) String agreementCode) {
+        log.info("接收到支付宝出行-执行解约, agreementCode={}", agreementCode);
+        BlackListOperateResult response = alipayTripService.executeTermination(agreementCode);
+        log.info("支付宝出行-执行解约,响应结果：{}", JSON.toJSONString(response));
+        return response;
+    }
+}

@@ -1,0 +1,328 @@
+openapi: 3.0.3
+info:
+  title: 支付宝出行 查询乘车记录接口
+  description: |
+    支付宝出行-查询乘车记录列表。
+
+    业务流程：
+    1. 支付宝出行调用 `/channel/findTravelList`。
+    2. ticket-server 解析 `bizData` 中的查询参数。
+    3. 按 `thirdUserId`、日期范围、分页查询交易记录。
+    4. 转换记录格式后返回乘车记录列表。
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+    description: 本地开发环境
+paths:
+  /channel/findTravelList:
+    post:
+      tags:
+        - 支付宝出行
+      summary: 查询乘车记录列表
+      description: |
+        根据 `thirdUserId` 查询支付宝出行乘车记录，支持分页和日期范围筛选。
+
+        请求报文采用 `application/x-www-form-urlencoded` 格式，业务参数放在 `bizData` 字段中（JSON 字符串）。
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - providerId
+                - charset
+                - format
+                - timestamp
+                - deviceId
+                - signType
+                - sign
+                - bizData
+              properties:
+                providerId:
+                  type: string
+                  description: 服务提供商编码
+                  example: "01"
+                charset:
+                  type: string
+                  description: 字符集
+                  example: "UTF-8"
+                format:
+                  type: string
+                  description: 报文格式
+                  example: "json"
+                timestamp:
+                  type: string
+                  description: 请求时间戳 yyyyMMddHHmmss
+                  example: "20260626120000"
+                deviceId:
+                  type: string
+                  description: 设备编码
+                  example: "APP"
+                signType:
+                  type: string
+                  description: 签名类型 00 表示无签名
+                  example: "00"
+                sign:
+                  type: string
+                  description: 签名字段
+                  example: ""
+                bizData:
+                  type: string
+                  description: 业务参数 JSON 字符串
+                  example: '{"thirdUserId":"0700001447","page":"0","size":"10","debitRequestResult":"","invoice":"","startDate":"2026-07-20 00:00:00","endDate":"2026-07-22 23:59:59"}'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripFindTravelListResult'
+              examples:
+                querySuccess:
+                  summary: 查询乘车记录成功
+                  value:
+                    retCode: "0000"
+                    retMsg: "成功"
+                    pageNumber: 0
+                    pageSize: 10
+                    totalPage: 1
+                    totalCount: 2
+                    ticketTransRecord:
+                      - entryStationName: "敦化路"
+                        entryDate: "20260721162915"
+                        exitStationName: "敦化路"
+                        exitDate: "20260721162915"
+                        payAmount: "4"
+                        totalAmount: "4"
+                        orderExpType: "0"
+                        tradeOrderNo: "GT20260721162930787541710"
+                        payTradeOrderNo: "11111"
+                        payOrderNoDate: "GT20260721162930787541710"
+                        payChannelCode: "07"
+                        debitRequestResult: "0"
+                        discountFee: null
+                        discountInfo: null
+                        companionFlag: null
+                        cardNum: "9900000000000001"
+                        ticketCode: null
+                        countingTimes: null
+                        countingFlag: "N"
+                        invoice: null
+                emptyResult:
+                  summary: 无乘车记录
+                  value:
+                    retCode: "0000"
+                    retMsg: "成功"
+                    pageNumber: 0
+                    pageSize: 10
+                    totalPage: 0
+                    totalCount: 0
+                    ticketTransRecord: []
+                dateFilter:
+                  summary: 日期筛选查询
+                  value:
+                    retCode: "0000"
+                    retMsg: "成功"
+                    pageNumber: 0
+                    pageSize: 10
+                    totalPage: 1
+                    totalCount: 1
+                    ticketTransRecord:
+                      - entryStationName: "敦化路"
+                        entryDate: "20260721162915"
+                        exitStationName: "敦化路"
+                        exitDate: "20260721162915"
+                        payAmount: "4"
+                        totalAmount: "4"
+                        orderExpType: "0"
+                        tradeOrderNo: "GT20260721162930787541710"
+                        payTradeOrderNo: "11111"
+                        payOrderNoDate: "GT20260721162930787541710"
+                        payChannelCode: "07"
+                        debitRequestResult: "0"
+                        discountFee: null
+                        discountInfo: null
+                        companionFlag: null
+                        cardNum: "9900000000000001"
+                        ticketCode: null
+                        countingTimes: null
+                        countingFlag: "N"
+                        invoice: null
+        '400':
+          description: 参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripFindTravelListResult'
+              examples:
+                invalidParam:
+                  summary: 必填参数缺失
+                  value:
+                    retCode: "8001"
+                    retMsg: "thirdUserId不能为空"
+        '500':
+          description: 系统内部错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlipayTripFindTravelListResult'
+              examples:
+                systemError:
+                  summary: 系统异常
+                  value:
+                    retCode: "9001"
+                    retMsg: "系统内部错误"
+components:
+  schemas:
+    AlipayTripFindTravelListReqDTO:
+      type: object
+      description: 支付宝出行-查询乘车记录请求参数
+      required:
+        - thirdUserId
+      properties:
+        thirdUserId:
+          type: string
+          description: 第三方用户ID
+          example: "0700001447"
+        page:
+          type: string
+          description: 页码，从0开始
+          example: "0"
+        size:
+          type: string
+          description: 每页大小
+          example: "10"
+        debitRequestResult:
+          type: string
+          description: 扣款请求结果筛选（可选）。空字符串查全部；"0" 查扣款成功；"1" 查扣款失败/未成功。
+          example: ""
+        invoice:
+          type: string
+          description: 发票状态筛选（可选）
+          example: ""
+        startDate:
+          type: string
+          description: 开始日期（可选），格式 yyyy-MM-dd HH:mm:ss
+          example: "2026-07-20 00:00:00"
+        endDate:
+          type: string
+          description: 结束日期（可选），格式 yyyy-MM-dd HH:mm:ss
+          example: "2026-07-22 23:59:59"
+    AlipayTripFindTravelListResult:
+      type: object
+      description: 支付宝出行-查询乘车记录响应
+      properties:
+        retCode:
+          type: string
+          description: 返回码
+          example: "0000"
+        retMsg:
+          type: string
+          description: 返回消息
+          example: "成功"
+        pageNumber:
+          type: integer
+          description: 当前页码
+          example: 0
+        pageSize:
+          type: integer
+          description: 每页大小
+          example: 10
+        totalPage:
+          type: integer
+          description: 总页数
+          example: 1
+        totalCount:
+          type: integer
+          description: 总记录数
+          example: 2
+        ticketTransRecord:
+          type: array
+          description: 乘车记录列表
+          items:
+            $ref: '#/components/schemas/AlipayTripTravelRecordDTO'
+    AlipayTripTravelRecordDTO:
+      type: object
+      description: 支付宝出行-查询乘车记录单条记录
+      properties:
+        entryStationName:
+          type: string
+          description: 进站站点名称。来源于 ticket-server `QRCODE_TXN_DETAIL.HANDLE_STATION_CODE`。
+          example: "敦化路"
+        entryDate:
+          type: string
+          description: 进站时间。来源于 ticket-server `QRCODE_TXN_DETAIL.HANDLE_DATE_TIME`。
+          example: "20260721162915"
+        exitStationName:
+          type: string
+          description: 出站站点名称。当前实现与进站统一使用 `HANDLE_STATION_CODE`。
+          example: "敦化路"
+        exitDate:
+          type: string
+          description: 出站时间。当前实现与进站统一使用 `HANDLE_DATE_TIME`。
+          example: "20260721162915"
+        payAmount:
+          type: string
+          description: 实付金额（单位：分）
+          example: "4"
+        totalAmount:
+          type: string
+          description: 总金额（单位：分）
+          example: "4"
+        orderExpType:
+          type: string
+          description: 订单扩展类型。默认 "0"。
+          example: "0"
+        tradeOrderNo:
+          type: string
+          description: 交易订单号。来源于 ticket-server `TICKET_TRANS_SEQ`。
+          example: "GT20260721162930787541710"
+        payTradeOrderNo:
+          type: string
+          description: 支付交易订单号。来源于 alipay-pay-sign-server `CHANNEL_ORDER_NO`。
+          example: "11111"
+        payOrderNoDate:
+          type: string
+          description: 支付订单日期。当前实现使用支付订单号 `ORDER_NO`。
+          example: "GT20260721162930787541710"
+        payChannelCode:
+          type: string
+          description: 支付渠道代码。当前实现固定为 "07"。
+          example: "07"
+        debitRequestResult:
+          type: string
+          description: 扣款请求结果。当前实现映射为前端语义值：SUCCESS 返回 "0"，其他返回 "1"。
+          example: "0"
+        discountFee:
+          type: string
+          description: 优惠金额。来源于 ticket-server `QRCODE_TXN_DETAIL.RESERVE2`。
+          example: null
+        discountInfo:
+          type: string
+          description: 优惠信息。当前实现固定为 null。
+          example: null
+        companionFlag:
+          type: string
+          description: 同行票标识。来源于 ticket-server `QRCODE_TXN_DETAIL.TRX_TYPE`。
+          example: null
+        cardNum:
+          type: string
+          description: 卡号。来源于 alipay-pay-sign-server `ALIPAY_PAY_LOG.CARD_ID`。
+          example: "9900000000000001"
+        ticketCode:
+          type: string
+          description: 日票票号。当前实现未设置，返回 null。
+          example: null
+        countingTimes:
+          type: string
+          description: 计次次数（预留）。当前实现返回 null。
+          example: null
+        countingFlag:
+          type: string
+          description: 计次标识（预留）。当前实现固定为 "N"。
+          example: "N"
+        invoice:
+          type: string
+          description: 发票状态。来源于 alipay-pay-sign-server `ALIPAY_PAY_LOG.INVOICE`。
+          example: null

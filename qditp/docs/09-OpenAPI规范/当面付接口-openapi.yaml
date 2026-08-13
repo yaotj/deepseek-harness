@@ -1,0 +1,796 @@
+openapi: 3.0.3
+info:
+  title: 青岛地铁 ITP - 当面付接口规范
+  description: |
+    TVM/BOM 扫码支付、充值、出票通知等当面付相关接口。
+    - TVM 扫码购票：IF2A-01 ~ IF2A-05
+    - TVM 扫码充值：IF2A-09、IF2A-06、IF2A-07
+    - BOM 非现金支付：IF8A-04 ~ IF8A-06、IF2A-08
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:58101
+    description: 本地开发环境
+
+# 公共请求包装类（FormData 格式）
+# 所有接口都通过 bizData 传递业务参数
+components:
+  schemas:
+    CommonFormRequest:
+      type: object
+      description: TVM/BOM 公共请求包装类，业务参数放在 bizData JSON 字符串中。
+      properties:
+        providerId:
+          type: string
+          description: 商户编码。01:青岛地铁APP, 02:TVM, 03:BOM, 04:AGM
+          example: "02"
+        charset:
+          type: string
+          description: 入参字符集，固定 UTF-8
+          example: "UTF-8"
+        format:
+          type: string
+          description: 数据格式，固定 json
+          example: "json"
+        timestamp:
+          type: string
+          description: 请求时间，格式：YYYYMMDDHHMMSS
+          example: "20240426062455"
+        deviceId:
+          type: string
+          description: 设备编码
+          example: "11220701"
+        signType:
+          type: string
+          description: 签名类型。00：不签名, 01：sha1withrsa, 02：MD5
+          example: "00"
+        sign:
+          type: string
+          description: 签名值
+          example: ""
+        bizData:
+          type: string
+          description: 业务数据（JSON 字符串）
+          example: "{}"
+    CommonResult:
+      type: object
+      description: 通用响应基类
+      properties:
+        retCode:
+          type: string
+          description: 返回码，0000 表示成功
+          example: "0000"
+        retMsg:
+          type: string
+          description: 返回消息
+          example: "成功"
+
+    # ==================== TVM 扫码购票 ====================
+    RequestGenSjtOrderReqDTO:
+      type: object
+      description: IF2A-01 提交单程票订单请求参数
+      required:
+        - ticketPrice
+        - singelTicketNum
+        - singleTicketType
+      properties:
+        entryStationCode:
+          type: string
+          description: 起点站点代码（singleTicketType=0 时必填）
+          example: "0231"
+        exitStationCode:
+          type: string
+          description: 终点站点代码（singleTicketType=0 时必填）
+          example: "0229"
+        ticketPrice:
+          type: string
+          description: 票价（单位：分）
+          example: "1"
+        singelTicketNum:
+          type: string
+          description: 购买数量
+          example: "2"
+        singleTicketType:
+          type: string
+          description: 购票类型。0-按站点购票，1-按固定票价购票
+          example: "0"
+        payType:
+          type: string
+          description: 支付类型
+          example: "1"
+
+    RequestGenSjtOrderRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            orderNo:
+              type: string
+              description: 订单号
+              example: "0820260706165321cb750a"
+            payUrl:
+              type: string
+              description: 支付二维码 URL
+              example: "http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/checkoutCounter?orderNo=0820260706165321cb750a"
+
+    RequestPayResultReqDTO:
+      type: object
+      description: IF2A-03 查询支付结果请求参数
+      required:
+        - orderNo
+      properties:
+        orderNo:
+          type: string
+          description: 订单号
+          example: "0820260706165321cb750a"
+
+    RequestPayResultRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            orderNo:
+              type: string
+              description: 订单号
+            paymentResult:
+              type: string
+              description: 支付结果。SUCCESS-成功，FAILED-失败，PROCESSING-处理中
+              example: "SUCCESS"
+            paymentResultDesc:
+              type: string
+              description: 支付结果描述
+              example: "支付成功"
+
+    NotiTakeTicketResultReqDTO:
+      type: object
+      description: IF2A-04 出票结果通知请求参数
+      required:
+        - orderNo
+        - actualTakeTicketNum
+        - takeTickeDate
+        - ticketList
+      properties:
+        orderNo:
+          type: string
+          description: 订单号
+          example: "0820260706165321cb750a"
+        actualTakeTicketNum:
+          type: string
+          description: 实际出票数量
+          example: "2"
+        takeTickeDate:
+          type: string
+          description: 出票时间，格式：YYYYMMDDHHMMSS
+          example: "20260702165400"
+        ticketList:
+          type: array
+          description: 票卡信息列表
+          items:
+            $ref: '#/components/schemas/TvmTicketInfo'
+
+    NotiTakeTicketResultRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+
+    NotiTakeTicketFailResultReqDTO:
+      type: object
+      description: IF2A-05 出票故障通知请求参数
+      required:
+        - orderNo
+        - actualTakeTicketNum
+        - faultOccurDate
+        - faultSlipSeq
+        - errorCode
+        - errorMessage
+        - ticketList
+      properties:
+        orderNo:
+          type: string
+          description: 订单号
+          example: "002026070317022635278a86"
+        actualTakeTicketNum:
+          type: string
+          description: 实际出票数量
+          example: "2"
+        faultOccurDate:
+          type: string
+          description: 故障时间，格式：YYYYMMDDHHMMSS。错误代码为2101时填写取票二维码中的生成时间
+          example: "20260703111111"
+        faultSlipSeq:
+          type: string
+          description: 故障凭条号
+          example: "111111111"
+        errorCode:
+          type: string
+          description: 错误代码。2101：取票二维码超时
+          example: "2010"
+        errorMessage:
+          type: string
+          description: 执行错误信息
+          example: "错误信息"
+        ticketList:
+          type: array
+          description: 已经写卡数据列表
+          items:
+            $ref: '#/components/schemas/TvmTicketInfo'
+
+    NotiTakeTicketFailResultRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+
+    TvmTicketInfo:
+      type: object
+      description: TVM 票卡信息
+      required:
+        - ticketLogicNum
+        - transDate
+        - transAmount
+      properties:
+        ticketLogicNum:
+          type: string
+          description: 票卡逻辑号
+          example: "123456789"
+        transDate:
+          type: string
+          description: 交易日期，格式：YYYYMMDDHHMMSS
+          example: "20260702165400"
+        transAmount:
+          type: string
+          description: 交易金额（单位：分）
+          example: "1"
+
+    # ==================== TVM 扫码充值 ====================
+    RequestTopupReqDTO:
+      type: object
+      description: IF2A-09 请求充值下单请求参数
+      required:
+        - ticketLogicNum
+        - ticketPhysicsNum
+        - beforeAmount
+        - transAmount
+        - payType
+      properties:
+        ticketLogicNum:
+          type: string
+          description: 票卡逻辑号
+          example: "123"
+        ticketPhysicsNum:
+          type: string
+          description: 票卡物理号
+          example: "456"
+        beforeAmount:
+          type: string
+          description: 充值前金额（单位：分）
+          example: "5"
+        transAmount:
+          type: string
+          description: 请求交易金额（单位：分）
+          example: "2"
+        payType:
+          type: string
+          description: 支付类型
+          example: "1"
+
+    RequestTopupRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            orderNo:
+              type: string
+              description: 充值订单号
+              example: "0820260706165321cb750a"
+            payUrl:
+              type: string
+              description: 支付二维码 URL
+
+    TopupCardResultNotiReqDTO:
+      type: object
+      description: IF2A-06 充值结果通知请求参数
+      required:
+        - orderNo
+        - ticketLogicNum
+        - ticketPhysicsNum
+        - transDate
+        - transAmount
+        - afterAmount
+      properties:
+        orderNo:
+          type: string
+          description: 订单号
+          example: "0820260706165321cb750a"
+        ticketLogicNum:
+          type: string
+          description: 票卡逻辑号
+          example: "0820260706165321cb750a"
+        ticketPhysicsNum:
+          type: string
+          description: 票卡物理号
+          example: "456"
+        transDate:
+          type: string
+          description: 交易日期，格式：YYYYMMDDHHMMSS
+          example: "20260706"
+        transAmount:
+          type: string
+          description: 交易金额（单位：分）
+          example: "2"
+        afterAmount:
+          type: string
+          description: 交易后卡内余额（单位：分）
+          example: "5"
+
+    TopupCardResultNotiRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+
+    TopupCardFailNotiReqDTO:
+      type: object
+      description: IF2A-07 充值失败通知请求参数
+      required:
+        - orderNo
+        - ticketLogicNum
+        - ticketPhysicsNum
+        - topupStatus
+        - faultOccurDate
+        - faultSlipSeq
+        - errorCode
+        - errorMessage
+      properties:
+        orderNo:
+          type: string
+          description: 订单号
+          example: "0820260706164732b39b0e"
+        ticketLogicNum:
+          type: string
+          description: 票卡逻辑号
+          example: "0820260706165321cb750a"
+        ticketPhysicsNum:
+          type: string
+          description: 票卡物理号
+          example: "456"
+        topupStatus:
+          type: string
+          description: 充值状态。01-失败，02-存疑，03-取消
+          example: "01"
+        faultOccurDate:
+          type: string
+          description: 故障时间，格式：YYYYMMDDHHMMSS
+          example: "20260703111111"
+        faultSlipSeq:
+          type: string
+          description: 故障凭条号
+          example: "111111111"
+        errorCode:
+          type: string
+          description: 错误代码
+          example: "5"
+        errorMessage:
+          type: string
+          description: 执行错误信息
+          example: "5"
+
+    TopupCardFailNotiRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+
+    # ==================== BOM 非现金支付 ====================
+    RequestGenNoCashOrderReqDTO:
+      type: object
+      description: IF8A-04 请求非现金收款下单请求参数
+      required:
+        - transType
+        - operaterId
+        - shiftId
+        - transAount
+        - bomOptSeq
+      properties:
+        transType:
+          type: string
+          description: |
+            交易类型。
+            02:超时更新, 03:超程更新/一卡通余额不足更新, 04:未出站更新处理,
+            05:无入站更新处理, 06:储值票即时退卡/单程票退票, 22:充值,
+            2A:黑名单卡锁定, 2B:卡锁定解除, 42:行政处理
+          example: "02"
+        adminTransType:
+          type: string
+          description: 行政交易类型代码（transType=42 时必填）
+          example: "01"
+        operaterId:
+          type: string
+          description: 操作员编码
+          example: "000000"
+        shiftId:
+          type: string
+          description: 班次序列号
+          example: "222222"
+        cardId:
+          type: string
+          description: 逻辑卡号
+          example: "333333"
+        transAount:
+          type: string
+          description: 交易金额（单位：分）
+          example: "1"
+        bomOptSeq:
+          type: string
+          description: 操作流水号（终端设备流水号）
+          example: "01010101"
+
+    RequestGenNoCashOrderRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            orderNo:
+              type: string
+              description: 订单号
+              example: "0320260713161906f8d2df01"
+
+    RequestPaymentReqDTO:
+      type: object
+      description: IF8A-05 扫码支付请求参数
+      required:
+        - orderNo
+        - paymentCode
+        - paymentVendor
+      properties:
+        orderNo:
+          type: string
+          description: 订单号（由非现金收款下单时生成）
+          example: "0320260713161906f8d2df01"
+        paymentCode:
+          type: string
+          description: 支付通道编码
+          example: "03"
+        paymentVendor:
+          type: string
+          description: 支付账户认证码（即用户付款码信息）
+          example: "288911617713488594"
+
+    RequestPaymentRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            paymentResult:
+              type: string
+              description: 支付结果。SUCCESS-成功，FAILED-失败，PROCESSING-处理中
+              example: "SUCCESS"
+            paymentResultDesc:
+              type: string
+              description: 支付结果描述
+              example: "支付成功"
+            msg:
+              type: string
+              description: 状态描述
+              example: "支付成功"
+
+    RequestGetPayResultReqDTO:
+      type: object
+      description: IF8A-06 查询支付结果请求参数
+      required:
+        - orderNo
+      properties:
+        orderNo:
+          type: string
+          description: 订单号
+          example: "0320260713161906f8d2df01"
+
+    RequestGetPayResultRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            paymentResult:
+              type: string
+              description: 支付结果
+              example: "SUCCESS"
+            paymentResultDesc:
+              type: string
+              description: 支付结果描述
+              example: "支付成功"
+            msg:
+              type: string
+              description: 状态描述
+              example: "支付成功"
+
+    NotiBusResultReqDTO:
+      type: object
+      description: IF2A-08 业务操作结果通知请求参数
+      required:
+        - orderNo
+        - optResult
+      properties:
+        orderNo:
+          type: string
+          description: 订单号
+          example: "0320260713161606cf0b04e7"
+        optResult:
+          type: string
+          description: 操作结果。SUCCESS-成功，FAILED-失败
+          example: "FAILED"
+        optResultDesc:
+          type: string
+          description: 操作结果描述
+          example: "出票失败"
+        tranDate:
+          type: string
+          description: 交易时间，格式：YYYYMMDDHHMMSS
+          example: "20260713"
+
+    NotiBusResultRespDTO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+
+paths:
+  # ==================== TVM 扫码购票 ====================
+  /itptvm/ci/tvm/requestGenSjtOrder:
+    post:
+      tags:
+        - TVM-扫码购票
+      summary: IF2A-01 提交单程票订单
+      description: TVM 向 ITP 平台发起扫码购票订单请求，生成订单号并返回支付二维码。
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestGenSjtOrderRespDTO'
+              example:
+                retCode: "0000"
+                retMsg: "成功"
+                orderNo: "0820260706165321cb750a"
+                payUrl: "http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/checkoutCounter?orderNo=0820260706165321cb750a"
+
+  /itptvm/ci/tvm/requestPayResult:
+    post:
+      tags:
+        - TVM-扫码购票
+      summary: IF2A-03 查询支付结果
+      description: TVM 轮询查询扫码购票订单的支付结果。
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestPayResultRespDTO'
+              example:
+                retCode: "0000"
+                retMsg: "成功"
+                orderNo: "0820260706165321cb750a"
+                paymentResult: "SUCCESS"
+                paymentResultDesc: "支付成功"
+
+  /itptvm/ci/tvm/notiTakeTicketResult:
+    post:
+      tags:
+        - TVM-扫码购票
+      summary: IF2A-04 出票结果通知
+      description: TVM 出票成功后通知 ITP 平台。
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotiTakeTicketResultRespDTO'
+              example:
+                retCode: "0000"
+                retMsg: "成功"
+
+  /itptvm/ci/tvm/notiTakeTicketFailResult:
+    post:
+      tags:
+        - TVM-扫码购票
+      summary: IF2A-05 出票故障通知
+      description: TVM 出票失败后通知 ITP 平台。
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotiTakeTicketFailResultRespDTO'
+              example:
+                retCode: "0000"
+                retMsg: "成功"
+
+  # ==================== TVM 扫码充值 ====================
+  /itptvm/ci/tvm/requestTopup:
+    post:
+      tags:
+        - TVM-扫码充值
+      summary: IF2A-09 请求充值下单
+      description: TVM 向 ITP 平台发起扫码充值订单请求，生成订单号并返回支付二维码。
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestTopupRespDTO'
+              example:
+                retCode: "0000"
+                retMsg: "成功"
+                orderNo: "0820260706165321cb750a"
+                payUrl: "http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/checkoutCounter?orderNo=0820260706165321cb750a"
+
+  /itptvm/ci/tvm/topupCardResultNoti:
+    post:
+      tags:
+        - TVM-扫码充值
+      summary: IF2A-06 充值结果通知
+      description: TVM 充值成功后通知 ITP 平台。
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopupCardResultNotiRespDTO'
+              example:
+                retCode: "0000"
+                retMsg: "成功"
+
+  /itptvm/ci/tvm/topupCardFailNoti:
+    post:
+      tags:
+        - TVM-扫码充值
+      summary: IF2A-07 充值失败通知
+      description: TVM 充值失败后通知 ITP 平台。
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopupCardFailNotiRespDTO'
+              example:
+                retCode: "0000"
+                retMsg: "成功"
+
+  # ==================== BOM 非现金支付 ====================
+  /itpbom/ci/bom/requestGenNoCashOrder:
+    post:
+      tags:
+        - BOM-非现金支付
+      summary: IF8A-04 请求非现金收款下单
+      description: BOM 向 ITP 平台发起非现金收款订单请求，ITP 生成订单并返回订单号。
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestGenNoCashOrderRespDTO'
+              example:
+                retCode: "0000"
+                retMsg: "成功"
+                orderNo: "0320260713161906f8d2df01"
+
+  /itpbom/ci/bom/requestPayment:
+    post:
+      tags:
+        - BOM-非现金支付
+      summary: IF8A-05 扫码支付
+      description: BOM 扫描用户付款码后，向 ITP 平台发起支付请求，ITP 调用支付中心完成支付。
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestPaymentRespDTO'
+              example:
+                retCode: "0000"
+                retMsg: "成功"
+                paymentResult: "SUCCESS"
+                paymentResultDesc: "支付成功"
+                msg: "支付成功"
+
+  /itpbom/ci/bom/requestGetPayResult:
+    post:
+      tags:
+        - BOM-非现金支付
+      summary: IF8A-06 查询支付结果
+      description: BOM 轮询查询支付结果，ITP 调用支付中心查询并返回支付状态。
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestGetPayResultRespDTO'
+              example:
+                retCode: "0000"
+                retMsg: "成功"
+                paymentResult: "SUCCESS"
+                paymentResultDesc: "支付成功"
+                msg: "支付成功"
+
+  /itpbom/ci/bom/notiBusResult:
+    post:
+      tags:
+        - BOM-非现金支付
+      summary: IF2A-08 业务操作结果通知
+      description: BOM 业务操作完成后，向 ITP 平台通知操作结果。
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CommonFormRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotiBusResultRespDTO'
+              example:
+                retCode: "0000"
+                retMsg: "成功"

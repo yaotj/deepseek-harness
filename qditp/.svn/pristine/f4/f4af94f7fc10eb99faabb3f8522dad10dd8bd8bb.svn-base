@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.collectpay.mapper.AppRefundOrderMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.collectpay.entity.AppRefundOrder">
+        <id column="REFUND_NO" jdbcType="VARCHAR" property="refundNo"/>
+        <result column="PAY_ORDER_NO" jdbcType="VARCHAR" property="payOrderNo"/>
+        <result column="MERCHANT_REFUND_NO" jdbcType="VARCHAR" property="merchantRefundNo"/>
+        <result column="CHANNEL_REFUND_NO" jdbcType="VARCHAR" property="channelRefundNo"/>
+        <result column="REFUND_AMOUNT" jdbcType="VARCHAR" property="refundAmount"/>
+        <result column="REFUND_REASON" jdbcType="VARCHAR" property="refundReason"/>
+        <result column="REFUND_STATUS" jdbcType="VARCHAR" property="refundStatus"/>
+        <result column="REFUND_MSG" jdbcType="VARCHAR" property="refundMsg"/>
+        <result column="REFUND_TIME" jdbcType="VARCHAR" property="refundTime"/>
+        <result column="CREATE_TIME" jdbcType="VARCHAR" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="VARCHAR" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        REFUND_NO, PAY_ORDER_NO, MERCHANT_REFUND_NO, CHANNEL_REFUND_NO, REFUND_AMOUNT,
+        REFUND_REASON, REFUND_STATUS, REFUND_MSG, REFUND_TIME, CREATE_TIME, UPDATE_TIME
+    </sql>
+
+    <select id="selectByRefundNo" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from TBL_APP_ORDER_REFUND
+        where REFUND_NO = #{refundNo,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByPayOrderNo" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from TBL_APP_ORDER_REFUND
+        where PAY_ORDER_NO = #{payOrderNo,jdbcType=VARCHAR}
+        order by CREATE_TIME desc
+    </select>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.collectpay.entity.BomRefundOrder">
+        insert into TBL_APP_ORDER_REFUND (
+            REFUND_NO, PAY_ORDER_NO, MERCHANT_REFUND_NO, CHANNEL_REFUND_NO, REFUND_AMOUNT,
+            REFUND_REASON, REFUND_STATUS, REFUND_MSG, REFUND_TIME, CREATE_TIME, UPDATE_TIME
+        ) values (
+            #{refundNo,jdbcType=VARCHAR},
+            #{payOrderNo,jdbcType=VARCHAR},
+            #{merchantRefundNo,jdbcType=VARCHAR},
+            #{channelRefundNo,jdbcType=VARCHAR},
+            #{refundAmount,jdbcType=VARCHAR},
+            #{refundReason,jdbcType=VARCHAR},
+            #{refundStatus,jdbcType=VARCHAR},
+            #{refundMsg,jdbcType=VARCHAR},
+            #{refundTime,jdbcType=VARCHAR},
+            #{createTime,jdbcType=VARCHAR},
+            #{updateTime,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <update id="updateByRefundNo" parameterType="java.util.Map">
+        update TBL_APP_ORDER_REFUND
+        <set>
+            <if test="merchantRefundNo != null">MERCHANT_REFUND_NO = #{merchantRefundNo,jdbcType=VARCHAR},</if>
+            <if test="channelRefundNo != null">CHANNEL_REFUND_NO = #{channelRefundNo,jdbcType=VARCHAR},</if>
+            <if test="refundStatus != null">REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR},</if>
+            <if test="refundMsg != null">REFUND_MSG = #{refundMsg,jdbcType=VARCHAR},</if>
+            <if test="refundTime != null">REFUND_TIME = #{refundTime,jdbcType=VARCHAR},</if>
+            <if test="updateTime != null">UPDATE_TIME = #{updateTime,jdbcType=VARCHAR},</if>
+        </set>
+        where REFUND_NO = #{refundNo,jdbcType=VARCHAR}
+    </update>
+</mapper>

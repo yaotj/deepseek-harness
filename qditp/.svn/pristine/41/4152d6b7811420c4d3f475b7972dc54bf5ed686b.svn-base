@@ -1,0 +1,24 @@
+package com.chinasofti.huateng.fep.app.service;
+
+import com.chinasofti.huateng.common.response.CommonResult;
+import com.chinasofti.huateng.model.app.QueryBlackListReqDTO;
+import com.chinasofti.huateng.model.app.QueryBlackListResult;
+import com.chinasofti.huateng.model.app.QueryUserItineraryReqDTO;
+import com.chinasofti.huateng.model.app.QueryUserItineraryResult;
+import com.chinasofti.huateng.model.app.ReceiveBlackListFromItpReqDTO;
+import com.chinasofti.huateng.model.app.RequestExcessFareReqDTO;
+import com.chinasofti.huateng.model.app.RequestExcessFareResult;
+import com.chinasofti.huateng.model.app.RequestTransListReqDTO;
+import com.chinasofti.huateng.model.app.RequestTransListResult;
+
+public interface TicketAppService {
+    QueryBlackListResult queryBlackList(QueryBlackListReqDTO request);
+
+    CommonResult receiveBlackListFromItp(ReceiveBlackListFromItpReqDTO request);
+
+    QueryUserItineraryResult queryUserItinerary(QueryUserItineraryReqDTO request);
+
+    RequestExcessFareResult requestExcessFare(RequestExcessFareReqDTO request);
+
+    RequestTransListResult requestTransList(RequestTransListReqDTO request);
+}

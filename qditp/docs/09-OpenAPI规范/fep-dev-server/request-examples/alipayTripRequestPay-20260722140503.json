@@ -1,0 +1,46 @@
+{
+  "request": {
+    "url": "http://172.20.211.23:30022/api/payment/requestPay",
+    "method": "POST",
+    "contentType": "application/json",
+    "headers": {},
+    "body": {
+      "amount": 7,
+      "body": "地铁乘车费用",
+      "industryDetail": "{\"orderDate\":\"2026-07-22 14:05:03\",\"cardIssueCode\":\"0007\",\"cardNum\":\"2607031119541710\",\"tikcetTransSeq\":\"2\",\"entryLineCode\":\"1333\",\"entryId\":\"04\",\"entryLineName\":\"1333\",\"entryStationCode\":\"1333\",\"entryStationName\":\"1333\",\"entryDeviceCode\":\"13330402\",\"entryDate\":\"2026-07-22 14:04:43\",\"exitId\":\"2\",\"exitLineCode\":\"0137\",\"exitLineName\":\"0137\",\"exitStationCode\":\"0137\",\"exitStationName\":\"0137\",\"exitDeviceCode\":\"01370508\",\"exitDate\":\"2026-07-22 14:05:04\",\"orderExpType\":\"02\",\"fineAmount\":\"0\",\"cardType\":\"0441\",\"ticketFlag\":\"3\"}",
+      "industryType": "1",
+      "notifyUrl": "http://58.56.166.170:48000/fep-alipay/notify/payment/payNotify",
+      "orderNo": "GT20260722140503818541710",
+      "orderTimeOut": 60,
+      "paymentVendor": "ALIPAY",
+      "scene": "TRIP",
+      "subject": "地铁乘车扣费",
+      "thirdUserId": "700001447"
+    },
+    "trace": {
+      "requestId": "c83215d92f33036b019c5ebf5ba5574d",
+      "upstream": "ticket-server-bsyju-svc.itp.svc.cluster.local:9100",
+      "responseTime": "11ms"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "retCode": "8001",
+      "retMsg": "免密场景签约流水号不能为空",
+      "orderNo": null
+    }
+  },
+  "analysis": {
+    "caller": "fep-dev-server",
+    "callee": "alipay-pay-sign-server",
+    "interface": "alipay-pay-sign /api/payment/requestPay",
+    "scene": "TRIP",
+    "amount": 7,
+    "orderNo": "GT20260722140503818541710",
+    "result": "FAIL",
+    "errorCode": "8001",
+    "errorMsg": "免密场景签约流水号不能为空",
+    "timestamp": "2026-07-22 14:05:03"
+  }
+}
