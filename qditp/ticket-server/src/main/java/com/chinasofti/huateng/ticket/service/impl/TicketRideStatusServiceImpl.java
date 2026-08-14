@@ -19,7 +19,7 @@ import com.chinasofti.huateng.rpc.alipay.account.AlipayAccountClient;
 import com.chinasofti.huateng.model.alipaytrip.AlipayUserInfoDTO;
 import com.chinasofti.huateng.model.app.UpdateHceDataReqDTO;
 import com.chinasofti.huateng.ticket.constant.TicketErrorCodeEnum;
-import com.chinasofti.huateng.ticket.enums.QRCodeStatusEnum;
+import com.chinasofti.huateng.model.ticket.enums.QRCodeStatusEnum;
 import com.chinasofti.huateng.ticket.entity.QRCodeStatus;
 import com.chinasofti.huateng.ticket.entity.QRCodeTxnDetail;
 import com.chinasofti.huateng.ticket.mapper.QRCodeStatusMapper;
@@ -307,10 +307,10 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
             currentStatus.setUseCount(0);
             currentStatus.setGateInStation(defaultLastTxnStation);
             currentStatus.setLastTxnStation(defaultLastTxnStation);
-            currentStatus.setCodeStatus("03");
+            currentStatus.setCodeStatus(QRCodeStatusEnum.SJT_ISSUE.getCode());
         }
 
-        String codeStatus = defaultString(currentStatus.getCodeStatus(), "03");
+        String codeStatus = defaultString(currentStatus.getCodeStatus(), QRCodeStatusEnum.SJT_ISSUE.getCode());
         String gateInStation = defaultString(currentStatus.getGateInStation(), defaultLastTxnStation);
         String lastTxnStation = defaultString(currentStatus.getLastTxnStation(), defaultLastTxnStation);
         String upgradeAreaType = request.getUpgradeAreaType();
@@ -320,54 +320,54 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         String friendlyMsg;
         switch (codeStatus) {
             case "02":
-                // 结束行程：允许补进站（跟随进站）
+                // 结束行程：允许补进站，不允许补出站
                 allowedTypes = "01";
-                friendlyMsg = "当前行程已结束，如需进站请选择补进站";
+                friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
             case "03":
-                // 新卡/初始状态：允许补进站
+                // 新卡/初始状态：允许补进站，不允许补出站
                 allowedTypes = "01";
-                friendlyMsg = "当前为新卡，请先补进站";
+                friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
             case "04":
-                // 已进站：允许补出站（跟随出站）
+                // 已进站：允许补出站，不允许补进站
                 allowedTypes = "02,03,04";
-                friendlyMsg = "当前已进站，如需出站请选择补出站";
+                friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
             case "05":
-                // 已出站：允许补进站
+                // 已出站：允许补进站，不允许补出站
                 allowedTypes = "01";
-                friendlyMsg = "当前已出站，如需进站请选择补进站";
+                friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
             case "06":
-                // 超时出站：允许补进站
+                // 超时出站：允许补进站，不允许补出站
                 allowedTypes = "01";
-                friendlyMsg = "当前为超时出站状态，请重新补进站";
+                friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
             case "80":
-                // 用户自助补出站：允许补进站
+                // 用户自助补出站：允许补进站，不允许补出站
                 allowedTypes = "01";
-                friendlyMsg = "当前已补出站，如需进站请选择补进站";
+                friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
             case "81":
-                // 用户自助补进站：允许补出站
+                // 用户自助补进站：允许补出站，不允许补进站
                 allowedTypes = "02,03,04";
-                friendlyMsg = "当前已补进站，如需出站请选择补出站";
+                friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
             case "08":
-                // 20分钟免费更新：允许补进站
+                // 20分钟免费更新：允许补进站，不允许补出站
                 allowedTypes = "01";
-                friendlyMsg = "当前为20分钟免费更新状态，如需进站请选择补进站";
+                friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
             case "09":
-                // 20分钟付费更新：允许补进站
+                // 20分钟付费更新：允许补进站，不允许补出站
                 allowedTypes = "01";
-                friendlyMsg = "当前为20分钟付费更新状态，如需进站请选择补进站";
+                friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
             case "10":
-                // 入站码更新：提示用户到服务台处理
+                // 入站码更新：码状态正常，无需更新
                 response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
-                response.setRetMsg("当前票卡状态不支持自助补站，请到服务台处理");
+                response.setRetMsg("码状态正常，无需更新，请正常刷码");
                 return response;
             default:
                 response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
@@ -393,7 +393,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         bizData.setHandleDateTime(request.getUpgradeDateTime());
         bizData.setHandleStationCode(request.getUpgradeStationCode());
         bizData.setOvertimeAmount("0");
-        bizData.setLastTicketStatus(defaultString(currentStatus.getCodeStatus(), "03"));
+        bizData.setLastTicketStatus(defaultString(currentStatus.getCodeStatus(), QRCodeStatusEnum.SJT_ISSUE.getCode()));
         bizData.setHandleResultCode("000");
         bizData.setLastHandleStationCode(currentStatus.getLastTxnStation());
         bizData.setLastHandleDateTime(currentStatus.getLastTxnTime());
@@ -434,29 +434,6 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
                     response.setRetMsg("票价查询异常，请稍后重试或前往车站服务台办理");
                     return response;
                 }
-            }
-        }
-
-        // 闸机前扣费：补出站查询到票价后，先扣费再更新票卡状态
-        if ("02".equals(upgradeAreaType) && StringUtils.hasText(ticketPrice)) {
-            try {
-                log.info("IF8A-04 补出站闸机前扣费开始, cardId={}, ticketPrice={}",
-                        request.getCardId(), ticketPrice);
-                // TODO: Phase 2 接入实际支付平台扣款
-                // PayResult payResult = payPlatformClient.deduct(request.getThirdUserId(), ticketPrice);
-                // if (!payResult.isSuccess()) {
-                //     response.setRetCode("8003");
-                //     response.setRetMsg("扣费失败: " + payResult.getMsg());
-                //     return response;
-                // }
-                log.info("IF8A-04 补出站闸机前扣费成功, cardId={}, ticketPrice={}",
-                        request.getCardId(), ticketPrice);
-            } catch (Exception e) {
-                log.error("IF8A-04 补出站闸机前扣费异常, cardId={}, ticketPrice={}",
-                        request.getCardId(), ticketPrice, e);
-                response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
-                response.setRetMsg("扣费异常: " + e.getMessage());
-                return response;
             }
         }
 

@@ -2,7 +2,7 @@ package com.chinasofti.huateng.ticket.entity;
 
 import java.time.LocalDateTime;
 
-import com.chinasofti.huateng.ticket.enums.QRCodeStatusEnum;
+import com.chinasofti.huateng.model.ticket.enums.QRCodeStatusEnum;
 
 /**
  * 对应 QRCODE_STATUS 表。

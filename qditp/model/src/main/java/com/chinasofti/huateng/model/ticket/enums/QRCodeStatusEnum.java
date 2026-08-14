@@ -1,4 +1,4 @@
-package com.chinasofti.huateng.ticket.enums;
+package com.chinasofti.huateng.model.ticket.enums;
 
 /**
  * QR码车票状态枚举。

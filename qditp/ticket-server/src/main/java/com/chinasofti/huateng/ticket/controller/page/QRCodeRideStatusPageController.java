@@ -3,7 +3,7 @@ package com.chinasofti.huateng.ticket.controller.page;
 import com.chinasofti.huateng.common.response.ResultMapper;
 import com.chinasofti.huateng.common.response.ResultVO;
 import com.chinasofti.huateng.ticket.entity.QRCodeStatus;
-import com.chinasofti.huateng.ticket.enums.QRCodeStatusEnum;
+import com.chinasofti.huateng.model.ticket.enums.QRCodeStatusEnum;
 import com.chinasofti.huateng.ticket.mapper.QRCodeStatusMapper;
 import com.chinasofti.huateng.ticket.model.page.RideStatusUpdateRequest;
 import org.slf4j.Logger;
