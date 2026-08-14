@@ -930,12 +930,12 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
             return java.util.Collections.singletonList("000");
         }
 
-        // 更新状态：08/09
+        // 更新状态：08/09（出站后的更新，按闭环状态处理）
         if (QRCodeStatusEnum.UPDATE_FREE.equals(codeStatus) || QRCodeStatusEnum.UPDATE_PAY.equals(codeStatus)) {
-            if (isWithin20Minutes(gateInTime)) {
-                return java.util.Collections.singletonList("005");
+            if ("01".equals(updateType)) {
+                return java.util.Collections.singletonList("018");
             }
-            return java.util.Collections.singletonList("006");
+            return java.util.Collections.singletonList("000");
         }
 
         // 乘车码状态：10
@@ -997,37 +997,44 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
 
         // 018 补进站
         if ("018".equals(adviceOpt)) {
-            // 闭环状态只在付费区允许 018
-            if (codeStatus.isClosedLoop()) {
+            // 闭环状态/更新状态只在付费区允许 018
+            if (codeStatus.isClosedLoop()
+                    || QRCodeStatusEnum.UPDATE_FREE.equals(codeStatus)
+                    || QRCodeStatusEnum.UPDATE_PAY.equals(codeStatus)) {
                 return "01".equals(updateType);
             }
             // 新卡允许
             if (QRCodeStatusEnum.SJT_ISSUE.equals(codeStatus)) {
                 return true;
             }
-            // 乘车码仅在付费区允许 018
+            // 乘车码/入站码更新仅在付费区允许 018
             if (QRCodeStatusEnum.UPDATE_ENTRY.equals(codeStatus)) {
                 return "01".equals(updateType);
             }
             return false;
         }
 
-        // 006 补出站
+        // 006 补出站/付费更新
         if ("006".equals(adviceOpt)) {
-            // 开环状态只在非付费区允许 006
+            // 开环状态（04/81）只在非付费区允许 006
             if (codeStatus.isOpenLoop()) {
                 return "00".equals(updateType);
             }
-            // 更新状态/自助补进站允许
-            return QRCodeStatusEnum.UPDATE_FREE.equals(codeStatus)
-                    || QRCodeStatusEnum.UPDATE_PAY.equals(codeStatus)
-                    || QRCodeStatusEnum.SELF_SERVICE_ENTRY.equals(codeStatus);
+            // 入站码更新（10）在非付费区允许 006
+            if (QRCodeStatusEnum.UPDATE_ENTRY.equals(codeStatus)) {
+                return "00".equals(updateType);
+            }
+            // 自助补进站允许
+            return QRCodeStatusEnum.SELF_SERVICE_ENTRY.equals(codeStatus);
         }
 
         // 005 免费更新
         if ("005".equals(adviceOpt)) {
-            return QRCodeStatusEnum.UPDATE_FREE.equals(codeStatus)
-                    || QRCodeStatusEnum.UPDATE_PAY.equals(codeStatus);
+            // 入站码更新允许免费更新（20分钟内由 resolveAdviceOpt 控制）
+            if (QRCodeStatusEnum.UPDATE_ENTRY.equals(codeStatus)) {
+                return true;
+            }
+            return false;
         }
 
         return false;
@@ -1052,25 +1059,25 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         // ==================== 参数校验 ====================
         if (request == null || !StringUtils.hasText(cardId)) {
             log.warn("IF5A-03 参数校验失败, cardId为空");
-            response.setRetCode(RET_SUCCESS);
+            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
             response.setRetMsg("cardId不能为空");
             return response;
         }
         if (!StringUtils.hasText(adviceOpt)) {
             log.warn("IF5A-03 参数校验失败, adviceOpt为空, cardId={}", cardId);
-            response.setRetCode(RET_SUCCESS);
+            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
             response.setRetMsg("adviceOpt不能为空");
             return response;
         }
         if (!StringUtils.hasText(updateStationCode)) {
             log.warn("IF5A-03 参数校验失败, updateStationCode为空, cardId={}", cardId);
-            response.setRetCode(RET_SUCCESS);
+            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
             response.setRetMsg("updateStationCode不能为空");
             return response;
         }
         if (!StringUtils.hasText(optDate)) {
             log.warn("IF5A-03 参数校验失败, optDate为空, cardId={}", cardId);
-            response.setRetCode(RET_SUCCESS);
+            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
             response.setRetMsg("optDate不能为空");
             return response;
         }
@@ -1082,7 +1089,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         QRCodeStatus currentStatus = qrCodeStatusMapper.selectByCardId(cardId);
         if (currentStatus == null) {
             log.warn("IF5A-03 票卡状态不存在, cardId={}", cardId);
-            response.setRetCode(RET_SUCCESS);
+            response.setRetCode(TicketErrorCodeEnum.QR_CODE_NOT_FOUND.getCode());
             response.setRetMsg(TicketErrorCodeEnum.QR_CODE_NOT_FOUND.getMsg());
             return response;
         }
@@ -1096,11 +1103,18 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         log.info("IF5A-03 当前票卡状态, cardId={}, codeStatus={}, gateInStation={}, lastTxnStation={}, gateInTime={}",
                 cardId, codeStatus, gateInStation, lastTxnStation, gateInTime);
 
+        // ==================== 记录状态快照（幂等性校验） ====================
+        String snapshotCodeStatus = currentStatus.getCodeStatus();
+        String snapshotTxnSeq = currentStatus.getTxnSeq();
+        String snapshotUpdateTime = currentStatus.getUpdateTime();
+        log.info("IF5A-03 记录状态快照, cardId={}, codeStatus={}, txnSeq={}, updateTime={}",
+                cardId, snapshotCodeStatus, snapshotTxnSeq, snapshotUpdateTime);
+
         // ==================== 校验状态是否允许操作 ====================
         if (!isUpdateAllowed(codeStatusEnum, adviceOpt, updateType)) {
             log.warn("IF5A-03 票卡状态不允许此操作, cardId={}, codeStatus={}, adviceOpt={}, updateType={}",
                     cardId, codeStatus, adviceOpt, updateType);
-            response.setRetCode(RET_SUCCESS);
+            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
             response.setRetMsg("票卡状态不允许此操作: codeStatus=" + codeStatus + ", adviceOpt=" + adviceOpt);
             return response;
         }
@@ -1127,7 +1141,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
                     cardId, codeStatus, updateStationCode, optDate, transAmount);
         } else {
             log.warn("IF5A-03 不支持的操作类型, cardId={}, adviceOpt={}", cardId, adviceOpt);
-            response.setRetCode(RET_SUCCESS);
+            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
             response.setRetMsg("不支持的操作类型: " + adviceOpt);
             return response;
         }
@@ -1140,7 +1154,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
             QueryUserInfoResult cardTypeResult = accountClient.queryCardTypeByCardId(cardId);
             if (cardTypeResult == null) {
                 log.warn("IF5A-03 查询用户信息无响应, cardId={}", cardId);
-                response.setRetCode(RET_SUCCESS);
+                response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                 response.setRetMsg("查询用户信息无响应");
                 return response;
             }
@@ -1149,27 +1163,27 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
                 log.warn("IF5A-03 查询用户信息失败-请求参数验证失败, cardId={}, retCode={}", cardId, accountRetCode);
                 switch (accountRetCode) {
                     case "8001" -> {
-                        response.setRetCode(RET_SUCCESS);
+                        response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                         response.setRetMsg("请求参数验证失败");
                     }
                     case "8004" -> {
-                        response.setRetCode(RET_SUCCESS);
+                        response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                         response.setRetMsg("未注册用户");
                     }
                     case "8007" -> {
-                        response.setRetCode(RET_SUCCESS);
+                        response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                         response.setRetMsg("合作伙伴验证失败");
                     }
                     case "8008" -> {
-                        response.setRetCode(RET_SUCCESS);
+                        response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                         response.setRetMsg("用户状态为解约审核中");
                     }
                     case "8006" -> {
-                        response.setRetCode(RET_SUCCESS);
+                        response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                         response.setRetMsg("用户卡号与请求参数不一致");
                     }
                     case null, default -> {
-                        response.setRetCode(RET_SUCCESS);
+                        response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                         response.setRetMsg("查询用户信息失败: " + cardTypeResult.getRetMsg());
                     }
                 }
@@ -1177,7 +1191,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
             }
             if (!StringUtils.hasText(cardTypeResult.getThirdUserId())) {
                 log.warn("IF5A-03 未注册用户, cardId={}, thirdUserId为空", cardId);
-                response.setRetCode(RET_SUCCESS);
+                response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                 response.setRetMsg("未注册用户");
                 return response;
             }
@@ -1189,7 +1203,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
             userInfo = accountClient.queryUserInfo(userInfoReq);
             if (userInfo == null) {
                 log.warn("IF5A-03 查询用户信息无响应, cardId={}", cardId);
-                response.setRetCode(RET_SUCCESS);
+                response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                 response.setRetMsg("查询用户信息无响应");
                 return response;
             }
@@ -1198,39 +1212,39 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
                 switch (accountRetCode) {
                     case "8001" -> {
                         log.warn("IF5A-03 查询用户信息失败-请求参数验证失败, cardId={}, retCode={}", cardId, accountRetCode);
-                        response.setRetCode(RET_SUCCESS);
+                        response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                         response.setRetMsg(userInfo.getRetMsg());
                     }
                     case "8004" -> {
                         log.warn("IF5A-03 查询用户信息失败-未注册用户, cardId={}, retCode={}", cardId, accountRetCode);
-                        response.setRetCode(RET_SUCCESS);
+                        response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                         response.setRetMsg(userInfo.getRetMsg());
                     }
                     case "8007" -> {
                         log.warn("IF5A-03 查询用户信息失败-合作伙伴验证失败, cardId={}, retCode={}", cardId, accountRetCode);
-                        response.setRetCode(RET_SUCCESS);
+                        response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                         response.setRetMsg(userInfo.getRetMsg());
                     }
                     case "8008" -> {
                         log.warn("IF5A-03 查询用户信息失败-用户状态为解约审核中, cardId={}, retCode={}", cardId, accountRetCode);
-                        response.setRetCode(RET_SUCCESS);
+                        response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                         response.setRetMsg(userInfo.getRetMsg());
                     }
                     case "8006" -> {
                         log.warn("IF5A-03 查询用户信息失败-用户卡号与请求参数不一致, cardId={}, retCode={}", cardId, accountRetCode);
-                        response.setRetCode(RET_SUCCESS);
+                        response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                         response.setRetMsg(userInfo.getRetMsg());
                     }
                     case null, default -> {
                         log.warn("IF5A-03 查询用户信息失败, cardId={}, retCode={}, retMsg={}", cardId, accountRetCode, userInfo.getRetMsg());
-                        response.setRetCode(RET_SUCCESS);
+                        response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                         response.setRetMsg("查询用户信息失败: " + userInfo.getRetMsg());
                     }
                 }
                 return response;
             }
             if (!StringUtils.hasText(userInfo.getThirdUserId())) {
-                response.setRetCode(RET_SUCCESS);
+                response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                 response.setRetMsg("未注册用户");
                 return response;
             }
@@ -1239,7 +1253,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
             itpUserId = userInfo.getThirdUserId();
         } catch (Exception e) {
             log.warn("IF5A-03 查询用户信息失败, cardId={}", cardId, e);
-            response.setRetCode(RET_SUCCESS);
+            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
             response.setRetMsg("查询用户信息异常");
             return response;
         }
@@ -1271,8 +1285,76 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         gateRequest.setReserve2(null);
         gateRequest.setAdviceOpt(adviceOpt);
 
+        // 006 付费更新：计算票价（参考补站逻辑）
+        String ticketPrice = null;
+        if ("006".equals(adviceOpt)) {
+            String entryStationCode = defaultString(currentStatus.getGateInStation(), defaultLastTxnStation);
+            String exitStationCode = updateStationCode;
+            if (StringUtils.hasText(entryStationCode) && StringUtils.hasText(exitStationCode)) {
+                try {
+                    RequestTicketPriceByStationReqDTO fareRequest = new RequestTicketPriceByStationReqDTO();
+                    fareRequest.setEntryStationCode(entryStationCode);
+                    fareRequest.setExitStationCode(exitStationCode);
+                    RequestTicketPriceByStationResult fareResult = paraClient.requestTicketPriceByStation(fareRequest);
+                    if (fareResult != null && RET_SUCCESS.equals(fareResult.getRetCode())
+                            && StringUtils.hasText(fareResult.getTicketPrice())) {
+                        ticketPrice = fareResult.getTicketPrice();
+                        log.info("IF5A-03 付费更新票价查询成功, entry={}, exit={}, ticketPrice={}",
+                                entryStationCode, exitStationCode, ticketPrice);
+                    } else {
+                        log.warn("IF5A-03 付费更新票价查询失败, entry={}, exit={}, retCode={}, retMsg={}",
+                                entryStationCode, exitStationCode,
+                                fareResult != null ? fareResult.getRetCode() : "null",
+                                fareResult != null ? fareResult.getRetMsg() : "null");
+                        response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
+                        response.setRetMsg("票价查询失败，请稍后重试或前往车站服务台办理");
+                        return response;
+                    }
+                } catch (Exception e) {
+                    log.error("IF5A-03 付费更新票价查询异常, entry={}, exit={}", entryStationCode, exitStationCode, e);
+                    response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
+                    response.setRetMsg("票价查询异常，请稍后重试或前往车站服务台办理");
+                    return response;
+                }
+            }
+        }
+
+        // 调用闸机接口时传入实际票价
+        gateRequest.setTrxAmount(ticketPrice != null ? ticketPrice : "0");
+        gateRequest.setOvertimeAmount("0");
+
         log.info("IF5A-03 调用闸机检票接口开始, cardId={}, adviceOpt={}, trxType={}, transAmount={}, excessFareType={}",
                 cardId, adviceOpt, trxType, gateRequest.getTrxAmount(), gateRequest.getExcessFareType());
+
+        // ==================== 幂等性校验：检查状态是否被其他请求修改 ====================
+        QRCodeStatus checkStatus = qrCodeStatusMapper.selectByCardId(cardId);
+        if (checkStatus == null) {
+            log.warn("IF5A-03 幂等性校验：票卡状态不存在, cardId={}", cardId);
+            response.setRetCode(TicketErrorCodeEnum.QR_CODE_NOT_FOUND.getCode());
+            response.setRetMsg("票卡状态不存在");
+            return response;
+        }
+
+        // 检查 codeStatus 是否变化
+        if (!snapshotCodeStatus.equals(checkStatus.getCodeStatus())) {
+            log.warn("IF5A-03 幂等性校验：codeStatus 已变更, cardId={}, old={}, new={}",
+                    cardId, snapshotCodeStatus, checkStatus.getCodeStatus());
+            response.setRetCode(RET_SUCCESS);
+            response.setRetMsg("票卡状态已变更，请刷新后重试");
+            return response;
+        }
+
+        // 检查 txnSeq 是否变化（防止同一状态下的重复请求）
+        if (!defaultString(snapshotTxnSeq, "0").equals(defaultString(checkStatus.getTxnSeq(), "0"))) {
+            log.warn("IF5A-03 幂等性校验：txnSeq 已变更, cardId={}, old={}, new={}",
+                    cardId, snapshotTxnSeq, checkStatus.getTxnSeq());
+            response.setRetCode(RET_SUCCESS);
+            response.setRetMsg("票卡状态已变更，请刷新后重试");
+            return response;
+        }
+
+        log.info("IF5A-03 幂等性校验通过, cardId={}, codeStatus={}, txnSeq={}",
+                cardId, checkStatus.getCodeStatus(), checkStatus.getTxnSeq());
 
         try {
             NotifyVerifyResultRespDTO gateResponse =
@@ -1284,7 +1366,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
             if (gateResponse == null || !RET_SUCCESS.equals(gateResponse.getRetCode())) {
                 log.warn("IF5A-03 闸机检票接口调用失败, cardId={}, adviceOpt={}, gateResponse={}",
                         cardId, adviceOpt, gateResponse);
-                response.setRetCode(RET_SUCCESS);
+                response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                 response.setRetMsg("闸机检票接口调用失败: " + (gateResponse != null ? gateResponse.getRetMsg() : "无响应"));
                 return response;
             }
@@ -1292,7 +1374,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
             log.info("IF5A-03 闸机检票接口调用成功, cardId={}, adviceOpt={}", cardId, adviceOpt);
         } catch (Exception e) {
             log.error("IF5A-03 闸机检票接口调用异常, cardId={}, adviceOpt={}", cardId, adviceOpt, e);
-            response.setRetCode(RET_SUCCESS);
+            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
             response.setRetMsg("闸机检票接口调用异常: " + e.getMessage());
             return response;
         }
