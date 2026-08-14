@@ -3,6 +3,8 @@ package com.chinasofti.huateng.model.para;
 import java.io.Serializable;
 import java.sql.Timestamp;
 
+import com.chinasofti.huateng.model.enums.DeviceTypeEnum;
+
 /**
  * @description:车站配置参数表
  **/
@@ -111,6 +113,10 @@ public class StlStationConfigDO implements Serializable {
 
     public void setDevType(String devType) {
         this.devType = devType;
+    }
+
+    public DeviceTypeEnum getDevTypeEnum() {
+        return DeviceTypeEnum.fromCode(devType);
     }
 
     public String getShowName() {

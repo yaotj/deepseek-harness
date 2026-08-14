@@ -1,6 +1,9 @@
 package com.chinasofti.huateng.model.para;
 
 import java.util.List;
+import java.util.stream.Collectors;
+
+import com.chinasofti.huateng.model.enums.DeviceTypeEnum;
 
 public class SearchDevByStationCodesAndDevTypesDTO {
 
@@ -22,5 +25,11 @@ public class SearchDevByStationCodesAndDevTypesDTO {
 
     public void setDevTypes(List<String> devTypes) {
         this.devTypes = devTypes;
+    }
+
+    public List<DeviceTypeEnum> getDevTypeEnums() {
+        return devTypes.stream()
+            .map(DeviceTypeEnum::fromCode)
+            .collect(Collectors.toList());
     }
 }

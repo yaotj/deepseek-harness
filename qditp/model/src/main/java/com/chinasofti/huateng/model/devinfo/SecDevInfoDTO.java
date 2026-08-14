@@ -3,6 +3,8 @@ package com.chinasofti.huateng.model.devinfo;
 import java.io.Serializable;
 import java.sql.Timestamp;
 
+import com.chinasofti.huateng.model.enums.DeviceTypeEnum;
+
 public class SecDevInfoDTO implements Serializable {
     private String devCode;
     private String ownerCode;
@@ -38,6 +40,10 @@ public class SecDevInfoDTO implements Serializable {
 
     public void setDevType(String devType) {
         this.devType = devType;
+    }
+
+    public DeviceTypeEnum getDevTypeEnum() {
+        return DeviceTypeEnum.fromCode(devType);
     }
 
     public String getDevDesc() {

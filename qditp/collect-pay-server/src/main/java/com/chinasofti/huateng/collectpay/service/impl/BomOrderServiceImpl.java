@@ -30,6 +30,7 @@ import com.chinasofti.huateng.collectpay.utils.TransforUtils;
 import com.chinasofti.huateng.collectpay.utils.OrderNoUtils;
 import com.chinasofti.huateng.collectpay.utils.SignUtils;
 
+import com.chinasofti.huateng.model.enums.DeviceTypeEnum;
 import com.chinasofti.huateng.model.ticket.RequestCardDataAnalyseRespDTO;
 import com.chinasofti.huateng.model.ticket.RequestCardDataUpdateRespDTO;
 import lombok.extern.slf4j.Slf4j;
@@ -57,7 +58,7 @@ import java.util.UUID;
 public class BomOrderServiceImpl implements BomOrderService {
 
 
-    private final static String BOM_SALE = "01";
+    private final static String BOM_SALE = DeviceTypeEnum.BOM.getCode();
     private final static String BOM_PAY = "02";
 
     /**

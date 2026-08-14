@@ -3,6 +3,7 @@ package com.chinasofti.huateng.ticket.controller.page;
 import com.chinasofti.huateng.common.response.ResultMapper;
 import com.chinasofti.huateng.common.response.ResultVO;
 import com.chinasofti.huateng.ticket.entity.QRCodeStatus;
+import com.chinasofti.huateng.ticket.enums.QRCodeStatusEnum;
 import com.chinasofti.huateng.ticket.mapper.QRCodeStatusMapper;
 import com.chinasofti.huateng.ticket.model.page.RideStatusUpdateRequest;
 import org.slf4j.Logger;
@@ -17,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * 用户运营端二维码乘车状态查询与人工调整。
@@ -25,7 +28,18 @@ import java.util.Set;
 @RequestMapping("/page/ride-status")
 public class QRCodeRideStatusPageController {
     private static final Logger log = LoggerFactory.getLogger(QRCodeRideStatusPageController.class);
-    private static final Set<String> ALLOWED_CODE_STATUS = Set.of("02", "03", "04", "05", "06", "08", "09", "10", "80", "81");
+    private static final Set<String> ALLOWED_CODE_STATUS = Stream.of(
+            QRCodeStatusEnum.END_TRIP,
+            QRCodeStatusEnum.SJT_ISSUE,
+            QRCodeStatusEnum.ENTRY,
+            QRCodeStatusEnum.EXIT,
+            QRCodeStatusEnum.EXIT_OVERTIME,
+            QRCodeStatusEnum.UPDATE_FREE,
+            QRCodeStatusEnum.UPDATE_PAY,
+            QRCodeStatusEnum.UPDATE_ENTRY,
+            QRCodeStatusEnum.SELF_SERVICE_EXIT,
+            QRCodeStatusEnum.SELF_SERVICE_ENTRY
+    ).map(QRCodeStatusEnum::getCode).collect(Collectors.toSet());
 
     private final QRCodeStatusMapper qrCodeStatusMapper;
 

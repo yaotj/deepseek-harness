@@ -2,6 +2,8 @@ package com.chinasofti.huateng.ticket.entity;
 
 import java.time.LocalDateTime;
 
+import com.chinasofti.huateng.ticket.enums.QRCodeStatusEnum;
+
 /**
  * 对应 QRCODE_STATUS 表。
  */
@@ -50,6 +52,10 @@ public class QRCodeStatus {
 
     public void setCodeStatus(String codeStatus) {
         this.codeStatus = codeStatus;
+    }
+
+    public QRCodeStatusEnum getCodeStatusEnum() {
+        return QRCodeStatusEnum.fromCode(codeStatus);
     }
 
     public String getGateInTime() {

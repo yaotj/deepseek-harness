@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.chinasofti.huateng.collectpay.common.DeviceResponse;
 import com.chinasofti.huateng.collectpay.constant.BusinessTypeEnum;
 import com.chinasofti.huateng.collectpay.constant.TvmPayCodeEnum;
+import com.chinasofti.huateng.model.enums.DeviceTypeEnum;
 import com.chinasofti.huateng.collectpay.entity.TvmPayPreOrder;
 import com.chinasofti.huateng.collectpay.mapper.TvmOrderPreMapper;
 import com.chinasofti.huateng.collectpay.model.request.tvm.NotiTakeTicketResultReqDTO;
@@ -22,7 +23,7 @@ import org.springframework.util.ObjectUtils;
 @Slf4j
 public class TvmOrderPreServiceImpl implements TvmOrderPreService {
 
-    private static final String TVM_PG = "01";
+    private static final String TVM_PG = DeviceTypeEnum.TVM_1.getCode();
     private static final String TVM_TOPUP = "02";
     private static final String TVM_APP = "03";
 

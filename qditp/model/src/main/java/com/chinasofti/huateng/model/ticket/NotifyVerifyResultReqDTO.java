@@ -22,6 +22,14 @@ public class NotifyVerifyResultReqDTO {
     private String lastHandleDateTime;
     private String ticketTransSeq;
     /**
+     * 补站类型：空=真实检票，01=补进站，02=补出站
+     */
+    private String excessFareType;
+    /**
+     * BOM 操作类型：默认（空）= 真实闸机检票/补站，018=补进站，005=免费更新，006=付费更新。
+     */
+    private String adviceOpt;
+    /**
      * 预留字段1；HCE 卡交易时为闸机处理后的 64 字节 HCE 卡数据。
      */
     private String reserve1;
@@ -160,6 +168,22 @@ public class NotifyVerifyResultReqDTO {
      */
     public void setTikcetTransSeq(String tikcetTransSeq) {
         this.ticketTransSeq = tikcetTransSeq;
+    }
+
+    public String getExcessFareType() {
+        return excessFareType;
+    }
+
+    public void setExcessFareType(String excessFareType) {
+        this.excessFareType = excessFareType;
+    }
+
+    public String getAdviceOpt() {
+        return adviceOpt;
+    }
+
+    public void setAdviceOpt(String adviceOpt) {
+        this.adviceOpt = adviceOpt;
     }
 
     public String getReserve1() {

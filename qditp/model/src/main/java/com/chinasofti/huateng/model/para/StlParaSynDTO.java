@@ -3,6 +3,8 @@ package com.chinasofti.huateng.model.para;
 import java.io.Serializable;
 import java.util.List;
 
+import com.chinasofti.huateng.model.enums.DeviceTypeEnum;
+
 public class StlParaSynDTO implements Serializable {
     private String lineCode;
 
@@ -38,6 +40,10 @@ public class StlParaSynDTO implements Serializable {
 
     public void setDevType(String devType) {
         this.devType = devType;
+    }
+
+    public DeviceTypeEnum getDevTypeEnum() {
+        return DeviceTypeEnum.fromCode(devType);
     }
 
     public String getDevNode() {

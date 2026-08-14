@@ -12,12 +12,14 @@ import com.chinasofti.huateng.model.ticket.RequestCardDataAnalyseReqDTO;
 import com.chinasofti.huateng.model.ticket.RequestCardDataAnalyseRespDTO;
 import com.chinasofti.huateng.model.ticket.RequestCardDataUpdateReqDTO;
 import com.chinasofti.huateng.model.ticket.RequestCardDataUpdateRespDTO;
+import com.chinasofti.huateng.rpc.fepDev.FepDevClient;
 import com.chinasofti.huateng.rpc.para.ParaClient;
 import com.chinasofti.huateng.rpc.account.AccountClient;
 import com.chinasofti.huateng.rpc.alipay.account.AlipayAccountClient;
 import com.chinasofti.huateng.model.alipaytrip.AlipayUserInfoDTO;
 import com.chinasofti.huateng.model.app.UpdateHceDataReqDTO;
 import com.chinasofti.huateng.ticket.constant.TicketErrorCodeEnum;
+import com.chinasofti.huateng.ticket.enums.QRCodeStatusEnum;
 import com.chinasofti.huateng.ticket.entity.QRCodeStatus;
 import com.chinasofti.huateng.ticket.entity.QRCodeTxnDetail;
 import com.chinasofti.huateng.ticket.mapper.QRCodeStatusMapper;
@@ -86,7 +88,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
     private com.chinasofti.huateng.rpc.pay.GateTxnPayClient gateTxnPayClient;
 
     @Autowired
-    private com.chinasofti.huateng.rpc.fepDev.FepDevClient fepDevClient;
+    private FepDevClient fepDevClient;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -296,13 +298,6 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
          * 3. 无需 FFFFF 校验；
          * 4. 更新交易时间、站点和进出站信息；
          * 5. 通过 upsert 持久化。
-         *
-         * TODO: 补站成功后需调用 BOM/ACC 真实接口同步进出站记录，当前仅更新平台状态。
-         *       待 BOM/ACC 提供补站同步接口契约后实施。
-         * TODO: 费用扣减待 Phase 2 实现。扣费应走原闸机扣费接口 gate-txn-pay-server
-         *       （/ci/gateTxnPay/requestPay），需先确认业务是否允许补站复用该链路，
-         *       并扩展 RequestExcessFareReqDTO 增加金额相关字段。
-         * TODO: 超时判断、日票逻辑待 Phase 2 实现，Phase 1 仅修正票卡状态。
          */
         QRCodeStatus currentStatus = qrCodeStatusMapper.selectByCardId(request.getCardId());
         if (currentStatus == null) {
@@ -484,7 +479,6 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
             return response;
         }
 
-        // TODO: 补站成功后需推送行业数据更新（IF8B-01），通知 APP 刷新生码数据。
         response.setRetCode(TicketErrorCodeEnum.SUCCESS.getCode());
         response.setRetMsg(TicketErrorCodeEnum.SUCCESS.getMsg());
         return response;
@@ -710,23 +704,36 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
     private String resolveCodeStatus(String trxType, String excessFareType) {
         // 补进站：codeStatus = 81（用户自助补进站）
         if ("01".equals(excessFareType)) {
-            return "81";
+            return QRCodeStatusEnum.SELF_SERVICE_ENTRY.getCode();
         }
         // 补出站：codeStatus = 80（用户自助补出站）
         if ("02".equals(excessFareType)) {
-            return "80";
+            return QRCodeStatusEnum.SELF_SERVICE_EXIT.getCode();
         }
         // 真实检票：按原有逻辑
         if ("01".equals(trxType)) {
-            return "04";
+            return QRCodeStatusEnum.ENTRY.getCode();
         }
         if ("02".equals(trxType)) {
-            return "05";
+            return QRCodeStatusEnum.EXIT.getCode();
         }
         if ("03".equals(trxType)) {
-            return "06";
+            return QRCodeStatusEnum.EXIT_OVERTIME.getCode();
         }
-        return defaultCodeStatus;
+        return QRCodeStatusEnum.fromCode(defaultCodeStatus).getCode();
+    }
+
+    private QRCodeStatusEnum resolveBomCodeStatus(String adviceOpt) {
+        if ("018".equals(adviceOpt)) {
+            return QRCodeStatusEnum.UPDATE_ENTRY;
+        }
+        if ("005".equals(adviceOpt)) {
+            return QRCodeStatusEnum.UPDATE_FREE;
+        }
+        if ("006".equals(adviceOpt)) {
+            return QRCodeStatusEnum.UPDATE_PAY;
+        }
+        return QRCodeStatusEnum.fromCode(defaultCodeStatus);
     }
 
     private Long parseAmount(String amount) {
@@ -801,7 +808,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
 
         // 付费区标：00 非付费区，01 付费区
         String updateType = defaultString(request.getUpdateType(), "00");
-        List<String> adviceOpt = resolveAdviceOpt(status.getCodeStatus(), gateInStation, lastTxnStation, updateType, status.getGateInTime(), cardId);
+        List<String> adviceOpt = resolveAdviceOpt(status.getCodeStatusEnum(), gateInStation, lastTxnStation, updateType, status.getGateInTime(), cardId);
         response.setAdviceOpt(adviceOpt);
 
         // 20分付费更新金额：仅当建议操作包含付费更新类型时查询票价
@@ -872,7 +879,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         response.setCardIssueDate(cardIssueDate);
         response.setMsisdn(msisdn);
         response.setCardId(cardId);
-        response.setCardStatus(defaultString(status.getCodeStatus(), "03"));
+        response.setCardStatus(defaultString(status.getCodeStatus(), QRCodeStatusEnum.SJT_ISSUE.getCode()));
         response.setLastLineCode(lastLineCode);
         response.setLastStationCode(lastStationCode);
         response.setLastUpdateDate(defaultString(status.getLastTxnTime(), ""));
@@ -902,10 +909,10 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
      * </ul>
      * </p>
      */
-    private List<String> resolveAdviceOpt(String codeStatus, String gateInStation, String lastTxnStation,
+    private List<String> resolveAdviceOpt(QRCodeStatusEnum codeStatus, String gateInStation, String lastTxnStation,
                                           String updateType, String gateInTime, String cardId) {
         if (codeStatus == null) {
-            codeStatus = defaultCodeStatus;
+            codeStatus = QRCodeStatusEnum.fromCode(defaultCodeStatus);
         }
 
         boolean gateInEmpty = defaultLastTxnStation.equalsIgnoreCase(gateInStation);
@@ -914,28 +921,28 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         boolean gateInIsFFFF = "FFFF".equalsIgnoreCase(gateInStation);
 
         // 闭环状态：02/05/06/80
-        if (isClosedLoopStatus(codeStatus)) {
+        if (codeStatus.isClosedLoop()) {
             if ("01".equals(updateType)) {
-                logClosedLoopWarn(gateInStation, lastTxnStation, updateType, cardId, codeStatus);
+                logClosedLoopWarn(gateInStation, lastTxnStation, updateType, cardId, codeStatus.getCode());
                 return java.util.Collections.singletonList("018");
             }
             return java.util.Collections.singletonList("000");
         }
 
         // 开环状态：04/81
-        if (isOpenLoopStatus(codeStatus)) {
+        if (codeStatus.isOpenLoop()) {
             if ("01".equals(updateType)) {
                 return java.util.Collections.singletonList("000");
             }
             if (lastTxnIsFFFF) {
                 log.warn("WARN_STATION_FFFF: 开环状态在非付费区且lastStationCode=FFFF, 强制按最低票价计费, gateIn={}, codeStatus={}, cardId={}",
-                        gateInStation, codeStatus, cardId);
+                        gateInStation, codeStatus.getCode(), cardId);
             }
             return java.util.Collections.singletonList("006");
         }
 
         // 新卡状态：03
-        if ("03".equals(codeStatus)) {
+        if (QRCodeStatusEnum.SJT_ISSUE.equals(codeStatus)) {
             if ("01".equals(updateType)) {
                 log.warn("WARN_STATION_FFFF: 新卡在付费区，补进站, gateIn={}, lastTxn={}, updateType={}, cardId={}",
                         gateInStation, lastTxnStation, updateType, cardId);
@@ -945,7 +952,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         }
 
         // 更新状态：08/09
-        if ("08".equals(codeStatus) || "09".equals(codeStatus)) {
+        if (QRCodeStatusEnum.UPDATE_FREE.equals(codeStatus) || QRCodeStatusEnum.UPDATE_PAY.equals(codeStatus)) {
             if (isWithin20Minutes(gateInTime)) {
                 return java.util.Collections.singletonList("005");
             }
@@ -953,7 +960,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         }
 
         // 乘车码状态：10
-        if ("10".equals(codeStatus)) {
+        if (QRCodeStatusEnum.UPDATE_ENTRY.equals(codeStatus)) {
             if ("01".equals(updateType)) {
                 if (gateInEmpty) {
                     return java.util.Collections.singletonList("018");
@@ -968,15 +975,6 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
 
         // 其他未知状态，兜底
         return java.util.Collections.singletonList("000");
-    }
-
-    private boolean isClosedLoopStatus(String codeStatus) {
-        return "02".equals(codeStatus) || "05".equals(codeStatus)
-                || "06".equals(codeStatus) || "80".equals(codeStatus);
-    }
-
-    private boolean isOpenLoopStatus(String codeStatus) {
-        return "04".equals(codeStatus) || "81".equals(codeStatus);
     }
 
     private void logClosedLoopWarn(String gateInStation, String lastTxnStation, String updateType, String cardId, String codeStatus) {
@@ -1013,23 +1011,23 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
      * </ul>
      * </p>
      */
-    private boolean isUpdateAllowed(String codeStatus, String adviceOpt, String updateType) {
+    private boolean isUpdateAllowed(QRCodeStatusEnum codeStatus, String adviceOpt, String updateType) {
         if (codeStatus == null) {
-            codeStatus = defaultCodeStatus;
+            codeStatus = QRCodeStatusEnum.fromCode(defaultCodeStatus);
         }
 
         // 018 补进站
         if ("018".equals(adviceOpt)) {
             // 闭环状态只在付费区允许 018
-            if (isClosedLoopStatus(codeStatus)) {
+            if (codeStatus.isClosedLoop()) {
                 return "01".equals(updateType);
             }
             // 新卡允许
-            if ("03".equals(codeStatus)) {
+            if (QRCodeStatusEnum.SJT_ISSUE.equals(codeStatus)) {
                 return true;
             }
             // 乘车码仅在付费区允许 018
-            if ("10".equals(codeStatus)) {
+            if (QRCodeStatusEnum.UPDATE_ENTRY.equals(codeStatus)) {
                 return "01".equals(updateType);
             }
             return false;
@@ -1038,16 +1036,19 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         // 006 补出站
         if ("006".equals(adviceOpt)) {
             // 开环状态只在非付费区允许 006
-            if (isOpenLoopStatus(codeStatus)) {
+            if (codeStatus.isOpenLoop()) {
                 return "00".equals(updateType);
             }
             // 更新状态/自助补进站允许
-            return "08".equals(codeStatus) || "09".equals(codeStatus) || "81".equals(codeStatus);
+            return QRCodeStatusEnum.UPDATE_FREE.equals(codeStatus)
+                    || QRCodeStatusEnum.UPDATE_PAY.equals(codeStatus)
+                    || QRCodeStatusEnum.SELF_SERVICE_ENTRY.equals(codeStatus);
         }
 
         // 005 免费更新
         if ("005".equals(adviceOpt)) {
-            return "08".equals(codeStatus) || "09".equals(codeStatus);
+            return QRCodeStatusEnum.UPDATE_FREE.equals(codeStatus)
+                    || QRCodeStatusEnum.UPDATE_PAY.equals(codeStatus);
         }
 
         return false;
@@ -1109,6 +1110,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         }
 
         String codeStatus = currentStatus.getCodeStatus();
+        QRCodeStatusEnum codeStatusEnum = currentStatus.getCodeStatusEnum();
         String gateInStation = currentStatus.getGateInStation();
         String lastTxnStation = currentStatus.getLastTxnStation();
         String gateInTime = currentStatus.getGateInTime();
@@ -1117,7 +1119,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
                 cardId, codeStatus, gateInStation, lastTxnStation, gateInTime);
 
         // ==================== 校验状态是否允许操作 ====================
-        if (!isUpdateAllowed(codeStatus, adviceOpt, updateType)) {
+        if (!isUpdateAllowed(codeStatusEnum, adviceOpt, updateType)) {
             log.warn("IF5A-03 票卡状态不允许此操作, cardId={}, codeStatus={}, adviceOpt={}, updateType={}",
                     cardId, codeStatus, adviceOpt, updateType);
             response.setRetCode(RET_SUCCESS);
@@ -1128,53 +1130,23 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         log.info("IF5A-03 状态校验通过, cardId={}, codeStatus={}, adviceOpt={}, updateType={}",
                 cardId, codeStatus, adviceOpt, updateType);
 
-        // ==================== 构建下一状态 ====================
-        QRCodeStatus nextStatus = new QRCodeStatus();
-        nextStatus.setCardId(cardId);
-        nextStatus.setUseCount(currentStatus.getUseCount() == null ? 0 : currentStatus.getUseCount());
-        nextStatus.setChannel(defaultString(currentStatus.getChannel(), defaultChannel));
-        nextStatus.setTxnSeq(currentStatus.getTxnSeq() == null ? "0" : currentStatus.getTxnSeq());
-        nextStatus.setCreateTime(currentStatus.getCreateTime());
-        nextStatus.setUpdateTime(LocalDateTime.now());
-        nextStatus.setGateStatus(adviceOpt);
-
+        // ==================== 确定交易类型 ====================
         String trxType;
         if ("018".equals(adviceOpt)) {
-            // 补进站
-            nextStatus.setCodeStatus("04");
-            nextStatus.setGateInStation(updateStationCode);
-            nextStatus.setGateInTime(optDate);
-            nextStatus.setLastTxnStation(currentStatus.getLastTxnStation());
-            nextStatus.setLastTxnTime(currentStatus.getLastTxnTime());
-            nextStatus.setTrxAmount(currentStatus.getTrxAmount());
+            // 补进站 → trxType=01
             trxType = "01";
-            log.info("IF5A-03 执行补进站, cardId={}, 当前codeStatus={} -> 下一codeStatus=04, 进站站点={}, 进站时间={}",
+            log.info("IF5A-03 执行补进站, cardId={}, 当前codeStatus={}, 进站站点={}, 进站时间={}",
                     cardId, codeStatus, updateStationCode, optDate);
-        } else if ("005".equals(adviceOpt) || "006".equals(adviceOpt)) {
-            // 005免费更新 / 006付费更新：根据updateType决定更新方向
-            if ("01".equals(updateType)) {
-                // 付费区：更新出站记录
-                nextStatus.setCodeStatus("05");
-                nextStatus.setLastTxnStation(updateStationCode);
-                nextStatus.setLastTxnTime(optDate);
-                nextStatus.setGateInStation(currentStatus.getGateInStation());
-                nextStatus.setGateInTime(currentStatus.getGateInTime());
-                nextStatus.setTrxAmount("006".equals(adviceOpt) ? parseAmount(transAmount) : currentStatus.getTrxAmount());
-                trxType = "02";
-                log.info("IF5A-03 执行{}(付费区), cardId={}, 当前codeStatus={} -> 下一codeStatus=05, 出站站点={}, 出站时间={}, 票价={}",
-                        "006".equals(adviceOpt) ? "付费更新" : "免费更新", cardId, codeStatus, updateStationCode, optDate, nextStatus.getTrxAmount());
-            } else {
-                // 非付费区：更新出站记录（乘客已在非付费区，视为已出站）
-                nextStatus.setCodeStatus("05");
-                nextStatus.setLastTxnStation(updateStationCode);
-                nextStatus.setLastTxnTime(optDate);
-                nextStatus.setGateInStation(currentStatus.getGateInStation());
-                nextStatus.setGateInTime(currentStatus.getGateInTime());
-                nextStatus.setTrxAmount("006".equals(adviceOpt) ? parseAmount(transAmount) : currentStatus.getTrxAmount());
-                trxType = "02";
-                log.info("IF5A-03 执行{}(非付费区), cardId={}, 当前codeStatus={} -> 下一codeStatus=05, 出站站点={}, 出站时间={}, 票价={}",
-                        "006".equals(adviceOpt) ? "付费更新" : "免费更新", cardId, codeStatus, updateStationCode, optDate, nextStatus.getTrxAmount());
-            }
+        } else if ("005".equals(adviceOpt)) {
+            // 005免费更新 → trxType=02
+            trxType = "02";
+            log.info("IF5A-03 执行免费更新, cardId={}, 当前codeStatus={}, 出站站点={}, 出站时间={}, 票价={}",
+                    cardId, codeStatus, updateStationCode, optDate, currentStatus.getTrxAmount());
+        } else if ("006".equals(adviceOpt)) {
+            // 006付费更新 → trxType=02
+            trxType = "02";
+            log.info("IF5A-03 执行付费更新, cardId={}, 当前codeStatus={}, 出站站点={}, 出站时间={}, 票价={}",
+                    cardId, codeStatus, updateStationCode, optDate, transAmount);
         } else {
             log.warn("IF5A-03 不支持的操作类型, cardId={}, adviceOpt={}", cardId, adviceOpt);
             response.setRetCode(RET_SUCCESS);
@@ -1182,11 +1154,10 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
             return response;
         }
 
-        // TODO 测试临时策略：注释扣款相关逻辑，现阶段重点是把车票状态和行程更新好
-        /*
-        // 006/018 需要扣费，需要查询用户签约信息
-        if ("006".equals(adviceOpt) || "018".equals(adviceOpt)) {
-            log.info("IF5A-03 需要扣费, cardId={}, adviceOpt={}, transAmount={}", cardId, adviceOpt, transAmount);
+        // ==================== 恢复查询用户信息 ====================
+        // 006/018/005 都需要查询用户信息，构建闸机检票接口参数
+        if ("006".equals(adviceOpt) || "018".equals(adviceOpt) || "005".equals(adviceOpt)) {
+            log.info("IF5A-03 查询用户信息开始, cardId={}, adviceOpt={}", cardId, adviceOpt);
             QueryUserInfoResult userInfo = null;
             try {
                 QueryUserInfoResult cardTypeResult = accountClient.queryCardTypeByCardId(cardId);
@@ -1256,7 +1227,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
                     } else if ("8007".equals(accountRetCode)) {
                         log.warn("IF5A-03 查询用户信息失败-合作伙伴验证失败, cardId={}, retCode={}", cardId, accountRetCode);
                         response.setRetCode(RET_SUCCESS);
-                        response.setRetMsg("合作伙伴验证失败");
+                        response.setRetMsg(userInfo.getRetMsg());
                     } else if ("8008".equals(accountRetCode)) {
                         log.warn("IF5A-03 查询用户信息失败-用户状态为解约审核中, cardId={}, retCode={}", cardId, accountRetCode);
                         response.setRetCode(RET_SUCCESS);
@@ -1296,143 +1267,74 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
 
             log.info("IF5A-03 用户信息查询成功, cardId={}, thirdUserId={}, cardType={}, signChannelCode={}",
                     cardId, itpUserId, cardType, signChannelCode);
+        }
+
+        // ==================== 构建闸机检票请求并调用 ====================
+        if ("006".equals(adviceOpt) || "018".equals(adviceOpt) || "005".equals(adviceOpt)) {
+            // 构建闸机检票请求
+            com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO gateRequest =
+                    new com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO();
+            gateRequest.setDeviceId(defaultString(request.getOperaterId(), ""));
+            gateRequest.setItpUserId(itpUserId);
+            gateRequest.setTrxType(trxType);
+            gateRequest.setIssueChannelCode(currentStatus.getChannel());
+            gateRequest.setSignChannelCode(signChannelCode);
+            gateRequest.setCardId(cardId);
+            gateRequest.setCardType(cardType);
+            gateRequest.setHandleDateTime(optDate);
+            gateRequest.setHandleStationCode(updateStationCode);
+            gateRequest.setTrxAmount("006".equals(adviceOpt) ? transAmount : "0");
+            gateRequest.setOvertimeAmount("0");
+            gateRequest.setLastTicketStatus(currentStatus.getCodeStatus());
+            gateRequest.setHandleResultCode("00");
+            gateRequest.setLastHandleStationCode(currentStatus.getLastTxnStation());
+            gateRequest.setLastHandleDateTime(currentStatus.getLastTxnTime());
+            gateRequest.setTicketTransSeq(currentStatus.getTxnSeq());
+            // 补站类型：018=01(补进站), 006=02(补出站), 005=空(免费更新)
+            if ("018".equals(adviceOpt)) {
+                gateRequest.setExcessFareType("01");
+            } else if ("006".equals(adviceOpt)) {
+                gateRequest.setExcessFareType("02");
+            } else {
+                gateRequest.setExcessFareType("");
+            }
+            gateRequest.setReserve1("");
+            gateRequest.setReserve2("");
+            gateRequest.setAdviceOpt(adviceOpt);
+
+            log.info("IF5A-03 调用闸机检票接口开始, cardId={}, adviceOpt={}, trxType={}, transAmount={}, excessFareType={}",
+                    cardId, adviceOpt, trxType, gateRequest.getTrxAmount(), gateRequest.getExcessFareType());
 
             try {
-                com.chinasofti.huateng.model.pay.GateTxnPayReqDTO payRequest =
-                        new com.chinasofti.huateng.model.pay.GateTxnPayReqDTO();
-                payRequest.setDeviceId(defaultString(request.getOperaterId(), ""));
-                payRequest.setItpUserId(itpUserId);
-                payRequest.setTrxType(trxType);
-                payRequest.setIssueChannelCode(currentStatus.getChannel());
-                payRequest.setSignChannelCode(signChannelCode);
-                payRequest.setCardId(cardId);
-                payRequest.setCardType(cardType);
-                payRequest.setHandleDateTime(optDate);
-                payRequest.setHandleStationCode(updateStationCode);
-                payRequest.setTrxAmount(transAmount);
-                payRequest.setOvertimeAmount("0");
-                payRequest.setLastTicketStatus(currentStatus.getCodeStatus());
-                payRequest.setHandleResultCode("00");
-                payRequest.setLastHandleStationCode(currentStatus.getLastTxnStation());
-                payRequest.setLastHandleDateTime(currentStatus.getLastTxnTime());
-                payRequest.setTicketTransSeq(currentStatus.getTxnSeq());
-                payRequest.setReserve1("");
-                payRequest.setReserve2("");
+                com.chinasofti.huateng.model.ticket.NotifyVerifyResultRespDTO gateResponse =
+                        notifyVerifyResult(gateRequest);
 
-                log.info("IF5A-03 扣费请求开始, cardId={}, adviceOpt={}, trxType={}, transAmount={}, thirdUserId={}",
-                        cardId, adviceOpt, trxType, transAmount, itpUserId);
+                log.info("IF5A-03 调用闸机检票接口结束, cardId={}, adviceOpt={}, gateResponse={}",
+                        cardId, adviceOpt, gateResponse);
 
-                com.chinasofti.huateng.model.pay.GateTxnPayRespDTO payResponse =
-                        gateTxnPayClient.requestGateTxnPay(payRequest);
-
-                log.info("IF5A-03 扣费请求结束, cardId={}, adviceOpt={}, transAmount={}, payResponse={}",
-                        cardId, adviceOpt, transAmount, payResponse);
-
-                if (payResponse == null || !"0000".equals(payResponse.getRetCode())) {
-                    log.warn("IF5A-03 扣费失败, cardId={}, adviceOpt={}, transAmount={}, payResponse={}",
-                            cardId, adviceOpt, transAmount, payResponse);
+                if (gateResponse == null || !RET_SUCCESS.equals(gateResponse.getRetCode())) {
+                    log.warn("IF5A-03 闸机检票接口调用失败, cardId={}, adviceOpt={}, gateResponse={}",
+                            cardId, adviceOpt, gateResponse);
                     response.setRetCode(RET_SUCCESS);
-                    response.setRetMsg("扣费失败: " + (payResponse != null ? payResponse.getRetMsg() : "无响应"));
+                    response.setRetMsg("闸机检票接口调用失败: " + (gateResponse != null ? gateResponse.getRetMsg() : "无响应"));
                     return response;
                 }
 
-                log.info("IF5A-03 扣费成功, cardId={}, adviceOpt={}, transAmount={}", cardId, adviceOpt, transAmount);
+                log.info("IF5A-03 闸机检票接口调用成功, cardId={}, adviceOpt={}", cardId, adviceOpt);
             } catch (Exception e) {
-                log.error("IF5A-03 扣费异常, cardId={}, adviceOpt={}", cardId, adviceOpt, e);
+                log.error("IF5A-03 闸机检票接口调用异常, cardId={}, adviceOpt={}", cardId, adviceOpt, e);
                 response.setRetCode(RET_SUCCESS);
-                response.setRetMsg("扣费异常: " + e.getMessage());
+                response.setRetMsg("闸机检票接口调用异常: " + e.getMessage());
                 return response;
             }
-        } else {
-            log.info("IF5A-03 无需扣费, cardId={}, adviceOpt={}", cardId, adviceOpt);
-        }
-        */
-
-        // ==================== 构建交易明细 ====================
-        QRCodeTxnDetail detail = new QRCodeTxnDetail();
-        detail.setDeviceId(defaultString(request.getOperaterId(), ""));
-        detail.setItpUserId(itpUserId);
-        detail.setTrxType(trxType);
-        detail.setIssueChannelCode(currentStatus.getChannel());
-        detail.setSignChannelCode(signChannelCode);
-        detail.setCardId(cardId);
-        detail.setCardType(cardType);
-        detail.setHandleDateTime(optDate);
-        detail.setTxnDate(optDate.length() >= 8 ? optDate.substring(0, 8) : optDate);
-        detail.setHandleStationCode(updateStationCode);
-        detail.setTrxAmount(nextStatus.getTrxAmount());
-        detail.setOvertimeAmount(0L);
-        detail.setLastTicketStatus(currentStatus.getCodeStatus());
-        detail.setHandleResultCode("00");
-        detail.setLastHandleStationCode(currentStatus.getLastTxnStation());
-        detail.setLastHandleDateTime(currentStatus.getLastTxnTime());
-        detail.setTicketTransSeq(currentStatus.getTxnSeq());
-        detail.setReserve1("");
-        detail.setReserve2("");
-        detail.setCreateTime(LocalDateTime.now());
-
-        log.info("IF5A-03 构建交易明细, cardId={}, trxType={}, amount={}, stationCode={}",
-                cardId, trxType, nextStatus.getTrxAmount(), updateStationCode);
-
-        log.info("IF5A-03 准备更新QRCODE_STATUS, cardId={}, 当前codeStatus={}, 下一codeStatus={}, " +
-                        "gateInStation={}->{}, lastTxnStation={}->{}, gateInTime={}->{}, " +
-                        "lastTxnTime={}->{}, trxAmount={}->{}",
-                cardId, codeStatus, nextStatus.getCodeStatus(),
-                currentStatus.getGateInStation(), nextStatus.getGateInStation(),
-                currentStatus.getLastTxnStation(), nextStatus.getLastTxnStation(),
-                currentStatus.getGateInTime(), nextStatus.getGateInTime(),
-                currentStatus.getLastTxnTime(), nextStatus.getLastTxnTime(),
-                currentStatus.getTrxAmount(), nextStatus.getTrxAmount());
-
-        // ==================== 更新数据库 ====================
-        try {
-            qrCodeTxnDetailMapper.insert(detail);
-            qrCodeStatusMapper.upsert(nextStatus);
-            log.info("IF5A-03 数据库更新成功, cardId={}, adviceOpt={}, nextCodeStatus={}, " +
-                            "ticketServer.update.cardDataUpdated=true",
-                    cardId, adviceOpt, nextStatus.getCodeStatus());
-        } catch (Exception e) {
-            log.error("IF5A-03 数据库更新失败, cardId={}, adviceOpt={}", cardId, adviceOpt, e);
-            response.setRetCode(RET_SUCCESS);
-            response.setRetMsg("数据库更新失败: " + e.getMessage());
-            return response;
-        }
-
-        // ==================== 生成行业数据 ====================
-        String cardData = "";
-        try {
-            com.chinasofti.huateng.model.app.IndustryCardDataBuildReqDTO cardDataRequest =
-                    new com.chinasofti.huateng.model.app.IndustryCardDataBuildReqDTO();
-            cardDataRequest.setThirdUserId(itpUserId);
-            cardDataRequest.setCardId(cardId);
-            cardDataRequest.setCardType(cardType);
-            cardDataRequest.setTicketStatus(nextStatus.getCodeStatus());
-            cardDataRequest.setLastTxnStation(nextStatus.getLastTxnStation());
-            cardDataRequest.setLastTxnTime(nextStatus.getLastTxnTime());
-            cardDataRequest.setGateInStation(nextStatus.getGateInStation());
-            cardDataRequest.setGateInTime(nextStatus.getGateInTime());
-            cardDataRequest.setTxnSeq(nextStatus.getTxnSeq());
-            cardDataRequest.setIssueChannelCode(currentStatus.getChannel());
-            cardDataRequest.setSignChannelCode(signChannelCode);
-            com.chinasofti.huateng.model.app.IndustryCardDataBuildRespDTO cardDataResp =
-                    industryDataClient.buildCardData(cardDataRequest);
-            if (cardDataResp != null && "0000".equals(cardDataResp.getRetCode())) {
-                cardData = cardDataResp.getCardData();
-                log.info("IF5A-03 行业数据生成成功, cardId={}, cardData长度={}", cardId, cardData.length());
-            } else {
-                log.warn("IF5A-03 行业数据生成失败, cardId={}, cardDataResp={}", cardId, cardDataResp);
-            }
-        } catch (Exception e) {
-            log.warn("IF5A-03 生成行业数据异常, cardId={}", cardId, e);
         }
 
         response.setRetCode(RET_SUCCESS);
         response.setRetMsg("成功");
-        response.setCardData(cardData);
 
-        log.info("IF5A-03 票卡更新完成, cardId={}, adviceOpt={}, updateType={}, codeStatus={}->{}, transAmount={}, retCode={}, cardData长度={}",
-                cardId, adviceOpt, updateType, codeStatus, nextStatus.getCodeStatus(), transAmount,
-                response.getRetCode(), cardData.length());
+        log.info("IF5A-03 票卡更新完成, cardId={}, adviceOpt={}, updateType={}, codeStatus={}, transAmount={}, retCode={}",
+                cardId, adviceOpt, updateType, codeStatus, transAmount,
+                response.getRetCode());
 
         return response;
     }

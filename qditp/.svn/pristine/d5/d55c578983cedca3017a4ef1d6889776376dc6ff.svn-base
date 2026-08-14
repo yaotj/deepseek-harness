@@ -1,4 +1,0 @@
-FROM docker.1ms.run/library/eclipse-temurin:21-jdk
-COPY app.jar /app.jar
-
-ENTRYPOINT ["java", "-jar", "/app.jar"]

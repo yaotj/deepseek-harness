@@ -1,7 +1,0 @@
-package com.chinasofti.huateng.collectpay.service;
-
-public interface TvmCommonService {
-
-
-    public String doRefund(String bussInessType,String orderNo, String payCenterOrderNo, int refundAmount);
-}
