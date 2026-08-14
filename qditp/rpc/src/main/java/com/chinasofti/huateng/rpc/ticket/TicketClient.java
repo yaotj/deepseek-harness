@@ -25,6 +25,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.time.Duration;
 
 @Service
 public class TicketClient extends ProxyWebClient {
@@ -33,6 +34,11 @@ public class TicketClient extends ProxyWebClient {
 
     public TicketClient(@Value("${service.ticket.url:ticket-service}") String baseUrl, @Value("${service.ticket.openLogger:true}") boolean openLogger, WebClient.Builder webClientBuilder) {
         super(baseUrl, openLogger, webClientBuilder);
+    }
+
+    @Override
+    protected Duration getResponseTimeout() {
+        return Duration.ofSeconds(30);
     }
 
     public RegisterRideStatusRespDTO registerRideStatus(@RequestBody RegisterRideStatusReqDTO request) {

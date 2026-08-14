@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Map;
+import java.time.Duration;
 
 /**
  * fep-dev-server RPC Client。
@@ -28,6 +29,11 @@ public class FepDevClient extends ProxyWebClient {
                         @Value("${service.fepDev.openLogger:true}") boolean openLogger,
                         WebClient.Builder webClientBuilder) {
         super(baseUrl, openLogger, webClientBuilder);
+    }
+
+    @Override
+    protected Duration getResponseTimeout() {
+        return Duration.ofSeconds(30);
     }
 
     /**

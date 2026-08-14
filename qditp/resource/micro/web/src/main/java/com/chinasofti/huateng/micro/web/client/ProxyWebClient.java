@@ -35,7 +35,7 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
     private static final Duration MAX_IDLE_TIME = Duration.ofSeconds(20);
     private static final Duration MAX_LIFE_TIME = Duration.ofMinutes(5);
     private static final Duration EVICT_IN_BACKGROUND = Duration.ofSeconds(30);
-    private static final Duration RESPONSE_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration DEFAULT_RESPONSE_TIMEOUT = Duration.ofSeconds(10);
 
     private WebClient getInitOkHttpClient(WebClient.Builder webClientBuilder) {
         ConnectionProvider provider = ConnectionProvider.builder("http")
@@ -47,7 +47,7 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
                 .build();
         HttpClient httpClient = HttpClient.create(provider)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 3000)
-                .responseTimeout(RESPONSE_TIMEOUT)
+                .responseTimeout(getResponseTimeout())
                 .keepAlive(true);
         try {
             SslContext sslContext = SslContextBuilder.forClient()
@@ -89,6 +89,13 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
         setOpenLogger(openLogger);
         setBaseUrl(baseUrl);
         setProxyHttpClient(getInitOkHttpClient(webClientBuilder));
+    }
+
+    /**
+     * 子类可重写此方法自定义响应超时时间。
+     */
+    protected Duration getResponseTimeout() {
+        return DEFAULT_RESPONSE_TIMEOUT;
     }
 
     private void logPostRequestJsonErr(Exception webClientException) {
