@@ -1,6 +1,5 @@
 package com.chinasofti.huateng.ticket.service.impl;
 
-import com.alibaba.fastjson.JSON;
 import com.chinasofti.huateng.model.app.*;
 import com.chinasofti.huateng.model.ticket.QueryStatusReqDTO;
 import com.chinasofti.huateng.model.ticket.QueryStatusRespDTO;
@@ -36,7 +35,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.math.BigInteger;
 import java.util.List;
