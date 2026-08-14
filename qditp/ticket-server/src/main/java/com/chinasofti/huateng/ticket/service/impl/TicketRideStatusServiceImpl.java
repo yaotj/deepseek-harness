@@ -1038,7 +1038,6 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RequestCardDataUpdateRespDTO requestCardDataUpdate(RequestCardDataUpdateReqDTO request) {
-        // TODO 测试临时策略：票卡更新接口所有分支统一返回0000，测试完成后恢复各分支真实返回码
         RequestCardDataUpdateRespDTO response = new RequestCardDataUpdateRespDTO();
 
         // ==================== 参数提取 ====================
@@ -1137,177 +1136,167 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
 
         // ==================== 恢复查询用户信息 ====================
         // 006/018/005 都需要查询用户信息，构建闸机检票接口参数
-        if ("006".equals(adviceOpt) || "018".equals(adviceOpt) || "005".equals(adviceOpt)) {
-            log.info("IF5A-03 查询用户信息开始, cardId={}, adviceOpt={}", cardId, adviceOpt);
-            QueryUserInfoResult userInfo = null;
-            try {
-                QueryUserInfoResult cardTypeResult = accountClient.queryCardTypeByCardId(cardId);
-                if (cardTypeResult == null) {
-                    log.warn("IF5A-03 查询卡类型信息无响应, cardId={}", cardId);
-                    response.setRetCode(RET_SUCCESS);
-                    response.setRetMsg("查询卡类型信息无响应");
-                    return response;
-                }
-                if (!RET_SUCCESS.equals(cardTypeResult.getRetCode())) {
-                    String accountRetCode = cardTypeResult.getRetCode();
-                    if ("8001".equals(accountRetCode)) {
-                        log.warn("IF5A-03 查询卡类型信息失败-请求参数验证失败, cardId={}, retCode={}", cardId, accountRetCode);
-                        response.setRetCode(RET_SUCCESS);
-                        response.setRetMsg("请求参数验证失败");
-                    } else if ("8004".equals(accountRetCode)) {
-                        log.warn("IF5A-03 查询卡类型信息失败-未注册用户, cardId={}, retCode={}", cardId, accountRetCode);
-                        response.setRetCode(RET_SUCCESS);
-                        response.setRetMsg("未注册用户");
-                    } else if ("8007".equals(accountRetCode)) {
-                        log.warn("IF5A-03 查询卡类型信息失败-合作伙伴验证失败, cardId={}, retCode={}", cardId, accountRetCode);
-                        response.setRetCode(RET_SUCCESS);
-                        response.setRetMsg("合作伙伴验证失败");
-                    } else if ("8008".equals(accountRetCode)) {
-                        log.warn("IF5A-03 查询卡类型信息失败-用户状态为解约审核中, cardId={}, retCode={}", cardId, accountRetCode);
-                        response.setRetCode(RET_SUCCESS);
-                        response.setRetMsg("用户状态为解约审核中");
-                    } else if ("8006".equals(accountRetCode)) {
-                        log.warn("IF5A-03 查询卡类型信息失败-用户卡号与请求参数不一致, cardId={}, retCode={}", cardId, accountRetCode);
-                        response.setRetCode(RET_SUCCESS);
-                        response.setRetMsg("用户卡号与请求参数不一致");
-                    } else {
-                        log.warn("IF5A-03 查询卡类型信息失败, cardId={}, retCode={}, retMsg={}", cardId, accountRetCode, cardTypeResult.getRetMsg());
-                        response.setRetCode(RET_SUCCESS);
-                        response.setRetMsg("查询卡类型信息失败: " + cardTypeResult.getRetMsg());
-                    }
-                    return response;
-                }
-                if (!StringUtils.hasText(cardTypeResult.getThirdUserId())) {
-                    log.warn("IF5A-03 未注册用户, cardId={}, thirdUserId为空", cardId);
-                    response.setRetCode(RET_SUCCESS);
-                    response.setRetMsg("未注册用户");
-                    return response;
-                }
-
-                QueryUserInfoReqDTO userInfoReq = new QueryUserInfoReqDTO();
-                userInfoReq.setThirdUserId(cardTypeResult.getThirdUserId());
-                userInfoReq.setCardType(cardTypeResult.getCardType());
-                userInfoReq.setCardId(cardId);
-                userInfo = accountClient.queryUserInfo(userInfoReq);
-                if (userInfo == null) {
-                    log.warn("IF5A-03 查询用户信息无响应, cardId={}", cardId);
-                    response.setRetCode(RET_SUCCESS);
-                    response.setRetMsg("查询用户信息无响应");
-                    return response;
-                }
-                if (!RET_SUCCESS.equals(userInfo.getRetCode())) {
-                    String accountRetCode = userInfo.getRetCode();
-                    if ("8001".equals(accountRetCode)) {
-                        log.warn("IF5A-03 查询用户信息失败-请求参数验证失败, cardId={}, retCode={}", cardId, accountRetCode);
-                        response.setRetCode(RET_SUCCESS);
-                        response.setRetMsg(userInfo.getRetMsg());
-                    } else if ("8004".equals(accountRetCode)) {
-                        log.warn("IF5A-03 查询用户信息失败-未注册用户, cardId={}, retCode={}", cardId, accountRetCode);
-                        response.setRetCode(RET_SUCCESS);
-                        response.setRetMsg(userInfo.getRetMsg());
-                    } else if ("8007".equals(accountRetCode)) {
-                        log.warn("IF5A-03 查询用户信息失败-合作伙伴验证失败, cardId={}, retCode={}", cardId, accountRetCode);
-                        response.setRetCode(RET_SUCCESS);
-                        response.setRetMsg(userInfo.getRetMsg());
-                    } else if ("8008".equals(accountRetCode)) {
-                        log.warn("IF5A-03 查询用户信息失败-用户状态为解约审核中, cardId={}, retCode={}", cardId, accountRetCode);
-                        response.setRetCode(RET_SUCCESS);
-                        response.setRetMsg(userInfo.getRetMsg());
-                    } else if ("8006".equals(accountRetCode)) {
-                        log.warn("IF5A-03 查询用户信息失败-用户卡号与请求参数不一致, cardId={}, retCode={}", cardId, accountRetCode);
-                        response.setRetCode(RET_SUCCESS);
-                        response.setRetMsg(userInfo.getRetMsg());
-                    } else {
-                        log.warn("IF5A-03 查询用户信息失败, cardId={}, retCode={}, retMsg={}", cardId, accountRetCode, userInfo.getRetMsg());
-                        response.setRetCode(RET_SUCCESS);
-                        response.setRetMsg("查询用户信息失败: " + userInfo.getRetMsg());
-                    }
-                    return response;
-                }
-                if (!StringUtils.hasText(userInfo.getThirdUserId())) {
-                    response.setRetCode(RET_SUCCESS);
-                    response.setRetMsg("未注册用户");
-                    return response;
-                }
-                signChannelCode = userInfo.getChannel();
-                cardType = userInfo.getCardType();
-                itpUserId = userInfo.getThirdUserId();
-            } catch (Exception e) {
-                log.warn("IF5A-03 查询用户信息失败, cardId={}", cardId, e);
+        log.info("IF5A-03 查询用户信息开始, cardId={}, adviceOpt={}", cardId, adviceOpt);
+        QueryUserInfoResult userInfo = null;
+        try {
+            QueryUserInfoResult cardTypeResult = accountClient.queryCardTypeByCardId(cardId);
+            if (cardTypeResult == null) {
+                log.warn("IF5A-03 查询用户信息无响应, cardId={}", cardId);
                 response.setRetCode(RET_SUCCESS);
-                response.setRetMsg("查询用户信息异常");
+                response.setRetMsg("查询用户信息无响应");
                 return response;
             }
-
-            if (!StringUtils.hasText(signChannelCode) || !StringUtils.hasText(cardType)) {
-                log.warn("IF5A-03 用户未签约, cardId={}, thirdUserId={}", cardId, itpUserId);
+            if (!RET_SUCCESS.equals(cardTypeResult.getRetCode())) {
+                String accountRetCode = cardTypeResult.getRetCode();
+                log.warn("IF5A-03 查询用户信息失败-请求参数验证失败, cardId={}, retCode={}", cardId, accountRetCode);
+                switch (accountRetCode) {
+                    case "8001" -> {
+                        response.setRetCode(RET_SUCCESS);
+                        response.setRetMsg("请求参数验证失败");
+                    }
+                    case "8004" -> {
+                        response.setRetCode(RET_SUCCESS);
+                        response.setRetMsg("未注册用户");
+                    }
+                    case "8007" -> {
+                        response.setRetCode(RET_SUCCESS);
+                        response.setRetMsg("合作伙伴验证失败");
+                    }
+                    case "8008" -> {
+                        response.setRetCode(RET_SUCCESS);
+                        response.setRetMsg("用户状态为解约审核中");
+                    }
+                    case "8006" -> {
+                        response.setRetCode(RET_SUCCESS);
+                        response.setRetMsg("用户卡号与请求参数不一致");
+                    }
+                    case null, default -> {
+                        response.setRetCode(RET_SUCCESS);
+                        response.setRetMsg("查询用户信息失败: " + cardTypeResult.getRetMsg());
+                    }
+                }
+                return response;
+            }
+            if (!StringUtils.hasText(cardTypeResult.getThirdUserId())) {
+                log.warn("IF5A-03 未注册用户, cardId={}, thirdUserId为空", cardId);
                 response.setRetCode(RET_SUCCESS);
                 response.setRetMsg("未注册用户");
                 return response;
             }
 
-            log.info("IF5A-03 用户信息查询成功, cardId={}, thirdUserId={}, cardType={}, signChannelCode={}",
-                    cardId, itpUserId, cardType, signChannelCode);
-        }
-
-        // ==================== 构建闸机检票请求并调用 ====================
-        if ("006".equals(adviceOpt) || "018".equals(adviceOpt) || "005".equals(adviceOpt)) {
-            // 构建闸机检票请求
-            com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO gateRequest =
-                    new com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO();
-            gateRequest.setDeviceId(defaultString(request.getOperaterId(), ""));
-            gateRequest.setItpUserId(itpUserId);
-            gateRequest.setTrxType(trxType);
-            gateRequest.setIssueChannelCode(currentStatus.getChannel());
-            gateRequest.setSignChannelCode(signChannelCode);
-            gateRequest.setCardId(cardId);
-            gateRequest.setCardType(cardType);
-            gateRequest.setHandleDateTime(optDate);
-            gateRequest.setHandleStationCode(updateStationCode);
-            gateRequest.setTrxAmount("006".equals(adviceOpt) ? transAmount : "0");
-            gateRequest.setOvertimeAmount("0");
-            gateRequest.setLastTicketStatus(currentStatus.getCodeStatus());
-            gateRequest.setHandleResultCode("00");
-            gateRequest.setLastHandleStationCode(currentStatus.getLastTxnStation());
-            gateRequest.setLastHandleDateTime(currentStatus.getLastTxnTime());
-            gateRequest.setTicketTransSeq(currentStatus.getTxnSeq());
-            // 补站类型：018=01(补进站), 006=02(补出站), 005=空(免费更新)
-            if ("018".equals(adviceOpt)) {
-                gateRequest.setExcessFareType("01");
-            } else if ("006".equals(adviceOpt)) {
-                gateRequest.setExcessFareType("02");
-            } else {
-                gateRequest.setExcessFareType("");
-            }
-            gateRequest.setReserve1("");
-            gateRequest.setReserve2("");
-            gateRequest.setAdviceOpt(adviceOpt);
-
-            log.info("IF5A-03 调用闸机检票接口开始, cardId={}, adviceOpt={}, trxType={}, transAmount={}, excessFareType={}",
-                    cardId, adviceOpt, trxType, gateRequest.getTrxAmount(), gateRequest.getExcessFareType());
-
-            try {
-                com.chinasofti.huateng.model.ticket.NotifyVerifyResultRespDTO gateResponse =
-                        notifyVerifyResult(gateRequest);
-
-                log.info("IF5A-03 调用闸机检票接口结束, cardId={}, adviceOpt={}, gateResponse={}",
-                        cardId, adviceOpt, gateResponse);
-
-                if (gateResponse == null || !RET_SUCCESS.equals(gateResponse.getRetCode())) {
-                    log.warn("IF5A-03 闸机检票接口调用失败, cardId={}, adviceOpt={}, gateResponse={}",
-                            cardId, adviceOpt, gateResponse);
-                    response.setRetCode(RET_SUCCESS);
-                    response.setRetMsg("闸机检票接口调用失败: " + (gateResponse != null ? gateResponse.getRetMsg() : "无响应"));
-                    return response;
-                }
-
-                log.info("IF5A-03 闸机检票接口调用成功, cardId={}, adviceOpt={}", cardId, adviceOpt);
-            } catch (Exception e) {
-                log.error("IF5A-03 闸机检票接口调用异常, cardId={}, adviceOpt={}", cardId, adviceOpt, e);
+            QueryUserInfoReqDTO userInfoReq = new QueryUserInfoReqDTO();
+            userInfoReq.setThirdUserId(cardTypeResult.getThirdUserId());
+            userInfoReq.setCardType(cardTypeResult.getCardType());
+            userInfoReq.setCardId(cardId);
+            userInfo = accountClient.queryUserInfo(userInfoReq);
+            if (userInfo == null) {
+                log.warn("IF5A-03 查询用户信息无响应, cardId={}", cardId);
                 response.setRetCode(RET_SUCCESS);
-                response.setRetMsg("闸机检票接口调用异常: " + e.getMessage());
+                response.setRetMsg("查询用户信息无响应");
                 return response;
             }
+            if (!RET_SUCCESS.equals(userInfo.getRetCode())) {
+                String accountRetCode = userInfo.getRetCode();
+                switch (accountRetCode) {
+                    case "8001" -> {
+                        log.warn("IF5A-03 查询用户信息失败-请求参数验证失败, cardId={}, retCode={}", cardId, accountRetCode);
+                        response.setRetCode(RET_SUCCESS);
+                        response.setRetMsg(userInfo.getRetMsg());
+                    }
+                    case "8004" -> {
+                        log.warn("IF5A-03 查询用户信息失败-未注册用户, cardId={}, retCode={}", cardId, accountRetCode);
+                        response.setRetCode(RET_SUCCESS);
+                        response.setRetMsg(userInfo.getRetMsg());
+                    }
+                    case "8007" -> {
+                        log.warn("IF5A-03 查询用户信息失败-合作伙伴验证失败, cardId={}, retCode={}", cardId, accountRetCode);
+                        response.setRetCode(RET_SUCCESS);
+                        response.setRetMsg(userInfo.getRetMsg());
+                    }
+                    case "8008" -> {
+                        log.warn("IF5A-03 查询用户信息失败-用户状态为解约审核中, cardId={}, retCode={}", cardId, accountRetCode);
+                        response.setRetCode(RET_SUCCESS);
+                        response.setRetMsg(userInfo.getRetMsg());
+                    }
+                    case "8006" -> {
+                        log.warn("IF5A-03 查询用户信息失败-用户卡号与请求参数不一致, cardId={}, retCode={}", cardId, accountRetCode);
+                        response.setRetCode(RET_SUCCESS);
+                        response.setRetMsg(userInfo.getRetMsg());
+                    }
+                    case null, default -> {
+                        log.warn("IF5A-03 查询用户信息失败, cardId={}, retCode={}, retMsg={}", cardId, accountRetCode, userInfo.getRetMsg());
+                        response.setRetCode(RET_SUCCESS);
+                        response.setRetMsg("查询用户信息失败: " + userInfo.getRetMsg());
+                    }
+                }
+                return response;
+            }
+            if (!StringUtils.hasText(userInfo.getThirdUserId())) {
+                response.setRetCode(RET_SUCCESS);
+                response.setRetMsg("未注册用户");
+                return response;
+            }
+            signChannelCode = userInfo.getChannel();
+            cardType = userInfo.getCardType();
+            itpUserId = userInfo.getThirdUserId();
+        } catch (Exception e) {
+            log.warn("IF5A-03 查询用户信息失败, cardId={}", cardId, e);
+            response.setRetCode(RET_SUCCESS);
+            response.setRetMsg("查询用户信息异常");
+            return response;
+        }
+
+        log.info("IF5A-03 用户信息查询成功, cardId={}, thirdUserId={}, cardType={}, signChannelCode={}",
+                cardId, itpUserId, cardType, signChannelCode);
+
+        // ==================== 构建闸机检票请求并调用 ====================
+        // 构建闸机检票请求
+        NotifyVerifyResultReqDTO gateRequest =
+                new NotifyVerifyResultReqDTO();
+        gateRequest.setDeviceId(defaultString(request.getOperaterId(), ""));
+        gateRequest.setItpUserId(encodeHexThirdUserId(itpUserId));
+        gateRequest.setTrxType(trxType);
+        gateRequest.setIssueChannelCode(defaultString(currentStatus.getChannel(), "01"));
+        gateRequest.setSignChannelCode("");
+        gateRequest.setCardId(cardId);
+        gateRequest.setCardType(cardType);
+        gateRequest.setHandleDateTime(optDate);
+        gateRequest.setHandleStationCode(updateStationCode);
+        gateRequest.setOvertimeAmount("0");
+        gateRequest.setLastTicketStatus(defaultString(currentStatus.getCodeStatus(), QRCodeStatusEnum.SJT_ISSUE.getCode()));
+        gateRequest.setHandleResultCode("000");
+        gateRequest.setLastHandleStationCode(currentStatus.getLastTxnStation());
+        gateRequest.setLastHandleDateTime(currentStatus.getLastTxnTime());
+        gateRequest.setTicketTransSeq(currentStatus.getTxnSeq() == null ? "0" : currentStatus.getTxnSeq());
+        gateRequest.setAdviceOpt(adviceOpt);
+        gateRequest.setReserve1(null);
+        gateRequest.setReserve2(null);
+        gateRequest.setAdviceOpt(adviceOpt);
+
+        log.info("IF5A-03 调用闸机检票接口开始, cardId={}, adviceOpt={}, trxType={}, transAmount={}, excessFareType={}",
+                cardId, adviceOpt, trxType, gateRequest.getTrxAmount(), gateRequest.getExcessFareType());
+
+        try {
+            NotifyVerifyResultRespDTO gateResponse =
+                    fepDevClient.notifyVerifyResult(gateRequest);
+
+            log.info("IF5A-03 调用闸机检票接口结束, cardId={}, adviceOpt={}, gateResponse={}",
+                    cardId, adviceOpt, gateResponse);
+
+            if (gateResponse == null || !RET_SUCCESS.equals(gateResponse.getRetCode())) {
+                log.warn("IF5A-03 闸机检票接口调用失败, cardId={}, adviceOpt={}, gateResponse={}",
+                        cardId, adviceOpt, gateResponse);
+                response.setRetCode(RET_SUCCESS);
+                response.setRetMsg("闸机检票接口调用失败: " + (gateResponse != null ? gateResponse.getRetMsg() : "无响应"));
+                return response;
+            }
+
+            log.info("IF5A-03 闸机检票接口调用成功, cardId={}, adviceOpt={}", cardId, adviceOpt);
+        } catch (Exception e) {
+            log.error("IF5A-03 闸机检票接口调用异常, cardId={}, adviceOpt={}", cardId, adviceOpt, e);
+            response.setRetCode(RET_SUCCESS);
+            response.setRetMsg("闸机检票接口调用异常: " + e.getMessage());
+            return response;
         }
 
         response.setRetCode(RET_SUCCESS);
