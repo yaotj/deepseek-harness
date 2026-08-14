@@ -318,53 +318,59 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         // 基于 codeStatus 确定允许的补站类型
         String allowedTypes;
         String friendlyMsg;
-        switch (codeStatus) {
-            case "02":
+        QRCodeStatusEnum statusEnum = QRCodeStatusEnum.fromCode(codeStatus);
+        if (statusEnum == null) {
+            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
+            response.setRetMsg("当前票卡状态不支持补站，codeStatus=" + codeStatus);
+            return response;
+        }
+        switch (statusEnum) {
+            case END_TRIP:
                 // 结束行程：允许补进站，不允许补出站
                 allowedTypes = "01";
                 friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
-            case "03":
+            case SJT_ISSUE:
                 // 新卡/初始状态：允许补进站，不允许补出站
                 allowedTypes = "01";
                 friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
-            case "04":
+            case ENTRY:
                 // 已进站：允许补出站，不允许补进站
                 allowedTypes = "02,03,04";
                 friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
-            case "05":
+            case EXIT:
                 // 已出站：允许补进站，不允许补出站
                 allowedTypes = "01";
                 friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
-            case "06":
+            case EXIT_OVERTIME:
                 // 超时出站：允许补进站，不允许补出站
                 allowedTypes = "01";
                 friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
-            case "80":
+            case SELF_SERVICE_EXIT:
                 // 用户自助补出站：允许补进站，不允许补出站
                 allowedTypes = "01";
                 friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
-            case "81":
+            case SELF_SERVICE_ENTRY:
                 // 用户自助补进站：允许补出站，不允许补进站
                 allowedTypes = "02,03,04";
                 friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
-            case "08":
+            case UPDATE_FREE:
                 // 20分钟免费更新：允许补进站，不允许补出站
                 allowedTypes = "01";
                 friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
-            case "09":
+            case UPDATE_PAY:
                 // 20分钟付费更新：允许补进站，不允许补出站
                 allowedTypes = "01";
                 friendlyMsg = "码状态正常，无需更新，请正常刷码";
                 break;
-            case "10":
+            case UPDATE_ENTRY:
                 // 入站码更新：码状态正常，无需更新
                 response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                 response.setRetMsg("码状态正常，无需更新，请正常刷码");

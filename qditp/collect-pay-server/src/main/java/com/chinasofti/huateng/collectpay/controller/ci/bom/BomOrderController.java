@@ -292,8 +292,8 @@ public class BomOrderController {
     }
 
 
-    @PostMapping("/requestOrderTResult")
-    public JSONObject requestOrderTResult(@ModelAttribute BaseRequestDTO baseRequest) {
+    @PostMapping("/requestOrderResult")
+    public JSONObject requestOrderResult(@ModelAttribute BaseRequestDTO baseRequest) {
         log.info("接收到BOM请, baseRequest={}", baseRequest);
 
         // 解析业务参数
@@ -312,8 +312,8 @@ public class BomOrderController {
         return bomOrderService.requestOrderTResult(request);
     }
 
-    @PostMapping("/requestTicketTRefund")
-    public JSONObject requestTicketTRefund(@ModelAttribute BaseRequestDTO baseRequest) {
+    @PostMapping("/requestTicketRefund")
+    public JSONObject requestTicketRefund(@ModelAttribute BaseRequestDTO baseRequest) {
         log.info("接收到BOM请, baseRequest={}", baseRequest);
 
         // 解析业务参数
