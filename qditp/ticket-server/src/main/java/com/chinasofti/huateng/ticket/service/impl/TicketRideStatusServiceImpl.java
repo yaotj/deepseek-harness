@@ -641,7 +641,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         nextStatus.setCardId(request.getCardId());
         nextStatus.setUseCount(currentStatus.getUseCount() == null ? 1 : currentStatus.getUseCount() + 1);
         nextStatus.setChannel(defaultString(request.getIssueChannelCode(), currentStatus.getChannel()));
-        nextStatus.setCodeStatus(resolveCodeStatus(request.getTrxType(), request.getExcessFareType()));
+        nextStatus.setCodeStatus(resolveCodeStatus(request.getTrxType(), request.getExcessFareType(), request.getAdviceOpt()));
         nextStatus.setLastTxnTime(request.getHandleDateTime());
         nextStatus.setLastTxnStation(request.getHandleStationCode());
         if ("01".equals(request.getTrxType())) {
@@ -682,16 +682,27 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         }
     }
 
-    private String resolveCodeStatus(String trxType, String excessFareType) {
-        // 补进站：codeStatus = 81（用户自助补进站）
+    private String resolveCodeStatus(String trxType, String excessFareType, String adviceOpt) {
+        // 优先判断自助补站（excessFareType）
         if ("01".equals(excessFareType)) {
             return QRCodeStatusEnum.SELF_SERVICE_ENTRY.getCode();
         }
-        // 补出站：codeStatus = 80（用户自助补出站）
         if ("02".equals(excessFareType)) {
             return QRCodeStatusEnum.SELF_SERVICE_EXIT.getCode();
         }
-        // 真实检票：按原有逻辑
+        // 其次判断 BOM 更新（adviceOpt）
+        if (StringUtils.hasText(adviceOpt)) {
+            if ("018".equals(adviceOpt)) {
+                return QRCodeStatusEnum.UPDATE_ENTRY.getCode();
+            }
+            if ("005".equals(adviceOpt)) {
+                return QRCodeStatusEnum.UPDATE_FREE.getCode();
+            }
+            if ("006".equals(adviceOpt)) {
+                return QRCodeStatusEnum.UPDATE_PAY.getCode();
+            }
+        }
+        // 最后判断真实检票（trxType）
         if ("01".equals(trxType)) {
             return QRCodeStatusEnum.ENTRY.getCode();
         }
@@ -702,19 +713,6 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
             return QRCodeStatusEnum.EXIT_OVERTIME.getCode();
         }
         return QRCodeStatusEnum.fromCode(defaultCodeStatus).getCode();
-    }
-
-    private QRCodeStatusEnum resolveBomCodeStatus(String adviceOpt) {
-        if ("018".equals(adviceOpt)) {
-            return QRCodeStatusEnum.UPDATE_ENTRY;
-        }
-        if ("005".equals(adviceOpt)) {
-            return QRCodeStatusEnum.UPDATE_FREE;
-        }
-        if ("006".equals(adviceOpt)) {
-            return QRCodeStatusEnum.UPDATE_PAY;
-        }
-        return QRCodeStatusEnum.fromCode(defaultCodeStatus);
     }
 
     private Long parseAmount(String amount) {
