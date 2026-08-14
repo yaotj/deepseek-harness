@@ -11,6 +11,7 @@ import com.chinasofti.huateng.collectpay.model.request.RequestPayReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.RequestQueryRefundReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.app.NoticeAppRefundDTO;
 import com.chinasofti.huateng.collectpay.model.request.app.NoticeAppTakeTicketDTO;
+import com.chinasofti.huateng.collectpay.model.request.app.NoticeAppTakeTicketFailureDTO;
 import com.chinasofti.huateng.collectpay.model.request.bom.RequestPaymentReqDTO;
 import com.chinasofti.huateng.collectpay.utils.SignUtils;
 import lombok.Data;
@@ -226,6 +227,28 @@ public class PayCenterCommon {
         dto.setOrderTicketNum(orderTicketNum);
         dto.setActualTakeTicketNum(actualTakeTicketNum);
         dto.setTakeTickeDate(takeTickeDate);
+        noticeAppTakeTickerDTO.setBizData(dto);
+        return noticeAppTakeTickerDTO;
+    }
+
+    // 通知app-取票通知请求参数
+    public AppCommonRequest<NoticeAppTakeTicketFailureDTO> buildNoticeAppTakeTicketFailureResultRequest(String payOrderNo, String orderTicketNum, String actualTakeTicketNum, String takeTickeDate, String takeTiketFaultReason, String refundAmount) {
+
+        AppCommonRequest<NoticeAppTakeTicketFailureDTO> noticeAppTakeTickerDTO = new AppCommonRequest<>();
+        noticeAppTakeTickerDTO.setProviderId(environment.getProperty("app.providerId"));
+        noticeAppTakeTickerDTO.setCharset(environment.getProperty("app.charset"));
+        noticeAppTakeTickerDTO.setFormat(environment.getProperty("app.format"));
+        noticeAppTakeTickerDTO.setTimestamp(LocalDateTime.now().format(DATETIME_FORMATTER));
+        noticeAppTakeTickerDTO.setDeviceId("");
+        noticeAppTakeTickerDTO.setSignType(environment.getProperty("app.signType"));
+
+        NoticeAppTakeTicketFailureDTO dto = new NoticeAppTakeTicketFailureDTO();
+        dto.setOrderNo(payOrderNo);
+        dto.setOrderTicketNum(orderTicketNum);
+        dto.setActualTakeTicketNum(actualTakeTicketNum);
+        dto.setTakeTickeDate(takeTickeDate);
+        dto.setTakeTiketFaultReason(takeTiketFaultReason);
+        dto.setRefundAmount(refundAmount);
         noticeAppTakeTickerDTO.setBizData(dto);
         return noticeAppTakeTickerDTO;
     }

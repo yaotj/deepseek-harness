@@ -12,6 +12,7 @@ import com.chinasofti.huateng.collectpay.mapper.*;
 import com.chinasofti.huateng.collectpay.model.request.AppCommonRequest;
 import com.chinasofti.huateng.collectpay.model.request.PayCenterRequest;
 import com.chinasofti.huateng.collectpay.model.request.app.NoticeAppTakeTicketDTO;
+import com.chinasofti.huateng.collectpay.model.request.app.NoticeAppTakeTicketFailureDTO;
 import com.chinasofti.huateng.collectpay.model.request.bom.RequestGenNoCashOrderReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.bom.RequestPaymentReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.tvm.*;
@@ -437,19 +438,11 @@ public class TvmOrderServiceImpl implements TvmOrderService {
         int refundAmount = handleRefund(payOrderNo, payCenterOrderNo, ticketPrice, buyNum, actualNum, businessType);
         log.info("5.出票结果通知处理完成, orderNo={}, buyNum={}, actualNum={}, refundAmount={}",
                 request.getOrderNo(), buyNum, actualNum, refundAmount);
-
-        // 如果refundAmount>0，说明有发起退款，推送给app
-//        if (refundAmount > 0) {
-//            log.info("有退款，通知app");
-////            this.noticeAppRefundResult(payOrderNo,request.get);
-//            log.info("通知app退款结束");
-//        }
-
         return TvmOrderResult.success();
     }
 
     // 通知app取票结果
-    private void noticeAppTakeTicketResult(String payOrderNo, String orderTicketNum, String actualTakeTicketNum, String takeTickeDate) {
+    public void noticeAppTakeTicketResult(String payOrderNo, String orderTicketNum, String actualTakeTicketNum, String takeTickeDate) {
 
         log.info("开始通知app取票结果");
         // 通知app的参数
@@ -465,15 +458,26 @@ public class TvmOrderServiceImpl implements TvmOrderService {
         saveMap.putAll(noticeMap);
         saveMap.put("status", ItpCommon.NOTICE_INIT);
         saveMap.put("createTime", DateUtils.getNowTime());
-        saveMap.put("retryTimes", "1");
+        String retryTimes = "0";
+        saveMap.put("retryTimes", retryTimes);
 
         int insert = tvmNoticeAppMapper.insertTakeNotice(saveMap);
         log.info("通知app记录保存成功 i is {}", insert);
 
+        log.info("开始发送给app");
+        boolean b = sendNoticeAppTakeTicketRecord(payOrderNo, orderTicketNum, actualTakeTicketNum, takeTickeDate, retryTimes);
+        log.info("发送结束 b is {}", b);
+    }
+
+    @Override
+    // 发送给app
+    public boolean sendNoticeAppTakeTicketRecord(String payOrderNo, String orderTicketNum, String actualTakeTicketNum, String takeTickeDate, String retryTimes) {
+
+        boolean b = false;
         String noticeAppTakeTicketResultUrl = environment.getProperty("pay.center.notice-app-taketicketresult-url");
 
         log.info("noticeAppTakeTicketResultUrl is {}", noticeAppTakeTicketResultUrl);
-        AppCommonRequest<NoticeAppTakeTicketDTO> request = payCenterCommon.buildNoticeAppTakeTicketResultRequest(payOrderNo,orderTicketNum,actualTakeTicketNum,takeTickeDate);
+        AppCommonRequest<NoticeAppTakeTicketDTO> request = payCenterCommon.buildNoticeAppTakeTicketResultRequest(payOrderNo, orderTicketNum, actualTakeTicketNum, takeTickeDate);
         String httpResult = httpUtils.doPostFormData(noticeAppTakeTicketResultUrl, request);
 
         log.info("请求结束 httpResult is {}", httpResult);
@@ -484,10 +488,11 @@ public class TvmOrderServiceImpl implements TvmOrderService {
         Map<String, Object> upMap = new HashMap<>();
         upMap.put("orderNo", payOrderNo);
         upMap.put("updateTime", DateUtils.getNowTime());
-        upMap.put("retryTimes", "1");
+        upMap.put("retryTimes", retryTimes);
         if (StringUtils.equals(AppCodeEnum.SUCCESS.getCode(), retCode)) {
             log.info("通知成功，修改通知记录状态为成功");
             upMap.put("status", ItpCommon.NOTICE_SUCCESS);
+            b = true;
         } else {
             log.info("通知失败，修改通知状态为失败");
             upMap.put("status", ItpCommon.NOTICE_FAIL);
@@ -495,9 +500,73 @@ public class TvmOrderServiceImpl implements TvmOrderService {
 
         int i = tvmNoticeAppMapper.updateTakeNoticeByOrderNo(upMap);
         log.info("修改通知记录状态结束 i is {}", i);
-
+        return b;
     }
 
+    // 通知app取票故障结果
+    public void noticeAppTakeTicketFailureResult(String payOrderNo, String orderTicketNum, String actualTakeTicketNum, String takeTickeDate,String takeTiketFaultReason,String refundAmount) {
+
+        log.info("payOrderNo is {} orderTicketNum is {} actualTakeTicketNum is {} takeTickeDate is {} takeTiketFaultReason is {} refundAmount is {} ", payOrderNo,  orderTicketNum,  actualTakeTicketNum,  takeTickeDate, takeTiketFaultReason, refundAmount);
+        log.info("开始通知app取票故障结果");
+        // 通知app的参数
+        Map<String, String> noticeFailureMap = new HashMap<>();
+        noticeFailureMap.put("orderNo", payOrderNo);
+        noticeFailureMap.put("orderTicketNum", orderTicketNum);
+        noticeFailureMap.put("actualTakeTicketNum", actualTakeTicketNum);
+        noticeFailureMap.put("takeTickeDate", takeTickeDate);
+        noticeFailureMap.put("takeTiketFaultReason", takeTiketFaultReason);
+        noticeFailureMap.put("refundAmount", refundAmount);
+        log.info("noticeFailureMap is {}", noticeFailureMap);
+
+        // 保存到数据库
+        Map<String, String> saveMap = new HashMap<>();
+        saveMap.putAll(noticeFailureMap);
+        saveMap.put("status", ItpCommon.NOTICE_INIT);
+        saveMap.put("createTime", DateUtils.getNowTime());
+        String retryTimes = "0";
+        saveMap.put("retryTimes", retryTimes);
+
+        int insert = tvmNoticeAppMapper.insertTakeFailureNotice(saveMap);
+        log.info("通知app取票故障记录保存成功 i is {}", insert);
+
+        log.info("开始发送给app取票故障");
+        // 这里很明确是第一次发送所以retryTimes设置为1
+        boolean b = sendNoticeAppTakeTicketFailureRecord( payOrderNo,  orderTicketNum,  actualTakeTicketNum,  takeTickeDate, takeTiketFaultReason, refundAmount,"1");
+        log.info("发送取票故障结束 b is {}", b);
+    }
+
+    @Override
+    public boolean sendNoticeAppTakeTicketFailureRecord(String payOrderNo, String orderTicketNum, String actualTakeTicketNum, String takeTickeDate,String takeTiketFaultReason,String refundAmount, String retryTimes) {
+
+        boolean b = false;
+        String taketicketfailureresultUrl = environment.getProperty("pay.center.notice-app-taketicketfailureresult-url");
+
+        log.info("出票故障 taketicketfailureresultUrl is {}", taketicketfailureresultUrl);
+        AppCommonRequest<NoticeAppTakeTicketFailureDTO> request = payCenterCommon.buildNoticeAppTakeTicketFailureResultRequest(payOrderNo, orderTicketNum, actualTakeTicketNum, takeTickeDate,takeTiketFaultReason,refundAmount);
+        String httpResult = httpUtils.doPost2(taketicketfailureresultUrl, request);
+
+        log.info("出票故障 请求结束 httpResult is {}", httpResult);
+        JSONObject httpResultJson = (JSONObject) JSONObject.parse(httpResult);
+        String retCode = String.valueOf(httpResultJson.get("retCode"));
+        log.info("出票故障 retCode is {}", retCode);
+
+        Map<String, Object> upMap = new HashMap<>();
+        upMap.put("orderNo", payOrderNo);
+        upMap.put("updateTime", DateUtils.getNowTime());
+        upMap.put("retryTimes", retryTimes);
+        if (StringUtils.equals(AppCodeEnum.SUCCESS.getCode(), retCode)) {
+            log.info("出票故障通知成功，修改通知记录状态为成功");
+            upMap.put("status", ItpCommon.NOTICE_SUCCESS);
+            b = true;
+        } else {
+            log.info("出票故障通知失败，修改通知状态为失败");
+            upMap.put("status", ItpCommon.NOTICE_FAIL);
+        }
+
+        int i = tvmNoticeAppMapper.updateTakeFailureNoticeByOrderNo(upMap);
+        log.info("出票故障 修改通知记录状态结束 i is {}", i);
+        return b;
+    }
 
 
     @Override
@@ -564,6 +633,19 @@ public class TvmOrderServiceImpl implements TvmOrderService {
             }
         }
 
+        // 如果是扫码取票的业务，通知app故障结果
+        if (StringUtils.equals(transType, BusinessTypeEnum.TVM_SCAN_QR_TAKETICKET.getCode())) {
+            log.info("扫码取票业务，开始给app发送取票结果通知");
+
+            // app要的取票时间，tvm没有这个字段，这里取tvm发来的故障时间-faultOccurDate
+            String takeTickeDate = request.getFaultOccurDate().substring(0, 8);
+            // 计算要退款的金额
+            int refundNum = buyNum - actualNum;
+            String refundAmount = String.valueOf(new BigDecimal(ticketPrice).multiply(new BigDecimal(refundNum)));
+            log.info("当前计算要退款的金额是 refundAmount is {}",refundAmount);
+            this.noticeAppTakeTicketFailureResult(payOrderNo, String.valueOf(buyNum), request.getActualTakeTicketNum(),takeTickeDate,request.getErrorMessage(), refundAmount);
+        }
+
         // 如果购票数量大于实际出票数量，发起退款 退款时发送的是支付中心的订单号
         int refundAmount = handleRefund(payOrderNo, payCenterOrderNo, ticketPrice, buyNum, actualNum, businessType);
         log.info("5.出票故障通知处理完成, orderNo={}, buyNum={}, actualNum={}, refundAmount={}",
@@ -608,7 +690,7 @@ public class TvmOrderServiceImpl implements TvmOrderService {
 //        return 0;
 //    }
     private int handleRefund(String orderNo, String payCenterOrderNo, String ticketPrice, int buyNum, int actualNum, String businessType) {
-        log.info("开始退款处理");
+        log.info("开始判断是否需要退款处理");
 
         if (buyNum > actualNum) {
             int refundNum = buyNum - actualNum;
@@ -630,6 +712,8 @@ public class TvmOrderServiceImpl implements TvmOrderService {
                 tvmOrderMapper.updateByOrderNo(upMap);
             }
             return refundAmount.intValue();
+        } else {
+            log.info("出票数量和购买数量相等，不发起退款");
         }
         return 0;
     }

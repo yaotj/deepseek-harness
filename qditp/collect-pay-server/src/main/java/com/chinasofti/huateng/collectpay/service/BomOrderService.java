@@ -1,13 +1,7 @@
 package com.chinasofti.huateng.collectpay.service;
 
 import com.alibaba.fastjson.JSONObject;
-import com.chinasofti.huateng.collectpay.model.request.bom.NotiBusResultReqDTO;
-import com.chinasofti.huateng.collectpay.model.request.bom.NotiTopupResultReqDTO;
-import com.chinasofti.huateng.collectpay.model.request.bom.RequestCardDataAnalyseReqDTO;
-import com.chinasofti.huateng.collectpay.model.request.bom.RequestCardDataUpdateReqDTO;
-import com.chinasofti.huateng.collectpay.model.request.bom.RequestGenNoCashOrderReqDTO;
-import com.chinasofti.huateng.collectpay.model.request.bom.RequestGetPayResultReqDTO;
-import com.chinasofti.huateng.collectpay.model.request.bom.RequestPaymentReqDTO;
+import com.chinasofti.huateng.collectpay.model.request.bom.*;
 import com.chinasofti.huateng.collectpay.model.request.tvm.NotiTakeTicketFailResultReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.tvm.NotiTakeTicketResultReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.tvm.PayNoticeReqDTO;
@@ -92,6 +86,9 @@ public interface BomOrderService {
      * @return 响应结果，包含最新行业数据
      */
     JSONObject requestCardDataUpdate(RequestCardDataUpdateReqDTO request);
+
+    JSONObject requestOrderTResult(RequestOrderResultReqDTO request);
+    JSONObject requestTicketTRefund(RequestTicketRefundReqDTO request);
 
     /**
      * IF2A-04 出票结果通知。

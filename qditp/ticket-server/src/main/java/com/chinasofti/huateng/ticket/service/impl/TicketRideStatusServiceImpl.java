@@ -1,5 +1,6 @@
 package com.chinasofti.huateng.ticket.service.impl;
 
+import com.alibaba.fastjson.JSON;
 import com.chinasofti.huateng.model.app.*;
 import com.chinasofti.huateng.model.ticket.QueryStatusReqDTO;
 import com.chinasofti.huateng.model.ticket.QueryStatusRespDTO;
@@ -83,6 +84,9 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
 
     @Autowired
     private com.chinasofti.huateng.rpc.pay.GateTxnPayClient gateTxnPayClient;
+
+    @Autowired
+    private com.chinasofti.huateng.rpc.fepDev.FepDevClient fepDevClient;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -356,9 +360,17 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
                 friendlyMsg = "当前已补进站，如需出站请选择补出站";
                 break;
             case "08":
+                // 20分钟免费更新：允许补进站
+                allowedTypes = "01";
+                friendlyMsg = "当前为20分钟免费更新状态，如需进站请选择补进站";
+                break;
             case "09":
+                // 20分钟付费更新：允许补进站
+                allowedTypes = "01";
+                friendlyMsg = "当前为20分钟付费更新状态，如需进站请选择补进站";
+                break;
             case "10":
-                // 20分钟更新/入站码更新：提示用户到服务台处理
+                // 入站码更新：提示用户到服务台处理
                 response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                 response.setRetMsg("当前票卡状态不支持自助补站，请到服务台处理");
                 return response;
@@ -374,64 +386,30 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
             return response;
         }
 
-        QRCodeStatus nextStatus = new QRCodeStatus();
-        nextStatus.setCardId(request.getCardId());
-        nextStatus.setUseCount(currentStatus.getUseCount() == null ? 0 : currentStatus.getUseCount());
-        nextStatus.setChannel(defaultString(currentStatus.getChannel(), "01"));
-        if ("01".equals(upgradeAreaType)) {
-            nextStatus.setCodeStatus("04");
-        } else if ("02".equals(upgradeAreaType)) {
-            nextStatus.setCodeStatus("05");
-        } else {
-            nextStatus.setCodeStatus(defaultString(currentStatus.getCodeStatus(), "03"));
-        }
-        nextStatus.setLastTxnTime(request.getUpgradeDateTime());
-        nextStatus.setLastTxnStation(request.getUpgradeStationCode());
-        nextStatus.setTxnSeq(currentStatus.getTxnSeq() == null ? "0" : currentStatus.getTxnSeq());
-        nextStatus.setCreateTime(currentStatus.getCreateTime());
-        nextStatus.setUpdateTime(LocalDateTime.now());
-        nextStatus.setGateStatus("00");
-        if ("01".equals(upgradeAreaType)) {
-            nextStatus.setGateInTime(request.getUpgradeDateTime());
-            nextStatus.setGateInStation(request.getUpgradeStationCode());
-        } else {
-            nextStatus.setGateInTime(currentStatus.getGateInTime());
-            nextStatus.setGateInStation(currentStatus.getGateInStation());
-        }
-        qrCodeStatusMapper.upsert(nextStatus);
-
-        // 补站记录交易明细（幂等保护：已存在则跳过）
-        String ticketTransSeq = currentStatus.getTxnSeq() == null ? "0" : currentStatus.getTxnSeq();
-        QRCodeTxnDetail existDetail = qrCodeTxnDetailMapper.selectExcessFareDetail(
-                request.getCardId(), upgradeAreaType, request.getUpgradeDateTime(), ticketTransSeq);
-        if (existDetail == null) {
-            QRCodeTxnDetail excessFareDetail = new QRCodeTxnDetail();
-            excessFareDetail.setCardId(request.getCardId());
-            excessFareDetail.setTrxType(upgradeAreaType);
-            excessFareDetail.setHandleDateTime(request.getUpgradeDateTime());
-            excessFareDetail.setTxnDate(request.getUpgradeDateTime().length() >= 8 ? request.getUpgradeDateTime().substring(0, 8) : request.getUpgradeDateTime());
-            excessFareDetail.setHandleStationCode(request.getUpgradeStationCode());
-            excessFareDetail.setTrxAmount(0L);
-            excessFareDetail.setOvertimeAmount(0L);
-            excessFareDetail.setLastTicketStatus(defaultString(currentStatus.getCodeStatus(), "03"));
-            excessFareDetail.setHandleResultCode("000");
-            excessFareDetail.setLastHandleStationCode(currentStatus.getLastTxnStation());
-            excessFareDetail.setLastHandleDateTime(currentStatus.getLastTxnTime());
-            excessFareDetail.setTicketTransSeq(ticketTransSeq);
-            excessFareDetail.setItpUserId(request.getThirdUserId());
-            excessFareDetail.setIssueChannelCode(defaultString(currentStatus.getChannel(), "01"));
-            excessFareDetail.setSignChannelCode("");
-            excessFareDetail.setCardType(request.getCardType());
-            excessFareDetail.setCreateTime(LocalDateTime.now());
-            qrCodeTxnDetailMapper.insert(excessFareDetail);
-            log.info("IF8A-04 补站交易明细入库, cardId={}, trxType={}, station={}, detailId={}",
-                    request.getCardId(), upgradeAreaType, request.getUpgradeStationCode(), excessFareDetail.getId());
-        } else {
-            log.info("IF8A-04 补站交易明细已存在，幂等跳过, cardId={}, trxType={}, handleDateTime={}, ticketTransSeq={}",
-                    request.getCardId(), upgradeAreaType, request.getUpgradeDateTime(), ticketTransSeq);
-        }
+        // 业务规则判断通过后，组装闸机接口参数
+        NotifyVerifyResultReqDTO bizData = new NotifyVerifyResultReqDTO();
+        bizData.setDeviceId(request.getUpgradeStationCode() + "36" + "01");
+        bizData.setItpUserId(encodeHexThirdUserId(request.getThirdUserId()));
+        bizData.setTrxType(upgradeAreaType);
+        bizData.setIssueChannelCode(defaultString(currentStatus.getChannel(), "01"));
+        bizData.setSignChannelCode("");
+        bizData.setCardId(request.getCardId());
+        bizData.setCardType(request.getCardType());
+        bizData.setHandleDateTime(request.getUpgradeDateTime());
+        bizData.setHandleStationCode(request.getUpgradeStationCode());
+        bizData.setOvertimeAmount("0");
+        bizData.setLastTicketStatus(defaultString(currentStatus.getCodeStatus(), "03"));
+        bizData.setHandleResultCode("000");
+        bizData.setLastHandleStationCode(currentStatus.getLastTxnStation());
+        bizData.setLastHandleDateTime(currentStatus.getLastTxnTime());
+        bizData.setTicketTransSeq(currentStatus.getTxnSeq() == null ? "0" : currentStatus.getTxnSeq());
+        bizData.setExcessFareType(upgradeAreaType);
+        bizData.setReserve1(null);
+        bizData.setReserve2(null);
 
         // 只有补出站（02）才计算票价和收费，补进站（01）不涉及。
+        // 票价查询和扣费必须在调用闸机接口之前，因为闸机会更新票卡状态。
+        String ticketPrice = null;
         if ("02".equals(upgradeAreaType)) {
             String entryStationCode = defaultString(currentStatus.getGateInStation(), defaultLastTxnStation);
             String exitStationCode = request.getUpgradeStationCode();
@@ -443,18 +421,67 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
                     RequestTicketPriceByStationResult fareResult = paraClient.requestTicketPriceByStation(fareRequest);
                     if (fareResult != null && RET_SUCCESS.equals(fareResult.getRetCode())
                             && StringUtils.hasText(fareResult.getTicketPrice())) {
+                        ticketPrice = fareResult.getTicketPrice();
                         log.info("IF8A-04 补出站票价查询成功, entry={}, exit={}, ticketPrice={}",
-                                entryStationCode, exitStationCode, fareResult.getTicketPrice());
+                                entryStationCode, exitStationCode, ticketPrice);
                     } else {
                         log.warn("IF8A-04 补出站票价查询失败, entry={}, exit={}, retCode={}, retMsg={}",
                                 entryStationCode, exitStationCode,
                                 fareResult != null ? fareResult.getRetCode() : "null",
                                 fareResult != null ? fareResult.getRetMsg() : "null");
+                        response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
+                        response.setRetMsg("票价查询失败，请稍后重试或前往车站服务台办理");
+                        return response;
                     }
                 } catch (Exception e) {
                     log.error("IF8A-04 补出站票价查询异常, entry={}, exit={}", entryStationCode, exitStationCode, e);
+                    response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
+                    response.setRetMsg("票价查询异常，请稍后重试或前往车站服务台办理");
+                    return response;
                 }
             }
+        }
+
+        // 闸机前扣费：补出站查询到票价后，先扣费再更新票卡状态
+        if ("02".equals(upgradeAreaType) && StringUtils.hasText(ticketPrice)) {
+            try {
+                log.info("IF8A-04 补出站闸机前扣费开始, cardId={}, ticketPrice={}",
+                        request.getCardId(), ticketPrice);
+                // TODO: Phase 2 接入实际支付平台扣款
+                // PayResult payResult = payPlatformClient.deduct(request.getThirdUserId(), ticketPrice);
+                // if (!payResult.isSuccess()) {
+                //     response.setRetCode("8003");
+                //     response.setRetMsg("扣费失败: " + payResult.getMsg());
+                //     return response;
+                // }
+                log.info("IF8A-04 补出站闸机前扣费成功, cardId={}, ticketPrice={}",
+                        request.getCardId(), ticketPrice);
+            } catch (Exception e) {
+                log.error("IF8A-04 补出站闸机前扣费异常, cardId={}, ticketPrice={}",
+                        request.getCardId(), ticketPrice, e);
+                response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg("扣费异常: " + e.getMessage());
+                return response;
+            }
+        }
+
+        // 调用闸机接口时传入实际票价
+        bizData.setTrxAmount(ticketPrice != null ? ticketPrice : "0");
+        bizData.setOvertimeAmount("0");
+        try {
+            NotifyVerifyResultRespDTO gateResponse = fepDevClient.notifyVerifyResult(bizData);
+            if (!RET_SUCCESS.equals(gateResponse.getRetCode())) {
+                response.setRetCode(gateResponse.getRetCode());
+                response.setRetMsg(gateResponse.getRetMsg());
+                return response;
+            }
+            log.info("IF8A-04 补站调用 fep-dev-server 闸机接口成功, cardId={}, trxType={}, station={}",
+                    request.getCardId(), upgradeAreaType, request.getUpgradeStationCode());
+        } catch (Exception e) {
+            log.error("IF8A-04 补站调用 fep-dev-server 闸机接口异常", e);
+            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
+            response.setRetMsg("调用闸机接口异常: " + e.getMessage());
+            return response;
         }
 
         // TODO: 补站成功后需推送行业数据更新（IF8B-01），通知 APP 刷新生码数据。
@@ -639,7 +666,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         nextStatus.setCardId(request.getCardId());
         nextStatus.setUseCount(currentStatus.getUseCount() == null ? 1 : currentStatus.getUseCount() + 1);
         nextStatus.setChannel(defaultString(request.getIssueChannelCode(), currentStatus.getChannel()));
-        nextStatus.setCodeStatus(resolveCodeStatus(request.getTrxType()));
+        nextStatus.setCodeStatus(resolveCodeStatus(request.getTrxType(), request.getExcessFareType()));
         nextStatus.setLastTxnTime(request.getHandleDateTime());
         nextStatus.setLastTxnStation(request.getHandleStationCode());
         if ("01".equals(request.getTrxType())) {
@@ -680,14 +707,23 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         }
     }
 
-    private String resolveCodeStatus(String trxType) {
+    private String resolveCodeStatus(String trxType, String excessFareType) {
+        // 补进站：codeStatus = 81（用户自助补进站）
+        if ("01".equals(excessFareType)) {
+            return "81";
+        }
+        // 补出站：codeStatus = 80（用户自助补出站）
+        if ("02".equals(excessFareType)) {
+            return "80";
+        }
+        // 真实检票：按原有逻辑
         if ("01".equals(trxType)) {
             return "04";
         }
         if ("02".equals(trxType)) {
             return "05";
         }
-        if ("03".equals(trxType)) { 
+        if ("03".equals(trxType)) {
             return "06";
         }
         return defaultCodeStatus;
@@ -706,6 +742,22 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
 
     private String defaultString(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
+    }
+
+    /**
+     * 将十进制 thirdUserId 转为16进制字符串（闸机接口要求）
+     */
+    private String encodeHexThirdUserId(String decimalThirdUserId) {
+        if (!StringUtils.hasText(decimalThirdUserId)) {
+            return decimalThirdUserId;
+        }
+        try {
+            long decimalValue = Long.parseLong(decimalThirdUserId);
+            return Long.toHexString(decimalValue).toUpperCase();
+        } catch (NumberFormatException e) {
+            log.warn("thirdUserId 格式异常，无法转为16进制: {}", decimalThirdUserId);
+            return decimalThirdUserId;
+        }
     }
 
     @Override

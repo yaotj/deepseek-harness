@@ -6,5 +6,9 @@ public interface TvmCommonService {
 
 
     public String doRefund(String bussInessType,String orderNo, String payCenterOrderNo, int refundAmount);
+
     public PayCenterResponse queryRefundResult(String refundNo);
+
+    public boolean noticeAppRefundResult(String payOrderNo, String refundResult, String refundDate, String refundAmount, String retryTimes);
+
 }

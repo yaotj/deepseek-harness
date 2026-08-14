@@ -34,6 +34,13 @@
         limit 1
     </select>
 
+    <select id="selectRefundTotalAmtByPayOderNo" resultType="String">
+        select sum(REFUND_AMOUNT)
+        from TBL_TVM_ORDER_REFUND
+        where PAY_ORDER_NO = #{payOrderNo,jdbcType=VARCHAR} and REFUND_STATUS = '1'
+
+    </select>
+
     <insert id="insert" parameterType="com.chinasofti.huateng.collectpay.entity.RefundOrder">
         insert into TBL_TVM_ORDER_REFUND (
             REFUND_NO, PAY_ORDER_NO, MERCHANT_REFUND_NO, CHANNEL_REFUND_NO, BUSINESS_TYPE,REFUND_AMOUNT,

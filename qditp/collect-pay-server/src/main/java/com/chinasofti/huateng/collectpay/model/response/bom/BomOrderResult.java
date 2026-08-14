@@ -43,10 +43,15 @@ public class BomOrderResult {
      *
      * @return 包含retCode=0000和retMsg=成功的响应对象
      */
+
+    private static final String SUCCESS_CODE = "0000";
+    private static final String SUCCESS_MSG = "成功";
+    private static final String FAIL_CODE ="8999";
+    private static final String FAIL_MSG = "失败";
     public static JSONObject success() {
         JSONObject result = new JSONObject();
-        result.put(RET_CODE, "0000");
-        result.put(RET_MSG, "成功");
+        result.put(RET_CODE, SUCCESS_CODE);
+        result.put(RET_MSG, SUCCESS_MSG);
         return result;
     }
 
@@ -58,7 +63,7 @@ public class BomOrderResult {
      */
     public static JSONObject success(String retMsg) {
         JSONObject result = new JSONObject();
-        result.put(RET_CODE, "0000");
+        result.put(RET_CODE, SUCCESS_CODE);
         result.put(RET_MSG, retMsg);
         return result;
     }
@@ -72,9 +77,15 @@ public class BomOrderResult {
      */
     public static JSONObject successData(String orderNo) {
         JSONObject result = new JSONObject();
-        result.put(RET_CODE, "0000");
-        result.put(RET_MSG, "成功");
+        result.put(RET_CODE, SUCCESS_CODE);
+        result.put(RET_MSG, SUCCESS_MSG);
         result.put(ORDER_NO, orderNo);
+        return result;
+    }
+
+    public static JSONObject successData(JSONObject result) {
+        result.put(RET_CODE, SUCCESS_CODE);
+        result.put(RET_MSG, SUCCESS_MSG);
         return result;
     }
 
@@ -88,8 +99,8 @@ public class BomOrderResult {
      */
     public static JSONObject successPaymentResult(String paymentResult, String paymentResultDesc) {
         JSONObject result = new JSONObject();
-        result.put(RET_CODE, "0000");
-        result.put(RET_MSG, "成功");
+        result.put(RET_CODE, SUCCESS_CODE);
+        result.put(RET_MSG, SUCCESS_MSG);
         result.put(PAYMENT_RESULT, paymentResult);
         result.put(PAYMENT_RESULT_DESC, paymentResultDesc);
         return result;
@@ -116,7 +127,11 @@ public class BomOrderResult {
      * @return 默认失败响应对象
      */
     public static JSONObject fail() {
-        return fail("8999", "失败");
+        return fail(FAIL_CODE, FAIL_MSG);
+    }
+
+    public static JSONObject failMessage(String message) {
+        return fail(FAIL_CODE, message);
     }
 
     /**
@@ -128,13 +143,10 @@ public class BomOrderResult {
      * @param paymentResultDesc 支付结果描述
      * @return 包含错误信息和支付结果的响应对象
      */
-    public static JSONObject failData(String retCode, String retMsg, String paymentResult, String paymentResultDesc) {
-        JSONObject result = new JSONObject();
-        result.put(RET_CODE, retCode);
-        result.put(RET_MSG, retMsg);
-        result.put(PAYMENT_RESULT, paymentResult);
-        result.put(PAYMENT_RESULT_DESC, paymentResultDesc);
-        return result;
+    public static JSONObject failData(JSONObject jsonObject) {
+        jsonObject.put(RET_CODE, FAIL_CODE);
+        jsonObject.put(RET_MSG, FAIL_MSG);
+        return jsonObject;
     }
 
     /**
@@ -148,8 +160,8 @@ public class BomOrderResult {
      */
     public static JSONObject successPaymentResultWithMsg(String paymentResult, String paymentResultDesc, String msg) {
         JSONObject result = new JSONObject();
-        result.put(RET_CODE, "0000");
-        result.put(RET_MSG, "成功");
+        result.put(RET_CODE, SUCCESS_CODE);
+        result.put(RET_MSG, SUCCESS_MSG);
         result.put(PAYMENT_RESULT, paymentResult);
         result.put(PAYMENT_RESULT_DESC, paymentResultDesc);
         result.put(MSG, msg);

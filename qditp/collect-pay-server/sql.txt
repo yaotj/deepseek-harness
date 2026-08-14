@@ -259,13 +259,49 @@ CREATE TABLE TBL_BOM_MAIN_TICKET
       	UPDATE_TIME VARCHAR2(100)
          )
 
-         CREATE TABLE tbl_notice_app_record
-            (
-             ORDER_NO VARCHAR2(100),
-         	orderTicketNum VARCHAR2(100),
-         	actualTakeTicketNum VARCHAR2(100),
-         	takeTickeDate VARCHAR2(100),
-         	status VARCHAR2(100),
-         	CREATE_TIME VARCHAR2(100),
-         	UPDATE_TIME VARCHAR2(100)
-            )
+CREATE TABLE tbl_notice_app_taketicket_record
+   (
+    ORDER_NO VARCHAR2(100),
+	orderTicketNum VARCHAR2(100),
+	actualTakeTicketNum VARCHAR2(100),
+	takeTickeDate VARCHAR2(100),
+	status VARCHAR2(100),
+	retryTimes VARCHAR2(100),
+	CREATE_TIME VARCHAR2(100),
+	UPDATE_TIME VARCHAR2(100)
+   )  ;
+   CREATE TABLE tbl_notice_app_refund_record
+   (
+    ORDER_NO VARCHAR2(100),
+	refundType VARCHAR2(100),
+	refundResult VARCHAR2(100),
+	refundResultDesc VARCHAR2(100),
+	refundDate VARCHAR2(100),
+	refundAmount VARCHAR2(100),
+	status VARCHAR2(100),
+	retryTimes VARCHAR2(100),
+	CREATE_TIME VARCHAR2(100),
+	UPDATE_TIME VARCHAR2(100)
+   ) ;
+CREATE TABLE TBL_BOM_TICKET_REFUND
+   (	orderNo VARCHAR2(100),
+	TakeTicketNum VARCHAR2(100),
+	ticketRefundDate VARCHAR2(100),
+	ticketLogicNum VARCHAR2(100),
+	transDate VARCHAR2(100),
+	transAmount VARCHAR2(100),
+	transType VARCHAR2(100),
+	refundNo VARCHAR2(100)
+   );
+   CREATE TABLE TBL_NOTICE_APP_FAILURE_RECORD
+      (	ORDER_NO VARCHAR2(100),
+   	orderTicketNum VARCHAR2(100),
+   	actualTakeTicketNum VARCHAR2(100),
+   	takeTickeDate VARCHAR2(100),
+   	takeTiketFaultReason VARCHAR2(100),
+   	refundAmount VARCHAR2(100),
+   	status VARCHAR2(100),
+   	retryTimes VARCHAR2(100),
+   	CREATE_TIME VARCHAR2(100),
+   	UPDATE_TIME VARCHAR2(100)
+      )

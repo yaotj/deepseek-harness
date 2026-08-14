@@ -4,13 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.collectpay.constant.BomPayCodeEnum;
 import com.chinasofti.huateng.collectpay.model.request.BaseRequestDTO;
-import com.chinasofti.huateng.collectpay.model.request.bom.NotiBusResultReqDTO;
-import com.chinasofti.huateng.collectpay.model.request.bom.NotiTopupResultReqDTO;
-import com.chinasofti.huateng.collectpay.model.request.bom.RequestCardDataAnalyseReqDTO;
-import com.chinasofti.huateng.collectpay.model.request.bom.RequestCardDataUpdateReqDTO;
-import com.chinasofti.huateng.collectpay.model.request.bom.RequestGenNoCashOrderReqDTO;
-import com.chinasofti.huateng.collectpay.model.request.bom.RequestGetPayResultReqDTO;
-import com.chinasofti.huateng.collectpay.model.request.bom.RequestPaymentReqDTO;
+import com.chinasofti.huateng.collectpay.model.request.bom.*;
 import com.chinasofti.huateng.collectpay.model.response.bom.BomOrderResult;
 import com.chinasofti.huateng.collectpay.service.BomOrderService;
 import com.chinasofti.huateng.collectpay.utils.TransforUtils;
@@ -211,7 +205,7 @@ public class BomOrderController {
     }
 
     /**
-     * 充值结果通知。
+     * 7.3.3.5　IF2A-09 充值结果通知。
      * BOM充值操作完成后，向ITP平台通知充值结果。
      *
      * @param baseRequest 包含公共参数和业务参数的请求对象
@@ -295,5 +289,52 @@ public class BomOrderController {
 
         // 调用业务服务处理
         return bomOrderService.requestCardDataUpdate(request);
+    }
+
+
+    @PostMapping("/requestOrderTResult")
+    public JSONObject requestOrderTResult(@ModelAttribute BaseRequestDTO baseRequest) {
+        log.info("接收到BOM请, baseRequest={}", baseRequest);
+
+        // 解析业务参数
+        RequestOrderResultReqDTO request = TransforUtils.copyBaseParams(baseRequest, RequestOrderResultReqDTO.class);
+        log.info("转换后请求参数为 {}", request);
+
+        // 参数校验
+        if (request == null || !StringUtils.hasText(request.getTicketLogicNum())) {
+            return BomOrderResult.fail(BomPayCodeEnum.INVALID_PARAM.getCode(), "ticketLogicNum不能为空");
+        }
+        if (!StringUtils.hasText(request.getTransDate())) {
+            return BomOrderResult.fail(BomPayCodeEnum.INVALID_PARAM.getCode(), "transDate不能为空");
+        }
+
+        // 调用业务服务处理
+        return bomOrderService.requestOrderTResult(request);
+    }
+
+    @PostMapping("/requestTicketTRefund")
+    public JSONObject requestTicketTRefund(@ModelAttribute BaseRequestDTO baseRequest) {
+        log.info("接收到BOM请, baseRequest={}", baseRequest);
+
+        // 解析业务参数
+        RequestTicketRefundReqDTO request = TransforUtils.copyBaseParams(baseRequest, RequestTicketRefundReqDTO.class);
+        log.info("转换后请求参数为 {}", request);
+
+        // 参数校验
+        if (!StringUtils.hasText(request.getOrderNo())) {
+            return BomOrderResult.fail(BomPayCodeEnum.INVALID_PARAM.getCode(), "orderNo不能为空");
+        }
+        if (!StringUtils.hasText(request.getTicketLogicNum())) {
+            return BomOrderResult.fail(BomPayCodeEnum.INVALID_PARAM.getCode(), "ticketLogicNum不能为空");
+        }
+        if (!StringUtils.hasText(request.getTransAmount())) {
+            return BomOrderResult.fail(BomPayCodeEnum.INVALID_PARAM.getCode(), "transAmount不能为空");
+        }
+        if (!StringUtils.hasText(request.getTransType())) {
+            return BomOrderResult.fail(BomPayCodeEnum.INVALID_PARAM.getCode(), "transType不能为空");
+        }
+
+        // 调用业务服务处理
+        return bomOrderService.requestTicketTRefund(request);
     }
 }

@@ -87,7 +87,6 @@
         )
     </insert>
 
-
     <update id="updateByOrderNo" parameterType="java.util.Map">
         update TBL_BOM_ORDER_PAY
         <set>
@@ -105,4 +104,21 @@
         </set>
         where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </update>
+
+    <insert id="insertTicketRefund" parameterType="com.chinasofti.huateng.collectpay.model.request.bom.RequestTicketRefundReqDTO">
+        insert into TBL_BOM_TICKET_REFUND (
+        orderNo, TakeTicketNum, ticketRefundDate, ticketLogicNum, transDate, transAmount,
+        transType, refundNo
+        ) values (
+        #{orderNo,jdbcType=VARCHAR},
+        #{TakeTicketNum,jdbcType=VARCHAR},
+        #{ticketRefundDate,jdbcType=VARCHAR},
+        #{ticketLogicNum,jdbcType=VARCHAR},
+        #{transDate,jdbcType=VARCHAR},
+        #{transAmount,jdbcType=VARCHAR},
+        #{transType,jdbcType=VARCHAR},
+        #{refundNo,jdbcType=VARCHAR}
+        )
+    </insert>
+
 </mapper>

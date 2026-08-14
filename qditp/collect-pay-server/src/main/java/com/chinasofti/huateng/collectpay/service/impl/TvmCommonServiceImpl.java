@@ -243,8 +243,9 @@ public class TvmCommonServiceImpl implements TvmCommonService {
 
                             int i = saveNoticeAppRefundResultRecord(payOrderNo, refundAmount);
                             log.info("保存通知app退款记录结束 i is {}", i);
-                            noticeAppRefundResult(payOrderNo, status, refundDate, refundAmount);
-                            log.info("通知app退款结束");
+                            // 这里retryTimes写死为1，因为明确这里是第一次发送
+                            boolean b = noticeAppRefundResult(payOrderNo, status, refundDate, refundAmount, "1");
+                            log.info("通知app退款结束 b is {}", b);
                         }
 
                         return true;
@@ -281,13 +282,15 @@ public class TvmCommonServiceImpl implements TvmCommonService {
         return i;
     }
 
+    @Override
     // 扫码取票业务 通知app退款结果
-    private void noticeAppRefundResult(String payOrderNo, String refundResult, String refundDate, String refundAmount) {
+    public boolean noticeAppRefundResult(String payOrderNo, String refundResult, String refundDate, String refundAmount, String retryTimes) {
 
+        boolean b = false;
         log.info("开始通知app退款结果");
-        String refundResultDesc ="";
+        String refundResultDesc = "";
         if (StringUtils.equals(refundResult, AppStatusEnum.REFUND_SUCCESS.getCode())) {
-             refundResultDesc = "refundResultDesc";
+            refundResultDesc = "refundResultDesc";
         }
         if (StringUtils.equals(refundResult, AppStatusEnum.REFUND_FAIL.getCode())) {
             refundResultDesc = "refundResultDesc";
@@ -310,12 +313,13 @@ public class TvmCommonServiceImpl implements TvmCommonService {
         upMap.put("orderNo", payOrderNo);
         upMap.put("updateTime", DateUtils.getNowTime());
         // 此处是第一次推送，所以写死为1
-        upMap.put("retryTimes", "1");
+        upMap.put("retryTimes", retryTimes);
 
         // 如果收到成功则修改数据库
         if (StringUtils.equals(AppCodeEnum.SUCCESS.getCode(), retCode)) {
             log.info("通知成功，修改通知记录状态为成功");
             upMap.put("status", ItpCommon.NOTICE_SUCCESS);
+            b = true;
         } else {
             log.info("通知失败，修改通知状态为失败");
             upMap.put("status", ItpCommon.NOTICE_FAIL);
@@ -323,7 +327,7 @@ public class TvmCommonServiceImpl implements TvmCommonService {
 
         int i = tvmNoticeAppMapper.updateRefundNoticeByOrderNo(upMap);
         log.info("修改通知记录状态结束 i is {}", i);
-
+        return b;
     }
 
 //    private String getPayCenterRefundResult(String refundNo,String businessType){

@@ -44,6 +44,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -76,6 +77,14 @@ public class BomOrderServiceImpl implements BomOrderService {
     private BomMainTicketMapper bomMainTicketMapper;
     @Autowired
     private BomSubTicketMapper bomSubTicketMapper;
+    @Autowired
+    private TvmSubTicketMapper tvmSubTicketMapper;
+    @Autowired
+    private TvmMainTicketMapper tvmMainTicketMapper;
+    @Autowired
+    private TvmOrderMapper tvmOrderMapper;
+    @Autowired
+    private RefundOrderMapper refundOrderMapper;
 
     /**
      * BOM业务操作结果通知Mapper。
@@ -110,12 +119,6 @@ public class BomOrderServiceImpl implements BomOrderService {
      */
     @Autowired
     private TvmTopupOrderMapper tvmTopupOrderMapper;
-
-    /**
-     * 退款记录Mapper。
-     */
-    @Autowired
-    private RefundOrderMapper refundOrderMapper;
 
     /**
      * 支付中心服务。
@@ -1122,7 +1125,7 @@ public class BomOrderServiceImpl implements BomOrderService {
     }
 
     private int handleRefund(String payOrderNo, String ticketPrice, int buyNum, int actualNum) {
-        log.info("开始退款处理");
+        log.info("开始判断是否需要退款处理");
         if (buyNum > actualNum) {
             int refundNum = buyNum - actualNum;
             BigDecimal price = new BigDecimal(ticketPrice);
@@ -1166,8 +1169,115 @@ public class BomOrderServiceImpl implements BomOrderService {
             log.info("bom售票通知结束");
 
             return refundAmount.intValue();
+        } else {
+            log.info("出票数量和购买数量相等，不发起退款");
         }
         return 0;
+    }
+
+    @Override
+    public JSONObject requestOrderTResult(RequestOrderResultReqDTO request) {
+
+        log.info("开始处理");
+        Map<String, String> condition = new HashMap<>();
+        condition.put("ticketLogicNum", request.getTicketLogicNum());
+        // todo 需要确认接收的transDate格式和数据库transDate格式是否一样
+        condition.put("transDate", request.getTransDate());
+
+        // 1.根据逻辑卡号查询对应的出票信息
+        TvmSubTicket tvmSubTicket = tvmSubTicketMapper.selectByCondition(condition);
+        log.info("tvmSubTicket is {}", tvmSubTicket);
+        if (ObjectUtils.isEmpty(tvmSubTicket)) {
+            log.info("无对应的出票子信息");
+            return BomOrderResult.failMessage("没有查找到出票信息");
+        }
+
+        // 2.根据出票子信息的mainid查询主出票信息
+        TvmMainTicket tvmMainTicket = tvmMainTicketMapper.selectById(Long.valueOf(tvmSubTicket.getMainTicketId()));
+        log.info("tvmMainTicket is {}", tvmMainTicket);
+        if (ObjectUtils.isEmpty(tvmMainTicket)) {
+            log.info("无对应的出票主信息");
+            return BomOrderResult.failMessage("没有查找到出票主信息");
+        }
+
+        // 3.根据出票主信息中的订单号查询支付信息
+        TvmPayOrder tvmPayOrder = tvmOrderMapper.selectByOrderNo(tvmMainTicket.getOrderNo());
+        log.info("tvmPayOrder is {}", tvmPayOrder);
+        if (ObjectUtils.isEmpty(tvmPayOrder)) {
+            log.info("无对应的订单信息");
+            return BomOrderResult.failMessage("无对应的订单信息");
+        }
+
+        // 判断该订单是否发起过退款，这部分代码用于后续追溯，实际业务用不到
+        if (StringUtils.isEmpty(tvmPayOrder.getRsv2())) {
+            // 查询已退款总金额
+            String refundTotalAmt = refundOrderMapper.selectRefundTotalAmtByPayOderNo(tvmPayOrder.getOrderNo());
+            String totalPrice = tvmPayOrder.getTotalPrice();
+            log.info("该订单总金额是 {}  已退款总金额是 {}", totalPrice, refundTotalAmt);
+
+        }
+
+        JSONObject result = new JSONObject();
+        String status = tvmPayOrder.getStatus();
+        if (StringUtils.equals(status, ItpStatusEnum.SUCCESS.getCode())) {
+            result.put("paymentResult", PayCenterStatusEnum.SUCCESS.getCode());
+            result.put("paymentResultDesc", PayCenterStatusEnum.SUCCESS.getDesc());
+        } else if (StringUtils.equals(status, ItpStatusEnum.FAILED.getCode())) {
+            result.put("paymentResult", PayCenterStatusEnum.FAILED.getCode());
+            result.put("paymentResultDesc", PayCenterStatusEnum.FAILED.getDesc());
+        } else {
+            result.put("paymentResult", PayCenterStatusEnum.UNPAID.getCode());
+            result.put("paymentResultDesc", PayCenterStatusEnum.UNPAID.getDesc());
+        }
+        result.put("orderNo", tvmPayOrder.getOrderNo());
+        result.put("transDate", tvmSubTicket.getTransDate());
+        result.put("transAmount", tvmPayOrder.getTicketPrice());
+        result.put("paymentChannelCode", "");
+
+        return BomOrderResult.successData(result);
+    }
+
+    @Override
+    public JSONObject requestTicketTRefund(RequestTicketRefundReqDTO request) {
+        log.info("开始退款");
+        String refundOrderNo = generateRefundOrderNo();
+        String now = DateUtils.getNowTime();
+
+        request.setRefundNo(refundOrderNo);
+        int i = bomNoCashOrderMapper.insertTicketRefund(request);
+        log.info("保存退款请求记录信息结束 i is {}", i);
+        if(i>0){
+            PayCenterResponse refundResponse = this.doRefund(refundOrderNo, now, request.getOrderNo(), request.getTransAmount());
+            log.info("5.支付中心退款响应  refundResponse={}", refundResponse);
+            // 处理退款结果
+            if (ObjectUtils.isEmpty(refundResponse)) {
+                // 退款结果为空，通知状态设为退款失败
+                log.info("6.退款结果为空， 通知状态设为退款失败");
+                // 更新退款订单状态
+                updateBomRefundOrder(refundOrderNo, "2", "退款失败", now);
+                return BomOrderResult.fail();
+            } else if (StringUtils.equals(refundResponse.getCode(), PayCenterErrorCodeEnum.SUCCESS.getCode())) {
+                // 退款成功
+                log.info("6.退款成功 ");
+                // 更新退款订单状态
+                updateBomRefundOrder(refundOrderNo, "1", "退款成功", now);
+                // 更新通知记录状态
+                updateBomOrder(request.getOrderNo(), refundOrderNo, now);
+
+                return BomOrderResult.success();
+            } else {
+                // 退款失败
+                log.info("6.退款失败 ");
+                // 更新退款订单状态
+                updateBomRefundOrder(refundOrderNo, "2", "退款失败", now);
+                // 更新原订单状态
+                updateBomOrder(request.getOrderNo(), refundOrderNo, now);
+                return BomOrderResult.fail();
+            }
+        }else {
+            log.info("保存请求退款信息失败");
+            return BomOrderResult.fail();
+        }
     }
 }
 

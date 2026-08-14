@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface TvmSubTicketMapper {
@@ -22,4 +23,7 @@ public interface TvmSubTicketMapper {
      * 批量插入出票明细记录。
      */
     int batchInsert(@Param("list") List<TvmSubTicket> list);
+
+
+    TvmSubTicket selectByCondition(Map<String,String> condition);
 }

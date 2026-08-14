@@ -76,4 +76,8 @@ public interface TvmOrderService {
 
     // 支付结果通知
     JSONObject payNotice(PayNoticeReqDTO request);
+
+    boolean sendNoticeAppTakeTicketRecord(String payOrderNo, String orderTicketNum, String actualTakeTicketNum, String takeTickeDate,String retryTimes);
+
+    boolean sendNoticeAppTakeTicketFailureRecord(String payOrderNo, String orderTicketNum, String actualTakeTicketNum, String takeTickeDate,String takeTiketFaultReason,String refundAmount, String retryTimes);
 }

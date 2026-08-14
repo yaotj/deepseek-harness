@@ -15,34 +15,48 @@
 
 
     <select id="selectByMainTicketId" resultMap="BaseResultMap">
-        select <include refid="Base_Column_List"/>
+        select
+        <include refid="Base_Column_List"/>
         from TBL_TVM_SUB_TICKET
-        where MAIN_TICKET_ID = #{mainTicketId,jdbcType=BIGINT}
+        where MAIN_TICKET_ID = #{mainTicketId,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByCondition" parameterType="map" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from TBL_TVM_SUB_TICKET
+        where TICKET_LOGIC_NUM = #{ticketLogicNum,jdbcType=VARCHAR}
+        and TRANS_DATE = #{transDate,jdbcType=VARCHAR}
+        and create_Time = (select max(create_Time) from TBL_TVM_SUB_TICKET
+        where TICKET_LOGIC_NUM = #{ticketLogicNum,jdbcType=VARCHAR}
+        and TRANS_DATE = #{transDate,jdbcType=VARCHAR}
+        )
+
     </select>
 
     <insert id="insert" parameterType="com.chinasofti.huateng.collectpay.entity.TvmSubTicket">
         insert into TBL_TVM_SUB_TICKET (
-            MAIN_TICKET_ID, TICKET_LOGIC_NUM, TRANS_DATE, TRANS_AMOUNT,create_Time
+        MAIN_TICKET_ID, TICKET_LOGIC_NUM, TRANS_DATE, TRANS_AMOUNT,create_Time
         ) values (
-            #{mainTicketId,jdbcType=BIGINT},
-            #{ticketLogicNum,jdbcType=VARCHAR},
-            #{transDate,jdbcType=VARCHAR},
-            #{transAmount,jdbcType=VARCHAR},
-            #{createTime,jdbcType=VARCHAR}
+        #{mainTicketId,jdbcType=VARCHAR},
+        #{ticketLogicNum,jdbcType=VARCHAR},
+        #{transDate,jdbcType=VARCHAR},
+        #{transAmount,jdbcType=VARCHAR},
+        #{createTime,jdbcType=VARCHAR}
         )
     </insert>
 
     <insert id="batchInsert">
         insert into TBL_TVM_SUB_TICKET (
-            MAIN_TICKET_ID, TICKET_LOGIC_NUM, TRANS_DATE, TRANS_AMOUNT,create_Time
+        MAIN_TICKET_ID, TICKET_LOGIC_NUM, TRANS_DATE, TRANS_AMOUNT,create_Time
         ) values
         <foreach collection="list" item="item" separator=",">
             (
-                #{item.mainTicketId,jdbcType=BIGINT},
-                #{item.ticketLogicNum,jdbcType=VARCHAR},
-                #{item.transDate,jdbcType=VARCHAR},
-                #{item.transAmount,jdbcType=VARCHAR}
-                #{item.createTime,jdbcType=VARCHAR}
+            #{item.mainTicketId,jdbcType=BIGINT},
+            #{item.ticketLogicNum,jdbcType=VARCHAR},
+            #{item.transDate,jdbcType=VARCHAR},
+            #{item.transAmount,jdbcType=VARCHAR}
+            #{item.createTime,jdbcType=VARCHAR}
             )
         </foreach>
     </insert>

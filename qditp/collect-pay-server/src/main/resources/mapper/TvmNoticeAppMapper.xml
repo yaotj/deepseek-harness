@@ -2,7 +2,29 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.collectpay.mapper.TvmNoticeAppMapper">
 
+    <resultMap id="takeTicketBaseResultMap" type="com.chinasofti.huateng.collectpay.entity.NoticeTakeTicketRecord">
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="orderTicketNum" jdbcType="INTEGER" property="orderTicketNum"/>
+        <result column="actualTakeTicketNum" jdbcType="INTEGER" property="actualTakeTicketNum"/>
+        <result column="takeTickeDate" jdbcType="VARCHAR" property="takeTickeDate"/>
+        <result column="status" jdbcType="VARCHAR" property="status"/>
+        <result column="retryTimes" jdbcType="INTEGER" property="retryTimes"/>
+        <result column="CREATE_TIME" jdbcType="VARCHAR" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="VARCHAR" property="updateTime"/>
+    </resultMap>
 
+    <resultMap id="refundBaseResultMap" type="com.chinasofti.huateng.collectpay.entity.NoticeRefundRecord">
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="refundType" jdbcType="INTEGER" property="refundType"/>
+        <result column="refundResult" jdbcType="INTEGER" property="refundResult"/>
+        <result column="refundResultDesc" jdbcType="VARCHAR" property="refundResultDesc"/>
+        <result column="refundDate" jdbcType="VARCHAR" property="refundDate"/>
+        <result column="refundAmount" jdbcType="INTEGER" property="refundAmount"/>
+        <result column="status" jdbcType="INTEGER" property="status"/>
+        <result column="retryTimes" jdbcType="INTEGER" property="retryTimes"/>
+        <result column="CREATE_TIME" jdbcType="VARCHAR" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="VARCHAR" property="updateTime"/>
+    </resultMap>
 
 
     <insert id="insertTakeNotice" parameterType="map">
@@ -38,7 +60,6 @@
         #{refundResult,jdbcType=VARCHAR},
         #{refundResultDesc,jdbcType=VARCHAR},
         #{refundDate,jdbcType=VARCHAR},
-        #{refundDate,jdbcType=VARCHAR},
         #{refundAmount,jdbcType=VARCHAR},
         #{status,jdbcType=VARCHAR},
         #{retryTimes,jdbcType=VARCHAR},
@@ -48,6 +69,44 @@
 
     <update id="updateRefundNoticeByOrderNo" parameterType="java.util.Map">
         update tbl_notice_app_refund_record
+        <set>
+            <if test="status != null">status = #{status,jdbcType=VARCHAR},</if>
+            <if test="updateTime != null">UPDATE_TIME = #{updateTime,jdbcType=VARCHAR},</if>
+            <if test="retryTimes != null">retryTimes = #{retryTimes,jdbcType=VARCHAR},</if>
+        </set>
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+
+    <select id="selectSendFailTakeTicketLs" parameterType="map" resultMap="takeTicketBaseResultMap">
+        select *
+        from tbl_notice_app_taketicket_record
+        where status &lt;&gt; #{status,jdbcType=VARCHAR} and retryTimes &lt; #{retryTimes,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectSendFailRefundLs" parameterType="map" resultMap="refundBaseResultMap">
+        select *
+        from tbl_notice_app_refund_record
+        where status &lt;&gt; #{status,jdbcType=VARCHAR} and retryTimes &lt; #{retryTimes,jdbcType=VARCHAR}
+    </select>
+
+    <insert id="insertTakeFailureNotice" parameterType="map">
+        insert into TBL_NOTICE_APP_FAILURE_RECORD (
+        ORDER_NO, orderTicketNum, actualTakeTicketNum, takeTickeDate, takeTiketFaultReason, refundAmount,status,retryTimes,CREATE_TIME
+        ) values (
+        #{orderNo,jdbcType=VARCHAR},
+        #{orderTicketNum,jdbcType=VARCHAR},
+        #{actualTakeTicketNum,jdbcType=VARCHAR},
+        #{takeTickeDate,jdbcType=VARCHAR},
+        #{takeTiketFaultReason,jdbcType=VARCHAR},
+        #{refundAmount,jdbcType=VARCHAR},
+        #{status,jdbcType=VARCHAR},
+        #{retryTimes,jdbcType=VARCHAR},
+        #{createTime,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <update id="updateTakeFailureNoticeByOrderNo" parameterType="java.util.Map">
+        update TBL_NOTICE_APP_FAILURE_RECORD
         <set>
             <if test="status != null">status = #{status,jdbcType=VARCHAR},</if>
             <if test="updateTime != null">UPDATE_TIME = #{updateTime,jdbcType=VARCHAR},</if>

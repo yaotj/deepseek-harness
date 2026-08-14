@@ -1,6 +1,7 @@
 package com.chinasofti.huateng.collectpay.mapper;
 
 import com.chinasofti.huateng.collectpay.entity.BomNoCashOrder;
+import com.chinasofti.huateng.collectpay.model.request.bom.RequestTicketRefundReqDTO;
 import org.apache.ibatis.annotations.Mapper;
 
 import java.util.Map;
@@ -30,8 +31,6 @@ public interface BomNoCashOrderMapper {
 
     int insertBomSale(BomNoCashOrder order);
 
-//    int insertBomSaleTicketInfo(Map<String,String> map);
-
     /**
      * 根据订单号更新订单信息。
      * 使用Map传参，支持动态更新字段。
@@ -40,4 +39,7 @@ public interface BomNoCashOrderMapper {
      * @return 影响的行数
      */
     int updateByOrderNo(Map<String, String> params);
+
+    // 单程票退款
+    int insertTicketRefund(RequestTicketRefundReqDTO dto);
 }
