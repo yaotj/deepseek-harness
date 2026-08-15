@@ -1106,9 +1106,8 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         // ==================== 记录状态快照（幂等性校验） ====================
         String snapshotCodeStatus = currentStatus.getCodeStatus();
         String snapshotTxnSeq = currentStatus.getTxnSeq();
-        String snapshotUpdateTime = currentStatus.getUpdateTime();
         log.info("IF5A-03 记录状态快照, cardId={}, codeStatus={}, txnSeq={}, updateTime={}",
-                cardId, snapshotCodeStatus, snapshotTxnSeq, snapshotUpdateTime);
+                cardId, snapshotCodeStatus, snapshotTxnSeq, currentStatus.getUpdateTime());
 
         // ==================== 校验状态是否允许操作 ====================
         if (!isUpdateAllowed(codeStatusEnum, adviceOpt, updateType)) {
