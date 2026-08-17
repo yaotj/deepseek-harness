@@ -131,6 +131,23 @@
         <result column="CARD_ID" property="cardNum"/>
     </resultMap>
 
+    <resultMap id="modelTransRecordResultMap" type="com.chinasofti.huateng.model.app.TransRecordDTO">
+        <result column="HANDLE_STATION_CODE" property="entryStationName"/>
+        <result column="HANDLE_DATE_TIME" property="entryDate"/>
+        <result column="LAST_HANDLE_STATION_CODE" property="exitStationName"/>
+        <result column="LAST_HANDLE_DATE_TIME" property="exitDate"/>
+        <result column="TRX_AMOUNT" property="payAmount"/>
+        <result column="HANDLE_RESULT_CODE" property="orderExpType"/>
+        <result column="TICKET_TRANS_SEQ" property="tradeOrderNo"/>
+        <result column="RESERVE1" property="payTradeOrderNo"/>
+        <result column="PAY_ORDER_NO_DATE" property="payOrderNoDate"/>
+        <result column="SIGN_CHANNEL_CODE" property="payChannelCode"/>
+        <result column="LAST_TICKET_STATUS" property="debitRequestResult"/>
+        <result column="OVERTIME_AMOUNT" property="discountFee"/>
+        <result column="RESERVE2" property="discountInfo"/>
+        <result column="CARD_ID" property="cardNum"/>
+    </resultMap>
+
     <resultMap id="alipayTripTravelRecordResultMap" type="com.chinasofti.huateng.model.alipaytrip.AlipayTripTravelRecordDTO">
         <result column="HANDLE_STATION_CODE" property="entryStationName"/>
         <result column="HANDLE_DATE_TIME" property="entryDate"/>
@@ -428,6 +445,29 @@
     <resultMap id="requestTransStatisticsResultMap" type="com.chinasofti.huateng.model.app.RequestTransStatisticsResult">
         <association property="tripData" resultMap="tripDataResultMap"/>
     </resultMap>
+
+    <select id="selectTransDetail" resultMap="modelTransRecordResultMap">
+        SELECT
+            HANDLE_STATION_CODE,
+            HANDLE_DATE_TIME,
+            LAST_HANDLE_STATION_CODE,
+            LAST_HANDLE_DATE_TIME,
+            TRX_AMOUNT,
+            OVERTIME_AMOUNT,
+            HANDLE_RESULT_CODE,
+            TICKET_TRANS_SEQ,
+            RESERVE1,
+            TO_CHAR(CREATE_TIME, 'YYYYMMDDHH24MISS') AS PAY_ORDER_NO_DATE,
+            SIGN_CHANNEL_CODE,
+            LAST_TICKET_STATUS,
+            RESERVE2,
+            TRX_TYPE,
+            CARD_ID,
+            CARD_TYPE
+        FROM QRCODE_TXN_DETAIL
+        WHERE ITP_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+          AND TICKET_TRANS_SEQ = #{orderNo,jdbcType=VARCHAR}
+    </select>
 
     <select id="selectTransStatistics" resultMap="requestTransStatisticsResultMap">
         SELECT

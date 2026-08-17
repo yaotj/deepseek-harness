@@ -11,6 +11,8 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult;
 import com.chinasofti.huateng.common.response.ResultVO;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderQuery;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderView;
@@ -76,4 +78,9 @@ public interface DailyTicketService {
      * 处理支付结果回调。
      */
     DailyTicketBaseResult receivePayResult(DailyTicketPayCallbackReqDTO request);
+
+    /**
+     * 查询日票票实例信息（ticketCode、actualTimes）。
+     */
+    QueryDailyTicketInfoResult queryDailyTicketInfo(QueryDailyTicketInfoReqDTO request);
 }

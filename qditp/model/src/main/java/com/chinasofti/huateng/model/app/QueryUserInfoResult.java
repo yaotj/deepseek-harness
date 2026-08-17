@@ -26,6 +26,11 @@ public class QueryUserInfoResult extends CommonResult {
      */
     private String regTms;
 
+    /**
+     * 同行票或第三方票标识。
+     */
+    private String companionFlag;
+
     public String getThirdUserId() {
         return thirdUserId;
     }
@@ -113,5 +118,13 @@ public class QueryUserInfoResult extends CommonResult {
 
     public void setRegTms(String regTms) {
         this.regTms = regTms;
+    }
+
+    public String getCompanionFlag() {
+        return companionFlag;
+    }
+
+    public void setCompanionFlag(String companionFlag) {
+        this.companionFlag = companionFlag;
     }
 }

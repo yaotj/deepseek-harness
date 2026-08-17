@@ -12,6 +12,8 @@ import com.chinasofti.huateng.model.app.RequestExcessFareReqDTO;
 import com.chinasofti.huateng.model.app.RequestExcessFareResult;
 import com.chinasofti.huateng.model.app.RequestTransListReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransListResult;
+import com.chinasofti.huateng.model.app.RequestTransDetailReqDTO;
+import com.chinasofti.huateng.model.app.RequestTransDetailResult;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
 import com.chinasofti.huateng.rpc.blacklist.BlacklistClient;
@@ -72,6 +74,14 @@ public class TicketAppServiceImpl implements TicketAppService {
         log.info("call ticket requestTransStatistics request={}", JSON.toJSONString(request));
         RequestTransStatisticsResult result = ticketClient.requestTransStatistics(request);
         log.info("call ticket requestTransStatistics response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    @Override
+    public RequestTransDetailResult requestTransDetail(RequestTransDetailReqDTO request) {
+        log.info("call ticket requestTransDetail request={}", JSON.toJSONString(request));
+        RequestTransDetailResult result = ticketClient.requestTransDetail(request);
+        log.info("call ticket requestTransDetail response={}", JSON.toJSONString(result));
         return result;
     }
 }

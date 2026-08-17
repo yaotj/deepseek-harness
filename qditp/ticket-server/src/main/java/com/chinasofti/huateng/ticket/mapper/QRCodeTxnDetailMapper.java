@@ -99,4 +99,10 @@ public interface QRCodeTxnDetailMapper {
                                            @Param("trxType") String trxType,
                                            @Param("handleDateTime") String handleDateTime,
                                            @Param("ticketTransSeq") String ticketTransSeq);
+
+    /**
+     * IF8A-34 查询订单详情。
+     */
+    com.chinasofti.huateng.model.app.TransRecordDTO selectTransDetail(@Param("thirdUserId") String thirdUserId,
+                                       @Param("orderNo") String orderNo);
 }

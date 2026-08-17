@@ -6,6 +6,8 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripTravelRecordDTO;
 import com.chinasofti.huateng.model.app.CardTypeMapping;
+import com.chinasofti.huateng.model.app.RequestTransDetailReqDTO;
+import com.chinasofti.huateng.model.app.RequestTransDetailResult;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
 import com.chinasofti.huateng.model.app.TripDataDTO;
@@ -36,6 +38,30 @@ public class TicketTransServiceImpl implements TicketTransService {
 
     @Autowired
     private com.chinasofti.huateng.rpc.para.ParaClient paraClient;
+
+    @Autowired
+    private com.chinasofti.huateng.rpc.account.AccountClient accountClient;
+
+    @Autowired
+    private com.chinasofti.huateng.rpc.dailyticket.DailyTicketClient dailyTicketClient;
+
+    /** 商户号变更日期，格式yyyyMMdd，此日期之前的订单使用城交商户 */
+    @org.springframework.beans.factory.annotation.Value("${app.trans.merchant-change-date:}")
+    private String merchantChangeDate;
+
+    /** 城交商户号（变更日期前使用） */
+    @org.springframework.beans.factory.annotation.Value("${app.trans.old-attributable-party:}")
+    private String oldAttributableParty;
+
+    @org.springframework.beans.factory.annotation.Value("${app.trans.old-receiving-party:}")
+    private String oldReceivingParty;
+
+    /** 新商户号（变更日期后使用） */
+    @org.springframework.beans.factory.annotation.Value("${app.trans.new-attributable-party:}")
+    private String newAttributableParty;
+
+    @org.springframework.beans.factory.annotation.Value("${app.trans.new-receiving-party:}")
+    private String newReceivingParty;
 
     @Override
     public RequestTransListResult requestTransList(RequestTransListReqDTO request) {
@@ -74,9 +100,45 @@ public class TicketTransServiceImpl implements TicketTransService {
             int totalPage = (int) Math.ceil((double) total / pageSize);
 
             if (records != null) {
+                // 收集所有站点编码，批量查询站名
+                java.util.Set<String> stationCodes = new java.util.LinkedHashSet<>();
                 for (TransRecordDTO record : records) {
+                    if (record.getEntryStationName() != null && !record.getEntryStationName().isEmpty()) {
+                        stationCodes.add(record.getEntryStationName());
+                    }
+                    if (record.getExitStationName() != null && !record.getExitStationName().isEmpty()) {
+                        stationCodes.add(record.getExitStationName());
+                    }
                     if (record.getDiscountInfo() == null) {
                         record.setDiscountInfo("[]");
+                    }
+                }
+                java.util.Map<String, String> stationNameMap = new java.util.HashMap<>();
+                for (String code : stationCodes) {
+                    try {
+                        com.chinasofti.huateng.model.app.RequestStationNameReqDTO req = new com.chinasofti.huateng.model.app.RequestStationNameReqDTO();
+                        req.setStationCode(code);
+                        com.chinasofti.huateng.model.app.RequestStationNameResult result = paraClient.requestStationName(req);
+                        if (result != null && result.getStationName() != null) {
+                            stationNameMap.put(code, result.getStationName());
+                        }
+                    } catch (Exception e) {
+                        log.warn("查询站点中文名失败, stationCode={}", code, e);
+                    }
+                }
+                // 站点编码替换为站名
+                for (TransRecordDTO record : records) {
+                    if (record.getEntryStationName() != null) {
+                        String cn = stationNameMap.get(record.getEntryStationName());
+                        if (cn != null) {
+                            record.setEntryStationName(cn);
+                        }
+                    }
+                    if (record.getExitStationName() != null) {
+                        String cn = stationNameMap.get(record.getExitStationName());
+                        if (cn != null) {
+                            record.setExitStationName(cn);
+                        }
                     }
                 }
             }
@@ -135,6 +197,104 @@ public class TicketTransServiceImpl implements TicketTransService {
             tripData.setTotalDiscount("0.00");
             tripData.setCount(0);
             response.setTripData(tripData);
+        }
+        return response;
+    }
+
+    @Override
+    public RequestTransDetailResult requestTransDetail(RequestTransDetailReqDTO request) {
+        RequestTransDetailResult response = new RequestTransDetailResult();
+        try {
+            if (request == null || !StringUtils.hasText(request.getThirdUserId()) || !StringUtils.hasText(request.getOrderNo())) {
+                response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg("thirdUserId和orderNo不能为空");
+                return response;
+            }
+
+            com.chinasofti.huateng.model.app.TransRecordDTO record = qrCodeTxnDetailMapper.selectTransDetail(request.getThirdUserId(), request.getOrderNo());
+            if (record == null) {
+                response.setRetCode(TicketErrorCodeEnum.NO_DATA.getCode());
+                response.setRetMsg(TicketErrorCodeEnum.NO_DATA.getMsg());
+                return response;
+            }
+
+            // 站点编码转中文站名
+            if (StringUtils.hasText(record.getEntryStationName())) {
+                try {
+                    com.chinasofti.huateng.model.app.RequestStationNameReqDTO req = new com.chinasofti.huateng.model.app.RequestStationNameReqDTO();
+                    req.setStationCode(record.getEntryStationName());
+                    com.chinasofti.huateng.model.app.RequestStationNameResult result = paraClient.requestStationName(req);
+                    if (result != null && StringUtils.hasText(result.getStationName())) {
+                        record.setEntryStationName(result.getStationName());
+                    }
+                } catch (Exception e) {
+                    log.warn("查询进站中文名失败, stationCode={}", record.getEntryStationName(), e);
+                }
+            }
+            if (StringUtils.hasText(record.getExitStationName())) {
+                try {
+                    com.chinasofti.huateng.model.app.RequestStationNameReqDTO req = new com.chinasofti.huateng.model.app.RequestStationNameReqDTO();
+                    req.setStationCode(record.getExitStationName());
+                    com.chinasofti.huateng.model.app.RequestStationNameResult result = paraClient.requestStationName(req);
+                    if (result != null && StringUtils.hasText(result.getStationName())) {
+                        record.setExitStationName(result.getStationName());
+                    }
+                } catch (Exception e) {
+                    log.warn("查询出站中文名失败, stationCode={}", record.getExitStationName(), e);
+                }
+            }
+
+            if (record.getDiscountInfo() == null) {
+                record.setDiscountInfo("[]");
+            }
+
+            // 查询 companionFlag 和 countingFlag（跨服务调用 account-server）
+            if (StringUtils.hasText(record.getCardNum())) {
+                try {
+                    com.chinasofti.huateng.model.app.QueryUserInfoResult userInfo = accountClient.queryCardTypeByCardId(record.getCardNum());
+                    if (userInfo != null && "0000".equals(userInfo.getRetCode())) {
+                        if (StringUtils.hasText(userInfo.getCompanionFlag())) {
+                            record.setCompanionFlag(userInfo.getCompanionFlag());
+                        }
+                        // 根据 itpCardType 判断是否为计次票：02=计次票
+                        if ("02".equals(userInfo.getItpCardType())) {
+                            record.setCountingFlag("Y");
+                        } else {
+                            record.setCountingFlag("N");
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("IF8A-34 查询companionFlag/countingFlag失败, cardId={}", record.getCardNum(), e);
+                }
+            }
+
+            // 查询日票票号和计次票扣减次数（跨服务调用 daily-ticket-server）
+            try {
+                com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO dailyTicketReq = new com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO();
+                dailyTicketReq.setOrderNo(request.getOrderNo());
+                com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult dailyTicketResult = dailyTicketClient.queryDailyTicketInfo(dailyTicketReq);
+                if (dailyTicketResult != null && "0000".equals(dailyTicketResult.getRetCode())) {
+                    if (StringUtils.hasText(dailyTicketResult.getTicketCode())) {
+                        record.setTicketCode(dailyTicketResult.getTicketCode());
+                    }
+                    if (dailyTicketResult.getActualTimes() != null) {
+                        record.setCountingTimes(dailyTicketResult.getActualTimes());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("IF8A-34 查询日票信息失败, orderNo={}", request.getOrderNo(), e);
+            }
+
+            // 填充应收商户和实收商户（根据变更日期判断使用城交或新商户）
+            resolveMerchantParties(record);
+
+            response.setRetCode(TicketErrorCodeEnum.SUCCESS.getCode());
+            response.setRetMsg(TicketErrorCodeEnum.SUCCESS.getMsg());
+            response.setTicketTransRecord(record);
+        } catch (Exception e) {
+            log.error("IF8A-34 获取订单详情异常, request={}", request, e);
+            response.setRetCode(TicketErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg(TicketErrorCodeEnum.SYSTEM_ERROR.getMsg());
         }
         return response;
     }
@@ -371,5 +531,61 @@ public class TicketTransServiceImpl implements TicketTransService {
         dto.setCountingTimes(null);
         dto.setCountingFlag("");
         return dto;
+    }
+
+    /**
+     * 根据变更日期判断使用城交商户或新商户。
+     * <p>
+     * 规则：
+     * - 订单时间 < 变更日期 → 城交商户
+     * - 订单时间 >= 变更日期 → 新商户
+     * - 单边账(1,2,3,4)或补站订单 + 乘车日期 < 变更日期 → 城交商户
+     * </p>
+     */
+    private void resolveMerchantParties(com.chinasofti.huateng.model.app.TransRecordDTO record) {
+        if (!StringUtils.hasText(merchantChangeDate)) {
+            // 未配置变更日期，优先使用新商户
+            if (StringUtils.hasText(newAttributableParty)) {
+                record.setAttributableParty(newAttributableParty);
+            }
+            if (StringUtils.hasText(newReceivingParty)) {
+                record.setReceivingParty(newReceivingParty);
+            }
+            return;
+        }
+
+        // 取乘车日期：优先用进站时间，其次用出站时间
+        String rideDate = null;
+        if (StringUtils.hasText(record.getEntryDate()) && record.getEntryDate().length() >= 8) {
+            rideDate = record.getEntryDate().substring(0, 8);
+        } else if (StringUtils.hasText(record.getExitDate()) && record.getExitDate().length() >= 8) {
+            rideDate = record.getExitDate().substring(0, 8);
+        }
+
+        boolean useOldMerchant = false;
+        if (rideDate != null && rideDate.compareTo(merchantChangeDate) < 0) {
+            // 乘车日期早于变更日期
+            useOldMerchant = true;
+        }
+
+        // 单边账(1,2,3,4)或补站订单，乘车日期早于变更日期 → 城交
+        // 非单边/补站订单，订单时间早于变更日期 → 城交（上面已判断）
+        // 其他情况 → 新商户
+
+        if (useOldMerchant) {
+            if (StringUtils.hasText(oldAttributableParty)) {
+                record.setAttributableParty(oldAttributableParty);
+            }
+            if (StringUtils.hasText(oldReceivingParty)) {
+                record.setReceivingParty(oldReceivingParty);
+            }
+        } else {
+            if (StringUtils.hasText(newAttributableParty)) {
+                record.setAttributableParty(newAttributableParty);
+            }
+            if (StringUtils.hasText(newReceivingParty)) {
+                record.setReceivingParty(newReceivingParty);
+            }
+        }
     }
 }

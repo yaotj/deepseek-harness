@@ -12,6 +12,8 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -93,5 +95,13 @@ public class DailyTicketController {
     @PostMapping("/payment/receivePayResult")
     public DailyTicketBaseResult receivePayResult(@RequestBody DailyTicketPayCallbackReqDTO request) {
         return dailyTicketService.receivePayResult(request);
+    }
+
+    /**
+     * 查询日票票实例信息（ticketCode、actualTimes）。
+     */
+    @PostMapping("/queryDailyTicketInfo")
+    public QueryDailyTicketInfoResult queryDailyTicketInfo(@RequestBody QueryDailyTicketInfoReqDTO request) {
+        return dailyTicketService.queryDailyTicketInfo(request);
     }
 }

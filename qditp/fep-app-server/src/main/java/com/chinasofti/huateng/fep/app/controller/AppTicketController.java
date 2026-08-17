@@ -12,6 +12,8 @@ import com.chinasofti.huateng.model.app.RequestTransListReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransListResult;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
+import com.chinasofti.huateng.model.app.RequestTransDetailReqDTO;
+import com.chinasofti.huateng.model.app.RequestTransDetailResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -96,5 +98,17 @@ public class AppTicketController extends BaseAppController {
     public RequestTransStatisticsResult requestTransStatistics(@ModelAttribute CommonFormRequest request) {
         log.info("IF8A-41 查询账单统计,请求参数: {}", request);
         return ticketAppService.requestTransStatistics(parseBizData(request, RequestTransStatisticsReqDTO.class));
+    }
+
+    /**
+     * IF8A-34 获取订单详情。
+     *
+     * @param request APP 公共 FormData 请求，bizData 为 {@link RequestTransDetailReqDTO} JSON
+     * @return 订单详情
+     */
+    @PostMapping("/requestTransDetail")
+    public RequestTransDetailResult requestTransDetail(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-34 获取订单详情,请求参数: {}", request);
+        return ticketAppService.requestTransDetail(parseBizData(request, RequestTransDetailReqDTO.class));
     }
 }

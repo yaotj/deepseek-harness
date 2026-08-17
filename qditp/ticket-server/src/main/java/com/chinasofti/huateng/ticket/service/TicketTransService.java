@@ -4,6 +4,8 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListRespDTO;
+import com.chinasofti.huateng.model.app.RequestTransDetailReqDTO;
+import com.chinasofti.huateng.model.app.RequestTransDetailResult;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
 import com.chinasofti.huateng.ticket.model.app.RequestTransListReqDTO;
@@ -28,6 +30,14 @@ public interface TicketTransService {
      * @return 账单统计结果
      */
     RequestTransStatisticsResult requestTransStatistics(RequestTransStatisticsReqDTO request);
+
+    /**
+     * IF8A-34 获取订单详情。
+     *
+     * @param request 查询条件（thirdUserId + orderNo）
+     * @return 订单详情
+     */
+    RequestTransDetailResult requestTransDetail(RequestTransDetailReqDTO request);
 
     /**
      * 支付宝出行-查询乘车记录列表。

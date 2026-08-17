@@ -15,6 +15,8 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -144,6 +146,20 @@ public class DailyTicketClient extends ProxyWebClient {
         DailyTicketBaseResult response = JSONUtil.toBean(result, new TypeReference<DailyTicketBaseResult>() {
         }, true);
         log.info("调用daily-ticket-server支付结果回调接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
+     * 查询日票票实例信息（ticketCode、actualTimes）。
+     */
+    public QueryDailyTicketInfoResult queryDailyTicketInfo(QueryDailyTicketInfoReqDTO request) {
+        String path = "/ci/daily-ticket/queryDailyTicketInfo";
+        log.info("调用daily-ticket-server查询日票信息接口入参 path={}, request={}", path, JSON.toJSONString(request));
+        String result = postJsonAndGetResponse(path, request);
+        log.info("调用daily-ticket-server查询日票信息接口原始返回 path={}, response={}", path, result);
+        QueryDailyTicketInfoResult response = JSONUtil.toBean(result, new TypeReference<QueryDailyTicketInfoResult>() {
+        }, true);
+        log.info("调用daily-ticket-server查询日票信息接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
         return response;
     }
 }

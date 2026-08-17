@@ -10,6 +10,8 @@ import com.chinasofti.huateng.model.app.RequestExcessFareReqDTO;
 import com.chinasofti.huateng.model.app.RequestExcessFareResult;
 import com.chinasofti.huateng.model.app.RequestTransListReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransListResult;
+import com.chinasofti.huateng.model.app.RequestTransDetailReqDTO;
+import com.chinasofti.huateng.model.app.RequestTransDetailResult;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
 
@@ -25,4 +27,6 @@ public interface TicketAppService {
     RequestTransListResult requestTransList(RequestTransListReqDTO request);
 
     RequestTransStatisticsResult requestTransStatistics(RequestTransStatisticsReqDTO request);
+
+    RequestTransDetailResult requestTransDetail(RequestTransDetailReqDTO request);
 }

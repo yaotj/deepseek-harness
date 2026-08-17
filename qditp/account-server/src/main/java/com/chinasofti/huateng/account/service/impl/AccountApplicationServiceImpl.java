@@ -513,13 +513,14 @@ public class AccountApplicationServiceImpl implements AccountApplicationService 
             response.setReqContractNo(regInfo.getReqContractNo());
             response.setHceData(regInfo.getHceData());
             response.setMsisdn(regInfo.getMsisdn());
+            response.setCompanionFlag(regInfo.getCompanionFlag());
             if (regInfo.getRegTms() != null) {
                 response.setRegTms(regInfo.getRegTms().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")));
             }
-            log.info("查询用户信息成功, thirdUserId={}, cardId={}, cardType={}, itpCardType={}, channel={}, cardIssueCode={}, thirdPayId={}, reqContractNo={}, msisdn={}, regTms={}",
+            log.info("查询用户信息成功, thirdUserId={}, cardId={}, cardType={}, itpCardType={}, channel={}, cardIssueCode={}, thirdPayId={}, reqContractNo={}, msisdn={}, regTms={}, companionFlag={}",
                     regInfo.getThirdUserId(), regInfo.getCardId(), regInfo.getCardType(), regInfo.getItpCardType(),
                     regInfo.getChannel(), regInfo.getCardIssueCode(), regInfo.getThirdPayId(), regInfo.getReqContractNo(),
-                    regInfo.getMsisdn(), response.getRegTms());
+                    regInfo.getMsisdn(), response.getRegTms(), regInfo.getCompanionFlag());
             return response;
         } catch (Exception e) {
             log.error("处理查询用户信息异常, request={}", JSON.toJSONString(request), e);
@@ -553,12 +554,13 @@ public class AccountApplicationServiceImpl implements AccountApplicationService 
             response.setItpCardType(regInfo.getItpCardType());
             response.setCardIssueCode(regInfo.getCardIssueCode());
             response.setMsisdn(regInfo.getMsisdn());
+            response.setCompanionFlag(regInfo.getCompanionFlag());
             if (regInfo.getRegTms() != null) {
                 response.setRegTms(regInfo.getRegTms().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")));
             }
-            log.info("按逻辑卡号查询真实ITP卡类型成功, cardId={}, cardType={}, itpCardType={}, msisdn={}, regTms={}",
+            log.info("按逻辑卡号查询真实ITP卡类型成功, cardId={}, cardType={}, itpCardType={}, msisdn={}, regTms={}, companionFlag={}",
                     regInfo.getCardId(), regInfo.getCardType(), regInfo.getItpCardType(),
-                    regInfo.getMsisdn(), response.getRegTms());
+                    regInfo.getMsisdn(), response.getRegTms(), regInfo.getCompanionFlag());
             return response;
         } catch (Exception e) {
             log.error("按逻辑卡号查询真实ITP卡类型异常, cardId={}", cardId, e);

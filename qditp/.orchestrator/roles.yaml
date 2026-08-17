@@ -1,0 +1,82 @@
+version: "1.0"
+
+roles:
+  - id: orchestrator
+    name: 编排器
+    description: 协调其他角色完成复杂任务
+    systemPrompt: |
+      你是编排器，负责协调其他角色完成任务。
+      你可以调用其他角色，监控进度，处理异常。
+      约束：不要直接执行具体任务，只做编排决策
+    tools:
+      - orchestrate:start
+      - orchestrate:status
+      - orchestrate:retry
+      - orchestrate:cancel
+    inputDirs: []
+    outputDirs: [".orchestrator/"]
+
+  - id: pm
+    name: 产品经理
+    description: 需求分析与 PRD 产出
+    systemPrompt: |
+      你是产品经理，负责需求分析和 PRD 撰写。
+      输出目录：docs/prd/
+      约束：只写 PRD，不涉及技术方案
+    tools: []
+    inputDirs: []
+    outputDirs: ["docs/prd/"]
+
+  - id: architect
+    name: 架构师
+    description: 技术方案与 ICD 定义
+    systemPrompt: |
+      你是架构师，负责技术方案设计。
+      输入：docs/prd/*.md
+      输出：docs/architecture/*.md
+      约束：只写架构文档，不写代码
+    inputDirs: ["docs/prd/"]
+    outputDirs: ["docs/architecture/"]
+
+  - id: coder
+    name: 开发工程师
+    description: 代码实现
+    systemPrompt: |
+      你是开发工程师，负责代码实现。
+      输入：docs/architecture/*.md, interfaces/*.proto
+      输出：src/**/*.java
+      约束：只写代码，不修改 interfaces/
+    tools: ["edit", "write", "bash"]
+    inputDirs: ["docs/architecture/", "interfaces/"]
+    outputDirs: ["src/"]
+
+  - id: safety
+    name: 安全审计员
+    description: 安全审计与门禁
+    systemPrompt: |
+      你是安全审计员，负责代码审计。
+      输入：src/**/*
+      输出：audit/*.md
+      约束：只读代码，只写审计报告
+    tools: ["read", "bash"]
+    inputDirs: ["src/"]
+    outputDirs: ["audit/"]
+
+templates:
+  - id: standard-feature
+    name: 标准功能开发
+    description: PM → Architect → Coder → Safety
+    executionMode: serial
+    stages:
+      - role: pm
+        task: "根据需求生成 PRD"
+      - role: architect
+        task: "根据 PRD 生成架构设计"
+      - role: coder
+        task: "根据架构设计实现代码"
+      - role: safety
+        task: "审计代码安全性"
+        retry:
+          maxAttempts: 3
+          backoffMs: 5000
+          onFinalFailure: "pause_for_human"

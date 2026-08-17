@@ -32,6 +32,8 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -539,6 +541,27 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         }
         insertPayLog(order.getOrderNo(), "CALLBACK", order.getPayChannelCode(), request, result);
         return success(result);
+    }
+
+    @Override
+    public QueryDailyTicketInfoResult queryDailyTicketInfo(QueryDailyTicketInfoReqDTO request) {
+        QueryDailyTicketInfoResult result = new QueryDailyTicketInfoResult();
+        if (request == null || !StringUtils.hasText(request.getOrderNo())) {
+            result.setRetCode("9999");
+            result.setRetMsg("orderNo不能为空");
+            return result;
+        }
+        DailyTicketInstance instance = instanceMapper.selectByOrderNo(request.getOrderNo());
+        if (instance == null) {
+            result.setRetCode("0000");
+            result.setRetMsg("成功");
+            return result;
+        }
+        result.setRetCode("0000");
+        result.setRetMsg("成功");
+        result.setTicketCode(instance.getTicketCode());
+        result.setActualTimes(instance.getActualTimes());
+        return result;
     }
 
     private void markPaySuccess(DailyTicketOrder order, String tradeNo, String paymentOrderNo,
