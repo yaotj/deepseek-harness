@@ -10,6 +10,10 @@ import com.chinasofti.huateng.model.app.RequestKeyListReqDTO;
 import com.chinasofti.huateng.model.app.RequestKeyListResult;
 import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelReqDTO;
 import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelResult;
+import com.chinasofti.huateng.model.app.RequestUpdateChannelDefaultContractReqDTO;
+import com.chinasofti.huateng.model.app.RequestUpdateChannelDefaultContractResult;
+import com.chinasofti.huateng.model.employee.EmployeeCardQueryReqDTO;
+import com.chinasofti.huateng.model.employee.EmployeeCardQueryResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -18,10 +22,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * APP 账户及密钥类接口入口。
+ * APP 账户及支付相关接口入口（/ci/app）。
  *
- * <p>本层只负责解析 APP FormData 公共报文并转发业务 DTO；账户、支付通道和密钥业务
- * 分别由 account-server、key-server 维护。</p>
+ * <p>涵盖账号申请、密钥同步、支付通道管理、员工码查询、渠道默认支付方式等功能。
+ * 本层仅解析 APP FormData 报文并转发业务 DTO；账户、密钥、员工码业务
+ * 由 account-server 等下游服务维护。</p>
  */
 @RestController
 @RequestMapping("/ci/app")
@@ -36,35 +41,24 @@ public class AppAccountController extends BaseAppController {
 
     /**
      * IF8A-01 请求开户。
-     *
-     * @param request APP 公共 FormData 请求，bizData 为 {@link RequestApplicationReqDTO} JSON
-     * @return 开户受理结果
      */
     @PostMapping("/requestApplication")
     public RequestApplicationResult requestApplication(@ModelAttribute CommonFormRequest request) {
-        log.info("IF8A-01 请求开户，请求参数：{}", request);
+        log.info("IF8A-01 请求开户, 请求参数: {}", request);
         return accountAppService.requestApplication(parseBizData(request, RequestApplicationReqDTO.class));
     }
 
     /**
      * IF8A-02 请求同步密钥。
-     *
-     * <p>用户私钥密文、用户公钥及 CA 签名等数据由 key-server 查询和组装。</p>
-     *
-     * @param request APP 公共 FormData 请求，bizData 为 {@link RequestKeyListReqDTO} JSON
-     * @return 密钥列表结果
      */
     @PostMapping("/requestKeyList")
     public RequestKeyListResult requestKeyList(@ModelAttribute CommonFormRequest request) {
-        log.info("IF8A-02 请求同步密钥,请求参数: {}", request);
+        log.info("IF8A-02 请求同步密钥, 请求参数: {}", request);
         return accountAppService.requestKeyList(parseBizData(request, RequestKeyListReqDTO.class));
     }
 
     /**
      * IF8A-23 请求添加支付通道。
-     *
-     * @param request APP 公共 FormData 请求，bizData 为 {@link RequestAddPayChannelReqDTO} JSON
-     * @return 添加支付通道结果
      */
     @PostMapping("/requestAddPayChannel")
     public RequestAddPayChannelResult requestAddPayChannel(@ModelAttribute CommonFormRequest request) {
@@ -74,13 +68,31 @@ public class AppAccountController extends BaseAppController {
 
     /**
      * IF8A-24 请求设置默认支付通道。
-     *
-     * @param request APP 公共 FormData 请求，bizData 为 {@link RequestSetDefaultPayChannelReqDTO} JSON
-     * @return 设置默认支付通道结果
      */
     @PostMapping("/requestSetDefaultPayChannel")
     public RequestSetDefaultPayChannelResult requestSetDefaultPayChannel(@ModelAttribute CommonFormRequest request) {
         log.info("IF8A-24 请求设置默认支付通道, 请求参数: {}", request);
         return accountAppService.requestSetDefaultPayChannel(parseBizData(request, RequestSetDefaultPayChannelReqDTO.class));
+    }
+
+    /**
+     * IF8A-77 更换第三方渠道码默认支付方式。
+     */
+    @PostMapping("/requestUpdateChannelDefaultContract")
+    public RequestUpdateChannelDefaultContractResult requestUpdateChannelDefaultContract(
+            @ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-77 更换第三方渠道码默认支付方式, 请求参数: {}", request);
+        return accountAppService.requestUpdateChannelDefaultContract(
+                parseBizData(request, RequestUpdateChannelDefaultContractReqDTO.class));
+    }
+
+    /**
+     * 查询员工码信息。
+     */
+    @PostMapping("/employeeCard/query")
+    public EmployeeCardQueryResult queryEmployeeCard(@ModelAttribute CommonFormRequest request) {
+        EmployeeCardQueryReqDTO bizData = parseBizData(request, EmployeeCardQueryReqDTO.class);
+        log.info("员工码信息查询, cardNo={}", bizData.getCardNo());
+        return accountAppService.queryEmployeeCard(bizData);
     }
 }
