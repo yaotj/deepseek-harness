@@ -86,6 +86,13 @@
           AND PAYMENT_VENDOR = #{paymentVendor,jdbcType=VARCHAR}
     </delete>
 
+    <!-- 新增：根据用户ID批量更新签约展示账号 -->
+    <update id="updateDisplayAccountByThirdUserId">
+        UPDATE APP_PAY_SIGN_INFO
+        SET DISPLAY_ACCOUNT = #{displayAccount,jdbcType=VARCHAR}
+        WHERE THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+    </update>
+
     <!-- 废弃：原有的 upsert/MERGE -->
     <!--
     <update id="upsert" parameterType="com.chinasofti.huateng.paysign.entity.PaySignInfo">

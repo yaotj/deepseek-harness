@@ -1,6 +1,7 @@
 package com.chinasofti.huateng.account.service.impl;
 
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.chinasofti.huateng.account.entity.UserAccEmployeeCard;
 import com.chinasofti.huateng.account.mapper.UserAccEmployeeCardLogMapper;
@@ -28,10 +29,14 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 员工码状态通知与资料查询实现。
@@ -67,14 +72,22 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
     @Value("${employee-card.sign-type:00}")
     private String signType;
 
+    @Value("${employee-card.app-batch-size:200}")
+    private int appBatchSize;
+
     public EmployeeCardServiceImpl(UserAccEmployeeCardMapper employeeCardMapper,
                                    UserAccEmployeeCardLogMapper employeeCardLogMapper,
                                    EmployeeCardPersistenceService employeeCardPersistenceService,
-                                   RestTemplateBuilder restTemplateBuilder) {
+                                   RestTemplateBuilder restTemplateBuilder,
+                                   @Value("${employee-card.connect-timeout-ms:3000}") int connectTimeoutMs,
+                                   @Value("${employee-card.read-timeout-ms:10000}") int readTimeoutMs) {
         this.employeeCardMapper = employeeCardMapper;
         this.employeeCardLogMapper = employeeCardLogMapper;
         this.employeeCardPersistenceService = employeeCardPersistenceService;
-        this.restTemplate = restTemplateBuilder.build();
+        this.restTemplate = restTemplateBuilder
+                .setConnectTimeout(Duration.ofMillis(connectTimeoutMs))
+                .setReadTimeout(Duration.ofMillis(readTimeoutMs))
+                .build();
     }
 
     @Override
@@ -88,28 +101,20 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
             return result;
         }
 
+        List<EmployeeCardInfoDTO> validCards = new ArrayList<>();
         for (EmployeeCardInfoDTO card : cardList) {
             String validationError = validateCard(card);
             if (validationError != null) {
                 result.getFailList().add(new EmployeeCardNotifyResult.FailureItem(
                         card == null ? null : card.getCardNo(), validationError));
-                continue;
+            } else {
+                validCards.add(card);
             }
+        }
 
-            AppRegistrationResult appResult = registerEmployeeCardToApp(card);
-            if (!appResult.success()) {
-                insertLog(card.getCardNo(), "OPEN", card.getCardStatus(), appResult.message());
-                result.getFailList().add(new EmployeeCardNotifyResult.FailureItem(card.getCardNo(), appResult.message()));
-                continue;
-            }
-
-            try {
-                employeeCardPersistenceService.saveFromStatusNotify(card);
-            } catch (RuntimeException ex) {
-                log.error("员工码状态通知落库失败, cardNo={}", card.getCardNo(), ex);
-                insertLog(card.getCardNo(), "STATUS", card.getCardStatus(), "员工码信息落库失败");
-                result.getFailList().add(new EmployeeCardNotifyResult.FailureItem(card.getCardNo(), "员工码信息落库失败"));
-            }
+        int batchSize = Math.max(appBatchSize, 1);
+        for (int i = 0; i < validCards.size(); i += batchSize) {
+            processAppBatch(validCards.subList(i, Math.min(i + batchSize, validCards.size())), result);
         }
 
         if (result.getFailList().isEmpty()) {
@@ -123,6 +128,29 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
             result.setRetMsg("员工码状态通知部分处理失败");
         }
         return result;
+    }
+
+    /**
+     * 处理单批次卡片：先按 cardList 批量调 APP 注册，再对成功卡片逐卡事务落库。
+     */
+    private void processAppBatch(List<EmployeeCardInfoDTO> batch, EmployeeCardNotifyResult result) {
+        AppBatchResult appResult = registerEmployeeCardsToApp(batch);
+        for (EmployeeCardInfoDTO card : batch) {
+            String appFailure = appResult.failureReasonOf(card.getCardNo());
+            if (appFailure != null) {
+                insertLog(card.getCardNo(), "OPEN", card.getCardStatus(), appFailure);
+                result.getFailList().add(new EmployeeCardNotifyResult.FailureItem(card.getCardNo(), appFailure));
+                continue;
+            }
+
+            try {
+                employeeCardPersistenceService.saveFromStatusNotify(card);
+            } catch (RuntimeException ex) {
+                log.error("员工码状态通知落库失败, cardNo={}", card.getCardNo(), ex);
+                insertLog(card.getCardNo(), "STATUS", card.getCardStatus(), "员工码信息落库失败");
+                result.getFailList().add(new EmployeeCardNotifyResult.FailureItem(card.getCardNo(), "员工码信息落库失败"));
+            }
+        }
     }
 
     @Override
@@ -184,14 +212,14 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
         return result;
     }
 
-    private AppRegistrationResult registerEmployeeCardToApp(EmployeeCardInfoDTO card) {
+    private AppBatchResult registerEmployeeCardsToApp(List<EmployeeCardInfoDTO> batch) {
         if (!StringUtils.hasText(appRegisterUrl)) {
-            return AppRegistrationResult.failure("APP注册接口地址未配置");
+            return AppBatchResult.failure(batch, "APP注册接口地址未配置");
         }
         try {
-            String response = postFormData(appRegisterUrl, card);
+            String response = postFormData(appRegisterUrl, Collections.singletonMap("cardList", batch));
             if (!StringUtils.hasText(response)) {
-                return AppRegistrationResult.failure("APP注册接口无响应");
+                return AppBatchResult.failure(batch, "APP注册接口无响应");
             }
             JSONObject body = JSON.parseObject(response);
             String resultCode = body.getString("retCode");
@@ -199,18 +227,44 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
                 resultCode = body.getString("code");
             }
             if ("0000".equals(resultCode) || "200".equals(resultCode)) {
-                return AppRegistrationResult.accepted();
+                return AppBatchResult.success();
             }
             String resultMessage = body.getString("retMsg");
             if (!StringUtils.hasText(resultMessage)) {
                 resultMessage = body.getString("msg");
             }
-            return AppRegistrationResult.failure(
+            if ("0001".equals(resultCode)) {
+                Map<String, String> failReasons = parseAppFailList(body, resultMessage);
+                if (!failReasons.isEmpty()) {
+                    return new AppBatchResult(failReasons);
+                }
+            }
+            return AppBatchResult.failure(batch,
                     StringUtils.hasText(resultMessage) ? resultMessage : "APP注册接口返回失败");
         } catch (RuntimeException ex) {
-            log.error("调用APP注册员工码失败, cardNo={}", card.getCardNo(), ex);
-            return AppRegistrationResult.failure("调用APP注册接口失败");
+            log.error("调用APP注册员工码失败, batchSize={}", batch.size(), ex);
+            return AppBatchResult.failure(batch, "调用APP注册接口失败");
         }
+    }
+
+    private Map<String, String> parseAppFailList(JSONObject body, String defaultReason) {
+        JSONArray failList = body.getJSONArray("failList");
+        if (failList == null || failList.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, String> failReasons = new HashMap<>();
+        for (int i = 0; i < failList.size(); i++) {
+            JSONObject item = failList.getJSONObject(i);
+            if (item == null || !StringUtils.hasText(item.getString("cardNo"))) {
+                continue;
+            }
+            String reason = item.getString("reason");
+            if (!StringUtils.hasText(reason)) {
+                reason = StringUtils.hasText(defaultReason) ? defaultReason : "APP注册接口返回失败";
+            }
+            failReasons.put(item.getString("cardNo"), reason);
+        }
+        return failReasons;
     }
 
     private EmployeeCardInfoDTO queryEmployeeCardFromAcc(String cardNo) {
@@ -319,13 +373,21 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
         return result;
     }
 
-    private record AppRegistrationResult(boolean success, String message) {
-        private static AppRegistrationResult accepted() {
-            return new AppRegistrationResult(true, null);
+    private record AppBatchResult(Map<String, String> failReasons) {
+        private static AppBatchResult success() {
+            return new AppBatchResult(Collections.emptyMap());
         }
 
-        private static AppRegistrationResult failure(String message) {
-            return new AppRegistrationResult(false, message);
+        private static AppBatchResult failure(List<EmployeeCardInfoDTO> batch, String message) {
+            Map<String, String> failReasons = new HashMap<>();
+            for (EmployeeCardInfoDTO card : batch) {
+                failReasons.put(card.getCardNo(), message);
+            }
+            return new AppBatchResult(failReasons);
+        }
+
+        private String failureReasonOf(String cardNo) {
+            return failReasons.get(cardNo);
         }
     }
 }

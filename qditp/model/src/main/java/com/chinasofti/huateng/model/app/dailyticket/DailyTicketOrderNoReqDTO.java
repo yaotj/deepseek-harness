@@ -29,4 +29,9 @@ public class DailyTicketOrderNoReqDTO {
     public void setOrderNo(String orderNo) {
         this.orderNo = orderNo;
     }
+
+    @Override
+    public String toString() {
+        return "DailyTicketOrderNoReqDTO{orderType='" + orderType + "', orderNo='" + orderNo + "'}";
+    }
 }

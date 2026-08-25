@@ -15,7 +15,7 @@ import java.util.Properties;
 
 @Configuration
 @PropertySource("classpath:persistent.properties")
-@EnableTransactionManagement
+@EnableTransactionManagement(proxyTargetClass = true)
 public class DefaultMybatisConfiguration {
     public static Logger log = LoggerFactory.getLogger(DefaultMybatisConfiguration.class);
 

@@ -18,17 +18,15 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * APP 日票接口入口（/ci/app）。
+ * APP 日票接口入口。
  *
- * <p>本 Controller 只负责承接 APP 公共 FormData 报文、解析 bizData 并转发到 daily-ticket-server，
- * 日票订单、支付、激活、退款和 ACC 通知状态由 daily-ticket-server 维护。</p>
+ * <p>本 Controller 只负责承接 APP 公共 FormData 报文、解析 bizData 并转发到 daily-ticket-server。
+ * 同时支持 {@code /ci/app} 和 {@code /app} 两条路径。</p>
  */
 @RestController
-@RequestMapping("/ci/app")
 public class AppDailyTicketController extends BaseAppController {
     private static final Logger log = LoggerFactory.getLogger(AppDailyTicketController.class);
 
@@ -38,81 +36,50 @@ public class AppDailyTicketController extends BaseAppController {
         this.dailyTicketAppService = dailyTicketAppService;
     }
 
-    /**
-     * IF8A-60 日票下单。
-     */
-    @PostMapping("/dailyTicket/requestOrder")
-    public DailyTicketOrderResult requestCountingOrder(@ModelAttribute CommonFormRequest request) {
+    @PostMapping({"/ci/app/dailyTicket/requestOrder", "/app/dailyTicket/requestOrder", "/app/requestCountingOrder"})
+    public DailyTicketOrderResult requestOrder(@ModelAttribute CommonFormRequest request) {
         log.info("IF8A-60 日票下单, request={}", request);
-        DailyTicketOrderReqDTO bizData = parseBizData(request, DailyTicketOrderReqDTO.class);
-        return dailyTicketAppService.requestCountingOrder(bizData);
+        return dailyTicketAppService.requestCountingOrder(parseBizData(request, DailyTicketOrderReqDTO.class));
     }
 
-    /**
-     * IF8A-61 日票支付。
-     */
-    @PostMapping("/dailyTicket/payment/requestPay")
-    public DailyTicketPayResult requestPay(@ModelAttribute CommonFormRequest request) {
+    @PostMapping({"/ci/app/dailyTicket/payment/requestPay", "/app/dailyTicket/payment/requestPay"})
+    public DailyTicketPayResult pay(@ModelAttribute CommonFormRequest request) {
         log.info("IF8A-61 日票支付, request={}", request);
-        DailyTicketPayReqDTO bizData = parseBizData(request, DailyTicketPayReqDTO.class);
-        return dailyTicketAppService.requestPay(bizData);
+        return dailyTicketAppService.requestPay(parseBizData(request, DailyTicketPayReqDTO.class));
     }
 
-    /**
-     * IF8A-62 日票支付结果查询。
-     */
-    @PostMapping("/dailyTicket/payment/requestPayResult")
-    public DailyTicketPayQueryResult requestPayResult(@ModelAttribute CommonFormRequest request) {
+    @PostMapping({"/ci/app/dailyTicket/payment/requestPayResult", "/app/dailyTicket/payment/requestPayResult"})
+    public DailyTicketPayQueryResult queryPayResult(@ModelAttribute CommonFormRequest request) {
         log.info("IF8A-62 日票支付结果查询, request={}", request);
-        DailyTicketOrderNoReqDTO bizData = parseBizData(request, DailyTicketOrderNoReqDTO.class);
-        return dailyTicketAppService.requestPayResult(bizData);
+        return dailyTicketAppService.requestPayResult(parseBizData(request, DailyTicketOrderNoReqDTO.class));
     }
 
-    /**
-     * IF8A-64 日票退款。
-     */
-    @PostMapping("/dailyTicket/payment/requestRefundTicket")
-    public DailyTicketRefundResult requestRefundTicket(@ModelAttribute CommonFormRequest request) {
+    @PostMapping({"/ci/app/dailyTicket/payment/requestRefundTicket", "/app/dailyTicket/payment/requestRefundTicket"})
+    public DailyTicketRefundResult requestRefund(@ModelAttribute CommonFormRequest request) {
         log.info("IF8A-64 日票退款, request={}", request);
-        DailyTicketOrderNoReqDTO bizData = parseBizData(request, DailyTicketOrderNoReqDTO.class);
-        return dailyTicketAppService.requestRefundTicket(bizData);
+        return dailyTicketAppService.requestRefundTicket(parseBizData(request, DailyTicketOrderNoReqDTO.class));
     }
 
-    /**
-     * IF8A-65 日票取消订单。
-     */
-    @PostMapping("/dailyTicket/cancelOrder")
+    @PostMapping({"/ci/app/dailyTicket/cancelOrder", "/app/dailyTicket/cancelOrder"})
     public DailyTicketBaseResult cancelOrder(@ModelAttribute CommonFormRequest request) {
         log.info("IF8A-65 日票取消订单, request={}", request);
-        DailyTicketOrderNoReqDTO bizData = parseBizData(request, DailyTicketOrderNoReqDTO.class);
-        return dailyTicketAppService.cancelOrder(bizData);
+        return dailyTicketAppService.cancelOrder(parseBizData(request, DailyTicketOrderNoReqDTO.class));
     }
 
-    /**
-     * IF8A-67 日票激活。
-     */
-    @PostMapping("/dailyTicket/updateTicket")
-    public DailyTicketBaseResult updateTicket(@ModelAttribute CommonFormRequest request) {
+    @PostMapping({"/ci/app/dailyTicket/updateTicket", "/app/dailyTicket/updateTicket"})
+    public DailyTicketBaseResult activateTicket(@ModelAttribute CommonFormRequest request) {
         log.info("IF8A-67 日票激活, request={}", request);
-        DailyTicketActivateReqDTO bizData = parseBizData(request, DailyTicketActivateReqDTO.class);
-        return dailyTicketAppService.updateTicket(bizData);
+        return dailyTicketAppService.updateTicket(parseBizData(request, DailyTicketActivateReqDTO.class));
     }
 
-    /**
-     * IF8A-71 通知 ACC 车票已使用。
-     */
-    @PostMapping("/dailyTicket/updateAndNotice")
-    public DailyTicketBaseResult updateAndNotice(@ModelAttribute CommonFormRequest request) {
+    @PostMapping({"/ci/app/dailyTicket/updateAndNotice", "/app/dailyTicket/updateAndNotice"})
+    public DailyTicketBaseResult notifyAccUsed(@ModelAttribute CommonFormRequest request) {
         log.info("IF8A-71 通知 ACC 车票已使用, request={}", request);
-        DailyTicketUsedNoticeReqDTO bizData = parseBizData(request, DailyTicketUsedNoticeReqDTO.class);
-        return dailyTicketAppService.updateAndNotice(bizData);
+        return dailyTicketAppService.updateAndNotice(parseBizData(request, DailyTicketUsedNoticeReqDTO.class));
     }
 
-    /**
-     * 日票支付结果通知（兼容支付网关通用报文、对象 bizData 和 Base64 编码 bizData）。
-     */
-    @PostMapping("/dailyTicket/payment/receivePayResult")
-    public DailyTicketBaseResult receivePayResult(@RequestBody String requestBody) {
+    @PostMapping({"/ci/app/dailyTicket/payment/receivePayResult", "/app/dailyTicket/payment/receivePayResult"})
+    public DailyTicketBaseResult receivePayNotify(@RequestBody String requestBody) {
         log.info("日票支付回调原始报文={}", requestBody);
         DailyTicketBaseResult result = dailyTicketAppService.handlePayResultCallback(requestBody);
         log.info("日票支付回调处理结果={}", JSON.toJSONString(result));

@@ -44,4 +44,14 @@ public class GateTxnPayRespDTO {
     public void setPayStatus(String payStatus) {
         this.payStatus = payStatus;
     }
+
+    @Override
+    public String toString() {
+        return "GateTxnPayRespDTO{" +
+                "retCode='" + retCode + '\'' +
+                ", retMsg='" + retMsg + '\'' +
+                ", orderNo='" + orderNo + '\'' +
+                ", payStatus='" + payStatus + '\'' +
+                '}';
+    }
 }

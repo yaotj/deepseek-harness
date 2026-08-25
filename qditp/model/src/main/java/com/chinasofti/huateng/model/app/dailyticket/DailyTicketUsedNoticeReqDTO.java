@@ -68,4 +68,11 @@ public class DailyTicketUsedNoticeReqDTO {
     public void setTicketName(String ticketName) {
         this.ticketName = ticketName;
     }
+
+    @Override
+    public String toString() {
+        return "DailyTicketUsedNoticeReqDTO{cardNum='" + cardNum + "', period=" + period
+                + ", countingEnd=" + countingEnd + ", discountAmount=" + discountAmount
+                + ", ticketName='" + ticketName + "'}";
+    }
 }

@@ -109,4 +109,12 @@ public class DailyTicketPayCallbackReqDTO {
     public void setRawBody(String rawBody) {
         this.rawBody = rawBody;
     }
+
+    @Override
+    public String toString() {
+        return "DailyTicketPayCallbackReqDTO{orderNo='" + orderNo + "', tradeNo='" + tradeNo
+                + "', paymentOrderNo='" + paymentOrderNo + "', payResult='" + payResult
+                + "', payAmount=" + payAmount + ", payDate=" + payDate + "', payChannel='" + payChannel
+                + "', rawBody='" + (rawBody != null ? "[length=" + rawBody.length() + "]" : null) + "'}";
+    }
 }

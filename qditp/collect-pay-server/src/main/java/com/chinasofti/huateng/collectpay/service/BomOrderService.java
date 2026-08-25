@@ -100,4 +100,13 @@ public interface BomOrderService {
     JSONObject notiTakeTicketResult(NotiTakeTicketResultReqDTO request);
 
     JSONObject notiTakeTicketFailResult(NotiTakeTicketFailResultReqDTO request);
+
+    /**
+     * IF5A-09 HCE票卡更新结果通知。
+     * BOM更新HCE票数据后，向ITP平台通知更新结果。
+     *
+     * @param request 请求参数（包含卡号、HCE数据、操作类型等）
+     * @return 响应结果
+     */
+    JSONObject notiUpdateHceData(NotiUpdateHceDataReqDTO request);
 }

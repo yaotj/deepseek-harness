@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.paysign.mapper.AppTerminationRequestMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.paysign.entity.AppTerminationRequest">
+        <id column="ID" jdbcType="BIGINT" property="id"/>
+        <result column="REQUEST_SIGN_SEQ" jdbcType="VARCHAR" property="requestSignSeq"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
+        <result column="PAYMENT_VENDOR" jdbcType="VARCHAR" property="paymentVendor"/>
+        <result column="TERMINATION_STATUS" jdbcType="VARCHAR" property="terminationStatus"/>
+        <result column="REQUEST_TIME" jdbcType="TIMESTAMP" property="requestTime"/>
+        <result column="SCAN_TIME" jdbcType="TIMESTAMP" property="scanTime"/>
+        <result column="COMPLETE_TIME" jdbcType="TIMESTAMP" property="completeTime"/>
+        <result column="FAIL_REASON" jdbcType="VARCHAR" property="failReason"/>
+        <result column="NOTIFY_STATUS" jdbcType="VARCHAR" property="notifyStatus"/>
+        <result column="NOTIFY_RETRY_COUNT" jdbcType="INTEGER" property="notifyRetryCount"/>
+        <result column="NOTIFY_TIME" jdbcType="TIMESTAMP" property="notifyTime"/>
+        <result column="NOTIFY_RESULT" jdbcType="VARCHAR" property="notifyResult"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ID, REQUEST_SIGN_SEQ, THIRD_USER_ID, CARD_ID, CARD_TYPE, PAYMENT_VENDOR,
+        TERMINATION_STATUS, REQUEST_TIME, SCAN_TIME, COMPLETE_TIME, FAIL_REASON,
+        NOTIFY_STATUS, NOTIFY_RETRY_COUNT, NOTIFY_TIME, NOTIFY_RESULT,
+        CREATE_TIME, UPDATE_TIME
+    </sql>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.paysign.entity.AppTerminationRequest">
+        INSERT INTO APP_TERMINATION_REQUEST (
+            REQUEST_SIGN_SEQ, THIRD_USER_ID, CARD_ID, CARD_TYPE, PAYMENT_VENDOR,
+            TERMINATION_STATUS, REQUEST_TIME, SCAN_TIME, COMPLETE_TIME, FAIL_REASON,
+            NOTIFY_STATUS, NOTIFY_RETRY_COUNT, NOTIFY_TIME, NOTIFY_RESULT,
+            CREATE_TIME, UPDATE_TIME
+        ) VALUES (
+            #{requestSignSeq,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR},
+            #{cardId,jdbcType=VARCHAR},
+            #{cardType,jdbcType=VARCHAR},
+            #{paymentVendor,jdbcType=VARCHAR},
+            #{terminationStatus,jdbcType=VARCHAR},
+            #{requestTime,jdbcType=TIMESTAMP},
+            #{scanTime,jdbcType=TIMESTAMP},
+            #{completeTime,jdbcType=TIMESTAMP},
+            #{failReason,jdbcType=VARCHAR},
+            #{notifyStatus,jdbcType=VARCHAR},
+            #{notifyRetryCount,jdbcType=INTEGER},
+            #{notifyTime,jdbcType=TIMESTAMP},
+            #{notifyResult,jdbcType=VARCHAR},
+            #{createTime,jdbcType=TIMESTAMP},
+            #{updateTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <select id="selectByRequestSignSeq" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from APP_TERMINATION_REQUEST
+        where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectPendingByUserId" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from APP_TERMINATION_REQUEST
+        where THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+          and TERMINATION_STATUS in ('PENDING', 'SCANNING')
+          and ROWNUM = 1
+    </select>
+
+    <update id="updateStatus">
+        update APP_TERMINATION_REQUEST
+        set TERMINATION_STATUS = #{status,jdbcType=VARCHAR},
+            UPDATE_TIME = sysdate
+        where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+    </update>
+
+    <update id="updateScanTime">
+        update APP_TERMINATION_REQUEST
+        set SCAN_TIME = #{scanTime,jdbcType=TIMESTAMP},
+            UPDATE_TIME = sysdate
+        where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+    </update>
+
+    <update id="updateCompleteTime">
+        update APP_TERMINATION_REQUEST
+        set COMPLETE_TIME = #{completeTime,jdbcType=TIMESTAMP},
+            UPDATE_TIME = sysdate
+        where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+    </update>
+
+    <update id="updateFailReason">
+        update APP_TERMINATION_REQUEST
+        set TERMINATION_STATUS = #{status,jdbcType=VARCHAR},
+            FAIL_REASON = #{failReason,jdbcType=VARCHAR},
+            UPDATE_TIME = sysdate
+        where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+    </update>
+
+    <update id="updateNotifyStatus">
+        update APP_TERMINATION_REQUEST
+        set NOTIFY_STATUS = #{notifyStatus,jdbcType=VARCHAR},
+            NOTIFY_TIME = #{notifyTime,jdbcType=TIMESTAMP},
+            NOTIFY_RESULT = #{notifyResult,jdbcType=VARCHAR},
+            UPDATE_TIME = sysdate
+        where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+    </update>
+
+    <update id="increaseNotifyRetryCount">
+        update APP_TERMINATION_REQUEST
+        set NOTIFY_RETRY_COUNT = NOTIFY_RETRY_COUNT + 1,
+            UPDATE_TIME = sysdate
+        where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+    </update>
+</mapper>

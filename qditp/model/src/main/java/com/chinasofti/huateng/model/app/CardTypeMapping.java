@@ -6,6 +6,8 @@ import java.util.Map;
  * APP 入参卡类型到发卡卡类型的映射。
  */
 public final class CardTypeMapping {
+    public static final String AI_SHAN_DONG_CARD_TYPE = "044A";
+
     private static final Map<String, String> ISSUE_CARD_TYPES = Map.of(
             "02", "0441",
             "03", "0442",
@@ -25,10 +27,22 @@ public final class CardTypeMapping {
             return null;
         }
         String normalized = cardType.trim();
+        if (AI_SHAN_DONG_CARD_TYPE.equalsIgnoreCase(normalized)) {
+            return AI_SHAN_DONG_CARD_TYPE;
+        }
         return ISSUE_CARD_TYPES.getOrDefault(normalized, normalized);
     }
 
     public static boolean isSupportedAppCardType(String cardType) {
-        return cardType != null && ISSUE_CARD_TYPES.containsKey(cardType.trim());
+        if (cardType == null) {
+            return false;
+        }
+        String normalized = cardType.trim();
+        return ISSUE_CARD_TYPES.containsKey(normalized)
+                || AI_SHAN_DONG_CARD_TYPE.equalsIgnoreCase(normalized);
+    }
+
+    public static boolean isAiShanDong(String cardType) {
+        return AI_SHAN_DONG_CARD_TYPE.equalsIgnoreCase(cardType == null ? null : cardType.trim());
     }
 }

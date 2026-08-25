@@ -136,15 +136,17 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
     }
 
     private <T> T handleResponse(Mono<ResponseEntity<T>> result) {
-        ResponseEntity<T> res = null;
         try {
-            res = result.block();
+            ResponseEntity<T> res = result.block();
+            if (res == null) {
+                throw new IllegalStateException("webClient response is null");
+            }
             logResponse(res.getStatusCode().value(), res.toString());
+            return res.getBody();
         } catch (Exception e) {
-            log.error("{}", e.getMessage(), e);
-            return null;
+            log.error("webClient request failed", e);
+            throw new RuntimeException(e);
         }
-        return res.getBody();
     }
 
     @Override
@@ -183,13 +185,15 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
                     logPostRequestJsonErr(err);
                 });
 
-        ResponseEntity<String> res = null;
+        ResponseEntity<String> res;
         try {
             res = monoResponseEntity.block();
-            logResponse(res.getStatusCode().value(), res.toString());
+            if (res != null) {
+                logResponse(res.getStatusCode().value(), res.toString());
+            }
         } catch (Exception e) {
-            log.error("{}", e.getMessage());
-            return null;
+            log.error("webClient request failed", e);
+            throw new RuntimeException(e);
         }
         return res;
     }

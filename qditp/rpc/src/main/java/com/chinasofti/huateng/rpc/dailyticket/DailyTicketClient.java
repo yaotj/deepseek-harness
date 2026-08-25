@@ -24,6 +24,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.Map;
+
 /**
  * daily-ticket-server RPC客户端。
  */
@@ -160,6 +162,39 @@ public class DailyTicketClient extends ProxyWebClient {
         QueryDailyTicketInfoResult response = JSONUtil.toBean(result, new TypeReference<QueryDailyTicketInfoResult>() {
         }, true);
         log.info("调用daily-ticket-server查询日票信息接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
+     * 日票进站校验（有效期、未完成出站、计次票次数检查）。
+     */
+    public DailyTicketBaseResult entryCheck(String cardNum) {
+        String path = "/ci/daily-ticket/entry/check";
+        Map<String, String> body = new java.util.HashMap<>();
+        body.put("cardNum", cardNum);
+        log.info("调用daily-ticket-server日票进站校验接口入参 path={}, cardNum={}", path, cardNum);
+        String result = postJsonAndGetResponse(path, body);
+        log.info("调用daily-ticket-server日票进站校验接口原始返回 path={}, response={}", path, result);
+        DailyTicketBaseResult response = JSONUtil.toBean(result, new TypeReference<DailyTicketBaseResult>() {
+        }, true);
+        log.info("调用daily-ticket-server日票进站校验接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
+     * 日票出站处理（扣减计次票次数，标记已使用）。
+     */
+    public DailyTicketBaseResult markUsed(String cardNum, Long countingEnd) {
+        String path = "/ci/daily-ticket/ticket/markUsed";
+        Map<String, Object> body = new java.util.HashMap<>();
+        body.put("cardNum", cardNum);
+        body.put("countingEnd", countingEnd);
+        log.info("调用daily-ticket-server日票出站处理接口入参 path={}, cardNum={}, countingEnd={}", path, cardNum, countingEnd);
+        String result = postJsonAndGetResponse(path, body);
+        log.info("调用daily-ticket-server日票出站处理接口原始返回 path={}, response={}", path, result);
+        DailyTicketBaseResult response = JSONUtil.toBean(result, new TypeReference<DailyTicketBaseResult>() {
+        }, true);
+        log.info("调用daily-ticket-server日票出站处理接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
         return response;
     }
 }

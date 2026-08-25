@@ -1,13 +1,12 @@
 package com.chinasofti.huateng.collectpay.service.impl;
 
 import com.alibaba.fastjson.JSONObject;
-import com.chinasofti.huateng.collectpay.common.DeviceResponse;
 import com.chinasofti.huateng.collectpay.constant.BusinessTypeEnum;
 import com.chinasofti.huateng.collectpay.constant.TvmPayCodeEnum;
-import com.chinasofti.huateng.model.enums.DeviceTypeEnum;
+import com.chinasofti.huateng.collectpay.model.response.paycenter.PayCenterResult;
+import com.chinasofti.huateng.collectpay.utils.OrderCommonUtils;
 import com.chinasofti.huateng.collectpay.entity.TvmPayPreOrder;
 import com.chinasofti.huateng.collectpay.mapper.TvmOrderPreMapper;
-import com.chinasofti.huateng.collectpay.model.request.tvm.NotiTakeTicketResultReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.tvm.PayNoticeReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.tvm.RequestPayResultReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.tvm.RequestRefundReqDTO;
@@ -22,10 +21,6 @@ import org.springframework.util.ObjectUtils;
 @Service
 @Slf4j
 public class TvmOrderPreServiceImpl implements TvmOrderPreService {
-
-    private static final String TVM_PG = DeviceTypeEnum.TVM_1.getCode();
-    private static final String TVM_TOPUP = "02";
-    private static final String TVM_APP = "03";
 
     @Autowired
     TvmOrderService tvmOrderService;
@@ -52,12 +47,12 @@ public class TvmOrderPreServiceImpl implements TvmOrderPreService {
         String transType = tvmPayPreOrder.getTransType();
 
         // 扫码购票
-        if(StringUtils.equals(transType,TVM_PG)){
+        if(StringUtils.equals(transType,BusinessTypeEnum.TVM_SCAN_QR_BUYTICKET.getCode())){
             log.info("查询 扫码购票 订单支付结果");
             return tvmOrderService.requestPayResult(request);
         }
         // 扫码充值
-        if (StringUtils.equals(transType,TVM_TOPUP)){
+        if (StringUtils.equals(transType,BusinessTypeEnum.TVM_SCAN_QR_RECHARGE.getCode())){
             log.info("查询 扫码充值 订单支付结果");
             return tvmTopupService.requestPayResult(request);
         }
@@ -75,12 +70,12 @@ public class TvmOrderPreServiceImpl implements TvmOrderPreService {
         String transType = tvmPayPreOrder.getTransType();
 
         // 扫码购票
-        if(StringUtils.equals(transType,"01")){
+        if(StringUtils.equals(transType,BusinessTypeEnum.TVM_SCAN_QR_BUYTICKET.getCode())){
             log.info("支付中心查询 扫码购票 订单支付详情");
             return tvmOrderService.requestPayOrderDetail(request);
         }
         // 扫码充值
-        if (StringUtils.equals(transType,"02")){
+        if (StringUtils.equals(transType,BusinessTypeEnum.TVM_SCAN_QR_RECHARGE.getCode())){
             log.info("支付中心查询 扫码充值 订单支付详情");
             return tvmTopupService.requestPayOrderDetail(request);
         }
@@ -97,14 +92,22 @@ public class TvmOrderPreServiceImpl implements TvmOrderPreService {
         String transType = tvmPayPreOrder.getTransType();
 
         // 扫码购票
-        if(StringUtils.equals(transType,"01")){
+        if(StringUtils.equals(transType,BusinessTypeEnum.TVM_SCAN_QR_BUYTICKET.getCode())){
             log.info("支付中心查询 扫码购票 退款");
             return tvmOrderService.requestRefund(request);
         }
         // 扫码充值
-        if (StringUtils.equals(transType,"02")){
+        if (StringUtils.equals(transType,BusinessTypeEnum.TVM_SCAN_QR_RECHARGE.getCode())){
             log.info("支付中心查询 扫码充值 退款");
             return tvmTopupService.requestRefund(request);
+        }
+        // app这里是不是经过票卡分析做的退款，所以不通知app
+        if (StringUtils.equals(transType,BusinessTypeEnum.TVM_SCAN_QR_TAKETICKET.getCode())){
+            log.info("支付中心查询 扫码充值 退款");
+            RequestPayResultReqDTO dto = new RequestPayResultReqDTO();
+            dto.setOrderNo(request.getOrderNo());
+
+            return appOrderService.doRefund(request.getOrderNo(),request.getRefundAmt(), OrderCommonUtils.getRefundNo(),BusinessTypeEnum.APP_REFUND.getCode());
         }
         return TvmOrderResult.fail(TvmPayCodeEnum.FAIL.getCode(),"交易类型不明确，请联系工作人员");
     }
@@ -145,7 +148,7 @@ public class TvmOrderPreServiceImpl implements TvmOrderPreService {
             return bomOrderService.payNotice(request);
         }
 
-        return TvmOrderResult.fail(TvmPayCodeEnum.FAIL.getCode(),"交易类型不明确，请联系工作人员");
+        return PayCenterResult.failMessage("交易类型不明确，请联系工作人员");
     }
 
 }

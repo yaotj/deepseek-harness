@@ -22,4 +22,6 @@ public interface AlipayUserInfoMapper {
     int updateByThirdUserId(AlipayUserInfo record);
 
     int updatePaymentChannel(AlipayUserInfo record);
+
+    int updateMsisdnByThirdUserId(@Param("thirdUserId") String thirdUserId, @Param("msisdn") String msisdn);
 }

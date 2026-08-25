@@ -24,5 +24,12 @@ public class StationCodeRecordDTO {
     public String getStationNameEN() { return stationNameEN; }
     public void setStationNameEN(String stationNameEN) { this.stationNameEN = stationNameEN; }
     public String getTransferYn() { return transferYn; }
-    public void setTransferYn(String transferYn) { this.transferYn = transferYn; }
+    public void setTransferYn(String transferYn) {
+        this.transferYn = transferYn;
+    }
+
+    @Override
+    public String toString() {
+        return "StationCodeRecordDTO{lineCode='" + lineCode + "', stationCode='" + stationCode + "', stationNameZH='" + stationNameZH + "', stationNameEN='" + stationNameEN + "', transferYn='" + transferYn + "'}";
+    }
 }

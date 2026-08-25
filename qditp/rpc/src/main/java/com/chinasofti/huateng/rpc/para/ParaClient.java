@@ -12,6 +12,8 @@ import com.chinasofti.huateng.model.app.RequestStationCodeListReqDTO;
 import com.chinasofti.huateng.model.app.RequestStationCodeListResult;
 import com.chinasofti.huateng.model.app.RequestStationLineInfoReqDTO;
 import com.chinasofti.huateng.model.app.RequestStationLineInfoResult;
+import com.chinasofti.huateng.model.app.RequestStationNameBatchReqDTO;
+import com.chinasofti.huateng.model.app.RequestStationNameBatchResult;
 import com.chinasofti.huateng.model.app.RequestStationNameReqDTO;
 import com.chinasofti.huateng.model.app.RequestStationNameResult;
 import com.chinasofti.huateng.model.app.RequestTicketPriceByStationReqDTO;
@@ -88,5 +90,13 @@ public class ParaClient extends ProxyWebClient {
     public RequestStationLineInfoResult requestStationLineInfo(RequestStationLineInfoReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/requestStationLineInfo", request);
         return JSONUtil.toBean(result, new TypeReference<RequestStationLineInfoResult>() {}, true);
+    }
+
+    /**
+     * 批量根据车站代码查询车站名称。
+     */
+    public RequestStationNameBatchResult requestStationNameBatch(RequestStationNameBatchReqDTO request) {
+        String result = postJsonAndGetResponse("/ci/app/requestStationNameBatch", request);
+        return JSONUtil.toBean(result, new TypeReference<RequestStationNameBatchResult>() {}, true);
     }
 }

@@ -26,6 +26,19 @@
         <result column="UPDATE_TIME" jdbcType="VARCHAR" property="updateTime"/>
     </resultMap>
 
+    <resultMap id="noticeTakeTicketFailureRecordResultMap" type="com.chinasofti.huateng.collectpay.entity.NoticeTakeTicketFailureRecord">
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="orderTicketNum" jdbcType="INTEGER" property="orderTicketNum"/>
+        <result column="actualTakeTicketNum" jdbcType="INTEGER" property="actualTakeTicketNum"/>
+        <result column="takeTickeDate" jdbcType="VARCHAR" property="takeTickeDate"/>
+        <result column="takeTiketFaultReason" jdbcType="VARCHAR" property="takeTiketFaultReason"/>
+        <result column="refundAmount" jdbcType="INTEGER" property="refundAmount"/>
+        <result column="status" jdbcType="INTEGER" property="status"/>
+        <result column="retryTimes" jdbcType="INTEGER" property="retryTimes"/>
+        <result column="CREATE_TIME" jdbcType="VARCHAR" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="VARCHAR" property="updateTime"/>
+    </resultMap>
+
 
     <insert id="insertTakeNotice" parameterType="map">
         insert into tbl_notice_app_taketicket_record (
@@ -89,6 +102,8 @@
         where status &lt;&gt; #{status,jdbcType=VARCHAR} and retryTimes &lt; #{retryTimes,jdbcType=VARCHAR}
     </select>
 
+
+
     <insert id="insertTakeFailureNotice" parameterType="map">
         insert into TBL_NOTICE_APP_FAILURE_RECORD (
         ORDER_NO, orderTicketNum, actualTakeTicketNum, takeTickeDate, takeTiketFaultReason, refundAmount,status,retryTimes,CREATE_TIME
@@ -114,5 +129,11 @@
         </set>
         where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </update>
+
+    <select id="selectSendFailTakeTicketFailureLs" parameterType="map" resultMap="noticeTakeTicketFailureRecordResultMap">
+        select *
+        from TBL_NOTICE_APP_FAILURE_RECORD
+        where status &lt;&gt; #{status,jdbcType=VARCHAR} and retryTimes &lt; #{retryTimes,jdbcType=VARCHAR}
+    </select>
 
 </mapper>

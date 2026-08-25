@@ -5,6 +5,7 @@ import com.chinasofti.huateng.collectpay.entity.NoticeRefundRecord;
 import com.chinasofti.huateng.collectpay.entity.NoticeTakeTicketFailureRecord;
 import com.chinasofti.huateng.collectpay.entity.NoticeTakeTicketRecord;
 import com.chinasofti.huateng.collectpay.mapper.TvmNoticeAppMapper;
+import com.chinasofti.huateng.collectpay.service.AppOrderService;
 import com.chinasofti.huateng.collectpay.service.TvmCommonService;
 import com.chinasofti.huateng.collectpay.service.TvmOrderService;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,8 @@ public class NoticeAppTask {
     private TvmOrderService tvmOrderService;
     @Autowired
     private TvmCommonService tvmCommonService;
+    @Autowired
+    private AppOrderService appOrderService;
     @Autowired
     Environment environment;
 
@@ -104,7 +107,7 @@ public class NoticeAppTask {
             log.info("原发送记录 refund_record is {}", record);
             int retryTimes = Integer.valueOf(record.getRetryTimes()) + 1;
             log.info("开始发送 新的refund_retryTimes is {}", retryTimes);
-            boolean b = tvmCommonService.noticeAppRefundResult(record.getOrderNo(), record.getRefundResult(), record.getRefundDate(), record.getRefundAmount(), String.valueOf(retryTimes));
+            boolean b = appOrderService.noticeAppRefundResult(record.getOrderNo(), record.getRefundResult(), record.getRefundDate(), record.getRefundAmount(), String.valueOf(retryTimes));
             log.info("发送结束 b is {}", b);
         }
 

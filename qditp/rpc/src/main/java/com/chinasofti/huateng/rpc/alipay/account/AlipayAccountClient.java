@@ -81,4 +81,25 @@ public class AlipayAccountClient extends ProxyWebClient {
         }
         return Boolean.parseBoolean(result);
     }
+
+    /**
+     * 更换手机号。
+     */
+    public boolean updatePhone(String thirdUserId, String newMsisdn) {
+        String url = "/channel/updatePhone?thirdUserId=" + thirdUserId
+                + "&newMsisdn=" + newMsisdn;
+        Map<String, String> params = new HashMap<>();
+        String result = getAndGetResponse(url, params);
+        if (result == null || result.isEmpty()) {
+            return false;
+        }
+        // 兼容两种返回格式：裸 true/false 或 {"data":true/false}
+        result = result.trim();
+        if (result.startsWith("{")) {
+            cn.hutool.json.JSONObject wrapper = JSONUtil.parseObj(result);
+            Object data = wrapper.get("data");
+            return data != null && Boolean.parseBoolean(data.toString());
+        }
+        return Boolean.parseBoolean(result);
+    }
 }

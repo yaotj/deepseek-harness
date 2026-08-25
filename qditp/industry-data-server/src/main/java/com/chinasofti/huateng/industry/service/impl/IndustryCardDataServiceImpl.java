@@ -2,9 +2,10 @@ package com.chinasofti.huateng.industry.service.impl;
 
 import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.industry.service.IndustryCardDataService;
-import com.chinasofti.huateng.model.app.CardTypeMapping;
+import com.chinasofti.huateng.model.enums.CardTypeCodeEnum;
 import com.chinasofti.huateng.model.app.IndustryCardDataBuildReqDTO;
 import com.chinasofti.huateng.model.app.IndustryCardDataBuildRespDTO;
+import com.chinasofti.huateng.model.app.CardTypeMapping;
 import com.chinasofti.huateng.model.app.RequestSignInsDataReqDTO;
 import com.chinasofti.huateng.model.app.RequestSignInsDataRespDTO;
 import com.chinasofti.huateng.rpc.security.SecurityClient;
@@ -98,23 +99,19 @@ public class IndustryCardDataServiceImpl implements IndustryCardDataService {
     }
 
     private String resolveTicketType(String cardType) {
-        String normalizedCardType = firstNonBlank(cardType, defaultTicketType);
-        if (usesQrTicketType(normalizedCardType)) {
-            return "0441";
+        String normalizedCardType = CardTypeMapping.toIssueCardType(firstNonBlank(cardType, defaultTicketType));
+        if (CardTypeCodeEnum.usesQrTicketType(normalizedCardType)) {
+            return CardTypeCodeEnum.QR_POSTPAID.getCode();
         }
-        return normalizeHex(CardTypeMapping.toIssueCardType(normalizedCardType), 4, "0441");
+        return normalizeHex(CardTypeCodeEnum.fromCode(normalizedCardType) != null
+                ? CardTypeCodeEnum.fromCode(normalizedCardType).getCode() : normalizedCardType, 4, CardTypeCodeEnum.QR_POSTPAID.getCode());
     }
 
     /**
      * 日票和员工票的账户真实卡种不同，但行业码体统一使用二维码票种 0441。
      */
     private boolean usesQrTicketType(String cardType) {
-        return "12".equals(cardType) || "13".equals(cardType)
-                || "14".equals(cardType) || "15".equals(cardType)
-                || "11".equals(cardType)
-                || "0445".equals(cardType) || "0446".equals(cardType)
-                || "0447".equals(cardType) || "0448".equals(cardType)
-                || "0444".equals(cardType);
+        return CardTypeCodeEnum.usesQrTicketType(cardType);
     }
 
     private String validateRequest(IndustryCardDataBuildReqDTO request) {

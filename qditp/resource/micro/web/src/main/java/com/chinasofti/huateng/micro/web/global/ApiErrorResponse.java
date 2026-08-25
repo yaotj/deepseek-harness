@@ -10,7 +10,7 @@ public class ApiErrorResponse extends ASimpleResultVo {
     public static Logger log = LoggerFactory.getLogger(ApiErrorResponse.class);
 
     public ApiErrorResponse(String url, Exception ex) {
-        super.setCode(UUID.randomUUID().toString());
+        super.setRetCode(UUID.randomUUID().toString());
         if (ex.getMessage().length() > 20) {
             log.error("{} {}",url, ex.getMessage());
         } else {

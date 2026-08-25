@@ -4,9 +4,11 @@ import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.alipay.account.entity.AlipayCardPool;
 import com.chinasofti.huateng.alipay.account.entity.AlipayRegLog;
 import com.chinasofti.huateng.alipay.account.entity.AlipayUserInfo;
+import com.chinasofti.huateng.alipay.account.entity.UserPhoneChangeLog;
 import com.chinasofti.huateng.alipay.account.mapper.AlipayCardPoolMapper;
 import com.chinasofti.huateng.alipay.account.mapper.AlipayRegLogMapper;
 import com.chinasofti.huateng.alipay.account.mapper.AlipayUserInfoMapper;
+import com.chinasofti.huateng.alipay.account.mapper.UserPhoneChangeLogMapper;
 import com.chinasofti.huateng.alipay.account.service.AlipayAccountService;
 import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestApplicationReqDTO;
@@ -48,6 +50,9 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
 
     @Autowired
     private AlipayUserInfoMapper alipayUserInfoMapper;
+
+    @Autowired
+    private UserPhoneChangeLogMapper userPhoneChangeLogMapper;
 
     @Autowired
     private AlipayRegLogMapper alipayRegLogMapper;
@@ -169,6 +174,49 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
             return false;
         } catch (Exception e) {
             log.error("更新用户支付通道异常, thirdUserId={}", thirdUserId, e);
+            return false;
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean updatePhone(String thirdUserId, String newMsisdn) {
+        if (thirdUserId == null || thirdUserId.trim().isEmpty() || newMsisdn == null || newMsisdn.trim().isEmpty()) {
+            log.warn("更换手机号参数校验失败, thirdUserId={}, newMsisdn={}", thirdUserId, newMsisdn);
+            return false;
+        }
+        try {
+            AlipayUserInfo userInfo = alipayUserInfoMapper.selectByThirdUserId(thirdUserId.trim());
+            if (userInfo == null) {
+                log.warn("更换手机号未找到有效用户, thirdUserId={}", thirdUserId);
+                return false;
+            }
+            String oldMsisdn = userInfo.getMsisdn();
+            if (oldMsisdn != null && oldMsisdn.equals(newMsisdn)) {
+                log.info("新旧手机号相同，无需更换, thirdUserId={}, msisdn={}", thirdUserId, newMsisdn);
+                return true;
+            }
+            int updated = alipayUserInfoMapper.updateMsisdnByThirdUserId(thirdUserId.trim(), newMsisdn.trim());
+            if (updated == 0) {
+                log.warn("更换手机号更新失败, thirdUserId={}", thirdUserId);
+                return false;
+            }
+            UserPhoneChangeLog changeLog = new UserPhoneChangeLog();
+            changeLog.setThirdUserId(thirdUserId.trim());
+            changeLog.setUserType("ALIPAY");
+            changeLog.setOldMsisdn(oldMsisdn);
+            changeLog.setNewMsisdn(newMsisdn.trim());
+            changeLog.setOperType("CHANGE_PHONE");
+            changeLog.setOperTime(LocalDateTime.now());
+            changeLog.setOperator("SYSTEM");
+            changeLog.setRemark("支付宝用户更换手机号");
+            changeLog.setCreateTms(LocalDateTime.now());
+            userPhoneChangeLogMapper.insert(changeLog);
+            log.info("支付宝用户更换手机号成功, thirdUserId={}, oldMsisdn={}, newMsisdn={}",
+                    thirdUserId, oldMsisdn, newMsisdn);
+            return true;
+        } catch (Exception e) {
+            log.error("更换手机号异常, thirdUserId={}", thirdUserId, e);
             return false;
         }
     }

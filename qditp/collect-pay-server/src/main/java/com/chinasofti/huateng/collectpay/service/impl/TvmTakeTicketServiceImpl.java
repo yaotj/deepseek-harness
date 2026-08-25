@@ -52,7 +52,7 @@ public class TvmTakeTicketServiceImpl implements TvmTakeTicketService {
         log.info("1.开始处理激活取票订单, request={}", request);
         String orderNo = request.getOrderNo();
 
-        // 查询原支付订单 todo 需确认该订单是在本系统还是在其他平台上
+        // 查询原支付订单
         TvmAppOrder appPayOrder = tvmAppOrderMapper.selectByOrderNo(orderNo);
         if (ObjectUtils.isEmpty(appPayOrder)) {
             log.info("2.没有找到匹配的订单，orderNo={}", request.getOrderNo());
@@ -62,12 +62,8 @@ public class TvmTakeTicketServiceImpl implements TvmTakeTicketService {
         // 检查订单状态是否为支付成功
         if (!ItpStatusEnum.SUCCESS.getCode().equals(appPayOrder.getPayStatus())) {
             log.info("2.订单未支付或支付失败，orderNo={}, status={}", request.getOrderNo(), appPayOrder.getPayStatus());
-            return TvmOrderResult.fail(TvmPayCodeEnum.ORDER_NOT_PAID.getCode(), TvmPayCodeEnum.ORDER_NOT_PAID.getMsg());
+            return TvmOrderResult.failMessage("该订单非支付成功，不可激活");
         }
-//
-//        // 查询或创建取票订单
-//        TvmTakeTicketOrder takeTicketOrder = tvmTakeTicketOrderMapper.selectByOrderNo(
-//                request.getOrderNo());
 
         String nowTime = DateUtils.getNowTime();
 
@@ -78,26 +74,10 @@ public class TvmTakeTicketServiceImpl implements TvmTakeTicketService {
             return TvmOrderResult.success();
         } else {
             log.info("order {} 激活失败，结束", orderNo);
-            return TvmOrderResult.fail(TvmPayCodeEnum.FAIL.getCode(), "激活失败");
+            return TvmOrderResult.failMessage( "激活失败");
         }
 
     }
-
-//    private int saveActivateRecord(RequestActiveTicketReqDTO request,String nowStr) {
-//
-//        TvmTakeTicketOrder takeTicketOrder = new TvmTakeTicketOrder();
-//        takeTicketOrder.setOrderNo(request.getOrderNo());
-//        takeTicketOrder.setDeviceId(request.getDeviceId());
-//        takeTicketOrder.setQrcodeGenDate(request.getQrcodeGenDate());
-//        takeTicketOrder.setRandomFact(request.getRandomFact());
-//        takeTicketOrder.setActiveStatus(ActivateFlagEnum.ACTIVATE_ED.getCode());
-//        takeTicketOrder.setActiveTime(nowStr);
-//        takeTicketOrder.setCreateTime(nowStr);
-//        log.info("开始保存激活记录 orderNo is {}", request.getOrderNo());
-//        int i = tvmTakeTicketOrderMapper.insert(takeTicketOrder);
-//        log.info("保存激活记录结束 i is {}",i);
-//        return i;
-//    }
 
     private int updateAppOrder(RequestActiveTicketReqDTO request,String nowStr) {
         Map<String, String> updateMap = new LinkedHashMap<>();
@@ -129,15 +109,12 @@ public class TvmTakeTicketServiceImpl implements TvmTakeTicketService {
         if (ObjectUtils.isEmpty(tvmAppOrderLs)) {
             log.info("2.没有找到匹配的取票订单, deviceId={}, qrcodeGenDate={}, randomFact={}",
                     request.getDeviceId(), request.getQrcodeGenDate(), request.getRandomFact());
-            JSONObject result = DeviceResponse.getQueryFailResult();
-            result.put("retCode", TvmPayCodeEnum.NO_ACTIVE_ORDER.getCode());
-            result.put("retMsg", TvmPayCodeEnum.NO_ACTIVE_ORDER.getMsg());
-            return result;
+            return TvmOrderResult.fail(TvmPayCodeEnum.NO_ACTIVE_ORDER.getCode(),TvmPayCodeEnum.NO_ACTIVE_ORDER.getMsg());
         }
         // 避免出现查出多条的情况
         if(tvmAppOrderLs.size()>1){
             log.info("订单数超过1个，结束");
-            return TvmOrderResult.fail(TvmPayCodeEnum.FAIL.getCode(), "查询到的订单数量过多，失败");
+            return TvmOrderResult.failMessage( "查询到的订单数量过多，失败");
         }
         TvmAppOrder tvmAppOrder = tvmAppOrderLs.get(0);
 

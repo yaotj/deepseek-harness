@@ -8,8 +8,8 @@ import com.chinasofti.huateng.model.app.RequestTransDetailReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransDetailResult;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
-import com.chinasofti.huateng.ticket.model.app.RequestTransListReqDTO;
-import com.chinasofti.huateng.ticket.model.app.RequestTransListResult;
+import com.chinasofti.huateng.model.app.QueryTransListReqDTO;
+import com.chinasofti.huateng.model.app.RequestTransListResult;
 
 /**
  * IF8A-05 交易记录查询服务接口。
@@ -21,7 +21,7 @@ public interface TicketTransService {
      * @param request 查询条件
      * @return 交易记录分页结果
      */
-    RequestTransListResult requestTransList(RequestTransListReqDTO request);
+    RequestTransListResult requestTransList(QueryTransListReqDTO request);
 
     /**
      * IF8A-41 查询账单统计。

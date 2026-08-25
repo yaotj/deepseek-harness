@@ -38,7 +38,7 @@ public class GlobalControllerExceptionHandler {
             msg.append("check ").append(defaultMessageSourceResolvable.getDefaultMessage())
                     .append(" msg=").append(ex.getBindingResult().getAllErrors().get(0).getDefaultMessage());
         }
-        apiErrorResponse.setMsg(msg.toString());
+        apiErrorResponse.setRetMsg(msg.toString());
         return apiErrorResponse;
     }
 

@@ -68,4 +68,10 @@ public class QueryUserItineraryReqDTO {
     public void setLevel(String level) {
         this.level = level;
     }
+
+    @Override
+    public String toString() {
+        return "QueryUserItineraryReqDTO{cardNum='" + cardNum + "', cardType='" + cardType
+                + "', phone='" + phone + "', status='" + status + "', level='" + level + "'}";
+    }
 }

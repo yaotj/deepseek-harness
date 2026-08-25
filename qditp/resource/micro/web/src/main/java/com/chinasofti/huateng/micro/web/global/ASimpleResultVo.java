@@ -6,8 +6,8 @@ public class ASimpleResultVo<T> implements Serializable {
 
     public static final String NET_WORK_ERR = "-1";
 
-    private String code;
-    private String msg;
+    private String retCode;
+    private String retMsg;
     private T data;
 
     public ASimpleResultVo() {
@@ -17,7 +17,7 @@ public class ASimpleResultVo<T> implements Serializable {
      * 当作为 WebClient 调用的返回对象时，判断是否获取了下游目标服务的返回报文。
      */
     public boolean checkNetWorkErr() {
-        if (code != null && code.equals(NET_WORK_ERR)) {
+        if (retCode != null && retCode.equals(NET_WORK_ERR)) {
             return true;
         }
         return false;
@@ -27,34 +27,34 @@ public class ASimpleResultVo<T> implements Serializable {
      * 当作为 WebClient 调用的返回对象时，判断参数是否映射了值。
      */
     public boolean checkNotMapping() {
-        if (code == null && data == null && msg == null) {
+        if (retCode == null && data == null && retMsg == null) {
             return true;
         }
         return false;
     }
 
-    public ASimpleResultVo(String errorCode) {
-        this.code = errorCode;
+    public ASimpleResultVo(String retCode) {
+        this.retCode = retCode;
     }
 
     public ASimpleResultVo(T data) {
         this.data = data;
     }
 
-    public String getCode() {
-        return code;
+    public String getRetCode() {
+        return retCode;
     }
 
-    public void setCode(String code) {
-        this.code = code;
+    public void setRetCode(String retCode) {
+        this.retCode = retCode;
     }
 
-    public String getMsg() {
-        return msg;
+    public String getRetMsg() {
+        return retMsg;
     }
 
-    public void setMsg(String msg) {
-        this.msg = msg;
+    public void setRetMsg(String retMsg) {
+        this.retMsg = retMsg;
     }
 
     public T getData() {
@@ -68,8 +68,8 @@ public class ASimpleResultVo<T> implements Serializable {
     @Override
     public String toString() {
         return "ASimpleResultVo{" +
-                "code='" + code + '\'' +
-                ", msg='" + msg + '\'' +
+                "retCode='" + retCode + '\'' +
+                ", retMsg='" + retMsg + '\'' +
                 ", data=" + data +
                 '}';
     }

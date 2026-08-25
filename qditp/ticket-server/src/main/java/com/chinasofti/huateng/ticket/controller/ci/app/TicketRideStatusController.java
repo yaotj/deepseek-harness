@@ -15,6 +15,7 @@ import com.chinasofti.huateng.model.ticket.RequestCardDataAnalyseReqDTO;
 import com.chinasofti.huateng.model.ticket.RequestCardDataAnalyseRespDTO;
 import com.chinasofti.huateng.model.ticket.RequestCardDataUpdateReqDTO;
 import com.chinasofti.huateng.model.ticket.RequestCardDataUpdateRespDTO;
+import com.chinasofti.huateng.ticket.service.AgmRideStatusService;
 import com.chinasofti.huateng.ticket.service.TicketRideStatusService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * ticket-server APP 侧接口控制器。
- * 当前承接开户后初始化乘车状态，以及 IF8A-03 请求行业数据。
+ * AGM 侧接口（IF1A-01/IF5A-01/IF5A-03/查询票卡状态）请使用 TicketAgmController。
  */
 @RestController
 @RequestMapping("/ci/app")
@@ -35,9 +36,12 @@ public class TicketRideStatusController {
     private static final Logger log = LoggerFactory.getLogger(TicketRideStatusController.class);
 
     private final TicketRideStatusService ticketRideStatusService;
+    private final AgmRideStatusService agmRideStatusService;
 
-    public TicketRideStatusController(TicketRideStatusService ticketRideStatusService) {
+    public TicketRideStatusController(TicketRideStatusService ticketRideStatusService,
+                                      AgmRideStatusService agmRideStatusService) {
         this.ticketRideStatusService = ticketRideStatusService;
+        this.agmRideStatusService = agmRideStatusService;
     }
 
     /**
@@ -49,12 +53,10 @@ public class TicketRideStatusController {
         return ticketRideStatusService.registerRideStatus(request);
     }
 
-
     @PostMapping("/queryQrCodeStatus")
     public QueryStatusRespDTO queryQrCodeStatus(@RequestBody QueryStatusReqDTO request) {
         log.info("获取用户乘车状态，请求参数：{}", JSON.toJSONString(request));
-
-        return ticketRideStatusService.queryQrCodeStatus(request);
+        return agmRideStatusService.queryQrCodeStatus(request);
     }
 
     /**
@@ -63,7 +65,7 @@ public class TicketRideStatusController {
     @PostMapping("/notiVerifyResult")
     public NotifyVerifyResultRespDTO notifyVerifyResult(@RequestBody NotifyVerifyResultReqDTO request) {
         log.info("IF1A-01 闸机检票通知，请求参数：{}", JSON.toJSONString(request));
-        return ticketRideStatusService.notifyVerifyResult(request);
+        return agmRideStatusService.notifyVerifyResult(request);
     }
 
     /**
@@ -90,7 +92,7 @@ public class TicketRideStatusController {
     @PostMapping("/requestCardDataAnalyse")
     public RequestCardDataAnalyseRespDTO requestCardDataAnalyse(@RequestBody RequestCardDataAnalyseReqDTO request) {
         log.info("IF5A-01 请求票卡分析，请求参数：{}", JSON.toJSONString(request));
-        return ticketRideStatusService.requestCardDataAnalyse(request);
+        return agmRideStatusService.requestCardDataAnalyse(request);
     }
 
     /**
@@ -99,7 +101,7 @@ public class TicketRideStatusController {
     @PostMapping("/requestUpdateCardData")
     public RequestCardDataUpdateRespDTO requestUpdateCardData(@RequestBody RequestCardDataUpdateReqDTO request) {
         log.info("IF5A-03 请求票卡更新，请求参数：{}", JSON.toJSONString(request));
-        return ticketRideStatusService.requestCardDataUpdate(request);
+        return agmRideStatusService.requestCardDataUpdate(request);
     }
 
     /**
@@ -110,5 +112,4 @@ public class TicketRideStatusController {
         log.info("查询进站设备, cardId={}", cardId);
         return ticketRideStatusService.queryEntryDevice(cardId);
     }
-
 }

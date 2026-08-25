@@ -11,7 +11,6 @@ public class PayTxnDetail {
     private String cardId;
     private String cardType;
     private String paymentVendor;
-    private String payChannelCode;
     private String requestSignSeq;
     private Integer amount;
     private Integer totalAmount;
@@ -32,6 +31,10 @@ public class PayTxnDetail {
     private String txnDate;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+    private String discountInfo;          // 优惠详情JSON数组
+    private String debitRequestResult;    // 扣款结果：PROCESSING/SUCCESS/FAIL
+    private Integer discountFee;          // 优惠金额（分）
+    private String transIn;               // 入账账户/商户号
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -49,8 +52,6 @@ public class PayTxnDetail {
     public void setCardType(String cardType) { this.cardType = cardType; }
     public String getPaymentVendor() { return paymentVendor; }
     public void setPaymentVendor(String paymentVendor) { this.paymentVendor = paymentVendor; }
-    public String getPayChannelCode() { return payChannelCode; }
-    public void setPayChannelCode(String payChannelCode) { this.payChannelCode = payChannelCode; }
     public String getRequestSignSeq() { return requestSignSeq; }
     public void setRequestSignSeq(String requestSignSeq) { this.requestSignSeq = requestSignSeq; }
     public Integer getAmount() { return amount; }
@@ -91,4 +92,20 @@ public class PayTxnDetail {
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public LocalDateTime getUpdateTime() { return updateTime; }
     public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
+    public String getDiscountInfo() { return discountInfo; }
+    public void setDiscountInfo(String discountInfo) { this.discountInfo = discountInfo; }
+    public String getDebitRequestResult() { return debitRequestResult; }
+    public void setDebitRequestResult(String debitRequestResult) { this.debitRequestResult = debitRequestResult; }
+    public Integer getDiscountFee() {
+        return discountFee;
+    }
+    public void setDiscountFee(Integer discountFee) {
+        this.discountFee = discountFee;
+    }
+    public String getTransIn() {
+        return transIn;
+    }
+    public void setTransIn(String transIn) {
+        this.transIn = transIn;
+    }
 }

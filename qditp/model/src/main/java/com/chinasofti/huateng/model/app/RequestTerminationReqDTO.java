@@ -57,4 +57,11 @@ public class RequestTerminationReqDTO {
     public void setPaymentVendor(String paymentVendor) {
         this.paymentVendor = paymentVendor;
     }
+
+    @Override
+    public String toString() {
+        return "RequestTerminationReqDTO{thirdUserId='" + thirdUserId + "', cardId='" + cardId
+                + "', cardType='" + cardType + "', requestSignSeq='" + requestSignSeq
+                + "', paymentVendor='" + paymentVendor + "'}";
+    }
 }

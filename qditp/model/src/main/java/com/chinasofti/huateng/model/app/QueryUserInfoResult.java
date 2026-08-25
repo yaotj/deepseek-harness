@@ -127,4 +127,24 @@ public class QueryUserInfoResult extends CommonResult {
     public void setCompanionFlag(String companionFlag) {
         this.companionFlag = companionFlag;
     }
+
+    @Override
+    public String toString() {
+        return "QueryUserInfoResult{" +
+                "thirdUserId='" + thirdUserId + '\'' +
+                ", cardId='" + cardId + '\'' +
+                ", cardType='" + cardType + '\'' +
+                ", itpCardType='" + itpCardType + '\'' +
+                ", channel='" + channel + '\'' +
+                ", cardIssueCode='" + cardIssueCode + '\'' +
+                ", thirdPayId='" + thirdPayId + '\'' +
+                ", reqContractNo='" + reqContractNo + '\'' +
+                ", hceData='" + (hceData != null && hceData.length() > 16 ? hceData.substring(0, 16) + "..." : hceData) + '\'' +
+                ", msisdn='" + msisdn + '\'' +
+                ", regTms='" + regTms + '\'' +
+                ", companionFlag='" + companionFlag + '\'' +
+                ", retCode='" + getRetCode() + '\'' +
+                ", retMsg='" + getRetMsg() + '\'' +
+                '}';
+    }
 }

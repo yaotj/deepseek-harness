@@ -1,7 +1,10 @@
 package com.chinasofti.huateng;
 
 import com.chinasofti.huateng.rpc.EnableRpcAccount;
+import com.chinasofti.huateng.rpc.EnableRpcAlipayAccount;
 import com.chinasofti.huateng.rpc.EnableRpcGateTxnPay;
+import com.chinasofti.huateng.rpc.EnableRpcKey;
+import com.chinasofti.huateng.rpc.EnableRpcPara;
 import com.chinasofti.huateng.rpc.EnableRpcRoute;
 import com.chinasofti.huateng.rpc.EnableRpcSecurity;
 import com.chinasofti.huateng.rpc.EnableRpcTicket;
@@ -20,6 +23,9 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 @EnableRpcSecurity
 @EnableRpcTicket
 @EnableRpcGateTxnPay
+@EnableRpcKey
+@EnableRpcPara
+@EnableRpcAlipayAccount
 public class FepDevServer implements CommandLineRunner {
 
     /**

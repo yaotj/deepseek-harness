@@ -58,4 +58,11 @@ public class AppIndustryDataNotifyReqDTO {
     public void setSign(String sign) {
         this.sign = sign;
     }
+
+    @Override
+    public String toString() {
+        return "AppIndustryDataNotifyReqDTO{thirdUserId='" + thirdUserId + "', cardId='" + cardId
+                + "', cardType='" + cardType + "', cardData='" + (cardData != null ? "[length=" + cardData.length() + "]" : null)
+                + "', signType='" + signType + "', sign='" + (sign != null ? "[length=" + sign.length() + "]" : null) + "'}";
+    }
 }

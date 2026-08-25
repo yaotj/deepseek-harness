@@ -74,4 +74,12 @@ public class AppTerminationResultNotifyReqDTO {
     public void setTerminationTime(String terminationTime) {
         this.terminationTime = terminationTime;
     }
+
+    @Override
+    public String toString() {
+        return "AppTerminationResultNotifyReqDTO{thirdUserId='" + thirdUserId + "', cardId='" + cardId
+                + "', cardType='" + cardType + "', requestSignSeq='" + requestSignSeq
+                + "', terminationResult='" + terminationResult + "', terminationResultMsg='" + terminationResultMsg
+                + "', terminationTime='" + terminationTime + "'}";
+    }
 }

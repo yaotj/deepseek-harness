@@ -13,17 +13,14 @@ import com.chinasofti.huateng.collectpay.model.request.AppCommonRequest;
 import com.chinasofti.huateng.collectpay.model.request.PayCenterRequest;
 import com.chinasofti.huateng.collectpay.model.request.app.NoticeAppTakeTicketDTO;
 import com.chinasofti.huateng.collectpay.model.request.app.NoticeAppTakeTicketFailureDTO;
-import com.chinasofti.huateng.collectpay.model.request.bom.RequestGenNoCashOrderReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.bom.RequestPaymentReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.tvm.*;
 import com.chinasofti.huateng.collectpay.model.response.PayCenterResponse;
+import com.chinasofti.huateng.collectpay.model.response.paycenter.PayCenterResult;
 import com.chinasofti.huateng.collectpay.model.response.tvm.RequestPaymentRespDTO;
 import com.chinasofti.huateng.collectpay.model.response.tvm.RequestRefundRespDTO;
 import com.chinasofti.huateng.collectpay.model.response.tvm.TvmOrderResult;
-import com.chinasofti.huateng.collectpay.service.BomOrderService;
-import com.chinasofti.huateng.collectpay.service.PayCenterService;
-import com.chinasofti.huateng.collectpay.service.TvmCommonService;
-import com.chinasofti.huateng.collectpay.service.TvmOrderService;
+import com.chinasofti.huateng.collectpay.service.*;
 import com.chinasofti.huateng.collectpay.utils.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
@@ -34,7 +31,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -75,6 +71,8 @@ public class TvmOrderServiceImpl implements TvmOrderService {
     HttpUtils httpUtils;
     @Autowired
     TvmNoticeAppMapper tvmNoticeAppMapper;
+    @Autowired
+    AppOrderService appOrderService;
 
 
     @Override
@@ -118,7 +116,6 @@ public class TvmOrderServiceImpl implements TvmOrderService {
             log.info("6.支付中心返回结果为空,结束");
         } else {
 
-            // todo 当前以code=200为业务实际返回成功
             if (StringUtils.equals(payResponse.getCode(), PayCenterErrorCodeEnum.SUCCESS.getCode())) {
                 log.info("7.支付中心返回成功");
                 Map<String, Object> data = payResponse.getData();
@@ -333,22 +330,22 @@ public class TvmOrderServiceImpl implements TvmOrderService {
                     String status = TransforUtils.getStringFromData(data, "status");
                     String payCenterOrderNo = TransforUtils.getStringFromData(data, "orderNo");
                     String payCenterChannelOrderNo = TransforUtils.getStringFromData(data, "channelOrderNo");
-                    String paymentChannelCode = TransforUtils.getStringFromData(data, "paymentVendor");
+                    String channel = TransforUtils.getStringFromData(data, "paymentVendor");
 
                     // 查询支付中心支付状态为支付成功
                     if (PayCenterStatusEnum.SUCCESS.getCode().equals(status)) {
 
                         log.info("查询到支付成功的结果");
-                        uMap = UpdateDbMap.getQueryUpdateSuccessDb(request.getOrderNo(), payCenterOrderNo, payCenterChannelOrderNo);
-                        result = TvmOrderResult.successData(DeviceResponse.getPaySuccessResult(paymentChannelCode));
+                        uMap = UpdateDbMap.getQueryUpdateSuccessDb(request.getOrderNo(), payCenterOrderNo, payCenterChannelOrderNo,channel);
+                        result = TvmOrderResult.successData(DeviceResponse.getPaySuccessResult(channel));
 
                     } else if (PayCenterStatusEnum.FAILED.getCode().equals(status)) {
                         log.info("查询到支付失败的结果");
                         uMap = UpdateDbMap.getQueryUpdateFailDb(request.getOrderNo());
-                        result = TvmOrderResult.successData(DeviceResponse.getPayFailResult(paymentChannelCode));
+                        result = TvmOrderResult.successData(DeviceResponse.getPayFailResult(channel));
                     } else {
                         log.info("查询到不明确的结果，按已下单-支付中处理");
-                        result = TvmOrderResult.successData(DeviceResponse.getPayIngResult(paymentChannelCode));
+                        result = TvmOrderResult.successData(DeviceResponse.getPayIngResult(channel));
                         return result;
                     }
                     log.info("开始修改记录 uMap is {}", uMap);
@@ -434,10 +431,10 @@ public class TvmOrderServiceImpl implements TvmOrderService {
             this.noticeAppTakeTicketResult(payOrderNo, ticketNum, request.getActualTakeTicketNum(), request.getTakeTickeDate());
         }
 
-        // 如果购票数量大于实际出票数量，发起退款
-        int refundAmount = handleRefund(payOrderNo, payCenterOrderNo, ticketPrice, buyNum, actualNum, businessType);
-        log.info("5.出票结果通知处理完成, orderNo={}, buyNum={}, actualNum={}, refundAmount={}",
-                request.getOrderNo(), buyNum, actualNum, refundAmount);
+//        // 如果购票数量大于实际出票数量，发起退款 出票张数和订单张数一致才发送取票通知，所以不存在退款可能
+//        int refundAmount = handleRefund(payOrderNo, payCenterOrderNo, ticketPrice, buyNum, actualNum, businessType);
+//        log.info("5.出票结果通知处理完成, orderNo={}, buyNum={}, actualNum={}, refundAmount={}",
+//                request.getOrderNo(), buyNum, actualNum, refundAmount);
         return TvmOrderResult.success();
     }
 
@@ -543,7 +540,7 @@ public class TvmOrderServiceImpl implements TvmOrderService {
 
         log.info("出票故障 taketicketfailureresultUrl is {}", taketicketfailureresultUrl);
         AppCommonRequest<NoticeAppTakeTicketFailureDTO> request = payCenterCommon.buildNoticeAppTakeTicketFailureResultRequest(payOrderNo, orderTicketNum, actualTakeTicketNum, takeTickeDate,takeTiketFaultReason,refundAmount);
-        String httpResult = httpUtils.doPost2(taketicketfailureresultUrl, request);
+        String httpResult = httpUtils.doPostFormData(taketicketfailureresultUrl, request);
 
         log.info("出票故障 请求结束 httpResult is {}", httpResult);
         JSONObject httpResultJson = (JSONObject) JSONObject.parse(httpResult);
@@ -572,12 +569,14 @@ public class TvmOrderServiceImpl implements TvmOrderService {
     @Override
     public JSONObject notiTakeTicketFailResult(NotiTakeTicketFailResultReqDTO request) {
 
+        // todo 保存故障记录
+
         log.info("1.开始处理出票故障通知, deviceId={}, request={}", request.getDeviceId(), request);
         String payOrderNo = request.getOrderNo();
 
         TvmPayPreOrder tvmPayPreOrder = tvmOrderPreMapper.selectByOrderNo(payOrderNo);
         if (org.springframework.util.ObjectUtils.isEmpty(tvmPayPreOrder) || StringUtils.isEmpty(tvmPayPreOrder.getTransType())) {
-            return TvmOrderResult.fail("-1", "没有找到匹配的订单，请确认订单号是否正确");
+            return TvmOrderResult.failMessage( "没有找到匹配的订单，请确认订单号是否正确");
         }
         // 业务类型
         String transType = tvmPayPreOrder.getTransType();
@@ -633,65 +632,60 @@ public class TvmOrderServiceImpl implements TvmOrderService {
             }
         }
 
+        // 计算要退款的金额
+        int refundNum = buyNum - actualNum;
+        String refundAmount = String.valueOf(new BigDecimal(ticketPrice).multiply(new BigDecimal(refundNum)));
+
         // 如果是扫码取票的业务，通知app故障结果
         if (StringUtils.equals(transType, BusinessTypeEnum.TVM_SCAN_QR_TAKETICKET.getCode())) {
             log.info("扫码取票业务，开始给app发送取票结果通知");
-
             // app要的取票时间，tvm没有这个字段，这里取tvm发来的故障时间-faultOccurDate
             String takeTickeDate = request.getFaultOccurDate().substring(0, 8);
-            // 计算要退款的金额
-            int refundNum = buyNum - actualNum;
-            String refundAmount = String.valueOf(new BigDecimal(ticketPrice).multiply(new BigDecimal(refundNum)));
             log.info("当前计算要退款的金额是 refundAmount is {}",refundAmount);
             this.noticeAppTakeTicketFailureResult(payOrderNo, String.valueOf(buyNum), request.getActualTakeTicketNum(),takeTickeDate,request.getErrorMessage(), refundAmount);
         }
 
         // 如果购票数量大于实际出票数量，发起退款 退款时发送的是支付中心的订单号
-        int refundAmount = handleRefund(payOrderNo, payCenterOrderNo, ticketPrice, buyNum, actualNum, businessType);
-        log.info("5.出票故障通知处理完成, orderNo={}, buyNum={}, actualNum={}, refundAmount={}",
-                request.getOrderNo(), buyNum, actualNum, refundAmount);
 
+        if(StringUtils.equals(businessType,BusinessTypeEnum.TVM_SCAN_QR_TAKETICKET.getCode())){
+            String refundOrderNo = generateRefundOrderNo();
+            log.info("refundOrderNo is {}", refundOrderNo);
+            JSONObject result = appOrderService.doRefund(payOrderNo, refundAmount, OrderCommonUtils.getRefundNo(),BusinessTypeEnum.TVM_SCAN_QR_TAKETICKET.getCode());
+            result.put("refundNo",refundOrderNo);
+        }else {
+            boolean b = handleRefund(payOrderNo, payCenterOrderNo, ticketPrice, buyNum, actualNum, businessType);
+
+        }
+
+        log.info("5.出票故障通知处理完成, orderNo={}, buyNum={}, actualNum={}",
+                request.getOrderNo(), buyNum, actualNum);
         return TvmOrderResult.success();
     }
 
+    private int saveNoticeAppRefundResultRecord(String orderNo, String refundAmount) {
 
-    /**
-     * 处理退款逻辑。
-     * 如果购票数量大于实际出票数量，发起退款并返回退款金额。
-     *
-     * @param buyNum    购票数量
-     * @param actualNum 实际出票数量
-     * @return 退款金额（分），未退款返回0
-     */
-//    private int handleRefund(TvmPayOrder order, int buyNum, int actualNum) {
-//        log.info("开始退款处理");
-//        if (order != null && buyNum > actualNum) {
-//            int refundNum = buyNum - actualNum;
-//            BigDecimal price = new BigDecimal(order.getTicketPrice());
-//            BigDecimal refundAmount = price.multiply(new BigDecimal(refundNum));
-//            log.info("购票数量大于实际出票数量，发起退款, orderNo={}, buyNum={}, actualNum={}, refundAmount={}",
-//                    order.getOrderNo(), buyNum, actualNum, refundAmount);
-//
-//            String refundNo = tvmCommonService.doRefund(BusinessTypeEnum.TVM_SCAN_QR_BUYTICKET.getCode(), order.getOrderNo(), order.getPayCenterOrderNo(), refundAmount.intValue());
-//
-//            // 如果refundNo不为空，则证明退款结束 退款结果可以是成功的也可以是失败的
-//            if (StringUtils.isEmpty(refundNo)) {
-//                // 6. 更新原支付订单的rsv2字段（退款记录ID），不修改原支付状态
-//                Map<String, String> upMap = new HashMap<>();
-//                upMap.put("orderNo", order.getOrderNo());
-//                upMap.put("rsv2", refundNo);
-//                upMap.put("updateTime", DateUtils.getNowTime());
-//                tvmOrderMapper.updateByOrderNo(upMap);
-//            }
-//
-//
-//            return refundAmount.intValue();
-//        }
-//        return 0;
-//    }
-    private int handleRefund(String orderNo, String payCenterOrderNo, String ticketPrice, int buyNum, int actualNum, String businessType) {
+        Map<String, String> saveMap = new HashMap<>();
+        saveMap.put("orderNo", orderNo);
+        saveMap.put("refundType", "01");
+        saveMap.put("refundResult", ItpStatusEnum.REFUND_SUCCESS.getCode());
+        saveMap.put("refundResultDesc", ItpStatusEnum.REFUND_SUCCESS.getDesc());
+        saveMap.put("refundDate", DateUtils.getNowTimeByFormat("yyyyMMdd"));
+        saveMap.put("refundAmount", refundAmount);
+        saveMap.put("status", ItpCommon.NOTICE_INIT);
+        saveMap.put("createTime", DateUtils.getNowTime());
+        saveMap.put("retryTimes", "0");
+        int i = tvmNoticeAppMapper.insertRefundNotice(saveMap);
+        log.info("通知app记录保存成功 i is {}", i);
+        return i;
+    }
+
+    private String generateRefundOrderNo() {
+        long seq = orderSeqMapper.nextval();
+        return OrderNoUtils.generateRefundNo(seq);
+    }
+
+    private boolean handleRefund(String orderNo, String payCenterOrderNo, String ticketPrice, int buyNum, int actualNum, String businessType) {
         log.info("开始判断是否需要退款处理");
-
         if (buyNum > actualNum) {
             int refundNum = buyNum - actualNum;
             BigDecimal price = new BigDecimal(ticketPrice);
@@ -699,11 +693,12 @@ public class TvmOrderServiceImpl implements TvmOrderService {
             log.info("购票数量大于实际出票数量，发起退款, orderNo={}, buyNum={}, actualNum={}, refundAmount={}",
                     orderNo, buyNum, actualNum, refundAmount);
 
-            String refundNo = tvmCommonService.doRefund(businessType, orderNo, payCenterOrderNo, refundAmount.intValue());
+            String refundNo = OrderCommonUtils.getRefundNo();
+            boolean b = tvmCommonService.doRefund(businessType, orderNo, payCenterOrderNo, refundAmount.intValue(),refundNo);
 
             log.info("退款结束 refundNo is {}", refundNo);
             // 如果refundNo不为空，则证明退款结束 退款结果可以是成功的也可以是失败的
-            if (!StringUtils.isEmpty(refundNo)) {
+            if (b) {
                 // 6. 更新原支付订单的rsv2字段（退款记录ID），不修改原支付状态
                 Map<String, String> upMap = new HashMap<>();
                 upMap.put("orderNo", orderNo);
@@ -711,11 +706,11 @@ public class TvmOrderServiceImpl implements TvmOrderService {
                 upMap.put("updateTime", DateUtils.getNowTime());
                 tvmOrderMapper.updateByOrderNo(upMap);
             }
-            return refundAmount.intValue();
+            return true;
         } else {
             log.info("出票数量和购买数量相等，不发起退款");
+            return false;
         }
-        return 0;
     }
 
 
@@ -740,11 +735,11 @@ public class TvmOrderServiceImpl implements TvmOrderService {
             log.info("2.订单状态不是支付成功, 不能退款, status={}", order.getStatus());
             return RequestRefundRespDTO.fail("9999", "订单状态不是支付成功,不能退款");
         }
-
-        String refundNo = tvmCommonService.doRefund(BusinessTypeEnum.TVM_SCAN_QR_BUYTICKET.getCode(), order.getOrderNo(), order.getPayCenterOrderNo(), Integer.valueOf(request.getRefundAmt()));
+        String refundNo = OrderCommonUtils.getRefundNo();
+        boolean b =  tvmCommonService.doRefund(BusinessTypeEnum.TVM_SCAN_QR_BUYTICKET.getCode(), order.getOrderNo(), order.getPayCenterOrderNo(), Integer.valueOf(request.getRefundAmt()),refundNo);
         // 如果refundNo不为空，则证明退款结束 退款结果可以是成功的也可以是失败的
         log.info("退款解释 refundNo is {}", refundNo);
-        if (!StringUtils.isEmpty(refundNo)) {
+        if (b) {
             // 6. 更新原支付订单的rsv2字段（退款记录ID），不修改原支付状态
             Map<String, String> upMap = new HashMap<>();
             upMap.put("orderNo", order.getOrderNo());
@@ -855,19 +850,19 @@ public class TvmOrderServiceImpl implements TvmOrderService {
         TvmPayOrder order = tvmOrderMapper.selectByOrderNo(request.getMerchantOrderNo());
         if (order == null) {
             log.info("支付结果通知 订单不存在, orderNo={}", request.getOrderNo());
-            return TvmOrderResult.fail(TvmPayCodeEnum.ORDER_NO_ERROR.getCode(), TvmPayCodeEnum.ORDER_NO_ERROR.getMsg());
+            return PayCenterResult.fail(PayCenterErrorCodeEnum.ORDER_NOT_EXIST.getCode(), PayCenterErrorCodeEnum.ORDER_NOT_EXIST.getMsg());
         }
 
         // 订单已支付成功，直接返回
         if (ItpStatusEnum.SUCCESS.getCode().equals(order.getStatus())) {
             log.info("支付结果通知 订单已支付成功 不做处理 返回成功");
-            return TvmOrderResult.success();
+            return PayCenterResult.success();
         }
 
         // 订单已支付失败，直接返回
         if (ItpStatusEnum.FAILED.getCode().equals(order.getStatus())) {
             log.info("支付结果通知 订单已支付失败 返回成功");
-            return TvmOrderResult.success();
+            return PayCenterResult.success();
         }
 
         log.info("开始处理 tvm扫码购票 支付结果通知 request is {}", request);
@@ -880,23 +875,25 @@ public class TvmOrderServiceImpl implements TvmOrderService {
         // 渠道订单号
         String channelOrderNo = request.getChannelOrderNo();
 
+        String paymentVendor = request.getPaymentVendor();
+
         // 查询支付中心支付状态为支付成功
         if (PayCenterStatusEnum.SUCCESS.getCode().equals(status)) {
 
             log.info("支付结果通知 支付成功 的结果");
-            uMap = UpdateDbMap.getQueryUpdateSuccessDb(orderNo, payCenterOrderNo, channelOrderNo);
+            uMap = UpdateDbMap.getQueryUpdateSuccessDb(orderNo, payCenterOrderNo, channelOrderNo,paymentVendor);
 
         } else if (PayCenterStatusEnum.FAILED.getCode().equals(status)) {
             log.info("支付结果通知 支付失败 的结果");
             uMap = UpdateDbMap.getQueryUpdateFailDb(request.getOrderNo());
         } else {
             log.info("支付结果通知 不明确的结果，按已下单-支付中处理");
-            return TvmOrderResult.fail();
+            return PayCenterResult.fail();
         }
         log.info("支付结果通知 开始修改记录 uMap is {}", uMap);
         int i = tvmOrderMapper.updateByOrderNo(uMap);
         log.info("支付结果通知 修改结束 i is {}", i);
-        return TvmOrderResult.success();
+        return PayCenterResult.success();
 
     }
 

@@ -224,4 +224,15 @@ public class DailyTicketActivateReqDTO {
     public void setTicketName(String ticketName) {
         this.ticketName = ticketName;
     }
+
+    @Override
+    public String toString() {
+        return "DailyTicketActivateReqDTO{thirdUserId='" + thirdUserId + "', operationDate='" + operationDate
+                + "', period=" + period + ", orderNo='" + orderNo + "', cardIssue='" + cardIssue
+                + "', discountAmount=" + discountAmount + ", ticketType='" + ticketType
+                + "', actualTimes=" + actualTimes + ", transSeq=" + transSeq + ", transAmount=" + transAmount
+                + ", cardNum='" + cardNum + "', countingStart=" + countingStart + ", transDate=" + transDate
+                + ", showType='" + showType + "', payChannel='" + payChannel + "', ticketCode='" + ticketCode
+                + "', ticketName='" + ticketName + "'}";
+    }
 }

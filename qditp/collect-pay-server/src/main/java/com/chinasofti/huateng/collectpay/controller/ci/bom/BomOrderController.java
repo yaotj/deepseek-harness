@@ -48,28 +48,6 @@ public class BomOrderController {
     }
 
     /**
-     * 将公共参数复制到业务请求DTO中。
-     * 将BaseRequestDTO中的公共参数（providerId、deviceId等）复制到业务DTO中，并解析bizData为业务参数。
-     *
-     * @param baseRequest 公共请求参数对象
-     * @param clazz       业务DTO类型
-     * @param <T>         业务DTO泛型
-     * @return 包含公共参数和业务参数的业务DTO对象
-     */
-//    private <T extends BaseRequestDTO> T TransforUtils.copyBaseParams(BaseRequestDTO baseRequest, Class<T> clazz) {
-//        T request = JSON.parseObject(baseRequest.getBizData(), clazz);
-//        request.setProviderId(baseRequest.getProviderId());
-//        request.setCharset(baseRequest.getCharset());
-//        request.setFormat(baseRequest.getFormat());
-//        request.setTimestamp(baseRequest.getTimestamp());
-//        request.setDeviceId(baseRequest.getDeviceId());
-//        request.setSignType(baseRequest.getSignType());
-//        request.setSign(baseRequest.getSign());
-//        request.setBizData(baseRequest.getBizData());
-//        return request;
-//    }
-
-    /**
      * IF8A-04 请求非现金收款下单。
      * BOM向ITP平台发起非现金收款订单请求，ITP生成订单并返回订单号。
      *
@@ -292,6 +270,9 @@ public class BomOrderController {
     }
 
 
+    /**
+     * 单程票交易查询
+     */
     @PostMapping("/requestOrderResult")
     public JSONObject requestOrderResult(@ModelAttribute BaseRequestDTO baseRequest) {
         log.info("接收到BOM请, baseRequest={}", baseRequest);
@@ -336,5 +317,32 @@ public class BomOrderController {
 
         // 调用业务服务处理
         return bomOrderService.requestTicketTRefund(request);
+    }
+
+    /**
+     * IF5A-09 HCE票卡更新结果通知。
+     * BOM更新HCE票数据后，向ITP平台通知更新结果。
+     *
+     * @param baseRequest 包含公共参数和业务参数的请求对象
+     * @return 响应结果
+     */
+    @PostMapping("/notiUpdateHceData")
+    public JSONObject notiUpdateHceData(@ModelAttribute BaseRequestDTO baseRequest) {
+        log.info("接收到IF5A-09 HCE票卡更新结果通知, baseRequest={}", baseRequest);
+
+        // 解析业务参数
+        NotiUpdateHceDataReqDTO request = TransforUtils.copyBaseParams(baseRequest, NotiUpdateHceDataReqDTO.class);
+        log.info("转换后请求参数为 {}", request);
+
+        // 参数校验
+        if (request == null || !StringUtils.hasText(request.getCardId())) {
+            return BomOrderResult.fail(BomPayCodeEnum.INVALID_PARAM.getCode(), "cardId不能为空");
+        }
+        if (!StringUtils.hasText(request.getHceData())) {
+            return BomOrderResult.fail(BomPayCodeEnum.INVALID_PARAM.getCode(), "hceData不能为空");
+        }
+
+        // 调用业务服务处理
+        return bomOrderService.notiUpdateHceData(request);
     }
 }

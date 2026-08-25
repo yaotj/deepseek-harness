@@ -36,6 +36,15 @@ public interface AlipayAccountService {
     boolean updatePaymentChannel(String thirdUserId, String thirdPayId, String reqContractNo);
 
     /**
+     * 更换手机号。
+     *
+     * @param thirdUserId 第三方用户ID
+     * @param newMsisdn 新手机号
+     * @return 是否更新成功
+     */
+    boolean updatePhone(String thirdUserId, String newMsisdn);
+
+    /**
      * 监控卡号池剩余数量，低于阈值时自动申请补充。
      */
     void monitorCardPool();

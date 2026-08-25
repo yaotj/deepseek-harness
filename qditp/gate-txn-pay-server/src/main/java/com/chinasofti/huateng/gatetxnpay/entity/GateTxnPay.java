@@ -29,6 +29,21 @@ public class GateTxnPay {
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 
+    // 新增字段：if8a_29/if8a_34 查询接口
+    private String ticketStatus;         // 票卡状态：01无交易,04进站失败,05已进站,06已出站,07超时出站,70异常
+    private String entryStationName;     // 进站车站名称
+    private String exitStationName;      // 出站车站名称
+    private String orderExpType;         // 订单异常类型：0正常,1单边,2补站
+    private String companionFlag;        // 陪同票标志：Y是,N否（来自USER_ITP_REG_INFO）
+    private String offlineFlag;          // 离线码标志：Y是,N否
+    // 日票额外字段
+    private String ticketCode;           // 日票票号
+    private Integer countingTimes;       // 计次票剩余次数（扣减后）
+    private String countingFlag;         // 计次票标志：Y是,N否
+    private String attributableParty;    // 订单应收商户（cjdsj/qddt）
+    private String receivingParty;       // 订单实收商户（cjdsj/qddt）
+    private String payChannelCode;       // 支付渠道编码（如 ALIPAY、WECHAT，来自 USER_ITP_REG_INFO.CHANNEL）
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getOrderNo() { return orderNo; }
@@ -73,4 +88,30 @@ public class GateTxnPay {
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public LocalDateTime getUpdateTime() { return updateTime; }
     public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
+
+    // 新增字段 getter/setter
+    public String getTicketStatus() { return ticketStatus; }
+    public void setTicketStatus(String ticketStatus) { this.ticketStatus = ticketStatus; }
+    public String getEntryStationName() { return entryStationName; }
+    public void setEntryStationName(String entryStationName) { this.entryStationName = entryStationName; }
+    public String getExitStationName() { return exitStationName; }
+    public void setExitStationName(String exitStationName) { this.exitStationName = exitStationName; }
+    public String getOrderExpType() { return orderExpType; }
+    public void setOrderExpType(String orderExpType) { this.orderExpType = orderExpType; }
+    public String getCompanionFlag() { return companionFlag; }
+    public void setCompanionFlag(String companionFlag) { this.companionFlag = companionFlag; }
+    public String getOfflineFlag() { return offlineFlag; }
+    public void setOfflineFlag(String offlineFlag) { this.offlineFlag = offlineFlag; }
+    public String getTicketCode() { return ticketCode; }
+    public void setTicketCode(String ticketCode) { this.ticketCode = ticketCode; }
+    public Integer getCountingTimes() { return countingTimes; }
+    public void setCountingTimes(Integer countingTimes) { this.countingTimes = countingTimes; }
+    public String getCountingFlag() { return countingFlag; }
+    public void setCountingFlag(String countingFlag) { this.countingFlag = countingFlag; }
+    public String getAttributableParty() { return attributableParty; }
+    public void setAttributableParty(String attributableParty) { this.attributableParty = attributableParty; }
+    public String getReceivingParty() { return receivingParty; }
+    public void setReceivingParty(String receivingParty) { this.receivingParty = receivingParty; }
+    public String getPayChannelCode() { return payChannelCode; }
+    public void setPayChannelCode(String payChannelCode) { this.payChannelCode = payChannelCode; }
 }

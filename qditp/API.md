@@ -2610,7 +2610,6 @@
         "pageNumber": 1,
         "pageSize": 10,
         "totalPage": 1,
-        "totalCount": 2,
         "ticketTransRecord": [
             {
                 "orderNo": "GT20260727111833863542741",
@@ -2885,23 +2884,10 @@
         "cardType": "示例值",
         "pageNumber": 0,
         "pageSize": 0,
-        "totalPage": 0,
         "startDate": "示例值",
         "endDate": "示例值",
         "debitRequestResult": "示例值",
-        "ticketCode": "示例值",
-        "thirdUserId": "示例值",
-        "cardId": "示例值",
-        "cardType": "示例值",
-        "pageNumber": 0,
-        "pageSize": 0,
-        "totalPage": 0,
-        "startDate": "示例值",
-        "endDate": "示例值",
-        "debitRequestResult": "示例值",
-        "ticketCode": "示例值",
-        "offset": 0,
-        "limit": 0
+        "ticketCode": "示例值"
     }
 ```
 
@@ -4220,7 +4206,6 @@
         "pageNumber": 0,
         "pageSize": 10,
         "totalPage": 1,
-        "totalCount": 2,
         "ticketTransRecord": [
             {
                 "cardNum": "2607031119542741",

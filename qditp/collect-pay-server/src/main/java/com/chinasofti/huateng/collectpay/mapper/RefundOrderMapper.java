@@ -18,7 +18,7 @@ public interface RefundOrderMapper {
      */
     RefundOrder selectByPayOderNo(@Param("payOderNo") String orderNo);
 
-    String selectRefundTotalAmtByPayOderNo(@Param("payOderNo") String orderNo);
+    String selectRefundTotalAmtByPayOderNo(@Param("payOrderNo") String orderNo);
 
     /**
      * 插入退款记录。

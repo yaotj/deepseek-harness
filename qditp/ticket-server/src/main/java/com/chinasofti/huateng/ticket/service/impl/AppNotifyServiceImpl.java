@@ -1,8 +1,10 @@
 package com.chinasofti.huateng.ticket.service.impl;
 
 import com.alibaba.fastjson.JSON;
+import com.chinasofti.huateng.model.enums.IssueChannelCodeEnum;
 import com.chinasofti.huateng.model.alipaytrip.AlipayPushTransDataReqDTO;
 import com.chinasofti.huateng.model.app.AppIndustryDataNotifyReqDTO;
+import com.chinasofti.huateng.model.app.CardTypeMapping;
 import com.chinasofti.huateng.model.app.IndustryCardDataBuildReqDTO;
 import com.chinasofti.huateng.model.app.IndustryCardDataBuildRespDTO;
 import com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO;
@@ -11,6 +13,7 @@ import com.chinasofti.huateng.ticket.entity.QRCodeStatus;
 import com.chinasofti.huateng.ticket.entity.QRCodeTxnDetail;
 import com.chinasofti.huateng.ticket.entity.StationInfo;
 import com.chinasofti.huateng.ticket.mapper.StationInfoMapper;
+import com.chinasofti.huateng.model.utils.SignChannelUtils;
 import com.chinasofti.huateng.ticket.service.AppNotifyService;
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
@@ -91,7 +94,7 @@ public class AppNotifyServiceImpl implements AppNotifyService {
                     return;
                 }
                 log.info("异步推送 APP 行业数据开始, request={}, qrCodeStatus={}",
-                        JSON.toJSONString(request), JSON.toJSONString(qrCodeStatus));
+                        request, qrCodeStatus);
 
                 IndustryCardDataBuildReqDTO cardDataRequest = buildCardDataRequest(request, qrCodeStatus);
                 log.info("调用 industry-data-server 生成卡数据, request={}", JSON.toJSONString(cardDataRequest));
@@ -106,10 +109,11 @@ public class AppNotifyServiceImpl implements AppNotifyService {
                 }
 
                 AppIndustryDataNotifyReqDTO notifyRequest = buildNotifyRequest(request, cardDataResp.getCardData());
-                String notifyUrl = "07".equals(request.getIssueChannelCode()) ? alipayIndustryDataNotifyUrl : industryDataNotifyUrl;
+                String notifyUrl = isAlipayTripChannel(request)
+                        ? alipayIndustryDataNotifyUrl : industryDataNotifyUrl;
                 doNotifyIndustryData(notifyRequest, notifyUrl, request.getDeviceId());
             } catch (Exception e) {
-                log.error("异步推送 APP 行业数据异常, request={}", JSON.toJSONString(request), e);
+                log.error("异步推送 APP 行业数据异常, request={}", request, e);
             }
         });
     }
@@ -125,9 +129,19 @@ public class AppNotifyServiceImpl implements AppNotifyService {
         cardDataRequest.setGateInStation(qrCodeStatus.getGateInStation());
         cardDataRequest.setGateInTime(qrCodeStatus.getGateInTime());
         cardDataRequest.setTxnSeq(qrCodeStatus.getTxnSeq());
-        cardDataRequest.setIssueChannelCode(request.getIssueChannelCode());
-        cardDataRequest.setSignChannelCode(request.getSignChannelCode());
+        cardDataRequest.setIssueChannelCode(resolveIssueChannelCode(request));
+        cardDataRequest.setSignChannelCode(SignChannelUtils.resolve(request.getSignChannelCode()));
         return cardDataRequest;
+    }
+
+    private String resolveIssueChannelCode(NotifyVerifyResultReqDTO request) {
+        return CardTypeMapping.isAiShanDong(request.getCardType()) ? "01" : request.getIssueChannelCode();
+    }
+
+    private boolean isAlipayTripChannel(NotifyVerifyResultReqDTO request) {
+        return request != null
+                && IssueChannelCodeEnum.isAlipay(request.getIssueChannelCode())
+                && !CardTypeMapping.isAiShanDong(request.getCardType());
     }
 
     private AppIndustryDataNotifyReqDTO buildNotifyRequest(NotifyVerifyResultReqDTO request, String cardData) {
@@ -166,7 +180,7 @@ public class AppNotifyServiceImpl implements AppNotifyService {
             log.info("推送行程数据给支付宝, bizData={}", bizData);
             doNotifyAlipayTripData(bizData);
         } catch (Exception e) {
-            log.error("推送行程数据给支付宝异常, request={}", JSON.toJSONString(request), e);
+            log.error("推送行程数据给支付宝异常, request={}", request, e);
         }
     }
 

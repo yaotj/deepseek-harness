@@ -16,4 +16,9 @@ public class DeleteBlackListReqDTO {
     public void setCardId(String cardId) {
         this.cardId = cardId;
     }
+
+    @Override
+    public String toString() {
+        return "DeleteBlackListReqDTO{cardId='" + cardId + "'}";
+    }
 }

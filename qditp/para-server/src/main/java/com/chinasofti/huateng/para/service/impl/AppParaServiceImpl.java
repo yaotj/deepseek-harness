@@ -11,6 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 /**
  * APP 参数查询服务实现。
  *
@@ -201,6 +203,24 @@ public class AppParaServiceImpl implements AppParaService {
         result.setStationName(dto.getStationName());
         result.setLineCode(dto.getLineCode());
         result.setLineName(dto.getLineName());
+        return result;
+    }
+
+    /**
+     * 批量根据车站代码查询车站名称。
+     */
+    @Override
+    public RequestStationNameBatchResult requestStationNameBatch(RequestStationNameBatchReqDTO request) {
+        RequestStationNameBatchResult result = new RequestStationNameBatchResult();
+        if (request == null || request.getStationCodes() == null || request.getStationCodes().isEmpty()) {
+            result.setRetCode(FAIL);
+            result.setRetMsg("车站代码列表为空");
+            return result;
+        }
+        List<RequestStationNameResult> list = appParaQueryMapper.selectStationNameBatch(request.getStationCodes());
+        result.setRetCode(SUCCESS);
+        result.setRetMsg("成功");
+        result.setStationNameList(list);
         return result;
     }
 

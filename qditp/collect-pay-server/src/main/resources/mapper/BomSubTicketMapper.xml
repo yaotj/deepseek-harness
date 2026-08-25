@@ -7,6 +7,7 @@
         <result column="TRANS_DATE" jdbcType="VARCHAR" property="transDate"/>
         <result column="TRANS_AMOUNT" jdbcType="VARCHAR" property="transAmount"/>
         <result column="create_Time" jdbcType="VARCHAR" property="createTime"/>
+        <result column="RSV2" jdbcType="VARCHAR" property="rsv2"/>
     </resultMap>
 
     <sql id="Base_Column_List">
@@ -46,4 +47,12 @@
             )
         </foreach>
     </insert>
+
+    <update id="updateByTicketLogicNum" parameterType="java.util.Map">
+        update TBL_TVM_SUB_TICKET
+        set rsv2 = #{rsv2,jdbcType=VARCHAR}
+        where UPPER(TICKET_LOGIC_NUM) = UPPER(#{ticketLogicNum,jdbcType=VARCHAR})
+    </update>
+
 </mapper>
+

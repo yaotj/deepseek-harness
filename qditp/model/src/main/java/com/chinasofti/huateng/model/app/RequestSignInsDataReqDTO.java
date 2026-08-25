@@ -19,4 +19,10 @@ public class RequestSignInsDataReqDTO {
     public void setLogicNum(String logicNum) {
         this.logicNum = logicNum;
     }
+
+    @Override
+    public String toString() {
+        return "RequestSignInsDataReqDTO{industryData='" + (industryData != null ? "[length=" + industryData.length() + "]" : null)
+                + "', logicNum='" + logicNum + "'}";
+    }
 }

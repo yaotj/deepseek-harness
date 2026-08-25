@@ -27,5 +27,15 @@ public class RequestExcessFareReqDTO {
     public String getUpgradeReason() { return upgradeReason; }
     public void setUpgradeReason(String upgradeReason) { this.upgradeReason = upgradeReason; }
     public String getUpgradeDateTime() { return upgradeDateTime; }
-    public void setUpgradeDateTime(String upgradeDateTime) { this.upgradeDateTime = upgradeDateTime; }
+    public void setUpgradeDateTime(String upgradeDateTime) {
+        this.upgradeDateTime = upgradeDateTime;
+    }
+
+    @Override
+    public String toString() {
+        return "RequestExcessFareReqDTO{thirdUserId='" + thirdUserId + "', cardId='" + cardId
+                + "', cardType='" + cardType + "', upgradeAreaType='" + upgradeAreaType
+                + "', upgradeStationCode='" + upgradeStationCode + "', upgradeReason='" + upgradeReason
+                + "', upgradeDateTime='" + upgradeDateTime + "'}";
+    }
 }

@@ -166,4 +166,16 @@ public class MemberItineraryDTO {
     public void setCarbonDiscount(Integer carbonDiscount) {
         this.carbonDiscount = carbonDiscount;
     }
+
+    @Override
+    public String toString() {
+        return "MemberItineraryDTO{payStatus='" + payStatus + "', thisStationName='" + thisStationName
+                + "', thisTransTime='" + thisTransTime + "', thisStationCode='" + thisStationCode
+                + "', lastStationName='" + lastStationName + "', lastTransTime='" + lastTransTime
+                + "', lastStationCode='" + lastStationCode + "', transSeq='" + transSeq
+                + "', transValue=" + transValue + ", overtimeTransValue=" + overtimeTransValue
+                + "', ticketStatus='" + ticketStatus + "', payChannel='" + payChannel
+                + "', oriTicketAmt=" + oriTicketAmt + ", debitAmt=" + debitAmt + ", orderExpType=" + orderExpType
+                + "', discountInfo='" + discountInfo + "', orderNo='" + orderNo + "', carbonDiscount=" + carbonDiscount + "}";
+    }
 }

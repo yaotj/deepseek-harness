@@ -83,4 +83,32 @@ public interface DailyTicketService {
      * 查询日票票实例信息（ticketCode、actualTimes）。
      */
     QueryDailyTicketInfoResult queryDailyTicketInfo(QueryDailyTicketInfoReqDTO request);
+
+    /**
+     * 日票进站校验（闸机入口调用）。
+     * <p>校验规则：
+     * <ul>
+     *   <li>有效期校验：当前时间在 countingStart ~ countingEnd 范围内</li>
+     *   <li>未出站校验：存在未完成出站的票实例</li>
+     *   <li>计次票次数检查：次数为0则拒绝进站（不扣减，扣减在出站时执行）</li>
+     * </ul>
+     *
+     * @param cardNum 卡号（对应 DAILY_TICKET_INSTANCE.CARD_NUM）
+     * @return retCode=0000 通过；否则 retMsg 携带拒绝原因
+     */
+    DailyTicketBaseResult validateEntryCheck(String cardNum);
+
+    /**
+     * 日票出站处理（闸机出站时调用）。
+     * <p>处理规则：
+     * <ul>
+     *   <li>计次票扣减一次可用次数（actualTimes - 1），次数≤0则保持0</li>
+     *   <li>标记 TICKET_STATUS = USED，记录首次使用时间、结束时间</li>
+     * </ul>
+     *
+     * @param cardNum 卡号
+     * @param countingEnd 有效期截止时间（毫秒时间戳）
+     * @return 处理结果
+     */
+    DailyTicketBaseResult markUsed(String cardNum, Long countingEnd);
 }

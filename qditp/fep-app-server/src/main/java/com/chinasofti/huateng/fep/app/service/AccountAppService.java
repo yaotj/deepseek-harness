@@ -6,6 +6,8 @@ import com.chinasofti.huateng.model.app.RequestApplicationReqDTO;
 import com.chinasofti.huateng.model.app.RequestApplicationResult;
 import com.chinasofti.huateng.model.app.RequestKeyListReqDTO;
 import com.chinasofti.huateng.model.app.RequestKeyListResult;
+import com.chinasofti.huateng.model.app.RequestRemovePayChannelReqDTO;
+import com.chinasofti.huateng.model.app.RequestRemovePayChannelResult;
 import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelReqDTO;
 import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelResult;
 import com.chinasofti.huateng.model.app.RequestUpdateChannelDefaultContractReqDTO;
@@ -25,4 +27,6 @@ public interface AccountAppService {
     RequestUpdateChannelDefaultContractResult requestUpdateChannelDefaultContract(RequestUpdateChannelDefaultContractReqDTO request);
 
     EmployeeCardQueryResult queryEmployeeCard(EmployeeCardQueryReqDTO request);
+
+    RequestRemovePayChannelResult requestRemovePayChannel(RequestRemovePayChannelReqDTO request);
 }

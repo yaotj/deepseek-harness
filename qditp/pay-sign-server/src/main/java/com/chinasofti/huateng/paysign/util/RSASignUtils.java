@@ -11,10 +11,14 @@ import java.security.Signature;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.TreeMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 
 public class RSASignUtils {
 
     private final static String CHARACTER_ENCODING_UTF_8 = "UTF-8";
+    private static final Logger log = LoggerFactory.getLogger(RSASignUtils.class);
 
 
     /**
@@ -62,8 +66,12 @@ public class RSASignUtils {
             signature.initVerify(pubKey);
             signature.update(plainText.getBytes("UTF-8"));
             return signature.verify(Base64.decodeBase64(signText.getBytes("UTF-8")));
-        } catch (Throwable e) {
+        } catch (java.security.SignatureException e) {
+            log.warn("RSA验签失败", e);
             return false;
+        } catch (Exception e) {
+            log.error("RSA验签系统异常", e);
+            throw new IllegalStateException("RSA验签系统异常", e);
         }
     }
 

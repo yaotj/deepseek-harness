@@ -2,43 +2,20 @@ package com.chinasofti.huateng.ticket.service;
 
 import com.chinasofti.huateng.model.app.QueryUserItineraryReqDTO;
 import com.chinasofti.huateng.model.app.QueryUserItineraryResult;
-import com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO;
-import com.chinasofti.huateng.model.ticket.NotifyVerifyResultRespDTO;
-import com.chinasofti.huateng.model.ticket.QueryStatusReqDTO;
-import com.chinasofti.huateng.model.ticket.QueryStatusRespDTO;
+import com.chinasofti.huateng.model.app.RequestExcessFareReqDTO;
+import com.chinasofti.huateng.model.app.RequestExcessFareResult;
 import com.chinasofti.huateng.model.ticket.RegisterRideStatusReqDTO;
 import com.chinasofti.huateng.model.ticket.RegisterRideStatusRespDTO;
-import com.chinasofti.huateng.model.ticket.RequestCardDataAnalyseReqDTO;
-import com.chinasofti.huateng.model.ticket.RequestCardDataAnalyseRespDTO;
-import com.chinasofti.huateng.model.ticket.RequestCardDataUpdateReqDTO;
-import com.chinasofti.huateng.model.ticket.RequestCardDataUpdateRespDTO;
 
 /**
- * 乘车状态服务。
- * 负责维护二维码乘车状态，并按互联网业务规范输出行业数据。
+ * APP 侧乘车状态服务（开户、行程查询）。
+ * AGM 侧接口请使用 {@link com.chinasofti.huateng.ticket.service.AgmRideStatusService}。
  */
 public interface TicketRideStatusService {
     /**
      * 开户成功后初始化用户乘车状态。
      */
     RegisterRideStatusRespDTO registerRideStatus(RegisterRideStatusReqDTO request);
-
-
-    /**
-     * 获取乘车状态
-     *
-     * @param request
-     * @return
-     */
-    QueryStatusRespDTO queryQrCodeStatus(QueryStatusReqDTO request);
-
-    /**
-     * IF1A-01 闸机检票通知。
-     *
-     * @param request 闸机检票通知业务参数
-     * @return 处理结果
-     */
-    NotifyVerifyResultRespDTO notifyVerifyResult(NotifyVerifyResultReqDTO request);
 
     /**
      * IF8A-29 查询用户上次行程。
@@ -54,24 +31,10 @@ public interface TicketRideStatusService {
      * @param request 自助补站请求参数
      * @return 自助补站结果
      */
-    com.chinasofti.huateng.model.app.RequestExcessFareResult requestExcessFare(com.chinasofti.huateng.model.app.RequestExcessFareReqDTO request);
+    RequestExcessFareResult requestExcessFare(RequestExcessFareReqDTO request);
 
     /**
      * 查询最近一次进站设备编号。
      */
     String queryEntryDevice(String cardId);
-
-    /**
-     * IF5A-01 请求票卡分析。
-     */
-    RequestCardDataAnalyseRespDTO requestCardDataAnalyse(RequestCardDataAnalyseReqDTO request);
-
-    /**
-     * IF5A-03 请求票卡更新。
-     *
-     * @param request 票卡更新请求参数
-     * @return 票卡更新结果，包含最新行业数据
-     */
-    RequestCardDataUpdateRespDTO requestCardDataUpdate(RequestCardDataUpdateReqDTO request);
-
 }

@@ -16,4 +16,9 @@ public class QueryBlackListReqDTO {
     public void setCardId(String cardId) {
         this.cardId = cardId;
     }
+
+    @Override
+    public String toString() {
+        return "QueryBlackListReqDTO{cardId='" + cardId + "'}";
+    }
 }

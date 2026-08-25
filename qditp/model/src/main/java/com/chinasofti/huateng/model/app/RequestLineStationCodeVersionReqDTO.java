@@ -6,4 +6,9 @@ package com.chinasofti.huateng.model.app;
  * <p>接口规范未定义业务请求字段，保留空对象用于统一 bizData 反序列化。</p>
  */
 public class RequestLineStationCodeVersionReqDTO {
+
+    @Override
+    public String toString() {
+        return "RequestLineStationCodeVersionReqDTO{}";
+    }
 }

@@ -9,6 +9,8 @@ import com.chinasofti.huateng.collectpay.model.request.bom.NotiBusResultReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.bom.RequestPaymentReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.tvm.*;
 import com.chinasofti.huateng.collectpay.model.response.app.AppOrderResult;
+import com.chinasofti.huateng.collectpay.model.response.bom.BomOrderResult;
+import com.chinasofti.huateng.collectpay.model.response.paycenter.PayCenterResult;
 import com.chinasofti.huateng.collectpay.model.response.tvm.RequestPaymentRespDTO;
 import com.chinasofti.huateng.collectpay.model.response.tvm.RequestRefundRespDTO;
 import com.chinasofti.huateng.collectpay.model.response.tvm.TvmOrderResult;
@@ -117,20 +119,20 @@ public class TvmOrderController {
         log.info("接收到TVM扫码支付请求, baseRequest={}", baseRequest);
 
         // 解析业务参数
-//        RequestPaymentReqDTO request = TransforUtils.copyBaseParams(baseRequest, RequestPaymentReqDTO.class);
         RequestPaymentReqDTO request = TransforUtils.copyBaseParams(baseRequest, RequestPaymentReqDTO.class);
         log.info("转换后请求参数为 {}", request);
 
         // 参数校验
         if (request == null || !StringUtils.hasText(request.getOrderNo())) {
-            return RequestPaymentRespDTO.fail("9999", "orderNo不能为空", "FAILED", "参数错误");
+//            return RequestPaymentRespDTO.fail("8999", "orderNo不能为空", "FAILED", "参数错误");
+            return BomOrderResult.failMessage("orderNo不能为空");
         }
         if (!StringUtils.hasText(request.getPaymentVendor())) {
-            return RequestPaymentRespDTO.fail("9999", "paymentVendor不能为空", "FAILED", "参数错误");
+//            return RequestPaymentRespDTO.fail("8999", "paymentVendor不能为空", "FAILED", "参数错误");
+            return BomOrderResult.failMessage("paymentVendor不能为空");
         }
 
         // 调用业务服务处理
-//        return tvmOrderService.requestPayment(request);
         return bomOrderService.requestPayment(request);
     }
 
@@ -152,7 +154,7 @@ public class TvmOrderController {
 
 
     /**
-     * IF2A-04 出票结果通知。
+     * IF2A-04 出票结果通知。出票张数和订单张数一致才发送取票通知,此情况下不发生退款
      * 接口地址：/ci/tvm/notiTakeTicketResult
      */
     @PostMapping("/notiTakeTicketResult")
@@ -190,7 +192,7 @@ public class TvmOrderController {
     }
 
     /**
-     * 退款接口。
+     * 退款接口。 自己用
      * 根据订单号发起退款，退款金额为订单总金额。
      *
      * @param baseRequest 包含公共参数和业务参数的请求对象
@@ -327,22 +329,11 @@ public class TvmOrderController {
         String validMsg = validateRequestOrder(request);
         if (validMsg != null) {
             log.info("参数校验失败: {}", validMsg);
-            return AppOrderResult.fail("8001", validMsg);
+            return PayCenterResult.fail();
         }
 
         return tvmOrderPreService.payNotice(request);
     }
-
-//    public static  <T extends PayCenterBaseRequestDTO> T paycentercopyBaseParams(PayCenterBaseRequestDTO baseRequest, Class<T> clazz) {
-//        T request = JSON.parseObject(baseRequest.getBizData(), clazz);
-//        request.setMerchantNo(baseRequest.getMerchantNo());
-//        request.setApiVersion(baseRequest.getApiVersion());
-//        request.setSignType(baseRequest.getSignType());
-//        request.setCharset(baseRequest.getCharset());
-//        request.setSign(baseRequest.getSign());
-//        request.setBizData(baseRequest.getBizData());
-//        return request;
-//    }
 
     /**
      * 校验参数。

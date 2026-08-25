@@ -62,24 +62,9 @@ public class AlipayTripTravelRecordDTO {
     private String payOrderNoDate;
 
     /**
-     * 支付渠道代码
-     */
-    private String payChannelCode;
-
-    /**
      * 扣款请求结果
      */
     private String debitRequestResult;
-
-    /**
-     * 优惠金额
-     */
-    private String discountFee;
-
-    /**
-     * 优惠信息
-     */
-    private String discountInfo;
 
     /**
      * 同行票标识
@@ -110,6 +95,11 @@ public class AlipayTripTravelRecordDTO {
      * 发票状态（可选）
      */
     private String invoice;
+
+    /**
+     * 支付渠道代码
+     */
+    private String payChannelCode;
 
     public String getEntryStationName() {
         return entryStationName;
@@ -191,36 +181,12 @@ public class AlipayTripTravelRecordDTO {
         this.payOrderNoDate = payOrderNoDate;
     }
 
-    public String getPayChannelCode() {
-        return payChannelCode;
-    }
-
-    public void setPayChannelCode(String payChannelCode) {
-        this.payChannelCode = payChannelCode;
-    }
-
     public String getDebitRequestResult() {
         return debitRequestResult;
     }
 
     public void setDebitRequestResult(String debitRequestResult) {
         this.debitRequestResult = debitRequestResult;
-    }
-
-    public String getDiscountFee() {
-        return discountFee;
-    }
-
-    public void setDiscountFee(String discountFee) {
-        this.discountFee = discountFee;
-    }
-
-    public String getDiscountInfo() {
-        return discountInfo;
-    }
-
-    public void setDiscountInfo(String discountInfo) {
-        this.discountInfo = discountInfo;
     }
 
     public String getCompanionFlag() {
@@ -269,5 +235,13 @@ public class AlipayTripTravelRecordDTO {
 
     public void setInvoice(String invoice) {
         this.invoice = invoice;
+    }
+
+    public String getPayChannelCode() {
+        return payChannelCode;
+    }
+
+    public void setPayChannelCode(String payChannelCode) {
+        this.payChannelCode = payChannelCode;
     }
 }

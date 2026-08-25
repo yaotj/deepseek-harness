@@ -45,6 +45,14 @@ public class CollectPayClient extends ProxyWebClient {
         return JSON.parseObject(result);
     }
 
+    /**
+     * Forwards the APP request-pay-order form unchanged to collect-pay-server.
+     */
+    public JSONObject requestPayOrder(Map<String, String> formData) {
+        String result = postFormAndGetResponse("/ci/app/requestPayOrder", formData);
+        return JSON.parseObject(result);
+    }
+
     public JSONObject requestRefundTicket(Map<String, String> formData) {
         String result = postFormAndGetResponse("/ci/app/requestRefundTicket", formData);
         return JSON.parseObject(result);

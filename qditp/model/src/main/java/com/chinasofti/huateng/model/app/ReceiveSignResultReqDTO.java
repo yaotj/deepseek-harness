@@ -91,4 +91,13 @@ public class ReceiveSignResultReqDTO {
     public void setSignTime(String signTime) {
         this.signTime = signTime;
     }
+
+    @Override
+    public String toString() {
+        return "ReceiveSignResultReqDTO{thirdUserId='" + thirdUserId + "', requestSignSeq='" + requestSignSeq
+                + "', agreementNo='" + agreementNo + "', paymentVendor='" + paymentVendor
+                + "', payUserId='" + payUserId + "', payAgreementNo='" + payAgreementNo
+                + "', status='" + status + "', displayAccount='" + displayAccount
+                + "', options='" + options + "', signTime='" + signTime + "'}";
+    }
 }

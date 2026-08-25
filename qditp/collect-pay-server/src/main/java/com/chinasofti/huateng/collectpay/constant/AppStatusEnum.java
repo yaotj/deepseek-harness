@@ -5,6 +5,10 @@ package com.chinasofti.huateng.collectpay.constant;
  * 0-支付中，1-支付成功，2-支付失败，3-未支付
  */
 public enum AppStatusEnum {
+
+    PAY_SUCCESS("SUCCESS", "支付成功"),
+    PAY_FAIL("FAIL", "支付失败"),
+
     REFUND_ING("PROCESSING", "退款中"),
     REFUND_SUCCESS("SUCCESS", "退款成功"),
     REFUND_FAIL("FAIL", "退款失败");

@@ -56,4 +56,11 @@ public class RequestTransStatisticsReqDTO {
     public void setCardIdList(List<String> cardIdList) {
         this.cardIdList = cardIdList;
     }
+
+    @Override
+    public String toString() {
+        return "RequestTransStatisticsReqDTO{cardId='" + cardId
+                + "', startDate='" + startDate + "', endDate='" + endDate
+                + "', thirdUserId='" + thirdUserId + "'}";
+    }
 }

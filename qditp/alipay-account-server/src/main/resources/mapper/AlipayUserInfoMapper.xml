@@ -103,4 +103,12 @@
         where THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
           and DELETE_FLAG = '0'
     </update>
+
+    <update id="updateMsisdnByThirdUserId">
+        update ALIPAY_USER_INFO
+        set MSISDN = #{msisdn,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSDATE
+        where THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+          and DELETE_FLAG = '0'
+    </update>
 </mapper>

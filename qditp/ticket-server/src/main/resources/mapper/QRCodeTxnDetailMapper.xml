@@ -114,7 +114,7 @@
         WHERE ROWNUM = 1
     </select>
 
-    <resultMap id="transRecordResultMap" type="com.chinasofti.huateng.ticket.model.app.TransRecordDTO">
+    <resultMap id="transRecordResultMap" type="com.chinasofti.huateng.model.app.TransRecordDTO">
         <result column="HANDLE_STATION_CODE" property="entryStationName"/>
         <result column="HANDLE_DATE_TIME" property="entryDate"/>
         <result column="LAST_HANDLE_STATION_CODE" property="exitStationName"/>
@@ -124,10 +124,6 @@
         <result column="TICKET_TRANS_SEQ" property="tradeOrderNo"/>
         <result column="RESERVE1" property="payTradeOrderNo"/>
         <result column="PAY_ORDER_NO_DATE" property="payOrderNoDate"/>
-        <result column="SIGN_CHANNEL_CODE" property="payChannelCode"/>
-        <result column="LAST_TICKET_STATUS" property="debitRequestResult"/>
-        <result column="OVERTIME_AMOUNT" property="discountFee"/>
-        <result column="RESERVE2" property="discountInfo"/>
         <result column="CARD_ID" property="cardNum"/>
     </resultMap>
 
@@ -138,14 +134,12 @@
         <result column="LAST_HANDLE_DATE_TIME" property="exitDate"/>
         <result column="TRX_AMOUNT" property="payAmount"/>
         <result column="HANDLE_RESULT_CODE" property="orderExpType"/>
-        <result column="TICKET_TRANS_SEQ" property="tradeOrderNo"/>
+        <result column="TICKET_TRANS_SEQ" property="ticketTransSeq"/>
         <result column="RESERVE1" property="payTradeOrderNo"/>
         <result column="PAY_ORDER_NO_DATE" property="payOrderNoDate"/>
-        <result column="SIGN_CHANNEL_CODE" property="payChannelCode"/>
-        <result column="LAST_TICKET_STATUS" property="debitRequestResult"/>
-        <result column="OVERTIME_AMOUNT" property="discountFee"/>
-        <result column="RESERVE2" property="discountInfo"/>
         <result column="CARD_ID" property="cardNum"/>
+        <result column="CARD_TYPE" property="trxType"/>
+        <result column="DEVICE_ID" property="deviceId"/>
     </resultMap>
 
     <resultMap id="alipayTripTravelRecordResultMap" type="com.chinasofti.huateng.model.alipaytrip.AlipayTripTravelRecordDTO">
@@ -158,8 +152,6 @@
         <result column="TICKET_TRANS_SEQ" property="tradeOrderNo"/>
         <result column="RESERVE1" property="payTradeOrderNo"/>
         <result column="PAY_ORDER_NO_DATE" property="payOrderNoDate"/>
-        <result column="SIGN_CHANNEL_CODE" property="payChannelCode"/>
-        <result column="RESERVE2" property="discountFee"/>
         <result column="TRX_TYPE" property="companionFlag"/>
         <result column="CARD_ID" property="cardNum"/>
         <result column="CARD_TYPE" property="ticketCode"/>
@@ -186,6 +178,7 @@
                 TRX_TYPE,
                 CARD_ID,
                 CARD_TYPE,
+                DEVICE_ID,
                 ROW_NUMBER() OVER (ORDER BY HANDLE_DATE_TIME DESC, ID DESC) AS rn
             FROM QRCODE_TXN_DETAIL
             WHERE 1=1
@@ -206,9 +199,6 @@
             </if>
             <if test="endDate != null and endDate != ''">
                 AND TXN_DATE &lt;= #{endDate}
-            </if>
-            <if test="debitRequestResult != null and debitRequestResult != ''">
-                AND LAST_TICKET_STATUS = #{debitRequestResult}
             </if>
         )
         WHERE rn &gt; #{offset} AND rn &lt;= #{offsetEnd}
@@ -235,9 +225,6 @@
         </if>
         <if test="endDate != null and endDate != ''">
             AND TXN_DATE &lt;= #{endDate}
-        </if>
-        <if test="debitRequestResult != null and debitRequestResult != ''">
-            AND LAST_TICKET_STATUS = #{debitRequestResult}
         </if>
     </select>
 
@@ -348,9 +335,6 @@
               <if test="endDate != null and endDate != ''">
                   AND TXN_DATE &lt;= #{endDate}
               </if>
-              <if test="debitRequestResult != null and debitRequestResult != ''">
-                  AND LAST_TICKET_STATUS = #{debitRequestResult}
-              </if>
         )
         WHERE rn &gt; #{offset} AND rn &lt;= #{offsetEnd}
     </select>
@@ -367,9 +351,6 @@
           </if>
           <if test="endDate != null and endDate != ''">
               AND TXN_DATE &lt;= #{endDate}
-          </if>
-          <if test="debitRequestResult != null and debitRequestResult != ''">
-              AND LAST_TICKET_STATUS = #{debitRequestResult}
           </if>
     </select>
 
@@ -467,6 +448,7 @@
         FROM QRCODE_TXN_DETAIL
         WHERE ITP_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
           AND TICKET_TRANS_SEQ = #{orderNo,jdbcType=VARCHAR}
+        ORDER BY HANDLE_DATE_TIME ASC
     </select>
 
     <select id="selectTransStatistics" resultMap="requestTransStatisticsResultMap">

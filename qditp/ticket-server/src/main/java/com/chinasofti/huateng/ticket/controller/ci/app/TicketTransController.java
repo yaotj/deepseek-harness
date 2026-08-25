@@ -4,9 +4,9 @@ import com.chinasofti.huateng.model.app.RequestTransDetailReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransDetailResult;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
+import com.chinasofti.huateng.model.app.QueryTransListReqDTO;
+import com.chinasofti.huateng.model.app.RequestTransListResult;
 import com.chinasofti.huateng.ticket.service.TicketTransService;
-import com.chinasofti.huateng.ticket.model.app.RequestTransListReqDTO;
-import com.chinasofti.huateng.ticket.model.app.RequestTransListResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +34,7 @@ public class TicketTransController {
      * @return 交易记录列表
      */
     @PostMapping("/requestTransList")
-    public RequestTransListResult requestTransList(@RequestBody RequestTransListReqDTO request) {
+    public RequestTransListResult requestTransList(@RequestBody QueryTransListReqDTO request) {
         log.info("IF8A-05 请求查询交易记录,请求参数: {}", request);
         return ticketTransService.requestTransList(request);
     }

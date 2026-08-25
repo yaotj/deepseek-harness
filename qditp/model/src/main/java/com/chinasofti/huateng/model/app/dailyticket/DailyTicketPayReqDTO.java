@@ -94,4 +94,11 @@ public class DailyTicketPayReqDTO {
     public void setCardId(String cardId) {
         this.cardId = cardId;
     }
+
+    @Override
+    public String toString() {
+        return "DailyTicketPayReqDTO{thirdUserId='" + thirdUserId + "', orderType='" + orderType
+                + "', orderNo='" + orderNo + "', payChannelCode='" + payChannelCode
+                + "', phone='" + phone + "', channelType='" + channelType + "', cardId='" + cardId + "'}";
+    }
 }

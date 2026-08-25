@@ -3,11 +3,15 @@ package com.chinasofti.huateng.fep.app.service.impl;
 import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.fep.app.service.PaySignAppService;
 import com.chinasofti.huateng.model.app.PaySignCallbackResult;
+import com.chinasofti.huateng.model.app.QueryPayTxnBatchReqDTO;
 import com.chinasofti.huateng.model.app.ReceivePayResultReqDTO;
 import com.chinasofti.huateng.model.app.ReceiveSignResultReqDTO;
 import com.chinasofti.huateng.model.app.ReceiveTerminationResultReqDTO;
 import com.chinasofti.huateng.model.app.RequestContractResultReqDTO;
 import com.chinasofti.huateng.model.app.RequestContractResultResult;
+import com.chinasofti.huateng.model.app.RequestPayReqDTO;
+import com.chinasofti.huateng.model.app.RequestPayResult;
+import com.chinasofti.huateng.model.app.RequestPayTxnBatchResult;
 import com.chinasofti.huateng.model.app.RequestSignInfoReqDTO;
 import com.chinasofti.huateng.model.app.RequestSignInfoResult;
 import com.chinasofti.huateng.model.app.RequestTerminationReqDTO;
@@ -52,6 +56,14 @@ public class PaySignAppServiceImpl implements PaySignAppService {
     }
 
     @Override
+    public RequestPayResult requestPay(RequestPayReqDTO request) {
+        log.info("call pay-sign requestPay request={}", JSON.toJSONString(request));
+        RequestPayResult result = paySignClient.requestPay(request);
+        log.info("call pay-sign requestPay response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    @Override
     public PaySignCallbackResult receiveSignResult(ReceiveSignResultReqDTO request) {
         log.info("call pay-sign receiveSignResult request={}", JSON.toJSONString(request));
         PaySignCallbackResult result = paySignClient.receiveSignResult(request);
@@ -73,5 +85,11 @@ public class PaySignAppServiceImpl implements PaySignAppService {
         PaySignCallbackResult result = paySignClient.receiveTerminationResult(request);
         log.info("call pay-sign receiveTerminationResult response={}", JSON.toJSONString(result));
         return result;
+    }
+
+    @Override
+    public RequestPayTxnBatchResult queryPayTxnBatch(QueryPayTxnBatchReqDTO request) {
+        log.info("call pay-sign queryPayTxnBatch request={}", JSON.toJSONString(request));
+        return paySignClient.queryPayTxnBatch(request);
     }
 }

@@ -2,8 +2,6 @@ package com.chinasofti.huateng.paysign.service.impl;
 
 import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.model.app.PaySignCallbackResult;
-import com.chinasofti.huateng.model.app.QueryUserInfoReqDTO;
-import com.chinasofti.huateng.model.app.QueryUserInfoResult;
 import com.chinasofti.huateng.model.app.RequestPayReqDTO;
 import com.chinasofti.huateng.model.app.RequestPayResult;
 import com.chinasofti.huateng.model.app.RequestRefundReqDTO;
@@ -20,11 +18,13 @@ import com.chinasofti.huateng.paysign.config.PaySignProperties;
 import com.chinasofti.huateng.paysign.constant.PaySignErrorCodeEnum;
 import com.chinasofti.huateng.paysign.constant.PaymentVendorEnum;
 import com.chinasofti.huateng.paysign.constant.SignChannelEnum;
+import com.chinasofti.huateng.paysign.entity.AppTerminationRequest;
 import com.chinasofti.huateng.paysign.entity.PayCallbackLog;
 import com.chinasofti.huateng.paysign.entity.PayRefundDetail;
 import com.chinasofti.huateng.paysign.entity.PaySignInfo;
 import com.chinasofti.huateng.paysign.entity.PaySignRequest;
 import com.chinasofti.huateng.paysign.entity.PayTxnDetail;
+import com.chinasofti.huateng.paysign.mapper.AppTerminationRequestMapper;
 import com.chinasofti.huateng.paysign.mapper.PayCallbackLogMapper;
 import com.chinasofti.huateng.paysign.mapper.PayRefundDetailMapper;
 import com.chinasofti.huateng.paysign.mapper.PaySignInfoMapper;
@@ -40,10 +40,13 @@ import com.chinasofti.huateng.paysign.model.response.RequestContractAdvisoryResp
 import com.chinasofti.huateng.paysign.model.response.RequestContractResultRespDTO;
 import com.chinasofti.huateng.paysign.model.response.RequestTerminationRespDTO;
 import com.chinasofti.huateng.paysign.service.AppNotifyService;
+import com.chinasofti.huateng.model.app.QueryUserInfoReqDTO;
+import com.chinasofti.huateng.model.app.QueryUserInfoResult;
 import com.chinasofti.huateng.rpc.account.AccountClient;
 import com.chinasofti.huateng.rpc.blacklist.BlacklistClient;
 import com.chinasofti.huateng.model.app.AddBlackListReqDTO;
 import com.chinasofti.huateng.model.app.BlackListOperateResult;
+import org.springframework.dao.DuplicateKeyException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -73,6 +76,9 @@ public class PaySignWorkflow {
     private static final String STATUS_SIGNED = "SIGNED";
     private static final String STATUS_UNSIGNED = "UNSIGNED";
     private static final String STATUS_FAILED = "FAILED";
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String STATUS_SCANNING = "SCANNING";
+    private static final String STATUS_SUCCESS = "SUCCESS";
     @Autowired
     private PaySignProperties paySignProperties;
     @Autowired
@@ -81,6 +87,8 @@ public class PaySignWorkflow {
     private PaySignRequestMapper paySignRequestMapper;
     @Autowired
     private PayTxnDetailMapper payTxnDetailMapper;
+    @Autowired
+    private AppTerminationRequestMapper terminationRequestMapper;
     @Autowired
     private PayRefundDetailMapper payRefundDetailMapper;
     @Autowired
@@ -338,7 +346,7 @@ public class PaySignWorkflow {
 
     /**
      * IF8A-06 请求解约。
-     * 对外仍保留 ITP 侧报文风格，但下游支付平台只要求 requestSignSeq。
+     * 对外仍保留 ITP 侧报文风格；T+4 日前仅记录解约申请，不调用支付平台。
      */
     @Transactional(rollbackFor = Exception.class)
     public RequestTerminationRespDTO requestTermination(RequestTerminationReqDTO request, String signChannel) {
@@ -364,15 +372,28 @@ public class PaySignWorkflow {
                 return response;
             }
 
-            PaySignGatewayResponse gatewayResponse = requestGatewaySimple(paySignProperties.getTerminationPath(), buildDismissalBizData(request.getRequestSignSeq()));
-            if (!isGatewaySuccess(gatewayResponse)) {
-                fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, gatewayErrorMsg(gatewayResponse, "request pay termination failed"));
+            // 2. 校验是否已存在待处理解约申请
+            AppTerminationRequest existRequest = terminationRequestMapper.selectPendingByUserId(request.getThirdUserId());
+            if (existRequest != null) {
+                fillError(response, PaySignErrorCodeEnum.ALREADY_TERMINATING, "用户正在解约中");
                 writeLog("REQUEST_TERMINATION", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), signChannel, request, response);
                 return response;
             }
 
-            // 请求解约只代表支付平台已接收请求，最终解约状态以后续 5.3 回调为准。
-            // 不操作 APP_PAY_SIGN_INFO，只记录流水
+            // 3. 插入解约申请记录（状态=PENDING，通知状态=PENDING）
+            AppTerminationRequest terminationRequest = new AppTerminationRequest();
+            terminationRequest.setRequestSignSeq(request.getRequestSignSeq());
+            terminationRequest.setThirdUserId(request.getThirdUserId());
+            terminationRequest.setCardId(request.getCardId());
+            terminationRequest.setCardType(request.getCardType());
+            terminationRequest.setPaymentVendor(request.getPaymentVendor());
+            terminationRequest.setTerminationStatus(STATUS_PENDING);
+            terminationRequest.setNotifyStatus(STATUS_PENDING);
+            terminationRequest.setNotifyRetryCount(0);
+            terminationRequest.setRequestTime(LocalDateTime.now());
+            terminationRequestMapper.insert(terminationRequest);
+
+            // T+4 日前不调用支付平台，不操作 APP_PAY_SIGN_INFO 与 USER_ITP_REG_INFO
             fillSuccess(response);
             writeLog("REQUEST_TERMINATION", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), signChannel, request, response);
             return response;
@@ -392,7 +413,28 @@ public class PaySignWorkflow {
     public RequestPayResult requestPay(RequestPayReqDTO request) {
         RequestPayResult response = new RequestPayResult();
         try {
-            request.setAmount(1);
+            // 重试路径：request 中 paymentVendor/requestSignSeq 可能为 null，从 PAY_TXN_DETAIL 补充
+            if (request != null && StringUtils.hasText(request.getOrderNo())) {
+                PayTxnDetail txn = payTxnDetailMapper.selectByOrderNo(request.getOrderNo());
+                if (txn != null) {
+                    if (!StringUtils.hasText(request.getPaymentVendor())) {
+                        request.setPaymentVendor(txn.getPaymentVendor());
+                    }
+                    if (!StringUtils.hasText(request.getRequestSignSeq())) {
+                        request.setRequestSignSeq(txn.getRequestSignSeq());
+                    }
+                } else if (!StringUtils.hasText(request.getPaymentVendor())
+                        || !StringUtils.hasText(request.getRequestSignSeq())) {
+                    // PAY_TXN_DETAIL 不存在时，从 account-server 查询签约信息并创建记录
+                    // 防止 retryPay 等场景因签约信息缺失导致 ensurePayTxn 无法执行
+                    resolveAndCreatePayTxnFromAccount(request);
+                }
+            }
+            // 测试阶段可强制覆盖支付金额（分），0 表示不覆盖，使用调用方传入的实际金额
+            int forceAmount = paySignProperties.getTestForceAmount();
+            if (forceAmount > 0) {
+                request.setAmount(forceAmount);
+            }
             String validMsg = validateRequestPay(request);
 
             if (validMsg != null) {
@@ -401,26 +443,38 @@ public class PaySignWorkflow {
                 return response;
             }
 
-            QueryUserInfoResult accountPayInfo = resolveAccountPayInfo(request, response);
-            if (accountPayInfo == null) {
-                log.info("REQUEST_PAY 查询用户签约支付信息失败, request={}, response={}",
+            if (!validatePaySignInfo(request, response)) {
+                log.info("REQUEST_PAY 签约信息校验失败, request={}, response={}",
                         JSON.toJSONString(request), JSON.toJSONString(response));
                 return response;
             }
 
-            ensurePayTxn(request, accountPayInfo);
+            ensurePayTxn(request);
             payTxnDetailMapper.markRequesting(request.getOrderNo());
+            log.info("REQUEST_PAY ensurePayTxn完成, orderNo={}, paymentVendor={}, discountFee={}, discountInfo={}",
+                    request.getOrderNo(), request.getPaymentVendor(), request.getDiscountFee(), request.getDiscountInfo());
 
             Map<String, Object> bizData = buildRequestPayBizData(request);
-            log.info("REQUEST_PAY 调用支付平台, orderNo={}, thirdUserId={}, paymentVendor={}, amount={}, bizData={}",
-                    request.getOrderNo(), request.getThirdUserId(), request.getPaymentVendor(), request.getAmount(), JSON.toJSONString(bizData));
+            log.info("REQUEST_PAY 调用支付平台, orderNo={}, thirdUserId={}, paymentVendor={}, amount={}, discountFee={}, discountInfo={}, bizData={}",
+                    request.getOrderNo(), request.getThirdUserId(), request.getPaymentVendor(), request.getAmount(),
+                    request.getDiscountFee(), request.getDiscountInfo(), JSON.toJSONString(bizData));
             PaySignGatewayResponse gatewayResponse = requestGatewaySimple(paySignProperties.getRequestPayPath(), bizData);
             log.info("REQUEST_PAY 支付平台返回, orderNo={}, gatewayResponse={}", request.getOrderNo(), JSON.toJSONString(gatewayResponse));
 
             if (!isGatewaySuccess(gatewayResponse)) {
+                // 特殊业务码：订单已支付成功（幂等场景）
+                if (isAlreadyPaidSuccess(gatewayResponse)) {
+                    log.info("REQUEST_PAY 订单已支付成功（幂等），orderNo={}", request.getOrderNo());
+                    fillSuccess(response);
+                    fillGatewayFields(response, gatewayResponse);
+                    updatePayRequestResult(request.getOrderNo(), "SUCCESS", response, null);
+                    return response;
+                }
+
                 fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, gatewayErrorMsg(gatewayResponse, "请求支付接口失败"));
                 fillGatewayFields(response, gatewayResponse);
-                updatePayRequestResult(request.getOrderNo(), "RETRY", response);
+                String transIn = gatewayResponse.getData() != null ? stringValue(gatewayResponse.getData().get("transIn"), null) : null;
+                updatePayRequestResult(request.getOrderNo(), "RETRY", response, transIn);
 
                 // 支付宝渠道支付失败，添加黑名单
                 String paymentVendor = request.getPaymentVendor();
@@ -434,6 +488,7 @@ public class PaySignWorkflow {
 
             fillSuccess(response);
             fillGatewayFields(response, gatewayResponse);
+            String transIn = gatewayResponse.getData() != null ? stringValue(gatewayResponse.getData().get("transIn"), null) : null;
             if (gatewayResponse.getData() != null) {
                 response.setOrderNo(stringValue(gatewayResponse.getData().get("merchantOrderNo"), request.getOrderNo()));
                 response.setMerchantOrderNo(stringValue(gatewayResponse.getData().get("orderNo"), null));
@@ -442,13 +497,23 @@ public class PaySignWorkflow {
             } else {
                 response.setOrderNo(request.getOrderNo());
             }
-            updatePayRequestResult(request.getOrderNo(), "PROCESSING", response);
+            updatePayRequestResult(request.getOrderNo(), "PROCESSING", response, transIn);
             return response;
         } catch (Exception e) {
             log.error("处理请求支付异常", e);
             fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, PaySignErrorCodeEnum.SYSTEM_ERROR.getMsg());
             if (request != null && StringUtils.hasText(request.getOrderNo())) {
-                updatePayRequestResult(request.getOrderNo(), "RETRY", response);
+                try {
+                    // 只有当前状态不是 PROCESSING 时才回退为 RETRY，避免覆盖正在处理中的状态
+                    PayTxnDetail current = payTxnDetailMapper.selectByOrderNo(request.getOrderNo());
+                    if (current == null || !"PROCESSING".equals(current.getPayStatus())) {
+                        updatePayRequestResult(request.getOrderNo(), "RETRY", response, null);
+                    } else {
+                        log.warn("支付请求异常但订单已处于PROCESSING状态，跳过状态回退, orderNo={}", request.getOrderNo());
+                    }
+                } catch (Exception ex) {
+                    log.error("查询或更新PAY_TXN_DETAIL异常, orderNo={}, 订单需人工补偿", request.getOrderNo(), ex);
+                }
             }
             return response;
         }
@@ -537,9 +602,9 @@ public class PaySignWorkflow {
             payCallbackLogMapper.insert(callbackLog);
 
             PayTxnDetail update = new PayTxnDetail();
-            update.setOrderNo(request.getMerchantOrderNo());
+            update.setOrderNo(request.getOrderNo());
             update.setPayStatus(convertPayStatus(request.getStatus()));
-            update.setMerchantOrderNo(request.getOrderNo());
+            update.setMerchantOrderNo(request.getMerchantOrderNo());
             update.setChannelOrderNo(request.getChannelOrderNo());
             update.setTotalAmount(request.getTotalAmount());
             update.setCashAmount(request.getCashAmount());
@@ -547,6 +612,8 @@ public class PaySignWorkflow {
             update.setPayUserId(request.getPayUserId());
             update.setPaymentVendor(request.getPaymentVendor());
             update.setPayTime(request.getPayTime());
+            // 优惠字段、金额字段在回调中通常为空，SQL 使用 NVL 保留入库时的原始值
+            // PAY_STATUS 由 SQL 状态机保护：SUCCESS 状态的订单不允许被回退为非 SUCCESS 状态
             payTxnDetailMapper.updatePayCallback(update);
 
             fillSuccess(response);
@@ -1074,13 +1141,13 @@ public class PaySignWorkflow {
     }
 
     /**
-     * 将 ITP 侧的 payChannelCode 归一化为支付平台侧 paymentVendor。
+     * 将 ITP 侧的 paymentVendor 归一化。
      */
-    private String normalizeVendor(String payChannelCode) {
-        if (!StringUtils.hasText(payChannelCode)) {
+    private String normalizeVendor(String paymentVendor) {
+        if (!StringUtils.hasText(paymentVendor)) {
             return null;
         }
-        String code = payChannelCode.trim();
+        String code = paymentVendor.trim();
         if (!PaymentVendorEnum.isValid(code)) {
             log.warn("未知的支付渠道编码: {}", code);
         }
@@ -1186,6 +1253,16 @@ public class PaySignWorkflow {
     }
 
     /**
+     * 供内部解约流程调用，向支付平台发起解约请求。
+     *
+     * @param requestSignSeq 签约流水号
+     * @return 支付平台网关响应
+     */
+    public PaySignGatewayResponse requestPayPlatformTermination(String requestSignSeq) {
+        return requestGatewaySimple(paySignProperties.getTerminationPath(), buildDismissalBizData(requestSignSeq));
+    }
+
+    /**
      * 组装 requestPay 请求业务参数。
      */
     private Map<String, Object> buildRequestPayBizData(RequestPayReqDTO request) {
@@ -1216,11 +1293,7 @@ public class PaySignWorkflow {
      *
      * <p>同一个 orderNo 重复请求时视为幂等，不重复插入，只继续走请求支付和次数累加。</p>
      */
-    private void ensurePayTxn(RequestPayReqDTO request, QueryUserInfoResult accountPayInfo) {
-        PayTxnDetail existing = payTxnDetailMapper.selectByOrderNo(request.getOrderNo());
-        if (existing != null) {
-            return;
-        }
+    private void ensurePayTxn(RequestPayReqDTO request) {
         PayTxnDetail record = new PayTxnDetail();
         record.setOrderNo(request.getOrderNo());
         record.setPayType("PAY");
@@ -1228,9 +1301,8 @@ public class PaySignWorkflow {
         record.setThirdUserId(request.getThirdUserId());
         record.setCardId(request.getCardId());
         record.setCardType(request.getCardType());
-        record.setPayChannelCode(accountPayInfo.getChannel());
         record.setPaymentVendor(request.getPaymentVendor());
-        record.setRequestSignSeq(accountPayInfo.getReqContractNo());
+        record.setRequestSignSeq(request.getRequestSignSeq());
         record.setAmount(request.getAmount());
         record.setRefundStatus("NONE");
         record.setRefundAmount(0);
@@ -1238,50 +1310,89 @@ public class PaySignWorkflow {
         record.setTxnDate(resolveTxnDate());
         record.setCreateTime(LocalDateTime.now());
         record.setUpdateTime(LocalDateTime.now());
-        payTxnDetailMapper.insert(record);
+        record.setDiscountInfo(request.getDiscountInfo());
+        record.setDiscountFee(request.getDiscountFee());
+        try {
+            payTxnDetailMapper.insert(record);
+        } catch (DuplicateKeyException e) {
+            log.warn("ensurePayTxn 并发插入重复，orderNo={}", request.getOrderNo(), e);
+        }
     }
 
     /**
-     * 过闸扣费发起支付前，统一从 account-server 查询用户注册表中的默认支付通道。
+     * 校验过闸扣费发起支付所需的签约信息是否已透传。
      *
-     * <p>USER_ITP_REG_INFO.REQ_CONTRACT_NO 就是签约流水号；支付平台免密扣款
-     * 需要使用这个签约流水号和默认渠道，而不是信任前置服务透传的渠道字段。</p>
+     * <p>paymentVendor / requestSignSeq 已由 ticket-server 从 account-server 查询后透传，
+     * pay-sign-server 不再重复查询，缺失即视为用户未签约。</p>
      */
-    private QueryUserInfoResult resolveAccountPayInfo(RequestPayReqDTO request, RequestPayResult response) {
-        QueryUserInfoReqDTO query = new QueryUserInfoReqDTO();
-        query.setThirdUserId(request.getThirdUserId());
-        query.setCardId(request.getCardId());
-        query.setCardType(request.getCardType());
-        log.info("REQUEST_PAY 调用account查询用户默认签约支付信息, orderNo={}, query={}",
-                request.getOrderNo(), JSON.toJSONString(query));
-        QueryUserInfoResult accountPayInfo = accountClient.queryUserInfo(query);
-        log.info("REQUEST_PAY account查询用户默认签约支付信息返回, orderNo={}, result={}",
-                request.getOrderNo(), JSON.toJSONString(accountPayInfo));
-
-        if (accountPayInfo == null || !PaySignErrorCodeEnum.SUCCESS.getCode().equals(accountPayInfo.getRetCode())) {
-            fillError(response, PaySignErrorCodeEnum.USER_NOT_SIGNED,
-                    accountPayInfo == null ? "未查询到用户签约支付信息" : accountPayInfo.getRetMsg());
-            return null;
+    private boolean validatePaySignInfo(RequestPayReqDTO request, RequestPayResult response) {
+        if (!StringUtils.hasText(request.getPaymentVendor())) {
+            fillError(response, PaySignErrorCodeEnum.USER_NOT_SIGNED, "paymentVendor不能为空");
+            return false;
         }
-        if (!StringUtils.hasText(accountPayInfo.getChannel()) || !StringUtils.hasText(accountPayInfo.getReqContractNo())) {
-            fillError(response, PaySignErrorCodeEnum.USER_NOT_SIGNED, "用户未设置默认签约支付通道");
-            return null;
+        if (!StringUtils.hasText(request.getRequestSignSeq())) {
+            fillError(response, PaySignErrorCodeEnum.USER_NOT_SIGNED, "requestSignSeq不能为空");
+            return false;
         }
-
-        // 以 account 注册表中的默认通道和签约流水号为准，覆盖内部调用方透传值。
-        request.setPaymentVendor(accountPayInfo.getChannel());
-        request.setRequestSignSeq(accountPayInfo.getReqContractNo());
-        return accountPayInfo;
+        return true;
     }
 
-    private void updatePayRequestResult(String orderNo, String payStatus, RequestPayResult response) {
+    /**
+     * 兜底逻辑：当 PAY_TXN_DETAIL 不存在且 request 中签约信息缺失时，
+     * 从 account-server 查询 USER_ITP_REG_INFO 获取 paymentVendor/requestSignSeq
+     * 并创建 PAY_TXN_DETAIL 记录，避免 retryPay 等场景形成死锁。
+     */
+    private void resolveAndCreatePayTxnFromAccount(RequestPayReqDTO request) {
+        if (!StringUtils.hasText(request.getCardId()) || !StringUtils.hasText(request.getThirdUserId())) {
+            log.warn("resolveAndCreatePayTxnFromAccount: cardId或thirdUserId为空，跳过, orderNo={}", request.getOrderNo());
+            return;
+        }
+        try {
+            QueryUserInfoReqDTO queryReq = new QueryUserInfoReqDTO();
+            queryReq.setCardId(request.getCardId());
+            queryReq.setThirdUserId(request.getThirdUserId());
+            queryReq.setCardType(request.getCardType());
+            QueryUserInfoResult userInfo = accountClient.queryUserInfo(queryReq);
+            if (userInfo != null && StringUtils.hasText(userInfo.getChannel())) {
+                request.setPaymentVendor(userInfo.getChannel().trim());
+            } else {
+                log.warn("resolveAndCreatePayTxnFromAccount: account-server未返回channel, cardId={}", request.getCardId());
+            }
+            if (userInfo != null && StringUtils.hasText(userInfo.getReqContractNo())) {
+                request.setRequestSignSeq(userInfo.getReqContractNo().trim());
+            } else {
+                log.warn("resolveAndCreatePayTxnFromAccount: account-server未返回reqContractNo, cardId={}", request.getCardId());
+            }
+            if (StringUtils.hasText(request.getPaymentVendor()) && StringUtils.hasText(request.getRequestSignSeq())) {
+                ensurePayTxn(request);
+                log.info("resolveAndCreatePayTxnFromAccount: 从account-server补充签约信息并创建PAY_TXN_DETAIL, orderNo={}, paymentVendor={}, requestSignSeq={}",
+                        request.getOrderNo(), request.getPaymentVendor(), request.getRequestSignSeq());
+            }
+        } catch (Exception e) {
+            log.error("resolveAndCreatePayTxnFromAccount: 查询account-server异常, orderNo={}", request.getOrderNo(), e);
+        }
+    }
+
+    private void updatePayRequestResult(String orderNo, String payStatus, RequestPayResult response, String transIn) {
+        if (!StringUtils.hasText(orderNo)) {
+            log.error("updatePayRequestResult: orderNo 为空，跳过更新, payStatus={}", payStatus);
+            return;
+        }
         PayTxnDetail record = new PayTxnDetail();
         record.setOrderNo(orderNo);
         record.setPayStatus(payStatus);
         record.setMerchantOrderNo(response.getOrderNo());
         record.setChannelOrderNo(response.getChannelOrderNo());
+        record.setDebitRequestResult(resolveDebitRequestResult(payStatus));
         record.setResponseTime(LocalDateTime.now());
+        record.setTransIn(transIn);
         payTxnDetailMapper.updateRequestResult(record);
+    }
+
+    private String resolveDebitRequestResult(String payStatus) {
+        if ("PROCESSING".equals(payStatus)) return "PROCESSING";
+        if ("SUCCESS".equals(payStatus)) return "SUCCESS";
+        return "FAIL";
     }
 
     /**
@@ -1379,10 +1490,10 @@ public class PaySignWorkflow {
 
     private PayCallbackLog buildPayCallbackLog(ReceivePayResultReqDTO request, String rawBody) {
         PayCallbackLog logRecord = new PayCallbackLog();
-        logRecord.setOrderNo(request.getMerchantOrderNo());
+        logRecord.setOrderNo(request.getOrderNo());
         logRecord.setCallbackType("PAY");
         logRecord.setCallbackStatus(request.getStatus());
-        logRecord.setMerchantOrderNo(request.getOrderNo());
+        logRecord.setMerchantOrderNo(request.getMerchantOrderNo());
         logRecord.setChannelOrderNo(request.getChannelOrderNo());
         logRecord.setPayTime(request.getPayTime());
         logRecord.setTotalAmount(request.getTotalAmount());
@@ -1512,8 +1623,21 @@ public class PaySignWorkflow {
         return payGatewayClient.request(path, bizData);
     }
 
-    private boolean isGatewaySuccess(PaySignGatewayResponse response) {
+    boolean isGatewaySuccess(PaySignGatewayResponse response) {
         return payGatewayClient.isSuccess(response);
+    }
+
+    /**
+     * 判断是否为"订单已支付成功"幂等场景（网关返回 code=9999 但业务上已成功）
+     */
+    private boolean isAlreadyPaidSuccess(PaySignGatewayResponse response) {
+        if (response == null) {
+            return false;
+        }
+        Integer code = response.getCode();
+        String msg = response.getMsg();
+        return Integer.valueOf(9999).equals(code)
+                && (msg != null && (msg.contains("已支付成功") || msg.contains("请勿重复支付")));
     }
 
     private String gatewayErrorMsg(PaySignGatewayResponse response, String defaultMsg) {
@@ -1562,7 +1686,7 @@ public class PaySignWorkflow {
      * 记录接口流水日志，保存请求/响应快照。
      * 使用 APP_PAY_SIGN_REQUEST 流水表，每次 INSERT 新记录。
      */
-    private void writeLog(String operationType, String thirdUserId, String requestSignSeq, String paymentVendor, String signChannel, Object request, Object response) {
+    void writeLog(String operationType, String thirdUserId, String requestSignSeq, String paymentVendor, String signChannel, Object request, Object response) {
         if (!StringUtils.hasText(requestSignSeq)) {
             return;
         }

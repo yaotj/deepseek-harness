@@ -32,7 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
 
-@Service
+@Service("paySignAppNotifyServiceImpl")
 public class AppNotifyServiceImpl implements AppNotifyService {
     private static final Logger log = LoggerFactory.getLogger(AppNotifyServiceImpl.class);
     private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");

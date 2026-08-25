@@ -91,6 +91,13 @@ public class TvmOrderResult {
         jsonObject.put("retMsg",retMsg);
         return jsonObject;
     }
+
+    public static JSONObject failMessage(String retMsg) {
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("retCode",TvmPayCodeEnum.FAIL.getCode());
+        jsonObject.put("retMsg",retMsg);
+        return jsonObject;
+    }
     @Override
     public String toString() {
         return "RequestGenSjtOrderRespDTO{" +

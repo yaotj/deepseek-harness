@@ -4,7 +4,6 @@ import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.fep.dev.constant.FepDevErrorCodeEnum;
 import com.chinasofti.huateng.fep.dev.model.CommonFormRequest;
 import com.chinasofti.huateng.fep.dev.model.DeviceHeartbeatRespDTO;
-import com.chinasofti.huateng.fep.dev.model.KeyCurVerReqDTO;
 import com.chinasofti.huateng.fep.dev.model.RequestQrCodeStatusReqDTO;
 import com.chinasofti.huateng.fep.dev.model.RequestQrCodeStatusRespDTO;
 import com.chinasofti.huateng.fep.dev.model.RequestSynKeyListReqDTO;
@@ -34,13 +33,11 @@ public class FepAgmController {
 
     /**
      * IF1A-01 闸机检票通知。
-     *
-     * @param request FormData 格式公共请求报文
-     * @return 闸机检票通知处理结果
      */
     @PostMapping("/notiVerifyResult")
     public NotifyVerifyResultRespDTO notifyVerifyResult(@ModelAttribute CommonFormRequest request) {
-        log.info("IF1A-01 闸机检票通知, 公共请求参数={}", request);
+        String deviceId = request == null ? null : request.getDeviceId();
+        log.info("IF1A-01 闸机检票通知, deviceId={}", deviceId);
         if (request == null || !StringUtils.hasText(request.getBizData())) {
             return invalidNotifyParam("bizData不能为空");
         }
@@ -49,16 +46,19 @@ public class FepAgmController {
         try {
             bizData = JSON.parseObject(request.getBizData(), NotifyVerifyResultReqDTO.class);
         } catch (Exception e) {
-            log.error("IF1A-01 闸机检票通知, bizData解析失败, bizData={}", request.getBizData(), e);
+            log.error("IF1A-01 闸机检票通知, bizData解析失败, deviceId={}, bizData={}",
+                    request.getDeviceId(), request.getBizData(), e);
             return invalidNotifyParam("bizData格式错误");
         }
 
         bizData.setDeviceId(request.getDeviceId());
-        log.info("IF1A-01 闸机检票通知, 去除公共请求头并补充deviceId后的业务参数={}", JSON.toJSONString(bizData));
+        log.info("IF1A-01 闸机检票通知, deviceId={}, bizData={}", request.getDeviceId(), request.getBizData());
 
         if (!"000".equals(bizData.getHandleResultCode())) {
-            log.warn("IF1A-01 闸机检票通知, 读写器返回非成功状态, handleResultCode={}, cardId={}",
-                    bizData.getHandleResultCode(), bizData.getCardId());
+            log.warn("IF1A-01 闸机检票通知, 读写器返回非成功状态，跳过业务处理, "
+                            + "deviceId={}, handleResultCode={}, cardId={}, trxType={}, handleDateTime={}",
+                    request.getDeviceId(), bizData.getHandleResultCode(),
+                    bizData.getCardId(), bizData.getTrxType(), bizData.getHandleDateTime());
             NotifyVerifyResultRespDTO errorResponse = new NotifyVerifyResultRespDTO();
             errorResponse.setRetCode(FepDevErrorCodeEnum.SUCCESS.getCode());
             errorResponse.setRetMsg("接收成功");
@@ -66,19 +66,17 @@ public class FepAgmController {
         }
 
         NotifyVerifyResultRespDTO response = devService.notifyVerifyResult(bizData);
-        log.info("IF1A-01 闸机检票通知, 响应参数={}", JSON.toJSONString(response));
+        log.info("IF1A-01 闸机检票通知, deviceId={}, 响应 retCode={}", request.getDeviceId(), response.getRetCode());
         return response;
     }
 
     /**
      * IF1A-02 密钥同步。
-     *
-     * @param request FormData 格式公共请求报文
-     * @return 密钥同步响应
      */
     @PostMapping("/requestSynKeyList")
     public RequestSynKeyListRespDTO requestSynKeyList(@ModelAttribute CommonFormRequest request) {
-        log.info("IF1A-02 密钥同步, 公共请求参数={}", request);
+        String deviceId = request == null ? null : request.getDeviceId();
+        log.info("IF1A-02 密钥同步, deviceId={}", deviceId);
         if (request == null || !StringUtils.hasText(request.getBizData())) {
             RequestSynKeyListRespDTO response = new RequestSynKeyListRespDTO();
             response.setRetCode(FepDevErrorCodeEnum.INVALID_PARAM.getCode());
@@ -90,30 +88,29 @@ public class FepAgmController {
         try {
             bizData = JSON.parseObject(request.getBizData(), RequestSynKeyListReqDTO.class);
         } catch (Exception e) {
-            log.error("IF1A-02 密钥同步, bizData解析失败, bizData={}", request.getBizData(), e);
+            log.error("IF1A-02 密钥同步, bizData解析失败, deviceId={}, bizData={}",
+                    request.getDeviceId(), request.getBizData(), e);
             RequestSynKeyListRespDTO response = new RequestSynKeyListRespDTO();
             response.setRetCode(FepDevErrorCodeEnum.INVALID_PARAM.getCode());
             response.setRetMsg("bizData格式错误");
             return response;
         }
 
-        log.info("IF1A-02 密钥同步, 去除公共请求头后的业务参数={}", JSON.toJSONString(bizData));
-        RequestSynKeyListRespDTO response = devService.requestSynKeyList(bizData, request.getDeviceId(), request.getBizData());
+        log.info("IF1A-02 密钥同步, deviceId={}, keyCount={}", deviceId,
+                bizData.getKeyCurVerList() == null ? 0 : bizData.getKeyCurVerList().size());
+        RequestSynKeyListRespDTO response = devService.requestSynKeyList(bizData, deviceId, request.getBizData());
         log.info("IF1A-02 密钥同步完成, deviceId={}, retCode={}, keyVersionCount={}",
-                request.getDeviceId(), response.getRetCode(),
+                deviceId, response.getRetCode(),
                 response.getKeyCurVerList() == null ? 0 : response.getKeyCurVerList().size());
         return response;
     }
 
     /**
      * IF1A-04 查询票卡状态。
-     *
-     * @param request FormData 格式公共请求报文
-     * @return 查询票卡状态响应
      */
     @PostMapping("/requestQrCodeStatus")
     public RequestQrCodeStatusRespDTO requestQrCodeStatus(@ModelAttribute CommonFormRequest request) {
-        log.info("IF1A-04 查询票卡状态, 公共请求参数={}", request);
+        log.info("IF1A-04 查询票卡状态, deviceId={}", request == null ? null : request.getDeviceId());
         if (request == null || !StringUtils.hasText(request.getBizData())) {
             return invalidParam("bizData不能为空", null);
         }
@@ -122,13 +119,14 @@ public class FepAgmController {
         try {
             bizData = JSON.parseObject(request.getBizData(), RequestQrCodeStatusReqDTO.class);
         } catch (Exception e) {
-            log.error("IF1A-04 查询票卡状态, bizData解析失败, bizData={}", request.getBizData(), e);
+            log.error("IF1A-04 查询票卡状态, bizData解析失败, deviceId={}, bizData={}",
+                    request.getDeviceId(), request.getBizData(), e);
             return invalidParam("bizData格式错误", null);
         }
 
-        log.info("IF1A-04 查询票卡状态, 去除公共请求头后的业务参数={}", JSON.toJSONString(bizData));
+        log.info("IF1A-04 查询票卡状态, deviceId={}, bizData={}", request.getDeviceId(), request.getBizData());
         RequestQrCodeStatusRespDTO response = devService.requestQrCodeStatus(bizData);
-        log.info("IF1A-04 查询票卡状态, 响应参数={}", JSON.toJSONString(response));
+        log.info("IF1A-04 查询票卡状态, 响应 retCode={}", response.getRetCode());
         return response;
     }
 
@@ -136,17 +134,13 @@ public class FepAgmController {
      * IF1A-03 设备心跳。
      *
      * <p>心跳接口只确认设备链路可达，不解析 bizData，不调用后端业务服务。</p>
-     *
-     * @param request FormData 格式公共请求报文
-     * @return 设备心跳响应
      */
     @PostMapping({"/deviceHeartbeat", "/notiDeviceHeard"})
     public DeviceHeartbeatRespDTO deviceHeartbeat(@ModelAttribute CommonFormRequest request) {
-        log.info("IF1A-03 设备心跳, 公共请求参数={}", request);
+        log.info("IF1A-03 设备心跳, deviceId={}", request == null ? null : request.getDeviceId());
         DeviceHeartbeatRespDTO response = new DeviceHeartbeatRespDTO();
         response.setRetCode(FepDevErrorCodeEnum.SUCCESS.getCode());
         response.setRetMsg(FepDevErrorCodeEnum.SUCCESS.getMessage());
-        log.info("IF1A-03 设备心跳, 响应参数={}", JSON.toJSONString(response));
         return response;
     }
 

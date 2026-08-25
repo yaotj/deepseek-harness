@@ -9,6 +9,8 @@ public enum PaySignErrorCodeEnum {
     USER_NOT_SIGNED("8011", "用户未签约"),
     RECORD_NOT_EXIST("8012", "签约记录不存在"),
     ALREADY_SIGNED("8013", "该用户已签约此支付渠道"),
+    ALREADY_TERMINATING("8009", "用户正在解约中"),
+    TERMINATION_REQUEST_NOT_FOUND("8010", "解约申请不存在或状态不正确"),
     INVALID_SIGN_DATA("8014", "无效的签约数据"),
     ORDER_CANNOT_REFUND("8180", "该订单不能退款"),
     ORDER_ALREADY_PAID("8181", "订单已支付成功，请勿重复支付"),

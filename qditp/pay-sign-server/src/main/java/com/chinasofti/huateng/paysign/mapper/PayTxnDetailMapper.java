@@ -4,11 +4,18 @@ import com.chinasofti.huateng.paysign.entity.PayTxnDetail;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.util.List;
+
 @Mapper
 public interface PayTxnDetailMapper {
     int insert(PayTxnDetail record);
 
     PayTxnDetail selectByOrderNo(@Param("orderNo") String orderNo);
+
+    /**
+     * 批量按订单号查询支付明细（用于 IF8A-05 双源合并）。
+     */
+    List<PayTxnDetail> selectByOrderNos(@Param("orderNos") List<String> orderNos);
 
     int markRequesting(@Param("orderNo") String orderNo);
 

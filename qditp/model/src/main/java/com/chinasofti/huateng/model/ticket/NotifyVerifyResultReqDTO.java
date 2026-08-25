@@ -34,6 +34,14 @@ public class NotifyVerifyResultReqDTO {
      */
     private String reserve1;
     private String reserve2;
+    /**
+     * 同行票标识：Y=同行票，C=第三方票（目前均对应卡类型 0441），为空表示普通票。
+     */
+    private String companionFlag;
+    /** 支付渠道编码（如 ALIPAY、WECHAT），来自 USER_ITP_REG_INFO.CHANNEL */
+    private String paymentVendor;
+    /** 签约流水号，来自 USER_ITP_REG_INFO.REQ_CONTRACT_NO */
+    private String requestSignSeq;
 
     public String getDeviceId() {
         return deviceId;
@@ -200,5 +208,46 @@ public class NotifyVerifyResultReqDTO {
 
     public void setReserve2(String reserve2) {
         this.reserve2 = reserve2;
+    }
+
+    public String getCompanionFlag() {
+        return companionFlag;
+    }
+
+    public void setCompanionFlag(String companionFlag) {
+        this.companionFlag = companionFlag;
+    }
+    public String getPaymentVendor() { return paymentVendor; }
+    public void setPaymentVendor(String paymentVendor) { this.paymentVendor = paymentVendor; }
+    public String getRequestSignSeq() { return requestSignSeq; }
+    public void setRequestSignSeq(String requestSignSeq) { this.requestSignSeq = requestSignSeq; }
+
+    @Override
+    public String toString() {
+        return "NotifyVerifyResultReqDTO{" +
+                "deviceId='" + deviceId + '\'' +
+                ", itpUserId='" + itpUserId + '\'' +
+                ", trxType='" + trxType + '\'' +
+                ", issueChannelCode='" + issueChannelCode + '\'' +
+                ", signChannelCode='" + signChannelCode + '\'' +
+                ", cardId='" + cardId + '\'' +
+                ", cardType='" + cardType + '\'' +
+                ", handleDateTime='" + handleDateTime + '\'' +
+                ", handleStationCode='" + handleStationCode + '\'' +
+                ", trxAmount='" + trxAmount + '\'' +
+                ", overtimeAmount='" + overtimeAmount + '\'' +
+                ", lastTicketStatus='" + lastTicketStatus + '\'' +
+                ", handleResultCode='" + handleResultCode + '\'' +
+                ", lastHandleStationCode='" + lastHandleStationCode + '\'' +
+                ", lastHandleDateTime='" + lastHandleDateTime + '\'' +
+                ", ticketTransSeq='" + ticketTransSeq + '\'' +
+                ", excessFareType='" + excessFareType + '\'' +
+                ", adviceOpt='" + adviceOpt + '\'' +
+                ", reserve1='" + (reserve1 != null && reserve1.length() > 8 ? reserve1.substring(0, 8) + "..." : reserve1) + '\'' +
+                ", reserve2='" + reserve2 + '\'' +
+                ", companionFlag='" + companionFlag + '\'' +
+                ", paymentVendor='" + paymentVendor + '\'' +
+                ", requestSignSeq='" + requestSignSeq + '\'' +
+                '}';
     }
 }

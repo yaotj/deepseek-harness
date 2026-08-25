@@ -104,4 +104,27 @@ public class DailyTicketController {
     public QueryDailyTicketInfoResult queryDailyTicketInfo(@RequestBody QueryDailyTicketInfoReqDTO request) {
         return dailyTicketService.queryDailyTicketInfo(request);
     }
+
+    /**
+     * 日票进站校验（闸机入口调用）。
+     * 校验有效期、未完成出站、计次票次数（不扣减）。
+     */
+    @PostMapping("/entry/check")
+    public DailyTicketBaseResult entryCheck(@RequestBody java.util.Map<String, String> request) {
+        String cardNum = request == null ? null : request.get("cardNum");
+        return dailyTicketService.validateEntryCheck(cardNum);
+    }
+
+    /**
+     * 日票出站处理（闸机出站时调用）。
+     * 扣减计次票次数（下限为0），标记已使用。
+     */
+    @PostMapping("/ticket/markUsed")
+    public DailyTicketBaseResult markUsed(@RequestBody java.util.Map<String, Object> request) {
+        String cardNum = request == null ? null : (String) request.get("cardNum");
+        Long countingEnd = request == null ? null :
+                request.get("countingEnd") instanceof Long ? (Long) request.get("countingEnd")
+                        : Long.valueOf(request.get("countingEnd").toString());
+        return dailyTicketService.markUsed(cardNum, countingEnd);
+    }
 }

@@ -25,6 +25,21 @@ public class RequestPayReqDTO {
     private String ipAddress;
     private String remark;
 
+    /**
+     * 支付通道编码（signChannelCode），由 gate-txn-pay-server 透传。
+     */
+    private String payChannelCode;
+
+    /**
+     * 优惠金额（分），由 gate-txn-pay-server 透传。
+     */
+    private Integer discountFee;
+
+    /**
+     * 优惠详情 JSON 数组，由 gate-txn-pay-server 透传。
+     */
+    private String discountInfo;
+
     public String getOrderNo() {
         return orderNo;
     }
@@ -168,6 +183,11 @@ public class RequestPayReqDTO {
     public void setRemark(String remark) {
         this.remark = remark;
     }
+
+    public Integer getDiscountFee() { return discountFee; }
+    public void setDiscountFee(Integer discountFee) { this.discountFee = discountFee; }
+    public String getDiscountInfo() { return discountInfo; }
+    public void setDiscountInfo(String discountInfo) { this.discountInfo = discountInfo; }
 
     @Override
     public String toString() {

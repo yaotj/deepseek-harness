@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface BomSubTicketMapper {
@@ -23,4 +24,6 @@ public interface BomSubTicketMapper {
      * 批量插入出票明细记录。
      */
     int batchInsert(@Param("list") List<BomSubTicket> list);
+
+    int updateByTicketLogicNum(Map<String,String> map);
 }

@@ -58,24 +58,14 @@ public class AlipayTripFindTravelDetailRespDTO extends CommonResult {
     private String payOrderNoDate;
 
     /**
-     * 支付渠道代码
-     */
-    private String payChannelCode;
-
-    /**
      * 扣款请求结果
      */
     private String debitRequestResult;
 
     /**
-     * 优惠金额
+     * 支付渠道代码
      */
-    private String discountFee;
-
-    /**
-     * 优惠信息
-     */
-    private String discountInfo;
+    private String payChannelCode;
 
     /**
      * 同行票标识
@@ -106,6 +96,16 @@ public class AlipayTripFindTravelDetailRespDTO extends CommonResult {
      * 发票状态（可选）
      */
     private String invoice;
+
+    /**
+     * 优惠金额（单位：分）
+     */
+    private String discountFee;
+
+    /**
+     * 优惠信息
+     */
+    private String discountInfo;
 
     public String getEntryStationName() {
         return entryStationName;
@@ -187,14 +187,6 @@ public class AlipayTripFindTravelDetailRespDTO extends CommonResult {
         this.payOrderNoDate = payOrderNoDate;
     }
 
-    public String getPayChannelCode() {
-        return payChannelCode;
-    }
-
-    public void setPayChannelCode(String payChannelCode) {
-        this.payChannelCode = payChannelCode;
-    }
-
     public String getDebitRequestResult() {
         return debitRequestResult;
     }
@@ -203,20 +195,12 @@ public class AlipayTripFindTravelDetailRespDTO extends CommonResult {
         this.debitRequestResult = debitRequestResult;
     }
 
-    public String getDiscountFee() {
-        return discountFee;
+    public String getPayChannelCode() {
+        return payChannelCode;
     }
 
-    public void setDiscountFee(String discountFee) {
-        this.discountFee = discountFee;
-    }
-
-    public String getDiscountInfo() {
-        return discountInfo;
-    }
-
-    public void setDiscountInfo(String discountInfo) {
-        this.discountInfo = discountInfo;
+    public void setPayChannelCode(String payChannelCode) {
+        this.payChannelCode = payChannelCode;
     }
 
     public String getCompanionFlag() {
@@ -265,5 +249,21 @@ public class AlipayTripFindTravelDetailRespDTO extends CommonResult {
 
     public void setInvoice(String invoice) {
         this.invoice = invoice;
+    }
+
+    public String getDiscountFee() {
+        return discountFee;
+    }
+
+    public void setDiscountFee(String discountFee) {
+        this.discountFee = discountFee;
+    }
+
+    public String getDiscountInfo() {
+        return discountInfo;
+    }
+
+    public void setDiscountInfo(String discountInfo) {
+        this.discountInfo = discountInfo;
     }
 }

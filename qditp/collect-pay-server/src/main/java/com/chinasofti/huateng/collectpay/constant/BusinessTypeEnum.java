@@ -8,7 +8,8 @@ public enum BusinessTypeEnum {
     TVM_SCAN_QR_BUYTICKET("01", "扫码购票"),
     TVM_SCAN_QR_RECHARGE("02", "扫码充值"),
     TVM_SCAN_QR_TAKETICKET("03", "扫码取票"),
-    BOM_SCANED_PAY("04", "bom支付");
+    BOM_SCANED_PAY("04", "bom支付"),
+    APP_REFUND("05", "app退款");
 
     private final String code;
     private final String desc;

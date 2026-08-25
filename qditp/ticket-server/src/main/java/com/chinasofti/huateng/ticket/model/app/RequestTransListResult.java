@@ -1,5 +1,7 @@
 package com.chinasofti.huateng.ticket.model.app;
 
+import com.chinasofti.huateng.model.app.TransRecordDTO;
+
 import java.util.List;
 
 /**

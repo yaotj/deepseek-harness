@@ -183,4 +183,14 @@ public class RequestApplicationReqDTO {
     public void setCardIssueCode(String cardIssueCode) {
         this.cardIssueCode = cardIssueCode;
     }
+
+    @Override
+    public String toString() {
+        return "RequestApplicationReqDTO{thirdUserId='" + thirdUserId + "', thirdPayId='" + thirdPayId
+                + "', channel='" + channel + "', reqContractNo='" + reqContractNo + "', cardType='" + cardType
+                + "', msisdn='" + msisdn + "', userName='" + userName + "', userId='" + userId
+                + "', extend1='" + extend1 + "', extend2='" + extend2 + "', ticketCard='" + ticketCard
+                + "', companionFlag='" + companionFlag + "', ticketLimit='" + ticketLimit
+                + "', cardIssueCode='" + cardIssueCode + "'}";
+    }
 }

@@ -32,4 +32,9 @@ public class UpdateHceDataReqDTO {
     public void setHceData(String hceData) {
         this.hceData = hceData;
     }
+
+    @Override
+    public String toString() {
+        return "UpdateHceDataReqDTO{cardId='" + cardId + "', hceData='" + hceData + "'}";
+    }
 }

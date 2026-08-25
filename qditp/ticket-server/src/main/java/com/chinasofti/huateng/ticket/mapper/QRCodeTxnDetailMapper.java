@@ -1,11 +1,11 @@
 package com.chinasofti.huateng.ticket.mapper;
 
+import com.chinasofti.huateng.model.app.TransRecordDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripTravelRecordDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
+import com.chinasofti.huateng.model.app.QueryTransListReqDTO;
 import com.chinasofti.huateng.ticket.entity.QRCodeTxnDetail;
-import com.chinasofti.huateng.ticket.model.app.RequestTransListReqDTO;
-import com.chinasofti.huateng.ticket.model.app.TransRecordDTO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -24,13 +24,21 @@ public interface QRCodeTxnDetailMapper {
 
     /**
      * IF8A-05 查询交易记录列表。
+     *
+     * @deprecated 请迁移至 {@link com.chinasofti.huateng.gatetxnpay.mapper.GateTxnPayMapper#selectTransList}
+     *             与 {@link com.chinasofti.huateng.rpc.paySign.PaySignClient#queryPayTxnBatch}
+     *             组成的双源查询模式。
      */
-    List<TransRecordDTO> selectTransList(RequestTransListReqDTO request);
+    @Deprecated
+    java.util.List<com.chinasofti.huateng.model.app.TransRecordDTO> selectTransList(QueryTransListReqDTO request);
 
     /**
      * IF8A-05 查询交易记录总数。
+     *
+     * @deprecated 请迁移至 {@link com.chinasofti.huateng.gatetxnpay.mapper.GateTxnPayMapper#countTransList}。
      */
-    int countTransList(RequestTransListReqDTO request);
+    @Deprecated
+    int countTransList(QueryTransListReqDTO request);
 
     /**
      * IF8A-41 查询账单统计。
@@ -56,20 +64,18 @@ public interface QRCodeTxnDetailMapper {
                             @Param("endDate") String endDate);
 
     /** 支付宝出行-查询乘车记录列表。 */
-     List<AlipayTripTravelRecordDTO> selectAlipayTravelList(@Param("thirdUserId") String thirdUserId,
-                                                             @Param("startDate") String startDate,
-                                                             @Param("endDate") String endDate,
-                                                             @Param("debitRequestResult") String debitRequestResult,
-                                                             @Param("offset") int offset,
-                                                             @Param("limit") int limit);
+    List<AlipayTripTravelRecordDTO> selectAlipayTravelList(@Param("thirdUserId") String thirdUserId,
+                                                            @Param("startTime") String startTime,
+                                                            @Param("endTime") String endTime,
+                                                            @Param("offset") int offset,
+                                                            @Param("limit") int limit);
 
-     /**
-      * 支付宝出行-查询乘车记录总数。
-      */
-     int countAlipayTravelList(@Param("thirdUserId") String thirdUserId,
-                                @Param("startDate") String startDate,
-                                @Param("endDate") String endDate,
-                                @Param("debitRequestResult") String debitRequestResult);
+    /**
+     * 支付宝出行-查询乘车记录总数。
+     */
+    int countAlipayTravelList(@Param("thirdUserId") String thirdUserId,
+                               @Param("startTime") String startTime,
+                               @Param("endTime") String endTime);
 
     /**
      * 支付宝出行-查询乘车记录详情。
@@ -101,8 +107,8 @@ public interface QRCodeTxnDetailMapper {
                                            @Param("ticketTransSeq") String ticketTransSeq);
 
     /**
-     * IF8A-34 查询订单详情。
+     * IF8A-34 查询订单详情（返回进站+出站等所有记录，由 Service 层合并）。
      */
-    com.chinasofti.huateng.model.app.TransRecordDTO selectTransDetail(@Param("thirdUserId") String thirdUserId,
-                                       @Param("orderNo") String orderNo);
+    java.util.List<com.chinasofti.huateng.model.app.TransRecordDTO> selectTransDetail(@Param("thirdUserId") String thirdUserId,
+                                                       @Param("orderNo") String orderNo);
 }

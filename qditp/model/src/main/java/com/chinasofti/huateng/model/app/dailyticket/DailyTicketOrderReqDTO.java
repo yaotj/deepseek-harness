@@ -68,4 +68,10 @@ public class DailyTicketOrderReqDTO {
     public void setUserId(String userId) {
         this.userId = userId;
     }
+
+    @Override
+    public String toString() {
+        return "DailyTicketOrderReqDTO{orderSource='" + orderSource + "', ticketPrice=" + ticketPrice
+                + ", cardType='" + cardType + "', showType='" + showType + "', userId='" + userId + "'}";
+    }
 }

@@ -8,6 +8,8 @@ import com.chinasofti.huateng.model.app.RequestApplicationReqDTO;
 import com.chinasofti.huateng.model.app.RequestApplicationResult;
 import com.chinasofti.huateng.model.app.RequestKeyListReqDTO;
 import com.chinasofti.huateng.model.app.RequestKeyListResult;
+import com.chinasofti.huateng.model.app.RequestRemovePayChannelReqDTO;
+import com.chinasofti.huateng.model.app.RequestRemovePayChannelResult;
 import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelReqDTO;
 import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelResult;
 import com.chinasofti.huateng.model.app.RequestUpdateChannelDefaultContractReqDTO;
@@ -18,18 +20,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * APP 账户及支付相关接口入口（/ci/app）。
+ * APP 账户及支付相关接口入口。
  *
  * <p>涵盖账号申请、密钥同步、支付通道管理、员工码查询、渠道默认支付方式等功能。
- * 本层仅解析 APP FormData 报文并转发业务 DTO；账户、密钥、员工码业务
- * 由 account-server 等下游服务维护。</p>
+ * 同时支持 {@code /ci/app} 和 {@code /app} 两条路径。</p>
  */
 @RestController
-@RequestMapping("/ci/app")
 public class AppAccountController extends BaseAppController {
     private static final Logger log = LoggerFactory.getLogger(AppAccountController.class);
 
@@ -39,60 +38,46 @@ public class AppAccountController extends BaseAppController {
         this.accountAppService = accountAppService;
     }
 
-    /**
-     * IF8A-01 请求开户。
-     */
-    @PostMapping("/requestApplication")
+    @PostMapping({"/ci/app/requestApplication", "/app/requestApplication"})
     public RequestApplicationResult requestApplication(@ModelAttribute CommonFormRequest request) {
         log.info("IF8A-01 请求开户, 请求参数: {}", request);
         return accountAppService.requestApplication(parseBizData(request, RequestApplicationReqDTO.class));
     }
 
-    /**
-     * IF8A-02 请求同步密钥。
-     */
-    @PostMapping("/requestKeyList")
+    @PostMapping({"/ci/app/requestKeyList", "/app/requestKeyList"})
     public RequestKeyListResult requestKeyList(@ModelAttribute CommonFormRequest request) {
         log.info("IF8A-02 请求同步密钥, 请求参数: {}", request);
         return accountAppService.requestKeyList(parseBizData(request, RequestKeyListReqDTO.class));
     }
 
-    /**
-     * IF8A-23 请求添加支付通道。
-     */
-    @PostMapping("/requestAddPayChannel")
+    @PostMapping({"/ci/app/requestAddPayChannel", "/app/requestAddPayChannel"})
     public RequestAddPayChannelResult requestAddPayChannel(@ModelAttribute CommonFormRequest request) {
         log.info("IF8A-23 请求添加支付通道, 请求参数: {}", request);
         return accountAppService.requestAddPayChannel(parseBizData(request, RequestAddPayChannelReqDTO.class));
     }
 
-    /**
-     * IF8A-24 请求设置默认支付通道。
-     */
-    @PostMapping("/requestSetDefaultPayChannel")
+    @PostMapping({"/ci/app/requestSetDefaultPayChannel", "/app/requestSetDefaultPayChannel"})
     public RequestSetDefaultPayChannelResult requestSetDefaultPayChannel(@ModelAttribute CommonFormRequest request) {
         log.info("IF8A-24 请求设置默认支付通道, 请求参数: {}", request);
         return accountAppService.requestSetDefaultPayChannel(parseBizData(request, RequestSetDefaultPayChannelReqDTO.class));
     }
 
-    /**
-     * IF8A-77 更换第三方渠道码默认支付方式。
-     */
-    @PostMapping("/requestUpdateChannelDefaultContract")
-    public RequestUpdateChannelDefaultContractResult requestUpdateChannelDefaultContract(
-            @ModelAttribute CommonFormRequest request) {
+    @PostMapping({"/ci/app/requestUpdateChannelDefaultContract", "/app/requestUpdateChannelDefaultContract"})
+    public RequestUpdateChannelDefaultContractResult requestUpdateChannelDefaultContract(@ModelAttribute CommonFormRequest request) {
         log.info("IF8A-77 更换第三方渠道码默认支付方式, 请求参数: {}", request);
-        return accountAppService.requestUpdateChannelDefaultContract(
-                parseBizData(request, RequestUpdateChannelDefaultContractReqDTO.class));
+        return accountAppService.requestUpdateChannelDefaultContract(parseBizData(request, RequestUpdateChannelDefaultContractReqDTO.class));
     }
 
-    /**
-     * 查询员工码信息。
-     */
-    @PostMapping("/employeeCard/query")
+    @PostMapping({"/ci/app/employeeCard/query", "/app/employeeCard/query"})
     public EmployeeCardQueryResult queryEmployeeCard(@ModelAttribute CommonFormRequest request) {
         EmployeeCardQueryReqDTO bizData = parseBizData(request, EmployeeCardQueryReqDTO.class);
         log.info("员工码信息查询, cardNo={}", bizData.getCardNo());
         return accountAppService.queryEmployeeCard(bizData);
+    }
+
+    @PostMapping({"/ci/app/requestRemovePayChannel", "/app/requestRemovePayChannel"})
+    public RequestRemovePayChannelResult requestRemovePayChannel(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-25 删除支付通道, 请求参数: {}", request);
+        return accountAppService.requestRemovePayChannel(parseBizData(request, RequestRemovePayChannelReqDTO.class));
     }
 }

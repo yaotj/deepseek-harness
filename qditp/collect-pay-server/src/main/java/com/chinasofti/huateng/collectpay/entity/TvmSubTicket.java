@@ -1,8 +1,11 @@
 package com.chinasofti.huateng.collectpay.entity;
 
+import lombok.Data;
+
 /**
  * TVM出票明细记录表实体（tbl_tvm_sub_ticket）。
  */
+@Data
 public class TvmSubTicket {
     /**
      * 主键ID。
@@ -29,64 +32,6 @@ public class TvmSubTicket {
      */
     private String transAmount;
     private String createTime;
+    private String rsv2;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getMainTicketId() {
-        return mainTicketId;
-    }
-
-    public void setMainTicketId(String mainTicketId) {
-        this.mainTicketId = mainTicketId;
-    }
-
-    public String getTicketLogicNum() {
-        return ticketLogicNum;
-    }
-
-    public void setTicketLogicNum(String ticketLogicNum) {
-        this.ticketLogicNum = ticketLogicNum;
-    }
-
-    public String getTransDate() {
-        return transDate;
-    }
-
-    public void setTransDate(String transDate) {
-        this.transDate = transDate;
-    }
-
-    public String getTransAmount() {
-        return transAmount;
-    }
-
-    public void setTransAmount(String transAmount) {
-        this.transAmount = transAmount;
-    }
-
-    public String getCreateTime() {
-        return createTime;
-    }
-
-    public void setCreateTime(String createTime) {
-        this.createTime = createTime;
-    }
-
-    @Override
-    public String toString() {
-        return "TvmSubTicket{" +
-                "id=" + id +
-                ", mainTicketId=" + mainTicketId +
-                ", ticketLogicNum='" + ticketLogicNum + '\'' +
-                ", transDate='" + transDate + '\'' +
-                ", transAmount='" + transAmount + '\'' +
-                ", createTime='" + createTime + '\'' +
-                '}';
-    }
 }

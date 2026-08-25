@@ -1,0 +1,396 @@
+{
+  "version": 1,
+  "updatedAt": "2026-08-19T05:49:55.521Z",
+  "projects": {
+    "8379611": {
+      "branches": {
+        "8520261": {
+          "projectId": 8379611,
+          "branchId": 8520261,
+          "name": "ai/20260819-from-main-fep-app-sync",
+          "branchKind": "ai",
+          "branchType": "SPRINT",
+          "sourceBranchId": 8146709,
+          "isAiBranch": true,
+          "isAiWritableBranch": true,
+          "automationLifecycleStatus": "ACTIVE",
+          "isArchived": false,
+          "fetchedAt": "2026-08-19T05:49:55.521Z",
+          "lastKnownStatus": "ACTIVE"
+        }
+      },
+      "lastGuardError": {
+        "type": "guard_error",
+        "projectId": 8379611,
+        "message": "Automation caller branch required",
+        "createdAt": "2026-08-19T05:49:28.633Z"
+      },
+      "recentEvents": [
+        {
+          "type": "guard_error",
+          "projectId": 8379611,
+          "message": "Automation caller branch required",
+          "createdAt": "2026-08-19T05:49:23.369Z"
+        },
+        {
+          "type": "guard_error",
+          "projectId": 8379611,
+          "message": "Automation caller branch required",
+          "createdAt": "2026-08-19T05:49:23.944Z"
+        },
+        {
+          "type": "guard_error",
+          "projectId": 8379611,
+          "message": "Automation caller branch required",
+          "createdAt": "2026-08-19T05:49:24.082Z"
+        },
+        {
+          "type": "guard_error",
+          "projectId": 8379611,
+          "message": "Automation caller branch required",
+          "createdAt": "2026-08-19T05:49:24.864Z"
+        },
+        {
+          "type": "guard_error",
+          "projectId": 8379611,
+          "message": "Automation caller branch required",
+          "createdAt": "2026-08-19T05:49:25.665Z"
+        },
+        {
+          "type": "guard_error",
+          "projectId": 8379611,
+          "message": "Automation caller branch required",
+          "createdAt": "2026-08-19T05:49:26.396Z"
+        },
+        {
+          "type": "guard_error",
+          "projectId": 8379611,
+          "message": "Automation caller branch required",
+          "createdAt": "2026-08-19T05:49:27.163Z"
+        },
+        {
+          "type": "guard_error",
+          "projectId": 8379611,
+          "message": "Automation caller branch required",
+          "createdAt": "2026-08-19T05:49:27.865Z"
+        },
+        {
+          "type": "guard_error",
+          "projectId": 8379611,
+          "message": "Automation caller branch required",
+          "createdAt": "2026-08-19T05:49:28.633Z"
+        },
+        {
+          "type": "branch_recorded",
+          "projectId": 8379611,
+          "branchId": 8520261,
+          "sourceBranchId": 8146709,
+          "createdAt": "2026-08-19T05:49:55.521Z"
+        }
+      ]
+    }
+  },
+  "recentEvents": [
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:43.481Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:44.172Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:44.858Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:45.616Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:46.331Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:47.244Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:47.945Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:48.749Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:49.549Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:50.299Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:50.974Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:51.677Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:52.348Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:53.073Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:53.782Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:54.572Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:55.272Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:55.988Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:56.720Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:57.395Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:58.116Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:58.851Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:48:59.577Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:00.307Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:11.632Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:12.400Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:13.141Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:13.815Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:14.536Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:15.268Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:16.035Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:16.789Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:17.525Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:18.311Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:18.990Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:19.721Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:20.476Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:21.171Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:21.872Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:22.582Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:23.369Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:23.944Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:24.082Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:24.864Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:25.665Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:26.396Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:27.163Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:27.865Z"
+    },
+    {
+      "type": "guard_error",
+      "projectId": 8379611,
+      "message": "Automation caller branch required",
+      "createdAt": "2026-08-19T05:49:28.633Z"
+    },
+    {
+      "type": "branch_recorded",
+      "projectId": 8379611,
+      "branchId": 8520261,
+      "sourceBranchId": 8146709,
+      "createdAt": "2026-08-19T05:49:55.521Z"
+    }
+  ]
+}

@@ -6,16 +6,19 @@ package com.chinasofti.huateng.model.ticket.enums;
  */
 public enum QRCodeStatusEnum {
 
+    /** 01 - 无交易 */
+    NO_TXN("01", "无交易"),
+
     /** 02 - 结束行程 */
     END_TRIP("02", "结束行程"),
 
     /** 03 - 初始化 */
     SJT_ISSUE("03", "初始化"),
 
-    /** 04 - 已进站（entry） */
+    /** 04 - 已进站 */
     ENTRY("04", "已进站"),
 
-    /** 05 - 已出站（exit） */
+    /** 05 - 已出站 */
     EXIT("05", "已出站"),
 
     /** 06 - 超时出站 */
@@ -30,11 +33,17 @@ public enum QRCodeStatusEnum {
     /** 10 - 入站码更新 */
     UPDATE_ENTRY("10", "入站码更新"),
 
+    /** 70 - 异常 */
+    ABNORMAL("70", "异常"),
+
     /** 80 - APP自助补出站更新 */
     SELF_SERVICE_EXIT("80", "APP自助补出站更新"),
 
     /** 81 - APP自助补进站更新 */
-    SELF_SERVICE_ENTRY("81", "APP自助补进站更新");
+    SELF_SERVICE_ENTRY("81", "APP自助补进站更新"),
+
+    /** FF - 进站失败 */
+    ENTRY_FAIL("FF", "进站失败");
 
     private final String code;
     private final String desc;

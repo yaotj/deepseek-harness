@@ -55,4 +55,10 @@ public class AddBlackListReqDTO {
     public void setReason(String reason) {
         this.reason = reason;
     }
+
+    @Override
+    public String toString() {
+        return "AddBlackListReqDTO{cardId='" + cardId + "', thirdUserId='" + thirdUserId
+                + "', cardType='" + cardType + "', reason='" + reason + "'}";
+    }
 }

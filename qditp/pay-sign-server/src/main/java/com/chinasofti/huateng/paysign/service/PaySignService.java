@@ -8,6 +8,8 @@ import com.chinasofti.huateng.model.app.RequestPayResult;
 import com.chinasofti.huateng.model.app.RequestRefundReqDTO;
 import com.chinasofti.huateng.model.app.RequestRefundResult;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripAddContractReqDTO;
+import com.chinasofti.huateng.model.app.RequestAgreeReleaseReqDTO;
+import com.chinasofti.huateng.model.app.RequestAgreeReleaseResult;
 import com.chinasofti.huateng.model.app.RequestSignInfoReqDTO;
 import com.chinasofti.huateng.model.app.RequestSignInfoResult;
 import com.chinasofti.huateng.model.paysign.PaySignInfoDTO;
@@ -18,9 +20,7 @@ import com.chinasofti.huateng.paysign.model.request.RequestTerminationReqDTO;
 import com.chinasofti.huateng.paysign.model.response.BaseRespDTO;
 import com.chinasofti.huateng.paysign.model.response.RequestContractAdvisoryRespDTO;
 import com.chinasofti.huateng.paysign.model.response.RequestContractResultRespDTO;
-import com.chinasofti.huateng.paysign.model.response.RequestSignInfoRespDTO;
 import com.chinasofti.huateng.paysign.model.response.RequestTerminationRespDTO;
-import org.springframework.web.bind.annotation.RequestBody;
 
 public interface PaySignService {
     RequestSignInfoResult requestSignInfo(RequestSignInfoReqDTO request, String signChannel);
@@ -40,6 +40,13 @@ public interface PaySignService {
 
     RequestTerminationRespDTO requestTermination(RequestTerminationReqDTO request, String signChannel);
 
+    /**
+     * IF8A-36 请求移除签约信息。
+     *
+     * <p>与解约不同，移除签约不请求支付系统，直接更新签约记录状态为解约成功。</p>
+     */
+    RequestAgreeReleaseResult removeSignAgreement(RequestAgreeReleaseReqDTO request, String signChannel);
+
     RequestPayResult requestPay(RequestPayReqDTO request);
 
     RequestRefundResult requestRefund(RequestRefundReqDTO request);
@@ -51,4 +58,21 @@ public interface PaySignService {
     BaseRespDTO receiveTerminationResult(ReceiveTerminationResultReqDTO request, String signChannel);
 
     PaySignInfoDTO querySignInfoBySeq(String requestSignSeq);
+
+    /**
+     * 更新用户签约展示账号（如更换手机号时同步更新）。
+     *
+     * @param thirdUserId 第三方用户ID
+     * @param displayAccount 新的展示账号
+     * @return 是否更新成功
+     */
+    boolean updateDisplayAccountByThirdUserId(String thirdUserId, String displayAccount);
+
+    /**
+     * IF8A-05 批量查询支付明细（供 ticket-server 双源合并）。
+     *
+     * @param request 订单号列表请求
+     * @return 支付明细结果包装
+     */
+    com.chinasofti.huateng.model.app.RequestPayTxnBatchResult queryPayTxnBatch(com.chinasofti.huateng.model.app.QueryPayTxnBatchReqDTO request);
 }

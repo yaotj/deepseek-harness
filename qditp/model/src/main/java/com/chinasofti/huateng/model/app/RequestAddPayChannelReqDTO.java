@@ -55,4 +55,11 @@ public class RequestAddPayChannelReqDTO {
     public void setReqContractNo(String reqContractNo) {
         this.reqContractNo = reqContractNo;
     }
+
+    @Override
+    public String toString() {
+        return "RequestAddPayChannelReqDTO{thirdUserId='" + thirdUserId + "', cardId='" + cardId
+                + "', cardType='" + cardType + "', channel='" + channel + "', thirdPayId='" + thirdPayId
+                + "', reqContractNo='" + reqContractNo + "'}";
+    }
 }

@@ -40,7 +40,7 @@ public class TicketClient extends ProxyWebClient {
 
     @Override
     protected Duration getResponseTimeout() {
-        return Duration.ofSeconds(30);
+        return Duration.ofSeconds(10);
     }
 
     public RegisterRideStatusRespDTO registerRideStatus(@RequestBody RegisterRideStatusReqDTO request) {

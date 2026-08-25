@@ -37,4 +37,10 @@ public class RequestUpdateChannelDefaultContractReqDTO {
     public void setRegSignSeq(String regSignSeq) {
         this.regSignSeq = regSignSeq;
     }
+
+    @Override
+    public String toString() {
+        return "RequestUpdateChannelDefaultContractReqDTO{thirdUserId='" + thirdUserId + "', channel='" + channel
+                + "', cardIssueCode='" + cardIssueCode + "', regSignSeq='" + regSignSeq + "'}";
+    }
 }

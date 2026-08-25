@@ -182,13 +182,9 @@ public class TvmAppOrderController {
         RequestPayResultReqDTO request = TransforUtils.copyBaseParams(baseRequest, RequestPayResultReqDTO.class);
         log.info("转换后请求参数为 {}", request);
 
-        if (request == null || !StringUtils.hasText(request.getUserId())) {
-            log.info("参数校验失败，userId为空");
-            return AppOrderResult.fail("8003", "非法参数");
-        }
         if (!StringUtils.hasText(request.getOrderNo())) {
             log.info("参数校验失败，orderNo为空");
-            return AppOrderResult.fail("8003", "非法参数");
+            return AppOrderResult.fail("8003", "非法参数,orderNo不能为空");
         }
 
         return appOrderService.requestRefundTicket(request);

@@ -34,6 +34,7 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult;
+import com.chinasofti.huateng.model.enums.CardTypeCodeEnum;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -57,7 +58,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
     private static final String RET_SUCCESS = "0000";
     private static final String RET_FAIL = "9999";
     private static final String ORDER_TYPE_DAILY_TICKET = "1";
-    private static final String CODE_TICKET_TYPE = "0441";
 
     private final AtomicInteger orderSequence = new AtomicInteger(1);
     private final DailyTicketPayGatewayClient payGatewayClient;
@@ -481,7 +481,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         ticket.setCardNum(request.getCardNum());
         ticket.setCardIssue(request.getCardIssue());
         ticket.setAppCardType(order.getCardType());
-        ticket.setCodeTicketType(CODE_TICKET_TYPE);
+        ticket.setCodeTicketType(CardTypeCodeEnum.QR_POSTPAID.getCode());
         ticket.setTicketType(request.getTicketType());
         ticket.setShowType(request.getShowType());
         ticket.setTicketCode(request.getTicketCode());
@@ -546,12 +546,12 @@ public class DailyTicketServiceImpl implements DailyTicketService {
     @Override
     public QueryDailyTicketInfoResult queryDailyTicketInfo(QueryDailyTicketInfoReqDTO request) {
         QueryDailyTicketInfoResult result = new QueryDailyTicketInfoResult();
-        if (request == null || !StringUtils.hasText(request.getOrderNo())) {
-            result.setRetCode("9999");
-            result.setRetMsg("orderNo不能为空");
-            return result;
+        DailyTicketInstance instance = null;
+        if (StringUtils.hasText(request.getCardId())) {
+            instance = instanceMapper.selectByCardNum(request.getCardId());
+        } else if (StringUtils.hasText(request.getOrderNo())) {
+            instance = instanceMapper.selectByOrderNo(request.getOrderNo());
         }
-        DailyTicketInstance instance = instanceMapper.selectByOrderNo(request.getOrderNo());
         if (instance == null) {
             result.setRetCode("0000");
             result.setRetMsg("成功");
@@ -562,6 +562,66 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         result.setTicketCode(instance.getTicketCode());
         result.setActualTimes(instance.getActualTimes());
         return result;
+    }
+
+    @Override
+    public DailyTicketBaseResult validateEntryCheck(String cardNum) {
+        DailyTicketBaseResult result = new DailyTicketBaseResult();
+        if (!StringUtils.hasText(cardNum)) {
+            return fail(result, "cardNum不能为空");
+        }
+        DailyTicketInstance instance = instanceMapper.selectForEntryCheck(cardNum);
+        if (instance == null) {
+            // 无有效日票实例，返回失败但允许闸机走常规流程
+            log.info("日票进站校验：无有效日票实例, cardNum={}", cardNum);
+            return fail(result, "无有效日票记录");
+        }
+        long now = System.currentTimeMillis();
+        if (instance.getCountingStart() != null && now < instance.getCountingStart()) {
+            log.warn("日票进站校验：未激活, cardNum={}, countingStart={}", cardNum, instance.getCountingStart());
+            return fail(result, "日票尚未激活");
+        }
+        if (instance.getCountingEnd() != null && now > instance.getCountingEnd()) {
+            log.warn("日票进站校验：已过期, cardNum={}, countingEnd={}", cardNum, instance.getCountingEnd());
+            return fail(result, "日票已过期");
+        }
+        // 计次票次数检查（仅校验，不扣减；扣减在出站时执行）
+        Integer actualTimes = instance.getActualTimes();
+        if (actualTimes != null && actualTimes <= 0) {
+            log.warn("日票进站校验：计次票次数已用完, cardNum={}", cardNum);
+            return fail(result, "计次票次数已用完");
+        }
+        return success(result);
+    }
+
+    @Override
+    public DailyTicketBaseResult markUsed(String cardNum, Long countingEnd) {
+        DailyTicketBaseResult result = new DailyTicketBaseResult();
+        if (!StringUtils.hasText(cardNum)) {
+            return fail(result, "cardNum不能为空");
+        }
+        DailyTicketInstance instance = instanceMapper.selectByCardNum(cardNum);
+        if (instance == null) {
+            log.warn("日票出站：无有效日票实例, cardNum={}", cardNum);
+            return fail(result, "无有效日票记录");
+        }
+        Date now = new Date();
+        // 计次票扣减一次次数（atomic，下限为0）
+        if (instance.getActualTimes() != null && instance.getActualTimes() > 0) {
+            int updated = instanceMapper.decreaseActualTimes(cardNum, now);
+            log.info("日票出站：计次票扣次, cardNum={}, 剩余次数={}", cardNum,
+                    instance.getActualTimes() - (updated > 0 ? 1 : 0));
+        }
+        // 标记已使用
+        instance.setTicketStatus("USED");
+        instance.setCountingEnd(countingEnd);
+        instance.setFirstUseTime(now);
+        instance.setAccNoticeStatus("SUCCESS");
+        instance.setAccNoticeTime(now);
+        instance.setUpdateTime(now);
+        instanceMapper.markUsed(instance);
+        log.info("日票出站：标记已使用, cardNum={}, countingEnd={}", cardNum, countingEnd);
+        return success(result);
     }
 
     private void markPaySuccess(DailyTicketOrder order, String tradeNo, String paymentOrderNo,

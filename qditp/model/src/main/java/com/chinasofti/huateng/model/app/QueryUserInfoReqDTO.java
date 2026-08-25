@@ -28,4 +28,9 @@ public class QueryUserInfoReqDTO {
     public void setCardType(String cardType) {
         this.cardType = cardType;
     }
+
+    @Override
+    public String toString() {
+        return "QueryUserInfoReqDTO{thirdUserId='" + thirdUserId + "', cardId='" + cardId + "', cardType='" + cardType + "'}";
+    }
 }

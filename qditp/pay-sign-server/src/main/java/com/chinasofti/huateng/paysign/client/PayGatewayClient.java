@@ -2,6 +2,7 @@ package com.chinasofti.huateng.paysign.client;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONWriter;
+import com.chinasofti.huateng.paysign.exception.PayGatewayException;
 import com.chinasofti.huateng.paysign.config.PaySignProperties;
 import com.chinasofti.huateng.paysign.model.request.PaySignGatewayRequest;
 import com.chinasofti.huateng.paysign.model.response.PaySignGatewayResponse;
@@ -49,12 +50,11 @@ public class PayGatewayClient {
     }
 
     /**
-     * 调用支付网关。传输或协议异常以 {@code null} 表示，由调用方转换为统一业务错误码。
+     * 调用支付网关。传输或协议异常以 {@code PayGatewayException} 抛出，由调用方处理。
      */
     public PaySignGatewayResponse request(String path, Map<String, Object> bizData) {
         if (!StringUtils.hasText(properties.getGatewayUrl())) {
-            log.error("支付网关地址未配置, path={}", path);
-            return null;
+            throw new PayGatewayException("支付网关地址未配置, path=" + path);
         }
         try {
             String bizDataJson = JSON.toJSONString(bizData);
@@ -67,17 +67,14 @@ public class PayGatewayClient {
 
             try (Response httpResponse = httpClient.newCall(httpRequest).execute()) {
                 if (!httpResponse.isSuccessful() || httpResponse.body() == null) {
-                    log.error("调用支付网关失败, path={}, httpCode={}", path, httpResponse.code());
-                    return null;
+                    throw new PayGatewayException("调用支付网关失败, path=" + path + ", httpCode=" + httpResponse.code());
                 }
                 return JSON.parseObject(httpResponse.body().string(), PaySignGatewayResponse.class);
             }
-        } catch (IOException e) {
-            log.error("调用支付网关网络异常, path={}", path, e);
-            return null;
+        } catch (PayGatewayException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("组装或签名支付网关请求异常, path={}", path, e);
-            return null;
+            throw new PayGatewayException("调用支付网关异常, path=" + path, e);
         }
     }
 

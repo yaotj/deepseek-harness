@@ -15,6 +15,7 @@ import com.chinasofti.huateng.model.app.RequestContractResultReqDTO;
 import com.chinasofti.huateng.model.app.RequestContractResultResult;
 import com.chinasofti.huateng.model.app.RequestPayReqDTO;
 import com.chinasofti.huateng.model.app.RequestPayResult;
+import com.chinasofti.huateng.model.app.RequestPayTxnBatchResult;
 import com.chinasofti.huateng.model.app.RequestRefundReqDTO;
 import com.chinasofti.huateng.model.app.RequestRefundResult;
 import com.chinasofti.huateng.model.app.RequestSignInfoReqDTO;
@@ -22,12 +23,16 @@ import com.chinasofti.huateng.model.app.RequestSignInfoResult;
 import com.chinasofti.huateng.model.app.RequestTerminationReqDTO;
 import com.chinasofti.huateng.model.app.RequestTerminationResult;
 import com.chinasofti.huateng.model.paysign.PaySignInfoDTO;
+import com.chinasofti.huateng.model.paysign.PayTxnDetailDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.reactive.function.client.WebClient;
+
+import java.time.Duration;
+import java.util.List;
 
 /**
  * @author zzm
@@ -41,6 +46,11 @@ public class PaySignClient extends ProxyWebClient {
 
     public PaySignClient(@Value("${service.paySign.url:pay-sign-service}") String baseUrl, @Value("${service.paySign.openLogger:true}") boolean openLogger, WebClient.Builder webClientBuilder) {
         super(baseUrl, openLogger, webClientBuilder);
+    }
+
+    @Override
+    protected Duration getResponseTimeout() {
+        return Duration.ofSeconds(30);
     }
 
     /**
@@ -165,4 +175,44 @@ public class PaySignClient extends ProxyWebClient {
         return JSONUtil.toBean(result, RequestContractResultResult.class, true);
     }
 
+    /**
+     * IF8A-05 批量查询支付明细（供 ticket-server 双源合并）。
+     */
+    public RequestPayTxnBatchResult queryPayTxnBatch(@RequestBody com.chinasofti.huateng.model.app.QueryPayTxnBatchReqDTO request) {
+        String result = postJsonAndGetResponse("/ci/app/queryPayTxnBatch", request);
+        RequestPayTxnBatchResult batchResult = JSONUtil.toBean(result, new TypeReference<RequestPayTxnBatchResult>() {
+        }, true);
+        if (batchResult == null) {
+            RequestPayTxnBatchResult errorResult = new RequestPayTxnBatchResult();
+            errorResult.setRetCode("9999");
+            errorResult.setRetMsg("批量查询支付明细响应为空");
+            return errorResult;
+        }
+        // 如果 retCode 不是 0000，统一返回 9999，并将原始 retCode 追加到 retMsg 中便于排查
+        if (!"0000".equals(batchResult.getRetCode())) {
+            String originalRetCode = batchResult.getRetCode();
+            batchResult.setRetCode("9999");
+            String originalRetMsg = batchResult.getRetMsg();
+            if (originalRetMsg == null || originalRetMsg.isEmpty()) {
+                batchResult.setRetMsg("批量查询支付明细失败 [" + originalRetCode + "]");
+            } else {
+                batchResult.setRetMsg(originalRetMsg + " [" + originalRetCode + "]");
+            }
+        }
+        return batchResult;
+    }
+
+    /**
+     * 更新用户签约展示账号（如更换手机号时同步更新）。
+     */
+    public boolean updatePaySignDisplayAccount(String thirdUserId, String displayAccount) {
+        String url = "/ci/app/updateDisplayAccount?thirdUserId=" + thirdUserId + "&displayAccount=" + displayAccount;
+        String result = getAndGetResponse(url, new java.util.HashMap<>());
+        if (result == null || result.isEmpty()) {
+            return false;
+        }
+        cn.hutool.json.JSONObject wrapper = JSONUtil.parseObj(result);
+        String code = wrapper.getStr("retCode");
+        return "0000".equals(code);
+    }
 }

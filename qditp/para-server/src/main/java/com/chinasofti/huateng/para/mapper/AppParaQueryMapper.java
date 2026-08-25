@@ -2,6 +2,7 @@ package com.chinasofti.huateng.para.mapper;
 
 import com.chinasofti.huateng.model.app.LineCodeRecordDTO;
 import com.chinasofti.huateng.model.app.RequestStationLineInfoDTO;
+import com.chinasofti.huateng.model.app.RequestStationNameResult;
 import com.chinasofti.huateng.model.app.StationCodeRecordDTO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -61,4 +62,12 @@ public interface AppParaQueryMapper {
      * @return 车站名称、所属线路代码、线路名称
      */
     RequestStationLineInfoDTO selectStationLineInfo(@Param("stationCode") String stationCode);
+
+    /**
+     * 批量根据车站代码查询当前路网参数版本的车站中文名称。
+     *
+     * @param stationCodes 车站代码列表
+     * @return 车站名称结果列表
+     */
+    List<RequestStationNameResult> selectStationNameBatch(@Param("stationCodes") List<String> stationCodes);
 }

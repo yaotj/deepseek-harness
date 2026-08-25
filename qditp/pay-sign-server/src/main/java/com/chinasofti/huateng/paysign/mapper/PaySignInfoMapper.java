@@ -26,6 +26,10 @@ public interface PaySignInfoMapper {
                             @Param("thirdUserId") String thirdUserId,
                             @Param("paymentVendor") String paymentVendor);
 
+    // 新增：根据用户ID批量更新签约展示账号
+    int updateDisplayAccountByThirdUserId(@Param("thirdUserId") String thirdUserId,
+                                         @Param("displayAccount") String displayAccount);
+
     // 废弃：原有的 upsert/MERGE
     // int upsert(PaySignInfo record);
 }

@@ -98,4 +98,13 @@ public class ReceiveTerminationResultReqDTO {
     public void setDismissalTime(String dismissalTime) {
         this.dismissalTime = dismissalTime;
     }
+
+    @Override
+    public String toString() {
+        return "ReceiveTerminationResultReqDTO{thirdUserId='" + thirdUserId + "', cardId='" + cardId
+                + "', cardType='" + cardType + "', requestSignSeq='" + requestSignSeq
+                + "', agreementNo='" + agreementNo + "', payAgreementNo='" + payAgreementNo
+                + "', paymentVendor='" + paymentVendor + "', status='" + status
+                + "', dismissalTime='" + dismissalTime + "'}";
+    }
 }

@@ -1,6 +1,8 @@
 package com.chinasofti.huateng.paysign.service;
 
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripAddContractReqDTO;
+import com.chinasofti.huateng.model.app.RequestAgreeReleaseReqDTO;
+import com.chinasofti.huateng.model.app.RequestAgreeReleaseResult;
 import com.chinasofti.huateng.model.app.RequestSignInfoReqDTO;
 import com.chinasofti.huateng.model.app.RequestSignInfoResult;
 import com.chinasofti.huateng.paysign.model.request.RequestContractAdvisoryReqDTO;
@@ -26,4 +28,11 @@ public interface ContractDomainService {
     RequestContractResultRespDTO requestContractResult(RequestContractResultReqDTO request, String signChannel);
 
     RequestTerminationRespDTO requestTermination(RequestTerminationReqDTO request, String signChannel);
+
+    /**
+     * IF8A-36 请求移除签约信息。
+     *
+     * <p>与解约不同，移除签约不请求支付系统，直接更新签约记录状态为解约成功。</p>
+     */
+    RequestAgreeReleaseResult removeSignAgreement(RequestAgreeReleaseReqDTO request, String signChannel);
 }

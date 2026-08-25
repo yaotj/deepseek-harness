@@ -44,4 +44,10 @@ public class RequestStationLineInfoDTO {
     public void setLineName(String lineName) {
         this.lineName = lineName;
     }
+
+    @Override
+    public String toString() {
+        return "RequestStationLineInfoDTO{stationCode='" + stationCode + "', stationName='" + stationName
+                + "', lineCode='" + lineCode + "', lineName='" + lineName + "'}";
+    }
 }

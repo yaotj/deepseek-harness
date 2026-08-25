@@ -2,15 +2,18 @@ package com.chinasofti.huateng.fep.app.service.impl;
 
 import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
+import com.chinasofti.huateng.model.utils.SignChannelUtils;
 import com.chinasofti.huateng.fep.app.service.IndustryDataService;
 import com.chinasofti.huateng.model.app.IndustryCardDataBuildReqDTO;
 import com.chinasofti.huateng.model.app.IndustryCardDataBuildRespDTO;
+import com.chinasofti.huateng.model.app.CardTypeMapping;
 import com.chinasofti.huateng.model.app.QueryUserInfoReqDTO;
 import com.chinasofti.huateng.model.app.QueryUserInfoResult;
 import com.chinasofti.huateng.model.app.RequestIndustryDataReqDTO;
 import com.chinasofti.huateng.model.app.RequestIndustryDataResult;
 import com.chinasofti.huateng.model.app.RequestNoSignalDataReqDTO;
 import com.chinasofti.huateng.model.app.RequestNoSignalDataResult;
+import com.chinasofti.huateng.model.enums.CardTypeCodeEnum;
 import com.chinasofti.huateng.model.ticket.QueryStatusReqDTO;
 import com.chinasofti.huateng.model.ticket.QueryStatusRespDTO;
 import com.chinasofti.huateng.rpc.account.AccountClient;
@@ -111,7 +114,7 @@ public class IndustryDataServiceImpl implements IndustryDataService {
             }
 
             IndustryCardDataBuildReqDTO cardDataRequest = buildCardDataRequest(
-                    request, qrStatus, signChannelCode, userInfo.getCardIssueCode());
+                        request, qrStatus, signChannelCode, userInfo.getCardIssueCode());
             log.info("IF8A-03调用industry-data-server生成卡数据, request={}", JSON.toJSONString(cardDataRequest));
             IndustryCardDataBuildRespDTO cardDataResp = industryDataClient.buildCardData(cardDataRequest);
             log.info("IF8A-03调用industry-data-server生成卡数据完成, response={}", JSON.toJSONString(cardDataResp));
@@ -161,13 +164,8 @@ public class IndustryDataServiceImpl implements IndustryDataService {
                 return response;
             }
 
-            String signChannelCode = resolveSignChannelCode(userInfo.getChannel());
-            if (!StringUtils.hasText(signChannelCode)) {
-                response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
-                response.setRetMsg("用户签约渠道不能为空");
-                log.warn("IF8D_03用户签约渠道为空, userInfo={}", JSON.toJSONString(userInfo));
-                return response;
-            }
+            // 离线码请求统一使用 signChannelCode=17（离线码）
+            String signChannelCode = "17";
 
             QueryStatusRespDTO qrStatus = queryTicketStatus(request);
             if (qrStatus == null) {
@@ -265,19 +263,14 @@ public class IndustryDataServiceImpl implements IndustryDataService {
     }
 
     private String resolveSignChannelCode(String channel) {
-        if (!StringUtils.hasText(channel)) {
-            return null;
-        }
-        String normalized = channel.trim();
-        return normalized.length() >= 2 ? normalized.substring(0, 2) : normalized;
+        return SignChannelUtils.resolve(channel);
     }
 
     /**
      * HCE 卡数据由开户和闸机交易维护，不参与二维码行业数据生成与签名。
      */
     private boolean isHceCard(String cardType) {
-        return StringUtils.hasText(cardType)
-                && ("0442".equals(cardType.trim()) || "0443".equals(cardType.trim()));
+        return CardTypeCodeEnum.isHceCard(cardType);
     }
 
     /**
@@ -297,7 +290,7 @@ public class IndustryDataServiceImpl implements IndustryDataService {
         cardDataRequest.setGateInStation(qrStatus.getGateInStation());
         cardDataRequest.setGateInTime(qrStatus.getGateInTime());
         cardDataRequest.setTxnSeq(qrStatus.getTxnSeq());
-        cardDataRequest.setIssueChannelCode(resolveIssueChannelCode(cardIssueCode));
+        cardDataRequest.setIssueChannelCode(resolveIssueChannelCode(request.getCardType(), cardIssueCode));
         cardDataRequest.setSignChannelCode(signChannelCode);
         return cardDataRequest;
     }
@@ -318,7 +311,7 @@ public class IndustryDataServiceImpl implements IndustryDataService {
         cardDataRequest.setGateInStation(qrStatus.getGateInStation());
         cardDataRequest.setGateInTime(qrStatus.getGateInTime());
         cardDataRequest.setTxnSeq(txnSeq);
-        cardDataRequest.setIssueChannelCode(resolveIssueChannelCode(cardIssueCode));
+        cardDataRequest.setIssueChannelCode(resolveIssueChannelCode(request.getCardType(), cardIssueCode));
         cardDataRequest.setSignChannelCode(signChannelCode);
         log.info("IF8D_03调用industry-data-server生成离线码数据, request={}", JSON.toJSONString(cardDataRequest));
         IndustryCardDataBuildRespDTO cardDataResp = industryDataClient.buildCardData(cardDataRequest);
@@ -326,7 +319,10 @@ public class IndustryDataServiceImpl implements IndustryDataService {
         return cardDataResp;
     }
 
-    private String resolveIssueChannelCode(String cardIssueCode) {
+    private String resolveIssueChannelCode(String cardType, String cardIssueCode) {
+        if (CardTypeMapping.isAiShanDong(cardType)) {
+            return "01";
+        }
         return StringUtils.hasText(cardIssueCode) ? cardIssueCode.trim() : issueChannelCode;
     }
 

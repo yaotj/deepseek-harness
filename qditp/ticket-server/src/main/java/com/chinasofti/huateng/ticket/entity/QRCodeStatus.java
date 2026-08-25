@@ -129,4 +129,23 @@ public class QRCodeStatus {
     public void setTrxAmount(Long trxAmount) {
         this.trxAmount = trxAmount;
     }
+
+    @Override
+    public String toString() {
+        return "QRCodeStatus{" +
+                "cardId='" + cardId + '\'' +
+                ", useCount=" + useCount +
+                ", channel='" + channel + '\'' +
+                ", codeStatus='" + codeStatus + '\'' +
+                ", gateInTime='" + gateInTime + '\'' +
+                ", gateInStation='" + gateInStation + '\'' +
+                ", lastTxnTime='" + lastTxnTime + '\'' +
+                ", lastTxnStation='" + lastTxnStation + '\'' +
+                ", txnSeq='" + txnSeq + '\'' +
+                ", createTime=" + createTime +
+                ", updateTime=" + updateTime +
+                ", gateStatus='" + gateStatus + '\'' +
+                ", trxAmount=" + trxAmount +
+                '}';
+    }
 }

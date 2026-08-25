@@ -64,4 +64,12 @@ public class AppSignResultNotifyReqDTO {
     public void setRealNameAuthResult(String realNameAuthResult) {
         this.realNameAuthResult = realNameAuthResult;
     }
+
+    @Override
+    public String toString() {
+        return "AppSignResultNotifyReqDTO{thirdUserId='" + thirdUserId + "', requestSignSeq='" + requestSignSeq
+                + "', paymentVendor='" + paymentVendor + "', payAccountId='" + payAccountId
+                + "', payAgreementNo='" + payAgreementNo + "', signResult='" + signResult
+                + "', realNameAuthResult='" + realNameAuthResult + "'}";
+    }
 }

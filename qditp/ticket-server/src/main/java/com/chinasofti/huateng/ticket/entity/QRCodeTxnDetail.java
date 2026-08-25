@@ -213,4 +213,32 @@ public class QRCodeTxnDetail {
     public void setCreateTime(LocalDateTime createTime) {
         this.createTime = createTime;
     }
+
+    @Override
+    public String toString() {
+        return "QRCodeTxnDetail{" +
+                "id=" + id +
+                ", deviceId='" + deviceId + '\'' +
+                ", cardId='" + cardId + '\'' +
+                ", cardType='" + cardType + '\'' +
+                ", trxType='" + trxType + '\'' +
+                ", issueChannelCode='" + issueChannelCode + '\'' +
+                ", signChannelCode='" + signChannelCode + '\'' +
+                ", handleDateTime='" + handleDateTime + '\'' +
+                ", txnDate='" + txnDate + '\'' +
+                ", handleStationCode='" + handleStationCode + '\'' +
+                ", handleStationName='" + handleStationName + '\'' +
+                ", trxAmount=" + trxAmount +
+                ", overtimeAmount=" + overtimeAmount +
+                ", lastTicketStatus='" + lastTicketStatus + '\'' +
+                ", handleResultCode='" + handleResultCode + '\'' +
+                ", lastHandleStationCode='" + lastHandleStationCode + '\'' +
+                ", lastHandleStationName='" + lastHandleStationName + '\'' +
+                ", lastHandleDateTime='" + lastHandleDateTime + '\'' +
+                ", ticketTransSeq='" + ticketTransSeq + '\'' +
+                ", reserve1='" + (reserve1 != null && reserve1.length() > 8 ? reserve1.substring(0, 8) + "..." : reserve1) + '\'' +
+                ", reserve2='" + reserve2 + '\'' +
+                ", createTime=" + createTime +
+                '}';
+    }
 }

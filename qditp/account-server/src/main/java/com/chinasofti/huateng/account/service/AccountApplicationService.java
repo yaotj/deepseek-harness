@@ -93,4 +93,13 @@ public interface AccountApplicationService {
      * @return 更新结果
      */
     UpdateHceDataResult updateHceData(UpdateHceDataReqDTO request);
+
+    /**
+     * 更换手机号。
+     *
+     * @param thirdUserId 第三方用户ID
+     * @param newMsisdn   新手机号
+     * @return 是否成功
+     */
+    boolean updatePhone(String thirdUserId, String newMsisdn);
 }

@@ -1,17 +1,19 @@
 package com.chinasofti.huateng.collectpay.service.impl;
 
 import com.alibaba.fastjson.JSONObject;
+import com.chinasofti.huateng.collectpay.common.ItpCommon;
 import com.chinasofti.huateng.collectpay.common.PayCenterCommon;
 import com.chinasofti.huateng.collectpay.config.PayCenterProperties;
 import com.chinasofti.huateng.collectpay.constant.*;
 import com.chinasofti.huateng.collectpay.entity.AppRefundOrder;
-import com.chinasofti.huateng.collectpay.entity.BomRefundOrder;
-import com.chinasofti.huateng.collectpay.entity.RefundOrder;
 import com.chinasofti.huateng.collectpay.entity.TvmAppOrder;
 import com.chinasofti.huateng.collectpay.mapper.AppRefundOrderMapper;
 import com.chinasofti.huateng.collectpay.mapper.TvmAppOrderMapper;
+import com.chinasofti.huateng.collectpay.mapper.TvmNoticeAppMapper;
 import com.chinasofti.huateng.collectpay.mapper.TvmOrderPreMapper;
+import com.chinasofti.huateng.collectpay.model.request.AppCommonRequest;
 import com.chinasofti.huateng.collectpay.model.request.PayCenterRequest;
+import com.chinasofti.huateng.collectpay.model.request.app.NoticeAppRefundDTO;
 import com.chinasofti.huateng.collectpay.model.request.app.RequestOrderReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.app.RequestPayInfoReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.app.RequestQueryActiveOrderReqDTO;
@@ -21,16 +23,18 @@ import com.chinasofti.huateng.collectpay.model.request.tvm.RequestPayResultReqDT
 import com.chinasofti.huateng.collectpay.model.response.PayCenterResponse;
 import com.chinasofti.huateng.collectpay.model.response.app.AppActiveOrderModel;
 import com.chinasofti.huateng.collectpay.model.response.app.AppOrderResult;
+import com.chinasofti.huateng.collectpay.model.response.paycenter.PayCenterResult;
 import com.chinasofti.huateng.collectpay.model.response.tvm.TvmOrderResult;
 import com.chinasofti.huateng.collectpay.service.AppOrderService;
 import com.chinasofti.huateng.collectpay.service.PayCenterService;
 import com.chinasofti.huateng.collectpay.service.TvmCommonService;
-import com.chinasofti.huateng.collectpay.utils.DateUtils;
-import com.chinasofti.huateng.collectpay.utils.TransforUtils;
+import com.chinasofti.huateng.collectpay.utils.*;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ObjectUtils;
@@ -71,7 +75,13 @@ public class AppOrderServiceImpl implements AppOrderService {
     @Autowired
     TvmCommonService tvmCommonService;
     @Autowired
+    TvmNoticeAppMapper tvmNoticeAppMapper;
+    @Autowired
+    HttpUtils httpUtils;
+    @Autowired
     Environment environment;
+    @Resource(name = "tvmexecutor")
+    ThreadPoolTaskExecutor executor;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -116,18 +126,18 @@ public class AppOrderServiceImpl implements AppOrderService {
 
         if (!validatePayInfoRequest(request)) {
             log.info("2.参数校验失败");
-            return AppOrderResult.fail("8001", "非法参数");
+            return AppOrderResult.failMessage("非法参数");
         }
 
         TvmAppOrder order = tvmAppOrderMapper.selectByOrderNo(request.getOrderNo());
         if (order == null) {
             log.info("2.订单不存在, orderNo={}", request.getOrderNo());
-            return AppOrderResult.fail("8006", "订单号错误");
+            return AppOrderResult.failMessage("订单号错误");
         }
 
         if (!ItpStatusEnum.PAYING.getCode().equals(order.getPayStatus())) {
             log.info("2.订单状态异常, payStatus={}", order.getPayStatus());
-            return AppOrderResult.fail("8999", "订单状态异常");
+            return AppOrderResult.failMessage("订单状态异常");
         }
 
         log.info("查询到订单 order is {}", order);
@@ -161,7 +171,6 @@ public class AppOrderServiceImpl implements AppOrderService {
                 paymentInfo = getStringFromData(data, "data");
                 signType = "00";
                 sign = "";
-                // todo 此处为支付中心返回的订单号
                 merchantOrderNo = getStringFromData(data, "orderNo");
             }
         }
@@ -185,13 +194,13 @@ public class AppOrderServiceImpl implements AppOrderService {
         String orderNo = request.getOrderNo();
         if (!validatePayResultRequest(request)) {
             log.info("2.参数校验失败");
-            return AppOrderResult.fail("8003", "非法参数");
+            return AppOrderResult.failMessage("非法参数");
         }
 
         TvmAppOrder order = tvmAppOrderMapper.selectByOrderNo(orderNo);
         if (order == null) {
             log.info("2.订单不存在, orderNo={}", orderNo);
-            return AppOrderResult.fail("8006", "订单号错误");
+            return AppOrderResult.failMessage("订单号错误");
         }
 
         if (ItpStatusEnum.SUCCESS.getCode().equals(order.getPayStatus())) {
@@ -232,6 +241,7 @@ public class AppOrderServiceImpl implements AppOrderService {
                 String payCenterOrderNo = getStringFromData(data, "payCenterOrderNo");
                 String payAmount = getStringFromData(data, "amount");
                 String payTime = getStringFromData(data, "payTime");
+                String payChannelCode = TransforUtils.getStringFromData(data, "paymentVendor");
 
                 if (PayCenterStatusEnum.SUCCESS.getCode().equals(status)) {
                     log.info("5.查询到支付成功");
@@ -241,12 +251,14 @@ public class AppOrderServiceImpl implements AppOrderService {
                     updateParams.put("msg", ItpStatusEnum.SUCCESS.getDesc());
                     updateParams.put("payCenterOrderNo", payCenterOrderNo);
                     updateParams.put("payCenterChannelOrderNo", payCenterChannelOrderNo);
+                    updateParams.put("payChannelCode", payChannelCode);
                     updateParams.put("payAmount", payAmount);
                     updateParams.put("payTime", payTime);
                     updateParams.put("updateTime", nowTime);
                     tvmAppOrderMapper.updateByOrderNo(updateParams);
 
-                    return AppOrderResult.successPayResult(payCenterChannelOrderNo, "SUCCESS", payAmount, DateUtils.getNowTimeByFormat(DATE_yyyyMMddHHmmss));
+
+                    return AppOrderResult.successPayResult(payCenterChannelOrderNo, AppStatusEnum.PAY_SUCCESS.getCode(), payAmount, DateUtils.getNowTimeByFormat(DATE_yyyyMMddHHmmss));
                 } else if ("3".equals(status)) {
                     log.info("5.查询到支付失败");
                     Map<String, String> updateParams = new HashMap<>();
@@ -260,7 +272,7 @@ public class AppOrderServiceImpl implements AppOrderService {
                     updateParams.put("updateTime", nowTime);
                     tvmAppOrderMapper.updateByOrderNo(updateParams);
 
-                    return AppOrderResult.successPayResult(payCenterChannelOrderNo, "FAIL", payAmount, "");
+                    return AppOrderResult.successPayResult(payCenterChannelOrderNo, AppStatusEnum.PAY_FAIL.getCode(), payAmount, "");
                 }
             }
         }
@@ -388,17 +400,17 @@ public class AppOrderServiceImpl implements AppOrderService {
         log.info("app下单 order is {}", order);
         if (order == null) {
             log.info("2.app下单 支付结果通知 订单不存在, orderNo={}", request.getOrderNo());
-            return TvmOrderResult.fail(TvmPayCodeEnum.ORDER_NO_ERROR.getCode(), TvmPayCodeEnum.ORDER_NO_ERROR.getMsg());
+            return PayCenterResult.fail(PayCenterErrorCodeEnum.ORDER_NOT_EXIST.getCode(), PayCenterErrorCodeEnum.ORDER_NOT_EXIST.getMsg());
         }
 
         if (ItpStatusEnum.SUCCESS.getCode().equals(order.getPayStatus())) {
             log.info("2.app下单 支付结果通知 数据库查询结果为支付成功，直接返回");
-            TvmOrderResult.success();
+            return PayCenterResult.success();
         }
 
         if (ItpStatusEnum.FAILED.getCode().equals(order.getPayStatus())) {
             log.info("2.app下单 支付结果通知 数据库查询结果为支付失败，直接返回");
-            TvmOrderResult.success();
+            return PayCenterResult.success();
         }
 
         log.info("当前订单数据库没有确定的支付结果，开始修改数据库状态");
@@ -413,8 +425,8 @@ public class AppOrderServiceImpl implements AppOrderService {
         String payCenterChannelOrderNo = request.getChannelOrderNo();
         String payAmount = request.getTotalAmount();
         String payTime = request.getPayTime();
+        String payChannelCode = request.getPaymentVendor();
 
-        // todo 确认状态码
         if (PayCenterStatusEnum.SUCCESS.getCode().equals(status)) {
             log.info("5.app下单 支付结果通知  支付成功");
             Map<String, String> updateParams = new HashMap<>();
@@ -426,11 +438,12 @@ public class AppOrderServiceImpl implements AppOrderService {
             updateParams.put("payAmount", payAmount);
             updateParams.put("payTime", payTime);
             updateParams.put("updateTime", DateUtils.getNowTime());
+            updateParams.put("payChannelCode", payChannelCode);
             tvmAppOrderMapper.updateByOrderNo(updateParams);
 
             // todo 通知app支付结果
 
-            return TvmOrderResult.success();
+            return PayCenterResult.success();
         } else if (PayCenterStatusEnum.FAILED.getCode().equals(status)) {
             log.info("5.app下单 支付结果通知  支付失败");
             Map<String, String> updateParams = new HashMap<>();
@@ -446,10 +459,10 @@ public class AppOrderServiceImpl implements AppOrderService {
 
             // todo 通知app支付结果
 
-            return TvmOrderResult.success();
+            return PayCenterResult.success();
         } else {
             log.info("app下单 支付结果通知 支付状态不明确，不做处理");
-            return TvmOrderResult.fail();
+            return PayCenterResult.fail();
         }
     }
 
@@ -461,17 +474,20 @@ public class AppOrderServiceImpl implements AppOrderService {
         TvmAppOrder appOrder = tvmAppOrderMapper.selectByOrderNo(payOrderNo);
         log.info("2.appOrder is {}", appOrder);
         if (ObjectUtils.isEmpty(appOrder)) {
-            return AppOrderResult.fail(AppCodeEnum.FAIL.getCode(), "该订单无支付记录，不可退款");
+            return AppOrderResult.failMessage("该订单无支付记录，不可退款");
         }
         String refundAmount = appOrder.getPayAmount();
 
         log.info("开始发起退款");
 
-        return this.doRefund(payOrderNo, refundAmount);
+        return this.doRefund(payOrderNo, refundAmount, OrderCommonUtils.getRefundNo(), BusinessTypeEnum.APP_REFUND.getCode());
     }
 
-    public JSONObject doRefund(String payOrderNo, String refundAmount) {
+    @Override
+    public JSONObject doRefund(String payOrderNo, String refundAmount, String refundNo, String businessType) {
         try {
+
+            log.info("payOrderNo is {}   refundAmount is {} refundNo is {}", payOrderNo, refundAmount, refundNo);
 
             JSONObject result = new JSONObject();
             result.put("orderNo", payOrderNo);
@@ -479,14 +495,10 @@ public class AppOrderServiceImpl implements AppOrderService {
             result.put("refundDate", getNowDate());
             result.put("refundAmount", refundAmount);
             String appRefundNoticeUrl = environment.getProperty("pay.center.app-refund-notice-url");
-            log.info("appRefundNoticeUrl is {}",appRefundNoticeUrl);
+            log.info("appRefundNoticeUrl is {}", appRefundNoticeUrl);
             result.put("notifyUrl", appRefundNoticeUrl);
 
-            log.info("payOrderNo is {}   refundAmount is {} ", payOrderNo, refundAmount);
-
             String now = DateUtils.getNowTime();
-            // 1. 生成退款单号
-            String refundNo = "RF" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")) + UUID.randomUUID().toString().substring(0, 6);
 
             // 2. 保存退款记录
             AppRefundOrder refundOrder = new AppRefundOrder();
@@ -516,6 +528,36 @@ public class AppOrderServiceImpl implements AppOrderService {
                 result.put("refundResult", "PROCESSING");
                 result.put("refundResultDesc", "退款进行中");
 
+                executor.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        BaseResult baseResult = tvmCommonService.getPayCenterRefundResult(refundNo);
+                        log.info("退款查询业务处理结束，baseResult is {}", baseResult);
+                        if (baseResult.getErrorCode() == BaseResult.SUCCESS) {
+
+                            JSONObject refundResultInfo = JSONObject.parseObject(baseResult.getData().toString());
+                            String refundStatus = refundResultInfo.get("status").toString();
+                            String refundTime = refundResultInfo.get("refundTime").toString();
+                            String refundDate = refundTime.substring(0, 8);
+                            boolean b = dealAppRefundResult(payOrderNo, refundNo, refundStatus, refundTime);
+                            log.info("app处理退款业务逻辑结束 b is {}", b);
+
+                            // 如果是扫码取票业务-tvm故障通知发起的退款，在查询到退款结果后要通知app退款结果
+                            if (StringUtils.equals(businessType, BusinessTypeEnum.TVM_SCAN_QR_TAKETICKET.getCode())) {
+                                // 如果是，则认为发起过退款
+                                if (b) {
+                                    int i = saveNoticeAppRefundResultRecord(payOrderNo, refundAmount);
+                                    log.info("保存通知app退款记录结束 i is {}", i);
+                                    // 这里retryTimes写死为1，因为明确这里是第一次发送
+                                    boolean b1 = noticeAppRefundResult(payOrderNo, refundStatus, refundDate, refundAmount, "1");
+                                    log.info("通知app退款结束 b1 is {}", b1);
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // 退款发起成功不修改退款状态，在支付中心发起退款通知并退款成功时再修改 receiveRefundResult接口
                 return AppOrderResult.successData(result);
 
             } else {
@@ -541,6 +583,71 @@ public class AppOrderServiceImpl implements AppOrderService {
         }
     }
 
+    private int saveNoticeAppRefundResultRecord(String orderNo, String refundAmount) {
+
+        Map<String, String> saveMap = new HashMap<>();
+        saveMap.put("orderNo", orderNo);
+        saveMap.put("refundType", "01");
+        saveMap.put("refundResult", ItpStatusEnum.REFUND_SUCCESS.getCode());
+        saveMap.put("refundResultDesc", ItpStatusEnum.REFUND_SUCCESS.getDesc());
+        saveMap.put("refundDate", DateUtils.getNowTimeByFormat("yyyyMMdd"));
+        saveMap.put("refundAmount", refundAmount);
+        saveMap.put("status", ItpCommon.NOTICE_INIT);
+        saveMap.put("createTime", DateUtils.getNowTime());
+        saveMap.put("retryTimes", "0");
+        int i = tvmNoticeAppMapper.insertRefundNotice(saveMap);
+        log.info("通知app记录保存成功 i is {}", i);
+        return i;
+    }
+
+
+    @Override
+    // 扫码取票业务 通知app退款结果
+    public boolean noticeAppRefundResult(String payOrderNo, String refundResult, String refundDate, String refundAmount, String retryTimes) {
+
+        boolean b = false;
+        log.info("开始通知app退款结果");
+        String refundResultDesc = "";
+        if (StringUtils.equals(refundResult, AppStatusEnum.REFUND_SUCCESS.getCode())) {
+            refundResultDesc = "refundResultDesc";
+        }
+        if (StringUtils.equals(refundResult, AppStatusEnum.REFUND_FAIL.getCode())) {
+            refundResultDesc = "refundResultDesc";
+        }
+        AppCommonRequest<NoticeAppRefundDTO> request = payCenterCommon.buildNoticeAppRefundResultRequest(payOrderNo, refundResult, refundResultDesc, refundDate, refundAmount);
+
+        log.info("开始通知app退款 request is {}", request.toString());
+        String noticeAppRefundResultUrl = environment.getProperty("pay.center.notice-app-refundresult-url");
+        log.info("noticeAppRefundResultUrl is {}", noticeAppRefundResultUrl);
+
+        String httpResult = httpUtils.doPostFormData(noticeAppRefundResultUrl, request);
+
+        log.info("请求通知app退款结束 httpResult is {}", httpResult);
+        JSONObject httpResultJson = (JSONObject) JSONObject.parse(httpResult);
+        String retCode = String.valueOf(httpResultJson.get("retCode"));
+        log.info("请求通知app退款结束 retCode is {}", retCode);
+
+        Map<String, Object> upMap = new HashMap<>();
+        upMap.put("orderNo", payOrderNo);
+        upMap.put("updateTime", DateUtils.getNowTime());
+        // 此处是第一次推送，所以写死为1
+        upMap.put("retryTimes", retryTimes);
+
+        // 如果收到成功则修改数据库
+        if (StringUtils.equals(AppCodeEnum.SUCCESS.getCode(), retCode)) {
+            log.info("通知成功，修改通知记录状态为成功");
+            upMap.put("status", ItpCommon.NOTICE_SUCCESS);
+            b = true;
+        } else {
+            log.info("通知失败，修改通知状态为失败");
+            upMap.put("status", ItpCommon.NOTICE_FAIL);
+        }
+
+        int i = tvmNoticeAppMapper.updateRefundNoticeByOrderNo(upMap);
+        log.info("修改通知记录状态结束 i is {}", i);
+        return b;
+    }
+
     private String getNowDate() {
         return new SimpleDateFormat("yyyyMMdd").format(new Date());
     }
@@ -559,6 +666,52 @@ public class AppOrderServiceImpl implements AppOrderService {
         return result;
     }
 
+    private boolean dealAppRefundResult(String payOrderNo, String refundNo, String refundStatus, String refundTime) {
+
+        boolean b = false;
+        String nowTime = DateUtils.getNowTime();
+        if (StringUtils.equals(refundStatus, PayCenterRefundStatusEnum.REFUND_SUCCESS.getCode())) {
+            log.info("查询到app退款成功的结果");
+
+            Map<String, String> upRefundOrder = new HashMap<>();
+            upRefundOrder.put("refundNo", refundNo);
+            upRefundOrder.put("refundStatus", ItpStatusEnum.REFUND_SUCCESS.getCode());
+            upRefundOrder.put("refundMsg", ItpStatusEnum.REFUND_SUCCESS.getDesc());
+            upRefundOrder.put("refundTime", refundTime);
+            upRefundOrder.put("updateTime", nowTime);
+
+            int iRefund = appRefundOrderMapper.updateByRefundNo(upRefundOrder);
+            log.info("app退款成功，修改退款订单结束 i is {}", iRefund);
+
+            Map<String, String> upPayMap = new HashMap<>();
+            upPayMap.put("orderNo", payOrderNo);
+            upPayMap.put("rsv2", refundNo);
+            upPayMap.put("updateTime", nowTime);
+            int iPay = tvmAppOrderMapper.updateByOrderNo(upPayMap);
+            log.info("退款成功，修改原支付订单结束 i is {}", iPay);
+
+            // 返回itp的退款成功码
+            b = true;
+
+        } else if (StringUtils.equals(refundStatus, PayCenterRefundStatusEnum.REFUNDING_FAIL.getCode())) {
+            log.info("查询到app退款状态为 退款失败");
+            Map<String, String> upRefundOrder = new HashMap<>();
+            upRefundOrder.put("refundNo", refundNo);
+            upRefundOrder.put("refundStatus", ItpStatusEnum.REFUNDING_FAIL.getCode());
+            upRefundOrder.put("refundMsg", ItpStatusEnum.REFUNDING_FAIL.getDesc());
+            upRefundOrder.put("updateTime", nowTime);
+
+            int iRefund = appRefundOrderMapper.updateByRefundNo(upRefundOrder);
+            log.info("app退款失败，修改退款订单结束 i is {}", iRefund);
+
+            b = true;
+        } else {
+            log.info("查询到app退款状态为 退款中/不明确 不做处理");
+        }
+        return b;
+    }
+
+
     @Override
     public JSONObject requestRefundTicketResult(RequestPayResultReqDTO request) {
 
@@ -569,7 +722,7 @@ public class AppOrderServiceImpl implements AppOrderService {
         AppRefundOrder appRefundOrder = appRefundOrderMapper.selectByRefundNo(refundRrderNo);
 
         if (ObjectUtils.isEmpty(appRefundOrder)) {
-            return AppOrderResult.fail(AppCodeEnum.FAIL.getCode(), "没有找到对应退款记录");
+            return AppOrderResult.failMessage("没有找到对应退款记录");
         }
 
         JSONObject result = new JSONObject();
@@ -579,13 +732,13 @@ public class AppOrderServiceImpl implements AppOrderService {
         result.put("refundAmount", appRefundOrder.getRefundAmount());
 
         if (StringUtils.equals(appRefundOrder.getRefundStatus(), ItpStatusEnum.REFUND_SUCCESS.getCode())) {
-            result.put("refundResult", "SUCCESS");
-            result.put("refundResultDesc", "退款成功");
+            result.put("refundResult", AppStatusEnum.REFUND_SUCCESS.getCode());
+            result.put("refundResultDesc", AppStatusEnum.REFUND_SUCCESS.getDesc());
             return AppOrderResult.successData(result);
         } else if (StringUtils.equals(appRefundOrder.getRefundStatus(), ItpStatusEnum.REFUND_ING.getCode())) {
 
             // 查询支付平台的退款结果
-            PayCenterResponse payCenterResponse =tvmCommonService.queryRefundResult(refundRrderNo);
+            PayCenterResponse payCenterResponse = tvmCommonService.queryRefundResult(refundRrderNo);
 
             if (payCenterResponse != null && StringUtils.equals(payCenterResponse.getCode(), PayCenterErrorCodeEnum.SUCCESS.getCode())) {
 
@@ -595,7 +748,7 @@ public class AppOrderServiceImpl implements AppOrderService {
 
                 log.info("开始处理退款结果");
                 // 处理退款结果
-                String itpStatus = dealRefundResult(appRefundOrder.getPayOrderNo(), refundRrderNo, refundResult,refundTime);
+                String itpStatus = dealRefundResult(appRefundOrder.getPayOrderNo(), refundRrderNo, refundResult, refundTime);
 
                 log.info("退款结果处理结束 itpStatus is {}", itpStatus);
 
@@ -604,10 +757,10 @@ public class AppOrderServiceImpl implements AppOrderService {
                     result.put("refundResultDesc", AppStatusEnum.REFUND_SUCCESS.getDesc());
                     return AppOrderResult.successData(result);
                 } else if (StringUtils.equals(itpStatus, ItpStatusEnum.REFUNDING_FAIL.getCode())) {
-                    result.put("refundResult",AppStatusEnum.REFUND_FAIL.getCode());
-                    result.put("refundResultDesc",AppStatusEnum.REFUND_FAIL.getDesc());
+                    result.put("refundResult", AppStatusEnum.REFUND_FAIL.getCode());
+                    result.put("refundResultDesc", AppStatusEnum.REFUND_FAIL.getDesc());
                     return AppOrderResult.successData(result);
-                }else {
+                } else {
                     result.put("refundResult", AppStatusEnum.REFUND_ING.getCode());
                     result.put("refundResultDesc", AppStatusEnum.REFUND_ING.getDesc());
                     return AppOrderResult.successData(result);
@@ -617,16 +770,14 @@ public class AppOrderServiceImpl implements AppOrderService {
                 log.info("查询失败，不做处理");
             }
         } else {
-            result.put("refundResult", "FAIL");
-            result.put("refundResultDesc", "退款失败");
+            result.put("refundResult", AppStatusEnum.REFUND_FAIL.getCode());
+            result.put("refundResultDesc", AppStatusEnum.REFUND_FAIL.getDesc());
             return AppOrderResult.successData(result);
         }
-        result.put("refundResult", "FAIL");
-        result.put("refundResultDesc", "退款失败");
+        result.put("refundResult", AppStatusEnum.REFUND_FAIL.getCode());
+        result.put("refundResultDesc", AppStatusEnum.REFUND_FAIL.getDesc());
         return AppOrderResult.failData(result);
     }
-
-
 
 
     @Override
@@ -690,17 +841,17 @@ public class AppOrderServiceImpl implements AppOrderService {
 
         // itp数据库的退款状态
         String dbRefundStatus = appRefundOrder.getRefundStatus();
-        if(StringUtils.equals(dbRefundStatus,ItpStatusEnum.REFUND_SUCCESS.getCode())){
+        if (StringUtils.equals(dbRefundStatus, ItpStatusEnum.REFUND_SUCCESS.getCode())) {
             log.info("数据库查询到 明确的退款成功，直接返回");
             return AppOrderResult.success();
         }
-        if(StringUtils.equals(dbRefundStatus,ItpStatusEnum.REFUNDING_FAIL.getCode())){
+        if (StringUtils.equals(dbRefundStatus, ItpStatusEnum.REFUNDING_FAIL.getCode())) {
             log.info("数据库查询到 退款失败结果，直接返回");
             return AppOrderResult.success();
         }
 
         log.info("开始处理业务");
-        String itpStatus = dealRefundResult(appRefundOrder.getPayOrderNo(), refundNo, refundResult,refundTime);
+        String itpStatus = dealRefundResult(appRefundOrder.getPayOrderNo(), refundNo, refundResult, refundTime);
         log.info("业务处理结束 itpStatus is {}", itpStatus);
 
         if (StringUtils.equals(itpStatus, ItpStatusEnum.REFUND_SUCCESS.getCode())) {
@@ -709,15 +860,13 @@ public class AppOrderServiceImpl implements AppOrderService {
         } else if (StringUtils.equals(itpStatus, ItpStatusEnum.REFUNDING_FAIL.getCode())) {
             log.info("退款失败 处理结束 ");
             return AppOrderResult.success();
-        }else {
+        } else {
             log.info("退款中 处理结束 ");
             return AppOrderResult.success();
         }
-
-
     }
 
-    private String dealRefundResult(String payOrderNo, String refundNo, String refundResult,String refundTime) {
+    private String dealRefundResult(String payOrderNo, String refundNo, String refundResult, String refundTime) {
 
         String nowTime = DateUtils.getNowTime();
         if (StringUtils.equals(refundResult, PayCenterRefundStatusEnum.REFUND_SUCCESS.getCode())) {

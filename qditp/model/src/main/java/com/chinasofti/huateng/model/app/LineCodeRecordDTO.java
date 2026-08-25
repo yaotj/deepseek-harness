@@ -20,5 +20,12 @@ public class LineCodeRecordDTO {
     public String getLineNameEN() { return lineNameEN; }
     public void setLineNameEN(String lineNameEN) { this.lineNameEN = lineNameEN; }
     public String getOrderIndex() { return orderIndex; }
-    public void setOrderIndex(String orderIndex) { this.orderIndex = orderIndex; }
+    public void setOrderIndex(String orderIndex) {
+        this.orderIndex = orderIndex;
+    }
+
+    @Override
+    public String toString() {
+        return "LineCodeRecordDTO{lineCode='" + lineCode + "', lineNameZH='" + lineNameZH + "', lineNameEN='" + lineNameEN + "', orderIndex='" + orderIndex + "'}";
+    }
 }

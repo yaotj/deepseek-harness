@@ -7,6 +7,16 @@
         <result column="TRANS_DATE" jdbcType="VARCHAR" property="transDate"/>
         <result column="TRANS_AMOUNT" jdbcType="VARCHAR" property="transAmount"/>
         <result column="create_Time" jdbcType="VARCHAR" property="createTime"/>
+        <result column="RSV2" jdbcType="VARCHAR" property="rsv2"/>
+    </resultMap>
+
+    <resultMap id="SubBaseResultMap" type="com.chinasofti.huateng.collectpay.entity.SubTicket">
+        <result column="MAIN_TICKET_ID" jdbcType="BIGINT" property="mainTicketId"/>
+        <result column="TICKET_LOGIC_NUM" jdbcType="VARCHAR" property="ticketLogicNum"/>
+        <result column="TRANS_DATE" jdbcType="VARCHAR" property="transDate"/>
+        <result column="TRANS_AMOUNT" jdbcType="VARCHAR" property="transAmount"/>
+        <result column="create_Time" jdbcType="VARCHAR" property="createTime"/>
+        <result column="businessType" jdbcType="VARCHAR" property="businessType"/>
     </resultMap>
 
     <sql id="Base_Column_List">
@@ -57,7 +67,36 @@
             #{item.transDate,jdbcType=VARCHAR},
             #{item.transAmount,jdbcType=VARCHAR}
             #{item.createTime,jdbcType=VARCHAR}
+            )select
+            <include refid="Base_Column_List"/>
+            from TBL_TVM_SUB_TICKET
+            where TICKET_LOGIC_NUM = #{ticketLogicNum,jdbcType=VARCHAR}
+            and TRANS_DATE = #{transDate,jdbcType=VARCHAR}
+            and create_Time = (select max(create_Time) from TBL_TVM_SUB_TICKET
+            where TICKET_LOGIC_NUM = #{ticketLogicNum,jdbcType=VARCHAR}
+            and TRANS_DATE = #{transDate,jdbcType=VARCHAR}
             )
         </foreach>
     </insert>
+
+    <select id="selectSubTickettByCondition" parameterType="map" resultMap="SubBaseResultMap">
+        SELECT MAIN_TICKET_ID, TICKET_LOGIC_NUM, TRANS_DATE, TRANS_AMOUNT,create_Time,businessType FROM (
+        select
+        MAIN_TICKET_ID, TICKET_LOGIC_NUM, TRANS_DATE, TRANS_AMOUNT,create_Time,'tvm' AS businessType
+        from TBL_TVM_SUB_TICKET
+        where UPPER(TICKET_LOGIC_NUM) = UPPER(#{ticketLogicNum,jdbcType=VARCHAR})
+        UNION all
+        select
+        MAIN_TICKET_ID, TICKET_LOGIC_NUM, TRANS_DATE, TRANS_AMOUNT,create_Time,'bom' AS businessType
+        from TBL_BOM_SUB_TICKET
+        where UPPER(TICKET_LOGIC_NUM) = UPPER(#{ticketLogicNum,jdbcType=VARCHAR}))
+        WHERE TRANS_DATE = #{transDate,jdbcType=VARCHAR}
+    </select>
+
+    <update id="updateByTicketLogicNum" parameterType="java.util.Map">
+        update TBL_BOM_SUB_TICKET
+        set rsv2 = #{rsv2,jdbcType=VARCHAR}
+        where UPPER(TICKET_LOGIC_NUM) = UPPER(#{ticketLogicNum,jdbcType=VARCHAR})
+    </update>
+
 </mapper>

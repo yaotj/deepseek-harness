@@ -134,4 +134,14 @@ public class AccountClient extends ProxyWebClient {
         }, true);
     }
 
+    /**
+     * 更换手机号。
+     */
+    public CommonResult updatePhone(String thirdUserId, String newMsisdn) {
+        String url = "/updatePhone?thirdUserId=" + thirdUserId + "&newMsisdn=" + newMsisdn;
+        String result = getAndGetResponse(url, new java.util.HashMap<>());
+        return JSONUtil.toBean(result, new TypeReference<CommonResult>() {
+        }, true);
+    }
+
 }

@@ -132,4 +132,23 @@
             UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
         where CARD_NUM = #{cardNum,jdbcType=VARCHAR}
     </update>
+
+    <!-- 进站校验：查询日票实例状态及有效期 -->
+    <select id="selectForEntryCheck" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from DAILY_TICKET_INSTANCE
+        where CARD_NUM = #{cardNum,jdbcType=VARCHAR}
+          and TICKET_STATUS != 'USED'
+        order by CREATE_TIME desc
+        fetch first 1 rows only
+    </select>
+
+    <!-- 计次票扣减可用次数（atomic update，防止并发超扣） -->
+    <update id="decreaseActualTimes">
+        update DAILY_TICKET_INSTANCE
+        set ACTUAL_TIMES = ACTUAL_TIMES - 1,
+            UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        where CARD_NUM = #{cardNum,jdbcType=VARCHAR}
+          and ACTUAL_TIMES > 0
+    </update>
 </mapper>

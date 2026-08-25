@@ -21,10 +21,20 @@ public class RequestTransListReqDTO {
     private String debitRequestResult;
     /** 日票票号 */
     private String ticketCode;
-    /** 分页偏移量（服务端计算，非APP传入） */
-    private int offset;
-    /** 分页限制（服务端计算，非APP传入） */
-    private int limit;
+    /**
+     * 服务端计算的分页偏移量。
+     *
+     * @deprecated 使用 {@link com.chinasofti.huateng.model.app.QueryTransListReqDTO#getOffset()}
+     */
+    @Deprecated
+    private Integer offset;
+    /**
+     * 服务端计算的分页限制。
+     *
+     * @deprecated 使用 {@link com.chinasofti.huateng.model.app.QueryTransListReqDTO#getLimit()}
+     */
+    @Deprecated
+    private Integer limit;
 
     public String getThirdUserId() { return thirdUserId; }
     public void setThirdUserId(String thirdUserId) { this.thirdUserId = thirdUserId; }

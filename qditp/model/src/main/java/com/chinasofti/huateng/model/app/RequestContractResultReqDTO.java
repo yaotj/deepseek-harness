@@ -28,4 +28,10 @@ public class RequestContractResultReqDTO {
     public void setPaymentVendor(String paymentVendor) {
         this.paymentVendor = paymentVendor;
     }
+
+    @Override
+    public String toString() {
+        return "RequestContractResultReqDTO{thirdUserId='" + thirdUserId + "', requestSignSeq='" + requestSignSeq
+                + "', paymentVendor='" + paymentVendor + "'}";
+    }
 }

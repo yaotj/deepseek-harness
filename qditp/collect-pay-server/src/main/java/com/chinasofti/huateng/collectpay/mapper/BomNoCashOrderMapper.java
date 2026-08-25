@@ -40,6 +40,9 @@ public interface BomNoCashOrderMapper {
      */
     int updateByOrderNo(Map<String, String> params);
 
-    // 单程票退款
+    // 单程票退款 弃用 这个方法只限制了bom订单，改为全类型
     int insertTicketRefund(RequestTicketRefundReqDTO dto);
+
+    // 单程票退款
+    int insertTicketRefundRecord(RequestTicketRefundReqDTO dto);
 }

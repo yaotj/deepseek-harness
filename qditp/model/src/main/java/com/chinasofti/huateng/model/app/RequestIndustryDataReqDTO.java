@@ -28,4 +28,9 @@ public class RequestIndustryDataReqDTO {
     public void setCardType(String cardType) {
         this.cardType = cardType;
     }
+
+    @Override
+    public String toString() {
+        return "RequestIndustryDataReqDTO{thirdUserId='" + thirdUserId + "', cardId='" + cardId + "', cardType='" + cardType + "'}";
+    }
 }

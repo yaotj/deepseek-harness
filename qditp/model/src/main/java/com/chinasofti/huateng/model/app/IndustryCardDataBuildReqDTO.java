@@ -103,4 +103,14 @@ public class IndustryCardDataBuildReqDTO {
     public void setSignChannelCode(String signChannelCode) {
         this.signChannelCode = signChannelCode;
     }
+
+    @Override
+    public String toString() {
+        return "IndustryCardDataBuildReqDTO{thirdUserId='" + thirdUserId + "', cardId='" + cardId
+                + "', cardType='" + cardType + "', ticketStatus='" + ticketStatus
+                + "', lastTxnStation='" + lastTxnStation + "', lastTxnTime='" + lastTxnTime
+                + "', gateInStation='" + gateInStation + "', gateInTime='" + gateInTime
+                + "', txnSeq='" + txnSeq + "', issueChannelCode='" + issueChannelCode
+                + "', signChannelCode='" + signChannelCode + "'}";
+    }
 }

@@ -164,4 +164,11 @@
         where CARD_ID = #{cardId,jdbcType=VARCHAR}
           and DEL_YN = 1
     </update>
+
+    <update id="updateMsisdnByThirdUserId">
+        update USER_ITP_REG_INFO
+        set MSISDN = #{msisdn,jdbcType=VARCHAR}
+        where THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+          and DEL_YN = 1
+    </update>
 </mapper>

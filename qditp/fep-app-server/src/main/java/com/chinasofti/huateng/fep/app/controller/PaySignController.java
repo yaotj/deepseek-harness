@@ -1,0 +1,135 @@
+package com.chinasofti.huateng.fep.app.controller;
+
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
+import com.chinasofti.huateng.fep.app.model.CommonFormRequest;
+import com.chinasofti.huateng.fep.app.service.PaySignAppService;
+import com.chinasofti.huateng.model.app.PaySignCallbackResult;
+import com.chinasofti.huateng.model.app.QueryPayTxnBatchReqDTO;
+import com.chinasofti.huateng.model.app.ReceivePayResultReqDTO;
+import com.chinasofti.huateng.model.app.ReceiveSignResultReqDTO;
+import com.chinasofti.huateng.model.app.ReceiveTerminationResultReqDTO;
+import com.chinasofti.huateng.model.app.RequestContractResultReqDTO;
+import com.chinasofti.huateng.model.app.RequestContractResultResult;
+import com.chinasofti.huateng.model.app.RequestPayReqDTO;
+import com.chinasofti.huateng.model.app.RequestPayResult;
+import com.chinasofti.huateng.model.app.RequestPayTxnBatchResult;
+import com.chinasofti.huateng.model.app.RequestSignInfoReqDTO;
+import com.chinasofti.huateng.model.app.RequestSignInfoResult;
+import com.chinasofti.huateng.model.app.RequestTerminationReqDTO;
+import com.chinasofti.huateng.model.app.RequestTerminationResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * APP 支付签约相关接口入口。
+ *
+ * <p>所有接口透传到 pay-sign-server。</p>
+ */
+@RestController
+public class PaySignController extends BaseAppController {
+    private static final Logger log = LoggerFactory.getLogger(PaySignController.class);
+
+    private final PaySignAppService paySignAppService;
+
+    public PaySignController(PaySignAppService paySignAppService) {
+        this.paySignAppService = paySignAppService;
+    }
+
+    @PostMapping({"/ci/app/requestPay", "/app/payment/requestPay"})
+    public RequestPayResult requestPay(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-19 请求支付, 请求参数: {}", request);
+        RequestPayReqDTO dto = parseBizData(request, RequestPayReqDTO.class);
+        if (dto.getScene() == null) {
+            JSONObject bizData = JSON.parseObject(request.getBizData());
+            if (bizData.containsKey("channelType")) {
+                dto.setScene(bizData.getString("channelType"));
+            }
+        }
+        if (dto.getIndustryType() == null) {
+            dto.setIndustryType("1");
+        }
+        return paySignAppService.requestPay(dto);
+    }
+
+    @PostMapping({"/ci/app/requestSignInfo"})
+    public RequestSignInfoResult requestSignInfo(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-16 请求签约信息, 请求参数: {}", request);
+        RequestSignInfoReqDTO dto = parseBizData(request, RequestSignInfoReqDTO.class);
+        return paySignAppService.requestSignInfo(dto);
+    }
+
+    /**
+     * IF8A-05 支付成功回调（外部支付平台 -> fep-app -> pay-sign-server）。
+     * 兼容 form 和 JSON 两种请求体格式。
+     */
+    @PostMapping("/ci/app/receivePayResult")
+    public PaySignCallbackResult receivePayResult(@RequestBody String requestBody) {
+        log.info("IF8A-05 支付回调, 请求参数: {}", requestBody);
+        ReceivePayResultReqDTO dto = parseCallbackBody(requestBody, ReceivePayResultReqDTO.class);
+        if (dto == null) {
+            dto = parseBizData(JSON.parseObject(requestBody, CommonFormRequest.class), ReceivePayResultReqDTO.class);
+        }
+        return paySignAppService.receivePayResult(dto);
+    }
+
+    /**
+     * IF8A-06 请求解约。
+     */
+    @PostMapping({"/ci/app/requestTermination"})
+    public RequestTerminationResult requestTermination(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-06 请求解约, 请求参数: {}", request);
+        return paySignAppService.requestTermination(parseBizData(request, RequestTerminationReqDTO.class));
+    }
+
+    /**
+     * IF8A-22 签约结果查询。
+     */
+    @PostMapping({"/ci/app/requestContractResult"})
+    public RequestContractResultResult requestContractResult(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-22 签约结果查询, 请求参数: {}", request);
+        return paySignAppService.requestContractResult(parseBizData(request, RequestContractResultReqDTO.class));
+    }
+
+    /**
+     * 内部签约结果通知（pay-sign-server -> fep-app -> 外部支付平台）。
+     * 兼容 form 和 JSON 两种请求体格式。
+     */
+    @PostMapping("/ci/app/receiveSignResult")
+    public PaySignCallbackResult receiveSignResult(@RequestBody String requestBody) {
+        log.info("IF8A-07 内部签约结果通知, 请求参数: {}", requestBody);
+        ReceiveSignResultReqDTO dto = parseCallbackBody(requestBody, ReceiveSignResultReqDTO.class);
+        if (dto == null) {
+            dto = parseBizData(JSON.parseObject(requestBody, CommonFormRequest.class), ReceiveSignResultReqDTO.class);
+        }
+        return paySignAppService.receiveSignResult(dto);
+    }
+
+    /**
+     * 内部解约结果通知（pay-sign-server -> fep-app -> 外部支付平台）。
+     * 兼容 form 和 JSON 两种请求体格式。
+     */
+    @PostMapping("/ci/app/receiveTerminationResult")
+    public PaySignCallbackResult receiveTerminationResult(@RequestBody String requestBody) {
+        log.info("IF8A-10 内部解约结果通知, 请求参数: {}", requestBody);
+        ReceiveTerminationResultReqDTO dto = parseCallbackBody(requestBody, ReceiveTerminationResultReqDTO.class);
+        if (dto == null) {
+            dto = parseBizData(JSON.parseObject(requestBody, CommonFormRequest.class), ReceiveTerminationResultReqDTO.class);
+        }
+        return paySignAppService.receiveTerminationResult(dto);
+    }
+
+    /**
+     * IF8A-05 批量查询支付明细（供 ticket-server 双源合并）。
+     */
+    @PostMapping("/ci/app/queryPayTxnBatch")
+    public RequestPayTxnBatchResult queryPayTxnBatch(@ModelAttribute CommonFormRequest request) {
+        log.info("IF8A-05 批量查询支付明细, 请求参数: {}", request);
+        QueryPayTxnBatchReqDTO dto = parseBizData(request, QueryPayTxnBatchReqDTO.class);
+        return paySignAppService.queryPayTxnBatch(dto);
+    }
+}

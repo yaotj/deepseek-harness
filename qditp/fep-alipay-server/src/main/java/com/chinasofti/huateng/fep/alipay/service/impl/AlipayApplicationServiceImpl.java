@@ -2,6 +2,7 @@ package com.chinasofti.huateng.fep.alipay.service.impl;
 
 import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
+import com.chinasofti.huateng.model.utils.SignChannelUtils;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestApplicationReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestApplicationRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestIndustryDataReqDTO;
@@ -167,11 +168,7 @@ public class AlipayApplicationServiceImpl implements AlipayApplicationService {
     }
 
     private String resolveSignChannelCode(String channel) {
-        if (!StringUtils.hasText(channel)) {
-            return null;
-        }
-        String normalized = channel.trim();
-        return normalized.length() >= 2 ? normalized.substring(0, 2) : normalized;
+        return SignChannelUtils.resolve(channel);
     }
 
     private String nextTxnSeq(String txnSeq) {
@@ -200,7 +197,7 @@ public class AlipayApplicationServiceImpl implements AlipayApplicationService {
         cardDataRequest.setGateInTime(qrStatus.getGateInTime());
         cardDataRequest.setTxnSeq(nextTxnSeq(qrStatus.getTxnSeq()));
         cardDataRequest.setIssueChannelCode("07");
-        cardDataRequest.setSignChannelCode("07");
+        cardDataRequest.setSignChannelCode(signChannelCode);
         return cardDataRequest;
     }
 

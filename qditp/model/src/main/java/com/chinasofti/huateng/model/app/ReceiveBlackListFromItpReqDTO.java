@@ -111,4 +111,12 @@ public class ReceiveBlackListFromItpReqDTO {
     public void setSign(String sign) {
         this.sign = sign;
     }
+
+    @Override
+    public String toString() {
+        return "ReceiveBlackListFromItpReqDTO{thirdUserId='" + thirdUserId + "', cardId='" + cardId
+                + "', cardType='" + cardType + "', blackListType='" + blackListType
+                + "', optionDate='" + optionDate + "', expireTime='" + expireTime
+                + "', signType='" + signType + "', sign='" + (sign != null ? "[length=" + sign.length() + "]" : null) + "'}";
+    }
 }

@@ -23,6 +23,11 @@ public class PaySignProperties {
     private String alipayMerchantAppId = "2015101000413186";
     private String wechatAppId = "wx426a3015555a46be";
     private String wechatEntrustUrl = "https://api.mch.weixin.qq.com/papay/entrustweb";
+    /** 测试阶段强制覆盖支付金额（分），0 表示不覆盖，使用调用方传入的实际金额。 */
+    private int testForceAmount = 0;
+
+    public int getTestForceAmount() { return testForceAmount; }
+    public void setTestForceAmount(int testForceAmount) { this.testForceAmount = testForceAmount; }
 
     public String getGatewayUrl() {
         return gatewayUrl;

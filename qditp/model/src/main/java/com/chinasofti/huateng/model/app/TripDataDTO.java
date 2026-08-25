@@ -44,4 +44,10 @@ public class TripDataDTO {
     public void setCount(Integer count) {
         this.count = count;
     }
+
+    @Override
+    public String toString() {
+        return "TripDataDTO{totalPrice='" + totalPrice + "', totalDebit='" + totalDebit
+                + "', totalDiscount='" + totalDiscount + "', count=" + count + "}";
+    }
 }

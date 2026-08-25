@@ -7,6 +7,8 @@ import com.chinasofti.huateng.model.app.RequestApplicationReqDTO;
 import com.chinasofti.huateng.model.app.RequestApplicationResult;
 import com.chinasofti.huateng.model.app.RequestKeyListReqDTO;
 import com.chinasofti.huateng.model.app.RequestKeyListResult;
+import com.chinasofti.huateng.model.app.RequestRemovePayChannelReqDTO;
+import com.chinasofti.huateng.model.app.RequestRemovePayChannelResult;
 import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelReqDTO;
 import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelResult;
 import com.chinasofti.huateng.model.app.RequestUpdateChannelDefaultContractReqDTO;
@@ -55,5 +57,10 @@ public class AccountAppServiceImpl implements AccountAppService {
     @Override
     public EmployeeCardQueryResult queryEmployeeCard(EmployeeCardQueryReqDTO request) {
         return accountClient.queryEmployeeCard(request);
+    }
+
+    @Override
+    public RequestRemovePayChannelResult requestRemovePayChannel(RequestRemovePayChannelReqDTO request) {
+        return accountClient.requestRemovePayChannel(request);
     }
 }

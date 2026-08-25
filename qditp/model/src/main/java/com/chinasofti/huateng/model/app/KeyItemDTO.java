@@ -164,4 +164,15 @@ public class KeyItemDTO {
     public void setReserve(String reserve) {
         this.reserve = reserve;
     }
+
+    @Override
+    public String toString() {
+        return "KeyItemDTO{keyId='" + keyId + "', keyType='" + keyType + "', keyUserId='" + keyUserId
+                + "', keyPrivate='" + (keyPrivate != null ? "[length=" + keyPrivate.length() + "]" : null)
+                + "', keyPublic='" + (keyPublic != null ? "[length=" + keyPublic.length() + "]" : null)
+                + "', keyPublicEffectiveDate='" + keyPublicEffectiveDate
+                + "', signData='" + (signData != null ? "[length=" + signData.length() + "]" : null)
+                + "', caIdx='" + caIdx + "', keyWrapValue='" + keyWrapValue
+                + "', keyEffectiveDate='" + keyEffectiveDate + "', kvc='" + kvc + "', reserve='" + reserve + "'}";
+    }
 }

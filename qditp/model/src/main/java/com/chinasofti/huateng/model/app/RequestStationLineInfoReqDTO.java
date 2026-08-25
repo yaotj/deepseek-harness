@@ -14,4 +14,9 @@ public class RequestStationLineInfoReqDTO {
     public void setStationCode(String stationCode) {
         this.stationCode = stationCode;
     }
+
+    @Override
+    public String toString() {
+        return "RequestStationLineInfoReqDTO{stationCode='" + stationCode + "'}";
+    }
 }

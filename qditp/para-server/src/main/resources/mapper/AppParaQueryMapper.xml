@@ -99,4 +99,20 @@
         )
           AND s.STATION_CODE = #{stationCode,jdbcType=VARCHAR}
     </select>
+
+    <!--
+        批量查询车站中文名称，ticket-server 行程记录查询时使用。
+    -->
+    <select id="selectStationNameBatch" resultType="com.chinasofti.huateng.model.app.RequestStationNameResult">
+        SELECT STATION_CODE stationCode,
+               STATION_NM stationName
+        FROM TBL_STATION_INFO
+        WHERE PARA_VER_NO = (
+            SELECT CURRENT_VER_NO FROM TBL_PARA_VERSION WHERE PARA_TYPE = '0001'
+        )
+          AND STATION_CODE IN
+          <foreach item="code" collection="stationCodes" open="(" separator="," close=")">
+              #{code,jdbcType=VARCHAR}
+          </foreach>
+    </select>
 </mapper>

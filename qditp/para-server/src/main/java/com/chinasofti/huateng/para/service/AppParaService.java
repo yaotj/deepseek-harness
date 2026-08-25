@@ -60,4 +60,12 @@ public interface AppParaService {
      * @return 车站名称、所属线路代码、线路名称
      */
     RequestStationLineInfoResult requestStationLineInfo(RequestStationLineInfoReqDTO request);
+
+    /**
+     * 批量根据车站代码查询车站名称。
+     *
+     * @param request 车站代码列表
+     * @return 车站名称结果列表
+     */
+    RequestStationNameBatchResult requestStationNameBatch(RequestStationNameBatchReqDTO request);
 }

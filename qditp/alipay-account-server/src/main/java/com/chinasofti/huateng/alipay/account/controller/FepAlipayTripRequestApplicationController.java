@@ -67,4 +67,15 @@ public class FepAlipayTripRequestApplicationController {
         log.info("更新支付通道结果: thirdUserId={}, result={}", thirdUserId, result);
         return result;
     }
+
+    /**
+     * 更换手机号。
+     */
+    @PostMapping("/updatePhone")
+    public Boolean updatePhone(@RequestParam String thirdUserId, @RequestParam String newMsisdn) {
+        log.info("接收到更换手机号请求: thirdUserId={}, newMsisdn={}", thirdUserId, newMsisdn);
+        boolean result = alipayAccountService.updatePhone(thirdUserId, newMsisdn);
+        log.info("更换手机号结果: thirdUserId={}, result={}", thirdUserId, result);
+        return result;
+    }
 }

@@ -34,13 +34,14 @@ public class UpdateDbMap {
     }
 
     // 查询 支付成功修改数据库记录
-    public static Map<String,String> getQueryUpdateSuccessDb(String orderNo,String payCenterOrderNo,String payCenterChannelOrderNo){
+    public static Map<String,String> getQueryUpdateSuccessDb(String orderNo,String payCenterOrderNo,String payCenterChannelOrderNo,String channel){
         Map<String,String> uMap = new HashMap<>();
         uMap.put("orderNo",orderNo);
         uMap.put("status", ItpStatusEnum.SUCCESS.getCode());
         uMap.put("msg",ItpStatusEnum.SUCCESS.getDesc());
         uMap.put("payCenterOrderNo",payCenterOrderNo);
         uMap.put("payCenterChannelOrderNo",payCenterChannelOrderNo);
+        uMap.put("channel",channel);
         uMap.put("updateTime", DateUtils.getNowTime());
         return uMap;
     }
@@ -56,13 +57,14 @@ public class UpdateDbMap {
     }
 
     // 充值 修改数据库记录 拉码成功 不修改状态
-    public static Map<String,String> getTopupUpdateSuccessDb(String orderNo,String payCenterOrderNo,String payCenterChannelOrderNo,String aftAmount){
+    public static Map<String,String> getTopupUpdateSuccessDb(String orderNo,String payCenterOrderNo,String payCenterChannelOrderNo,String aftAmount,String channel){
         Map<String,String> uMap = new HashMap<>();
         uMap.put("orderNo",orderNo);
         uMap.put("status", ItpStatusEnum.SUCCESS.getCode());
         uMap.put("msg",ItpStatusEnum.SUCCESS.getDesc());
         uMap.put("payCenterOrderNo",payCenterOrderNo);
         uMap.put("payCenterChannelOrderNo",payCenterChannelOrderNo);
+        uMap.put("channel",channel);
         uMap.put("afterAmount",aftAmount);
         uMap.put("updateTime", DateUtils.getNowTime());
         return uMap;

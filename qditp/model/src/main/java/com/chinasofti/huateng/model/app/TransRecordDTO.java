@@ -13,7 +13,6 @@ public class TransRecordDTO {
     private String tradeOrderNo;
     private String payTradeOrderNo;
     private String payOrderNoDate;
-    private String payChannelCode;
     private String debitRequestResult;
     private Integer discountFee;
     private String discountInfo;
@@ -25,6 +24,8 @@ public class TransRecordDTO {
     private String offlineFlag;
     private String attributableParty;
     private String receivingParty;
+    /** 支付渠道编码（如 03=支付宝、05=微信），映射自 PAY_TXN_DETAIL.PAYMENT_VENDOR */
+    private String payChannelCode;
 
     public String getEntryStationName() { return entryStationName; }
     public void setEntryStationName(String entryStationName) { this.entryStationName = entryStationName; }
@@ -44,8 +45,6 @@ public class TransRecordDTO {
     public void setPayTradeOrderNo(String payTradeOrderNo) { this.payTradeOrderNo = payTradeOrderNo; }
     public String getPayOrderNoDate() { return payOrderNoDate; }
     public void setPayOrderNoDate(String payOrderNoDate) { this.payOrderNoDate = payOrderNoDate; }
-    public String getPayChannelCode() { return payChannelCode; }
-    public void setPayChannelCode(String payChannelCode) { this.payChannelCode = payChannelCode; }
     public String getDebitRequestResult() { return debitRequestResult; }
     public void setDebitRequestResult(String debitRequestResult) { this.debitRequestResult = debitRequestResult; }
     public Integer getDiscountFee() { return discountFee; }
@@ -68,4 +67,6 @@ public class TransRecordDTO {
     public void setAttributableParty(String attributableParty) { this.attributableParty = attributableParty; }
     public String getReceivingParty() { return receivingParty; }
     public void setReceivingParty(String receivingParty) { this.receivingParty = receivingParty; }
+    public String getPayChannelCode() { return payChannelCode; }
+    public void setPayChannelCode(String payChannelCode) { this.payChannelCode = payChannelCode; }
 }

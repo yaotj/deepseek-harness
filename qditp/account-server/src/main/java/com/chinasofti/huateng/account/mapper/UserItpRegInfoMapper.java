@@ -46,5 +46,10 @@ public interface UserItpRegInfoMapper {
      */
     int updateActiveHceDataByCardId(@Param("cardId") String cardId, @Param("hceData") String hceData);
 
+    /**
+     * 更新用户手机号。
+     */
+    int updateMsisdnByThirdUserId(@Param("thirdUserId") String thirdUserId, @Param("msisdn") String msisdn);
+
     int insert(UserItpRegInfo record);
 }

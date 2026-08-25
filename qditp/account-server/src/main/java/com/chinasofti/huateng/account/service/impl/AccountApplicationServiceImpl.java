@@ -6,9 +6,11 @@ import com.chinasofti.huateng.account.entity.UserAccTicketNo;
 import com.chinasofti.huateng.account.entity.UserItpRegInfo;
 import com.chinasofti.huateng.account.entity.UserItpRegLog;
 import com.chinasofti.huateng.account.entity.UserPayChannel;
+import com.chinasofti.huateng.account.entity.UserPhoneChangeLog;
 import com.chinasofti.huateng.account.mapper.UserItpRegInfoMapper;
 import com.chinasofti.huateng.account.mapper.UserItpRegLogMapper;
 import com.chinasofti.huateng.account.mapper.UserPayChannelMapper;
+import com.chinasofti.huateng.account.mapper.UserPhoneChangeLogMapper;
 import com.chinasofti.huateng.account.service.AccountApplicationService;
 import com.chinasofti.huateng.account.service.CardPoolService;
 import com.chinasofti.huateng.model.app.CardTypeMapping;
@@ -25,6 +27,7 @@ import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelResult;
 import com.chinasofti.huateng.model.app.RequestUpdateChannelDefaultContractReqDTO;
 import com.chinasofti.huateng.model.app.RequestUpdateChannelDefaultContractResult;
 import com.chinasofti.huateng.model.app.UpdateHceDataReqDTO;
+import com.chinasofti.huateng.model.enums.CardTypeCodeEnum;
 import com.chinasofti.huateng.model.app.UpdateHceDataResult;
 import com.chinasofti.huateng.model.paysign.PaySignInfoDTO;
 import com.chinasofti.huateng.rpc.paySign.PaySignClient;
@@ -50,6 +53,7 @@ import java.time.format.DateTimeFormatter;
 
 @Service
 public class AccountApplicationServiceImpl implements AccountApplicationService {
+    private static final String ALIPAY_PAYMENT_CHANNEL = "03";
     private static final Logger log = LoggerFactory.getLogger(AccountApplicationServiceImpl.class);
 
     @Value("${account.card-pool.debug-manual-allocate:true}")
@@ -66,6 +70,9 @@ public class AccountApplicationServiceImpl implements AccountApplicationService 
 
     @Autowired
     private UserItpRegLogMapper userItpRegLogMapper;
+
+    @Autowired
+    private UserPhoneChangeLogMapper userPhoneChangeLogMapper;
 
     @Autowired
     private UserPayChannelMapper userPayChannelMapper;
@@ -695,6 +702,15 @@ public class AccountApplicationServiceImpl implements AccountApplicationService 
         if (!CardTypeMapping.isSupportedAppCardType(request.getCardType())) {
             return "cardType不支持";
         }
+        if (CardTypeMapping.isAiShanDong(request.getCardType())
+                && StringUtils.hasText(request.getChannel())
+                && !ALIPAY_PAYMENT_CHANNEL.equals(request.getChannel().trim())) {
+            return "鲁通码支付渠道必须为03";
+        }
+        if (CardTypeMapping.isAiShanDong(request.getCardType())
+                && "07".equals(request.getCardIssueCode() == null ? null : request.getCardIssueCode().trim())) {
+            return "鲁通码发行渠道必须为APP推送渠道";
+        }
         if (!StringUtils.hasText(request.getMsisdn())) {
             return "msisdn不能为空";
         }
@@ -806,11 +822,18 @@ public class AccountApplicationServiceImpl implements AccountApplicationService 
         regInfo.setUserId(request.getUserId());
         regInfo.setCardIssueCode(request.getCardIssueCode());
         regInfo.setThirdPayId(request.getThirdPayId());
-        regInfo.setChannel(isDayPassCard(request.getCardType()) ? request.getCardType().trim() : request.getChannel());
+        regInfo.setChannel(resolveDefaultChannel(request));
         regInfo.setReqContractNo(request.getReqContractNo());
         regInfo.setHceData(hceData);
         regInfo.setCompanionFlag(request.getCompanionFlag());
         return regInfo;
+    }
+
+    private String resolveDefaultChannel(RequestApplicationReqDTO request) {
+        if (CardTypeMapping.isAiShanDong(request.getCardType())) {
+            return ALIPAY_PAYMENT_CHANNEL;
+        }
+        return isDayPassCard(request.getCardType()) ? request.getCardType().trim() : request.getChannel();
     }
 
     private boolean isMultiCardCompanionFlag(String companionFlag) {
@@ -836,9 +859,7 @@ public class AccountApplicationServiceImpl implements AccountApplicationService 
     }
 
     private boolean isDayPassCard(String cardType) {
-        return StringUtils.hasText(cardType)
-                && ("12".equals(cardType.trim()) || "13".equals(cardType.trim())
-                || "14".equals(cardType.trim()) || "15".equals(cardType.trim()));
+        return CardTypeCodeEnum.isDailyTicket(CardTypeMapping.toIssueCardType(cardType));
     }
 
     private RegisterRideStatusReqDTO buildTicketRequest(UserItpRegInfo regInfo) {
@@ -929,5 +950,54 @@ public class AccountApplicationServiceImpl implements AccountApplicationService 
         request.setChannel(regInfo.getChannel());
         request.setThirdPayId(regInfo.getThirdPayId());
         return request;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean updatePhone(String thirdUserId, String newMsisdn) {
+        if (!StringUtils.hasText(thirdUserId) || !StringUtils.hasText(newMsisdn)) {
+            log.warn("更换手机号参数校验失败, thirdUserId={}, newMsisdn={}", thirdUserId, newMsisdn);
+            return false;
+        }
+        try {
+            UserItpRegInfo regInfo = userItpRegInfoMapper.selectActiveByThirdUserId(thirdUserId.trim());
+            if (regInfo == null) {
+                log.warn("更换手机号未找到有效用户, thirdUserId={}", thirdUserId);
+                return false;
+            }
+            String oldMsisdn = regInfo.getMsisdn();
+            if (oldMsisdn != null && oldMsisdn.equals(newMsisdn)) {
+                log.info("新旧手机号相同，无需更换, thirdUserId={}, msisdn={}", thirdUserId, newMsisdn);
+                return true;
+            }
+            int updated = userItpRegInfoMapper.updateMsisdnByThirdUserId(thirdUserId.trim(), newMsisdn.trim());
+            if (updated == 0) {
+                log.warn("更换手机号更新失败, thirdUserId={}", thirdUserId);
+                return false;
+            }
+            UserPhoneChangeLog changeLog = new UserPhoneChangeLog();
+            changeLog.setThirdUserId(thirdUserId.trim());
+            changeLog.setUserType("ITP");
+            changeLog.setOldMsisdn(oldMsisdn);
+            changeLog.setNewMsisdn(newMsisdn.trim());
+            changeLog.setOperType("CHANGE_PHONE");
+            changeLog.setOperTime(LocalDateTime.now());
+            changeLog.setOperator("SYSTEM");
+            changeLog.setRemark("地铁APP用户更换手机号");
+            changeLog.setCreateTms(LocalDateTime.now());
+            userPhoneChangeLogMapper.insert(changeLog);
+            try {
+                paySignClient.updatePaySignDisplayAccount(thirdUserId.trim(), newMsisdn.trim());
+                log.info("同步更新签约展示账号成功, thirdUserId={}, displayAccount={}", thirdUserId, newMsisdn);
+            } catch (Exception e) {
+                log.warn("同步更新签约展示账号失败, thirdUserId={}, displayAccount={}", thirdUserId, newMsisdn, e);
+            }
+            log.info("地铁APP用户更换手机号成功, thirdUserId={}, oldMsisdn={}, newMsisdn={}",
+                    thirdUserId, oldMsisdn, newMsisdn);
+            return true;
+        } catch (Exception e) {
+            log.error("更换手机号异常, thirdUserId={}", thirdUserId, e);
+            return false;
+        }
     }
 }

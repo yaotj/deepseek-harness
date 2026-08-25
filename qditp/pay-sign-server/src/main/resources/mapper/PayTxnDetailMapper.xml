@@ -10,7 +10,6 @@
         <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
         <result column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
         <result column="PAYMENT_VENDOR" jdbcType="VARCHAR" property="paymentVendor"/>
-        <result column="PAY_CHANNEL_CODE" jdbcType="VARCHAR" property="payChannelCode"/>
         <result column="REQUEST_SIGN_SEQ" jdbcType="VARCHAR" property="requestSignSeq"/>
         <result column="AMOUNT" jdbcType="NUMERIC" property="amount"/>
         <result column="TOTAL_AMOUNT" jdbcType="NUMERIC" property="totalAmount"/>
@@ -31,26 +30,32 @@
         <result column="TXN_DATE" jdbcType="VARCHAR" property="txnDate"/>
         <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
         <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
+        <result column="DISCOUNT_INFO" jdbcType="VARCHAR" property="discountInfo"/>
+        <result column="DEBIT_REQUEST_RESULT" jdbcType="VARCHAR" property="debitRequestResult"/>
+        <result column="DISCOUNT_FEE" jdbcType="NUMERIC" property="discountFee"/>
+        <result column="TRANS_IN" jdbcType="VARCHAR" property="transIn"/>
     </resultMap>
 
     <sql id="Base_Column_List">
         ID, ORDER_NO, PAY_TYPE, PAY_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE,
-        PAYMENT_VENDOR, PAY_CHANNEL_CODE, REQUEST_SIGN_SEQ, AMOUNT, TOTAL_AMOUNT,
+        PAYMENT_VENDOR, REQUEST_SIGN_SEQ, AMOUNT, TOTAL_AMOUNT,
         CASH_AMOUNT, COUPON_AMOUNT, REFUND_STATUS, REFUND_AMOUNT, LAST_REFUND_TIME,
         MERCHANT_ORDER_NO, CHANNEL_ORDER_NO, PAY_USER_ID, REQUEST_COUNT,
         NEXT_REQUEST_TIME, LAST_REQUEST_TIME, FIRST_REQUEST_TIME, RESPONSE_TIME,
-        PAY_TIME, TXN_DATE, CREATE_TIME, UPDATE_TIME
+        PAY_TIME, TXN_DATE, CREATE_TIME, UPDATE_TIME,
+        DISCOUNT_INFO, DEBIT_REQUEST_RESULT, DISCOUNT_FEE, TRANS_IN
     </sql>
 
     <!-- 首次创建支付订单。ORDER_NO 由地铁侧生成，同时作为调用支付网关的 orderNo。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.paysign.entity.PayTxnDetail">
         INSERT INTO PAY_TXN_DETAIL (
             ID, ORDER_NO, PAY_TYPE, PAY_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE,
-            PAYMENT_VENDOR, PAY_CHANNEL_CODE, REQUEST_SIGN_SEQ, AMOUNT, TOTAL_AMOUNT,
+            PAYMENT_VENDOR, REQUEST_SIGN_SEQ, AMOUNT, TOTAL_AMOUNT,
             CASH_AMOUNT, COUPON_AMOUNT, REFUND_STATUS, REFUND_AMOUNT, LAST_REFUND_TIME,
             MERCHANT_ORDER_NO, CHANNEL_ORDER_NO, PAY_USER_ID, REQUEST_COUNT,
             NEXT_REQUEST_TIME, LAST_REQUEST_TIME, FIRST_REQUEST_TIME, RESPONSE_TIME,
-            PAY_TIME, TXN_DATE, CREATE_TIME, UPDATE_TIME
+            PAY_TIME, TXN_DATE, CREATE_TIME, UPDATE_TIME,
+            DISCOUNT_INFO, DEBIT_REQUEST_RESULT, DISCOUNT_FEE, TRANS_IN
         ) VALUES (
             SEQ_PAY_TXN_DETAIL.NEXTVAL,
             #{orderNo,jdbcType=VARCHAR},
@@ -60,7 +65,6 @@
             #{cardId,jdbcType=VARCHAR},
             #{cardType,jdbcType=VARCHAR},
             #{paymentVendor,jdbcType=VARCHAR},
-            #{payChannelCode,jdbcType=VARCHAR},
             #{requestSignSeq,jdbcType=VARCHAR},
             #{amount,jdbcType=NUMERIC},
             #{totalAmount,jdbcType=NUMERIC},
@@ -80,7 +84,11 @@
             #{payTime,jdbcType=VARCHAR},
             #{txnDate,jdbcType=VARCHAR},
             #{createTime,jdbcType=TIMESTAMP},
-            #{updateTime,jdbcType=TIMESTAMP}
+            #{updateTime,jdbcType=TIMESTAMP},
+            #{discountInfo,jdbcType=VARCHAR},
+            #{debitRequestResult,jdbcType=VARCHAR},
+            #{discountFee,jdbcType=NUMERIC},
+            #{transIn,jdbcType=VARCHAR}
         )
     </insert>
 
@@ -88,6 +96,15 @@
         SELECT <include refid="Base_Column_List"/>
         FROM PAY_TXN_DETAIL
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByOrderNos" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM PAY_TXN_DETAIL
+        WHERE ORDER_NO IN
+        <foreach collection="orderNos" item="orderNo" open="(" separator="," close=")">
+            #{orderNo,jdbcType=VARCHAR}
+        </foreach>
     </select>
 
     <!-- 每次真正调用支付网关前增加请求次数，并记录首次/最近请求时间。 -->
@@ -107,25 +124,38 @@
         SET PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
             MERCHANT_ORDER_NO = #{merchantOrderNo,jdbcType=VARCHAR},
             CHANNEL_ORDER_NO = #{channelOrderNo,jdbcType=VARCHAR},
+            DEBIT_REQUEST_RESULT = #{debitRequestResult,jdbcType=VARCHAR},
             RESPONSE_TIME = #{responseTime,jdbcType=TIMESTAMP},
+            TRANS_IN = #{transIn,jdbcType=VARCHAR},
             UPDATE_TIME = SYSTIMESTAMP
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </update>
 
-    <!-- 支付回调以支付平台最终状态为准，回写金额、渠道账户和完成时间。 -->
+    <!-- 支付回调以支付平台最终状态为准，回写金额、渠道账户和完成时间。
+         优惠字段和金额字段在回调中通常为空，使用 NVL 保留入库时的原始值。
+         PAY_STATUS 增加状态机保护：SUCCESS 状态的订单不允许被回退为非 SUCCESS 状态。 -->
     <update id="updatePayCallback" parameterType="com.chinasofti.huateng.paysign.entity.PayTxnDetail">
         UPDATE PAY_TXN_DETAIL
         SET PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
             MERCHANT_ORDER_NO = #{merchantOrderNo,jdbcType=VARCHAR},
             CHANNEL_ORDER_NO = #{channelOrderNo,jdbcType=VARCHAR},
-            TOTAL_AMOUNT = #{totalAmount,jdbcType=NUMERIC},
-            CASH_AMOUNT = #{cashAmount,jdbcType=NUMERIC},
-            COUPON_AMOUNT = #{couponAmount,jdbcType=NUMERIC},
+            TOTAL_AMOUNT = NVL(#{totalAmount,jdbcType=NUMERIC}, TOTAL_AMOUNT),
+            CASH_AMOUNT = NVL(#{cashAmount,jdbcType=NUMERIC}, CASH_AMOUNT),
+            COUPON_AMOUNT = NVL(#{couponAmount,jdbcType=NUMERIC}, COUPON_AMOUNT),
             PAY_USER_ID = #{payUserId,jdbcType=VARCHAR},
-            PAYMENT_VENDOR = #{paymentVendor,jdbcType=VARCHAR},
+            PAYMENT_VENDOR = NVL(#{paymentVendor,jdbcType=VARCHAR}, PAYMENT_VENDOR),
             PAY_TIME = #{payTime,jdbcType=VARCHAR},
+            DISCOUNT_FEE = NVL(#{discountFee,jdbcType=NUMERIC}, DISCOUNT_FEE),
+            DISCOUNT_INFO = NVL(#{discountInfo,jdbcType=VARCHAR}, DISCOUNT_INFO),
             UPDATE_TIME = SYSTIMESTAMP
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          AND (
+            -- 非 SUCCESS 状态的订单允许更新
+            PAY_STATUS != 'SUCCESS'
+            OR
+            -- SUCCESS 状态的订单只允许被 SUCCESS 回调再次覆盖（幂等）
+            (PAY_STATUS = 'SUCCESS' AND #{payStatus,jdbcType=VARCHAR} = 'SUCCESS')
+          )
     </update>
 
     <!-- 退款成功后回写原支付订单退款汇总。 -->

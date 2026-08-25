@@ -16,6 +16,7 @@ import com.chinasofti.huateng.model.app.RequestUpdateChannelDefaultContractReqDT
 import com.chinasofti.huateng.model.app.RequestUpdateChannelDefaultContractResult;
 import com.chinasofti.huateng.model.app.UpdateHceDataReqDTO;
 import com.chinasofti.huateng.model.app.UpdateHceDataResult;
+import com.chinasofti.huateng.common.response.CommonResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -87,5 +88,23 @@ public class RequestApplicationController {
     public UpdateHceDataResult updateHceData(@RequestBody UpdateHceDataReqDTO request) {
         log.info("接收到更新HCE卡数据接口报文, cardId={}", request == null ? null : request.getCardId());
         return accountApplicationService.updateHceData(request);
+    }
+
+    /**
+     * 更换手机号。
+     */
+    @GetMapping("/updatePhone")
+    public CommonResult updatePhone(@RequestParam String thirdUserId, @RequestParam String newMsisdn) {
+        log.info("接收到更换手机号请求: thirdUserId={}, newMsisdn={}", thirdUserId, newMsisdn);
+        boolean result = accountApplicationService.updatePhone(thirdUserId, newMsisdn);
+        CommonResult response = new CommonResult();
+        if (result) {
+            response.setRetCode("0000");
+            response.setRetMsg("更换手机号成功");
+        } else {
+            response.setRetCode("9999");
+            response.setRetMsg("更换手机号失败");
+        }
+        return response;
     }
 }

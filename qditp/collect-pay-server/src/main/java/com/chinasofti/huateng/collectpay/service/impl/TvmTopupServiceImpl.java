@@ -15,12 +15,14 @@ import com.chinasofti.huateng.collectpay.mapper.TvmTopupOrderMapper;
 import com.chinasofti.huateng.collectpay.model.request.PayCenterRequest;
 import com.chinasofti.huateng.collectpay.model.request.tvm.*;
 import com.chinasofti.huateng.collectpay.model.response.PayCenterResponse;
+import com.chinasofti.huateng.collectpay.model.response.paycenter.PayCenterResult;
 import com.chinasofti.huateng.collectpay.model.response.tvm.RequestRefundRespDTO;
 import com.chinasofti.huateng.collectpay.model.response.tvm.TvmOrderResult;
 import com.chinasofti.huateng.collectpay.service.PayCenterService;
 import com.chinasofti.huateng.collectpay.service.TvmCommonService;
 import com.chinasofti.huateng.collectpay.service.TvmTopupService;
 import com.chinasofti.huateng.collectpay.utils.DateUtils;
+import com.chinasofti.huateng.collectpay.utils.OrderCommonUtils;
 import com.chinasofti.huateng.collectpay.utils.OrderNoUtils;
 import com.chinasofti.huateng.collectpay.utils.SignUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -214,7 +216,7 @@ public class TvmTopupServiceImpl implements TvmTopupService {
                         log.info("查询到支付成功的结果");
                         String aftAmount = String.valueOf(new BigDecimal(payTopupOrderInfo.getBeforeAmount()).add(new BigDecimal(payTopupOrderInfo.getTransAmount())));
 
-                        uMap = UpdateDbMap.getTopupUpdateSuccessDb(payTopupOrderInfo.getOrderNo(), payCenterOrderNo,channelOrderNo, aftAmount);
+                        uMap = UpdateDbMap.getTopupUpdateSuccessDb(payTopupOrderInfo.getOrderNo(), payCenterOrderNo,channelOrderNo, aftAmount,paymentChannelCode);
                         result = TvmOrderResult.successData(DeviceResponse.getPaySuccessResult(paymentChannelCode));
 
                     } else if (PayCenterStatusEnum.FAILED.getCode().equals(status)) {
@@ -241,7 +243,6 @@ public class TvmTopupServiceImpl implements TvmTopupService {
     @Override
     public JSONObject topupCardResultNoti(TopupCardResultNotiReqDTO request) {
         log.info("1.开始处理充值结果通知, deviceId={}, request={}", request.getDeviceId(), request);
-
 
         // 查询原充值订单
         TvmTopupOrder order = tvmTopupOrderMapper.selectByOrderNo(request.getOrderNo());
@@ -291,14 +292,14 @@ public class TvmTopupServiceImpl implements TvmTopupService {
 
         // 如果充值失败，发起退款
         String topupStatus = request.getTopupStatus();
-        // todo 02: 存疑 03: 取消是否要退款
         if ("01".equals(topupStatus)) {
             log.info("3.充值失败，发起退款, orderNo={}", payOrderNo);
             int refundAmount = Integer.parseInt(order.getTransAmount());
-            String refundNo = tvmCommonService.doRefund(BusinessTypeEnum.TVM_SCAN_QR_RECHARGE.getCode(), order.getOrderNo(), order.getPayCenterOrderNo(), refundAmount);
-            log.info("退款解释 refundNo is {}", refundNo);
+            String refundNo = OrderCommonUtils.getRefundNo();
+            boolean b =  tvmCommonService.doRefund(BusinessTypeEnum.TVM_SCAN_QR_RECHARGE.getCode(), order.getOrderNo(), order.getPayCenterOrderNo(), refundAmount,refundNo);
+            log.info("退款结束 refundNo is {}", refundNo);
             // 如果refundNo不为空，则证明退款结束 退款结果可以是成功的也可以是失败的
-            if (!StringUtils.isEmpty(refundNo)) {
+            if (b) {
                 Map<String, String> updateMap = new LinkedHashMap<>();
                 updateMap.put("orderNo", payOrderNo);
                 updateMap.put("rsv2", refundNo);
@@ -624,11 +625,11 @@ public class TvmTopupServiceImpl implements TvmTopupService {
             log.info("2.扫码充值 订单状态不是支付成功, 不能退款, status={}", order.getStatus());
             return RequestRefundRespDTO.fail("9999", "订单状态不是支付成功,不能退款");
         }
-
-        String refundNo = tvmCommonService.doRefund(BusinessTypeEnum.TVM_SCAN_QR_RECHARGE.getCode(), payOrderNo, order.getPayCenterOrderNo(), Integer.valueOf(request.getRefundAmt()));
+        String refundNo = OrderCommonUtils.getRefundNo();
+        boolean b = tvmCommonService.doRefund(BusinessTypeEnum.TVM_SCAN_QR_RECHARGE.getCode(), payOrderNo, order.getPayCenterOrderNo(), Integer.valueOf(request.getRefundAmt()),refundNo);
 
         // 如果refundNo不为空，则证明退款结束 退款结果可以是成功的也可以是失败的
-        if (StringUtils.isEmpty(refundNo)) {
+        if (b) {
             Map<String, String> updateMap = new LinkedHashMap<>();
             updateMap.put("orderNo", payOrderNo);
             updateMap.put("rsv2", refundNo);
@@ -650,19 +651,19 @@ public class TvmTopupServiceImpl implements TvmTopupService {
         // 查询订单信息
         TvmTopupOrder payTopupOrderInfo = tvmTopupOrderMapper.selectByOrderNo(request.getMerchantOrderNo());
         if (payTopupOrderInfo == null) {
-            return TvmOrderResult.fail(TvmPayCodeEnum.ORDER_NO_ERROR.getCode(), TvmPayCodeEnum.ORDER_NO_ERROR.getMsg());
+            return PayCenterResult.fail(PayCenterErrorCodeEnum.ORDER_NOT_EXIST.getCode(), PayCenterErrorCodeEnum.ORDER_NOT_EXIST.getMsg());
         }
 
         // 如果已经是成功，直接返回
         if (ItpStatusEnum.SUCCESS.getCode().equals(payTopupOrderInfo.getStatus())) {
             log.info("2.支付结果通知 数据库查询结果为支付成功，直接返回");
-            return TvmOrderResult.success();
+            return PayCenterResult.success();
         }
 
         // 如果已经是失败，直接返回
         if (ItpStatusEnum.FAILED.getCode().equals(payTopupOrderInfo.getStatus())) {
             log.info("2.支付结果通知 数据库查询结果为支付失败，直接返回");
-            return TvmOrderResult.success();
+            return PayCenterResult.success();
         }
 
 
@@ -674,6 +675,7 @@ public class TvmTopupServiceImpl implements TvmTopupService {
         String payCenterOrderNo = request.getOrderNo();
         // 渠道订单号
         String channelOrderNo = request.getChannelOrderNo();
+        String channel = request.getPaymentVendor();
 
         // 查询支付中心支付状态为支付成功
         // 查询支付中心支付状态为支付成功
@@ -682,18 +684,18 @@ public class TvmTopupServiceImpl implements TvmTopupService {
             log.info("支付结果通知 支付成功 的结果");
             String aftAmount = String.valueOf(new BigDecimal(payTopupOrderInfo.getBeforeAmount()).add(new BigDecimal(payTopupOrderInfo.getTransAmount())));
 
-            uMap = UpdateDbMap.getTopupUpdateSuccessDb(orderNo, payCenterOrderNo,channelOrderNo, aftAmount);
+            uMap = UpdateDbMap.getTopupUpdateSuccessDb(orderNo, payCenterOrderNo,channelOrderNo, aftAmount,channel);
 
         } else if (PayCenterStatusEnum.FAILED.getCode().equals(status)) {
             log.info("支付结果通知 支付失败 的结果");
             uMap = UpdateDbMap.getTopupUpdateFailDb(orderNo);
         } else {
             log.info("支付结果通知 查询到不明确的结果，按已下单-支付中处理");
-            return TvmOrderResult.fail();
+            return PayCenterResult.fail();
         }
         log.info("支付结果通知 开始修改记录 uMap is {}", uMap);
         int i = tvmTopupOrderMapper.updateByOrderNo(uMap);
         log.info("支付结果通知 修改结束 i is {}", i);
-        return TvmOrderResult.success();
+        return PayCenterResult.success();
     }
 }

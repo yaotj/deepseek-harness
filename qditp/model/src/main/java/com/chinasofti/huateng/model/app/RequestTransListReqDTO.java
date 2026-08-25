@@ -39,4 +39,13 @@ public class RequestTransListReqDTO {
     public void setDebitRequestResult(String debitRequestResult) { this.debitRequestResult = debitRequestResult; }
     public String getTicketCode() { return ticketCode; }
     public void setTicketCode(String ticketCode) { this.ticketCode = ticketCode; }
+
+    @Override
+    public String toString() {
+        return "RequestTransListReqDTO{thirdUserId='" + thirdUserId + "', cardId='" + cardId
+                + "', cardType='" + cardType + "', pageNumber=" + pageNumber
+                + ", pageSize=" + pageSize + ", startDate='" + startDate
+                + "', endDate='" + endDate + "', debitRequestResult='" + debitRequestResult
+                + "', ticketCode='" + ticketCode + "'}";
+    }
 }

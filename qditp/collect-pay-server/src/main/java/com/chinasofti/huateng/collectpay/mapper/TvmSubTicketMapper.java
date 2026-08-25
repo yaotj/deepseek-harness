@@ -1,5 +1,6 @@
 package com.chinasofti.huateng.collectpay.mapper;
 
+import com.chinasofti.huateng.collectpay.entity.SubTicket;
 import com.chinasofti.huateng.collectpay.entity.TvmSubTicket;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -26,4 +27,9 @@ public interface TvmSubTicketMapper {
 
 
     TvmSubTicket selectByCondition(Map<String,String> condition);
+
+    // 这用TvmSubTicket类接收，由于TvmSubTicket和BomSubTicket的字段一样
+    SubTicket selectSubTickettByCondition(Map<String,String> condition);
+
+    int updateByTicketLogicNum(Map<String,String> map);
 }

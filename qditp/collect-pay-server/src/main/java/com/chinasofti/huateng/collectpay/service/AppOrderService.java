@@ -63,4 +63,9 @@ public interface AppOrderService {
 
     // 支付结果通知
     JSONObject payNotice(PayNoticeReqDTO request);
+
+    public JSONObject doRefund(String payOrderNo, String refundAmount,String refundNo, String businessType);
+
+    public boolean noticeAppRefundResult(String payOrderNo, String refundResult, String refundDate, String refundAmount, String retryTimes);
+
 }

@@ -105,4 +105,15 @@ public class AppParaController {
     public RequestStationLineInfoResult requestStationLineInfo(@RequestBody RequestStationLineInfoReqDTO request) {
         return appParaService.requestStationLineInfo(request);
     }
+
+    /**
+     * 批量根据车站代码查询车站名称。
+     *
+     * @param request 车站代码列表
+     * @return 车站名称结果列表
+     */
+    @PostMapping("/requestStationNameBatch")
+    public RequestStationNameBatchResult requestStationNameBatch(@RequestBody RequestStationNameBatchReqDTO request) {
+        return appParaService.requestStationNameBatch(request);
+    }
 }

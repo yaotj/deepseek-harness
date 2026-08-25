@@ -8,6 +8,7 @@ import com.chinasofti.huateng.rpc.EnableRpcRoute;
 import com.chinasofti.huateng.rpc.EnableRpcSecurity;
 import com.chinasofti.huateng.rpc.EnableRpcAlipayAccount;
 import com.chinasofti.huateng.rpc.EnableRpcGateTxnPay;
+import com.chinasofti.huateng.rpc.EnableRpcPaySign;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -21,6 +22,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @EnableRpcAlipayAccount
 @EnableRpcPara
 @EnableRpcGateTxnPay
+@EnableRpcPaySign
 public class TicketServer implements CommandLineRunner {
     public static void main(String[] args) {
         SpringApplication.run(TicketServer.class, args);
