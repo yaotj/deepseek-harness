@@ -17,7 +17,10 @@
     <properties>
         <image.prefix>web-admin</image.prefix>
         <docker.namespace>itp</docker.namespace>
+        <rpc.version>2.0.1</rpc.version>
+        <micro.web.version>2.0</micro.web.version>
     </properties>
+
 
     <dependencies>
 
@@ -69,6 +72,18 @@
             <artifactId>web-generator</artifactId>
         </dependency>
 
+        <!-- RPC 客户端及其 ProxyWebClient 运行时依赖 -->
+        <dependency>
+            <groupId>com.chinasofti.huateng</groupId>
+            <artifactId>rpc</artifactId>
+            <version>${rpc.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.chinasofti.huateng.micro</groupId>
+            <artifactId>web</artifactId>
+            <version>${micro.web.version}</version>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -77,9 +92,9 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <version>${spring-boot.version}</version>
-                <configuration>
-                    <fork>true</fork> <!-- 如果没有该配置，devtools不会生效 -->
-                </configuration>
+<!--                <configuration>-->
+<!--                    <fork>true</fork> &lt;!&ndash; 如果没有该配置，devtools不会生效 &ndash;&gt;-->
+<!--                </configuration>-->
                 <executions>
                     <execution>
                         <goals>
@@ -88,15 +103,15 @@
                     </execution>
                 </executions>
             </plugin>
-            <plugin>   
-                <groupId>org.apache.maven.plugins</groupId>   
-                <artifactId>maven-war-plugin</artifactId>   
-                <version>3.1.0</version>   
-                <configuration>
-                    <failOnMissingWebXml>false</failOnMissingWebXml>
-                    <warName>${project.artifactId}</warName>
-                </configuration>   
-           </plugin>   
+<!--            <plugin>   -->
+<!--                <groupId>org.apache.maven.plugins</groupId>   -->
+<!--                <artifactId>maven-war-plugin</artifactId>   -->
+<!--                <version>3.1.0</version>   -->
+<!--                <configuration>-->
+<!--                    <failOnMissingWebXml>false</failOnMissingWebXml>-->
+<!--                    <warName>${project.artifactId}</warName>-->
+<!--                </configuration>   -->
+<!--           </plugin>   -->
         </plugins>
         <finalName>${project.artifactId}</finalName>
     </build>

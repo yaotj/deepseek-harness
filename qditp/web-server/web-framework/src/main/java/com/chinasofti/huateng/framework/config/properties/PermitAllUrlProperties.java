@@ -37,7 +37,9 @@ public class PermitAllUrlProperties implements InitializingBean, ApplicationCont
     @Override
     public void afterPropertiesSet()
     {
-        RequestMappingHandlerMapping mapping = applicationContext.getBean(RequestMappingHandlerMapping.class);
+        // Actuator also registers a RequestMappingHandlerMapping. Anonymous URLs must only scan MVC controllers.
+        RequestMappingHandlerMapping mapping = applicationContext.getBean("requestMappingHandlerMapping",
+                RequestMappingHandlerMapping.class);
         Map<RequestMappingInfo, HandlerMethod> map = mapping.getHandlerMethods();
 
         map.keySet().forEach(info -> {
