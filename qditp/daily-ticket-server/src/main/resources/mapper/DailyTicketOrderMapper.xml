@@ -5,6 +5,7 @@
         <id column="ID" jdbcType="VARCHAR" property="id"/>
         <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
         <result column="ORDER_TYPE" jdbcType="VARCHAR" property="orderType"/>
+        <result column="PARENT_ORDER_NO" jdbcType="VARCHAR" property="parentOrderNo"/>
         <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
         <result column="USER_ID" jdbcType="VARCHAR" property="userId"/>
         <result column="ORDER_SOURCE" jdbcType="VARCHAR" property="orderSource"/>
@@ -26,7 +27,7 @@
     </resultMap>
 
     <sql id="BaseColumnList">
-        ID, ORDER_NO, ORDER_TYPE, THIRD_USER_ID, USER_ID, ORDER_SOURCE, CARD_TYPE,
+        ID, ORDER_NO, ORDER_TYPE, PARENT_ORDER_NO, THIRD_USER_ID, USER_ID, ORDER_SOURCE, CARD_TYPE,
         SHOW_TYPE, TICKET_NAME, TICKET_PRICE, PAY_AMOUNT, PAY_CHANNEL_CODE,
         CHANNEL_TYPE, PAY_SCENE, ORDER_STATUS, PAY_STATUS, TRADE_NO,
         PAYMENT_ORDER_NO, PAY_DATE, CREATE_TIME, UPDATE_TIME
@@ -34,12 +35,13 @@
 
     <insert id="insert" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketOrder">
         insert into DAILY_TICKET_ORDER (
-            ID, ORDER_NO, ORDER_TYPE, THIRD_USER_ID, USER_ID, ORDER_SOURCE, CARD_TYPE,
+            ID, ORDER_NO, ORDER_TYPE, PARENT_ORDER_NO, THIRD_USER_ID, USER_ID, ORDER_SOURCE, CARD_TYPE,
             SHOW_TYPE, TICKET_NAME, TICKET_PRICE, PAY_AMOUNT, PAY_CHANNEL_CODE,
             CHANNEL_TYPE, PAY_SCENE, ORDER_STATUS, PAY_STATUS, TRADE_NO,
             PAYMENT_ORDER_NO, PAY_DATE, CREATE_TIME, UPDATE_TIME
         ) values (
             #{id,jdbcType=VARCHAR}, #{orderNo,jdbcType=VARCHAR}, #{orderType,jdbcType=VARCHAR},
+            #{parentOrderNo,jdbcType=VARCHAR},
             #{thirdUserId,jdbcType=VARCHAR}, #{userId,jdbcType=VARCHAR}, #{orderSource,jdbcType=VARCHAR},
             #{cardType,jdbcType=VARCHAR}, #{showType,jdbcType=VARCHAR}, #{ticketName,jdbcType=VARCHAR},
             #{ticketPrice,jdbcType=INTEGER}, #{payAmount,jdbcType=INTEGER}, #{payChannelCode,jdbcType=VARCHAR},
@@ -53,6 +55,13 @@
         select <include refid="BaseColumnList"/>
         from DAILY_TICKET_ORDER
         where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByParentOrderNo" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from DAILY_TICKET_ORDER
+        where PARENT_ORDER_NO = #{parentOrderNo,jdbcType=VARCHAR}
+        order by ORDER_NO
     </select>
 
     <select id="selectRefundOrders" resultType="com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderView">

@@ -17,6 +17,8 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult;
+import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -50,6 +52,20 @@ public class DailyTicketClient extends ProxyWebClient {
         DailyTicketOrderResult response = JSONUtil.toBean(result, new TypeReference<DailyTicketOrderResult>() {
         }, true);
         log.info("调用daily-ticket-server日票下单接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
+     * 调用旅游票下单接口（IF8A-70）。
+     */
+    public TravelTicketOrderResult requestTravelOrder(@RequestBody TravelTicketOrderReqDTO request) {
+        String path = "/ci/daily-ticket/requestTravelOrder";
+        log.info("调用daily-ticket-server旅游票下单接口入参 path={}, request={}", path, JSON.toJSONString(request));
+        String result = postJsonAndGetResponse(path, request);
+        log.info("调用daily-ticket-server旅游票下单接口原始返回 path={}, response={}", path, result);
+        TravelTicketOrderResult response = JSONUtil.toBean(result, new TypeReference<TravelTicketOrderResult>() {
+        }, true);
+        log.info("调用daily-ticket-server旅游票下单接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
         return response;
     }
 

@@ -14,6 +14,8 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderResult;
 import com.chinasofti.huateng.rpc.dailyticket.DailyTicketClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +47,14 @@ public class DailyTicketAppServiceImpl implements DailyTicketAppService {
         log.info("call daily-ticket requestCountingOrder request={}", JSON.toJSONString(request));
         DailyTicketOrderResult result = dailyTicketClient.requestCountingOrder(request);
         log.info("call daily-ticket requestCountingOrder response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    @Override
+    public TravelTicketOrderResult requestTravelOrder(TravelTicketOrderReqDTO request) {
+        log.info("call daily-ticket requestTravelOrder request={}", JSON.toJSONString(request));
+        TravelTicketOrderResult result = dailyTicketClient.requestTravelOrder(request);
+        log.info("call daily-ticket requestTravelOrder response={}", JSON.toJSONString(result));
         return result;
     }
 

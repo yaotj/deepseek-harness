@@ -11,6 +11,8 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderResult;
 
 /**
  * APP日票业务前置服务。
@@ -20,6 +22,11 @@ public interface DailyTicketAppService {
      * IF8A-60 日票下单。
      */
     DailyTicketOrderResult requestCountingOrder(DailyTicketOrderReqDTO request);
+
+    /**
+     * IF8A-70 旅游票下单。
+     */
+    TravelTicketOrderResult requestTravelOrder(TravelTicketOrderReqDTO request);
 
     /**
      * IF8A-61 日票支付。

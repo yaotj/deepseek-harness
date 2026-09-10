@@ -12,6 +12,9 @@ public interface DailyTicketOrderMapper {
 
     DailyTicketOrder selectByOrderNo(@Param("orderNo") String orderNo);
 
+    /** 按旅游票主单号查询其下全部日票子单。 */
+    java.util.List<DailyTicketOrder> selectByParentOrderNo(@Param("parentOrderNo") String parentOrderNo);
+
     /** 运营页面按下单时间及订单号查询日票订单。 */
     java.util.List<DailyTicketRefundOrderView> selectRefundOrders(DailyTicketRefundOrderQuery query);
 

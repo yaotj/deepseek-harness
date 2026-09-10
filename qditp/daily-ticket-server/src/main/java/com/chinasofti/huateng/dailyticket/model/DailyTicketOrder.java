@@ -111,6 +111,19 @@ public class DailyTicketOrder {
      */
     private Date updateTime;
 
+    /**
+     * 父单号。旅游票聚合单的子单指向 TRAVEL_TICKET_ORDER.ORDER_NO，独立日票为空。
+     */
+    private String parentOrderNo;
+
+    public String getParentOrderNo() {
+        return parentOrderNo;
+    }
+
+    public void setParentOrderNo(String parentOrderNo) {
+        this.parentOrderNo = parentOrderNo;
+    }
+
     public String getId() {
         return id;
     }

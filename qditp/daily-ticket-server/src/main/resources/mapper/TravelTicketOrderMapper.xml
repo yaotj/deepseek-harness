@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.dailyticket.mapper.TravelTicketOrderMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.dailyticket.model.TravelTicketOrder">
+        <id column="ID" jdbcType="VARCHAR" property="id"/>
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="USER_ID" jdbcType="VARCHAR" property="userId"/>
+        <result column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
+        <result column="SHOW_TYPE" jdbcType="VARCHAR" property="showType"/>
+        <result column="TICKET_PRICE" jdbcType="INTEGER" property="ticketPrice"/>
+        <result column="TICKET_COUNT" jdbcType="INTEGER" property="ticketCount"/>
+        <result column="TOTAL_AMOUNT" jdbcType="INTEGER" property="totalAmount"/>
+        <result column="ORDER_SOURCE" jdbcType="VARCHAR" property="orderSource"/>
+        <result column="ORDER_STATUS" jdbcType="VARCHAR" property="orderStatus"/>
+        <result column="PAY_STATUS" jdbcType="VARCHAR" property="payStatus"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        ID, ORDER_NO, USER_ID, CARD_TYPE, SHOW_TYPE, TICKET_PRICE, TICKET_COUNT,
+        TOTAL_AMOUNT, ORDER_SOURCE, ORDER_STATUS, PAY_STATUS, CREATE_TIME, UPDATE_TIME
+    </sql>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.dailyticket.model.TravelTicketOrder">
+        insert into TRAVEL_TICKET_ORDER (
+            ID, ORDER_NO, USER_ID, CARD_TYPE, SHOW_TYPE, TICKET_PRICE, TICKET_COUNT,
+            TOTAL_AMOUNT, ORDER_SOURCE, ORDER_STATUS, PAY_STATUS, CREATE_TIME, UPDATE_TIME
+        ) values (
+            #{id,jdbcType=VARCHAR}, #{orderNo,jdbcType=VARCHAR}, #{userId,jdbcType=VARCHAR},
+            #{cardType,jdbcType=VARCHAR}, #{showType,jdbcType=VARCHAR}, #{ticketPrice,jdbcType=INTEGER},
+            #{ticketCount,jdbcType=INTEGER}, #{totalAmount,jdbcType=INTEGER}, #{orderSource,jdbcType=VARCHAR},
+            #{orderStatus,jdbcType=VARCHAR}, #{payStatus,jdbcType=VARCHAR},
+            #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from TRAVEL_TICKET_ORDER
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </select>
+</mapper>

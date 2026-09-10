@@ -14,6 +14,8 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult;
+import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderResult;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,6 +41,14 @@ public class DailyTicketController {
     @PostMapping("/requestCountingOrder")
     public DailyTicketOrderResult requestCountingOrder(@RequestBody DailyTicketOrderReqDTO request) {
         return dailyTicketService.requestCountingOrder(request);
+    }
+
+    /**
+     * IF8A-70 旅游票下单。旅游票为聚合单，内含多张日票。
+     */
+    @PostMapping("/requestTravelOrder")
+    public TravelTicketOrderResult requestTravelOrder(@RequestBody TravelTicketOrderReqDTO request) {
+        return dailyTicketService.requestTravelOrder(request);
     }
 
     /**
@@ -117,14 +127,23 @@ public class DailyTicketController {
 
     /**
      * 日票出站处理（闸机出站时调用）。
-     * 扣减计次票次数（下限为0），标记已使用。
+     * 扣减计次票次数（下限为0），推进票状态。
+     *
+     * <p><b>{@code countingEnd} 允许为 null 且必须容忍 null</b>：ticket-server 出站不带有效期
+     * （{@code GateTicketHandler:188} 固定传 null），有效期由 APP 的 {@code updateAndNotice} 写入。
+     * 原实现对 null 直接 {@code .toString()}，导致出站 100% 抛 NPE、响应退化成全局异常处理器的 UUID
+     * {@code retCode}，日票实例永不更新、计次票永不扣次（2026-09-10 14:31 线上实测）。</p>
      */
     @PostMapping("/ticket/markUsed")
     public DailyTicketBaseResult markUsed(@RequestBody java.util.Map<String, Object> request) {
         String cardNum = request == null ? null : (String) request.get("cardNum");
-        Long countingEnd = request == null ? null :
-                request.get("countingEnd") instanceof Long ? (Long) request.get("countingEnd")
-                        : Long.valueOf(request.get("countingEnd").toString());
+        Object rawCountingEnd = request == null ? null : request.get("countingEnd");
+        Long countingEnd = null;
+        if (rawCountingEnd instanceof Number number) {
+            countingEnd = number.longValue();
+        } else if (rawCountingEnd != null && !rawCountingEnd.toString().isBlank()) {
+            countingEnd = Long.valueOf(rawCountingEnd.toString().trim());
+        }
         return dailyTicketService.markUsed(cardNum, countingEnd);
     }
 }

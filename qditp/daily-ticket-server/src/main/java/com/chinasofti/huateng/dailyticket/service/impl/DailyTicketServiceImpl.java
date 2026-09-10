@@ -8,10 +8,12 @@ import com.chinasofti.huateng.dailyticket.mapper.DailyTicketInstanceMapper;
 import com.chinasofti.huateng.dailyticket.mapper.DailyTicketOrderMapper;
 import com.chinasofti.huateng.dailyticket.mapper.DailyTicketPayLogMapper;
 import com.chinasofti.huateng.dailyticket.mapper.DailyTicketRefundMapper;
+import com.chinasofti.huateng.dailyticket.mapper.TravelTicketOrderMapper;
 import com.chinasofti.huateng.dailyticket.model.DailyTicketInstance;
 import com.chinasofti.huateng.dailyticket.model.DailyTicketOrder;
 import com.chinasofti.huateng.dailyticket.model.DailyTicketPayLog;
 import com.chinasofti.huateng.dailyticket.model.DailyTicketRefund;
+import com.chinasofti.huateng.dailyticket.model.TravelTicketOrder;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderQuery;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderView;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundQuery;
@@ -34,6 +36,9 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult;
+import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderResult;
+import com.chinasofti.huateng.model.app.dailyticket.TravelTicketSubOrder;
 import com.chinasofti.huateng.model.enums.CardTypeCodeEnum;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,9 +46,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -59,10 +66,37 @@ public class DailyTicketServiceImpl implements DailyTicketService {
     private static final String RET_FAIL = "9999";
     private static final String ORDER_TYPE_DAILY_TICKET = "1";
 
+    /**
+     * 旅游票单次购买张数上限。旅游票下单按张数循环 INSERT，不设上限等于把 for 循环次数交给外部输入。
+     * 上限值待业务确认，暂按 20 张。
+     */
+    private static final int MAX_TRAVEL_TICKET_COUNT = 20;
+
+    /**
+     * 日票实例状态机（{@code DAILY_TICKET_INSTANCE.TICKET_STATUS}）：
+     * <pre>
+     * INIT          已下单未激活
+     * ACTIVATED     已激活未开始使用   ← 可进站
+     * USED          已开始使用         ← 可继续进站（一日票有效期内不限次、计次票凭剩余次数）
+     * EXPIRED       已过期 / 次数用尽   终态
+     * REFUND_LOCKED 退票锁定中         终态（锁定期不可过闸）
+     * REFUNDED      已退票             终态
+     * </pre>
+     * <p><b>{@code USED} 不是终态</b>——它表示「已开始使用」，不是「已用完」。
+     * 2026-09-10 线上事故：进站后 APP 的 {@code updateAndNotice} 把状态推到 {@code USED}，
+     * 而 {@code selectForEntryCheck} 用 {@code TICKET_STATUS != 'USED'} 过滤，
+     * 导致一日票刷一次就再也进不了站。收口条件应是有效期（{@code COUNTING_END}）与次数，
+     * 不是 {@code USED} 这个状态本身。</p>
+     */
+    private static final String TICKET_STATUS_ACTIVATED = "ACTIVATED";
+    private static final String TICKET_STATUS_USED = "USED";
+    private static final String TICKET_STATUS_EXPIRED = "EXPIRED";
+
     private final AtomicInteger orderSequence = new AtomicInteger(1);
     private final DailyTicketPayGatewayClient payGatewayClient;
     private final DailyTicketPayProperties payProperties;
     private final DailyTicketOrderMapper orderMapper;
+    private final TravelTicketOrderMapper travelOrderMapper;
     private final DailyTicketInstanceMapper instanceMapper;
     private final DailyTicketPayLogMapper payLogMapper;
     private final DailyTicketRefundMapper refundMapper;
@@ -70,15 +104,64 @@ public class DailyTicketServiceImpl implements DailyTicketService {
     public DailyTicketServiceImpl(DailyTicketPayGatewayClient payGatewayClient,
                                   DailyTicketPayProperties payProperties,
                                   DailyTicketOrderMapper orderMapper,
+                                  TravelTicketOrderMapper travelOrderMapper,
                                   DailyTicketInstanceMapper instanceMapper,
                                   DailyTicketPayLogMapper payLogMapper,
                                   DailyTicketRefundMapper refundMapper) {
         this.payGatewayClient = payGatewayClient;
         this.payProperties = payProperties;
         this.orderMapper = orderMapper;
+        this.travelOrderMapper = travelOrderMapper;
         this.instanceMapper = instanceMapper;
         this.payLogMapper = payLogMapper;
         this.refundMapper = refundMapper;
+    }
+
+    /**
+     * IF8A-70 旅游票下单。
+     *
+     * <p>旅游票是聚合单：主单落 {@code TRAVEL_TICKET_ORDER}，内含的每张日票落一条
+     * {@code DAILY_TICKET_ORDER} 子单（{@code ORDER_TYPE='1'}、{@code PARENT_ORDER_NO} 指向主单）。
+     * 拆子单不是设计取舍——{@code UK_DAILY_TICKET_INSTANCE_ORDER} 限定一个订单号只能挂一张票实例，
+     * 一单挂多票在现有表上无法表达。</p>
+     *
+     * <p><b>落库顺序是先子单、后主单</b>：中途失败时只留下父单不存在的孤儿子单，
+     * APP 拿不到 {@code orderNo} 也就无法发起支付，不会出现「能付款但票数不足」的单。
+     * 反序则会留下可支付但子单缺张的主单。本模块没有任何 {@code @Transactional}
+     * （全模块 grep 为 0），因此不靠事务回滚保证一致性，靠顺序与状态可判定性。</p>
+     *
+     * <p><b>金额一律服务端重算</b>：{@code totalAmount} 只用于与 {@code ticketPrice * ticketCount}
+     * 比对，比对不过直接拒单，**NEVER** 直接采信 APP 上送值落库。</p>
+     */
+    @Override
+    public TravelTicketOrderResult requestTravelOrder(TravelTicketOrderReqDTO request) {
+        TravelTicketOrderResult result = new TravelTicketOrderResult();
+        String validMsg = validateTravelOrderRequest(request);
+        if (validMsg != null) {
+            log.warn("IF8A-70 旅游票下单参数校验失败, msg={}, request={}", validMsg, request);
+            return fail(result, validMsg);
+        }
+
+        Date now = new Date();
+        int ticketPrice = request.getTicketPrice();
+        int ticketCount = request.getTicketCount();
+        String travelOrderNo = nextTravelOrderNo();
+
+        List<TravelTicketSubOrder> subOrders = new ArrayList<>(ticketCount);
+        for (int i = 0; i < ticketCount; i++) {
+            DailyTicketOrder sub = buildTravelSubOrder(request, travelOrderNo, ticketPrice, now);
+            orderMapper.insert(sub);
+            subOrders.add(toSubOrderView(sub));
+        }
+
+        travelOrderMapper.insert(buildTravelMainOrder(request, travelOrderNo, ticketPrice, ticketCount, now));
+
+        log.info("IF8A-70 旅游票下单完成, orderNo={}, ticketCount={}, totalAmount={}",
+                travelOrderNo, ticketCount, ticketPrice * ticketCount);
+        success(result);
+        result.setOrderNo(travelOrderNo);
+        result.setSubOrders(subOrders);
+        return result;
     }
 
     @Override
@@ -459,11 +542,23 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return success(result);
     }
 
+    /**
+     * 激活日票（IF8A-32）。
+     *
+     * <p><b>CARD_NUM 直接取 APP 上送的 {@code cardNum}，NEVER 在此处向 card-pool-server 再预占卡号。</b>
+     * 该卡号是开户（{@code businessType=ACCOUNT_OPEN}）时预占并下发给 APP 的那张，APP 取码与闸机上送
+     * 用的都是它。若这里另占一张，因 {@code UK_LOGIC_CARD_POOL_BUSINESS} 唯一约束必然是不同卡号，
+     * 后续 {@code selectForEntryCheck} / {@code markUsed} / {@code queryDailyTicketInfo} 按
+     * {@code CARD_NUM} 精确匹配恒命中 0 行——2026-09-10 线上进站被拒即此原因。</p>
+     */
     @Override
     public DailyTicketBaseResult updateTicket(DailyTicketActivateReqDTO request) {
         DailyTicketBaseResult result = new DailyTicketBaseResult();
         if (request == null || !StringUtils.hasText(request.getOrderNo())) {
             return fail(result, "orderNo不能为空");
+        }
+        if (!StringUtils.hasText(request.getCardNum())) {
+            return fail(result, "cardNum不能为空");
         }
         DailyTicketOrder order = orderMapper.selectByOrderNo(request.getOrderNo());
         if (order == null) {
@@ -473,9 +568,21 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             return fail(result, "订单未支付，不能激活");
         }
 
+        DailyTicketInstance exists = instanceMapper.selectByOrderNo(request.getOrderNo());
+        if (exists != null && !TICKET_STATUS_ACTIVATED.equals(exists.getTicketStatus())) {
+            log.info("日票已开始使用或已终态，激活请求短路返回 orderNo={} ticketStatus={} cardNum={}",
+                    request.getOrderNo(), exists.getTicketStatus(), exists.getCardNum());
+            return success(result);
+        }
+        if (exists != null && !request.getCardNum().equals(exists.getCardNum())) {
+            log.warn("日票重复激活但卡号与首次不一致 orderNo={} 原cardNum={} 本次cardNum={}",
+                    request.getOrderNo(), exists.getCardNum(), request.getCardNum());
+            return fail(result, "卡号与已激活车票不一致");
+        }
+
         Date now = new Date();
         DailyTicketInstance ticket = new DailyTicketInstance();
-        ticket.setId(nextId());
+        ticket.setId(exists != null ? exists.getId() : nextId());
         ticket.setOrderNo(request.getOrderNo());
         ticket.setThirdUserId(request.getThirdUserId());
         ticket.setCardNum(request.getCardNum());
@@ -493,7 +600,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         ticket.setDiscountAmount(request.getDiscountAmount());
         ticket.setPayChannel(request.getPayChannel());
         ticket.setCountingStart(request.getCountingStart());
-        ticket.setTicketStatus("ACTIVATED");
+        ticket.setTicketStatus(TICKET_STATUS_ACTIVATED);
         ticket.setAccNoticeStatus("INIT");
         ticket.setActivateTime(now);
         ticket.setCreateTime(now);
@@ -502,6 +609,14 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return success(result);
     }
 
+    /**
+     * APP 首次使用通知（IF8A-33）：写入有效期截止时间并置「已开始使用」。
+     *
+     * <p>APP 在首次进站后上送 {@code countingEnd}（一日票 = 首次使用 + 24h），语义是**有效期截止**，
+     * 不是「票已用完」。因此这里只把状态推到 {@code USED}（已开始使用），
+     * <b>NEVER 置 {@code EXPIRED} 或任何终态</b>，票在有效期内仍要能继续进出站。
+     * {@code FIRST_USE_TIME} 只在首次写入，重复通知不覆盖。</p>
+     */
     @Override
     public DailyTicketBaseResult updateAndNotice(DailyTicketUsedNoticeReqDTO request) {
         DailyTicketBaseResult result = new DailyTicketBaseResult();
@@ -514,12 +629,14 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         }
         Date now = new Date();
         ticket.setCountingEnd(request.getCountingEnd());
-        ticket.setTicketStatus("USED");
-        ticket.setFirstUseTime(now);
+        ticket.setTicketStatus(TICKET_STATUS_USED);
+        ticket.setFirstUseTime(ticket.getFirstUseTime() == null ? now : ticket.getFirstUseTime());
         ticket.setAccNoticeStatus("SUCCESS");
         ticket.setAccNoticeTime(now);
         ticket.setUpdateTime(now);
         instanceMapper.markUsed(ticket);
+        log.info("日票首次使用通知完成, cardNum={}, countingEnd={}, ticketStatus={}",
+                request.getCardNum(), request.getCountingEnd(), TICKET_STATUS_USED);
         return success(result);
     }
 
@@ -586,14 +703,30 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             return fail(result, "日票已过期");
         }
         // 计次票次数检查（仅校验，不扣减；扣减在出站时执行）
+        // ACTUAL_TIMES 负数是「不限次」哨兵值（APP 上送 -99，见 DailyTicketActivateReqDTO#actualTimes），
+        // 一日票 / 多日票走有效期而非次数，NEVER 用 <= 0 判断用完——那会把不限次票判成已用完
+        // （2026-09-10 线上：-99 被判「计次票次数已用完」，日票进不了站）。
         Integer actualTimes = instance.getActualTimes();
-        if (actualTimes != null && actualTimes <= 0) {
+        if (actualTimes != null && actualTimes == 0) {
             log.warn("日票进站校验：计次票次数已用完, cardNum={}", cardNum);
             return fail(result, "计次票次数已用完");
         }
         return success(result);
     }
 
+    /**
+     * 出站处理：计次票扣次、写入出站时间。
+     *
+     * <p>状态推进规则（{@code USED} 表示「已开始使用」，不是终态）：</p>
+     * <ul>
+     *   <li>不限次票（{@code ACTUAL_TIMES < 0}，如一日票）：保持 {@code USED}，靠 {@code COUNTING_END} 过期收口</li>
+     *   <li>计次票扣完最后一次（扣后为 0）：推进到 {@code EXPIRED} 终态</li>
+     *   <li>计次票仍有剩余次数：保持 {@code USED}，下次仍可进站</li>
+     * </ul>
+     * <p><b>{@code countingEnd} 为 null 时 NEVER 覆盖库里已有的有效期</b>——闸机出站不带有效期
+     * （{@code GateTicketHandler:188} 传的就是 null），有效期由 APP 的 {@code updateAndNotice} 写入。
+     * {@code FIRST_USE_TIME} 同理只在首次写入。</p>
+     */
     @Override
     public DailyTicketBaseResult markUsed(String cardNum, Long countingEnd) {
         DailyTicketBaseResult result = new DailyTicketBaseResult();
@@ -606,21 +739,24 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             return fail(result, "无有效日票记录");
         }
         Date now = new Date();
-        // 计次票扣减一次次数（atomic，下限为0）
-        if (instance.getActualTimes() != null && instance.getActualTimes() > 0) {
+        Integer actualTimes = instance.getActualTimes();
+        int remainTimes = actualTimes == null ? -1 : actualTimes;
+        // 计次票扣减一次次数（atomic，下限为0）；不限次票（负数哨兵）不扣
+        if (actualTimes != null && actualTimes > 0) {
             int updated = instanceMapper.decreaseActualTimes(cardNum, now);
-            log.info("日票出站：计次票扣次, cardNum={}, 剩余次数={}", cardNum,
-                    instance.getActualTimes() - (updated > 0 ? 1 : 0));
+            remainTimes = actualTimes - (updated > 0 ? 1 : 0);
+            log.info("日票出站：计次票扣次, cardNum={}, 剩余次数={}", cardNum, remainTimes);
         }
-        // 标记已使用
-        instance.setTicketStatus("USED");
-        instance.setCountingEnd(countingEnd);
-        instance.setFirstUseTime(now);
+        String nextStatus = remainTimes == 0 ? TICKET_STATUS_EXPIRED : TICKET_STATUS_USED;
+        instance.setTicketStatus(nextStatus);
+        instance.setCountingEnd(countingEnd == null ? instance.getCountingEnd() : countingEnd);
+        instance.setFirstUseTime(instance.getFirstUseTime() == null ? now : instance.getFirstUseTime());
         instance.setAccNoticeStatus("SUCCESS");
         instance.setAccNoticeTime(now);
         instance.setUpdateTime(now);
         instanceMapper.markUsed(instance);
-        log.info("日票出站：标记已使用, cardNum={}, countingEnd={}", cardNum, countingEnd);
+        log.info("日票出站处理完成, cardNum={}, ticketStatus={}, 剩余次数={}, countingEnd={}",
+                cardNum, nextStatus, remainTimes, instance.getCountingEnd());
         return success(result);
     }
 
@@ -980,6 +1116,50 @@ public class DailyTicketServiceImpl implements DailyTicketService {
                 + String.format("%04d", orderSequence.getAndIncrement() % 10000);
     }
 
+    /** 旅游票主单号，前缀 0T 与日票子单的 0E 区分，便于日志与运营侧一眼分辨聚合单。 */
+    private String nextTravelOrderNo() {
+        return "0T" + new SimpleDateFormat("yyyyMMddHHmmss").format(new Date())
+                + String.format("%04d", orderSequence.getAndIncrement() % 10000);
+    }
+
+    private TravelTicketOrder buildTravelMainOrder(TravelTicketOrderReqDTO request, String travelOrderNo,
+                                                   int ticketPrice, int ticketCount, Date now) {
+        TravelTicketOrder main = new TravelTicketOrder();
+        main.setId(nextId());
+        main.setOrderNo(travelOrderNo);
+        main.setUserId(request.getUserId());
+        main.setCardType(request.getCardType());
+        main.setShowType(request.getShowType());
+        main.setTicketPrice(ticketPrice);
+        main.setTicketCount(ticketCount);
+        main.setTotalAmount(ticketPrice * ticketCount);
+        main.setOrderSource(request.getOrderSource());
+        main.setOrderStatus("CREATED");
+        main.setPayStatus("INIT");
+        main.setCreateTime(now);
+        main.setUpdateTime(now);
+        return main;
+    }
+
+    private DailyTicketOrder buildTravelSubOrder(TravelTicketOrderReqDTO request, String travelOrderNo,
+                                                 int ticketPrice, Date now) {
+        DailyTicketOrder sub = new DailyTicketOrder();
+        sub.setId(nextId());
+        sub.setOrderNo(nextOrderNo());
+        sub.setOrderType(ORDER_TYPE_DAILY_TICKET);
+        sub.setParentOrderNo(travelOrderNo);
+        sub.setOrderSource(request.getOrderSource());
+        sub.setTicketPrice(ticketPrice);
+        sub.setCardType(request.getCardType());
+        sub.setShowType(request.getShowType());
+        sub.setUserId(request.getUserId());
+        sub.setOrderStatus("CREATED");
+        sub.setPayStatus("INIT");
+        sub.setCreateTime(now);
+        sub.setUpdateTime(now);
+        return sub;
+    }
+
     private String nextId() {
         return UUID.randomUUID().toString().replace("-", "");
     }
@@ -989,6 +1169,42 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         calendar.setTime(base);
         calendar.add(Calendar.DAY_OF_MONTH, days);
         return calendar.getTime();
+    }
+
+    private TravelTicketSubOrder toSubOrderView(DailyTicketOrder sub) {
+        TravelTicketSubOrder view = new TravelTicketSubOrder();
+        view.setOrderNo(sub.getOrderNo());
+        view.setCardType(sub.getCardType());
+        view.setShowType(sub.getShowType());
+        view.setTicketPrice(sub.getTicketPrice());
+        view.setOrderStatus(sub.getOrderStatus());
+        return view;
+    }
+
+    private String validateTravelOrderRequest(TravelTicketOrderReqDTO request) {
+        if (request == null) {
+            return "请求报文不能为空";
+        }
+        if (!StringUtils.hasText(request.getCardType())) {
+            return "cardType不能为空";
+        }
+        if (!StringUtils.hasText(request.getUserId())) {
+            return "userId不能为空";
+        }
+        if (request.getTicketPrice() == null || request.getTicketPrice() <= 0) {
+            return "ticketPrice必须大于0";
+        }
+        if (request.getTicketCount() == null || request.getTicketCount() <= 0) {
+            return "ticketCount必须大于0";
+        }
+        if (request.getTicketCount() > MAX_TRAVEL_TICKET_COUNT) {
+            return "ticketCount不能超过" + MAX_TRAVEL_TICKET_COUNT;
+        }
+        int expectedAmount = request.getTicketPrice() * request.getTicketCount();
+        if (request.getTotalAmount() == null || request.getTotalAmount() != expectedAmount) {
+            return "totalAmount与ticketPrice*ticketCount不一致";
+        }
+        return null;
     }
 
     private String validateOrderRequest(DailyTicketOrderReqDTO request) {
