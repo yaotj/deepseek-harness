@@ -16,21 +16,24 @@
       <el-form-item label="设备编号" prop="deviceId">
         <el-input v-model="queryParams.deviceId" placeholder="请输入 TVM 设备编号" clearable style="width: 180px" @keyup.enter="handleQuery" />
       </el-form-item>
-      <el-form-item label="支付渠道" prop="channel">
-        <el-input v-model="queryParams.channel" placeholder="请输入支付渠道编码" clearable style="width: 160px" @keyup.enter="handleQuery" />
-      </el-form-item>
-      <el-form-item label="支付状态" prop="status">
-        <el-select v-model="queryParams.status" clearable placeholder="全部" style="width: 130px">
-          <el-option label="支付中" value="0" />
-          <el-option label="支付成功" value="1" />
-          <el-option label="支付失败" value="2" />
-          <el-option label="未支付" value="3" />
+      <el-form-item label="受理渠道" prop="channel">
+        <el-select v-model="queryParams.channel" clearable placeholder="全部" style="width: 130px">
+          <el-option label="APP (01)" value="01" />
+          <el-option label="TVM (02)" value="02" />
+          <el-option label="BOM (03)" value="03" />
         </el-select>
       </el-form-item>
-      <el-form-item label="购票类型" prop="ticketType">
-        <el-select v-model="queryParams.ticketType" clearable placeholder="全部" style="width: 150px">
-          <el-option label="按站点购票" value="0" />
-          <el-option label="固定票价购票" value="1" />
+      <el-form-item label="订单状态" prop="orderStatus">
+        <el-select v-model="queryParams.orderStatus" clearable placeholder="全部" style="width: 140px">
+          <el-option label="已下单" value="CREATED" />
+          <el-option label="支付中" value="PAYING" />
+          <el-option label="已支付" value="PAID" />
+          <el-option label="已履约" value="FULFILLED" />
+          <el-option label="履约失败" value="FULFILL_FAILED" />
+          <el-option label="支付失败" value="PAY_FAILED" />
+          <el-option label="已过期" value="EXPIRED" />
+          <el-option label="退款中" value="REFUNDING" />
+          <el-option label="已退款" value="REFUNDED" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -39,23 +42,24 @@
       </el-form-item>
     </el-form>
 
-    <el-alert title="当面付订单数据来源：collect-pay-server 的 TBL_TVM_ORDER_PAY。请输入订单标识，或完整的下单时间范围后查询；仅支付成功且未发起退款的订单可操作退款。" type="info" :closable="false" show-icon class="mb8" />
-
     <el-table v-loading="loading" :data="orders" border>
       <el-table-column label="业务订单号" prop="orderNo" min-width="200" show-overflow-tooltip />
-      <el-table-column label="支付状态" width="105" align="center"><template #default="{ row }"><el-tag :type="statusTagType(row.status)">{{ formatStatus(row.status) }}</el-tag></template></el-table-column>
-      <el-table-column label="支付渠道" prop="channel" width="115" align="center" />
+      <el-table-column label="订单状态" width="100" align="center"><template #default="{ row }"><el-tag :type="orderStatusTagType(row.orderStatus)">{{ formatOrderStatus(row.orderStatus) }}</el-tag></template></el-table-column>
+      <el-table-column label="受理渠道" width="90" align="center"><template #default="{ row }">{{ formatChannel(row.channel) }}</template></el-table-column>
+      <el-table-column label="支付渠道编码" prop="payChannelCode" width="130" align="center" />
       <el-table-column label="支付中心订单号" prop="payCenterOrderNo" min-width="190" show-overflow-tooltip />
       <el-table-column label="渠道订单号" prop="payCenterChannelOrderNo" min-width="190" show-overflow-tooltip />
-      <el-table-column label="起点站" prop="inStationCode" width="100" align="center" />
-      <el-table-column label="终点站" prop="outStationCode" width="100" align="center" />
+      <el-table-column label="起点站" width="100" align="center"><template #default="{ row }">{{ row.inStationName || row.inStationCode || '-' }}</template></el-table-column>
+      <el-table-column label="终点站" width="100" align="center"><template #default="{ row }">{{ row.outStationName || row.outStationCode || '-' }}</template></el-table-column>
       <el-table-column label="票价" width="100" align="right"><template #default="{ row }">{{ formatAmount(row.ticketPrice) }}</template></el-table-column>
       <el-table-column label="数量" prop="ticketNum" width="80" align="center" />
-      <el-table-column label="订单总额" width="105" align="right"><template #default="{ row }">{{ formatAmount(row.totalPrice) }}</template></el-table-column>
-      <el-table-column label="购票类型" width="110" align="center"><template #default="{ row }">{{ formatTicketType(row.ticketType) }}</template></el-table-column>
+      <el-table-column label="订单总额" width="105" align="right"><template #default="{ row }">{{ formatAmount(row.orderAmount) }}</template></el-table-column>
+      <el-table-column label="购票类型" width="110" align="center"><template #default="{ row }">{{ formatTicketType(row.singleTicketType) }}</template></el-table-column>
       <el-table-column label="设备编号" prop="deviceId" min-width="130" show-overflow-tooltip />
+      <el-table-column label="退款状态" width="105" align="center"><template #default="{ row }"><el-tag :type="refundStatusTagType(row.refundStatus)">{{ formatRefundStatus(row.refundStatus) }}</el-tag></template></el-table-column>
+      <el-table-column label="已退金额" width="105" align="right"><template #default="{ row }">{{ (row.refundAmount ?? 0) > 0 ? formatAmount(row.refundAmount) : '-' }}</template></el-table-column>
+      <el-table-column label="最后退款时间" prop="lastRefundTime" width="170" align="center" />
       <el-table-column label="下单时间" prop="createTime" width="170" align="center" />
-      <el-table-column label="状态说明" prop="msg" min-width="150" show-overflow-tooltip />
       <el-table-column label="操作" width="90" align="center" fixed="right">
         <template #default="{ row }">
           <el-tooltip content="退款" placement="top">
@@ -70,7 +74,7 @@
     <el-dialog v-model="refundOpen" title="当面付退款" width="500px" append-to-body destroy-on-close>
       <el-descriptions :column="1" border size="small" class="mb8">
         <el-descriptions-item label="业务订单号">{{ refundOrder.orderNo }}</el-descriptions-item>
-        <el-descriptions-item label="退款金额">{{ formatAmount(refundOrder.totalPrice) }}</el-descriptions-item>
+        <el-descriptions-item label="退款金额">{{ formatAmount(refundOrder.orderAmount) }}</el-descriptions-item>
       </el-descriptions>
       <el-form ref="refundFormRef" :model="refundForm" :rules="refundRules" label-width="90px">
         <el-form-item label="退款原因" prop="refundReason">
@@ -91,11 +95,11 @@ const total = ref(0)
 const orders = ref([])
 const refundOpen = ref(false)
 const refunding = ref(false)
-const refundOrder = reactive({ orderNo: '', totalPrice: '' })
+const refundOrder = reactive({ orderNo: '', orderAmount: null })
 const refundForm = reactive({ refundReason: '' })
 const refundRules = { refundReason: [{ required: true, message: '请输入退款原因', trigger: 'blur' }] }
 const queryParams = reactive({
-  dateRange: [], orderNo: '', payCenterOrderNo: '', payCenterChannelOrderNo: '', deviceId: '', channel: '', status: '', ticketType: '', pageNum: 1, pageSize: 10
+  dateRange: [], orderNo: '', payCenterOrderNo: '', payCenterChannelOrderNo: '', deviceId: '', channel: '', orderStatus: '', pageNum: 1, pageSize: 10
 })
 
 function buildQuery() {
@@ -138,13 +142,30 @@ function resetQuery() {
 }
 
 function formatAmount(value) { return value == null || value === '' ? '-' : `¥ ${(Number(value) / 100).toFixed(2)}` }
-function formatStatus(value) { return ({ '0': '支付中', '1': '支付成功', '2': '支付失败', '3': '未支付' })[value] || value || '-' }
-function statusTagType(value) { return ({ '0': 'warning', '1': 'success', '2': 'danger', '3': 'info' })[value] || 'info' }
+function formatOrderStatus(value) {
+  return ({
+    CREATED: '已下单', PAYING: '支付中', PAID: '已支付', FULFILLED: '已履约',
+    FULFILL_FAILED: '履约失败', TOPUP_SUSPECT: '充值可疑', PAY_FAILED: '支付失败',
+    EXPIRED: '已过期', REFUNDING: '退款中', REFUNDED: '已退款', CANCELED: '已取消'
+  })[value] || value || '-'
+}
+function orderStatusTagType(value) {
+  return ({
+    CREATED: 'info', PAYING: 'warning', PAID: 'success', FULFILLED: 'success',
+    FULFILL_FAILED: 'danger', TOPUP_SUSPECT: 'warning', PAY_FAILED: 'danger',
+    EXPIRED: 'info', REFUNDING: 'warning', REFUNDED: 'danger', CANCELED: 'info'
+  })[value] || 'info'
+}
+function formatChannel(value) { return ({ '01': 'APP', '02': 'TVM', '03': 'BOM' })[value] || value || '-' }
 function formatTicketType(value) { return ({ '0': '按站点购票', '1': '固定票价购票' })[value] || value || '-' }
-// 后端会再次核验状态与退款单号，前端禁用仅用于避免无效操作。
-function canRefund(row) { return row.status === '1' && !row.refundNo }
+function formatRefundStatus(value) { return ({ NONE: '未退款', PARTIAL: '部分退款', SUCCESS: '已退款' })[value] || value || '-' }
+function refundStatusTagType(value) { return ({ NONE: 'info', PARTIAL: 'warning', SUCCESS: 'danger' })[value] || 'info' }
+function canRefund(row) {
+  const refundableOrderStatuses = ['PAID', 'FULFILLED', 'FULFILL_FAILED']
+  return refundableOrderStatuses.includes(row.orderStatus) && row.refundStatus !== 'SUCCESS' && row.refundStatus !== 'PARTIAL'
+}
 function handleRefund(row) {
-  Object.assign(refundOrder, { orderNo: row.orderNo, totalPrice: row.totalPrice })
+  Object.assign(refundOrder, { orderNo: row.orderNo, orderAmount: row.orderAmount })
   refundForm.refundReason = ''
   proxy.resetForm('refundFormRef')
   refundOpen.value = true

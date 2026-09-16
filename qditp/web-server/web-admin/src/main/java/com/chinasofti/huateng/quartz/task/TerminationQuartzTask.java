@@ -2,17 +2,14 @@ package com.chinasofti.huateng.quartz.task;
 
 import com.chinasofti.huateng.model.paysign.ProcessTerminationReqDTO;
 import com.chinasofti.huateng.model.paysign.ProcessTerminationRespDTO;
+import com.chinasofti.huateng.quartz.util.QuartzTraceUtils;
 import com.chinasofti.huateng.rpc.paySign.PaySignClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
 
 /**
  * 解约申请确认任务：调 pay-sign-server 的 /internal/termination/process。
@@ -62,10 +59,20 @@ public class TerminationQuartzTask {
      * 指定基准时间与延迟天数的补跑入口。
      * 前台调用目标示例：terminationQuartzTask.confirmTermination('20260907', 4)。
      *
+     * <p><b>第二个参数 MUST 是 {@code Integer} 而不是 {@code int}</b>：
+     * {@link com.chinasofti.huateng.quartz.util.JobInvokeUtil#getMethodParams} 把不带后缀的数字
+     * 一律解析成 {@code Integer.class}（只有 {@code L} 后缀→Long、{@code D}→Double、
+     * 引号→String、true/false→Boolean），而它随后用 {@code getClass().getMethod(名, 类型数组)}
+     * 反射查找 —— <b>{@code getMethod} 按精确类型匹配、不做自动装箱</b>。因此签名写 {@code int}
+     * 时从后台调用必抛 {@code NoSuchMethodException: confirmTermination(java.lang.String,
+     * java.lang.Integer)}，且 {@code 0} / {@code 0L} / {@code 0D} 全都对不上、无从绕过。
+     * 2026-09-14 实测到该异常（job 4，job_log_id=5034）。
+     * <b>本包内新增带数字参数的任务方法 MUST 一律用包装类型。</b></p>
+     *
      * @param referenceTime 基准时间，yyyyMMdd 或 yyyyMMddHHmmss
      * @param delayDays     规定天数，截止点 = 基准时间 - 该天数
      */
-    public void confirmTermination(String referenceTime, int delayDays) {
+    public void confirmTermination(String referenceTime, Integer delayDays) {
         ProcessTerminationReqDTO request = new ProcessTerminationReqDTO();
         request.setReferenceTime(referenceTime);
         request.setDelayDays(delayDays);
@@ -80,46 +87,7 @@ public class TerminationQuartzTask {
      * **NEVER** 每轮重新取当前时间——否则边界会随耗时漂移，刚好卡在边界上的申请会被漏掉。</p>
      */
     private void invoke(ProcessTerminationReqDTO request) {
-        // Quartz 调度进来时 traceId 已由 AbstractQuartzJob.before() 放入 MDC，
-        // 并会被 after() 写进 sys_job_log.job_message，这里直接复用，MUST NOT 另生成一个——
-        // 否则前台调度日志里的 traceId 与实际发给 pay-sign 的对不上。
-        String traceId = MDC.get("traceId");
-        boolean ownTraceId = traceId == null || traceId.isEmpty();
-        if (ownTraceId) {
-            // 非 Quartz 路径（本地手工调用 / 单测）兜底，自己生成并自己清理。
-            traceId = newTraceId();
-            MDC.put("traceId", traceId);
-        }
-        try {
-            invokeInTrace(request, traceId);
-        } finally {
-            if (ownTraceId) {
-                MDC.remove("traceId");
-            }
-        }
-    }
-
-    /**
-     * 生成 32 位小写 hex 的 traceId，仅用于非 Quartz 调用路径的兜底。
-     */
-    private static String newTraceId() {
-        return UUID.randomUUID().toString().replace("-", "");
-    }
-
-    /**
-     * 组装 W3C traceparent 头，交给 pay-sign 续接链路。
-     *
-     * <p>末段采样标记固定为 {@code 00}（不采样）：pay-sign 侧
-     * {@code management.tracing.sampling.probability=0} 只为在 MDC 里拿到 traceId 供日志用，
-     * 传 {@code 01} 会让对端按「父 span 已采样」把 span 推给 OTLP collector
-     * （{@code management.otlp.tracing.endpoint}），该地址可达性尚未实测，不可达时会持续刷导出失败日志。
-     * 确认要看 trace 拓扑时再改成 {@code 01}。</p>
-     */
-    private static Map<String, String> traceHeaders(String traceId) {
-        String spanId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-        Map<String, String> headers = new HashMap<>(2);
-        headers.put("traceparent", "00-" + traceId + "-" + spanId + "-00");
-        return headers;
+        QuartzTraceUtils.runWithTrace(traceId -> invokeInTrace(request, traceId));
     }
 
     private void invokeInTrace(ProcessTerminationReqDTO request, String traceId) {
@@ -131,7 +99,8 @@ public class TerminationQuartzTask {
         int expired = 0;
         int skipped = 0;
         while (rounds < MAX_ROUNDS) {
-            ProcessTerminationRespDTO response = paySignClient.processTermination(request, traceHeaders(traceId));
+            ProcessTerminationRespDTO response = paySignClient.processTermination(request,
+                    QuartzTraceUtils.traceHeaders(traceId));
             if (response == null) {
                 throw new IllegalStateException("解约申请批处理接口未返回响应, request=" + request + ", round=" + (rounds + 1));
             }

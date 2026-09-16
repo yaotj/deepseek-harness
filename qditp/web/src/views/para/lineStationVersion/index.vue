@@ -8,6 +8,8 @@
       </el-table-column>
       <el-table-column label="线路代码版本号" prop="lineCodeVersion" min-width="220" align="center" />
       <el-table-column label="车站代码版本号" prop="stationCodeVersion" min-width="220" align="center" />
+      <el-table-column label="路网拓扑参数文件名" prop="networkFileName" min-width="260" align="center" show-overflow-tooltip />
+      <el-table-column label="费率参数文件名" prop="rateFileName" min-width="260" align="center" show-overflow-tooltip />
       <el-table-column label="更新时间" min-width="220" align="center">
         <template #default="scope">{{ formatDateTime(scope.row.updateTime) }}</template>
       </el-table-column>

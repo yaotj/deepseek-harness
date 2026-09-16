@@ -19,11 +19,9 @@
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
-        <el-button icon="Back" @click="router.back()">返回</el-button>
+        <el-button v-if="route.query.cardId" icon="Back" @click="router.back()">返回</el-button>
       </el-form-item>
     </el-form>
-
-    <el-alert title="交易明细数据来源：QRCODE_TXN_DETAIL。请填写逻辑卡号、第三方用户 ID，或完整的交易日期范围；支付渠道和票种用于进一步筛选。" type="info" :closable="false" show-icon class="mb8" />
 
     <el-table v-loading="loading" :data="records" border>
       <el-table-column label="交易时间" width="180" align="center"><template #default="{ row }">{{ formatTransactionTime(row.handleDateTime) }}</template></el-table-column>
@@ -31,7 +29,8 @@
       <el-table-column label="逻辑卡号" prop="cardId" min-width="180" show-overflow-tooltip />
       <el-table-column label="交易站点" min-width="170" align="center"><template #default="{ row }">{{ formatStation(row.lastHandleStationCode, row.lastHandleStationName) }}</template></el-table-column>
       <el-table-column label="交易时间" width="180" align="center"><template #default="{ row }">{{ formatTransactionTime(row.lastHandleDateTime) }}</template></el-table-column>
-      <el-table-column label="本站" min-width="170" align="center"><template #default="{ row }">{{ formatStation(row.handleStationCode, row.handleStationName) }}</template></el-table-column>
+      <el-table-column label="出站站点" min-width="170" align="center"><template #default="{ row }">{{ formatStation(row.handleStationCode, row.handleStationName) }}</template></el-table-column>
+      <el-table-column label="出站时间" width="180" align="center"><template #default="{ row }">{{ formatTransactionTime(row.handleDateTime) }}</template></el-table-column>
       <el-table-column label="交易金额" width="110" align="right"><template #default="{ row }">{{ formatAmount(row.trxAmount) }}</template></el-table-column>
       <el-table-column label="超时金额" width="110" align="right"><template #default="{ row }">{{ formatAmount(row.overtimeAmount) }}</template></el-table-column>
       <el-table-column label="处理结果" min-width="260" align="center"><template #default="{ row }">{{ formatHandleResult(row.handleResultCode) }}</template></el-table-column>
@@ -134,8 +133,7 @@ function formatHandleResult(value) {
 }
 
 function formatStation(code, name) {
-  if (!code && !name) return '-'
-  return name ? `${code} ${name}` : code
+  return name || code || '-'
 }
 
 function normalizeCode(value) {

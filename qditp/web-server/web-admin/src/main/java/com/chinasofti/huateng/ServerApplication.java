@@ -6,7 +6,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import com.alibaba.druid.spring.boot3.autoconfigure.DruidDataSourceAutoConfigure;
 import com.chinasofti.huateng.rpc.EnableRpcAccount;
+import com.chinasofti.huateng.rpc.EnableRpcBlacklist;
+import com.chinasofti.huateng.rpc.EnableRpcCardPool;
+import com.chinasofti.huateng.rpc.EnableRpcGateTxnPay;
+import com.chinasofti.huateng.rpc.EnableRpcPara;
 import com.chinasofti.huateng.rpc.EnableRpcPaySign;
+import com.chinasofti.huateng.rpc.EnableRpcRecon;
 
 /**
  * 启动程序
@@ -15,8 +20,13 @@ import com.chinasofti.huateng.rpc.EnableRpcPaySign;
  */
 @SpringBootApplication(exclude = { DataSourceAutoConfiguration.class, DruidDataSourceAutoConfigure.class })
 @EnableRpcAccount
+@EnableRpcBlacklist
+@EnableRpcCardPool
 @EnableRpcF2f
+@EnableRpcGateTxnPay
+@EnableRpcPara
 @EnableRpcPaySign
+@EnableRpcRecon
 public class ServerApplication
 {
     public static void main(String[] args)

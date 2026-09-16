@@ -132,15 +132,15 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 	</select>
 	
 	<select id="checkUserNameUnique" parameterType="String" resultMap="SysUserResult">
-		select user_id, user_name from sys_user where user_name = #{userName} and del_flag = '0' FETCH FIRST 1 ROW ONLY
+		select user_id, user_name from sys_user where user_name = #{userName} and del_flag = '0' FETCH FIRST 1 ROWS ONLY
 	</select>
 	
 	<select id="checkPhoneUnique" parameterType="String" resultMap="SysUserResult">
-		select user_id, phonenumber from sys_user where phonenumber = #{phonenumber} and del_flag = '0' FETCH FIRST 1 ROW ONLY
+		select user_id, phonenumber from sys_user where phonenumber = #{phonenumber} and del_flag = '0' FETCH FIRST 1 ROWS ONLY
 	</select>
 	
 	<select id="checkEmailUnique" parameterType="String" resultMap="SysUserResult">
-		select user_id, email from sys_user where email = #{email} and del_flag = '0' FETCH FIRST 1 ROW ONLY
+		select user_id, email from sys_user where email = #{email} and del_flag = '0' FETCH FIRST 1 ROWS ONLY
 	</select>
 	
 	<insert id="insertUser" parameterType="SysUser" useGeneratedKeys="true" keyProperty="userId" keyColumn="USER_ID">

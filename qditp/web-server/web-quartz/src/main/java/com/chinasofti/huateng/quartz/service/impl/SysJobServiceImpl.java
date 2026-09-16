@@ -6,13 +6,17 @@ import org.quartz.JobDataMap;
 import org.quartz.JobKey;
 import org.quartz.Scheduler;
 import org.quartz.SchedulerException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.chinasofti.huateng.common.constant.Constants;
 import com.chinasofti.huateng.common.constant.ScheduleConstants;
 import com.chinasofti.huateng.common.exception.job.TaskException;
 import com.chinasofti.huateng.quartz.domain.SysJob;
 import com.chinasofti.huateng.quartz.mapper.SysJobMapper;
+import com.chinasofti.huateng.quartz.service.ISysJobLogService;
 import com.chinasofti.huateng.quartz.service.ISysJobService;
 import com.chinasofti.huateng.quartz.util.CronUtils;
 import com.chinasofti.huateng.quartz.util.ScheduleUtils;
@@ -25,11 +29,17 @@ import com.chinasofti.huateng.quartz.util.ScheduleUtils;
 @Service
 public class SysJobServiceImpl implements ISysJobService
 {
+    private static final Logger log = LoggerFactory.getLogger(SysJobServiceImpl.class);
+
     @Autowired
     private Scheduler scheduler;
 
+
     @Autowired
     private SysJobMapper jobMapper;
+
+    @Autowired
+    private ISysJobLogService jobLogService;
 
     /**
      * 项目启动时，初始化定时器 主要是防止手动修改数据库导致未同步到定时任务处理（注：不能手动修改数据库ID和任务组名，否则会导致脏数据）
@@ -37,6 +47,7 @@ public class SysJobServiceImpl implements ISysJobService
     @PostConstruct
     public void init() throws SchedulerException, TaskException
     {
+        closeStaleRunningJobLog();
         scheduler.clear();
         List<SysJob> jobList = jobMapper.selectJobAll();
         for (SysJob job : jobList)
@@ -44,6 +55,33 @@ public class SysJobServiceImpl implements ISysJobService
             ScheduleUtils.createScheduleJob(scheduler, job);
         }
     }
+
+    /**
+     * 收口上一个进程遗留的「进行中」调度日志。
+     *
+     * <p>Quartz 用的是内存 JobStore，进程一停，正在跑的那次执行就再也不会有人回写结果，
+     * 那一行会永远停在「进行中」。这里在启动时统一标失败并写明原因，
+     * 前台看到的是「结果未知」而不是「还在跑」。</p>
+     *
+     * <p>失败只记日志：这件事不该阻止 web-admin 启动。</p>
+     */
+    private void closeStaleRunningJobLog()
+    {
+        try
+        {
+            int closed = jobLogService.closeRunningJobLog(Constants.RUNNING, Constants.FAIL,
+                    "web-admin 重启，本次执行结果未知");
+            if (closed > 0)
+            {
+                log.warn("启动时收口遗留的进行中调度日志 {} 条", closed);
+            }
+        }
+        catch (Exception e)
+        {
+            log.error("启动时收口进行中调度日志失败", e);
+        }
+    }
+
 
     /**
      * 获取quartz调度器的计划任务列表

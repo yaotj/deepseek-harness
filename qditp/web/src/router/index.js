@@ -92,7 +92,7 @@ export const dynamicRoutes = [
     path: '/trans/user-detail',
     component: Layout,
     hidden: true,
-    permissions: ['trans:user:alipay:query', 'trans:user:itp:query'],
+    permissions: ['trans:user:alipay:query', 'trans:user:itp:query', 'trans:user:txn-detail:query'],
     children: [
       {
         path: 'transaction-detail',
@@ -111,6 +111,12 @@ export const dynamicRoutes = [
         component: () => import('@/views/trans/user/ride-status/index.vue'),
         name: 'UserRideStatus',
         meta: { title: '乘车状态', noCache: true }
+      },
+      {
+        path: 'pay-channel',
+        component: () => import('@/views/trans/user/pay-channel/index.vue'),
+        name: 'UserPayChannel',
+        meta: { title: '签约渠道', noCache: true }
       }
     ]
   },

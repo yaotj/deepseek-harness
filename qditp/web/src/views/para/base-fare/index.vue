@@ -1,14 +1,24 @@
 <template>
   <div class="app-container">
     <el-form :model="queryParams" :inline="true">
+      <el-form-item label="进站线路">
+        <el-select v-model="queryParams.entryLineCode" filterable clearable placeholder="请选择进站线路" style="width: 220px" @change="handleEntryLineChange">
+          <el-option v-for="line in lines" :key="line.lineCode" :label="lineLabel(line)" :value="line.lineCode" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="出站线路">
+        <el-select v-model="queryParams.exitLineCode" filterable clearable placeholder="请选择出站线路" style="width: 220px" @change="handleExitLineChange">
+          <el-option v-for="line in lines" :key="line.lineCode" :label="lineLabel(line)" :value="line.lineCode" />
+        </el-select>
+      </el-form-item>
       <el-form-item label="进站车站">
         <el-select v-model="queryParams.entryStationCode" filterable clearable placeholder="请选择进站车站" style="width: 250px">
-          <el-option v-for="station in stations" :key="station.stationCode" :label="stationLabel(station)" :value="station.stationCode" />
+          <el-option v-for="station in entryStations" :key="station.stationCode" :label="stationLabel(station)" :value="station.stationCode" />
         </el-select>
       </el-form-item>
       <el-form-item label="出站车站">
         <el-select v-model="queryParams.exitStationCode" filterable clearable placeholder="请选择出站车站" style="width: 250px">
-          <el-option v-for="station in stations" :key="station.stationCode" :label="stationLabel(station)" :value="station.stationCode" />
+          <el-option v-for="station in exitStations" :key="station.stationCode" :label="stationLabel(station)" :value="station.stationCode" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -37,14 +47,22 @@
 </template>
 
 <script setup name="BaseFare">
-import { listBaseFares, listBaseFareStations } from '@/api/para/baseFare'
+import { listBaseFares, listBaseFareStations, listBaseFareLines } from '@/api/para/baseFare'
 
-const { proxy } = getCurrentInstance()
 const loading = ref(false)
-const stations = ref([])
+const lines = ref([])
+const entryStations = ref([])
+const exitStations = ref([])
 const fares = ref([])
 const total = ref(0)
-const queryParams = reactive({ entryStationCode: '', exitStationCode: '', pageNum: 1, pageSize: 10 })
+const queryParams = reactive({
+  entryLineCode: '',
+  exitLineCode: '',
+  entryStationCode: '',
+  exitStationCode: '',
+  pageNum: 1,
+  pageSize: 10
+})
 
 function getList() {
   loading.value = true
@@ -55,10 +73,36 @@ function getList() {
   }).finally(() => { loading.value = false })
 }
 
-function getStations() {
-  listBaseFareStations().then((response) => {
-    stations.value = response.data || []
+/** 拉取车站选项；lineCode 为空时返回全部线路车站。 */
+function fetchStations(lineCode) {
+  const params = lineCode ? { lineCode } : {}
+  return listBaseFareStations(params).then((response) => response.data || [])
+}
+
+function getEntryStations() {
+  fetchStations(queryParams.entryLineCode).then((data) => { entryStations.value = data })
+}
+
+function getExitStations() {
+  fetchStations(queryParams.exitLineCode).then((data) => { exitStations.value = data })
+}
+
+function getLines() {
+  listBaseFareLines().then((response) => {
+    lines.value = response.data || []
   })
+}
+
+function handleEntryLineChange() {
+  queryParams.entryStationCode = ''
+  getEntryStations()
+  handleQuery()
+}
+
+function handleExitLineChange() {
+  queryParams.exitStationCode = ''
+  getExitStations()
+  handleQuery()
 }
 
 function handleQuery() {
@@ -67,15 +111,22 @@ function handleQuery() {
 }
 
 function resetQuery() {
+  queryParams.entryLineCode = ''
+  queryParams.exitLineCode = ''
   queryParams.entryStationCode = ''
   queryParams.exitStationCode = ''
+  getEntryStations()
+  getExitStations()
   handleQuery()
 }
 
+function lineLabel(line) { return `${line.lineName || '未命名线路'} (${line.lineCode})` }
 function stationLabel(station) { return `${station.stationName || '未命名车站'} (${station.stationCode})` }
 function stationText(name, code) { return name ? `${name} (${code})` : code || '-' }
 function formatAmount(value) { return value == null ? '-' : `¥ ${(Number(value) / 100).toFixed(2)}` }
 
-getStations()
+getLines()
+getEntryStations()
+getExitStations()
 getList()
 </script>

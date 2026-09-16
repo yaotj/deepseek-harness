@@ -2,6 +2,7 @@ package com.chinasofti.huateng.quartz.task;
 
 import com.chinasofti.huateng.model.alipaytrip.AlipayProcessTerminationReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayProcessTerminationRespDTO;
+import com.chinasofti.huateng.quartz.util.QuartzTraceUtils;
 import com.chinasofti.huateng.rpc.alipay.paysign.AlipayPaySignClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,13 +71,18 @@ public class AlipayTerminationQuartzTask {
      * **NEVER** 每轮重新取当前时间——否则边界会随耗时漂移。</p>
      */
     private void invoke(AlipayProcessTerminationReqDTO request) {
+        QuartzTraceUtils.runWithTrace(traceId -> invokeInTrace(request, traceId));
+    }
+
+    private void invokeInTrace(AlipayProcessTerminationReqDTO request, String traceId) {
         int rounds = 0;
         int scanned = 0;
         int terminated = 0;
         int failed = 0;
         int skipped = 0;
         while (rounds < MAX_ROUNDS) {
-            AlipayProcessTerminationRespDTO response = alipayPaySignClient.processAlipayTermination(request);
+            AlipayProcessTerminationRespDTO response = alipayPaySignClient.processAlipayTermination(request,
+                    QuartzTraceUtils.traceHeaders(traceId));
             if (response == null) {
                 throw new IllegalStateException("支付宝出行销卡批处理接口未返回响应, request=" + request
                         + ", round=" + (rounds + 1));

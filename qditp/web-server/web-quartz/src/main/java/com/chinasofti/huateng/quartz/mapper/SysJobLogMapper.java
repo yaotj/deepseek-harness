@@ -1,6 +1,7 @@
 package com.chinasofti.huateng.quartz.mapper;
 
 import java.util.List;
+import org.apache.ibatis.annotations.Param;
 import com.chinasofti.huateng.quartz.domain.SysJobLog;
 
 /**
@@ -40,6 +41,32 @@ public interface SysJobLogMapper
      * @return 结果
      */
     public int insertJobLog(SysJobLog jobLog);
+
+    /**
+     * 按主键回写任务日志的执行结果（状态 / 描述 / 异常）
+     *
+     * <p>配合 {@link #insertJobLog} 在任务开始时先落「进行中」使用，
+     * 因此 create_time 保持插入时刻不动，即任务真实开始时间。</p>
+     *
+     * @param jobLog 调度日志信息，MUST 带 jobLogId
+     * @return 结果
+     */
+    public int updateJobLog(SysJobLog jobLog);
+
+    /**
+     * 把遗留的「进行中」记录批量收口为指定状态
+     *
+     * <p>Quartz 是内存 JobStore，web-admin 进程重启后上一轮执行的结果永远不会回写，
+     * 那些行会一直悬在「进行中」。启动时扫一次即可，本方法 NEVER 用于运行期。</p>
+     *
+     * @param runningStatus 需要被收口的状态值
+     * @param targetStatus 收口后的状态值
+     * @param exceptionInfo 收口原因
+     * @return 结果
+     */
+    public int closeRunningJobLog(@Param("runningStatus") String runningStatus,
+            @Param("targetStatus") String targetStatus, @Param("exceptionInfo") String exceptionInfo);
+
 
     /**
      * 批量删除调度日志信息

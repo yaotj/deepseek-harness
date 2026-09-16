@@ -3,19 +3,48 @@ import path from 'path'
 import createVitePlugins from './vite/plugins'
 
 const baseUrl = 'http://localhost:8080' // 后端接口
+const clusterNodePortHost = 'http://172.20.211.23'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd())
   const { VITE_APP_ENV } = env
-  const paraServerUrl = env.VITE_PARA_SERVER_URL || 'http://localhost:9107'
-  const dailyTicketServerUrl = env.VITE_DAILY_TICKET_SERVER_URL || 'http://localhost:9108'
-  const accountServerUrl = env.VITE_ACCOUNT_SERVER_URL || 'http://localhost:9098'
-  const alipayAccountServerUrl = env.VITE_ALIPAY_ACCOUNT_SERVER_URL || 'http://localhost:8080'
-  const ticketServerUrl = env.VITE_TICKET_SERVER_URL || 'http://localhost:9103'
-  const gateTxnPayServerUrl = env.VITE_GATE_TXN_PAY_SERVER_URL || 'http://localhost:9106'
-  const collectPayServerUrl = env.VITE_COLLECT_PAY_SERVER_URL || 'http://localhost:58101'
-  const blacklistServerUrl = env.VITE_BLACKLIST_SERVER_URL || 'http://localhost:9102'
+  const serviceProxies = {
+    '/fep-acc-server': `${clusterNodePortHost}:30030`,
+    '/fep-acc': `${clusterNodePortHost}:30030`,
+    '/collect-pay-server': `http://127.0.0.1:58101`,
+    '/collect-pay': `http://127.0.0.1:58101`,
+    '/face-pay-server': `${clusterNodePortHost}:30025`,
+    '/fep-app-server': `${clusterNodePortHost}:30010`,
+    '/fep-app': `${clusterNodePortHost}:30010`,
+    '/security-server': `${clusterNodePortHost}:30012`,
+    '/para-server': `${clusterNodePortHost}:30026`,
+    '/ticket-server': `${clusterNodePortHost}:30014`,
+    '/account-server': `${clusterNodePortHost}:30013`,
+    '/account': `${clusterNodePortHost}:30013`,
+    '/fep-dev-server': `${clusterNodePortHost}:30009`,
+    '/key-server': `${clusterNodePortHost}:30015`,
+    '/pay-sign-server': `${clusterNodePortHost}:30016`,
+    '/es-server': `${clusterNodePortHost}:30011`,
+    '/fep-alipay-server': `${clusterNodePortHost}:30023`,
+    '/alipay-account-server': `${clusterNodePortHost}:30021`,
+    '/blacklist-server': `${clusterNodePortHost}:30017`,
+    '/industry-data-server': `${clusterNodePortHost}:30018`,
+    '/daily-ticket-server': `${clusterNodePortHost}:30027`,
+    '/gate-txn-pay-server': `${clusterNodePortHost}:30019`,
+    '/fep-alipay': `${clusterNodePortHost}:30020`,
+    '/alipay-pay-sign-server': `${clusterNodePortHost}:30022`,
+    '/web-server': `${clusterNodePortHost}:30028`,
+    '/web-admin': `${clusterNodePortHost}:30028`,
+    '/card-pool-server': `${clusterNodePortHost}:30033`
+  }
+  const serviceProxyConfig = Object.fromEntries(
+    Object.entries(serviceProxies).map(([context, target]) => [context, {
+      target,
+      changeOrigin: true,
+      rewrite: (path) => path.replace(new RegExp(`^${context}`), '')
+    }])
+  )
   return {
     // 部署生产环境和开发环境下的URL。
     // 默认情况下，vite 会假设你的应用是被部署在一个域名的根路径上
@@ -54,60 +83,8 @@ export default defineConfig(({ mode, command }) => {
       host: true,
       open: true,
       proxy: {
-        // 黑名单运营管理接口。
-        '/dev-api/blacklist-server': {
-          target: blacklistServerUrl,
-          changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/dev-api\/blacklist-server/, '')
-        },
-        // 当面付订单运营查询接口。
-        '/dev-api/collect-pay-server': {
-          target: collectPayServerUrl,
-          changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/dev-api\/collect-pay-server/, '')
-        },
-        // 用户交易明细运营查询接口。
-        '/dev-api/ticket-server': {
-          target: ticketServerUrl,
-          changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/dev-api\/ticket-server/, '')
-        },
-        // 用户过闸扣费与退款运营接口。
-        '/dev-api/gate-txn-pay-server': {
-          target: gateTxnPayServerUrl,
-          changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/dev-api\/gate-txn-pay-server/, '')
-        },
-        // 非支付宝用户运营查询接口。
-        '/dev-api/account-server': {
-          target: accountServerUrl,
-          changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/dev-api\/account-server/, '')
-        },
-        // 支付宝用户运营查询接口。
-        '/dev-api/alipay-account-server': {
-          target: alipayAccountServerUrl,
-          changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/dev-api\/alipay-account-server/, '')
-        },
-        // 日票退款运营页面接口。
-        '/dev-api/daily-ticket-server': {
-          target: dailyTicketServerUrl,
-          changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/dev-api\/daily-ticket-server/, '')
-        },
-        // 参数服务页面接口。请求会先拼接 VITE_APP_BASE_API，因此匹配 /dev-api/para-server。
-        '/dev-api/para-server': {
-          target: paraServerUrl,
-          changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/dev-api\/para-server/, '')
-        },
-        // https://cn.vitejs.dev/config/#server-proxy
-        '/dev-api': {
-          target: baseUrl,
-          changeOrigin: true,
-          rewrite: (p) => p.replace(/^\/dev-api/, '')
-        },
+        // 页面请求统一带 /{服务名} 前缀，转发时删除此前缀。
+        ...serviceProxyConfig,
          // springdoc proxy
          '^/v3/api-docs/(.*)': {
           target: baseUrl,

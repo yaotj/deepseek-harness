@@ -1,6 +1,6 @@
 {
   "name": "points",
-  "version": "1.1.0",
+  "version": "1.2.15",
   "description": "综合管理系统",
   "author": "综合管理",
   "license": "MIT",
@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vite",
     "build:prod": "vite build",
-    "build:zip": "npm run build:prod && cd dist && zip -r ../web-frontend-1.2.4.zip .",
+    "build:zip": "npm run build:prod && rm -f web-frontend-*.zip && cd dist && zip -r ../web-frontend-$npm_package_version.zip .",
     "build:stage": "vite build --mode staging",
     "preview": "vite preview"
   },

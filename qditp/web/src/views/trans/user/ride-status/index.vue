@@ -11,15 +11,13 @@
       </el-form-item>
     </el-form>
 
-    <el-alert title="状态数据来源：QRCODE_STATUS。人工修改仅调整当前乘车状态，不会覆盖进出站及末次交易信息。" type="warning" :closable="false" show-icon class="mb8" />
-
     <el-descriptions v-if="rideStatus.cardId" v-loading="loading" title="当前乘车状态" :column="3" border>
       <el-descriptions-item label="逻辑卡号">{{ rideStatus.cardId }}</el-descriptions-item>
       <el-descriptions-item label="当前状态"><el-tag :type="statusTagType(rideStatus.codeStatus)">{{ formatStatus(rideStatus.codeStatus) }}</el-tag></el-descriptions-item>
       <el-descriptions-item label="状态编码">{{ rideStatus.codeStatus || '-' }}</el-descriptions-item>
-      <el-descriptions-item label="进站车站">{{ rideStatus.gateInStation || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="进站车站">{{ rideStatus.gateInStationName || rideStatus.gateInStation || '-' }}</el-descriptions-item>
       <el-descriptions-item label="进站时间">{{ rideStatus.gateInTime || '-' }}</el-descriptions-item>
-      <el-descriptions-item label="末次交易车站">{{ rideStatus.lastTxnStation || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="末次交易车站">{{ rideStatus.lastTxnStationName || rideStatus.lastTxnStation || '-' }}</el-descriptions-item>
       <el-descriptions-item label="末次交易时间">{{ rideStatus.lastTxnTime || '-' }}</el-descriptions-item>
       <el-descriptions-item label="交易流水号">{{ rideStatus.txnSeq || '-' }}</el-descriptions-item>
       <el-descriptions-item label="使用次数">{{ rideStatus.useCount ?? '-' }}</el-descriptions-item>

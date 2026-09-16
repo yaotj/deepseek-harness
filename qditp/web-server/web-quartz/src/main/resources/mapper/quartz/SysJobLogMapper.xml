@@ -69,7 +69,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         truncate table sys_job_log
     </update>
  	
- 	<insert id="insertJobLog" parameterType="SysJobLog">
+ 	<!-- job_log_id 是 Oracle IDENTITY 列（DEFAULT ON NULL），库里没有对应序列，
+ 	     因此回填主键只能靠 JDBC getGeneratedKeys，NEVER 改成 selectKey 取 nextval。
+ 	     回填是 before() 先插「进行中」、after() 再按主键 UPDATE 的前提。 -->
+ 	<insert id="insertJobLog" parameterType="SysJobLog" useGeneratedKeys="true" keyProperty="jobLogId" keyColumn="job_log_id">
  		insert into sys_job_log(
  			<if test="jobLogId != null and jobLogId != 0">job_log_id,</if>
  			<if test="jobName != null and jobName != ''">job_name,</if>
@@ -90,5 +93,23 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
  			SYSDATE
  		)
 	</insert>
+
+ 	<!-- 执行收口时按主键回写结果。create_time 保持插入时刻（即任务开始时间）不变，
+ 	     exception_info 用 #{} 而非 <if>，成功时需要把上一次残留清空。 -->
+ 	<update id="updateJobLog" parameterType="SysJobLog">
+ 		update sys_job_log
+ 		set status = #{status},
+ 			job_message = #{jobMessage},
+ 			exception_info = #{exceptionInfo}
+ 		where job_log_id = #{jobLogId}
+ 	</update>
+
+ 	<!-- web-admin 重启时把上次进程遗留的「进行中」记录收口，避免永远悬挂。 -->
+ 	<update id="closeRunningJobLog">
+ 		update sys_job_log
+ 		set status = #{targetStatus},
+ 			exception_info = #{exceptionInfo}
+ 		where status = #{runningStatus}
+ 	</update>
 
 </mapper> 

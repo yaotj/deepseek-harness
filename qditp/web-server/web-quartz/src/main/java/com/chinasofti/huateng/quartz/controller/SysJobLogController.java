@@ -17,6 +17,7 @@ import com.chinasofti.huateng.common.core.page.TableDataInfo;
 import com.chinasofti.huateng.common.enums.BusinessType;
 import com.chinasofti.huateng.common.utils.poi.ExcelUtil;
 import com.chinasofti.huateng.quartz.domain.SysJobLog;
+import com.chinasofti.huateng.quartz.service.IJobTraceLogService;
 import com.chinasofti.huateng.quartz.service.ISysJobLogService;
 
 /**
@@ -30,6 +31,10 @@ public class SysJobLogController extends BaseController
 {
     @Autowired
     private ISysJobLogService jobLogService;
+
+    @Autowired
+    private IJobTraceLogService jobTraceLogService;
+
 
     /**
      * 查询定时任务调度日志列表
@@ -66,6 +71,18 @@ public class SysJobLogController extends BaseController
         return success(jobLogService.selectJobLogById(jobLogId));
     }
 
+
+    /**
+     * 根据调度编号检索本次执行的全链路日志（按 job_message 里的 traceId 去 VictoriaLogs 反查）。
+     *
+     * <p>与 `/{jobLogId}` 的区别：那个只回 sys_job_log 这一行，本接口回下游服务的日志明细。</p>
+     */
+    @PreAuthorize("@ss.hasPermi('monitor:job:query')")
+    @GetMapping(value = "/trace/{jobLogId}")
+    public AjaxResult getTraceLog(@PathVariable Long jobLogId)
+    {
+        return success(jobTraceLogService.selectTraceLogByJobLogId(jobLogId));
+    }
 
     /**
      * 删除定时任务调度日志

@@ -14,6 +14,9 @@ insert into sys_menu values ('2038', '其他用户修改', '2002', '3', '', '', 
 insert into sys_menu values ('2039', '其他用户删除', '2002', '4', '', '', '', '', 1, 0, 'F', '0', '0', 'trans:user:itp:remove', '#', 'admin', sysdate, '', null, '');
 insert into sys_menu values ('2040', '其他用户导出', '2002', '5', '', '', '', '', 1, 0, 'F', '0', '0', 'trans:user:itp:export', '#', 'admin', sysdate, '', null, '');
 
+-- 用户运营 - 交易明细查询按钮权限
+insert into sys_menu values ('2076', '交易明细查询', '2075', '1', '', '', '', '', 1, 0, 'F', '0', '0', 'trans:user:txn-detail:query', '#', 'admin', sysdate, '', null, '');
+
 -- 交易运营 - 当面付订单查询按钮权限
 insert into sys_menu values ('2041', '当面付订单查询', '2007', '1', '', '', '', '', 1, 0, 'F', '0', '0', 'trans:face-pay:query', '#', 'admin', sysdate, '', null, '');
 insert into sys_menu values ('2042', '当面付订单退款', '2007', '2', '', '', '', '', 1, 0, 'F', '0', '0', 'trans:face-pay:refund', '#', 'admin', sysdate, '', null, '');

@@ -98,6 +98,13 @@
          </el-table-column>
          <el-table-column label="调用目标字符串" align="center" prop="invokeTarget" :show-overflow-tooltip="true" />
          <el-table-column label="cron执行表达式" align="center" prop="cronExpression" :show-overflow-tooltip="true" />
+         <el-table-column label="任务说明" align="center" prop="remark" min-width="160" :show-overflow-tooltip="true">
+            <template #default="scope">
+               <span v-if="scope.row.remark">{{ scope.row.remark }}</span>
+               <span v-else class="job-remark-empty">未填写</span>
+            </template>
+         </el-table-column>
+
          <el-table-column label="状态" align="center">
             <template #default="scope">
                <el-switch
@@ -218,6 +225,35 @@
                      </el-radio-group>
                   </el-form-item>
                </el-col>
+               <el-col :span="24">
+                  <el-form-item prop="remark">
+                     <template #label>
+                        <span>
+                           任务说明
+                           <el-tooltip placement="top">
+                              <template #content>
+                                 <div>
+                                    写清这个任务的用途和使用方式，便于运维交接：
+                                    <br />1. 用途：干什么、触发下游哪个接口、影响哪些表
+                                    <br />2. 频率：什么时间跑、跑一次大概多久
+                                    <br />3. 使用方式：能否手动「执行一次」、是否幂等可重复执行
+                                    <br />4. 失败处置：失败后怎么补、去哪查日志
+                                 </div>
+                              </template>
+                              <el-icon><question-filled /></el-icon>
+                           </el-tooltip>
+                        </span>
+                     </template>
+                     <el-input
+                        v-model="form.remark"
+                        type="textarea"
+                        :rows="4"
+                        maxlength="500"
+                        show-word-limit
+                        placeholder="请说明任务用途与使用方式，例如：每 5 分钟回收卡池中超时未确认的预占卡号（调 card-pool-server /internal/pool/maintain），幂等可重复执行，失败查 SYS_JOB_LOG"
+                     />
+                  </el-form-item>
+               </el-col>
             </el-row>
          </el-form>
          <template #footer>
@@ -271,6 +307,12 @@
                      <div v-else-if="form.misfirePolicy == 1">立即执行</div>
                      <div v-else-if="form.misfirePolicy == 2">执行一次</div>
                      <div v-else-if="form.misfirePolicy == 3">放弃执行</div>
+                  </el-form-item>
+               </el-col>
+               <el-col :span="24">
+                  <el-form-item label="任务说明：">
+                     <span v-if="form.remark" class="job-remark-detail">{{ form.remark }}</span>
+                     <span v-else class="job-remark-empty">未填写</span>
                   </el-form-item>
                </el-col>
             </el-row>
@@ -354,7 +396,8 @@ function reset() {
     cronExpression: undefined,
     misfirePolicy: 1,
     concurrent: 1,
-    status: "0"
+    status: "0",
+    remark: undefined
   }
   proxy.resetForm("jobRef")
 }
@@ -500,3 +543,15 @@ function handleExport() {
 
 getList()
 </script>
+
+<style scoped>
+.job-remark-empty {
+  color: var(--el-text-color-placeholder);
+}
+
+.job-remark-detail {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+</style>
+

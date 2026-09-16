@@ -117,9 +117,17 @@
                <span>{{ parseTime(scope.row.createTime) }}</span>
             </template>
          </el-table-column>
-         <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+         <el-table-column label="操作" align="center" width="180" class-name="small-padding fixed-width">
             <template #default="scope">
                <el-button link type="primary" icon="View" @click="handleView(scope.row)" v-hasPermi="['monitor:job:query']">详细</el-button>
+               <el-button
+                  v-if="hasTraceId(scope.row)"
+                  link
+                  type="primary"
+                  icon="Document"
+                  @click="handleTraceLog(scope.row)"
+                  v-hasPermi="['monitor:job:query']"
+               >执行日志</el-button>
             </template>
          </el-table-column>
       </el-table>
@@ -167,18 +175,52 @@
             </div>
          </template>
       </el-dialog>
+
+      <!-- 执行日志（按 traceId 从日志系统反查全链路） -->
+      <el-dialog title="执行日志" v-model="traceOpen" width="1100px" append-to-body>
+         <div class="mb8">
+            <span>traceId：{{ traceInfo.traceId }}</span>
+            <span style="margin-left: 20px">检索区间：{{ formatLogTime(traceInfo.startTime) }} ~ {{ formatLogTime(traceInfo.endTime) }}</span>
+         </div>
+         <el-alert
+            v-if="traceInfo.truncated"
+            type="warning"
+            :closable="false"
+            title="日志条数已达单次返回上限，仅展示部分内容，完整链路请到日志系统按该 traceId 检索"
+            class="mb8"
+         />
+         <el-table v-loading="traceLoading" :data="traceInfo.lines" max-height="480" empty-text="该 traceId 在日志系统中没有记录">
+            <el-table-column label="时间" width="200">
+               <template #default="scope">
+                  <span>{{ formatLogTime(scope.row._time) }}</span>
+               </template>
+            </el-table-column>
+            <el-table-column label="级别" prop="level" width="80" align="center" />
+            <el-table-column label="服务" prop="app" width="140" :show-overflow-tooltip="true" />
+            <el-table-column label="线程" prop="thread" width="160" :show-overflow-tooltip="true" />
+            <el-table-column label="日志内容" prop="_msg" :show-overflow-tooltip="true" />
+         </el-table>
+         <template #footer>
+            <div class="dialog-footer">
+               <el-button @click="traceOpen = false">关 闭</el-button>
+            </div>
+         </template>
+      </el-dialog>
    </div>
 </template>
 
 <script setup name="JobLog">
 import { getJob } from "@/api/monitor/job"
-import { listJobLog, delJobLog, cleanJobLog } from "@/api/monitor/jobLog"
+import { listJobLog, delJobLog, cleanJobLog, getJobTraceLog } from "@/api/monitor/jobLog"
 
 const { proxy } = getCurrentInstance()
 const { sys_common_status, sys_job_group } = proxy.useDict("sys_common_status", "sys_job_group")
 
 const jobLogList = ref([])
 const open = ref(false)
+const traceOpen = ref(false)
+const traceLoading = ref(false)
+const traceInfo = ref({ traceId: "", startTime: "", endTime: "", truncated: false, lines: [] })
 const loading = ref(true)
 const showSearch = ref(true)
 const ids = ref([])
@@ -239,6 +281,43 @@ function handleSelectionChange(selection) {
 function handleView(row) {
   open.value = true
   form.value = row
+}
+
+/** 是否记录了 traceId：AbstractQuartzJob 把它追加在 job_message 末尾，没有则无从检索 */
+function hasTraceId(row) {
+  return /traceId=[0-9a-fA-F]{32}/.test(row.jobMessage || "")
+}
+
+/**
+ * UTC 时间串转本地「YYYY-MM-DD HH:mm:ss.SSS」。
+ *
+ * 后端返回的检索区间与 VictoriaLogs 的 _time 都带 Z 后缀（event template 固定 timeZone=UTC），
+ * 直接展示会比本地时间早 8 小时。
+ * 这里不能用全局 parseTime：它会把 ISO 串里的 - 换成 /、并整段删掉毫秒，
+ * 遇到 Z 后缀解析结果不可靠，而日志排序恰恰要看毫秒。
+ */
+function formatLogTime(value) {
+  if (!value) return ""
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  const pad = (num, len = 2) => String(num).padStart(len, "0")
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+    + ` ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+    + `.${pad(date.getMilliseconds(), 3)}`
+}
+
+/** 执行日志按钮操作 */
+function handleTraceLog(row) {
+  traceInfo.value = { traceId: "", startTime: "", endTime: "", truncated: false, lines: [] }
+  traceOpen.value = true
+  traceLoading.value = true
+  getJobTraceLog(row.jobLogId).then(response => {
+    traceInfo.value = response.data
+  }).catch(() => {
+    traceOpen.value = false
+  }).finally(() => {
+    traceLoading.value = false
+  })
 }
 
 /** 删除按钮操作 */

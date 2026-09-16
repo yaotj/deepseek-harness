@@ -36,14 +36,12 @@
       </el-form-item>
     </el-form>
 
-    <el-alert title="扣费信息数据来源：GATE_TXN_PAY。请填写扣费订单号、逻辑卡号、第三方用户 ID，或完整的交易日期范围；退款仍由支付服务校验累计可退金额。" type="warning" :closable="false" show-icon class="mb8" />
-
     <el-table v-loading="loading" :data="orders" border>
       <el-table-column label="扣费订单号" prop="orderNo" min-width="210" show-overflow-tooltip />
       <el-table-column label="扣费状态" prop="debitStatus" width="110" align="center"><template #default="{ row }"><el-tag :type="statusType(row.debitStatus)">{{ row.debitStatus }}</el-tag></template></el-table-column>
       <el-table-column label="逻辑卡号" prop="cardId" min-width="170" show-overflow-tooltip />
-      <el-table-column label="进站站点" prop="inStation" width="110" align="center" />
-      <el-table-column label="出站站点" prop="outStation" width="110" align="center" />
+      <el-table-column label="进站站点" width="110" align="center"><template #default="{ row }">{{ row.entryStationName || row.inStation || '-' }}</template></el-table-column>
+      <el-table-column label="出站站点" width="110" align="center"><template #default="{ row }">{{ row.exitStationName || row.outStation || '-' }}</template></el-table-column>
       <el-table-column label="出站时间" prop="outTime" width="160" align="center" />
       <el-table-column label="基础金额" width="105" align="right"><template #default="{ row }">{{ formatAmount(row.trxAmount) }}</template></el-table-column>
       <el-table-column label="超时金额" width="105" align="right"><template #default="{ row }">{{ formatAmount(row.overtimeAmount) }}</template></el-table-column>

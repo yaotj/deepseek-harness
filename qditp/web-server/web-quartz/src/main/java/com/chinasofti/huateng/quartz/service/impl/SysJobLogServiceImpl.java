@@ -54,6 +54,32 @@ public class SysJobLogServiceImpl implements ISysJobLogService
     }
 
     /**
+     * 按主键回写任务日志的执行结果
+     *
+     * @param jobLog 调度日志信息，MUST 带 jobLogId
+     */
+    @Override
+    public void updateJobLog(SysJobLog jobLog)
+    {
+        jobLogMapper.updateJobLog(jobLog);
+    }
+
+    /**
+     * 把遗留的「进行中」记录批量收口
+     *
+     * @param runningStatus 需要被收口的状态值
+     * @param targetStatus 收口后的状态值
+     * @param exceptionInfo 收口原因
+     * @return 被收口的行数
+     */
+    @Override
+    public int closeRunningJobLog(String runningStatus, String targetStatus, String exceptionInfo)
+    {
+        return jobLogMapper.closeRunningJobLog(runningStatus, targetStatus, exceptionInfo);
+    }
+
+
+    /**
      * 批量删除调度日志信息
      * 
      * @param logIds 需要删除的数据ID

@@ -18,6 +18,24 @@ export function searchItpUsers(params) {
   })
 }
 
+/** 查询指定 ITP 用户、票种下已经关联的支付渠道及解约参数。 */
+export function getItpPayChannels(params) {
+  return request({
+    url: '/account-server/page/user/itp/pay-channels',
+    method: 'get',
+    params
+  })
+}
+
+/** 执行支付平台解约。解约状态和 T+4 收口由 pay-sign-server 负责。 */
+export function executeTermination(data) {
+  return request({
+    url: '/pay-sign-server/internal/termination/execute',
+    method: 'post',
+    data
+  })
+}
+
 /** 分页查询二维码票卡交易明细。 */
 export function listQRCodeTxnDetails(params) {
   return request({
@@ -39,7 +57,7 @@ export function listGateTxnPays(params) {
 /** 对指定过闸扣费订单发起退款，退款金额单位为分。 */
 export function requestGateTxnPayRefund(orderNo, data) {
   return request({
-    url: '/gate-txn-pay-server/page/gate-txn-pay/${encodeURIComponent(orderNo)}/refund',
+    url: `/gate-txn-pay-server/page/gate-txn-pay/${encodeURIComponent(orderNo)}/refund`,
     method: 'post',
     data
   })
@@ -57,7 +75,7 @@ export function getRideStatus(cardId) {
 /** 人工调整二维码当前乘车状态。 */
 export function updateRideStatus(cardId, data) {
   return request({
-    url: '/ticket-server/page/ride-status/${encodeURIComponent(cardId)}',
+    url: `/ticket-server/page/ride-status/${encodeURIComponent(cardId)}`,
     method: 'put',
     data
   })
