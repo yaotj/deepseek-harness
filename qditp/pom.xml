@@ -37,14 +37,16 @@
         <module>model</module>
         <module>rpc</module>
         <module>account-server</module>
-        <module>acc-secure-server</module>
+        <module>card-pool-server</module>
         <module>acc-security-server</module>
         <module>acc-es-server</module>
         <module>collect-ticket-server</module>
         <module>daily-ticket-server</module>
         <module>collect-pay-server</module>
+        <module>face-pay-server</module>
         <module>pay-sign-server</module>
         <module>ticket-server</module>
+        <module>trans-query-server</module>
         <module>industry-data-server</module>
         <module>fep-app-server</module>
         <module>fep-alipay-server</module>
@@ -56,6 +58,7 @@
         <module>para-server</module>
         <module>alipay-account-server</module>
         <module>alipay-pay-sign-server</module>
+        <module>recon-server</module>
         <module>web-server</module>
     </modules>
 
