@@ -18,6 +18,7 @@ import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
 import com.chinasofti.huateng.rpc.blacklist.BlacklistClient;
 import com.chinasofti.huateng.rpc.ticket.TicketClient;
+import com.chinasofti.huateng.rpc.transquery.TransQueryClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -28,10 +29,17 @@ public class TicketAppServiceImpl implements TicketAppService {
 
     private final BlacklistClient blacklistClient;
     private final TicketClient ticketClient;
+    /**
+     * IF8A-05 / IF8A-41 / IF8A-34 三个交易查询已迁到 trans-query-server（9113），本类里只有那三个
+     * 方法用它；乘车码状态机、自助补站、支付宝行程仍在 ticket-server，<b>NEVER 把 ticketClient 整个换掉</b>。
+     */
+    private final TransQueryClient transQueryClient;
 
-    public TicketAppServiceImpl(BlacklistClient blacklistClient, TicketClient ticketClient) {
+    public TicketAppServiceImpl(BlacklistClient blacklistClient, TicketClient ticketClient,
+                                TransQueryClient transQueryClient) {
         this.blacklistClient = blacklistClient;
         this.ticketClient = ticketClient;
+        this.transQueryClient = transQueryClient;
     }
 
     @Override
@@ -63,25 +71,25 @@ public class TicketAppServiceImpl implements TicketAppService {
 
     @Override
     public RequestTransListResult requestTransList(RequestTransListReqDTO request) {
-        log.info("call ticket requestTransList request={}", JSON.toJSONString(request));
-        RequestTransListResult result = ticketClient.requestTransList(request);
-        log.info("call ticket requestTransList response={}", JSON.toJSONString(result));
+        log.info("call transQuery requestTransList request={}", JSON.toJSONString(request));
+        RequestTransListResult result = transQueryClient.requestTransList(request);
+        log.info("call transQuery requestTransList response={}", JSON.toJSONString(result));
         return result;
     }
 
     @Override
     public RequestTransStatisticsResult requestTransStatistics(RequestTransStatisticsReqDTO request) {
-        log.info("call ticket requestTransStatistics request={}", JSON.toJSONString(request));
-        RequestTransStatisticsResult result = ticketClient.requestTransStatistics(request);
-        log.info("call ticket requestTransStatistics response={}", JSON.toJSONString(result));
+        log.info("call transQuery requestTransStatistics request={}", JSON.toJSONString(request));
+        RequestTransStatisticsResult result = transQueryClient.requestTransStatistics(request);
+        log.info("call transQuery requestTransStatistics response={}", JSON.toJSONString(result));
         return result;
     }
 
     @Override
     public RequestTransDetailResult requestTransDetail(RequestTransDetailReqDTO request) {
-        log.info("call ticket requestTransDetail request={}", JSON.toJSONString(request));
-        RequestTransDetailResult result = ticketClient.requestTransDetail(request);
-        log.info("call ticket requestTransDetail response={}", JSON.toJSONString(result));
+        log.info("call transQuery requestTransDetail request={}", JSON.toJSONString(request));
+        RequestTransDetailResult result = transQueryClient.requestTransDetail(request);
+        log.info("call transQuery requestTransDetail response={}", JSON.toJSONString(result));
         return result;
     }
 }

@@ -16,6 +16,8 @@ import com.chinasofti.huateng.model.app.RequestSignInfoReqDTO;
 import com.chinasofti.huateng.model.app.RequestSignInfoResult;
 import com.chinasofti.huateng.model.app.RequestTerminationReqDTO;
 import com.chinasofti.huateng.model.app.RequestTerminationResult;
+import com.chinasofti.huateng.model.app.UnbindAgreementReqDTO;
+import com.chinasofti.huateng.model.app.UnbindAgreementResult;
 import com.chinasofti.huateng.rpc.paySign.PaySignClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +46,14 @@ public class PaySignAppServiceImpl implements PaySignAppService {
         log.info("call pay-sign requestTermination request={}", JSON.toJSONString(request));
         RequestTerminationResult result = paySignClient.requestTermination(request);
         log.info("call pay-sign requestTermination response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    @Override
+    public UnbindAgreementResult unbindAgreement(UnbindAgreementReqDTO request) {
+        log.info("call pay-sign unbindAgreement request={}", JSON.toJSONString(request));
+        UnbindAgreementResult result = paySignClient.unbindAgreement(request);
+        log.info("call pay-sign unbindAgreement response={}", JSON.toJSONString(result));
         return result;
     }
 

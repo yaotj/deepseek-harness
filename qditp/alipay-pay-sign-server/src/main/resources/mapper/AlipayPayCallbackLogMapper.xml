@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.alipay.paysign.mapper.AlipayPayCallbackLogMapper">
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayCallbackLog" useGeneratedKeys="false">
+        INSERT INTO ALIPAY_PAY_CALLBACK_LOG (
+            CALLBACK_SEQ, ORDER_NO, CALLBACK_TYPE, TRANS_STATUS, PAY_STATUS,
+            CHANNEL_VOUCHER_ID, TRANS_AMOUNT, TRANS_TIME, CARD_NO, RAW_BODY,
+            HANDLE_STATUS, HANDLE_MSG, CREATE_TIME, UPDATE_TIME
+        ) VALUES (
+            #{callbackSeq,jdbcType=VARCHAR}, #{orderNo,jdbcType=VARCHAR}, #{callbackType,jdbcType=VARCHAR}, #{transStatus,jdbcType=VARCHAR}, #{payStatus,jdbcType=VARCHAR},
+            #{channelVoucherId,jdbcType=VARCHAR}, #{transAmount,jdbcType=VARCHAR}, #{transTime,jdbcType=VARCHAR}, #{cardNo,jdbcType=VARCHAR}, #{rawBody,jdbcType=VARCHAR},
+            #{handleStatus,jdbcType=VARCHAR}, #{handleMsg,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <select id="countByOrderNo" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM ALIPAY_PAY_CALLBACK_LOG
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          AND CALLBACK_TYPE = #{callbackType,jdbcType=VARCHAR}
+    </select>
+
+    <update id="updateHandleResult">
+        UPDATE ALIPAY_PAY_CALLBACK_LOG
+        SET HANDLE_STATUS = #{handleStatus,jdbcType=VARCHAR},
+            HANDLE_MSG = #{handleMsg,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSDATE
+        WHERE CALLBACK_SEQ = #{callbackSeq,jdbcType=VARCHAR}
+    </update>
+
+    <!-- 只标最后一条：一笔订单可能有多次推送，需要人工看的是最终仍未收口的那次。
+         用子查询取 CREATE_TIME 最大的一行，同秒并列时按 CALLBACK_SEQ 兜底定序，
+         保证本语句恒定只影响一行。
+         注意：SQL 正文内 NEVER 使用行注释或块注释（Druid WallFilter commentAllow=false），
+         本 XML 注释内也不得出现连续两个连字符。 -->
+    <update id="markManualByOrderNo">
+        UPDATE ALIPAY_PAY_CALLBACK_LOG
+        SET HANDLE_STATUS = 'MANUAL',
+            HANDLE_MSG = #{handleMsg,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSDATE
+        WHERE CALLBACK_SEQ = (
+            SELECT CALLBACK_SEQ FROM (
+                SELECT CALLBACK_SEQ
+                FROM ALIPAY_PAY_CALLBACK_LOG
+                WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+                  AND CALLBACK_TYPE = #{callbackType,jdbcType=VARCHAR}
+                ORDER BY CREATE_TIME DESC, CALLBACK_SEQ DESC
+            )
+            WHERE ROWNUM = 1
+        )
+    </update>
+</mapper>

@@ -26,6 +26,16 @@ public interface AlipayAccountService {
     AlipayUserInfoDTO selectByThirdUserId(String thirdUserId);
 
     /**
+     * 根据逻辑卡号查询支付宝用户信息。
+     *
+     * <p>给 ticket-server 过闸链路用（account 域按 cardId 查不到支付宝用户），只读、不改状态。</p>
+     *
+     * @param cardId 逻辑卡号
+     * @return 用户信息，未找到返回 null
+     */
+    AlipayUserInfoDTO selectByCardId(String cardId);
+
+    /**
      * 更新用户支付通道信息。
      *
      * @param thirdUserId 第三方用户ID
@@ -44,13 +54,4 @@ public interface AlipayAccountService {
      */
     boolean updatePhone(String thirdUserId, String newMsisdn);
 
-    /**
-     * 监控卡号池剩余数量，低于阈值时自动申请补充。
-     */
-    void monitorCardPool();
-
-    /**
-     * 请求补充逻辑卡号。
-     */
-    void requestLogicalCardNo();
 }

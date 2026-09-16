@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.alipay.paysign.mapper.AlipayRefundTxnDetailMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.alipay.paysign.entity.AlipayRefundTxnDetail">
+        <id column="ID" jdbcType="NUMERIC" property="id"/>
+        <result column="REFUND_ORDER_NO" jdbcType="VARCHAR" property="refundOrderNo"/>
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="REFUND_STATUS" jdbcType="VARCHAR" property="refundStatus"/>
+        <result column="REFUND_AMOUNT" jdbcType="NUMERIC" property="refundAmount"/>
+        <result column="REFUND_REASON" jdbcType="VARCHAR" property="refundReason"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="CARD_ISSUE_CODE" jdbcType="VARCHAR" property="cardIssueCode"/>
+        <result column="MERCHANT_REFUND_NO" jdbcType="VARCHAR" property="merchantRefundNo"/>
+        <result column="REFUND_NO" jdbcType="VARCHAR" property="refundNo"/>
+        <result column="CHANNEL_REFUND_NO" jdbcType="VARCHAR" property="channelRefundNo"/>
+        <result column="REQUEST_COUNT" jdbcType="NUMERIC" property="requestCount"/>
+        <result column="NEXT_REQUEST_TIME" jdbcType="TIMESTAMP" property="nextRequestTime"/>
+        <result column="LAST_REQUEST_TIME" jdbcType="TIMESTAMP" property="lastRequestTime"/>
+        <result column="REFUND_TIME" jdbcType="VARCHAR" property="refundTime"/>
+        <result column="TXN_DATE" jdbcType="VARCHAR" property="txnDate"/>
+        <result column="RET_CODE" jdbcType="VARCHAR" property="retCode"/>
+        <result column="RET_MSG" jdbcType="VARCHAR" property="retMsg"/>
+        <result column="PAY_CENTER_CODE" jdbcType="VARCHAR" property="payCenterCode"/>
+        <result column="PAY_CENTER_MSG" jdbcType="VARCHAR" property="payCenterMsg"/>
+        <result column="OPERATOR" jdbcType="VARCHAR" property="operator"/>
+        <result column="IP_ADDRESS" jdbcType="VARCHAR" property="ipAddress"/>
+        <result column="REMARK" jdbcType="VARCHAR" property="remark"/>
+        <result column="REQUEST_BODY" jdbcType="CLOB" property="requestBody"/>
+        <result column="RESPONSE_BODY" jdbcType="CLOB" property="responseBody"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ID, REFUND_ORDER_NO, ORDER_NO, REFUND_STATUS, REFUND_AMOUNT, REFUND_REASON,
+        THIRD_USER_ID, CARD_ID, CARD_ISSUE_CODE,
+        MERCHANT_REFUND_NO, REFUND_NO, CHANNEL_REFUND_NO,
+        REQUEST_COUNT, NEXT_REQUEST_TIME, LAST_REQUEST_TIME,
+        REFUND_TIME, TXN_DATE,
+        RET_CODE, RET_MSG, PAY_CENTER_CODE, PAY_CENTER_MSG,
+        OPERATOR, IP_ADDRESS, REMARK, REQUEST_BODY, RESPONSE_BODY,
+        CREATE_TIME, UPDATE_TIME
+    </sql>
+    <!-- 新建一笔退款明细。REFUND_ORDER_NO 由本模块生成，(REFUND_ORDER_NO, TXN_DATE)
+         上有唯一索引 UK_ARTD_REFUND_ORDER；撞索引时调用方 MUST 沿 getCause 链判完整性冲突
+         并短路成幂等，NEVER 只 catch 最外层 DuplicateKeyException。 -->
+    <insert id="insert" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayRefundTxnDetail">
+        INSERT INTO ALIPAY_REFUND_TXN_DETAIL (
+            <include refid="Base_Column_List"/>
+        ) VALUES (
+            SEQ_ALIPAY_REFUND_TXN_DETAIL.NEXTVAL,
+            #{refundOrderNo,jdbcType=VARCHAR},
+            #{orderNo,jdbcType=VARCHAR},
+            #{refundStatus,jdbcType=VARCHAR},
+            #{refundAmount,jdbcType=NUMERIC},
+            #{refundReason,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR},
+            #{cardId,jdbcType=VARCHAR},
+            #{cardIssueCode,jdbcType=VARCHAR},
+            #{merchantRefundNo,jdbcType=VARCHAR},
+            #{refundNo,jdbcType=VARCHAR},
+            #{channelRefundNo,jdbcType=VARCHAR},
+            #{requestCount,jdbcType=NUMERIC},
+            #{nextRequestTime,jdbcType=TIMESTAMP},
+            #{lastRequestTime,jdbcType=TIMESTAMP},
+            #{refundTime,jdbcType=VARCHAR},
+            #{txnDate,jdbcType=VARCHAR},
+            #{retCode,jdbcType=VARCHAR},
+            #{retMsg,jdbcType=VARCHAR},
+            #{payCenterCode,jdbcType=VARCHAR},
+            #{payCenterMsg,jdbcType=VARCHAR},
+            #{operator,jdbcType=VARCHAR},
+            #{ipAddress,jdbcType=VARCHAR},
+            #{remark,jdbcType=VARCHAR},
+            #{requestBody,jdbcType=CLOB},
+            #{responseBody,jdbcType=CLOB},
+            #{createTime,jdbcType=TIMESTAMP},
+            #{updateTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <select id="selectByRefundOrderNo" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM ALIPAY_REFUND_TXN_DETAIL
+        WHERE REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM ALIPAY_REFUND_TXN_DETAIL
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+        ORDER BY ID DESC
+    </select>
+    <!-- 已退成功金额合计。只给 Java 侧做「可退金额 = 已付 - 已退」校验用，
+         NEVER 拿它的返回值回写主表的 REFUND_AMOUNT ——
+         那等于退回「读旧值再相加」的非幂等写法，并发两笔退款时两边都会算偏小。
+         回写主表只能走 AlipayPayTxnDetailMapper.updateRefundSummary（SQL 内自行重算）。 -->
+    <select id="sumSuccessRefundAmount" resultType="java.lang.Integer">
+        SELECT NVL(SUM(REFUND_AMOUNT), 0)
+        FROM ALIPAY_REFUND_TXN_DETAIL
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          AND REFUND_STATUS = 'SUCCESS'
+    </select>
+
+    <!-- 退款申请的幂等短路。本表没有调用方提供的幂等键（REFUND_ORDER_NO 是我方每次新生成的），
+         「同一原订单已有在途退款就拒绝新申请」是唯一防线，NEVER 去掉。 -->
+    <select id="countByOrderNoAndStatus" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM ALIPAY_REFUND_TXN_DETAIL
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          AND REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR}
+    </select>
+
+    <!-- 调支付中心前留痕：计数 +1、状态置 PROCESSING、落本次请求报文快照。
+         WHERE 带 TXN_DATE 既命中唯一索引又能分区裁剪，NEVER 只按 REFUND_ORDER_NO。 -->
+    <update id="markRequesting">
+        UPDATE ALIPAY_REFUND_TXN_DETAIL
+        SET REQUEST_COUNT = NVL(REQUEST_COUNT, 0) + 1,
+            REFUND_STATUS = 'PROCESSING',
+            LAST_REQUEST_TIME = SYSTIMESTAMP,
+            REQUEST_BODY = #{requestBody,jdbcType=CLOB},
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
+          AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
+    </update>
+
+    <!-- 回写支付中心退款受理结果。RET_CODE / RET_MSG 是我方对外应答，
+         PAY_CENTER_CODE / PAY_CENTER_MSG 是支付中心原始应答，两组 MUST 分列存放：
+         合成一列后就分不清「我方判失败」与「对端说失败」，排查退款差异时无从下手。
+
+         状态三分支由调用方决定后传入，本语句不做判断：
+         业务成功 SUCCESS、业务明确拒绝 FAIL、拿不到业务应答保持 PROCESSING。
+         NEVER 在「拿不到应答」时传 FAIL —— 汇总会少记已退金额，同一笔随后能再退一次。 -->
+    <update id="updateRequestResult" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayRefundTxnDetail">
+        UPDATE ALIPAY_REFUND_TXN_DETAIL
+        SET REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR},
+            MERCHANT_REFUND_NO = NVL(#{merchantRefundNo,jdbcType=VARCHAR}, MERCHANT_REFUND_NO),
+            REFUND_NO = NVL(#{refundNo,jdbcType=VARCHAR}, REFUND_NO),
+            CHANNEL_REFUND_NO = NVL(#{channelRefundNo,jdbcType=VARCHAR}, CHANNEL_REFUND_NO),
+            REFUND_TIME = NVL(#{refundTime,jdbcType=VARCHAR}, REFUND_TIME),
+            RET_CODE = #{retCode,jdbcType=VARCHAR},
+            RET_MSG = #{retMsg,jdbcType=VARCHAR},
+            PAY_CENTER_CODE = #{payCenterCode,jdbcType=VARCHAR},
+            PAY_CENTER_MSG = #{payCenterMsg,jdbcType=VARCHAR},
+            RESPONSE_BODY = #{responseBody,jdbcType=CLOB},
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
+          AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
+    </update>
+</mapper>

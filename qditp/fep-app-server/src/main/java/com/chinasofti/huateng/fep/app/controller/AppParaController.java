@@ -1,6 +1,6 @@
 package com.chinasofti.huateng.fep.app.controller;
 
-import com.chinasofti.huateng.fep.app.model.CommonFormRequest;
+import com.chinasofti.huateng.model.app.ItpCommonFormRequest;
 import com.chinasofti.huateng.fep.app.service.ParaAppService;
 import com.chinasofti.huateng.model.app.RequestBuySinlgeTicketMaxNumResult;
 import com.chinasofti.huateng.model.app.RequestLineCodeListReqDTO;
@@ -35,31 +35,31 @@ public class AppParaController extends BaseAppController {
 
     @PostMapping({"/ci/app/requestBuySinlgeTicketMaxNum", "/app/requestBuySinlgeTicketMaxNum",
                   "/ci/app/requestBuySingleTicketMaxNum", "/app/requestBuySingleTicketMaxNum"})
-    public RequestBuySinlgeTicketMaxNumResult requestBuySingleTicketMaxNum(@ModelAttribute CommonFormRequest request) {
+    public RequestBuySinlgeTicketMaxNumResult requestBuySingleTicketMaxNum(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-09 获取单次购买单程票最大张数, 请求参数: {}", request);
         return paraAppService.requestBuySinlgeTicketMaxNum();
     }
 
     @PostMapping({"/ci/app/requestLineCodeList", "/app/requestLineCodeList"})
-    public RequestLineCodeListResult requestLineCodeList(@ModelAttribute CommonFormRequest request) {
+    public RequestLineCodeListResult requestLineCodeList(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-07 获取线路代码, 请求参数: {}", request);
         return paraAppService.requestLineCodeList(parseBizData(request, RequestLineCodeListReqDTO.class));
     }
 
     @PostMapping({"/ci/app/requestStationCodeList", "/app/requestStationCodeList"})
-    public RequestStationCodeListResult requestStationCodeList(@ModelAttribute CommonFormRequest request) {
+    public RequestStationCodeListResult requestStationCodeList(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-08 获取车站代码, 请求参数: {}", request);
         return paraAppService.requestStationCodeList(parseBizData(request, RequestStationCodeListReqDTO.class));
     }
 
     @PostMapping({"/ci/app/requestTicketPriceByStation", "/app/requestTicketPriceByStation"})
-    public RequestTicketPriceByStationResult requestTicketPriceByStation(@ModelAttribute CommonFormRequest request) {
+    public RequestTicketPriceByStationResult requestTicketPriceByStation(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-10 计算票价, 请求参数: {}", request);
         return paraAppService.requestTicketPriceByStation(parseBizData(request, RequestTicketPriceByStationReqDTO.class));
     }
 
     @PostMapping({"/ci/app/requestLineStationCodeVersion", "/app/requestLineStationCodeVersion"})
-    public RequestLineStationCodeVersionResult requestLineStationCodeVersion(@ModelAttribute CommonFormRequest request) {
+    public RequestLineStationCodeVersionResult requestLineStationCodeVersion(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-17 获取线路站点代码版本, 请求参数: {}", request);
         return paraAppService.requestLineStationCodeVersion(parseBizData(request, RequestLineStationCodeVersionReqDTO.class));
     }

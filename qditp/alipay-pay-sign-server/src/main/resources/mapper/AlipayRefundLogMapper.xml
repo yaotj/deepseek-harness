@@ -23,6 +23,14 @@
         )
     </insert>
 
+    <select id="countByOrderNoAndStatus" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM ALIPAY_REFUND_LOG
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          AND REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR}
+          AND DELETE_FLAG = '0'
+    </select>
+
     <update id="updateRefundStatus">
         UPDATE ALIPAY_REFUND_LOG
         SET REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR},

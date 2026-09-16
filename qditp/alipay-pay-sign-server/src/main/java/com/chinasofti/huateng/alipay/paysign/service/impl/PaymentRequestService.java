@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.alipay.paysign.service.impl;
 
-import com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog;
 import com.chinasofti.huateng.model.alipaytrip.AlipaySignInfo;
-import com.chinasofti.huateng.alipay.paysign.mapper.AlipayPayLogMapper;
 import com.chinasofti.huateng.alipay.paysign.mapper.AlipaySignInfoMapper;
 import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripRequestPayReqDTO;
 import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripRequestPayRespDTO;
@@ -32,9 +30,6 @@ public class PaymentRequestService {
     private AlipaySignInfoMapper alipaySignInfoMapper;
 
     @Autowired
-    private AlipayPayLogMapper alipayPayLogMapper;
-
-    @Autowired
     private PayCenterClient payCenterClient;
 
     @Autowired
@@ -47,14 +42,20 @@ public class PaymentRequestService {
     private IndustryDetailEnricher industryDetailEnricher;
 
     @Autowired
-    private PayLogBuilder payLogBuilder;
-
-    @Autowired
     private BizDataBuilder bizDataBuilder;
 
     @Autowired
     private BlacklistClient blacklistClient;
 
+    /**
+     * 支付宝出行扣费申请。
+     *
+     * <p>本方法 <b>NEVER 再写 ALIPAY_PAY_LOG</b>：过闸扣费已收口到 gate-txn-pay-server，
+     * 订单与状态的唯一权威是 {@code GATE_TXN_PAY}（落单在 {@code PaySignInitiator} 之前完成，
+     * 幂等靠该表的唯一键 + 状态白名单）。这里再落一份日志表就是双写，
+     * 两边状态一旦分叉无法判定谁对；<b>NEVER 恢复双写</b>。
+     * 「订单已存在直接返回」的短路也随之下沉到 gate-txn-pay-server，本方法只负责调支付中心。</p>
+     */
     public AlipayTripRequestPayRespDTO requestPay(AlipayTripRequestPayReqDTO request) {
         AlipayTripRequestPayRespDTO response = new AlipayTripRequestPayRespDTO();
         log.info("接收到支付宝支付申请报文: {}", JSON.toJSONString(request));
@@ -72,25 +73,12 @@ public class PaymentRequestService {
             throw new BusinessException(FepAppErrorCodeEnum.USER_NOT_SIGNED.getCode(), "用户未签约");
         }
 
-        AlipayPayLog existPayLog = alipayPayLogMapper.selectByOrderNo(request.getOrderNo());
-        if (existPayLog != null) {
-            log.info("支付订单已存在，直接返回, orderNo={}, payStatus={}", request.getOrderNo(), existPayLog.getPayStatus());
-            response.setRetCode(existPayLog.getPayStatus().equals("SUCCESS") ? FepAppErrorCodeEnum.SUCCESS.getCode() : FepAppErrorCodeEnum.FAIL.getCode());
-            response.setRetMsg(existPayLog.getResultMsg());
-            response.setOrderNo(existPayLog.getOrderNo());
-            return response;
-        }
-
         request.setRequestSignSeq(signInfo.getAgreementCode());
 
         request.setIndustryDetail(industryDetailEnricher.enrich(request.getIndustryDetail(), signInfo.getThirdUserId()));
         log.info("支付宝支付申请,行业详情 enrichment 完成, orderNo={}", request.getOrderNo());
 
-        AlipayPayLog payLog = payLogBuilder.build(request, signInfo);
-        alipayPayLogMapper.insert(payLog);
-        log.info("支付宝支付申请,支付日志插入完成, orderNo={}, paySeq={}", request.getOrderNo(), payLog.getPaySeq());
-
-        Map<String, Object> bizDataMap = bizDataBuilder.build(request, signInfo, payLog, payCenterProperties);
+        Map<String, Object> bizDataMap = bizDataBuilder.build(request, signInfo, payCenterProperties);
 
         log.info("支付宝支付申请,调用支付中心支付接口,请求参数: {}", JSON.toJSONString(bizDataMap));
         PayCenterResponse payCenterResponse = payCenterClient.requestPay(bizDataMap);
@@ -126,18 +114,13 @@ public class PaymentRequestService {
         } else if (payCenterResponse != null) {
             resultCode = FepAppErrorCodeEnum.FAIL.getCode();
             resultMsg = payCenterResponse.getMsg() != null ? payCenterResponse.getMsg() : "支付失败";
-            addBlackListIfNeeded(signInfo, resultMsg);
+            log.error("支付宝支付申请未拿到业务应答，按传输层失败处理、NEVER 加黑名单, orderNo={}, code={}, msg={}, success={}",
+                    request.getOrderNo(), payCenterResponse.getCode(), payCenterResponse.getMsg(), payCenterResponse.getSuccess());
         } else {
             resultCode = FepAppErrorCodeEnum.SYSTEM_ERROR.getCode();
             resultMsg = "调用支付中心失败";
+            log.error("支付宝支付申请调用支付中心无响应，按传输层失败处理、NEVER 加黑名单, orderNo={}", request.getOrderNo());
         }
-
-        payLog.setTradeNo(tradeNo);
-        payLog.setPayStatus(paySuccess ? "SUCCESS" : "FAIL");
-        payLog.setResponseBody(JSON.toJSONString(payCenterResponse));
-        payLog.setResultCode(resultCode);
-        payLog.setResultMsg(resultMsg);
-        alipayPayLogMapper.updatePayStatus(payLog.getPaySeq(), payLog.getPayStatus());
 
         response.setRetCode(resultCode);
         response.setRetMsg(resultMsg);
@@ -155,6 +138,18 @@ public class PaymentRequestService {
                 && request.getIndustryDetail() != null && !request.getIndustryDetail().trim().isEmpty();
     }
 
+    /**
+     * 扣款失败后把该卡加入黑名单。
+     *
+     * <p><b>只允许在「支付中心已给出业务应答且判定为扣款失败」这一条分支调用</b>
+     * （即解密 data 后 {@code retCode != SUCCESS}）。传输层失败、网关路径错
+     * （实测形态是 {@code code=600 操作失败}，见 AGENTS.md §8）、对端 5xx、响应为空
+     * 都 <b>NEVER 加黑名单</b>——那些与乘客的付款能力无关，加黑会直接拦住其过闸。
+     *
+     * <p>{@code blacklistClient.addBlackList} 是「返回结果对象、不抛异常」的 RPC 包装，
+     * 因此 <b>MUST 显式判 retCode</b>（AGENTS.md §5.2）；判不过只打 ERROR，
+     * 不影响本次支付申请对上游的应答。</p>
+     */
     private void addBlackListIfNeeded(AlipaySignInfo signInfo, String reason) {
         if (signInfo == null || !StringUtils.hasText(signInfo.getCardId()) || !StringUtils.hasText(signInfo.getThirdUserId())) {
             return;
@@ -168,8 +163,15 @@ public class PaymentRequestService {
             log.info("支付宝支付申请失败,添加黑名单, cardId={}, thirdUserId={}, cardType={}, reason={}",
                     blackListRequest.getCardId(), blackListRequest.getThirdUserId(), blackListRequest.getCardType(), blackListRequest.getReason());
             BlackListOperateResult blackListResult = blacklistClient.addBlackList(blackListRequest);
+            if (blackListResult == null || !FepAppErrorCodeEnum.SUCCESS.getCode().equals(blackListResult.getRetCode())) {
+                log.error("添加黑名单未成功，该卡仍可过闸、MUST 人工核对, cardId={}, thirdUserId={}, retCode={}, retMsg={}",
+                        blackListRequest.getCardId(), blackListRequest.getThirdUserId(),
+                        blackListResult != null ? blackListResult.getRetCode() : "null",
+                        blackListResult != null ? blackListResult.getRetMsg() : "null");
+                return;
+            }
             log.info("支付宝支付申请失败,添加黑名单完成, cardId={}, retCode={}, retMsg={}",
-                    blackListRequest.getCardId(), blackListResult != null ? blackListResult.getRetCode() : "null", blackListResult != null ? blackListResult.getRetMsg() : "null");
+                    blackListRequest.getCardId(), blackListResult.getRetCode(), blackListResult.getRetMsg());
         } catch (Exception e) {
             log.error("支付宝支付申请失败,添加黑名单异常, cardId={}", signInfo.getCardId(), e);
         }

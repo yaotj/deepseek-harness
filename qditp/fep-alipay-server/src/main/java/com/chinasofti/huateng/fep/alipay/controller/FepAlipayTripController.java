@@ -3,7 +3,7 @@ package com.chinasofti.huateng.fep.alipay.controller;
 import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.common.response.AlipayCommonResponse;
 import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
-import com.chinasofti.huateng.fep.alipay.model.CommonFormRequest;
+import com.chinasofti.huateng.model.app.ItpCommonFormRequest;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespVO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListReqDTO;
@@ -43,7 +43,7 @@ public class FepAlipayTripController {
      * 添加签约信息。
      */
     @PostMapping("/addContract")
-    public AlipayTripAddContractRespDTO addContract(@ModelAttribute CommonFormRequest request) {
+    public AlipayTripAddContractRespDTO addContract(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-添加签约信息,请求参数：{}", request);
         if (request == null || request.getBizData() == null) {
             AlipayTripAddContractRespDTO result = new AlipayTripAddContractRespDTO();
@@ -62,7 +62,7 @@ public class FepAlipayTripController {
      * 解约登记。
      */
     @PostMapping("/terminateContract")
-    public AlipayTripTerminateContractRespDTO terminateContract(@ModelAttribute CommonFormRequest request) {
+    public AlipayTripTerminateContractRespDTO terminateContract(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-解约登记,请求参数：{}", request);
         if (request == null || request.getBizData() == null) {
             AlipayTripTerminateContractRespDTO result = new AlipayTripTerminateContractRespDTO();
@@ -81,7 +81,7 @@ public class FepAlipayTripController {
      * 开卡申请。
      */
     @PostMapping("/requestApplication")
-    public AlipayTripRequestApplicationRespDTO requestApplication(@ModelAttribute CommonFormRequest request) {
+    public AlipayTripRequestApplicationRespDTO requestApplication(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-开卡申请,请求参数：{}", request);
         if (request == null || request.getBizData() == null) {
             AlipayTripRequestApplicationRespDTO result = new AlipayTripRequestApplicationRespDTO();
@@ -100,7 +100,7 @@ public class FepAlipayTripController {
      * 获取行业数据。
      */
     @PostMapping("/requestIndustryData")
-    public AlipayTripRequestIndustryDataRespDTO requestIndustryData(@ModelAttribute CommonFormRequest request) {
+    public AlipayTripRequestIndustryDataRespDTO requestIndustryData(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-获取行业数据,请求参数：{}", request);
         if (request == null || request.getBizData() == null) {
             AlipayTripRequestIndustryDataRespDTO result = new AlipayTripRequestIndustryDataRespDTO();
@@ -119,7 +119,7 @@ public class FepAlipayTripController {
      * 查询乘车记录列表。
      */
     @PostMapping("/findTravelList")
-    public AlipayTripFindTravelListRespDTO findTravelList(@ModelAttribute CommonFormRequest request) {
+    public AlipayTripFindTravelListRespDTO findTravelList(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-查询乘车记录列表,请求参数：{}", request);
         if (request == null || request.getBizData() == null) {
             AlipayTripFindTravelListRespDTO result = new AlipayTripFindTravelListRespDTO();
@@ -138,7 +138,7 @@ public class FepAlipayTripController {
      * 查询乘车记录详情。
      */
     @PostMapping("/findTravelDetail")
-    public AlipayTripFindTravelDetailRespVO findTravelDetail(@ModelAttribute CommonFormRequest request) {
+    public AlipayTripFindTravelDetailRespVO findTravelDetail(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-查询乘车记录详情,请求参数：{}", request);
         if (request == null || request.getBizData() == null) {
             AlipayTripFindTravelDetailRespVO result = new AlipayTripFindTravelDetailRespVO();

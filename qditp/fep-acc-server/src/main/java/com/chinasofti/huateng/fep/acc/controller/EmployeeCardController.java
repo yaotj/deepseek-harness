@@ -1,6 +1,6 @@
 package com.chinasofti.huateng.fep.acc.controller;
 
-import com.chinasofti.huateng.fep.acc.model.CommonFormRequest;
+import com.chinasofti.huateng.model.app.ItpCommonFormRequest;
 import com.chinasofti.huateng.common.response.CommonResult;
 import com.chinasofti.huateng.model.employee.EmployeeCardNotifyReqDTO;
 import com.chinasofti.huateng.model.employee.EmployeeCardNotifyResult;
@@ -35,7 +35,7 @@ public class EmployeeCardController extends BaseAccController {
      * @param request ACC 公共 FormData 请求
      */
     @PostMapping(path = "/employee_card/notify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public EmployeeCardNotifyResult employeeCardNotify(@ModelAttribute CommonFormRequest request) {
+    public EmployeeCardNotifyResult employeeCardNotify(@ModelAttribute ItpCommonFormRequest request) {
         log.info("接收员工码开卡通知，请求参数：{}", request);
         EmployeeCardNotifyReqDTO bizData = parseBizData(request, EmployeeCardNotifyReqDTO.class);
         return accountClient.notifyEmployeeCardStatus(bizData);
@@ -45,7 +45,7 @@ public class EmployeeCardController extends BaseAccController {
      * 接收员工信息变更通知并剥离 ACC 公共消息头。
      */
     @PostMapping(path = "/employee_card/update_notify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public CommonResult employeeInfoUpdateNotify(@ModelAttribute CommonFormRequest request) {
+    public CommonResult employeeInfoUpdateNotify(@ModelAttribute ItpCommonFormRequest request) {
         log.info("接收员工信息变更通知，请求参数：{}", request);
         EmployeeInfoUpdateNotifyReqDTO bizData = parseBizData(request, EmployeeInfoUpdateNotifyReqDTO.class);
         return accountClient.updateEmployeeInfo(bizData);

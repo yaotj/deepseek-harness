@@ -16,6 +16,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 @EnableRpcPaySign
 @EnableRpcTicket
 @EnableRpcIndustryData
+@EnableRpcGateTxnPay
 public class FepAlipayServer {
 
     /**

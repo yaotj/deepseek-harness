@@ -10,10 +10,12 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespVO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayQueryReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayQueryRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripTravelRecordDTO;
-import com.chinasofti.huateng.model.alipaytrip.AlipayPayLogDTO;
+import com.chinasofti.huateng.model.pay.GateTxnPayListDTO;
 import com.chinasofti.huateng.fep.alipay.service.AlipayQueryService;
 import com.chinasofti.huateng.rpc.alipay.paysign.AlipayPaySignClient;
+import com.chinasofti.huateng.rpc.pay.GateTxnPayClient;
 import com.chinasofti.huateng.rpc.ticket.TicketClient;
+import com.alibaba.fastjson2.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -38,11 +40,14 @@ public class AlipayQueryServiceImpl implements AlipayQueryService {
 
     private final AlipayPaySignClient alipayPaySignClient;
     private final TicketClient ticketClient;
+    private final GateTxnPayClient gateTxnPayClient;
 
     @Autowired
-    public AlipayQueryServiceImpl(AlipayPaySignClient alipayPaySignClient, TicketClient ticketClient) {
+    public AlipayQueryServiceImpl(AlipayPaySignClient alipayPaySignClient, TicketClient ticketClient,
+                                  GateTxnPayClient gateTxnPayClient) {
         this.alipayPaySignClient = alipayPaySignClient;
         this.ticketClient = ticketClient;
+        this.gateTxnPayClient = gateTxnPayClient;
     }
 
     @Override
@@ -143,24 +148,36 @@ public class AlipayQueryServiceImpl implements AlipayQueryService {
             return wrap(detailResp);
         }
         try {
-            AlipayPayLogDTO payLog = alipayPaySignClient.selectByOrderNo(request.getOrderNo());
-            if (payLog == null) {
+            GateTxnPayListDTO order = gateTxnPayClient.queryByOrderNo(request.getOrderNo());
+            if (order == null) {
                 detailResp.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
                 detailResp.setRetMsg("支付订单不存在");
-                log.warn("支付宝出行-查询乘车记录详情,支付订单不存在, orderNo={}", request.getOrderNo());
+                log.warn("支付宝出行-查询乘车记录详情,扣费订单不存在, orderNo={}", request.getOrderNo());
                 return wrap(detailResp);
             }
 
-            String entryId = payLog.getEntryId();
-            String exitId = payLog.getExitId();
-            log.info("支付宝出行-查询乘车记录详情,支付流水查询成功, orderNo={}, entryId={}, exitId={}",
+            JSONObject industryDetail = null;
+            if (StringUtils.hasText(order.getIndustryDetail())) {
+                try {
+                    industryDetail = JSONObject.parseObject(order.getIndustryDetail());
+                } catch (Exception e) {
+                    log.warn("支付宝出行-查询乘车记录详情,行业明细解析失败, orderNo={}, industryDetail={}",
+                            request.getOrderNo(), order.getIndustryDetail(), e);
+                }
+            } else {
+                log.warn("支付宝出行-查询乘车记录详情,扣费订单无行业明细, orderNo={}", request.getOrderNo());
+            }
+            final String entryId = industryDetail == null ? null : industryDetail.getString("entryId");
+            final String exitId = industryDetail == null ? null : industryDetail.getString("exitId");
+            log.info("支付宝出行-查询乘车记录详情,扣费订单查询成功, orderNo={}, entryId={}, exitId={}",
                     request.getOrderNo(), entryId, exitId);
 
             CompletableFuture<AlipayTripFindTravelDetailRespDTO> entryFuture = null;
             CompletableFuture<AlipayTripFindTravelDetailRespDTO> exitFuture = null;
 
             if (StringUtils.hasText(entryId)) {
-                AlipayTripFindTravelDetailReqDTO entryReq = buildDetailRequest(request.getThirdUserId(), entryId, payLog.getCardId());
+                final String cardId = order.getCardId();
+                AlipayTripFindTravelDetailReqDTO entryReq = buildDetailRequest(request.getThirdUserId(), entryId, cardId);
                 entryFuture = CompletableFuture.supplyAsync(() -> {
                     try {
                         return ticketClient.alipayTripFindTravelDetail(entryReq);
@@ -172,7 +189,7 @@ public class AlipayQueryServiceImpl implements AlipayQueryService {
             }
 
             if (StringUtils.hasText(exitId)) {
-                AlipayTripFindTravelDetailReqDTO exitReq = buildDetailRequest(request.getThirdUserId(), exitId, payLog.getCardId());
+                AlipayTripFindTravelDetailReqDTO exitReq = buildDetailRequest(request.getThirdUserId(), exitId, order.getCardId());
                 exitFuture = CompletableFuture.supplyAsync(() -> {
                     try {
                         return ticketClient.alipayTripFindTravelDetail(exitReq);
@@ -217,8 +234,11 @@ public class AlipayQueryServiceImpl implements AlipayQueryService {
             }
 
             if (exitDetail != null && FepAppErrorCodeEnum.SUCCESS.getCode().equals(exitDetail.getRetCode())) {
-                detailResp.setExitStationName(exitDetail.getExitStationName());
-                detailResp.setExitDate(exitDetail.getExitDate());
+                // 出站查询返回的 response 中，entryStationName/entryDate 实际对应本次出站站点和时间；
+                // 其 exitStationName/exitDate 取自 QRCODE_TXN_DETAIL 的 LAST_HANDLE_*，是上一次处理（即进站），
+                // 直接用会与 entryDetail 的进站信息重合，表现为进出站站点与时间完全一样。
+                detailResp.setExitStationName(exitDetail.getEntryStationName());
+                detailResp.setExitDate(exitDetail.getEntryDate());
                 detailResp.setPayAmount(exitDetail.getPayAmount());
                 detailResp.setTotalAmount(exitDetail.getTotalAmount());
                 if (StringUtils.hasText(exitDetail.getOrderExpType())) {
@@ -228,12 +248,16 @@ public class AlipayQueryServiceImpl implements AlipayQueryService {
                 }
             }
 
-            detailResp.setTradeOrderNo(payLog.getOrderNo());
-            detailResp.setPayTradeOrderNo(payLog.getTradeNo());
-            detailResp.setDebitRequestResult(mapPayStatusToDebitResult(payLog.getPayStatus()));
-            detailResp.setInvoice(payLog.getInvoice());
-            detailResp.setCardNum(payLog.getCardId());
-            detailResp.setPayOrderNoDate(payLog.getTransTime());
+            detailResp.setTradeOrderNo(order.getOrderNo());
+            // payTradeOrderNo（支付宝渠道流水号）与 invoice 在 GATE_TXN_PAY 里没有对应列：
+            // 前者按用户 2026-09-14 的明确裁决「暂时返 null，先让链路通，渠道流水后补」——核账走支付中心 payQuery；
+            // 后者在 ALIPAY_PAY_LOG 33 行里实测全为 null，从未被写过，返 null 零损失。
+            // NEVER 悄悄改回读 ALIPAY_PAY_LOG（该表已停写，只会静默命中 0 行）。
+            detailResp.setPayTradeOrderNo(null);
+            detailResp.setInvoice(null);
+            detailResp.setDebitRequestResult(mapPayStatusToDebitResult(order.getDebitStatus()));
+            detailResp.setCardNum(order.getCardId());
+            detailResp.setPayOrderNoDate(order.getOutTime());
             detailResp.setPayChannelCode("07");
 
             if (exitDetail != null && FepAppErrorCodeEnum.SUCCESS.getCode().equals(exitDetail.getRetCode())) {

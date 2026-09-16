@@ -22,6 +22,9 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 @EnableRpcPara
 @EnableRpcDailyTicket
 @EnableRpcCollectPay
+@EnableRpcGateTxnPay
+@EnableRpcTransQuery
+@EnableRpcFacePay
 public class FepAppServer implements CommandLineRunner {
 
     /**

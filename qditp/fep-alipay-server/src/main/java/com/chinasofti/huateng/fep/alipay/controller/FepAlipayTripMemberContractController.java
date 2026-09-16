@@ -2,7 +2,7 @@ package com.chinasofti.huateng.fep.alipay.controller;
 
 import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
-import com.chinasofti.huateng.fep.alipay.model.CommonFormRequest;
+import com.chinasofti.huateng.model.app.ItpCommonFormRequest;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestIndustryDataReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestIndustryDataRespDTO;
 import com.chinasofti.huateng.fep.alipay.service.AlipayTripService;
@@ -32,7 +32,7 @@ public class FepAlipayTripMemberContractController {
      * 获取行业数据。
      */
     @PostMapping("/requestIndustryData")
-    public AlipayTripRequestIndustryDataRespDTO requestIndustryData(@ModelAttribute CommonFormRequest request) {
+    public AlipayTripRequestIndustryDataRespDTO requestIndustryData(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-获取行业数据(MemberContract),请求参数：{}", request);
         if (request == null || request.getBizData() == null) {
             AlipayTripRequestIndustryDataRespDTO result = new AlipayTripRequestIndustryDataRespDTO();

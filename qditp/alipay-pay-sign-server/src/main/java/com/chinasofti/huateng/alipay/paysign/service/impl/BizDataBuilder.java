@@ -3,7 +3,6 @@ package com.chinasofti.huateng.alipay.paysign.service.impl;
 import com.chinasofti.huateng.alipay.paysign.config.PayCenterProperties;
 import com.chinasofti.huateng.model.alipaytrip.AlipaySignInfo;
 import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripRequestPayReqDTO;
-import com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import org.slf4j.Logger;
@@ -22,7 +21,6 @@ public class BizDataBuilder {
     public Map<String, Object> build(
             AlipayTripRequestPayReqDTO request,
             AlipaySignInfo signInfo,
-            AlipayPayLog payLog,
             PayCenterProperties payCenterProperties) {
 
         Map<String, Object> bizDataMap = new LinkedHashMap<>();

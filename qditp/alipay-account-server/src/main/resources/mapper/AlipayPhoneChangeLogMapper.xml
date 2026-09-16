@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.alipay.account.mapper.AlipayPhoneChangeLogMapper">
+    <!--
+        ALIPAY_PHONE_CHANGE_LOG 由 alipay-account-server 独占写入，DDL 见
+        alipay-account-server/src/main/resources/sql/alipay-account-server-schema.sql。
+        支付宝渠道与 ITP 用户是两条独立链路，NEVER 再写 USER_PHONE_CHANGE_LOG——
+        那张表的 owner 是 account-server，共用其序列在拆库后必然主键冲突
+        （用户 2026-09-11 裁定，见 docs/domain/decisions.md ADR-D8）。
+
+        主键由 SEQ_ALIPAY_PHONE_CHANGE_LOG.NEXTVAL 在 SQL 内直接取值。
+        NEVER 加 useGeneratedKeys="true" keyProperty="id" —— Oracle 的 getGeneratedKeys
+        在不声明返回列时取不到值，MyBatis 会抛 MyBatisSystemException；
+        由于 AlipayAccountServiceImpl.updatePhone 带 @Transactional(rollbackFor = Exception.class)，
+        异常会把前面已成功的 ALIPAY_USER_INFO.MSISDN 更新一起回滚，catch 后 return false，
+        表现为「支付宝用户换手机号恒失败且库里毫无痕迹」。该缺陷 2026-09-11 修复，
+        佐证：修复前 USER_PHONE_CHANGE_LOG 中 USER_TYPE='ALIPAY' 零行。
+        调用方不使用 changeLog.getId()，无需回填主键。
+    -->
+    <insert id="insert" parameterType="com.chinasofti.huateng.alipay.account.entity.AlipayPhoneChangeLog">
+        INSERT INTO ALIPAY_PHONE_CHANGE_LOG (
+            ID, THIRD_USER_ID, OLD_MSISDN, NEW_MSISDN,
+            OPER_TYPE, OPER_TIME, OPERATOR, REMARK, CREATE_TMS
+        ) VALUES (
+            SEQ_ALIPAY_PHONE_CHANGE_LOG.NEXTVAL,
+            #{thirdUserId}, #{oldMsisdn}, #{newMsisdn},
+            #{operType}, #{operTime}, #{operator}, #{remark}, #{createTms}
+        )
+    </insert>
+</mapper>

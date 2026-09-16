@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 import com.chinasofti.huateng.rpc.EnableRpcAlipayAccount;
+import com.chinasofti.huateng.rpc.EnableRpcGateTxnPay;
 import com.chinasofti.huateng.rpc.EnableRpcPara;
 import com.chinasofti.huateng.rpc.EnableRpcTicket;
 
@@ -18,6 +19,7 @@ import com.chinasofti.huateng.rpc.EnableRpcTicket;
  *   <li>{@link EnableRpcAlipayAccount} - 查询/更新支付宝账户信息</li>
  *   <li>{@link EnableRpcPara} - 查询车站、线路等公共参数</li>
  *   <li>{@link EnableRpcTicket} - 票务相关能力</li>
+ *   <li>{@link EnableRpcGateTxnPay} - 支付结果回调把 GATE_TXN_PAY.DEBIT_STATUS 收敛到终态</li>
  * </ul>
  */
 @SpringBootApplication
@@ -26,6 +28,7 @@ import com.chinasofti.huateng.rpc.EnableRpcTicket;
 @EnableRpcPara
 @EnableRpcTicket
 @EnableRpcBlacklist
+@EnableRpcGateTxnPay
 public class AlipayPaySignServer {
 
     public static void main(String[] args) {

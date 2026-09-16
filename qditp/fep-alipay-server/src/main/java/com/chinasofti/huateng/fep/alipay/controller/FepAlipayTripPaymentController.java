@@ -2,7 +2,7 @@ package com.chinasofti.huateng.fep.alipay.controller;
 
 import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
-import com.chinasofti.huateng.fep.alipay.model.CommonFormRequest;
+import com.chinasofti.huateng.model.app.ItpCommonFormRequest;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayQueryReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayQueryRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestRefundReqDTO;
@@ -33,7 +33,7 @@ public class FepAlipayTripPaymentController {
      * 支付结果查询。
      */
     @PostMapping("/payQuery")
-    public AlipayTripPayQueryRespDTO payQuery(@ModelAttribute CommonFormRequest request) {
+    public AlipayTripPayQueryRespDTO payQuery(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-支付结果查询,请求参数：{}", request);
         if (request == null || request.getBizData() == null) {
             AlipayTripPayQueryRespDTO result = new AlipayTripPayQueryRespDTO();
@@ -52,7 +52,7 @@ public class FepAlipayTripPaymentController {
      * 退款申请。
      */
     @PostMapping("/requestRefund")
-    public AlipayTripRequestRefundRespDTO requestRefund(@ModelAttribute CommonFormRequest request) {
+    public AlipayTripRequestRefundRespDTO requestRefund(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-退款申请,请求参数：{}", request);
         if (request == null || request.getBizData() == null) {
             AlipayTripRequestRefundRespDTO result = new AlipayTripRequestRefundRespDTO();

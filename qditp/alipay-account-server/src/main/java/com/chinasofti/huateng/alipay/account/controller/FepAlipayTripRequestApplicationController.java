@@ -55,6 +55,25 @@ public class FepAlipayTripRequestApplicationController {
     }
 
     /**
+     * 按逻辑卡号查询支付宝用户信息（供 ticket-server 过闸链路回落调用）。
+     *
+     * <p>只读，不改任何状态；account 域按 cardId 查不到支付宝用户时由 ticket-server 调本接口，
+     * 用于取码体的签约渠道位与真实卡种。见 {@code GateTicketHandler#applyActualCardType}。</p>
+     */
+    @GetMapping("/queryUserInfoByCardId")
+    public AlipayUserInfoDTO queryUserInfoByCardId(@RequestParam String cardId) {
+        log.info("接收到按卡号查询用户信息请求: cardId={}", cardId);
+        AlipayUserInfoDTO userInfo = alipayAccountService.selectByCardId(cardId);
+        if (userInfo == null) {
+            log.warn("支付宝用户不存在, cardId={}", cardId);
+        } else {
+            log.info("按卡号查询用户信息成功, cardId={}, thirdUserId={}, cardType={}, channel={}",
+                    cardId, userInfo.getThirdUserId(), userInfo.getCardType(), userInfo.getChannel());
+        }
+        return userInfo;
+    }
+
+    /**
      * 更新用户支付通道信息。
      */
     @GetMapping("/updatePaymentChannel")

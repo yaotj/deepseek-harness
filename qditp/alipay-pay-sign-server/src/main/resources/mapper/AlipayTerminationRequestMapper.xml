@@ -40,4 +40,52 @@
         SET STATUS = #{status,jdbcType=VARCHAR}, UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
         WHERE AGREEMENT_CODE = #{agreementCode,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
     </update>
+
+    <!-- 按主键 + 原状态更新（CAS）。返回 0 说明状态已被别的执行流改走。 -->
+    <update id="updateStatusCas">
+        UPDATE ALIPAY_TERMINATION_REQUEST
+        SET STATUS = #{toStatus,jdbcType=VARCHAR}, UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        WHERE TERMINATION_SEQ = #{terminationSeq,jdbcType=VARCHAR}
+          AND STATUS = #{fromStatus,jdbcType=VARCHAR}
+          AND DELETE_FLAG = '0'
+    </update>
+
+    <!-- 判断协议号是否已登记，替代 selectByAgreementCode 做存在性判断（该表无唯一约束） -->
+    <select id="countByAgreementCode" resultType="int">
+        SELECT COUNT(1) FROM ALIPAY_TERMINATION_REQUEST
+        WHERE AGREEMENT_CODE = #{agreementCode,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </select>
+
+    <sql id="BaseColumnList">
+        TERMINATION_SEQ, AGREEMENT_CODE, THIRD_USER_ID, CARD_ID, CARD_TYPE, CHANNEL, MERCHANT_NO,
+        OPERATION_TYPE, STATUS, TERMINATION_RESULT, TERMINATION_TIME, DELETE_FLAG, VERSION,
+        CREATE_TIME, UPDATE_TIME
+    </sql>
+
+    <!-- 按状态取一批，最老优先；Oracle 用 ROWNUM 包一层做限量 -->
+    <select id="selectByStatusLimit" resultMap="AlipayTerminationRequestResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM (
+            SELECT <include refid="BaseColumnList"/>
+            FROM ALIPAY_TERMINATION_REQUEST
+            WHERE STATUS = #{status,jdbcType=VARCHAR}
+              AND DELETE_FLAG = '0'
+            ORDER BY CREATE_TIME
+        )
+        WHERE ROWNUM &lt;= #{limit,jdbcType=INTEGER}
+    </select>
+
+    <!-- CREATE_TIME 即申请时间：该表没有专用的申请时间列 -->
+    <select id="selectByStatusBefore" resultMap="AlipayTerminationRequestResultMap">
+        SELECT <include refid="BaseColumnList"/>
+        FROM (
+            SELECT <include refid="BaseColumnList"/>
+            FROM ALIPAY_TERMINATION_REQUEST
+            WHERE STATUS = #{status,jdbcType=VARCHAR}
+              AND DELETE_FLAG = '0'
+              AND CREATE_TIME &lt;= #{cutoff,jdbcType=TIMESTAMP}
+            ORDER BY CREATE_TIME
+        )
+        WHERE ROWNUM &lt;= #{limit,jdbcType=INTEGER}
+    </select>
 </mapper>

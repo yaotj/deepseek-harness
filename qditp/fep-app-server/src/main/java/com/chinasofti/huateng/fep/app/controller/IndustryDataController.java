@@ -1,6 +1,6 @@
 package com.chinasofti.huateng.fep.app.controller;
 
-import com.chinasofti.huateng.fep.app.model.CommonFormRequest;
+import com.chinasofti.huateng.model.app.ItpCommonFormRequest;
 import com.chinasofti.huateng.fep.app.service.IndustryDataService;
 import com.chinasofti.huateng.model.app.RequestIndustryDataReqDTO;
 import com.chinasofti.huateng.model.app.RequestIndustryDataResult;
@@ -28,13 +28,13 @@ public class IndustryDataController extends BaseAppController {
     }
 
     @PostMapping({"/ci/app/requestIndustryData"})
-    public RequestIndustryDataResult requestIndustryData(@ModelAttribute CommonFormRequest request) {
+    public RequestIndustryDataResult requestIndustryData(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-03 请求行业数据, 请求参数: {}", request);
         return industryDataService.requestIndustryData(parseBizData(request, RequestIndustryDataReqDTO.class));
     }
 
     @PostMapping({"/ci/app/requestNoSignalData"})
-    public RequestNoSignalDataResult requestNoSignalData(@ModelAttribute CommonFormRequest request) {
+    public RequestNoSignalDataResult requestNoSignalData(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8D-03 请求离线码数据, 请求参数: {}", request);
         return industryDataService.requestNoSignalData(parseBizData(request, RequestNoSignalDataReqDTO.class));
     }

@@ -1,14 +1,12 @@
 package com.chinasofti.huateng.alipay.account.service.impl;
 
 import com.alibaba.fastjson2.JSON;
-import com.chinasofti.huateng.alipay.account.entity.AlipayCardPool;
 import com.chinasofti.huateng.alipay.account.entity.AlipayRegLog;
 import com.chinasofti.huateng.alipay.account.entity.AlipayUserInfo;
-import com.chinasofti.huateng.alipay.account.entity.UserPhoneChangeLog;
-import com.chinasofti.huateng.alipay.account.mapper.AlipayCardPoolMapper;
+import com.chinasofti.huateng.alipay.account.entity.AlipayPhoneChangeLog;
 import com.chinasofti.huateng.alipay.account.mapper.AlipayRegLogMapper;
 import com.chinasofti.huateng.alipay.account.mapper.AlipayUserInfoMapper;
-import com.chinasofti.huateng.alipay.account.mapper.UserPhoneChangeLogMapper;
+import com.chinasofti.huateng.alipay.account.mapper.AlipayPhoneChangeLogMapper;
 import com.chinasofti.huateng.alipay.account.service.AlipayAccountService;
 import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestApplicationReqDTO;
@@ -17,56 +15,72 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayUserInfoDTO;
 import com.chinasofti.huateng.model.ticket.RegisterRideStatusReqDTO;
 import com.chinasofti.huateng.model.ticket.RegisterRideStatusRespDTO;
 import com.chinasofti.huateng.rpc.ticket.TicketClient;
+import com.chinasofti.huateng.rpc.cardpool.CardPoolClient;
+import com.chinasofti.huateng.model.cardpool.CardPoolActionResult;
+import com.chinasofti.huateng.model.cardpool.CardPoolReservationReqDTO;
+import com.chinasofti.huateng.model.cardpool.CardPoolReserveResult;
+import com.chinasofti.huateng.model.app.CardTypeMapping;
+import com.chinasofti.huateng.model.enums.CardTypeCodeEnum;
+import com.chinasofti.huateng.model.enums.IssueChannelCodeEnum;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.StringUtils;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class AlipayAccountServiceImpl implements AlipayAccountService {
     private static final Logger log = LoggerFactory.getLogger(AlipayAccountServiceImpl.class);
 
-    @Value("${alipay.card-pool.debug-manual-allocate:true}")
-    private boolean debugManualAllocate;
-
-    @Value("${alipay.card-pool.debug-manual-card-id:9900000000000001}")
-    private String debugManualCardId;
-
-    @Value("${alipay.card-pool.threshold:10}")
-    private Integer threshold;
-
-    @Value("${alipay.card-pool.batch-size:20}")
-    private Integer batchSize;
-
     @Autowired
     private AlipayUserInfoMapper alipayUserInfoMapper;
 
     @Autowired
-    private UserPhoneChangeLogMapper userPhoneChangeLogMapper;
+    private AlipayPhoneChangeLogMapper alipayPhoneChangeLogMapper;
 
     @Autowired
     private AlipayRegLogMapper alipayRegLogMapper;
 
     @Autowired
-    private AlipayCardPoolMapper alipayCardPoolMapper;
-
-    @Autowired
     private TicketClient ticketClient;
 
+    @Autowired
+    private CardPoolClient cardPoolClient;
+
+    /**
+     * 开卡链路的落库部分用它显式开短事务。
+     *
+     * <p>{@code requestApplication} 要「预占（RPC）→ 注册乘车状态（RPC）→ 落本地 → 确认预占（RPC）」，
+     * 而 AGENTS.md §5.2 禁止在 {@code @Transactional} 方法内发起 RPC；同类内自调用又绕不过 Spring 代理，
+     * 因此只能把落库那两条 INSERT 收进 TransactionTemplate。<b>NEVER</b> 给 {@code requestApplication}
+     * 重新加上 {@code @Transactional}。</p>
+     */
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
+    /**
+     * 支付宝出行-开卡申请（规范 3.69）。
+     *
+     * <p><b>本方法故意不带 {@code @Transactional}</b>：卡池预占、ticket-server 注册乘车状态、卡池确认 / 释放
+     * 全是 RPC。改造前这里是 {@code @Transactional} 包住 3 次 RPC，与 2026-08-26 生产事故
+     * （{@code PaySignWorkflow.receivePayResult} 事务内调远端，行锁持有时长等于对端响应时长，
+     * 连接被 Druid 的 {@code remove-abandoned-timeout} 强杀后整个事务连同证据一起回滚）**同型**。</p>
+     *
+     * <p>编排顺序按 AGENTS.md §5.2「先调远端、后改本地」：预占卡号 → 注册乘车状态 → 短事务落
+     * {@code ALIPAY_USER_INFO} + {@code ALIPAY_REG_LOG} → 确认预占。落库失败时乘车状态留在远端等重推
+     * （卡池按 businessId 幂等发号，重推拿到同一卡号、不会产生第二条乘车状态），预占显式 release；
+     * release 本身失败由卡池的预占超时回收兜底。</p>
+     */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public AlipayTripRequestApplicationRespDTO requestApplication(AlipayTripRequestApplicationReqDTO request) {
         AlipayTripRequestApplicationRespDTO response = new AlipayTripRequestApplicationRespDTO();
+        CardPoolReserveResult cardPool = null;
+        boolean reservationSettled = false;
         try {
             log.info("接收到支付宝出行-开卡申请报文: {}", JSON.toJSONString(request));
 
@@ -91,22 +105,14 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
                 return response;
             }
 
-            AlipayCardPool cardPool = allocateNextCard(thirdUserId);
-            if (cardPool == null) {
-                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
-                response.setRetMsg("无可分配卡资源");
-                log.warn("无可分配卡资源, thirdUserId={}", thirdUserId);
+            cardPool = reserveCard(thirdUserId, request.getCardType());
+            if (!cardPool.isSuccess()) {
+                fillReserveFailure(response, cardPool, thirdUserId, request.getCardType());
                 return response;
             }
 
             String requestSeq = UUID.randomUUID().toString().replaceAll("-", "").toUpperCase();
-            String cardId = cardPool.getCardId();
-
-            AlipayUserInfo userInfo = buildAlipayUserInfo(request, cardId);
-            alipayUserInfoMapper.insert(userInfo);
-
-            AlipayRegLog regLog = buildAlipayRegLog(request, cardId, requestSeq);
-            alipayRegLogMapper.insert(regLog);
+            String cardId = cardPool.getData().getCardNo();
 
             RegisterRideStatusReqDTO registerReq = new RegisterRideStatusReqDTO();
             registerReq.setThirdUserId(thirdUserId);
@@ -117,6 +123,21 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
                 throw new RuntimeException("调用 ticket-server 注册乘车状态失败, thirdUserId=" + thirdUserId + ", cardId=" + cardId + ", resp=" + registerResp);
             }
 
+            AlipayUserInfo userInfo = buildAlipayUserInfo(request, cardId);
+            AlipayRegLog regLog = buildAlipayRegLog(request, cardId, requestSeq);
+            transactionTemplate.executeWithoutResult(status -> {
+                alipayUserInfoMapper.insert(userInfo);
+                alipayRegLogMapper.insert(regLog);
+            });
+
+            CardPoolActionResult confirmResult = cardPoolClient.confirm(cardPool.getData().getReservationId(),
+                    reservationBusinessId(thirdUserId, request.getCardType()));
+            if (!confirmResult.isSuccess()) {
+                log.error("确认逻辑卡号预占失败，卡号已发给用户、NEVER 回滚开户数据，留人工核对, thirdUserId={}, cardId={}, outcome={}, msg={}",
+                        thirdUserId, cardId, confirmResult.getOutcome(), confirmResult.getMessage());
+            }
+            reservationSettled = true;
+
             response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
             response.setRetMsg("成功");
             response.setCardId(cardId);
@@ -125,6 +146,12 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
             log.info("开卡申请成功, thirdUserId={}, cardId={}, cardType={}", thirdUserId, cardId, request.getCardType());
             return response;
         } catch (Exception e) {
+            if (cardPool != null && cardPool.isSuccess() && !reservationSettled
+                    && request != null && StringUtils.hasText(request.getThirdUserId())) {
+                String thirdUserId = request.getThirdUserId().trim();
+                releaseReservation(cardPool.getData().getReservationId(),
+                        reservationBusinessId(thirdUserId, request.getCardType()), thirdUserId);
+            }
             log.error("开卡申请异常, request={}", JSON.toJSONString(request), e);
             response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
             response.setRetMsg("系统内部错误");
@@ -137,7 +164,18 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
         if (thirdUserId == null || thirdUserId.trim().isEmpty()) {
             return null;
         }
-        AlipayUserInfo userInfo = alipayUserInfoMapper.selectByThirdUserId(thirdUserId.trim());
+        return toUserInfoDto(alipayUserInfoMapper.selectByThirdUserId(thirdUserId.trim()));
+    }
+
+    @Override
+    public AlipayUserInfoDTO selectByCardId(String cardId) {
+        if (cardId == null || cardId.trim().isEmpty()) {
+            return null;
+        }
+        return toUserInfoDto(alipayUserInfoMapper.selectByCardId(cardId.trim()));
+    }
+
+    private AlipayUserInfoDTO toUserInfoDto(AlipayUserInfo userInfo) {
         if (userInfo == null) {
             return null;
         }
@@ -178,6 +216,17 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
         }
     }
 
+    /**
+     * 支付宝渠道换号：只改 {@code ALIPAY_USER_INFO} 并落一条 {@code ALIPAY_PHONE_CHANGE_LOG}。
+     *
+     * <p><b>本方法故意不向支付域同步「显示账号」</b>（用户 2026-09-11 裁定：不需要）。
+     * ITP 侧的 {@code PhoneChangeServiceImpl.updatePhone} 会调 pay-sign 的
+     * {@code updatePaySignDisplayAccount} 并带 {@code SIGN_SYNC_*} 补偿，
+     * <b>NEVER 照抄到这里</b> —— 支付宝走自有代扣，用户在支付域没有签约行，
+     * 推过去只会命中「{@code APP_PAY_SIGN_INFO} UPDATE 影响 0 行 ⇒ 返回 FAIL」，
+     * 白造一批永远重推不成功的 {@code FAILED} 记录和异常工单。
+     * 同理 {@code ALIPAY_PHONE_CHANGE_LOG} <b>NEVER 加 {@code SIGN_SYNC_*} 列</b>。</p>
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean updatePhone(String thirdUserId, String newMsisdn) {
@@ -201,9 +250,8 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
                 log.warn("更换手机号更新失败, thirdUserId={}", thirdUserId);
                 return false;
             }
-            UserPhoneChangeLog changeLog = new UserPhoneChangeLog();
+            AlipayPhoneChangeLog changeLog = new AlipayPhoneChangeLog();
             changeLog.setThirdUserId(thirdUserId.trim());
-            changeLog.setUserType("ALIPAY");
             changeLog.setOldMsisdn(oldMsisdn);
             changeLog.setNewMsisdn(newMsisdn.trim());
             changeLog.setOperType("CHANGE_PHONE");
@@ -211,7 +259,7 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
             changeLog.setOperator("SYSTEM");
             changeLog.setRemark("支付宝用户更换手机号");
             changeLog.setCreateTms(LocalDateTime.now());
-            userPhoneChangeLogMapper.insert(changeLog);
+            alipayPhoneChangeLogMapper.insert(changeLog);
             log.info("支付宝用户更换手机号成功, thirdUserId={}, oldMsisdn={}, newMsisdn={}",
                     thirdUserId, oldMsisdn, newMsisdn);
             return true;
@@ -221,68 +269,78 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
         }
     }
 
-    @Override
-    public void monitorCardPool() {
-        long unusedCount = alipayCardPoolMapper.countUnusedCards();
-        log.info("卡号池监控, 当前未使用卡号数量={}", unusedCount);
-        if (unusedCount <= threshold) {
-            requestLogicalCardNo();
+    /**
+     * 向逻辑卡号池预占一个卡号。
+     *
+     * @param thirdUserId 支付宝用户标识，作为预占归属方
+     * @param appCardType APP 侧票种码，内部转换为发卡票种码
+     * @return 预占结果，非 SUCCESS 时 data 为空，由调用方按 outcome 分流
+     */
+    private CardPoolReserveResult reserveCard(String thirdUserId, String appCardType) {
+        String cardType = CardTypeMapping.toIssueCardType(appCardType);
+        CardPoolReservationReqDTO request = new CardPoolReservationReqDTO();
+        request.setCardType(cardType);
+        request.setBusinessType("ALIPAY_ACCOUNT_OPEN");
+        request.setBusinessId(reservationBusinessId(thirdUserId, appCardType));
+        request.setOwnerId(thirdUserId);
+        return cardPoolClient.reserve(request);
+    }
+
+    /**
+     * 按预占失败分类填充对外响应并落日志。
+     *
+     * <p>POOL_EMPTY 属正常业务结果（WARN）；REJECTED 说明票种不走卡池或归属冲突，属程序 / 配置缺陷、
+     * 重试无用（ERROR）；CALL_FAILED 是 card-pool-server 不可达或响应无法解析，可重试（ERROR）。</p>
+     *
+     * @param response    待填充的对外响应
+     * @param result      预占结果，outcome 必为非 SUCCESS
+     * @param thirdUserId 支付宝用户标识，仅用于日志定位
+     * @param cardType    APP 侧票种码，仅用于日志定位
+     */
+    private void fillReserveFailure(AlipayTripRequestApplicationRespDTO response, CardPoolReserveResult result,
+                                    String thirdUserId, String cardType) {
+        switch (result.getOutcome()) {
+            case POOL_EMPTY -> {
+                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
+                response.setRetMsg("逻辑卡号池暂无可用卡号，请稍后重试");
+                log.warn("逻辑卡号池已空, thirdUserId={}, cardType={}, msg={}",
+                        thirdUserId, cardType, result.getMessage());
+            }
+            case REJECTED -> {
+                response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg("票种配置错误，无法开卡");
+                log.error("逻辑卡号预占被拒绝，票种不走卡池或归属冲突，重试无用, thirdUserId={}, cardType={}, msg={}",
+                        thirdUserId, cardType, result.getMessage());
+            }
+            default -> {
+                response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+                response.setRetMsg("发卡服务暂不可用，请稍后重试");
+                log.error("调用逻辑卡号池预占失败, thirdUserId={}, cardType={}, outcome={}, msg={}",
+                        thirdUserId, cardType, result.getOutcome(), result.getMessage());
+            }
         }
     }
 
-    @Override
-    public void requestLogicalCardNo() {
-        int requestCount = batchSize;
-        log.info("准备申请逻辑卡号, count={}", requestCount);
-
-        List<AlipayCardPool> ticketNoList = new ArrayList<>(requestCount);
-        for (int i = 0; i < requestCount; i++) {
-            AlipayCardPool ticketNo = new AlipayCardPool();
-            ticketNo.setCardId(buildCardId());
-            ticketNo.setInsertTms(LocalDateTime.now());
-            ticketNoList.add(ticketNo);
-        }
-        if (!ticketNoList.isEmpty()) {
-            alipayCardPoolMapper.batchInsert(ticketNoList);
-            log.info("批量生成卡号成功, count={}", ticketNoList.size());
+    /**
+     * 释放已预占的逻辑卡号，失败只记 WARN。
+     *
+     * <p>释放不成功不改变对外结论、也不再抛异常：卡号会由 card-pool-server 的预占超时回收兜底，
+     * 若在此处抛异常反而会掩盖真正的失败原因。</p>
+     *
+     * @param reservationId 预占记录标识
+     * @param businessId    预占时使用的业务流水号，须完全一致
+     * @param thirdUserId   支付宝用户标识，仅用于日志定位
+     */
+    private void releaseReservation(String reservationId, String businessId, String thirdUserId) {
+        CardPoolActionResult releaseResult = cardPoolClient.release(reservationId, businessId);
+        if (!releaseResult.isSuccess()) {
+            log.warn("释放逻辑卡号预占失败，不影响对外结论，靠预占超时回收兜底, thirdUserId={}, reservationId={}, outcome={}, msg={}",
+                    thirdUserId, reservationId, releaseResult.getOutcome(), releaseResult.getMessage());
         }
     }
 
-    private AlipayCardPool allocateNextCard(String thirdUserId) {
-        if (debugManualAllocate && debugManualCardId != null && !debugManualCardId.isEmpty()) {
-            AlipayCardPool cardPool = new AlipayCardPool();
-            cardPool.setCardId(debugManualCardId);
-            cardPool.setStatus("ALLOCATED");
-            cardPool.setThirdUserId(thirdUserId);
-            return cardPool;
-        }
-
-        monitorCardPool();
-
-        for (int i = 0; i < 3; i++) {
-            AlipayCardPool nextCard = alipayCardPoolMapper.selectUnusedCard();
-            if (nextCard == null) {
-                requestLogicalCardNo();
-                nextCard = alipayCardPoolMapper.selectUnusedCard();
-            }
-            if (nextCard == null) {
-                continue;
-            }
-            LocalDateTime now = LocalDateTime.now();
-            int updated = alipayCardPoolMapper.updateAllocateCard(nextCard.getCardId(), thirdUserId, now);
-            if (updated > 0) {
-                nextCard.setThirdUserId(thirdUserId);
-                nextCard.setRegTms(now);
-                return nextCard;
-            }
-        }
-        return null;
-    }
-
-    private String buildCardId() {
-        return LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"))
-                + LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmmss"))
-                + String.format("%04d", ThreadLocalRandom.current().nextInt(1000, 10000));
+    private String reservationBusinessId(String thirdUserId, String appCardType) {
+        return "ALIPAY_ACCOUNT_OPEN:" + thirdUserId + ":" + CardTypeMapping.toIssueCardType(appCardType);
     }
 
     private String validateRequest(AlipayTripRequestApplicationReqDTO request) {
@@ -294,6 +352,13 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
         }
         if (request.getCardType() == null || request.getCardType().trim().isEmpty()) {
             return "cardType 不能为空";
+        }
+        String issueCardType = CardTypeMapping.toIssueCardType(request.getCardType());
+        if (CardTypeCodeEnum.isHceCard(issueCardType)) {
+            return "HCE卡仅支持安全服务实时发卡";
+        }
+        if (CardTypeCodeEnum.isEmployeeCard(issueCardType)) {
+            return "员工票仅支持APP静默开户";
         }
         if (request.getCardIssueCode() == null || request.getCardIssueCode().trim().isEmpty()) {
             return "cardIssueCode 不能为空";
@@ -310,7 +375,7 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
         userInfo.setMsisdn(request.getMsisdn());
         userInfo.setExtend1(request.getExtend1());
         userInfo.setExtend2(request.getExtend2());
-        userInfo.setChannel("ALIPAY");
+        userInfo.setChannel(IssueChannelCodeEnum.ALIPAY.getCode());
         userInfo.setStatus("ACTIVE");
         userInfo.setDeleteFlag("0");
         userInfo.setVersion("1");
@@ -324,7 +389,7 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
         regLog.setCardId(cardId);
         regLog.setCardType(request.getCardType());
         regLog.setCardIssueCode(request.getCardIssueCode());
-        regLog.setChannel("ALIPAY");
+        regLog.setChannel(IssueChannelCodeEnum.ALIPAY.getCode());
         regLog.setMsisdn(request.getMsisdn());
         regLog.setExtend1(request.getExtend1());
         regLog.setExtend2(request.getExtend2());

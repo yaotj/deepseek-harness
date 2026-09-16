@@ -14,11 +14,16 @@ import com.chinasofti.huateng.model.app.RequestSignInfoReqDTO;
 import com.chinasofti.huateng.model.app.RequestSignInfoResult;
 import com.chinasofti.huateng.model.app.RequestTerminationReqDTO;
 import com.chinasofti.huateng.model.app.RequestTerminationResult;
+import com.chinasofti.huateng.model.app.UnbindAgreementReqDTO;
+import com.chinasofti.huateng.model.app.UnbindAgreementResult;
 
 public interface PaySignAppService {
     RequestSignInfoResult requestSignInfo(RequestSignInfoReqDTO request);
 
     RequestTerminationResult requestTermination(RequestTerminationReqDTO request);
+
+    /** IF8A-75 直接解绑支付方式：立即向支付渠道发起解绑，不等账期结束的定时任务。 */
+    UnbindAgreementResult unbindAgreement(UnbindAgreementReqDTO request);
 
     RequestContractResultResult requestContractResult(RequestContractResultReqDTO request);
 

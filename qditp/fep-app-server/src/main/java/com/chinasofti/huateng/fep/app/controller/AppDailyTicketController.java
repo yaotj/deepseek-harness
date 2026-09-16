@@ -1,7 +1,7 @@
 package com.chinasofti.huateng.fep.app.controller;
 
 import com.alibaba.fastjson2.JSON;
-import com.chinasofti.huateng.fep.app.model.CommonFormRequest;
+import com.chinasofti.huateng.model.app.ItpCommonFormRequest;
 import com.chinasofti.huateng.fep.app.service.DailyTicketAppService;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketActivateReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketBaseResult;
@@ -45,7 +45,7 @@ public class AppDailyTicketController extends BaseAppController {
 
     @PostMapping({"/ci/app/dailyTicket/requestOrder", "/app/dailyTicket/requestOrder", "/app/requestCountingOrder",
             "/app/ticket/requestOrder"})
-    public DailyTicketOrderResult requestOrder(@ModelAttribute CommonFormRequest request) {
+    public DailyTicketOrderResult requestOrder(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-60 日票下单, request={}", request);
         return dailyTicketAppService.requestCountingOrder(parseBizData(request, DailyTicketOrderReqDTO.class));
     }
@@ -61,7 +61,7 @@ public class AppDailyTicketController extends BaseAppController {
      */
     @PostMapping({"/ci/app/dailyTicket/requestTravelOrder", "/app/dailyTicket/requestTravelOrder",
             "/app/ticket/requestTravelOrder"})
-    public TravelTicketOrderResult requestTravelOrder(@ModelAttribute CommonFormRequest request) {
+    public TravelTicketOrderResult requestTravelOrder(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-70 旅游票下单, request={}", request);
         return dailyTicketAppService.requestTravelOrder(parseBizData(request, TravelTicketOrderReqDTO.class));
     }
@@ -76,7 +76,7 @@ public class AppDailyTicketController extends BaseAppController {
      */
     @PostMapping({"/ci/app/dailyTicket/payment/requestPay", "/app/dailyTicket/payment/requestPay",
             "/app/payment/requestPay", "/app/ticket/payment/requestPay"})
-    public DailyTicketPayResult pay(@ModelAttribute CommonFormRequest request) {
+    public DailyTicketPayResult pay(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-61 日票支付, request={}", request);
         return dailyTicketAppService.requestPay(parseBizData(request, DailyTicketPayReqDTO.class));
     }
@@ -84,33 +84,42 @@ public class AppDailyTicketController extends BaseAppController {
     /** if8a_62 日票支付结果查询。{@code /app/payment/requestPayResult} 为规范给定地址。 */
     @PostMapping({"/ci/app/dailyTicket/payment/requestPayResult", "/app/dailyTicket/payment/requestPayResult",
             "/app/payment/requestPayResult", "/app/ticket/payment/requestPayResult"})
-    public DailyTicketPayQueryResult queryPayResult(@ModelAttribute CommonFormRequest request) {
+    public DailyTicketPayQueryResult queryPayResult(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-62 日票支付结果查询, request={}", request);
         return dailyTicketAppService.requestPayResult(parseBizData(request, DailyTicketOrderNoReqDTO.class));
     }
 
+    /**
+     * IF8A-64 日票退款。
+     *
+     * <p><b>{@code /app/payment/requestRefundTicket} 是 APP 实际在调的地址</b>
+     * （2026-09-11 13:21 生产日志实测，订单 {@code 0E202609110952160010} 4 秒内重试 2 次，服务端无映射、
+     * 落到静态资源处理器报 {@code No static resource app/payment/requestRefundTicket}，响应退化成
+     * 全局异常处理器的 UUID retCode）。与 {@code requestPay} / {@code requestPayResult} 同属规范 R6 的
+     * {@code /app/payment/**} 扁平地址，四条路径同时保留，**NEVER** 删掉扁平那条。</p>
+     */
     @PostMapping({"/ci/app/dailyTicket/payment/requestRefundTicket", "/app/dailyTicket/payment/requestRefundTicket",
-            "/app/ticket/payment/requestRefundTicket"})
-    public DailyTicketRefundResult requestRefund(@ModelAttribute CommonFormRequest request) {
+            "/app/payment/requestRefundTicket", "/app/ticket/payment/requestRefundTicket"})
+    public DailyTicketRefundResult requestRefund(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-64 日票退款, request={}", request);
         return dailyTicketAppService.requestRefundTicket(parseBizData(request, DailyTicketOrderNoReqDTO.class));
     }
 
     @PostMapping({"/ci/app/dailyTicket/cancelOrder", "/app/dailyTicket/cancelOrder", "/app/ticket/cancelOrder"})
-    public DailyTicketBaseResult cancelOrder(@ModelAttribute CommonFormRequest request) {
+    public DailyTicketBaseResult cancelOrder(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-65 日票取消订单, request={}", request);
         return dailyTicketAppService.cancelOrder(parseBizData(request, DailyTicketOrderNoReqDTO.class));
     }
 
     @PostMapping({"/ci/app/dailyTicket/updateTicket", "/app/dailyTicket/updateTicket", "/app/ticket/updateTicket"})
-    public DailyTicketBaseResult activateTicket(@ModelAttribute CommonFormRequest request) {
+    public DailyTicketBaseResult activateTicket(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-67 日票激活, request={}", request);
         return dailyTicketAppService.updateTicket(parseBizData(request, DailyTicketActivateReqDTO.class));
     }
 
     @PostMapping({"/ci/app/dailyTicket/updateAndNotice", "/app/dailyTicket/updateAndNotice",
             "/app/ticket/updateAndNotice"})
-    public DailyTicketBaseResult notifyAccUsed(@ModelAttribute CommonFormRequest request) {
+    public DailyTicketBaseResult notifyAccUsed(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-71 通知 ACC 车票已使用, request={}", request);
         return dailyTicketAppService.updateAndNotice(parseBizData(request, DailyTicketUsedNoticeReqDTO.class));
     }

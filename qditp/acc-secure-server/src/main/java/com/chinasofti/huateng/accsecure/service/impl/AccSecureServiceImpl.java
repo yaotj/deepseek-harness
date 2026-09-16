@@ -5,7 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.chinasofti.huateng.accsecure.config.AccSecureProperties;
 import com.chinasofti.huateng.accsecure.constant.AccSecureErrorCodeEnum;
 import com.chinasofti.huateng.accsecure.model.common.AccBizBaseResponse;
-import com.chinasofti.huateng.accsecure.model.common.AccCommonRequest;
+import com.chinasofti.huateng.model.app.ItpCommonRequest;
 import com.chinasofti.huateng.accsecure.model.request.RequestCaKeyReqDTO;
 import com.chinasofti.huateng.accsecure.model.request.RequestDpkReqDTO;
 import com.chinasofti.huateng.accsecure.model.request.RequestExportUserPriKeyReqDTO;
@@ -125,7 +125,7 @@ public class AccSecureServiceImpl implements AccSecureService {
     private <TReq, TResp extends AccBizBaseResponse> TResp post(String path, TReq bizData, Class<TResp> responseClass) {
         try {
             String url = buildUrl(path);
-            AccCommonRequest<TReq> request = buildAccRequest(bizData);
+            ItpCommonRequest<TReq> request = buildAccRequest(bizData);
             String requestJson = JSON.toJSONString(request);
             log.info("调用ACC安全接口, url={}, request={}", url, requestJson);
             Request httpRequest = new Request.Builder()
@@ -149,8 +149,8 @@ public class AccSecureServiceImpl implements AccSecureService {
     /**
      * 按文档要求组装 ACC 请求公共参数和签名值。
      */
-    private <TReq> AccCommonRequest<TReq> buildAccRequest(TReq bizData) {
-        AccCommonRequest<TReq> request = new AccCommonRequest<>();
+    private <TReq> ItpCommonRequest<TReq> buildAccRequest(TReq bizData) {
+        ItpCommonRequest<TReq> request = new ItpCommonRequest<>();
         request.setProviderId(properties.getProviderId());
         request.setCharset(properties.getCharset());
         request.setFormat(properties.getFormat());
