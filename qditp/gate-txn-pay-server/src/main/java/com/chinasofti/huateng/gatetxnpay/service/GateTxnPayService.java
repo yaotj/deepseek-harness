@@ -1,20 +1,26 @@
 package com.chinasofti.huateng.gatetxnpay.service;
 
 import com.chinasofti.huateng.common.response.ResultVO;
-import com.chinasofti.huateng.gatetxnpay.entity.GateTxnPay;
+import com.chinasofti.huateng.gatetxnpay.model.page.BatchRefundOvertimeRequest;
+import com.chinasofti.huateng.gatetxnpay.model.page.BatchRefundResult;
 import com.chinasofti.huateng.gatetxnpay.model.page.GateTxnPayRefundRequest;
 import com.chinasofti.huateng.model.app.RequestRefundResult;
-import com.chinasofti.huateng.model.pay.GateTxnPayListDTO;
-import com.chinasofti.huateng.model.pay.GateTxnPayFailedOrderReqDTO;
-import com.chinasofti.huateng.model.pay.GateTxnPayFailedOrderRespDTO;
+import com.chinasofti.huateng.model.pay.GateTxnPayDebitConvergeReqDTO;
+import com.chinasofti.huateng.model.pay.GateTxnPayDebitConvergeRespDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayReqDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayRespDTO;
-import org.apache.ibatis.annotations.Param;
+import com.chinasofti.huateng.model.pay.GateTxnPaySyncStatusReqDTO;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-
+/**
+ * `GATE_TXN_PAY` 的**写入侧**：出站扣费、重试、退款、状态收敛、离线码金额补偿重算。
+ *
+ * <p>只读查询已整段搬到 {@link GateTxnPayQueryService}、运营补数已搬到
+ * {@link OriginalFareBackfillService}，分界线是**有没有写**、以及**是否属于出站扣费主链路**。
+ * 本接口的每个方法都会改状态或调远端（支付中心 / 票价 / 钱包），因此**都要考虑幂等**；
+ * 新增方法前 MUST 先按这条线判断该放哪边，**NEVER 把只读查询加回本接口**。
+ *
+ * <p>拆分只动了 Java 类型，**HTTP 端点、URL 与报文一个都没变**。
+ */
 public interface GateTxnPayService {
     GateTxnPayRespDTO requestPay(GateTxnPayReqDTO request);
 
@@ -26,50 +32,37 @@ public interface GateTxnPayService {
      */
     GateTxnPayRespDTO retryPay(String orderNo);
 
-    ResultVO<Map<String, Object>> page(String orderNo, String cardId, String thirdUserId, String signChannelCode,
-                                        String cardType, String debitStatus, String startDate, String endDate,
-                                        Integer pageNum, Integer pageSize);
-
     ResultVO<RequestRefundResult> requestRefund(String orderNo, GateTxnPayRefundRequest request);
 
-    /** 按交易业务键查询 GT 订单号（供 ticket-server 关联查询）。 */
-    GateTxnPayRespDTO queryOrderByBizKey(GateTxnPayReqDTO request);
-
-    // ==================== IF8A-05 APP 交易记录列表 ====================
+    /**
+     * 综管台批量退超时罚金：对圈出订单逐单发起退款，金额为各自 {@code OVERTIME_AMOUNT}。
+     *
+     * <p>每单仍走单笔 {@link #requestRefund} 链路（日票拒退、状态白名单、金额上限全保留），
+     * 单笔失败不阻断整批。本方法含支付中心 RPC，NEVER 加事务。</p>
+     */
+    ResultVO<BatchRefundResult> batchRefundOvertime(BatchRefundOvertimeRequest request);
 
     /**
-     * 分页查询进出站交易记录（供 ticket-server RPC 调用）。
+     * 按支付结果回调收敛扣费状态（供 pay-sign-server RPC 调用）。
+     *
+     * <p>只做状态收敛，NEVER 触发扣款；SUCCESS / FAIL 终态订单不会被改写。</p>
      */
-    List<GateTxnPayListDTO> selectTransList(@Param("thirdUserId") String thirdUserId,
-                                            @Param("cardIdList") List<String> cardIdList,
-                                            @Param("cardType") String cardType,
-                                            @Param("startDate") String startDate,
-                                            @Param("endDate") String endDate,
-                                            @Param("ticketCode") String ticketCode,
-                                            @Param("offset") Integer offset,
-                                            @Param("limit") Integer limit);
+    GateTxnPayRespDTO syncDebitStatus(GateTxnPaySyncStatusReqDTO request);
 
     /**
-     * 统计 IF8A-05 分页查询结果总数（供 ticket-server RPC 调用）。
+     * 在线补款支付成功后收敛原行程的扣费状态（供 face-pay-server 经
+     * {@code POST /internal/gate-txn-pay/debit/converge} 调用，2026-09-16 新增）。
+     *
+     * <p><b>为什么不复用 {@link #syncDebitStatus}</b>：那条服务支付结果回调，语义是
+     * 「中间态 到 终态」，白名单不含 {@code FAIL}，且「0 行但已是同一终态」也返 {@code 0000}，
+     * 把「本次真改了行」与「早已被别人收敛」压成同一结果。补款链路 MUST 区分这两者
+     * —— 后者意味着本单是重复支付、需要退款。因此本方法回填
+     * {@code converged} 与 {@code debitStatus} 两个字段让调用方自行判据，
+     * <b>NEVER 把两条合并成一条</b>。</p>
+     *
+     * <p>白名单多一个 {@code FAIL}，与补款下单校验的「欠费可补」口径一致（2026-09-16 裁决）。</p>
+     *
+     * <p>本方法只改状态、NEVER 触发扣款，也 NEVER 调任何远端，因此可以带事务。</p>
      */
-    int countTransList(@Param("thirdUserId") String thirdUserId,
-                       @Param("cardIdList") List<String> cardIdList,
-                       @Param("cardType") String cardType,
-                       @Param("startDate") String startDate,
-                       @Param("endDate") String endDate,
-                       @Param("ticketCode") String ticketCode);
-
-    // ==================== IF8A-34 APP 订单详情 ====================
-
-    /**
-     * 按订单号查询交易记录（供 ticket-server RPC 调用）。
-     */
-    GateTxnPayListDTO selectByOrderNo(@Param("orderNo") String orderNo);
-
-    /**
-     * 查询用户指定支付渠道在指定时间之后是否存在扣费失败订单。
-     */
-    GateTxnPayFailedOrderRespDTO hasFailedOrder(@Param("thirdUserId") String thirdUserId,
-                                                @Param("paymentVendor") String paymentVendor,
-                                                @Param("requestTime") LocalDateTime requestTime);
+    GateTxnPayDebitConvergeRespDTO convergeDebitStatusForSupplement(GateTxnPayDebitConvergeReqDTO request);
 }

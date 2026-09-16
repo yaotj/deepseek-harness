@@ -1,5 +1,6 @@
 package com.chinasofti.huateng.gatetxnpay.entity;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -43,6 +44,19 @@ public class GateTxnPay {
     private String attributableParty;    // 订单应收商户（cjdsj/qddt）
     private String receivingParty;       // 订单实收商户（cjdsj/qddt）
     private String payChannelCode;       // 支付渠道编码（如 ALIPAY、WECHAT，来自 USER_ITP_REG_INFO.CHANNEL）
+    private String paymentVendor;        // 支付厂商编码，钱包为 0B
+    private String channelType;          // 交易渠道类型，01=蓝牙
+    private String payUserId;            // 钱包扣款用户标识
+    private String transferFlag;         // 换乘标识：01无换乘，02有换乘
+    private String cumulativeType;       // 钱包累计类型：01正常出站，02超时出站，03不累计
+    private Integer originalFare;        // 进出站地铁原价，单位分
+    private Integer walletTotalAmt;      // 钱包当前累计金额，单位分
+    private Integer discountLevelAmt;    // 命中的累计金额门槛，单位分
+    private BigDecimal discountRate;     // 命中的折扣率
+    private Integer expectedGateAmount;  // 按折扣公式计算的期望闸机金额，单位分
+    private String discountCalcStatus;   // SUCCESS/FALLBACK/SKIPPED
+    private String discountCalcMsg;      // 钱包优惠计算说明或降级原因
+    private String industryDetail;       // 支付宝出行行业明细JSON（21键），仅 issueChannelCode=07 有值，落单时整块存下、扣费与重试复用
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -114,4 +128,30 @@ public class GateTxnPay {
     public void setReceivingParty(String receivingParty) { this.receivingParty = receivingParty; }
     public String getPayChannelCode() { return payChannelCode; }
     public void setPayChannelCode(String payChannelCode) { this.payChannelCode = payChannelCode; }
+    public String getPaymentVendor() { return paymentVendor; }
+    public void setPaymentVendor(String paymentVendor) { this.paymentVendor = paymentVendor; }
+    public String getChannelType() { return channelType; }
+    public void setChannelType(String channelType) { this.channelType = channelType; }
+    public String getPayUserId() { return payUserId; }
+    public void setPayUserId(String payUserId) { this.payUserId = payUserId; }
+    public String getTransferFlag() { return transferFlag; }
+    public void setTransferFlag(String transferFlag) { this.transferFlag = transferFlag; }
+    public String getCumulativeType() { return cumulativeType; }
+    public void setCumulativeType(String cumulativeType) { this.cumulativeType = cumulativeType; }
+    public Integer getOriginalFare() { return originalFare; }
+    public void setOriginalFare(Integer originalFare) { this.originalFare = originalFare; }
+    public Integer getWalletTotalAmt() { return walletTotalAmt; }
+    public void setWalletTotalAmt(Integer walletTotalAmt) { this.walletTotalAmt = walletTotalAmt; }
+    public Integer getDiscountLevelAmt() { return discountLevelAmt; }
+    public void setDiscountLevelAmt(Integer discountLevelAmt) { this.discountLevelAmt = discountLevelAmt; }
+    public BigDecimal getDiscountRate() { return discountRate; }
+    public void setDiscountRate(BigDecimal discountRate) { this.discountRate = discountRate; }
+    public Integer getExpectedGateAmount() { return expectedGateAmount; }
+    public void setExpectedGateAmount(Integer expectedGateAmount) { this.expectedGateAmount = expectedGateAmount; }
+    public String getDiscountCalcStatus() { return discountCalcStatus; }
+    public void setDiscountCalcStatus(String discountCalcStatus) { this.discountCalcStatus = discountCalcStatus; }
+    public String getDiscountCalcMsg() { return discountCalcMsg; }
+    public void setDiscountCalcMsg(String discountCalcMsg) { this.discountCalcMsg = discountCalcMsg; }
+    public String getIndustryDetail() { return industryDetail; }
+    public void setIndustryDetail(String industryDetail) { this.industryDetail = industryDetail; }
 }

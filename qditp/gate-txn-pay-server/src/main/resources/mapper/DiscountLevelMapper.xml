@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.gatetxnpay.mapper.DiscountLevelMapper">
+    <!--
+        MUST 用显式 resultMap，NEVER 退回裸 resultType 自动映射。
+        本模块没有开 mybatis.configuration.map-underscore-to-camel-case（全仓只有
+        acc-es-server 开了），因此 LEVEL_AMT 映不到 levelAmt ——
+        查询会正常返回一行、对象也非 null，但四个字段全是 null，
+        于是 FareCalculator 的 level.getLevelDiscount() == null 判定成立、
+        抛「无有效折扣档位」，看起来像是档位数据缺失，实际上库里那一行一直都在。
+        2026-09-15 实测到：DISCOUNT_LEVEL 有 LEVEL_AMT=0 / DISCOUNT_TYPE='01' /
+        DISCOUNT_STATUS='00' 的可用行，同一条 SQL 在库里返 1 行，服务侧却报无档位。
+        本模块另外三个实体 mapper（GateTxnPay / MetroTransferPushTask / SupplementOrder）
+        一律显式 resultMap，本文件此前是唯一的例外。
+    -->
+    <resultMap id="discountLevelMap" type="com.chinasofti.huateng.gatetxnpay.entity.DiscountLevel">
+        <result column="LEVEL_AMT" property="levelAmt" jdbcType="NUMERIC"/>
+        <result column="LEVEL_DISCOUNT" property="levelDiscount" jdbcType="VARCHAR"/>
+        <result column="DISCOUNT_TYPE" property="discountType" jdbcType="VARCHAR"/>
+        <result column="DISCOUNT_STATUS" property="discountStatus" jdbcType="VARCHAR"/>
+    </resultMap>
+
+    <!--
+        末行 MUST 写复数 ROWS ONLY，NEVER 写单数 ROW ONLY。
+        两者在 Oracle 里都合法，但全服务共用的 Druid WallFilter
+        (spring.datasource.druid.filter.wall.enabled=true) 用的是 druid 1.2.23 自带的
+        Oracle 语法解析器，它只认复数形式；单数形式被判成注入，抛
+        「sql injection violation ... syntax error, expect ONLY, actual ROW」，
+        该语句静默失效 —— 编译、单测、xmllint 全都发现不了，只在 Oracle 运行时炸。
+        已发生：2026-09-15 钱包优惠端到端验证时，queryTotalAmt 已成功返回
+        WALLET_TOTAL_AMT，却在这条 SQL 上抛出上述异常，DISCOUNT_CALC_STATUS 落
+        FALLBACK、DISCOUNT_RATE 恒 NULL。判据已用 WallUtils.isValidateOracle 实测：
+        ROW ONLY 返 false、ROWS ONLY 返 true。回归防线见
+        MapperSqlWallCompatibilityTest。
+    -->
+    <select id="selectApplicable" resultMap="discountLevelMap">
+        SELECT LEVEL_AMT, LEVEL_DISCOUNT, DISCOUNT_TYPE, DISCOUNT_STATUS
+        FROM DISCOUNT_LEVEL
+        WHERE DISCOUNT_TYPE = #{discountType,jdbcType=VARCHAR}
+          AND DISCOUNT_STATUS = '00'
+          AND LEVEL_AMT &lt;= #{totalAmt,jdbcType=NUMERIC}
+        ORDER BY LEVEL_AMT DESC
+        FETCH FIRST 1 ROWS ONLY
+    </select>
+</mapper>

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.gatetxnpay.mapper.MetroTransferPushTaskMapper">
+    <resultMap id="TaskMap" type="com.chinasofti.huateng.gatetxnpay.entity.MetroTransferPushTask">
+        <id column="ID" property="id"/>
+        <result column="ORDER_NO" property="orderNo"/>
+        <result column="THIRD_USER_ID" property="thirdUserId"/>
+        <result column="TRANS_DATE" property="transDate"/>
+        <result column="TRANS_TIME" property="transTime"/>
+        <result column="PAY_CHANNEL_TYPE" property="payChannelType"/>
+        <result column="TRANSFER_FLAG" property="transferFlag"/>
+        <result column="CARD_TYPE" property="cardType"/>
+        <result column="STATUS" property="status"/>
+        <result column="RETRY_COUNT" property="retryCount"/>
+        <result column="NEXT_RETRY_TIME" property="nextRetryTime"/>
+        <result column="LAST_ERROR" property="lastError"/>
+    </resultMap>
+    <insert id="insertIgnoreDuplicate" parameterType="com.chinasofti.huateng.gatetxnpay.entity.MetroTransferPushTask">
+        INSERT INTO METRO_TRANSFER_PUSH_TASK (
+            ID, ORDER_NO, THIRD_USER_ID, TRANS_DATE, TRANS_TIME, PAY_CHANNEL_TYPE, TRANSFER_FLAG, CARD_TYPE,
+            STATUS, RETRY_COUNT, NEXT_RETRY_TIME, CREATE_TIME, UPDATE_TIME
+        ) VALUES (
+            SEQ_METRO_TRANSFER_PUSH_TASK.NEXTVAL, #{orderNo}, #{thirdUserId}, #{transDate}, #{transTime},
+            #{payChannelType}, #{transferFlag}, #{cardType}, 'PENDING', 0, SYSTIMESTAMP, SYSTIMESTAMP, SYSTIMESTAMP
+        )
+    </insert>
+    <select id="selectReady" resultMap="TaskMap">
+        SELECT * FROM (
+            SELECT ID, ORDER_NO, THIRD_USER_ID, TRANS_DATE, TRANS_TIME, PAY_CHANNEL_TYPE, TRANSFER_FLAG, CARD_TYPE,
+                   STATUS, RETRY_COUNT, NEXT_RETRY_TIME, LAST_ERROR
+            FROM METRO_TRANSFER_PUSH_TASK
+            WHERE STATUS IN ('PENDING', 'RETRY') AND NEXT_RETRY_TIME &lt;= SYSTIMESTAMP
+            ORDER BY NEXT_RETRY_TIME, ID
+        ) WHERE ROWNUM &lt;= #{limit}
+    </select>
+    <update id="claim">
+        UPDATE METRO_TRANSFER_PUSH_TASK
+        SET STATUS = 'PROCESSING', UPDATE_TIME = SYSTIMESTAMP
+        WHERE ID = #{id} AND STATUS IN ('PENDING', 'RETRY') AND NEXT_RETRY_TIME &lt;= SYSTIMESTAMP
+    </update>
+    <update id="markSuccess">
+        UPDATE METRO_TRANSFER_PUSH_TASK
+        SET STATUS = 'SUCCESS', LAST_ERROR = NULL, UPDATE_TIME = SYSTIMESTAMP
+        WHERE ID = #{id} AND STATUS = 'PROCESSING'
+    </update>
+    <update id="markRetry">
+        UPDATE METRO_TRANSFER_PUSH_TASK
+        SET STATUS = 'RETRY', RETRY_COUNT = #{retryCount}, NEXT_RETRY_TIME = #{nextRetryTime},
+            LAST_ERROR = #{lastError}, UPDATE_TIME = SYSTIMESTAMP
+        WHERE ID = #{id} AND STATUS = 'PROCESSING'
+    </update>
+    <update id="markFailed">
+        UPDATE METRO_TRANSFER_PUSH_TASK
+        SET STATUS = 'FAILED', RETRY_COUNT = #{retryCount}, LAST_ERROR = #{lastError}, UPDATE_TIME = SYSTIMESTAMP
+        WHERE ID = #{id} AND STATUS = 'PROCESSING'
+    </update>
+    <update id="recoverStuckProcessing">
+        UPDATE METRO_TRANSFER_PUSH_TASK
+        SET STATUS = 'RETRY', NEXT_RETRY_TIME = SYSTIMESTAMP, LAST_ERROR = '任务处理租约超时', UPDATE_TIME = SYSTIMESTAMP
+        WHERE STATUS = 'PROCESSING'
+          AND UPDATE_TIME &lt; SYSTIMESTAMP - NUMTODSINTERVAL(#{leaseSeconds}, 'SECOND')
+    </update>
+</mapper>

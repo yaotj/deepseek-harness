@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.gatetxnpay.mapper.ReconExportMapper">
+
+    <!--
+      公共时间窗口过滤，四类文件共用，逐条说明如下。
+
+      NEVER 把这些说明搬进 SQL 正文：Druid WallFilter 的 commentAllow=false，SQL 正文里出现
+      行注释或块注释会被判定为注入，语句静默失效。另注意本段是 XML 注释，内部不能出现连续两个
+      半角减号，否则 XML 解析直接报错。
+
+      1. TXN_DATE 区间（两端闭）
+         TXN_DATE 是 VARCHAR2 存 yyyyMMdd（生产库实测），因此绑定必须 jdbcType=VARCHAR，
+         字符串字典序比较对 yyyyMMdd 等价于日期比较。它同时是月分区表的分区键，这两个条件是
+         分区裁剪的唯一依据，缺一即全分区扫描。对账窗口是 T-2 02:00 到 T-1 02:00，横跨两个
+         yyyyMMdd，所以下限取窗口起点的日期部分、上限取窗口终点的日期部分，精确边界交给第 2 条。
+
+      2. OUT_TIME 区间（左闭右开）
+         保证相邻两天的窗口既不漏也不重。OUT_TIME 是 VARCHAR2 存 yyyyMMddHHmmss，直接做字符串
+         比较，NEVER 套 TO_DATE 之类的函数，那会让索引的 OUT_TIME 前缀失效。
+
+      3. 列名一律带别名 T 前缀
+         本文件全部 5 条 select 都把主表写成 FROM GATE_TXN_PAY T，因此本片段与
+         Recon_Keyset / Recon_Exp_Filter 三个公共片段里的列也一律带 T. 前缀。
+         2026-09-16 之前这条的理由是「selectPayGateSummary 与 selectPayExpSummary 要 LEFT JOIN
+         STATION_INFO 取线路，FROM 后面一出现第二张表，片段里的裸列名就依赖『两表没有同名列』
+         这个偶然事实」；那两处 join 已随线路段收口到 recon-server 而删除，本文件现在是单表查询。
+         但这条约定 MUST 保留：它让公共片段与「FROM 后面有几张表」解耦，下次任何一条 select 再引入
+         第二张表时不必回头改片段，也不会踩 ORA-00918。
+         新增 select MUST 同样把主表别名写成 T，否则 include 进来的片段解析不到该别名。
+    -->
+    <sql id="Recon_Window">
+        T.TXN_DATE &gt;= #{startDate,jdbcType=VARCHAR}
+        AND T.TXN_DATE &lt;= #{endDate,jdbcType=VARCHAR}
+        AND T.OUT_TIME &gt;= #{windowStart,jdbcType=VARCHAR}
+        AND T.OUT_TIME &lt; #{windowEnd,jdbcType=VARCHAR}
+    </sql>
+
+    <!--
+      keyset 游标条件，明细类（EXP / DETAIL）共用。
+
+      ORDER BY OUT_TIME, ID 与本条件严格对应：同一 OUT_TIME 内可能有多行（同秒多笔），
+      只比 OUT_TIME 会漏行或死循环，因此第二段用 ID 破平。
+      NEVER 换成 OFFSET 大页码：Oracle 需先产出并丢弃前 n 行，翻到深页是平方级代价。
+    -->
+    <sql id="Recon_Keyset">
+        <if test="lastOutTime != null">
+            AND (T.OUT_TIME &gt; #{lastOutTime,jdbcType=VARCHAR}
+                 OR (T.OUT_TIME = #{lastOutTime,jdbcType=VARCHAR} AND T.ID &gt; #{lastId,jdbcType=NUMERIC}))
+        </if>
+    </sql>
+    <!--
+      EXP 单边交易明细，甲方 13 段行格式的数据来源。
+
+      WHERE 除公共窗口外只有一条业务筛选：
+        ORDER_EXP_TYPE IS NOT NULL AND ORDER_EXP_TYPE &lt;&gt; ' '
+      即「订单异常类型」有值即为单边账/异常订单。该列是 VARCHAR2(8)，见
+      scripts/20260818_if8a_schema_migration.sql 第 27 行。空格判定是必须的：Oracle 里
+      长度为 0 的字符串等于 NULL，但业务上历史数据可能写入单个空格表示「无异常」，
+      只判 IS NOT NULL 会把这些正常单也当成单边账，导致 EXP 文件虚增。
+      本查询 NEVER 加 DEBIT_STATUS 条件：单边账的本质就是扣费链路没走完，
+      按 SUCCESS 过滤等于把要报的行全部滤掉。
+
+      SELECT 只取拼行需要的 8 列 + 游标需要的 ID。行内「进站设备编码」与「出站处理设备类型」
+      本表无对应列，由 Java 侧补空串，SQL 侧不产出占位列。
+      「优惠金额」同样由 Java 侧补 0：本表唯一形似优惠的列 DISCOUNT_LEVEL_AMT 语义是
+      「命中的累计金额门槛」（GateTxnPay.java:54），不是优惠额本身，且生产数据大面积为 NULL，
+      属不可靠列，映射关系待甲方确认。
+    -->
+    <!--
+      EXP（单边交易）口径的业务筛选，被 selectExpPage 与 selectPayExpSummary 共用。
+      抽成公共片段是为了让两处口径**无法漂移**：甲方 21 段汇总的第 18、19 段「单边交易笔数/金额」
+      必须与 ITP.EXP 明细行一一对应，两处 WHERE 不一致就等于汇总与明细对不平。
+
+      为什么要排除 '0'：`ORDER_EXP_TYPE` 列注释里 '0' 就是「正常」（见
+      scripts/20260818_if8a_schema_migration.sql），而甲方「订单异常类型」取值域是 1~15、不含 0，
+      ITP.EXP 的文件语义是「单边交易明细」。'0' 既不是 NULL 也不是空格，原来的
+      `IS NOT NULL AND <> ' '` 会把**全部正常订单**捞进单边账文件，同时让第 18/19 段与
+      第 12/13 段「过闸笔数/金额」逐字重复，ACC 侧把同一笔既算过闸收入又算单边账，必然对不平。
+      2026-09-11 端到端实测确认了这一现象（EXP 3 行全是误报），故新增 '0' 排除。
+
+      注意我方列注释的取值域（0 正常 … 5 双段计费超时）与甲方 1~15 并不一致，
+      两套编码的映射关系仍待甲方澄清；此处只做「排除正常单」这一确定无疑的收窄，
+      NEVER 自行把我方 1~5 当成甲方 1~5 去做语义映射。
+    -->
+    <sql id="Recon_Exp_Filter">
+        T.ORDER_EXP_TYPE IS NOT NULL
+        AND T.ORDER_EXP_TYPE &lt;&gt; ' '
+        AND T.ORDER_EXP_TYPE &lt;&gt; '0'
+    </sql>
+
+    <select id="selectExpPage" resultType="java.util.Map">
+        SELECT
+            T.ID,
+            T.CARD_ID,
+            T.TICKET_TRANS_SEQ,
+            T.TOTAL_AMOUNT,
+            T.IN_TIME,
+            T.DEVICE_ID,
+            T.OUT_TIME,
+            T.ORDER_EXP_TYPE,
+            T.SIGN_CHANNEL_CODE,
+            T.TXN_DATE
+        FROM GATE_TXN_PAY T
+        WHERE <include refid="Recon_Window"/>
+          AND <include refid="Recon_Exp_Filter"/>
+        <include refid="Recon_Keyset"/>
+        ORDER BY T.OUT_TIME, T.ID
+        FETCH FIRST #{limit} ROWS ONLY
+    </select>
+
+    <!--
+      PAY 汇总的「过闸」两段度量（甲方 21 段行格式的第 12、13 段）。
+
+      GROUP BY 四键：TXN_DATE / OUT_STATION / DEVICE_ID / SIGN_CHANNEL_CODE。
+      甲方键是五个（日期 / 线路 / 车站 / 设备编号 / 支付方式），这里少的那个「线路」是有意的：
+
+      2026-09-16 起线路段不再由本模块取，改由 recon-server 在聚合完成、写文件之前按车站码统一补齐
+      （见该模块的 ReconStationMapper 与 recon.line-backfill.* 配置）。本模块因此删掉了原先的
+        LEFT JOIN STATION_INFO S ON S.STATION_CODE = T.OUT_STATION
+      与 SELECT / GROUP BY / ORDER BY 里的 S.LINE_CODE，PAY 行的第 2 段一律留空。
+      收口的理由：线路是车站的函数（一个车站码只对应一条线路），原先四个源各写一遍这个 join，
+      等于「线路怎么取」有四份副本、四份各自的 join 列名、四次维表结构变更的暴露面；而 STATION_INFO
+      属车站 / 参数域、owner 不是本模块，少一处跨域直连就少一处破例。
+
+      NEVER 把 join 加回来：recon-server 侧的补齐是无条件覆盖的，加回来这一份既不会改变产出，
+      也拿不回任何收益，只会让「线路怎么取」重新变成两处。
+
+      NEVER 用车站代码前 2 位推线路：虽然实测前 2 位恰好等于 LINE_CODE，但那是编码巧合而非契约，
+      甲方改编码规则时不会通知我方，猜错等于把汇总账挂到错误线路上。这条约束在收口后依然成立，
+      只是执行点从本文件搬到了 recon-server。
+
+      去掉线路后分组数量不变：线路对车站是函数依赖，它原先加进 GROUP BY 也不改变分组，
+      唯一的差别是「维表缺记录的车站」不再单独成组 —— 而那种车站在收口后由 recon-server
+      按「查不到即留空」处理，账仍在。
+
+      WHERE 业务筛选：DEBIT_STATUS = 'SUCCESS'。
+      DEBIT_STATUS 取值为 INIT / PROCESSING / SUCCESS / FAIL / RETRY / CLOSED，
+      其中只有 SUCCESS 代表钱已到账；INIT / PROCESSING / RETRY 是中间态（可能后续才成功，
+      落到后续账期），FAIL / CLOSED 是未收到钱。这是白名单判定，NEVER 改写成「非 FAIL」
+      之类的黑名单，中间态会被误当成已结清，导致本期虚增收入且下期重复入账。
+
+      度量两段：COUNT(*) 与 NVL(SUM(T.TOTAL_AMOUNT), 0)。NVL 包一层是防 TOTAL_AMOUNT 历史脏数据
+      为 NULL：SUM 会跳过 NULL、全组皆 NULL 时返回 NULL。
+    -->
+    <select id="selectPayGateSummary" resultType="java.util.Map">
+        SELECT
+            T.TXN_DATE,
+            T.OUT_STATION,
+            T.DEVICE_ID,
+            T.SIGN_CHANNEL_CODE,
+            COUNT(*) AS TXN_COUNT,
+            NVL(SUM(T.TOTAL_AMOUNT), 0) AS PAY_AMOUNT
+        FROM GATE_TXN_PAY T
+        WHERE <include refid="Recon_Window"/>
+          AND T.DEBIT_STATUS = 'SUCCESS'
+        GROUP BY T.TXN_DATE, T.OUT_STATION, T.DEVICE_ID, T.SIGN_CHANNEL_CODE
+        ORDER BY T.TXN_DATE, T.OUT_STATION, T.DEVICE_ID, T.SIGN_CHANNEL_CODE
+    </select>
+
+    <!--
+      PAY 汇总的「单边交易」两段度量（甲方 21 段行格式的第 18、19 段）。
+
+      键与度量结构与 selectPayGateSummary 完全相同（同样不出线路段，由 recon-server 统一补齐），
+      唯一差别是 WHERE 换成 EXP 的
+      异常订单口径。这两条 SQL 的 WHERE MUST 分别与「过闸口径」和「EXP 明细口径」保持一致：
+      前者对齐 selectBusSummary，后者对齐 selectExpPage。改任何一处都要回头核对对应的那一处。
+    -->
+    <select id="selectPayExpSummary" resultType="java.util.Map">
+        SELECT
+            T.TXN_DATE,
+            T.OUT_STATION,
+            T.DEVICE_ID,
+            T.SIGN_CHANNEL_CODE,
+            COUNT(*) AS TXN_COUNT,
+            NVL(SUM(T.TOTAL_AMOUNT), 0) AS PAY_AMOUNT
+        FROM GATE_TXN_PAY T
+        WHERE <include refid="Recon_Window"/>
+          AND <include refid="Recon_Exp_Filter"/>
+        GROUP BY T.TXN_DATE, T.OUT_STATION, T.DEVICE_ID, T.SIGN_CHANNEL_CODE
+        ORDER BY T.TXN_DATE, T.OUT_STATION, T.DEVICE_ID, T.SIGN_CHANNEL_CODE
+    </select>
+
+    <!--
+      BUS 商业优惠汇总，甲方行格式只有 4 段：日期|对账金额|付款金额|优惠金额，即 1 段键 + 3 段度量。
+
+      GROUP BY 单键 TXN_DATE。WHERE 业务筛选 DEBIT_STATUS = 'SUCCESS'，与 selectPayGateSummary
+      同口径：商业优惠只对已结清的过闸收入结算。
+
+      本表没有独立的实收列，对账金额与付款金额都取 NVL(SUM(TOTAL_AMOUNT), 0)，
+      两列同值是有意的，不是复制粘贴错误。
+      「优惠金额」由 Java 侧补 0：DISCOUNT_LEVEL_AMT 语义是「命中的累计金额门槛」而非优惠额，
+      生产数据大面积为 NULL，本表无可靠优惠列，待甲方确认后再接入。
+    -->
+    <select id="selectBusSummary" resultType="java.util.Map">
+        SELECT
+            T.TXN_DATE,
+            NVL(SUM(T.TOTAL_AMOUNT), 0) AS RECON_AMOUNT,
+            NVL(SUM(T.TOTAL_AMOUNT), 0) AS PAY_AMOUNT
+        FROM GATE_TXN_PAY T
+        WHERE <include refid="Recon_Window"/>
+          AND T.DEBIT_STATUS = 'SUCCESS'
+        GROUP BY T.TXN_DATE
+        ORDER BY T.TXN_DATE
+    </select>
+
+    <!--
+      DETAIL 虚拟电子多日计次票明细，甲方 7 段行格式的数据来源，本模块只出「超时费」那一部分。
+
+      WHERE 除公共窗口外两条业务筛选：
+        1. NVL(OVERTIME_AMOUNT, 0) 大于 0
+           甲方原文：多日计次票正常交易不对账，产生超时费的行程针对超时费对账。
+           因此没有超时费的行程一律不出行。NVL 包一层是因为该列允许 NULL。
+        2. CARD_TYPE IN ('0445', '0446', '0447', '0448')
+           日票/计次票四个发卡卡类型码。取值来源 model 模块 CardTypeMapping.java:54 的
+           DAY_TICKET_ISSUE_TYPES 与 CardTypeCodeEnum（0445 一日票 / 0446 三日票 /
+           0447 七日票 / 0448 多日计次票），本模块 GateTxnPayMapper.xml:343 的注释也记录了
+           「APP 日票聚合码 05 展开为 0445~0448」这一先例。NEVER 凭 SIGN_CHANNEL_CODE 猜票种。
+
+      此处刻意不加 DEBIT_STATUS 条件：超时费的结算状态与是否需要向 ACC 报账是两件事，
+      加白名单会漏报；如后续甲方要求只报已收到的超时费，MUST 明确后再补条件。
+
+      SELECT 里 EXIT_STATION_NAME 是「当前车站名称」（迁移脚本第 20 行新增的列），
+      为空时 Java 侧输出空串。「交易类型」是固定字符串，不来自库。
+    -->
+    <select id="selectDetailPage" resultType="java.util.Map">
+        SELECT
+            T.ID,
+            T.TXN_DATE,
+            T.CARD_ID,
+            T.OUT_TIME,
+            T.OVERTIME_AMOUNT,
+            T.EXIT_STATION_NAME,
+            T.DEVICE_ID
+        FROM GATE_TXN_PAY T
+        WHERE <include refid="Recon_Window"/>
+          AND NVL(T.OVERTIME_AMOUNT, 0) &gt; 0
+          AND T.CARD_TYPE IN ('0445', '0446', '0447', '0448')
+        <include refid="Recon_Keyset"/>
+        ORDER BY T.OUT_TIME, T.ID
+        FETCH FIRST #{limit} ROWS ONLY
+    </select>
+</mapper>

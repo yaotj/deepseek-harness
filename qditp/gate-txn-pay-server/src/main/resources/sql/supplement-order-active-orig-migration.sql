@@ -1,0 +1,45 @@
+-- SUPPLEMENT_ORDER_ITEM 增加 ACTIVE_ORIG_ORDER_NO + 唯一索引，堵住「同一笔欠费被两张补款单同时覆盖」。
+--
+-- 背景（2026-09-14 代码审查 P0）：requestPayOrder 落单前只调 revokePreviousOrders 作废「已存在」的旧单，
+-- 没有任何按 ORIG_ORDER_NO 的互斥。两条并发请求同时进来时都查不到旧单、都建单成功
+-- （ORDER_NO 带毫秒 + 卡号后 6 位，撞不上 UK_SUPPLEMENT_ORDER_NO），两行 TBL_TVM_APP_ORDER
+-- 都是 PAY_STATUS='0'，收银台两张单都能付 ⇒ 同一笔欠费收两次钱。
+-- Java 侧的 selectPendingOrderNosByOrigOrderNos 是 check-then-act，挡不住真并发，
+-- 因此按 AGENTS.md §5.1「并发控制 MUST 用唯一索引 + DuplicateKeyException 兜底」加 DB 硬约束。
+--
+-- 列语义：非 NULL 表示「本明细仍在独占该原订单」。Oracle 唯一索引不约束全 NULL 行，
+-- 因此置 NULL 即释放独占、允许该原订单重新进入新的补款单。
+-- 释放点只有「非成功的终态」三处：重下作废（CLOSED）、超时关单（CLOSED）、支付失败（FAIL）。
+-- SUCCESS 刻意不释放：钱已收，无论 settleOrigOrders 是否命中，该原订单都 NEVER 允许再被补款。
+--
+-- 同时补 IDX_SUPPLEMENT_ORDER_UPDT：收敛任务 selectPendingOrders 改内联视图后按 UPDATE_TIME
+-- 回看 CLOSED / FAIL 单，原有的 IDX_SUPPLEMENT_ORDER_STATUS (PAY_STATUS, CREATE_TIME) 帮不上那个分支。
+
+ALTER TABLE SUPPLEMENT_ORDER_ITEM ADD (ACTIVE_ORIG_ORDER_NO VARCHAR2(128));
+
+UPDATE SUPPLEMENT_ORDER_ITEM I
+SET ACTIVE_ORIG_ORDER_NO = ORIG_ORDER_NO
+WHERE EXISTS (
+    SELECT 1 FROM SUPPLEMENT_ORDER O
+    WHERE O.ORDER_NO = I.ORDER_NO
+      AND O.PAY_STATUS IN ('INIT', 'PROCESSING', 'SUCCESS')
+);
+
+COMMIT;
+
+CREATE UNIQUE INDEX UK_SUPPLEMENT_ITEM_ACTIVE
+ON SUPPLEMENT_ORDER_ITEM (ACTIVE_ORIG_ORDER_NO);
+
+CREATE INDEX IDX_SUPPLEMENT_ORDER_UPDT
+ON SUPPLEMENT_ORDER (PAY_STATUS, UPDATE_TIME);
+
+-- 2026-09-14 已在 AFCITPDB 执行并回查：
+--   USER_TAB_COLS  ACTIVE_ORIG_ORDER_NO = VARCHAR2(128), NULLABLE=Y
+--   USER_INDEXES   UK_SUPPLEMENT_ITEM_ACTIVE = UNIQUE / VALID
+--                  IDX_SUPPLEMENT_ORDER_UPDT = NONUNIQUE / VALID
+--   回填 7 行，COUNT(ACTIVE_ORIG_ORDER_NO)=7 且 COUNT(DISTINCT ...)=7（ORA-01452 防线通过）
+--
+-- 回滚（仅在需要撤销本次改动时使用）：
+--   DROP INDEX IDX_SUPPLEMENT_ORDER_UPDT;
+--   DROP INDEX UK_SUPPLEMENT_ITEM_ACTIVE;
+--   ALTER TABLE SUPPLEMENT_ORDER_ITEM DROP COLUMN ACTIVE_ORIG_ORDER_NO;

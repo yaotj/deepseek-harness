@@ -1,23 +1,36 @@
 package com.chinasofti.huateng.gatetxnpay.controller;
 
-import com.alibaba.fastjson2.JSON;
-import com.chinasofti.huateng.gatetxnpay.entity.GateTxnPay;
+import com.chinasofti.huateng.gatetxnpay.service.GateTxnPayQueryService;
 import com.chinasofti.huateng.gatetxnpay.service.GateTxnPayService;
-import com.chinasofti.huateng.model.app.QueryTransListReqDTO;
+import com.chinasofti.huateng.model.app.CardUnsettledQueryReqDTO;
+import com.chinasofti.huateng.model.app.CardUnsettledQueryRespDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayFailedOrderReqDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayFailedOrderRespDTO;
-import com.chinasofti.huateng.model.pay.GateTxnPayListDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayReqDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayRespDTO;
+import com.chinasofti.huateng.model.pay.GateTxnPaySyncStatusReqDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
-import java.util.List;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import java.util.Map;
 
 /**
- * 过闸扣费交易入口。
+ * 过闸扣费交易入口——**服务间 RPC 调用方向**（fep-dev-server / pay-sign-server /
+ * blacklist-server / ticket-server 等）。
+ *
+ * <p>2026-09-14 按调用方拆分：APP 场景的 6 个 {@code /ci/gateTxnPay/app/*} 已移到
+ * {@link com.chinasofti.huateng.gatetxnpay.controller.app.GateTxnPayAppController}，
+ * 运营后台在 {@code controller/page}、对账在 {@code controller/internal}。
+ * <b>拆分只动文件归属，17 个端点的 URL 一个字符都没改</b>，上游全是硬编码 URL，
+ * <b>NEVER 借后续重构改路径</b>。</p>
+ *
+ * <p>本类保留的 6 个端点里，{@code requestPay} / {@code retryPay} / {@code syncDebitStatus}
+ * 会改状态，其余三个只读。</p>
  */
 @RestController
 @RequestMapping("/ci/gateTxnPay")
@@ -26,6 +39,13 @@ public class GateTxnPayController {
 
     @Autowired
     private GateTxnPayService gateTxnPayService;
+
+    /**
+     * 只读查询侧。与 {@code gateTxnPayService} 并列注入，**不是两套实现**：
+     * 同一张 `GATE_TXN_PAY`，按「有没有写」拆成两个接口，端点与报文一个都没变。
+     */
+    @Autowired
+    private GateTxnPayQueryService gateTxnPayQueryService;
 
     @PostMapping("/requestPay")
     public GateTxnPayRespDTO requestPay(@RequestBody GateTxnPayReqDTO request) {
@@ -47,52 +67,9 @@ public class GateTxnPayController {
     @PostMapping("/queryOrderByBizKey")
     public GateTxnPayRespDTO queryOrderByBizKey(@RequestBody GateTxnPayReqDTO request) {
         log.info("查询GT订单号, 入参={}", request);
-        GateTxnPayRespDTO response = gateTxnPayService.queryOrderByBizKey(request);
+        GateTxnPayRespDTO response = gateTxnPayQueryService.queryOrderByBizKey(request);
         log.info("查询GT订单号完成, 返回={}", response);
         return response;
-    }
-
-    // ==================== IF8A-05 APP 交易记录列表 RPC ====================
-
-    @PostMapping("/app/requestTransList")
-    public List<GateTxnPayListDTO> requestTransList(@RequestBody QueryTransListReqDTO request) {
-        log.info("APP查询交易记录列表, 入参={}", request);
-        List<GateTxnPayListDTO> list = gateTxnPayService.selectTransList(
-                request.getThirdUserId(),
-                request.getCardIdList(),
-                request.getCardType(),
-                request.getStartDate(),
-                request.getEndDate(),
-                request.getTicketCode(),
-                request.getOffset(),
-                request.getLimit());
-        log.info("APP查询交易记录列表完成, 返回{}条", list == null ? 0 : list.size());
-        return list;
-    }
-
-    @PostMapping("/app/countTransList")
-    public int countTransList(@RequestBody QueryTransListReqDTO request) {
-        log.info("APP统计交易记录总数, 入参={}", request);
-        int count = gateTxnPayService.countTransList(
-                request.getThirdUserId(),
-                request.getCardIdList(),
-                request.getCardType(),
-                request.getStartDate(),
-                request.getEndDate(),
-                request.getTicketCode());
-        log.info("APP统计交易记录总数完成, 返回={}", count);
-        return count;
-    }
-
-    // ==================== IF8A-34 APP 订单详情 RPC ====================
-
-    @PostMapping("/app/queryByOrderNo")
-    public GateTxnPayListDTO queryByOrderNo(@RequestBody Map<String, String> request) {
-        String orderNo = request != null ? request.get("orderNo") : null;
-        log.info("APP查询订单详情, orderNo={}", orderNo);
-        GateTxnPayListDTO dto = gateTxnPayService.selectByOrderNo(orderNo);
-        log.info("APP查询订单详情完成, 返回={}", dto != null ? dto.getOrderNo() : null);
-        return dto;
     }
 
     // ==================== 解约扣费失败订单查询 RPC ====================
@@ -100,11 +77,46 @@ public class GateTxnPayController {
     @PostMapping("/hasFailedOrder")
     public GateTxnPayFailedOrderRespDTO hasFailedOrder(@RequestBody GateTxnPayFailedOrderReqDTO request) {
         log.info("查询解约扣费失败订单, 入参={}", request);
-        GateTxnPayFailedOrderRespDTO response = gateTxnPayService.hasFailedOrder(
+        GateTxnPayFailedOrderRespDTO response = gateTxnPayQueryService.hasFailedOrder(
                 request != null ? request.getThirdUserId() : null,
                 request != null ? request.getPaymentVendor() : null,
                 request != null ? request.getRequestTime() : null);
         log.info("查询解约扣费失败订单完成, 返回={}", response);
+        return response;
+    }
+
+    /**
+     * 按卡号查询是否仍有未结清扣费订单（供 blacklist-server 盘点黑名单可解除性调用）。
+     *
+     * <p>只读接口，不改任何数据。调用方 MUST 先判断 resultCode 再用 hasUnsettled。</p>
+     */
+    @PostMapping("/hasUnsettledOrderByCard")
+    public CardUnsettledQueryRespDTO hasUnsettledOrderByCard(@RequestBody CardUnsettledQueryReqDTO request) {
+        log.info("按卡查询未结清扣费订单, cardId={}", request != null ? request.getCardId() : null);
+        CardUnsettledQueryRespDTO response = gateTxnPayQueryService.hasUnsettledOrderByCard(
+                request != null ? request.getCardId() : null);
+        log.info("按卡查询未结清扣费订单完成, 返回={}", response);
+        return response;
+    }
+
+    // ==================== 支付结果回调驱动的扣费状态收敛 RPC ====================
+
+    /**
+     * pay-sign-server 收到支付中心回调、本地 PAY_TXN_DETAIL 落地成功后调用，
+     * 把 GATE_TXN_PAY.DEBIT_STATUS 收敛到终态。
+     *
+     * <p>只改状态，NEVER 触发扣款；SUCCESS / FAIL 终态订单不会被改写。
+     *
+     * <p><b>IF8A-26 补款功能已迁移到 face-pay-server（2026-09-15）</b>。
+     * 补款单的支付结果由 face-pay 的 PayCenter 回调直接处理，
+     * 不再走本入口的补款单分派分支。pay-sign-server 对补款单号的回调
+     * 在其侧已做拦截（补款单号不走 pay-sign）。</p>
+     */
+    @PostMapping("/syncDebitStatus")
+    public GateTxnPayRespDTO syncDebitStatus(@RequestBody GateTxnPaySyncStatusReqDTO request) {
+        log.info("接收支付结果同步, 入参={}", request);
+        GateTxnPayRespDTO response = gateTxnPayService.syncDebitStatus(request);
+        log.info("支付结果同步返回={}", response);
         return response;
     }
 }
