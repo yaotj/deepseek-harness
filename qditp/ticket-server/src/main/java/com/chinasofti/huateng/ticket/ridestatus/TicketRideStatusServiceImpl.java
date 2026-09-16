@@ -1,85 +1,98 @@
-package com.chinasofti.huateng.ticket.service.impl;
+package com.chinasofti.huateng.ticket.ridestatus;
 
-import com.chinasofti.huateng.model.app.*;
+import com.chinasofti.huateng.model.app.MemberItineraryDTO;
+import com.chinasofti.huateng.model.app.QueryUserItineraryReqDTO;
+import com.chinasofti.huateng.model.app.QueryUserItineraryResult;
 import com.chinasofti.huateng.model.ticket.RegisterRideStatusReqDTO;
 import com.chinasofti.huateng.model.ticket.RegisterRideStatusRespDTO;
 import com.chinasofti.huateng.ticket.constant.TicketErrorCodeEnum;
 import com.chinasofti.huateng.ticket.entity.QRCodeStatus;
 import com.chinasofti.huateng.ticket.entity.QRCodeTxnDetail;
-import com.chinasofti.huateng.ticket.mapper.QRCodeStatusMapper;
+import com.chinasofti.huateng.ticket.gate.QRCodeStatusStore;
 import com.chinasofti.huateng.ticket.mapper.QRCodeTxnDetailMapper;
-import com.chinasofti.huateng.ticket.service.AppNotifyService;
-import com.chinasofti.huateng.ticket.service.TicketRideStatusService;
-import com.chinasofti.huateng.rpc.para.ParaClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
- * APP 侧乘车状态服务实现。
+ * APP 侧乘车码状态服务实现。
  *
- * <p>委托给各 Handler 执行具体业务逻辑：
- * <ul>
- *   <li>{@link ExcessFareHandler} - IF8A-04 自助补站处理</li>
- * </ul>
- * AGM 侧接口请使用 {@link com.chinasofti.huateng.ticket.service.impl.AgmRideStatusServiceImpl}。
+ * <p>只做两件事：开卡复位写 {@code QRCODE_STATUS}、IF8A-29 读行程。
+ * 展示层字段拼装委托 {@link MemberItineraryAssembler}，本类不碰 DTO 默认值与站名翻译。
+ *
+ * <p>AGM 侧接口请使用 {@code gate/AgmRideStatusService}。**这里刻意不用 {@code @link}** ——
+ * 见 {@link TicketRideStatusService} 类注释里的同款说明。
  */
 @Service
 public class TicketRideStatusServiceImpl implements TicketRideStatusService {
 
-    private static final Logger log = LoggerFactory.getLogger(TicketRideStatusServiceImpl.class);
-    private static final String RET_SUCCESS = "0000";
-    private static final String RET_INVALID_PARAM = "8001";
+    private static final String INITIAL_TIME = "00000000000000";
+    private static final String INITIAL_TXN_SEQ = "0";
 
-    @Value("${ticket.default-channel:01}")
-    private String defaultChannel;
+    /**
+     * 复位时的交易金额。**MUST 与上面两个初始值成组设置**：
+     * 已存在的行走 {@code selectByCardId} 读出旧快照，而 {@code upsert} 的 MATCHED 分支带
+     * {@code T.TRX_AMOUNT = S.TRX_AMOUNT}，不显式归零就会把上一趟的票价原样写回，
+     * 于是 IF5A-01 票卡分析（{@code supplement/CardDataHandler} 的 {@code lastTransAmout}）
+     * 在复位后仍返回旧金额，而同一响应里的末次时间 / 流水号已是初始值。
+     */
+    private static final Long INITIAL_TRX_AMOUNT = 0L;
 
-    @Value("${ticket.default-code-status:03}")
-    private String defaultCodeStatus;
+    private final String defaultChannel;
+    private final String defaultCodeStatus;
+    private final String defaultGateStatus;
+    private final String defaultLastTxnStation;
+    private final String defaultGateInStation;
 
-    @Value("${ticket.default-gate-status:00}")
-    private String defaultGateStatus;
+    /**
+     * QRCODE_STATUS 的唯一访问口。**NEVER 改回直接注 {@code QRCodeStatusMapper}** ——
+     * 该表的 owner 是 gate 包，本类的开卡复位是**唯一被允许的包外写入**
+     * （无条件覆盖分支，语义见 {@link TicketRideStatusService#registerRideStatus}）。
+     */
+    private final QRCodeStatusStore qrCodeStatusStore;
+    private final QRCodeTxnDetailMapper qrCodeTxnDetailMapper;
+    private final MemberItineraryAssembler memberItineraryAssembler;
 
-    @Value("${ticket.default-last-txn-station:FFFF}")
-    private String defaultLastTxnStation;
-
-    @Value("${ticket.default-gate-in-station:FFFF}")
-    private String defaultGateInStation;
-
-    @Autowired
-    private QRCodeStatusMapper qrCodeStatusMapper;
-
-    @Autowired
-    private QRCodeTxnDetailMapper qrCodeTxnDetailMapper;
-
-    @Autowired
-    private ParaClient paraClient;
-
-    @Autowired
-    private ExcessFareHandler excessFareHandler;
+    /**
+     * 五个默认值走构造器注入而非字段注入，使本类可脱离 Spring 直接单测。
+     *
+     * <p>{@code ticket.default-code-status} 的兜底值 **MUST 与
+     * {@code application.properties} 保持一致（当前 03 初始化）**，两处不一致时
+     * NEVER 只改一边——`gate/GateTicketHandler` 有同名配置项、同款陷阱。
+     */
+    public TicketRideStatusServiceImpl(QRCodeStatusStore qrCodeStatusStore,
+                                       QRCodeTxnDetailMapper qrCodeTxnDetailMapper,
+                                       MemberItineraryAssembler memberItineraryAssembler,
+                                       @Value("${ticket.default-channel:01}") String defaultChannel,
+                                       @Value("${ticket.default-code-status:03}") String defaultCodeStatus,
+                                       @Value("${ticket.default-gate-status:00}") String defaultGateStatus,
+                                       @Value("${ticket.default-last-txn-station:FFFF}") String defaultLastTxnStation,
+                                       @Value("${ticket.default-gate-in-station:FFFF}") String defaultGateInStation) {
+        this.qrCodeStatusStore = qrCodeStatusStore;
+        this.qrCodeTxnDetailMapper = qrCodeTxnDetailMapper;
+        this.memberItineraryAssembler = memberItineraryAssembler;
+        this.defaultChannel = defaultChannel;
+        this.defaultCodeStatus = defaultCodeStatus;
+        this.defaultGateStatus = defaultGateStatus;
+        this.defaultLastTxnStation = defaultLastTxnStation;
+        this.defaultGateInStation = defaultGateInStation;
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RegisterRideStatusRespDTO registerRideStatus(RegisterRideStatusReqDTO request) {
         RegisterRideStatusRespDTO response = new RegisterRideStatusRespDTO();
         if (request == null || !StringUtils.hasText(request.getCardId())) {
-            response.setRetCode(RET_INVALID_PARAM);
+            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
             response.setRetMsg("cardId不能为空");
             return response;
         }
 
         LocalDateTime now = LocalDateTime.now();
-        QRCodeStatus qrCodeStatus = qrCodeStatusMapper.selectByCardId(request.getCardId());
+        QRCodeStatus qrCodeStatus = qrCodeStatusStore.findByCardId(request.getCardId());
         if (qrCodeStatus == null) {
             qrCodeStatus = new QRCodeStatus();
             qrCodeStatus.setCardId(request.getCardId());
@@ -87,28 +100,27 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
             qrCodeStatus.setUseCount(0);
         }
 
-        qrCodeStatus.setChannel(defaultString(request.getChannel(), defaultChannel));
+        qrCodeStatus.setChannel(StringUtils.hasText(request.getChannel())
+                ? request.getChannel() : defaultChannel);
         qrCodeStatus.setCodeStatus(defaultCodeStatus);
-        qrCodeStatus.setLastTxnTime("00000000000000");
+        qrCodeStatus.setLastTxnTime(INITIAL_TIME);
         qrCodeStatus.setLastTxnStation(defaultLastTxnStation);
-        qrCodeStatus.setTxnSeq("0");
+        qrCodeStatus.setTxnSeq(INITIAL_TXN_SEQ);
         qrCodeStatus.setGateStatus(defaultGateStatus);
         qrCodeStatus.setGateInStation(defaultGateInStation);
-        qrCodeStatus.setGateInTime("00000000000000");
+        qrCodeStatus.setGateInTime(INITIAL_TIME);
+        qrCodeStatus.setTrxAmount(INITIAL_TRX_AMOUNT);
         qrCodeStatus.setUpdateTime(now);
-        qrCodeStatusMapper.upsert(qrCodeStatus);
+        qrCodeStatusStore.upsert(qrCodeStatus);
 
-        response.setRetCode(RET_SUCCESS);
-        response.setRetMsg("成功");
+        response.setRetCode(TicketErrorCodeEnum.SUCCESS.getCode());
+        response.setRetMsg(TicketErrorCodeEnum.SUCCESS.getMsg());
         response.setCardId(qrCodeStatus.getCardId());
         response.setItpUserId(request.getThirdUserId());
         response.setCardStatus(qrCodeStatus.getCodeStatus());
         return response;
     }
 
-    /**
-     * IF8A-29 查询用户上次行程。
-     */
     @Override
     public QueryUserItineraryResult queryUserItinerary(QueryUserItineraryReqDTO request) {
         QueryUserItineraryResult response = new QueryUserItineraryResult();
@@ -118,7 +130,7 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
             return response;
         }
 
-        QRCodeStatus currentStatus = qrCodeStatusMapper.selectByCardId(request.getCardNum());
+        QRCodeStatus currentStatus = qrCodeStatusStore.findByCardId(request.getCardNum());
         if (currentStatus == null) {
             response.setRetCode(TicketErrorCodeEnum.QR_CODE_NOT_FOUND.getCode());
             response.setRetMsg(TicketErrorCodeEnum.QR_CODE_NOT_FOUND.getMsg());
@@ -126,163 +138,10 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         }
 
         QRCodeTxnDetail latestDetail = qrCodeTxnDetailMapper.selectLatestByCardId(request.getCardNum());
-        MemberItineraryDTO itinerary = buildMemberItinerary(currentStatus, latestDetail);
+        MemberItineraryDTO itinerary = memberItineraryAssembler.assemble(currentStatus, latestDetail);
         response.setMemberItinerary(itinerary);
-        response.setRetCode(RET_SUCCESS);
-        response.setRetMsg("成功");
+        response.setRetCode(TicketErrorCodeEnum.SUCCESS.getCode());
+        response.setRetMsg(TicketErrorCodeEnum.SUCCESS.getMsg());
         return response;
-    }
-
-    /**
-     * IF8A-04 自助补站。
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public RequestExcessFareResult requestExcessFare(RequestExcessFareReqDTO request) {
-        RequestExcessFareResult response = new RequestExcessFareResult();
-        if (request == null || !StringUtils.hasText(request.getCardId())
-                || !StringUtils.hasText(request.getUpgradeAreaType())
-                || !StringUtils.hasText(request.getUpgradeStationCode())
-                || !StringUtils.hasText(request.getUpgradeDateTime())) {
-            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
-            response.setRetMsg("cardId/upgradeAreaType/upgradeStationCode/upgradeDateTime不能为空");
-            return response;
-        }
-
-        excessFareHandler.handleExcessFare(request, response);
-        return response;
-    }
-
-    @Override
-    public String queryEntryDevice(String cardId) {
-        if (!StringUtils.hasText(cardId)) {
-            return null;
-        }
-        try {
-            QRCodeTxnDetail entryDetail = qrCodeTxnDetailMapper.selectLatestEntryByCardId(cardId);
-            return entryDetail != null ? entryDetail.getDeviceId() : null;
-        } catch (Exception e) {
-            log.error("查询进站设备异常, cardId={}", cardId, e);
-            return null;
-        }
-    }
-
-    // ==================== 私有辅助方法 ====================
-
-    private MemberItineraryDTO buildMemberItinerary(QRCodeStatus currentStatus, QRCodeTxnDetail latestDetail) {
-        MemberItineraryDTO itinerary = new MemberItineraryDTO();
-        itinerary.setTicketStatus(currentStatus.getCodeStatus());
-        itinerary.setPayStatus("00");
-
-        // 收集所有需要查询名称的站点编码
-        List<String> stationCodes = new java.util.ArrayList<>();
-        if (latestDetail == null) {
-            if (StringUtils.hasText(currentStatus.getLastTxnStation())) {
-                stationCodes.add(currentStatus.getLastTxnStation());
-            }
-            itinerary.setThisStationCode(currentStatus.getLastTxnStation());
-            itinerary.setThisTransTime(currentStatus.getLastTxnTime());
-            itinerary.setTransSeq(currentStatus.getTxnSeq());
-        } else {
-            stationCodes.add(latestDetail.getHandleStationCode());
-            if (isExitTxn(latestDetail.getTrxType())) {
-                stationCodes.add(latestDetail.getHandleStationCode());
-            } else {
-                if (StringUtils.hasText(latestDetail.getLastHandleStationCode())) {
-                    stationCodes.add(latestDetail.getLastHandleStationCode());
-                }
-            }
-
-            itinerary.setThisStationCode(latestDetail.getHandleStationCode());
-            itinerary.setThisTransTime(latestDetail.getHandleDateTime());
-            itinerary.setTransSeq(latestDetail.getTicketTransSeq());
-            itinerary.setTransValue(toInteger(latestDetail.getTrxAmount()));
-            itinerary.setOvertimeTransValue(toInteger(latestDetail.getOvertimeAmount()));
-            itinerary.setPayChannel(latestDetail.getSignChannelCode());
-            itinerary.setOriTicketAmt(toInteger(latestDetail.getTrxAmount()));
-            itinerary.setDebitAmt(toInteger(defaultLong(latestDetail.getTrxAmount()) + defaultLong(latestDetail.getOvertimeAmount())));
-            itinerary.setOrderExpType(0);
-            itinerary.setDiscountInfo("");
-            itinerary.setCarbonDiscount(0);
-
-            if (isExitTxn(latestDetail.getTrxType())) {
-                itinerary.setLastStationCode(latestDetail.getHandleStationCode());
-                itinerary.setLastTransTime(latestDetail.getHandleDateTime());
-            } else {
-                itinerary.setLastStationCode(latestDetail.getLastHandleStationCode());
-                itinerary.setLastTransTime(latestDetail.getLastHandleDateTime());
-            }
-        }
-
-        // 批量查询站点名称
-        Map<String, String> stationNameMap = fetchStationNameMap(stationCodes);
-
-        if (latestDetail == null) {
-            itinerary.setThisStationName(resolveStationName(currentStatus.getLastTxnStation(), stationNameMap));
-        } else {
-            itinerary.setThisStationName(resolveStationName(latestDetail.getHandleStationCode(), stationNameMap));
-            if (isExitTxn(latestDetail.getTrxType())) {
-                itinerary.setLastStationName(resolveStationName(latestDetail.getHandleStationCode(), stationNameMap));
-            } else {
-                itinerary.setLastStationName(resolveStationName(latestDetail.getLastHandleStationCode(), stationNameMap));
-            }
-        }
-        return itinerary;
-    }
-
-    private Map<String, String> fetchStationNameMap(List<String> stationCodes) {
-        Map<String, String> map = new HashMap<>();
-        if (stationCodes == null || stationCodes.isEmpty()) {
-            return map;
-        }
-        try {
-            // 去重
-            List<String> uniqueCodes = stationCodes.stream()
-                    .filter(StringUtils::hasText)
-                    .distinct()
-                    .collect(Collectors.toList());
-            if (uniqueCodes.isEmpty()) {
-                return map;
-            }
-            RequestStationNameBatchReqDTO batchReq = new RequestStationNameBatchReqDTO();
-            batchReq.setStationCodes(uniqueCodes);
-            RequestStationNameBatchResult batchResult = paraClient.requestStationNameBatch(batchReq);
-            if (batchResult != null && "0000".equals(batchResult.getRetCode())
-                    && batchResult.getStationNameList() != null) {
-                for (RequestStationNameResult item : batchResult.getStationNameList()) {
-                    if (item != null && StringUtils.hasText(item.getStationCode())
-                            && StringUtils.hasText(item.getStationName())) {
-                        map.put(item.getStationCode(), item.getStationName());
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.warn("批量查询车站名称失败", e);
-        }
-        return map;
-    }
-
-    private boolean isExitTxn(String trxType) {
-        return com.chinasofti.huateng.model.enums.TrxTypeCodeEnum.isExitTxn(trxType);
-    }
-
-    private Integer toInteger(Long value) {
-        return value == null ? null : value.intValue();
-    }
-
-    private long defaultLong(Long value) {
-        return value == null ? 0L : value;
-    }
-
-    private String resolveStationName(String stationCode, Map<String, String> stationNameMap) {
-        if (!StringUtils.hasText(stationCode)) {
-            return stationCode;
-        }
-        String name = stationNameMap.get(stationCode);
-        return StringUtils.hasText(name) ? name : stationCode;
-    }
-
-    private String defaultString(String value, String defaultValue) {
-        return StringUtils.hasText(value) ? value : defaultValue;
     }
 }

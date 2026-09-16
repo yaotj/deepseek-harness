@@ -27,6 +27,11 @@ CREATE TABLE QRCODE_TXN_DETAIL (
     RESERVE2                  VARCHAR2(512 CHAR),
     CARD_NUM                  VARCHAR2(32 CHAR),
     PAY_CHANNEL_CODE          VARCHAR2(16 CHAR),
+    -- DEBIT_REQUEST_RESULT 在 AFCITPDB 里并不存在（2026-09-14 查 USER_TAB_COLS 实测：
+    -- 全库只有 PAY_TXN_DETAIL 有这一列），且全仓库零处代码读写本表的这一列，
+    -- 属有意保留的未落地设计。要看扣款结果 MUST 走 GATE_TXN_PAY.DEBIT_STATUS，
+    -- PAY_TXN_DETAIL.DEBIT_REQUEST_RESULT 只在前者为空时兜底。
+    -- NEVER 据本行认为库里已有该列；真要启用 MUST 出独立 migration 脚本并回查。
     DEBIT_REQUEST_RESULT      VARCHAR2(16 CHAR),
     DISCOUNT_FEE              NUMERIC(10),
     DISCOUNT_INFO             VARCHAR2(512 CHAR),

@@ -1,51 +1,79 @@
-package com.chinasofti.huateng.ticket.service.impl;
+package com.chinasofti.huateng.ticket.supplement;
 
-import com.chinasofti.huateng.model.app.*;
+import com.chinasofti.huateng.model.app.RequestExcessFareReqDTO;
+import com.chinasofti.huateng.model.app.RequestExcessFareResult;
 import com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO;
 import com.chinasofti.huateng.model.ticket.NotifyVerifyResultRespDTO;
 import com.chinasofti.huateng.model.ticket.enums.QRCodeStatusEnum;
-import com.chinasofti.huateng.rpc.fepDev.FepDevClient;
-import com.chinasofti.huateng.rpc.para.ParaClient;
 import com.chinasofti.huateng.ticket.constant.TicketErrorCodeEnum;
 import com.chinasofti.huateng.ticket.entity.QRCodeStatus;
-import com.chinasofti.huateng.ticket.mapper.QRCodeStatusMapper;
+import com.chinasofti.huateng.ticket.gate.AgmRideStatusService;
+import com.chinasofti.huateng.ticket.gate.QRCodeStatusStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 /**
  * IF8A-04 自助补站处理。
  *
  * <p>负责处理用户自助补站请求，包括：
  * <ul>
- *   <li>参数校验</li>
  *   <li>状态机判断（允许的补站类型）</li>
  *   <li>票价计算（补出站）</li>
- *   <li>调用闸机接口完成补站</li>
+ *   <li>进程内调用 {@code gate} 的检票编排 完成补站（2026-09-14 前是 RPC 打 fep-dev-server）</li>
  * </ul>
+ *
+ * <p>入口是 {@link SupplementService}，<b>包外 NEVER 直接注入本类</b>。
+ * 票价查询、闸机报文骨架、{@code defaultString} / hex 编码已于 2026-09-14 收口到
+ * {@link SupplementFareQuery} / {@link SupplementGateRequestAssembler} / {@link SupplementCodec}
+ * （审查项 U001 / U002 / U004），<b>NEVER 在本类里再复制一份</b>。</p>
  */
 @Component
-public class ExcessFareHandler {
+class ExcessFareHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ExcessFareHandler.class);
-    private static final String RET_SUCCESS = "0000";
 
-    @Value("${ticket.default-last-txn-station:FFFF}")
-    private String defaultLastTxnStation;
+    /** 补出站，需要算票价。 */
+    private static final String UPGRADE_TYPE_EXIT = "02";
+
+    /**
+     * QRCODE_STATUS 只读访问。**NEVER 改回直接注 {@code QRCodeStatusMapper}** ——
+     * 该表的写权归 gate 包，本包只准读（见 {@link QRCodeStatusStore} 类注释）。
+     */
+    @Autowired
+    private QRCodeStatusStore qrCodeStatusStore;
+
+    /**
+     * IF1A-01 检票编排门面，<b>进程内直调</b>。
+     *
+     * <p>2026-09-14（ADR-D63）从 {@code fepDevClient.notifyVerifyResult} 换成进程内调用：原链路是
+     * ticket-server → fep-dev-server → ticket-server 的**双向 RPC 环**，而 fep-dev 侧那一跳
+     * 自 ADR-D62 起只剩「itpUserId 归一 + 原样转发」，补站报文的 itpUserId 又是本模块自己造的
+     * ——整跳没有任何净效果，只贡献两次序列化、一次网络超时面与一个「结果未知」窗口。</p>
+     *
+     * <p><b>2026-09-14（ADR-D65）起注入的是门面 {@link AgmRideStatusService}，不再是
+     * {@code gate.GateTicketHandler} 那个内部实现类。</b>此前只能注内部类，是因为
+     * {@code AgmRideStatusServiceImpl} 当时反过来持有 {@code SupplementService}（IF5A-01/03 的委派壳），
+     * 注门面会成 {@code AgmRideStatusServiceImpl → SupplementService → 本类 → AgmRideStatusServiceImpl}
+     * 的构造环、Spring Boot 3 启动即失败。那两个委派壳已随 {@code TicketAgmController} 改为直连补站门面
+     * 一起删除，{@code gate → supplement} 这条边不存在了，因此现在可以正常依赖门面。
+     * <b>NEVER 退回注入 {@code GateTicketHandler}</b> —— 那是跨包抓内部实现类。</p>
+     */
+    @Autowired
+    private AgmRideStatusService agmRideStatusService;
 
     @Autowired
-    private QRCodeStatusMapper qrCodeStatusMapper;
+    private SupplementStateRules stateRules;
 
     @Autowired
-    private ParaClient paraClient;
+    private SupplementFareQuery fareQuery;
 
     @Autowired
-    private FepDevClient fepDevClient;
+    private SupplementGateRequestAssembler gateRequestAssembler;
 
     /**
      * 处理自助补站请求。
@@ -53,29 +81,26 @@ public class ExcessFareHandler {
      * @param request  补站请求
      * @param response 响应对象
      */
-    public void handleExcessFare(RequestExcessFareReqDTO request, RequestExcessFareResult response) {
+    void handleExcessFare(RequestExcessFareReqDTO request, RequestExcessFareResult response) {
         String cardId = request.getCardId();
         String upgradeAreaType = request.getUpgradeAreaType();
         String upgradeStationCode = request.getUpgradeStationCode();
         String upgradeDateTime = request.getUpgradeDateTime();
+        String unknownStation = stateRules.unknownStationCode();
 
-        // 1. 查询当前票卡状态
-        QRCodeStatus currentStatus = qrCodeStatusMapper.selectByCardId(cardId);
+        QRCodeStatus currentStatus = qrCodeStatusStore.findByCardId(cardId);
         if (currentStatus == null) {
             currentStatus = new QRCodeStatus();
             currentStatus.setCardId(cardId);
             currentStatus.setCreateTime(LocalDateTime.now());
             currentStatus.setUseCount(0);
-            currentStatus.setGateInStation(defaultLastTxnStation);
-            currentStatus.setLastTxnStation(defaultLastTxnStation);
+            currentStatus.setGateInStation(unknownStation);
+            currentStatus.setLastTxnStation(unknownStation);
             currentStatus.setCodeStatus(QRCodeStatusEnum.SJT_ISSUE.getCode());
         }
 
-        String codeStatus = defaultString(currentStatus.getCodeStatus(), QRCodeStatusEnum.SJT_ISSUE.getCode());
-        String gateInStation = defaultString(currentStatus.getGateInStation(), defaultLastTxnStation);
-        String lastTxnStation = defaultString(currentStatus.getLastTxnStation(), defaultLastTxnStation);
-
-        // 2. 基于 codeStatus 确定允许的补站类型
+        String codeStatus = SupplementCodec.defaultString(
+                currentStatus.getCodeStatus(), QRCodeStatusEnum.SJT_ISSUE.getCode());
         QRCodeStatusEnum statusEnum = QRCodeStatusEnum.fromCode(codeStatus);
         if (statusEnum == null) {
             response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
@@ -84,67 +109,50 @@ public class ExcessFareHandler {
         }
 
         AllowedTypesResult allowedResult = resolveAllowedTypes(statusEnum, codeStatus);
-        String allowedTypes = allowedResult.allowedTypes;
-        String friendlyMsg = allowedResult.friendlyMsg;
-
-        if (!allowedTypes.contains(upgradeAreaType)) {
+        // MUST 用集合的相等语义，NEVER 退回 String.contains 做子串匹配：
+        // "02,03,04".contains("0") 与 "01".contains("1") 都为 true，","、"2,0" 同样能过，
+        // 非法的 upgradeAreaType 会被原样组装进 trxType 发给闸机。
+        if (!allowedResult.allowedTypes.contains(upgradeAreaType)) {
             response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
-            response.setRetMsg(friendlyMsg);
+            response.setRetMsg(allowedResult.friendlyMsg);
             return;
         }
 
-        // 3. 组装闸机接口参数
-        NotifyVerifyResultReqDTO bizData = new NotifyVerifyResultReqDTO();
+        NotifyVerifyResultReqDTO bizData = gateRequestAssembler.newBaseRequest(
+                currentStatus, cardId, request.getThirdUserId(), upgradeAreaType,
+                upgradeDateTime, upgradeStationCode, request.getCardType(), "");
         bizData.setDeviceId(upgradeStationCode + "36" + "01");
-        bizData.setItpUserId(encodeHexThirdUserId(request.getThirdUserId()));
-        bizData.setTrxType(upgradeAreaType);
-        bizData.setIssueChannelCode(defaultString(currentStatus.getChannel(), "01"));
-        bizData.setSignChannelCode("");
-        bizData.setCardId(cardId);
-        bizData.setCardType(request.getCardType());
-        bizData.setHandleDateTime(upgradeDateTime);
-        bizData.setHandleStationCode(upgradeStationCode);
-        bizData.setOvertimeAmount("0");
-        bizData.setLastTicketStatus(defaultString(currentStatus.getCodeStatus(), QRCodeStatusEnum.SJT_ISSUE.getCode()));
-        bizData.setHandleResultCode("000");
-        bizData.setLastHandleStationCode(currentStatus.getLastTxnStation());
-        bizData.setLastHandleDateTime(currentStatus.getLastTxnTime());
-        bizData.setTicketTransSeq(currentStatus.getTxnSeq() == null ? "0" : currentStatus.getTxnSeq());
         bizData.setExcessFareType(upgradeAreaType);
-        bizData.setReserve1(null);
-        bizData.setReserve2(null);
 
-        // 4. 计算票价（仅补出站需要）
-        String ticketPrice = null;
-        if ("02".equals(upgradeAreaType)) {
-            ticketPrice = calculateTicketPrice(
-                    defaultString(currentStatus.getGateInStation(), defaultLastTxnStation),
-                    upgradeStationCode
-            );
-            if (ticketPrice == null) {
+        if (UPGRADE_TYPE_EXIT.equals(upgradeAreaType)) {
+            String entryStation = SupplementCodec.defaultString(
+                    currentStatus.getGateInStation(), unknownStation);
+            SupplementFareQuery.FareResult fare = fareQuery.query(entryStation, upgradeStationCode, "IF8A-04");
+            if (!fare.isOk()) {
                 response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
                 response.setRetMsg("票价查询失败，请稍后重试或前往车站服务台办理");
                 return;
             }
+            bizData.setTrxAmount(fare.ticketPrice());
         }
 
-        bizData.setTrxAmount(ticketPrice != null ? ticketPrice : "0");
-        bizData.setOvertimeAmount("0");
-
-        // 5. 调用闸机接口
+        // 进程内直调检票编排。原实现还有一个「gateResponse == null 即 GATE_COMM_ERROR」分支，
+        // 那是 RPC 时代的产物：响应体现在由本方法自己 new 出来，恒非 null，该分支已随环一起删除。
+        // catch 保留但语义变了：现在只可能是本进程内的落库 / 状态推进异常，MUST 仍按「结果未知」
+        // 回给 BOM —— GateTicketWriter 有自己的事务，它提交后本方法再抛异常时状态其实已推进。
         try {
-            NotifyVerifyResultRespDTO gateResponse = fepDevClient.notifyVerifyResult(bizData);
-            if (!RET_SUCCESS.equals(gateResponse.getRetCode())) {
+            NotifyVerifyResultRespDTO gateResponse = agmRideStatusService.notifyVerifyResult(bizData);
+            if (!SupplementCodec.RET_SUCCESS.equals(gateResponse.getRetCode())) {
                 response.setRetCode(gateResponse.getRetCode());
                 response.setRetMsg(gateResponse.getRetMsg());
                 return;
             }
-            log.info("IF8A-04 补站调用 fep-dev-server 闸机接口成功, cardId={}, trxType={}, station={}",
+            log.info("IF8A-04 补站进程内完成检票编排, cardId={}, trxType={}, station={}",
                     cardId, upgradeAreaType, upgradeStationCode);
         } catch (Exception e) {
-            log.error("IF8A-04 补站调用 fep-dev-server 闸机接口异常", e);
-            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
-            response.setRetMsg("调用闸机接口异常: " + e.getMessage());
+            log.error("IF8A-04 补站检票编排异常, cardId={}, trxType={}", cardId, upgradeAreaType, e);
+            response.setRetCode(TicketErrorCodeEnum.GATE_COMM_ERROR.getCode());
+            response.setRetMsg(TicketErrorCodeEnum.GATE_COMM_ERROR.getMsg());
             return;
         }
 
@@ -154,6 +162,9 @@ public class ExcessFareHandler {
 
     /**
      * 根据票卡状态解析允许的补站类型。
+     *
+     * <p>改这里的允许集合 MUST 同步看齐 {@code QRCodeStatusEnum.ALLOWED} 的 80 / 81 入边，
+     * 否则每笔补站都会打一条「迁移不在白名单内」WARN。</p>
      */
     private AllowedTypesResult resolveAllowedTypes(QRCodeStatusEnum statusEnum, String codeStatus) {
         switch (statusEnum) {
@@ -164,79 +175,23 @@ public class ExcessFareHandler {
             case SELF_SERVICE_EXIT:
             case UPDATE_FREE:
             case UPDATE_PAY:
-                return new AllowedTypesResult("01", "码状态正常，无需更新，请正常刷码");
+                return new AllowedTypesResult(Set.of("01"), "码状态正常，无需更新，请正常刷码");
             case ENTRY:
             case SELF_SERVICE_ENTRY:
-                return new AllowedTypesResult("02,03,04", "码状态正常，无需更新，请正常刷码");
+                return new AllowedTypesResult(Set.of("02", "03", "04"), "码状态正常，无需更新，请正常刷码");
             case UPDATE_ENTRY:
-                return new AllowedTypesResult("01", "码状态正常，无需更新，请正常刷码");
+                return new AllowedTypesResult(Set.of("01"), "码状态正常，无需更新，请正常刷码");
             default:
-                return new AllowedTypesResult("", "当前票卡状态不支持补站，codeStatus=" + codeStatus);
+                return new AllowedTypesResult(Set.of(), "当前票卡状态不支持补站，codeStatus=" + codeStatus);
         }
-    }
-
-    /**
-     * 计算票价。
-     *
-     * @return 票价字符串，失败返回 null
-     */
-    private String calculateTicketPrice(String entryStationCode, String exitStationCode) {
-        if (!StringUtils.hasText(entryStationCode) || !StringUtils.hasText(exitStationCode)) {
-            return null;
-        }
-        try {
-            RequestTicketPriceByStationReqDTO fareRequest = new RequestTicketPriceByStationReqDTO();
-            fareRequest.setEntryStationCode(entryStationCode);
-            fareRequest.setExitStationCode(exitStationCode);
-            RequestTicketPriceByStationResult fareResult = paraClient.requestTicketPriceByStation(fareRequest);
-            if (fareResult != null && RET_SUCCESS.equals(fareResult.getRetCode())
-                    && StringUtils.hasText(fareResult.getTicketPrice())) {
-                log.info("IF8A-04 补出站票价查询成功, entry={}, exit={}, ticketPrice={}",
-                        entryStationCode, exitStationCode, fareResult.getTicketPrice());
-                return fareResult.getTicketPrice();
-            } else {
-                log.warn("IF8A-04 补出站票价查询失败, entry={}, exit={}, retCode={}, retMsg={}",
-                        entryStationCode, exitStationCode,
-                        fareResult != null ? fareResult.getRetCode() : "null",
-                        fareResult != null ? fareResult.getRetMsg() : "null");
-                return null;
-            }
-        } catch (Exception e) {
-            log.error("IF8A-04 补出站票价查询异常, entry={}, exit={}", entryStationCode, exitStationCode, e);
-            return null;
-        }
-    }
-
-    /**
-     * 对十六进制 thirdUserId 进行编码（闸机接口要求）。
-     */
-    private String encodeHexThirdUserId(String decimalThirdUserId) {
-        if (!StringUtils.hasText(decimalThirdUserId)) {
-            return decimalThirdUserId;
-        }
-        try {
-            long decimalValue = Long.parseLong(decimalThirdUserId);
-            return Long.toHexString(decimalValue).toUpperCase();
-        } catch (NumberFormatException e) {
-            log.warn("thirdUserId 格式异常，无法转为16进制: {}", decimalThirdUserId);
-            return decimalThirdUserId;
-        }
-    }
-
-    private String defaultString(String value, String defaultValue) {
-        return StringUtils.hasText(value) ? value : defaultValue;
     }
 
     /**
      * 允许的补站类型结果。
+     *
+     * <p>{@code allowedTypes} 用 {@code Set} 而不是逗号分隔的字符串：
+     * 字符串配 {@code contains} 是子串匹配，"0" / "1" / "," 这类非法值都能穿过白名单。</p>
      */
-    private static class AllowedTypesResult {
-        final String allowedTypes;
-        final String friendlyMsg;
-
-        AllowedTypesResult(String allowedTypes, String friendlyMsg) {
-            this.allowedTypes = allowedTypes;
-            this.friendlyMsg = friendlyMsg;
-        }
+    private record AllowedTypesResult(Set<String> allowedTypes, String friendlyMsg) {
     }
 }

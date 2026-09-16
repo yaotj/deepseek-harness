@@ -3,20 +3,17 @@ package com.chinasofti.huateng.ticket.controller.ci.app;
 import com.alibaba.fastjson.JSON;
 import com.chinasofti.huateng.model.app.QueryUserItineraryReqDTO;
 import com.chinasofti.huateng.model.app.QueryUserItineraryResult;
-import com.chinasofti.huateng.model.app.RequestExcessFareReqDTO;
-import com.chinasofti.huateng.model.app.RequestExcessFareResult;
 import com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO;
 import com.chinasofti.huateng.model.ticket.NotifyVerifyResultRespDTO;
+import com.chinasofti.huateng.model.ticket.QueryFirstEntryTxnReqDTO;
+import com.chinasofti.huateng.model.ticket.QueryFirstEntryTxnResult;
 import com.chinasofti.huateng.model.ticket.QueryStatusReqDTO;
 import com.chinasofti.huateng.model.ticket.QueryStatusRespDTO;
 import com.chinasofti.huateng.model.ticket.RegisterRideStatusReqDTO;
 import com.chinasofti.huateng.model.ticket.RegisterRideStatusRespDTO;
-import com.chinasofti.huateng.model.ticket.RequestCardDataAnalyseReqDTO;
-import com.chinasofti.huateng.model.ticket.RequestCardDataAnalyseRespDTO;
-import com.chinasofti.huateng.model.ticket.RequestCardDataUpdateReqDTO;
-import com.chinasofti.huateng.model.ticket.RequestCardDataUpdateRespDTO;
-import com.chinasofti.huateng.ticket.service.AgmRideStatusService;
-import com.chinasofti.huateng.ticket.service.TicketRideStatusService;
+import com.chinasofti.huateng.ticket.gate.AgmRideStatusService;
+import com.chinasofti.huateng.ticket.entrytxn.EntryTxnQueryService;
+import com.chinasofti.huateng.ticket.ridestatus.TicketRideStatusService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,7 +25,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * ticket-server APP 侧接口控制器。
- * AGM 侧接口（IF1A-01/IF5A-01/IF5A-03/查询票卡状态）请使用 TicketAgmController。
+ *
+ * <p>路由到三个独立服务，各自内聚：
+ * <ul>
+ *   <li>乘车码注册与行程查询 → {@code ridestatus/TicketRideStatusService}</li>
+ *   <li>AGM 闸机检票与状态查询 → {@code gate/AgmRideStatusService}</li>
+ *   <li>进站交易辅助查询 → {@code entrytxn/EntryTxnQueryService}</li>
+ * </ul>
+ * 补站类接口（IF8A-04 / IF5A-01 / IF5A-03）已迁至 {@link TicketSupplementController}。
  */
 @RestController
 @RequestMapping("/ci/app")
@@ -37,11 +41,14 @@ public class TicketRideStatusController {
 
     private final TicketRideStatusService ticketRideStatusService;
     private final AgmRideStatusService agmRideStatusService;
+    private final EntryTxnQueryService entryTxnQueryService;
 
     public TicketRideStatusController(TicketRideStatusService ticketRideStatusService,
-                                      AgmRideStatusService agmRideStatusService) {
+                                      AgmRideStatusService agmRideStatusService,
+                                      EntryTxnQueryService entryTxnQueryService) {
         this.ticketRideStatusService = ticketRideStatusService;
         this.agmRideStatusService = agmRideStatusService;
+        this.entryTxnQueryService = entryTxnQueryService;
     }
 
     /**
@@ -53,6 +60,9 @@ public class TicketRideStatusController {
         return ticketRideStatusService.registerRideStatus(request);
     }
 
+    /**
+     * IF1A-04 查询乘车码状态（闸机侧票卡状态查询）。
+     */
     @PostMapping("/queryQrCodeStatus")
     public QueryStatusRespDTO queryQrCodeStatus(@RequestBody QueryStatusReqDTO request) {
         log.info("获取用户乘车状态，请求参数：{}", JSON.toJSONString(request));
@@ -78,38 +88,20 @@ public class TicketRideStatusController {
     }
 
     /**
-     * IF8A-04 请求自助补站。
-     */
-    @PostMapping("/requestExcessFare")
-    public RequestExcessFareResult requestExcessFare(@RequestBody RequestExcessFareReqDTO request) {
-        log.info("IF8A-04 请求自助补站，请求参数：{}", JSON.toJSONString(request));
-        return ticketRideStatusService.requestExcessFare(request);
-    }
-
-    /**
-     * IF5A-01 请求票卡分析。
-     */
-    @PostMapping("/requestCardDataAnalyse")
-    public RequestCardDataAnalyseRespDTO requestCardDataAnalyse(@RequestBody RequestCardDataAnalyseReqDTO request) {
-        log.info("IF5A-01 请求票卡分析，请求参数：{}", JSON.toJSONString(request));
-        return agmRideStatusService.requestCardDataAnalyse(request);
-    }
-
-    /**
-     * IF5A-03 请求票卡更新。
-     */
-    @PostMapping("/requestUpdateCardData")
-    public RequestCardDataUpdateRespDTO requestUpdateCardData(@RequestBody RequestCardDataUpdateReqDTO request) {
-        log.info("IF5A-03 请求票卡更新，请求参数：{}", JSON.toJSONString(request));
-        return agmRideStatusService.requestCardDataUpdate(request);
-    }
-
-    /**
      * 查询最近一次进站设备编号。
      */
     @GetMapping("/queryEntryDevice")
     public String queryEntryDevice(@RequestParam String cardId) {
         log.info("查询进站设备, cardId={}", cardId);
-        return ticketRideStatusService.queryEntryDevice(cardId);
+        return entryTxnQueryService.queryEntryDevice(cardId);
+    }
+
+    /**
+     * 查询同序列号首笔进站交易（{@code gate-txn-pay-server} 离线码出站重算票价用）。
+     */
+    @PostMapping("/queryFirstEntryTxn")
+    public QueryFirstEntryTxnResult queryFirstEntryTxn(@RequestBody QueryFirstEntryTxnReqDTO request) {
+        log.info("查询首笔进站交易，请求参数：{}", JSON.toJSONString(request));
+        return entryTxnQueryService.queryFirstEntryTxn(request);
     }
 }

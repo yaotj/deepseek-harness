@@ -1,4 +1,4 @@
-package com.chinasofti.huateng.ticket.service.impl;
+package com.chinasofti.huateng.ticket.query;
 
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;
@@ -10,7 +10,7 @@ import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
 import com.chinasofti.huateng.model.app.QueryTransListReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransListResult;
-import com.chinasofti.huateng.ticket.service.TicketTransService;
+import com.chinasofti.huateng.ticket.alipay.AlipayTripHandler;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -19,32 +19,44 @@ import org.springframework.stereotype.Service;
  *
  * <p>委托各 Handler 处理具体业务逻辑：
  * <ul>
- *   <li>{@link TransQueryHandler} - 交易记录查询业务 (IF8A-05/34/41)</li>
+ *   <li>{@link TransListQueryHandler} - IF8A-05 交易记录列表</li>
+ *   <li>{@link TransStatisticsQueryHandler} - IF8A-41 账单统计</li>
+ *   <li>{@link TransDetailQueryHandler} - IF8A-34 订单详情</li>
  *   <li>{@link AlipayTripHandler} - 支付宝行程查询业务</li>
  * </ul>
+ *
+ * <p>2026-09-14 前三者是同一个 626 行的 {@code TransQueryHandler}，已按入口拆开。
+ * <b>本类是 {@code query} 包对外的唯一门面</b>：包外 MUST 只依赖 {@link TicketTransService}，
+ * <b>NEVER 直接注入上面任何一个 Handler</b>。
  */
 @Service
 public class TicketTransServiceImpl implements TicketTransService {
 
     @Autowired
-    private TransQueryHandler transQueryHandler;
+    private TransListQueryHandler transListQueryHandler;
+
+    @Autowired
+    private TransStatisticsQueryHandler transStatisticsQueryHandler;
+
+    @Autowired
+    private TransDetailQueryHandler transDetailQueryHandler;
 
     @Autowired
     private AlipayTripHandler alipayTripHandler;
 
     @Override
     public RequestTransListResult requestTransList(QueryTransListReqDTO request) {
-        return transQueryHandler.requestTransList(request);
+        return transListQueryHandler.requestTransList(request);
     }
 
     @Override
     public RequestTransStatisticsResult requestTransStatistics(RequestTransStatisticsReqDTO request) {
-        return transQueryHandler.requestTransStatistics(request);
+        return transStatisticsQueryHandler.requestTransStatistics(request);
     }
 
     @Override
     public RequestTransDetailResult requestTransDetail(RequestTransDetailReqDTO request) {
-        return transQueryHandler.requestTransDetail(request);
+        return transDetailQueryHandler.requestTransDetail(request);
     }
 
     @Override

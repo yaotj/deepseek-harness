@@ -6,7 +6,7 @@ import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
 import com.chinasofti.huateng.model.app.QueryTransListReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransListResult;
-import com.chinasofti.huateng.ticket.service.TicketTransService;
+import com.chinasofti.huateng.ticket.query.TicketTransService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

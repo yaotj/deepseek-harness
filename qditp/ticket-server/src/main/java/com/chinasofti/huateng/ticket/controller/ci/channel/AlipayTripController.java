@@ -4,7 +4,7 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListRespDTO;
-import com.chinasofti.huateng.ticket.service.TicketTransService;
+import com.chinasofti.huateng.ticket.query.TicketTransService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

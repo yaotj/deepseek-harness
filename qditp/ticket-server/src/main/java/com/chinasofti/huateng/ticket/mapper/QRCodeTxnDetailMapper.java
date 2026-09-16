@@ -22,12 +22,19 @@ public interface QRCodeTxnDetailMapper {
      */
     QRCodeTxnDetail selectLatestEntryByCardId(@Param("cardId") String cardId);
 
+    QRCodeTxnDetail selectFirstEntryBySequence(@Param("cardId") String cardId,
+                                               @Param("ticketTransSeq") String ticketTransSeq);
+
     /**
      * IF8A-05 查询交易记录列表。
      *
      * @deprecated 请迁移至 {@link com.chinasofti.huateng.gatetxnpay.mapper.GateTxnPayMapper#selectTransList}
      *             与 {@link com.chinasofti.huateng.rpc.paySign.PaySignClient#queryPayTxnBatch}
-     *             组成的双源查询模式。
+     *             组成的双源查询模式。**日票也走 GATE_TXN_PAY**，NEVER 因为「日票预付费」
+     *             就改回本方法查 QRCODE_TXN_DETAIL——2026-09-10 曾据此误改并上线（2.1.48/49），
+     *             实测 GateTxnPayServiceImpl:166 的 isDailyTicket 分支照常 INSERT 订单，
+     *             只是跳过 pay-sign；GATE_TXN_PAY 查不到日票的真实原因是该表数据从 20260828
+     *             才有、而日票样本止于 20260812，时间窗不重叠。
      */
     @Deprecated
     java.util.List<com.chinasofti.huateng.model.app.TransRecordDTO> selectTransList(QueryTransListReqDTO request);
@@ -42,7 +49,12 @@ public interface QRCodeTxnDetailMapper {
 
     /**
      * IF8A-41 查询账单统计。
+     *
+     * @deprecated 已迁至 {@code GateTxnPayMapper#selectTransStatistics}（源表 {@code GATE_TXN_PAY}）。
+     *             本表没有 {@code ORIGINAL_FARE}，算不出真优惠，只能拿 {@code OVERTIME_AMOUNT}
+     *             冒充「优惠」，三个金额标签全部错位（2026-09-10 修正）。**NEVER 重新启用**。
      */
+    @Deprecated
     RequestTransStatisticsResult selectTransStatistics(@Param("request") RequestTransStatisticsReqDTO request);
 
     /** 运营端分页查询二维码票卡交易明细，offset/limit 由控制器计算。 */
@@ -62,6 +74,9 @@ public interface QRCodeTxnDetailMapper {
                             @Param("cardType") String cardType,
                             @Param("startDate") String startDate,
                             @Param("endDate") String endDate);
+
+    /** 运营端展示用：按站点编码批量查询 STATION_INFO 中文站名，行映射键为 STATION_CODE / STATION_NAME。 */
+    List<java.util.Map<String, Object>> selectStationNames(@Param("codes") List<String> codes);
 
     /** 支付宝出行-查询乘车记录列表。 */
     List<AlipayTripTravelRecordDTO> selectAlipayTravelList(@Param("thirdUserId") String thirdUserId,

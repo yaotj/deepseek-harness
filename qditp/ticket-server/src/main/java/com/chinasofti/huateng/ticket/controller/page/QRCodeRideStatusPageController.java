@@ -3,11 +3,8 @@ package com.chinasofti.huateng.ticket.controller.page;
 import com.chinasofti.huateng.common.response.ResultMapper;
 import com.chinasofti.huateng.common.response.ResultVO;
 import com.chinasofti.huateng.ticket.entity.QRCodeStatus;
-import com.chinasofti.huateng.model.ticket.enums.QRCodeStatusEnum;
-import com.chinasofti.huateng.ticket.mapper.QRCodeStatusMapper;
 import com.chinasofti.huateng.ticket.model.page.RideStatusUpdateRequest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.chinasofti.huateng.ticket.query.OperationRideStatusService;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -17,34 +14,22 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
 /**
  * 用户运营端二维码乘车状态查询与人工调整。
+ *
+ * <p>2026-09-14 起状态白名单、状态码归一与审计日志下沉到
+ * {@link OperationRideStatusService}，本类只做入参非空校验与应答装配。
+ * **NEVER 改回直接注 {@code QRCodeStatusMapper}** —— controller 直连 mapper 违反
+ * AGENTS.md §3.3，且会让「运营端能改成哪些状态」这条白名单绕过 service 层。
  */
 @RestController
 @RequestMapping("/page/ride-status")
 public class QRCodeRideStatusPageController {
-    private static final Logger log = LoggerFactory.getLogger(QRCodeRideStatusPageController.class);
-    private static final Set<String> ALLOWED_CODE_STATUS = Stream.of(
-            QRCodeStatusEnum.END_TRIP,
-            QRCodeStatusEnum.SJT_ISSUE,
-            QRCodeStatusEnum.ENTRY,
-            QRCodeStatusEnum.EXIT,
-            QRCodeStatusEnum.EXIT_OVERTIME,
-            QRCodeStatusEnum.UPDATE_FREE,
-            QRCodeStatusEnum.UPDATE_PAY,
-            QRCodeStatusEnum.UPDATE_ENTRY,
-            QRCodeStatusEnum.SELF_SERVICE_EXIT,
-            QRCodeStatusEnum.SELF_SERVICE_ENTRY
-    ).map(QRCodeStatusEnum::getCode).collect(Collectors.toSet());
 
-    private final QRCodeStatusMapper qrCodeStatusMapper;
+    private final OperationRideStatusService rideStatusService;
 
-    public QRCodeRideStatusPageController(QRCodeStatusMapper qrCodeStatusMapper) {
-        this.qrCodeStatusMapper = qrCodeStatusMapper;
+    public QRCodeRideStatusPageController(OperationRideStatusService rideStatusService) {
+        this.rideStatusService = rideStatusService;
     }
 
     /** 根据逻辑卡号查询二维码乘车状态。 */
@@ -53,7 +38,7 @@ public class QRCodeRideStatusPageController {
         if (!StringUtils.hasText(cardId)) {
             return ResultMapper.illegalParams("cardId不能为空");
         }
-        QRCodeStatus status = qrCodeStatusMapper.selectByCardId(cardId.trim());
+        QRCodeStatus status = rideStatusService.findByCardId(cardId.trim());
         return status == null ? ResultMapper.error("未查询到该逻辑卡号的乘车状态") : ResultMapper.ok(status);
     }
 
@@ -70,26 +55,12 @@ public class QRCodeRideStatusPageController {
             return ResultMapper.illegalParams("changeReason不能为空");
         }
 
-        String normalizedStatus = normalizeStatus(request.getCodeStatus());
-        if (!ALLOWED_CODE_STATUS.contains(normalizedStatus)) {
-            return ResultMapper.illegalParams("不支持的乘车状态编码");
-        }
-        String normalizedCardId = cardId.trim();
-        QRCodeStatus currentStatus = qrCodeStatusMapper.selectByCardId(normalizedCardId);
-        if (currentStatus == null) {
-            return ResultMapper.error("未查询到该逻辑卡号的乘车状态");
-        }
-
-        qrCodeStatusMapper.updateCodeStatus(normalizedCardId, normalizedStatus);
-        QRCodeStatus updatedStatus = qrCodeStatusMapper.selectByCardId(normalizedCardId);
-        log.warn("运营端人工修改乘车状态, cardId={}, beforeStatus={}, afterStatus={}, reason={}",
-                normalizedCardId, currentStatus.getCodeStatus(), normalizedStatus, request.getChangeReason().trim());
-        return ResultMapper.ok(updatedStatus);
-    }
-
-    private String normalizeStatus(String codeStatus) {
-        // 页面可输入“0x04”或“04”，入库时统一保存两位十六进制状态码。
-        String value = codeStatus.trim().toUpperCase();
-        return value.startsWith("0X") ? value.substring(2) : value;
+        OperationRideStatusService.UpdateOutcome outcome = rideStatusService.updateCodeStatus(
+                cardId.trim(), request.getCodeStatus(), request.getChangeReason().trim());
+        return switch (outcome.result()) {
+            case OK -> ResultMapper.ok(outcome.status());
+            case STATUS_NOT_ALLOWED -> ResultMapper.illegalParams("不支持的乘车状态编码");
+            case CARD_NOT_FOUND -> ResultMapper.error("未查询到该逻辑卡号的乘车状态");
+        };
     }
 }

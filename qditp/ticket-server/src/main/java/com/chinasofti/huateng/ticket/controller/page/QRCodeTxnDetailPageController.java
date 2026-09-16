@@ -3,7 +3,7 @@ package com.chinasofti.huateng.ticket.controller.page;
 import com.chinasofti.huateng.common.response.ResultMapper;
 import com.chinasofti.huateng.common.response.ResultVO;
 import com.chinasofti.huateng.ticket.entity.QRCodeTxnDetail;
-import com.chinasofti.huateng.ticket.mapper.QRCodeTxnDetailMapper;
+import com.chinasofti.huateng.ticket.query.OperationTxnDetailQueryService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -16,6 +16,10 @@ import java.util.Map;
 
 /**
  * 用户运营端二维码票卡交易明细查询。
+ *
+ * <p>2026-09-14 起取数下沉到 {@link OperationTxnDetailQueryService}，本类只做参数归一、
+ * 分页边界钳制与应答装配。**NEVER 改回直接注 {@code QRCodeTxnDetailMapper}** ——
+ * controller 直连 mapper 违反 AGENTS.md §3.3。
  */
 @RestController
 @RequestMapping("/page/qrcode-txn-detail")
@@ -23,10 +27,10 @@ public class QRCodeTxnDetailPageController {
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
 
-    private final QRCodeTxnDetailMapper qrCodeTxnDetailMapper;
+    private final OperationTxnDetailQueryService txnDetailQueryService;
 
-    public QRCodeTxnDetailPageController(QRCodeTxnDetailMapper qrCodeTxnDetailMapper) {
-        this.qrCodeTxnDetailMapper = qrCodeTxnDetailMapper;
+    public QRCodeTxnDetailPageController(OperationTxnDetailQueryService txnDetailQueryService) {
+        this.txnDetailQueryService = txnDetailQueryService;
     }
 
     /** 分页查询二维码票卡交易；必须指定用户标识或完整日期范围以控制查询范围。 */
@@ -41,6 +45,8 @@ public class QRCodeTxnDetailPageController {
                                               @RequestParam(required = false) Integer pageSize) {
         String normalizedCardId = trimToNull(cardId);
         String normalizedThirdUserId = trimToNull(thirdUserId);
+        String normalizedSignChannelCode = trimToNull(signChannelCode);
+        String normalizedCardType = trimToNull(cardType);
         String normalizedStartDate = trimToNull(startDate);
         String normalizedEndDate = trimToNull(endDate);
         if (!hasSearchScope(normalizedCardId, normalizedThirdUserId, normalizedStartDate, normalizedEndDate)) {
@@ -49,14 +55,14 @@ public class QRCodeTxnDetailPageController {
         int currentPage = pageNum == null || pageNum < 1 ? 1 : pageNum;
         int currentPageSize = pageSize == null || pageSize < 1 ? DEFAULT_PAGE_SIZE : Math.min(pageSize, MAX_PAGE_SIZE);
         int offset = (currentPage - 1) * currentPageSize;
-        List<QRCodeTxnDetail> records = qrCodeTxnDetailMapper.selectOperationPage(
-                normalizedCardId, normalizedThirdUserId, trimToNull(signChannelCode), trimToNull(cardType),
+        List<QRCodeTxnDetail> records = txnDetailQueryService.page(
+                normalizedCardId, normalizedThirdUserId, normalizedSignChannelCode, normalizedCardType,
                 normalizedStartDate, normalizedEndDate, offset, currentPageSize);
 
         Map<String, Object> page = new LinkedHashMap<>();
         page.put("list", records);
-        page.put("total", qrCodeTxnDetailMapper.countOperationPage(
-                normalizedCardId, normalizedThirdUserId, trimToNull(signChannelCode), trimToNull(cardType),
+        page.put("total", txnDetailQueryService.count(
+                normalizedCardId, normalizedThirdUserId, normalizedSignChannelCode, normalizedCardType,
                 normalizedStartDate, normalizedEndDate));
         return ResultMapper.ok(page);
     }

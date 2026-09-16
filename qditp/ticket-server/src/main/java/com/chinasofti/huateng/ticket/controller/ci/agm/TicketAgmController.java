@@ -9,7 +9,8 @@ import com.chinasofti.huateng.model.ticket.RequestCardDataAnalyseRespDTO;
 import com.chinasofti.huateng.model.ticket.RequestCardDataUpdateReqDTO;
 import com.chinasofti.huateng.model.ticket.RequestCardDataUpdateRespDTO;
 import com.chinasofti.huateng.ticket.constant.TicketErrorCodeEnum;
-import com.chinasofti.huateng.ticket.service.AgmRideStatusService;
+import com.chinasofti.huateng.ticket.gate.AgmRideStatusService;
+import com.chinasofti.huateng.ticket.supplement.SupplementService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
@@ -38,9 +39,22 @@ public class TicketAgmController {
     private static final Logger log = LoggerFactory.getLogger(TicketAgmController.class);
 
     private final AgmRideStatusService agmRideStatusService;
+    /**
+     * IF5A-01/03 直连补站域门面。
+     *
+     * <p><b>2026-09-14（ADR-D65）起本控制器直接依赖 {@link SupplementService}，
+     * NEVER 再经 {@code AgmRideStatusService} 转一手</b>：那两个委派壳是
+     * {@code gate → supplement} 唯一的一条边，而 {@code supplement} 反过来要调 gate 的检票编排，
+     * 于是构成包级双向环、并逼得 supplement 侧只能注入 gate 的内部实现类
+     * {@code GateTicketHandler}（注门面会成 Spring 构造环、启动即失败）。
+     * 本控制器改为直接注入门面后那条边消失，两个包恢复单向依赖。</p>
+     */
+    private final SupplementService supplementService;
 
-    public TicketAgmController(AgmRideStatusService agmRideStatusService) {
+    public TicketAgmController(AgmRideStatusService agmRideStatusService,
+                               SupplementService supplementService) {
         this.agmRideStatusService = agmRideStatusService;
+        this.supplementService = supplementService;
     }
 
     // ==================== IF1A-01 闸机检票 ====================
@@ -112,7 +126,7 @@ public class TicketAgmController {
             return buildCardDataAnalyseError(TicketErrorCodeEnum.INVALID_PARAM, "cardId不能为空");
         }
 
-        RequestCardDataAnalyseRespDTO response = agmRideStatusService.requestCardDataAnalyse(request);
+        RequestCardDataAnalyseRespDTO response = supplementService.requestCardDataAnalyse(request);
         log.info("IF5A-01 票卡分析 响应, cardId={}, retCode={}", request.getCardId(), response.getRetCode());
         return response;
     }
@@ -144,7 +158,7 @@ public class TicketAgmController {
             return buildCardDataUpdateError(TicketErrorCodeEnum.INVALID_PARAM, "optDate不能为空");
         }
 
-        RequestCardDataUpdateRespDTO response = agmRideStatusService.requestCardDataUpdate(request);
+        RequestCardDataUpdateRespDTO response = supplementService.requestCardDataUpdate(request);
         log.info("IF5A-03 票卡更新 响应, cardId={}, retCode={}", request.getCardId(), response.getRetCode());
         return response;
     }

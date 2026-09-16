@@ -114,6 +114,25 @@
         WHERE ROWNUM = 1
     </select>
 
+    <select id="selectFirstEntryBySequence" resultType="com.chinasofti.huateng.ticket.entity.QRCodeTxnDetail">
+        SELECT *
+        FROM (
+            SELECT ID AS id, DEVICE_ID AS deviceId, ITP_USER_ID AS itpUserId,
+                   TRX_TYPE AS trxType, ISSUE_CHANNEL_CODE AS issueChannelCode,
+                   SIGN_CHANNEL_CODE AS signChannelCode, CARD_ID AS cardId,
+                   CARD_TYPE AS cardType, HANDLE_DATE_TIME AS handleDateTime,
+                   TXN_DATE AS txnDate, HANDLE_STATION_CODE AS handleStationCode,
+                   TRX_AMOUNT AS trxAmount, OVERTIME_AMOUNT AS overtimeAmount,
+                   TICKET_TRANS_SEQ AS ticketTransSeq, CREATE_TIME AS createTime
+            FROM QRCODE_TXN_DETAIL
+            WHERE CARD_ID = #{cardId,jdbcType=VARCHAR}
+              AND TICKET_TRANS_SEQ = #{ticketTransSeq,jdbcType=VARCHAR}
+              AND TRX_TYPE = '01'
+            ORDER BY HANDLE_DATE_TIME ASC, ID ASC
+        )
+        WHERE ROWNUM = 1
+    </select>
+
     <resultMap id="transRecordResultMap" type="com.chinasofti.huateng.model.app.TransRecordDTO">
         <result column="HANDLE_STATION_CODE" property="entryStationName"/>
         <result column="HANDLE_DATE_TIME" property="entryDate"/>
@@ -278,6 +297,15 @@
         LEFT JOIN STATION_INFO currentStation ON currentStation.STATION_CODE = page.handleStationCode
         LEFT JOIN STATION_INFO lastStation ON lastStation.STATION_CODE = page.lastHandleStationCode
         WHERE page.rn &gt; #{offset} AND page.rn &lt;= #{offsetEnd}
+    </select>
+
+    <select id="selectStationNames" resultType="java.util.HashMap">
+        SELECT STATION_CODE, STATION_NAME
+        FROM STATION_INFO
+        WHERE STATION_CODE IN
+        <foreach item="code" collection="codes" open="(" separator="," close=")">
+            #{code,jdbcType=VARCHAR}
+        </foreach>
     </select>
 
     <select id="countOperationPage" resultType="java.lang.Integer">
@@ -451,6 +479,21 @@
         ORDER BY HANDLE_DATE_TIME ASC
     </select>
 
+    <!-- IF8A-41 账单统计。三条口径约束，改动前逐条确认：
+         1) TRX_TYPE IN ('02','03') 只算出站行。本表一行是一次闸机事件、进站行也在其中，
+            不过滤则 COUNT(1) 统计的是刷卡次数而非乘车次数（2026-09-10 实测用户 00522949
+            有 2 进 1 出，count 返回 3 而实际只 1 趟完整行程）。02=正常出站、03=超时出站，
+            与 TrxTypeCodeEnum.isExitTxn 同口径。金额不受影响——进站行 TRX_AMOUNT 恒为 0，
+            所以此前金额碰巧正确、只有 count 是错的，NEVER 因为「金额对」就认为口径没问题。
+         2) CARD_TYPE IN 是票种过滤的唯一依据。未开通某票种时 APP 不带 cardId（实测 NFC 页签
+            只有 thirdUserId + cardType），缺此条件 SQL 退化成按用户查全部票种，把其他票种
+            合计进来（实测 4 票种用户会合计 47 条）。
+         3) CARD_ID 的 <if> MUST 判 cardIdList 非空，NEVER 判 cardId——cardId="," 这类畸形入参
+            拆分过滤后 cardIdList 为空而 cardId 非空，会生成 AND CARD_ID IN () 并抛 ORA-00936。
+         totalDiscount 取 OVERTIME_AMOUNT（超时加收），语义与「优惠」相反。
+         【已废弃 2026-09-10】IF8A-41 统计已迁至 GateTxnPayMapper.selectTransStatistics（源表 GATE_TXN_PAY，
+         同时有 ORIGINAL_FARE / TRX_AMOUNT / OVERTIME_AMOUNT / TOTAL_AMOUNT 四个量，能算真优惠）。
+         本 SQL 仅作历史留档，NEVER 重新接线。 -->
     <select id="selectTransStatistics" resultMap="requestTransStatisticsResultMap">
         SELECT
             COUNT(1) AS count,
@@ -458,9 +501,15 @@
             ROUND(SUM(NVL(TRX_AMOUNT, 0) + NVL(OVERTIME_AMOUNT, 0)) / 100, 2) AS totalPrice,
             ROUND(SUM(NVL(OVERTIME_AMOUNT, 0)) / 100, 2) AS totalDiscount
         FROM QRCODE_TXN_DETAIL
-        WHERE 1 = 1
+        WHERE TRX_TYPE IN ('02', '03')
         <if test="request.thirdUserId != null and request.thirdUserId != ''">
             AND ITP_USER_ID = #{request.thirdUserId,jdbcType=VARCHAR}
+        </if>
+        <if test="request.cardTypeList != null and !request.cardTypeList.isEmpty()">
+            AND CARD_TYPE IN
+            <foreach collection="request.cardTypeList" item="ct" open="(" separator="," close=")">
+                #{ct,jdbcType=VARCHAR}
+            </foreach>
         </if>
         <if test="request.startDate != null and request.startDate != ''">
             AND TXN_DATE &gt;= #{request.startDate,jdbcType=VARCHAR}
@@ -468,7 +517,7 @@
         <if test="request.endDate != null and request.endDate != ''">
             AND TXN_DATE &lt;= #{request.endDate,jdbcType=VARCHAR}
         </if>
-        <if test="request.cardId != null and request.cardId != ''">
+        <if test="request.cardIdList != null and !request.cardIdList.isEmpty()">
             AND CARD_ID IN
             <foreach item="item" collection="request.cardIdList" open="(" separator="," close=")">
                 #{item,jdbcType=VARCHAR}

@@ -1,4 +1,4 @@
-package com.chinasofti.huateng.ticket.service;
+package com.chinasofti.huateng.ticket.query;
 
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;

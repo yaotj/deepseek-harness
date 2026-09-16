@@ -21,6 +21,10 @@ public class QRCodeStatus {
     private LocalDateTime updateTime;
     private String gateStatus;
     private Long trxAmount;
+    /** 非持久化展示字段：进站车站中文名，由运营端查询时按 gateInStation 查 STATION_INFO 回填。 */
+    private String gateInStationName;
+    /** 非持久化展示字段：末次交易车站中文名，由运营端查询时按 lastTxnStation 查 STATION_INFO 回填。 */
+    private String lastTxnStationName;
 
     public String getCardId() {
         return cardId;
@@ -128,6 +132,22 @@ public class QRCodeStatus {
 
     public void setTrxAmount(Long trxAmount) {
         this.trxAmount = trxAmount;
+    }
+
+    public String getGateInStationName() {
+        return gateInStationName;
+    }
+
+    public void setGateInStationName(String gateInStationName) {
+        this.gateInStationName = gateInStationName;
+    }
+
+    public String getLastTxnStationName() {
+        return lastTxnStationName;
+    }
+
+    public void setLastTxnStationName(String lastTxnStationName) {
+        this.lastTxnStationName = lastTxnStationName;
     }
 
     @Override

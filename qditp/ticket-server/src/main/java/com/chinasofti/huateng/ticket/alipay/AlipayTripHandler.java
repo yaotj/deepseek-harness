@@ -1,4 +1,4 @@
-package com.chinasofti.huateng.ticket.service.impl;
+package com.chinasofti.huateng.ticket.alipay;
 
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;
@@ -7,9 +7,9 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripTravelRecordDTO;
 import com.chinasofti.huateng.model.app.RequestStationNameReqDTO;
 import com.chinasofti.huateng.model.app.RequestStationNameResult;
-import com.chinasofti.huateng.rpc.para.ParaClient;
 import com.chinasofti.huateng.ticket.constant.TicketErrorCodeEnum;
 import com.chinasofti.huateng.ticket.mapper.QRCodeTxnDetailMapper;
+import com.chinasofti.huateng.ticket.station.StationNameResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,10 +36,7 @@ public class AlipayTripHandler {
     private QRCodeTxnDetailMapper qrCodeTxnDetailMapper;
 
     @Autowired
-    private ParaClient paraClient;
-
-    @Autowired
-    private TransStationNameResolver stationNameResolver;
+    private StationNameResolver stationNameResolver;
 
     /**
      * 查询支付宝出行乘车记录列表。
