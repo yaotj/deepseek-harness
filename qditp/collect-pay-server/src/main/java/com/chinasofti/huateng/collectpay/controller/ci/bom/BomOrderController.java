@@ -43,7 +43,6 @@ public class BomOrderController {
      */
     @PostMapping("/notiDeviceHeard")
     public JSONObject notiDeviceHeard(@ModelAttribute BaseRequestDTO baseRequest) {
-        log.info("设备心跳检测, baseRequest={}", baseRequest);
         return BomOrderResult.success();
     }
 

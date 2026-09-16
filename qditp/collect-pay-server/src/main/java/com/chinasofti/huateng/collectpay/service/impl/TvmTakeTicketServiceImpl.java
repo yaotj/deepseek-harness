@@ -16,11 +16,13 @@ import com.chinasofti.huateng.collectpay.model.request.tvm.RequestTakeTicketAuth
 import com.chinasofti.huateng.collectpay.model.response.tvm.TvmOrderResult;
 import com.chinasofti.huateng.collectpay.service.AppOrderService;
 import com.chinasofti.huateng.collectpay.service.TvmTakeTicketService;
+import com.chinasofti.huateng.collectpay.service.support.TakeTicketWaiter;
 import com.chinasofti.huateng.collectpay.utils.DateUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -45,6 +47,21 @@ public class TvmTakeTicketServiceImpl implements TvmTakeTicketService {
     private TvmOrderMapper tvmOrderMapper;
     @Autowired
     private TvmAppOrderMapper tvmAppOrderMapper;
+
+    @Autowired
+    private TakeTicketWaiter takeTicketWaiter;
+
+    /**
+     * 取票授权查不到激活订单时的挂起时长。TVM 每轮只查一次且查得比 APP 激活早（实测早 4~8 秒），
+     * 靠挂住这次请求把它等到激活。**上限受 istio 路由超时约束**：`fep-app-vr` 的 `/itptvm/` 路由
+     * 没配 timeout，走 Envoy 默认 15 秒，因此这里 NEVER 配到 15000 以上，否则 TVM 收到的是网关 504。
+     */
+    @Value("${tvm.takeTicket.waitMillis:10000}")
+    private long takeTicketWaitMillis;
+
+    /** 兜底回查间隔。内存唤醒之外还要查库，防止漏唤醒；间隔 NEVER 小于 500ms（JDBC 阻塞会 pin 载体线程）。 */
+    @Value("${tvm.takeTicket.pollIntervalMillis:500}")
+    private long takeTicketPollIntervalMillis;
 
     // todo 激活和激活订单查询的问题：1.要激活的订单在哪里，预设tvm表的订单，如果这样，是否要在这个表中加一个新字段（是否已激活字段)
     @Override
@@ -71,6 +88,9 @@ public class TvmTakeTicketServiceImpl implements TvmTakeTicketService {
         int i = updateAppOrder(request,nowTime);
         if (i > 0) {
             log.info("5.激活取票订单处理完成, orderNo={}", request.getOrderNo());
+            // 唤醒可能正挂在 requestTakeTicketAuth 上的那台 TVM，让它这一次请求就能拿到订单
+            takeTicketWaiter.signal(TakeTicketWaiter.key(
+                    request.getDeviceId(), request.getQrcodeGenDate(), request.getRandomFact()));
             return TvmOrderResult.success();
         } else {
             log.info("order {} 激活失败，结束", orderNo);
@@ -100,33 +120,74 @@ public class TvmTakeTicketServiceImpl implements TvmTakeTicketService {
     public JSONObject requestTakeTicketAuth(RequestTakeTicketAuthReqDTO request) {
         log.info("1.开始处理扫码取票订单查询, request={}", request);
 
+        AuthProbe probe = queryAuthOnce(request);
+        if (probe.answer() != null) {
+            return probe.answer();
+        }
 
-        // 根据设备ID和二维码信息查询取票订单
+        String key = TakeTicketWaiter.key(request.getDeviceId(), request.getQrcodeGenDate(), request.getRandomFact());
+        if (takeTicketWaitMillis <= 0 || !takeTicketWaiter.tryAcquire()) {
+            return notActiveResult(probe.rowFound());
+        }
+        long deadline = System.currentTimeMillis() + takeTicketWaitMillis;
+        try {
+            log.info("3.订单尚未激活，挂起等待激活事件, key={}, waitMillis={}", key, takeTicketWaitMillis);
+            while (true) {
+                long remaining = deadline - System.currentTimeMillis();
+                if (remaining <= 0) {
+                    break;
+                }
+                takeTicketWaiter.await(key, Math.min(takeTicketPollIntervalMillis, remaining));
+                probe = queryAuthOnce(request);
+                if (probe.answer() != null) {
+                    return probe.answer();
+                }
+            }
+        } finally {
+            takeTicketWaiter.discard(key);
+            takeTicketWaiter.release();
+        }
+        log.info("5.等待 {}ms 仍无激活订单, key={}", takeTicketWaitMillis, key);
+        return notActiveResult(probe.rowFound());
+    }
+
+    /**
+     * 按三要素查一次授权。
+     *
+     * @param answer   非空表示已可以答复 TVM（已激活订单 / 数据异常）；null 表示「还没激活」，可继续等
+     * @param rowFound 是否查到了订单行，决定超时后回哪一种「无激活订单」的报文
+     */
+    private record AuthProbe(JSONObject answer, boolean rowFound) { }
+
+    private AuthProbe queryAuthOnce(RequestTakeTicketAuthReqDTO request) {
         List<TvmAppOrder> tvmAppOrderLs = tvmAppOrderMapper.selectByDeviceAndQrcode(
                 request.getDeviceId(), request.getQrcodeGenDate(), request.getRandomFact());
-
-        log.info("查询结束 tvmAppOrderLs is {}",tvmAppOrderLs);
         if (ObjectUtils.isEmpty(tvmAppOrderLs)) {
-            log.info("2.没有找到匹配的取票订单, deviceId={}, qrcodeGenDate={}, randomFact={}",
-                    request.getDeviceId(), request.getQrcodeGenDate(), request.getRandomFact());
-            return TvmOrderResult.fail(TvmPayCodeEnum.NO_ACTIVE_ORDER.getCode(),TvmPayCodeEnum.NO_ACTIVE_ORDER.getMsg());
+            return new AuthProbe(null, false);
         }
-        // 避免出现查出多条的情况
-        if(tvmAppOrderLs.size()>1){
+        if (tvmAppOrderLs.size() > 1) {
             log.info("订单数超过1个，结束");
-            return TvmOrderResult.failMessage( "查询到的订单数量过多，失败");
+            return new AuthProbe(TvmOrderResult.failMessage("查询到的订单数量过多，失败"), true);
         }
         TvmAppOrder tvmAppOrder = tvmAppOrderLs.get(0);
-
-        // 检查激活状态
         if (!StringUtils.equals(tvmAppOrder.getActivateFlag(), ActivateFlagEnum.ACTIVATE_ED.getCode())) {
-            log.info("3.订单未激活, orderNo={}", tvmAppOrder.getOrderNo());
-//            return TvmOrderResult.fail(TvmPayCodeEnum.NO_ACTIVE_ORDER.getCode(), TvmPayCodeEnum.NO_ACTIVE_ORDER.getMsg());
-            return TvmOrderResult.failData(DeviceResponse.getQuerySuccessResult(new TvmAppOrder()));
+            return new AuthProbe(null, true);
         }
-
         log.info("4.查询到激活订单，返回订单详情, orderNo={}", tvmAppOrder.getOrderNo());
-        return TvmOrderResult.successData(DeviceResponse.getQuerySuccessResult(tvmAppOrder));
+        return new AuthProbe(TvmOrderResult.successData(DeviceResponse.getQuerySuccessResult(tvmAppOrder)), true);
+    }
+
+    /**
+     * 「无激活订单」的答复，两种形态与改动前**逐字节一致**：
+     * 三要素查不到行时回 {@code 2003}；查到行但未激活时回带空订单对象的失败结构
+     * （原实现把这里的 2003 注释掉了，**NEVER** 顺手改回去）。
+     */
+    private JSONObject notActiveResult(boolean rowFound) {
+        if (!rowFound) {
+            log.info("2.没有找到匹配的取票订单");
+            return TvmOrderResult.fail(TvmPayCodeEnum.NO_ACTIVE_ORDER.getCode(), TvmPayCodeEnum.NO_ACTIVE_ORDER.getMsg());
+        }
+        return TvmOrderResult.failData(DeviceResponse.getQuerySuccessResult(new TvmAppOrder()));
     }
 
 

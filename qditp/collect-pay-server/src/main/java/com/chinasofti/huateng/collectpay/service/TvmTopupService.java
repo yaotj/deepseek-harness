@@ -18,6 +18,7 @@ public interface TvmTopupService {
     JSONObject requestTopup(RequestTopupReqDTO request);
 
     JSONObject requestPayResult(RequestPayResultReqDTO request);
+    JSONObject refundTvmTopupNotTakeTickets();
 
     /**
      * IF2A-06 充值结果通知。

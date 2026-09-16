@@ -115,6 +115,17 @@
         where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </update>
 
+    <!-- 关单专用：WHERE 带 PAY_STATUS='0' 白名单，NEVER 换成上面 updateByOrderNo 那条无条件更新。 -->
+    <!-- SQL 正文内 NEVER 写行注释或块注释：Druid WallFilter commentAllow=false 会判定为注入并让语句静默失效。 -->
+    <update id="closeUnpaidByOrderNo">
+        update TBL_TVM_APP_ORDER
+        set PAY_STATUS = '2',
+            MSG = #{msg,jdbcType=VARCHAR},
+            UPDATE_TIME = TO_CHAR(SYSDATE, 'YYYY-MM-DD HH24:MI:SS')
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          and PAY_STATUS = '0'
+    </update>
+
     <select id="selectByDeviceAndQrcode" resultMap="BaseResultMap">
         select <include refid="Base_Column_List"/>
         from TBL_TVM_APP_ORDER
@@ -128,6 +139,18 @@
         from TBL_TVM_APP_ORDER
         where USER_ID = #{userId,jdbcType=VARCHAR}
         and ACTIVATE_FLAG = #{activeFlag,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByCondition" parameterType="map" resultMap="BaseResultMap">
+        select app.ORDER_NO,app.PAY_AMOUNT from (
+        (select <include refid="Base_Column_List"/>
+        from TBL_TVM_APP_ORDER
+        where PAY_STATUS = '1'
+        and rsv2 is null
+        and CREATE_TIME between #{startTime,jdbcType=VARCHAR} and #{endTime,jdbcType=VARCHAR}) app
+        left join
+        (select * from tbl_tvm_main_ticket) main
+        on app.ORDER_NO = main.ORDER_NO) where main.ORDER_NO is null
     </select>
 
 

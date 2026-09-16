@@ -47,6 +47,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -319,7 +320,7 @@ public class BomOrderServiceImpl implements BomOrderService {
         int b = 0;
         try {
             while (min < timeOut) {
-                log.info("第 {} 次轮询,order_no is {}，refundId is {}", ++b, payOrderNo);
+                log.info("第 {} 次轮询,order_no is {}", ++b, payOrderNo);
                 JSONObject jsonObject = requestGetPayResult(payOrderNo);
                 String retCode = String.valueOf(jsonObject.get("retCode"));
                 String retMsg = String.valueOf(jsonObject.get("retMsg"));
@@ -443,6 +444,7 @@ public class BomOrderServiceImpl implements BomOrderService {
         // 查询订单信息
         BomNoCashOrder order = bomNoCashOrderMapper.selectByOrderNo(payOrderNo);
         if (order == null) {
+            log.info("订单号错误,没有找到匹配的订单");
             return BomOrderResult.fail(BomPayCodeEnum.ORDER_NO_ERROR.getCode(), "订单号错误,没有找到匹配的订单");
         }
 
@@ -537,6 +539,67 @@ public class BomOrderServiceImpl implements BomOrderService {
         return b;
     }
 
+    @Override
+    public JSONObject refundBomSaleNotTakeTickets() {
+        log.info("开始发起bom支付成功未收到通知的订单退款");
+
+        Map<String, String> condition = new HashMap<>();
+        condition.put("startTime", DateUtils.getTime(-1, "yyyy-MM-dd") + " 00:00:00");
+        condition.put("endTime", DateUtils.getTime(-1, "yyyy-MM-dd") + " 23:59:59");
+        condition.put("transType", BomBusinessCodeEnum.SALE.getCode());
+
+        log.info("condition is {}", condition);
+        List<BomNoCashOrder> bomOrders = bomNoCashOrderMapper.selectSaleOrdersByCondition(condition);
+
+        log.info("bomOrders.size is {}",bomOrders.size());
+        log.info("bomOrders is {}",bomOrders);
+
+        if(bomOrders.size()==0){
+            return BomOrderResult.success("无购票但未取票的订单信息,结束");
+        }
+
+        for (BomNoCashOrder bomOrder : bomOrders) {
+
+            RequestTicketRefundReqDTO dto = new RequestTicketRefundReqDTO();
+            dto.setOrderNo(bomOrder.getOrderNo());
+            log.info("定时任务 开始发起发售交易退款，dto is {}",dto);
+            JSONObject refundResult = bomRefund(dto);
+            log.info("订单 {} 发售交易 退款结束 refundResult is {}",bomOrder.getOrderNo(),refundResult);
+        }
+
+        return AppOrderResult.success("bom定时任务 发售业务 退款 结束");
+    }
+
+    @Override
+    public JSONObject refundBomTopupNotTopup() {
+        log.info("开始发起bom充值成功未收到通知的订单退款");
+
+        Map<String, String> condition = new HashMap<>();
+        condition.put("startTime", DateUtils.getTime(-1, "yyyy-MM-dd") + " 00:00:00");
+        condition.put("endTime", DateUtils.getTime(-1, "yyyy-MM-dd") + " 23:59:59");
+        condition.put("transType", BomBusinessCodeEnum.TOPUP.getCode());
+        log.info("condition  is {}", condition);
+        List<BomNoCashOrder> bomOrders = bomNoCashOrderMapper.selectTopupByCondition(condition);
+
+        log.info(" bomOrders.size is {}",bomOrders.size());
+        log.info(" bomOrders is {}",bomOrders);
+
+        if(bomOrders.size()==0){
+            return BomOrderResult.success("无购票但未取票的订单信息,结束");
+        }
+
+        for (BomNoCashOrder bomOrder : bomOrders) {
+
+            RequestTicketRefundReqDTO dto = new RequestTicketRefundReqDTO();
+            dto.setOrderNo(bomOrder.getOrderNo());
+            log.info("定时任务 充值业务 开始发起退款，dto is {}",dto);
+            JSONObject refundResult = bomRefund(dto);
+            log.info("订单 {} 充值业务 退款结束 refundResult is {}",bomOrder.getOrderNo(),refundResult);
+        }
+
+        return AppOrderResult.success("bom定时任务 发售业务 退款 结束");
+    }
+
     // 外加一层，用于处理bom操作请求了tvm的接口的问题
     @Override
     public JSONObject notiBomSaleResult(NotiTakeTicketFailResultReqDTO request) {
@@ -593,7 +656,7 @@ public class BomOrderServiceImpl implements BomOrderService {
             log.info("6.bom发起退款成功");
 
             // 新开线程查询退款状态
-            this.getRefundResult(payOrderNo,refundNo);
+            this.getRefundResult(payOrderNo, refundNo);
 
             return BaseResult.success();
 
@@ -601,7 +664,7 @@ public class BomOrderServiceImpl implements BomOrderService {
             // 退款失败
             log.info("6.退款发起失败");
             // 更新退款订单状态
-            updateBomRefundOrder(refundNo, ItpStatusEnum.REFUNDING_FAIL.getCode(), ItpStatusEnum.REFUNDING_FAIL.getDesc(),now);
+            updateBomRefundOrder(refundNo, ItpStatusEnum.REFUNDING_FAIL.getCode(), ItpStatusEnum.REFUNDING_FAIL.getDesc(), now);
             // 更新原订单状态
             updateBomOrder(payOrderNo, refundNo, now);
         }
@@ -620,8 +683,19 @@ public class BomOrderServiceImpl implements BomOrderService {
      * @param request 请求参数（包含订单号、充值状态等）
      * @return 响应结果
      */
+    /*
+     * 本方法有意不带 @Transactional（2026-09-14 摘除，NEVER 加回）。
+     * 原因见 AGENTS.md 5.2「@Transactional 方法内 NEVER 发起任何 RPC / 网络调用」：
+     * 充值失败分支要调支付中心退款（callPayCenter），一旦被事务包住，
+     * TBL_TVM_ORDER_TOPUP 那一行的排他锁持有时长就等于支付中心的响应时长，
+     * BOM 对同一笔的重推会全部堆在同一行上串行等锁；等待超过 Druid
+     * remove-abandoned-timeout 后连接被强杀、commit 抛 connection closed，
+     * 连「充值结果通知已入库」那条 INSERT 一起回滚 —— 证据全丢、响应退化成
+     * 全局异常处理器的 UUID retCode、BOM 继续重推，自我放大且没有出口。
+     * 摘掉之后每条 SQL 自动提交：通知记录与「退款中」状态先落地，
+     * 退款结果再各自回写，失败也留得下痕迹。
+     */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public JSONObject notiTopupResult(NotiTopupResultReqDTO request) {
         log.info("1.开始处理BOM充值结果通知, deviceId={}, request={}", request.getDeviceId(), request);
         JSONObject result = BomOrderResult.success();
@@ -912,13 +986,7 @@ public class BomOrderServiceImpl implements BomOrderService {
         return OrderNoUtils.generateOrderNo(ProductType.ordinaryTicket, seq);
     }
 
-    /**
-     * 生成通知ID。
-     */
-//    private String getStringFromData(Map<String, Object> data, String key) {
-//        Object value = data.get(key);
-//        return value != null ? value.toString() : null;
-//    }
+
     @Override
     public JSONObject payNotice(PayNoticeReqDTO request) {
         // 查询订单信息
@@ -1066,7 +1134,7 @@ public class BomOrderServiceImpl implements BomOrderService {
         // 这里指的是bom的订单
         TvmPayPreOrder payPreOrder = tvmOrderPreMapper.selectByOrderNo(payOrderNo);
         if (org.springframework.util.ObjectUtils.isEmpty(payPreOrder) || StringUtils.isEmpty(payPreOrder.getTransType()) || !StringUtils.equals(payPreOrder.getTransType(), BusinessTypeEnum.BOM_SCANED_PAY.getCode())) {
-            return TvmOrderResult.failMessage( "没有找到匹配的订单，请确认订单号是否正确");
+            return TvmOrderResult.failMessage("没有找到匹配的订单，请确认订单号是否正确");
         }
         // 业务类型
         String transType = payPreOrder.getTransType();
@@ -1126,7 +1194,7 @@ public class BomOrderServiceImpl implements BomOrderService {
 
         TvmPayPreOrder payPreOrder = tvmOrderPreMapper.selectByOrderNo(payOrderNo);
         if (org.springframework.util.ObjectUtils.isEmpty(payPreOrder) || StringUtils.isEmpty(payPreOrder.getTransType()) || !StringUtils.equals(payPreOrder.getTransType(), BusinessTypeEnum.BOM_SCANED_PAY.getCode())) {
-            return TvmOrderResult.failMessage( "没有找到匹配的订单，请确认订单号是否正确");
+            return TvmOrderResult.failMessage("没有找到匹配的订单，请确认订单号是否正确");
         }
 
         int buyNum = 0;
@@ -1533,11 +1601,11 @@ public class BomOrderServiceImpl implements BomOrderService {
         BaseResult baseResult = this.doRefund(refundNo, now, payOrderNo, request.getTransAmount());
         log.info("5.退款结束 baseResult={}", baseResult);
 
-        if(baseResult.getErrorCode()==BaseResult.SUCCESS){
+        if (baseResult.getErrorCode() == BaseResult.SUCCESS) {
             JSONObject result = new JSONObject();
             result.put("refundNo", refundNo);
             return BomOrderResult.successData(result);
-        }else {
+        } else {
             return BomOrderResult.fail();
         }
     }

@@ -54,7 +54,13 @@ public interface BomOrderService {
      */
     JSONObject notiBusResult(NotiBusResultReqDTO request,String transType);
 
+    JSONObject refundBomSaleNotTakeTickets();
 
+    /**
+     * 充值业务但没发送充值通知
+     * @return
+     */
+    JSONObject refundBomTopupNotTopup();
 
     JSONObject notiBomSaleResult(NotiTakeTicketFailResultReqDTO request);
 

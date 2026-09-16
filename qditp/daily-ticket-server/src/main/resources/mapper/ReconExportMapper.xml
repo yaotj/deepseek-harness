@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.dailyticket.mapper.ReconExportMapper">
+
+    <!--
+      日终对账抽取的只读 SQL。字段顺序来自甲方 docs/接口规范文档/ACC与ITP之间的文件.docx 第一节
+      「对账文件」，DETAIL 见其中「（4）虚拟电子多日计次票文件」，PAY 见「（2）统计汇总文件」。
+
+      SQL 正文里一律不写注释：Druid WallFilter 的 commentAllow 默认为 false，SQL 带注释会被
+      判定成注入并抛异常，该语句静默失效（只在 Oracle 生产暴露，达梦环境关了 WallFilter 看不出来）。
+      所有说明只能留在这里的 XML 注释或 Java 注释中。
+
+      时间条件直接绑 java.sql.Timestamp，NEVER 对窗口列套 TO_CHAR / TRUNC 之类函数做比较，
+      否则该列上的索引失效，退化成全表扫。SELECT 列表与 GROUP BY 里的 TO_CHAR 只作用于输出分组，
+      不影响 WHERE 的索引使用。
+    -->
+
+    <!--
+      DETAIL 查询：只出「车票购买（发售）」行。
+
+      文件行的 7 段由 service 层拼装，本查询负责其中 5 段的取值：
+        运营日期     OPERATE_DATE   TO_CHAR(PAY_DATE,'YYYYMMDD')
+        交易类型     由 service 填固定中文串「发售」，不从库里取
+        逻辑卡号     CARD_NUM       DAILY_TICKET_INSTANCE.CARD_NUM
+        交易日期时间 TXN_DATE_TIME  TO_CHAR(PAY_DATE,'YYYYMMDDHH24MISS')
+        交易金额     PAY_AMOUNT     单位分
+        当前车站名称 甲方要求传空，service 填空串
+        设备编码     甲方要求传空，service 填空串
+      另外返回 PAY_DATE 与 ORDER_NO 两列，只供 Keyset 游标回填，不进文件行。
+
+      票种筛选：本次**不加任何票种条件**，导出全部已付日票订单。这是有意的降级，不是遗漏，
+      三个候选判据逐一核对后都不可靠（票种范围待甲方确认）：
+        1) DAILY_TICKET_INSTANCE.CODE_TICKET_TYPE —— DDL 默认值 '0441'
+           （daily-ticket-server-schema.sql 第 60 行），而代码在激活时无条件写
+           CardTypeCodeEnum.QR_POSTPAID.getCode() 即 '0441'
+           （DailyTicketServiceImpl.java 第 591 行），全表恒为同一个值，零区分度；
+           顺带说明该列名不副实，'0441' 是二维码后付费单程票，多日计次票应为 '0448'。
+        2) DAILY_TICKET_ORDER.CARD_TYPE —— 直接取 APP 上送的 request.getCardType() 落库
+           （DailyTicketServiceImpl.java 第 182 行下单、第 1153 行旅游票子单），入口
+           validateOrderRequest 只校验非空、**没有**调 CardTypeMapping.isSupportedAppCardType，
+           因此库里可能混着三套编码空间：APP 口径（含日票聚合桶 '05'，一个值覆盖 0445~0448
+           四个票种、本身就分不出计次票）、ACC 两位口径（'48'）、发卡口径（'0448'）。
+        3) SHOW_TYPE —— 同样原样落 APP 入参，全仓库没有任何比较点或枚举，语义未定义。
+      结论：只有等甲方确认票种码值、或订单侧改成落规范化后的发卡卡类型，才能收窄到
+      「虚拟电子多日计次票」。当前宁可多导（含普通日票）并在此标注，NEVER 凭猜写码值 ——
+      猜错的筛选条件会静默命中 0 行或漏掉整类票，比多导难查得多。
+
+      **旅游票子单目前也在本明细里，这是已知事实、不是遗漏**：旅游票（IF8A-70）按 ticketCount
+      拆成多条 DAILY_TICKET_ORDER 子单（PARENT_ORDER_NO 指向 TRAVEL_TICKET_ORDER.ORDER_NO），
+      每条子单各自走一次支付并各自回写 PAY_STATUS='PAID' 与 PAY_DATE，因此会被本查询的
+      PAY_STATUS='PAID' 条件全部捞进来。本查询**有意不加** PARENT_ORDER_NO IS NULL：
+      PAY 文件是按日期与支付方式的汇总、DETAIL 是逐笔明细，两者并存不构成重复计账。
+      未决点：甲方是否要求 DETAIL 只含独立日票（不含旅游票子单）**在规格原文里没有依据**。
+      若日后甲方明确要求排除，改法是在 WHERE 追加 AND O.PARENT_ORDER_NO IS NULL；
+      当前无依据，NEVER 凭推测加这个条件 —— 加错会让整类已售票在 ACC 侧凭空消失。
+    -->
+    <select id="selectDetailPage" resultType="java.util.Map">
+        SELECT
+            TO_CHAR(O.PAY_DATE, 'YYYYMMDD') AS OPERATE_DATE,
+            TO_CHAR(O.PAY_DATE, 'YYYYMMDDHH24MISS') AS TXN_DATE_TIME,
+            O.PAY_DATE AS PAY_DATE,
+            O.ORDER_NO AS ORDER_NO,
+            O.PAY_AMOUNT AS PAY_AMOUNT,
+            I.CARD_NUM AS CARD_NUM
+        FROM DAILY_TICKET_ORDER O
+        LEFT JOIN DAILY_TICKET_INSTANCE I ON I.ORDER_NO = O.ORDER_NO
+        WHERE O.PAY_STATUS = 'PAID'
+          AND O.PAY_DATE &gt;= #{windowStart,jdbcType=TIMESTAMP}
+          AND O.PAY_DATE &lt; #{windowEnd,jdbcType=TIMESTAMP}
+        <if test="lastPayDate != null and lastOrderNo != null">
+          AND (O.PAY_DATE &gt; #{lastPayDate,jdbcType=TIMESTAMP}
+               OR (O.PAY_DATE = #{lastPayDate,jdbcType=TIMESTAMP} AND O.ORDER_NO &gt; #{lastOrderNo,jdbcType=VARCHAR}))
+        </if>
+        ORDER BY O.PAY_DATE, O.ORDER_NO
+        FETCH FIRST #{limit} ROWS ONLY
+    </select>
+
+    <!--
+      关于上面的 LEFT JOIN：DAILY_TICKET_ORDER 本身没有逻辑卡号列，DETAIL 第 3 段取
+      DAILY_TICKET_INSTANCE.CARD_NUM。该表 ORDER_NO 上有唯一索引 UK_DAILY_TICKET_INSTANCE_ORDER
+      （daily-ticket-server-schema.sql 第 82 行），与订单一对一，JOIN 不会放大行数，因此 Keyset
+      游标 (PAY_DATE, ORDER_NO) 仍然唯一、不会漏行或重复。
+      用 LEFT 而非 INNER：已付但尚未激活、未生成票实例的订单也必须出现在发售明细里，
+      改成 INNER 会静默少账（此时逻辑卡号段为空串）。
+    -->
+
+    <!--
+      PAY 查询：旅游票发售汇总，本模块只负责 21 段中的第 10、11 段（0 基下标 9 / 10）。
+
+      **取数口径已于 2026-09-11 从主单改为子单**，原因是主单不承载支付事实：
+      TRAVEL_TICKET_ORDER 只是聚合壳，插入时写死 ORDER_STATUS='CREATED' / PAY_STATUS='INIT'，
+      全仓库对 travelTicketOrderMapper 只有一次 insert、没有任何 UPDATE，主单状态永不回写；
+      支付是**每张子单各走一次**（DailyTicketServiceImpl.requestPay 先 selectByOrderNo 查
+      DAILY_TICKET_ORDER，上送网关的商户单号是子单号、金额是单张 TICKET_PRICE），
+      支付凭证与 PAY_DATE / PAY_AMOUNT / PAY_CHANNEL_CODE 全落在子单上。
+      原实现查主单 + PAY_STATUS='PAID' + UPDATE_TIME 切窗口，前提不成立，PAY 第 10/11 段恒 0 行。
+
+      逐条口径：
+        1) 张数用 COUNT(*)，**不是 SUM(TICKET_COUNT)** —— 子单表没有 TICKET_COUNT 列
+           （该列只在主单 TRAVEL_TICKET_ORDER 上），且下单时按 ticketCount 循环拆单，
+           一条子单恰好一张票，因此笔数即张数。
+        2) 金额优先 PAY_AMOUNT、回落 TICKET_PRICE：两列都在 DAILY_TICKET_ORDER 上（单位分）。
+           支付回写时 PAY_AMOUNT 为空即取 TICKET_PRICE，正常已付单不会为空；
+           这里的 NVL 只是兜住历史脏数据，NEVER 去掉外层 NVL(...,0)（无行时 SUM 返回 NULL）。
+        3) 窗口列是子单的 PAY_DATE（支付完成时点），**不再是主单 UPDATE_TIME**。
+           这同时消掉了原来「主单无 PAY_DATE、只能用 UPDATE_TIME、后续任何非支付更新都会被
+           重复计入」的已知偏差。
+        4) PARENT_ORDER_NO IS NOT NULL 是识别旅游票子单的唯一判据：独立日票该列为空
+           （schema.sql 的列注释即如此定义），旅游票子单指向主单号。NEVER 改用 ORDER_TYPE
+           或 CARD_TYPE 区分 —— 前者旅游票子单与独立日票同为 '1'，后者原样落 APP 入参、
+           混着三套编码空间。
+
+      支付方式段（PAY 第 5 段键）现在填子单的 PAY_CHANNEL_CODE，因此本查询按
+      (日期, 支付渠道) 分组，一天可能返回多行。线路 / 车站 / 设备编号三段仍由 service 填空串：
+      本模块 5 张表确实没有这三列。
+
+      日期段取窗口列现算，NEVER 用指令里的 businessDate 顶替：窗口左闭右开且跨两个自然日。
+    -->
+    <select id="selectTravelTicketPaySummary" resultType="java.util.Map">
+        SELECT
+            TO_CHAR(O.PAY_DATE, 'YYYYMMDD') AS TXN_DATE,
+            O.PAY_CHANNEL_CODE AS PAY_CHANNEL_CODE,
+            COUNT(*) AS TICKET_COUNT,
+            NVL(SUM(NVL(O.PAY_AMOUNT, O.TICKET_PRICE)), 0) AS TICKET_AMOUNT
+        FROM DAILY_TICKET_ORDER O
+        WHERE O.PARENT_ORDER_NO IS NOT NULL
+          AND O.PAY_STATUS = 'PAID'
+          AND O.PAY_DATE &gt;= #{windowStart,jdbcType=TIMESTAMP}
+          AND O.PAY_DATE &lt; #{windowEnd,jdbcType=TIMESTAMP}
+        GROUP BY TO_CHAR(O.PAY_DATE, 'YYYYMMDD'), O.PAY_CHANNEL_CODE
+        ORDER BY 1, 2
+    </select>
+
+</mapper>

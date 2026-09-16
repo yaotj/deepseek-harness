@@ -51,6 +51,19 @@
         where CARD_NUM = #{cardNum,jdbcType=VARCHAR}
     </select>
 
+    <!-- 按票号查实例：TICKET_CODE 当前数据唯一（2026-09-15 实测 12 行 / 12 个不重复），
+         但库里没有唯一索引兜着，因此显式取最新一行。
+         NEVER 去掉 FETCH FIRST 1 ROWS ONLY：重复票号会让 MyBatis 抛 TooManyResultsException，
+         而调用方只是详情页的富化步骤，不该因此让 IF8A-34 整体失败。
+         NEVER 在下面的 SQL 正文里加注释（Druid WallFilter 会判定为注入并让该语句静默失效）。 -->
+    <select id="selectByTicketCode" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from DAILY_TICKET_INSTANCE
+        where TICKET_CODE = #{ticketCode,jdbcType=VARCHAR}
+        order by CREATE_TIME desc
+        fetch first 1 rows only
+    </select>
+
     <insert id="upsert" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketInstance">
         MERGE INTO DAILY_TICKET_INSTANCE T
         USING (
@@ -133,12 +146,18 @@
         where CARD_NUM = #{cardNum,jdbcType=VARCHAR}
     </update>
 
-    <!-- 进站校验：查询日票实例状态及有效期 -->
+    <!--
+      进站校验：查询日票实例状态及有效期。
+      状态白名单 ACTIVATED（已激活未使用）+ USED（已开始使用），排除 INIT / EXPIRED / REFUND_LOCKED / REFUNDED。
+      USED 不是终态：一日票在有效期内不限次进出、计次票凭剩余次数进出，收口条件是 COUNTING_END 与 ACTUAL_TIMES。
+      NEVER 写成 TICKET_STATUS != 'USED'——2026-09-10 线上事故：APP 首次使用通知把状态推到 USED 后，
+      这里过滤掉该行，一日票刷一次就再也进不了站。
+    -->
     <select id="selectForEntryCheck" resultMap="BaseResultMap">
         select <include refid="BaseColumnList"/>
         from DAILY_TICKET_INSTANCE
         where CARD_NUM = #{cardNum,jdbcType=VARCHAR}
-          and TICKET_STATUS != 'USED'
+          and TICKET_STATUS in ('ACTIVATED', 'USED')
         order by CREATE_TIME desc
         fetch first 1 rows only
     </select>

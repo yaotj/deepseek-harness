@@ -16,6 +16,10 @@ public class FacePayOrderPageView {
     private String payType;
     private String inStationCode;
     private String outStationCode;
+    /** 起点站中文名，查询时按 IN_STATION_CODE 关联 STATION_INFO 带出。 */
+    private String inStationName;
+    /** 终点站中文名，查询时按 OUT_STATION_CODE 关联 STATION_INFO 带出。 */
+    private String outStationName;
     private String ticketPrice;
     private Integer ticketNum;
     private String totalPrice;

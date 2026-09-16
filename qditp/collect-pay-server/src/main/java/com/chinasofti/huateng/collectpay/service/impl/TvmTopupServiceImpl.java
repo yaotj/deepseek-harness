@@ -8,6 +8,7 @@ import com.chinasofti.huateng.collectpay.common.UpdateDbMap;
 import com.chinasofti.huateng.collectpay.config.PayCenterProperties;
 import com.chinasofti.huateng.collectpay.constant.*;
 import com.chinasofti.huateng.collectpay.entity.RefundOrder;
+import com.chinasofti.huateng.collectpay.entity.TvmAppOrder;
 import com.chinasofti.huateng.collectpay.entity.TvmTopupOrder;
 import com.chinasofti.huateng.collectpay.mapper.RefundOrderMapper;
 import com.chinasofti.huateng.collectpay.mapper.TvmOrderPreMapper;
@@ -15,6 +16,7 @@ import com.chinasofti.huateng.collectpay.mapper.TvmTopupOrderMapper;
 import com.chinasofti.huateng.collectpay.model.request.PayCenterRequest;
 import com.chinasofti.huateng.collectpay.model.request.tvm.*;
 import com.chinasofti.huateng.collectpay.model.response.PayCenterResponse;
+import com.chinasofti.huateng.collectpay.model.response.app.AppOrderResult;
 import com.chinasofti.huateng.collectpay.model.response.paycenter.PayCenterResult;
 import com.chinasofti.huateng.collectpay.model.response.tvm.RequestRefundRespDTO;
 import com.chinasofti.huateng.collectpay.model.response.tvm.TvmOrderResult;
@@ -216,7 +218,7 @@ public class TvmTopupServiceImpl implements TvmTopupService {
                         log.info("查询到支付成功的结果");
                         String aftAmount = String.valueOf(new BigDecimal(payTopupOrderInfo.getBeforeAmount()).add(new BigDecimal(payTopupOrderInfo.getTransAmount())));
 
-                        uMap = UpdateDbMap.getTopupUpdateSuccessDb(payTopupOrderInfo.getOrderNo(), payCenterOrderNo,channelOrderNo, aftAmount,paymentChannelCode);
+                        uMap = UpdateDbMap.getTopupUpdateSuccessDb(payTopupOrderInfo.getOrderNo(), payCenterOrderNo, channelOrderNo, aftAmount, paymentChannelCode);
                         result = TvmOrderResult.successData(DeviceResponse.getPaySuccessResult(paymentChannelCode));
 
                     } else if (PayCenterStatusEnum.FAILED.getCode().equals(status)) {
@@ -238,6 +240,41 @@ public class TvmTopupServiceImpl implements TvmTopupService {
         }
         // 没有查询到支付结果，或结果为空，全部按照支付中-已下单返回
         return TvmOrderResult.successData(DeviceResponse.getPayIngResult(payTopupOrderInfo.getChannel()));
+    }
+
+    @Override
+    public JSONObject refundTvmTopupNotTakeTickets() {
+        log.info("开始查询购票但未取票的订单信息");
+
+        Map<String, String> condition = new HashMap<>();
+        condition.put("startTime", DateUtils.getTime(-1, "yyyy-MM-dd") + " 00:00:00");
+        condition.put("endTime", DateUtils.getTime(-1, "yyyy-MM-dd") + " 23:59:59");
+
+        log.info("condition is {}", condition);
+        // 1.查询购票但未取票的订单信息
+        List<TvmTopupOrder> tvmTopupOrders = tvmTopupOrderMapper.selectByCondition(condition);
+
+        log.info(" tvmTopupOrders.size is {}", tvmTopupOrders.size());
+        log.info("tvmTopupOrders is {}", tvmTopupOrders);
+
+        if (tvmTopupOrders.size() == 0) {
+            return AppOrderResult.success("无充值但未通知的订单信息,结束");
+        }
+
+        for (TvmTopupOrder tvmTopupOrder : tvmTopupOrders) {
+
+            RequestRefundReqDTO dto = new RequestRefundReqDTO();
+            dto.setOrderNo(tvmTopupOrder.getOrderNo());
+            // 订单金额
+            dto.setRefundAmt(tvmTopupOrder.getTransAmount());
+            dto.setRefundReason("自动发起充值退款");
+            log.info("定时任务 开始发起退款，dto is {}", dto);
+
+            JSONObject refundResult = this.requestRefund(dto);
+            log.info("订单 {} 退款结束 refundResult is {}", tvmTopupOrder.getOrderNo(), refundResult);
+        }
+
+        return AppOrderResult.success("tvm充值 订单 退款 结束");
     }
 
     @Override
@@ -296,7 +333,7 @@ public class TvmTopupServiceImpl implements TvmTopupService {
             log.info("3.充值失败，发起退款, orderNo={}", payOrderNo);
             int refundAmount = Integer.parseInt(order.getTransAmount());
             String refundNo = OrderCommonUtils.getRefundNo();
-            boolean b =  tvmCommonService.doRefund(BusinessTypeEnum.TVM_SCAN_QR_RECHARGE.getCode(), order.getOrderNo(), order.getPayCenterOrderNo(), refundAmount,refundNo);
+            boolean b = tvmCommonService.doRefund(BusinessTypeEnum.TVM_SCAN_QR_RECHARGE.getCode(), order.getOrderNo(), order.getPayCenterOrderNo(), refundAmount, refundNo);
             log.info("退款结束 refundNo is {}", refundNo);
             // 如果refundNo不为空，则证明退款结束 退款结果可以是成功的也可以是失败的
             if (b) {
@@ -599,7 +636,7 @@ public class TvmTopupServiceImpl implements TvmTopupService {
         jsonObject.put("orderStatus", orderStatus);
         jsonObject.put("subject", "一票通_单程票");
         jsonObject.put("body", "一票通_单程票");
-        jsonObject.put("notifyUrl",environment.getProperty("pay.center.pay-notice"));
+        jsonObject.put("notifyUrl", environment.getProperty("pay.center.pay-notice"));
         return jsonObject;
     }
 
@@ -626,7 +663,7 @@ public class TvmTopupServiceImpl implements TvmTopupService {
             return RequestRefundRespDTO.fail("9999", "订单状态不是支付成功,不能退款");
         }
         String refundNo = OrderCommonUtils.getRefundNo();
-        boolean b = tvmCommonService.doRefund(BusinessTypeEnum.TVM_SCAN_QR_RECHARGE.getCode(), payOrderNo, order.getPayCenterOrderNo(), Integer.valueOf(request.getRefundAmt()),refundNo);
+        boolean b = tvmCommonService.doRefund(BusinessTypeEnum.TVM_SCAN_QR_RECHARGE.getCode(), payOrderNo, order.getPayCenterOrderNo(), Integer.valueOf(request.getRefundAmt()), refundNo);
 
         // 如果refundNo不为空，则证明退款结束 退款结果可以是成功的也可以是失败的
         if (b) {
@@ -684,7 +721,7 @@ public class TvmTopupServiceImpl implements TvmTopupService {
             log.info("支付结果通知 支付成功 的结果");
             String aftAmount = String.valueOf(new BigDecimal(payTopupOrderInfo.getBeforeAmount()).add(new BigDecimal(payTopupOrderInfo.getTransAmount())));
 
-            uMap = UpdateDbMap.getTopupUpdateSuccessDb(orderNo, payCenterOrderNo,channelOrderNo, aftAmount,channel);
+            uMap = UpdateDbMap.getTopupUpdateSuccessDb(orderNo, payCenterOrderNo, channelOrderNo, aftAmount, channel);
 
         } else if (PayCenterStatusEnum.FAILED.getCode().equals(status)) {
             log.info("支付结果通知 支付失败 的结果");

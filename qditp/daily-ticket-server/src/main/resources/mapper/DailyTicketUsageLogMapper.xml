@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.dailyticket.mapper.DailyTicketUsageLogMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.dailyticket.model.DailyTicketUsageLog">
+        <id column="ID" jdbcType="NUMERIC" property="id"/>
+        <result column="CARD_NUM" jdbcType="VARCHAR" property="cardNum"/>
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="TXN_DATE" jdbcType="VARCHAR" property="txnDate"/>
+        <result column="IN_STATION" jdbcType="VARCHAR" property="inStation"/>
+        <result column="OUT_STATION" jdbcType="VARCHAR" property="outStation"/>
+        <result column="TIMES_BEFORE" jdbcType="INTEGER" property="timesBefore"/>
+        <result column="TIMES_AFTER" jdbcType="INTEGER" property="timesAfter"/>
+        <result column="TICKET_STATUS" jdbcType="VARCHAR" property="ticketStatus"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        ID, CARD_NUM, ORDER_NO, TXN_DATE, IN_STATION, OUT_STATION,
+        TIMES_BEFORE, TIMES_AFTER, TICKET_STATUS, CREATE_TIME
+    </sql>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketUsageLog">
+        insert into DAILY_TICKET_USAGE_LOG (
+            ID, CARD_NUM, ORDER_NO, TXN_DATE, IN_STATION, OUT_STATION,
+            TIMES_BEFORE, TIMES_AFTER, TICKET_STATUS, CREATE_TIME
+        ) values (
+            SEQ_DAILY_TICKET_USAGE_LOG.NEXTVAL,
+            #{cardNum,jdbcType=VARCHAR},
+            #{orderNo,jdbcType=VARCHAR},
+            #{txnDate,jdbcType=VARCHAR},
+            #{inStation,jdbcType=VARCHAR},
+            #{outStation,jdbcType=VARCHAR},
+            #{timesBefore,jdbcType=INTEGER},
+            #{timesAfter,jdbcType=INTEGER},
+            #{ticketStatus,jdbcType=VARCHAR},
+            SYSTIMESTAMP
+        )
+    </insert>
+
+    <!-- 按卡号查扣次明细，时间倒序 -->
+    <select id="selectByCardNum" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from DAILY_TICKET_USAGE_LOG
+        where CARD_NUM = #{cardNum,jdbcType=VARCHAR}
+        order by CREATE_TIME desc
+    </select>
+</mapper>

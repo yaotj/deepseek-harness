@@ -4,6 +4,7 @@ import com.chinasofti.huateng.collectpay.entity.BomNoCashOrder;
 import com.chinasofti.huateng.collectpay.model.request.bom.RequestTicketRefundReqDTO;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -12,6 +13,9 @@ import java.util.Map;
  */
 @Mapper
 public interface BomNoCashOrderMapper {
+
+    List<BomNoCashOrder> selectSaleOrdersByCondition(Map<String, String> condition);
+    List<BomNoCashOrder> selectTopupByCondition(Map<String, String> condition);
 
     /**
      * 根据订单号查询订单信息。

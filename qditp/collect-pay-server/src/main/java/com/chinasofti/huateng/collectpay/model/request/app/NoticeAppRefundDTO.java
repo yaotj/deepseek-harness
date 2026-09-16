@@ -17,4 +17,15 @@ public class NoticeAppRefundDTO {
     private String refundDate;
     private String refundAmount;
 
+    @Override
+    public String toString() {
+        return "NoticeAppRefundDTO{" +
+                "orderNo='" + orderNo + '\'' +
+                ", refundType='" + refundType + '\'' +
+                ", refundResult='" + refundResult + '\'' +
+                ", refundResultDesc='" + refundResultDesc + '\'' +
+                ", refundDate='" + refundDate + '\'' +
+                ", refundAmount='" + refundAmount + '\'' +
+                '}';
+    }
 }

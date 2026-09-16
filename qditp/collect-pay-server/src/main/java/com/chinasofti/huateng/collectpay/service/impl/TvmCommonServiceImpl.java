@@ -10,7 +10,7 @@ import com.chinasofti.huateng.collectpay.mapper.AppRefundOrderMapper;
 import com.chinasofti.huateng.collectpay.mapper.RefundOrderMapper;
 import com.chinasofti.huateng.collectpay.mapper.TvmAppOrderMapper;
 import com.chinasofti.huateng.collectpay.mapper.TvmNoticeAppMapper;
-import com.chinasofti.huateng.collectpay.model.request.AppCommonRequest;
+import com.chinasofti.huateng.model.app.ItpCommonRequest;
 import com.chinasofti.huateng.collectpay.model.request.PayCenterRequest;
 import com.chinasofti.huateng.collectpay.model.request.app.NoticeAppRefundDTO;
 import com.chinasofti.huateng.collectpay.model.response.PayCenterResponse;
@@ -289,7 +289,7 @@ public class TvmCommonServiceImpl implements TvmCommonService {
 //        if (StringUtils.equals(refundResult, AppStatusEnum.REFUND_FAIL.getCode())) {
 //            refundResultDesc = "refundResultDesc";
 //        }
-//        AppCommonRequest<NoticeAppRefundDTO> request = payCenterCommon.buildNoticeAppRefundResultRequest(payOrderNo, refundResult, refundResultDesc, refundDate, refundAmount);
+//        ItpCommonRequest<NoticeAppRefundDTO> request = payCenterCommon.buildNoticeAppRefundResultRequest(payOrderNo, refundResult, refundResultDesc, refundDate, refundAmount);
 //
 //        log.info("开始通知app退款 request is {}", request.toString());
 //        String noticeAppRefundResultUrl = environment.getProperty("pay.center.notice-app-refundresult-url");

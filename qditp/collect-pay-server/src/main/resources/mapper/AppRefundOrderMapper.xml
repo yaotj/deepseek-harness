@@ -52,6 +52,21 @@
         )
     </insert>
 
+    <!--
+        指定金额退款的超退闸门：只累计退款成功（REFUND_STATUS='1'）的行，
+        失败（2）与退款中（0）都不占额度。
+        REFUND_AMOUNT 是 VARCHAR2 且库里有非数字与量级写错的历史脏值，
+        REGEXP_LIKE 那段 NEVER 删：TO_NUMBER 撞到脏值抛 ORA-01722，整个退款请求会失败。
+        NEVER 在 SQL 正文里写注释：Druid WallFilter 判定为注入后该语句静默失效。
+    -->
+    <select id="sumSuccessRefundAmount" resultType="java.lang.Long">
+        select NVL(SUM(TO_NUMBER(REFUND_AMOUNT)), 0)
+        from TBL_APP_ORDER_REFUND
+        where PAY_ORDER_NO = #{payOrderNo,jdbcType=VARCHAR}
+          and REFUND_STATUS = '1'
+          and REGEXP_LIKE(REFUND_AMOUNT, '^[0-9]+$')
+    </select>
+
     <update id="updateByRefundNo" parameterType="java.util.Map">
         update TBL_APP_ORDER_REFUND
         <set>

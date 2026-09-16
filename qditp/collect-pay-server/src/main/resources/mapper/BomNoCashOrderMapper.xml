@@ -137,4 +137,28 @@
         )
     </insert>
 
+    <select id="selectSaleOrdersByCondition" parameterType="map" resultMap="BaseResultMap">
+        select bom.ORDER_NO,bom.TRANS_AOUNT from (
+        (select <include refid="Base_Column_List"/>
+        from TBL_BOM_ORDER_PAY
+        where STATUS = '1' and TRANS_TYPE = #{transType,jdbcType=VARCHAR}
+        and rsv2 is null
+        and CREATE_TIME between #{startTime,jdbcType=VARCHAR} and #{endTime,jdbcType=VARCHAR}) bom
+        left join
+        (select * from tbl_bom_main_ticket) main
+        on bom.ORDER_NO = main.ORDER_NO) where main.ORDER_NO is null
+    </select>
+
+    <select id="selectTopupByCondition" parameterType="map" resultMap="BaseResultMap">
+        select bom.ORDER_NO,bom.TRANS_AOUNT from (
+        (select <include refid="Base_Column_List"/>
+        from TBL_BOM_ORDER_PAY
+        where STATUS = '1' and TRANS_TYPE = #{transType,jdbcType=VARCHAR}
+        and rsv2 is null
+        and CREATE_TIME between #{startTime,jdbcType=VARCHAR} and #{endTime,jdbcType=VARCHAR}) bom
+        left join
+        (select * from TBL_BOM_TOPUP_RESULT) topup
+        on bom.ORDER_NO = topup.ORDER_NO) where topup.ORDER_NO is null
+    </select>
+
 </mapper>

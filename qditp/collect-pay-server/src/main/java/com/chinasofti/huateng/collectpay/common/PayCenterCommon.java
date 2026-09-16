@@ -5,7 +5,7 @@ import com.chinasofti.huateng.collectpay.config.PayCenterProperties;
 import com.chinasofti.huateng.collectpay.constant.AppStatusEnum;
 import com.chinasofti.huateng.collectpay.entity.BomNoCashOrder;
 import com.chinasofti.huateng.collectpay.entity.TvmPayOrder;
-import com.chinasofti.huateng.collectpay.model.request.AppCommonRequest;
+import com.chinasofti.huateng.model.app.ItpCommonRequest;
 import com.chinasofti.huateng.collectpay.model.request.PayCenterRequest;
 import com.chinasofti.huateng.collectpay.model.request.RequestPayReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.RequestQueryRefundReqDTO;
@@ -211,9 +211,9 @@ public class PayCenterCommon {
     }
 
     // 通知app-取票通知请求参数
-    public AppCommonRequest<NoticeAppTakeTicketDTO> buildNoticeAppTakeTicketResultRequest(String payOrderNo,String orderTicketNum,String actualTakeTicketNum,String takeTickeDate) {
+    public ItpCommonRequest<NoticeAppTakeTicketDTO> buildNoticeAppTakeTicketResultRequest(String payOrderNo,String orderTicketNum,String actualTakeTicketNum,String takeTickeDate) {
 
-        AppCommonRequest<NoticeAppTakeTicketDTO> noticeAppTakeTickerDTO = new AppCommonRequest<>();
+        ItpCommonRequest<NoticeAppTakeTicketDTO> noticeAppTakeTickerDTO = new ItpCommonRequest<>();
         noticeAppTakeTickerDTO.setProviderId(environment.getProperty("app.providerId"));
         noticeAppTakeTickerDTO.setCharset(environment.getProperty("app.charset"));
         noticeAppTakeTickerDTO.setFormat(environment.getProperty("app.format"));
@@ -232,9 +232,9 @@ public class PayCenterCommon {
     }
 
     // 通知app-取票通知请求参数
-    public AppCommonRequest<NoticeAppTakeTicketFailureDTO> buildNoticeAppTakeTicketFailureResultRequest(String payOrderNo, String orderTicketNum, String actualTakeTicketNum, String takeTickeDate, String takeTiketFaultReason, String refundAmount) {
+    public ItpCommonRequest<NoticeAppTakeTicketFailureDTO> buildNoticeAppTakeTicketFailureResultRequest(String payOrderNo, String orderTicketNum, String actualTakeTicketNum, String takeTickeDate, String takeTiketFaultReason, String refundAmount) {
 
-        AppCommonRequest<NoticeAppTakeTicketFailureDTO> noticeAppTakeTickerDTO = new AppCommonRequest<>();
+        ItpCommonRequest<NoticeAppTakeTicketFailureDTO> noticeAppTakeTickerDTO = new ItpCommonRequest<>();
         noticeAppTakeTickerDTO.setProviderId(environment.getProperty("app.providerId"));
         noticeAppTakeTickerDTO.setCharset(environment.getProperty("app.charset"));
         noticeAppTakeTickerDTO.setFormat(environment.getProperty("app.format"));
@@ -281,9 +281,9 @@ public class PayCenterCommon {
 //    }
 
     // 通知app 退款结果通知请求参数
-    public AppCommonRequest<NoticeAppRefundDTO> buildNoticeAppRefundResultRequest(String payOrderNo,String refundResult,String refundResultDesc,String refundDate,String refundAmount) {
+    public ItpCommonRequest<NoticeAppRefundDTO> buildNoticeAppRefundResultRequest(String payOrderNo,String refundResult,String refundResultDesc,String refundDate,String refundAmount) {
 
-        AppCommonRequest<NoticeAppRefundDTO> noticeAppRefundDTO = new AppCommonRequest<>();
+        ItpCommonRequest<NoticeAppRefundDTO> noticeAppRefundDTO = new ItpCommonRequest<>();
         noticeAppRefundDTO.setProviderId(environment.getProperty("app.providerId"));
         noticeAppRefundDTO.setCharset(environment.getProperty("app.charset"));
         noticeAppRefundDTO.setFormat(environment.getProperty("app.format"));

@@ -20,7 +20,7 @@
             select RESPONSE_BODY
             from DAILY_TICKET_PAY_LOG
             where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
-              and BIZ_TYPE in ('REFUND', 'REFUND_RETRY')
+              and BIZ_TYPE in ('REFUND', 'REFUND_RETRY', 'REFUND_RESUBMIT')
             order by CREATE_TIME desc
         )
         where rownum = 1

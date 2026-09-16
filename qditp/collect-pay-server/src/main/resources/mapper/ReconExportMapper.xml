@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.collectpay.mapper.ReconExportMapper">
+
+    <!--
+      共同约定（写在 XML 注释里，NEVER 搬进 SQL 正文：Druid WallFilter 的 commentAllow=false，
+      SQL 正文出现行注释或块注释会被判定为注入、语句静默失效。本文件的 XML 注释内也不出现
+      连续两个半角减号，否则 XML 解析直接报错）：
+
+      1. 本文件只服务 ITP.PAY 与 ITP.BUS 两类汇总文件，全部是库内 GROUP BY，没有明细分页。
+         原先给 ITP.DETAIL 用的四条 keyset select 已整段删除：DETAIL 按甲方规格
+         （docs 接口规范文档 ACC与ITP之间的文件.docx 第一章第 4 节）是虚拟电子多日计次票文件，
+         与 TVM / BOM 无关，已改由 gate-txn-pay 与 daily-ticket 负责。
+
+      2. 时间窗口 CREATE_TIME &gt;= windowStart AND CREATE_TIME &lt; windowEnd
+         左闭右开，保证相邻两天的窗口既不漏也不重。本模块四张表的时间列都是 VARCHAR2(100)
+         存 yyyy-MM-dd HH:mm:ss，所以直接做字符串比较（该格式下字典序等价于时间序），
+         绑定用 jdbcType=VARCHAR。NEVER 套 TO_DATE 之类的函数，那会让索引失效。
+
+      3. 成功状态白名单
+         ItpStatusEnum 取值：0 支付中/退款中、1 支付成功/退款成功、2 失败、3 未支付。
+         对账只导 1。这是白名单判定，NEVER 写成「非 2」之类的黑名单，
+         中间态 0 会被误当成已收款、导致本期虚增收入且下期重复入账。
+         TBL_TVM_APP_ORDER 的状态列叫 PAY_STATUS，其余三张表叫 STATUS。
+
+      4. TXN_DATE 段
+         REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', '') 把 yyyy-MM-dd 转成 yyyyMMdd。
+         该表达式只出现在 SELECT 列表与 GROUP BY 里，不出现在 WHERE 里，因此不影响索引。
+
+      5. 金额列全是 VARCHAR2(100)，所以 SUM 一律套 TO_NUMBER；外面再包 NVL 兜 NULL
+         （SUM 会跳过 NULL，全组皆 NULL 时返回 NULL）。
+         NEVER 省掉 TO_NUMBER 靠隐式转换：Oracle 会对字符串做逐行隐式转换，
+         口径不可控且遇到脏数据直接 ORA-01722。
+         各表金额列：TBL_TVM_ORDER_PAY 取 TOTAL_PRICE、TBL_TVM_ORDER_TOPUP 取 TRANS_AMOUNT、
+         TBL_TVM_APP_ORDER 取 PAY_AMOUNT、TBL_BOM_ORDER_PAY 取 TRANS_AOUNT
+         （DDL 原文就少一个 M，见 collect-pay-server/sql.txt 第 136 行，NEVER 顺手改正）。
+
+      6. 混合大小写列名（totalPrice / merchantOrderNo / PAYCENTER_channelOrderNo）一律不引用：
+         Oracle 里这类列必须带双引号才能命中，不带引号会 ORA-00904。
+
+      7. 线路段（ITP.PAY 第 2 段）本模块一律不出，由 recon-server 统一补齐
+         2026-09-16 起线路段改由 recon-server 在聚合完成、写文件之前按车站码统一补齐
+         （见该模块的 ReconStationMapper 与 recon.line-backfill.* 配置），本模块四条 PAY 汇总
+         SQL 都不再出线路列。原先 TVM 购票（TBL_TVM_ORDER_PAY）与 APP 购票（TBL_TVM_APP_ORDER）
+         这两条各自写了一遍
+           LEFT JOIN STATION_INFO S ON S.STATION_CODE = T.IN_STATION_CODE
+         并在 SELECT / GROUP BY / ORDER BY 里带 S.LINE_CODE，现已全部删除。
+         收口的理由：线路是车站的函数（一个车站码只对应一条线路），原先四个源各写一遍这个 join，
+         等于「线路怎么取」有四份副本、四份各自的 join 列名、四次维表结构变更的暴露面；而
+         STATION_INFO 属车站 / 参数域、owner 不是本模块，少一处跨域直连就少一处破例。
+         NEVER 把 join 加回来：recon-server 侧是无条件覆盖，加回来不改变产出、只让口径重新分叉。
+
+         **收口顺带解决了本模块一个长期缺口**：TVM 充值（TBL_TVM_ORDER_TOPUP）与 BOM
+         （TBL_BOM_ORDER_PAY）两张表连车站码列都没有，本模块本来就无从关联、线路段只能留空；
+         而 recon-server 是按「车站段」查维表补的，因此这两组的线路段仍然是空 ——
+         **空的成因从「本模块拿不到车站码」变成了「这两组本身就没有车站段」，结论不变**。
+         待甲方补数据源（例如要求 TVM 充值报文上送车站码）后，只要本模块把车站段填上，
+         线路段就会由 recon-server 自动补齐，**届时不需要再在本文件里加任何 join**。
+
+         车站段（第 3 段）取 IN_STATION_CODE 而不是 OUT_STATION_CODE，这一点收口后依然成立，
+         而且理由更强 —— 现在线路是由 recon-server 按车站段反查的，车站段取错等于线路也跟着错：
+         a) 同一行里不能自相矛盾。2026-09-11 测试库实测确有 4 笔 IN=0622 / OUT=0122 的数据，
+            若车站段取 OUT，recon-server 补出来的线路就是 01 而不是 06。
+         b) OUT_STATION_CODE 大面积为 NULL。实测 TBL_TVM_ORDER_PAY 共 111 行，
+            其中 55 行 OUT_STATION_CODE 为 NULL（IN_STATION_CODE 一行都不缺），
+            取 OUT 等于一半的行车站段与线路段都是空的。
+         NEVER 用车站码前 2 位推线路：实测前 2 位恰好等于 LINE_CODE 是编码巧合、不是契约；
+         这条约束在收口后依然成立，只是执行点搬到了 recon-server。
+
+         本文件的四条 select 现在都是单表查询（没有任何 join），主表别名仍统一写成 T、
+         列名一律带前缀：这不再是为了避免 ORA-00918，而是为了让下次任何一条 select 引入第二张表时
+         不必回头改列名。
+    -->
+
+    <!--
+      ITP.PAY 各组的数据来源（21 段行的 0 基下标）：
+        idx 5 / 6   BOM/TVM 发售笔数 / 金额   ← selectTvmPayPaySummary + selectBomPayPaySummary
+        idx 7 / 8   BOM/TVM 充值笔数 / 金额   ← selectTvmTopupPaySummary
+        idx 13 / 14 APP 购票笔数 / 金额       ← selectAppOrderPaySummary
+      其余 12 段度量（旅游票、过闸、BOM 行政处理、单边交易、BOM 处理）本模块一律写字面 0，
+      由 Java 侧填充：本模块没有对应业务或没有可靠判据。
+      其中 BOM 行政处理（idx 15/16）与 BOM 处理（idx 19/20）两组，本模块无法可靠识别
+      （TBL_BOM_ORDER_PAY 的 TRANS_TYPE 取值在仓库内三处证据互相矛盾，详见
+      ReconExportMapper.selectBomPayPaySummary 的 javadoc），待甲方明确判据后再补，当前恒 0。
+    -->
+    <select id="selectTvmPayPaySummary" resultType="java.util.Map">
+        SELECT
+            REPLACE(SUBSTR(T.CREATE_TIME, 1, 10), '-', '') AS TXN_DATE,
+            T.IN_STATION_CODE,
+            T.DEVICE_ID,
+            T.CHANNEL,
+            COUNT(*) AS TXN_COUNT,
+            NVL(SUM(TO_NUMBER(T.TOTAL_PRICE)), 0) AS TXN_AMOUNT
+        FROM TBL_TVM_ORDER_PAY T
+        WHERE T.STATUS = '1'
+          AND T.CREATE_TIME &gt;= #{windowStart,jdbcType=VARCHAR}
+          AND T.CREATE_TIME &lt; #{windowEnd,jdbcType=VARCHAR}
+        GROUP BY REPLACE(SUBSTR(T.CREATE_TIME, 1, 10), '-', ''),
+                 T.IN_STATION_CODE, T.DEVICE_ID, T.CHANNEL
+        ORDER BY REPLACE(SUBSTR(T.CREATE_TIME, 1, 10), '-', ''),
+                 T.IN_STATION_CODE, T.DEVICE_ID, T.CHANNEL
+    </select>
+
+    <!--
+      TBL_TVM_ORDER_TOPUP：无车站号列，车站段由 Java 补空串。
+      因为没有车站码，线路段（ITP.PAY 第 2 段）也无从关联，只能留空。
+      本模块的车站维表关联走 STATION_INFO.STATION_CODE，本表连 DEVICE_ID 之外的位置信息都没有，
+      NEVER 拿 DEVICE_ID 去猜车站或线路（设备编号与车站码在本项目里没有可验证的换算关系）。
+      待甲方补数据源（例如要求 TVM 充值报文上送车站码）或明确接受空值，届时 MUST 同步改本 select
+      与 ReconExportService。
+      DDL 里也没有 PAYCENTER_ORDERNO / PAYCENTER_CHANNELORDERNO（mapper XML 在读写它们，
+      属仓库已知不一致），汇总用不到、不引用。
+    -->
+    <select id="selectTvmTopupPaySummary" resultType="java.util.Map">
+        SELECT
+            REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', '') AS TXN_DATE,
+            DEVICE_ID,
+            CHANNEL,
+            COUNT(*) AS TXN_COUNT,
+            NVL(SUM(TO_NUMBER(TRANS_AMOUNT)), 0) AS TXN_AMOUNT
+        FROM TBL_TVM_ORDER_TOPUP
+        WHERE STATUS = '1'
+          AND CREATE_TIME &gt;= #{windowStart,jdbcType=VARCHAR}
+          AND CREATE_TIME &lt; #{windowEnd,jdbcType=VARCHAR}
+        GROUP BY REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', ''), DEVICE_ID, CHANNEL
+        ORDER BY REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', ''), DEVICE_ID, CHANNEL
+    </select>
+
+    <!--
+      TBL_TVM_APP_ORDER：成功状态列是 PAY_STATUS（不是 STATUS）；DDL 里没有 DEVICE_ID
+      （resultMap 有、DDL 无），因此不引用，设备编号段由 Java 补空串。
+      窗口过滤仍用 CREATE_TIME 而不是 PAY_TIME：窗口列与分组列 MUST 同源，
+      混用会让同一笔在相邻两天的窗口里重复或漏掉。
+    -->
+    <select id="selectAppOrderPaySummary" resultType="java.util.Map">
+        SELECT
+            REPLACE(SUBSTR(T.CREATE_TIME, 1, 10), '-', '') AS TXN_DATE,
+            T.IN_STATION_CODE,
+            T.PAY_CHANNEL_CODE,
+            COUNT(*) AS TXN_COUNT,
+            NVL(SUM(TO_NUMBER(T.PAY_AMOUNT)), 0) AS TXN_AMOUNT
+        FROM TBL_TVM_APP_ORDER T
+        WHERE T.PAY_STATUS = '1'
+          AND T.CREATE_TIME &gt;= #{windowStart,jdbcType=VARCHAR}
+          AND T.CREATE_TIME &lt; #{windowEnd,jdbcType=VARCHAR}
+        GROUP BY REPLACE(SUBSTR(T.CREATE_TIME, 1, 10), '-', ''),
+                 T.IN_STATION_CODE, T.PAY_CHANNEL_CODE
+        ORDER BY REPLACE(SUBSTR(T.CREATE_TIME, 1, 10), '-', ''),
+                 T.IN_STATION_CODE, T.PAY_CHANNEL_CODE
+    </select>
+
+    <!--
+      TBL_BOM_ORDER_PAY：整表计入「BOM/TVM 发售」组，刻意不按 TRANS_TYPE 拆分购票与充值。
+      三处证据互相矛盾，无法得出可靠取值：
+        entity/BomNoCashOrder.java 第 19 至 31 行的注释清单里没有「购票 / 发售」这一项，
+          只有 02 超时更新、03 超程更新、04 未出站、05 无入站、06 退卡退票、22 充值、
+          2A 黑名单锁定、2B 锁定解除、42 行政处理；
+        constant/BomBusinessCodeEnum.java 第 4 至 5 行是 SALE("01","充值") 与 TOPUP("22","充值")，
+          两个枚举的中文描述都写成「充值」；
+        service/impl/BomOrderServiceImpl.java 第 950 行 BOM 发售建单硬编码 setTransType("01")，
+          与上面那份不含发售的注释清单直接冲突。
+      并且 TRANS_TYPE 有一条来源是设备上送（BomOrderServiceImpl 第 931 行取自请求体），
+      库里必然还有既非购票也非充值的行。凭猜写取值会把账挂到错误分组，宁可整表归一组并标注。
+      甲方给出判据后再拆，届时 MUST 同步改本 select 与 ReconExportService。
+      金额列名是 TRANS_AOUNT，DDL 原文就少一个 M，NEVER 顺手改成 TRANS_AMOUNT。
+
+      本表无车站号列（只有 DEVICE_ID），因此线路段（ITP.PAY 第 2 段）与车站段只能都留空，
+      待甲方补数据源（例如要求 BOM 报文上送车站码）或明确接受空值。
+      NEVER 拿 DEVICE_ID 去猜车站或线路。
+    -->
+    <select id="selectBomPayPaySummary" resultType="java.util.Map">
+        SELECT
+            REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', '') AS TXN_DATE,
+            DEVICE_ID,
+            CHANNEL,
+            COUNT(*) AS TXN_COUNT,
+            NVL(SUM(TO_NUMBER(TRANS_AOUNT)), 0) AS TXN_AMOUNT
+        FROM TBL_BOM_ORDER_PAY
+        WHERE STATUS = '1'
+          AND CREATE_TIME &gt;= #{windowStart,jdbcType=VARCHAR}
+          AND CREATE_TIME &lt; #{windowEnd,jdbcType=VARCHAR}
+        GROUP BY REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', ''), DEVICE_ID, CHANNEL
+        ORDER BY REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', ''), DEVICE_ID, CHANNEL
+    </select>
+
+    <!--
+      ITP.BUS 商业优惠汇总，甲方规格只有 4 段：日期 | 对账金额 | 付款金额 | 优惠金额。
+      键只有日期一段，所以这四条 select 只按日期分组，NEVER 再带车站 / 设备 / 票种
+      （多带一段会让 recon-server 按 1 段键聚合时把维度信息当成度量列错位读取）。
+      对账金额与付款金额都取该表金额列之和；优惠金额本模块恒 0
+      ——四张表的 DDL（collect-pay-server/sql.txt）里都没有任何优惠 / 折扣金额列，
+      已逐表核对：TBL_TVM_ORDER_PAY、TBL_TVM_ORDER_TOPUP、TBL_TVM_APP_ORDER、TBL_BOM_ORDER_PAY
+      均无该列，因此优惠段由 Java 侧写字面 0，NEVER 拿票价与实付之差去推算。
+      四条 select 的结果会依次写入同一个 BUS sink，同一天出现多行是允许的，
+      recon-server 按 1 段键做二次聚合累加。
+    -->
+    <select id="selectTvmPayBusSummary" resultType="java.util.Map">
+        SELECT
+            REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', '') AS TXN_DATE,
+            NVL(SUM(TO_NUMBER(TOTAL_PRICE)), 0) AS TXN_AMOUNT
+        FROM TBL_TVM_ORDER_PAY
+        WHERE STATUS = '1'
+          AND CREATE_TIME &gt;= #{windowStart,jdbcType=VARCHAR}
+          AND CREATE_TIME &lt; #{windowEnd,jdbcType=VARCHAR}
+        GROUP BY REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', '')
+        ORDER BY REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', '')
+    </select>
+
+    <select id="selectTvmTopupBusSummary" resultType="java.util.Map">
+        SELECT
+            REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', '') AS TXN_DATE,
+            NVL(SUM(TO_NUMBER(TRANS_AMOUNT)), 0) AS TXN_AMOUNT
+        FROM TBL_TVM_ORDER_TOPUP
+        WHERE STATUS = '1'
+          AND CREATE_TIME &gt;= #{windowStart,jdbcType=VARCHAR}
+          AND CREATE_TIME &lt; #{windowEnd,jdbcType=VARCHAR}
+        GROUP BY REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', '')
+        ORDER BY REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', '')
+    </select>
+
+    <select id="selectAppOrderBusSummary" resultType="java.util.Map">
+        SELECT
+            REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', '') AS TXN_DATE,
+            NVL(SUM(TO_NUMBER(PAY_AMOUNT)), 0) AS TXN_AMOUNT
+        FROM TBL_TVM_APP_ORDER
+        WHERE PAY_STATUS = '1'
+          AND CREATE_TIME &gt;= #{windowStart,jdbcType=VARCHAR}
+          AND CREATE_TIME &lt; #{windowEnd,jdbcType=VARCHAR}
+        GROUP BY REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', '')
+        ORDER BY REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', '')
+    </select>
+
+    <select id="selectBomPayBusSummary" resultType="java.util.Map">
+        SELECT
+            REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', '') AS TXN_DATE,
+            NVL(SUM(TO_NUMBER(TRANS_AOUNT)), 0) AS TXN_AMOUNT
+        FROM TBL_BOM_ORDER_PAY
+        WHERE STATUS = '1'
+          AND CREATE_TIME &gt;= #{windowStart,jdbcType=VARCHAR}
+          AND CREATE_TIME &lt; #{windowEnd,jdbcType=VARCHAR}
+        GROUP BY REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', '')
+        ORDER BY REPLACE(SUBSTR(CREATE_TIME, 1, 10), '-', '')
+    </select>
+</mapper>

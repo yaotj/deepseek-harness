@@ -44,4 +44,20 @@ public interface AppRefundOrderMapper {
      * @return 影响的行数
      */
     int updateByRefundNo(Map<String, String> params);
+
+    /**
+     * 汇总某笔支付订单**已退款成功**的金额合计（单位：分）。
+     *
+     * <p>只统计 {@code REFUND_STATUS='1'} 的行 —— 失败（2）与退款中（0）都不占额度。
+     * 唯一用途是算「可退余额 = 支付金额 - 本方法返回值」，给指定金额退款做超退闸门。</p>
+     *
+     * <p>⚠️ {@code REFUND_AMOUNT} 是 {@code VARCHAR2}，库里存在非数字与量级写错的历史脏值
+     * （2026-09-14 实测 BOM 侧有 {@code '0'}、也有付 1 分却记 300 的行），因此 SQL 内按
+     * {@code REGEXP_LIKE} 只取纯数字行。**NEVER 去掉那个过滤** —— {@code TO_NUMBER} 一旦
+     * 撞到脏值就抛 {@code ORA-01722}，整个退款请求会连「留证据」的落库一起失败。</p>
+     *
+     * @param payOrderNo 原支付订单号
+     * @return 已成功退款金额合计（分），无成功退款时返回 0
+     */
+    long sumSuccessRefundAmount(String payOrderNo);
 }

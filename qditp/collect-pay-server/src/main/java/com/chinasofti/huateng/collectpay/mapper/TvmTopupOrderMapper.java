@@ -4,6 +4,7 @@ import com.chinasofti.huateng.collectpay.entity.TvmTopupOrder;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.util.List;
 import java.util.Map;
 
 @Mapper
@@ -26,4 +27,6 @@ public interface TvmTopupOrderMapper {
     int insertNotiy(Map<String, String> params);
 
     int insertFailtNotiy(Map<String, String> params);
+
+    List<TvmTopupOrder> selectByCondition(Map<String, String> params);
 }

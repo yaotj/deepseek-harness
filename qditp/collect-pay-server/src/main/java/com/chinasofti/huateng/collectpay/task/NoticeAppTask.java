@@ -8,11 +8,14 @@ import com.chinasofti.huateng.collectpay.mapper.TvmNoticeAppMapper;
 import com.chinasofti.huateng.collectpay.service.AppOrderService;
 import com.chinasofti.huateng.collectpay.service.TvmCommonService;
 import com.chinasofti.huateng.collectpay.service.TvmOrderService;
+import com.chinasofti.huateng.common.response.CommonResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 
 import java.util.HashMap;
 import java.util.List;
@@ -23,6 +26,7 @@ import java.util.Map;
  */
 @Component
 @Slf4j
+@RequestMapping("/pay/noticeAppTask")
 public class NoticeAppTask {
 
     @Autowired
@@ -36,10 +40,19 @@ public class NoticeAppTask {
     @Autowired
     Environment environment;
 
+    @PostMapping("/testtbNoticeAppTask")
+    public CommonResult testtbNoticeAppTask() {
+        log.info("收到由 web-server Quartz 定时任务发起的调用 testtbNoticeAppTask 接口");
+        CommonResult response = new CommonResult();
+        response.setRetCode("0000");
+        response.setRetMsg("调用成功");
+        return response;
+    }
+
     /**
      * 扫码取票接口 通知app出票结果
      */
-    @Scheduled(cron = "${doTime.noticeTakeTicketTask}")
+    @PostMapping("/noticeTakeTicketTask")
     public void noticeTakeTicketTask() {
 
         log.info("定时任务开始执行 通知app出票结果");
@@ -65,7 +78,7 @@ public class NoticeAppTask {
     /**
      * 扫码取票接口 通知app出票故障结果
      */
-    @Scheduled(cron = "${doTime.noticeTakeTicketFailureTask}")
+    @PostMapping("/noticeTakeTicketFailureTask")
     public void noticeTakeTicketFailureTask() {
 
         log.info("定时任务开始执行 通知app出票故障结果");
@@ -90,7 +103,7 @@ public class NoticeAppTask {
     /**
      * 扫码取票接口 通知app退款结果
      */
-    @Scheduled(cron = "${doTime.noticeRefundTask}")
+    @PostMapping("/noticeRefundTask")
     public void noticeRefundTask() {
 
         log.info("定时任务开始执行 通知app退款结果");

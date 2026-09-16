@@ -8,11 +8,13 @@ import com.chinasofti.huateng.dailyticket.mapper.DailyTicketInstanceMapper;
 import com.chinasofti.huateng.dailyticket.mapper.DailyTicketOrderMapper;
 import com.chinasofti.huateng.dailyticket.mapper.DailyTicketPayLogMapper;
 import com.chinasofti.huateng.dailyticket.mapper.DailyTicketRefundMapper;
+import com.chinasofti.huateng.dailyticket.mapper.DailyTicketUsageLogMapper;
 import com.chinasofti.huateng.dailyticket.mapper.TravelTicketOrderMapper;
 import com.chinasofti.huateng.dailyticket.model.DailyTicketInstance;
 import com.chinasofti.huateng.dailyticket.model.DailyTicketOrder;
 import com.chinasofti.huateng.dailyticket.model.DailyTicketPayLog;
 import com.chinasofti.huateng.dailyticket.model.DailyTicketRefund;
+import com.chinasofti.huateng.dailyticket.model.DailyTicketUsageLog;
 import com.chinasofti.huateng.dailyticket.model.TravelTicketOrder;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderQuery;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderView;
@@ -36,6 +38,8 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult;
+import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketPayInfoReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketPayInfoResult;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderResult;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketSubOrder;
@@ -100,6 +104,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
     private final DailyTicketInstanceMapper instanceMapper;
     private final DailyTicketPayLogMapper payLogMapper;
     private final DailyTicketRefundMapper refundMapper;
+    private final DailyTicketUsageLogMapper usageLogMapper;
 
     public DailyTicketServiceImpl(DailyTicketPayGatewayClient payGatewayClient,
                                   DailyTicketPayProperties payProperties,
@@ -107,7 +112,8 @@ public class DailyTicketServiceImpl implements DailyTicketService {
                                   TravelTicketOrderMapper travelOrderMapper,
                                   DailyTicketInstanceMapper instanceMapper,
                                   DailyTicketPayLogMapper payLogMapper,
-                                  DailyTicketRefundMapper refundMapper) {
+                                  DailyTicketRefundMapper refundMapper,
+                                  DailyTicketUsageLogMapper usageLogMapper) {
         this.payGatewayClient = payGatewayClient;
         this.payProperties = payProperties;
         this.orderMapper = orderMapper;
@@ -115,6 +121,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         this.instanceMapper = instanceMapper;
         this.payLogMapper = payLogMapper;
         this.refundMapper = refundMapper;
+        this.usageLogMapper = usageLogMapper;
     }
 
     /**
@@ -505,6 +512,67 @@ public class DailyTicketServiceImpl implements DailyTicketService {
     }
 
     @Override
+    public DailyTicketRefundResult resubmitRefundTicket(DailyTicketOrderNoReqDTO request) {
+        DailyTicketRefundResult result = new DailyTicketRefundResult();
+        String validMsg = validateOrderNo(request == null ? null : request.getOrderNo(), request == null ? null : request.getOrderType());
+        if (validMsg != null) {
+            return fail(result, validMsg);
+        }
+        DailyTicketOrder order = orderMapper.selectByOrderNo(request.getOrderNo());
+        DailyTicketRefund refund = refundMapper.selectByOrderNo(request.getOrderNo());
+        if (order == null || refund == null) {
+            return fail(result, "退款记录不存在");
+        }
+        // 白名单：只有这三种前置状态才可能出现「支付平台从未受理」，其余状态一律按已有结果返回。
+        String refundStatus = refund.getRefundStatus();
+        if (!"REFUNDING".equals(refundStatus) && !"FAILED".equals(refundStatus) && !"WAIT_VERIFY".equals(refundStatus)) {
+            return buildExistingRefundResult(result, refund);
+        }
+        // 核验退款只在观察期满后才允许转支付平台，观察期内仍按原设计等核销。
+        if ("WAIT_VERIFY".equals(refundStatus)
+                && refund.getVerifyAfterTime() != null
+                && refund.getVerifyAfterTime().after(new Date())) {
+            return fail(result, "核验退款观察期未满，不允许重提交");
+        }
+        // 本方法的唯一判据：对端从未受理。先按历史网关响应尝试恢复，恢复到了说明对端建过退款单，应走重试而不是重提交。
+        restorePlatformRefundNoFromPayLog(order.getOrderNo(), refund);
+        if (StringUtils.hasText(refund.getPlatformRefundNo())) {
+            return fail(result, "支付平台已受理该退款单，请走退款结果查询或退款重试");
+        }
+        if (!StringUtils.hasText(order.getPaymentOrderNo())) {
+            return fail(result, "原支付订单号缺失，不允许退款");
+        }
+
+        // 沿用原退款单号重发，支付平台按 refundOrderNo 保证外部幂等，不会重复退款。
+        Map<String, Object> resubmitRequest = buildDailyTicketRefundRequest(order, refund);
+        log.info("日票服务准备重提交支付网关退款接口 orderNo={}, refundOrderNo={}, refundStatus={}, request={}",
+                order.getOrderNo(), refund.getRefundOrderNo(), refundStatus, JSON.toJSONString(resubmitRequest));
+        DailyTicketPayGatewayResponse resubmitResponse = payGatewayClient.requestRefund(resubmitRequest);
+        log.info("日票服务重提交支付网关退款接口完成 orderNo={}, response={}",
+                order.getOrderNo(), JSON.toJSONString(resubmitResponse));
+        insertPayLog(order.getOrderNo(), "REFUND_RESUBMIT", order.getPayChannelCode(), resubmitRequest, resubmitResponse);
+        if (!isGatewaySuccess(resubmitResponse)) {
+            return fail(result, resubmitResponse == null ? "退款重提交调用失败" : resubmitResponse.getMsg());
+        }
+
+        // 与首次退款一致：网关同步给出退款时间即落终态，否则保留处理中等结果查询。
+        String refundTime = resubmitResponse.getData() == null ? null
+                : stringValue(resubmitResponse.getData().get("refundTime"), null);
+        if (StringUtils.hasText(refundTime)) {
+            markRefunded(order, refund, resubmitResponse.getData());
+            return buildExistingRefundResult(result, refund);
+        }
+        updatePlatformRefundNo(refund, resubmitResponse.getData());
+        markRefunding(order, refund);
+        result.setRefundType(refund.getRefundType());
+        result.setOrderNo(refund.getRefundOrderNo());
+        result.setRefundAmount(String.valueOf(refund.getRefundAmount() == null ? 0 : refund.getRefundAmount()));
+        result.setRefundResult("PROCESSING");
+        result.setRefundResultDesc("退款重提交已提交，请查询退款结果");
+        return success(result);
+    }
+
+    @Override
     public ResultVO<PageInfo<DailyTicketRefundOrderView>> pageRefundOrders(DailyTicketRefundOrderQuery query) {
         DailyTicketRefundOrderQuery safeQuery = query == null ? new DailyTicketRefundOrderQuery() : query;
         // 统一收敛分页参数，避免无效页码和超大页造成数据库压力。
@@ -681,6 +749,42 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return result;
     }
 
+    /**
+     * 按票号查日票的购票支付信息，供 IF8A-34 / IF8A-05 交易详情填充三个支付字段。
+     *
+     * <p>链路是 {@code TICKET_CODE -> DAILY_TICKET_INSTANCE.ORDER_NO -> DAILY_TICKET_ORDER}：
+     * 日票过闸不产生 {@code PAY_TXN_DETAIL}（免扣费），所以详情里的支付字段只能回溯到购票那一笔订单。</p>
+     *
+     * <p><b>查不到时 MUST 返回 {@code 0000} + 三个字段为 null，NEVER 返失败码</b>——调用方
+     * {@code TransDetailQueryHandler} 是交易详情主链路，这里报错会把整条详情打挂；而「这张卡的这笔
+     * 过闸不是日票」本身是完全正常的情形。</p>
+     */
+    @Override
+    public QueryDailyTicketPayInfoResult queryDailyTicketPayInfo(QueryDailyTicketPayInfoReqDTO request) {
+        QueryDailyTicketPayInfoResult result = new QueryDailyTicketPayInfoResult();
+        if (request == null || !StringUtils.hasText(request.getTicketCode())) {
+            return fail(result, "ticketCode不能为空");
+        }
+        DailyTicketInstance instance = instanceMapper.selectByTicketCode(request.getTicketCode());
+        if (instance == null || !StringUtils.hasText(instance.getOrderNo())) {
+            log.info("日票支付信息查询：无日票实例, ticketCode={}", request.getTicketCode());
+            return success(result);
+        }
+        DailyTicketOrder order = orderMapper.selectByOrderNo(instance.getOrderNo());
+        if (order == null) {
+            log.warn("日票支付信息查询：实例存在但订单缺失, ticketCode={}, orderNo={}",
+                    request.getTicketCode(), instance.getOrderNo());
+            return success(result);
+        }
+        result.setPayTradeOrderNo(order.getTradeNo());
+        result.setPayChannelCode(order.getPayChannelCode());
+        // payOrderNoDate 是「购票付款时刻」而不是本次过闸时刻，长周期票会显示成很早的时间，属有意为之
+        result.setPayOrderNoDate(order.getPayDate() == null
+                ? null
+                : new SimpleDateFormat("yyyyMMddHHmmss").format(order.getPayDate()));
+        return success(result);
+    }
+
     @Override
     public DailyTicketBaseResult validateEntryCheck(String cardNum) {
         DailyTicketBaseResult result = new DailyTicketBaseResult();
@@ -729,6 +833,12 @@ public class DailyTicketServiceImpl implements DailyTicketService {
      */
     @Override
     public DailyTicketBaseResult markUsed(String cardNum, Long countingEnd) {
+        return markUsed(cardNum, countingEnd, null, null, null);
+    }
+
+    @Override
+    public DailyTicketBaseResult markUsed(String cardNum, Long countingEnd,
+                                          String orderNo, String inStation, String outStation) {
         DailyTicketBaseResult result = new DailyTicketBaseResult();
         if (!StringUtils.hasText(cardNum)) {
             return fail(result, "cardNum不能为空");
@@ -755,9 +865,70 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         instance.setAccNoticeTime(now);
         instance.setUpdateTime(now);
         instanceMapper.markUsed(instance);
-        log.info("日票出站处理完成, cardNum={}, ticketStatus={}, 剩余次数={}, countingEnd={}",
-                cardNum, nextStatus, remainTimes, instance.getCountingEnd());
+
+        // INSERT 扣次明细（UK_DTUL_ORDER 做幂等，重推不多扣）
+        // daily-ticket-server 已开 tracing，DuplicateKeyException 可能被切面包一层 RuntimeException，
+        // 因此用 cause 链判定而非直接 catch DuplicateKeyException
+        insertUsageLog(cardNum, orderNo, inStation, outStation, actualTimes, remainTimes, nextStatus);
+
+        log.info("日票出站处理完成, cardNum={}, ticketStatus={}, 剩余次数={}, countingEnd={}, orderNo={}",
+                cardNum, nextStatus, remainTimes, instance.getCountingEnd(), orderNo);
         return success(result);
+    }
+
+    /**
+     * INSERT 扣次明细，UK_DTUL_ORDER 做幂等。
+     * daily-ticket-server 已开 tracing，切面可能把异常包一层，所以沿 cause 链判定。
+     * 明细落库失败不中断出站流程，只记 ERROR 留证据。
+     */
+    private void insertUsageLog(String cardNum, String orderNo, String inStation,
+                                String outStation, Integer timesBefore, int timesAfter,
+                                String ticketStatus) {
+        try {
+            DailyTicketUsageLog usageLog = new DailyTicketUsageLog();
+            usageLog.setCardNum(cardNum);
+            usageLog.setOrderNo(orderNo);
+            usageLog.setTxnDate(new SimpleDateFormat("yyyyMMdd").format(new Date()));
+            usageLog.setInStation(inStation);
+            usageLog.setOutStation(outStation);
+            usageLog.setTimesBefore(timesBefore);
+            usageLog.setTimesAfter(timesAfter);
+            usageLog.setTicketStatus(ticketStatus);
+            usageLogMapper.insert(usageLog);
+            log.info("日票扣次明细已记录, cardNum={}, orderNo={}, timesBefore={}, timesAfter={}",
+                    cardNum, orderNo, timesBefore, timesAfter);
+        } catch (Exception e) {
+            if (isIntegrityViolation(e)) {
+                log.info("日票扣次明细重复插入（幂等命中）, cardNum={}, orderNo={}", cardNum, orderNo);
+            } else {
+                log.error("日票扣次明细插入失败, cardNum={}, orderNo={}", cardNum, orderNo, e);
+            }
+        }
+    }
+
+    /** 沿 cause 链判定是否为唯一索引冲突（兼容 tracing 切面包装）。 */
+    private static boolean isIntegrityViolation(Throwable t) {
+        for (Throwable cur = t; cur != null; cur = cur.getCause()) {
+            if (cur instanceof org.springframework.dao.DuplicateKeyException
+                    || cur instanceof org.springframework.dao.DataIntegrityViolationException) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public DailyTicketBaseResult queryUsageLog(String cardNum) {
+        DailyTicketBaseResult result = new DailyTicketBaseResult();
+        if (!StringUtils.hasText(cardNum)) {
+            return fail(result, "cardNum不能为空");
+        }
+        List<DailyTicketUsageLog> logs = usageLogMapper.selectByCardNum(cardNum);
+        result.setRetCode(RET_SUCCESS);
+        result.setRetMsg("成功，共" + logs.size() + "条");
+        result.setData(logs);
+        log.info("查询日票扣次明细完成, cardNum={}, count={}", cardNum, logs.size());
+        return result;
     }
 
     private void markPaySuccess(DailyTicketOrder order, String tradeNo, String paymentOrderNo,

@@ -23,6 +23,10 @@ import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.Map;
+
 
 /**
  * TVM扫码购票接口控制器。
@@ -50,7 +54,6 @@ public class TvmOrderController {
      */
     @PostMapping("/notiDeviceHeard")
     public JSONObject notiDeviceHeard(@ModelAttribute BaseRequestDTO baseRequest) {
-        log.info("设备心跳检测, baseRequest={}", baseRequest);
         return TvmOrderResult.success();
     }
 
@@ -314,13 +317,26 @@ public class TvmOrderController {
         return tvmOrderPreService.requestPayOrderDetail(request);
     }
 
+
     /**
      * 支付结果通知
      */
     @PostMapping("/payNotice")
-    public JSONObject payNotice(@ModelAttribute PayCenterBaseRequestDTO baseRequest) {
+    public JSONObject payNotice(@RequestBody PayCenterBaseRequestDTO baseRequest) {
 
         log.info("支付中心 支付回调开始, baseRequest={}", baseRequest);
+
+        Map<String, Object> bizDataMap = decodeData(baseRequest.getBizData());
+
+        log.info("bizDataMap is {}",bizDataMap);
+
+        String bizData = JSON.toJSONString(bizDataMap);
+
+        log.info("bizData is {}",bizData);
+
+        baseRequest.setBizData(bizData);
+
+        log.info("处理后 baseRequest is {}",baseRequest);
 
         PayNoticeReqDTO request = TransforUtils.paycentercopyBaseParams(baseRequest, PayNoticeReqDTO.class);
 
@@ -333,6 +349,17 @@ public class TvmOrderController {
         }
 
         return tvmOrderPreService.payNotice(request);
+    }
+
+    private static Map<String, Object> decodeData(String base64Data) {
+        try {
+            byte[] decodedBytes = Base64.getDecoder().decode(base64Data);
+            String json = new String(decodedBytes, StandardCharsets.UTF_8);
+            return JSON.parseObject(json, Map.class);
+        } catch (Exception e) {
+            log.error("Base64解码响应数据异常", e);
+            return null;
+        }
     }
 
     /**

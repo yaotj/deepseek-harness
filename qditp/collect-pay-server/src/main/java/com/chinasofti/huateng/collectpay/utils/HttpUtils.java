@@ -2,7 +2,7 @@ package com.chinasofti.huateng.collectpay.utils;
 
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.serializer.SerializerFeature;
-import com.chinasofti.huateng.collectpay.model.request.AppCommonRequest;
+import com.chinasofti.huateng.model.app.ItpCommonRequest;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
@@ -74,7 +74,7 @@ public class HttpUtils {
     /**
      * 按 APP 接口协议发送 multipart/form-data 报文，业务字段以 JSON 字符串放入 bizData。
      */
-    public String doPostFormData(String url, AppCommonRequest<?> request) {
+    public String doPostFormData(String url, ItpCommonRequest<?> request) {
         String bizData = JSONObject.toJSONString(request.getBizData(), SerializerFeature.WriteMapNullValue);
         RequestBody requestBody = new MultipartBody.Builder()
                 .setType(MultipartBody.FORM)

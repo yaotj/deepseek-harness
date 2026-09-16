@@ -15,11 +15,16 @@ import java.util.Date;
 @Slf4j
 public class DateUtils {
 
-    public String getTime(int c, String format) {
+    public static String getTime(int c, String format) {
         Calendar cal = Calendar.getInstance();
         cal.add(Calendar.DATE, c);
         return new SimpleDateFormat(format).format(cal.getTime());
     }
+
+//    public static void main(String[] args) {
+//        String s = getTime(-1, "yyyy-MM-dd") + " 00:00:00";
+//        System.out.println(s);
+//    }
 
     /**
      * @return yyyy-MM-dd HH:mm:ss

@@ -9,7 +9,7 @@ import com.chinasofti.huateng.collectpay.config.PayCenterProperties;
 import com.chinasofti.huateng.collectpay.constant.*;
 import com.chinasofti.huateng.collectpay.entity.*;
 import com.chinasofti.huateng.collectpay.mapper.*;
-import com.chinasofti.huateng.collectpay.model.request.AppCommonRequest;
+import com.chinasofti.huateng.model.app.ItpCommonRequest;
 import com.chinasofti.huateng.collectpay.model.request.PayCenterRequest;
 import com.chinasofti.huateng.collectpay.model.request.app.NoticeAppTakeTicketDTO;
 import com.chinasofti.huateng.collectpay.model.request.app.NoticeAppTakeTicketFailureDTO;
@@ -474,7 +474,7 @@ public class TvmOrderServiceImpl implements TvmOrderService {
         String noticeAppTakeTicketResultUrl = environment.getProperty("pay.center.notice-app-taketicketresult-url");
 
         log.info("noticeAppTakeTicketResultUrl is {}", noticeAppTakeTicketResultUrl);
-        AppCommonRequest<NoticeAppTakeTicketDTO> request = payCenterCommon.buildNoticeAppTakeTicketResultRequest(payOrderNo, orderTicketNum, actualTakeTicketNum, takeTickeDate);
+        ItpCommonRequest<NoticeAppTakeTicketDTO> request = payCenterCommon.buildNoticeAppTakeTicketResultRequest(payOrderNo, orderTicketNum, actualTakeTicketNum, takeTickeDate);
         String httpResult = httpUtils.doPostFormData(noticeAppTakeTicketResultUrl, request);
 
         log.info("请求结束 httpResult is {}", httpResult);
@@ -539,7 +539,7 @@ public class TvmOrderServiceImpl implements TvmOrderService {
         String taketicketfailureresultUrl = environment.getProperty("pay.center.notice-app-taketicketfailureresult-url");
 
         log.info("出票故障 taketicketfailureresultUrl is {}", taketicketfailureresultUrl);
-        AppCommonRequest<NoticeAppTakeTicketFailureDTO> request = payCenterCommon.buildNoticeAppTakeTicketFailureResultRequest(payOrderNo, orderTicketNum, actualTakeTicketNum, takeTickeDate,takeTiketFaultReason,refundAmount);
+        ItpCommonRequest<NoticeAppTakeTicketFailureDTO> request = payCenterCommon.buildNoticeAppTakeTicketFailureResultRequest(payOrderNo, orderTicketNum, actualTakeTicketNum, takeTickeDate,takeTiketFaultReason,refundAmount);
         String httpResult = httpUtils.doPostFormData(taketicketfailureresultUrl, request);
 
         log.info("出票故障 请求结束 httpResult is {}", httpResult);

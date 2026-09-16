@@ -51,6 +51,8 @@
         <result column="PAY_TYPE" property="payType"/>
         <result column="IN_STATION_CODE" property="inStationCode"/>
         <result column="OUT_STATION_CODE" property="outStationCode"/>
+        <result column="IN_STATION_NAME" property="inStationName"/>
+        <result column="OUT_STATION_NAME" property="outStationName"/>
         <result column="TICKET_PRICE" property="ticketPrice"/>
         <result column="TICKET_NUM" property="ticketNum"/>
         <result column="TOTAL_PRICE" property="totalPrice"/>
@@ -94,7 +96,7 @@
 
     <select id="selectFacePayOrderPage" resultMap="FacePayOrderPageResultMap">
         <bind name="offsetEnd" value="offset + limit" />
-        SELECT *
+        SELECT page.*, inSi.STATION_NAME AS IN_STATION_NAME, outSi.STATION_NAME AS OUT_STATION_NAME
         FROM (
             SELECT
                 ORDER_NO, PAYCENTER_ORDERNO, PAYCENTER_CHANNELORDERNO, STATUS, MSG, CHANNEL, PAY_TYPE,
@@ -103,8 +105,10 @@
                 ROW_NUMBER() OVER (ORDER BY CREATE_TIME DESC, ORDER_NO DESC) AS rn
             FROM TBL_TVM_ORDER_PAY
             <include refid="FacePayOrderWhere"/>
-        )
-        WHERE rn &gt; #{offset} AND rn &lt;= #{offsetEnd}
+        ) page
+        LEFT JOIN STATION_INFO inSi ON inSi.STATION_CODE = page.IN_STATION_CODE
+        LEFT JOIN STATION_INFO outSi ON outSi.STATION_CODE = page.OUT_STATION_CODE
+        WHERE page.rn &gt; #{offset} AND page.rn &lt;= #{offsetEnd}
     </select>
 
     <select id="countFacePayOrderPage" resultType="java.lang.Integer">

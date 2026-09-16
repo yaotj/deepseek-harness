@@ -1,6 +1,7 @@
 package com.chinasofti.huateng;
 
 import com.chinasofti.huateng.rpc.EnableRpcAccount;
+import com.chinasofti.huateng.rpc.EnableRpcRecon;
 import com.chinasofti.huateng.rpc.EnableRpcTicket;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -12,6 +13,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableConfigurationProperties
 @EnableRpcTicket
 @EnableRpcAccount
+@EnableRpcRecon
 public class CollectPayServer {
     public static void main(String[] args) {
         SpringApplication.run(CollectPayServer.class, args);

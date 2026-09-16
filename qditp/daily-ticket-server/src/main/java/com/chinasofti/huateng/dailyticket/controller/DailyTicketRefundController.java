@@ -75,6 +75,29 @@ public class DailyTicketRefundController {
         return operateRefund(request, true);
     }
 
+    /**
+     * 重提交：支付平台从未受理过的退款单（{@code PLATFORM_REFUND_NO IS NULL}）重新发起退款。
+     *
+     * <p>与 {@code /retry} 不可互换：{@code /retry} 先查再重发，对端没建过退款单时
+     * {@code refundQuery} 永远查不到、只会返「支付平台退款单号缺失，无法执行双字段退款查询」，
+     * 那笔退款就永久卡死。本端点是那个死角的唯一出口，也是 {@code WAIT_VERIFY}
+     * 核验退款观察期满后的唯一出口（该状态在本模块内没有任何读取方）。</p>
+     *
+     * <p>⚠️ 与本控制器其余端点一致，**当前无鉴权**，与 AGENTS.md §5.2「新增状态变更型接口
+     * MUST 有鉴权与归属校验」冲突，属测试期临时降级；上线前 MUST 补验签或限定只能由内网
+     * web-admin 经 rpc 调用。也**不做幂等**：连调两次会向支付平台发两次请求（对端按
+     * {@code refundOrderNo} 幂等，不会重复退款，但会多两条 {@code DAILY_TICKET_PAY_LOG}）。</p>
+     */
+    @PostMapping("/resubmit")
+    public ResultVO<DailyTicketRefundResult> resubmitRefund(@RequestBody DailyTicketOrderNoReqDTO request) {
+        if (request == null || !StringUtils.hasText(request.getOrderNo())) {
+            return ResultMapper.illegalParams("日票订单号不能为空");
+        }
+        request.setOrderType(DAILY_TICKET_ORDER_TYPE);
+        DailyTicketRefundResult result = dailyTicketService.resubmitRefundTicket(request);
+        return "0000".equals(result.getRetCode()) ? ResultMapper.ok(result) : ResultMapper.error(result.getRetMsg());
+    }
+
     @GetMapping("/records")
     public ResultVO<PageInfo<DailyTicketRefundView>> pageRecords(DailyTicketRefundQuery query) {
         // 退款记录的日期条件作用于退款申请创建时间。

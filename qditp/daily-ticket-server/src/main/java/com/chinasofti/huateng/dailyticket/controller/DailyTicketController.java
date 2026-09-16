@@ -14,6 +14,8 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult;
+import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketPayInfoReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketPayInfoResult;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderResult;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -116,6 +118,17 @@ public class DailyTicketController {
     }
 
     /**
+     * 按票号查日票购票支付信息（payTradeOrderNo、payOrderNoDate、payChannelCode）。
+     *
+     * <p>供 trans-query-server / ticket-server 的交易详情（IF8A-34 / IF8A-05）填充三个支付字段。
+     * <b>NEVER 合并进 {@code queryDailyTicketInfo}</b>——那条是闸机热路径，合并会让每次进站都 join 订单表。</p>
+     */
+    @PostMapping("/queryDailyTicketPayInfo")
+    public QueryDailyTicketPayInfoResult queryDailyTicketPayInfo(@RequestBody QueryDailyTicketPayInfoReqDTO request) {
+        return dailyTicketService.queryDailyTicketPayInfo(request);
+    }
+
+    /**
      * 日票进站校验（闸机入口调用）。
      * 校验有效期、未完成出站、计次票次数（不扣减）。
      */
@@ -129,10 +142,8 @@ public class DailyTicketController {
      * 日票出站处理（闸机出站时调用）。
      * 扣减计次票次数（下限为0），推进票状态。
      *
-     * <p><b>{@code countingEnd} 允许为 null 且必须容忍 null</b>：ticket-server 出站不带有效期
-     * （{@code GateTicketHandler:188} 固定传 null），有效期由 APP 的 {@code updateAndNotice} 写入。
-     * 原实现对 null 直接 {@code .toString()}，导致出站 100% 抛 NPE、响应退化成全局异常处理器的 UUID
-     * {@code retCode}，日票实例永不更新、计次票永不扣次（2026-09-10 14:31 线上实测）。</p>
+     * <p>扩展参数 orderNo / inStation / outStation 用于记录扣次明细，
+     * 老调用方（不传这三个字段）仍兼容。</p>
      */
     @PostMapping("/ticket/markUsed")
     public DailyTicketBaseResult markUsed(@RequestBody java.util.Map<String, Object> request) {
@@ -144,6 +155,18 @@ public class DailyTicketController {
         } else if (rawCountingEnd != null && !rawCountingEnd.toString().isBlank()) {
             countingEnd = Long.valueOf(rawCountingEnd.toString().trim());
         }
-        return dailyTicketService.markUsed(cardNum, countingEnd);
+        String orderNo = request == null ? null : (String) request.get("orderNo");
+        String inStation = request == null ? null : (String) request.get("inStation");
+        String outStation = request == null ? null : (String) request.get("outStation");
+        return dailyTicketService.markUsed(cardNum, countingEnd, orderNo, inStation, outStation);
+    }
+
+    /**
+     * 查询日票扣次使用明细（按卡号，时间倒序）。
+     */
+    @PostMapping("/ticket/usageLog")
+    public DailyTicketBaseResult queryUsageLog(@RequestBody java.util.Map<String, String> request) {
+        String cardNum = request == null ? null : request.get("cardNum");
+        return dailyTicketService.queryUsageLog(cardNum);
     }
 }

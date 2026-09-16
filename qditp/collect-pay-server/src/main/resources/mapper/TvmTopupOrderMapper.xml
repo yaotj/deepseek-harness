@@ -115,4 +115,17 @@
         #{createTime,jdbcType=VARCHAR}
         )
     </insert>
+
+    <select id="selectByCondition" parameterType="map" resultMap="BaseResultMap">
+        select topup.ORDER_NO,topup.TRANS_AMOUNT from (
+        (select <include refid="Base_Column_List"/>
+        from TBL_TVM_ORDER_TOPUP
+        where STATUS = '1'
+        and rsv2 is null
+        and CREATE_TIME between #{startTime,jdbcType=VARCHAR} and #{endTime,jdbcType=VARCHAR}) app
+        left join
+        (select * from TBL_TVM_Topup_Notiy) notiy
+        on topup.ORDER_NO = notiy.ORDER_NO) where notiy.ORDER_NO is null
+    </select>
+
 </mapper>
