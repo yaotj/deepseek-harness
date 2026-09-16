@@ -3,7 +3,7 @@ package com.chinasofti.huateng.model.pay;
 import java.time.LocalDateTime;
 
 /**
- * 查询用户指定支付渠道在指定时间之后是否存在扣费失败订单。
+ * 查询用户指定支付渠道下是否存在未结清扣费订单。
  */
 public class GateTxnPayFailedOrderReqDTO {
 

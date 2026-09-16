@@ -29,8 +29,12 @@ public enum CardTypeCodeEnum {
     /** 七日票 */
     SEVEN_DAY("0447", "七日票"),
 
-    /** 月票 */
-    MONTHLY("0448", "月票"),
+    /**
+     * 多日计次票。
+     * <p>APP 侧上送 {@code 15}。与 0445~0447 的区别是按次扣减而非按时段有效，
+     * IF1A-01 返回的 {@code countingFlag} 为 {@code 2}（0445~0447 为 {@code 1}）。
+     */
+    COUNTING("0448", "多日计次票"),
 
     /** 爱山东 */
     AI_SHAN_DONG("044A", "爱山东"),
@@ -74,7 +78,7 @@ public enum CardTypeCodeEnum {
     }
 
     /**
-     * 判断是否为日票类型（0445 / 0446 / 0447 / 0448）。
+     * 判断是否为日票类型（0445 / 0446 / 0447 计时票，0448 计次票）。
      */
     public static boolean isDailyTicket(String cardType) {
         if (cardType == null) {
@@ -82,7 +86,7 @@ public enum CardTypeCodeEnum {
         }
         String normalized = cardType.trim();
         return ONE_DAY.code.equals(normalized) || THREE_DAY.code.equals(normalized)
-                || SEVEN_DAY.code.equals(normalized) || MONTHLY.code.equals(normalized);
+                || SEVEN_DAY.code.equals(normalized) || COUNTING.code.equals(normalized);
     }
 
     /**
@@ -95,7 +99,7 @@ public enum CardTypeCodeEnum {
         String normalized = cardType.trim();
         return EMPLOYEE.code.equals(normalized)
                 || ONE_DAY.code.equals(normalized) || THREE_DAY.code.equals(normalized)
-                || SEVEN_DAY.code.equals(normalized) || MONTHLY.code.equals(normalized)
+                || SEVEN_DAY.code.equals(normalized) || COUNTING.code.equals(normalized)
                 || AI_SHAN_DONG.code.equals(normalized);
     }
 

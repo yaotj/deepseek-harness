@@ -14,6 +14,11 @@ public class DailyTicketBaseResult {
      */
     private String retMsg;
 
+    /**
+     * 扩展数据（扣次明细查询等场景使用）。
+     */
+    private Object data;
+
     public String getRetCode() {
         return retCode;
     }
@@ -28,5 +33,13 @@ public class DailyTicketBaseResult {
 
     public void setRetMsg(String retMsg) {
         this.retMsg = retMsg;
+    }
+
+    public Object getData() {
+        return data;
+    }
+
+    public void setData(Object data) {
+        this.data = data;
     }
 }

@@ -14,6 +14,8 @@ public class RequestPayReqDTO {
     private String subject;
     private String body;
     private String requestSignSeq;
+    /** 钱包支付账户标识。钱包渠道不使用 requestSignSeq，改用该字段透传扣款主体。 */
+    private String payUserId;
     private String thirdUserId;
     private String cardId;
     private String cardType;
@@ -39,6 +41,16 @@ public class RequestPayReqDTO {
      * 优惠详情 JSON 数组，由 gate-txn-pay-server 透传。
      */
     private String discountInfo;
+
+    /**
+     * 交易日期 YYYYMMDD，由发起方（gate-txn-pay-server 取 GATE_TXN_PAY.TXN_DATE）透传。
+     *
+     * <p>用作 PAY_TXN_DETAIL 的月分区键，MUST 与行程侧同一 ORDER_NO 的 TXN_DATE 一致。
+     * 支付域自身取 LocalDateTime.now() 会在跨零点时与行程侧分叉（实测出站到落库最大滞后
+     * 94 分钟，即 22:26 之后出站即可能跨日），两表按 (ORDER_NO, TXN_DATE) 关联随即落空。
+     * 为空时支付侧回落到本地当日，仅作兼容旧调用方的兜底。</p>
+     */
+    private String txnDate;
 
     public String getOrderNo() {
         return orderNo;
@@ -102,6 +114,14 @@ public class RequestPayReqDTO {
 
     public void setRequestSignSeq(String requestSignSeq) {
         this.requestSignSeq = requestSignSeq;
+    }
+
+    public String getPayUserId() {
+        return payUserId;
+    }
+
+    public void setPayUserId(String payUserId) {
+        this.payUserId = payUserId;
     }
 
     public String getThirdUserId() {
@@ -188,6 +208,8 @@ public class RequestPayReqDTO {
     public void setDiscountFee(Integer discountFee) { this.discountFee = discountFee; }
     public String getDiscountInfo() { return discountInfo; }
     public void setDiscountInfo(String discountInfo) { this.discountInfo = discountInfo; }
+    public String getTxnDate() { return txnDate; }
+    public void setTxnDate(String txnDate) { this.txnDate = txnDate; }
 
     @Override
     public String toString() {
@@ -202,6 +224,7 @@ public class RequestPayReqDTO {
                 ", thirdUserId='" + thirdUserId + '\'' +
                 ", cardId='" + cardId + '\'' +
                 ", cardType='" + cardType + '\'' +
+                ", txnDate='" + txnDate + '\'' +
                 '}';
     }
 }

@@ -4,6 +4,8 @@ import cn.hutool.core.lang.TypeReference;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.chinasofti.huateng.micro.web.client.ProxyWebClient;
+import com.chinasofti.huateng.model.alipaytrip.AlipayProcessTerminationReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayProcessTerminationRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripAddContractReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripAddContractRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripCloseResultReqDTO;
@@ -19,6 +21,8 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayTripTerminateContractRespDT
 import com.chinasofti.huateng.model.alipaytrip.AlipaySignInfoDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayPayLogDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayBlackListNotifyReqDTO;
+import com.chinasofti.huateng.model.app.CardUnsettledQueryReqDTO;
+import com.chinasofti.huateng.model.app.CardUnsettledQueryRespDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -145,6 +149,34 @@ public class AlipayPaySignClient extends ProxyWebClient {
     }
 
     /**
+     * 支付宝出行-销卡批处理。
+     *
+     * <p>服务端单次只处理一批（上限 200 条），调用方 **MUST** 反复调用直到 {@code scanned} 为 0
+     * 才算排空；**MUST** 先检查 {@code resultCode}（本方法不抛业务异常），返回 null 说明 HTTP 层就没通。</p>
+     */
+    public AlipayProcessTerminationRespDTO processAlipayTermination(@RequestBody AlipayProcessTerminationReqDTO request) {
+        return processAlipayTermination(request, java.util.Collections.emptyMap());
+    }
+
+    /**
+     * 支付宝出行-销卡批处理（带 trace 头）。
+     *
+     * <p>供 web-admin 的 Quartz 任务调用，口径与 {@code PaySignClient.processTermination} 一致：
+     * headers 由 {@code QuartzTraceUtils.traceHeaders} 生成（W3C {@code traceparent} +
+     * {@code X-Vlogs-Capture}）。**NEVER 传自定义 {@code traceId} 头**——micro 的
+     * {@code FirstFilter} 会把请求头 key 全部小写后塞进 MDC，与 Micrometer 写入的 traceId 抢同一个键。</p>
+     *
+     * <p>⚠️ {@code ProxyWebClient} 只自动透传 MDC 里的 {@code authorization}，**不会**注入任何 trace 头，
+     * 因此调用方 MUST 显式传入。</p>
+     */
+    public AlipayProcessTerminationRespDTO processAlipayTermination(@RequestBody AlipayProcessTerminationReqDTO request,
+                                                                   Map<String, String> headers) {
+        String result = postJsonAndGetResponse("/internal/alipay/termination/process", request, headers);
+        return JSONUtil.toBean(result, new TypeReference<AlipayProcessTerminationRespDTO>() {
+        }, true);
+    }
+
+    /**
      * 执行解约。
      */
     public com.chinasofti.huateng.common.response.AlipayCommonResponse executeTermination(String agreementCode) {
@@ -250,5 +282,21 @@ public class AlipayPaySignClient extends ProxyWebClient {
         Object data = wrapper.get("data");
         String parseTarget = (data instanceof JSONObject) ? ((JSONObject) data).toString() : result;
         return JSONUtil.toBean(parseTarget, com.chinasofti.huateng.common.response.AlipayCommonResponse.class);
+    }
+
+    /**
+     * 按卡号查询支付宝出行链路是否仍有未结清订单（供 blacklist-server 盘点黑名单可解除性调用）。
+     *
+     * <p>支付宝出行的欠费只落 {@code ALIPAY_PAY_LOG}，{@code GATE_TXN_PAY} 里没有对应行，
+     * 因此判定「该卡欠费是否结清」MUST 同时问本接口与 {@code GateTxnPayClient.hasUnsettledOrderByCard}，
+     * 缺一个就会漏判。</p>
+     *
+     * <p>调用方 MUST 先判断 resultCode 再用 hasUnsettled。下游在查询未真正执行时会把
+     * hasUnsettled 置为 true，**NEVER** 把它当成「已结清」。</p>
+     */
+    public CardUnsettledQueryRespDTO hasUnsettledOrderByCard(@RequestBody CardUnsettledQueryReqDTO request) {
+        String result = postJsonAndGetResponse("/internal/alipayPay/hasUnsettledOrderByCard", request);
+        return JSONUtil.toBean(result, new TypeReference<CardUnsettledQueryRespDTO>() {
+        }, true);
     }
 }

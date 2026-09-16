@@ -69,6 +69,11 @@ public class TicketClient extends ProxyWebClient {
         }, true);
     }
 
+    public QueryFirstEntryTxnResult queryFirstEntryTxn(QueryFirstEntryTxnReqDTO request) {
+        String result = postJsonAndGetResponse("/ci/app/queryFirstEntryTxn", request);
+        return JSONUtil.toBean(result, new TypeReference<QueryFirstEntryTxnResult>() {}, true);
+    }
+
     public RequestTransListResult requestTransList(@RequestBody RequestTransListReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/requestTransList", request);
         return JSONUtil.toBean(result, new TypeReference<RequestTransListResult>() {

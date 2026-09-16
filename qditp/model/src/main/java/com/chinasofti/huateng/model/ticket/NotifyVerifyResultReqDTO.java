@@ -42,6 +42,8 @@ public class NotifyVerifyResultReqDTO {
     private String paymentVendor;
     /** 签约流水号，来自 USER_ITP_REG_INFO.REQ_CONTRACT_NO */
     private String requestSignSeq;
+    /** 交易渠道类型：00闸机、01蓝牙、02BOM、03自助补站。 */
+    private String channelType;
 
     public String getDeviceId() {
         return deviceId;
@@ -221,6 +223,8 @@ public class NotifyVerifyResultReqDTO {
     public void setPaymentVendor(String paymentVendor) { this.paymentVendor = paymentVendor; }
     public String getRequestSignSeq() { return requestSignSeq; }
     public void setRequestSignSeq(String requestSignSeq) { this.requestSignSeq = requestSignSeq; }
+    public String getChannelType() { return channelType; }
+    public void setChannelType(String channelType) { this.channelType = channelType; }
 
     @Override
     public String toString() {

@@ -17,6 +17,8 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult;
+import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketPayInfoReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketPayInfoResult;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderResult;
 import org.slf4j.Logger;
@@ -182,6 +184,23 @@ public class DailyTicketClient extends ProxyWebClient {
     }
 
     /**
+     * 按票号查日票购票支付信息（payTradeOrderNo、payOrderNoDate、payChannelCode）。
+     *
+     * <p>供交易详情（IF8A-34 / IF8A-05）填充三个支付字段：日票过闸免扣费、没有
+     * {@code PAY_TXN_DETAIL}，支付信息只能回溯到购票那一笔订单。</p>
+     */
+    public QueryDailyTicketPayInfoResult queryDailyTicketPayInfo(QueryDailyTicketPayInfoReqDTO request) {
+        String path = "/ci/daily-ticket/queryDailyTicketPayInfo";
+        log.info("调用daily-ticket-server查询日票支付信息接口入参 path={}, request={}", path, JSON.toJSONString(request));
+        String result = postJsonAndGetResponse(path, request);
+        log.info("调用daily-ticket-server查询日票支付信息接口原始返回 path={}, response={}", path, result);
+        QueryDailyTicketPayInfoResult response = JSONUtil.toBean(result, new TypeReference<QueryDailyTicketPayInfoResult>() {
+        }, true);
+        log.info("调用daily-ticket-server查询日票支付信息接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
      * 日票进站校验（有效期、未完成出站、计次票次数检查）。
      */
     public DailyTicketBaseResult entryCheck(String cardNum) {
@@ -201,16 +220,44 @@ public class DailyTicketClient extends ProxyWebClient {
      * 日票出站处理（扣减计次票次数，标记已使用）。
      */
     public DailyTicketBaseResult markUsed(String cardNum, Long countingEnd) {
+        return markUsed(cardNum, countingEnd, null, null, null);
+    }
+
+    /**
+     * 日票出站处理（扩展版，携带行程关联信息用于扣次明细记录）。
+     */
+    public DailyTicketBaseResult markUsed(String cardNum, Long countingEnd,
+                                          String orderNo, String inStation, String outStation) {
         String path = "/ci/daily-ticket/ticket/markUsed";
         Map<String, Object> body = new java.util.HashMap<>();
         body.put("cardNum", cardNum);
         body.put("countingEnd", countingEnd);
-        log.info("调用daily-ticket-server日票出站处理接口入参 path={}, cardNum={}, countingEnd={}", path, cardNum, countingEnd);
+        body.put("orderNo", orderNo);
+        body.put("inStation", inStation);
+        body.put("outStation", outStation);
+        log.info("调用daily-ticket-server日票出站处理接口入参 path={}, cardNum={}, countingEnd={}, orderNo={}",
+                path, cardNum, countingEnd, orderNo);
         String result = postJsonAndGetResponse(path, body);
         log.info("调用daily-ticket-server日票出站处理接口原始返回 path={}, response={}", path, result);
         DailyTicketBaseResult response = JSONUtil.toBean(result, new TypeReference<DailyTicketBaseResult>() {
         }, true);
         log.info("调用daily-ticket-server日票出站处理接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
+     * 查询日票扣次使用明细。
+     */
+    public DailyTicketBaseResult queryUsageLog(String cardNum) {
+        String path = "/ci/daily-ticket/ticket/usageLog";
+        Map<String, String> body = new java.util.HashMap<>();
+        body.put("cardNum", cardNum);
+        log.info("调用daily-ticket-server查询扣次明细接口入参 path={}, cardNum={}", path, cardNum);
+        String result = postJsonAndGetResponse(path, body);
+        log.info("调用daily-ticket-server查询扣次明细接口原始返回 path={}, response={}", path, result);
+        DailyTicketBaseResult response = JSONUtil.toBean(result, new TypeReference<DailyTicketBaseResult>() {
+        }, true);
+        log.info("调用daily-ticket-server查询扣次明细接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
         return response;
     }
 }

@@ -19,6 +19,13 @@ public class QueryTransListReqDTO {
     private List<String> cardIdList;
     /** APP 卡类型，经 CardTypeMapping 映射后查询发卡卡类型 */
     private String cardType;
+    /**
+     * 映射后的发卡卡类型列表（内部使用，由 CardTypeMapping#toIssueCardTypes 生成）。
+     *
+     * <p>非空时下游按 {@code CARD_TYPE IN (...)} 过滤并**忽略** {@link #cardType}；
+     * APP 的日票聚合码 05 会展开成 0445~0448 四个值，因此这里 MUST 用列表而非单值。</p>
+     */
+    private List<String> cardTypeList;
     /** 页码，从 1 开始，默认 1 */
     private Integer pageNumber;
     /** 每页条数，默认 10，最大 MAX_PAGE_SIZE */
@@ -46,6 +53,8 @@ public class QueryTransListReqDTO {
     public void setCardIdList(List<String> cardIdList) { this.cardIdList = cardIdList; }
     public String getCardType() { return cardType; }
     public void setCardType(String cardType) { this.cardType = cardType; }
+    public List<String> getCardTypeList() { return cardTypeList; }
+    public void setCardTypeList(List<String> cardTypeList) { this.cardTypeList = cardTypeList; }
     public Integer getPageNumber() { return pageNumber; }
     public void setPageNumber(Integer pageNumber) { this.pageNumber = pageNumber; }
     public Integer getPageSize() { return pageSize; }

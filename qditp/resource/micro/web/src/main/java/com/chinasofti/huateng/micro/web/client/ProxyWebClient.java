@@ -37,6 +37,8 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
     private static final Duration EVICT_IN_BACKGROUND = Duration.ofSeconds(30);
     private static final Duration DEFAULT_RESPONSE_TIMEOUT = Duration.ofSeconds(10);
 
+    private Duration responseTimeoutOverride;
+
     private WebClient getInitOkHttpClient(WebClient.Builder webClientBuilder) {
         ConnectionProvider provider = ConnectionProvider.builder("http")
                 .maxConnections(MAX_CONNECTIONS)
@@ -92,10 +94,31 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
     }
 
     /**
+     * 与上一个构造器的唯一差别是显式指定响应超时。
+     *
+     * <p>存在的理由：{@link #getResponseTimeout()} 是在**父类构造期**被 {@link #getInitOkHttpClient}
+     * 调用的，此时子类的实例字段还没赋值。于是「子类覆写 getResponseTimeout() 返回自己 @Value 注入的
+     * 超时字段」这个看起来最自然的写法，**实际读到的恒为 0 / null**，且编译与单测都发现不了 ——
+     * 超时值必须在 super(...) 的实参里传进来才来得及。需要非默认超时的子类 MUST 用本构造器，
+     * <b>NEVER 靠覆写 getResponseTimeout() 去读实例字段</b>。
+     *
+     * @param responseTimeout 为 null 时退回默认 10 秒
+     */
+    public ProxyWebClient(String baseUrl, boolean openLogger, WebClient.Builder webClientBuilder, Duration responseTimeout) {
+        setOpenLogger(openLogger);
+        setBaseUrl(baseUrl);
+        this.responseTimeoutOverride = responseTimeout;
+        setProxyHttpClient(getInitOkHttpClient(webClientBuilder));
+    }
+
+    /**
      * 子类可重写此方法自定义响应超时时间。
+     *
+     * <p>重写实现里 <b>NEVER 引用子类的实例字段</b>（含 @Value 注入的字段）：本方法在父类构造期就被调用，
+     * 那时子类字段尚未赋值。需要按配置定超时的走带 {@code responseTimeout} 参数的构造器。
      */
     protected Duration getResponseTimeout() {
-        return DEFAULT_RESPONSE_TIMEOUT;
+        return responseTimeoutOverride != null ? responseTimeoutOverride : DEFAULT_RESPONSE_TIMEOUT;
     }
 
     private void logPostRequestJsonErr(Exception webClientException) {

@@ -7,6 +7,7 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayTripReceiveBlackListReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripReceiveBlackListRespDTO;
 import com.chinasofti.huateng.model.app.AddBlackListReqDTO;
 import com.chinasofti.huateng.model.app.BlackListOperateResult;
+import com.chinasofti.huateng.model.app.BlacklistReleaseInspectRespDTO;
 import com.chinasofti.huateng.model.app.QueryBlackListReqDTO;
 import com.chinasofti.huateng.model.app.QueryBlackListResult;
 import org.slf4j.Logger;
@@ -15,6 +16,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.reactive.function.client.WebClient;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 黑名单服务 RPC 客户端。
@@ -68,5 +72,27 @@ public class BlacklistClient extends ProxyWebClient {
     public BlackListOperateResult addBlackList(@RequestBody AddBlackListReqDTO request) {
         String result = postJsonAndGetResponse("/addBlackList", request);
         return JSONUtil.toBean(result, BlackListOperateResult.class, true);
+    }
+
+    /**
+     * 盘点黑名单记录的欠费结清情况（供 web-server 的 Quartz 任务调用）。
+     *
+     * <p><b>只读，下游 NEVER 删除任何黑名单记录。</b>本轮只输出明细供人工核对：
+     * {@code BLACKLIST} 没有拉黑类型字段，「欠费结清」不等于「可以解除」（挂失补卡类同样会结清）。</p>
+     *
+     * <p>无业务入参，批量范围由下游配置控制。但 body **MUST NOT 传 null**：
+     * {@code ProxyWebClient.postJsonAndGetResponse} 无条件调 {@code bodyValue(requestBody)}，
+     * Spring 的 {@code BodyInserters.fromValue} 断言非 null，传 null 会抛
+     * {@code IllegalArgumentException: 'body' must not be null}，请求根本发不出去。
+     * 传空 Map 序列化成 {@code {}}。</p>
+     *
+     * <p>调用方 MUST 检查返回的 resultCode，返回 null 说明 HTTP 层就没通。</p>
+     *
+     * @param headers 透传的请求头，用于把调度侧 traceId 带到下游日志
+     */
+    public BlacklistReleaseInspectRespDTO inspectReleasable(Map<String, String> headers) {
+        String result = postJsonAndGetResponse("/internal/blacklist/inspectReleasable", new HashMap<>(), headers);
+        return JSONUtil.toBean(result, new TypeReference<BlacklistReleaseInspectRespDTO>() {
+        }, true);
     }
 }
