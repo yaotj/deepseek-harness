@@ -90,3 +90,30 @@ lerna-debug.log*
 \n# SVN metadata
 .svn/
 pristine/
+
+# ========================
+# 4. AI / IDE 工具本地目录与派生报告
+# 与 qditp 工作副本根的 svn:global-ignores 对齐，避免把工具状态提交进版本库
+# ========================
+.agents/
+.apifox/
+.claude/
+.codebuddy/
+.comate/
+.cursor/
+.gemini/
+.hermes/
+.hermest/
+.kiro/
+.orchestrator/
+.qoder/
+.trae/
+.workbuddy/
+skills-lock.json
+CLAUDE.md
+GEMINI.md
+
+# 历史脚本抽取的派生报告（2026-08-25 已判定不再维护，NEVER 重新生成）
+API.md
+qditp_api_summary.md
+fep_app_apifox_*.md
