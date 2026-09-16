@@ -14,9 +14,11 @@
 **NEVER** 在本模块写业务规则、事务或直连数据库；本模块无 mapper、无数据源。
 
 ## 报文契约
-- `Content-Type: application/x-www-form-urlencoded`，入参统一绑定 `@ModelAttribute CommonFormRequest`
-  （`fep-app-server/.../model/CommonFormRequest.java` 继承**本模块内**的 `fep-app-server/src/main/java/com/chinasofti/huateng/fep/app/model/CommonRequest.java`（**不在 `model` 模块**；`model` 模块下没有 `CommonRequest`，同名类另在 fep-acc-server、account-server 各有一份，勿混用）：
-  `providerId / charset / format / timestamp / deviceId / signType / sign / bizData`，`toString()` 已对 `sign` 脱敏）。
+- `Content-Type: application/x-www-form-urlencoded`，入参统一绑定 `@ModelAttribute ItpCommonFormRequest`
+  （⚠️ **本条按 2026-09-11 收口结果重写，旧记载已作废**：现为 `model/.../model/app/ItpCommonFormRequest.java`，继承同在 **`model` 模块** 的 `ItpCommonRequest<String>`——与父类的唯一区别是 `bizData` 固定为 String。
+  **原先 fep-app-server（继承式）与 fep-acc-server / fep-dev-server / fep-alipay-server（平铺式）各有一份 `CommonFormRequest`，已于 2026-09-11 全部收口到本类、全项目唯一**，`fep-app-server/src/main/java/.../fep/app/model/` 目录已不存在，代码中旧名**零残留**。
+  **NEVER 按旧记载去 fep-app-server 找 `CommonFormRequest` / `CommonRequest`，也 NEVER 再新建各模块自有的副本**（旧记载写「不在 `model` 模块」「同名类另在 fep-acc-server、account-server 各有一份」——**方向正好相反，已删除**）：
+  `providerId / charset / format / timestamp / deviceId / signType / sign / bizData`，`toString()` 已对 `sign` 脱敏。本类**不承载签名语义**，验签由各链路自行负责。）
 - `bizData` 解析 **MUST** 复用 `BaseAppController` 的三个方法，**NEVER** 自己 `JSON.parseObject`：
   - `parseBizData()` — 空串按 `{}` 处理
   - `decodeBase64()`
@@ -47,17 +49,15 @@
 | `AppAccountController` | IF8A-01 `requestApplication`、IF8A-02 `requestKeyList`、IF8A-23 `requestAddPayChannel`、IF8A-24 `requestSetDefaultPayChannel`、IF8A-25 `requestRemovePayChannel`、IF8A-77 `requestUpdateChannelDefaultContract`、`requestAgreeRelease`（同意解约，`AppAccountController.java:61`）、`employeeCard/query` |
 | `AppTicketController` | IF8A-73 `queryBlackList`、IF8A-29 `queryUserItinerary`、IF8A-04 `requestExcessFare`、IF8A-05 `requestTransList`、IF8A-34 `requestTransDetail`、IF8A-41 `requestTransStatistics` |
 | `AppParaController` | IF8A-09 `requestBuySinlgeTicketMaxNum`（拼写错误已保留，另有 `requestSingleTicketMaxNum` 别名）、IF8A-07 `requestLineCodeList`、IF8A-08 `requestStationCodeList`、IF8A-10 `requestTicketPriceByStation`、IF8A-17 `requestLineStationCodeVersion` |
-| `PaySignController` | IF8A-19 `requestPay`、IF8A-16 `requestSignInfo`、`receivePayResult`、IF8A-06 `requestTermination`、IF8A-22 `requestContractResult`、`receiveSignResult`、`receiveTerminationResult`、`queryPayTxnBatch`（供 ticket-server） |
+| `PaySignController` | IF8A-19 `requestPay`、IF8A-16 `requestSignInfo`、`receivePayResult`、IF8A-06 `requestTermination`、IF8A-22 `requestContractResult`、`receiveSignResult`、`receiveTerminationResult`（别名 `receiveUnsignResult`，同一方法、同一转发目标）、`queryPayTxnBatch`（供 ticket-server） |
 | `CollectPayController` | IF8A-20 `requestOrder`、IF8A-11 `requestPaymentInfo`、IF8A-18 `requestPayResult`、`requestRefundTicket`、`requestRefundTicketResult`、`requestPreActiveOrderList`、`requestActiveTicket`、`receiveRefundResult` |
-| `AppDailyTicketController` | `/ci/app/dailyTicket/*` 转发日票 IF8A-60/61/62/64/65/67/71 + 支付回调；另有 `/app/requestCountingOrder` 别名 |
+| `AppDailyTicketController` | `/ci/app/dailyTicket/*` 转发日票 IF8A-60/61/62/64/65/67/71 + 支付回调；另有 `/app/requestCountingOrder` 与 `/app/ticket/**` 别名；规范 R6 的扁平 `/app/payment/**` 已挂 `requestPay`、`requestPayResult`、`requestRefundTicket`（2026-09-11 补挂，APP 实调该地址）、`receivePayResult` |
 | `IndustryDataController` | IF8A-03 `requestIndustryData`、IF8D-03 `requestNoSignalData` |
-| `PhoneChangeController` | `updatePhone`（编号未定） |
+| `PhoneChangeController` | if8a_76 `changePhone`（**仅** `/app/changePhone` 一条路径，严格对齐规范；`updatePhone` / `/ci/app` 别名与 11 个字段别名已于 2026-09-09 收回，**NEVER** 再加） |
 
 ## 已知不一致（改动前必须知道）
-- `PaySignController` 日志里的 "IF8A-07 / IF8A-10" 与 `AppParaController` 的 IF8A-07（线路代码）/ IF8A-10（票价）**编号冲突**，至少一处日志编号是错的。修改日志编号时 **MUST** 以 `docs/接口规范文档/ITP与APP接口规范R6_接口清单.md` 为准。
+- `PaySignController` 日志里的 "IF8A-07 / IF8A-10" 与 `AppParaController` 的 IF8A-07（线路代码）/ IF8A-10（票价）**编号冲突**，至少一处日志编号是错的。修改日志编号时 **MUST** 以 `docs/接口规范文档/青岛地铁-ITP与APP接口规范R6.docx` 为准。
 - `AppTicketController` 中 IF8A-05 同时被 `requestTransList` 与 pay-sign 的 `queryPayTxnBatch` 使用。
 
 ## 参考原始文档
-- `docs/接口规范文档/ITP与APP接口规范R6_接口清单.md`（80 个接口，权威）
-- `docs/接口规范文档/ITP与APP接口清单.json`
-- `docs/不重复需求接口清单.md`
+- `docs/接口规范文档/青岛地铁-ITP与APP接口规范R6.docx`（编号与报文的唯一权威来源）

@@ -9,9 +9,10 @@
 外部：APP / 闸机AGM / TVM / BOM / ACC清分中心 / 支付中心 / 支付宝
                     │
   ① 接入层(FEP)      fep-app-server  fep-dev-server  fep-acc-server  fep-alipay-server
-                    │  （薄网关：解析 CommonFormRequest → RPC 转发，多数无数据库）
-  ② 业务服务层       account / ticket / pay-sign / collect-pay / collect-ticket
-                    │  daily-ticket / gate-txn-pay   （事务与落库在这一层）
+                    │  （薄网关：解析 ItpCommonFormRequest → RPC 转发，多数无数据库）
+  ② 业务服务层       account / ticket / pay-sign / face-pay / daily-ticket
+                    │  gate-txn-pay / card-pool / recon / trans-query（已建未接线）
+                    │  （事务与落库在这一层；collect-pay 已退居后台、仅留内部端点）
   ③ 公共能力层       para  key  blacklist  industry-data
                     │
   ④ ACC / 安全层     acc-security(HSM)   acc-secure(未接线)   acc-es(FTP+Netty)
@@ -45,9 +46,13 @@
 | para-server | 9107 | para-server | |
 | daily-ticket-server | 9108 | daily-ticket-server | |
 | fep-acc-server | 9110 | fep-acc-server | |
+| card-pool-server | 9111 | card-pool | 无 `@Scheduled`，维护动作走 `POST /card-pools/maintenance` |
+| recon-server | 9112 | recon | 无 `@Scheduled`，由 web-admin `sys_job` 109 触发 `POST /internal/recon/daily/run`；**MUST 单副本** |
+| trans-query-server | 9113 | trans-query | APP 交易查询独立服务（1.0.4）；**已出镜像但未接线**，三条 URL 与 ticket-server 并存 |
 | acc-security-server | 9012 | acc-security | Undertow |
 | acc-es-server | 9011 / Netty 5000 | acc-es | |
-| collect-pay-server | 58101 | **itpagm** | 唯一使用 `application.yml`；服务名与模块名不一致 |
+| face-pay-server | 58101 | face-pay | **TVM / BOM / APP 当面付现行主模块**（2026-09-15 起承接设备与 APP 流量，ADR-D85）；**7 个 `@Scheduled` 分布在 6 个类**，无分布式锁，**MUST 单副本** |
+| collect-pay-server | 58101 | **itpagm** | ⚠️ **与 face-pay-server 端口冲突**（同机部署需确认）；**已退居后台**，只留 `/internal/recon/export`、`/internal/app-order/**` 与旧单退款，**NEVER 停掉它**；与 face-pay 同用 `application.yml`；服务名与模块名不一致 |
 | fep-alipay-server | 8080 | fep-alipay | ⚠️ 8080 四方冲突 |
 | alipay-pay-sign-server | 8080 | alipay-pay-sign | ⚠️ |
 | alipay-account-server | 8080 | alipay-account | ⚠️ |
@@ -55,11 +60,12 @@
 
 ## 三、调用拓扑（按 `service.*.url` 实测）
 
-`rpc/src/main/java` 下共 **28 个类**：**14 个 Client** + `URLDynamicRouter` + **13 个 `@EnableRpcXxx` 注解**。Client 与其配置键：
+`rpc/src/main/java` 下的构成：一组 Client + `URLDynamicRouter` + 一组 `@EnableRpcXxx` 注解（数量随新增模块变化，**勿引用固定计数**）。Client 与其配置键：
 
 | Client | 配置键 | 目标模块 |
 |---|---|---|
 | `AccountClient` | `service.account.url` | account-server（支付宝域指向 alipay-account-server） |
+| `CardPoolClient` | `service.cardPool.url`（默认 `card-pool-service`） | card-pool-server |
 | `TicketClient` | `service.ticket.url` | ticket-server |
 | `PaySignClient` | `service.paySign.url` | pay-sign-server |
 | `GateTxnPayClient` | `service.gateTxnPay.url` | gate-txn-pay-server |
@@ -138,5 +144,5 @@ mvn clean package -pl <module-name> -am -DskipTests    # 单模块（含依赖�
 - 业务域提示词索引：[`docs/business/README.md`](../business/README.md)
 - 公共构件（model / rpc / resource-micro）：[`common-components.md`](common-components.md)
 - 管理后台：[`web-server.md`](web-server.md)
-- 敏感配置外置方案：[`../ops/敏感配置外置方案.md`](../ops/敏感配置外置方案.md)
+- 生产环境清单（含 Oracle 地址与环境变量）：[`../ops/生产环境清单.md`](../ops/生产环境清单.md)
 - 生产环境清单：[`../ops/生产环境清单.md`](../ops/生产环境清单.md)

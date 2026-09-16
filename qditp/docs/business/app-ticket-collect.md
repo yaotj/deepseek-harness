@@ -55,5 +55,5 @@ APP 端单程票购买张数限制、票价试算、下单、请求支付、取�
 `Ticket_Collect_Info`、`Ticket_Collect_Logs`、`Ticket_Collect_Log_Detail`（mapper 在 `collect-ticket-server/src/main/resources/mapper/`）
 
 ## 参考原始文档
-- `docs/接口规范文档/ITP与APP接口规范R6_接口清单.md`（IF8A-09/10/11/20）
+- `docs/接口规范文档/青岛地铁-ITP与APP接口规范R6.docx`（IF8A-09/10/11/20）
 - `docs/技术规范文档/城市轨道交通自动售检票系统技术规范-第9部分-互联网业务规范.docx`（IF2A-02/03/05）

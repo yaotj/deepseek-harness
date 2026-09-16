@@ -23,7 +23,7 @@
 因此：**要给运营页面加后端接口时，MUST 先确认放在哪一侧。**
 现状是业务运营接口放在**各业务模块的 `/page/**` controller** 中，例如：
 - 日票退款 → `daily-ticket-server` 的 `/page/daily-ticket/refund`
-- 当面付订单 → `collect-pay-server` 的 `/page/face-pay/orders`
+- 当面付订单 → **`face-pay-server` 的 `/page/face-pay/orders`（2026-09-15 起，ADR-D85 续）**；`collect-pay-server` 的同名端点仍在但只服务旧单，**NEVER 再把该页面指回 collect-pay**
 - 票卡状态 → `ticket-server` 的 `/page/ride-status`
 - 闸机扣费 → `gate-txn-pay-server` 的 `/page/gate-txn-pay`
 - 黑名单 → `blacklist-server` 的 `/page/blacklist`

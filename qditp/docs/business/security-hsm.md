@@ -17,6 +17,11 @@
 | `spring.application.name` | `acc-security` | `acc-secure` |
 | 是否在用 | **在用**，`service.security.url=http://127.0.0.1:9012` 被 account-server / key-server / industry-data-server / fep-dev-server 引用 | **未被任何模块调用**（全仓无 `AccSecureClient`、无 9099 引用，`rpc` 模块无对应 Client），属骨架/预留的死模块，但已在根 `pom.xml` 参与构建 |
 
+**IF7B-01（请求逻辑卡号）已于 2026-09-09 迁出**：实现搬到 `card-pool-server` 的
+`AccLogicNumClient` + `AccSignUtils`，由该模块用 `acc.secure.*` 配置**直连 ACC**，
+`rpc` 侧 `AccSecureClient` / `@EnableRpcAccSecure` 已删除。本模块内的 IF7B-01 代码仍在，
+但**没有任何调用方**；改 IF7B-01 报文 **MUST 改 card-pool-server 那一份**。
+
 **MUST**：需要密码运算时用 `SecurityClient` 指向 **acc-security-server**。
 **NEVER** 误改 acc-secure-server 期望生效，除非用户明确要接通 ACC 直连通路。
 
@@ -66,4 +71,4 @@ Controller（**均无接口编号标注**）：
 
 ## 参考原始文档
 - `docs/技术规范文档/城市轨道交通自动售检票系统技术规范-第9部分-互联网业务规范.docx`
-- `docs/技术规范文档/第4部分-系统接口规范-接口清单.md`
+- 技术规范第 4 部分（`0x2001~0x9004` 报文码）：**源文档不在仓库内**，需向甲方索取。

@@ -53,10 +53,14 @@
 - 文件格式：**定长 / 前缀标识的纯文本行文件**。文件名前缀常量在 `Constant.FileMessage`：`FILE_FOLDER="/UPLOAD"`、`9050` 任务文件、`9060` 个性化任务文件、`9061` 个性化任务报告。`9050` 同时作为 `TBL_TKT_ES_PROC.actionCode` 落库。
 - **没有定时任务**：文件处理由 Netty 报文（7002/7004）与 HTTP 接口触发，非定时扫描。全模块只有 `@EnableAsync`，无 `@Scheduled`、无 MQ。
 
-## ⚠️ ACC 对账不存在
-本模块的 FTP 只做**编码设备任务与报告文件**，**没有任何对账（recon）代码**。
-`docs/业务需求文档/ACC与ITP文件接口清单.md` 描述的对账文件与逻辑卡号文件接口**尚未落地**。
-接到对账需求 **MUST** 明确告知用户这是全新开发，**NEVER** 声称可复用现有对账逻辑。
+## ⚠️ 对账与逻辑卡号均不在本模块
+本模块的 FTP 只做**编码设备任务与报告文件**，与 ACC 对账和逻辑卡号文件**彻底无关**。
+`docs/接口规范文档/ACC与ITP之间的文件.docx` 描述的两类文件接口已由其他模块落地：
+
+- **ITP → ACC 对账文件（EXP / PAY / BUS / DETAIL）** → `recon-server` + 三个源服务（gate-txn-pay / collect-pay / daily-ticket），详见 `docs/business/recon.md`
+- **ACC → ITP 逻辑卡号文件** → `card-pool-server`，IF7B-01 直连 ACC 申请批次 + FTP 下载卡号文件 + 入库卡池，详见 `docs/business/card-pool.md`
+
+接到这两类需求 **MUST** 跳到对应模块的提示词文档，**NEVER** 在本模块找对账或逻辑卡号代码。
 
 另有一条与 ACC 参数下发相关的**本地文件导入**通路（非 FTP），在 para-server：
 `para-server/.../service/ParaFileImportService.java`（22 字节文件头，`paraType` 0001 路网 / 0002 日历 / 0003 票卡 / 0004 费率），入口 `/para/import/directory`、`/para/import/file`。详见 `common-services.md`。
@@ -67,5 +71,5 @@
 - Netty 报文长度与 MAC 定义 **MUST** 只改 `Constant.java`，**NEVER** 在 handler 内散落魔法数
 
 ## 参考原始文档
-- `docs/业务需求文档/ACC与ITP文件接口清单.md`、`docs/接口规范文档/ACC与ITP之间的文件.docx`
-- `docs/技术规范文档/第4部分-系统接口规范-接口清单.md`
+- `docs/接口规范文档/ACC与ITP之间的文件.docx`
+- 技术规范第 4 部分（`0x2001~0x9004` 报文码）：**源文档不在仓库内**，需向甲方索取《城市轨道交通自动售检票系统技术规范-第4部分-系统接口规范》。仓库仅有第 9 部分。

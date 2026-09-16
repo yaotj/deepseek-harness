@@ -23,12 +23,27 @@
 - IF8A-65 `/ticket/cancelOrder`
 - IF8A-67 `/ticket/updateTicket`
 - IF8A-71 `/ticket/updateAndNotice`
-- 无编号内部接口：`/payment/receivePayResult`（支付回调）、`/queryDailyTicketInfo`、`/entry/check`（进站校验）、`/ticket/markUsed`（出站扣次，由 ticket-server `GateTicketHandler` 调用）
+- 无编号内部接口：`/payment/receivePayResult`（支付回调）、`/queryDailyTicketInfo`、`/queryDailyTicketPayInfo`、`/entry/check`（进站校验）、`/ticket/markUsed`（出站扣次，由 ticket-server `GateTicketHandler` 调用）
+  - `/queryDailyTicketPayInfo`（2026-09-15 新增，ADR-D82）：按 `ticketCode` 回溯购票订单，给 IF8A-34 交易详情填
+    `payTradeOrderNo` / `payOrderNoDate` / `payChannelCode`（日票过闸免扣费、没有 `PAY_TXN_DETAIL`，这三个字段原先恒空串）。
+    链路 `TICKET_CODE` → `DAILY_TICKET_INSTANCE.ORDER_NO` → `DAILY_TICKET_ORDER` 的 `TRADE_NO` / `PAY_DATE` / `PAY_CHANNEL_CODE`。
+    调用方是 `trans-query-server` 与 `ticket-server` 两份 `TransDetailQueryHandler.enrichDailyTicketPayInfo`（**逐字段一致，改一处 MUST 同批改两处**）。
+    **NEVER 把它合并进 `/queryDailyTicketInfo`** —— 那条是闸机检票热路径，合并等于每次进站都多 join 一次订单表。
+    查不到时返 **`0000` + 三个字段 null，NEVER 返失败码**（调用方是交易详情主链路，返失败会把整条 IF8A-34 打挂）。
+    `payOrderNoDate` 是**购票付款时刻**、不是过闸时刻，长周期票会显示很早的时间，**属有意为之，NEVER 改成过闸时间**。
 
 `controller/DailyTicketRefundController.java`（前缀 `/page/daily-ticket/refund`，运营页面，强制 `orderType=1`）
-- `GET /orders`、`POST /request`、`/pay-query`、`/query`、`/retry`、`GET /records`
+- `GET /orders`、`POST /request`、`/pay-query`、`/query`、`/retry`、`/resubmit`、`GET /records`
 
 > 注意：日票的运营端后台接口在**本模块**，不在 web-server。
+
+### `POST /resubmit`（1.0.24 新增，退款重提交）
+判据只有一个：**`DAILY_TICKET_REFUND.PLATFORM_REFUND_NO IS NULL`**，即支付平台从未受理过这张退款单，此时沿用原 `REFUND_ORDER_NO` 重发是安全的（对端按 `refundOrderNo` 外部幂等）。与 `/retry` **互斥、NEVER 混用**：`/retry` 处理「对端已受理、结果未回」，`/resubmit` 处理「对端从未受理」。
+- 前置状态白名单：`REFUNDING` / `FAILED` / `WAIT_VERIFY`，其余状态直接返回已有退款结果、不调支付平台。
+- `WAIT_VERIFY` 还要求观察期 `VERIFY_AFTER_TIME` 已过；这是 `REFUND_TYPE='01'`（核验退款）目前**唯一的出口**——`WAIT_VERIFY` 只被写入、全模块无任何代码读取，无补偿任务驱动。
+- 落 `DAILY_TICKET_PAY_LOG` 的 `BIZ_TYPE='REFUND_RESUBMIT'`，`DailyTicketPayLogMapper.xml` 的回查语句已把它并入 `BIZ_TYPE in ('REFUND','REFUND_RETRY','REFUND_RESUBMIT')`，否则后续 `/query` 恢复不出 `PLATFORM_REFUND_NO`。
+- ⚠️ **无鉴权、无幂等键**，与 §5.2「新增状态变更型接口 MUST 有鉴权」冲突，属测试期临时降级，**上线前 MUST 补验签或收敛为内部 rpc 调用**。
+- 修这个「未受理即永久卡死」缺陷的判据可**原样复制到 `face-pay-server`**（同机制，尚未修）。
 
 ## 核心流程
 下单 `CREATED` → `requestPay` 经 `client/DailyTicketPayGatewayClient.java`（银商网关，**RSA2** 签名，配置 `daily-ticket.pay.*`）
