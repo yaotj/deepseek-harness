@@ -3,6 +3,7 @@ package com.chinasofti.huateng.account.controller.ci.employee;
 import com.chinasofti.huateng.account.service.EmployeeCardService;
 import com.chinasofti.huateng.model.employee.EmployeeCardNotifyReqDTO;
 import com.chinasofti.huateng.model.employee.EmployeeCardNotifyResult;
+import com.chinasofti.huateng.model.employee.EmployeeCardActivateReqDTO;
 import com.chinasofti.huateng.model.employee.EmployeeCardQueryReqDTO;
 import com.chinasofti.huateng.model.employee.EmployeeCardQueryResult;
 import com.chinasofti.huateng.model.employee.EmployeeInfoUpdateNotifyReqDTO;
@@ -36,6 +37,14 @@ public class EmployeeCardController {
     @PostMapping("/employeeCard/query")
     public EmployeeCardQueryResult queryEmployeeCard(@RequestBody EmployeeCardQueryReqDTO request) {
         return employeeCardService.queryEmployeeCard(request);
+    }
+
+    /**
+     * APP 员工码激活或禁用的内部入口。
+     */
+    @PostMapping("/employeeCard/activate")
+    public CommonResult activateEmployeeCard(@RequestBody EmployeeCardActivateReqDTO request) {
+        return employeeCardService.activateEmployeeCard(request);
     }
 
     /**

@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.account.mapper.AccountExceptionTicketMapper">
+
+    <!--
+        开单。幂等由 UK_ACCT_EXC_TICKET_TYPE_KEY (TICKET_TYPE, BIZ_KEY) 保证，
+        重复开单抛 DuplicateKeyException，由 service 捕获后当「已有工单」继续。
+
+        ID 用 <selectKey order="BEFORE"> 取序列，NEVER 改 useGeneratedKeys：
+        本项目 Oracle 表上后者会抛 MyBatisSystemException。
+
+        SQL 正文内 NEVER 写行注释或块注释：Druid WallFilter 会判定为注入，
+        该语句静默失效、只在 Oracle 运行期暴露。说明一律写在这里。
+
+        另注意本注释块自身：XML 规范禁止注释文本里出现两个连续的减号，
+        写了会让 MyBatis 解析 mapper 失败 ⇒ sqlSessionFactory 建不起来 ⇒ 整个服务起不来
+        （2026-09-11 实测，account-server 2.0.47 首次部署即因此启动失败）。
+    -->
+    <insert id="insert" parameterType="com.chinasofti.huateng.account.entity.AccountExceptionTicket">
+        <selectKey keyProperty="id" resultType="java.lang.Long" order="BEFORE">
+            SELECT SEQ_ACCOUNT_EXCEPTION_TICKET.NEXTVAL FROM DUAL
+        </selectKey>
+        INSERT INTO ACCOUNT_EXCEPTION_TICKET (
+            ID, TICKET_TYPE, BIZ_KEY, THIRD_USER_ID, TICKET_STATUS,
+            RETRY_COUNT, DETAIL, CREATE_TMS
+        ) VALUES (
+            #{id,jdbcType=NUMERIC},
+            #{ticketType,jdbcType=VARCHAR},
+            #{bizKey,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR},
+            #{ticketStatus,jdbcType=VARCHAR},
+            #{retryCount,jdbcType=NUMERIC},
+            #{detail,jdbcType=VARCHAR},
+            #{createTms,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <resultMap id="TicketResultMap" type="com.chinasofti.huateng.account.entity.AccountExceptionTicket">
+        <id column="ID" property="id" jdbcType="NUMERIC" />
+        <result column="TICKET_TYPE" property="ticketType" jdbcType="VARCHAR" />
+        <result column="BIZ_KEY" property="bizKey" jdbcType="VARCHAR" />
+        <result column="THIRD_USER_ID" property="thirdUserId" jdbcType="VARCHAR" />
+        <result column="TICKET_STATUS" property="ticketStatus" jdbcType="VARCHAR" />
+        <result column="RETRY_COUNT" property="retryCount" jdbcType="NUMERIC" />
+        <result column="DETAIL" property="detail" jdbcType="VARCHAR" />
+        <result column="CREATE_TMS" property="createTms" jdbcType="TIMESTAMP" />
+        <result column="CLOSE_TMS" property="closeTms" jdbcType="TIMESTAMP" />
+        <result column="CLOSED_BY" property="closedBy" jdbcType="VARCHAR" />
+    </resultMap>
+
+    <!--
+        运营查询。三个筛选项都可为空，只传 TICKET_STATUS 时命中
+        IDX_ACCT_EXC_TICKET_STATUS (TICKET_STATUS, CREATE_TMS)。
+
+        ROWNUM 必须套在已排序的子查询外层：Oracle 的 ROWNUM 在 ORDER BY 之前求值，
+        写成同层过滤会先随机截断再排序，表现为「翻到的不是最新的那批」。
+        与 UserPhoneChangeLogMapper.selectPendingSignSync 是同一个写法，勿简化。
+    -->
+    <select id="selectByCondition" resultMap="TicketResultMap">
+        SELECT ID, TICKET_TYPE, BIZ_KEY, THIRD_USER_ID, TICKET_STATUS,
+               RETRY_COUNT, DETAIL, CREATE_TMS, CLOSE_TMS, CLOSED_BY
+        FROM (
+            SELECT ID, TICKET_TYPE, BIZ_KEY, THIRD_USER_ID, TICKET_STATUS,
+                   RETRY_COUNT, DETAIL, CREATE_TMS, CLOSE_TMS, CLOSED_BY
+            FROM ACCOUNT_EXCEPTION_TICKET
+            <where>
+                <if test="ticketStatus != null and ticketStatus != ''">
+                    AND TICKET_STATUS = #{ticketStatus,jdbcType=VARCHAR}
+                </if>
+                <if test="ticketType != null and ticketType != ''">
+                    AND TICKET_TYPE = #{ticketType,jdbcType=VARCHAR}
+                </if>
+                <if test="thirdUserId != null and thirdUserId != ''">
+                    AND THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+                </if>
+            </where>
+            ORDER BY CREATE_TMS DESC, ID DESC
+        )
+        WHERE ROWNUM &lt;= #{limit,jdbcType=NUMERIC}
+    </select>
+
+    <!--
+        人工关单。OPEN → CLOSED 的 CAS：WHERE 带 TICKET_STATUS = 'OPEN' 既是状态机白名单
+        又是并发保护，重复关单影响 0 行，调用方据此区分「本次关掉」与「早已关闭」。
+        NEVER 放宽成「非 CLOSED 即可关」，也 NEVER 允许 CLOSED 再改回 OPEN。
+
+        CLOSED_BY 记录操作人，由端点从入参带入；该端点当前无鉴权（2026-09-11 有意对齐
+        其余 20 个端点的现状），因此这列只能当线索、NEVER 当审计凭据，上线前 MUST 补鉴权。
+    -->
+    <update id="close">
+        UPDATE ACCOUNT_EXCEPTION_TICKET
+        SET TICKET_STATUS = 'CLOSED',
+            CLOSE_TMS = #{closeTms,jdbcType=TIMESTAMP},
+            CLOSED_BY = #{closedBy,jdbcType=VARCHAR}
+        WHERE ID = #{id,jdbcType=NUMERIC}
+          AND TICKET_STATUS = 'OPEN'
+    </update>
+
+</mapper>

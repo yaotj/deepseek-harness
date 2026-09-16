@@ -14,7 +14,12 @@ public class ItpUserSearchView {
     private String channel;
     private String companionFlag;
     private String status;
+    /** 申卡时间（开户注册时间）。 */
     private LocalDateTime regTms;
+    /** 申请解绑日期：该卡最近一次解约请求时间（APP_TERMINATION_REQUEST.REQUEST_TIME）。 */
+    private LocalDateTime terminationRequestTime;
+    /** 解绑成功日期：该卡最近一次解约成功时间（仅 SUCCESS 的 COMPLETE_TIME）。 */
+    private LocalDateTime terminationCompleteTime;
 
     public String getThirdUserId() { return thirdUserId; }
     public void setThirdUserId(String thirdUserId) { this.thirdUserId = thirdUserId; }
@@ -38,4 +43,8 @@ public class ItpUserSearchView {
     public void setStatus(String status) { this.status = status; }
     public LocalDateTime getRegTms() { return regTms; }
     public void setRegTms(LocalDateTime regTms) { this.regTms = regTms; }
+    public LocalDateTime getTerminationRequestTime() { return terminationRequestTime; }
+    public void setTerminationRequestTime(LocalDateTime terminationRequestTime) { this.terminationRequestTime = terminationRequestTime; }
+    public LocalDateTime getTerminationCompleteTime() { return terminationCompleteTime; }
+    public void setTerminationCompleteTime(LocalDateTime terminationCompleteTime) { this.terminationCompleteTime = terminationCompleteTime; }
 }

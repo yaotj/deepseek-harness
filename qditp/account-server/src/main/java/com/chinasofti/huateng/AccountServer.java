@@ -1,6 +1,8 @@
 package com.chinasofti.huateng;
 
 import com.chinasofti.huateng.micro.mybatis.adaptor.EnableDefaultMybatisAutoConfig;
+import com.chinasofti.huateng.rpc.EnableRpcCardPool;
+import com.chinasofti.huateng.rpc.EnableRpcGateTxnPay;
 import com.chinasofti.huateng.rpc.EnableRpcRoute;
 import com.chinasofti.huateng.rpc.EnableRpcSecurity;
 import org.slf4j.Logger;
@@ -13,6 +15,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @EnableDefaultMybatisAutoConfig
 @EnableRpcRoute
 @EnableRpcSecurity
+@EnableRpcCardPool
+@EnableRpcGateTxnPay
 public class AccountServer implements CommandLineRunner {
     public static Logger log = LoggerFactory.getLogger(AccountServer.class);
 
