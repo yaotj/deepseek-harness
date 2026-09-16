@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.facepay.mapper.SupplementOrderMapper">
+
+    <!--
+      PayCenter 直连架构下的精简版。与原 gate-txn-pay 版本的差异：
+      ① 去掉 SALE_SYNC_* 四列与对应 insert / selectPendingSaleSync / markSaleSync* 三条方法；
+      ② insert 不写 SALE_SYNC_* 列（DB 中仍存在但留 NULL，SQL 里显式列清单列名不变）。
+    -->
+
+    <resultMap id="SupplementOrderMap" type="com.chinasofti.huateng.facepay.entity.SupplementOrder">
+        <id column="ID" property="id"/>
+        <result column="ORDER_NO" property="orderNo"/>
+        <result column="PAY_STATUS" property="payStatus"/>
+        <result column="THIRD_USER_ID" property="thirdUserId"/>
+        <result column="CARD_ID" property="cardId"/>
+        <result column="CARD_TYPE" property="cardType"/>
+        <result column="GOODS_CODE" property="goodsCode"/>
+        <result column="QUANTITY" property="quantity"/>
+        <result column="TOTAL_AMOUNT" property="totalAmount"/>
+        <result column="ORDER_COUNT" property="orderCount"/>
+        <result column="PAYMENT_VENDOR" property="paymentVendor"/>
+        <result column="SIGN_CHANNEL_CODE" property="signChannelCode"/>
+        <result column="REQUEST_SIGN_SEQ" property="requestSignSeq"/>
+        <result column="TXN_DATE" property="txnDate"/>
+        <result column="PAY_TIME" property="payTime"/>
+        <result column="REMARK" property="remark"/>
+        <result column="CREATE_TIME" property="createTime"/>
+        <result column="UPDATE_TIME" property="updateTime"/>
+        <result column="PAY_CHANNEL_CODE" property="payChannelCode"/>
+        <result column="MERCHANT_ORDER_NO" property="merchantOrderNo"/>
+        <result column="PAYMENT_INFO" property="paymentInfo"/>
+    </resultMap>
+
+    <resultMap id="SupplementOrderItemMap" type="com.chinasofti.huateng.facepay.entity.SupplementOrderItem">
+        <id column="ID" property="id"/>
+        <result column="ORDER_NO" property="orderNo"/>
+        <result column="ORIG_ORDER_NO" property="origOrderNo"/>
+        <result column="ORIG_TXN_DATE" property="origTxnDate"/>
+        <result column="ORIG_AMOUNT" property="origAmount"/>
+        <result column="SETTLE_STATUS" property="settleStatus"/>
+        <result column="REMARK" property="remark"/>
+        <result column="ACTIVE_ORIG_ORDER_NO" property="activeOrigOrderNo"/>
+        <result column="CREATE_TIME" property="createTime"/>
+        <result column="UPDATE_TIME" property="updateTime"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.facepay.entity.SupplementOrder">
+        INSERT INTO SUPPLEMENT_ORDER (
+            ID, ORDER_NO, PAY_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE,
+            GOODS_CODE, QUANTITY, TOTAL_AMOUNT, ORDER_COUNT,
+            PAYMENT_VENDOR, SIGN_CHANNEL_CODE, REQUEST_SIGN_SEQ,
+            TXN_DATE, REMARK, CREATE_TIME, UPDATE_TIME
+        ) VALUES (
+            SEQ_SUPPLEMENT_ORDER.NEXTVAL,
+            #{orderNo,jdbcType=VARCHAR},
+            #{payStatus,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR},
+            #{cardId,jdbcType=VARCHAR},
+            #{cardType,jdbcType=VARCHAR},
+            #{goodsCode,jdbcType=VARCHAR},
+            #{quantity,jdbcType=NUMERIC},
+            #{totalAmount,jdbcType=NUMERIC},
+            #{orderCount,jdbcType=NUMERIC},
+            #{paymentVendor,jdbcType=VARCHAR},
+            #{signChannelCode,jdbcType=VARCHAR},
+            #{requestSignSeq,jdbcType=VARCHAR},
+            #{txnDate,jdbcType=VARCHAR},
+            #{remark,jdbcType=VARCHAR},
+            SYSTIMESTAMP,
+            SYSTIMESTAMP
+        )
+    </insert>
+
+    <select id="selectByOrderNo" resultMap="SupplementOrderMap">
+        SELECT ID, ORDER_NO, PAY_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE,
+               GOODS_CODE, QUANTITY, TOTAL_AMOUNT, ORDER_COUNT,
+               PAYMENT_VENDOR, SIGN_CHANNEL_CODE, REQUEST_SIGN_SEQ,
+               TXN_DATE, PAY_TIME, REMARK, CREATE_TIME, UPDATE_TIME,
+               PAY_CHANNEL_CODE, MERCHANT_ORDER_NO, PAYMENT_INFO
+        FROM SUPPLEMENT_ORDER
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </select>
+
+    <update id="updatePayStatusFromPending">
+        UPDATE SUPPLEMENT_ORDER
+        SET PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
+            REMARK = #{remark,jdbcType=VARCHAR},
+            PAY_TIME = CASE WHEN #{payStatus,jdbcType=VARCHAR} = 'SUCCESS' THEN SYSTIMESTAMP ELSE PAY_TIME END,
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          AND PAY_STATUS IN ('INIT', 'PROCESSING')
+    </update>
+
+    <update id="updatePrepayResult">
+        UPDATE SUPPLEMENT_ORDER
+        SET PAY_CHANNEL_CODE = #{payChannelCode,jdbcType=VARCHAR},
+            MERCHANT_ORDER_NO = #{merchantOrderNo,jdbcType=VARCHAR},
+            PAYMENT_INFO = #{paymentInfo,jdbcType=VARCHAR},
+            PAY_STATUS = 'PROCESSING',
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          AND PAY_STATUS = 'INIT'
+    </update>
+
+    <insert id="insertItem" parameterType="com.chinasofti.huateng.facepay.entity.SupplementOrderItem">
+        INSERT INTO SUPPLEMENT_ORDER_ITEM (
+            ID, ORDER_NO, ORIG_ORDER_NO, ORIG_TXN_DATE, ORIG_AMOUNT,
+            SETTLE_STATUS, REMARK, ACTIVE_ORIG_ORDER_NO, CREATE_TIME, UPDATE_TIME
+        ) VALUES (
+            SEQ_SUPPLEMENT_ORDER_ITEM.NEXTVAL,
+            #{orderNo,jdbcType=VARCHAR},
+            #{origOrderNo,jdbcType=VARCHAR},
+            #{origTxnDate,jdbcType=VARCHAR},
+            #{origAmount,jdbcType=NUMERIC},
+            #{settleStatus,jdbcType=VARCHAR},
+            #{remark,jdbcType=VARCHAR},
+            NULL,
+            SYSTIMESTAMP,
+            SYSTIMESTAMP
+        )
+    </insert>
+
+    <select id="selectItemsByOrderNo" resultMap="SupplementOrderItemMap">
+        SELECT ID, ORDER_NO, ORIG_ORDER_NO, ORIG_TXN_DATE, ORIG_AMOUNT,
+               SETTLE_STATUS, REMARK, ACTIVE_ORIG_ORDER_NO, CREATE_TIME, UPDATE_TIME
+        FROM SUPPLEMENT_ORDER_ITEM
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+        ORDER BY ID
+    </select>
+
+    <update id="updateItemSettleStatus">
+        UPDATE SUPPLEMENT_ORDER_ITEM
+        SET SETTLE_STATUS = #{settleStatus,jdbcType=VARCHAR},
+            REMARK = #{remark,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          AND ORIG_ORDER_NO = #{origOrderNo,jdbcType=VARCHAR}
+    </update>
+
+    <select id="selectTimeoutPending" resultMap="SupplementOrderMap">
+        SELECT * FROM (
+            SELECT ID, ORDER_NO, PAY_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE,
+                   GOODS_CODE, QUANTITY, TOTAL_AMOUNT, ORDER_COUNT,
+                   PAYMENT_VENDOR, SIGN_CHANNEL_CODE, REQUEST_SIGN_SEQ,
+                   TXN_DATE, PAY_TIME, REMARK, CREATE_TIME, UPDATE_TIME,
+                   PAY_CHANNEL_CODE, MERCHANT_ORDER_NO, PAYMENT_INFO
+            FROM SUPPLEMENT_ORDER
+            WHERE PAY_STATUS = 'INIT'
+              AND CREATE_TIME &lt; SYSTIMESTAMP - NUMTODSINTERVAL(#{timeoutMinutes,jdbcType=NUMERIC}, 'MINUTE')
+            ORDER BY ID
+        )
+        WHERE ROWNUM &lt;= #{limit,jdbcType=NUMERIC}
+    </select>
+
+    <update id="closeTimeoutOrder">
+        UPDATE SUPPLEMENT_ORDER
+        SET PAY_STATUS = 'CLOSED',
+            REMARK = #{remark,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          AND PAY_STATUS = 'INIT'
+    </update>
+
+    <update id="forceSuccessFromClosedOrFail">
+        UPDATE SUPPLEMENT_ORDER
+        SET PAY_STATUS = 'SUCCESS',
+            REMARK = #{remark,jdbcType=VARCHAR},
+            PAY_CHANNEL_CODE = NVL(#{payChannelCode,jdbcType=VARCHAR}, PAY_CHANNEL_CODE),
+            MERCHANT_ORDER_NO = NVL(#{merchantOrderNo,jdbcType=VARCHAR}, MERCHANT_ORDER_NO),
+            PAYMENT_INFO = NVL(#{paymentInfo,jdbcType=VARCHAR}, PAYMENT_INFO),
+            PAY_TIME = SYSTIMESTAMP,
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          AND PAY_STATUS IN ('CLOSED', 'FAIL')
+    </update>
+
+    <!--
+      收敛任务回查 PayCenter 支付结果的扫描入口。
+      ROWNUM 截断 MUST 写在外层内联视图上，理由同 gate-txn-pay 版本：
+      Oracle 的 ROWNUM 在 ORDER BY 之前求值，同层写就变成「随便取 N 行再排序」。
+      回看窗口内的 CLOSED / FAIL 单一起捞回，专为「作废/关单/判失败后乘客仍付款」兜底。
+    -->
+    <select id="selectPendingOrders" resultMap="SupplementOrderMap">
+        SELECT * FROM (
+            SELECT ID, ORDER_NO, PAY_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE, GOODS_CODE,
+                   QUANTITY, TOTAL_AMOUNT, ORDER_COUNT, PAYMENT_VENDOR, SIGN_CHANNEL_CODE,
+                   REQUEST_SIGN_SEQ, TXN_DATE, PAY_TIME, REMARK, CREATE_TIME, UPDATE_TIME,
+                   PAY_CHANNEL_CODE, MERCHANT_ORDER_NO, PAYMENT_INFO
+            FROM SUPPLEMENT_ORDER
+            WHERE PAY_STATUS IN ('INIT', 'PROCESSING')
+               OR (PAY_STATUS IN ('CLOSED', 'FAIL')
+                   AND UPDATE_TIME &gt;= SYSTIMESTAMP - NUMTODSINTERVAL(#{closedLookbackHours,jdbcType=NUMERIC}, 'HOUR'))
+            ORDER BY CASE WHEN PAY_STATUS IN ('INIT', 'PROCESSING') THEN 0 ELSE 1 END, CREATE_TIME
+        )
+        WHERE ROWNUM &lt;= #{limit,jdbcType=NUMERIC}
+    </select>
+
+</mapper>

@@ -1,0 +1,137 @@
+mybatis:
+  mapper-locations: classpath:mapper/*Mapper.xml
+other:
+  sql:
+    type: oracle
+    double-datasource: false
+    page:
+      type: oracle
+    host: ${DB_HOST:}
+    database: ${DB_DATABASE:}
+    username: ${DB_USERNAME:}
+    password: ${DB_PASSWORD:}
+  web:
+    # MUST 带引号。YAML 裸 null 会被绑成空串，FirstFilter.checkUrlSafe 里
+    # "".split(" ") 得到 [""]，而 url.contains("") 恒为 true —— 所有请求一律
+    # 403 {"msg":"check url unSafe"}，且 warn 日志打的是 unsafe char:（空）。
+    # 旧应用是 K8s env other.web.unSafeUrlChars=null（字符串 "null"），行为等价于关闭。
+    unSafeUrlChars: "null"
+    enableBodyCacheFilter: true
+    enableLogRequestInFilter: true
+    enableLogTakeTimesInInterceptor: true
+
+server:
+  port: 58101
+
+spring:
+  application:
+    name: itpagm
+
+app:
+  providerId: '06'
+  charset: UTF-8
+  format: json
+  signType: '00'
+
+f2f:
+  order:
+    qrcodeExpireSeconds: 180
+    expireScanIntervalMs: 30000
+    expireScanInitialDelayMs: 15000
+    expireScanLimit: 200
+    expireGiveUpHours: 24
+    bomSaleExpireSeconds: 1800
+  notify:
+    maxRetryTimes: 5
+    scanIntervalMs: 30000
+    scanInitialDelayMs: 20000
+    scanLimit: 100
+    app:
+      take-ticket-ok-url: ${NOTIFY_APP_TAKE_TICKET_RESULT_URL:}
+      take-ticket-fail-url: ${NOTIFY_APP_TAKE_TICKET_FAULT_RESULT_URL:}
+      refund-result-url: ${NOTIFY_APP_REFUND_RESULT_URL:}
+      refund-notice-url: ${NOTIFY_APP_REFUND_NOTICE_URL:}
+      pay-result-url: ${NOTIFY_APP_PAY_RESULT_URL:}
+      connect-timeout-ms: 3000
+      read-timeout-ms: 10000
+  refund:
+    scanIntervalMs: 60000
+    scanInitialDelayMs: 30000
+    scanLimit: 100
+    firstQueryDelaySeconds: 60
+    backoffBaseSeconds: 300
+    backoffMaxSeconds: 3600
+    maxQueryTimes: 30
+    giveUpAfterHours: 24
+  device:
+    offlineTimeoutSeconds: 300
+    offlineScanIntervalMs: 60000
+  ## 出票结果上报（IF2A-05/06）的补偿扫表。首报链路里「落票 -> 推进订单 -> 入队通知」三步之后才
+  ## 置 PROCESSED='1'，中途进程被杀就会留下 PROCESSED='0' 的行，此前无人补。见 ADR-D104。
+  report:
+    scanIntervalMs: 120000
+    scanInitialDelayMs: 60000
+    scanLimit: 100
+    ## 静默期：只捞 RECEIVE_TMS 早于「当前时间 - staleSeconds」的行，避开与首报并发。
+    ## NEVER 调到小于设备上报请求的最长耗时，否则补偿会与正在跑的首报抢同一行。
+    staleSeconds: 300
+
+pay:
+  center:
+    api-version: '1.0'
+    charset: UTF-8
+    sign-type: RSA
+    sign-algorithm: SHA256WithRSA
+    industry-type: '1'
+    order-time-out-seconds: 180
+    refund-reason: 出票数量不足
+    connect-timeout-ms: 10000
+    read-timeout-ms: 30000
+    merchant-no: ${PAY_CENTER_MERCHANT_NO:}
+    private-key: MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCX+asjrvFrtDlDhHxmrZyDHTXwbCb/p5zoxnuv4FW2/Z5sUjk2o4lGmcwG43pTwbjMamjvAczheZGWPKNlgASCfWp5WFZrpYevdG6nO/ykyTUwq3Gw3clcC2bbNyU57eW2mfuXbrNLY1F7O+gLhbRN0uDOJ9+oXpJSQq2oUYR7pQLJvhAgh9khkPaYX0LNU16gXSuyvJZcVh5e/fG3Hzjqid6pGpxgAK8z9bqUoPQJEsMQsoN5EBriDu8k4CevY7FkNmTkWKkVQjcbm3vyIw+3S8JmmHV8OQgr6JwthpYCTpMGU55Nhqw9Sc8dAbdYEsqvZiCuz4W4faVPaiKv+QZ5AgMBAAECggEAISt9DuzABKHxXass+7wozPUzMKZqXKJYvPWVSW3NR4NTcJEBq8tFywMGZPqBWIaPrw4KmR/rd8rw27mgcCbg1RpKgvGk6xnV45WmERomqlDAKz9AMTo3GL/kUzRWC67A1HoHT6X5vBqRTjRlER69m77LEjPhvP3nMc0b2gDwyYuBwjEXSKSp/8fWd/mA97uD/CNfBCc/AJm2c0Kma9svdl5b269NMcUkjyuWEYLbpwxcTDXIYGhX1XJTqwWnKjAiLOjdJ2+eA39fCvj3Zz0aRUhft/96H0nNPnZCLu9MW8g5BTvzxH4122aJY5/Y/ANlQ3D8aQfRHcJufmyWTIMOAQKBgQD7xuN+k3jrL1N5p0pDO0EFiXDDuhIKnKt2sIMHWuDs4aOgRsbtcrDEuYk9el2j9pyjwrkdQIDkqjL9FXwEjxvHaXVa8eqP7g+3syr95WxCXdeiAgEQIm2FQvYL5Rdzfj33ifw0hqa46yDhPFAO2SPC3CADmvZ6CpimsLkarE/EZQKBgQCahj0w4CxgaHimwLBUBdJIDsYfGlgFBarQry0j8bDsFBst4dc/Ot9EB5frr921Q5IgAqBC43/jNxrHui1nkUKJ0VJTiNLMEXsvndgcHPSgorZ4lUku9zgZ9OljhNQD9s+E6MfJ+9CWqCFl9t0+nn9UchaU4V+8i8FEeY25rU0mhQKBgE7OTOyUejea45TjYOI0TMDP6STKO9Vofl6zFwAZWOesJIwJO0CdMmkQ7bz5bQ/iI9s6GrjmNLHd+AGxVNUUegxrnNjveYy9ZdwIz38S7VTEjLbfy7diH0ej0uGcPj/fFsRBQ1ipgMvGhM8bEq/jFUdroPWf7l/6qxcZn4aSwpDlAoGAX+DbJvBxmIA6HH2C6x+RklRYagQWiUcy7blD8QGOHW18T8PJotoMnlF32i2NC2OZz3LRra8rMviGDVdfxNtExe6zflFvOl++Z5Uw+oCc6O8M+VTny9RpYvGrvqw0QSFrMbSeAp3UlyZLUtESBkCiEOuZR1dv57VvfeVOIt9892ECgYBj46ko/R2oy49/V/gggDv+A5kf1jRkF+eVVJirbp70Wc2ycqfcRmwaOEjMYNf/GF4+e+rSF0uO8SVWFC6MWj8epmPzQ+lMf0gazF1DdxWN0/a1zh8GRB6wDGYOrl8kRvh/SmMUfz15fTt3asH9EyHpuOU/vtauqmEEryZY5/2HQA==
+    jhm-key: ${JHM_KEY:}
+    pay-url: ${PAY_CENTER_PAY_URL:}
+    query-url: ${PAY_CENTER_QUERY_URL:}
+    refund-url: ${PAY_CENTER_REFUND_URL:}
+    refund-query-url: ${PAY_CENTER_REFUND_QUERY_URL:}
+    checkout-counter-url: ${PAY_CENTER_CHECKOUT_COUNTER_URL:}
+    pay-notice-url: ${PAY_CENTER_PAY_NOTICE_URL:}
+    ## 补款单（SP 前缀）专用回调地址。留空即回落到 pay-notice-url，而后者指向 /itptvm/ci/tvm/payNotice、
+    ## 那里只查 F2F_ORDER、补款回调恒返 2001 订单不存在（ADR-D103）。
+    ## 线上取值 http://58.56.166.170:48000/itpbom/ci/bom/supplementPayNotice（复用已有网关前缀 /itpbom/）。
+    supplement-notice-url: ${PAY_CENTER_SUPPLEMENT_NOTICE_URL:}
+
+service:
+  ticket:
+    url: ${SERVICE_TICKET_URL:}
+    openLogger: true
+  account:
+    url: ${SERVICE_ACCOUNT_URL:}
+    openLogger: true
+  ## recon-server 已于 2026-09-11 部署，下面是 kubectl get svc -n itp 实测的真实 Service 名。
+  ## 注意 Service 端口等于 NodePort 号（30034），不等于容器 server.port（9112）。
+  ## 本键缺失时 rpc 会落到默认服务名、DNS 解析不到，表现是「端点返 accepted=true、
+  ## 本服务日志里 PAY/BUS 抽取完成也有，但 recon-server 一片都没收到」。
+  recon:
+    url: ${SERVICE_RECON_URL:http://recon-server-bjzdy-svc.itp.svc:30034}
+    openLogger: true
+  ## 补款成功后收敛原过闸订单（POST /internal/gate-txn-pay/debit/converge，2026-09-16 新增）。
+  ## 本模块此前是直接 UPDATE GATE_TXN_PAY（owner 是 gate-txn-pay-server），已改 RPC。
+  ## 与 recon 同一个坑：Service 端口等于 NodePort 号（30019），不等于容器 server.port（9106）。
+  ## 本键缺失时 rpc 落到默认服务名 gate-txn-pay-service、DNS 解析不到，表现是
+  ## 「补款支付成功、补款单 SUCCESS，但明细永远不是 SETTLED、原行程还挂欠费」。
+  gateTxnPay:
+    url: ${SERVICE_GATE_TXN_PAY_URL:http://gate-txn-pay-server-jomf4-svc.itp.svc:30019}
+    openLogger: true
+
+## 日终对账抽取（本服务是第 4 个源，只出 ITP.PAY 与 ITP.BUS）。
+## internal-token 目前无读取方：X-Recon-Token 校验已按用户 2026-09-11 的要求在各源与 recon-server
+## 侧整段删除，属测试期有意降级、上线前 MUST 恢复；保留键位是为了恢复时不用再找位置。
+## temp-dir 是分片落地的临时目录，分片一经上送即删除，峰值占用只有「并发文件类型数 乘 单片上限」。
+## worker 默认 1 即串行，NEVER 随手放大：抽取是重 IO 的区间扫描，并发只会互相抢 Oracle 的 IO 与
+## Druid 连接，反而拖慢联机链路。
+recon:
+  internal-token: ${RECON_INTERNAL_TOKEN:}
+  export:
+    temp-dir: ${RECON_EXPORT_TEMP_DIR:/home/javaapp/app/recon-export}
+    worker: ${RECON_EXPORT_WORKER:1}

@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.facepay.mapper.F2fReconExportMapper">
+
+    <!--
+      共同约定（写在 XML 注释里，NEVER 搬进 SQL 正文：Druid WallFilter 的 commentAllow=false，
+      SQL 正文出现行注释或块注释会被判定为注入、语句静默失效。本文件的 XML 注释内也不出现
+      连续两个半角减号，否则 XML 解析直接报错、整个服务启动即挂）：
+
+      1. 本文件只服务 ITP.PAY 与 ITP.BUS 两类汇总文件，全部是库内 GROUP BY，没有明细分页。
+
+      2. 时间窗口 O.PAID_TMS &gt;= windowStart AND O.PAID_TMS &lt; windowEnd 左闭右开，
+         保证相邻两天的窗口既不漏也不重。PAID_TMS 是真 TIMESTAMP(6)，绑定用 jdbcType=TIMESTAMP，
+         参数由 Java 侧传 java.sql.Timestamp。
+         NEVER 把窗口参数写成 'yyyy-MM-dd' 字符串直接比 TIMESTAMP 列：Oracle 走隐式转换，
+         格式不匹配即 ORA-01843（account-server 的注册量统计已因同型问题炸过一次）。
+         NEVER 对 PAID_TMS 套 TO_CHAR / TRUNC 之类的函数放进 WHERE，那会让索引失效。
+
+      3. 窗口列与日期分组列 MUST 同源，都取 O.PAID_TMS。
+         混用（例如窗口按 CREATE_TMS、日期段按 PAID_TMS）会让同一笔在相邻两天的窗口里重复或漏掉。
+         代价是分区裁剪失效：F2F_ORDER 按 CREATE_TMS 做 INTERVAL 月分区，按 PAID_TMS 过滤扫全表。
+         这是有意的取舍：正确的账期口径优先于扫描量，且对账是每日一次的批处理。
+
+      4. 成功状态白名单：P.PAY_STATUS = 'SUCCESS'。
+         PAY_STATUS 取值 INIT / PROCESSING / SUCCESS / FAILED / UNKNOWN，其中 UNKNOWN 表示对端
+         未明确应答、要靠回查收口。NEVER 写成「非 FAILED 即成功」之类的黑名单，
+         中间态被当成已收款会让本期虚增收入且下期重复入账。
+         UK_F2F_PAY_SUCCESS（CASE WHEN PAY_STATUS='SUCCESS' THEN ORDER_NO END）保证一单最多一条
+         成功支付，因此 INNER JOIN 后不会放大笔数。
+
+      5. TXN_DATE 段：TO_CHAR(O.PAID_TMS, 'YYYYMMDD')。该表达式只出现在 SELECT 列表与
+         GROUP BY / ORDER BY 里，不出现在 WHERE 里，因此不影响索引。
+
+      6. 金额列是 NUMBER(12)、单位分，SUM 外面只包 NVL 兜 NULL（SUM 会跳过 NULL，
+         全组皆 NULL 时返回 NULL）。NEVER 套 TO_NUMBER：那是 collect-pay 那个源为字符串金额列
+         准备的，本模块套上去纯属多余。
+         金额取 P.PAY_AMOUNT（实付），NEVER 取 O.ORDER_AMOUNT：后者是下单金额，
+         与实际到账可能不等（部分退款不改它、聚合码场景也不改它）。
+
+      7. 车站段与线路段
+         F2F_ORDER 有两列车站码：STATION_CODE（受理设备所在车站，TVM / BOM 侧有值）与
+         ENTRY_STATION_CODE（入站车站，购票场景有值）。本文件统一取
+         NVL(O.STATION_CODE, O.ENTRY_STATION_CODE)：设备侧优先用设备所在车站，
+         APP 侧没有设备车站时退回入站码，两者都空时该段留空、账仍在。
+
+         线路段（ITP.PAY 第 2 段）本模块一律不出，2026-09-16 起由 recon-server 在聚合完成、
+         写文件之前按车站码统一补齐（见该模块的 ReconStationMapper 与 recon.line-backfill.* 配置）。
+         本文件因此删掉了原先五条 PAY 汇总里各自一份的
+           LEFT JOIN STATION_INFO S ON S.STATION_CODE = NVL(O.STATION_CODE, O.ENTRY_STATION_CODE)
+         与 SELECT / GROUP BY / ORDER BY 里的 S.LINE_CODE。
+
+         收口的判据（这段替换了本文件此前那段「有意破例」的说明，该说明已作废、NEVER 回退）：
+         STATION_INFO 属车站 / 参数域、owner 不是 face-pay，原先四个源各写一遍这个 join，
+         等于「线路怎么取」有四份副本、四份各自的 join 列名、四次维表结构变更的暴露面。
+         而线路是车站的函数（一个车站码只对应一条线路），完全可以在聚合完成后由消费端一次补齐，
+         不必让每个源都认识这张维表。此前那段注释里写的「真要解耦，正解是把线路段整体收口到
+         recon-server，那是跨 5 个模块的一次性重构」，就是本次做的事；实际动到的是
+         gate-txn-pay / collect-pay / face-pay 三个源 + recon-server 四个模块
+         （daily-ticket 本来就没有这个 join；ticket-server 那处 join 在明细 EXP 里、
+         明细走字节流式拼接不解析行内容、recon-server 补不了，而且 ticket 已不在期望清单，故不动）。
+
+         NEVER 把 join 加回来：recon-server 侧的补齐是无条件覆盖的，加回来既不改变产出、
+         也拿不回任何收益，只会让「线路怎么取」重新变成两处。
+         NEVER 用车站码前 2 位推线路：前 2 位恰好等于 LINE_CODE 是编码巧合、不是契约；
+         这条约束在收口后依然成立，只是执行点搬到了 recon-server。
+         车站维表缺记录的车站，线路段留空、该组单独成行、账仍在 —— 与原先用 LEFT JOIN
+         （而非 INNER JOIN）的取舍完全一致，只是判断点也搬到了 recon-server。
+
+      8. 两张表的别名固定 O（F2F_ORDER）、P（F2F_PAYMENT），全部列名都带前缀，
+         不依赖「两表无同名列」这一偶然事实（它们都有 ORDER_NO / CREATE_TMS），也就不会 ORA-00918。
+         别名 S 曾用于 STATION_INFO，随线路段收口已不再出现；下次若引入第三张表，
+         MUST 同样给它一个别名并给所有列加前缀。
+
+      9. BIZ_TYPE 到 ITP.PAY 度量段的映射（0 基下标，Java 侧 ReconExportService 有对应常量）：
+           BIZ_TYPE='01' 且 CHANNEL IN ('02','03')  idx 5 / 6    BOM/TVM 发售
+           BIZ_TYPE='01' 且 CHANNEL='01'            idx 13 / 14  APP 购票
+           BIZ_TYPE='02'                            idx 7 / 8    BOM/TVM 充值
+           BIZ_TYPE='04' 且 TRANS_TYPE='42'         idx 15 / 16  BOM 行政处理
+           BIZ_TYPE='04' 且 TRANS_TYPE 非 42        idx 19 / 20  BOM 处理
+         BIZ_TYPE='03'（取票）不产出任何度量：取票是 APP 购票单的履约动作，钱在购票那一单已经计过，
+         再计一次就是重复入账。取票单若意外挂上成功支付，由 countUncoveredPaidOrders 探针报 WARN。
+         恒 0 的三组是 旅游票（9 / 10，归 daily-ticket）、过闸（11 / 12，归 gate-txn-pay）、
+         单边交易（17 / 18，属 ITP.EXP 口径，本模块无判据）。
+    -->
+    <select id="selectDeviceSalePaySummary" resultType="java.util.Map">
+        SELECT
+            TO_CHAR(O.PAID_TMS, 'YYYYMMDD') AS TXN_DATE,
+            NVL(O.STATION_CODE, O.ENTRY_STATION_CODE) AS STATION_CODE,
+            O.DEVICE_ID AS DEVICE_ID,
+            P.PAY_CHANNEL_CODE AS PAY_CHANNEL_CODE,
+            COUNT(*) AS TXN_COUNT,
+            NVL(SUM(P.PAY_AMOUNT), 0) AS TXN_AMOUNT
+        FROM F2F_ORDER O
+        JOIN F2F_PAYMENT P ON P.ORDER_NO = O.ORDER_NO AND P.PAY_STATUS = 'SUCCESS'
+        WHERE O.BIZ_TYPE = '01'
+          AND O.CHANNEL IN ('02', '03')
+          AND O.PAID_TMS &gt;= #{windowStart,jdbcType=TIMESTAMP}
+          AND O.PAID_TMS &lt; #{windowEnd,jdbcType=TIMESTAMP}
+        GROUP BY TO_CHAR(O.PAID_TMS, 'YYYYMMDD'),
+                 NVL(O.STATION_CODE, O.ENTRY_STATION_CODE), O.DEVICE_ID, P.PAY_CHANNEL_CODE
+        ORDER BY TO_CHAR(O.PAID_TMS, 'YYYYMMDD'),
+                 NVL(O.STATION_CODE, O.ENTRY_STATION_CODE), O.DEVICE_ID, P.PAY_CHANNEL_CODE
+    </select>
+    <!--
+      APP 购票（idx 13 / 14）。CHANNEL='01' 即 APP 受理。
+      APP 单没有受理设备，DEVICE_ID 通常为空；仍照常放进分组键，为空时该段留空。
+      车站段与线路段同样走 NVL(STATION_CODE, ENTRY_STATION_CODE)：APP 单一般只有入站码。
+    -->
+    <select id="selectAppSalePaySummary" resultType="java.util.Map">
+        SELECT
+            TO_CHAR(O.PAID_TMS, 'YYYYMMDD') AS TXN_DATE,
+            NVL(O.STATION_CODE, O.ENTRY_STATION_CODE) AS STATION_CODE,
+            O.DEVICE_ID AS DEVICE_ID,
+            P.PAY_CHANNEL_CODE AS PAY_CHANNEL_CODE,
+            COUNT(*) AS TXN_COUNT,
+            NVL(SUM(P.PAY_AMOUNT), 0) AS TXN_AMOUNT
+        FROM F2F_ORDER O
+        JOIN F2F_PAYMENT P ON P.ORDER_NO = O.ORDER_NO AND P.PAY_STATUS = 'SUCCESS'
+        WHERE O.BIZ_TYPE = '01'
+          AND O.CHANNEL = '01'
+          AND O.PAID_TMS &gt;= #{windowStart,jdbcType=TIMESTAMP}
+          AND O.PAID_TMS &lt; #{windowEnd,jdbcType=TIMESTAMP}
+        GROUP BY TO_CHAR(O.PAID_TMS, 'YYYYMMDD'),
+                 NVL(O.STATION_CODE, O.ENTRY_STATION_CODE), O.DEVICE_ID, P.PAY_CHANNEL_CODE
+        ORDER BY TO_CHAR(O.PAID_TMS, 'YYYYMMDD'),
+                 NVL(O.STATION_CODE, O.ENTRY_STATION_CODE), O.DEVICE_ID, P.PAY_CHANNEL_CODE
+    </select>
+
+    <!--
+      充值（idx 7 / 8）。BIZ_TYPE='02'，不按 CHANNEL 拆：甲方段名本身就是「BOM/TVM 充值」合并一段。
+      充值单没有入站车站，车站段实际取到的是 STATION_CODE（设备所在车站）。
+    -->
+    <select id="selectTopupPaySummary" resultType="java.util.Map">
+        SELECT
+            TO_CHAR(O.PAID_TMS, 'YYYYMMDD') AS TXN_DATE,
+            NVL(O.STATION_CODE, O.ENTRY_STATION_CODE) AS STATION_CODE,
+            O.DEVICE_ID AS DEVICE_ID,
+            P.PAY_CHANNEL_CODE AS PAY_CHANNEL_CODE,
+            COUNT(*) AS TXN_COUNT,
+            NVL(SUM(P.PAY_AMOUNT), 0) AS TXN_AMOUNT
+        FROM F2F_ORDER O
+        JOIN F2F_PAYMENT P ON P.ORDER_NO = O.ORDER_NO AND P.PAY_STATUS = 'SUCCESS'
+        WHERE O.BIZ_TYPE = '02'
+          AND O.PAID_TMS &gt;= #{windowStart,jdbcType=TIMESTAMP}
+          AND O.PAID_TMS &lt; #{windowEnd,jdbcType=TIMESTAMP}
+        GROUP BY TO_CHAR(O.PAID_TMS, 'YYYYMMDD'),
+                 NVL(O.STATION_CODE, O.ENTRY_STATION_CODE), O.DEVICE_ID, P.PAY_CHANNEL_CODE
+        ORDER BY TO_CHAR(O.PAID_TMS, 'YYYYMMDD'),
+                 NVL(O.STATION_CODE, O.ENTRY_STATION_CODE), O.DEVICE_ID, P.PAY_CHANNEL_CODE
+    </select>
+    <!--
+      BOM 行政处理（idx 15 / 16）：BIZ_TYPE='04' 且 TRANS_TYPE='42'。
+      这一组在 collect-pay 那个源里恒 0（旧表 TRANS_TYPE 的取值三处证据互相矛盾），本源能算：
+      F2F_ORDER 用 BIZ_TYPE 表达业务类型、TRANS_TYPE 只表达 BOM 交易类型，两者正交，
+      42 行政处理的语义在列注释里是唯一的，细分由 ADMIN_TRANS_TYPE（01 至 0A）承载。
+      NEVER 因为「collect-pay 那边是 0」就把本组也写成 0。
+      与下一条 selectBomOtherPaySummary 构成对 BIZ_TYPE='04' 的完全二分，改一条 MUST 改另一条。
+    -->
+    <select id="selectBomAdminPaySummary" resultType="java.util.Map">
+        SELECT
+            TO_CHAR(O.PAID_TMS, 'YYYYMMDD') AS TXN_DATE,
+            NVL(O.STATION_CODE, O.ENTRY_STATION_CODE) AS STATION_CODE,
+            O.DEVICE_ID AS DEVICE_ID,
+            P.PAY_CHANNEL_CODE AS PAY_CHANNEL_CODE,
+            COUNT(*) AS TXN_COUNT,
+            NVL(SUM(P.PAY_AMOUNT), 0) AS TXN_AMOUNT
+        FROM F2F_ORDER O
+        JOIN F2F_PAYMENT P ON P.ORDER_NO = O.ORDER_NO AND P.PAY_STATUS = 'SUCCESS'
+        WHERE O.BIZ_TYPE = '04'
+          AND O.TRANS_TYPE = '42'
+          AND O.PAID_TMS &gt;= #{windowStart,jdbcType=TIMESTAMP}
+          AND O.PAID_TMS &lt; #{windowEnd,jdbcType=TIMESTAMP}
+        GROUP BY TO_CHAR(O.PAID_TMS, 'YYYYMMDD'),
+                 NVL(O.STATION_CODE, O.ENTRY_STATION_CODE), O.DEVICE_ID, P.PAY_CHANNEL_CODE
+        ORDER BY TO_CHAR(O.PAID_TMS, 'YYYYMMDD'),
+                 NVL(O.STATION_CODE, O.ENTRY_STATION_CODE), O.DEVICE_ID, P.PAY_CHANNEL_CODE
+    </select>
+
+    <!--
+      BOM 处理（idx 19 / 20）：BIZ_TYPE='04' 且 TRANS_TYPE 不是 42（含 NULL）。
+      MUST 写成 (O.TRANS_TYPE IS NULL OR O.TRANS_TYPE &lt;&gt; '42')：TRANS_TYPE 可空，
+      而 Oracle 里 NULL &lt;&gt; '42' 结果是 UNKNOWN、不是 TRUE，只写不等号会把所有 TRANS_TYPE
+      为空的 BOM 单静默漏掉，二分随之破裂。
+    -->
+    <select id="selectBomOtherPaySummary" resultType="java.util.Map">
+        SELECT
+            TO_CHAR(O.PAID_TMS, 'YYYYMMDD') AS TXN_DATE,
+            NVL(O.STATION_CODE, O.ENTRY_STATION_CODE) AS STATION_CODE,
+            O.DEVICE_ID AS DEVICE_ID,
+            P.PAY_CHANNEL_CODE AS PAY_CHANNEL_CODE,
+            COUNT(*) AS TXN_COUNT,
+            NVL(SUM(P.PAY_AMOUNT), 0) AS TXN_AMOUNT
+        FROM F2F_ORDER O
+        JOIN F2F_PAYMENT P ON P.ORDER_NO = O.ORDER_NO AND P.PAY_STATUS = 'SUCCESS'
+        WHERE O.BIZ_TYPE = '04'
+          AND (O.TRANS_TYPE IS NULL OR O.TRANS_TYPE &lt;&gt; '42')
+          AND O.PAID_TMS &gt;= #{windowStart,jdbcType=TIMESTAMP}
+          AND O.PAID_TMS &lt; #{windowEnd,jdbcType=TIMESTAMP}
+        GROUP BY TO_CHAR(O.PAID_TMS, 'YYYYMMDD'),
+                 NVL(O.STATION_CODE, O.ENTRY_STATION_CODE), O.DEVICE_ID, P.PAY_CHANNEL_CODE
+        ORDER BY TO_CHAR(O.PAID_TMS, 'YYYYMMDD'),
+                 NVL(O.STATION_CODE, O.ENTRY_STATION_CODE), O.DEVICE_ID, P.PAY_CHANNEL_CODE
+    </select>
+    <!--
+      ITP.BUS 商业优惠汇总，甲方规格只有 4 段：日期 | 对账金额 | 付款金额 | 优惠金额。
+      键只有日期一段，所以这条 select 只按日期分组，NEVER 再带车站 / 设备 / 支付方式
+      （多带一段会让 recon-server 按 1 段键聚合时把维度信息当成度量列错位读取）。
+      口径 MUST 与 ITP.PAY 五组的并集一致：BIZ_TYPE IN ('01','02','04')。
+      两类文件取自同一批成功支付，口径分叉会让 ACC 侧两份文件对不上。
+      对账金额与付款金额都取 PAY_AMOUNT 之和；优惠金额本模块恒 0 ——
+      F2F_ORDER / F2F_PAYMENT 都没有任何优惠 / 折扣金额列，
+      NEVER 拿 ORDER_AMOUNT 与 PAY_AMOUNT 之差去推算：那个差额可能来自部分退款、
+      聚合码场景或脏数据，算出来的不是优惠。
+    -->
+    <select id="selectBusSummary" resultType="java.util.Map">
+        SELECT
+            TO_CHAR(O.PAID_TMS, 'YYYYMMDD') AS TXN_DATE,
+            NVL(SUM(P.PAY_AMOUNT), 0) AS TXN_AMOUNT
+        FROM F2F_ORDER O
+        JOIN F2F_PAYMENT P ON P.ORDER_NO = O.ORDER_NO AND P.PAY_STATUS = 'SUCCESS'
+        WHERE O.BIZ_TYPE IN ('01', '02', '04')
+          AND O.PAID_TMS &gt;= #{windowStart,jdbcType=TIMESTAMP}
+          AND O.PAID_TMS &lt; #{windowEnd,jdbcType=TIMESTAMP}
+        GROUP BY TO_CHAR(O.PAID_TMS, 'YYYYMMDD')
+        ORDER BY TO_CHAR(O.PAID_TMS, 'YYYYMMDD')
+    </select>
+
+    <!--
+      漏账探针一：窗口内有成功支付、但 BIZ_TYPE 不在白名单 ('01','02','04') 里的单数。
+      五条汇总 select 的 BIZ_TYPE 谓词是白名单，新增业务类型（或取票单 BIZ_TYPE='03'
+      意外挂上成功支付）时那部分钱不进任何一段度量、也不报错。本探针让它至少留下一条 WARN。
+      NEVER 删：这是本项目反复踩过的「静默漏账」类缺陷的唯一出口。
+    -->
+    <select id="countUncoveredPaidOrders" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM F2F_ORDER O
+        JOIN F2F_PAYMENT P ON P.ORDER_NO = O.ORDER_NO AND P.PAY_STATUS = 'SUCCESS'
+        WHERE O.BIZ_TYPE NOT IN ('01', '02', '04')
+          AND O.PAID_TMS &gt;= #{windowStart,jdbcType=TIMESTAMP}
+          AND O.PAID_TMS &lt; #{windowEnd,jdbcType=TIMESTAMP}
+    </select>
+
+    <!--
+      漏账探针二：支付已成功（按 P.FINISH_TMS 落窗）、但订单 PAID_TMS 为空的单数。
+      五条汇总 select 一律按 O.PAID_TMS 落窗，这类残缺行会被静默丢掉。
+      成因：PAID_TMS 由 markPaid 写入，其 WHERE 是 ORDER_STATUS IN ('CREATED','PAYING') 的状态
+      白名单，若支付成功回调到达时订单状态已不在白名单内，则该行 PAID_TMS 一直为空。
+      本探针是唯一能发现这种漏账的地方，NEVER 删。
+    -->
+    <select id="countPaidWithoutPaidTms" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM F2F_PAYMENT P
+        JOIN F2F_ORDER O ON O.ORDER_NO = P.ORDER_NO
+        WHERE P.PAY_STATUS = 'SUCCESS'
+          AND O.PAID_TMS IS NULL
+          AND P.FINISH_TMS &gt;= #{windowStart,jdbcType=TIMESTAMP}
+          AND P.FINISH_TMS &lt; #{windowEnd,jdbcType=TIMESTAMP}
+    </select>
+
+</mapper>
