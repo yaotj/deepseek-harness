@@ -93,6 +93,65 @@
         WHERE THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
     </update>
 
+    <!--
+        以下 4 条是 SIGN_STATUS 状态机的 CAS UPDATE，是本状态机唯一的并发保证。
+        迁移白名单（与 docs/domain/state-machines.md 一致）：
+            NOT_SIGNED -> SIGNED | FAILED
+            FAILED     -> SIGNED | NOT_SIGNED
+            SIGNED     -> UNSIGNED
+            UNSIGNED   -> NOT_SIGNED（复位重签）
+        NEVER 允许 UNSIGNED -> SIGNED：迟到的签约回调会把已解约通道改回已签约，
+        APP 显示通道有效而渠道侧协议已注销。历史 updateBySeq 的 WHERE 只有
+        REQUEST_SIGN_SEQ，正是这个覆盖的来源，改状态 MUST 走这 4 条。
+        返回 0 行不等于失败，MUST 由调用方回查当前状态判断「幂等」还是「真冲突」。
+        WHERE 走 UK_APPSI_REQUEST_SIGN_SEQ 唯一索引，不再全表扫描。
+    -->
+    <update id="markSigned">
+        UPDATE APP_PAY_SIGN_INFO
+        SET SIGN_STATUS = 'SIGNED',
+            PAY_ACCOUNT_ID = #{payAccountId,jdbcType=VARCHAR},
+            PAY_AGREEMENT_NO = #{payAgreementNo,jdbcType=VARCHAR},
+            SIGN_TIME = #{signTime,jdbcType=TIMESTAMP}
+        WHERE REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+          AND SIGN_STATUS IN ('NOT_SIGNED', 'FAILED')
+    </update>
+
+    <update id="markSignFailed">
+        UPDATE APP_PAY_SIGN_INFO
+        SET SIGN_STATUS = 'FAILED'
+        WHERE REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+          AND SIGN_STATUS = 'NOT_SIGNED'
+    </update>
+
+    <update id="markUnsigned">
+        UPDATE APP_PAY_SIGN_INFO
+        SET SIGN_STATUS = 'UNSIGNED',
+            TERMINATION_TIME = #{terminationTime,jdbcType=TIMESTAMP}
+        WHERE REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+          AND SIGN_STATUS = 'SIGNED'
+    </update>
+
+    <!--
+        复位重签：只清签约结果字段，NEVER 清 THIRD_USER_ID / PAYMENT_VENDOR / CARD_ID，
+        它们是这一行的身份与解约时的卡信息比对依据。
+    -->
+    <update id="reactivateForResign">
+        UPDATE APP_PAY_SIGN_INFO
+        SET SIGN_STATUS = 'NOT_SIGNED',
+            PAY_ACCOUNT_ID = NULL,
+            PAY_AGREEMENT_NO = NULL,
+            SIGN_TIME = NULL,
+            TERMINATION_TIME = NULL
+        WHERE REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+          AND SIGN_STATUS IN ('UNSIGNED', 'FAILED')
+    </update>
+
+    <select id="selectSignStatusBySeq" resultType="java.lang.String">
+        SELECT SIGN_STATUS
+        FROM APP_PAY_SIGN_INFO
+        WHERE REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+    </select>
+
     <!-- 废弃：原有的 upsert/MERGE -->
     <!--
     <update id="upsert" parameterType="com.chinasofti.huateng.paysign.entity.PaySignInfo">

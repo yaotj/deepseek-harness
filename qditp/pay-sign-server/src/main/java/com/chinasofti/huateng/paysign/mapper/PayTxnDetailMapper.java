@@ -24,9 +24,10 @@ public interface PayTxnDetailMapper {
     int updatePayCallback(PayTxnDetail record);
 
     /**
-     * 退款成功后累加原支付订单已退款金额并刷新退款状态。
+     * 按 PAY_REFUND_DETAIL 重算原支付订单的已退款金额与退款状态。
+     *
+     * <p>只传 orderNo：金额与状态都由 SQL 从明细表汇总，**NEVER** 由调用方传入增量——
+     * 入参没有幂等键，传增量就意味着重复执行会重复累加（详见 mapper XML 内注释）。</p>
      */
-    int updateRefundSummary(@Param("orderNo") String orderNo,
-                            @Param("refundAmount") Integer refundAmount,
-                            @Param("refundStatus") String refundStatus);
+    int updateRefundSummary(@Param("orderNo") String orderNo);
 }

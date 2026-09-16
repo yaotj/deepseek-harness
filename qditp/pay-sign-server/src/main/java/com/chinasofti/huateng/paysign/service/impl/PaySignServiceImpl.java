@@ -19,10 +19,10 @@ import com.chinasofti.huateng.paysign.entity.PaySignInfo;
 import com.chinasofti.huateng.paysign.entity.PayTxnDetail;
 import com.chinasofti.huateng.paysign.mapper.PaySignInfoMapper;
 import com.chinasofti.huateng.paysign.mapper.PayTxnDetailMapper;
-import com.chinasofti.huateng.paysign.model.request.ReceiveTerminationResultReqDTO;
+import com.chinasofti.huateng.model.app.ReceiveTerminationResultReqDTO;
 import com.chinasofti.huateng.paysign.model.request.RequestContractAdvisoryReqDTO;
-import com.chinasofti.huateng.paysign.model.request.RequestContractResultReqDTO;
-import com.chinasofti.huateng.paysign.model.request.RequestTerminationReqDTO;
+import com.chinasofti.huateng.model.app.RequestContractResultReqDTO;
+import com.chinasofti.huateng.model.app.RequestTerminationReqDTO;
 import com.chinasofti.huateng.paysign.model.response.BaseRespDTO;
 import com.chinasofti.huateng.paysign.model.response.RequestContractAdvisoryRespDTO;
 import com.chinasofti.huateng.paysign.model.response.RequestContractResultRespDTO;
@@ -31,6 +31,7 @@ import com.chinasofti.huateng.paysign.service.CallbackDomainService;
 import com.chinasofti.huateng.paysign.service.ContractDomainService;
 import com.chinasofti.huateng.paysign.service.PaySignService;
 import com.chinasofti.huateng.paysign.service.PaymentDomainService;
+import com.chinasofti.huateng.paysign.service.RefundDomainService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -51,17 +52,20 @@ public class PaySignServiceImpl implements PaySignService {
 
     private final ContractDomainService contractDomainService;
     private final PaymentDomainService paymentDomainService;
+    private final RefundDomainService refundDomainService;
     private final CallbackDomainService callbackDomainService;
     private final PaySignInfoMapper paySignInfoMapper;
     private final PayTxnDetailMapper payTxnDetailMapper;
 
     public PaySignServiceImpl(ContractDomainService contractDomainService,
                               PaymentDomainService paymentDomainService,
+                              RefundDomainService refundDomainService,
                               CallbackDomainService callbackDomainService,
                               PaySignInfoMapper paySignInfoMapper,
                               PayTxnDetailMapper payTxnDetailMapper) {
         this.contractDomainService = contractDomainService;
         this.paymentDomainService = paymentDomainService;
+        this.refundDomainService = refundDomainService;
         this.callbackDomainService = callbackDomainService;
         this.paySignInfoMapper = paySignInfoMapper;
         this.payTxnDetailMapper = payTxnDetailMapper;
@@ -104,7 +108,10 @@ public class PaySignServiceImpl implements PaySignService {
 
     @Override
     public RequestRefundResult requestRefund(RequestRefundReqDTO request) {
-        return paymentDomainService.requestRefund(request);
+        // 退款的真实现在退款领域（2026-09-15 从支付领域拆出，纯搬迁）。
+        // NEVER 退回「经 PaymentDomainService 转发」—— 那会让支付组重新挂上退款入口，
+        // 而支付组一行退款逻辑都没有了。
+        return refundDomainService.requestRefund(request);
     }
 
     @Override
@@ -114,7 +121,10 @@ public class PaySignServiceImpl implements PaySignService {
 
     @Override
     public PaySignCallbackResult receivePayResult(ReceivePayResultReqDTO request, String rawBody) {
-        return callbackDomainService.receivePayResult(request, rawBody);
+        // 支付结果回调的真实现在支付领域（2026-09-15 拆分支付组时随 PAY_TXN_DETAIL 一起搬走）。
+        // 这里直接路由到支付领域，NEVER 退回「经 CallbackDomainService 转发」—— 那会让回调组反向
+        // 依赖支付组，而回调组自己一行支付逻辑都没有。
+        return paymentDomainService.receivePayResult(request, rawBody);
     }
 
     @Override
@@ -150,42 +160,10 @@ public class PaySignServiceImpl implements PaySignService {
         }
         try {
             List<PayTxnDetail> list = payTxnDetailMapper.selectByOrderNos(orderNos);
-            List<com.chinasofti.huateng.model.paysign.PayTxnDetailDTO> dtoList = new ArrayList<>(list.size());
-            for (PayTxnDetail entity : list) {
-                com.chinasofti.huateng.model.paysign.PayTxnDetailDTO dto = new com.chinasofti.huateng.model.paysign.PayTxnDetailDTO();
-                dto.setId(entity.getId());
-                dto.setOrderNo(entity.getOrderNo());
-                dto.setPayType(entity.getPayType());
-                dto.setPayStatus(entity.getPayStatus());
-                dto.setThirdUserId(entity.getThirdUserId());
-                dto.setCardId(entity.getCardId());
-                dto.setCardType(entity.getCardType());
-                dto.setPaymentVendor(entity.getPaymentVendor());
-                dto.setRequestSignSeq(entity.getRequestSignSeq());
-                dto.setAmount(entity.getAmount());
-                dto.setTotalAmount(entity.getTotalAmount());
-                dto.setCashAmount(entity.getCashAmount());
-                dto.setCouponAmount(entity.getCouponAmount());
-                dto.setRefundStatus(entity.getRefundStatus());
-                dto.setRefundAmount(entity.getRefundAmount());
-                dto.setLastRefundTime(entity.getLastRefundTime());
-                dto.setMerchantOrderNo(entity.getMerchantOrderNo());
-                dto.setChannelOrderNo(entity.getChannelOrderNo());
-                dto.setPayUserId(entity.getPayUserId());
-                dto.setRequestCount(entity.getRequestCount());
-                dto.setNextRequestTime(entity.getNextRequestTime());
-                dto.setLastRequestTime(entity.getLastRequestTime());
-                dto.setFirstRequestTime(entity.getFirstRequestTime());
-                dto.setResponseTime(entity.getResponseTime());
-                dto.setPayTime(entity.getPayTime());
-                dto.setTxnDate(entity.getTxnDate());
-                dto.setCreateTime(entity.getCreateTime());
-                dto.setUpdateTime(entity.getUpdateTime());
-                dto.setDiscountInfo(entity.getDiscountInfo());
-                dto.setDebitRequestResult(entity.getDebitRequestResult());
-                dto.setDiscountFee(entity.getDiscountFee());
-                dtoList.add(dto);
-            }
+            // 26 个字段的逐字段拷贝已外提到 support/PayTxnViews（ADR-D98 判据：零协作者）。
+            // NEVER 在这里再手写一份 —— 漏一个 setter 不编译失败、不告警，只会让某一列恒为 null。
+            List<com.chinasofti.huateng.model.paysign.PayTxnDetailDTO> dtoList =
+                    com.chinasofti.huateng.paysign.support.PayTxnViews.toDtoList(list);
             result.setRetCode("0000");
             result.setRetMsg("成功");
             result.setPayTxnDetailList(dtoList);

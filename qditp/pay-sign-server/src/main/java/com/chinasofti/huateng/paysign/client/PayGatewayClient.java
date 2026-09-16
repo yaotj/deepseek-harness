@@ -51,15 +51,16 @@ public class PayGatewayClient {
 
     /**
      * 调用支付网关。传输或协议异常以 {@code PayGatewayException} 抛出，由调用方处理。
+     *
+     * @param url 支付中心接口的完整 URL，取自 {@code pay.sign.*-url} 配置
      */
-    public PaySignGatewayResponse request(String path, Map<String, Object> bizData) {
-        if (!StringUtils.hasText(properties.getGatewayUrl())) {
-            throw new PayGatewayException("支付网关地址未配置, path=" + path);
+    public PaySignGatewayResponse request(String url, Map<String, Object> bizData) {
+        if (!StringUtils.hasText(url)) {
+            throw new PayGatewayException("支付网关接口地址未配置");
         }
         try {
             String bizDataJson = JSON.toJSONString(bizData);
             PaySignGatewayRequest gatewayRequest = buildRequest(bizDataJson);
-            String url = properties.getGatewayUrl() + path;
             Request httpRequest = new Request.Builder()
                     .url(url)
                     .post(RequestBody.create(JSON.toJSONString(gatewayRequest), MEDIA_TYPE_JSON))
@@ -67,14 +68,14 @@ public class PayGatewayClient {
 
             try (Response httpResponse = httpClient.newCall(httpRequest).execute()) {
                 if (!httpResponse.isSuccessful() || httpResponse.body() == null) {
-                    throw new PayGatewayException("调用支付网关失败, path=" + path + ", httpCode=" + httpResponse.code());
+                    throw new PayGatewayException("调用支付网关失败, url=" + url + ", httpCode=" + httpResponse.code());
                 }
                 return JSON.parseObject(httpResponse.body().string(), PaySignGatewayResponse.class);
             }
         } catch (PayGatewayException e) {
             throw e;
         } catch (Exception e) {
-            throw new PayGatewayException("调用支付网关异常, path=" + path, e);
+            throw new PayGatewayException("调用支付网关异常, url=" + url, e);
         }
     }
 

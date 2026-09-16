@@ -18,6 +18,19 @@ public class AppTerminationRequest {
     private Integer notifyRetryCount;
     private LocalDateTime notifyTime;
     private String notifyResult;
+    /**
+     * 「解约成功后清理账户域支付通道」这一动作的投递状态。
+     *
+     * <p>取值 PENDING / SUCCESS / FAILED / MANUAL，与 NOTIFY_* 一组语义对称但**管的是两件不同的事**：
+     * NOTIFY_* 管「给 APP 发通知」，本组管「调 account-server 删通道」。NEVER 混用。</p>
+     *
+     * <p><b>NULL 表示本行早于 ADR-D8 第一处的改造</b>：那时清理是在同一个事务里做的，
+     * 成功即提交、失败即整单回滚，没有中间态可记。补偿扫表 NEVER 捞 NULL 行。</p>
+     */
+    private String channelSyncStatus;
+    private Integer channelSyncRetryCount;
+    private LocalDateTime channelSyncTime;
+    private String channelSyncResult;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 
@@ -155,5 +168,37 @@ public class AppTerminationRequest {
 
     public void setUpdateTime(LocalDateTime updateTime) {
         this.updateTime = updateTime;
+    }
+
+    public String getChannelSyncStatus() {
+        return channelSyncStatus;
+    }
+
+    public void setChannelSyncStatus(String channelSyncStatus) {
+        this.channelSyncStatus = channelSyncStatus;
+    }
+
+    public Integer getChannelSyncRetryCount() {
+        return channelSyncRetryCount;
+    }
+
+    public void setChannelSyncRetryCount(Integer channelSyncRetryCount) {
+        this.channelSyncRetryCount = channelSyncRetryCount;
+    }
+
+    public LocalDateTime getChannelSyncTime() {
+        return channelSyncTime;
+    }
+
+    public void setChannelSyncTime(LocalDateTime channelSyncTime) {
+        this.channelSyncTime = channelSyncTime;
+    }
+
+    public String getChannelSyncResult() {
+        return channelSyncResult;
+    }
+
+    public void setChannelSyncResult(String channelSyncResult) {
+        this.channelSyncResult = channelSyncResult;
     }
 }

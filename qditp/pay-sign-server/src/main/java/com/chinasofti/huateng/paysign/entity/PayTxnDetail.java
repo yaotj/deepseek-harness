@@ -35,6 +35,13 @@ public class PayTxnDetail {
     private String debitRequestResult;    // 扣款结果：PROCESSING/SUCCESS/FAIL
     private Integer discountFee;          // 优惠金额（分）
     private String transIn;               // 入账账户/商户号
+    // 支付中心侧的支付订单号（回调报文的 orderNo，形如 286275496309587968）。
+    // 与 MERCHANT_ORDER_NO 不是一回事：后者是我方商户订单号，等同 ORDER_NO。
+    // 退款报文 §3.1 的「原支付订单号 orderNo」MUST 用这个值，缺它退款必失败。
+    private String payCenterOrderNo;
+
+    public String getPayCenterOrderNo() { return payCenterOrderNo; }
+    public void setPayCenterOrderNo(String payCenterOrderNo) { this.payCenterOrderNo = payCenterOrderNo; }
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
