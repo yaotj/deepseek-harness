@@ -3,6 +3,7 @@ package com.chinasofti.huateng.para.service.impl;
 import com.chinasofti.huateng.common.response.ResultMapper;
 import com.chinasofti.huateng.common.response.ResultVO;
 import com.chinasofti.huateng.para.mapper.fare.BaseFarePageMapper;
+import com.chinasofti.huateng.para.model.BaseFareLineOption;
 import com.chinasofti.huateng.para.model.BaseFarePageView;
 import com.chinasofti.huateng.para.model.BaseFareStationOption;
 import com.chinasofti.huateng.para.service.BaseFarePageService;
@@ -25,16 +26,23 @@ public class BaseFarePageServiceImpl implements BaseFarePageService {
     /** 查询费率矩阵与 FARE_TYPE=0 基础票价关联后的当前有效票价。 */
     @Override
     public ResultVO<PageInfo<BaseFarePageView>> pageCurrentBaseFare(String entryStationCode, String exitStationCode,
+                                                                     String entryLineCode, String exitLineCode,
                                                                      Integer pageNum, Integer pageSize) {
         PageInfo<BaseFarePageView> page = PageHelper.startPage(safePageNum(pageNum), safePageSize(pageSize))
-                .doSelectPageInfo(() -> baseFarePageMapper.selectCurrentPage(trimToNull(entryStationCode), trimToNull(exitStationCode)));
+                .doSelectPageInfo(() -> baseFarePageMapper.selectCurrentPage(trimToNull(entryStationCode), trimToNull(exitStationCode), trimToNull(entryLineCode), trimToNull(exitLineCode)));
         return ResultMapper.ok(page);
     }
 
-    /** 查询当前路网版本的车站选项。 */
+    /** 查询当前路网版本的车站选项，可按线路过滤。 */
     @Override
-    public ResultVO<List<BaseFareStationOption>> listCurrentStations() {
-        return ResultMapper.ok(baseFarePageMapper.selectCurrentStations());
+    public ResultVO<List<BaseFareStationOption>> listCurrentStations(String lineCode) {
+        return ResultMapper.ok(baseFarePageMapper.selectCurrentStations(trimToNull(lineCode)));
+    }
+
+    /** 查询当前路网版本的线路选项。 */
+    @Override
+    public ResultVO<List<BaseFareLineOption>> listCurrentLines() {
+        return ResultMapper.ok(baseFarePageMapper.selectCurrentLines());
     }
 
     private int safePageNum(Integer pageNum) {

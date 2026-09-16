@@ -58,7 +58,8 @@ public class RiskManagementServiceImpl implements RiskManagementService {
         try {
             riskGroupMapper.insert(request);
             return ResultMapper.ok();
-        } catch (DuplicateKeyException exception) {
+        } catch (Exception exception) {
+            if (!isDuplicateKeyViolation(exception)) throw exception;
             return ResultMapper.error("风险组名称已存在");
         }
     }
@@ -73,7 +74,8 @@ public class RiskManagementServiceImpl implements RiskManagementService {
         request.setGroupId(groupId);
         try {
             return riskGroupMapper.update(request) > 0 ? ResultMapper.ok() : ResultMapper.error("未找到待修改的风险组");
-        } catch (DuplicateKeyException exception) {
+        } catch (Exception exception) {
+            if (!isDuplicateKeyViolation(exception)) throw exception;
             return ResultMapper.error("风险组名称已存在");
         }
     }
@@ -103,7 +105,8 @@ public class RiskManagementServiceImpl implements RiskManagementService {
         try {
             riskRuleMapper.insert(request);
             return ResultMapper.ok();
-        } catch (DuplicateKeyException exception) {
+        } catch (Exception exception) {
+            if (!isDuplicateKeyViolation(exception)) throw exception;
             return ResultMapper.error("风险规则编号已存在，或所属风险组不存在");
         }
     }
@@ -118,9 +121,29 @@ public class RiskManagementServiceImpl implements RiskManagementService {
         request.setRuleId(ruleId.trim());
         try {
             return riskRuleMapper.update(request) > 0 ? ResultMapper.ok() : ResultMapper.error("未找到待修改的风险规则");
-        } catch (DuplicateKeyException exception) {
+        } catch (Exception exception) {
+            if (!isDuplicateKeyViolation(exception)) throw exception;
             return ResultMapper.error("所属风险组不存在");
         }
+    }
+
+    /**
+     * 判断异常链上是否存在 {@link DuplicateKeyException}，即唯一约束冲突。
+     *
+     * <p><b>MUST</b> 逐层遍历 cause，<b>NEVER</b> 直接 {@code catch (DuplicateKeyException)}：
+     * {@code MapperAspectToTrace}（{@code resource/micro/web/src/main/java/com/chinasofti/huateng/
+     * micro/monitor/trace/MapperAspectToTrace.java:51}）把 mapper 抛出的任何异常统一包成
+     * {@code RuntimeException}，单层类型判断在 {@code management.tracing.enabled=true}
+     * 的模块（para-server 即是）捕不到。2026-09-08 实测：重复风险组名原本落到全局异常
+     * 处理器、返回 UUID retCode，页面完全看不到「名称已存在」。</p>
+     */
+    private boolean isDuplicateKeyViolation(Throwable exception) {
+        for (Throwable cause = exception; cause != null && cause != cause.getCause(); cause = cause.getCause()) {
+            if (cause instanceof DuplicateKeyException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 删除规则配置；风险控制历史日志不会级联删除。 */

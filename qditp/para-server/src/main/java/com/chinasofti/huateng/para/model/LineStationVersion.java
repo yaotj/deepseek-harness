@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 public class LineStationVersion {
     private Long lineCodeVersion;
     private Long stationCodeVersion;
+    private String networkFileName;
+    private String rateFileName;
     private LocalDateTime updateTime;
     private String effectiveTime;
 
@@ -13,6 +15,10 @@ public class LineStationVersion {
     public void setLineCodeVersion(Long lineCodeVersion) { this.lineCodeVersion = lineCodeVersion; }
     public Long getStationCodeVersion() { return stationCodeVersion; }
     public void setStationCodeVersion(Long stationCodeVersion) { this.stationCodeVersion = stationCodeVersion; }
+    public String getNetworkFileName() { return networkFileName; }
+    public void setNetworkFileName(String networkFileName) { this.networkFileName = networkFileName; }
+    public String getRateFileName() { return rateFileName; }
+    public void setRateFileName(String rateFileName) { this.rateFileName = rateFileName; }
     public LocalDateTime getUpdateTime() { return updateTime; }
     public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
     public String getEffectiveTime() { return effectiveTime; }

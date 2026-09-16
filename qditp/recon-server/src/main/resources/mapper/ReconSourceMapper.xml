@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.recon.mapper.ReconSourceMapper">
+    <!-- javaType MUST 写全限定装箱类型：MyBatis 的 TypeAliasRegistry 把 "int"/"long" 也解析成
+         Integer/Long，随后按装箱类型精确查找 record 构造器，record 分量若声明为基本类型即抛
+         NoSuchMethodException（空结果集不触发，极易假通过）。写全限定名是为了让映射意图与
+         SourceProgress 的装箱分量一一对上，NEVER 改回 "int"/"long" 这类别名。 -->
+    <resultMap id="SourceProgressMap" type="com.chinasofti.huateng.recon.model.SourceProgress">
+        <constructor>
+            <idArg column="BATCH_ID" javaType="java.lang.String" />
+            <idArg column="SOURCE_NAME" javaType="java.lang.String" />
+            <idArg column="FILE_TYPE" javaType="com.chinasofti.huateng.recon.model.ReconFileType" />
+            <arg column="STATUS" javaType="com.chinasofti.huateng.recon.model.ReconSourceStatus" />
+            <arg column="DECLARED_PARTS" javaType="java.lang.Integer" />
+            <arg column="DECLARED_RECORDS" javaType="java.lang.Long" />
+            <arg column="DECLARED_AMOUNT" javaType="java.lang.Long" />
+            <arg column="RETRY_COUNT" javaType="java.lang.Integer" />
+            <arg column="FAIL_REASON" javaType="java.lang.String" />
+        </constructor>
+    </resultMap>
+
+    <!--
+      Oracle + ojdbc8 下 `#{}` 参数值为 null 且未写 jdbcType 时，MyBatis 用 JdbcType.OTHER(1111)
+      调 setNull，驱动报「无效的列类型: 1111」，2026-09-11 实测阻断来源声明收口
+      （ReconSourceService.declare() 成功路径 failReason 传 null 更新 RECON_BATCH_SOURCE，
+      整条 UPDATE 抛 MyBatisSystemException，接口 500）；本文件所有 `#{}` 一律显式写 jdbcType，
+      NEVER 省略。MySQL 能容忍 OTHER，因此这类缺陷只在 Oracle 暴露，编译与单测都发现不了。
+      jdbcType 取值按 recon-server-schema.sql 的列类型：VARCHAR2 列写 VARCHAR，NUMBER 列写
+      NUMERIC（与 gate-txn-pay-server/ReconExportMapper.xml 的 lastId 保持同一风格）。
+    -->
+
+    <!-- 按 (批次, 来源, 文件类型) 幂等登记期望；重复登记不覆盖已有进度 -->
+    <insert id="insertIfAbsent">
+        MERGE INTO RECON_BATCH_SOURCE T
+        USING (SELECT #{batchId,jdbcType=VARCHAR} BATCH_ID, #{source,jdbcType=VARCHAR} SOURCE_NAME, #{fileType,jdbcType=VARCHAR} FILE_TYPE FROM DUAL) S
+        ON (T.BATCH_ID = S.BATCH_ID AND T.SOURCE_NAME = S.SOURCE_NAME AND T.FILE_TYPE = S.FILE_TYPE)
+        WHEN NOT MATCHED THEN
+            INSERT (BATCH_ID, SOURCE_NAME, FILE_TYPE, STATUS, DECLARED_PARTS, DECLARED_RECORDS,
+                    DECLARED_AMOUNT, RETRY_COUNT, CREATED_AT, UPDATED_AT)
+            VALUES (#{batchId,jdbcType=VARCHAR}, #{source,jdbcType=VARCHAR}, #{fileType,jdbcType=VARCHAR}, #{status,jdbcType=VARCHAR}, 0, 0, 0, 0, SYSTIMESTAMP, SYSTIMESTAMP)
+    </insert>
+
+    <select id="selectByKey" resultMap="SourceProgressMap">
+        SELECT BATCH_ID, SOURCE_NAME, FILE_TYPE, STATUS, DECLARED_PARTS, DECLARED_RECORDS,
+               DECLARED_AMOUNT, RETRY_COUNT, FAIL_REASON
+        FROM RECON_BATCH_SOURCE
+        WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR}
+          AND SOURCE_NAME = #{source,jdbcType=VARCHAR}
+          AND FILE_TYPE = #{fileType,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByBatch" resultMap="SourceProgressMap">
+        SELECT BATCH_ID, SOURCE_NAME, FILE_TYPE, STATUS, DECLARED_PARTS, DECLARED_RECORDS,
+               DECLARED_AMOUNT, RETRY_COUNT, FAIL_REASON
+        FROM RECON_BATCH_SOURCE
+        WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR}
+        ORDER BY SOURCE_NAME, FILE_TYPE
+    </select>
+
+    <!-- failReason 在成功路径恒为 null，MUST 保留 jdbcType=VARCHAR（FAIL_REASON 是可空 VARCHAR2(1024)） -->
+    <update id="updateDeclared">
+        UPDATE RECON_BATCH_SOURCE
+        SET STATUS = #{status,jdbcType=VARCHAR},
+            DECLARED_PARTS = #{declaredParts,jdbcType=NUMERIC},
+            DECLARED_RECORDS = #{declaredRecords,jdbcType=NUMERIC},
+            DECLARED_AMOUNT = #{declaredAmount,jdbcType=NUMERIC},
+            FAIL_REASON = #{failReason,jdbcType=VARCHAR},
+            UPDATED_AT = SYSTIMESTAMP
+        WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR}
+          AND SOURCE_NAME = #{source,jdbcType=VARCHAR}
+          AND FILE_TYPE = #{fileType,jdbcType=VARCHAR}
+    </update>
+
+    <!-- 同上：下发成功时 failReason 为 null -->
+    <update id="updateStatus">
+        UPDATE RECON_BATCH_SOURCE
+        SET STATUS = #{status,jdbcType=VARCHAR},
+            FAIL_REASON = #{failReason,jdbcType=VARCHAR},
+            UPDATED_AT = SYSTIMESTAMP
+        WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR}
+          AND SOURCE_NAME = #{source,jdbcType=VARCHAR}
+          AND FILE_TYPE = #{fileType,jdbcType=VARCHAR}
+    </update>
+
+    <!--
+      置 EXPORTING 专用：多一个 STATUS NOT IN 的守卫，避免把源侧抢先写好的 COMPLETED / MISMATCH
+      覆盖回中间态。空结果集的抽取可能在 200 毫秒内就回调 complete，比编排线程写 EXPORTING 更早。
+      详见 ReconSourceMapper.updateStatusIfNotTerminal 的 Javadoc。
+    -->
+    <update id="updateStatusIfNotTerminal">
+        UPDATE RECON_BATCH_SOURCE
+        SET STATUS = #{status,jdbcType=VARCHAR},
+            FAIL_REASON = #{failReason,jdbcType=VARCHAR},
+            UPDATED_AT = SYSTIMESTAMP
+        WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR}
+          AND SOURCE_NAME = #{source,jdbcType=VARCHAR}
+          AND FILE_TYPE = #{fileType,jdbcType=VARCHAR}
+          AND STATUS NOT IN ('COMPLETED', 'MISMATCH')
+    </update>
+
+    <update id="increaseRetry">
+        UPDATE RECON_BATCH_SOURCE
+        SET RETRY_COUNT = RETRY_COUNT + 1,
+            UPDATED_AT = SYSTIMESTAMP
+        WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR}
+          AND SOURCE_NAME = #{source,jdbcType=VARCHAR}
+          AND FILE_TYPE = #{fileType,jdbcType=VARCHAR}
+    </update>
+</mapper>

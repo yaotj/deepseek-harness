@@ -20,6 +20,7 @@ import java.util.Collections;
 @Service
 public class ParaPageServiceImpl implements ParaPageService {
     private static final String NETWORK_PARA_TYPE = "0001";
+    private static final String RATE_PARA_TYPE = "0004";
 
     private final ParaVersionMapper paraVersionMapper;
     private final LineInfoMapper lineInfoMapper;
@@ -71,6 +72,11 @@ public class ParaPageServiceImpl implements ParaPageService {
         LineStationVersion version = new LineStationVersion();
         version.setLineCodeVersion(currentVersion.getCurrentVerNo());
         version.setStationCodeVersion(currentVersion.getCurrentVerNo());
+        version.setNetworkFileName(currentVersion.getCurrentFileName());
+        ParaVersion rateVersion = paraVersionMapper.selectByParaType(RATE_PARA_TYPE);
+        if (rateVersion != null) {
+            version.setRateFileName(rateVersion.getCurrentFileName());
+        }
         version.setUpdateTime(currentVersion.getLastUpdTms());
         version.setEffectiveTime(currentVersion.getValidDateTime());
         pageInfo.setList(Collections.singletonList(version));

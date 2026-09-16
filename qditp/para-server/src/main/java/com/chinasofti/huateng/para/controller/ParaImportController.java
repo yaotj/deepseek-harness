@@ -6,6 +6,8 @@ import com.chinasofti.huateng.para.model.RateParseResult;
 import com.chinasofti.huateng.para.model.RowNetworkParseResult;
 import com.chinasofti.huateng.para.model.TicketParseResult;
 import com.chinasofti.huateng.para.service.ParaFileImportService;
+import com.chinasofti.huateng.para.service.ParaFtpScanService;
+import com.chinasofti.huateng.common.response.CommonResult;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,9 +34,41 @@ import java.util.stream.Stream;
 public class ParaImportController {
 
     private final ParaFileImportService paraFileImportService;
+    private final ParaFtpScanService paraFtpScanService;
 
-    public ParaImportController(ParaFileImportService paraFileImportService) {
+    public ParaImportController(ParaFileImportService paraFileImportService,
+                                ParaFtpScanService paraFtpScanService) {
         this.paraFileImportService = paraFileImportService;
+        this.paraFtpScanService = paraFtpScanService;
+    }
+
+    /**
+     * 扫描FTP目录中的路网拓扑(0001)、费率(0004)参数文件，
+     * 版本号高于库中版本时下载并解析入库。
+     */
+    @PostMapping("/ftp")
+    public ParaFtpScanService.FtpScanResponse importFromFtp() {
+        return paraFtpScanService.scanAndImport();
+    }
+
+    /**
+     * 供 web-server Quartz 定时任务调用：扫描FTP参数文件并入库。
+     * retCode=0000 表示本次扫描全部成功，存在失败文件时返回 9999。
+     */
+    @PostMapping("/ftp/quartz")
+    public CommonResult importFromFtpForQuartz() {
+        ParaFtpScanService.FtpScanResponse response = paraFtpScanService.scanAndImport();
+        String summary = String.format("FTP参数扫描完成: 目录=%s, 匹配=%d, 下载=%d, 入库=%d, 跳过=%d, 失败=%d",
+                response.getRemoteDir(), response.getTotal(), response.getDownloaded(),
+                response.getImported(), response.getSkipped(), response.getFailed());
+        CommonResult result = new CommonResult();
+        if (response.getFailed() > 0) {
+            result.setRetCode("9999");
+        } else {
+            result.setRetCode("0000");
+        }
+        result.setRetMsg(summary);
+        return result;
     }
 
     @PostMapping("/directory")

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.recon.mapper.ReconBatchMapper">
+    <resultMap id="BatchViewMap" type="com.chinasofti.huateng.recon.model.BatchView">
+        <constructor>
+            <idArg column="BATCH_ID" javaType="java.lang.String" />
+            <arg column="BUSINESS_DATE" javaType="java.lang.String" />
+            <arg column="WINDOW_START" javaType="java.lang.String" />
+            <arg column="WINDOW_END" javaType="java.lang.String" />
+            <arg column="STATUS" javaType="com.chinasofti.huateng.recon.model.ReconBatchStatus" />
+            <arg column="CREATED_AT" javaType="java.time.LocalDateTime" />
+            <arg column="UPDATED_AT" javaType="java.time.LocalDateTime" />
+        </constructor>
+    </resultMap>
+
+    <!--
+      所有 `#{}` 一律显式写 jdbcType，理由见 ReconSourceMapper.xml 同处说明
+      （Oracle + ojdbc8 对 JdbcType.OTHER(1111) 的 setNull 直接报「无效的列类型: 1111」）。
+      本表当前没有写 FAIL_REASON 的语句（该列由人工排查用，代码只在 RECON_BATCH_SOURCE 侧写失败原因）；
+      日后若新增写 FAIL_REASON 的 UPDATE，MUST 带 jdbcType=VARCHAR，它是可空 VARCHAR2(1024)。
+    -->
+    <insert id="insertIfAbsent">
+        MERGE INTO RECON_BATCH T
+        USING (SELECT #{batchId,jdbcType=VARCHAR} BATCH_ID FROM DUAL) S
+        ON (T.BATCH_ID = S.BATCH_ID)
+        WHEN NOT MATCHED THEN
+            INSERT (BATCH_ID, BUSINESS_DATE, WINDOW_START, WINDOW_END, STATUS, CREATED_AT, UPDATED_AT)
+            VALUES (#{batchId,jdbcType=VARCHAR}, #{businessDate,jdbcType=VARCHAR}, #{windowStart,jdbcType=VARCHAR}, #{windowEnd,jdbcType=VARCHAR}, 'CREATED', SYSTIMESTAMP, SYSTIMESTAMP)
+    </insert>
+
+    <select id="selectById" resultMap="BatchViewMap">
+        SELECT BATCH_ID, BUSINESS_DATE, WINDOW_START, WINDOW_END, STATUS, CREATED_AT, UPDATED_AT
+        FROM RECON_BATCH
+        WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR}
+    </select>
+
+    <!-- 非终态批次，供编排任务逐个推进；ROWNUM 限流放在外层，保证先排序再截断 -->
+    <select id="selectUnfinished" resultMap="BatchViewMap">
+        SELECT BATCH_ID, BUSINESS_DATE, WINDOW_START, WINDOW_END, STATUS, CREATED_AT, UPDATED_AT
+        FROM (
+            SELECT BATCH_ID, BUSINESS_DATE, WINDOW_START, WINDOW_END, STATUS, CREATED_AT, UPDATED_AT
+            FROM RECON_BATCH
+            WHERE STATUS NOT IN ('SUCCESS')
+            ORDER BY CREATED_AT
+        )
+        WHERE ROWNUM &lt;= 20
+    </select>
+
+    <update id="updateStatus">
+        UPDATE RECON_BATCH
+        SET STATUS = #{status,jdbcType=VARCHAR}, UPDATED_AT = SYSTIMESTAMP
+        WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR}
+          AND STATUS = #{expectedStatus,jdbcType=VARCHAR}
+    </update>
+</mapper>

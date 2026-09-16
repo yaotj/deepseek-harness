@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.recon.mapper.ReconPartMapper">
+    <!-- javaType MUST 写全限定装箱类型，见 ReconSourceMapper.xml 同处说明 -->
+    <resultMap id="PartReceiptMap" type="com.chinasofti.huateng.recon.model.PartReceipt">
+        <constructor>
+            <idArg column="BATCH_ID" javaType="java.lang.String" />
+            <idArg column="SOURCE_NAME" javaType="java.lang.String" />
+            <idArg column="FILE_TYPE" javaType="com.chinasofti.huateng.recon.model.ReconFileType" />
+            <idArg column="PART_NO" javaType="java.lang.Integer" />
+            <arg column="BYTE_COUNT" javaType="java.lang.Long" />
+            <arg column="RECORD_COUNT" javaType="java.lang.Long" />
+            <arg column="AMOUNT_TOTAL" javaType="java.lang.Long" />
+            <arg column="SHA256" javaType="java.lang.String" />
+            <arg column="FILE_PATH" javaType="java.lang.String" />
+            <arg column="STATUS" javaType="com.chinasofti.huateng.recon.model.ReconPartStatus" />
+        </constructor>
+    </resultMap>
+
+    <!-- 三项总账（片数 / 记录数 / 金额）的汇总结果，仅统计 STATUS='RECEIVED' 的分片 -->
+    <resultMap id="PartTotalsMap" type="com.chinasofti.huateng.recon.model.PartTotals">
+        <constructor>
+            <arg column="PART_COUNT" javaType="java.lang.Integer" />
+            <arg column="RECORD_SUM" javaType="java.lang.Long" />
+            <arg column="AMOUNT_SUM" javaType="java.lang.Long" />
+        </constructor>
+    </resultMap>
+
+    <!-- 所有 `#{}` 一律显式写 jdbcType，理由见 ReconSourceMapper.xml 同处说明 -->
+    <select id="selectByKey" resultMap="PartReceiptMap">
+        SELECT BATCH_ID, SOURCE_NAME, FILE_TYPE, PART_NO, BYTE_COUNT, RECORD_COUNT, AMOUNT_TOTAL,
+               SHA256, FILE_PATH, STATUS
+        FROM RECON_BATCH_PART
+        WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR}
+          AND SOURCE_NAME = #{source,jdbcType=VARCHAR}
+          AND FILE_TYPE = #{fileType,jdbcType=VARCHAR}
+          AND PART_NO = #{partNo,jdbcType=NUMERIC}
+    </select>
+
+    <!-- RETRY_COUNT 首次落库固定写 0，后续由 updateStatus 递增 -->
+    <insert id="insert">
+        INSERT INTO RECON_BATCH_PART
+            (BATCH_ID, SOURCE_NAME, FILE_TYPE, PART_NO, BYTE_COUNT, RECORD_COUNT, AMOUNT_TOTAL,
+             SHA256, FILE_PATH, STATUS, RETRY_COUNT, CREATED_AT, UPDATED_AT)
+        VALUES
+            (#{batchId,jdbcType=VARCHAR}, #{source,jdbcType=VARCHAR}, #{fileType,jdbcType=VARCHAR}, #{partNo,jdbcType=NUMERIC}, #{byteCount,jdbcType=NUMERIC}, #{recordCount,jdbcType=NUMERIC}, #{amountTotal,jdbcType=NUMERIC},
+             #{sha256,jdbcType=VARCHAR}, #{path,jdbcType=VARCHAR}, #{status,jdbcType=VARCHAR}, 0, SYSTIMESTAMP, SYSTIMESTAMP)
+    </insert>
+
+    <!-- 状态变更即视为一次重投，RETRY_COUNT 同步 +1，便于定位反复失败的分片 -->
+    <update id="updateStatus">
+        UPDATE RECON_BATCH_PART
+        SET STATUS = #{status,jdbcType=VARCHAR}, RETRY_COUNT = RETRY_COUNT + 1, UPDATED_AT = SYSTIMESTAMP
+        WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR}
+          AND SOURCE_NAME = #{source,jdbcType=VARCHAR}
+          AND FILE_TYPE = #{fileType,jdbcType=VARCHAR}
+          AND PART_NO = #{partNo,jdbcType=NUMERIC}
+    </update>
+
+    <select id="selectReceivedParts" resultMap="PartReceiptMap">
+        SELECT BATCH_ID, SOURCE_NAME, FILE_TYPE, PART_NO, BYTE_COUNT, RECORD_COUNT, AMOUNT_TOTAL,
+               SHA256, FILE_PATH, STATUS
+        FROM RECON_BATCH_PART
+        WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR}
+          AND SOURCE_NAME = #{source,jdbcType=VARCHAR}
+          AND FILE_TYPE = #{fileType,jdbcType=VARCHAR}
+          AND STATUS = 'RECEIVED'
+        ORDER BY PART_NO
+    </select>
+
+    <!-- NVL 保证零行时返回 (0,0,0) 而不是 null，调用方不必判空 -->
+    <select id="selectTotals" resultMap="PartTotalsMap">
+        SELECT COUNT(*) PART_COUNT, NVL(SUM(RECORD_COUNT),0) RECORD_SUM, NVL(SUM(AMOUNT_TOTAL),0) AMOUNT_SUM
+        FROM RECON_BATCH_PART
+        WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR}
+          AND SOURCE_NAME = #{source,jdbcType=VARCHAR}
+          AND FILE_TYPE = #{fileType,jdbcType=VARCHAR}
+          AND STATUS = 'RECEIVED'
+    </select>
+</mapper>

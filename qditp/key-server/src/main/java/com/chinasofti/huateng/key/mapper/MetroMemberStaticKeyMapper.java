@@ -1,8 +1,11 @@
 package com.chinasofti.huateng.key.mapper;
 
 import com.chinasofti.huateng.key.entity.MetroMemberStaticKey;
+import com.chinasofti.huateng.key.page.KeyVersionView;
 import org.apache.ibatis.annotations.Mapper;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 /**
  * HCE 会员卡静态密钥缓存数据访问接口。
@@ -25,4 +28,11 @@ public interface MetroMemberStaticKeyMapper {
      * @return 受影响行数
      */
     int insertIfAbsent(MetroMemberStaticKey staticKey);
+
+    /**
+     * 综管台密钥版本查看：按状态聚合的 HCE 静态密钥卡数汇总（每卡一条、无统一版本号）。
+     *
+     * <p>NEVER 在对应 SQL 里 select KEY_WRAP_VALUE1 明文。</p>
+     */
+    List<KeyVersionView> selectStatusSummary();
 }

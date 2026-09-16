@@ -22,6 +22,7 @@ import java.util.Map;
 public class ParaFileImportService {
 
     private static final int HEADER_LENGTH = 22;
+    private static final int MD5_LENGTH = 16;
     private static final String DEFAULT_UPDATE_USER = "itp";
 
     private final RowNetworkImportService rowNetworkImportService;
@@ -42,15 +43,40 @@ public class ParaFileImportService {
         this.paraVersionMapper = paraVersionMapper;
     }
 
+    /**
+     * 解析并导入本地参数文件。
+     *
+     * <p>入库判据是「版本号 + MD5」（2026-09-08 由「仅版本号」改成本形态）：</p>
+     * <ul>
+     *   <li>库中无该 paraType，或文件版本号更高 → 导入</li>
+     *   <li>文件版本号更低 → 跳过（版本回退不处理）</li>
+     *   <li>版本号相同：MD5 不同 → 导入；MD5 相同 → 跳过；库中 MD5 为空 → 导入（补齐 MD5）</li>
+     * </ul>
+     *
+     * <p>改成带 MD5 的原因：ACC 实际出现过同一版本号两份不同内容的文件（0001 版本 41 有 4 段命名与
+     * 5 段命名两份，MD5 不同）。只比版本号时后到的那份永远进不来，两边数据无法收敛。</p>
+     */
     @Transactional(rollbackFor = Exception.class)
     public ParaImportResult importLocalFile(String filePath) {
         Path path = Path.of(filePath);
-        Map<String, Object> header = readHeader(path);
+        byte[] fileBytes = readAllBytes(path);
+        Map<String, Object> header = readHeader(fileBytes, path);
         String paraType = header.get("paraType").toString();
         Long fileVerNo = Long.parseLong(header.get("paraVerNo").toString());
+        String fileMd5 = ParaFileReadUtils.md5Hex(fileBytes, 0, fileBytes.length - MD5_LENGTH);
+
         ParaVersion current = paraVersionMapper.selectByParaType(paraType);
-        if (current != null && current.getCurrentVerNo() != null && fileVerNo <= current.getCurrentVerNo()) {
-            return ParaImportResult.skipped(header, current.getCurrentVerNo());
+        if (current != null && current.getCurrentVerNo() != null) {
+            long currentVerNo = current.getCurrentVerNo();
+            if (fileVerNo < currentVerNo) {
+                return ParaImportResult.skipped(header, currentVerNo);
+            }
+            if (fileVerNo == currentVerNo
+                    && current.getMd5Value() != null
+                    && !current.getMd5Value().isBlank()
+                    && current.getMd5Value().equalsIgnoreCase(fileMd5)) {
+                return ParaImportResult.skippedSameContent(header, currentVerNo, fileMd5);
+            }
         }
 
         Object parseResult;
@@ -74,15 +100,17 @@ public class ParaFileImportService {
         return ParaImportResult.imported(header, parseResult);
     }
 
-    private Map<String, Object> readHeader(Path filePath) {
-        byte[] fileBytes;
+    private byte[] readAllBytes(Path filePath) {
         try {
-            fileBytes = Files.readAllBytes(filePath);
+            return Files.readAllBytes(filePath);
         } catch (IOException e) {
             throw new IllegalStateException("参数文件读取失败: " + filePath, e);
         }
-        if (fileBytes.length < HEADER_LENGTH) {
-            throw new IllegalArgumentException("参数文件头长度不足: " + filePath);
+    }
+
+    private Map<String, Object> readHeader(byte[] fileBytes, Path filePath) {
+        if (fileBytes.length < HEADER_LENGTH + MD5_LENGTH) {
+            throw new IllegalArgumentException("参数文件长度不足（头 22 字节 + 尾 16 字节 MD5）: " + filePath);
         }
 
         Cursor cursor = new Cursor(fileBytes);

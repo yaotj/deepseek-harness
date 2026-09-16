@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.cardpool.mapper.LogicCardPoolMapper">
+
+    <resultMap id="Batch" type="com.chinasofti.huateng.cardpool.entity.LogicCardPoolBatch">
+        <id column="BATCH_NO" property="batchNo"/>
+        <result column="REQUEST_SEQ" property="requestSeq"/>
+        <result column="CARD_TYPE" property="cardType"/>
+        <result column="ACC_TICKET_TYPE" property="accTicketType"/>
+        <result column="REQUEST_NUM" property="requestNum"/>
+        <result column="SOURCE" property="source"/>
+        <result column="FILE_NAME" property="fileName"/>
+        <result column="FTP_PATH" property="ftpPath"/>
+        <result column="FILE_SIZE" property="fileSize"/>
+        <result column="FILE_SHA256" property="fileSha256"/>
+        <result column="TOTAL_COUNT" property="totalCount"/>
+        <result column="VALID_COUNT" property="validCount"/>
+        <result column="DUPLICATE_COUNT" property="duplicateCount"/>
+        <result column="INVALID_COUNT" property="invalidCount"/>
+        <result column="STATUS" property="status"/>
+        <result column="ERROR_MSG" property="errorMsg"/>
+        <result column="RETRY_COUNT" property="retryCount"/>
+        <result column="OPERATOR" property="operator"/>
+        <result column="CREATE_TIME" property="createTime"/>
+        <result column="FINISH_TIME" property="finishTime"/>
+    </resultMap>
+
+    <resultMap id="Card" type="com.chinasofti.huateng.cardpool.entity.LogicCardPoolCard">
+        <id column="ID" property="id"/>
+        <result column="CARD_NO" property="cardNo"/>
+        <result column="BATCH_NO" property="batchNo"/>
+        <result column="CARD_TYPE" property="cardType"/>
+        <result column="STATUS" property="status"/>
+        <result column="RESERVATION_ID" property="reservationId"/>
+        <result column="BUSINESS_TYPE" property="businessType"/>
+        <result column="BUSINESS_ID" property="businessId"/>
+        <result column="OWNER_ID" property="ownerId"/>
+        <result column="RESERVED_TIME" property="reservedTime"/>
+        <result column="EXPIRE_TIME" property="expireTime"/>
+        <result column="CONFIRM_TIME" property="confirmTime"/>
+    </resultMap>
+
+    <select id="nextBatchNo" resultType="long">
+        SELECT LOGIC_CARD_POOL_BATCH_SEQ.NEXTVAL FROM DUAL
+    </select>
+
+    <insert id="insertBatch">
+        INSERT INTO LOGIC_CARD_POOL_BATCH
+        (BATCH_NO, REQUEST_SEQ, CARD_TYPE, ACC_TICKET_TYPE, REQUEST_NUM, SOURCE, STATUS, OPERATOR,
+        TOTAL_COUNT, VALID_COUNT, DUPLICATE_COUNT, INVALID_COUNT, RETRY_COUNT)
+        VALUES
+        (#{batchNo}, #{requestSeq}, #{cardType}, #{accTicketType}, #{requestNum}, #{source}, #{status}, #{operator},
+        0, 0, 0, 0, 0)
+    </insert>
+
+    <select id="selectBatch" resultMap="Batch">
+        SELECT * FROM LOGIC_CARD_POOL_BATCH WHERE BATCH_NO = #{batchNo}
+    </select>
+
+    <select id="selectBatches" resultMap="Batch">
+        SELECT * FROM LOGIC_CARD_POOL_BATCH
+        <where>
+            <if test="batchNo != null">BATCH_NO = #{batchNo}</if>
+            <if test="cardType != null">AND CARD_TYPE = #{cardType}</if>
+            <if test="accTicketType != null">AND ACC_TICKET_TYPE = #{accTicketType}</if>
+            <if test="source != null">AND SOURCE = #{source}</if>
+            <if test="status != null">AND STATUS = #{status}</if>
+            <if test="createTimeBegin != null">AND CREATE_TIME &gt;= #{createTimeBegin}</if>
+            <if test="createTimeEnd != null">AND CREATE_TIME &lt;= #{createTimeEnd}</if>
+        </where>
+        ORDER BY CREATE_TIME DESC, BATCH_NO DESC
+    </select>
+
+    <select id="selectPendingBatches" resultMap="Batch">
+        SELECT * FROM LOGIC_CARD_POOL_BATCH
+        WHERE STATUS IN ('CREATED', 'REQUESTING', 'DOWNLOADING', 'IMPORTING')
+        <if test="cardType != null">AND CARD_TYPE = #{cardType}</if>
+        ORDER BY BATCH_NO
+    </select>
+
+    <select id="countInProgress" resultType="int">
+        SELECT COUNT(1) FROM LOGIC_CARD_POOL_BATCH
+        WHERE CARD_TYPE = #{cardType} AND STATUS IN ('CREATED', 'REQUESTING', 'DOWNLOADING', 'IMPORTING')
+    </select>
+
+    <update id="acquireBatchLock">
+        UPDATE LOGIC_CARD_POOL_TYPE_LOCK
+        SET LOCK_OWNER = #{lockOwner}, LOCK_TIME = SYSTIMESTAMP
+        WHERE CARD_TYPE = #{cardType}
+        AND (LOCK_OWNER IS NULL OR LOCK_TIME &lt; SYSTIMESTAMP - NUMTODSINTERVAL(#{staleSeconds}, 'SECOND'))
+    </update>
+
+    <update id="renewBatchLock">
+        UPDATE LOGIC_CARD_POOL_TYPE_LOCK
+        SET LOCK_TIME = SYSTIMESTAMP
+        WHERE CARD_TYPE = #{cardType} AND LOCK_OWNER = #{lockOwner}
+    </update>
+
+    <update id="releaseBatchLock">
+        UPDATE LOGIC_CARD_POOL_TYPE_LOCK
+        SET LOCK_OWNER = NULL, LOCK_TIME = NULL
+        WHERE CARD_TYPE = #{cardType} AND LOCK_OWNER = #{lockOwner}
+    </update>
+
+    <update id="updateBatch">
+        UPDATE LOGIC_CARD_POOL_BATCH
+        <set>
+            FILE_NAME = #{fileName},
+            FTP_PATH = #{ftpPath},
+            FILE_SIZE = #{fileSize},
+            FILE_SHA256 = #{fileSha256},
+            STATUS = #{status},
+            ERROR_MSG = #{errorMsg},
+            FINISH_TIME = #{finishTime},
+            <if test="totalCount != null">TOTAL_COUNT = #{totalCount},</if>
+            <if test="validCount != null">VALID_COUNT = #{validCount},</if>
+            <if test="duplicateCount != null">DUPLICATE_COUNT = #{duplicateCount},</if>
+            <if test="invalidCount != null">INVALID_COUNT = #{invalidCount},</if>
+            <if test="retryCount != null">RETRY_COUNT = #{retryCount},</if>
+        </set>
+        WHERE BATCH_NO = #{batchNo}
+    </update>
+
+    <!-- 最小化失败落库：仅写终态三列，供 updateBatch 失败后降级使用，避免批次卡在中间态 -->
+    <update id="markBatchFailed">
+        UPDATE LOGIC_CARD_POOL_BATCH
+        SET STATUS = 'FAILED', ERROR_MSG = #{errorMsg}, FINISH_TIME = SYSTIMESTAMP
+        WHERE BATCH_NO = #{batchNo}
+    </update>
+
+    <update id="markBatchRetrying">
+        UPDATE LOGIC_CARD_POOL_BATCH
+        SET STATUS = 'DOWNLOADING', RETRY_COUNT = RETRY_COUNT + 1, ERROR_MSG = NULL, FINISH_TIME = NULL
+        WHERE BATCH_NO = #{batchNo} AND STATUS = 'FAILED' AND FILE_NAME IS NOT NULL
+    </update>
+
+    <insert id="insertCards">
+        INSERT ALL
+        <foreach collection="cards" item="c">
+            INTO LOGIC_CARD_POOL_CARD (CARD_NO, BATCH_NO, CARD_TYPE, STATUS)
+            VALUES (#{c.cardNo}, #{c.batchNo}, #{c.cardType}, 'AVAILABLE')
+        </foreach>
+        SELECT 1 FROM DUAL
+    </insert>
+
+    <select id="countByTypeAndStatus" resultType="long">
+        SELECT COUNT(1) FROM LOGIC_CARD_POOL_CARD WHERE CARD_TYPE = #{cardType} AND STATUS = #{status}
+    </select>
+
+    <select id="selectByBusiness" resultMap="Card">
+        SELECT * FROM LOGIC_CARD_POOL_CARD
+        WHERE BUSINESS_TYPE = #{businessType} AND BUSINESS_ID = #{businessId}
+        ORDER BY ID DESC
+        FETCH FIRST 1 ROWS ONLY
+    </select>
+
+    <!--
+      取多行候选而非固定取最小 ID：并发预占若都命中同一行，后到者会阻塞在行锁上而不是立刻返回 0 行，
+      同票种预占会退化为串行。这里返回 limit 行候选，由服务侧随机挑选后走条件 UPDATE 做 CAS。
+      NEVER 改成 ROWNUM = 1 ... FOR UPDATE SKIP LOCKED：ROWNUM 过滤先于加锁生效，
+      首行被占时会直接返回 0 行而不是跳到下一行；FETCH FIRST 与 FOR UPDATE 并用则报 ORA-02014。
+    -->
+    <select id="selectAvailableCandidates" resultMap="Card">
+        SELECT * FROM LOGIC_CARD_POOL_CARD
+        WHERE CARD_TYPE = #{cardType} AND STATUS = 'AVAILABLE'
+        ORDER BY ID
+        FETCH FIRST #{limit} ROWS ONLY
+    </select>
+
+    <update id="reserve">
+        UPDATE LOGIC_CARD_POOL_CARD
+        SET STATUS = 'RESERVED',
+        RESERVATION_ID = #{reservationId},
+        BUSINESS_TYPE = #{businessType},
+        BUSINESS_ID = #{businessId},
+        OWNER_ID = #{ownerId},
+        RESERVED_TIME = SYSTIMESTAMP,
+        EXPIRE_TIME = #{expireTime},
+        UPDATE_TIME = SYSTIMESTAMP
+        WHERE ID = #{id} AND STATUS = 'AVAILABLE'
+    </update>
+
+    <update id="confirm">
+        UPDATE LOGIC_CARD_POOL_CARD
+        SET STATUS = 'ASSIGNED', CONFIRM_TIME = SYSTIMESTAMP, EXPIRE_TIME = NULL, UPDATE_TIME = SYSTIMESTAMP
+        WHERE RESERVATION_ID = #{reservationId} AND BUSINESS_ID = #{businessId} AND STATUS = 'RESERVED'
+    </update>
+
+    <update id="release">
+        UPDATE LOGIC_CARD_POOL_CARD
+        SET STATUS = 'AVAILABLE',
+        BUSINESS_TYPE = NULL,
+        BUSINESS_ID = NULL,
+        OWNER_ID = NULL,
+        RESERVED_TIME = NULL,
+        EXPIRE_TIME = NULL,
+        UPDATE_TIME = SYSTIMESTAMP
+        WHERE RESERVATION_ID = #{reservationId} AND BUSINESS_ID = #{businessId} AND STATUS = 'RESERVED'
+    </update>
+
+    <update id="releaseExpired">
+        UPDATE LOGIC_CARD_POOL_CARD
+        SET STATUS = 'AVAILABLE',
+        BUSINESS_TYPE = NULL,
+        BUSINESS_ID = NULL,
+        OWNER_ID = NULL,
+        RESERVED_TIME = NULL,
+        EXPIRE_TIME = NULL,
+        UPDATE_TIME = SYSTIMESTAMP
+        WHERE STATUS = 'RESERVED' AND EXPIRE_TIME &lt; SYSTIMESTAMP
+    </update>
+
+    <select id="selectByCardNo" resultMap="Card">
+        SELECT * FROM LOGIC_CARD_POOL_CARD WHERE CARD_NO = #{cardNo}
+    </select>
+
+    <select id="selectByReservation" resultMap="Card">
+        SELECT * FROM LOGIC_CARD_POOL_CARD WHERE RESERVATION_ID = #{reservationId}
+    </select>
+
+
+</mapper>

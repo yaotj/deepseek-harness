@@ -17,6 +17,19 @@
           and KEY_STATUS = 1
     </select>
 
+    <!--
+        综管台密钥版本查看：HCE 静态密钥按状态聚合计数（每卡一条、无统一版本号，
+        版本列展示状态对应的卡数）。NEVER select KEY_WRAP_VALUE1 明文。
+    -->
+    <select id="selectStatusSummary" resultType="com.chinasofti.huateng.key.page.KeyVersionView">
+        select TO_CHAR(KEY_STATUS) as status,
+               COUNT(1) as currentVersion,
+               TO_CHAR(MAX(UPDATE_DATE), 'YYYY-MM-DD HH24:MI:SS') as updateTime
+        from METRO_MEMBER_STATIC_KEY
+        group by KEY_STATUS
+        order by KEY_STATUS
+    </select>
+
     <insert id="insertIfAbsent" parameterType="com.chinasofti.huateng.key.entity.MetroMemberStaticKey">
         merge into METRO_MEMBER_STATIC_KEY target
         using (select #{metroMemberCardNum} as METRO_MEMBER_CARD_NUM,

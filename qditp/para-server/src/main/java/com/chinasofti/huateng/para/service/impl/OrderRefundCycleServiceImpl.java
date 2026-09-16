@@ -41,9 +41,28 @@ public class OrderRefundCycleServiceImpl implements OrderRefundCycleService {
         try {
             orderRefundCycleMapper.insert(request);
             return ResultMapper.ok();
-        } catch (DuplicateKeyException exception) {
+        } catch (Exception exception) {
+            if (!isDuplicateKeyViolation(exception)) throw exception;
             return ResultMapper.error("该票卡类型已配置退款周期");
         }
+    }
+
+    /**
+     * 判断异常链上是否存在 {@link DuplicateKeyException}，即唯一约束冲突。
+     *
+     * <p><b>MUST</b> 逐层遍历 cause，<b>NEVER</b> 直接 {@code catch (DuplicateKeyException)}：
+     * {@code MapperAspectToTrace}（{@code resource/micro/web/src/main/java/com/chinasofti/huateng/
+     * micro/monitor/trace/MapperAspectToTrace.java:51}）把 mapper 抛出的任何异常统一包成
+     * {@code RuntimeException}，单层类型判断在 {@code management.tracing.enabled=true}
+     * 的模块（para-server 即是）捕不到，唯一键冲突会漏成全局异常处理器的 UUID retCode。</p>
+     */
+    private boolean isDuplicateKeyViolation(Throwable exception) {
+        for (Throwable cause = exception; cause != null && cause != cause.getCause(); cause = cause.getCause()) {
+            if (cause instanceof DuplicateKeyException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 更新以路径票卡类型为准，防止请求体修改配置键。 */

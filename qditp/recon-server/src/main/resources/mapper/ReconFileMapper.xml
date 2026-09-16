@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.recon.mapper.ReconFileMapper">
+    <!-- javaType MUST 写全限定装箱类型，见 ReconSourceMapper.xml 同处说明 -->
+    <resultMap id="ReconFileMap" type="com.chinasofti.huateng.recon.model.ReconFileView">
+        <constructor>
+            <idArg column="BATCH_ID" javaType="java.lang.String" />
+            <idArg column="FILE_TYPE" javaType="com.chinasofti.huateng.recon.model.ReconFileType" />
+            <arg column="FILE_NAME" javaType="java.lang.String" />
+            <arg column="FILE_PATH" javaType="java.lang.String" />
+            <arg column="BYTE_COUNT" javaType="java.lang.Long" />
+            <arg column="RECORD_COUNT" javaType="java.lang.Long" />
+            <arg column="AMOUNT_TOTAL" javaType="java.lang.Long" />
+            <arg column="SHA256" javaType="java.lang.String" />
+            <arg column="STATUS" javaType="java.lang.String" />
+            <arg column="REMOTE_PATH" javaType="java.lang.String" />
+        </constructor>
+    </resultMap>
+
+    <!--
+      重跑生成时覆盖既有行，因此 AMOUNT_TOTAL 在 MATCHED 分支也要写。
+      所有 `#{}` 一律显式写 jdbcType，理由见 ReconSourceMapper.xml 同处说明。
+    -->
+    <insert id="upsert">
+        MERGE INTO RECON_BATCH_FILE T
+        USING (SELECT #{batchId,jdbcType=VARCHAR} BATCH_ID, #{fileType,jdbcType=VARCHAR} FILE_TYPE FROM DUAL) S
+        ON (T.BATCH_ID = S.BATCH_ID AND T.FILE_TYPE = S.FILE_TYPE)
+        WHEN MATCHED THEN UPDATE SET FILE_NAME = #{fileName,jdbcType=VARCHAR}, FILE_PATH = #{path,jdbcType=VARCHAR}, BYTE_COUNT = #{byteCount,jdbcType=NUMERIC}, RECORD_COUNT = #{recordCount,jdbcType=NUMERIC}, AMOUNT_TOTAL = #{amountTotal,jdbcType=NUMERIC}, SHA256 = #{sha256,jdbcType=VARCHAR}, STATUS = #{status,jdbcType=VARCHAR}, UPDATED_AT = SYSTIMESTAMP
+        WHEN NOT MATCHED THEN INSERT (BATCH_ID, FILE_TYPE, FILE_NAME, FILE_PATH, BYTE_COUNT, RECORD_COUNT, AMOUNT_TOTAL, SHA256, STATUS, CREATED_AT, UPDATED_AT)
+            VALUES (#{batchId,jdbcType=VARCHAR}, #{fileType,jdbcType=VARCHAR}, #{fileName,jdbcType=VARCHAR}, #{path,jdbcType=VARCHAR}, #{byteCount,jdbcType=NUMERIC}, #{recordCount,jdbcType=NUMERIC}, #{amountTotal,jdbcType=NUMERIC}, #{sha256,jdbcType=VARCHAR}, #{status,jdbcType=VARCHAR}, SYSTIMESTAMP, SYSTIMESTAMP)
+    </insert>
+
+    <select id="select" resultMap="ReconFileMap">
+        SELECT BATCH_ID, FILE_TYPE, FILE_NAME, FILE_PATH, BYTE_COUNT, RECORD_COUNT, AMOUNT_TOTAL, SHA256, STATUS, REMOTE_PATH
+        FROM RECON_BATCH_FILE
+        WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR} AND FILE_TYPE = #{fileType,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByBatch" resultMap="ReconFileMap">
+        SELECT BATCH_ID, FILE_TYPE, FILE_NAME, FILE_PATH, BYTE_COUNT, RECORD_COUNT, AMOUNT_TOTAL, SHA256, STATUS, REMOTE_PATH
+        FROM RECON_BATCH_FILE
+        WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR}
+        ORDER BY FILE_TYPE
+    </select>
+
+    <!-- 上传失败分支 remotePath 为 null，MUST 保留 jdbcType=VARCHAR（REMOTE_PATH 是可空 VARCHAR2(512)） -->
+    <update id="updateUpload">
+        UPDATE RECON_BATCH_FILE
+        SET STATUS = #{status,jdbcType=VARCHAR}, REMOTE_PATH = #{remotePath,jdbcType=VARCHAR}, UPDATED_AT = SYSTIMESTAMP
+        WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR} AND FILE_TYPE = #{fileType,jdbcType=VARCHAR}
+    </update>
+</mapper>

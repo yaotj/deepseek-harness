@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.chinasofti.huateng</groupId>
     <artifactId>para-server</artifactId>
-    <version>2.0.10</version>
+    <version>2.0.22</version>
     <packaging>jar</packaging>
 
     <parent>
@@ -69,6 +69,12 @@
             <groupId>com.chinasofti.huateng</groupId>
             <artifactId>model</artifactId>
             <version>${model.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>commons-net</groupId>
+            <artifactId>commons-net</artifactId>
+            <version>3.11.1</version>
         </dependency>
 
         <dependency>

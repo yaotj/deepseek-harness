@@ -27,14 +27,35 @@
         <if test="exitStationCode != null and exitStationCode != ''">
             AND m.END_STAT_CODE = #{exitStationCode,jdbcType=VARCHAR}
         </if>
+        <if test="entryLineCode != null and entryLineCode != ''">
+            AND m.BEGIN_STAT_CODE IN (SELECT STATION_CODE FROM TBL_STATION_INFO
+                WHERE PARA_VER_NO = (SELECT CURRENT_VER_NO FROM TBL_PARA_VERSION WHERE PARA_TYPE = '0001')
+                  AND OWNER_LINE_ID = #{entryLineCode,jdbcType=VARCHAR})
+        </if>
+        <if test="exitLineCode != null and exitLineCode != ''">
+            AND m.END_STAT_CODE IN (SELECT STATION_CODE FROM TBL_STATION_INFO
+                WHERE PARA_VER_NO = (SELECT CURRENT_VER_NO FROM TBL_PARA_VERSION WHERE PARA_TYPE = '0001')
+                  AND OWNER_LINE_ID = #{exitLineCode,jdbcType=VARCHAR})
+        </if>
         ORDER BY m.BEGIN_STAT_CODE, m.END_STAT_CODE
     </select>
 
     <select id="selectCurrentStations" resultType="com.chinasofti.huateng.para.model.BaseFareStationOption">
-        <!-- 进出站筛选只展示当前路网版本的车站。 -->
+        <!-- 进出站筛选只展示当前路网版本的车站，可按线路过滤。 -->
         SELECT STATION_CODE stationCode, STATION_NM stationName
         FROM TBL_STATION_INFO
         WHERE PARA_VER_NO = (SELECT CURRENT_VER_NO FROM TBL_PARA_VERSION WHERE PARA_TYPE = '0001')
+        <if test="lineCode != null and lineCode != ''">
+            AND OWNER_LINE_ID = #{lineCode,jdbcType=VARCHAR}
+        </if>
         ORDER BY STATION_CODE
+    </select>
+
+    <select id="selectCurrentLines" resultType="com.chinasofti.huateng.para.model.BaseFareLineOption">
+        <!-- 线路下拉只展示当前路网版本的线路。 -->
+        SELECT LINE_CODE lineCode, LINE_NM lineName
+        FROM TBL_LINE_INFO
+        WHERE PARA_VER_NO = (SELECT CURRENT_VER_NO FROM TBL_PARA_VERSION WHERE PARA_TYPE = '0001')
+        ORDER BY LINE_CODE
     </select>
 </mapper>

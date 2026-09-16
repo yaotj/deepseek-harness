@@ -19,7 +19,15 @@
         <!-- 规则编辑页下拉选项，按名称排序便于选择。 -->
         SELECT GROUP_ID, GROUP_NAME, GROUP_DESC, CREATE_TIME, UPDATE_TIME FROM TBL_RISK_GROUP ORDER BY GROUP_NAME
     </select>
-    <insert id="insert" parameterType="com.chinasofti.huateng.para.entity.risk.RiskGroup" useGeneratedKeys="true" keyProperty="groupId">
+    <!--
+        NEVER 在此加回 useGeneratedKeys="true"：Oracle 下 MyBatis 会走
+        connection.prepareStatement(sql, RETURN_GENERATED_KEYS)，ojdbc 返回的是 ROWID，
+        无法回填 Long groupId，于是插入已提交却仍抛 MyBatisSystemException——
+        表现为「新增风险组必然报错、数据其实已落库」（2026-09-08 生产日志实测并修复）。
+        GROUP_ID 由库侧生成，调用方 RiskManagementServiceImpl.createGroup 不使用回填值。
+        确有回填需求时 MUST 补 keyColumn="GROUP_ID"，或改用 selectKey 显式取序列值。
+    -->
+    <insert id="insert" parameterType="com.chinasofti.huateng.para.entity.risk.RiskGroup">
         INSERT INTO TBL_RISK_GROUP (GROUP_NAME, GROUP_DESC, CREATE_TIME, UPDATE_TIME)
         VALUES (#{groupName}, #{groupDesc}, SYSDATE, SYSDATE)
     </insert>

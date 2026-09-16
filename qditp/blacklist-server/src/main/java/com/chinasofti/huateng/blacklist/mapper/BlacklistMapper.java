@@ -58,4 +58,15 @@ public interface BlacklistMapper {
      * @return 影响行数
      */
     int deleteByCardIds(@Param("cardIds") List<String> cardIds);
+
+    /**
+     * 分批查询黑名单记录，供「可解除性」只读盘点使用。
+     *
+     * <p>按 CREATE_TIME 升序取最早的 limit 条：先拉黑的先盘点，避免长期积压的记录永远排不上。
+     * MUST 带 limit——盘点每条都要跨模块查两次欠费，条数不受控会把单次调度拖成长事务级别的耗时。</p>
+     *
+     * @param limit 单次上限
+     * @return 黑名单记录列表
+     */
+    List<Blacklist> selectForInspect(@Param("limit") int limit);
 }
