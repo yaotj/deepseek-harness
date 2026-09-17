@@ -257,28 +257,8 @@ public class PayCenterCommon {
 //    public PayCenterRequest buildNoticeAppRefundResultRequest(String payOrderNo,String refundResult,String refundResultDesc,String refundDate,String refundAmount) {
 //
 //        // 公共参数
-//        PayCenterRequest payCenterRequest = new PayCenterRequest();
-//        payCenterRequest.setMerchantNo(payCenterProperties.getMerchantNo());
-//        payCenterRequest.setApiVersion(payCenterProperties.getApiVersion());
-//        payCenterRequest.setSignType(payCenterProperties.getSignType());
-//        payCenterRequest.setCharset(payCenterProperties.getCharset());
-//
 //        // 业务参数
-//        Map<String, Object> bizDataMap = new LinkedHashMap<>();
-//        bizDataMap.put("orderNo", payOrderNo);
-//        bizDataMap.put("refundType", "01");
-//        bizDataMap.put("refundResult", refundResult);
-//        bizDataMap.put("refundResultDesc", refundResultDesc);
-//        bizDataMap.put("refundDate", refundDate);
-//        bizDataMap.put("refundAmount", refundAmount);
-//        log.info("bizDataMap is {}", bizDataMap);
-//        payCenterRequest.setBizData(Base64.getEncoder().encodeToString(JSON.toJSONString(bizDataMap).getBytes(StandardCharsets.UTF_8)));
-//
 //        // 签名
-//        String sign = signUtils.signRequest(payCenterRequest);
-//        payCenterRequest.setSign(sign);
-//        return payCenterRequest;
-//    }
 
     // 通知app 退款结果通知请求参数
     public ItpCommonRequest<NoticeAppRefundDTO> buildNoticeAppRefundResultRequest(String payOrderNo,String refundResult,String refundResultDesc,String refundDate,String refundAmount) {

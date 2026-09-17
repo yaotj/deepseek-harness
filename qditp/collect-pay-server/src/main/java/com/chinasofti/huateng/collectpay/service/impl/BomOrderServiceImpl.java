@@ -574,11 +574,6 @@ public class BomOrderServiceImpl implements BomOrderService {
         return null;
     }
 
-    //
-//    private String getTransAmountByTransType(String transType,){
-//
-//        String trasnAmount = "";
-//        if(StringUtils.equals(BOM_SALE,transType)){
 //            trasnAmount =
 //        }
 //    }
@@ -1122,9 +1117,6 @@ public class BomOrderServiceImpl implements BomOrderService {
         }
 
 //        // 如果购票数量大于实际出票数量，发起退款
-//        int refundAmount = handleRefund(payOrderNo, ticketPrice, buyNum, actualNum);
-//        log.info("5.出票结果通知处理完成, orderNo={}, buyNum={}, actualNum={}, refundAmount={}",
-//                request.getOrderNo(), buyNum, actualNum, refundAmount);
 
         // 该接口由tvm发起，返回给tvm
         return TvmOrderResult.success();
@@ -1383,48 +1375,21 @@ public class BomOrderServiceImpl implements BomOrderService {
         return BomOrderResult.successData(result);
     }
 
-//    @Override
-//    public JSONObject requestTicketTRefund(RequestTicketRefundReqDTO request) {
-//        log.info("开始退款");
-//        String refundOrderNo = generateRefundOrderNo();
-//        String now = DateUtils.getNowTime();
-//
-//        request.setRefundNo(refundOrderNo);
-//        int i = bomNoCashOrderMapper.insertTicketRefund(request);
-//        log.info("保存退款请求记录信息结束 i is {}", i);
-//        if (i > 0) {
-//            PayCenterResponse refundResponse = this.doRefund(refundOrderNo, now, request.getOrderNo(), request.getTransAmount());
-//            log.info("5.支付中心退款响应  refundResponse={}", refundResponse);
 //            // 处理退款结果
 //            if (ObjectUtils.isEmpty(refundResponse)) {
 //                // 退款结果为空，通知状态设为退款失败
 //                log.info("6.退款结果为空， 通知状态设为退款失败");
 //                // 更新退款订单状态
-//                updateBomRefundOrder(refundOrderNo, "2", "退款失败", now);
-//                return BomOrderResult.fail();
-//            } else if (StringUtils.equals(refundResponse.getCode(), PayCenterErrorCodeEnum.SUCCESS.getCode())) {
 //                // 退款成功
 //                log.info("6.退款成功 ");
 //                // 更新退款订单状态
 //                updateBomRefundOrder(refundOrderNo, "1", "退款成功", now);
 //                // 更新通知记录状态
-//                updateBomOrder(request.getOrderNo(), refundOrderNo, now);
-//
-//                return BomOrderResult.success();
-//            } else {
 //                // 退款失败
 //                log.info("6.退款失败 ");
 //                // 更新退款订单状态
 //                updateBomRefundOrder(refundOrderNo, "2", "退款失败", now);
 //                // 更新原订单状态
-//                updateBomOrder(request.getOrderNo(), refundOrderNo, now);
-//                return BomOrderResult.fail();
-//            }
-//        } else {
-//            log.info("保存请求退款信息失败");
-//            return BomOrderResult.fail();
-//        }
-//    }
 
     @Override
     public JSONObject requestTicketTRefund(RequestTicketRefundReqDTO request) {

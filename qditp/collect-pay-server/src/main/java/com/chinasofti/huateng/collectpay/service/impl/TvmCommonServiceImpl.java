@@ -153,64 +153,20 @@ public class TvmCommonServiceImpl implements TvmCommonService {
         return b;
     }
 
-//    @Override
-//    public boolean getPayCenterRefundResult(String payOrderNo, String refundNo, String refundAmount, String businessType) {
-//        log.info("1.______轮询开始...");
 //        // 这里借用bom的时间设置
 //        Integer timeOut = Integer.valueOf(environment.getProperty("bom.payTimeOut"));
 //        Integer payTimeInterval = Integer.valueOf(environment.getProperty("bom.payTimeInterval"));
 //        // 第min秒
-//        int min = 0;
-//        try {
-//            while (min < timeOut) {
-//                PayCenterResponse payCenterResponse = this.queryRefundResult(refundNo);
-//
 //                // 如果查询返回成功
-//                if (payCenterResponse != null && StringUtils.equals(payCenterResponse.getCode(), PayCenterErrorCodeEnum.SUCCESS.getCode())) {
-//
-//                    Map<String, Object> data = payCenterResponse.getData();
-//                    String status = TransforUtils.getStringFromData(data, "status");
-//                    String refundTime = TransforUtils.getStringFromData(data, "refundTime");
-//                    String refundDate = refundTime.substring(0, 8);
-//
 //                    // 处理业务
 //                    boolean refundFlag = false;
 //                    // 如果是扫码购票业务，调用dealRefundResult
-//                    if (StringUtils.equals(businessType, BusinessTypeEnum.TVM_SCAN_QR_BUYTICKET.getCode())||StringUtils.equals(businessType, BusinessTypeEnum.APP_REFUND.getCode())) {
-//
-//                        refundFlag = dealRefundResult(refundNo, status, refundTime);
-//                    }
 //                    // 如果是扫码取票或者app主动发起退款，则调用dealAppRefundResult
 //                    else if (StringUtils.equals(businessType, BusinessTypeEnum.TVM_SCAN_QR_TAKETICKET.getCode())||StringUtils.equals(businessType, BusinessTypeEnum.APP_REFUND.getCode())){
 //                        refundFlag = dealAppRefundResult(payOrderNo, refundNo, status, refundTime);
 //                        // 如果处理退款业务成功，并且是扫码取票业务，则通知app 说明：通知业务写在退款逻辑里，是因为只有在获取到准确的退款结果后，才能向app发起退款成功/退款失败的通知
-//                        if (refundFlag && StringUtils.equals(businessType, BusinessTypeEnum.TVM_SCAN_QR_TAKETICKET.getCode())) {
-//                            int i = saveNoticeAppRefundResultRecord(payOrderNo, refundAmount);
-//                            log.info("保存通知app退款记录结束 i is {}", i);
 //                            // 这里retryTimes写死为1，因为明确这里是第一次发送
-//                            boolean b = noticeAppRefundResult(payOrderNo, status, refundDate, refundAmount, "1");
-//                            log.info("通知app退款结束 b is {}", b);
-//                        }
-//                    }
-//
 //                    // 如果查到了支付成功或者失败的结果，停止轮询
-//                    if (refundFlag) {
-//
-//                        return true;
-//                    }
-//
-//                } else {
-//                    log.info("查询失败，不做处理");
-//                }
-//                Thread.sleep(payTimeInterval * 1000);
-//            }
-//
-//        } catch (Exception e) {
-//            log.error("2.______查询结果异常 e is {}", e);
-//            return false;
-//        }
-//        return false;
-//    }
 
     @Override
     public BaseResult getPayCenterRefundResult(String refundNo) {
@@ -257,69 +213,13 @@ public class TvmCommonServiceImpl implements TvmCommonService {
         return BaseResult.error();
     }
 
-//    private int saveNoticeAppRefundResultRecord(String orderNo, String refundAmount) {
-//
-//        Map<String, String> saveMap = new HashMap<>();
-//        saveMap.put("orderNo", orderNo);
-//        saveMap.put("refundType", "01");
-//        saveMap.put("refundResult", ItpStatusEnum.REFUND_SUCCESS.getCode());
-//        saveMap.put("refundResultDesc", ItpStatusEnum.REFUND_SUCCESS.getDesc());
-//        saveMap.put("refundDate", DateUtils.getNowTimeByFormat("yyyyMMdd"));
-//        saveMap.put("refundAmount", refundAmount);
-//        saveMap.put("status", ItpCommon.NOTICE_INIT);
-//        saveMap.put("createTime", DateUtils.getNowTime());
-//        saveMap.put("retryTimes", "0");
-//        int i = tvmNoticeAppMapper.insertRefundNotice(saveMap);
-//        log.info("通知app记录保存成功 i is {}", i);
-//        return i;
-//    }
 
 //    @Override
 //    // 扫码取票业务 通知app退款结果
-//    public boolean noticeAppRefundResult(String payOrderNo, String refundResult, String refundDate, String refundAmount, String retryTimes) {
-//
-//        boolean b = false;
-//        log.info("开始通知app退款结果");
-//        String refundResultDesc = "";
-//        if (StringUtils.equals(refundResult, AppStatusEnum.REFUND_SUCCESS.getCode())) {
-//            refundResultDesc = "refundResultDesc";
-//        }
-//        if (StringUtils.equals(refundResult, AppStatusEnum.REFUND_FAIL.getCode())) {
-//            refundResultDesc = "refundResultDesc";
-//        }
-//        ItpCommonRequest<NoticeAppRefundDTO> request = payCenterCommon.buildNoticeAppRefundResultRequest(payOrderNo, refundResult, refundResultDesc, refundDate, refundAmount);
-//
-//        log.info("开始通知app退款 request is {}", request.toString());
-//        String noticeAppRefundResultUrl = environment.getProperty("pay.center.notice-app-refundresult-url");
-//        log.info("noticeAppRefundResultUrl is {}", noticeAppRefundResultUrl);
-//
-//        String httpResult = httpUtils.doPostFormData(noticeAppRefundResultUrl, request);
-//
-//        log.info("请求通知app退款结束 httpResult is {}", httpResult);
-//        JSONObject httpResultJson = (JSONObject) JSONObject.parse(httpResult);
-//        String retCode = String.valueOf(httpResultJson.get("retCode"));
-//        log.info("请求通知app退款结束 retCode is {}", retCode);
-//
-//        Map<String, Object> upMap = new HashMap<>();
-//        upMap.put("orderNo", payOrderNo);
-//        upMap.put("updateTime", DateUtils.getNowTime());
 //        // 此处是第一次推送，所以写死为1
 //        upMap.put("retryTimes", retryTimes);
 //
 //        // 如果收到成功则修改数据库
-//        if (StringUtils.equals(AppCodeEnum.SUCCESS.getCode(), retCode)) {
-//            log.info("通知成功，修改通知记录状态为成功");
-//            upMap.put("status", ItpCommon.NOTICE_SUCCESS);
-//            b = true;
-//        } else {
-//            log.info("通知失败，修改通知状态为失败");
-//            upMap.put("status", ItpCommon.NOTICE_FAIL);
-//        }
-//
-//        int i = tvmNoticeAppMapper.updateRefundNoticeByOrderNo(upMap);
-//        log.info("修改通知记录状态结束 i is {}", i);
-//        return b;
-//    }
 
 //    private String getPayCenterRefundResult(String refundNo,String businessType){
 //
@@ -327,12 +227,6 @@ public class TvmCommonServiceImpl implements TvmCommonService {
 //        PayCenterResponse payCenterResponse = this.queryRefundResult(refundNo);
 //
 //        // 如果查询返回成功
-//        if (payCenterResponse != null && StringUtils.equals(payCenterResponse.getCode(), PayCenterErrorCodeEnum.SUCCESS.getCode())) {
-//
-//            Map<String, Object> data = payCenterResponse.getData();
-//            String refundResult = TransforUtils.getStringFromData(data, "refundResult");
-//            String refundTime = TransforUtils.getStringFromData(data, "refundDate");
-//
 //            // 处理业务
 //            boolean b = dealRefundResult(refundNo,refundResult,refundTime);
 //
@@ -340,49 +234,7 @@ public class TvmCommonServiceImpl implements TvmCommonService {
 //            if(b){
 //
 //                //如果
-//                if(StringUtils.equals(businessType, BusinessTypeEnum.TVM_SCAN_QR_TAKETICKET.getCode())){
-//
-//                }
-//
-//            }
-//
-//        } else {
-//            log.info("查询失败，不做处理");
-//        }
-//    }
 
-//    private boolean dealRefundResult(String refundNo, String refundResult, String refundTime) {
-//
-//        boolean b = false;
-//        String nowTime = DateUtils.getNowTime();
-//
-//        Map<String, String> upRefundOrder = new HashMap<>();
-//        upRefundOrder.put("refundNo", refundNo);
-//        upRefundOrder.put("updateTime", nowTime);
-//
-//        if (StringUtils.equals(refundResult, PayCenterRefundStatusEnum.REFUND_SUCCESS.getCode())) {
-//            log.info("查询到退款成功的结果");
-//
-//            upRefundOrder.put("refundStatus", ItpStatusEnum.REFUND_SUCCESS.getCode());
-//            upRefundOrder.put("refundMsg", ItpStatusEnum.REFUND_SUCCESS.getDesc());
-//            upRefundOrder.put("refundTime", refundTime);
-//
-//            int iRefund = refundOrderMapper.updateRefundStatus(upRefundOrder);
-//            log.info("退款成功，修改退款订单结束 i is {}", iRefund);
-//            b = true;
-//
-//        } else if (StringUtils.equals(refundResult, PayCenterRefundStatusEnum.REFUNDING_FAIL.getCode())) {
-//            log.info("查询到退款状态为 退款失败");
-//            upRefundOrder.put("refundStatus", ItpStatusEnum.REFUNDING_FAIL.getCode());
-//            upRefundOrder.put("refundMsg", ItpStatusEnum.REFUNDING_FAIL.getDesc());
-//            int iRefund = refundOrderMapper.updateRefundStatus(upRefundOrder);
-//            log.info("退款失败，修改退款订单结束 i is {}", iRefund);
-//            b = true;
-//        } else {
-//            log.info("查询到退款状态为 退款中/不明确 不做处理");
-//        }
-//        return b;
-//    }
 
     private boolean dealRefundResult(String refundNo, String refundStatus, String refundTime) {
 
@@ -417,50 +269,7 @@ public class TvmCommonServiceImpl implements TvmCommonService {
         return b;
     }
 
-//    private boolean dealAppRefundResult(String payOrderNo, String refundNo, String refundResult, String refundTime) {
-//
-//        boolean b = false;
-//        String nowTime = DateUtils.getNowTime();
-//        if (StringUtils.equals(refundResult, PayCenterRefundStatusEnum.REFUND_SUCCESS.getCode())) {
-//            log.info("查询到app退款成功的结果");
-//
-//            Map<String, String> upRefundOrder = new HashMap<>();
-//            upRefundOrder.put("refundNo", refundNo);
-//            upRefundOrder.put("refundStatus", ItpStatusEnum.REFUND_SUCCESS.getCode());
-//            upRefundOrder.put("refundMsg", ItpStatusEnum.REFUND_SUCCESS.getDesc());
-//            upRefundOrder.put("refundTime", refundTime);
-//            upRefundOrder.put("updateTime", nowTime);
-//
-//            int iRefund = appRefundOrderMapper.updateByRefundNo(upRefundOrder);
-//            log.info("app退款成功，修改退款订单结束 i is {}", iRefund);
-//
-//            Map<String, String> upPayMap = new HashMap<>();
-//            upPayMap.put("orderNo", payOrderNo);
-//            upPayMap.put("rsv2", refundNo);
-//            upPayMap.put("updateTime", nowTime);
-//            int iPay = tvmAppOrderMapper.updateByOrderNo(upPayMap);
-//            log.info("退款成功，修改原支付订单结束 i is {}", iPay);
-//
 //            // 返回itp的退款成功码
-//            b = true;
-//
-//        } else if (StringUtils.equals(refundResult, PayCenterRefundStatusEnum.REFUNDING_FAIL.getCode())) {
-//            log.info("查询到app退款状态为 退款失败");
-//            Map<String, String> upRefundOrder = new HashMap<>();
-//            upRefundOrder.put("refundNo", refundNo);
-//            upRefundOrder.put("refundStatus", ItpStatusEnum.REFUNDING_FAIL.getCode());
-//            upRefundOrder.put("refundMsg", ItpStatusEnum.REFUNDING_FAIL.getDesc());
-//            upRefundOrder.put("updateTime", nowTime);
-//
-//            int iRefund = appRefundOrderMapper.updateByRefundNo(upRefundOrder);
-//            log.info("app退款失败，修改退款订单结束 i is {}", iRefund);
-//
-//            b = true;
-//        } else {
-//            log.info("查询到app退款状态为 退款中/不明确 不做处理");
-//        }
-//        return b;
-//    }
 
     @Override
     public PayCenterResponse queryRefundResult(String refundNo) {

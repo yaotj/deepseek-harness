@@ -379,80 +379,8 @@ public class TvmTopupServiceImpl implements TvmTopupService {
         return order;
     }
 
-//    /**
-//     * 构建支付中心充值请求。
-//     */
-//    private PayCenterRequest buildTopupPayCenterRequest(TvmTopupOrder order) {
-//        PayCenterRequest payCenterRequest = new PayCenterRequest();
-//        payCenterRequest.setMerchantNo(payCenterProperties.getMerchantNo());
-//        payCenterRequest.setApiVersion(payCenterProperties.getApiVersion());
-//        payCenterRequest.setSignType(payCenterProperties.getSignType());
-//        payCenterRequest.setCharset(payCenterProperties.getCharset());
-//
-//        Map<String, Object> bizDataMap = new LinkedHashMap<>();
-//        bizDataMap.put("orderNo", order.getOrderNo());
-//        bizDataMap.put("scene", "TOPUP");
-//        bizDataMap.put("paymentVendor", "QR");
-//        int totalAmount = Integer.parseInt(order.getTransAmount());
-//        bizDataMap.put("amount", totalAmount);
-//        bizDataMap.put("industryType", "1");
-//        bizDataMap.put("subject", "票卡充值");
-//        bizDataMap.put("body", "地铁票卡充值");
-//        bizDataMap.put("orderTimeOut", DEFAULT_ORDER_TIMEOUT);
-//
-//        payCenterRequest.setBizData(JSON.toJSONString(bizDataMap));
-//        signRequest(payCenterRequest);
-//        return payCenterRequest;
-//    }
 
     /** 发起退款。 */
-//    private void doRefund(String orderNo, int refundAmount) {
-//        try {
-//            TvmTopupOrder order = tvmTopupOrderMapper.selectByOrderNo(orderNo);
-//            if (order == null) {
-//                log.error("发起退款失败，原订单不存在, orderNo={}", orderNo);
-//                return;
-//            }
-//
-//            String refundNo = "RF" + LocalDateTime.now().format(DATE_FORMATTER) + UUID.randomUUID().toString().substring(0, 6);
-//
-//            PayCenterRequest refundRequest = payCenterCommon.getRefundRequest(refundNo, order.getOrderNo(), order.getPayCenterOrderNo(), refundAmount);
-//
-//            log.info("发起退款 refundRequest is {}",refundRequest);
-//            PayCenterResponse payCenterResponse = payCenterService.callPayCenter(payCenterProperties.getPayCenterRefundUrl(), refundRequest);
-//
-//            RefundOrder refundOrder = new RefundOrder();
-//            refundOrder.setRefundNo(refundNo);
-//            refundOrder.setPayOrderNo(orderNo);
-//            refundOrder.setRefundAmount(refundAmount);
-//            refundOrder.setRefundReason("充值失败");
-//            refundOrder.setCreateTime(DateUtils.getNowTime());
-//
-//            if (payCenterResponse != null && StringUtils.equals(payCenterResponse.getCode(), PayCenterErrorCodeEnum.SUCCESS.getCode())) {
-//                Map<String, Object> data = payCenterResponse.getData();
-//                refundOrder.setMerchantRefundNo(getStringFromData(data, "merchantRefundNo"));
-//                refundOrder.setChannelRefundNo(getStringFromData(data, "channelRefundNo"));
-//                refundOrder.setRefundTime(getStringFromData(data, "refundTime"));
-//                refundOrder.setRefundStatus(ItpStatusEnum.REFUND_SUCCESS.getCode()); // 1-退款成功
-//                refundOrder.setRefundMsg(ItpStatusEnum.REFUND_SUCCESS.getDesc()); // 1-退款成功
-//                log.info("充值退款成功, orderNo={}, refundNo={}", orderNo, refundNo);
-//            } else {
-//                String errorMsg = payCenterResponse != null ? payCenterResponse.getMsg() : "调用支付中心退款失败";
-//                refundOrder.setRefundStatus(ItpStatusEnum.REFUNDING_FAIL.getCode()); // 2-退款失败
-//                refundOrder.setRefundMsg(ItpStatusEnum.REFUNDING_FAIL.getDesc()); // 2-
-//                log.error("充值退款失败, orderNo={}, errorMsg={}", orderNo, errorMsg);
-//            }
-//            refundOrderMapper.insert(refundOrder);
-//
-//            Map<String, String> updateMap = new LinkedHashMap<>();
-//            updateMap.put("orderNo", orderNo);
-//            updateMap.put("rsv2", refundNo);
-//            tvmTopupOrderMapper.updateByOrderNo(updateMap);
-//
-//        } catch (Exception e) {
-//            log.error("发起退款异常, orderNo={}", orderNo, e);
-//        }
-//    }
     private void doRefund(String orderNo, String payCenterOrderNo, int refundAmount) {
         try {
 

@@ -19,10 +19,6 @@ public class DateUtils {
         return new SimpleDateFormat(format).format(cal.getTime());
     }
 
-//    public static void main(String[] args) {
-//        String s = getTime(-1, "yyyy-MM-dd") + " 00:00:00";
-//        System.out.println(s);
-//    }
 
     /**
      * @return yyyy-MM-dd HH:mm:ss

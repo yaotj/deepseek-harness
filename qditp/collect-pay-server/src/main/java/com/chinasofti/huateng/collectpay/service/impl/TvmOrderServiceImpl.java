@@ -269,17 +269,7 @@ public class TvmOrderServiceImpl implements TvmOrderService {
     }
 
 //    // bom售票
-//    private Map<String, Object> getBomOrderSalePre(TvmPayOrder order, String deviceId) {
-//        Map<String, Object> preMap = new HashMap<>();
-//        preMap.put("orderNo", order.getOrderNo());
-//        preMap.put("transAmount", order.getTotalPrice());
-//        preMap.put("deviceId", deviceId);
 //        // 01-扫码购票  02-扫码充值
-//        preMap.put("transType", BusinessTypeEnum.BOM_SCANED_SALE_PAY.getCode());
-//        preMap.put("createTime", DateUtils.getNowTime());
-//        preMap.put("updateTime", "");
-//        return preMap;
-//    }
 
     @Override
     public JSONObject requestPayResult(RequestPayResultReqDTO request) {
@@ -432,9 +422,6 @@ public class TvmOrderServiceImpl implements TvmOrderService {
         }
 
 //        // 如果购票数量大于实际出票数量，发起退款 出票张数和订单张数一致才发送取票通知，所以不存在退款可能
-//        int refundAmount = handleRefund(payOrderNo, payCenterOrderNo, ticketPrice, buyNum, actualNum, businessType);
-//        log.info("5.出票结果通知处理完成, orderNo={}, buyNum={}, actualNum={}, refundAmount={}",
-//                request.getOrderNo(), buyNum, actualNum, refundAmount);
         return TvmOrderResult.success();
     }
 
@@ -783,10 +770,6 @@ public class TvmOrderServiceImpl implements TvmOrderService {
         return OrderNoUtils.generateOrderNo(ProductType.ordinaryTicket, seq);
     }
 
-//    private String TransforUtils.getStringFromData(Map<String, Object> data, String key) {
-//        Object value = data.get(key);
-//        return value != null ? value.toString() : null;
-//    }
 
     @Override
     public JSONObject requestPayOrderDetail(RequestPayResultReqDTO request) {
