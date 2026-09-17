@@ -251,6 +251,10 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **旧实现没校验充值金额格式**，`Integer.parseInt` 在非数字时抛异常、退化成全局异常处理器的 UUID retCode；这里显式挡在前面回 2002。`F2fTopupService.requestTopup` — `service/F2fTopupService.java:118`
 - **序列段定长由数据库保证**（`F2F_ORDER_NO_SEQ` 建成 `MAXVALUE 9999 CYCLE`），Java 侧再做一次取模兜底 —— 旧实现只 `leftPad` 不取模，序列一旦超过 9999 就会吐出 21 位订单号，属潜在缺陷、这里不继承。`F2fOrderNo` — `support/F2fOrderNo.java:27`
 - **STT 渠道尚未接入且编码口径未定**：`DeviceTypeEnum` 记 14、`BaseRequestDTO` 注释记 07，两者矛盾。确认后才能加常量并放开 CHECK 约束。`F2fChannel` — `support/F2fChannel.java:10`
+- **设备会在一笔订单内跨前缀混用 `/itptvm/` 与 `/itpbom/`，NEVER 假定「一笔单只走一个前缀」**（2026-09-17 实测，订单 `00202609171033460242`，TVM 设备 `02451201`）。实测落点：下单走 **`/itptvm/ci/tvm/requestGenSjtOrder`**，之后的付款码支付、查支付结果、出票上报**全部走 `/itpbom/ci/bom/**`**（`requestPayment` / `requestGetPayResult` / `notiTakeTicketResult`），且 `providerId` 也随之从 `02` 变成 `03`。同一台设备当天早些时候（订单 `00202609170949000238`）却把查支付结果打在 **TVM** 前缀上，因此**两种形态都真实存在**。
+  - **判据**：排查「某台设备的某一步为什么 404 / 找不到订单」时，**MUST 按「设备 + 步骤」逐步确认前缀，NEVER 按「这台是 TVM 所以全程 `/itptvm/`」推断**。取证方式是在日志里按 `orderNo` grep `request_url=`，把一笔单的每一步前缀列出来。
+  - **连带事实**：`TvmOrderController` 的 `requestPayResult` 已在 2026-09-17 / 1.0.57 加上 `requestGetPayResult` 别名（`@PostMapping({"/requestPayResult", "/requestGetPayResult"})`），起因是 09:49 那笔打在 TVM 前缀上返 404、设备拿不到支付结果因而不出票、订单永久停在 `PAID`（钱已收、票没出）。**该别名在跨前缀这一趟并未被用到**（那趟走的是 BOM 侧本来就存在的 `requestGetPayResult`），但**NEVER 因此删掉它** —— 打在 TVM 前缀上的形态已实测存在过。
+  - **两个前缀的同名端点不是同一份实现**：TVM 侧走 `payResultService.queryPayResult(request)` 返 `TvmResponses` 形状（`paymentResult` / `paymentResultDesc` / `paymentChannelCode`），BOM 侧走 `scanPayService.queryPayResult(orderNo)` 返 `BomResponses` 形状。**补别名时 MUST 保持「打在哪个前缀就用哪个前缀的实现与应答形状」，NEVER 让两侧互相复用** —— 设备按打过去的那个前缀的契约解析应答。
 
 ### 二、BOM 设备域
 
@@ -341,6 +345,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **运营端退款金额只从订单总额算、不信任页面输入**（照搬旧实现的约束，页面只能填退款原因）。`FacePayOrderPageController.requestRefund` — `controller/page/FacePayOrderPageController.java:128`；DTO 侧同款（故意不含退款金额）— `api/page/FacePayRefundRequest.java:6`
 - **`AppPartialRefundRequest.refundAmount` 单位是分**，与 `F2F_ORDER.ORDER_AMOUNT` 同单位，**NEVER 改成元** —— 全链路（设备报文、支付中心、`F2F_*` 三张表）都是分。`api/page/AppPartialRefundRequest.java:12`
 - **按指定金额退款：`refundAmount` NEVER 退化成退全额** —— 本端点的语义就是「按运营指定的金额退」，把缺失的金额猜成全额是资损路径。`AppOrderPageController.refund` — `controller/page/AppOrderPageController.java:53`
+- **运营端列表带「业务类型」（`bizType`），既是返回字段也是筛选维度**（2026-09-17 / 1.0.58 按运维诉求补，此前 `bizType` 只有入参、VO 不返回、前端也没这一维）。取 `F2F_ORDER.BIZ_TYPE` 原值（`01` 购票 / `02` 充值 / `03` 取票 / `04` 非现金收款，有 `CK_F2F_ORDER_BIZ` 约束、每笔必有值），前端 `web/src/views/trans/face-pay/order/index.vue` 用本地 map 译中文（**本目录既有约定是本地 map + `el-tag`，NEVER 改成 `<dict-tag>`**）。**运维要的「交易类型」选的是这一列、不是 `TRANS_TYPE`** —— 后者只有 BOM 与 APP 取票写入（TVM 购票与充值恒为空），当查询维度会漏掉大半订单。**只选业务类型不给检索范围仍会被 `hasSearchScope()` 拒**（前后端各一份，见上一条），这是有意的。`api/page/FacePayOrderPageVO.java:16`
 - **运营端订单视图字段直接对齐 `F2F_ORDER` 域模型、不再做旧口径的状态映射或格式变换**：`orderStatus` 存真实枚举值（CREATED / PAYING / PAID / FULFILLED / REFUNDED 等），不再有旧 `status="1"` 这种 ItpStatusEnum 投影；金额为 `Long` 单位分，不再输出旧 `TO_CHAR` 字符串；`singleTicketType` 直接投影 `F2F_ORDER.SINGLE_TICKET_TYPE`；已退款状态由 `refundStatus`（NONE / PARTIAL / SUCCESS）独立承载、与 `orderStatus` 正交（ADR-D88）。**前端消费侧 MUST 同步更新映射逻辑。** `FacePayOrderPageVO`（类注释）— `api/page/FacePayOrderPageVO.java:6`；`orderStatus` 值域见 `:30`、`refundStatus` 见 `:82`
 
 #### 3.2 决策理由
@@ -592,6 +597,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **`FULFILL_TMS` 的回填放在 mapper 而不是各 service**：履约时间是对账与「支付→出票时长」统计的唯一来源，2026-09-10 BOM 售票重放实测发现它恒为 null（只改了状态没回填时间戳）；推进到 `FULFILLED` 的调用点有四处（`F2fTicketIssueService`、`F2fTopupService` 两处、`F2fBomOrderService`），**逐个加必然漏**。`F2fOrderMapper.xml:180`~`:183`
 - **运营端分页用 `EXISTS` 子查询而不是 JOIN**：支付中心订单号与渠道订单号都在 `F2F_PAYMENT` 上，一笔订单可能有多次支付尝试，**JOIN 会把同一订单重复成多行、分页计数随之出错**。`F2fOrderMapper.xml:275`~`:276`
 - **强类型分页 `selectPageView` 与旧 `selectLegacyPage` 的三条核心差异**：① 不再用裸 Map + `LEGACY_KEYS` 手动补齐，直接映射到 `FacePayOrderPageVO`；② 不再输出旧 `ItpStatusEnum` 的 `0/1/2/3` 状态码和 msg 文案 —— 前端直接消费域模型真实枚举值（`CREATED` / `PAID` / `FULFILLED` / `REFUNDED` 等），`orderAmount` / `ticketPrice` / `refundAmount` 为 `Long` 单位分，退款状态由独立列承载与主状态正交；③ 支付 / 退款相关列改为外层子查询分页 + `LEFT JOIN`，避免 6 个标量子查询，`Page_Where_Clause` 仍嵌在内层、保持 `EXISTS` 子查询的过滤作用且不影响外层 JOIN。`mapper/F2fOrderMapper.java:181`~`:184`；`F2fOrderMapper.xml:336`~`:341`
+- **给 `selectPageView` 加返回字段 MUST 内外两层一起改**：内层子查询有自己的 SELECT 列白名单（先在 `F2F_ORDER` 上分页），外层才起别名映射到 VO —— **只加外层 `O.X AS x` 会在运行时报 `ORA-00904`，只加内层则该字段永远不出现在响应里**，两种都编译通过、单测也发现不了。2026-09-17 加 `bizType` 时按此改的两处即样例。相对地，**筛选维度已经全在 `Page_Where_Clause` 里、不受这条约束**（`bizType` 的 `<if>` 早就在），因此「加一个已有筛选参数的返回字段」只需动 XML 与 VO，不必碰 record / controller / mapper 签名。`F2fOrderMapper.xml` `selectPageView` 内层列表与外层别名两处
 - **`LEFT JOIN` 里用 `(SELECT MAX(ATTEMPT_NO) ...)` 定位最后一次支付尝试的理由**：同一订单可能有多次支付尝试，直接 JOIN 会把单行订单膨胀成多行、分页计数随之出错；用标量子查询先定出最后一次 `ATTEMPT_NO` 再 `LEFT JOIN`，单行对单行、不影响外层分页。`F2F_REFUND` 和 `STATION_INFO` 同理。**NEVER 改成 `INNER JOIN` 或过滤 NULL** —— BOM 柜台售票不写 payment 行、也可能无进出站，这些行 `LEFT JOIN` 后对应列自然为 null，运营页靠 `isStationName || isStationCode` 退化显示。`F2fOrderMapper.xml:343`~`:349`
 - **`updateRefundSummary` 为什么是重算而不是累加**：结果只取决于 `F2F_REFUND` 里 `REFUND_STATUS='SUCCESS'` 的行，执行 1 次和 N 次落库值相同，也不依赖调用方传入的旧值快照。**累加写法在两笔退款并发时各自读到偏小的已退总额，双方都写偏小值，账面虚低且无法自愈**；对端已受理但本地回滚后补跑一次又会把同一笔算两遍、账面虚高，随后真实退款被误判超额并拒绝。**明细表 `F2F_REFUND` 才是唯一账本，本表三列只是它的投影。** 已退总额为 0 时写 `NONE`（说明还没有任何一笔退款成功，可能都停在 `INIT` / `MANUAL`，此时既不该写 `PARTIAL` 也不该写 `SUCCESS`）。**NEVER 加前置状态白名单**：本语句幂等，加了反而会在重入时命中 0 行、汇总永远停在旧值。`F2fOrderMapper.xml:395`~`:405`
 - **`convergeDebitStatus` 于 2026-09-16 整段删除并迁到 owner 侧**：跨域直写别人域的热路径表违反「热路径写入定 owner」判据 —— 同一张表两个模块各持一份 UPDATE，白名单一旦漂移就是资金账不平，**而编译、单测都发现不了**。收敛现走 RPC：`GateTxnPayClient.convergeDebitStatusForSupplement` → `POST /internal/gate-txn-pay/debit/converge`，对端语句名 `convergeDebitStatusForSupplement`、白名单含 `FAIL`、行为与删掉那条逐笔一致。`mapper/GateTxnPayMapper.java:14`~`:19`；`GateTxnPayMapper.xml:9`~`:15`
@@ -1606,6 +1612,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - `EXPIRE_TMS`：二维码失效时间；等于创建时间加 180 秒；与 `ORDER_STATUS` 组成扫表索引 `IDX_F2F_ORDER_SCAN`。
 - 表级：按 `CREATE_TMS` 月分区（`INTERVAL NUMTOYMINTERVAL(1,'MONTH')`，初始分区 `P_F2F_ORDER_INIT` 上界 `2026-10-01`）；`IDX_F2F_ORDER_CARD (CARD_ID, CREATE_TMS DESC)` 与 `IDX_F2F_ORDER_USER (THIRD_USER_ID, ACTIVATE_FLAG, CREATE_TMS DESC)` 为 LOCAL 索引，两个唯一索引为 GLOBAL。
 - `ACTIVATE_FLAG`（无列注释）：`VARCHAR2(1 CHAR) DEFAULT '0' NOT NULL`，取值域 DDL 未写明；参与 `IDX_F2F_ORDER_USER`。
+- `TICKET_PHYSICS_NUM`：物理卡号，设备按 IF2A-06/07/09 规格上送、我方原样留证；**仅充值单有值**，单程票与非现金收款为空。**与 `CARD_ID`（逻辑卡号）不同源，NEVER 互换**。由 `f2f-order-ticket-physics-num-migration.sql` 追加（不在 `f2f-schema.sql` 的初始建表里）。**库侧回查（2026-09-17，`AFCITPDB` 实测，已闭环）**：`USER_TAB_COLS` 为 `VARCHAR2` / `CHAR_LENGTH=64` / `NULLABLE=Y` / 无默认值，`USER_COL_COMMENTS` 的列注释与脚本逐字一致 —— 即该 migration 的 `ALTER TABLE` 与 `COMMENT ON` **都已生效，不需要再执行**。
 
 #### F2F_PAYMENT（表注释：与支付中心的支付交互流水，一行一次尝试）
 

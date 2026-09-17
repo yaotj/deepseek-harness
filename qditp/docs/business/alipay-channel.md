@@ -29,6 +29,7 @@
 - `AlipayTripPaymentController`（`/api/payment`）：`requestPay`、`payQuery`、`requestRefund`、`payNotify`
 - `AlipayPayLogController`（`/api/payment`）：`payLog/list`(GET+POST)、`payLog/detail`、`payLog/entryId`、`payLog/exitId`、`payLog/queryByTravelRecord`、`payLog/travelList`(GET+POST)
 - `AlipayTerminationInternalController`（`/internal/alipay/termination`）：`process`（销卡批处理，仅供 web-admin 的 Quartz 任务调用，`AlipayPaySignClient.processAlipayTermination`）
+- `AlipayChannelSyncInternalController`（`/internal/alipay/channelSync`）：`compensate`（支付通道同步补偿扫描，2026-09-17 新增，ADR-D132）。**上线前 MUST 在 web-admin 建对应 `sys_job`**，否则端点零调用、`CHANNEL_SYNC_*` outbox 依旧没人扫。**当前无鉴权**（与同模块另两个 `/internal/**` 同现状）
 
 **alipay-account-server**
 - `FepAlipayTripRequestApplicationController`（`/channel`）：`requestApplication`、`queryUserInfo`、`updatePaymentChannel`、`updatePhone`
@@ -41,6 +42,22 @@
 - 销卡批处理（2026-09-07 新增）：`AlipayTerminationInternalServiceImpl`（扫 PENDING → 逐条 `TerminationNotifier.execute`）+ web-admin 侧 `AlipayTerminationQuartzTask`
 - 支付：`AlipayTripPaymentServiceImpl` + 协作类 `PaymentRequestService`、`PaymentQueryService`、`PaymentRefundService`、`PaymentNotifyAdapter`、`RefundAmountCalculator`、`PayLogBuilder`、`SignLogRecorder`、`BizDataBuilder`、`IndustryDetailEnricher`
 - 查询：`AlipayPayLogQueryServiceImpl`
+- **出网端口（2026-09-17 / ADR-D131，`paysign/port/` 平铺四个方向，每方向 1 Port + 1 Adapter）**：`AccountChannelPort`（account 域支付通道）、`DebitSyncPort`（gate-txn-pay 扣费状态）、`BlacklistPort`（加黑）、`PayCenterPort`（支付中心支付 / 退款 / 查询，返自建 sealed `PayCenterReply`）。**新写出网 MUST 走这四个之一，NEVER 在 service 里直接注 `*Client` / `PayCenterClient`**
+- **通道同步 outbox（2026-09-17 / ADR-D132）**：`ChannelSyncDeliverer`（出网 + 三态回写的**唯一一份**，包私有）、`ChannelSyncCompensationService`（扫一批重推）、`AlipaySignInfoMapper.selectCompensableChannelSync`
+
+## 支付宝渠道重构后形态（2026-09-17，ADR-D129 ~ ADR-D133、ADR-D135）
+
+读本模块代码前 **MUST** 先按这几条对齐现状，**NEVER** 照旧文件形态推断：
+
+- **`addContract` 已不在事务里出网**（ADR-D129）：改成「本地短事务落签约行 → 提交后出网 → 按 `CHANNEL_SYNC_*` 四列回写」。**NEVER 把 RPC 挪回 `@Transactional` 内**（AGENTS.md §5.2 那条事故）。
+- **两台状态机改「枚举 + 白名单 + CAS」**（ADR-D130）：`ALIPAY_SIGN_INFO.SIGN_STATUS` 的唯一写入口是 mapper 里那条 CAS 语句（`SIGNED -> TERMINATED`），**NEVER 再加第二条改该列的 UPDATE**。
+- **`CHANNEL_SYNC_STATUS='FAILED'` 的行靠结果文案前缀分流**（ADR-D132）：`BIZ_REJECTED:` 只等人工、`UNREACHABLE:` 才重推。**改前缀 MUST 同时改 `selectCompensableChannelSync` 的 `NOT LIKE`**。
+- **`AlipayContractServiceImpl` 刻意没拆**（ADR-D133）：依赖簇确实不相交（签约查询 4 字段 / 解约 3 字段、交集为空），但 230 行 + 4 个入口不足以让拆分产生收益。**拆分要两条同时成立：簇不相交 + 规模或变更频率造成真实成本。NEVER 只凭「簇不相交」启动拆分。**
+- **`ALIPAY_SIGN_INFO` 的主键是 `THIRD_USER_ID` 单列**（2026-09-17 实测 `ALIPAY_SIGN_INFO_PK`，`AGREEMENT_CODE` **没有任何唯一约束**）。连带三条 **NEVER 忘**：①一个用户全表最多一行，**解约不删行 ⇒ 重签只能就地 UPDATE**（`reactivateSign`，CAS `TERMINATED -> SIGNED`），NEVER 再 INSERT；②「同一用户只有一条生效签约」已由主键保证，**NEVER 再加唯一索引**（ADR-D135 建过一个又删了）；③`selectByAgreementCode` 理论上可能多行。
+- **`addContract` 落库分三支 + 换号一律拒绝**（ADR-D135）：有生效签约 → 同号幂等返成功 / **异号拒绝**（`CHANNEL_AGREEMENT_CODE` 要发给支付中心销卡，覆盖旧号等于旧协议永远解不了约）；有历史行 → `reactivateSign`；都没有 → INSERT。冲突（主键 / CAS 0 行）统一回查生效行后按幂等处理。
+- **`selectByThirdUserIdAndChannel` 带 `SIGN_STATUS='SIGNED'` 谓词，NEVER 去掉**（ADR-D135）：三个调用方（`addContract` 判生效 / `selectSignInfo` / `PaymentRequestService.requestPay` 取协议号扣款）要的都是「生效中」，去掉谓词时**已解约用户会被继续扣费**。要判「表里有没有这一行」用 `selectAnyByThirdUserIdAndChannel`。
+- **`TerminationNotifier` 不再直调 `PayCenterClient`**，销卡结果通知走 `PaymentNotifyAdapter`。通知方向那两条判据（`blacklistNotify` 三者任一 / `closeResultNotify` 只认 `code==200`）**刻意留在 adapter 内、NEVER 并进 `PayCenterPort`**。
+- 单测基线：`mise exec -- mvn -o clean test -pl alipay-pay-sign-server -Djkube.skip=true` → **74 tests / 0 failures**（2026-09-17 ADR-D135 后；此前是 69）。特征测试（`AlipayContractCharacterizationTest` 24 / `AlipayPaymentCharacterizationTest` 18 / `TerminationSweepCharacterizationTest` 14 等）钉的是**对外行为**，改动后变红 **MUST 先确认是不是有意的契约变更**。
 
 ## 支付宝出行销卡链路（2026-09-07 落地）
 登记（`terminateContract`）→ `ALIPAY_TERMINATION_REQUEST` 落 `PENDING` → 每天 2:00 Quartz「支付宝出行销卡」调 `/internal/alipay/termination/process` → 逐条执行销卡。
@@ -89,8 +106,10 @@
 - **`/api/payment/**` 四个端点（含 `payNotify`、`requestRefund`）无鉴权无归属校验**，与 §5.2 冲突。
 - **支付中心的幂等拒答（如「订单已支付成功，请勿重复支付」）仍被当成扣款失败**（`AlipayPayLogMapper.countUnsettledByCardId` 的 javadoc 已记）。修它需要支付中心的 retCode 码表，**NEVER 靠匹配中文文案兜**。
 
-## 状态取值（String 常量，无枚举）
+## 状态取值（2026-09-17 起签约状态已有枚举，其余仍是 String 常量）
 - `AlipayContractServiceImpl`：`SIGNED`、`PENDING`，渠道常量 `CHANNEL_ALIPAY="ALIPAY"`
+- **签约状态迁移走枚举 + 白名单 + CAS**（ADR-D130）：`AlipaySignStatusTransition` 表达三态结果，白名单只有 `SIGNED -> TERMINATED`；CAS 返 0 且库里既非 `SIGNED` 也非 `TERMINATED` 判 `CONFLICT`、**只告警不硬改**
+- **通道同步 outbox 用 `model.domain.SyncStatus`**（`PENDING` / `SUCCESS` / `FAILED`，`isCompensable() = PENDING || FAILED`）；`FAILED` 内部再按 `BIZ_REJECTED:` / `UNREACHABLE:` 前缀分流（ADR-D132）
 - `TerminationRegistrationService`：`PENDING`、`COMPLETED`
 - `TerminationNotifier`：`TERMINATED`（写 `ALIPAY_SIGN_INFO`）、`COMPLETED`、`FAIL`（写 `ALIPAY_TERMINATION_REQUEST`）；返回值 `Outcome{TERMINATED, FAILED, RETRY_LATER}`
 
@@ -101,6 +120,7 @@
 - 逻辑删除标记 `DELETE_FLAG='0'`，查询 **MUST** 带此条件（见 `AlipaySignInfoMapper.xml`、`AlipayRefundLogMapper.xml`）
 - ⚠️ 本模块**无 `*-schema.sql` 建表脚本**，前五张表的 DDL 在仓库内没有权威副本，唯一索引无法从仓库确认。新增幂等约束前 **MUST** 让用户确认线上 DDL。
 - **`ALIPAY_PAY_CALLBACK_LOG` 是例外**：它的权威 DDL 就是 `alipay-pay-sign-server/src/main/resources/sql/alipay-pay-sign-callback-log-migration.sql`，2026-09-14 已在 `AFCITPDB` 执行并回查（`USER_TABLES` 命中、14 列、`PK_ALIPAY_PAY_CALLBACK_LOG` + 两条 NONUNIQUE 索引齐全）。
+- **`ALIPAY_SIGN_INFO` 的 `CHANNEL_SYNC_STATUS` / `CHANNEL_SYNC_RETRY_COUNT` / `CHANNEL_SYNC_TIME` / `CHANNEL_SYNC_RESULT` 四列与 `IDX_ASI_CHANNEL_SYNC` 已在库**（2026-09-17 在 `AFCITPDB` 回查，与 `alipay-sign-channel-sync-migration.sql` 逐字一致：`VARCHAR2(16) NOT NULL DEFAULT 'PENDING'` / `NUMBER(10) NOT NULL DEFAULT 0` / `DATE` / `VARCHAR2(500)`；索引 `VALID`、`NONUNIQUE`、列序 STATUS(1)+TIME(2)），见 ADR-D129。**`CHANNEL_SYNC_RESULT` 是 500 而不是 pay-sign 侧的 1024**，落长文案按 500 算。**脚本存在既推不出已执行、也推不出未执行，两个方向都 MUST 先查数据字典。**
 
 ## 幂等
 `@Transactional(rollbackFor = Exception.class)` + 查询已存在记录短路；销卡链路额外用 `updateStatusCas`（按 `TERMINATION_SEQ` + 原状态）保证状态只被推进一次。签约链路仍**无唯一索引可依赖、无 MQ**；定时任务只有 web-admin 侧的「支付宝出行销卡」（本模块内部**无 `@Scheduled`**）。

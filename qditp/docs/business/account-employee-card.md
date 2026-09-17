@@ -5,6 +5,20 @@
 
 # 提示词：账户与电子员工卡
 
+## IF8A-01 当前开户规则（2026-09-17，ADR-D122，account-server 2.0.75）
+
+本节取代下文 2026-09-16 注释摘录及旧 ADR 中“Y/C 一律多开”“用户+卡类型两字段唯一”的当前规则描述；历史证据保留，不再作为新开户实现依据。
+
+- `ticketLimit` 必填，只接受去空格后的 `1/2`。`1` 按 `thirdUserId + ISSUE_ORG_CODE + 映射后 CARD_TYPE` 查询有效唯一卡，命中返回 `8002` 和该卡号；`2` 每次请求新卡。主卡查询绝不能返回 `ticketLimit=2` 的同行卡。
+- APP `cardIssueCode` 原值存 `ISSUE_ORG_CODE`，非空且至多 16 CHAR，不校验机构字典。`CARD_ISSUE_CODE` 仍是码体发行渠道 0001/0007，不能用于所属方查重。第三方用户标识仍至多 64 CHAR；手机号等原校验保留。参数错误统一 8001。
+- 0441 用途：N 主卡通常传 1，Y 同行码通常传 2，C 平台卡按不同所属方及 ticketLimit 处理。服务不新增 N/Y 与 1/2 交叉校验。对外卡类型映射沿用 `02`/`41` → `0441`，不新增直接传 0441 的入口兼容。
+- 新卡落库 `TICKET_LIMIT`；历史 41 行未回填。查重和 GLOBAL 函数唯一索引 `UK_UIRI_ACTIVE_USER_CARDTYPE` 同用条件：`DEL_YN=1 AND (TICKET_LIMIT='1' OR (TICKET_LIMIT IS NULL AND NVL(COMPANION_FLAG,'N') NOT IN ('Y','C')))`。旧普通卡参与、旧 Y/C 排除；新 C+1 会被约束。禁止把条件改成所有有效卡。
+- 唯一卡卡池业务号是带长度前缀的完整三字段：`UNIQUE:<用户UTF-16长度>:<用户><所属方UTF-16长度>:<所属方>:<映射票种>`；多卡为 `MULTI:<UUID>`，重试也会开新卡。长度前缀避免字段包含冒号时碰撞，不复用旧两字段预占。失败仍不释放共享预占；确认失败仍开异常工单。
+- `DuplicateKeyException` 只在传 1 时回查同一组合；只有查到有效且卡号非空的唯一卡才返 8002，查不到返 9001。传 2 不把其他唯一冲突伪装成已开户。
+- N/Y/C 原值保留给账户查询、过闸、订单。C 目前还影响钱包累计和公交换乘推送，本次不改。IF8A-77 保留线上 2.0.74 的所属方修复：按 `ISSUE_ORG_CODE` 查 C 卡。
+- 已执行独立 `account-server-ticket-limit-migration.sql`：无默认值可空列、1/2 CHECK、三字段 GLOBAL 唯一索引。历史核验摘要一致；不是只改 schema。切换步骤与失败处置见 `docs/ops/account-ticket-limit切换.md`。
+- Apifox IF8A-01 须补齐 cardIssueCode/ticketLimit 及 N+1/Y+2/C+1/C+2 示例，工作区未提供 Apifox 配置文件/连接器。
+
 ## 何时读本文件
 开户（IF8A-01）、用户信息查询、支付通道增删改与默认通道设置（IF8A-23/24/25/77）、销户（IF8A-42）、更换手机号、HCE 数据更新、电子员工卡（IF3A 域，含激活/禁用）、账户域异常工单，以及支付宝出行开卡相关改动。
 
@@ -255,7 +269,8 @@
 - **员工码逆向跃迁（`4→1`、`2→3`）无告警留痕**，待甲方确认 ACC 是否会下发。
 - ~~**异常工单没有关单流程、没有后台入口**，`CLOSED` 无代码写入点~~ → **2026-09-11 / 2.0.57 已补后端两个端点**（`GET /page/exception-ticket/list` + `POST /page/exception-ticket/close`，CAS 只接 `OPEN`）。剩下两项**仍未闭合**：①**前端页面未建**（按用户决定交前端同学）；②**关单端点无鉴权** —— 用户 2026-09-11 选择「对齐现状，暂不加鉴权」，与 AGENTS.md §5.2「新增状态变更型接口 MUST 有鉴权与归属校验」冲突，**属有意为之的临时降级，上线前 MUST 补齐**（形态对齐 `AccountRequestVerifier`，NEVER 自造签名）。在此之前 `CLOSED_BY` 只是线索、**NEVER 当审计凭据**。
 - **`buildAlipayTripRegInfo` 与 `buildRegInfo` 有三处刻意差异**，2026-09-11 实测重新分级：
-  - **`COMPANION_FLAG` 缺字段 —— 真阻塞，卡在支付宝侧报文**。支付宝请求 DTO 没有该字段，而 IF8A-77 按 `COMPANION_FLAG='C'` 定位（`selectByThirdUserIdAndCardIssueCodeAndCompanionFlag`），所以支付宝开的卡到不了 IF8A-77。实测影响面：全库 `COMPANION_FLAG='C'` 仅 **12 行、全部 `ISSUE_ORG_CODE=0008`（成都地铁）/ `CARD_TYPE=0441`**，即 IF8A-77 目前只服务这 12 张卡。**MUST 先由支付宝渠道在报文里给出该标识，NEVER 在本侧硬填 'C'**（那等于把本人卡并进亲情卡集合）。
+  - **`COMPANION_FLAG` 缺字段 —— 真阻塞，卡在支付宝侧报文**。支付宝请求 DTO 没有该字段，而 IF8A-77 按 `COMPANION_FLAG='C'` 定位（`selectByThirdUserIdAndIssueOrgCodeAndCompanionFlag`），所以支付宝开的卡到不了 IF8A-77。实测影响面：全库 `COMPANION_FLAG='C'` 仅 **12 行、全部 `ISSUE_ORG_CODE=0008`（成都地铁）/ `CARD_TYPE=0441`**，即 IF8A-77 目前只服务这 12 张卡。**MUST 先由支付宝渠道在报文里给出该标识，NEVER 在本侧硬填 'C'**（那等于把本人卡并进亲情卡集合）。
+  - **IF8A-77 的定位谓词曾错用 `CARD_ISSUE_CODE`，2026-09-17 / 2.0.74 改为 `ISSUE_ORG_CODE`（ADR-D128），NEVER 回退**。开户时 `AccountRegistrationServiceImpl:314-315` 把 APP 上送的机构码原值写进 `ISSUE_ORG_CODE`、把 `toIssueChannelCode4` 的归一值写进 `CARD_ISSUE_CODE`（上送 `0008` 落库 `0001`），而 IF8A-77 拿上送值去比 `CARD_ISSUE_CODE` **恒 0 行** —— 第三方票的 `CHANNEL` 因此永远补不上，拉码 IF8A-03 一路返 `8001 用户签约渠道不能为空`。**NEVER 改成「先归一再比 `CARD_ISSUE_CODE`」**：`0008` / `0004` / `0020` / `5412` 归一后全是 `0001`，分不出第三方来源、会串到别的机构的卡上。
   - ~~`CARD_ISSUE_CODE` 未归一化，待甲方对齐~~ → **已撤回，不是阻塞项**。该列语义是**发行渠道码**（`"00" + IssueChannelCodeEnum.code`），机构原值在 `ISSUE_ORG_CODE`；支付宝出行机构码 `0007` 归一化后正是 `"00"+ALIPAY("07")`=`0007`，**与原值逐字相同**。全库 32 行该列单一取值 `0001`（青岛 5412 / 成都 0008 两个 NORMAL 机构的归一化结果），**零行需迁移**。只在支付宝上送 `0007` 以外机构码时才分叉。要改直接改成调 `toIssueChannelCode4`。
   - `HCE_DATA` 留空 —— 本方法只接 `cardId`，没有 HCE 分配环节，属设计。
 - **`AccountApplicationServiceImpl` 已整类删除**（1904 行 → 0，六轮拆出 `PhoneChangeServiceImpl` / `CardPoolAllocationServiceImpl` / `AccountArchiveServiceImpl` / `PayChannelServiceImpl` / `AccountRegistrationServiceImpl` / `AccountCancelServiceImpl` / `AccountProfileServiceImpl`；第五轮拆出的开户块随后又按渠道再拆成三个类，见 ADR-D31）。**NEVER 重建这个类或任何「转发型」service** —— 第六轮删掉的两个转发方法就是它退化成杂物间的起点；`applyAccInfo` 重复实现已收口。**⚠️ 第五轮（2.0.63）只有编译与单测证据，镜像未构建未部署**（用户 2026-09-11 通知服务器不可部署），补验步骤见 ADR-D24。**`EmployeeCardServiceImpl` 已从 561 行降到 393 行**（拆出 `EmployeeCardOutboundServiceImpl`，再交回日志 mapper）。
@@ -298,10 +313,7 @@
   （`<J>/service/impl/AccountRegistrationServiceImpl.java:265-268`）：「返回字段 **MUST** 与前置查重分支逐字段一致
   （`cardId` / `cardType` / `signType="00"` / `sign=""`）：APP 侧对这两条路径用同一段解析代码。
   回查为空时（冲突后另一条并发把该行销户了）只填错误码，**NEVER** 回填本次未落库的 `regInfo.cardId`。」
-- **卡池发号的幂等边界** —— `AccountRegistrationServiceImpl.buildBusinessId`
-  （`<J>/service/impl/AccountRegistrationServiceImpl.java:335-341`）：「单卡场景（`companionFlag` 非 Y/C）用 `thirdUserId:票种`，
-  重复请求拿到同一张卡号，上游重推不会额外消耗号段。同行票 / 第三方票（Y/C）按业务定义『每次请求都给一张新卡』，
-  因此追加一次性 UUID —— 这类请求 **不具备幂等性**，重推会多发一张卡，这是业务要求而非缺陷。」
+- **卡池发号的幂等边界（ADR-D122 已替代旧规则）**：只由 ticketLimit 控制，1 使用完整三字段长度前缀键，2 使用每请求 UUID，详见顶部当前规则。
 - **HCE 票种不进卡池** —— `AccountRegistrationServiceImpl.allocateCard`
   （`<J>/service/impl/AccountRegistrationServiceImpl.java:314-320`）：「`03`（HCE卡）和 `04`（新版HCE卡）由安全服务生成 HCE 卡数据
   并返回逻辑卡号，不进卡池、也没有预占可确认；其余票种一律从 card-pool-server 预占。**本方法内部全是 RPC，MUST 在事务外调用。**」
@@ -314,9 +326,8 @@
   （`<J>/entity/UserItpRegInfo.java:74-87`）：`CARD_ISSUE_CODE`「仅 `0001`(正常渠道) / `0007`(支付宝出行)」，
   「由 `CardIssueOrgEnum.toIssueChannelCode4` 从 APP 上送的机构码归一而来；码体的『发行渠道位』是 industry-data-server
   对本值取右 2 位（`07` / `01`）。**NEVER 把 APP 原值直接写进这里**——那会让码体落到非法渠道值，见 B14」；
-  `ISSUE_ORG_CODE` 是「APP 开户上送的 4 位原值」「只作留痕与后续统计用，**不参与码体拼装**」。
-- **未知发卡机构码只告警不拒绝** —— `RegistrationCommitService.normalizeIssueOrgCode`
-  （`<J>/service/RegistrationCommitService.java:56-60`）：「留存 APP / 渠道上送的发卡机构码原值；未知机构码打 ERROR 但**不拒绝开户**。」
+  `ISSUE_ORG_CODE` 保留 APP 所属方原值，ADR-D122 起参与唯一卡查重，仍不参与码体拼装。
+- **所属方为开放集合**：`normalizeIssueOrgCode` 只去空格，不做字典校验，也不再对未知所属方打 ERROR。
 - **销户契约** —— `AccountCancelService.userCancel`（`<J>/service/AccountCancelService.java:17-27`）：
   「APP 顺序是 IF8A-35 → IF8A-42 → IF8A-75，本接口执行时支付渠道尚未解绑，因此只改 `USER_ITP_REG_INFO` 与写 `USER_ITP_REG_LOG`，
   **不删 `USER_PAY_CHANNEL`**。落库前会调 IF8A-35 校验未结清订单（可用 `app.user-cancel.check-unsettled` 关闭）」；

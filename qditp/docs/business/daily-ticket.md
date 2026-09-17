@@ -23,7 +23,10 @@
 - IF8A-65 `/ticket/cancelOrder`
 - IF8A-67 `/ticket/updateTicket`
 - IF8A-71 `/ticket/updateAndNotice`
-- 无编号内部接口：`/payment/receivePayResult`（支付回调）、`/queryDailyTicketInfo`、`/queryDailyTicketPayInfo`、`/entry/check`（进站校验）、`/ticket/markUsed`（出站扣次，由 ticket-server `GateTicketHandler` 调用）
+- 无编号内部接口：`/payment/receivePayResult`（支付回调）、`/queryDailyTicketInfo`、`/queryDailyTicketPayInfo`、`/entry/check`（进站校验）、`/ticket/markUsed`（出站扣次，由 ticket-server `GateTicketHandler` 调用）、`/ticket/rideAvailability`（拉码前置可用性查询）
+  - `POST /ci/daily-ticket/ticket/rideAvailability`（2026-09-17 新增，1.0.29，ADR-D126）：**拉码前置的只读可用性查询**，调用方是 `fep-app-server` 的 IF8A-03 `requestIndustryData`（`IndustryDataServiceImpl`，经 `DailyTicketClient.checkRideAvailability`）。
+    入参只有 `cardNum`，应答复用 `DailyTicketBaseResult`：`retCode=0000` 可发码，其余不可发、原因在 `retMsg`。
+    判据与 `validateEntryCheck` 同源（`selectForEntryCheck` 白名单 + 退款占用 + 有效期 + `ACTUAL_TIMES`），但**只读、不推进任何状态**，且**异常一律吞成 retCode、绝不抛出**。详见下面「拉码前置可用性校验」那节。
   - `/queryDailyTicketPayInfo`（2026-09-15 新增，ADR-D82）：按 `ticketCode` 回溯购票订单，给 IF8A-34 交易详情填
     `payTradeOrderNo` / `payOrderNoDate` / `payChannelCode`（日票过闸免扣费、没有 `PAY_TXN_DETAIL`，这三个字段原先恒空串）。
     链路 `TICKET_CODE` → `DAILY_TICKET_INSTANCE.ORDER_NO` → `DAILY_TICKET_ORDER` 的 `TRADE_NO` / `PAY_DATE` / `PAY_CHANNEL_CODE`。
@@ -76,6 +79,19 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
 
 改动状态 **MUST** 全局 grep 字面量确认所有比较点；**NEVER** 只改一处赋值。
 
+## 拉码前置可用性校验（2026-09-17 新增，daily-ticket-server 1.0.29 + fep-app 2.0.87，ADR-D126）
+
+`POST /ci/daily-ticket/ticket/rideAvailability` → `DailyTicketServiceImpl.checkRideAvailability`。
+起因：IF8A-03 拉码链路原先**一行都不碰日票**，次票用完的用户照样能拉到可用乘车码，只在闸机侧被拦。这条把拒绝提前到拉码时。**以下五条 NEVER 改**：
+
+1. **这是拉码时的提前反馈，不是护栏。** 闸机侧 `GateDailyTicketCoordinator.checkEntryAllowed` 那道权威校验**保持原样**，**NEVER 因为有了这条就撤掉** —— 拉码到进站之间可能隔很久，APP 还可能缓存旧码，只有进站那一刻的校验才是权威的。
+2. **`fep-app-server` 只在日票族卡种才调它。** 判定是 `CardTypeMapping.toIssueCardType(userInfo.getCardType())` 归一（APP 上送 `12~15` → `0445~0448`）后过 `CardTypeCodeEnum.isDailyTicket`；后付费（`0441`）链路**一行未动**。这样收窄是为了把热路径上多出来的这一跳 RPC 代价**限制在日票用户**，**NEVER 扩到非日票卡种**。
+3. **daily-ticket 不可达时降级放行。** `RpcOutcome.Unreachable` 分支只打 WARN、继续往下走、不拒发。理由两条：闸机侧还有一道权威校验；反过来「宁拒不放」会让 daily-ticket 一抖就**误拦全部日票用户**。**NEVER 改成拒发。**
+4. **NEVER 改成复用 `queryDailyTicketInfo`。** 那个接口查不到实例时返 `0000` + 字段全 null（本文件已记的静默分支，是为了不打挂 IF8A-34 主链路而有意为之），于是「没有日票」与「服务抖动」在应答上**分不开** —— 接进拉码链路只能二选一地误拦或形同虚设。这正是新开一个端点、并用 `retCode` 明确表达「不可用」的原因。
+5. **拒发时 `fep-app-server` 对 APP 返 `8004` + daily-ticket 的原始 `retMsg`。** 注意 **`8004` 在这条链路上已经是第三个语义**（account 的「没有账号卡片数据」、ticket 的「未注册用户」，现在再加上日票不可用），**排查时只能靠 `retMsg` 区分，NEVER 只看 retCode 下结论**。
+
+拒绝文案与 `validateEntryCheck` **逐字一致**（`日票尚未激活` / `日票已过期` / `日票次数已用完` / `车票已申请退款，不允许使用` / `无可用日票`），因为它会经 fep-app 原样透传给 APP；改一处 **MUST** 同批看齐另一处。`ACTUAL_TIMES` 的判据是 `== 0`，**NEVER 写成 `<= 0`** —— 负数（如 `-99`）是「不限次」哨兵。
+
 ## 跨模块联动（改动必查）
 - **出站扣次**：ticket-server `GateTicketHandler` 在日票出站时调 `/ticket/markUsed`，改签名或返回结构 **MUST** 同步 ticket-server
 - **闸机扣费跳过**：gate-txn-pay-server 对 `CardTypeCodeEnum.isDailyTicket` 直接置 SUCCESS 不扣款，日票卡类型判定改动 **MUST** 同步核对该分支
@@ -88,6 +104,21 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
 
 ## 幂等
 依赖订单状态终态短路 + 表主键。无 Redis 锁、无 MQ。新增写路径 **MUST** 补状态判断。
+
+## 一卡多实例：`DAILY_TICKET_INSTANCE` 里 `CARD_NUM` **不唯一**（2026-09-17 修复，1.0.27，ADR-D121）
+同一张卡可以有多行实例（重复激活 + 历史已过期）。实测样例：卡 `0426090947000056` 有 3 行
+（09-16 15:20 与 15:22 各一张 `ACTIVATED` 计次票 + 09-11 一张 `EXPIRED`）。因此：
+- `selectByCardNum` 是 `selectOne` 语义，**MUST 保留 `order by CREATE_TIME desc` + `fetch first 1 rows only`**
+  （与 `selectForEntryCheck` / `selectByTicketCode` 同口径）。**NEVER 去掉那两行** —— 多行结果会抛
+  `TooManyResultsException`，`markUsed` 与 `queryDailyTicketInfo` 一起返 500，而 ticket-server 侧按设计吞异常
+  放行出站（日志「已放行出站，次数未扣减需人工核对」）、闸机仍返 `0000`，**乘客白坐一次且无自愈路径**。
+- `markUsed` 与 `decreaseActualTimes` 的 WHERE **MUST 是 `ID = #{id}`，NEVER 回退成 `CARD_NUM`**。
+  按卡号更新时，一卡两张可用计次票会**各减 1 次（资损）**，且另一张的状态 / `COUNTING_END` / `FIRST_USE_TIME`
+  被一起污染。`decreaseActualTimes` 的签名就是 `(id, updateTime)`，调用点传 `selectByCardNum` 取到的那张实例的 id。
+- **判据（通用）**：`selectOne` + 「业务上并非唯一」的列做 WHERE 是一对孪生缺陷 —— 读侧报
+  `TooManyResultsException`、写侧**静默多行更新**；读侧那个报错反而挡着写侧的资损，**只修读侧比不修更危险**。
+- 「为什么允许一张卡有两张同时可用的计次票」（重复激活未拦）**属业务口径未定，激活侧没有唯一约束**，
+  当前只保证「一次出站只扣一张」。
 
 ## 参考原始文档
 - `docs/业务需求文档/青岛地铁虚拟电子多日计次票、离线码、实时客流上传功能方案V1.docx`
@@ -675,14 +706,28 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
 
 **票实例状态机**（`DAILY_TICKET_INSTANCE.TICKET_STATUS`，〔impl〕:81~95 是权威定义、〔ddl〕:104 是列注释）：
 
-| 取值 | 含义 | 是否终态 | 能否进站 |
-|---|---|---|---|
-| `INIT` | 已下单未激活 | 否 | 否 |
-| `ACTIVATED` | 已激活未开始使用 | 否 | **能** |
-| `USED` | **已开始使用**（不是「已用完」） | **否** | **能继续**（一日票有效期内不限次、计次票凭剩余次数） |
-| `EXPIRED` | 已过期 / 次数用尽 | 是 | 否 |
-| `REFUND_LOCKED` | 退票锁定中（锁定期不可过闸） | 是 | 否 |
-| `REFUNDED` | 已退票 | 是 | 否 |
+| 取值 | 含义 | 是否终态 | 能否进站 | 写入方 |
+|---|---|---|---|---|
+| `INIT` | 已下单未激活 | 否 | 否 | **无写入方**（票实例首次落库即 `ACTIVATED`） |
+| `ACTIVATED` | 已激活未开始使用 | 否 | **能** | 激活 IF8A-67；退款失败回退 |
+| `USED` | **已开始使用**（不是「已用完」） | **否** | **能继续**（一日票有效期内不限次、计次票凭剩余次数） | IF8A-71 首用通知；出站扣次未清零 |
+| `EXPIRED` | 已过期 / 次数用尽 | 是 | 否 | 出站扣次 `remainTimes == 0` |
+| `REFUND_LOCKED` | **核验退款观察期锁定**（不可过闸、不可放款前流转） | 否（可回 `ACTIVATED`） | 否 | 发起核验退款（`refundType='01'`） |
+| `REFUNDED` | 已退票 | 是 | 否 | 放款成功（`markRefunded`） |
+
+- **`REFUND_LOCKED` / `REFUNDED` 是 ADR-D124 才补上的，此前这三个值（含 `INIT`）在代码里零写入方**，于是
+  「已激活票申请退款 → 观察期内照常乘坐 5 天 → 运营台放款」全程无人拦，实测存量里已有中招数据。
+  **四处成组、改一处 MUST 看齐其余三处**：①`requestRefundTicket` 的 `refundType='01'` 分支先
+  CAS `ACTIVATED -> REFUND_LOCKED`，抢不到即拒退款；②`resubmitRefundTicket`（**唯一的放款入口**，
+  `retryRefundTicket` 与 `queryRefundTicket` 对 type 01 都走不通）放款前复查票必须仍是 `REFUND_LOCKED`；
+  ③`markRefunded` CAS 推 `REFUNDED`、`markRefundFailed` CAS 回退 `ACTIVATED`；④`markUsed` 与
+  `updateAndNotice` 两个「置已使用」入口都用 `isTicketLockedForRefund` 挡住。
+  **进站白名单不需要改** —— `selectForEntryCheck` 只放 `ACTIVATED` + `USED`，两个新值天然被排除，
+  **NEVER 为了「让锁定票也能查到」把它们加进那个白名单**。
+- **退款前置条件已收窄为「票不存在或票是 `ACTIVATED`」**（ADR-D124）。此前是「票不是 `USED` 就能退」，
+  于是 `EXPIRED`（次数用尽 / 过期）票被当成「未激活」走 `refundType='00'` 直连网关**全额退款**，
+  实测存量里有这种行（如 `0E202609161745400007`：`REFUND_TYPE='00'` 却有 `TICKET_STATUS='EXPIRED'` 的实例）。
+  **NEVER 退回 `"USED".equals(...)` 那种黑名单写法。**
 
 - **`USED` 不是终态 —— 2026-09-10 线上事故**：进站后 APP 的 `updateAndNotice` 把状态推到 `USED`，而
   `selectForEntryCheck` 曾用 `TICKET_STATUS != 'USED'` 过滤，**一日票刷一次就再也进不了站**

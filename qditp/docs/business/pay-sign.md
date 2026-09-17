@@ -183,6 +183,8 @@ Controller → PaySignServiceImpl（202 行，纯路由，零业务逻辑）
 
 **业务口径（用户 2026-09-08 口述，唯一来源）**：解约 / 直接解约 **要** ITP 请求支付系统；**移除签约不请求支付系统**，直接把签约记录状态改成解约成功即可。调用场景是「用户协议在第三方已失效」或「钱包解绑」——协议在对端已不存在，再发解约请求没有意义。
 
+**⚠️ 一句话结论，对外沟通时 MUST 原样引用：`requestAgreeRelease`（IF8A-36）只翻本地状态，它不是解约。** 它**不向支付中心发任何请求**，因此调用成功后 **ITP 侧 `SIGN_STATUS=UNSIGNED`、支付中心侧协议仍是 `SIGNED`（仍可被扣款）**。要真正在支付渠道解掉协议只有两条路：`requestTermination`（IF8A-06，走 `APP_TERMINATION_REQUEST` + 扫表推进）或 `unbindAgreement`（IF8A-75，立即调支付中心）。**NEVER 把它当成 IF8A-06 的同义词或「快捷解约」**，也 NEVER 用它替代解约做数据订正 —— 那会造出「本地已解约、渠道还能扣钱」的静默不一致，而这种不一致在我方任何表里都看不出来。2026-09-17 端到端实测已确认该行为（`docs/testing/pay-sign/e2e-2026-09-17.md` 发现③：调用后本地 `UNSIGNED` + `TERMINATION_TIME`，支付中心仍 `SIGNED`）。
+
 现状与风险，恢复实现前 **MUST** 先看清：
 
 - pay-sign 侧代码已存在（`PaySignAppController.java:61` → `PaySignServiceImpl` → `ContractDomainServiceImpl.removeSignAgreement`，DTO `RequestAgreeReleaseReqDTO` / `RequestAgreeReleaseResult` 在 `model`），但 **fep-app 无透传入口、`PaySignClient` 无对应方法，链路未接通**。
