@@ -1,11 +1,6 @@
 package com.chinasofti.huateng.model.para;
 
-
 import java.io.Serializable;
-
-/*
-车站信息参数
- */
 
 public class TblStlStationInfo implements Serializable {
     private Integer paraVerNo;

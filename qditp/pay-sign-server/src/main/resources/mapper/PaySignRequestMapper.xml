@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.paysign.mapper.PaySignRequestMapper">
+    <!-- 注释只能写在这里：SQL 正文禁写行注释或块注释，Druid WallFilter 会判定为注入并让该语句静默失效。 -->
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.paysign.entity.PaySignRequest">
         <id column="ID" jdbcType="BIGINT" property="id"/>
         <result column="REQUEST_SIGN_SEQ" jdbcType="VARCHAR" property="requestSignSeq"/>
@@ -72,9 +73,6 @@
         fetch first 1 rows only
     </select>
 
-    <!-- 取指定流水号下最新一条签约结果流水，供单条通知重发 /internal/paySign/resendNotify 使用。
-         MUST 带 OPERATION_TYPE='RECEIVE_SIGN_RESULT'：同一流水号在本表还有 'SIGN'（请求签约信息时
-         写的）等记录，只按 CREATE_TMS 取最新会拿到不属于通知队列的行，重发出去的报文 signResult 为空。 -->
     <select id="selectLatestSignResultBySeq" resultMap="BaseResultMap">
         select <include refid="Base_Column_List"/>
         from APP_PAY_SIGN_REQUEST
@@ -84,20 +82,6 @@
         fetch first 1 rows only
     </select>
 
-    <!-- 取一批需要补偿通知的签约流水，按 CREATE_TMS 升序（最久没通知成功的先补）。
-         只认 OPERATION_TYPE='RECEIVE_SIGN_RESULT'：本表是签约流水表，对签约结果通知它同时
-         承担「流水 + 补偿队列」（签约没有独立的申请表，这里是唯一的队列）；而解约结果通知的
-         队列是 APP_TERMINATION_REQUEST，由 /internal/termination/compensateNotify 负责。
-         NEVER 把 RECEIVE_TERMINATION_RESULT 加回白名单——同一条解约通知会被两个队列各自
-         重发一次，且本表这行的通知结果没人回写（回写只落 APP_TERMINATION_REQUEST），
-         会永久停在 PENDING 被反复扫到。已发生：每成功解约一次就留一条幽灵 PENDING 行，
-         过 staleMinutes 后给 APP 灌一条重复的解约成功通知（2026-08-26 修复）。
-         命中 FAILED，以及滞留超过 staleMinutes 分钟的 PENDING：流水插入时写的就是 PENDING，
-         若随后的状态回写自身失败，这行会永久停在 PENDING，只扫 FAILED 时补偿永远看不到它。
-         滞留时长基准用 NVL(NOTIFY_TIME, CREATE_TMS)：PENDING 行的 NOTIFY_TIME 为 NULL，
-         只看 NOTIFY_TIME 会因三值逻辑漏掉全部待补记录。
-         NOTIFY_RETRY_COUNT 用 NVL 兜底：历史数据可能为 NULL，直接比较同样会漏行。
-         ROWNUM 必须套在已排序的子查询外层，直接与 ORDER BY 同层会先截断再排序。 -->
     <select id="selectCompensableNotify" resultMap="BaseResultMap">
         select <include refid="Base_Column_List"/>
         from (
@@ -127,8 +111,6 @@
         where ID = #{id,jdbcType=BIGINT}
     </update>
 
-    <!-- NOTIFY_RETRY_COUNT 用 NVL 兜底：NULL + 1 结果仍是 NULL，
-         该行会被 selectCompensableNotify 的重试次数条件永久过滤掉、再也补不到。 -->
     <update id="increaseRetryCount">
         update APP_PAY_SIGN_REQUEST
         set NOTIFY_RETRY_COUNT = NVL(NOTIFY_RETRY_COUNT, 0) + 1,

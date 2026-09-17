@@ -7,13 +7,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/**
- * ACC 签名迁移的回归断言。
- *
- * <p>期望值由 {@code acc-secure-server} 原实现（{@code com.alibaba.fastjson.JSON} +
- * {@code SerializerFeature.MapSortField}）在同一入参下算出，2026-09-09 双 API 对照实测取得。
- * 本类锁住这两个值，后续动签名逻辑或换 JSON 库若导致签名变化，这里会先失败而不是被 ACC 拒签。</p>
- */
+/** ACC 签名迁移的回归断言。 */
 class AccSignUtilsTest {
 
     private static final String TIMESTAMP = "20260909120000";
@@ -36,9 +30,7 @@ class AccSignUtilsTest {
         return properties;
     }
 
-    /**
-     * signType=00 不签名，返回空串。
-     */
+    /** signType=00 不签名，返回空串。 */
     @Test
     void signTypeNoneReturnsEmpty() {
         String sign = AccSignUtils.buildSign(PROVIDER_ID, CHARSET, FORMAT, TIMESTAMP, DEVICE_ID,
@@ -46,9 +38,7 @@ class AccSignUtilsTest {
         assertEquals("", sign);
     }
 
-    /**
-     * signType 为空按不签名处理，与迁出侧一致。
-     */
+    /** signType 为空按不签名处理，与迁出侧一致。 */
     @Test
     void blankSignTypeReturnsEmpty() {
         String sign = AccSignUtils.buildSign(PROVIDER_ID, CHARSET, FORMAT, TIMESTAMP, DEVICE_ID,
@@ -56,18 +46,14 @@ class AccSignUtilsTest {
         assertEquals("", sign);
     }
 
-    /**
-     * signType=02 但未配 signKey 时拒绝出签，避免退化成无密钥 MD5。
-     */
+    /** signType=02 但未配 signKey 时拒绝出签，避免退化成无密钥 MD5。 */
     @Test
     void signTypeMd5WithoutKeyRejected() {
         assertThrows(IllegalStateException.class, () -> AccSignUtils.buildSign(
                 PROVIDER_ID, CHARSET, FORMAT, TIMESTAMP, DEVICE_ID, "02", bizData(), properties("")));
     }
 
-    /**
-     * signType=02 且配了 signKey 时追加 {@code &key=} 后的 MD5 与迁出侧一致。
-     */
+    /** signType=02 且配了 signKey 时追加 {@code &key=} 后的 MD5 与迁出侧一致。 */
     @Test
     void signTypeMd5WithKeyMatchesLegacy() {
         String sign = AccSignUtils.buildSign(PROVIDER_ID, CHARSET, FORMAT, TIMESTAMP, DEVICE_ID,
@@ -75,9 +61,7 @@ class AccSignUtilsTest {
         assertEquals("19f19bc1d8dc172e9527260801d8e30c", sign);
     }
 
-    /**
-     * 除 00 / 02 外的 signType 一律拒绝，与迁出侧一致。
-     */
+    /** 除 00 / 02 外的 signType 一律拒绝，与迁出侧一致。 */
     @Test
     void unsupportedSignTypeRejected() {
         AccSecureProperties properties = properties("");

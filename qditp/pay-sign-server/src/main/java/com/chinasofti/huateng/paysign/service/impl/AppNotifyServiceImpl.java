@@ -47,16 +47,10 @@ public class AppNotifyServiceImpl implements AppNotifyService {
     private static final String TERMINATION_STATUS_SUCCESS = TerminationStatus.SUCCESS.name();
     private static final String TERMINATION_STATUS_FAILED = TerminationStatus.FAILED.name();
 
-    /**
-     * APP_PAY_SIGN_INFO.SIGN_STATUS 的已签约取值，与 {@code PaySignWorkflow.STATUS_SIGNED} 同值。
-     * 单条通知重发只允许这一个前置状态（白名单）。
-     */
+    /** APP_PAY_SIGN_INFO.SIGN_STATUS 的已签约取值，与 {@code PaySignWorkflow.STATUS_SIGNED} 同值。 */
     private static final String SIGN_STATUS_SIGNED = "SIGNED";
 
-    /**
-     * PENDING 滞留多久（分钟）视为「状态回写丢了」，纳入补偿。
-     * 必须显著大于外部调度周期（建议 5 分钟）与单次通知超时，否则会把正常在途的通知误判成滞留并重复发送。
-     */
+    /** PENDING 滞留多久（分钟）视为「状态回写丢了」，纳入补偿。 */
     private static final int PENDING_STALE_MINUTES = 10;
 
     /** 单次补偿取多少条，与 TerminationInternalServiceImpl 保持一致。 */
@@ -81,13 +75,7 @@ public class AppNotifyServiceImpl implements AppNotifyService {
     @Value("${itp.providerId:06}")
     private String itpProviderId;
 
-    /**
-     * 通知重试上限，超过后该记录不再被补偿扫到，只能人工介入。
-     *
-     * <p>MUST 与 {@code TerminationInternalServiceImpl} 读同一个配置键，否则签约与解约两条补偿链路
-     * 的重试预算会漂移。默认 10：上限 × 调度间隔就是「APP 侧最长可容忍故障时长」，
-     * 原先写死的 3 配 10 分钟间隔只能兜住半小时，对端稍长的故障就会把通知永久丢掉。</p>
-     */
+    /** 通知重试上限，超过后该记录不再被补偿扫到，只能人工介入。 */
     @Value("${app.notify.max-retry-count:10}")
     private int maxNotifyRetryCount;
 
@@ -106,11 +94,7 @@ public class AppNotifyServiceImpl implements AppNotifyService {
     @Value("${itp.signKey:}")
     private String itpSignKey;
 
-    /**
-     * 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备，
-     * 且夹具漏注 / 多注一个协作者会**编译失败**，而不是运行时才报 {@code Could not find field}。
-     * <b>NEVER 退回 {@code @Autowired} 字段注入。</b>
-     */
+    /** 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备。 */
     public AppNotifyServiceImpl(
             PaySignRequestMapper paySignRequestMapper,
             PaySignInfoMapper paySignInfoMapper,
@@ -161,12 +145,7 @@ public class AppNotifyServiceImpl implements AppNotifyService {
         });
     }
 
-    /**
-     * 重发一条解约结果通知：按解约申请的终态决定重发成功通知还是失败通知。
-     *
-     * <p>通知报文 MUST 与首次通知一致，因此解约时间取 COMPLETE_TIME 而不是当前时间。
-     * 解约成功的记录其签约信息已在收口时删除，signInfo 传 null，由下游回落到解约申请自身字段。</p>
-     */
+    /** 重发一条解约结果通知：按解约申请的终态决定重发成功通知还是失败通知。 */
     @Override
     public void asyncRetryTerminationNotify(AppTerminationRequest terminationRequest) {
         submitNotifyTask(terminationRequest, () -> {
@@ -178,9 +157,6 @@ public class AppNotifyServiceImpl implements AppNotifyService {
                     failedRequest.setPaymentVendor(terminationRequest.getPaymentVendor());
                     failedRequest.setCardId(terminationRequest.getCardId());
                     failedRequest.setCardType(terminationRequest.getCardType());
-                    // FAIL_REASON 里可能带「需人工核对」的内部说明（ADR-D47），MUST 剥掉再发给 APP。
-                    // 2026-09-12 已发生：ADR-D47 当轮直接把原值发出去，运维文案会出现在用户的
-                    // terminationResultMsg 里。NEVER 退回 terminationRequest.getFailReason()。
                     failedRequest.setFailReason(
                             TerminationFailReason.stripManualMark(terminationRequest.getFailReason()));
                     doNotifyTerminationFailed(terminationRequest, failedRequest);
@@ -204,9 +180,7 @@ public class AppNotifyServiceImpl implements AppNotifyService {
         });
     }
 
-    /**
-     * 解约成功通知：以 APP_TERMINATION_REQUEST 为主记录更新通知状态。
-     */
+    /** 解约成功通知：以 APP_TERMINATION_REQUEST 为主记录更新通知状态。 */
     private void doNotifyTerminationResult(AppTerminationRequest terminationRequest, PaySignInfo signInfo, ReceiveTerminationResultReqDTO receiveRequest) {
         try {
             ItpCommonRequest<AppTerminationResultNotifyReqDTO> notifyRequest = new ItpCommonRequest<>();
@@ -269,12 +243,7 @@ public class AppNotifyServiceImpl implements AppNotifyService {
         }
     }
 
-    /**
-     * 组装并投递签约结果通知，返回本次投递结果。
-     *
-     * <p>返回值供 {@link #resendSignNotify(String)} 同步回执使用；异步路径（首次通知、批量补偿）
-     * 忽略返回值即可，通知状态已在方法内回写。</p>
-     */
+    /** 组装并投递签约结果通知，返回本次投递结果。 */
     private AppNotificationClient.NotificationResult doNotifySignResult(PaySignRequest request, PaySignInfo signInfo, ReceiveSignResultReqDTO receiveRequest) {
         try {
             ItpCommonRequest<AppSignResultNotifyReqDTO> notifyRequest = new ItpCommonRequest<>();
@@ -325,24 +294,12 @@ public class AppNotifyServiceImpl implements AppNotifyService {
                     log.info("补偿通知, requestSignSeq={}, operationType={}, notifyStatus={}, retryCount={}",
                             request.getRequestSignSeq(), request.getOperationType(),
                             request.getNotifyStatus(), request.getNotifyRetryCount());
-                    // 提交重发前先落库「这一次尝试」：递增 NOTIFY_RETRY_COUNT 并把状态置为 FAILED。
-                    //
-                    // MUST 在提交前做，且 MUST 对 PENDING 与 FAILED 一视同仁：
-                    // - PENDING 是中间态，若重发后的结果回写又失败（这正是它卡住的原因），
-                    //   记录会留在 PENDING 被下一轮再次扫到、次数不涨 —— 退化成无上限重复通知；
-                    // - 计数放在这里而不是结果回写里，是因为回写本身可能丢；计数先落库才有上限保证。
-                    //
-                    // 与之配套：updateNotifyStatus 的失败分支 NEVER 再递增计数，否则一轮涨 2、
-                    // 3 次预算 2 轮就用完。全链路口径是「每轮补偿 +1」。
                     paySignRequestMapper.increaseRetryCount(request.getId());
                     PaySignInfo signInfo = paySignInfoMapper.selectBySeq(request.getRequestSignSeq(), request.getPaymentVendor());
-                    // selectCompensableNotify 只取 RECEIVE_SIGN_RESULT，无需再按 OPERATION_TYPE 分派。
-                    // 解约结果通知的补偿在 TerminationInternalServiceImpl.compensateTerminationNotify。
                     ReceiveSignResultReqDTO receiveRequest = parseRequestBody(request.getRequestBody(), ReceiveSignResultReqDTO.class);
                     submitNotifyTask(request, () -> doNotifySignResult(request, signInfo, receiveRequest));
                     response.setSubmitted(response.getSubmitted() + 1);
                 } catch (Exception e) {
-                    // 单条提交失败不影响本批其余记录：该条状态未变，下次调用重试。
                     log.error("提交签约流水通知重发异常, requestSignSeq={}", request.getRequestSignSeq(), e);
                     response.setSkipped(response.getSkipped() + 1);
                 }
@@ -367,8 +324,6 @@ public class AppNotifyServiceImpl implements AppNotifyService {
             return fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "requestSignSeq不能为空");
         }
         try {
-            // 白名单校验一：签约必须真的成功过。没有 SIGNED 记录就没有「签约成功」这个事实，
-            // 放行等于凭一个流水号给 APP 造一条假通知（APP 侧无幂等，污染无法回滚）。
             PaySignInfo signInfo = paySignInfoMapper.selectBySeq(requestSignSeq, null);
             if (signInfo == null) {
                 log.warn("单条通知重发被拒：签约记录不存在, requestSignSeq={}", requestSignSeq);
@@ -380,8 +335,6 @@ public class AppNotifyServiceImpl implements AppNotifyService {
                 return fillError(response, PaySignErrorCodeEnum.USER_NOT_SIGNED,
                         "签约状态为" + signInfo.getSignStatus() + "，只允许重发 SIGNED 的签约结果通知");
             }
-            // 白名单校验二：必须已有签约结果流水。通知状态与结果都回写在这一行上，
-            // 没有它就没有可重发的通知，也无处记录本次投递结果。
             PaySignRequest request = paySignRequestMapper.selectLatestSignResultBySeq(requestSignSeq);
             if (request == null) {
                 log.warn("单条通知重发被拒：无 RECEIVE_SIGN_RESULT 流水, requestSignSeq={}", requestSignSeq);
@@ -391,9 +344,6 @@ public class AppNotifyServiceImpl implements AppNotifyService {
             ReceiveSignResultReqDTO receiveRequest = parseRequestBody(request.getRequestBody(), ReceiveSignResultReqDTO.class);
             log.info("单条重发签约结果通知, requestSignSeq={}, id={}, 原通知状态={}, 重试次数={}",
                     requestSignSeq, request.getId(), request.getNotifyStatus(), request.getNotifyRetryCount());
-            // 同步投递：人工触发要立刻看到回执。NEVER 走 notifyExecutor —— 异步后返回值只剩「已提交」，
-            // 与本接口「告诉调用方这次到底通没通」的用途相悖。同时 NEVER 递增 NOTIFY_RETRY_COUNT：
-            // 那是补偿队列的预算，人工重放不该占用（占用会让真实故障少一次自动重试机会）。
             AppNotificationClient.NotificationResult result = doNotifySignResult(request, signInfo, receiveRequest);
             response.setNotified(result.success());
             response.setNotifyResult(result.message());
@@ -442,14 +392,10 @@ public class AppNotifyServiceImpl implements AppNotifyService {
         update.setNotifyStatus(success ? "SUCCESS" : "FAILED");
         update.setNotifyTime(LocalDateTime.now());
         update.setNotifyResult(result);
-        // 只记状态与原因，NEVER 在这里动 NOTIFY_RETRY_COUNT：
-        // 计数由 compensateSignNotify 在提交重发前统一 +1（那里先落库才有上限保证，
-        // 而这次回写本身可能丢）。两处都加会让一轮涨 2，3 次预算 2 轮用完。
         paySignRequestMapper.updateNotifyStatus(update);
     }
 
     private void updateNotifyStatus(AppTerminationRequest request, boolean success, String result) {
-        // 同上：计数归 compensateTerminationNotify，这里只落状态与原因。
         terminationRequestMapper.updateNotifyStatus(request.getRequestSignSeq(),
                 success ? "SUCCESS" : "FAILED", LocalDateTime.now(), result);
     }

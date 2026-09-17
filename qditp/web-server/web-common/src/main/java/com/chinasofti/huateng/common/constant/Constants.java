@@ -50,16 +50,8 @@ public class Constants
      */
     public static final String FAIL = "1";
 
-    /**
-     * 通用进行中标识
-     *
-     * <p>目前只用于 sys_job_log：任务开始时先落一行「进行中」，收口时再回写成
-     * {@link #SUCCESS} 或 {@link #FAIL}，长任务在跑的过程中即可被观测到。
-     * 新增该取值时 MUST 同步给字典 sys_common_status 补一条 2=进行中，
-     * 否则前台调度日志的状态列会渲染成空白。</p>
-     */
+    /** 通用进行中标识 */
     public static final String RUNNING = "2";
-
 
     /**
      * 登录成功

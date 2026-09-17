@@ -2,9 +2,6 @@ package com.chinasofti.huateng.model.app;
 
 /**
  * 支付 API 3.1 请求退款内部入参。
- *
- * <p>调用方只传原支付订单号和退款金额，pay-sign-server 负责生成退款单号、
- * 查询原支付商户订单号，并统一组装支付网关公共参数和签名。</p>
  */
 public class RequestRefundReqDTO {
     /**

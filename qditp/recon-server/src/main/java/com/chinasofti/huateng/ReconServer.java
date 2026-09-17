@@ -13,12 +13,9 @@ import com.chinasofti.huateng.recon.storage.ReconOrchestrationProperties;
 /**
  * recon-server 启动类。
  *
- * <p><b>NEVER 加回 {@code @EnableScheduling}。</b>用户 2026-09-11 明确要求「不使用 EnableScheduling，
- * 改用 web-admin 调用，改为每日执行一次，由 web-admin 控制频率」，因此本模块**一个 {@code @Scheduled} 都没有**，
- * 日终对账的触发时机与频率全部由 web-admin 的 {@code sys_job}（{@code reconQuartzTask.runDailyBatch()}）决定，
- * 入口是 {@code POST /internal/recon/daily/run}。加回本注解等于让 {@code sys_job} 与本模块形成两套互不知情的
- * 调度源，改 cron 时只改一处就会出现「以为改了、实际另一套还在按老频率跑」，并造成重复建批次与重复投递
- * （与 {@code docs/architecture/web-server.md} §7.1 末条同一约束）。</p>
+ * <p>护栏：不显式声明 {@code @EnableScheduling} 不等于调度未启用 —— micro web 的
+ * {@code WebAutoConfig} 已全局启用调度；NEVER 把「本模块调度未启用」写成可断言项。
+ * 触发方与频率见 {@code docs/business/recon.md}。</p>
  */
 @SpringBootApplication
 @EnableDefaultMybatisAutoConfig

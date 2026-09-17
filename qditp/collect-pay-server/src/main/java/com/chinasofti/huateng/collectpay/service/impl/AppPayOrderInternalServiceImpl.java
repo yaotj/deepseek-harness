@@ -18,9 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * {@link AppPayOrderInternalService} 实现。字段口径与幂等约束见接口注释。
- */
+/** {@link AppPayOrderInternalService} 实现。 */
 @Slf4j
 @Service
 public class AppPayOrderInternalServiceImpl implements AppPayOrderInternalService {
@@ -34,7 +32,7 @@ public class AppPayOrderInternalServiceImpl implements AppPayOrderInternalServic
     /** 登记时固定写 1，因为 {@code requestPayInfo} 的金额是 {@code TICKET_PRICE × TICKET_NUM}。 */
     private static final String FIXED_TICKET_NUM = "1";
 
-    /** 未发起支付 / 未激活。{@code requestPreActiveOrderList} 只捞 {@code ACTIVATE_FLAG='1'}， */
+    /** 未发起支付 / 未激活。 */
     /** 因此写 {@code '0'} 就不会混进乘客的单程票列表里。 */
     private static final String FLAG_NO = "0";
 
@@ -47,10 +45,7 @@ public class AppPayOrderInternalServiceImpl implements AppPayOrderInternalServic
         this.tvmOrderPreMapper = tvmOrderPreMapper;
     }
 
-    /**
-     * 两张表同一个本地事务。全程无 RPC，因此可以安全地包事务（AGENTS.md §5.2）。
-     * <b>NEVER</b> 在本方法内新增任何远端调用。
-     */
+    /** 两张表同一个本地事务。 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AppPayOrderRespDTO register(AppPayOrderRegisterReqDTO request) {
@@ -77,7 +72,6 @@ public class AppPayOrderInternalServiceImpl implements AppPayOrderInternalServic
             }
             // 上面的 selectByOrderNo 是 check-then-act，并发重放会在主键上撞出来。
             // 撞了说明另一条并发请求已经登记成功，按幂等返成功而不是让对方进补偿队列重推。
-            // 判定 MUST 沿 cause 链：本模块开了 tracing，观测切面会把异常换类型（AGENTS.md §5.2）。
             log.warn("内部接口-登记APP订单主键冲突，按并发幂等处理, orderNo={}", orderNo, e);
             return AppPayOrderRespDTO.success(orderNo, "已登记");
         }
@@ -96,7 +90,6 @@ public class AppPayOrderInternalServiceImpl implements AppPayOrderInternalServic
         }
         int closed = tvmAppOrderMapper.closeUnpaidByOrderNo(orderNo, request.getMsg());
         // 影响 0 行是正常结果：行不存在、或已支付 / 已失败。关单的语义是「保证乘客付不了」，
-        // 目标已达成即返成功。NEVER 把 0 行当失败返回——调用方会当成可重试，白重推。
         log.info("内部接口-关闭APP待支付订单完成, orderNo={}, closed={}", orderNo, closed);
         return AppPayOrderRespDTO.success(orderNo, closed > 0 ? "成功" : "该订单已非待支付状态");
     }
@@ -145,7 +138,6 @@ public class AppPayOrderInternalServiceImpl implements AppPayOrderInternalServic
             return "totalAmount不能为空";
         }
         // RSV2 为空会被 refundAppNotTakeTickets 当成购票未取票全额退款，
-        // 因此在入口就拒绝，NEVER 在这里给个默认值放行——默认值等于替调用方定资损口径。
         if (StringUtils.isBlank(request.getSupplementFlag())) {
             return "supplementFlag不能为空，它是挡住购票未取票自动退款的开关";
         }
@@ -187,13 +179,7 @@ public class AppPayOrderInternalServiceImpl implements AppPayOrderInternalServic
         return preMap;
     }
 
-    /**
-     * 沿 {@code getCause()} 链判定是否为完整性冲突。
-     *
-     * <p><b>NEVER 只看最外层类名</b>：本模块开了 tracing，{@code resource/micro/web} 的观测切面
-     * 历史上会把异常重新包一层，只 {@code catch (DuplicateKeyException)} 会静默落空
-     * （AGENTS.md §5.2 / ADR-D53）。</p>
-     */
+    /** 沿 {@code getCause()} 链判定是否为完整性冲突。 */
     private boolean isIntegrityViolation(Throwable e) {
         Throwable cursor = e;
         while (cursor != null) {

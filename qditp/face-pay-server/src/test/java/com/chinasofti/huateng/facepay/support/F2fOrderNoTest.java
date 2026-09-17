@@ -7,12 +7,7 @@ import java.time.LocalDateTime;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/**
- * 订单号格式测试。纯函数，不需要 Spring 也不需要数据库。
- *
- * <p>断言写死字面量：长度口径还没跟 ACC 对账侧确认，一旦要回退到 20 位，这些用例就是回退是否
- * 改干净的判据（设计文档 §十九）。</p>
- */
+/** 订单号格式测试。 */
 class F2fOrderNoTest {
 
     private static final LocalDateTime AT = LocalDateTime.of(2026, 9, 8, 14, 30, 5);

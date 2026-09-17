@@ -2,41 +2,37 @@ package com.chinasofti.huateng.model.enums;
 
 /**
  * 票卡类型编码枚举。
- * <p>对应 AlipayTripPushTransDataReqDTO 注释中的卡类型定义。</p>
- *
- * @see com.chinasofti.huateng.model.app.CardTypeMapping
+ * @see com.chinasofti.huateng.model.app.CardTypeMapping。
  */
 public enum CardTypeCodeEnum {
 
-    /** 二维码后付费单程票 */
+    /** 二维码后付费单程票。 */
     QR_POSTPAID("0441", "二维码后付费单程票"),
 
-    /** HCE 后付费单程票 */
+    /** HCE 后付费单程票。 */
     HCE_POSTPAID("0442", "HCE后付费单程票"),
 
-    /** 新版 HCE 后付费单程票 */
+    /** 新版 HCE 后付费单程票。 */
     NEW_HCE_POSTPAID("0443", "新版HCE后付费单程票"),
 
     /** 员工票（免费乘车） */
     EMPLOYEE("0444", "员工票"),
 
-    /** 一日票 */
+    /** 一日票。 */
     ONE_DAY("0445", "一日票"),
 
-    /** 三日票 */
+    /** 三日票。 */
     THREE_DAY("0446", "三日票"),
 
-    /** 七日票 */
+    /** 七日票。 */
     SEVEN_DAY("0447", "七日票"),
 
     /**
      * 多日计次票。
-     * <p>APP 侧上送 {@code 15}。与 0445~0447 的区别是按次扣减而非按时段有效，
-     * IF1A-01 返回的 {@code countingFlag} 为 {@code 2}（0445~0447 为 {@code 1}）。
      */
     COUNTING("0448", "多日计次票"),
 
-    /** 爱山东 */
+    /** 爱山东。 */
     AI_SHAN_DONG("044A", "爱山东"),
     ;
 

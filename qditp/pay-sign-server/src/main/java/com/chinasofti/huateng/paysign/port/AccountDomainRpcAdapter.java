@@ -16,20 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-/**
- * {@link AccountDomainPort} 的唯一实现：rpc DTO 装配 + {@code retCode} → {@link RpcOutcome} 翻译。
- *
- * <p><b>这是 pay-sign-server 里唯一允许出现 {@code accountClient} 写调用的地方</b>
- * （读调用暂留在原处，见接口 Javadoc）。<b>NEVER 在业务类里重新 new 那些 {@code *ReqDTO}</b> ——
- * 那正是 ADR-D46 要消掉的散落点。</p>
- *
- * <p><b>本类的每个方法都 NEVER 抛异常</b>：连不上 / 超时 / HTTP 错误统一收成
- * {@link RpcOutcome.Unreachable} 并带上原始 cause；响应为空按 {@link RpcOutcome.BizRejected} 处理
- * （HTTP 已 2xx，是对端契约问题，重推同一报文不会变好）。</p>
- *
- * <p><b>日志刻意留在本类</b>：改造前每个调用点各打一遍「call account xxx request/response」，
- * 收口后请求与响应只在这里打一次，业务类只打自己的判定结论。</p>
- */
+/** {@link AccountDomainPort} 的唯一实现：rpc DTO 装配 + {@code retCode} → {@link RpcOutcome} 翻译。 */
 @Component
 public class AccountDomainRpcAdapter implements AccountDomainPort {
 
@@ -156,13 +143,7 @@ public class AccountDomainRpcAdapter implements AccountDomainPort {
         }
     }
 
-    /**
-     * 空白串一律收成 {@code null}，让调用点只需判 {@code null}。
-     *
-     * <p>改造前三处调用点各写一遍 {@code StringUtils.hasText(...) ? x.trim() : 不填}，
-     * 收口到这里后调用点只剩业务判断。<b>NEVER 改成保留原样</b> ——
-     * 账户域返回过带空格的 {@code channel}，`normalizeVendor` 之前的比较会因此错判。
-     */
+    /** 空白串一律收成 {@code null}，让调用点只需判 {@code null}。 */
     private String trimToNull(String value) {
         if (value == null) {
             return null;

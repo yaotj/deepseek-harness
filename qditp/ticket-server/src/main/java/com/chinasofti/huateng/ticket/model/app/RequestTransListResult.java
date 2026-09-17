@@ -4,9 +4,7 @@ import com.chinasofti.huateng.model.app.TransRecordDTO;
 
 import java.util.List;
 
-/**
- * IF8A-05 请求查询交易记录应答。
- */
+/** IF8A-05 请求查询交易记录应答。 */
 public class RequestTransListResult {
     private String retCode;
     private String retMsg;

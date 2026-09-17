@@ -1,13 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  全服务共用的 Linux 日志配置。由 CustomLoggingConfiguration 在 ApplicationReadyEvent 时
-  用 Configurator.initialize 重载，因此这里的 ${sys:xxx} 在加载时**已经被赋值**
-  （见 CustomLoggingConfiguration:43-49），不需要像 pay-sign 那份专属配置一样自带默认值。
-
-  ⚠️ 模块自带 logging.config 时本文件**完全不参与**（CustomLoggingConfiguration:38 直接 return）。
-  当前唯一这么做的是 pay-sign-server（log4j2-paysign.xml），它自己维护一份 VictoriaLogs 配置，
-  **改本文件不会影响 pay-sign，也不会造成 pay-sign 重复上报**。
--->
+<!-- 全服务共用的 Linux 日志配置。由 CustomLoggingConfiguration 在 ApplicationReadyEvent 用 Configurator.initialize 重载，${sys:xxx} 加载时已被赋值；模块自带 logging.config 时本文件完全不参与（当前只有 pay-sign）。详见 docs/ops/生产环境清单.md 附.三 -->
 <Configuration monitorInterval="30" status="off" packages="com.chinasofti.huateng.log4j2">
 
     <Properties>
@@ -57,37 +49,11 @@
             <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
         </Console>
 
-        <!--
-          VictoriaLogs 上报（2026-09-08 从 pay-sign 专属配置提升为公共能力）。
-
-          **url 为空时 appender 自动禁用**：不起 vlogs-sender 线程、不影响业务、不把日志丢到别处。
-          因此把它放进公共配置对**未注入 VLOGS_URL 的服务零影响**，要接入只需在 K8s Deployment
-          注入一个 env，不必再改代码。测试集群实测可用值：
-            http://victoria-logs-pbi6a-svc.itp.svc:30032
-          注意端口是 30032 而**不是** VictoriaLogs 默认的 9428——该 Service 的 port 与 nodePort
-          都是 30032，targetPort 才是 9428，写 9428 连不上。
-          只给 scheme://host:port 时代码会补 /insert/jsonline?_stream_fields=app,host。
-
-          app 字段取 ${appName}，即 other.logging.appName=${spring.application.name}（web.properties:45），
-          所以各服务自动按自己的服务名分组，**NEVER** 在这里写死某个服务名。
-          stream 字段只能放 app/host 这类低基数字段，traceId 走正文（LogsQL 仍可 traceId:"xxx" 检索）。
-
-          字段由同目录的 victorialogs-event-template.json 决定：_time / _msg / level / logger /
-          thread / traceId / spanId。MDC 只取 traceId 与 spanId 两个白名单键——FirstFilter 会把
-          全部请求头塞进 MDC（含 authorization），**NEVER** 把 template 改成全量输出 MDC。
-        -->
+        <!-- VictoriaLogs 上报：url 为空即自动禁用（不起线程、不丢日志）；VLOGS_URL 端口 MUST 是 30032 而不是默认 9428；app 取 ${appName}，NEVER 写死服务名；stream 只放低基数字段、traceId 走正文；MDC 白名单只有 traceId/spanId，NEVER 改成全量输出（FirstFilter 会把 authorization 塞进 MDC）。详见 docs/ops/生产环境清单.md 附.三.3 -->
         <VictoriaLogs name="VictoriaLogs" url="${env:VLOGS_URL:-}"
             queueCapacity="8192" batchSize="512" flushIntervalMillis="2000"
             connectTimeoutMillis="2000" requestTimeoutMillis="5000">
-            <!--
-              两级过滤，CompositeFilter 遇到 ACCEPT / DENY 立即短路：
-              1. MDC 里有 x-vlogs-capture=1 时命中 ACCEPT，该链路日志按 Root 级别（INFO）全量上报。
-                 这个键有两个来源：入向请求头带 X-Vlogs-Capture 时由 micro 的 FirstFilter 小写后放入；
-                 本端主动发起的链路（如 web-admin 的 Quartz 任务）由 QuartzTraceUtils 自己放入。
-                 **NEVER** 把 key 写成驼峰——FirstFilter 只放小写键。
-              2. 未命中落到 ThresholdFilter：只有 WARN 及以上才上报，与本文件改动前的行为等价
-                 （改动前根本不上报，这里等于新增一条「只上报告警」的通路，量可控）。
-            -->
+            <!-- 两级过滤：MDC 有 x-vlogs-capture=1 即 ACCEPT 全量上报（键 MUST 小写，NEVER 写驼峰），未命中落到 ThresholdFilter、只上报 WARN 及以上 -->
             <Filters>
                 <ThreadContextMapFilter onMatch="ACCEPT" onMismatch="NEUTRAL">
                     <KeyValuePair key="x-vlogs-capture" value="1" />
@@ -122,36 +88,14 @@
             <AppenderRef ref="tempFile" />
         </Logger>
 
-        <!--
-          关键链路埋点专用 logger：这里的日志**全量**进 VictoriaLogs（不受 Root 的 WARN 阈值限制）。
-          用法：private static final Logger vlogs = LoggerFactory.getLogger("VLOGS");
-                vlogs.info("参数同步完成, imported={}, skipped={}", imported, skipped);
-          additivity=false 保证不再重复走 Root，避免同一条日志推两遍。
-          与 pay-sign 的 log4j2-paysign.xml 口径一致，业务代码可无差别使用。
-        -->
+        <!-- 关键链路埋点专用 logger：LoggerFactory.getLogger("VLOGS")，全量进 VictoriaLogs 不受 Root 阈值限制，additivity=false 防重复推送 -->
         <Logger name="VLOGS" level="INFO" additivity="false">
             <AppenderRef ref="RollingFile" />
             <AppenderRef ref="Console" />
             <AppenderRef ref="VictoriaLogs" />
         </Logger>
 
-        <!--
-          业务包 logger。存在的唯一目的：让 x-vlogs-capture 链路采集**能生效**。
-
-          log4j2 把 AppenderRef 的 level 属性编译成**引用层过滤器，先于 appender 自己的 <Filters>
-          求值**。只靠下面 Root 的 <AppenderRef ref="VictoriaLogs" level="WARN" /> 时，业务的 INFO
-          事件在「引用」这一层就被 DENY，**永远走不到** appender 上那个 ThreadContextMapFilter，
-          于是「appender 已启用 + vlogs-sender 线程在跑 + MDC 键确实写入 + Root 的 WARN 能上报」
-          四项全部成立，却查不到任何 INFO —— 现象极像过滤器不匹配，实际是引用层短路
-          （2026-09-08 在 web-admin 1.1.13 实测踩坑，绕了一轮）。
-          因此 **NEVER 删掉这个 logger，也 NEVER 给这里的 VictoriaLogs 引用加 level 属性**。
-
-          level 与 appender 引用刻意与 Root 完全一致（additivity=false 顶掉 Root 的重复输出），
-          所以本文件的文件 / 控制台输出与改动前**逐字节等价**，新增的只有 VictoriaLogs 这一路。
-          需要 DEBUG 级别的链路采集时，把级别交给 Deployment 的
-          logging.level.com.chinasofti.huateng（Spring Boot 在本配置加载后套用，会覆盖此处），
-          **NEVER** 在这里写死 DEBUG —— 本文件的 RollingFile 没有 ThresholdFilter 兜底，会被灌满。
-        -->
+        <!-- NEVER 删这个 logger，也 NEVER 给它的 VictoriaLogs 引用加 level 属性：AppenderRef 的 level 是「引用层过滤器」、先于 appender 的 Filters 求值，加了会让业务 INFO 在引用层就被 DENY、永远走不到 ThreadContextMapFilter；也 NEVER 在这里写死 DEBUG（本文件 RollingFile 无 ThresholdFilter 兜底）。详见 docs/ops/生产环境清单.md 附.三.3 -->
         <Logger name="com.chinasofti.huateng" level="${webLoggerLevel}" additivity="false">
             <AppenderRef ref="RollingFile" />
             <AppenderRef ref="Console" />
@@ -161,12 +105,7 @@
         <Root level="${webLoggerLevel}">
             <AppenderRef ref="RollingFile" />
             <AppenderRef ref="Console" />
-            <!--
-              Root 只把 WARN 及以上推给 VictoriaLogs（框架日志：Spring / Druid / Netty 等）。
-              业务包的链路采集走上面的 com.chinasofti.huateng logger，**NEVER** 把这里放到 INFO：
-              各服务的报文日志（other.web.enableLogRequestInFilter / logResponseMaxSize）会被
-              整体搬进日志后端，量与敏感面都不可控。
-            -->
+            <!-- Root 只把 WARN 及以上推给 VictoriaLogs，NEVER 放到 INFO：各服务报文日志的量与敏感面都不可控 -->
             <AppenderRef ref="VictoriaLogs" level="WARN" />
         </Root>
     </Loggers>

@@ -19,9 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * APP 基础参数查询接口入口。
- *
- * <p>线路、车站、票价和站点版本均由 para-server 提供。
- * 同时支持 {@code /ci/app} 和 {@code /app} 两条路径。</p>
  */
 @RestController
 public class AppParaController extends BaseAppController {

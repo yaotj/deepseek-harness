@@ -6,17 +6,17 @@ package com.chinasofti.huateng.model.alipaytrip;
 public class AlipayTripRequestPayReqDTO {
 
     /**
-     * 订单号
+     * 订单号。
      */
     private String orderNo;
 
     /**
-     * 支付类型/场景
+     * 支付类型/场景。
      */
     private String scene;
 
     /**
-     * 支付方式
+     * 支付方式。
      */
     private String paymentVendor;
 
@@ -26,17 +26,17 @@ public class AlipayTripRequestPayReqDTO {
     private Integer amount;
 
     /**
-     * 行业类型：1-地铁 2-公交 3-打车 4-购物
+     * 行业类型：1-地铁 2-公交 3-打车 4-购物。
      */
     private String industryType;
 
     /**
-     * 订单标题
+     * 订单标题。
      */
     private String subject;
 
     /**
-     * 订单描述
+     * 订单描述。
      */
     private String body;
 
@@ -46,12 +46,12 @@ public class AlipayTripRequestPayReqDTO {
     private String requestSignSeq;
 
     /**
-     * 用户ID
+     * 用户ID。
      */
     private String thirdUserId;
 
     /**
-     * 订单超时时间（秒），默认60秒
+     * 订单超时时间（秒），默认60秒。
      */
     private Integer orderTimeOut;
 
@@ -61,7 +61,7 @@ public class AlipayTripRequestPayReqDTO {
     private String authCode;
 
     /**
-     * 回调地址
+     * 回调地址。
      */
     private String notifyUrl;
 
@@ -71,17 +71,14 @@ public class AlipayTripRequestPayReqDTO {
     private String returnUrl;
 
     /**
-     * 用户IP地址
+     * 用户IP地址。
      */
     private String ipAddress;
 
-    /**
-     * 备注
-     */
     private String remark;
 
     /**
-     * 行业详情，json格式
+     * 行业详情，json格式。
      */
     private String industryDetail;
 

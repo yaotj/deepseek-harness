@@ -1,11 +1,6 @@
 package com.chinasofti.huateng.gatetxnpay.model.page;
 
-/**
- * 离线码交易统计运营展示对象（按车站分组）。只读聚合 {@code GATE_TXN_PAY} 中
- * {@code OFFLINE_FLAG='Y'} 的行，不含任何个人信息字段。
- *
- * <p>汇总行复用本类型：{@code stationCode} / {@code stationName} 为空即汇总。</p>
- */
+/** 离线码交易统计运营展示对象（按车站分组）。 */
 public class OfflineCodeStatView {
     /** 车站编码（出站站，缺省时回落进站站）。 */
     private String stationCode;

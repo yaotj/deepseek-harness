@@ -3,9 +3,7 @@ package com.chinasofti.huateng.collectpay.constant;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * 产品类型枚举，用于订单号前缀。
- */
+/** 产品类型枚举，用于订单号前缀。 */
 public enum ProductType {
     ordinaryTicket("00", "一票通_单程票"),
     sjtDistanceTicket("01", "一票通_计程票"),

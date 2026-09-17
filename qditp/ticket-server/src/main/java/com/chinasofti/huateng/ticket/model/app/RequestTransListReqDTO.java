@@ -2,9 +2,7 @@ package com.chinasofti.huateng.ticket.model.app;
 
 import java.util.List;
 
-/**
- * IF8A-05 请求查询交易记录请求参数。
- */
+/** IF8A-05 请求查询交易记录请求参数。 */
 public class RequestTransListReqDTO {
     private String thirdUserId;
     private String cardId;

@@ -17,12 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * 报文组装与签名的口径测试。<b>不起 Spring</b>，全部直接 new。
- *
- * <p>这些断言的作用是把「与旧实现逐字对齐」钉住：bizData 的键、键序、场景差异、待签串形态。
- * 改动其中任何一条都会让支付中心验签失败或报文被拒，因此断言写的是字面量而不是常量引用。</p>
- */
+/** 报文组装与签名的口径测试。 */
 class PayCenterMessageFactoryTest {
 
     private PayCenterProperties properties;
@@ -107,10 +102,7 @@ class PayCenterMessageFactoryTest {
                 decodeBizData(factory.buildRefundQueryRequest("RF20260908001")));
     }
 
-    /**
-     * 待签串取自 bizData 的<b>内部字段</b>（对齐 pay-sign-server，用户 2026-09-09 裁决）。
-     * 查询报文只有一个 key，因此待签串就是 {@code orderNo=...}，信封字段一个都不出现。
-     */
+    /** 待签串取自 bizData 的内部字段（对齐 pay-sign-server，用户 2026-09-09 裁决）。 */
     @Test
     void signSourceComesFromBizDataFieldsAndIsVerifiableByPublicKey() throws Exception {
         PayCenterRequest request = factory.buildQueryRequest("F2F20260908001");

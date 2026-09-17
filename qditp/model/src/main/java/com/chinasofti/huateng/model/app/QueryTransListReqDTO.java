@@ -4,31 +4,24 @@ import java.util.List;
 
 /**
  * IF8A-05 查询交易记录列表请求参数（重构版）。
- *
- * <p>替代 {@link com.chinasofti.huateng.ticket.model.app.RequestTransListReqDTO}，
- * 修复原 DTO 中 {@code int offset/limit} 基本类型导致的 NPE/默认值 0 问题。
- * 所有分页字段统一使用 {@link Integer} 包装类型。</p>
  */
 public class QueryTransListReqDTO {
 
     /** 第三方用户ID（必填） */
     private String thirdUserId;
-    /** 卡号，支持逗号分隔多卡号 */
+    /** 卡号，支持逗号分隔多卡号。 */
     private String cardId;
     /** 解析后的卡号列表（内部使用） */
     private List<String> cardIdList;
-    /** APP 卡类型，经 CardTypeMapping 映射后查询发卡卡类型 */
+    /** APP 卡类型，经 CardTypeMapping 映射后查询发卡卡类型。 */
     private String cardType;
     /**
      * 映射后的发卡卡类型列表（内部使用，由 CardTypeMapping#toIssueCardTypes 生成）。
-     *
-     * <p>非空时下游按 {@code CARD_TYPE IN (...)} 过滤并**忽略** {@link #cardType}；
-     * APP 的日票聚合码 05 会展开成 0445~0448 四个值，因此这里 MUST 用列表而非单值。</p>
      */
     private List<String> cardTypeList;
-    /** 页码，从 1 开始，默认 1 */
+    /** 页码，从 1 开始，默认 1。 */
     private Integer pageNumber;
-    /** 每页条数，默认 10，最大 MAX_PAGE_SIZE */
+    /** 每页条数，默认 10，最大 MAX_PAGE_SIZE。 */
     private Integer pageSize;
     /** 开始日期 yyyy-MM-dd（非必填） */
     private String startDate;

@@ -76,23 +76,6 @@
         WHERE CARD_ID = #{cardId,jdbcType=VARCHAR}
     </update>
 
-    <!--
-      CAS 版 upsert：ON 只按 CARD_ID 匹配，CAS 条件放在 UPDATE 分支的 WHERE 上。
-      并发或 AGM 超时重发导致序号已被推进时 UPDATE 命中 0 行。
-      INSERT 分支（首次开卡）不受 CAS 影响，expectedTxnSeq 为 null 时也能插入。
-
-      NEVER 把 T.TXN_SEQ 挪回 ON 子句：Oracle 禁止更新 ON 子句里引用的列，
-      写成 ON (T.CARD_ID = S.CARD_ID AND T.TXN_SEQ = ...) 且 SET 里又更新 T.TXN_SEQ 时，
-      整条语句被 Oracle 拒绝（ORA 38104），表现为每次过闸都返 9001、明细连同状态一起回滚。
-      2026-09-14 真实过闸实测到该缺陷（ticket-server 2.1.63），编译 / xmllint / SQL 解析器全都发现不了。
-
-      三种结果与本方法的返回值对应关系：
-      行存在且 TXN_SEQ 匹配   UPDATE 执行，返回 1
-      行存在但 TXN_SEQ 不匹配 ON 已匹配故不走 INSERT，WHERE 不满足，返回 0（CAS 失败语义）
-      行不存在                走 INSERT 分支，返回 1
-
-      旧的无条件 upsert 保留不删，运营端 updateCodeStatus 与开卡复位仍需要。
-    -->
     <insert id="upsertWithCas">
         MERGE INTO QRCODE_STATUS T
         USING (

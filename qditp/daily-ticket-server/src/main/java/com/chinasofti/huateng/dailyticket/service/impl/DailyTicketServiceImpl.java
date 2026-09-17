@@ -21,6 +21,7 @@ import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderView;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundQuery;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundView;
 import com.chinasofti.huateng.dailyticket.service.DailyTicketService;
+import com.chinasofti.huateng.dailyticket.service.DailyTicketRefundNotifyService;
 import com.chinasofti.huateng.common.response.ResultMapper;
 import com.chinasofti.huateng.common.response.ResultVO;
 import com.github.pagehelper.PageHelper;
@@ -34,6 +35,7 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayCallbackReqDTO
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayQueryResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayResult;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundCallbackReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
@@ -59,9 +61,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * 日票业务服务默认实现。
- */
+/** 日票业务服务默认实现。 */
 @Service
 public class DailyTicketServiceImpl implements DailyTicketService {
     private static final Logger log = LoggerFactory.getLogger(DailyTicketServiceImpl.class);
@@ -76,22 +76,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
      */
     private static final int MAX_TRAVEL_TICKET_COUNT = 20;
 
-    /**
-     * 日票实例状态机（{@code DAILY_TICKET_INSTANCE.TICKET_STATUS}）：
-     * <pre>
-     * INIT          已下单未激活
-     * ACTIVATED     已激活未开始使用   ← 可进站
-     * USED          已开始使用         ← 可继续进站（一日票有效期内不限次、计次票凭剩余次数）
-     * EXPIRED       已过期 / 次数用尽   终态
-     * REFUND_LOCKED 退票锁定中         终态（锁定期不可过闸）
-     * REFUNDED      已退票             终态
-     * </pre>
-     * <p><b>{@code USED} 不是终态</b>——它表示「已开始使用」，不是「已用完」。
-     * 2026-09-10 线上事故：进站后 APP 的 {@code updateAndNotice} 把状态推到 {@code USED}，
-     * 而 {@code selectForEntryCheck} 用 {@code TICKET_STATUS != 'USED'} 过滤，
-     * 导致一日票刷一次就再也进不了站。收口条件应是有效期（{@code COUNTING_END}）与次数，
-     * 不是 {@code USED} 这个状态本身。</p>
-     */
+    /** 日票实例状态机（{@code DAILY_TICKET_INSTANCE.TICKET_STATUS}）： */
     private static final String TICKET_STATUS_ACTIVATED = "ACTIVATED";
     private static final String TICKET_STATUS_USED = "USED";
     private static final String TICKET_STATUS_EXPIRED = "EXPIRED";
@@ -105,6 +90,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
     private final DailyTicketPayLogMapper payLogMapper;
     private final DailyTicketRefundMapper refundMapper;
     private final DailyTicketUsageLogMapper usageLogMapper;
+    private final DailyTicketRefundNotifyService refundNotifyService;
 
     public DailyTicketServiceImpl(DailyTicketPayGatewayClient payGatewayClient,
                                   DailyTicketPayProperties payProperties,
@@ -113,7 +99,8 @@ public class DailyTicketServiceImpl implements DailyTicketService {
                                   DailyTicketInstanceMapper instanceMapper,
                                   DailyTicketPayLogMapper payLogMapper,
                                   DailyTicketRefundMapper refundMapper,
-                                  DailyTicketUsageLogMapper usageLogMapper) {
+                                  DailyTicketUsageLogMapper usageLogMapper,
+                                  DailyTicketRefundNotifyService refundNotifyService) {
         this.payGatewayClient = payGatewayClient;
         this.payProperties = payProperties;
         this.orderMapper = orderMapper;
@@ -122,24 +109,10 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         this.payLogMapper = payLogMapper;
         this.refundMapper = refundMapper;
         this.usageLogMapper = usageLogMapper;
+        this.refundNotifyService = refundNotifyService;
     }
 
-    /**
-     * IF8A-70 旅游票下单。
-     *
-     * <p>旅游票是聚合单：主单落 {@code TRAVEL_TICKET_ORDER}，内含的每张日票落一条
-     * {@code DAILY_TICKET_ORDER} 子单（{@code ORDER_TYPE='1'}、{@code PARENT_ORDER_NO} 指向主单）。
-     * 拆子单不是设计取舍——{@code UK_DAILY_TICKET_INSTANCE_ORDER} 限定一个订单号只能挂一张票实例，
-     * 一单挂多票在现有表上无法表达。</p>
-     *
-     * <p><b>落库顺序是先子单、后主单</b>：中途失败时只留下父单不存在的孤儿子单，
-     * APP 拿不到 {@code orderNo} 也就无法发起支付，不会出现「能付款但票数不足」的单。
-     * 反序则会留下可支付但子单缺张的主单。本模块没有任何 {@code @Transactional}
-     * （全模块 grep 为 0），因此不靠事务回滚保证一致性，靠顺序与状态可判定性。</p>
-     *
-     * <p><b>金额一律服务端重算</b>：{@code totalAmount} 只用于与 {@code ticketPrice * ticketCount}
-     * 比对，比对不过直接拒单，**NEVER** 直接采信 APP 上送值落库。</p>
-     */
+    /** IF8A-70 旅游票下单。 */
     @Override
     public TravelTicketOrderResult requestTravelOrder(TravelTicketOrderReqDTO request) {
         TravelTicketOrderResult result = new TravelTicketOrderResult();
@@ -300,7 +273,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         if (order == null) {
             return fail(result, "订单不存在");
         }
-        // 即使本地仍是支付中，也以支付平台查询结果为准刷新订单状态。
         if ("PAYING".equals(order.getOrderStatus()) || "PAYING".equals(order.getPayStatus())) {
             queryAndRefreshPayResult(order);
             order = orderMapper.selectByOrderNo(request.getOrderNo());
@@ -332,7 +304,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         if (order == null) {
             return fail(result, "订单不存在");
         }
-        // 同一日票订单只生成一笔退款单；重复请求直接返回已有处理结果。
         DailyTicketRefund existingRefund = refundMapper.selectByOrderNo(order.getOrderNo());
         if (existingRefund != null) {
             return buildExistingRefundResult(result, existingRefund);
@@ -353,7 +324,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             return fail(result, "车票已使用，不允许退款");
         }
 
-        // 未激活票可直退；已激活但尚未使用的票进入后续人工/定时核验流程。
         String refundType = ticket == null || !"ACTIVATED".equals(ticket.getTicketStatus()) ? "00" : "01";
         DailyTicketRefund refund = buildRefund(order, refundType);
         refundMapper.insert(refund);
@@ -370,7 +340,21 @@ public class DailyTicketServiceImpl implements DailyTicketService {
 
         Map<String, Object> refundReq = buildDailyTicketRefundRequest(order, refund);
         log.info("日票服务准备调用支付网关退款接口 orderNo={}, request={}", order.getOrderNo(), JSON.toJSONString(refundReq));
-        DailyTicketPayGatewayResponse refundResponse = payGatewayClient.requestRefund(refundReq);
+        DailyTicketPayGatewayResponse refundResponse;
+        try {
+            refundResponse = payGatewayClient.requestRefund(refundReq);
+        } catch (RuntimeException e) {
+            log.error("日票退款网关调用异常，已留证据并置 REFUNDING 等收口 orderNo={}", order.getOrderNo(), e);
+            insertPayLog(order.getOrderNo(), "REFUND", order.getPayChannelCode(), refundReq,
+                    e.getClass().getSimpleName() + ": " + e.getMessage());
+            orderMapper.updateOrderStatus(order.getOrderNo(), "REFUNDING");
+            result.setRefundType(refundType);
+            result.setOrderNo(refund.getRefundOrderNo());
+            result.setRefundAmount(String.valueOf(refund.getRefundAmount() == null ? 0 : refund.getRefundAmount()));
+            result.setRefundResult("PROCESSING");
+            result.setRefundResultDesc("退款已提交，结果待确认");
+            return success(result);
+        }
         log.info("日票服务调用支付网关退款接口完成 orderNo={}, response={}", order.getOrderNo(), JSON.toJSONString(refundResponse));
         insertPayLog(order.getOrderNo(), "REFUND", order.getPayChannelCode(), refundReq, refundResponse);
         if (!isGatewaySuccess(refundResponse)) {
@@ -383,7 +367,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         if (StringUtils.hasText(refundTime)) {
             markRefunded(order, refund, refundResponse.getData());
         } else {
-            // 网关仅确认受理时不能直接标为完成，保存平台退款单号后等待结果查询。
             updatePlatformRefundNo(refund, refundResponse.getData());
             markRefunding(order, refund);
         }
@@ -413,7 +396,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             return buildExistingRefundResult(result, refund);
         }
 
-        // 两个定位字段必须同时传入。历史数据先从原退款网关响应补齐平台退款单号。
         restorePlatformRefundNoFromPayLog(order.getOrderNo(), refund);
         if (!StringUtils.hasText(refund.getPlatformRefundNo())) {
             return fail(result, "支付平台退款单号缺失，无法执行双字段退款查询");
@@ -431,7 +413,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             return fail(result, queryResponse == null ? "退款结果查询失败" : queryResponse.getMsg());
         }
 
-        // 查询响应可能第一次返回平台退款单号，先落库确保后续查询仍携带双字段。
         persistPlatformRefundNoIfChanged(refund, queryResponse.getData());
         String status = stringValue(queryResponse.getData().get("status"), null);
         if (isRefundSuccessStatus(status)) {
@@ -475,14 +456,12 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             return buildExistingRefundResult(result, refund);
         }
 
-        // 重试前先查询，避免上一笔请求已经在支付平台成功但本地尚未更新。
         DailyTicketRefundResult queryResult = queryRefundTicket(request);
         if (!RET_SUCCESS.equals(queryResult.getRetCode())
                 || (!"PROCESSING".equals(queryResult.getRefundResult()) && !"FAILED".equals(queryResult.getRefundResult()))) {
             return queryResult;
         }
 
-        // 使用已有退款单号重发，支付平台可按 refundOrderNo 保证外部幂等。
         Map<String, Object> refundRequest = buildDailyTicketRefundRequest(order, refund);
         log.info("日票服务准备重试支付网关退款接口 orderNo={}, request={}",
                 order.getOrderNo(), JSON.toJSONString(refundRequest));
@@ -494,7 +473,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             return fail(result, retryResponse == null ? "退款重试调用失败" : retryResponse.getMsg());
         }
 
-        // 与首次退款一致，网关同步成功时直接落终态；其余场景保持处理中等待查询。
         String refundTime = retryResponse.getData() == null ? null
                 : stringValue(retryResponse.getData().get("refundTime"), null);
         if (StringUtils.hasText(refundTime)) {
@@ -523,18 +501,15 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         if (order == null || refund == null) {
             return fail(result, "退款记录不存在");
         }
-        // 白名单：只有这三种前置状态才可能出现「支付平台从未受理」，其余状态一律按已有结果返回。
         String refundStatus = refund.getRefundStatus();
         if (!"REFUNDING".equals(refundStatus) && !"FAILED".equals(refundStatus) && !"WAIT_VERIFY".equals(refundStatus)) {
             return buildExistingRefundResult(result, refund);
         }
-        // 核验退款只在观察期满后才允许转支付平台，观察期内仍按原设计等核销。
         if ("WAIT_VERIFY".equals(refundStatus)
                 && refund.getVerifyAfterTime() != null
                 && refund.getVerifyAfterTime().after(new Date())) {
             return fail(result, "核验退款观察期未满，不允许重提交");
         }
-        // 本方法的唯一判据：对端从未受理。先按历史网关响应尝试恢复，恢复到了说明对端建过退款单，应走重试而不是重提交。
         restorePlatformRefundNoFromPayLog(order.getOrderNo(), refund);
         if (StringUtils.hasText(refund.getPlatformRefundNo())) {
             return fail(result, "支付平台已受理该退款单，请走退款结果查询或退款重试");
@@ -543,7 +518,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             return fail(result, "原支付订单号缺失，不允许退款");
         }
 
-        // 沿用原退款单号重发，支付平台按 refundOrderNo 保证外部幂等，不会重复退款。
         Map<String, Object> resubmitRequest = buildDailyTicketRefundRequest(order, refund);
         log.info("日票服务准备重提交支付网关退款接口 orderNo={}, refundOrderNo={}, refundStatus={}, request={}",
                 order.getOrderNo(), refund.getRefundOrderNo(), refundStatus, JSON.toJSONString(resubmitRequest));
@@ -555,7 +529,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             return fail(result, resubmitResponse == null ? "退款重提交调用失败" : resubmitResponse.getMsg());
         }
 
-        // 与首次退款一致：网关同步给出退款时间即落终态，否则保留处理中等结果查询。
         String refundTime = resubmitResponse.getData() == null ? null
                 : stringValue(resubmitResponse.getData().get("refundTime"), null);
         if (StringUtils.hasText(refundTime)) {
@@ -575,7 +548,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
     @Override
     public ResultVO<PageInfo<DailyTicketRefundOrderView>> pageRefundOrders(DailyTicketRefundOrderQuery query) {
         DailyTicketRefundOrderQuery safeQuery = query == null ? new DailyTicketRefundOrderQuery() : query;
-        // 统一收敛分页参数，避免无效页码和超大页造成数据库压力。
         PageInfo<DailyTicketRefundOrderView> pageInfo = PageHelper
                 .startPage(safePageNum(safeQuery.getPageNum()), safePageSize(safeQuery.getPageSize()))
                 .doSelectPageInfo(() -> orderMapper.selectRefundOrders(safeQuery));
@@ -585,7 +557,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
     @Override
     public ResultVO<PageInfo<DailyTicketRefundView>> pageRefundRecords(DailyTicketRefundQuery query) {
         DailyTicketRefundQuery safeQuery = query == null ? new DailyTicketRefundQuery() : query;
-        // 退款记录与订单检索分开分页，页面可独立追踪核验退款的后续状态。
         PageInfo<DailyTicketRefundView> pageInfo = PageHelper
                 .startPage(safePageNum(safeQuery.getPageNum()), safePageSize(safeQuery.getPageSize()))
                 .doSelectPageInfo(() -> refundMapper.selectRefunds(safeQuery));
@@ -610,15 +581,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return success(result);
     }
 
-    /**
-     * 激活日票（IF8A-32）。
-     *
-     * <p><b>CARD_NUM 直接取 APP 上送的 {@code cardNum}，NEVER 在此处向 card-pool-server 再预占卡号。</b>
-     * 该卡号是开户（{@code businessType=ACCOUNT_OPEN}）时预占并下发给 APP 的那张，APP 取码与闸机上送
-     * 用的都是它。若这里另占一张，因 {@code UK_LOGIC_CARD_POOL_BUSINESS} 唯一约束必然是不同卡号，
-     * 后续 {@code selectForEntryCheck} / {@code markUsed} / {@code queryDailyTicketInfo} 按
-     * {@code CARD_NUM} 精确匹配恒命中 0 行——2026-09-10 线上进站被拒即此原因。</p>
-     */
+    /** 激活日票（IF8A-32）。 */
     @Override
     public DailyTicketBaseResult updateTicket(DailyTicketActivateReqDTO request) {
         DailyTicketBaseResult result = new DailyTicketBaseResult();
@@ -677,14 +640,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return success(result);
     }
 
-    /**
-     * APP 首次使用通知（IF8A-33）：写入有效期截止时间并置「已开始使用」。
-     *
-     * <p>APP 在首次进站后上送 {@code countingEnd}（一日票 = 首次使用 + 24h），语义是**有效期截止**，
-     * 不是「票已用完」。因此这里只把状态推到 {@code USED}（已开始使用），
-     * <b>NEVER 置 {@code EXPIRED} 或任何终态</b>，票在有效期内仍要能继续进出站。
-     * {@code FIRST_USE_TIME} 只在首次写入，重复通知不覆盖。</p>
-     */
+    /** APP 首次使用通知（IF8A-33）：写入有效期截止时间并置「已开始使用」。 */
     @Override
     public DailyTicketBaseResult updateAndNotice(DailyTicketUsedNoticeReqDTO request) {
         DailyTicketBaseResult result = new DailyTicketBaseResult();
@@ -728,6 +684,73 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return success(result);
     }
 
+    /** 支付中心退款结果回调收口（网关文档 §3.3）。 */
+    @Override
+    public DailyTicketBaseResult receiveRefundResult(DailyTicketRefundCallbackReqDTO request) {
+        DailyTicketBaseResult result = new DailyTicketBaseResult();
+        if (request == null || !StringUtils.hasText(request.getOrderNo())) {
+            return fail(result, "orderNo不能为空");
+        }
+        String orderNo = request.getOrderNo();
+        DailyTicketOrder order = orderMapper.selectByOrderNo(orderNo);
+        DailyTicketRefund refund = refundMapper.selectByOrderNo(orderNo);
+        if (order == null || refund == null) {
+            log.warn("日票退款回调：订单或退款单不存在 orderNo={}, orderExists={}, refundExists={}",
+                    orderNo, order != null, refund != null);
+            fail(result, "退款记录不存在");
+            insertPayLog(orderNo, "REFUND_CALLBACK", order == null ? null : order.getPayChannelCode(), request, result);
+            return result;
+        }
+
+        String refundStatus = refund.getRefundStatus();
+        if ("REFUNDED".equals(refundStatus) || "FAILED".equals(refundStatus)) {
+            log.info("日票退款回调重复到达，退款单已是终态，幂等返回 orderNo={}, refundStatus={}", orderNo, refundStatus);
+            success(result);
+            insertPayLog(orderNo, "REFUND_CALLBACK", order.getPayChannelCode(), request, result);
+            return result;
+        }
+        if (!"REFUNDING".equals(refundStatus) && !"WAIT_VERIFY".equals(refundStatus)) {
+            log.warn("日票退款回调：退款单状态不在受理白名单内 orderNo={}, refundStatus={}", orderNo, refundStatus);
+            fail(result, "退款单状态不允许收口: " + refundStatus);
+            insertPayLog(orderNo, "REFUND_CALLBACK", order.getPayChannelCode(), request, result);
+            return result;
+        }
+
+        Map<String, Object> refundData = toRefundCallbackData(request);
+        String refundResult = request.getRefundResult();
+        if ("SUCCESS".equalsIgnoreCase(refundResult)) {
+            markRefunded(order, refund, refundData);
+            success(result);
+        } else if ("FAIL".equalsIgnoreCase(refundResult) || "FAILED".equalsIgnoreCase(refundResult)) {
+            markRefundFailed(order, refund, refundData);
+            success(result);
+        } else if ("PROCESSING".equalsIgnoreCase(refundResult)) {
+            persistPlatformRefundNoIfChanged(refund, refundData);
+            log.info("日票退款回调为处理中，仅回填平台退款单号 orderNo={}, platformRefundNo={}",
+                    orderNo, refund.getPlatformRefundNo());
+            success(result);
+            insertPayLog(orderNo, "REFUND_CALLBACK", order.getPayChannelCode(), request, result);
+            return result;
+        } else {
+            log.warn("日票退款回调：未知的退款结果，不推进状态 orderNo={}, refundResult={}", orderNo, refundResult);
+            fail(result, "未知的退款结果: " + refundResult);
+            insertPayLog(orderNo, "REFUND_CALLBACK", order.getPayChannelCode(), request, result);
+            return result;
+        }
+
+        insertPayLog(orderNo, "REFUND_CALLBACK", order.getPayChannelCode(), request, result);
+        refundNotifyService.deliverOne(orderNo);
+        return result;
+    }
+
+    /** 把回调字段翻译成 {@code markRefunded} / {@code markRefundFailed} 认的 refundData 形状。 */
+    private Map<String, Object> toRefundCallbackData(DailyTicketRefundCallbackReqDTO request) {
+        Map<String, Object> refundData = new LinkedHashMap<>();
+        putIfText(refundData, "refundNo", request.getRefundNo());
+        putIfText(refundData, "refundTime", request.getRefundDate());
+        return refundData;
+    }
+
     @Override
     public QueryDailyTicketInfoResult queryDailyTicketInfo(QueryDailyTicketInfoReqDTO request) {
         QueryDailyTicketInfoResult result = new QueryDailyTicketInfoResult();
@@ -749,16 +772,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return result;
     }
 
-    /**
-     * 按票号查日票的购票支付信息，供 IF8A-34 / IF8A-05 交易详情填充三个支付字段。
-     *
-     * <p>链路是 {@code TICKET_CODE -> DAILY_TICKET_INSTANCE.ORDER_NO -> DAILY_TICKET_ORDER}：
-     * 日票过闸不产生 {@code PAY_TXN_DETAIL}（免扣费），所以详情里的支付字段只能回溯到购票那一笔订单。</p>
-     *
-     * <p><b>查不到时 MUST 返回 {@code 0000} + 三个字段为 null，NEVER 返失败码</b>——调用方
-     * {@code TransDetailQueryHandler} 是交易详情主链路，这里报错会把整条详情打挂；而「这张卡的这笔
-     * 过闸不是日票」本身是完全正常的情形。</p>
-     */
+    /** 按票号查日票的购票支付信息，供 IF8A-34 / IF8A-05 交易详情填充三个支付字段。 */
     @Override
     public QueryDailyTicketPayInfoResult queryDailyTicketPayInfo(QueryDailyTicketPayInfoReqDTO request) {
         QueryDailyTicketPayInfoResult result = new QueryDailyTicketPayInfoResult();
@@ -778,7 +792,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         }
         result.setPayTradeOrderNo(order.getTradeNo());
         result.setPayChannelCode(order.getPayChannelCode());
-        // payOrderNoDate 是「购票付款时刻」而不是本次过闸时刻，长周期票会显示成很早的时间，属有意为之
         result.setPayOrderNoDate(order.getPayDate() == null
                 ? null
                 : new SimpleDateFormat("yyyyMMddHHmmss").format(order.getPayDate()));
@@ -793,7 +806,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         }
         DailyTicketInstance instance = instanceMapper.selectForEntryCheck(cardNum);
         if (instance == null) {
-            // 无有效日票实例，返回失败但允许闸机走常规流程
             log.info("日票进站校验：无有效日票实例, cardNum={}", cardNum);
             return fail(result, "无有效日票记录");
         }
@@ -806,10 +818,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             log.warn("日票进站校验：已过期, cardNum={}, countingEnd={}", cardNum, instance.getCountingEnd());
             return fail(result, "日票已过期");
         }
-        // 计次票次数检查（仅校验，不扣减；扣减在出站时执行）
-        // ACTUAL_TIMES 负数是「不限次」哨兵值（APP 上送 -99，见 DailyTicketActivateReqDTO#actualTimes），
-        // 一日票 / 多日票走有效期而非次数，NEVER 用 <= 0 判断用完——那会把不限次票判成已用完
-        // （2026-09-10 线上：-99 被判「计次票次数已用完」，日票进不了站）。
         Integer actualTimes = instance.getActualTimes();
         if (actualTimes != null && actualTimes == 0) {
             log.warn("日票进站校验：计次票次数已用完, cardNum={}", cardNum);
@@ -818,19 +826,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return success(result);
     }
 
-    /**
-     * 出站处理：计次票扣次、写入出站时间。
-     *
-     * <p>状态推进规则（{@code USED} 表示「已开始使用」，不是终态）：</p>
-     * <ul>
-     *   <li>不限次票（{@code ACTUAL_TIMES < 0}，如一日票）：保持 {@code USED}，靠 {@code COUNTING_END} 过期收口</li>
-     *   <li>计次票扣完最后一次（扣后为 0）：推进到 {@code EXPIRED} 终态</li>
-     *   <li>计次票仍有剩余次数：保持 {@code USED}，下次仍可进站</li>
-     * </ul>
-     * <p><b>{@code countingEnd} 为 null 时 NEVER 覆盖库里已有的有效期</b>——闸机出站不带有效期
-     * （{@code GateTicketHandler:188} 传的就是 null），有效期由 APP 的 {@code updateAndNotice} 写入。
-     * {@code FIRST_USE_TIME} 同理只在首次写入。</p>
-     */
+    /** 出站处理：计次票扣次、写入出站时间。 */
     @Override
     public DailyTicketBaseResult markUsed(String cardNum, Long countingEnd) {
         return markUsed(cardNum, countingEnd, null, null, null);
@@ -851,7 +847,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         Date now = new Date();
         Integer actualTimes = instance.getActualTimes();
         int remainTimes = actualTimes == null ? -1 : actualTimes;
-        // 计次票扣减一次次数（atomic，下限为0）；不限次票（负数哨兵）不扣
         if (actualTimes != null && actualTimes > 0) {
             int updated = instanceMapper.decreaseActualTimes(cardNum, now);
             remainTimes = actualTimes - (updated > 0 ? 1 : 0);
@@ -866,9 +861,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         instance.setUpdateTime(now);
         instanceMapper.markUsed(instance);
 
-        // INSERT 扣次明细（UK_DTUL_ORDER 做幂等，重推不多扣）
-        // daily-ticket-server 已开 tracing，DuplicateKeyException 可能被切面包一层 RuntimeException，
-        // 因此用 cause 链判定而非直接 catch DuplicateKeyException
         insertUsageLog(cardNum, orderNo, inStation, outStation, actualTimes, remainTimes, nextStatus);
 
         log.info("日票出站处理完成, cardNum={}, ticketStatus={}, 剩余次数={}, countingEnd={}, orderNo={}",
@@ -955,8 +947,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             return;
         }
         DailyTicketOrder latest = orderMapper.selectByOrderNo(order.getOrderNo());
-        // A duplicate success callback may carry the platform order number that
-        // was missing from the first terminal update. Keep it for refunds.
         if (latest != null && "PAID".equals(latest.getOrderStatus())
                 && StringUtils.hasText(order.getPaymentOrderNo())) {
             updatePaymentOrderNo(latest, order.getPaymentOrderNo());
@@ -1040,6 +1030,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         refund.setUpdateTime(now);
         refundMapper.updateResult(refund);
         orderMapper.updateOrderStatus(order.getOrderNo(), "REFUNDED");
+        markRefundNotifyPending(refund);
     }
 
     /** 明确失败时保留原退款单，后续重试必须继续使用该退款单号。 */
@@ -1051,6 +1042,14 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         refund.setUpdateTime(now);
         refundMapper.updateResult(refund);
         orderMapper.updateOrderStatus(order.getOrderNo(), "PAID");
+        markRefundNotifyPending(refund);
+    }
+
+    /** 退款进入终态后把 IF8B-04 通知置为待发。 */
+    private void markRefundNotifyPending(DailyTicketRefund refund) {
+        refund.setNotifyStatus("PENDING");
+        refund.setNotifyTimes(0);
+        refundMapper.updateNotifyStatus(refund.getOrderNo(), "PENDING", 0, null, null);
     }
 
     /** 重试提交成功后回到处理中，等待支付平台异步或人工查询结果。 */
@@ -1063,9 +1062,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         orderMapper.updateOrderStatus(order.getOrderNo(), "REFUNDING");
     }
 
-    /**
-     * 支付平台版本的字段名存在 refundOrderNo/refundNo 两种实现，优先读取文档字段，兼容旧实现。
-     */
+    /** 支付平台版本的字段名存在 refundOrderNo/refundNo 两种实现，优先读取文档字段，兼容旧实现。 */
     private void updatePlatformRefundNo(DailyTicketRefund refund, Map<String, Object> refundData) {
         if (refundData == null) {
             return;
@@ -1204,6 +1201,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         refundRequest.put("orderNo", order.getPaymentOrderNo());
         refundRequest.put("refundAmount", refund.getRefundAmount());
         refundRequest.put("refundReason", "日票退款");
+        putIfText(refundRequest, "notifyUrl", payProperties.getRefundNotifyUrl());
         return refundRequest;
     }
 
@@ -1240,7 +1238,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             result.setRefundResult("FAILED");
             result.setRefundResultDesc("退款失败，可发起退款重试");
         } else {
-            // 处理中和待核验以退款单为最终处理依据，禁止创建新的退款单。
             result.setRefundResult("PROCESSING");
             result.setRefundResultDesc("退款已申请，请勿重复提交");
         }

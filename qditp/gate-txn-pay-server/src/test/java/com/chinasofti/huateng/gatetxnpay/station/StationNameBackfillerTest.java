@@ -11,13 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-/**
- * 钉住 {@link StationNameBackfiller} 的三条语义，它们改坏后编译与启动都不报错、
- * 只在「列表站名显示成编码」或「站名被擦成空」时才被发现。
- *
- * <p>不用 Mockito：{@link FareDataGateway} 的取数方法已经是「吞异常返空 Map」的形态，
- * 直接匿名子类覆写那一个方法即可，构造参数传 {@code null} 不会被触达。</p>
- */
+/** 钉住 {@link StationNameBackfiller} 的三条语义，它们改坏后编译与启动都不报错、 只在「列表站名显示成编码」或「站名被擦成空」时才被发现。 */
 class StationNameBackfillerTest {
 
     /** 两个码都查得到：两列都按查到的中文名覆盖。 */
@@ -34,10 +28,7 @@ class StationNameBackfillerTest {
         assertEquals("合川路", order.getExitStationName());
     }
 
-    /**
-     * 进站码查不到（占位 {@code FFFF} 不在 {@code TBL_STATION_INFO}）时，
-     * 进站名保持原值、**出站名照常回填** —— NEVER 因为进站查不到就整体放弃。
-     */
+    /** 进站码查不到（占位 {@code FFFF} 不在 {@code TBL_STATION_INFO}）时。 */
     @Test
     void keepEntryNameWhenEntryCodeUnresolvable() {
         Map<String, String> resolved = new HashMap<>();
@@ -50,10 +41,7 @@ class StationNameBackfillerTest {
         assertEquals("合川路", order.getExitStationName());
     }
 
-    /**
-     * 一个都查不到（para 不可达 / 返非 0000）时，**NEVER 把上游已填对的站名擦成空**。
-     * 这条是本类最关键的不变量：覆盖成空比不回填更糟，列表会退回显示编码。
-     */
+    /** 一个都查不到（para 不可达 / 返非 0000）时。 */
     @Test
     void neverOverwriteExistingNamesWhenNothingResolved() {
         GateTxnPay order = order("0622", "0245", "辛屯", "合川路");
@@ -81,7 +69,7 @@ class StationNameBackfillerTest {
         assertNull(order.getExitStationName());
     }
 
-    /** 进出同站：MUST 能正常回填，且去重后只查一个码。 */
+    /** 且去重后只查一个码。 */
     @Test
     void backfillSameEntryAndExitStation() {
         Map<String, String> resolved = new HashMap<>();

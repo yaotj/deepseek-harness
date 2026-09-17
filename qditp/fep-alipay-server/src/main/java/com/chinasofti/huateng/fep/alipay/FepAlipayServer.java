@@ -21,7 +21,6 @@ public class FepAlipayServer {
 
     /**
      * 支付宝入口服务启动入口。
-     *
      * @param args 启动参数
      */
     public static void main(String[] args) {

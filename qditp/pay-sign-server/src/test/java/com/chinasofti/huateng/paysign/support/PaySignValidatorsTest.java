@@ -18,14 +18,7 @@ import com.chinasofti.huateng.model.app.RequestTerminationReqDTO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * {@link PaySignValidators} 的行为固化测试（2026-09-14 拆分批次 2）。
- *
- * <p><b>断言的是文案与判断顺序，不是「有没有报错」</b>：这些字符串会原样进 APP 应答的
- * {@code retMsg}，联调方可能已按文案做断言。因此每个「缺字段」用例都只留一个字段为空、
- * 其余填满，逐个钉死映射关系；另有一组「同时缺两个」用例钉死**先报哪一个**。
- * 改这些断言等于改对外契约，<b>MUST 当成契约变更走确认，NEVER 顺手改成期望新文案</b>。
- */
+/** 护栏：入参校验的文案与判断顺序（文案原样进 retMsg，属对外契约）。 */
 class PaySignValidatorsTest {
 
     private static RequestSignInfoReqDTO fullSignInfo() {

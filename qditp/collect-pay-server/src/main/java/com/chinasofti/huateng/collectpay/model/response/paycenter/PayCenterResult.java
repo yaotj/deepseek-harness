@@ -5,9 +5,7 @@ import com.chinasofti.huateng.collectpay.constant.PayCenterErrorCodeEnum;
 import com.chinasofti.huateng.collectpay.constant.TvmPayCodeEnum;
 import lombok.Data;
 
-/**
- * IF2A-01 提交单程票订单应答报文（ITP -> TVM）。
- */
+/** IF2A-01 提交单程票订单应答报文（ITP -> TVM）。 */
 @Data
 public class PayCenterResult {
 

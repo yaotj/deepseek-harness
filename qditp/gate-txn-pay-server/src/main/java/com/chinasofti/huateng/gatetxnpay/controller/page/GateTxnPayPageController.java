@@ -19,9 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/**
- * 用户运营端过闸扣费信息与退款入口。
- */
+/** 用户运营端过闸扣费信息与退款入口。 */
 @RestController
 @RequestMapping("/page/gate-txn-pay")
 public class GateTxnPayPageController {
@@ -37,7 +35,7 @@ public class GateTxnPayPageController {
         this.originalFareBackfillService = originalFareBackfillService;
     }
 
-    /** 分页查询过闸扣费订单；服务层要求订单标识或完整日期范围防止全表扫描。 */
+    /** 分页查询过闸扣费订单，服务层要求订单标识或完整日期范围防止全表扫描。 */
     @GetMapping
     public ResultVO<Map<String, Object>> page(@RequestParam(required = false) String orderNo,
                                               @RequestParam(required = false) String cardId,
@@ -70,12 +68,7 @@ public class GateTxnPayPageController {
         return gateTxnPayQueryService.overtimeRefundablePage(stationCode, startDate, endDate, pageNum, pageSize);
     }
 
-    /**
-     * 批量发起超时罚金退款：逐单走单笔退款链路，金额为各自 OVERTIME_AMOUNT，单批 ≤ 200 笔。
-     *
-     * <p>⚠️ 与本模块其它 {@code /page/**} 写接口一样**当前没有鉴权**，且这是资金操作。
-     * 上线前 MUST 由运维在入口侧限制该路径只对运营网段开放。</p>
-     */
+    /** 批量发起超时罚金退款：逐单走单笔退款链路，金额为各自 OVERTIME_AMOUNT，单批 ≤ 200 笔。 */
     @PostMapping("/batch-refund-overtime")
     public ResultVO<BatchRefundResult> batchRefundOvertime(@RequestBody BatchRefundOvertimeRequest request) {
         return gateTxnPayService.batchRefundOvertime(request);
@@ -88,16 +81,7 @@ public class GateTxnPayPageController {
         return gateTxnPayService.requestRefund(orderNo, request);
     }
 
-    /**
-     * 历史订单地铁原价（{@code ORIGINAL_FARE}）补数，按进出站重查票价后回填空值行。
-     *
-     * <p>{@code dryRun} 默认 true 只试算；确认 {@code updatedList} 与 {@code suspectList}
-     * 后再传 {@code dryRun=false} 落库。回填只写空值行，重复调用幂等。</p>
-     *
-     * <p>⚠️ 与本模块其它 {@code /page/**} 接口一样，**当前没有鉴权**：模块内无 spring-security、
-     * 无全局拦截器，网络可达方即可调用，而这是**写接口**。上线前 MUST 由运维在入口侧限制
-     * 该路径只对运营网段开放，或补齐与 {@code AccountRequestVerifier} 对齐的验签。</p>
-     */
+    /** 历史订单地铁原价（{@code ORIGINAL_FARE}）补数，按进出站重查票价后回填空值行。 */
     @PostMapping("/backfill-original-fare")
     public ResultVO<Map<String, Object>> backfillOriginalFare(@RequestBody OriginalFareBackfillRequest request) {
         return originalFareBackfillService.backfillOriginalFare(request);

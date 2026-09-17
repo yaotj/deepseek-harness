@@ -2,9 +2,6 @@ package com.chinasofti.huateng.model.app.dailyticket;
 
 /**
  * IF8A-70 请求旅游票下单请求参数。
- *
- * <p>旅游票是聚合单，内含多张日票：主单记录总金额与购买数量，
- * 每张日票落一条子单（{@code DAILY_TICKET_ORDER}，{@code PARENT_ORDER_NO} 指向主单）。</p>
  */
 public class TravelTicketOrderReqDTO {
     /**

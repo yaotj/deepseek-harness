@@ -9,16 +9,13 @@ import java.util.Base64;
 
 /**
  * APP FormData 接口的公共处理基类。
- *
- * <p>APP 将公共字段以表单字段提交，业务参数统一放在 {@code bizData} JSON 字符串中。
- * 子类仅负责接口语义和服务编排，本类负责将其反序列化为对应的业务 DTO。</p>
  */
 abstract class BaseAppController {
 
     /**
      * 将 FormData 中的业务 JSON 转换为目标 DTO。
      *
-     * <p>空 {@code bizData} 按空 JSON 对象处理，以保持历史接口的反序列化行为。</p>
+     * <p>能被本方法解析的 DTO 就是对外契约，NEVER 加字段。</p>
      *
      * @param request    APP 公共 FormData 请求
      * @param targetType 业务 DTO 类型
@@ -41,12 +38,7 @@ abstract class BaseAppController {
     }
 
     /**
-     * 从原始回调报文中提取并解析 bizData，兼容三种形态：
-     * <ol>
-     *   <li>{@code bizData} 字段为 JSONObject（直接反序列化）</li>
-     *   <li>{@code bizData} 字段为 Base64 编码的 JSON 字符串（解码后反序列化）</li>
-     *   <li>无 {@code bizData} 字段（整体作为目标 DTO 反序列化）</li>
-     * </ol>
+     * 从原始回调报文中提取并解析 bizData。
      *
      * @param requestBody 回调报文原始字符串
      * @param targetType    目标 DTO 类型

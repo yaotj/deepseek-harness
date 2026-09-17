@@ -25,7 +25,6 @@ public class AlipayAccountServer implements CommandLineRunner {
 
     /**
      * 支付宝账户服务启动入口。
-     *
      * @param args 启动参数
      */
     public static void main(String[] args) {
@@ -34,7 +33,6 @@ public class AlipayAccountServer implements CommandLineRunner {
 
     /**
      * 服务启动后执行的初始化逻辑。
-     *
      * @param args 启动参数
      */
     @Override

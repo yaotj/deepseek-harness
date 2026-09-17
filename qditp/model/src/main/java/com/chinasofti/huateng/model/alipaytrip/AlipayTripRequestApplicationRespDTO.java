@@ -8,17 +8,17 @@ import com.chinasofti.huateng.common.response.CommonResult;
 public class AlipayTripRequestApplicationRespDTO extends CommonResult {
 
     /**
-     * 卡片ID/逻辑卡号，开卡成功后返回
+     * 卡片ID/逻辑卡号，开卡成功后返回。
      */
     private String cardId;
 
     /**
-     * 卡片类型
+     * 卡片类型。
      */
     private String cardType;
 
     /**
-     * 用户状态，如 ACTIVE
+     * 用户状态，如 ACTIVE。
      */
     private String status;
 

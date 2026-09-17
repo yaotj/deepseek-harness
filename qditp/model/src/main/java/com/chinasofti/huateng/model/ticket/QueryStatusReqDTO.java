@@ -1,8 +1,8 @@
 package com.chinasofti.huateng.model.ticket;
 
 /**
- * @author zzm
- * @date 2026/5/25 14:26
+ * @date 2026/5/25 14:26。
+ * @author zzm。
  */
 public class QueryStatusReqDTO {
 

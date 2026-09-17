@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.ticket.model.page;
 
-/**
- * 用户运营端人工调整乘车状态请求。
- */
+/** 用户运营端人工调整乘车状态请求。 */
 public class RideStatusUpdateRequest {
     private String codeStatus;
     private String changeReason;

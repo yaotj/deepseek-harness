@@ -20,20 +20,6 @@ import java.time.Duration;
 
 /**
  * trans-query-server（交易查询服务，9113）客户端。
- *
- * <p>这三个方法与 {@link com.chinasofti.huateng.rpc.ticket.TicketClient} 的同名方法
- * <b>路径、请求 DTO、应答 DTO 全部逐字相同</b>，唯一差别是 baseUrl 指向新服务。
- * 之所以另起一个 Client 而不是改 TicketClient 的 baseUrl：ticket-server 上还有乘车码状态机、
- * 自助补站等一批接口没迁走，改 baseUrl 会把它们一起指错。</p>
- *
- * <p><b>ticket-server 上那三个同路径端点仍在、未删</b>（过渡期双活），因此这里改完只是把
- * fep-app-server 的流量切到新服务，回滚只需把调用点换回 ticketClient。
- * 两边同时在跑期间 MUST 保证 {@code app.trans.*} 五个键取值一致，否则同一笔订单在
- * 新旧链路会返回不同商户号。</p>
- *
- * <p>支付宝行程（{@code findTravelList} / {@code findTravelDetail}）与日票乘车记录
- * <b>故意不在这里</b>：它们还没迁进 trans-query-server（阻塞在支付宝 pay-sign 新表），
- * 仍 MUST 走 TicketClient。</p>
  */
 @Service
 public class TransQueryClient extends ProxyWebClient {

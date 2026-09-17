@@ -4,51 +4,66 @@ import java.time.LocalDateTime;
 
 /**
  * ITP 用户当前票种的支付渠道运营展示对象。
- *
- * <p>由 {@code ItpUserPageController} 组装，<b>全部字段都取自本地 {@code APP_USER_PAY_CHANNEL}</b>：
- * ADR-D30 已把这个页面的跨域读整段删掉，{@link #status} 直接是通道行的 {@code STATUS} 列、
- * {@link #terminationReady} 由 {@code REQ_CONTRACT_NO} 非空 + {@code STATUS=ACTIVE} 本地推导。
- * <b>NEVER 因为「这两个值语义上属于支付域」就把 {@code PaySignClient} 注回只读路径</b>
- * ——那正是 ADR-D30 消掉的 N+1（判据见 {@code ItpUserQueryServiceImpl} 类注释）。</p>
- *
- * <p>只用于运营页展示，NEVER 当作业务判据回写任何状态。</p>
  */
 public class ItpPayChannelView {
-
-    /** 第三方用户标识。 */
+    /**
+     * 第三方用户标识。
+     */
     private String thirdUserId;
 
-    /** 逻辑卡号。 */
+    /**
+     * 逻辑卡号。
+     */
     private String cardId;
 
-    /** 票种（本域口径的 CARD_TYPE）。 */
+    /**
+     * 票种（本域口径的 CARD_TYPE）。
+     */
     private String cardType;
 
-    /** 支付渠道代码。 */
+    /**
+     * 支付渠道代码。
+     */
     private String channel;
 
-    /** 渠道侧支付账号标识。 */
+    /**
+     * 渠道侧支付账号标识。
+     */
     private String thirdPayId;
 
-    /** 签约流水号，跨域定位签约记录用。 */
+    /**
+     * 签约流水号，跨域定位签约记录用。
+     */
     private String reqContractNo;
 
-    /** 支付账户标识。 */
+    /**
+     * 支付账户标识。
+     */
     private String payAccountId;
 
-    /** 支付域返回的签约状态，取不到时为空。 */
+    /**
+     * 支付域返回的签约状态，取不到时为空。
+     */
     private String status;
 
-    /** 是否本用户本票种的默认渠道。 */
+    /**
+     * 是否本用户本票种的默认渠道。
+     */
     private boolean defaultChannel;
 
-    /** 支付域判定当前是否可发起解约，仅供页面按钮置灰。 */
+    /**
+     * 支付域判定当前是否可发起解约，仅供页面按钮置灰。
+     */
     private boolean terminationReady;
 
-    /** 记录创建时间。 */
+    /**
+     * 记录创建时间。
+     */
     private LocalDateTime createTms;
 
-    /** 记录更新时间。 */
+    /**
+     * 记录更新时间。
+     */
     private LocalDateTime updateTms;
 
     public String getThirdUserId() { return thirdUserId; }

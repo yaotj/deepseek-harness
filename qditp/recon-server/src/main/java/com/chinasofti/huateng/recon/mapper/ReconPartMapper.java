@@ -39,11 +39,7 @@ public interface ReconPartMapper {
                                           @Param("source") String source,
                                           @Param("fileType") String fileType);
 
-    /**
-     * 汇总已接收分片的片数、记录数与金额，用于与源声明的三项总账比对。
-     *
-     * <p>零行时返回 {@code (0,0,0)} 而不是 null（SQL 里用了 NVL + COUNT），调用方不必判空。</p>
-     */
+    /** 汇总已接收分片的片数、记录数与金额；零行时返回 {@code (0,0,0)}。 */
     PartTotals selectTotals(@Param("batchId") String batchId,
                             @Param("source") String source,
                             @Param("fileType") String fileType);

@@ -13,22 +13,22 @@ public class AlipayPayLogDTO {
     private String paySeq;
 
     /**
-     * 支付宝用户ID
+     * 支付宝用户ID。
      */
     private String thirdUserId;
 
     /**
-     * 逻辑卡号
+     * 逻辑卡号。
      */
     private String cardId;
 
     /**
-     * 订单号
+     * 订单号。
      */
     private String orderNo;
 
     /**
-     * 支付宝交易号
+     * 支付宝交易号。
      */
     private String tradeNo;
 
@@ -48,32 +48,32 @@ public class AlipayPayLogDTO {
     private String payStatus;
 
     /**
-     * 支付类型
+     * 支付类型。
      */
     private String payType;
 
     /**
-     * 支付类型/场景
+     * 支付类型/场景。
      */
     private String scene;
 
     /**
-     * 支付方式
+     * 支付方式。
      */
     private String paymentVendor;
 
     /**
-     * 行业类型：1-地铁 2-公交 3-打车 4-购物
+     * 行业类型：1-地铁 2-公交 3-打车 4-购物。
      */
     private String industryType;
 
     /**
-     * 订单标题
+     * 订单标题。
      */
     private String subject;
 
     /**
-     * 订单描述
+     * 订单描述。
      */
     private String body;
 
@@ -88,53 +88,50 @@ public class AlipayPayLogDTO {
     private String orderTimeOut;
 
     /**
-     * 授权码
+     * 授权码。
      */
     private String authCode;
 
     /**
-     * 回调地址
+     * 回调地址。
      */
     private String notifyUrl;
 
     /**
-     * 返回前端页面地址
+     * 返回前端页面地址。
      */
     private String returnUrl;
 
     /**
-     * 用户IP地址
+     * 用户IP地址。
      */
     private String ipAddress;
 
     /**
-     * 行业详情，json格式
+     * 行业详情，json格式。
      */
     private String industryDetail;
 
     /**
-     * 原始请求报文
+     * 原始请求报文。
      */
     private String requestBody;
 
     /**
-     * 原始响应报文
+     * 原始响应报文。
      */
     private String responseBody;
 
     /**
-     * 响应码
+     * 响应码。
      */
     private String resultCode;
 
     /**
-     * 响应信息
+     * 响应信息。
      */
     private String resultMsg;
 
-    /**
-     * 备注
-     */
     private String remark;
 
     /**
@@ -148,17 +145,17 @@ public class AlipayPayLogDTO {
     private String refundStatus;
 
     /**
-     * 进站交易id
+     * 进站交易id。
      */
     private String entryId;
 
     /**
-     * 出站交易id
+     * 出站交易id。
      */
     private String exitId;
 
     /**
-     * 发票状态
+     * 发票状态。
      */
     private String invoice;
 }

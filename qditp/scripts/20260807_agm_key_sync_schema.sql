@@ -1,10 +1,5 @@
 ﻿-- AGM key synchronization initialization script for Oracle.
---
--- This project does not contain the legacy QDYF AGM tables. Run this script
--- once before deploying the AGM synchronization feature.
---
--- Import the matching legacy initialization data script immediately after this
--- DDL: 20260807_agm_key_sync_initial_data.sql.
+-- Run once before deploying AGM sync, then run 20260807_agm_key_sync_initial_data.sql. Execution status NOT recorded -- verify via USER_TABLES first. See docs/ops/生产环境清单.md 附.二.2
 
 create table METRO_AGM_KEY_VERSION
 (

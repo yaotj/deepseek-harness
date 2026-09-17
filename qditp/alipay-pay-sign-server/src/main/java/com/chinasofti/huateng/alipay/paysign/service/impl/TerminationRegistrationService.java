@@ -52,7 +52,6 @@ public class TerminationRegistrationService {
             }
 
             // 销卡批处理按 THIRD_USER_ID 做用户维度校验，回填不到就 NEVER 登记：
-            // 一条三字段全 NULL 的 PENDING 记录既跑不通批处理，也无法人工追溯（生产已产生过一条）。
             AlipaySignInfo signInfo = alipaySignInfoMapper.selectByAgreementCode(request.getAgreementCode());
             if (signInfo == null || signInfo.getThirdUserId() == null || signInfo.getThirdUserId().trim().isEmpty()) {
                 log.warn("支付宝解约登记被拒绝：查不到签约信息或签约记录缺少 thirdUserId, agreementCode={}",

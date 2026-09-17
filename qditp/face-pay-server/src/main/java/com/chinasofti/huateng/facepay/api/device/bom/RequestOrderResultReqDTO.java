@@ -2,11 +2,7 @@ package com.chinasofti.huateng.facepay.api.device.bom;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/**
- * 单程票交易查询入参（BOM 侧 {@code requestOrderResult}）。
- *
- * <p>两要素定位一张票：逻辑卡号 + 交易日期，对应 {@code UK_F2F_TICKET_LOGIC}。</p>
- */
+/** 单程票交易查询入参（BOM 侧 {@code requestOrderResult}）。 */
 public class RequestOrderResultReqDTO extends BaseDeviceRequest {
 
     private String ticketLogicNum;

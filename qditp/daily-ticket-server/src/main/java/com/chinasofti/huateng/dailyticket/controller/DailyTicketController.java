@@ -10,6 +10,7 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayCallbackReqDTO
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayQueryResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayResult;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundCallbackReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
@@ -23,11 +24,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 日票服务内部业务接口。
- *
- * <p>供fep-app-server通过RPC调用，负责日票下单、支付、查询、退款、取消、激活和使用通知。</p>
- */
+/** 日票服务内部业务接口。 */
 @RestController
 @RequestMapping("/ci/daily-ticket")
 public class DailyTicketController {
@@ -37,92 +34,73 @@ public class DailyTicketController {
         this.dailyTicketService = dailyTicketService;
     }
 
-    /**
-     * IF8A-60 日票下单。
-     */
+    /** IF8A-60 日票下单。 */
     @PostMapping("/requestCountingOrder")
     public DailyTicketOrderResult requestCountingOrder(@RequestBody DailyTicketOrderReqDTO request) {
         return dailyTicketService.requestCountingOrder(request);
     }
 
-    /**
-     * IF8A-70 旅游票下单。旅游票为聚合单，内含多张日票。
-     */
+    /** IF8A-70 旅游票下单。旅游票为聚合单，内含多张日票。 */
     @PostMapping("/requestTravelOrder")
     public TravelTicketOrderResult requestTravelOrder(@RequestBody TravelTicketOrderReqDTO request) {
         return dailyTicketService.requestTravelOrder(request);
     }
 
-    /**
-     * IF8A-61 日票支付。
-     */
+    /** IF8A-61 日票支付。 */
     @PostMapping("/payment/requestPay")
     public DailyTicketPayResult requestPay(@RequestBody DailyTicketPayReqDTO request) {
         return dailyTicketService.requestPay(request);
     }
 
-    /**
-     * IF8A-62 日票支付结果查询。
-     */
+    /** IF8A-62 日票支付结果查询。 */
     @PostMapping("/payment/requestPayResult")
     public DailyTicketPayQueryResult requestPayResult(@RequestBody DailyTicketOrderNoReqDTO request) {
         return dailyTicketService.requestPayResult(request);
     }
 
-    /**
-     * IF8A-64 日票退款。
-     */
+    /** IF8A-64 日票退款。 */
     @PostMapping("/payment/requestRefundTicket")
     public DailyTicketRefundResult requestRefundTicket(@RequestBody DailyTicketOrderNoReqDTO request) {
         return dailyTicketService.requestRefundTicket(request);
     }
 
-    /**
-     * IF8A-65 日票取消订单。
-     */
+    /** IF8A-65 日票取消订单。 */
     @PostMapping("/ticket/cancelOrder")
     public DailyTicketBaseResult cancelOrder(@RequestBody DailyTicketOrderNoReqDTO request) {
         return dailyTicketService.cancelOrder(request);
     }
 
-    /**
-     * IF8A-67 日票激活。
-     */
+    /** IF8A-67 日票激活。 */
     @PostMapping("/ticket/updateTicket")
     public DailyTicketBaseResult updateTicket(@RequestBody DailyTicketActivateReqDTO request) {
         return dailyTicketService.updateTicket(request);
     }
 
-    /**
-     * IF8A-71 通知ACC车票已使用。
-     */
+    /** IF8A-71 通知ACC车票已使用。 */
     @PostMapping("/ticket/updateAndNotice")
     public DailyTicketBaseResult updateAndNotice(@RequestBody DailyTicketUsedNoticeReqDTO request) {
         return dailyTicketService.updateAndNotice(request);
     }
 
-    /**
-     * 支付结果回调内部入口。
-     */
+    /** 支付结果回调内部入口。 */
     @PostMapping("/payment/receivePayResult")
     public DailyTicketBaseResult receivePayResult(@RequestBody DailyTicketPayCallbackReqDTO request) {
         return dailyTicketService.receivePayResult(request);
     }
 
-    /**
-     * 查询日票票实例信息（ticketCode、actualTimes）。
-     */
+    /** 退款结果回调内部入口（支付中心网关 §3.3 → fep-app-server → 本接口）。 */
+    @PostMapping("/payment/receiveRefundResult")
+    public DailyTicketBaseResult receiveRefundResult(@RequestBody DailyTicketRefundCallbackReqDTO request) {
+        return dailyTicketService.receiveRefundResult(request);
+    }
+
+    /** 查询日票票实例信息（ticketCode、actualTimes）。 */
     @PostMapping("/queryDailyTicketInfo")
     public QueryDailyTicketInfoResult queryDailyTicketInfo(@RequestBody QueryDailyTicketInfoReqDTO request) {
         return dailyTicketService.queryDailyTicketInfo(request);
     }
 
-    /**
-     * 按票号查日票购票支付信息（payTradeOrderNo、payOrderNoDate、payChannelCode）。
-     *
-     * <p>供 trans-query-server / ticket-server 的交易详情（IF8A-34 / IF8A-05）填充三个支付字段。
-     * <b>NEVER 合并进 {@code queryDailyTicketInfo}</b>——那条是闸机热路径，合并会让每次进站都 join 订单表。</p>
-     */
+    /** 按票号查日票购票支付信息（payTradeOrderNo、payOrderNoDate、payChannelCode）。 */
     @PostMapping("/queryDailyTicketPayInfo")
     public QueryDailyTicketPayInfoResult queryDailyTicketPayInfo(@RequestBody QueryDailyTicketPayInfoReqDTO request) {
         return dailyTicketService.queryDailyTicketPayInfo(request);
@@ -141,9 +119,6 @@ public class DailyTicketController {
     /**
      * 日票出站处理（闸机出站时调用）。
      * 扣减计次票次数（下限为0），推进票状态。
-     *
-     * <p>扩展参数 orderNo / inStation / outStation 用于记录扣次明细，
-     * 老调用方（不传这三个字段）仍兼容。</p>
      */
     @PostMapping("/ticket/markUsed")
     public DailyTicketBaseResult markUsed(@RequestBody java.util.Map<String, Object> request) {
@@ -161,9 +136,7 @@ public class DailyTicketController {
         return dailyTicketService.markUsed(cardNum, countingEnd, orderNo, inStation, outStation);
     }
 
-    /**
-     * 查询日票扣次使用明细（按卡号，时间倒序）。
-     */
+    /** 查询日票扣次使用明细（按卡号，时间倒序）。 */
     @PostMapping("/ticket/usageLog")
     public DailyTicketBaseResult queryUsageLog(@RequestBody java.util.Map<String, String> request) {
         String cardNum = request == null ? null : request.get("cardNum");

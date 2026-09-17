@@ -7,7 +7,6 @@ import com.chinasofti.huateng.model.app.ItpCommonFormRequest;
  * ACC FormData 接口的公共处理基类。
  */
 abstract class BaseAccController {
-
     /**
      * 将 FormData 中的业务 JSON 转换为目标 DTO。
      *

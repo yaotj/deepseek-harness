@@ -2,7 +2,8 @@ package com.chinasofti.huateng.collectticket.model.request;
 
 /**
  * IF8A-20 请求下单请求报文。
- * 当前 DTO 尚未完全覆盖接口文档字段。
+ *
+ * <p>甲方规格的 7 个请求字段已全部覆盖，另有本项目自加的 {@code channelType}。</p>
  */
 public class CreateTicketCollectOrderReqDTO {
     /**
@@ -27,13 +28,15 @@ public class CreateTicketCollectOrderReqDTO {
 
     /**
      * 票价，单位分。
-     * 接口文档 IF8A-20 中定义了该字段，当前服务实现尚未使用。
+     *
+     * <p>下单校验（必填 + 非负）、双表落库与请求支付金额计算三处在用。</p>
      */
     private Integer ticketPrice;
 
     /**
      * 单程票类型。
-     * 接口文档 IF8A-20 中定义了该字段，当前服务实现固定按 0 处理。
+     *
+     * <p>传了就用、没传补 0；当前没有取值白名单校验（甲方只定义了 {@code 0}）。</p>
      */
     private Integer singleTicketType;
 

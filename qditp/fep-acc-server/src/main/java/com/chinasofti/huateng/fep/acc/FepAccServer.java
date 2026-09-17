@@ -12,7 +12,6 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 @ConfigurationPropertiesScan
 @EnableRpcAccount
 public class FepAccServer {
-
     public static void main(String[] args) {
         SpringApplication.run(FepAccServer.class, args);
     }

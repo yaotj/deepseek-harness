@@ -8,22 +8,22 @@ import com.chinasofti.huateng.common.response.CommonResult;
 public class AlipayTripFindTravelDetailRespDTO extends CommonResult {
 
     /**
-     * 进站站点名称
+     * 进站站点名称。
      */
     private String entryStationName;
 
     /**
-     * 进站时间
+     * 进站时间。
      */
     private String entryDate;
 
     /**
-     * 出站站点名称
+     * 出站站点名称。
      */
     private String exitStationName;
 
     /**
-     * 出站时间
+     * 出站时间。
      */
     private String exitDate;
 
@@ -38,47 +38,44 @@ public class AlipayTripFindTravelDetailRespDTO extends CommonResult {
     private String totalAmount;
 
     /**
-     * 订单扩展类型
+     * 订单扩展类型。
      */
     private String orderExpType;
 
     /**
-     * 交易订单号
+     * 交易订单号。
      */
     private String tradeOrderNo;
 
     /**
-     * 支付交易订单号
+     * 支付交易订单号。
      */
     private String payTradeOrderNo;
 
     /**
-     * 支付订单日期
+     * 支付订单日期。
      */
     private String payOrderNoDate;
 
     /**
-     * 扣款请求结果
+     * 扣款请求结果。
      */
     private String debitRequestResult;
 
     /**
-     * 支付渠道代码
+     * 支付渠道代码。
      */
     private String payChannelCode;
 
     /**
-     * 同行票标识
+     * 同行票标识。
      */
     private String companionFlag;
 
-    /**
-     * 卡号
-     */
     private String cardNum;
 
     /**
-     * 日票票号
+     * 日票票号。
      */
     private String ticketCode;
 
@@ -103,7 +100,7 @@ public class AlipayTripFindTravelDetailRespDTO extends CommonResult {
     private String discountFee;
 
     /**
-     * 优惠信息
+     * 优惠信息。
      */
     private String discountInfo;
 

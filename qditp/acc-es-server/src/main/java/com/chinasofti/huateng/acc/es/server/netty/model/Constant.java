@@ -103,7 +103,7 @@ public final class Constant {
         /**
          * 7000设备签到报文长度（不包含长度字段，包头 + 包体 + mac检验码）
          */
-        public static final int DATA_7000_SIGN_BYTES = 76;//不包括mac108
+        public static final int DATA_7000_SIGN_BYTES = 76;
         /**
          * 7000设备签到报文体长度
          */

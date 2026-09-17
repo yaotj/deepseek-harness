@@ -2,9 +2,7 @@ package com.chinasofti.huateng.collectpay.model.page;
 
 import lombok.Data;
 
-/**
- * TVM 当面付订单运营查询视图。
- */
+/** TVM 当面付订单运营查询视图。 */
 @Data
 public class FacePayOrderPageView {
     private String orderNo;

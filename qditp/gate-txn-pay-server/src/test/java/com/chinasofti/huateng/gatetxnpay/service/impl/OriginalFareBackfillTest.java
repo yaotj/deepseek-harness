@@ -21,16 +21,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/**
- * 钉住运营补数 {@code backfillOriginalFare} 的四类「出错不报错」行为：入参护栏、dryRun 默认值、
- * limit 钳制、可疑差额与幂等/失败分流。
- *
- * <p>这块逻辑的危险性在于**它是写接口且没有鉴权**（见 `GateTxnPayPageController` 的 javadoc），
- * 一旦 dryRun 默认值被改成 false、或差额阈值判断被简化，运营点一下就会把脏数据直接写进
- * 历史订单的 {@code ORIGINAL_FARE}，而 APP 账单里的「优惠」是拿它减出来的 —— 错了没有任何报警。
- *
- * <p>本文件先于「把补数抽成独立协作者」写成，抽完后<b>断言值 NEVER 改</b>：断言不变是行为没变的证据。
- */
+/** 钉住运营补数 {@code backfillOriginalFare} 的四类「出错不报错」行为：入参护栏、dryRun 默认值、 limit 钳制、可疑差额与幂等/失败分流。 */
 class OriginalFareBackfillTest {
 
     private static final String START = "20260901";
@@ -39,7 +30,7 @@ class OriginalFareBackfillTest {
     private final GateTxnPayMapper mapper = mock(GateTxnPayMapper.class);
     private final FareCalculator fareCalculator = mock(FareCalculator.class);
 
-    /** 入参护栏：请求体为空、日期非 yyyyMMdd、start 晚于 end，三者都 MUST 在碰库之前挡掉。 */
+    /** 入参护栏：请求体为空、日期非 yyyyMMdd、start 晚于 end。 */
     @Test
     void illegalRequestNeverTouchesDb() {
         assertEquals(ResultVO.ILLEGAL_PARAMS_CODE, service().backfillOriginalFare(null).getCode());
@@ -50,10 +41,6 @@ class OriginalFareBackfillTest {
         verifyNoInteractions(fareCalculator);
     }
 
-    /**
-     * {@code dryRun} 为 null MUST 当 true。这是本接口唯一的安全默认值：
-     * 反过来（null 当 false）意味着运营只填日期就直接落库，且**没有鉴权拦着**。
-     */
     @Test
     void dryRunDefaultsToTrueAndWritesNothing() {
         stub(row("GT1", 400), 500);
@@ -65,7 +52,7 @@ class OriginalFareBackfillTest {
         verify(mapper, never()).updateOriginalFareIfNull(anyString(), anyString(), anyInt());
     }
 
-    /** limit：null 落 500、超上限收到 5000、小于 1 抬到 1。每行都要调一次 para-server，钳制是保护对端。 */
+    /** limit：null 落 500、超上限收到 5000、小于 1 抬到 1。 */
     @Test
     void limitIsClampedIntoOneToFiveThousand() {
         assertEquals(500, capturedLimit(null));
@@ -74,12 +61,7 @@ class OriginalFareBackfillTest {
         assertEquals(1, capturedLimit(-10));
     }
 
-    /**
-     * 可疑差额：实付 &gt; 0 且「原价 - 实付」超阈值的行 MUST 只进 suspectList、**不落库**。
-     *
-     * <p>这条挡的是已发生过的脏数据：设备 206377 的 5 笔把 {@code TRX_AMOUNT} 按元上送，
-     * 原价按分，回填后 APP 的优惠虚高 4~7 元。</p>
-     */
+    /** 可疑差额：实付 &gt。 */
     @Test
     void suspiciousDiffIsParkedInsteadOfWritten() {
         stub(row("GT2", 4), 400);
@@ -93,10 +75,7 @@ class OriginalFareBackfillTest {
         verify(mapper, never()).updateOriginalFareIfNull(anyString(), anyString(), anyInt());
     }
 
-    /**
-     * 实付为 0 的行 NEVER 进 suspectList：免扣费与日票的实付本来就是 0，
-     * 「差额等于原价」是正常形态，不是脏数据。把这条判反会让整批日票永远补不上原价。
-     */
+    /** 「差额等于原价」是正常形态，不是脏数据。 */
     @Test
     void zeroPaidRowIsNotSuspicious() {
         stub(row("GT3", 0), 400);
@@ -125,10 +104,7 @@ class OriginalFareBackfillTest {
         assertEquals(1, data.get("updatedCount"));
     }
 
-    /**
-     * UPDATE 影响 0 行是**幂等结果不是失败**：并发下已被别的调用填过。
-     * 计进 failedCount 会让运营以为出错并反复重跑。
-     */
+    /** UPDATE 影响 0 行是幂等结果不是失败：并发下已被别的调用填过。 */
     @Test
     void zeroAffectedRowCountsAsNeitherUpdatedNorFailed() {
         stub(row("GT5", 400), 500);
@@ -142,11 +118,7 @@ class OriginalFareBackfillTest {
         assertEquals(0, data.get("failedCount"));
     }
 
-    /**
-     * 单笔抛异常 MUST 只落进 failedList 并带上 error，**不中断后续行**：
-     * 本方法不带事务、逐笔自动提交，中途 return 会让剩下的行白扫一遍 para-server。
-     * 同时 {@code queryOrderByBizKey} 查不到票价的行只累加 noFareCount，也不算失败。
-     */
+    /** 不中断后续行： 本方法不带事务、逐笔自动提交，中途 return 会让剩下的行白扫一遍 para-server。 */
     @Test
     void oneRowFailureNeitherAbortsNorSwallowsTheRest() {
         GateTxnPay boom = row("GT6", 400);
@@ -216,10 +188,7 @@ class OriginalFareBackfillTest {
         return service(mapper);
     }
 
-    /**
-     * 补数只需要 {@code gateTxnPayMapper} 与 {@link FareCalculator} 两个协作者，构造器也只收这两个。
-     * 谁把 pay-sign 调用或写入器牵进来，构造器就得加参数、本方法立刻编译不过 —— 那正是要暴露的耦合。
-     */
+    /** 补数只需要 {@code gateTxnPayMapper} 与 {@link FareCalculator} 两个协作者，构造器也只收这两个。 */
     private OriginalFareBackfillServiceImpl service(GateTxnPayMapper gateTxnPayMapper) {
         return new OriginalFareBackfillServiceImpl(gateTxnPayMapper, fareCalculator);
     }

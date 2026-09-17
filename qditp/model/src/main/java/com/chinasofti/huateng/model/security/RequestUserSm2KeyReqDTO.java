@@ -2,8 +2,6 @@ package com.chinasofti.huateng.model.security;
 
 /**
  * 请求生成用户SM2密钥对参数。
- *
- * <p>该对象用于 key-server 调用 acc-security-server 的 /ci/itp/requestUserSm2Key。</p>
  */
 public class RequestUserSm2KeyReqDTO {
     /**

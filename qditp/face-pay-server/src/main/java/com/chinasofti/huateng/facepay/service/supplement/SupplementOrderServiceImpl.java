@@ -138,7 +138,6 @@ public class SupplementOrderServiceImpl implements SupplementOrderService {
         order.setOrderCount(orderNos.size());
         order.setPaymentVendor(expectedPaymentVendor);
         order.setSignChannelCode(expectedSignChannelCode);
-        // SUPPLEMENT_ORDER.TXN_DATE 是 NOT NULL，取补款发生日（yyyyMMdd）
         order.setTxnDate(LocalDateTime.now().format(DateTimeFormatter.BASIC_ISO_DATE));
         order.setCreateTime(LocalDateTime.now());
         order.setUpdateTime(LocalDateTime.now());
@@ -197,9 +196,6 @@ public class SupplementOrderServiceImpl implements SupplementOrderService {
             return AppResponses.failMessage("订单金额异常，请联系工作人员");
         }
 
-        // 通道由 IF8A-26 按原订单的 PAYMENT_VENDOR 定，支付参数也是按它向支付中心换的。
-        // 换通道 MUST 重新走 IF8A-26 建新单，NEVER 在这里按 APP 传入的通道重下：
-        // PROCESSING 时支付中心已挂待支付单，再下一次等于同一笔欠费有两份可付参数。
         String vendor = order.getPaymentVendor();
         String requested = request.getPayChannelCode();
         if (requested != null && !requested.isBlank() && vendor != null && !requested.equals(vendor)) {
@@ -209,8 +205,6 @@ public class SupplementOrderServiceImpl implements SupplementOrderService {
         }
 
         if (SUPPLEMENT_INIT.equals(payStatus)) {
-            // 落到这里说明下单那次支付中心不可达（IF8A-26 的 Unreachable 分支回 0000 + INIT），
-            // 补一次预下单。updatePrepayResult 的 WHERE 只认 INIT，天然挡住重复预下单。
             RpcOutcome outcome;
             try {
                 outcome = payCenterFlow.preOrder(order);

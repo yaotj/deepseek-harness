@@ -2,12 +2,7 @@ package com.chinasofti.huateng.facepay.api.device.app;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/**
- * 获取已激活取票订单列表入参。
- *
- * <p>{@code appType} 只认 {@code 01}（青岛地铁），其余值旧实现回
- * {@code 9999 appType有误，请输入正确的值}，本实现照搬。</p>
- */
+/** 获取已激活取票订单列表入参。 */
 public class RequestQueryActiveOrderReqDTO extends BaseDeviceRequest {
 
     /** 青岛地铁 APP。 */

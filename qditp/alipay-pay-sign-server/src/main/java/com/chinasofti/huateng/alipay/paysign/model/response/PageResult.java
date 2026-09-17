@@ -5,7 +5,6 @@ import java.util.List;
 
 /**
  * 分页响应结果。
- *
  * @param <T> 数据项类型
  */
 public class PageResult<T> implements Serializable {

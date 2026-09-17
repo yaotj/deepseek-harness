@@ -8,15 +8,7 @@ import com.chinasofti.huateng.paysign.client.PayGatewayClient;
 import com.chinasofti.huateng.paysign.model.response.PaySignGatewayResponse;
 import org.junit.jupiter.api.Test;
 
-/**
- * {@link PaySignGateway#isAlreadyPaidSuccess} 的护栏（2026-09-16）。
- *
- * <p><b>补的是 true 那一支</b>：既有用例的网关失败码一律是 {@code 600}，这一支此前零执行。
- * 类注释写明它散掉的后果是<b>把一笔已扣款成功的交易判成失败、进而走到拉黑分支</b>。
- *
- * <p>同时钉住反面：<b>NEVER 放宽成「code=9999 就算已支付」</b> —— 9999 是支付中心的通用失败码，
- * 放宽等于把所有失败都当成功。
- */
+/** 护栏：isAlreadyPaidSuccess 的两个条件 MUST 同时成立，NEVER 放宽成只看 9999。 */
 class PaySignGatewayTest {
 
     private final PaySignGateway gateway = new PaySignGateway(mock(PayGatewayClient.class));

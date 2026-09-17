@@ -12,7 +12,6 @@ public interface AlipayContractService {
 
     /**
      * 添加签约信息。
-     *
      * @param request 请求对象
      * @return 响应对象
      */
@@ -20,7 +19,6 @@ public interface AlipayContractService {
 
     /**
      * 解约登记。
-     *
      * @param request 请求对象
      * @return 响应对象
      */

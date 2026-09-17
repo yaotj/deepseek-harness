@@ -1217,3 +1217,971 @@
   未按四类归档。
 - `<J>/service/impl/AccountRegistrationServiceImpl.java:41-44` 与 `:108-113` —— 同一条「不带事务」的理由在类注释与方法注释各写一遍，
   归入契约与判据一次，未按两条计。
+
+## 附：fep-acc-server 源码注释知识抽取（2026-09-16，阶段一）
+
+> **有并发写入者，引用行号前 MUST 先 grep 现查。** 本节行号是 2026-09-16 抽取时刻的快照。
+>
+> 抽取范围：`fep-acc-server/src/main/java/**/*.java`（3 个文件）+ `fep-acc-server/src/main/resources/application.properties`。
+> 该模块无 DB、仅 2 个接口，**注释总量 7 处（Java 6 处 + properties 1 处）**，其中 4 处是复述类名 / 方法名 / 参数名的普通
+> Javadoc，按规则丢弃：`FepAccServer.java:8~10`、`BaseAccController.java:6~8`、`BaseAccController.java:11~17`、
+> `EmployeeCardController.java:16~18`。**照实报数量，未拿普通 Javadoc 凑篇幅。**
+>
+> 定位串写法：`fep-acc-server` + 类名.方法名 + 相对路径:行号。`<J>` =
+> `fep-acc-server/src/main/java/com/chinasofti/huateng/fep/acc`。
+
+### 一、两个接口的契约
+
+| # | 定位串 | 注释原文承载的契约 |
+|---|---|---|
+| 1 | `fep-acc-server` `EmployeeCardController.employeeCardNotify` — `<J>/controller/EmployeeCardController.java:28~36` | 「接收员工码开卡通知。请求以 `multipart/form-data` 提交 **APP 同款公共字段**，业务参数放在 `bizData` 中，例如：`{"cardList":[{"phone":"13800138000","cardNo":"QD20240001","cardStatus":1}]}`」。三条可用信息：①入向 content-type 是 `multipart/form-data`；②公共字段与 APP 侧同形；③`bizData` 是 `cardList` 数组，元素含 `phone` / `cardNo` / `cardStatus`，`cardStatus` 的示例值是数字 `1` |
+| 2 | `fep-acc-server` `EmployeeCardController.employeeInfoUpdateNotify` — `<J>/controller/EmployeeCardController.java:44~46` | 「接收员工信息变更通知并**剥离 ACC 公共消息头**」。本模块对这条通知的职责被注释限定为「剥头 + 转发」 |
+
+注释中**没有**出现错误码、重试语义、幂等键或字段长度约定 —— 这四项在本模块注释里为空，**NEVER 据本节推断本模块有错误码映射**。
+
+### 二、转发与路由
+
+| # | 定位串 | 注释原文承载的事实 |
+|---|---|---|
+| 3 | `fep-acc-server` `application.properties:9` | 「account-server RPC 地址：默认值用集群内网 Service 名（`kubectl get svc -n itp` 实测，2026-09-11）。」—— 该默认值的出处是**集群实测**，不是推断值 |
+
+两个接口的转发目标（`AccountClient.notifyEmployeeCardStatus` / `AccountClient.updateEmployeeInfo`）**只体现在代码里，注释未记载**，本节不代笔补写。
+
+### 三、配置与部署（含 jkube goals 被注释这一事实的出处）
+
+| # | 定位串 | 注释原文 / 事实 | 归类 |
+|---|---|---|---|
+| 4 | `fep-acc-server` `application.properties:10` | 「**NEVER 写 127.0.0.1——在 K8s 里等于打到自己。**」（原文保留，与 §5.2「`service.*.url` 键存在但值指向自身 Pod」同型） | 陷阱（同一行亦列入文末墓碑清单） |
+| 5 | **来源是 pom，不是 Java 注释**：`fep-acc-server/pom.xml:78~80` | execution `build-image-after-package` 的 `<phase>package</phase>` 在位，但 `<goal>build</goal>` / `<goal>push</goal>` / `<goal>deploy</goal>` **三行全部包在 XML 注释里**（`<!-- -->`）；`<configuration>`（`namespace itp` / `pushRegistry os-harbor-svc.default.svc.cloudos:443` / `image.prefix` = `fep-acc`，`pom.xml:27`）是完整的。**这是被注释掉的 XML 元素，不是文字注释 —— pom 里没有任何一句话说明「为什么注释掉」。** 后果与出镜像方式（`mvn k8s:build k8s:push`，实测 `itp/fep-acc:1.0.5`）记在 `AGENTS.md` §7，不在本模块任何注释里 | 事实（出处 = pom） |
+
+### 决策理由类：0 条
+
+「为什么只做转发不落库」「为什么 jkube goals 被注释掉」这两条在 `fep-acc-server` 的 **Java 注释与 properties 注释里都没有出处**，本次不代笔补写。
+
+### 墓碑注释清单（建议转为断言测试）
+
+| # | 文件:行号 | 禁止的事 | 能否断言化 |
+|---|---|---|---|
+| 1 | `fep-acc-server/src/main/resources/application.properties:10` | 把 `service.account.url` 写成 `127.0.0.1`（在 K8s 里等于打到自己） | 部分：可写配置扫描断言（`service.*.url` 不含 `127.0.0.1` / `localhost`），但**无法在单测内覆盖集群 env 覆盖值** |
+
+### 本次抽取中归类存疑的注释（待人工裁决，不进正文结论）
+
+- `<J>/controller/EmployeeCardController.java:44~46` —— 前半句「接收员工信息变更通知」是复述方法名（本应丢弃），后半句「剥离 ACC 公共消息头」是契约。
+  本次按整条计入契约一次，未拆成两条。
+- `<J>/controller/BaseAccController.java:11~17` —— 归为普通 Javadoc 丢弃，但该方法代码里有一条注释未覆盖的行为：
+  `bizData` 为 `null` 或空白时按 `"{}"` 解析。**该行为无任何注释记载**，本次未代笔补写成条目。
+- `fep-acc-server/pom.xml:102` —— `<outputDirectory>target</outputDirectory>` 被注释掉一行（失效代码而非文字注释），未按四类归档。
+
+## 附：account-server 源码注释知识抽取（2026-09-16，阶段二）
+
+> **有并发写入者，引用行号前 MUST 先 grep 现查。** 本节行号是 2026-09-16 抽取时刻的快照（仓库 pom `<version>` 当时是 **2.0.73**；
+> **NEVER 拿这个号推断线上版本**，判线上 MUST 查 Deployment 的 image tag，见 AGENTS.md §7）。
+>
+> 本轮定位：阶段一（本文件上一节）已覆盖开户 / 支付通道 / 员工卡 / 卡池 / 运营 page / 持久层六个切面的**主实现类**。
+> 本轮用「逐文件枚举注释行 → 减去阶段一定位串命中的行区间」的差集法找漏，覆盖对象是**阶段一未落笔的文件与行段**：
+> 5 个 controller 包、11 个 service **接口**头、4 个 domain 取值类、2 个 `@ConfigurationProperties`、
+> 6 张实体、5 个 `sql/*.sql`、`application.properties`，以及各实现类内被阶段一跳过的零散行。
+> **本轮只补漏，NEVER 与阶段一重复**；同一事实在两处都有注释时（如「不带事务」的理由在接口与实现各一份），本轮只记接口侧那份并注明。
+>
+> 路径前缀沿用阶段一：`<J>` = `account-server/src/main/java/com/chinasofti/huateng/account/`，
+> `<X>` = `account-server/src/main/resources/mapper/`，另加 `<S>` = `account-server/src/main/resources/sql/`。
+
+### 一、controller 层（四个契约面的切分判据）
+
+- **对内契约面「按调用方切、不按业务切」，且 URL 一个字都不能改** —— `CardDataInternalController` 类注释
+  （`<J>/controller/internal/CardDataInternalController.java:15-45`）：「票卡数据的**对内契约面**：只被 ITP 内部服务调用，
+  报文**不经过 fep-app / fep-acc 接入层**」。两个入口的调用方是 2026-09-11 全仓 grep `accountClient.xxx` 实测的：
+  `queryCardTypeByCardId` ← ticket-server（`GateTicketHandler:612`、`CardDataHandler:526/556`）、fep-dev-server
+  （`GateTransactionHandler:169`）；`updateHceData` ← ticket-server（`GateTicketHandler:590`）、face-pay-server
+  （`F2fHceService:163`）、collect-pay-server（`BomOrderServiceImpl:1648`），两者**零外部调用方**。
+  「**为什么单独立类**……混在一起的后果不是『不好看』，而是**补验签时没有落点**——外部面 MUST 走 `AccountRequestVerifier`，
+  内部面走的是服务间直连、没有 APP 报文骨架也没有 `sign`，在同一个类上按方法开例外必然遗漏。同 ADR-D34 的判据」；
+  「**⚠️ 两个 URL 一个字都不能改**：`AccountClient.queryCardTypeByCardId`（`rpc/.../AccountClient.java:136`，
+  **注意它把 `?cardId=` 拼在路径里**）与 `AccountClient.updateHceData`（`:165`）都是硬编码字符串常量。
+  本类**刻意不加类级 `@RequestMapping`**……加任何前缀都会让 ticket-server / fep-dev / face-pay / collect-pay 四个模块同时 404，
+  而且**编译与单测都发现不了**」；「**NEVER 把 `queryUserInfo` 挪进来**」——它的调用方同时含内部（ticket-server、
+  gate-txn-pay-server、pay-sign-server）与外部（fep-app-server 的 `IndustryDataServiceImpl`），是真·双来源（ADR-D35）。
+- **对内端点的两条 URL 形态不一致是历史现状** —— `PayChannelInternalController` 类注释
+  （`<J>/controller/internal/PayChannelInternalController.java:14-29`）：「唯一调用方是 pay-sign-server（ADR-D34）」，
+  切出的收益是「**鉴权有了单一落点**：上线前补入向校验只需拦本类，不必在 APP 端点上开例外」；
+  「`AccountClient.queryPayChannelByContractNo`（`rpc/.../AccountClient.java:130`）与 `AccountClient.syncPayAccountId`
+  （同文件 `:156`）是硬编码路径，改这里等于让支付域两条链路同时 404，而 **404 会被上游 catch 成『远端不可用』、
+  不会有编译期或单测报错**。因此 `/queryPayChannelByContractNo` 保留在根路径下、**NEVER 为了整齐挪进 `/internal/` 前缀**；
+  两个路径的不一致是历史现状，要统一 MUST 与 rpc 模块同批改」；「**本类只做路由与入参日志，NEVER 写业务逻辑**」。
+- **`syncPayAccountId` 是状态变更型端点、当前无鉴权且是有意降级** —— 同文件 `:54-65`：「调用方是 pay-sign-server 的
+  `SignResultCommittedListener`，走 `AccountClient.syncPayAccountId`。补 ADR-D30 的覆盖率缺口：该列原先只有 IF8A-77 会写」；
+  「**⚠️ 本端点是状态变更型接口但当前无鉴权**，与 AGENTS.md §5.2 冲突，属**有意为之的临时降级**（对齐 recon 的
+  `X-Recon-Token` 已删除现状）。风险面比 recon 那批小：它只能按签约流水号改一列展示值、改不了任何业务状态。
+  **上线前 MUST 补齐**，补时与 `/queryPayChannelByContractNo` 一并处理」。
+- **只读端点也要进验签范围** —— 同文件 `:41-46`：「只读、不改状态，因此不落在 AGENTS.md §5.2『状态变更型接口必须鉴权』范围内；
+  **但它会返回 cardId，补入向验签时 MUST 一并覆盖本端点**。」
+
+- **内部路径与对外规范名不一致（IF8A-42）** —— `RequestApplicationController.userCancel`
+  （`<J>/controller/ci/app/RequestApplicationController.java:121-127`）：「内部路径保持 `/userCancel`
+  （`AccountClient.userCancel` 按此调用），对外规范名 `/app/cancelAccount` **只在 fep-app-server 落地**，
+  属实现细节差异，与 if8a_76 的 `newMsisdn` 同一处理方式。」查「某接口叫什么」MUST 同时看两侧，
+  **NEVER 因为账户域没有 `/app/cancelAccount` 就判定接口未实现**。
+- **钱包解绑复用本地删通道事务** —— 同文件 `:112-114`：「钱包协议约定的解绑入口。**钱包没有支付平台签约协议**，
+  复用本地支付通道删除事务。」（对应 `PayChannelService:64` 的「钱包 `requestAgreeRelease` 兼容入口」。）
+- **补偿端点的三条设计约束** —— `TaskController.phoneSignSyncCompensate`
+  （`<J>/controller/task/TaskController.java:73-87`）：「**不收任何入参**：触发的是本服务内部的扫表动作，
+  扫描范围由 account-server 自己决定。**这是本端点可以不鉴权的前提**（`docs/architecture/web-server.md` §7.3）——
+  **NEVER 给它加『按流水号 / 按用户重推』这类外部可控参数**，那会变成裸暴露的单笔数据操作接口，必须先有鉴权」；
+  「**立即返回『已受理』，批处理交后台单线程执行**……上一批未跑完时直接返回『进行中』，**NEVER 改成同步等待**」；
+  「幂等：重复触发最多多打几次 RPC，状态回写由 CAS 兜住」；返回码口径「已有批次在跑时返回提示**但仍是成功码**，
+  **避免 Quartz 记失败**」。重入判据是进程内 `AtomicBoolean signSyncRunning`（`:47`），
+  **无分布式锁 ⇒ 多副本下每个副本各跑一批**；执行器在 `@PreDestroy` 关闭（`:124`「避免容器停止时线程泄漏」）。
+- **Quartz 联调端点是空壳** —— `TaskController.quartzDemo`（`<J>/controller/task/TaskController.java:59-63`）：
+  「web-server Quartz RPC 联调接口，**只记录日志，不处理账户业务数据**」，恒返成功。排查「Quartz 任务有没有打到账户域」
+  可以用它，**NEVER 把它当业务健康探针**。
+- **运营列表的条数收敛在 service、不在 controller** —— `AccountExceptionTicketPageController.list`
+  （`<J>/controller/page/AccountExceptionTicketPageController.java:46-51`）：「三个筛选项都可为空；不传 `ticketStatus`
+  时返回全部状态，运营日常关注的是 `OPEN`」「`limit` 条数上限，缺省 50、上限 200，**收敛规则在 service 层**」，
+  实现侧常量在 `AccountExceptionTicketServiceImpl:27`（缺省）与 `:30`（「单次查询条数上限。**这张表只增不删、
+  没有归档任务，NEVER 放开成全量查询**」）。
+- **注册量统计的日期窗是闭区间** —— `ItpUserPageController.countByCardType`
+  （`<J>/controller/page/ItpUserPageController.java:72`）：「注册量统计：按票种分组计数，可选注册日期窗
+  （`yyyy-MM-dd`，**闭区间**）。」与 `<X>/UserItpRegInfoMapper.xml` 里「结束边界用 `TO_DATE(end) + 1` 的开区间」
+  是同一件事的两侧表述，改一侧 MUST 看齐另一侧。
+- **员工码 controller 的五个入口都是「内部业务入口」** —— `EmployeeCardController`
+  （`<J>/controller/ci/employee/EmployeeCardController.java:15-52`）：类注释「员工码 account-server **内部**业务入口」，
+  其中 ACC 状态通知与 ACC 员工资料变更两个入口的注释都写着「**经前置服务剥离公共报文后**的业务入口」——
+  即账户域这两个端点**不解析 APP / ACC 报文骨架**，剥头动作在 `fep-acc-server`（见本文件 fep-acc 阶段一 §一第 2 条）。
+  **NEVER 在这两个端点上补 `bizData` 解析或验签**，落点应在前置。
+- **构造器注入是全模块统一形态（ADR-D37）** —— 同一句「构造器注入（ADR-D37）。依赖全部 final，**漏注入在编译期即报错**」
+  在 7 个类上逐字重复：`FepAlipayTripRequestApplicationController:36`、`CardDataInternalController:52`、
+  `PayChannelInternalController:36`、`AccountArchiveServiceImpl:44`、`AccountCancelServiceImpl:66`、
+  `AccountProfileServiceImpl:34`、`CardPoolAllocationServiceImpl:52`、`PayChannelServiceImpl:76`、
+  `PayChannelInternalServiceImpl:37`、`PhoneChangeServiceImpl:91`、`RegistrationCommitServiceImpl:46`、
+  `AccountRequestVerifier:42`。**新增 Bean MUST 照此形态，NEVER 回退成 `@Autowired` 字段注入**。
+
+### 二、application service 接口层（六轮拆分留下的归属判据）
+
+- **六个接口互为「NEVER 加进来」的对偶清单** —— 拆分后每个接口头都写了自己**不收**什么，四条合起来才是完整判据：
+  `AccountProfileService`（`<J>/service/AccountProfileService.java:8-16`）「原 `AccountApplicationService` 是**杂物间**，
+  已整体删除。三个入口的共同点是**只读写 `USER_ITP_REG_INFO` 自身的资料字段、不碰任何状态机**」「**NEVER 往本接口加销户、
+  开户或支付通道方法**」；`AccountCancelService`（`:6-14`）「原 `AccountApplicationService` 是『销户 + 查询 + HCE +
+  两个转发』的杂物间，**六个方法讲四件不相干的事**，已整体删除并按概念拆开。本接口只管销户」；
+  `AccountRegistrationService`（`:6-19`）「**IF8A-01 APP 渠道开户，只有这一个入口**……唯一调用方是
+  `RequestApplicationController`」「**NEVER 把支付宝入口挪回本接口**」；`PayChannelService`（`:12-26`）
+  「支付通道的 **APP 契约面**（`APP_USER_PAY_CHANNEL` 的增删改 + 开户记录上的默认通道字段）」。
+  这组注释是**判断「新方法该放哪个接口」的唯一成文判据**，改动前 MUST 通读四份。
+- **删通道与归档的同事务约束写在接口上** —— `PayChannelService.requestRemovePayChannel`
+  （`<J>/service/PayChannelService.java:53-61`）：「删掉最后一个渠道时会**同事务**调
+  `AccountArchiveService.archiveIfLastChannelRemoved`，归档失败即整单回滚返错误码让上游重试，
+  **NEVER 留『通道已删、归档未做』的半成品**。」（实现侧同一条在阶段一已记，本处是**接口契约面**的那一份。）
+- **运营只读路径 2.0.63 起零跨域 RPC，且 NEVER 加回** —— `ItpUserQueryService`
+  （`<J>/service/ItpUserQueryService.java:10-23`）：「原先那个 controller 不只是透传：它自己按查询类型分派、
+  按渠道逐条调支付域 RPC、并组装脱敏视图与 `terminationReady`，属于 AGENTS.md §3.3 禁止的『controller 写业务逻辑』。
+  **NEVER 把 Mapper 或 `PaySignClient` 注回 controller**」；「**2.0.63 起本接口的实现内没有任何跨域 RPC**（ADR-D30）：
+  `payChannels` 的『支付账号』原先按渠道**逐条**调 `paySignClient.querySignInfoBySeq`（N+1），现改读
+  `APP_USER_PAY_CHANNEL.PAY_ACCOUNT_ID` 本地列……**NEVER 为了『查得更全』把 RPC 加回来** —— 运营列表页每行一次跨域 HTTP
+  只换一个展示字段，代价与收益不成比例；**覆盖率问题的正解是补齐回写点，不是在读路径上兜底**。」
+- **批量导入查询的三条口径** —— `ItpUserQueryService.searchByCardIds`（`<J>/service/ItpUserQueryService.java:57-65`）：
+  「按逻辑卡号列表批量检索开户记录，返回**脱敏后**的视图（口径与 `search` 的 CARD_ID 分支一致，**含有效与已注销**）」；
+  「列表长度上限由 controller 强制（**500**），本方法**假定入参已合规**；内部只做 trim、去空白、去重。
+  **空列表直接返回空结果，不打数据库**」；「永不返回 `null`」。注册量统计同段（`:47-54`）：「**只读聚合，不含个人信息**。
+  日期为闭区间，`null`/空表示不限」「各票种注册量列表（**按数量降序**），永不返回 `null`」。
+- **`SignSyncCompensateResult` 挪位置等于改对外契约** —— `PhoneChangeService`（`<J>/service/PhoneChangeService.java:3-13`、
+  `:33-42`）：「第六轮起本接口即对外契约本身（原先的转发层 `AccountApplicationService` 已删除），**NEVER 让 Controller
+  直接依赖它**……换成两套入口就会出现『同一能力两个调用面』」；「返回类型 `SignSyncCompensateResult` 已随第六轮搬入本接口：
+  它是 `TaskController` 已经在用的类型，**挪位置等于改对外契约**」；record 三个分量语义「`scanned` 本批扫出的待重推条数 /
+  `success` 重推成功并已置 SUCCESS 的条数 / `failed` 仍失败、已累加重试次数的条数」，且「**仅用于日志与调用方回执，不落库**」。
+  **注意这里有一条与代码矛盾的 Javadoc，见 §矛盾与待裁决第 2 条。**
+- **开户收口接口的收敛判据被改过一次（ADR-D33 修订）** —— `RegistrationCommitService` 类注释
+  （`<J>/service/RegistrationCommitService.java:14-31`）：「原判据写的是『入参只有 `UserItpRegInfo` 的方法才属于这里』，
+  但它**被本接口自己违反了 3/5** —— **判据一旦不自洽就等于没有判据**。现行口径下：只放『开户提交动作本身』以及它自己需要的归一化」；
+  「**已按此判据移出的两个方法，NEVER 加回来**：①`isDayPassCard` —— 只是
+  `CardTypeCodeEnum.isDailyTicket(CardTypeMapping.toIssueCardType(..))` 的一行转发，已内联回两个渠道 service；
+  ②`attachEmployeeCardsQuietly` —— 依赖 `UserAccEmployeeCardMapper`、与开户落库无关，已迁到
+  `EmployeeCardPersistenceService`」；并重申「**NEVER 因为『两个渠道都要用』就把渠道 if-else 挪进来** —— 那会让本类退化成
+  杂物间（ADR-D25 删掉的那个类就是这么来的）」。
+
+### 三、domain 层（取值语义的唯一定义点）
+
+- **`ArchiveDecision.Outcome` 四个结论的语义** —— `<J>/domain/ArchiveDecision.java:25-35`：
+  「判定结论。**除 `ARCHIVE` 外一律不归档**」；`ARCHIVE` = 全部开户记录已注销、且已无支付通道；
+  `NO_REG_INFO` = 该用户已无开户记录（前一次归档已完成，或从未开户）⇒ **幂等跳过**；
+  `CHANNEL_REMAINING` = 仍有支付通道未解绑 ⇒ 不归档，等最后一个通道解绑时再来；
+  `NOT_ALL_CANCELED` = 存在未注销的开户记录（未走 IF8A-42，**或注销后又重新开户**）⇒ **NEVER 归档**。
+  `Result` 的 `ghostIds`（`:37-41`）「`DEL_YN` 既非有效也非已注销的行主键；**仅在 `NOT_ALL_CANCELED` 时可能非空**，
+  其余情形恒为空集」，`hasGhostRows()`（`:48`）「命中幽灵态：该用户的归档将**永久无法完成，且没有自愈路径**（ADR-D41）」。
+  **排查「某用户归档没做」MUST 先看落的是哪个 Outcome**，四者的处置完全不同。
+- **`EmployeeCardStatus` 是 `CARD_STATUS` 语义的唯一定义点** —— `<J>/domain/EmployeeCardStatus.java:3-16`：
+  「为什么要有这个枚举：这四个数字此前以裸字面量散在 **3 个文件 6 处**（`EmployeeCardServiceImpl` 的激活 / 禁用白名单与
+  合法性校验、`EmployeeCardPersistenceServiceImpl` 的两个私有常量、`UserAccEmployeeCardMapper.xml` 的 `CARD_STATUS = 1`），
+  改动取值只能靠全局 grep。**ACC 是这列的权威来源**，一旦甲方调整编码，漏改任何一处都表现为『状态判断静默走错分支』，
+  编译与单测都发现不了」；「**数字取值由 ACC 定义，NEVER 自行调整**；也 **NEVER 依赖 `ordinal()`**（声明顺序与编码无关），
+  一律用 `code()`」；「**SQL 侧的字面量无法由本枚举收口**（mapper XML 里的 `CARD_STATUS = 1` 仍是硬编码），
+  改动取值时 MUST 连 `UserAccEmployeeCardMapper.xml` 一起改」。取值语义（`:20-26`）：`1 NORMAL` 正常（已激活可用），
+  且是「`selectActiveByPhone` / `updateThirdUserId` 的**活跃口径**」；`2 DISABLED` 禁用（ACC 侧停用，**可再激活**）；
+  `3 NOT_ENABLED` 未激活（**发卡后的起始态**）；`4 CANCELED` 注销（**终态**）。
+  `is(Integer)`（`:40-44`）「`null` 恒为 `false`（IF3A 查询链路的 ACC 报文**可能不带 `cardStatus`**）」。
+- **`EmployeeCardEvent` 枚举名与落库字符串逐字绑定** —— `<J>/domain/EmployeeCardEvent.java:3-14`：
+  「这四个字符串此前以裸字面量散在 **2 个类 6 处**……且 `recordEvent` 的形参是 `String` —— **写错一个字母不报错、
+  只是日志表里多出一个没人查得到的事件类型**。换成枚举后**拼错即编译失败**」；「枚举名与落库字符串**刻意逐字一致**，
+  落库取 `name()`。**NEVER 改名**：这列已有历史数据，改名等于把历史行与新行割成两类」。四取值（`:18-24`）：
+  `OPEN` 本地首次为该员工码建行 / `STATUS` 激活、禁用**以及 ACC 下发的非注销状态通知** / `CHANGE` 换手机号等
+  非状态字段变化 / `CANCEL` `CARD_STATUS` 落到终态 4。
+- **两个 domain 规则类为什么抽出来（可断言性，不是去重）** —— `ChannelBindingRule`
+  （`<J>/domain/ChannelBindingRule.java:5-24`）：「**抽出的动机不是去重**（ADR-D36 已经把三份重复收口过一次），
+  而是让这组不变量能**脱离 Spring 上下文与 mapper 被直接断言**：原先要验证『钱包渠道必须带 thirdPayId』就得**端到端打一次 IF8A-23**」；
+  `PhoneChangeRule`（`<J>/domain/PhoneChangeRule.java:6-13`）：「抽出的动机是这组前置条件原先夹在『查库 → 判断 → 改三张表 →
+  落日志表』的中间，**要断言它就得连 mapper 一起 mock**」，且「本类**只回答『该不该改』，绝不回答『怎么改』**：真正的写入
+  （`USER_ITP_REG_INFO.MSISDN`、`USER_ACC_EMPLOYEE_CARD.PHONE`、`USER_PHONE_CHANGE_LOG` **三张表同事务**）仍在服务层」。
+- **`isWallet` 内部 trim 是行为等价改写** —— `ChannelBindingRule.isWallet`（`<J>/domain/ChannelBindingRule.java:44-49`）：
+  「**入参可为 null**（返回 false），内部自行 trim。原调用点有两种写法：已 trim 过的变量直接 `equals`，未 trim 的先 `.trim()`。
+  这里统一成『内部 trim』，对已 trim 的串是空操作，因此**行为完全一致**。」空报文文案是四个入口共用的单一常量（`:38`）。
+- **`PhoneChangeRule` 的入口校验刻意与 `decide` 分开** —— `<J>/domain/PhoneChangeRule.java:46-51`：
+  「入口级必填校验：`thirdUserId` 与新号都 MUST 非空白。这一步**刻意与 `decide` 分开**：它在**事务之外、查库之前**就要拦掉，
+  合并进 `decide` 会让调用方**为了校验两个字符串先去查一次库**。」三个 `Precondition` 取值（`:33-39`）：
+  `NO_ACTIVE_USER` 没有有效开户记录、换号失败 / `UNCHANGED` 新旧号相同，不改库也不投递、**对 APP 仍返成功** /
+  `PROCEED` 可以改库并**在提交后**向支付域投递。
+
+### 四、开户 / registration 与卡池协作者（阶段一未落笔的行段）
+
+- **员工码挂接 MUST 在 confirmReservation 之后** —— `AccountRegistrationServiceImpl` 字段注释
+  （`<J>/service/impl/AccountRegistrationServiceImpl.java:77-79`）与支付宝渠道同款
+  （`<J>/service/impl/AlipayTripRegistrationServiceImpl.java:51-54`）：「开户成功后按手机号挂接员工码
+  （ADR-D33 从 `RegistrationCommitService` 迁来）。**MUST 在 confirmReservation 之后调用**，
+  它自己吞异常、**NEVER 影响开户结果**。」
+- **两个渠道类的字段职责划分** —— `AccountRegistrationServiceImpl:68-74`：`cardPoolAllocationService` 是
+  「开户发号（卡池预占 / 确认 / 释放、HCE 取卡）的**出网协作者**」；`userItpRegInfoMapper` **只用于开户前的重复开户查重**，
+  「两行落库在 `RegistrationCommitService` 里」；`registrationCommitService` 是「**渠道无关**的开户收口：注册乘车状态、
+  两行落库、字段归一」。**排查「开户往哪张表写了什么」MUST 按这三条分工找，NEVER 在渠道类里找 INSERT。**
+- **支付宝出行开卡的五步编排顺序（注释里的步骤号）** —— `AlipayTripRegistrationServiceImpl:80/92/106/116`：
+  ①参数校验 → ②检查用户是否已在支付宝渠道开户 → ③「从卡池预占卡号（**事务外 RPC**）。
+  **票种口径与 `buildRegInfo` 写入的 `CARD_TYPE` 保持一致**」→ ④「构建注册信息并**先注册乘车状态（远端），再落本地**」。
+  接口侧同一顺序在 `AlipayTripRegistrationService:22-30`：「编排顺序与 IF8A-01 一致……实现**不带事务**（体内全是 RPC）」。
+- **开卡时不写签约相关字段** —— `AlipayTripRegistrationServiceImpl:257`：「开户阶段未提供，留空，**后续签约时更新**。」
+  这与 `UserPayChannel.payAccountId`「当前只有 IF8A-77 会回写」是同一条链路上的两处空缺，**NEVER 在开卡分支硬填**。
+- **卡池预占的四个入参语义** —— `CardPoolAllocationService.reserveFromPool`（`<J>/service/CardPoolAllocationService.java:15-22`）：
+  `cardType` 票种码（**044X**）、`businessType` 与 `LOGIC_CARD_POOL_CARD.BUSINESS_TYPE` 对应、
+  **`businessId` 决定幂等边界**、`ownerId` 卡号归属方取 `thirdUserId`；「预占成功返回卡号与预占标识；否则返回 `null`」。
+  `isHceCardType`（`:63-68`）「`true` 表示 **HCE卡（03）或新版HCE卡（04）**」；`CardAllocation`（`:80-82`）
+  「开户时确定的逻辑卡号及 HCE 卡数据。**非 HCE 卡没有 HCE 卡数据**」。
+- **`0443` 与新版 HCE 票种的对应关系** —— `CardPoolAllocationServiceImpl:45`：「APP 上送的新版 HCE 票种码（新 NFC 卡），
+  **发行侧对应 `0443`**。」（阶段一记了 `03` 同值异义与「NEVER 与支付渠道码合并」，本条补的是 **`04` → `0443` 这个映射事实**。）
+- **`iptUserId` 的编码构成** —— `CardPoolAllocationServiceImpl.requestHceCardData`（`:160-166`）：
+  「`ticketCard` 取自开户请求；`iptUserId` 由 **`000000` 和 `thirdUserId` 的四字节十六进制编码**组成。
+  安全服务成功响应中的 **`logicNum` 即开户使用的 `cardId`**。」
+- **release 失败只记日志的理由（与 ADR-D52 不冲突）** —— `CardPoolAllocationServiceImpl.releaseReservation`（`:127-129`）：
+  「释放预占。**释放失败只记日志，不向上抛**：卡池的预占超时回收会兜底把卡号收回。」
+  注意这条约束的是**释放动作自身失败怎么办**，而「什么时候都不该调 release」是 ADR-D52 那条，两者 NEVER 混谈。
+- **confirm 失败的 ERROR 日志字段清单** —— `CardPoolAllocationServiceImpl:121-124` 的日志原文
+  「`{}卡池确认失败，开户已落库但卡号仍处预占态，MUST 人工核对, reservationId=…, businessId=…, cardNo=…, outcome=…, msg=…`」——
+  排查 ADR-D52 那类不一致时，**这条日志的五个字段就是全部线索**（`scene` 区分 APP / 支付宝渠道）。
+- **开户流水行两条链路共用** —— `RegistrationCommitServiceImpl:90`：「开户流水行。**两条开户链路共用**，`OPER_TYPE=0` 表示开户。」
+  连同阶段一记过的 1（解约）/ 2（销户）/ 3（归档），**`USER_ITP_REG_LOG.OPER_TYPE` 的四个取值至此齐全**。
+- **`TransactionTemplate` 字段本身带 NEVER 告示** —— `RegistrationCommitServiceImpl:40-43`：「`persistRegistration` 的两行写用它
+  开短事务。**NEVER** 改成给方法加 `@Transactional` —— 那会把调用方的 RPC 一起圈进事务」，类注释（`:23-29`）同款
+  「**NEVER 给本类或本类方法加 `@Transactional`**」（AGENTS.md §5.2，2026-08-26 生产事故）。
+
+### 五、电子员工卡（落库服务契约面与返回码）
+
+- **落库接口的事务纪律与两个例外** —— `EmployeeCardPersistenceService` 类注释
+  （`<J>/service/EmployeeCardPersistenceService.java:7-17`）：「本接口**多数**实现方法带 `@Transactional`，用途是把
+  『短事务的本地写』从『调 ACC / APP 的 HTTP 请求』里分离出来：调用方 MUST 在事务外完成远端调用，远端成功后再调本接口提交本地写」；
+  「**两个例外方法各自在 Javadoc 里写明了『为什么不带事务』，NEVER 顺手给它们补上**：`recordEvent`（单条 INSERT，
+  **要按调用方语义决定跟不跟着回滚**）与 `attachEmployeeCardsQuietly`（逐卡独立 CAS + 吞异常，**包事务会让一张卡失败拖垮整批**）。」
+- **两类「影响 0 行」的处置完全相反，NEVER 统一** —— `saveFromStatusNotify`（`:19-27`）：「**UPDATE 影响 0 行时抛
+  `IllegalStateException`**：本方法先按 cardNo 查到了行，0 行只可能是并发删除。调用方
+  `EmployeeCardServiceImpl.processAppBatch` 会捕获、把该卡放进 failList，**ACC 收到 PARTIAL_SUCCESS 后重推即自愈**。
+  **NEVER 改成只记日志**——那会连带写出一条『处理成功』的事件日志」；`refreshProfileFromAcc`（`:41-59`）：
+  「**UPDATE 影响 0 行只记 WARN、NEVER 抛**：本方法挂在**只读的员工码查询链路**上，抛出会让查询退化成全局异常处理器的
+  UUID retCode；资料回填是**尽力而为的旁路**，本次响应用的是内存里已更新的 `target`，下次查询还会再试。
+  这与 `saveFromStatusNotify`『0 行即抛』是**两类语义，NEVER 统一**」，且该方法「**不写事件日志**（只是补全资料、
+  不是状态变更）」「`source.getCardStatus()` 仍按 ACC 返回值覆盖，这也是搬迁前的行为」。
+- **`applyActivationResult` 返回 false 即不一致** —— `:31-39`：「`markOpenTms` 为 true 且 `OPEN_TMS` 为空时回填开通时间」；
+  「返回 `false` 表示按卡号未命中任何行（并发注销等），**调用方 MUST 视为不一致**」。落到实现侧
+  （`<J>/service/impl/EmployeeCardPersistenceServiceImpl.java:131-134`）：「与上面 `selectByCardNo == null` 是**同一种结局**
+  （本地没写成），因此复用 false 这条出口：调用方 `EmployeeCardServiceImpl.activateEmployeeCard` 收到 false 会抛
+  `IllegalStateException`、开异常工单并返 **9998『ACC 已受理但本地回写失败』**。**NEVER 改成只记日志后 return true** ——
+  ACC 侧状态已变更，本地静默停在旧值就再也没人发现。」
+- **`recordEvent` 两种事务语义都是刻意的** —— `:63-84`：「本方法**故意不带 `@Transactional`**：它只有一条 INSERT，
+  调用方在事务内调（如 `updateEmployeeInfo`）会按 REQUIRED **加入调用方事务、随其一起回滚**；调用方不在事务内调
+  （如 **APP 注册失败留痕**）则自动提交、**NEVER 因为上层业务失败而丢掉这条痕迹**。两种语义都与搬迁前一致。」
+- **挂接只能在开户时做的原因与幂等口径** —— `attachEmployeeCardsQuietly`（`:85-108`）：
+  「`USER_ACC_EMPLOYEE_CARD` 的行是 **ACC 通知先建的**，那一刻 ITP 侧还不知道这张卡属于哪个 APP 用户，
+  所以 `THIRD_USER_ID` 只能在『ITP 用户出现』的时刻反向补，而开户正是这个时刻。**手机号是员工码与 ITP 用户两边唯一的共有键**」；
+  「**MUST 在开户事务提交之后调用，本方法 NEVER 抛异常、NEVER 带 `@Transactional`**……把它做成能拖垮开户的强依赖，
+  等于**用一个可用性故障换一个数据问题**」；「幂等：`updateThirdUserId` 的 WHERE 含『`THIRD_USER_ID` 为空或已等于目标值』，
+  因此重复开户重放**不会把别人的卡抢过来**；影响 0 行 = 该卡已被**别的**用户占用或不在正常态，只记 WARN，
+  **NEVER 改成强行覆盖**」。
+- **激活 / 禁用的白名单与返回码全集（接口侧那一份）** —— `EmployeeCardService.activateEmployeeCard`
+  （`<J>/service/EmployeeCardService.java:19-28`）：「**先调 ACC，ACC 成功后再回写本地状态与事件日志**」；
+  「前置状态是**白名单**：`actionFlag=1`（激活）只接受 `CARD_STATUS=3` 未激活，`actionFlag=0`（禁用）只接受
+  `CARD_STATUS=1` 正常，其余一律拒绝」；返回码 `0000` 成功 / `8001` 参数非法 / `8004` 员工码不存在 /
+  `2002` 当前状态不允许 / **`9998` ACC 已受理但本地回写失败（已开异常工单，需人工介入）** / `9999` 调 ACC 失败。
+- **`9998` 与 `FAIL` 的语义差别写在枚举上** —— `AccountErrorCodeEnum`（`<J>/constant/AccountErrorCodeEnum.java:16-20`）：
+  「ACC 已受理、但本地状态回写失败。**与 `FAIL` 语义不同、NEVER 合并**：它意味着**远端已生效而本地落后**，
+  **调用方不该重试**（重试会再打 ACC 一次），处置方式是**等异常工单人工收口**」；`PARTIAL_SUCCESS`（`:13`）
+  「批量处理里『部分成功、部分失败』。**当前只有员工码批量状态通知用**」；`CARD_STATUS_NOT_ALLOWED`（`:43`）
+  「员工码前置状态不满足……**取值 2002 由 ACC 侧规格给定**」——**这三个码不是本项目自定的，改值即改对外契约**。
+- **出网实现类不许有事务，调用方也不许把它包进事务** —— `EmployeeCardOutboundServiceImpl` 类注释（`:32-43`）：
+  「**NEVER 在本类里加事务** —— 这里只有 HTTP，没有一条 SQL；反过来，**调用方也 NEVER 把本类的方法放进 `@Transactional` 里**
+  （AGENTS.md §5.2：事务包住 RPC 已在 2026-08-26 造成生产事故）。」搬迁批次是 2.0.58，搬来的是 `postFormData` /
+  `registerEmployeeCardsToApp` / `parseAppFailList` / `queryEmployeeCardFromAcc` 与它们独占的配置项 + `RestTemplate`。
+
+### 六、mapper 与 DDL / 迁移脚本（本轮最大的一块空白）
+
+- **`UK_UIRI_ACTIVE_USER_CARDTYPE` 迁移脚本里的四条硬知识** —— `<S>/account-server-active-user-cardtype-index-migration.sql:1-26`
+  （整文件 26 行注释、阶段一一条未收）：①它是「**ADR-D49 ① 的开户防重唯一索引**。此前只写在 `account-server-schema.sql` 里、
+  没有独立迁移脚本，而 `*-schema.sql` 只服务『新建库』，**对已存在的库等于没写**（AGENTS.md §8『一天撞三次』的第 ③ 条）。
+  没有这个索引时……两条并发 IF8A-01 或 APP 超时重推会双双通过查重、双双落库，**用户拿到两张有效卡**，而
+  `handleDuplicateRegistration` 那段 `DuplicateKeyException` 兜底**永远走不到** —— 编译、单测、`xmllint` 全都发现不了。
+  **2026-09-14 已在 AFCITPDB 执行并回查（UNIQUE / FUNCTION-BASED NORMAL / VALID / PARTITIONED=NO）**」；
+  ②「**NEVER 简化成朴素的 `UNIQUE (THIRD_USER_ID, CARD_TYPE)`**。两个 `CASE` 刻意把 `COMPANION_FLAG` 为 Y（同行票）/
+  C（第三方代开）的行排除在唯一性之外，那类票按业务定义『每次都给新卡』；改朴素两列会让这些合法请求的第二张卡**直接 INSERT 失败**。
+  查重侧 `UserItpRegInfoMapper.xml` 的 `selectActiveByThirdUserIdAndCardType` **MUST 与本谓词逐字对齐**」；
+  ③「**NEVER 顺手加 `LOCAL`**。`USER_ITP_REG_INFO` 按 `THIRD_USER_ID` 派生值 **LIST 分区**，而键是两个 `CASE` 表达式、
+  不是分区键，**Oracle 只允许 `GLOBAL`，加 `LOCAL` 报 `ORA-14039`**」；④「在新库上执行前 MUST 先按索引的确切谓词做
+  **`ORA-01452` 前置统计**（脚本里给了现成 SQL：`COUNT(*)` vs `COUNT(DISTINCT THIRD_USER_ID || '#' || CARD_TYPE)`，
+  谓词 `DEL_YN = 1 AND NVL(COMPANION_FLAG,'N') NOT IN ('Y','C')`），有重复只能与业务定归属、**NEVER 删行**（卡号可能已发给用户）」；
+  另附「经 `mcp_database_qd` 执行时 **MUST 包一层 PL/SQL** —— 它的 SQL 解析器**拒绝带 `CASE` 的 `CREATE INDEX`**
+  （`McpSqlValidationException`），**内层单引号写两个**」，脚本里有完整可复制的一行 `BEGIN EXECUTE IMMEDIATE '...'; END;`。
+- **`PAY_ACCOUNT_ID` 迁移脚本记的是「为什么会漏」与列宽判据** —— `<S>/account-server-pay-account-id-migration.sql:1-5`：
+  「ADR-D30 的支付账号标识列。此前**只改了 `account-server-schema.sql`、没有单独的迁移脚本**，于是在 AFCITPDB 上一直没执行，
+  而 `UserPayChannelMapper.xml` 的 `selectByThirdUserIdAndCardTypeAndCardId` 与 `updatePayAccountIdByReqContractNo`
+  **已经在用它**，运营页『支付账号』列与 IF8A-77 回写**一跑就 `ORA-00904`**。2026-09-14 已在 AFCITPDB 执行并回查」；
+  「宽度取 **64 CHAR** 与来源列 `APP_PAY_SIGN_INFO.PAY_ACCOUNT_ID` 一致，**NEVER 按 `DATA_LENGTH` 的 128 写**」
+  （对应 `docs/domain/decisions.md` 撤回记录里「用 `DATA_LENGTH` 判列长」那条）。
+- **`SIGN_SYNC_*` 迁移脚本记的是改造前的违规形态** —— `<S>/account-server-phone-sync-migration.sql:1-6`：
+  「背景：`AccountApplicationServiceImpl.updatePhone` **目前在 `@Transactional` 内调 `paySignClient.updatePaySignDisplayAccount`
+  （事务内出网，违反 AGENTS.md 5.2）**。改造后该 RPC 移到事务外，成败落到本组列，由 `@Scheduled` 扫表补偿重推，
+  达重试上限转异常工单。**列名与 `APP_TERMINATION_REQUEST` 的 `NOTIFY_*` 对称**。详见 `docs/domain/decisions.md` ADR-D8。」
+  **注意脚本里「由 `@Scheduled` 扫表」已过期**（现由 web-admin `sys_job` 108 触发 `/phoneSignSyncCompensate`），见 §矛盾第 4 条。
+- **另两个迁移脚本各只有一行、但都是执行前提** —— `<S>/account-server-hce-data-migration.sql:1`：
+  「HCE 卡数据存储。**已执行 `account-server-card-type-migration.sql` 的环境也必须执行本脚本**」；
+  `<S>/account-server-companion-flag-migration.sql:1`：「为既有 `USER_ITP_REG_INFO` 表增加同行票/第三方票标识。」
+- **忽略 `DEL_YN` 的两条查询各自写明了理由** —— `<X>/UserItpRegInfoMapper.xml:107-110`：「IF8A-42 销户后 IF8A-75 仍要逐渠道解绑，
+  因此需要一条**不过滤 `DEL_YN`** 的查询。**常规链路 MUST 用上面的 `selectActiveByThirdUserIdAndCardIdAndCardType`**」；
+  `:193-195`：「注销未归档期间**同一 `CARD_ID` 可能与重新开户的有效记录并存（卡号回收）**，故返回列表。」
+  后者是「为什么这条查询返回 List 而不是单条」的唯一成文出处，**NEVER 因为『一个卡号只该有一行』把它改回单条**。
+- **归档删除语句的完整告示（含快照来源）** —— `<X>/UserItpRegInfoMapper.xml:340-347`：「销户归档：解绑最后一个签约渠道时，
+  把已注销的开户记录**从原表物理删除**（**快照已由 `requestRemovePayChannel` 写入 `USER_ITP_REG_LOG`，`OPER_TYPE=3`**）。
+  WHERE 固定带 `Del_Yn_Canceled_Filter`（0=已注销），**并发期间新开户产生的有效记录不会被误删**。」
+  阶段一记了这段的三条 NEVER，本条补的是**「删掉的行去哪了」这个事实**：唯一留痕在 `USER_ITP_REG_LOG` 的 `OPER_TYPE=3` 行。
+
+- **`ORA-17004` 才是「占位符不带 jdbcType」的真实报错，且它只在 `OLD_MSISDN` 为 NULL 时暴露** ——
+  `<X>/UserPhoneChangeLogMapper.xml:14-29`（阶段一只记到「MUST 带 jdbcType」为止，本条补后半段）：
+  「MyBatis 默认取 `OTHER`，**Oracle 侧对 `setNull(OTHER)` 直接抛 `ORA-17004` 无效的列类型**。
+  **`OLD_MSISDN` 是真实可空路径**：`PhoneChangeRule` 明确要求『库里 `MSISDN` 为 NULL 的历史行走 `PROCEED` 把号补上』，
+  此时 `oldMsisdn` 就是 null。**缺 `jdbcType` 时的表现极难定位**：`USER_ITP_REG_INFO` 与 `USER_ACC_EMPLOYEE_CARD`
+  两条 UPDATE **已成功**，本 INSERT 抛错导致 `transactionTemplate` 整体回滚，`PhoneChangeServiceImpl` 只 catch 后返 false，
+  **APP 只看到普通失败**。」另记主键用途（`:5-7`）：「调用方 insert 后可**直接用 `getId()` 定位本行去落 `SIGN_SYNC_*` 投递状态**。」
+- **补偿扫表白名单里「NULL 历史行不捞」是有意的** —— `<X>/UserPhoneChangeLogMapper.xml:118-127`：
+  「account-server 侧 **NEVER 加 `@Scheduled`** —— 调度统一由 web-admin 前台可配的 `sys_job` 承担（用户 2026-09-11 要求）」；
+  「白名单是 `SIGN_SYNC_STATUS IN ('PENDING','FAILED')`：**NULL 的历史行（改造前的记录）不会被捞出，这是有意的** ——
+  那些行没有待投递的事实，**回填它们等于对早于改造的记录发起重推**；**`SUCCESS` 是终态，NEVER 重推**」；
+  「`RETRY_COUNT` 达上限的行留在 `FAILED` 不再重推……这类行需人工介入（后续接异常工单表）」。
+- **工单表两条语句的索引与幂等出处** —— `<X>/AccountExceptionTicketMapper.xml:5-10`：「开单。幂等由
+  `UK_ACCT_EXC_TICKET_TYPE_KEY (TICKET_TYPE, BIZ_KEY)` 保证，**重复开单抛 `DuplicateKeyException`，由 service 捕获后当
+  『已有工单』继续**」；`:51-57`：「运营查询。三个筛选项都可为空，**只传 `TICKET_STATUS` 时命中
+  `IDX_ACCT_EXC_TICKET_STATUS (TICKET_STATUS, CREATE_TMS)`**」——**这是本表两个索引名的唯一成文出处**。
+- **员工码查询刻意分两套列清单（CLOB）** —— `<X>/UserAccEmployeeCardMapper.xml:24`：「明确字段清单，避免全字段查询；
+  **只有员工码详情查询需要加载 `PHOTO_URL`**。」（阶段一记了「NEVER 在不需要照片的查询里用 `BaseColumnList`」这条 NEVER，
+  本条补的是**两套清单存在的正向理由**。）
+- **`PAY_ACCOUNT_ID` 回写按签约流水号定位的理由** —— `<X>/UserPayChannelMapper.xml:75-78`：
+  「按 `REQ_CONTRACT_NO` 定位：该值就是签约流水号，**与 `PAY_ACCOUNT_ID` 一一对应，比按
+  `(THIRD_USER_ID, CARD_TYPE, CHANNEL)` 定位更贴近这个值的来源**。影响 0 行是正常情形……调用方只记日志、不失败」；
+  另两条同文件（`:39-40`、`:49-50`）分别是「`APP_PAY_SIGN_INFO` 的 `CARD_ID`/`CARD_TYPE` 全库为 NULL，**真实来源是本表**」
+  与「判断『最后一个签约渠道是否已解绑』：**`thirdUserId` 全量口径，不带 `cardType` / `cardId`**，
+  由 `requestRemovePayChannel` **在 delete 之后**调用」。
+- **五个文件一条注释都没有（现状，不是遗漏）** —— `AccountServer.java`、`UserItpRegLogMapper.java`、
+  `UserAccEmployeeCardLogMapper.java`、`<X>/UserItpRegLogMapper.xml`、`<X>/UserAccEmployeeCardLogMapper.xml`，
+  外加 **`<S>/account-server-schema.sql`（8 张表 + 2 个序列的 DDL 全文零注释）** 与
+  `<S>/account-server-card-type-migration.sql`。**列语义只能去 `entity/*.java` 的字段 Javadoc 里读**（见下条），
+  **NEVER 期待在 schema 文件里找到列注释**。
+- **实体字段 Javadoc 是若干列语义的唯一出处** —— 多数是「主键 / 手机号」这类样板（本轮按规则跳过、只计行数），
+  但其中三条带实义：`UserItpRegInfo.hceData`（`<J>/entity/UserItpRegInfo.java:105-107`）
+  「HCE 卡数据。**开户时由安全服务生成，闸机交易后由 IF1A-01 `reserve1` 更新**」；
+  `UserPhoneChangeLog.userType`（`<J>/entity/UserPhoneChangeLog.java:19-21`）
+  「用户类型：**`ITP`-地铁APP用户，`ALIPAY`-支付宝用户**」——**这是该列取值集合的唯一出处**（两域共用一张表的证据）；
+  `UserPhoneChangeLog.signSyncRetryCount`（`:66-68`）「投递重试次数，**达配置上限后不再扫描、转人工**」。
+  `UserItpRegLog.operType`（`<J>/entity/UserItpRegLog.java:39-41`）只写「操作类型」、**没有取值表**，
+  取值仍以阶段一登记的 0/1/2/3 四处常量为准。
+
+### 七、config / properties（两个 `@ConfigurationProperties` 与配置文件注释）
+
+- **「地址为空即视为未配置」是三个员工码出网口的统一约定** —— `EmployeeCardOutboundProperties`
+  （`<J>/model/EmployeeCardOutboundProperties.java:24-30`）：`app-register-url`「**为空即视为『未配置』，
+  出网方法会直接返回失败而不发请求**」；`acc-query-url`「为空即视为『未配置』」；
+  `acc-activate-url`「为空即视为『未配置』，**激活入口会返 9999**」。
+  **实测现状：`account-server/src/main/resources/application.properties:55` 的 `employee-card.acc-query-url=` 就是空值**
+  ⇒ 员工码 ACC 资料查询链路当前处于「未配置」降级态，**排查『查员工码查不到姓名』MUST 先看这个键**（线上真实值仍 MUST 查 Deployment env）。
+  其余出网报文字段的默认值语义也在同一文件：`provider-id` / `charset` / `format` / `device-id` /
+  「`sign-type`；**`00` 表示免签**」/ 连接与读超时毫秒数（`:33-51`）。
+- **`itp.*` 四个键与「两处真值只改一处等于没改」** —— `ItpSignProperties`（`<J>/model/ItpSignProperties.java:6-25`）：
+  「ADR-D37 由 4 个散落在 `AccountRequestVerifier` 上的 `@Value` 收拢成一个对象。**配置键与默认值一个字都没改**
+  （`itp.providerId` / `itp.charset` / `itp.format` / `itp.signKey`），因此 K8s Deployment 的 env 与 `application.properties`
+  都不用动」；「**⚠️ `signKey` 仍带明文默认值，这是本轮刻意保留的既有缺陷**（用户 2026-09-11 裁定『先收成对象、真值暂不动』），
+  违反 AGENTS.md §5.2。**上线前 MUST 改成 `${ITP_SIGN_KEY:}` 并轮换该密钥**；改的时候连带把
+  `application.properties` 里的同名真值一起清掉——**两处都写了真值，只改一处等于没改**」；
+  「**NEVER 把这个前缀下的键搬到别的类里用 `@Value` 再读一遍**：那会让『同一个 signKey 有两个读取点』，轮换密钥时必漏一处」。
+  两处真值的位置是 `<J>/model/ItpSignProperties.java:44`（字段默认值）与 `application.properties:53` 附近的 `itp.signKey=`，
+  **本文件按 AGENTS.md §5.2 只记键名与位置、不回显值**。字段语义：`providerId`「入向报文的 `providerId` **必须与之相等**」、
+  `charset`「**比较时忽略大小写**」、`format`「同上」、`signKey`「摘要式验签的**盐值，拼在签名源串末尾的 `&key=` 之后**」。
+- **服务间地址的两条 NEVER 写在 properties 注释里** —— `application.properties:23-24`：
+  「服务间调用地址：默认值一律用集群内网 Service 名（`kubectl get svc -n itp` 实测，2026-09-11）。
+  **NEVER 写 127.0.0.1**（在 K8s 里等于打到自己），也 **NEVER 删键**（键缺失时 rpc 退化成默认服务名 `*-service`、DNS 解析不到）。」
+  这与 AGENTS.md §8「`service.*.url` 三类问题」逐条对应，是本模块**唯一**成文的配置纪律。
+- **员工码地址那段注释与实际值不一致，且 `testngbackV2` 残留在这一行** —— `application.properties:53`
+  的注释是「员工码外部接口。**确认对端地址后填写 URL**」，而紧随的 `:54 employee-card.app-register-url` 里已经填着
+  一个 `dtcustomer.bestonepay.com/testngbackV2/...` 测试地址（AGENTS.md §8 的 7 处残留之一，且**是裸硬编码、无 `${ENV:}` 包装**）；
+  `:56 employee-card.acc-activate-url` 则带 `${EMPLOYEE_CARD_ACC_ACTIVATE_URL:...}` 包装、默认值指向 `172.20.211.11:32605`。
+  **同一段配置里三种形态并存（裸硬编码 / 带 env 包装 / 空值），改任何一个前 MUST 先看它属于哪种。**
+- **分片推送的批量上限** —— `application.properties:62`：「**单次推送 APP 的最大卡片数，超出后分片调用**」
+  （`employee-card.app-batch-size=200`）。
+- **`:4-6` 三行是乱码注释，且第 5 行藏着目标库地址** —— `application.properties:4-6` 实际内容是
+  `#??????  ???IP` / `#other.sql.host=172.20.222.3:1521` / `#??????  ???IP`：
+  两行中文注释已损坏成问号（**该文件历史上被非 UTF-8 编码保存过**，`grep` 中文关键字搜不到它们），
+  中间那行是**被注释掉的 `other.sql.host` 真值，正是 AFCITPDB 的地址**（现行配置是 `${DB_HOST:}`）。
+  这既是「注释即失效代码」的样例，也是**仓库内少数直接写出目标库地址的位置**；`docs/ops/生产环境清单.md` 已记该地址，
+  本条只记它在这里出现过一次，**NEVER 把这三行当成有效配置说明，也 NEVER 直接取消注释**。
+
+### 八、入向验签（`AccountRequestVerifier`）
+
+- **本类零调用点、24 个端点全裸露** —— `<J>/service/AccountRequestVerifier.java:17-22`：
+  「**⚠️ 本类当前没有任何调用点**（ADR-D35 / ADR-D37 复核：全模块 grep 只命中 `RequestApplicationController` 的构造器参数），
+  因此**账户域 24 个端点全部裸暴露**。补验签见 ADR-D35，**NEVER 因为『没人用』就删掉本类**。」
+- **它用的是 fastjson 1，且刻意没换** —— 同文件 `:24-28`：「**本类用的是 fastjson 1**（`com.alibaba.fastjson`），
+  而 AGENTS.md §5.1 要求统一 Fastjson2。ADR-D37 **刻意没有替换**：`buildSignSource` 用 `SerializerFeature.MapSortField`
+  决定 `bizData` 的序列化字节，**换库会改变签名源串 ⇒ 已发出的 sign 全部失配**。这属 §5.2『安全红线』，
+  **要换 MUST 与上游同批改并端到端比对签名**。」（配合 AGENTS.md §5.1 那条「公共报文骨架只承载报文、不承载签名语义、
+  NEVER 因共用一个类就统一签名逻辑」看：本类是账户域这条链路**唯一**的验签实现，`ItpCommonRequest` 只提供字段。）
+- **摘要式验签的三个配置约束** —— 见 §七 `ItpSignProperties` 那条：`providerId` 必须**相等**、`charset` 与 `format`
+  **忽略大小写**、`signKey` 拼在源串末尾 `&key=` 之后；时间戳格式由 `TIMESTAMP_PATTERN = \d{14}` 钉住（`:33`，代码非注释）。
+  **`signType=00` 免签这条在本类注释里没有出处**（AGENTS.md §2.2.1 的说法来自实现代码），本轮不代笔补写。
+
+### 九、注释里写死的版本号与镜像相关事实
+
+注释里出现的版本号**只标记「哪一版引入了这个形状」，NEVER 用来推断线上跑的是哪版**（AGENTS.md §7：判线上 MUST 查 Deployment 的
+image tag；2026-09-16 就出过「Deployment 跑 2.0.69、仓库 pom 已 2.0.70，`ItpUserPageController` 少两个端点、404 伪装成
+UUID retCode」那一例，ADR-D93 / D97 续）。本轮抽取时刻仓库 `account-server/pom.xml` 的 `<version>` 是 **2.0.73**。
+
+| 版本 | 注释出处 | 该版引入的事实 |
+|---|---|---|
+| 2.0.47 | `<X>/AccountExceptionTicketMapper.xml:17` | 该 mapper 的 XML 注释里写了行注释符号 ⇒ MyBatis 解析失败 ⇒ **首次部署即启动失败**（Pod `2/2 Running` 但端口不监听）。阶段一已记该陷阱，本条只补「版本号出现在注释里」这一事实 |
+| 2.0.58 | `EmployeeCardOutboundServiceImpl:35`、`EmployeeCardServiceImpl:41` | 员工码**出网四方法 + `RestTemplate` + 独占配置**从 `EmployeeCardServiceImpl` 搬到 `EmployeeCardOutboundService` |
+| 2.0.59 | `AccountArchiveServiceImpl:23` | 销户归档两入口从 `AccountApplicationServiceImpl` **逐字搬迁**（含 `OPER_TYPE=3` 常量与三个只被归档用到的 mapper 方法） |
+| 2.0.63 | `UserPayChannel.payAccountId:17`、`UserPayChannelMapper.java:41`、`ItpUserQueryService:17`、`ItpUserQueryServiceImpl:29`、`PayChannelServiceImpl:307`、`EmployeeCardServiceImpl:45` | **`PAY_ACCOUNT_ID` 列新增**（IF8A-77 是唯一写入点）、运营只读路径**去掉 N+1 跨域 RPC**、员工码事件日志落库收口到 `recordEvent` |
+| —— | `<X>/UserPayChannelMapper.xml:18` | 「`PAY_ACCOUNT_ID` 是 ADR-D30 新增列，其 **DDL 与 account-server 镜像的上线顺序无法保证**」⇒ 既有语句刻意不查该列。**这是「代码先上、DDL 后上」这类事故的唯一成文防线**（阶段一已记该条，本表只把它与版本序列放在一起） |
+
+### 十、本轮要求覆盖的重点条目 —— 落点索引（避免重复抄录）
+
+| 重点 | 已落在哪 |
+|---|---|
+| ADR-D52 卡池预占共享、失败分支 NEVER release、confirm 失败 MUST 开 `CARD_POOL_CONFIRM_REJECTED` 工单 | 阶段一 §一「决策理由」四条 + §四；本轮补 §四的 release 自身失败处置、confirm 失败 ERROR 日志五字段、支付宝渠道工单同口径 |
+| ADR-D13 `syncDisplayAccountToPayDomain` 丢 boolean ⇒ `SIGN_SYNC_STATUS='SUCCESS'` 造假 ⇒ 现改 `RpcOutcome` 穷尽 switch | 阶段一 §二「决策理由」的「RPC 三分支处置刻意不同（ADR-D45）」条 |
+| Druid WallFilter 第二条：`where 1 = 1` + 全可选 `<if>` 被判恒真条件（`countGroupByCardType`，2.0.73 修） | 阶段一 §一「陷阱」两条（`ORA-01843` + 恒真条件）；本轮在 §九记 2.0.73 是当前 pom 号 |
+| mapper XML 注释含连续减号 ⇒ 启动即挂（`AccountExceptionTicketMapper.xml`，2026-09-11 / 2.0.47） | 阶段一 §一「陷阱」；本轮 §九补版本序列、§六补该文件另两段注释（幂等索引名与 `ROWNUM` 子查询） |
+| 迁移脚本类缺陷（`PAY_ACCOUNT_ID` / `UK_UIRI_ACTIVE_USER_CARDTYPE` 只写进 `*-schema.sql`；函数索引带 `CASE`、承载多卡语义、NEVER 改朴素两列） | **本轮 §六前两条**（阶段一只在服务层注释里提过索引，脚本内 31 行注释一条未收） |
+| 入向验签 `AccountRequestVerifier`（摘要式、零调用点、fastjson 1）与「NEVER 因共用报文骨架就统一签名逻辑」 | 阶段一「墓碑」42/43/53 条；**本轮 §八**（类注释两段 + `ItpSignProperties` 键语义）。`signType=00` 免签在本模块注释里**无出处** |
+| IF8A-23 / IF8A-77 回写 `PAY_ACCOUNT_ID`（ADR-D30 / D32 / D55）、员工卡链路、`USER_ITP_REG_INFO` 与 `APP_USER_PAY_CHANNEL` 列语义与状态取值 | 阶段一 §二 + §三；本轮补 §一（`syncPayAccountId` 端点鉴权缺口）、§五（落库契约与 9998）、§六（回写按签约流水号定位的理由）、§六末（实体字段三条实义 Javadoc） |
+| 版本号 / 镜像相关注释里的事实 | **本轮 §九** |
+
+### 矛盾与待裁决
+
+1. **`RegistrationCommitService.java:36-37` 与 ADR-D52 直接冲突（阶段一提出，本轮复核确认，且需要裁决）。**
+   接口 Javadoc 原文：「按 AGENTS.md §5.2『先调远端、后改本地』，调用方 MUST 在本方法成功后才落库；**失败时 MUST 释放卡池预占**。」
+   代码证据（本轮逐处核对，三方一致地反对这句话）：
+   ①`AccountRegistrationServiceImpl.requestApplication:158-160` 与 `:208-210` 的注释是
+   「**NEVER 在这里 `releaseReservation`**：预占按 `businessId` 幂等、是并发请求共享的……滞留的预占交给 `sys_job` 107『卡池维护』的超时回收」；
+   ②同类 `:270-274`「**本方法 NEVER `releaseReservation`**（2026-09-14 / ADR-D52 起，此前会释放）」；
+   ③支付宝渠道 `AlipayTripRegistrationServiceImpl:120-122`、`:159` 同款；
+   ④`CardPoolAllocationService.releaseReservation:45-56` 的墓碑注释（阶段一墓碑第 34 条）明确「**在失败分支调 `releaseReservation`** 是被禁止的，
+   但**因链路不再调用就删掉该方法也是被禁止的**」。
+   **结论：`registerRideStatus` 的 Javadoc 是 ADR-D52 之前的旧措辞，属注释与实现不一致，且危险方向是「照 Javadoc 写新代码会重现 ADR-D52 的缺陷」。**
+   本轮**按约束只记录、未改代码**。**建议裁决**：把该句改成「失败时**不要**释放预占，滞留预占由 `sys_job` 107 超时回收（ADR-D52）」，
+   并同批检查是否还有别处沿用旧措辞。**在裁决落地前，读到这句话 MUST 以 ADR-D52 为准。**
+2. **`PhoneChangeService.java:18` / `:27` 的 `{@link AccountApplicationService#updatePhone}` 指向已删除的类。**
+   本轮全模块 grep 实测：`AccountApplicationService` / `AccountApplicationServiceImpl` **只剩注释里的字样，源文件已不存在**
+   （同一文件 `:6` 自己就写着「该类已于第六轮整体删除」）。两个 `@link` 是断链，**编译不报错、`javadoc` 才会警告**，
+   于是「语义见另一个类」实际等于**语义无处可查**。同型断链还有 `AccountRegistrationService:18`
+   （「它们分别属 `AccountApplicationService`、`PhoneChangeService`、`PayChannelService`」——三者之一已不存在）。
+   **待裁决**：把这两处 `@link` 改成正文描述或指向现行实现类。
+3. **`AccountArchiveServiceImpl.java:29-30` 声称「上游注入的是 `AccountApplicationService`」，与两处现行注释冲突。**
+   `TaskController:29`「第六轮拆分后**直接注入实现方**，不再经 `AccountApplicationService` 转发」与
+   `RequestApplicationController:37`「第六轮拆分后直连实现方，**原 `AccountApplicationService` 已删除**」是现行口径。
+   归档那条注释想表达的约束（**NEVER 让 Controller 直接依赖归档实现类**）仍成立，但它给出的理由已失效。
+   **待裁决**：改成「上游注入的是 `PayChannelService` / `AccountCancelService`，归档只是它们的收尾步骤」。
+4. **`<S>/account-server-phone-sync-migration.sql:4` 写「由 `@Scheduled` 扫表补偿重推」，与「account-server 全模块无 `@Scheduled`」冲突。**
+   现行事实：调度在 web-admin 的 `sys_job`（108），入口是 `TaskController.phoneSignSyncCompensate`，
+   `<X>/UserPhoneChangeLogMapper.xml:118-120` 写的正是「**account-server 侧 NEVER 加 `@Scheduled`**」。
+   脚本注释是改造当时的措辞，**已过期**；**NEVER 据它在本模块里加 `@Scheduled`**。
+5. **`AccountRequestVerifier` 的存在与 §5.2「新增状态变更型接口 MUST 有鉴权」处于长期冲突态**：类注释自己承认 24 个端点全裸露，
+   而 `PayChannelInternalController:60-65` 又把「无鉴权」标注为**有意的临时降级**。两处都写了「上线前 MUST 补齐」，
+   但**没有任何注释记录补齐的责任人或触发条件**。本轮不代笔，列为待裁决。
+
+### 墓碑清单（阶段二新增，阶段一 69 条不重复）
+
+编号续阶段一（70 起）。判据同阶段一：注释的唯一作用是**禁止回退到某个已被推翻的做法或已搬走的位置**。
+
+| # | 位置 | 它想禁止的事 | 可否写成断言测试 |
+|---|---|---|---|
+| 70 | `<J>/controller/internal/CardDataInternalController.java:33-40` | 给本类加类级 `@RequestMapping` 或任何路径前缀（会让 ticket-server / fep-dev / face-pay / collect-pay 同时 404） | 可：反射断言本类无类级 `@RequestMapping` + 两个方法路径字面量 |
+| 71 | `<J>/controller/internal/PayChannelInternalController.java:21-27` | 为了整齐把 `/queryPayChannelByContractNo` 挪进 `/internal/` 前缀 | 可：反射断言两个端点路径字面量 |
+| 72 | `<J>/controller/internal/PayChannelInternalController.java:30` | 在对内 controller 里写业务逻辑 | 部分：可结构断言字段只有 service |
+| 73 | `<J>/controller/task/TaskController.java:76-79`（阶段一 61 已记入参，本条记「不鉴权的前提」） | 在保留「无鉴权」的同时给端点加任何外部可控参数 | 可：反射断言端点零入参 |
+| 74 | `<J>/service/AccountProfileService.java:14-15`、`AccountCancelService.java:12-13`、`AccountRegistrationService.java:17-18`（阶段一 45 已含同批三接口，本条补三份「NEVER 加进来」的对偶关系） | 把销户 / 开户 / 查询 / 支付通道方法互相搬进对方接口 | 可：结构断言四接口方法名集合互斥 |
+| 75 | `<J>/service/ItpUserQueryService.java:17-23` | 为「查得更全」把 `paySignClient.querySignInfoBySeq` 加回运营只读路径（ADR-D30 消掉的 N+1） | 可：结构断言实现类字段不含 `PaySignClient`（与阶段一 37 同源，本条是接口侧那份） |
+| 76 | `<J>/service/PhoneChangeService.java:11-13` | 把 `SignSyncCompensateResult` 挪出本接口（等于改对外契约；与阶段一 27 同源，本条补「TaskController 已在用」这个理由） | 可：结构断言类型所在位置 |
+| 77 | `<J>/service/RegistrationCommitService.java:20-31` | 把 `isDayPassCard` / `attachEmployeeCardsQuietly` 加回本接口；把渠道 if-else 挪进来 | 可：结构断言接口方法名集合 + 不依赖渠道枚举 |
+| 78 | `<J>/service/EmployeeCardPersistenceService.java:13-16` | 给 `recordEvent` / `attachEmployeeCardsQuietly` 补 `@Transactional`（与阶段一 66/67 同源，本条补「两种事务语义都是刻意的」这个理由） | 可：反射断言 |
+| 79 | `<J>/service/EmployeeCardPersistenceService.java:24-26` | 把 `saveFromStatusNotify` 的「0 行即抛」改成只记日志 | 可：单测断言 0 行时抛 `IllegalStateException` |
+| 80 | `<J>/service/EmployeeCardPersistenceService.java:55-59` | 把 `refreshProfileFromAcc` 的「0 行只 WARN」与上一条统一 | 可：单测断言 0 行时不抛 |
+| 81 | `<J>/service/EmployeeCardPersistenceService.java:104-107` | 把 `attachEmployeeCardsQuietly` 的 0 行分支改成强行覆盖 `THIRD_USER_ID` | 可：SQL 文本断言 WHERE 含「为空或等于目标值」 |
+| 82 | `<J>/service/impl/EmployeeCardPersistenceServiceImpl.java:134` | 把 `applyActivationResult` 的 false 出口改成「只记日志后 return true」 | 可：单测断言返回 false ⇒ 上层返 9998 |
+| 83 | `<J>/service/impl/EmployeeCardOutboundServiceImpl.java:40-42` | 给出网实现类加事务；或把它的方法放进调用方 `@Transactional` | 可：反射断言本类无 `@Transactional` + 调用点结构断言 |
+| 84 | `<J>/domain/EmployeeCardStatus.java:12-16` | 自行调整 ACC 定义的数字取值、依赖 `ordinal()`、只改枚举不改 `UserAccEmployeeCardMapper.xml` 的 `CARD_STATUS = 1`（阶段一 32 只覆盖前两项） | 可：断言 `code()` 映射表 + SQL 文本断言 |
+| 85 | `<J>/domain/ChannelBindingRule.java:44-48` | 把 `isWallet` 改回「要求调用方先 trim」 | 可：单测断言 null 与带空白入参 |
+| 86 | `<J>/domain/PhoneChangeRule.java:49-50` | 把入口必填校验合并进 `decide`（会导致「为了校验两个字符串先查一次库」） | 可：单测断言 `validateInput` 不需要 `UserItpRegInfo` |
+| 87 | `<J>/model/ItpSignProperties.java:18-25`（阶段一 52 只记「NEVER 搬走键」） | 只清 Java 侧或只清 properties 侧的 `signKey` 明文真值（两处都写了，改一处等于没改） | 部分：可写「两处都不含明文」的配置扫描断言 |
+| 88 | `<J>/service/AccountRequestVerifier.java:19-22` | 因「零调用点」删掉本类（与阶段一 43 同源，本条补「24 个端点全裸露」这个事实） | 可：断言类存在 |
+| 89 | `<J>/service/impl/RegistrationCommitServiceImpl.java:41-43` | 把 `TransactionTemplate` 换成方法上的 `@Transactional`（会把调用方 RPC 圈进事务） | 可：反射断言本类无 `@Transactional` + 字段存在 |
+| 90 | `<S>/account-server-active-user-cardtype-index-migration.sql:9-14` | 把唯一索引简化成朴素两列；或给它加 `LOCAL`（`ORA-14039`） | 可：SQL 文本断言索引定义含两个 `CASE` 且无 `LOCAL` |
+| 91 | `<S>/account-server-pay-account-id-migration.sql:5` | 按 `DATA_LENGTH` 的 128 写 `PAY_ACCOUNT_ID` 列宽（应为 64 CHAR，与来源列一致） | 部分：可写库回查断言，非纯单测 |
+| 92 | `<X>/UserItpRegInfoMapper.xml:108-110` | 用不过滤 `DEL_YN` 的查询走常规链路 | 部分：可结构断言调用点集合 |
+| 93 | `<X>/UserItpRegInfoMapper.xml:193-195` | 把「注销未归档期间同一 CARD_ID 并存」那条查询改回返回单条 | 可：断言返回类型是 List |
+| 94 | `application.properties:24` | 把任一 `service.*.url` 写成 `127.0.0.1`，或删掉键（退化成 `*-service` 默认名） | 部分：可写配置扫描断言，**无法覆盖集群 env 覆盖值** |
+
+### 本轮覆盖率自评
+
+**计数口径先说明**（否则数字不可比）：本轮用脚本逐文件扫注释行，**块注释的中间行也计一行**（`/** … */` 内的每行、
+`<!-- … -->` 内的每行都算），`.properties` 计 `#` 开头行，`.sql` 计 `--` 开头行。
+
+| 项 | 数 | 说明 |
+|---|---|---|
+| `account-server/src/main` 文件数 | **86** | 其中 `.java` 79、`.xml` 8（mapper）、`.properties` 1、`.sql` 6（本轮口径含 `sql/` 目录） |
+| Java 注释行总数 | **2697** | 与用户实测一致 |
+| XML 注释行 | **212** | 按上述口径（含块注释中间行）。用户给的 96 是「XML/properties」另一种口径（估计只计 `<!--` 起始行或非空文字行），**两者不冲突、但 NEVER 混用** |
+| properties 注释行 | **7** | 其中 3 行是乱码（见 §七末条） |
+| SQL 注释行 | **39** | 5 个 `*-migration.sql` 共 39 行；`account-server-schema.sql` 与 `account-server-card-type-migration.sql` **0 行** |
+| 阶段一定位串命中的行区间（差集基准） | 覆盖后剩 **777 行** | 差集法：把阶段一所有 `文件:行号` / `文件:起-止` / `` `:起-止` `` 定位串展开成行集合（每条前后各放宽 3 行），再从全量注释行里减掉 |
+| 本轮抽取条数 | **95 条** | §一~§八 正文 **65 条** + §九 版本表 **5 条** + 墓碑清单 **25 条**（70~94）。另有 §十 的 7 行是**落点索引、不计条数** |
+| 矛盾与待裁决 | **5 条** | 含用户点名复核的 `RegistrationCommitService.java:36-37`（结论：注释是 ADR-D52 之前的旧措辞，MUST 以 ADR-D52 为准） |
+| 样板跳过行数（估算） | 约 **269 行** | 其中 **169 行**是 `entity/*`（6 个实体）+ `page/*`（4 个视图 / 查询对象）+ `model/application/RequestApplicationRespDTO` 的纯字段 Javadoc；余约 100 行是 `@param` / `@return` / 复述方法名的接口 Javadoc，以及**逐字重复 12 次**的「构造器注入（ADR-D37）」（该句已在 §一末条按 1 条计入） |
+| 有知识量的差集行（估算） | 约 **508 行** | = 777 − 269，已全部落进本轮 95 条 |
+
+**零知识注释文件清单**（本轮实测，注释行为 0 或全部为纯样板）：
+
+- **注释行 = 0（7 个）**：`<J>/../AccountServer.java`、`<J>/mapper/UserItpRegLogMapper.java`、
+  `<J>/mapper/UserAccEmployeeCardLogMapper.java`、`<X>/UserItpRegLogMapper.xml`、`<X>/UserAccEmployeeCardLogMapper.xml`、
+  `<S>/account-server-schema.sql`（**8 张表 + 2 个序列的 DDL 全文零注释**）、`<S>/account-server-card-type-migration.sql`。
+- **有注释但全是纯样板（本轮判为零知识，只计行数）**：`<J>/entity/UserAccEmployeeCard.java`、
+  `<J>/entity/UserAccEmployeeCardLog.java`、`<J>/entity/UserItpRegLog.java`、`<J>/page/ItpUserSearchQuery.java`、
+  `<J>/model/application/RequestApplicationRespDTO.java`（21 行全是「返回码 / 返回消息 / 签名类型」这类字段 Javadoc）。
+  另有三个实体只含**个别**实义字段（`UserItpRegInfo.hceData`、`UserPhoneChangeLog.userType` / `signSyncRetryCount`），
+  已在 §六末条单列，其余字段 Javadoc 计入样板。
+
+**仍未覆盖 / 本轮刻意不做的部分**（下一轮的入口）：
+
+1. **`src/test` 全部未读**（本轮范围限定 `src/main`）。已知测试类名在阶段一被引用过（`UserItpRegInfoMapperSqlTest`、
+   `PayChannelInternalContractTest`、`delYnLiteralsStayInsideTheTwoFragments`），**测试里的注释可能记着更细的口径**，未抽。
+2. **`pom.xml` / jkube 配置的注释未抽**（本模块 `build-image-remote` 绑 `package`、2026-09-08 已核实，事实在 AGENTS.md §7，
+   但 pom 内是否有说明性注释本轮没看）。
+3. **`log4j2-*.xml` 等非 mapper 资源未纳入**（本轮 xml 只扫 `resources/mapper/`）。
+4. **代码里有行为、注释里没记的事项**一律未代笔补写。本轮遇到 2 处并记在此：
+   ①`AccountRequestVerifier` 的 `signType=00` 免签逻辑（AGENTS.md §2.2.1 有此说法，**本类注释无出处**）；
+   ②`maskPayId` 的脱敏规则虽有一行注释（`PayChannelServiceImpl:686`「保留前 4 后 4，中间固定 4 个星号；长度不足 8 位时整串打星」），
+   但**「为什么选这个规则」无出处**。
+5. **被注释掉的失效代码不按四类归档**（沿用阶段一口径）：本轮新遇到 `application.properties:5` 的
+   `#other.sql.host=…`（已在 §七末条按「陷阱 + 事实」记一次）。
+6. **阶段一「归类存疑」5 条中的 3 条本轮已裁决**（`RegistrationCommitService:36-37` → 矛盾第 1 条；
+   `PhoneChangeService:17-27` → 矛盾第 2 条；`EmployeeCardServiceImpl:111-113` 那条**唯一的英文注释**仍未裁决，
+   `PayChannelServiceImpl:132-139` 的整段失效代码仍按「不归档」处理）。
+
+## 附：account-server DDL 与 fep-acc-server 补漏（2026-09-16，阶段三）
+
+> **有并发写入者，引用行号前 MUST 先 grep 现查。** 本节行号是 2026-09-16 抽取时刻的快照。
+>
+> 本轮定位：阶段一 / 阶段二覆盖的是 `account-server/src/main` 的 **Java 与 mapper XML 注释**，
+> 以及 5 个 `*-migration.sql` 的 `--` 行。**本轮补的是那两轮口径外的三块**：
+> ①7 个 SQL 文件里的 **107 条 `COMMENT ON`**（`COMMENT ON` 是 DDL 语句、不是注释语法，
+> 因此阶段二按「注释行」口径把 `account-server-schema.sql` 判为「零注释」是**口径自洽的**，
+> 但那 98 条列注释里承载着**列取值域的唯一权威定义**，属真实空白 —— 本轮补齐，见矛盾第 1 条）；
+> ②`fep-acc-server` 全模块 **30 行注释**（仅 2 个接口、无 DB、无 mapper）；
+> ③`account-server/src/main/resources/application.properties:4~6` 的**乱码注释**（阶段二只提到 `:5`）。
+> **本轮 NEVER 与阶段一 / 阶段二重复**：凡阶段二已落笔的 `--` 行（如 phone-sync 那 6 行的 `@Scheduled` 过期措辞），
+> 本轮只交叉引用、不重抄。
+>
+> 路径前缀沿用前两轮：`<S>` = `account-server/src/main/resources/sql/`，
+> `<P>` = `account-server/src/main/resources/application.properties`，
+> 另加 `<F>` = `fep-acc-server/src/main/`。
+
+### 一、`USER_ITP_REG_INFO`（表 + 20 列，`<S>/account-server-schema.sql:184-204`）
+
+grep 短语：`COMMENT ON COLUMN USER_ITP_REG_INFO`。这张表是账户域的根实体，**列取值域的唯一权威定义就在这 21 条里**。
+
+- **`DEL_YN` 的取值方向与直觉相反** —— `:193`「删除标识，**1-有效，0-已注销**」。
+  **MUST 先读这条再写任何 `WHERE DEL_YN`**：把它当成「1 = 已删」会把有效卡全过滤掉、把注销卡全捞出来。
+  实体侧 `isActive()` 与 `<X>/UserItpRegInfoMapper.xml` 的两个 `DEL_YN` 片段是配套的（阶段一已记）。
+- **分区键是虚拟列，不是 `THIRD_USER_ID` 本身** —— `:190`「第三方用户标识后两位，**分区字段**」，
+  DDL 侧 `:7-8` 是 `THIRD_USER_ID_SUFFIX VARCHAR2(2 CHAR) GENERATED ALWAYS AS (SUBSTR(THIRD_USER_ID, -2)) VIRTUAL`，
+  `:25-127` 按它 LIST 分区共 **101 个分区**（`P00`~`P99` + `PDF` DEFAULT）。
+  连带两条硬约束：①三个业务索引 `IDX_UIRI_THIRD_USER_ACTIVE` / `IDX_UIRI_CARD_ID` / `IDX_UIRI_THIRD_PAY_ID`（`:129-139`）
+  都带 `LOCAL`；②唯一索引 `UK_UIRI_ACTIVE_USER_CARDTYPE`（`:141-145`）**不带 `LOCAL`**，原因见 §二①。
+- **`CARD_TYPE` 与 `ITP_CARD_TYPE` 是两个不同语义的列，NEVER 混用** —— `:187`「**转换后**的卡类型」、
+  `:188`「**APP 入参**卡类型」。映射关系写在 `<S>/account-server-card-type-migration.sql:4-14`：
+  `0441→02`、`0442→03`、`0443→04`、`0444→11`、`0445→12`、`0446→13`、`0447→14`、`0448→15`，
+  其余原样保留（`ELSE CARD_TYPE`）。该脚本还把 `ITP_CARD_TYPE` 回填后再 `MODIFY (... NOT NULL)`（`:16`），
+  **顺序不能颠倒**：先加非空约束会因存量行为空而失败。
+- **`CARD_ISSUE_CODE` 参与码体拼装，`ISSUE_ORG_CODE` 不参与** —— 这是两条最容易互换的列：
+  - `:198`「发行渠道编码，**仅 `0001` 正常渠道 / `0007` 支付宝出行**，**参与码体拼装，取右 2 位落码体渠道位**」；
+  - `:199`「发卡机构编码，APP 开户上送原值，`0004` 海上巴士 / `0007` 支付宝出行 / `0008` 成都地铁 /
+    `0020` 青岛地铁早期 / `5412` 青岛地铁 / `5413` 畅行 U 惠小程序，**仅留痕不参与码体拼装**」。
+  注意 `0007` 在两列里都出现、含义不同；`ISSUE_ORG_CODE` 是 6 个已知取值的**开放**集合
+  （未知值只 ERROR 不拒绝开户，见阶段二 `normalizeIssueOrgCode`），而 `CARD_ISSUE_CODE` 是**封闭**的两值。
+- **`COMPANION_FLAG` 只有两个有值取值** —— `:203`「同行票或第三方票标识，**Y-同行票，C-第三方票**」，
+  空即普通票。这两个字母是 `UK_UIRI_ACTIVE_USER_CARDTYPE` 两个 `CASE` 里 `NOT IN ('Y','C')` 的来源，
+  **改动取值 MUST 同批改索引谓词与 `selectActiveByThirdUserIdAndCardType`**（三处逐字对齐）。
+- **`HCE_DATA` 有两个写入方** —— `:204`「HCE 卡数据，**开户时生成并由闸机交易 `reserve1` 更新**」，
+  即 account-server 写第一次、随后由 `updateHceData`（对内契约面，调用方 ticket-server / face-pay / collect-pay）覆盖。
+  列宽 512 CHAR（`:21`）。
+- 其余 14 条是字段名直译（`ID` 主键、`CARD_ID` 逻辑卡号、`MSISDN` 手机号、`REG_TMS` / `UN_REG_TMS`、
+  `DEL_THIRD_USER_ID`「注销操作对应的第三方用户标识」、`USER_NAME` / `USER_ID`「证件号」、
+  `THIRD_PAY_ID`「第三方支付用户标识」、`CHANNEL`、`REQ_CONTRACT_NO`「签约请求号」），**零决策信息**。
+
+### 二、`account-server-active-user-cardtype-index-migration.sql` 那 26 行里的四条硬知识
+
+grep 短语：`UK_UIRI_ACTIVE_USER_CARDTYPE`、`ORA-14039`、`ORA-01452`、`EXECUTE IMMEDIATE`。
+这是 7 个 SQL 文件里**知识密度最高**的一个（31 行里 26 行是注释、5 行是 DDL），阶段二只把它记成墓碑第 90 条
+（「NEVER 朴素两列 / NEVER 加 LOCAL」），四条硬知识里的另外两条本轮首次落笔。
+
+1. **ADR-D49 ① 的并发窗口后果（`:1-6`）** —— 没有这个唯一索引时，
+   `AccountRegistrationServiceImpl` 的「前置查重」与「INSERT」之间有窗口：
+   **两条并发 IF8A-01 或 APP 超时重推会双双通过查重、双双落库，用户拿到两张有效卡**，
+   而 `handleDuplicateRegistration` 那段 `DuplicateKeyException` 兜底**永远走不到**。
+   `:5` 明写「**编译、单测、`xmllint` 全都发现不了**」—— 这条是「索引缺失 = 幂等保护完全失效」的活样例，
+   与 AGENTS.md §8「一天撞三次」的第 ③ 条同源（该索引此前只写在 `*-schema.sql` 里、没有独立迁移脚本）。
+   `:6` 记了回查证据：**2026-09-14 已在 `AFCITPDB` 执行并回查（`UNIQUE` / `FUNCTION-BASED NORMAL` / `VALID` / `PARTITIONED=NO`）**。
+2. **NEVER 简化成朴素两列（`:9-12`）** —— 两个 `CASE` 是刻意把 `COMPANION_FLAG` 为 `Y`（同行票）/ `C`（第三方代开）
+   的行**排除在唯一性之外**，那类票按业务定义「**每次都给新卡**」。
+   改成朴素 `UNIQUE (THIRD_USER_ID, CARD_TYPE)` 的后果不是「不够精确」，而是
+   **这些合法请求的第二张卡直接 INSERT 失败**（同行票开户整条打挂）。
+   同一行还带一条对齐要求：查重侧 `<X>/UserItpRegInfoMapper.xml` 的
+   `selectActiveByThirdUserIdAndCardType` **MUST 与本谓词逐字对齐** —— 两边不一致时，
+   「查重放过 + 索引拒绝」会把并发异常变成对 APP 的硬失败，反之则回到 1 的双卡缺陷。
+3. **NEVER 顺手加 `LOCAL`（`:13-14`）** —— `USER_ITP_REG_INFO` 按 `THIRD_USER_ID` 的**派生值**做 LIST 分区
+   （见 §一），而索引键是两个 `CASE` 表达式、**不是分区键**，Oracle 只允许 `GLOBAL`，
+   加 `LOCAL` 直接报 **`ORA-14039`**。这条是「同一张表上三个 `LOCAL` 索引 + 一个非 `LOCAL` 索引」并存的原因，
+   **NEVER 为了「风格统一」给它补 `LOCAL`**。
+4. **`ORA-01452` 前置统计 + mcp 执行时的 PL/SQL 包裹（`:16-26`）** —— 两条操作性知识：
+   - **在新库上执行前 MUST 先按索引的确切谓词统计**（`:18-22`，原文可直接复制）：
+     `SELECT COUNT(*) AS TOTAL, COUNT(DISTINCT THIRD_USER_ID || '#' || CARD_TYPE) AS DISTINCT_KEY
+      FROM USER_ITP_REG_INFO WHERE DEL_YN = 1 AND NVL(COMPANION_FLAG, 'N') NOT IN ('Y', 'C');`
+     两值不等即建索引必报 `ORA-01452`；**有重复只能与业务定归属、NEVER 删行**（`:17`「卡号可能已发给用户」）。
+     注意统计谓词**必须与索引 `CASE` 里的谓词同源**，用宽一点的条件统计会漏判。
+   - **经 `mcp_database_qd` 执行时 MUST 包一层 PL/SQL**（`:24-26`）：它的 SQL 解析器拒绝带 `CASE` 的
+     `CREATE INDEX`（`McpSqlValidationException`），绕法是
+     `BEGIN EXECUTE IMMEDIATE '<原 DDL>'; END;`，**内层单引号写两个**；
+     脚本 `:26` 存了一份可直接粘贴的完整单行版本。
+     **NEVER 因为 mcp 验证不过就去改索引形状** —— 那正是 2 要禁止的事。
+
+### 三、其余四个 `*-migration.sql` 的 `--` 行与 9 条 `COMMENT ON`
+
+- **`account-server-companion-flag-migration.sql`（4 行 / 1 `--` / 1 `COMMENT ON`）**：`:1`「为**既有**
+  `USER_ITP_REG_INFO` 表增加同行票/第三方票标识」。零决策信息，但它是「每个新增列都要有独立迁移脚本」这条规则的**正面样板**。
+- **`account-server-hce-data-migration.sql`（4 行 / 1 `--` / 1 `COMMENT ON`）**：`:1`「**已执行
+  `account-server-card-type-migration.sql` 的环境也必须执行本脚本**」—— 唯一记录了**两脚本之间无依赖、需各自单独执行**这一事实，
+  防的是「以为卡类型那次已经把列都加齐了」。
+- **`account-server-pay-account-id-migration.sql`（8 行 / 5 `--` / 1 `COMMENT ON`）**：`:1-4` 是 ADR-D30 的
+  事故复盘（此前只改 schema、脚本缺失，而 `UserPayChannelMapper.xml` 的
+  `selectByThirdUserIdAndCardTypeAndCardId` 与 `updatePayAccountIdByReqContractNo` **已经在用它**，
+  「运营页『支付账号』列与 IF8A-77 回写一跑就 `ORA-00904`」，2026-09-14 已在 `AFCITPDB` 执行并回查）；
+  `:5`「**宽度取 64 CHAR 与来源列 `APP_PAY_SIGN_INFO.PAY_ACCOUNT_ID` 一致，NEVER 按 `DATA_LENGTH` 的 128 写**」
+  —— 这条对应 `docs/domain/decisions.md` 撤回记录里的「用 `DATA_LENGTH` 判列长」那条（阶段二墓碑第 91 条）。
+- **`account-server-phone-sync-migration.sql`（20 行 / 6 `--` / 4 `COMMENT ON` / 1 索引）**：
+  `--` 那 6 行阶段二已记（矛盾第 4 条：`:4` 的「由 `@Scheduled` 扫表补偿重推」**已过期**，
+  现行调度在 web-admin `sys_job` 108，**NEVER 据它在本模块加 `@Scheduled`**），本轮只补 4 条 `COMMENT ON`
+  与一处**与 schema 不一致**的事实：
+  - `:14` 的 `SIGN_SYNC_STATUS` 注释是「**PENDING-待投递，SUCCESS-已送达，FAILED-投递失败待重试；
+    `NULL` 表示本行早于改造，NEVER 被补偿扫描捞取**」，而 `<S>/account-server-schema.sql:369` 同一列的注释是
+    「PENDING-待同步、SUCCESS-已同步、FAILED-同步失败；`NULL` 表示该行早于本功能上线」。
+    **取值集合一致、措辞不同，且只有迁移脚本那份写了「`NULL` NEVER 被扫描捞取」这条行为约束** ——
+    读取值域看 schema、读扫描行为看迁移脚本。
+  - `:15` 重试次数「达配置上限后**不再扫描、转异常工单**人工处理」；schema `:370` 补出工单表名
+    （`ACCOUNT_EXCEPTION_TICKET`）。两份合起来才是完整链路。
+  - `:16`「配合 `staleMinutes` 判定 `PENDING` 滞留」—— **`staleMinutes` 这个参数名只在这一行出现过**，
+    是把「`SIGN_SYNC_TIME` 有什么用」讲清楚的唯一出处。
+  - `:17`「最近一次投递的返回码与消息，**超长由调用方截断**」（列宽 1024 CHAR）—— 截断责任在**调用方**，
+    NEVER 指望数据库侧兜。
+  - 列宽差异：迁移脚本 `:9` 是 `SIGN_SYNC_RETRY_COUNT NUMBER(22) DEFAULT 0`，schema `:341` 是 `NUMBER DEFAULT 0`
+    —— 语义等价、写法不一致，**回查列定义时不要据此判定「库与脚本不符」**。
+- **`account-server-card-type-migration.sql`（19 行 / **0** `--` / 2 `COMMENT ON`）**：见 §一「`CARD_TYPE` 与
+  `ITP_CARD_TYPE`」条。它是**唯一一个「零 `--` 注释但有 `COMMENT ON`」的迁移脚本**，
+  阶段二据 `--` 口径把它列进「零知识文件清单」，本轮据 `COMMENT ON` 口径把它移出（见矛盾第 1 条）。
+
+### 四、`APP_USER_PAY_CHANNEL`（表 + 12 列，`<S>/account-server-schema.sql:237-248`）
+
+- **主键是三列复合 `(THIRD_USER_ID, CARD_TYPE, CHANNEL)`**（`:234`），`CARD_ID` **不在主键里**
+  —— 这解释了为什么 `selectByThirdUserIdAndCardTypeAndChannel` 是查重口径、而带 `CARD_ID` 的那条是反查口径。
+- **`PAY_ACCOUNT_ID` 那条是本表唯一的长注释（`:240`），四层含义都要**：
+  ①来源「支付域 `APP_PAY_SIGN_INFO.PAY_ACCOUNT_ID`（原值即支付中心签约回调的 `payUserId`）」；
+  ②「**与 `THIRD_PAY_ID` 不同源，NEVER 混用**」——同一张表里两个都像「支付方标识」的列，这是唯一的区分出处；
+  ③「**当前仅 IF8A-77 回写，未走过该接口的行为空**」——运营页看到空值是**预期**，不是数据丢失；
+  ④「加此列是为让运营页面本地读、**去掉逐渠道跨域 RPC**，见 ADR-D30」（即阶段一 / 阶段二那条 N+1 消除）。
+- **`:248` 给 `THIRD_USER_ID_SUFFIX` 写了 `COMMENT ON`，但 `CREATE TABLE`（`:223-235`）里没有这一列，
+  本表也没有分区子句** —— 在空库上顺序执行 `account-server-schema.sql` 时，这一句必报 `ORA-00904`。
+  见矛盾第 2 条。**NEVER 据这条注释推断 `APP_USER_PAY_CHANNEL` 是分区表**（只有 `USER_ITP_REG_INFO` 是）。
+- 其余 9 条是直译（`CARD_ID`「地铁会员卡号」、`STATUS`「通道状态」等）。
+  **注意 `STATUS` 这条只写「通道状态」、没给取值域** —— 取值只能去 `PayChannelService` / `ChannelBindingRule` 看（阶段二 §三）。
+
+### 五、员工码两张表（`<S>/account-server-schema.sql:287-303`、`:321-327`）
+
+- **`USER_ACC_EMPLOYEE_CARD.CARD_STATUS` 的四个数字取值（`:299`）：1-启用，2-禁用，3-未启用，4-注销。**
+  DDL 侧有 `CONSTRAINT CK_UAEC_CARD_STATUS CHECK (CARD_STATUS IN (1,2,3,4))`（`:269`）兜底 ——
+  **数据库层就会拒非法值**，因此 `EmployeeCardStatus` 枚举（阶段二墓碑 84）与这个 CHECK 是**两道并行防线**，
+  改枚举取值 MUST 同批改 CHECK，否则新增取值会在落库时被数据库拒掉、且报的是约束名而非业务错。
+- **两个「不可变」约束只写在注释里，没有数据库约束** —— `:289`「员工号，对应员工码接口 `cardNo` 字段，
+  **唯一且不可变**」（唯一性有 `UK_UAEC_CARD_NO`，**不可变性没有**）、`:291`「绑定手机号，**开通后不可变更**」
+  （**完全没有约束**）。**这两条只能靠代码保证**，改员工码相关 UPDATE 前 MUST 先读这两行。
+- **`PHOTO_URL` 是 CLOB，且有业务上限** —— `:298`「员工照片 Base64 内容，**原始照片限制 250KB**」。
+  连带 AGENTS.md §8 那条 MCP 坑：**数 CLOB 非空行 MUST 写 `COUNT(CASE WHEN col IS NOT NULL THEN 1 END)`**，
+  `COUNT(PHOTO_URL)` 在 Oracle 非法、且被 MCP 报成 cast 错误。
+- **`USER_ACC_EMPLOYEE_CARD_LOG.EVENT_TYPE` 四个取值（`:324`）：`OPEN`-开通，`CHANGE`-信息变更，
+  `STATUS`-状态变更，`CANCEL`-注销**，同样有 CHECK 约束（`:314`）配套；
+  `CARD_STATUS` 在日志表里是「**本次操作后**的状态」（`:325`）且**允许为空**（CHECK 写的是 `IS NULL OR IN (1,2,3,4)`，`:315`），
+  即「信息变更类事件不带状态」是合法形态。`REMARK`「操作说明**或失败原因**」（`:326`）—— 同一列承载成功说明与失败原因两种语义。
+
+### 六、`USER_PHONE_CHANGE_LOG` 与 `ACCOUNT_EXCEPTION_TICKET` 的表级归属声明
+
+- **`USER_TYPE` 只有两个取值（`:361`）：`ITP`-地铁 APP 用户，`ALIPAY`-支付宝用户**；
+  **`OPER_TYPE` 目前只有一个取值（`:364`）：`CHANGE_PHONE`-更换手机号** —— 这张表被设计成可容纳更多操作类型，
+  但现状只有换号一种，**NEVER 因为列名叫 `OPER_TYPE` 就假定已有别的取值在跑**。
+  主键靠序列 `SEQ_USER_PHONE_CHANGE_LOG`（`:347`，`START WITH 1 INCREMENT BY 1`），
+  **不是 IDENTITY 列** —— 与本模块另外四张表（`USER_ITP_REG_INFO` / `USER_ITP_REG_LOG` / `USER_ACC_TICKETNO` /
+  两张员工码表用的是 `GENERATED BY DEFAULT AS IDENTITY`）**取号方式不同**，写 INSERT 前 MUST 分清。
+- **`ACCOUNT_EXCEPTION_TICKET` 的表注释（`:393`）是一条领域边界声明**：
+  「补偿重试达上限等无法自愈的情况在此留一条待人工处理的记录。**本表由 account-server 独占，
+  其它域 NEVER 写入，各域应建自己的同类表**」—— 这与 `docs/domain/outbox.md` 那条「**NEVER 抽一张公共 outbox 表**」
+  （ADR-D46）是同一判据在异常工单上的落点。**跨域复用这张表就是越界**。
+  - `TICKET_TYPE` 在 `:395` 只列了两个取值（`SIGN_SYNC_RETRY_EXHAUSTED`、`EMPLOYEE_CARD_STATUS_UNSYNCED`），
+    **而代码里还有第三个 `CARD_POOL_CONFIRM_REJECTED`**（`AccountExceptionTicket.TYPE_CARD_POOL_CONFIRM_REJECTED`，
+    ADR-D52 引入）。**注释已过期**，见矛盾第 3 条。
+  - `BIZ_KEY` 的构造规则只在 `:396`：「与 `TICKET_TYPE` 组成唯一索引；`SIGN_SYNC_RETRY_EXHAUSTED` 用
+    `USER_PHONE_CHANGE_LOG.ID`，`EMPLOYEE_CARD_STATUS_UNSYNCED` 用 `卡号:目标状态`」，
+    唯一约束是 `UK_ACCT_EXC_TICKET_TYPE_KEY UNIQUE (TICKET_TYPE, BIZ_KEY)`（`:386`）——
+    **开单幂等完全依赖这个组合键，新增工单类型 MUST 同批定义它的 `BIZ_KEY` 构造规则**，
+    否则同一件事会开出无数条工单。
+  - `DETAIL`「开单原因与现场信息快照，**NEVER 写入密钥等敏感信息**」（`:400`，列宽 2000 CHAR）
+    —— 与 AGENTS.md §5.2「敏感配置」同源，是工单表侧的落点。
+  - `TICKET_STATUS` 两值：`OPEN`-待处理、`CLOSED`-已处理（`:398`）；`RETRY_COUNT` 是「**开单时**已重试次数」（`:399`），
+    即快照值、开单后不再增长。
+
+### 七、`fep-acc-server` 全模块 30 行注释（仅 2 个接口、无 DB）
+
+模块形态先说清：`<F>` 下**只有 3 个 `.java` + 1 个 `application.properties`**，
+另有两个空的 `service/.gitkeep`、`service/impl/.gitkeep` —— **service 层是空目录**，
+这是「纯转发前置」这一事实最硬的结构证据（**NEVER 在这里加业务逻辑，否则 service 目录一有内容就说明边界破了**）。
+
+- **`<F>/java/.../FepAccServer.java:8-10`（3 行）**：「ACC 前置服务启动类」。
+  零知识，但类上三个注解是事实：`@SpringBootApplication` + `@ConfigurationPropertiesScan` + **`@EnableRpcAccount`**
+  —— **本模块只装配 account 一个 RPC 客户端**，没有第二个下游。
+- **`<F>/java/.../controller/BaseAccController.java:6-8` + `:11-17`（10 行）**：
+  类注释「ACC FormData 接口的**公共处理基类**」；方法 Javadoc「将 FormData 中的业务 JSON 转换为目标 DTO」+
+  `@param request` / `@param targetType` / `@return`。
+  实现侧两条**没写进注释但属契约**的事实（本轮不代笔补写，只在此记录）：
+  ①入参已收口到 `model` 的 `ItpCommonFormRequest`（AGENTS.md §5.1 那次删 7 份副本，`fep-acc-server` 的
+  `CommonRequest` + `CommonFormRequest` 就在被删名单里）；
+  ②`bizData` 为 `null` / 空白时**兜成 `"{}"`** 而不是返回 `null`（`:20`）——
+  即**下游永远收到非空 DTO**，「字段全空」与「没送 bizData」在这里被抹平。
+- **`<F>/java/.../controller/EmployeeCardController.java:16-18`、`:28-36`、`:44-46`（15 行）**：
+  - 类注释「员工码相关接口入口」；类上**只有 `@RestController`、没有类级 `@RequestMapping`**
+    —— 两条 URL 是**绝对路径字面量**（`/employee_card/notify`、`/employee_card/update_notify`），
+    与阶段二 §一那条「对内契约面 NEVER 加类级前缀」是同型约束，**加前缀 = ACC 侧全部 404**。
+  - `:28-36` 是本模块**唯一带样例报文的注释**：「请求以 `multipart/form-data` 提交 **APP 同款公共字段**，
+    业务参数放在 `bizData` 中，例如
+    `{"cardList":[{"phone":"13800138000","cardNo":"QD20240001","cardStatus":1}]}`」。
+    三条可用信息：①ACC 侧走的是 `multipart/form-data`（两个端点都显式写了
+    `consumes = MediaType.MULTIPART_FORM_DATA_VALUE`），**不是 `x-www-form-urlencoded`** ——
+    与 AGENTS.md §4 那条「请求格式 `application/x-www-form-urlencoded`」**不是同一条链路**，
+    照 §4 造 ACC 请求会 415；②`bizData` 里是 `cardList` **数组**，即开卡通知天生是批量语义
+    （对应 account-server 侧的分片与单卡失败隔离）；③`cardNo` 形如 `QD20240001`，是**员工号**、不是逻辑卡号。
+  - `:44-46`「接收员工信息变更通知并**剥离 ACC 公共消息头**」—— 这半句是「前置层到底做了什么」的唯一出处：
+    它做的就是**剥壳 + 转发**（`parseBizData` 后直接 `accountClient.updateEmployeeInfo(bizData)`，无任何加工）。
+  - 两个端点都 `log.info("...：{}", request)` 打整个 `request` —— 按 AGENTS.md §5.1 那条，
+    `ItpCommonFormRequest.toString` 对 `sign` 恒定脱敏、但 **`bizData` 会完整进日志**，
+    因此**员工姓名 / 手机号 / 身份证号会原样落日志**。这属现状事实，本轮只记录、未改代码。
+- **`<F>/resources/application.properties:9-10`（2 行）**：
+  「account-server RPC 地址：默认值用集群内网 Service 名（`kubectl get svc -n itp` 实测，2026-09-11）。
+  **NEVER 写 `127.0.0.1`——在 K8s 里等于打到自己**。」
+  键是 `service.account.url=${SERVICE_ACCOUNT_URL:http://account-n4ba6-svc.itp.svc:9098}`（`:11`）——
+  **本模块唯一的下游地址，且是带 `${ENV:}` 包装的正确形态**（对比 AGENTS.md §8 那份 `testngbackV2` 裸硬编码清单，
+  本模块**不在其中**）。`server.port=9110`（`:1`）、`spring.application.name=fep-acc-server`（`:2`）。
+
+### 八、`<P>:4~6` 的乱码注释（grep 中文搜不到的那三行）
+
+**位置与现状**（2026-09-16 逐字节实测）：
+
+```
+<P>:4   #?????? ???IP
+<P>:5   #other.sql.host=<被注释掉的真值，本文档不回显>
+<P>:6   #?????? ???IP
+```
+
+- **`:4` 与 `:6` 的问号是真实的 `0x3F` 字节，不是显示问题。** `hexdump -C` 实测这两行是
+  `23 3f 3f 3f 3f 3f 3f 20 3f 3f 3f 49 50`（`#` + 6 个 `?` + 空格 + 3 个 `?` + `IP`）。
+  也就是说**原文的中文已经不可逆地丢了** —— 文件某次被以非 UTF-8（GBK 系）编码的编辑器打开并另存时，
+  无法映射的字符被替换成了字面 `?`，**不是 mojibake（可用 `iconv` 还原），而是已经发生的信息损毁**。
+  本轮已试过 `iconv -f GB18030`，输出与原文逐字节相同 —— **NEVER 再尝试用 `iconv` 还原这三行**，
+  想知道原意只能问写它的人或看 SVN 历史（`svn cat -r <n>`）。
+- **「为什么 grep 中文搜不到」**：全文用 `LC_ALL=C grep -n $'[\x80-\xff]'` 实测，
+  **整个文件只有 4 行含非 ASCII 字节**（`:23`、`:24`、`:53`、`:62`），`:4` / `:6` **不在其中**。
+  因此任何形如 `grep '数据库'` / `grep '生产'` / `grep 'IP'`（前两个）的检索都**必然 0 命中**，
+  而 `file` 命令又会报 `Unicode text, UTF-8 text, with CRLF line terminators`（因为那 4 行确实是合法 UTF-8）——
+  **「`file` 说是 UTF-8」不等于「文件里没有编码事故」**，它只看整体能否解码。
+- **判据（本轮确立）**：排查「注释明明存在但 grep 不到」时 **MUST 按这个顺序**：
+  1. `file <path>` 看整体编码与行尾（本例 CRLF，说明确实被 Windows 侧工具编辑过）；
+  2. `LC_ALL=C grep -n $'[\x80-\xff]' <path>` 列出**真正含非 ASCII 的行号**，
+     与「肉眼看到有中文的行号」对比 —— 差集就是被损毁的行；
+  3. 只有当第 2 步能列出该行时，才有必要 `iconv -f GB18030 -t UTF-8` 试还原；
+     该行不在第 2 步结果里时，**字符已经没了，iconv 无用**。
+  **NEVER 只凭 `file` 的输出判断「编码没问题」，也 NEVER 直接 `iconv` 整个文件**
+  —— 本例整文件 `iconv -f GB18030` 会把 `:23/:24/:53/:62` 那 4 行真正的 UTF-8 中文**打成乱码**，
+  等于用一次损毁去换另一次损毁。
+- **`:5` 是一行被注释掉的 `other.sql.host` 真值**（生效值在 `:7` 是 `${DB_HOST:}`）。
+  按 AGENTS.md §5.2「敏感配置」，**本文档只记键名与位置、NEVER 回显该值**；
+  要看真值请直接读 `<P>:5`，要看线上实际值 **MUST 查 Deployment 的 `other.sql.host` env**。
+  阶段二已按「陷阱 + 事实」在 §七末条记过一次这一行，**本轮不重复**，只补它被两行乱码夹在中间这个位置事实
+  —— 这也解释了那两行乱码原本大概是在说明这个地址的用途（写它的人显然是想给这行真值配一段中文说明）。
+- **本轮不改这三行**（属改配置文件正文，不在「删注释」范围内）。**建议裁决**：
+  ①`:4`/`:6` 两行已无信息、可直接删或改写成 ASCII 说明；
+  ②`:5` 的真值应移出仓库、只留 `${DB_HOST:}`。两项都需人工确认后再动。
+
+### 矛盾与待裁决
+
+1. **`COMMENT ON` 算不算「注释」：阶段二判 `account-server-schema.sql`「零注释」，本轮判它有 98 条知识载体。**
+   两者**不是对错关系，是口径差**：阶段二的计数脚本按 `--` 开头行统计（该文件确实 0 行），
+   而 `COMMENT ON` 是**会写进 `USER_TAB_COMMENTS` / `USER_COL_COMMENTS` 的 DDL 语句**，
+   语法上不是注释、语义上却是列取值域的唯一权威定义。
+   **结论：两个口径都保留，但 NEVER 混用做覆盖率对比。** 本轮起明确分三个口径记：
+   「`--` 行数」（阶段二用，本模块 39）、「`COMMENT ON` 条数」（本轮用，本模块 107）、
+   「两者之和」（146，**仅用于说明工作量，NEVER 用于跨模块比较**）。
+   连带修正一条：阶段二「零知识注释文件清单」里把 `<S>/account-server-schema.sql` 与
+   `<S>/account-server-card-type-migration.sql` 列为零知识，**按 `COMMENT ON` 口径这两个文件都不是零知识**
+   （98 条 / 2 条），**NEVER 再据那份清单认为「schema 文件不用读」**。
+2. **`<S>/account-server-schema.sql:248` 给一个不存在的列写了 `COMMENT ON`。**
+   该句是 `COMMENT ON COLUMN APP_USER_PAY_CHANNEL.THIRD_USER_ID_SUFFIX IS '第三方用户ID后两位，分区字段'`，
+   而同文件 `:223-235` 的 `CREATE TABLE APP_USER_PAY_CHANNEL` **没有这一列、也没有 `PARTITION BY` 子句**。
+   **后果**：在空库上顺序执行本脚本时这一句必报 `ORA-00904 invalid identifier`；
+   若执行方式是「整脚本一把过、遇错即停」，**它后面的 `USER_ACC_EMPLOYEE_CARD` 等三张表全部不会建**。
+   （现有 `AFCITPDB` 是既有库、不走这条路径，因此**至今没暴露**——这正是 AGENTS.md §8
+   「`*-schema.sql` 只服务新建库」那条的另一面：**schema 文件的错误只在建新库那一刻才发现**。）
+   **待裁决**：①删掉 `:248`（若 `APP_USER_PAY_CHANNEL` 本就不该分区），或
+   ②给 `CREATE TABLE` 补上虚拟列 + LIST 分区（若原设计是要按 `THIRD_USER_ID` 分区，与 `USER_ITP_REG_INFO` 看齐）。
+   **在裁决前 NEVER 拿这条注释当「本表已分区」的证据。**
+3. **`<S>/account-server-schema.sql:395` 的 `TICKET_TYPE` 取值域漏了 `CARD_POOL_CONFIRM_REJECTED`。**
+   注释只列 `SIGN_SYNC_RETRY_EXHAUSTED` 与 `EMPLOYEE_CARD_STATUS_UNSYNCED` 两个，
+   而代码里第三个类型 `AccountExceptionTicket.TYPE_CARD_POOL_CONFIRM_REJECTED` 已在两条开户链路上真实开单
+   （`AccountRegistrationServiceImpl` 与 `AlipayTripRegistrationServiceImpl` 各一处，ADR-D52）。
+   `:396` 的 `BIZ_KEY` 构造规则同样没写这个类型用什么键。
+   **危险方向**：按注释去做「工单类型白名单校验」或运营页面下拉框，会把卡池工单**判成非法类型**。
+   **待裁决**：补齐第三个取值与它的 `BIZ_KEY` 规则（代码实测取值请现场 grep `TYPE_CARD_POOL_CONFIRM_REJECTED` 的赋值点）。
+4. **同一张表被 `COMMENT ON TABLE` 写了两次，后一句静默覆盖前一句。**
+   `USER_ACC_TICKETNO` 在 `:175` 有一条**墓碑式长注释**（「【已废弃，保留不删】账户侧自建卡号池。
+   发号已整体迁至 card-pool-server 的 `LOGIC_CARD_POOL_CARD`（开户走 reserve/confirm/release 三段式）。
+   本表在 account-server 内**无任何 mapper、entity 与读写代码**（2026-09-11 全仓 grep 核实），
+   因此建表语句保留仅为与既有库结构对齐，**NEVER 再新增针对本表的代码**」），
+   而 `:215` 又写了一条 `COMMENT ON TABLE USER_ACC_TICKETNO IS '账户卡号池表'`。
+   **Oracle 的表注释是覆盖语义**，顺序执行后**库里只剩「账户卡号池表」这五个字，那段墓碑在数据库里完全看不到**
+   —— 也就是说「本表已废弃」这个最关键的信息**只存在于仓库文件里**，
+   任何从库端（`USER_TAB_COMMENTS`）反查表用途的人都会得到「这是个在用的卡号池表」的错误结论。
+   **待裁决**：删掉 `:215` 那句，或把墓碑内容并入它。**在裁决前，判断本表是否在用 MUST 看 `:175`，NEVER 看库里的表注释。**
+5. **遗留矛盾归类结论（阶段一提出、阶段二未裁决的两条，本轮按要求给结论）**：
+   - **`EmployeeCardServiceImpl.java:111-113` 那条唯一的英文注释 → 归类「事实型 Javadoc」，保留其信息、
+     翻译回中文。** 原文：`ACC cardNo is the employee number, not a logical card number. APP performs the later silent account opening.`
+     裁决理由：它陈述的是**两条真实业务事实**（① `cardNo` 是员工号、不是逻辑卡号 —— 与
+     `<S>/account-server-schema.sql:289` 的 `COMMENT ON` 互相印证；②后续静默开户由 APP 侧完成、**不在本模块**），
+     属「不看这句就会把 `cardNo` 当卡号去查 `USER_ITP_REG_INFO`」的必要说明，**不是叙述体、不是事故史、不是墓碑**，
+     因此**不属本轮删除范围**。它唯一的问题是**全模块唯一一处英文**，属风格漂移而非知识缺陷。
+     **本轮处置：作为方法 Javadoc 保留，措辞译为中文并压成一行。**
+   - **`PayChannelServiceImpl.java:132-139` 的整段失效代码 → 归类「失效代码（dead code），删除；
+     但它遮住的业务缺口 MUST 留在文档里」。** 那 8 行是被 `//` 注释掉的 IF8A-23 校验：
+     `if (!issueCardType.equals(regInfo.getCardType()) || !request.getCardId().trim().equals(regInfo.getCardId())) { 返 INVALID_PARAM「cardId或cardType与开户信息不匹配」 }`。
+     裁决理由：注释掉的代码**不是注释**，它既不解释什么、也不禁止什么，留着只会让下一个人以为「这个校验还在」
+     （版本历史归 SVN，不归代码正文）。**因此本轮删除这 8 行。**
+     **但同时确认一个仍然生效的事实并记在此**：**IF8A-23 当前不校验 `cardId` / `cardType` 与开户信息是否匹配** ——
+     只校验「有无有效账户」（`:123-128`）与「该 (thirdUserId, cardType, channel) 通道是否已存在」（`:141-150`），
+     `:130-131` 还留着一行 `log.info` 打印比对结果、**但比对结果不影响流程**。
+     **待裁决**：这是有意放宽（多卡 / 亲情卡场景下 APP 上送的 `cardId` 可能不是主卡）还是漏删，
+     需业务确认；**NEVER 因为「代码里曾经有过」就直接把校验恢复** —— 恢复它会让当前能通的请求开始返 `INVALID_PARAM`。
+
+### 墓碑清单（阶段三新增，编号续阶段二的 94，从 95 起；前两轮 94 条不重复）
+
+判据同前两轮：注释的唯一作用是**禁止回退到某个已被推翻的做法或已搬走的位置**。
+
+| # | 位置 | 它想禁止的事 | 可否写成断言测试 |
+|---|---|---|---|
+| 95 | `<S>/account-server-schema.sql:175` | 认为 `USER_ACC_TICKETNO` 还在用、给它新增 mapper / entity / 读写代码（发号已整体迁至 card-pool-server 的三段式） | 可：结构断言全模块无该表名的 mapper 语句与实体 |
+| 96 | `<S>/account-server-schema.sql:193` | 把 `DEL_YN` 当成「1 = 已删」写 WHERE（方向与直觉相反） | 可：SQL 文本断言两个 `DEL_YN` 片段的字面量 + 单测断言 `isActive()` |
+| 97 | `<S>/account-server-schema.sql:198-199` | 把 `CARD_ISSUE_CODE` 与 `ISSUE_ORG_CODE` 互换用；或让 `ISSUE_ORG_CODE` 参与码体拼装 | 部分：可单测断言码体拼装只读 `CARD_ISSUE_CODE` 右 2 位 |
+| 98 | `<S>/account-server-schema.sql:240` | 把 `PAY_ACCOUNT_ID` 与 `THIRD_PAY_ID` 混用；或把「该列为空」当成数据丢失去补查跨域 RPC（会退回 ADR-D30 消掉的 N+1） | 可：结构断言运营只读路径不依赖 `PaySignClient`（与阶段二 75 同源，本条是 DDL 侧那份） |
+| 99 | `<S>/account-server-schema.sql:289 / :291` | 允许 `CARD_NO` 或已开通员工码的 `PHONE` 被 UPDATE（两条「不可变」**没有数据库约束**，只能靠代码） | 可：结构断言 `UserAccEmployeeCardMapper.xml` 的 UPDATE 语句 SET 列表不含这两列 |
+| 100 | `<S>/account-server-schema.sql:299` + `:269` CHECK | 只改 `EmployeeCardStatus` 枚举取值、不改 `CK_UAEC_CARD_STATUS`（新增取值会被数据库拒、报的是约束名而非业务错） | 可：断言枚举 `code()` 集合与 CHECK 里的字面量集合相等 |
+| 101 | `<S>/account-server-schema.sql:393` | 让其它域往 `ACCOUNT_EXCEPTION_TICKET` 写入 / 把它当公共工单表（同 ADR-D46「NEVER 抽公共 outbox 表」） | 部分：可全仓 grep 断言只有 account-server 引用该表名 |
+| 102 | `<S>/account-server-schema.sql:396` + `:386` UK | 新增工单类型时不定义它的 `BIZ_KEY` 构造规则（开单幂等全靠 `(TICKET_TYPE, BIZ_KEY)` 组合键，缺规则即同一件事开无数条） | 可：单测断言每个 `TYPE_*` 常量都有对应的 key 构造分支 |
+| 103 | `<S>/account-server-schema.sql:400` | 往 `DETAIL` 里写密钥等敏感信息 | 部分：可写「开单入参不含配置键值」的扫描断言 |
+| 104 | `<S>/account-server-active-user-cardtype-index-migration.sql:16-22` | 在新库上直接建唯一索引、跳过 `ORA-01452` 前置统计；或统计出重复后删行（卡号可能已发用户） | 部分：可写库回查断言（`COUNT(*)` vs `COUNT(DISTINCT ...)`），非纯单测 |
+| 105 | `<S>/account-server-active-user-cardtype-index-migration.sql:24-26` | 因 `mcp_database_qd` 验证不过（`McpSqlValidationException`）就去改索引形状，而不是包一层 PL/SQL | 不可（工具链知识，只能靠文档） |
+| 106 | `<S>/account-server-hce-data-migration.sql:1` | 认为「执行过 card-type 那个脚本就等于列都加齐了」而跳过本脚本 | 部分：可写库回查断言列存在 |
+| 107 | `<F>/java/.../controller/EmployeeCardController.java`（类上无 `@RequestMapping`） | 为「整齐」给 fep-acc 的两个端点加类级路径前缀（ACC 侧立即全部 404） | 可：反射断言本类无类级 `@RequestMapping` + 两条路径字面量 |
+| 108 | `<F>/java/.../controller/EmployeeCardController.java:31-33` | 按 AGENTS.md §4 的 `x-www-form-urlencoded` 造 ACC 请求（本链路是 `multipart/form-data`，不匹配即 415） | 可：反射断言两个端点的 `consumes` 值 |
+| 109 | `<F>/resources/application.properties:9-10` | 把 `service.account.url` 写成 `127.0.0.1`（K8s 里等于打到自己）或删掉该键 | 部分：可写配置扫描断言，**无法覆盖集群 env 覆盖值** |
+| 110 | `<F>/java/.../service/`、`service/impl/` 两个空目录（`.gitkeep`） | 在纯转发前置里写业务逻辑（这两个目录一有内容就说明边界破了） | 可：结构断言 `fep-acc-server` 无 `@Service` Bean |
+
+### 覆盖率自评
+
+**计数口径**（承阶段二，本轮新增第三个口径，三者 NEVER 混用）：
+①`--` / `#` 开头行；②`COMMENT ON` 语句条数；③Java / XML 块注释按每行计。
+
+| 项 | 数 | 说明 |
+|---|---|---|
+| 本轮覆盖文件数 | **11** | `<S>/*.sql` 7 个 + `<P>` 1 个（只 `:4~6`）+ `<F>` 3 个 `.java` 与 1 个 `.properties`（后者计入 `<F>`，故 7+1+3=11） |
+| `COMMENT ON` 条数 | **107** | schema 98 + card-type 2 + companion-flag 1 + hce-data 1 + pay-account-id 1 + phone-sync 4 = 107，**逐文件 `grep -c` 实测** |
+| SQL `--` 行 | **39** | active-user-cardtype 26 + phone-sync 6 + pay-account-id 5 + companion-flag 1 + hce-data 1 + schema 0 + card-type 0 = 39，与阶段二一致 |
+| `fep-acc-server` 注释行 | **30** | 3 个 `.java` 共 28 行（3 + 10 + 15）+ `application.properties` 2 行（`:9-10`）= 30 |
+| `<P>` 乱码行 | **3** | `:4`、`:6` 为损毁行；`:5` 是被注释掉的真值行（阶段二已记，本轮只补位置关系） |
+| 本轮落笔条目 | **63** | §一 7 条 + §二 4 条（含 4 个子项）+ §三 5 条 + §四 4 条 + §五 4 条 + §六 2 条（含 6 个子项）+ §七 4 条（含 10 个子项）+ §八 5 条 + 矛盾 5 条 + 墓碑 16 条 |
+| 判为零决策信息 | **`COMMENT ON` 里 62 条 / 30 行 fep-acc 里 3 行** | 前者是字段名直译（如「主键」「手机号」「创建时间」），后者是 `FepAccServer` 的类注释；**只计数、不逐条抄** |
+
+**覆盖判断**：`<S>` 目录与 `<F>` 模块**本轮已 100% 逐行读过**（7 个 SQL 文件 484 行全文、
+`fep-acc-server` 4 个文件全文），`<P>` **只覆盖 `:4~6`**（其余行阶段二已覆盖）。
+
+**仍未覆盖 / 本轮刻意不做**：
+
+1. **`account-server` 与 `fep-acc-server` 都没有 `src/test`**（本轮 `find` 实测：两模块的 `src` 下只有 `main`）。
+   阶段二遗留清单第 1 项「`src/test` 全部未读」**因此已闭合，但闭合方式是「目录不存在」，不是「读完了」** ——
+   阶段一引用过的 `UserItpRegInfoMapperSqlTest` / `PayChannelInternalContractTest` /
+   `delYnLiteralsStayInsideTheTwoFragments` **在仓库里都不存在**，那些名字是**建议写的测试**、不是已有测试。
+   **NEVER 再把它们当成现有测试引用。**
+2. **两个模块的 `pom.xml` 注释仍未抽**（承阶段二第 2 项）。已知事实在 AGENTS.md §7：
+   `account-server` 的 `build-image-remote` 绑 `package`（`account-server/pom.xml:136`）、
+   `fep-acc-server` 的 jkube goals 在 `fep-acc-server/pom.xml:78~80` **被整段 XML 注释掉**
+   —— 后者本身就是「注释里藏着部署行为」的活样例，值得单独一轮。
+3. **`log4j2-*.xml` 等非 mapper 资源仍未纳入**（承阶段二第 3 项）。
+4. **`<P>:4`/`:6` 的原意未追** —— 可用 `svn log <P>` + `svn cat -r <n> <P>` 找到损毁前的版本，本轮未做。
+5. **`COMMENT ON` 与库内实际注释未做逐条比对** —— 本轮只读仓库文件，**没有查
+   `USER_TAB_COMMENTS` / `USER_COL_COMMENTS` 核对 `AFCITPDB` 里实际存的是哪一版**。
+   矛盾第 4 条（表注释被覆盖）与第 2 条（列不存在）都**只是按文件顺序推断的后果，未在库上验证**。
+   下一轮 MUST 补这次回查，判据：`SELECT * FROM USER_TAB_COMMENTS WHERE TABLE_NAME = 'USER_ACC_TICKETNO'`
+   若返回「账户卡号池表」即证实覆盖；`USER_COL_COMMENTS` 里若无 `THIRD_USER_ID_SUFFIX` 行即证实 `:248` 从未生效。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -16,17 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/**
- * {@link ContractGatewayPort} 的唯一实现：**签约/解约方向所有出向 URL 与应答判读的收口点**
- * （2026-09-16，ADR-D112；形态照 {@link AccountDomainRpcAdapter}）。
- *
- * <p><b>本类是「哪个 URL」这件事在本方向的唯一持有者</b>。NEVER 让领域服务再注
- * {@code PaySignProperties} 只为取 URL —— 那正是收口前的形态。
- *
- * <p>报文装配继续复用 {@code PaySignGatewayMessages} 的静态纯函数（ADR-D98），
- * 本类只做「选 URL + 调 + 判读」这三件事，<b>NEVER 往里加业务判断</b>
- * （状态机、金额、渠道分派一律留在领域服务）。
- */
+/** {@link ContractGatewayPort} 的唯一实现：**签约/解约方向所有出向 URL 与应答判读的收口点**。 */
 @Component
 public class ContractGatewayAdapter implements ContractGatewayPort {
 
@@ -69,24 +59,14 @@ public class ContractGatewayAdapter implements ContractGatewayPort {
                 buildDismissalBizData(requestSignSeq)));
     }
 
-    /**
-     * 成功码判定的**唯一入口**。
-     *
-     * <p>沿用 {@code PaySignGateway.isSuccess}（内部即 {@code PayGatewayClient} 的
-     * {@code code=0 或 SUCCESS_CODE}），<b>NEVER 在本类重写一份判定</b>。
-     */
+    /** 成功码判定的**唯一入口**。 */
     private GatewayReply judge(PaySignGatewayResponse response) {
         return paySignGateway.isSuccess(response)
                 ? new GatewayReply.Accepted(response)
                 : new GatewayReply.Rejected(response);
     }
 
-    /**
-     * 签约回调地址：报文 {@code notifyUrl} → 配置默认值 → {@code returnUrl}。
-     *
-     * <p>由 {@code ContractDomainServiceImpl.resolveNotifyUrl} 原样搬入（ADR-D112）。
-     * <b>顺序 NEVER 调整</b>：三级回落是对外契约的一部分，改了会把回调打到另一个地址。
-     */
+    /** 签约回调地址：报文 {@code notifyUrl} → 配置默认值 → {@code returnUrl}。 */
     private String resolveNotifyUrl(RequestSignInfoReqDTO request) {
         if (StringUtils.hasText(request.getNotifyUrl())) {
             return request.getNotifyUrl();

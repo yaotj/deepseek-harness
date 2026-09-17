@@ -17,8 +17,6 @@ import java.time.Duration;
 
 /**
  * fep-dev-server RPC Client。
- *
- * <p>通过 HTTP/FormData 调用 fep-dev-server 的 AGM 设备接口。</p>
  */
 @Service
 public class FepDevClient extends ProxyWebClient {
@@ -38,9 +36,8 @@ public class FepDevClient extends ProxyWebClient {
 
     /**
      * IF1A-01 闸机检票通知（FormData 调用 fep-dev-server）。
-     *
-     * @param bizData 业务参数
-     * @return 闸机检票通知处理结果
+     * @param bizData 业务参数。
+     * @return 闸机检票通知处理结果。
      */
     public NotifyVerifyResultRespDTO notifyVerifyResult(@RequestBody NotifyVerifyResultReqDTO bizData) {
         Map<String, String> formData = new java.util.HashMap<>();

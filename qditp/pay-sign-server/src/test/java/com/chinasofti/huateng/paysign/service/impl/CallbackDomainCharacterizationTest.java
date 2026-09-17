@@ -21,24 +21,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/**
- * {@code PaySignWorkflow} 两个回调入口的**特征测试**（批次 0 护栏）。
- *
- * <p>这里钉住的四条都对应**已发生过的生产事故或已立 ADR 的决定**，拆分时变红即说明踩回旧坑：
- * <ul>
- *   <li><b>签约成功回调 NEVER 直接调 {@code appNotifyService}</b>（ADR-D32 / 2.0.75）：该方法带
- *       {@code @Transactional}，事务内投递通知一旦随后回滚，APP 已收到「签约成功」而
- *       {@code APP_PAY_SIGN_INFO} 并没有那行。现在只发 {@link SignResultCommittedEvent}，
- *       由 {@code SignResultCommittedListener} 在 {@code AFTER_COMMIT} 投递。<b>本类是这条不变量的
- *       唯一自动化断言点</b>——把通知调回来编译照样通过、单跑接口也「看起来正常」。</li>
- *   <li><b>签约失败分支既不落签约主表也不发事件</b>：失败只留流水，
- *       {@code APP_PAY_SIGN_LOG.SIGN_STATUS} 落 {@code FAILED}。</li>
- *   <li><b>解约回调只接受 {@code SCANNING}</b>（白名单，不是「非终态即可」）：{@code PENDING} 尚未做
- *       未结清欠费校验，放行等于绕过前置校验直接删签约记录并通知 APP 解约成功。</li>
- *   <li><b>终态（{@code SUCCESS} / {@code FAILED}）幂等短路返成功</b>：支付中心会重推同一笔，
- *       第二次 MUST 不再删一遍通道、也 MUST NOT 对上游报错引来更多重推。</li>
- * </ul>
- */
+/** 护栏：签约成功回调只发事件不直接通知；解约回调只接受 SCANNING，终态幂等短路。 */
 class CallbackDomainCharacterizationTest {
 
     private static final String WALLET_VENDOR = "0B";
@@ -85,15 +68,7 @@ class CallbackDomainCharacterizationTest {
         assertEquals("FAILED", logs.get(logs.size() - 1).getSignStatus());
     }
 
-    /**
-     * 钱包（{@code 0B}）签约成功回调<b>必须被接受并落 {@code APP_PAY_SIGN_INFO}</b>。
-     *
-     * <p>本用例此前叫 {@code walletSignResultCallbackIsRejected}，断言 8001「钱包支付不支持签约结果回调」。
-     * 那条契约已于 2026-09-15 作废：钱包也在支付中心建代扣签约，而 {@code APP_PAY_SIGN_INFO}
-     * 是 {@code requestPay} 取 {@code requestSignSeq} 的权威来源 —— 拒掉回调等于
-     * 「支付中心侧已签约、我方表里零行」的静默不一致。论证见
-     * {@code CallbackDomainServiceImpl.receiveSignResult} 方法体内注释。<b>NEVER 回退。</b>
-     */
+    /** 钱包（{@code 0B}）签约成功回调必须被接受并落 {@code APP_PAY_SIGN_INFO}。 */
     @Test
     void walletSignResultCallbackIsAcceptedAndPersisted() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();

@@ -14,19 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * 锁定 {@code AppTerminationRequestMapper.xml} 里 6 条 CAS 的前置条件与副作用列。
- *
- * <p>存在理由：解约状态机的<b>并发保证只在这些 WHERE 里</b>，Java 侧的白名单枚举只做解析与文档化。
- * 一旦某条 CAS 的前置条件被删掉（或被拆成多条无 CAS 的 update），SQL 依然语法合法、编译与其它单测
- * 全绿，只会在生产上表现为「已超时打成 FAILED 的申请被迟到回调改成 SUCCESS，APP 收到两条相反通知」——
- * 2026-09-12 之前主收口路径就是那样。
- *
- * <p>本测试不连数据库，只用 MyBatis 自己的 {@link XMLMapperBuilder} 离线解析这份 XML 并取渲染后的
- * SQL 文本，本机与 CI 都能无条件运行。
- *
- * <p><b>NEVER 把断言放宽成「只判断包含 TERMINATION_STATUS」</b>：那就失去了前置条件保护。
- */
+/** 护栏：离线渲染 XML，钉住 6 条 CAS 的前置状态、通知轮次归零、两条留痕语句与通道清理扫表的四个坑。 */
 class AppTerminationRequestMapperSqlTest {
 
     private static final String RESOURCE = "mapper/AppTerminationRequestMapper.xml";
@@ -45,11 +33,7 @@ class AppTerminationRequestMapperSqlTest {
             {"reactivateFailed", "FAILED"},
             {"initChannelSyncPending", "SUCCESS"}};
 
-    /**
-     * 每条 CAS 的 WHERE MUST 同时带主键与前置状态。
-     *
-     * <p>只带主键 = 无条件覆盖；只带状态 = 全表更新。两者都必须在。
-     */
+    /** 每条 CAS 的 WHERE MUST 同时带主键与前置状态。 */
     @Test
     void everyCasStatementKeepsBothKeyAndPreconditionInWhere() {
         Configuration configuration = parseMapper();
@@ -68,13 +52,7 @@ class AppTerminationRequestMapperSqlTest {
         }
     }
 
-    /**
-     * 三条「产生新通知」的语句 MUST 把通知轮次归零。
-     *
-     * <p>沿用残留轮次会让新通知一上来就接近 {@code app.notify.max-retry-count} 上限，
-     * 首次投递失败后补偿再也扫不到它（{@code selectCompensableNotify} 按
-     * {@code NVL(NOTIFY_RETRY_COUNT,0) < maxRetryCount} 过滤）。
-     */
+    /** 三条「产生新通知」的语句 MUST 把通知轮次归零。 */
     @Test
     void statementsProducingNewNotificationResetRetryBudget() {
         Configuration configuration = parseMapper();
@@ -88,12 +66,7 @@ class AppTerminationRequestMapperSqlTest {
         }
     }
 
-    /**
-     * {@code markSuccess} 与 {@code rejectScanning} MUST 落完成时间。
-     *
-     * <p>2026-09-12 之前完成时间由单独的 {@code updateCompleteTime} 写，那条语句没有 CAS；
-     * 合成一条之后 COMPLETE_TIME 与状态同生共死，NEVER 再拆开。
-     */
+    /** {@code markSuccess} 与 {@code rejectScanning} MUST 落完成时间。 */
     @Test
     void scanningClosureWritesCompleteTimeInTheSameStatement() {
         Configuration configuration = parseMapper();
@@ -130,17 +103,7 @@ class AppTerminationRequestMapperSqlTest {
         }
     }
 
-    /**
-     * 整份 XML 里 {@code TERMINATION_STATUS} 的**赋值**次数固定为 7 处，防止有人悄悄新增
-     * 一条不带 CAS 的状态写语句 —— 那种语句加进来编译与上面按名单的断言都不会红。
-     *
-     * <p>7 = markScanning / revertScanningToPending / rejectPending / markSuccess /
-     * rejectScanning / expireScanning / reactivateFailed。
-     * {@code updateStatus} 与 {@code updateFailReason} 用的是 {@code #{status}} 占位符、不是字面量，
-     * 因此不计入；它们已无解约收口调用方，见 ArchUnit 门禁。
-     *
-     * <p>数字变了 **MUST 先确认新语句带 CAS**，NEVER 直接改这个期望值。
-     */
+    /** 整份 XML 里 {@code TERMINATION_STATUS} 的**赋值**次数固定为 7 处，防止有人悄悄新增。 */
     @Test
     void terminationStatusAssignmentCountIsPinned() {
         String xml = readResourceStrippingComments();
@@ -155,16 +118,7 @@ class AppTerminationRequestMapperSqlTest {
                 "TERMINATION_STATUS 的字面量赋值语句数变了，MUST 先确认新语句的 WHERE 带前置状态");
     }
 
-    /**
-     * 两条留痕语句是「解约结果矛盾」的唯一落库手段，三条不变量都 MUST 在，且 CAS 前置状态 MUST 相反。
-     *
-     * <p>它们本身不改状态，因此上面按状态名单做的断言覆盖不到，必须单独钉：
-     * 少了 CAS 会把任意状态的行都标成需人工；少了 {@code INSTR} 幂等闸门，支付中心每次重推
-     * 都再前置拼一遍标记，512 字符的 {@code FAIL_REASON} 很快被挤满、原始原因反而被截掉；
-     * 一旦它们写了 {@code TERMINATION_STATUS} 或 {@code NOTIFY_}，就等于替业务决定了「要不要反悔」。
-     *
-     * <p>两条的前置状态 MUST 分别是 {@code FAILED} 与 {@code SUCCESS}：写反等于在错误的那一半留痕。
-     */
+    /** 两条留痕语句是「解约结果矛盾」的唯一落库手段，三条不变量都 MUST 在，且 CAS 前置状态 MUST 相反。 */
     @Test
     void manualReviewMarksAreAppendOnlyIdempotentAndStatusScoped() {
         Configuration configuration = parseMapper();
@@ -194,19 +148,7 @@ class AppTerminationRequestMapperSqlTest {
         }
     }
 
-    /**
-     * 通道清理补偿的扫表 SQL MUST 同时满足四条不变量（{@code docs/domain/outbox.md} §二的四个坑）。
-     *
-     * <p>这条 SQL 是 2026-09-12 才接上调用方的（此前 5 条 CHANNEL_SYNC 语句全是死代码），
-     * 四个坑任缺一个都不会报错、只会让某一类记录**永远补不回来**：
-     * <ul>
-     *   <li>{@code ROWNUM} 与 {@code ORDER BY} 同层 ⇒ 先截断再排序，最旧的记录可能永远排不进这一批；</li>
-     *   <li>重试次数不套 {@code NVL} ⇒ 该列为 NULL 的行比较结果 UNKNOWN、一条都捞不到；</li>
-     *   <li>状态改成「不等于 SUCCESS」的黑名单 ⇒ 把 NULL 的历史行与 MANUAL 一起捞进来，
-     *       前者等于凭空再删一次通道，后者等于覆盖人工结论；</li>
-     *   <li>{@code TERMINATION_STATUS} 放宽到含 FAILED ⇒ 给没有通道要删的申请发起清理。</li>
-     * </ul>
-     */
+    /** 通道清理补偿的扫表 SQL MUST 同时满足四条不变量（{@code docs/domain/outbox.md} §二的四个坑）。 */
     @Test
     void channelSyncCompensationScanKeepsAllFourInvariants() {
         String sql = boundSql(parseMapper(), "selectCompensableChannelSync").replaceAll("\\s+", " ");
@@ -228,11 +170,7 @@ class AppTerminationRequestMapperSqlTest {
                         + "PENDING 行该列为 NULL，直接比较结果 UNKNOWN、排序也会被甩到最后；实际渲染：" + sql);
     }
 
-    /**
-     * 三条会写 {@code CHANNEL_SYNC_STATUS} 的 update MUST 带 MANUAL 闸门，否则人工处理完又被补偿改回去。
-     *
-     * <p>{@code markChannelSyncManual} 自己是**进入** MANUAL 的那一条，前置条件是 FAILED，不在此列。
-     */
+    /** 三条会写 {@code CHANNEL_SYNC_STATUS} 的 update MUST 带 MANUAL 闸门，否则人工处理完又被补偿改回去。 */
     @Test
     void channelSyncWritesNeverOverwriteManualOutcome() {
         Configuration configuration = parseMapper();

@@ -2,14 +2,6 @@ package com.chinasofti.huateng.model.pay;
 
 /**
  * 支付结果回调驱动的扣费状态同步请求。
- *
- * <p>pay-sign-server 收到支付中心的支付结果回调、本地 PAY_TXN_DETAIL 落地成功后，
- * 用本报文通知 gate-txn-pay-server 把 GATE_TXN_PAY.DEBIT_STATUS 收敛到终态。</p>
- *
- * <p>存在的原因：GATE_TXN_PAY 只在「日票 / 零元交易」这一条分支上直接写 SUCCESS，
- * 真实免密扣款订单在调 pay-sign 后只会停在 PROCESSING 或 RETRY，
- * 没有任何代码能把它推进到 SUCCESS——扣款成功与否只有支付中心的回调知道，
- * 而回调只发到 pay-sign-server（2026-08-26 生产实测：全部真实扣款订单卡在中间态）。</p>
  */
 public class GateTxnPaySyncStatusReqDTO {
 

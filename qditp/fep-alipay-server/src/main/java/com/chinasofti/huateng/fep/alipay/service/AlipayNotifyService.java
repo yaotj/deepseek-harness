@@ -12,7 +12,6 @@ public interface AlipayNotifyService {
 
     /**
      * 支付中心-支付结果回调。
-     *
      * @param request 请求对象
      * @return 响应对象
      */
@@ -20,7 +19,6 @@ public interface AlipayNotifyService {
 
     /**
      * 支付宝出行-业务关闭结果通知。
-     *
      * @param request 请求对象
      * @return 响应对象
      */

@@ -69,9 +69,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         truncate table sys_job_log
     </update>
  	
- 	<!-- job_log_id 是 Oracle IDENTITY 列（DEFAULT ON NULL），库里没有对应序列，
- 	     因此回填主键只能靠 JDBC getGeneratedKeys，NEVER 改成 selectKey 取 nextval。
- 	     回填是 before() 先插「进行中」、after() 再按主键 UPDATE 的前提。 -->
+ 	<!-- job_log_id 是 IDENTITY 列，主键靠 getGeneratedKeys 回填；判据见 docs/architecture/web-server.md 附B -->
  	<insert id="insertJobLog" parameterType="SysJobLog" useGeneratedKeys="true" keyProperty="jobLogId" keyColumn="job_log_id">
  		insert into sys_job_log(
  			<if test="jobLogId != null and jobLogId != 0">job_log_id,</if>
@@ -94,8 +92,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
  		)
 	</insert>
 
- 	<!-- 执行收口时按主键回写结果。create_time 保持插入时刻（即任务开始时间）不变，
- 	     exception_info 用 #{} 而非 <if>，成功时需要把上一次残留清空。 -->
+ 	<!-- 执行收口时按主键回写结果；create_time 保持插入时刻（任务开始时间） -->
  	<update id="updateJobLog" parameterType="SysJobLog">
  		update sys_job_log
  		set status = #{status},

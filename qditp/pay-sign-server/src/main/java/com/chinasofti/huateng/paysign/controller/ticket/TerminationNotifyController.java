@@ -18,11 +18,7 @@ public class TerminationNotifyController {
 
     private final PaySignService paySignService;
 
-    /**
-     * 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备，
-     * 且夹具漏注 / 多注一个协作者会**编译失败**，而不是运行时才报 {@code Could not find field}。
-     * <b>NEVER 退回 {@code @Autowired} 字段注入。</b>
-     */
+    /** 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备。 */
     public TerminationNotifyController(PaySignService paySignService) {
         this.paySignService = paySignService;
     }

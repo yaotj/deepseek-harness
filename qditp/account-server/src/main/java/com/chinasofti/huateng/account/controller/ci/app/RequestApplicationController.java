@@ -34,43 +34,39 @@ import org.springframework.web.bind.annotation.RestController;
 public class RequestApplicationController {
     private static final Logger log = LoggerFactory.getLogger(RequestApplicationController.class);
 
-    /** IF8A-42 销户。第六轮拆分后直连实现方，原 AccountApplicationService 已删除。 */
+    /**
+     * IF8A-42 销户。
+     */
     private final AccountCancelService accountCancelService;
 
     /**
-     * 账户资料查询。ADR-D35 已把纯内部调用的 {@code queryCardTypeByCardId} 与
-     * {@code updateHceData} 切到 {@code controller/internal/CardDataInternalController}，
-     * 本类只留 {@code queryUserInfo} —— 它<b>内外都有调用方</b>（fep-app 的 IndustryData
-     * 与 ticket / gate-txn-pay / pay-sign 三个内部模块），暂按外部面处理，见 ADR-D35。
+     * 账户资料查询。
      */
     private final AccountProfileService accountProfileService;
 
-    /** 换号（IF8A-76）。直连实现方，NEVER 再加一层转发。 */
+    /**
+     * 换号（IF8A-76）。
+     */
     private final PhoneChangeService phoneChangeService;
 
     /**
      * 支付通道的 <b>APP 契约面</b>五个入口，2026-09-11 第四轮拆分从 accountApplicationService 搬出。
-     *
-     * <p>ADR-D34 已把「调用方是 pay-sign-server」的两个入口切到
-     * {@code PayChannelInternalService} + {@code controller/internal/PayChannelInternalController}，
-     * <b>NEVER 把它们迁回本类</b>。</p>
      */
     private final PayChannelService payChannelService;
 
-    /** 开户发号，2026-09-11 第五轮拆分从 accountApplicationService 搬出。 */
+    /**
+     * 开户发号，2026-09-11 第五轮拆分从 accountApplicationService 搬出。
+     */
     private final AccountRegistrationService accountRegistrationService;
 
     /**
-     * 入向验签器。<b>⚠️ 当前是悬空依赖：本类没有任何方法调它</b>
-     * （全模块 grep 只命中这一处声明与构造器赋值），因此账户域 24 个端点全部裸暴露。
-     *
-     * <p>ADR-D37 改构造器注入后<b>刻意保留它</b>：一个「只在构造器签名里出现、方法体零引用」
-     * 的参数比原先的 {@code @Autowired} 字段更显眼，正好当成待补验签的提醒。
-     * <b>NEVER 因为「没人用」就删掉</b>——删掉等于把这个缺口从代码里抹去。补验签见 ADR-D35。</p>
+     * 入向验签器。
      */
     private final AccountRequestVerifier accountRequestVerifier;
 
-    /** 构造器注入（ADR-D37）。依赖全部 final，漏注入在编译期即报错。 */
+    /**
+     * 构造器注入（ADR-D37）。
+     */
     public RequestApplicationController(AccountCancelService accountCancelService,
                                         AccountProfileService accountProfileService,
                                         PhoneChangeService phoneChangeService,
@@ -110,7 +106,7 @@ public class RequestApplicationController {
     }
 
     /**
-     * 钱包协议约定的解绑入口。钱包没有支付平台签约协议，复用本地支付通道删除事务。
+     * 钱包协议约定的解绑入口。
      */
     @PostMapping("/requestAgreeRelease")
     public RequestRemovePayChannelResult requestAgreeRelease(@RequestBody RequestRemovePayChannelReqDTO request) {
@@ -119,11 +115,7 @@ public class RequestApplicationController {
     }
 
     /**
-     * IF8A-42 用户销户。只注销开户记录，支付渠道由随后的 IF8A-75 解绑。
-     *
-     * <p>内部路径保持 {@code /userCancel}（`AccountClient.userCancel` 按此调用），
-     * 对外规范名 {@code /app/cancelAccount} 只在 fep-app-server 落地，属实现细节差异，
-     * 与 if8a_76 的 {@code newMsisdn} 同一处理方式。</p>
+     * IF8A-42 用户销户。
      */
     @PostMapping("/userCancel")
     public UserCancelResult userCancel(@RequestBody UserCancelReqDTO request) {
@@ -152,14 +144,9 @@ public class RequestApplicationController {
             response.setRetCode(AccountErrorCodeEnum.SUCCESS.getCode());
             response.setRetMsg("更换手机号成功");
         } else {
-            // MUST 用 FAIL(9999)、NEVER 用 SYSTEM_ERROR(9001)：本接口对 APP 一直返 9999，
-            // 换成 9001 就是改对外契约。AccountErrorCodeEnum 类注释已写明本枚举里两套失败语义并存、
-            // NEVER 为了看起来整齐而对齐取值 —— 这条约束同样适用于调用点。
             response.setRetCode(AccountErrorCodeEnum.FAIL.getCode());
             response.setRetMsg("更换手机号失败");
         }
         return response;
     }
-
-
 }

@@ -194,21 +194,15 @@ public class SM2 {
     //测试用博思给的原文、SM2签名值、SM2公钥做验签
     public static void Test2() {
         //博思给的Base64编码的原文、Base64编码的SM2签名值、Base64编码的SM2公钥
-//        String strPublicKey = "fK4YR2f7r2OgnnE60plcFEC2vlLOSK41jPEzKkKysUFZRpQ7WdjZ9fpnl5x3lJfc7Vd9+swwPHuJLWq1yldLWA==";
-//        String strSignData = "4UF1lpSLKHXRxCihfmpWQKy2PgnDX2QvcoJ2//qRahFwjoWg+I8ne39g/hKyaR9kIStVjcSnlPiSJMS/Pe8qVg==";
-//        String strOriginData = "AiIyELeQAPjVs5+2nMUiw3+jN95CUB6ftulNum9rGKJQPtGg13c1/rbh9Utwe88MJJ4523IVqESAdDH/CjwDvPsAAQFiIS8AAQ==";
         String strPublicKey = "A8F743BF71C8491FE48763CACAEB7977AEC4E9E877A01275CDE7B37BE7EA33F493F57F100F328C15F9E9812AA6E34D378055890E5656EFA29451DC0C3E10CCBB";
         String strSignData = "11ADB642E08E022944AB587187AB8E55DC6090E2D307B4845B7FAD6B090F6479DF4928D5D37E177014F475A2DAE7768B9BE9FDE9BE0BF748419F68CDF3386926";
         String strOriginData = "23010100000112A000000111551000000404002103A8F743BF71C8491FE48763CACAEB7977AEC4E9E877A01275CDE7B37BE7EA33F48BC5E3B170ADE5BFD3570D46D20ED35EEDFF152087B3CB4EDFBE0593FDB9E4891494D3FCA50651ADA6C2630C341B2ED2201A9167B2E95348AC506749F785D2673530313536343630303737353638303000202012141707140000A410320200100001010001F4021DF9B6C6B287283E1C85077039D235D33FB8BD7ED2476D648E50B5311B77089160125439003C200143672101263200022200000000000000000000000000000000000000000000";
 
         //公钥Base64解码
-//        byte[] byteArrayPublicKey = Base64.decode(strPublicKey);
 
         //签名值Base64解码
-//        byte[] byteArraySignData = Base64.decode(strSignData);
 
         //原文Base64解码
-//        byte[] byteArrayOriginData = Base64.decode(strOriginData);
 
         byte[] byteArrayPublicKey = TransformUtils.HexStringToByteArr(strPublicKey);
         byte[] byteArraySignData = TransformUtils.HexStringToByteArr(strSignData);
@@ -242,9 +236,6 @@ public class SM2 {
         String strPublicKey = "U2lnbkNlcnRDYWxsQmFja0JvIHNpZ25DZXJ0Q2FsbEJhY2tCbyA9IG5ldyBTaWduQ2VydENhbGxCYWNrQm9hYQ==";
         String strSignData = "pN8JVTWP9Crv+jj4wykgoa0YCaTHzM9OvrFhswRfiwGGI5LTbhaq+yjM1yl4q6ZgobRS6rygqqLTmspsoZQ35g";
         String strOriginData = "MDAwMQ==MDI=U2lnbkNlcnRDYWxsQmFja0JvIHNpZ25DZXJ0Q2FsbEJhY2tCbyA9IG5ldyBTaWduQ2VydENhbGxCYWNrQm9hYQ==MjAyNzA2MjMyMzM2";
-//    String strPublicKey = "wGq75nQW6aElr6FHOQ4fPc4gHuXK6IgHYr8XeaLUvwylvR77ioO8L/ORgwoyIIzDbA6rRhfBz4jArGuYl9zZwg==";
-//    String strSignData = "NhbQnbv3K0a4ei0PLOPUKYKw/LeTmRv35vMun4Z23jWvbUiQskTtclmGY5vCiR4rd4UHVQYBZHFKGlxELfHthA==";
-//    String strOriginData = "YWJjVGVzdDEyMzQ=";
 
         //公钥Base64解码
         byte[] byteArrayPublicKey = Base64.decode(strPublicKey);
@@ -282,12 +273,6 @@ public class SM2 {
         // TODO Auto-generated method stub
         SM2 sm2 = SM2.getInstance();
 
-        //测试SM2密钥对生成、签名、验签
-//        Test1();
-
-        //测试用博思给的原文、SM2签名值、SM2公钥做验签
-//        Test2();
-//        Test3();
 
         System.out.println(sm2.genKeyPairHex());
     }
@@ -311,11 +296,6 @@ public class SM2 {
         byte[] z = getZ(_userId, _x, _y);
         return getH(z, _plain);
     }
-//
-//    public byte[] getHash(byte[] _plain, byte[] _userId) {
-//        byte[] z = getZ(_userId);
-//        return getH(z, _plain);
-//    }
 
     /**
      * 从私钥推导出公钥来
@@ -511,7 +491,6 @@ public class SM2 {
         ECPoint tmpPoint = ecc_curve.decodePoint(tmp);
         byte[] compressed = tmpPoint.getEncoded(true);
         String compressed_str = TransformUtils.bytesToHex(compressed);
-//        String compressed_str = TransformUtils.bytesToHex(compressed);
 
         Map map = new HashMap();
         map.put("privateKey", privateKey);
@@ -657,53 +636,13 @@ public class SM2 {
         System.arraycopy(byteArraySm2PublicKey, 0, byteArrayPublicKeyX, 0, 32);
         System.arraycopy(byteArraySm2PublicKey, 32, byteArrayPublicKeyY, 0, 32);
 
-        //byte[] byteArrayHash = sm2.getHash(byteArrayOriginData, userIDBytes, byteArrayPublicKeyX, byteArrayPublicKeyY);
 
         //签名
-        //byte[] byteArraySignData = sm2.sm2Sign(byteArrayHash, byteArraySm2PrivateKey);
         byte[] byteArraySignData = sm2.sm2Sign(byteArrayOriginData, byteArraySm2PrivateKey);
         return TransformUtils.bytesToHex(byteArraySignData);
     }
 
-//    public String signBase64(String content, String publicKey, String privateKey) {
-//
-//        //私钥
-//        byte[] byteArraySm2PrivateKey = Base64.decode(privateKey);
-//        //公钥
-//        byte[] byteArraySm2PublicKey = Base64.decode(publicKey);
-//        //原文
-//        byte[] byteArrayOriginData = content.getBytes();
-//        //计算哈希值
-//        byte[] byteArrayPublicKeyX = new byte[32];
-//        byte[] byteArrayPublicKeyY = new byte[32];
-//        System.arraycopy(byteArraySm2PublicKey, 0, byteArrayPublicKeyX, 0, 32);
-//        System.arraycopy(byteArraySm2PublicKey, 32, byteArrayPublicKeyY, 0, 32);
-//        byte[] byteArrayHash = sm2.getHash(byteArrayOriginData, userIDBytes, byteArrayPublicKeyX, byteArrayPublicKeyY);
-//
-//        //签名
-//        byte[] byteArraySignData = sm2.sm2Sign(byteArrayHash, byteArraySm2PrivateKey);
-//        return new String(Base64.encode(byteArraySignData));
-//    }
 
-//    public String signBase64(String content, String publicKey, String privateKey) {
-//
-//        //私钥
-//        byte[] byteArraySm2PrivateKey = Base64.decode(privateKey);
-//        //公钥
-//        byte[] byteArraySm2PublicKey = Base64.decode(publicKey);
-//        //原文
-//        byte[] byteArrayOriginData = content.getBytes();
-//        //计算哈希值
-//        byte[] byteArrayPublicKeyX = new byte[32];
-//        byte[] byteArrayPublicKeyY = new byte[32];
-//        System.arraycopy(byteArraySm2PublicKey, 0, byteArrayPublicKeyX, 0, 32);
-//        System.arraycopy(byteArraySm2PublicKey, 32, byteArrayPublicKeyY, 0, 32);
-//        byte[] byteArrayHash = sm2.getHash(byteArrayOriginData, userIDBytes, byteArrayPublicKeyX, byteArrayPublicKeyY);
-//
-//        //签名
-//        byte[] byteArraySignData = sm2.sm2Sign(byteArrayHash, byteArraySm2PrivateKey);
-//        return new String(Base64.encode(byteArraySignData));
-//    }
 
     public boolean verifyHex(String content, String publicKeyHex, String signData) {
 
@@ -772,7 +711,6 @@ public class SM2 {
         System.arraycopy(byteArraySm2PublicKey, 0, byteArrayPublicKeyX, 0, 32);
         System.arraycopy(byteArraySm2PublicKey, 32, byteArrayPublicKeyY, 0, 32);
 
-        //byte[] byteArrayHash = sm2.getHash(byteArrayOriginData, userIDBytes, byteArrayPublicKeyX, byteArrayPublicKeyY);
 
         byte[] byteArraySignData = TransformUtils.HexStringToByteArr(signData);
         //验签
@@ -780,7 +718,6 @@ public class SM2 {
         byte[] byteArraySignDataS = new byte[32];
         System.arraycopy(byteArraySignData, 0, byteArraySignDataR, 0, 32);
         System.arraycopy(byteArraySignData, 32, byteArraySignDataS, 0, 32);
-        //boolean bSm2VerifySign = sm2.sm2Verify(byteArrayHash, byteArrayPublicKeyX, byteArrayPublicKeyY, byteArraySignDataR, byteArraySignDataS);
         boolean bSm2VerifySign = sm2
                 .sm2Verify(byteArrayOriginData, byteArrayPublicKeyX, byteArrayPublicKeyY, byteArraySignDataR,
                         byteArraySignDataS);
@@ -788,28 +725,5 @@ public class SM2 {
         return bSm2VerifySign;
     }
 
-//    public boolean verifyBase64(String content, String publicKey, String signData) {
-//
-//        //公钥
-//        byte[] byteArraySm2PublicKey = Base64.decode(publicKey);
-//        //原文
-//        byte[] byteArrayOriginData = Base64.decode(content);
-//        //计算哈希值
-//        byte[] byteArrayPublicKeyX = new byte[32];
-//        byte[] byteArrayPublicKeyY = new byte[32];
-//        System.arraycopy(byteArraySm2PublicKey, 0, byteArrayPublicKeyX, 0, 32);
-//        System.arraycopy(byteArraySm2PublicKey, 32, byteArrayPublicKeyY, 0, 32);
-//        byte[] byteArrayHash = sm2.getHash(byteArrayOriginData, userIDBytes, byteArrayPublicKeyX, byteArrayPublicKeyY);
-//
-//        byte[] byteArraySignData = Base64.decode(signData);
-//        //验签
-//        byte[] byteArraySignDataR = new byte[32];
-//        byte[] byteArraySignDataS = new byte[32];
-//        System.arraycopy(byteArraySignData, 0, byteArraySignDataR, 0, 32);
-//        System.arraycopy(byteArraySignData, 32, byteArraySignDataS, 0, 32);
-//        boolean bSm2VerifySign = sm2.sm2Verify(byteArrayHash, byteArrayPublicKeyX, byteArrayPublicKeyY, byteArraySignDataR, byteArraySignDataS);
-//
-//        return bSm2VerifySign;
-//    }
 
 }

@@ -8,26 +8,18 @@ import java.util.Map;
 
 @Mapper
 public interface RefundOrderMapper {
-    /**
-     * 根据退款单号查询。
-     */
+    /** 根据退款单号查询。 */
     RefundOrder selectByRefundNo(@Param("refundNo") String refundNo);
 
-    /**
-     * 根据原支付订单号查询。
-     */
+    /** 根据原支付订单号查询。 */
     RefundOrder selectByPayOderNo(@Param("payOderNo") String orderNo);
 
     String selectRefundTotalAmtByPayOderNo(@Param("payOrderNo") String orderNo);
 
-    /**
-     * 插入退款记录。
-     */
+    /** 插入退款记录。 */
     int insert(RefundOrder record);
 
-    /**
-     * 更新退款状态。
-     */
+    /** 更新退款状态。 */
 //    int updateRefundStatus(RefundOrder record);
     int updateRefundStatus(Map<String, String> map);
 }

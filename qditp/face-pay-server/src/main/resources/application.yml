@@ -11,10 +11,7 @@ other:
     username: ${DB_USERNAME:}
     password: ${DB_PASSWORD:}
   web:
-    # MUST 带引号。YAML 裸 null 会被绑成空串，FirstFilter.checkUrlSafe 里
-    # "".split(" ") 得到 [""]，而 url.contains("") 恒为 true —— 所有请求一律
-    # 403 {"msg":"check url unSafe"}，且 warn 日志打的是 unsafe char:（空）。
-    # 旧应用是 K8s env other.web.unSafeUrlChars=null（字符串 "null"），行为等价于关闭。
+    # MUST 带引号写 "null"：YAML 裸 null 绑成空串后 url.contains("") 恒为 true，所有请求一律 403。详见 docs/ops/生产环境清单.md 附.三.5
     unSafeUrlChars: "null"
     enableBodyCacheFilter: true
     enableLogRequestInFilter: true
@@ -66,14 +63,12 @@ f2f:
   device:
     offlineTimeoutSeconds: 300
     offlineScanIntervalMs: 60000
-  ## 出票结果上报（IF2A-05/06）的补偿扫表。首报链路里「落票 -> 推进订单 -> 入队通知」三步之后才
-  ## 置 PROCESSED='1'，中途进程被杀就会留下 PROCESSED='0' 的行，此前无人补。见 ADR-D104。
+  ## 出票结果上报（IF2A-05/06）的补偿扫表，补 PROCESSED='0' 的残留行。见 ADR-D104 与 docs/ops/生产环境清单.md 附.三.5
   report:
     scanIntervalMs: 120000
     scanInitialDelayMs: 60000
     scanLimit: 100
-    ## 静默期：只捞 RECEIVE_TMS 早于「当前时间 - staleSeconds」的行，避开与首报并发。
-    ## NEVER 调到小于设备上报请求的最长耗时，否则补偿会与正在跑的首报抢同一行。
+    ## 静默期：NEVER 调到小于设备上报请求的最长耗时，否则补偿会与正在跑的首报抢同一行
     staleSeconds: 300
 
 pay:
@@ -96,9 +91,7 @@ pay:
     refund-query-url: ${PAY_CENTER_REFUND_QUERY_URL:}
     checkout-counter-url: ${PAY_CENTER_CHECKOUT_COUNTER_URL:}
     pay-notice-url: ${PAY_CENTER_PAY_NOTICE_URL:}
-    ## 补款单（SP 前缀）专用回调地址。留空即回落到 pay-notice-url，而后者指向 /itptvm/ci/tvm/payNotice、
-    ## 那里只查 F2F_ORDER、补款回调恒返 2001 订单不存在（ADR-D103）。
-    ## 线上取值 http://58.56.166.170:48000/itpbom/ci/bom/supplementPayNotice（复用已有网关前缀 /itpbom/）。
+    ## 补款单（SP 前缀）专用回调地址。留空会回落到 pay-notice-url 而恒返 2001 订单不存在（ADR-D103）；线上取值见 docs/ops/生产环境清单.md 附.三.5
     supplement-notice-url: ${PAY_CENTER_SUPPLEMENT_NOTICE_URL:}
 
 service:
@@ -108,28 +101,16 @@ service:
   account:
     url: ${SERVICE_ACCOUNT_URL:}
     openLogger: true
-  ## recon-server 已于 2026-09-11 部署，下面是 kubectl get svc -n itp 实测的真实 Service 名。
-  ## 注意 Service 端口等于 NodePort 号（30034），不等于容器 server.port（9112）。
-  ## 本键缺失时 rpc 会落到默认服务名、DNS 解析不到，表现是「端点返 accepted=true、
-  ## 本服务日志里 PAY/BUS 抽取完成也有，但 recon-server 一片都没收到」。
+  ## Service 端口等于 NodePort 号（30034）、不等于容器 server.port（9112）；本键缺失时 recon-server 一片都收不到。详见 附.三.5
   recon:
     url: ${SERVICE_RECON_URL:http://recon-server-bjzdy-svc.itp.svc:30034}
     openLogger: true
-  ## 补款成功后收敛原过闸订单（POST /internal/gate-txn-pay/debit/converge，2026-09-16 新增）。
-  ## 本模块此前是直接 UPDATE GATE_TXN_PAY（owner 是 gate-txn-pay-server），已改 RPC。
-  ## 与 recon 同一个坑：Service 端口等于 NodePort 号（30019），不等于容器 server.port（9106）。
-  ## 本键缺失时 rpc 落到默认服务名 gate-txn-pay-service、DNS 解析不到，表现是
-  ## 「补款支付成功、补款单 SUCCESS，但明细永远不是 SETTLED、原行程还挂欠费」。
+  ## 补款成功后收敛原过闸订单；端口是 NodePort 号（30019）不是 9106，本键缺失时明细永远不是 SETTLED。详见 附.三.5
   gateTxnPay:
     url: ${SERVICE_GATE_TXN_PAY_URL:http://gate-txn-pay-server-jomf4-svc.itp.svc:30019}
     openLogger: true
 
-## 日终对账抽取（本服务是第 4 个源，只出 ITP.PAY 与 ITP.BUS）。
-## internal-token 目前无读取方：X-Recon-Token 校验已按用户 2026-09-11 的要求在各源与 recon-server
-## 侧整段删除，属测试期有意降级、上线前 MUST 恢复；保留键位是为了恢复时不用再找位置。
-## temp-dir 是分片落地的临时目录，分片一经上送即删除，峰值占用只有「并发文件类型数 乘 单片上限」。
-## worker 默认 1 即串行，NEVER 随手放大：抽取是重 IO 的区间扫描，并发只会互相抢 Oracle 的 IO 与
-## Druid 连接，反而拖慢联机链路。
+## 日终对账抽取（本服务是第 4 个源，只出 ITP.PAY 与 ITP.BUS）。internal-token 暂无读取方、上线前 MUST 恢复；worker 默认 1，NEVER 随手放大。详见 附.三.5
 recon:
   internal-token: ${RECON_INTERNAL_TOKEN:}
   export:

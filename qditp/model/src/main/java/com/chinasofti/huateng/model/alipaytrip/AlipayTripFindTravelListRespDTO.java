@@ -10,27 +10,27 @@ import java.util.List;
 public class AlipayTripFindTravelListRespDTO extends CommonResult {
 
     /**
-     * 当前页码
+     * 当前页码。
      */
     private Integer pageNumber;
 
     /**
-     * 每页大小
+     * 每页大小。
      */
     private Integer pageSize;
 
     /**
-     * 总页数
+     * 总页数。
      */
     private Integer totalPage;
 
     /**
-     * 总记录数
+     * 总记录数。
      */
     private Integer totalCount;
 
     /**
-     * 乘车记录列表
+     * 乘车记录列表。
      */
     private List<AlipayTripTravelRecordDTO> ticketTransRecord;
 

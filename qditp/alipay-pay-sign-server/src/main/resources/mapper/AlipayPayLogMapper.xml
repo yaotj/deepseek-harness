@@ -107,15 +107,7 @@
     </update>
 
     <!-- 支付结果查询的回写，带「非终态」白名单。
-         与 updatePayNotify 的区别只在 WHERE 多了一个状态条件，但语义完全不同：
-         payQuery 是**查询**接口，NEVER 允许它把已经是 SUCCESS 的终态订单改写成 FAIL。
-         已发生的错法是无条件 UPDATE，于是「支付中心暂时查不通」这种链路问题
-         会把一笔已扣款成功的订单打成 FAIL，而 PAY_STATUS 又是欠费盘点
-         countUnsettledByCardId 的判据，直接把乘客算成欠费。
-         影响 0 行有两种含义，调用方 MUST 回读区分：本地已是目标状态（幂等），
-         或本地已 SUCCESS 而支付中心说失败（口径冲突，只告警等人工）。
-         注意：SQL 正文内 NEVER 使用行注释或块注释（Druid WallFilter commentAllow=false），
-         本 XML 注释内也不得出现连续两个连字符。 -->
+         SQL 正文内 NEVER 写注释（Druid WallFilter），本 XML 注释内也不得出现连续两个连字符。 -->
     <update id="updatePayQueryResultIfNotSuccess">
         UPDATE ALIPAY_PAY_LOG
         SET PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
@@ -129,25 +121,8 @@
     </update>
 
     <!-- 退款成功后刷新原支付订单的退款汇总。
-
-         本语句 MUST 是「按 ALIPAY_REFUND_LOG 重算」，NEVER 写成
-         REFUND_AMOUNT = NVL(REFUND_AMOUNT, 0) + #{refundAmount}。
-         原因：入参里没有任何幂等键，累加式写法执行两次就多记一笔退款金额，
-         而这一列又是 RefundAmountCalculator 判断「可退金额 = 已付 - 已退」的依据；
-         一旦虚高，后续真实退款会被误判为超额并拒绝，且账面无法自愈。
-         PaymentRefundService.requestRefund 带 @Transactional 且事务内调支付中心，
-         远端已受理而本地事务回滚时明细与汇总一起丢，补跑一次就会把同一笔算两遍。
-
-         重算写法天然幂等：结果只取决于 ALIPAY_REFUND_LOG 里
-         REFUND_STATUS = 'SUCCESS' AND DELETE_FLAG = '0' 的行，执行 1 次与 N 次落库值相同，
-         也不再依赖 Java 侧用 UPDATE 之前读到的旧 REFUND_AMOUNT 快照做加法。
-
-         金额列在本表是字符串，所以要 TO_NUMBER 求和后再 TO_CHAR 回写；
-         明细金额写库前都过了 RefundAmountCalculator.parseAmount，非数字串会在那里就抛出。
-         已退总额为 0 时保留原 REFUND_STATUS：那说明还没有任何一笔退款成功。
-
-         注意：SQL 正文内 NEVER 使用行注释或块注释（Druid WallFilter commentAllow=false），
-         本 XML 注释内也不得出现连续两个连字符。 -->
+         调用方 PaymentRefundService.requestRefund 无事务，NEVER 把 @Transactional 加回去。
+         SQL 正文内 NEVER 写注释（Druid WallFilter），本 XML 注释内也不得出现连续两个连字符。 -->
     <update id="updateRefundSummary">
         UPDATE ALIPAY_PAY_LOG L
         SET REFUND_AMOUNT = TO_CHAR((
@@ -249,10 +224,7 @@
     </select>
 
     <!-- 按卡号统计未结清的支付宝出行订单，供 blacklist-server 盘点该卡欠费是否结清。
-         口径与本表既有的 debitRequestResult='1' 分支一致：PAY_STATUS 非 SUCCESS 即未结清。
-         显式兼容 NULL：Oracle 三值逻辑下 PAY_STATUS != 'SUCCESS' 对 NULL 不成立，
-         漏掉会把脏数据判成已结清。
-         注意：SQL 正文内 NEVER 使用行注释或块注释（Druid WallFilter commentAllow=false）。 -->
+         SQL 正文内 NEVER 写注释（Druid WallFilter），本 XML 注释内也不得出现连续两个连字符。 -->
     <select id="countUnsettledByCardId" resultType="java.lang.Integer">
         SELECT COUNT(1)
         FROM ALIPAY_PAY_LOG

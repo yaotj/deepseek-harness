@@ -30,15 +30,6 @@ import com.chinasofti.huateng.quartz.service.ISysJobLogService;
 /**
  * 按 traceId 从 VictoriaLogs 反查一次调度执行的全链路日志。
  *
- * <p>约束（改动前必读）：
- * <ul>
- *   <li>地址由 `vlogs.query-url` 注入（环境变量 `VLOGS_QUERY_URL`），**为空即功能禁用**并给出明确提示，
- *       NEVER 写死集群地址——测试与生产的 VictoriaLogs Service 名与端口不同。</li>
- *   <li>只做只读检索，超时按秒级封顶：全服务开了虚拟线程，请求线程上 NEVER 长时间阻塞。</li>
- *   <li>时间窗由 `sys_job_log.create_time` 与 `job_message` 里的耗时反推。该表**没有** start_time /
- *       stop_time 列（见 `SysJobLogMapper.xml` 的 resultMap），勿指望从实体上直接取。</li>
- * </ul>
- *
  * @author zmzhang
  */
 @Service
@@ -78,18 +69,11 @@ public class JobTraceLogServiceImpl implements IJobTraceLogService
     @Value("${vlogs.query-window-before-millis:300000}")
     private long windowBeforeMillis;
 
-    /**
-     * 执行结束点**之后**再往后取多久。批处理型任务常在自己返回后下游仍在跑（异步线程池、
-     * `@Scheduled` 补偿、超时重试），这些日志的时间戳会晚于 `create_time`，
-     * 尾部余量太小就查不到——因此默认值明显大于前置余量。
-     */
+    /** 执行结束点**之后**再往后取多久。批处理型任务常在自己返回后下游仍在跑 */
     @Value("${vlogs.query-window-after-millis:1800000}")
     private long windowAfterMillis;
 
-    /**
-     * 单次返回上限。**NEVER 想当然认为截断后留下的是最早的 N 条**：VictoriaLogs 的 `limit`
-     * 不保证顺序，排序是本端拿到结果后再做的，所以截断是随机丢弃。放宽时间窗时这个值要同步跟上。
-     */
+    /** 不保证顺序，排序是本端拿到结果后再做的，所以截断是随机丢弃。放宽时间窗时这个值要同步跟上。 */
     @Value("${vlogs.query-limit:2000}")
     private int lineLimit;
 
@@ -129,12 +113,7 @@ public class JobTraceLogServiceImpl implements IJobTraceLogService
         return result;
     }
 
-    /**
-     * 调 VictoriaLogs `/select/logsql/query`。响应是 JSON Lines，每行一条日志事件。
-     *
-     * <p>LogsQL 里 traceId 是普通字段过滤（`_stream_fields` 只有 app / host），选择性足够；
-     * 仍带上 start / end 是为了避免全量扫描。</p>
-     */
+    /** 调 VictoriaLogs `/select/logsql/query`。响应是 JSON Lines，每行一条日志事件。 */
     private List<JSONObject> query(String endpoint, String traceId, long startMillis, long endMillis)
     {
         String body = "query=" + URLEncoder.encode("traceId:\"" + traceId + "\"", StandardCharsets.UTF_8)

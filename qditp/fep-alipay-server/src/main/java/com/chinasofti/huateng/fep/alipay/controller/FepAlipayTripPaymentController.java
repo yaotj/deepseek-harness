@@ -78,11 +78,7 @@ public class FepAlipayTripPaymentController {
         return response;
     }
 
-    /**
-     * 支付宝出行-执行解约。
-     *
-     * <p>web管理控制台调用，执行待处理的解约登记。</p>
-     */
+    /** 支付宝出行-执行解约。 */
     @PostMapping("/executeTermination")
     public com.chinasofti.huateng.model.alipaytrip.TerminationExecuteResult executeTermination(@RequestParam(required = false) String agreementCode) {
         log.info("接收到支付宝出行-执行解约, agreementCode={}", agreementCode);

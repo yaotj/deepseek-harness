@@ -14,7 +14,6 @@ public interface AlipayPaymentService {
 
     /**
      * 退款申请。
-     *
      * @param request 请求对象
      * @return 响应对象
      */
@@ -22,7 +21,6 @@ public interface AlipayPaymentService {
 
     /**
      * 支付宝出行-添加黑名单。
-     *
      * @param request 请求对象
      * @return 黑名单操作结果
      */
@@ -30,7 +28,6 @@ public interface AlipayPaymentService {
 
     /**
      * 执行待处理的解约登记。
-     *
      * @param agreementCode 协议号，为空时执行所有待处理解约
      * @return 执行结果
      */

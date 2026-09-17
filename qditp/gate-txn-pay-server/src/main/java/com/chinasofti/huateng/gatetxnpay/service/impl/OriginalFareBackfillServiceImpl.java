@@ -17,14 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 运营补数实现。方法体逐行从 {@code GateTxnPayServiceImpl} 搬来，**行为一字未改**
- * （`OriginalFareBackfillTest` 的 8 条断言在搬动前后完全相同，那就是证据）。
- *
- * <p>**NEVER 给本类加 `@Transactional`**，理由见 {@link OriginalFareBackfillService} 约束 1。
- * 也 **NEVER 注入 `GateTxnPayWriter` 或 `PaySignClient`** —— 补数只回填一列快照值，
- * 一旦能改状态或发起扣款，它就不再是「可反复重跑的试算工具」了。
- */
+/** 运营补数实现。 */
 @Service
 public class OriginalFareBackfillServiceImpl implements OriginalFareBackfillService {
     private static final Logger log = LoggerFactory.getLogger(OriginalFareBackfillServiceImpl.class);
@@ -37,11 +30,7 @@ public class OriginalFareBackfillServiceImpl implements OriginalFareBackfillServ
         this.fareCalculator = fareCalculator;
     }
 
-    /**
-     * 历史订单 ORIGINAL_FARE 补数。**刻意不加 @Transactional**：循环内要调 para-server，
-     * 事务包住 RPC 会让行锁持有时长等于对端响应时长（本项目已发生过的生产事故形态）。
-     * 逐笔单条 UPDATE 自动提交，某笔失败不影响已回填的行。
-     */
+    /** 历史订单 ORIGINAL_FARE 补数。 */
     @Override
     public ResultVO<Map<String, Object>> backfillOriginalFare(OriginalFareBackfillRequest request) {
         if (request == null) {
@@ -72,7 +61,6 @@ public class OriginalFareBackfillServiceImpl implements OriginalFareBackfillServ
                 continue;
             }
             int trxAmount = row.getTrxAmount() == null ? 0 : row.getTrxAmount();
-            // 实付大于 0 时才比对差额：免扣费与日票的实付本来就是 0，差额等于原价，不是脏数据。
             if (!force && trxAmount > 0 && originalFare - trxAmount > suspectDiffCents) {
                 suspectList.add(describeBackfillRow(row, originalFare));
                 continue;
@@ -86,7 +74,6 @@ public class OriginalFareBackfillServiceImpl implements OriginalFareBackfillServ
                 if (affected > 0) {
                     updatedList.add(describeBackfillRow(row, originalFare));
                 } else {
-                    // 并发下已被别的调用回填，属正常幂等结果，不计失败。
                     log.info("ORIGINAL_FARE 已被其他调用回填，跳过, orderNo={}", row.getOrderNo());
                 }
             } catch (Exception e) {
@@ -112,7 +99,7 @@ public class OriginalFareBackfillServiceImpl implements OriginalFareBackfillServ
         return ResultMapper.ok(result);
     }
 
-    /** 补数结果行：只回显定位与金额字段，NEVER 回显整行订单快照。 */
+    /** 补数结果行：只回显定位与金额字段。 */
     private Map<String, Object> describeBackfillRow(GateTxnPay row, Integer originalFare) {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("orderNo", row.getOrderNo());
@@ -124,7 +111,7 @@ public class OriginalFareBackfillServiceImpl implements OriginalFareBackfillServ
         return item;
     }
 
-    /** TXN_DATE 是 VARCHAR2 存 yyyyMMdd，这里只做长度与数字校验，NEVER 转成 LocalDate 再绑定。 */
+    /** TXN_DATE 是 VARCHAR2 存 yyyyMMdd，这里只做长度与数字校验。 */
     private boolean isTxnDate(String value) {
         if (value == null || value.length() != 8) {
             return false;

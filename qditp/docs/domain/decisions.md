@@ -5488,3 +5488,278 @@ Pod `pay-sign-server-77cdf59d95-c9hw4` 内 `javap` 确认 `PayTxnViews` 只有
 → 那时 `PaySignGateway` 在 `src/main` 里就只剩三个 adapter 持有。
 **NEVER 只改 `TerminationExecutor` 一个**：那样 `ContractDomainService` 上的方法还得留着给
 `TerminationProcessor` 用，等于同一件事做两遍、中间态还多一种。
+
+## ADR-D115：把「业务类当网关代理」这条依赖彻底切断 —— 两个解约执行类改注 `ContractGatewayPort`，`ContractDomainService` 上那两个出向方法删除（2026-09-16，pay-sign-server 2.0.103）
+
+按 ADR-D114 续列的顺序执行，一批做完，不留中间态。
+
+**做了什么**
+1. `TerminationProcessor`（7 → **6** 个协作者）与 `TerminationExecutor`（6 → **5** 个）不再注
+   `ContractDomainService` + `PaySignGateway` 这一对，改注单个 `ContractGatewayPort`：
+   `contractGatewayPort.requestDismissal(seq)` / `queryContractResult(seq)`，判读一律
+   `if (!(reply instanceof GatewayReply.Accepted accepted))`，审计写 `reply.raw()`。
+   两处 `readGatewayStatus` 从「解析原始应答体」改成读 `accepted.data()`。
+2. `ContractDomainService`（+ impl）上的 `requestPayPlatformTermination` /
+   `queryPayPlatformContractStatus` **已删除**，接口与 impl 各留一段 NEVER 注释：
+   **出向调用一律加到 `ContractGatewayPort` 上，NEVER 在领域服务接口上加回「向支付中心发一次请求」的方法**。
+3. 因此 **`src/main` 里 `PaySignGateway` 现在只被 3 个 adapter 持有**
+   （`ContractGatewayAdapter` / `PaymentGatewayAdapter` / `RefundGatewayAdapter`），
+   grep `private final PaySignGateway` 只剩这三处 —— 这正是 ADR-D113 那套端口化的收口判据。
+4. 夹具侧：`TerminationInternalFixture` 的 `contractDomainService` mock 换成 `contractGatewayPort`，
+   三个测试类（`TerminationExecutorGuardTest` 7 例、`TerminationProcessorGuardTest` **14** 例、
+   `TerminationInternalReadCharacterizationTest`）的桩全部包成
+   `new GatewayReply.Accepted(...)` / `Rejected(...)`。**顺带消掉了三处
+   `payGatewayClient.isSuccess(...)` 的 `thenCallRealMethod()`** —— 端口 mock 之后不需要真方法了。
+   本模块 `mvn -o clean test`：**Tests run: 230, Failures: 0, Errors: 0, Skipped: 0**。
+
+**为什么这批还顺手加了两个测试**：`unsettledOrderRejectsWithoutCallingPayCenter` 第一次跑出
+「expect REJECTED, actual SKIPPED」，读 `rejectByUnsettledOrder` 才发现 `rejectPending` 是 **CAS**、
+Mockito 对 `int` 默认返 0，于是走了「已被其它路径接手」那支。**断言是对的、桩是漏的。**
+教训写成判据：**给 CAS 型 mapper 方法写桩 MUST 显式 stub 返回值，NEVER 依赖默认值**；
+且既然发现了这条岔路，就把 CAS 命中与 CAS 落空两支都钉住（后者多加了
+`unsettledRejectLosingCasSendsNoNotify`：`rejectPending → 0` ⇒ SKIPPED、**不发通知也不碰网关**）。
+默认值恰好落在某条真实分支上时，症状是「测试失败但生产代码没错」，很容易被反向改成放宽断言。
+
+### ADR-D115 续：`mvn test-compile` 不带 `clean` 会对「删掉的方法」报 BUILD SUCCESS —— 删改方法后 MUST `clean test-compile`
+
+删完 `ContractDomainService` 上那两个方法后，`mvn -q compile` 与 `mvn test-compile` **都是 BUILD SUCCESS**，
+日志里写着 `Nothing to compile - all classes are up to date`；而实际上 **25 处测试调用点已经编译不过**。
+成因是增量编译只看时间戳、`target/test-classes` 里的旧 class 比源码新，整个 test 源集被跳过。
+
+**判据**：**「Nothing to compile」+ BUILD SUCCESS NEVER 当成「改动能编过」的证据。**
+凡是**删除 / 重命名 / 改签名**（不只是改方法体）之后，MUST 跑 `mise exec -- mvn -o clean test-compile`
+或直接 `clean test`。这与 §7 那条「管道会吃掉 Maven 退出码」是同族陷阱：
+两者都让「没看到报错」被误读成「没有错」，而这一条更隐蔽 —— 它连退出码都是真的 0。
+
+### ADR-D115 续（二）：把「留给人裁决」的三条一次做完 —— 审计流水两行合一、`RESULT_CODE` 不再恒空、金额覆盖开关整段删除（2026-09-16，pay-sign-server 2.0.104）
+
+D111 续列了三处「查出来但没动」的审计口径问题，理由都是「改口径 MUST 由人裁决」。本批按用户
+「修复：按判据还没达成的」一次做完，三条互相独立、但都属同一类缺陷形态：**不报错、不告警、
+编译与单测全绿，只在运营/对账去查数据时表现为「这批单子没有结果」**。
+
+**（1）`PaySignAuditLogger` 的 `RESULT_CODE` / `RESULT_MSG` 对多数应答恒为 NULL。**
+原实现是 `if (response instanceof BaseRespDTO b) { setResultCode(b.getRetCode()); ... }`，
+而本域应答有**三种字段形状**混着走：①`retCode`/`retMsg`（`BaseRespDTO` 一族）；
+②`resultCode`/`resultMsg`（`CheckFailedOrdersRespDTO` 等 `/internal/**` 应答）；
+③`code`/`msg`（支付中心网关原始应答 `PaySignGatewayResponse`）。后两类**不继承** `BaseRespDTO`，
+于是那两列恒空 —— 而「按 `RESULT_CODE` 捞失败流水」正是运营排查的主路径。
+改成从**已序列化的 `RESPONSE_BODY` JSON** 里按键名依次取 `retCode` → `resultCode` → `code`
+（文案同序 `retMsg` → `resultMsg` → `msg`）。`retCode` 排第一是为了**不改既有数据口径**：
+形状 ① 同时带 `code`，若把 `code` 排前面，历史上那批行的含义就变了。
+**NEVER 回退成 `instanceof` 链** —— 新增应答类型不必回来改这个类，才不会再多一种「悄悄记不上」的形状。
+同时给两列加了按列宽截断（`RESULT_CODE` 64 / `RESULT_MSG` 1024 CHAR，取自 `pay-sign-schema.sql`）：
+**不截断的后果不是「这两列为空」，而是整行审计流水都不落库** —— 超长时 INSERT 抛 `ORA-12899`，
+被本类那个「异常一律吞掉只记 ERROR」的 catch 吃掉。外部网关的错误文案长度不由我方决定，
+`NEVER 去掉截断`。新增 `PaySignAuditResultCodeTest` 8 条，三种形状 + null + 非 JSON 对象 +
+超长截断 + 空流水号不写 + mapper 抛异常不外传，各钉一条。
+
+**（2）`alipayTripRequestSignInfo` 一次成功写两行流水，合并成一行。**
+原先方法体内手写一行 `PaySignRequest`（`OPERATION_TYPE` 是字面量 `ALIPAY_TRIP_REQUEST_SIGN_INFO`
++ `SIGN_STATUS='SIGNED'`、不带报文），方法收尾的审计又写一行（被 `convertOperationType` 归并成
+`SIGN`、带报文但没有 `SIGN_STATUS`）。**判据不是「两行难看」，而是那行字面量本身就在口径之外**：
+`OPERATION_TYPE` 落库只有 `SIGN` / `UNSIGN` 两个值是既定设计，按 `SIGN` 统计会漏掉它、
+按它统计又与别的接口不可比。现在 `auditAlipayTripSignInfo` 多收一个 `signStatus` 参数，
+成功分支传 `STATUS_SIGNED`、其余分支传 `null`（**NEVER 在失败分支也传 SIGNED**：参数校验不过
+或已签约被拒时并没有签成，那样写等于凭空造一条签约成功证据）。合并行同时具备 `SIGN_STATUS`、
+`REQUEST_BODY`/`RESPONSE_BODY` 与（因第 1 条）`RESULT_CODE`，**信息只增不减**。
+连带收益：`paySignRequestMapper` 是那行手写 INSERT 在 `ContractDomainServiceImpl` 里的**唯一引用**，
+删掉后该类协作者 **6 → 5**，`APP_PAY_SIGN_REQUEST` 的写入点回到 `PaySignAuditLogger` 一处。
+**NEVER 在任何领域服务里重新手写 `PaySignRequest`** —— 两个写入点必然分叉，
+上面那行「从来没有 `RESULT_CODE`」就是分叉的既有证据。
+
+**（3）`pay.sign.test-force-amount`（测试阶段强制覆盖支付金额）整段删除。**
+配置键、`PaySignProperties` 的字段与 getter、`PaymentDomainServiceImpl.requestPay` 里的读取块四处一起摘掉。
+它位于**参数校验之前**，因此线上一旦误配非 0，**每一笔免密扣款都按那个金额向支付中心发起**；
+更糟的是 `PAY_TXN_DETAIL` 落的是覆盖后的值，事后从我方数据里看不出「上游其实报的是别的金额」，
+对账只表现为「闸机侧金额与支付侧金额不一致」却查不到成因。要在测试环境验证小额扣款
+**MUST 由调用方（gate-txn-pay / APP）在报文里送小额**，别在收单侧改数字。
+**NEVER 加回任何形式的金额覆盖 / 覆盖渠道 / 跳过校验开关** —— 它们默认值看着无害，误配一次就是全量事故。
+
+**（4）`PaySignClient.updatePaySignDisplayAccount` 的 boolean 残留：核查后确认无需再动。**
+全仓 grep（排除 `target/`）只有两处命中：`rpc` 里的方法声明本身，与 `alipay-account-server`
+一条 Javadoc 提及。即**真实调用方已为 0**，方法是带 `@Deprecated` 的兼容壳、实现只有一行
+`return updateDisplayAccountOutcome(...).isOk();`，没有重复解析逻辑。`rpc` 版本号锁死、被 21 个模块引用，
+按 AGENTS.md「只能增方法不能改签名」保留即为正解。**判据记在这里，避免下一轮又把它当成待改项**：
+「boolean 包装方法」的风险在**调用点丢弃返回值**，零调用点时风险为 0。
+
+**本批新踩的工具坑（与业务无关，但会造成假绿）：编辑工具报「已应用」不等于落盘。**
+本批开工时 `PaySignProperties` 的 getter 已删、而 `PaymentDomainServiceImpl` 里的读取块仍在磁盘上
+（两文件 mtime 相差一小时），即**模块处于编译不过的状态**，而编辑工具与读取工具返回的都是
+「已经改好」的缓存视图 —— 按那个视图看不出任何问题，重放同一个编辑还会报
+`old_string not found`（因为缓存里确实已经没有了）。**因此：删改方法后除了 ADR-D115 续那条
+「MUST 跑 `clean`」，还 MUST 用 `grep` / `sed` 直接读磁盘复核一次**，
+NEVER 只凭编辑工具的成功回执或读取工具的输出判断改动已落盘。本仓库有并发写入方，
+这不是偶发抖动。
+
+**验证**：`mise exec -- mvn -o clean test -pl pay-sign-server` → `Tests run: 251, Failures: 0,
+Errors: 0, Skipped: 0` / BUILD SUCCESS（243 → 251：新增 `PaySignAuditResultCodeTest` 8 条）。
+过程中 `AlipayTripSignCharacterizationTest` 两条断言变红，**那正是修复到位的证据** ——
+它们原本钉的是「`RequestSignInfoResult` 不是 `BaseRespDTO`，取不到 `retCode`」这个缺陷现状，
+已改成断言 `0000` / `8013`，并把两行流水那条改成断言合并后的单行。
+
+## ADR-D116：旧库 TVM / BOM 订单全量迁进 `F2F_*` 三张表（2026-09-16，纯数据迁移，未改一行代码）
+
+用户裁决三项：**范围 = 全量历史**、**深度 = `F2F_ORDER` + `F2F_PAYMENT` + `F2F_REFUND` 三张表都迁**、
+**执行方式 = 用 MCP 直接 `INSERT ... SELECT` 并边写边回查**。全部在唯一目标库 `AFCITPDB` 执行。
+
+### 迁移前行数（回滚依据，NEVER 改写本节数字）
+
+`F2F_ORDER` **23** / `F2F_PAYMENT` **34** / `F2F_REFUND` **23**。
+源表：`TBL_TVM_ORDER_PAY` 130、`TBL_BOM_ORDER_PAY` 185、`TBL_TVM_ORDER_REFUND` 73、`TBL_BOM_ORDER_REFUND` 178。
+
+### 结果（六条 DML 的 `affectedRows`，均一次成功）
+
+- `F2F_ORDER` +130（TVM）、+185（BOM）⇒ **338**
+- `F2F_PAYMENT` +130、+185 ⇒ **349**（每单一条 `ATTEMPT_NO=1`）
+- `F2F_REFUND` +73（TVM，全量）、+174（BOM，178 减 4）⇒ **270**
+- 退款汇总重算命中 **195** 行（只更新带迁移标记且有退款单的订单）
+
+回查全绿：源表逐行都能在新表找到（`TVM/BOM_MISS_ORD` `MISS_PAY` `MISS_REF` 全 0，
+唯一非 0 是 `BOM_MISS_REF=4`，即下面刻意排除的 4 行）；成功退款金额两侧逐分对上
+（TVM 10264 = 10264、BOM 7683 = 7683）；`REFUND_AMOUNT > ORDER_AMOUNT` 的订单 **0** 行。
+
+**端到端复核（不只是数行数）**：拿两个迁移进来的 TVM 旧单
+`0020260721141504df074ad4` / `0020260721125726b1ed41e6` 分别打旧应用与新应用的
+`/itptvm/ci/tvm/requestPayResult`，**新旧应答逐字一致**：
+`{"paymentResult":"SUCCESS","paymentResultDesc":"成功","paymentChannelCode":null,"retCode":"0000","retMsg":"成功"}`。
+**迁移前同一条报文在新应用上返 `2002`**（ADR-D112 续（四）的实测），这是迁移真正生效的硬证据。
+
+
+### 状态映射（依据是旧表 `MSG` 列的实测值，不是猜的）
+
+旧 `STATUS` 的三个取值在库里与 `MSG` 一一对应：`0`=支付中、`1`=支付成功、`2`=支付失败
+（`GROUP BY STATUS` 后 `MIN(MSG)=MAX(MSG)`，130+185 行无例外）。因此：
+
+- `1` → `ORDER_STATUS='PAID'` + `PAY_STATUS='SUCCESS'` + `PAID_TMS=UPDATE_TIME`
+- `2` → `PAY_FAILED` / `FAILED`
+- `0` → `PAYING` / `PROCESSING`，且 **`EXPIRE_TMS` 一律留 NULL**
+
+**`PAID` 而不是 `FULFILLED`**：旧 `TBL_*_ORDER_PAY` 只记支付结果，出票/充值是否成功在
+`TBL_*_MAIN_TICKET` 等另一批表里，本次不在迁移范围内 —— 写 `FULFILLED` 是伪造履约事实。
+**NEVER 事后批量把这批 `PAID` 改成 `FULFILLED`**，除非先按票表逐单核对。
+
+### 四个「不迁 / 变形迁」的决定，每条都有非它不可的理由
+
+**① `PAYING` 的单 `EXPIRE_TMS` 留 NULL —— 这是防止迁移触发外呼的唯一开关。**
+`F2fOrderMapper.selectExpiredCandidates` 的 WHERE 是
+`ORDER_STATUS IN ('CREATED','PAYING') AND EXPIRE_TMS IS NOT NULL AND EXPIRE_TMS < now`。
+若给这 87 条历史「支付中」单填上过期时间，`F2fOrderExpireJob`（30 秒一轮）会立刻把它们全部
+拿去问支付中心。留 NULL 后它们既不被扫、也不进 `countStaleExpired` 告警。
+**NEVER 事后给迁移单补 `EXPIRE_TMS`。**
+
+**② BOM 的 `BOM_OPT_SEQ` 不写进 `DEVICE_SEQ`，只写进 `REMARK`。**
+`UK_F2F_ORDER_DEV_SEQ` 是函数唯一索引 `(CASE WHEN DEVICE_SEQ IS NULL THEN NULL ELSE CHANNEL END,
+CASE WHEN DEVICE_SEQ IS NULL THEN NULL ELSE DEVICE_ID END, DEVICE_SEQ)`，而旧库里
+`(DEVICE_ID, BOM_OPT_SEQ)` **有 13 组重复**（`02451101` 上 `BOM_OPT_SEQ='0'` 就有 12 行）。
+直接映射必撞 `ORA-00001`、且没有「只丢重复行」的正当做法。`DEVICE_SEQ` 留 NULL 时该函数索引
+三列全为 NULL、Oracle 不纳入索引，于是 315 行全部进得去，原值在
+`REMARK` 的 `bomOptSeq=` 段里可查。**NEVER 为了「字段对齐」把它回填进 `DEVICE_SEQ`。**
+
+**③ 退款单的幂等槽位：成功的那笔占 `#WHOLE#`，其余挂 `#LEGACY#` 前缀。**
+`UK_F2F_REFUND_IDEM` 是 `(ORIG_ORDER_NO, NVL(TICKET_LOGIC_NUM,'#WHOLE#'), REFUND_SOURCE)`，
+而旧库同一原单下最多有 5 条退款记录（TVM 10 单、BOM 9 单是多条）。做法：
+每单按「先成功、再按时间倒序」排序，**只有排第一且状态成功**的那条 `TICKET_LOGIC_NUM` 留 NULL，
+其余写 `'#LEGACY#' || REFUND_NO`。实测落成 180 条占 `#WHOLE#`、67 条带前缀。
+
+两个后果都是有意的：**已退成功的历史单，在新服务上再发起整单退会被幂等挡住**（正确，防重复退款）；
+**只有失败记录的历史单，`#WHOLE#` 槽是空的、可以在新服务续退**（这正是用户选 `all_three` 的目的）。
+`#LEGACY#` 前缀不会误伤真实链路：设备上送的 `ticketLogicNum` 是真实逻辑卡号，
+`F2fRefundService.findExisting` 按值相等比较，永远不会等于这个前缀串。
+**NEVER 把这些 `#LEGACY#` 值当成真实票卡号去查 `F2F_TICKET`。**
+
+**④ 4 条 `REFUND_AMOUNT=0` 的 BOM 退款没迁（全部是失败记录）。**
+`CK_F2F_REFUND_AMOUNT` 要求 `> 0`，而这 4 行金额是 `0`：`RF202608241845153068`、
+`RF202608241845353069`、`RF202608241855413071`、`RF202608242028513074`（2026-08-24 的失败尝试）。
+填 1 是伪造金额、放宽 CHECK 是降低约束，两者都比「不迁 + 记在案」差。
+它们对应的原单已迁，需要时可人工补。
+
+### 顺带确认的三件事
+
+- **旧 `CHANNEL` 列是支付渠道、不是受理渠道**（取值 `03`/`04`/`0C`），所以它进的是
+  `F2F_PAYMENT.PAY_CHANNEL_CODE`；`F2F_ORDER.CHANNEL` 按来源固定写 `02`（TVM）/ `03`（BOM）。
+  **NEVER 把旧 `CHANNEL` 直接搬进 `F2F_ORDER.CHANNEL`** —— 那会撞
+  `CK_F2F_ORDER_CHANNEL CHECK (CHANNEL IN ('01','02','03'))`，`0C` 直接报错、`03` 更糟（静默错类）。
+- **BOM 全部写 `BIZ_TYPE='04'`（非现金收款）、`TRANS_TYPE` 原样保留**，与新服务
+  `F2fBomOrderService` 建单时 `setBizType(BIZ_NO_CASH)` + `setTransType(request.getTransType())`
+  的口径逐字一致。旧库 `TRANS_TYPE` 里有列注释未收录的 `'01'`（93 行），按原样留在
+  `TRANS_TYPE` 里，不猜它的业务含义。
+- **28 条退款单的原单不在 `F2F_ORDER` 里**（TVM 21 + BOM 7）：它们的 `PAY_ORDER_NO` 指向
+  `TBL_TVM_ORDER_TOPUP` / `TBL_TVM_APP_ORDER` 等本次范围外的旧表。`F2F_REFUND` 上没有外键，
+  行本身进得去、历史不丢，但**运营端按订单查这 28 笔会查不到主单**。要闭合得先迁那两张表。
+
+### 回滚（三条，逆序执行；迁移单全部带 `LEGACY-MIGRATION` 标记，与原有 23/34/23 行不重叠）
+
+```sql
+DELETE FROM F2F_REFUND WHERE REFUND_REASON LIKE 'LEGACY-MIGRATION src=TBL_%';
+DELETE FROM F2F_PAYMENT WHERE ORDER_NO IN (SELECT ORDER_NO FROM F2F_ORDER WHERE REMARK LIKE 'LEGACY-MIGRATION src=TBL_%');
+DELETE FROM F2F_ORDER WHERE REMARK LIKE 'LEGACY-MIGRATION src=TBL_%';
+```
+
+回滚后 `F2F_ORDER` / `F2F_PAYMENT` / `F2F_REFUND` 应回到 23 / 34 / 23。
+注意第 2 条 MUST 在第 3 条之前执行（它靠订单表的标记定位），
+且**回滚不会还原那 195 行订单的退款汇总三列** —— 那三列本来就是 `F2F_REFUND` 的投影，
+删掉退款单后重跑一次 `updateRefundSummary` 即可，或直接接受迁移单被整体删除。
+
+### 可重入性与增量
+
+六条 DML 全部带 `WHERE NOT EXISTS`（订单按 `ORDER_NO`、支付按 `(ORDER_NO, ATTEMPT_NO)`、
+退款按 `REFUND_NO`），汇总重算本身幂等。**旧应用仍在写入**（本次迁移时最新一条是
+`TBL_TVM_ORDER_PAY` 的 16:55:20），因此**切流前 MUST 再原样跑一遍这六条补增量**，
+命中 0 行即说明已追平。
+
+## ADR-D117：TVM / BOM 全域切到 face-pay（设备域 + APP 域），补迁票与上报两张表，并撞出一条大小写回归（2026-09-16 17:31，无代码改动）
+
+用户指令「切换到新应用，直接切换流量」。三个岔口的裁决：**APP 域一起切**（接受 `fep-app` 一次滚动重启）、
+**顺带补迁票与上报两张表**、大小写回归**只做数据归一、不改代码**。
+
+### 执行与回查
+
+1. **切流前增量**（ADR-D116 那六条原样重跑）：命中 1 单 + 1 支付 + 1 退款，汇总重算 195 行。
+2. **设备域**：`fep-app-vr` 的 `spec.http[4]`（`/itptvm/`）与 `[5]`（`/itpbom/`）
+   `collect-pay-c23ku-svc:30024` → `face-pay-server-svc:30025`，`test` op 全过。
+   三重验证：VS 读回一致 / envoy 出现 `face-pay-server-svc...:30025/itptvm/*` 与 `/itpbom/*` / 探活 200。
+3. **APP 域**：`fep-app` 的 `service.collectPay.url` 由 `http://172.20.211.23:30024` 改为 `:30025`，
+   滚更成功、探活 200。**回滚 = 把这条 env 改回 30024。**
+4. **补迁两张表**：`F2F_TICKET` 6 → **100**（TVM +40 / BOM +54，按 `(TICKET_LOGIC_NUM, TRANS_DATE)` 去重，
+   命中旧退款记录的 2 张写 `REFUNDED` + `REFUND_NO`）；`F2F_RESULT_REPORT` 10 → **265**
+   （TVM 出票 +51 / BOM 出票 +52 / `BOM_BIZ_RESULT` +116 / TVM 充值 +36）。
+5. **切流后增量**：BOM 订单再补 1 行（切流瞬间旧应用的最后一笔），此后源表逐行比对全部命中。
+
+**落点证据（真流量，不是「patch 成功」）**：按分钟统计入向请求行 —— collect-pay 17:30 还有 4 条、
+**17:31 起 0 条**；face-pay **17:32 起稳定 7 条/分钟**。
+
+### 三条本批确立的判据
+
+**① 历史上报 MUST 写 `PROCESSED='1'`。** `F2fResultReportMapper` 的扫表条件是 `PROCESSED = '0'`，
+`F2fReportRecoveryJob` 每 2 分钟捞一批做补偿。255 条历史上报若写 `'0'`，等于让新应用把几周前的
+出票 / 充值上报**当成待处理重放一遍**（会触发出票补偿与退款动作）。
+回查 `SELECT COUNT(*) FROM F2F_RESULT_REPORT WHERE PROCESSED='0'` = **0**。
+
+**② 「旧应用还在收流量」时补增量是移动靶，正确顺序是先切流、再补最后一次增量。**
+本次实测到：订单插入返 0 行、紧随其后的支付插入返 1 行 —— 两条语句之间旧应用又落了一单。
+只有旧应用不再收入向后，「命中 0 行 = 已追平」才成立。
+
+**③ 按 `ticketLogicNum` 查票：旧应用大小写不敏感、新应用敏感 —— 这是真实行为回归，不是迁移能修的。**
+旧 `TvmSubTicketMapper.selectSubTickettByCondition` 写的是 `UPPER(TICKET_LOGIC_NUM) = UPPER(#{...})`；
+新 `F2fTicketMapper` 的四条语句（`selectByLogicNumAndTransDate` / `selectLatestByLogicNum`
+/ `updateStatus` / `updateRefundNo`）**全是精确等值**。而设备对**同一张卡**两种大小写都发过
+（实测 `001707310d00e602` 与 `001707310D00E602` 并存）。
+取证方式是同一份设备真实报文双跑：`requestOrderResult`（`ticketLogicNum=001707310D013231`）
+旧返 `0000` + 完整交易数据、新返 `8999 没有查找到出票信息`。
+**按用户裁决只做数据侧归一**：`F2F_TICKET.TICKET_LOGIC_NUM` 全表 `UPPER`（63 行，UK 冲突数 0），
+归一后同一份报文新应用返 **`0000`** 且字段与旧应用一致。
+**残留风险照实记录：设备送小写时仍会返 `8999`。** 彻底修法是把那四条语句的**入参侧**改成
+`UPPER(#{ticketLogicNum})` + 落库侧归一化，**NEVER 把列侧写成 `UPPER(TICKET_LOGIC_NUM)`** ——
+那会让 `UK_F2F_TICKET_LOGIC` 失效、需另建函数索引。
+
+### 回滚
+
+- 路由：VS 两条 route 改回 `collect-pay-c23ku-svc:30024`；`fep-app` env 改回 `:30024`。
+- 数据：ADR-D116 那三条 `DELETE`，加上
+  `DELETE FROM F2F_RESULT_REPORT WHERE OPT_RESULT_DESC LIKE 'LEGACY-MIGRATION%'`（255 行）；
+  `F2F_TICKET` 迁入行**没有独立标记列**，只能按 `(TICKET_LOGIC_NUM, TRANS_DATE)` 落在旧
+  `TBL_*_SUB_TICKET` 里且 `ID` 大于迁移前最大值来删 —— **回滚前 MUST 先确认迁移前 6 行的 `ID` 上界**。
+  大小写归一**不可逆**（原值只在旧库 `TBL_*_SUB_TICKET` 里，需要时从那里重取）。
+
+
+

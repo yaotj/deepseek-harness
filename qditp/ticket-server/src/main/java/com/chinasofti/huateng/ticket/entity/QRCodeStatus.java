@@ -4,9 +4,7 @@ import java.time.LocalDateTime;
 
 import com.chinasofti.huateng.model.ticket.enums.QRCodeStatusEnum;
 
-/**
- * 对应 QRCODE_STATUS 表。
- */
+/** 对应 QRCODE_STATUS 表。 */
 public class QRCodeStatus {
     private String cardId;
     private Integer useCount;

@@ -23,13 +23,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 支付宝出行行程详情改读 {@code GATE_TXN_PAY} 的判据。
- *
- * <p>钉住三件事：①{@code entryId} / {@code exitId} 只能从 {@code industryDetail} 整块 JSON 里取；
- * ②{@code payTradeOrderNo} 与 {@code invoice} 按裁决恒为 null；③行业明细缺失或非法时不抛异常、
- * 也不去打 ticket-server。</p>
- */
+/** 支付宝出行行程详情改读 {@code GATE_TXN_PAY} 的判据。 */
 class TravelDetailFromGateTxnPayTest {
 
     private static final String THIRD_USER_ID = "2088";

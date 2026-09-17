@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.paysign.mapper.AppTerminationRequestMapper">
+    <!-- 注释只能写在这里：SQL 正文禁写行注释或块注释，Druid WallFilter 会判定为注入并让该语句静默失效。 -->
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.paysign.entity.AppTerminationRequest">
         <id column="ID" jdbcType="BIGINT" property="id"/>
         <result column="REQUEST_SIGN_SEQ" jdbcType="VARCHAR" property="requestSignSeq"/>
@@ -78,8 +79,6 @@
           and ROWNUM = 1
     </select>
 
-    <!-- 按状态分页取一批解约申请，按 REQUEST_TIME 升序（先申请先处理）。
-         ROWNUM 必须套在已排序的子查询外层，直接与 ORDER BY 同层会先截断再排序。 -->
     <select id="selectByStatusLimit" resultMap="BaseResultMap">
         select <include refid="Base_Column_List"/>
         from (
@@ -91,12 +90,6 @@
         where ROWNUM &lt;= #{limit,jdbcType=INTEGER}
     </select>
 
-    <!-- 同 selectByStatusLimit，多一个申请时间上限 cutoff，用于「解约申请满 N 天才确认」的业务口径。
-         cutoff 由 service 层按「基准时间 - 规定天数」算出；PENDING 与 SCANNING 共用同一个 cutoff，
-         口径是「截止点之前仍未成功的都在扫描范围内」。
-         REQUEST_TIME 理论上非空（申请插入时必填），因此不做 NVL 兜底；若为空则该行本轮不参与，
-         这是有意的——凭空放行一条时间不明的申请去解约比漏扫一轮更糟。
-         ROWNUM 必须套在已排序的子查询外层，直接与 ORDER BY 同层会先截断再排序。 -->
     <select id="selectByStatusBefore" resultMap="BaseResultMap">
         select <include refid="Base_Column_List"/>
         from (
@@ -109,20 +102,6 @@
         where ROWNUM &lt;= #{limit,jdbcType=INTEGER}
     </select>
 
-    <!-- 补偿扫表：捞出需要重发解约通知的申请。
-         TERMINATION_STATUS 只取终态（SUCCESS / FAILED）：通知内容完全由该列决定
-         （AppNotifyServiceImpl.asyncRetryTerminationNotify：FAILED 发解约失败、其余一律发解约成功），
-         PENDING / SCANNING 根本还没有可发的通知。**NEVER 去掉这个终态白名单**——
-         解约申请插入时 NOTIFY_STATUS 初值就是 PENDING，一条卡在 PENDING/SCANNING 的申请
-         （欠费查询一直失败、或支付平台迟迟不解约）滞留超 staleMinutes 就会被当成
-         「成功通知丢了」，给 APP 发一条 status=SUCCESS、dismissalTime 为空的假解约成功通知，
-         而 APP 侧实测没有按 requestSignSeq 幂等，污染的是对端状态、我方无法回滚（2026-08-26 修复）。
-         命中 FAILED，以及滞留超过 staleMinutes 分钟的 PENDING：若状态回写自身失败，
-         这行会永久停在 PENDING，只扫 FAILED 时补偿永远看不到它。
-         排序与滞留判断都不能只看 NOTIFY_TIME：PENDING 行该列为 NULL，
-         Oracle 升序会把 NULL 排到最后、且 NULL 参与比较结果为 UNKNOWN，两处都会漏掉待补记录。
-         NOTIFY_RETRY_COUNT 用 NVL 兜底：历史数据可能为 NULL，直接比较同样会漏行。
-         ROWNUM 必须套在已排序的子查询外层，直接与 ORDER BY 同层会先截断再排序。 -->
     <select id="selectCompensableNotify" resultMap="BaseResultMap">
         select <include refid="Base_Column_List"/>
         from (
@@ -155,11 +134,6 @@
         where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
     </update>
 
-    <!-- PENDING → SCANNING 抢占执行权：状态与扫描时间一条语句落，WHERE 带
-         TERMINATION_STATUS = 'PENDING' 是状态机白名单 + CAS。
-         /internal/termination/execute 已去掉 @Transactional（事务内 NEVER 调 RPC），
-         「读到 PENDING」与「置 SCANNING」之间不再有事务保护，MUST 靠本语句一次性抢占：
-         影响 0 行即未抢到，调用方直接放弃，NEVER 继续调支付中心，否则同一笔重复发解约。 -->
     <update id="markScanning">
         update APP_TERMINATION_REQUEST
         set TERMINATION_STATUS = 'SCANNING',
@@ -169,12 +143,6 @@
           and TERMINATION_STATUS = 'PENDING'
     </update>
 
-    <!-- SCANNING → PENDING 回退：仅用于支付平台「明确答复失败」，把执行权交还扫表任务重试。
-         无事务后回滚不再自动发生，这条语句就是原来事务回滚的替代品。
-         WHERE 带 TERMINATION_STATUS = 'SCANNING' 是 CAS，避免覆盖回调刚收口的 SUCCESS。
-         SCAN_TIME 一并清空，与 reactivateFailed 的口径一致：没有在途请求就不该留扫描时间。
-         NEVER 在结果未知（超时 / 连接异常）时调用——支付平台可能已受理，退回 PENDING 会重复发解约；
-         那种情况 MUST 留在 SCANNING，由 process 的 SCANNING 分支主动查协议状态收口。 -->
     <update id="revertScanningToPending">
         update APP_TERMINATION_REQUEST
         set TERMINATION_STATUS = 'PENDING',
@@ -184,14 +152,6 @@
           and TERMINATION_STATUS = 'SCANNING'
     </update>
 
-    <!-- PENDING → FAILED 拒绝解约（存在未结清扣费订单）：一条语句同时落 FAILED、失败原因、
-         完成时间与「通知待发」。
-         MUST 用 CAS（WHERE 带 TERMINATION_STATUS = 'PENDING'）且 MUST 只用一条语句：
-         判定 PENDING 与本次写入之间隔着一次查欠费 RPC，期间这条可能已被 execute 接口抢成 SCANNING、
-         甚至被解约回调收口成 SUCCESS，拆成 updateFailReason + updateCompleteTime + updateNotifyStatus
-         三条无 CAS 语句会把在途解约或已收口的 SUCCESS 覆盖成 FAILED。
-         NOTIFY_RETRY_COUNT 归零、NOTIFY_TIME / NOTIFY_RESULT 清空：这是一条新的、还没发过的
-         解约失败通知，口径与 expireScanning 一致。 -->
     <update id="rejectPending">
         update APP_TERMINATION_REQUEST
         set TERMINATION_STATUS = 'FAILED',
@@ -230,9 +190,6 @@
         where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
     </update>
 
-    <!-- 同时把 NOTIFY_STATUS 落成 FAILED：补偿重发滞留的 PENDING 前先调本语句，
-         把记录移出中间态，否则重发后的状态回写若再失败，这行会被下一轮重复扫到且重试次数不涨。
-         在「通知失败」路径上本就已是 FAILED，重复赋值无副作用。 -->
     <update id="increaseNotifyRetryCount">
         update APP_TERMINATION_REQUEST
         set NOTIFY_RETRY_COUNT = NVL(NOTIFY_RETRY_COUNT, 0) + 1,
@@ -241,16 +198,6 @@
         where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
     </update>
 
-    <!-- FAILED 复活：清掉上一轮的失败痕迹，退回 PENDING 交给扫表任务重跑。
-         REQUEST_SIGN_SEQ 上有唯一索引 UK_ATR_REQUEST_SIGN_SEQ，同一签约流水只能有一行，
-         所以重新申请解约只能是 update 复活，NEVER 再 insert（必抛 DuplicateKeyException，
-         被 requestTermination 外层 catch 成 SYSTEM_ERROR，用户从此再也解不了约，只能改库）。
-         WHERE 带 TERMINATION_STATUS = 'FAILED' 是状态机白名单 + CAS：并发下若已被别人改走，
-         影响行数为 0，调用方 MUST 检查返回值，NEVER 无条件当成功放行。
-         NOTIFY_* 一并复位：上一轮已给 APP 发过解约失败通知，不复位则新一轮沿用旧的通知状态
-         与重试轮次（可能已是 SUCCESS 或已用尽 3 次），新一轮通知失败后补偿再也扫不到。
-         CREATE_TIME 不动（审计口径 = 首次申请时间）；REQUEST_TIME 更新为本次申请时间，
-         扫表按 REQUEST_TIME 升序排队，复活的申请应排在队尾而不是插队。 -->
     <update id="reactivateFailed">
         update APP_TERMINATION_REQUEST
         set TERMINATION_STATUS = 'PENDING',
@@ -270,22 +217,12 @@
           and TERMINATION_STATUS = 'FAILED'
     </update>
 
-    <!-- 只取状态一列，供 CAS 返 0 行后回查。MUST 只在影响行数为 0 时调用，
-         命中就回查等于给每次成功迁移加一次多余的 DB 往返（见 TerminationStatusTransition 的约束）。 -->
     <select id="selectTerminationStatusBySeq" resultType="java.lang.String">
         select TERMINATION_STATUS
         from APP_TERMINATION_REQUEST
         where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
     </select>
 
-    <!-- SCANNING 收口成功：一条语句同时落 SUCCESS、完成时间与「通知待发」。
-         MUST 用 CAS（WHERE 带 TERMINATION_STATUS = 'SCANNING'）且 MUST 只用一条语句。
-         2026-09-12 之前这里是 updateStatus + updateCompleteTime + updateNotifyStatus 三条无 CAS
-         语句，而 updateStatus 的 WHERE 只有 REQUEST_SIGN_SEQ：一条已被 expireScanning 打成 FAILED
-         的申请（滞留超 24 小时，日级调度下必然走到）会被迟到的成功回调无条件改成 SUCCESS，
-         而 APP 已经收到过解约失败通知，随后又收到解约成功，两条相反通知。NEVER 退回那种写法。
-         NOTIFY_RETRY_COUNT 归零：这是一条新的、还没发过的解约成功通知，
-         沿用残留轮次会让它一上来就接近上限、补偿随即扫不到。口径与 rejectPending / expireScanning 一致。 -->
     <update id="markSuccess">
         update APP_TERMINATION_REQUEST
         set TERMINATION_STATUS = 'SUCCESS',
@@ -299,12 +236,6 @@
           and TERMINATION_STATUS = 'SCANNING'
     </update>
 
-    <!-- SCANNING 收口失败（支付平台明确答复解约失败）：一条语句同时落 FAILED、失败原因、
-         完成时间与「通知待发」。
-         与 expireScanning 的 SQL 形态相同、语义不同（对方答复失败 vs 我方等超时），
-         刻意不合并：FAIL_REASON 来源与运维处置口径不同，合并后无法从表里区分两者。
-         MUST 用 CAS：updateFailReason 的 WHERE 只有 REQUEST_SIGN_SEQ，
-         能把已收口的 SUCCESS 覆盖成 FAILED，而那时账户域通道其实已经清干净了。 -->
     <update id="rejectScanning">
         update APP_TERMINATION_REQUEST
         set TERMINATION_STATUS = 'FAILED',
@@ -319,12 +250,6 @@
           and TERMINATION_STATUS = 'SCANNING'
     </update>
 
-    <!-- SCANNING 收口超时：一条语句同时落 FAILED、失败原因、完成时间与「通知待发」。
-         MUST 用 CAS（WHERE 带 TERMINATION_STATUS = 'SCANNING'）且 MUST 只用一条语句：
-         SCANNING 是长期在途状态，解约回调随时可能把它收口成 SUCCESS，
-         拆成 updateFailReason + updateCompleteTime 多条会把已收口的 SUCCESS 覆盖成 FAILED。
-         NOTIFY_RETRY_COUNT 归零：这是一条新的、还没发过的解约失败通知，
-         沿用 SCANNING 期间可能残留的轮次会让它一上来就接近上限。 -->
     <update id="expireScanning">
         update APP_TERMINATION_REQUEST
         set TERMINATION_STATUS = 'FAILED',
@@ -339,21 +264,6 @@
           and TERMINATION_STATUS = 'SCANNING'
     </update>
 
-    <!-- markSuccess 撞上 FAILED 时，把「需人工核对」这件事落进 FAIL_REASON。
-         这一条 NEVER 改状态、NEVER 动 NOTIFY_*：此刻 APP 已收到失败通知，改状态或复位通知
-         等于替业务做「要不要反悔」的决定，而 FAILED 到 SUCCESS 已被明确禁止（见 TerminationStatus）。
-         本语句唯一的作用是让这行能被 SQL 找到 —— 之前只有一行 ERROR 日志，日志滚掉就彻底失联。
-         口径与 markChannelSyncManual 一致（ADR-D8 有意不建工单表，人工件用本表的列过滤）。
-
-         三个 WHERE 条件各自的作用，缺一不可：
-         1. REQUEST_SIGN_SEQ 定位到行；
-         2. TERMINATION_STATUS = 'FAILED' 是 CAS。只有「库里失败、实际已解约」这一种组合需要人工；
-            观察到 PENDING 或其它值时本语句影响 0 行，调用方只记日志，NEVER 当成已处置。
-         3. INSTR(...) = 0 是幂等闸门。支付中心会重推同一笔回调，每次重推都会再走到这个分支，
-            没有这个条件时标记会被反复前置拼接，最终把 512 字符的 FAIL_REASON 挤满、原始原因反被截掉。
-
-         SUBSTR 到 512 是因为 FAIL_REASON 是 VARCHAR2(512 CHAR)；原始失败原因保留在标记之后，
-         MUST 前置标记而不是后置 —— 拼接结果超长时截掉的是尾部，标记本身不能被截。 -->
     <update id="markConflictForManualReview">
         update APP_TERMINATION_REQUEST
         set FAIL_REASON = SUBSTR(#{manualNote,jdbcType=VARCHAR} || NVL(FAIL_REASON, ' '), 1, 512),
@@ -363,11 +273,6 @@
           and INSTR(NVL(FAIL_REASON, ' '), #{manualMark,jdbcType=VARCHAR}) = 0
     </update>
 
-    <!-- 与上一条镜像：本次回调答复失败、而库内已收口成 SUCCESS 时留痕。
-         CAS 前置状态是 'SUCCESS'，其余三条不变量与上一条完全一致（主键 / 幂等闸门 / 截断到 512）。
-         刻意不把状态做成绑定参数：字面量留在 SQL 里，离线渲染断言才钉得住；而两种矛盾的
-         人工处置口径本来就不同，合成一条后运维无法从表里区分。
-         这一条不改 TERMINATION_STATUS、不动 NOTIFY_*，理由同上一条。 -->
     <update id="markFailureConflictForManualReview">
         update APP_TERMINATION_REQUEST
         set FAIL_REASON = SUBSTR(#{manualNote,jdbcType=VARCHAR} || NVL(FAIL_REASON, ' '), 1, 512),
@@ -377,13 +282,6 @@
           and INSTR(NVL(FAIL_REASON, ' '), #{manualMark,jdbcType=VARCHAR}) = 0
     </update>
 
-    <!-- 以下四条是 ADR-D8 第一处的 CHANNEL_SYNC_* 一组，管「解约成功后调 account-server 删支付通道」
-         这一个跨域动作的投递状态。与 NOTIFY_* 一组形状对称但语义无关，NEVER 混用。
-         状态取值 PENDING / SUCCESS / FAILED / MANUAL。NULL 是改造前的历史行，四条语句都不会碰到它。 -->
-
-    <!-- 本地事务收口时置「待投递」。CAS 带 TERMINATION_STATUS = 'SUCCESS'：
-         只有解约真的成功才需要删通道，解约失败分支根本不调那个 RPC。
-         重试次数与时间戳一并复位：这是一次全新的投递，沿用残留轮次会让它一上来就接近上限。 -->
     <update id="initChannelSyncPending">
         update APP_TERMINATION_REQUEST
         set CHANNEL_SYNC_STATUS = 'PENDING',
@@ -395,10 +293,6 @@
           and TERMINATION_STATUS = 'SUCCESS'
     </update>
 
-    <!-- 置 SUCCESS 或 FAILED，状态字面量由调用方传。
-         CAS 带 NVL(CHANNEL_SYNC_STATUS, 'X') != 'MANUAL'：MANUAL 表示重试已耗尽、已交人工，
-         自动流程 NEVER 再覆盖它——否则人工刚处理完，下一轮补偿又把它改回 FAILED 继续扫。
-         NVL 兜底是必需的：历史行该列为 NULL，直接比较结果为 UNKNOWN，整条 UPDATE 影响 0 行。 -->
     <update id="updateChannelSyncStatus">
         update APP_TERMINATION_REQUEST
         set CHANNEL_SYNC_STATUS = #{channelSyncStatus,jdbcType=VARCHAR},
@@ -409,9 +303,6 @@
           and NVL(CHANNEL_SYNC_STATUS, 'X') != 'MANUAL'
     </update>
 
-    <!-- 重试次数 +1 并同时落 FAILED：补偿重推滞留的 PENDING 前先调本语句把记录移出中间态，
-         否则重推后的状态回写若再失败，这行会被下一轮重复扫到且次数不涨、永远到不了上限。
-         在「本次投递失败」路径上本就已是 FAILED，重复赋值无副作用。 -->
     <update id="increaseChannelSyncRetryCount">
         update APP_TERMINATION_REQUEST
         set CHANNEL_SYNC_RETRY_COUNT = NVL(CHANNEL_SYNC_RETRY_COUNT, 0) + 1,
@@ -421,11 +312,6 @@
           and NVL(CHANNEL_SYNC_STATUS, 'X') != 'MANUAL'
     </update>
 
-    <!-- 重试耗尽转人工。CAS 带 CHANNEL_SYNC_STATUS = 'FAILED'：只有失败态能转 MANUAL。
-         缺这个 CAS 时，补偿与主链路交错的极端时序下会把刚被置成 SUCCESS 的行误标成 MANUAL，
-         等于凭空造一条「需要人工」的假告警。
-         MANUAL 是本组的终态，selectCompensableChannelSync 不会再捞它，
-         因此运维核对 MUST 用 CHANNEL_SYNC_STATUS = 'MANUAL' 过滤本表（ADR-D8 有意不建工单表）。 -->
     <update id="markChannelSyncManual">
         update APP_TERMINATION_REQUEST
         set CHANNEL_SYNC_STATUS = 'MANUAL',
@@ -436,15 +322,6 @@
           and CHANNEL_SYNC_STATUS = 'FAILED'
     </update>
 
-    <!-- 补偿扫表：捞出需要重新调 account-server 删通道的解约申请。
-         与 selectCompensableNotify 的三处差别，改动前 MUST 逐条想清楚：
-         ①TERMINATION_STATUS 只取 'SUCCESS'（不含 FAILED）——解约失败的申请没有通道要删；
-         ②状态列显式列举 FAILED 与滞留 PENDING，因此 NULL 的历史行自然被排除，
-           那些行在改造前就已在同一事务内清理过或整单回滚过，重推等于凭空再删一次；
-         ③MANUAL 不在白名单，达上限的行不再被捞取。
-         排序与滞留判断都走 NVL(CHANNEL_SYNC_TIME, CREATE_TIME)：PENDING 行该列为 NULL，
-         Oracle 升序会把 NULL 排到最后、且 NULL 参与比较结果为 UNKNOWN，两处都会漏掉待补记录。
-         ROWNUM 必须套在已排序的子查询外层，直接与 ORDER BY 同层会先截断再排序。 -->
     <select id="selectCompensableChannelSync" resultMap="BaseResultMap">
         select <include refid="Base_Column_List"/>
         from (

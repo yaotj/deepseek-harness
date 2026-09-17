@@ -7,18 +7,15 @@ import com.chinasofti.huateng.common.response.CommonResult;
  */
 public class AlipayTripRequestIndustryDataRespDTO extends CommonResult {
     /**
-     * 卡数据HexString
+     * 卡数据HexString。
      */
     private String cardData;
 
     /**
-     * 签名类型
+     * 签名类型。
      */
     private String signType;
 
-    /**
-     * 签名
-     */
     private String sign;
 
     public String getCardData() {

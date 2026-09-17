@@ -1,8 +1,8 @@
 package com.chinasofti.huateng.model.devserver;
 
 /**
- * @author zzm
- * @date 2024/7/9 10:52
+ * @date 2024/7/9 10:52。
+ * @author zzm。
  */
 public class NodeInfo {
 
@@ -11,7 +11,7 @@ public class NodeInfo {
     private String nodeId;
 
     /**
-     * 0x00-正常 0x01-警告 0x02-报警 0x04-离线 0xFF-停止服务
+     * 0x00-正常 0x01-警告 0x02-报警 0x04-离线 0xFF-停止服务。
      */
     private String nodeStatus;
 

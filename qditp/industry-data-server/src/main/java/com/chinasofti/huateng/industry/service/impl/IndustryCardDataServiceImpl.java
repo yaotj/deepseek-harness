@@ -22,26 +22,20 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
-/**
- * 行业卡数据生成服务默认实现。
- */
+/** 行业卡数据生成服务默认实现。 */
 @Service
 public class IndustryCardDataServiceImpl implements IndustryCardDataService {
     private static final Logger log = LoggerFactory.getLogger(IndustryCardDataServiceImpl.class);
     private static final LocalDateTime BASE_TIME = LocalDateTime.of(2000, 1, 1, 0, 0, 0);
     private static final String RET_SUCCESS = "0000";
 
-    /**
-     * 码体是定长 64 位十六进制。任何一段落入非 hex 字符都会在 acc-security-server 的
-     * {@code ItpHexUtils.toByte} 抛 NumberFormatException，而那里把它映射成误导性的
-     * {@code hexString length odd}（长度其实是偶数），排查会被带偏。因此在出本服务前先自检。
-     */
+    /** 码体是定长 64 位十六进制。 */
     private static final Pattern HEX_BODY = Pattern.compile("[0-9A-F]{64}");
 
-    /** 码体定长。改这个数 MUST 同步改 {@link #HEX_BODY} 与 {@link #BODY_LAYOUT}，否则启动即失败。 */
+    /** 码体定长。 */
     private static final int BODY_LENGTH = 64;
 
-    /** 段取值。第一个参数是本服务实例，因为部分段要读 {@code @Value} 配置项。 */
+    /** 段取值。 */
     private interface SegmentReader {
         String read(IndustryCardDataServiceImpl service, IndustryCardDataBuildReqDTO request);
     }
@@ -49,10 +43,7 @@ public class IndustryCardDataServiceImpl implements IndustryCardDataService {
     /** 码体的一段：名字只用于日志，长度是定长契约。 */
     private record BodySegment(String name, int length, SegmentReader reader) { }
 
-    /**
-     * 码体段布局。**列表顺序即码体的字节顺序，NEVER 调整、NEVER 插段**——
-     * 闸机是按固定偏移解析的，错位不会报错，只会验不过。
-     */
+    /** 码体段布局。 */
     private static final List<BodySegment> BODY_LAYOUT = List.of(
             new BodySegment("thirdUserId", 8, (s, r) -> s.toFourByteHex(r.getThirdUserId())),
             new BodySegment("ticketStatus", 2, (s, r) -> s.normalizeHex(r.getTicketStatus(), 2, "03")),
@@ -78,7 +69,7 @@ public class IndustryCardDataServiceImpl implements IndustryCardDataService {
         }
     }
 
-    /** 必填项。顺序即校验顺序，错误信息按 {@code <name>不能为空} 拼装。 */
+    /** 必填项。 */
     private record RequiredField(String name, Function<IndustryCardDataBuildReqDTO, String> reader) { }
 
     private static final List<RequiredField> REQUIRED_FIELDS = List.of(
@@ -141,12 +132,7 @@ public class IndustryCardDataServiceImpl implements IndustryCardDataService {
         return response;
     }
 
-    /**
-     * 按 {@link #BODY_LAYOUT} 逐段拼装签名前码体。
-     *
-     * <p>段长不符只记 ERROR 不抛：整体长度不足 64 时上层 {@link #HEX_BODY} 已经会拦下并返 8001，
-     * 这条日志的价值是**点出是哪一段**——只看 64 位裸串无法定位。</p>
-     */
+    /** 按 {@link #BODY_LAYOUT} 逐段拼装签名前码体。 */
     private String buildUnsignedIndustryData(IndustryCardDataBuildReqDTO request) {
         StringBuilder body = new StringBuilder(BODY_LENGTH);
         for (BodySegment segment : BODY_LAYOUT) {
@@ -160,19 +146,14 @@ public class IndustryCardDataServiceImpl implements IndustryCardDataService {
         return body.toString();
     }
 
-    /**
-     * 渠道位取值：入参为空取默认值，超长留痕后取右 2 位。
-     * 顺序 MUST 保持「先判截断再归一」——{@link #warnIfTruncated} 要看的是归一之前的原值。
-     */
+    /** 渠道位取值：入参为空取默认值，超长留痕后取右 2 位。 */
     private String resolveChannelCode(String field, String rawValue, String defaultValue, String cardId) {
         String value = firstNonBlank(rawValue, defaultValue);
         warnIfTruncated(field, value, 2, cardId);
         return normalizeHex(value, 2, "01");
     }
 
-    /**
-     * 票种段：员工票与日票族的账户卡种各不相同，但行业码体统一压成二维码票种 0441。
-     */
+    /** 票种段：员工票与日票族的账户卡种各不相同，但行业码体统一压成二维码票种 0441。 */
     private String resolveTicketType(String cardType) {
         String normalizedCardType = CardTypeMapping.toIssueCardType(firstNonBlank(cardType, defaultTicketType));
         if (CardTypeCodeEnum.usesQrTicketType(normalizedCardType)) {
@@ -242,13 +223,7 @@ public class IndustryCardDataServiceImpl implements IndustryCardDataService {
         return String.format("%08X", seconds & 0xFFFFFFFFL);
     }
 
-    /**
-     * 码体渠道位是定长 2 位，normalizeHex 对超长入参取右侧 2 位。
-     * 截断本身不改变现有行为，但截出非法渠道值必须留痕：上游若给了 4 位的发卡机构码（如 5412），
-     * 落到码体只剩 12，事后无法从日志复原，ACC 对账时对不上也查不到线索。
-     * <p>account 侧归一化后上送的是 {@code 0001} / {@code 0007}，同样触发截断但结果合法（{@code 01} / {@code 07}），
-     * 这类不打日志——否则每次生码都刷一条 WARN，真正的异常会被淹掉。</p>
-     */
+    /** 码体渠道位是定长 2 位，normalizeHex 对超长入参取右侧 2 位。 */
     private void warnIfTruncated(String field, String value, int length, String cardId) {
         if (!StringUtils.hasText(value)) {
             return;

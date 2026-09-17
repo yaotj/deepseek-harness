@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.paysign.mapper.PayCallbackLogMapper">
-    <!-- 保存支付/退款回调原文。该表只追加，不参与订单最终态覆盖。 -->
+    <!-- 注释只能写在这里：SQL 正文禁写行注释或块注释，Druid WallFilter 会判定为注入并让该语句静默失效。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.paysign.entity.PayCallbackLog">
         INSERT INTO PAY_CALLBACK_LOG (
             ID, ORDER_NO, CALLBACK_TYPE, CALLBACK_STATUS, REFUND_ORDER_NO,
@@ -36,14 +36,6 @@
         )
     </insert>
 
-    <!--
-      重推硬限次的计数来源。
-      MUST 按 MERCHANT_ORDER_NO + CALLBACK_TYPE 统计：一笔订单的支付回调与退款回调
-      共用本表，只按订单号统计会把两类混算。
-      NEVER 在下方 SQL 正文里写行注释或块注释：Druid WallFilter commentAllow=false，
-      带注释的语句会被判定为注入并在运行时静默失效（AGENTS.md §5.1）。
-      本 XML 注释内同样不得出现连续两个连字符，否则 XML 解析失败、mapper 加载不了、服务起不来。
-    -->
     <select id="countByMerchantOrderNo" resultType="int">
         SELECT COUNT(*)
         FROM PAY_CALLBACK_LOG
@@ -51,11 +43,6 @@
           AND CALLBACK_TYPE = #{callbackType,jdbcType=VARCHAR}
     </select>
 
-    <!--
-      放弃重推时的留痕。
-      定位到最近一条：ID 取自 SEQ_PAY_CALLBACK_LOG，单调递增，MAX(ID) 即本次插入的那条。
-      HANDLE_STATUS 为 VARCHAR2(32)、HANDLE_MSG 为 VARCHAR2(1024)，超长由调用方截断。
-    -->
     <update id="markManualByMerchantOrderNo">
         UPDATE PAY_CALLBACK_LOG
         SET HANDLE_STATUS = 'MANUAL',

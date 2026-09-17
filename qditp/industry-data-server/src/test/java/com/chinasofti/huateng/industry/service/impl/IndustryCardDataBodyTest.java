@@ -15,21 +15,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * 行业卡码体特征测试（characterization test）。
- *
- * <p>码体是**已联调通过的对外契约**：定长 64 位十六进制，逐段定长、按位置拼接，
- * 下游 acc-security-server 签名后交闸机离线校验。**任何一段错位或长度变化都不会报错，
- * 只会让闸机验不过**，因此重构前先把当前每一段的取值与偏移逐条钉住。</p>
- *
- * <p>段布局（偏移, 长度）——重构 MUST 保持该布局逐字节不变：
- * thirdUserId(0,8) / ticketStatus(8,2) / lastStationCode(10,4) / handleDate(14,8) /
- * timeStamp(22,8) / ticketLogicNo(30,16) / ticketType(46,4) / transSeq(50,8) /
- * issueChannelCode(58,2) / signChannelCode(60,2) / 固定 01(62,2)。</p>
- *
- * <p>{@code timeStamp} 段取 {@code now() + industry.timestamp-expire-hours}，不可预测，
- * 因此只断言「是 8 位 hex」；其余 56 位全部精确断言。</p>
- */
+/** 行业卡码体特征测试（characterization test）。 */
 class IndustryCardDataBodyTest {
 
     private SecurityClient securityClient;
@@ -44,10 +30,7 @@ class IndustryCardDataBodyTest {
         ReflectionTestUtils.setField(service, "timestampExpireHours", 4);
     }
 
-    /**
-     * 基准请求：所有段都给确定值，单个用例只改自己关心的那一个字段。
-     * {@code lastTxnTime} 固定，保证 handleDate 段可精确断言。
-     */
+    /** 基准请求：所有段都给确定值，单个用例只改自己关心的那一个字段。 */
     private IndustryCardDataBuildReqDTO baseRequest() {
         IndustryCardDataBuildReqDTO request = new IndustryCardDataBuildReqDTO();
         request.setThirdUserId("12345");
@@ -303,11 +286,7 @@ class IndustryCardDataBodyTest {
         assertEquals("加密机无可用连接", response.getRetMsg());
     }
 
-    /**
-     * 已知地雷：签名段为空时走的是「签名失败」分支，而该分支把下游的 {@code retCode} 原样回填，
-     * 于是 {@code retCode=0000} 与 {@code cardData=null} 同时出现——上游按 retCode 判成功就会拿到 null。
-     * 本用例只钉住现状、不顺手改，改动 MUST 先确认上游（fep-app-server 生码链路）怎么判成功。
-     */
+    /** 已知地雷：签名段为空时走的是「签名失败」分支，而该分支把下游的 {@code retCode} 原样回填， 于是 {@code retCode=0000} 与 {@code cardData=null} 同时出现——上游按 retCode 判成功就会拿到 null。 */
     @Test
     @DisplayName("签名段为空时 retCode 仍是 0000 但 cardData 为 null（已知地雷）")
     void 签名段为空时retCode仍是0000但无码体_属已知地雷() {

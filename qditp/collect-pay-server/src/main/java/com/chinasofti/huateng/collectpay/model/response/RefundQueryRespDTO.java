@@ -1,52 +1,32 @@
  package com.chinasofti.huateng.collectpay.model.response;
 
- /**
-  * IF8A-13 退款查询响应报文。
-  */
+ /** IF8A-13 退款查询响应报文。 */
  public class RefundQueryRespDTO {
-     /**
-      * 返回码。
-      */
+     /** 返回码。 */
      private String retCode;
 
-     /**
-      * 返回消息。
-      */
+     /** 返回消息。 */
      private String retMsg;
 
-     /**
-      * 退款订单号。
-      */
+     /** 退款订单号。 */
      private String refundOrderNo;
 
-     /**
-      * 商户退款订单号。
-      */
+     /** 商户退款订单号。 */
      private String merchantRefundNo;
 
-     /**
-      * 渠道退款订单号。
-      */
+     /** 渠道退款订单号。 */
      private String channelRefundNo;
 
-     /**
-      * 原支付订单号。
-      */
+     /** 原支付订单号。 */
      private String orderNo;
 
-     /**
-      * 退款状态。
-      */
+     /** 退款状态。 */
      private String status;
 
-     /**
-      * 退款金额（分）。
-      */
+     /** 退款金额（分）。 */
      private Integer refundAmount;
 
-     /**
-      * 退款时间（格式：yyyyMMddHHmmss）。
-      */
+     /** 退款时间（格式：yyyyMMddHHmmss）。 */
      private String refundTime;
 
      public String getRetCode() {

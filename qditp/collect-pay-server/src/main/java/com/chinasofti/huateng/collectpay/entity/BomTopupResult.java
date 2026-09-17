@@ -1,48 +1,30 @@
 package com.chinasofti.huateng.collectpay.entity;
 
-/**
- * BOM充值结果通知实体类（BOM_TOPUP_RESULT）。
- */
+/** BOM充值结果通知实体类（BOM_TOPUP_RESULT）。 */
 public class BomTopupResult {
 
-    /**
-     * 订单号。
-     */
+    /** 订单号。 */
     private String orderNo;
 
-    /**
-     * 票卡逻辑卡号。
-     */
+    /** 票卡逻辑卡号。 */
     private String ticketLogicNum;
 
-    /**
-     * 票卡物理卡号。
-     */
+    /** 票卡物理卡号。 */
     private String ticketPhysicsNum;
 
-    /**
-     * 交易日期。
-     */
+    /** 交易日期。 */
     private String transDate;
 
-    /**
-     * 交易金额。
-     */
+    /** 交易金额。 */
     private String transAmount;
 
-    /**
-     * 余额。
-     */
+    /** 余额。 */
     private String afterAmount;
 
-    /**
-     * 充值状态：00=成功，01=失败。
-     */
+    /** 充值状态：00=成功，01=失败。 */
     private String topupStatus;
 
-    /**
-     * 交易类型：01=充值。
-     */
+    /** 交易类型：01=充值。 */
     private String transType;
 
     public String getOrderNo() {

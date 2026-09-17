@@ -17,9 +17,7 @@ public interface QRCodeTxnDetailMapper {
 
     QRCodeTxnDetail selectLatestByCardId(@Param("cardId") String cardId);
 
-    /**
-     * 查询最近一次进站交易记录（trxType=01）。
-     */
+    /** 查询最近一次进站交易记录（trxType=01）。 */
     QRCodeTxnDetail selectLatestEntryByCardId(@Param("cardId") String cardId);
 
     QRCodeTxnDetail selectFirstEntryBySequence(@Param("cardId") String cardId,
@@ -29,12 +27,6 @@ public interface QRCodeTxnDetailMapper {
      * IF8A-05 查询交易记录列表。
      *
      * @deprecated 请迁移至 {@link com.chinasofti.huateng.gatetxnpay.mapper.GateTxnPayMapper#selectTransList}
-     *             与 {@link com.chinasofti.huateng.rpc.paySign.PaySignClient#queryPayTxnBatch}
-     *             组成的双源查询模式。**日票也走 GATE_TXN_PAY**，NEVER 因为「日票预付费」
-     *             就改回本方法查 QRCODE_TXN_DETAIL——2026-09-10 曾据此误改并上线（2.1.48/49），
-     *             实测 GateTxnPayServiceImpl:166 的 isDailyTicket 分支照常 INSERT 订单，
-     *             只是跳过 pay-sign；GATE_TXN_PAY 查不到日票的真实原因是该表数据从 20260828
-     *             才有、而日票样本止于 20260812，时间窗不重叠。
      */
     @Deprecated
     java.util.List<com.chinasofti.huateng.model.app.TransRecordDTO> selectTransList(QueryTransListReqDTO request);
@@ -51,8 +43,6 @@ public interface QRCodeTxnDetailMapper {
      * IF8A-41 查询账单统计。
      *
      * @deprecated 已迁至 {@code GateTxnPayMapper#selectTransStatistics}（源表 {@code GATE_TXN_PAY}）。
-     *             本表没有 {@code ORIGINAL_FARE}，算不出真优惠，只能拿 {@code OVERTIME_AMOUNT}
-     *             冒充「优惠」，三个金额标签全部错位（2026-09-10 修正）。**NEVER 重新启用**。
      */
     @Deprecated
     RequestTransStatisticsResult selectTransStatistics(@Param("request") RequestTransStatisticsReqDTO request);
@@ -85,45 +75,33 @@ public interface QRCodeTxnDetailMapper {
                                                             @Param("offset") int offset,
                                                             @Param("limit") int limit);
 
-    /**
-     * 支付宝出行-查询乘车记录总数。
-     */
+    /** 支付宝出行-查询乘车记录总数。 */
     int countAlipayTravelList(@Param("thirdUserId") String thirdUserId,
                                @Param("startTime") String startTime,
                                @Param("endTime") String endTime);
 
-    /**
-     * 支付宝出行-查询乘车记录详情。
-     */
+    /** 支付宝出行-查询乘车记录详情。 */
     AlipayTripTravelRecordDTO selectAlipayTravelDetail(@Param("thirdUserId") String thirdUserId,
                                                        @Param("orderNo") String orderNo,
                                                        @Param("handleDateTime") String handleDateTime,
                                                        @Param("trxType") String trxType,
                                                        @Param("cardId") String cardId);
 
-    /**
-     * 支付宝出行-按订单号查询乘车记录详情。
-     */
+    /** 支付宝出行-按订单号查询乘车记录详情。 */
     AlipayTripTravelRecordDTO selectAlipayTravelDetailByOrderNo(@Param("orderNo") String orderNo);
 
-    /**
-     * 支付宝出行-按用户+时间+交易类型+卡号查询乘车记录详情。
-     */
+    /** 支付宝出行-按用户+时间+交易类型+卡号查询乘车记录详情。 */
     AlipayTripTravelRecordDTO selectAlipayTravelDetailByUserAndDateTime(@Param("thirdUserId") String thirdUserId,
                                                                         @Param("handleDateTime") String handleDateTime,
                                                                         @Param("trxType") String trxType);
 
-    /**
-     * IF8A-04 查询补站交易明细（业务幂等校验）。
-     */
+    /** IF8A-04 查询补站交易明细（业务幂等校验）。 */
     QRCodeTxnDetail selectExcessFareDetail(@Param("cardId") String cardId,
                                            @Param("trxType") String trxType,
                                            @Param("handleDateTime") String handleDateTime,
                                            @Param("ticketTransSeq") String ticketTransSeq);
 
-    /**
-     * IF8A-34 查询订单详情（返回进站+出站等所有记录，由 Service 层合并）。
-     */
+    /** IF8A-34 查询订单详情（返回进站+出站等所有记录，由 Service 层合并）。 */
     java.util.List<com.chinasofti.huateng.model.app.TransRecordDTO> selectTransDetail(@Param("thirdUserId") String thirdUserId,
                                                        @Param("orderNo") String orderNo);
 }

@@ -14,13 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 用户运营端二维码票卡交易明细查询。
- *
- * <p>2026-09-14 起取数下沉到 {@link OperationTxnDetailQueryService}，本类只做参数归一、
- * 分页边界钳制与应答装配。**NEVER 改回直接注 {@code QRCodeTxnDetailMapper}** ——
- * controller 直连 mapper 违反 AGENTS.md §3.3。
- */
+/** 用户运营端二维码票卡交易明细查询。 */
 @RestController
 @RequestMapping("/page/qrcode-txn-detail")
 public class QRCodeTxnDetailPageController {

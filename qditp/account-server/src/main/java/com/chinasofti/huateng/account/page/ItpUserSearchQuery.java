@@ -1,6 +1,8 @@
 package com.chinasofti.huateng.account.page;
 
-/** 非支付宝用户注册信息后台查询条件。 */
+/**
+ * 非支付宝用户注册信息后台查询条件。
+ */
 public class ItpUserSearchQuery {
     private String queryType;
     private String keyword;

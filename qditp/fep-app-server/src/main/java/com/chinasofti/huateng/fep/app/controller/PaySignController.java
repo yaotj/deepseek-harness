@@ -29,8 +29,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * APP 支付签约相关接口入口。
- *
- * <p>所有接口透传到 pay-sign-server。</p>
  */
 @RestController
 public class PaySignController extends BaseAppController {
@@ -43,13 +41,7 @@ public class PaySignController extends BaseAppController {
     }
 
     /**
-     * IF8A-19 请求支付（通用），仅内部 `/ci/app/requestPay` 一条路径。
-     *
-     * <p><b>NEVER 再挂 {@code /app/payment/requestPay}</b>：接口规范 R6 中该地址属于
-     * if8a_61 日票支付，已归还 {@code AppDailyTicketController}。挂在此处会让日票支付请求
-     * 透传到 pay-sign，因缺 amount / subject / body / cardId / cardType 被
-     * {@code PaySignWorkflow.validateRequestPay} 拦为 {@code retCode=8001 amount不能为空}
-     * （2026-09-09 实测，订单 0E202609091941230001）。</p>
+     * IF8A-19 请求支付（通用）。
      */
     @PostMapping({"/ci/app/requestPay"})
     public RequestPayResult requestPay(@ModelAttribute ItpCommonFormRequest request) {
@@ -99,14 +91,6 @@ public class PaySignController extends BaseAppController {
 
     /**
      * IF8A-75 直接解绑支付方式。
-     *
-     * <p>与 IF8A-06 请求解约的区别：本接口立即向支付渠道发起解绑，不等账期结束的定时任务，
-     * 用于用户长时间未登录需强制解除绑定关系的场景。</p>
-     *
-     * <p><b>{@code /userData/unbindAgreement} 是 APP 实际在调的路径</b>（2026-09-09 实测：
-     * 销户后 APP 紧接着请求该路径，因未注册被全局异常处理器兜成 UUID retCode + HTTP 200，
-     * APP 无法识别失败，导致用户 00522948 已注销但支付宝签约仍为 SIGNED、通道残留 ACTIVE）。
-     * 三条路径同时保留，**NEVER** 删掉 {@code /userData/} 这条，除非 APP 侧确认已切换。</p>
      */
     @PostMapping({"/userData/unbindAgreement", "/ci/app/unbindAgreement", "/app/unbindAgreement"})
     public UnbindAgreementResult unbindAgreement(@ModelAttribute ItpCommonFormRequest request) {
@@ -140,10 +124,6 @@ public class PaySignController extends BaseAppController {
     /**
      * 内部解约结果通知（pay-sign-server -> fep-app -> 外部支付平台）。
      * 兼容 form 和 JSON 两种请求体格式。
-     *
-     * <p>{@code /ci/app/receiveUnsignResult} 是支付中心侧使用的别名路径，语义与
-     * {@code receiveTerminationResult} 完全一致，同样转发到 pay-sign-server 的
-     * {@code /ci/app/receiveTerminationResult}。</p>
      */
     @PostMapping({"/ci/app/receiveTerminationResult", "/ci/app/receiveUnsignResult"})
     public PaySignCallbackResult receiveTerminationResult(@RequestBody String requestBody) {

@@ -18,29 +18,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/**
- * 运营后台乘车状态查询与人工调整。
- *
- * <p>2026-09-14 新增，用来消除 {@code controller/page/QRCodeRideStatusPageController} 直连
- * {@code QRCodeStatusMapper} 的分层违规（AGENTS.md §3.3）。原实现把**状态白名单**、
- * {@code 0x04} / {@code 04} 归一、以及唯一的人工改状态审计日志全放在 controller 里，
- * 于是这三样都只能靠打 HTTP 才能验证，而白名单一旦被绕过就是直接改票卡状态机的当前态。
- *
- * <p>写 {@code QRCODE_STATUS} 一律经 {@link QRCodeStatusStore}（该表 owner 在 gate 包），
- * **NEVER 在本包直接注 {@code QRCodeStatusMapper}**。
- *
- * <p>本类**不加 {@code @Transactional}**：只有一条 UPDATE，自动提交即可；
- * 后面那次回查是为了把落库后的真值返给页面，读到旧值也不影响正确性。
- */
+/** 运营后台乘车状态查询与人工调整。 */
 @Service
 public class OperationRideStatusService {
 
     private static final Logger log = LoggerFactory.getLogger(OperationRideStatusService.class);
 
-    /**
-     * 运营端允许人工写入的状态码集合。**NEVER 改成「排除某几个」的黑名单** ——
-     * 见 AGENTS.md §5.2「状态机校验用白名单，不用黑名单」。
-     */
+    /** 运营端允许人工写入的状态码集合。 */
     private static final Set<String> ALLOWED_CODE_STATUS = Stream.of(
             QRCodeStatusEnum.END_TRIP,
             QRCodeStatusEnum.SJT_ISSUE,
@@ -71,24 +55,18 @@ public class OperationRideStatusService {
         CARD_NOT_FOUND
     }
 
-    /**
-     * 人工调整的结果。{@code status} 仅在 {@link UpdateResult#OK} 时非空，
-     * 取的是**落库之后**回查到的行。
-     */
+    /** 人工调整的结果。 */
     public record UpdateOutcome(UpdateResult result, QRCodeStatus status) {
     }
 
-    /** 按逻辑卡号查乘车状态，查不到返回 {@code null}。返回前补齐进出站中文站名供页面展示。 */
+    /** 按逻辑卡号查乘车状态，查不到返回 {@code null}。 */
     public QRCodeStatus findByCardId(String cardId) {
         QRCodeStatus status = qrCodeStatusStore.findByCardId(cardId);
         fillStationNames(status);
         return status;
     }
 
-    /**
-     * 运营端展示用：按进站/末次交易车站编码批量查 STATION_INFO 回填中文名；
-     * 查不到的保持 null，由前端回退显示编码。
-     */
+    /** 运营端展示用：按进站/末次交易车站编码批量查 STATION_INFO 回填中文名； 查不到的保持 null，由前端回退显示编码。 */
     private void fillStationNames(QRCodeStatus status) {
         if (status == null) {
             return;
@@ -122,8 +100,8 @@ public class OperationRideStatusService {
     /**
      * 人工调整乘车状态。
      *
-     * @param cardId       逻辑卡号，调用方已 trim
-     * @param codeStatus   目标状态码，页面可传 {@code 0x04} 或 {@code 04}
+     * @param cardId 逻辑卡号，调用方已 trim
+     * @param codeStatus 目标状态码，页面可传 {@code 0x04} 或 {@code 04}
      * @param changeReason 变更原因，调用方已校验非空，只进审计日志
      */
     public UpdateOutcome updateCodeStatus(String cardId, String codeStatus, String changeReason) {

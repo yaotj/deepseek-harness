@@ -14,8 +14,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * APP 行业数据接口入口。
- *
- * <p>涵盖 IF8A-03 请求行业数据、IF8D-03 请求离线码数据。</p>
  */
 @RestController
 public class IndustryDataController extends BaseAppController {

@@ -30,10 +30,7 @@
     </update>
 
     <!-- 只标最后一条：一笔订单可能有多次推送，需要人工看的是最终仍未收口的那次。
-         用子查询取 CREATE_TIME 最大的一行，同秒并列时按 CALLBACK_SEQ 兜底定序，
-         保证本语句恒定只影响一行。
-         注意：SQL 正文内 NEVER 使用行注释或块注释（Druid WallFilter commentAllow=false），
-         本 XML 注释内也不得出现连续两个连字符。 -->
+         SQL 正文内 NEVER 写注释（Druid WallFilter），本 XML 注释内也不得出现连续两个连字符。 -->
     <update id="markManualByOrderNo">
         UPDATE ALIPAY_PAY_CALLBACK_LOG
         SET HANDLE_STATUS = 'MANUAL',

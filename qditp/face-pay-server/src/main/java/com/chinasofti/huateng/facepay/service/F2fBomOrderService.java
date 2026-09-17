@@ -28,23 +28,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * BOM 非现金收款：下单、业务操作结果通知、单程票交易查询、单程票退款。
- *
- * <h2>四处修掉的旧缺陷</h2>
- * <ul>
- *   <li><b>下单幂等。</b>{@code bomOptSeq} 落到 {@code DEVICE_SEQ}，由
- *       {@code UK_F2F_ORDER_DEV_SEQ}（CHANNEL + DEVICE_ID + DEVICE_SEQ）挡重复开单；
- *       撞索引时查出已有订单原样返回。旧实现只入库不判重。</li>
- *   <li><b>业务结果通知幂等。</b>{@code UK_F2F_REPORT_IDEM} 挡重复通知，重复的
- *       {@code FAILED} 不会二次退款。旧实现每次都生成新退款单。</li>
- *   <li><b>退款结果不再被忽略。</b>旧实现 {@code doRefund} 返回值只打日志，退款失败照样回
- *       {@code 0000}；这里按 {@link RefundOutcome} 显式区分「拒绝 / 已存在 / 已受理」。</li>
- *   <li><b>交易查询不再 NPE。</b>旧 {@code getBomOrderInfo} 对订单不判空就 {@code .getRsv2()}。</li>
- * </ul>
- *
- * <p>整个类不带 {@code @Transactional}：退款链路内有支付中心调用。</p>
- */
+/** BOM 非现金收款：下单、业务操作结果通知、单程票交易查询、单程票退款。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。 */
 @Service
 public class F2fBomOrderService {
 
@@ -78,16 +62,7 @@ public class F2fBomOrderService {
     /** 票状态：可退。 */
     private static final List<String> TICKET_REFUNDABLE = List.of("ISSUED", "FAULT");
 
-    /**
-     * 票状态：退款中。
-     *
-     * <p><b>这是 {@code F2F_TICKET.TICKET_STATUS}，不是订单状态</b>——拼写与
-     * {@link F2fOrderStatus#REFUNDING} 撞车纯属巧合，两者是**不同的取值域**
-     * （见 {@code docs/domain/state-machines.md} §二）。因此 NEVER 改成
-     * {@code F2fOrderStatus.REFUNDING.name()}：编译器两边都是 String、发现不了，
-     * 但一旦订单侧改了拼写，票状态会被同步改坏。前缀 {@code TICKET_} 也是
-     * {@code F2fOrderStatusArchTest} 区分取值域的唯一依据。</p>
-     */
+    /** 票状态：退款中。 */
     private static final String TICKET_REFUNDING = "REFUNDING";
 
     private final F2fOrderMapper orderMapper;
@@ -115,10 +90,7 @@ public class F2fBomOrderService {
         this.orderNoGenerator = orderNoGenerator;
         this.refundService = refundService;
     }
-    /**
-     * IF8A-04 非现金收款下单。只 INSERT，不先查后插——并发下先查再插无效，
-     * 重复请求由 {@code UK_F2F_ORDER_DEV_SEQ} 挡住后回查已有订单幂等返回。
-     */
+    /** IF8A-04 非现金收款下单。 */
     public JSONObject createNoCashOrder(RequestGenNoCashOrderReqDTO request) {
         Long amount = request.amountInFen();
         if (amount == null) {
@@ -157,24 +129,7 @@ public class F2fBomOrderService {
         return BomResponses.successOrderNo(orderNo);
     }
 
-    /**
-     * IF2A-08 业务操作结果通知。{@code FAILED} 触发原单全额退款。
-     *
-     * <p>幂等靠 {@code UK_F2F_REPORT_IDEM}：同一订单的重复通知不会二次退款。
-     * <b>退款提交失败也回成功</b>——上报与退款单都已落库，
-     * {@code F2fRefundReconcileJob} 会重试；回失败只会让 BOM 无意义重推。</p>
-     *
-     * <p><b>订单不在 {@link #REPORTABLE} 里（钱没收到）时只落上报、原样回 {@code 0000}，
-     * 不动状态、NEVER 退款。</b>两条实测依据：①BOM 在一笔支付失败后会固定补发一次
-     * {@code optResult=FAILED} 作为调用收尾，这是正常话务不是异常，2026-09-11 并跑期间
-     * 在真实流量里命中 3 次（16:35 / 18:15 / 18:17）；②同日 BOM 全量双打，未支付
-     * （{@code CREATED}）的单子旧返 {@code 0000}、新返 {@code 8999 订单状态不允许上报业务结果}。
-     * 旧实现除「订单不存在」外根本不看状态，所以判据是「取反 {@code REPORTABLE}」而不是
-     * 枚举「哪些算支付未成功」——曾按 {@code PAY_FAILED / EXPIRED} 两个状态放行，漏了 {@code CREATED}。</p>
-     *
-     * <p>放行上报但 NEVER 走退款分支：钱没收到，退款单会被支付中心拒（{@code 错误的订单号}）
-     * 并留下 stranded {@code INIT} 记录，靠 {@code F2fRefundReconcileJob} 无限重试也收不了口。</p>
-     */
+    /** IF2A-08 业务操作结果通知。 */
     public JSONObject receiveBusResult(NotiBusResultReqDTO request) {
         F2fOrder order = orderMapper.selectByOrderNo(request.getOrderNo());
         if (order == null) {
@@ -208,13 +163,7 @@ public class F2fBomOrderService {
         submitWholeRefund(order, request.getDeviceId());
         return BomResponses.success();
     }
-    /**
-     * 单程票交易查询。两要素（逻辑卡号 + 交易日期）定位票，再回查订单。
-     *
-     * <p>{@code paymentResult} 值域是 {@code SUCCESS / FAILED / UNPAID}，
-     * 与 {@code requestGetPayResult} 的 {@code ORDERED} 不同，见
-     * {@link BomResponses#orderResult}。</p>
-     */
+    /** 单程票交易查询。 */
     public JSONObject requestOrderResult(RequestOrderResultReqDTO request) {
         F2fTicket ticket = ticketMapper.selectByLogicNumAndTransDate(
                 request.getTicketLogicNum(), request.getTransDate());
@@ -240,17 +189,7 @@ public class F2fBomOrderService {
                         ? channelCodeOf(order.getOrderNo()) : ticket.getPayChannelCode());
     }
 
-    /**
-     * 单程票退款。按票退，幂等键是「原订单号 + 逻辑卡号 + BOM_ORIGINAL」。
-     *
-     * <p>旧实现先无条件写一条退款请求记录（{@code insertTicketRefundRecord}，该表没有唯一索引），
-     * 再按 {@code transType} 分流到三套几乎相同的退款代码，退款成功后把退款单号写回子票表。
-     * 这里合成一条链路：校验 → 提交退款 → 回写票的 {@code REFUND_NO} 与状态。</p>
-     * <p><b>响应形态（2026-09-16）</b>：成功与失败都回
-     * {@code refundResult / refundResultDesc / refundNo} 三个业务键，失败支值全 JSON null，
-     * 判据与 NEVER 事项写在 {@code BomResponses.refundSuccess} / {@code refundFail} 上。
-     * <b>「订单不存在」那一支的 {@code 9999} 是 BOM 域独一份的既有码，NEVER 归一成 8999 / 8006。</b></p>
-     */
+    /** 单程票退款。 */
     public JSONObject requestTicketRefund(RequestTicketRefundReqDTO request) {
         Long amount = request.amountInFen();
         if (amount == null || amount <= 0) {
@@ -299,22 +238,16 @@ public class F2fBomOrderService {
         int ticketRows = ticketMapper.updateStatus(request.getTicketLogicNum(), ticket.getTransDate(),
                 TICKET_REFUNDABLE, TICKET_REFUNDING);
         if (ticketRows == 0) {
-            // 票状态 CAS 0 行 —— 退款已提交给支付中心（refundService 在前面），说明这张票在本次
-            // 校验之后被别人推走了，最常见是 BOM 对同一张票并发发退款。**这是重复退款的唯一信号**，
-            // NEVER 降级成 info。订单主状态不再参与退款（ADR-D88），票状态是现在仅存的那道 CAS。
             log.warn("F2F CAS 冲突 单程票退款票状态未推进，疑似重复退款, orderNo={}, ticketLogicNum={}, refundNo={}",
                     order.getOrderNo(), request.getTicketLogicNum(), outcome.refundNo());
         }
         log.info("单程票退款已提交, orderNo={}, ticketLogicNum={}, refundNo={}, alreadyExisted={}",
                 order.getOrderNo(), request.getTicketLogicNum(), outcome.refundNo(), outcome.alreadyExisted());
         boolean settled = F2fRefundService.STATUS_SUCCESS.equals(outcome.refundStatus());
-        // 只有终态 SUCCESS 才回 SUCCESS：支付中心受理（PROCESSING）不等于钱已到账，收口要等
-        // F2fRefundService.reconcileRefund 回查。INIT / MANUAL 一并按 PROCESSING 上报 ——
-        // 对 BOM 来说都是「还没有结论」，NEVER 映射成 FAILED（会让设备把在途退款当成失败）。
         return BomResponses.refundSuccess(settled ? "SUCCESS" : "PROCESSING",
                 settled ? "退款成功" : "退款处理中", outcome.refundNo());
     }
-    /** 业务操作失败的原单全额退款。<b>必须在事务外</b>：内部会调支付中心。 */
+    /** 业务操作失败的原单全额退款。 */
     private void submitWholeRefund(F2fOrder order, String deviceId) {
         if (order.getOrderAmount() == null || order.getOrderAmount() <= 0) {
             log.error("BOM 业务失败退款 订单金额非法，无法退款, orderNo={}, amount={}",
@@ -335,7 +268,9 @@ public class F2fBomOrderService {
                 order.getOrderNo(), outcome.refundNo(), outcome.alreadyExisted());
     }
 
-    /** @return true 表示本次是首报；false 表示撞唯一索引（重复上报） */
+    /**
+     * @return true 表示本次是首报；false 表示撞唯一索引（重复上报）
+     */
     private boolean insertReport(F2fResultReport report) {
         try {
             reportMapper.insert(report);
@@ -393,19 +328,13 @@ public class F2fBomOrderService {
         return last == null ? null : last.getPayChannelCode();
     }
 
-    /**
-     * 取支付中心侧原订单号供退款报文使用。旧实现这里硬编码空串
-     * （{@code BomOrderServiceImpl:640} 留着「根据实际情况填写」的注释）。
-     */
+    /** 取支付中心侧原订单号供退款报文使用。 */
     private String payCenterOrderNoOf(String orderNo) {
         F2fPayment last = paymentMapper.selectLastAttempt(orderNo);
         return last == null ? null : last.getPayCenterOrderNo();
     }
 
-    /**
-     * 记「CAS 没命中」。口径与 {@code F2fTvmOrderService.warnIfConflict} 一致：
-     * <b>只告警、不改应答、不拒绝请求</b>，改一处 MUST 看齐其余三处（TVM / APP / 充值）。
-     */
+    /** 记「CAS 没命中」。 */
     private void warnIfConflict(String orderNo, int updatedRows, F2fOrderStatus target, String scene) {
         F2fOrderStatusTransition.Result transit = F2fOrderStatusTransition.classify(
                 updatedRows, target, () -> orderMapper.selectOrderStatus(orderNo));

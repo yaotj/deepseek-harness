@@ -16,29 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
-/**
- * 扫码取票：IF8A-15 激活取票订单 + IF2A-08 取票鉴权查询。
- *
- * <p>手机在 TVM 上扫二维码 → {@code requestActiveTicket} 把订单绑到该台设备并写入二维码三要素
- * → TVM 用同样三要素调 {@code requestTakeTicketAuth} 取回订单详情后出票。</p>
- *
- * <h2>两处修掉的旧缺陷</h2>
- * <ul>
- *   <li><b>激活改成条件更新抢锁。</b>旧实现是无条件 {@code UPDATE ... WHERE ORDER_NO=?}，
- *       两台设备同时扫同一个码会双双成功，订单被后写的那台覆盖，前一台随后取票鉴权查不到。
- *       现在 WHERE 带 {@code ACTIVATE_DEVICE_ID IS NULL}，返回 0 即已被占用，回 2008。</li>
- *   <li><b>鉴权查询不再依赖「多查一条就报失败」。</b>旧实现 {@code selectByDeviceAndQrcode}
- *       返回 List，命中多条时回「查询到的订单数量过多，失败」；三要素本应唯一，
- *       {@code selectByQrcode} 直接取一行。</li>
- * </ul>
- *
- * <p><b>2026-09-16 按用户明确要求调整「查不到取票订单」的响应形态</b>：两条 {@code 2003} 分支
- * 由「只有 retCode/retMsg 的纯错误体」改为「与成功响应同形、8 个业务键值全为 JSON null」，
- * 码与文案仍是 {@code 2003 无激活的订单}。详见 {@link TvmResponses#takeTicketAuthNoActiveOrder}。</p>
- *
- * <p>本类无网络调用，也不带 {@code @Transactional}——两个方法各自只有一条写 SQL，
- * 靠条件更新本身保证原子性，加事务没有收益。</p>
- */
+/** 扫码取票：IF8A-15 激活取票订单 + IF2A-08 取票鉴权查询。本类刻意不带 {@code @Transactional}（每个方法只有一条写 SQL），NEVER 加。 */
 @Service
 public class F2fTakeTicketService {
 
@@ -59,13 +37,7 @@ public class F2fTakeTicketService {
         this.paymentMapper = paymentMapper;
     }
 
-    /**
-     * IF8A-15 激活取票订单。
-     *
-     * <p>文案逐字照搬旧实现；只有「已被其他设备激活」这一支从旧的 2999「激活失败」
-     * 改成 2008 订单已锁定——设备侧靠码值区分「该重扫」还是「换一台机器」，
-     * 2999 无法区分。</p>
-     */
+    /** IF8A-15 激活取票订单。 */
     public JSONObject requestActiveTicket(RequestActiveTicketReqDTO request) {
         String orderNo = request.getOrderNo();
         F2fOrder order = orderMapper.selectByOrderNo(orderNo);
@@ -88,15 +60,7 @@ public class F2fTakeTicketService {
         return TvmResponses.success();
     }
 
-    /**
-     * IF2A-08 取票鉴权查询。设备凭二维码三要素取回订单详情。
-     *
-     * <p>查不到 → 2003 无激活的订单；查到但未激活也回 2003。<b>两支的响应体都与成功响应同形</b>
-     * （8 个业务键齐全、值为 JSON null），见 {@link TvmResponses#takeTicketAuthNoActiveOrder}。</p>
-     *
-     * <p>此处 NEVER 回退成旧 collect-pay 的 {@code failData(空订单)}：那是 {@code 2999} 码，
-     * 且票数会变成字符串 {@code "null"}、设备侧可能误出 1 张票。</p>
-     */
+    /** IF2A-08 取票鉴权查询。 */
     public JSONObject requestTakeTicketAuth(RequestTakeTicketAuthReqDTO request) {
         F2fOrder order = orderMapper.selectByQrcode(
                 request.getDeviceId(), request.getQrcodeGenDate(), request.getRandomFact());

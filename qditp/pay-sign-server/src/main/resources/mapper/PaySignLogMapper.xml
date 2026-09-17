@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.paysign.mapper.PaySignLogMapper">
+    <!-- 注释只能写在这里：SQL 正文禁写行注释或块注释，Druid WallFilter 会判定为注入并让该语句静默失效。 -->
     <update id="upsert" parameterType="com.chinasofti.huateng.paysign.entity.PaySignLog">
         MERGE INTO APP_PAY_SIGN_LOG t
         USING (

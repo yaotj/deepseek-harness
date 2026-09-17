@@ -27,12 +27,7 @@ import com.chinasofti.huateng.fep.alipay.service.AlipayTripService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-/**
- * 支付宝出行 Trip 服务门面实现。
- * <p>
- * 委托给领域特定服务实现类处理具体业务逻辑。
- * </p>
- */
+/** 支付宝出行 Trip 服务门面实现。 */
 @Service
 public class AlipayTripServiceImpl implements AlipayTripService {
 

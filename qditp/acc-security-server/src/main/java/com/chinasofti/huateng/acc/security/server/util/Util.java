@@ -549,7 +549,6 @@ public class Util {
             hs.append(stmp);
         }
         return hs.toString().toLowerCase();
-        //return hs.toUpperCase();
     }
 
     public static byte[] subByte(byte[] input, int startIndex, int length) {

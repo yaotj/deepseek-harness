@@ -14,41 +14,35 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.util.Collections;
 import java.util.Map;
 
-
 @Service
 public class F2FClient extends ProxyWebClient {
 
     public static Logger log = LoggerFactory.getLogger(AccountClient.class);
 
-
     public F2FClient(@Value("${service.f2f.url:http://127.0.0.1:9098}") String baseUrl, @Value("${service.f2f.openLogger:true}") boolean openLogger, WebClient.Builder webClientBuilder) {
         super(baseUrl, openLogger, webClientBuilder);
     }
 
-
-    /**
-     * 测试
-     */
     public RequestApplicationResult testtbNoticeAppTask() {
         return testtbNoticeAppTask(Collections.emptyMap());
     }
 
     /**
-     * 扫码取票接口 通知app出票结果
+     * 扫码取票接口 通知app出票结果。
      */
     public RequestApplicationResult noticeTakeTicketTask() {
         return noticeTakeTicketTask(Collections.emptyMap());
     }
 
     /**
-     * 扫码取票接口 通知app出票故障结果
+     * 扫码取票接口 通知app出票故障结果。
      */
     public RequestApplicationResult noticeTakeTicketFailureTask() {
         return noticeTakeTicketFailureTask(Collections.emptyMap());
     }
 
     /**
-     * 扫码取票接口 通知app退款结果
+     * 扫码取票接口 通知app退款结果。
      */
     public RequestApplicationResult noticeRefundTask() {
         return noticeRefundTask(Collections.emptyMap());
@@ -84,14 +78,6 @@ public class F2FClient extends ProxyWebClient {
 
     /**
      * 四个通知接口的请求体都是空，只有路径不同，统一在此发出。
-     *
-     * <p>headers 由 {@code QuartzTraceUtils.traceHeaders} 生成（W3C {@code traceparent} +
-     * {@code X-Vlogs-Capture}）。**NEVER 传自定义 {@code traceId} 头**——micro 的 {@code FirstFilter}
-     * 会把请求头 key 全部小写后塞进 MDC，与 Micrometer 写入的 traceId 抢同一个键。</p>
-     *
-     * <p>⚠️ {@code ProxyWebClient} 只自动透传 MDC 里的 {@code authorization}，**不会**注入任何 trace 头，
-     * 因此调用方 MUST 显式传入。请求体保持原有的 {@code null}，**NEVER** 改成空 Map——
-     * 下游 {@code NoticeAppTask} 的入参形态未经验证，改动等于改契约。</p>
      */
     private RequestApplicationResult post(String path, Map<String, String> headers) {
         String result = postJsonAndGetResponse(path, null, headers);
@@ -99,4 +85,3 @@ public class F2FClient extends ProxyWebClient {
         }, true);
     }
 }
-

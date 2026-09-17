@@ -40,9 +40,7 @@ import java.util.Map;
 import java.util.UUID;
 
 
-/**
- * 当面付业务公用方法
- */
+/** 当面付业务公用方法 */
 @Service
 @Slf4j
 public class TvmCommonServiceImpl implements TvmCommonService {

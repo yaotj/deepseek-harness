@@ -58,8 +58,6 @@ public class UserPhoneChangeLog {
 
     /**
      * 向支付域同步显示账号的投递状态：PENDING-待投递，SUCCESS-已送达，FAILED-投递失败待重试。
-     *
-     * <p>NULL 表示本行早于 2026-09-11 的改造，补偿扫描 NEVER 捞取。</p>
      */
     private String signSyncStatus;
 

@@ -3,10 +3,7 @@ package com.chinasofti.huateng.collectpay.constant;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
-/**
- * 支付平台响应码枚举。
- * 对应支付平台公共响应码定义。
- */
+/** 支付平台响应码枚举。 */
 public enum PayCenterErrorCodeEnum {
 //    SUCCESS("200", "成功"),
     SUCCESS("0", "成功"),
@@ -37,9 +34,7 @@ public enum PayCenterErrorCodeEnum {
         return msg;
     }
 
-    /**
-     * 根据code获取枚举。
-     */
+    /** 根据code获取枚举。 */
     public static PayCenterErrorCodeEnum fromCode(String code) {
         for (PayCenterErrorCodeEnum e : values()) {
             if (StringUtils.equals(e.getCode(), code)) {

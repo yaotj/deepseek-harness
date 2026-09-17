@@ -14,29 +14,7 @@ import com.chinasofti.huateng.paysign.model.response.RequestTerminationRespDTO;
 import com.chinasofti.huateng.rpc.outcome.RpcOutcome;
 import org.junit.jupiter.api.Test;
 
-/**
- * {@code requestTermination} <b>钱包（{@code 0B}）分支</b>的特征测试（护栏，2026-09-16）。
- *
- * <p><b>补的是层 3 动工前的最后一块空白</b>：把三个入口的渠道分派改成 sealed 策略之前，
- * 逐条核对了「每个入口的两条分支是否都有断言」，结果是六条里只有这一条没有 ——
- * {@code requestContractAdvisory} 两支都有（{@code ContractDomainCharacterizationTest}），
- * {@code requestContractResult} 两支都有（钱包支在 {@code AccountReadCharacterizationTest} 的 4 条），
- * 而 {@code requestTermination} 只有传统渠道那支，钱包支（{@code releaseWalletBinding}）零覆盖。
- * 按 ADR-D108 续（二）那条「零覆盖的方法 NEVER 先拆」，这个类必须先存在。
- *
- * <p>钉住的不变量：
- * <ul>
- *   <li><b>钱包解绑不建解约申请、不出网调支付中心</b>：它由账户域 {@code requestAgreeRelease}
- *       同步完成，与 {@code APP_TERMINATION_REQUEST} 的 T+4 扫描链路完全无关。
- *       把它误接进解约申请流程会给钱包用户凭空造一条永远等不到回调的 {@code SCANNING} 记录。</li>
- *   <li><b>渠道号 MUST 用 {@code PaymentChannels.walletCode()} 传给账户域</b>，
- *       NEVER 透传请求里的原值（可能带空白或大小写差异）。</li>
- *   <li><b>{@code BizRejected} 与 {@code Unreachable} 分开处置</b>（ADR-D45）：前者把对端文案带出来，
- *       后者只给通用文案并把栈打进日志。两者都 NEVER 报成成功。</li>
- *   <li><b>缺 cardId / cardType 时 NEVER 调账户域</b>：那个端点的参数校验会失败，
- *       等于把一次必然失败的出网当成业务分支。</li>
- * </ul>
- */
+/** 护栏：钱包解绑不建解约申请、不出网，渠道号取归一值，业务拒绝与不可达分两支。 */
 class WalletTerminationCharacterizationTest {
 
     private static final String WALLET_VENDOR = "0B";

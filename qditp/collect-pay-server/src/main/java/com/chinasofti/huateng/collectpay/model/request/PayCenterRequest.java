@@ -1,33 +1,18 @@
 package com.chinasofti.huateng.collectpay.model.request;
 
-/**
- * 支付中心网关请求封装。
- * 对应支付平台公共请求参数：merchantNo, apiVersion, signType, charset, bizData, sign
- */
+/** 支付中心网关请求封装。 */
 public class PayCenterRequest {
-    /**
-     * 商户号。
-     */
+    /** 商户号。 */
     private String merchantNo;
-    /**
-     * API版本。
-     */
+    /** API版本。 */
     private String apiVersion;
-    /**
-     * 签名类型。
-     */
+    /** 签名类型。 */
     private String signType;
-    /**
-     * 字符集。
-     */
+    /** 字符集。 */
     private String charset;
-    /**
-     * 业务数据（JSON字符串）。
-     */
+    /** 业务数据（JSON字符串）。 */
     private String bizData;
-    /**
-     * 签名。
-     */
+    /** 签名。 */
     private String sign;
 
     public String getMerchantNo() {

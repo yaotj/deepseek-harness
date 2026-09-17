@@ -16,17 +16,7 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/**
- * {@link PaySignGatewayMessages} 的出网报文固化测试（2026-09-15 拆分批次 3）。
- *
- * <p>断言三件事，每一件都对应一个真实踩过或可能踩的坑：
- * <ol>
- *   <li><b>键集与取值来源</b> —— 退款的 {@code orderNo} 曾误取 {@code merchantRefundNo}（构造时恒 null），
- *       导致必填项漏传；这里逐字段钉死来源。</li>
- *   <li><b>键序</b> —— 报文参与加签，{@link java.util.LinkedHashMap} 的插入序不能变。</li>
- *   <li><b>空值不进报文</b> —— 不是「进报文但取值 null」，两者对加签串不等价。</li>
- * </ol>
- */
+/** 护栏：出网报文的键集、键序与「空值不进报文」（键序参与加签）。 */
 class PaySignGatewayMessagesTest {
 
     @Test

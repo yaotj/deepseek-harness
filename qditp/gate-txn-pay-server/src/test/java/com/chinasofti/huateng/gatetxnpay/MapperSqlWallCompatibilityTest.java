@@ -16,17 +16,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * 守住「Oracle 合法、Druid WallFilter 却判成注入」这一类静默失效。
- *
- * <p>全服务共用 {@code spring.datasource.druid.filter.wall.enabled=true}，被拦下的语句
- * 会抛 {@code SQLException: sql injection violation}，而编译、xmllint 与普通单测都发现不了 ——
- * 只在 Oracle 运行时炸，且往往被上层 catch 成业务降级（如钱包优惠落 FALLBACK），
- * 表面看起来一切正常。因此这类约束 MUST 有静态防线。
- *
- * <p>2026-09-15 实测到的第一例：{@code FETCH FIRST 1 ROW ONLY}（单数）被判注入，
- * 复数 {@code ROWS ONLY} 才通过。
- */
+/** 守住「Oracle 合法、Druid WallFilter 却判成注入」这一类静默失效。 */
 class MapperSqlWallCompatibilityTest {
 
     /** 单数 ROW ONLY：Oracle 接受、druid 1.2.23 的 Oracle 解析器不接受。 */

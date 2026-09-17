@@ -4,9 +4,7 @@ import com.chinasofti.huateng.collectpay.model.request.BaseRequestDTO;
 import com.chinasofti.huateng.collectpay.model.request.PayCenterBaseRequestDTO;
 import lombok.Data;
 
-/**
- * 5.2 退款回调 支付中心回调itp
- */
+/** 5.2 退款回调 支付中心回调itp */
 @Data
 public class NoticeAppRefundDTO {
 

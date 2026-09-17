@@ -34,8 +34,6 @@ public class ParaFtpScanService {
 
     /**
      * 参数文件名规则：PRM. + 参数类型(4位) + . + 节点编码(4位) + . + 版本号(6位) + [. + 尾段]
-     * 2026-09-08 实测 ACC 真实文件名带第 5 段（如 PRM.0001.9900.000041.02000000），
-     * 因此尾段做可选匹配；原先以 (\d{6})$ 收尾会一个文件都匹配不上。
      */
     private static final Pattern PARA_FILE_PATTERN = Pattern.compile("^PRM\\.(0001|0004)\\.(\\d{4})\\.(\\d{6})(?:\\.\\d+)?$");
 
@@ -123,16 +121,7 @@ public class ParaFtpScanService {
     /**
      * 列出FTP目录中符合命名规则、且需要进一步判断的文件，按参数类型分组、组内版本号升序返回。
      *
-     * <p>2026-09-08 起预筛判据是「版本号 + MD5」。FTP LIST 拿不到 MD5，必须下载后才能算，
-     * 因此本方法只能按版本号做**粗筛**，等版本的文件也要进候选下载：</p>
-     * <ul>
-     *   <li>文件版本号 &gt; 库中版本 → 候选（版本升高）</li>
-     *   <li>文件版本号 = 库中版本 → 候选（需下载后比 MD5 才能确定有无变更）</li>
-     *   <li>文件版本号 &lt; 库中版本 → 跳过（版本回退不处理）</li>
-     * </ul>
-     *
-     * <p>最终「导入还是跳过」由 ParaFileImportService 单点裁决，本方法 NEVER 自己比 MD5——
-     * 那会让 /para/import/ftp 与 /para/import/directory 两条路径的判据分叉。</p>
+     * <p>本方法只按版本号粗筛，导入与否由 ParaFileImportService 单点裁决。</p>
      */
     private List<FtpParaFile> findCandidates(FTPClient ftp) throws IOException {
         Map<String, Long> currentVersions = new HashMap<>();

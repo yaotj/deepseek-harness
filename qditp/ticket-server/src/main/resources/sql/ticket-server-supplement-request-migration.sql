@@ -1,21 +1,4 @@
 -- QRCODE_SUPPLEMENT_REQUEST：IF5A-03 补站请求台账
---
--- 来源：2026-09-14 CardDataHandler 逐行审查的 L001（幂等是纯 TOCTOU）与 L002（闸机结果未知零证据）。
---
--- 两个不变量，改本脚本前 MUST 先读：
---   1. CARD_ID / TXN_SEQ / ADVICE_OPT 三列都 NOT NULL。Oracle 唯一索引对 NULL 不去重，
---      任何一列允许 NULL 都会让 UK_QSR_CARD_SEQ_ADVICE 的并发防护静默失效。
---      QRCODE_STATUS.TXN_SEQ 本身可为空，因此写入前由 SupplementRequestLedger 兜成 '0'。
---   2. 本表 NEVER 参与乘车码状态机推进。QRCODE_STATUS / QRCODE_TXN_DETAIL 的唯一写入方
---      仍是 gate.GateTicketWriter（fep-dev-server 回调 /ci/agm/notiVerifyResult 那个独立请求）。
---
--- HANDLE_STATUS 取值：PENDING / SUCCESS / REJECTED / UNKNOWN
---   REJECTED 可由 BOM 重新发起（reclaimRejected 的 CAS 条件）；
---   UNKNOWN NEVER 允许直接重试，MUST 先查票卡状态。
-
---   3. 幂等的载体是唯一索引 UK_QSR_CARD_SEQ_ADVICE，不再另建同列主键。
---      Oracle 对「与已有索引列表完全相同」的第二个索引会报 ORA-01408，两者只能留一个；
---      留唯一索引是因为代码与文档都按这个名字引用它（SupplementRequestMapper 的类注释）。
 
 CREATE TABLE QRCODE_SUPPLEMENT_REQUEST (
     CARD_ID              VARCHAR2(32)  NOT NULL,

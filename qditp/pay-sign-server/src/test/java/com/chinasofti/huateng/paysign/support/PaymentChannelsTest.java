@@ -4,18 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 
-/**
- * {@link PaymentChannels} 的判定逻辑测试。
- *
- * <p>钉住的口径：
- * <ol>
- *   <li>{@code "0B"}（{@code PaymentVendorEnum.WALLET.getCode()} 的当前值）→ true</li>
- *   <li>大小写、前后空格 → 归一后仍匹配</li>
- *   <li>{@code "03"} / {@code "04"} / 其他渠道 → false</li>
- *   <li>{@code null} / 空串 → false，<b>不抛异常</b></li>
- *   <li>{@code walletCode()} 返回的值必须让 {@code isWallet} 为 true</li>
- * </ol>
- */
+/** 护栏：钱包渠道判定的归一与边界，classify 与 isWallet MUST 同口径。 */
 class PaymentChannelsTest {
 
     @Test
@@ -25,9 +14,6 @@ class PaymentChannelsTest {
 
     @Test
     void walletCodeCaseInsensitiveAndTrimmed() {
-        // normalizeVendor 只做 trim，不做大小写转换；
-        // 但 PaymentVendorEnum.isValid 可能按原样比较，因此本条实际测的是
-        // 「trim 后的 "0B" 与常量相等」——这正是我们要钉的行为。
         assertTrue(PaymentChannels.isWallet("  0B  "));
     }
 
@@ -47,7 +33,6 @@ class PaymentChannelsTest {
 
     @Test
     void walletCodeRoundTrips() {
-        // walletCode() 返回的值 isWallet 必须为 true
         assertTrue(PaymentChannels.isWallet(PaymentChannels.walletCode()));
     }
 
@@ -69,12 +54,7 @@ class PaymentChannelsTest {
         assertInstanceOf(PaymentChannel.Contracted.class, PaymentChannels.classify("0C"));
     }
 
-    /**
-     * 未知编码与 null / 空白归到 {@code Contracted}，且 NEVER 抛异常。
-     *
-     * <p>这是收口前 {@code isWallet(...)} 对未知值返回 {@code false}、于是走传统链路的**既有行为**，
-     * 刻意保留。改成抛异常或另立变体都会改变对外行为。
-     */
+    /** 未知编码与 null / 空白归到 {@code Contracted}，且 NEVER 抛异常。 */
     @Test
     void classifyTreatsUnknownAndBlankAsContracted() {
         assertInstanceOf(PaymentChannel.Contracted.class, PaymentChannels.classify("99"));

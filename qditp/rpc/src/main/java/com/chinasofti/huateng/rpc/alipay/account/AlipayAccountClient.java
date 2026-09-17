@@ -18,14 +18,6 @@ import java.util.Map;
 
 /**
  * 支付宝出行-账户服务 RPC 客户端。
- *
- * <p><b>配置键用嵌套默认值 `service.alipayAccount.url` → `service.account.url`，NEVER 退回只读后者。</b>
- * 历史实现只读 `service.account.url`，而该键在不同模块含义不同：`fep-alipay-server` 把它配成
- * alipay-account 地址（那边注释已说明），但 `ticket-server` 的同名键指向**真 account-server**。
- * 于是 ticket-server 里 {@code CardDataHandler} 按 thirdUserId 查支付宝用户时一直打错目标，
- * 且 ticket-server 早已配好的 `service.alipayAccount.url` 没有任何读取方（2026-09-11 定位）。
- * 现在优先读 `service.alipayAccount.url`；`fep-alipay-server` 没有该键，会回落到它自己的
- * `service.account.url`，**行为不变、不需要改那边的配置**。</p>
  */
 @Service
 public class AlipayAccountClient extends ProxyWebClient {
@@ -59,10 +51,6 @@ public class AlipayAccountClient extends ProxyWebClient {
 
     /**
      * 根据逻辑卡号查询支付宝用户信息。
-     *
-     * <p>给 ticket-server 的过闸链路用：支付宝出行用户只在 `ALIPAY_USER_INFO`，不在
-     * `USER_ITP_REG_INFO`，account 侧按 cardId 查必然落空，于是反向推码的签约渠道位
-     * 会退化成闸机上送值（票种语义）。见 {@code GateTicketHandler#applyActualCardType}。</p>
      */
     public AlipayUserInfoDTO selectByCardId(String cardId) {
         String url = "/channel/queryUserInfoByCardId?cardId=" + cardId;

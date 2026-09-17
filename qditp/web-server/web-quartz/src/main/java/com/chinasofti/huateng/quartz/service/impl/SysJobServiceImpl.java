@@ -34,7 +34,6 @@ public class SysJobServiceImpl implements ISysJobService
     @Autowired
     private Scheduler scheduler;
 
-
     @Autowired
     private SysJobMapper jobMapper;
 
@@ -56,15 +55,7 @@ public class SysJobServiceImpl implements ISysJobService
         }
     }
 
-    /**
-     * 收口上一个进程遗留的「进行中」调度日志。
-     *
-     * <p>Quartz 用的是内存 JobStore，进程一停，正在跑的那次执行就再也不会有人回写结果，
-     * 那一行会永远停在「进行中」。这里在启动时统一标失败并写明原因，
-     * 前台看到的是「结果未知」而不是「还在跑」。</p>
-     *
-     * <p>失败只记日志：这件事不该阻止 web-admin 启动。</p>
-     */
+    /** 收口上一个进程遗留的「进行中」调度日志。 */
     private void closeStaleRunningJobLog()
     {
         try
@@ -81,7 +72,6 @@ public class SysJobServiceImpl implements ISysJobService
             log.error("启动时收口进行中调度日志失败", e);
         }
     }
-
 
     /**
      * 获取quartz调度器的计划任务列表

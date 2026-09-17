@@ -479,21 +479,6 @@
         ORDER BY HANDLE_DATE_TIME ASC
     </select>
 
-    <!-- IF8A-41 账单统计。三条口径约束，改动前逐条确认：
-         1) TRX_TYPE IN ('02','03') 只算出站行。本表一行是一次闸机事件、进站行也在其中，
-            不过滤则 COUNT(1) 统计的是刷卡次数而非乘车次数（2026-09-10 实测用户 00522949
-            有 2 进 1 出，count 返回 3 而实际只 1 趟完整行程）。02=正常出站、03=超时出站，
-            与 TrxTypeCodeEnum.isExitTxn 同口径。金额不受影响——进站行 TRX_AMOUNT 恒为 0，
-            所以此前金额碰巧正确、只有 count 是错的，NEVER 因为「金额对」就认为口径没问题。
-         2) CARD_TYPE IN 是票种过滤的唯一依据。未开通某票种时 APP 不带 cardId（实测 NFC 页签
-            只有 thirdUserId + cardType），缺此条件 SQL 退化成按用户查全部票种，把其他票种
-            合计进来（实测 4 票种用户会合计 47 条）。
-         3) CARD_ID 的 <if> MUST 判 cardIdList 非空，NEVER 判 cardId——cardId="," 这类畸形入参
-            拆分过滤后 cardIdList 为空而 cardId 非空，会生成 AND CARD_ID IN () 并抛 ORA-00936。
-         totalDiscount 取 OVERTIME_AMOUNT（超时加收），语义与「优惠」相反。
-         【已废弃 2026-09-10】IF8A-41 统计已迁至 GateTxnPayMapper.selectTransStatistics（源表 GATE_TXN_PAY，
-         同时有 ORIGINAL_FARE / TRX_AMOUNT / OVERTIME_AMOUNT / TOTAL_AMOUNT 四个量，能算真优惠）。
-         本 SQL 仅作历史留档，NEVER 重新接线。 -->
     <select id="selectTransStatistics" resultMap="requestTransStatisticsResultMap">
         SELECT
             COUNT(1) AS count,

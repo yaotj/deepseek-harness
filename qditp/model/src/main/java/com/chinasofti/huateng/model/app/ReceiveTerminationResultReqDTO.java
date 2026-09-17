@@ -2,10 +2,6 @@ package com.chinasofti.huateng.model.app;
 
 /**
  * 支付 API 5.3 解约回调业务参数。
- *
- * <p>支付平台文档只要求回传 requestSignSeq、协议号、状态、解约时间和支付方式。
- * thirdUserId/cardId/cardType 为 ITP 内部透传字段，如果回调方未传，pay-sign-server
- * 会通过 requestSignSeq/paymentVendor 反查本地签约记录补齐。</p>
  */
 public class ReceiveTerminationResultReqDTO {
     /** 三方用户 ID，内部透传字段。 */

@@ -20,8 +20,6 @@ public class Main {
         // 第10字段公钥
         System.out.println("s = " + s);
 
-        //证书1-10字段
-        //120100000001205000000104000088CRhnZ2iM6TAzJa50xLOzNZ/x/OChi2mwAZeycLok1uBvykSRgi8vRJeBsVsfD13lt4NobYyNVgKXyrRkjK1t3w==
 
         //证书1、3-10字段
         String temp = "120100000001015000000104000088CRhnZ2iM6TAzJa50xLOzNZ/x/OChi2mwAZeycLok1uBvykSRgi8vRJeBsVsfD13lt4NobYyNVgKXyrRkjK1t3w==atsLXLojaXwG61SkUL+AI9jBRqexaNKHUy4GBgC/r6S48Ifz9tawoOPhzYcIEeyqFFotb8Avlnqwnnk0+RZtvQ==";
@@ -29,10 +27,7 @@ public class Main {
         String sign = getCertificateSign(temp);
         System.out.println("sign = " + sign);
 
-        //D46E9FC1CD61400312F7B87E68EC64257AEDD3DA4D91A481C5A1823850BCA8139B581EEB8C83C7750735B3C8E4DFD29277E99E7E0A1590B6042DB1BC3118356F
 
-        //公钥证书-测试
-        //120100000001205000000104000088CRhnZ2iM6TAzJa50xLOzNZ/x/OChi2mwAZeycLok1uBvykSRgi8vRJeBsVsfD13lt4NobYyNVgKXyrRkjK1t3w==D46E9FC1CD61400312F7B87E68EC64257AEDD3DA4D91A481C5A1823850BCA8139B581EEB8C83C7750735B3C8E4DFD29277E99E7E0A1590B6042DB1BC3118356F
     }
 
     public static String getCertificateSign(String str) {

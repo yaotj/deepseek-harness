@@ -12,9 +12,7 @@ import java.util.Map;
 @Slf4j
 public class TransforUtils {
 
-    /**
-     * 将公共参数复制到业务请求DTO中。
-     */
+    /** 将公共参数复制到业务请求DTO中。 */
     public static  <T extends BaseRequestDTO> T copyBaseParams(BaseRequestDTO baseRequest, Class<T> clazz) {
         T request = JSON.parseObject(baseRequest.getBizData(), clazz);
         request.setProviderId(baseRequest.getProviderId());

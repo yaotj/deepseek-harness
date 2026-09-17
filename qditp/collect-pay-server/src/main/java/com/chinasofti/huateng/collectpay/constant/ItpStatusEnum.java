@@ -2,10 +2,7 @@ package com.chinasofti.huateng.collectpay.constant;
 
 import org.springframework.stereotype.Component;
 
-/**
- * ITP支付订单状态枚举。
- * 0-支付中，1-支付成功，2-支付失败，3-未支付
- */
+/** ITP支付订单状态枚举。 */
 public enum ItpStatusEnum {
     PAYING("0", "支付中"),
     SUCCESS("1", "支付成功"),
@@ -32,9 +29,7 @@ public enum ItpStatusEnum {
         return desc;
     }
 
-    /**
-     * 根据code获取枚举。
-     */
+    /** 根据code获取枚举。 */
     public static ItpStatusEnum fromCode(String code) {
         for (ItpStatusEnum e : values()) {
             if (e.code.equals(code)) {

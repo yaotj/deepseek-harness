@@ -2,53 +2,33 @@ package com.chinasofti.huateng.collectpay.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * TVM扫码取票订单表实体。
- */
+/** TVM扫码取票订单表实体。 */
 public class TvmTakeTicketOrder {
-    /**
-     * 主键ID。
-     */
+    /** 主键ID。 */
     private Long id;
 
-    /**
-     * 订单号（原支付订单号）。
-     */
+    /** 订单号（原支付订单号）。 */
     private String orderNo;
 
-    /**
-     * 取票设备编码。
-     */
+    /** 取票设备编码。 */
     private String deviceId;
 
-    /**
-     * 二维码生成时间。
-     */
+    /** 二维码生成时间。 */
     private String qrcodeGenDate;
 
-    /**
-     * 随机因子。
-     */
+    /** 随机因子。 */
     private String randomFact;
 
-    /**
-     * 激活状态：0-未激活，1-已激活。
-     */
+    /** 激活状态：0-未激活，1-已激活。 */
     private String activeStatus;
 
-    /**
-     * 激活时间。
-     */
+    /** 激活时间。 */
     private String activeTime;
 
-    /**
-     * 创建时间。
-     */
+    /** 创建时间。 */
     private String createTime;
 
-    /**
-     * 更新时间。
-     */
+    /** 更新时间。 */
     private String updateTime;
 
     public Long getId() {

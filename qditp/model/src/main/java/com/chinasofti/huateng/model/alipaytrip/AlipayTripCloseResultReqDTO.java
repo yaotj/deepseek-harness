@@ -8,12 +8,12 @@ import com.chinasofti.huateng.common.response.CommonResult;
 public class AlipayTripCloseResultReqDTO {
 
     /**
-     * 是否同意关闭，true-同意，false-拒绝
+     * 是否同意关闭，true-同意，false-拒绝。
      */
     private Boolean result;
 
     /**
-     * 协议号
+     * 协议号。
      */
     private String agreementNo;
 

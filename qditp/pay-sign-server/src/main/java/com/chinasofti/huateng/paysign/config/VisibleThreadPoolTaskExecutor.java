@@ -8,9 +8,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 
-/**
- * 显示线程池执行情况信息。
- */
+/** 显示线程池执行情况信息。 */
 public class VisibleThreadPoolTaskExecutor extends ThreadPoolTaskExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(VisibleThreadPoolTaskExecutor.class);

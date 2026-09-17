@@ -2,13 +2,6 @@ package com.chinasofti.huateng.model.paysign;
 
 /**
  * 单条签约结果通知重发响应（内部接口 /internal/paySign/resendNotify）。
- *
- * <p>本接口是**同步**发送的，因此 {@code notified} 就是这次投递的真实结果，
- * {@code notifyResult} 是判定依据（如 {@code 通知成功} / {@code HTTP404} /
- * {@code 业务失败:xxxx:...} / {@code 响应体为空}），与回写进
- * {@code APP_PAY_SIGN_REQUEST.NOTIFY_RESULT} 的值一致。</p>
- *
- * <p>{@code resultCode=0000} 只代表接口本身处理完成，通知是否送达 MUST 看 {@code notified}。</p>
  */
 public class ResendSignNotifyRespDTO {
 

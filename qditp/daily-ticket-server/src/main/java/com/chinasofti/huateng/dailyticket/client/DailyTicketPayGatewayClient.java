@@ -22,11 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-/**
- * 日票专用支付网关客户端。
- *
- * <p>该客户端绕开pay-sign-server的签约卡支付封装，避免影响原有通用支付接口。</p>
- */
+/** 日票专用支付网关客户端。 */
 @Service
 public class DailyTicketPayGatewayClient extends ProxyWebClient {
     private static final Logger log = LoggerFactory.getLogger(DailyTicketPayGatewayClient.class);
@@ -38,32 +34,22 @@ public class DailyTicketPayGatewayClient extends ProxyWebClient {
         this.properties = properties;
     }
 
-    /**
-     * 发起日票支付。
-     */
+    /** 发起日票支付。 */
     public DailyTicketPayGatewayResponse requestPay(Map<String, Object> bizData) {
         return requestGateway("日票支付", properties.getRequestPayPath(), bizData);
     }
 
-    /**
-     * 发起日票退款。
-     */
+    /** 发起日票退款。 */
     public DailyTicketPayGatewayResponse requestRefund(Map<String, Object> bizData) {
         return requestGateway("日票退款", properties.getRequestRefundPath(), bizData);
     }
 
-    /**
-     * 查询日票退款结果。
-     *
-     * <p>签名、Base64 编码和公共报文结构与支付、退款请求保持一致。</p>
-     */
+    /** 查询日票退款结果。 */
     public DailyTicketPayGatewayResponse requestRefundQuery(Map<String, Object> bizData) {
         return requestGateway("日票退款查询", properties.getRefundQueryPath(), bizData);
     }
 
-    /**
-     * 查询日票支付结果。
-     */
+    /** 查询日票支付结果。 */
     public DailyTicketPayGatewayResponse requestPayQuery(Map<String, Object> bizData) {
         return requestGateway("日票支付查询", properties.getPayQueryPath(), bizData);
     }

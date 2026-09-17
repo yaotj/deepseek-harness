@@ -13,20 +13,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * ACC 安全接口签名工具。
- *
- * <p>逻辑自 {@code acc-secure-server} 的 {@code AccSecureSignUtils} 迁入，算法未改动：
- * 公共参数与 {@code bizData} 按 {@code key=value} 拼接后字典序排序，用 {@code &} 连接；
- * {@code signType=02} 时追加 {@code &key=<signKey>} 再取 MD5 十六进制。</p>
- *
- * <p>{@code signType=00} 表示不签名，返回空串——当前生产配置即 {@code 00}。</p>
- *
- * <p>迁出侧用 {@code com.alibaba.fastjson.JSON} + {@code SerializerFeature.MapSortField}，
- * 本类用 {@code fastjson2} 原生 API。二者引擎相同：{@code acc-secure-server/pom.xml:69} 依赖的
- * {@code com.alibaba:fastjson:2.0.57} 是 fastjson2 的兼容壳。2026-09-09 已实测同一 bizData
- * 两条 API 序列化结果逐字节一致，待签串与 MD5 均相同，断言见 {@code AccSignUtilsTest}。</p>
- */
+/** ACC 安全接口签名工具。 */
 public final class AccSignUtils {
 
     private static final DateTimeFormatter TS_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");

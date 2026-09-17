@@ -22,20 +22,6 @@ import java.util.HexFormat;
 
 /**
  * 对账分片写出与上送的收口对象，源服务抽取时**逐行写入**、按阈值自动滚片、每片即时上送。
- *
- * <p>用法固定为 try-with-resources，且成功路径 MUST 显式调用 {@link #commit()}：</p>
- * <pre>{@code
- * try (ReconPartSink sink = uploader.open(batchId, "gate-txn-pay", ReconFileTypeEnum.DETAIL)) {
- *     while (更多数据) { sink.write(line, amountCents); }
- *     sink.commit();
- * }
- * }</pre>
- *
- * <p>没走到 {@code commit()} 就 {@code close()}（抛异常、提前 return）时，本类会向 recon-server
- * **声明失败**而不是静默退出——否则该源永远停在 EXPORTING，整批对账挂死等不到收齐。</p>
- *
- * <p>NEVER 把全部记录缓存到 {@code List} 再一次性写：400 万条明细即使每条 100 字节也是 400MB 堆。
- * 本类只持有一个 1MB 级别的 {@link BufferedOutputStream}，内存占用与数据量无关。</p>
  */
 public final class ReconPartSink implements AutoCloseable {
 
@@ -89,10 +75,9 @@ public final class ReconPartSink implements AutoCloseable {
     }
 
     /**
-     * 写一行记录。行内容 MUST 由 {@link ReconRecord#line(Object...)} 生成，本方法只补行尾换行。
-     *
-     * @param line        管道分隔的一行，不含行尾换行符
-     * @param amountCents 该行参与对账的金额，单位分；汇总行传该行的金额合计
+     * 写一行记录。
+     * @param line 管道分隔的一行，不含行尾换行符。
+     * @param amountCents 该行参与对账的金额，单位分；汇总行传该行的金额合计。
      */
     public void write(String line, long amountCents) {
         if (committed || closed) {
@@ -150,9 +135,6 @@ public final class ReconPartSink implements AutoCloseable {
 
     /**
      * 关闭通道：清理本地临时文件；若未 {@link #commit()} 则向 recon-server 声明失败。
-     *
-     * <p>声明失败本身再失败时只记日志、不再抛异常——close() 抛出会覆盖掉业务侧真正的异常，
-     * 让排查失去根因。recon-server 侧有超时补偿兜底。</p>
      */
     @Override
     public void close() {

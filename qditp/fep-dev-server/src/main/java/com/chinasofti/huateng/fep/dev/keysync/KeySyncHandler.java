@@ -18,12 +18,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * IF1A-02 密钥同步处理。
- *
- * <p>依赖走构造器注入，与本模块其余 handler / assembler 一致：本类可以脱离 Spring 直接 new 出来测。
- * NEVER 改回 {@code @Autowired} 字段注入。</p>
- */
+/** IF1A-02 密钥同步处理。 */
 @Component
 public class KeySyncHandler {
     private static final Logger log = LoggerFactory.getLogger(KeySyncHandler.class);
@@ -37,8 +32,8 @@ public class KeySyncHandler {
     /**
      * IF1A-02 密钥同步。
      *
-     * @param request       密钥同步业务参数
-     * @param deviceId      设备编号
+     * @param request 密钥同步业务参数
+     * @param deviceId 设备编号
      * @param requestBizData 原始请求业务数据
      * @return 密钥同步响应
      */
@@ -77,10 +72,7 @@ public class KeySyncHandler {
         }
     }
 
-    /**
-     * 将 fep 内部密钥版本请求 DTO 转换为 key-server 要求的 AgmKeyCurVerDTO 格式。
-     * 仅保留 issueChannelCode/keyId/keyBathNumber，忽略 needUpdateYN 和 keyList。
-     */
+    /** 将 fep 内部密钥版本请求 DTO 转换为 key-server 要求的 AgmKeyCurVerDTO 格式。 */
     private List<AgmKeyCurVerDTO> toAgmKeyCurVerList(List<KeyCurVerReqDTO> requestList) {
         List<AgmKeyCurVerDTO> result = new ArrayList<>(requestList.size());
         for (KeyCurVerReqDTO item : requestList) {
@@ -93,10 +85,7 @@ public class KeySyncHandler {
         return result;
     }
 
-    /**
-     * 将 key-server 返回的 AgmKeyCurVerDTO 转换为 fep 内部密钥版本响应 DTO。
-     * 保留全部字段，包括 needUpdateYN 和 keyList（供闸机写入新密钥）。
-     */
+    /** 将 key-server 返回的 AgmKeyCurVerDTO 转换为 fep 内部密钥版本响应 DTO。 */
     private List<KeyCurVerRespDTO> toFepKeyCurVerList(List<AgmKeyCurVerDTO> keyCurVerList) {
         if (keyCurVerList == null || keyCurVerList.isEmpty()) {
             return Collections.emptyList();

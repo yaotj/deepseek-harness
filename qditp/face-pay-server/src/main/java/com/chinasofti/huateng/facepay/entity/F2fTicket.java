@@ -2,26 +2,7 @@ package com.chinasofti.huateng.facepay.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * 单程票明细（表 F2F_TICKET）。
- *
- * <p>字段与 face-pay-server/src/main/resources/sql/f2f-schema.sql 的
- * {@code CREATE TABLE F2F_TICKET} 一一对应，改字段 MUST 同步改 DDL。
- *
- * <p>三处需要注意的映射口径：
- * <ul>
- *   <li>{@code TRANS_DATE} 是 VARCHAR2(14)（yyyyMMddHHmmss），映射为 {@code String}，
- *       <b>不是</b>时间类型。BOM 退款按「逻辑卡号 + 此字段」定位，格式不得改写。</li>
- *   <li>金额列 {@code TICKET_PRICE} 是 NUMBER(12)，用 {@code Long}（单位分），
- *       不退化成字符串。</li>
- *   <li>时间戳列是 TIMESTAMP(6)，用 {@code LocalDateTime}。</li>
- * </ul>
- *
- * <p>出票结果上报时按张写入，一次上报可能带多张票，批量落库见
- * {@code F2fTicketMapper.batchInsert}。重复上报靠
- * {@code UK_F2F_TICKET_LOGIC (TICKET_LOGIC_NUM, TRANS_DATE)} 抛
- * {@code DuplicateKeyException} 兜底，NEVER 先查后插。
- */
+/** 单程票明细（表 F2F_TICKET）。 */
 public class F2fTicket {
 
     /** 自增主键。 */

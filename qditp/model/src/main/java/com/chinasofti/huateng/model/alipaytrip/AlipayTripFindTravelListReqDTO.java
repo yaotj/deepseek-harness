@@ -10,17 +10,17 @@ import java.util.List;
 public class AlipayTripFindTravelListReqDTO {
 
     /**
-     * 第三方用户ID，格式化后的用户标识
+     * 第三方用户ID，格式化后的用户标识。
      */
     private String thirdUserId;
 
     /**
-     * 页码，从0开始
+     * 页码，从0开始。
      */
     private String page;
 
     /**
-     * 每页大小
+     * 每页大小。
      */
     private String size;
 

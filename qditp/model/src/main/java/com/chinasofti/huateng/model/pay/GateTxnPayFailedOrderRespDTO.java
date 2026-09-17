@@ -2,9 +2,6 @@ package com.chinasofti.huateng.model.pay;
 
 /**
  * 未结清扣费订单查询响应。
- *
- * 调用方（解约流程）MUST 先判断 resultCode 是否为 "0000"，再使用 hasFailedOrder。
- * 查询未真正执行时 hasFailedOrder 固定为 true，避免调用方漏判 resultCode 时误放行解约。
  */
 public class GateTxnPayFailedOrderRespDTO {
 

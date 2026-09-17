@@ -30,23 +30,11 @@ public abstract class AbstractQuartzJob implements Job
      */
     private static ThreadLocal<Date> threadLocal = new ThreadLocal<>();
 
-    /**
-     * 本次执行在 sys_job_log 里那一行的主键。
-     *
-     * <p>{@link #before} 落「进行中」时回填，{@link #after} 据此 UPDATE。
-     * 取不到（插入失败）时 after 退化成 INSERT，保证结果不丢。</p>
-     */
+    /** 本次执行在 sys_job_log 里那一行的主键。 */
     private static final ThreadLocal<Long> JOB_LOG_ID = new ThreadLocal<>();
 
-    /**
-     * MDC 中链路追踪标识的键名，与 {@link QuartzTraceUtils#TRACE_ID_KEY} 同源。
-     *
-     * <p>本类是生产者（放入 MDC 并写库），任务类是消费者（取出往下游传），
-     * 两侧 MUST 用同一个常量，**NEVER** 各写一份字面量。</p>
-     */
+    /** MDC 中链路追踪标识的键名，与 {@link QuartzTraceUtils#TRACE_ID_KEY} 同源。 */
     private static final String TRACE_ID_KEY = QuartzTraceUtils.TRACE_ID_KEY;
-
-
 
     @Override
     public void execute(JobExecutionContext context)
@@ -79,20 +67,11 @@ public abstract class AbstractQuartzJob implements Job
     {
         threadLocal.set(new Date());
         JOB_LOG_ID.remove();
-        // 每次调度生成一个 traceId：任务方法可用 MDC.get("traceId") 取出往下游传（W3C traceparent），
-        // after() 再把它写进 sys_job_log.job_message，前台「调度日志」即可拿到这个值去日志系统检索。
-        // Quartz 线程是池化复用的，这里直接覆盖上一次的值，不依赖上一次是否清理干净。
         MDC.put(TRACE_ID_KEY, QuartzTraceUtils.newTraceId());
         insertRunningLog(sysJob);
     }
 
-    /**
-     * 落一行「进行中」，让长任务在执行期间就能在前台被看到并按 traceId 检索。
-     *
-     * <p>日终对账这类任务单次要跑一分钟以上，收口后才入库等于**在跑的时候查不到任何东西**。
-     * 这里的 INSERT 与任务本身无关，因此任何异常只记日志、**NEVER 让它打断任务执行**；
-     * 主键回填失败时 {@link #after} 会退化成 INSERT，结果照样落库。</p>
-     */
+    /** 落一行「进行中」，让长任务在执行期间就能在前台被看到并按 traceId 检索。 */
     private void insertRunningLog(SysJob sysJob)
     {
         if (sysJob == null)
@@ -130,12 +109,8 @@ public abstract class AbstractQuartzJob implements Job
         return text;
     }
 
-
     /**
      * 执行后
-     *
-     * <p>本方法**永不抛异常**：{@link #execute} 的 catch 分支会再调一次 after，
-     * 若这里抛出去就会出现「同一次执行被回写两遍、后一遍还带着假的失败状态」。</p>
      *
      * @param context 工作执行上下文对象
      * @param sysJob 系统计划任务
@@ -188,11 +163,9 @@ public abstract class AbstractQuartzJob implements Job
         }
         finally
         {
-            // Quartz 线程池化复用，MUST 在此清理，否则下一个任务在 before() 覆盖前会短暂带着上一次的 traceId。
             MDC.remove(TRACE_ID_KEY);
         }
     }
-
 
     /**
      * 执行方法，由子类重载

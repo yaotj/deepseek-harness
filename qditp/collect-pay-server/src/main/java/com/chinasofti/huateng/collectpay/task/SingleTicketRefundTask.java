@@ -11,9 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-/**
- * 未使用的单程票退款
- */
+/** 未使用的单程票退款 */
 @Component
 @Slf4j
 @RequestMapping("/pay/singleTicketRefundTask")
@@ -27,9 +25,7 @@ public class SingleTicketRefundTask {
     private BomOrderService bomOrderService;
 
 
-    /**
-     * 对于使用APP在线购票的订单（购票后未取票）做定时查询及退款
-     */
+    /** 对于使用APP在线购票的订单（购票后未取票）做定时查询及退款 */
 //    @PostMapping("/refundAppNotTakeTickets")
     @Scheduled(cron = "0 0 20 * * ?")
     public CommonResult refundAppNotTakeTickets() {
@@ -45,9 +41,7 @@ public class SingleTicketRefundTask {
 
     }
 
-    /**
-     * tvm充值退款
-     */
+    /** tvm充值退款 */
     @Scheduled(cron = "0 0 20 * * ?")
     public CommonResult refundTvmTopupNotTakeTickets() {
         log.info("收到由 web-server Quartz 定时任务发起的调用 refundTvmTopupNotTakeTickets 接口");
@@ -62,9 +56,7 @@ public class SingleTicketRefundTask {
 
     }
 
-    /**
-     * bom售票的订单（购票后未取票）做定时查询及退款
-     */
+    /** bom售票的订单（购票后未取票）做定时查询及退款 */
 //    @PostMapping("/refundBomSaleNotTakeTickets")
     @Scheduled(cron = "0 1 9,15,21 * * ?")
     public CommonResult refundBomSaleNotTakeTickets() {
@@ -80,9 +72,7 @@ public class SingleTicketRefundTask {
 
     }
 
-    /**
-     * bom充值的订单（购票后未取票）做定时查询及退款
-     */
+    /** bom充值的订单（购票后未取票）做定时查询及退款 */
 //    @PostMapping("/refundBomTopupNotTakeTickets")
     @Scheduled(cron = "0 0 9,15,21 * * ?")
     public CommonResult refundBomTopupNotTakeTickets() {

@@ -30,9 +30,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * APP 账户及支付相关接口入口。
- *
- * <p>涵盖账号申请、密钥同步、支付通道管理、员工码查询、渠道默认支付方式等功能。
- * 同时支持 {@code /ci/app} 和 {@code /app} 两条路径。</p>
  */
 @RestController
 public class AppAccountController extends BaseAppController {
@@ -103,11 +100,6 @@ public class AppAccountController extends BaseAppController {
 
     /**
      * IF8A-42 用户销户。
-     *
-     * <p>对外契约以规范表 91 为准：路径<b>只有</b> {@code /app/cancelAccount}，
-     * {@code bizData} 收 {@code thirdUserId} + {@code phone}，应答只有 {@code retCode} + {@code retMsg}。
-     * <b>NEVER</b> 再加 {@code /ci/app} 前缀或 {@code userCancel} 别名——与 if8a_76 同一口径收敛
-     * （见 `docs/business/account-employee-card.md`）。account-server 内部仍叫 {@code userCancel}，属实现细节。</p>
      */
     @PostMapping("/app/cancelAccount")
     public UserCancelResult userCancel(@ModelAttribute ItpCommonFormRequest request) {

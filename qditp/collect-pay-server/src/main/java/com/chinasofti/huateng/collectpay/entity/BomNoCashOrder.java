@@ -1,118 +1,63 @@
 package com.chinasofti.huateng.collectpay.entity;
 
-/**
- * BOM非现金收款订单实体类。
- * 对应数据库表TBL_BOM_NOCASH_ORDER，存储BOM非现金收款业务的订单信息。
- */
+/** BOM非现金收款订单实体类。 */
 public class BomNoCashOrder {
 
-    /**
-     * 订单号（主键）。
-     */
+    /** 订单号（主键）。 */
     private String orderNo;
 
-    /**
-     * 设备编码。
-     */
+    /** 设备编码。 */
     private String deviceId;
 
-    /**
-     * 交易类型。
-     * 02:超时更新
-     * 03:超程更新/一卡通余额不足更新
-     * 04:未出站更新处理
-     * 05:无入站更新处理
-     * 06:储值票即时退卡/单程票退票
-     * 22:充值
-     * 2A:黑名单卡锁定
-     * 2B:卡锁定解除
-     * 42:行政处理
-     */
+    /** 交易类型。 */
     private String transType;
 
-    /**
-     * 行政交易类型代码（transType=42时使用）。
-     */
+    /** 行政交易类型代码（transType=42时使用）。 */
     private String adminTransType;
 
-    /**
-     * 操作员编码。
-     */
+    /** 操作员编码。 */
     private String operaterId;
 
-    /**
-     * 班次序列号。
-     */
+    /** 班次序列号。 */
     private String shiftId;
 
-    /**
-     * 逻辑卡号。
-     */
+    /** 逻辑卡号。 */
     private String cardId;
 
-    /**
-     * 交易金额，单位：分。
-     */
+    /** 交易金额，单位：分。 */
     private String transAount;
 
-    /**
-     * 操作流水号（终端设备流水号）。
-     */
+    /** 操作流水号（终端设备流水号）。 */
     private String bomOptSeq;
 
-    /**
-     * 订单状态。
-     * 0-支付中
-     * 1-支付成功
-     * 2-支付失败
-     * 3-未支付
-     */
+    /** 订单状态。 */
     private String status;
 
-    /**
-     * 状态描述。
-     * 描述订单当前状态的具体信息，如"支付成功"、"支付失败"、"处理中"等。
-     */
+    /** 状态描述。 */
     private String msg;
 
-    /**
-     * 支付通道编码。
-     */
+    /** 支付通道编码。 */
     private String paymentCode;
 
-    /**
-     * 支付账户认证码。
-     */
+    /** 支付账户认证码。 */
     private String paymentVendor;
 
-    /**
-     * 支付渠道。
-     */
+    /** 支付渠道。 */
     private String channel;
 
-    /**
-     * 支付URL。
-     */
+    /** 支付URL。 */
     private String url;
 
-    /**
-     * 创建时间，格式：yyyy-MM-dd HH:mm:ss。
-     */
+    /** 创建时间，格式：yyyy-MM-dd HH:mm:ss。 */
     private String createTime;
 
-    /**
-     * 更新时间，格式：yyyy-MM-dd HH:mm:ss。
-     */
+    /** 更新时间，格式：yyyy-MM-dd HH:mm:ss。 */
     private String updateTime;
 
-    /**
-     * 预留字段1（撤销操作ID）。
-     */
+    /** 预留字段1（撤销操作ID）。 */
     private String rsv1;
 
-    /**
-     * 预留字段2（退款操作ID）。
-     */
+    /** 预留字段2（退款操作ID）。 */
     private String rsv2;
 
     private String payCenterOrderNo;

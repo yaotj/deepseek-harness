@@ -14,32 +14,13 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/**
- * 退款的**业务规则与本地实体装配**（2026-09-16 由 {@code RefundDomainServiceImpl} 逐字搬出，ADR-D98）。
- *
- * <p><b>为什么不是搬进 {@link PaySignValidators}</b>：那个类的类注释里明文写着
- * 「刻意留在业务类里没搬的是 {@code validateRefundPayTxn}……属**退款业务规则**而非报文校验，
- * 搬进本类等于把业务判断塞进 support 包，NEVER 因为名字都叫 validate 就一起搬」。
- * 本次外提**没有推翻那条判断** —— 它说的是「不要混进报文校验类」，本类正是为此单独开的：
- * 报文校验（{@code PaySignValidators}）与退款业务规则（本类）在包里是两个类、两份职责。
- * <b>NEVER 把本类的方法并进 {@code PaySignValidators}。</b>
- *
- * <p><b>本类 MUST 保持纯函数、零状态、零依赖</b>（与 {@code PaySignValidators} /
- * {@code PaySignResponses} 同一条件式破例，见那两个类的注释与 ADR-D84）：
- * <b>NEVER 往本类注入任何 mapper / client / properties</b>。一旦需要它们，说明这段逻辑
- * 不属于本类，应留在领域服务里。
- */
+/** 退款的**业务规则与本地实体装配**（2026-09-16 由 {@code RefundDomainServiceImpl} 逐字搬出，ADR-D98）。 */
 public final class PayRefundRules {
 
     private PayRefundRules() {
     }
 
-    /**
-     * 校验原支付订单是否允许退款。
-     *
-     * <p>返回的字符串会原样进 APP 应答的 {@code retMsg}，<b>NEVER 改文案、NEVER 调整判断顺序</b>
-     * —— 顺序决定「同时不满足两条时报哪一条」，联调方可能已按文案做断言。</p>
-     */
+    /** 校验原支付订单是否允许退款。 */
     public static String validateRefundPayTxn(PayTxnDetail payTxn, Integer refundAmount) {
         if (payTxn == null) {
             return "原支付订单不存在";
@@ -70,9 +51,6 @@ public final class PayRefundRules {
     public static PayRefundDetail buildPayRefundDetail(RequestRefundReqDTO request, PayTxnDetail payTxn) {
         PayRefundDetail record = new PayRefundDetail();
         record.setRefundOrderNo(buildRefundOrderNo(request.getOrderNo()));
-        // ORDER_NO MUST 存我方商户订单号：退款汇总 updateRefundSummary 是按
-        // PAY_REFUND_DETAIL.ORDER_NO = PAY_TXN_DETAIL.ORDER_NO 关联重算的，存别的号一律关联不上。
-        // 生产已有 12 条 PAY_REFUND_DETAIL 因历史上存了支付中心订单号而关联不到原支付订单。
         record.setOrderNo(payTxn.getOrderNo());
         record.setRefundStatus("INIT");
         record.setRefundAmount(request.getRefundAmount());

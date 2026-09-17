@@ -5,17 +5,7 @@ import com.chinasofti.huateng.model.ticket.NotifyVerifyResultRespDTO;
 import com.chinasofti.huateng.model.ticket.QueryStatusReqDTO;
 import com.chinasofti.huateng.model.ticket.QueryStatusRespDTO;
 
-/**
- * AGM（闸机）乘车状态服务。
- *
- * <p>承接 fep-dev-server 转发的闸机侧请求，包含以下接口：
- * <ul>
- *   <li>IF1A-01 闸机检票通知</li>
- *   <li>查询票卡当前状态</li>
- *   <li>IF5A-01 票卡分析（BOM操作辅助）</li>
- *   <li>IF5A-03 票卡更新（BOM补进站/补出站）</li>
- * </ul>
- */
+/** AGM（闸机）乘车状态服务。 */
 public interface AgmRideStatusService {
 
     /**
@@ -33,6 +23,5 @@ public interface AgmRideStatusService {
      * @return 票卡状态信息
      */
     QueryStatusRespDTO queryQrCodeStatus(QueryStatusReqDTO request);
-
 
 }

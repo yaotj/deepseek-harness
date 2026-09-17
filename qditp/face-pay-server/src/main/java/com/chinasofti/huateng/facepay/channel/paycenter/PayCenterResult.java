@@ -3,22 +3,7 @@ package com.chinasofti.huateng.facepay.channel.paycenter;
 import java.util.Collections;
 import java.util.Map;
 
-/**
- * 支付中心一次交互的结果，供上层原样落 {@code F2F_PAYMENT}（含耗时与原始报文）。
- *
- * <h2>三种结局必须区分开</h2>
- * <ul>
- *   <li><b>业务成功</b>：{@link #isSuccessCode()} 为真（{@code code=0}），此时再看
- *       {@link #status()} 决定 SUCCESS / FAILED / UNKNOWN。</li>
- *   <li><b>业务失败</b>：{@code code != 0}，对端明确拒绝，可判 FAILED。</li>
- *   <li><b>没答上来</b>：{@link #isTransportFailed()} 为真（超时、连不上、HTTP 非 2xx、
- *       响应体不是合法 JSON）。此时 <b>NEVER 判 FAILED</b>——钱可能已经扣了。MUST 落
- *       {@code PAY_STATUS='UNKNOWN'}，由查询接口或回调收口。</li>
- * </ul>
- *
- * <p>这是旧实现最大的坑：{@code PayCenterServiceImpl.callPayCenter} 异常后 {@code return null}，
- * 调用方一律按「支付中心返回结果为空」写 {@code status=FAILED}，把「不知道」当成了「没付成功」。</p>
- */
+/** 支付中心一次交互的结果，供上层原样落 {@code F2F_PAYMENT}（含耗时与原始报文）。 */
 public final class PayCenterResult {
 
     private final String code;

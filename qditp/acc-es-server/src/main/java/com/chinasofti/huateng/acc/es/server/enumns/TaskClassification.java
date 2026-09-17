@@ -18,13 +18,6 @@ public class TaskClassification {
 
     public static final String CUSTOM = "7";
 
-//    PUBLISH("1","发行"),
-//    ASSIGN("2","赋值"),
-//    HARD_CANCEL("3","缴销"),
-//    CANCEL("4","注销"),
-//    SORT("5","分拣"),
-//    RECODE("6","重编码"),
-//    CUSTOM("7","车票个性化");
 
 
 }

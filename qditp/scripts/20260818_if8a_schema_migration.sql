@@ -1,17 +1,12 @@
 -- ============================================================
 -- if8a_29 / if8a_34 / if8a_05 查询接口 - 表字段补充 DDL
--- ============================================================
--- 执行顺序：先执行 GATE_TXN_PAY，再执行 PAY_TXN_DETAIL
--- 历史数据补录仅在开发/测试环境执行，生产环境请勿直接 UPDATE 历史数据
+-- ⚠️ 执行状态未记录，MUST 先查 USER_TAB_COLS 确认；执行顺序 GATE_TXN_PAY -> PAY_TXN_DETAIL；
+-- ⚠️ 历史数据补录仅开发/测试环境执行，生产 NEVER 直接 UPDATE 历史数据。字段取值域见 docs/ops/生产环境清单.md 附.二.2
 
 -- ============================================================
 -- 1. GATE_TXN_PAY：新增字段
--- ============================================================
 
 -- 1.1 TICKET_STATUS：存储票卡当前状态，避免每次查询都调用 ticket-server RPC
---     状态值参考 QRCodeStatus.CODE_STATUS：
---       01=无交易  02=ENTRY  04=FAILED  05=EXIT  06=EXIT_OVERTIME
---       70=ABNORMAL  80=SELF_SERVICE_EXIT
 ALTER TABLE GATE_TXN_PAY ADD (TICKET_STATUS VARCHAR2(8 CHAR));
 COMMENT ON COLUMN GATE_TXN_PAY.TICKET_STATUS IS '票卡状态：01无交易,02进站,03进站超时,04进站失败,05出站,06出站超时,70异常,80自助补出站';
 
@@ -22,8 +17,6 @@ COMMENT ON COLUMN GATE_TXN_PAY.ENTRY_STATION_NAME IS '进站车站名称';
 COMMENT ON COLUMN GATE_TXN_PAY.EXIT_STATION_NAME IS '出站车站名称';
 
 -- 1.3 ORDER_EXP_TYPE：订单异常类型
---       0=正常  1=单边账(入站)  2=单边账(出站)  3=单边入站(人工处理单)
---       4=单边出站(人工处理单)  5=双段计费正常订单_行程超时
 ALTER TABLE GATE_TXN_PAY ADD (ORDER_EXP_TYPE VARCHAR2(8 CHAR));
 COMMENT ON COLUMN GATE_TXN_PAY.ORDER_EXP_TYPE IS '订单异常类型：0正常,1单边账(入),2单边账(出),3单边入站人工,4单边出站人工,5双段计费超时';
 
@@ -69,10 +62,8 @@ COMMIT;
 
 -- ============================================================
 -- 2. PAY_TXN_DETAIL：新增字段
--- ============================================================
 
 -- 2.1 DISCOUNT_INFO：优惠详情JSON数组，来自支付平台回调
---     使用 VARCHAR2(512) 而非 CLOB：优惠详情通常 < 200 字节，VARCHAR2 查询性能更好且支持索引
 ALTER TABLE PAY_TXN_DETAIL ADD (DISCOUNT_INFO VARCHAR2(512 CHAR));
 COMMENT ON COLUMN PAY_TXN_DETAIL.DISCOUNT_INFO IS '优惠详情JSON数组，来自支付平台回调';
 
@@ -90,7 +81,6 @@ COMMIT;
 
 -- ============================================================
 -- 3. QRCODE_TXN_DETAIL：新增字段（ticket-server 交易明细扩展）
--- ============================================================
 
 -- 3.1 CARD_NUM：卡号（与 CARD_ID 同值，方便别名查询）
 ALTER TABLE QRCODE_TXN_DETAIL ADD (CARD_NUM VARCHAR2(32 CHAR));
@@ -116,10 +106,3 @@ COMMIT;
 
 -- ============================================================
 -- 3. 索引优化（可选）
---    GATE_TXN_PAY 已有 IDX_GATE_TXN_PAY_CARD_DATE (CARD_ID, TXN_DATE, OUT_TIME)，
---    可覆盖按卡号+日期查询最近行程的场景，无需新增索引。
---
---    若后续需要按 TICKET_STATUS 过滤，可考虑新增复合索引：
--- CREATE INDEX IDX_GATE_TXN_PAY_CARD_STATUS_DATE
---     ON GATE_TXN_PAY (CARD_ID, TICKET_STATUS, TXN_DATE) LOCAL;
--- ============================================================

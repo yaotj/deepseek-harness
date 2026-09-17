@@ -1,14 +1,13 @@
 package com.chinasofti.huateng.model.app;
 
 /**
- * 车站线路信息 DTO，用于 Mapper 映射车站名称及所属线路信息。
+ * 车站线路信息 DTO，用于 Mapper 映射车站名称及所。
  */
 public class RequestStationLineInfoDTO {
     /** 车站代码。 */
     private String stationCode;
     /** 车站中文名称。 */
     private String stationName;
-    /** 所属线路代码。 */
     private String lineCode;
     /** 线路中文名称。 */
     private String lineName;

@@ -9,27 +9,17 @@ import com.chinasofti.huateng.collectpay.model.response.RequestPayRespDTO;
 import com.chinasofti.huateng.collectpay.model.response.RequestRefundRespDTO;
 import com.chinasofti.huateng.collectpay.model.response.RefundQueryRespDTO;
 
-/**
- * 取票支付服务接口。
- */
+/** 取票支付服务接口。 */
 public interface CollectPayService {
-    /**
-     * IF8A-09 请求支付。
-     */
+    /** IF8A-09 请求支付。 */
     RequestPayRespDTO requestPay(RequestPayReqDTO request);
 
-    /**
-     * IF8A-10 支付查询。
-     */
+    /** IF8A-10 支付查询。 */
     PayQueryRespDTO payQuery(PayQueryReqDTO request);
 
-    /**
-     * IF8A-12 请求退款。
-     */
+    /** IF8A-12 请求退款。 */
     RequestRefundRespDTO requestRefund(RequestRefundReqDTO request);
 
-    /**
-     * IF8A-13 退款查询。
-     */
+    /** IF8A-13 退款查询。 */
     RefundQueryRespDTO refundQuery(RefundQueryReqDTO request);
 }

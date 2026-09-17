@@ -4,11 +4,11 @@ package com.chinasofti.huateng.model.app;
  * IF8A-41 查询账单统计应答。
  */
 public class RequestTransStatisticsResult {
-    /** 返回码 */
+    /** 返回码。 */
     private String retCode;
-    /** 返回消息 */
+    /** 返回消息。 */
     private String retMsg;
-    /** 统计数据对象 */
+    /** 统计数据对象。 */
     private TripDataDTO tripData;
 
     public String getRetCode() {

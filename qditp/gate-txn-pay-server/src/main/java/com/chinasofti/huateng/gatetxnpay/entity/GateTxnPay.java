@@ -3,9 +3,7 @@ package com.chinasofti.huateng.gatetxnpay.entity;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * GATE_TXN_PAY 过闸扣费业务订单实体。
- */
+/** GATE_TXN_PAY 过闸扣费业务订单实体。 */
 public class GateTxnPay {
     private Long id;
     private String orderNo;
@@ -30,33 +28,31 @@ public class GateTxnPay {
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 
-    // 新增字段：if8a_29/if8a_34 查询接口
-    private String ticketStatus;         // 票卡状态：01无交易,04进站失败,05已进站,06已出站,07超时出站,70异常
-    private String entryStationName;     // 进站车站名称
-    private String exitStationName;      // 出站车站名称
-    private String orderExpType;         // 订单异常类型：0正常,1单边,2补站
-    private String companionFlag;        // 陪同票标志：Y是,N否（来自USER_ITP_REG_INFO）
-    private String offlineFlag;          // 离线码标志：Y是,N否
-    // 日票额外字段
-    private String ticketCode;           // 日票票号
-    private Integer countingTimes;       // 计次票剩余次数（扣减后）
-    private String countingFlag;         // 计次票标志：Y是,N否
-    private String attributableParty;    // 订单应收商户（cjdsj/qddt）
-    private String receivingParty;       // 订单实收商户（cjdsj/qddt）
-    private String payChannelCode;       // 支付渠道编码（如 ALIPAY、WECHAT，来自 USER_ITP_REG_INFO.CHANNEL）
-    private String paymentVendor;        // 支付厂商编码，钱包为 0B
-    private String channelType;          // 交易渠道类型，01=蓝牙
-    private String payUserId;            // 钱包扣款用户标识
-    private String transferFlag;         // 换乘标识：01无换乘，02有换乘
-    private String cumulativeType;       // 钱包累计类型：01正常出站，02超时出站，03不累计
-    private Integer originalFare;        // 进出站地铁原价，单位分
-    private Integer walletTotalAmt;      // 钱包当前累计金额，单位分
-    private Integer discountLevelAmt;    // 命中的累计金额门槛，单位分
-    private BigDecimal discountRate;     // 命中的折扣率
-    private Integer expectedGateAmount;  // 按折扣公式计算的期望闸机金额，单位分
-    private String discountCalcStatus;   // SUCCESS/FALLBACK/SKIPPED
-    private String discountCalcMsg;      // 钱包优惠计算说明或降级原因
-    private String industryDetail;       // 支付宝出行行业明细JSON（21键），仅 issueChannelCode=07 有值，落单时整块存下、扣费与重试复用
+    private String ticketStatus;
+    private String entryStationName;
+    private String exitStationName;
+    private String orderExpType;
+    private String companionFlag;
+    private String offlineFlag;
+    private String ticketCode;
+    private Integer countingTimes;
+    private String countingFlag;
+    private String attributableParty;
+    private String receivingParty;
+    private String payChannelCode;
+    private String paymentVendor;
+    private String channelType;
+    private String payUserId;
+    private String transferFlag;
+    private String cumulativeType;
+    private Integer originalFare;
+    private Integer walletTotalAmt;
+    private Integer discountLevelAmt;
+    private BigDecimal discountRate;
+    private Integer expectedGateAmount;
+    private String discountCalcStatus;
+    private String discountCalcMsg;
+    private String industryDetail;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -103,7 +99,6 @@ public class GateTxnPay {
     public LocalDateTime getUpdateTime() { return updateTime; }
     public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
 
-    // 新增字段 getter/setter
     public String getTicketStatus() { return ticketStatus; }
     public void setTicketStatus(String ticketStatus) { this.ticketStatus = ticketStatus; }
     public String getEntryStationName() { return entryStationName; }

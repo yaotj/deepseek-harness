@@ -2,14 +2,7 @@ package com.chinasofti.huateng.alipay.paysign.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * 支付宝出行支付结果回调凭据。
- *
- * <p>对应表 {@code ALIPAY_PAY_CALLBACK_LOG}，形态与 pay-sign-server 的 {@code PAY_CALLBACK_LOG} 对齐：
- * <b>回调一到就落库</b>，是支付中心推送结果的唯一凭据；后续处理失败 <b>NEVER 回滚这一行</b>，
- * 回滚等于丢证据（AGENTS.md §5.2 记录过 2026-08-26 生产事故：事务内调 RPC 被强杀后，
- * 连留证据的 INSERT 一起丢掉，循环重推 8 分钟库里零条）。</p>
- */
+/** 支付宝出行支付结果回调凭据。 */
 public class AlipayPayCallbackLog {
     private String callbackSeq;
     private String orderNo;

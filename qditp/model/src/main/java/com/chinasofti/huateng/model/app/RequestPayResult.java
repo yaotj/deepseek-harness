@@ -4,8 +4,6 @@ import java.util.Map;
 
 /**
  * 支付 API 1.1 请求支付响应。
- *
- * <p>retCode/retMsg 给内部服务判断 ITP 侧结果，code/msg/success/data 保留支付网关原始通用响应。</p>
  */
 public class RequestPayResult {
     private String retCode;

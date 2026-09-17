@@ -3,24 +3,14 @@ package com.chinasofti.huateng.collectpay.model.request.app;
 import com.chinasofti.huateng.collectpay.model.request.BaseRequestDTO;
 import lombok.Data;
 
-/**
- * IF8A-11 请求支付信息请求参数DTO。
- * APP_SERVER向ITP平台发起支付请求的参数封装。
- */
+/** IF8A-11 请求支付信息请求参数DTO。 */
 @Data
 public class RequestPayInfoReqDTO extends BaseRequestDTO {
 
-    /**
-     * 订单号。
-     */
+    /** 订单号。 */
     private String orderNo;
 
-    /**
-     * 支付通道编码。
-     * 10001-支付宝SDK
-     * 10002-微信支付SDK
-     * 10003-联支付SDK
-     */
+    /** 支付通道编码。 */
     private String payChannelCode;
 
     public String getOrderNo() {

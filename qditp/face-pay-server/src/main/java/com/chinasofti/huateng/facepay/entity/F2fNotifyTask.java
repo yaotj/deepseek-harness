@@ -2,26 +2,7 @@ package com.chinasofti.huateng.facepay.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * 出向通知任务（表 F2F_NOTIFY_TASK）。
- *
- * <p>字段与 face-pay-server/src/main/resources/sql/f2f-schema.sql 一一对应，
- * 改字段 MUST 同步改 DDL。
- *
- * <p>本项目不使用消息队列，出向通知统一是「落库状态 + {@code @Scheduled} 扫表重试」，
- * 因此本表是通知可靠投递的唯一载体，替代旧实现的三张 tbl_notice_app_* 表，
- * 对应 IF8B-04/05/06/07。三条本表特有的约束：
- * <ul>
- *   <li><b>幂等靠函数唯一索引 UK_F2F_NOTIFY_IDEM</b>
- *       {@code (NOTIFY_TYPE, ORDER_NO, NVL(REFUND_NO,'#NONE#'))}：
- *       同类型同订单同退款单只投递一次。落库 MUST 直接 INSERT，
- *       NEVER 先查后插，重复由 {@code DuplicateKeyException} 兜底。</li>
- *   <li><b>退避策略由应用算好 {@code nextRetryTms} 后写入</b>，SQL 内不做任何时间计算，
- *       扫表只按 IDX_F2F_NOTIFY_SCAN {@code (NOTIFY_STATUS, NEXT_RETRY_TMS)} 取。</li>
- *   <li><b>{@code notifyStatus} 取值 PENDING / SUCCESS / FAILED / GIVEUP</b>，
- *       其中 GIVEUP 表示超过最大重试次数放弃、需人工介入、不再被扫表捞出。</li>
- * </ul>
- */
+/** 出向通知任务（表 F2F_NOTIFY_TASK）。 */
 public class F2fNotifyTask {
 
     /** 自增主键。 */
@@ -30,10 +11,7 @@ public class F2fNotifyTask {
     /** 通知类型，取值见 CK_F2F_NOTIFY_TYPE：TAKE_TICKET_OK / TAKE_TICKET_FAIL / REFUND_RESULT / PAY_RESULT。 */
     private String notifyType;
 
-    /**
-     * 通知目标，当前仅 APP。旧实现三张表均为 tbl_notice_app_*，无向 BOM / TVM 的出向通知；
-     * 新增目标 MUST 先确认对端有接收接口，NEVER 先放开 CHECK 再找场景。
-     */
+    /** 通知目标，当前仅 APP。 */
     private String target;
 
     /** 关联的 ITP 订单号，幂等键第二段。 */

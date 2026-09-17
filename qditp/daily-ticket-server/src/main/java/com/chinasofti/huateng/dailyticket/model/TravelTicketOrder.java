@@ -2,76 +2,45 @@ package com.chinasofti.huateng.dailyticket.model;
 
 import java.util.Date;
 
-/**
- * 旅游票聚合主单内部模型。
- *
- * <p>对应表 {@code TRAVEL_TICKET_ORDER}。主单只承载聚合信息与支付状态，
- * 内含的每张日票落在 {@code DAILY_TICKET_ORDER}，通过 {@code PARENT_ORDER_NO} 回指本主单。</p>
- */
+/** 旅游票聚合主单内部模型。 */
 public class TravelTicketOrder {
-    /**
-     * 主键ID。
-     */
+    /** 主键ID。 */
     private String id;
 
-    /**
-     * 旅游票单号。
-     */
+    /** 旅游票单号。 */
     private String orderNo;
 
-    /**
-     * APP用户编号。
-     */
+    /** APP用户编号。 */
     private String userId;
 
-    /**
-     * APP侧卡类型。
-     */
+    /** APP侧卡类型。 */
     private String cardType;
 
-    /**
-     * 展示类型。
-     */
+    /** 展示类型。 */
     private String showType;
 
-    /**
-     * 单张票价，单位分。
-     */
+    /** 单张票价，单位分。 */
     private Integer ticketPrice;
 
-    /**
-     * 购买数量，即内含日票张数。
-     */
+    /** 购买数量，即内含日票张数。 */
     private Integer ticketCount;
 
-    /**
-     * 总金额，单位分。由 ticketPrice * ticketCount 服务端重算得到。
-     */
+    /** 总金额，单位分。由 ticketPrice * ticketCount 服务端重算得到。 */
     private Integer totalAmount;
 
-    /**
-     * 订单来源。
-     */
+    /** 订单来源。 */
     private String orderSource;
 
-    /**
-     * 订单状态，取值与日票一致：CREATED/PAYING/PAID/PAY_FAILED/CANCELED/REFUNDING/REFUNDED。
-     */
+    /** 订单状态，取值与日票一致：CREATED/PAYING/PAID/PAY_FAILED/CANCELED/REFUNDING/REFUNDED。 */
     private String orderStatus;
 
-    /**
-     * 支付状态，取值与日票一致：INIT/PAYING/PAID/FAIL。
-     */
+    /** 支付状态，取值与日票一致：INIT/PAYING/PAID/FAIL。 */
     private String payStatus;
 
-    /**
-     * 创建时间。
-     */
+    /** 创建时间。 */
     private Date createTime;
 
-    /**
-     * 更新时间。
-     */
+    /** 更新时间。 */
     private Date updateTime;
 
     public String getId() {

@@ -2,27 +2,16 @@ package com.chinasofti.huateng.collectpay.model.request.tvm;
 
 import com.chinasofti.huateng.collectpay.model.request.BaseRequestDTO;
 
-/**
- * IF2A-11 扫码支付请求DTO。
- * TVM主动扫用户付款码后，向ITP平台发起支付请求时使用的业务参数。
- */
+/** IF2A-11 扫码支付请求DTO。 */
 public class RequestPaymentReqDTO extends BaseRequestDTO {
 
-    /**
-     * 订单号。
-     * 由ITP平台在提交单程票订单时生成并返回。
-     */
+    /** 订单号。 */
     private String orderNo;
 
-    /**
-     * 支付通道编码。
-     */
+    /** 支付通道编码。 */
     private String paymentCode;
 
-    /**
-     * 支付账户认证码。
-     * 即用户付款码信息。
-     */
+    /** 支付账户认证码。 */
     private String paymentVendor;
 
     public String getOrderNo() {

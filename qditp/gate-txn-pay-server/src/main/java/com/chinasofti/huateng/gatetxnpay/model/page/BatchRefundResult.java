@@ -3,13 +3,7 @@ package com.chinasofti.huateng.gatetxnpay.model.page;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 综管台批量退超时罚金的结果对象。
- *
- * <p>批量语义是「逐单走单笔退款链路、单票失败不阻断整批」，因此结果必须能
- * 表达部分成功：汇总计数 + 逐笔明细（含失败原因），NEVER 退化成「整批成功/失败」
- * 的二值——运营需要知道哪几笔没退成、为什么，再决定是否补退。</p>
- */
+/** 综管台批量退超时罚金的结果对象。 */
 public class BatchRefundResult {
     /** 本批提交的总笔数。 */
     private int total;
@@ -57,7 +51,7 @@ public class BatchRefundResult {
         private String orderNo;
         /** 本笔退款金额（分），取自订单 OVERTIME_AMOUNT。 */
         private Integer refundAmount;
-        /** true=支付中心已受理；false=被拒（retMsg 给原因）。 */
+        /** true=支付中心已受理，false=被拒（retMsg 给原因）。 */
         private boolean success;
         private String retMsg;
 

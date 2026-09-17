@@ -6,25 +6,6 @@ import java.util.Set;
 
 /**
  * 通道签约状态机。载体 {@code APP_PAY_SIGN_INFO.SIGN_STATUS}。
- * <p>
- * 流转（白名单）：
- * <pre>
- *   NOT_SIGNED -&gt; SIGNED | FAILED
- *   FAILED     -&gt; SIGNED | NOT_SIGNED
- *   SIGNED     -&gt; UNSIGNED
- *   UNSIGNED   -&gt; NOT_SIGNED（复位重签）
- * </pre>
- * <b>NEVER 允许 {@code UNSIGNED -> SIGNED}</b>：已解约通道被迟到的签约回调覆盖，
- * 会让 APP 显示通道有效而渠道侧协议已注销。
- * <p>
- * 本枚举<b>只做快速失败与错误提示，NEVER 当作并发保证</b>。
- * 并发保证唯一来自 {@code PaySignInfoMapper} 的 4 条 CAS UPDATE
- * （{@code markSigned} / {@code markSignFailed} / {@code markUnsigned} / {@code reactivateForResign}），
- * 前置状态写在 SQL 的 WHERE 里。规范见 {@code docs/domain/state-machines.md} §二。
- * <p>
- * <b>NEVER 改动这些常量的字面量</b>：库内已有存量数据按这些字符串存储，
- * 且 pay-sign-server 侧仍有 {@code private static final String} 常量与裸字面量在比较同一批值，
- * 改名等于制造两套口径。新增取值 MUST 同步 {@code ALLOWED} 与 mapper XML 的 CAS。
  */
 public enum SignStatus {
 
@@ -47,9 +28,7 @@ public enum SignStatus {
             UNSIGNED, EnumSet.of(NOT_SIGNED));
 
     /**
-     * 宽松解析：库内可能存在 NULL 或历史脏值，解析不出来时返回 {@code null} 而不抛异常，
-     * 由调用方决定是拒绝还是当未知态跳过。<b>NEVER 在这里兜底成某个具体状态</b> ——
-     * 猜错方向会把脏数据推进状态机。
+     * 宽松解析：库内可能存在 NULL 或历史脏值，解析不出来时返回 {@code null} 而不抛异常。
      */
     public static SignStatus parseOrNull(String raw) {
         if (raw == null || raw.isBlank()) {
@@ -63,7 +42,7 @@ public enum SignStatus {
         return null;
     }
 
-    /** 只做快速失败与错误提示，NEVER 当作并发保证。并发保证是 mapper 的 CAS。 */
+    /** 只做快速失败与错误提示。 */
     public boolean canTransitTo(SignStatus target) {
         return target != null && ALLOWED.getOrDefault(this, Set.of()).contains(target);
     }

@@ -35,12 +35,7 @@ import java.util.List;
 /**
  * 对账内部接口：仅供源服务与运维调用。
  *
- * <p><b>【开发测试阶段：本组接口当前无鉴权，上线前 MUST 恢复】</b>用户 2026-09-11 明确要求
- * 「删除令牌要求，不用令牌了，当前处于开发测试阶段」，故原先所有端点上的 {@code X-Recon-Token}
- * 定长比较已整段删除。这里含分片接收、状态变更、生成与投递等状态变更型端点，无鉴权状态下
- * 任何网络可达方都能改批次状态或塞入分片，与 AGENTS.md §5.2 相冲突，属**有意为之的临时降级**。
- * 恢复时把 {@code recon.internal-token} 与请求头的 {@link java.security.MessageDigest#isEqual}
- * 比较加回每个端点即可。</p>
+ * <p>护栏：本组接口当前【无鉴权】，是有意为之的临时降级，上线前 MUST 恢复。</p>
  */
 @RestController
 @RequestMapping("/internal/recon")
@@ -78,29 +73,14 @@ public class ReconInternalController {
         return view == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(view);
     }
 
-    /**
-     * 直接改批次状态。
-     *
-     * <p><b>仅供人工干预</b>：正常链路的状态推进一律由编排器按收齐结果决定，
-     * 手工改状态会绕过收齐校验，MUST 在确认数据一致后才使用。</p>
-     */
+    /** 直接改批次状态，仅供人工干预（会绕过收齐校验）。 */
     @PutMapping("/batches/{batchId}/status")
     public BatchView updateStatus(@PathVariable String batchId,
                                   @RequestParam ReconBatchStatus status) {
         return batchService.transition(batchId, status);
     }
 
-    /**
-     * 跑完一次完整的日终对账，供 web-admin 的 Quartz 每日调用。
-     *
-     * <p>这是**本模块唯一的日常触发入口**——recon-server 已删掉 {@code @EnableScheduling}，
-     * 频率完全由 web-admin 的 {@code sys_job} 控制（见 {@code docs/architecture/web-server.md} §七）。
-     * 同步跑完再返回，失败或超时返回非 {@code 0000}，让 {@code sys_job_log} 能反映真实成败。</p>
-     *
-     * <p>返回 {@link CommonResult} 而不是 {@code BatchView}：调用方是 Quartz 任务，
-     * 只需要「成/败 + 原因」，并且要与 web-admin 侧其它任务的判据保持一致（`retCode` 是否 0000）。
-     * 批次明细仍可用 {@code GET /internal/recon/batches/{batchId}} 查。</p>
-     */
+    /** 跑完一次完整的日终对账，供 web-admin 的 Quartz 每日调用。 */
     @PostMapping("/daily/run")
     public CommonResult runDailyBatch() {
         CommonResult result = new CommonResult();

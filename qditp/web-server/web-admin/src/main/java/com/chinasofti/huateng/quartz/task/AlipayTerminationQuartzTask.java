@@ -11,15 +11,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/**
- * 支付宝出行销卡任务：调 alipay-pay-sign-server 的 /internal/alipay/termination/process。
- *
- * <p>业务口径：扫 {@code ALIPAY_TERMINATION_REQUEST} 里请求销卡（PENDING）的记录，
- * 通知支付中心业务关闭成功后把签约置 TERMINATED、登记置 COMPLETED。</p>
- *
- * <p>任务必须位于 Quartz 调用白名单包 com.chinasofti.huateng.quartz.task 下
- * （{@code Constants.JOB_WHITELIST_STR}）。</p>
- */
+/** 支付宝出行销卡任务：调 alipay-pay-sign-server 的 /internal/alipay/termination/process。 */
 @Component("alipayTerminationQuartzTask")
 public class AlipayTerminationQuartzTask {
 
@@ -29,11 +21,7 @@ public class AlipayTerminationQuartzTask {
 
     private static final DateTimeFormatter REFERENCE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    /**
-     * 单次调度内最多调下游多少轮。下游每轮只取 BATCH_SIZE(200) 条，
-     * 日级调度只调一轮的话积压超过 200 条就要拖到第二天，所以这里循环排空；
-     * 上限用于防御下游一直返回「有记录但一条都没推进」的情况。
-     */
+    /** 单次调度内最多调下游多少轮。下游每轮只取 BATCH_SIZE(200) 条 */
     private static final int MAX_ROUNDS = 20;
 
     private final AlipayPaySignClient alipayPaySignClient;
@@ -53,7 +41,6 @@ public class AlipayTerminationQuartzTask {
 
     /**
      * 指定基准时间的补跑入口。
-     * 前台调用目标示例：alipayTerminationQuartzTask.cancelCard('20260907')。
      *
      * @param referenceTime 基准时间，yyyyMMdd 或 yyyyMMddHHmmss；只处理登记时间早于它的记录
      */
@@ -63,13 +50,7 @@ public class AlipayTerminationQuartzTask {
         invoke(request);
     }
 
-    /**
-     * 循环调下游直到本次 cutoff 之前没有待处理记录，并显式判定每一轮的结果。
-     * 失败 MUST 抛异常：Quartz 只以异常判定失败，静默返回会让调度日志记成成功。
-     *
-     * <p>整个循环复用同一个 request，cutoff 在排空过程中固定不变，
-     * **NEVER** 每轮重新取当前时间——否则边界会随耗时漂移。</p>
-     */
+    /** 循环调下游直到本次 cutoff 之前没有待处理记录，并显式判定每一轮的结果。 */
     private void invoke(AlipayProcessTerminationReqDTO request) {
         QuartzTraceUtils.runWithTrace(traceId -> invokeInTrace(request, traceId));
     }
@@ -110,8 +91,6 @@ public class AlipayTerminationQuartzTask {
         if (rounds >= MAX_ROUNDS) {
             log.error("支付宝出行销卡批处理达到轮次上限仍未排空, request={}, rounds={}, scanned={}", request, rounds, scanned);
         }
-        // failed 非 0 说明有登记被判终态失败（当前唯一原因是签约信息不存在），需人工核对，
-        // 这不是本次调用失败，因此单独用 error 级别留痕而不抛异常。
         if (failed > 0) {
             log.error("支付宝出行销卡批处理存在失败记录, request={}, failed={}", request, failed);
         }

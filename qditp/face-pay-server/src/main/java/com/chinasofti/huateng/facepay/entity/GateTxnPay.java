@@ -1,11 +1,6 @@
 package com.chinasofti.huateng.facepay.entity;
 
-/**
- * face-pay-server 对 GATE_TXN_PAY 表的**精简读取**实体。
- *
- * <p>只保留补款链路所需的 9 个字段（gate-txn-pay 版本有 46 列）。
- * 若未来新增其他使用场景，可按需扩列，但 MUST 先评估是否应该新建专用实体而不是继续复用。</p>
- */
+/** face-pay-server 对 GATE_TXN_PAY 表的**精简读取**实体。 */
 public class GateTxnPay {
     private String orderNo;
     /** 扣费状态：INIT / PROCESSING / SUCCESS / RETRY / FAIL / CLOSED。 */

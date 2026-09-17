@@ -2,7 +2,6 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.acc.es.server.mapper.TblTktEsAccountMapper">
   <resultMap id="BaseResultMap" type="com.chinasofti.huateng.acc.es.server.model.TblTktEsAccount">
-    <!--@mbg.generated-->
     <id column="USERNAME" jdbcType="VARCHAR" property="username" />
     <result column="PASSWORD" jdbcType="VARCHAR" property="password" />
     <result column="USER_TYPE" jdbcType="DECIMAL" property="userType" />
@@ -12,11 +11,9 @@
     <result column="LAST_UPDATE_ID" jdbcType="VARCHAR" property="lastUpdateId" />
   </resultMap>
   <sql id="Base_Column_List">
-    <!--@mbg.generated-->
     USERNAME, "PASSWORD", USER_TYPE, REMARK,ADD_DATE,UPDATE_DATE,LAST_UPDATE_ID
   </sql>
   <select id="selectByPrimaryKey" parameterType="java.lang.String" resultMap="BaseResultMap">
-    <!--@mbg.generated-->
     select 
     <include refid="Base_Column_List" />
     from TBL_TKT_ES_ACCOUNT
@@ -44,12 +41,10 @@
 
     </select>
     <delete id="deleteByPrimaryKey" parameterType="java.lang.String">
-    <!--@mbg.generated-->
     delete from TBL_TKT_ES_ACCOUNT
     where USERNAME = #{username,jdbcType=VARCHAR}
   </delete>
   <insert id="insert" keyColumn="USERNAME" keyProperty="username" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAccount" useGeneratedKeys="true">
-    <!--@mbg.generated-->
     insert into TBL_TKT_ES_ACCOUNT (USERNAME,"PASSWORD", USER_TYPE, REMARK,ADD_DATE,UPDATE_DATE,LAST_UPDATE_ID
       )
     values (#{username,jdbcType=VARCHAR},#{password,jdbcType=VARCHAR}, #{userType,jdbcType=DECIMAL}, #{remark,jdbcType=VARCHAR},
@@ -57,7 +52,6 @@
       )
   </insert>
   <insert id="insertSelective" keyColumn="USERNAME" keyProperty="username" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAccount" useGeneratedKeys="true">
-    <!--@mbg.generated-->
     insert into TBL_TKT_ES_ACCOUNT
     <trim prefix="(" suffix=")" suffixOverrides=",">
         USERNAME,
@@ -103,7 +97,6 @@
     </trim>
   </insert>
   <update id="updateByPrimaryKeySelective" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAccount">
-    <!--@mbg.generated-->
     update TBL_TKT_ES_ACCOUNT
     <set>
       <if test="password != null">
@@ -128,7 +121,6 @@
     where USERNAME = #{username,jdbcType=VARCHAR}
   </update>
   <update id="updateByPrimaryKey" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktEsAccount">
-    <!--@mbg.generated-->
     update TBL_TKT_ES_ACCOUNT
     set "PASSWORD" = #{password,jdbcType=VARCHAR},
       USER_TYPE = #{userType,jdbcType=DECIMAL},

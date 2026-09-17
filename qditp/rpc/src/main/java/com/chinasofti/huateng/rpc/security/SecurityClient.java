@@ -52,9 +52,8 @@ public class SecurityClient extends ProxyWebClient {
 
     /**
      * 请求生成用户SM2密钥对。
-     *
-     * @param request 请求参数
-     * @return 用户SM2密钥对
+     * @param request 请求参数。
+     * @return 用户SM2密钥对。
      */
     public RequestUserSm2KeyRespDTO requestUserSm2Key(@RequestBody RequestUserSm2KeyReqDTO request) {
         String result = postJsonAndGetResponse("/ci/itp/requestUserSm2Key", request);
@@ -70,9 +69,8 @@ public class SecurityClient extends ProxyWebClient {
 
     /**
      * 请求签名用户公钥。
-     *
-     * @param request 请求参数
-     * @return 签名用户公钥结果
+     * @param request 请求参数。
+     * @return 签名用户公钥结果。
      */
     public RequestSignPubkeyRespDTO requestSignPubkey(@RequestBody RequestSignPubkeyReqDTO request) {
         String result = postJsonAndGetResponse("/ci/itp/requestSignPubkey", request);
@@ -86,9 +84,8 @@ public class SecurityClient extends ProxyWebClient {
 
     /**
      * 请求导出用户私钥。
-     *
-     * @param request 请求参数
-     * @return 导出用户私钥结果
+     * @param request 请求参数。
+     * @return 导出用户私钥结果。
      */
     public RequestExportUserPriKeyRespDTO requestExportUserPriKey(@RequestBody RequestExportUserPriKeyReqDTO request) {
         String result = postJsonAndGetResponse("/ci/itp/requestExportUserPriKey", request);
@@ -102,9 +99,8 @@ public class SecurityClient extends ProxyWebClient {
 
     /**
      * 请求导出 HCE 应用子密钥（DPK）。
-     *
-     * @param request HCE 逻辑卡号
-     * @return ACC KEK 加密的 DPK
+     * @param request HCE 逻辑卡号。
+     * @return ACC KEK 加密的 DPK。
      */
     public RequestDpkRespDTO requestDpk(@RequestBody RequestDpkReqDTO request) {
         String result = postJsonAndGetResponse("/ci/itp/requestDPK", request);
@@ -118,12 +114,8 @@ public class SecurityClient extends ProxyWebClient {
 
     /**
      * 调用安全服务发售 HCE 卡数据。
-     *
-     * <p>该接口对应 {@code POST /ci/itp/requestHceCardData}。成功时读取响应 data 中的
-     * {@code hceData} 和 {@code logicNum}；开户流程使用 {@code logicNum} 作为逻辑卡号。</p>
-     *
-     * @param request HCE 卡数据请求参数
-     * @return 包含安全服务返回码、HCE 卡数据和逻辑卡号的响应
+     * @param request HCE 卡数据请求参数。
+     * @return 包含安全服务返回码、HCE 卡数据和逻辑卡号的响应。
      */
     public RequestHceCardDataRespDTO requestHceCardData(@RequestBody RequestHceCardDataReqDTO request) {
         String result = postJsonAndGetResponse("/ci/itp/requestHceCardData", request);

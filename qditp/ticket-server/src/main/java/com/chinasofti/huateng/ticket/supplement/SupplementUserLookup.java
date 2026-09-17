@@ -8,33 +8,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/**
- * IF5A-03 票卡更新所需的账户域两跳查询：{@code queryCardTypeByCardId} → {@code queryUserInfo}。
- *
- * <p>2026-09-14（ADR-D71）从 {@code CardDataUpdateHandler} 迁出。迁出理由是这段与 IF5A-03 的
- * 业务语义无关——它做的只是「按 cardId 拿到 thirdUserId / cardType / channel」，而那个 Handler
- * 剩下的部分全是补站状态机与报文装配。</p>
- *
- * <p><b>NEVER 把本类与 {@code CardDataAnalyseHandler.queryUserInfo} 合并。</b>那一份是 IF5A-01 的，
- * 契约不同：非支付宝发行方**刻意不做第二跳**（{@code queryCardTypeByCardId} 的返回里已带
- * msisdn 与 regTms），且失败处置是抛异常而不是三态返回。两份看着像，合并会同时改坏两个接口。</p>
- *
- * <p>本类只被 {@code CardDataUpdateHandler} 调用，包级可见，<b>包外 NEVER 注入</b>。</p>
- */
+/** IF5A-03 票卡更新所需的账户域两跳查询：{@code queryCardTypeByCardId} → {@code queryUserInfo}。 */
 @Component
 class SupplementUserLookup {
 
     @Autowired
     private AccountClient accountClient;
 
-    /**
-     * 查询用户信息。
-     *
-     * <p>审查项 M004：原实现把「未注册用户」「account-server 连不上」「响应缺 thirdUserId」
-     * 三种情况一律 {@code throw new RuntimeException} 再在外层压成 {@code INVALID_PARAM(8001)}，
-     * BOM 只能看到「请求参数验证失败」。现在按 {@link RpcOutcome} 三态返回，由调用方分码。
-     * <b>NEVER 退回抛 RuntimeException。</b></p>
-     */
+    /** 查询用户信息。 */
     Result query(String cardId) {
         QueryUserInfoResult cardTypeResult;
         try {

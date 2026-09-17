@@ -2,9 +2,7 @@ package com.chinasofti.huateng.dailyticket.client;
 
 import java.util.Map;
 
-/**
- * 日票支付网关通用响应。
- */
+/** 日票支付网关通用响应。 */
 public class DailyTicketPayGatewayResponse {
     /** 网关响应码。 */
     private Integer code;

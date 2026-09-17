@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.recon.mapper.ReconFileMapper">
-    <!-- javaType MUST 写全限定装箱类型，见 ReconSourceMapper.xml 同处说明 -->
+    <!-- SQL 正文禁写注释（Druid WallFilter）；javaType MUST 写全限定装箱类型 -->
     <resultMap id="ReconFileMap" type="com.chinasofti.huateng.recon.model.ReconFileView">
         <constructor>
             <idArg column="BATCH_ID" javaType="java.lang.String" />
@@ -17,10 +17,7 @@
         </constructor>
     </resultMap>
 
-    <!--
-      重跑生成时覆盖既有行，因此 AMOUNT_TOTAL 在 MATCHED 分支也要写。
-      所有 `#{}` 一律显式写 jdbcType，理由见 ReconSourceMapper.xml 同处说明。
-    -->
+    <!-- 重跑生成时覆盖既有行 -->
     <insert id="upsert">
         MERGE INTO RECON_BATCH_FILE T
         USING (SELECT #{batchId,jdbcType=VARCHAR} BATCH_ID, #{fileType,jdbcType=VARCHAR} FILE_TYPE FROM DUAL) S
@@ -43,7 +40,7 @@
         ORDER BY FILE_TYPE
     </select>
 
-    <!-- 上传失败分支 remotePath 为 null，MUST 保留 jdbcType=VARCHAR（REMOTE_PATH 是可空 VARCHAR2(512)） -->
+    <!-- 上传失败分支 remotePath 为 null，MUST 保留 jdbcType=VARCHAR -->
     <update id="updateUpload">
         UPDATE RECON_BATCH_FILE
         SET STATUS = #{status,jdbcType=VARCHAR}, REMOTE_PATH = #{remotePath,jdbcType=VARCHAR}, UPDATED_AT = SYSTIMESTAMP

@@ -7,9 +7,7 @@ import com.chinasofti.huateng.collectpay.model.request.tvm.RequestRefundReqDTO;
 
 public interface TvmOrderPreService {
 
-    /**
-     * IF8A-09 请求支付。
-     */
+    /** IF8A-09 请求支付。 */
     public JSONObject requestPayResult(RequestPayResultReqDTO request);
 
     public JSONObject requestPayOrderDetail(RequestPayResultReqDTO request);

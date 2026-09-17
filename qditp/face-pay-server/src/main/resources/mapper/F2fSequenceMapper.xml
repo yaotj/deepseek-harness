@@ -1,16 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<!--
-  SQL 正文内 NEVER 写 SQL 注释（行注释与块注释都不行）：Druid WallFilter commentAllow=false
-  会判定为注入并让该语句静默失效，且只在 Oracle 暴露（达梦环境关闭了 WallFilter）。
-  注意 XML 注释里也不能出现两个连续的减号，否则 SAX 直接报「注释中不允许出现字符串」。
--->
+    <!-- 本文件内所有 SQL 正文 NEVER 出现行注释或块注释：Druid WallFilter 的 commentAllow=false 会判定为注入并让语句静默失效。 -->
 <mapper namespace="com.chinasofti.huateng.facepay.mapper.F2fSequenceMapper">
 
-    <!--
-      F2F_ORDER_NO_SEQ 建为 MAXVALUE 9999 + CYCLE，因此返回值恒为 1~9999，订单号序列段定长 4 位。
-      不共用旧服务的 ORDER_NO_SEQ，理由见 F2fSequenceMapper 类注释。
-    -->
     <select id="nextOrderNoSeq" resultType="java.lang.Long">
         SELECT F2F_ORDER_NO_SEQ.NEXTVAL FROM DUAL
     </select>

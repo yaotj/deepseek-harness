@@ -2,9 +2,6 @@ package com.chinasofti.huateng.model.app.dailyticket;
 
 /**
  * IF8A-70 旅游票子单信息。
- *
- * <p>一条子单对应一张日票（{@code DAILY_TICKET_ORDER} 一行）。下单阶段尚未支付，
- * 因此不含票编码与虚拟卡号，这些字段在支付成功激活后才产生。</p>
  */
 public class TravelTicketSubOrder {
     /**

@@ -5,24 +5,7 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestPayReqDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/**
- * 支付宝出行免密扣费报文的**唯一组装处**，含 {@code alipay.trip.*} 六个配置项与回调地址。
- *
- * <p>与 {@link GatePayRequestFactory} 分成两个类而不是一个带分支的类，是因为
- * <b>两套配置的单位与语义不同、只是名字像</b>：本类的 {@code orderTimeOut} 是**分钟**
- * （pay-sign 那边是秒）、{@code requestSignSeq} 取 {@code TICKET_TRANS_SEQ}
- * （支付宝按票卡流水号找协议）、{@code notifyUrl} 必须显式带上（支付宝的扣费结果只回调到这个地址）。
- * <b>NEVER 把两套配置合并成一组</b>。</p>
- *
- * <p>报文与合并前 fep-dev-server 的 {@code requestAlipayTripPay} 完全一致，只有两处换了来源：
- * 订单号改用 {@code GATE_TXN_PAY.ORDER_NO}（合并的目的就是一单一号），
- * {@code industryDetail} 改用落单时透传存下的 {@code INDUSTRY_DETAIL}。</p>
- *
- * <p>{@code industryDetail} <b>NEVER 在这里重算</b>：那 21 键里有 9 个（进出站线路码 / 名称、
- * 进站设备号、entryId / exitId、cardNum、cardIssueCode）在 {@code GATE_TXN_PAY} 没有列，
- * 只有出站那一刻 fep-dev-server 的三个并行 RPC 拿得到；用订单快照顶替会得到一份键名
- * 完全不同的 JSON，支付宝侧解析不出行程、扣费直接失败。</p>
- */
+/** 支付宝出行免密扣费报文的唯一组装处，含 {@code alipay.trip.*} 六个配置项与回调地址。 */
 @Component
 public class AlipayTripPayRequestFactory {
 
@@ -51,7 +34,7 @@ public class AlipayTripPayRequestFactory {
         this.payCallbackUrl = payCallbackUrl;
     }
 
-    /** 组装支付宝出行免密扣费报文。无入向 request 参数：三条链路都只能取订单快照。 */
+    /** 组装支付宝出行免密扣费报文。 */
     public AlipayTripRequestPayReqDTO build(GateTxnPay order) {
         AlipayTripRequestPayReqDTO payRequest = new AlipayTripRequestPayReqDTO();
         payRequest.setOrderNo(order.getOrderNo());

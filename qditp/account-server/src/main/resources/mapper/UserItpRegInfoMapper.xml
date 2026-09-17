@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.account.mapper.UserItpRegInfoMapper">
+    <!-- SQL 正文禁写注释（行注释与块注释都不行）：Druid WallFilter 判为注入、语句静默失效；说明只放本 XML 注释里。 -->
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.account.entity.UserItpRegInfo">
         <id column="ID" jdbcType="INTEGER" property="id"/>
         <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
@@ -29,22 +30,6 @@
         THIRD_PAY_ID, CHANNEL, REQ_CONTRACT_NO, HCE_DATA, COMPANION_FLAG
     </sql>
 
-    <!--
-        DEL_YN 过滤条件的唯一定义点。语义 1=有效、0=已注销（见 account-server-schema.sql 列注释），
-        与直觉相反，因此本 mapper 内 NEVER 再手写该字面量 —— 极性写反不报错，
-        编译与单测都发现不了，只会表现为「查不到」或「多注销了一批行」。
-        本项目刻意不给 DEL_YN 建 Java 枚举（理由见 docs/domain/decisions.md ADR-D41）：
-        判断点绝大多数在 SQL 里、Java 枚举对它们不可达，所以收口只能落在这两个片段上。
-        命名沿用仓库既有的过滤片段约定（gate-txn-pay-server 的 Debit_Result_Filter / Recon_Exp_Filter）。
-        两个片段都自带 and，MUST 接在已有 where 条件之后使用；放在首个条件位置会渲染出
-        「where and」这种只在运行时才炸的语法错，UserItpRegInfoMapperSqlTest 已对全部语句加了断言。
-        Del_Yn_Active_Filter 同时充当 updateCancelByThirdUserId 的 CAS 前置条件，
-        NEVER 改成参数化（如 DEL_YN = #{delYn}）—— 那等于把状态机白名单交给调用方，
-        本项目的白名单权威一律在 SQL 的 WHERE 里（同 ADR-D40）。
-        「查询口径」与「CAS 前置条件」共用同一个片段是刻意的（只留一个字面量），代价是二者不能各自演进：
-        要放宽查询口径（例如将来想把 DEL_YN IS NULL 也捞出来）MUST 先把 CAS 那条拆成独立片段再动，
-        直接改本片段会让重复销户不再返 0 行，而是覆盖首次销户的 UN_REG_TMS / DEL_THIRD_USER_ID。
-    -->
     <sql id="Del_Yn_Active_Filter">
         and DEL_YN = 1
     </sql>
@@ -67,15 +52,6 @@
         where rownum = 1
     </select>
 
-    <!--
-        本人主卡的查重口径，MUST 与唯一索引 UK_UIRI_ACTIVE_USER_CARDTYPE 的谓词逐字对齐：
-        索引刻意把 COMPANION_FLAG 为 Y（同行）/ C（第三方代开）的行排除在唯一性之外（多卡合法），
-        因此查重也 MUST 排除它们，NEVER 只按 THIRD_USER_ID + CARD_TYPE 取 REG_TMS 最新一条。
-        2026-09-14（ADR-D52）补 COMPANION_FLAG 条件前，这里会把同行卡 / 第三方卡当成「本人已开户」：
-        ①返给 APP 的是别人的卡号；②本人主卡已销户而 C 行仍有效时，该用户再也开不了户。
-        调用方只有 AccountRegistrationServiceImpl 的前置查重与 handleDuplicateRegistration 回查两处，
-        支付宝出行走的是 selectActiveByThirdUserId、不受本次改动影响。
-    -->
     <select id="selectActiveByThirdUserIdAndCardType" resultMap="BaseResultMap">
         select
         <include refid="Base_Column_List"/>
@@ -104,10 +80,6 @@
         fetch first 1 rows only
     </select>
 
-    <!--
-        IF8A-42 销户后 IF8A-75 仍要逐渠道解绑，因此需要一条不过滤 DEL_YN 的查询。
-        常规链路 MUST 用上面的 selectActiveByThirdUserIdAndCardIdAndCardType。
-    -->
     <select id="selectAnyByThirdUserIdAndCardIdAndCardType" resultMap="BaseResultMap">
         select
         <include refid="Base_Column_List"/>
@@ -141,19 +113,6 @@
         order by REG_TMS desc
     </select>
 
-    <!--
-        销户归档专用：不带 DEL_YN 条件（归档发生在 IF8A-42 置 DEL_YN=0 之后，用有效口径查必然是空集），
-        并且带 for update 锁住该用户的全部开户记录。
-        锁 MUST 在 countByThirdUserId 之前获取：同一用户多渠道并发解绑时，后到的事务会阻塞在这里，
-        等前一个提交后再 count，才能读到「全部渠道都已删除」的最新结果。若把 count 放在锁之前，
-        两个事务会各自看到对方未提交的渠道仍存在、双方都跳过归档，用户信息永久残留且无补偿路径。
-        常规查询 MUST 用 selectActiveListByThirdUserId，NEVER 用本方法（会持锁到事务结束）。
-        本语句刻意不带 DEL_YN 过滤，NEVER 给它加 Del_Yn_Active_Filter —— 归档看的是「全部记录」。
-        for update 也刻意不带 wait N / nowait：上面那段并发保护要的就是「后到者阻塞到前一个提交」，
-        加了超时会让第二个请求以 ORA-30006 失败、被调用方 catch 成回滚 + 上游重推，
-        比多等一会儿更糟。要改成有上限的等待 MUST 先确认「失败重推」比「阻塞」更可接受，
-        并同步改 AccountArchiveServiceImpl 的类注释与 ADR。
-    -->
     <select id="selectAnyListByThirdUserIdForUpdate" resultMap="BaseResultMap">
         select <include refid="Base_Column_List"/>
         from USER_ITP_REG_INFO
@@ -170,12 +129,6 @@
         order by REG_TMS desc
     </select>
 
-    <!--
-        运营查询专用三条：不过滤 DEL_YN（含已注销、不含已归档物理删除行），也不加锁，
-        供「用户查询」运营页展示有效 + 已注销票卡。NEVER 给它们 include Del_Yn 片段，
-        也 NEVER 手写字面量 —— delYnLiteralsStayInsideTheTwoFragments 会拦。
-        已归档行（物理删除）这里查不到，属预期口径。
-    -->
     <select id="selectListByThirdUserId" resultMap="BaseResultMap">
         select <include refid="Base_Column_List"/>
         from USER_ITP_REG_INFO
@@ -190,9 +143,6 @@
         order by REG_TMS desc
     </select>
 
-    <!--
-        注销未归档期间同一 CARD_ID 可能与重新开户的有效记录并存（卡号回收），故返回列表。
-    -->
     <select id="selectListByCardId" resultMap="BaseResultMap">
         select <include refid="Base_Column_List"/>
         from USER_ITP_REG_INFO
@@ -200,12 +150,6 @@
         order by REG_TMS desc
     </select>
 
-    <!--
-        综管台批量导入查询专用：按 CARD_ID 列表批量查，口径与 selectListByCardId 一致
-        （不过滤 DEL_YN，含已注销；已归档物理删除行查不到，属预期）。
-        调用方 MUST 限制列表长度（服务端上限 500，远低于 Oracle IN 列表上限 1000）。
-        不落 DEL_YN 字面量，由 delYnLiteralsStayInsideTheTwoFragments 钉住。
-    -->
     <select id="selectListByCardIds" resultMap="BaseResultMap">
         select <include refid="Base_Column_List"/>
         from USER_ITP_REG_INFO
@@ -216,31 +160,19 @@
         order by REG_TMS desc
     </select>
 
-    <!--
-        注册量统计：按 CARD_TYPE 分组计数，可选 REG_TMS 日期窗。
-        只读聚合、不含个人信息；不带 DEL_YN 过滤（统计口径含有效与已注销）。
-        不落 DEL_YN 字面量，由 delYnLiteralsStayInsideTheTwoFragments 钉住。
-        入参是 yyyy-MM-dd 字符串、REG_TMS 是 TIMESTAMP：MUST 显式 TO_DATE，
-        直接比较会走会话 NLS 隐式转换、报 ORA-01843 无效的月份（ADR-D97）。
-        结束边界用 TO_DATE(end) + 1 的开区间，等价于「含结束日全天」；
-        写成小于等于 TO_DATE(end) 会静默丢掉结束日 00:00 之后的全部记录。
-        条件用 where 标签、NEVER 退回恒真条件打头：两个日期都不传时，
-        恒真条件会成为唯一谓词，被 Druid WallFilter 判成注入
-        （select alway true condition not allow），该查询整条失败。
-    -->
+    <!-- MUST 用 <where>、NEVER 写 where 1 = 1 打头 + 全部可选 <if>：Druid 判 select alway true condition（2.0.73 修复）。 -->
     <select id="countGroupByCardType" resultType="com.chinasofti.huateng.account.page.RegStatView">
         select CARD_TYPE as cardType,
                COUNT(*) as regCount
         from USER_ITP_REG_INFO
-        <where>
+<where>
             <if test="startDate != null and startDate != ''">
                 and REG_TMS &gt;= TO_DATE(#{startDate,jdbcType=VARCHAR}, 'YYYY-MM-DD')
             </if>
             <if test="endDate != null and endDate != ''">
                 and REG_TMS &lt; TO_DATE(#{endDate,jdbcType=VARCHAR}, 'YYYY-MM-DD') + 1
             </if>
-        </where>
-        group by CARD_TYPE
+        </where>        group by CARD_TYPE
         order by regCount desc
     </select>
 
@@ -320,14 +252,6 @@
           <include refid="Del_Yn_Active_Filter"/>
     </update>
 
-    <!--
-        IF8A-42 销户。DEL_YN 语义是 1=有效、0=已注销（account-server-schema.sql 列注释），
-        与直觉相反。WHERE 带 Del_Yn_Active_Filter 使语句幂等：重复调用返回 0，不是失败。
-        这个 include 同时就是本状态机的 CAS 前置条件，NEVER 删。
-        一个 THIRD_USER_ID 可能有多条有效记录（多卡），本语句一次全部注销。
-        set 里的 DEL_YN = 0 是写入值、不是过滤条件，因此没有对应片段。
-        NEVER 在此顺带清 THIRD_PAY_ID / CHANNEL / REQ_CONTRACT_NO —— IF8A-75 解绑时还要用。
-    -->
     <update id="updateCancelByThirdUserId">
         update USER_ITP_REG_INFO
         set DEL_YN = 0,
@@ -337,14 +261,6 @@
           <include refid="Del_Yn_Active_Filter"/>
     </update>
 
-    <!--
-        销户归档：解绑最后一个签约渠道时，把已注销的开户记录从原表物理删除
-        （快照已由 requestRemovePayChannel 写入 USER_ITP_REG_LOG，OPER_TYPE=3）。
-        WHERE 固定带 Del_Yn_Canceled_Filter（0=已注销），并发期间新开户产生的有效记录不会被误删。
-        NEVER 去掉这个 include，也 NEVER 换成 Del_Yn_Active_Filter（极性反了就是删错一批行）；
-        更 NEVER 在支付通道尚未清空时调用 —— 原表行一旦删除，
-        selectAnyByThirdUserIdAndCardIdAndCardType 那条兜底就失效，残留通道再也清不掉。
-    -->
     <delete id="deleteCanceledByThirdUserId">
         delete from USER_ITP_REG_INFO
         where THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}

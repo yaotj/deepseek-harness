@@ -134,6 +134,7 @@ public class BlacklistServiceImpl implements BlacklistService {
         result.setRetMsg("成功");
 
         // TODO 先注释掉地铁APP和内部支付宝通知，只保留支付宝外部通知
+        // NEVER 取消注释恢复下面两行调用 —— 属行为变更，需另行评审。
         // notifyAppBlacklistAsync(cardId, request.getThirdUserId(), request.getCardType(), "1", request.getReason());
         // notifyAlipayBlacklistAsync(cardId, request.getThirdUserId(), request.getCardType(), "1", request.getReason());
         notifyAlipayExternalBlacklistAsync(cardId, request.getThirdUserId(), request.getCardType(), "1", request.getReason());
@@ -169,6 +170,7 @@ public class BlacklistServiceImpl implements BlacklistService {
         for (Blacklist record : existsRecords) {
             insertOperateLog(record.getCardId(), record.getThirdUserId(), "DELETE", record.getReason());
             // TODO 先注释掉内部支付宝通知，只保留支付宝外部通知
+            // NEVER 取消注释恢复下面这行调用 —— 属行为变更，需另行评审。
             // notifyAlipayBlacklistAsync(record.getCardId(), record.getThirdUserId(), null, "2", record.getReason());
             notifyAlipayExternalBlacklistAsync(record.getCardId(), record.getThirdUserId(), null, "2", record.getReason());
         }

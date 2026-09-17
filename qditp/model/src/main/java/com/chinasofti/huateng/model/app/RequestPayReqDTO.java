@@ -2,8 +2,6 @@ package com.chinasofti.huateng.model.app;
 
 /**
  * 支付 API 1.1 请求支付业务参数。
- *
- * <p>调用 pay-sign-server 时只传业务字段，支付网关公共参数和签名由 pay-sign-server 统一完成。</p>
  */
 public class RequestPayReqDTO {
     private String orderNo;
@@ -44,11 +42,6 @@ public class RequestPayReqDTO {
 
     /**
      * 交易日期 YYYYMMDD，由发起方（gate-txn-pay-server 取 GATE_TXN_PAY.TXN_DATE）透传。
-     *
-     * <p>用作 PAY_TXN_DETAIL 的月分区键，MUST 与行程侧同一 ORDER_NO 的 TXN_DATE 一致。
-     * 支付域自身取 LocalDateTime.now() 会在跨零点时与行程侧分叉（实测出站到落库最大滞后
-     * 94 分钟，即 22:26 之后出站即可能跨日），两表按 (ORDER_NO, TXN_DATE) 关联随即落空。
-     * 为空时支付侧回落到本地当日，仅作兼容旧调用方的兜底。</p>
      */
     private String txnDate;
 

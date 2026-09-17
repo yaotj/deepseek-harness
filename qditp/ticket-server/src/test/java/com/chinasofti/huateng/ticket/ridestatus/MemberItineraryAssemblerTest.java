@@ -19,12 +19,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * IF8A-29 行程装配的三态行为基线。
- *
- * <p>锁住 {@link Itinerary} 三分支（无过闸 / 进站 / 出站）各自的字段口径与站点编码收集范围，
- * 使 sealed 改造与后续调整都能靠这组用例验证行为不变。
- */
+/** IF8A-29 行程装配的三态行为基线。 */
 class MemberItineraryAssemblerTest {
 
     private static final String TRX_ENTRY = "01";
@@ -37,7 +32,6 @@ class MemberItineraryAssemblerTest {
     @BeforeEach
     void setUp() {
         stationNameResolver = mock(StationNameResolver.class);
-        // resolveNameOrCode 是纯计算方法（查 map、回落编码），让 mock 走真实实现
         when(stationNameResolver.resolveNameOrCode(any(), any())).thenCallRealMethod();
         assembler = new MemberItineraryAssembler(stationNameResolver);
     }

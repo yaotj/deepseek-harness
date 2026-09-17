@@ -7,9 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ThreadPoolExecutor;
 
-/**
- * Created by tian on 2021/12/17.
- */
+/** Created by tian on 2021/12/17. */
 @EnableAsync
 @Component
 public class Executor {

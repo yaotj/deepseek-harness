@@ -1,9 +1,6 @@
 package com.chinasofti.huateng.collectpay.constant;
 
-/**
- * TVM扫码购票业务错误码定义。
- * 对应文档表70错误代码列表。
- */
+/** TVM扫码购票业务错误码定义。 */
 public enum AppCodeEnum {
     SUCCESS("0000", "成功"),
 //    FAIL("2999", "失败"),

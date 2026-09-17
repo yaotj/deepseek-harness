@@ -21,9 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 运营端 TVM 当面付订单查询。
- */
+/** 运营端 TVM 当面付订单查询。 */
 @RestController
 @RequestMapping("/page/face-pay/orders")
 public class FacePayOrderPageController {
@@ -81,11 +79,7 @@ public class FacePayOrderPageController {
         return ResultMapper.ok(page);
     }
 
-    /**
-     * 运营端发起 TVM 当面付全额退款。
-     * <p>退款金额只从订单总额计算，不信任页面输入；复用 {@link TvmOrderPreService}
-     * 以沿用既有支付中心退款和退款单号落库流程。</p>
-     */
+    /** 运营端发起 TVM 当面付全额退款。 */
     @PostMapping("/{orderNo}/refund")
     public ResultVO<JSONObject> requestRefund(@PathVariable String orderNo,
                                               @RequestBody(required = false) FacePayRefundRequest request) {

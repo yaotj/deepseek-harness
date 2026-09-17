@@ -1,6 +1,5 @@
 package com.chinasofti.huateng.acc.es.server.util;
 
-//import org.apache.commons.codec.binary.Hex;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.extra.ftp.Ftp;
@@ -64,7 +63,6 @@ public class Md5Util {
 
     }
 
-    // 测试主函数
     public static void main(String args[]) throws IOException {
 
 

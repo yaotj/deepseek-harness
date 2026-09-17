@@ -2,12 +2,7 @@ package com.chinasofti.huateng.alipay.account.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * 支付宝渠道用户手机号更换历史记录，对应表 ALIPAY_PHONE_CHANGE_LOG。
- *
- * <p>本表由 alipay-account-server 独占写入，与 account-server 的 USER_PHONE_CHANGE_LOG
- * 是两条互不相干的链路（用户 2026-09-11 裁定）。NEVER 再把两者合表或共用序列。
- */
+/** 支付宝渠道用户手机号更换历史记录，对应表 ALIPAY_PHONE_CHANGE_LOG。 */
 public class AlipayPhoneChangeLog {
     private Long id;
     private String thirdUserId;

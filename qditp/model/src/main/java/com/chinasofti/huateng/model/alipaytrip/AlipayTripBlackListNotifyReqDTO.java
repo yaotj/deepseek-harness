@@ -43,8 +43,6 @@ public class AlipayTripBlackListNotifyReqDTO extends CommonResult {
 
         /**
          * 黑名单类型。
-         * 1：加入黑名单
-         * 2：移除黑名单
          */
         private String blackListType;
 
@@ -55,7 +53,6 @@ public class AlipayTripBlackListNotifyReqDTO extends CommonResult {
 
         /**
          * 黑名单有效期，格式：YYYYMMDDHH24mmss。
-         * 当 blackListType 为 1 时有效。
          */
         private String expireTime;
 

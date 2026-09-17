@@ -7,24 +7,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import org.junit.jupiter.api.Test;
 
-/**
- * 钉住 {@code PAY_TXN_DETAIL.TXN_DATE} 的取值口径：**优先用发起方透传的行程日，NEVER 默认本地当日**。
- *
- * <p>为什么值得单独建网：{@code GATE_TXN_PAY} 与 {@code PAY_TXN_DETAIL} 按
- * {@code (ORDER_NO, TXN_DATE)} 一一对应，且两张表都以该列做月分区。一旦支付侧取「本地当日」，
- * 跨零点的那批订单就会落在与行程侧不同的日期上 —— 两表再也 join 不上、对账取不到、
- * 补偿按 {@code (ORDER_NO, TXN_DATE)} 也找不回来。已实测出站到落库的滞后可达 94 分钟，
- * 22:26 之后出站的行程随时能踩到。
- *
- * <p>这个缺陷**编译、启动、单笔手工验证全都发现不了**：白天跑一整天都对，只有跨零点那几分钟错，
- * 且错了之后没有任何报错，只是 join 少了行。因此断言 MUST 用「明显不是今天」的日期
- * （见 {@link #passedThroughDateIsKeptEvenWhenItIsNotToday}），NEVER 拿 {@code LocalDate.now()}
- * 当输入 —— 那样把 bug 写进期望值里，网就是空的。
- *
- * <p>无参的 {@code resolveTxnDate()} 一并钉住：{@code PAY_REFUND_DETAIL} 与
- * {@code PAY_CALLBACK_LOG} 是各自独立的事件、日期就该是它们自己发生的日期，
- * **NEVER 把带参重载套到那两处**，也 NEVER 反过来把无参那版改成读请求。
- */
+/** 护栏：TXN_DATE 优先取透传行程日、NEVER 回落本地当日（跨零点会让两张分区表 join 不上）。 */
 class PayTxnDateResolutionTest {
 
     private static final DateTimeFormatter YYYYMMDD = DateTimeFormatter.ofPattern("yyyyMMdd");
@@ -35,12 +18,7 @@ class PayTxnDateResolutionTest {
         assertEquals("20250101", resolve("20250101"));
     }
 
-    /**
-     * 核心不变量：透传的行程日**与本地当日不同时，仍然原样返回**。
-     *
-     * <p>用 2025-01-01 这种绝不可能是「今天」的值，因此本用例只有在真的读了入参时才通过；
-     * 任何「回落到 now()」的写法都会在这里失败。
-     */
+    /** 核心不变量：透传的行程日**与本地当日不同时，仍然原样返回**。 */
     @Test
     void passedThroughDateIsKeptEvenWhenItIsNotToday() {
         String travelDate = "20250101";
@@ -77,11 +55,7 @@ class PayTxnDateResolutionTest {
         return LocalDate.now().format(YYYYMMDD);
     }
 
-    /**
-     * 2026-09-15 起两个重载都在 {@link PaySignValues}（原先是 {@code PaySignWorkflow} 的私有方法，
-     * 本用例靠反射调用）。**NEVER 退回反射**：反射版在方法搬家后抛的是「反射调用失败」，
-     * 看起来像测试坏了、而不是行为变了，真正的回归会被这条噪音盖住。
-     */
+    /** 2026-09-15 起两个重载都在 {@link PaySignValues}（原先是 {@code PaySignWorkflow} 的私有方法。 */
     private String resolve(String requestTxnDate) {
         return PaySignValues.resolveTxnDate(requestTxnDate);
     }

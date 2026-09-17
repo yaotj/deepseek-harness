@@ -15,16 +15,31 @@ LOCAL_BASE_DIR="/Users/tuanjie/workspace/chinasofti/qd/qditp"
 
 # 全量服务列表（不传参时按此顺序部署）
 ALL_SERVICES=(
-    "fep-dev-server"
-    "industry-data-server"
-    "gate-txn-pay-server"
+    # ⚠️ 与 scripts/batch-deploy.sh 的同名清单 MUST 保持一致；服务名 MUST 是仓库根目录下的模块目录名。详见 docs/ops/生产环境清单.md 附.二.1
+    "account-server"
+    "acc-secure-server"
+    "acc-security-server"
     "acc-es-server"
+    "collect-ticket-server"
+    "collect-pay-server"
     "pay-sign-server"
     "ticket-server"
+    "industry-data-server"
     "fep-app-server"
+    "fep-dev-server"
+    "gate-txn-pay-server"
     "blacklist-server"
     "key-server"
-    "account-server"
+    "para-server"
+    "card-pool-server"
+    "face-pay-server"
+    "daily-ticket-server"
+    "trans-query-server"
+    "fep-alipay-server"
+    "fep-acc-server"
+    "alipay-account-server"
+    "alipay-pay-sign-server"
+    "recon-server"
 )
 
 # ==========================================

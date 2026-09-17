@@ -10,32 +10,13 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/**
- * IF5A-03 补站请求台账的读写收口。
- *
- * <p>审查项 L001 —— <b>幂等</b>：{@link #claim} 靠唯一索引
- * {@code UK_QSR_CARD_SEQ_ADVICE} 保证同一 {@code (cardId, txnSeq, adviceOpt)}
- * 只有一条请求能下发闸机。原实现是「下发前再 select 一次比对快照」，即典型 TOCTOU：
- * 187 行读、236/263 行调 RPC、277 行再读、309 行下发 —— 两条并发的同卡请求各读到相同快照、
- * 各自比对通过、各下发一次，付费更新分支下就是两次扣费。</p>
- *
- * <p>审查项 L002 —— <b>结果未知留证据</b>：闸机超时 / 无响应时闸机侧可能已推进
- * {@code QRCODE_STATUS}，原实现只 {@code log.error} 一行，库里零证据、事后无从对账。
- * 现在该行留在 {@code UNKNOWN}，{@link SupplementRequestMapper#selectUnknown} 可捞出。</p>
- *
- * <p><b>本类的每个方法都不带事务、各自独立提交</b>，这是刻意的：AGENTS.md §5.2 记着一次生产事故
- * —— 事务内调 RPC，连接被 Druid 强杀后 commit 抛错，「留证据」的 INSERT 连同事务一起丢弃。
- * 声明与收口必须在 RPC 之外各自落地。<b>NEVER 给它们加 {@code @Transactional}。</b></p>
- *
- * <p><b>收口失败一律只记日志、NEVER 抛出</b>：闸机侧已经动过了，为了一行台账写不进去就对 BOM 报错，
- * 只会引来重推、把「一次未知」放大成「多次未知」。</p>
- */
+/** IF5A-03 补站请求台账的读写收口。 */
 @Component
 class SupplementRequestLedger {
 
     private static final Logger log = LoggerFactory.getLogger(SupplementRequestLedger.class);
 
-    /** {@code TXN_SEQ} 为空时的兜底值。<b>MUST 有</b>：Oracle 唯一索引对 NULL 不去重。 */
+    /** {@code TXN_SEQ} 为空时的兜底值。 */
     private static final String TXN_SEQ_FALLBACK = "0";
 
     @Autowired
@@ -44,7 +25,7 @@ class SupplementRequestLedger {
     /**
      * 声明结果。
      *
-     * @param acquired true 表示本请求取得下发权；false 表示同键请求正在处理或已成终态
+     * @param acquired true 表示本请求取得下发权；
      */
     record Claim(String cardId, String txnSeq, String adviceOpt, boolean acquired) {
     }
@@ -70,8 +51,6 @@ class SupplementRequestLedger {
             if (!isIntegrityViolation(e)) {
                 throw e;
             }
-            // 同键已存在。只有「上一次被闸机明确拒绝」才允许 BOM 重新发起；
-            // PENDING（并发在飞）/ SUCCESS / UNKNOWN 一律拒绝，由 CAS 的 0 行体现。
             int reclaimed = supplementRequestMapper.reclaimRejected(cardId, txnSeq, adviceOpt,
                     codeStatusSnapshot, handleStationCode, handleDateTime, trxAmount);
             if (reclaimed > 0) {
@@ -121,13 +100,7 @@ class SupplementRequestLedger {
         return reason.length() <= 256 ? reason : reason.substring(0, 256);
     }
 
-    /**
-     * 沿 {@code getCause()} 链判定唯一索引冲突。
-     *
-     * <p><b>NEVER 只 catch {@code DuplicateKeyException}</b>：`resource/micro/web` 的观测切面
-     * 会在打开 tracing 的模块里把异常重新包一层（AGENTS.md §5.2 / ADR-D53）。ticket-server
-     * 当前没开 tracing，但**一旦有人给它开，裸 catch 就会静默失效**，而编译与单测都发现不了。</p>
-     */
+    /** 沿 {@code getCause()} 链判定唯一索引冲突。 */
     private boolean isIntegrityViolation(Throwable throwable) {
         Throwable current = throwable;
         while (current != null) {

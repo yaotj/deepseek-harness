@@ -20,14 +20,10 @@ public interface DailyTicketOrderMapper {
 
     int updatePayRequest(DailyTicketOrder record);
 
-    /**
-     * 支付终态条件更新，仅允许支付中订单首次进入终态。
-     */
+    /** 支付终态条件更新，仅允许支付中订单首次进入终态。 */
     int updatePayResultIfPaying(DailyTicketOrder record);
 
-    /**
-     * 回写支付平台原支付订单号，保留首次获取的有效值。
-     */
+    /** 回写支付平台原支付订单号，保留首次获取的有效值。 */
     int updatePaymentOrderNo(@Param("orderNo") String orderNo,
                              @Param("paymentOrderNo") String paymentOrderNo);
 

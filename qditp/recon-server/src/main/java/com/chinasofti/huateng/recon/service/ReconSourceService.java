@@ -17,11 +17,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * {@code RECON_BATCH_SOURCE} 的进度维护与**收齐校验**。
- *
- * <p>收齐判定只认三项总账全等：落库分片数 / 记录数 / 金额合计逐一等于源声明的
- * {@code totalParts / totalRecords / totalAmount}。任一不等即置 MISMATCH，
- * NEVER 放行——分片少一片，最终文件就少几十万行，而纯文本文件本身看不出缺失。</p>
+ * {@code RECON_BATCH_SOURCE} 的进度维护与收齐校验：分片数 / 记录数 / 金额三项全等才算收齐。
  */
 @Service
 public class ReconSourceService {
@@ -61,13 +57,7 @@ public class ReconSourceService {
             }
         }
     }
-    /**
-     * 指令已被源受理，置 EXPORTING 并清空上一轮的失败原因。
-     *
-     * <p>走的是 {@code updateStatusIfNotTerminal}：源侧的空结果集抽取可能比编排线程更早写完
-     * COMPLETED，无条件覆盖会把它打回 EXPORTING、导致批次永不收齐（2026-09-11 实测复现，
-     * 见该 mapper 方法的 Javadoc）。<b>NEVER 换回无条件的 updateStatus。</b></p>
-     */
+    /** 指令已被源受理，置 EXPORTING 并清空上一轮的失败原因（走条件更新，不覆盖终态）。 */
     public void markExporting(String batchId, String source, ReconFileType fileType) {
         sourceMapper.updateStatusIfNotTerminal(batchId, source, fileType.name(),
                 ReconSourceStatus.EXPORTING.name(), null);
@@ -136,12 +126,7 @@ public class ReconSourceService {
         return sourceMapper.selectByKey(batchId, source, fileType.name());
     }
 
-    /**
-     * 是否全部来源都已 COMPLETED。
-     *
-     * <p>除了「每行都是 COMPLETED」，还要求行数等于期望条数——否则 dispatch 那一轮若中途异常
-     * 少登记了几行，剩下的几行全 COMPLETED 也会被误判成收齐。</p>
-     */
+    /** 是否全部来源都已 COMPLETED；同时要求行数等于期望条数。 */
     public boolean allCompleted(String batchId) {
         List<SourceProgress> progresses = sourceMapper.selectByBatch(batchId);
         int expected = expectedCount();
@@ -164,14 +149,7 @@ public class ReconSourceService {
         return count;
     }
 
-    /**
-     * 三项逐一比对，全等返回 null，否则返回可读的差异说明。
-     *
-     * <p>{@link PartTotals} 的分量是装箱类型（MyBatis 构造器映射要求），因此**先判空拆成基本类型**
-     * 再比：{@code Integer != int} 虽然会自动拆箱，但一旦两侧都变成装箱类型，{@code !=} 就退化成
-     * 引用比较、超过 {@code Integer} 缓存范围（-128~127）的相等值会被判成不等。
-     * <b>NEVER 让两个装箱类型直接用 {@code ==} / {@code !=} 比较。</b></p>
-     */
+    /** 三项逐一比对，全等返回 null，否则返回可读的差异说明。 */
     private String diff(PartTotals totals, ReconSourceCompleteReqDTO request) {
         StringBuilder builder = new StringBuilder(96);
         int parts = Objects.requireNonNullElse(totals.parts(), 0);

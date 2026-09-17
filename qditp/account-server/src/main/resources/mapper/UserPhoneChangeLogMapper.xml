@@ -1,32 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.account.mapper.UserPhoneChangeLogMapper">
+    <!-- SQL 正文禁写注释（行注释与块注释都不行）：Druid WallFilter 判为注入、语句静默失效；说明只放本 XML 注释里。 -->
 
-    <!--
-        主键由 selectKey order="BEFORE" 先取 SEQ_USER_PHONE_CHANGE_LOG.NEXTVAL 再回填 record.id，
-        调用方 insert 后可直接用 getId() 定位本行去落 SIGN_SYNC_* 投递状态。
-
-        NEVER 加 useGeneratedKeys="true" keyProperty="id" —— Oracle 的 getGeneratedKeys
-        在不声明返回列时取不到值，MyBatis 会抛 MyBatisSystemException；
-        由于 updatePhone 原先带 @Transactional，异常会把前面已成功的
-        USER_ITP_REG_INFO 更新一起回滚，表现为接口恒返回 9999、库里毫无痕迹
-        （2026-09-09 实测并修复；alipay-account-server 侧的副本漏改，2026-09-11 才对齐）。
-        selectKey 与 getGeneratedKeys 是两条不同机制，只多一次 SELECT ... FROM DUAL 往返，
-        换手机号是低频操作，可接受。
-
-        SIGN_SYNC_STATUS 由调用方置 'PENDING'：手机号变更需把新号同步给支付域更新
-        APP_PAY_SIGN_INFO.DISPLAY_ACCOUNT，该投递在事务外执行、失败靠扫表补偿。
-        SIGN_SYNC_RETRY_COUNT 显式写 0，NEVER 依赖列 DEFAULT——本表历史行该列可能为 NULL。
-        详见 docs/domain/decisions.md ADR-D8。
-
-        每个占位符 MUST 带 jdbcType，NEVER 省略。本模块没有配 mybatis.configuration.jdbc-type-for-null
-        （application.properties 里只有 mapper-locations，公共构件 mybatis-adaptor 也没兜），
-        MyBatis 默认取 OTHER，Oracle 侧对 setNull(OTHER) 直接抛 ORA-17004 无效的列类型。
-        OLD_MSISDN 是真实可空路径：PhoneChangeRule 明确要求「库里 MSISDN 为 NULL 的历史行走 PROCEED
-        把号补上」，此时 oldMsisdn 就是 null。缺 jdbcType 时的表现极难定位：
-        USER_ITP_REG_INFO 与 USER_ACC_EMPLOYEE_CARD 两条 UPDATE 已成功，本 INSERT 抛错导致
-        transactionTemplate 整体回滚，PhoneChangeServiceImpl 只 catch 后返 false，APP 只看到普通失败。
-    -->
     <insert id="insert" parameterType="com.chinasofti.huateng.account.entity.UserPhoneChangeLog">
         <selectKey keyProperty="id" resultType="java.lang.Long" order="BEFORE">
             SELECT SEQ_USER_PHONE_CHANGE_LOG.NEXTVAL FROM DUAL
@@ -60,13 +36,6 @@
         )
     </insert>
 
-    <!--
-        PENDING/FAILED → SUCCESS：显示账号已同步到支付域。
-        WHERE 带 SIGN_SYNC_STATUS IN ('PENDING','FAILED') 是状态机白名单 + CAS：
-        NEVER 允许从 SUCCESS 再改动；SIGN_SYNC_STATUS 为 NULL 的历史行（改造前的记录）
-        也不会被匹配，这是有意的——那些行没有待投递的事实。
-        影响 0 行时调用方 MUST 记 WARN 日志，NEVER 无条件当成功。
-    -->
     <update id="markSignSyncSuccess">
         UPDATE USER_PHONE_CHANGE_LOG
         SET SIGN_SYNC_STATUS = 'SUCCESS',
@@ -76,11 +45,6 @@
           AND SIGN_SYNC_STATUS IN ('PENDING', 'FAILED')
     </update>
 
-    <!--
-        PENDING/FAILED → FAILED 并把重试次数 +1，交给后续扫表补偿重推。
-        NEVER 允许 SUCCESS → FAILED：已送达的事实不能被迟到的失败覆盖。
-        RETRY_COUNT 用 NVL 兜底，历史行该列为 NULL 时也能正确累加。
-    -->
     <update id="markSignSyncFailed">
         UPDATE USER_PHONE_CHANGE_LOG
         SET SIGN_SYNC_STATUS = 'FAILED',
@@ -90,21 +54,6 @@
         WHERE ID = #{id,jdbcType=NUMERIC}
           AND SIGN_SYNC_STATUS IN ('PENDING', 'FAILED')
     </update>
-    <!--
-        CAS：支付域「业务拒绝」，一次即终态。
-
-        与 markSignSyncFailed 的唯一区别是 RETRY_COUNT 直接置成上限而不是 +1。
-        终态靠 selectPendingSignSync 的 NVL(RETRY_COUNT,0) 小于 maxRetry 过滤实现，
-        因此置到上限等于「不再被扫到」，与自然重试耗尽走同一条机制。
-
-        为什么不新增状态值：SIGN_SYNC_STATUS 的取值集合（PENDING / SUCCESS / FAILED）
-        散落在 Java 常量、本文件两处白名单与运营查询里，多一个值就要全局 grep 一遍；
-        而「业务拒绝」和「重试耗尽」对运维是同一个动作（人工核对后订正并关单），
-        真正的区别写在 SIGN_SYNC_RESULT 里就够。NEVER 为它新增状态值。
-
-        调用方 MUST 在本语句之后立即开工单：该行此后不再被扫表捞到，
-        只落状态不开单等于让它彻底失联。
-    -->
     <update id="markSignSyncRejected">
         UPDATE USER_PHONE_CHANGE_LOG
         SET SIGN_SYNC_STATUS = 'FAILED',
@@ -114,22 +63,6 @@
         WHERE ID = #{id,jdbcType=NUMERIC}
           AND SIGN_SYNC_STATUS IN ('PENDING', 'FAILED')
     </update>
-    <!--
-        补偿扫表：捞出待重推的行，供 web-admin 的 Quartz 任务经 /phoneSignSyncCompensate 触发。
-        account-server 侧 NEVER 加 @Scheduled —— 调度统一由 web-admin 前台可配的 sys_job 承担
-        （用户 2026-09-11 要求，见 docs/architecture/web-server.md §七）。
-
-        白名单是 SIGN_SYNC_STATUS IN ('PENDING','FAILED')：
-        - NULL 的历史行（改造前的记录）不会被捞出，这是有意的——那些行没有待投递的事实，
-          回填它们等于对早于改造的记录发起重推。
-        - SUCCESS 是终态，NEVER 重推。
-        RETRY_COUNT 达上限的行留在 FAILED 不再重推，避免对恒定失败的下游无限重试；
-        这类行需人工介入（后续接异常工单表）。
-
-        ROWNUM 必须套在已排序的子查询外层：Oracle 的 ROWNUM 在 ORDER BY 之前求值，
-        写成同层 `WHERE ROWNUM <= n ... ORDER BY ID` 会先随机截断再排序，
-        表现为「每次捞到的不是最旧的那批」，且旧行可能长期饿死。
-    -->
     <resultMap id="PendingSignSyncResultMap" type="com.chinasofti.huateng.account.entity.UserPhoneChangeLog">
         <id column="ID" property="id" jdbcType="NUMERIC" />
         <result column="THIRD_USER_ID" property="thirdUserId" jdbcType="VARCHAR" />

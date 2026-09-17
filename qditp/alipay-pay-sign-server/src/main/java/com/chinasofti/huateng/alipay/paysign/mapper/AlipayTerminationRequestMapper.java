@@ -10,11 +10,7 @@ import java.util.List;
 @Mapper
 public interface AlipayTerminationRequestMapper {
 
-    /**
-     * 按协议号查登记记录。
-     * 表上没有 AGREEMENT_CODE 唯一约束，重复登记时本方法会抛 TooManyResultsException，
-     * 只在能确定单条的场景使用；判断「是否已登记」MUST 用 {@link #countByAgreementCode}。
-     */
+    /** 按协议号查登记记录。 */
     AlipayTerminationRequest selectByAgreementCode(@Param("agreementCode") String agreementCode);
 
     /** 判断协议号是否已有登记记录，避免 selectByAgreementCode 在重复数据上抛异常。 */
@@ -22,11 +18,7 @@ public interface AlipayTerminationRequestMapper {
 
     int insert(AlipayTerminationRequest request);
 
-    /**
-     * 按协议号改状态，无状态 CAS。
-     * 批处理 MUST 用 {@link #updateStatusCas}：本方法会把同一协议号的所有行一起改掉，
-     * 且不校验原状态，并发下会把已收口的记录覆盖回去。
-     */
+    /** 按协议号改状态，无状态 CAS。 */
     int updateStatus(@Param("agreementCode") String agreementCode, @Param("status") String status,
                      @Param("updateTime") LocalDateTime updateTime);
 

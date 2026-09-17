@@ -10,12 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * {@link TerminationStatusTransition} 的行为锁。与 {@code SignStatusTransitionTest} 同形。
- *
- * <p>这些断言**不是恒真的**：每一条都对应一种把不一致藏起来的写法，做过变异验证
- * （把 CONFLICT 兜底成 IDEMPOTENT、把回查改成无条件执行，逐条确认变红）。
- */
+/** 护栏：解约 CAS 三分支判定，FAILED 与 SUCCESS 互相覆盖必须判 CONFLICT。 */
 class TerminationStatusTransitionTest {
 
     /** CAS 命中就不回查 —— 用计数器锁死，防止后人改成「先无条件回查再判断」多加一次 DB 往返。 */
@@ -47,12 +42,7 @@ class TerminationStatusTransitionTest {
         assertEquals("SUCCESS", result.observedStatus());
     }
 
-    /**
-     * 0 行 + 库里是别的态 = 冲突。
-     *
-     * <p>这一例就是本轮要修的那个真实场景：{@code expireScanning} 抢先把申请打成 {@code FAILED}，
-     * 迟到的解约成功回调不得把它改成 {@code SUCCESS}。
-     */
+    /** 0 行 + 库里是别的态 = 冲突。 */
     @Test
     void zeroRowsWithOtherStatusIsConflict() {
         TerminationStatusTransition.Result result = TerminationStatusTransition.classify(

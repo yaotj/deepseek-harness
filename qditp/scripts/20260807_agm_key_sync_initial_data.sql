@@ -1,6 +1,4 @@
 ﻿-- AGM key synchronization initial data for Oracle.
--- Source: supplied QDYF SQL files. All INSERT records are retained.
--- Execute after 20260807_agm_key_sync_schema.sql in the key-server schema.
 
 -- Begin QDYF_METRO_AGM_KEY_VERSION.sql
 INSERT INTO METRO_AGM_KEY_VERSION (ID, PROVIDER_ID, KEY_BATH_NUMBER, PUBLIC_KEY_VERSION_STATUS, PUBLIC_KEY_VERSION_DESC, MANAGER_ID, RESERVE, REMARK, UPDATE_DATE, REG_DATE) VALUES (1, '01', 23, '20020', null, 'system', null, null, null, TIMESTAMP '2018-06-07 19:28:55');

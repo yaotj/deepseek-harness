@@ -43,10 +43,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-/**
- * APP订单服务实现类。
- * 实现APP下单、支付、支付结果查询和支付结果通知等业务逻辑。
- */
+/** APP订单服务实现类。 */
 @Service
 @Slf4j
 public class AppOrderServiceImpl implements AppOrderService {
@@ -283,10 +280,7 @@ public class AppOrderServiceImpl implements AppOrderService {
         return AppOrderResult.fail("8999", "支付中");
     }
 
-    /**
-     *
-     * 通知 app
-     */
+    /** 通知 app */
 //    @Override
     public JSONObject receivePaymentResult(JSONObject request) {
         log.info("1.开始处理APP支付结果通知, request={}", request);
@@ -384,16 +378,7 @@ public class AppOrderServiceImpl implements AppOrderService {
         return order;
     }
 
-    /**
-     * 生成 APP 单程票订单号，20 位：ProductType(2) + yyyyMMddHHmmss(14) + 序列(4)。
-     *
-     * <p>2026-09-11 由「00 + 时间 + UUID 前 8 位」的 24 位改为 20 位，与 BOM
-     * （{@code BomOrderServiceImpl.generateOrderNo}）和新服务 face-pay 完全同口径。前缀仍是
-     * {@code ProductType.ordinaryTicket = "00"}，与改动前的 APP 订单号一致，历史 24 位订单不受影响。</p>
-     *
-     * <p>长度由 {@code ORDER_NO_SEQ} 保证：实测 {@code MAX_VALUE=9999} + {@code CYCLE=Y}，
-     * 序列值永远 ≤4 位，因此总长恒为 20。**NEVER 把该序列改成不循环或放大上限**，否则订单号会超过 20 位。</p>
-     */
+    /** 生成 APP 单程票订单号，20 位：ProductType(2) + yyyyMMddHHmmss(14) + 序列(4)。 */
     private String generateOrderNo() {
         long seq = orderSeqMapper.nextval();
         return OrderNoUtils.generateOrderNo(ProductType.ordinaryTicket, seq);
@@ -531,14 +516,7 @@ public class AppOrderServiceImpl implements AppOrderService {
         return this.doRefund(payOrderNo, refundAmount, OrderCommonUtils.getRefundNo(), BusinessTypeEnum.APP_REFUND.getCode());
     }
 
-    /**
-     * 按指定金额退款（补退部分退款的剩余额度）。契约与约束见
-     * {@link com.chinasofti.huateng.collectpay.service.AppOrderService#refundByAmount}。
-     *
-     * <p>三道校验全部在调支付中心**之前**完成，被拒时不落退款单、不发网络请求：
-     * 订单存在且 {@code PAY_STATUS='1'}（白名单，NEVER 写成「非失败即可退」）、
-     * 金额为正整数、金额不超过可退余额。</p>
-     */
+    /** 按指定金额退款（补退部分退款的剩余额度）。 */
     @Override
     public JSONObject refundByAmount(String payOrderNo, int refundAmount) {
         log.info("1.app订单按指定金额退款 payOrderNo={}, refundAmount={}", payOrderNo, refundAmount);
@@ -636,9 +614,7 @@ public class AppOrderServiceImpl implements AppOrderService {
                             boolean b = dealAppRefundResult(payOrderNo, refundNo, refundStatus, refundTime);
                             log.info("app处理退款业务逻辑结束 b is {}", b);
 
-                            // 查询到退款终态后 MUST 通知一次 app：先落通知记录（status=0），再同步 push，
                             // push 成功置 1、失败置 2 交给 NoticeAppTask 重试。
-                            // NEVER 再用 businessType 把 APP 主动退款排除在外 —— 2026-08-27 生产事故：
                             // APP 退款走 BusinessTypeEnum.APP_REFUND（requestRefundTicket 传入），而这里原来只放行
                             // TVM_SCAN_QR_TAKETICKET，导致订单 00202608271248044c519a98 退款已成功、
                             // TBL_APP_ORDER_REFUND.REFUND_STATUS=1，但 TBL_NOTICE_APP_REFUND_RECORD 零条、
@@ -691,12 +667,9 @@ public class AppOrderServiceImpl implements AppOrderService {
         Map<String, String> saveMap = new HashMap<>();
         saveMap.put("orderNo", orderNo);
         saveMap.put("refundType", refundType);
-        // MUST 存给 app 的取值域（SUCCESS / FAIL）：NoticeAppTask 重试时会把这个值原样再推一次，
         // 存 ItpStatusEnum 的 "1" / "2" 会让重试报文与首次报文取值不一致。
-        // 同时 NEVER 写死成功 —— dealAppRefundResult 在退款失败分支同样返回 true。
         saveMap.put("refundResult", refundResult);
         saveMap.put("refundResultDesc", refundResultDesc(refundResult));
-        // MUST 存与首次通知报文完全一致的 yyyyMMddHHmmss 退款时间：NoticeAppTask:110 重试时
         // 直接把本列的值原样再推一次，这里存 DateUtils.getNowTimeByFormat("yyyyMMdd") 会让
         // 重试报文的 refundDate 变成 8 位当天日期，APP 侧同样解析失败。
         saveMap.put("refundDate", refundDate);
@@ -709,16 +682,7 @@ public class AppOrderServiceImpl implements AppOrderService {
         return i;
     }
 
-    /**
-     * 把支付中心返回的退款时间归一化为 APP 要求的 {@code yyyyMMddHHmmss}。
-     *
-     * <p>NEVER 再用 {@code refundTime.substring(0, 8)} —— 2026-08-27 生产事故：支付中心返回的
-     * 退款时间是 ISO 形态 {@code 2026-08-27T12:55:57}，截前 8 位得到 {@code "2026-08-"}，
-     * APP 侧解析 refundDate 直接失败（订单 0020260827131329f68e95f4）。</p>
-     *
-     * <p>这里剥掉所有非数字字符再取前 14 位（{@code 2026-08-27T12:55:57} → {@code 20260827125557}），
-     * 对 {@code yyyyMMddHHmmss} 与 {@code yyyy-MM-dd HH:mm:ss} 两种形态都成立。</p>
-     */
+    /** 把支付中心返回的退款时间归一化为 APP 要求的 {@code yyyyMMddHHmmss}。 */
     private String toAppRefundDate(String refundTime) {
         String digits = refundTime == null ? "" : refundTime.replaceAll("\\D", "");
         if (digits.length() >= 14) {
@@ -758,7 +722,6 @@ public class AppOrderServiceImpl implements AppOrderService {
         // 此处是第一次推送，所以写死为1
         upMap.put("retryTimes", retryTimes);
 
-        // 推送与解析 MUST 兜住异常：本方法在 tvmexecutor 线程里跑，抛出去没人接，
         // 通知记录会卡在 status=0 且 retryTimes 不递增，NoticeAppTask 反复扫到同一条。
         String retCode = null;
         try {

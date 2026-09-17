@@ -2,24 +2,7 @@ package com.chinasofti.huateng.facepay.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * 当面付退款单（表 F2F_REFUND）。
- *
- * <p>字段与 face-pay-server/src/main/resources/sql/f2f-schema.sql 一一对应，
- * 改字段 MUST 同步改 DDL。
- *
- * <p>本表的核心是防重复退款：唯一函数索引
- * {@code UK_F2F_REFUND_IDEM (ORIG_ORDER_NO, NVL(TICKET_LOGIC_NUM,'#WHOLE#'), REFUND_SOURCE)}
- * 保证「同一原订单 + 同一票 + 同一退款来源」只能有一条退款单；整单退时
- * {@code ticketLogicNum} 为空，索引用 {@code #WHOLE#} 占位，避免多笔整单退绕过约束。
- * 因此写入 MUST 直接 INSERT，NEVER 先查后插，见 {@code F2fRefundMapper} 类级说明。
- *
- * <p>与旧实体的两处刻意差异（与 {@link F2fOrder} 一致）：
- * <ul>
- *   <li>金额用 {@code Long}（单位分），不是 {@code String}。新表列是 NUMBER(12)。</li>
- *   <li>时间用 {@code LocalDateTime}，不是 {@code String}。新表列是 TIMESTAMP(6)。</li>
- * </ul>
- */
+/** 当面付退款单（表 F2F_REFUND）。 */
 public class F2fRefund {
 
     /** 自增主键。 */
@@ -34,11 +17,7 @@ public class F2fRefund {
     /** 按票退时填；整单退时为空，唯一索引用 NVL 占位避免多笔整单退绕过约束。 */
     private String ticketLogicNum;
 
-    /**
-     * TAKE_TICKET_FAIL 出票故障自动退，BOM_ORIGINAL 单程票原路退，APP_REQUEST 用户主动退，
-     * DAILY_BATCH 每日批量退未取票，TOPUP_FAIL 充值失败退，PAGE_MANUAL 运营端手工退，
-     * TVM_REQUEST 设备侧 requestRefund 发起。
-     */
+    /** TAKE_TICKET_FAIL 出票故障自动退，BOM_ORIGINAL 单程票原路退，APP_REQUEST 用户主动退， DAILY_BATCH 每日批量退未取票，TOPUP_FAIL 充值失败退，PAGE_MANUAL 运营端手工退， TVM_REQUEST 设备侧 requestRefund 发起。 */
     private String refundSource;
 
     /** 退款状态，取值见 CK_F2F_REFUND_STATUS：INIT / PROCESSING / SUCCESS / FAILED。 */
@@ -77,13 +56,7 @@ public class F2fRefund {
     /** 退款发起时间，收口放弃判定用它算已经悬了多久。 */
     private LocalDateTime requestTms;
 
-    /**
-     * 下次允许发起支付中心退款查询的时刻，扫表谓词就是它（IDX_F2F_REFUND_SCAN）。
-     *
-     * <p>由指数退避算出，见 {@code F2fRefundService#nextQueryTms}。
-     * 扫表谓词里 <b>NEVER 再加 RETRY_TIMES 上限</b>——次数上限在 application 层判定并显式置
-     * MANUAL，写进 SQL 会让次数用尽的单直接从扫描结果消失、停在非终态无人管。</p>
-     */
+    /** 下次允许发起支付中心退款查询的时刻，扫表谓词就是它（IDX_F2F_REFUND_SCAN）。 */
     private LocalDateTime nextQueryTms;
 
     /** 退款收口时间，进入 SUCCESS / FAILED / MANUAL 终态时回填。 */

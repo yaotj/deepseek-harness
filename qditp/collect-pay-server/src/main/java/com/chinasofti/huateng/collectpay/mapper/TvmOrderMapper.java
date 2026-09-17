@@ -10,24 +10,18 @@
 
 @Mapper
 public interface TvmOrderMapper {
-    /**
-     * 根据订单号查询订单。
-     */
+    /** 根据订单号查询订单。 */
     TvmPayOrder selectByOrderNo(@Param("orderNo") String orderNo);
 
     /** 按支付中心订单号查询，用于支付回调关联。 */
     TvmPayOrder selectByPayCenterOrderNo(@Param("payCenterOrderNo") String payCenterOrderNo);
 
-    /**
-     * 插入订单。
-     */
+    /** 插入订单。 */
     int insert(TvmPayOrder record);
 
     int insertTvmOrderPre(Map<String, Object> params);
 
-    /**
-     * 根据orderNo动态更新订单。
-     */
+    /** 根据orderNo动态更新订单。 */
     int updateByOrderNo(Map<String, String> params);
 
     /** 运营端分页查询 TVM 当面付订单，offset/limit 由页面接口控制。 */

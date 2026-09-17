@@ -43,7 +43,7 @@ public class HostManager {
     }
 
     /**
-     * 连接超时后调用：标记host失效，移入失效Map
+     * 连接超时后调用：标记host失效，移入失效Map。
      */
     public void markHostAsBroken(String host) {
         if (host == null || host.isBlank()) return;
@@ -52,7 +52,7 @@ public class HostManager {
     }
 
     /**
-     * 添加/恢复有效host
+     * 添加/恢复有效host。
      */
     public void addValidHost(String host) {
         if (host == null || host.isBlank()) return;
@@ -66,7 +66,7 @@ public class HostManager {
     }
 
     /**
-     * 判断host是否处于有效可用状态
+     * 判断host是否处于有效可用状态。
      */
     public boolean isHostValid(String host) {
         if (host == null || host.isBlank()) return false;
@@ -75,7 +75,7 @@ public class HostManager {
     }
 
     /**
-     * 定时检测失效host是否恢复
+     * 定时检测失效host是否恢复。
      */
     private void checkAndRecoverBrokenHosts() {
         Set<String> brokenHosts = Set.copyOf(brokenHostMap.keySet());

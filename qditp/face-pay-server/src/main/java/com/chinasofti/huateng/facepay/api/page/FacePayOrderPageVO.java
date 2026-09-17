@@ -1,36 +1,12 @@
 package com.chinasofti.huateng.facepay.api.page;
 
-/**
- * 运营端当面付订单分页查询视图对象。
- *
- * <p>字段名与取值直接对齐 {@code F2F_ORDER} 域模型，
- * <b>不再做旧口径的状态映射或格式变换</b>：
- * <ul>
- *   <li>{@code orderStatus} 存真实枚举值（CREATED / PAYING / PAID / FULFILLED / REFUNDED 等），
- *       不再有旧 {@code status="1"} 这种 ItpStatusEnum 投影。</li>
- *   <li>{@code orderAmount} / {@code ticketPrice} / {@code refundAmount} 为 {@link Long} 单位分，
- *       不再输出旧 {@code TO_CHAR} 字符串。</li>
- *   <li>{@code singleTicketType} 直接投影 {@code F2F_ORDER.SINGLE_TICKET_TYPE}，
- *       不再是旧 {@code ticketType}。</li>
- *   <li>已退款状态由 {@link #refundStatus}（NONE / PARTIAL / SUCCESS）独立承载，
- *       与 {@code orderStatus} 正交（ADR-D88）。</li>
- * </ul>
- *
- * <p>为什么不沿用 collect-pay-server 的 {@code FacePayOrderPageView}：那个类
- * 是旧表的单行结构投影（旧单表把支付中心单号、退款单号都塞在一行里），拆成
- * F2F_ORDER + F2F_PAYMENT + F2F_REFUND 之后字段来源和口径都变了，硬套旧 View
- * 只会让两套命名在前端打架。</p>
- */
+/** 运营端当面付订单分页查询视图对象。 */
 public class FacePayOrderPageVO {
 
     /** ITP 订单号。 */
     private String orderNo;
 
-    /**
-     * 订单主状态，取 {@code F2F_ORDER.ORDER_STATUS} 原值。
-     * 值域见 {@code CK_F2F_ORDER_STATUS}：CREATED / PAYING / PAID / FULFILLED /
-     * FULFILL_FAILED / TOPUP_SUSPECT / PAY_FAILED / EXPIRED / REFUNDING / REFUNDED / CANCELED。
-     */
+    /** 订单主状态，取 {@code F2F_ORDER.ORDER_STATUS} 原值。 */
     private String orderStatus;
 
     /** 受理渠道：01-APP，02-TVM，03-BOM。 */
@@ -45,7 +21,7 @@ public class FacePayOrderPageVO {
     /** 支付渠道编码，来自 {@code F2F_PAYMENT} 最后一次尝试。 */
     private String payChannelCode;
 
-    /** 支付方式，来自 {@code F2F_PAYMENT} 最后一次尝试。BOM 柜台售票无值。 */
+    /** 支付方式，来自 {@code F2F_PAYMENT} 最后一次尝试。 */
     private String payType;
 
     /** 进站编码。 */
@@ -69,25 +45,22 @@ public class FacePayOrderPageVO {
     /** 订单总额，单位分。 */
     private Long orderAmount;
 
-    /** 0-按站点购票，1-固定票价购票。直接投影 {@code F2F_ORDER.SINGLE_TICKET_TYPE}。 */
+    /** 0-按站点购票，1-固定票价购票。 */
     private String singleTicketType;
 
     /** 受理设备号。 */
     private String deviceId;
 
-    /** 最近一笔退款单号，来自 {@code F2F_REFUND}。整单或部分退各可能有多行，取最新 ID。 */
+    /** 最近一笔退款单号，来自 {@code F2F_REFUND}。 */
     private String refundNo;
 
-    /**
-     * 退款汇总状态。值域见 {@code CK_F2F_ORDER_REFUND_STATUS}：NONE / PARTIAL / SUCCESS。
-     * 与 {@link #orderStatus} 正交，退款 NEVER 改主状态。
-     */
+    /** 退款汇总状态。 */
     private String refundStatus;
 
-    /** 已成功退款总额，单位分。由 {@code F2F_REFUND} 中 SUCCESS 的行重算得出。 */
+    /** 已成功退款总额，单位分。 */
     private Long refundAmount;
 
-    /** 最后一次退款汇总重算时刻。格式 {@code YYYY-MM-DD HH24:MI:SS}。 */
+    /** 最后一次退款汇总重算时刻。 */
     private String lastRefundTime;
 
     /** 创建时间，格式 {@code YYYY-MM-DD HH24:MI:SS}。 */

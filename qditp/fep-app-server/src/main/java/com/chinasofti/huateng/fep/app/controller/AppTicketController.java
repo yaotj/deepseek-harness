@@ -23,9 +23,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * APP 票务域接口入口。
- *
- * <p>涵盖行程查询、黑名单、自助补站、交易记录、账单统计和订单详情等功能。
- * 同时支持 {@code /ci/app} 和 {@code /app} 两条路径。</p>
  */
 @RestController
 public class AppTicketController extends BaseAppController {
@@ -74,14 +71,7 @@ public class AppTicketController extends BaseAppController {
     }
 
     /**
-     * 实名查询 Mock 桩。
-     *
-     * <p>APP 端已发布该调用（bizData 仅含 thirdUserId），服务端无实现，线上持续 404。
-     * 规范文档中唯一相关的 IF8A-25「请求实名」已废弃、路径为 {@code /ci/app/requestRealNameVerify}
-     * 且应答只有 retCode/retMsg，与此调用不是同一接口。</p>
-     *
-     * <p>当前仅返回成功码止住 404，不做任何业务处理。响应字段契约需与 APP 团队确认后
-     * 替换为真实实现（含实名状态等业务字段）。</p>
+     * 实名查询 Mock 桩，契约待确认。
      */
     @PostMapping("/app/ticket/realName")
     public CommonResult realName(@ModelAttribute ItpCommonFormRequest request) {

@@ -4,8 +4,6 @@ import java.time.LocalDateTime;
 
 /**
  * pay-sign-server 支付明细 RPC 透出 DTO。
- *
- * <p>用于 ticket-server 等跨模块查询，不直接依赖 pay-sign-server 领域实体。</p>
  */
 public class PayTxnDetailDTO {
     private Long id;

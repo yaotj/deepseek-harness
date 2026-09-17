@@ -18,25 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
-/**
- * {@code requestRefund}（IF8A 申请退款）的特征测试（护栏，2026-09-16）。
- *
- * <p><b>此前完全零覆盖</b>：全仓测试里对该入口零调用点，而它是本模块唯一「碰钱 + 三条写 +
- * 一次出网」的入口。方法头注释里逐条论证过的三条不变量此前**没有一行代码守着**：
- * <ul>
- *   <li><b>留痕 MUST 先于出网</b>（{@code insert} → {@code markRequesting} → 调支付中心）。
- *       该方法刻意不带 {@code @Transactional}：包成事务后，网关超时会把「留证据」的 INSERT
- *       一起回滚，结果是<b>本地连这一行都不存在</b>而对方可能已受理甚至已退款成功 ——
- *       事后既无从对账也无从补偿。摘掉后最坏停在 {@code REFUND_STATUS='PROCESSING'}，
- *       由 {@code compensateRefundQuery} 回查收口。</li>
- *   <li><b>汇总 MUST 在明细置 SUCCESS 之后</b>：{@code updateRefundSummary} 是按
- *       {@code PAY_REFUND_DETAIL} 全量重算的，顺序颠倒会漏掉本笔。</li>
- *   <li><b>网关失败 MUST 落 RETRY 且 NEVER 重算汇总</b>：这一笔还没成功，算进已退总额
- *       会让后续的可退金额上界偏小、把合法退款拒掉。</li>
- * </ul>
- *
- * <p>断言一律经 {@code fixture.service} 下钻，理由见 {@link PaySignFacadeFixture} 的门面注释。
- */
+/** 护栏：退款留痕先于出网、汇总在明细置 SUCCESS 之后、网关失败落 RETRY 且不重算汇总。 */
 class RefundRequestCharacterizationTest {
 
     private static final String MERCHANT_ORDER_NO = "GT20260916100000001586419";
@@ -87,7 +69,6 @@ class RefundRequestCharacterizationTest {
         verify(fixture.payRefundDetailMapper).updateRequestResult(captor.capture());
         assertEquals("RETRY", captor.getValue().getRefundStatus());
         verify(fixture.payTxnDetailMapper, never()).updateRefundSummary(anyString());
-        // 但留痕两步照样发生过：回查补偿要靠这一行找到它。
         verify(fixture.payRefundDetailMapper).insert(any(PayRefundDetail.class));
         verify(fixture.payRefundDetailMapper).markRequesting(anyString(), anyString(), anyString());
     }
@@ -131,12 +112,7 @@ class RefundRequestCharacterizationTest {
         verify(fixture.payTxnDetailMapper, never()).selectByOrderNo(anyString());
     }
 
-    /**
-     * 汇总回写命中 0 行：只打 ERROR，<b>对上游仍答 0000</b>。
-     *
-     * <p>退款在支付中心侧已经受理，这里回非 0000 会让上游以为没受理而重复申请；
-     * 该中间态由 {@code compensateRefundSummary} 的跨表对账兜住。
-     */
+    /** 汇总回写命中 0 行：只打 ERROR，对上游仍答 0000。 */
     @Test
     void summaryMissStillAnswersSuccessToUpstream() {
         PaySignFacadeFixture fixture = paidOrderFixture(300, 0);

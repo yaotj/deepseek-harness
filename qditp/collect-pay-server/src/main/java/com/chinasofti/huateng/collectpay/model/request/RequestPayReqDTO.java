@@ -1,92 +1,56 @@
  package com.chinasofti.huateng.collectpay.model.request;
 
- /**
-  * IF8A-09 请求支付请求报文。
-  */
+ /** IF8A-09 请求支付请求报文。 */
  public class RequestPayReqDTO {
-     /**
-      * 订单号。
-      */
+     /** 订单号。 */
      private String orderNo;
 
-     /**
-      * 支付类型/场景。
-      */
+     /** 支付类型/场景。 */
      private String scene;
 
-     /**
-      * 支付方式。
-      */
+     /** 支付方式。 */
      private String paymentVendor;
 
-     /**
-      * 支付金额（单位：分）。
-      */
+     /** 支付金额（单位：分）。 */
      private Integer amount;
 
-     /**
-      * 行业类型：1-地铁 2-公交 3-打车 4-购物。
-      */
+     /** 行业类型：1-地铁 2-公交 3-打车 4-购物。 */
      private String industryType;
 
-     /**
-      * 订单标题。
-      */
+     /** 订单标题。 */
      private String subject;
 
-     /**
-      * 订单描述。
-      */
+     /** 订单描述。 */
      private String body;
 
-     /**
-      * 签约流水号（免密场景必填）。
-      */
+     /** 签约流水号（免密场景必填）。 */
      private String requestSignSeq;
 
-     /**
-      * 用户ID。
-      */
+     /** 用户ID。 */
      private String thirdUserId;
 
-     /**
-      * 行业详情。
-      */
+     /** 行业详情。 */
      private String industryDetail;
 
-     /**
-      * 订单超时时间（秒）。
-      */
+     /** 订单超时时间（秒）。 */
      private Long orderTimeOut;
 
-     /**
-      * 授权码（部分渠道主动支付需要）。
-      */
+     /** 授权码（部分渠道主动支付需要）。 */
      private String authCode;
 
-     /**
-      * 回调地址。
-      */
+     /** 回调地址。 */
      private String notifyUrl;
 
-     /**
-      * 返回前端页面地址。
-      */
+     /** 返回前端页面地址。 */
      private String returnUrl;
 
-     /**
-      * 用户IP地址。
-      */
+     /** 用户IP地址。 */
      private String ipAddress;
 
-     /**
-      * 备注。
-      */
+     /** 备注。 */
      private String remark;
 
-     /**
-      * 0：其他支付方式 1：数字人民币app
-      */
+     /** 0：其他支付方式 1：数字人民币app */
      private String payType;
 
      public String getOrderNo() {

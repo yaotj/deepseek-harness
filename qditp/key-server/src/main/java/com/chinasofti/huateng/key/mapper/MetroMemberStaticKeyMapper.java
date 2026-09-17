@@ -30,7 +30,7 @@ public interface MetroMemberStaticKeyMapper {
     int insertIfAbsent(MetroMemberStaticKey staticKey);
 
     /**
-     * 综管台密钥版本查看：按状态聚合的 HCE 静态密钥卡数汇总（每卡一条、无统一版本号）。
+     * 综管台密钥版本查看：按状态聚合的 HCE 静态密钥卡数汇总。
      *
      * <p>NEVER 在对应 SQL 里 select KEY_WRAP_VALUE1 明文。</p>
      */

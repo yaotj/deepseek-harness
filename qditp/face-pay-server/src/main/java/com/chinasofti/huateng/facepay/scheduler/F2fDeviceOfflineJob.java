@@ -9,17 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 
-/**
- * 设备离线判定任务。心跳只负责「我还在」，判定「谁不在了」必须靠扫表——
- * 设备掉线时不会发一条「我下线了」的报文。
- *
- * <p>超时窗口 = {@code offlineTimeoutSeconds}，默认 300 秒（按 1 分钟心跳周期的 5 倍容忍）。
- * 这个倍数<b>不能压太紧</b>：TVM 在出票高峰期心跳可能延迟，误判离线会污染运营看板。</p>
- *
- * <p>本任务是纯本地 UPDATE，没有网络调用，也不需要逐条处理——
- * {@code markOfflineByDeadline} 一条 SQL 批量搞定，且 WHERE 带 {@code ONLINE_FLAG='1'}，
- * 多副本重复执行只是第二次命中 0 行。</p>
- */
+/** 设备离线判定任务。无分布式锁，face-pay-server MUST 单副本。 */
 @Component
 public class F2fDeviceOfflineJob {
 

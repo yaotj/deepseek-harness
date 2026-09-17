@@ -1,7 +1,6 @@
 import request from '@/utils/request'
 
-// 数据源自 2026-09-15（ADR-D85）起由 collect-pay-server 切至 face-pay-server（F2F_ORDER）。
-// URL 后半段 /page/face-pay/orders 两服务一字不差，只换前缀；NEVER 退回 /collect-pay-server。
+// 本页数据源为 face-pay-server 的 F2F_ORDER（综管台只读接口，走 web 侧 nginx 前缀）。
 
 /** 分页查询 TVM 当面付订单。 */
 export function listFacePayOrders(params) {

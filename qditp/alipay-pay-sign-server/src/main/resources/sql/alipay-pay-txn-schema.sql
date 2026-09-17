@@ -1,48 +1,4 @@
--- 支付宝出行渠道 支付交易明细 / 退款明细
---
--- 形态对齐 pay-sign-server 的 pay-txn-schema.sql（PAY_TXN_DETAIL / PAY_REFUND_DETAIL）：
---   金额一律 NUMBER 且单位为分，时间一律 TIMESTAMP，TXN_DATE 为 yyyyMMdd 字符串并作月分区键，
---   主键取序列，业务唯一键是 (ORDER_NO, TXN_DATE) 的 LOCAL 唯一索引。
---
--- 为什么另起两张表、而不是继续用 ALIPAY_PAY_LOG / ALIPAY_REFUND_LOG：
---   1) 旧两表 31 / 20 列**全部是 VARCHAR2**，PAY_AMOUNT / REFUND_AMOUNT / TRANS_TIME 都是字符串，
---      查询侧只能 TO_NUMBER / TO_DATE(TRANS_TIME,...)，既走不到索引，又因存量 TRANS_TIME 格式
---      不统一（既有 '2026-07-28 16:59:55' 也有毫秒时间戳 '1785229085685'）而无法安全比较。
---   2) ALIPAY_PAY_LOG 没有 CREATE_TIME / UPDATE_TIME 列，排序只能落到 UUID 主键 PAY_SEQ，等于随机序。
---   3) 旧表没有任何唯一索引，「唯一索引 + DuplicateKeyException 兜底」这条项目主幂等写法无处落地。
---   4) 旧表没有 REQUEST_COUNT / NEXT_REQUEST_TIME，扫表补偿无列可依。
---
--- 本脚本只服务「新建这两张表」。**它不是迁移脚本**：存量 ALIPAY_PAY_LOG / ALIPAY_REFUND_LOG
--- 的处置（迁移 / 双读 / 冻结）尚未裁决，选定后 MUST 另出 *-migration.sql。
---
--- 分区列表从 P202606 起、共 8 个分区，与 AFCITPDB 里 PAY_TXN_DETAIL / PAY_REFUND_DETAIL
--- 实测的分区布局逐个对齐（2026-09-15 查 USER_TAB_PARTITIONS：两表都是 P202606~P202612 + P_MAX）。
--- NEVER 把最早分区改成 P202609：存量 ALIPAY_PAY_LOG 33 行的 TRANS_TIME 最大值是 2026-07-28，
--- 若后续裁决为「迁移存量」，那些 TXN_DATE=202607 的行会全部挤进 P202609 这个九月分区，
--- 分区裁剪与将来按月归档都会失准，而且建表时看不出任何异常。
---
--- 执行状态：**本脚本已于 2026-09-16 在 AFCITPDB 全量执行并回查通过**（2 张表 × 8 分区
--- P202606~P202612 + P_MAX、2 个序列、10 个 LOCAL 索引 PARTITIONED=YES、41 条列注释）。
--- 重复执行会报对象已存在，MUST 先确认差异再补单条，NEVER 整段重跑。
---
--- 执行方式：现在可以经 mcp_database_qd 执行。原先「MCP 跑不了分区表」的限制已于
--- 2026-09-16 消除 —— 那是 MCP 服务端 SQL 校验器的两个缺陷，已在 database-mcp-server
--- 侧修好并部署（镜像 itp/database-server:1.0.7 -> 1.0.8，Deployment `database` / ns `itp`）：
---   1) jsqlparser 5.3 -> 5.4，PARTITION BY RANGE 从此能解析（5.3 报
---      「Encountered unexpected token: "RANGE"」）；
---   2) 新增 SqlTailNormalizer 兜底钩子，仅在 jsqlparser 解析失败后触发，只摘除
---      CREATE INDEX 末尾的 LOCAL / GLOBAL 关键字尾巴（纯关键字、必须是严格前缀，
---      带堆叠语句 / 注释 / 标点的尾巴一律拒绝），成功路径零变化。
--- 注意 executeDdl / validateDdl 的入参名不同：executeDdl 用 `sql`（单条），
--- validateDdl 与 executeDdlBatch 用 `statements`（数组）。
--- AGENTS.md §8 记的 BEGIN EXECUTE IMMEDIATE 绕法在这里依然不行（返
--- 「DDL statement not allowed: Block」），不需要它了。
--- NEVER 为了让 MCP 能跑就去掉分区或 LOCAL —— 参照表在同一个库里就是分区的。
---
--- 状态词表与 pay-sign-server 保持逐字一致，NEVER 换成 ALIPAY_* 旧表那套：
---   PAY_STATUS    INIT / PROCESSING / SUCCESS / FAIL / RETRY / CLOSED
---   REFUND_STATUS NONE / PROCESSING / PARTIAL / SUCCESS / FAIL（主表）
---                 INIT / PROCESSING / SUCCESS / FAIL / RETRY / CLOSED（明细表）
+-- 支付宝出行渠道 支付交易明细 / 退款明细。
 
 CREATE TABLE ALIPAY_PAY_TXN_DETAIL (
     ID                   NUMBER(22) NOT NULL,
@@ -129,9 +85,7 @@ CREATE SEQUENCE SEQ_ALIPAY_PAY_TXN_DETAIL
     CACHE 1000
     NOCYCLE;
 
--- 业务唯一键。这是本表的幂等地基：并发 requestPay 时两条请求可能都看不到已存在的行，
--- 第二条 INSERT 撞这条索引即可被 catch 成「重推」而不是错误（写法照 card-pool-server 的
--- isIntegrityViolation 沿 getCause 链判定，NEVER 只 catch 最外层 DuplicateKeyException）。
+-- 业务唯一键。
 CREATE UNIQUE INDEX UK_APTD_ORDER
 ON ALIPAY_PAY_TXN_DETAIL (ORDER_NO, TXN_DATE) LOCAL;
 
@@ -149,7 +103,6 @@ CREATE INDEX IDX_APTD_CHANNEL_ORDER
 ON ALIPAY_PAY_TXN_DETAIL (CHANNEL_ORDER_NO, TXN_DATE) LOCAL;
 
 -- 进出站关联查询（payLog/entryId、payLog/exitId、findTravelDetail）。
--- 这两列在旧表上无索引，FETCH FIRST 1 ROWS ONLY 靠全表扫。
 CREATE INDEX IDX_APTD_ENTRY_ID
 ON ALIPAY_PAY_TXN_DETAIL (ENTRY_ID) LOCAL;
 
@@ -191,15 +144,7 @@ COMMENT ON COLUMN ALIPAY_PAY_TXN_DETAIL.RESULT_MSG IS '支付中心业务应答�
 COMMENT ON COLUMN ALIPAY_PAY_TXN_DETAIL.CREATE_TIME IS '创建时间';
 COMMENT ON COLUMN ALIPAY_PAY_TXN_DETAIL.UPDATE_TIME IS '更新时间';
 
--- 退款明细表。一笔支付订单可有多笔退款，退款结果由 updateRefundSummary
--- 反向重算 ALIPAY_PAY_TXN_DETAIL.REFUND_STATUS / REFUND_AMOUNT。
--- 与旧 ALIPAY_REFUND_LOG 的三处关键差异：
---   1) REFUND_AMOUNT 是 NUMBER（旧表 VARCHAR2，汇总要 TO_NUMBER 再 TO_CHAR 回写）；
---   2) 有 (REFUND_ORDER_NO, TXN_DATE) 唯一索引 —— 旧表的 UK_ARL_REFUND_ORDER_NO 因存量
---      7 行重复（联调造数固定号 REFUND20260715120000001）撞 ORA-01452，至今没建成；
---   3) 有 REQUEST_COUNT / NEXT_REQUEST_TIME，退款回查补偿才有列可依。
--- 本表**不带 DELETE_FLAG**：旧表那套逻辑删除在退款账本上没有语义（退款明细不该被删），
--- 且每条查询都要记得带 DELETE_FLAG='0'，漏一次就把已删行算进汇总。
+-- 退款明细表。
 
 CREATE TABLE ALIPAY_REFUND_TXN_DETAIL (
     ID                  NUMBER(22) NOT NULL,
@@ -280,12 +225,4 @@ COMMENT ON COLUMN ALIPAY_REFUND_TXN_DETAIL.NEXT_REQUEST_TIME IS '下次允许重
 COMMENT ON COLUMN ALIPAY_REFUND_TXN_DETAIL.TXN_DATE IS '退款发起日期，格式YYYYMMDD，用于月分区与唯一键；与原支付单的 TXN_DATE 各自独立，NEVER 复用原单日期';
 COMMENT ON COLUMN ALIPAY_REFUND_TXN_DETAIL.PAY_CENTER_CODE IS '支付中心应答码，与我方 RET_CODE 分列存放';
 
--- 后续月分区维护示例：
---
--- ALTER TABLE ALIPAY_PAY_TXN_DETAIL
--- SPLIT PARTITION P_MAX AT ('20270201')
--- INTO (PARTITION P202701, PARTITION P_MAX);
---
--- ALTER TABLE ALIPAY_REFUND_TXN_DETAIL
--- SPLIT PARTITION P_MAX AT ('20270201')
--- INTO (PARTITION P202701, PARTITION P_MAX);
+-- 后续月分区维护示例。

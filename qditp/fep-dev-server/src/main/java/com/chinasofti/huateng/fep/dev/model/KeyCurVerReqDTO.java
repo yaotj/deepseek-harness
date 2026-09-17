@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.fep.dev.model;
 
-/**
- * IF1A-02 密钥同步请求-密钥当前版本信息。
- */
+/** IF1A-02 密钥同步请求-密钥当前版本信息。 */
 public class KeyCurVerReqDTO {
 
     private String issueChannelCode;

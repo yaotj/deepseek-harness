@@ -5,16 +5,10 @@ import com.chinasofti.huateng.facepay.api.device.TicketInfo;
 
 import java.util.List;
 
-/**
- * IF2A-06 出票失败结果上报。
- * 对应 {@code POST /itptvm/ci/tvm/notiTakeTicketFailResult} 的 {@code bizData}。
- *
- * <p>这条链路会触发差额退款：订单买了 N 张、实际只出了 M 张，需要退 {@code (N-M) × 单价}。
- * 因此 {@link #actualNum()} 解析失败时 MUST 拒绝而不是当 0 处理——当 0 会退全款。</p>
- */
+/** IF2A-06 出票失败结果上报。 */
 public class NotiTakeTicketFailResultReqDTO extends BaseDeviceRequest {
 
-    /** 订单号。必填，为空时返回 retCode=2002。 */
+    /** 订单号。 */
     private String orderNo;
 
     /** 实际出票张数，可能为 0（完全没出票）。 */
@@ -35,7 +29,7 @@ public class NotiTakeTicketFailResultReqDTO extends BaseDeviceRequest {
     /** 已成功出票的明细，可能为空列表（一张都没出）。 */
     private List<TicketInfo> ticketList;
 
-    /** 实际出票张数，解析失败返回 null；<b>NEVER 把解析失败当成 0</b>，那会退全款。 */
+    /** 实际出票张数，解析失败返回 null；NEVER 把解析失败当成 0，那会退全款。 */
     public Integer actualNum() {
         if (actualTakeTicketNum == null || actualTakeTicketNum.isBlank()) {
             return null;

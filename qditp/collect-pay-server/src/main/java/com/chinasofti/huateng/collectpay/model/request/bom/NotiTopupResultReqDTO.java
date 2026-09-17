@@ -2,22 +2,13 @@ package com.chinasofti.huateng.collectpay.model.request.bom;
 
 import com.chinasofti.huateng.collectpay.model.request.BaseRequestDTO;
 
-/**
- * 充值结果通知请求DTO。
- * BOM充值操作完成后，向ITP平台通知充值结果时使用的业务参数。
- */
+/** 充值结果通知请求DTO。 */
 public class NotiTopupResultReqDTO extends BaseRequestDTO {
 
-    /**
-     * 订单号。
-     */
+    /** 订单号。 */
     private String orderNo;
 
-    /**
-     * 充值状态。
-     * 00：成功
-     * 01：失败
-     */
+    /** 充值状态。 */
     private String topupStatus;
 
     public String getOrderNo() {

@@ -31,9 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * TVM扫码取票服务实现。
- */
+/** TVM扫码取票服务实现。 */
 @Slf4j
 @Service
 public class TvmTakeTicketServiceImpl implements TvmTakeTicketService {
@@ -51,15 +49,11 @@ public class TvmTakeTicketServiceImpl implements TvmTakeTicketService {
     @Autowired
     private TakeTicketWaiter takeTicketWaiter;
 
-    /**
-     * 取票授权查不到激活订单时的挂起时长。TVM 每轮只查一次且查得比 APP 激活早（实测早 4~8 秒），
-     * 靠挂住这次请求把它等到激活。**上限受 istio 路由超时约束**：`fep-app-vr` 的 `/itptvm/` 路由
-     * 没配 timeout，走 Envoy 默认 15 秒，因此这里 NEVER 配到 15000 以上，否则 TVM 收到的是网关 504。
-     */
+    /** 取票授权查不到激活订单时的挂起时长。 */
     @Value("${tvm.takeTicket.waitMillis:10000}")
     private long takeTicketWaitMillis;
 
-    /** 兜底回查间隔。内存唤醒之外还要查库，防止漏唤醒；间隔 NEVER 小于 500ms（JDBC 阻塞会 pin 载体线程）。 */
+    /** 兜底回查间隔。 */
     @Value("${tvm.takeTicket.pollIntervalMillis:500}")
     private long takeTicketPollIntervalMillis;
 
@@ -177,11 +171,7 @@ public class TvmTakeTicketServiceImpl implements TvmTakeTicketService {
         return new AuthProbe(TvmOrderResult.successData(DeviceResponse.getQuerySuccessResult(tvmAppOrder)), true);
     }
 
-    /**
-     * 「无激活订单」的答复，两种形态与改动前**逐字节一致**：
-     * 三要素查不到行时回 {@code 2003}；查到行但未激活时回带空订单对象的失败结构
-     * （原实现把这里的 2003 注释掉了，**NEVER** 顺手改回去）。
-     */
+    /** 「无激活订单」的答复，两种形态与改动前**逐字节一致**： */
     private JSONObject notActiveResult(boolean rowFound) {
         if (!rowFound) {
             log.info("2.没有找到匹配的取票订单");

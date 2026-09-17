@@ -133,31 +133,18 @@ public class EsReportServiceImpl implements IEsReportService {
             Integer param = Integer.valueOf(ticketType);
             TblStlTicketSet ticketSet = ticketSetMapper.findByTicketType(param);
             while (!StringUtils.isEmpty(report = in.readLine())) {
-                // 记录标识 2
                 String recordSign = report.substring(0,2);
-                // 票卡逻辑号 16
                 String ticketNo = report.substring(2,18);
-                // 原票卡逻辑号 16
                 String originalTicketNo = report.substring(18,34);
-                // CSN 16
                 String CSD = report.substring(34,50);
-                // 票面号 16
                 String printedNo = report.substring(50,66);
-                // 初始金额 9
                 String initAmt = report.substring(66,75);
-                // 初始奖励金额 9
                 String reward = report.substring(75,84);
-                // 有效天数 6
                 String validDays = report.substring(84,90);
-                // 有效期开始日期 8
                 String beginDay = report.substring(90,98);
-                // 押金 9
                 String deposit = report.substring(98,107);
-                // 充值次数 9
                 String rechargeCount = report.substring(107,116);
-                // 消费次数 9
                 String consume = report.substring(116,125);
-                // 发行序号 10
                 String sNum = report.substring(125,135);
 
                 String endTime = null;
@@ -174,7 +161,6 @@ public class EsReportServiceImpl implements IEsReportService {
 
                 }
                 String type1 = ticketSet.getType1();
-                // 卡类型
                 String cardType = ticketSet.getCardType();
                 if (TicketType.ONE_WAY.getCode().equals(type1)) {
                     TblStlTicketInfo tblStlTicketInfo = new TblStlTicketInfo(ticketNo, Short.valueOf(ticketType), Short.valueOf(ticketSet.getType5()), CSD, printedNo, cardType, Short.parseShort(version), Integer.parseInt(phyType), DateUtil.dateString8(), Integer.parseInt(batchNo), "", "", Integer.parseInt(initAmt), Integer.parseInt(reward), endTime, "00", DateUtil.dateString8(), null, 0, 0, 0, new Date(), operator, new Date(),originalTicketNo);
@@ -201,7 +187,6 @@ public class EsReportServiceImpl implements IEsReportService {
             TblTktEsFileProcLog procLog = new TblTktEsFileProcLog(Integer.valueOf(taskNo), esNodeId, count, actionCode, fileName, "0", count, count, 0, report, operator, null);
             record(addList,updateList,deleteList,procLog);
 
-//            return true;
         } catch (FileNotFoundException e) {
             log.error("文件不存在,fileName={}", fileName, e);
         } catch (IOException e) {
@@ -275,31 +260,18 @@ public class EsReportServiceImpl implements IEsReportService {
             List<TblStlPersonInfo> personInfos = new ArrayList<>();
             int count = 0;
             while (!StringUtils.isEmpty(report = in.readLine())) {
-                // 记录标识
                 String recordSign = report.substring(0,2);
-                // 序号
                 String seqNo = report.substring(2,10);
-                // 票卡逻辑号
                 String ticketLogicNo = report.substring(10,26);
-                // 物理卡号
                 String phyNo = report.substring(26,42);
-                // 票面号
                 String printNo = report.substring(42,58);
-                // 初始金额
                 String initPrice = report.substring(58,67);
-                // 初始奖励金额
                 String initReward = report.substring(67,76);
-                // 有效天数
                 String validDay = report.substring(76,82);
-                // 有效期开始日期
                 String beginDay = report.substring(82,90);
-                // 押金
                 String pledge = report.substring(90,99);
-                // 充值次数
                 String chargeNum = report.substring(99,108);
-                // 消费次数
                 String consumerNum  = report.substring(108,117);
-                // 发行序号
                 String publishSeq = report.substring(117,127);
                 String endTime = null;
                 for (int i = 0 ; i < tblTktPrePeople.size(); i ++) {
@@ -315,7 +287,7 @@ public class EsReportServiceImpl implements IEsReportService {
                 LocalDate localDate = from.plusDays(Integer.parseInt(validDay));
                 endTime = DateTimeFormatter.ofPattern("yyyyMMdd").format(localDate);
                 String type1 = ticketSet.getType1();
-                String cardType = ticketSet.getCardType();// 卡类型
+                String cardType = ticketSet.getCardType();
                 if (TicketType.ONE_WAY.getCode().equals(type1)) {
                     TblStlTicketInfo tblStlTicketInfo = new TblStlTicketInfo(ticketLogicNo, Short.parseShort(ticketType), Short.parseShort(ticketSet.getType5()), phyType, printNo, ticketType, Short.parseShort(version), 1, beginDay, Integer.valueOf(batchNo), task.getSpecifyAreas(), "", Integer.valueOf(initPrice), Integer.valueOf(initReward), endTime,
                             "00", DateUtil.dateString8(), null, 0, 0, 0, new Date(), operator, new Date(), null);
@@ -333,14 +305,6 @@ public class EsReportServiceImpl implements IEsReportService {
             SqlSession sqlSession = null;
             try {
                 sqlSession = sqlSessionFactory.openSession(ExecutorType.BATCH, false);
-//                if (!CollectionUtils.isEmpty(accList)) {
-//                    TblStlAcctInfoMapper mapper = sqlSession.getMapper(TblStlAcctInfoMapper.class);
-//                    accList.stream().forEach(mapper::updateByPrimaryKey);
-//                }
-//                if (!CollectionUtils.isEmpty(ticketList)) {
-//                    TblStlTicketInfoMapper mapper = sqlSession.getMapper(TblStlTicketInfoMapper.class);
-//                    ticketList.stream().forEach(mapper::updateByPrimaryKey);
-//                }
                 TblStlPersonInfoMapper mapper = sqlSession.getMapper(TblStlPersonInfoMapper.class);
                 personInfos.stream().forEach(mapper::insert);
                 sqlSession.commit();
@@ -358,7 +322,6 @@ public class EsReportServiceImpl implements IEsReportService {
                 }
             }
 
-//            return true;
         } catch (FileNotFoundException e) {
             log.error("文件不存在,fileName={}", fileName, e);
         } catch (IOException e) {
@@ -373,7 +336,6 @@ public class EsReportServiceImpl implements IEsReportService {
             }
         }
 
-//        return true;
     }
 
     @Autowired
@@ -394,7 +356,6 @@ public class EsReportServiceImpl implements IEsReportService {
         log.info("updateList size={}", updateList.size());
         try {
             sqlSession = sqlSessionFactory.openSession(ExecutorType.BATCH, false);
-            // 保存文件处理日志
             logMapper.insert(procLog);
             if (!CollectionUtils.isEmpty(addList)) {
                 Object o = addList.get(0);

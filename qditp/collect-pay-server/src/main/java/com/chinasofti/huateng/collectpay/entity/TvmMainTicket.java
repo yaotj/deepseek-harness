@@ -4,62 +4,40 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/**
- * TVM出票主记录表实体（tbl_tvm_main_ticket）。
- */
+/** TVM出票主记录表实体（tbl_tvm_main_ticket）。 */
 @Data
 public class TvmMainTicket {
-    /**
-     * 主键ID。
-     */
+    /** 主键ID。 */
     private String id;
 
-    /**
-     * 订单号。
-     */
+    /** 订单号。 */
     private String orderNo;
 
-    /**
-     * 实际出票数量。
-     */
+    /** 实际出票数量。 */
     private Integer actualTakeTicketNum;
 
-    /**
-     * 出票时间/故障时间（格式：YYYYMMDDHHMMSS）。
-     */
+    /** 出票时间/故障时间（格式：YYYYMMDDHHMMSS）。 */
     private String takeTickeDate;
 
-    /**
-     * 通知类型：0-出票结果通知，1-出票故障通知。
-     */
+    /** 通知类型：0-出票结果通知，1-出票故障通知。 */
     private String businessType;
     private String notifyType;
 
-    /**
-     * 故障凭条号。
-     */
+    /** 故障凭条号。 */
     private String faultSlipSeq;
 
-    /**
-     * 错误代码。
-     */
+    /** 错误代码。 */
     private String errorCode;
 
-    /**
-     * 执行错误信息。
-     */
+    /** 执行错误信息。 */
     private String errorMessage;
 
-    /**
-     * 购票数量。
-     */
+    /** 购票数量。 */
     private Integer buyTicketNum;
 
 
 
-    /**
-     * 创建时间。
-     */
+    /** 创建时间。 */
     private String createTime;
 
 

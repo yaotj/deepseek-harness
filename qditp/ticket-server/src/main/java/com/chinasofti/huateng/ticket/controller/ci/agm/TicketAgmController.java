@@ -19,19 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * ticket-server AGM 闸机接口控制器。
- *
- * <p>承接来自 fep-dev-server 转发的闸机请求，提供以下能力：
- * <ul>
- *   <li>IF1A-01 闸机检票通知</li>
- *   <li>IF5A-01 票卡分析（BOM 操作辅助）</li>
- *   <li>IF5A-03 票卡更新（BOM 补进站/补出站）</li>
- *   <li>查询票卡当前状态</li>
- * </ul>
- *
- * <p>所有接口统一日志规范：请求前打印入参，响应前打印 retCode，异常时打印堆栈。
- */
+/** ticket-server AGM 闸机接口控制器。 */
 @RestController
 @RequestMapping("/ci/agm")
 public class TicketAgmController {
@@ -39,16 +27,7 @@ public class TicketAgmController {
     private static final Logger log = LoggerFactory.getLogger(TicketAgmController.class);
 
     private final AgmRideStatusService agmRideStatusService;
-    /**
-     * IF5A-01/03 直连补站域门面。
-     *
-     * <p><b>2026-09-14（ADR-D65）起本控制器直接依赖 {@link SupplementService}，
-     * NEVER 再经 {@code AgmRideStatusService} 转一手</b>：那两个委派壳是
-     * {@code gate → supplement} 唯一的一条边，而 {@code supplement} 反过来要调 gate 的检票编排，
-     * 于是构成包级双向环、并逼得 supplement 侧只能注入 gate 的内部实现类
-     * {@code GateTicketHandler}（注门面会成 Spring 构造环、启动即失败）。
-     * 本控制器改为直接注入门面后那条边消失，两个包恢复单向依赖。</p>
-     */
+    /** IF5A-01/03 直连补站域门面。 */
     private final SupplementService supplementService;
 
     public TicketAgmController(AgmRideStatusService agmRideStatusService,
@@ -57,12 +36,7 @@ public class TicketAgmController {
         this.supplementService = supplementService;
     }
 
-    // ==================== IF1A-01 闸机检票 ====================
-
-    /**
-     * IF1A-01 闸机检票通知。
-     * 由 fep-dev-server 转发，携带 deviceId 用于链路追踪。
-     */
+    /** IF1A-01 闸机检票通知。 */
     @PostMapping("/notiVerifyResult")
     public NotifyVerifyResultRespDTO notifyVerifyResult(@RequestBody NotifyVerifyResultReqDTO request) {
         String traceId = request == null ? null : request.getDeviceId();
@@ -91,11 +65,7 @@ public class TicketAgmController {
         return response;
     }
 
-    // ==================== 票卡状态查询 ====================
-
-    /**
-     * 查询票卡当前状态。
-     */
+    /** 查询票卡当前状态。 */
     @PostMapping("/queryCardStatus")
     public QueryStatusRespDTO queryCardStatus(@RequestBody QueryStatusReqDTO request) {
         log.info("查询票卡状态 入参, cardId={}", request == null ? null : request.getCardId());
@@ -110,12 +80,7 @@ public class TicketAgmController {
         return response;
     }
 
-    // ==================== IF5A 票卡 BOM 操作 ====================
-
-    /**
-     * IF5A-01 请求票卡分析。
-     * BOM 终端在补进站/补出站前调用，获取系统建议操作。
-     */
+    /** IF5A-01 请求票卡分析。 */
     @PostMapping("/requestCardDataAnalyse")
     public RequestCardDataAnalyseRespDTO requestCardDataAnalyse(@RequestBody RequestCardDataAnalyseReqDTO request) {
         log.info("IF5A-01 票卡分析 入参, cardId={}, updateType={}",
@@ -131,10 +96,7 @@ public class TicketAgmController {
         return response;
     }
 
-    /**
-     * IF5A-03 请求票卡更新。
-     * BOM 终端执行补进站/补出站操作。
-     */
+    /** IF5A-03 请求票卡更新。 */
     @PostMapping("/requestCardDataUpdate")
     public RequestCardDataUpdateRespDTO requestCardDataUpdate(@RequestBody RequestCardDataUpdateReqDTO request) {
         log.info("IF5A-03 票卡更新 入参, cardId={}, adviceOpt={}, updateStationCode={}",
@@ -162,8 +124,6 @@ public class TicketAgmController {
         log.info("IF5A-03 票卡更新 响应, cardId={}, retCode={}", request.getCardId(), response.getRetCode());
         return response;
     }
-
-    // ==================== 响应构建工具方法 ====================
 
     private NotifyVerifyResultRespDTO buildInvalidParamResponse(String msg) {
         NotifyVerifyResultRespDTO response = new NotifyVerifyResultRespDTO();

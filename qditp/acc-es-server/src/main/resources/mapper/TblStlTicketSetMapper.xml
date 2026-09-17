@@ -25,7 +25,6 @@
         LAST_UPD_ID, LAST_UPD_TMS
     </sql>
 
-    <!-- 根据票卡类型查询 -->
     <select id="findByTicketType" resultMap="BaseResultMap">
         SELECT
         <include refid="Base_Column_List"/>

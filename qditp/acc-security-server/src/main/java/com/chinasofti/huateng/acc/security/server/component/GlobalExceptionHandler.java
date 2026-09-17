@@ -22,8 +22,6 @@ public class GlobalExceptionHandler {
     /**
      * 处理Controller层所有异常
      */
-//    @ExceptionHandler
-//    @ResponseStatus(value = HttpStatus.BAD_REQUEST)
     public ResultVO<Object> handle(ConstraintViolationException exception) {
         StringBuilder message = new StringBuilder();
         if (exception instanceof ValidationException) {
@@ -39,15 +37,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResultVO<Object> handleValidationExceptions(MethodArgumentNotValidException ex) {
-//        Map<String, String> errors = new HashMap<>();
         StringBuilder message = new StringBuilder();
         ex.getBindingResult().getAllErrors().forEach((error) -> {
             String fieldName = ((FieldError) error).getField();
             String errorMessage = error.getDefaultMessage();
-//            errors.put(fieldName, errorMessage);
             message.append(fieldName + "：" + errorMessage);
         });
-//        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errors);
         logger.error(message.toString());
         return ResultMapper.illegalParams(message.toString());
     }

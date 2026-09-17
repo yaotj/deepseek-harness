@@ -31,25 +31,6 @@ public class CommonMacServiceImpl implements CommonMacService {
 
     @Override
     public ResultVO<Boolean> verifyMac1(InvestMac1Param param) throws InterruptedException {
-        // 命令类型：B0
-        //命令：81
-        //用户保留字：0000000000000000
-        //MAC类型：00
-        //次主秘钥索引：00BA
-        //分散次数：01
-        //分散数据：卡号
-        //临时秘钥计算算法：00
-        //SESSIONKEY数据：随机数4字节+2字节票卡计数器+0x8000
-        //MAC初始数据：0000000000000000
-        //MAC：
-        //MAC数据长度：
-        //MAC数据：
-        //
-        //【
-        //大端
-        //交易前余额（4字节）+ 交易金额（4字节）+ 交易类型（1字节 02-电子钱包圈存）+ 城市代码(2字节)
-        //充值设备节点（4字节）
-        //】
         MacBean macBean = new MacBean();
         macBean.setOrder(new byte[]{(byte) 0x81});
         // MAC1 分散秘钥00B6
@@ -135,24 +116,6 @@ public class CommonMacServiceImpl implements CommonMacService {
 
     @Override
     public ResultVO<String> getMac2(InvestMac2Param param) throws InterruptedException {
-        // 命令类型：B0
-        //命令：80
-        //用户保留字：0000000000000000
-        //MAC类型：00
-        //次主秘钥索引：00B6
-        //分散次数：01
-        //分散数据：卡号
-        //临时秘钥计算算法：00
-        //SESSIONKEY数据：随机数4字节+2字节票卡计数器+0x8000
-        //MAC初始数据：0000000000000000
-        //MAC数据长度：
-        //MAC数据：
-        //
-        //【
-        //大端
-        //交易金额（4字节）+ 交易类型（1字节-固定02-电子钱包圈存）+
-        //设备节点标识码（4字节）+ 中心日期时间（7字节）
-        //】
         MacBean macBean = new MacBean();
         macBean.setOrder(new byte[]{(byte) 0x80});
         // MAC1 分散秘钥00B6

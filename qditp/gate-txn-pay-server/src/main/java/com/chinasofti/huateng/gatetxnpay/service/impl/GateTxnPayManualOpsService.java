@@ -22,22 +22,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
-/**
- * 运营后台对**既有订单**的两个人工干预入口：重试免密扣款、发起退款。
- *
- * <p>与出站扣费（{@code requestPay}）拆开的理由是**变化理由不同**，不是行数：
- * 出站扣费跟着闸机报文（IF1A-01）与算价规则变，本类跟着运营流程与支付中心退款接口变；
- * 两者唯一的共同点是读同一张表。合在一处时 {@code GateTxnPayServiceImpl} 因为退款
- * 而必须持有 {@code PaySignClient}，于是那个类同时握着「出账口」「退款口」两个出向 RPC ——
- * 拆开后 <b>{@code GateTxnPayServiceImpl} 不再直接持有任何 rpc client</b>。</p>
- *
- * <p>两个方法的共同前置形状 <b>MUST</b> 保持：按 {@code orderNo} 回查 → 日票直接拒绝 →
- * <b>状态白名单</b>（{@link DebitStatus#isRetryable} / {@link DebitStatus#isRefundable}）。
- * <b>NEVER</b> 把白名单改成「非终态即可」（AGENTS.md §5.2）。</p>
- *
- * <p>本类 <b>NEVER</b> 加 {@code @Transactional}：退款分支内有支付中心 RPC，
- * 事务包住网络调用已经出过生产事故（AGENTS.md §5.2 的行锁放大）。</p>
- */
+/** 运营后台对既有订单的两个人工干预入口：重试免密扣款、发起退款。 */
 @Service
 public class GateTxnPayManualOpsService {
     private static final Logger log = LoggerFactory.getLogger(GateTxnPayManualOpsService.class);
@@ -82,13 +67,7 @@ public class GateTxnPayManualOpsService {
         return response;
     }
 
-    /**
-     * 运营人工退款。
-     *
-     * <p>本方法**只发起**退款，不改本地 {@code DEBIT_STATUS} —— 退款结果由支付中心回调
-     * 走各自的链路收敛。<b>NEVER</b> 在这里顺手把订单改成某个「已退款」状态：
-     * 那个状态在 {@link DebitStatus} 里不存在，写进去等于给状态机加了一个没人认识的值。</p>
-     */
+    /** 运营人工退款。 */
     public ResultVO<RequestRefundResult> requestRefund(String orderNo, GateTxnPayRefundRequest request) {
         if (!StringUtils.hasText(orderNo)) {
             return ResultMapper.illegalParams("orderNo不能为空");
@@ -121,7 +100,6 @@ public class GateTxnPayManualOpsService {
         String refundReason = trimToNull(request.getRefundReason());
         refundRequest.setRefundReason(refundReason == null ? DEFAULT_REFUND_REASON : refundReason);
         RequestRefundResult refundResult = paySignClient.requestRefund(refundRequest);
-        // 「没抛异常」不等于退款成功：这里 MUST 显式判 success（AGENTS.md §5.2）。
         if (refundResult == null) {
             return ResultMapper.error("支付退款服务未返回结果");
         }
@@ -138,16 +116,7 @@ public class GateTxnPayManualOpsService {
         return response;
     }
 
-    /**
-     * 综管台批量退超时罚金：对圈出的订单逐单发起退款，金额为各自的 {@code OVERTIME_AMOUNT}。
-     *
-     * <p>每单仍走 {@link #requestRefund} 的单笔链路（日票拒退、状态白名单、金额上限全保留），
-     * 单笔失败只记入明细、不抛异常阻断整批；本方法 <b>NEVER</b> 加 {@code @Transactional}
-     * （内部含支付中心 RPC，与本类其它方法同一约束）。</p>
-     *
-     * <p>入参硬闸：orderNos 非空、去重后 ≤ {@link BatchRefundOvertimeRequest#MAX_BATCH_SIZE}。
-     * 某笔查不到订单或 {@code OVERTIME_AMOUNT} 为空/≤0 时该笔记失败、继续下一笔。</p>
-     */
+    /** 综管台批量退超时罚金：对圈出的订单逐单发起退款，金额为各自的 {@code OVERTIME_AMOUNT}。 */
     public ResultVO<BatchRefundResult> batchRefundOvertime(BatchRefundOvertimeRequest batchRequest) {
         if (batchRequest == null || batchRequest.getOrderNos() == null || batchRequest.getOrderNos().isEmpty()) {
             return ResultMapper.illegalParams("orderNos不能为空");

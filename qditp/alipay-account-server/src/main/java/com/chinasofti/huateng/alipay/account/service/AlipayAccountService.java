@@ -11,7 +11,6 @@ public interface AlipayAccountService {
 
     /**
      * 支付宝出行-开卡申请。
-     *
      * @param request 开卡申请请求参数
      * @return 开卡申请结果
      */
@@ -19,7 +18,6 @@ public interface AlipayAccountService {
 
     /**
      * 根据 thirdUserId 查询支付宝用户信息。
-     *
      * @param thirdUserId 第三方用户ID
      * @return 用户信息，未找到返回 null
      */
@@ -27,9 +25,6 @@ public interface AlipayAccountService {
 
     /**
      * 根据逻辑卡号查询支付宝用户信息。
-     *
-     * <p>给 ticket-server 过闸链路用（account 域按 cardId 查不到支付宝用户），只读、不改状态。</p>
-     *
      * @param cardId 逻辑卡号
      * @return 用户信息，未找到返回 null
      */
@@ -37,7 +32,6 @@ public interface AlipayAccountService {
 
     /**
      * 更新用户支付通道信息。
-     *
      * @param thirdUserId 第三方用户ID
      * @param thirdPayId  第三方支付ID
      * @param reqContractNo 签约请求号
@@ -47,7 +41,6 @@ public interface AlipayAccountService {
 
     /**
      * 更换手机号。
-     *
      * @param thirdUserId 第三方用户ID
      * @param newMsisdn 新手机号
      * @return 是否更新成功

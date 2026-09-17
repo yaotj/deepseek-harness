@@ -1,14 +1,6 @@
 package com.chinasofti.huateng.facepay.api.device;
 
-/**
- * 设备侧公共请求参数。字段名与旧 {@code BaseRequestDTO} <b>逐字一致</b>，因为设备发的就是这些名字。
- *
- * <p>接入形态（不可改）：{@code application/x-www-form-urlencoded} + {@code @ModelAttribute} 表单
- * 绑定，业务参数在 {@code bizData} 里是一个 JSON 字符串，需二次反序列化。</p>
- *
- * <p><b>本链路没有验签。</b>{@code sign} / {@code signType} 只是被拷进 DTO，旧实现全模块无验签代码
- * （AGENTS.md §2.2.1）。新增鉴权属契约变更，NEVER 在重写里顺手加。</p>
- */
+/** 设备侧公共请求参数。 */
 public class BaseDeviceRequest {
 
     /** 商户编码：01-APP，02-TVM，03-BOM，04-AGM，05-ACC，06-ITP，07-STT。 */
@@ -23,7 +15,7 @@ public class BaseDeviceRequest {
     /** 请求时间，格式 YYYYMMDDHHMMSS。 */
     private String timestamp;
 
-    /** 设备编码。**可能只出现在 bizData 里**，表单值为空时不得覆盖。 */
+    /** 设备编码。 */
     private String deviceId;
 
     /** 签名类型：00-不签名，01-sha1withrsa，02-MD5。 */

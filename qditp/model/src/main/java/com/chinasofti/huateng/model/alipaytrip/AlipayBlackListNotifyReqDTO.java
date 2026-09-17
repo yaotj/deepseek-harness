@@ -38,8 +38,5 @@ public class AlipayBlackListNotifyReqDTO {
      */
     private String expireTime;
 
-    /**
-     * 变更原因。
-     */
     private String reason;
 }

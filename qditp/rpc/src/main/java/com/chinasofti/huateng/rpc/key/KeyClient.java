@@ -19,10 +19,9 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class KeyClient extends ProxyWebClient {
     /**
      * 创建密钥服务RPC客户端。
-     *
-     * @param baseUrl 密钥服务地址
-     * @param openLogger 是否开启请求日志
-     * @param webClientBuilder WebClient构建器
+     * @param baseUrl 密钥服务地址。
+     * @param openLogger 是否开启请求日志。
+     * @param webClientBuilder WebClient构建器。
      */
     public KeyClient(@Value("${service.key.url:key-service}") String baseUrl,
                      @Value("${service.key.openLogger:true}") boolean openLogger,
@@ -32,9 +31,8 @@ public class KeyClient extends ProxyWebClient {
 
     /**
      * 请求key-server同步用户密钥。
-     *
-     * @param request 请求同步密钥参数
-     * @return 请求同步密钥结果
+     * @param request 请求同步密钥参数。
+     * @return 请求同步密钥结果。
      */
     public RequestKeyListResult requestKeyList(@RequestBody RequestKeyListReqDTO request) {
         String result = postJsonAndGetResponse("/requestKeyList", request);

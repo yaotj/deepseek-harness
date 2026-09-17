@@ -30,7 +30,7 @@ public class NettyServerHandler  extends ChannelInboundHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         MessageBean messageBean= (MessageBean) msg;
         log.info("收到消息{}", messageBean.toString());
-        Messagehead result= null;//设置应答消息
+        Messagehead result= null;
         String txnType = messageBean.getTxnType();
         switch (txnType) {
             case Constant.DataPackage.TXN_TYPE_7000:
@@ -43,7 +43,6 @@ public class NettyServerHandler  extends ChannelInboundHandlerAdapter {
                 result = businessHandler.deviceSignOut(messageBean);
                 break;
             case Constant.DataPackage.TXN_TYPE_7004:
-                //设备工作任务报告
                 result = businessHandler.taskStatReport(messageBean);
                 break;
             case Constant.DataPackage.TXN_TYPE_7005:
@@ -79,7 +78,6 @@ public class NettyServerHandler  extends ChannelInboundHandlerAdapter {
         log.error("出现异常的位置",cause);
         ctx.close();
 
-        //super.exceptionCaught(ctx, cause);
      }
 
 

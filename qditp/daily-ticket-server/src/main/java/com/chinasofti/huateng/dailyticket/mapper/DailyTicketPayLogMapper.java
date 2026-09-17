@@ -8,8 +8,6 @@ import org.apache.ibatis.annotations.Param;
 public interface DailyTicketPayLogMapper {
     int insert(DailyTicketPayLog record);
 
-    /**
-     * 查询最近一次退款提交的网关响应，用于为历史退款记录补录支付平台退款单号。
-     */
+    /** 查询最近一次退款提交的网关响应，用于为历史退款记录补录支付平台退款单号。 */
     String selectLatestRefundResponseBody(@Param("orderNo") String orderNo);
 }

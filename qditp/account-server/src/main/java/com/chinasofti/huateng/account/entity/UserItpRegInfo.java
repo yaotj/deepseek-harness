@@ -26,7 +26,6 @@ public class UserItpRegInfo {
      */
     private String itpCardType;
 
-
     /**
      * 第三方用户编码。
      */
@@ -43,11 +42,7 @@ public class UserItpRegInfo {
     private LocalDateTime regTms;
 
     /**
-     * 删除标志。<b>极性反直觉：{@code 1}=有效、{@code 0}=已注销</b>（见
-     * {@code docs/domain/state-machines.md} 在跑的状态机 #3）。
-     *
-     * <p>判活 <b>MUST</b> 走 {@link #isActive()} / {@link #isCanceled()}，
-     * <b>NEVER</b> 在业务代码里裸写 {@code getDelYn() != 1}。</p>
+     * 删除标志。
      */
     private Integer delYn;
 
@@ -73,17 +68,11 @@ public class UserItpRegInfo {
 
     /**
      * 发行渠道编码，仅 {@code 0001}(正常渠道) / {@code 0007}(支付宝出行)。
-     *
-     * <p>由 {@code CardIssueOrgEnum.toIssueChannelCode4} 从 APP 上送的机构码归一而来；
-     * 码体的「发行渠道位」是 industry-data-server 对本值取右 2 位（{@code 07} / {@code 01}）。
-     * <b>NEVER 把 APP 原值直接写进这里</b>——那会让码体落到非法渠道值，见 B14。</p>
      */
     private String cardIssueCode;
 
     /**
      * 发卡机构编码，APP 开户上送的 4 位原值（{@code 5412} 青岛地铁 / {@code 0007} 支付宝出行 等）。
-     *
-     * <p>只作留痕与后续统计用，<b>不参与码体拼装</b>。取值字典见 {@code CardIssueOrgEnum}。</p>
      */
     private String issueOrgCode;
 
@@ -103,7 +92,7 @@ public class UserItpRegInfo {
     private String reqContractNo;
 
     /**
-     * HCE 卡数据。开户时由安全服务生成，闸机交易后由 IF1A-01 reserve1 更新。
+     * HCE 卡数据。
      */
     private String hceData;
 
@@ -144,7 +133,6 @@ public class UserItpRegInfo {
         this.itpCardType = itpCardType;
     }
 
-
     public String getThirdUserId() {
         return thirdUserId;
     }
@@ -178,12 +166,7 @@ public class UserItpRegInfo {
     }
 
     /**
-     * 该开户记录是否有效（{@code DEL_YN = 1}）。null 一律按<b>无效</b>处理。
-     *
-     * <p>ADR-D36 从 7 处逐字节相同的 {@code regInfo.getDelYn() == null || getDelYn() != 1}
-     * 收敛而来。收敛的理由不是「少写几行」，而是<b>这一列的极性反直觉</b>
-     * （{@code 1}=有效 / {@code 0}=已注销），散在 5 个类里逐处手写迟早写反，
-     * 而写反的后果是「已注销用户被当成有效用户放行」——静默、且单测不覆盖时发现不了。</p>
+     * 该开户记录是否有效（{@code DEL_YN = 1}）。
      */
     public boolean isActive() {
         return delYn != null && delYn == 1;
@@ -191,10 +174,6 @@ public class UserItpRegInfo {
 
     /**
      * 该开户记录是否已注销（{@code DEL_YN = 0}）。
-     *
-     * <p><b>与 {@code !isActive()} 不等价</b>：{@code delYn} 为 null 时两者都返回 false /
-     * true 各一次。销户归档的三条件判定要求「该用户所有记录都<b>确实</b>是注销态」，
-     * 因此 MUST 用本方法而不是取 {@code isActive()} 的反。</p>
      */
     public boolean isCanceled() {
         return delYn != null && delYn == 0;

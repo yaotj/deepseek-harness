@@ -6,73 +6,73 @@ import java.sql.Timestamp;
 import com.chinasofti.huateng.model.enums.DeviceTypeEnum;
 
 /**
- * @description:车站配置参数表
- **/
+ * @description:车站配置参数表。
+ */
 public class StlStationConfigDO implements Serializable {
 
     /**
-     * desc:
-     **/
+     * desc。
+     */
     private Long globalId;
 
     /**
      * desc:参数版本号（不唯一）
-     **/
+     */
     private Long paraVerNo;
 
     /**
-     * desc:车站编号
-     **/
+     * desc:车站编号。
+     */
     private String stationCode;
 
     /**
-     * desc:设备编号
-     **/
+     * desc:设备编号。
+     */
     private String devCode;
 
     /**
-     * desc:设备类型
-     **/
+     * desc:设备类型。
+     */
     private String devType;
 
     /**
-     * desc:设备名称
-     **/
+     * desc:设备名称。
+     */
     private String showName;
 
     /**
-     * desc:x坐标
-     **/
+     * desc:x坐标。
+     */
     private Integer pointX;
 
     /**
-     * desc:y坐标
-     **/
+     * desc:y坐标。
+     */
     private Integer pointY;
 
     /**
-     * desc:旋转角度
-     **/
+     * desc:旋转角度。
+     */
     private Integer pointRotate;
 
     /**
-     * desc:设备ip
-     **/
+     * desc:设备ip。
+     */
     private String ip;
 
     /**
-     * desc:服务端口
-     **/
+     * desc:服务端口。
+     */
     private String serverPort;
 
     /**
-     * desc:最后更新人
-     **/
+     * desc:最后更新人。
+     */
     private String lastUpdUser;
 
     /**
-     * desc:最后更新时间
-     **/
+     * desc:最后更新时间。
+     */
     private Timestamp lastUpdTms;
 
     public Long getGlobalId() {

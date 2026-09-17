@@ -2,25 +2,16 @@ package com.chinasofti.huateng.facepay.api.device.tvm;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/**
- * IF2A-10 写卡充值成功结果上报。
- * 对应 {@code POST /itptvm/ci/tvm/topupCardResultNoti} 的 {@code bizData}。
- *
- * <p><b>补上的旧缺口</b>：旧实现只往通知表插一行，<b>从不回写主单</b>——
- * 现成的 {@code UpdateDbMap.getTopupNotiUpdateSuccessDb} 全仓库无调用点，
- * 结果 {@code AFTER_AMOUNT} 恒空、卡内余额与订单表长期不一致、对账无据。
- * 本实现把 {@code afterAmount} 回写到 {@code F2F_ORDER.CARD_AFTER_AMOUNT}，
- * 并把订单推进到 {@code FULFILLED}。</p>
- */
+/** IF2A-10 写卡充值成功结果上报。 */
 public class TopupCardResultNotiReqDTO extends BaseDeviceRequest {
 
-    /** 订单号。必填。 */
+    /** 订单号。 */
     private String orderNo;
 
-    /** 票卡逻辑卡号。必填，service 内会与订单上的卡号比对，不一致即拒绝。 */
+    /** 票卡逻辑卡号。 */
     private String ticketLogicNum;
 
-    /** 票卡物理卡号。必填。 */
+    /** 票卡物理卡号。 */
     private String ticketPhysicsNum;
 
     /** 写卡交易时间。 */
@@ -29,7 +20,7 @@ public class TopupCardResultNotiReqDTO extends BaseDeviceRequest {
     /** 本次充值金额，单位分。 */
     private String transAmount;
 
-    /** 充值后卡内余额，单位分。回写 {@code F2F_ORDER.CARD_AFTER_AMOUNT}。 */
+    /** 充值后卡内余额，单位分。 */
     private String afterAmount;
 
     /** 充值金额转 {@code Long}（分），解析失败返回 null。 */

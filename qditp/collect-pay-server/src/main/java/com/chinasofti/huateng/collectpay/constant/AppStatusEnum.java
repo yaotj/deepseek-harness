@@ -1,9 +1,6 @@
 package com.chinasofti.huateng.collectpay.constant;
 
-/**
- * ITP支付订单状态枚举。
- * 0-支付中，1-支付成功，2-支付失败，3-未支付
- */
+/** ITP支付订单状态枚举。 */
 public enum AppStatusEnum {
 
     PAY_SUCCESS("SUCCESS", "支付成功"),
@@ -29,9 +26,7 @@ public enum AppStatusEnum {
         return desc;
     }
 
-    /**
-     * 根据code获取枚举。
-     */
+    /** 根据code获取枚举。 */
     public static AppStatusEnum fromCode(String code) {
         for (AppStatusEnum e : values()) {
             if (e.code.equals(code)) {

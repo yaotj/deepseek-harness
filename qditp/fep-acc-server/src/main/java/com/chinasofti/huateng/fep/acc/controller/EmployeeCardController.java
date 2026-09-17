@@ -28,10 +28,6 @@ public class EmployeeCardController extends BaseAccController {
     /**
      * 接收员工码开卡通知。
      *
-     * <p>请求以 {@code multipart/form-data} 提交 APP 同款公共字段，业务参数放在
-     * {@code bizData} 中，例如：
-     * {@code {"cardList":[{"phone":"13800138000","cardNo":"QD20240001","cardStatus":1}]}}。</p>
-     *
      * @param request ACC 公共 FormData 请求
      */
     @PostMapping(path = "/employee_card/notify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

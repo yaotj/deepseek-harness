@@ -4,45 +4,27 @@ import com.chinasofti.huateng.collectpay.model.request.BaseRequestDTO;
 
 import java.util.List;
 
-/**
- * IF2A-05 出票故障通知请求报文（TVM -> ITP）。
- */
+/** IF2A-05 出票故障通知请求报文（TVM -> ITP）。 */
 public class NotiTakeTicketFailResultReqDTO extends BaseRequestDTO {
-    /**
-     * 订单号。
-     */
+    /** 订单号。 */
     private String orderNo;
 
-    /**
-     * 实际出票数量。
-     */
+    /** 实际出票数量。 */
     private String actualTakeTicketNum;
 
-    /**
-     * 故障时间（格式：YYYYMMDDHH24mmss）。
-     * 错误代码为2101时填写取票二维码中的生成时间。
-     */
+    /** 故障时间（格式：YYYYMMDDHH24mmss）。 */
     private String faultOccurDate;
 
-    /**
-     * 故障凭条号。
-     */
+    /** 故障凭条号。 */
     private String faultSlipSeq;
 
-    /**
-     * 错误代码。
-     * 2101：取票二维码超时，解锁订单。
-     */
+    /** 错误代码。 */
     private String errorCode;
 
-    /**
-     * 执行错误信息。
-     */
+    /** 执行错误信息。 */
     private String errorMessage;
 
-    /**
-     * 已经写卡数据列表。
-     */
+    /** 已经写卡数据列表。 */
     private List<NotiTakeTicketFailResultReqDTO.TicketInfo> ticketList;
 
     public String getOrderNo() {
@@ -114,23 +96,15 @@ public class NotiTakeTicketFailResultReqDTO extends BaseRequestDTO {
                 '}';
     }
 
-    /**
-     * 票卡信息。
-     */
+    /** 票卡信息。 */
     public static class TicketInfo {
-        /**
-         * 票卡逻辑号。
-         */
+        /** 票卡逻辑号。 */
         private String ticketLogicNum;
 
-        /**
-         * 交易日期（格式：YYYYMMDDHHMMSS）。
-         */
+        /** 交易日期（格式：YYYYMMDDHHMMSS）。 */
         private String transDate;
 
-        /**
-         * 交易金额。
-         */
+        /** 交易金额。 */
         private String transAmount;
 
         public String getTicketLogicNum() {

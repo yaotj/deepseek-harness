@@ -19,7 +19,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 路网拓扑参数文件本地解析。测试阶段只读取、解析、打印，不写入数据库。
+ * 路网拓扑参数文件解析。本类只做读取与解析、不落库（无 mapper 注入），
+ * 落库由 RowNetworkImportService 负责。
  */
 @Service
 public class RowNetworkParser {

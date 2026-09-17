@@ -16,17 +16,15 @@ public class PaySignRequest {
     private String signStatus;
     private String signChannel;
     private LocalDateTime createTms;
-    // 通知业务字段（补偿通知时使用，避免依赖已删除的 PaySignInfo）
     private String payAccountId;
     private String payAgreementNo;
     private String cardId;
     private String cardType;
     private String terminationTime;
-    // 通知相关字段
-    private String notifyStatus;      // 通知状态: PENDING/SUCCESS/FAILED
-    private Integer notifyRetryCount; // 通知重试次数
-    private LocalDateTime notifyTime; // 最后通知时间
-    private String notifyResult;      // 通知结果描述
+    private String notifyStatus;
+    private Integer notifyRetryCount;
+    private LocalDateTime notifyTime;
+    private String notifyResult;
 
     public Long getId() {
         return id;

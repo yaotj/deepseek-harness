@@ -2,13 +2,7 @@ package com.chinasofti.huateng.facepay.api.device.bom;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/**
- * IF2A-09 BOM 充值结果通知入参。
- *
- * <p><b>{@code topupStatus} 的取值方向与直觉相反</b>：{@code 00} 成功、{@code 01} 失败并退款。
- * 与 TVM 的 {@code topupCardFailNoti} 一致（{@code TopupCardFailNotiReqDTO.STATUS_FAILED}），
- * 属既有契约。</p>
- */
+/** IF2A-09 BOM 充值结果通知入参。 */
 public class NotiTopupResultReqDTO extends BaseDeviceRequest {
 
     /** 00 充值成功；01 充值失败，需退款。 */

@@ -11,18 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/**
- * {@link PayTxnViews} 的护栏（2026-09-16，ADR-D110 续清单第 5 项）。
- *
- * <p><b>这个类的价值不在「转换对不对」，而在「有没有漏字段」。</b>
- * `PayTxnDetailDTO` 有 26 个字段，收口前那 26 行逐字段拷贝写在
- * {@code PaySignServiceImpl.queryPayTxnBatch} 里且**零覆盖** —— 漏一个 setter 编译通过、
- * 单测通过，只是调用方拿到的那一列恒为 {@code null}。
- *
- * <p>因此主用例用**反射**做：把实体的每个可写字段都填上非空值，转换后遍历 DTO 的**全部 getter**，
- * 任何一个为 {@code null} 就报出字段名。**新增 DTO 字段但忘了在 `toDto` 里搬，这条立刻变红。**
- * <b>NEVER 把它改成逐字段 assertEquals</b> —— 那种写法本身也会漏，等于用同一个缺陷守自己。
- */
+/** 护栏：反射遍历 DTO 全部 getter，任何字段漏搬立刻变红。 */
 class PayTxnViewsTest {
 
     @Test

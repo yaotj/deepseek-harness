@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.paysign.mapper.PayTxnDetailMapper">
+    <!-- 注释只能写在这里：SQL 正文禁写行注释或块注释，Druid WallFilter 会判定为注入并让该语句静默失效。 -->
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.paysign.entity.PayTxnDetail">
         <id column="ID" jdbcType="NUMERIC" property="id"/>
         <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
@@ -47,7 +48,6 @@
         DISCOUNT_INFO, DEBIT_REQUEST_RESULT, DISCOUNT_FEE, TRANS_IN, PAY_CENTER_ORDER_NO
     </sql>
 
-    <!-- 首次创建支付订单。ORDER_NO 由地铁侧生成，同时作为调用支付网关的 orderNo。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.paysign.entity.PayTxnDetail">
         INSERT INTO PAY_TXN_DETAIL (
             ID, ORDER_NO, PAY_TYPE, PAY_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE,
@@ -109,7 +109,6 @@
         </foreach>
     </select>
 
-    <!-- 每次真正调用支付网关前增加请求次数，并记录首次/最近请求时间。 -->
     <update id="markRequesting">
         UPDATE PAY_TXN_DETAIL
         SET REQUEST_COUNT = NVL(REQUEST_COUNT, 0) + 1,
@@ -120,7 +119,6 @@
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </update>
 
-    <!-- 同步请求支付网关后的返回结果，只保留关键订单号和状态，详细报文写日志。 -->
     <update id="updateRequestResult" parameterType="com.chinasofti.huateng.paysign.entity.PayTxnDetail">
         UPDATE PAY_TXN_DETAIL
         SET PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
@@ -134,43 +132,6 @@
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </update>
 
-    <!-- 支付回调以支付平台最终状态为准，回写金额、渠道账户和完成时间。
-         优惠字段和金额字段在回调中通常为空，使用 NVL 保留入库时的原始值。
-         PAY_STATUS 增加状态机保护：SUCCESS 状态的订单不允许被回退为非 SUCCESS 状态。
-
-         DEBIT_REQUEST_RESULT MUST 与 PAY_STATUS 一起回写，但理由自 2026-09-10 起已经变了：
-         它不再是 APP 侧的权威来源，而是 GATE_TXN_PAY.DEBIT_STATUS 缺失时的兜底。
-         ticket-server TransRecordAssembler.toAppDebitResult 以 DEBIT_STATUS 为准，
-         仅当其为空或空串时才回落到本列（BOM 补站单、日票免扣费单没有 PAY_TXN_DETAIL 行，
-         反过来闸机行程若 GATE_TXN_PAY 侧尚未收口，看到的就是本列）。
-         因此本列写错不会立刻在主链路暴露，只在兜底路径上体现，MUST 保持与 PAY_STATUS 同步。
-         历史事故：本语句曾漏掉这一列，回调把 PAY_STATUS 改成 SUCCESS 后，
-         DEBIT_REQUEST_RESULT 仍停在同步响应阶段 updateRequestResult 写下的 PROCESSING，
-         APP 一直显示扣费未成功（2026-08-26 修复，生产 4 笔已手工修数，无留存订单号）。
-         另注意本列的值域是 PAY_STATUS 那一套（SUCCESS / FAIL / PROCESSING），
-         与对外契约字段名 debitRequestResult 的 0 / 1 值域是两件事，NEVER 混用。
-
-         注意：SQL 正文内 NEVER 使用行注释或块注释。
-         Druid WallFilter 默认 commentAllow=false，SQL 正文带注释会被判定为注入并抛
-         SQLException（comment not allow），导致 UPDATE 静默失效。说明只能写在本 XML 注释里。
-         同时本 XML 注释内也不得出现连续两个连字符，否则 XML 解析失败、mapper 加载不了、服务起不来。
-
-         WHERE 的状态机 MUST 只比较「列与常量」，NEVER 把入参写进状态判断。
-         原先写成 PAY_STATUS != 'SUCCESS' OR (PAY_STATUS = 'SUCCESS' AND #{payStatus} = 'SUCCESS')，
-         而 #{payStatus} 是入参不是列：SUCCESS 回调进来时右分支退化成 'SUCCESS' = 'SUCCESS'，
-         整个括号恒真，等于没有状态机。加上当时 SET 里 PAY_TIME / CHANNEL_ORDER_NO 等列没有 NVL，
-         一次字段稀疏的重推就能把首推写好的值覆盖成 NULL，且每次重推都真的改行、返回 1 行，
-         调用方无法据此识别「这是重推」，回调没有幂等出口（2026-08-26 事故的第 2 个成因）。
-         正确形态参考 GateTxnPayMapper.convergeDebitStatus 的白名单。
-
-         白名单为什么含 FAIL：同一 ORDER_NO 允许 retryPay，重试时 markRequesting 会把状态压回
-         PROCESSING，所以正常链路不依赖 FAIL 可更新；但若支付中心先推 FAIL 后推 SUCCESS，
-         钱已扣就 MUST 让 SUCCESS 落地，否则 APP 永久显示扣费失败。
-         SUCCESS 是唯一终态，不在白名单内，因此重复 SUCCESS 回调会命中 0 行。
-         调用方 MUST 把「0 行 + 当前状态已是目标状态」判为重推并继续走 gate-txn-pay 收敛，
-         NEVER 直接回非 0000，否则新状态机自己会造出一个新的重推循环。
-         若某行被历史数据或支付中心透传的未知状态卡住，会稳定命中 0 行并触发调用方的
-         ERROR 日志与 MANUAL 标记，这是有意留的人工出口。 -->
     <update id="updatePayCallback" parameterType="com.chinasofti.huateng.paysign.entity.PayTxnDetail">
         UPDATE PAY_TXN_DETAIL
         SET PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
@@ -191,28 +152,6 @@
           AND (PAY_STATUS IS NULL OR PAY_STATUS IN ('INIT', 'PROCESSING', 'RETRY', 'FAIL'))
     </update>
 
-    <!-- 退款成功后刷新原支付订单的退款汇总。
-
-         本语句 MUST 是「按 PAY_REFUND_DETAIL 重算」，NEVER 写成
-         REFUND_AMOUNT = NVL(REFUND_AMOUNT, 0) + #{refundAmount}。
-         原因：入参里没有任何幂等键，累加式写法只要被执行两次就多记一笔退款金额，
-         而这一列又是 validateRefundPayTxn 判断「可退金额 = 已付 - 已退」的依据，
-         一旦虚高，后续真实退款会被误判为超额并拒绝，且账面无法自愈。
-         触发路径不止「上游重发」：requestRefund 目前带 @Transactional 且事务内调支付中心，
-         远端已受理但本地事务被回滚 / 连接被 Druid remove-abandoned 强杀时，
-         明细与汇总一起丢；补跑一次就会把同一笔算两遍。
-
-         重算写法天然幂等：结果只取决于 PAY_REFUND_DETAIL 里 REFUND_STATUS = 'SUCCESS' 的行，
-         执行 1 次和 N 次落库值相同，也不依赖调用方传入的旧值快照（原先 Java 侧
-         resolveRefundSummaryStatus 用的是 UPDATE 之前读到的 REFUND_AMOUNT，
-         并发两笔退款时两边都会算出偏小的已退总额）。明细表才是唯一账本。
-
-         已退总额为 0 时保留原 REFUND_STATUS：那说明还没有任何一笔退款成功，
-         此时既不该写 PARTIAL 也不该写 SUCCESS。
-         可退金额口径与 resolvePaidAmount 保持一致：TOTAL_AMOUNT 为空或 0 时退回 AMOUNT。
-
-         注意：SQL 正文内 NEVER 使用行注释或块注释（Druid WallFilter commentAllow=false），
-         本 XML 注释内也不得出现连续两个连字符。 -->
     <update id="updateRefundSummary">
         UPDATE PAY_TXN_DETAIL P
         SET REFUND_AMOUNT = (

@@ -21,26 +21,13 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
-/**
- * IF5A-01 票卡分析：按票卡状态给 BOM 返回建议操作与付费更新的**预估**金额。
- *
- * <p>本类连同 {@link CardDataUpdateHandler} 是 2026-09-14 把原 714 行的 {@code CardDataHandler}
- * 按「分析 / 执行」拆开的结果（审查项 U006）。<b>包外 NEVER 直接注入本类</b>，
- * 唯一入口是 {@link SupplementService}。</p>
- *
- * <p><b>本方法 NEVER 加 {@code @Transactional}。</b>方法内要调 para-server 查线路、
- * account-server 查用户，且**一条写 SQL 都没有**。事务包住它只会让 Druid 连接
- * 被持有到全部 RPC 返回为止，没有任何一致性收益（AGENTS.md §5.2）。</p>
- */
+/** IF5A-01 票卡分析：按票卡状态给 BOM 返回建议操作与付费更新的预估金额。 */
 @Component
 class CardDataAnalyseHandler {
 
     private static final Logger log = LoggerFactory.getLogger(CardDataAnalyseHandler.class);
 
-    /**
-     * QRCODE_STATUS 只读访问。**NEVER 改回直接注 {@code QRCodeStatusMapper}** ——
-     * 该表的写权归 gate 包，本包只准读（见 {@link QRCodeStatusStore} 类注释）。
-     */
+    /** QRCODE_STATUS 只读访问。 */
     @Autowired
     private QRCodeStatusStore qrCodeStatusStore;
 
@@ -82,8 +69,6 @@ class CardDataAnalyseHandler {
         String gateInStation = SupplementCodec.defaultString(status.getGateInStation(), unknownStation);
         String lastTxnStation = SupplementCodec.defaultString(status.getLastTxnStation(), unknownStation);
 
-        // 审查项 C003：此前还查了一次 gateInStation 的线路信息，结果赋给局部变量后**从未被读取**，
-        // 纯粹白费一次 para-server 往返。NEVER 加回来。
         String lastLineCode = queryLineCode(lastTxnStation, cardId);
 
         String updateType = SupplementCodec.defaultString(
@@ -98,8 +83,6 @@ class CardDataAnalyseHandler {
         }
         response.setTransAmount(transAmount);
 
-        // NEVER 在这之后用局部变量回写 msisdn / cardIssueDate——queryUserInfo 内部已经 set 好，
-        // 曾因此把 account-server 查到的手机号与发卡日期无条件覆盖成空串（2026-09-10 修复）。
         response.setMsisdn(SupplementCodec.defaultString(request.getMsisdn(), ""));
         response.setCardIssueDate("");
         try {
@@ -126,13 +109,7 @@ class CardDataAnalyseHandler {
         return response;
     }
 
-    /**
-     * 查询车站所属线路号，查不到返回空串。
-     *
-     * <p>审查项 M005：原实现<b>既不 catch 也不判 {@code retCode}</b>。para-server 一抖，
-     * 整笔 IF5A-01 就退化成全局异常处理器的 UUID {@code retCode}；而 {@code lastLineCode}
-     * 只是回显字段、拿不到完全不影响建议操作与报价。<b>NEVER 让回显字段的失败打断主流程。</b></p>
-     */
+    /** 查询车站所属线路号，查不到返回空串。 */
     private String queryLineCode(String stationCode, String cardId) {
         if (stateRules.isUnknownStation(stationCode)) {
             return "";
@@ -146,17 +123,7 @@ class CardDataAnalyseHandler {
         return SupplementCodec.defaultString(lineResult.getLineCode(), "");
     }
 
-    /**
-     * 付费更新（{@code 006}）的**预估**报价。
-     *
-     * <p>与 IF5A-03 的<b>基准站不同</b>：分析阶段 BOM 还没选出站站，只能用 {@code lastTxnStation}
-     * 预估；执行阶段用真实的 {@code updateStationCode} 重算。因此本方法返回的是**参考价**，
-     * 最终以 IF5A-03 的重算值入账。查不到票价时返回 {@code "0"}（保持 IF5A-01 恒能成功返回），
-     * 而 IF5A-03 查不到会直接拒绝 —— 两者行为差异是有意的。</p>
-     *
-     * <p>进站站未知的情况已由 {@code SupplementStateRules} 在建议阶段拦掉（审查项 M007），
-     * 走不到这里；这里只需处理「上次交易站未知」。</p>
-     */
+    /** 付费更新（{@code 006}）的预估报价。 */
     private String estimatePayAmount(String gateInStation, String lastTxnStation, String cardId) {
         if (stateRules.isUnknownStation(lastTxnStation)) {
             log.warn("IF5A-01 上次交易站未知，付费更新预估按 0 元返回，实扣以 IF5A-03 重算为准, cardId={}", cardId);
@@ -165,13 +132,7 @@ class CardDataAnalyseHandler {
         return fareQuery.query(gateInStation, lastTxnStation, "IF5A-01").priceOrZero();
     }
 
-    /**
-     * 查询用户信息，把 msisdn / cardIssueDate 写进 response。
-     *
-     * <p>{@code queryCardTypeByCardId} 的返回里**已经带 msisdn 与 regTms**，因此非支付宝发行方
-     * 不再二次调 {@code queryUserInfo} —— 那一次 RPC 拿不到额外信息，只是白白多一次网络往返。
-     * 支付宝发行方（{@code providerId=07}）的手机号在 alipay-account-server，仍需单独查。</p>
-     */
+    /** 查询用户信息，把 msisdn / cardIssueDate 写进 response。 */
     private void queryUserInfo(String cardId, String providerId, RequestCardDataAnalyseRespDTO response) {
         QueryUserInfoResult cardTypeResult = accountClient.queryCardTypeByCardId(cardId);
         if (cardTypeResult == null || !SupplementCodec.RET_SUCCESS.equals(cardTypeResult.getRetCode())

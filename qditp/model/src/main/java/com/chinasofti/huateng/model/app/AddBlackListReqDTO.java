@@ -19,9 +19,6 @@ public class AddBlackListReqDTO {
      */
     private String cardType;
 
-    /**
-     * 拉黑原因。
-     */
     private String reason;
 
     public String getCardId() {

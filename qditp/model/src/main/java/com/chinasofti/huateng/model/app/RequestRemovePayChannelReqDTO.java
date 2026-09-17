@@ -2,10 +2,6 @@ package com.chinasofti.huateng.model.app;
 
 /**
  * 删除用户支付通道请求参数。
- *
- * <p>解约成功后由 pay-sign-server 调用 account-server 使用。
- * account-server 会先删除 APP_USER_PAY_CHANNEL 中的通道记录；
- * 如果该通道正好是 User_ITP_Reg_Info 中的默认支付通道，则同步清空注册信息中的默认通道字段。</p>
  */
 public class RequestRemovePayChannelReqDTO {
     /** 三方用户 ID。 */

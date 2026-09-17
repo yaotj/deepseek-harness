@@ -1,17 +1,11 @@
  package com.chinasofti.huateng.collectpay.model.request;
 
- /**
-  * IF8A-10 支付查询请求报文。
-  */
+ /** IF8A-10 支付查询请求报文。 */
  public class PayQueryReqDTO {
-     /**
-      * 订单号。
-      */
+     /** 订单号。 */
      private String orderNo;
 
-     /**
-      * 商户订单号。
-      */
+     /** 商户订单号。 */
      private String merchantOrderNo;
 
      public String getOrderNo() {

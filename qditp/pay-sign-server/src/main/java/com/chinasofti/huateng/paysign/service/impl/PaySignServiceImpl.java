@@ -39,13 +39,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 支付签约应用服务门面。
- *
- * <p>保持原有 {@link PaySignService} 对外契约，按业务能力将请求路由到签约、支付、回调领域。
- * Controller 和 RPC 调用方无需随内部重构修改；新的跨领域编排应放在此处，
- * 具体业务规则则分别沉淀到对应领域服务。</p>
- */
+/** 支付签约应用服务门面。 */
 @Service
 public class PaySignServiceImpl implements PaySignService {
     private static final Logger log = LoggerFactory.getLogger(PaySignServiceImpl.class);
@@ -108,9 +102,6 @@ public class PaySignServiceImpl implements PaySignService {
 
     @Override
     public RequestRefundResult requestRefund(RequestRefundReqDTO request) {
-        // 退款的真实现在退款领域（2026-09-15 从支付领域拆出，纯搬迁）。
-        // NEVER 退回「经 PaymentDomainService 转发」—— 那会让支付组重新挂上退款入口，
-        // 而支付组一行退款逻辑都没有了。
         return refundDomainService.requestRefund(request);
     }
 
@@ -121,9 +112,6 @@ public class PaySignServiceImpl implements PaySignService {
 
     @Override
     public PaySignCallbackResult receivePayResult(ReceivePayResultReqDTO request, String rawBody) {
-        // 支付结果回调的真实现在支付领域（2026-09-15 拆分支付组时随 PAY_TXN_DETAIL 一起搬走）。
-        // 这里直接路由到支付领域，NEVER 退回「经 CallbackDomainService 转发」—— 那会让回调组反向
-        // 依赖支付组，而回调组自己一行支付逻辑都没有。
         return paymentDomainService.receivePayResult(request, rawBody);
     }
 
@@ -160,8 +148,6 @@ public class PaySignServiceImpl implements PaySignService {
         }
         try {
             List<PayTxnDetail> list = payTxnDetailMapper.selectByOrderNos(orderNos);
-            // 26 个字段的逐字段拷贝已外提到 support/PayTxnViews（ADR-D98 判据：零协作者）。
-            // NEVER 在这里再手写一份 —— 漏一个 setter 不编译失败、不告警，只会让某一列恒为 null。
             List<com.chinasofti.huateng.model.paysign.PayTxnDetailDTO> dtoList =
                     com.chinasofti.huateng.paysign.support.PayTxnViews.toDtoList(list);
             result.setRetCode("0000");

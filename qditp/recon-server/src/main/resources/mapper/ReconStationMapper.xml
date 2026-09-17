@@ -1,42 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.recon.mapper.ReconStationMapper">
-    <!--
-      STATION_INFO 是车站 / 参数域的维表（列只有 STATION_CODE / LINE_CODE / STATION_NAME /
-      STATION_EN_NAME 四个，2026-09-16 按 USER_TAB_COLS 实测），本模块只读它、对它零写入。
-      为什么线路段收口到 recon-server 而不是留在各源，理由写在 ReconStationMapper 的类注释里。
+    <!-- SQL 正文禁写注释（Druid WallFilter）；本注释内 NEVER 出现两个连续减号 -->
 
-      三条约定：
-
-      1. NEVER 在 SQL 正文写注释。全服务共用的 Druid WallFilter 默认 commentAllow=false，
-         SQL 带注释会被判成注入并抛 sql injection violation，该语句静默失效、编译与单测都发现不了。
-         说明一律写在本文件的 XML 注释里。
-
-      2. 本文件的 XML 注释里 NEVER 出现两个连续减号。XML 规范禁止注释文本含连续减号，
-         MyBatis 解析本 mapper 直接失败，sqlSessionFactory 建不起来、整个服务启动即挂，
-         而异常链最外层报的是某个无关 mapper 的注入失败，极易误判成依赖问题。
-         因此上面第 1 条只能写「行注释」这种说法，不能原样引用那两个符号。
-
-      3. 本查询没有 `#{}` 参数，因此不涉及本目录其余 mapper 那条「Oracle 下 null 参数必须显式写
-         jdbcType」的约束；后续若给本文件加带参数的语句，MUST 照 ReconSourceMapper.xml 的做法
-         逐个补 jdbcType。
-    -->
-
-    <!--
-      全量取车站到线路的映射。
-
-      为什么不加 WHERE：这是一张全量维表，PAY 文件里出现的车站码来自四个源、事前不可枚举，
-      按车站码逐个查等于把批处理退化成 N+1。表基数是几百行量级，全量拉回内存做 Map 更便宜。
-
-      为什么带 LINE_CODE IS NOT NULL：线路为空的行对补齐没有任何用处（补上去还是空），
-      放进 Map 只会占位；真正需要「线路为空」这个结果的车站，是那些在本表里压根查不到的，
-      由调用方按「查不到即留空」处理，与各源原先用 LEFT JOIN 的语义一致。
-
-      为什么 DISTINCT：线路是车站的函数，本表理应一个车站码只有一行；DISTINCT 是防御性的，
-      万一维表被导入成重复行，也只会得到同一对映射、不会让调用方拿到两条冲突记录。
-      注意它拦不住「同一车站码对应两个不同线路」那种真冲突，那种情况调用方会保留后读到的一条，
-      属参数数据本身的问题，MUST 去参数域修数据，NEVER 在本文件里挑一个。
-    -->
+    <!-- 全量取车站到线路的映射（维表基数几百行，全量拉回内存做 Map） -->
     <select id="selectStationLineCodes" resultType="java.util.Map">
         SELECT DISTINCT
             S.STATION_CODE AS STATION_CODE,

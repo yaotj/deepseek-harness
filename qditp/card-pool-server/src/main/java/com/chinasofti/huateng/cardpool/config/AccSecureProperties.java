@@ -3,64 +3,39 @@ package com.chinasofti.huateng.cardpool.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-/**
- * ACC 安全接口（IF7B）调用配置，前缀 {@code acc.secure}。
- *
- * <p>本模块直连 ACC，不再经 {@code acc-secure-server} 转发，因此只保留卡号池用到的
- * IF7B-01 路径；其余 IF7B-02~08 仍归 {@code acc-secure-server} 维护。</p>
- */
+/** ACC 安全接口（IF7B）调用配置，前缀 {@code acc.secure}。 */
 @Component
 @ConfigurationProperties(prefix = "acc.secure")
 public class AccSecureProperties {
 
-    /**
-     * ACC 服务根地址，未配置时申请动作直接失败。
-     */
+    /** ACC 服务根地址，未配置时申请动作直接失败。 */
     private String baseUrl;
 
-    /**
-     * IF7B-01 请求逻辑卡号的接口路径。
-     */
+    /** IF7B-01 请求逻辑卡号的接口路径。 */
     private String requestQrLogicNumListPath = "/ci/itp/requestQrLoigcNumList";
 
-    /**
-     * 商户编码。
-     */
+    /** 商户编码。 */
     private String providerId = "06";
 
-    /**
-     * 入参字符集，规格要求 UTF-8。
-     */
+    /** 入参字符集，规格要求 UTF-8。 */
     private String charset = "UTF-8";
 
-    /**
-     * 数据格式，规格要求 json。
-     */
+    /** 数据格式，规格要求 json。 */
     private String format = "json";
 
-    /**
-     * 设备编码。
-     */
+    /** 设备编码。 */
     private String deviceId = "ITP-CARD-POOL";
 
-    /**
-     * 签名类型，00-不签名，02-MD5。
-     */
+    /** 签名类型，00-不签名，02-MD5。 */
     private String signType = "00";
 
-    /**
-     * MD5 签名 key，仅 signType=02 时使用。
-     */
+    /** MD5 签名 key，仅 signType=02 时使用。 */
     private String signKey = "";
 
-    /**
-     * 连接超时毫秒数。
-     */
+    /** 连接超时毫秒数。 */
     private int connectTimeoutMillis = 10000;
 
-    /**
-     * 读写超时毫秒数。
-     */
+    /** 读写超时毫秒数。 */
     private int readTimeoutMillis = 30000;
 
     /**

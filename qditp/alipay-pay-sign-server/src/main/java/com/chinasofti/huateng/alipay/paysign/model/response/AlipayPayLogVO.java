@@ -2,11 +2,7 @@ package com.chinasofti.huateng.alipay.paysign.model.response;
 
 import java.io.Serializable;
 
-/**
- * 支付宝支付日志视图对象，用于对外接口返回。
- *
- * <p>不暴露内部实体字段，仅保留外部需要的数据。</p>
- */
+/** 支付宝支付日志视图对象，用于对外接口返回。 */
 public class AlipayPayLogVO implements Serializable {
     private static final long serialVersionUID = 1L;
 

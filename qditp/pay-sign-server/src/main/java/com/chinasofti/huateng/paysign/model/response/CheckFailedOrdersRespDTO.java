@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.paysign.model.response;
 
-/**
- * 查询扣费失败订单内部接口响应。
- */
+/** 查询扣费失败订单内部接口响应。 */
 public class CheckFailedOrdersRespDTO {
 
     private String resultCode;

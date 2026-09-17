@@ -29,19 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * 下单写路径的落库验证。<b>会真的往测试库插数据</b>，因此：
- * <ul>
- *   <li>靠 {@code DB_HOST} 环境变量开关，无库环境整类跳过；</li>
- *   <li>每个用例结束后在 {@link #cleanup()} 里按 orderNo 删除自己造的行，先删
- *       {@code F2F_PAYMENT} 再删 {@code F2F_ORDER}；</li>
- *   <li>只 INSERT 新行、不改任何既有数据，还原 SQL 即
- *       {@code DELETE FROM F2F_PAYMENT/F2F_ORDER WHERE ORDER_NO = ?}。</li>
- * </ul>
- *
- * <p>支付中心地址故意指向 {@code 127.0.0.1:1}（必然连不上），用来验证<b>「对端没答上来时订单不得
- * 被写成失败」</b>这条最关键的行为。成功路径需要真实支付中心凭据，暂无法覆盖。</p>
- */
+/** 下单写路径的落库验证。 */
 @SpringBootTest(classes = FacePayServer.class)
 @EnabledIfEnvironmentVariable(named = "DB_HOST", matches = ".+")
 class F2fTvmOrderServiceWriteTest {
@@ -66,10 +54,7 @@ class F2fTvmOrderServiceWriteTest {
     @Autowired
     private F2fTvmOrderService service;
 
-    /**
-     * 支付结果侧三条（{@code queryPayResult} / {@code receivePayNotice}）的宿主。
-     * 2026-09-16 从 {@code F2fTvmOrderService} 拆出（P2），断言与报文一行未改。
-     */
+    /** 支付结果侧三条（{@code queryPayResult} / {@code receivePayNotice}）的宿主。 */
     @Autowired
     private F2fTvmPayResultService payResultService;
 

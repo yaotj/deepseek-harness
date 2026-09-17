@@ -31,22 +31,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-/**
- * APP 扫码取票：下单、请求支付信息、支付结果查询、激活订单列表。
- *
- * <p>退款三条（{@code requestRefund} / {@code queryRefundResult} / {@code receiveRefundResult}）
- * 已于 2026-09-16 拆到 {@link F2fAppRefundService}，见 P1 拆分方案。</p>
- *
- * <h2>一处修掉的旧缺陷（NEVER 回退）</h2>
- * <ul>
- *   <li><b>{@code requestPayResult} 的失败判定字面量写错。</b>旧实现拿支付中心的
- *       {@code status} 与 {@code "3"} 比，而支付中心返回的是 {@code "FAILED"}——
- *       等于「支付失败」这一支永远不成立，订单永久停在支付中。这里走
- *       {@link PayCenterStatus} 枚举。</li>
- * </ul>
- *
- * <p>整个类不带 {@code @Transactional}：链路里有支付中心调用。</p>
- */
+/** APP 扫码取票：下单、请求支付信息、支付结果查询、激活订单列表。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。 */
 @Service
 public class F2fAppOrderService {
 
@@ -55,10 +40,7 @@ public class F2fAppOrderService {
     /** 业务类型：取票，对应 {@code CK_F2F_ORDER_BIZ} 的 03。 */
     private static final String BIZ_TAKE_TICKET = "03";
 
-    /**
-     * 交易类型：APP 扫码取票。{@link F2fTicketIssueService} 用这个值判断
-     * 「出票结果要不要通知 APP」，两处 MUST 保持一致。
-     */
+    /** 交易类型：APP 扫码取票。 */
     private static final String TRANS_TYPE_APP_TAKE_TICKET = "03";
 
     private static final String STATUS_CREATED = F2fOrderStatus.CREATED.name();
@@ -85,23 +67,11 @@ public class F2fAppOrderService {
 
     private static final DateTimeFormatter TMS_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    /**
-     * IF8A-18 本地已终态时回吐的支付时间格式。
-     *
-     * <p><b>与 {@link #TMS_FORMATTER} 不是同一个，NEVER 合并</b>：旧实现在「DB 已是终态」
-     * 分支里原样返回 {@code TBL_TVM_APP_ORDER.PAY_TIME} 列值，而该列真实存的就是带分隔符的
-     * {@code yyyy-MM-dd HH:mm:ss}（2026-09-11 抽查库内四条历史真实单，形如
-     * {@code 2026-09-11 18:52:40}）；只有「向支付中心查到结果」那条分支才用紧凑形态
-     * （`AppOrderServiceImpl:263` 的 {@code getNowTimeByFormat(DATE_yyyyMMddHHmmss)}）。
-     * 双打实测同一笔已付单旧回 {@code 2026-09-11 20:46:50}、新回 {@code 20260911204649}，据此拆开。</p>
-     */
+    /** IF8A-18 本地已终态时回吐的支付时间格式。 */
     private static final DateTimeFormatter PAID_TMS_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    /**
-     * IF8A-18 本地终态分支的 {@code payDate}：有值按 {@code yyyy-MM-dd HH:mm:ss} 输出，
-     * <b>无值返回 null 而不是空串</b>——旧实现原样吐 {@code PAY_TIME} 列值，失败单该列多为 null。
-     */
+    /** IF8A-18 本地终态分支的 {@code payDate}：有值按 {@code yyyy-MM-dd HH:mm:ss} 输出， 无值返回 null 而不是空串——旧实现原样吐 {@code PAY_TIME} 列值，失败单该列多为 null。 */
     private static String paidTimeOf(F2fOrder order) {
         return order.getPaidTms() == null ? null : order.getPaidTms().format(PAID_TMS_FORMATTER);
     }
@@ -127,10 +97,7 @@ public class F2fAppOrderService {
         this.messageFactory = messageFactory;
         this.payCenterFlow = payCenterFlow;
     }
-    /**
-     * IF8A-20 下单。只落库，不调支付中心——APP 随后再调
-     * {@link #requestPayInfo} 换取支付信息。
-     */
+    /** IF8A-20 下单。 */
     public JSONObject createOrder(RequestOrderReqDTO request) {
         Long price = request.priceInFen();
         Integer count = request.ticketCount();
@@ -152,12 +119,7 @@ public class F2fAppOrderService {
         return AppResponses.orderNo(orderNo);
     }
 
-    /**
-     * IF8A-11 请求支付信息。<b>必须在事务外</b>：中间那次 {@code execute} 是网络调用。
-     *
-     * <p>只有 {@code CREATED} 才允许换支付信息（白名单）。旧实现的判定是
-     * {@code PAY_STATUS != "0"} 即拒绝，等价，但这里写成显式白名单。</p>
-     */
+    /** IF8A-11 请求支付信息。 */
     public JSONObject requestPayInfo(RequestPayInfoReqDTO request) {
         String orderNo = request.getOrderNo();
         F2fOrder order = orderMapper.selectByOrderNo(orderNo);
@@ -182,8 +144,6 @@ public class F2fAppOrderService {
         paymentMapper.insert(buildPayment(order, request.getPayChannelCode(), attemptNo,
                 message.getBizData(), now));
 
-        // rejectTransition 传 null：APP 被拒后订单 MUST 留在 CREATED，乘客可换支付通道重来。
-        // 这与 TVM / BOM 一次被拒即置 PAY_FAILED 是**有意的差别**，重构前它只体现为「这里少两行」。
         F2fPayCenterFlow.Submitted submitted = payCenterFlow.submit(new F2fPayCenterFlow.SubmitSpec(
                 orderNo, attemptNo, message, "支付信息", null, false, "APP 请求支付信息"));
         return switch (submitted) {
@@ -194,18 +154,11 @@ public class F2fAppOrderService {
             case F2fPayCenterFlow.Submitted.Unknown unknown -> unknown.result().isTransportFailed()
                     ? AppResponses.failMessage("支付中心暂时不可用，请稍后重试")
                     : AppResponses.failMessage("获取支付信息失败");
-            // APP 预下单没开同步支付状态判定，构造上不可能收到。
             case F2fPayCenterFlow.Submitted.SyncPaid ignored ->
                     throw new IllegalStateException("APP 请求支付信息不应收到同步支付成功, orderNo=" + orderNo);
         };
     }
-    /**
-     * IF8A-18 支付结果查询。本地已是终态则短路；只有 {@code CREATED} / {@code PAYING}
-     * 才去问支付中心。
-     *
-     * <p>{@code payResult} 只有 {@code SUCCESS} / {@code FAIL} 两种取值；
-     * <b>问不到结果时回 {@code 8999 支付中}</b>（不是 FAIL），照搬旧口径。</p>
-     */
+    /** IF8A-18 支付结果查询。 */
     public JSONObject queryPayResult(RequestAppPayResultReqDTO request) {
         String orderNo = request.getOrderNo();
         F2fOrder order = orderMapper.selectByOrderNo(orderNo);
@@ -229,7 +182,7 @@ public class F2fAppOrderService {
         return resolvePayResult(order);
     }
 
-    /** 向支付中心查实际结果并收口本地状态。<b>必须在事务外</b>。 */
+    /** 向支付中心查实际结果并收口本地状态。 */
     private JSONObject resolvePayResult(F2fOrder order) {
         String orderNo = order.getOrderNo();
         F2fPayCenterFlow.Settled settled = payCenterFlow.settle(new F2fPayCenterFlow.SettleSpec(
@@ -238,35 +191,15 @@ public class F2fAppOrderService {
         return switch (settled.settlement()) {
             case PAID -> AppResponses.payResult(result.string("channelOrderNo"), "SUCCESS",
                     order.getOrderAmount(), LocalDateTime.now().format(TMS_FORMATTER));
-            // payResult 只有 SUCCESS / FAIL 两种取值，未支付也只能回 FAIL。
             case FAILED, UNPAID -> AppResponses.payResult(result.string("channelOrderNo"), "FAIL",
                     order.getOrderAmount(), "");
-            // NEVER 改成 FAIL：问不到结论时回「支付中」，照搬旧口径。
             case PENDING -> AppResponses.fail(AppResponses.CODE_PAYING, "支付中");
         };
     }
 
-    /**
-     * 「已收款但订单没推到 PAID」的 ERROR 上报已收口到
-     * {@link F2fPayCenterFlow#markPaidAndReport(String)}，本类不再自留副本。
-     *
-     * <p>此处原有一个私有 {@code warnIfConflict}，注释声称它服务「退款域的 {@code REFUNDING} /
-     * {@code REFUNDED} 推进」。**2026-09-16 拆分本类时确认它类内零调用、是死代码**：
-     * ADR-D88 把退款正交化之后，退款收口走的是 {@code refundMapper.updateStatus} +
-     * {@code orderMapper.updateRefundSummary}，没有任何状态 CAS 需要它；那段注释描述的是
-     * 一个已经不存在的调用关系。方法连注释一并删除。<b>NEVER 凭那条旧注释把它加回来</b>
-     * —— 真需要冲突告警时用 {@link F2fPayCenterFlow#warnIfConflict}（public）。</p>
-     */
+    /** 「已收款但订单没推到 PAID」的 ERROR 上报已收口到 {@link F2fPayCenterFlow#markPaidAndReport(String)}，本类不再自留副本。 */
 
-    /**
-     * 获取已激活的取票订单列表。只读。
-     *
-     * <p><b>{@code ticketPrice} 必须序列化成字符串</b>：旧实现的载体是
-     * {@code AppActiveOrderModel}，该字段声明为 {@code String}（`AppActiveOrderModel:12`），
-     * APP 侧一直收到 {@code "200"} 而不是 {@code 200}。NEVER 直接 put 数值
-     * ——2026-09-11 双跑对比实测到该类型漂移。{@code singelTicketNum} 同理，
-     * 拼写少一个 t 也是既有契约。</p>
-     */
+    /** 获取已激活的取票订单列表。 */
     public JSONObject listActiveOrders(RequestQueryActiveOrderReqDTO request) {
         if (!request.isQdMetro()) {
             log.info("获取激活订单 appType 不支持, appType={}", request.getAppType());
@@ -291,10 +224,7 @@ public class F2fAppOrderService {
         log.info("获取激活订单完成, userId={}, size={}", request.getUserId(), list.size());
         return AppResponses.orderList(list);
     }
-    /**
-     * 据支付中心查询结果把最近一次支付尝试收口为 SUCCESS。返回 0 或撞
-     * {@code UK_F2F_PAY_SUCCESS} 都按幂等吞掉，<b>NEVER 打断订单状态推进</b>。
-     */
+    /** 据支付中心查询结果把最近一次支付尝试收口为 SUCCESS。 */
     private void markPaymentSuccess(String orderNo, PayCenterResult result) {
         Integer attemptNo = paymentMapper.selectMaxAttemptNo(orderNo);
         try {
@@ -362,12 +292,7 @@ public class F2fAppOrderService {
         return payment;
     }
 
-    /**
-     * {@code yyyyMMddHHmmss}，null 进空串出。
-     *
-     * <p>旧实现的 {@code orderDate} 是把 {@code yyyy-MM-dd HH:mm:ss} 里的
-     * {@code -}、空格、{@code :} 逐个替换掉得到的，结果与本格式一致。</p>
-     */
+    /** {@code yyyyMMddHHmmss}，null 进空串出。 */
     private static String format(LocalDateTime tms) {
         return tms == null ? "" : tms.format(TMS_FORMATTER);
     }

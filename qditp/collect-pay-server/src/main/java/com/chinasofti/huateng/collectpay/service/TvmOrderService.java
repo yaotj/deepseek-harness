@@ -4,14 +4,11 @@ import com.alibaba.fastjson.JSONObject;
 import com.chinasofti.huateng.collectpay.model.request.bom.RequestPaymentReqDTO;
 import com.chinasofti.huateng.collectpay.model.request.tvm.*;
 
-/**
- * TVM扫码购票业务服务接口。
- */
+/** TVM扫码购票业务服务接口。 */
 public interface TvmOrderService {
 
     /**
      * IF2A-01 提交单程票订单。
-     * TVM向ITP平台发起提交单程票订单请求，ITP返回支付URL。
      *
      * @param request 请求参数（包含公共参数deviceId等）
      * @return 响应结果
@@ -20,7 +17,6 @@ public interface TvmOrderService {
 
     /**
      * IF2A-01 提交单程票订单（仅下单）。
-     * TVM主动扫用户付款码场景下，先生成订单，后续再调用支付接口。
      *
      * @param request 请求参数（包含公共参数deviceId等）
      * @return 响应结果，仅包含订单号
@@ -29,7 +25,6 @@ public interface TvmOrderService {
 
     /**
      * IF2A-11 扫码支付。
-     * TVM主动扫用户付款码后，向ITP平台发起支付请求，ITP调用支付中心完成支付。
      *
      * @param request 请求参数（包含订单号、付款码等）
      * @return 响应结果，包含支付结果
@@ -38,7 +33,6 @@ public interface TvmOrderService {
 
     /**
      * IF2A-03 查询支付结果。
-     * TVM轮询查询支付结果，ITP返回支付状态。
      *
      * @param request 请求参数（包含公共参数deviceId等）
      * @return 响应结果
@@ -47,7 +41,6 @@ public interface TvmOrderService {
 
     /**
      * IF2A-04 出票结果通知。
-     * TVM出票成功后通知ITP平台。
      *
      * @param request 请求参数（包含公共参数deviceId等）
      * @return 响应结果
@@ -56,7 +49,6 @@ public interface TvmOrderService {
 
     /**
      * IF2A-05 出票故障通知。
-     * TVM出票故障时通知ITP平台。
      *
      * @param request 请求参数（包含公共参数deviceId等）
      * @return 响应结果
@@ -65,7 +57,6 @@ public interface TvmOrderService {
 
     /**
      * 退款。
-     * 根据订单号发起退款，退款金额为订单总金额。
      *
      * @param request 请求参数（包含订单号等）
      * @return 响应结果，包含退款结果

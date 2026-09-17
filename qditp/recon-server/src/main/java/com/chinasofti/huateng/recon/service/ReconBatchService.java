@@ -29,9 +29,6 @@ public class ReconBatchService {
     /**
      * 幂等的状态推进：目标状态与当前状态相同则原样返回，不抛异常。
      *
-     * <p>编排任务每轮都会重算目标状态并调用本方法，若沿用 {@link #transition} 会在每一轮
-     * 都因「非法流转」报错刷日志。因此把「已经在目标状态」这一情况判定为成功。</p>
-     *
      * @param batchId 批次标识
      * @param target  目标状态
      * @return 推进后的批次视图
@@ -56,19 +53,9 @@ public class ReconBatchService {
     }
 
     /**
-     * 状态流转白名单。SUCCESS 是终态，一律拒绝流出；FAILED 是四个补偿入口的起点。
+     * 状态流转白名单。SUCCESS 是终态，一律拒绝流出；FAILED 是补偿重试的入口。
      *
-     * <p><b>FAILED -&gt; ALL_SOURCE_COMPLETED 必须在白名单里</b>：批次在「来源已全部收齐、但生成或投递
-     * 失败」时会落到 FAILED，下一轮 {@code advanceBatch} 走的是
-     * {@code transitionIfNeeded(ALL_SOURCE_COMPLETED)} 再重新生成。少了这一条，FAILED 批次只能靠
-     * {@code dispatchDailyBatch} 的 FAILED -&gt; EXPORTING 复活，而生产 cron 一天只跑一次且 batchId
-     * 按账期变化，昨天失败的批次今天不会再被下发，于是**永久卡在 FAILED、每轮只刷
-     * 「非法的对账批次状态变更」错误日志**。2026-09-11 实测复现（batchId=RECON20260907）。</p>
-     *
-     * <p><b>PARTIAL -&gt; EXPORTING 也必须在白名单里</b>：`runDailyBatch()` 每天（或人工重跑）都会先
-     * `dispatchDailyBatch()`，而它对已存在的批次做 `transitionIfNeeded(EXPORTING)`。批次只要停在
-     * PARTIAL（部分来源收齐），少了这一条重入就直接抛「非法的对账批次状态变更: PARTIAL -&gt; EXPORTING」，
-     * 接口返回 9999、**那个账期再也补不回来**。2026-09-11 实测（batchId=RECON20260909 停在 PARTIAL）。</p>
+     * <p>护栏：{@code PARTIAL -&gt; EXPORTING} MUST 在白名单里，缺它那个账期再也补不回来。</p>
      */
     private boolean allowed(ReconBatchStatus from, ReconBatchStatus to) {
         return switch (from) {

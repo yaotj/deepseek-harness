@@ -12,12 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * 对外契约测试：报文字段名与响应 key 一律断言字面量。纯函数，不起 Spring。
- *
- * <p>这些用例的意义是<b>把「一字不改」钉死</b>——字段名或 retCode 被人「顺手改正」时，
- * 这里立刻红，而不是等设备联调才发现收不到值。</p>
- */
+/** 对外契约测试：报文字段名与响应 key 一律断言字面量。 */
 class TvmContractTest {
 
     @Test
@@ -106,11 +101,7 @@ class TvmContractTest {
         assertEquals(10, DeviceRetCode.values().length);
     }
 
-    /**
-     * 取票鉴权「无激活的订单」：码是 2003，但业务键 MUST 与成功响应一模一样、值为 null。
-     *
-     * <p>断言键序也一致——设备侧若按顺序解析，键序变化同样是契约变化。</p>
-     */
+    /** 取票鉴权「无激活的订单」：码是 2003，但业务键 MUST 与成功响应一模一样、值为 null。 */
     @Test
     void takeTicketAuthNoActiveOrderKeepsSuccessShapeWithNullValues() {
         JSONObject success = TvmResponses.takeTicketAuthSuccess("F20020260916", "TVM001",
@@ -128,14 +119,7 @@ class TvmContractTest {
         }
     }
 
-    /**
-     * 上一个用例只证明了 Map 里有 null，本用例证明 <b>序列化后 null 键不会被吞掉</b>。
-     *
-     * <p>Controller 直接返回 fastjson2 {@code JSONObject}，而本工程没有引入 fastjson2 的
-     * spring 扩展、也没有自定义 {@code HttpMessageConverter}，实际出站由 Spring Boot 默认的
-     * Jackson 把它当 {@code Map} 写出。若哪天有人加上 {@code NON_NULL} 之类的全局配置，
-     * 那 8 个键会**静默消失**、设备侧毫无察觉——这条断言就是那道防线。</p>
-     */
+    /** 上一个用例只证明了 Map 里有 null，本用例证明 序列化后 null 键不会被吞掉。 */
     @Test
     void nullBusinessKeysSurviveJsonSerialization() throws Exception {
         String json = new ObjectMapper().writeValueAsString(TvmResponses.takeTicketAuthNoActiveOrder());
@@ -145,12 +129,7 @@ class TvmContractTest {
         assertTrue(json.contains("\"retCode\":\"2003\""), json);
     }
 
-    /**
-     * 「失败也要有全量字段」的推广结果：<b>每个带业务字段的接口，失败响应的键集与键序 MUST 等于成功响应</b>。
-     *
-     * <p>逐个断言 {@code keySet()} 相等而不是数个数 —— 键名写错、键序漂移都要红。
-     * 一旦有人给某类响应加了新业务键但只改成功分支，这里立刻失败。</p>
-     */
+    /** 「失败也要有全量字段」的推广结果：每个带业务字段的接口，失败响应的键集与键序 MUST 等于成功响应。 */
     @Test
     void everyFailShapeMatchesItsSuccessShape() {
         assertEquals(TvmResponses.genSjtOrderSuccess("F1", "http://pay").keySet(),
@@ -186,13 +165,7 @@ class TvmContractTest {
                 "BOM 单程票退款（9999 订单不存在分支）");
     }
 
-    /**
-     * 失败响应的业务值 MUST 是 JSON null，<b>NEVER 填成 {@code FAILED} / {@code 0} / 空串</b>。
-     *
-     * <p>「查不到 / 参数缺失」与「这笔支付失败了」是两件事，后者仍走
-     * {@code payResult(FAILED, ...)} 与 {@code paymentResult(FAILED, ...)}。
-     * 若把前者也填成 FAILED，设备会对一笔可能已扣款的单子做错误处置。</p>
-     */
+    /** 失败响应的业务值 MUST 是 JSON null，NEVER 填成 {@code FAILED} / {@code 0} / 空串。 */
     @Test
     void failShapesCarryNullBusinessValuesNotPlaceholders() {
         JSONObject tvmPayResult = TvmResponses.payResultFail(DeviceRetCode.INVALID_PARAM, "orderNo不能为空");

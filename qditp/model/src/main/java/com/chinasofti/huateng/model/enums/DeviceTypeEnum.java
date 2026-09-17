@@ -2,7 +2,6 @@ package com.chinasofti.huateng.model.enums;
 
 /**
  * 设备类型定义枚举。
- * <p>对应表2　设备类型定义表</p>
  */
 public enum DeviceTypeEnum {
 

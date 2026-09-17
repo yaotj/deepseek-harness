@@ -1,6 +1,7 @@
 package com.chinasofti.huateng.paysign.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -18,28 +19,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/**
- * {@code alipayTripRequestSignInfo}（支付宝出行签约）的特征测试（护栏，2026-09-16）。
- *
- * <p><b>此前完全零覆盖</b>（ADR-D110 续清单第 3 条）。它是全模块唯一
- * <b>不经支付中心、直接把 {@code APP_PAY_SIGN_INFO} 写成 {@code SIGNED}</b> 的入口 ——
- * 渠道侧已经签好，我方只做同步确认。因此这里没有网关调用、也没有回调收口，
- * 一旦放宽已签约校验就会出现同一用户同渠道两行签约记录。
- *
- * <p><b>本类同时钉住一个「现状」而非「应然」</b>：一次成功请求会往
- * {@code APP_PAY_SIGN_REQUEST} 写 <b>两行</b>流水 ——
- * <ul>
- *   <li>方法体内 :275~288 手写的一行：{@code OPERATION_TYPE='ALIPAY_TRIP_REQUEST_SIGN_INFO'}（原样字面量）、
- *       {@code SIGN_STATUS='SIGNED'}，无请求/响应报文；</li>
- *   <li>收尾 {@code auditAlipayTripSignInfo} 经 {@code PaySignAuditLogger} 写的一行：
- *       {@code OPERATION_TYPE='SIGN'}（被 {@code convertOperationType} 归并过）、带报文与 {@code RESULT_CODE}、
- *       {@code SIGN_STATUS} 为空。</li>
- * </ul>
- * 两行互补但确实是两行，而 ADR-D107 那轮「审计流水按接口收口」<b>漏掉了这处手写点</b> ——
- * 它也是 {@code paySignRequestMapper} 在 {@code ContractDomainServiceImpl} 里仅存的引用（全类第 288 行一处）。
- * <b>要不要合并成一行属于改审计口径（行数与 OPERATION_TYPE 都会变），MUST 由人裁决，
- * 本类先把现状钉住</b>：合并那天这两条断言会变红，那正是它们的用途。
- */
+/** 护栏：支付宝出行签约同步落 SIGNED、不出网、已签约即拒，成功只写一行审计流水。 */
 class AlipayTripSignCharacterizationTest {
 
     private static final String USER = "U-TEST-0007";
@@ -91,38 +71,22 @@ class AlipayTripSignCharacterizationTest {
         verify(fixture.paySignInfoMapper, never()).insert(any());
     }
 
-    /**
-     * 现状：成功一次写两行流水，形状各不相同。
-     *
-     * <p>手写那行带 {@code SIGN_STATUS='SIGNED'} 与原样 {@code OPERATION_TYPE}；
-     * 审计那行 {@code OPERATION_TYPE} 已被归并成 {@code SIGN}。
-     */
+    /** 成功只写**一行**流水（2026-09-16 合并，ADR-D115 续（二））。 */
     @Test
-    void successWritesTwoAuditRowsWithDifferentShapes() {
+    void successWritesOneMergedAuditRow() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
         when(fixture.paySignInfoMapper.selectByUserAndVendor(USER, ALIPAY_TRIP_VENDOR)).thenReturn(null);
 
         fixture.service.alipayTripRequestSignInfo(request());
 
         List<PaySignRequest> logs = fixture.auditLogs();
-        assertEquals(2, logs.size(), "现状是两行；合并成一行是改审计口径，MUST 先有人裁决");
+        assertEquals(1, logs.size(), "合并后 MUST 只有一行；两行是分叉前的旧现状");
 
-        PaySignRequest handWritten = logs.stream()
-                .filter(row -> "ALIPAY_TRIP_REQUEST_SIGN_INFO".equals(row.getOperationType()))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("缺少方法体内手写的那行流水"));
-        assertEquals("SIGNED", handWritten.getSignStatus());
-        assertNull(handWritten.getRequestBody(), "手写那行不带报文");
-
-        PaySignRequest audited = logs.stream()
-                .filter(row -> "SIGN".equals(row.getOperationType()))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("缺少 PaySignAuditLogger 归并后的那行流水"));
-        // 审计那行带报文，但 **RESULT_CODE / RESULT_MSG 为空**：PaySignAuditLogger 只在
-        // response instanceof BaseRespDTO 时才回填这两列，而 RequestSignInfoResult 不是 BaseRespDTO 的子类。
-        // 后果是「按 RESULT_CODE 捞失败流水」在本接口上恒为空 —— 现状，不是本轮要改的东西。
-        assertNull(audited.getResultCode(), "现状：RequestSignInfoResult 不是 BaseRespDTO，取不到 retCode");
-        assertNull(audited.getResultMsg());
+        PaySignRequest audited = logs.get(0);
+        assertEquals("SIGN", audited.getOperationType(), "OPERATION_TYPE 落库只有 SIGN / UNSIGN 两个值");
+        assertEquals("SIGNED", audited.getSignStatus(), "合并行 MUST 保留原手写行的 SIGN_STATUS");
+        assertNotNull(audited.getRequestBody(), "合并行 MUST 带报文");
+        assertEquals("0000", audited.getResultCode(), "成功分支的审计行 MUST 带 retCode");
     }
 
     /** 失败分支同样留痕（只有审计那一行）。 */
@@ -137,8 +101,7 @@ class AlipayTripSignCharacterizationTest {
         List<PaySignRequest> logs = fixture.auditLogs();
         assertEquals(1, logs.size());
         assertEquals("SIGN", logs.get(0).getOperationType());
-        // 同上：失败流水也拿不到 8013，运维只能从 RESPONSE_BODY 里看。
-        assertNull(logs.get(0).getResultCode());
+        assertEquals(PaySignErrorCodeEnum.ALREADY_SIGNED.getCode(), logs.get(0).getResultCode());
     }
 
     private AlipayTripAddContractReqDTO request() {

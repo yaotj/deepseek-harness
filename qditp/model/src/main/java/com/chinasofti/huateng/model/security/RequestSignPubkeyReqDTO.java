@@ -2,8 +2,6 @@ package com.chinasofti.huateng.model.security;
 
 /**
  * 请求签名用户公钥参数。
- *
- * <p>该对象用于 key-server 调用 acc-security-server 的 /ci/itp/requestSignPubkey。</p>
  */
 public class RequestSignPubkeyReqDTO {
     /**

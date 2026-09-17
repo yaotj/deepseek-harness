@@ -18,12 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * 钉住 2026-09-14 CardDataHandler 审查里五条**会静默回退**的修复。
- *
- * <p>每个用例都对应一个具体审查项；改动 {@link SupplementStateRules} 时若有用例变红，
- * <b>先确认不是把已修的缺陷改回去了</b>，再谈改用例。</p>
- */
+/** 钉住 2026-09-14 CardDataHandler 审查里五条会静默回退的修复。 */
 class SupplementStateRulesTest {
 
     private static final String PAID_AREA = "01";
@@ -76,7 +71,6 @@ class SupplementStateRulesTest {
                 AdviceOptEnum.SUPPLEMENT_ENTRY.getCode(), FREE_AREA, null),
                 "非付费区 + 018 是绕过报价路径的口子，MUST 拒绝");
 
-        // 建议侧对同一组合 NEVER 给 018：非付费区的新卡只可能是「刷卡没进成」，给的是 020 免费进闸更新。
         assertEquals(AdviceOptEnum.FREE_UPDATE_020.asSingletonList(),
                 rules.resolveAdviceOpt(QRCodeStatusEnum.SJT_ISSUE, "0101", "0101", FREE_AREA, null, "C1"));
     }

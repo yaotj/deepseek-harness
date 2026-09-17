@@ -1,29 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  collect-pay 专属日志配置。存在的唯一目的：把设备心跳（notiDeviceHeard）的 INFO 日志整段丢掉。
-
-  背景（2026-09-11 实测）：3000 行日志里 1992 行是心跳，占 79%，业务链路被彻底埋掉。
-  一次心跳产生 4 行，其中 3 行来自公共构件（FirstFilter / MoreInterceptor / BodyCacheFilter），
-  只删 Controller 里那句 log.info 只能去掉 1/4。
-
-  为什么不改 resource/micro/web 的 log4j2-linux.xml：那份被 21 个模块共用，改一次全量生效。
-  为什么不用 logging.level 压 FirstFilter / BodyCacheFilter：那三个 logger 是按类命名的，
-  压级别会连业务接口的报文日志一起干掉，而报文日志正是重放与排障的唯一依据。
-  因此走「模块自带 logging.config + 配置级 RegexFilter 按 URL 丢弃」这条路，
-  与 pay-sign（log4j2-paysign.xml）、web-admin（log4j2-web-admin.xml）已验证的形态一致。
-
-  注意：本文件由 Spring Boot 在启动早期加载，此时 CustomLoggingConfiguration 会在第 38 行
-  直接 return，webLoggerLevel / logPath / appName 等系统属性**尚未设置**，因此全部 lookup
-  必须自带默认值。appName 固定写 itpagm（= spring.application.name），保持日志文件名不变。
--->
+<!-- collect-pay 专属日志配置。完整说明见 docs/business/tvm-bom-pay.md 附二。 -->
 <Configuration monitorInterval="30" status="off" packages="com.chinasofti.huateng.log4j2">
 
-    <!--
-      NEVER 把 Properties 之后的任何元素挪到它前面。2026-09-11 实测：把 <Filters> 写在
-      <Properties> 之前，整份配置的 ${logPath} / ${appName} / ${webLoggerLevel} 全部**不做替换**，
-      日志文件被建成字面量路径 /home/javaapp/soft/${logPath}/${appName}.log，Root 级别失效、
-      INFO 全丢（status="off" 时 log4j2 自身的报错也被吞掉，只能靠「文件名里带 ${}」反推）。
-    -->
+    <!-- NEVER 把 Properties 之后的任何元素挪到它前面。完整说明见 docs/business/tvm-bom-pay.md 附二。 -->
     <Properties>
         <Property name="webLoggerLevel">${sys:webLoggerLevel:-INFO}</Property>
         <Property name="appName">itpagm</Property>
@@ -34,13 +13,7 @@
         <Property name="logPattern">%d{yyyy-MM-dd HH:mm:ss.SSS} %X{traceId} [%t] %-5level %l [] %msg%n</Property>
     </Properties>
 
-    <!--
-      配置级过滤器，先于所有 logger 求值，两级短路：
-      1. WARN 及以上一律 ACCEPT——心跳链路真出错时（异常、超时）仍然看得到，不会被下面的正则吞掉。
-      2. 其余事件命中 notiDeviceHeard 即 DENY，覆盖公共构件那 3 行与任何后续新增的心跳日志。
-      RegexFilter 默认 useRawMsg=false，匹配的是**格式化后的整条消息**，URL 就在消息里；
-      matches() 是全串匹配，所以必须写 .*，(?s) 让 . 也匹配换行。
-    -->
+    <!-- 配置级过滤器，先于所有 logger 求值，两级短路：1. WARN 及以上一律 ACCEPT——心跳链路真出错时（异常、超时）仍然看得到，不会被下面的正则吞掉。完整说明见 docs/business/tvm-bom-pay.md 附二。 -->
     <Filters>
         <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="NEUTRAL" />
         <RegexFilter regex="(?s).*notiDeviceHeard.*" onMatch="DENY" onMismatch="NEUTRAL" />
@@ -86,11 +59,7 @@
             <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n" />
         </Console>
 
-        <!--
-          与公共 log4j2-linux.xml 完全同口径：url 为空时自动禁用，不起 vlogs-sender 线程。
-          collect-pay 已注入 VLOGS_URL，因此这段 MUST 保留，否则本服务的日志上报会消失。
-          两级过滤：带 x-vlogs-capture=1 的链路全量上报，其余只上报 WARN 及以上。
-        -->
+        <!-- 与公共 log4j2-linux.xml 完全同口径：url 为空时自动禁用，不起 vlogs-sender 线程。完整说明见 docs/business/tvm-bom-pay.md 附二。 -->
         <VictoriaLogs name="VictoriaLogs" url="${env:VLOGS_URL:-}"
             queueCapacity="8192" batchSize="512" flushIntervalMillis="2000"
             connectTimeoutMillis="2000" requestTimeoutMillis="5000">
@@ -126,10 +95,7 @@
             <AppenderRef ref="tempFile" />
         </Logger>
 
-        <!--
-          InternalMicroHttp 会把整个请求头 Map 打进 INFO 日志（含内部令牌明文），压到 WARN。
-          原先写在 application.yml 的 logging.level 里，改用本文件后一并搬到这里。
-        -->
+        <!-- InternalMicroHttp 会把整个请求头 Map 打进 INFO 日志（含内部令牌明文），压到 WARN。完整说明见 docs/business/tvm-bom-pay.md 附二。 -->
         <Logger name="com.chinasofti.huateng.micro.web.client.InternalMicroHttp" level="WARN" additivity="false">
             <AppenderRef ref="RollingFile" />
             <AppenderRef ref="Console" />
@@ -142,11 +108,7 @@
             <AppenderRef ref="VictoriaLogs" />
         </Logger>
 
-        <!--
-          业务包 logger：level 与 appender 引用刻意与 Root 一致，只为让 x-vlogs-capture 链路采集生效。
-          NEVER 给这里的 VictoriaLogs 引用加 level 属性——AppenderRef 的 level 是引用层过滤器，
-          先于 appender 自己的 ThreadContextMapFilter 求值，加了就会把 INFO 短路掉。
-        -->
+        <!-- 业务包 logger：level 与 appender 引用刻意与 Root 一致，只为让 x-vlogs-capture 链路采集生效。完整说明见 docs/business/tvm-bom-pay.md 附二。 -->
         <Logger name="com.chinasofti.huateng" level="${webLoggerLevel}" additivity="false">
             <AppenderRef ref="RollingFile" />
             <AppenderRef ref="Console" />

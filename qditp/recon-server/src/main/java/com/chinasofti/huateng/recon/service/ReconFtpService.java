@@ -16,20 +16,7 @@ import java.nio.file.Path;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * 对账文件的 FTP 投递。
- *
- * <p><b>投递成功的判据不是返回码，而是 RNTO 之后回查远端确实存在同字节数的文件。</b>
- * `storeFile` 的 226 与 `rename` 的 250 只说明命令被接受，回查（SIZE，失败退回 LIST）才是
- * 「文件真的躺在 /itp/recon 上」的证据，成功时打「对账文件投递已回查通过」，失败抛 IOException
- * 让该文件落 FAILED 等下一轮重试。</p>
- *
- * <p><b>NEVER 再把「事后 LIST 看不到 ITP.BUS.yyyyMMdd」当成投递失败。</b>2026-09-11 一度如此误判
- * （DB 记 UPLOADED、几分钟后 curl 取回 550，且四个文件原本在 70ms 内投完，看着像对端在极短间隔
- * 连续会话上丢文件）。用四个变体命名的探针文件在 172.20.215.3（vsFTPd 3.0.3）上实测推翻：
- * {@code ITP.BUS.20260910} / {@code ITP.BUS.20260909} / {@code ITP.BUSX.20260910} 都在 30~45 秒内
- * 被删除，{@code PROBE.BUS.20260910} 与 {@code ITP.EXP/PAY/DETAIL.*} 一直留着——<b>是 ACC 侧有个
- * 按 {@code ITP.BUS*} 取件的进程，取完即删</b>，我方投递本来就是成功的（同一轮日志里 BUS
- * bytes=19 回查通过）。核对投递结果 MUST 看回查日志，LIST 只能证明「还没被取走」。</p>
+ * 对账文件的 FTP 投递。投递是否成功以 RNTO 之后的远端回查为判据，不看应答码。
  */
 @Service
 public class ReconFtpService {
@@ -71,12 +58,7 @@ public class ReconFtpService {
         }
     }
 
-    /**
-     * 串行化并拉开相邻投递的间隔。
-     *
-     * <p>用 {@link ReentrantLock} 而不是 {@code synchronized}：本方法后面紧跟着阻塞式的 FTP IO，
-     * 而 JDK 21 的虚拟线程在 {@code synchronized} 内阻塞会 pin 住载体线程（见 AGENTS.md §5.2）。</p>
-     */
+    /** 串行化并拉开相邻投递的间隔。 */
     private void awaitUploadInterval() throws IOException {
         long interval = properties.getUploadIntervalMillis();
         if (interval <= 0 || lastUploadFinishedNanos == 0L) return;
@@ -119,13 +101,7 @@ public class ReconFtpService {
         }
     }
 
-    /**
-     * 回查远端文件确实存在且字节数与本地一致，不一致即抛异常让批次转 FAILED 等重试。
-     *
-     * <p>先用 {@code SIZE}（BINARY 模式下回 {@code 213 <bytes>}），拿不到再退回 {@code LIST}
-     * 解析目录项。两条路都问不出结果时**按失败处理**：这里的存在意义就是兜住「返回码说成功、
-     * 文件其实没落地」，问不出来就不能声称投递成功。</p>
-     */
+    /** 回查远端文件确实存在且字节数与本地一致；不一致或问不出结果即抛异常。 */
     private void verifyRemote(FTPClient ftp, String remoteRoot, String fileName, String remotePath, long expectedBytes)
             throws IOException {
         Long actual = remoteSizeBySizeCommand(ftp, remotePath);

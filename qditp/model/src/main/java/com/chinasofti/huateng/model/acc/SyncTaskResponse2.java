@@ -2,28 +2,28 @@ package com.chinasofti.huateng.model.acc;
 
 public class SyncTaskResponse2 {
     /**
-     * desc:任务ID
-     **/
+     * desc:任务ID。
+     */
     private String taskId;
 
     /**
-     * desc:任务源节点
-     **/
+     * desc:任务源节点。
+     */
     private String srcDevNodeId;
 
     /**
-     * desc:任务时间,YYYYMMDDhhmmss
-     **/
+     * desc:任务时间,YYYYMMDDhhmmss。
+     */
     private String taskTime;
 
     /**
-     * desc:任务编码
-     **/
+     * desc:任务编码。
+     */
     private String taskCode;
 
     /**
-     * desc:任务数据
-     **/
+     * desc:任务数据。
+     */
     private String taskData;
 
     public String getTaskId() {

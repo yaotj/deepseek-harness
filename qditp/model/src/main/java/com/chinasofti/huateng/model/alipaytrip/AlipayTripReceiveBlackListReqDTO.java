@@ -4,28 +4,24 @@ import com.chinasofti.huateng.common.response.CommonResult;
 
 /**
  * 支付宝出行-黑名单状态变更通知请求参数。
- * 与APP黑名单状态变更通知参数相同。
  */
 public class AlipayTripReceiveBlackListReqDTO {
 
     /**
-     * 第三方用户ID
+     * 第三方用户ID。
      */
     private String thirdUserId;
 
     /**
-     * 卡片ID/逻辑卡号
+     * 卡片ID/逻辑卡号。
      */
     private String cardId;
 
     /**
-     * 黑名单状态
+     * 黑名单状态。
      */
     private String blacklistStatus;
 
-    /**
-     * 变更原因
-     */
     private String reason;
 
     public String getThirdUserId() {

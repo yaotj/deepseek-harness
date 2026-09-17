@@ -2,12 +2,7 @@ package com.chinasofti.huateng.facepay.api.device.bom;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/**
- * 单程票退款入参（BOM 侧 {@code requestTicketRefund}）。
- *
- * <p>{@code transType} 是原交易类型，旧实现用它做「购票 / BOM 收款 / 扫码取票」三分流，
- * 新表合一后不再需要分流，仅落库供对账归类。</p>
- */
+/** 单程票退款入参（BOM 侧 {@code requestTicketRefund}）。 */
 public class RequestTicketRefundReqDTO extends BaseDeviceRequest {
 
     private String orderNo;
@@ -19,7 +14,9 @@ public class RequestTicketRefundReqDTO extends BaseDeviceRequest {
 
     private String transType;
 
-    /** @return null 表示不是合法数字 */
+    /**
+     * @return null 表示不是合法数字
+     */
     public Long amountInFen() {
         if (transAmount == null || transAmount.isBlank()) {
             return null;

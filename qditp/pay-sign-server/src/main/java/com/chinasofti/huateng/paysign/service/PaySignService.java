@@ -25,13 +25,7 @@ import com.chinasofti.huateng.paysign.model.response.RequestTerminationRespDTO;
 public interface PaySignService {
     RequestSignInfoResult requestSignInfo(RequestSignInfoReqDTO request, String signChannel);
 
-    /**
-     * 支付宝出行-添加签约信息。
-     * <p>
-     * 接收支付宝 DTO，映射为内部 RequestSignInfoReqDTO，固定签约渠道为 ALIPAY，
-     * 同步确认签约成功并写入 APP_PAY_SIGN_INFO 表和流水表。
-     * </p>
-     */
+    /** 支付宝出行-添加签约信息。 */
     RequestSignInfoResult alipayTripRequestSignInfo(AlipayTripAddContractReqDTO request);
 
     RequestContractAdvisoryRespDTO requestContractAdvisory(RequestContractAdvisoryReqDTO request, String signChannel);
@@ -40,11 +34,7 @@ public interface PaySignService {
 
     RequestTerminationRespDTO requestTermination(RequestTerminationReqDTO request, String signChannel);
 
-    /**
-     * IF8A-36 请求移除签约信息。
-     *
-     * <p>与解约不同，移除签约不请求支付系统，直接更新签约记录状态为解约成功。</p>
-     */
+    /** IF8A-36 请求移除签约信息。 */
     RequestAgreeReleaseResult removeSignAgreement(RequestAgreeReleaseReqDTO request, String signChannel);
 
     RequestPayResult requestPay(RequestPayReqDTO request);

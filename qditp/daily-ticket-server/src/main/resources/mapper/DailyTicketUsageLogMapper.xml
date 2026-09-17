@@ -37,7 +37,6 @@
         )
     </insert>
 
-    <!-- 按卡号查扣次明细，时间倒序 -->
     <select id="selectByCardNum" resultMap="BaseResultMap">
         select <include refid="BaseColumnList"/>
         from DAILY_TICKET_USAGE_LOG

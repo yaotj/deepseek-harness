@@ -2,8 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.ticket.mapper.SupplementRequestMapper">
 
-    <!-- IF5A-03 补站请求台账。幂等靠 UK_QSR_CARD_SEQ_ADVICE 唯一索引 + DuplicateKeyException 兜底。 -->
-    <!-- SQL 正文内禁止写任何注释：Druid WallFilter 的 commentAllow=false 会判定为注入并静默失效。 -->
+    <!-- SQL 正文禁写注释（Druid WallFilter 会判定为注入）；口径说明见 docs/business/ride-code.md -->
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.ticket.entity.SupplementRequest">
         <id column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
         <id column="TXN_SEQ" jdbcType="VARCHAR" property="txnSeq"/>
@@ -52,8 +51,6 @@
           AND ADVICE_OPT = #{adviceOpt,jdbcType=VARCHAR}
     </select>
 
-    <!-- CAS 条件是 HANDLE_STATUS = REJECTED：PENDING 表示并发在飞、SUCCESS 与 UNKNOWN 是既成事实， -->
-    <!-- 三者都必须命中 0 行。放宽这个条件等于把并发防护与「结果未知禁止重试」一起拆掉。 -->
     <update id="reclaimRejected">
         UPDATE QRCODE_SUPPLEMENT_REQUEST
         SET HANDLE_STATUS = 'PENDING',
@@ -70,7 +67,6 @@
           AND HANDLE_STATUS = 'REJECTED'
     </update>
 
-    <!-- 只允许从 PENDING 迁出，避免重复回写把终态覆盖掉。 -->
     <update id="finishClaim">
         UPDATE QRCODE_SUPPLEMENT_REQUEST
         SET HANDLE_STATUS = #{handleStatus,jdbcType=VARCHAR},
@@ -82,8 +78,6 @@
           AND HANDLE_STATUS = 'PENDING'
     </update>
 
-    <!-- ROWNUM 在 ORDER BY 之前生效，两者同层会取到「随机 N 条再排序」而不是「最早 N 条」。 -->
-    <!-- 因此 MUST 先在子查询里排序、外层再截断。NEVER 把 ROWNUM 和 ORDER BY 写在同一层。 -->
     <select id="selectUnknown" resultMap="BaseResultMap">
         SELECT * FROM (
             SELECT <include refid="BaseColumnList"/>

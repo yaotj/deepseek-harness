@@ -2,18 +2,7 @@ package com.chinasofti.huateng.facepay.api.device.app;
 
 import com.chinasofti.huateng.facepay.api.paycenter.PayCenterCallbackRequest;
 
-/**
- * 支付中心退款结果回调入参（{@code /ci/app/receiveRefundResult}）。
- *
- * <p>回调用的是支付中心信封（{@code merchantNo/apiVersion/signType/sign/charset/bizData}），
- * 与设备侧信封不同，因此继承 {@link PayCenterCallbackRequest}。</p>
- *
- * <p><b>定位退款单用 {@code refundNo}（我方退款单号），不是 {@code orderNo}。</b>
- * 旧实现校验的是 {@code orderNo} 非空、实际查库却用 {@code refundNo}——
- * 只传 {@code orderNo} 时能过校验但必然查不到。本实现两者都校验。</p>
- *
- * <p>⚠️ <b>不验签</b>，与旧实现一致；风险见 {@link PayCenterCallbackRequest} 类注释。</p>
- */
+/** 支付中心退款结果回调入参（{@code /ci/app/receiveRefundResult}）。 */
 public class AppRefundNotiResultReqDTO {
 
     /** 我方原支付订单号。 */

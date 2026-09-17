@@ -37,13 +37,8 @@ if [ $# -eq 0 ] || [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
 fi
 
 # ---------- 核心执行逻辑 ----------
-# 使用 printf %q 安全转义所有参数
-# 防止特殊字符(引号/空格/$等)在 SSH 传输时被远程 Shell 二次解析
+# 使用 printf %q 安全转义所有参数。NEVER 改成直接拼 "$@"（详见 docs/ops/生产环境清单.md 附.二.1）
 SAFE_ARGS=$(printf '%q ' "$@")
 
-# -t : 强制分配伪终端(TTY)
-#      这是实时跟踪(-f)正常工作的关键:
-#      1. tail -f 需要 TTY 才能正确响应 Ctrl+C
-#      2. 远程脚本的颜色输出(\033[xxm)需要 TTY 才能渲染
-#      3. grep --line-buffered 需要 TTY 才能实现逐行刷新
+# -t : 强制分配伪终端(TTY)，是 -f 跟踪 / Ctrl+C / 颜色 / 逐行刷新的前提。NEVER 去掉
 ssh -t "$REMOTE_HOST" "bash '$REMOTE_SCRIPT' $SAFE_ARGS"

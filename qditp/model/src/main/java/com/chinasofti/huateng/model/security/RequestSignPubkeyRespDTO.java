@@ -2,8 +2,6 @@ package com.chinasofti.huateng.model.security;
 
 /**
  * 请求签名用户公钥应答。
- *
- * <p>该对象解析 acc-security-server 返回 data 中的 CA 签名数据。</p>
  */
 public class RequestSignPubkeyRespDTO extends SecurityBaseRespDTO {
     /**

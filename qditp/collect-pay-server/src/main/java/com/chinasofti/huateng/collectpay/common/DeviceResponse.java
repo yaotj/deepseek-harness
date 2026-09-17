@@ -55,9 +55,7 @@ public class DeviceResponse {
         return jsonObject;
     }
 
-    /**
-     * 构建查询成功响应。
-     */
+    /** 构建查询成功响应。 */
     public static JSONObject getQuerySuccessResult(TvmAppOrder payOrder) {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("orderNo", payOrder.getOrderNo());
@@ -71,9 +69,7 @@ public class DeviceResponse {
         return jsonObject;
     }
 
-    /**
-     * 构建查询失败响应。
-     */
+    /** 构建查询失败响应。 */
     public static JSONObject getQueryFailResult() {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("orderNo", null);

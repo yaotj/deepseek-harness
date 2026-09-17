@@ -1,8 +1,5 @@
 -- 2026-08-21 从 USER_ITP_REG_INFO 补充 PAY_TXN_DETAIL 缺失的 paymentVendor 和 requestSignSeq
--- 数据来源：account-server 的 USER_ITP_REG_INFO 表（通过 CARD_ID 关联）
--- paymentVendor   ← USER_ITP_REG_INFO.CHANNEL
--- requestSignSeq  ← USER_ITP_REG_INFO.REQ_CONTRACT_NO
--- 仅补充 PAY_TXN_DETAIL 中这两个字段为空的记录
+-- ⚠️ 执行状态未记录；只补这两列为空的行，按 CARD_ID 关联。详见 docs/ops/生产环境清单.md 附.二.2
 
 UPDATE PAY_TXN_DETAIL t
 SET (t.PAYMENT_VENDOR, t.REQUEST_SIGN_SEQ) = (

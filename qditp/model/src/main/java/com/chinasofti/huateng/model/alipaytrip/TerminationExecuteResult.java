@@ -6,22 +6,22 @@ package com.chinasofti.huateng.model.alipaytrip;
 public class TerminationExecuteResult {
 
     /**
-     * 协议号
+     * 协议号。
      */
     private String agreementCode;
 
     /**
-     * 返回码
+     * 返回码。
      */
     private String retCode;
 
     /**
-     * 返回消息
+     * 返回消息。
      */
     private String retMsg;
 
     /**
-     * 当前解约状态：PENDING/COMPLETED/FAIL/TERMINATED
+     * 当前解约状态：PENDING/COMPLETED/FAIL/TERMINATED。
      */
     private String status;
 

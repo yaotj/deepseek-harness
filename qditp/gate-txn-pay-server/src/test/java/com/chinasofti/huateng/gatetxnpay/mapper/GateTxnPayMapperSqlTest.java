@@ -19,24 +19,7 @@ import org.apache.ibatis.mapping.MappedStatement;
 import org.apache.ibatis.session.Configuration;
 import org.junit.jupiter.api.Test;
 
-/**
- * 钉住 {@code GateTxnPayMapper.xml} 里三类最容易被重构改坏、且改坏后编译与启动都不报错的口径。
- *
- * <p>① {@code DEBIT_STATUS} 有三套并存判据，各有各的理由，NEVER 顺手统一：
- * 解约与黑名单解除用**黑名单**（{@code IS NULL OR != 'SUCCESS'}，Oracle 三值逻辑下漏掉
- * {@code IS NULL} 会把脏数据判成已结清、放行解约）；IF8A-35 用**白名单分档**
- * （{@code IN ('INIT','PROCESSING')} 与 {@code IN ('FAIL','RETRY')}，两数之和刻意 ≠ 非 SUCCESS 总数）；
- * 状态推进用**显式前置白名单**（终态不在其中，重复回调改不动终态）。
- *
- * <p>② {@code OFFLINE_FARE_PENDING} 在三条语句里必须与 {@code DEBIT_STATUS='INIT'} **成对**出现：
- * 捞单、抢占回写、失败留痕。任一处掉了另一半，补偿要么捞不到、要么并发重复扣款。
- *
- * <p>③ 每条按主键定位的写语句 MUST 带 {@code TXN_DATE}：它是月分区键，也是唯一索引的组成列，
- * 漏掉即退化成扫全部分区，且在跨月重名时会改错行。
- *
- * <p>本测试不连数据库，只用 MyBatis 自己的 {@link XMLMapperBuilder} 解析这份 XML 并取渲染后的
- * SQL 文本，因此本机与 CI 都能无条件运行。
- */
+/** 钉住 {@code GateTxnPayMapper.xml} 里三类最容易被重构改坏、且改坏后编译与启动都不报错的口径。 */
 class GateTxnPayMapperSqlTest {
 
     private static final String RESOURCE = "mapper/GateTxnPayMapper.xml";
@@ -44,13 +27,11 @@ class GateTxnPayMapperSqlTest {
     private static final String NAMESPACE =
             "com.chinasofti.huateng.gatetxnpay.mapper.GateTxnPayMapper.";
 
-    /** 离线码补偿三条语句：两个状态条件 MUST 成对。 */
     private static final String[] OFFLINE_PENDING_STATEMENTS = {
             "selectOfflineFarePending",
             "updateOfflineFareRecalculated",
             "updateOfflineFarePendingMsg"};
 
-    /** 按主键定位的写语句：MUST 带分区键 TXN_DATE。 */
     private static final String[] PARTITION_KEYED_UPDATES = {
             "updateStatusFromPending",
             "updateStatusIfProcessing",
@@ -60,23 +41,18 @@ class GateTxnPayMapperSqlTest {
             "updateOfflineFareRecalculated",
             "updateOfflineFarePendingMsg"};
 
-    /** 剥离 XML 注释用：注释里为讲清语义会引用状态字面量，计数前 MUST 先去掉。 */
+    /** 剥离 XML 注释用：注释里为讲清语义会引用状态字面量。 */
     private static final Pattern XML_COMMENT = Pattern.compile("<!--.*?-->", Pattern.DOTALL);
 
     private static final Pattern OFFLINE_PENDING_LITERAL =
             Pattern.compile("'OFFLINE_FARE_PENDING'");
 
-    /**
-     * 剥离注释后，{@code 'OFFLINE_FARE_PENDING'} 字面量只允许出现 3 次，即上面三条语句各 1 次。
-     * 多出来说明有人又抄了一份判据，改口径时必然漏改。
-     */
+    /** 剥离注释后，{@code 'OFFLINE_FARE_PENDING'} 字面量只允许出现 3 次，即上面三条语句各 1 次。 */
     private static final int ALLOWED_OFFLINE_PENDING_LITERALS = 3;
 
     private final Configuration configuration = parseMapper();
 
-    // ==================== ① DEBIT_STATUS 三套口径 ====================
-
-    /** 解约校验与黑名单解除共用黑名单口径，两条 MUST 一字不差，否则同一笔订单两处结论相反。 */
+    /** 解约校验与黑名单解除共用黑名单口径，否则同一笔订单两处结论相反。 */
     @Test
     void unsettledQueriesUseBlacklistWithExplicitNull() {
         String expected = "(DEBIT_STATUS IS NULL OR DEBIT_STATUS != 'SUCCESS')";
@@ -109,10 +85,7 @@ class GateTxnPayMapperSqlTest {
                 "debitRequestResult=1 MUST 与解约口径一致，否则同一笔在 APP 页签里凭空消失");
     }
 
-    /**
-     * OGNL 里 {@code '0'} 是 char 字面量、与 String 比较恒为 false。
-     * 片段写成单引号时整段过滤静默失效，只有渲染出来比对才发现得了。
-     */
+    /** OGNL 里 {@code '0'} 是 char 字面量、与 String 比较恒为 false。 */
     @Test
     void debitResultFilterIsNotSilentlyDisabled() {
         String unfiltered = sqlOf("countTransList");
@@ -122,7 +95,7 @@ class GateTxnPayMapperSqlTest {
                 "传 0 却没拼出条件，说明 test 里的字符串被当成 char 比较了");
     }
 
-    /** 状态推进的前置状态是显式白名单，终态 NEVER 进白名单。 */
+    /** 状态推进的前置状态是显式白名单。 */
     @Test
     void statusTransitionsKeepExplicitWhitelist() {
         String pending = sqlOf("updateStatusFromPending");
@@ -139,8 +112,6 @@ class GateTxnPayMapperSqlTest {
                 "终态 NEVER 进前置白名单，否则重复回调会改写终态");
     }
 
-    // ==================== ② OFFLINE_FARE_PENDING 成对 ====================
-
     @Test
     void offlinePendingConditionsAlwaysComeInPairs() {
         for (String id : OFFLINE_PENDING_STATEMENTS) {
@@ -151,7 +122,7 @@ class GateTxnPayMapperSqlTest {
         }
     }
 
-    /** 补偿链路 NEVER 在这两条 UPDATE 里改 DEBIT_STATUS：置 FAIL 补偿再也捞不到，置 SUCCESS 是资损。 */
+    /** 置 SUCCESS 是资损。 */
     @Test
     void offlinePendingUpdatesNeverTouchDebitStatus() {
         for (String id : new String[] {"updateOfflineFareRecalculated", "updateOfflineFarePendingMsg"}) {
@@ -173,8 +144,6 @@ class GateTxnPayMapperSqlTest {
                 "OFFLINE_FARE_PENDING 字面量只允许出现在捞单、抢占回写、失败留痕三条语句里");
     }
 
-    // ==================== ③ 分区键 ====================
-
     @Test
     void keyedUpdatesCarryPartitionKey() {
         for (String id : PARTITION_KEYED_UPDATES) {
@@ -183,7 +152,7 @@ class GateTxnPayMapperSqlTest {
         }
     }
 
-    /** 抢占语义靠 WHERE 里的状态条件，返回 1 才代表抢到；去掉即退化成无条件覆盖。 */
+    /** 抢占语义靠 WHERE 里的状态条件，返回 1 才代表抢到，去掉即退化成无条件覆盖。 */
     @Test
     void recalculatedUpdateKeepsCasPrecondition() {
         String sql = sqlOf("updateOfflineFareRecalculated");
@@ -192,8 +161,6 @@ class GateTxnPayMapperSqlTest {
         assertTrue(sqlOf("updateOriginalFareIfNull").contains("ORIGINAL_FARE IS NULL"),
                 "原价回填 MUST 保留 IS NULL：它既是幂等条件也防止篡改历史账单快照");
     }
-
-    // ==================== 全局形状 ====================
 
     /** 渲染出 {@code WHERE AND} 只在运行时抛语法异常，因此对全部语句扫一遍。 */
     @Test
@@ -205,10 +172,7 @@ class GateTxnPayMapperSqlTest {
         }
     }
 
-    /**
-     * SQL 正文里 NEVER 出现注释：Druid WallFilter 的 {@code commentAllow=false} 会把带注释的语句
-     * 判成注入并抛异常，该语句静默失效，只在 Oracle 环境暴露（达梦环境关了 WallFilter）。
-     */
+    /** 该语句静默失效，只在 Oracle 环境暴露（达梦环境关了 WallFilter）。 */
     @Test
     void renderedSqlCarriesNoInlineComment() {
         for (String id : distinctStatementIds()) {

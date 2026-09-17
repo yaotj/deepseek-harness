@@ -2,9 +2,6 @@ package com.chinasofti.huateng.model.app;
 
 /**
  * IF8A-36 请求移除签约信息响应。
- *
- * <p>retCode/retMsg 返回给 APP；code/msg/success/data 兼容支付平台通用响应结构，
- * 便于 fep-app、rpc 和 pay-sign-server 之间直接透传。</p>
  */
 public class RequestAgreeReleaseResult {
     /** ITP 侧返回码，0000 表示请求移除签约已成功处理。 */

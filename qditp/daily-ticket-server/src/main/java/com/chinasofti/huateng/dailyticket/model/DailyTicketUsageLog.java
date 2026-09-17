@@ -2,10 +2,7 @@ package com.chinasofti.huateng.dailyticket.model;
 
 import java.util.Date;
 
-/**
- * 日票/计次票扣次使用明细。
- * <p>每次出站扣次 INSERT 一行，{@code ORDER_NO} 唯一索引做幂等。</p>
- */
+/** 日票/计次票扣次使用明细。 */
 public class DailyTicketUsageLog {
     private Long id;
     private String cardNum;

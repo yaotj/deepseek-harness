@@ -4,9 +4,7 @@ import com.chinasofti.huateng.model.agm.AgmKeyItemDTO;
 
 import java.util.List;
 
-/**
- * IF1A-02 密钥同步响应-密钥当前版本信息。
- */
+/** IF1A-02 密钥同步响应-密钥当前版本信息。 */
 public class KeyCurVerRespDTO {
 
     private String issueChannelCode;

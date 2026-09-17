@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.paysign.model.request;
 
-/**
- * 通知 APP 解约失败内部接口请求。
- */
+/** 通知 APP 解约失败内部接口请求。 */
 public class NotifyTerminationFailedReqDTO {
 
     private String thirdUserId;

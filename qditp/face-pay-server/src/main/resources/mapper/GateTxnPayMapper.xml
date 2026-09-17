@@ -2,21 +2,6 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.facepay.mapper.GateTxnPayMapper">
 
-    <!--
-      face-pay-server 对 GATE_TXN_PAY 表的最小访问集，现在**只剩只读查询**。
-      这张表的 owner 是 gate-txn-pay-server。
-
-      原先这里还有一条 convergeDebitStatus（补款成功后把原订单改成 SUCCESS），
-      2026-09-16 已整段删除并迁到 owner 侧，改由
-      POST /internal/gate-txn-pay/debit/converge 走 RPC 调用
-      （对端语句名 convergeDebitStatusForSupplement，白名单含 FAIL、行为与这里逐笔一致）。
-      理由：跨域直写别人域的热路径表，违反「热路径写入定 owner」判据 ——
-      同一张表两个模块各持一份 UPDATE，白名单一旦漂移就是资金账不平，
-      而编译、单测都发现不了。NEVER 在本文件里加回任何 GATE_TXN_PAY 的写语句。
-
-      下面这条 select 仍是跨域读，属**有意保留的现状**（补款下单校验要用，
-      改 RPC 是下一步的事）。若未来拆库，它也 MUST 改成 RPC。
-    -->
 
     <resultMap id="GateTxnPayLiteMap" type="com.chinasofti.huateng.facepay.entity.GateTxnPay">
         <result column="ORDER_NO" property="orderNo"/>
@@ -30,11 +15,6 @@
         <result column="SIGN_CHANNEL_CODE" property="signChannelCode"/>
     </resultMap>
 
-    <!--
-      补款下单校验：按订单号列表批量查询原订单。
-      不带 TXN_DATE 因此走不到分区裁剪，只命中 UK_GATE_TXN_PAY_ORDER_NO。
-      调用方 MUST 限制列表长度（Oracle IN 列表上限 1000）。
-    -->
     <select id="selectByOrderNos" resultMap="GateTxnPayLiteMap">
         SELECT ORDER_NO, DEBIT_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE,
                TXN_DATE, TOTAL_AMOUNT, PAYMENT_VENDOR, SIGN_CHANNEL_CODE

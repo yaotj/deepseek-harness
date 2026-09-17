@@ -2,58 +2,36 @@ package com.chinasofti.huateng.collectpay.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * App_Pay_Logs 铁运维保取票支付记录表实体。
- */
+/** App_Pay_Logs 铁运维保取票支付记录表实体。 */
 public class AppPayLogs {
-    /**
-     * 订单号。
-     */
+    /** 订单号。 */
     private String orderNo;
 
-    /**
-     * 用户ID。
-     */
+    /** 用户ID。 */
     private String userId;
 
-    /**
-     * 支付类型：0-支付，1-退款。
-     */
+    /** 支付类型：0-支付，1-退款。 */
     private Integer payType;
 
-    /**
-     * 渠道编码。
-     */
+    /** 渠道编码。 */
     private String channelCode;
 
-    /**
-     * 创建订单时间（创建时间戳）。
-     */
+    /** 创建订单时间（创建时间戳）。 */
     private LocalDateTime createTms;
 
-    /**
-     * 支付交易流水号。
-     */
+    /** 支付交易流水号。 */
     private String tradeNo;
 
-    /**
-     * 支付渠道代码编号。
-     */
+    /** 支付渠道代码编号。 */
     private String payChannelCode;
 
-    /**
-     * 渠道类型：1-APP端（tradeType03），2-ETC端（已弃用，tradeType06）。
-     */
+    /** 渠道类型：1-APP端（tradeType03），2-ETC端（已弃用，tradeType06）。 */
     private String channelType;
 
-    /**
-     * 支付状态：SUCCESS/FAIL。
-     */
+    /** 支付状态：SUCCESS/FAIL。 */
     private Integer payResult;
 
-    /**
-     * 支付金额。
-     */
+    /** 支付金额。 */
     private Integer payAmount;
 
     public String getOrderNo() {

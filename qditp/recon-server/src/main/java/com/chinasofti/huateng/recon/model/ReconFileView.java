@@ -13,10 +13,6 @@ package com.chinasofti.huateng.recon.model;
  * @param sha256      文件内容 SHA-256
  * @param status      文件状态
  * @param remotePath  FTP 远端路径，投递成功后写入
- *
- * @implNote {@code byteCount} / {@code recordCount} / {@code amountTotal} <b>MUST 用装箱类型</b>：
- *     MyBatis 构造器映射按装箱类型精确查找构造器，基本类型分量会在查出数据行时抛
- *     {@code NoSuchMethodException}（详见 {@link SourceProgress}）。
  */
 public record ReconFileView(String batchId,
                             ReconFileType fileType,

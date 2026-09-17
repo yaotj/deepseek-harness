@@ -9,11 +9,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 黑名单内部接口。
+ * 黑名单内部接口。当前只有只读盘点接口，不改数据。
  *
- * <p>当前只有一个只读盘点接口，不改任何数据，因此无需鉴权与归属校验。
- * 后续若在本前缀下新增写接口（例如真正执行自动解除），MUST 先补验签
- * （对齐 {@code AccountRequestVerifier} / {@code ItpRequestSignVerifier}，NEVER 自造签名逻辑）。</p>
+ * <p>本前缀下新增写接口 MUST 先补验签。</p>
  */
 @RestController
 @RequestMapping("/internal/blacklist")
@@ -30,8 +28,7 @@ public class BlacklistInternalController {
     /**
      * 盘点黑名单记录的欠费结清情况，供 web-server 的 Quartz 任务调用。
      *
-     * <p><b>只读，NEVER 删除任何黑名单记录。</b>无入参：批量范围由服务端的
-     * {@code blacklist.inspect.batch-size} 控制，避免调用方能通过参数放大单次开销。</p>
+     * <p>只读，NEVER 删除任何黑名单记录。</p>
      */
     @PostMapping("/inspectReleasable")
     public BlacklistReleaseInspectRespDTO inspectReleasable() {

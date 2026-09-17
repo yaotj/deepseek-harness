@@ -15,15 +15,6 @@ public class UserPayChannel {
 
     /**
      * 支付中心侧的付款账号标识（{@code PAY_ACCOUNT_ID}），2.0.63 新增。
-     *
-     * <p><b>与 {@link #thirdPayId} 不是同一个东西，NEVER 混用</b>：{@code THIRD_PAY_ID} 是 APP
-     * 加通道时上送的第三方支付标识（本域自有）；本列的值来自**支付中心签约回调的 {@code payUserId}**，
-     * 由支付域的 {@code APP_PAY_SIGN_INFO.PAY_ACCOUNT_ID} 同步而来。</p>
-     *
-     * <p>加这一列是为了把运营页面「支付账号」列的数据源从**逐渠道跨域 RPC** 改成本地读
-     * （原先每行都要打一次 {@code paySignClient.querySignInfoBySeq}，见 ADR-D30）。
-     * <b>当前只有 IF8A-77 会回写它</b>，签约成功时支付域不回调账户域，因此新签约的通道行在走过
-     * IF8A-77 之前该列为 {@code null}、页面显示 {@code -}。</p>
      */
     private String payAccountId;
 

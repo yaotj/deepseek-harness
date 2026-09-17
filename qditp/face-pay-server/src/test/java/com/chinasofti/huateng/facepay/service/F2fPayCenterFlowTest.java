@@ -34,16 +34,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * 锁死 {@link F2fPayCenterFlow} 的收口语义。
- *
- * <p><b>为什么这批用例必须存在</b>：重构前这条骨架在 7 个 service 里各抄一遍，
- * 而模块里唯一覆盖过它的 {@code F2fTvmOrderServiceWriteTest} 是 {@code @Disabled}（要真库）。
- * 也就是说「支付中心答复 → 本地状态推进」这一步在重构前<b>没有任何自动化验证</b>。
- * 收口成一个类之后，这些不变量终于可以用 mock 钉住。</p>
- *
- * <p>每个用例对应一条<b>踩过或差点踩到的坑</b>，注释里写明了是哪一条，NEVER 删。</p>
- */
+/** 锁死 {@link F2fPayCenterFlow} 的收口语义。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class F2fPayCenterFlowTest {
@@ -95,12 +86,7 @@ class F2fPayCenterFlowTest {
                 F2fOrderStatus.PAYING.name(), null);
     }
 
-    /**
-     * 传输失败：<b>订单一个字段都不许动</b>。
-     *
-     * <p>这是旧实现最大的坑（{@code PayCenterResult} 类注释里记着）：
-     * 「不知道」被当成「没付成功」，钱可能已经扣了。</p>
-     */
+    /** 传输失败：订单一个字段都不许动。 */
     @Test
     void transportFailureNeverTouchesOrder() {
         when(payCenterClient.execute(any(), eq(message))).thenReturn(transportFailed("read timeout"));
@@ -113,11 +99,7 @@ class F2fPayCenterFlowTest {
         verifyNoInteractions(orderMapper);
     }
 
-    /**
-     * {@code code=0} 但 {@code data} 是空的：按 UNKNOWN 收口，<b>不许推 PAYING</b>。
-     *
-     * <p>推了 PAYING 就等于对外宣称「码已经给出去了」，而实际上二维码串根本没拿到。</p>
-     */
+    /** {@code code=0} 但 {@code data} 是空的：按 UNKNOWN 收口，不许推 PAYING。 */
     @Test
     void blankDataIsUnknownNotAccepted() {
         when(payCenterClient.execute(any(), eq(message))).thenReturn(answered("0", "  "));
@@ -143,13 +125,7 @@ class F2fPayCenterFlowTest {
                 "支付中心预下单失败:9999");
     }
 
-    /**
-     * 被拒但 {@code rejectTransition == null}：<b>订单必须留在 CREATED</b>。
-     *
-     * <p>这是 APP 侧的既有语义（换个支付通道还能再来一次），重构前它只体现为
-     * 「{@code F2fAppOrderService} 里少了两行」，任何人都可能顺手「补齐」。
-     * 本用例就是那两行不存在的证据，<b>NEVER 删</b>。</p>
-     */
+    /** 被拒但 {@code rejectTransition == null}：订单必须留在 CREATED。 */
     @Test
     void rejectedKeepsOrderWhenTransitionAbsent() {
         when(payCenterClient.execute(any(), eq(message))).thenReturn(answered("9999", null));
@@ -159,10 +135,7 @@ class F2fPayCenterFlowTest {
         assertInstanceOf(F2fPayCenterFlow.Submitted.Rejected.class, submitted);
         verify(orderMapper, never()).updateStatus(anyString(), any(), anyString(), any());
     }
-    /**
-     * 付款码链路开了同步状态判定、且支付中心当场答 SUCCESS：
-     * 本类<b>什么都不写</b>，把落库让给调用方（各渠道的成功流水列不同）。
-     */
+    /** 付款码链路开了同步状态判定、且支付中心当场答 SUCCESS： */
     @Test
     void syncPaidWritesNothingAndLetsCallerPersist() {
         PayCenterResult result = answeredWith(PayCenterStatus.SUCCESS);
@@ -176,12 +149,7 @@ class F2fPayCenterFlowTest {
         verifyNoInteractions(orderMapper);
     }
 
-    /**
-     * 查到已收款：<b>先跑调用方的支付流水回写，再 {@code markPaid}</b>。
-     *
-     * <p>顺序是有意的 —— 先有成功的流水，再有 PAID 的订单，中途崩了也不会出现
-     * 「订单说收了钱、流水里查不到那一笔」。</p>
-     */
+    /** 查到已收款：先跑调用方的支付流水回写，再 {@code markPaid}。 */
     @Test
     void settlePaidRunsCallbackBeforeMarkPaid() {
         PayCenterResult result = answeredWith(PayCenterStatus.SUCCESS);
@@ -198,11 +166,7 @@ class F2fPayCenterFlowTest {
         inOrder.verify(orderMapper).markPaid(eq(ORDER_NO), any(LocalDateTime.class));
     }
 
-    /**
-     * 查询没问出结论：<b>本地一律不动状态</b>，也不许调 onPaid 回调。
-     *
-     * <p>调用方随后要回「支付中 / 处理中」让对方继续轮询，NEVER 回失败。</p>
-     */
+    /** 查询没问出结论：本地一律不动状态，也不许调 onPaid 回调。 */
     @Test
     void settlePendingNeverTouchesOrderNorCallback() {
         when(payCenterClient.execute(any(), any())).thenReturn(transportFailed("connect refused"));

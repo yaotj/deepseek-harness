@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.gatetxnpay.mapper.GateTxnPayMapper">
+    <!-- SQL 正文禁写注释：Druid WallFilter 的 commentAllow=false 会判成注入、该语句静默失效，说明写在本文件的 XML 注释里。 -->
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.gatetxnpay.entity.GateTxnPay">
         <id column="ID" jdbcType="NUMERIC" property="id"/>
         <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
@@ -149,10 +150,7 @@
           AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
     </select>
 
-    <!--
-      待支付态推进：INIT / RETRY -> PROCESSING / RETRY。
-      不含 PROCESSING，避免已受理订单被迟到的失败结果降级回 RETRY 后被 retryPay 重复扣款。
-    -->
+    <!-- 待支付态推进：INIT / RETRY -> PROCESSING / RETRY。 -->
     <update id="updateStatusFromPending">
         UPDATE GATE_TXN_PAY
         SET DEBIT_STATUS = #{debitStatus,jdbcType=VARCHAR},
@@ -174,13 +172,8 @@
           AND DEBIT_STATUS = 'PROCESSING'
     </update>
 
-    <!--
-      支付结果回调驱动的终态收敛：INIT / PROCESSING / RETRY 到 SUCCESS / FAIL。
-      前置状态是显式白名单三个中间态，SUCCESS 与 FAIL 不在其中，重复回调不会改写终态。
-      不能只用 updateStatusIfProcessing：调 pay-sign 的同步响应失败时订单停在 RETRY、
-      异步线程未及推进时停在 INIT，而支付平台侧仍可能扣款成功并发来回调，
-      这两个状态被漏掉就会永久停在中间态（2026-08-26 生产实测各出现 1 笔）。
-    -->
+    <!-- 支付结果回调驱动的终态收敛：INIT / PROCESSING / RETRY 到 SUCCESS / FAIL。 -->
+    <!-- 回调侧白名单不含 FAIL、补款侧含，差异是有意的，改一侧会打挂另一侧（有守卫测试）。 -->
     <update id="convergeDebitStatus">
         UPDATE GATE_TXN_PAY
         SET DEBIT_STATUS = #{debitStatus,jdbcType=VARCHAR},
@@ -191,23 +184,8 @@
           AND DEBIT_STATUS IN ('INIT', 'PROCESSING', 'RETRY')
     </update>
 
-    <!--
-      在线补款支付成功后的收敛，供 face-pay-server 经
-      POST /internal/gate-txn-pay/debit/converge 调用（2026-09-16 新增）。
-
-      为什么不复用上面那条 convergeDebitStatus，而是并存两条：
-      白名单多一个 FAIL。补款下单校验放行的「欠费可补」口径包含 FAIL 单，
-      能下单就必须能收敛，否则出现「放行下单 + 补款支付成功 + 收敛不了」，
-      钱已实收而行程仍挂欠费，只能靠人工工单擦。
-      上面那条服务的是支付结果回调，语义是「中间态 到 终态」，FAIL 在它那里
-      是已到达的终态、不该被回调再改写，因此两条的白名单本就该不同。
-      改任一条 MUST 想清楚是哪条链路在用，NEVER 把两条合并成一条。
-
-      目标状态写死 SUCCESS、不做参数：补款成功是唯一会走到这里的场景，
-      少一个入参就少一处「传错状态把订单改成 FAIL」的可能。
-      本语句原先是 face-pay 自己持有的一份副本（跨域直写 owner 不是它的表），
-      随本次收口迁入本模块，NEVER 在 face-pay 侧加回。
-    -->
+    <!-- 在线补款支付成功后的收敛，供 face-pay-server 经 POST /internal/gate-txn-pay/debit/converge 调用（2026-09-16 新增）。 -->
+    <!-- 补款侧白名单含 FAIL、回调侧不含，差异是有意的，改一侧会打挂另一侧（有守卫测试）。 -->
     <update id="convergeDebitStatusForSupplement">
         UPDATE GATE_TXN_PAY
         SET DEBIT_STATUS = 'SUCCESS',
@@ -301,16 +279,7 @@
         </if>
     </select>
 
-    <!-- ==================== 综管台批量退超时罚金：圈单查询 ==================== -->
-
-    <!--
-      圈出日期窗内可退超时罚金的订单（近似口径，已确认）。
-      口径四要素：OVERTIME_AMOUNT>0（确含超时费）、ORDER_EXP_TYPE='1'（单边）、
-      TICKET_STATUS='07'（超时出站）、DEBIT_STATUS IN (SUCCESS,PROCESSING)（退款白名单）。
-      本查询只做候选粗筛，能否真退由单笔 requestRefund 的日票/金额/状态白名单逐单把关，
-      NEVER 把这里的命中当成「可退款」的直接结论。
-      startDate / endDate（yyyyMMdd）是 TXN_DATE 月分区裁剪条件，MUST 非空。
-    -->
+    <!-- 圈出日期窗内可退超时罚金的订单（近似口径，已确认）。 -->
     <sql id="Overtime_Refundable_Filter">
         AND t.OVERTIME_AMOUNT IS NOT NULL AND t.OVERTIME_AMOUNT &gt; 0
         AND t.ORDER_EXP_TYPE = '1'
@@ -353,14 +322,7 @@
         WHERE ROWNUM = 1
     </select>
 
-    <!-- ==================== IF8A-26 补款下单 ==================== -->
-
-    <!--
-      按订单号列表批量查询。不带 TXN_DATE，因此无法分区裁剪，只能命中 UK_GATE_TXN_PAY_ORDER_NO 的前缀列。
-      调用方 MUST 限制列表长度：Oracle IN 列表上限 1000 个元素。
-      同一 ORDER_NO 理论上唯一（UK 含 TXN_DATE），这里不做 ROWNUM 去重，
-      若出现同号多行由调用方按 ORDER_NO 归并后拒绝下单，避免静默取其中一条。
-    -->
+    <!-- 按订单号列表批量查询。 -->
     <select id="selectByOrderNos" resultMap="BaseResultMap">
         SELECT <include refid="All_Column_List"/>
         FROM GATE_TXN_PAY
@@ -382,18 +344,7 @@
           AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
     </select>
 
-    <!-- ==================== IF8A-05 APP 交易记录列表 ==================== -->
-
-    <!--
-      IF8A-05 请求参数 debitRequestResult 的过滤片段：空=全部，0=成功，1=失败（规范 R6 表13）。
-      口径落在 DEBIT_STATUS 上：SUCCESS 即已扣款成功，INIT / PROCESSING / RETRY / FAIL / NULL 都算未成功，
-      与 countFailedOrder 的「结清」判定完全一致，避免同一笔订单在 APP「未支付」页签和解约校验里结论相反。
-      NULL 必须显式列出：Oracle 三值逻辑下 DEBIT_STATUS != 'SUCCESS' 对 NULL 不成立，
-      漏掉会让脏数据在「失败」页签里凭空消失。
-      test 里字符串 MUST 用双引号：OGNL 的 '0' 是 char 字面量，与 String 比较恒为 false，
-      写成 debitRequestResult == '0' 会让整段过滤静默失效（alipay-pay-sign-server 的
-      AlipayPayLogMapper.xml 就是这种写法，需另行核实）。
-    -->
+    <!-- IF8A-05 请求参数 debitRequestResult 的过滤片段：空=全部，0=成功，1=失败（规范 R6 表13）。 -->
     <sql id="Debit_Result_Filter">
         <if test='debitRequestResult != null and debitRequestResult != ""'>
             <choose>
@@ -422,8 +373,7 @@
                     #{cardId,jdbcType=VARCHAR}
                 </foreach>
             </if>
-            <!-- cardTypeList 优先：APP 日票聚合码 05 展开为 0445~0448，只能用 IN。
-                 两个条件互斥，NEVER 同时拼（AND 起来必然命中 0 行）。 -->
+            <!-- cardTypeList 优先：APP 日票聚合码 05 展开为 0445~0448，只能用 IN。 -->
             <choose>
                 <when test="cardTypeList != null and !cardTypeList.isEmpty()">
                     AND CARD_TYPE IN
@@ -489,8 +439,6 @@
         <include refid="Debit_Result_Filter"/>
     </select>
 
-    <!-- ==================== IF8A-41 APP 账单统计 ==================== -->
-
     <resultMap id="tripDataResultMap" type="com.chinasofti.huateng.model.app.TripDataDTO">
         <result column="count" property="count"/>
         <result column="totalPrice" property="totalPrice"/>
@@ -499,19 +447,7 @@
         <result column="totalOvertime" property="totalOvertime"/>
     </resultMap>
 
-    <!-- IF8A-41 账单统计。四个金额的口径（2026-09-10 校准，替换 ticket-server 里
-         QRCodeTxnDetailMapper.selectTransStatistics 的错位实现）：
-         1) totalPrice 用 NVL(ORIGINAL_FARE, TRX_AMOUNT) —— ORIGINAL_FARE 是 2026-09-10 才开始稳定落库的，
-            历史行为空。缺失时退化成票价（优惠显示 0），NEVER 直接 NVL(...,0)，那会把原价显示成 0 元。
-         2) totalDebit 用 TOTAL_AMOUNT（= TRX_AMOUNT + OVERTIME_AMOUNT），是乘客真实付款额。
-            NEVER 只 SUM(TRX_AMOUNT)——旧实现如此，把超时费漏掉、少报 12 元（实测用户 00522943）。
-         3) totalDiscount 的减数 MUST 是 TRX_AMOUNT 而非 TOTAL_AMOUNT。后者含超时加收，
-            会让加收抵掉优惠并算出负数（实测那笔 540/1200 的补票会得到 0-1740）。
-            逐笔 GREATEST(...,0) 下取零，避免个别行原价小于票价时把别人的优惠冲掉。
-         4) totalOvertime 单列出超时加收。NEVER 把 OVERTIME_AMOUNT 映射到 totalDiscount——
-            加收与优惠语义相反，旧实现把 12 元超时费显示成「已优惠 12 元」。
-         过滤条件与 countTransList 逐条对齐（不含 Debit_Result_Filter：APP 统计页签不传扣款结果，
-         GATE_TXN_PAY 每行即一次出站扣费，无需再按 TRX_TYPE 过滤）。 -->
+    <!-- IF8A-41 账单统计。 -->
     <select id="selectTransStatistics" resultMap="tripDataResultMap">
         SELECT
             COUNT(1) AS count,
@@ -544,14 +480,7 @@
         </if>
     </select>
 
-
-    <!-- ==================== 解约未结清扣费订单查询 ==================== -->
-
-    <!-- 统计用户在指定支付渠道下的未结清扣费订单数。
-         结清的唯一标志是 DEBIT_STATUS='SUCCESS'；INIT / PROCESSING / RETRY / FAIL 均视为未结清。
-         显式兼容 NULL：Oracle 三值逻辑下 DEBIT_STATUS != 'SUCCESS' 对 NULL 不成立，
-         漏掉会把脏数据判成已结清、进而放行解约。
-         requestTime 为空时不加时间过滤，查该用户该渠道下全部历史未结清订单。 -->
+    <!-- 统计用户在指定支付渠道下的未结清扣费订单数。 -->
     <select id="countFailedOrder" resultType="java.lang.Integer">
         SELECT COUNT(1)
         FROM GATE_TXN_PAY
@@ -563,11 +492,7 @@
         </if>
     </select>
 
-    <!-- 按卡号统计未结清扣费订单，供 blacklist-server 判定「欠费已结清」后自动解除黑名单。
-         结清口径 MUST 与 countFailedOrder 完全一致：DEBIT_STATUS 为空或非 SUCCESS 均视为未结清。
-         这里不带 SIGN_CHANNEL_CODE 与时间下限——BLACKLIST 表没有渠道字段、拉黑也不区分渠道，
-         判定必须覆盖该卡全部历史欠费；漏一条就等于放行一个仍欠费的乘客。
-         不带 TXN_DATE 因此走不到月分区裁剪，只能用于每天两次的批处理，NEVER 放进联机链路。 -->
+    <!-- 按卡号统计未结清扣费订单，供 blacklist-server 判定「欠费已结清」后自动解除黑名单。 -->
     <select id="countUnsettledOrderByCardId" resultType="java.lang.Integer">
         SELECT COUNT(1)
         FROM GATE_TXN_PAY
@@ -575,32 +500,12 @@
           AND (DEBIT_STATUS IS NULL OR DEBIT_STATUS != 'SUCCESS')
     </select>
 
-    <!-- ==================== IF8A-35 APP 用户账务信息 ==================== -->
-
     <resultMap id="UserAccInfoResultMap" type="com.chinasofti.huateng.model.app.RequestUserAccInfoResult">
         <result column="UNPAID_COUNT" property="unpaidCount" jdbcType="NUMERIC"/>
         <result column="FAILURE_COUNT" property="failureCount" jdbcType="NUMERIC"/>
     </resultMap>
 
-    <!-- 一次扫描出两个数量，分档用白名单：
-         unpaidCount  = INIT / PROCESSING（还没收到扣费终态，钱没扣成）
-         failureCount = FAIL / RETRY（已判失败，RETRY 是待补扣）
-         CLOSED 与脏数据 NULL 两档都不落入，因此两数之和 ≠ countFailedOrder 的「非 SUCCESS」总数。
-         白名单写法同时避免了 Oracle 三值逻辑坑：NULL 不满足任何 IN，自然被排除，
-         不需要像 countFailedOrder 那样显式补 IS NULL 分支。
-         SUM 在无匹配行时返回 NULL，外层 NVL 兜成 0，否则映射到 int 属性会抛空指针。
-
-         时间下限的绑定类型 MUST 是 VARCHAR，值形如 '20260608'：
-         **生产库 TXN_DATE 实际是 VARCHAR2(16) 存 yyyyMMdd，不是 DATE**
-         （2026-09-08 实测 ALL_TAB_COLUMNS；仓库 DDL gate-txn-pay-schema.sql:28 写的 `TXN_DATE DATE`
-         与生产库不一致，勿照 DDL 设计绑定类型）。口径与同文件 countTransList 完全一致。
-         踩过的两个坑，NEVER 重犯：
-         1) 传 LocalDate + jdbcType=DATE → 参数被转成 '2026-06-08' 交 Oracle 按 NLS_DATE_FORMAT 解析
-            → ORA-01843 无效的月份；
-         2) 改用 ADD_MONTHS(TRUNC(SYSDATE), ?) → 变成「VARCHAR2 列 >= DATE」，Oracle 反向把
-            列值 '20260828' 按 NLS_DATE_FORMAT 解析 → ORA-01861 文字与格式字符串不匹配。
-            该错误只在**扫到实际数据行**时触发，无匹配行的用户反而返回成功，极易误判为已修好。
-         字符串比较对 yyyyMMdd 定长格式是正确的字典序，且能命中 TXN_DATE 上的索引。 -->
+    <!-- 一次扫描出两个数量，分档用白名单： unpaidCount = INIT / PROCESSING（还没收到扣费终态，钱没扣成） failureCount = FAIL / RETRY（已判失败。 -->
     <select id="countUserAccInfo" resultMap="UserAccInfoResultMap">
         SELECT
             NVL(SUM(CASE WHEN DEBIT_STATUS IN ('INIT', 'PROCESSING') THEN 1 ELSE 0 END), 0) AS UNPAID_COUNT,
@@ -610,16 +515,7 @@
           AND TXN_DATE &gt;= #{startDate,jdbcType=VARCHAR}
     </select>
 
-    <!-- ==================== 历史 ORIGINAL_FARE 补数 ==================== -->
-
-    <!--
-      捞出原价为空、进出站齐全的历史订单。
-      1) TXN_DATE 区间是分区裁剪条件，调用方强制必填，NEVER 放开成可选；
-      2) IN_STATION / OUT_STATION 非空在 SQL 里过滤掉，这类行 para-server 也查不出票价，
-         留给调用方只会白跑一次 RPC；
-      3) ROWNUM 限流放在外层：Oracle 的 ROWNUM 在 ORDER BY 之前生效，
-         写在内层会先截断再排序，拿到的不是最早的 N 条。
-    -->
+    <!-- 捞出原价为空、进出站齐全的历史订单。 -->
     <select id="selectMissingOriginalFare" resultMap="BaseResultMap">
         SELECT *
         FROM (
@@ -635,10 +531,7 @@
         WHERE ROWNUM &lt;= #{limit}
     </select>
 
-    <!--
-      回填原价。ORIGINAL_FARE IS NULL 既是幂等条件也是保护条件：
-      已有值的行是出站当时参数版本的原价快照，回填用的是当前版本，覆盖等于篡改历史账单口径。
-    -->
+    <!-- 回填原价。 -->
     <update id="updateOriginalFareIfNull">
         UPDATE GATE_TXN_PAY
         SET ORIGINAL_FARE = #{originalFare,jdbcType=NUMERIC},
@@ -648,10 +541,7 @@
           AND ORIGINAL_FARE IS NULL
     </update>
 
-    <!--
-      离线码金额重算失败、等待补偿的订单。TXN_DATE 区间必带，避免扫全部月分区。
-      这类行 TOTAL_AMOUNT 为 0 但不是免扣费交易，判据只认 DISCOUNT_CALC_STATUS。
-    -->
+    <!-- 离线码金额重算失败、等待补偿的订单。 -->
     <select id="selectOfflineFarePending" resultMap="BaseResultMap">
         SELECT *
         FROM (
@@ -667,13 +557,7 @@
         WHERE ROWNUM &lt;= #{limit}
     </select>
 
-    <!-- ==================== 综管台离线码交易统计 ==================== -->
-
-    <!--
-      按车站分组统计离线码交易。TXN_DATE 区间必带：本表按月分区，缺了会扫全部分区。
-      车站取 NVL(OUT_STATION, IN_STATION)：离线码以出站交易落库，个别异常行只有进站站。
-      中文站名由调用方经 selectStationNames 回填，这里不 JOIN，避免对分区表做无谓关联。
-    -->
+    <!-- 按车站分组统计离线码交易。 -->
     <select id="countOfflineByStationGroup" resultType="com.chinasofti.huateng.gatetxnpay.model.page.OfflineCodeStatView">
         SELECT NVL(OUT_STATION, IN_STATION) AS stationCode,
                COUNT(1) AS txnCount,
@@ -686,10 +570,7 @@
         ORDER BY txnCount DESC
     </select>
 
-    <!--
-      全窗汇总。独立卡数跨车站去重，MUST 单独查，NEVER 对分组行的 cardCount 求和
-      （同一张卡可能在多个车站刷过离线码）。stationCode / stationName 恒为空表示汇总行。
-    -->
+    <!-- 全窗汇总。 -->
     <select id="countOfflineSummary" resultType="com.chinasofti.huateng.gatetxnpay.model.page.OfflineCodeStatView">
         SELECT COUNT(1) AS txnCount,
                COUNT(DISTINCT CARD_ID) AS cardCount
@@ -699,12 +580,7 @@
           AND TXN_DATE &lt;= #{endDate,jdbcType=VARCHAR}
     </select>
 
-    <!--
-      重算成功后回写金额与优惠快照。WHERE 内两个状态条件既是幂等条件也是多副本抢占条件：
-      返回 1 才代表本次抢到该笔，调用方据此决定是否继续调 pay-sign，NEVER 去掉。
-      ENTRY_STATION_NAME / EXIT_STATION_NAME 与 IN_STATION 同批 SET：谁改编码谁改名，
-      漏掉这两列时列表侧站名永久为空、只能回落显示站点编码，NEVER 删。
-    -->
+    <!-- 重算成功后回写金额与优惠快照。 -->
     <update id="updateOfflineFareRecalculated">
         UPDATE GATE_TXN_PAY
         SET IN_STATION = #{inStation,jdbcType=VARCHAR},
@@ -731,10 +607,7 @@
           AND DISCOUNT_CALC_STATUS = 'OFFLINE_FARE_PENDING'
     </update>
 
-    <!--
-      重算再次失败：只追加原因、保持 PENDING 态等下一轮。
-      NEVER 在此改 DEBIT_STATUS —— 置 FAIL 会让补偿再也捞不到，置 SUCCESS 是资损。
-    -->
+    <!-- 重算再次失败：只追加原因、保持 PENDING 态等下一轮。 -->
     <update id="updateOfflineFarePendingMsg">
         UPDATE GATE_TXN_PAY
         SET DISCOUNT_CALC_MSG = #{discountCalcMsg,jdbcType=VARCHAR},

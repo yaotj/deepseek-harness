@@ -13,7 +13,6 @@
         )
     </insert>
 
-    <!-- 历史退款单创建时未单独存平台退款单号，查询前从原退款响应中恢复该字段。 -->
     <select id="selectLatestRefundResponseBody" resultType="java.lang.String">
         select RESPONSE_BODY
         from (

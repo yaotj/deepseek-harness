@@ -26,15 +26,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 锁死 {@link SupplementOrderLocalWriter} 的本地事务语义。
- *
- * <p>这是补款功能唯一带 {@code @Transactional} 的类，验证点集中在：</p>
- * <ul>
- *   <li>主表撞唯一索引 → 返回 rejected，NEVER 抛异常（让上层决定是否重试）</li>
- *   <li>明细正常插入，ACTIVE_ORIG_ORDER_NO 恒为 NULL（无独占设计）</li>
- * </ul>
- */
+/** 锁死 {@link SupplementOrderLocalWriter} 的本地事务语义。 */
 @ExtendWith(MockitoExtension.class)
 class SupplementOrderLocalWriterTest {
 
@@ -68,12 +60,7 @@ class SupplementOrderLocalWriterTest {
         verify(mapper, times(2)).insertItem(any(SupplementOrderItem.class));
     }
 
-    /**
-     * 主表撞唯一索引 → rejected，NEVER 抛异常。
-     *
-     * <p>上层（SupplementOrderServiceImpl）会拿到 rejected 结果，返回 8003 给 APP，
-     * 由 APP 决定是否换一个补款单号重试。</p>
-     */
+    /** 主表撞唯一索引 → rejected，NEVER 抛异常。 */
     @Test
     void mainTableDuplicateKeyReturnsRejected() {
         SupplementOrder order = buildOrder();
@@ -88,7 +75,6 @@ class SupplementOrderLocalWriterTest {
         assertFalse(result.persisted());
         assertTrue(result.rejected());
         assertEquals(SUP_ORDER, result.orderNo());
-        // NEVER 尝试 insertItem —— 主表没落成
         verify(mapper, org.mockito.Mockito.never()).insertItem(any());
     }
 

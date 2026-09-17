@@ -17,11 +17,9 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * 综管台密钥版本查看实现。三个域各自独立查询：单域失败只降级成一条「查询失败」行，
- * NEVER 让整体接口 500（监控页的意义就是在出问题时仍看得到其它域）。
+ * 综管台密钥版本查看实现。三个域各自独立查询，单域失败只降级成一条「查询失败」行。
  *
- * <p>状态码→中文的映射集中在 {@link #STATUS_DESC}：AGM 域用 20010/20020/20030，
- * CA 与 HCE 域用 0/1/2，两套口径共存，NEVER 合并成一张表（两个域的 1 含义不同）。</p>
+ * <p>状态码映射按域分表，NEVER 合并（AGM 与 CA/HCE 是两套口径）。</p>
  */
 @Service
 public class KeyVersionQueryServiceImpl implements KeyVersionQueryService {

@@ -22,7 +22,7 @@ public class NotifyVerifyResultReqDTO {
     private String lastHandleDateTime;
     private String ticketTransSeq;
     /**
-     * 补站类型：空=真实检票，01=补进站，02=补出站
+     * 补站类型：空=真实检票，01=补进站，02=补出站。
      */
     private String excessFareType;
     /**
@@ -38,9 +38,9 @@ public class NotifyVerifyResultReqDTO {
      * 同行票标识：Y=同行票，C=第三方票（目前均对应卡类型 0441），为空表示普通票。
      */
     private String companionFlag;
-    /** 支付渠道编码（如 ALIPAY、WECHAT），来自 USER_ITP_REG_INFO.CHANNEL */
+    /** 支付渠道编码（如 ALIPAY、WECHAT），来自 USER_ITP_REG_INFO.CHANNEL。 */
     private String paymentVendor;
-    /** 签约流水号，来自 USER_ITP_REG_INFO.REQ_CONTRACT_NO */
+    /** 签约流水号，来自 USER_ITP_REG_INFO.REQ_CONTRACT_NO。 */
     private String requestSignSeq;
     /** 交易渠道类型：00闸机、01蓝牙、02BOM、03自助补站。 */
     private String channelType;

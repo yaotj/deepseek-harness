@@ -12,9 +12,9 @@ public class RequestTransListResult {
     private String pageSize;
     private String totalPage;
     private List<TransRecordDTO> ticketTransRecord;
-    /** 签名类型 00:不签名 01:sha1withrsa 02:MD5 */
+    /** 签名类型 00:不签名 01:sha1withrsa 02:MD5。 */
     private String signType;
-    /** 私钥签名 */
+    /** 私钥签名。 */
     private String sign;
 
     public String getRetCode() { return retCode; }

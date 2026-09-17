@@ -51,10 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * BOM非现金业务服务实现类。
- * 实现BOM非现金收款业务的核心业务逻辑，包括下单、支付、查询支付结果、业务操作结果通知等。
- */
+/** BOM非现金业务服务实现类。 */
 @Service
 @Slf4j
 public class BomOrderServiceImpl implements BomOrderService {
@@ -63,15 +60,10 @@ public class BomOrderServiceImpl implements BomOrderService {
 //    private final static String BOM_SALE = DeviceTypeEnum.BOM.getCode();
 //    private final static String BOM_PAY = "02";
 
-    /**
-     * 日期时间格式化器，格式：yyyyMMddHHmmss。
-     * 用于生成订单号。
-     */
+    /** 日期时间格式化器，格式：yyyyMMddHHmmss。 */
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    /**
-     * BOM非现金收款订单Mapper。
-     */
+    /** BOM非现金收款订单Mapper。 */
     @Autowired
     private BomNoCashOrderMapper bomNoCashOrderMapper;
     @Autowired
@@ -97,58 +89,40 @@ public class BomOrderServiceImpl implements BomOrderService {
     @Resource(name = "tvmexecutor")
     ThreadPoolTaskExecutor executor;
 
-    /**
-     * BOM业务操作结果通知Mapper。
-     */
+    /** BOM业务操作结果通知Mapper。 */
     @Autowired
     private BomBusResultMapper bomBusResultMapper;
     @Autowired
     private TvmOrderPreMapper tvmOrderPreMapper;
 
-    /**
-     * BOM退款订单Mapper。
-     */
+    /** BOM退款订单Mapper。 */
     @Autowired
     private BomRefundOrderMapper bomRefundOrderMapper;
     @Autowired
     private Environment environment;
 
-    /**
-     * TicketClient。
-     */
+    /** TicketClient。 */
     @Autowired
     private com.chinasofti.huateng.rpc.ticket.TicketClient ticketClient;
 
-    /**
-     * AccountClient。
-     */
+    /** AccountClient。 */
     @Autowired
     private com.chinasofti.huateng.rpc.account.AccountClient accountClient;
 
-    /**
-     * BOM充值结果通知Mapper。
-     */
+    /** BOM充值结果通知Mapper。 */
     @Autowired
     private BomTopupResultMapper bomTopupResultMapper;
 
-    /**
-     * TVM充值订单Mapper。
-     */
+    /** TVM充值订单Mapper。 */
     @Autowired
     private TvmTopupOrderMapper tvmTopupOrderMapper;
 
-    /**
-     * 支付中心服务。
-     * 用于调用支付中心的支付和查询接口。
-     */
+    /** 支付中心服务。 */
 
     @Autowired
     private PayCenterService payCenterService;
 
-    /**
-     * 支付中心配置属性。
-     * 包含商户号、API版本、签名类型、字符集、私钥等配置信息。
-     */
+    /** 支付中心配置属性。 */
     @Autowired
     private PayCenterProperties payCenterProperties;
 
@@ -160,7 +134,6 @@ public class BomOrderServiceImpl implements BomOrderService {
 
     /**
      * IF8A-04 请求非现金收款下单。
-     * BOM向ITP平台发起非现金收款订单请求，ITP生成订单并返回订单号。
      *
      * @param request 请求参数（包含公共参数deviceId等）
      * @return 响应结果，包含订单号
@@ -240,7 +213,6 @@ public class BomOrderServiceImpl implements BomOrderService {
 
     /**
      * IF8A-05 扫码支付。
-     * BOM扫描用户付款码后，向ITP平台发起支付请求，ITP调用支付中心完成支付。
      *
      * @param request 请求参数（包含订单号、付款码等）
      * @return 响应结果，包含支付结果
@@ -345,7 +317,6 @@ public class BomOrderServiceImpl implements BomOrderService {
 
     /**
      * IF8A-06 查询支付结果。
-     * BOM轮询查询支付结果，ITP调用支付中心查询并返回支付状态。
      *
      * @return 响应结果，包含支付结果（SUCCESS/FAILED/PROCESSING）
      */
@@ -426,11 +397,6 @@ public class BomOrderServiceImpl implements BomOrderService {
 
     /**
      * IF2A-08 业务操作结果通知。
-     * BOM业务操作完成后，向ITP平台通知操作结果。
-     * 处理逻辑：
-     * 1. 生成通知记录并入库（状态为待处理）
-     * 2. 如果optResult=SUCCESS，更新通知状态为处理成功，更新原订单状态
-     * 3. 如果optResult=FAILED，入库通知记录，发起退款请求，根据退款结果更新通知状态，并将原支付记录的rsv2修改为退款订单号
      *
      * @param request 请求参数（包含订单号、操作结果等）
      * @return 响应结果
@@ -674,26 +640,9 @@ public class BomOrderServiceImpl implements BomOrderService {
 
     /**
      * 充值结果通知。
-     * BOM充值操作完成后，向ITP平台通知充值结果。
-     * 处理逻辑：
-     * 1. 生成通知记录并入库（状态为待处理）
-     * 2. 如果topupStatus=01，更新通知状态为处理成功，更新原订单状态为成功
-     * 3. 如果topupStatus=02，更新通知状态为处理失败，更新原订单状态为失败
      *
      * @param request 请求参数（包含订单号、充值状态等）
      * @return 响应结果
-     */
-    /*
-     * 本方法有意不带 @Transactional（2026-09-14 摘除，NEVER 加回）。
-     * 原因见 AGENTS.md 5.2「@Transactional 方法内 NEVER 发起任何 RPC / 网络调用」：
-     * 充值失败分支要调支付中心退款（callPayCenter），一旦被事务包住，
-     * TBL_TVM_ORDER_TOPUP 那一行的排他锁持有时长就等于支付中心的响应时长，
-     * BOM 对同一笔的重推会全部堆在同一行上串行等锁；等待超过 Druid
-     * remove-abandoned-timeout 后连接被强杀、commit 抛 connection closed，
-     * 连「充值结果通知已入库」那条 INSERT 一起回滚 —— 证据全丢、响应退化成
-     * 全局异常处理器的 UUID retCode、BOM 继续重推，自我放大且没有出口。
-     * 摘掉之后每条 SQL 自动提交：通知记录与「退款中」状态先落地，
-     * 退款结果再各自回写，失败也留得下痕迹。
      */
     @Override
     public JSONObject notiTopupResult(NotiTopupResultReqDTO request) {
@@ -915,9 +864,7 @@ public class BomOrderServiceImpl implements BomOrderService {
         return bomBusResultMapper.updateByNotifyId(notifyMap);
     }
 
-    /**
-     * 更新BOM非现金收款订单状态。
-     */
+    /** 更新BOM非现金收款订单状态。 */
     private void updateBomOrder(String orderNo, String rsv2, String updateTime) {
         Map<String, String> orderMap = new HashMap<>();
         orderMap.put("orderNo", orderNo);
@@ -1048,7 +995,6 @@ public class BomOrderServiceImpl implements BomOrderService {
 
     /**
      * IF5A-01 请求票卡分析。
-     * 后付费二维码票分析。
      *
      * @param request 请求参数（包含发行方代码、手机号、逻辑卡号、更新区域类型等）
      * @return 响应结果，包含票卡分析结果
@@ -1613,8 +1559,6 @@ public class BomOrderServiceImpl implements BomOrderService {
 
     /**
      * IF5A-09 HCE票卡更新结果通知。
-     * BOM更新HCE票数据后，向ITP平台通知更新结果。
-     * 保存通知记录到TBL_BOM_BUS_RESULT表，状态设为处理成功。
      *
      * @param request 请求参数（包含卡号、HCE数据、操作类型等）
      * @return 响应结果

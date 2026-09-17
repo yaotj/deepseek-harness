@@ -19,11 +19,6 @@ import java.time.format.DateTimeFormatter;
 
 /**
  * 账户资料的读取与 HCE 数据维护实现，见 {@link AccountProfileService}。
- *
- * <p>2026-09-11 第六轮拆分从 {@code AccountApplicationServiceImpl}（已删除）逐行搬来，行为不变。
- * 三个入口都只读写 {@code USER_ITP_REG_INFO} 自身字段，<b>不涉及任何状态机</b>：
- * 销户改 {@code DEL_YN} 归 {@code AccountCancelService}、支付通道字段归 {@code PayChannelService}，
- * <b>NEVER 在本类里改那两类字段</b>。</p>
  */
 @Service
 public class AccountProfileServiceImpl implements AccountProfileService {
@@ -31,7 +26,9 @@ public class AccountProfileServiceImpl implements AccountProfileService {
 
     private final UserItpRegInfoMapper userItpRegInfoMapper;
 
-    /** 构造器注入（ADR-D37）。依赖全部 final，漏注入在编译期即报错。 */
+    /**
+     * 构造器注入（ADR-D37）。
+     */
     public AccountProfileServiceImpl(UserItpRegInfoMapper userItpRegInfoMapper) {
         this.userItpRegInfoMapper = userItpRegInfoMapper;
     }
@@ -116,10 +113,6 @@ public class AccountProfileServiceImpl implements AccountProfileService {
             response.setCardIssueCode(regInfo.getCardIssueCode());
             response.setMsisdn(regInfo.getMsisdn());
             response.setCompanionFlag(regInfo.getCompanionFlag());
-            // 签约信息 MUST 一并返回：出站扣费链路（ticket-server → fep-dev-server →
-            // gate-txn-pay-server → pay-sign-server）靠这三个字段定位免密扣款的签约协议。
-            // 原先漏了这三个 set，调用方 GateTicketHandler.applyActualCardType 每次都读到 null，
-            // 只能由 pay-sign-server 再回查一次 account-server 兜底（2026-08-26 修复）。
             response.setChannel(regInfo.getChannel());
             response.setReqContractNo(regInfo.getReqContractNo());
             response.setThirdPayId(regInfo.getThirdPayId());

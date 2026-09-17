@@ -38,17 +38,6 @@ public class LocalCache {
         return StringUtils.leftPad(String.valueOf(temp), 14, "0");
     }
 
-//    public static LocalCache getInstance() {
-//        if (instance == null) {
-//            synchronized (LocalCache.class) {
-//                if (instance == null) {
-//                    instance = new LocalCache();
-//                    new Thread(new TimeoutTimer()).start();
-//                }
-//            }
-//        }
-//        return instance;
-//    }
 
     public static boolean set(String key, Object value, long expire) {
         cacheMap.put(key, setEntity(key, value, expire));

@@ -26,24 +26,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/**
- * 「PROCESSING 退款回查」补偿的行为护栏（批次 5B，与 {@code requestRefund} 摘事务同批）。
- *
- * <p>只盯三件**改错了不会有编译错误、也不会有别的测试变红**的事：
- * <ul>
- *   <li>收口 CAS 命中 0 行时 <b>NEVER 当成功</b>，且 <b>NEVER 继续重算汇总</b> ——
- *       0 行意味着这一行已被退款回调或另一副本收口，继续算就是用本次回查结果覆盖别人写对的口径；</li>
- *   <li>真收口成功时 <b>MUST 无条件重算一次汇总</b> —— 摘掉事务后「明细已 SUCCESS、汇总没重算」
- *       这个中间态只有这里能兜住，省掉那一次等于 ADR-D8 只做了一半；</li>
- *   <li>回查没拿到终态时只推退避时间、<b>NEVER 落终态</b>。</li>
- * </ul>
- *
- * <p><b>刻意不起 Spring 上下文</b>（与 {@code PaySignFacadeFixture} 同一理由）：起上下文会拉起
- * Druid 与 mybatis-adaptor，本机没有 Oracle 就跑不了，测试也就永远不会被真的执行。
- *
- * <p>网关的 {@code isSuccess} 用 {@code thenCallRealMethod}：成功码判定必须与生产一致，
- * <b>NEVER 改成 {@code thenReturn(true)}</b>，否则成功码规则一改测试仍然全绿。
- */
+/** 护栏：退款回查收口 CAS 命中 0 行不当成功、真收口必重算汇总、非终态只推退避。 */
 class PaymentRefundQueryCompensationTest {
 
     private static final String REFUND_QUERY_URL = "http://pay-gateway.test/api/v1/refund/refundQuery";
@@ -57,8 +40,6 @@ class PaymentRefundQueryCompensationTest {
     private RefundDomainServiceImpl newService() {
         properties.setRefundQueryUrl(REFUND_QUERY_URL);
         when(payGatewayClient.isSuccess(any())).thenCallRealMethod();
-        // 出向端口用真实现、内部包同一批 properties / paySignGateway（ADR-D113 续）：
-        // URL 选取与成功码判定口径与收口前逐字相同，本类 4 条断言一字未改。
         RefundDomainServiceImpl service = new RefundDomainServiceImpl(
                 payTxnDetailMapper,
                 payRefundDetailMapper,
@@ -141,7 +122,50 @@ class PaymentRefundQueryCompensationTest {
         verify(payTxnDetailMapper, never()).updateRefundSummary(anyString());
     }
 
+    /** 退避 CAS 也命中 0 行：仍计入 skipped，且 NEVER 落终态（2026-09-16，ADR-D115 续）。 */
+    @Test
+    void delayCasMissStillCountsAsSkippedAndWritesNothing() {
+        RefundDomainServiceImpl service = newService();
+        when(payRefundDetailMapper.selectCompensableRefundQuery(anyString(), anyInt(), anyInt()))
+                .thenReturn(List.of(processingRow()));
+        gatewayReturns("REFUNDING");
+        when(payRefundDetailMapper.delayNextRefundQuery(anyString(), anyString(), anyInt())).thenReturn(0);
+
+        CompensateNotifyRespDTO response = service.compensateRefundQuery();
+
+        assertEquals(1, response.getSkipped(), "退避 CAS 落空 MUST 仍计入本轮未收口");
+        assertEquals(0, response.getSubmitted());
+        verify(payRefundDetailMapper, never()).finishFromQuery(any(PayRefundDetail.class));
+        verify(payTxnDetailMapper, never()).updateRefundSummary(anyString());
+    }
+
+    /** 单条抛异常 NEVER 中断整批：另一条照样收口，异常那条计入 failed。 */
+    @Test
+    void singleRowFailureNeverAbortsTheWholeBatch() {
+        RefundDomainServiceImpl service = newService();
+        PayRefundDetail bad = processingRow();
+        PayRefundDetail good = processingRow();
+        good.setRefundOrderNo("RF20260915000000002");
+        good.setOrderNo("GT20260915000000002");
+        when(payRefundDetailMapper.selectCompensableRefundQuery(anyString(), anyInt(), anyInt()))
+                .thenReturn(List.of(bad, good));
+        gatewayReturns("SUCCESS");
+        when(payRefundDetailMapper.finishFromQuery(any(PayRefundDetail.class)))
+                .thenThrow(new RuntimeException("ORA-12170: TNS:Connect timeout occurred"))
+                .thenReturn(1);
+        when(payTxnDetailMapper.updateRefundSummary(anyString())).thenReturn(1);
+
+        CompensateNotifyRespDTO response = service.compensateRefundQuery();
+
+        assertEquals(2, response.getScanned(), "两条都 MUST 被扫到");
+        assertEquals(1, response.getSubmitted(), "第二条 MUST 照样收口 —— 单条异常 NEVER 中断整批");
+        assertEquals(1, response.getSkipped(), "抛异常那条 MUST 计入 failed，且只计一次");
+        verify(payTxnDetailMapper, times(1)).updateRefundSummary("GT20260915000000002");
+        verify(payTxnDetailMapper, never()).updateRefundSummary("GT20260915000000001");
+    }
+
     /** 未配置退款查询地址：MUST 直接返错并且一条都不扫，NEVER 打到一个空地址上。 */
+
     @Test
     void missingRefundQueryUrlStopsBeforeScanning() {
         RefundDomainServiceImpl service = newService();

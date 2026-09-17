@@ -2,9 +2,6 @@ package com.chinasofti.huateng.model.app;
 
 /**
  * 按签约流水号查询支付通道应答（account-server 内部只读接口）。
- *
- * <p>{@code retCode=0000} 且 {@code cardId} 非空才算查到；未找到时返回 8004，
- * 调用方 MUST 判 {@code retCode} 而不是只判字段是否为空。</p>
  */
 public class QueryPayChannelByContractResult {
 

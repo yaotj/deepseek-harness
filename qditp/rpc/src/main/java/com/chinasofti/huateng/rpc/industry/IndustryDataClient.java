@@ -24,9 +24,8 @@ public class IndustryDataClient extends ProxyWebClient {
 
     /**
      * 生成完整行业卡数据。
-     *
-     * @param request 卡数据生成请求
-     * @return 卡数据生成结果
+     * @param request 卡数据生成请求。
+     * @return 卡数据生成结果。
      */
     public IndustryCardDataBuildRespDTO buildCardData(@RequestBody IndustryCardDataBuildReqDTO request) {
         String result = postJsonAndGetResponse("/ci/industry/buildCardData", request);

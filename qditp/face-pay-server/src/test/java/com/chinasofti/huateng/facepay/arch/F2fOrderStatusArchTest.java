@@ -20,15 +20,7 @@ import java.util.stream.Stream;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * 架构门禁：把 {@code F2F_ORDER.ORDER_STATUS} 状态机的边界固化成会失败的构建。
- * 形态照 {@code pay-sign-server/.../arch/SignStatusArchTest.java}。
- *
- * <p>两条规则**在 2026-09-14 收口状态机时全部为绿**，加进来是为了拦住「下一个人退回旧写法」，
- * 而不是等设备侧出现「已退款的单还能再退一次」。
- * <b>规则失败时 NEVER 改规则去迁就代码</b> —— 先读 {@code docs/domain/state-machines.md} §二，
- * 确认到底是新写法有理由，还是又踩了同一个坑。</p>
- */
+/** 架构门禁：把 {@code F2F_ORDER.ORDER_STATUS} 状态机的边界固化成会失败的构建。 */
 class F2fOrderStatusArchTest {
 
     /** 只扫本模块主代码，`DoNotIncludeTests` 避免把门禁自身算进依赖图。 */
@@ -41,52 +33,27 @@ class F2fOrderStatusArchTest {
     private static final Path SERVICE_SOURCE_DIR =
             Path.of("src", "main", "java", "com", "chinasofti", "huateng", "facepay", "service");
 
-    /**
-     * {@code F2F_ORDER.ORDER_STATUS} 的 11 个取值。
-     * <b>这里只列订单域</b>：票（ISSUED / FAULT）、支付（INIT / SUCCESS / FAILED / PROCESSING）、
-     * 退款（另加 MANUAL）是**另外三个取值域**，NEVER 混进来。
-     */
+    /** {@code F2F_ORDER.ORDER_STATUS} 的 11 个取值。 */
     private static final List<String> ORDER_STATUS_LITERALS = List.of(
             "CREATED", "PAYING", "PAID", "PAY_FAILED", "EXPIRED", "FULFILLED",
             "FULFILL_FAILED", "REFUNDING", "REFUNDED", "CANCELED", "TOPUP_SUSPECT");
 
-    /**
-     * 允许保留裸字面量的**唯一形态**：常量名带取值域前缀。
-     * 活样例是 {@code F2fBomOrderService.TICKET_REFUNDING = "REFUNDING"} ——
-     * 它是 {@code F2F_TICKET.TICKET_STATUS}，与订单状态**拼写相同、取值域不同**。
-     * 前缀就是人给出的「我知道这不是订单状态」的显式声明；<b>NEVER 靠加白名单文件名放行</b>，
-     * 那等于把整个类豁免掉。
-     */
+    /** 允许保留裸字面量的**唯一形态**：常量名带取值域前缀。 */
     private static final Pattern DOMAIN_TAGGED_CONSTANT =
             Pattern.compile("\\b(TICKET|PAYMENT|REFUND|NOTIFY|REPORT|TOPUP)_[A-Z0-9_]+\\s*=");
 
-    /** 三条 CAS 的调用点。它们的返回行数是唯一输出，丢掉等于把条件更新退化成「更新不到就算了」。 */
+    /** 三条 CAS 的调用点。 */
     private static final Pattern CAS_CALL =
             Pattern.compile("orderMapper\\.(updateStatus|markPaid|activateForDevice)\\s*\\(");
 
-    /**
-     * 认定「返回值被接住了」的四种形态：赋给变量、或交给三个解读入口之一。
-     * {@code classify} 直接对应 {@code F2fOrderStatusTransition.classify}。
-     */
+    /** 认定「返回值被接住了」的四种形态：赋给变量、或交给三个解读入口之一。 */
     private static final List<String> CAS_RESULT_CONSUMERS =
             List.of("=", "warnIfConflict(", "reportPaidConflict(", "classify(");
 
-    /**
-     * 唯一的豁免形态：行内显式写 {@code // CAS-DISCARD: <理由>}。
-     * <b>NEVER 改成按文件名或方法名豁免</b> —— 那会把整个类放行；
-     * 也 NEVER 只写标记不写理由，理由是给下一个人判断「这条豁免还成立吗」的依据。
-     */
+    /** 唯一的豁免形态：行内显式写 {@code // CAS-DISCARD: <理由>}。 */
     private static final String CAS_DISCARD_MARKER = "// CAS-DISCARD:";
 
-    /**
-     * 三条 CAS 是 {@code F2F_ORDER.ORDER_STATUS} 的唯一并发保证，调用它们必须紧跟
-     * 「返 0 行则回查当前状态再分流」的处理（{@code F2fOrderStatusTransition.classify}），
-     * 这段判断属于业务编排、<b>MUST 留在 service 包</b>。controller / 定时任务直接调等于把状态机
-     * 决策散到接入层，回查与幂等短路必然被漏写。
-     *
-     * <p>本模块的服务类**直接放在 {@code service} 包下**（没有 {@code service.impl} 层），
-     * 这与 pay-sign-server 不同，NEVER 照抄那边的包名。</p>
-     */
+    /** 三条 CAS 是 {@code F2F_ORDER.ORDER_STATUS} 的唯一并发保证，调用它们必须紧跟 */
     @Test
     void casMethodsOnlyCallableFromServicePackage() {
         ArchRule rule = noClasses()
@@ -101,18 +68,7 @@ class F2fOrderStatusArchTest {
         rule.check(FACE_PAY_CLASSES);
     }
 
-    /**
-     * 订单状态字面量不得再出现在 service 包里，MUST 走 {@code F2fOrderStatus.X.name()}。
-     *
-     * <p>为什么不用 ArchUnit：<b>它看不见字符串常量</b>（字节码里 {@code String} 常量池不在
-     * ArchUnit 的领域模型内），所以这条只能扫源码。形态照
-     * {@code account-server/.../UserItpRegInfoMapperSqlTest} 那种「离线解析工程文件」的做法，
-     * 工作目录是模块根，不依赖数据库也不启 Spring。</p>
-     *
-     * <p>收益不在洁癖：11 个取值由 DDL 的 {@code CK_F2F_ORDER_STATUS} 授权，散写的字面量
-     * 拼错一个字母编译期完全无感，运行时 CAS 静默返 0 行 —— 表现是「订单永远推不动」，
-     * 而不是报错。收进枚举后拼错就编译失败。</p>
-     */
+    /** 订单状态字面量不得再出现在 service 包里，MUST 走 {@code F2fOrderStatus.X.name()}。 */
     @Test
     void orderStatusLiteralsAbsentFromServiceSources() throws IOException {
         assertTrue(Files.isDirectory(SERVICE_SOURCE_DIR),
@@ -146,7 +102,7 @@ class F2fOrderStatusArchTest {
         }
     }
 
-    /** 去掉注释，避免 Javadoc 里引用状态名被误判。块注释按「首字符是 * 」的行近似处理，够用。 */
+    /** 去掉注释，避免 Javadoc 里引用状态名被误判。 */
     private static String stripComment(String line) {
         String trimmed = line.trim();
         if (trimmed.startsWith("*") || trimmed.startsWith("//") || trimmed.startsWith("/*")) {
@@ -156,19 +112,7 @@ class F2fOrderStatusArchTest {
         return lineComment >= 0 ? trimmed.substring(0, lineComment) : trimmed;
     }
 
-    /**
-     * 三条 CAS 的返回行数不得被丢弃。
-     *
-     * <p><b>这条是本组门禁里价值最高的一条</b>：2026-09-14 首次跑它时，40 个调用点里有 12 个
-     * 直接丢掉返回值 —— 其中 {@code F2fTvmOrderService} 查询到支付成功那处 {@code markPaid}
-     * 属于「钱已收、状态可能没落上」，是人工逐条 review 时漏掉的。
-     * CAS 的返回行数是它唯一的输出，丢掉就等于把条件更新退化成无条件更新。</p>
-     *
-     * <p>为什么也是扫源码：ArchUnit 看不到「返回值有没有被使用」（字节码里那是一条 POP 指令，
-     * 不在它的领域模型内）。判定窗口取<b>匹配行 + 上一行</b>，因为项目里的写法有两种：
-     * 同行 {@code warnIfConflict(orderNo, orderMapper.updateStatus(...))}，
-     * 以及跨行的 {@code ... = F2fOrderStatusTransition.classify(\n orderMapper.updateStatus(...)}。</p>
-     */
+    /** 三条 CAS 的返回行数不得被丢弃。 */
     @Test
     void casReturnValueNeverDropped() throws IOException {
         assertTrue(Files.isDirectory(SERVICE_SOURCE_DIR),

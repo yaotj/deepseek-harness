@@ -20,17 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 /**
- * 过闸扣费交易入口——**服务间 RPC 调用方向**（fep-dev-server / pay-sign-server /
- * blacklist-server / ticket-server 等）。
- *
- * <p>2026-09-14 按调用方拆分：APP 场景的 6 个 {@code /ci/gateTxnPay/app/*} 已移到
- * {@link com.chinasofti.huateng.gatetxnpay.controller.app.GateTxnPayAppController}，
- * 运营后台在 {@code controller/page}、对账在 {@code controller/internal}。
- * <b>拆分只动文件归属，17 个端点的 URL 一个字符都没改</b>，上游全是硬编码 URL，
- * <b>NEVER 借后续重构改路径</b>。</p>
- *
- * <p>本类保留的 6 个端点里，{@code requestPay} / {@code retryPay} / {@code syncDebitStatus}
- * 会改状态，其余三个只读。</p>
+ * 过闸扣费交易入口——服务间 RPC 调用方向（fep-dev-server / pay-sign-server / blacklist-server / ticket-server 等）。
  */
 @RestController
 @RequestMapping("/ci/gateTxnPay")
@@ -40,10 +30,7 @@ public class GateTxnPayController {
     @Autowired
     private GateTxnPayService gateTxnPayService;
 
-    /**
-     * 只读查询侧。与 {@code gateTxnPayService} 并列注入，**不是两套实现**：
-     * 同一张 `GATE_TXN_PAY`，按「有没有写」拆成两个接口，端点与报文一个都没变。
-     */
+    /** 只读查询侧。 */
     @Autowired
     private GateTxnPayQueryService gateTxnPayQueryService;
 
@@ -72,8 +59,6 @@ public class GateTxnPayController {
         return response;
     }
 
-    // ==================== 解约扣费失败订单查询 RPC ====================
-
     @PostMapping("/hasFailedOrder")
     public GateTxnPayFailedOrderRespDTO hasFailedOrder(@RequestBody GateTxnPayFailedOrderReqDTO request) {
         log.info("查询解约扣费失败订单, 入参={}", request);
@@ -85,11 +70,7 @@ public class GateTxnPayController {
         return response;
     }
 
-    /**
-     * 按卡号查询是否仍有未结清扣费订单（供 blacklist-server 盘点黑名单可解除性调用）。
-     *
-     * <p>只读接口，不改任何数据。调用方 MUST 先判断 resultCode 再用 hasUnsettled。</p>
-     */
+    /** 按卡号查询是否仍有未结清扣费订单（供 blacklist-server 盘点黑名单可解除性调用）。 */
     @PostMapping("/hasUnsettledOrderByCard")
     public CardUnsettledQueryRespDTO hasUnsettledOrderByCard(@RequestBody CardUnsettledQueryReqDTO request) {
         log.info("按卡查询未结清扣费订单, cardId={}", request != null ? request.getCardId() : null);
@@ -99,19 +80,7 @@ public class GateTxnPayController {
         return response;
     }
 
-    // ==================== 支付结果回调驱动的扣费状态收敛 RPC ====================
-
-    /**
-     * pay-sign-server 收到支付中心回调、本地 PAY_TXN_DETAIL 落地成功后调用，
-     * 把 GATE_TXN_PAY.DEBIT_STATUS 收敛到终态。
-     *
-     * <p>只改状态，NEVER 触发扣款；SUCCESS / FAIL 终态订单不会被改写。
-     *
-     * <p><b>IF8A-26 补款功能已迁移到 face-pay-server（2026-09-15）</b>。
-     * 补款单的支付结果由 face-pay 的 PayCenter 回调直接处理，
-     * 不再走本入口的补款单分派分支。pay-sign-server 对补款单号的回调
-     * 在其侧已做拦截（补款单号不走 pay-sign）。</p>
-     */
+    /** pay-sign-server 收到支付中心回调、本地 PAY_TXN_DETAIL 落地成功后调用，把 GATE_TXN_PAY.DEBIT_STATUS 收敛到终态。 */
     @PostMapping("/syncDebitStatus")
     public GateTxnPayRespDTO syncDebitStatus(@RequestBody GateTxnPaySyncStatusReqDTO request) {
         log.info("接收支付结果同步, 入参={}", request);

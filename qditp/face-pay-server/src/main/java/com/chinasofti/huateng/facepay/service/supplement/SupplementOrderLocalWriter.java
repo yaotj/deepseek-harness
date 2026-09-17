@@ -36,14 +36,7 @@ public class SupplementOrderLocalWriter {
         }
     }
 
-    /**
-     * 本地落单：插入主表 + 明细。
-     *
-     * <p>无独占设计：同一行程单允许同时挂在多张补款单下，先到先得——谁先支付成功
-     * 谁就收敛行程单，后到的重复支付由 settleSuccess 标 FAILED 记「重复支付待退款」。
-     * 明细的 ACTIVE_ORIG_ORDER_NO 已废弃（恒写 NULL），UK_SUPPLEMENT_ITEM_ACTIVE
-     * 唯一索引因此永不触发，撞键只可能来自主表 ORDER_NO 唯一索引（重试幂等）。</p>
-     */
+    /** 本地落单：插入主表 + 明细。 */
     @Transactional
     public PersistResult persist(SupplementOrder order,
                                  List<String> orderNos,

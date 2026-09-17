@@ -2,11 +2,7 @@ package com.chinasofti.huateng.key.entity;
 
 import java.util.Date;
 
-/**
- * HCE 会员卡静态密钥缓存。
- *
- * <p>仅保存 ACC KEK 加密的 DPK，不能在数据库中保存解密后的 DPK 明文。</p>
- */
+/** HCE 会员卡静态密钥缓存。NEVER 在库中保存解密后的 DPK 明文，只存 ACC KEK 加密的 DPK。 */
 public class MetroMemberStaticKey {
     private Long id;
     private String metroMemberCardNum;

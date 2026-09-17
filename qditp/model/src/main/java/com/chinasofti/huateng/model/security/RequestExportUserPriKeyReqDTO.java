@@ -2,8 +2,6 @@ package com.chinasofti.huateng.model.security;
 
 /**
  * 请求导出用户私钥参数。
- *
- * <p>该对象用于 key-server 调用 acc-security-server 的 /ci/itp/requestExportUserPriKey。</p>
  */
 public class RequestExportUserPriKeyReqDTO {
     /**

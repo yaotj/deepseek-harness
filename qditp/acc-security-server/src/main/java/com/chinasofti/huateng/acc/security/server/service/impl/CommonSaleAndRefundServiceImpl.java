@@ -29,13 +29,6 @@ public class CommonSaleAndRefundServiceImpl implements CommonSaleAndRefundServic
 
     @Override
     public ResultVO<String> getSaleAndRefundKey(SaleAndRefundParam param) throws InterruptedException {
-//        命令类型：B0
-//        命令：91
-//        用户保留字：0000000000000000
-//        分散次数：02
-//        分散数据：4500000000000000 + 卡号
-//        数据长度：0008
-//        数据：8字节
 
         SaleAndRefundBean bean = new SaleAndRefundBean();
         bean.setOrder(new byte[]{(byte) 0x91});

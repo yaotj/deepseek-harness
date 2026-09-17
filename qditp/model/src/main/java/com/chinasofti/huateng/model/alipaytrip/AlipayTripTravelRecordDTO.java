@@ -6,22 +6,22 @@ package com.chinasofti.huateng.model.alipaytrip;
 public class AlipayTripTravelRecordDTO {
 
     /**
-     * 进站站点名称
+     * 进站站点名称。
      */
     private String entryStationName;
 
     /**
-     * 进站时间
+     * 进站时间。
      */
     private String entryDate;
 
     /**
-     * 出站站点名称
+     * 出站站点名称。
      */
     private String exitStationName;
 
     /**
-     * 出站时间
+     * 出站时间。
      */
     private String exitDate;
 
@@ -36,48 +36,39 @@ public class AlipayTripTravelRecordDTO {
     private String totalAmount;
 
     /**
-     * 订单扩展类型
-     * 0 正常
-     * 1 单边账(入站)
-     * 2 单边账(出站)
-     * 3 单边入站(人工处理单)
-     * 4 单边出站(人工处理单)
-     * 5 双段计费正常订单_行程超时
+     * 订单扩展类型。
      */
     private String orderExpType = "0";
 
     /**
-     * 交易订单号
+     * 交易订单号。
      */
     private String tradeOrderNo;
 
     /**
-     * 支付交易订单号
+     * 支付交易订单号。
      */
     private String payTradeOrderNo;
 
     /**
-     * 支付订单日期
+     * 支付订单日期。
      */
     private String payOrderNoDate;
 
     /**
-     * 扣款请求结果
+     * 扣款请求结果。
      */
     private String debitRequestResult;
 
     /**
-     * 同行票标识
+     * 同行票标识。
      */
     private String companionFlag;
 
-    /**
-     * 卡号
-     */
     private String cardNum;
 
     /**
-     * 日票票号
+     * 日票票号。
      */
     private String ticketCode;
 
@@ -97,7 +88,7 @@ public class AlipayTripTravelRecordDTO {
     private String invoice;
 
     /**
-     * 支付渠道代码
+     * 支付渠道代码。
      */
     private String payChannelCode;
 

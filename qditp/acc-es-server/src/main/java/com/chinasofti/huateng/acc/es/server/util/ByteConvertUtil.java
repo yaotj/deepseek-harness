@@ -35,7 +35,7 @@ public class ByteConvertUtil {
      * @param src
      * @return
      */
-    public static int bytesToInt2(byte[] src) { // 高位在前，低位在后
+    public static int bytesToInt2(byte[] src) {
         int value;
         value = (int) (((src[0] & 0xFF) << 24) | ((src[01] & 0xFF) << 16)
                 | ((src[02] & 0xFF) << 8) | (src[03] & 0xFF));
@@ -98,7 +98,7 @@ public class ByteConvertUtil {
         if (strLen <strLength) {
             while (strLen< strLength) {
                 StringBuffer sb = new StringBuffer();
-                sb.append("0").append(str);//左补0
+                sb.append("0").append(str);
                 str= sb.toString();
                 strLen= str.length();
             }
@@ -115,7 +115,7 @@ public class ByteConvertUtil {
         if (strLen <strLength) {
             while (strLen< strLength) {
                 StringBuffer sb = new StringBuffer();
-                sb.append(str).append("0");//右补0
+                sb.append(str).append("0");
                 str= sb.toString();
                 strLen= str.length();
             }
@@ -132,7 +132,7 @@ public class ByteConvertUtil {
         if (strLen <strLength) {
             while (strLen< strLength) {
                 StringBuffer sb = new StringBuffer();
-                sb.append(str).append(" ");//右补0
+                sb.append(str).append(" ");
                 str= sb.toString();
                 strLen= str.length();
             }

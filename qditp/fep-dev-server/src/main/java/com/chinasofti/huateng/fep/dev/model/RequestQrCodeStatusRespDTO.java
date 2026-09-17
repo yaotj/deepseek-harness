@@ -2,9 +2,7 @@ package com.chinasofti.huateng.fep.dev.model;
 
 import com.chinasofti.huateng.common.response.CommonResult;
 
-/**
- * IF1A-04 查询票卡状态响应业务参数。
- */
+/** IF1A-04 查询票卡状态响应业务参数。 */
 public class RequestQrCodeStatusRespDTO extends CommonResult {
 
     private String itpUserId;

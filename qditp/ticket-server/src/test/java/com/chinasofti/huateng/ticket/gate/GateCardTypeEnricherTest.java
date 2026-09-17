@@ -24,22 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * IF1A-01 卡种与签约信息富化器特征测试。
- *
- * <p>钉住的是**两个来源、四组同形字段**的落值口径。这四组字段各自都有过事故：</p>
- * <ul>
- *   <li>{@code requestSignSeq} MUST 同时写 request 与 response —— 只写 request 时
- *       fep-dev-server 拿不到，下游 gate-txn-pay 的免密扣款缺签约协议（2026-08-26 修复）；</li>
- *   <li>{@code paymentVendor} 为空会让反向推码改用闸机上送的 signChannelCode（那是票种语义），
- *       支付宝码体渠道位出错且刷过离线码后不自愈（2026-09-11 修复）；</li>
- *   <li>支付宝侧 {@code cardType} 是 APP 口径 2 位码，MUST 过 CardTypeMapping 转 4 位发卡票种，
- *       否则下游判不中员工票 / 日票，免扣费与日票扣次整段失效；</li>
- *   <li>员工票 / 日票的金额清零 MUST 落在 request 上（明细与行业推送都从 request 取金额）。</li>
- * </ul>
- * <p>另钉住一条容易被"顺手统一"掉的语义差异：account 域**返回未命中**才回落支付宝，
- * account 域**抛异常**直接吞掉、<b>不回落</b>。</p>
- */
+/** IF1A-01 卡种与签约信息富化器特征测试。 */
 class GateCardTypeEnricherTest {
 
     private AccountClient accountClient;
@@ -223,7 +208,6 @@ class GateCardTypeEnricherTest {
             assertEquals("0", viaAccount.getTrxAmount(), freeCardType + " account 链路 MUST 清零");
             assertEquals("0", viaAccount.getOvertimeAmount(), freeCardType + " 超时费也 MUST 清零");
         }
-        // 支付宝链路：APP 口径 11 → 0444 员工票
         when(accountClient.queryCardTypeByCardId(anyString())).thenReturn(null);
         when(alipayAccountClient.selectByCardId(anyString())).thenReturn(alipayHit("11"));
         NotifyVerifyResultReqDTO viaAlipay = gateRequest();

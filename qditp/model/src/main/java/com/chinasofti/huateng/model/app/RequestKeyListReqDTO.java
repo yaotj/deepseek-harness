@@ -2,8 +2,6 @@ package com.chinasofti.huateng.model.app;
 
 /**
  * IF8A-02 请求同步密钥请求参数。
- *
- * <p>该对象对应 APP 公共报文 bizData 部分，用于在开户成功后请求用户本地保存的密钥数据。</p>
  */
 public class RequestKeyListReqDTO {
     /**

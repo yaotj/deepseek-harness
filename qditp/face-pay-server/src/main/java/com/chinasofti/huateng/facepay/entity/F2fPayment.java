@@ -2,25 +2,7 @@ package com.chinasofti.huateng.facepay.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * 与支付中心的支付交互流水（表 F2F_PAYMENT），一行一次尝试。
- *
- * <p>字段与 face-pay-server/src/main/resources/sql/f2f-schema.sql 一一对应，
- * 改字段 MUST 同步改 DDL。
- *
- * <p>本表三条唯一性约束决定了访问方式：
- * <ul>
- *   <li>{@code UK_F2F_PAY_ATTEMPT (ORDER_NO, ATTEMPT_NO)}：同一订单内尝试序号唯一，从 1 递增。</li>
- *   <li>{@code UK_F2F_PAY_SUCCESS}：函数索引
- *       {@code CASE WHEN PAY_STATUS='SUCCESS' THEN ORDER_NO ELSE NULL END}，
- *       即一笔订单最多只有一条 SUCCESS 记录。标记成功靠该索引兜底，
- *       NEVER 先查有没有成功记录再更新——并发下无效。</li>
- *   <li>{@code IDX_F2F_PAY_CENTER_NO}、{@code IDX_F2F_PAY_ORDER (ORDER_NO, ATTEMPT_NO DESC)}
- *       支撑回调查询与「最后一次尝试」查询。</li>
- * </ul>
- *
- * <p>金额用 {@code Long}（单位分），时间用 {@code LocalDateTime}，与 F2fOrder 保持一致。
- */
+/** 与支付中心的支付交互流水（表 F2F_PAYMENT），一行一次尝试。 */
 public class F2fPayment {
 
     /** 自增主键。 */
@@ -35,10 +17,7 @@ public class F2fPayment {
     /** qrcode-设备拉码用户扫，scan-主动扫用户付款码，app-APP内支付。 */
     private String payScene;
 
-    /**
-     * 支付状态，取值 INIT / PROCESSING / SUCCESS / FAILED / UNKNOWN。
-     * UNKNOWN表示对端未明确应答，需靠查询接口收口，不得直接判失败。
-     */
+    /** 支付状态，取值 INIT / PROCESSING / SUCCESS / FAILED / UNKNOWN。 */
     private String payStatus;
 
     /** 本次尝试的支付金额，单位分。 */

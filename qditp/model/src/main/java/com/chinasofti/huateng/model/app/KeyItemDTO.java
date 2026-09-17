@@ -2,9 +2,6 @@ package com.chinasofti.huateng.model.app;
 
 /**
  * IF8A-02 单条密钥信息。
- *
- * <p>该对象对应接口文档中 keyList 数组的一条记录。二维码卡使用 keyId=01、keyType=1
- * 返回用户 SM2 非对称密钥；HCE 卡使用 keyId=00、keyType=0 返回 DPK。</p>
  */
 public class KeyItemDTO {
     /**
@@ -24,8 +21,6 @@ public class KeyItemDTO {
 
     /**
      * APP侧加密后的用户私钥或 HCE DPK。
-     *
-     * <p>acc-security-server 导出的私钥先用 acc.3des.key 解密，再用 appserver.3des.key 加密后返回。</p>
      */
     private String keyPrivate;
 

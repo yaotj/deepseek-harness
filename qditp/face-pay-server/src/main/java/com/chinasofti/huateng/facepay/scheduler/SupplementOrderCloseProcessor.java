@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+/** 补款单收敛与超时关单任务。无分布式锁，face-pay-server MUST 单副本。 */
 @Component
 public class SupplementOrderCloseProcessor {
 

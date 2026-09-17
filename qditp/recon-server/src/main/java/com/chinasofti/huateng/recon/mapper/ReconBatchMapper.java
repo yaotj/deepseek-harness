@@ -15,11 +15,7 @@ public interface ReconBatchMapper {
 
     BatchView selectById(@Param("batchId") String batchId);
 
-    /**
-     * 取尚未收口（{@code STATUS <> 'SUCCESS'}）的批次，按创建时间升序、最多 20 条，供编排任务逐个推进。
-     *
-     * <p>FAILED 也在结果里：它是补偿重试的入口，不是终态。</p>
-     */
+    /** 取尚未收口的批次，按创建时间升序、最多 20 条；FAILED 也在结果里（它是补偿入口）。 */
     List<BatchView> selectUnfinished();
 
     int updateStatus(@Param("batchId") String batchId,

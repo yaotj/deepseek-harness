@@ -16,21 +16,7 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * 支付宝出行销卡执行器：把一条 PENDING 的解约登记记录真正执行掉并收口状态。
- *
- * <p>本类曾长期是死代码（被注入、无调用点），2026-09-07 由销卡批处理
- * {@code AlipayTerminationInternalServiceImpl} 启用。它是**唯一**会回写
- * {@code ALIPAY_TERMINATION_REQUEST.STATUS} 的地方——`AlipayContractServiceImpl.executeTermination`
- * 只改 {@code ALIPAY_SIGN_INFO}，从不碰登记表。</p>
- *
- * <p><b>执行顺序 MUST 是「先通知支付中心、后改本地」</b>（AGENTS.md §5.2）：
- * 顺序颠倒会留下「ITP 已置 TERMINATED、支付中心仍认为签约中」的不一致，且无法自愈。
- * 通知失败时 **NEVER 置 FAIL**——FAIL 是终态，会让这条登记永久卡死；保持 PENDING 等下一轮重试。</p>
- *
- * <p>本方法 **NEVER 加 `@Transactional`**：内部有 HTTP 调用，事务包住会长时间持有行锁
- * （AGENTS.md §5.2 已有生产事故）。每条 SQL 自动提交，状态机靠 CAS 保证。</p>
- */
+/** 支付宝出行销卡执行器：把一条 PENDING 的解约登记记录真正执行掉并收口状态。 */
 @Service
 public class TerminationNotifier {
 
@@ -65,9 +51,8 @@ public class TerminationNotifier {
 
     /**
      * 执行一条销卡登记。
-     *
      * @param terminationRequest 状态为 PENDING 的登记记录
-     * @return 执行结果，调用方按此计数，**NEVER** 假定「没抛异常就是成功」
+     * @return 执行结果，调用方按此计数，NEVER 假定「没抛异常就是成功」
      */
     public Outcome execute(AlipayTerminationRequest terminationRequest) {
         String agreementCode = terminationRequest.getAgreementCode();
@@ -123,12 +108,6 @@ public class TerminationNotifier {
 
     /**
      * 通知支付中心业务关闭结果。
-     *
-     * <p><b>agreementNo 传的是渠道协议号 {@code CHANNEL_AGREEMENT_CODE}，不是我方 {@code AGREEMENT_CODE}。</b>
-     * 2026-09-07 实测：传我方协议号 `070000144735309128` 支付中心返回
-     * `code=600 未查询到协议信息`（不是 404、不是签名错，极易被误判成业务原因）。
-     * 我方号是 ITP 内部号，支付中心只认签约时它返回的那个号。**NEVER** 把两者混用。</p>
-     *
      * @return true 表示支付中心明确返回成功；网络异常、响应为空、code 非成功一律 false
      */
     private boolean notifyCloseResult(AlipaySignInfo signInfo) {

@@ -63,13 +63,11 @@ public class BusinessHandler {
     @Transactional(rollbackFor = Exception.class)
     public Messagehead deviceSignIn(MessageBean messageBean){
         DeviceSignIn deviceSignIn=DeviceSignIn.toDeviceSignInStr(messageBean);
-        //设备签到
         boolean signIn=esInfoService.esSignIn(deviceSignIn);
         TblTktEsAccount account = new TblTktEsAccount();
         account.setUsername(deviceSignIn.getOperatorCode().substring(0,5));
         account.setPassword(deviceSignIn.getOperatorPassword());
         Integer esUserType = esAccountService.getEsUserType(account);
-        //账号密码错误
         if(Objects.isNull(esUserType)) {
             Messagehead errorResult = new Messagehead();
             errorResult.setDataLength("0026");
@@ -82,11 +80,9 @@ public class BusinessHandler {
             errorResult.setMack(Constant.MackStatus.OPERATOR_ERROR);
             return errorResult;
         }
-        //设置应答消息
         MessageBean result= messageBean;
         result.setDataLength("0034");
         result.setRequestType(Constant.DataPackage.RESULT_TYPE);
-        //发送节点标识
         result.setNodeId(deviceSignIn.getEsNodeId());
         if (signIn) {
             log.info("分拣机{}签到成功", deviceSignIn.getEsNodeId());
@@ -156,7 +152,6 @@ public class BusinessHandler {
     public Messagehead deviceSignOut(MessageBean messageBean) {
         DeviceSignOut deviceSignOut = DeviceSignOut.message2DeviceSignOut(messageBean);
         boolean signOut = esInfoService.esSignOut(deviceSignOut);
-        //设置应答消息
         Messagehead result = new Messagehead();
         result.setDataLength("0026");
         result.setIsFileTransaction(messageBean.getIsFileTransaction());
@@ -178,7 +173,6 @@ public class BusinessHandler {
     public MessageBean taskApply(MessageBean messageBean) {
         TaskApply apply = TaskApply.message2TaskApply(messageBean);
         MessageBean result = messageBean;
-        //获取任务，最多50个
         List<TblTktEsTask> tasks = esTaskService.tasksByNodeIdAndDate(apply.getEsNodeId(),apply.getDate());
         int dataLength = 30 + tasks.size() * 100;
         if(dataLength > 1000 ) {
@@ -189,7 +183,6 @@ public class BusinessHandler {
             result.setDataLength("0030");
         }
         result.setRequestType(Constant.DataPackage.RESULT_TYPE);
-        //发送节点标识
         result.setNodeId(messageBean.getNodeId());
         result.setMack(Constant.MackStatus.NORMAL);
         if (tasks.size() == 0) {
@@ -280,7 +273,6 @@ public class BusinessHandler {
                                 .build());
                         break;
                     case TaskClassification.SORT:
-                        //不做
                         workTasks.add(TicketSortTask.builder()
                                 .actionCode(TaskClassification.SORT)
                                 .taskNo(String.valueOf(task.getTaskNo()))

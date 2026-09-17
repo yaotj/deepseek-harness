@@ -1,17 +1,11 @@
  package com.chinasofti.huateng.collectpay.model.request;
 
- /**
-  * IF8A-13 退款查询请求报文。
-  */
+ /** IF8A-13 退款查询请求报文。 */
  public class RefundQueryReqDTO {
-     /**
-      * 退款订单号。
-      */
+     /** 退款订单号。 */
      private String refundOrderNo;
 
-     /**
-      * 商户退款订单号。
-      */
+     /** 商户退款订单号。 */
      private String merchantRefundNo;
 
      public String getRefundOrderNo() {

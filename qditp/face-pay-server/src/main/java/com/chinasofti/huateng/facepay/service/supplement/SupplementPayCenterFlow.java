@@ -37,14 +37,7 @@ public class SupplementPayCenterFlow {
     private final PayCenterClient payCenterClient;
     private final PayCenterMessageFactory messageFactory;
     private final SupplementOrderMapper supplementOrderMapper;
-    /**
-     * 收敛原过闸订单只能走这个 RPC。
-     *
-     * <p>2026-09-16 前本类直接用 face-pay 自己的 `GateTxnPayMapper.convergeDebitStatus` UPDATE
-     * `GATE_TXN_PAY`，那张表的 owner 是 gate-txn-pay-server —— 跨域直写热路径表，
-     * 且同一条语义在两个模块各有一份，白名单一旦漂移就是资金账不平。
-     * 那份 mapper 语句已删，<b>NEVER 加回、NEVER 在本类里再注入 face-pay 的 GateTxnPayMapper 做写操作</b>。</p>
-     */
+    /** 收敛原过闸订单只能走这个 RPC。 */
     private final GateTxnPayClient gateTxnPayClient;
 
     public SupplementPayCenterFlow(PayCenterClient payCenterClient,
@@ -69,8 +62,6 @@ public class SupplementPayCenterFlow {
                 null
         );
 
-        // 回调地址 MUST 用补款专用的：通用 payNoticeUrl 指向 /itptvm/ci/tvm/payNotice，那里只查 F2F_ORDER，
-        // 补款回调恒返 2001 订单不存在、被支付中心反复重推，状态只能靠 converge 兜（延迟 5 分钟）。见 ADR-D103。
         PayCenterResult result = payCenterClient.execute(
                 payCenterClient.properties().getPayUrl(),
                 messageFactory.buildPayRequest(
@@ -198,23 +189,7 @@ public class SupplementPayCenterFlow {
         log.info("补款支付成功收敛完成, orderNo={}, itemCount={}", order.getOrderNo(), items.size());
     }
 
-    /**
-     * 收敛一条补款明细对应的原过闸订单。
-     *
-     * <p>一次 RPC 拿全三支判据（收口前是「本地 UPDATE + 0 行再 SELECT 回查」两次跨域访问）：</p>
-     * <ul>
-     *   <li>{@code converged=true} —— 本次把原订单推进到 SUCCESS，明细标 SETTLED</li>
-     *   <li>{@code converged=false} 且原订单已 {@code SUCCESS} —— 已被先到的补款单结清，
-     *       钱已实收而行程早已平账，本单是**重复支付待退款**，明细标 FAILED 留人工/对账闭环。
-     *       <b>NEVER 当幂等成功标 SETTLED</b>，那等于把一笔该退的钱藏起来。</li>
-     *   <li>其余（含对端返非 0000）—— 业务拒绝，重试无用，明细标 FAILED 留人工核对</li>
-     * </ul>
-     *
-     * <p><b>异常（网络不可达）一律往外抛、不改本地状态</b>：本方法的调用链最终收在
-     * {@code convergePending} 的 catch 或回调入口，明细留在未结清态，由
-     * {@code SupplementOrderCloseProcessor.converge}（cron `0 *&#47;5 * * * ?`）下一轮重入。
-     * <b>NEVER 在这里 catch 后把明细标成 FAILED</b> —— 那会把「可重试」写成终态。</p>
-     */
+    /** 收敛一条补款明细对应的原过闸订单。 */
     private void settleOneItem(SupplementOrder order, SupplementOrderItem item) {
         GateTxnPayDebitConvergeReqDTO request = new GateTxnPayDebitConvergeReqDTO();
         request.setOrigOrderNo(item.getOrigOrderNo());
@@ -230,8 +205,6 @@ public class SupplementPayCenterFlow {
 
         String debitStatus = response != null ? response.getDebitStatus() : null;
         if (DEBIT_SUCCESS.equals(debitStatus)) {
-            // 无独占后同一行程单可能被多张补款单各付成功一次：钱已实收但行程早已结清，
-            // 本单属重复扣款，明细标 FAILED 并记「重复支付待退款」，由对账/人工退款闭环。
             log.warn("补款明细对应行程已被先到补款单结清，本单系重复支付，待退款, orderNo={}, origOrderNo={}",
                     order.getOrderNo(), item.getOrigOrderNo());
             supplementOrderMapper.updateItemSettleStatus(

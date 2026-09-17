@@ -78,7 +78,6 @@ public class SysJobLogServiceImpl implements ISysJobLogService
         return jobLogMapper.closeRunningJobLog(runningStatus, targetStatus, exceptionInfo);
     }
 
-
     /**
      * 批量删除调度日志信息
      * 

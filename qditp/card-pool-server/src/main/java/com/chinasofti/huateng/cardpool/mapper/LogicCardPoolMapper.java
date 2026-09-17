@@ -8,9 +8,7 @@ import org.apache.ibatis.annotations.Param;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * 逻辑卡号池批次与明细数据访问接口。
- */
+/** 逻辑卡号池批次与明细数据访问接口。 */
 @Mapper
 public interface LogicCardPoolMapper {
 
@@ -114,10 +112,6 @@ public interface LogicCardPoolMapper {
     /**
      * 只写终态三列的最小化失败落库，供 {@link #updateBatch} 失败后降级调用。
      *
-     * <p>存在意义：`updateBatch` 会写 10 余列，任一列越长或类型不匹配都会整条失败，
-     * 批次就会卡在 REQUESTING/IMPORTING 中间态并把该票种的补货永久挡死。
-     * 本方法只碰 STATUS / ERROR_MSG / FINISH_TIME，把「一定要离开中间态」这件事的失败面降到最小。</p>
-     *
      * @param batchNo  批次号
      * @param errorMsg 失败原因，调用方需自行按列长截断
      * @return 影响行数
@@ -161,9 +155,6 @@ public interface LogicCardPoolMapper {
 
     /**
      * 取某票种按 ID 升序的前若干条可用卡号作为预占候选。
-     *
-     * <p>刻意返回多行：若固定只取最小 ID，并发预占会全部命中同一行并阻塞在行锁上，
-     * 同票种预占退化为串行。调用方应从候选中随机挑选后走条件 UPDATE 做 CAS。</p>
      *
      * @param cardType 票种
      * @param limit    候选条数上限

@@ -11,15 +11,14 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC
 
 # ✅ 在此维护你的全量部署清单（严格按此顺序执行）
 ALL_SERVICES=(
+    # ---- 原清单中经确认存在且可部署的（保持原有相对顺序，勿随意调换）----
     "account-server"
-    "wallet-server"
     "acc-secure-server"
     "acc-security-server"
     "acc-es-server"
     "collect-ticket-server"
     "collect-pay-server"
     "pay-sign-server"
-    "online-server"
     "ticket-server"
     "industry-data-server"
     "fep-app-server"
@@ -28,7 +27,18 @@ ALL_SERVICES=(
     "blacklist-server"
     "key-server"
     "para-server"
+    # ---- 2026-09-16 补齐：根 pom 中存在、有 kubernetes-maven-plugin，但原清单遗漏的 ----
+    "card-pool-server"
+    "face-pay-server"
+    "daily-ticket-server"
+    "trans-query-server"
+    "fep-alipay-server"
+    "fep-acc-server"
+    "alipay-account-server"
+    "alipay-pay-sign-server"
+    "recon-server"
 )
+# ⚠️ 改动本清单前 MUST 读 docs/ops/生产环境清单.md 附.二.1：本脚本失败即 break、清单 MUST 与 deploy-to-harbor.sh 一致、web-admin 不适用本脚本、ticket-server 实测会推镜像（NEVER 再据「pom 里被注释掉」判断它不出镜像）。
 
 # ---------- 确定本次部署列表 ----------
 if [ $# -gt 0 ]; then

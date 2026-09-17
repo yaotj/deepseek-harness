@@ -2,9 +2,6 @@ package com.chinasofti.huateng.model.app;
 
 /**
  * IF8A-06 请求解约请求参数。
- *
- * <p>APP 仍按 ITP 报文传入用户和卡信息，fep-app 只做入口转发；
- * pay-sign-server 会按支付平台 2.3 请求解约接口要求，仅取 requestSignSeq 组装下游 bizData。</p>
  */
 public class RequestTerminationReqDTO {
     /** 三方用户 ID，用于定位本地签约记录。 */

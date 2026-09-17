@@ -2,15 +2,7 @@ package com.chinasofti.huateng.facepay.api.device.bom;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/**
- * IF2A-08 BOM 业务操作结果通知入参。
- *
- * <p>{@code optResult} 只有 {@code SUCCESS} / {@code FAILED} 两种有效取值，
- * {@code FAILED} 触发原单全额退款。</p>
- *
- * <p><b>{@code tranDate} 少一个 s</b>（不是 transDate），既有契约，NEVER 更正。
- * 旧实现拿到这个字段后完全没用过，本实现把它落到 {@code F2F_RESULT_REPORT.REPORT_TMS}。</p>
- */
+/** IF2A-08 BOM 业务操作结果通知入参。 */
 public class NotiBusResultReqDTO extends BaseDeviceRequest {
 
     /** 业务操作结果：SUCCESS / FAILED。 */

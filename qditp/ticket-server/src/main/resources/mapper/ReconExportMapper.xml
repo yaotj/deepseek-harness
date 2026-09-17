@@ -2,48 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.ticket.recon.ReconExportMapper">
 
-    <!--
-      EXP 进出站交易明细抽取，keyset 游标分页。
-
-      过滤与排序条件逐条说明（这些说明 NEVER 搬进 SQL 正文：Druid WallFilter 的
-      commentAllow=false，SQL 正文里出现行注释或块注释会被判定为注入、语句静默失效。
-      另注意本段是 XML 注释，内部不能出现连续两个半角减号，否则 XML 解析期就报错）：
-
-      1. T.TXN_DATE 区间
-         TXN_DATE 是 VARCHAR2(8) 存 yyyyMMdd、NOT NULL，同时是本表 RANGE 月分区的分区键。
-         这两个条件是分区裁剪的唯一依据，缺一即全分区扫描。绑定必须 jdbcType=VARCHAR，
-         字符串字典序比较对 yyyyMMdd 等价于日期比较。
-         对账窗口横跨两个自然日，故下限取窗口起点日期、上限取窗口终点日期，两端都闭区间；
-         精确边界由第 2 条负责。
-
-      2. T.HANDLE_DATE_TIME 左闭右开
-         HANDLE_DATE_TIME 是 VARCHAR2(14) 存 yyyyMMddHHmmss、NOT NULL，直接字符串比较。
-         左闭右开保证相邻两天的窗口既不漏也不重。
-         NEVER 套 TO_DATE 之类的函数，那会让 IDX_QRCODE_TXN_DETAIL_* 里
-         HANDLE_DATE_TIME 这一段失效。
-
-      3. 不过滤 TRX_TYPE
-         EXP 是过闸行为明细，进站 01 / 出站 02 / 超时出站 03 / 进站失败 04 / 异常 99
-         全部要导出，NEVER 加状态白名单。要过滤的是 PAY 类支付文件，本文件不是。
-
-      4. 金额口径 NVL(TRX_AMOUNT,0) + NVL(OVERTIME_AMOUNT,0)
-         两列都是 NUMBER(12)、单位分，历史行可能为 NULL；不套 NVL 时任一列为 NULL 会让
-         整个加法结果变 NULL，写进分片就是空金额段。
-
-      5. keyset 游标 (HANDLE_DATE_TIME, ID)
-         与 ORDER BY 严格对应。同一 HANDLE_DATE_TIME 可能有多行（同秒多笔），
-         只比时间会漏行或死循环，第二段用 ID 破平。
-         NEVER 换成大页码 OFFSET：Oracle 需先产出并丢弃前 n 行，深页是平方级代价。
-
-      6. FETCH FIRST ... ROWS ONLY
-         Oracle 12c+ 的行数限制语法，配合 ORDER BY 走 top-N 优化，
-         不需要 ROWNUM 嵌套子查询。
-
-      7. LEFT JOIN STATION_INFO
-         本表没有线路号列，线路来自车站维表。用 LEFT JOIN 而不是 INNER JOIN：
-         车站维表缺一条记录时 INNER JOIN 会把该笔交易整行从对账文件里抹掉，
-         那是静默丢账；LEFT JOIN 只让 lineCode 段为空，账仍在。
-    -->
+    <!-- SQL 正文禁写注释（Druid WallFilter 会判定为注入）；口径说明见 docs/business/ride-code.md -->
     <select id="selectExpPage" resultType="java.util.Map">
         SELECT
             T.ID,
@@ -72,27 +31,6 @@
         ORDER BY T.HANDLE_DATE_TIME, T.ID
         FETCH FIRST #{limit} ROWS ONLY
     </select>
-    <!--
-      BUS 业务汇总抽取，聚合全部在数据库内完成。
-
-      键字段五段，与跨服务行格式契约一一对应：
-      txnDate|lineCode|stationCode|deviceId|cardType
-      其后固定两段度量：txnCount|txnAmount
-
-      度量两段：
-      COUNT(*) 为本组笔数；
-      NVL(SUM(NVL(TRX_AMOUNT,0) + NVL(OVERTIME_AMOUNT,0)), 0) 为本组金额合计，单位分。
-      内层两个 NVL 处理单列 NULL（否则该行加法结果为 NULL、被 SUM 跳过，金额少算），
-      外层 NVL 处理整组皆 NULL 时 SUM 返回 NULL 的情况。
-
-      WHERE 条件与 selectExpPage 完全一致（同样不过滤 TRX_TYPE、同样的金额口径）。
-      两边任何一处改动 MUST 同步另一处，否则 recon-server 侧汇总与明细金额对不上账。
-
-      GROUP BY 与 ORDER BY 同五列：分片内有序便于 recon-server 做二次聚合合并，
-      也便于人工比对两个账期的文件差异。
-      LINE_CODE 来自 LEFT JOIN，车站维表缺记录时该组的线路段为空并单独成组，
-      这比 INNER JOIN 直接丢掉该组的账要好。
-    -->
     <select id="selectBusSummary" resultType="java.util.Map">
         SELECT
             T.TXN_DATE,

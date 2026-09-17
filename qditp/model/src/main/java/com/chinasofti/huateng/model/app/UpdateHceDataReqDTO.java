@@ -2,9 +2,6 @@ package com.chinasofti.huateng.model.app;
 
 /**
  * 更新 HCE 卡数据请求。
- *
- * <p>IF1A-01 闸机检票成功后，闸机在 {@code reserve1} 中上送更新后的 64 字节 HCE 卡数据。
- * ticket-server 通过该对象将数据按逻辑卡号回写到账户注册信息。</p>
  */
 public class UpdateHceDataReqDTO {
     /**

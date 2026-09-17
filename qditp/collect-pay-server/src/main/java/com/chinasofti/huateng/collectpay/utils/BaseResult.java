@@ -2,12 +2,7 @@ package com.chinasofti.huateng.collectpay.utils;
 
 import java.io.Serializable;
 
-/**
- * Class description goes here.
- *
- * @version：2018/5/30 10:02
- * @author：ruan
- */
+/** Class description goes here. */
 public class BaseResult implements Serializable {
 
     private static final long serialVersionUID = 8954699762398960351L;

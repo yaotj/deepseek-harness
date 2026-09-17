@@ -16,8 +16,6 @@ public class IdWorker {
         if (datacenterId > maxDatacenterId || datacenterId < 0) {
             throw new IllegalArgumentException(String.format("datacenter Id can't be greater than %d or less than 0", maxDatacenterId));
         }
-//        System.out.printf("worker starting. timestamp left shift %d, datacenter id bits %d, worker id bits %d, sequence bits %d, workerid %d",
-//                timestampLeftShift, datacenterIdBits, workerIdBits, sequenceBits, workerId);
 
         this.workerId = workerId;
         this.datacenterId = datacenterId;
@@ -66,7 +64,6 @@ public class IdWorker {
 
         //获取当前时间戳如果小于上次时间戳，则表示时间戳获取出现异常
         if (timestamp < lastTimestamp) {
-//            System.err.printf("clock is moving backwards.  Rejecting requests until %d.", lastTimestamp);
             throw new RuntimeException(String.format("Clock moved backwards.  Refusing to generate id for %d milliseconds",
                     lastTimestamp - timestamp));
         }
@@ -84,14 +81,6 @@ public class IdWorker {
         //将上次时间戳值刷新
         lastTimestamp = timestamp;
 
-        /**
-         * 返回结果：
-         * (timestamp - twepoch) << timestampLeftShift) 表示将时间戳减去初始时间戳，再左移相应位数
-         * (datacenterId << datacenterIdShift) 表示将数据id左移相应位数
-         * (workerId << workerIdShift) 表示将工作id左移相应位数
-         * | 是按位或运算符，例如：x | y，只有当x，y都为0的时候结果才为0，其它情况结果都为1。
-         * 因为个部分只有相应位上的值有意义，其它位上都是0，所以将各部分的值进行 | 运算就能得到最终拼接好的id
-         */
         return ((timestamp - twepoch) << timestampLeftShift) |
                 (datacenterId << datacenterIdShift) |
                 (workerId << workerIdShift) |
@@ -112,7 +101,6 @@ public class IdWorker {
         return System.currentTimeMillis();
     }
 
-    //---------------测试---------------
     public static void main(String[] args) {
         IdWorker worker = new IdWorker(1, 1, 1);
         for (int i = 0; i < 30; i++) {

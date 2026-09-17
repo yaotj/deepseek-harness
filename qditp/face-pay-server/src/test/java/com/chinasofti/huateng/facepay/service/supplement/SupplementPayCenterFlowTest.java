@@ -40,16 +40,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * 锁死 {@link SupplementPayCenterFlow} 的收口语义。
- *
- * <p>与原 gate-txn-pay 的 CollectPay 链路最大差异：
- * 本类的 preOrder 是<b>同步</b>发 HTTP 请求（PayCenterClient.execute），
- * CollectPay 是异步投递 outbox。这意味着 preOrder 的返回值可以立即驱动上层状态推进，
- * 不需要 SupplementSaleSyncService 的补偿兜底。</p>
- *
- * <p>每个用例对应一条<b>踩过或差点踩到的坑</b>，注释里写明了语义，NEVER 删。</p>
- */
+/** 锁死 {@link SupplementPayCenterFlow} 的收口语义。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SupplementPayCenterFlowTest {
@@ -76,10 +67,7 @@ class SupplementPayCenterFlowTest {
         when(payCenterProperties.getQueryUrl()).thenReturn("http://paycenter/query");
     }
 
-    /**
-     * 造一条收敛响应。<b>{@code converged} 与 {@code debitStatus} 一起决定分支</b>，
-     * 判据写在 {@code GateTxnPayDebitConvergeRespDTO} 的类注释里，NEVER 只按 retCode 断言。
-     */
+    /** 造一条收敛响应。 */
     private static GateTxnPayDebitConvergeRespDTO convergeResp(String retCode, Boolean converged,
                                                                String debitStatus) {
         GateTxnPayDebitConvergeRespDTO resp = new GateTxnPayDebitConvergeRespDTO();
@@ -136,7 +124,7 @@ class SupplementPayCenterFlowTest {
             assertInstanceOf(com.chinasofti.huateng.rpc.outcome.RpcOutcome.Ok.class, outcome);
         }
 
-        /** 对端传输失败 → Unreachable。NEVER 调用 updatePrepayResult。 */
+        /** 对端传输失败 → Unreachable。 */
         @Test
         void transportFailureNeverTouchesDb() {
             when(messageFactory.buildPayRequest(any(), any())).thenReturn(payRequest);
@@ -148,7 +136,7 @@ class SupplementPayCenterFlowTest {
             verify(supplementOrderMapper, never()).updatePrepayResult(anyString(), anyString(), anyString(), anyString());
         }
 
-        /** 对端返回 code!=0 → BizRejected。NEVER 推 PROCESSING。 */
+        /** 对端返回 code!=0 → BizRejected。 */
         @Test
         void bizRejectedNeverUpdates() {
             PayCenterResult result = PayCenterResults.answered("9999", null, null);
@@ -227,14 +215,10 @@ class SupplementPayCenterFlowTest {
 
             flow.handlePayNotice(SUP_ORDER);
 
-            // 状态已是 SUCCESS，收敛链 MUST 不跑
             verify(gateTxnPayClient, never()).convergeDebitStatusForSupplement(any());
         }
 
-        /**
-         * 收敛返回 {@code converged=false} 但原订单已是 SUCCESS → 无独占下系后到补款单重复支付，
-         * 明细 MUST 标 FAILED + 「重复支付待退款」，由对账/人工退款闭环，NEVER 标 SETTLED 蒙混过去。
-         */
+        /** 收敛返回 {@code converged=false} 但原订单已是 SUCCESS → 无独占下系后到补款单重复支付， */
         @Test
         void convergeZeroRowsButAlreadySuccessMarksDuplicateRefund() {
             when(supplementOrderMapper.selectByOrderNo(SUP_ORDER)).thenReturn(order);

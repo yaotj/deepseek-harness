@@ -2,94 +2,58 @@ package com.chinasofti.huateng.collectpay.entity;
 
 import java.math.BigDecimal;
 
-/**
- * TVM扫码购票订单表实体。
- */
+/** TVM扫码购票订单表实体。 */
 public class TvmPayOrder {
-    /**
-     * 订单号。
-     */
+    /** 订单号。 */
     private String orderNo;
 
-    /**
-     * 起点站点代码。
-     */
+    /** 起点站点代码。 */
     private String inStationCode;
 
-    /**
-     * 终点站点代码。
-     */
+    /** 终点站点代码。 */
     private String outStationCode;
 
-    /**
-     * 票价（单位：分）。单价
-     */
+    /** 票价（单位：分）。 */
     private String ticketPrice;
 
-    /**
-     * 购买数量。
-     */
+    /** 购买数量。 */
     private Integer ticketNum;
 
-    /**
-     * 购票类型：0-按站点购票，1-按固定票价购票。
-     */
+    /** 购票类型：0-按站点购票，1-按固定票价购票。 */
     private String ticketType;
 
-    /**
-     * 订单状态。
-     */
+    /** 订单状态。 */
     private String status;
-    /**
-     * 订单状态描述
-     */
+    /** 订单状态描述 */
     private String msg;
 
-    /**
-     * 支付通道编码。
-     */
+    /** 支付通道编码。 */
     private String payCenterOrderNo;
     private String payCenterChannelOrderNo;
     private String channel;
 
-    /**
-     * 支付URL（二维码内容）。
-     */
+    /** 支付URL（二维码内容）。 */
     private String url;
 
-    /**
-     * 创建时间。
-     */
+    /** 创建时间。 */
     private String createTime;
 
-    /**
-     * 更新时间（最后修改时间）。
-     */
+    /** 更新时间（最后修改时间）。 */
     private String updateTime;
 
-    /**
-     * 设备编码。
-     */
+    /** 设备编码。 */
     private String deviceId;
 
-    /**
-     * 撤销操作记录ID（rsv1）。
-     */
+    /** 撤销操作记录ID（rsv1）。 */
     private String rsv1;
 
-    /**
-     * 退款操作记录ID（rsv2）。
-     */
+    /** 退款操作记录ID（rsv2）。 */
     private String rsv2;
 
-    /**
-     * 总价（单位：分）。
-     */
+    /** 总价（单位：分）。 */
     private String totalPrice;
 
-    /**
-     * 0：其他支付方式 1：数字人民币app
-     */
+    /** 0：其他支付方式 1：数字人民币app */
     private String payType;
 
     public String getOrderNo() {
@@ -247,6 +211,7 @@ public class TvmPayOrder {
 
     /**
      * 计算总价。
+     *
      * @return 总价（单位：分）
      */
     public BigDecimal calculateTotalPrice() {

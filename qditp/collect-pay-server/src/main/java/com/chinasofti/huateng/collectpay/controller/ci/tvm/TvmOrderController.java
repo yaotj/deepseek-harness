@@ -28,9 +28,7 @@ import java.util.Base64;
 import java.util.Map;
 
 
-/**
- * TVM扫码购票接口控制器。
- */
+/** TVM扫码购票接口控制器。 */
 @RestController
 @RequestMapping("/itptvm/ci/tvm")
 public class TvmOrderController {
@@ -47,23 +45,18 @@ public class TvmOrderController {
     @Autowired
     private BomOrderService bomOrderService;
 
-    /**--------------------------------- 心跳检测 ---------------------------------------**/
+    /** --------------------------------- 心跳检测 ---------------------------------------* */
 
-    /**
-     * 心跳检测
-     */
+    /** 心跳检测 */
     @PostMapping("/notiDeviceHeard")
     public JSONObject notiDeviceHeard(@ModelAttribute BaseRequestDTO baseRequest) {
         return TvmOrderResult.success();
     }
 
 
-    /**--------------------------------- 扫码购票 ---------------------------------------**/
+    /** --------------------------------- 扫码购票 ---------------------------------------* */
 
-    /**
-     * IF2A-01 提交单程票订单。
-     * 接口地址：/ci/tvm/requestGenSjtOrder
-     */
+    /** IF2A-01 提交单程票订单。 */
     @PostMapping("/requestGenSjtOrder")
     public JSONObject requestGenSjtOrder(@ModelAttribute BaseRequestDTO baseRequest) {
         log.info("接收到提交单程票订单请求, baseRequest={}", baseRequest);
@@ -112,7 +105,6 @@ public class TvmOrderController {
 
     /**
      * IF2A-11 扫码支付。
-     * TVM主动扫用户付款码后，向ITP平台发起支付请求，ITP调用支付中心完成支付。
      *
      * @param baseRequest 包含公共参数和业务参数的请求对象
      * @return 响应结果，包含支付结果
@@ -139,10 +131,7 @@ public class TvmOrderController {
         return bomOrderService.requestPayment(request);
     }
 
-    /**
-     * IF2A-03 查询支付结果。
-     * 接口地址：/ci/tvm/requestPayResult
-     */
+    /** IF2A-03 查询支付结果。 */
     @PostMapping("/requestPayResult")
     public JSONObject requestPayResult(@ModelAttribute BaseRequestDTO baseRequest) {
         log.info("接收到查询支付结果请求, baseRequest={}", baseRequest);
@@ -156,10 +145,7 @@ public class TvmOrderController {
     }
 
 
-    /**
-     * IF2A-04 出票结果通知。出票张数和订单张数一致才发送取票通知,此情况下不发生退款
-     * 接口地址：/ci/tvm/notiTakeTicketResult
-     */
+    /** IF2A-04 出票结果通知。 */
     @PostMapping("/notiTakeTicketResult")
     public JSONObject notiTakeTicketResult(@ModelAttribute BaseRequestDTO baseRequest) {
         log.info("接收到出票结果通知, baseRequest={}", baseRequest);
@@ -175,10 +161,7 @@ public class TvmOrderController {
         return tvmOrderService.notiTakeTicketResult(request);
     }
 
-    /**
-     * IF2A-05 出票故障通知。
-     * 接口地址：/ci/tvm/notiTakeTicketFailResult
-     */
+    /** IF2A-05 出票故障通知。 */
     @PostMapping("/notiTakeTicketFailResult")
     public JSONObject notiTakeTicketFailResult(@ModelAttribute BaseRequestDTO baseRequest) {
         log.info("接收到出票故障通知, baseRequest={}", baseRequest);
@@ -195,8 +178,7 @@ public class TvmOrderController {
     }
 
     /**
-     * 退款接口。 自己用
-     * 根据订单号发起退款，退款金额为订单总金额。
+     * 退款接口。
      *
      * @param baseRequest 包含公共参数和业务参数的请求对象
      * @return 响应结果，包含退款结果
@@ -218,11 +200,10 @@ public class TvmOrderController {
         return tvmOrderPreService.requestRefund(request);
     }
 
-/**--------------------------------- 扫码取票 ---------------------------------------**/
+/** --------------------------------- 扫码取票 ---------------------------------------* */
 
     /**
      * IF8A-15 激活取票订单。
-     * 手机扫码TVM二维码后调用此接口激活取票订单。
      *
      * @return 响应结果
      */
@@ -239,7 +220,6 @@ public class TvmOrderController {
     /**
      * IF2A-08 扫码取票订单查询。
      *
-     *
      * @return 响应结果
      */
     @PostMapping("/requestTakeTicketAuth")
@@ -252,11 +232,10 @@ public class TvmOrderController {
         return tvmTakeTicketService.requestTakeTicketAuth(request);
     }
 
-    /**--------------------------------- 扫码支付 ---------------------------------------**/
+    /** --------------------------------- 扫码支付 ---------------------------------------* */
 
     /**
      * IF2A-09 请求充值下单。
-     * TVM向ITP平台发起充值下单请求。
      *
      * @return 响应结果
      */
@@ -273,7 +252,6 @@ public class TvmOrderController {
 
     /**
      * IF2A-06 充值结果通知。
-     * TVM充值成功后通知ITP平台。
      *
      * @return 响应结果
      */
@@ -289,7 +267,6 @@ public class TvmOrderController {
 
     /**
      * IF2A-07 充值失败通知。
-     * TVM充值失败后通知ITP平台。
      *
      * @return 响应结果
      */
@@ -305,9 +282,7 @@ public class TvmOrderController {
         return tvmTopupService.topupCardFailNoti(request);
     }
 
-    /**
-     * 支付中心查询itp订单详情
-     */
+    /** 支付中心查询itp订单详情 */
     @PostMapping("/requestPayOrderDetail")
     public JSONObject requestPayOrderDetail(@ModelAttribute RequestPayResultReqDTO request) {
         if(StringUtils.isEmpty(request.getOrderNo())){
@@ -318,9 +293,7 @@ public class TvmOrderController {
     }
 
 
-    /**
-     * 支付结果通知
-     */
+    /** 支付结果通知 */
     @PostMapping("/payNotice")
     public JSONObject payNotice(@RequestBody PayCenterBaseRequestDTO baseRequest) {
 
@@ -362,9 +335,7 @@ public class TvmOrderController {
         }
     }
 
-    /**
-     * 校验参数。
-     */
+    /** 校验参数。 */
     private String validateRequestOrder(PayNoticeReqDTO request) {
         if (request == null) {
             return "请求报文不能为空";

@@ -10,20 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * 取票授权的「挂起等待器」。
- *
- * <p>背景（2026-09-11 三次实测）：TVM 每轮取票只发**一次** {@code requestTakeTicketAuth}，
- * 时间点是自己出码后约 1 秒，之后不再轮询；而 APP 扫码激活要等用户操作，实测滞后 4~8 秒。
- * 于是 TVM 那一次查询必然落在激活之前，拿到「无激活的订单」后直接终止，票永远打不出来。
- * TVM 厂商不改轮询逻辑，因此在 ITP 侧把这次查询**挂住**：查不到就等激活事件，等到即返回。</p>
- *
- * <p>唤醒走内存事件（本服务单副本），并由调用方按固定间隔回查数据库兜底，
- * 避免「激活落在别的副本」或「signal 与 await 之间存在窗口」导致漏唤醒。</p>
- *
- * <p><b>NEVER</b> 把挂起放进带 {@code @Transactional} 的方法——行级锁会被持有整个等待时长，
- * 这正是 AGENTS.md §5.2 记录的 2026-08-26 生产事故形态。</p>
- */
+/** 取票授权的「挂起等待器」。 */
 @Slf4j
 @Component
 public class TakeTicketWaiter {

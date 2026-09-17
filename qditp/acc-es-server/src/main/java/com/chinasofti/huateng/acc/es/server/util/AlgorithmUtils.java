@@ -20,18 +20,13 @@ public class AlgorithmUtils {
 
         List<List<String>> convertedTable = new ArrayList<List<String>>();
 
-        //多少个属性表示多少行，遍历行
         for (Field field : declaredFields) {
             field.setAccessible(true);
             ArrayList<String> rowLine = new ArrayList<String>();
-            //list<T>多少个T实体类表示有多少列，遍历列
             for (int i = 0, size = list.size(); i < size; i++) {
-                //每一行的第一列对应T字段名
-                //所以新table的第一列要设置为字段名
                 if (i == 0) {
                     rowLine.add(field.getName());
                 }
-                //新table从第二列开始，某一列的某个值对应旧table第一列的某个字段
                 else {
                     T t = list.get(i);
                     String val = (String) field.get(t);
@@ -49,7 +44,7 @@ public class AlgorithmUtils {
         if (strLen < strLength) {
             while (strLen < strLength) {
                 StringBuffer sb = new StringBuffer();
-                sb.append("0").append(str);//左补0
+                sb.append("0").append(str);
                 str = sb.toString();
                 strLen = str.length();
             }
@@ -65,13 +60,9 @@ public class AlgorithmUtils {
      */
     public static byte[] Int2Bytes_LE(int iValue) {
         byte[] rst = new byte[4];
-        // 先写int的最后一个字节
         rst[0] = (byte) (iValue & 0xFF);
-        // int 倒数第二个字节
         rst[1] = (byte) ((iValue & 0xFF00) >> 8);
-        // int 倒数第三个字节
         rst[2] = (byte) ((iValue & 0xFF0000) >> 16);
-        // int 第一个字节
         rst[3] = (byte) ((iValue & 0xFF000000) >> 24);
         return rst;
     }
@@ -84,13 +75,9 @@ public class AlgorithmUtils {
      */
     public static byte[] Int2Bytes_BE(int iValue) {
         byte[] rst = new byte[4];
-        // 先写int的最后一个字节
         rst[3] = (byte) (iValue & 0xFF);
-        // int 倒数第二个字节
         rst[2] = (byte) ((iValue & 0xFF00) >> 8);
-        // int 倒数第三个字节
         rst[1] = (byte) ((iValue & 0xFF0000) >> 16);
-        // int 第一个字节
         rst[0] = (byte) ((iValue & 0xFF000000) >> 24);
         return rst;
     }
@@ -229,9 +216,7 @@ public class AlgorithmUtils {
      */
     public static byte[] Short2Bytes_LE(short iValue) {
         byte[] rst = new byte[2];
-        // 先写short的最后一个字节
         rst[0] = (byte) (iValue & 0xFF);
-        // short 倒数第二个字节
         rst[1] = (byte) ((iValue & 0xFF00) >> 8);
         return rst;
     }
@@ -244,9 +229,7 @@ public class AlgorithmUtils {
      */
     public static byte[] Short2Bytes_BE(short iValue) {
         byte[] rst = new byte[2];
-        // 先写short的最后一个字节
         rst[1] = (byte) (iValue & 0xFF);
-        // short 倒数第二个字节
         rst[0] = (byte) ((iValue & 0xFF00) >> 8);
         return rst;
     }

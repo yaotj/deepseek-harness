@@ -2,8 +2,6 @@ package com.chinasofti.huateng.model.employee;
 
 /**
  * ACC 员工码信息。
- *
- * <p>{@code cardNo} 为员工号，字段名称按 ACC 接口约定保留。</p>
  */
 public class EmployeeCardInfoDTO {
     private String phone;

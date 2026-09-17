@@ -2,9 +2,6 @@ package com.chinasofti.huateng.model.app;
 
 /**
  * IF8A-06 请求解约响应。
- *
- * <p>retCode/retMsg 返回给 APP；code/msg/success/data 兼容支付平台通用响应结构，
- * 便于 fep-app、rpc 和 pay-sign-server 之间直接透传。</p>
  */
 public class RequestTerminationResult {
     /** ITP 侧返回码，0000 表示请求解约已成功发送到支付平台。 */

@@ -13,12 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/**
- * IF1A-04 票卡状态查询处理。
- *
- * <p>依赖走构造器注入，与本模块其余 handler / assembler 一致：本类可以脱离 Spring 直接 new 出来测。
- * NEVER 改回 {@code @Autowired} 字段注入。</p>
- */
+/** IF1A-04 票卡状态查询处理。 */
 @Component
 public class QrCodeStatusHandler {
     private static final Logger log = LoggerFactory.getLogger(QrCodeStatusHandler.class);
@@ -47,8 +42,6 @@ public class QrCodeStatusHandler {
 
         QueryStatusReqDTO ticketRequest = new QueryStatusReqDTO();
         ticketRequest.setCardId(request.getCardId());
-        // IF1A-04 的报文里没有 issueChannelCode，传 null 即按默认 8 位（ADR-D70）。
-        // 改造前这里传的是 alipayTransaction=false，两者行为逐位一致。
         ticketRequest.setThirdUserId(deviceUserIdCodec.normalize(request.getItpUserId(), null));
 
         log.info("IF1A-04 调用 ticket-server 查询票卡状态, 入参={}", JSON.toJSONString(ticketRequest));

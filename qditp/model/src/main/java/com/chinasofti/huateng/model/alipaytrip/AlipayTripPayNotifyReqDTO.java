@@ -6,32 +6,32 @@ package com.chinasofti.huateng.model.alipaytrip;
 public class AlipayTripPayNotifyReqDTO {
 
     /**
-     * 原订单号
+     * 原订单号。
      */
     private String orderNo;
 
     /**
-     * 支付渠道订单号
+     * 支付渠道订单号。
      */
     private String channelVoucherId;
 
     /**
-     * 支付金额，单位分
+     * 支付金额，单位分。
      */
     private String transAmount;
 
     /**
-     * 交易时间 yyyy-MM-dd HH:mm:ss
+     * 交易时间 yyyy-MM-dd HH:mm:ss。
      */
     private String transTime;
 
     /**
-     * 交易状态 1-成功 2-失败
+     * 交易状态 1-成功 2-失败。
      */
     private String transStatus;
 
     /**
-     * 支付宝逻辑卡号：卡机构编号+地铁逻辑卡号
+     * 支付宝逻辑卡号：卡机构编号+地铁逻辑卡号。
      */
     private String cardNo;
 

@@ -5,13 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-/**
- * 锁定 ACC 逻辑卡号文件的行解析结果。
- *
- * <p>样本取自 2026-09-09 从 FTP 抓到的真实文件 {@code 0426090935.txt}：
- * 10 行、每行 20 字符、CRLF 换行、两列以单空格分隔。
- * 旧实现把整行当卡号，导致 10 行全部判为非法、卡号零条入库。</p>
- */
+/** 锁定 ACC 逻辑卡号文件的行解析结果。 */
 class CardPoolCardNoParseTest {
 
     @Test

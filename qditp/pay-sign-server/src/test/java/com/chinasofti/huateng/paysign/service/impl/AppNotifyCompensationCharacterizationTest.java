@@ -30,29 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
-/**
- * {@code AppNotifyServiceImpl} 两个补偿 / 重放入口的特征测试（护栏，2026-09-16）。
- *
- * <p><b>此前整类零实例化</b>：`AppNotifyServiceImpl` 在全仓 21 个测试文件里只以 mock 身份出现过
- * （`PaySignFacadeFixture` 里那个 `appNotifyService`），473 行、6 个 public 一行没跑。
- * 而这两个入口是「通知投递」这条链路上唯一带**预算**与**白名单**的地方：
- *
- * <ul>
- *   <li><b>{@code compensateSignNotify} 的重试预算：每轮 MUST 只 +1</b>。计数刻意放在**提交重发之前**
- *       （回写本身可能丢，先落库才有上限保证），并对 {@code PENDING} 与 {@code FAILED} 一视同仁 ——
- *       {@code PENDING} 不计数就会被下一轮反复扫到、退化成无上限重复通知。配套口径是
- *       「{@code updateNotifyStatus} 的失败分支 NEVER 再递增」，否则一轮涨 2、3 次预算 2 轮用完。</li>
- *   <li><b>单条失败 NEVER 中断整批</b>：该条状态未变、下轮重试，其余记录照常提交。</li>
- *   <li><b>{@code resendSignNotify} 的双白名单</b>：必须有 {@code SIGNED} 签约记录 **且** 必须有
- *       {@code RECEIVE_SIGN_RESULT} 流水。放宽任一条 = 凭一个流水号给 APP 造一条假通知，
- *       而 APP 侧无幂等、污染无法回滚。</li>
- *   <li><b>人工重放同步投递且 NEVER 占用重试预算</b>：走异步后返回值只剩「已提交」，与本接口
- *       「告诉调用方这次到底通没通」相悖；占用预算会让真实故障少一次自动重试机会。</li>
- * </ul>
- *
- * <p>本类**直接 new 被测类**（不经 {@code PaySignFacadeFixture}）：这两个入口不在 {@code PaySignService}
- * 门面上，由 web-admin Quartz 经 {@code /internal/paySign/**} 直接调 {@code AppNotifyService}。
- */
+/** 护栏：补偿重试预算每轮只 +1、单条失败不中断整批、人工重放同步投递且不占预算。 */
 class AppNotifyCompensationCharacterizationTest {
 
     private static final String SEQ = "0052290701523995";
@@ -106,10 +84,7 @@ class AppNotifyCompensationCharacterizationTest {
         order.verify(appNotificationClient).notify(any(), any());
     }
 
-    /**
-     * 通知失败时预算仍只涨 1 —— 「一轮涨 2」是这条链路上最隐蔽的缺陷形态：
-     * 3 次预算会在 2 轮内耗尽，看起来像「重试没生效」。
-     */
+    /** 通知失败时预算仍只涨 1 —— 「一轮涨 2」是这条链路上最隐蔽的缺陷形态。 */
     @Test
     void failedNotifyStillConsumesExactlyOneRetryBudget() {
         when(paySignRequestMapper.selectCompensableNotify(anyInt(), anyInt(), anyInt()))

@@ -14,23 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
 
-/**
- * 支付中心 HTTP 通道。<b>本类只管发报文、收报文、记耗时，不含任何业务判断。</b>
- *
- * <h2>四条硬性约束</h2>
- * <ol>
- *   <li><b>NEVER 在 {@code @Transactional} 方法里调本类。</b>事务包住网络调用会把行锁持有时长
- *       拉长到对端响应时长，2026-08-26 生产事故即此（AGENTS.md §5.2）。</li>
- *   <li><b>本类不抛异常、也不返回 null。</b>传输层失败返回
- *       {@link PayCenterResult#isTransportFailed()} 为真的结果，调用方按 UNKNOWN 落库。</li>
- *   <li><b>NEVER 打印 {@code bizData} 明文、{@code sign}、私钥。</b>请求侧只打
- *       {@link PayCenterRequest#toString()}（已脱敏）。</li>
- *   <li>响应原文全量返回给调用方落 {@code F2F_PAYMENT.RESPONSE_BODY} 留证，出错时也留。</li>
- * </ol>
- *
- * <p>传输用 JDK 21 内置 {@code java.net.http.HttpClient}：不引新依赖，且它在虚拟线程上阻塞
- * 不会 pin 载体线程（旧实现用的 commons-httpclient 3.x 已不维护）。</p>
- */
+/** 支付中心 HTTP 通道。NEVER 在 {@code @Transactional} 方法里调本类。 */
 @Component
 public class PayCenterClient {
 
@@ -110,8 +94,6 @@ public class PayCenterClient {
         Object code = json.get("code");
         String msg = json.getString("msg");
         Map<String, Object> data = json.getJSONObject("data");
-        // status 原样打出来：支付中心网关文档 §5.1 没有列 status 值域，实测取值只能靠日志反推。
-        // 2026-09-11 已因此踩过一次（枚举缺 FAIL，支付失败回调收不了口），MUST 保留这一列。
         log.info("支付中心响应, url={}, code={}, msg={}, status={}, costMs={}",
                 url, code, msg, data == null ? null : data.get("status"), costMs);
         return PayCenterResult.answered(code == null ? null : String.valueOf(code), msg, data, raw, costMs);

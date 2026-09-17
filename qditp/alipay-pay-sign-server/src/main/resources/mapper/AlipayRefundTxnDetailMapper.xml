@@ -42,9 +42,7 @@
         OPERATOR, IP_ADDRESS, REMARK, REQUEST_BODY, RESPONSE_BODY,
         CREATE_TIME, UPDATE_TIME
     </sql>
-    <!-- 新建一笔退款明细。REFUND_ORDER_NO 由本模块生成，(REFUND_ORDER_NO, TXN_DATE)
-         上有唯一索引 UK_ARTD_REFUND_ORDER；撞索引时调用方 MUST 沿 getCause 链判完整性冲突
-         并短路成幂等，NEVER 只 catch 最外层 DuplicateKeyException。 -->
+    <!-- 新建一笔退款明细。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayRefundTxnDetail">
         INSERT INTO ALIPAY_REFUND_TXN_DETAIL (
             <include refid="Base_Column_List"/>
@@ -92,10 +90,7 @@
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
         ORDER BY ID DESC
     </select>
-    <!-- 已退成功金额合计。只给 Java 侧做「可退金额 = 已付 - 已退」校验用，
-         NEVER 拿它的返回值回写主表的 REFUND_AMOUNT ——
-         那等于退回「读旧值再相加」的非幂等写法，并发两笔退款时两边都会算偏小。
-         回写主表只能走 AlipayPayTxnDetailMapper.updateRefundSummary（SQL 内自行重算）。 -->
+    <!-- 已退成功金额合计。 -->
     <select id="sumSuccessRefundAmount" resultType="java.lang.Integer">
         SELECT NVL(SUM(REFUND_AMOUNT), 0)
         FROM ALIPAY_REFUND_TXN_DETAIL
@@ -103,8 +98,7 @@
           AND REFUND_STATUS = 'SUCCESS'
     </select>
 
-    <!-- 退款申请的幂等短路。本表没有调用方提供的幂等键（REFUND_ORDER_NO 是我方每次新生成的），
-         「同一原订单已有在途退款就拒绝新申请」是唯一防线，NEVER 去掉。 -->
+    <!-- 退款申请的幂等短路。 -->
     <select id="countByOrderNoAndStatus" resultType="java.lang.Integer">
         SELECT COUNT(1)
         FROM ALIPAY_REFUND_TXN_DETAIL
@@ -112,8 +106,7 @@
           AND REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR}
     </select>
 
-    <!-- 调支付中心前留痕：计数 +1、状态置 PROCESSING、落本次请求报文快照。
-         WHERE 带 TXN_DATE 既命中唯一索引又能分区裁剪，NEVER 只按 REFUND_ORDER_NO。 -->
+    <!-- 调支付中心前留痕：计数 +1、状态置 PROCESSING、落本次请求报文快照。 -->
     <update id="markRequesting">
         UPDATE ALIPAY_REFUND_TXN_DETAIL
         SET REQUEST_COUNT = NVL(REQUEST_COUNT, 0) + 1,
@@ -125,13 +118,7 @@
           AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
     </update>
 
-    <!-- 回写支付中心退款受理结果。RET_CODE / RET_MSG 是我方对外应答，
-         PAY_CENTER_CODE / PAY_CENTER_MSG 是支付中心原始应答，两组 MUST 分列存放：
-         合成一列后就分不清「我方判失败」与「对端说失败」，排查退款差异时无从下手。
-
-         状态三分支由调用方决定后传入，本语句不做判断：
-         业务成功 SUCCESS、业务明确拒绝 FAIL、拿不到业务应答保持 PROCESSING。
-         NEVER 在「拿不到应答」时传 FAIL —— 汇总会少记已退金额，同一笔随后能再退一次。 -->
+    <!-- 回写支付中心退款受理结果。 -->
     <update id="updateRequestResult" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayRefundTxnDetail">
         UPDATE ALIPAY_REFUND_TXN_DETAIL
         SET REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR},

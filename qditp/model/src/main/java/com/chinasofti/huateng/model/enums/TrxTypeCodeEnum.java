@@ -2,23 +2,22 @@ package com.chinasofti.huateng.model.enums;
 
 /**
  * 交易类型编码枚举。
- * <p>对应票务系统 trxType 字段定义。</p>
  */
 public enum TrxTypeCodeEnum {
 
-    /** 01 - 进站 */
+    /** 01 - 进站。 */
     ENTRY("01", "进站"),
 
     /** 02 - 出站（正常） */
     EXIT("02", "出站"),
 
-    /** 03 - 超时出站 */
+    /** 03 - 超时出站。 */
     EXIT_OVERTIME("03", "超时出站"),
 
-    /** 04 - 进站失败 */
+    /** 04 - 进站失败。 */
     ENTRY_FAIL("04", "进站失败"),
 
-    /** 99 - 异常 */
+    /** 99 - 异常。 */
     ABNORMAL("99", "异常"),
     ;
 

@@ -15,15 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * 钉住 ADR-D83 续那条行为变更：**进出站站名各自独立回填**。
- *
- * <p>改造前是「进站码为空即整体 return」，于是离线码进站报文未上传（进站码为空 / 占位 {@code FFFF}）时
- * 连出站站名一起丢，列表侧只能回落显示站点编码。这几条用例就是防止那条短路被加回来。</p>
- *
- * <p>夹具刻意不用 Mockito：{@link StationNameResolver} 是字段注入（无构造器参数），
- * 匿名子类覆写 {@code resolveStationNames} 即可，还能顺手断言「问了哪几个码」。</p>
- */
+/** 钉住 ADR-D83 续那条行为变更：进出站站名各自独立回填。 */
 class GateTxnPayRequestAssemblerStationNameTest {
 
     private final Set<String> askedCodes = new LinkedHashSet<>();

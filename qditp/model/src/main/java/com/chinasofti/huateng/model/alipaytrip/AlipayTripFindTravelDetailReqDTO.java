@@ -6,22 +6,22 @@ package com.chinasofti.huateng.model.alipaytrip;
 public class AlipayTripFindTravelDetailReqDTO {
 
     /**
-     * 第三方用户ID，格式化后的用户标识
+     * 第三方用户ID，格式化后的用户标识。
      */
     private String thirdUserId;
 
     /**
-     * 订单号
+     * 订单号。
      */
     private String orderNo;
 
     /**
-     * 处理日期时间（YYYYMMDDHHmmss），与 thirdUserId、trxType 组成查询条件
+     * 处理日期时间（YYYYMMDDHHmmss），与 thirdUserId、trxType 组成查询条件。
      */
     private String handleDateTime;
 
     /**
-     * 交易类型（2位），与 thirdUserId、handleDateTime 组成查询条件
+     * 交易类型（2位），与 thirdUserId、handleDateTime 组成查询条件。
      */
     private String trxType;
 

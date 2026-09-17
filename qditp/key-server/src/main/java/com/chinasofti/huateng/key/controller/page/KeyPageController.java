@@ -9,12 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * 综管台密钥版本查看入口（只读）。
- *
- * <p><b>安全红线</b>：响应 NEVER 包含任何密钥材料明文，只放版本号/状态/时间，
- * 见 {@link KeyVersionView} 的类注释。</p>
- */
+/** 综管台密钥版本查看入口（只读）。响应 NEVER 包含任何密钥材料明文。 */
 @RestController
 @RequestMapping("/page/key")
 public class KeyPageController {

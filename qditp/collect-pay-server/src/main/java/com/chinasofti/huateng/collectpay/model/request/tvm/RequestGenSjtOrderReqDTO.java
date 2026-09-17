@@ -2,33 +2,21 @@ package com.chinasofti.huateng.collectpay.model.request.tvm;
 
 import com.chinasofti.huateng.collectpay.model.request.BaseRequestDTO;
 
-/**
- * IF2A-01 提交单程票订单请求报文（TVM -> ITP）。
- */
+/** IF2A-01 提交单程票订单请求报文（TVM -> ITP）。 */
 public class RequestGenSjtOrderReqDTO extends BaseRequestDTO {
-    /**
-     * 起点站点代码。
-     */
+    /** 起点站点代码。 */
     private String entryStationCode;
 
-    /**
-     * 终点站点代码。
-     */
+    /** 终点站点代码。 */
     private String exitStationCode;
 
-    /**
-     * 票价（单位：分）。
-     */
+    /** 票价（单位：分）。 */
     private String ticketPrice;
 
-    /**
-     * 购买数量。
-     */
+    /** 购买数量。 */
     private String singelTicketNum;
 
-    /**
-     * 购票类型：0-按站点购票，1-按固定票价购票。
-     */
+    /** 购票类型：0-按站点购票，1-按固定票价购票。 */
     private String singleTicketType;
     private String payType;
 

@@ -99,13 +99,10 @@ public final class ParaFileReadUtils {
     /**
      * 计算指定区间的 MD5 十六进制串（小写）。
      *
-     * <p>参数文件的 MD5 约定是「除尾部 16 字节校验值外的全文」，即 md5Hex(bytes, 0, len - 16)，
-     * 结果就是 TBL_PARA_VERSION.MD5_VALUE 存的值。</p>
-     *
-     * <p>⚠️ RowNetworkParser / CalendarParser / TicketParser / RateParser 各有一份**算法完全相同的
-     * 私有 md5Hex**（历史实现，未合并）。ParaFileImportService 的「版本号 + MD5」预筛依赖
-     * 本方法与那四份的结果**逐字节一致**——改动任意一处 MUST 同步改其余四处，
-     * 否则内容相同的文件会被误判成有变更，每轮扫描都重复入库。</p>
+     * @param bytes 源字节
+     * @param offset 起始下标
+     * @param length 长度
+     * @return 小写十六进制 MD5
      */
     public static String md5Hex(byte[] bytes, int offset, int length) {
         try {

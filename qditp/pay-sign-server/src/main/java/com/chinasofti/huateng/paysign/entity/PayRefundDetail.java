@@ -2,9 +2,7 @@ package com.chinasofti.huateng.paysign.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * PAY_REFUND_DETAIL 退款明细实体。
- */
+/** PAY_REFUND_DETAIL 退款明细实体。 */
 public class PayRefundDetail {
     private Long id;
     private String refundOrderNo;

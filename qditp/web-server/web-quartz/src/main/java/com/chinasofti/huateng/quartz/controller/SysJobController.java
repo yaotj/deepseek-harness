@@ -36,12 +36,7 @@ import com.chinasofti.huateng.quartz.util.ScheduleUtils;
 @RequestMapping("/monitor/job")
 public class SysJobController extends BaseController
 {
-    /**
-     * 任务说明的长度上限，等于 sys_job.remark 的列宽 VARCHAR2(500 CHAR)。
-     *
-     * <p>这里显式挡一次而不是靠 Bean Validation：add / edit 都没有 @Validated，
-     * 实体上的 @Size 不会被触发，超长会一路走到 Oracle 抛 ORA-12899、前台只看到一串异常。</p>
-     */
+    /** 任务说明的长度上限，等于 sys_job.remark 的列宽 VARCHAR2(500 CHAR)。 */
     private static final int JOB_REMARK_MAX_LENGTH = 500;
 
     @Autowired

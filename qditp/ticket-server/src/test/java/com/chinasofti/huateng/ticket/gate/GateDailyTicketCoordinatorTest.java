@@ -26,19 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * IF1A-01 日票协同器特征测试。
- *
- * <p>本类钉住的核心是**三次远端交互的三套方向相反的失败处置**——这三套口径互相印证，
- * 任何一条被改成另一条的样子都会造成真实事故：</p>
- * <ul>
- *   <li>进站校验失败 MUST 抛异常：转成业务码会让闸机不重试，一次网络抖动判死正常票；</li>
- *   <li>出站扣次失败 MUST 放行：拦住等于把乘客困在付费区；</li>
- *   <li>票号查询失败 MUST 降级：只影响 {@code ticketCode} 一个字段。</li>
- * </ul>
- * <p>另钉住 {@code countingFlag} / {@code countingTimes} **只由卡种推导**，
- * 因此三次远端全挂时它们仍有值（2026-09-10 修过的缺陷形状）。</p>
- */
+/** IF1A-01 日票协同器特征测试。 */
 class GateDailyTicketCoordinatorTest {
 
     private static final String DAILY_TICKET_CARD_TYPE = "0445";
@@ -241,7 +229,6 @@ class GateDailyTicketCoordinatorTest {
         when(dailyTicketClient.queryDailyTicketInfo(any())).thenThrow(new RuntimeException("connect timed out"));
 
         NotifyVerifyResultRespDTO response = new NotifyVerifyResultRespDTO();
-        // 调用顺序即生产顺序：两个字段先无条件赋好，再查票号
         response.setCountingTimes(coordinator.resolveCountingTimes(DAILY_TICKET_CARD_TYPE));
         response.setCountingFlag(coordinator.resolveCountingFlag(DAILY_TICKET_CARD_TYPE));
         coordinator.applyDailyTicketFields(request("02"), response);
@@ -264,6 +251,5 @@ class GateDailyTicketCoordinatorTest {
                 "进站校验 MUST 抛：可重试语义");
         coordinator.markUsedOnExit(request("02"), DAILY_TICKET_CARD_TYPE);
         coordinator.applyDailyTicketFields(request("02"), new NotifyVerifyResultRespDTO());
-        // 后两个不抛即通过：MUST 放行 / MUST 降级
     }
 }

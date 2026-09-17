@@ -5,8 +5,6 @@ import java.time.LocalDateTime;
 
 /**
  * IF8A-05 交易记录列表 RPC 传输对象。
- *
- * <p>由 gate-txn-pay-server 序列化后供 ticket-server 等跨模块查询，避免直接依赖领域实体。</p>
  */
 public class GateTxnPayListDTO {
     private Long id;
@@ -52,10 +50,6 @@ public class GateTxnPayListDTO {
     private String discountCalcMsg;
     /**
      * 支付宝出行行业明细 JSON（21 键），仅 {@code issueChannelCode=07} 有值。
-     *
-     * <p>fep-alipay-server 的行程详情靠它里面的 {@code entryId} / {@code exitId} 去 ticket-server
-     * 关联进出站交易 —— 这两个键<b>只有出站那一刻</b>拿得到，落单时由 fep-dev-server 整块透传存下，
-     * <b>NEVER 在查询侧按订单字段重算</b>（重算出来的键名与值都与支付宝要的不一致）。</p>
      */
     private String industryDetail;
     private String remark;

@@ -5,10 +5,7 @@ import org.apache.ibatis.annotations.Mapper;
 
 import java.util.Map;
 
-/**
- * BOM退款订单Mapper接口。
- * 提供BOM退款订单的数据库操作方法。
- */
+/** BOM退款订单Mapper接口。 */
 @Mapper
 public interface BomRefundOrderMapper {
 
@@ -38,7 +35,6 @@ public interface BomRefundOrderMapper {
 
     /**
      * 根据退款单号更新退款订单信息。
-     * 使用Map传参，支持动态更新字段。
      *
      * @param params 更新参数，必须包含refundNo字段
      * @return 影响的行数

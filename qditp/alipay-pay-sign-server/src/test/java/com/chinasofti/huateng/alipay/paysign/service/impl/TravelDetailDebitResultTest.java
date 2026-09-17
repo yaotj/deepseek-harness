@@ -14,10 +14,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住 IF8A 支付宝出行「查询乘车记录详情」的 debitRequestResult 值域。
- * 该字段是对外契约字段，支付宝侧按 "0" / "1" 解析，NEVER 放渠道文案进去。
- */
+/** 钉住 IF8A 支付宝出行「查询乘车记录详情」的 debitRequestResult 值域。 */
 class TravelDetailDebitResultTest {
 
     private static final String ORDER_NO = "AL20260914000000000000001";

@@ -6,10 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 
 import java.util.Map;
 
-/**
- * BOM非现金收款订单Mapper接口。
- * 提供BOM非现金收款订单的数据库操作方法。
- */
+/** BOM非现金收款订单Mapper接口。 */
 @Mapper
 public interface BomSaleOrderMapper {
 

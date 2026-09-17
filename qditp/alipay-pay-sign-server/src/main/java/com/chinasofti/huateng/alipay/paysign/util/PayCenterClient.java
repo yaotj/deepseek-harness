@@ -222,7 +222,7 @@ public class PayCenterClient {
     }
 
     /**
-     * 测试阶段统一使用测试签名。
+     * 出向报文签名。当前是占位实现（{@code sign="test"}），上线前 MUST 替换为真实签名。
      */
     private void signRequest(PayCenterRequest request) {
         log.warn("测试阶段使用测试签名");

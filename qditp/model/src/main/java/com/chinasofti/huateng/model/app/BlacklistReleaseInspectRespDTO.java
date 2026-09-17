@@ -4,13 +4,6 @@ import java.util.List;
 
 /**
  * 黑名单「可解除性」只读盘点响应。
- *
- * <p>供 web-server 的 Quartz 任务调用 blacklist-server 内部接口后判定本轮结果。
- * 字段与 blacklist-server 侧同名类一一对应，改动 MUST 两侧同步。</p>
- *
- * <p><b>本接口 NEVER 删除任何黑名单记录。</b>当前阶段只输出盘点明细供人工核对——
- * {@code BLACKLIST} 无拉黑类型字段，「欠费结清」与「可以解除」不等价（挂失补卡类同样会结清）。
- * 等拉黑类型落库、且支付宝侧误拉黑修复后，才能在此基础上加自动删除。</p>
  */
 public class BlacklistReleaseInspectRespDTO {
 

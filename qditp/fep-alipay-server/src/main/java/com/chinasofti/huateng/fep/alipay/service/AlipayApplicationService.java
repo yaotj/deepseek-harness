@@ -12,7 +12,6 @@ public interface AlipayApplicationService {
 
     /**
      * 开卡申请。
-     *
      * @param request 请求对象
      * @return 响应对象
      */
@@ -20,7 +19,6 @@ public interface AlipayApplicationService {
 
     /**
      * 获取行业数据。
-     *
      * @param request 请求对象
      * @return 响应对象
      */

@@ -32,33 +32,15 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/**
- * 钉住离线码金额补偿（{@code recoverOfflineFarePendingOrders}）的**资损防线**。
- *
- * <p>这条链路的危险性不在算错钱，而在**收口错状态**：待重算行是
- * {@code DEBIT_STATUS='INIT'} + {@code TOTAL_AMOUNT=0} 但**并非免扣费交易**。
- * 一旦被错误置成 SUCCESS，那笔车费就永久收不回来；置成 FAIL 则补偿再也捞不到它。
- * 因此本文件的每条断言对应一条 NEVER：</p>
- * <ul>
- *   <li>重算失败 → 只标回待重算，**NEVER** 推进状态、**NEVER** 发起扣款；</li>
- *   <li>重算金额为 0 → 同上，**NEVER** 按 0 元收口成功；</li>
- *   <li>CAS 抢占失败（另一副本已处理）→ **NEVER** 再扣一次；</li>
- *   <li>单笔异常 → **NEVER** 中断整批，剩下的行都是资损口。</li>
- * </ul>
- *
- * <p>抽成独立协作者后<b>断言值 NEVER 改</b>：断言不变才是行为没变的证据。</p>
- */
+/** 钉住离线码金额补偿（{@code recoverOfflineFarePendingOrders}）的资损防线。 */
 class OfflineFareRecoveryTest {
 
     private final GateTxnPayMapper mapper = mock(GateTxnPayMapper.class);
     private final GateTxnPayWriter writer = mock(GateTxnPayWriter.class);
     private final FareCalculator fareCalculator = mock(FareCalculator.class);
     private final PaySignClient paySignClient = mock(PaySignClient.class);
-    // 本文件的用例全是非支付宝渠道（ISSUE_CHANNEL_CODE 不是 07），支付宝分支永远走不到，
-    // 这个 mock 只为满足构造器；断言支付宝分派 MUST 另写用例，NEVER 靠这里的 mock 冒充覆盖。
     private final AlipayPaySignClient alipayPaySignClient = mock(AlipayPaySignClient.class);
 
-    /** 空结果集直接返 0：**NEVER** 在没有待重算行时还去写库。 */
     @Test
     void emptyBatchWritesNothing() {
         when(mapper.selectOfflineFarePending(anyString(), anyString(), anyInt())).thenReturn(List.of());
@@ -69,7 +51,7 @@ class OfflineFareRecoveryTest {
         verifyNoInteractions(paySignClient);
     }
 
-    /** 单轮上限钳制：`limit<=0` 落 50、超 200 收到 200；回溯天数 `<=0` 落 7 天。 */
+    /** 单轮上限钳制：`limit<=0` 落 50、超 200 收到 200，回溯天数 `<=0` 落 7 天。 */
     @Test
     void batchSizeAndLookbackAreClamped() {
         assertEquals(50, capturedBatchSize(0, 7));
@@ -80,12 +62,7 @@ class OfflineFareRecoveryTest {
         assertEquals(3, capturedLookbackDays(3));
     }
 
-    /**
-     * 重算仍失败 → 只调 {@code markOfflineFarePending} 保持待重算态。
-     *
-     * <p>**NEVER** 置 FAIL（补偿再也捞不到这笔）也 **NEVER** 置 SUCCESS（资损）；
-     * 更不能发起扣款——金额根本没算出来。</p>
-     */
+    /** 重算仍失败 → 只调 {@code markOfflineFarePending} 保持待重算态。 */
     @Test
     void recalculationFailureKeepsPendingAndNeverPays() {
         stubPending(order("GT1"));
@@ -98,12 +75,7 @@ class OfflineFareRecoveryTest {
         verifyNoInteractions(paySignClient);
     }
 
-    /**
-     * 重算出 0 元 → 保持待重算等人工核查。
-     *
-     * <p>这是最隐蔽的一条：票价参数异常时重算会「成功」返回 0，若按 0 元收口成 SUCCESS，
-     * 账面完全正常、对账也不报错，**车费永久收不回来**。</p>
-     */
+    /** 重算出 0 元 → 保持待重算等人工核查。 */
     @Test
     void zeroRecalculatedAmountNeverSettlesAsSuccess() {
         stubPending(order("GT2"));
@@ -115,12 +87,7 @@ class OfflineFareRecoveryTest {
         verifyNoInteractions(paySignClient);
     }
 
-    /**
-     * CAS 抢占失败（{@code applyOfflineFareRecalculated != 1}）→ 立即收手。
-     *
-     * <p>返回 0 意味着另一个副本已经处理了这笔。此时继续调 pay-sign 就是**重复扣款**，
-     * 所以顺序 MUST 是「先抢占、再扣款」，且返回值 MUST 被检查。</p>
-     */
+    /** CAS 抢占失败（{@code applyOfflineFareRecalculated ! */
     @Test
     void losingTheCasRaceNeverTriggersPayment() {
         stubPending(order("GT3"));
@@ -131,7 +98,7 @@ class OfflineFareRecoveryTest {
         verifyNoInteractions(paySignClient);
     }
 
-    /** 抢占成功才扣款，且 {@code TOTAL_AMOUNT} MUST 等于「实扣 + 超时费」。 */
+    /** 抢占成功才扣款。 */
     @Test
     void winningTheCasRacePaysWithTrxPlusOvertime() {
         GateTxnPay pending = order("GT4");
@@ -144,13 +111,6 @@ class OfflineFareRecoveryTest {
         verify(paySignClient).requestPay(any());
     }
 
-    /**
-     * 单笔异常 **NEVER** 中断整批。
-     *
-     * <p>改造前循环体是裸调用，中间那笔一抛就冲出 for，本轮剩余待重算订单全部不处理 ——
-     * 而它们每一笔都是 {@code TOTAL_AMOUNT=0} 的资损口。这里让第 2 笔在抢占时抛异常，
-     * 断言第 3 笔照样被扣款、返回值只计成功笔数。</p>
-     */
     @Test
     void oneRowFailureNeverAbortsTheBatch() {
         when(mapper.selectOfflineFarePending(anyString(), anyString(), anyInt()))
@@ -194,10 +154,7 @@ class OfflineFareRecoveryTest {
         when(mapper.selectOfflineFarePending(anyString(), anyString(), anyInt())).thenReturn(List.of(pending));
     }
 
-    /**
-     * 让算价 mock 按真实实现那样**写回订单对象**：`calculateOfflineFare` 是 void，
-     * 金额靠副作用落在 `order` 上，`recoverSingleOfflineFareOrder` 随后据此算 TOTAL_AMOUNT。
-     */
+    /** 让算价 mock 按真实实现那样写回订单对象：`calculateOfflineFare` 是 void，金额靠副作用落在 `order` 上。 */
     private void stubCalculated(int trxAmount, int overtimeAmount) {
         doAnswer(invocation -> {
             GateTxnPay order = invocation.getArgument(0);
@@ -207,7 +164,7 @@ class OfflineFareRecoveryTest {
         }).when(fareCalculator).calculateOfflineFare(any(), any());
     }
 
-    /** 待重算行的形态：`DEBIT_STATUS='INIT'` + 金额全 0，但**不是**免扣费交易。 */
+    /** 待重算行的形态：`DEBIT_STATUS='INIT'` + 金额全 0，但不是免扣费交易。 */
     private GateTxnPay order(String orderNo) {
         GateTxnPay order = new GateTxnPay();
         order.setOrderNo(orderNo);
@@ -231,14 +188,7 @@ class OfflineFareRecoveryTest {
         return service(mapper);
     }
 
-    /**
-     * 补偿链路的五个协作者：mapper（扫表）、writer（抢占与标记）、算价、扣款、换乘推送任务构建。
-     *
-     * <p>{@link PaySignInitiator} 与 {@link MetroTransferPushTaskProcessor} 传**真实实例**而非 mock：
-     * 断言钉的是「有没有真的调 pay-sign」，mock 掉它们就等于把被测的那条线剪断了。
-     * 两者内部只依赖同一组 {@code paySignClient} / {@code writer}（换乘构建更是纯函数），
-     * 因此这段从 {@code GateTxnPayServiceImpl} 抽成独立服务后**断言一行没改**。</p>
-     */
+    /** 补偿链路的五个协作者：mapper（扫表）、writer（抢占与标记）、算价、扣款、换乘推送任务构建。 */
     private OfflineFareRecoveryServiceImpl service(GateTxnPayMapper gateTxnPayMapper) {
         return new OfflineFareRecoveryServiceImpl(
                 gateTxnPayMapper, writer, fareCalculator,
@@ -251,11 +201,7 @@ class OfflineFareRecoveryTest {
     }
 
     /**
-     * 站名回填在本文件里**不能传 null**：{@code recoverSingleOfflineFareOrder} 重算成功后会调它，
-     * 传 null 直接 NPE、被单笔 catch 吞掉，于是本该断言的「抢占 + 扣款」根本没执行到
-     * （与第 6 位 {@code metroTransferPushTaskProcessor} 同款陷阱）。
-     * 这里给的是「一个站名都查不到」的桩：本文件断言的是金额与状态，站名不在断言范围内，
-     * 让它恒返空 Map 即可保持既有断言值一行不改。
+     * 站名回填在本文件里不能传 null：{@code recoverSingleOfflineFareOrder} 重算成功后会调它，传 null 直接 NPE、被单笔 catch 吞掉。
      */
     private StationNameBackfiller noopStationNameBackfiller() {
         return new StationNameBackfiller(new FareDataGateway(null, null, null, null, null, null) {

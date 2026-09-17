@@ -2,9 +2,7 @@ package com.chinasofti.huateng.dailyticket.model;
 
 import java.util.Date;
 
-/**
- * 日票退款记录。
- */
+/** 日票退款记录。 */
 public class DailyTicketRefund {
     /** 主键ID。 */
     private String id;
@@ -28,6 +26,14 @@ public class DailyTicketRefund {
     private Date createTime;
     /** 更新时间。 */
     private Date updateTime;
+    /** IF8B-04 退款结果通知 APP 的投递状态：PENDING 待发 / SUCCESS 已受理 / GIVEUP 放弃重投；为空表示无需通知。 */
+    private String notifyStatus;
+    /** 通知已投递次数，达到 daily-ticket.notify.app.max-notify-times 即置 GIVEUP。 */
+    private Integer notifyTimes;
+    /** 最近一次通知投递时刻。 */
+    private Date notifyTime;
+    /** 最近一次通知失败原因，成功时清空。 */
+    private String notifyMsg;
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -51,4 +57,12 @@ public class DailyTicketRefund {
     public void setCreateTime(Date createTime) { this.createTime = createTime; }
     public Date getUpdateTime() { return updateTime; }
     public void setUpdateTime(Date updateTime) { this.updateTime = updateTime; }
+    public String getNotifyStatus() { return notifyStatus; }
+    public void setNotifyStatus(String notifyStatus) { this.notifyStatus = notifyStatus; }
+    public Integer getNotifyTimes() { return notifyTimes; }
+    public void setNotifyTimes(Integer notifyTimes) { this.notifyTimes = notifyTimes; }
+    public Date getNotifyTime() { return notifyTime; }
+    public void setNotifyTime(Date notifyTime) { this.notifyTime = notifyTime; }
+    public String getNotifyMsg() { return notifyMsg; }
+    public void setNotifyMsg(String notifyMsg) { this.notifyMsg = notifyMsg; }
 }

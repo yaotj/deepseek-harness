@@ -64,9 +64,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
  	</delete>
  	
  	<update id="updateJob" parameterType="SysJob">
- 		<!-- remark 承载「任务说明」（用途与使用方式），前台标签即为任务说明。
- 		     这里只判 null 不判空串：判空串时前台清空说明会被静默忽略、永远删不掉旧文案。
- 		     null 仍表示「本次不改这一列」，pauseJob / resumeJob / changeStatus 依赖这层语义。 -->
+ 		<!-- remark 只判 null 不判空串（null = 本次不改这一列） -->
  		update sys_job
  		<set>
  			<if test="jobName != null and jobName != ''">job_name = #{jobName},</if>

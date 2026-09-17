@@ -6,21 +6,15 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface TvmMainTicketMapper {
-    /**
-     * 根据主键查询。
-     */
+    /** 根据主键查询。 */
     TvmMainTicket selectById(@Param("id") Long id);
 
-    /**
-     * 根据订单号查询。
-     */
+    /** 根据订单号查询。 */
     TvmMainTicket selectByOrderNo(@Param("orderNo") String orderNo);
 
 
     String getTvmMainTicketSeq();
-    /**
-     * 插入出票主记录。
-     */
+    /** 插入出票主记录。 */
     int insert(TvmMainTicket record);
 
 

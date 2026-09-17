@@ -20,31 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/**
- * 出站扣费的金额计算。
- *
- * <p>本类只算钱、只改传入的 {@link GateTxnPay} 字段，<b>不落库、不调 pay-sign</b>。
- * 2026-09-14（ADR-D69）把 6 个协作者收口到 {@link FareDataGateway} 一个：此前本类直接注入
- * {@code ParaClient} / {@code AccountClient} / {@code TicketClient} + 两个自建 client + 一个 mapper，
- * 「算票价」的类实际在做跨服务编排。<b>取数一律经 gateway，NEVER 在本类里再注入任何 Client 或 Mapper</b>；
- * 反过来，<b>判定与措辞 MUST 留在本类</b>——gateway 只返回「拿到的东西或 null」。</p>
- *
- * <p><b>本类里有两条口径不同的钱包算价路径，NEVER 擅自合并</b>：
- * <ul>
- *   <li>{@link #calculateOfflineFare} 折扣基数是<b>换乘减免后</b>的票价，
- *       公式 {@code (票价 - 减免) * 折扣率}；</li>
- *   <li>{@link #calculateWalletDiscount} 折扣基数是 {@code 原价 - 1}、<b>不减换乘</b>，
- *       且 {@code TRANSFER_FLAG} 是拿算出来的期望值与闸机上报的 {@code TRX_AMOUNT} 比较反推的。</li>
- * </ul>
- * 那个 {@code -1} 与「减不减换乘」的差异<b>是搬迁前就存在的</b>，是业务规则还是历史遗留尚未裁决，
- * 历次搬迁均逐字保留。要动 MUST 先与业务确认，并同步改 {@code OfflineFareCalculationTest} 的期望值。
- * 两条路径查钱包累计时的报文差异（在线补空 {@code extend1/2}、离线不补）见
- * {@link FareDataGateway#queryWalletTotalAmt}。</p>
- *
- * <p>{@code trimToNull} / {@code truncate} 在本类各留一份私有副本：它们在
- * {@code GateTxnPayServiceImpl} 里另有大量调用点，为此新建工具类违反「NEVER 主动创建工具类」，
- * 三行的重复比一个跨类工具更便宜。</p>
- */
+/** 出站扣费的金额计算。 */
 @Component
 public class FareCalculator {
 
@@ -66,16 +42,7 @@ public class FareCalculator {
         this.offlineTimeoutFeeCents = offlineTimeoutFeeCents;
         this.transferReductionCents = transferReductionCents;
     }
-    /**
-     * 查询本次行程的地铁原价并写入 {@code ORIGINAL_FARE}。
-     *
-     * <p>该字段是「按进出站算出来的地铁票价」，与本笔是否扣费、走哪个支付渠道都无关，
-     * APP 扣费详情靠它算「已省金额」（日票 / 员工票的展示口径是「原价 X，本票抵扣，实付 0」）。
-     * 因此 <b>NEVER 把它放进钱包折扣计算的 if 里</b>——那样非 0B 渠道与不参与钱包累计的票种全部拿不到值。</p>
-     *
-     * <p>本方法 <b>吞掉所有异常只记日志</b>（在 gateway 的 quietly 版本里）：票价查不到属于展示降级，
-     * 出站 MUST 放行，NEVER 因为 para-server 不可用而拦住乘客或让扣费流程失败。</p>
-     */
+    /** 查询本次行程的地铁原价并写入 {@code ORIGINAL_FARE}。 */
     public void fillOriginalFare(GateTxnPay order) {
         if (order.getOriginalFare() != null && order.getOriginalFare() > 0) {
             return;
@@ -89,12 +56,7 @@ public class FareCalculator {
                 order.getCardId(), order.getInStation(), order.getOutStation(), originalFare);
     }
 
-    /**
-     * 按进出站查询地铁原价（分），查不到返回 {@code null}。
-     *
-     * <p>出站主链路与历史补数接口共用这一处查询，**NEVER 各写一份**——口径分叉后
-     * 补数结果与出站落库值会不一致。</p>
-     */
+    /** 按进出站查询地铁原价（分），查不到返回 {@code null}。 */
     public Integer queryOriginalFare(String inStation, String outStation) {
         return gateway.queryTicketPriceQuietly(inStation, outStation);
     }
@@ -122,8 +84,6 @@ public class FareCalculator {
                 return;
             }
 
-            // ORIGINAL_FARE 已由 requestPay 里的 fillOriginalFare 提前查好，这里复用，避免同一笔出站
-            // 对 para-server 发两次票价查询；仅在提前查询失败（null）时才补查一次。
             int originalFare = order.getOriginalFare() == null ? 0 : order.getOriginalFare();
             if (originalFare <= 0) {
                 Integer queried = gateway.queryTicketPrice(order.getInStation(), order.getOutStation());
@@ -162,10 +122,7 @@ public class FareCalculator {
             log.warn("钱包优惠计算失败，继续原始金额扣款, orderNo={}", order.getOrderNo(), e);
         }
     }
-    /**
-     * 离线码出站金额由服务端重算：同序列号首笔进站、超时费、换乘减免、钱包折扣。
-     * 超时费始终单独放在 overtimeAmount，不进入折扣基数。
-     */
+    /** 离线码出站金额由服务端重算：同序列号首笔进站、超时费、换乘减免、钱包折扣。 */
     public void calculateOfflineFare(GateTxnPay order, GateTxnPayReqDTO request) {
         if (!StringUtils.hasText(request.getTicketTransSeq())) {
             throw new IllegalStateException("离线码交易缺少ticketTransSeq");

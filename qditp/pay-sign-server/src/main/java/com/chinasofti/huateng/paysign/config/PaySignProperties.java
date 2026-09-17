@@ -9,17 +9,7 @@ public class PaySignProperties {
     private String charset = "UTF-8";
     private String merchantNo = "M100001";
     private String merchantPrivateKey;
-    /**
-     * 支付中心各接口的完整 URL，与 service.*.url、app.notify.*-url 保持一致的配置形态。
-     *
-     * <p>NEVER 退回「基础地址 + 相对路径拼接」：路径本身带版本号（`/api/v1/...`），
-     * 拆成两半后漏 `/v1` 不会报 404、而是返回 `code=600 操作失败`，极难定位。
-     * 2026-08-26 已因此导致免密扣款长期零成功。改动前 MUST 用只读接口
-     * `/api/v1/contract/queryResult` 实测。</p>
-     *
-     * <p>不设默认值：地址随环境变化，缺配置时由 PayGatewayClient 直接抛异常暴露，
-     * 比静默打到写死的默认域名安全。</p>
-     */
+    /** 支付中心各接口的完整 URL，与 service.*.url、app.notify.*-url 保持一致的配置形态。 */
     private String contractConfigUrl;
     private String contractUrl;
     private String contractAdvisoryUrl;
@@ -29,22 +19,7 @@ public class PaySignProperties {
     /** 支付查询（网关文档 §1.2 payQuery），只读接口，用于在拉黑前二次确认支付中心侧的真实状态。 */
     private String payQueryUrl;
     private String requestRefundUrl;
-    /**
-     * 退款查询（网关文档 §3.2 refundQuery，`docs/external/支付中心网关接口文档.md:342~368`），只读接口。
-     *
-     * <p>用于「退款请求已出网、本地停在 PROCESSING」时回查支付中心侧的真实退款状态
-     * （{@code PaymentDomainServiceImpl.compensateRefundQuery}）。bizData 按原文
-     * 「refundOrderNo 和 merchantRefundNo 至少填一个」，我方填 {@code refundOrderNo}
-     * （§3.1 请求退款时上送的就是这个键，值即 {@code PAY_REFUND_DETAIL.REFUND_ORDER_NO}）。</p>
-     *
-     * <p><b>该地址尚未对真实网关实测</b>：路径取自规格原文、域名与 `/ngpayment-gateway/api/v1` 前缀
-     * 与其余 8 条同源。按 AGENTS.md §8「外部网关地址 MUST 实测」，上线前 MUST 用一笔真实退款单
-     * 打一次确认，**NEVER 因为「和别的 URL 长得一样」就当已验证** —— 2026-08-26 那次漏 `/v1`
-     * 返的是 `code=600 操作失败`、不是 404，光看应答分不出是配错还是业务拒绝。</p>
-     *
-     * <p>不设默认值：缺配置时由 compensateRefundQuery 打 ERROR 并跳过本轮，
-     * 比静默打到一个拼错的地址安全。</p>
-     */
+    /** 退款查询（网关文档 §3.2 refundQuery，`docs/external/支付中心网关接口文档.md:342~368`），只读接口。 */
     private String refundQueryUrl;
     private String defaultNotifyUrl;
     private String requestPayNotifyUrl;
@@ -52,11 +27,7 @@ public class PaySignProperties {
     private String alipayMerchantAppId = "2015101000413186";
     private String wechatAppId = "wx426a3015555a46be";
     private String wechatEntrustUrl = "https://api.mch.weixin.qq.com/papay/entrustweb";
-    /** 测试阶段强制覆盖支付金额（分），0 表示不覆盖，使用调用方传入的实际金额。 */
-    private int testForceAmount = 0;
-
-    public int getTestForceAmount() { return testForceAmount; }
-    public void setTestForceAmount(int testForceAmount) { this.testForceAmount = testForceAmount; }
+    /** testForceAmount（配置键 pay.sign.test-force-amount）已于 2026-09-16 删除。 */
 
     public String getApiVersion() {
         return apiVersion;

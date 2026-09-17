@@ -2,70 +2,40 @@ package com.chinasofti.huateng.dailyticket.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-/**
- * 日票支付网关配置。
- */
+/** 日票支付网关配置。 */
 @ConfigurationProperties(prefix = "daily-ticket.pay")
 public class DailyTicketPayProperties {
-    /**
-     * 支付网关地址。
-     */
+    /** 支付网关地址。 */
     private String gatewayUrl;
-    /**
-     * 商户号。
-     */
+    /** 商户号。 */
     private String merchantNo = "JOPJ490HLK9Z";
-    /**
-     * API版本。
-     */
+    /** API版本。 */
     private String apiVersion = "1.0";
-    /**
-     * 签名类型。
-     */
+    /** 签名类型。 */
     private String signType = "RSA2";
-    /**
-     * 字符集。
-     */
+    /** 字符集。 */
     private String charset = "UTF-8";
-    /**
-     * 商户RSA私钥，Base64编码PKCS8格式。
-     */
+    /** 商户RSA私钥，Base64编码PKCS8格式。 */
     private String merchantPrivateKey;
-    /**
-     * 请求支付路径。
-     */
+    /** 请求支付路径。 */
     private String requestPayPath = "/api/payment/requestPay";
-    /**
-     * 请求退款路径。
-     */
+    /** 请求退款路径。 */
     private String requestRefundPath = "/api/refund/requestRefund";
-    /**
-     * 支付结果查询路径。
-     */
+    /** 支付结果查询路径。 */
     private String payQueryPath = "/api/payment/payQuery";
-    /**
-     * 退款结果查询路径。
-     */
+    /** 退款结果查询路径。 */
     private String refundQueryPath = "/api/refund/refundQuery";
-    /**
-     * 支付结果通知地址。
-     */
+    /** 支付结果通知地址。 */
     private String notifyUrl;
-    /**
-     * 支付完成返回地址。
-     */
+    /** 退款结果通知地址。 */
+    private String refundNotifyUrl;
+    /** 支付完成返回地址。 */
     private String returnUrl;
-    /**
-     * 日票支付行业类型。
-     */
+    /** 日票支付行业类型。 */
     private String industryType = "1";
-    /**
-     * 日票支付标题。
-     */
+    /** 日票支付标题。 */
     private String subject = "虚拟电子票";
-    /**
-     * 日票支付描述。
-     */
+    /** 日票支付描述。 */
     private String body = "虚拟电子票";
 
     public String getGatewayUrl() {
@@ -154,6 +124,14 @@ public class DailyTicketPayProperties {
 
     public void setNotifyUrl(String notifyUrl) {
         this.notifyUrl = notifyUrl;
+    }
+
+    public String getRefundNotifyUrl() {
+        return refundNotifyUrl;
+    }
+
+    public void setRefundNotifyUrl(String refundNotifyUrl) {
+        this.refundNotifyUrl = refundNotifyUrl;
     }
 
     public String getReturnUrl() {

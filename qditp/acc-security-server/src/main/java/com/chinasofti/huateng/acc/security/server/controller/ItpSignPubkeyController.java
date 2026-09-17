@@ -69,8 +69,4 @@ public class ItpSignPubkeyController {
     }
 
 
-//    @SuppressWarnings("unchecked")
-//    private Map<String, String> parseBizData(HttpServletRequest request) {
-//        return JSON.parseObject(request.getParameter("bizData"), Map.class);
-//    }
 }

@@ -2,27 +2,16 @@ package com.chinasofti.huateng.collectpay.model.request.bom;
 
 import com.chinasofti.huateng.collectpay.model.request.BaseRequestDTO;
 
-/**
- * IF8A-05 扫码支付请求DTO。
- * BOM扫描用户支付客户端的付款码后，向ITP平台发起支付请求时使用的业务参数。
- */
+/** IF8A-05 扫码支付请求DTO。 */
 public class RequestPaymentReqDTO extends BaseRequestDTO {
 
-    /**
-     * 订单号。
-     * 由ITP平台在非现金收款下单时生成并返回。
-     */
+    /** 订单号。 */
     private String orderNo;
 
-    /**
-     * 支付通道编码。
-     */
+    /** 支付通道编码。 */
     private String paymentCode;
 
-    /**
-     * 支付账户认证码。
-     * 即用户付款码信息。
-     */
+    /** 支付账户认证码。 */
     private String paymentVendor;
 
     public String getOrderNo() {

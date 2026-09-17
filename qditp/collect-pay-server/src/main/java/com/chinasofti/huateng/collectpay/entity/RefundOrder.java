@@ -4,59 +4,37 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/**
- * 退款记录表实体（tbl_refund_order）。
- */
+/** 退款记录表实体（tbl_refund_order）。 */
 @Data
 public class RefundOrder {
-    /**
-     * 退款单号。
-     */
+    /** 退款单号。 */
     private String refundNo;
 
-    /**
-     * 原支付订单号。
-     */
+    /** 原支付订单号。 */
     private String payOrderNo;
 
-    /**
-     * 商户退款单号。
-     */
+    /** 商户退款单号。 */
     private String merchantRefundNo;
 
-    /**
-     * 渠道退款单号。
-     */
+    /** 渠道退款单号。 */
     private String channelRefundNo;
-    /**
-     * 业务类型 1 扫码购票 2 扫码充值 3 扫码取票
-     */
+    /** 业务类型 1 扫码购票 2 扫码充值 3 扫码取票 */
     private String businessType;
 
-    /**
-     * 退款金额（分）。
-     */
+    /** 退款金额（分）。 */
     private Integer refundAmount;
 
-    /**
-     * 退款原因。
-     */
+    /** 退款原因。 */
     private String refundReason;
 
-    /**
-     * 退款状态：0-退款中，1-退款成功，2-退款失败。
-     */
+    /** 退款状态：0-退款中，1-退款成功，2-退款失败。 */
     private String refundStatus;
     private String refundMsg;
 
-    /**
-     * 退款时间。
-     */
+    /** 退款时间。 */
     private String refundTime;
 
-    /**
-     * 创建时间。
-     */
+    /** 创建时间。 */
     private String createTime;
 
 

@@ -3,48 +3,48 @@ package com.chinasofti.huateng.model.ticket;
 import com.chinasofti.huateng.common.response.CommonResult;
 
 /**
- * @author zzm
- * @date 2026/5/25 14:23
+ * @date 2026/5/25 14:23。
+ * @author zzm。
  */
 public class QueryStatusRespDTO extends CommonResult {
 
     /**
-     * 第三方用户ID
+     * 第三方用户ID。
      */
     private String thirdUserId;
 
     /**
-     * ITP用户ID
+     * ITP用户ID。
      */
     private String cardId;
 
     /**
-     * 乘车状态
+     * 乘车状态。
      */
     private String status;
 
     /**
-     * 进站车站
+     * 进站车站。
      */
     private String gateInStation;
 
     /**
-     * 进站时间
+     * 进站时间。
      */
     private String gateInTime;
 
     /**
-     * 末次交易车站
+     * 末次交易车站。
      */
     private String lastTxnStation;
 
     /**
-     * 末次交易时间
+     * 末次交易时间。
      */
     private String lastTxnTime;
 
     /**
-     * 交易流水号
+     * 交易流水号。
      */
     private String txnSeq;
 

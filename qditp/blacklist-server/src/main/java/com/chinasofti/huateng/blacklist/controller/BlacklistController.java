@@ -42,13 +42,13 @@ public class BlacklistController {
         return blacklistService.page(cardId, thirdUserId, createTimeBegin, createTimeEnd, pageNum, pageSize);
     }
 
-    /** 后台新增黑名单，复用原业务逻辑以保留操作日志和渠道同步。 */
+    /** 后台新增黑名单，复用原业务逻辑以保留操作日志与支付宝渠道同步。 */
     @PostMapping("/page/blacklist")
     public ResultVO<Void> createForPage(@RequestBody AddBlackListReqDTO request) {
         return mapOperateResult(blacklistService.addBlackList(request));
     }
 
-    /** 后台删除指定卡ID，复用原业务逻辑以保留操作日志和渠道同步。 */
+    /** 后台删除指定卡ID，复用原业务逻辑以保留操作日志与支付宝渠道同步。 */
     @DeleteMapping("/page/blacklist/{cardId}")
     public ResultVO<Void> deleteForPage(@PathVariable String cardId) {
         DeleteBlackListReqDTO request = new DeleteBlackListReqDTO();

@@ -6,32 +6,32 @@ package com.chinasofti.huateng.model.alipaytrip;
 public class AlipayTripRequestRefundReqDTO {
 
     /**
-     * 原订单号
+     * 原订单号。
      */
     private String orderNo;
 
     /**
-     * 卡机构编号，支付宝0007
+     * 卡机构编号，支付宝0007。
      */
     private String cardIssueCode;
 
     /**
-     * 逻辑卡号
+     * 逻辑卡号。
      */
     private String cardNum;
 
     /**
-     * 渠道协议号
+     * 渠道协议号。
      */
     private String channelAgreementNo;
 
     /**
-     * 退款金额，单位分
+     * 退款金额，单位分。
      */
     private String refundAmount;
 
     /**
-     * 退款订单号
+     * 退款订单号。
      */
     private String refundOrderNo;
 

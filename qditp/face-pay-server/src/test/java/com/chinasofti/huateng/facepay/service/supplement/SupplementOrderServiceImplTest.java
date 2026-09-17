@@ -35,15 +35,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * 锁死 {@link SupplementOrderServiceImpl} 的编排语义。
- *
- * <p>验证范围：从 APP 下单请求进来 → 原订单校验 → 作废旧单 → 本地落单 → PayCenter 预下单 → 返回的完整编排链路。</p>
- *
- * <p>⚠️ 注意：本测试直接 {@code new SupplementOrderServiceImpl(...)} 而不是 {@code @InjectMocks}，
- * 因为 Mockito 3.x 对 final 类的 mock maker 有已知限制（PayCenterResult 是 final），
- * 构造器注入更明确地表达依赖图。</p>
- */
+/** 锁死 {@link SupplementOrderServiceImpl} 的编排语义。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SupplementOrderServiceImplTest {
@@ -74,7 +66,7 @@ class SupplementOrderServiceImplTest {
     @Nested
     class ValidateOnly {
 
-        /** orderNoList 空 → 直接返回 8001。NEVER 查 DB。 */
+        /** orderNoList 空 → 直接返回 8001。 */
         @Test
         void emptyListRejected() {
             SupplementOrderReqDTO req = new SupplementOrderReqDTO();
@@ -187,7 +179,6 @@ class SupplementOrderServiceImplTest {
             assertEquals("0000", resp.getRetCode());
             assertEquals("PROCESSING", resp.getPayStatus());
             assertNotNull(resp.getOrderNo());
-            // 补款单号 MUST 以 SP 开头
             assertEquals("SP", resp.getOrderNo().substring(0, 2));
         }
 
@@ -223,9 +214,7 @@ class SupplementOrderServiceImplTest {
             assertEquals("INIT", resp.getPayStatus());
         }
 
-        /**
-         * 本地落单撞主表唯一索引（重复下单）→ PersistResult.rejected → 8003。
-         */
+        /** 本地落单撞主表唯一索引（重复下单）→ PersistResult.rejected → 8003。 */
         @Test
         void persistRejectedReturns8003() {
             SupplementOrderReqDTO req = validReq();
@@ -237,7 +226,6 @@ class SupplementOrderServiceImplTest {
 
             assertEquals("8003", resp.getRetCode());
             assertEquals("补款单已存在，请勿重复提交", resp.getRetMsg());
-            // NEVER 调 preOrder —— 本地没落到，就不该往 PayCenter 发请求
             verify(payCenterFlow, never()).preOrder(any());
         }
 

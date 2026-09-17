@@ -7,15 +7,7 @@ import com.chinasofti.huateng.model.app.RequestPayResult;
 import com.chinasofti.huateng.paysign.constant.PaySignErrorCodeEnum;
 import org.junit.jupiter.api.Test;
 
-/**
- * {@link PayTxnRules} 的免密扣款入参校验（护栏，2026-09-16）。
- *
- * <p><b>补的是钱包那一支</b>：`requestPay` 的既有用例全走传统渠道，
- * {@code validatePaySignInfo} 的 {@code Wallet} 分支此前零执行 —— 而那正是 2026-09-15
- * 「钱包扣款零 SUCCESS」那次改动的落点。两支要校验的字段本就不同：
- * 钱包认 {@code payUserId}，传统渠道认 {@code requestSignSeq}，
- * <b>NEVER 把两者合并成一套校验</b>。
- */
+/** 护栏：钱包认 payUserId、传统渠道认 requestSignSeq，两套校验 NEVER 合并。 */
 class PayTxnRulesTest {
 
     @Test

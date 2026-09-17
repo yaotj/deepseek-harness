@@ -11,19 +11,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * IF8A-29 行程视图装配器。
- *
- * <p>只做「实体 -> 展示 DTO」的字段搬运与默认值填充，NEVER 在此查库或改状态；
- * 数据获取留在 {@link TicketRideStatusServiceImpl}。与 {@code query} 包的
- * {@code TransRecordAssembler} 同一职责定位。
- *
- * <p>三态分支一律经 {@link Itinerary} 的穷尽 {@code switch}，**NEVER 在本类里
- * 重新写 {@code detail == null} 或 {@code isExitTxn} 判断** —— 那两个判定曾在本类
- * 三个方法里重复五次，改一处漏一处会造成「站名查了 A、字段填了 B」。
- *
- * <p>站名解析统一走 {@link StationNameResolver}，**NEVER 在本包再写一份批量查站名**。
- */
+/** IF8A-29 行程视图装配器。 */
 @Component
 class MemberItineraryAssembler {
 
@@ -39,7 +27,7 @@ class MemberItineraryAssembler {
      * 装配用户上次行程视图。
      *
      * @param currentStatus 乘车码当前状态，非空
-     * @param latestDetail  最近一次过闸明细，可为空（表示尚无过闸记录）
+     * @param latestDetail 最近一次过闸明细，可为空（表示尚无过闸记录）
      * @return 行程视图
      */
     public MemberItineraryDTO assemble(QRCodeStatus currentStatus, QRCodeTxnDetail latestDetail) {
@@ -73,12 +61,7 @@ class MemberItineraryAssembler {
         return view;
     }
 
-    /**
-     * 收集本次需要翻译成中文站名的站点编码。
-     *
-     * <p>出站交易的「上一站」就是本站编码（与 {@code assemble} 的赋值口径一致），
-     * 因此只有进站交易才需要额外带上 {@code LAST_HANDLE_STATION_CODE}。
-     */
+    /** 收集本次需要翻译成中文站名的站点编码。 */
     private Set<String> collectStationCodes(Itinerary itinerary) {
         Set<String> codes = new LinkedHashSet<>();
         switch (itinerary) {

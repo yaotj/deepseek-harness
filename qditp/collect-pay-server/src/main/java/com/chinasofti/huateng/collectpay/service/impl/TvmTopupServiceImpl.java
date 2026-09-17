@@ -50,9 +50,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-/**
- * TVM扫码充值服务实现。
- */
+/** TVM扫码充值服务实现。 */
 @Slf4j
 @Service
 public class TvmTopupServiceImpl implements TvmTopupService {
@@ -364,9 +362,7 @@ public class TvmTopupServiceImpl implements TvmTopupService {
         return map;
     }
 
-    /**
-     * 构建充值订单实体。
-     */
+    /** 构建充值订单实体。 */
     private TvmTopupOrder buildTopupOrder(String orderNo, RequestTopupReqDTO request) {
         TvmTopupOrder order = new TvmTopupOrder();
         order.setOrderNo(orderNo);
@@ -409,9 +405,7 @@ public class TvmTopupServiceImpl implements TvmTopupService {
 //        return payCenterRequest;
 //    }
 
-    /**
-     * 发起退款。
-     */
+    /** 发起退款。 */
 //    private void doRefund(String orderNo, int refundAmount) {
 //        try {
 //            TvmTopupOrder order = tvmTopupOrderMapper.selectByOrderNo(orderNo);
@@ -506,9 +500,7 @@ public class TvmTopupServiceImpl implements TvmTopupService {
         }
     }
 
-    /**
-     * 调用支付中心接口。
-     */
+    /** 调用支付中心接口。 */
     private PayCenterResponse callPayCenter(String path, PayCenterRequest request) {
         try {
             OkHttpClient client = new OkHttpClient();
@@ -532,9 +524,7 @@ public class TvmTopupServiceImpl implements TvmTopupService {
         return null;
     }
 
-    /**
-     * 签名请求。
-     */
+    /** 签名请求。 */
     private void signRequest(PayCenterRequest request) {
         try {
             String privateKeyStr = payCenterProperties.getPrivateKey();
@@ -571,9 +561,7 @@ public class TvmTopupServiceImpl implements TvmTopupService {
         }
     }
 
-    /**
-     * 从Map中获取字符串值。
-     */
+    /** 从Map中获取字符串值。 */
     private String getStringFromData(Map<String, Object> data, String key) {
         if (data == null || !data.containsKey(key)) {
             return null;

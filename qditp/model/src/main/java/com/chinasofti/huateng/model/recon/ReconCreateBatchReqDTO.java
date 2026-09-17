@@ -4,8 +4,6 @@ import lombok.Data;
 
 /**
  * 创建对账批次的请求（IF-RECON-00）。
- *
- * <p>按 {@code batchId} 幂等：重复创建返回既有批次而不是报错，因此调度重放、人工补跑都安全。</p>
  */
 @Data
 public class ReconCreateBatchReqDTO {

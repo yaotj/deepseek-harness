@@ -36,14 +36,6 @@ import java.util.List;
 
 /**
  * 员工码状态通知与资料查询实现。
- *
- * <p>出网部分（APP 注册、ACC 查询与激活请求、报文骨架、{@code RestTemplate} 与 8 个配置项）
- * 已于 2026-09-11 搬到 {@link EmployeeCardOutboundService}（2.0.58）。本类保留的是**业务策略**：
- * 入参校验、状态白名单、ACC 错误码的透传与归类、异常工单与批次切分。
- * <b>NEVER 把这些搬进出网协作者</b>，也 <b>NEVER 在本类里重新持有 {@code RestTemplate} 或出网地址</b>。</p>
- *
- * <p>事件日志的落库统一走 {@link EmployeeCardPersistenceService#recordEvent}（2.0.63 收口），
- * <b>NEVER 在本类重新注入 {@code UserAccEmployeeCardLogMapper}</b>——那会让同一段 insert 又出现两份。</p>
  */
 @Service
 public class EmployeeCardServiceImpl implements EmployeeCardService {
@@ -54,7 +46,9 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
     private final EmployeeCardPersistenceService employeeCardPersistenceService;
     private final EmployeeCardOutboundService employeeCardOutboundService;
 
-    /** APP 注册的单批条数。这是本类的**批次切分策略**，NEVER 挪进出网协作者。 */
+    /**
+     * APP 注册的单批条数。
+     */
     @Value("${employee-card.app-batch-size:200}")
     private int appBatchSize;
 
@@ -109,15 +103,12 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
     }
 
     /**
-     * ACC cardNo is the employee number, not a logical card number. APP performs the later silent account opening.
+     * ACC 的 cardNo 是员工号、不是逻辑卡号；后续静默开户由 APP 侧完成。
      */
     private void processAppBatch(List<EmployeeCardInfoDTO> batch, EmployeeCardNotifyResult result) {
         EmployeeCardOutboundService.AppRegisterResult appResult =
                 employeeCardOutboundService.registerToApp(batch);
         for (EmployeeCardInfoDTO card : batch) {
-            // 每张卡整体包一层：recordEvent 自己也会 insert，它抛异常会逃出循环并逃出无顶层 catch 的
-            // notifyEmployeeCardStatus，导致「已在 APP 注册成功的其余卡既不落库也不进 failList」，
-            // ACC 只收到全局异常处理器的 UUID retCode 并整批重推。MUST 做单卡失败隔离。
             try {
                 String appFailure = appResult.failureReasonOf(card.getCardNo());
                 if (appFailure != null) {
@@ -175,21 +166,14 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
 
     /**
      * APP 请求激活 / 禁用电子员工卡（IF3A）。
-     * <p>
-     * <b>本方法 NEVER 加 {@code @Transactional}</b>：中间那次
-     * {@link EmployeeCardOutboundService#requestActivation} 是对 ACC 的同步 HTTP，
-     * 事务包住它会让员工码行的排他锁持有到对端响应为止（AGENTS.md §5.2 已记 2026-08-26 生产事故）。
-     * 顺序固定为「校验前置状态 → 事务外调 ACC → ACC 成功后由
-     * {@link EmployeeCardPersistenceService#applyActivationResult} 在独立短事务里提交本地两条写」。
-     * 若 ACC 已受理而本地写失败，MUST 落一张异常工单，NEVER 只打日志就返回成功。
      *
      * @param request {@code actionFlag=1} 激活（仅允许 {@code CARD_STATUS=3} 未激活）、
-     *                {@code 0} 禁用（仅允许 {@code CARD_STATUS=1} 正常）
+     * {@code 0} 禁用（仅允许 {@code CARD_STATUS=1} 正常）
      * @return {@code 0000} 成功；{@code 8001} 参数非法；{@code 8004} 员工码不存在；
-     *         {@code 2002} 当前状态不允许；{@code 9998} ACC 已受理但本地回写失败；
-     *         {@code 9999} 调用 ACC 失败（连不上 / 超时 / 5xx，可重试）；
-     *         <b>其余码为 ACC 原样透传</b>——ACC 用「HTTP 4xx + 业务错误体」表达参数被拒
-     *         （实测 {@code 1002 参数校验失败：卡号不存在。}），这类码不可重试
+     * {@code 2002} 当前状态不允许；{@code 9998} ACC 已受理但本地回写失败；
+     * {@code 9999} 调用 ACC 失败（连不上 / 超时 / 5xx，可重试）；
+     * <b>其余码为 ACC 原样透传</b>——ACC 用「HTTP 4xx + 业务错误体」表达参数被拒
+     * （实测 {@code 1002 参数校验失败：卡号不存在。}），这类码不可重试
      */
     @Override
     public CommonResult activateEmployeeCard(EmployeeCardActivateReqDTO request) {
@@ -220,11 +204,6 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
         try {
             response = employeeCardOutboundService.requestActivation(request);
         } catch (HttpClientErrorException ex) {
-            // ACC 用「HTTP 4xx + 业务错误体」表达参数被拒，2026-09-11 真机实测：
-            // 400 Bad Request: {"retCode":"1002","retMsg":"参数校验失败：卡号不存在。"}
-            // 这类失败 MUST 把 ACC 的业务码与文案透出去，NEVER 归到 9999 —— 9999 的语义是
-            // 「调用失败、远端未生效、可重试」，而参数被拒重试永远不会成功，归错码会让上游
-            // 陷入没有出口的重复请求。5xx 与连不上 / 超时仍走下面的 9999（那才是真的可重试）。
             String body = ex.getResponseBodyAsString();
             log.warn("ACC员工码激活或禁用返回{}并带业务错误体, cardNo={}, actionFlag={}, body={}",
                     ex.getStatusCode(), cardNo, request.getActionFlag(), body);
@@ -248,8 +227,6 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
             return result;
         }
 
-        // actionFlag 是 APP 侧的入向约定（1 激活 / 0 禁用），CARD_STATUS 是本地列的取值，
-        // 两套编码 MUST 保持分开：actionFlag=1 对应的目标状态是 NORMAL(1) 而非「同一个 1」。
         EmployeeCardStatus target = request.getActionFlag() == 1
                 ? EmployeeCardStatus.NORMAL : EmployeeCardStatus.DISABLED;
         boolean activating = target == EmployeeCardStatus.NORMAL;
@@ -270,15 +247,12 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
 
     /**
      * 为「ACC 已受理、本地未落库」开一张异常工单。
-     * <p>
-     * 幂等靠 {@code UK_ACCT_EXC_TICKET_TYPE_KEY}，同卡同目标状态重复触发只会有一张；
-     * 本方法 <b>NEVER 抛异常</b>，工单开立失败也只记 ERROR，避免掩盖上一层的真实失败原因。
      *
      * @param thirdUserId 该员工码归属的 ITP 用户，用于运维按用户维度捞工单。
-     *                    <b>真实数据下当前恒为 {@code null}</b>：`USER_ACC_EMPLOYEE_CARD.THIRD_USER_ID`
-     *                    全表为空（能写它的 {@code updateThirdUserId} 在本模块没有任何调用点），
-     *                    只有手工造的数据才会有值（2026-09-11 用合成卡实测确认这条链路本身是通的）。
-     *                    照样传是为了等挂接链路补齐后自动生效，**NEVER 因为「反正是空」就删掉这个参数**。
+     * <b>真实数据下当前恒为 {@code null}</b>：`USER_ACC_EMPLOYEE_CARD.THIRD_USER_ID`
+     * 全表为空（能写它的 {@code updateThirdUserId} 在本模块没有任何调用点），
+     * 只有手工造的数据才会有值（2026-09-11 用合成卡实测确认这条链路本身是通的）。
+     * 照样传是为了等挂接链路补齐后自动生效，**NEVER 因为「反正是空」就删掉这个参数**。
      */
     private void openActivationTicketQuietly(String cardNo, String thirdUserId, int targetStatus, String detail) {
         try {
@@ -323,9 +297,6 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
         employee.setPhotoUrl(request.getPhoto());
         employee.setUpdateTms(LocalDateTime.now());
         if (employeeCardMapper.updateEmployeeInfo(employee) == 0) {
-            // updateEmployeeInfo 的 WHERE 是主键 ID，上面刚按 cardNo 查到这一行，
-            // 0 行只可能是这一瞬被并发删除。MUST 返失败让 ACC 重推，NEVER 继续往下
-            // 写「处理成功」的 log 记录并返 0000 —— 那会让「资料没落库」彻底无人知晓。
             log.warn("员工信息变更落库影响0行（并发删除？）, cardNo={}, id={}", employee.getCardNo(), employee.getId());
             return failure(result, AccountErrorCodeEnum.NO_ACCOUNT_CARD.getCode(), "员工信息记录已不存在，变更未落库");
         }
@@ -377,8 +348,6 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
             return "phone不能为空";
         }
         if (!EmployeeCardStatus.isKnownCode(card.getCardStatus())) {
-            // MUST 用枚举白名单、NEVER 退回 `< 1 || > 4` 区间判断：区间写法依赖「编码连续」
-            // 这个偶然事实，ACC 一旦新增非连续取值就会静默放行、落库成一个本地没人认识的状态。
             return "cardStatus必须为1、2、3或4";
         }
         return null;

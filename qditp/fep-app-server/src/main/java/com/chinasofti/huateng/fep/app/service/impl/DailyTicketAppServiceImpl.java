@@ -12,6 +12,7 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayCallbackReqDTO
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayQueryResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayResult;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundCallbackReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
@@ -29,8 +30,6 @@ import java.util.Date;
 
 /**
  * APP日票业务前置服务实现。
- *
- * <p>fep-app-server只承接APP入口和服务编排，日票订单、支付、激活、退款等状态由daily-ticket-server维护。</p>
  */
 @Service
 public class DailyTicketAppServiceImpl implements DailyTicketAppService {
@@ -115,8 +114,15 @@ public class DailyTicketAppServiceImpl implements DailyTicketAppService {
     }
 
     @Override
-    public DailyTicketBaseResult handlePayResultCallback(String requestBody) {
-        DailyTicketPayCallbackReqDTO callbackRequest = parsePayResultCallback(requestBody);
+    public DailyTicketBaseResult receiveRefundResult(DailyTicketRefundCallbackReqDTO request) {
+        log.info("call daily-ticket receiveRefundResult request={}", JSON.toJSONString(request));
+        DailyTicketBaseResult result = dailyTicketClient.receiveRefundResult(request);
+        log.info("call daily-ticket receiveRefundResult response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    @Override
+    public DailyTicketBaseResult handlePayResultCallback(String requestBody) {        DailyTicketPayCallbackReqDTO callbackRequest = parsePayResultCallback(requestBody);
         if (callbackRequest == null) {
             return failCallback("无效的支付回调参数");
         }

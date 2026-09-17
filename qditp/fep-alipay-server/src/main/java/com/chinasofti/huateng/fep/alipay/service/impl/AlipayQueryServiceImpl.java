@@ -235,8 +235,6 @@ public class AlipayQueryServiceImpl implements AlipayQueryService {
 
             if (exitDetail != null && FepAppErrorCodeEnum.SUCCESS.getCode().equals(exitDetail.getRetCode())) {
                 // 出站查询返回的 response 中，entryStationName/entryDate 实际对应本次出站站点和时间；
-                // 其 exitStationName/exitDate 取自 QRCODE_TXN_DETAIL 的 LAST_HANDLE_*，是上一次处理（即进站），
-                // 直接用会与 entryDetail 的进站信息重合，表现为进出站站点与时间完全一样。
                 detailResp.setExitStationName(exitDetail.getEntryStationName());
                 detailResp.setExitDate(exitDetail.getEntryDate());
                 detailResp.setPayAmount(exitDetail.getPayAmount());
@@ -250,9 +248,6 @@ public class AlipayQueryServiceImpl implements AlipayQueryService {
 
             detailResp.setTradeOrderNo(order.getOrderNo());
             // payTradeOrderNo（支付宝渠道流水号）与 invoice 在 GATE_TXN_PAY 里没有对应列：
-            // 前者按用户 2026-09-14 的明确裁决「暂时返 null，先让链路通，渠道流水后补」——核账走支付中心 payQuery；
-            // 后者在 ALIPAY_PAY_LOG 33 行里实测全为 null，从未被写过，返 null 零损失。
-            // NEVER 悄悄改回读 ALIPAY_PAY_LOG（该表已停写，只会静默命中 0 行）。
             detailResp.setPayTradeOrderNo(null);
             detailResp.setInvoice(null);
             detailResp.setDebitRequestResult(mapPayStatusToDebitResult(order.getDebitStatus()));

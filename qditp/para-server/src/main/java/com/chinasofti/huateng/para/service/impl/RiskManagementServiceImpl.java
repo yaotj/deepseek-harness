@@ -130,12 +130,9 @@ public class RiskManagementServiceImpl implements RiskManagementService {
     /**
      * 判断异常链上是否存在 {@link DuplicateKeyException}，即唯一约束冲突。
      *
-     * <p><b>MUST</b> 逐层遍历 cause，<b>NEVER</b> 直接 {@code catch (DuplicateKeyException)}：
-     * {@code MapperAspectToTrace}（{@code resource/micro/web/src/main/java/com/chinasofti/huateng/
-     * micro/monitor/trace/MapperAspectToTrace.java:51}）把 mapper 抛出的任何异常统一包成
-     * {@code RuntimeException}，单层类型判断在 {@code management.tracing.enabled=true}
-     * 的模块（para-server 即是）捕不到。2026-09-08 实测：重复风险组名原本落到全局异常
-     * 处理器、返回 UUID retCode，页面完全看不到「名称已存在」。</p>
+     * <p>MUST 逐层遍历 cause，NEVER 直接 catch 具体异常类型。</p>
+     *
+     * <p>归因存疑：本方法相关的 UUID retCode 实测结论已作废，MUST 重查，NEVER 照旧结论排查（详见 docs/business/common-services.md）。</p>
      */
     private boolean isDuplicateKeyViolation(Throwable exception) {
         for (Throwable cause = exception; cause != null && cause != cause.getCause(); cause = cause.getCause()) {

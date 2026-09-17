@@ -1,16 +1,12 @@
 package com.chinasofti.huateng.recon.model;
 
 /**
- * 对账批次状态机。
+ * 对账批次状态机（流转白名单见 {@code ReconBatchService.allowed}）。
  *
- * <p>流转（白名单，见 {@code ReconBatchService.allowed}）：</p>
  * <pre>
  * CREATED -&gt; EXPORTING -&gt; PARTIAL -&gt; ALL_SOURCE_COMPLETED -&gt; GENERATING -&gt; UPLOADING -&gt; SUCCESS
- * FAILED -&gt; EXPORTING | GENERATING | UPLOADING（补偿重试的三个入口）
+ * FAILED -&gt; EXPORTING | GENERATING | UPLOADING
  * </pre>
- *
- * <p>{@link #PARTIAL} 表示「部分来源已声明完成」，与 {@link #EXPORTING} 的区别只在于已有源收口，
- * 便于运维一眼看出卡在哪个环节。{@link #SUCCESS} 是终态，NEVER 从 SUCCESS 再流出——重跑 MUST 换批次号。</p>
  */
 public enum ReconBatchStatus {
 

@@ -4,7 +4,6 @@ package com.chinasofti.huateng.model.app;
  * IF8A-08 获取车站代码响应中的单条车站记录。
  */
 public class StationCodeRecordDTO {
-    /** 所属线路代码。 */
     private String lineCode;
     /** 车站代码。 */
     private String stationCode;

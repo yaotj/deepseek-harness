@@ -1,77 +1,45 @@
 package com.chinasofti.huateng.collectpay.entity;
 
-/**
- * BOM退款订单实体类。
- * 对应数据库表TBL_BOM_ORDER_REFUND，存储BOM非现金收款业务的退款信息。
- */
+/** BOM退款订单实体类。 */
 public class BomRefundOrder {
 
-    /**
-     * 退款单号（主键）。
-     */
+    /** 退款单号（主键）。 */
     private String refundNo;
 
-    /**
-     * 原支付订单号。
-     */
+    /** 原支付订单号。 */
     private String payOrderNo;
 
-    /**
-     * 商户退款单号。
-     */
+    /** 商户退款单号。 */
     private String merchantRefundNo;
 
-    /**
-     * 渠道退款单号。
-     */
+    /** 渠道退款单号。 */
     private String channelRefundNo;
 
-    /**
-     * 退款金额（分）。
-     */
+    /** 退款金额（分）。 */
     private String refundAmount;
 
-    /**
-     * 退款原因。
-     */
+    /** 退款原因。 */
     private String refundReason;
 
-    /**
-     * 退款状态。
-     * 0-退款中
-     * 1-退款成功
-     * 2-退款失败
-     */
+    /** 退款状态。 */
     private String refundStatus;
 
-    /**
-     * 退款状态描述。
-     */
+    /** 退款状态描述。 */
     private String refundMsg;
 
-    /**
-     * 退款时间。
-     */
+    /** 退款时间。 */
     private String refundTime;
 
-    /**
-     * 创建时间。
-     */
+    /** 创建时间。 */
     private String createTime;
 
-    /**
-     * 更新时间。
-     */
+    /** 更新时间。 */
     private String updateTime;
 
-    /**
-     * 预留字段1。
-     */
+    /** 预留字段1。 */
     private String rsv1;
 
-    /**
-     * 预留字段2。
-     */
+    /** 预留字段2。 */
     private String rsv2;
 
     public String getRefundNo() {

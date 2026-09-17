@@ -38,7 +38,6 @@ public class EsInfoServerImpl implements IEsInfoService {
     @Override
     public boolean esSignIn(DeviceSignIn deviceSignIn) {
         boolean isSingn=false;
-        // 更新设备登录状态
         TblTktEsInfo esInfo=new TblTktEsInfo();
         esInfo.setLoginStat(LoginStat.SIGN_IN.getKey());
         esInfo.setEsCode(deviceSignIn.getEsNodeId());

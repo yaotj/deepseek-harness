@@ -2,40 +2,25 @@ package com.chinasofti.huateng.collectpay.model.response.bom;
 
 import com.alibaba.fastjson.JSONObject;
 
-/**
- * BOM非现金业务响应结果工具类。
- * 统一封装BOM接口的响应格式，包括成功、失败、带数据的响应等。
- */
+/** BOM非现金业务响应结果工具类。 */
 public class BomOrderResult {
 
-    /**
-     * 返回码字段名。
-     */
+    /** 返回码字段名。 */
     private static final String RET_CODE = "retCode";
 
-    /**
-     * 返回消息字段名。
-     */
+    /** 返回消息字段名。 */
     private static final String RET_MSG = "retMsg";
 
-    /**
-     * 订单号字段名。
-     */
+    /** 订单号字段名。 */
     private static final String ORDER_NO = "orderNo";
 
-    /**
-     * 支付结果字段名。
-     */
+    /** 支付结果字段名。 */
     private static final String PAYMENT_RESULT = "paymentResult";
 
-    /**
-     * 支付结果描述字段名。
-     */
+    /** 支付结果描述字段名。 */
     private static final String PAYMENT_RESULT_DESC = "paymentResultDesc";
 
-    /**
-     * 状态描述字段名。
-     */
+    /** 状态描述字段名。 */
     private static final String MSG = "msg";
 
     /**
@@ -70,7 +55,6 @@ public class BomOrderResult {
 
     /**
      * 成功响应（带订单号）。
-     * 用于非现金收款下单接口返回订单号。
      *
      * @param orderNo 订单号
      * @return 包含retCode=0000、retMsg=成功和orderNo的响应对象
@@ -91,7 +75,6 @@ public class BomOrderResult {
 
     /**
      * 成功响应（带支付结果）。
-     * 用于扫码支付和查询支付结果接口返回支付状态。
      *
      * @param paymentResult    支付结果（SUCCESS/FAILED/PROCESSING）
      * @param paymentResultDesc 支付结果描述
@@ -122,7 +105,6 @@ public class BomOrderResult {
 
     /**
      * 默认失败响应。
-     * 返回retCode=8999，retMsg=失败。
      *
      * @return 默认失败响应对象
      */
@@ -151,7 +133,6 @@ public class BomOrderResult {
 
     /**
      * 成功响应（带支付结果和状态描述）。
-     * 用于查询支付结果接口，返回订单状态和状态描述。
      *
      * @param paymentResult    支付结果（SUCCESS/FAILED/PROCESSING）
      * @param paymentResultDesc 支付结果描述

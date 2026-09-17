@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * desc:2001-任务获取请求-请求报文
- **/
+ * desc:2001-任务获取请求-请求报文。
+ */
 public class SearchSyncTaskDTO {
 
     List<String> devNodeIdArray = new ArrayList<>();

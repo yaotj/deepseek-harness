@@ -122,11 +122,6 @@ public class ReconPartService {
     /**
      * 异常链上是否有唯一键冲突。
      *
-     * <p><b>NEVER 简化回 {@code catch (DuplicateKeyException)}</b>（ADR-D53）：本模块打开了 tracing，
-     * {@code MapperAspectToTrace} 会切到所有 {@code @Mapper} 方法上；它此前把异常包成
-     * {@code new RuntimeException(e)}，按类型 catch 的幂等兜底**一条都进不去**，
-     * {@code ORA-00001} 直接冒到全局处理器。切面已改成原样抛出，这层按 cause 链判定作为第二道防线保留。</p>
-     *
      * @param ex 捕获到的异常
      * @return 链上出现过唯一键冲突即 true
      */

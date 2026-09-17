@@ -4,9 +4,6 @@ package com.chinasofti.huateng.model.app;
  * IF8A-29 查询用户上次行程请求参数。
  */
 public class QueryUserItineraryReqDTO {
-    /**
-     * 卡号。
-     */
     private String cardNum;
 
     /**

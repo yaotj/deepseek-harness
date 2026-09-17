@@ -2,118 +2,72 @@ package com.chinasofti.huateng.dailyticket.model;
 
 import java.util.Date;
 
-/**
- * 日票订单内部模型。
- */
+/** 日票订单内部模型。 */
 public class DailyTicketOrder {
-    /**
-     * 主键ID。
-     */
+    /** 主键ID。 */
     private String id;
 
-    /**
-     * 日票订单号。
-     */
+    /** 日票订单号。 */
     private String orderNo;
 
-    /**
-     * 订单类型，日票固定为1。
-     */
+    /** 订单类型，日票固定为1。 */
     private String orderType;
 
-    /**
-     * APP用户编号。
-     */
+    /** APP用户编号。 */
     private String userId;
 
-    /**
-     * 第三方用户编号。
-     */
+    /** 第三方用户编号。 */
     private String thirdUserId;
 
-    /**
-     * 订单来源。
-     */
+    /** 订单来源。 */
     private String orderSource;
 
-    /**
-     * APP侧卡类型。
-     */
+    /** APP侧卡类型。 */
     private String cardType;
 
-    /**
-     * 展示票类型。
-     */
+    /** 展示票类型。 */
     private String showType;
 
-    /**
-     * 车票名称。
-     */
+    /** 车票名称。 */
     private String ticketName;
 
-    /**
-     * 票价，单位分。
-     */
+    /** 票价，单位分。 */
     private Integer ticketPrice;
 
-    /**
-     * 实付金额，单位分。
-     */
+    /** 实付金额，单位分。 */
     private Integer payAmount;
 
-    /**
-     * 支付渠道编码。
-     */
+    /** 支付渠道编码。 */
     private String payChannelCode;
 
-    /**
-     * APP支付场景来源，1-app，2-wap。
-     */
+    /** APP支付场景来源，1-app，2-wap。 */
     private String channelType;
 
-    /**
-     * 支付服务scene字段，由channelType转换得到。
-     */
+    /** 支付服务scene字段，由channelType转换得到。 */
     private String payScene;
 
-    /**
-     * 订单状态。
-     */
+    /** 订单状态。 */
     private String orderStatus;
 
-    /**
-     * 支付状态。
-     */
+    /** 支付状态。 */
     private String payStatus;
 
-    /**
-     * 第三方支付交易号。
-     */
+    /** 第三方支付交易号。 */
     private String tradeNo;
 
-    /**
-     * 支付系统订单号。
-     */
+    /** 支付系统订单号。 */
     private String paymentOrderNo;
 
-    /**
-     * 支付完成时间。
-     */
+    /** 支付完成时间。 */
     private Date payDate;
 
-    /**
-     * 创建时间。
-     */
+    /** 创建时间。 */
     private Date createTime;
 
-    /**
-     * 更新时间。
-     */
+    /** 更新时间。 */
     private Date updateTime;
 
-    /**
-     * 父单号。旅游票聚合单的子单指向 TRAVEL_TICKET_ORDER.ORDER_NO，独立日票为空。
-     */
+    /** 父单号。旅游票聚合单的子单指向 TRAVEL_TICKET_ORDER.ORDER_NO，独立日票为空。 */
     private String parentOrderNo;
 
     public String getParentOrderNo() {

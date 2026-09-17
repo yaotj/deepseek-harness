@@ -2,22 +2,7 @@ package com.chinasofti.huateng.facepay.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * IF8A-26 在线补款订单（SUPPLEMENT_ORDER），face-pay-server 为 owner。
- *
- * <p>一张补款单覆盖 N 笔未结清的 GATE_TXN_PAY 订单，明细见 {@link SupplementOrderItem}。</p>
- *
- * <p>{@code payStatus} 取值：{@code INIT} 已下单待支付 / {@code PROCESSING} 已发起支付 /
- * {@code SUCCESS} 支付成功 / {@code FAIL} 支付失败 / {@code CLOSED} 已关闭。
- * 与 GATE_TXN_PAY.DEBIT_STATUS 是两套独立状态：本状态描述补款单自身，
- * 原订单的结清与否始终以 GATE_TXN_PAY.DEBIT_STATUS 为权威口径。</p>
- *
- * <p><b>PayCenter 直连架构下的字段精简</b>：
- * CollectPay 链路的 outbox 四列（saleSyncStatus / saleSyncRetryCount / saleSyncTime / saleSyncResult）
- * 已删除——PayCenter 预下单在单次 HTTP 请求内完成，不需要「先落本地、再补偿投递」的 outbox。
- * 预下单直接写 PAYMENT_INFO / MERCHANT_ORDER_NO / PAY_CHANNEL_CODE 三列，
- * 失败则回 INIT 并记录 REMARK，后续可重试。</p>
- */
+/** IF8A-26 在线补款订单（SUPPLEMENT_ORDER），face-pay-server 为 owner。 */
 public class SupplementOrder {
     private Long id;
     /** 补款单号：SP + yyyyMMddHHmmssSSS + 卡号后6位。 */

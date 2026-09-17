@@ -112,12 +112,13 @@
 
 ### ⚠️ 配置现状问题（排查故障时先看这里）
 
-1. **`service.industryData.url` 指向 9104（fep-dev-server），而 industry-data-server 实际是 9105。**
-   出现在 `fep-app-server:27`、`fep-alipay-server:31`、`alipay-pay-sign-server:33`。三处一致，疑为历史端口变更后未同步。
-2. **`fep-dev-server:15` 的 `service.ticket.url=http://127.0.0.1:9097`**，而 ticket-server 是 9103，9097 无任何模块占用。
-3. **地址形态不统一**：`ticket-server` 全部指向 `172.20.211.23:300xx`（**这是生产集群 NodePort**，2026-08-25 用户确认）；多数模块指向 `127.0.0.1`；`alipay-*` 与 `fep-alipay-server` 用 K8s DNS `http://alipay-account-server:8080`。同一份代码在不同环境需依赖外部覆盖。
-   实测的 NodePort 映射表与逐项比对结果见 [`../ops/生产环境清单.md`](../ops/生产环境清单.md) §一「当前集群 NodePort 映射」——其中 `service.fepDev.url` 指向了 ticket-server 自身、`service.alipayAccount.url` 指向 key-server、`service.gateTxnPay.url` 用了容器端口、`service.dailyTicket.url` 仍是 `127.0.0.1`，四处均为**生产在跑的错配**。
-4. `acc-secure-server:11`、`collect-ticket-server:11` 的 `service.token.url` 为空。
+> **2026-09-16 逐项复核：下面 ①②③ 均已修复，只有 ④ 仍成立。** 修复前的旧值在此仅作历史留痕，**NEVER 当作现状引用** —— 按旧记载排查会得出「线上正在错配」的错误结论。
+
+1. ~~`service.industryData.url` 指向 9104（fep-dev-server）~~ **已修复**：`fep-app-server:32`、`fep-alipay-server:32`、`alipay-pay-sign-server:43` 三处现均为 `http://industry-data-server-6dv5u-svc.itp.svc:30018`（K8s DNS + NodePort）。
+2. ~~`fep-dev-server:15` 的 `service.ticket.url=http://127.0.0.1:9097`~~ **已修复**：现为 `http://ticket-server-bsyju-svc.itp.svc:9100`（`fep-dev-server/application.properties:29`，该行上方注释仍留着旧值说明）。
+3. ~~地址形态不统一 + 四处生产错配~~ **已全部修复并统一为 K8s DNS**：ticket-server 现为 `alipay-account-server-2n6kc-svc:30021`、`gate-txn-pay-server-jomf4-svc:30019`、`daily-ticket-server-rdbe5-svc:30027`；`service.fepDev.url` 已按 **ADR-D63（2026-09-14）整体删除**，不再是错配项。
+   ⚠️ **Service 端口 ≠ 容器 `server.port`，这不是错配**：如 ticket-server 的 Service 端口是 **9100**、容器 `server.port` 是 **9103**；recon-server 的 Service 端口（NodePort 30034）也不等于容器 9112。排障时 **MUST** 先分清说的是哪一层，切勿据此改配置。
+4. **仍存在**：`acc-secure-server:11`、`collect-ticket-server:11` 的 `service.token.url` 为空。
 
 修改这些值属**部署配置变更**，会影响线上路由，**MUST** 先与用户确认环境再动手。
 
@@ -128,7 +129,9 @@
 - 脚本：`scripts/deploy-to-harbor.sh`（单服务）、`scripts/batch-deploy.sh`（串行批量）
 - 日志辅助：`scripts/klog.sh`、`scripts/klog-watcher.sh`
 
-⚠️ `scripts/batch-deploy.sh` 的 `ALL_SERVICES` 清单含 `wallet-server`、`online-server`，**仓库内不存在这两个模块**；同时缺失 daily-ticket-server、alipay-*、fep-acc-server、fep-alipay-server、web-server。清单已过期，全量部署前 **MUST** 提示用户核对。
+⚠️ `scripts/batch-deploy.sh` 与 `scripts/deploy-to-harbor.sh` **各有一份 `ALL_SERVICES`，两处 MUST 保持一致**（2026-09-16 已校对统一为 24 项，改动时 MUST 同时改两处）。
+历史坑（已修，勿回退）：原清单含仓库内**根本不存在**的 `wallet-server`、`online-server`，而脚本**失败即 `break`**，全量部署会在第二个服务就中断；同时漏了 `face-pay-server`（现行主模块）、`recon-server`、`card-pool-server` 等 9 个模块。
+**服务名必须是仓库根目录下的模块目录名** —— `deploy-to-harbor.sh` 按 `${LOCAL_BASE_DIR}/${NAME}/target` 找 `${NAME}-*.jar`，因此 **`web-admin`（位于 `web-server/` 下）不适用本脚本，勿加入**。另：`ticket-server` 的 `kubernetes-maven-plugin` 在 `ticket-server/pom.xml:115` 被注释掉，能否构建镜像需先确认。上述补齐项按 pom 是否声明 JKube 插件判定，**未经实际部署验证**，首次执行前 **MUST** 与运维核对。
 
 ## 五、构建
 

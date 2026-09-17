@@ -2,112 +2,67 @@ package com.chinasofti.huateng.cardpool.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * 逻辑卡号批次及 ACC 文件导入记录，对应表 LOGIC_CARD_POOL_BATCH。
- *
- * <p>状态流转：CREATED 到 REQUESTING 到 DOWNLOADING 到 IMPORTING 到 SUCCESS，
- * 任一环节异常置 FAILED；FAILED 且已有文件名的批次可重试回 DOWNLOADING。</p>
- */
+/** 逻辑卡号批次及 ACC 文件导入记录，对应表 LOGIC_CARD_POOL_BATCH。 */
 public class LogicCardPoolBatch {
 
-    /**
-     * 批次号，同时作为 ACC 请求流水号的数值来源。
-     */
+    /** 批次号，同时作为 ACC 请求流水号的数值来源。 */
     private Long batchNo;
 
-    /**
-     * ACC 请求流水号。
-     */
+    /** ACC 请求流水号。 */
     private String requestSeq;
 
-    /**
-     * 票种，4 位。
-     */
+    /** 票种，4 位。 */
     private String cardType;
 
-    /**
-     * ACC 票种，票种后两位。
-     */
+    /** ACC 票种，票种后两位。 */
     private String accTicketType;
 
-    /**
-     * 本批次申请数量。
-     */
+    /** 本批次申请数量。 */
     private Integer requestNum;
 
-    /**
-     * 申请来源，AUTO 或 MANUAL。
-     */
+    /** 申请来源，AUTO 或 MANUAL。 */
     private String source;
 
-    /**
-     * ACC 返回的逻辑卡号文件名。
-     */
+    /** ACC 返回的逻辑卡号文件名。 */
     private String fileName;
 
-    /**
-     * FTP 目录。
-     */
+    /** FTP 目录。 */
     private String ftpPath;
 
-    /**
-     * 文件字节数。
-     */
+    /** 文件字节数。 */
     private Long fileSize;
 
-    /**
-     * 文件 SHA-256 摘要。
-     */
+    /** 文件 SHA-256 摘要。 */
     private String fileSha256;
 
-    /**
-     * 文件总行数。
-     */
+    /** 文件总行数。 */
     private Integer totalCount;
 
-    /**
-     * 成功入库的卡号数。
-     */
+    /** 成功入库的卡号数。 */
     private Integer validCount;
 
-    /**
-     * 重复卡号数。
-     */
+    /** 重复卡号数。 */
     private Integer duplicateCount;
 
-    /**
-     * 格式非法的行数。
-     */
+    /** 格式非法的行数。 */
     private Integer invalidCount;
 
-    /**
-     * 批次状态。
-     */
+    /** 批次状态。 */
     private String status;
 
-    /**
-     * 失败原因，最长 1900 字符。
-     */
+    /** 失败原因，最长 1900 字符。 */
     private String errorMsg;
 
-    /**
-     * 重试次数。
-     */
+    /** 重试次数。 */
     private Integer retryCount;
 
-    /**
-     * 操作人，自动补货时为 SYSTEM。
-     */
+    /** 操作人，自动补货时为 SYSTEM。 */
     private String operator;
 
-    /**
-     * 创建时间。
-     */
+    /** 创建时间。 */
     private LocalDateTime createTime;
 
-    /**
-     * 完成时间，成功与失败都会写入。
-     */
+    /** 完成时间，成功与失败都会写入。 */
     private LocalDateTime finishTime;
 
     /**

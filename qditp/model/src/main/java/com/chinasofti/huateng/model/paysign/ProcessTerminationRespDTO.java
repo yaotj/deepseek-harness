@@ -2,12 +2,6 @@ package com.chinasofti.huateng.model.paysign;
 
 /**
  * 解约申请批处理内部接口响应（/internal/termination/process）。
- *
- * <p>scanned 为本次取到的待处理条数（PENDING + SCANNING）；调用方可反复调用直到 scanned 为 0。
- * skipped 表示本次未能定论、状态原样保留的条数，下次扫表会重试。</p>
- *
- * <p>放在 model 模块而不是 pay-sign-server：本接口经 {@code PaySignClient} 被 web-server 的
- * Quartz 任务调用，rpc 模块必须能看到这个类型。</p>
  */
 public class ProcessTerminationRespDTO {
 
@@ -28,7 +22,6 @@ public class ProcessTerminationRespDTO {
 
     /**
      * 因 SCANNING 收口超时而置 FAILED 的条数。
-     * 非 0 就该有人看：说明我方口径与支付平台侧可能已不一致，需人工核对协议是否真的解约。
      */
     private int expired;
 

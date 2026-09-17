@@ -21,23 +21,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
-/**
- * IF5A 票卡分析 / 更新 / HCE 更新结果通知。三个接口都是<b>透传</b>，
- * 分析与更新逻辑在 ticket-server，HCE 数据回写在 account-server。
- *
- * <h2>两处与旧实现的差异</h2>
- * <ul>
- *   <li><b>远端错误码不再原样透给 BOM。</b>旧实现把 ticket-server 的 retCode 直接回吐，
- *       BOM 侧只认 BOM 族码值（0000 / 8999 / 80xx），透传等于给出一个它不认识的码。
- *       这里统一收敛成 {@code 8999} + 远端文案，<b>文案里带上远端码便于排查</b>。</li>
- *   <li><b>状态变更型操作补审计。</b>{@code requestUpdateCardData} 与
- *       {@code notiUpdateHceData} 都会改票卡数据，旧实现前者完全不落库、后者落一条
- *       {@code STATUS} 列被静默丢弃的记录。这里统一落到 {@code F2F_RESULT_REPORT}，
- *       {@code ORDER_NO} 位放 {@code cardId}（本链路没有订单号）。</li>
- * </ul>
- *
- * <p>不带 {@code @Transactional}：三个方法都有 RPC 调用。</p>
- */
+/** IF5A 票卡分析 / 更新 / HCE 更新结果通知。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。 */
 @Service
 public class F2fHceService {
 
@@ -62,16 +46,7 @@ public class F2fHceService {
         this.reportMapper = reportMapper;
     }
 
-    /**
-     * IF5A-01 票卡分析。只读，不落库。
-     *
-     * <p><b>下游失败时 MUST 原样透传 ticket-server 的 retCode / retMsg</b>，NEVER 包成 8999。
-     * 旧实现是纯转发，BOM 拿到的就是下游码；2026-09-11 新旧双打实测：同一 cardId 旧服务回
-     * {@code 8004 未注册用户}，新服务当时回 {@code 8999 票卡分析失败[8004]:未注册用户}，
-     * 设备按 8004 做的分支在新服务上永远匹配不到。已改回透传。
-     * （「下游异常 / 无应答」两个分支仍回 8999——那是我方兜底、下游根本没给码，
-     * 旧实现在这两种情况下的表现无法在测试环境复现，保持现状。）</p>
-     */
+    /** IF5A-01 票卡分析。 */
     public JSONObject requestCardDataAnalyse(RequestCardDataAnalyseReqDTO request) {
         com.chinasofti.huateng.model.ticket.RequestCardDataAnalyseReqDTO remote =
                 new com.chinasofti.huateng.model.ticket.RequestCardDataAnalyseReqDTO();
@@ -103,12 +78,7 @@ public class F2fHceService {
                 response.getAdviceOpt(), response.getManagerCode(), response.getTransAmount());
     }
 
-    /**
-     * IF5A-03 票卡更新。<b>状态变更型</b>，成功与失败都留审计。
-     *
-     * <p>下游失败同样原样透传 retCode / retMsg，理由见
-     * {@link #requestCardDataAnalyse}。</p>
-     */
+    /** IF5A-03 票卡更新。 */
     public JSONObject requestUpdateCardData(RequestCardDataUpdateReqDTO request) {
         com.chinasofti.huateng.model.ticket.RequestCardDataUpdateReqDTO remote =
                 new com.chinasofti.huateng.model.ticket.RequestCardDataUpdateReqDTO();
@@ -142,13 +112,7 @@ public class F2fHceService {
         return BomResponses.cardDataUpdate(response.getCardData());
     }
 
-    /**
-     * IF5A-09 HCE 票卡更新结果通知：先落审计，再把 HCE 数据回写 account-server。
-     *
-     * <p><b>回写失败仍回成功</b>：通知已经落库，回失败只会让 BOM 无意义重推；
-     * 但审计里的 {@code OPT_RESULT} 会记成 FAILED，运营端能查出来。
-     * 旧实现这一点是对的，此处保留。</p>
-     */
+    /** IF5A-09 HCE 票卡更新结果通知：先落审计，再把 HCE 数据回写 account-server。 */
     public JSONObject receiveHceUpdateResult(NotiUpdateHceDataReqDTO request) {
         boolean firstReport = audit(request.getCardId(), request.getDeviceId(),
                 "SUCCESS", "HCE更新通知已受理", request.getHceData());
@@ -177,9 +141,7 @@ public class F2fHceService {
     }
 
     /**
-     * 落一条审计。<b>{@code ORDER_NO} 位放 {@code cardId}</b>——本链路没有订单号，
-     * 而 {@code UK_F2F_REPORT_IDEM} 是 (REPORT_TYPE, ORDER_NO)，因此同一张卡的
-     * 重复通知会被挡住。
+     * 落一条审计。
      *
      * @return true 表示首次落库；false 表示撞唯一索引
      */

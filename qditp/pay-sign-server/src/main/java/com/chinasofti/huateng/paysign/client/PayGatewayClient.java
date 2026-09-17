@@ -25,12 +25,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
-/**
- * 支付网关适配器。
- *
- * <p>负责支付网关公共报文组装、签名和 HTTP 通信；领域服务只能传入接口路径和业务参数，
- * 不感知 OkHttp、Base64 编码或签名字段。这样支付平台协议变化只会影响此类。</p>
- */
+/** 支付网关适配器。 */
 @Component
 public class PayGatewayClient {
     private static final Logger log = LoggerFactory.getLogger(PayGatewayClient.class);

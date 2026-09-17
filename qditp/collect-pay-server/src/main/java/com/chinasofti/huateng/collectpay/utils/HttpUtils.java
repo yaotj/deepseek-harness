@@ -71,9 +71,7 @@ public class HttpUtils {
         return res;
     }
 
-    /**
-     * 按 APP 接口协议发送 multipart/form-data 报文，业务字段以 JSON 字符串放入 bizData。
-     */
+    /** 按 APP 接口协议发送 multipart/form-data 报文，业务字段以 JSON 字符串放入 bizData。 */
     public String doPostFormData(String url, ItpCommonRequest<?> request) {
         String bizData = JSONObject.toJSONString(request.getBizData(), SerializerFeature.WriteMapNullValue);
         RequestBody requestBody = new MultipartBody.Builder()

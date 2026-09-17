@@ -31,15 +31,6 @@ import java.util.Map;
 
 /**
  * 员工码出网实现。
- *
- * <p>2026-09-11 由 {@link EmployeeCardServiceImpl} 逐字搬迁而来（account-server 2.0.58）：
- * 方法体、日志文案与注释一并保留，<b>没有改任何行为</b>。搬过来的是
- * {@code postFormData} / {@code registerEmployeeCardsToApp} / {@code parseAppFailList}
- * / {@code queryEmployeeCardFromAcc} 与它们独占的配置项 + {@code RestTemplate}。</p>
- *
- * <p><b>NEVER 在本类里加事务</b> —— 这里只有 HTTP，没有一条 SQL；反过来，
- * <b>调用方也 NEVER 把本类的方法放进 {@code @Transactional} 里</b>（AGENTS.md §5.2：
- * 事务包住 RPC 已在 2026-08-26 造成生产事故）。</p>
  */
 @Service
 public class EmployeeCardOutboundServiceImpl implements EmployeeCardOutboundService {
@@ -49,9 +40,7 @@ public class EmployeeCardOutboundServiceImpl implements EmployeeCardOutboundServ
     private final RestTemplate restTemplate;
 
     /**
-     * 出网地址与报文常量。2026-09-11 由 10 个散落的 {@code @Value} 收成一个对象（配置键未变），
-     * 见 {@link EmployeeCardOutboundProperties}。<b>NEVER 再往本类加单独的 {@code @Value} 字段</b>，
-     * 新配置项一律加到那个类里，否则又会散回来。
+     * 出网地址与报文常量。
      */
     private final EmployeeCardOutboundProperties properties;
 
@@ -76,8 +65,6 @@ public class EmployeeCardOutboundServiceImpl implements EmployeeCardOutboundServ
             }
             JSONObject body = JSON.parseObject(response);
             if (body == null) {
-                // 响应不是 JSON 对象（纯文本 / JSON 数组 / null 字面量）时 parseObject 返回 null，
-                // 直接 getString 会 NPE 并被下方 catch 吞成「远端业务拒绝」，整批失败原因不可辨。
                 log.error("APP注册接口响应非JSON对象, batchSize={}, response={}", batch.size(), response);
                 return wholeBatchFailure(batch, "APP注册接口响应非JSON");
             }
@@ -156,8 +143,6 @@ public class EmployeeCardOutboundServiceImpl implements EmployeeCardOutboundServ
             if (!StringUtils.hasText(resultCode)) {
                 resultCode = body.getString("code");
             }
-            // MUST 保留 hasText 前置：ACC 有的响应不带任何码，本方法的历史语义是「没回码就当成功」。
-            // NEVER 简化成 !AccResultCode.isSuccess(resultCode) —— 那会把「没回码」从放行改成拒绝。
             if (StringUtils.hasText(resultCode) && !AccResultCode.isSuccess(resultCode)) {
                 log.warn("ACC员工码查询返回失败, cardNo={}, response={}", cardNo, response);
                 return null;
@@ -183,8 +168,6 @@ public class EmployeeCardOutboundServiceImpl implements EmployeeCardOutboundServ
 
     @Override
     public String requestActivation(EmployeeCardActivateReqDTO request) {
-        // 与 registerToApp / queryFromAcc 同口径先判地址：未配置时 RestTemplate 抛的是无业务语义的
-        // IllegalArgumentException，调用方看不出「是没配地址」还是「ACC 拒绝了」。
         if (!isActivationUrlConfigured()) {
             throw new IllegalStateException("ACC员工码激活接口地址未配置");
         }

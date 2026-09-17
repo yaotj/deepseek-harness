@@ -13,12 +13,7 @@
         </constructor>
     </resultMap>
 
-    <!--
-      所有 `#{}` 一律显式写 jdbcType，理由见 ReconSourceMapper.xml 同处说明
-      （Oracle + ojdbc8 对 JdbcType.OTHER(1111) 的 setNull 直接报「无效的列类型: 1111」）。
-      本表当前没有写 FAIL_REASON 的语句（该列由人工排查用，代码只在 RECON_BATCH_SOURCE 侧写失败原因）；
-      日后若新增写 FAIL_REASON 的 UPDATE，MUST 带 jdbcType=VARCHAR，它是可空 VARCHAR2(1024)。
-    -->
+    <!-- SQL 正文禁写注释（Druid WallFilter commentAllow=false）；本注释内 NEVER 出现两个连续减号 -->
     <insert id="insertIfAbsent">
         MERGE INTO RECON_BATCH T
         USING (SELECT #{batchId,jdbcType=VARCHAR} BATCH_ID FROM DUAL) S
@@ -34,7 +29,7 @@
         WHERE BATCH_ID = #{batchId,jdbcType=VARCHAR}
     </select>
 
-    <!-- 非终态批次，供编排任务逐个推进；ROWNUM 限流放在外层，保证先排序再截断 -->
+    <!-- 非终态批次，供编排任务逐个推进 -->
     <select id="selectUnfinished" resultMap="BatchViewMap">
         SELECT BATCH_ID, BUSINESS_DATE, WINDOW_START, WINDOW_END, STATUS, CREATED_AT, UPDATED_AT
         FROM (

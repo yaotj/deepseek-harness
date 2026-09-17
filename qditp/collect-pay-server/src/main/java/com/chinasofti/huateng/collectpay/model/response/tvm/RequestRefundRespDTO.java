@@ -2,37 +2,22 @@ package com.chinasofti.huateng.collectpay.model.response.tvm;
 
 import com.alibaba.fastjson.JSONObject;
 
-/**
- * 退款响应DTO。
- */
+/** 退款响应DTO。 */
 public class RequestRefundRespDTO {
 
-    /**
-     * 返回码。
-     */
+    /** 返回码。 */
     private String retCode;
 
-    /**
-     * 返回消息。
-     */
+    /** 返回消息。 */
     private String retMsg;
 
-    /**
-     * 退款结果。
-     * SUCCESS-退款成功
-     * FAILED-退款失败
-     * PROCESSING-处理中
-     */
+    /** 退款结果。 */
     private String refundResult;
 
-    /**
-     * 退款结果描述。
-     */
+    /** 退款结果描述。 */
     private String refundResultDesc;
 
-    /**
-     * 退款单号。
-     */
+    /** 退款单号。 */
     private String refundNo;
 
     public String getRetCode() {

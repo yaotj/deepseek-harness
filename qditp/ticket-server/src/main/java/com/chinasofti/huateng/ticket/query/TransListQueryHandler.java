@@ -25,20 +25,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * IF8A-05 交易记录列表查询。
- *
- * <p>2026-09-14 从 {@code TransQueryHandler}（626 行）拆出：那个类把 IF8A-05 / IF8A-34 / IF8A-41
- * 三个**互不调用**的入口塞在一起，还夹带两段死代码（空方法 {@code enrichTradeOrderNos}、
- * 无调用点的 {@code mergeTransRecord}）。三者共享的只有入参归一化，已收口到
- * {@link TransQueryParamNormalizer}。</p>
- *
- * <p><b>数据源固定为 {@code GATE_TXN_PAY}（经 RPC）+ {@code PAY_TXN_DETAIL}（经 RPC）。</b>
- * 全票种（含日票）统一查 {@code GATE_TXN_PAY}，<b>NEVER 按票种分流到本地 {@code QRCODE_TXN_DETAIL}</b>：
- * 日票出站同样落 {@code GATE_TXN_PAY}（{@code GateTxnPayServiceImpl:166} 的 {@code isDailyTicket}
- * 分支照常 INSERT，只是跳过 pay-sign 并直接标 {@code DEBIT_STATUS=SUCCESS}），且该表的日票行字段更全
- * （站名已落库、有 {@code ORDER_NO} / {@code TICKET_CODE} / {@code COUNTING_*}）。</p>
- */
+/** IF8A-05 交易记录列表查询。 */
 @Component
 public class TransListQueryHandler {
 
@@ -55,9 +42,7 @@ public class TransListQueryHandler {
     @Autowired
     private TransQueryParamNormalizer paramNormalizer;
 
-    /**
-     * 查询交易记录列表 (IF8A-05)。
-     */
+    /** 查询交易记录列表 (IF8A-05)。 */
     public RequestTransListResult requestTransList(QueryTransListReqDTO request) {
         RequestTransListResult response = new RequestTransListResult();
         try {
@@ -130,23 +115,11 @@ public class TransListQueryHandler {
         response.setSign("");
     }
 
-    /**
-     * 双源合并 → {@link TransRecordDTO}：先按 {@code orderNo} 批量拉支付明细，再逐行拼装。
-     *
-     * <p>字段落库时已写全（站名、商户号、计次），**此处不做二次 enrich**，NEVER 加回 ——
-     * 详情侧（IF8A-34）曾按 {@code merchant-change-date} 覆盖已落库的商户号，把「进站时间错」
-     * 放大成「资金归属方错」（2026-09-07 修复），列表侧一直是直取库内值、口径以本处为准。</p>
-     *
-     * <p>2026-09-14：删除中间模型 {@code TransListEntry} 与 {@code copyGateFields} /
-     * {@code copyPayFields} 两段手工拷贝（共 65 行赋值：40 + 25），直接把两个上游 DTO 交给
-     * {@link TransRecordAssembler}。上游加列时本方法零改动；<b>NEVER 再加回中间容器</b>。</p>
-     */
+    /** 双源合并 → {@link TransRecordDTO}：先按 {@code orderNo} 批量拉支付明细，再逐行拼装。 */
     private List<TransRecordDTO> assembleRecords(List<GateTxnPayListDTO> gateRecords) {
         Map<String, PayTxnDetailDTO> payDetailMap = queryPayDetails(gateRecords);
         List<TransRecordDTO> records = new ArrayList<>(gateRecords.size());
         for (GateTxnPayListDTO gate : gateRecords) {
-            // payDetailMap 取不到是正常情况（BOM 补站单、日票免扣费单没有 PAY_TXN_DETAIL 行），
-            // assemble 内部按 pay==null 处理，NEVER 在此过滤掉这类记录。
             records.add(TransRecordAssembler.assemble(gate, payDetailMap.get(gate.getOrderNo())));
         }
         return records;

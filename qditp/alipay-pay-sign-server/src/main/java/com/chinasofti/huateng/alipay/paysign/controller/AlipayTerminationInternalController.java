@@ -11,12 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 支付宝出行销卡内部接口控制器。
- *
- * <p>与 pay-sign 的 {@code /internal/termination/process} 同形：调用方反复调用直到
- * {@code scanned} 为 0 完成排空，服务端单次只处理一批。</p>
- */
+/** 支付宝出行销卡内部接口控制器。 */
 @RestController
 @RequestMapping("/internal/alipay/termination")
 public class AlipayTerminationInternalController {

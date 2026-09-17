@@ -51,11 +51,8 @@ public class NettyServer {
        bossGroup = new NioEventLoopGroup(1);
        workerGroup = new NioEventLoopGroup();
             serverBootstrap = new ServerBootstrap();
-            //绑定两个线程组
             serverBootstrap.group(bossGroup,workerGroup)
-                    //指定NIO的模式
                     .channel(NioServerSocketChannel.class)
-                    //配置具体的数据处理方式
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                                       @Override
                                       protected void initChannel(SocketChannel ch) throws Exception {
@@ -67,7 +64,7 @@ public class NettyServer {
                                                   Constant.NETTY_LENGTH.LENGTH_FIELD_LENGTH,
                                                   Constant.NETTY_LENGTH.LENGTH_ADJUSTMENT,
                                                   Constant.NETTY_LENGTH.INITIAL_BYTES_TO_STRIP, false));
-                                          pipeline.addLast(serverHandler); //业务处理器
+                                          pipeline.addLast(serverHandler);
                                       }
                                   }
                     ).option(ChannelOption.SO_BACKLOG, 128)
@@ -85,7 +82,6 @@ public class NettyServer {
             } else {
                 log.error("Netty Server failed");
             }
-            // 等待服务监听端口关闭
             channelFuture.channel().closeFuture().sync();
         } catch (InterruptedException e) {
             log.error("服务端异常");

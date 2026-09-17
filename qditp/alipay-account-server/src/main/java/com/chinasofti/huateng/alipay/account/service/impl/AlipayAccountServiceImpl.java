@@ -52,30 +52,11 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
     @Autowired
     private CardPoolClient cardPoolClient;
 
-    /**
-     * 开卡链路的落库部分用它显式开短事务。
-     *
-     * <p>{@code requestApplication} 要「预占（RPC）→ 注册乘车状态（RPC）→ 落本地 → 确认预占（RPC）」，
-     * 而 AGENTS.md §5.2 禁止在 {@code @Transactional} 方法内发起 RPC；同类内自调用又绕不过 Spring 代理，
-     * 因此只能把落库那两条 INSERT 收进 TransactionTemplate。<b>NEVER</b> 给 {@code requestApplication}
-     * 重新加上 {@code @Transactional}。</p>
-     */
+    /** 开卡链路的落库部分用它显式开短事务。 */
     @Autowired
     private TransactionTemplate transactionTemplate;
 
-    /**
-     * 支付宝出行-开卡申请（规范 3.69）。
-     *
-     * <p><b>本方法故意不带 {@code @Transactional}</b>：卡池预占、ticket-server 注册乘车状态、卡池确认 / 释放
-     * 全是 RPC。改造前这里是 {@code @Transactional} 包住 3 次 RPC，与 2026-08-26 生产事故
-     * （{@code PaySignWorkflow.receivePayResult} 事务内调远端，行锁持有时长等于对端响应时长，
-     * 连接被 Druid 的 {@code remove-abandoned-timeout} 强杀后整个事务连同证据一起回滚）**同型**。</p>
-     *
-     * <p>编排顺序按 AGENTS.md §5.2「先调远端、后改本地」：预占卡号 → 注册乘车状态 → 短事务落
-     * {@code ALIPAY_USER_INFO} + {@code ALIPAY_REG_LOG} → 确认预占。落库失败时乘车状态留在远端等重推
-     * （卡池按 businessId 幂等发号，重推拿到同一卡号、不会产生第二条乘车状态），预占显式 release；
-     * release 本身失败由卡池的预占超时回收兜底。</p>
-     */
+    /** 支付宝出行-开卡申请（规范 3.69）。 */
     @Override
     public AlipayTripRequestApplicationRespDTO requestApplication(AlipayTripRequestApplicationReqDTO request) {
         AlipayTripRequestApplicationRespDTO response = new AlipayTripRequestApplicationRespDTO();
@@ -216,17 +197,7 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
         }
     }
 
-    /**
-     * 支付宝渠道换号：只改 {@code ALIPAY_USER_INFO} 并落一条 {@code ALIPAY_PHONE_CHANGE_LOG}。
-     *
-     * <p><b>本方法故意不向支付域同步「显示账号」</b>（用户 2026-09-11 裁定：不需要）。
-     * ITP 侧的 {@code PhoneChangeServiceImpl.updatePhone} 会调 pay-sign 的
-     * {@code updatePaySignDisplayAccount} 并带 {@code SIGN_SYNC_*} 补偿，
-     * <b>NEVER 照抄到这里</b> —— 支付宝走自有代扣，用户在支付域没有签约行，
-     * 推过去只会命中「{@code APP_PAY_SIGN_INFO} UPDATE 影响 0 行 ⇒ 返回 FAIL」，
-     * 白造一批永远重推不成功的 {@code FAILED} 记录和异常工单。
-     * 同理 {@code ALIPAY_PHONE_CHANGE_LOG} <b>NEVER 加 {@code SIGN_SYNC_*} 列</b>。</p>
-     */
+    /** 支付宝渠道换号：只改 {@code ALIPAY_USER_INFO} 并落一条 {@code ALIPAY_PHONE_CHANGE_LOG}。 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean updatePhone(String thirdUserId, String newMsisdn) {
@@ -271,7 +242,6 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
 
     /**
      * 向逻辑卡号池预占一个卡号。
-     *
      * @param thirdUserId 支付宝用户标识，作为预占归属方
      * @param appCardType APP 侧票种码，内部转换为发卡票种码
      * @return 预占结果，非 SUCCESS 时 data 为空，由调用方按 outcome 分流
@@ -288,10 +258,6 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
 
     /**
      * 按预占失败分类填充对外响应并落日志。
-     *
-     * <p>POOL_EMPTY 属正常业务结果（WARN）；REJECTED 说明票种不走卡池或归属冲突，属程序 / 配置缺陷、
-     * 重试无用（ERROR）；CALL_FAILED 是 card-pool-server 不可达或响应无法解析，可重试（ERROR）。</p>
-     *
      * @param response    待填充的对外响应
      * @param result      预占结果，outcome 必为非 SUCCESS
      * @param thirdUserId 支付宝用户标识，仅用于日志定位
@@ -323,10 +289,6 @@ public class AlipayAccountServiceImpl implements AlipayAccountService {
 
     /**
      * 释放已预占的逻辑卡号，失败只记 WARN。
-     *
-     * <p>释放不成功不改变对外结论、也不再抛异常：卡号会由 card-pool-server 的预占超时回收兜底，
-     * 若在此处抛异常反而会掩盖真正的失败原因。</p>
-     *
      * @param reservationId 预占记录标识
      * @param businessId    预占时使用的业务流水号，须完全一致
      * @param thirdUserId   支付宝用户标识，仅用于日志定位

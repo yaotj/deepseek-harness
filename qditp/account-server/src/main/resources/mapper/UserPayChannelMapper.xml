@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.account.mapper.UserPayChannelMapper">
+    <!-- SQL 正文禁写注释（行注释与块注释都不行）：Druid WallFilter 判为注入、语句静默失效；说明只放本 XML 注释里。 -->
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.account.entity.UserPayChannel">
         <id column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
         <id column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
@@ -14,11 +15,6 @@
         <result column="UPDATE_TMS" jdbcType="TIMESTAMP" property="updateTms"/>
     </resultMap>
 
-    <!-- 本语句刻意不查 PAY_ACCOUNT_ID：调用方（IF8A-23 查重、IF8A-24 设默认）都不读这个列。
-         PAY_ACCOUNT_ID 是 ADR-D30 新增列，其 DDL 与 account-server 镜像的上线顺序无法保证，
-         把它塞进这些既有语句会让「列还没建」时连 IF8A-23/24 一起报 ORA-00904。
-         只有真正需要它的两条语句（selectByThirdUserIdAndCardTypeAndCardId 运营页读、
-         updatePayAccountIdByReqContractNo 回写）才带这个列。 -->
     <select id="selectByThirdUserIdAndCardTypeAndChannel" resultMap="BaseResultMap">
         select THIRD_USER_ID, CARD_ID, CARD_TYPE, CHANNEL, THIRD_PAY_ID, REQ_CONTRACT_NO, STATUS, CREATE_TMS, UPDATE_TMS
         from APP_USER_PAY_CHANNEL
@@ -36,8 +32,6 @@
         order by CREATE_TMS desc, CHANNEL
     </select>
 
-    <!-- 供 pay-sign-server IF8A-75 反查票卡信息：APP_PAY_SIGN_INFO 的 CARD_ID/CARD_TYPE 全库为 NULL，
-         真实来源是本表，REQ_CONTRACT_NO 即签约流水号 requestSignSeq -->
     <select id="selectByReqContractNo" resultMap="BaseResultMap">
         select THIRD_USER_ID, CARD_ID, CARD_TYPE, CHANNEL, THIRD_PAY_ID, REQ_CONTRACT_NO, STATUS, CREATE_TMS, UPDATE_TMS
         from APP_USER_PAY_CHANNEL
@@ -46,16 +40,12 @@
         fetch first 1 rows only
     </select>
 
-    <!-- 判断「最后一个签约渠道是否已解绑」：thirdUserId 全量口径，不带 cardType / cardId，
-         由 requestRemovePayChannel 在 delete 之后调用，为 0 即该用户已无任何支付通道 -->
     <select id="countByThirdUserId" resultType="int">
         select count(1)
         from APP_USER_PAY_CHANNEL
         where THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
     </select>
 
-    <!-- 不写 PAY_ACCOUNT_ID：加通道时这个值还不存在（签约成功后才由支付域回推，见
-         updatePayAccountIdByReqContractNo），写进来只会是 null，却让本语句多依赖一个新列。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.account.entity.UserPayChannel">
         insert into APP_USER_PAY_CHANNEL (
             THIRD_USER_ID, CARD_ID, CARD_TYPE, CHANNEL, THIRD_PAY_ID, REQ_CONTRACT_NO, STATUS, CREATE_TMS, UPDATE_TMS
@@ -72,10 +62,6 @@
         )
     </insert>
 
-    <!-- IF8A-77 把支付域返回的 PAY_ACCOUNT_ID 回写到通道行，让运营页面「支付账号」列改成本地读。
-         按 REQ_CONTRACT_NO 定位：该值就是签约流水号，与 PAY_ACCOUNT_ID 一一对应，
-         比按 (THIRD_USER_ID, CARD_TYPE, CHANNEL) 定位更贴近这个值的来源。
-         影响 0 行是正常情形（该签约流水在本表没有对应通道行），调用方只记日志、不失败 -->
     <update id="updatePayAccountIdByReqContractNo">
         update APP_USER_PAY_CHANNEL
         set PAY_ACCOUNT_ID = #{payAccountId,jdbcType=VARCHAR},

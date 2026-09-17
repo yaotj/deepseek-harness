@@ -3,28 +3,18 @@ package com.chinasofti.huateng.collectpay.model.response.tvm;
 import com.alibaba.fastjson.JSONObject;
 import com.chinasofti.huateng.collectpay.constant.TvmPayCodeEnum;
 
-/**
- * IF2A-01 提交单程票订单应答报文（ITP -> TVM）。
- */
+/** IF2A-01 提交单程票订单应答报文（ITP -> TVM）。 */
 public class TvmOrderResult {
-    /**
-     * 返回码。
-     */
+    /** 返回码。 */
     private String retCode;
 
-    /**
-     * 返回消息。
-     */
+    /** 返回消息。 */
     private String retMsg;
 
-    /**
-     * 订单号。
-     */
+    /** 订单号。 */
     private String orderNo;
 
-    /**
-     * 二维码信息（支付URL），TVM把整个字段显示为二维码。
-     */
+    /** 二维码信息（支付URL），TVM把整个字段显示为二维码。 */
     private String payUrl;
 
     public String getRetCode() {

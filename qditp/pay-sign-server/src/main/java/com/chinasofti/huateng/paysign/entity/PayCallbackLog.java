@@ -2,12 +2,7 @@ package com.chinasofti.huateng.paysign.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * 支付/退款回调流水。
- *
- * <p>每次支付平台回调都插入一条记录，避免重复回调覆盖原文。当前支付订单的最终态由
- * {@code PAY_TXN_DETAIL} 或 {@code PAY_REFUND_DETAIL} 保存。</p>
- */
+/** 支付/退款回调流水。 */
 public class PayCallbackLog {
     private Long id;
     private String orderNo;

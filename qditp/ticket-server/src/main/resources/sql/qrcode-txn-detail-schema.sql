@@ -1,7 +1,4 @@
 -- 二维码闸机交易明细表
--- Oracle 月分区表，TXN_DATE 使用字符串 YYYYMMDD 入库。
--- 注意：本表按 TXN_DATE 手动维护月分区，P_MAX 仅作为兜底分区。
--- 建议每月提前创建后续月份分区，避免正常交易数据长期写入 P_MAX。
 
 CREATE TABLE QRCODE_TXN_DETAIL (
     ID                        NUMBER(20) NOT NULL,
@@ -28,10 +25,6 @@ CREATE TABLE QRCODE_TXN_DETAIL (
     CARD_NUM                  VARCHAR2(32 CHAR),
     PAY_CHANNEL_CODE          VARCHAR2(16 CHAR),
     -- DEBIT_REQUEST_RESULT 在 AFCITPDB 里并不存在（2026-09-14 查 USER_TAB_COLS 实测：
-    -- 全库只有 PAY_TXN_DETAIL 有这一列），且全仓库零处代码读写本表的这一列，
-    -- 属有意保留的未落地设计。要看扣款结果 MUST 走 GATE_TXN_PAY.DEBIT_STATUS，
-    -- PAY_TXN_DETAIL.DEBIT_REQUEST_RESULT 只在前者为空时兜底。
-    -- NEVER 据本行认为库里已有该列；真要启用 MUST 出独立 migration 脚本并回查。
     DEBIT_REQUEST_RESULT      VARCHAR2(16 CHAR),
     DISCOUNT_FEE              NUMERIC(10),
     DISCOUNT_INFO             VARCHAR2(512 CHAR),
@@ -58,7 +51,6 @@ CREATE SEQUENCE SEQ_QRCODE_TXN_DETAIL
     NOCYCLE;
 
 -- 交易幂等唯一索引。
--- Oracle 本地唯一索引必须包含分区键，因此包含 TXN_DATE。
 CREATE UNIQUE INDEX UK_QRCODE_TXN_DETAIL_BIZ
 ON QRCODE_TXN_DETAIL (
     CARD_ID,
@@ -127,46 +119,3 @@ COMMENT ON COLUMN QRCODE_TXN_DETAIL.DISCOUNT_INFO IS '优惠详情JSON数组';
 COMMENT ON COLUMN QRCODE_TXN_DETAIL.CREATE_TIME IS '创建时间';
 
 -- 后续月分区维护示例：
---
--- 1. 新增 2027 年 1 月分区。
---    P202701 覆盖范围：20270101 <= TXN_DATE < 20270201
---
--- ALTER TABLE QRCODE_TXN_DETAIL
--- SPLIT PARTITION P_MAX
--- AT ('20270201')
--- INTO (
---     PARTITION P202701,
---     PARTITION P_MAX
--- );
---
--- 2. 新增 2027 年 2 月分区。
---    P202702 覆盖范围：20270201 <= TXN_DATE < 20270301
---
--- ALTER TABLE QRCODE_TXN_DETAIL
--- SPLIT PARTITION P_MAX
--- AT ('20270301')
--- INTO (
---     PARTITION P202702,
---     PARTITION P_MAX
--- );
---
--- 3. 查询分区情况。
---
--- SELECT TABLE_NAME, PARTITION_NAME, HIGH_VALUE
--- FROM USER_TAB_PARTITIONS
--- WHERE TABLE_NAME = 'QRCODE_TXN_DETAIL'
--- ORDER BY PARTITION_POSITION;
---
--- 4. 删除历史月份分区示例：删除 2026 年 6 月交易明细。
---    执行前务必确认历史数据已归档或无需保留。
---
--- ALTER TABLE QRCODE_TXN_DETAIL DROP PARTITION P202606 UPDATE INDEXES;
---
--- 5. 推荐查询写法：按卡号查询时同时带 TXN_DATE 范围，确保命中分区裁剪。
---
--- SELECT *
--- FROM QRCODE_TXN_DETAIL
--- WHERE CARD_ID = :cardId
---   AND TXN_DATE >= :beginDate
---   AND TXN_DATE <  :endDate
--- ORDER BY HANDLE_DATE_TIME DESC;

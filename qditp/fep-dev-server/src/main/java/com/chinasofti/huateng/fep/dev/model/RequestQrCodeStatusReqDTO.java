@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.fep.dev.model;
 
-/**
- * IF1A-04 查询票卡状态请求业务参数。
- */
+/** IF1A-04 查询票卡状态请求业务参数。 */
 public class RequestQrCodeStatusReqDTO {
 
     private String itpUserId;

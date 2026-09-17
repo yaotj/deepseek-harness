@@ -8,12 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * {@link TerminationStatus} 白名单与解析的行为锁。
- *
- * <p>白名单与 {@code AppTerminationRequestMapper.xml} 的 6 条 CAS 一一对应，
- * 改动任何一边都 MUST 同步另一边，本测试就是那个提醒。
- */
+/** 护栏：解约状态白名单与 6 条 CAS 对齐，FAILED 只能复活成 PENDING、NEVER 直接转 SUCCESS。 */
 class TerminationStatusWhitelistTest {
 
     /** PENDING 只能进 SCANNING（抢占）或 FAILED（有未结清欠费被拒）。 */
@@ -35,13 +30,7 @@ class TerminationStatusWhitelistTest {
                 "revertScanningToPending 是在跑的语句，白名单 MUST 容纳它");
     }
 
-    /**
-     * <b>本轮的核心裁决</b>（用户 2026-09-12）：{@code FAILED} 只能复活成 {@code PENDING}，
-     * NEVER 直接转 {@code SUCCESS}。
-     *
-     * <p>删掉这条断言等于允许「已告知 APP 解约失败之后，迟到的成功回调再改成成功」，
-     * 对端会收到两条相反通知，而补通知的口径没有业务定义。
-     */
+    /** 本轮的核心裁决（用户 2026-09-12）：{@code FAILED} 只能复活成 {@code PENDING}。 */
     @Test
     void failedNeverTransitsToSuccess() {
         assertTrue(TerminationStatus.FAILED.canTransitTo(TerminationStatus.PENDING));
@@ -60,11 +49,7 @@ class TerminationStatusWhitelistTest {
         assertFalse(TerminationStatus.FAILED.isTerminal(), "FAILED 可复活成 PENDING，不是终态");
     }
 
-    /**
-     * {@code isNotifiable} MUST 与 {@code selectCompensableNotify} 的
-     * {@code TERMINATION_STATUS in ('SUCCESS','FAILED')} 保持一致。
-     * 放宽到 PENDING / SCANNING 会给 APP 发假解约成功通知（2026-08-26 修过一次）。
-     */
+    /** {@code isNotifiable} MUST 与 {@code selectCompensableNotify} 的。 */
     @Test
     void onlyTerminalStatusesAreNotifiable() {
         assertTrue(TerminationStatus.SUCCESS.isNotifiable());

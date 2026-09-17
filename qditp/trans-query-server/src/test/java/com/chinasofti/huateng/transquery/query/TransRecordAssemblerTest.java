@@ -8,15 +8,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-/**
- * {@link TransRecordAssembler} 单测。
- *
- * <p>2026-09-14 随「删除中间模型 TransListEntry」一并补齐：这六个用例覆盖的都是
- * <b>改坏了不报错、只在 APP 上看出来</b>的口径 —— 金额单位（分，NEVER 转元）、
- * 扣款结果值域（只有 SUCCESS 是 "0"）、{@code pay == null} 分支
- * （BOM 补站单 / 日票免扣费单没有 PAY_TXN_DETAIL 行）、pay 侧字段取值源、
- * 站名缺失回落站点编码，以及 {@code gate == null} 直接返 null。<b>NEVER 删</b>。</p>
- */
+/** {@link TransRecordAssembler} 单测。 */
 class TransRecordAssemblerTest {
 
     @Test
@@ -27,10 +19,8 @@ class TransRecordAssemblerTest {
 
         TransRecordDTO dto = TransRecordAssembler.assemble(gate, pay());
 
-        // 库内 200 分即 2 元；2026-09-07 曾在此转元，APP 再除 100 显示成 0.02
         assertEquals("200", dto.getPayAmount());
         assertEquals(Integer.valueOf(300), dto.getOriginalFare());
-        // totalAmount 是 APP 侧的「原价」字段，与 originalFare 同源，不是实付
         assertEquals(Integer.valueOf(300), dto.getTotalAmount());
     }
 
@@ -39,12 +29,9 @@ class TransRecordAssemblerTest {
         assertEquals("0", TransRecordAssembler.toAppDebitResult("SUCCESS", null));
         assertEquals("1", TransRecordAssembler.toAppDebitResult("FAIL", null));
         assertEquals("1", TransRecordAssembler.toAppDebitResult("PROCESSING", null));
-        // 闸机侧是权威列：即便支付明细侧是 FAIL，也按 SUCCESS 算（2026-09-10 生产缺陷）
         assertEquals("0", TransRecordAssembler.toAppDebitResult("SUCCESS", "FAIL"));
-        // 仅当闸机侧为空 / 空串才回落到支付明细侧
         assertEquals("0", TransRecordAssembler.toAppDebitResult(null, "SUCCESS"));
         assertEquals("0", TransRecordAssembler.toAppDebitResult("  ", "SUCCESS"));
-        // 未知值 NEVER 当成功
         assertEquals("1", TransRecordAssembler.toAppDebitResult(null, null));
     }
 
@@ -60,7 +47,6 @@ class TransRecordAssemblerTest {
         assertEquals("", dto.getPayTradeOrderNo());
         assertNull(dto.getDiscountFee());
         assertNull(dto.getDiscountInfo());
-        // 闸机侧 SUCCESS 仍要显示已支付，NEVER 因为没有支付明细行就退化成 "1"
         assertEquals("0", dto.getDebitRequestResult());
         assertEquals("GT20260914000000000000001", dto.getTradeOrderNo());
     }

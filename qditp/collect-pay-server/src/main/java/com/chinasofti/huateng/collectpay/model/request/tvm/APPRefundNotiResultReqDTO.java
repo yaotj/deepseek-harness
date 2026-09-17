@@ -6,9 +6,7 @@ import lombok.Data;
 
 import java.util.List;
 
-/**
- * 5.2 退款回调 支付中心回调itp
- */
+/** 5.2 退款回调 支付中心回调itp */
 @Data
 //public class APPRefundNotiResultReqDTO extends BaseRequestDTO {
 public class APPRefundNotiResultReqDTO extends PayCenterBaseRequestDTO {

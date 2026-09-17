@@ -2,26 +2,19 @@ package com.chinasofti.huateng.facepay.api.device.tvm;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/**
- * IF2A-11 写卡充值失败结果上报。
- * 对应 {@code POST /itptvm/ci/tvm/topupCardFailNoti} 的 {@code bizData}。
- *
- * <p>{@code topupStatus} 决定是否退款：<b>只有 {@code 01}（失败）才退</b>，
- * {@code 02}（存疑）与 {@code 03}（取消）不退，留人工处理——存疑意味着卡可能已写成功，
- * 盲退会造成「卡里有钱、钱也退了」。这是旧实现的口径，照搬。</p>
- */
+/** IF2A-11 写卡充值失败结果上报。 */
 public class TopupCardFailNotiReqDTO extends BaseDeviceRequest {
 
     /** 充值失败：需要退款。 */
     public static final String STATUS_FAILED = "01";
 
-    /** 订单号。必填。 */
+    /** 订单号。 */
     private String orderNo;
 
-    /** 票卡逻辑卡号。必填。 */
+    /** 票卡逻辑卡号。 */
     private String ticketLogicNum;
 
-    /** 票卡物理卡号。必填。 */
+    /** 票卡物理卡号。 */
     private String ticketPhysicsNum;
 
     /** 充值结果：{@code 01} 失败 / {@code 02} 存疑 / {@code 03} 取消。 */

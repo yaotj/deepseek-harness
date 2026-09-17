@@ -9,9 +9,7 @@
 
  @Mapper
  public interface TvmOrderPreMapper {
-     /**
-      * 根据订单号查询订单。
-      */
+     /** 根据订单号查询订单。 */
      TvmPayPreOrder selectByOrderNo(@Param("orderNo") String orderNo);
 
      int insert(Map<String,Object> map);

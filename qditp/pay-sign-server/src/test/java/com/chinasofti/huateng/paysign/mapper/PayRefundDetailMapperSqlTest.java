@@ -11,19 +11,7 @@ import java.util.HashMap;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * 锁定 {@code PayRefundDetailMapper.xml} 里「退款回查补偿」那三条语句的扫表条件与 CAS 前置状态。
- *
- * <p><b>存在理由</b>：批次 5B 把 {@code requestRefund} 的 {@code @Transactional} 摘掉后，
- * 「退款已发出、本地停在 PROCESSING」这类单子**只能靠这条扫表 SQL 被捞出来**。
- * 扫表条件写错不会报错、编译与其它单测全绿，只会让补偿永远 {@code scanned=0}，
- * 那批单子永久悬挂（对账时才发现，且已无法区分是我方漏收口还是对方真没退）。
- *
- * <p>本测试不连数据库，只用 MyBatis 自己的 {@link XMLMapperBuilder} 离线解析这份 XML 并取渲染后的
- * SQL 文本，本机与 CI 都能无条件运行。
- *
- * <p><b>NEVER 把断言放宽成「只判断包含 REFUND_STATUS」</b>：那就同时失去了白名单与并发保证。
- */
+/** 护栏：退款回查与跨表对账的扫表条件、CAS 主键两列（含 TXN_DATE）、以及 EXISTS 与 NOT EXISTS 的方向。 */
 class PayRefundDetailMapperSqlTest {
 
     private static final String RESOURCE = "mapper/PayRefundDetailMapper.xml";
@@ -31,19 +19,7 @@ class PayRefundDetailMapperSqlTest {
     private static final String NAMESPACE =
             "com.chinasofti.huateng.paysign.mapper.PayRefundDetailMapper.";
 
-    /**
-     * 回查扫表 SQL MUST 同时满足四条不变量（{@code docs/domain/outbox.md} §二那几个坑的退款版）。
-     *
-     * <ul>
-     *   <li>状态是 {@code PROCESSING} 白名单：只有它代表「退款请求确实已出网」。放宽成「非终态」
-     *       会把 {@code INIT}（请求还没发）与 {@code RETRY}（已确认被拒）也捞进来，
-     *       等于去问支付中心一笔它根本没收到的退款单；</li>
-     *   <li>{@code NEXT_REQUEST_TIME} MUST 允许为空：正常路径上没人写它，写成裸比较会因
-     *       NULL 比较为 UNKNOWN 而一条都捞不到；</li>
-     *   <li>滞留判断与排序都 MUST 套 {@code NVL(LAST_REQUEST_TIME, CREATE_TIME)}：历史行该列可能为 NULL；</li>
-     *   <li>{@code ROWNUM} MUST 在已排序子查询外层，否则先截断再排序、最旧的单子可能永远排不进这一批。</li>
-     * </ul>
-     */
+    /** 回查扫表 SQL MUST 同时满足四条不变量（{@code docs/domain/outbox.md} §二那几个坑的退款版）。 */
     @Test
     void refundQueryCompensationScanKeepsAllFourInvariants() {
         String sql = boundSql(parseMapper(), "selectCompensableRefundQuery").replaceAll("\\s+", " ");
@@ -68,15 +44,7 @@ class PayRefundDetailMapperSqlTest {
                 "ROWNUM MUST 套在已排序子查询的外层，否则先截断再排序；实际渲染：" + sql);
     }
 
-    /**
-     * 两条写回状态的语句 MUST 都是 CAS：WHERE 同时带主键（{@code REFUND_ORDER_NO} + {@code TXN_DATE}）
-     * 与前置状态 {@code PROCESSING}。
-     *
-     * <p>只带主键 = 无条件覆盖（一条已被退款回调置成 SUCCESS 的明细会被迟到的回查改成 FAIL，
-     * 而 {@code PAY_TXN_DETAIL} 的已退总额是按本表重算的，跟着一起错）；只带状态 = 全表更新。
-     * <b>本表主键是「退款单号 + 交易日期」两列（分区表 + 本地唯一索引 UK_PAY_REFUND_DETAIL_NO），
-     * 少写 TXN_DATE 就等于跨分区更新，NEVER 只带退款单号。</b>
-     */
+    /** 两条写回状态的语句 MUST 都是 CAS：WHERE 同时带主键（{@code REFUND_ORDER_NO} + {@code TXN_DATE}） */
     @Test
     void everyRefundQueryWriteIsCasOnProcessing() {
         Configuration configuration = parseMapper();
@@ -94,13 +62,7 @@ class PayRefundDetailMapperSqlTest {
         }
     }
 
-    /**
-     * 退避语句 NEVER 动 {@code REQUEST_COUNT} 与 {@code REFUND_STATUS}。
-     *
-     * <p>{@code REQUEST_COUNT} 的语义是「我方发起退款的次数」，回查不是发起退款；
-     * 把回查次数混进去会让运维把一笔单次退款误判成重复退款。状态更不能动：
-     * 退避只是「等下次再问」，不是订正。
-     */
+    /** 退避语句 NEVER 动 {@code REQUEST_COUNT} 与 {@code REFUND_STATUS}。 */
     @Test
     void delayStatementOnlyPushesNextRequestTime() {
         String sql = boundSql(parseMapper(), "delayNextRefundQuery").replaceAll("\\s+", " ");
@@ -115,12 +77,7 @@ class PayRefundDetailMapperSqlTest {
                 "delayNextRefundQuery NEVER 改状态：退避不等于订正；实际 SET：" + setClause);
     }
 
-    /**
-     * 收口语句 MUST 用 {@code NVL} 兜住三个单号与退款时间，NEVER 直接覆盖。
-     *
-     * <p>§3.2 应答里这几项可能缺项，直接覆盖会把 §3.1 受理时已经拿到的值擦成空 ——
-     * 那几个号是事后与支付中心对账的唯一线索。
-     */
+    /** 收口语句 MUST 用 {@code NVL} 兜住三个单号与退款时间，NEVER 直接覆盖。 */
     @Test
     void finishStatementNeverErasesExistingChannelNumbers() {
         String sql = boundSql(parseMapper(), "finishFromQuery").replaceAll("\\s+", " ");
@@ -131,22 +88,7 @@ class PayRefundDetailMapperSqlTest {
         }
     }
 
-    /**
-     * 跨表对账两条扫表 SQL MUST 同时满足三条不变量。
-     *
-     * <ul>
-     *   <li>带 {@code TXN_DATE >=} 下界：{@code TXN_DATE} 是本表分区键，缺它这条对账 SQL 就是全分区扫；
-     *       代价是「畸形 TXN_DATE 的行永远扫不到」，那是已登记的已知盲区（见 mapper javadoc），
-     *       <b>NEVER 靠去掉下界来覆盖它</b>；</li>
-     *   <li>{@code ROWNUM} 限流：单轮上限，且 MUST 在已排序子查询外层；</li>
-     *   <li>只统计 {@code REFUND_STATUS = 'SUCCESS'} 的明细：{@code PAY_TXN_DETAIL.REFUND_AMOUNT}
-     *       的语义是「已退成功总额」，把 {@code PROCESSING} / {@code RETRY} 算进来会把在途退款
-     *       当成已退，汇总反而被这条「对账」改错。</li>
-     * </ul>
-     *
-     * <p>顺带守住「SQL 正文里没有行注释」：Druid WallFilter 默认 {@code commentAllow=false}，
-     * 带注释的语句会被判定为注入并<b>静默失效</b>（编译与单测都发现不了，只在 Oracle 生产环境炸）。
-     */
+    /** 跨表对账两条扫表 SQL MUST 同时满足三条不变量。 */
     @Test
     void refundSummaryReconScansKeepAllThreeInvariants() {
         Configuration configuration = parseMapper();
@@ -170,13 +112,7 @@ class PayRefundDetailMapperSqlTest {
         }
     }
 
-    /**
-     * 两条扫表 SQL 的差别 MUST 恰好是 {@code EXISTS} 与 {@code NOT EXISTS}，因为处置完全相反：
-     * A 类（原单存在）重算即收口，B 类（原单不存在）<b>一行都不能改</b>、只能记 WARN 等人工。
-     *
-     * <p>写反了不会有任何编译或运行错误：{@code updateRefundSummary} 对 B 类影响 0 行、
-     * 对 A 类影响 1 行，两者都「没抛异常」。唯一的后果是<b>一批真正的坏账从告警里消失</b>。
-     */
+    /** 两条扫表 SQL 的差别 MUST 恰好是 {@code EXISTS} 与 {@code NOT EXISTS}，因为处置完全相反。 */
     @Test
     void orphanScanUsesNotExistsWhileDriftScanUsesExists() {
         Configuration configuration = parseMapper();

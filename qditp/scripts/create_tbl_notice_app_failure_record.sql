@@ -1,13 +1,8 @@
 -- ============================================================
--- 表名: TBL_NOTICE_APP_FAILURE_RECORD
--- 用途: APP通知失败记录表（取票/退款失败）
--- 所属服务: collect-pay-server
--- 创建日期: 2026-08-16
--- 数据库: Oracle
--- ============================================================
+-- 表名: TBL_NOTICE_APP_FAILURE_RECORD（collect-pay-server APP 通知失败记录表）
+-- ⚠️ 执行状态未记录，MUST 先查 USER_TABLES 确认。字段语义与使用说明见 docs/ops/生产环境清单.md 附.二.2
 
 -- 删除表（可选）
--- DROP TABLE TBL_NOTICE_APP_FAILURE_RECORD;
 
 -- 建表语句
 CREATE TABLE TBL_NOTICE_APP_FAILURE_RECORD (
@@ -88,10 +83,3 @@ CREATE INDEX IDX_FAILURE_RECORD_CREATE_TIME ON TBL_NOTICE_APP_FAILURE_RECORD(CRE
 
 -- ============================================================
 -- 使用说明
--- ============================================================
--- 1. 该表用于记录APP通知失败的交易（取票/退款）
--- 2. 通过ORDER_NO作为主键，避免重复记录
--- 3. status字段标识通知状态：INIT-初始，FAIL-失败，SUCCESS-成功
--- 4. retryTimes字段记录重试次数，用于控制重试策略
--- 5. 定时任务会扫描status='FAIL'且retryTimes<最大重试次数的记录进行重试
--- ============================================================

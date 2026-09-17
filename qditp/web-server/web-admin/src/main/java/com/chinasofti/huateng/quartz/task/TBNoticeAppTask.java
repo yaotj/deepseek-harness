@@ -13,7 +13,6 @@ import java.util.function.Function;
 @Component("tbNoticeAppTask")
 public class TBNoticeAppTask {
 
-
     private static final Logger log = LoggerFactory.getLogger(TBNoticeAppTask.class);
 
     private static final String SUCCESS_CODE = "0000";
@@ -61,14 +60,7 @@ public class TBNoticeAppTask {
         invoke("扫码取票接口 通知app退款结果", f2FClient::noticeRefundTask);
     }
 
-    /**
-     * 四个入口的结果判定完全一致，统一在此做：失败 MUST 抛异常，
-     * Quartz 只以异常判定失败，静默返回会让调度日志记成成功。
-     *
-     * <p>traceId 由 {@link QuartzTraceUtils#runWithTrace} 统一处理：Quartz 路径复用
-     * AbstractQuartzJob 放进 MDC 的值（同一个值会被写进 sys_job_log.job_message），
-     * MUST NOT 另生成一个，否则前台调度日志里的 traceId 与实际发给 collect-pay 的对不上。</p>
-     */
+    /** Quartz 只以异常判定失败，静默返回会让调度日志记成成功。 */
     private void invoke(String bizName, Function<Map<String, String>, ? extends CommonResult> action)
     {
         QuartzTraceUtils.runWithTrace(traceId -> {
@@ -85,7 +77,6 @@ public class TBNoticeAppTask {
             log.info("调用 collect-pay-server Quartz {} 联调调用成功, retMsg={}", bizName, response.getRetMsg());
         });
     }
-
 
 }
 

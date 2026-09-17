@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.account.mapper.UserAccEmployeeCardMapper">
+    <!-- SQL 正文禁写注释（行注释与块注释都不行）：Druid WallFilter 判为注入、语句静默失效；说明只放本 XML 注释里。 -->
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.account.entity.UserAccEmployeeCard">
         <id column="ID" jdbcType="BIGINT" property="id"/>
         <result column="CARD_NO" jdbcType="VARCHAR" property="cardNo"/>
@@ -21,19 +22,11 @@
     </resultMap>
 
     <sql id="BaseColumnList">
-        <!-- 明确字段清单，避免全字段查询；只有员工码详情查询需要加载 PHOTO_URL。 -->
         ID, CARD_NO, THIRD_USER_ID, PHONE, EMPLOYEE_NAME, ID_CARD_NO, COMPANY, CENTER,
         DEPARTMENT, POSITION, PHOTO_URL, CARD_STATUS, OPEN_TMS, CANCEL_TMS, CREATE_TMS, UPDATE_TMS
     </sql>
 
     <sql id="LeanColumnList">
-        <!--
-            不含 PHOTO_URL 的字段清单，专供「只要卡号 / 状态、不要照片」的查询。
-            PHOTO_URL 是 CLOB、实测单行可达 250KB 量级：按手机号一次可能返回多张卡，
-            全字段查询会把几百 KB 的 base64 照片整批拉进 JVM 再全部丢掉。
-            ojdbc 读 CLOB 走的是 synchronized 方法，在虚拟线程上还会 pin 载体线程（AGENTS.md §5.2）。
-            新增查询若不需要照片，MUST 复用本清单；NEVER 图省事直接用 BaseColumnList。
-        -->
         ID, CARD_NO, THIRD_USER_ID, PHONE, EMPLOYEE_NAME, ID_CARD_NO, COMPANY, CENTER,
         DEPARTMENT, POSITION, CARD_STATUS, OPEN_TMS, CANCEL_TMS, CREATE_TMS, UPDATE_TMS
     </sql>
@@ -45,11 +38,6 @@
     </select>
 
     <select id="selectActiveByPhone" resultMap="BaseResultMap">
-        <!--
-            调用方只用 cardNo 去做挂接（EmployeeCardPersistenceServiceImpl.attachEmployeeCardsQuietly），
-            因此走 LeanColumnList、不取 PHOTO_URL。resultMap 未映射到的列留 null，
-            调用方 MUST 不读 photoUrl；要照片请改走 selectByCardNo。
-        -->
         select <include refid="LeanColumnList"/>
         from USER_ACC_EMPLOYEE_CARD
         where PHONE = #{phone,jdbcType=VARCHAR}

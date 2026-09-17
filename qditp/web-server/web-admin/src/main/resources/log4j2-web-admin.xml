@@ -1,37 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  web-admin 专属日志配置。
-
-  为什么不直接用 micro 的公共 log4j2-linux.xml：公共配置由 CustomLoggingConfiguration 在
-  ApplicationReadyEvent 时用 Configurator.initialize(name, configLocation) 重载，**该 API 不传
-  ClassLoader**，2026-09-08 实测在 Spring Boot fat jar 下 micro 嵌套 jar 里的自定义 appender
-  （VictoriaLogs）没有被实例化：配置确实重载成功（日志里有 "Log4j2 configuration has been
-  reloaded from classpath:log4j2-linux.xml"）、RollingFile 的 pattern 也生效了，但 VictoriaLogs
-  一条都没上报，而同一个 appender 在 pay-sign 走 Spring Boot 原生 logging.config 加载时正常工作。
-  因为公共配置写着 status="off"，log4j2 自己的 "Unable to locate plugin" 一类自述日志被吞掉，
-  排查时只能靠「上报为 0」反推。
-
-  因此这里改走 pay-sign 已验证的路径：application.properties 的 logging.config 指向本文件，
-  CustomLoggingConfiguration:38 直接 return，由 Spring Boot 的 Log4J2LoggingSystem 在启动早期
-  正常加载（ClassLoader 完整）。
-
-  ⚠️ status 故意设为 warn 而不是 off：appender / plugin 解析失败时能在 stdout 看到原因，
-  **NEVER** 为了少几行启动日志把它改回 off —— 那正是上面那次排查绕远路的原因。
-
-  ⚠️ 本文件由 Spring Boot 在启动早期加载，此时 CustomLoggingConfiguration 尚未设置
-  webLoggerLevel / logPath / appName 等系统属性，因此全部 lookup **MUST 自带默认值**。
--->
 <Configuration monitorInterval="30" status="warn" packages="com.chinasofti.huateng.log4j2">
     <Properties>
         <Property name="webLoggerLevel">${sys:webLoggerLevel:-INFO}</Property>
-        <!--
-          appName 保持 web-server（= spring.application.name，见 web.properties:45
-          other.logging.appName=${spring.application.name}），与改动前 RollingFile 的文件名
-          web-server.log 完全一致。**NEVER 改成 web-admin** —— scripts/klog.sh 走远端
-          k8s-logview.sh 按既有文件名取日志，改名会让运维现有取日志方式失效。
-          连带结论：**日志系统里 web-admin 的 app 字段是 `web-server`**，检索时 MUST 用
-          app:"web-server"，用 app:"web-admin" 会查出 0 条（2026-09-08 已踩过一次）。
-        -->
         <Property name="appName">web-server</Property>
         <Property name="logPath">${sys:logPath:-/home/javaapp/app/logs/${env:HOSTNAME:-local}}</Property>
         <Property name="logBakDays">${sys:logBakDays:-30d}</Property>
@@ -78,26 +48,9 @@
         <Console name="Console" target="SYSTEM_OUT">
             <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n" />
         </Console>
-        <!--
-          VictoriaLogs 上报。url 为空时 appender 自动禁用（不起 vlogs-sender 线程、不影响业务），
-          由 K8s Deployment 注入 VLOGS_URL，测试集群实测可用值：
-            http://victoria-logs-pbi6a-svc.itp.svc:30032
-          端口是 30032 而**不是** VictoriaLogs 默认的 9428 —— 该 Service 的 port 与 nodePort 都是
-          30032，targetPort 才是 9428，写 9428 连不上。
-          只给 scheme://host:port 时代码补 /insert/jsonline?_stream_fields=app,host。
-          stream 字段只能放 app/host 这类低基数字段，traceId 走正文（LogsQL 仍可 traceId:"xxx" 检索）。
-        -->
         <VictoriaLogs name="VictoriaLogs" url="${env:VLOGS_URL:-}"
             queueCapacity="8192" batchSize="512" flushIntervalMillis="2000"
             connectTimeoutMillis="2000" requestTimeoutMillis="5000">
-            <!--
-              两级过滤，CompositeFilter 遇到 ACCEPT / DENY 立即短路：
-              1. MDC 里 x-vlogs-capture=1 时 ACCEPT，该链路日志按 Root 级别（INFO）全量上报。
-                 Quartz 任务这个键由 QuartzTraceUtils.runWithTrace 放入（并在 finally 还原），
-                 因此「前台执行日志」能看到任务调了谁、发了什么头、对端回了什么。
-                 **NEVER** 把 key 写成驼峰——FirstFilter 只放小写键，两侧要一致。
-              2. 未命中落到 ThresholdFilter：只有 WARN 及以上才上报，量可控。
-            -->
             <Filters>
                 <ThreadContextMapFilter onMatch="ACCEPT" onMismatch="NEUTRAL">
                     <KeyValuePair key="x-vlogs-capture" value="1" />
@@ -130,36 +83,12 @@
             <AppenderRef ref="tempFile" />
         </Logger>
 
-        <!--
-          关键链路埋点专用 logger：日志**全量**进 VictoriaLogs（不受 Root 的 WARN 阈值限制）。
-          用法：private static final Logger vlogs = LoggerFactory.getLogger("VLOGS");
-          additivity=false 保证不再重复走 Root，避免同一条日志推两遍。
-        -->
         <Logger name="VLOGS" level="INFO" additivity="false">
             <AppenderRef ref="RollingFile" />
             <AppenderRef ref="Console" />
             <AppenderRef ref="VictoriaLogs" />
         </Logger>
 
-        <!--
-          业务包（含 Quartz 任务包）**MUST** 显式声明并挂一个**不带 level 的**
-          <AppenderRef ref="VictoriaLogs" />，否则 x-vlogs-capture 链路采集根本不会生效。
-
-          原因（2026-09-08 实测踩坑，绕了一轮）：log4j2 把 AppenderRef 的 level 属性编译成
-          **引用上的过滤器，先于 appender 自己的 <Filters> 求值**。只靠下面 Root 的
-          <AppenderRef ref="VictoriaLogs" level="WARN" /> 时，Quartz 任务的 INFO 事件在
-          「引用」这一层就被 DENY 了，**永远走不到** appender 上那个 ThreadContextMapFilter，
-          于是「appender 已启用 + vlogs-sender 线程在跑 + MDC 键确实写入 + Root 的 WARN 能上报」
-          四项全部成立，却查不到任何 INFO —— 现象极像过滤器不匹配，实际是引用层短路。
-          pay-sign 能工作正是因为它有对应的 com.chinasofti.huateng logger
-          （log4j2-paysign.xml:151），**NEVER** 只加 Root 的 ref 就以为够了。
-
-          level 这里写 INFO 而非 pay-sign 的 DEBUG：web-admin 的 RollingFile 没有
-          ThresholdFilter="INFO" 兜底，配成 DEBUG 会把滚动文件灌满。
-          实际运行级别仍由 Deployment env `logging.level.com.chinasofti.huateng` 决定
-          （Spring Boot 在本文件加载**之后**套用，会覆盖此处）。
-          additivity=false 保证不再重复走 Root，避免同一条日志推两遍。
-        -->
         <Logger name="com.chinasofti.huateng" level="INFO" additivity="false">
             <AppenderRef ref="RollingFile" />
             <AppenderRef ref="Console" />
@@ -169,10 +98,6 @@
         <Root level="${webLoggerLevel}">
             <AppenderRef ref="RollingFile" />
             <AppenderRef ref="Console" />
-            <!--
-              Root 只把 WARN 及以上推给 VictoriaLogs（框架日志：Spring / Druid / Netty 等）。
-              业务包的链路采集见上面的 com.chinasofti.huateng logger。
-            -->
             <AppenderRef ref="VictoriaLogs" level="WARN" />
         </Root>
     </Loggers>

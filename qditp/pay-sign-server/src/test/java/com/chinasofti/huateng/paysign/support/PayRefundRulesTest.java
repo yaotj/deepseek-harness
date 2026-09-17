@@ -11,23 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/**
- * {@link PayRefundRules} 四个 public 的护栏（2026-09-16）。
- *
- * <p><b>补的原因</b>：这四个方法此前**全部零覆盖** —— 它们只能由
- * {@code RefundDomainServiceImpl.requestRefund} 到达，而那个入口在全仓测试里零调用点。
- * 其中两条规则已经各自有过代价：
- * <ul>
- *   <li><b>可退金额上界</b>（{@code refundAmount > 已付 − 已退}）是全模块唯一实现点，
- *       放宽它等于允许超额退款。</li>
- *   <li><b>{@code ORDER_NO} MUST 存我方商户订单号</b>：退款汇总是按
- *       {@code PAY_REFUND_DETAIL.ORDER_NO = PAY_TXN_DETAIL.ORDER_NO} 关联重算的，
- *       存支付中心号一律关联不上 —— 生产已有 <b>12 条</b>坏账正是这么来的。</li>
- * </ul>
- *
- * <p><b>判断顺序也被钉住</b>：类注释写明「NEVER 改文案、NEVER 调整判断顺序」，
- * 因为顺序决定「同时不满足两条时报哪一条」，联调方可能已按文案断言。
- */
+/** 护栏：可退金额上界、ORDER_NO 必须存我方商户订单号、以及校验的判断顺序。 */
 class PayRefundRulesTest {
 
     private static final String MERCHANT_ORDER_NO = "GT20260916100000001586419";
@@ -95,10 +79,7 @@ class PayRefundRulesTest {
         assertEquals(0, PayRefundRules.resolvePaidAmount(bothNull));
     }
 
-    /**
-     * 本地退款明细：{@code ORDER_NO} MUST 是我方商户订单号，
-     * <b>NEVER 是支付中心订单号</b>（生产 12 条坏账的成因）。
-     */
+    /** 本地退款明细：{@code ORDER_NO} MUST 是我方商户订单号。 */
     @Test
     void refundDetailKeepsMerchantOrderNoNotPayCenterOrderNo() {
         PayRefundDetail detail = PayRefundRules.buildPayRefundDetail(refundRequest(100), payTxn("SUCCESS", 300, 0));

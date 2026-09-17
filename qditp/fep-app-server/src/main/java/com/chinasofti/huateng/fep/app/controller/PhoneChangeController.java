@@ -13,15 +13,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 更换手机号接口入口（if8a_76）。
- *
- * <p>严格对齐《青岛地铁-ITP与APP接口规范R6》if8a_76：路径只有 {@code /app/changePhone}，
- * {@code bizData} 只认 {@code newPhone} + {@code thirdUserId}（表117），应答只有
- * {@code retCode} + {@code retMsg}（表118）。</p>
- *
- * <p><b>NEVER</b> 再加 {@code updatePhone} / {@code /ci/app} 路径别名或 {@code newMsisdn}
- * 等字段别名——2026-09-09 曾为兼容上游误传临时放宽过 4 条路径 + 11 个字段名，
- * 与规范核对后已全部收回。上游传错字段时看日志里的 {@code rawBizData} 定位，
- * 不要再靠放宽入参掩盖问题。</p>
  */
 @RestController
 public class PhoneChangeController extends BaseAppController {

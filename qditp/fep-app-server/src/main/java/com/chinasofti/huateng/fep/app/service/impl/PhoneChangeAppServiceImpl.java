@@ -32,10 +32,6 @@ public class PhoneChangeAppServiceImpl implements PhoneChangeAppService {
         }
 
         try {
-            // 默认按 ITP 用户处理：account-server 侧 updatePhone 只需 thirdUserId，
-            // 内部先 selectActiveByThirdUserId，非 ITP 用户查不到即返回失败，不会误写。
-            // NEVER 改回用 queryUserInfo 做归属判断 —— 它强制要求 cardId，此处拿不到，
-            // 会导致 ITP 分支永远进不去、恒定落到支付宝分支返回 9999。
             com.chinasofti.huateng.common.response.CommonResult itpResult =
                     accountClient.updatePhone(thirdUserId.trim(), newMsisdn.trim());
             if (itpResult != null && "0000".equals(itpResult.getRetCode())) {

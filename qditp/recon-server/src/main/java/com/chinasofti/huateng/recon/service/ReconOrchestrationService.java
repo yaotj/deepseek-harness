@@ -30,20 +30,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 日终对账的编排：建批次、下发抽取、推进收齐、生成与投递。
- *
- * <p><b>本类没有任何 {@code @Scheduled}，触发全部来自外部。</b>用户 2026-09-11 要求
- * 「不使用 EnableScheduling，改用 web-admin 调用，改为每日执行一次，由 web-admin 控制频率」，
- * 因此唯一的日常入口是 {@link #runDailyBatch()}，由 web-admin 的 {@code sys_job}
- * （{@code reconQuartzTask.runDailyBatch()}）经 {@code POST /internal/recon/daily/run} 调进来。
- * {@link #dispatchDailyBatch()} 与 {@link #advance()} 降级为可单独调用的步骤，供人工干预与本方法复用。</p>
- *
- * <p>本类**绝不能加 {@code @Transactional}**：内部既有 RPC（下发抽取指令）又有大文件 IO
- * （合并生成、FTP 投递），被事务包住会让行级锁的持有时长等于对端响应时长与文件大小，
- * 并在 Druid 回收连接后把整个事务连同状态记录一起丢弃。每一步都靠单条 SQL 自动提交落状态。</p>
- *
- * <p>两把进程内 {@link AtomicBoolean}：{@code running} 守整批运行（前台「执行一次」与 cron 重叠时
- * 第二次直接拒绝），{@code advancing} 守单轮推进。**都只在进程内有效**，因此
- * <b>recon-server MUST 单副本</b>。</p>
  */
 @Service
 public class ReconOrchestrationService {
@@ -88,17 +74,8 @@ public class ReconOrchestrationService {
     /**
      * 跑完一次完整的日终对账：建批次 → 下发抽取 → 轮询推进到终态 → 生成 → 投递。
      *
-     * <p><b>这是 web-admin 每日调用的唯一入口</b>（`reconQuartzTask.runDailyBatch()`）。
-     * 之所以要在这里轮询而不是「下发完就返回」：源服务的抽取是**异步**的（受理即返回，之后才回推分片），
-     * 不等收齐就没有任何东西会来推进批次——本模块已没有 `@Scheduled` 兜底了。</p>
-     *
-     * <p><b>同步跑完再返回，是为了让 {@code sys_job_log} 反映真实成败</b>
-     * （{@code docs/architecture/web-server.md} §7.1：不抛异常 Quartz 一律记「成功」）。
-     * 失败或超时都抛 {@link IllegalStateException}，由 Controller 转成非 {@code 0000} 的 retCode。</p>
-     *
-     * <p>幂等：建批次与登记期望都是 {@code MERGE INTO}，批次已 SUCCESS 时 {@link #advanceBatch} 直接返回，
-     * 因此前台「执行一次」与 cron 重叠、或当天重复触发都安全。并发用 {@code running} 拦住：
-     * 上一次还在跑就直接拒绝，**NEVER 改成排队等待**——那会让 Quartz worker 越积越多。</p>
+     * <p>护栏：并发只靠进程内 {@link AtomicBoolean}、没有数据库锁，因此 recon-server 与
+     * web-admin 都 MUST 单副本。</p>
      *
      * @return 收口后的批次视图
      * @throws IllegalStateException 上一次运行未结束、总开关关闭、批次未在超时内到达终态，或推进过程中失败
@@ -141,12 +118,7 @@ public class ReconOrchestrationService {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
-    /**
-     * 轮询间隔的等待。
-     *
-     * <p>用 {@link Thread#sleep} 而不是 {@code synchronized}+{@code wait}：全服务默认虚拟线程
-     * （AGENTS.md §5.2），{@code Thread.sleep} 在虚拟线程上会让出载体线程、不 pin。</p>
-     */
+    /** 轮询间隔的等待。 */
     private void sleep(long millis) {
         try {
             Thread.sleep(millis);
@@ -159,32 +131,8 @@ public class ReconOrchestrationService {
     /**
      * 建当日账期批次、登记期望清单并逐个下发抽取指令。
      *
-     * <p>账期与窗口按甲方《ACC与ITP之间的文件》§一「对账文件」推算：</p>
-     * <pre>
-     * businessDate = 今天 - windowOffsetDays        默认 T-2
-     * windowStart  = businessDate 当天 + windowStartTime      默认 02:00:00
-     * windowEnd    = businessDate + 1 天 + windowStartTime
-     * 文件名后缀   = businessDate                   即 T-2 日
-     * </pre>
-     *
-     * <p>甲方例子（作为自校验依据）：8 月 20 号 2 点生成单边交易文件，文件名为 ITP.EXP.20190818，
-     * 统计区间是 T-2 日 2 点 ~ T-1 日 2 点。代入本公式：今天 = 2019-08-20、windowOffsetDays = 2
-     * ⇒ businessDate = 2019-08-18 ⇒ 文件名后缀 20190818（与甲方一致）、
-     * 窗口 = [20190818 020000, 20190819 020000)（即 T-2 日 2 点到 T-1 日 2 点，与甲方一致）。</p>
-     *
-     * <p>建批次与登记期望都幂等，因此重复触发（人工重跑、当天多次执行）都安全。
-     * <b>「已 SUCCESS 就直接返回」这一条 NEVER 删</b>：{@code create} 用的是
-     * {@code insertIfAbsent}，对已存在的批次不会改任何列，但紧随其后的
-     * {@code transitionIfNeeded(EXPORTING)} 会走 {@link ReconBatchService#transition}，
-     * 而白名单里 {@code SUCCESS} 是终态、一律拒绝流出，于是同一账期第二次触发直接抛
-     * 「非法的对账批次状态变更: SUCCESS -&gt; EXPORTING」、接口返 9999。cron 每天算出的
-     * batchId 不同所以碰不到，但**前台「执行一次」在同一天点第二下必然踩**
-     * （2026-09-11 读码发现，此前 Javadoc 声称「重复触发安全」只在 {@link #advanceBatch}
-     * 那一层成立，本方法这一层并没有兑现）。</p>
-     *
      * @return 本次账期的批次号，形如 {@code RECON20260910}
-     * @throws IllegalStateException 建批次或登记期望失败（原先是记日志后 return，现在 MUST 抛，
-     *                               否则 {@link #runDailyBatch()} 会拿着一个不存在的批次去轮询到超时）
+     * @throws IllegalStateException 建批次或登记期望失败
      */
     public String dispatchDailyBatch() {
         LocalDate businessDate = LocalDate.now().minusDays(properties.getWindowOffsetDays());
@@ -245,8 +193,6 @@ public class ReconOrchestrationService {
             return;
         }
 
-        // MUST 先置 EXPORTING 再发 HTTP：源侧空结果集的抽取可能在响应到达前就回调 complete，
-        // 反过来写会把 COMPLETED 覆盖成 EXPORTING（2026-09-11 实测，见 markExporting 的注释）。
         targets.forEach(type -> sourceService.markExporting(batchId, expectation.getName(), type));
         ReconExportRespDTO response = exportClient.dispatch(expectation.getUrl(), request);
         if (response.isAccepted()) {
@@ -258,12 +204,7 @@ public class ReconOrchestrationService {
         }
     }
 
-    /**
-     * 扫描非终态批次并逐个推进。
-     *
-     * <p>供人工干预接口调用（{@link #runDailyBatch()} 走的是按 batchId 的 {@link #advanceBatch}）。
-     * 用 {@link AtomicBoolean} 做进程内串行化：上一轮还在跑就直接跳过本轮。</p>
-     */
+    /** 扫描非终态批次并逐个推进，供人工干预接口调用。 */
     public void advance() {
         if (!properties.isEnabled()) return;
         if (!advancing.compareAndSet(false, true)) {
@@ -280,10 +221,7 @@ public class ReconOrchestrationService {
     }
 
     /**
-     * 推进单个批次，供定时任务与人工干预接口共用。
-     *
-     * <p>任一步抛异常都把批次置 FAILED 并记原因，下一轮从 FAILED 重入
-     * （白名单允许 FAILED -&gt; EXPORTING / GENERATING / UPLOADING）。</p>
+     * 推进单个批次，供人工干预接口与整批运行共用。
      *
      * @param batchId 批次标识
      * @return 推进后的批次视图
@@ -316,15 +254,7 @@ public class ReconOrchestrationService {
         }
     }
 
-    /**
-     * 对 FAILED 且未超过 maxRetry 的来源重新下发抽取指令。
-     *
-     * <p>本方法内含 RPC，因此**必须在事务外**执行；调用链上没有任何 {@code @Transactional}。</p>
-     *
-     * <p>{@code retryCount} 是装箱的 {@link Integer}（MyBatis 构造器映射要求），此处 MUST 先判空
-     * 兜成 0 再与 {@code maxRetry} 比较：直接 {@code progress.retryCount() >= ...} 会在列为 NULL 时
-     * 抛 NPE，而 NPE 会被 {@code advanceBatch} 的 catch 吞成「批次推进失败」，掩盖真实原因。</p>
-     */
+    /** 对 FAILED 且未超过 maxRetry 的来源重新下发抽取指令；本方法内含 RPC，MUST 在事务外执行。 */
     private void retryFailedSources(BatchView batch) {
         boolean retried = false;
         for (SourceProgress progress : sourceService.list(batch.batchId())) {
@@ -378,11 +308,7 @@ public class ReconOrchestrationService {
         }
     }
 
-    /**
-     * 需要产出的文件类型 = 期望清单里所有 fileTypes 的并集。
-     *
-     * <p>按 {@link ReconFileTypeEnum} 的声明顺序输出，先明细后汇总没有强依赖，但顺序固定便于对日志。</p>
-     */
+    /** 需要产出的文件类型 = 期望清单里所有 fileTypes 的并集，按 {@link ReconFileTypeEnum} 声明顺序输出。 */
     private Set<ReconFileType> requiredFileTypes(List<SourceProgress> progresses) {
         Set<ReconFileType> types = new LinkedHashSet<>();
         for (ReconFileTypeEnum candidate : ReconFileTypeEnum.values()) {

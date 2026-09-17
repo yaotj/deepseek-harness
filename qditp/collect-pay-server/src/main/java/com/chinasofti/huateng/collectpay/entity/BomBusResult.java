@@ -1,66 +1,36 @@
 package com.chinasofti.huateng.collectpay.entity;
 
-/**
- * BOM业务操作结果通知实体类。
- * 对应数据库表TBL_BOM_BUS_RESULT，存储BOM业务操作结果通知信息。
- */
+/** BOM业务操作结果通知实体类。 */
 public class BomBusResult {
 
-    /**
-     * 通知ID（主键）。
-     */
+    /** 通知ID（主键）。 */
     private String notifyId;
 
-    /**
-     * 订单号。
-     */
+    /** 订单号。 */
     private String orderNo;
 
-    /**
-     * 设备编码。
-     */
+    /** 设备编码。 */
     private String deviceId;
 
-    /**
-     * 操作结果。
-     * SUCCESS-业务操作成功
-     * FAILED-业务操作失败
-     */
+    /** 操作结果。 */
     private String optResult;
 
-    /**
-     * 通知状态。
-     * 0-已通知待处理
-     * 1-处理成功
-     * 2-处理失败（退款成功）
-     * 3-处理失败（退款失败）
-     */
+    /** 通知状态。 */
     private String status;
 
-    /**
-     * 退款订单号。
-     * 当status=2时，记录退款订单号
-     */
+    /** 退款订单号。 */
     private String refundOrderNo;
 
-    /**
-     * 创建时间，格式：yyyy-MM-dd HH:mm:ss。
-     */
+    /** 创建时间，格式：yyyy-MM-dd HH:mm:ss。 */
     private String createTime;
 
-    /**
-     * 更新时间，格式：yyyy-MM-dd HH:mm:ss。
-     */
+    /** 更新时间，格式：yyyy-MM-dd HH:mm:ss。 */
     private String updateTime;
 
-    /**
-     * 预留字段1。
-     */
+    /** 预留字段1。 */
     private String rsv1;
 
-    /**
-     * 预留字段2。
-     */
+    /** 预留字段2。 */
     private String rsv2;
 
     public String getNotifyId() {

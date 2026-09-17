@@ -46,15 +46,10 @@ public class ParaFileImportService {
     /**
      * 解析并导入本地参数文件。
      *
-     * <p>入库判据是「版本号 + MD5」（2026-09-08 由「仅版本号」改成本形态）：</p>
-     * <ul>
-     *   <li>库中无该 paraType，或文件版本号更高 → 导入</li>
-     *   <li>文件版本号更低 → 跳过（版本回退不处理）</li>
-     *   <li>版本号相同：MD5 不同 → 导入；MD5 相同 → 跳过；库中 MD5 为空 → 导入（补齐 MD5）</li>
-     * </ul>
+     * <p>入库判据是「版本号 + MD5」。</p>
      *
-     * <p>改成带 MD5 的原因：ACC 实际出现过同一版本号两份不同内容的文件（0001 版本 41 有 4 段命名与
-     * 5 段命名两份，MD5 不同）。只比版本号时后到的那份永远进不来，两边数据无法收敛。</p>
+     * @param filePath 本地参数文件路径
+     * @return 导入结果
      */
     @Transactional(rollbackFor = Exception.class)
     public ParaImportResult importLocalFile(String filePath) {

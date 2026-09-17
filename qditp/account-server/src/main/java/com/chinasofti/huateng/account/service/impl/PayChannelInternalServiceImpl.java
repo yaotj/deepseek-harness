@@ -17,16 +17,6 @@ import org.springframework.util.StringUtils;
 
 /**
  * 支付通道对内契约面的实现，见 {@link PayChannelInternalService}。
- *
- * <p>2026-09-11（ADR-D34）从 {@code PayChannelServiceImpl} 按调用方切出，<b>方法体逐行照搬、
- * 行为不变</b>：两处的 retCode 分支、日志文案、trim 时机、告警级别一并保留。
- * `PayChannelInternalContractTest` 里针对这两个入口的 11 个用例**未改一行**即在本类上通过，
- * 这就是「行为不变」的判据。</p>
- *
- * <p><b>本类只持 {@code UserPayChannelMapper} 一个协作者，且两个方法都不带 `@Transactional`</b>：
- * 一个是单条 select、一个是单条 update，单语句自身原子（同 ADR-D22 / ADR-D32 的判断）。
- * <b>NEVER 给本类加事务注解</b>，也 NEVER 在这里注入 {@code PaySignClient} —— 对内契约面
- * 反过来调支付域会立刻造出一条新的双向边。</p>
  */
 @Service
 public class PayChannelInternalServiceImpl implements PayChannelInternalService {
@@ -34,17 +24,13 @@ public class PayChannelInternalServiceImpl implements PayChannelInternalService 
 
     private final UserPayChannelMapper userPayChannelMapper;
 
-    /** 构造器注入（ADR-D37）。依赖全部 final，漏注入在编译期即报错。 */
+    /**
+     * 构造器注入（ADR-D37）。
+     */
     public PayChannelInternalServiceImpl(UserPayChannelMapper userPayChannelMapper) {
         this.userPayChannelMapper = userPayChannelMapper;
     }
 
-    /*
-     * 只读查询，不加 @Transactional：单条 select 不需要事务边界。
-     * 供 pay-sign-server IF8A-75 在补建解约申请前反查 CARD_ID / CARD_TYPE，
-     * 因为 APP_PAY_SIGN_INFO 的这两列全库为 NULL（2026-09-08 实测），
-     * 而 APP_TERMINATION_REQUEST 的同名列是 NOT NULL。
-     */
     @Override
     public QueryPayChannelByContractResult queryPayChannelByContractNo(QueryPayChannelByContractReqDTO request) {
         QueryPayChannelByContractResult response = new QueryPayChannelByContractResult();
@@ -81,15 +67,7 @@ public class PayChannelInternalServiceImpl implements PayChannelInternalService 
     }
 
     /**
-     * 接收支付域推来的支付账号并回写（ADR-D32）。见 {@link PayChannelInternalService#syncPayAccountId}。
-     *
-     * <p><b>不带 `@Transactional`</b>：只有一条 UPDATE，单语句自身原子，加事务无意义
-     * （同 ADR-D22 对 IF8A-77 的判断）。</p>
-     *
-     * <p>复用 ADR-D30 已有的 {@code updatePayAccountIdByReqContractNo}，<b>不新增 mapper 语句</b>。
-     * 与 {@code PayChannelServiceImpl.syncPayAccountIdToChannelQuietly} 的差别只在异常语义：
-     * 那个是 IF8A-77 内的「附带回写、吞异常」，这个是**独立入口**，异常要变成 retCode 让支付域看见。
-     * <b>那个私有方法留在 APP 契约面、NEVER 迁到本类</b> —— 它是 IF8A-77 的组成部分。</p>
+     * 接收支付域推来的支付账号并回写（ADR-D32）。
      */
     @Override
     public CommonResult syncPayAccountId(SyncPayAccountIdReqDTO request) {
@@ -112,7 +90,6 @@ public class PayChannelInternalServiceImpl implements PayChannelInternalService 
                 return response;
             }
             if (updated > 1) {
-                // REQ_CONTRACT_NO 无唯一索引，命中多行说明同一签约流水被复用，MUST 告警
                 log.warn("支付域回写PAY_ACCOUNT_ID命中多行, reqContractNo={}, updated={}", reqContractNo, updated);
             }
             response.setRetCode(AccountErrorCodeEnum.SUCCESS.getCode());

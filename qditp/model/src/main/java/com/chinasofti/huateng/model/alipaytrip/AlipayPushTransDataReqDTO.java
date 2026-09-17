@@ -6,63 +6,60 @@ package com.chinasofti.huateng.model.alipaytrip;
 public class AlipayPushTransDataReqDTO {
 
     /**
-     * 逻辑卡号
+     * 逻辑卡号。
      */
     private String logicCard;
 
     /**
-     * 交易类型  "01"：进站  "02"：出站  "03"：超时出站
+     * 交易类型  "01"：进站  "02"：出站  "03"：超时出站。
      */
     private String transType;
 
     /**
-     * 交易时间  yyyy-MM-dd HH:mm:ss
+     * 交易时间  yyyy-MM-dd HH:mm:ss。
      */
     private String transTime;
 
     /**
-     * 交易序列号
+     * 交易序列号。
      */
     private String transSeq;
 
     /**
-     * 交易车站代码
+     * 交易车站代码。
      */
     private String transStation;
 
     /**
-     * 交易线路代码
+     * 交易线路代码。
      */
     private String transLine;
 
     /**
-     * 交易记录id
+     * 交易记录id。
      */
     private String tirpNo;
 
     /**
-     * 第三方用户ID
+     * 第三方用户ID。
      */
     private String thirdUserId;
 
     /**
-     * 逻辑卡号
+     * 逻辑卡号。
      */
     private String cardId;
 
     /**
-     * 卡类型
+     * 卡类型。
      */
     private String cardType;
 
     /**
-     * 签名类型
+     * 签名类型。
      */
     private String signType;
 
-    /**
-     * 签名
-     */
     private String sign;
 
     public String getLogicCard() {

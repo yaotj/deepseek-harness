@@ -7,9 +7,7 @@ import java.util.Map;
 
 import java.time.LocalDateTime;
 
-/**
- * BOM充值结果通知Mapper。
- */
+/** BOM充值结果通知Mapper。 */
 @Mapper
 public interface BomTopupResultMapper{
 

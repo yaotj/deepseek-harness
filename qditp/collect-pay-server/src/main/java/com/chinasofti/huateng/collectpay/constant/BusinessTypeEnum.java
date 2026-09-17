@@ -1,9 +1,6 @@
 package com.chinasofti.huateng.collectpay.constant;
 
-/**
- * ITP支付订单状态枚举。
- * 0-支付中，1-支付成功，2-支付失败，3-未支付
- */
+/** ITP支付订单状态枚举。 */
 public enum BusinessTypeEnum {
     TVM_SCAN_QR_BUYTICKET("01", "扫码购票"),
     TVM_SCAN_QR_RECHARGE("02", "扫码充值"),
@@ -27,9 +24,7 @@ public enum BusinessTypeEnum {
         return desc;
     }
 
-    /**
-     * 根据code获取枚举。
-     */
+    /** 根据code获取枚举。 */
     public static BusinessTypeEnum fromCode(String code) {
         for (BusinessTypeEnum e : values()) {
             if (e.code.equals(code)) {

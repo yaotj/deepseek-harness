@@ -10,23 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * recon-server 下发抽取指令的内部入口（IF-RECON-01 的 daily-ticket 侧）。
- *
- * <p><b>【开发测试阶段：本接口当前无鉴权，上线前 MUST 恢复】</b>用户 2026-09-11 明确要求
- * 「删除令牌要求，不用令牌了，当前处于开发测试阶段」，故原先的 {@code X-Recon-Token}
- * 共享令牌校验已整段删除。本模块没有 spring-security、也没有全局验签拦截器，因此现状等于
- * 允许任何网络可达方触发全量导出，与 AGENTS.md §5.2「新增状态变更型接口 MUST 有鉴权」
- * 相冲突，属**有意为之的临时降级**。</p>
- *
- * <p>恢复方式：重新引入 {@code recon.internal-token} 配置与请求头 {@code X-Recon-Token}
- * 的逐字节比对，**MUST 用 {@link java.security.MessageDigest#isEqual} 而不是
- * {@code equals}**，避免按字符短路带来的时序侧信道。</p>
- *
- * <p>本接口只受理、不干活：抽取由 {@link ReconExportService} 丢到自己的平台线程池执行，
- * 这里**必须立即返回**。若在请求线程上同步跑抽取，阻塞的 ojdbc8 调用会 pin 住虚拟线程的载体线程，
- * 严重时全 JVM 虚拟线程停止调度。</p>
- */
+/** recon-server 下发抽取指令的内部入口（IF-RECON-01 的 daily-ticket 侧）。 */
 @RestController
 @RequestMapping("/internal/recon")
 public class ReconExportController {

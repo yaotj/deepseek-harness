@@ -1,9 +1,6 @@
 package com.chinasofti.huateng.collectpay.constant;
 
-/**
- * ITP支付订单状态枚举。
- * 0-支付中，1-支付成功，2-支付失败，3-未支付
- */
+/** ITP支付订单状态枚举。 */
 public enum PayCenterRefundStatusEnum {
 
     REFUND_ING("PROCESSING", "退款中"),
@@ -26,9 +23,7 @@ public enum PayCenterRefundStatusEnum {
         return desc;
     }
 
-    /**
-     * 根据code获取枚举。
-     */
+    /** 根据code获取枚举。 */
     public static PayCenterRefundStatusEnum fromCode(String code) {
         for (PayCenterRefundStatusEnum e : values()) {
             if (e.code.equals(code)) {

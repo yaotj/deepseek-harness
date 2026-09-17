@@ -2,12 +2,7 @@ package com.chinasofti.huateng.facepay.api.device.bom;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/**
- * IF5A-09 HCE 票卡更新结果通知入参。
- *
- * <p>{@code hceData} 是票卡数据密文，落库到 {@code F2F_RESULT_REPORT.RAW_BODY} 供审计；
- * <b>NEVER 打进业务日志</b>。</p>
- */
+/** IF5A-09 HCE 票卡更新结果通知入参。 */
 public class NotiUpdateHceDataReqDTO extends BaseDeviceRequest {
 
     private String cardId;

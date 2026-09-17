@@ -4,8 +4,6 @@ import java.util.Map;
 
 /**
  * 支付 API 3.1 请求退款响应。
- *
- * <p>retCode/retMsg 给内部服务判断业务结果，code/msg/success/data 保留支付网关通用响应。</p>
  */
 public class RequestRefundResult {
     private String retCode;

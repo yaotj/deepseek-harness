@@ -1,12 +1,6 @@
 package com.chinasofti.huateng.key.page;
 
-/**
- * 综管台密钥版本查看的展示对象（只读）。
- *
- * <p><b>安全红线</b>：本视图 NEVER 携带任何密钥材料明文（KEY_VALUE / KEY_PRIVATE /
- * KEY_PUBLIC / KEY_WRAP_VALUE*），只放版本号、状态、时间等元信息。填充方 MUST 逐字段
- * 核对来源 SQL 的 select 列表。</p>
- */
+/** 综管台密钥版本查看的展示对象（只读）。NEVER 携带任何密钥材料明文。 */
 public class KeyVersionView {
     /** 密钥域：AGM_KEY（闸机密钥）/ CA_KEYSTORE（CA 密钥仓库）/ HCE_STATIC_KEY（HCE 静态密钥）。 */
     private String keyDomain;

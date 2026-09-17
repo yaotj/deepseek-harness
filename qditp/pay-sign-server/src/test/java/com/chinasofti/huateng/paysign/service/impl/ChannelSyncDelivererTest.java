@@ -21,26 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
-/**
- * {@link ChannelSyncDeliverer} 的护栏（2026-09-16）。
- *
- * <p><b>此前一行未跑</b>：`TerminationCallbackTrunkCharacterizationTest` 只 `verify` 了它被调用，
- * 而夹具里它是 mock。这个类是 ADR-D48 整套 outbox 的**执行点**，有两个调用方
- * （回调收口的快速路径 + 扫表补偿），三分支处置口径「MUST 只有一处实现」。
- *
- * <p>钉住的不变量：
- * <ul>
- *   <li><b>{@code Ok} → 落 {@code SUCCESS} 且 NEVER 递增重试次数</b>（那是失败侧的计数）。</li>
- *   <li><b>{@code BizRejected} → MUST 先 {@code increaseChannelSyncRetryCount} 再
- *       {@code markChannelSyncManual}</b>：后者的 CAS 要求前置态已是 {@code FAILED}，
- *       顺序写反 CAS 命中 0 行 —— 表现不是报错，而是<b>这一笔永久留在补偿队列里无限重推</b>。
- *       本类用 {@code InOrder} 钉住这个顺序，因为它是纯顺序耦合、编译器与单条 verify 都发现不了。</li>
- *   <li><b>{@code Unreachable} → 只 +1 并落 {@code FAILED}，NEVER 转人工</b>（可重试）。</li>
- *   <li><b>落库自身异常 NEVER 上抛</b>：两个调用方都在「本地已提交」之后调它，抛出去只会让
- *       上游误判失败；滞留状态由下一轮补偿捞走。</li>
- *   <li><b>{@code CHANNEL_SYNC_RESULT} 是 VARCHAR2(1024)，写入 MUST 截断</b>，否则 ORA-12899。</li>
- * </ul>
- */
+/** 护栏：通道清理三分支处置，BizRejected MUST 先 +1 再转人工，落库异常 NEVER 上抛。 */
 class ChannelSyncDelivererTest {
 
     private static final String SEQ = "0052290701523994";

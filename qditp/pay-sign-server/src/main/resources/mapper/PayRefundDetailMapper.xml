@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.paysign.mapper.PayRefundDetailMapper">
+    <!-- 注释只能写在这里：SQL 正文禁写行注释或块注释，Druid WallFilter 会判定为注入并让该语句静默失效。 -->
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.paysign.entity.PayRefundDetail">
         <id column="ID" jdbcType="NUMERIC" property="id"/>
         <result column="REFUND_ORDER_NO" jdbcType="VARCHAR" property="refundOrderNo"/>
@@ -26,7 +27,6 @@
         <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
     </resultMap>
 
-    <!-- 新建一笔退款明细，REFUND_ORDER_NO 由 pay-sign 生成。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.paysign.entity.PayRefundDetail">
         INSERT INTO PAY_REFUND_DETAIL (
             ID, REFUND_ORDER_NO, ORDER_NO, REFUND_STATUS, REFUND_AMOUNT, REFUND_REASON,
@@ -60,7 +60,6 @@
         )
     </insert>
 
-    <!-- 调用支付中心前记录请求次数和本次请求业务快照。 -->
     <update id="markRequesting">
         UPDATE PAY_REFUND_DETAIL
         SET REQUEST_COUNT = NVL(REQUEST_COUNT, 0) + 1,
@@ -72,7 +71,6 @@
           AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
     </update>
 
-    <!-- 回写支付中心退款受理结果。 -->
     <update id="updateRequestResult" parameterType="com.chinasofti.huateng.paysign.entity.PayRefundDetail">
         UPDATE PAY_REFUND_DETAIL
         SET REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR},
@@ -89,10 +87,6 @@
         WHERE REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
           AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
     </update>
-    <!-- 补偿扫表用的列清单：刻意不含 REQUEST_BODY / RESPONSE_BODY 两个 CLOB。
-         回查只需要主键（REFUND_ORDER_NO + TXN_DATE）与状态列，捞 CLOB 会让单轮 200 条的
-         扫表凭空拖出两列大对象；resultMap 里那两列没被 select 到时留 null，MyBatis 不报错。
-         真要看请求 / 应答原文时按主键单条查，NEVER 为了「顺手」把 CLOB 加进本清单。 -->
     <sql id="Scan_Column_List">
         ID, REFUND_ORDER_NO, ORDER_NO, REFUND_STATUS, REFUND_AMOUNT, REFUND_REASON,
         MERCHANT_REFUND_NO, REFUND_NO, CHANNEL_REFUND_NO, REQUEST_COUNT,
@@ -100,21 +94,6 @@
         RET_CODE, RET_MSG, PAY_CENTER_CODE, PAY_CENTER_MSG, CREATE_TIME, UPDATE_TIME
     </sql>
 
-    <!-- 补偿扫表：捞出停在 PROCESSING 的退款明细，交给 compensateRefundQuery 拿支付中心 §3.2 回查收口。
-         这是「白名单」而不是「非终态即可处理」：只有 PROCESSING 才代表**已经把退款请求发出去了**
-         （markRequesting 是出网前一步写的），INIT 意味着请求还没组装完、RETRY 是我方已确认被拒、
-         SUCCESS / FAIL / CLOSED 是终态。放行 INIT 等于去问支付中心一笔它根本没收到的退款单。
-         TXN_DATE 下界有两个作用：一是本表按 TXN_DATE 范围分区，带上它才有分区裁剪；
-         二是它就是「回查多久以前的单」的上限，超窗的行不再自动扫、留给人工。
-         滞留判断用 NVL(LAST_REQUEST_TIME, CREATE_TIME)：LAST_REQUEST_TIME 由 markRequesting 写，
-         理论上非空，但历史行可能为 NULL，而 Oracle 里 NULL 参与比较结果是 UNKNOWN，
-         不兜底就会**永久漏掉**那些行；排序同理，升序会把 NULL 排到最后。
-         NEXT_REQUEST_TIME 允许为空：insert 传的是实体里的 null、markRequesting 与
-         updateRequestResult 都不写它，所以正常路径上它一直是 NULL，
-         只有本组的 delayNextRefundQuery 会写。因此这里 MUST 写成「IS NULL OR 到点」——
-         写成裸的 NEXT_REQUEST_TIME &lt;= SYSTIMESTAMP 会因 NULL 比较为 UNKNOWN 而一条都捞不到，
-         SQL 合法、日志上只表现为「补偿永远 scanned=0」。
-         ROWNUM 必须套在已排序的子查询外层，直接与 ORDER BY 同层会先截断再排序。 -->
     <select id="selectCompensableRefundQuery" resultMap="BaseResultMap">
         select <include refid="Scan_Column_List"/>
         from (
@@ -130,12 +109,6 @@
         where ROWNUM &lt;= #{limit,jdbcType=INTEGER}
     </select>
 
-    <!-- 回查确认为终态后收口。MUST 用 CAS（WHERE 带 REFUND_STATUS = 'PROCESSING'）：
-         退款回调与本回查是两条独立收口路径，没有前置状态时，一条已被回调置成 SUCCESS 的明细
-         会被迟到的回查结果覆盖成 FAIL（或反之），而 PAY_TXN_DETAIL 的已退总额是按本表重算的，
-         覆盖后汇总跟着错。影响 0 行即「别人已经收口」，调用方 MUST 当失败处理、NEVER 继续算汇总。
-         三个单号与退款时间用 NVL 兜底：§3.2 应答里这几项可能缺项，
-         直接覆盖会把 §3.1 受理时已经拿到的值擦成空。 -->
     <update id="finishFromQuery" parameterType="com.chinasofti.huateng.paysign.entity.PayRefundDetail">
         UPDATE PAY_REFUND_DETAIL
         SET REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR},
@@ -153,10 +126,6 @@
           AND REFUND_STATUS = 'PROCESSING'
     </update>
 
-    <!-- 回查没拿到终态（对方仍在处理 / 查询本身失败）时只推下次回查时间，退避后重来。
-         同样带 CAS：这条语句唯一的作用是延后，绝不能把已收口的行也改一遍 UPDATE_TIME。
-         NEVER 在这里动 REQUEST_COUNT：那一列计的是「我方发起退款的次数」，
-         回查不是发起退款，混进去会让运维误判成重复退款。 -->
     <update id="delayNextRefundQuery">
         UPDATE PAY_REFUND_DETAIL
         SET NEXT_REQUEST_TIME = SYSTIMESTAMP + NUMTODSINTERVAL(#{delaySeconds,jdbcType=INTEGER}, 'SECOND'),
@@ -166,17 +135,6 @@
           AND REFUND_STATUS = 'PROCESSING'
     </update>
 
-    <!-- 跨表对账 A 类（可自愈）：明细已 SUCCESS 的退款总额与 PAY_TXN_DETAIL.REFUND_AMOUNT 不等，
-         且原支付订单确实存在。返回订单号即可，调用方拿它去 updateRefundSummary 重算。
-         三层嵌套各有各的必要性，NEVER 压平：
-         最内层只做「按 TXN_DATE 分区裁剪 + 只看 SUCCESS」拿候选订单号，是唯一带分区键的一层；
-         中间层做金额比对，比对用的两个 SUM 都**不带 TXN_DATE 条件** —— 汇总列的语义是「该单已退总额」，
-         一笔跨窗口的旧退款也算在内，比对时加窗口过滤会把正常单误判成漂移；
-         最外层套 ROWNUM，MUST 在已排序子查询之外，否则先截断再排序、最小的订单号可能永远排不进这一批。
-         NVL 两侧都要：REFUND_AMOUNT 允许为空，Oracle 里 NULL 参与比较结果是 UNKNOWN，
-         不兜底会让「汇总为空、明细有钱」这种最典型的漂移一条都捞不到，且 SQL 合法、日志上只表现为 scanned=0。
-         TXN_DATE 畸形（取了 ORDER_NO 前 8 位）的行恒小于任何 2026xxxx，被下界永久排除，
-         属已知盲区、需人工处理，说明写在 PayRefundDetailMapper 的 javadoc 里。 -->
     <select id="selectDriftedRefundSummary" resultType="java.lang.String">
         select ORDER_NO
         from (
@@ -202,10 +160,6 @@
         where ROWNUM &lt;= #{limit,jdbcType=INTEGER}
     </select>
 
-    <!-- 跨表对账 B 类（不可自愈）：明细里有 SUCCESS 的退款，PAY_TXN_DETAIL 里却没有这个 ORDER_NO。
-         与 A 类的唯一差别是 NOT EXISTS，但处置完全相反：updateRefundSummary 对这一类影响 0 行
-         （没有行可 UPDATE），调用方 MUST 只记 WARN + 计入 skipped，NEVER 当成已修好。
-         同样带 TXN_DATE 下界做分区裁剪，同样有那条畸形 TXN_DATE 盲区。 -->
     <select id="selectOrphanRefundOrders" resultType="java.lang.String">
         select ORDER_NO
         from (

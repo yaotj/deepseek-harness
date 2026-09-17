@@ -14,16 +14,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/**
- * IF1A-01 落库对象组装器 —— 把闸机报文翻译成 {@link QRCodeTxnDetail}（交易明细）与
- * {@link QRCodeStatus}（下一票卡状态）两个待写实体。
- *
- * <p>2026-09-14 从 {@code GateTicketHandler}（887 行）拆出。拆分判据是**这里只做纯组装**：
- * 入参进、实体出，一条 SQL 都不发（写库在 {@link GateTicketWriter}，事务边界也在那里）。
- * 与之配套的三个脏数据兜底（{@link #resolveTxnDate} / {@link #parseAmount} /
- * {@link #incrementTxnSeq}）也一并搬来 —— 它们全部服务于「一条脏字段 NEVER 放大成整笔检票失败」
- * 这一条不变量，散在编排类里会被误当成可省略的防御性代码删掉。</p>
- */
+/** IF1A-01 落库对象组装器 —— 把闸机报文翻译成 {@link QRCodeTxnDetail}（交易明细）与 {@link QRCodeStatus}（下一票卡状态）两个待写实体。 */
 @Component
 class GateTxnAssembler {
 
@@ -33,9 +24,7 @@ class GateTxnAssembler {
     @Autowired
     private GateCodeStatusResolver codeStatusResolver;
 
-    /**
-     * 构建交易明细。
-     */
+    /** 构建交易明细。 */
     public QRCodeTxnDetail buildTxnDetail(NotifyVerifyResultReqDTO request) {
         QRCodeTxnDetail detail = new QRCodeTxnDetail();
         detail.setDeviceId(request.getDeviceId());
@@ -61,17 +50,7 @@ class GateTxnAssembler {
         return detail;
     }
 
-    /**
-     * 从 {@code handleDateTime}（yyyyMMddHHmmss）取交易日期。
-     *
-     * <p>此前直接 {@code substring(0, 8)}：IF5A-03 的 {@code optDate} 由 BOM 上送，长度不足 8
-     * 会抛 {@code StringIndexOutOfBoundsException}，且 face-pay-server 只校验非空不校验格式。
-     * 这里兜底为当天日期，同时打 WARN 留痕，避免一条脏报文把整笔检票打成 500。</p>
-     *
-     * <p><b>只判长度不够是不够的。</b>长度够但非数字（如 {@code abcdefgh}）原样写进 {@code TXN_DATE}，
-     * 会与同行的 {@code HANDLE_DATE_TIME} 一起变成对账时无法解释的脏值，所以这里连内容一起校验，
-     * 8 位必须全是数字才采用，否则同样走兜底。</p>
-     */
+    /** 从 {@code handleDateTime}（yyyyMMddHHmmss）取交易日期。 */
     private String resolveTxnDate(String handleDateTime) {
         if (handleDateTime != null && handleDateTime.length() >= 8) {
             String candidate = handleDateTime.substring(0, 8);
@@ -94,14 +73,7 @@ class GateTxnAssembler {
         return true;
     }
 
-    /**
-     * 解析金额（分）。
-     *
-     * <p><b>NEVER 让 {@code NumberFormatException} 逃出本方法。</b>闸机上送的 {@code trxAmount} /
-     * {@code overtimeAmount} 是字符串，含空格或字母时 {@code Long.valueOf} 会抛异常，整笔检票退化成 500、
-     * 闸机不开门，而同一条脏报文重推多少次都是同样的结果。兜底策略与 {@link #resolveTxnDate} 对齐：
-     * 只打 WARN、返回 null 让该字段留空，把「一条脏字段」限制在字段本身，不放大成整笔交易失败。</p>
-     */
+    /** 解析金额（分）。 */
     private Long parseAmount(String amount) {
         if (!StringUtils.hasText(amount)) {
             return null;
@@ -114,16 +86,7 @@ class GateTxnAssembler {
         }
     }
 
-    /**
-     * 构建下一票卡状态。
-     *
-     * <ul>
-     *   <li>useCount = current + 1（首次为 1）</li>
-     *   <li>txnSeq = current + 1（首次为 1）</li>
-     *   <li>进站交易(01)：更新 gateInTime/gateInStation</li>
-     *   <li>出站交易(02/03)：保留 gateInTime/gateInStation，记录 trxAmount</li>
-     * </ul>
-     */
+    /** 构建下一票卡状态。 */
     public QRCodeStatus buildNextStatus(NotifyVerifyResultReqDTO request, QRCodeStatus currentStatus) {
         QRCodeStatus nextStatus = new QRCodeStatus();
         nextStatus.setCardId(request.getCardId());
@@ -159,29 +122,7 @@ class GateTxnAssembler {
         return nextStatus;
     }
 
-    /**
-     * 迁移白名单观察日志：**只告警、NEVER 拦截**。
-     *
-     * <p>白名单的权威在 {@code upsertWithCas} 的 CAS 条件与 {@link QRCodeStatusEnum} 的
-     * {@code ALLOWED} 文档化定义（见 {@code docs/domain/state-machines.md} §二③ 约束 2）。
-     * 这里补一条 WARN 是为了让「库内状态与本次目标态不构成合法迁移」这件事在运营侧可见 ——
-     * 此前连日志都没有，异常流转完全无感知。</p>
-     *
-     * <p><b>NEVER 把这里改成拒绝</b>：调用方手里的 {@code currentStatus} 来自更早一次 select、
-     * 随时可能过期，用过期值拦截只会误拦真实过闸；且闸机侧没有「稍后重试」语义，拒绝等于把乘客关在闸机里。</p>
-     *
-     * <p><b>「闭环状态重复流转」MUST 单独判一次，NEVER 指望 {@code canTransitTo} 报出来</b>：
-     * 该方法开头就是 {@code if (this == target || ...) return true}，同态直接短路 ——
-     * 于是 {@code 05 -> 05}（已出站的卡又出站）这类明显异常会静默通过，一条日志都没有，
-     * 而 {@code ALLOWED} 表里 {@code EXIT} 的合法出边只有 {@code {ENTRY, ENTRY_FAIL, SELF_SERVICE_ENTRY}}，
-     * 本来就该告警。2026-09-14 实测到：卡 {@code ...095} 用离线码在 18:28:44 与 18:30:23 连刷两次出站，
-     * 第二次库内已是 {@code 05}，仍照常写明细并推进 {@code 05}，
-     * 且 {@code GATE_TXN_PAY} 因票价算不出 + 兜底落单撞 {@code ORA-12899} 而零痕迹 ——
-     * 整条链路唯一能留下线索的地方就是本条 WARN。判据用 {@link QRCodeStatusEnum#isClosedLoop()}
-     * （覆盖 {@code 02 / 05 / 06 / 80}），**NEVER 只列 {@code 05}** —— 超时出站与自助补出站同样是终态。
-     * 开环同态（{@code 04 -> 04} / {@code 81 -> 81}）不在此列：那是闸机侧重复上送同一笔进站，
-     * 由 {@code upsertWithCas} 的 {@code isDuplicate} 负责识别，在这里再报一遍只是噪声。</p>
-     */
+    /** 迁移白名单观察日志：只告警、 */
     private void warnIfTransitionUnexpected(QRCodeStatus currentStatus, QRCodeStatus nextStatus,
                                             NotifyVerifyResultReqDTO request) {
         QRCodeStatusEnum from = QRCodeStatusEnum.parseOrNull(currentStatus.getCodeStatus());
@@ -208,15 +149,7 @@ class GateTxnAssembler {
         }
     }
 
-    /**
-     * 交易序号 +1。
-     *
-     * <p><b>解析失败 MUST 回退到 "1"，NEVER 原样返回。</b>原样返回会让 {@code nextStatus.txnSeq}
-     * 等于 {@code currentStatus.txnSeq}，而 {@code upsertWithCas} 的 CAS 条件是
-     * {@code T.TXN_SEQ = #{expectedTxnSeq}}——两者相等时 UPDATE 照样命中、却把同一个值写回去，
-     * 于是**序号永不推进**，而 {@code TICKET_TRANS_SEQ} 又是明细唯一索引的一部分，幂等语义随之失效。
-     * 回退到 "1" 至少能让序号重新开始递增、并留下 ERROR 供人工核对。</p>
-     */
+    /** 交易序号 +1。 */
     private String incrementTxnSeq(String txnSeq) {
         if (!StringUtils.hasText(txnSeq)) {
             return "1";

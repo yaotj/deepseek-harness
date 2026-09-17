@@ -21,9 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 当面付汇总task
- */
+/** 当面付汇总task */
 @Component
 @Slf4j
 @RequestMapping("/pay/noticeAppTask")
@@ -49,9 +47,7 @@ public class NoticeAppTask {
         return response;
     }
 
-    /**
-     * 扫码取票接口 通知app出票结果
-     */
+    /** 扫码取票接口 通知app出票结果 */
     @PostMapping("/noticeTakeTicketTask")
     public void noticeTakeTicketTask() {
 
@@ -75,9 +71,7 @@ public class NoticeAppTask {
 
     }
 
-    /**
-     * 扫码取票接口 通知app出票故障结果
-     */
+    /** 扫码取票接口 通知app出票故障结果 */
     @PostMapping("/noticeTakeTicketFailureTask")
     public void noticeTakeTicketFailureTask() {
 
@@ -100,9 +94,7 @@ public class NoticeAppTask {
 
     }
 
-    /**
-     * 扫码取票接口 通知app退款结果
-     */
+    /** 扫码取票接口 通知app退款结果 */
     @PostMapping("/noticeRefundTask")
     public void noticeRefundTask() {
 

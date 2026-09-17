@@ -9,11 +9,6 @@ import java.util.List;
 
 /**
  * recon-server 下发给源服务的抽取指令（IF-RECON-01）。
- *
- * <p>时间窗口一律用 14 位 {@code yyyyMMddHHmmss} 传输，因为四个源服务的时间列类型互不相同
- * （gate-txn-pay / ticket 是 VARCHAR2 的 14 位字符串，collect-pay 是 VARCHAR2 的
- * {@code yyyy-MM-dd HH:mm:ss}，daily-ticket 是 TIMESTAMP）。各源 MUST 用本类提供的
- * 转换方法落到自己的列类型上，NEVER 在 SQL 里对时间列做函数转换——那会让分区裁剪与索引全部失效。</p>
  */
 @Data
 public class ReconExportReqDTO {
@@ -69,8 +64,6 @@ public class ReconExportReqDTO {
 
     /**
      * 校验必填项与窗口方向，缺失或倒挂直接抛异常。
-     *
-     * <p>窗口倒挂时 SQL 命中 0 行、导出「成功」但文件为空，比报错更难发现，因此在入口拦掉。</p>
      */
     public void validate() {
         require(batchId, "batchId");

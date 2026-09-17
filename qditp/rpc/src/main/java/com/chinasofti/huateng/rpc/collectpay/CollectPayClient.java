@@ -83,18 +83,8 @@ public class CollectPayClient extends ProxyWebClient {
         return JSON.parseObject(result);
     }
 
-    // ==================== /internal/app-order（APP 订单表写入收口，2026-09-14） ====================
-
     /**
      * 把一张外部单据登记成 APP 订单行 + 支付前置单行，让乘客能走 collect-pay 的收银台把它付掉。
-     *
-     * <p><b>幂等键是 {@code orderNo}</b>：对端按订单号回查，已登记过就直接返成功，
-     * 因此本方法可被补偿任务无限次重放。这一点是「先落本地 PENDING、提交后再同步」
-     * 那套 outbox 能成立的前提，<b>NEVER</b> 让对端改成「重复即报错」。</p>
-     *
-     * <p>返回 {@code RpcOutcome} 而不是 boolean（AGENTS.md §5.2）：
-     * {@link RpcOutcome.BizRejected} 重推一万次也不会成功、MUST 一次即终态 + 落 ERROR；
-     * 只有 {@link RpcOutcome.Unreachable} 才该进补偿队列。</p>
      */
     public RpcOutcome registerAppPayOrder(AppPayOrderRegisterReqDTO request) {
         String response;
@@ -108,9 +98,6 @@ public class CollectPayClient extends ProxyWebClient {
 
     /**
      * 按订单号把 APP 订单表上仍待支付的行置为支付失败（对端带 {@code PAY_STATUS='0'} 白名单）。
-     *
-     * <p>天然幂等：已支付 / 已失败的行在对端影响 0 行，仍返成功 —— 关单的语义是
-     * 「保证乘客付不了」，行本来就付不了时目标已达成。</p>
      */
     public RpcOutcome closeUnpaidAppPayOrder(AppPayOrderCloseReqDTO request) {
         String response;
@@ -124,12 +111,6 @@ public class CollectPayClient extends ProxyWebClient {
 
     /**
      * 按订单号回查 APP 订单表的支付结果。
-     *
-     * <p><b>本方法在网络失败时 MUST 抛异常、NEVER 返回「查不到」</b>：
-     * {@code found=false} 是对端答复的业务事实（这张单没登记进 APP 订单表，乘客根本付不了），
-     * 调用方会据此落 ERROR 或补登记；而连不上时我方对支付状态一无所知，
-     * 若也返回 {@code found=false}，一次抖动就会被误判成「单据丢失」。
-     * 两者的处置方向相反，因此 <b>NEVER</b> 在这里 catch 成空对象。</p>
      */
     public AppPayOrderResultRespDTO queryAppPayOrderResult(AppPayOrderQueryReqDTO request) {
         String response = postJsonAndGetResponse("/internal/app-order/pay-result", request);
@@ -142,9 +123,6 @@ public class CollectPayClient extends ProxyWebClient {
 
     /**
      * 把对端应答的 {@code retCode} 归成 {@code RpcOutcome}。
-     *
-     * <p>空响应 / 缺 {@code retCode} 归 {@code BizRejected} 而不是 {@code Unreachable}：
-     * 那时 HTTP 已经 2xx，是对端契约问题，重推同一报文不会变好（见 {@link RpcOutcome} 类注释）。</p>
      */
     private RpcOutcome parseOutcome(String response) {
         if (response == null || response.isBlank()) {

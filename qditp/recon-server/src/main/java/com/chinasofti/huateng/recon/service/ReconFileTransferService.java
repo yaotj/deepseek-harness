@@ -26,11 +26,7 @@ public class ReconFileTransferService {
     }
 
     /**
-     * 把已生成的最终文件投递到 FTP。
-     *
-     * <p>允许的前置批次状态：{@code GENERATING / UPLOADING / FAILED}（FAILED 是重试入口）。
-     * 投递成功后**不判 SUCCESS**——批次是否收口由编排器在全部文件都 UPLOADED 后统一决定，
-     * 单个文件在这里只更新自己的状态与远端路径。</p>
+     * 把已生成的最终文件投递到 FTP；批次是否收口由编排器在全部文件都 UPLOADED 后统一决定。
      */
     public ReconFileView upload(String batchId, ReconFileType fileType) throws IOException {
         BatchView batch = batchService.get(batchId);

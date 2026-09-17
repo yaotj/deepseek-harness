@@ -28,23 +28,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 把日志以 JSON Lines 推送到 VictoriaLogs 的 log4j2 Appender。
- *
- * <p>序列化交给内嵌的 {@code Layout}（用 {@code JsonTemplateLayout} + event template），
- * 本类只负责「批量攒 + HTTP 发送」。字段名、MDC 白名单都在 template 里定义，
- * 加字段无需改 Java 代码、无需重新构建本模块。</p>
- *
- * <p>设计约束（与本项目已发生的生产事故直接相关，改动前务必先读）：
- * <ul>
- *   <li>业务线程只做「序列化 + 入有界队列」，绝不在业务线程上发 HTTP。全服务开了
- *       {@code spring.threads.virtual.enabled=true}，在虚拟线程上做阻塞 IO 会 pin 载体线程。</li>
- *   <li>发送线程是**平台线程**（{@code Thread.ofPlatform()}），阻塞它不影响虚拟线程调度。</li>
- *   <li>队列满时丢弃并计数，**绝不阻塞业务线程**——日志管道不能反噬业务。</li>
- *   <li>内部异常只走 log4j2 StatusLogger（{@code LOGGER}），绝不用 slf4j，避免日志递归。
- *       注意各模块 log4j2 配置多为 {@code status="off"}，这些自述日志默认看不到；
- *       判断是否启用请看 {@code vlogs-sender} 线程是否存在。</li>
- *   <li>本类放在 micro/web 只是「能力下放」：log4j2 仅在配置里出现 {@code <VictoriaLogs>}
- *       时才实例化插件，光有类不会起线程、不会发请求，因此对未配置的模块零影响。</li>
- * </ul>
  */
 @Plugin(name = "VictoriaLogs", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE, printObject = true)
 public final class VictoriaLogsAppender extends AbstractAppender {
@@ -109,7 +92,6 @@ public final class VictoriaLogsAppender extends AbstractAppender {
 
     /**
      * 只给出 {@code scheme://host:port} 时补全 jsonline 路径与查询参数。
-     * 缺失 {@code _stream_fields} 会让每种字段组合都变成一条 stream，直接打爆索引，因此不允许裸 base URL 透传。
      */
     private static String normalizeEndpoint(String url) {
         if (url == null || url.isBlank()) {

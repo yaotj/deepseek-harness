@@ -21,18 +21,6 @@ import java.util.stream.Collectors;
 
 /**
  * 运营后台非支付宝用户查询的实现，见 {@link ItpUserQueryService}。
- *
- * <p>2026-09-11 从 {@code ItpUserPageController} 逐行搬来，<b>行为不变</b>：查询类型分派、
- * 视图脱敏（手机号 / 姓名 / 账号）、{@code defaultChannel} 与 {@code terminationReady} 的判定、
- * 以及「签约信息查不到只 warn 不失败」的兜底全部照搬。</p>
- *
- * <p><b>本类不带 `@Transactional`，且 2.0.63 起不再有任何跨域 RPC</b>（ADR-D30）：
- * 「支付账号」列改读本地 {@code APP_USER_PAY_CHANNEL.PAY_ACCOUNT_ID}，
- * 原先按渠道逐条打 {@code paySignClient.querySignInfoBySeq} 的 N+1 已删除。
- * <b>NEVER 把 {@code PaySignClient} 注入回来</b> —— 运营列表页每行一次跨域 HTTP 换一个展示字段，
- * 代价与收益不成比例；该列的数据来源是 IF8A-77 的回写。
- * 解约时间列同样不走 RPC，而是用 {@link TerminationTimeSummaryMapper} 对同库的
- * {@code APP_TERMINATION_REQUEST} 做一次聚合只读查询（两个时间列换一条 SQL）。</p>
  */
 @Service
 public class ItpUserQueryServiceImpl implements ItpUserQueryService {
@@ -51,7 +39,6 @@ public class ItpUserQueryServiceImpl implements ItpUserQueryService {
     @Override
     public List<ItpUserSearchView> search(String queryType, String keyword) {
         String trimmed = keyword.trim();
-        // 运营口径含有效 + 已注销（已归档物理删除的行查不到，属预期），故用不带 DEL_YN 过滤的三条。
         List<UserItpRegInfo> users = switch (queryType) {
             case "THIRD_USER_ID" -> userItpRegInfoMapper.selectListByThirdUserId(trimmed);
             case "MSISDN" -> userItpRegInfoMapper.selectListByMsisdn(trimmed);
@@ -67,9 +54,6 @@ public class ItpUserQueryServiceImpl implements ItpUserQueryService {
 
     /**
      * 对命中的全部票卡做一次聚合查询取回解约时间，按 {@code thirdUserId + cardId} 建索引。
-     *
-     * <p>双键配对是刻意的：卡号会回收再分配，仅按 cardId 回填会把旧主的解约记录
-     * 串到新主头上。空集合 MUST 跳过调用（{@code in ()} 会运行时才炸）。</p>
      */
     private Map<String, TerminationTimeSummary> loadTerminationTimes(List<UserItpRegInfo> users) {
         List<String> cardIds = users.stream()
@@ -138,7 +122,6 @@ public class ItpUserQueryServiceImpl implements ItpUserQueryService {
     }
 
     private ItpUserSearchView toView(UserItpRegInfo user, Map<String, TerminationTimeSummary> terminations) {
-        // 运营查询只返回脱敏手机号和姓名，避免页面暴露完整个人信息。
         ItpUserSearchView view = new ItpUserSearchView();
         view.setThirdUserId(user.getThirdUserId());
         view.setCardId(user.getCardId());
@@ -149,7 +132,6 @@ public class ItpUserQueryServiceImpl implements ItpUserQueryService {
         view.setCardIssueCode(user.getCardIssueCode());
         view.setChannel(user.getChannel());
         view.setCompanionFlag(user.getCompanionFlag());
-        // 判活 MUST 走实体方法（DEL_YN 极性反直觉：1=有效、0=已注销），NEVER 裸比 getDelYn()。
         view.setStatus(user.isActive() ? "有效" : user.isCanceled() ? "已注销" : "未知");
         view.setRegTms(user.getRegTms());
         TerminationTimeSummary termination = terminations.get(terminationKey(user.getThirdUserId(), user.getCardId()));

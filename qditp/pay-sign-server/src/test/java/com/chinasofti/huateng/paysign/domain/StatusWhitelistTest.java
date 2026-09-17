@@ -9,11 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * 迁移白名单的回归测试。断言与 {@code PaySignInfoMapper.xml} 的 4 条 CAS、
- * {@code UserPhoneChangeLogMapper.xml} 的扫表条件**逐条对齐**；
- * 改任何一边 **MUST** 同时改另一边并让本类通过，否则枚举与 SQL 会出现两套口径。
- */
+/** 护栏：签约状态迁移白名单与 4 条 CAS 对齐，UNSIGNED -> SIGNED NEVER 放开。 */
 class StatusWhitelistTest {
 
     /** 2026-09-11 已在库上用合成数据实跑过同一组断言（见 decisions.md ADR-D12），此处是它的代码化留存。 */
@@ -27,10 +23,7 @@ class StatusWhitelistTest {
         assertTrue(SignStatus.UNSIGNED.canTransitTo(SignStatus.NOT_SIGNED));
     }
 
-    /**
-     * 本条是整个改造要挡住的那一个迁移：迟到的签约回调把已解约通道改回已签约，
-     * APP 会显示通道有效而渠道侧协议已注销。**NEVER 放开**。
-     */
+    /** 本条是整个改造要挡住的那一个迁移：迟到的签约回调把已解约通道改回已签约。 */
     @Test
     void unsignedCanNeverGoBackToSigned() {
         assertFalse(SignStatus.UNSIGNED.canTransitTo(SignStatus.SIGNED));

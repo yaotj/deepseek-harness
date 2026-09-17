@@ -19,19 +19,13 @@ import java.util.List;
 
 /**
  * 非支付宝用户运营查询，仅查询 USER_ITP_REG_INFO。
- *
- * <p><b>本类只做参数校验与路由</b>（AGENTS.md §3.3）。2026-09-11 之前它直接注入两个 Mapper
- * 与 {@code PaySignClient}，自己做查询类型分派、跨域 RPC 与视图脱敏，那是 controller 写业务逻辑；
- * 已整段下沉到 {@link ItpUserQueryService}。<b>NEVER 把 Mapper 或 RPC Client 注回本类。</b></p>
- *
- * <p>两个端点里 {@code null} 的含义由 service 的 Javadoc 定义：search 返回 null = 查询类型不支持，
- * payChannels 返回 null = 没找到有效票种注册信息。<b>NEVER 把它们当成「查不到数据」</b> —— 那是空列表。</p>
  */
 @RestController
 @RequestMapping("/page/user/itp")
 public class ItpUserPageController {
-
-    /** 批量导入查询的单批卡号上限：远低于 Oracle IN 列表 1000 的硬顶，留出防呆余量。 */
+    /**
+     * 批量导入查询的单批卡号上限：远低于 Oracle IN 列表 1000 的硬顶，留出防呆余量。
+     */
     private static final int BATCH_SEARCH_LIMIT = 500;
 
     private final ItpUserQueryService itpUserQueryService;
@@ -40,7 +34,9 @@ public class ItpUserPageController {
         this.itpUserQueryService = itpUserQueryService;
     }
 
-    /** 按三方用户ID、手机号或卡ID查询有效注册记录。 */
+    /**
+     * 按三方用户ID、手机号或卡ID查询有效注册记录。
+     */
     @GetMapping("/search")
     public ResultVO<List<ItpUserSearchView>> search(ItpUserSearchQuery query) {
         if (query == null || !StringUtils.hasText(query.getQueryType()) || !StringUtils.hasText(query.getKeyword())) {
@@ -53,7 +49,9 @@ public class ItpUserPageController {
         return ResultMapper.ok(views);
     }
 
-    /** 查询指定用户、指定票种下已经关联的全部支付渠道和解约参数。 */
+    /**
+     * 查询指定用户、指定票种下已经关联的全部支付渠道和解约参数。
+     */
     @GetMapping("/pay-channels")
     public ResultVO<List<ItpPayChannelView>> payChannels(
             @RequestParam String thirdUserId,
@@ -69,7 +67,9 @@ public class ItpUserPageController {
         return ResultMapper.ok(views);
     }
 
-    /** 注册量统计：按票种分组计数，可选注册日期窗（yyyy-MM-dd，闭区间）。 */
+    /**
+     * 注册量统计：按票种分组计数，可选注册日期窗（yyyy-MM-dd，闭区间）。
+     */
     @GetMapping("/reg-stats")
     public ResultVO<List<RegStatView>> regStats(@RequestParam(required = false) String startDate,
                                                 @RequestParam(required = false) String endDate) {
@@ -77,8 +77,7 @@ public class ItpUserPageController {
     }
 
     /**
-     * 批量导入逻辑卡号查询手机号（综管台）。单批上限 500 条，
-     * 超出直接报错，防 IN 列表过长拖垮 Oracle。
+     * 批量导入逻辑卡号查询手机号（综管台）。
      */
     @PostMapping("/batch-search")
     public ResultVO<List<ItpUserSearchView>> batchSearch(@RequestBody List<String> cardIds) {

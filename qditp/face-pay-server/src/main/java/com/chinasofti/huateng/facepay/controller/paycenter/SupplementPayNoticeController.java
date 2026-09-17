@@ -9,18 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/**
- * 补款单（{@code SP} 前缀）的支付中心结果回调。
- *
- * <p><b>类级 {@code @RequestMapping} 已刻意去掉</b>：两条路径不共享前缀，MUST 各写全路径。
- * <ul>
- *   <li>{@code /ci/facePay/paycenter/payNotice} —— 原有内网路径，<b>NEVER 删</b>；</li>
- *   <li>{@code /itpbom/ci/bom/supplementPayNotice} —— 对外别名，复用 {@code fep-app-vr} 已有的
- *       {@code /itpbom/} 前缀（{@code rewrite.uri: /itpbom/}，路径原样保留），因此
- *       <b>不需要改网关</b>。支付中心的 {@code notifyUrl} 送的就是它（ADR-D103）。</li>
- * </ul>
- * 两条走同一个方法体，NEVER 复制一份实现。</p>
- */
+/** 补款单（{@code SP} 前缀）的支付中心结果回调。 */
 @RestController
 public class SupplementPayNoticeController {
 

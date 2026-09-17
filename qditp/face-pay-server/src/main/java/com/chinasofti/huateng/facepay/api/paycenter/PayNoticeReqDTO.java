@@ -1,15 +1,6 @@
 package com.chinasofti.huateng.facepay.api.paycenter;
 
-/**
- * 支付结果回调的业务报文（{@code bizData} 内容），字段与旧 {@code PayNoticeReqDTO} 逐字一致。
- *
- * <p><b>两个订单号极易搞混</b>：{@code orderNo} 是<b>支付中心侧</b>订单号，
- * {@code merchantOrderNo} 才是<b>我方</b>订单号——定位本地订单 MUST 用 {@code merchantOrderNo}。
- * 旧实现 {@code payNotice} 里 {@code selectByOrderNo(request.getMerchantOrderNo())} 即此意，
- * 而同一方法的日志却打 {@code request.getOrderNo()}，读日志时容易被误导。</p>
- *
- * <p>金额单位分；{@code status} 取值同 {@code PayCenterStatus}。</p>
- */
+/** 支付结果回调的业务报文（{@code bizData} 内容），字段与旧 {@code PayNoticeReqDTO} 逐字一致。 */
 public class PayNoticeReqDTO {
 
     /** 支付中心订单号。 */

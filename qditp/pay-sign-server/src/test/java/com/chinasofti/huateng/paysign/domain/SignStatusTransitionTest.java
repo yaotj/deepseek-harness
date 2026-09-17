@@ -10,16 +10,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * {@link SignStatusTransition} 的回归测试（ADR-D40）。
- *
- * <p>此前 {@code ContractDomainServiceImpl.removeSignAgreement} 与
- * {@code PaySignWorkflow.applyGatewayStatus} 各写一遍这段判定、且一个用正向比较一个用取反，
- * 现在收口成一处。<b>本类是那条规则的唯一断言点，改判定 MUST 同步改这里。</b></p>
- */
+/** 护栏：CAS 命中不回查；0 行按库内状态区分幂等与冲突，未知状态一律 CONFLICT、NEVER 兜底成目标态。 */
 class SignStatusTransitionTest {
 
-    /** CAS 命中就是 DONE，且 <b>MUST 不回查</b>——回查一次是一次多余的 DB 往返。 */
+    /** CAS 命中就是 DONE，且 MUST 不回查——回查一次是一次多余的 DB 往返。 */
     @Test
     void casHitIsDoneAndNeverLoadsCurrentStatus() {
         AtomicInteger loaderCalls = new AtomicInteger();
@@ -47,10 +41,7 @@ class SignStatusTransitionTest {
         assertEquals("UNSIGNED", result.observedStatus());
     }
 
-    /**
-     * 返 0 行且库里不是目标态 = 真冲突。这一条对应「已解约通道被迟到的签约回调覆盖」那个必须挡住的场景：
-     * 目标 SIGNED 而库里是 UNSIGNED，CAS 的 WHERE 命中 0 行，此处判 CONFLICT。
-     */
+    /** 返 0 行且库里不是目标态 = 真冲突。这一条对应「已解约通道被迟到的签约回调覆盖」那个必须挡住的场景。 */
     @Test
     void zeroRowsWithDifferentStatusIsConflict() {
         SignStatusTransition.Result result =
@@ -61,11 +52,7 @@ class SignStatusTransitionTest {
         assertEquals("UNSIGNED", result.observedStatus());
     }
 
-    /**
-     * 库里是 NULL / 脏值 / 大小写不符时一律 CONFLICT，<b>NEVER 兜底成目标态</b>：
-     * 猜错方向会把「状态未知」当成「已经成功」，把不一致藏起来。
-     * {@code observedStatus} 仍返回原始值，供日志与错误消息如实呈现。
-     */
+    /** 库里是 NULL / 脏值 / 大小写不符时一律 CONFLICT，NEVER 兜底成目标态。 */
     @Test
     void unparsableCurrentStatusIsConflictAndKeepsRawValue() {
         assertEquals(SignStatusTransition.Outcome.CONFLICT,

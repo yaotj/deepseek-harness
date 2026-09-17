@@ -2,12 +2,7 @@ package com.chinasofti.huateng.facepay.api.device.bom;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/**
- * IF5A-03 票卡更新入参。纯透传到 ticket-server。
- *
- * <p>旧实现<b>没校验 {@code updateType}</b>（票卡分析那条校验了），本实现补齐——
- * 更新类型缺失时下游行为不确定，属状态变更型操作，不该放行。</p>
- */
+/** IF5A-03 票卡更新入参。 */
 public class RequestCardDataUpdateReqDTO extends BaseDeviceRequest {
 
     private String cardId;

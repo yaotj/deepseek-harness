@@ -3,46 +3,30 @@ package com.chinasofti.huateng.cardpool.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-/**
- * 逻辑卡号池配置，前缀 {@code card-pool}。
- */
+/** 逻辑卡号池配置，前缀 {@code card-pool}。 */
 @Component
 @ConfigurationProperties(prefix = "card-pool")
 public class CardPoolProperties {
 
-    /**
-     * 可用卡号低水位，低于该值触发补货。
-     */
+    /** 可用卡号低水位，低于该值触发补货。 */
     private int threshold = 10000;
 
-    /**
-     * 单批次向 ACC 申请的卡号数量。
-     */
+    /** 单批次向 ACC 申请的卡号数量。 */
     private int requestNum = 100000;
 
-    /**
-     * 批次号序列接近上限的告警阈值。
-     */
+    /** 批次号序列接近上限的告警阈值。 */
     private long sequenceAlertThreshold = 999900L;
 
-    /**
-     * 预占有效分钟数，超时由维护动作回收。
-     */
+    /** 预占有效分钟数，超时由维护动作回收。 */
     private int reservationMinutes = 10;
 
-    /**
-     * 票种级批次锁的失效秒数，需大于单批次最长导入耗时；导入过程中会持续续期。
-     */
+    /** 票种级批次锁的失效秒数，需大于单批次最长导入耗时；导入过程中会持续续期。 */
     private long lockStaleSeconds = 1800L;
 
-    /**
-     * 单次导入的分片行数。
-     */
+    /** 单次导入的分片行数。 */
     private int importChunkSize = 1000;
 
-    /**
-     * FTP 配置。
-     */
+    /** FTP 配置。 */
     private final Ftp ftp = new Ftp();
 
     /**
@@ -162,54 +146,34 @@ public class CardPoolProperties {
         return ftp;
     }
 
-    /**
-     * ACC 逻辑卡号文件 FTP 配置。
-     */
+    /** ACC 逻辑卡号文件 FTP 配置。 */
     public static class Ftp {
 
-        /**
-         * FTP 主机，未配置时禁止下载。
-         */
+        /** FTP 主机，未配置时禁止下载。 */
         private String host;
 
-        /**
-         * FTP 端口。
-         */
+        /** FTP 端口。 */
         private int port = 21;
 
-        /**
-         * FTP 用户名。
-         */
+        /** FTP 用户名。 */
         private String username;
 
-        /**
-         * FTP 口令，由 K8s Secret 注入。
-         */
+        /** FTP 口令，由 K8s Secret 注入。 */
         private String password;
 
-        /**
-         * 逻辑卡号文件所在目录。
-         */
+        /** 逻辑卡号文件所在目录。 */
         private String baseDir = "/";
 
-        /**
-         * 允许下载的最大文件字节数。
-         */
+        /** 允许下载的最大文件字节数。 */
         private long maxFileSize = 52428800L;
 
-        /**
-         * 控制连接建立超时毫秒数。
-         */
+        /** 控制连接建立超时毫秒数。 */
         private int connectTimeoutMillis = 10000;
 
-        /**
-         * 控制连接读写超时毫秒数。
-         */
+        /** 控制连接读写超时毫秒数。 */
         private int soTimeoutMillis = 30000;
 
-        /**
-         * 数据连接超时秒数，覆盖 listFiles 与 retrieveFile。
-         */
+        /** 数据连接超时秒数，覆盖 listFiles 与 retrieveFile。 */
         private int dataTimeoutSeconds = 120;
 
         /**

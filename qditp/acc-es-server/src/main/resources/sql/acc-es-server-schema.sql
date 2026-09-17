@@ -1,28 +1,4 @@
--- ============================================================================
--- acc-es-server 建表脚本（AFCITPDB / QDITP）
---
--- 背景：2026-08-25 核实 acc-es-server 13 个 mapper 对应的 13 张表在生产库
---       全部不存在，`/report/page` 报 ORA-00942。仓库中原本没有任何 DDL。
---
--- ⚠️ 本脚本由 mapper resultMap 的 jdbcType 与实体类字段类型**反推**得出，
---    甲方原始 DDL 未获得。以下为已做的取舍，拿到原始 DDL 后 MUST 逐列比对：
---    1. 所有字符串列统一用 VARCHAR2，**不用 CHAR**。
---       原因：CHAR 长度猜错会因尾部空格补齐导致等值比较失效；VARCHAR2 无此问题。
---    2. 所有 DECIMAL / NUMERIC 列用不带精度的 NUMBER。
---       原因：精度未知，不带精度可容纳任意数值，避免 ORA-01438。
---    3. 字符串长度按用途给宽：编码/ID 类 64，名称/文件名 256，长文本 1024。
---       原因：宁可偏大也不能偏小，偏小会 ORA-12899 或静默截断。
---    4. 仅主键列加 NOT NULL，其余全部可空（mapper 的 insertSelective 允许缺列）。
---    5. TASK_NO / PLAN_NO 统一 NUMBER。TblTktEsTaskMapper / TblTktEsAssignMapper
---       把 TASK_NO 标为 jdbcType=VARCHAR，与 TblTktEsReport/Proc 的 DECIMAL 冲突，
---       此处按「任务号本质是数字」统一为 NUMBER，靠 Oracle 隐式转换兼容。
---
--- 执行环境：Oracle 19c，schema QDITP
--- ============================================================================
 
--- ---------------------------------------------------------------------------
--- 1. TBL_TKT_TASK_PLAN — 制票任务计划
--- ---------------------------------------------------------------------------
 CREATE TABLE TBL_TKT_TASK_PLAN (
   PLAN_NO           NUMBER          NOT NULL,
   TASK_TYPE         VARCHAR2(64),
@@ -43,9 +19,6 @@ CREATE TABLE TBL_TKT_TASK_PLAN (
   CONSTRAINT PK_TBL_TKT_TASK_PLAN PRIMARY KEY (PLAN_NO)
 );
 
--- ---------------------------------------------------------------------------
--- 2. TBL_TKT_ES_TASK — 编码设备制票任务
--- ---------------------------------------------------------------------------
 CREATE TABLE TBL_TKT_ES_TASK (
   TASK_NO           NUMBER          NOT NULL,
   PLAN_NO           NUMBER,
@@ -99,9 +72,6 @@ CREATE TABLE TBL_TKT_ES_TASK (
 
 CREATE INDEX IDX_TKT_ES_TASK_PLAN_NO ON TBL_TKT_ES_TASK (PLAN_NO);
 
--- ---------------------------------------------------------------------------
--- 3. TBL_TKT_ES_ASSIGN — 任务分配到编码设备
--- ---------------------------------------------------------------------------
 CREATE TABLE TBL_TKT_ES_ASSIGN (
   TASK_NO       NUMBER          NOT NULL,
   ES_CODE       VARCHAR2(64)    NOT NULL,
@@ -115,9 +85,6 @@ CREATE TABLE TBL_TKT_ES_ASSIGN (
   CONSTRAINT PK_TBL_TKT_ES_ASSIGN PRIMARY KEY (TASK_NO, ES_CODE)
 );
 
--- ---------------------------------------------------------------------------
--- 4. TBL_TKT_ES_INFO — 编码设备台账
--- ---------------------------------------------------------------------------
 CREATE TABLE TBL_TKT_ES_INFO (
   ES_CODE       VARCHAR2(64)    NOT NULL,
   ES_NAME       VARCHAR2(256),
@@ -135,10 +102,6 @@ CREATE TABLE TBL_TKT_ES_INFO (
   CONSTRAINT PK_TBL_TKT_ES_INFO PRIMARY KEY (ES_CODE)
 );
 
--- ---------------------------------------------------------------------------
--- 5. TBL_TKT_ES_ACCOUNT — 编码设备操作员账号
--- 注意：PASSWORD 是 Oracle 保留字，mapper 中已用双引号引用，此处保持一致。
--- ---------------------------------------------------------------------------
 CREATE TABLE TBL_TKT_ES_ACCOUNT (
   USERNAME        VARCHAR2(64)    NOT NULL,
   "PASSWORD"      VARCHAR2(256),
@@ -150,9 +113,6 @@ CREATE TABLE TBL_TKT_ES_ACCOUNT (
   CONSTRAINT PK_TBL_TKT_ES_ACCOUNT PRIMARY KEY (USERNAME)
 );
 
--- ---------------------------------------------------------------------------
--- 6. TBL_TKT_ES_REPORT — ES 任务报告（日志中报错表之一）
--- ---------------------------------------------------------------------------
 CREATE TABLE TBL_TKT_ES_REPORT (
   TASK_NO       NUMBER          NOT NULL,
   ES_CODE       VARCHAR2(64)    NOT NULL,
@@ -170,9 +130,6 @@ CREATE TABLE TBL_TKT_ES_REPORT (
   CONSTRAINT PK_TBL_TKT_ES_REPORT PRIMARY KEY (TASK_NO, ES_CODE)
 );
 
--- ---------------------------------------------------------------------------
--- 7. TBL_TKT_ES_PROC — ES 报告文件处理结果（日志中报错表之一）
--- ---------------------------------------------------------------------------
 CREATE TABLE TBL_TKT_ES_PROC (
   TASK_NO       NUMBER          NOT NULL,
   ES_CODE       VARCHAR2(64)    NOT NULL,
@@ -187,9 +144,6 @@ CREATE TABLE TBL_TKT_ES_PROC (
   CONSTRAINT PK_TBL_TKT_ES_PROC PRIMARY KEY (TASK_NO, ES_CODE, FILE_SEQ_NO)
 );
 
--- ---------------------------------------------------------------------------
--- 8. TBL_TKT_ES_FILE_PROC_LOG — 文件逐条处理明细
--- ---------------------------------------------------------------------------
 CREATE TABLE TBL_TKT_ES_FILE_PROC_LOG (
   TASK_NO           NUMBER          NOT NULL,
   ES_CODE           VARCHAR2(64)    NOT NULL,
@@ -206,10 +160,6 @@ CREATE TABLE TBL_TKT_ES_FILE_PROC_LOG (
   CONSTRAINT PK_TBL_TKT_ES_FILE_PROC_LOG PRIMARY KEY (TASK_NO, ES_CODE, RECORD_NO)
 );
 
--- ---------------------------------------------------------------------------
--- 9. TBL_TKT_PRE_PERSON — 记名卡预登记人员
--- 注意：ID 是列名（mapper 中即为 ID），非保留字，可直接使用。
--- ---------------------------------------------------------------------------
 CREATE TABLE TBL_TKT_PRE_PERSON (
   TASK_NO      NUMBER          NOT NULL,
   PHY_CODE     VARCHAR2(64)    NOT NULL,
@@ -222,9 +172,6 @@ CREATE TABLE TBL_TKT_PRE_PERSON (
   CONSTRAINT PK_TBL_TKT_PRE_PERSON PRIMARY KEY (TASK_NO, PHY_CODE)
 );
 
--- ---------------------------------------------------------------------------
--- 10. TBL_STL_TICKET_SET — 票种设置
--- ---------------------------------------------------------------------------
 CREATE TABLE TBL_STL_TICKET_SET (
   TICKET_TYPE      NUMBER          NOT NULL,
   TICKET_NAME      VARCHAR2(256),
@@ -243,9 +190,6 @@ CREATE TABLE TBL_STL_TICKET_SET (
   CONSTRAINT PK_TBL_STL_TICKET_SET PRIMARY KEY (TICKET_TYPE)
 );
 
--- ---------------------------------------------------------------------------
--- 11. TBL_STL_TICKET_INFO — 票卡信息
--- ---------------------------------------------------------------------------
 CREATE TABLE TBL_STL_TICKET_INFO (
   TICKET_LOGIC_NO   VARCHAR2(64)    NOT NULL,
   TICKET_TYPE       NUMBER,
@@ -276,9 +220,6 @@ CREATE TABLE TBL_STL_TICKET_INFO (
 
 CREATE INDEX IDX_STL_TICKET_INFO_CSN ON TBL_STL_TICKET_INFO (TICKET_CSN);
 
--- ---------------------------------------------------------------------------
--- 12. TBL_STL_ACCT_INFO — 储值票卡账户信息
--- ---------------------------------------------------------------------------
 CREATE TABLE TBL_STL_ACCT_INFO (
   TICKET_LOGIC_NO  VARCHAR2(64)    NOT NULL,
   TICKET_TYPE      NUMBER,
@@ -317,12 +258,8 @@ CREATE TABLE TBL_STL_ACCT_INFO (
   CONSTRAINT PK_TBL_STL_ACCT_INFO PRIMARY KEY (TICKET_LOGIC_NO)
 );
 
--- TblStlAcctInfoMapper 有 WHERE TICKET_CSN = '00000000' || #{csn} 的查询
 CREATE INDEX IDX_STL_ACCT_INFO_CSN ON TBL_STL_ACCT_INFO (TICKET_CSN);
 
--- ---------------------------------------------------------------------------
--- 13. TBL_STL_PERSON_INFO — 记名卡持卡人信息（含照片 BLOB）
--- ---------------------------------------------------------------------------
 CREATE TABLE TBL_STL_PERSON_INFO (
   TICKET_ID      VARCHAR2(64)    NOT NULL,
   PERSON_NAME    VARCHAR2(256),

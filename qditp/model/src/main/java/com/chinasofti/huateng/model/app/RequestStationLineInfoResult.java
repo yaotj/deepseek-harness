@@ -10,7 +10,6 @@ public class RequestStationLineInfoResult extends CommonResult {
     private String stationCode;
     /** 车站中文名称。 */
     private String stationName;
-    /** 所属线路代码。 */
     private String lineCode;
     /** 线路中文名称。 */
     private String lineName;

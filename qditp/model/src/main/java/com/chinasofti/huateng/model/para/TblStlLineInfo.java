@@ -2,10 +2,6 @@ package com.chinasofti.huateng.model.para;
 
 import java.io.Serializable;
 
-/*
-线路参数
- */
-
 public class TblStlLineInfo implements Serializable {
     private Integer paraVerNo;
 

@@ -38,7 +38,6 @@ public class EsAssignServiceImpl implements IEsAssignService {
         esAssign.setLastUpdTms(null);
         esAssign.setLastUpdId(serverName);
         esAssignMapper.insert(esAssign);
-        //更新分配状态
         esTaskService.changeAssignStat(esAssign.getTaskNo(), TaskAssignStat.ASSIGNED.code());
         return ResultMapper.ok();
     }

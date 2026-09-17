@@ -6,12 +6,10 @@ import java.time.LocalDateTime;
 import java.util.Set;
 
 /**
- * 一次退款请求的全部入参。用 record 是因为它<b>构造后即不可变</b>——
- * 退款金额与幂等三要素在链路中途被改写是最难查的一类缺陷。
+ * 一次退款请求的全部入参。
  *
  * @param origOrderNo      原订单号，幂等三要素之一，必填
- * @param ticketLogicNum   票逻辑卡号，幂等三要素之一；<b>null 表示整单退</b>，
- *                         对应唯一索引里的 {@code #WHOLE#} 占位
+ * @param ticketLogicNum   票逻辑卡号，幂等三要素之一；null 表示整单退，
  * @param refundSource     退款来源，幂等三要素之一，取值必须在 {@code CK_F2F_REFUND_SOURCE} 内
  * @param refundAmount     退款金额，单位分，必须为正（{@code CK_F2F_REFUND_AMOUNT} 也会挡）
  * @param refundNum        退票张数，整单退或充值退时可为 null
@@ -20,9 +18,7 @@ import java.util.Set;
  * @param operatorId       操作员，可空
  * @param transType        原交易类型，用于对账归类
  * @param origTransDate    原交易日期，按票退款时用于定位原交易
- * @param payCenterOrderNo 支付中心侧原订单号，可空；<b>旧实现这里硬编码空串</b>
- *                         （{@code BomOrderServiceImpl:640} 留着「根据实际情况填写」的注释），
- *                         本实现要求调用方从 {@code F2F_PAYMENT.PAY_CENTER_ORDER_NO} 取真值
+ * @param payCenterOrderNo 支付中心侧原订单号，可空；旧实现这里硬编码空串
  */
 public record RefundCommand(String origOrderNo,
                             String ticketLogicNum,
@@ -46,9 +42,7 @@ public record RefundCommand(String origOrderNo,
             F2fRefundService.SOURCE_TVM_REQUEST);
 
     /**
-     * 参数自检。<b>在落库前拦住非法值</b>，而不是等 Oracle 的 CHECK 约束抛异常——
-     * 约束抛出来的是 {@code DataIntegrityViolationException}，与「已退过」的
-     * {@code DuplicateKeyException} 混在一起后无法区分处理。
+     * 参数自检。
      *
      * @return null 表示合法；否则返回可直接回给调用方的中文原因
      */

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.collectticket.mapper.TicketCollectLogsMapper">
+    <!-- SQL 正文禁写注释（Druid WallFilter commentAllow=false，带注释会被判成注入并静默失效）；本注释内 NEVER 出现两个连续减号 -->
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.collectticket.entity.TicketCollectLogs">
         <id column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
         <result column="USER_ID" jdbcType="VARCHAR" property="userId"/>

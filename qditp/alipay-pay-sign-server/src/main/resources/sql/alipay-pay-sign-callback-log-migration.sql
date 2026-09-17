@@ -1,19 +1,4 @@
--- 支付宝出行付款链路：回调凭据表 + 退款幂等唯一索引（2026-09-14）
---
--- 为什么要这张表：handlePayNotify 此前完全不落库，同步 GATE_TXN_PAY 失败就回非 0000
--- 让支付中心无限重推，而库里一条记录都没有，排查只能翻容器日志。参考 pay-sign-server
--- 的 PAY_CALLBACK_LOG：回调即入库当凭据，再按累计推送次数做硬限次，达上限回 0000
--- 停推并把该行置 MANUAL 等人工。
---
--- 本模块无 *-schema.sql，因此本文件是这两个对象的唯一权威 DDL。
--- 执行方式：在 AFCITPDB（172.20.222.3:1521，用户 qditp）逐条执行，并用
--- USER_TABLES / USER_INDEXES 回查。
---
--- 执行记录（2026-09-14）：
---   ALIPAY_PAY_CALLBACK_LOG + IDX_APCL_ORDER_NO_TYPE + IDX_APCL_HANDLE_STATUS **已执行并回查通过**
---   （USER_TABLES 命中 1、USER_TAB_COLS 14 列、PK_ALIPAY_PAY_CALLBACK_LOG 为 UNIQUE，
---    两条 NONUNIQUE 索引都在）。
---   文件末尾那条 UK_ARL_REFUND_ORDER_NO **未执行**，原因见该处注释。
+-- 支付宝出行付款链路：回调凭据表 ALIPAY_PAY_CALLBACK_LOG + 退款幂等唯一索引（2026-09-14）
 
 CREATE TABLE ALIPAY_PAY_CALLBACK_LOG (
     CALLBACK_SEQ        VARCHAR2(64)  NOT NULL,
@@ -46,20 +31,5 @@ CREATE INDEX IDX_APCL_ORDER_NO_TYPE ON ALIPAY_PAY_CALLBACK_LOG (ORDER_NO, CALLBA
 
 CREATE INDEX IDX_APCL_HANDLE_STATUS ON ALIPAY_PAY_CALLBACK_LOG (HANDLE_STATUS);
 
--- 退款单号唯一：REFUND_ORDER_NO 是我方生成并送给支付中心的退款请求号，
--- 一号只能对应一次退款受理。此前该列无任何索引，重复插入不会报错。
---
--- ⚠️ 2026-09-14 执行时**未建成**，原因是存量有重复：
---   ALIPAY_REFUND_LOG 共 33 行，REFUND_ORDER_NO 去重 26（空值 0），差 7 行；
---   全部集中在一个号 REFUND20260715120000001（8 行，ORDER_NO 同为
---   GT20260715120000001，REFUND_STATUS 全 FAIL，金额同为 10000，
---   时间 2026-07-15 18:25 ~ 2026-07-16 11:17）。
---   该号是**固定写死的联调造数**（代码生成的形态是 R + 毫秒时间戳 + 8 位 UUID），
---   不是真实重复退款。
--- 因此本条留待「这批造数按业务确认归属后」再执行，**NEVER 为了建索引直接删行**。
--- 重跑前 MUST 先复核：
---   SELECT COUNT(*), COUNT(DISTINCT REFUND_ORDER_NO) FROM ALIPAY_REFUND_LOG;
--- 两者相等再执行下面这条。索引缺位期间，退款幂等只靠
--- PaymentRefundService 的「同一 ORDER_NO 存在 PROCESSING 即拒绝」状态短路，
--- 挡不住真正的并发双提交。
+-- 退款单号唯一索引 UK_ARL_REFUND_ORDER_NO：存量有重复，尚未执行
 CREATE UNIQUE INDEX UK_ARL_REFUND_ORDER_NO ON ALIPAY_REFUND_LOG (REFUND_ORDER_NO);

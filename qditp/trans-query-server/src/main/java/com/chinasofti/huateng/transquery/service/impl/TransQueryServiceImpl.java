@@ -13,13 +13,7 @@ import com.chinasofti.huateng.transquery.service.TransQueryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-/**
- * 交易查询编排壳 —— 三个入口各自委托给独立 Handler，本类**不写任何业务逻辑**。
- *
- * <p>三个 Handler 互不调用，共享的只有入参归一化（收口在 {@code TransQueryParamNormalizer}）。
- * 因此本类 **NEVER 在方法间做任何合并 / 复用**，一旦出现跨接口的共享分支，
- * 那段逻辑应该下沉到 Handler 或 Normalizer，而不是留在这层壳里。
- */
+/** 交易查询编排壳 —— 三个入口各自委托给独立 Handler，本类不写任何业务逻辑。 */
 @Service
 public class TransQueryServiceImpl implements TransQueryService {
 

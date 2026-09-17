@@ -14,9 +14,9 @@ public class RequestTransListReqDTO {
     private String startDate;
     /** 结束日期 yyyy-MM-dd（非必填） */
     private String endDate;
-    /** 扣款结果 空=全部，0=成功，1=失败 */
+    /** 扣款结果 空=全部，0=成功，1=失败。 */
     private String debitRequestResult;
-    /** 日票票号 */
+    /** 日票票号。 */
     private String ticketCode;
 
     public String getThirdUserId() { return thirdUserId; }

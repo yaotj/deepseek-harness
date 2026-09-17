@@ -2,28 +2,7 @@ package com.chinasofti.huateng.facepay.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * 设备业务结果上报（表 F2F_RESULT_REPORT）。
- *
- * <p>字段与 face-pay-server/src/main/resources/sql/f2f-schema.sql 一一对应，
- * 改字段 MUST 同步改 DDL。
- *
- * <p>本表统一承载六个设备上报接口（TVM 出票结果 / 出票故障 / 充值结果 / 充值失败，
- * BOM 业务操作结果 / 充值结果），收敛为五个 REPORT_TYPE：
- * {@code TAKE_TICKET_OK}、{@code TAKE_TICKET_FAIL}、{@code TOPUP_OK}、
- * {@code TOPUP_FAIL}、{@code BOM_BIZ_RESULT}（见 CK_F2F_REPORT_TYPE）。
- *
- * <p>三处必须知道的设计前提：
- * <ul>
- *   <li>规格要求设备断网后重传，幂等靠 UK_F2F_REPORT_IDEM (REPORT_TYPE, ORDER_NO)。
- *       写入只 INSERT，重复由唯一索引抛 {@code DuplicateKeyException}，
- *       application 层捕获后当作「已收到过」返回成功。</li>
- *   <li>{@code PROCESSED} 把「接收」与「后续动作」解耦：退款、状态推进由扫表驱动，
- *       命中 IDX_F2F_REPORT_PENDING (PROCESSED, RECEIVE_TMS)。</li>
- *   <li>{@code REPORT_TMS} 是 VARCHAR2(14) 的 YYYYMMDDHHMMSS 字符串，不是时间类型，
- *       故映射为 {@code String}；只有 RECEIVE_TMS / CREATE_TMS 是 TIMESTAMP(6)。</li>
- * </ul>
- */
+/** 设备业务结果上报（表 F2F_RESULT_REPORT）。 */
 public class F2fResultReport {
 
     /** 自增主键。 */

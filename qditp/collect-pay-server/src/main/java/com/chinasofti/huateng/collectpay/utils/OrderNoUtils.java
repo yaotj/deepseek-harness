@@ -6,12 +6,7 @@ import org.apache.commons.lang3.StringUtils;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/**
- * 订单号生成工具类。
- * <p>
- * 规则：ProductType.code（2位） + yyyyMMddHHmmss（14位） + 序列号（4位） = 20位
- * </p>
- */
+/** 订单号生成工具类。 */
 public class OrderNoUtils {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");

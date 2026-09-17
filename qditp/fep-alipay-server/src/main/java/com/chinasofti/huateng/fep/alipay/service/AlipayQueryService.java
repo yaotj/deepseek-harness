@@ -14,7 +14,6 @@ public interface AlipayQueryService {
 
     /**
      * 查询乘车记录列表。
-     *
      * @param request 请求对象
      * @return 响应对象
      */
@@ -22,7 +21,6 @@ public interface AlipayQueryService {
 
     /**
      * 查询乘车记录详情。
-     *
      * @param request 请求对象
      * @return 响应对象
      */
@@ -30,7 +28,6 @@ public interface AlipayQueryService {
 
     /**
      * 支付结果查询。
-     *
      * @param request 请求对象
      * @return 响应对象
      */

@@ -2,6 +2,8 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.cardpool.mapper.LogicCardPoolMapper">
 
+    <!-- NEVER 在下面各语句的 SQL 正文里写注释：Druid WallFilter 会判定为注入并让该语句静默失效。 -->
+
     <resultMap id="Batch" type="com.chinasofti.huateng.cardpool.entity.LogicCardPoolBatch">
         <id column="BATCH_NO" property="batchNo"/>
         <result column="REQUEST_SEQ" property="requestSeq"/>
@@ -121,7 +123,6 @@
         WHERE BATCH_NO = #{batchNo}
     </update>
 
-    <!-- 最小化失败落库：仅写终态三列，供 updateBatch 失败后降级使用，避免批次卡在中间态 -->
     <update id="markBatchFailed">
         UPDATE LOGIC_CARD_POOL_BATCH
         SET STATUS = 'FAILED', ERROR_MSG = #{errorMsg}, FINISH_TIME = SYSTIMESTAMP
@@ -154,12 +155,6 @@
         FETCH FIRST 1 ROWS ONLY
     </select>
 
-    <!--
-      取多行候选而非固定取最小 ID：并发预占若都命中同一行，后到者会阻塞在行锁上而不是立刻返回 0 行，
-      同票种预占会退化为串行。这里返回 limit 行候选，由服务侧随机挑选后走条件 UPDATE 做 CAS。
-      NEVER 改成 ROWNUM = 1 ... FOR UPDATE SKIP LOCKED：ROWNUM 过滤先于加锁生效，
-      首行被占时会直接返回 0 行而不是跳到下一行；FETCH FIRST 与 FOR UPDATE 并用则报 ORA-02014。
-    -->
     <select id="selectAvailableCandidates" resultMap="Card">
         SELECT * FROM LOGIC_CARD_POOL_CARD
         WHERE CARD_TYPE = #{cardType} AND STATUS = 'AVAILABLE'

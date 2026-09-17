@@ -2,71 +2,43 @@ package com.chinasofti.huateng.cardpool.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * 逻辑卡号池明细，对应表 LOGIC_CARD_POOL_CARD。
- *
- * <p>状态流转：AVAILABLE 到 RESERVED 到 ASSIGNED；预占超时由回收动作退回 AVAILABLE。</p>
- */
+/** 逻辑卡号池明细，对应表 LOGIC_CARD_POOL_CARD。 */
 public class LogicCardPoolCard {
 
-    /**
-     * 主键，自增。
-     */
+    /** 主键，自增。 */
     private Long id;
 
-    /**
-     * 逻辑卡号，全局唯一。
-     */
+    /** 逻辑卡号，全局唯一。 */
     private String cardNo;
 
-    /**
-     * 来源批次号。
-     */
+    /** 来源批次号。 */
     private Long batchNo;
 
-    /**
-     * 票种，4 位。
-     */
+    /** 票种，4 位。 */
     private String cardType;
 
-    /**
-     * 状态，AVAILABLE / RESERVED / ASSIGNED。
-     */
+    /** 状态，AVAILABLE / RESERVED / ASSIGNED。 */
     private String status;
 
-    /**
-     * 预占标识，全局唯一。
-     */
+    /** 预占标识，全局唯一。 */
     private String reservationId;
 
-    /**
-     * 业务类型，与业务流水号组成唯一归属键。
-     */
+    /** 业务类型，与业务流水号组成唯一归属键。 */
     private String businessType;
 
-    /**
-     * 业务流水号。
-     */
+    /** 业务流水号。 */
     private String businessId;
 
-    /**
-     * 归属方标识。
-     */
+    /** 归属方标识。 */
     private String ownerId;
 
-    /**
-     * 预占时间。
-     */
+    /** 预占时间。 */
     private LocalDateTime reservedTime;
 
-    /**
-     * 预占过期时间，确认后置空。
-     */
+    /** 预占过期时间，确认后置空。 */
     private LocalDateTime expireTime;
 
-    /**
-     * 确认时间。
-     */
+    /** 确认时间。 */
     private LocalDateTime confirmTime;
 
     /**

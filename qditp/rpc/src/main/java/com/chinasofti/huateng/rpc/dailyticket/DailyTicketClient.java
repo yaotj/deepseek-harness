@@ -13,6 +13,7 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayCallbackReqDTO
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayQueryResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayResult;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundCallbackReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
@@ -170,6 +171,20 @@ public class DailyTicketClient extends ProxyWebClient {
     }
 
     /**
+     * 转发退款结果回调到日票服务（支付中心网关 §3.3）。
+     */
+    public DailyTicketBaseResult receiveRefundResult(@RequestBody DailyTicketRefundCallbackReqDTO request) {
+        String path = "/ci/daily-ticket/payment/receiveRefundResult";
+        log.info("调用daily-ticket-server退款结果回调接口入参 path={}, request={}", path, JSON.toJSONString(request));
+        String result = postJsonAndGetResponse(path, request);
+        log.info("调用daily-ticket-server退款结果回调接口原始返回 path={}, response={}", path, result);
+        DailyTicketBaseResult response = JSONUtil.toBean(result, new TypeReference<DailyTicketBaseResult>() {
+        }, true);
+        log.info("调用daily-ticket-server退款结果回调接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
      * 查询日票票实例信息（ticketCode、actualTimes）。
      */
     public QueryDailyTicketInfoResult queryDailyTicketInfo(QueryDailyTicketInfoReqDTO request) {
@@ -185,9 +200,6 @@ public class DailyTicketClient extends ProxyWebClient {
 
     /**
      * 按票号查日票购票支付信息（payTradeOrderNo、payOrderNoDate、payChannelCode）。
-     *
-     * <p>供交易详情（IF8A-34 / IF8A-05）填充三个支付字段：日票过闸免扣费、没有
-     * {@code PAY_TXN_DETAIL}，支付信息只能回溯到购票那一笔订单。</p>
      */
     public QueryDailyTicketPayInfoResult queryDailyTicketPayInfo(QueryDailyTicketPayInfoReqDTO request) {
         String path = "/ci/daily-ticket/queryDailyTicketPayInfo";

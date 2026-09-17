@@ -45,12 +45,6 @@ public class TransformUtils {
      * @return
      */
     public static String bytesToHexString(byte[] bytes, int len) {
-//        char[] hexStr = new char[bytes.length * 2];
-//        int index = 0;
-//        for (byte b:bytes) {
-//            hexStr[index++] = hexStr[(b >>> 4) & 0xf];
-//            hexStr[index++] = hexStr[b & 0xf];
-//        }
         StringBuffer hexStr = new StringBuffer();
         for (byte b : bytes) {
             hexStr.append(String.format("%02x", b & 0xff));

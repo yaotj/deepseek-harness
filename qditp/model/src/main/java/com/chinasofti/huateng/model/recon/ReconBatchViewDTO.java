@@ -17,8 +17,7 @@ public class ReconBatchViewDTO {
     private String windowEnd;
 
     /**
-     * 批次状态：{@code CREATED / EXPORTING / PARTIAL / ALL_SOURCE_COMPLETED /
-     * GENERATING / UPLOADING / SUCCESS / FAILED}。
+     * 批次状态：{@code CREATED / EXPORTING / PARTIAL / ALL_SOURCE_COMPLETED /。
      */
     private String status;
 
@@ -28,6 +27,5 @@ public class ReconBatchViewDTO {
     /** 本批次期望的源数量（来源 recon-server 的期望清单配置）。 */
     private int expectedSources;
 
-    /** 失败原因，仅 FAILED 时有值。 */
     private String failReason;
 }

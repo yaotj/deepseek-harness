@@ -20,29 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
-/**
- * {@code receiveTerminationResult} <b>主干</b>的特征测试（护栏，2026-09-16）。
- *
- * <p><b>为什么单独建一个类</b>：{@link CallbackDomainCharacterizationTest} 里那四条解约用例
- * 全部在**入口段就返回**了（钱包分流 / 申请不存在 / 终态幂等 / 非 SCANNING 拒绝），
- * 四条断言清一色是 {@code verify(deleteByUserAndVendor, never())} —— 也就是说
- * <b>「进了主干之后会发生什么」一行都没有被执行过</b>。逐方法量覆盖时确认：
- * {@code :339~489} 那 148 行（本地事务收口 + CAS 三分支 + 通知 + 通道清理投递）零覆盖。
- * <b>「grep 到方法名」NEVER 等于「被覆盖」</b>，这个类就是那次量化的产物。
- *
- * <p>钉住的都是方法体内写着 NEVER / MUST 的决定，而它们此前只靠注释维持：
- * <ul>
- *   <li><b>APP 通知 MUST 在通道清理投递之前</b>：account-server 慢或不可达时不该把 APP 通知拖住，
- *       而通道清理已落 {@code PENDING}、补偿一定会重推。顺序写反编译照样通过。</li>
- *   <li><b>{@code markSuccess} 与 {@code initChannelSyncPending} 只在本次调用真收口时成对发生</b>：
- *       IDEMPOTENT 也去置 PENDING 会把已 SUCCESS 的通道同步打回待投递、通道被重复删一次。</li>
- *   <li><b>CONFLICT / IDEMPOTENT 两条都 NEVER 补发成功通知</b>，但只有 CONFLICT 落人工核对留痕
- *       —— 两者合并就会把「双路撞同一个 CAS」这种设计内常态报成需人工核对（2026-09-14 实测）。</li>
- *   <li><b>失败分支 NEVER 删签约记录</b>，且流水的 {@code SIGN_STATUS} 落 {@code FAILED}。</li>
- * </ul>
- *
- * <p>断言一律经 {@code fixture.service} 下钻，理由见 {@link PaySignFacadeFixture} 的门面注释。
- */
+/** 护栏：解约回调主干的顺序（APP 通知先于通道清理）与 CAS 三分支的通知、留痕差异。 */
 class TerminationCallbackTrunkCharacterizationTest {
 
     private static final String ALIPAY_VENDOR = "03";
@@ -63,7 +41,6 @@ class TerminationCallbackTrunkCharacterizationTest {
         verify(fixture.paySignInfoMapper).deleteByUserAndVendor(USER, ALIPAY_VENDOR);
         verify(fixture.terminationRequestMapper).initChannelSyncPending(SEQ);
 
-        // 顺序本身就是不变量：通知 MUST 先于出网删通道。
         InOrder order = inOrder(fixture.appNotifyService, fixture.channelSyncDeliverer);
         order.verify(fixture.appNotifyService).asyncNotifyTerminationResult(any(), any(), any());
         order.verify(fixture.channelSyncDeliverer)
@@ -91,10 +68,7 @@ class TerminationCallbackTrunkCharacterizationTest {
         assertEquals("PENDING", trunkLog.getNotifyStatus());
     }
 
-    /**
-     * CAS 未命中且回查是 FAILED（expireScanning 抢先）：NEVER 补发成功通知、NEVER 置通道待投递，
-     * MUST 落人工核对留痕。
-     */
+    /** CAS 未命中且回查是 FAILED（expireScanning 抢先）：NEVER 补发成功通知、NEVER 置通道待投递。 */
     @Test
     void successConflictOnFailedSkipsNotifyAndMarksManualReview() {
         PaySignFacadeFixture fixture = scanningFixture();
@@ -112,10 +86,7 @@ class TerminationCallbackTrunkCharacterizationTest {
                 .markConflictForManualReview(anyString(), anyString(), anyString());
     }
 
-    /**
-     * CAS 未命中但回查已是 SUCCESS（另一路先收口）：同样不通知、不投递，
-     * 但 <b>NEVER 落人工核对</b> —— 双路驱动撞同一个 CAS 是设计内常态。
-     */
+    /** CAS 未命中但回查已是 SUCCESS（另一路先收口）：同样不通知、不投递。 */
     @Test
     void successIdempotentSkipsNotifyWithoutManualReview() {
         PaySignFacadeFixture fixture = scanningFixture();

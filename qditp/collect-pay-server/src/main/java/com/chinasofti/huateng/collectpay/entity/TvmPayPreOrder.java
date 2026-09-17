@@ -4,14 +4,10 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 
-/**
- * TVM扫码购票订单表实体。
- */
+/** TVM扫码购票订单表实体。 */
 @Data
 public class TvmPayPreOrder {
-    /**
-     * 订单号。
-     */
+    /** 订单号。 */
     private String orderNo;
     private String transType;
     private String transAmount;

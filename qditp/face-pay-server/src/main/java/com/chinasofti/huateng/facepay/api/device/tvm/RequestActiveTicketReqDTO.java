@@ -2,26 +2,16 @@ package com.chinasofti.huateng.facepay.api.device.tvm;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/**
- * IF2A-07 取票订单激活请求报文。
- * 对应 {@code POST /itptvm/ci/tvm/requestActiveTicket} 的 {@code bizData}。
- *
- * <p><b>与旧 DTO 的一处有意差异</b>：旧 {@code RequestActiveTicketReqDTO} 用 Lombok 在子类
- * 重复声明了 {@code deviceId}，生成的 getter 覆盖父类，导致父类字段恒空、
- * 表单上的 {@code deviceId} 永远读不到。本类<b>不重复声明</b>，
- * {@code deviceId} 统一走 {@link BaseDeviceRequest}，由
- * {@code DeviceRequests.unwrap} 决定取表单值还是 bizData 值（表单非空优先）。
- * 报文层面无差异：设备把 deviceId 放 bizData 里照样能解出来。</p>
- */
+/** IF2A-07 取票订单激活请求报文。 */
 public class RequestActiveTicketReqDTO extends BaseDeviceRequest {
 
-    /** 订单号。必填。 */
+    /** 订单号。 */
     private String orderNo;
 
-    /** 二维码生成日期，与 {@code randomFact} 一起构成取票凭证。必填。 */
+    /** 二维码生成日期，与 {@code randomFact} 一起构成取票凭证。 */
     private String qrcodeGenDate;
 
-    /** 二维码随机因子。必填。 */
+    /** 二维码随机因子。 */
     private String randomFact;
 
     public String getOrderNo() {

@@ -2,9 +2,7 @@ package com.chinasofti.huateng.dailyticket.model;
 
 import java.util.Date;
 
-/**
- * 日票支付交互日志。
- */
+/** 日票支付交互日志。 */
 public class DailyTicketPayLog {
     /** 主键ID。 */
     private String id;

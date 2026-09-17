@@ -4,10 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.chinasofti.huateng.collectpay.constant.AppCodeEnum;
 import lombok.Data;
 
-/**
- * APP订单响应结果工具类。
- * 统一封装APP接口的响应格式，包括成功、失败、带数据的响应等。
- */
+/** APP订单响应结果工具类。 */
 @Data
 public class AppOrderResult {
 

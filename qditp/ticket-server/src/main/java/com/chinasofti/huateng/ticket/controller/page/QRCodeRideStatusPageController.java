@@ -14,14 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 用户运营端二维码乘车状态查询与人工调整。
- *
- * <p>2026-09-14 起状态白名单、状态码归一与审计日志下沉到
- * {@link OperationRideStatusService}，本类只做入参非空校验与应答装配。
- * **NEVER 改回直接注 {@code QRCodeStatusMapper}** —— controller 直连 mapper 违反
- * AGENTS.md §3.3，且会让「运营端能改成哪些状态」这条白名单绕过 service 层。
- */
+/** 用户运营端二维码乘车状态查询与人工调整。 */
 @RestController
 @RequestMapping("/page/ride-status")
 public class QRCodeRideStatusPageController {

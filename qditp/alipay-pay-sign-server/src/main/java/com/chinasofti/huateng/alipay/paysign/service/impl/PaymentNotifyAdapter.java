@@ -76,13 +76,7 @@ public class PaymentNotifyAdapter {
         }
     }
 
-    /**
-     * 判定支付中心通知类接口是否成功。
-     *
-     * <p>通知类接口（receiveBlackListFromItp）实测返回 {@code retCode=0000}，不带 success；
-     * 支付类接口返回 {@code success=true} / {@code code=200}。两种形态都要认，
-     * 否则成功应答会被判成失败并触发无意义的重试与告警。
-     */
+    /** 判定支付中心通知类接口是否成功。 */
     private boolean isPayCenterNotifySuccess(com.chinasofti.huateng.alipay.paysign.model.response.PayCenterResponse payCenterResponse) {
         if (Boolean.TRUE.equals(payCenterResponse.getSuccess())) {
             return true;

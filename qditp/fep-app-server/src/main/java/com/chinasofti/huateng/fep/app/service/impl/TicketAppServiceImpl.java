@@ -29,10 +29,7 @@ public class TicketAppServiceImpl implements TicketAppService {
 
     private final BlacklistClient blacklistClient;
     private final TicketClient ticketClient;
-    /**
-     * IF8A-05 / IF8A-41 / IF8A-34 三个交易查询已迁到 trans-query-server（9113），本类里只有那三个
-     * 方法用它；乘车码状态机、自助补站、支付宝行程仍在 ticket-server，<b>NEVER 把 ticketClient 整个换掉</b>。
-     */
+    /** 仅 IF8A-05 / IF8A-41 / IF8A-34 三个交易查询走本 Client，其余走 ticketClient。 */
     private final TransQueryClient transQueryClient;
 
     public TicketAppServiceImpl(BlacklistClient blacklistClient, TicketClient ticketClient,

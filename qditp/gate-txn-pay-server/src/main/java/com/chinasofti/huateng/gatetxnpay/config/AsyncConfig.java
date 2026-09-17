@@ -6,9 +6,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
 
-/**
- * gate-txn-pay-server 异步任务线程池配置，用于 pay-sign 异步补偿更新。
- */
+/** gate-txn-pay-server 异步任务线程池配置，用于 pay-sign 异步补偿更新。 */
 @Configuration
 public class AsyncConfig {
 

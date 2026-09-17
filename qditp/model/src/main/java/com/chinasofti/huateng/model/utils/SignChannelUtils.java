@@ -2,7 +2,6 @@ package com.chinasofti.huateng.model.utils;
 
 /**
  * 签约渠道代码解析工具。
- * 兼容闸机原始报文（0x17）与 account 返回值（17）两种格式。
  */
 public final class SignChannelUtils {
 
@@ -11,7 +10,6 @@ public final class SignChannelUtils {
 
     /**
      * 解析 signChannelCode，统一返回前2位十六进制值（无前缀）。
-     * 输入 "0x17" → "17"，输入 "17" → "17"，输入 "1" → "1"，null/空 → null
      */
     public static String resolve(String channel) {
         if (channel == null || channel.trim().isEmpty()) {

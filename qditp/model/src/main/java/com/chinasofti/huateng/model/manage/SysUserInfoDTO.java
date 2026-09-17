@@ -3,20 +3,20 @@ package com.chinasofti.huateng.model.manage;
 import java.io.Serializable;
 
 /**
- * 用户信息表
+ * 用户信息表。
  */
 public class SysUserInfoDTO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     /**
-     * 用户编号
+     * 用户编号。
      */
     private String id;
 
     /**
-     * desc:mlc密码
-     **/
+     * desc:mlc密码。
+     */
     private String mlcPwd;
 
     public String getId() {

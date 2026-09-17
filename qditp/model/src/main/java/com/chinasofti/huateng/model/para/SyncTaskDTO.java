@@ -7,7 +7,7 @@ public class SyncTaskDTO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 任务ID
+     * 任务ID。
      */
     private String taskId;
 
@@ -32,7 +32,7 @@ public class SyncTaskDTO implements Serializable {
     private String taskCode;
 
     /**
-     * 任务时间
+     * 任务时间。
      */
     private String taskTime;
 
@@ -52,12 +52,12 @@ public class SyncTaskDTO implements Serializable {
     private String syncDateTime;
 
     /**
-     * 任务状态  00: 初始化 01：下级节点请求获取  02：下级节点获取确认 03：下级节点执行成功 04: 下级节点执行失败
+     * 任务状态  00: 初始化 01：下级节点请求获取  02：下级节点获取确认 03：下级节点执行成功 04: 下级节点执行失败。
      */
     private String taskStatus;
 
     /**
-     * 状态上报时间
+     * 状态上报时间。
      */
     private String reportDateTime;
 

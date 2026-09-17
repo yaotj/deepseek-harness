@@ -48,13 +48,6 @@ public class ExecutorConfig {
         executor.setQueueCapacity(queueCapacity);
         //配置线程池中的线程的名称前缀
         executor.setThreadNamePrefix(socketNamePrefix);
-        /*
-         * 线程池对拒绝任务(无线程可用)的处理策略
-         * ThreadPoolExecutor.AbortPolicy:丢弃任务并抛出RejectedExecutionException异常。
-         * ThreadPoolExecutor.DiscardPolicy：也是丢弃任务，但是不抛出异常。
-         * ThreadPoolExecutor.DiscardOldestPolicy：丢弃队列最前面的任务，然后重新尝试执行任务（重复此过程）
-         * ThreadPoolExecutor.CallerRunsPolicy：由调用线程处理该任务,如果执行器已关闭,则丢弃.
-         */
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         //执行初始化
         executor.initialize();

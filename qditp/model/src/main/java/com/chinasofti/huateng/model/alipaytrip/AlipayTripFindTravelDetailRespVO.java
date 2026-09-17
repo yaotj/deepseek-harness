@@ -2,24 +2,21 @@ package com.chinasofti.huateng.model.alipaytrip;
 
 /**
  * 支付宝出行-查询乘车记录详情响应 VO。
- * <p>
- * 包装结构：{retCode, retMsg, data: {原信息}}
- * </p>
  */
 public class AlipayTripFindTravelDetailRespVO {
 
     /**
-     * 返回码
+     * 返回码。
      */
     private String retCode;
 
     /**
-     * 返回消息
+     * 返回消息。
      */
     private String retMsg;
 
     /**
-     * 原信息
+     * 原信息。
      */
     private AlipayTripFindTravelDetailRespDTO data;
 

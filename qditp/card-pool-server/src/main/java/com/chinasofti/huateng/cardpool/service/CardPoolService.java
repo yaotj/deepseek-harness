@@ -9,19 +9,14 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 逻辑卡号池服务。
- *
- * <p>申请批次与导入被拆成两段：{@link #requestBatch} 只落 CREATED 批次即返回，
- * ACC 申请、FTP 下载与入库由 {@link #runMaintenance} 推进，避免在请求线程上做长耗时阻塞 IO。</p>
- */
+/** 逻辑卡号池服务。 */
 public interface CardPoolService {
 
     /**
-     * 预占一个逻辑卡号；同一业务归属重复调用返回同一预占。
+     * 预占一个逻辑卡号；同一业务归属重复调用返回同一预占（含已确认发卡的记录，见实现的复用白名单）。
      *
      * @param request 票种与业务归属
-     * @return 预占结果；票种未启用卡池、参数不合法、无可用卡号或该归属已确认发卡时返回 null
+     * @return 预占结果；仅在池空或重试耗尽时返回 null
      */
     CardPoolReservationRespDTO reserve(CardPoolReservationReqDTO request);
 
@@ -36,6 +31,7 @@ public interface CardPoolService {
 
     /**
      * 释放预占，将卡号退回可用。
+     * NEVER 在失败分支调用：预占按业务键幂等、为并发请求共享，释放会抽走兄弟请求已确认的卡号（ADR-D52）。
      *
      * @param reservationId 预占标识
      * @param businessId    业务流水号
@@ -98,9 +94,6 @@ public interface CardPoolService {
 
     /**
      * 执行一轮卡池维护：回收超时预占、按阈值补货、推进待处理与可重试批次。
-     *
-     * <p>由外部调度（web-admin Quartz 或运维手工）经接口触发，本模块不注册 {@code @Scheduled}。
-     * 票种级批次锁贯穿整段执行并在导入过程中续期，多副本并发调用不会重复导入同一批次。</p>
      *
      * @return 本轮各动作的计数，含 releasedExpired / createdBatches / executedBatches / failedBatches
      */

@@ -67,10 +67,7 @@
         </foreach>
     </delete>
 
-    <!-- 「可解除性」只读盘点取数：按 CREATE_TIME 升序取最早的 limit 条。
-         升序而非倒序：先拉黑的先盘点，避免积压最久的记录被新记录一直挤到后面。
-         REASON 必须取出来——它是人工判断「这条该不该解除」的唯一依据
-         （BLACKLIST 没有拉黑类型字段，生产实测 REASON 里既有欠费类也有挂失补卡类）。 -->
+    <!-- 「可解除性」只读盘点取数：按 CREATE_TIME 升序取最早的 limit 条，REASON 必须取出。 -->
     <select id="selectForInspect" resultMap="BaseResultMap">
         select ID, CARD_ID, THIRD_USER_ID, REASON, CREATE_TIME
         from BLACKLIST

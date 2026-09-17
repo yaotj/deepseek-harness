@@ -17,18 +17,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-/**
- * 支付宝出行销卡批处理。
- *
- * <p><b>本方法 NEVER 加 {@code @Transactional}</b>：逐条执行时会调支付中心（HTTP），
- * 事务包住等于按对端响应时长持有行锁（AGENTS.md §5.2 已有生产事故）。每条记录各自
- * 独立收口，一条失败不影响其余。</p>
- *
- * <p><b>当前未做欠费校验</b>：2026-09-07 实测 {@code GATE_TXN_PAY} 与 {@code ALIPAY_PAY_LOG}
- * 订单号交集为 0、{@code THIRD_USER_ID} 体系与 {@code PAYMENT_VENDOR} 均不同，
- * 支付宝出行的「未结清」语义在现有数据里找不到落点。因此这一步留成显式扩展点，
- * **NEVER** 补一个恒返回「无欠费」的假校验冒充已校验。</p>
- */
+/** 支付宝出行销卡批处理。 */
 @Service
 public class AlipayTerminationInternalServiceImpl implements AlipayTerminationInternalService {
 
@@ -113,8 +102,7 @@ public class AlipayTerminationInternalServiceImpl implements AlipayTerminationIn
 
     /**
      * 解析基准时间。
-     *
-     * @return 解析失败返回 null，由调用方转成 INVALID_PARAM，**NEVER** 静默退化成全表扫描
+     * @return 解析失败返回 null，由调用方转成 INVALID_PARAM，NEVER 静默退化成全表扫描
      */
     private LocalDateTime parseReferenceTime(String referenceTime) {
         try {

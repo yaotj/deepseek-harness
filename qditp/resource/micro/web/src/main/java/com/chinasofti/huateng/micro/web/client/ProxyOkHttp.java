@@ -23,16 +23,11 @@ public class ProxyOkHttp extends AbstractMicroHttp<OkHttpClient> {
     ConnectionPool connectionPool;
 
     /**
-     * @param baseUrl            value is like http://localhost:8080
-     * @param openLogger         print log
-     * @param maxIdleConnections http connectionPool of maxIdleConnections
-     * @param keepAliveDuration  http connectionPool of keepAliveDuration, TimeUnit is MILLISECONDS
-     * @apiNote The simple of use:
-     * <pre>{@code
-     *     public ClientBOkHttp(@Value("${other.service.b.url}") String baseUrl, @Value("${other.service.b.openLogger}") boolean openLogger, @Value("${other.service.b.maxIdleConnections}") int maxIdleConnections, @Value("${other.service.b.keepAliveDuration}") long keepAliveDuration) {
-     *       super(baseUrl, openLogger, maxIdleConnections, keepAliveDuration);
-     *     }
-     * }</pre>
+     * @apiNote The simple of use。
+     * @param baseUrl value is like http://localhost:8080。
+     * @param openLogger print log。
+     * @param maxIdleConnections http connectionPool of maxIdleConnections。
+     * @param keepAliveDuration http connectionPool of keepAliveDuration, TimeUnit is MILLISECONDS。
      */
     public ProxyOkHttp(String baseUrl, boolean openLogger, int maxIdleConnections, long keepAliveDuration) {
         this.baseUrl = baseUrl;
@@ -43,14 +38,9 @@ public class ProxyOkHttp extends AbstractMicroHttp<OkHttpClient> {
     }
 
     /**
-     * @param baseUrl    value is like http://localhost:8080
-     * @param openLogger print log
-     * @apiNote The simple of use:
-     * <pre>{@code
-     *     public ClientBOkHttp(@Value("${other.service.b.url}") String baseUrl, @Value("${other.service.b.openLogger}") boolean openLogger) {
-     *       super(baseUrl, openLogger);
-     *     }
-     * }</pre>
+     * @apiNote The simple of use。
+     * @param baseUrl value is like http://localhost:8080。
+     * @param openLogger print log。
      */
     public ProxyOkHttp(String baseUrl, boolean openLogger) {
         this.baseUrl = baseUrl;
@@ -144,7 +134,6 @@ public class ProxyOkHttp extends AbstractMicroHttp<OkHttpClient> {
         return null;
     }
 
-
     @Override
     public String postJsonAndGetResponse(String url, Object requestBody, Map<String, String> headers) {
         logRequest(url, requestBody, headers, "post");
@@ -152,7 +141,6 @@ public class ProxyOkHttp extends AbstractMicroHttp<OkHttpClient> {
         commonHeaders(requestBuilder, headers);
         return send(requestBuilder.build(), String.class);
     }
-
 
     @Override
     public String getAndGetResponse(String url, Map<String, String> params, Map<String, String> headers) {
@@ -167,7 +155,6 @@ public class ProxyOkHttp extends AbstractMicroHttp<OkHttpClient> {
         commonHeaders(requestBuilder, headers);
         return send(requestBuilder.build(), String.class);
     }
-
 
     @Override
     public String postFormAndGetResponse(String url, Map<String, String> formData, Map<String, String> headers) {
@@ -189,6 +176,5 @@ public class ProxyOkHttp extends AbstractMicroHttp<OkHttpClient> {
         log.error("暂时未实现，推荐使用ProxyWebClient");
         return "";
     }
-
 
 }

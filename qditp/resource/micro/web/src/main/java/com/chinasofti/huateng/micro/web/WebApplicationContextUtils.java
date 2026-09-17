@@ -40,13 +40,12 @@ public class WebApplicationContextUtils implements ApplicationContextAware, Envi
     }
 
     /**
-     * 主动向Spring容器中注册bean
-     *
-     * @param applicationContext Spring容器
-     * @param name               BeanName
-     * @param clazz              注册的bean的类性
-     * @param args               构造方法的必要参数，顺序和类型要求和clazz中定义的一致
-     * @return 返回注册到容器中的bean对象
+     * 主动向Spring容器中注册bean。
+     * @param applicationContext Spring容器。
+     * @param name BeanName。
+     * @param clazz 注册的bean的类性。
+     * @param args 构造方法的必要参数，顺序和类型要求和clazz中定义的一致。
+     * @return 返回注册到容器中的bean对象。
      */
     @SuppressWarnings("unchecked")
     public static <T> T registerBean(ConfigurableApplicationContext applicationContext, String name, Class<T> clazz,

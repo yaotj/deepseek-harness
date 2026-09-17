@@ -1,15 +1,6 @@
 package com.chinasofti.huateng.facepay.api.device;
 
-/**
- * 出票结果上报里的单张票信息，TVM 与 BOM 两侧的 {@code ticketList} 元素结构相同。
- *
- * <p>三个字段合起来是 {@code F2F_TICKET} 的业务主键与金额来源：
- * {@code (ticketLogicNum, transDate)} 正是 {@code UK_F2F_TICKET_LOGIC} 的两列。</p>
- *
- * <p>金额单位分，设备传字符串，落库时转 {@code Long}。<b>转换失败不抛异常</b>——
- * 出票结果是既成事实，不能因为一个金额格式问题把整批票丢掉，
- * 由 {@link #priceInFen()} 返回 null 并留在 {@code F2F_RESULT_REPORT.RAW_BODY} 里备查。</p>
- */
+/** 出票结果上报里的单张票信息，TVM 与 BOM 两侧的 {@code ticketList} 元素结构相同。 */
 public class TicketInfo {
 
     /** 票逻辑卡号。 */

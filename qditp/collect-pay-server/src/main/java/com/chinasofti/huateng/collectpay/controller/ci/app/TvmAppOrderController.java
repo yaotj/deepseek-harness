@@ -17,10 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * APP订单接口控制器。
- * 提供APP下单、支付、支付结果查询和支付结果通知等接口。
- */
+/** APP订单接口控制器。 */
 @RestController
 @Slf4j
 @RequestMapping("/ci/app")
@@ -32,8 +29,6 @@ public class TvmAppOrderController {
 
     /**
      * IF8A-20 请求下单。
-     * APP_SERVER向ITP平台发起下单请求。
-     * 接口地址：/ci/app/requestOrder
      *
      * @param baseRequest 包含公共参数和业务参数的请求对象
      * @return 应答结果，包含订单号
@@ -88,9 +83,6 @@ public class TvmAppOrderController {
 
     /**
      * IF8A-11 请求支付信息。
-     * APP_SERVER向ITP平台发起支付请求，ITP根据支付通道编码创建支付订单，
-     * 请求对应的支付通道预下单，将预下单返回的支付信息签名后返回。
-     * 接口地址：/ci/app/requestPayInfo
      *
      * @param baseRequest 包含公共参数和业务参数的请求对象
      * @return 应答结果，包含支付通道编码、支付信息、签名类型和签名
@@ -116,10 +108,6 @@ public class TvmAppOrderController {
 
     /**
      * IF8A-18 支付结果查询。
-     * APP_SERVER向ITP平台发起支付结果查询。
-     * 先查数据库，如果数据库有成功或者失败的结果，则直接返回；
-     * 如果没有成功或者失败的结果，则请求支付中心查询支付结果。
-     * 接口地址：/ci/app/requestPayResult
      *
      * @param baseRequest 包含公共参数和业务参数的请求对象
      * @return 应答结果，包含交易流水号、支付结果、支付金额、支付时间
@@ -147,6 +135,7 @@ public class TvmAppOrderController {
 
     /**
      * app 获取激活订单
+     *
      * @param baseRequest
      * @return
      */
@@ -172,6 +161,7 @@ public class TvmAppOrderController {
 
     /**
      * 请求退款
+     *
      * @param baseRequest
      * @return
      */
@@ -192,6 +182,7 @@ public class TvmAppOrderController {
 
     /**
      * 退款结果查询
+     *
      * @param baseRequest
      * @return
      */
@@ -215,7 +206,8 @@ public class TvmAppOrderController {
     }
 
     /**
-     *  退款结果通知 支付中心通知itp , 当前只有app支付有退款回调通知
+     * 退款结果通知 支付中心通知itp , 当前只有app支付有退款回调通知
+     *
      * @param baseRequest
      * @return
      */

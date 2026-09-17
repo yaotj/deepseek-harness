@@ -14,8 +14,6 @@ import java.util.Map;
 
 /**
  * APP 订单支付接口入口。
- *
- * <p>承接 APP 下单、支付、退款等请求，透传到 collect-pay-server。</p>
  */
 @RestController
 public class CollectPayController extends BaseAppController {

@@ -20,23 +20,7 @@ import java.util.List;
 /**
  * 黑名单「可解除性」只读盘点。
  *
- * <p><b>本类 NEVER 删除任何黑名单记录。</b>它只把每条记录的欠费事实查清楚并输出，供人工核对。
- * 原因：{@code BLACKLIST} 只有 5 列、没有拉黑类型字段，{@code REASON} 是四个来源混写的自由文本
- * （支付中心应答原文 / 代码拼接模板 / 外部接口传入 / 运营手工输入）。生产实测 35 条 ADD 里 22 条是
- * 「用户挂失补卡」——与欠费无关，按「欠费结清」删掉等于让挂失旧卡恢复过闸。
- * 「钱结清了」与「可以解除」不是一回事，后者 MUST 由人看 REASON 判断。</p>
- *
- * <p>欠费事实要问两个模块，缺一个就会漏判：闸机出站扣费在 gate-txn-pay-server 的
- * {@code GATE_TXN_PAY}，支付宝出行在 alipay-pay-sign-server 的 {@code ALIPAY_PAY_LOG}，
- * 两张表都不归 blacklist-server 管，因此 MUST 走 rpc 只读接口，
- * **NEVER** 在本模块直接写 SQL 查它们。</p>
- *
- * <p>不按拉黑来源分流去只查一个源：{@code BlacklistServiceImpl.addBlackList} 按 cardId 去重，
- * 一张卡在表里只有一行，先被闸机链路拉黑、后被支付宝链路重复拉黑时第二次 insert 会被跳过，
- * 行上留不下第二个来源的痕迹。只查一个源必然漏判。</p>
- *
- * <p>本类**无 {@code @Transactional}**：方法内有 RPC，事务包住网络调用会让行锁持有时长等于对端
- * 响应时长（AGENTS.md 硬约束，已有生产事故）。而且本类只读，本来也不需要事务。</p>
+ * <p>本类 NEVER 删除任何黑名单记录，也 NEVER 加 @Transactional（方法内有 RPC）。</p>
  */
 @Service
 public class BlacklistReleaseInspectService {
@@ -46,7 +30,7 @@ public class BlacklistReleaseInspectService {
     private static final String RESULT_CODE_SUCCESS = "0000";
     private static final String DOWNSTREAM_SUCCESS = "0000";
 
-    /** 两个欠费源都查成功且都无欠费。只代表钱结清，NEVER 等同于「可以解除」。 */
+    /** 两个欠费源都查成功且都无欠费。 */
     private static final String STATUS_SETTLED = "SETTLED";
     /** 至少一个欠费源仍有未结清订单。 */
     private static final String STATUS_UNSETTLED = "UNSETTLED";
@@ -60,7 +44,7 @@ public class BlacklistReleaseInspectService {
     private final AlipayPaySignClient alipayPaySignClient;
 
     /**
-     * 单次盘点上限。每条要跨模块查两次，条数不受控会把单次调度拖得很长。
+     * 单次盘点上限。
      */
     @Value("${blacklist.inspect.batch-size:200}")
     private int batchSize;
@@ -152,7 +136,6 @@ public class BlacklistReleaseInspectService {
             CardUnsettledQueryReqDTO request = new CardUnsettledQueryReqDTO();
             request.setCardId(cardId);
             CardUnsettledQueryRespDTO result = gateTxnPayClient.hasUnsettledOrderByCard(request);
-            // MUST 先判 resultCode：下游查询未执行时会把 hasUnsettled 置 true，
             // 但那是「不明」不是「有欠费」，两者在报表上要区分开。
             if (result == null || !DOWNSTREAM_SUCCESS.equals(result.getResultCode())) {
                 log.warn("查询闸机扣费欠费未成功, cardId={}, response={}", cardId, result);

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.paysign.mapper.PaySignInfoMapper">
+    <!-- 注释只能写在这里：SQL 正文禁写行注释或块注释，Druid WallFilter 会判定为注入并让该语句静默失效。 -->
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.paysign.entity.PaySignInfo">
         <id column="REQUEST_SIGN_SEQ" jdbcType="VARCHAR" property="requestSignSeq"/>
         <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
@@ -35,7 +36,6 @@
         where ROWNUM = 1
     </select>
 
-    <!-- 新增：根据用户ID和支付渠道查询 -->
     <select id="selectByUserAndVendor" resultMap="BaseResultMap">
         select <include refid="Base_Column_List"/>
         from APP_PAY_SIGN_INFO
@@ -43,7 +43,6 @@
           and PAYMENT_VENDOR = #{paymentVendor,jdbcType=VARCHAR}
     </select>
 
-    <!-- 新增：纯INSERT -->
     <insert id="insert" parameterType="com.chinasofti.huateng.paysign.entity.PaySignInfo">
         INSERT INTO APP_PAY_SIGN_INFO (
             REQUEST_SIGN_SEQ, THIRD_USER_ID, SIGN_STATUS, SIGN_CHANNEL, PAYMENT_VENDOR,
@@ -65,7 +64,6 @@
         )
     </insert>
 
-    <!-- 新增：根据签约流水号更新 -->
     <update id="updateBySeq" parameterType="com.chinasofti.huateng.paysign.entity.PaySignInfo">
         UPDATE APP_PAY_SIGN_INFO
         <set>
@@ -79,33 +77,18 @@
         WHERE REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
     </update>
 
-    <!-- 新增：根据用户ID和支付渠道删除 -->
     <delete id="deleteByUserAndVendor">
         DELETE FROM APP_PAY_SIGN_INFO
         WHERE THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
           AND PAYMENT_VENDOR = #{paymentVendor,jdbcType=VARCHAR}
     </delete>
 
-    <!-- 新增：根据用户ID批量更新签约展示账号 -->
     <update id="updateDisplayAccountByThirdUserId">
         UPDATE APP_PAY_SIGN_INFO
         SET DISPLAY_ACCOUNT = #{displayAccount,jdbcType=VARCHAR}
         WHERE THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
     </update>
 
-    <!--
-        以下 4 条是 SIGN_STATUS 状态机的 CAS UPDATE，是本状态机唯一的并发保证。
-        迁移白名单（与 docs/domain/state-machines.md 一致）：
-            NOT_SIGNED -> SIGNED | FAILED
-            FAILED     -> SIGNED | NOT_SIGNED
-            SIGNED     -> UNSIGNED
-            UNSIGNED   -> NOT_SIGNED（复位重签）
-        NEVER 允许 UNSIGNED -> SIGNED：迟到的签约回调会把已解约通道改回已签约，
-        APP 显示通道有效而渠道侧协议已注销。历史 updateBySeq 的 WHERE 只有
-        REQUEST_SIGN_SEQ，正是这个覆盖的来源，改状态 MUST 走这 4 条。
-        返回 0 行不等于失败，MUST 由调用方回查当前状态判断「幂等」还是「真冲突」。
-        WHERE 走 UK_APPSI_REQUEST_SIGN_SEQ 唯一索引，不再全表扫描。
-    -->
     <update id="markSigned">
         UPDATE APP_PAY_SIGN_INFO
         SET SIGN_STATUS = 'SIGNED',
@@ -131,10 +114,6 @@
           AND SIGN_STATUS = 'SIGNED'
     </update>
 
-    <!--
-        复位重签：只清签约结果字段，NEVER 清 THIRD_USER_ID / PAYMENT_VENDOR / CARD_ID，
-        它们是这一行的身份与解约时的卡信息比对依据。
-    -->
     <update id="reactivateForResign">
         UPDATE APP_PAY_SIGN_INFO
         SET SIGN_STATUS = 'NOT_SIGNED',
@@ -152,10 +131,4 @@
         WHERE REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
     </select>
 
-    <!-- 废弃：原有的 upsert/MERGE -->
-    <!--
-    <update id="upsert" parameterType="com.chinasofti.huateng.paysign.entity.PaySignInfo">
-        MERGE INTO APP_PAY_SIGN_INFO t ...
-    </update>
-    -->
 </mapper>

@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.gatetxnpay.model.page;
 
-/**
- * 运营端发起过闸扣费退款的请求参数，金额单位为分。
- */
+/** 运营端发起过闸扣费退款的请求参数，金额单位为分。 */
 public class GateTxnPayRefundRequest {
     private Integer refundAmount;
     private String refundReason;

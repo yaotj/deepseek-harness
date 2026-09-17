@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.fep.dev.constant;
 
-/**
- * 设备前置服务返回码。
- */
+/** 设备前置服务返回码。 */
 public enum FepDevErrorCodeEnum {
     SUCCESS("0000", "成功"),
     INVALID_PARAM("1001", "无效的参数"),

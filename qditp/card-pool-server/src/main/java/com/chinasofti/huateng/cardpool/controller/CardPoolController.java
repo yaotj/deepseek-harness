@@ -21,12 +21,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 逻辑卡号池接口。
- *
- * <p>{@code /internal/**} 供内部服务调用，{@code /page/**} 供运营后台调用。
- * 申请批次只落库即返回，实际的 ACC 申请与文件导入由 {@code /card-pools/maintenance} 推进。</p>
- */
+/** 逻辑卡号池接口。 */
 @RestController
 public class CardPoolController {
 
@@ -43,13 +38,6 @@ public class CardPoolController {
 
     /**
      * 预占一个逻辑卡号。
-     *
-     * <p>返回值三分，供调用方区分降级方式，NEVER 再把三者混成一句「无可分配逻辑卡号」：</p>
-     * <ul>
-     *   <li>{@code code=200 data!=null} —— 预占成功；</li>
-     *   <li>{@code code=200 data=null} —— 该票种卡池已空，属正常业务结果，可提示稍后重试或走降级发卡；</li>
-     *   <li>{@code code=400} —— 票种不走卡池、票种非法、业务归属缺失或归属冲突，属调用方缺陷，重试无用。</li>
-     * </ul>
      *
      * @param request 票种与业务归属
      * @return 预占结果
@@ -175,12 +163,6 @@ public class CardPoolController {
 
     /**
      * 受理一轮卡池维护：回收超时预占、按阈值补货、推进待处理与可重试批次。
-     *
-     * <p>由 web-admin 的 Quartz 任务或运维按需触发；本模块不注册 {@code @Scheduled}。</p>
-     *
-     * <p>维护含 ACC 调用、FTP 下载与分片入库，耗时不可控，因此接口只做受理：提交到单线程
-     * 维护线程池后立即返回，执行结果看服务端日志与 {@code /card-pools/summary}。
-     * 上一轮尚未结束时返回 {@code accepted=false}。</p>
      *
      * @return {@code accepted} 与 {@code message} 两项受理结果
      */

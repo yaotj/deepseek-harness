@@ -15,10 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * IF8A-05 请求查询交易记录。
- * 对应规范 /ci/app/requestTransList，由 fep-app-server 通过 RPC 调用。
- */
+/** IF8A-05 请求查询交易记录。 */
 @RestController
 @RequestMapping("/ci/app")
 public class TicketTransController {

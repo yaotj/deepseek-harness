@@ -5,9 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
-/**
- * Created by tian on 2022/3/15.
- */
+/** Created by tian on 2022/3/15. */
 
 @Configuration
 public class ResTemplateConfig {

@@ -1,33 +1,20 @@
 package com.chinasofti.huateng.collectpay.model.response.tvm;
 
-/**
- * IF2A-03 查询支付结果应答报文（ITP -> TVM）。
- */
+/** IF2A-03 查询支付结果应答报文（ITP -> TVM）。 */
 public class RequestPayResultRespDTO {
-    /**
-     * 返回码。
-     */
+    /** 返回码。 */
     private String retCode;
 
-    /**
-     * 返回消息。
-     */
+    /** 返回消息。 */
     private String retMsg;
 
-    /**
-     * 支付通道编码。
-     */
+    /** 支付通道编码。 */
     private String paymentChannelCode;
 
-    /**
-     * 支付结果。
-     * ORDERED-已经下单，SUCCESS-成功，FAILED-失败。
-     */
+    /** 支付结果。 */
     private String paymentResult;
 
-    /**
-     * 支付结果描述。
-     */
+    /** 支付结果描述。 */
     private String paymentResultDesc;
 
     public String getRetCode() {

@@ -17,30 +17,21 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * BOM非现金业务接口控制器。
- * 提供BOM终端与ITP平台之间的非现金收款业务接口，包括下单、支付、查询支付结果、业务操作结果通知、充值结果通知等。
- */
+/** BOM非现金业务接口控制器。 */
 @RestController
 @RequestMapping("/itpbom/ci/bom")
 public class BomOrderController {
 
-    /**
-     * 日志记录器。
-     */
+    /** 日志记录器。 */
     private static final Logger log = LoggerFactory.getLogger(BomOrderController.class);
 
-    /**
-     * BOM非现金业务服务。
-     */
+    /** BOM非现金业务服务。 */
     @Autowired
     private BomOrderService bomOrderService;
 
-    /**--------------------------------- 心跳检测 ---------------------------------------**/
+    /** --------------------------------- 心跳检测 ---------------------------------------* */
 
-    /**
-     * 心跳检测
-     */
+    /** 心跳检测 */
     @PostMapping("/notiDeviceHeard")
     public JSONObject notiDeviceHeard(@ModelAttribute BaseRequestDTO baseRequest) {
         return BomOrderResult.success();
@@ -48,7 +39,6 @@ public class BomOrderController {
 
     /**
      * IF8A-04 请求非现金收款下单。
-     * BOM向ITP平台发起非现金收款订单请求，ITP生成订单并返回订单号。
      *
      * @param baseRequest 包含公共参数和业务参数的请求对象
      * @return 响应结果，包含订单号
@@ -105,7 +95,6 @@ public class BomOrderController {
 
     /**
      * IF8A-05 扫码支付。
-     * BOM扫描用户付款码后，向ITP平台发起支付请求。
      *
      * @param baseRequest 包含公共参数和业务参数的请求对象
      * @return 响应结果，包含支付结果
@@ -132,7 +121,6 @@ public class BomOrderController {
 
     /**
      * IF8A-06 查询支付结果。
-     * BOM轮询查询支付结果，ITP调用支付中心查询并返回支付状态。
      *
      * @param baseRequest 包含公共参数和业务参数的请求对象
      * @return 响应结果，包含支付结果（SUCCESS/FAILED/PROCESSING）
@@ -156,7 +144,6 @@ public class BomOrderController {
 
     /**
      * IF2A-08 业务操作结果通知。
-     * BOM业务操作完成后，向ITP平台通知操作结果。
      *
      * @param baseRequest 包含公共参数和业务参数的请求对象
      * @return 响应结果
@@ -183,7 +170,6 @@ public class BomOrderController {
 
     /**
      * 7.3.3.5　IF2A-09 充值结果通知。
-     * BOM充值操作完成后，向ITP平台通知充值结果。
      *
      * @param baseRequest 包含公共参数和业务参数的请求对象
      * @return 响应结果
@@ -210,7 +196,6 @@ public class BomOrderController {
 
     /**
      * IF5A-01 请求票卡分析。
-     * 后付费二维码票分析。
      *
      * @param baseRequest 包含公共参数和业务参数的请求对象
      * @return 响应结果，包含票卡分析结果
@@ -237,7 +222,6 @@ public class BomOrderController {
 
     /**
      * IF5A-03 请求票卡更新。
-     * BOM票卡更新。
      *
      * @param baseRequest 包含公共参数和业务参数的请求对象
      * @return 响应结果，包含最新行业数据
@@ -269,9 +253,7 @@ public class BomOrderController {
     }
 
 
-    /**
-     * 单程票交易查询
-     */
+    /** 单程票交易查询 */
     @PostMapping("/requestOrderResult")
     public JSONObject requestOrderResult(@ModelAttribute BaseRequestDTO baseRequest) {
         log.info("接收到BOM请, baseRequest={}", baseRequest);
@@ -320,7 +302,6 @@ public class BomOrderController {
 
     /**
      * IF5A-09 HCE票卡更新结果通知。
-     * BOM更新HCE票数据后，向ITP平台通知更新结果。
      *
      * @param baseRequest 包含公共参数和业务参数的请求对象
      * @return 响应结果

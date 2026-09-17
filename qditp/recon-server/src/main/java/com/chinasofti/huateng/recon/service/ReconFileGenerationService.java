@@ -41,21 +41,9 @@ import java.util.Objects;
 import java.util.TreeMap;
 
 /**
- * 把各源上送的分片合并成最终对账文件。
+ * 把各源上送的分片合并成最终对账文件：明细类走流式字节拼接，汇总类走流式逐行读 + 二次聚合。
  *
- * <p>两条路径按 {@link ReconFileTypeEnum#isAggregate()} 分流：</p>
- * <ul>
- *   <li>明细（EXP 13 段 / DETAIL 7 段）：1MB 缓冲的**流式字节拼接**，全程不解析内容，
- *       内存占用与文件大小无关；</li>
- *   <li>汇总（PAY 5 键 + 16 度量 / BUS 1 键 + 3 度量）：流式逐行读 + {@link TreeMap} 二次聚合。
- *       键与度量的段数全部取自 {@link ReconFileTypeEnum#getKeyFieldCount()} 与
- *       {@link ReconFileTypeEnum#getMetricFieldCount()}，<b>NEVER 在本类里硬编码下标</b>。
- *       汇总行基数只有几百到几千，放内存安全；<b>明细文件绝不能走这条路径</b>——
- *       几千万行全量进 Map 必然 OOM。</li>
- * </ul>
- *
- * <p>来源清单取自 {@code RECON_BATCH_SOURCE} 中该文件类型 {@code STATUS='COMPLETED'} 的行，
- * 不再读 {@code recon.sources}：各源产出哪些文件类型完全由期望清单决定。</p>
+ * <p>段数一律取自 {@link ReconFileTypeEnum}，本类内不硬编码下标。</p>
  */
 @Service
 public class ReconFileGenerationService {
@@ -132,11 +120,7 @@ public class ReconFileGenerationService {
         return fileMapper.select(batchId, fileType.name());
     }
 
-    /**
-     * 明细路径（EXP / DETAIL）：1MB 缓冲流式字节拼接，不解析行内容。
-     *
-     * <p>行数与金额直接取分片回执上的声明值累加，因此不需要把文件读进内存。</p>
-     */
+    /** 明细路径（EXP / DETAIL）：1MB 缓冲流式字节拼接，不解析行内容。 */
     private MergeStats mergeDetail(String batchId, ReconFileType fileType, Path root, Path target,
                                    List<SourceProgress> sources) throws IOException {
         MessageDigest digest = sha256();
@@ -168,18 +152,7 @@ public class ReconFileGenerationService {
         return new MergeStats(bytes, records, amount, HexFormat.of().formatHex(digest.digest()));
     }
 
-    /**
-     * 汇总路径（PAY / BUS）：流式逐行读各分片，按前 {@code keyFieldCount} 段键二次聚合后按键升序写出。
-     *
-     * <p>键与度量的段数完全由 {@link ReconFileTypeEnum} 给出：键是下标
-     * {@code [0, keyFieldCount)}，度量是下标 {@code [keyFieldCount, keyFieldCount + metricFieldCount)}
-     * 共 {@code metricFieldCount} 个（PAY 16 个、BUS 3 个），逐列累加进 {@code long[metricFieldCount]}。
-     * 行字段数不足 {@code keyFieldCount + metricFieldCount} 时直接抛异常——错位一段就是整份错账，
-     * <b>NEVER 静默补零放过</b>。</p>
-     *
-     * <p>汇总行基数只有几百到几千，{@link TreeMap} 常驻内存安全；<b>明细文件绝不能这样做</b>，
-     * 几千万行的键全量入 Map 会直接把堆打满。</p>
-     */
+    /** 汇总路径（PAY / BUS）：流式逐行读各分片，按前 keyFieldCount 段键二次聚合后按键升序写出。 */
     private MergeStats mergeAggregated(String batchId, ReconFileType fileType, ReconFileTypeEnum meta,
                                        Path root, Path target, List<SourceProgress> sources) throws IOException {
         int keyFields = meta.getKeyFieldCount();
@@ -215,27 +188,7 @@ public class ReconFileGenerationService {
         }
     }
 
-    /**
-     * 按车站码重算并覆盖「线路」那一段，然后按新键重排。
-     *
-     * <p>2026-09-16 起线路段由本模块统一补齐，四个源不再各自 {@code LEFT JOIN STATION_INFO}
-     * （判据见 {@code ReconStationMapper} 类注释，开关与下标见 {@link ReconLineBackfillProperties}）。</p>
-     *
-     * <p><b>为什么必须重排而不能就地改字符串</b>：{@link TreeMap} 是按键升序输出的，而键的第 2 段就是线路。
-     * 若只把每行的线路段替换掉、沿用原来的迭代顺序，输出行序就变成「按空线路段排」的顺序，
-     * 与现行文件（日期 / 线路 / 车站 / 设备 / 支付方式 升序）不一致。因此这里换一个新的
-     * {@link TreeMap}、用补好线路的新键重新插入，行序与改造前逐字节一致。</p>
-     *
-     * <p><b>为什么补完还要按新键合并度量</b>：补齐可能让两个原本不同的键变成同一个键 ——
-     * 典型情形是「已改的源留空线路」与「未改的源自带线路」在同一账期同时上送同一个车站的账。
-     * 那本来就应该是一组，所以这里对撞上的键**逐列累加**，NEVER 覆盖（覆盖等于丢掉一个源的账）。</p>
-     *
-     * <p><b>覆盖是无条件的</b>：不看源上送的线路段是空还是有值，一律按车站码重算。理由与
-     * 「部署顺序可以自由」的关系见 {@link ReconLineBackfillProperties} 的类注释。</p>
-     *
-     * <p>维表查不到的车站，线路段留空、该组单独成行，账仍在（与各源原先用外连接的语义一致），
-     * 并按不同车站码去重计数后告警一次，便于回头补参数。</p>
-     */
+    /** 按车站码重算并覆盖「线路」那一段，然后按新键重排、对撞上的键逐列累加度量。 */
     private Map<String, long[]> backfillLineSegment(ReconFileType fileType, int keyFields,
                                                     Map<String, long[]> aggregated) {
         if (!lineBackfill.appliesTo(fileType.name()) || aggregated.isEmpty()) {
@@ -279,12 +232,7 @@ public class ReconFileGenerationService {
         return rekeyed;
     }
 
-    /**
-     * 取车站到线路的映射；维表查询失败时抛异常、<b>NEVER 降级成空 Map</b>。
-     *
-     * <p>降级成空 Map 的后果是「整份 PAY 文件的线路段全空」，而这份文件仍会被判定为生成成功并投递给 ACC ——
-     * 那是静默错账。查不出维表就让本次文件生成失败、批次留非终态等下次重入，是这里唯一可接受的行为。</p>
-     */
+    /** 取车站到线路的映射；维表查询失败时抛异常。 */
     private Map<String, String> loadStationLines() {
         List<Map<String, Object>> rows = stationMapper.selectStationLineCodes();
         Map<String, String> mapping = new HashMap<>(Math.max(16, rows.size() * 2));
@@ -300,11 +248,7 @@ public class ReconFileGenerationService {
         return mapping;
     }
 
-    /**
-     * 按键升序写出 {@code key|m0|m1|...|m(n-1)}，行数即输出行数。
-     *
-     * <p>{@code amount} 取「所有度量列之和」，口径说明见 {@link #verify}。</p>
-     */
+    /** 按键升序写出 {@code key|m0|m1|...|m(n-1)}，返回输出行数。 */
     private MergeStats writeAggregated(Path target, Map<String, long[]> aggregated) throws IOException {
         MessageDigest digest = sha256();
         long bytes = 0;
@@ -338,21 +282,7 @@ public class ReconFileGenerationService {
         return builder.toString();
     }
 
-    /**
-     * 用各 COMPLETED 来源声明的总账校验实际写出的文件。
-     *
-     * <p><b>明细文件（EXP / DETAIL）</b>：记录数与金额都必须与声明之和严格相等，不等即删除临时文件并抛异常。</p>
-     *
-     * <p><b>汇总文件（PAY / BUS）的 {@code amountTotal} 是「该文件所有度量列之和」</b>，
-     * 只是用于跨环节比对的校验和（checksum），<b>不是业务金额</b>：PAY 的 16 个度量里有 8 列是笔数、
-     * 8 列是金额（下标 6/8/10/12/14/16/18/20，即第 7/9/11/13/15/17/19/21 段），把它们一起相加没有业务含义；
-     * BUS 的 3 个度量恰好全是金额，但为口径统一同样按「所有度量之和」计。</p>
-     *
-     * <p>因此汇总文件 <b>NEVER 与 {@code declaredAmount} 严格比对</b>——源服务声明的是业务金额，
-     * 与「所有度量之和」不同量纲，强行相等只会把正常批次全部误判为失败。汇总文件只做健全性检查：
-     * 输出行数 &gt; 0、校验和非负。行数同样不可比：多个源可能落在同一组聚合键上，跨源合并后输出行数
-     * 必然小于或等于各源声明行数之和，只在大于时告警提示复核源端聚合口径。</p>
-     */
+    /** 用各 COMPLETED 来源声明的总账校验实际写出的文件：明细严格比对，汇总只做健全性检查。 */
     private void verify(ReconFileType fileType, ReconFileTypeEnum meta, List<SourceProgress> sources,
                         MergeStats stats, Path temporary) throws IOException {
         long declaredRecords = sources.stream()
@@ -393,12 +323,7 @@ public class ReconFileGenerationService {
                 fileType, stats.records(), stats.amount(), declaredAmount);
     }
 
-    /**
-     * 取某来源该文件类型的已接收分片，并校验分片号从 0 起连续。
-     *
-     * <p>{@code partNo} 是装箱的 {@link Integer}（MyBatis 构造器映射要求），先判空兜成 -1 再比，
-     * NULL 会直接判定为「序号不连续」并抛异常，而不是抛 NPE。</p>
-     */
+    /** 取某来源该文件类型的已接收分片，并校验分片号从 0 起连续。 */
     private List<PartReceipt> orderedParts(String batchId, SourceProgress source, ReconFileType fileType) {
         List<PartReceipt> parts = partMapper.selectReceivedParts(batchId, source.source(), fileType.name());
         int expectedPartNo = 0;

@@ -1,11 +1,3 @@
--- 综管台新增功能菜单（2026-09-15）。
--- ⚠️ menu_id 已与线上 QDITP.SYS_MENU 实际数据对齐（2026-09-15 实测），禁止再改动 id。
--- 线上占用：2080=逻辑卡号重试导入(2078/F)、2081=交易明细查询(2071/C)、2082=交易明细按钮(2075/F)，
--- 故本文件菜单从 2083 起用。2071~2076 为用户运营既有菜单（见 user-query-menu.sql）。
--- 页面由后端动态路由加载，component 必须与 web/src/views 下路径一致。
--- route_name 必须与前端组件 <script setup name="..."> 完全一致
--- （RegStats / OfflineCodeStats / ItpUserBatchSearch / KeyVersion / ServiceStatus / OvertimeRefund），
--- 否则 keep-alive include 匹配不到 ⇒ 页面不缓存 ⇒ 切换 tab 后查询条件丢失。
 
 -- 功能2 注册量统计（挂「用户管理」目录 2071，与同属交易域统计）
 -- 线上存在 2083 与 2086 两条完全重复的菜单记录，此处原样保留以便对照清理。

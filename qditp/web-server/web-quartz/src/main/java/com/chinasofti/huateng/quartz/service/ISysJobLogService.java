@@ -50,7 +50,6 @@ public interface ISysJobLogService
      */
     public int closeRunningJobLog(String runningStatus, String targetStatus, String exceptionInfo);
 
-
     /**
      * 批量删除调度日志信息
      * 

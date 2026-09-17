@@ -6,22 +6,22 @@ package com.chinasofti.huateng.model.alipaytrip;
 public class AlipayTripPayQueryReqDTO {
 
     /**
-     * 订单号
+     * 订单号。
      */
     private String orderNo;
 
     /**
-     * 卡机构编号，支付宝0007
+     * 卡机构编号，支付宝0007。
      */
     private String cardIssueCode;
 
     /**
-     * 逻辑卡号
+     * 逻辑卡号。
      */
     private String cardNum;
 
     /**
-     * 渠道协议号
+     * 渠道协议号。
      */
     private String channelAgreementNo;
 

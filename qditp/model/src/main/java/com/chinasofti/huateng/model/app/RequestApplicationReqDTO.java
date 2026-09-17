@@ -1,18 +1,18 @@
 package com.chinasofti.huateng.model.app;
 
 /**
- * @author zzm
- * @date 2026/5/25 11:44
+ * @date 2026/5/25 11:44。
+ * @author zzm。
  */
 public class RequestApplicationReqDTO {
 
     /**
-     * 第三方用户ID
+     * 第三方用户ID。
      */
     private String thirdUserId;
 
     /**
-     * 支付账户ID  （签约回调）  默认空
+     * 支付账户ID  （签约回调）  默认空。
      */
     private String thirdPayId;
 
@@ -22,27 +22,24 @@ public class RequestApplicationReqDTO {
     private String channel;
 
     /**
-     * 第三方签约流水号
+     * 第三方签约流水号。
      */
     private String reqContractNo;
 
     /**
-     * 卡类型编码
+     * 卡类型编码。
      */
     private String cardType;
 
     /**
-     * 手机号
+     * 手机号。
      */
     private String msisdn;
 
-    /**
-     * 姓名
-     */
     private String userName;
 
     /**
-     * 用户身份证号
+     * 用户身份证号。
      */
     private String userId;
 
@@ -51,24 +48,22 @@ public class RequestApplicationReqDTO {
     private String extend2;
 
     /**
-     * NFC开卡使用字段 01 非钱包 02 钱包NFC卡  非必填
+     * NFC开卡使用字段 01 非钱包 02 钱包NFC卡  非必填。
      */
     private String ticketCard;
 
     /**
-     * 通行票是Y  第三方是C 目前两种表示对应的卡类型都是 0441 非必填
+     * 通行票是Y  第三方是C 目前两种表示对应的卡类型都是 0441 非必填。
      */
     private String companionFlag;
 
     /**
-     * 车票显示
-     * 1.需要同一所属方限制开发数量为1
-     * 2.可开多张，每次请求都给一张新卡
+     * 车票显示。
      */
     private String ticketLimit;
 
     /**
-     * 票卡所属方，不固定，目前有地铁APP、支付宝出行、海上巴士、其他互通APP等，不需要校验是否存在
+     * 票卡所。
      */
     private String cardIssueCode;
 

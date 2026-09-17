@@ -53,34 +53,19 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * 逻辑卡号池服务实现。
- *
- * <p>除 {@link #reserve} 外均不带事务，逐条 SQL 自动提交；ACC 申请与 FTP 下载一律不在事务内发起。</p>
- */
+/** 逻辑卡号池服务实现。 */
 @Service
 public class CardPoolServiceImpl implements CardPoolService {
 
     private static final Logger log = LoggerFactory.getLogger(CardPoolServiceImpl.class);
 
-    /**
-     * 可作为「已有预占」复用返回的状态白名单。
-     *
-     * <p>含 ASSIGNED 是刻意的：{@code confirm} 与 {@code release} 都做了「影响行数为 0 时回查终态」的
-     * 幂等兜底，若 {@code reserve} 只认 RESERVED，则同一 businessId 在确认成功后重复请求会拿到 null，
-     * 上游只能翻译成「无可分配逻辑卡号」，把重复请求误报成卡池耗尽。复用 ASSIGNED 记录返回同一卡号，
-     * 三个动作的幂等语义才一致；卡号仍受 BUSINESS_TYPE + BUSINESS_ID 唯一归属约束，不会跨业务泄漏。</p>
-     */
+    /** 可作为「已有预占」复用返回的状态白名单。 */
     private static final Set<String> REUSABLE_STATUSES = Set.of("RESERVED", "ASSIGNED");
 
-    /**
-     * 可由维护动作继续推进的批次状态白名单。
-     */
+    /** 可由维护动作继续推进的批次状态白名单。 */
     private static final Set<String> RESUMABLE_STATUSES = Set.of("CREATED", "DOWNLOADING", "IMPORTING");
 
-    /**
-     * ACC 成功返回码，两种形态都在生产上出现过。
-     */
+    /** ACC 成功返回码，两种形态都在生产上出现过。 */
     private static final Set<String> ACC_SUCCESS_CODES = Set.of("0000", "200");
 
     private static final int SHA256_BUFFER_SIZE = 8192;
@@ -92,63 +77,33 @@ public class CardPoolServiceImpl implements CardPoolService {
      */
     private static final int ERROR_MSG_MAX_BYTES = 1900;
 
-    /**
-     * 按字节裁剪时每轮回退的字符数，取小步长以免把多字节字符切得过多。
-     */
+    /** 按字节裁剪时每轮回退的字符数，取小步长以免把多字节字符切得过多。 */
     private static final int TRUNCATE_STEP = 16;
 
     private static final int CARD_NO_MAX_LENGTH = 64;
     private static final int RESERVE_MAX_ATTEMPTS = 5;
 
-    /**
-     * 单次预占从库里取回的候选卡号条数，用于分散并发请求、避免全部撞在同一行上。
-     */
+    /** 单次预占从库里取回的候选卡号条数，用于分散并发请求、避免全部撞在同一行上。 */
     private static final int RESERVE_CANDIDATE_SIZE = 20;
 
-    /**
-     * 容器关闭时等待在跑导入收尾的秒数。
-     */
+    /** 容器关闭时等待在跑导入收尾的秒数。 */
     private static final int EXECUTOR_SHUTDOWN_SECONDS = 30;
 
-    /**
-     * 日志全量采集标记在 MDC 中的键名。
-     *
-     * <p>入向由 micro 的 {@code FirstFilter} 把请求头 {@code X-Vlogs-Capture} **小写**后放进 MDC，
-     * {@code log4j2-linux.xml} 的 VictoriaLogs appender 靠它把本次链路的 INFO **全量**上报；
-     * 未命中的事件落到 {@code ThresholdFilter}，只有 WARN 及以上才上报。</p>
-     *
-     * <p>**MUST 全小写**：`FirstFilter` 只放小写键，appender 的 {@code ThreadContextMapFilter}
-     * 也只认小写，写成驼峰等于不上报。口径同 web-admin 的 {@code QuartzTraceUtils}。</p>
-     */
+    /** 日志全量采集标记在 MDC 中的键名。 */
     private static final String VLOGS_CAPTURE_KEY = "x-vlogs-capture";
 
     private final LogicCardPoolMapper mapper;
     private final AccLogicNumClient accLogicNumClient;
     private final CardPoolProperties properties;
 
-    /**
-     * 链路追踪器，用于把提交线程的 trace 带进维护线程。
-     *
-     * <p>用 {@link ObjectProvider} 而不是直接注入：`management.tracing.enabled=false` 的环境里
-     * 没有 Tracer bean，直接注入会让本服务启动失败。取不到时降级为「不建 span」，
-     * 行为与修复前一致，**不影响业务**。</p>
-     */
+    /** 链路追踪器，用于把提交线程的 trace 带进维护线程。 */
     private final ObjectProvider<Tracer> tracerProvider;
 
-    /**
-     * 承载 ACC 申请、FTP 下载与批量入库的**平台线程**执行器（单线程）。
-     *
-     * <p>本项目 `spring.threads.virtual.enabled=true` 是全局默认，而 ojdbc8 大量方法为
-     * `synchronized`：一轮十万行导入若跑在请求线程（虚拟线程）上会长时间 pin 住载体线程，
-     * 严重时全 JVM 虚拟线程停止调度。因此维护与重试一律「受理即返回」，重活挪到这里执行。
-     * 单线程即可，票种间的并发本来就由 `LOGIC_CARD_POOL_TYPE_LOCK` 串行化。</p>
-     */
+    /** 承载 ACC 申请、FTP 下载与批量入库的**平台线程**执行器（单线程）。 */
     private final ExecutorService maintenanceExecutor =
             Executors.newSingleThreadExecutor(Thread.ofPlatform().name("card-pool-maintenance").factory());
 
-    /**
-     * 维护任务在跑标记，避免重复提交把任务堆在单线程队列里。
-     */
+    /** 维护任务在跑标记，避免重复提交把任务堆在单线程队列里。 */
     private final AtomicBoolean maintenanceRunning = new AtomicBoolean(false);
 
     /**
@@ -171,38 +126,6 @@ public class CardPoolServiceImpl implements CardPoolService {
 
     /**
      * 把维护任务包成「挂在调用方 trace 上的子 span」再交给维护线程执行。
-     *
-     * <p>**为什么必须包**：`maintenanceExecutor` 是自建线程池，既不继承 MDC 也不继承 Micrometer
-     * 的 observation 上下文。不包的话该线程里没有活跃 span，每条 SQL 的 observation 各自开一个新 trace，
-     * 一轮维护被打散成几十个互不相关的 traceId，**用 web-admin 调度的 traceId 在本模块日志里一条也搜不到**
-     * （2026-09-09 实测：`0b9352490160440185b7a9e1abcd37eb` 零命中，异步线程里是
-     * `76bdfb1a…` / `c6db9831…` / `c8d7d853…` 等每条 SQL 一个）。</p>
-     *
-     * <p>用 {@code nextSpan(parent)} 而不是把父 span 的 scope 直接搬过来：父 span 属于已经返回的
-     * HTTP 请求，`runMaintenance` 受理即返回后它很快就 end 了，**在已结束的 span 上重开 scope 是错的**。
-     * 建子 span 则 traceId 与父一致、spanId 独立，生命周期归自己管。</p>
-     *
-     * <p>**NEVER 退化成「只拷 MDC」**（即 pay-sign `PaySignExecutorConfig#mdcTaskDecorator` 的写法）。
-     * 那套在本模块**实测无效**：1.0.13 照 pay-sign 口径改成 `MDC.setContextMap(parentContext)` 后，
-     * 15:55:00 那一轮的 20 条 SQL 依旧各自一个 traceId（`e898ee88…` / `90abb880…` / `e19032ce…` …），
-     * 末行「卡池维护完成」的 traceId 甚至为空。原因是 JDBC observation 每次开始都会按当前 span
-     * **覆盖** MDC 的 traceId、结束时清掉；异步线程无活跃 span ⇒ 每条 SQL 新开 trace 并盖掉拷进来的值。
-     * MDC 拷贝只对「异步任务内不再产生 observation」的场景有效（pay-sign 的通知补偿即属此类）。
-     * 本模块异步任务全是 DB 操作，**必须建真 span**。1.0.14 已回退为本实现。</p>
-     *
-     * <p>拿不到 Tracer（tracing 关闭）或没有父 span（非 HTTP 触发）时不建 span，只做下面的采集标记透传，
-     * 不改变业务行为。</p>
-     *
-     * <p>**除了 span，还 MUST 把 {@link #VLOGS_CAPTURE_KEY} 透传进维护线程**：span 只解决
-     * 「traceId 一致」，解决不了「这条 INFO 要不要上报」。采集标记由 `FirstFilter` 放在**请求线程**的
-     * MDC 上，维护线程拿不到 ⇒ 该线程的 INFO 落到 appender 的 {@code ThresholdFilter}(WARN) 被丢弃。
-     * 而本模块 `other.web.enableLogRequestInFilter=false`（`web.properties:25`），请求线程上一条业务
-     * INFO 都不打，于是**日志系统里这次调度整体 0 条**，前台按 traceId 检索仍然空手而归
-     * （2026-09-09 实测：补了 Deployment 的 `VLOGS_URL` 后 `vlogs-sender` 线程已在跑、文件日志里
-     * traceId 与 `sys_job_log` 完全一致，但 VictoriaLogs 里 app:"card-pool" 依旧 0 条）。</p>
-     *
-     * <p>维护线程是**单线程池、跨轮复用**，因此标记 MUST 在 finally 里移除，否则下一轮非采集链路
-     * 会被误判成需要全量上报。</p>
      *
      * @param spanName span 名，出现在 trace 拓扑里
      * @param task     真正的维护逻辑
@@ -235,9 +158,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         };
     }
 
-    /**
-     * 容器关闭时停掉维护执行器，给在跑的导入留出收尾时间。
-     */
+    /** 容器关闭时停掉维护执行器，给在跑的导入留出收尾时间。 */
     @PreDestroy
     public void shutdown() {
         maintenanceExecutor.shutdown();
@@ -308,12 +229,6 @@ public class CardPoolServiceImpl implements CardPoolService {
     /**
      * 异常链上是否有唯一键 / 完整性冲突。
      *
-     * <p><b>NEVER 简化回 {@code catch (DataIntegrityViolationException)}</b>（2026-09-14 修，ADR-D53）：
-     * 本模块打开了 tracing，`MapperAspectToTrace` 会切到所有 {@code @Mapper} 方法上，
-     * 它此前把异常包成 {@code new RuntimeException(e)}，于是按类型 catch 的幂等兜底**一条都进不去**，
-     * `ORA-00001` 直接冒到全局处理器返 500。切面已同批修成原样抛出，
-     * 但按链路逐层判定成本极低、且能挡住将来任何新增的包装切面，因此这层防御<b>保留</b>。</p>
-     *
      * @param ex 捕获到的异常
      * @return 链上出现过完整性冲突即 true
      */
@@ -334,9 +249,6 @@ public class CardPoolServiceImpl implements CardPoolService {
 
     /**
      * 从候选卡号中随机挑一条。
-     *
-     * <p>随机而非固定取第一条：并发请求若都挑同一行，条件 UPDATE 不会立刻返回 0 行，
-     * 而是阻塞在前一个事务的行锁上，同票种预占就退化成串行。</p>
      *
      * @param candidates 候选卡号，调用方保证非空
      * @return 本次尝试的目标卡号
@@ -361,7 +273,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         return card != null && "ASSIGNED".equals(card.getStatus()) && businessId.equals(card.getBusinessId());
     }
 
-    /** {@inheritDoc} */
+    /** {@inheritDoc} NEVER 在失败分支调用：预占为并发请求共享，超时回收交 sys_job 107（ADR-D52）。 */
     @Override
     public boolean release(String reservationId, String businessId) {
         if (!StringUtils.hasText(reservationId) || !StringUtils.hasText(businessId)) {
@@ -393,13 +305,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>本实现「受理即返回」：同步完成状态校验与 `FAILED → DOWNLOADING` 的推进后立即返回批次，
-     * FTP 下载与入库交给 {@code maintenanceExecutor} 的平台线程执行，**不在请求线程上做长阻塞 IO**。
-     * 因此返回的批次状态是 `DOWNLOADING` 而不是终态，结果需再查 {@link #batches} 获取。</p>
-     */
+    /** {@inheritDoc} */
     @Override
     public LogicCardPoolBatch retry(Long batchNo) {
         LogicCardPoolBatch batch = batchNo == null ? null : mapper.selectBatch(batchNo);
@@ -502,9 +408,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         return accepted;
     }
 
-    /**
-     * 在维护线程上执行一轮维护，并在结束后释放并发标记。
-     */
+    /** 在维护线程上执行一轮维护，并在结束后释放并发标记。 */
     private void runMaintenanceAsync() {
         try {
             Map<String, Object> stats = executeMaintenance();
@@ -669,10 +573,6 @@ public class CardPoolServiceImpl implements CardPoolService {
     /**
      * 推进一个待处理批次。
      *
-     * <p>状态白名单：CREATED 走 ACC 申请后下载导入；DOWNLOADING / IMPORTING 直接续做下载导入。
-     * REQUESTING 表示已向 ACC 发出申请但未拿到文件名，无法判断对端是否已生成批次，
-     * 直接置 FAILED 并留下明确原因交人工核对，避免重复消耗 ACC 号段，也避免该票种被永久占位。</p>
-     *
      * @param batch     批次
      * @param lockOwner 当前持有的锁标识
      * @return 推进到 SUCCESS 返回 true
@@ -765,9 +665,6 @@ public class CardPoolServiceImpl implements CardPoolService {
     /**
      * 逐行解析并分片入库。
      *
-     * <p>ACC 逻辑卡号文件每行两列、以空白分隔、CRLF 换行，形如 {@code 0426090935000008 41}：
-     * 第一列是逻辑卡号，第二列是 ACC 票种。空行跳过、不计入总数。</p>
-     *
      * @param batch     批次
      * @param file      本地临时文件
      * @param lockOwner 当前持有的锁标识
@@ -815,9 +712,6 @@ public class CardPoolServiceImpl implements CardPoolService {
     /**
      * 续期票种级批次锁，续不上即中止本次导入。
      *
-     * <p>续期返回 0 意味着锁已过期并可能被另一执行体抢走，继续写入会与对方并发插入同批卡号。
-     * 此时 MUST 立即失败，由维护接口下一轮重新推进。</p>
-     *
      * @param cardType  票种
      * @param lockOwner 当前持有的锁标识
      */
@@ -829,9 +723,6 @@ public class CardPoolServiceImpl implements CardPoolService {
 
     /**
      * 分片入库；批量失败后逐条重试，只有确定是唯一键冲突才按重复处理，其余异常一律上抛。
-     *
-     * <p>这里刻意不吞异常：字段超长、外键违反、连接中断等一旦被当成「重复卡号」，
-     * 批次仍会被标成 SUCCESS，卡号静默丢失且日志无痕。</p>
      *
      * @param cards 待入库分片
      * @param stats 导入统计
@@ -1019,11 +910,6 @@ public class CardPoolServiceImpl implements CardPoolService {
     /**
      * 记录批次失败原因；`updateBatch` 失败时降级为最小 UPDATE，确保批次一定离开中间态。
      *
-     * <p>为什么必须降级而不是只记日志：`REQUESTING` 同时出现在 `selectPendingBatches` 与
-     * `countInProgress` 的状态集里，一旦失败落库本身失败，批次就永远停在 `REQUESTING`，
-     * 每轮维护都重走「REQUESTING → fail → 再失败」，`replenish` 被 `countInProgress > 0`
-     * 永久挡死，该票种从此不再补货且无法自愈。</p>
-     *
      * @param batch  批次
      * @param reason 失败原因
      */
@@ -1055,9 +941,6 @@ public class CardPoolServiceImpl implements CardPoolService {
 
     /**
      * 按状态白名单决定已有记录能否作为预占复用返回。
-     *
-     * <p>只有仍处于 RESERVED 的记录可以复用；已 ASSIGNED 表示该业务已完成发卡，
-     * 再当作新预占返回会让调用方重复走发行流程，且返回的过期时间为空。</p>
      *
      * @param existing 已有记录
      * @param cardType 本次请求票种
@@ -1109,10 +992,6 @@ public class CardPoolServiceImpl implements CardPoolService {
 
     /**
      * 解析 ACC 逻辑卡号文件的一行，取第一列作卡号并校验第二列票种。
-     *
-     * <p>行形如 {@code 0426090935000008 41}（CRLF 已由 {@code readLine} 去掉，行尾 {@code \r} 由 trim 兜底）。
-     * 第二列存在但与批次票种不一致时视为不合法——票种错位意味着 ACC 发错文件，
-     * 静默入库会让卡号被当成另一种票发出去。</p>
      *
      * @param line                 原始行
      * @param expectedAccTicketType 批次的 ACC 票种，为空则不校验第二列
@@ -1184,11 +1063,6 @@ public class CardPoolServiceImpl implements CardPoolService {
     /**
      * 把失败原因裁剪到 `ERROR_MSG` 列能容纳的范围。
      *
-     * <p>必须按 **UTF-8 字节** 而不是字符裁剪：列声明是 `VARCHAR2(2000 CHAR)`，
-     * 但 Oracle 在 `MAX_STRING_SIZE=STANDARD` 下的物理上限仍是 4000 字节，
-     * 中文按 3 字节计，只按字符数裁剪时长中文原因串会触发 ORA-12899，
-     * 连带让「记录失败」这件事本身失败（见 {@link #fail(LogicCardPoolBatch, String)}）。</p>
-     *
      * @param value 原始失败原因
      * @return 裁剪后的原因，入参为空时返回占位串
      */
@@ -1221,9 +1095,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         throw new IllegalArgumentException("不支持的卡池申请来源: " + source);
     }
 
-    /**
-     * 单批次导入统计。
-     */
+    /** 单批次导入统计。 */
     private static final class ImportStats {
         private int total;
         private int valid;
@@ -1231,13 +1103,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         private int invalid;
     }
 
-    /**
-     * 带字节上限的输出流。
-     *
-     * <p>FTP 的 LIST 报文只是对端自述的大小，实际传输可以远超；没有上限时一个异常大的文件
-     * 会把容器磁盘写满。这里在超限的第一时间抛 {@link IOException}，
-     * 由 {@code download()} 的 catch 分支删除临时文件。</p>
-     */
+    /** 带字节上限的输出流。 */
     private static final class SizeLimitedOutputStream extends OutputStream {
 
         private final OutputStream delegate;

@@ -1,14 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.account.mapper.TerminationTimeSummaryMapper">
-    <!--
-        「用户查询」运营页专用：只读聚合 pay-sign 域的 APP_TERMINATION_REQUEST（同库跨域直读）。
-        本文件 NEVER 出现 insert/update/delete —— 写路径的权威在 pay-sign-server。
-        SQL 正文 NEVER 写行注释或块注释（Druid WallFilter 会拦），说明只放 XML 注释；
-        本注释内也 NEVER 出现两个连续减号，否则 MyBatis 解析本文件失败、服务启动即挂。
-        按 (CARD_ID, THIRD_USER_ID) 分组：卡号会回收再分配，仅按卡号聚合会把旧主的解约
-        记录串到新主头上，因此 Java 侧回填也 MUST 用 thirdUserId + cardId 双键配对。
-    -->
+    <!-- SQL 正文禁写注释（行注释与块注释都不行）：Druid WallFilter 判为注入、语句静默失效；说明只放本 XML 注释里。 -->
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.account.page.TerminationTimeSummary">
         <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
         <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
@@ -16,12 +9,6 @@
         <result column="COMPLETE_TIME" jdbcType="TIMESTAMP" property="completeTime"/>
     </resultMap>
 
-    <!--
-        REQUEST_TIME 取该卡全部解约请求的最近一次（申请解绑日期）；
-        COMPLETE_TIME 只统计 SUCCESS 的最近一次（解绑成功日期）——FAILED 也会写
-        COMPLETE_TIME，不加状态过滤会把失败的完成时间误认为解绑成功。
-        TERMINATION_STATUS 的字面量 'SUCCESS' 与 pay-sign 域的状态机枚举同名对齐。
-    -->
     <select id="selectByCardIds" resultMap="BaseResultMap">
         select CARD_ID,
                THIRD_USER_ID,

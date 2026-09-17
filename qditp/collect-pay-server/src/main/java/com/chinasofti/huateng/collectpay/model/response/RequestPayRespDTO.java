@@ -1,37 +1,23 @@
  package com.chinasofti.huateng.collectpay.model.response;
 
- /**
-  * IF8A-09 请求支付响应报文。
-  */
+ /** IF8A-09 请求支付响应报文。 */
  public class RequestPayRespDTO {
-     /**
-      * 返回码。
-      */
+     /** 返回码。 */
      private String retCode;
 
-     /**
-      * 返回消息。
-      */
+     /** 返回消息。 */
      private String retMsg;
 
-     /**
-      * 订单号。
-      */
+     /** 订单号。 */
      private String orderNo;
 
-     /**
-      * 商户订单号。
-      */
+     /** 商户订单号。 */
      private String merchantOrderNo;
 
-     /**
-      * 渠道订单号。
-      */
+     /** 渠道订单号。 */
      private String channelOrderNo;
 
-     /**
-      * 渠道返回数据（支付跳转URL或二维码等）。
-      */
+     /** 渠道返回数据（支付跳转URL或二维码等）。 */
      private String data;
 
      public String getRetCode() {

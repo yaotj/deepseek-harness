@@ -4,32 +4,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/**
- * {@code ALIPAY_PAY_TXN_DETAIL} 支付宝出行渠道支付交易明细实体。
- *
- * <p>形态对齐 pay-sign-server 的 {@code PayTxnDetail}，与本模块旧的 {@link AlipayPayLog}
- * 有三处**刻意**不同，改动前 MUST 先读懂为什么：</p>
- * <ol>
- *   <li><b>金额一律 {@code Integer}、单位分</b>。旧实体 31 个字段全是 String，
- *       退款汇总因此要在 SQL 里 {@code TO_NUMBER} 求和再 {@code TO_CHAR} 回写。
- *       <b>NEVER 把这里改回 String</b>。</li>
- *   <li><b>时间分两类</b>：{@code createTime} / {@code updateTime} / {@code *RequestTime}
- *       等是 {@code LocalDateTime}（库里 TIMESTAMP）；而 {@code payTime} 保持 String，
- *       因为它是<b>支付中心回调原文</b>（{@code YYYYMMDDHH24MISS}），落库即证据、不做解析。
- *       旧实体的 {@code transTime} 是 String 且存量格式不统一（既有 {@code 2026-07-28 16:59:55}
- *       也有毫秒时间戳），本实体不保留该字段，按时间过滤 MUST 用 {@code createTime}。</li>
- *   <li><b>主键是序列生成的 {@code id}</b>，业务唯一键是 {@code (orderNo, txnDate)}
- *       对应唯一索引 {@code UK_APTD_ORDER}。旧实体的 UUID 主键 {@code paySeq} 不再保留 ——
- *       它既排不出时序，也拦不住重复落单。</li>
- * </ol>
- *
- * <p>{@code payCenterOrderNo} 与 {@code merchantOrderNo} 不是一回事：后者是我方商户订单号、
- * 等同 {@code orderNo}；前者是支付中心侧的支付订单号，<b>退款报文的「原支付订单号」MUST 用它</b>，
- * 缺它退款必失败。</p>
- *
- * <p>{@code debitRequestResult} 的值域是 {@code PROCESSING/SUCCESS/FAIL}，与对外契约字段
- * {@code debitRequestResult} 的 {@code 0}/{@code 1} 值域<b>同名不同义，NEVER 混用</b>。</p>
- */
+/** {@code ALIPAY_PAY_TXN_DETAIL} 支付宝出行渠道支付交易明细实体。 */
 @Data
 public class AlipayPayTxnDetail {
 

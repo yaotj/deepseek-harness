@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.paysign.model.request;
 
-/**
- * 执行支付平台解约内部接口请求。
- */
+/** 执行支付平台解约内部接口请求。 */
 public class ExecuteTerminationReqDTO {
 
     private String thirdUserId;

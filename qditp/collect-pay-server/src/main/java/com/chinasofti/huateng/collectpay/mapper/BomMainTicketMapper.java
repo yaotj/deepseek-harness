@@ -7,21 +7,15 @@ import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface BomMainTicketMapper {
-    /**
-     * 根据主键查询。
-     */
+    /** 根据主键查询。 */
     BomMainTicket selectById(@Param("id") Long id);
 
-    /**
-     * 根据订单号查询。
-     */
+    /** 根据订单号查询。 */
     BomMainTicket selectByOrderNo(@Param("orderNo") String orderNo);
 
 
     String getBomMainTicketSeq();
-    /**
-     * 插入出票主记录。
-     */
+    /** 插入出票主记录。 */
     int insert(BomMainTicket record);
 
 

@@ -6,17 +6,17 @@ package com.chinasofti.huateng.model.alipaytrip;
 public class AlipayTripRequestPayRespDTO {
 
     /**
-     * 返回码
+     * 返回码。
      */
     private String retCode;
 
     /**
-     * 返回消息
+     * 返回消息。
      */
     private String retMsg;
 
     /**
-     * 订单号
+     * 订单号。
      */
     private String orderNo;
 

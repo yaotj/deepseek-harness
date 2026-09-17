@@ -13,17 +13,21 @@
         <result column="VERIFY_AFTER_TIME" jdbcType="TIMESTAMP" property="verifyAfterTime"/>
         <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
         <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
+        <result column="NOTIFY_STATUS" jdbcType="VARCHAR" property="notifyStatus"/>
+        <result column="NOTIFY_TIMES" jdbcType="INTEGER" property="notifyTimes"/>
+        <result column="NOTIFY_TIME" jdbcType="TIMESTAMP" property="notifyTime"/>
+        <result column="NOTIFY_MSG" jdbcType="VARCHAR" property="notifyMsg"/>
     </resultMap>
 
     <select id="selectByOrderNo" resultMap="BaseResultMap">
         select ID, ORDER_NO, REFUND_ORDER_NO, PLATFORM_REFUND_NO, REFUND_AMOUNT, REFUND_STATUS,
-               REFUND_TYPE, REFUND_DATE, VERIFY_AFTER_TIME, CREATE_TIME, UPDATE_TIME
+               REFUND_TYPE, REFUND_DATE, VERIFY_AFTER_TIME, CREATE_TIME, UPDATE_TIME,
+               NOTIFY_STATUS, NOTIFY_TIMES, NOTIFY_TIME, NOTIFY_MSG
         from DAILY_TICKET_REFUND
         where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </select>
 
     <select id="selectRefunds" resultType="com.chinasofti.huateng.dailyticket.page.DailyTicketRefundView">
-        <!-- 退款表为主表；关联订单取得支付平台订单号，关联票实例辅助运营判断。 -->
         select R.ORDER_NO as orderNo,
                R.REFUND_ORDER_NO as refundOrderNo,
                R.PLATFORM_REFUND_NO as platformRefundNo,
@@ -85,4 +89,25 @@
             UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
         where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </update>
+
+    <update id="updateNotifyStatus">
+        update DAILY_TICKET_REFUND
+        set NOTIFY_STATUS = #{notifyStatus,jdbcType=VARCHAR},
+            NOTIFY_TIMES = #{notifyTimes,jdbcType=INTEGER},
+            NOTIFY_TIME = #{notifyTime,jdbcType=TIMESTAMP},
+            NOTIFY_MSG = #{notifyMsg,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSTIMESTAMP
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+
+    <select id="selectPendingNotify" resultMap="BaseResultMap">
+        select ID, ORDER_NO, REFUND_ORDER_NO, PLATFORM_REFUND_NO, REFUND_AMOUNT, REFUND_STATUS,
+               REFUND_TYPE, REFUND_DATE, VERIFY_AFTER_TIME, CREATE_TIME, UPDATE_TIME,
+               NOTIFY_STATUS, NOTIFY_TIMES, NOTIFY_TIME, NOTIFY_MSG
+        from DAILY_TICKET_REFUND
+        where NOTIFY_STATUS = 'PENDING'
+          and NVL(NOTIFY_TIMES, 0) <![CDATA[ < ]]> #{maxTimes,jdbcType=INTEGER}
+        order by UPDATE_TIME
+        fetch first #{limit,jdbcType=INTEGER} rows only
+    </select>
 </mapper>

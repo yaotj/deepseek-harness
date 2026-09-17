@@ -35,21 +35,7 @@ import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
-/**
- * 钉住离线码出站金额重算的四步顺序与超时费的隔离性。
- *
- * <p>{@code calculateOfflineFare} 的四步是 票价 → 超时费 → 换乘减免 → 钱包折扣，
- * 且**超时费永远单列在 {@code OVERTIME_AMOUNT}、不进折扣基数**。这个顺序无法从签名或类型
- * 看出来，改错也照样编译通过、照样落库，只是每一笔的金额都算错，属直接资损。
- *
- * <p>用例特意选了「减免 100 分、折扣 0.8」这组值：先减免后打折得 240，先打折后减免得 220，
- * 把超时费并进基数得 480 —— 三种写法结果互不相同，因此断言能真正区分顺序，
- * NEVER 把期望值改成「大于 0」之类的宽松判断。
- *
- * <p>被测方法目前是 {@code GateTxnPayServiceImpl} 的 private 方法，只能反射调用。
- * 后续若把算价抽成独立协作者，本测试 MUST 改成直接调用新类的公开方法、断言值保持不变 ——
- * 断言值是业务口径，反射只是当前可测性的权宜。
- */
+/** 钉住离线码出站金额重算的四步顺序与超时费的隔离性。 */
 class OfflineFareCalculationTest {
 
     private static final long TIMEOUT_SECONDS = 1200L;
@@ -99,10 +85,7 @@ class OfflineFareCalculationTest {
         verify(discountLevelMapper).selectApplicable("01", WALLET_TOTAL_AMT);
     }
 
-    /**
-     * 超时费的隔离性：只进 {@code OVERTIME_AMOUNT}，既不参与折扣基数也不并入 {@code TRX_AMOUNT}。
-     * 并进基数会算成 (300+300)*0.8=480，比正确值多收 240 分。
-     */
+    /** 超时费的隔离性：只进 {@code OVERTIME_AMOUNT}，既不参与折扣基数也不并入 {@code TRX_AMOUNT}。 */
     @Test
     void overtimeFeeStaysOutOfDiscountBase() {
         stubEntry();
@@ -139,10 +122,7 @@ class OfflineFareCalculationTest {
                 discountLevelMapper);
     }
 
-    /**
-     * 同行票不参与钱包累计折扣，但**换乘减免仍然生效** ——
-     * 两件事共用一个 wallet 分支，容易被一起跳过。
-     */
+    /** 同行票不参与钱包累计折扣，但换乘减免仍然生效 —— 两件事共用一个 wallet 分支，容易被一起跳过。 */
     @Test
     void companionOrderKeepsTransferReductionButSkipsDiscount() {
         stubEntry();
@@ -178,12 +158,7 @@ class OfflineFareCalculationTest {
         assertEquals(320, order.getTrxAmount(), "未减免时基数是全额票价：400*0.8=320");
     }
 
-    /**
-     * 出站早于进站是脏数据，MUST 直接拒绝，NEVER 算出负数秒后当作未超时放过。
-     *
-     * <p>这里 MUST 连票价一起 stub：票价查询排在时间校验**之前**，不 stub 会先抛
-     * 「离线码地铁票价查询失败」，用例看着通过其实没走到被测分支。
-     */
+    /** 出站早于进站是脏数据。 */
     @Test
     void reversedRideTimeIsRejected() {
         stubEntry();
@@ -195,7 +170,7 @@ class OfflineFareCalculationTest {
         assertTrue(e.getMessage().contains("离线码进出站时间顺序无效"), e.getMessage());
     }
 
-    /** 缺 ticketTransSeq 时无法定位首笔进站，MUST 早失败。 */
+    /** 缺 ticketTransSeq 时无法定位首笔进站。 */
     @Test
     void missingTicketTransSeqIsRejected() {
         GateTxnPay order = order(EXIT_TIME_IN_TIME);
@@ -205,10 +180,7 @@ class OfflineFareCalculationTest {
         verifyNoInteractions(ticketClient);
     }
 
-    /**
-     * 订单号规则：{@code GT} + 17 位时间戳 + 卡号后 6 位。
-     * 长度与后缀取法进了 {@code UK_GATE_TXN_PAY_ORDER_NO}，改一处就是幂等口径变更。
-     */
+    /** 订单号规则：{@code GT} + 17 位时间戳 + 卡号后 6 位。 */
     @Test
     void orderNoKeepsPrefixTimestampAndCardSuffix() {
         GateTxnPayReqDTO request = walletRequest();
@@ -294,10 +266,7 @@ class OfflineFareCalculationTest {
         calculator().calculateOfflineFare(order, request);
     }
 
-    /**
-     * 只装配算价用得到的六个协作者。{@link FareCalculator} 拆出来之后不再需要反射，
-     * 断言值与拆分前逐字一致 —— 这正是「搬迁未改行为」的证据。
-     */
+    /** 只装配算价用得到的六个协作者。 */
     private FareCalculator calculator() {
         return new FareCalculator(
                 new FareDataGateway(ticketClient, paraClient, accountClient, walletAppGatewayClient,
@@ -305,10 +274,7 @@ class OfflineFareCalculationTest {
                 TIMEOUT_SECONDS, TIMEOUT_FEE_CENTS, TRANSFER_REDUCTION_CENTS);
     }
 
-    /**
-     * {@code buildOrderNo} 仍留在 {@code GateTxnPayServiceImpl}（订单号是订单聚合的身份，不属算价），
-     * 因此这里仍需反射。它不读任何字段，所以协作者全传 null 即可。
-     */
+    /** {@code buildOrderNo} 仍留在 {@code GateTxnPayServiceImpl}（订单号是订单聚合的身份，不属算价），因此这里仍需反射。 */
     @SuppressWarnings("unchecked")
     private <T> T invokeOnService(String name, Class<?>[] signature, Object... args) {
         try {

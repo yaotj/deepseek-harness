@@ -4,7 +4,6 @@ import com.chinasofti.huateng.common.response.CommonResult;
 
 /**
  * 支付宝出行-行业数据推送响应参数。
- * 使用通用响应。
  */
 public class AlipayTripReceiveCardDataRespDTO extends CommonResult {
 }

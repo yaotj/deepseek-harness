@@ -30,13 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * 过期订单收口验证。用本机 stub HTTP 服务扮演支付中心，因此这是**第一次覆盖到「支付中心正常应答」
- * 的成功路径**（真实凭据仍未拿到，报文内容由 stub 固定返回）。
- *
- * <p>同样会真的写测试库，行为与 {@link F2fTvmOrderServiceWriteTest} 一致：靠 {@code DB_HOST} 开关，
- * 用完按 orderNo 删除自己造的行。</p>
- */
+/** 过期订单收口验证。 */
 @SpringBootTest(classes = FacePayServer.class)
 @EnabledIfEnvironmentVariable(named = "DB_HOST", matches = ".+")
 class F2fOrderExpireReconcileTest {

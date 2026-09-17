@@ -14,9 +14,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
-/**
- * pay-sign 异步任务线程池配置。
- */
+/** pay-sign 异步任务线程池配置。 */
 @Configuration
 @EnableAsync
 public class PaySignExecutorConfig {
@@ -52,10 +50,7 @@ public class PaySignExecutorConfig {
         return executor;
     }
 
-    /**
-     * 把提交线程的 MDC（含 traceId / spanId）透传到异步线程。
-     * 线程池会复用线程，靠 InheritableThreadLocal 只在建线程时继承一次，必须在每个任务前后显式设置与清理。
-     */
+    /** 把提交线程的 MDC（含 traceId / spanId）透传到异步线程。 */
     private TaskDecorator mdcTaskDecorator() {
         return runnable -> {
             Map<String, String> parentContext = MDC.getCopyOfContextMap();

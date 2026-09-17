@@ -24,24 +24,13 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/**
- * 钉住只读查询侧三处「参数被静默改写」的逻辑：分页钳制、IF8A-35 统计窗口、列表 DTO 的空值补齐。
- *
- * <p>这三处的共同特征是**出错不报错**：分页钳制失效只是查得多或查得少、窗口算错只是统计口径变了、
- * DTO 补齐漏掉只是前端显示 null，编译与集成冒烟都发现不了，因此在把查询侧拆成独立类之前
- * MUST 先把它们钉住 —— 本测试就是那道网，<b>拆分时断言值 NEVER 改</b>。
- *
- * <p>这些方法已随查询侧拆分搬到 {@link GateTxnPayQueryServiceImpl}，实现类只依赖
- * {@link GateTxnPayMapper} 一个协作者，所以这里直接调公开方法、只 mock mapper，不需要反射。
- * <b>拆分前后本文件的断言值一个都没改</b> —— 那正是「只搬位置、没改行为」的证据。
- */
+/** 钉住只读查询侧三处「参数被静默改写」的逻辑：分页钳制、IF8A-35 统计窗口、列表 DTO 的空值补齐。 */
 class GateTxnPayQueryTest {
 
     private static final DateTimeFormatter YYYYMMDD = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final GateTxnPayMapper mapper = mock(GateTxnPayMapper.class);
 
-    /** 四个搜索维度全空时 MUST 直接拒绝，NEVER 落成全表分页扫描。 */
     @Test
     void pageWithoutSearchScopeIsRejectedBeforeTouchingDb() {
         ResultVO<Map<String, Object>> result =
@@ -50,7 +39,6 @@ class GateTxnPayQueryTest {
         verifyNoInteractions(mapper);
     }
 
-    /** 只给开始日期不给结束日期同样算「没有范围」—— 两者 MUST 成对。 */
     @Test
     void pageWithOnlyStartDateIsRejected() {
         ResultVO<Map<String, Object>> result =
@@ -59,10 +47,7 @@ class GateTxnPayQueryTest {
         verifyNoInteractions(mapper);
     }
 
-    /**
-     * 分页参数钳制：{@code pageSize} 上限 100、非法值回落 10、{@code pageNum} 下限 1。
-     * 少了 {@code Math.min} 那一层，前台传 100000 就是一次百万行结果集。
-     */
+    /** 分页参数钳制：{@code pageSize} 上限 100、非法值回落 10、{@code pageNum} 下限 1。 */
     @Test
     void pageClampsPageSizeAndPageNum() {
         when(mapper.selectOperationPage(any(), any(), any(), any(), any(), any(), any(), any(),
@@ -91,7 +76,6 @@ class GateTxnPayQueryTest {
         assertEquals(20, offset2.getValue(), "第 3 页 * 每页 10 MUST 得 offset=20");
     }
 
-    /** IF8A-35 缺 thirdUserId 时 MUST 返 9002，NEVER 去查库。 */
     @Test
     void userAccInfoRejectsMissingThirdUserId() {
         RequestUserAccInfoResult result = service().requestUserAccInfo(new RequestUserAccInfoReqDTO());
@@ -99,10 +83,7 @@ class GateTxnPayQueryTest {
         verifyNoInteractions(mapper);
     }
 
-    /**
-     * 统计窗口下限 MUST 是 {@code yyyyMMdd} 字符串、且等于「今天减 N 个月」；
-     * 配置非法（<=0）时回落 3 个月，<b>NEVER 退化成不加下限</b>（那会扫全部月分区）。
-     */
+    /** 配置非法（<=0）时回落 3 个月。 */
     @Test
     void userAccInfoBuildsStartDateFromConfiguredMonths() {
         RequestUserAccInfoResult counted = new RequestUserAccInfoResult();
@@ -130,13 +111,6 @@ class GateTxnPayQueryTest {
         verify(fallbackMapper).countUserAccInfo("U1", LocalDate.now().minusMonths(3).format(YYYYMMDD));
     }
 
-    /**
-     * 聚合查询返回 null 时 MUST 报错码 9002。
-     *
-     * <p>注意 {@code unpaidCount} / {@code failureCount} 是 <b>primitive int</b>，
-     * 报错分支里它们照样是 0 —— 因此**唯一**能让 APP 区分「无欠费」与「查询失败」的就是 retCode。
-     * 谁把这里改成返 0000，APP 立刻会把查询失败当成无欠费放行欠费乘客，而两个计数字段看不出差别。
-     */
     @Test
     void userAccInfoNeverReportsSuccessWhenAggregateIsNull() {
         when(mapper.countUserAccInfo(anyString(), anyString())).thenReturn(null);
@@ -148,10 +122,7 @@ class GateTxnPayQueryTest {
         assertEquals("查询用户账务信息失败", result.getRetMsg());
     }
 
-    /**
-     * 列表 DTO 对历史行的空值补齐：{@code COUNTING_TIMES} 补 0、{@code COUNTING_FLAG} 补 N。
-     * 2026-09-10 之前落库的行这两列是 NULL，去掉补齐前台会显示 null。
-     */
+    /** 列表 DTO 对历史行的空值补齐：{@code COUNTING_TIMES} 补 0、{@code COUNTING_FLAG} 补 N。 */
     @Test
     void listDtoFillsLegacyCountingColumns() {
         GateTxnPay record = new GateTxnPay();
@@ -182,11 +153,7 @@ class GateTxnPayQueryTest {
         return service(mapper);
     }
 
-    /**
-     * 查询侧只用到 {@link GateTxnPayMapper}，构造器也只收这一个参数。
-     * 一旦有人把写入、算价或 pay-sign 调用挪进查询实现，构造器就得多收协作者、本方法立刻编译不过 ——
-     * 那正是要暴露的耦合。
-     */
+    /** 查询侧只用到 {@link GateTxnPayMapper}，构造器也只收这一个参数。 */
     private GateTxnPayQueryServiceImpl service(GateTxnPayMapper gateTxnPayMapper) {
         return new GateTxnPayQueryServiceImpl(gateTxnPayMapper);
     }

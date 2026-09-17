@@ -9,8 +9,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * @description: 请求参数代码注入风险拦截
- **/
+ * @description: 请求参数代码注入风险拦截。
+ */
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @Constraint(validatedBy = {AntiInjectionValidator.class})

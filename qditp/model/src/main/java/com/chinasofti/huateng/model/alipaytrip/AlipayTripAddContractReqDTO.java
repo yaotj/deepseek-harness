@@ -6,32 +6,32 @@ package com.chinasofti.huateng.model.alipaytrip;
 public class AlipayTripAddContractReqDTO {
 
     /**
-     * 支付渠道
+     * 支付渠道。
      */
     private String channel;
 
     /**
-     * 用户ID
+     * 用户ID。
      */
     private String thirdUserId;
 
     /**
-     * 签约协议号，系统生成的唯一协议编号
+     * 签约协议号，系统生成的唯一协议编号。
      */
     private String agreementCode;
 
     /**
-     * 渠道协议号，第三方渠道的协议编号
+     * 渠道协议号，第三方渠道的协议编号。
      */
     private String channelAgreementCode;
 
     /**
-     * 渠道用户账户，用户在第三方渠道的账户标识
+     * 渠道用户账户，用户在第三方渠道的账户标识。
      */
     private String channelUserAccount;
 
     /**
-     * 发卡类型代码，如：0007
+     * 发卡类型代码，如：0007。
      */
     private String cardIssueCode;
 

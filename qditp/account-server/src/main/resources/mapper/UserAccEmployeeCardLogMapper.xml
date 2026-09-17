@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.account.mapper.UserAccEmployeeCardLogMapper">
+    <!-- SQL 正文禁写注释（行注释与块注释都不行）：Druid WallFilter 判为注入、语句静默失效；说明只放本 XML 注释里。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.account.entity.UserAccEmployeeCardLog">
         insert into USER_ACC_EMPLOYEE_CARD_LOG (
             CARD_NO, EVENT_TYPE, CARD_STATUS, REMARK, CREATE_TMS

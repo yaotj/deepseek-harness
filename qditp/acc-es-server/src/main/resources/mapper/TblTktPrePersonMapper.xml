@@ -12,11 +12,9 @@
     <result column="WORK_UNIT" jdbcType="VARCHAR" property="workUnit" />
   </resultMap>
   <sql id="Base_Column_List">
-    <!--@mbg.generated-->
     TASK_NO, PHY_CODE, PERSON_TYPE, USER_NAME, ID_TYPE, ID, EMP_NO, WORK_UNIT
   </sql>
   <insert id="insert"  parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktPrePerson">
-    <!--@mbg.generated-->
     insert into TBL_TKT_PRE_PERSON (TASK_NO,PHY_CODE, PERSON_TYPE, USER_NAME,
       ID_TYPE, ID, EMP_NO, 
       WORK_UNIT)
@@ -25,7 +23,6 @@
       #{workUnit,jdbcType=VARCHAR})
   </insert>
   <insert id="insertSelective" keyColumn="TASK_NO" keyProperty="taskNo" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktPrePerson" useGeneratedKeys="true">
-    <!--@mbg.generated-->
     insert into TBL_TKT_PRE_PERSON
     <trim prefix="(" suffix=")" suffixOverrides=",">
       <if test="phyCode != null">
@@ -75,7 +72,6 @@
     </trim>
   </insert>
   <update id="updateByPrimaryKeySelective" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktPrePerson">
-    <!--@mbg.generated-->
     update TBL_TKT_PRE_PERSON
     <set>
       <if test="personType != null">
@@ -101,7 +97,6 @@
       and PHY_CODE = #{phyCode,jdbcType=VARCHAR}
   </update>
   <update id="updateByPrimaryKey" parameterType="com.chinasofti.huateng.acc.es.server.model.TblTktPrePerson">
-    <!--@mbg.generated-->
     update TBL_TKT_PRE_PERSON
     set PERSON_TYPE = #{personType,jdbcType=VARCHAR},
       USER_NAME = #{userName,jdbcType=VARCHAR},

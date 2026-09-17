@@ -18,10 +18,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住支付宝出行扣费回调的收敛口：结果只写 GATE_TXN_PAY.DEBIT_STATUS，
- * NEVER 回退成读写 ALIPAY_PAY_LOG（那是已停写的日志表，双写会让两边状态分叉）。
- */
+/** 钉住支付宝出行扣费回调的收敛口。 */
 class PayNotifyDebitStatusSyncTest {
 
     private static final String ORDER_NO = "GT20260914021300000000001";

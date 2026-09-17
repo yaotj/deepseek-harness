@@ -1,67 +1,41 @@
  package com.chinasofti.huateng.collectpay.model.response;
 
- /**
-  * IF8A-10 支付查询响应报文。
-  */
+ /** IF8A-10 支付查询响应报文。 */
  public class PayQueryRespDTO {
-     /**
-      * 返回码。
-      */
+     /** 返回码。 */
      private String retCode;
 
-     /**
-      * 返回消息。
-      */
+     /** 返回消息。 */
      private String retMsg;
 
-     /**
-      * 订单号。
-      */
+     /** 订单号。 */
      private String orderNo;
 
-     /**
-      * 商户订单号。
-      */
+     /** 商户订单号。 */
      private String merchantOrderNo;
 
-     /**
-      * 渠道订单号。
-      */
+     /** 渠道订单号。 */
      private String channelOrderNo;
 
-     /**
-      * 交易状态。
-      */
+     /** 交易状态。 */
      private String status;
 
-     /**
-      * 支付时间（格式：yyyyMMddHHmmss）。
-      */
+     /** 支付时间（格式：yyyyMMddHHmmss）。 */
      private String payDate;
 
-     /**
-      * 订单总金额（分）。
-      */
+     /** 订单总金额（分）。 */
      private Integer totalAmount;
 
-     /**
-      * 现金支付金额（分）。
-      */
+     /** 现金支付金额（分）。 */
      private Integer cashAmount;
 
-     /**
-      * 优惠金额（分）。
-      */
+     /** 优惠金额（分）。 */
      private Integer couponAmount;
 
-     /**
-      * 渠道账户。
-      */
+     /** 渠道账户。 */
      private String channelAccount;
 
-     /**
-      * 支付方式。
-      */
+     /** 支付方式。 */
      private String paymentVendor;
 
      public String getRetCode() {

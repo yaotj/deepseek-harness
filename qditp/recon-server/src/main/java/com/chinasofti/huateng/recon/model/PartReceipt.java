@@ -13,10 +13,6 @@ package com.chinasofti.huateng.recon.model;
  * @param sha256      分片内容 SHA-256，服务端边收边算并与声明值比对
  * @param path        分片落盘绝对路径
  * @param status      分片状态
- *
- * @implNote {@code partNo} / {@code byteCount} / {@code recordCount} / {@code amountTotal}
- *     <b>MUST 用装箱类型</b>：MyBatis 构造器映射按装箱类型精确查找构造器，基本类型分量会在查出
- *     数据行时抛 {@code NoSuchMethodException}（详见 {@link SourceProgress}）。
  */
 public record PartReceipt(String batchId,
                           String source,

@@ -13,22 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.Map;
 
 /**
- * 对账内部接口专用异常处理，**必须存在**，否则分片上送的失败会被上游当成成功。
- *
- * <p>公共构件 {@code GlobalControllerExceptionHandler} 的兜底分支是
- * {@code @ExceptionHandler(Exception.class) @ResponseStatus(HttpStatus.OK)}，
- * 即**任何未被更具体处理器捕获的异常都返回 HTTP 200** + 一个 UUID {@code retCode}。
- * 而 {@code ReconClient} 只按 HTTP 状态码判成败，于是：</p>
- * <ul>
- *   <li>令牌校验失败（401）→ 上游看到 200，认为分片已被接收；</li>
- *   <li>分片落盘 IO 失败、哈希不一致拒收 → 同样是 200，源服务继续删本地分片。</li>
- * </ul>
- *
- * <p>2026-09-11 实测：无令牌请求 {@code GET /internal/recon/batches/{id}} 返回
- * {@code 200 {"retCode":"<uuid>","retMsg":null,"data":null}}。本类以
- * {@link Ordered#HIGHEST_PRECEDENCE} 抢在公共 advice 之前，把状态码还原成真实语义。
- * 作用范围用 {@code assignableTypes} 限定在 {@link ReconInternalController}，
- * 不影响其它模块与本模块将来可能新增的页面接口。</p>
+ * 对账内部接口专用异常处理：把公共兜底 advice 的 HTTP 200 还原成真实状态码。
  */
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice(assignableTypes = ReconInternalController.class)

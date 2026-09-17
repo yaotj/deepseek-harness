@@ -5,11 +5,9 @@ package com.chinasofti.huateng.facepay.channel.paycenter;
  *
  * @param orderNo       ITP 订单号，同时作为支付中心的 merchantOrderNo 幂等键
  * @param scene         支付场景，决定报文形态，见 {@link PayScene}
- * @param paymentVendor 支付方式。{@link PayScene#QRCODE} 时旧实现<b>固定 {@code 0C}</b>，
- *                      调用方传 {@code null} 即用该默认值；其余场景必填
+ * @param paymentVendor 支付方式。{@link PayScene#QRCODE} 时旧实现固定 {@code 0C}，
  * @param payType       {@code 0}-其他支付方式，{@code 1}-数字人民币 APP。
- *                      {@link PayScene#SCAN} 不传该字段（旧实现如此），传了也会被忽略
- * @param amount        金额，<b>单位分</b>
+ * @param amount        金额，单位分
  * @param subject       订单标题
  * @param body          订单描述
  * @param authCode      用户付款码，仅 {@link PayScene#SCAN} 必填

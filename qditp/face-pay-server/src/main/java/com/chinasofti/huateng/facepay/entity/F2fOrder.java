@@ -2,28 +2,16 @@ package com.chinasofti.huateng.facepay.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * 当面付收款单（表 F2F_ORDER）。
- *
- * <p>字段与 face-pay-server/src/main/resources/sql/f2f-schema.sql 一一对应，
- * 改字段 MUST 同步改 DDL 与 docs/architecture/face-pay-refactor.md §14.1 的映射表。
- *
- * <p>与旧实体的两处刻意差异：
- * <ul>
- *   <li>金额用 {@code Long}（单位分），不是旧表的 {@code String}。新表列是 NUMBER(12)，
- *       没有必要再退化成字符串。单位已由用户 2026-09-08 确认为分。</li>
- *   <li>时间用 {@code LocalDateTime}，不是旧表的 {@code String}。新表列是 TIMESTAMP(6)。</li>
- * </ul>
- */
+/** 当面付收款单（表 F2F_ORDER）。 */
 public class F2fOrder {
 
     /** 自增主键。 */
     private Long id;
 
-    /** ITP 订单号，含版本标识位 F2。TVM / APP 侧的唯一防重手段，见 §十六 P0-2。 */
+    /** ITP 订单号，含版本标识位 F2。 */
     private String orderNo;
 
-    /** 受理渠道：01-APP，02-TVM，03-BOM。STT 未接入，编码口径未定。 */
+    /** 受理渠道：01-APP，02-TVM，03-BOM。 */
     private String channel;
 
     /** 业务类型：01-购票，02-充值，03-取票，04-非现金收款。 */
@@ -35,23 +23,16 @@ public class F2fOrder {
     /** 行政交易类型，transType=42 时必填。 */
     private String adminTransType;
 
-    /** 内部状态机，取值见 CK_F2F_ORDER_STATUS。不等于对外 paymentResult。 */
+    /** 内部状态机，取值见 CK_F2F_ORDER_STATUS。 */
     private String orderStatus;
 
     /** 订单总金额，单位分。 */
     private Long orderAmount;
 
-    /**
-     * 退款汇总状态：{@code NONE} / {@code PARTIAL} / {@code SUCCESS}，取值见 CK_F2F_ORDER_REFUND_STATUS。
-     *
-     * <p><b>与 {@link #orderStatus} 正交</b>：退款 NEVER 改支付 / 履约主状态，
-     * 口径与 {@code PAY_TXN_DETAIL.REFUND_STATUS} 一致（ADR-D88）。
-     * 这三列是 {@code F2F_REFUND} 的投影，唯一写入方是
-     * {@code F2fOrderMapper.updateRefundSummary}（重算式），<b>NEVER 在别处单独 UPDATE</b>。</p>
-     */
+    /** 退款汇总状态：{@code NONE} / {@code PARTIAL} / {@code SUCCESS}，取值见 CK_F2F_ORDER_REFUND_STATUS。 */
     private String refundStatus;
 
-    /** 已成功退款总额，单位分。由 F2F_REFUND 中 SUCCESS 的行重算得出，<b>NEVER 累加</b>。 */
+    /** 已成功退款总额，单位分。 */
     private Long refundAmount;
 
     /** 最后一次退款汇总重算时刻。 */
@@ -60,7 +41,7 @@ public class F2fOrder {
     /** 受理设备号。 */
     private String deviceId;
 
-    /** 终端设备流水号。BOM 传 bomOptSeq，TVM / APP 不传。 */
+    /** 终端设备流水号。 */
     private String deviceSeq;
 
     /** 车站编码。 */
@@ -75,7 +56,7 @@ public class F2fOrder {
     /** 第三方用户标识，APP 侧有值。 */
     private String thirdUserId;
 
-    /** 逻辑卡号。充值时为被充值卡，BOM 业务为操作对象卡。 */
+    /** 逻辑卡号。 */
     private String cardId;
 
     /** 购票张数。 */
@@ -93,7 +74,7 @@ public class F2fOrder {
     /** 出站编码。 */
     private String exitStationCode;
 
-    /** 充值前卡内余额，单位分。用于充值限额校验。 */
+    /** 充值前卡内余额，单位分。 */
     private Long cardBeforeAmount;
 
     /** 充值后卡内余额，单位分。 */
@@ -111,7 +92,7 @@ public class F2fOrder {
     /** 0-未激活，1-已激活。 */
     private String activateFlag;
 
-    /** 取票订单已被哪台设备激活。非空即锁定，其他设备查询返回 2008。 */
+    /** 取票订单已被哪台设备激活。 */
     private String activateDeviceId;
 
     /** 激活时间。 */

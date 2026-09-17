@@ -2,33 +2,33 @@ package com.chinasofti.huateng.model.fileProxy;
 
 public class UploadFileDTO {
     /**
-     * desc: 文件名
-     **/
+     * desc: 文件名。
+     */
     private String fileName;
 
     /**
      * desc: 文件类型（0：参数文件 1：软件文件 2:声音和图像文件）
-     **/
+     */
     private String fileType;
 
     /**
-     * desc: 文件录入人
-     **/
+     * desc: 文件录入人。
+     */
     private String operator;
 
     /**
      * desc: 操作类型(0：上传 1：归档 2: 删除)
-     **/
+     */
     private String optType;
 
     /**
-     * desc: 源路径
-     **/
+     * desc: 源路径。
+     */
     private String srcPath;
 
     /**
-     * desc: 目标路径
-     **/
+     * desc: 目标路径。
+     */
     private String targetPath;
 
     private boolean saveToDb = true;

@@ -47,15 +47,7 @@ public class PaymentRequestService {
     @Autowired
     private BlacklistClient blacklistClient;
 
-    /**
-     * 支付宝出行扣费申请。
-     *
-     * <p>本方法 <b>NEVER 再写 ALIPAY_PAY_LOG</b>：过闸扣费已收口到 gate-txn-pay-server，
-     * 订单与状态的唯一权威是 {@code GATE_TXN_PAY}（落单在 {@code PaySignInitiator} 之前完成，
-     * 幂等靠该表的唯一键 + 状态白名单）。这里再落一份日志表就是双写，
-     * 两边状态一旦分叉无法判定谁对；<b>NEVER 恢复双写</b>。
-     * 「订单已存在直接返回」的短路也随之下沉到 gate-txn-pay-server，本方法只负责调支付中心。</p>
-     */
+    /** 支付宝出行扣费申请。 */
     public AlipayTripRequestPayRespDTO requestPay(AlipayTripRequestPayReqDTO request) {
         AlipayTripRequestPayRespDTO response = new AlipayTripRequestPayRespDTO();
         log.info("接收到支付宝支付申请报文: {}", JSON.toJSONString(request));
@@ -65,8 +57,6 @@ public class PaymentRequestService {
         }
 
 //        if (request.getRequestSignSeq() == null || request.getRequestSignSeq().trim().isEmpty()) {
-//            throw new BusinessException(FepAppErrorCodeEnum.INVALID_PARAM.getCode(), "免密场景签约流水号不能为空");
-//        }
 
         AlipaySignInfo signInfo = alipaySignInfoMapper.selectByThirdUserIdAndChannel(request.getThirdUserId(), CHANNEL_ALIPAY);
         if (signInfo == null) {
@@ -138,18 +128,7 @@ public class PaymentRequestService {
                 && request.getIndustryDetail() != null && !request.getIndustryDetail().trim().isEmpty();
     }
 
-    /**
-     * 扣款失败后把该卡加入黑名单。
-     *
-     * <p><b>只允许在「支付中心已给出业务应答且判定为扣款失败」这一条分支调用</b>
-     * （即解密 data 后 {@code retCode != SUCCESS}）。传输层失败、网关路径错
-     * （实测形态是 {@code code=600 操作失败}，见 AGENTS.md §8）、对端 5xx、响应为空
-     * 都 <b>NEVER 加黑名单</b>——那些与乘客的付款能力无关，加黑会直接拦住其过闸。
-     *
-     * <p>{@code blacklistClient.addBlackList} 是「返回结果对象、不抛异常」的 RPC 包装，
-     * 因此 <b>MUST 显式判 retCode</b>（AGENTS.md §5.2）；判不过只打 ERROR，
-     * 不影响本次支付申请对上游的应答。</p>
-     */
+    /** 扣款失败后把该卡加入黑名单。 */
     private void addBlackListIfNeeded(AlipaySignInfo signInfo, String reason) {
         if (signInfo == null || !StringUtils.hasText(signInfo.getCardId()) || !StringUtils.hasText(signInfo.getThirdUserId())) {
             return;

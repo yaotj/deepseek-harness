@@ -20,16 +20,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
-/**
- * 综管台服务监控：对静态清单中的各微服务逐个探活 {@code /actuator/health} 并聚合。
- *
- * <p>清单与 {@code service.*.url} 同源（同一批配置项，默认值对齐集群内网 Service 名），
- * 无注册中心可自动发现，新增服务 MUST 同步这里的清单与 application.properties。
- * 探活只读，单个服务失败只降级成该行的 DOWN/UNKNOWN，NEVER 让整体接口 500。</p>
- *
- * <p>本接口属「监控探活」而非业务接口，是 web-server 不直连业务服务这一约束的
- * 已知例外（设计文档 §四.7 已经用户确认）。</p>
- */
+/** 综管台服务监控：对静态清单中的各微服务逐个探活 {@code /actuator/health} 并聚合。 */
 @Service
 public class ServiceStatusService {
     private static final Logger log = LoggerFactory.getLogger(ServiceStatusService.class);

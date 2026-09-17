@@ -2,61 +2,34 @@ package com.chinasofti.huateng.collectpay.model.request.bom;
 
 import com.chinasofti.huateng.collectpay.model.request.BaseRequestDTO;
 
-/**
- * IF5A-09 HCE票卡更新结果通知请求DTO。
- * BOM在票卡分析或更新HCE数据后，向ITP平台通知HCE更新结果时使用的业务参数。
- */
+/** IF5A-09 HCE票卡更新结果通知请求DTO。 */
 public class NotiUpdateHceDataReqDTO extends BaseRequestDTO {
 
-    /**
-     * 更新区域类型。
-     * 00：非付费区
-     * 01：付费区
-     */
+    /** 更新区域类型。 */
     private String updateType;
 
-    /**
-     * 建议本次操作类型。
-     * 018：补进站 无法出站
-     * 006：补出站（最低票价）无法进站
-     * 005: 20分免费进站更新无法进站
-     */
+    /** 建议本次操作类型。 */
     private String adviceOpt;
 
-    /**
-     * 操作员编码。
-     */
+    /** 操作员编码。 */
     private String operaterId;
 
-    /**
-     * 逻辑卡号。
-     */
+    /** 逻辑卡号。 */
     private String cardId;
 
-    /**
-     * 补站站点。
-     */
+    /** 补站站点。 */
     private String updateStationCode;
 
-    /**
-     * 更新时间。
-     * 格式：yyyyMMddHHmmss
-     */
+    /** 更新时间。 */
     private String optDate;
 
-    /**
-     * 交易金额。
-     */
+    /** 交易金额。 */
     private String transAmount;
 
-    /**
-     * HCE卡数据（16进制字符串）。
-     */
+    /** HCE卡数据（16进制字符串）。 */
     private String hceData;
 
-    /**
-     * 交易序列号。
-     */
+    /** 交易序列号。 */
     private String tikcetTransSeq;
 
     public String getUpdateType() {

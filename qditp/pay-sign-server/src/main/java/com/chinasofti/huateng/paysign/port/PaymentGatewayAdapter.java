@@ -14,10 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/**
- * {@link PaymentGatewayPort} 的唯一实现：扣款方向出向 URL 与应答判读的收口点
- * （2026-09-16，ADR-D113 续；形态同 {@link ContractGatewayAdapter}）。
- */
+/** {@link PaymentGatewayPort} 的唯一实现：扣款方向出向 URL 与应答判读的收口点。 */
 @Component
 public class PaymentGatewayAdapter implements PaymentGatewayPort {
 
@@ -44,7 +41,6 @@ public class PaymentGatewayAdapter implements PaymentGatewayPort {
         if (paySignGateway.isSuccess(response)) {
             return new PaymentReply.Accepted(response);
         }
-        // 判定顺序 MUST 是「先看成功码、再看幂等措辞」：isAlreadyPaidSuccess 只在非成功码下才有意义。
         if (paySignGateway.isAlreadyPaidSuccess(response)) {
             return new PaymentReply.AlreadyPaid(response);
         }
@@ -67,12 +63,7 @@ public class PaymentGatewayAdapter implements PaymentGatewayPort {
                 : new GatewayReply.Rejected(response);
     }
 
-    /**
-     * 支付回调地址：报文透传值优先，其次支付专用配置。
-     *
-     * <p>由 {@code PaymentDomainServiceImpl.resolvePayNotifyUrl} 原样搬入。
-     * <b>注意它只有两级，与签约方向的三级回落不同，NEVER 互相看齐</b>。
-     */
+    /** 支付回调地址：报文透传值优先，其次支付专用配置。 */
     private String resolvePayNotifyUrl(RequestPayReqDTO request) {
         if (StringUtils.hasText(request.getNotifyUrl())) {
             return request.getNotifyUrl();

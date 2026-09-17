@@ -74,7 +74,6 @@ public class EsTaskServiceImpl implements IEsTaskService {
         esTask.setLastUpdTms(null);
         esTask.setLastUpdId(serverName);
         esTask.setApprStat(TaskApplyStat.AGREED.getCode());
-        // 校验拆分任务数量不能超过计划数量
         TblTktTaskPlan plan = taskPlanService.selectByPlanNo(esTask.getPlanNo());
         int allTaskNum = Objects.isNull(esTaskMapper.sumTaskByPlanNo(esTask.getPlanNo())) ? 0 : esTaskMapper.sumTaskByPlanNo(esTask.getPlanNo());
         TblTktTaskPlan taskPlan = new TblTktTaskPlan();
@@ -86,10 +85,8 @@ public class EsTaskServiceImpl implements IEsTaskService {
         } else {
             taskPlan.setTaskPlanStat(PlanStat.SPLITED.code());
         }
-        // 更新计划已分配数量和计划状态
         taskPlan.setAssignNum(esTask.getTaskNum() + allTaskNum);
         taskPlanService.updateByPlanNoSelective(taskPlan);
-        // 保存拆分任务
         esTaskMapper.insert(esTask);
         return ResultMapper.ok();
     }
@@ -136,7 +133,6 @@ public class EsTaskServiceImpl implements IEsTaskService {
         }
 
         if (TaskAssignStat.ASSIGNED.code().equals(esTask.getTaskAssnStat())) {
-            // 删除任务对应的分配记录
             esAssignMapper.deleteByPrimaryKey(taskNo, esCode);
         }
         taskPlanService.assignTask(taskPlan);
@@ -177,7 +173,6 @@ public class EsTaskServiceImpl implements IEsTaskService {
     public ResultVO<?> delete2(Integer taskNo, String esCode) {
         TblTktEsTask esTask = esTaskMapper.selectByPrimaryKey(taskNo);
         if (TaskAssignStat.ASSIGNED.code().equals(esTask.getTaskAssnStat())) {
-            // 删除任务对应的分配记录
             esAssignMapper.deleteByPrimaryKey(taskNo, esCode);
         }
         esTaskMapper.deleteByPrimaryKey(taskNo);
@@ -220,9 +215,7 @@ public class EsTaskServiceImpl implements IEsTaskService {
         if (report instanceof PublishTaskReport) {
             log.info("处理制票任务回执");
             PublishTaskReport publishTaskReport = (PublishTaskReport) report;
-            // 更新任务执行结果
             int i = esTaskMapper.reportPublishTaskReport(publishTaskReport);
-            // 保存任务报告和文件处理记录
             TblTktEsReport tblTktEsReport = new TblTktEsReport(Integer.valueOf(publishTaskReport.getTaskNo()), task.getTaskType(), publishTaskReport.getEsNodeId(), "", Integer.valueOf(publishTaskReport.getTaskNum()), task.getBeginNo(), task.getEndNo(), Integer.valueOf(publishTaskReport.getCompletedNum()), Integer.valueOf(publishTaskReport.getWastedNum()), publishTaskReport.getBeginTime(), publishTaskReport.getEndTime(), publishTaskReport.getOperator(), null);
             esReportService.saveReports(tblTktEsReport);
             TblTktEsProc esProc = new TblTktEsProc(Integer.valueOf(publishTaskReport.getTaskNo()), publishTaskReport.getEsNodeId(), 9050, DateUtil.dateString8(), publishTaskReport.getFileName(), Integer.valueOf(publishTaskReport.getTaskNum()), Integer.valueOf(publishTaskReport.getCompletedNum()), "0", publishTaskReport.getOperator(), null);
@@ -233,7 +226,6 @@ public class EsTaskServiceImpl implements IEsTaskService {
         } else if (report instanceof PreAssignTaskReport) {
             log.info("handle pre-assign task report");
             PreAssignTaskReport preAssignTaskReport = (PreAssignTaskReport) report;
-            // 更新任务执行结果
             int i = esTaskMapper.reportPreAssignTaskReport(preAssignTaskReport);
             TblTktEsReport tblTktEsReport = new TblTktEsReport(Integer.parseInt(preAssignTaskReport.getTaskNo()), task.getTaskType(), preAssignTaskReport.getEsNodeId(), "", Integer.parseInt(preAssignTaskReport.getTaskNum()), task.getBeginNo(), task.getEndNo(), Integer.valueOf(preAssignTaskReport.getCompletedNum()), Integer.valueOf(preAssignTaskReport.getErrorNum()), preAssignTaskReport.getBeginTime(), preAssignTaskReport.getEndTime(), preAssignTaskReport.getOperator(), null);
             esReportService.saveReports(tblTktEsReport);
@@ -244,7 +236,6 @@ public class EsTaskServiceImpl implements IEsTaskService {
         } else if (report instanceof HandCancelTaskReport) {
             log.info("handle hand-cancel task report");
             HandCancelTaskReport handCancelTaskReport = (HandCancelTaskReport) report;
-            // 更新任务执行结果
             int i = esTaskMapper.reportHandCancelTaskReport(handCancelTaskReport);
             TblTktEsReport tblTktEsReport = new TblTktEsReport(Integer.valueOf(handCancelTaskReport.getTaskNo()), task.getTaskType(), handCancelTaskReport.getEsNodeId(), "", Integer.valueOf(handCancelTaskReport.getTaskNum()), task.getBeginNo(), task.getEndNo(), Integer.valueOf(handCancelTaskReport.getCompletedNum()), Integer.valueOf(handCancelTaskReport.getErrorNum()), handCancelTaskReport.getBeginTime(), handCancelTaskReport.getEndTime(), handCancelTaskReport.getOperator(), null);
             esReportService.saveReports(tblTktEsReport);
@@ -255,7 +246,6 @@ public class EsTaskServiceImpl implements IEsTaskService {
         } else if (report instanceof CancelTaskReport) {
             log.info("handle cancel task report");
             CancelTaskReport cancelTaskReport = (CancelTaskReport) report;
-            // 更新任务执行结果
             int i = esTaskMapper.reportCancelTaskReport(cancelTaskReport);
             TblTktEsReport tblTktEsReport = new TblTktEsReport(Integer.valueOf(cancelTaskReport.getTaskNo()), task.getTaskType(), cancelTaskReport.getEsNodeId(), "", Integer.valueOf(cancelTaskReport.getTaskNum()), task.getBeginNo(), task.getEndNo(), Integer.valueOf(cancelTaskReport.getCompletedNum()), Integer.valueOf(cancelTaskReport.getErrorNum()), cancelTaskReport.getBeginTime(), cancelTaskReport.getEndTime(), cancelTaskReport.getOperator(), null);
             esReportService.saveReports(tblTktEsReport);
@@ -264,8 +254,6 @@ public class EsTaskServiceImpl implements IEsTaskService {
             esReportService.analysisFile(cancelTaskReport.getFileName(), cancelTaskReport.getTaskNo(), cancelTaskReport.getTaskNum(), task);
 
         } else if (report instanceof SortTaskReport) {
-//            SortTaskReport sortTaskReport = (SortTaskReport) report;
-//            int i = esTaskMapper.reportSortTaskReport(sortTaskReport);
 
         } else if (report instanceof RecodeTaskReport) {
             log.info("handle recode task report");
@@ -305,7 +293,6 @@ public class EsTaskServiceImpl implements IEsTaskService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ResultVO<?> saveCustom(TblTktEsTask task) {
-        // 上传并解析个性化任务文件
         ResultVO<String> name = fileService.upload(task.getFile());
         String fileName = name.getData();
         task.setLastUpdId(serverName);

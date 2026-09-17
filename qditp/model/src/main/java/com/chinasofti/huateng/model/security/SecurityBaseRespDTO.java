@@ -2,8 +2,6 @@ package com.chinasofti.huateng.model.security;
 
 /**
  * acc-security-server通用应答字段。
- *
- * <p>acc-security-server 外层返回 ResultVO，rpc.SecurityClient 会把 code/msg 映射到这里。</p>
  */
 public class SecurityBaseRespDTO {
     /**

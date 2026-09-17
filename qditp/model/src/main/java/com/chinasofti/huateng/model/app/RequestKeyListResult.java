@@ -6,9 +6,6 @@ import java.util.List;
 
 /**
  * IF8A-02 请求同步密钥应答参数。
- *
- * <p>该对象直接返回给 APP。二维码卡的 keyList 保存用户非对称密钥对、公钥签名和 CA 索引；
- * HCE 卡的 keyList 保存转加密后的 DPK。</p>
  */
 public class RequestKeyListResult extends CommonResult {
     /**

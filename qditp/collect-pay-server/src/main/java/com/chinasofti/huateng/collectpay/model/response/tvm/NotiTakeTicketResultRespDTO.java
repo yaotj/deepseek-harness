@@ -1,17 +1,11 @@
 package com.chinasofti.huateng.collectpay.model.response.tvm;
 
-/**
- * IF2A-04 出票结果通知应答报文（ITP -> TVM）。
- */
+/** IF2A-04 出票结果通知应答报文（ITP -> TVM）。 */
 public class NotiTakeTicketResultRespDTO {
-    /**
-     * 返回码。
-     */
+    /** 返回码。 */
     private String retCode;
 
-    /**
-     * 返回消息。
-     */
+    /** 返回消息。 */
     private String retMsg;
 
     public String getRetCode() {

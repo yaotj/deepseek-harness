@@ -26,17 +26,13 @@ public class TransRecordDTO {
     private String offlineFlag;
     private String attributableParty;
     private String receivingParty;
-    /** 支付渠道编码（如 03=支付宝、05=微信），映射自 PAY_TXN_DETAIL.PAYMENT_VENDOR */
+    /** 支付渠道编码（如 03=支付宝、05=微信），映射自 PAY_TXN_DETAIL.PAYMENT_VENDOR。 */
     private String payChannelCode;
     private String transferFlag;
     private String cumulativeType;
     private Integer originalFare;
     /**
      * 原始票价（分），值与 {@link #originalFare} 完全相同，供 APP 按 totalAmount 取用。
-     *
-     * <p><b>NEVER 把它当成 {@code GATE_TXN_PAY.TOTAL_AMOUNT}</b>（那是实付 = 车费 + 超时费，
-     * 对应本 DTO 的 {@code payAmount}）。这里只是 APP 要求的字段名，语义仍是「进出站地铁原价」，
-     * 赋值处 MUST 与 {@code originalFare} 同源，两者不允许出现不同值。</p>
      */
     private Integer totalAmount;
     private Integer walletTotalAmt;

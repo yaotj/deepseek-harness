@@ -6,22 +6,22 @@ package com.chinasofti.huateng.model.alipaytrip;
 public class AlipayTripRequestApplicationReqDTO {
 
     /**
-     * 第三方用户ID，格式化后的用户标识
+     * 第三方用户ID，格式化后的用户标识。
      */
     private String thirdUserId;
 
     /**
-     * 卡片类型，如：02
+     * 卡片类型，如：02。
      */
     private String cardType;
 
     /**
-     * 用户手机号码
+     * 用户手机号码。
      */
     private String msisdn;
 
     /**
-     * 扩展字段1
+     * 扩展字段1。
      */
     private String extend1;
 
@@ -31,7 +31,7 @@ public class AlipayTripRequestApplicationReqDTO {
     private String extend2;
 
     /**
-     * 发卡渠道代码 0007支付宝出行
+     * 发卡渠道代码 0007支付宝出行。
      */
     private String cardIssueCode;
 

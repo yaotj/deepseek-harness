@@ -18,15 +18,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.*;
 
-/**
- * 支付宝出行-行程查询处理。
- *
- * <p>负责：
- * <ul>
- *   <li>alipayTripFindTravelList - 查询乘车记录列表</li>
- *   <li>alipayTripFindTravelDetail - 查询乘车记录详情</li>
- * </ul>
- */
+/** 支付宝出行-行程查询处理。 */
 @Component
 public class AlipayTripHandler {
 
@@ -38,9 +30,7 @@ public class AlipayTripHandler {
     @Autowired
     private StationNameResolver stationNameResolver;
 
-    /**
-     * 查询支付宝出行乘车记录列表。
-     */
+    /** 查询支付宝出行乘车记录列表。 */
     public AlipayTripFindTravelListRespDTO alipayTripFindTravelList(AlipayTripFindTravelListReqDTO request) {
         AlipayTripFindTravelListRespDTO response = new AlipayTripFindTravelListRespDTO();
         try {
@@ -70,7 +60,6 @@ public class AlipayTripHandler {
 
             int totalPage = (int) Math.ceil((double) total / size);
 
-            // 站点名称转换
             enrichStationNamesForAlipay(records);
 
             List<AlipayTripTravelRecordDTO> list = convertToAlipayDTOs(records);
@@ -90,9 +79,7 @@ public class AlipayTripHandler {
         return response;
     }
 
-    /**
-     * 查询支付宝出行乘车记录详情。
-     */
+    /** 查询支付宝出行乘车记录详情。 */
     public AlipayTripFindTravelDetailRespDTO alipayTripFindTravelDetail(AlipayTripFindTravelDetailReqDTO request) {
         AlipayTripFindTravelDetailRespDTO response = new AlipayTripFindTravelDetailRespDTO();
         try {
@@ -111,7 +98,6 @@ public class AlipayTripHandler {
             log.info("支付宝出行-查询乘车记录详情, 查询成功, record={}", record);
             AlipayTripTravelRecordDTO dto = convertToAlipayDTO(record);
 
-            // 站点名称转换
             enrichSingleStationNamesForAlipay(dto);
 
             fillResponse(response, dto);
@@ -125,8 +111,6 @@ public class AlipayTripHandler {
         }
         return response;
     }
-
-    // ==================== 私有辅助方法 ====================
 
     private int parsePage(String pageStr) {
         int page = 0;

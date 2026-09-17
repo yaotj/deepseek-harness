@@ -8,11 +8,7 @@
           and PUBLIC_KEY_VERSION_STATUS = '20020'
     </select>
 
-    <!--
-        综管台密钥版本查看：按接入方取最新一条版本记录（按批次号降序取首行）。
-        只读元信息，本表本就不存密钥材料；NEVER 关联 METRO_AGM_KEY_POOL 取 KEY_VALUE。
-        PROVIDER_ID 排序保证多接入方时输出稳定。
-    -->
+    <!-- 综管台密钥版本查看：按接入方取最新一条版本记录。NEVER 关联 METRO_AGM_KEY_POOL 取 KEY_VALUE。 -->
     <select id="selectLatestByProvider" resultType="com.chinasofti.huateng.key.page.KeyVersionView">
         select PROVIDER_ID as providerId,
                TO_CHAR(KEY_BATH_NUMBER) as currentVersion,

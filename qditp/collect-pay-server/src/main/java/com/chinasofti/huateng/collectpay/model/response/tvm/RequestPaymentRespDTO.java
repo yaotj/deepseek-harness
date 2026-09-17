@@ -2,31 +2,19 @@ package com.chinasofti.huateng.collectpay.model.response.tvm;
 
 import com.alibaba.fastjson.JSONObject;
 
-/**
- * IF2A-11 扫码支付应答报文（ITP -> TVM）。
- */
+/** IF2A-11 扫码支付应答报文（ITP -> TVM）。 */
 public class RequestPaymentRespDTO {
 
-    /**
-     * 返回码。
-     */
+    /** 返回码。 */
     private String retCode;
 
-    /**
-     * 返回消息。
-     */
+    /** 返回消息。 */
     private String retMsg;
 
-    /**
-     * 支付结果。
-     * 成功：SUCCESS
-     * 失败：FAILED
-     */
+    /** 支付结果。 */
     private String paymentResult;
 
-    /**
-     * 支付结果描述。
-     */
+    /** 支付结果描述。 */
     private String paymentResultDesc;
 
     public String getRetCode() {

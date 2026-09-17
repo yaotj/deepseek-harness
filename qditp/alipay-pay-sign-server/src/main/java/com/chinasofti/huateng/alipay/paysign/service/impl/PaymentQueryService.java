@@ -34,14 +34,7 @@ public class PaymentQueryService {
 
     private static final String CALLBACK_TYPE_PAY = "PAY";
 
-    /**
-     * 支付结果回调允许支付中心推送的总次数（首推 1 次 + 重推 1 次），与 pay-sign-server
-     * 的 {@code MAX_PAY_CALLBACK_PUSH} 同口径。
-     *
-     * <p>⚠️ 支付中心的重推次数 / 间隔 / 上限**没有规格**（{@code docs/external/支付中心网关接口文档.md} §5
-     * 只写「未收到成功响应会重试」）。这个 2 是与 pay-sign 对齐的经验值，
-     * <b>MUST 向供方索取重试规格后再校准，NEVER 把日志观察值当契约</b>。</p>
-     */
+    /** 支付结果回调允许支付中心推送的总次数（首推 1 次 + 重推 1 次），与 pay-sign-server 同口径。 */
     private static final int MAX_PAY_CALLBACK_PUSH = 2;
 
     private static final String TRANS_STATUS_SUCCESS = "1";
@@ -170,13 +163,7 @@ public class PaymentQueryService {
         return response;
     }
 
-    /**
-     * 把支付中心给出的终态回写本地支付流水，带非终态白名单。
-     *
-     * <p>影响 0 行有两种含义，MUST 回读区分，NEVER 一律当成功：
-     * 本地已是目标状态即幂等命中；本地已 SUCCESS 而支付中心说失败则是口径冲突，
-     * 只打 ERROR 等人工去支付中心核对，<b>NEVER 把终态覆盖成 FAIL</b>。</p>
-     */
+    /** 把支付中心给出的终态回写本地支付流水，带非终态白名单。 */
     private void applyQueryResult(String orderNo, String payStatus, String tradeNo,
                                   String transTime, String payAmount, String resultMsg) {
         int affected = alipayPayLogMapper.updatePayQueryResultIfNotSuccess(
@@ -197,23 +184,7 @@ public class PaymentQueryService {
                 orderNo, currentStatus, payStatus, resultMsg);
     }
 
-    /**
-     * 支付宝出行扣费结果回调。
-     *
-     * <p>扣费订单已收口到 gate-txn-pay-server，因此本方法 <b>NEVER 再读写 ALIPAY_PAY_LOG</b>，
-     * 而是把结果同步给 {@code GATE_TXN_PAY.DEBIT_STATUS}（唯一权威）。业务幂等由下游按
-     * 订单号 + 状态白名单保证。</p>
-     *
-     * <p><b>NEVER 给本方法加 {@code @Transactional}</b>：方法体内有 RPC，
-     * 事务包住网络调用会把行锁持有时长拉成对端响应时长（AGENTS.md §5.2 已记录过生产事故）；
-     * 无事务时每条 SQL 自动提交，{@code ALIPAY_PAY_CALLBACK_LOG} 那行凭据不会被回滚掉。</p>
-     *
-     * <p>形态对齐 pay-sign-server 的 {@code PaySignWorkflow.receivePayResult}：
-     * <b>回调即入库</b>当凭据 → 按累计推送次数判是否已到上限 → 同步下游 →
-     * 失败且未到上限就返非 0000 让支付中心重推、到上限则返 0000 停推并把该行置 MANUAL。
-     * <b>NEVER 回退成「只返非 0000、库里不留痕」</b>：那样支付中心会无限重推，
-     * 而我方除容器日志外没有任何可查的证据。</p>
-     */
+    /** 支付宝出行扣费结果回调。 */
     public AlipayCommonResponse handlePayNotify(AlipayTripPayNotifyReqDTO request) {
         log.info("接收到支付宝支付结果回调, 原始报文: {}", JSON.toJSONString(request));
         AlipayCommonResponse response = new AlipayCommonResponse();
@@ -261,13 +232,7 @@ public class PaymentQueryService {
         return response;
     }
 
-    /**
-     * {@code transStatus} 白名单映射：只认契约里的 {@code 1} 成功 / {@code 2} 失败，其余返回 null。
-     *
-     * <p><b>NEVER 写成「等于 1 就成功、否则失败」</b>——那是黑名单式判定，会把新增取值、
-     * 空值、乱码统统当成扣款失败，从而把一笔可能已成功的扣费同步成 FAIL
-     * （AGENTS.md §5.2「状态机校验用白名单」）。</p>
-     */
+    /** {@code transStatus} 白名单映射：只认契约里的 {@code 1} 成功 / {@code 2} 失败，其余返回 null。 */
     private String mapTransStatus(String transStatus) {
         if (TRANS_STATUS_SUCCESS.equals(transStatus)) {
             return "SUCCESS";
@@ -307,12 +272,7 @@ public class PaymentQueryService {
         }
     }
 
-    /**
-     * 统计该订单 PAY 回调的累计推送次数（含本次）。
-     *
-     * <p>计数点在 insert 之后：本方法无事务，insert 已提交。取不到计数时返回 0，
-     * 等于「不启用硬限次、保持原来的让上游重推」，<b>NEVER 因为计数失败就直接放行返 0000</b>。</p>
-     */
+    /** 统计该订单 PAY 回调的累计推送次数（含本次）。 */
     private int countPush(String orderNo) {
         try {
             return alipayPayCallbackLogMapper.countByOrderNo(orderNo, CALLBACK_TYPE_PAY);
@@ -333,12 +293,7 @@ public class PaymentQueryService {
         }
     }
 
-    /**
-     * 达到重推上限仍未处理成功：回 0000 让支付中心停推，同时把最后一条回调标成 MANUAL。
-     *
-     * <p>这是「不再自动重试」换「不再自我放大」的取舍，因此 MUST 同时打 ERROR 并留痕。
-     * <b>运维 MUST 例行巡检 {@code HANDLE_STATUS='MANUAL'}</b>，否则失败会静默沉底。</p>
-     */
+    /** 达到重推上限仍未处理成功：回 0000 让支付中心停推，同时把最后一条回调标成 MANUAL。 */
     private void giveUpRetry(String orderNo, int pushCount, String reason) {
         log.error("支付宝支付回调已推送{}次仍未处理成功，达到上限{}，放弃重推并返回0000，MUST 人工处理, orderNo={}, 原因={}",
                 pushCount, MAX_PAY_CALLBACK_PUSH, orderNo, reason);
@@ -358,10 +313,6 @@ public class PaymentQueryService {
 
     /**
      * 通知 gate-txn-pay-server 把 {@code GATE_TXN_PAY.DEBIT_STATUS} 收敛到终态。
-     *
-     * <p>与 pay-sign-server 的 {@code PaySignWorkflow.syncGateTxnPayStatus} 保持同一形态：
-     * 显式判 {@code retCode=0000}，失败只记日志并交回调用方决定是否让上游重推。</p>
-     *
      * @return true 表示远端已确认收敛（含幂等命中），false 表示需要支付中心重推
      */
     private boolean syncGateTxnPayStatus(String orderNo, String payStatus) {
@@ -407,14 +358,7 @@ public class PaymentQueryService {
         return response;
     }
 
-    /**
-     * debitRequestResult 是对外契约字段，值域只有 "0"（扣费成功）与 "1"（未成功），
-     * NEVER 往里塞渠道文案 —— 本方法上线前该字段填的是 ALIPAY_PAY_LOG.RESULT_MSG，
-     * 支付宝侧按 0/1 解析，任何文案都被判成非 0 即失败，成功单也显示扣费未成功。
-     * 同一套映射在 fep-alipay-server 的 AlipayQueryServiceImpl:236 / :416 各有一份
-     * （私有方法同名），三处 MUST 保持一致；跨模块无法直接复用，见 AGENTS.md §5.1
-     * 「NEVER 主动创建新的工具类」。
-     */
+    /** debitRequestResult 是对外契约字段，值域只有 "0"（扣费成功）与 "1"（未成功）。 */
     private String mapPayStatusToDebitResult(String payStatus) {
         return "SUCCESS".equalsIgnoreCase(payStatus) ? "0" : "1";
     }

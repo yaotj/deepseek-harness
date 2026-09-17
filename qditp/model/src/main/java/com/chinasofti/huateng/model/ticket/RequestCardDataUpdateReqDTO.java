@@ -12,16 +12,11 @@ public class RequestCardDataUpdateReqDTO {
 
     /**
      * 更新区域类型。
-     * 00：非付费区
-     * 01：付费区
      */
     private String updateType;
 
     /**
      * 建议本次操作类型。
-     * 018：补进站 无法出站
-     * 006：补出站（最低票价）无法进站
-     * 005: 20分免费进站更新无法进站
      */
     private String adviceOpt;
 

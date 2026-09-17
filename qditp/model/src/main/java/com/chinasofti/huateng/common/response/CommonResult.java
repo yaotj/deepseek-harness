@@ -1,18 +1,18 @@
 package com.chinasofti.huateng.common.response;
 
 /**
- * @author zzm
- * @date 2026/5/25 11:34
+ * @date 2026/5/25 11:34。
+ * @author zzm。
  */
 public class CommonResult {
 
     /**
-     * 返回码
+     * 返回码。
      */
     private String retCode;
 
     /**
-     * 返回消息
+     * 返回消息。
      */
     private String retMsg;
 

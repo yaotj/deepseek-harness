@@ -5,10 +5,7 @@ import org.apache.ibatis.annotations.Mapper;
 
 import java.util.Map;
 
-/**
- * BOM业务操作结果通知Mapper接口。
- * 提供BOM业务操作结果通知的数据库操作方法。
- */
+/** BOM业务操作结果通知Mapper接口。 */
 @Mapper
 public interface BomBusResultMapper {
 
@@ -38,7 +35,6 @@ public interface BomBusResultMapper {
 
     /**
      * 根据通知ID更新通知信息。
-     * 使用Map传参，支持动态更新字段。
      *
      * @param params 更新参数，必须包含notifyId字段
      * @return 影响的行数

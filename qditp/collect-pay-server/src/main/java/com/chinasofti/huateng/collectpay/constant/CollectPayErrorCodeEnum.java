@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.collectpay.constant;
 
-/**
- * 取票支付服务错误码定义。
- */
+/** 取票支付服务错误码定义。 */
 public enum CollectPayErrorCodeEnum {
     SUCCESS("0000", "成功"),
     FAIL("9999", "失败"),

@@ -2,9 +2,7 @@ package com.chinasofti.huateng.fep.dev.model;
 
 import java.util.List;
 
-/**
- * IF1A-02 密钥同步请求业务参数。
- */
+/** IF1A-02 密钥同步请求业务参数。 */
 public class RequestSynKeyListReqDTO {
 
     private List<KeyCurVerReqDTO> keyCurVerList;

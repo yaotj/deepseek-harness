@@ -17,29 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/**
- * IF8A-22 {@code requestContractResult} **非钱包主干**的特征测试（2026-09-16 新增，ADR-D107 前置）。
- *
- * <p><b>为什么必须先有本类</b>：这是 `ContractDomainServiceImpl` 里最复杂的方法（109 行、4 个协作者），
- * 而它的非钱包主干此前是**零覆盖**的 —— 全仓 grep `requestContractResult`，测试侧只有
- * {@code AccountReadCharacterizationTest} 那 4 条，而它们传的是 {@code walletQuery()}，
- * 在方法第 3 行的钱包分支就 {@code return} 了，**从未进入主干**。
- * 因此在补上本类之前，任何对该方法的重构都是「无护栏改控制流」。
- *
- * <p><b>断言挂在 {@code PaySignService} 门面上</b>（经 {@link PaySignFacadeFixture}），
- * 与 D95 / D98 同一条理由：代码在底下怎么重排，「绿」都仍然证明对外行为等价。
- *
- * <p>钉住的六条口径，<b>NEVER 为了让某次重构通过而放宽</b>：
- * <ol>
- *   <li>本地已签约且数据完整 ⇒ 直接返回、**绝不出网**（省一次支付中心往返）；</li>
- *   <li>流水号命中的记录不属于报文里的 {@code thirdUserId} ⇒ 一律按「签约记录不存在」回绝，
- *       且**不出网** —— 这条是防「凭流水号探测他人协议」的归属校验；</li>
- *   <li>网关业务失败 ⇒ {@code SYSTEM_ERROR}，不改本地状态；</li>
- *   <li>本地有记录 + 平台返 SIGNED ⇒ 落库走 {@code markSigned}；</li>
- *   <li>本地无记录 + 平台返 SIGNED（**孤儿协议**）⇒ 照实返回但 <b>NEVER insert</b>；</li>
- *   <li>网关 {@code data} 为空 + 本地无记录 ⇒ 归一成 {@code NOT_SIGNED}。</li>
- * </ol>
- */
+/** 护栏：IF8A-22 非钱包主干六条口径，含归属校验与孤儿协议 NEVER insert。 */
 class ContractResultCharacterizationTest {
 
     private static final String ALIPAY_VENDOR = "03";
@@ -109,13 +87,7 @@ class ContractResultCharacterizationTest {
         verify(fixture.paySignInfoMapper).markSigned(anyString(), anyString(), anyString(), any());
     }
 
-    /**
-     * 口径 5：**孤儿协议** —— 平台说已签约、本地没有签约记录。
-     *
-     * <p>照实返回给 APP，但 <b>NEVER insert</b>：本接口是查询接口，报文里拿不到
-     * {@code CARD_ID} / {@code CARD_TYPE}，凭空造记录会让解约链路拿 {@code NO_ACCOUNT_CARD} 卡死在
-     * SCANNING（生产已发生 3 条，只能改库清理）。<b>NEVER 因为「补一条更完整」而放开落库。</b>
-     */
+    /** 口径 5：**孤儿协议** —— 平台说已签约、本地没有签约记录。 */
     @Test
     void orphanSignedContractIsReturnedButNeverPersisted() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();

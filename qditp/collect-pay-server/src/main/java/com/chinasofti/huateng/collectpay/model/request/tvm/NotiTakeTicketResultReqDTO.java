@@ -4,28 +4,18 @@ import com.chinasofti.huateng.collectpay.model.request.BaseRequestDTO;
 
 import java.util.List;
 
-/**
- * IF2A-04 出票结果通知请求报文（TVM -> ITP）。
- */
+/** IF2A-04 出票结果通知请求报文（TVM -> ITP）。 */
 public class NotiTakeTicketResultReqDTO extends BaseRequestDTO {
-    /**
-     * 订单号。
-     */
+    /** 订单号。 */
     private String orderNo;
 
-    /**
-     * 实际出票数量。
-     */
+    /** 实际出票数量。 */
     private String actualTakeTicketNum;
 
-    /**
-     * 出票时间（格式：YYYYMMDDHHMMSS）。
-     */
+    /** 出票时间（格式：YYYYMMDDHHMMSS）。 */
     private String takeTickeDate;
 
-    /**
-     * 已经写卡卡数据列表。
-     */
+    /** 已经写卡卡数据列表。 */
     private List<TicketInfo> ticketList;
 
     public String getOrderNo() {
@@ -70,23 +60,15 @@ public class NotiTakeTicketResultReqDTO extends BaseRequestDTO {
                 '}';
     }
 
-    /**
-     * 票卡信息。
-     */
+    /** 票卡信息。 */
     public static class TicketInfo {
-        /**
-         * 票卡逻辑号。
-         */
+        /** 票卡逻辑号。 */
         private String ticketLogicNum;
 
-        /**
-         * 交易日期（格式：YYYYMMDDHHMMSS）。
-         */
+        /** 交易日期（格式：YYYYMMDDHHMMSS）。 */
         private String transDate;
 
-        /**
-         * 交易金额。
-         */
+        /** 交易金额。 */
         private String transAmount;
 
         public String getTicketLogicNum() {

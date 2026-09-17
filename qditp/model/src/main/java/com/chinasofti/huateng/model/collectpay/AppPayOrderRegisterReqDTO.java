@@ -2,25 +2,6 @@ package com.chinasofti.huateng.model.collectpay;
 
 /**
  * 把一张外部补款单登记成 {@code TBL_TVM_APP_ORDER} + {@code TBL_TVM_ORDER_PAY_PRE} 两行的请求。
- *
- * <p><b>这是对内契约，不是 APP 报文</b>：调用方只有 gate-txn-pay-server 的 IF8A-26 补款链路，
- * 走 {@code POST /internal/app-order/register}。因此加字段是安全的（对比 {@code parseBizData}
- * 解析的对外 DTO，见 {@code docs/domain/README.md} 的分类判据）。</p>
- *
- * <p><b>这三条口径是资损防线，改字段含义前 MUST 逐条复核</b>：</p>
- * <ul>
- *   <li>{@code totalAmount} 单位是**分**，会同时写进 {@code TICKET_PRICE} / {@code TOTALPRICE} /
- *       {@code PAY_AMOUNT}，而 {@code TICKET_NUM} 固定 {@code 1}。collect-pay 的
- *       {@code requestPayInfo} 按 {@code TICKET_PRICE × TICKET_NUM} 算送去支付中心的金额，
- *       **NEVER** 只写 {@code TOTALPRICE} —— 那一列算钱时根本不读。</li>
- *   <li>{@code supplementFlag} 落 {@code RSV2}，**MUST 非空**。collect-pay 的
- *       {@code refundAppNotTakeTickets} 会把「已支付 + {@code RSV2} 为空 + 昨天创建 +
- *       主票表查不到票」的订单当成购票未取票**全额退款**；补款单永远不会有票，
- *       {@code RSV2} 一空就等于次日把收到的欠费退回给乘客。</li>
- *   <li>{@code transType} 落前置单的 {@code TRANS_TYPE}，补款单固定 {@code 03}（扫码取票）。
- *       collect-pay 的 {@code payNotice} 按这一列分派，只有 {@code 03} 会进
- *       {@code appOrderService.payNotice}（只改 APP 订单行、不出票）。</li>
- * </ul>
  */
 public class AppPayOrderRegisterReqDTO {
 
@@ -42,7 +23,7 @@ public class AppPayOrderRegisterReqDTO {
     /** 备注，落 {@code MSG}。 */
     private String msg;
 
-    /** 补款标记，落 {@code RSV2}，MUST 非空（见类注释）。 */
+    /** 补款标记，落 {@code RSV2} */
     private String supplementFlag;
 
     /** 来源标识，落前置单的 {@code DEVICE_ID}，便于在 collect-pay 侧一眼认出来源。 */

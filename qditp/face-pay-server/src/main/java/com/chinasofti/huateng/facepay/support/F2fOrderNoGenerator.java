@@ -5,12 +5,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 
-/**
- * 订单号生成入口。取号走 {@link F2fSequenceMapper}，拼装走 {@link F2fOrderNo}。
- *
- * <p><b>NEVER 在事务里调用本类之后又做 RPC</b>：取号是一条独立 SQL，下单链路的正确顺序是
- * 「取号 → INSERT 订单 → 事务外调支付中心」（AGENTS.md §5.2）。</p>
- */
+/** 订单号生成入口。 */
 @Component
 public class F2fOrderNoGenerator {
 

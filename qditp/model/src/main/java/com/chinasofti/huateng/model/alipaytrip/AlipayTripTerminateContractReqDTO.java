@@ -6,12 +6,12 @@ package com.chinasofti.huateng.model.alipaytrip;
 public class AlipayTripTerminateContractReqDTO {
 
     /**
-     * 协议号，签约时生成的协议编号
+     * 协议号，签约时生成的协议编号。
      */
     private String agreementCode;
 
     /**
-     * 合作方机构编号/商户号
+     * 合作方机构编号/商户号。
      */
     private String merchantNo;
 

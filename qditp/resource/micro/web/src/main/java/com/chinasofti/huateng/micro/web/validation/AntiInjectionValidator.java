@@ -51,9 +51,8 @@ public class AntiInjectionValidator implements ConstraintValidator<AntiInjection
     }
 
     /**
-     * 核心校验逻辑：检查对象中的所有字符串字段是否包含危险模式
-     *
-     * @param value 被校验的对象（请求体实体类）或字符串参数
+     * 核心校验逻辑：检查对象中的所有字符串字段是否包含危险模式。
+     * @param value 被校验的对象（请求体实体类）或字符串参数。
      */
     @Override
     public boolean isValid(Object value, ConstraintValidatorContext context) {
@@ -69,7 +68,7 @@ public class AntiInjectionValidator implements ConstraintValidator<AntiInjection
     }
 
     /**
-     * 检查单个字符串是否包含危险模式
+     * 检查单个字符串是否包含危险模式。
      */
     private boolean isSafe(String content) {
         for (String type : targetTypes) {
