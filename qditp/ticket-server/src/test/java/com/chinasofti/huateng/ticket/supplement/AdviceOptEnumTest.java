@@ -32,12 +32,12 @@ class AdviceOptEnumTest {
         assertFalse(AdviceOptEnum.FREE_UPDATE_020.matches("005"));
     }
 
-    /** 方向两组互斥且不重叠：进站组 {@code 018 / 020}、出站组 {@code 005 / 006}。 */
+    /** 方向两组互斥且不重叠：进站组 {@code 018}、出站组 {@code 005 / 006 / 020}。 */
     @Test
     void entryAndExitDirectionsAreDisjoint() {
         assertTrue(AdviceOptEnum.SUPPLEMENT_ENTRY.isSupplementEntry(), "018 是补进站");
-        assertTrue(AdviceOptEnum.FREE_UPDATE_020.isSupplementEntry(),
-                "020 是「刷卡未进站成功」的免费进闸更新，MUST 走补进站方向");
+        assertFalse(AdviceOptEnum.FREE_UPDATE_020.isSupplementEntry(),
+                "020 是「没有时间窗限制的 005」，MUST 走补出站方向");
         assertFalse(AdviceOptEnum.FREE_UPDATE.isSupplementEntry());
         assertFalse(AdviceOptEnum.PAID_UPDATE.isSupplementEntry());
         assertFalse(AdviceOptEnum.NONE.isSupplementEntry());
@@ -49,11 +49,11 @@ class AdviceOptEnumTest {
 
     @Test
     void supplementExitCodesDecideWhetherOrchestratorSkipsCharging() {
-        assertEquals(Set.of("005", "006"), AdviceOptEnum.SUPPLEMENT_EXIT_CODES);
+        assertEquals(Set.of("005", "006", "020"), AdviceOptEnum.SUPPLEMENT_EXIT_CODES);
         assertTrue(AdviceOptEnum.FREE_UPDATE.isSupplementExit());
         assertTrue(AdviceOptEnum.PAID_UPDATE.isSupplementExit());
-        assertFalse(AdviceOptEnum.FREE_UPDATE_020.isSupplementExit(),
-                "020 改成补进站后 MUST NOT 跳过扣费 —— 乘客随后要真实出站，跳过即整程免费（资损）");
+        assertTrue(AdviceOptEnum.FREE_UPDATE_020.isSupplementExit(),
+                "020 是免费补出站，本笔行程已由 BOM 收口，MUST 跳过出站扣费");
         assertFalse(AdviceOptEnum.SUPPLEMENT_ENTRY.isSupplementExit(), "018 补进站 MUST NOT 跳过扣费");
         assertFalse(AdviceOptEnum.NONE.isSupplementExit());
     }

@@ -6,17 +6,20 @@
         <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
         <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
         <result column="OPERATE_TYPE" jdbcType="VARCHAR" property="operateType"/>
+        <result column="OPERATOR" jdbcType="VARCHAR" property="operator"/>
         <result column="REASON" jdbcType="VARCHAR" property="reason"/>
         <result column="OPERATE_TIME" jdbcType="TIMESTAMP" property="operateTime"/>
     </resultMap>
 
+    <!-- REASON 按操作类型分别记：ADD 记拉黑原因，DELETE 记解除原因，NEVER 在 DELETE 时复制原拉黑原因。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.blacklist.entity.BlacklistOperateLog">
         insert into BLACKLIST_OPERATE_LOG (
-            CARD_ID, THIRD_USER_ID, OPERATE_TYPE, REASON, OPERATE_TIME
+            CARD_ID, THIRD_USER_ID, OPERATE_TYPE, OPERATOR, REASON, OPERATE_TIME
         ) values (
             #{cardId,jdbcType=VARCHAR},
             #{thirdUserId,jdbcType=VARCHAR},
             #{operateType,jdbcType=VARCHAR},
+            #{operator,jdbcType=VARCHAR},
             #{reason,jdbcType=VARCHAR},
             SYSTIMESTAMP
         )

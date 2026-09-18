@@ -12,6 +12,9 @@ public class FacePayOrderPageVO {
     /** 受理渠道：01-APP，02-TVM，03-BOM。 */
     private String channel;
 
+    /** 业务类型：01-购票，02-充值，03-取票，04-非现金收款。 */
+    private String bizType;
+
     /** 支付中心订单号，来自 {@code F2F_PAYMENT} 最后一次尝试。 */
     private String payCenterOrderNo;
 
@@ -77,6 +80,9 @@ public class FacePayOrderPageVO {
 
     public String getChannel() { return channel; }
     public void setChannel(String channel) { this.channel = channel; }
+
+    public String getBizType() { return bizType; }
+    public void setBizType(String bizType) { this.bizType = bizType; }
 
     public String getPayCenterOrderNo() { return payCenterOrderNo; }
     public void setPayCenterOrderNo(String payCenterOrderNo) { this.payCenterOrderNo = payCenterOrderNo; }

@@ -31,6 +31,13 @@ public class QueryTransListReqDTO {
     private String debitRequestResult;
     /** 日票票号（非必填） */
     private String ticketCode;
+    /**
+     * 发行渠道过滤（非必填，非 APP 传入）：空=全部渠道，{@code 07}=支付宝出行。
+     *
+     * <p>调用方按渠道收窄结果集时用，例如支付宝出行记录查询只要 {@code ISSUE_CHANNEL_CODE='07'} 的单。
+     * 不传即维持原有「全渠道」口径，IF8A-05 的 APP 入向契约不带该字段。
+     */
+    private String issueChannelCode;
     /** 服务端计算的分页偏移量（非 APP 传入） */
     private Integer offset;
     /** 服务端计算的分页限制（非 APP 传入） */
@@ -60,6 +67,8 @@ public class QueryTransListReqDTO {
     public void setDebitRequestResult(String debitRequestResult) { this.debitRequestResult = debitRequestResult; }
     public String getTicketCode() { return ticketCode; }
     public void setTicketCode(String ticketCode) { this.ticketCode = ticketCode; }
+    public String getIssueChannelCode() { return issueChannelCode; }
+    public void setIssueChannelCode(String issueChannelCode) { this.issueChannelCode = issueChannelCode; }
     public Integer getOffset() { return offset; }
     public void setOffset(Integer offset) { this.offset = offset; }
     public Integer getLimit() { return limit; }

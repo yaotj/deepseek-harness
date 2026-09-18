@@ -15,6 +15,12 @@ public class ReceivePayResultReqDTO {
     private String payUserId;
     private String paymentVendor;
     private String options;
+    /**
+     * 渠道优惠详情（网关文档 V1.2 新增），JSON 数组原文，元素为 {@code type} / {@code name} / {@code amount}。
+     * 只原样接收落库、不解析成嵌套 DTO：这是对外契约，NEVER 加字段或建结构类。
+     * 与 {@code RequestPayReqDTO.discountInfo}（闸机侧自算优惠）**不是同一个口径**，落库列也不同，NEVER 混用。
+     */
+    private String discountInfo;
 
     public String getOrderNo() {
         return orderNo;
@@ -102,6 +108,14 @@ public class ReceivePayResultReqDTO {
 
     public void setOptions(String options) {
         this.options = options;
+    }
+
+    public String getDiscountInfo() {
+        return discountInfo;
+    }
+
+    public void setDiscountInfo(String discountInfo) {
+        this.discountInfo = discountInfo;
     }
 
     @Override

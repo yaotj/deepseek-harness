@@ -27,6 +27,18 @@ import static org.mockito.Mockito.when;
 /** IF1A-01 卡种与签约信息富化器特征测试。 */
 class GateCardTypeEnricherTest {
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"N", "Y", "C"})
+    void accountFlagSurvivesIntoPaymentRequest(String flag) {
+        QueryUserInfoResult account = accountHit("0441");
+        account.setCompanionFlag(flag);
+        when(accountClient.queryCardTypeByCardId(anyString())).thenReturn(account);
+        NotifyVerifyResultReqDTO request = gateRequest();
+        enricher.applyActualCardType(request, new NotifyVerifyResultRespDTO());
+        assertEquals(flag, request.getCompanionFlag());
+        assertEquals(flag, com.chinasofti.huateng.model.pay.GateTxnPayReqDTO.fromVerifyResult(request).getCompanionFlag());
+    }
+
     private AccountClient accountClient;
     private AlipayAccountClient alipayAccountClient;
     private GateCardTypeEnricher enricher;

@@ -8,18 +8,21 @@ import com.chinasofti.huateng.dailyticket.mapper.DailyTicketInstanceMapper;
 import com.chinasofti.huateng.dailyticket.mapper.DailyTicketOrderMapper;
 import com.chinasofti.huateng.dailyticket.mapper.DailyTicketPayLogMapper;
 import com.chinasofti.huateng.dailyticket.mapper.DailyTicketRefundMapper;
+import com.chinasofti.huateng.dailyticket.mapper.DailyTicketRefundDetailMapper;
 import com.chinasofti.huateng.dailyticket.mapper.DailyTicketUsageLogMapper;
 import com.chinasofti.huateng.dailyticket.mapper.TravelTicketOrderMapper;
 import com.chinasofti.huateng.dailyticket.model.DailyTicketInstance;
 import com.chinasofti.huateng.dailyticket.model.DailyTicketOrder;
 import com.chinasofti.huateng.dailyticket.model.DailyTicketPayLog;
 import com.chinasofti.huateng.dailyticket.model.DailyTicketRefund;
+import com.chinasofti.huateng.dailyticket.model.DailyTicketRefundDetail;
 import com.chinasofti.huateng.dailyticket.model.DailyTicketUsageLog;
 import com.chinasofti.huateng.dailyticket.model.TravelTicketOrder;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderQuery;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderView;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundQuery;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundView;
+import com.chinasofti.huateng.dailyticket.page.TravelTicketSubRefundRequest;
 import com.chinasofti.huateng.dailyticket.service.DailyTicketService;
 import com.chinasofti.huateng.dailyticket.service.DailyTicketRefundNotifyService;
 import com.chinasofti.huateng.common.response.ResultMapper;
@@ -44,7 +47,6 @@ import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketPayInfoReqDT
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketPayInfoResult;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderResult;
-import com.chinasofti.huateng.model.app.dailyticket.TravelTicketSubOrder;
 import com.chinasofti.huateng.model.enums.CardTypeCodeEnum;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,6 +71,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
     private static final String RET_SUCCESS = "0000";
     private static final String RET_FAIL = "9999";
     private static final String ORDER_TYPE_DAILY_TICKET = "1";
+    private static final String ORDER_TYPE_TRAVEL_TICKET = "2";
 
     /**
      * 旅游票单次购买张数上限。旅游票下单按张数循环 INSERT，不设上限等于把 for 循环次数交给外部输入。
@@ -76,10 +79,18 @@ public class DailyTicketServiceImpl implements DailyTicketService {
      */
     private static final int MAX_TRAVEL_TICKET_COUNT = 20;
 
-    /** 日票实例状态机（{@code DAILY_TICKET_INSTANCE.TICKET_STATUS}）： */
+    /**
+     * 日票实例状态机（{@code DAILY_TICKET_INSTANCE.TICKET_STATUS}）：
+     * {@code ACTIVATED -> USED / EXPIRED}（出站扣次）、{@code ACTIVATED -> REFUND_LOCKED}（发起核验退款）、
+     * {@code REFUND_LOCKED -> REFUNDED}（放款成功）、{@code REFUND_LOCKED -> ACTIVATED}（退款失败回退）。
+     * {@code REFUND_LOCKED} 与 {@code REFUNDED} 都不在进站白名单（{@code selectForEntryCheck}）里，
+     * 这是「已申请退款的票不能再乘坐」的唯一落点，NEVER 把它们加进那个白名单。
+     */
     private static final String TICKET_STATUS_ACTIVATED = "ACTIVATED";
     private static final String TICKET_STATUS_USED = "USED";
     private static final String TICKET_STATUS_EXPIRED = "EXPIRED";
+    private static final String TICKET_STATUS_REFUND_LOCKED = "REFUND_LOCKED";
+    private static final String TICKET_STATUS_REFUNDED = "REFUNDED";
 
     private final AtomicInteger orderSequence = new AtomicInteger(1);
     private final DailyTicketPayGatewayClient payGatewayClient;
@@ -89,6 +100,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
     private final DailyTicketInstanceMapper instanceMapper;
     private final DailyTicketPayLogMapper payLogMapper;
     private final DailyTicketRefundMapper refundMapper;
+    private final DailyTicketRefundDetailMapper refundDetailMapper;
     private final DailyTicketUsageLogMapper usageLogMapper;
     private final DailyTicketRefundNotifyService refundNotifyService;
 
@@ -99,6 +111,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
                                   DailyTicketInstanceMapper instanceMapper,
                                   DailyTicketPayLogMapper payLogMapper,
                                   DailyTicketRefundMapper refundMapper,
+                                  DailyTicketRefundDetailMapper refundDetailMapper,
                                   DailyTicketUsageLogMapper usageLogMapper,
                                   DailyTicketRefundNotifyService refundNotifyService) {
         this.payGatewayClient = payGatewayClient;
@@ -108,6 +121,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         this.instanceMapper = instanceMapper;
         this.payLogMapper = payLogMapper;
         this.refundMapper = refundMapper;
+        this.refundDetailMapper = refundDetailMapper;
         this.usageLogMapper = usageLogMapper;
         this.refundNotifyService = refundNotifyService;
     }
@@ -123,24 +137,24 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         }
 
         Date now = new Date();
-        int ticketPrice = request.getTicketPrice();
+        int ticketPrice = request.getTotalAmount() / request.getTicketCount();
         int ticketCount = request.getTicketCount();
         String travelOrderNo = nextTravelOrderNo();
 
-        List<TravelTicketSubOrder> subOrders = new ArrayList<>(ticketCount);
+        List<String> subOrderNos = new ArrayList<>(ticketCount);
         for (int i = 0; i < ticketCount; i++) {
             DailyTicketOrder sub = buildTravelSubOrder(request, travelOrderNo, ticketPrice, now);
             orderMapper.insert(sub);
-            subOrders.add(toSubOrderView(sub));
+            subOrderNos.add(sub.getOrderNo());
         }
 
         travelOrderMapper.insert(buildTravelMainOrder(request, travelOrderNo, ticketPrice, ticketCount, now));
 
         log.info("IF8A-70 旅游票下单完成, orderNo={}, ticketCount={}, totalAmount={}",
-                travelOrderNo, ticketCount, ticketPrice * ticketCount);
+                travelOrderNo, ticketCount, request.getTotalAmount());
         success(result);
         result.setOrderNo(travelOrderNo);
-        result.setSubOrders(subOrders);
+        result.setSubOrders(String.join(",", subOrderNos));
         return result;
     }
 
@@ -179,6 +193,9 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         String validMsg = validateOrderNo(request == null ? null : request.getOrderNo(), request == null ? null : request.getOrderType());
         if (validMsg != null) {
             return fail(result, validMsg);
+        }
+        if (ORDER_TYPE_TRAVEL_TICKET.equals(request.getOrderType())) {
+            return requestTravelPay(request);
         }
         DailyTicketOrder order = orderMapper.selectByOrderNo(request.getOrderNo());
         if (order == null) {
@@ -234,12 +251,95 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return result;
     }
 
+    /** 旅游票支付复用 IF8A-61 网关协议，但商户订单号和金额均使用旅游票主单。 */
+    private DailyTicketPayResult requestTravelPay(DailyTicketPayReqDTO request) {
+        DailyTicketPayResult result = new DailyTicketPayResult();
+        TravelTicketOrder order = travelOrderMapper.selectByOrderNo(request.getOrderNo());
+        if (order == null) {
+            return fail(result, "旅游票主订单不存在");
+        }
+        if (!"CREATED".equals(order.getOrderStatus()) && !"PAYING".equals(order.getOrderStatus())) {
+            return fail(result, "旅游票主订单状态不允许支付");
+        }
+        if ("PAYING".equals(order.getOrderStatus()) || "PAYING".equals(order.getPayStatus())) {
+            queryAndRefreshTravelPayResult(order);
+            TravelTicketOrder latest = travelOrderMapper.selectByOrderNo(order.getOrderNo());
+            if (latest != null && "PAID".equals(latest.getOrderStatus())
+                    && "PAID".equals(latest.getPayStatus())) {
+                return success(result);
+            }
+            if (latest != null && "PAY_FAILED".equals(latest.getOrderStatus())
+                    && "FAIL".equals(latest.getPayStatus())) {
+                return fail(result, "支付已失败，请重新下单");
+            }
+            return fail(result, "支付处理中，请查询支付结果");
+        }
+
+        Date now = new Date();
+        order.setThirdUserId(request.getThirdUserId());
+        order.setPayChannelCode(request.getPayChannelCode());
+        order.setChannelType(request.getChannelType());
+        order.setPayScene(resolveScene(request.getChannelType()));
+        order.setOrderStatus("PAYING");
+        order.setPayStatus("PAYING");
+        order.setUpdateTime(now);
+        if (travelOrderMapper.updatePayRequest(order) == 0) {
+            return fail(result, "旅游票主订单状态已变更，请查询支付结果");
+        }
+
+        Map<String, Object> payRequest = buildTravelTicketPayRequest(order, request);
+        DailyTicketPayGatewayResponse payResponse = payGatewayClient.requestPay(payRequest);
+        insertPayLog(order.getOrderNo(), "PAY", request.getPayChannelCode(), payRequest, payResponse);
+        if (!isGatewaySuccess(payResponse)) {
+            if (isGatewayExplicitFailure(payResponse)) {
+                markTravelPayFailed(order);
+                return fail(result, payResponse == null ? "旅游票支付失败" : payResponse.getMsg());
+            }
+            return fail(result, "旅游票支付网关结果未知，请查询支付结果");
+        }
+        updateTravelPaymentOrderNo(order,
+                stringValue(payResponse.getData() == null ? null : payResponse.getData().get("orderNo"), null));
+        success(result);
+        result.setSignType("01");
+        result.setSign("");
+        result.setPayChannelCode(request.getPayChannelCode());
+        result.setPaymentInfo(stringValue(payResponse.getData() == null ? null : payResponse.getData().get("data"), null));
+        result.setDiscountInfo(null);
+        return result;
+    }
+
+    private DailyTicketPayQueryResult queryTravelPayResult(DailyTicketOrderNoReqDTO request, boolean operationQuery) {
+        DailyTicketPayQueryResult result = new DailyTicketPayQueryResult();
+        TravelTicketOrder order = travelOrderMapper.selectByOrderNo(request.getOrderNo());
+        if (order == null) {
+            return fail(result, "旅游票主订单不存在");
+        }
+        if ("PAYING".equals(order.getOrderStatus()) || "PAYING".equals(order.getPayStatus())) {
+            queryAndRefreshTravelPayResult(order);
+            order = travelOrderMapper.selectByOrderNo(request.getOrderNo());
+        }
+        success(result);
+        result.setTradeNo(order.getTradeNo());
+        result.setPayResult("PAID".equals(order.getPayStatus()) ? "success"
+                : "FAIL".equals(order.getPayStatus()) ? "failed" : "processing");
+        result.setPayAmount(order.getPayAmount() == null ? order.getTotalAmount() : order.getPayAmount());
+        result.setPayDate(order.getPayDate());
+        result.setDiscountInfo(null);
+        result.setPayChannel(order.getPayChannelCode());
+        result.setChannelDiscount(0);
+        result.setCouponDiscount(0);
+        return result;
+    }
+
     @Override
     public DailyTicketPayQueryResult requestPayResult(DailyTicketOrderNoReqDTO request) {
         DailyTicketPayQueryResult result = new DailyTicketPayQueryResult();
         String validMsg = validateOrderNo(request == null ? null : request.getOrderNo(), request == null ? null : request.getOrderType());
         if (validMsg != null) {
             return fail(result, validMsg);
+        }
+        if (ORDER_TYPE_TRAVEL_TICKET.equals(request.getOrderType())) {
+            return queryTravelPayResult(request, false);
         }
         DailyTicketOrder order = orderMapper.selectByOrderNo(request.getOrderNo());
         if (order == null) {
@@ -268,6 +368,9 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         String validMsg = validateOrderNo(request == null ? null : request.getOrderNo(), request == null ? null : request.getOrderType());
         if (validMsg != null) {
             return fail(result, validMsg);
+        }
+        if (ORDER_TYPE_TRAVEL_TICKET.equals(request.getOrderType())) {
+            return queryTravelPayResult(request, true);
         }
         DailyTicketOrder order = orderMapper.selectByOrderNo(request.getOrderNo());
         if (order == null) {
@@ -300,6 +403,9 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         if (validMsg != null) {
             return fail(result, validMsg);
         }
+        if (ORDER_TYPE_TRAVEL_TICKET.equals(request.getOrderType())) {
+            return requestTravelRefund(request.getOrderNo());
+        }
         DailyTicketOrder order = orderMapper.selectByOrderNo(request.getOrderNo());
         if (order == null) {
             return fail(result, "订单不存在");
@@ -320,15 +426,20 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         }
 
         DailyTicketInstance ticket = instanceMapper.selectByOrderNo(order.getOrderNo());
-        if (ticket != null && "USED".equals(ticket.getTicketStatus())) {
+        if (ticket != null && !TICKET_STATUS_ACTIVATED.equals(ticket.getTicketStatus())) {
             return fail(result, "车票已使用，不允许退款");
         }
 
-        String refundType = ticket == null || !"ACTIVATED".equals(ticket.getTicketStatus()) ? "00" : "01";
+        String refundType = ticket == null ? "00" : "01";
         DailyTicketRefund refund = buildRefund(order, refundType);
-        refundMapper.insert(refund);
 
         if ("01".equals(refundType)) {
+            if (!lockTicketForRefund(ticket)) {
+                log.warn("日票核验退款：锁票失败，车票状态已变更 orderNo={}, instanceId={}",
+                        order.getOrderNo(), ticket.getId());
+                return fail(result, "车票状态已变更，不允许退款");
+            }
+            refundMapper.insert(refund);
             orderMapper.updateOrderStatus(order.getOrderNo(), "REFUNDING");
             result.setRefundType(refundType);
             result.setOrderNo(order.getOrderNo());
@@ -337,6 +448,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             result.setRefundAmount(String.valueOf(refund.getRefundAmount()));
             return success(result);
         }
+        refundMapper.insert(refund);
 
         Map<String, Object> refundReq = buildDailyTicketRefundRequest(order, refund);
         log.info("日票服务准备调用支付网关退款接口 orderNo={}, request={}", order.getOrderNo(), JSON.toJSONString(refundReq));
@@ -380,12 +492,111 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return success(result);
     }
 
+    /** 旅游票 APP 退款只允许主单整单退款；子单退款由运营接口单独实现。 */
+    private DailyTicketRefundResult requestTravelRefund(String parentOrderNo) {
+        DailyTicketRefundResult result = new DailyTicketRefundResult();
+        TravelTicketOrder parent = travelOrderMapper.selectByOrderNo(parentOrderNo);
+        if (parent == null) {
+            return fail(result, "旅游票主订单不存在");
+        }
+        DailyTicketRefund existing = refundMapper.selectByOrderNo(parentOrderNo);
+        if (existing != null) {
+            return buildExistingRefundResult(result, existing);
+        }
+        if (!"PAID".equals(parent.getOrderStatus()) || !"PAID".equals(parent.getPayStatus())) {
+            return fail(result, "旅游票主订单未支付成功，不允许退款");
+        }
+        if (!StringUtils.hasText(parent.getPaymentOrderNo())) {
+            queryAndRefreshTravelPayResult(parent);
+            parent = travelOrderMapper.selectByOrderNo(parentOrderNo);
+        }
+        if (parent == null || !StringUtils.hasText(parent.getPaymentOrderNo())) {
+            return fail(result, "原支付订单号缺失，不允许退款");
+        }
+
+        List<DailyTicketOrder> children = orderMapper.selectByParentOrderNo(parentOrderNo);
+        if (children == null || children.isEmpty()) {
+            return fail(result, "旅游票子单不存在");
+        }
+        for (DailyTicketOrder child : children) {
+            DailyTicketInstance ticket = instanceMapper.selectByOrderNo(child.getOrderNo());
+            if (ticket != null && (TICKET_STATUS_USED.equals(ticket.getTicketStatus())
+                    || TICKET_STATUS_EXPIRED.equals(ticket.getTicketStatus())
+                    || TICKET_STATUS_REFUNDED.equals(ticket.getTicketStatus()))) {
+                return fail(result, "旅游票存在已使用或已退款子单，不允许整单退款");
+            }
+            if (refundMapper.selectByOrderNo(child.getOrderNo()) != null) {
+                return fail(result, "旅游票存在退款中的子单，不允许整单退款");
+            }
+        }
+
+        List<DailyTicketInstance> locked = new ArrayList<>();
+        for (DailyTicketOrder child : children) {
+            DailyTicketInstance ticket = instanceMapper.selectByOrderNo(child.getOrderNo());
+            if (ticket != null) {
+                if (!TICKET_STATUS_ACTIVATED.equals(ticket.getTicketStatus())
+                        || !lockTicketForRefund(ticket)) {
+                    for (DailyTicketInstance rollback : locked) {
+                        releaseTicketLock(rollback.getOrderNo());
+                    }
+                    return fail(result, "旅游票子单状态已变更，不允许整单退款");
+                }
+                locked.add(ticket);
+            }
+        }
+
+        DailyTicketRefund refund = buildTravelRefund(parent, "TRAVEL_FULL", parent.getTotalAmount());
+        refundMapper.insert(refund);
+        insertTravelRefundDetails(refund, parentOrderNo, children);
+        travelOrderMapper.updateOrderStatus(parentOrderNo, "REFUNDING");
+
+        Map<String, Object> refundRequest = buildTravelRefundRequest(parent, refund);
+        DailyTicketPayGatewayResponse response;
+        try {
+            response = payGatewayClient.requestRefund(refundRequest);
+        } catch (RuntimeException e) {
+            insertPayLog(parentOrderNo, "REFUND", parent.getPayChannelCode(), refundRequest,
+                    e.getClass().getSimpleName() + ": " + e.getMessage());
+            result.setRefundType("00");
+            result.setOrderNo(refund.getRefundOrderNo());
+            result.setRefundAmount(String.valueOf(refund.getRefundAmount()));
+            result.setRefundResult("PROCESSING");
+            result.setRefundResultDesc("退款已提交，结果待确认");
+            return success(result);
+        }
+        insertPayLog(parentOrderNo, "REFUND", parent.getPayChannelCode(), refundRequest, response);
+        if (!isGatewaySuccess(response)) {
+            travelOrderMapper.updateOrderStatus(parentOrderNo, "PAID");
+            for (DailyTicketInstance rollback : locked) {
+                releaseTicketLock(rollback.getOrderNo());
+            }
+            return fail(result, response == null ? "旅游票退款网关调用失败" : response.getMsg());
+        }
+        String refundTime = response.getData() == null ? null
+                : stringValue(response.getData().get("refundTime"), null);
+        if (StringUtils.hasText(refundTime)) {
+            markTravelRefunded(parent, refund, response.getData());
+        } else {
+            updatePlatformRefundNo(refund, response.getData());
+            markTravelRefunding(parentOrderNo, refund);
+        }
+        result.setRefundType("00");
+        result.setOrderNo(refund.getRefundOrderNo());
+        result.setRefundAmount(String.valueOf(refund.getRefundAmount()));
+        result.setRefundResult(StringUtils.hasText(refundTime) ? "SUCCESS" : "PROCESSING");
+        result.setRefundResultDesc(StringUtils.hasText(refundTime) ? "退款完成" : "退款申请已提交，请查询退款结果");
+        return success(result);
+    }
+
     @Override
     public DailyTicketRefundResult queryRefundTicket(DailyTicketOrderNoReqDTO request) {
         DailyTicketRefundResult result = new DailyTicketRefundResult();
         String validMsg = validateOrderNo(request == null ? null : request.getOrderNo(), request == null ? null : request.getOrderType());
         if (validMsg != null) {
             return fail(result, validMsg);
+        }
+        if (ORDER_TYPE_TRAVEL_TICKET.equals(request.getOrderType())) {
+            return queryTravelRefundTicket(request.getOrderNo());
         }
         DailyTicketOrder order = orderMapper.selectByOrderNo(request.getOrderNo());
         DailyTicketRefund refund = refundMapper.selectByOrderNo(request.getOrderNo());
@@ -437,12 +648,59 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return success(result);
     }
 
+    private DailyTicketRefundResult queryTravelRefundTicket(String orderNo) {
+        DailyTicketRefundResult result = new DailyTicketRefundResult();
+        DailyTicketRefund refund = refundMapper.selectByOrderNo(orderNo);
+        if (refund == null) {
+            return fail(result, "退款记录不存在");
+        }
+        String parentOrderNo = StringUtils.hasText(refund.getParentOrderNo()) ? refund.getParentOrderNo() : refund.getOrderNo();
+        TravelTicketOrder parent = travelOrderMapper.selectByOrderNo(parentOrderNo);
+        if (parent == null) {
+            return fail(result, "旅游票主订单不存在");
+        }
+        if (!"REFUNDING".equals(refund.getRefundStatus()) && !"FAILED".equals(refund.getRefundStatus())) {
+            return buildExistingRefundResult(result, refund);
+        }
+        restorePlatformRefundNoFromPayLog(refund.getOrderNo(), refund);
+        if (!StringUtils.hasText(refund.getPlatformRefundNo())) {
+            return fail(result, "支付平台退款单号缺失，无法执行退款查询");
+        }
+        Map<String, Object> queryRequest = new LinkedHashMap<>();
+        queryRequest.put("refundOrderNo", refund.getPlatformRefundNo());
+        queryRequest.put("merchantRefundNo", refund.getRefundOrderNo());
+        DailyTicketPayGatewayResponse response = payGatewayClient.requestRefundQuery(queryRequest);
+        insertPayLog(refund.getOrderNo(), "REFUND_QUERY", parent.getPayChannelCode(), queryRequest, response);
+        if (!isGatewaySuccess(response) || response.getData() == null) {
+            return fail(result, response == null ? "退款结果查询失败" : response.getMsg());
+        }
+        persistPlatformRefundNoIfChanged(refund, response.getData());
+        String status = stringValue(response.getData().get("status"), null);
+        if (isRefundSuccessStatus(status)) {
+            markTravelRefunded(parent, refund, response.getData());
+            return buildExistingRefundResult(result, refund);
+        }
+        if (isRefundFailedStatus(status)) {
+            markTravelRefundFailed(parent, refund, response.getData());
+            return buildExistingRefundResult(result, refund);
+        }
+        result.setRefundType(refund.getRefundType());
+        result.setOrderNo(refund.getRefundOrderNo());
+        result.setRefundAmount(String.valueOf(refund.getRefundAmount() == null ? 0 : refund.getRefundAmount()));
+        result.setRefundResult("PROCESSING");
+        result.setRefundResultDesc("支付平台退款处理中");
+        return success(result);
+    }
+
     @Override
     public DailyTicketRefundResult retryRefundTicket(DailyTicketOrderNoReqDTO request) {
         DailyTicketRefundResult result = new DailyTicketRefundResult();
         String validMsg = validateOrderNo(request == null ? null : request.getOrderNo(), request == null ? null : request.getOrderType());
         if (validMsg != null) {
             return fail(result, validMsg);
+        }
+        if (ORDER_TYPE_TRAVEL_TICKET.equals(request.getOrderType())) {
+            return retryTravelRefundTicket(request.getOrderNo());
         }
         DailyTicketOrder order = orderMapper.selectByOrderNo(request.getOrderNo());
         DailyTicketRefund refund = refundMapper.selectByOrderNo(request.getOrderNo());
@@ -489,6 +747,52 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return success(result);
     }
 
+    private DailyTicketRefundResult retryTravelRefundTicket(String orderNo) {
+        DailyTicketRefundResult result = new DailyTicketRefundResult();
+        DailyTicketRefund refund = refundMapper.selectByOrderNo(orderNo);
+        if (refund == null) {
+            return fail(result, "退款记录不存在");
+        }
+        String parentOrderNo = StringUtils.hasText(refund.getParentOrderNo()) ? refund.getParentOrderNo() : refund.getOrderNo();
+        TravelTicketOrder parent = travelOrderMapper.selectByOrderNo(parentOrderNo);
+        if (parent == null || !StringUtils.hasText(parent.getPaymentOrderNo())) {
+            return fail(result, "旅游票原支付订单号缺失，不允许退款重试");
+        }
+        if (!"REFUNDING".equals(refund.getRefundStatus()) && !"FAILED".equals(refund.getRefundStatus())) {
+            return buildExistingRefundResult(result, refund);
+        }
+        DailyTicketRefundResult queryResult = queryTravelRefundTicket(orderNo);
+        if (!RET_SUCCESS.equals(queryResult.getRetCode())
+                || (!"PROCESSING".equals(queryResult.getRefundResult()) && !"FAILED".equals(queryResult.getRefundResult()))) {
+            return queryResult;
+        }
+        Map<String, Object> retryRequest = "TRAVEL_SUB".equals(refund.getRefundScope())
+                ? buildTravelSubRefundRequest(parent, refund)
+                : buildTravelRefundRequest(parent, refund);
+        DailyTicketPayGatewayResponse response = payGatewayClient.requestRefund(retryRequest);
+        insertPayLog(refund.getOrderNo(), "REFUND_RETRY", parent.getPayChannelCode(), retryRequest, response);
+        if (!isGatewaySuccess(response)) {
+            return fail(result, response == null ? "退款重试调用失败" : response.getMsg());
+        }
+        String refundTime = response.getData() == null ? null
+                : stringValue(response.getData().get("refundTime"), null);
+        if (StringUtils.hasText(refundTime)) {
+            markTravelRefunded(parent, refund, response.getData());
+            return buildExistingRefundResult(result, refund);
+        }
+        updatePlatformRefundNo(refund, response.getData());
+        refund.setRefundStatus("REFUNDING");
+        refund.setRefundDate(null);
+        refund.setUpdateTime(new Date());
+        refundMapper.updateResult(refund);
+        result.setRefundType(refund.getRefundType());
+        result.setOrderNo(refund.getRefundOrderNo());
+        result.setRefundAmount(String.valueOf(refund.getRefundAmount() == null ? 0 : refund.getRefundAmount()));
+        result.setRefundResult("PROCESSING");
+        result.setRefundResultDesc("退款重试已提交，请查询退款结果");
+        return success(result);
+    }
+
     @Override
     public DailyTicketRefundResult resubmitRefundTicket(DailyTicketOrderNoReqDTO request) {
         DailyTicketRefundResult result = new DailyTicketRefundResult();
@@ -509,6 +813,14 @@ public class DailyTicketServiceImpl implements DailyTicketService {
                 && refund.getVerifyAfterTime() != null
                 && refund.getVerifyAfterTime().after(new Date())) {
             return fail(result, "核验退款观察期未满，不允许重提交");
+        }
+        if ("01".equals(refund.getRefundType())) {
+            DailyTicketInstance ticket = instanceMapper.selectByOrderNo(order.getOrderNo());
+            if (ticket == null || !TICKET_STATUS_REFUND_LOCKED.equals(ticket.getTicketStatus())) {
+                log.warn("日票核验退款重提交：票不在 REFUND_LOCKED，拒绝放款 orderNo={}, ticketStatus={}",
+                        order.getOrderNo(), ticket == null ? null : ticket.getTicketStatus());
+                return fail(result, "车票状态已变更，不允许放款，请人工核验");
+            }
         }
         restorePlatformRefundNoFromPayLog(order.getOrderNo(), refund);
         if (StringUtils.hasText(refund.getPlatformRefundNo())) {
@@ -555,6 +867,98 @@ public class DailyTicketServiceImpl implements DailyTicketService {
     }
 
     @Override
+    public ResultVO<List<DailyTicketRefundOrderView>> listTravelSubRefundOrders(String parentOrderNo) {
+        if (!StringUtils.hasText(parentOrderNo)) {
+            return ResultMapper.illegalParams("旅游票主单号不能为空");
+        }
+        return ResultMapper.ok(orderMapper.selectTravelSubRefundOrders(parentOrderNo));
+    }
+
+    @Override
+    public DailyTicketRefundResult requestTravelSubRefund(TravelTicketSubRefundRequest request) {
+        DailyTicketRefundResult result = new DailyTicketRefundResult();
+        if (request == null || !StringUtils.hasText(request.getParentOrderNo())) {
+            return fail(result, "旅游票主单号不能为空");
+        }
+        if (!StringUtils.hasText(request.getSubOrderNo())) {
+            return fail(result, "旅游票子单号不能为空");
+        }
+        TravelTicketOrder parent = travelOrderMapper.selectByOrderNo(request.getParentOrderNo());
+        DailyTicketOrder child = orderMapper.selectByOrderNo(request.getSubOrderNo());
+        if (parent == null || child == null || !request.getParentOrderNo().equals(child.getParentOrderNo())) {
+            return fail(result, "旅游票主子单关系不存在");
+        }
+        DailyTicketRefund existing = refundMapper.selectByOrderNo(child.getOrderNo());
+        if (existing != null) {
+            return buildExistingRefundResult(result, existing);
+        }
+        DailyTicketRefund parentRefund = refundMapper.selectByOrderNo(parent.getOrderNo());
+        if (parentRefund != null && !"FAILED".equals(parentRefund.getRefundStatus())) {
+            return fail(result, "旅游票主单已存在整单退款，不允许子单退款");
+        }
+        if (!"PAID".equals(parent.getPayStatus())
+                || (!"PAID".equals(parent.getOrderStatus()) && !"PARTIAL_USED".equals(parent.getOrderStatus())
+                && !"PARTIAL_REFUNDED".equals(parent.getOrderStatus()))) {
+            return fail(result, "旅游票主单未支付成功，不允许子单退款");
+        }
+        if (!StringUtils.hasText(parent.getPaymentOrderNo())) {
+            return fail(result, "原支付订单号缺失，不允许退款");
+        }
+        DailyTicketInstance ticket = instanceMapper.selectByOrderNo(child.getOrderNo());
+        if (ticket != null && !TICKET_STATUS_ACTIVATED.equals(ticket.getTicketStatus())) {
+            return fail(result, "旅游票子单已使用或已退款，不允许退款");
+        }
+        if (ticket != null && !lockTicketForRefund(ticket)) {
+            return fail(result, "旅游票子单状态已变更，不允许退款");
+        }
+
+        DailyTicketRefund refund = buildTravelSubRefund(parent, child, request);
+        refundMapper.insert(refund);
+        List<DailyTicketOrder> details = new ArrayList<>();
+        details.add(child);
+        insertTravelRefundDetails(refund, parent.getOrderNo(), details);
+
+        Map<String, Object> refundRequest = buildTravelSubRefundRequest(parent, refund);
+        DailyTicketPayGatewayResponse response;
+        try {
+            response = payGatewayClient.requestRefund(refundRequest);
+        } catch (RuntimeException e) {
+            insertPayLog(child.getOrderNo(), "REFUND", parent.getPayChannelCode(), refundRequest,
+                    e.getClass().getSimpleName() + ": " + e.getMessage());
+            result.setRefundType("00");
+            result.setOrderNo(refund.getRefundOrderNo());
+            result.setRefundAmount(String.valueOf(refund.getRefundAmount()));
+            result.setRefundResult("PROCESSING");
+            result.setRefundResultDesc("退款已提交，结果待确认");
+            return success(result);
+        }
+        insertPayLog(child.getOrderNo(), "REFUND", parent.getPayChannelCode(), refundRequest, response);
+        if (!isGatewaySuccess(response)) {
+            refund.setRefundStatus("FAILED");
+            refund.setUpdateTime(new Date());
+            refundMapper.updateResult(refund);
+            refundDetailMapper.updateStatusByRefundOrderNo(refund.getRefundOrderNo(), "FAILED");
+            releaseTicketLock(child.getOrderNo());
+            return fail(result, response == null ? "旅游票子单退款网关调用失败" : response.getMsg());
+        }
+        String refundTime = response.getData() == null ? null
+                : stringValue(response.getData().get("refundTime"), null);
+        if (StringUtils.hasText(refundTime)) {
+            markTravelRefunded(parent, refund, response.getData());
+        } else {
+            updatePlatformRefundNo(refund, response.getData());
+            refund.setUpdateTime(new Date());
+            refundMapper.updateResult(refund);
+        }
+        result.setRefundType("00");
+        result.setOrderNo(refund.getRefundOrderNo());
+        result.setRefundAmount(String.valueOf(refund.getRefundAmount()));
+        result.setRefundResult(StringUtils.hasText(refundTime) ? "SUCCESS" : "PROCESSING");
+        result.setRefundResultDesc(StringUtils.hasText(refundTime) ? "退款完成" : "退款申请已提交，请查询退款结果");
+        return success(result);
+    }
+
+    @Override
     public ResultVO<PageInfo<DailyTicketRefundView>> pageRefundRecords(DailyTicketRefundQuery query) {
         DailyTicketRefundQuery safeQuery = query == null ? new DailyTicketRefundQuery() : query;
         PageInfo<DailyTicketRefundView> pageInfo = PageHelper
@@ -595,7 +999,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         if (order == null) {
             return fail(result, "订单不存在");
         }
-        if (!"PAID".equals(order.getOrderStatus())) {
+        if (!canActivate(order)) {
             return fail(result, "订单未支付，不能激活");
         }
 
@@ -640,6 +1044,28 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return success(result);
     }
 
+    /**
+     * 激活支付口径：
+     * <ul>
+     *     <li>独立日票沿用原规则：子单自身 ORDER_STATUS=PAID 且 PAY_STATUS=PAID；</li>
+     *     <li>旅游票子单不写独立支付流水，子单保持 CREATED/INIT，回看 PARENT_ORDER_NO
+     *         对应主单，主单两个支付字段都为 PAID 才允许激活。</li>
+     * </ul>
+     */
+    private boolean canActivate(DailyTicketOrder order) {
+        if (order == null) {
+            return false;
+        }
+        if (StringUtils.hasText(order.getParentOrderNo())) {
+            TravelTicketOrder parent = travelOrderMapper.selectByOrderNo(order.getParentOrderNo());
+            return parent != null
+                    && "PAID".equals(parent.getOrderStatus())
+                    && "PAID".equals(parent.getPayStatus());
+        }
+        return "PAID".equals(order.getOrderStatus())
+                && "PAID".equals(order.getPayStatus());
+    }
+
     /** APP 首次使用通知（IF8A-33）：写入有效期截止时间并置「已开始使用」。 */
     @Override
     public DailyTicketBaseResult updateAndNotice(DailyTicketUsedNoticeReqDTO request) {
@@ -651,6 +1077,11 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         if (ticket == null) {
             return fail(result, "车票不存在");
         }
+        if (isTicketLockedForRefund(ticket.getTicketStatus())) {
+            log.warn("日票首次使用通知：车票处于退款占用态，拒绝置已使用, cardNum={}, ticketStatus={}",
+                    request.getCardNum(), ticket.getTicketStatus());
+            return fail(result, "车票已申请退款，不允许使用");
+        }
         Date now = new Date();
         ticket.setCountingEnd(request.getCountingEnd());
         ticket.setTicketStatus(TICKET_STATUS_USED);
@@ -658,7 +1089,12 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         ticket.setAccNoticeStatus("SUCCESS");
         ticket.setAccNoticeTime(now);
         ticket.setUpdateTime(now);
-        instanceMapper.markUsed(ticket);
+        int marked = instanceMapper.markUsed(ticket);
+        if (marked == 0) {
+            log.error("日票首次使用通知：实例状态回写影响 0 行, cardNum={}, instanceId={}",
+                    request.getCardNum(), ticket.getId());
+        }
+        refreshTravelParentSummaryBySubOrder(ticket.getOrderNo());
         log.info("日票首次使用通知完成, cardNum={}, countingEnd={}, ticketStatus={}",
                 request.getCardNum(), request.getCountingEnd(), TICKET_STATUS_USED);
         return success(result);
@@ -671,16 +1107,31 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             return fail(result, "orderNo不能为空");
         }
         DailyTicketOrder order = orderMapper.selectByOrderNo(request.getOrderNo());
-        if (order == null) {
-            return fail(result, "订单不存在");
-        }
         if ("success".equalsIgnoreCase(request.getPayResult()) || "SUCCESS".equalsIgnoreCase(request.getPayResult())) {
-            markPaySuccess(order, request.getTradeNo(), request.getPaymentOrderNo(),
-                    request.getPayDate() == null ? new Date() : request.getPayDate(), request.getPayAmount());
+            if (order != null) {
+                markPaySuccess(order, request.getTradeNo(), request.getPaymentOrderNo(),
+                        request.getPayDate() == null ? new Date() : request.getPayDate(), request.getPayAmount());
+            } else {
+                TravelTicketOrder travelOrder = travelOrderMapper.selectByOrderNo(request.getOrderNo());
+                if (travelOrder == null) {
+                    return fail(result, "订单不存在");
+                }
+                markTravelPaySuccess(travelOrder, request.getTradeNo(), request.getPaymentOrderNo(),
+                        request.getPayDate() == null ? new Date() : request.getPayDate(), request.getPayAmount());
+            }
         } else {
-            markPayFailed(order);
+            if (order != null) {
+                markPayFailed(order);
+            } else {
+                TravelTicketOrder travelOrder = travelOrderMapper.selectByOrderNo(request.getOrderNo());
+                if (travelOrder == null) {
+                    return fail(result, "订单不存在");
+                }
+                markTravelPayFailed(travelOrder);
+            }
         }
-        insertPayLog(order.getOrderNo(), "CALLBACK", order.getPayChannelCode(), request, result);
+        insertPayLog(request.getOrderNo(), "CALLBACK",
+                order == null ? null : order.getPayChannelCode(), request, result);
         return success(result);
     }
 
@@ -694,51 +1145,70 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         String orderNo = request.getOrderNo();
         DailyTicketOrder order = orderMapper.selectByOrderNo(orderNo);
         DailyTicketRefund refund = refundMapper.selectByOrderNo(orderNo);
-        if (order == null || refund == null) {
+        if (refund == null && StringUtils.hasText(request.getOutRefundNo())) {
+            refund = refundMapper.selectByRefundOrderNo(request.getOutRefundNo());
+        }
+        if (refund == null) {
+            refund = refundMapper.selectByRefundOrderNo(orderNo);
+        }
+        TravelTicketOrder travelOrder = refund != null && ORDER_TYPE_TRAVEL_TICKET.equals(refund.getOrderType())
+                ? travelOrderMapper.selectByOrderNo(refund.getParentOrderNo() == null ? refund.getOrderNo() : refund.getParentOrderNo())
+                : null;
+        if ((order == null && travelOrder == null) || refund == null) {
             log.warn("日票退款回调：订单或退款单不存在 orderNo={}, orderExists={}, refundExists={}",
                     orderNo, order != null, refund != null);
             fail(result, "退款记录不存在");
-            insertPayLog(orderNo, "REFUND_CALLBACK", order == null ? null : order.getPayChannelCode(), request, result);
+            insertPayLog(orderNo, "REFUND_CALLBACK",
+                    order == null ? null : order.getPayChannelCode(), request, result);
             return result;
         }
+        String payChannelCode = order == null ? travelOrder.getPayChannelCode() : order.getPayChannelCode();
 
         String refundStatus = refund.getRefundStatus();
         if ("REFUNDED".equals(refundStatus) || "FAILED".equals(refundStatus)) {
             log.info("日票退款回调重复到达，退款单已是终态，幂等返回 orderNo={}, refundStatus={}", orderNo, refundStatus);
             success(result);
-            insertPayLog(orderNo, "REFUND_CALLBACK", order.getPayChannelCode(), request, result);
+            insertPayLog(orderNo, "REFUND_CALLBACK", payChannelCode, request, result);
             return result;
         }
         if (!"REFUNDING".equals(refundStatus) && !"WAIT_VERIFY".equals(refundStatus)) {
             log.warn("日票退款回调：退款单状态不在受理白名单内 orderNo={}, refundStatus={}", orderNo, refundStatus);
             fail(result, "退款单状态不允许收口: " + refundStatus);
-            insertPayLog(orderNo, "REFUND_CALLBACK", order.getPayChannelCode(), request, result);
+            insertPayLog(orderNo, "REFUND_CALLBACK", payChannelCode, request, result);
             return result;
         }
 
         Map<String, Object> refundData = toRefundCallbackData(request);
         String refundResult = request.getRefundResult();
         if ("SUCCESS".equalsIgnoreCase(refundResult)) {
-            markRefunded(order, refund, refundData);
+            if (travelOrder != null) {
+                markTravelRefunded(travelOrder, refund, refundData);
+            } else {
+                markRefunded(order, refund, refundData);
+            }
             success(result);
         } else if ("FAIL".equalsIgnoreCase(refundResult) || "FAILED".equalsIgnoreCase(refundResult)) {
-            markRefundFailed(order, refund, refundData);
+            if (travelOrder != null) {
+                markTravelRefundFailed(travelOrder, refund, refundData);
+            } else {
+                markRefundFailed(order, refund, refundData);
+            }
             success(result);
         } else if ("PROCESSING".equalsIgnoreCase(refundResult)) {
             persistPlatformRefundNoIfChanged(refund, refundData);
             log.info("日票退款回调为处理中，仅回填平台退款单号 orderNo={}, platformRefundNo={}",
                     orderNo, refund.getPlatformRefundNo());
             success(result);
-            insertPayLog(orderNo, "REFUND_CALLBACK", order.getPayChannelCode(), request, result);
+            insertPayLog(orderNo, "REFUND_CALLBACK", payChannelCode, request, result);
             return result;
         } else {
             log.warn("日票退款回调：未知的退款结果，不推进状态 orderNo={}, refundResult={}", orderNo, refundResult);
             fail(result, "未知的退款结果: " + refundResult);
-            insertPayLog(orderNo, "REFUND_CALLBACK", order.getPayChannelCode(), request, result);
+            insertPayLog(orderNo, "REFUND_CALLBACK", payChannelCode, request, result);
             return result;
         }
 
-        insertPayLog(orderNo, "REFUND_CALLBACK", order.getPayChannelCode(), request, result);
+        insertPayLog(orderNo, "REFUND_CALLBACK", payChannelCode, request, result);
         refundNotifyService.deliverOne(orderNo);
         return result;
     }
@@ -790,11 +1260,15 @@ public class DailyTicketServiceImpl implements DailyTicketService {
                     request.getTicketCode(), instance.getOrderNo());
             return success(result);
         }
-        result.setPayTradeOrderNo(order.getTradeNo());
-        result.setPayChannelCode(order.getPayChannelCode());
-        result.setPayOrderNoDate(order.getPayDate() == null
+        TravelTicketOrder parent = StringUtils.hasText(order.getParentOrderNo())
+                ? travelOrderMapper.selectByOrderNo(order.getParentOrderNo())
+                : null;
+        result.setPayTradeOrderNo(parent == null ? order.getTradeNo() : parent.getTradeNo());
+        result.setPayChannelCode(parent == null ? order.getPayChannelCode() : parent.getPayChannelCode());
+        Date payDate = parent == null ? order.getPayDate() : parent.getPayDate();
+        result.setPayOrderNoDate(payDate == null
                 ? null
-                : new SimpleDateFormat("yyyyMMddHHmmss").format(order.getPayDate()));
+                : new SimpleDateFormat("yyyyMMddHHmmss").format(payDate));
         return success(result);
     }
 
@@ -826,6 +1300,52 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return success(result);
     }
 
+    /**
+     * 拉码（IF8A-03）前置的只读可用性判定。
+     * 判据与 {@link #validateEntryCheck} 同源（有效期 / 次数 / 退款占用），但只读、不推进状态，
+     * 且异常一律吞掉转成 retCode，因为调用方按「不可达即降级放行」处置。
+     */
+    @Override
+    public DailyTicketBaseResult checkRideAvailability(String cardNum) {
+        DailyTicketBaseResult result = new DailyTicketBaseResult();
+        try {
+            if (!StringUtils.hasText(cardNum)) {
+                return fail(result, "卡号不能为空");
+            }
+            DailyTicketInstance instance = instanceMapper.selectForEntryCheck(cardNum);
+            if (instance == null) {
+                log.info("日票可用性校验：无可用日票, cardNum={}", cardNum);
+                return fail(result, "无可用日票");
+            }
+            if (isTicketLockedForRefund(instance.getTicketStatus())) {
+                log.warn("日票可用性校验：车票处于退款占用态, cardNum={}, ticketStatus={}",
+                        cardNum, instance.getTicketStatus());
+                return fail(result, "车票已申请退款，不允许使用");
+            }
+            long now = System.currentTimeMillis();
+            if (instance.getCountingStart() != null && now < instance.getCountingStart()) {
+                log.warn("日票可用性校验：未激活, cardNum={}, countingStart={}",
+                        cardNum, instance.getCountingStart());
+                return fail(result, "日票尚未激活");
+            }
+            if (instance.getCountingEnd() != null && now > instance.getCountingEnd()) {
+                log.warn("日票可用性校验：已过期, cardNum={}, countingEnd={}", cardNum, instance.getCountingEnd());
+                return fail(result, "日票已过期");
+            }
+            Integer actualTimes = instance.getActualTimes();
+            if (actualTimes != null && actualTimes == 0) {
+                log.warn("日票可用性校验：计次票次数已用完, cardNum={}", cardNum);
+                return fail(result, "日票次数已用完");
+            }
+            log.info("日票可用性校验通过, cardNum={}, ticketStatus={}, actualTimes={}",
+                    cardNum, instance.getTicketStatus(), actualTimes);
+            return success(result);
+        } catch (Exception e) {
+            log.error("日票可用性校验异常, cardNum={}", cardNum, e);
+            return fail(result, "日票可用性校验异常");
+        }
+    }
+
     /** 出站处理：计次票扣次、写入出站时间。 */
     @Override
     public DailyTicketBaseResult markUsed(String cardNum, Long countingEnd) {
@@ -844,11 +1364,16 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             log.warn("日票出站：无有效日票实例, cardNum={}", cardNum);
             return fail(result, "无有效日票记录");
         }
+        if (isTicketLockedForRefund(instance.getTicketStatus())) {
+            log.warn("日票出站：车票处于退款占用态，拒绝扣次, cardNum={}, ticketStatus={}",
+                    cardNum, instance.getTicketStatus());
+            return fail(result, "车票已申请退款，不允许使用");
+        }
         Date now = new Date();
         Integer actualTimes = instance.getActualTimes();
         int remainTimes = actualTimes == null ? -1 : actualTimes;
         if (actualTimes != null && actualTimes > 0) {
-            int updated = instanceMapper.decreaseActualTimes(cardNum, now);
+            int updated = instanceMapper.decreaseActualTimes(instance.getId(), now);
             remainTimes = actualTimes - (updated > 0 ? 1 : 0);
             log.info("日票出站：计次票扣次, cardNum={}, 剩余次数={}", cardNum, remainTimes);
         }
@@ -859,9 +1384,13 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         instance.setAccNoticeStatus("SUCCESS");
         instance.setAccNoticeTime(now);
         instance.setUpdateTime(now);
-        instanceMapper.markUsed(instance);
+        int marked = instanceMapper.markUsed(instance);
+        if (marked == 0) {
+            log.error("日票出站：实例状态回写影响 0 行, cardNum={}, instanceId={}", cardNum, instance.getId());
+        }
 
         insertUsageLog(cardNum, orderNo, inStation, outStation, actualTimes, remainTimes, nextStatus);
+        refreshTravelParentSummaryBySubOrder(instance.getOrderNo());
 
         log.info("日票出站处理完成, cardNum={}, ticketStatus={}, 剩余次数={}, countingEnd={}, orderNo={}",
                 cardNum, nextStatus, remainTimes, instance.getCountingEnd(), orderNo);
@@ -984,6 +1513,53 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         }
     }
 
+    private void markTravelPaySuccess(TravelTicketOrder order, String tradeNo, String paymentOrderNo,
+                                      Date payDate, Integer payAmount) {
+        order.setOrderStatus("PAID");
+        order.setPayStatus("PAID");
+        order.setTradeNo(tradeNo);
+        order.setPaymentOrderNo(paymentOrderNo);
+        order.setPayAmount(payAmount == null ? order.getTotalAmount() : payAmount);
+        order.setPayDate(payDate);
+        order.setUpdateTime(new Date());
+        if (travelOrderMapper.updatePayResultIfPaying(order) == 0) {
+            TravelTicketOrder latest = travelOrderMapper.selectByOrderNo(order.getOrderNo());
+            if (latest != null && "PAID".equals(latest.getOrderStatus())
+                    && StringUtils.hasText(order.getPaymentOrderNo())) {
+                updateTravelPaymentOrderNo(latest, order.getPaymentOrderNo());
+            }
+        }
+    }
+
+    private void markTravelPayFailed(TravelTicketOrder order) {
+        order.setOrderStatus("PAY_FAILED");
+        order.setPayStatus("FAIL");
+        order.setUpdateTime(new Date());
+        travelOrderMapper.updatePayResultIfPaying(order);
+    }
+
+    private void queryAndRefreshTravelPayResult(TravelTicketOrder order) {
+        Map<String, Object> queryRequest = new LinkedHashMap<>();
+        queryRequest.put("merchantOrderNo", order.getOrderNo());
+        putIfText(queryRequest, "orderNo", order.getPaymentOrderNo());
+        DailyTicketPayGatewayResponse response = payGatewayClient.requestPayQuery(queryRequest);
+        insertPayLog(order.getOrderNo(), "QUERY", order.getPayChannelCode(), queryRequest, response);
+        if (!isGatewaySuccess(response) || response.getData() == null) {
+            return;
+        }
+        Map<String, Object> data = response.getData();
+        String status = stringValue(data.get("status"), null);
+        if (isPaySuccessStatus(status)) {
+            markTravelPaySuccess(order,
+                    stringValue(data.get("channelOrderNo"), order.getTradeNo()),
+                    stringValue(data.get("orderNo"), order.getPaymentOrderNo()),
+                    parseGatewayPayDate(stringValue(data.get("payDate"), null)),
+                    integerValue(data.get("cashAmount"), integerValue(data.get("totalAmount"), order.getTotalAmount())));
+        } else if (isPayFailedStatus(status)) {
+            markTravelPayFailed(order);
+        }
+    }
+
     private boolean isPaySuccessStatus(String status) {
         return "SUCCESS".equalsIgnoreCase(status) || "PAID".equalsIgnoreCase(status)
                 || "PAY_SUCCESS".equalsIgnoreCase(status) || "TRADE_SUCCESS".equalsIgnoreCase(status)
@@ -1030,7 +1606,192 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         refund.setUpdateTime(now);
         refundMapper.updateResult(refund);
         orderMapper.updateOrderStatus(order.getOrderNo(), "REFUNDED");
+        settleTicketOnRefunded(order.getOrderNo());
         markRefundNotifyPending(refund);
+    }
+
+    private DailyTicketRefund buildTravelRefund(TravelTicketOrder parent, String scope, Integer amount) {
+        Date now = new Date();
+        DailyTicketRefund refund = new DailyTicketRefund();
+        refund.setId(nextId());
+        refund.setOrderNo(parent.getOrderNo());
+        refund.setOrderType(ORDER_TYPE_TRAVEL_TICKET);
+        refund.setRefundScope(scope);
+        refund.setParentOrderNo(parent.getOrderNo());
+        refund.setRefundReason("旅游票退款");
+        refund.setRefundOrderNo(buildRefundOrderNo(parent.getOrderNo()));
+        refund.setRefundAmount(amount == null ? 0 : amount);
+        refund.setRefundStatus("REFUNDING");
+        refund.setRefundType("00");
+        refund.setCreateTime(now);
+        refund.setUpdateTime(now);
+        return refund;
+    }
+
+    private DailyTicketRefund buildTravelSubRefund(TravelTicketOrder parent, DailyTicketOrder child,
+                                                   TravelTicketSubRefundRequest request) {
+        Date now = new Date();
+        DailyTicketRefund refund = new DailyTicketRefund();
+        refund.setId(nextId());
+        refund.setOrderNo(child.getOrderNo());
+        refund.setOrderType(ORDER_TYPE_TRAVEL_TICKET);
+        refund.setRefundScope("TRAVEL_SUB");
+        refund.setParentOrderNo(parent.getOrderNo());
+        refund.setRefundReason(StringUtils.hasText(request.getRefundReason()) ? request.getRefundReason() : "旅游票子单退款");
+        refund.setOperator(request.getOperator());
+        refund.setRefundOrderNo(buildRefundOrderNo(child.getOrderNo()));
+        refund.setRefundAmount(child.getTicketPrice() == null ? 0 : child.getTicketPrice());
+        refund.setRefundStatus("REFUNDING");
+        refund.setRefundType("00");
+        refund.setCreateTime(now);
+        refund.setUpdateTime(now);
+        return refund;
+    }
+
+    private void insertTravelRefundDetails(DailyTicketRefund refund, String parentOrderNo,
+                                            List<DailyTicketOrder> children) {
+        Date now = new Date();
+        if (children == null) {
+            return;
+        }
+        for (DailyTicketOrder child : children) {
+            DailyTicketRefundDetail detail = new DailyTicketRefundDetail();
+            detail.setId(nextId());
+            detail.setRefundOrderNo(refund.getRefundOrderNo());
+            detail.setParentOrderNo(parentOrderNo);
+            detail.setSubOrderNo(child.getOrderNo());
+            detail.setRefundAmount(child.getTicketPrice());
+            detail.setRefundStatus("REFUNDING");
+            detail.setCreateTime(now);
+            detail.setUpdateTime(now);
+            refundDetailMapper.insert(detail);
+        }
+    }
+
+    private Map<String, Object> buildTravelRefundRequest(TravelTicketOrder parent, DailyTicketRefund refund) {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("refundOrderNo", refund.getRefundOrderNo());
+        request.put("merchantOrderNo", parent.getOrderNo());
+        request.put("orderNo", parent.getPaymentOrderNo());
+        request.put("refundAmount", refund.getRefundAmount());
+        request.put("refundReason", refund.getRefundReason());
+        putIfText(request, "notifyUrl", payProperties.getRefundNotifyUrl());
+        return request;
+    }
+
+    private Map<String, Object> buildTravelSubRefundRequest(TravelTicketOrder parent, DailyTicketRefund refund) {
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("refundOrderNo", refund.getRefundOrderNo());
+        request.put("merchantOrderNo", refund.getOrderNo());
+        request.put("orderNo", parent.getPaymentOrderNo());
+        request.put("refundAmount", refund.getRefundAmount());
+        request.put("refundReason", refund.getRefundReason());
+        putIfText(request, "notifyUrl", payProperties.getRefundNotifyUrl());
+        return request;
+    }
+
+    private void markTravelRefunded(TravelTicketOrder parent, DailyTicketRefund refund,
+                                    Map<String, Object> refundData) {
+        Date now = new Date();
+        updatePlatformRefundNo(refund, refundData);
+        refund.setRefundStatus("REFUNDED");
+        refund.setRefundDate(parseGatewayRefundDate(
+                stringValue(refundData == null ? null : refundData.get("refundTime"), null), now));
+        refund.setUpdateTime(now);
+        refundMapper.updateResult(refund);
+        refundDetailMapper.updateStatusByRefundOrderNo(refund.getRefundOrderNo(), "REFUNDED");
+        List<DailyTicketOrder> refundedChildren = new ArrayList<>();
+        if ("TRAVEL_SUB".equals(refund.getRefundScope())) {
+            DailyTicketOrder child = orderMapper.selectByOrderNo(refund.getOrderNo());
+            if (child != null) {
+                refundedChildren.add(child);
+            }
+        } else {
+            List<DailyTicketOrder> children = orderMapper.selectByParentOrderNo(parent.getOrderNo());
+            if (children != null) {
+                refundedChildren.addAll(children);
+            }
+        }
+        for (DailyTicketOrder child : refundedChildren) {
+                settleTicketOnRefunded(child.getOrderNo());
+        }
+        if ("TRAVEL_FULL".equals(refund.getRefundScope())) {
+            travelOrderMapper.updateOrderStatus(parent.getOrderNo(), "REFUNDED");
+        } else {
+            refreshTravelParentSummary(parent.getOrderNo());
+        }
+        markRefundNotifyPending(refund);
+    }
+
+    private void markTravelRefundFailed(TravelTicketOrder parent, DailyTicketRefund refund,
+                                        Map<String, Object> refundData) {
+        refund.setRefundStatus("FAILED");
+        refund.setRefundDate(null);
+        refund.setUpdateTime(new Date());
+        updatePlatformRefundNo(refund, refundData);
+        refundMapper.updateResult(refund);
+        refundDetailMapper.updateStatusByRefundOrderNo(refund.getRefundOrderNo(), "FAILED");
+        if ("TRAVEL_SUB".equals(refund.getRefundScope())) {
+            releaseTicketLock(refund.getOrderNo());
+            refreshTravelParentSummary(parent.getOrderNo());
+        } else {
+            for (DailyTicketOrder child : orderMapper.selectByParentOrderNo(parent.getOrderNo())) {
+                releaseTicketLock(child.getOrderNo());
+            }
+            travelOrderMapper.updateOrderStatus(parent.getOrderNo(), "PAID");
+        }
+        markRefundNotifyPending(refund);
+    }
+
+    private void markTravelRefunding(String parentOrderNo, DailyTicketRefund refund) {
+        refund.setRefundStatus("REFUNDING");
+        refund.setRefundDate(null);
+        refund.setUpdateTime(new Date());
+        refundMapper.updateResult(refund);
+        travelOrderMapper.updateOrderStatus(parentOrderNo, "REFUNDING");
+    }
+
+    private void refreshTravelParentSummaryBySubOrder(String subOrderNo) {
+        DailyTicketOrder subOrder = orderMapper.selectByOrderNo(subOrderNo);
+        if (subOrder == null || !StringUtils.hasText(subOrder.getParentOrderNo())) {
+            return;
+        }
+        refreshTravelParentSummary(subOrder.getParentOrderNo());
+    }
+
+    private void refreshTravelParentSummary(String parentOrderNo) {
+        TravelTicketOrder parent = travelOrderMapper.selectByOrderNo(parentOrderNo);
+        if (parent == null || !"PAID".equals(parent.getPayStatus())) {
+            return;
+        }
+        List<DailyTicketOrder> children = orderMapper.selectByParentOrderNo(parentOrderNo);
+        if (children == null || children.isEmpty()) {
+            return;
+        }
+        int used = 0;
+        int refunded = 0;
+        for (DailyTicketOrder child : children) {
+            DailyTicketInstance ticket = instanceMapper.selectByOrderNo(child.getOrderNo());
+            if (ticket != null && (TICKET_STATUS_USED.equals(ticket.getTicketStatus())
+                    || TICKET_STATUS_EXPIRED.equals(ticket.getTicketStatus()))) {
+                used++;
+            }
+            DailyTicketRefund childRefund = refundMapper.selectByOrderNo(child.getOrderNo());
+            if (childRefund != null && "REFUNDED".equals(childRefund.getRefundStatus())) {
+                refunded++;
+            }
+        }
+        String summaryStatus = "PAID";
+        if (refunded == children.size()) {
+            summaryStatus = "REFUNDED";
+        } else if (refunded > 0) {
+            summaryStatus = "PARTIAL_REFUNDED";
+        } else if (used == children.size()) {
+            summaryStatus = "USED";
+        } else if (used > 0) {
+            summaryStatus = "PARTIAL_USED";
+        }
+        travelOrderMapper.updateOrderStatus(parentOrderNo, summaryStatus);
     }
 
     /** 明确失败时保留原退款单，后续重试必须继续使用该退款单号。 */
@@ -1042,7 +1803,50 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         refund.setUpdateTime(now);
         refundMapper.updateResult(refund);
         orderMapper.updateOrderStatus(order.getOrderNo(), "PAID");
+        releaseTicketLock(order.getOrderNo());
         markRefundNotifyPending(refund);
+    }
+
+    /**
+     * 发起核验退款时把票从 {@code ACTIVATED} 锁进 {@code REFUND_LOCKED}，返回是否抢到。
+     * 这是本模块唯一阻止「观察期内继续乘坐」的地方：锁上之后 {@code selectForEntryCheck} 查不到、
+     * {@code markUsed} 也会被 {@link #isTicketLockedForRefund} 挡住。
+     */
+    private boolean lockTicketForRefund(DailyTicketInstance ticket) {
+        return instanceMapper.updateStatusIfCurrent(ticket.getId(),
+                TICKET_STATUS_ACTIVATED, TICKET_STATUS_REFUND_LOCKED, new Date()) > 0;
+    }
+
+    /**
+     * 放款成功后把票推进终态 {@code REFUNDED}。
+     * 未激活票（refundType=00）在本表没有实例、CAS 影响 0 行，属正常，只记日志不报错。
+     */
+    private void settleTicketOnRefunded(String orderNo) {
+        DailyTicketInstance ticket = instanceMapper.selectByOrderNo(orderNo);
+        if (ticket == null) {
+            return;
+        }
+        int settled = instanceMapper.updateStatusIfCurrent(ticket.getId(),
+                TICKET_STATUS_REFUND_LOCKED, TICKET_STATUS_REFUNDED, new Date());
+        if (settled == 0) {
+            log.error("日票退款已放款但票状态不是 REFUND_LOCKED，需人工核对 orderNo={}, instanceId={}, ticketStatus={}",
+                    orderNo, ticket.getId(), ticket.getTicketStatus());
+        }
+    }
+
+    /** 退款明确失败后把票解锁回 {@code ACTIVATED}，否则用户既没退到钱、票也被锁死。 */
+    private void releaseTicketLock(String orderNo) {
+        DailyTicketInstance ticket = instanceMapper.selectByOrderNo(orderNo);
+        if (ticket == null) {
+            return;
+        }
+        instanceMapper.updateStatusIfCurrent(ticket.getId(),
+                TICKET_STATUS_REFUND_LOCKED, TICKET_STATUS_ACTIVATED, new Date());
+    }
+
+    /** 票是否处于退款占用态：{@code REFUND_LOCKED} 观察期内或 {@code REFUNDED} 已放款。 */
+    private boolean isTicketLockedForRefund(String ticketStatus) {
+        return TICKET_STATUS_REFUND_LOCKED.equals(ticketStatus) || TICKET_STATUS_REFUNDED.equals(ticketStatus);
     }
 
     /** 退款进入终态后把 IF8B-04 通知置为待发。 */
@@ -1194,6 +1998,22 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return payRequest;
     }
 
+    private Map<String, Object> buildTravelTicketPayRequest(TravelTicketOrder order, DailyTicketPayReqDTO request) {
+        Map<String, Object> payRequest = new LinkedHashMap<>();
+        payRequest.put("orderNo", order.getOrderNo());
+        payRequest.put("scene", order.getPayScene());
+        payRequest.put("paymentVendor", request.getPayChannelCode());
+        payRequest.put("amount", order.getTotalAmount());
+        payRequest.put("industryType", payProperties.getIndustryType());
+        payRequest.put("subject", payProperties.getSubject());
+        payRequest.put("body", payProperties.getBody());
+        payRequest.put("thirdUserId", request.getThirdUserId());
+        payRequest.put("phone", request.getPhone());
+        putIfText(payRequest, "notifyUrl", payProperties.getNotifyUrl());
+        putIfText(payRequest, "returnUrl", payProperties.getReturnUrl());
+        return payRequest;
+    }
+
     private Map<String, Object> buildDailyTicketRefundRequest(DailyTicketOrder order, DailyTicketRefund refund) {
         Map<String, Object> refundRequest = new LinkedHashMap<>();
         refundRequest.put("refundOrderNo", refund.getRefundOrderNo());
@@ -1210,6 +2030,16 @@ public class DailyTicketServiceImpl implements DailyTicketService {
             return;
         }
         orderMapper.updatePaymentOrderNo(order.getOrderNo(), paymentOrderNo);
+        if (!StringUtils.hasText(order.getPaymentOrderNo())) {
+            order.setPaymentOrderNo(paymentOrderNo);
+        }
+    }
+
+    private void updateTravelPaymentOrderNo(TravelTicketOrder order, String paymentOrderNo) {
+        if (!StringUtils.hasText(paymentOrderNo)) {
+            return;
+        }
+        travelOrderMapper.updatePaymentOrderNo(order.getOrderNo(), paymentOrderNo);
         if (!StringUtils.hasText(order.getPaymentOrderNo())) {
             order.setPaymentOrderNo(paymentOrderNo);
         }
@@ -1300,7 +2130,7 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         main.setShowType(request.getShowType());
         main.setTicketPrice(ticketPrice);
         main.setTicketCount(ticketCount);
-        main.setTotalAmount(ticketPrice * ticketCount);
+        main.setTotalAmount(request.getTotalAmount());
         main.setOrderSource(request.getOrderSource());
         main.setOrderStatus("CREATED");
         main.setPayStatus("INIT");
@@ -1339,16 +2169,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return calendar.getTime();
     }
 
-    private TravelTicketSubOrder toSubOrderView(DailyTicketOrder sub) {
-        TravelTicketSubOrder view = new TravelTicketSubOrder();
-        view.setOrderNo(sub.getOrderNo());
-        view.setCardType(sub.getCardType());
-        view.setShowType(sub.getShowType());
-        view.setTicketPrice(sub.getTicketPrice());
-        view.setOrderStatus(sub.getOrderStatus());
-        return view;
-    }
-
     private String validateTravelOrderRequest(TravelTicketOrderReqDTO request) {
         if (request == null) {
             return "请求报文不能为空";
@@ -1359,18 +2179,17 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         if (!StringUtils.hasText(request.getUserId())) {
             return "userId不能为空";
         }
-        if (request.getTicketPrice() == null || request.getTicketPrice() <= 0) {
-            return "ticketPrice必须大于0";
-        }
         if (request.getTicketCount() == null || request.getTicketCount() <= 0) {
             return "ticketCount必须大于0";
         }
         if (request.getTicketCount() > MAX_TRAVEL_TICKET_COUNT) {
             return "ticketCount不能超过" + MAX_TRAVEL_TICKET_COUNT;
         }
-        int expectedAmount = request.getTicketPrice() * request.getTicketCount();
-        if (request.getTotalAmount() == null || request.getTotalAmount() != expectedAmount) {
-            return "totalAmount与ticketPrice*ticketCount不一致";
+        if (request.getTotalAmount() == null || request.getTotalAmount() <= 0) {
+            return "totalAmount必须大于0";
+        }
+        if (request.getTotalAmount() % request.getTicketCount() != 0) {
+            return "totalAmount必须能被ticketCount整除";
         }
         return null;
     }
@@ -1389,8 +2208,9 @@ public class DailyTicketServiceImpl implements DailyTicketService {
     }
 
     private String validateOrderNo(String orderNo, String orderType) {
-        if (!ORDER_TYPE_DAILY_TICKET.equals(orderType)) {
-            return "orderType必须为1";
+        if (!ORDER_TYPE_DAILY_TICKET.equals(orderType)
+                && !ORDER_TYPE_TRAVEL_TICKET.equals(orderType)) {
+            return "orderType必须为1或2";
         }
         if (!StringUtils.hasText(orderNo)) {
             return "orderNo不能为空";

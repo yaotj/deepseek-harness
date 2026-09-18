@@ -82,6 +82,10 @@
 
 <script setup name="UserDebitDetail">
 import { listGateTxnPays, requestGateTxnPayRefund } from '@/api/trans/userSearch'
+import { defaultTodayRange } from '@/utils/dateRange'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYYMMDD'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
@@ -94,7 +98,7 @@ const refundOpen = ref(false)
 const currentOrder = ref({})
 const refundForm = reactive({ amountYuan: undefined, refundReason: '' })
 const queryParams = reactive({
-  orderNo: '', cardId: route.query.cardId || '', thirdUserId: '', signChannelCode: '', cardType: '', debitStatus: '', dateRange: [], pageNum: 1, pageSize: 10
+  orderNo: '', cardId: route.query.cardId || '', thirdUserId: '', signChannelCode: '', cardType: '', debitStatus: '', dateRange: defaultTodayRange(DATE_FORMAT), pageNum: 1, pageSize: 10
 })
 const maxRefundAmount = computed(() => Number(currentOrder.value.totalAmount || 0) / 100)
 const refundRules = {
@@ -138,7 +142,7 @@ function resetQuery() {
   queryParams.signChannelCode = ''
   queryParams.cardType = ''
   queryParams.debitStatus = ''
-  queryParams.dateRange = []
+  queryParams.dateRange = defaultTodayRange(DATE_FORMAT)
   handleQuery()
 }
 

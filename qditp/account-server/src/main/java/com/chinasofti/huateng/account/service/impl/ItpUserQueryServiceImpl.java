@@ -130,6 +130,7 @@ public class ItpUserQueryServiceImpl implements ItpUserQueryService {
         view.setMsisdn(maskPhone(user.getMsisdn()));
         view.setUserName(maskName(user.getUserName()));
         view.setCardIssueCode(user.getCardIssueCode());
+        view.setIssueOrgCode(user.getIssueOrgCode());
         view.setChannel(user.getChannel());
         view.setCompanionFlag(user.getCompanionFlag());
         view.setStatus(user.isActive() ? "有效" : user.isCanceled() ? "已注销" : "未知");

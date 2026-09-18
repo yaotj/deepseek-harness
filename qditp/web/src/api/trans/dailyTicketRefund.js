@@ -9,43 +9,56 @@ export function listDailyTicketRefundOrders(params) {
   })
 }
 
-/** 对指定日票订单发起退款。 */
-export function requestDailyTicketRefund(orderNo) {
+/** 对指定日票/旅游票订单发起退款。 */
+export function requestDailyTicketRefund(orderNo, orderType = '1') {
   return request({
     url: '/daily-ticket-server/page/daily-ticket/refund/request',
     method: 'post',
-    // 服务端固定订单类型为日票，页面只提交业务主键。
-    data: { orderNo }
+    data: { orderNo, orderType }
   })
 }
 
-/** 查询支付平台支付结果，并同步日票订单支付状态。 */
-export function queryDailyTicketPay(orderNo) {
+/** 查询支付平台支付结果，并同步订单支付状态。 */
+export function queryDailyTicketPay(orderNo, orderType = '1') {
   return request({
     url: '/daily-ticket-server/page/daily-ticket/refund/pay-query',
     method: 'post',
-    // 服务端固定订单类型为日票，页面只提交业务主键。
-    data: { orderNo }
+    data: { orderNo, orderType }
   })
 }
 
-/** 查询支付平台的日票退款处理结果。 */
-export function queryDailyTicketRefund(orderNo) {
+/** 查询支付平台的退款处理结果。 */
+export function queryDailyTicketRefund(orderNo, orderType = '1') {
   return request({
     url: '/daily-ticket-server/page/daily-ticket/refund/query',
     method: 'post',
-    // 服务端固定订单类型为日票，页面只提交业务主键。
-    data: { orderNo }
+    data: { orderNo, orderType }
   })
 }
 
 /** 使用原退款单号重试支付平台退款。 */
-export function retryDailyTicketRefund(orderNo) {
+export function retryDailyTicketRefund(orderNo, orderType = '1') {
   return request({
     url: '/daily-ticket-server/page/daily-ticket/refund/retry',
     method: 'post',
-    // 服务端先查询退款结果，再以同一退款单号重试，防止形成重复退款。
-    data: { orderNo }
+    data: { orderNo, orderType }
+  })
+}
+
+/** 查询旅游票主单下的子单。 */
+export function listTravelTicketSubOrders(orderNo) {
+  return request({
+    url: `/daily-ticket-server/page/daily-ticket/refund/travel/${orderNo}/sub-orders`,
+    method: 'get'
+  })
+}
+
+/** 运营端对旅游票子单发起部分退款。 */
+export function requestTravelTicketSubRefund(data) {
+  return request({
+    url: '/daily-ticket-server/page/daily-ticket/refund/travel/sub-refund',
+    method: 'post',
+    data
   })
 }
 

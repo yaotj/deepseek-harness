@@ -9,6 +9,7 @@ import com.chinasofti.huateng.dailyticket.model.DailyTicketRefund;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -34,7 +35,7 @@ public class DailyTicketRefundNotifyService {
     private static final String REFUND_STATUS_REFUNDED = "REFUNDED";
     private static final String REFUND_STATUS_FAILED = "FAILED";
 
-    /** IF8B-04 的 {@code orderType}：{@code 1} 代表日票（用户明确指定）。 */
+    /** IF8B-04 默认 {@code orderType}：历史日票退款记录没有 ORDER_TYPE 时按 1 兼容。 */
     private static final String ORDER_TYPE_DAILY_TICKET = "1";
 
     /** {@code NOTIFY_MSG} 列长 500，超长会直接 ORA-12899，落库前 MUST 截断。 */
@@ -129,7 +130,8 @@ public class DailyTicketRefundNotifyService {
     private Map<String, Object> buildBizData(DailyTicketRefund refund) {
         Map<String, Object> bizData = new LinkedHashMap<>();
         bizData.put("orderNo", refund.getOrderNo());
-        bizData.put("orderType", ORDER_TYPE_DAILY_TICKET);
+        bizData.put("orderType", StringUtils.hasText(refund.getOrderType())
+                ? refund.getOrderType() : ORDER_TYPE_DAILY_TICKET);
         bizData.put("refundType", refund.getRefundType());
         bizData.put("refundResult", toRefundResult(refund.getRefundStatus()));
         bizData.put("refundResultDesc", toRefundResultDesc(refund.getRefundStatus()));

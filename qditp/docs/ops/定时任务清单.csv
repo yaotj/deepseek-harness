@@ -1,0 +1,33 @@
+﻿序号,调度形态,任务编号,任务名称,调度方,执行方模块,触发目标,调度表达式,启用状态,并发,备注
+1,web-admin Quartz(sys_job),1,系统默认（无参）,web-admin,web-admin,ryTask.ryNoParams,0/10 * * * * ?,暂停,禁止,RuoYi 自带示例任务，无业务含义
+2,web-admin Quartz(sys_job),2,系统默认（有参）,web-admin,web-admin,ryTask.ryParams('ry'),0/15 * * * * ?,暂停,禁止,RuoYi 自带示例任务，无业务含义
+3,web-admin Quartz(sys_job),3,系统默认（多参）,web-admin,web-admin,"ryTask.ryMultipleParams('ry', true, 2000L, 316.50D, 100)",0/20 * * * * ?,暂停,禁止,RuoYi 自带示例任务，无业务含义
+4,web-admin Quartz(sys_job),4,解约申请确认,web-admin,pay-sign-server,"terminationQuartzTask.confirmTermination('20260914112600', 0)",0 0 4 * * ?,正常,禁止,POST /internal/termination/process；扫 APP 解约申请满 4 天的确认解约
+5,web-admin Quartz(sys_job),5,支付宝出行销卡,web-admin,alipay-pay-sign-server,alipayTerminationQuartzTask.cancelCard(),0 0 2 * * ?,正常,禁止,POST /internal/alipay/termination/process
+6,web-admin Quartz(sys_job),6,签约结果通知补发,web-admin,pay-sign-server,notifyCompensateQuartzTask.compensateSignNotify(),0 0/10 * * * ?,正常,禁止,POST /internal/paySign/compensateNotify；间隔必须大于下游 PENDING 滞留阈值 10 分钟
+7,web-admin Quartz(sys_job),7,解约结果通知补发,web-admin,pay-sign-server,notifyCompensateQuartzTask.compensateTerminationNotify(),0 5/10 * * * ?,正常,禁止,POST /internal/termination/compensateNotify；与 job 6 错开 5 分钟
+8,web-admin Quartz(sys_job),105,黑名单可解除性盘点,web-admin,blacklist-server,blacklistReleaseInspectQuartzTask.inspect(),"0 0 10,16 * * ?",正常,禁止,POST /internal/blacklist/inspectReleasable；只读盘点+打日志，不删记录
+9,web-admin Quartz(sys_job),106,ACC参数文件同步,web-admin,para-server,paraQuartzTask.scanFtpPara(),0 2/10 * * * ?,正常,禁止,POST /para/import/ftp/quartz；按版本号+MD5 判变更后下载解析入库
+10,web-admin Quartz(sys_job),107,卡池维护,web-admin,card-pool-server,cardPoolQuartzTask.runMaintenance(),0 0/5 * * * ?,正常,禁止,POST /internal/card-pools/maintenance；回收超时预占+补货+推进批次
+11,web-admin Quartz(sys_job),108,签约展示账号同步补偿,web-admin,account-server,accountQuartzTask.compensatePhoneSignSync(),0 0/5 * * * ?,正常,禁止,POST /phoneSignSyncCompensate；单批 200 条、重试上限 10 次
+12,web-admin Quartz(sys_job),109,日终对账,web-admin,recon-server,reconQuartzTask.runDailyBatch(),0 30 2 * * ?,正常,禁止,POST /internal/recon/daily/run；日终对账唯一调度源，账期 T-2 日，recon-server 侧无任何调度
+13,web-admin Quartz(sys_job),120,离线码金额补偿,web-admin,gate-txn-pay-server,gateTxnPayQuartzTask.recoverOfflineFare(),0 0/1 * * * ?,正常,禁止,POST /internal/gate-txn-pay/offline-fare/recover；原为模块内 @Scheduled，已迁出
+14,web-admin Quartz(sys_job),121,公交换乘推送,web-admin,gate-txn-pay-server,gateTxnPayQuartzTask.pushMetroTransfer(),0 0/1 * * * ?,正常,禁止,POST /internal/gate-txn-pay/metro-transfer/push；原为模块内 10 秒轮询
+15,web-admin Quartz(sys_job),122,退款回查补偿,web-admin,pay-sign-server,refundCompensateQuartzTask.compensateRefundQuery(),0 0/10 * * * ?,正常,禁止,POST /internal/payment/compensateRefundQuery；间隔必须大于下游 staleMinutes=5 分钟
+16,web-admin Quartz(sys_job),123,退款汇总跨表对账,web-admin,pay-sign-server,refundCompensateQuartzTask.compensateRefundSummary(),0 15 * * * ?,正常,禁止,POST /internal/payment/compensateRefundSummary；不出网，只重算 PAY_TXN_DETAIL
+17,web-admin Quartz(sys_job),124,支付宝支付通道同步补偿,web-admin,alipay-pay-sign-server,alipayChannelSyncQuartzTask.compensate(),0 0/5 * * * ?,正常,禁止,POST /internal/alipay/channelSync/compensate；ADR-D132 唯一驱动源
+18,模块内 @Scheduled,-,当面付通知投递,face-pay-server,face-pay-server,F2fNotifyJob.deliverDueTasks,fixedDelay ${f2f.notify.scanIntervalMs:30000} / initialDelay 20000,随模块启动生效,无分布式锁,MUST 单副本
+19,模块内 @Scheduled,-,当面付退款回查,face-pay-server,face-pay-server,F2fRefundReconcileJob.reconcileRefunds,fixedDelay ${f2f.refund.scanIntervalMs:60000} / initialDelay 30000,随模块启动生效,无分布式锁,MUST 单副本
+20,模块内 @Scheduled,-,当面付订单过期收口,face-pay-server,face-pay-server,F2fOrderExpireJob.reconcileExpiredOrders,fixedDelay ${f2f.order.expireScanIntervalMs:30000} / initialDelay 15000,随模块启动生效,无分布式锁,MUST 单副本
+21,模块内 @Scheduled,-,设备离线标记,face-pay-server,face-pay-server,F2fDeviceOfflineJob.markTimeoutDevicesOffline,fixedDelay ${f2f.device.offlineScanIntervalMs:60000} / initialDelay 60000,随模块启动生效,无分布式锁,MUST 单副本
+22,模块内 @Scheduled,-,出票上报补偿,face-pay-server,face-pay-server,F2fReportRecoveryJob.resumeDueReports,fixedDelay ${f2f.report.scanIntervalMs:120000} / initialDelay 60000,随模块启动生效,无分布式锁,MUST 单副本
+23,模块内 @Scheduled,-,补款单收敛,face-pay-server,face-pay-server,SupplementOrderCloseProcessor.converge,${supplement.scheduler.converge-cron:0 */5 * * * ?},随模块启动生效,无分布式锁,类整体自 gate-txn-pay-server 迁入；NEVER 在 gate-txn-pay-server 加回
+24,模块内 @Scheduled,-,补款单超时关闭,face-pay-server,face-pay-server,SupplementOrderCloseProcessor.closeTimeout,${supplement.scheduler.close-cron:0 */10 * * * ?},随模块启动生效,无分布式锁,同上
+25,模块内 @Scheduled,-,APP购票未取票退款,collect-pay-server,collect-pay-server,SingleTicketRefundTask.refundAppNotTakeTickets,0 0 20 * * ?,随模块启动生效,无分布式锁,旧单退款，仅处理旧表数据
+26,模块内 @Scheduled,-,TVM充值未取票退款,collect-pay-server,collect-pay-server,SingleTicketRefundTask.refundTvmTopupNotTakeTickets,0 0 20 * * ?,随模块启动生效,无分布式锁,旧单退款
+27,模块内 @Scheduled,-,BOM售票未取票退款,collect-pay-server,collect-pay-server,SingleTicketRefundTask.refundBomSaleNotTakeTickets,"0 1 9,15,21 * * ?",随模块启动生效,无分布式锁,旧单退款
+28,模块内 @Scheduled,-,BOM充值未取票退款,collect-pay-server,collect-pay-server,SingleTicketRefundTask.refundBomTopupNotTakeTickets,"0 0 9,15,21 * * ?",随模块启动生效,无分布式锁,旧单退款
+29,公共构件 @Scheduled,-,Druid统计重置,micro/sql-datasource,依赖 micro-web 的全部模块,SqlConfiguration.resetAllDruidStatData,${other.monitor.resetAllMetersCron}（默认 0 0 2 * * ?）,随模块启动生效,@Async,WebAutoConfig 的 @EnableScheduling 全局生效，各模块无需自行开启
+30,公共构件 @Scheduled,-,Prometheus指标重置,micro/web,依赖 micro-web 的全部模块,ResetMetersJob.resetAllMeters,${other.monitor.resetAllMetersCron}（默认 0 0 2 * * ?）,随模块启动生效,@Async,同上
+31,公共构件 @Scheduled,-,Prometheus指标打印,micro/web,依赖 micro-web 的全部模块,ResetMetersJob.logAllMetric,${other.monitor.logAllMetersCron}（默认 0/30 * * * * ?）,随模块启动生效,@Async,同上
+32,模块内 @Scheduled,-,本地缓存过期清理,web-admin,web-admin,LocalCache.cleanExpiredEntries,fixedDelay 60000,随模块启动生效,-,web-common 内的进程内缓存清理，与业务无关

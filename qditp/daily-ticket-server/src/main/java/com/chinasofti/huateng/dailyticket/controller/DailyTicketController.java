@@ -117,6 +117,16 @@ public class DailyTicketController {
     }
 
     /**
+     * 日票乘车可用性查询（拉码 IF8A-03 前置，只读）。
+     * 只判定有效期 / 次数 / 退款占用，不推进任何状态；闸机侧 entry/check 那道权威校验 NEVER 撤。
+     */
+    @PostMapping("/ticket/rideAvailability")
+    public DailyTicketBaseResult rideAvailability(@RequestBody java.util.Map<String, String> request) {
+        String cardNum = request == null ? null : request.get("cardNum");
+        return dailyTicketService.checkRideAvailability(cardNum);
+    }
+
+    /**
      * 日票出站处理（闸机出站时调用）。
      * 扣减计次票次数（下限为0），推进票状态。
      */

@@ -44,6 +44,11 @@
 
 <script setup name="UserTransactionDetail">
 import { listQRCodeTxnDetails } from '@/api/trans/userSearch'
+import { defaultTodayRange } from '@/utils/dateRange'
+import { formatCodeLabel, formatCodeName } from '@/utils/codeLabel'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYYMMDD'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
@@ -51,15 +56,13 @@ const route = useRoute()
 const loading = ref(false)
 const total = ref(0)
 const records = ref([])
-const queryParams = reactive({ cardId: route.query.cardId || '', thirdUserId: '', signChannelCode: '', cardType: '', dateRange: [], pageNum: 1, pageSize: 10 })
+const queryParams = reactive({ cardId: route.query.cardId || '', thirdUserId: '', signChannelCode: '', cardType: '', dateRange: defaultTodayRange(DATE_FORMAT), pageNum: 1, pageSize: 10 })
 
+/** QRCODE_TXN_DETAIL.TRX_TYPE 码值翻译。 */
 const transactionTypes = Object.freeze({
-  '01': '发售', '02': '超时更新', '03': '超程更新/一卡通余额不足更新', '04': '未出站更新处理',
-  '05': '无入站更新处理', '06': '储值票即时退卡/单程票退票', '07': '进站', '08': '出站',
-  '09': '保留', '21': '储值票购单程票', '22': '充值', '23': '冲正', '2A': '黑名单卡锁定',
-  '2B': '卡锁定解除', '2C': '扣款', '2F': '非即时退卡申请', '30': '非即时退卡确认',
-  '33': '交易拒绝', '34': '黑名单卡进站跟踪', '35': '黑名单卡出站跟踪', '40': '有障碍换乘',
-  '41': '有效期更新', '51': 'BOM行政处理'
+  '01': '进站',
+  '02': '出站',
+  '03': '超时出站'
 })
 
 const handleResults = Object.freeze({
@@ -107,7 +110,7 @@ function resetQuery() {
   queryParams.thirdUserId = ''
   queryParams.signChannelCode = ''
   queryParams.cardType = ''
-  queryParams.dateRange = []
+  queryParams.dateRange = defaultTodayRange(DATE_FORMAT)
   handleQuery()
 }
 
@@ -123,26 +126,20 @@ function formatTransactionTime(value) {
 }
 
 function formatTransactionType(value) {
-  const code = normalizeCode(value)
-  return formatCodeLabel(code, transactionTypes[code])
+  return formatCodeLabel(normalizeCode(value), transactionTypes)
 }
 
 function formatHandleResult(value) {
   const code = String(value == null ? '' : value).trim().padStart(3, '0')
-  return formatCodeLabel(code, handleResults[code])
+  return formatCodeLabel(code, handleResults)
 }
 
 function formatStation(code, name) {
-  return name || code || '-'
+  return formatCodeName(code, name)
 }
 
 function normalizeCode(value) {
   return String(value == null ? '' : value).trim().replace(/^0x/i, '').toUpperCase()
-}
-
-function formatCodeLabel(code, label) {
-  if (!code) return '-'
-  return label ? `${code} ${label}` : code
 }
 
 function hasSearchScope() {

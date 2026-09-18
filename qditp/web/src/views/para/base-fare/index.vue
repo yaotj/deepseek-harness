@@ -48,6 +48,7 @@
 
 <script setup name="BaseFare">
 import { listBaseFares, listBaseFareStations, listBaseFareLines } from '@/api/para/baseFare'
+import { formatCodeName } from '@/utils/codeLabel'
 
 const loading = ref(false)
 const lines = ref([])
@@ -120,9 +121,9 @@ function resetQuery() {
   handleQuery()
 }
 
-function lineLabel(line) { return `${line.lineName || '未命名线路'} (${line.lineCode})` }
-function stationLabel(station) { return `${station.stationName || '未命名车站'} (${station.stationCode})` }
-function stationText(name, code) { return name ? `${name} (${code})` : code || '-' }
+function lineLabel(line) { return formatCodeName(line?.lineCode, line?.lineName) }
+function stationLabel(station) { return formatCodeName(station?.stationCode, station?.stationName) }
+function stationText(name, code) { return formatCodeName(code, name) }
 function formatAmount(value) { return value == null ? '-' : `¥ ${(Number(value) / 100).toFixed(2)}` }
 
 getLines()

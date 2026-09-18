@@ -72,6 +72,10 @@
 
 <script setup name="BlacklistManagement">
 import { addBlacklist, delBlacklist, listBlacklists } from '@/api/trans/blacklist'
+import { defaultTodayRange } from '@/utils/dateRange'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 // 新增和删除均调用后台管理入口，后台会保留操作日志并执行既有渠道同步。
 
 const { proxy } = getCurrentInstance()
@@ -80,7 +84,7 @@ const submitting = ref(false)
 const open = ref(false)
 const blacklist = ref([])
 const total = ref(0)
-const queryParams = reactive({ cardId: '', thirdUserId: '', dateRange: [], pageNum: 1, pageSize: 10 })
+const queryParams = reactive({ cardId: '', thirdUserId: '', dateRange: defaultTodayRange(DATE_FORMAT), pageNum: 1, pageSize: 10 })
 const form = reactive({ cardId: '', thirdUserId: '', cardType: '', reason: '' })
 const rules = {
   cardId: [
@@ -117,7 +121,7 @@ function handleQuery() {
 function resetQuery() {
   queryParams.cardId = ''
   queryParams.thirdUserId = ''
-  queryParams.dateRange = []
+  queryParams.dateRange = defaultTodayRange(DATE_FORMAT)
   handleQuery()
 }
 

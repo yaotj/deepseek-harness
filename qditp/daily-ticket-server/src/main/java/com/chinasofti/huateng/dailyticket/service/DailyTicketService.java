@@ -23,6 +23,7 @@ import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderQuery;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderView;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundQuery;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundView;
+import com.chinasofti.huateng.dailyticket.page.TravelTicketSubRefundRequest;
 import com.github.pagehelper.PageInfo;
 
 /** 日票业务服务。 */
@@ -57,6 +58,12 @@ public interface DailyTicketService {
     /** 运营页面分页查询日票订单及退款、票实例摘要。 */
     ResultVO<PageInfo<DailyTicketRefundOrderView>> pageRefundOrders(DailyTicketRefundOrderQuery query);
 
+    /** 查询旅游票主单下的日票子单退款明细。 */
+    ResultVO<java.util.List<DailyTicketRefundOrderView>> listTravelSubRefundOrders(String parentOrderNo);
+
+    /** 运营端按旅游票主单+子单发起部分退款。 */
+    DailyTicketRefundResult requestTravelSubRefund(TravelTicketSubRefundRequest request);
+
     /** 运营页面分页查询日票退款记录。 */
     ResultVO<PageInfo<DailyTicketRefundView>> pageRefundRecords(DailyTicketRefundQuery query);
 
@@ -88,6 +95,23 @@ public interface DailyTicketService {
      * @return retCode=0000 通过；否则 retMsg 携带拒绝原因
      */
     DailyTicketBaseResult validateEntryCheck(String cardNum);
+
+    /**
+     * 日票乘车可用性查询（IF8A-03 拉码前置的只读判定）。
+     *
+     * <p>四条口径：
+     * <ol>
+     *   <li>只读：只判定、不推进任何状态，不扣次、不改票状态；</li>
+     *   <li>不能替代 {@link #validateEntryCheck}——那条是进站那一刻的权威校验、由闸机调用；
+     *       拉码到进站之间可能隔很久，APP 还可能缓存旧码，因此闸机那道校验 NEVER 撤；</li>
+     *   <li>调用方 {@code fep-app-server} 只在日票族卡种才调，且 daily-ticket 不可达时降级放行；</li>
+     *   <li>因此本方法只用 retCode 表达结论、绝不抛异常。</li>
+     * </ol>
+     *
+     * @param cardNum 卡号（对应 DAILY_TICKET_INSTANCE.CARD_NUM）
+     * @return retCode=0000 可用；否则不可用，retMsg 携带原因
+     */
+    DailyTicketBaseResult checkRideAvailability(String cardNum);
 
     /**
      * 日票出站处理（闸机出站时调用）。

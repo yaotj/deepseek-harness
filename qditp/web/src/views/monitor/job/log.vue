@@ -212,6 +212,10 @@
 <script setup name="JobLog">
 import { getJob } from "@/api/monitor/job"
 import { listJobLog, delJobLog, cleanJobLog, getJobTraceLog } from "@/api/monitor/jobLog"
+import { defaultTodayRange } from '@/utils/dateRange'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYY-MM-DD'
 
 const { proxy } = getCurrentInstance()
 const { sys_common_status, sys_job_group } = proxy.useDict("sys_common_status", "sys_job_group")
@@ -226,7 +230,7 @@ const showSearch = ref(true)
 const ids = ref([])
 const multiple = ref(true)
 const total = ref(0)
-const dateRange = ref([])
+const dateRange = ref(defaultTodayRange(DATE_FORMAT))
 const route = useRoute()
 
 const data = reactive({
@@ -266,7 +270,7 @@ function handleQuery() {
 
 /** 重置按钮操作 */
 function resetQuery() {
-  dateRange.value = []
+  dateRange.value = defaultTodayRange(DATE_FORMAT)
   proxy.resetForm("queryRef")
   handleQuery()
 }

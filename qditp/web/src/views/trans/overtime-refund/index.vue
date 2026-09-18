@@ -123,6 +123,10 @@
 import { listOvertimeRefundable, batchRefundOvertime } from '@/api/trans/overtimeRefund'
 import { listStationInfo } from '@/api/para/station'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { defaultTodayRange } from '@/utils/dateRange'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYY-MM-DD'
 
 const { proxy } = getCurrentInstance()
 
@@ -130,7 +134,7 @@ const loading = ref(false)
 const refunding = ref(false)
 const orderList = ref([])
 const total = ref(0)
-const dateRange = ref([])
+const dateRange = ref(defaultTodayRange(DATE_FORMAT))
 const stationOptions = ref([])
 const multipleSelection = ref([])
 const resultVisible = ref(false)
@@ -183,7 +187,7 @@ function handleQuery() {
 }
 
 function resetQuery() {
-  dateRange.value = []
+  dateRange.value = defaultTodayRange(DATE_FORMAT)
   queryParams.stationCode = undefined
   queryParams.pageNum = 1
   orderList.value = []

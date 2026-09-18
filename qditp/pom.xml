@@ -51,7 +51,8 @@
         <module>fep-app-server</module>
         <module>fep-alipay-server</module>
         <module>fep-dev-server</module>
-        <module>fep-acc-server</module>
+		<module>fep-acc-server</module>
+		<module>employee-card-acc-simulator</module>
         <module>gate-txn-pay-server</module>
         <module>blacklist-server</module>
         <module>key-server</module>

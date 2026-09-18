@@ -5,7 +5,6 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayProcessTerminationReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayProcessTerminationRespDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,8 +17,11 @@ public class AlipayTerminationInternalController {
 
     private static final Logger log = LoggerFactory.getLogger(AlipayTerminationInternalController.class);
 
-    @Autowired
-    private AlipayTerminationInternalService alipayTerminationInternalService;
+    private final AlipayTerminationInternalService alipayTerminationInternalService;
+
+    public AlipayTerminationInternalController(AlipayTerminationInternalService alipayTerminationInternalService) {
+        this.alipayTerminationInternalService = alipayTerminationInternalService;
+    }
 
     /**
      * 支付宝出行销卡批处理：扫一批 PENDING 的销卡登记逐条执行。

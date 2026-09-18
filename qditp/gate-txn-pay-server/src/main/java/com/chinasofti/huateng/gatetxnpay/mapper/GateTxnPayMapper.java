@@ -119,6 +119,7 @@ public interface GateTxnPayMapper {
      *
      * @param debitRequestResult 扣款结果过滤：null 或空=全部，"0"=已扣款成功，"1"=未扣款成功。
      * @param cardTypeList 发卡卡类型列表，非空时按 {@code CARD_TYPE IN (...)} 过滤并忽略。
+     * @param issueChannelCode 发行渠道过滤：null 或空=全渠道，{@code 07}=支付宝出行。
      */
     List<GateTxnPay> selectTransList(@Param("thirdUserId") String thirdUserId,
                                      @Param("cardIdList") List<String> cardIdList,
@@ -128,6 +129,7 @@ public interface GateTxnPayMapper {
                                      @Param("endDate") String endDate,
                                      @Param("ticketCode") String ticketCode,
                                      @Param("debitRequestResult") String debitRequestResult,
+                                     @Param("issueChannelCode") String issueChannelCode,
                                      @Param("offset") Integer offset,
                                      @Param("limit") Integer limit);
 
@@ -139,7 +141,8 @@ public interface GateTxnPayMapper {
                        @Param("startDate") String startDate,
                        @Param("endDate") String endDate,
                        @Param("ticketCode") String ticketCode,
-                       @Param("debitRequestResult") String debitRequestResult);
+                       @Param("debitRequestResult") String debitRequestResult,
+                       @Param("issueChannelCode") String issueChannelCode);
 
     /**
      * IF8A-41 账单统计：一条 SQL 同时算出原价 / 实付 / 优惠 / 超时费。

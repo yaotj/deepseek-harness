@@ -6,6 +6,7 @@ import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripRequestRefu
 import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripTerminateContractReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayBlackListNotifyReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayNotifyReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripRefundNotifyReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripCloseResultReqDTO;
 import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripRequestPayRespDTO;
@@ -20,6 +21,7 @@ public interface AlipayTripPaymentService {
     AlipayTripRequestRefundRespDTO requestRefund(AlipayTripRequestRefundReqDTO request);
     AlipayTripPayQueryRespDTO payQuery(AlipayTripPayQueryReqDTO request);
     AlipayCommonResponse handlePayNotify(AlipayTripPayNotifyReqDTO request);
+    AlipayCommonResponse handleRefundNotify(AlipayTripRefundNotifyReqDTO request);
     AlipayTripFindTravelDetailRespDTO findTravelDetail(AlipayTripFindTravelDetailReqDTO request);
     AlipayCommonResponse notifyBlackListChange(AlipayBlackListNotifyReqDTO request);
     AlipayCommonResponse notifyCloseResult(String agreementCode, boolean result);

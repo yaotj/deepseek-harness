@@ -22,7 +22,7 @@ class GateCodeStatusResolver {
     /** IF5A-03 建议操作 → 目标状态。 */
     private static final Map<String, QRCodeStatusEnum> ADVICE_OPT_TABLE = Map.of(
             AdviceOptEnum.SUPPLEMENT_ENTRY.getCode(), QRCodeStatusEnum.ENTRY,
-            AdviceOptEnum.FREE_UPDATE_020.getCode(), QRCodeStatusEnum.ENTRY,
+            AdviceOptEnum.FREE_UPDATE_020.getCode(), QRCodeStatusEnum.UPDATE_FREE,
             AdviceOptEnum.FREE_UPDATE.getCode(), QRCodeStatusEnum.UPDATE_FREE,
             AdviceOptEnum.PAID_UPDATE.getCode(), QRCodeStatusEnum.UPDATE_PAY);
 

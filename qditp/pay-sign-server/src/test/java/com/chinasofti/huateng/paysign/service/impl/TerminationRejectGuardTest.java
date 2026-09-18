@@ -42,7 +42,7 @@ class TerminationRejectGuardTest {
 
         assertEquals(PaySignErrorCodeEnum.INVALID_PARAM.getCode(), response.getRetCode());
         verify(fixture.terminationRequestMapper, never()).selectByRequestSignSeq(anyString());
-        verify(fixture.appNotifyService, never())
+        verify(fixture.terminationNotifyService, never())
                 .asyncNotifyTerminationFailed(any(), any(NotifyTerminationFailedReqDTO.class));
     }
 
@@ -70,7 +70,7 @@ class TerminationRejectGuardTest {
 
         assertEquals(PaySignErrorCodeEnum.SUCCESS.getCode(), response.getRetCode());
         verify(fixture.terminationRequestMapper, never()).rejectPending(anyString(), anyString(), any());
-        verify(fixture.appNotifyService, never())
+        verify(fixture.terminationNotifyService, never())
                 .asyncNotifyTerminationFailed(any(), any(NotifyTerminationFailedReqDTO.class));
     }
 
@@ -102,7 +102,7 @@ class TerminationRejectGuardTest {
         assertEquals(PaySignErrorCodeEnum.SUCCESS.getCode(), response.getRetCode());
         verify(fixture.terminationRequestMapper)
                 .rejectPending(eq(SEQ), eq(DEFAULT_FAIL_REASON), any(LocalDateTime.class));
-        verify(fixture.appNotifyService).asyncNotifyTerminationFailed(pending, request);
+        verify(fixture.terminationNotifyService).asyncNotifyTerminationFailed(pending, request);
     }
 
     /** CAS 落空 ⇒ CONFLICT ⇒ 返错且 NEVER 发通知。 */
@@ -117,7 +117,7 @@ class TerminationRejectGuardTest {
         BaseRespDTO response = fixture.service.notifyTerminationFailed(notifyRequest("扣费失败"));
 
         assertEquals(PaySignErrorCodeEnum.TERMINATION_REQUEST_NOT_FOUND.getCode(), response.getRetCode());
-        verify(fixture.appNotifyService, never())
+        verify(fixture.terminationNotifyService, never())
                 .asyncNotifyTerminationFailed(any(), any(NotifyTerminationFailedReqDTO.class));
     }
 

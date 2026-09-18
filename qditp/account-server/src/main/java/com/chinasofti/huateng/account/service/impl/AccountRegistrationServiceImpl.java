@@ -103,8 +103,10 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
 
             String thirdUserId = request.getThirdUserId().trim();
             String cardType = CardTypeMapping.toIssueCardType(request.getCardType());
-            if (!isMultiCardCompanionFlag(request.getCompanionFlag())) {
-                UserItpRegInfo existed = userItpRegInfoMapper.selectActiveByThirdUserIdAndCardType(thirdUserId, cardType);
+            String issueOrgCode = request.getCardIssueCode().trim();
+            boolean uniqueTicket = "1".equals(request.getTicketLimit().trim());
+            if (uniqueTicket) {
+                UserItpRegInfo existed = userItpRegInfoMapper.selectActiveUniqueCard(thirdUserId, issueOrgCode, cardType);
                 if (existed != null && existed.isActive()) {
                     response.setRetCode(AccountErrorCodeEnum.ALREADY_REGISTERED.getCode());
                     response.setRetMsg(AccountErrorCodeEnum.ALREADY_REGISTERED.getMsg());
@@ -141,11 +143,11 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
             try {
                 registrationCommitService.persistRegistration(regInfo);
             } catch (Exception e) {
-                if (!isDuplicateKeyViolation(e)) {
+                if (!uniqueTicket || !isDuplicateKeyViolation(e)) {
                     throw e;
                 }
                 // NEVER 在失败分支 releaseReservation：预占按 businessId 幂等、是并发请求共享的，超时回收交 sys_job 107（ADR-D52）。
-                RequestApplicationResult duplicated = handleDuplicateRegistration(thirdUserId, cardType, e);
+                RequestApplicationResult duplicated = handleDuplicateRegistration(thirdUserId, issueOrgCode, cardType, e);
                 allocation = null;
                 return duplicated;
             }
@@ -205,22 +207,27 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
     }
 
     /**
-     * 落库撞唯一索引时的兜底：释放预占并按「已开户」返回，与 {@code requestApplication} 前置查重同一口径。
+     * 落库冲突后只回查同平台的唯一卡；查不到有效卡时返回系统错误，且不释放共享预占。
      */
-    private RequestApplicationResult handleDuplicateRegistration(String thirdUserId, String cardType,
+    private RequestApplicationResult handleDuplicateRegistration(String thirdUserId, String issueOrgCode, String cardType,
                                                                  Exception cause) {
         RequestApplicationResult response = new RequestApplicationResult();
-        response.setRetCode(AccountErrorCodeEnum.ALREADY_REGISTERED.getCode());
-        response.setRetMsg(AccountErrorCodeEnum.ALREADY_REGISTERED.getMsg());
         response.setSignType("00");
         response.setSign("");
-        UserItpRegInfo existed = userItpRegInfoMapper.selectActiveByThirdUserIdAndCardType(thirdUserId, cardType);
-        if (existed != null) {
-            response.setCardId(existed.getCardId());
-            response.setCardType(existed.getCardType());
+        UserItpRegInfo existed = userItpRegInfoMapper.selectActiveUniqueCard(thirdUserId, issueOrgCode, cardType);
+        if (existed == null || !existed.isActive() || !StringUtils.hasText(existed.getCardId())) {
+            response.setRetCode(AccountErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg(AccountErrorCodeEnum.SYSTEM_ERROR.getMsg());
+            log.error("IF8A-01唯一冲突后未查到有效唯一卡, thirdUserId={}, issueOrgCode={}, cardType={}",
+                    thirdUserId, issueOrgCode, cardType, cause);
+            return response;
         }
-        log.warn("IF8A-01开户撞唯一约束，按已开户返回, thirdUserId={}, cardType={}, existedCardId={}",
-                thirdUserId, cardType, existed == null ? null : existed.getCardId(), cause);
+        response.setRetCode(AccountErrorCodeEnum.ALREADY_REGISTERED.getCode());
+        response.setRetMsg(AccountErrorCodeEnum.ALREADY_REGISTERED.getMsg());
+        response.setCardId(existed.getCardId());
+        response.setCardType(existed.getCardType());
+        log.warn("IF8A-01开户撞唯一约束，按已开户返回, thirdUserId={}, issueOrgCode={}, cardType={}, existedCardId={}",
+                thirdUserId, issueOrgCode, cardType, existed.getCardId(), cause);
         return response;
     }
 
@@ -263,10 +270,13 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
      */
     private String buildAccountOpenBusinessId(RequestApplicationReqDTO request, String thirdUserId,
                                               String issueCardType) {
-        String base = thirdUserId + ":" + issueCardType;
-        return isMultiCardCompanionFlag(request.getCompanionFlag())
-                ? base + ":" + UUID.randomUUID()
-                : base;
+        if ("2".equals(request.getTicketLimit().trim())) {
+            return "MULTI:" + UUID.randomUUID();
+        }
+        String issueOrgCode = request.getCardIssueCode().trim();
+        // 长度前缀避免任意所属方/用户标识含分隔符时串键，且不复用旧的两字段预占键。
+        return "UNIQUE:" + thirdUserId.length() + ":" + thirdUserId
+                + issueOrgCode.length() + ":" + issueOrgCode + ":" + issueCardType;
     }
 
     private String validateRequest(RequestApplicationReqDTO request) {
@@ -275,6 +285,20 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
         }
         if (!StringUtils.hasText(request.getThirdUserId())) {
             return "thirdUserId不能为空";
+        }
+        if (request.getThirdUserId().trim().codePointCount(0, request.getThirdUserId().trim().length()) > 64) {
+            return "thirdUserId不能超过64个字符";
+        }
+        if (!StringUtils.hasText(request.getCardIssueCode())) {
+            return "cardIssueCode不能为空";
+        }
+        String issueOrgCode = request.getCardIssueCode().trim();
+        if (issueOrgCode.codePointCount(0, issueOrgCode.length()) > 16) {
+            return "cardIssueCode不能超过16个字符";
+        }
+        if (!StringUtils.hasText(request.getTicketLimit())
+                || !("1".equals(request.getTicketLimit().trim()) || "2".equals(request.getTicketLimit().trim()))) {
+            return "ticketLimit必须为1或2";
         }
         if (!StringUtils.hasText(request.getCardType())) {
             return "cardType不能为空";
@@ -318,6 +342,7 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
         regInfo.setReqContractNo(request.getReqContractNo());
         regInfo.setHceData(hceData);
         regInfo.setCompanionFlag(request.getCompanionFlag());
+        regInfo.setTicketLimit(request.getTicketLimit().trim());
         return regInfo;
     }
 
@@ -329,8 +354,4 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
                 ? request.getCardType().trim() : request.getChannel();
     }
 
-    private boolean isMultiCardCompanionFlag(String companionFlag) {
-        return "Y".equals(companionFlag == null ? null : companionFlag.trim())
-                || "C".equals(companionFlag == null ? null : companionFlag.trim());
-    }
 }

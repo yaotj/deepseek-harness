@@ -27,29 +27,132 @@
         SELECT * FROM ALIPAY_SIGN_INFO WHERE CHANNEL_AGREEMENT_CODE = #{channelAgreementCode,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
     </select>
 
+    <!--
+        按 thirdUserId 取「当前生效」的那一条签约（ADR-D135）。
+        SIGN_STATUS = 'SIGNED' 这个谓词是必需的，三个调用方的语义都是「生效中的签约」：
+        1) addContract 的幂等短路：不带状态时已解约用户会被判成「已签约」、新签约进不去。
+        2) selectSignInfo：解约后本该查不到，不带状态会把 TERMINATED 行返给渠道。
+        3) PaymentRequestService.requestPay 靠它拿协议号扣款：不带状态时已解约用户仍被扣费，属资损口子。
+        本表主键是 THIRD_USER_ID 单列（2026-09-17 实测 ALIPAY_SIGN_INFO_PK），
+        因此一个用户全表只有一行，加上状态谓词后本查询最多一行、不需要额外唯一索引兜底。
+    -->
     <select id="selectByThirdUserIdAndChannel" resultMap="AlipaySignInfoResultMap">
+        SELECT * FROM ALIPAY_SIGN_INFO WHERE THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR} AND CHANNEL = #{channel,jdbcType=VARCHAR} AND SIGN_STATUS = 'SIGNED' AND DELETE_FLAG = '0'
+    </select>
+
+    <!--
+        不带状态谓词的同键查询，只给 addContract 用（ADR-D135）。
+        它回答的是「这个用户在表里有没有行」，而不是「有没有生效签约」：
+        主键是 THIRD_USER_ID 单列、解约又不删行，所以已解约用户重签时 INSERT 必撞主键，
+        只能就地改那一行（reactivateSign）。NEVER 拿它替代上面那条 —— 扣款与查询链路要的是「生效中」。
+    -->
+    <select id="selectAnyByThirdUserIdAndChannel" resultMap="AlipaySignInfoResultMap">
         SELECT * FROM ALIPAY_SIGN_INFO WHERE THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR} AND CHANNEL = #{channel,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
     </select>
 
+
     <select id="selectByCardIdAndChannel" resultMap="AlipaySignInfoResultMap">
         SELECT * FROM ALIPAY_SIGN_INFO WHERE CARD_ID = #{cardId,jdbcType=VARCHAR} AND CHANNEL = #{channel,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </select>
+
+    <!--
+        取一批「支付通道同步」待重推的签约行（ADR-D132）。四处形状都是有意的，改一处 MUST 看齐其余三处：
+        1) 排序用 NVL(CHANNEL_SYNC_TIME, CREATE_TIME)：从没试过的行那一列是 NULL，
+           Oracle 默认把 NULL 排在升序末尾，不兜底就等于「一次都没推过的行永远排在最后」。
+        2) 限批用外层 ROWNUM 包一层子查询：ROWNUM 在同层是先赋值后排序的，
+           直接写在 WHERE 里会先截断再排序，取到的不是最旧那一批。
+        3) 排除 CHANNEL_SYNC_RESULT LIKE 'BIZ_REJECTED:%'：对端明确拒绝重推一万次也不会成功，
+           那种行只该开工单。前缀字面量与 AlipayContractServiceImpl 里拼前缀那两行是一对，NEVER 只改一边。
+        4) 谓词全部固定、没有可选 if，因此不会踩 Druid WallFilter 那条「恒真条件」规则。
+    -->
+    <select id="selectCompensableChannelSync" resultMap="AlipaySignInfoResultMap">
+        SELECT * FROM (
+            SELECT * FROM ALIPAY_SIGN_INFO
+            WHERE DELETE_FLAG = '0'
+              AND CHANNEL_SYNC_STATUS != 'SUCCESS'
+              AND NVL(CHANNEL_SYNC_RETRY_COUNT, 0) &lt; #{maxRetryCount,jdbcType=INTEGER}
+              AND (CHANNEL_SYNC_RESULT IS NULL OR CHANNEL_SYNC_RESULT NOT LIKE 'BIZ_REJECTED:%')
+            ORDER BY NVL(CHANNEL_SYNC_TIME, CREATE_TIME)
+        ) WHERE ROWNUM &lt;= #{batchSize,jdbcType=INTEGER}
     </select>
 
     <insert id="insert" parameterType="com.chinasofti.huateng.model.alipaytrip.AlipaySignInfo" useGeneratedKeys="false">
         INSERT INTO ALIPAY_SIGN_INFO (
             AGREEMENT_CODE, THIRD_USER_ID, CARD_ID, CARD_TYPE, CHANNEL_AGREEMENT_CODE,
             CHANNEL_USER_ACCOUNT, CHANNEL, SIGN_STATUS, OPERATION_TYPE, SIGN_TIME,
-            TERMINATION_TIME, DELETE_FLAG, VERSION, CREATE_TIME, UPDATE_TIME
+            TERMINATION_TIME, DELETE_FLAG, VERSION, CREATE_TIME, UPDATE_TIME,
+            CHANNEL_SYNC_STATUS, CHANNEL_SYNC_RETRY_COUNT
         ) VALUES (
             #{agreementCode,jdbcType=VARCHAR}, #{thirdUserId,jdbcType=VARCHAR}, #{cardId,jdbcType=VARCHAR}, #{cardType,jdbcType=VARCHAR}, #{channelAgreementCode,jdbcType=VARCHAR},
             #{channelUserAccount,jdbcType=VARCHAR}, #{channel,jdbcType=VARCHAR}, #{signStatus,jdbcType=VARCHAR}, #{operationType,jdbcType=VARCHAR}, #{signTime,jdbcType=TIMESTAMP},
-            #{terminationTime,jdbcType=TIMESTAMP}, #{deleteFlag,jdbcType=VARCHAR}, #{version,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}
+            #{terminationTime,jdbcType=TIMESTAMP}, #{deleteFlag,jdbcType=VARCHAR}, #{version,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP},
+            'PENDING', 0
         )
     </insert>
 
-    <update id="updateStatus">
+    <!--
+        签约状态机的唯一状态写入口（ADR-D130）。
+        前置状态 SIGNED 写在 WHERE 里，这就是权威白名单：不允许的迁移天然影响 0 行。
+        原来那条无条件覆盖写的 updateStatus 已删除，NEVER 加回 —— 它能把 TERMINATED 改回任意值。
+    -->
+    <update id="markTerminated">
         UPDATE ALIPAY_SIGN_INFO
-        SET SIGN_STATUS = #{signStatus,jdbcType=VARCHAR}, UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        SET SIGN_STATUS = 'TERMINATED',
+            TERMINATION_TIME = #{terminationTime,jdbcType=TIMESTAMP},
+            UPDATE_TIME = #{terminationTime,jdbcType=TIMESTAMP}
+        WHERE AGREEMENT_CODE = #{agreementCode,jdbcType=VARCHAR}
+          AND DELETE_FLAG = '0'
+          AND SIGN_STATUS = 'SIGNED'
+    </update>
+
+    <select id="selectSignStatusByAgreementCode" resultType="java.lang.String">
+        SELECT SIGN_STATUS FROM ALIPAY_SIGN_INFO
+        WHERE AGREEMENT_CODE = #{agreementCode,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
+    </select>
+
+    <!--
+        解约后重新签约：状态机的第二条 CAS 迁移 TERMINATED 到 SIGNED（ADR-D135）。
+        为什么必须是 UPDATE 而不是再 INSERT 一行：本表主键是 THIRD_USER_ID 单列，
+        解约又只把状态改成 TERMINATED、不删行，所以同一用户第二次签约 INSERT 必撞主键，
+        原实现因此让已解约用户永远签不回来。
+        前置状态 SIGN_STATUS = 'TERMINATED' 写在 WHERE 里，与 markTerminated 同款白名单：
+        并发下只有一条请求能把行抢成 SIGNED，其余影响 0 行、由调用方回查后按幂等处理。
+        CHANNEL_SYNC 四列一并复位，否则新签约会沿用上一轮解约时的同步结果、补偿扫描直接跳过它。
+    -->
+    <update id="reactivateSign">
+        UPDATE ALIPAY_SIGN_INFO
+        SET AGREEMENT_CODE = #{agreementCode,jdbcType=VARCHAR},
+            CARD_ID = #{cardId,jdbcType=VARCHAR},
+            CARD_TYPE = #{cardType,jdbcType=VARCHAR},
+            CHANNEL_AGREEMENT_CODE = #{channelAgreementCode,jdbcType=VARCHAR},
+            CHANNEL_USER_ACCOUNT = #{channelUserAccount,jdbcType=VARCHAR},
+            SIGN_STATUS = 'SIGNED',
+            OPERATION_TYPE = 'SIGN',
+            SIGN_TIME = #{signTime,jdbcType=TIMESTAMP},
+            TERMINATION_TIME = NULL,
+            UPDATE_TIME = #{signTime,jdbcType=TIMESTAMP},
+            CHANNEL_SYNC_STATUS = 'PENDING',
+            CHANNEL_SYNC_RETRY_COUNT = 0,
+            CHANNEL_SYNC_TIME = NULL,
+            CHANNEL_SYNC_RESULT = NULL
+        WHERE THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+          AND CHANNEL = #{channel,jdbcType=VARCHAR}
+          AND DELETE_FLAG = '0'
+          AND SIGN_STATUS = 'TERMINATED'
+    </update>
+
+    <!--
+        支付通道同步 outbox 四列的回写（ADR-D129）。
+        次数由 SQL 自增，NEVER 改成由 Java 侧传入算好的值：并发回写会丢计数。
+        这里刻意不带状态 CAS —— 同步是幂等重试语义，最后一次结果即当前结果。
+    -->
+    <update id="updateChannelSync">
+        UPDATE ALIPAY_SIGN_INFO
+        SET CHANNEL_SYNC_STATUS = #{syncStatus,jdbcType=VARCHAR},
+            CHANNEL_SYNC_RETRY_COUNT = NVL(CHANNEL_SYNC_RETRY_COUNT, 0) + 1,
+            CHANNEL_SYNC_TIME = #{syncTime,jdbcType=TIMESTAMP},
+            CHANNEL_SYNC_RESULT = #{syncResult,jdbcType=VARCHAR},
+            UPDATE_TIME = #{syncTime,jdbcType=TIMESTAMP}
         WHERE AGREEMENT_CODE = #{agreementCode,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
     </update>
 </mapper>

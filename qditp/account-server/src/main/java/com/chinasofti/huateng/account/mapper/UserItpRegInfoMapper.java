@@ -14,10 +14,11 @@ public interface UserItpRegInfoMapper {
     UserItpRegInfo selectActiveByThirdUserId(@Param("thirdUserId") String thirdUserId);
 
     /**
-     * 查询指定用户和票卡类型的有效开户记录。
+     * 按用户、所属方原值和映射后卡类型查询有效唯一卡（不含 ticketLimit=2 的同行卡）。
      */
-    UserItpRegInfo selectActiveByThirdUserIdAndCardType(@Param("thirdUserId") String thirdUserId,
-                                                         @Param("cardType") String cardType);
+    UserItpRegInfo selectActiveUniqueCard(@Param("thirdUserId") String thirdUserId,
+                                        @Param("issueOrgCode") String issueOrgCode,
+                                        @Param("cardType") String cardType);
 
     /**
      * 查询指定用户、逻辑卡号和票卡类型的有效开户记录。
@@ -66,8 +67,16 @@ public interface UserItpRegInfoMapper {
      */
     List<UserItpRegInfo> selectListByCardIds(@Param("cardIds") List<String> cardIds);
 
-    UserItpRegInfo selectByThirdUserIdAndCardIssueCodeAndCompanionFlag(@Param("thirdUserId") String thirdUserId,
-                                                                       @Param("cardIssueCode") String cardIssueCode,
+    /**
+     * IF8A-77 定位第三方渠道用户。
+     *
+     * <p>按 {@code ISSUE_ORG_CODE}（APP 上送的发卡机构码原值）匹配，
+     * NEVER 改成 {@code CARD_ISSUE_CODE} —— 后者存的是
+     * {@code CardIssueOrgEnum.toIssueChannelCode4} 归一后的 4 位发行渠道码
+     * （如上送 {@code 0008} 落库为 {@code 0001}），拿上送值去比必然 0 行。
+     */
+    UserItpRegInfo selectByThirdUserIdAndIssueOrgCodeAndCompanionFlag(@Param("thirdUserId") String thirdUserId,
+                                                                       @Param("issueOrgCode") String issueOrgCode,
                                                                        @Param("companionFlag") String companionFlag);
 
     int updateChannelDefaultContractById(UserItpRegInfo record);

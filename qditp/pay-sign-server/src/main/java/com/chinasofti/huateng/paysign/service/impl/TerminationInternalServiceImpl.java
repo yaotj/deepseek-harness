@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.paysign.service.impl;
 
 import com.chinasofti.huateng.model.domain.TerminationStatus;
-import com.chinasofti.huateng.model.pay.GateTxnPayFailedOrderReqDTO;
-import com.chinasofti.huateng.model.pay.GateTxnPayFailedOrderRespDTO;
 import com.chinasofti.huateng.model.app.UnbindAgreementReqDTO;
 import com.chinasofti.huateng.model.app.UnbindAgreementResult;
 import com.chinasofti.huateng.model.paysign.ProcessTerminationReqDTO;
@@ -21,9 +19,10 @@ import com.chinasofti.huateng.paysign.model.request.NotifyTerminationFailedReqDT
 import com.chinasofti.huateng.paysign.model.response.BaseRespDTO;
 import com.chinasofti.huateng.paysign.model.response.CheckFailedOrdersRespDTO;
 import com.chinasofti.huateng.model.paysign.CompensateNotifyRespDTO;
-import com.chinasofti.huateng.paysign.service.AppNotifyService;
+import com.chinasofti.huateng.paysign.service.TerminationNotifyService;
 import com.chinasofti.huateng.paysign.service.TerminationInternalService;
-import com.chinasofti.huateng.rpc.pay.GateTxnPayClient;
+import com.chinasofti.huateng.paysign.port.UnsettledOrderAnswer;
+import com.chinasofti.huateng.paysign.port.UnsettledOrderPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -47,22 +46,23 @@ public class TerminationInternalServiceImpl implements TerminationInternalServic
 
     private final AppTerminationRequestMapper terminationRequestMapper;
 
-    private final GateTxnPayClient gateTxnPayClient;
+    /** 闸机域**未结清欠费查询方向**的出向端口（2026-09-17，ADR-D119），与 TerminationProcessor 共用同一个。 */
+    private final UnsettledOrderPort unsettledOrderPort;
 
-    private final AppNotifyService appNotifyService;
+    private final TerminationNotifyService terminationNotifyService;
 
     /** 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备。 */
     public TerminationInternalServiceImpl(
             TerminationCompensationService terminationCompensationService,
             TerminationExecutor terminationExecutor,
             AppTerminationRequestMapper terminationRequestMapper,
-            GateTxnPayClient gateTxnPayClient,
-            AppNotifyService appNotifyService) {
+            UnsettledOrderPort unsettledOrderPort,
+            TerminationNotifyService terminationNotifyService) {
         this.terminationCompensationService = terminationCompensationService;
         this.terminationExecutor = terminationExecutor;
         this.terminationRequestMapper = terminationRequestMapper;
-        this.gateTxnPayClient = gateTxnPayClient;
-        this.appNotifyService = appNotifyService;
+        this.unsettledOrderPort = unsettledOrderPort;
+        this.terminationNotifyService = terminationNotifyService;
     }
 
     @Override
@@ -91,19 +91,22 @@ public class TerminationInternalServiceImpl implements TerminationInternalServic
                 return response;
             }
 
-            GateTxnPayFailedOrderReqDTO hasFailedOrderReq = new GateTxnPayFailedOrderReqDTO();
-            hasFailedOrderReq.setThirdUserId(request.getThirdUserId());
-            hasFailedOrderReq.setPaymentVendor(request.getPaymentVendor());
-            hasFailedOrderReq.setRequestTime(request.getRequestTime());
-            GateTxnPayFailedOrderRespDTO result = gateTxnPayClient.hasFailedOrder(hasFailedOrderReq);
-
-            if (result == null) {
-                fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, "查询扣费订单失败");
-                return response;
+            // 三分支穷尽（2026-09-17，ADR-D119）。**本处此前有一个静默缺陷**：只判了 result == null，
+            // 于是「闸机域答了但 resultCode 不是 0000」会把 hasFailedOrder 的默认值 false 当成答案透传，
+            // 调用方据此放行解约 —— 用户欠着钱把签约解掉，且接口返 0000、日志一片绿。
+            // 现在「问不出来」一律 9001，NEVER 退化成「无欠费」。
+            UnsettledOrderAnswer answer = unsettledOrderPort.hasUnsettledOrder(
+                    request.getThirdUserId(), request.getPaymentVendor(), request.getRequestTime());
+            switch (answer) {
+                case UnsettledOrderAnswer.Answered answered -> {
+                    response.setHasFailedOrder(answered.hasUnsettledOrder());
+                    fillSuccess(response);
+                }
+                case UnsettledOrderAnswer.Rejected rejected -> fillError(response,
+                        PaySignErrorCodeEnum.SYSTEM_ERROR, "查询扣费订单失败");
+                case UnsettledOrderAnswer.Unknown unknown -> fillError(response,
+                        PaySignErrorCodeEnum.SYSTEM_ERROR, "查询扣费订单失败");
             }
-
-            response.setHasFailedOrder(result.isHasFailedOrder());
-            fillSuccess(response);
             return response;
         } catch (Exception e) {
             log.error("查询扣费失败订单异常", e);
@@ -164,7 +167,7 @@ public class TerminationInternalServiceImpl implements TerminationInternalServic
                 return response;
             }
 
-            appNotifyService.asyncNotifyTerminationFailed(terminationRequest, request);
+            terminationNotifyService.asyncNotifyTerminationFailed(terminationRequest, request);
 
             fillSuccess(response);
             return response;

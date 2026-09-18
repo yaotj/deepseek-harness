@@ -65,6 +65,7 @@ public final class PayTxnRules {
         logRecord.setTotalAmount(request.getTotalAmount());
         logRecord.setCashAmount(request.getCashAmount());
         logRecord.setCouponAmount(request.getCouponAmount());
+        logRecord.setDiscountInfo(request.getDiscountInfo());
         logRecord.setPayUserId(request.getPayUserId());
         logRecord.setPaymentVendor(request.getPaymentVendor());
         logRecord.setTxnDate(resolveTxnDate());

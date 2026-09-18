@@ -1,0 +1,122 @@
+package com.chinasofti.huateng.alipay.paysign.service.impl.query;
+
+import com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog;
+import com.chinasofti.huateng.alipay.paysign.exception.BusinessException;
+import com.chinasofti.huateng.alipay.paysign.mapper.AlipayPayLogMapper;
+import com.chinasofti.huateng.alipay.paysign.service.AlipayPayLogQueryService;
+import com.chinasofti.huateng.alipay.paysign.model.response.AlipayPayLogVO;
+import com.chinasofti.huateng.alipay.paysign.model.response.PageResult;
+import com.chinasofti.huateng.model.alipaytrip.AlipayPayLogDTO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+public class AlipayPayLogQueryServiceImpl implements AlipayPayLogQueryService {
+    private static final Logger log = LoggerFactory.getLogger(AlipayPayLogQueryServiceImpl.class);
+
+    @Autowired
+    private AlipayPayLogMapper alipayPayLogMapper;
+
+    @Override
+    public PageResult<AlipayPayLogVO> selectAlipayPayLogList(String thirdUserId, String startTime, String endTime, int offset, int limit,
+                                                             String debitRequestResult, String invoice) {
+        log.info("selectAlipayPayLogList params: thirdUserId={}, startTime={}, endTime={}, offset={}, limit={}, debitRequestResult={}, invoice={}",
+                thirdUserId, startTime, endTime, offset, limit, debitRequestResult, invoice);
+        List<AlipayPayLog> logs = alipayPayLogMapper.selectAlipayPayLogList(thirdUserId, startTime, endTime, offset, limit, debitRequestResult, invoice);
+        int total = alipayPayLogMapper.countAlipayPayLogList(thirdUserId, startTime, endTime, debitRequestResult, invoice);
+        List<AlipayPayLogVO> voList = logs.stream().map(this::toVO).collect(Collectors.toList());
+        return new PageResult<>(voList, total, offset / limit + 1, limit);
+    }
+
+    @Override
+    public int countAlipayPayLogList(String thirdUserId, String startTime, String endTime,
+                                     String debitRequestResult, String invoice) {
+        return alipayPayLogMapper.countAlipayPayLogList(thirdUserId, startTime, endTime, debitRequestResult, invoice);
+    }
+
+    @Override
+    public AlipayPayLogVO selectByOrderNo(String orderNo) {
+        if (!org.springframework.util.StringUtils.hasText(orderNo)) {
+            return null;
+        }
+        AlipayPayLog payLog = alipayPayLogMapper.selectByOrderNo(orderNo);
+        if (payLog == null) {
+            return null;
+        }
+        return toVO(payLog);
+    }
+
+    @Override
+    public AlipayPayLogVO selectByEntryId(String entryId) {
+        if (!org.springframework.util.StringUtils.hasText(entryId)) {
+            return null;
+        }
+        AlipayPayLogDTO dto = alipayPayLogMapper.selectByEntryId(entryId);
+        if (dto == null) {
+            return null;
+        }
+        return toVO(dto);
+    }
+
+    @Override
+    public AlipayPayLogVO selectByExitId(String exitId) {
+        if (!org.springframework.util.StringUtils.hasText(exitId)) {
+            return null;
+        }
+        AlipayPayLogDTO dto = alipayPayLogMapper.selectByExitId(exitId);
+        if (dto == null) {
+            return null;
+        }
+        return toVO(dto);
+    }
+
+        @Override
+        public AlipayPayLogVO selectByTravelRecord(String thirdUserId, String entryDate, String cardNum) {
+            try {
+                String entryId = (org.springframework.util.StringUtils.hasText(cardNum) ? cardNum : "")
+                        + (org.springframework.util.StringUtils.hasText(entryDate) ? entryDate.replaceAll("[^0-9]", "") : "") + "01";
+                if (!org.springframework.util.StringUtils.hasText(entryId)) {
+                    return null;
+                }
+                AlipayPayLogDTO dto = alipayPayLogMapper.selectByEntryId(entryId);
+                if (dto == null) {
+                    return null;
+                }
+                return toVO(dto);
+            } catch (Exception e) {
+                throw new BusinessException("按乘车记录查询支付流水异常, thirdUserId=" + thirdUserId + ", entryDate=" + entryDate + ", cardNum=" + cardNum, e);
+            }
+        }
+
+    private AlipayPayLogVO toVO(AlipayPayLog payLog) {
+        AlipayPayLogVO vo = new AlipayPayLogVO();
+        vo.setOrderNo(payLog.getOrderNo());
+        vo.setTradeNo(payLog.getTradeNo());
+        vo.setChannelOrderNo(payLog.getTradeNo());
+        vo.setPayStatus(payLog.getPayStatus());
+        vo.setPayAmount(payLog.getPayAmount());
+        vo.setEntryId(payLog.getEntryId());
+        vo.setExitId(payLog.getExitId());
+        vo.setCardId(payLog.getCardId());
+        vo.setTransTime(payLog.getTransTime());
+        return vo;
+    }
+
+    private AlipayPayLogVO toVO(AlipayPayLogDTO dto) {
+        AlipayPayLogVO vo = new AlipayPayLogVO();
+        vo.setOrderNo(dto.getOrderNo());
+        vo.setChannelOrderNo(dto.getTradeNo());
+        vo.setPayStatus(dto.getPayStatus());
+        vo.setPayAmount(dto.getPayAmount());
+        vo.setEntryId(dto.getEntryId());
+        vo.setExitId(dto.getExitId());
+        vo.setCardId(dto.getCardId());
+        vo.setTransTime(dto.getTransTime());
+        return vo;
+    }
+}

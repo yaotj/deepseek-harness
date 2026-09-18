@@ -18,13 +18,16 @@ public class AppNotifyServiceImpl implements AppNotifyService {
     private final Executor appNotifyExecutor;
     private final IndustryDataNotifier industryDataNotifier;
     private final AlipayTripNotifier alipayTripNotifier;
+    private final CountingTicketTimesNotifier countingTicketTimesNotifier;
 
     public AppNotifyServiceImpl(@Qualifier("appNotifyExecutor") Executor appNotifyExecutor,
                                 IndustryDataNotifier industryDataNotifier,
-                                AlipayTripNotifier alipayTripNotifier) {
+                                AlipayTripNotifier alipayTripNotifier,
+                                CountingTicketTimesNotifier countingTicketTimesNotifier) {
         this.appNotifyExecutor = appNotifyExecutor;
         this.industryDataNotifier = industryDataNotifier;
         this.alipayTripNotifier = alipayTripNotifier;
+        this.countingTicketTimesNotifier = countingTicketTimesNotifier;
     }
 
     @Override
@@ -45,6 +48,17 @@ public class AppNotifyServiceImpl implements AppNotifyService {
                 alipayTripNotifier.pushTripData(request);
             } catch (Exception e) {
                 log.error("推送行程数据给支付宝异常, request={}", request, e);
+            }
+        });
+    }
+
+    @Override
+    public void notifyCountingTicketTimes(NotifyVerifyResultReqDTO request, int times) {
+        appNotifyExecutor.execute(() -> {
+            try {
+                countingTicketTimesNotifier.notifyCountingTimes(request, times);
+            } catch (Exception e) {
+                log.error("异步推送多日票次数扣减通知异常, request={}", request, e);
             }
         });
     }

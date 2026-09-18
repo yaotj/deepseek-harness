@@ -30,20 +30,36 @@ class PaySignTransactionBoundaryArchTest {
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
             .importPackages(BASE_PACKAGE);
 
-    /** 出网出口：owner 前缀 → 人类可读标签。顺序无关，命中一个即记。 */
-    private static final Map<String, String> OUTBOUND_SINKS = Map.of(
-            "com.chinasofti.huateng.rpc.", "RPC",
-            BASE_PACKAGE + ".client.PayGatewayClient", "支付中心网关",
-            BASE_PACKAGE + ".client.AppNotificationClient", "APP通知",
-            BASE_PACKAGE + ".service.AppNotifyService", "APP通知",
-            BASE_PACKAGE + ".service.impl.AppNotifyServiceImpl", "APP通知",
-            BASE_PACKAGE + ".port.AccountDomainPort", "账户域端口",
-            BASE_PACKAGE + ".port.AccountDomainRpcAdapter", "账户域端口",
-            BASE_PACKAGE + ".service.impl.ChannelSyncDeliverer", "通道清理投递");
+    /**
+     * 出网出口：owner 前缀 → 人类可读标签。顺序无关，命中一个即记。
+     *
+     * <p>2026-09-17（ADR-D127）由 {@code Map.of} 改为 {@code Map.ofEntries}：
+     * {@code AppNotifyService} 按聚合拆成 {@code SignNotifyService} + {@code TerminationNotifyService}
+     * 后条目变成 11 个，而 {@code Map.of} 最多只接受 10 对。**NEVER 为了凑回 10 对而删条目**——
+     * 少一条即少一个出网出口，护栏会把「事务包住出网」漏判成空集。
+     */
+    private static final Map<String, String> OUTBOUND_SINKS = Map.ofEntries(
+            Map.entry("com.chinasofti.huateng.rpc.", "RPC"),
+            Map.entry(BASE_PACKAGE + ".client.PayGatewayClient", "支付中心网关"),
+            Map.entry(BASE_PACKAGE + ".client.AppNotificationClient", "APP通知"),
+            Map.entry(BASE_PACKAGE + ".port.AppNotifyPort", "APP通知"),
+            Map.entry(BASE_PACKAGE + ".service.SignNotifyService", "APP通知"),
+            Map.entry(BASE_PACKAGE + ".service.impl.SignNotifyServiceImpl", "APP通知"),
+            Map.entry(BASE_PACKAGE + ".service.TerminationNotifyService", "APP通知"),
+            Map.entry(BASE_PACKAGE + ".service.impl.TerminationNotifyServiceImpl", "APP通知"),
+            Map.entry(BASE_PACKAGE + ".port.AccountDomainPort", "账户域端口"),
+            Map.entry(BASE_PACKAGE + ".port.AccountDomainRpcAdapter", "账户域端口"),
+            Map.entry(BASE_PACKAGE + ".service.impl.ChannelSyncDeliverer", "通道清理投递"));
 
-    /** 当前带 {@code @Transactional} 的方法全集（**批次 5C 后实测 3 个**，2026-09-15）。 */
+    /**
+     * 当前带 {@code @Transactional} 的方法全集（**批次 5C 后实测 3 个**，2026-09-15）。
+     *
+     * <p>2026-09-17（ADR-D120）只改了**宿主类名**：签约回调由 {@code CallbackDomainServiceImpl}
+     * 搬到拆分后的 {@code SignResultCallbackHandler}，方法名、注解、事务范围一字未变，
+     * 集合大小仍是 3。<b>这不是「改事务边界」</b>；真要增减事务方法 MUST 先立 ADR 再动本集合。
+     */
     private static final Set<String> EXPECTED_TRANSACTIONAL_METHODS = new TreeSet<>(List.of(
-            "CallbackDomainServiceImpl#receiveSignResult",
+            "SignResultCallbackHandler#receiveSignResult",
             "ContractDomainServiceImpl#alipayTripRequestSignInfo",
             "ContractDomainServiceImpl#removeSignAgreement"));
 

@@ -19,9 +19,6 @@ final class SupplementCodec {
     /** {@code updateType=00} 乘客在非付费区（闸机外侧）。 */
     static final String UPDATE_TYPE_FREE_AREA = "00";
 
-    /** {@code providerId=07} 支付宝发行方，手机号在 alipay-account-server。 */
-    static final String PROVIDER_ID_ALIPAY = "07";
-
     /** {@code providerId} 缺省回填值。 */
     static final String PROVIDER_ID_DEFAULT = "99";
 

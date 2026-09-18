@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.chinasofti.huateng</groupId>
     <artifactId>trans-query-server</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.5</version>
     <packaging>jar</packaging>
 
     <parent>
@@ -29,7 +29,8 @@
 
     <!--
       本模块**无数据库**：三个 APP 交易查询接口的数据全部经 rpc 取自 gate-txn-pay / pay-sign / para，
-      支付宝行程查询尚未迁入本服务、仍留在 ticket-server（阻塞原因与迁入前提见 TransQueryServer 的 TODO）。
+      支付宝行程查询（findTravelList / findTravelDetail）已于 1.0.5 迁入本服务，同样只经 rpc 取自
+      alipay-pay-sign / ticket / gate-txn-pay，**不直读任何表**。
       因此 NEVER 引入 ojdbc8 / orai18n / sql-datasource / mybatis-adaptor —— 一旦引入就等于
       本服务直读别的域的表，破坏「纯转发壳」定位（形态对齐 industry-data-server / fep-dev-server）。
     -->

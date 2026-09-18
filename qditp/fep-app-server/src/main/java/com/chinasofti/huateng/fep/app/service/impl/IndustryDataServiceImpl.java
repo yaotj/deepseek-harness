@@ -1,396 +1,41 @@
 package com.chinasofti.huateng.fep.app.service.impl;
 
-import com.alibaba.fastjson2.JSON;
-import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
-import com.chinasofti.huateng.model.utils.SignChannelUtils;
 import com.chinasofti.huateng.fep.app.service.IndustryDataService;
-import com.chinasofti.huateng.model.app.IndustryCardDataBuildReqDTO;
-import com.chinasofti.huateng.model.app.IndustryCardDataBuildRespDTO;
-import com.chinasofti.huateng.model.app.CardTypeMapping;
-import com.chinasofti.huateng.model.app.QueryUserInfoReqDTO;
-import com.chinasofti.huateng.model.app.QueryUserInfoResult;
 import com.chinasofti.huateng.model.app.RequestIndustryDataReqDTO;
 import com.chinasofti.huateng.model.app.RequestIndustryDataResult;
 import com.chinasofti.huateng.model.app.RequestNoSignalDataReqDTO;
 import com.chinasofti.huateng.model.app.RequestNoSignalDataResult;
-import com.chinasofti.huateng.model.enums.CardTypeCodeEnum;
-import com.chinasofti.huateng.model.ticket.QueryStatusReqDTO;
-import com.chinasofti.huateng.model.ticket.QueryStatusRespDTO;
-import com.chinasofti.huateng.rpc.account.AccountClient;
-import com.chinasofti.huateng.rpc.industry.IndustryDataClient;
 import com.chinasofti.huateng.rpc.ticket.TicketClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
-import java.math.BigInteger;
-
+/**
+ * IF8A-03 请求行业数据 / IF8D-03 获取离线码数据的接入层转发。
+ *
+ * <p><b>编排已于 2026-09-17 整体迁到 ticket-server</b>（`ticket/industry/IndustryDataOrchestrator`，
+ * ADR-D142）：本类此前是 425 行、注 4 个下游 Client、31 个 `if`，还按卡种 / 渠道 / 站内外分流，
+ * 在同模块另外 6 个 Service 都是单行转发（行数中位数 89）的背景下属分层越位。
+ * 迁移的直接收益是「查乘车码状态」那一跳从 RPC 变成 ticket-server 的进程内调用，
+ * 且两条链路那 4 组逐字副本随之消掉。
+ *
+ * <p><b>NEVER 把业务判断加回本类</b>：这里只允许做报文转发。HCE 短路、签约渠道解析、
+ * 日票族前置校验、进出站双码都在 ticket-server 那个编排类里。
+ */
 @Service
 public class IndustryDataServiceImpl implements IndustryDataService {
-    private static final Logger log = LoggerFactory.getLogger(IndustryDataServiceImpl.class);
-    private static final String RET_SUCCESS = "0000";
-    private static final String STATUS_IN_STATION = "04";
-    private static final String DEFAULT_ENTRY_STATUS = "03";
 
-    private final AccountClient accountClient;
     private final TicketClient ticketClient;
-    private final IndustryDataClient industryDataClient;
 
-    @Value("${industry.issue-channel-code:01}")
-    private String issueChannelCode;
-
-    public IndustryDataServiceImpl(AccountClient accountClient,
-                                   TicketClient ticketClient,
-                                   IndustryDataClient industryDataClient) {
-        this.accountClient = accountClient;
+    public IndustryDataServiceImpl(TicketClient ticketClient) {
         this.ticketClient = ticketClient;
-        this.industryDataClient = industryDataClient;
     }
 
     @Override
     public RequestIndustryDataResult requestIndustryData(RequestIndustryDataReqDTO request) {
-        RequestIndustryDataResult response = new RequestIndustryDataResult();
-        response.setSignType("00");
-        response.setSign("");
-        try {
-            log.info("开始处理IF8A-03请求行业数据, request={}", JSON.toJSONString(request));
-            String validMsg = validateRequest(request);
-            if (validMsg != null) {
-                response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
-                response.setRetMsg(validMsg);
-                log.warn("IF8A-03参数校验失败, request={}, msg={}", JSON.toJSONString(request), validMsg);
-                return response;
-            }
-
-            QueryUserInfoResult userInfo = queryUserInfo(request);
-            if (userInfo == null) {
-                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
-                response.setRetMsg("account-server调用失败，返回为空");
-                log.warn("IF8A-03查询用户信息返回null, request={}", JSON.toJSONString(request));
-                return response;
-            }
-            if (!"0000".equals(userInfo.getRetCode())) {
-                response.setRetCode(userInfo.getRetCode());
-                response.setRetMsg(userInfo.getRetMsg());
-                return response;
-            }
-
-            if (isHceCard(userInfo.getCardType())) {
-                if (!StringUtils.hasText(userInfo.getHceData())) {
-                    response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
-                    response.setRetMsg("HCE卡数据不存在");
-                    log.warn("IF8A-03 HCE卡未保存卡数据, cardId={}, cardType={}", userInfo.getCardId(), userInfo.getCardType());
-                    return response;
-                }
-                response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
-                response.setRetMsg("成功");
-                response.setCardData(userInfo.getHceData());
-                log.info("IF8A-03 HCE卡直接返回缓存卡数据, thirdUserId={}, cardId={}, cardType={}",
-                        userInfo.getThirdUserId(), userInfo.getCardId(), userInfo.getCardType());
-                return response;
-            }
-
-            String signChannelCode = resolveSignChannelCode(userInfo.getChannel());
-            if (!StringUtils.hasText(signChannelCode)) {
-                response.setRetCode("8001");
-                response.setRetMsg("用户签约渠道不能为空");
-                log.warn("IF8A-03用户签约渠道为空, userInfo={}", JSON.toJSONString(userInfo));
-                return response;
-            }
-
-            QueryStatusRespDTO qrStatus = queryTicketStatus(request);
-            if (qrStatus == null) {
-                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
-                response.setRetMsg("ticket-server调用失败，返回为空");
-                log.warn("IF8A-03查询二维码状态返回null, request={}", JSON.toJSONString(request));
-                return response;
-            }
-            if (!"0000".equals(qrStatus.getRetCode())) {
-                response.setRetCode(qrStatus.getRetCode());
-                response.setRetMsg(qrStatus.getRetMsg());
-                return response;
-            }
-
-            IndustryCardDataBuildReqDTO cardDataRequest = buildCardDataRequest(
-                        request, qrStatus, signChannelCode, userInfo.getCardIssueCode());
-            log.info("IF8A-03调用industry-data-server生成卡数据, request={}", JSON.toJSONString(cardDataRequest));
-            IndustryCardDataBuildRespDTO cardDataResp = industryDataClient.buildCardData(cardDataRequest);
-            log.info("IF8A-03调用industry-data-server生成卡数据完成, response={}", JSON.toJSONString(cardDataResp));
-            if (cardDataResp == null || !"0000".equals(cardDataResp.getRetCode())) {
-                response.setRetCode(cardDataResp == null ? "9999" : cardDataResp.getRetCode());
-                response.setRetMsg(cardDataResp == null ? "industry-data-server生成卡数据失败" : cardDataResp.getRetMsg());
-                return response;
-            }
-
-            response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
-            response.setRetMsg("成功");
-            response.setCardData(cardDataResp.getCardData());
-            log.info("IF8A-03请求行业数据成功, thirdUserId={}, cardId={}, cardType={}, cardData={}",
-                    request.getThirdUserId(), request.getCardId(), request.getCardType(), cardDataResp.getCardData());
-            return response;
-        } catch (Exception e) {
-            log.error("处理IF8A-03请求行业数据异常, request={}", JSON.toJSONString(request), e);
-            response.setRetCode("9999");
-            response.setRetMsg("系统内部错误");
-            return response;
-        }
+        return ticketClient.requestIndustryData(request);
     }
 
     @Override
     public RequestNoSignalDataResult requestNoSignalData(RequestNoSignalDataReqDTO request) {
-        RequestNoSignalDataResult response = new RequestNoSignalDataResult();
-        try {
-            log.info("开始处理IF8D_03获取离线码数据, request={}", JSON.toJSONString(request));
-            String validMsg = validateRequest(request);
-            if (validMsg != null) {
-                response.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
-                response.setRetMsg(validMsg);
-                log.warn("IF8D_03参数校验失败, request={}, msg={}", JSON.toJSONString(request), validMsg);
-                return response;
-            }
-
-            QueryUserInfoResult userInfo = queryUserInfo(request);
-            if (userInfo == null) {
-                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
-                response.setRetMsg("account-server调用失败，返回为空");
-                log.warn("IF8D_03查询用户信息返回null, request={}", JSON.toJSONString(request));
-                return response;
-            }
-            if (!RET_SUCCESS.equals(userInfo.getRetCode())) {
-                response.setRetCode(userInfo.getRetCode());
-                response.setRetMsg(userInfo.getRetMsg());
-                return response;
-            }
-
-            // 离线码请求统一使用 signChannelCode=17（离线码）
-            String signChannelCode = "17";
-
-            QueryStatusRespDTO qrStatus = queryTicketStatus(request);
-            if (qrStatus == null) {
-                response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
-                response.setRetMsg("ticket-server调用失败，返回为空");
-                log.warn("IF8D_03查询二维码状态返回null, request={}", JSON.toJSONString(request));
-                return response;
-            }
-            if (!RET_SUCCESS.equals(qrStatus.getRetCode())) {
-                response.setRetCode(qrStatus.getRetCode());
-                response.setRetMsg(qrStatus.getRetMsg());
-                return response;
-            }
-
-            response.setChannel(userInfo.getChannel());
-            if (isInStation(qrStatus)) {
-                IndustryCardDataBuildRespDTO exitDataResp = buildNoSignalCardData(
-                        request, qrStatus, signChannelCode, qrStatus.getTxnSeq(), STATUS_IN_STATION,
-                        userInfo.getCardIssueCode());
-                if (!isIndustryDataSuccess(exitDataResp)) {
-                    fillIndustryDataError(response, exitDataResp);
-                    return response;
-                }
-                response.setExitData(exitDataResp.getCardData());
-            } else {
-                String nextTxnSeq = nextTxnSeq(qrStatus.getTxnSeq());
-                IndustryCardDataBuildRespDTO entryDataResp = buildNoSignalCardData(
-                        request, qrStatus, signChannelCode, nextTxnSeq, firstNonBlank(qrStatus.getStatus(), DEFAULT_ENTRY_STATUS),
-                        userInfo.getCardIssueCode());
-                if (!isIndustryDataSuccess(entryDataResp)) {
-                    fillIndustryDataError(response, entryDataResp);
-                    return response;
-                }
-
-                IndustryCardDataBuildRespDTO exitDataResp = buildNoSignalCardData(
-                        request, qrStatus, signChannelCode, nextTxnSeq, STATUS_IN_STATION,
-                        userInfo.getCardIssueCode());
-                if (!isIndustryDataSuccess(exitDataResp)) {
-                    fillIndustryDataError(response, exitDataResp);
-                    return response;
-                }
-                response.setEntryData(entryDataResp.getCardData());
-                response.setExitData(exitDataResp.getCardData());
-            }
-
-            response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
-            response.setRetMsg("成功");
-            log.info("IF8D_03获取离线码数据成功, thirdUserId={}, cardId={}, cardType={}, response={}",
-                    request.getThirdUserId(), request.getCardId(), request.getCardType(), JSON.toJSONString(response));
-            return response;
-        } catch (Exception e) {
-            log.error("处理IF8D_03获取离线码数据异常, request={}", JSON.toJSONString(request), e);
-            response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());
-            response.setRetMsg("系统内部错误");
-            return response;
-        }
+        return ticketClient.requestNoSignalData(request);
     }
-
-    private QueryUserInfoResult queryUserInfo(RequestIndustryDataReqDTO request) {
-        QueryUserInfoReqDTO userInfoReq = new QueryUserInfoReqDTO();
-        userInfoReq.setThirdUserId(request.getThirdUserId().trim());
-        userInfoReq.setCardId(request.getCardId().trim());
-        userInfoReq.setCardType(request.getCardType().trim());
-        QueryUserInfoResult userInfo = accountClient.queryUserInfo(userInfoReq);
-        log.info("IF8A-03查询用户信息结果, request={}, response={}", JSON.toJSONString(userInfoReq), JSON.toJSONString(userInfo));
-        return userInfo;
-    }
-
-    private QueryUserInfoResult queryUserInfo(RequestNoSignalDataReqDTO request) {
-        QueryUserInfoReqDTO userInfoReq = new QueryUserInfoReqDTO();
-        userInfoReq.setThirdUserId(request.getThirdUserId().trim());
-        userInfoReq.setCardId(request.getCardId().trim());
-        userInfoReq.setCardType(request.getCardType().trim());
-        QueryUserInfoResult userInfo = accountClient.queryUserInfo(userInfoReq);
-        log.info("IF8D_03查询用户信息结果, request={}, response={}", JSON.toJSONString(userInfoReq), JSON.toJSONString(userInfo));
-        return userInfo;
-    }
-
-    private QueryStatusRespDTO queryTicketStatus(RequestIndustryDataReqDTO request) {
-        QueryStatusReqDTO qrReq = new QueryStatusReqDTO();
-        qrReq.setThirdUserId(request.getThirdUserId().trim());
-        qrReq.setCardId(request.getCardId().trim());
-        QueryStatusRespDTO qrStatus = ticketClient.queryQrCodeStatus(qrReq);
-        log.info("IF8A-03查询二维码状态结果, request={}, response={}", JSON.toJSONString(qrReq), JSON.toJSONString(qrStatus));
-        return qrStatus;
-    }
-
-    private QueryStatusRespDTO queryTicketStatus(RequestNoSignalDataReqDTO request) {
-        QueryStatusReqDTO qrReq = new QueryStatusReqDTO();
-        qrReq.setThirdUserId(request.getThirdUserId().trim());
-        qrReq.setCardId(request.getCardId().trim());
-        QueryStatusRespDTO qrStatus = ticketClient.queryQrCodeStatus(qrReq);
-        log.info("IF8D_03查询二维码状态结果, request={}, response={}", JSON.toJSONString(qrReq), JSON.toJSONString(qrStatus));
-        return qrStatus;
-    }
-
-    private String resolveSignChannelCode(String channel) {
-        return SignChannelUtils.resolve(channel);
-    }
-
-    /**
-     * HCE 卡数据由开户和闸机交易维护，不参与二维码行业数据生成与签名。
-     */
-    private boolean isHceCard(String cardType) {
-        return CardTypeCodeEnum.isHceCard(cardType);
-    }
-
-    /**
-     * 组装独立生码服务请求，fep-app 不再本地拼接码体和调用签名。
-     */
-    private IndustryCardDataBuildReqDTO buildCardDataRequest(RequestIndustryDataReqDTO request,
-                                                             QueryStatusRespDTO qrStatus,
-                                                             String signChannelCode,
-                                                             String cardIssueCode) {
-        IndustryCardDataBuildReqDTO cardDataRequest = new IndustryCardDataBuildReqDTO();
-        cardDataRequest.setThirdUserId(request.getThirdUserId().trim());
-        cardDataRequest.setCardId(request.getCardId().trim());
-        cardDataRequest.setCardType(request.getCardType().trim());
-        cardDataRequest.setTicketStatus(qrStatus.getStatus());
-        cardDataRequest.setLastTxnStation(qrStatus.getLastTxnStation());
-        cardDataRequest.setLastTxnTime(qrStatus.getLastTxnTime());
-        cardDataRequest.setGateInStation(qrStatus.getGateInStation());
-        cardDataRequest.setGateInTime(qrStatus.getGateInTime());
-        cardDataRequest.setTxnSeq(qrStatus.getTxnSeq());
-        cardDataRequest.setIssueChannelCode(resolveIssueChannelCode(request.getCardType(), cardIssueCode));
-        cardDataRequest.setSignChannelCode(signChannelCode);
-        return cardDataRequest;
-    }
-
-    private IndustryCardDataBuildRespDTO buildNoSignalCardData(RequestNoSignalDataReqDTO request,
-                                                               QueryStatusRespDTO qrStatus,
-                                                               String signChannelCode,
-                                                               String txnSeq,
-                                                               String ticketStatus,
-                                                               String cardIssueCode) {
-        IndustryCardDataBuildReqDTO cardDataRequest = new IndustryCardDataBuildReqDTO();
-        cardDataRequest.setThirdUserId(request.getThirdUserId().trim());
-        cardDataRequest.setCardId(request.getCardId().trim());
-        cardDataRequest.setCardType(request.getCardType().trim());
-        cardDataRequest.setTicketStatus(ticketStatus);
-        cardDataRequest.setLastTxnStation(qrStatus.getLastTxnStation());
-        cardDataRequest.setLastTxnTime(qrStatus.getLastTxnTime());
-        cardDataRequest.setGateInStation(qrStatus.getGateInStation());
-        cardDataRequest.setGateInTime(qrStatus.getGateInTime());
-        cardDataRequest.setTxnSeq(txnSeq);
-        cardDataRequest.setIssueChannelCode(resolveIssueChannelCode(request.getCardType(), cardIssueCode));
-        cardDataRequest.setSignChannelCode(signChannelCode);
-        log.info("IF8D_03调用industry-data-server生成离线码数据, request={}", JSON.toJSONString(cardDataRequest));
-        IndustryCardDataBuildRespDTO cardDataResp = industryDataClient.buildCardData(cardDataRequest);
-        log.info("IF8D_03调用industry-data-server生成离线码数据完成, response={}", JSON.toJSONString(cardDataResp));
-        return cardDataResp;
-    }
-
-    private String resolveIssueChannelCode(String cardType, String cardIssueCode) {
-        if (CardTypeMapping.isAiShanDong(cardType)) {
-            return "01";
-        }
-        return StringUtils.hasText(cardIssueCode) ? cardIssueCode.trim() : issueChannelCode;
-    }
-
-    private boolean isInStation(QueryStatusRespDTO qrStatus) {
-        return qrStatus != null && STATUS_IN_STATION.equals(qrStatus.getStatus());
-    }
-
-    private boolean isIndustryDataSuccess(IndustryCardDataBuildRespDTO response) {
-        return response != null && RET_SUCCESS.equals(response.getRetCode()) && StringUtils.hasText(response.getCardData());
-    }
-
-    private void fillIndustryDataError(RequestNoSignalDataResult response, IndustryCardDataBuildRespDTO cardDataResp) {
-        response.setRetCode(cardDataResp == null ? FepAppErrorCodeEnum.FAIL.getCode() : cardDataResp.getRetCode());
-        response.setRetMsg(cardDataResp == null ? "industry-data-server生成离线码数据失败" : cardDataResp.getRetMsg());
-    }
-
-    private String nextTxnSeq(String txnSeq) {
-        if (!StringUtils.hasText(txnSeq)) {
-            return "1";
-        }
-        try {
-            return new BigInteger(txnSeq.trim()).add(BigInteger.ONE).toString();
-        } catch (NumberFormatException e) {
-            log.warn("交易序列号不是数字，使用1作为下一序列号, txnSeq={}", txnSeq);
-            return "1";
-        }
-    }
-
-    private String validateRequest(RequestIndustryDataReqDTO request) {
-        if (request == null) {
-            return "请求报文不能为空";
-        }
-        if (!StringUtils.hasText(request.getThirdUserId())) {
-            return "thirdUserId不能为空";
-        }
-        if (!StringUtils.hasText(request.getCardId())) {
-            return "cardId不能为空";
-        }
-        if (!StringUtils.hasText(request.getCardType())) {
-            return "cardType不能为空";
-        }
-        return null;
-    }
-
-    private String validateRequest(RequestNoSignalDataReqDTO request) {
-        if (request == null) {
-            return "请求报文不能为空";
-        }
-        if (!StringUtils.hasText(request.getThirdUserId())) {
-            return "thirdUserId不能为空";
-        }
-        if (!StringUtils.hasText(request.getCardId())) {
-            return "cardId不能为空";
-        }
-        if (!StringUtils.hasText(request.getCardType())) {
-            return "cardType不能为空";
-        }
-        return null;
-    }
-
-    private String firstNonBlank(String first, String second) {
-        if (StringUtils.hasText(first)) {
-            return first.trim();
-        }
-        if (StringUtils.hasText(second)) {
-            return second.trim();
-        }
-        return null;
-    }
-
 }

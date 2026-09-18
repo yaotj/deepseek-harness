@@ -266,6 +266,15 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
 - **代价：真实失败不再被上游重试。** 因此 `giveUpRetry` **MUST** 同时做两件事——打 ERROR 日志、把该笔最后一条 `PAY_CALLBACK_LOG` 的 `HANDLE_STATUS` 置为 `MANUAL`（`markManualByMerchantOrderNo`，`HANDLE_MSG` 记原因，截断 300 字）。**运维 MUST 例行巡检 `HANDLE_STATUS='MANUAL'`**，否则失败会静默沉底。
 - ⚠️ **支付中心的重推次数 / 间隔 / 上限没有规格**：`docs/external/支付中心网关接口文档.md` §5（行 437~440）只写了「商户需返回通用响应表示接收成功 / 若未收到成功响应，系统会进行重试」，既无次数也无退避策略；生产实测间隔约 15~30s。**MUST 向供方索取重试规格**，拿到后再校准 `MAX_PAY_CALLBACK_PUSH`，**NEVER** 凭日志观察值当契约。
 
+### 支付结果回调的优惠三字段（网关 V1.2，2026-09-18 新增，ADR-D136）
+- `discountInfo`（渠道优惠详情，JSON 数组原文）落 **`PAY_CALLBACK_LOG.DISCOUNT_INFO`**（`VARCHAR2(2000 CHAR)`，已在 `AFCITPDB` 执行 `pay-sign-callback-discount-info-migration.sql` 并回查 `USER_TAB_COLS`）。写入点是 `PayTxnRules.buildPayCallbackLog`。落这张表而不是主表，是因为它是**回调事实**、随每次重推各存一份。**NEVER 写进 `PAY_TXN_DETAIL.DISCOUNT_INFO`** —— 那一列是闸机侧自算优惠（`RequestPayReqDTO.discountInfo`），两个口径混一列后无法区分。
+- 该字段在 `ReceivePayResultReqDTO` 里是 `String`，**NEVER 为它建嵌套 DTO**：它是对外契约（`parseBizData` 可解析），且 Fastjson2 会把支付中心送的 JSON 数组自动归一成转义字符串赋给 `String` 字段（2026-09-18 端到端实测通过）。
+- `PAY_TXN_DETAIL.CASH_AMOUNT` / `COUPON_AMOUNT` 当前是**无效值**：2026-09-18 实测 179/179 笔满足 `cashAmount == couponAmount == totalAmount`，`discountInfo` 下发 0 笔。**NEVER 用这两列做任何优惠口径的报表 / 对账 / 结算**（`docs/business/recon.md` 里「gate-txn-pay 无可靠优惠列」是同一类问题）。
+- 按用户 2026-09-18 裁决：回调侧**不做任何金额关系校验**（`cash + coupon` 与 `total` 的加法关系未经供方确认），一律原样照写；**存量数据不处理**。**NEVER 加回「金额拆分自相矛盾则不回写」那类判定**。
+- **原先列的三条「待向支付中心澄清」已按用户 2026-09-18 裁决关闭**（原话「你正确落库即可」），我方只对落库正确性负责，**NEVER 再把它们写成待办**：`cash + coupon` 加法关系与 `discountInfo` 下发时间都不影响落库（对方送什么存什么、列与写入点已就位，开始下发即自动落库、无需再改代码）；`payQuery` 口径见下条。
+- **`payQuery`（`pay.sign.pay-query-url`）刻意不落库，NEVER 改成「顺手把优惠字段也存下来」。** 它在本模块的唯一用途是 `PaymentGatewayAdapter.queryPayStatus` → `PaymentDomainServiceImpl.queryGatewayPayStatus` → `addBlacklistForPaymentFailure` 的**拉黑前二次确认**，只在 `requestPay` 返 `Rejected` 且 `paymentVendor ∈ {03, 05}` 时出网，应答只读 `status` 一个键。三条判据：①它只在**支付失败**那一支被调用，那一支的优惠金额没有业务含义，状态收敛靠回调；②往 `PAY_CALLBACK_LOG` 插行会虚增 `countByMerchantOrderNo(merchantOrderNo, 'PAY')` 的计数，`MAX_PAY_CALLBACK_PUSH = 2` 提前触顶后支付中心停止重推、**真实失败静默沉底**；③往 `PAY_TXN_DETAIL` 回写等于把已知无效值灌进主表，且网关 §1.2 响应表里**没有 `discountInfo`**（只有 V1.2 回调才有）。要复盘某笔查询回来是什么，**MUST 搜日志「拉黑前查询支付中心支付状态」（应答全文已 INFO 打出），NEVER 去库里找**。详见 ADR-D136 决策三。
+- **判断对方是否已改成有效值 MUST 现查 `PAY_CALLBACK_LOG.RAW_BODY`，NEVER 引用本节的数字。**
+
 ## 退款链路（改动前必读）
 
 **宿主是 `RefundDomainServiceImpl`**（2026-09-15 从 `PaymentDomainServiceImpl` 拆出，ADR-D91）：

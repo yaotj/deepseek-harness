@@ -83,6 +83,18 @@ export const constantRoutes = [
         meta: { title: '个人中心', icon: 'user' }
       }
     ]
+  },
+  {
+    path: '/trans/employee-card-acc-simulator',
+    component: Layout,
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/trans/employee-card-acc-simulator/index.vue'),
+        name: 'EmployeeCardAccSimulator',
+        meta: { title: 'ACC员工码模拟', icon: 'monitor' }
+      }
+    ]
   }
 ]
 

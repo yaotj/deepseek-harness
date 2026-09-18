@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.blacklist.mapper.BlacklistReleasedMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.blacklist.entity.BlacklistReleased">
+        <id column="ID" jdbcType="NUMERIC" property="id"/>
+        <result column="ORIGIN_ID" jdbcType="NUMERIC" property="originId"/>
+        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
+        <result column="CHANNEL_CODE" jdbcType="VARCHAR" property="channelCode"/>
+        <result column="BLACK_SOURCE" jdbcType="VARCHAR" property="blackSource"/>
+        <result column="BLACK_CAUSE" jdbcType="VARCHAR" property="blackCause"/>
+        <result column="BIZ_NO" jdbcType="VARCHAR" property="bizNo"/>
+        <result column="REASON" jdbcType="VARCHAR" property="reason"/>
+        <result column="CREATE_BY" jdbcType="VARCHAR" property="createBy"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="RELEASE_TIME" jdbcType="TIMESTAMP" property="releaseTime"/>
+        <result column="RELEASE_REASON" jdbcType="VARCHAR" property="releaseReason"/>
+        <result column="RELEASE_BY" jdbcType="VARCHAR" property="releaseBy"/>
+        <result column="CHANNEL_SYNC_STATUS" jdbcType="VARCHAR" property="channelSyncStatus"/>
+        <result column="CHANNEL_SYNC_TIME" jdbcType="TIMESTAMP" property="channelSyncTime"/>
+        <result column="CHANNEL_SYNC_RETRY" jdbcType="NUMERIC" property="channelSyncRetry"/>
+        <result column="CHANNEL_SYNC_FAIL_REASON" jdbcType="VARCHAR" property="channelSyncFailReason"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        ID, ORIGIN_ID, CARD_ID, THIRD_USER_ID, CARD_TYPE, CHANNEL_CODE, BLACK_SOURCE, BLACK_CAUSE,
+        BIZ_NO, REASON, CREATE_BY, CREATE_TIME, RELEASE_TIME, RELEASE_REASON, RELEASE_BY,
+        CHANNEL_SYNC_STATUS, CHANNEL_SYNC_TIME, CHANNEL_SYNC_RETRY, CHANNEL_SYNC_FAIL_REASON
+    </sql>
+
+    <!-- 写入解除快照：与主表 DELETE 必须在同一个本地事务内。 -->
+    <!-- useGeneratedKeys 取回 IDENTITY 主键：解黑通知的 outbox 要按 ID 回写状态，而本表 CARD_ID -->
+    <!-- 没有唯一约束（同一张卡可反复拉黑又解除），拿不到 ID 就定位不到该回写哪一行。 -->
+    <!-- ID 是 Oracle IDENTITY 列、库里没有对应序列，NEVER 改成 selectKey 取 nextval。 -->
+    <insert id="insert" parameterType="com.chinasofti.huateng.blacklist.entity.BlacklistReleased"
+            useGeneratedKeys="true" keyProperty="id" keyColumn="ID">
+        insert into BLACKLIST_RELEASED (
+            ORIGIN_ID, CARD_ID, THIRD_USER_ID, CARD_TYPE, CHANNEL_CODE, BLACK_SOURCE, BLACK_CAUSE,
+            BIZ_NO, REASON, CREATE_BY, CREATE_TIME,
+            RELEASE_TIME, RELEASE_REASON, RELEASE_BY, CHANNEL_SYNC_STATUS
+        ) values (
+            #{originId,jdbcType=NUMERIC},
+            #{cardId,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR},
+            #{cardType,jdbcType=VARCHAR},
+            #{channelCode,jdbcType=VARCHAR},
+            #{blackSource,jdbcType=VARCHAR},
+            #{blackCause,jdbcType=VARCHAR},
+            #{bizNo,jdbcType=VARCHAR},
+            #{reason,jdbcType=VARCHAR},
+            #{createBy,jdbcType=VARCHAR},
+            #{createTime,jdbcType=TIMESTAMP},
+            SYSTIMESTAMP,
+            #{releaseReason,jdbcType=VARCHAR},
+            #{releaseBy,jdbcType=VARCHAR},
+            #{channelSyncStatus,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <select id="selectByCardId" resultMap="BaseResultMap">
+        select
+        <include refid="BaseColumnList"/>
+        from BLACKLIST_RELEASED
+        where CARD_ID = #{cardId,jdbcType=VARCHAR}
+        order by RELEASE_TIME desc, ID desc
+    </select>
+
+    <!-- 解黑通知的 outbox 扫表取数，四个坑逐条对应： -->
+    <!-- ① 状态用 IN ('PENDING','FAILED') 白名单，NEVER 写成「非 SUCCESS 即扫」；改造前解除的历史行 -->
+    <!--    CHANNEL_SYNC_STATUS 是 NULL，白名单天然把它们排除在外，黑名单式写法会把全表历史重推一遍。 -->
+    <!-- ② FAILED 仍在白名单内，这是补偿能重入的前提，NEVER 只扫 PENDING。 -->
+    <!-- ③ REJECTED 是终态（渠道明确业务拒绝，重推一万次也不会成功），刻意不在白名单内。 -->
+    <!-- ④ ROWNUM MUST 在排序子查询之外：写在同一层会先截断再排序，拿到的不是最早那批。 -->
+    <select id="selectPendingChannelSync" resultMap="BaseResultMap">
+        select * from (
+            select
+            <include refid="BaseColumnList"/>
+            from BLACKLIST_RELEASED
+            where CHANNEL_SYNC_STATUS in ('PENDING', 'FAILED')
+            order by CHANNEL_SYNC_TIME asc nulls first, ID asc
+        ) where ROWNUM &lt;= #{limit,jdbcType=INTEGER}
+    </select>
+
+    <!-- 收口成功：WHERE 带同一份白名单做 CAS，避免把已被别处收口的行重复回写。 -->
+    <update id="markChannelSyncSuccess">
+        update BLACKLIST_RELEASED
+        set CHANNEL_SYNC_STATUS = 'SUCCESS',
+            CHANNEL_SYNC_TIME = SYSTIMESTAMP,
+            CHANNEL_SYNC_FAIL_REASON = null
+        where ID = #{id,jdbcType=NUMERIC}
+          and CHANNEL_SYNC_STATUS in ('PENDING', 'FAILED')
+    </update>
+
+    <!-- 收口失败：status 由调用方传 FAILED（可重试）或 REJECTED（业务拒绝、终态）。 -->
+    <!-- 重试次数只在本语句 +1，历史 NULL 行用 nvl 归零后再累加。 -->
+    <update id="markChannelSyncFailed">
+        update BLACKLIST_RELEASED
+        set CHANNEL_SYNC_STATUS = #{status,jdbcType=VARCHAR},
+            CHANNEL_SYNC_TIME = SYSTIMESTAMP,
+            CHANNEL_SYNC_RETRY = nvl(CHANNEL_SYNC_RETRY, 0) + 1,
+            CHANNEL_SYNC_FAIL_REASON = #{failReason,jdbcType=VARCHAR}
+        where ID = #{id,jdbcType=NUMERIC}
+          and CHANNEL_SYNC_STATUS in ('PENDING', 'FAILED')
+    </update>
+</mapper>

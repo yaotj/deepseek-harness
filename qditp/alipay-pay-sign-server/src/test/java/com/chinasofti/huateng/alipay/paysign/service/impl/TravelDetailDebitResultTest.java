@@ -1,5 +1,7 @@
 package com.chinasofti.huateng.alipay.paysign.service.impl;
 
+import com.chinasofti.huateng.alipay.paysign.service.impl.payment.PaymentQueryService;
+
 import com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog;
 import com.chinasofti.huateng.alipay.paysign.mapper.AlipayPayLogMapper;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;

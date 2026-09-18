@@ -27,6 +27,7 @@ import java.security.spec.X509EncodedKeySpec;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -270,6 +271,24 @@ public class PayCenterClient {
      */
     public String generateMerchantOrderNo() {
         return "M" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    /**
+     * 把响应的 data 解开成 map，**整个响应只解一次**。
+     *
+     * <p>{@link #getStringFromData} 与 {@link #getIntFromData} 每调一次都重新 Base64 + JSON 解析一遍，
+     * 一次支付查询要取 6 个字段就解 6 遍。{@code PayCenterRpcAdapter} 用本方法一次解开、装进
+     * {@code PayCenterReply.Accepted.data}（ADR-D131），<b>NEVER 在调用点回退成逐键 getStringFromData</b>。
+     * 那两个逐键方法保留是因为仍有其它调用点，本批次不动它们。</p>
+     *
+     * @return 解不开或 data 为空时返回**空 map、不是 null**（调用点是 record 字段，不该再判空）
+     */
+    public Map<String, Object> decodeDataMap(PayCenterResponse response) {
+        if (response == null || response.getData() == null) {
+            return Collections.emptyMap();
+        }
+        Map<String, Object> dataMap = decodeData(response.getData());
+        return dataMap == null ? Collections.emptyMap() : dataMap;
     }
 
     /**

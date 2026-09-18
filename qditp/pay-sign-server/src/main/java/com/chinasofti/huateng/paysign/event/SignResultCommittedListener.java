@@ -5,7 +5,7 @@ import com.chinasofti.huateng.paysign.entity.PaySignRequest;
 import com.chinasofti.huateng.paysign.mapper.PaySignInfoMapper;
 import com.chinasofti.huateng.paysign.mapper.PaySignRequestMapper;
 import com.chinasofti.huateng.paysign.port.AccountDomainPort;
-import com.chinasofti.huateng.paysign.service.AppNotifyService;
+import com.chinasofti.huateng.paysign.service.SignNotifyService;
 import com.chinasofti.huateng.rpc.outcome.RpcOutcome;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,18 +24,18 @@ public class SignResultCommittedListener {
 
     private final PaySignInfoMapper paySignInfoMapper;
 
-    private final AppNotifyService appNotifyService;
+    private final SignNotifyService signNotifyService;
 
     /** ADR-D32：把 {@code PAY_ACCOUNT_ID} 推给账户域。**允许失败**，见 {@link #syncPayAccountIdQuietly}。 */
     private final AccountDomainPort accountDomainPort;
 
     public SignResultCommittedListener(PaySignRequestMapper paySignRequestMapper,
                                        PaySignInfoMapper paySignInfoMapper,
-                                       AppNotifyService appNotifyService,
+                                       SignNotifyService signNotifyService,
                                        AccountDomainPort accountDomainPort) {
         this.paySignRequestMapper = paySignRequestMapper;
         this.paySignInfoMapper = paySignInfoMapper;
-        this.appNotifyService = appNotifyService;
+        this.signNotifyService = signNotifyService;
         this.accountDomainPort = accountDomainPort;
     }
 
@@ -55,7 +55,7 @@ public class SignResultCommittedListener {
                         requestSignSeq, event.paymentVendor());
                 return;
             }
-            appNotifyService.asyncNotifySignResult(logRecord, signInfo, event.callback());
+            signNotifyService.asyncNotifySignResult(logRecord, signInfo, event.callback());
             log.info("签约结果通知已在事务提交后提交投递, requestSignSeq={}", requestSignSeq);
             syncPayAccountIdQuietly(requestSignSeq, signInfo.getPayAccountId());
         } catch (RuntimeException e) {

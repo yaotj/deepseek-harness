@@ -40,9 +40,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** TVM 侧接口。 */
+/** TVM 侧接口。类级挂两个前缀：设备按 {@code /itptvm/} 或 {@code /itpbom/} 送同一批 URL 都能命中。 */
 @RestController
-@RequestMapping("/itptvm/ci/tvm")
+@RequestMapping({"/itptvm/ci/tvm", "/itpbom/ci/tvm"})
 public class TvmOrderController {
 
     private static final Logger log = LoggerFactory.getLogger(TvmOrderController.class);
@@ -90,8 +90,8 @@ public class TvmOrderController {
         this.topupResultService = topupResultService;
     }
 
-    /** IF2A-04 设备心跳。 */
-    @PostMapping("/notiDeviceHeard")
+    /** IF2A-04 设备心跳。{@code deviceHeartbeat} 是别名，与 {@code fep-dev-server} 的 AGM 侧双别名对齐。 */
+    @PostMapping({"/notiDeviceHeard", "/deviceHeartbeat"})
     public JSONObject notiDeviceHeard(@ModelAttribute BaseDeviceRequest form) {
         log.debug("接收到 TVM 设备心跳, deviceId={}", form == null ? null : form.getDeviceId());
         if (form != null) {
@@ -152,8 +152,13 @@ public class TvmOrderController {
         return tvmOrderService.createSingleTicketOrder(request);
     }
 
-    /** IF2A-03 查询支付结果。 */
-    @PostMapping("/requestPayResult")
+    /**
+     * IF2A-03 查询支付结果。
+     *
+     * <p>{@code requestGetPayResult} 是别名：部分 TVM 厂商按 BOM 侧的命名上送，
+     * 打到本前缀会 404 并退化成 UUID retCode，设备因此拿不到支付结果、不会出票。
+     */
+    @PostMapping({"/requestPayResult", "/requestGetPayResult"})
     public JSONObject requestPayResult(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到查询支付结果请求, form={}", form);
         RequestPayResultReqDTO request = DeviceRequests.unwrap(form, RequestPayResultReqDTO.class);

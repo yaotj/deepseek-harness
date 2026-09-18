@@ -219,6 +219,10 @@ import useAppStore from '@/store/modules/app'
 import { changeUserStatus, listUser, resetUserPwd, delUser, getUser, updateUser, addUser, deptTreeSelect } from "@/api/system/user"
 import { Splitpanes, Pane } from "splitpanes"
 import "splitpanes/dist/splitpanes.css"
+import { defaultTodayRange } from '@/utils/dateRange'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYY-MM-DD'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -234,7 +238,7 @@ const single = ref(true)
 const multiple = ref(true)
 const total = ref(0)
 const title = ref("")
-const dateRange = ref([])
+const dateRange = ref(defaultTodayRange(DATE_FORMAT))
 const deptName = ref("")
 const deptOptions = ref(undefined)
 const enabledDeptOptions = ref(undefined)
@@ -344,7 +348,7 @@ function handleQuery() {
 
 /** 重置按钮操作 */
 function resetQuery() {
-  dateRange.value = []
+  dateRange.value = defaultTodayRange(DATE_FORMAT)
   proxy.resetForm("queryRef")
   queryParams.value.deptId = undefined
   proxy.$refs.deptTreeRef.setCurrentKey(null)

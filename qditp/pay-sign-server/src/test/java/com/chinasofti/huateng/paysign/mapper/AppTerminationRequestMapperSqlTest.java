@@ -186,6 +186,21 @@ class AppTerminationRequestMapperSqlTest {
                 "markChannelSyncManual MUST 只从 FAILED 转 MANUAL，否则会把刚成功的行标成需人工；实际渲染：" + manualWhere);
     }
 
+    /** 两条通知回写 MUST 带轮次闸门，否则上一轮迟到的回写会污染 reactivateFailed 开出的新一轮。 */
+    @Test
+    void notifyWritebacksAreScopedToTheirOwnRound() {
+        Configuration configuration = parseMapper();
+
+        for (String id : new String[]{"updateNotifyStatus", "increaseNotifyRetryCount"}) {
+            String where = whereClauseOf(boundSql(configuration, id), id);
+
+            assertTrue(where.contains("REQUEST_SIGN_SEQ"), id + " MUST 带主键，否则是全表更新");
+            assertTrue(where.contains("TERMINATION_STATUS ="),
+                    id + " MUST 带轮次闸门 TERMINATION_STATUS：reactivateFailed 会把同一条流水开成新一轮并清零 "
+                            + "NOTIFY_*，无闸门时上一轮迟到的回写会让新一轮带着旧结果、补偿扫表再也扫不到；实际渲染：" + where);
+        }
+    }
+
     private Configuration parseMapper() {
         try (InputStream in = Resources.getResourceAsStream(RESOURCE)) {
             Configuration configuration = new Configuration();

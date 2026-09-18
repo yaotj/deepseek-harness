@@ -73,11 +73,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 		<if test="phonenumber != null and phonenumber != ''">
 			AND u.phonenumber like '%' || #{phonenumber} || '%'
 		</if>
-		<if test="params.beginTime != null and params.beginTime != ''"><!-- 开始时间检索 -->
-			AND u.create_time >= TRUNC(#{params.beginTime})
+		<if test="params.beginTime != null and params.beginTime != ''"><!-- 开始时间检索：入参是 yyyy-MM-dd 字符串，MUST 显式 TO_DATE；写成 TRUNC(#{}) 会被 Oracle 按 TRUNC(NUMBER) 解析并抛 ORA-00932 -->
+			AND u.create_time >= TO_DATE(#{params.beginTime}, 'yyyy-mm-dd')
 		</if>
 		<if test="params.endTime != null and params.endTime != ''"><!-- 结束时间检索 -->
-			AND u.create_time &lt; TRUNC(#{params.endTime}) + 1
+			AND u.create_time &lt; TO_DATE(#{params.endTime}, 'yyyy-mm-dd') + 1
 		</if>
 		<if test="deptId != null and deptId != 0">
 			AND (u.dept_id = #{deptId} OR u.dept_id IN ( SELECT t.dept_id FROM sys_dept t WHERE INSTR(',' || ancestors || ',', ',' || #{deptId} || ',') > 0 ))

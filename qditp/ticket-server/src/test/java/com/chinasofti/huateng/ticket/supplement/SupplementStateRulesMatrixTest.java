@@ -43,26 +43,28 @@ class SupplementStateRulesMatrixTest {
         };
     }
 
-    /** IF5A-01 建议侧全量矩阵。 */
+    /** IF5A-01 建议侧全量矩阵。多个候选码用 {@code |} 分隔。 */
     @ParameterizedTest(name = "{0} + updateType={1} + gateIn={2}/{3} -> {4}")
     @CsvSource({
             "EXIT,                PAID, 0101, NONE,  018",
             "END_TRIP,            PAID, 0101, NONE,  018",
             "EXIT_OVERTIME,       PAID, 0101, NONE,  018",
             "SELF_SERVICE_EXIT,   PAID, 0101, NONE,  018",
-            "EXIT,                FREE, 0101, NONE,  020",
+            "EXIT,                FREE, 0101, NONE,  000",
             "ENTRY,               PAID, 0101, FRESH, 000",
             "ENTRY,               FREE, 0101, FRESH, 005",
-            "ENTRY,               FREE, 0101, STALE, 006",
+            "ENTRY,               FREE, 0101, STALE, 020|006",
             "SELF_SERVICE_ENTRY,  FREE, 0101, FRESH, 005",
-            "SELF_SERVICE_ENTRY,  FREE, 0101, STALE, 006",
-            "ENTRY,               FREE, FFFF, STALE, 000",
+            "SELF_SERVICE_ENTRY,  FREE, 0101, STALE, 020|006",
+            "ENTRY,               FREE, FFFF, STALE, 020",
+            "ENTRY,               FREE, 0101, NONE,  020",
+            "SELF_SERVICE_ENTRY,  FREE, 0101, NONE,  020",
             "SJT_ISSUE,           PAID, 0101, NONE,  018",
-            "SJT_ISSUE,           FREE, 0101, NONE,  020",
+            "SJT_ISSUE,           FREE, 0101, NONE,  000",
             "UPDATE_FREE,         PAID, 0101, NONE,  018",
-            "UPDATE_FREE,         FREE, 0101, FRESH, 020",
+            "UPDATE_FREE,         FREE, 0101, FRESH, 000",
             "UPDATE_PAY,          PAID, 0101, NONE,  018",
-            "UPDATE_PAY,          FREE, 0101, NONE,  020",
+            "UPDATE_PAY,          FREE, 0101, NONE,  000",
             "UPDATE_ENTRY,        PAID, FFFF, NONE,  018",
             "UPDATE_ENTRY,        PAID, 0101, NONE,  000",
             "UPDATE_ENTRY,        FREE, 0101, FRESH, 005",
@@ -75,7 +77,7 @@ class SupplementStateRulesMatrixTest {
                           String timeMode, String expectedAdviceOpt) {
         List<String> actual = rules.resolveAdviceOpt(codeStatus, gateInStation, KNOWN_STATION,
                 "PAID".equals(area) ? PAID_AREA : FREE_AREA, gateInTime(timeMode), "C1");
-        assertEquals(List.of(expectedAdviceOpt), actual);
+        assertEquals(List.of(expectedAdviceOpt.split("\\|")), actual);
     }
 
     /** IF5A-03 执行侧白名单全量矩阵。 */
@@ -94,7 +96,10 @@ class SupplementStateRulesMatrixTest {
             "NO_TXN,             018, PAID, NONE,  false",
             "ENTRY,              006, FREE, STALE, true",
             "SELF_SERVICE_ENTRY, 006, FREE, STALE, true",
-            "UPDATE_ENTRY,       006, FREE, NONE,  true",
+            "UPDATE_ENTRY,       006, FREE, STALE, true",
+            "ENTRY,              006, FREE, FRESH, false",
+            "UPDATE_ENTRY,       006, FREE, FRESH, false",
+            "ENTRY,              006, FREE, NONE,  false",
             "ENTRY,              006, PAID, STALE, false",
             "EXIT,               006, FREE, STALE, false",
             "SJT_ISSUE,          006, FREE, STALE, false",
@@ -104,6 +109,13 @@ class SupplementStateRulesMatrixTest {
             "ENTRY,              005, FREE, NONE,  false",
             "ENTRY,              005, PAID, FRESH, false",
             "EXIT,               005, FREE, FRESH, false",
+            "ENTRY,              020, FREE, STALE, true",
+            "ENTRY,              020, FREE, NONE,  true",
+            "SELF_SERVICE_ENTRY, 020, FREE, STALE, true",
+            "UPDATE_ENTRY,       020, FREE, STALE, true",
+            "ENTRY,              020, PAID, STALE, false",
+            "EXIT,               020, FREE, STALE, false",
+            "SJT_ISSUE,          020, FREE, STALE, false",
             "ENTRY,              000, FREE, FRESH, false",
             "EXIT,               000, PAID, NONE,  false",
     })

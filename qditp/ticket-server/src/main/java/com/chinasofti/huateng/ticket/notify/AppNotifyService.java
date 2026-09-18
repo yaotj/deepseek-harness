@@ -21,4 +21,16 @@ public interface AppNotifyService {
      * @param request 闸机交易通知
      */
     void pushAlipayTripData(NotifyVerifyResultReqDTO request);
+
+    /**
+     * 异步推送多日票次数扣减通知给 APP（甲方规格 R6 §3.63）。
+     *
+     * <p>**MUST 在 daily-ticket 确认扣次成功之后才调用** —— 扣次被拒或 RPC 技术失败时不通知，
+     * 否则造成「APP 以为扣了、实际没扣」。唯一调用点是
+     * {@code GateDailyTicketCoordinator.markUsedOnExit}。
+     *
+     * @param request 闸机交易通知（{@code transSeq} 取其 {@code ticketTransSeq}）
+     * @param times 本次扣减次数，当前恒为 1（见 AGENTS.md §2.2.2 该条裁决）
+     */
+    void notifyCountingTicketTimes(NotifyVerifyResultReqDTO request, int times);
 }

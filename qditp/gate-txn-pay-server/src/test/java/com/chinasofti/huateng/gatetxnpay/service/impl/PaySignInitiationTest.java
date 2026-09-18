@@ -296,8 +296,7 @@ class PaySignInitiationTest {
     private PaySignInitiator initiator() {
         return new PaySignInitiator(paySignClient, alipayPaySignClient, writer,
                 new GatePayRequestFactory("AGM_GATE", "1", "地铁乘车扣费", "地铁乘车费用", 60L),
-                new AlipayTripPayRequestFactory("TRIP", "05", "1", "地铁乘车扣费", "地铁乘车费用", 60,
-                        "http://localhost/payNotify"));
+                new AlipayTripPayRequestFactory("TRIP", "05", "1", "地铁乘车扣费", "地铁乘车费用", 60));
     }
 
     /** 补偿入口已搬到 {@link OfflineFareRecoveryServiceImpl} */

@@ -23,6 +23,14 @@
           <el-option label="BOM (03)" value="03" />
         </el-select>
       </el-form-item>
+      <el-form-item label="业务类型" prop="bizType">
+        <el-select v-model="queryParams.bizType" clearable placeholder="全部" style="width: 150px">
+          <el-option label="购票 (01)" value="01" />
+          <el-option label="充值 (02)" value="02" />
+          <el-option label="取票 (03)" value="03" />
+          <el-option label="非现金收款 (04)" value="04" />
+        </el-select>
+      </el-form-item>
       <el-form-item label="订单状态" prop="orderStatus">
         <el-select v-model="queryParams.orderStatus" clearable placeholder="全部" style="width: 140px">
           <el-option label="已下单" value="CREATED" />
@@ -46,6 +54,7 @@
       <el-table-column label="业务订单号" prop="orderNo" min-width="200" show-overflow-tooltip />
       <el-table-column label="订单状态" width="100" align="center"><template #default="{ row }"><el-tag :type="orderStatusTagType(row.orderStatus)">{{ formatOrderStatus(row.orderStatus) }}</el-tag></template></el-table-column>
       <el-table-column label="受理渠道" width="90" align="center"><template #default="{ row }">{{ formatChannel(row.channel) }}</template></el-table-column>
+      <el-table-column label="业务类型" width="110" align="center"><template #default="{ row }">{{ formatBizType(row.bizType) }}</template></el-table-column>
       <el-table-column label="支付渠道编码" prop="payChannelCode" width="130" align="center" />
       <el-table-column label="支付中心订单号" prop="payCenterOrderNo" min-width="190" show-overflow-tooltip />
       <el-table-column label="渠道订单号" prop="payCenterChannelOrderNo" min-width="190" show-overflow-tooltip />
@@ -88,6 +97,11 @@
 
 <script setup name="FacePayOrder">
 import { listFacePayOrders, requestFacePayRefund } from '@/api/trans/facePayOrder'
+import { defaultTodayRange } from '@/utils/dateRange'
+import { formatCodeLabel } from '@/utils/codeLabel'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 
 const { proxy } = getCurrentInstance()
 const loading = ref(false)
@@ -99,7 +113,7 @@ const refundOrder = reactive({ orderNo: '', orderAmount: null })
 const refundForm = reactive({ refundReason: '' })
 const refundRules = { refundReason: [{ required: true, message: '请输入退款原因', trigger: 'blur' }] }
 const queryParams = reactive({
-  dateRange: [], orderNo: '', payCenterOrderNo: '', payCenterChannelOrderNo: '', deviceId: '', channel: '', orderStatus: '', pageNum: 1, pageSize: 10
+  dateRange: defaultTodayRange(DATE_FORMAT), orderNo: '', payCenterOrderNo: '', payCenterChannelOrderNo: '', deviceId: '', channel: '', bizType: '', orderStatus: '', pageNum: 1, pageSize: 10
 })
 
 function buildQuery() {
@@ -136,7 +150,7 @@ function handleQuery() {
 
 function resetQuery() {
   proxy.resetForm('queryRef')
-  queryParams.dateRange = []
+  queryParams.dateRange = defaultTodayRange(DATE_FORMAT)
   orders.value = []
   total.value = 0
 }
@@ -156,8 +170,9 @@ function orderStatusTagType(value) {
     EXPIRED: 'info', REFUNDING: 'warning', REFUNDED: 'danger', CANCELED: 'info'
   })[value] || 'info'
 }
-function formatChannel(value) { return ({ '01': 'APP', '02': 'TVM', '03': 'BOM' })[value] || value || '-' }
-function formatTicketType(value) { return ({ '0': '按站点购票', '1': '固定票价购票' })[value] || value || '-' }
+function formatChannel(value) { return formatCodeLabel(value, { '01': 'APP', '02': 'TVM', '03': 'BOM' }) }
+function formatBizType(value) { return formatCodeLabel(value, { '01': '购票', '02': '充值', '03': '取票', '04': '非现金收款' }) }
+function formatTicketType(value) { return formatCodeLabel(value, { '0': '按站点购票', '1': '固定票价购票' }) }
 function formatRefundStatus(value) { return ({ NONE: '未退款', PARTIAL: '部分退款', SUCCESS: '已退款' })[value] || value || '-' }
 function refundStatusTagType(value) { return ({ NONE: 'info', PARTIAL: 'warning', SUCCESS: 'danger' })[value] || 'info' }
 function canRefund(row) {

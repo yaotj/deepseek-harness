@@ -33,11 +33,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 			<if test="userName != null and userName != ''">
 				AND user_name like '%' || #{userName} || '%'
 			</if>
-			<if test="params.beginTime != null and params.beginTime != ''"><!-- 开始时间检索 -->
-				AND login_time &gt;= #{params.beginTime}
+			<if test="params.beginTime != null and params.beginTime != ''"><!-- 开始时间检索：入参是 yyyy-MM-dd HH:mm:ss 字符串，MUST 显式 TO_DATE；裸比较靠会话 NLS_DATE_FORMAT，实测该库是 DD-MON-RR、直接抛 ORA-01861 -->
+				AND login_time &gt;= TO_DATE(#{params.beginTime}, 'yyyy-mm-dd hh24:mi:ss')
 			</if>
 			<if test="params.endTime != null and params.endTime != ''"><!-- 结束时间检索 -->
-				AND login_time &lt;= #{params.endTime}
+				AND login_time &lt;= TO_DATE(#{params.endTime}, 'yyyy-mm-dd hh24:mi:ss')
 			</if>
 		</where>
 		order by info_id desc

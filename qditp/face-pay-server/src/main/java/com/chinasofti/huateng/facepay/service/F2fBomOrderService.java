@@ -1,6 +1,7 @@
 package com.chinasofti.huateng.facepay.service;
 
 import com.chinasofti.huateng.facepay.domain.F2fDuplicateKey;
+import com.chinasofti.huateng.facepay.domain.F2fLogicCardNo;
 import com.chinasofti.huateng.facepay.domain.F2fOrderStatus;
 import com.chinasofti.huateng.facepay.domain.F2fOrderStatusTransition;
 import com.alibaba.fastjson2.JSONObject;
@@ -165,17 +166,17 @@ public class F2fBomOrderService {
     }
     /** 单程票交易查询。 */
     public JSONObject requestOrderResult(RequestOrderResultReqDTO request) {
-        F2fTicket ticket = ticketMapper.selectByLogicNumAndTransDate(
-                request.getTicketLogicNum(), request.getTransDate());
+        String logicNum = F2fLogicCardNo.normalize(request.getTicketLogicNum());
+        F2fTicket ticket = ticketMapper.selectByLogicNumAndTransDate(logicNum, request.getTransDate());
         if (ticket == null) {
             log.info("单程票交易查询 没有查找到出票信息, ticketLogicNum={}, transDate={}",
-                    request.getTicketLogicNum(), request.getTransDate());
+                    logicNum, request.getTransDate());
             return BomResponses.orderResultFail(BomResponses.CODE_FAIL, "没有查找到出票信息");
         }
         F2fOrder order = orderMapper.selectByOrderNo(ticket.getOrderNo());
         if (order == null) {
             log.error("单程票交易查询 票存在但订单缺失（数据不一致）, ticketLogicNum={}, orderNo={}",
-                    request.getTicketLogicNum(), ticket.getOrderNo());
+                    logicNum, ticket.getOrderNo());
             return BomResponses.orderResultFail(BomResponses.CODE_FAIL, "无对应的订单信息");
         }
         String status = order.getOrderStatus();
@@ -191,6 +192,7 @@ public class F2fBomOrderService {
 
     /** 单程票退款。 */
     public JSONObject requestTicketRefund(RequestTicketRefundReqDTO request) {
+        String logicNum = F2fLogicCardNo.normalize(request.getTicketLogicNum());
         Long amount = request.amountInFen();
         if (amount == null || amount <= 0) {
             log.warn("单程票退款 金额非法, transAmount={}", request.getTransAmount());
@@ -206,14 +208,14 @@ public class F2fBomOrderService {
                     order.getOrderNo(), order.getOrderStatus());
             return BomResponses.refundFail(BomResponses.CODE_FAIL, "订单未支付，不可退款");
         }
-        F2fTicket ticket = ticketMapper.selectLatestByLogicNum(request.getTicketLogicNum());
+        F2fTicket ticket = ticketMapper.selectLatestByLogicNum(logicNum);
         if (ticket == null) {
-            log.info("单程票退款 找不到该逻辑卡号的出票记录, ticketLogicNum={}", request.getTicketLogicNum());
+            log.info("单程票退款 找不到该逻辑卡号的出票记录, ticketLogicNum={}", logicNum);
             return BomResponses.refundFail(BomResponses.CODE_FAIL, "没有查找到出票信息");
         }
         if (!TICKET_REFUNDABLE.contains(ticket.getTicketStatus())) {
             log.info("单程票退款 票状态不允许退款, ticketLogicNum={}, ticketStatus={}",
-                    request.getTicketLogicNum(), ticket.getTicketStatus());
+                    logicNum, ticket.getTicketStatus());
             return BomResponses.refundFail(BomResponses.CODE_FAIL, "该票已退款或状态不允许退款");
         }
         if (order.getOrderAmount() != null) {
@@ -225,7 +227,7 @@ public class F2fBomOrderService {
             }
         }
 
-        RefundCommand command = new RefundCommand(order.getOrderNo(), request.getTicketLogicNum(),
+        RefundCommand command = new RefundCommand(order.getOrderNo(), logicNum,
                 F2fRefundService.SOURCE_BOM_ORIGINAL, amount, 1, "BOM单程票退款",
                 request.getDeviceId(), null, request.getTransType(), ticket.getTransDate(),
                 payCenterOrderNoOf(order.getOrderNo()));
@@ -234,15 +236,15 @@ public class F2fBomOrderService {
             log.warn("单程票退款被拒绝, orderNo={}, reason={}", order.getOrderNo(), outcome.failureReason());
             return BomResponses.refundFail(BomResponses.CODE_FAIL, outcome.failureReason());
         }
-        ticketMapper.updateRefundNo(request.getTicketLogicNum(), ticket.getTransDate(), outcome.refundNo());
-        int ticketRows = ticketMapper.updateStatus(request.getTicketLogicNum(), ticket.getTransDate(),
+        ticketMapper.updateRefundNo(logicNum, ticket.getTransDate(), outcome.refundNo());
+        int ticketRows = ticketMapper.updateStatus(logicNum, ticket.getTransDate(),
                 TICKET_REFUNDABLE, TICKET_REFUNDING);
         if (ticketRows == 0) {
             log.warn("F2F CAS 冲突 单程票退款票状态未推进，疑似重复退款, orderNo={}, ticketLogicNum={}, refundNo={}",
-                    order.getOrderNo(), request.getTicketLogicNum(), outcome.refundNo());
+                    order.getOrderNo(), logicNum, outcome.refundNo());
         }
         log.info("单程票退款已提交, orderNo={}, ticketLogicNum={}, refundNo={}, alreadyExisted={}",
-                order.getOrderNo(), request.getTicketLogicNum(), outcome.refundNo(), outcome.alreadyExisted());
+                order.getOrderNo(), logicNum, outcome.refundNo(), outcome.alreadyExisted());
         boolean settled = F2fRefundService.STATUS_SUCCESS.equals(outcome.refundStatus());
         return BomResponses.refundSuccess(settled ? "SUCCESS" : "PROCESSING",
                 settled ? "退款成功" : "退款处理中", outcome.refundNo());

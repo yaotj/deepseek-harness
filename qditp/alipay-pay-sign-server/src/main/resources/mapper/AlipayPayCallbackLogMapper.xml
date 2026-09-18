@@ -2,15 +2,34 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.alipay.paysign.mapper.AlipayPayCallbackLogMapper">
 
+    <!-- 追加型事实流水：一次推送一行、重推各存一份，刻意没有唯一索引。本表 17 列，2026-09-18 定稿。
+         支付方向落 6 个报文字段（orderNo / transStatus / channelVoucherId / transAmount / transTime 与计数用的
+         callbackType）+ TOTAL_AMOUNT + TXN_DATE；退款方向（CALLBACK_TYPE=REFUND）另落 REFUND_ORDER_NO +
+         REFUND_AMOUNT + REFUND_STATUS。两组列按 CALLBACK_TYPE 分开取，另一组留 NULL 是正常形态。
+         REFUND_ORDER_NO 取回调的 outRefundNo（商户退款流水号），NEVER 填 refundNo（那是支付中心侧的号，
+         与我方退款单对不上、会串单）。
+         全部行共用 处置结果 + 整包原文两组列。
+         **删掉的两列 NEVER 加回**：PAY_STATUS 是 transStatus 的派生值（流水存原文即可，用时再映射）、
+         CARD_NO 主体 GATE_TXN_PAY.CARD_ID 已有。
+         **同批删掉的 8 列同样 NEVER 加回**：cashAmount / couponAmount / discountFee / discountInfo /
+         payUserId / merchantOrderNo / payTime / channelOrderNo —— 支付宝出行的回调 DTO 只有 6 个业务字段，
+         这些字段在这条链路里没有入向来源；pay-sign 的 ReceivePayResultReqDTO 有它们是另一条契约。
+         TRANS_AMOUNT（支付宝报文原文字符串）与 TOTAL_AMOUNT（支付中心口径、单位分）是两种口径，
+         NEVER 合并成一列。
+         SQL 正文内 NEVER 写注释（Druid WallFilter），本 XML 注释内也不得出现连续两个连字符。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayCallbackLog" useGeneratedKeys="false">
         INSERT INTO ALIPAY_PAY_CALLBACK_LOG (
-            CALLBACK_SEQ, ORDER_NO, CALLBACK_TYPE, TRANS_STATUS, PAY_STATUS,
-            CHANNEL_VOUCHER_ID, TRANS_AMOUNT, TRANS_TIME, CARD_NO, RAW_BODY,
-            HANDLE_STATUS, HANDLE_MSG, CREATE_TIME, UPDATE_TIME
+            CALLBACK_SEQ, ORDER_NO, CALLBACK_TYPE, TRANS_STATUS,
+            CHANNEL_VOUCHER_ID, TRANS_AMOUNT, TRANS_TIME,
+            TOTAL_AMOUNT, TXN_DATE,
+            REFUND_ORDER_NO, REFUND_AMOUNT, REFUND_STATUS,
+            RAW_BODY, HANDLE_STATUS, HANDLE_MSG, CREATE_TIME, UPDATE_TIME
         ) VALUES (
-            #{callbackSeq,jdbcType=VARCHAR}, #{orderNo,jdbcType=VARCHAR}, #{callbackType,jdbcType=VARCHAR}, #{transStatus,jdbcType=VARCHAR}, #{payStatus,jdbcType=VARCHAR},
-            #{channelVoucherId,jdbcType=VARCHAR}, #{transAmount,jdbcType=VARCHAR}, #{transTime,jdbcType=VARCHAR}, #{cardNo,jdbcType=VARCHAR}, #{rawBody,jdbcType=VARCHAR},
-            #{handleStatus,jdbcType=VARCHAR}, #{handleMsg,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}
+            #{callbackSeq,jdbcType=VARCHAR}, #{orderNo,jdbcType=VARCHAR}, #{callbackType,jdbcType=VARCHAR}, #{transStatus,jdbcType=VARCHAR},
+            #{channelVoucherId,jdbcType=VARCHAR}, #{transAmount,jdbcType=VARCHAR}, #{transTime,jdbcType=VARCHAR},
+            #{totalAmount,jdbcType=NUMERIC}, #{txnDate,jdbcType=VARCHAR},
+            #{refundOrderNo,jdbcType=VARCHAR}, #{refundAmount,jdbcType=NUMERIC}, #{refundStatus,jdbcType=VARCHAR},
+            #{rawBody,jdbcType=CLOB}, #{handleStatus,jdbcType=VARCHAR}, #{handleMsg,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}
         )
     </insert>
 

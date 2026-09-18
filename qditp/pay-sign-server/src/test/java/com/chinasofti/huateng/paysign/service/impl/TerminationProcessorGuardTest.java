@@ -22,8 +22,9 @@ import com.chinasofti.huateng.paysign.model.response.BaseRespDTO;
 import com.chinasofti.huateng.paysign.model.response.PaySignGatewayResponse;
 import com.chinasofti.huateng.paysign.port.ContractGatewayPort;
 import com.chinasofti.huateng.paysign.port.GatewayReply;
-import com.chinasofti.huateng.paysign.service.AppNotifyService;
+import com.chinasofti.huateng.paysign.service.TerminationNotifyService;
 import com.chinasofti.huateng.paysign.service.CallbackDomainService;
+import com.chinasofti.huateng.paysign.port.UnsettledOrderRpcAdapter;
 import com.chinasofti.huateng.rpc.pay.GateTxnPayClient;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -43,11 +44,11 @@ class TerminationProcessorGuardTest {
     private final PaySignRequestMapper paySignRequestMapper = mock(PaySignRequestMapper.class);
     private final PaySignAuditLogger auditLogger = new PaySignAuditLogger(paySignRequestMapper);
     private final GateTxnPayClient gateTxnPayClient = mock(GateTxnPayClient.class);
-    private final AppNotifyService appNotifyService = mock(AppNotifyService.class);
+    private final TerminationNotifyService appNotifyService = mock(TerminationNotifyService.class);
 
     private final TerminationProcessor processor = new TerminationProcessor(
             terminationRequestMapper, contractGatewayPort,
-            callbackDomainService, auditLogger, gateTxnPayClient, appNotifyService);
+            callbackDomainService, auditLogger, new UnsettledOrderRpcAdapter(gateTxnPayClient), appNotifyService);
 
     /** 查协议状态抛异常：保持 SCANNING（未超时 → SKIPPED），NEVER 收口。 */
     @Test

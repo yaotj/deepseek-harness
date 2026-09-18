@@ -50,11 +50,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 			<if test="configKey != null and configKey != ''">
 				AND config_key like '%' || #{configKey} || '%'
 			</if>
-			<if test="params.beginTime != null and params.beginTime != ''"><!-- 开始时间检索 -->
-				and create_time >= TRUNC(#{params.beginTime})
+			<if test="params.beginTime != null and params.beginTime != ''"><!-- 开始时间检索：入参是 yyyy-MM-dd 字符串，MUST 显式 TO_DATE；写成 TRUNC(#{}) 会被 Oracle 按 TRUNC(NUMBER) 解析并抛 ORA-00932 -->
+				and create_time >= TO_DATE(#{params.beginTime}, 'yyyy-mm-dd')
 			</if>
 			<if test="params.endTime != null and params.endTime != ''"><!-- 结束时间检索 -->
-				and create_time &lt; TRUNC(#{params.endTime}) + 1
+				and create_time &lt; TO_DATE(#{params.endTime}, 'yyyy-mm-dd') + 1
 			</if>
 		</where>
     </select>

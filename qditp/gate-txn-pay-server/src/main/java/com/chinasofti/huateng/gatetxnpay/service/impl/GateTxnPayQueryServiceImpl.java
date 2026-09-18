@@ -108,18 +108,18 @@ public class GateTxnPayQueryServiceImpl implements GateTxnPayQueryService {
     public List<GateTxnPayListDTO> selectTransList(String thirdUserId, List<String> cardIdList, String cardType,
                                                     List<String> cardTypeList, String startDate, String endDate,
                                                     String ticketCode, String debitRequestResult,
-                                                    Integer offset, Integer limit) {
+                                                    String issueChannelCode, Integer offset, Integer limit) {
         List<GateTxnPay> records = gateTxnPayMapper.selectTransList(thirdUserId, cardIdList, cardType, cardTypeList,
-                startDate, endDate, ticketCode, debitRequestResult, offset, limit);
+                startDate, endDate, ticketCode, debitRequestResult, issueChannelCode, offset, limit);
         return records.stream().map(this::toListDTO).toList();
     }
 
     @Override
     public int countTransList(String thirdUserId, List<String> cardIdList, String cardType,
                               List<String> cardTypeList, String startDate, String endDate,
-                              String ticketCode, String debitRequestResult) {
+                              String ticketCode, String debitRequestResult, String issueChannelCode) {
         return gateTxnPayMapper.countTransList(thirdUserId, cardIdList, cardType, cardTypeList, startDate, endDate,
-                ticketCode, debitRequestResult);
+                ticketCode, debitRequestResult, issueChannelCode);
     }
 
     /**

@@ -21,7 +21,11 @@
 </template>
 <script setup name="RiskControlLog">
 import { listRiskControlLogs } from '@/api/para/risk'
+import { defaultTodayRange } from '@/utils/dateRange'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 // 风险命中记录为审计数据，只提供查询和分页浏览。
-const loading=ref(false),rows=ref([]),total=ref(0);const query=reactive({cardId:'',userOrderNo:'',ruleId:'',dateRange:[],pageNum:1,pageSize:10})
-function load(){loading.value=true;const [riskHitTimeBegin,riskHitTimeEnd]=query.dateRange||[];listRiskControlLogs({cardId:query.cardId,userOrderNo:query.userOrderNo,ruleId:query.ruleId,riskHitTimeBegin,riskHitTimeEnd,pageNum:query.pageNum,pageSize:query.pageSize}).then(r=>{rows.value=r.data?.list||[];total.value=Number(r.data?.total||0)}).finally(()=>loading.value=false)}function search(){query.pageNum=1;load()}function resetQuery(){Object.assign(query,{cardId:'',userOrderNo:'',ruleId:'',dateRange:[]});search()}onMounted(load)
+const loading=ref(false),rows=ref([]),total=ref(0);const query=reactive({cardId:'',userOrderNo:'',ruleId:'',dateRange:defaultTodayRange(DATE_FORMAT),pageNum:1,pageSize:10})
+function load(){loading.value=true;const [riskHitTimeBegin,riskHitTimeEnd]=query.dateRange||[];listRiskControlLogs({cardId:query.cardId,userOrderNo:query.userOrderNo,ruleId:query.ruleId,riskHitTimeBegin,riskHitTimeEnd,pageNum:query.pageNum,pageSize:query.pageSize}).then(r=>{rows.value=r.data?.list||[];total.value=Number(r.data?.total||0)}).finally(()=>loading.value=false)}function search(){query.pageNum=1;load()}function resetQuery(){Object.assign(query,{cardId:'',userOrderNo:'',ruleId:'',dateRange:defaultTodayRange(DATE_FORMAT)});search()}onMounted(load)
 </script>

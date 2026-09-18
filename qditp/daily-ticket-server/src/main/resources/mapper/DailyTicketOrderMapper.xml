@@ -65,29 +65,64 @@
     </select>
 
     <select id="selectRefundOrders" resultType="com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderView">
-        select O.ORDER_NO as orderNo,
-               O.PAYMENT_ORDER_NO as paymentOrderNo,
-               O.TRADE_NO as tradeNo,
-               O.TICKET_NAME as ticketName,
-               O.TICKET_PRICE as ticketPrice,
-               O.PAY_AMOUNT as payAmount,
-               O.PAY_CHANNEL_CODE as payChannelCode,
-               O.ORDER_STATUS as orderStatus,
-               O.PAY_STATUS as payStatus,
-               O.PAY_DATE as payDate,
-               O.CREATE_TIME as createTime,
-               I.TICKET_STATUS as ticketStatus,
-               I.CARD_NUM as cardNum,
-               R.REFUND_ORDER_NO as refundOrderNo,
-               R.PLATFORM_REFUND_NO as platformRefundNo,
-               R.REFUND_STATUS as refundStatus,
-               R.REFUND_TYPE as refundType,
-               R.REFUND_AMOUNT as refundAmount,
-               R.REFUND_DATE as refundDate,
-               R.VERIFY_AFTER_TIME as verifyAfterTime
-        from DAILY_TICKET_ORDER O
-        left join DAILY_TICKET_INSTANCE I on I.ORDER_NO = O.ORDER_NO
-        left join DAILY_TICKET_REFUND R on R.ORDER_NO = O.ORDER_NO
+        select *
+        from (
+            select O.ORDER_NO as orderNo,
+                   '1' as orderType,
+                   O.PARENT_ORDER_NO as parentOrderNo,
+                   null as ticketCount,
+                   null as totalAmount,
+                   O.PAYMENT_ORDER_NO as paymentOrderNo,
+                   O.TRADE_NO as tradeNo,
+                   O.TICKET_NAME as ticketName,
+                   O.TICKET_PRICE as ticketPrice,
+                   O.PAY_AMOUNT as payAmount,
+                   O.PAY_CHANNEL_CODE as payChannelCode,
+                   O.ORDER_STATUS as orderStatus,
+                   O.PAY_STATUS as payStatus,
+                   O.PAY_DATE as payDate,
+                   O.CREATE_TIME as createTime,
+                   I.TICKET_STATUS as ticketStatus,
+                   I.CARD_NUM as cardNum,
+                   R.REFUND_ORDER_NO as refundOrderNo,
+                   R.PLATFORM_REFUND_NO as platformRefundNo,
+                   R.REFUND_STATUS as refundStatus,
+                   R.REFUND_TYPE as refundType,
+                   R.REFUND_AMOUNT as refundAmount,
+                   R.REFUND_DATE as refundDate,
+                   R.VERIFY_AFTER_TIME as verifyAfterTime
+            from DAILY_TICKET_ORDER O
+            left join DAILY_TICKET_INSTANCE I on I.ORDER_NO = O.ORDER_NO
+            left join DAILY_TICKET_REFUND R on R.ORDER_NO = O.ORDER_NO
+            where O.PARENT_ORDER_NO is null
+            union all
+            select T.ORDER_NO as orderNo,
+                   '2' as orderType,
+                   null as parentOrderNo,
+                   T.TICKET_COUNT as ticketCount,
+                   T.TOTAL_AMOUNT as totalAmount,
+                   T.PAYMENT_ORDER_NO as paymentOrderNo,
+                   T.TRADE_NO as tradeNo,
+                   null as ticketName,
+                   T.TICKET_PRICE as ticketPrice,
+                   T.PAY_AMOUNT as payAmount,
+                   T.PAY_CHANNEL_CODE as payChannelCode,
+                   T.ORDER_STATUS as orderStatus,
+                   T.PAY_STATUS as payStatus,
+                   T.PAY_DATE as payDate,
+                   T.CREATE_TIME as createTime,
+                   null as ticketStatus,
+                   null as cardNum,
+                   R.REFUND_ORDER_NO as refundOrderNo,
+                   R.PLATFORM_REFUND_NO as platformRefundNo,
+                   R.REFUND_STATUS as refundStatus,
+                   R.REFUND_TYPE as refundType,
+                   R.REFUND_AMOUNT as refundAmount,
+                   R.REFUND_DATE as refundDate,
+                   R.VERIFY_AFTER_TIME as verifyAfterTime
+            from TRAVEL_TICKET_ORDER T
+            left join DAILY_TICKET_REFUND R on R.ORDER_NO = T.ORDER_NO
+        ) O
         <where>
             <if test="beginTime != null">
                 and O.CREATE_TIME <![CDATA[ >= ]]> #{beginTime,jdbcType=TIMESTAMP}
@@ -103,6 +138,39 @@
             </if>
         </where>
         order by O.CREATE_TIME desc
+    </select>
+
+    <select id="selectTravelSubRefundOrders" resultType="com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderView">
+        select O.ORDER_NO as orderNo,
+               '1' as orderType,
+               O.PARENT_ORDER_NO as parentOrderNo,
+               null as ticketCount,
+               null as totalAmount,
+               T.PAYMENT_ORDER_NO as paymentOrderNo,
+               T.TRADE_NO as tradeNo,
+               O.TICKET_NAME as ticketName,
+               O.TICKET_PRICE as ticketPrice,
+               O.TICKET_PRICE as payAmount,
+               T.PAY_CHANNEL_CODE as payChannelCode,
+               O.ORDER_STATUS as orderStatus,
+               O.PAY_STATUS as payStatus,
+               T.PAY_DATE as payDate,
+               O.CREATE_TIME as createTime,
+               I.TICKET_STATUS as ticketStatus,
+               I.CARD_NUM as cardNum,
+               R.REFUND_ORDER_NO as refundOrderNo,
+               R.PLATFORM_REFUND_NO as platformRefundNo,
+               R.REFUND_STATUS as refundStatus,
+               R.REFUND_TYPE as refundType,
+               R.REFUND_AMOUNT as refundAmount,
+               R.REFUND_DATE as refundDate,
+               R.VERIFY_AFTER_TIME as verifyAfterTime
+        from DAILY_TICKET_ORDER O
+        join TRAVEL_TICKET_ORDER T on T.ORDER_NO = O.PARENT_ORDER_NO
+        left join DAILY_TICKET_INSTANCE I on I.ORDER_NO = O.ORDER_NO
+        left join DAILY_TICKET_REFUND R on R.ORDER_NO = O.ORDER_NO
+        where O.PARENT_ORDER_NO = #{parentOrderNo,jdbcType=VARCHAR}
+        order by O.ORDER_NO
     </select>
 
     <update id="updatePayRequest" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketOrder">

@@ -13,6 +13,10 @@ public class ItpUserSearchView {
     private String msisdn;
     private String userName;
     private String cardIssueCode;
+    /**
+     * 发卡机构编码，APP 开户上送的 4 位原值（5412 青岛地铁 / 0007 支付宝出行 等）。
+     */
+    private String issueOrgCode;
     private String channel;
     private String companionFlag;
     private String status;
@@ -43,6 +47,8 @@ public class ItpUserSearchView {
     public void setUserName(String userName) { this.userName = userName; }
     public String getCardIssueCode() { return cardIssueCode; }
     public void setCardIssueCode(String cardIssueCode) { this.cardIssueCode = cardIssueCode; }
+    public String getIssueOrgCode() { return issueOrgCode; }
+    public void setIssueOrgCode(String issueOrgCode) { this.issueOrgCode = issueOrgCode; }
     public String getChannel() { return channel; }
     public void setChannel(String channel) { this.channel = channel; }
     public String getCompanionFlag() { return companionFlag; }

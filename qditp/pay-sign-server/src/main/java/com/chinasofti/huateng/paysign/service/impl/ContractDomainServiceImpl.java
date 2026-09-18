@@ -60,9 +60,9 @@ import java.util.Map;
 public class ContractDomainServiceImpl implements ContractDomainService {
 
     private static final Logger log = LoggerFactory.getLogger(ContractDomainServiceImpl.class);
-    private static final String STATUS_NOT_SIGNED = "NOT_SIGNED";
-    private static final String STATUS_SIGNED = "SIGNED";
-    private static final String STATUS_UNSIGNED = "UNSIGNED";
+    private static final String STATUS_NOT_SIGNED = SignStatus.NOT_SIGNED.name();
+    private static final String STATUS_SIGNED = SignStatus.SIGNED.name();
+    private static final String STATUS_UNSIGNED = SignStatus.UNSIGNED.name();
     /** 解约申请状态，取值来自 {@link TerminationStatus}。 */
     private static final String STATUS_FAILED = TerminationStatus.FAILED.name();
 
@@ -83,6 +83,21 @@ public class ContractDomainServiceImpl implements ContractDomainService {
     /** 支付中心**签约/解约方向**出向调用的唯一出口（2026-09-16，ADR-D112）。 */
     private final ContractGatewayPort contractGatewayPort;
 
+    /**
+     * 支付平台签约状态 → 本地落库动作。**表里没有的取值即「未知状态」，一律只告警不落库。**
+     *
+     * <p>2026-09-17 由 {@code applyGatewayStatus} 的 if-else 链改成表驱动（ADR-D122）：
+     * 新增一个状态取值时**只能**往这张表里加一行，NEVER 再在方法体里插分支 ——
+     * 那种写法把「状态集合」与「每个状态怎么落库」两件事糅在一处，漏一个分支只表现为静默不落库。
+     */
+    private final Map<String, GatewayStatusMigrator> gatewayStatusMigrators;
+
+    /** 一次状态落库动作，返回受影响行数（0 即交给 {@link SignStatusTransition} 判幂等还是冲突）。 */
+    @FunctionalInterface
+    private interface GatewayStatusMigrator {
+        int migrate(String requestSignSeq, PaySignInfo signInfo);
+    }
+
     /** 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备。 */
     public ContractDomainServiceImpl(
             PaySignInfoMapper paySignInfoMapper,
@@ -95,6 +110,12 @@ public class ContractDomainServiceImpl implements ContractDomainService {
         this.auditLogger = auditLogger;
         this.accountDomainPort = accountDomainPort;
         this.contractGatewayPort = contractGatewayPort;
+        this.gatewayStatusMigrators = Map.of(
+                STATUS_SIGNED, (seq, info) -> paySignInfoMapper.markSigned(seq, info.getPayAccountId(),
+                        info.getPayAgreementNo(),
+                        info.getSignTime() != null ? info.getSignTime() : LocalDateTime.now()),
+                STATUS_UNSIGNED, (seq, info) -> paySignInfoMapper.markUnsigned(seq, LocalDateTime.now()),
+                STATUS_NOT_SIGNED, (seq, info) -> paySignInfoMapper.reactivateForResign(seq));
     }
 
     /** IF8A-16 请求签约信息。 */
@@ -461,19 +482,12 @@ public class ContractDomainServiceImpl implements ContractDomainService {
             return;
         }
         int updated;
-        if (STATUS_SIGNED.equals(targetStatus)) {
-            LocalDateTime signTime = signInfo.getSignTime() != null ? signInfo.getSignTime() : LocalDateTime.now();
-            updated = paySignInfoMapper.markSigned(requestSignSeq, signInfo.getPayAccountId(),
-                    signInfo.getPayAgreementNo(), signTime);
-        } else if (STATUS_UNSIGNED.equals(targetStatus)) {
-            updated = paySignInfoMapper.markUnsigned(requestSignSeq, LocalDateTime.now());
-        } else if (STATUS_NOT_SIGNED.equals(targetStatus)) {
-            updated = paySignInfoMapper.reactivateForResign(requestSignSeq);
-        } else {
+        GatewayStatusMigrator migrator = gatewayStatusMigrators.get(targetStatus);
+        if (migrator == null) {
             log.warn("支付平台返回未知签约状态，不落库, requestSignSeq={}, gatewayStatus={}", requestSignSeq, targetStatus);
             return;
         }
-        if (updated == 0) {
+        if (migrator.migrate(requestSignSeq, signInfo) == 0) {
             SignStatusTransition.Result transit = SignStatusTransition.classify(0,
                     SignStatus.parseOrNull(targetStatus),
                     () -> paySignInfoMapper.selectSignStatusBySeq(requestSignSeq));

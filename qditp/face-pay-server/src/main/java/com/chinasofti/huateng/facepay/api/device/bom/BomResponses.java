@@ -149,6 +149,31 @@ public final class BomResponses {
         return body;
     }
 
+    /**
+     * IF1A-04 查询票卡状态结果，4 个业务键与 AGM 前置
+     * {@code /itpagm/ci/agm/requestQrCodeStatus} 的应答逐字一致（同一批设备两条前缀共用一套解析）。
+     */
+    public static JSONObject qrCodeStatus(String itpUserId, String cardId, String lastTicketStatus,
+                                          String lastHandleDateTime) {
+        return qrCodeStatusBody(body(CODE_SUCCESS, "成功"), itpUserId, cardId, lastTicketStatus,
+                lastHandleDateTime);
+    }
+
+    /** IF1A-04 查询票卡状态失败，带与 {@link #qrCodeStatus} 相同的 4 个业务键、值为 JSON null。 */
+    public static JSONObject qrCodeStatusFail(String retCode, String retMsg) {
+        return qrCodeStatusBody(body(retCode, retMsg), null, null, null, null);
+    }
+
+    /** 票卡状态响应的 4 个业务键，成功与失败两支共用，保证键名与键序恒定。 */
+    private static JSONObject qrCodeStatusBody(JSONObject body, String itpUserId, String cardId,
+                                               String lastTicketStatus, String lastHandleDateTime) {
+        body.put("itpUserId", itpUserId);
+        body.put("cardId", cardId);
+        body.put("lastTicketStatus", lastTicketStatus);
+        body.put("lastHandleDateTime", lastHandleDateTime);
+        return body;
+    }
+
     /** 单程票交易查询结果，8 个 key 照搬旧实现。 */
     public static JSONObject orderResult(String paymentResult, String paymentResultDesc, String orderNo,
                                          String transDate, Long transAmount, String paymentChannelCode) {

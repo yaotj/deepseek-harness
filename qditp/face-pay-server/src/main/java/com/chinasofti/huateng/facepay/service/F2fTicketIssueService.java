@@ -7,6 +7,7 @@ import com.chinasofti.huateng.facepay.api.device.tvm.NotiTakeTicketFailResultReq
 import com.chinasofti.huateng.facepay.api.device.tvm.NotiTakeTicketResultReqDTO;
 import com.chinasofti.huateng.facepay.api.device.tvm.TvmResponses;
 import com.chinasofti.huateng.facepay.domain.F2fDuplicateKey;
+import com.chinasofti.huateng.facepay.domain.F2fLogicCardNo;
 import com.chinasofti.huateng.facepay.domain.F2fOrderStatus;
 import com.chinasofti.huateng.facepay.entity.F2fOrder;
 import com.chinasofti.huateng.facepay.entity.F2fPayment;
@@ -220,7 +221,7 @@ public class F2fTicketIssueService {
             }
             F2fTicket ticket = new F2fTicket();
             ticket.setOrderNo(order.getOrderNo());
-            ticket.setTicketLogicNum(info.getTicketLogicNum());
+            ticket.setTicketLogicNum(F2fLogicCardNo.normalize(info.getTicketLogicNum()));
             ticket.setTransDate(info.getTransDate());
             ticket.setTicketPrice(info.priceInFen() != null ? info.priceInFen() : order.getTicketPrice());
             ticket.setTicketStatus(ticketStatus);
@@ -333,6 +334,7 @@ public class F2fTicketIssueService {
 
     /** 供出票失败后按票标记故障状态使用（BOM 侧按票退款时会读这个状态）。 */
     void markTicketsFault(String ticketLogicNum, String transDate) {
-        ticketMapper.updateStatus(ticketLogicNum, transDate, List.of(TICKET_ISSUED), TICKET_FAULT);
+        ticketMapper.updateStatus(F2fLogicCardNo.normalize(ticketLogicNum), transDate,
+                List.of(TICKET_ISSUED), TICKET_FAULT);
     }
 }

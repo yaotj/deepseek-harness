@@ -22,6 +22,7 @@ import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketPayInfoReqDT
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketPayInfoResult;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderResult;
+import com.chinasofti.huateng.rpc.outcome.RpcOutcome;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -226,6 +227,33 @@ public class DailyTicketClient extends ProxyWebClient {
         }, true);
         log.info("调用daily-ticket-server日票进站校验接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
         return response;
+    }
+
+    /**
+     * 日票乘车可用性查询（拉码 IF8A-03 前置，只读，不推进任何状态）。
+     *
+     * <p>返回 {@code Ok} 可发码；{@code BizRejected} 即对端明确判定不可用、调用方 MUST 拒发；
+     * {@code Unreachable} 由调用方降级放行 —— 闸机侧还有一道权威校验。
+     * <b>本方法绝不抛异常</b>，任何异常都归到 {@code Unreachable}。
+     */
+    public RpcOutcome checkRideAvailability(String cardNum) {
+        String path = "/ci/daily-ticket/ticket/rideAvailability";
+        try {
+            Map<String, String> body = new java.util.HashMap<>();
+            body.put("cardNum", cardNum);
+            log.info("调用daily-ticket-server日票可用性校验接口入参 path={}, cardNum={}", path, cardNum);
+            String result = postJsonAndGetResponse(path, body);
+            log.info("调用daily-ticket-server日票可用性校验接口原始返回 path={}, response={}", path, result);
+            DailyTicketBaseResult response = JSONUtil.toBean(result, new TypeReference<DailyTicketBaseResult>() {
+            }, true);
+            log.info("调用daily-ticket-server日票可用性校验接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
+            if (response == null) {
+                return new RpcOutcome.Unreachable(new IllegalStateException("daily-ticket-server 返回为空"));
+            }
+            return RpcOutcome.ofRetCode(response.getRetCode(), response.getRetMsg());
+        } catch (Exception e) {
+            return new RpcOutcome.Unreachable(e);
+        }
     }
 
     /**

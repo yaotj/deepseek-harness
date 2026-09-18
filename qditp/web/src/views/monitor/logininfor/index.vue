@@ -126,6 +126,10 @@
 
 <script setup name="Logininfor">
 import { list, delLogininfor, cleanLogininfor, unlockLogininfor } from "@/api/monitor/logininfor"
+import { defaultTodayRange } from '@/utils/dateRange'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 
 const { proxy } = getCurrentInstance()
 const { sys_common_status } = proxy.useDict("sys_common_status")
@@ -138,7 +142,7 @@ const single = ref(true)
 const multiple = ref(true)
 const selectName = ref("")
 const total = ref(0)
-const dateRange = ref([])
+const dateRange = ref(defaultTodayRange(DATE_FORMAT))
 const defaultSort = ref({ prop: "loginTime", order: "descending" })
 
 // 查询参数
@@ -170,7 +174,7 @@ function handleQuery() {
 
 /** 重置按钮操作 */
 function resetQuery() {
-  dateRange.value = []
+  dateRange.value = defaultTodayRange(DATE_FORMAT)
   proxy.resetForm("queryRef")
   queryParams.value.pageNum = 1
   proxy.$refs["logininforRef"].sort(defaultSort.value.prop, defaultSort.value.order)

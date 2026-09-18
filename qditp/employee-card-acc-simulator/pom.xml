@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.6</version>
+        <relativePath />
+    </parent>
+
+    <properties>
+        <java.version>21</java.version>
+        <web.version>2.0</web.version>
+        <model.version>2.0.0</model.version>
+        <sql-datasource.version>2.0</sql-datasource.version>
+        <mybatis-adaptor.version>2.0</mybatis-adaptor.version>
+        <fastjson.version>2.0.57</fastjson.version>
+        <ojdbc.version>19.18.0.0</ojdbc.version>
+        <image.prefix>employee-card-acc-simulator</image.prefix>
+    </properties>
+
+    <artifactId>employee-card-acc-simulator</artifactId>
+    <name>employee-card-acc-simulator</name>
+    <description>电子员工卡 ACC 端模拟服务</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.chinasofti.huateng.micro</groupId>
+            <artifactId>web</artifactId>
+            <version>${web.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.chinasofti.huateng</groupId>
+            <artifactId>model</artifactId>
+            <version>${model.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.chinasofti.huateng.micro</groupId>
+            <artifactId>sql-datasource</artifactId>
+            <version>${sql-datasource.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.chinasofti.huateng.micro</groupId>
+            <artifactId>mybatis-adaptor</artifactId>
+            <version>${mybatis-adaptor.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+            <version>${fastjson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.oracle.database.jdbc</groupId>
+            <artifactId>ojdbc8</artifactId>
+            <version>${ojdbc.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.oracle.database.nls</groupId>
+            <artifactId>orai18n</artifactId>
+            <version>${ojdbc.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.fastjson2</groupId>
+            <artifactId>fastjson2</artifactId>
+            <version>${fastjson.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>employee-card-acc-simulator</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-install-plugin</artifactId>
+                <version>2.5.2</version>
+            </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

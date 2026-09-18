@@ -24,6 +24,11 @@ public class PayCallbackLog {
     private String paymentVendor;
     private String txnDate;
     private String rawBody;
+    /**
+     * 渠道优惠详情原文（网关 V1.2）。归属本表而非 {@code PAY_TXN_DETAIL}：它是**回调事实**、随重推各存一份。
+     * NEVER 写进 {@code PAY_TXN_DETAIL.DISCOUNT_INFO} —— 那一列是闸机侧自算优惠，两个口径混一列后无法区分。
+     */
+    private String discountInfo;
     private String handleStatus;
     private String handleMsg;
     private LocalDateTime createTime;
@@ -68,6 +73,8 @@ public class PayCallbackLog {
     public void setTxnDate(String txnDate) { this.txnDate = txnDate; }
     public String getRawBody() { return rawBody; }
     public void setRawBody(String rawBody) { this.rawBody = rawBody; }
+    public String getDiscountInfo() { return discountInfo; }
+    public void setDiscountInfo(String discountInfo) { this.discountInfo = discountInfo; }
     public String getHandleStatus() { return handleStatus; }
     public void setHandleStatus(String handleStatus) { this.handleStatus = handleStatus; }
     public String getHandleMsg() { return handleMsg; }

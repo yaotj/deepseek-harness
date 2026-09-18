@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.alipay.paysign.mapper.AlipayPayCenterMsgLogMapper">
+    <!-- 我方 -> 支付中心的出网报文留痕，一次调用一行、写完即不可变。
+         本文件**只允许有 INSERT 与 SELECT，NEVER 加任何 UPDATE** —— 一旦能改，就退回了
+         「覆盖式留痕、重试只剩最后一次报文」的老问题，而这张表存在的唯一意义就是留证据。
+         SQL 正文内 NEVER 写注释（Druid WallFilter），本 XML 注释内也不得出现连续两个连字符。 -->
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayCenterMsgLog">
+        <id column="ID" jdbcType="NUMERIC" property="id"/>
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="TXN_DATE" jdbcType="VARCHAR" property="txnDate"/>
+        <result column="API_NAME" jdbcType="VARCHAR" property="apiName"/>
+        <result column="REQUEST_NO" jdbcType="VARCHAR" property="requestNo"/>
+        <result column="SCENE" jdbcType="VARCHAR" property="scene"/>
+        <result column="INDUSTRY_TYPE" jdbcType="VARCHAR" property="industryType"/>
+        <result column="IP_ADDRESS" jdbcType="VARCHAR" property="ipAddress"/>
+        <result column="RET_CODE" jdbcType="VARCHAR" property="retCode"/>
+        <result column="RET_MSG" jdbcType="VARCHAR" property="retMsg"/>
+        <result column="ELAPSED_MS" jdbcType="NUMERIC" property="elapsedMs"/>
+        <result column="REQUEST_BODY" jdbcType="CLOB" property="requestBody"/>
+        <result column="RESPONSE_BODY" jdbcType="CLOB" property="responseBody"/>
+        <result column="REMARK" jdbcType="VARCHAR" property="remark"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ID, ORDER_NO, TXN_DATE, API_NAME, REQUEST_NO,
+        SCENE, INDUSTRY_TYPE, IP_ADDRESS,
+        RET_CODE, RET_MSG, ELAPSED_MS,
+        REQUEST_BODY, RESPONSE_BODY, REMARK,
+        CREATE_TIME
+    </sql>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayCenterMsgLog">
+        INSERT INTO ALIPAY_PAY_CENTER_MSG_LOG (
+            <include refid="Base_Column_List"/>
+        ) VALUES (
+            SEQ_ALIPAY_PAY_CENTER_MSG_LOG.NEXTVAL,
+            #{orderNo,jdbcType=VARCHAR},
+            #{txnDate,jdbcType=VARCHAR},
+            #{apiName,jdbcType=VARCHAR},
+            #{requestNo,jdbcType=VARCHAR},
+            #{scene,jdbcType=VARCHAR},
+            #{industryType,jdbcType=VARCHAR},
+            #{ipAddress,jdbcType=VARCHAR},
+            #{retCode,jdbcType=VARCHAR},
+            #{retMsg,jdbcType=VARCHAR},
+            #{elapsedMs,jdbcType=NUMERIC},
+            #{requestBody,jdbcType=CLOB},
+            #{responseBody,jdbcType=CLOB},
+            #{remark,jdbcType=VARCHAR},
+            #{createTime,jdbcType=TIMESTAMP}
+        )
+    </insert>
+
+    <!-- 排查主路径：按单号取全部出网记录。
+         ORDER BY ID DESC 是刻意的：CREATE_TIME 同毫秒时无法定序，而序列单调递增。
+         这里不带 TXN_DATE，因此会跨分区探测本地索引 —— 排查场景可接受，NEVER 为了裁剪
+         强制调用方传交易日（传错或传空都会静默少查数据，比慢更糟）。 -->
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM ALIPAY_PAY_CENTER_MSG_LOG
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+        ORDER BY ID DESC
+    </select>
+</mapper>

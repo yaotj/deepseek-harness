@@ -275,7 +275,7 @@ public class PayChannelServiceImpl implements PayChannelService {
             String cardIssueCode = request.getCardIssueCode().trim();
             String regSignSeq = request.getRegSignSeq().trim();
 
-            UserItpRegInfo regInfo = userItpRegInfoMapper.selectByThirdUserIdAndCardIssueCodeAndCompanionFlag(
+            UserItpRegInfo regInfo = userItpRegInfoMapper.selectByThirdUserIdAndIssueOrgCodeAndCompanionFlag(
                     thirdUserId, cardIssueCode, "C");
             if (regInfo == null || !regInfo.isActive()) {
                 response.setRetCode(AccountErrorCodeEnum.NO_ACCOUNT_CARD.getCode());

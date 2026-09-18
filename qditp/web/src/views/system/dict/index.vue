@@ -174,6 +174,10 @@
 <script setup name="Dict">
 import useDictStore from '@/store/modules/dict'
 import { listType, getType, delType, addType, updateType, refreshCache } from "@/api/system/dict/type"
+import { defaultTodayRange } from '@/utils/dateRange'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYY-MM-DD'
 
 const { proxy } = getCurrentInstance()
 const { sys_normal_disable } = proxy.useDict("sys_normal_disable")
@@ -187,7 +191,7 @@ const single = ref(true)
 const multiple = ref(true)
 const total = ref(0)
 const title = ref("")
-const dateRange = ref([])
+const dateRange = ref(defaultTodayRange(DATE_FORMAT))
 
 const data = reactive({
   form: {},
@@ -242,7 +246,7 @@ function handleQuery() {
 
 /** 重置按钮操作 */
 function resetQuery() {
-  dateRange.value = []
+  dateRange.value = defaultTodayRange(DATE_FORMAT)
   proxy.resetForm("queryRef")
   handleQuery()
 }

@@ -29,6 +29,7 @@ public interface GateTxnPayQueryService {
      * 分页查询进出站交易记录（供 ticket-server RPC 调用）。
      *
      * @param debitRequestResult 扣款结果过滤：null 或空=全部，"0"=已扣款成功，"1"=未扣款成功。
+     * @param issueChannelCode 发行渠道过滤：null 或空=全渠道，{@code 07}=支付宝出行。
      */
     List<GateTxnPayListDTO> selectTransList(@Param("thirdUserId") String thirdUserId,
                                             @Param("cardIdList") List<String> cardIdList,
@@ -38,6 +39,7 @@ public interface GateTxnPayQueryService {
                                             @Param("endDate") String endDate,
                                             @Param("ticketCode") String ticketCode,
                                             @Param("debitRequestResult") String debitRequestResult,
+                                            @Param("issueChannelCode") String issueChannelCode,
                                             @Param("offset") Integer offset,
                                             @Param("limit") Integer limit);
     /** 统计 IF8A-05 分页查询结果总数（供 ticket-server RPC 调用）。 */
@@ -48,7 +50,8 @@ public interface GateTxnPayQueryService {
                        @Param("startDate") String startDate,
                        @Param("endDate") String endDate,
                        @Param("ticketCode") String ticketCode,
-                       @Param("debitRequestResult") String debitRequestResult);
+                       @Param("debitRequestResult") String debitRequestResult,
+                       @Param("issueChannelCode") String issueChannelCode);
 
     /** IF8A-41 账单统计（供 ticket-server RPC 调用）。 */
     RequestTransStatisticsResult requestTransStatistics(RequestTransStatisticsReqDTO request);

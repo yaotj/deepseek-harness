@@ -450,7 +450,27 @@ end   = create_time + query-window-after-millis
   `/** 开始时间 */` 与 `/** 停止时间 */` 两个字段注释 —— 它们只用于算耗时。
 - 【契约】**列表检索按天截断**（web-quartz · `SysJobLogMapper.selectJobLogList` 的两个 `<if>`，
   `SysJobLogMapper.xml:38`「开始时间检索」/`:41`「结束时间检索」，SQL 形态是
-  `create_time >= TRUNC(#{params.beginTime})` 与 `create_time < TRUNC(#{params.endTime}) + 1`）。
+  `create_time >= TO_DATE(#{params.beginTime}, 'yyyy-mm-dd')` 与
+  `create_time < TO_DATE(#{params.endTime}, 'yyyy-mm-dd') + 1`）。
+  ⚠️ **NEVER 退回 `TRUNC(#{params.beginTime})`**：`params.*Time` 绑定进来的是 `yyyy-MM-dd` 字符串，
+  Oracle 会把未定类型的绑定变量按 `TRUNC(NUMBER)` 重载解析，于是 `DATE 列 >= NUMBER` 在**硬解析阶段**
+  就抛 `ORA-00932: 数据类型不一致: 应为 DATE, 但却获得 NUMBER`（报错落在 MyBatis 的
+  「The error occurred while setting parameters」，容易被误判成参数类型映射问题）。
+  同型写法原先散在 6 个 mapper 共 12 处（`SysUserMapper` / `SysConfigMapper` / `SysDictTypeMapper` /
+  `SysRoleMapper` / `SysJobLogMapper` / `GenTableMapper`），2026-09-18 已全部改成显式 `TO_DATE`。
+  `sys_user` 页的日期区间是**默认带今天**的（`web/src/views/system/user/index.vue` 的
+  `defaultTodayRange`），因此那一处一进页面就必炸。
+  **同批还有两处不同形态**：`SysOperLogMapper.xml` 的 `oper_time` 与 `SysLogininforMapper.xml` 的
+  `login_time` 原先是**裸比较字符串**（`>= #{params.beginTime}`，前端 `value-format` 是
+  `YYYY-MM-DD HH:mm:ss`），成不成立完全取决于会话 `NLS_DATE_FORMAT`；2026-09-18 在 `AFCITPDB` 实测
+  `nls_session_parameters` / `nls_database_parameters` 的 `NLS_DATE_FORMAT` **都是 `DD-MON-RR`**，
+  同形字面量直接抛 `ORA-01861: literal does not match format string`。两处已改成
+  `TO_DATE(#{...}, 'yyyy-mm-dd hh24:mi:ss')`（保留 `<=` 右端闭区间语义，不改成 `+1`）。
+  **NEVER 退回裸比较** —— 这类写法只是「碰巧当前会话格式对得上」，换库、换 JDBC 版本、换 territory 都会翻。
+  以上七个 mapper 的修复随 **web-admin 1.1.27** 上线（2026-09-18，镜像
+  `itp/web-admin:1.1.27`，digest `sha256:b429695…`；回滚 tag 1.1.26）。
+  同日按要求又原样重发一次 **1.1.28**（`sha256:69c9e14…`，代码与 1.1.27 逐字相同、只为换 tag 触发拉取），
+  当前线上即 1.1.28、回滚 tag 1.1.27。
 
 ### 附三、任务 Bean 与 rpc 下游（web-admin `quartz/task` 共 11 个类）
 

@@ -11,26 +11,41 @@
         <result column="TICKET_COUNT" jdbcType="INTEGER" property="ticketCount"/>
         <result column="TOTAL_AMOUNT" jdbcType="INTEGER" property="totalAmount"/>
         <result column="ORDER_SOURCE" jdbcType="VARCHAR" property="orderSource"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="PAY_AMOUNT" jdbcType="INTEGER" property="payAmount"/>
+        <result column="PAY_CHANNEL_CODE" jdbcType="VARCHAR" property="payChannelCode"/>
+        <result column="CHANNEL_TYPE" jdbcType="VARCHAR" property="channelType"/>
+        <result column="PAY_SCENE" jdbcType="VARCHAR" property="payScene"/>
         <result column="ORDER_STATUS" jdbcType="VARCHAR" property="orderStatus"/>
         <result column="PAY_STATUS" jdbcType="VARCHAR" property="payStatus"/>
+        <result column="TRADE_NO" jdbcType="VARCHAR" property="tradeNo"/>
+        <result column="PAYMENT_ORDER_NO" jdbcType="VARCHAR" property="paymentOrderNo"/>
+        <result column="PAY_DATE" jdbcType="TIMESTAMP" property="payDate"/>
         <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
         <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
     </resultMap>
 
     <sql id="BaseColumnList">
         ID, ORDER_NO, USER_ID, CARD_TYPE, SHOW_TYPE, TICKET_PRICE, TICKET_COUNT,
-        TOTAL_AMOUNT, ORDER_SOURCE, ORDER_STATUS, PAY_STATUS, CREATE_TIME, UPDATE_TIME
+        TOTAL_AMOUNT, ORDER_SOURCE, THIRD_USER_ID, PAY_AMOUNT, PAY_CHANNEL_CODE,
+        CHANNEL_TYPE, PAY_SCENE, ORDER_STATUS, PAY_STATUS, TRADE_NO,
+        PAYMENT_ORDER_NO, PAY_DATE, CREATE_TIME, UPDATE_TIME
     </sql>
 
     <insert id="insert" parameterType="com.chinasofti.huateng.dailyticket.model.TravelTicketOrder">
         insert into TRAVEL_TICKET_ORDER (
             ID, ORDER_NO, USER_ID, CARD_TYPE, SHOW_TYPE, TICKET_PRICE, TICKET_COUNT,
-            TOTAL_AMOUNT, ORDER_SOURCE, ORDER_STATUS, PAY_STATUS, CREATE_TIME, UPDATE_TIME
+            TOTAL_AMOUNT, ORDER_SOURCE, THIRD_USER_ID, PAY_AMOUNT, PAY_CHANNEL_CODE,
+            CHANNEL_TYPE, PAY_SCENE, ORDER_STATUS, PAY_STATUS, TRADE_NO,
+            PAYMENT_ORDER_NO, PAY_DATE, CREATE_TIME, UPDATE_TIME
         ) values (
             #{id,jdbcType=VARCHAR}, #{orderNo,jdbcType=VARCHAR}, #{userId,jdbcType=VARCHAR},
             #{cardType,jdbcType=VARCHAR}, #{showType,jdbcType=VARCHAR}, #{ticketPrice,jdbcType=INTEGER},
             #{ticketCount,jdbcType=INTEGER}, #{totalAmount,jdbcType=INTEGER}, #{orderSource,jdbcType=VARCHAR},
+            #{thirdUserId,jdbcType=VARCHAR}, #{payAmount,jdbcType=INTEGER}, #{payChannelCode,jdbcType=VARCHAR},
+            #{channelType,jdbcType=VARCHAR}, #{payScene,jdbcType=VARCHAR},
             #{orderStatus,jdbcType=VARCHAR}, #{payStatus,jdbcType=VARCHAR},
+            #{tradeNo,jdbcType=VARCHAR}, #{paymentOrderNo,jdbcType=VARCHAR}, #{payDate,jdbcType=TIMESTAMP},
             #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP}
         )
     </insert>
@@ -40,4 +55,47 @@
         from TRAVEL_TICKET_ORDER
         where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </select>
+
+    <update id="updatePayRequest" parameterType="com.chinasofti.huateng.dailyticket.model.TravelTicketOrder">
+        update TRAVEL_TICKET_ORDER
+        set THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR},
+            PAY_CHANNEL_CODE = #{payChannelCode,jdbcType=VARCHAR},
+            CHANNEL_TYPE = #{channelType,jdbcType=VARCHAR},
+            PAY_SCENE = #{payScene,jdbcType=VARCHAR},
+            ORDER_STATUS = #{orderStatus,jdbcType=VARCHAR},
+            PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
+            UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          and ((ORDER_STATUS = 'CREATED' and PAY_STATUS = 'INIT')
+            or (ORDER_STATUS = 'PAYING' and PAY_STATUS = 'PAYING'))
+    </update>
+
+    <update id="updatePayResultIfPaying" parameterType="com.chinasofti.huateng.dailyticket.model.TravelTicketOrder">
+        update TRAVEL_TICKET_ORDER
+        set ORDER_STATUS = #{orderStatus,jdbcType=VARCHAR},
+            PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
+            TRADE_NO = #{tradeNo,jdbcType=VARCHAR},
+            PAYMENT_ORDER_NO = #{paymentOrderNo,jdbcType=VARCHAR},
+            PAY_AMOUNT = #{payAmount,jdbcType=INTEGER},
+            PAY_DATE = #{payDate,jdbcType=TIMESTAMP},
+            UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          and ORDER_STATUS = 'PAYING'
+          and PAY_STATUS = 'PAYING'
+    </update>
+
+    <update id="updatePaymentOrderNo">
+        update TRAVEL_TICKET_ORDER
+        set PAYMENT_ORDER_NO = #{paymentOrderNo,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSTIMESTAMP
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          and (PAYMENT_ORDER_NO is null or PAYMENT_ORDER_NO = #{paymentOrderNo,jdbcType=VARCHAR})
+    </update>
+
+    <update id="updateOrderStatus">
+        update TRAVEL_TICKET_ORDER
+        set ORDER_STATUS = #{orderStatus,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSTIMESTAMP
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
 </mapper>

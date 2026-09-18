@@ -1,6 +1,6 @@
 package com.chinasofti.huateng.alipay.paysign.controller;
 
-import com.chinasofti.huateng.alipay.paysign.service.AlipayArrearsQueryService;
+import com.chinasofti.huateng.alipay.paysign.service.impl.query.AlipayArrearsQueryService;
 import com.chinasofti.huateng.model.app.CardUnsettledQueryReqDTO;
 import com.chinasofti.huateng.model.app.CardUnsettledQueryRespDTO;
 import org.slf4j.Logger;

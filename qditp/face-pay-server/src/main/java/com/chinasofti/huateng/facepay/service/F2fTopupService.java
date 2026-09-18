@@ -1,5 +1,6 @@
 package com.chinasofti.huateng.facepay.service;
 
+import com.chinasofti.huateng.facepay.domain.F2fLogicCardNo;
 import com.chinasofti.huateng.facepay.domain.F2fOrderStatus;
 import com.alibaba.fastjson2.JSONObject;
 import com.chinasofti.huateng.facepay.api.device.DeviceRetCode;
@@ -79,11 +80,12 @@ public class F2fTopupService {
             return TvmResponses.topupFail(DeviceRetCode.INVALID_PARAM, "transAmount必须为正数");
         }
 
+        String logicNum = F2fLogicCardNo.normalize(request.getTicketLogicNum());
         String orderNo = orderNoGenerator.next(F2fOrderNo.BIZ_TOPUP);
         LocalDateTime now = LocalDateTime.now();
-        orderMapper.insert(buildOrder(orderNo, request, transAmount, beforeAmount, now));
+        orderMapper.insert(buildOrder(orderNo, request, logicNum, transAmount, beforeAmount, now));
         log.info("充值下单已落库, orderNo={}, transAmount={}, ticketLogicNum={}",
-                orderNo, transAmount, request.getTicketLogicNum());
+                orderNo, transAmount, logicNum);
 
         if ("0".equals(request.getPayType())) {
             String payUrl = messageFactory.buildAggregateCodePayUrl(orderNo);
@@ -115,7 +117,7 @@ public class F2fTopupService {
         };
     }
 
-    private F2fOrder buildOrder(String orderNo, RequestTopupReqDTO request,
+    private F2fOrder buildOrder(String orderNo, RequestTopupReqDTO request, String logicNum,
                                 long transAmount, long beforeAmount, LocalDateTime now) {
         F2fOrder order = new F2fOrder();
         order.setOrderNo(orderNo);
@@ -124,7 +126,8 @@ public class F2fTopupService {
         order.setOrderStatus(STATUS_CREATED);
         order.setOrderAmount(transAmount);
         order.setDeviceId(request.getDeviceId());
-        order.setCardId(request.getTicketLogicNum());
+        order.setCardId(logicNum);
+        order.setTicketPhysicsNum(request.getTicketPhysicsNum());
         order.setCardBeforeAmount(beforeAmount);
         order.setActivateFlag("0");
         order.setExpireTms(now.plusSeconds(qrcodeExpireSeconds));

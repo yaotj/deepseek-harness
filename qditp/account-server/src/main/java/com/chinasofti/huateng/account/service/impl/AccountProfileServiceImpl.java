@@ -144,6 +144,15 @@ public class AccountProfileServiceImpl implements AccountProfileService {
             response.setRetMsg("cardId和hceData不能为空");
             return response;
         }
+        String trimmedHce = request.getHceData().trim();
+        if (trimmedHce.length() < 64 || !trimmedHce.matches("[0-9A-Fa-f]+")) {
+            log.warn("更新HCE卡数据格式非法, cardId={}, hceDataLength={}, hceDataPrefix={}",
+                    request.getCardId(), trimmedHce.length(),
+                    trimmedHce.substring(0, Math.min(trimmedHce.length(), 10)));
+            response.setRetCode(AccountErrorCodeEnum.INVALID_PARAM.getCode());
+            response.setRetMsg("hceData格式非法(须>=64位十六进制)");
+            return response;
+        }
         try {
             int updated = userItpRegInfoMapper.updateActiveHceDataByCardId(
                     request.getCardId().trim(), request.getHceData().trim());

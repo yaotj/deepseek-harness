@@ -4,140 +4,84 @@
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayTxnDetail">
         <id column="ID" jdbcType="NUMERIC" property="id"/>
         <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
-        <result column="PAY_TYPE" jdbcType="VARCHAR" property="payType"/>
+        <result column="TXN_DATE" jdbcType="VARCHAR" property="txnDate"/>
         <result column="PAY_STATUS" jdbcType="VARCHAR" property="payStatus"/>
-        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
-        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
-        <result column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
-        <result column="PAYMENT_VENDOR" jdbcType="VARCHAR" property="paymentVendor"/>
-        <result column="PAY_CHANNEL_CODE" jdbcType="VARCHAR" property="payChannelCode"/>
-        <result column="REQUEST_SIGN_SEQ" jdbcType="VARCHAR" property="requestSignSeq"/>
-        <result column="CHANNEL_AGREEMENT_NO" jdbcType="VARCHAR" property="channelAgreementNo"/>
         <result column="AMOUNT" jdbcType="NUMERIC" property="amount"/>
-        <result column="TOTAL_AMOUNT" jdbcType="NUMERIC" property="totalAmount"/>
-        <result column="CASH_AMOUNT" jdbcType="NUMERIC" property="cashAmount"/>
-        <result column="COUPON_AMOUNT" jdbcType="NUMERIC" property="couponAmount"/>
         <result column="REFUND_STATUS" jdbcType="VARCHAR" property="refundStatus"/>
         <result column="REFUND_AMOUNT" jdbcType="NUMERIC" property="refundAmount"/>
         <result column="LAST_REFUND_TIME" jdbcType="TIMESTAMP" property="lastRefundTime"/>
-        <result column="MERCHANT_ORDER_NO" jdbcType="VARCHAR" property="merchantOrderNo"/>
         <result column="PAY_CENTER_ORDER_NO" jdbcType="VARCHAR" property="payCenterOrderNo"/>
         <result column="CHANNEL_ORDER_NO" jdbcType="VARCHAR" property="channelOrderNo"/>
-        <result column="PAY_USER_ID" jdbcType="VARCHAR" property="payUserId"/>
+        <result column="TRANS_TIME" jdbcType="VARCHAR" property="transTime"/>
+        <result column="REQUEST_SIGN_SEQ" jdbcType="VARCHAR" property="requestSignSeq"/>
+        <result column="CHANNEL_AGREEMENT_NO" jdbcType="VARCHAR" property="channelAgreementNo"/>
         <result column="REQUEST_COUNT" jdbcType="NUMERIC" property="requestCount"/>
-        <result column="NEXT_REQUEST_TIME" jdbcType="TIMESTAMP" property="nextRequestTime"/>
         <result column="LAST_REQUEST_TIME" jdbcType="TIMESTAMP" property="lastRequestTime"/>
-        <result column="FIRST_REQUEST_TIME" jdbcType="TIMESTAMP" property="firstRequestTime"/>
-        <result column="RESPONSE_TIME" jdbcType="TIMESTAMP" property="responseTime"/>
-        <result column="PAY_TIME" jdbcType="VARCHAR" property="payTime"/>
-        <result column="TXN_DATE" jdbcType="VARCHAR" property="txnDate"/>
-        <result column="SCENE" jdbcType="VARCHAR" property="scene"/>
-        <result column="INDUSTRY_TYPE" jdbcType="VARCHAR" property="industryType"/>
-        <result column="SUBJECT" jdbcType="VARCHAR" property="subject"/>
-        <result column="BODY" jdbcType="VARCHAR" property="body"/>
-        <result column="AUTH_CODE" jdbcType="VARCHAR" property="authCode"/>
-        <result column="NOTIFY_URL" jdbcType="VARCHAR" property="notifyUrl"/>
-        <result column="RETURN_URL" jdbcType="VARCHAR" property="returnUrl"/>
-        <result column="IP_ADDRESS" jdbcType="VARCHAR" property="ipAddress"/>
-        <result column="ORDER_TIME_OUT" jdbcType="NUMERIC" property="orderTimeOut"/>
-        <result column="INDUSTRY_DETAIL" jdbcType="CLOB" property="industryDetail"/>
-        <result column="ENTRY_ID" jdbcType="VARCHAR" property="entryId"/>
-        <result column="EXIT_ID" jdbcType="VARCHAR" property="exitId"/>
+        <result column="NEXT_REQUEST_TIME" jdbcType="TIMESTAMP" property="nextRequestTime"/>
         <result column="INVOICE" jdbcType="VARCHAR" property="invoice"/>
-        <result column="DISCOUNT_INFO" jdbcType="VARCHAR" property="discountInfo"/>
-        <result column="DEBIT_REQUEST_RESULT" jdbcType="VARCHAR" property="debitRequestResult"/>
-        <result column="DISCOUNT_FEE" jdbcType="NUMERIC" property="discountFee"/>
-        <result column="RESULT_CODE" jdbcType="VARCHAR" property="resultCode"/>
-        <result column="RESULT_MSG" jdbcType="VARCHAR" property="resultMsg"/>
-        <result column="REMARK" jdbcType="VARCHAR" property="remark"/>
-        <result column="REQUEST_BODY" jdbcType="CLOB" property="requestBody"/>
-        <result column="RESPONSE_BODY" jdbcType="CLOB" property="responseBody"/>
         <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
         <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
     </resultMap>
 
     <sql id="Base_Column_List">
-        ID, ORDER_NO, PAY_TYPE, PAY_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE,
-        PAYMENT_VENDOR, PAY_CHANNEL_CODE, REQUEST_SIGN_SEQ, CHANNEL_AGREEMENT_NO,
-        AMOUNT, TOTAL_AMOUNT, CASH_AMOUNT, COUPON_AMOUNT,
+        ID, ORDER_NO, TXN_DATE,
+        PAY_STATUS,
+        AMOUNT,
         REFUND_STATUS, REFUND_AMOUNT, LAST_REFUND_TIME,
-        MERCHANT_ORDER_NO, PAY_CENTER_ORDER_NO, CHANNEL_ORDER_NO, PAY_USER_ID,
-        REQUEST_COUNT, NEXT_REQUEST_TIME, LAST_REQUEST_TIME, FIRST_REQUEST_TIME,
-        RESPONSE_TIME, PAY_TIME, TXN_DATE,
-        SCENE, INDUSTRY_TYPE, SUBJECT, BODY, AUTH_CODE, NOTIFY_URL, RETURN_URL,
-        IP_ADDRESS, ORDER_TIME_OUT, INDUSTRY_DETAIL,
-        ENTRY_ID, EXIT_ID, INVOICE,
-        DISCOUNT_INFO, DEBIT_REQUEST_RESULT, DISCOUNT_FEE,
-        RESULT_CODE, RESULT_MSG, REMARK, REQUEST_BODY, RESPONSE_BODY,
+        PAY_CENTER_ORDER_NO, CHANNEL_ORDER_NO,
+        TRANS_TIME,
+        REQUEST_SIGN_SEQ, CHANNEL_AGREEMENT_NO,
+        REQUEST_COUNT, LAST_REQUEST_TIME, NEXT_REQUEST_TIME,
+        INVOICE,
         CREATE_TIME, UPDATE_TIME
     </sql>
 
-    <!-- 首次创建支付订单。 -->
+    <!-- 首次落支付明细。本表 19 列、无 CLOB：报文原文、应答码、场景、行业类型、IP 都在
+         ALIPAY_PAY_CENTER_MSG_LOG，一次调用一行；调用方 MUST 在拿到应答（或超时）后写那张表，
+         NEVER 把报文塞回本表。
+         TRANS_TIME 落单时恒为 null，它只由支付回调写入 —— 那一刻对端还没告诉我们支付时刻。
+         2026-09-18 删掉的三列 NEVER 加回：DEBIT_REQUEST_RESULT（PAY_STATUS 的派生值，对外 0/1 由主表
+         GATE_TXN_PAY.DEBIT_STATUS 映射）、RESPONSE_TIME（耗时看 MSG_LOG.ELAPSED_MS）、
+         FIRST_REQUEST_TIME（与 CREATE_TIME 几乎恒等）。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayTxnDetail">
         INSERT INTO ALIPAY_PAY_TXN_DETAIL (
             <include refid="Base_Column_List"/>
         ) VALUES (
             SEQ_ALIPAY_PAY_TXN_DETAIL.NEXTVAL,
             #{orderNo,jdbcType=VARCHAR},
-            #{payType,jdbcType=VARCHAR},
+            #{txnDate,jdbcType=VARCHAR},
             #{payStatus,jdbcType=VARCHAR},
-            #{thirdUserId,jdbcType=VARCHAR},
-            #{cardId,jdbcType=VARCHAR},
-            #{cardType,jdbcType=VARCHAR},
-            #{paymentVendor,jdbcType=VARCHAR},
-            #{payChannelCode,jdbcType=VARCHAR},
-            #{requestSignSeq,jdbcType=VARCHAR},
-            #{channelAgreementNo,jdbcType=VARCHAR},
             #{amount,jdbcType=NUMERIC},
-            #{totalAmount,jdbcType=NUMERIC},
-            #{cashAmount,jdbcType=NUMERIC},
-            #{couponAmount,jdbcType=NUMERIC},
             #{refundStatus,jdbcType=VARCHAR},
             #{refundAmount,jdbcType=NUMERIC},
             #{lastRefundTime,jdbcType=TIMESTAMP},
-            #{merchantOrderNo,jdbcType=VARCHAR},
             #{payCenterOrderNo,jdbcType=VARCHAR},
             #{channelOrderNo,jdbcType=VARCHAR},
-            #{payUserId,jdbcType=VARCHAR},
+            #{transTime,jdbcType=VARCHAR},
+            #{requestSignSeq,jdbcType=VARCHAR},
+            #{channelAgreementNo,jdbcType=VARCHAR},
             #{requestCount,jdbcType=NUMERIC},
-            #{nextRequestTime,jdbcType=TIMESTAMP},
             #{lastRequestTime,jdbcType=TIMESTAMP},
-            #{firstRequestTime,jdbcType=TIMESTAMP},
-            #{responseTime,jdbcType=TIMESTAMP},
-            #{payTime,jdbcType=VARCHAR},
-            #{txnDate,jdbcType=VARCHAR},
-            #{scene,jdbcType=VARCHAR},
-            #{industryType,jdbcType=VARCHAR},
-            #{subject,jdbcType=VARCHAR},
-            #{body,jdbcType=VARCHAR},
-            #{authCode,jdbcType=VARCHAR},
-            #{notifyUrl,jdbcType=VARCHAR},
-            #{returnUrl,jdbcType=VARCHAR},
-            #{ipAddress,jdbcType=VARCHAR},
-            #{orderTimeOut,jdbcType=NUMERIC},
-            #{industryDetail,jdbcType=CLOB},
-            #{entryId,jdbcType=VARCHAR},
-            #{exitId,jdbcType=VARCHAR},
+            #{nextRequestTime,jdbcType=TIMESTAMP},
             #{invoice,jdbcType=VARCHAR},
-            #{discountInfo,jdbcType=VARCHAR},
-            #{debitRequestResult,jdbcType=VARCHAR},
-            #{discountFee,jdbcType=NUMERIC},
-            #{resultCode,jdbcType=VARCHAR},
-            #{resultMsg,jdbcType=VARCHAR},
-            #{remark,jdbcType=VARCHAR},
-            #{requestBody,jdbcType=CLOB},
-            #{responseBody,jdbcType=CLOB},
             #{createTime,jdbcType=TIMESTAMP},
             #{updateTime,jdbcType=TIMESTAMP}
         )
     </insert>
 
+    <!-- 按订单号取单条。这里刻意只按 ORDER_NO、不带 TXN_DATE：回调与查询报文里都没有交易日，
+         带上就得靠调用方自己填，一旦填空 WHERE 恒不匹配、静默返 0 行，而 0 行在本表的语义是
+         「已幂等」，等于把失败伪装成成功。代价是跨 8 个分区探测本地唯一索引，可接受。
+         下面 5 条写语句同理，NEVER 顺手给它们的 WHERE 加 TXN_DATE。 -->
     <select id="selectByOrderNo" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM ALIPAY_PAY_TXN_DETAIL
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </select>
 
+    <!-- 行程列表编排里本表的唯一入口：主表侧已完成分页与过滤，这里只按它给出的订单号补齐支付侧字段。
+         刻意不加 ORDER BY —— 顺序由主表结果决定，调用方 MUST 自己按 orderNo 建 Map 回填；
+         在这里排序等于给调用方一个「顺序可依赖」的错觉。 -->
     <select id="selectByOrderNos" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM ALIPAY_PAY_TXN_DETAIL
@@ -147,92 +91,81 @@
         </foreach>
     </select>
 
-    <!-- 进出站关联查询。 -->
-    <select id="selectByEntryId" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM ALIPAY_PAY_TXN_DETAIL
-        WHERE ENTRY_ID = #{entryId,jdbcType=VARCHAR}
-        ORDER BY ID DESC
-        FETCH FIRST 1 ROWS ONLY
-    </select>
-
-    <select id="selectByExitId" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM ALIPAY_PAY_TXN_DETAIL
-        WHERE EXIT_ID = #{exitId,jdbcType=VARCHAR}
-        ORDER BY ID DESC
-        FETCH FIRST 1 ROWS ONLY
-    </select>
-
-    <!-- 调支付中心前留痕。 -->
+    <!-- 调支付中心前留痕，MUST 在出网之前执行并提交。PAY_STATUS 无条件压成 PROCESSING 是有意的
+         （重试路径要允许把 FAIL / RETRY 的单子重新置为在途）。
+         首次请求时刻不再单独记列，看 CREATE_TIME 即可。 -->
     <update id="markRequesting">
         UPDATE ALIPAY_PAY_TXN_DETAIL
         SET REQUEST_COUNT = NVL(REQUEST_COUNT, 0) + 1,
             PAY_STATUS = 'PROCESSING',
-            FIRST_REQUEST_TIME = NVL(FIRST_REQUEST_TIME, SYSTIMESTAMP),
             LAST_REQUEST_TIME = SYSTIMESTAMP,
             UPDATE_TIME = SYSTIMESTAMP
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </update>
 
-    <!-- 支付中心同步应答回写。 -->
+    <!-- 支付中心同步应答回写，不带状态机：本语句是这一步的唯一写入者。
+         只推状态与单号 —— 应答码、应答文案、应答报文原文、耗时都落 ALIPAY_PAY_CENTER_MSG_LOG。
+         PAY_CENTER_ORDER_NO 套 NVL 不覆盖已有值（后续退款要用它）。 -->
     <update id="updateRequestResult" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayTxnDetail">
         UPDATE ALIPAY_PAY_TXN_DETAIL
         SET PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
-            MERCHANT_ORDER_NO = #{merchantOrderNo,jdbcType=VARCHAR},
             PAY_CENTER_ORDER_NO = NVL(#{payCenterOrderNo,jdbcType=VARCHAR}, PAY_CENTER_ORDER_NO),
             CHANNEL_ORDER_NO = #{channelOrderNo,jdbcType=VARCHAR},
-            DEBIT_REQUEST_RESULT = #{debitRequestResult,jdbcType=VARCHAR},
-            RESULT_CODE = #{resultCode,jdbcType=VARCHAR},
-            RESULT_MSG = #{resultMsg,jdbcType=VARCHAR},
-            RESPONSE_TIME = #{responseTime,jdbcType=TIMESTAMP},
-            RESPONSE_BODY = #{responseBody,jdbcType=CLOB},
             UPDATE_TIME = SYSTIMESTAMP
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </update>
 
-    <!-- 支付回调回写，形态逐条照抄 pay-sign-server 的 PayTxnDetailMapper.updatePayCallback。
+    <!-- 支付回调回写。本表不存对端回传的金额与账户字段（那些在支付宝出行链路里没有入向来源，
+         见实体注释），         也不再有 DEBIT_REQUEST_RESULT，因此这条语句只推状态、单号与支付时刻。
+         TRANS_TIME 是本表唯一由回调写入的字符串时间列（2026-09-18 加入，支付宝出行记录应答的
+         payOrderNoDate 取它），存的是报文 transTime 原文、NEVER 在这里 TO_DATE 解析。
+         三条约束改这条 SQL 前 MUST 逐条读懂（形态照 pay-sign 的 PayTxnDetailMapper.updatePayCallback）：
+         1 SET 段除 PAY_STATUS 外全部套 NVL。支付中心重推报文字段稀疏，不套 NVL 时一次重推就能把首推
+           写好的 CHANNEL_ORDER_NO 覆盖成 NULL。
+         2 WHERE 的状态白名单 MUST 只比较列与常量，NEVER 把入参写进状态判断。pay-sign 侧曾写成
+           「PAY_STATUS != 'SUCCESS' OR (PAY_STATUS = 'SUCCESS' AND 入参 = 'SUCCESS')」，入参不是列，
+           SUCCESS 回调进来时右分支退化成恒真、整个括号恒真，等于没有状态机。
+         3 白名单含 FAIL、不含 SUCCESS。含 FAIL 是因为支付中心可能先推 FAIL 后推 SUCCESS，钱已扣就
+           MUST 让 SUCCESS 落地；不含 SUCCESS 使重复成功回调稳定命中 0 行，这就是幂等出口，调用方
+           MUST 把「0 行 + 当前已是目标状态」判为重推并返成功。被未知状态卡住的行也稳定 0 行并触发
+           人工出口，这是有意留的。
          SQL 正文内 NEVER 写注释（Druid WallFilter），本 XML 注释内也不得出现连续两个连字符。 -->
     <update id="updatePayCallback" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayTxnDetail">
         UPDATE ALIPAY_PAY_TXN_DETAIL
         SET PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
-            DEBIT_REQUEST_RESULT = #{debitRequestResult,jdbcType=VARCHAR},
-            MERCHANT_ORDER_NO = NVL(#{merchantOrderNo,jdbcType=VARCHAR}, MERCHANT_ORDER_NO),
             PAY_CENTER_ORDER_NO = NVL(#{payCenterOrderNo,jdbcType=VARCHAR}, PAY_CENTER_ORDER_NO),
             CHANNEL_ORDER_NO = NVL(#{channelOrderNo,jdbcType=VARCHAR}, CHANNEL_ORDER_NO),
-            TOTAL_AMOUNT = NVL(#{totalAmount,jdbcType=NUMERIC}, TOTAL_AMOUNT),
-            CASH_AMOUNT = NVL(#{cashAmount,jdbcType=NUMERIC}, CASH_AMOUNT),
-            COUPON_AMOUNT = NVL(#{couponAmount,jdbcType=NUMERIC}, COUPON_AMOUNT),
-            PAY_USER_ID = NVL(#{payUserId,jdbcType=VARCHAR}, PAY_USER_ID),
-            PAYMENT_VENDOR = NVL(#{paymentVendor,jdbcType=VARCHAR}, PAYMENT_VENDOR),
-            PAY_TIME = NVL(#{payTime,jdbcType=VARCHAR}, PAY_TIME),
-            DISCOUNT_FEE = NVL(#{discountFee,jdbcType=NUMERIC}, DISCOUNT_FEE),
-            DISCOUNT_INFO = NVL(#{discountInfo,jdbcType=VARCHAR}, DISCOUNT_INFO),
-            RESULT_CODE = NVL(#{resultCode,jdbcType=VARCHAR}, RESULT_CODE),
-            RESULT_MSG = NVL(#{resultMsg,jdbcType=VARCHAR}, RESULT_MSG),
+            TRANS_TIME = NVL(#{transTime,jdbcType=VARCHAR}, TRANS_TIME),
             UPDATE_TIME = SYSTIMESTAMP
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
           AND (PAY_STATUS IS NULL OR PAY_STATUS IN ('INIT', 'PROCESSING', 'RETRY', 'FAIL'))
     </update>
 
-    <!-- 支付结果查询的回写，带「非终态」白名单。 -->
+    <!-- 支付结果查询的回写，与 updatePayCallback 只差 WHERE 一个条件、语义完全不同：payQuery 是
+         查询接口，NEVER 允许它把已 SUCCESS 的终态订单改写成 FAIL。影响 0 行有两种含义，调用方
+         MUST 回读区分（本地已是目标状态 = 幂等；本地已 SUCCESS 而支付中心说失败 = 口径冲突，
+         只打 ERROR 等人工）。
+         payQuery 应答里的金额同样不进本表：pay-sign 侧已按 ADR-D136 决策三定为「payQuery 方向零
+         落库」，一是它会打坏回调日志的硬限次计数，二是查询应答不是「对方主动告知的事实」。
+         需要留证时写 ALIPAY_PAY_CENTER_MSG_LOG（API_NAME='payQuery'）。 -->
     <update id="updatePayQueryResultIfNotSuccess" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayTxnDetail">
         UPDATE ALIPAY_PAY_TXN_DETAIL
         SET PAY_STATUS = #{payStatus,jdbcType=VARCHAR},
-            DEBIT_REQUEST_RESULT = #{debitRequestResult,jdbcType=VARCHAR},
             CHANNEL_ORDER_NO = NVL(#{channelOrderNo,jdbcType=VARCHAR}, CHANNEL_ORDER_NO),
             PAY_CENTER_ORDER_NO = NVL(#{payCenterOrderNo,jdbcType=VARCHAR}, PAY_CENTER_ORDER_NO),
-            PAY_TIME = NVL(#{payTime,jdbcType=VARCHAR}, PAY_TIME),
-            TOTAL_AMOUNT = NVL(#{totalAmount,jdbcType=NUMERIC}, TOTAL_AMOUNT),
-            CASH_AMOUNT = NVL(#{cashAmount,jdbcType=NUMERIC}, CASH_AMOUNT),
-            RESULT_CODE = #{resultCode,jdbcType=VARCHAR},
-            RESULT_MSG = #{resultMsg,jdbcType=VARCHAR},
             UPDATE_TIME = SYSTIMESTAMP
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
           AND (PAY_STATUS IS NULL OR PAY_STATUS != 'SUCCESS')
     </update>
 
-    <!-- 退款成功后刷新原支付订单的退款汇总。 -->
+    <!-- 退款成功后刷新原支付订单的退款汇总。MUST 是「按明细表重算」，NEVER 写成
+         REFUND_AMOUNT = NVL(REFUND_AMOUNT,0) + 入参：入参没有幂等键，累加式写两次就多记一笔已退
+         金额，而这列是判「可退金额 = 已付 - 已退」的依据，一旦虚高，后续真实退款被误判超额并
+         拒绝，账面无法自愈。重算写法天然幂等，执行 1 次与 N 次落库值相同。
+         可退上限取 AMOUNT，而且现在本表**只有这一个金额列** —— 对端回传的总金额在
+         ALIPAY_PAY_CALLBACK_LOG，NEVER 为了这条 SQL 把它加回来，也 NEVER 改成 join 那张表取值
+         （回调日志一单多行、取哪一行本身就没有确定答案）。
+         已退总额为 0 时保留原 REFUND_STATUS（说明还没有任何一笔退款成功）。 -->
     <update id="updateRefundSummary">
         UPDATE ALIPAY_PAY_TXN_DETAIL P
         SET REFUND_AMOUNT = (
@@ -247,7 +180,7 @@
                     THEN P.REFUND_STATUS
                 WHEN (SELECT NVL(SUM(R.REFUND_AMOUNT), 0) FROM ALIPAY_REFUND_TXN_DETAIL R
                       WHERE R.ORDER_NO = P.ORDER_NO AND R.REFUND_STATUS = 'SUCCESS')
-                     >= NVL(NULLIF(P.TOTAL_AMOUNT, 0), P.AMOUNT)
+                     >= P.AMOUNT
                     THEN 'SUCCESS'
                 ELSE 'PARTIAL'
             END,
@@ -255,60 +188,4 @@
             UPDATE_TIME = SYSTIMESTAMP
         WHERE P.ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </update>
-    <!-- 运营后台列表的公共过滤条件。 -->
-    <sql id="Paged_Where">
-        WHERE 1 = 1
-        <if test="thirdUserId != null and thirdUserId != ''">
-            AND THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
-        </if>
-        <if test="cardId != null and cardId != ''">
-            AND CARD_ID = #{cardId,jdbcType=VARCHAR}
-        </if>
-        <if test="debitRequestResult != null and debitRequestResult != ''">
-            <choose>
-                <when test="debitRequestResult == '0'">
-                    AND PAY_STATUS = 'SUCCESS'
-                </when>
-                <when test="debitRequestResult == '1'">
-                    AND (PAY_STATUS IS NULL OR PAY_STATUS != 'SUCCESS')
-                </when>
-            </choose>
-        </if>
-        <if test="invoice != null and invoice != ''">
-            AND INVOICE = #{invoice,jdbcType=VARCHAR}
-        </if>
-        <if test="startDate != null and startDate != ''">
-            AND CREATE_TIME >= TO_DATE(#{startDate,jdbcType=VARCHAR}, 'YYYY-MM-DD')
-        </if>
-        <if test="endDate != null and endDate != ''">
-            AND CREATE_TIME &lt; TO_DATE(#{endDate,jdbcType=VARCHAR}, 'YYYY-MM-DD') + 1
-        </if>
-    </sql>
-
-    <!-- 分页：offset 是已跳过行数，pageSize 是每页行数，上界在 SQL 内自行相加。 -->
-    <select id="selectPagedList" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM (
-            SELECT T.*, ROW_NUMBER() OVER (ORDER BY T.CREATE_TIME DESC, T.ID DESC) AS RN
-            FROM ALIPAY_PAY_TXN_DETAIL T
-            <include refid="Paged_Where"/>
-        )
-        WHERE RN > #{offset,jdbcType=NUMERIC}
-          AND RN &lt;= #{offset,jdbcType=NUMERIC} + #{pageSize,jdbcType=NUMERIC}
-        ORDER BY RN
-    </select>
-
-    <select id="countPagedList" resultType="java.lang.Integer">
-        SELECT COUNT(1)
-        FROM ALIPAY_PAY_TXN_DETAIL
-        <include refid="Paged_Where"/>
-    </select>
-
-    <!-- 按卡号统计未结清订单，供 blacklist-server 盘点该卡欠费是否结清。 -->
-    <select id="countUnsettledByCardId" resultType="java.lang.Integer">
-        SELECT COUNT(1)
-        FROM ALIPAY_PAY_TXN_DETAIL
-        WHERE CARD_ID = #{cardId,jdbcType=VARCHAR}
-          AND (PAY_STATUS IS NULL OR PAY_STATUS != 'SUCCESS')
-    </select>
 </mapper>

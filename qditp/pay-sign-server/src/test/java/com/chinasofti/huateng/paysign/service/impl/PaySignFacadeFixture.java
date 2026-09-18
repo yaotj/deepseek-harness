@@ -19,13 +19,15 @@ import com.chinasofti.huateng.paysign.mapper.PayTxnDetailMapper;
 import com.chinasofti.huateng.paysign.model.response.PaySignGatewayResponse;
 import com.chinasofti.huateng.paysign.port.AccountDomainPort;
 import com.chinasofti.huateng.paysign.port.ContractGatewayAdapter;
+import com.chinasofti.huateng.paysign.port.DebitSyncPort;
+import com.chinasofti.huateng.paysign.port.DebitSyncRpcAdapter;
 import com.chinasofti.huateng.paysign.port.ContractGatewayPort;
 import com.chinasofti.huateng.paysign.port.PaymentGatewayAdapter;
 import com.chinasofti.huateng.paysign.port.PaymentGatewayPort;
 import com.chinasofti.huateng.paysign.port.RefundGatewayAdapter;
 import com.chinasofti.huateng.paysign.port.RefundGatewayPort;
-import com.chinasofti.huateng.paysign.service.AppNotifyService;
 import com.chinasofti.huateng.paysign.service.PaySignService;
+import com.chinasofti.huateng.paysign.service.TerminationNotifyService;
 import com.chinasofti.huateng.paysign.support.PaySignGateway;
 import com.chinasofti.huateng.rpc.blacklist.BlacklistClient;
 import com.chinasofti.huateng.rpc.pay.GateTxnPayClient;
@@ -49,7 +51,7 @@ final class PaySignFacadeFixture {
     final AppTerminationRequestMapper terminationRequestMapper = mock(AppTerminationRequestMapper.class);
     final PayRefundDetailMapper payRefundDetailMapper = mock(PayRefundDetailMapper.class);
     final PayCallbackLogMapper payCallbackLogMapper = mock(PayCallbackLogMapper.class);
-    final AppNotifyService appNotifyService = mock(AppNotifyService.class);
+    final TerminationNotifyService terminationNotifyService = mock(TerminationNotifyService.class);
     final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
     final AccountDomainPort accountDomainPort = mock(AccountDomainPort.class);
     final PayGatewayClient payGatewayClient = mock(PayGatewayClient.class);
@@ -85,6 +87,9 @@ final class PaySignFacadeFixture {
     /** 退款方向的出向端口，同样用真实现（理由同上）。 */
     final RefundGatewayPort refundGatewayPort = new RefundGatewayAdapter(properties, paySignGateway);
 
+    /** 闸机域扣费状态收敛方向的出向端口，用真实现、包着同一个 gateTxnPayClient mock（2026-09-17，ADR-D119）。 */
+    final DebitSyncPort debitSyncPort = new DebitSyncRpcAdapter(gateTxnPayClient);
+
     /** 与生产完全同构的调用链门面：{@code PaySignServiceImpl} → 三个领域服务。 */
     final PaySignService service;
 
@@ -103,21 +108,18 @@ final class PaySignFacadeFixture {
                 payCallbackLogMapper,
                 accountDomainPort,
                 blacklistClient,
-                gateTxnPayClient,
+                debitSyncPort,
                 paymentGatewayPort);
         refundDomainService = new RefundDomainServiceImpl(
                 payTxnDetailMapper,
                 payRefundDetailMapper,
                 refundGatewayPort);
         callbackDomainService = new CallbackDomainServiceImpl(
-                paySignInfoMapper,
-                paySignRequestMapper,
-                terminationRequestMapper,
-                appNotifyService,
-                auditLogger,
-                eventPublisher,
-                transactionTemplate,
-                channelSyncDeliverer);
+                new SignResultCallbackHandler(
+                        paySignInfoMapper, paySignRequestMapper, auditLogger, eventPublisher),
+                new TerminationResultCallbackHandler(
+                        paySignInfoMapper, paySignRequestMapper, terminationRequestMapper,
+                        terminationNotifyService, auditLogger, transactionTemplate, channelSyncDeliverer));
         stubTransactionTemplate();
         stubGatewayPureMethods();
         service = new PaySignServiceImpl(

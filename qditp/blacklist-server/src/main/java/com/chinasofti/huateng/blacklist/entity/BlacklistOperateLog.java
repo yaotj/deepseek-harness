@@ -27,7 +27,12 @@ public class BlacklistOperateLog {
     private String operateType;
 
     /**
-     * 操作原因。
+     * 操作者：运维手工记管理员账号，系统触发记服务名。
+     */
+    private String operator;
+
+    /**
+     * 本次操作原因：ADD记拉黑原因，DELETE记解除原因。
      */
     private String reason;
 
@@ -66,6 +71,14 @@ public class BlacklistOperateLog {
 
     public void setOperateType(String operateType) {
         this.operateType = operateType;
+    }
+
+    public String getOperator() {
+        return operator;
+    }
+
+    public void setOperator(String operator) {
+        this.operator = operator;
     }
 
     public String getReason() {

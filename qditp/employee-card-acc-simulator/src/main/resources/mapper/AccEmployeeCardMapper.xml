@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.accsimulator.mapper.AccEmployeeCardMapper">
+    <resultMap id="cardMap" type="com.chinasofti.huateng.accsimulator.entity.AccEmployeeCard">
+        <id column="CARD_NO" property="cardNo" jdbcType="VARCHAR"/>
+        <result column="PHONE" property="phone" jdbcType="VARCHAR"/>
+        <result column="CARD_STATUS" property="cardStatus" jdbcType="INTEGER"/>
+        <result column="EMPLOYEE_NAME" property="employeeName" jdbcType="VARCHAR"/>
+        <result column="ID_CARD_NO" property="idCardNo" jdbcType="VARCHAR"/>
+        <result column="COMPANY" property="company" jdbcType="VARCHAR"/>
+        <result column="CENTER" property="center" jdbcType="VARCHAR"/>
+        <result column="DEPARTMENT" property="department" jdbcType="VARCHAR"/>
+        <result column="POSITION" property="position" jdbcType="VARCHAR"/>
+        <result column="PHOTO" property="photo" jdbcType="CLOB"/>
+        <result column="CREATE_TMS" property="createTms" jdbcType="TIMESTAMP"/>
+        <result column="UPDATE_TMS" property="updateTms" jdbcType="TIMESTAMP"/>
+    </resultMap>
+
+    <insert id="merge" parameterType="com.chinasofti.huateng.accsimulator.entity.AccEmployeeCard">
+        merge into ACC_SIM_EMPLOYEE_CARD target
+        using (select #{cardNo,jdbcType=VARCHAR} CARD_NO from dual) source
+        on (target.CARD_NO = source.CARD_NO)
+        when matched then update set
+            PHONE = #{phone,jdbcType=VARCHAR}, CARD_STATUS = #{cardStatus,jdbcType=INTEGER},
+            EMPLOYEE_NAME = #{employeeName,jdbcType=VARCHAR}, ID_CARD_NO = #{idCardNo,jdbcType=VARCHAR},
+            COMPANY = #{company,jdbcType=VARCHAR}, CENTER = #{center,jdbcType=VARCHAR},
+            DEPARTMENT = #{department,jdbcType=VARCHAR}, POSITION = #{position,jdbcType=VARCHAR},
+            PHOTO = #{photo,jdbcType=CLOB}, UPDATE_TMS = SYSTIMESTAMP
+        when not matched then insert
+            (CARD_NO, PHONE, CARD_STATUS, EMPLOYEE_NAME, ID_CARD_NO, COMPANY, CENTER, DEPARTMENT, POSITION, PHOTO, CREATE_TMS, UPDATE_TMS)
+            values
+            (#{cardNo,jdbcType=VARCHAR}, #{phone,jdbcType=VARCHAR}, #{cardStatus,jdbcType=INTEGER}, #{employeeName,jdbcType=VARCHAR},
+             #{idCardNo,jdbcType=VARCHAR}, #{company,jdbcType=VARCHAR}, #{center,jdbcType=VARCHAR}, #{department,jdbcType=VARCHAR},
+             #{position,jdbcType=VARCHAR}, #{photo,jdbcType=CLOB}, SYSTIMESTAMP, SYSTIMESTAMP)
+    </insert>
+
+    <select id="selectByCardNo" resultMap="cardMap">
+        select CARD_NO, PHONE, CARD_STATUS, EMPLOYEE_NAME, ID_CARD_NO, COMPANY, CENTER, DEPARTMENT, POSITION, PHOTO, CREATE_TMS, UPDATE_TMS
+        from ACC_SIM_EMPLOYEE_CARD
+        where CARD_NO = #{cardNo,jdbcType=VARCHAR}
+    </select>
+
+    <update id="updateStatus">
+        update ACC_SIM_EMPLOYEE_CARD
+        set CARD_STATUS = #{cardStatus,jdbcType=INTEGER}, UPDATE_TMS = SYSTIMESTAMP
+        where CARD_NO = #{cardNo,jdbcType=VARCHAR}
+    </update>
+
+    <select id="selectPage" resultMap="cardMap">
+        select CARD_NO, PHONE, CARD_STATUS, EMPLOYEE_NAME, ID_CARD_NO, COMPANY, CENTER, DEPARTMENT, POSITION, PHOTO, CREATE_TMS, UPDATE_TMS
+        from ACC_SIM_EMPLOYEE_CARD
+        <where>
+            <if test="cardNo != null and cardNo != ''">and CARD_NO like '%' || #{cardNo,jdbcType=VARCHAR} || '%'</if>
+            <if test="employeeName != null and employeeName != ''">and EMPLOYEE_NAME like '%' || #{employeeName,jdbcType=VARCHAR} || '%'</if>
+            <if test="cardStatus != null">and CARD_STATUS = #{cardStatus,jdbcType=INTEGER}</if>
+        </where>
+        order by UPDATE_TMS desc
+    </select>
+
+    <delete id="deleteAll">
+        delete from ACC_SIM_EMPLOYEE_CARD
+    </delete>
+</mapper>

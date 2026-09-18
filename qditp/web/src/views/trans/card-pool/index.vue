@@ -66,6 +66,11 @@
 
 <script setup name="CardPoolManagement">
 import { getCardPoolSummary, listCardPoolBatches, requestCardPoolBatch, retryCardPoolBatch } from '@/api/trans/cardPool'
+import { defaultTodayRange } from '@/utils/dateRange'
+import { formatCodeLabel } from '@/utils/codeLabel'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 
 const { proxy } = getCurrentInstance()
 const summaryLoading = ref(false)
@@ -75,17 +80,17 @@ const batches = ref([])
 const batchTotal = ref(0)
 const detailOpen = ref(false)
 const currentBatch = ref({})
-const query = reactive({ batchNo: '', cardType: '', accTicketType: '', source: '', status: '', dateRange: [], pageNum: 1, pageSize: 10 })
+const query = reactive({ batchNo: '', cardType: '', accTicketType: '', source: '', status: '', dateRange: defaultTodayRange(DATE_FORMAT), pageNum: 1, pageSize: 10 })
 const TICKET_TYPE_NAMES = { '0441': '后付费二维码', '0442': 'HCE', '0443': '新HCE', '0444': '员工码', '0445': '一日票', '0446': '三日票', '0447': '七日票', '0448': '月票', '044A': '爱山东' }
 const ticketTypes = Object.keys(TICKET_TYPE_NAMES)
 const accTicketTypes = ['41', '42', '43', '44', '45', '46', '47', '48', '4A']
 const statuses = ['CREATED', 'REQUESTING', 'DOWNLOADING', 'IMPORTING', 'SUCCESS', 'FAILED']
 
-function ticketTypeLabel(cardType) { const name = TICKET_TYPE_NAMES[cardType]; return name ? `${cardType} ${name}` : (cardType || '-') }
+function ticketTypeLabel(cardType) { return formatCodeLabel(cardType, TICKET_TYPE_NAMES) }
 function loadSummary() { summaryLoading.value = true; getCardPoolSummary().then(res => { summary.value = res.data || [] }).finally(() => { summaryLoading.value = false }) }
 function loadBatches() { batchLoading.value = true; const { dateRange, ...params } = query; listCardPoolBatches({ ...params, createTimeBegin: dateRange?.[0], createTimeEnd: dateRange?.[1] }).then(res => { const page = res.data || {}; batches.value = page.list || []; batchTotal.value = Number(page.total || 0) }).finally(() => { batchLoading.value = false }) }
 function handleQuery() { query.pageNum = 1; loadBatches() }
-function reset() { proxy.resetForm('queryRef'); query.dateRange = []; handleQuery() }
+function reset() { proxy.resetForm('queryRef'); query.dateRange = defaultTodayRange(DATE_FORMAT); handleQuery() }
 function createBatch(row) { proxy.$modal.confirm(`将为 ${ticketTypeLabel(row.cardType)} 向 ACC 申请固定 100000 个逻辑卡号。`).then(() => requestCardPoolBatch(row.cardType)).then(() => { proxy.$modal.msgSuccess('批次申请已执行'); loadSummary(); handleQuery() }).catch(() => {}) }
 function retry(row) { retryCardPoolBatch(row.batchNo).then(() => { proxy.$modal.msgSuccess('已重试下载和导入'); loadSummary(); loadBatches() }) }
 function showDetail(row) { currentBatch.value = row; detailOpen.value = true }

@@ -18,6 +18,9 @@ public interface DailyTicketOrderMapper {
     /** 运营页面按下单时间及订单号查询日票订单。 */
     java.util.List<DailyTicketRefundOrderView> selectRefundOrders(DailyTicketRefundOrderQuery query);
 
+    /** 运营页面查询旅游票主单下的子单明细。 */
+    java.util.List<DailyTicketRefundOrderView> selectTravelSubRefundOrders(@Param("parentOrderNo") String parentOrderNo);
+
     int updatePayRequest(DailyTicketOrder record);
 
     /** 支付终态条件更新，仅允许支付中订单首次进入终态。 */

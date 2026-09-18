@@ -79,6 +79,20 @@ public class AlipayPaymentServiceImpl implements AlipayPaymentService {
         }
 
         try {
+            // 入向来自支付宝渠道，分类字段渠道侧不会送：本接入层补默认值，调用方已送的值优先。
+            // 渠道通知的拉黑发起方是 02，与 pay-sign 那条系统自动（01）不是一回事。
+            if (!StringUtils.hasText(request.getChannelCode())) {
+                request.setChannelCode("02");
+            }
+            if (!StringUtils.hasText(request.getBlackSource())) {
+                request.setBlackSource("02");
+            }
+            if (!StringUtils.hasText(request.getBlackCause())) {
+                request.setBlackCause("01");
+            }
+            if (!StringUtils.hasText(request.getCreateBy())) {
+                request.setCreateBy("fep-alipay-server");
+            }
             BlackListOperateResult rpcResponse = blacklistClient.addBlackList(request);
             if (rpcResponse == null) {
                 response.setRetCode(FepAppErrorCodeEnum.FAIL.getCode());

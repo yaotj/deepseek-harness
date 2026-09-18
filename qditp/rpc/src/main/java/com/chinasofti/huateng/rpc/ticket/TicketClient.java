@@ -11,6 +11,10 @@ import com.chinasofti.huateng.model.app.QueryUserItineraryReqDTO;
 import com.chinasofti.huateng.model.app.QueryUserItineraryResult;
 import com.chinasofti.huateng.model.app.RequestExcessFareReqDTO;
 import com.chinasofti.huateng.model.app.RequestExcessFareResult;
+import com.chinasofti.huateng.model.app.RequestIndustryDataReqDTO;
+import com.chinasofti.huateng.model.app.RequestIndustryDataResult;
+import com.chinasofti.huateng.model.app.RequestNoSignalDataReqDTO;
+import com.chinasofti.huateng.model.app.RequestNoSignalDataResult;
 import com.chinasofti.huateng.model.app.RequestTransListReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransListResult;
 import com.chinasofti.huateng.model.app.RequestTransDetailReqDTO;
@@ -138,6 +142,25 @@ public class TicketClient extends ProxyWebClient {
             return data.toString();
         }
         return trimmed;
+    }
+
+    /**
+     * IF8A-03 请求行业数据（在线码）。编排宿主在 ticket-server（ADR-D142），
+     * `fep-app-server` 只做转发。
+     */
+    public RequestIndustryDataResult requestIndustryData(@RequestBody RequestIndustryDataReqDTO request) {
+        String result = postJsonAndGetResponse("/internal/ticket/industry/online", request);
+        return JSONUtil.toBean(result, new TypeReference<RequestIndustryDataResult>() {
+        }, true);
+    }
+
+    /**
+     * IF8D-03 获取离线码数据。编排宿主同上。
+     */
+    public RequestNoSignalDataResult requestNoSignalData(@RequestBody RequestNoSignalDataReqDTO request) {
+        String result = postJsonAndGetResponse("/internal/ticket/industry/offline", request);
+        return JSONUtil.toBean(result, new TypeReference<RequestNoSignalDataResult>() {
+        }, true);
     }
 
     /**

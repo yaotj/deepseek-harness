@@ -1,8 +1,8 @@
 package com.chinasofti.huateng.alipay.paysign.controller;
 
-import com.chinasofti.huateng.alipay.paysign.service.AlipayPayLogQueryService;
 import com.chinasofti.huateng.alipay.paysign.model.response.AlipayPayLogVO;
 import com.chinasofti.huateng.alipay.paysign.model.response.PageResult;
+import com.chinasofti.huateng.alipay.paysign.service.AlipayPayLogQueryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -12,8 +12,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 /**
- * 支付宝出行订单 Controller。
+ * 支付宝出行订单查询 Controller：只读，只依赖 {@link AlipayPayLogQueryService}。
+ *
+ * <p>每条查询都有 GET / POST 两个入口（POST 是给只能发 JSON 的客户端用的），两者共用同一个私有查询方法，
+ * URL 与入参语义逐字保持原状 —— 包括 <b>两组端点的页码基数并不一致</b>：
+ * {@code payLog/list} 的 {@code pageNum} 从 1 起（offset = (pageNum - 1) * pageSize），
+ * {@code payLog/travelList} 从 0 起（offset = pageNum * pageSize）。
+ * 这是历史现状、不是本次改造引入的；统一基数属于行为变更，且 {@code ALIPAY_PAY_LOG} 表已计划废弃，故此处不动。
  */
 @RestController
 @RequestMapping("/api/payment")
@@ -31,30 +39,52 @@ public class AlipayPayLogController {
      */
     @GetMapping("/payLog/list")
     public PageResult<AlipayPayLogVO> list(@RequestParam(required = false) String thirdUserId,
-                                            @RequestParam(required = false) String startTime,
-                                            @RequestParam(required = false) String endTime,
-                                            @RequestParam(defaultValue = "1") int pageNum,
-                                            @RequestParam(defaultValue = "10") int pageSize) {
-        log.info("查询订单列表: thirdUserId={}, startTime={}, endTime={}, pageNum={}, pageSize={}", thirdUserId, startTime, endTime, pageNum, pageSize);
-        PageResult<AlipayPayLogVO> response = alipayPayLogQueryService.selectAlipayPayLogList(thirdUserId, startTime, endTime, (pageNum - 1) * pageSize, pageSize, null, null);
-        log.info("查询订单列表响应结果: total={}, listSize={}", response != null ? response.getTotal() : "null", response != null && response.getList() != null ? response.getList().size() : "null");
-        return response;
+                                           @RequestParam(required = false) String startTime,
+                                           @RequestParam(required = false) String endTime,
+                                           @RequestParam(defaultValue = "1") int pageNum,
+                                           @RequestParam(defaultValue = "10") int pageSize) {
+        return queryList("查询订单列表", thirdUserId, startTime, endTime,
+                (pageNum - 1) * pageSize, pageSize, null, null);
     }
 
     /**
-     * 查询支付宝出行订单列表（POST，兼容客户端JSON请求）。
+     * 查询支付宝出行订单列表（POST，兼容客户端 JSON 请求）。
      */
     @PostMapping("/payLog/list")
-    public PageResult<AlipayPayLogVO> listPost(@RequestBody java.util.Map<String, Object> params) {
-        String thirdUserId = params.get("thirdUserId") != null ? params.get("thirdUserId").toString() : null;
-        String startTime = params.get("startTime") != null ? params.get("startTime").toString() : null;
-        String endTime = params.get("endTime") != null ? params.get("endTime").toString() : null;
-        int pageNum = params.get("pageNum") != null ? Integer.parseInt(params.get("pageNum").toString()) : 1;
-        int pageSize = params.get("pageSize") != null ? Integer.parseInt(params.get("pageSize").toString()) : 10;
-        log.info("查询订单列表(POST): thirdUserId={}, startTime={}, endTime={}, pageNum={}, pageSize={}", thirdUserId, startTime, endTime, pageNum, pageSize);
-        PageResult<AlipayPayLogVO> response = alipayPayLogQueryService.selectAlipayPayLogList(thirdUserId, startTime, endTime, (pageNum - 1) * pageSize, pageSize, null, null);
-        log.info("查询订单列表(POST)响应结果: total={}, listSize={}", response != null ? response.getTotal() : "null", response != null && response.getList() != null ? response.getList().size() : "null");
-        return response;
+    public PageResult<AlipayPayLogVO> listPost(@RequestBody Map<String, Object> params) {
+        int pageNum = intValue(params, "pageNum", 1);
+        int pageSize = intValue(params, "pageSize", 10);
+        return queryList("查询订单列表(POST)", stringValue(params, "thirdUserId"),
+                stringValue(params, "startTime"), stringValue(params, "endTime"),
+                (pageNum - 1) * pageSize, pageSize, null, null);
+    }
+
+    /**
+     * 支付宝出行-查询乘车记录支付流水列表。
+     */
+    @GetMapping("/payLog/travelList")
+    public PageResult<AlipayPayLogVO> travelList(@RequestParam String thirdUserId,
+                                                 @RequestParam(required = false) String startDate,
+                                                 @RequestParam(required = false) String endDate,
+                                                 @RequestParam(required = false) String debitRequestResult,
+                                                 @RequestParam(required = false) String invoice,
+                                                 @RequestParam(defaultValue = "0") int pageNum,
+                                                 @RequestParam(defaultValue = "10") int pageSize) {
+        return queryList("查询乘车记录列表", thirdUserId, startDate, endDate,
+                pageNum * pageSize, pageSize, debitRequestResult, invoice);
+    }
+
+    /**
+     * 支付宝出行-查询乘车记录支付流水列表（POST）。
+     */
+    @PostMapping("/payLog/travelList")
+    public PageResult<AlipayPayLogVO> travelListPost(@RequestBody Map<String, Object> params) {
+        int pageNum = intValue(params, "pageNum", 0);
+        int pageSize = intValue(params, "pageSize", 10);
+        return queryList("查询乘车记录列表(POST)", stringValue(params, "thirdUserId"),
+                stringValue(params, "startDate"), stringValue(params, "endDate"),
+                pageNum * pageSize, pageSize,
+                stringValue(params, "debitRequestResult"), stringValue(params, "invoice"));
     }
 
     /**
@@ -94,7 +124,7 @@ public class AlipayPayLogController {
      * 按乘车记录查询支付流水。
      */
     @PostMapping("/payLog/queryByTravelRecord")
-    public AlipayPayLogVO queryByTravelRecord(@RequestBody java.util.Map<String, String> params) {
+    public AlipayPayLogVO queryByTravelRecord(@RequestBody Map<String, String> params) {
         String thirdUserId = params.get("thirdUserId");
         String entryDate = params.get("entryDate");
         String cardNum = params.get("cardNum");
@@ -104,38 +134,25 @@ public class AlipayPayLogController {
         return response;
     }
 
-    /**
-     * 支付宝出行-查询乘车记录支付流水列表。
-     */
-    @GetMapping("/payLog/travelList")
-    public PageResult<AlipayPayLogVO> travelList(@RequestParam String thirdUserId,
-                                                  @RequestParam(required = false) String startDate,
-                                                  @RequestParam(required = false) String endDate,
-                                                  @RequestParam(required = false) String debitRequestResult,
-                                                  @RequestParam(required = false) String invoice,
-                                                  @RequestParam(defaultValue = "0") int pageNum,
-                                                  @RequestParam(defaultValue = "10") int pageSize) {
-        log.info("查询乘车记录列表: thirdUserId={}, startDate={}, endDate={}, pageNum={}, pageSize={}", thirdUserId, startDate, endDate, pageNum, pageSize);
-        PageResult<AlipayPayLogVO> response = alipayPayLogQueryService.selectAlipayPayLogList(thirdUserId, startDate, endDate, pageNum * pageSize, pageSize, debitRequestResult, invoice);
-        log.info("查询乘车记录列表响应结果: total={}, listSize={}", response != null ? response.getTotal() : "null", response != null && response.getList() != null ? response.getList().size() : "null");
+    private PageResult<AlipayPayLogVO> queryList(String action, String thirdUserId, String startTime, String endTime,
+                                                 int offset, int limit, String debitRequestResult, String invoice) {
+        log.info("{}: thirdUserId={}, startTime={}, endTime={}, offset={}, limit={}",
+                action, thirdUserId, startTime, endTime, offset, limit);
+        PageResult<AlipayPayLogVO> response = alipayPayLogQueryService.selectAlipayPayLogList(
+                thirdUserId, startTime, endTime, offset, limit, debitRequestResult, invoice);
+        log.info("{}响应结果: total={}, listSize={}", action,
+                response != null ? response.getTotal() : "null",
+                response != null && response.getList() != null ? response.getList().size() : "null");
         return response;
     }
 
-    /**
-     * 支付宝出行-查询乘车记录支付流水列表（POST）。
-     */
-    @PostMapping("/payLog/travelList")
-    public PageResult<AlipayPayLogVO> travelListPost(@RequestBody java.util.Map<String, Object> params) {
-        String thirdUserId = params.get("thirdUserId") != null ? params.get("thirdUserId").toString() : null;
-        String startDate = params.get("startDate") != null ? params.get("startDate").toString() : null;
-        String endDate = params.get("endDate") != null ? params.get("endDate").toString() : null;
-        String debitRequestResult = params.get("debitRequestResult") != null ? params.get("debitRequestResult").toString() : null;
-        String invoice = params.get("invoice") != null ? params.get("invoice").toString() : null;
-        int pageNum = params.get("pageNum") != null ? Integer.parseInt(params.get("pageNum").toString()) : 0;
-        int pageSize = params.get("pageSize") != null ? Integer.parseInt(params.get("pageSize").toString()) : 10;
-        log.info("查询乘车记录列表(POST): thirdUserId={}, startDate={}, endDate={}, pageNum={}, pageSize={}", thirdUserId, startDate, endDate, pageNum, pageSize);
-        PageResult<AlipayPayLogVO> response = alipayPayLogQueryService.selectAlipayPayLogList(thirdUserId, startDate, endDate, pageNum * pageSize, pageSize, debitRequestResult, invoice);
-        log.info("查询乘车记录列表(POST)响应结果: total={}, listSize={}", response != null ? response.getTotal() : "null", response != null && response.getList() != null ? response.getList().size() : "null");
-        return response;
+    private static String stringValue(Map<String, Object> params, String key) {
+        Object value = params.get(key);
+        return value != null ? value.toString() : null;
+    }
+
+    private static int intValue(Map<String, Object> params, String key, int defaultValue) {
+        Object value = params.get(key);
+        return value != null ? Integer.parseInt(value.toString()) : defaultValue;
     }
 }

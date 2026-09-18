@@ -53,17 +53,17 @@ public class RequestApplicationReqDTO {
     private String ticketCard;
 
     /**
-     * 通行票是Y  第三方是C 目前两种表示对应的卡类型都是 0441 非必填。
+     * 0441 卡用途：N 主卡、Y 同行码、C 第三方平台卡；保留用于订单，不决定开卡数量。
      */
     private String companionFlag;
 
     /**
-     * 车票显示。
+     * 必填：1 按用户、所属方、映射后卡类型限制唯一卡；2 每次请求开新卡。
      */
     private String ticketLimit;
 
     /**
-     * 票卡所。
+     * 必填：票卡所属方原值，非空且不超过16字符，不校验机构字典；入库 ISSUE_ORG_CODE。
      */
     private String cardIssueCode;
 

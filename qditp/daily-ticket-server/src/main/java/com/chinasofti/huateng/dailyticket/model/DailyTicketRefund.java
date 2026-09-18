@@ -8,6 +8,16 @@ public class DailyTicketRefund {
     private String id;
     /** 原日票订单号。 */
     private String orderNo;
+    /** 订单类型：1日票，2旅游票。 */
+    private String orderType;
+    /** 退款范围：DAILY日票，TRAVEL_FULL旅游票整单，TRAVEL_SUB旅游票子单。 */
+    private String refundScope;
+    /** 旅游票主单号。 */
+    private String parentOrderNo;
+    /** 退款原因。 */
+    private String refundReason;
+    /** 操作员。 */
+    private String operator;
     /** 商户退款单号；发起退款时传给支付平台的 refundOrderNo，查询时对应 merchantRefundNo。 */
     private String refundOrderNo;
     /** 支付平台退款单号；退款查询时对应 refundOrderNo。 */
@@ -39,6 +49,16 @@ public class DailyTicketRefund {
     public void setId(String id) { this.id = id; }
     public String getOrderNo() { return orderNo; }
     public void setOrderNo(String orderNo) { this.orderNo = orderNo; }
+    public String getOrderType() { return orderType; }
+    public void setOrderType(String orderType) { this.orderType = orderType; }
+    public String getRefundScope() { return refundScope; }
+    public void setRefundScope(String refundScope) { this.refundScope = refundScope; }
+    public String getParentOrderNo() { return parentOrderNo; }
+    public void setParentOrderNo(String parentOrderNo) { this.parentOrderNo = parentOrderNo; }
+    public String getRefundReason() { return refundReason; }
+    public void setRefundReason(String refundReason) { this.refundReason = refundReason; }
+    public String getOperator() { return operator; }
+    public void setOperator(String operator) { this.operator = operator; }
     public String getRefundOrderNo() { return refundOrderNo; }
     public void setRefundOrderNo(String refundOrderNo) { this.refundOrderNo = refundOrderNo; }
     public String getPlatformRefundNo() { return platformRefundNo; }

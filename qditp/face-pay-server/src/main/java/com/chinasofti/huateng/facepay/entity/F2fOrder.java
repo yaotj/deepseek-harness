@@ -59,6 +59,9 @@ public class F2fOrder {
     /** 逻辑卡号。 */
     private String cardId;
 
+    /** 物理卡号，设备上送后原样留证；与 {@link #cardId} 不同源。 */
+    private String ticketPhysicsNum;
+
     /** 购票张数。 */
     private Integer ticketNum;
 
@@ -258,6 +261,14 @@ public class F2fOrder {
 
     public void setCardId(String cardId) {
         this.cardId = cardId;
+    }
+
+    public String getTicketPhysicsNum() {
+        return ticketPhysicsNum;
+    }
+
+    public void setTicketPhysicsNum(String ticketPhysicsNum) {
+        this.ticketPhysicsNum = ticketPhysicsNum;
     }
 
     public Integer getTicketNum() {

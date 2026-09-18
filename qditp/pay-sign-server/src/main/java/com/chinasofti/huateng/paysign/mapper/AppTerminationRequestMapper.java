@@ -116,12 +116,25 @@ public interface AppTerminationRequestMapper {
                          @Param("status") String status,
                          @Param("failReason") String failReason);
 
+    /**
+     * 回写本轮通知投递结果。
+     *
+     * <p>{@code expectedTerminationStatus} 是**轮次闸门**，NEVER 去掉：{@code reactivateFailed} 会把
+     * 同一条 {@code REQUEST_SIGN_SEQ} 从 FAILED 复活成 PENDING 并把 {@code NOTIFY_*} 清成新一轮待发，
+     * 上一轮迟到的异步回写若无条件落 SUCCESS，新一轮就带着上一轮的成功标记、补偿扫表永远扫不到它。
+     *
+     * @param expectedTerminationStatus 本次通知所描述的终态，与库内不一致即整条不生效（返 0）
+     * @return 实际更新行数，0 表示该轮已被新一轮取代
+     */
     int updateNotifyStatus(@Param("requestSignSeq") String requestSignSeq,
+                           @Param("expectedTerminationStatus") String expectedTerminationStatus,
                            @Param("notifyStatus") String notifyStatus,
                            @Param("notifyTime") LocalDateTime notifyTime,
                            @Param("notifyResult") String notifyResult);
 
-    int increaseNotifyRetryCount(@Param("requestSignSeq") String requestSignSeq);
+    /** 同上带轮次闸门：把重试次数记在**本轮**上，NEVER 让上一轮的失败挤掉新一轮的重试预算。 */
+    int increaseNotifyRetryCount(@Param("requestSignSeq") String requestSignSeq,
+                                 @Param("expectedTerminationStatus") String expectedTerminationStatus);
 
     /**
      * 把 {@code FAILED} 的解约申请复活成 {@code PENDING}，交给扫表任务重跑。

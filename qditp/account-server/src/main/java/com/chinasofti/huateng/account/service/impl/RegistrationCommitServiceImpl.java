@@ -5,13 +5,10 @@ import com.chinasofti.huateng.account.entity.UserItpRegLog;
 import com.chinasofti.huateng.account.mapper.UserItpRegInfoMapper;
 import com.chinasofti.huateng.account.mapper.UserItpRegLogMapper;
 import com.chinasofti.huateng.account.service.RegistrationCommitService;
-import com.chinasofti.huateng.model.enums.CardIssueOrgEnum;
 import com.chinasofti.huateng.model.ticket.RegisterRideStatusReqDTO;
 import com.chinasofti.huateng.model.ticket.RegisterRideStatusRespDTO;
 import com.chinasofti.huateng.rpc.ticket.TicketClient;
 import java.time.LocalDateTime;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -20,7 +17,6 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Service
 public class RegistrationCommitServiceImpl implements RegistrationCommitService {
-    private static final Logger log = LoggerFactory.getLogger(RegistrationCommitServiceImpl.class);
 
     private final UserItpRegInfoMapper userItpRegInfoMapper;
 
@@ -90,11 +86,6 @@ public class RegistrationCommitServiceImpl implements RegistrationCommitService 
 
     @Override
     public String normalizeIssueOrgCode(String cardIssueCode) {
-        String trimmed = cardIssueCode == null ? null : cardIssueCode.trim();
-        if (CardIssueOrgEnum.fromCode(trimmed) == null) {
-            log.error("开户遇到未知发卡机构码, cardIssueCode={}, 已归一为发行渠道 {}",
-                    trimmed, CardIssueOrgEnum.DEFAULT_ISSUE_CHANNEL_CODE_4);
-        }
-        return trimmed;
+        return cardIssueCode == null ? null : cardIssueCode.trim();
     }
 }

@@ -45,14 +45,22 @@ public class BlacklistController {
     /** 后台新增黑名单，复用原业务逻辑以保留操作日志与支付宝渠道同步。 */
     @PostMapping("/page/blacklist")
     public ResultVO<Void> createForPage(@RequestBody AddBlackListReqDTO request) {
+        if (request != null) {
+            // 发起方在服务端定死为 09 运维手工：这条来源是「谁发起的」，NEVER 让前台传值覆盖。
+            request.setBlackSource("09");
+        }
         return mapOperateResult(blacklistService.addBlackList(request));
     }
 
     /** 后台删除指定卡ID，复用原业务逻辑以保留操作日志与支付宝渠道同步。 */
     @DeleteMapping("/page/blacklist/{cardId}")
-    public ResultVO<Void> deleteForPage(@PathVariable String cardId) {
+    public ResultVO<Void> deleteForPage(@PathVariable String cardId,
+                                        @RequestParam(required = false) String releaseReason,
+                                        @RequestParam(required = false) String releaseBy) {
         DeleteBlackListReqDTO request = new DeleteBlackListReqDTO();
         request.setCardId(cardId);
+        request.setReleaseReason(releaseReason);
+        request.setReleaseBy(releaseBy);
         return mapOperateResult(blacklistService.deleteBlackList(request));
     }
 

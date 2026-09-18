@@ -12,6 +12,7 @@ import org.springframework.util.StringUtils;
 @Component
 public class GatePayRequestFactory {
 
+    /** 网关 §1.1 的 {@code scene} 枚举里免密后付费恒为 {@code withholding}，NEVER 退回非法的 {@code AGM_GATE}。 */
     private final String payScene;
     private final String industryType;
     private final String subject;
@@ -19,7 +20,7 @@ public class GatePayRequestFactory {
     private final Long orderTimeoutSeconds;
 
     public GatePayRequestFactory(
-            @Value("${gate.pay.scene:AGM_GATE}") String payScene,
+            @Value("${gate.pay.scene:withholding}") String payScene,
             @Value("${gate.pay.industry-type:1}") String industryType,
             @Value("${gate.pay.subject:地铁乘车扣费}") String subject,
             @Value("${gate.pay.body:地铁乘车费用}") String body,

@@ -2,13 +2,14 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.paysign.mapper.PayCallbackLogMapper">
     <!-- 注释只能写在这里：SQL 正文禁写行注释或块注释，Druid WallFilter 会判定为注入并让该语句静默失效。 -->
+    <!-- DISCOUNT_INFO 是渠道优惠详情原文（网关 V1.2），归属本表；PAY_TXN_DETAIL 的同名列是闸机侧自算优惠，两者 NEVER 互写。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.paysign.entity.PayCallbackLog">
         INSERT INTO PAY_CALLBACK_LOG (
             ID, ORDER_NO, CALLBACK_TYPE, CALLBACK_STATUS, REFUND_ORDER_NO,
             MERCHANT_ORDER_NO, CHANNEL_ORDER_NO, MERCHANT_REFUND_NO, REFUND_NO,
             CHANNEL_REFUND_NO, PAY_TIME, REFUND_TIME, TOTAL_AMOUNT, CASH_AMOUNT,
             COUPON_AMOUNT, REFUND_AMOUNT, PAY_USER_ID, PAYMENT_VENDOR, TXN_DATE,
-            RAW_BODY, HANDLE_STATUS, HANDLE_MSG, CREATE_TIME
+            RAW_BODY, DISCOUNT_INFO, HANDLE_STATUS, HANDLE_MSG, CREATE_TIME
         ) VALUES (
             SEQ_PAY_CALLBACK_LOG.NEXTVAL,
             #{orderNo,jdbcType=VARCHAR},
@@ -30,6 +31,7 @@
             #{paymentVendor,jdbcType=VARCHAR},
             #{txnDate,jdbcType=VARCHAR},
             #{rawBody,jdbcType=CLOB},
+            #{discountInfo,jdbcType=VARCHAR},
             #{handleStatus,jdbcType=VARCHAR},
             #{handleMsg,jdbcType=VARCHAR},
             #{createTime,jdbcType=TIMESTAMP}

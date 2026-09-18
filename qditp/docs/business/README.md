@@ -37,6 +37,7 @@
 | 安全服务与加密机 | [security-hsm.md](security-hsm.md) | acc-security-server, acc-secure-server |
 | ACC 编码设备与文件传输 | [acc-es-file.md](acc-es-file.md) | acc-es-server |
 | 综合管理后台 | [admin-web.md](admin-web.md) | web-server, web |
+| **超时处理（超时费 / 超时扣次 / 超时补收）** | [overtime-handling.md](overtime-handling.md) ⚠️ **本篇是待实现契约、不是现状** | ticket-server, daily-ticket-server, gate-txn-pay-server, para-server, pay-sign-server |
 
 ## 全局事实（与 AGENTS.md 一致，勿重复推断）
 

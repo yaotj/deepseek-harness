@@ -1,7 +1,5 @@
 package com.chinasofti.huateng.model.app.dailyticket;
 
-import java.util.List;
-
 /**
  * IF8A-70 请求旅游票下单响应参数。
  */
@@ -12,9 +10,9 @@ public class TravelTicketOrderResult extends DailyTicketBaseResult {
     private String orderNo;
 
     /**
-     * 内含的日票子单列表。
+     * 内含的日票子单号，多个子单号用英文逗号分隔。
      */
-    private List<TravelTicketSubOrder> subOrders;
+    private String subOrders;
 
     public String getOrderNo() {
         return orderNo;
@@ -24,11 +22,11 @@ public class TravelTicketOrderResult extends DailyTicketBaseResult {
         this.orderNo = orderNo;
     }
 
-    public List<TravelTicketSubOrder> getSubOrders() {
+    public String getSubOrders() {
         return subOrders;
     }
 
-    public void setSubOrders(List<TravelTicketSubOrder> subOrders) {
+    public void setSubOrders(String subOrders) {
         this.subOrders = subOrders;
     }
 }

@@ -150,6 +150,10 @@ import { listTable, previewTable, delTable, genCode, synchDb } from "@/api/tool/
 import router from "@/router"
 import importTable from "./importTable"
 import createTable from "./createTable"
+import { defaultTodayRange } from '@/utils/dateRange'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYY-MM-DD'
 
 const route = useRoute()
 const { proxy } = getCurrentInstance()
@@ -162,7 +166,7 @@ const single = ref(true)
 const multiple = ref(true)
 const total = ref(0)
 const tableNames = ref([])
-const dateRange = ref([])
+const dateRange = ref(defaultTodayRange(DATE_FORMAT))
 const uniqueId = ref("")
 const defaultSort = ref({ prop: "createTime", order: "descending" })
 
@@ -250,7 +254,7 @@ function openCreateTable() {
 
 /** 重置按钮操作 */
 function resetQuery() {
-  dateRange.value = []
+  dateRange.value = defaultTodayRange(DATE_FORMAT)
   proxy.resetForm("queryRef")
   queryParams.value.pageNum = 1
   proxy.$refs["genRef"].sort(defaultSort.value.prop, defaultSort.value.order)

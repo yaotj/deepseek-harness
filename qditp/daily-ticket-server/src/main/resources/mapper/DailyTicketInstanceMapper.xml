@@ -49,6 +49,8 @@
         select <include refid="BaseColumnList"/>
         from DAILY_TICKET_INSTANCE
         where CARD_NUM = #{cardNum,jdbcType=VARCHAR}
+        order by CREATE_TIME desc
+        fetch first 1 rows only
     </select>
 
     <!-- NEVER 在下面的 SQL 正文里加注释（Druid WallFilter 会判定为注入并让该语句静默失效）。 -->
@@ -139,7 +141,7 @@
             ACC_NOTICE_STATUS = #{accNoticeStatus,jdbcType=VARCHAR},
             ACC_NOTICE_TIME = #{accNoticeTime,jdbcType=TIMESTAMP},
             UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
-        where CARD_NUM = #{cardNum,jdbcType=VARCHAR}
+        where ID = #{id,jdbcType=VARCHAR}
     </update>
 
     <select id="selectForEntryCheck" resultMap="BaseResultMap">
@@ -155,7 +157,16 @@
         update DAILY_TICKET_INSTANCE
         set ACTUAL_TIMES = ACTUAL_TIMES - 1,
             UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
-        where CARD_NUM = #{cardNum,jdbcType=VARCHAR}
+        where ID = #{id,jdbcType=VARCHAR}
           and ACTUAL_TIMES > 0
+    </update>
+
+    <!-- 票状态 CAS：只改 TICKET_STATUS 与 UPDATE_TIME，NEVER 在这里补 COUNTING_END / FIRST_USE_TIME。 -->
+    <update id="updateStatusIfCurrent">
+        update DAILY_TICKET_INSTANCE
+        set TICKET_STATUS = #{nextStatus,jdbcType=VARCHAR},
+            UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        where ID = #{id,jdbcType=VARCHAR}
+          and TICKET_STATUS = #{expectStatus,jdbcType=VARCHAR}
     </update>
 </mapper>

@@ -71,41 +71,29 @@ class SupplementStateRulesTest {
                 AdviceOptEnum.SUPPLEMENT_ENTRY.getCode(), FREE_AREA, null),
                 "非付费区 + 018 是绕过报价路径的口子，MUST 拒绝");
 
-        assertEquals(AdviceOptEnum.FREE_UPDATE_020.asSingletonList(),
-                rules.resolveAdviceOpt(QRCodeStatusEnum.SJT_ISSUE, "0101", "0101", FREE_AREA, null, "C1"));
+        assertEquals(AdviceOptEnum.NONE.asSingletonList(),
+                rules.resolveAdviceOpt(QRCodeStatusEnum.SJT_ISSUE, "0101", "0101", FREE_AREA, null, "C1"),
+                "新卡在非付费区不给建议：「刷卡未进站成功」这个场景按用户 2026-09-18 裁决不处理");
     }
 
     @Test
-    @DisplayName("C002：006 付费更新只在开环 / 10 且非付费区放行，其余一律拒绝")
-    void paidUpdateWhitelistHasNoUnreachableBranch() {
-        rules.validateConfiguredDefaults();
-        String paid = AdviceOptEnum.PAID_UPDATE.getCode();
-
-        assertTrue(rules.isUpdateAllowed(QRCodeStatusEnum.ENTRY, paid, FREE_AREA, null));
-        assertTrue(rules.isUpdateAllowed(QRCodeStatusEnum.SELF_SERVICE_ENTRY, paid, FREE_AREA, null));
-        assertTrue(rules.isUpdateAllowed(QRCodeStatusEnum.UPDATE_ENTRY, paid, FREE_AREA, null));
-        assertFalse(rules.isUpdateAllowed(QRCodeStatusEnum.ENTRY, paid, PAID_AREA, null));
-        assertFalse(rules.isUpdateAllowed(QRCodeStatusEnum.EXIT, paid, FREE_AREA, null));
-        assertFalse(rules.isUpdateAllowed(null, paid, FREE_AREA, null), "状态解析不出时 MUST 拒绝");
-    }
-
-    @Test
-    @DisplayName("M007：进站站未知时 NEVER 建议 006，否则 IF5A-03 必然查不到票价")
+    @DisplayName("M007：进站站未知时 NEVER 建议 006，但仍可给无时间窗的 020")
     void neverAdvisePaidUpdateWhenEntryStationUnknown() {
         rules.validateConfiguredDefaults();
         String staleGateInTime = LocalDateTime.now().minusHours(2)
                 .format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
 
-        assertEquals(AdviceOptEnum.NONE.asSingletonList(),
+        assertEquals(AdviceOptEnum.FREE_UPDATE_020.asSingletonList(),
                 rules.resolveAdviceOpt(QRCodeStatusEnum.ENTRY, "FFFF", "0102", FREE_AREA, staleGateInTime, "C1"),
-                "进站站未知 ⇒ 报不出价 ⇒ 不给 006");
-        assertEquals(AdviceOptEnum.PAID_UPDATE.asSingletonList(),
-                rules.resolveAdviceOpt(QRCodeStatusEnum.ENTRY, "0101", "0102", FREE_AREA, staleGateInTime, "C1"));
+                "进站站未知 ⇒ 报不出价 ⇒ 只给 020，NEVER 给 006");
+        assertEquals(List.of(AdviceOptEnum.FREE_UPDATE_020.getCode(), AdviceOptEnum.PAID_UPDATE.getCode()),
+                rules.resolveAdviceOpt(QRCodeStatusEnum.ENTRY, "0101", "0102", FREE_AREA, staleGateInTime, "C1"),
+                "能报价时两个候选都给，由 BOM 选");
     }
 
     @Test
-    @DisplayName("020 在非付费区对任何已登记状态放行（含已出站与新卡）；005 / 006 仍限已进站未出站")
-    void freeUpdate020AllowsEveryRegisteredStatusInFreeArea() {
+    @DisplayName("020 = 没有时间窗限制的 005：状态白名单与区域要求与 005 一致，只是不复核 20 分钟窗")
+    void freeUpdate020IsFreeUpdateWithoutTimeWindow() {
         rules.validateConfiguredDefaults();
         String free005 = AdviceOptEnum.FREE_UPDATE.getCode();
         String paid006 = AdviceOptEnum.PAID_UPDATE.getCode();
@@ -114,29 +102,32 @@ class SupplementStateRulesTest {
         String withinWindow = LocalDateTime.now().minusMinutes(5).format(formatter);
         String overWindow = LocalDateTime.now().minusMinutes(90).format(formatter);
 
-        for (QRCodeStatusEnum status : QRCodeStatusEnum.values()) {
+        for (QRCodeStatusEnum status : List.of(QRCodeStatusEnum.ENTRY, QRCodeStatusEnum.SELF_SERVICE_ENTRY,
+                QRCodeStatusEnum.UPDATE_ENTRY)) {
             assertTrue(rules.isUpdateAllowed(status, free020, FREE_AREA, overWindow),
-                    "020 在非付费区 MUST 放行已登记状态: " + status.getCode() + "(" + status.getDesc() + ")");
+                    "020 对「已进站未出站」MUST 放行且不看时间窗: " + status.getCode());
+            assertTrue(rules.isUpdateAllowed(status, free020, FREE_AREA, null),
+                    "020 连 gateInTime 都不上送也 MUST 放行: " + status.getCode());
         }
 
         assertFalse(rules.isUpdateAllowed(QRCodeStatusEnum.ENTRY, free005, FREE_AREA, overWindow),
-                "005 MUST 保留 20 分钟上限，NEVER 跟着 020 一起放开");
-        assertFalse(rules.isUpdateAllowed(QRCodeStatusEnum.EXIT, free005, FREE_AREA, withinWindow),
-                "005 以「已进站未出站」为前提，NEVER 放宽到闭环态");
-        assertFalse(rules.isUpdateAllowed(QRCodeStatusEnum.SJT_ISSUE, free005, FREE_AREA, withinWindow),
-                "005 NEVER 放宽到新卡");
+                "005 MUST 保留 20 分钟上限，这是它与 020 的唯一差别");
+        assertFalse(rules.isUpdateAllowed(QRCodeStatusEnum.EXIT, free020, FREE_AREA, withinWindow),
+                "020 与 005 同白名单，闭环态没有未完成行程可补出站，MUST 拒绝");
+        assertFalse(rules.isUpdateAllowed(QRCodeStatusEnum.SJT_ISSUE, free020, FREE_AREA, withinWindow),
+                "020 NEVER 放宽到新卡");
         assertFalse(rules.isUpdateAllowed(QRCodeStatusEnum.EXIT, paid006, FREE_AREA, withinWindow),
                 "006 要按进站站报价，同样 NEVER 放宽到闭环态");
 
         assertFalse(rules.isUpdateAllowed(QRCodeStatusEnum.ENTRY, free020, PAID_AREA, withinWindow),
-                "付费区仍拒：020 放宽的是状态与时间，不是区域");
+                "付费区仍拒：020 放宽的是时间窗，不是区域");
         assertFalse(rules.isUpdateAllowed(null, free020, FREE_AREA, withinWindow),
-                "状态是脏值（解析不出枚举）时 MUST 拒绝 —— 这是 020 剩下的唯一状态闸口");
+                "状态是脏值（解析不出枚举）时 MUST 拒绝");
     }
 
     @Test
-    @DisplayName("建议侧：非付费区 + 卡上无未完成行程 → 020；开环仍走 005 / 006，付费区一律不给 020")
-    void adviseFreeEntryUpdateWhenNoOpenTripInFreeArea() {
+    @DisplayName("建议侧：卡上无未完成行程时一律 000（该场景不处理）；开环窗内 005、超窗 [020, 006]")
+    void adviseNothingWhenNoOpenTripInFreeArea() {
         rules.validateConfiguredDefaults();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
         String withinWindow = LocalDateTime.now().minusMinutes(5).format(formatter);
@@ -145,9 +136,9 @@ class SupplementStateRulesTest {
 
         for (QRCodeStatusEnum status : List.of(QRCodeStatusEnum.EXIT, QRCodeStatusEnum.SJT_ISSUE,
                 QRCodeStatusEnum.UPDATE_FREE, QRCodeStatusEnum.UPDATE_PAY)) {
-            assertEquals(advice020,
+            assertEquals(AdviceOptEnum.NONE.asSingletonList(),
                     rules.resolveAdviceOpt(status, "0101", "0102", FREE_AREA, withinWindow, "C1"),
-                    "人在闸外 + 卡上没有未闭合进站 ⇒ 就是「刷卡未进站成功」，MUST 建议 020: " + status.getCode());
+                    "卡上没有未闭合进站 ⇒ 补出站无从谈起，MUST 给 000: " + status.getCode());
             assertNotEquals(advice020,
                     rules.resolveAdviceOpt(status, "0101", "0102", PAID_AREA, withinWindow, "C1"),
                     "付费区是补进站 018 的地盘，NEVER 给 020: " + status.getCode());
@@ -155,18 +146,70 @@ class SupplementStateRulesTest {
 
         assertEquals(AdviceOptEnum.FREE_UPDATE.asSingletonList(),
                 rules.resolveAdviceOpt(QRCodeStatusEnum.ENTRY, "0101", "0102", FREE_AREA, withinWindow, "C1"),
-                "开环窗内仍是 005 补出站，NEVER 换成 020 —— 那会覆盖原进站基准");
-        assertEquals(AdviceOptEnum.PAID_UPDATE.asSingletonList(),
+                "开环窗内仍是 005，NEVER 换成 020 —— 窗内本来就免费，020 是给超窗用的");
+        assertEquals(List.of(AdviceOptEnum.FREE_UPDATE_020.getCode(), AdviceOptEnum.PAID_UPDATE.getCode()),
                 rules.resolveAdviceOpt(QRCodeStatusEnum.ENTRY, "0101", "0102", FREE_AREA, overWindow, "C1"),
-                "开环超窗仍是 006 付费补出站");
+                "开环超窗给两个候选：020 免费 / 006 付费");
 
         for (QRCodeStatusEnum status : QRCodeStatusEnum.values()) {
-            if (advice020.equals(rules.resolveAdviceOpt(status, "0101", "0102", FREE_AREA, withinWindow, "C1"))) {
+            List<String> advice = rules.resolveAdviceOpt(status, "0101", "0102", FREE_AREA, overWindow, "C1");
+            if (advice.contains(AdviceOptEnum.FREE_UPDATE_020.getCode())) {
                 assertTrue(rules.isUpdateAllowed(status, AdviceOptEnum.FREE_UPDATE_020.getCode(),
-                        FREE_AREA, withinWindow),
+                        FREE_AREA, overWindow),
                         "建议侧给出的 020 MUST 能过执行侧白名单，否则是「建议了又拒掉」: " + status.getCode());
             }
         }
+    }
+
+    @Test
+    @DisplayName("C002：006 付费更新只在开环 / 10 + 非付费区 + 已确认超窗时放行，其余一律拒绝")
+    void paidUpdateWhitelistHasNoUnreachableBranch() {
+        rules.validateConfiguredDefaults();
+        String paid = AdviceOptEnum.PAID_UPDATE.getCode();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+        String withinWindow = LocalDateTime.now().minusMinutes(5).format(formatter);
+        String overWindow = LocalDateTime.now().minusMinutes(90).format(formatter);
+
+        assertTrue(rules.isUpdateAllowed(QRCodeStatusEnum.ENTRY, paid, FREE_AREA, overWindow));
+        assertTrue(rules.isUpdateAllowed(QRCodeStatusEnum.SELF_SERVICE_ENTRY, paid, FREE_AREA, overWindow));
+        assertTrue(rules.isUpdateAllowed(QRCodeStatusEnum.UPDATE_ENTRY, paid, FREE_AREA, overWindow));
+        assertFalse(rules.isUpdateAllowed(QRCodeStatusEnum.ENTRY, paid, PAID_AREA, overWindow));
+        assertFalse(rules.isUpdateAllowed(QRCodeStatusEnum.EXIT, paid, FREE_AREA, overWindow));
+        assertFalse(rules.isUpdateAllowed(null, paid, FREE_AREA, overWindow), "状态解析不出时 MUST 拒绝");
+
+        assertFalse(rules.isUpdateAllowed(QRCodeStatusEnum.ENTRY, paid, FREE_AREA, withinWindow),
+                "窗内本可免费更新，NEVER 放行付费更新（用户 2026-09-18「免费不扣费」裁决）");
+        assertFalse(rules.isUpdateAllowed(QRCodeStatusEnum.ENTRY, paid, FREE_AREA, null),
+                "进站时间缺失时证明不了超窗，MUST 拒绝收费，该走 020 免费更新");
+        assertFalse(rules.isUpdateAllowed(QRCodeStatusEnum.ENTRY, paid, FREE_AREA, "2026"),
+                "进站时间解析不出时同样 MUST 拒绝收费");
+    }
+
+    @Test
+    @DisplayName("拒绝归因：状态与区域在前、时间窗在后，状态本来就不允许时 NEVER 报成时间窗原因")
+    void rejectionReasonPrefersStateOverFreeWindow() {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+        String withinWindow = LocalDateTime.now().minusMinutes(5).format(formatter);
+        String overWindow = LocalDateTime.now().minusMinutes(90).format(formatter);
+
+        assertEquals(SupplementStateRules.UpdateRejection.STATE_NOT_ALLOWED,
+                rules.checkUpdate(QRCodeStatusEnum.SJT_ISSUE, AdviceOptEnum.PAID_UPDATE.getCode(),
+                        FREE_AREA, null),
+                "03 新卡不在 006 白名单，MUST 报状态原因而不是「未确认超窗」");
+        assertEquals(SupplementStateRules.UpdateRejection.STATE_NOT_ALLOWED,
+                rules.checkUpdate(QRCodeStatusEnum.EXIT, AdviceOptEnum.FREE_UPDATE.getCode(),
+                        FREE_AREA, overWindow),
+                "闭环不在 005 白名单，MUST 报状态原因而不是「时间窗已过」");
+
+        assertEquals(SupplementStateRules.UpdateRejection.FREE_WINDOW_NOT_EXPIRED,
+                rules.checkUpdate(QRCodeStatusEnum.ENTRY, AdviceOptEnum.PAID_UPDATE.getCode(),
+                        FREE_AREA, withinWindow));
+        assertEquals(SupplementStateRules.UpdateRejection.FREE_WINDOW_EXPIRED,
+                rules.checkUpdate(QRCodeStatusEnum.ENTRY, AdviceOptEnum.FREE_UPDATE.getCode(),
+                        FREE_AREA, overWindow));
+        assertEquals(SupplementStateRules.UpdateRejection.NONE,
+                rules.checkUpdate(QRCodeStatusEnum.ENTRY, AdviceOptEnum.PAID_UPDATE.getCode(),
+                        FREE_AREA, overWindow));
     }
 
     @Test

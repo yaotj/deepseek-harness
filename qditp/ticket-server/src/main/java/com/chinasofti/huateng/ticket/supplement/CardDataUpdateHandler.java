@@ -92,21 +92,11 @@ class CardDataUpdateHandler {
             return response;
         }
 
-        if (AdviceOptEnum.FREE_UPDATE.matches(adviceOpt)
-                && !stateRules.isWithinFreeWindow(currentStatus.getGateInTime())) {
-            log.warn("IF5A-03 免费更新超 20 分钟时间窗, cardId={}, codeStatus={}, adviceOpt={}, gateInTime={}",
-                    cardId, rawCodeStatus, adviceOpt, currentStatus.getGateInTime());
-            response.setRetCode(TicketErrorCodeEnum.CARD_STATUS_CHANGED.getCode());
-            response.setRetMsg("免费更新时间窗（20 分钟）已过，请重新执行票卡分析");
-            return response;
-        }
-        if (!stateRules.isUpdateAllowed(codeStatus, adviceOpt, updateType, currentStatus.getGateInTime())) {
-            log.warn("IF5A-03 票卡状态不允许此操作, cardId={}, codeStatus={}, adviceOpt={}, updateType={},"
-                            + " gateInTime={}",
-                    cardId, rawCodeStatus, adviceOpt, updateType, currentStatus.getGateInTime());
-            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
-            response.setRetMsg("票卡状态不允许此操作: codeStatus=" + rawCodeStatus + ", adviceOpt=" + adviceOpt);
-            return response;
+        SupplementStateRules.UpdateRejection rejection = stateRules.checkUpdate(
+                codeStatus, adviceOpt, updateType, currentStatus.getGateInTime());
+        if (rejection != SupplementStateRules.UpdateRejection.NONE) {
+            return fillUpdateRejection(response, rejection, cardId, rawCodeStatus, adviceOpt, updateType,
+                    currentStatus.getGateInTime());
         }
 
         String trxType = resolveTrxType(adviceOpt);
@@ -199,7 +189,14 @@ class CardDataUpdateHandler {
     }
 
     /**
-     * 006 付费更新的票价重算与一致性比对。
+     * 006 付费更新的入账金额。
+     *
+     * <p><b>口径：以 BOM 上送的 {@code transAmount} 为准</b>（用户 2026-09-18 裁决，ADR-D136）。
+     * 钱是 BOM 现场收的（`GateFarePaymentOrchestrator.shouldPay` 刻意把 005/006/020 排除在扣费之外），
+     * 而应答 DTO 没有金额字段回传不了 BOM，所以 ITP **NEVER 用重算值覆盖上送值** ——
+     * 那样只会让「BOM 收 200、ITP 记 400」两边各自都认为自己对，且差额无人可见。
+     * ITP 侧的票价重算降级为**对账**：不一致只告警，票价服务查不到或不可达也只告警、不拒绝整笔
+     * （票价已不在关键路径上，NEVER 因为报不出价就挡住乘客出站）。
      *
      * @return null 表示成功（金额已写进 {@code gateRequest}），否则为可直接返回的失败响应
      */
@@ -208,6 +205,15 @@ class CardDataUpdateHandler {
             NotifyVerifyResultReqDTO gateRequest, QRCodeStatus currentStatus,
             String updateStationCode, String requestTransAmount, String cardId) {
 
+        if (!isPositiveAmount(requestTransAmount)) {
+            log.warn("IF5A-03 付费更新的上送金额非正整数，拒绝, cardId={}, transAmount={}",
+                    cardId, requestTransAmount);
+            response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
+            response.setRetMsg("付费更新必须上送大于 0 的 transAmount(单位分): " + requestTransAmount);
+            return response;
+        }
+        gateRequest.setTrxAmount(requestTransAmount);
+
         String entryStation = SupplementCodec.defaultString(
                 currentStatus.getGateInStation(), stateRules.unknownStationCode());
         if (!updateStationCode.equals(currentStatus.getLastTxnStation())) {
@@ -215,35 +221,33 @@ class CardDataUpdateHandler {
                             + " 本次updateStation={}",
                     cardId, currentStatus.getLastTxnStation(), updateStationCode);
         }
-
-        SupplementFareQuery.FareResult fare = fareQuery.query(entryStation, updateStationCode, "IF5A-03");
-        if (!fare.isOk()) {
-            switch (fare.outcome()) {
-                case RpcOutcome.Unreachable unreachable -> {
-                    log.error("IF5A-03 票价查询不可达, cardId={}", cardId, unreachable.cause());
-                    response.setRetCode(TicketErrorCodeEnum.ACC_COMM_ERROR.getCode());
-                    response.setRetMsg("票价服务暂不可用，请稍后重试");
-                }
-                case RpcOutcome.BizRejected rejected -> {
-                    log.warn("IF5A-03 票价查询被拒, cardId={}, retCode={}, retMsg={}",
-                            cardId, rejected.retCode(), rejected.retMsg());
-                    response.setRetCode(TicketErrorCodeEnum.NO_DATA.getCode());
-                    response.setRetMsg("票价查询失败，请前往车站服务台办理");
-                }
-                case RpcOutcome.Ok ok -> throw new IllegalStateException("Ok 分支不可达: " + ok);
-            }
-            return response;
-        }
-
-        String ticketPrice = fare.ticketPrice();
-        if (!isSameAmount(ticketPrice, requestTransAmount)) {
-            log.warn("IF5A-03 BOM 上送金额与 ITP 重算不一致，以 ITP 为准, cardId={}, bom={}, itp={}",
-                    cardId, requestTransAmount, ticketPrice);
-        }
-        gateRequest.setTrxAmount(ticketPrice);
-        log.info("IF5A-03 付费更新票价已重算, cardId={}, entry={}, exit={}, itp={}, operaterId={}",
-                cardId, entryStation, updateStationCode, ticketPrice, request.getOperaterId());
+        logFareReconcile(entryStation, updateStationCode, requestTransAmount, cardId);
+        log.info("IF5A-03 付费更新按 BOM 上送金额入账, cardId={}, entry={}, exit={}, bom={}, operaterId={}",
+                cardId, entryStation, updateStationCode, requestTransAmount, request.getOperaterId());
         return null;
+    }
+
+    /** 票价重算只用于对账告警：查不到、不可达、不一致三种情况都只记日志，NEVER 据此拒绝整笔。 */
+    private void logFareReconcile(String entryStation, String exitStation,
+                                  String requestTransAmount, String cardId) {
+        SupplementFareQuery.FareResult fare = fareQuery.query(entryStation, exitStation, "IF5A-03");
+        if (!fare.isOk()) {
+            log.warn("IF5A-03 票价重算未取到值，本次跳过金额对账, cardId={}, entry={}, exit={}, bom={}",
+                    cardId, entryStation, exitStation, requestTransAmount);
+            return;
+        }
+        if (!isSameAmount(fare.ticketPrice(), requestTransAmount)) {
+            log.warn("IF5A-03 BOM 上送金额与 ITP 重算不一致，按裁决以 BOM 为准, cardId={}, bom={}, itp={}",
+                    cardId, requestTransAmount, fare.ticketPrice());
+        }
+    }
+
+    private boolean isPositiveAmount(String amount) {
+        try {
+            return new BigDecimal(amount).compareTo(BigDecimal.ZERO) > 0;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     private boolean isSameAmount(String left, String right) {
@@ -298,6 +302,38 @@ class CardDataUpdateHandler {
         response.setRetMsg("成功");
         log.info("IF5A-03 票卡更新完成, cardId={}, adviceOpt={}, updateType={}, codeStatus={}, bom={}, itp={}",
                 cardId, adviceOpt, updateType, rawCodeStatus, requestTransAmount, gateRequest.getTrxAmount());
+        return response;
+    }
+
+    /**
+     * 执行侧拒绝原因 → 回给 BOM 的错误码与文案。
+     *
+     * <p>顺序由 {@link SupplementStateRules#checkUpdate} 保证：**状态与区域在前、时间窗在后**，
+     * 因此「状态本来就不允许」NEVER 再被误报成 8305 时间窗类原因（2026-09-18 实测修，ADR-D136）。
+     */
+    private RequestCardDataUpdateRespDTO fillUpdateRejection(RequestCardDataUpdateRespDTO response,
+                                                            SupplementStateRules.UpdateRejection rejection,
+                                                            String cardId, String rawCodeStatus,
+                                                            String adviceOpt, String updateType,
+                                                            String gateInTime) {
+        log.warn("IF5A-03 执行侧拒绝[{}], cardId={}, codeStatus={}, adviceOpt={}, updateType={}, gateInTime={}",
+                rejection, cardId, rawCodeStatus, adviceOpt, updateType, gateInTime);
+        switch (rejection) {
+            case STATE_NOT_ALLOWED -> {
+                response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
+                response.setRetMsg("票卡状态不允许此操作: codeStatus=" + rawCodeStatus + ", adviceOpt=" + adviceOpt
+                        + ", updateType=" + updateType);
+            }
+            case FREE_WINDOW_EXPIRED -> {
+                response.setRetCode(TicketErrorCodeEnum.CARD_STATUS_CHANGED.getCode());
+                response.setRetMsg("免费更新时间窗（20 分钟）已过，请重新执行票卡分析");
+            }
+            case FREE_WINDOW_NOT_EXPIRED -> {
+                response.setRetCode(TicketErrorCodeEnum.CARD_STATUS_CHANGED.getCode());
+                response.setRetMsg("未确认超出免费更新时间窗（20 分钟），本次无需收费，请重新执行票卡分析");
+            }
+            case NONE -> throw new IllegalStateException("放行分支不该走到拒绝处置: cardId=" + cardId);
+        }
         return response;
     }
 

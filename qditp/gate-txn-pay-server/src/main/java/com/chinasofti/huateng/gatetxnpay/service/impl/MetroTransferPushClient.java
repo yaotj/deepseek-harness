@@ -23,7 +23,7 @@ public class MetroTransferPushClient extends ProxyWebClient {
 
     public MetroTransferPushClient(
             @Value("${wallet.metro-transfer-url:http://172.20.202.10:8885/buscard/busApi/2App/v1/pushMetroTran}") String url,
-            @Value("${wallet.metro-transfer-enabled:false}") boolean enabled,
+            @Value("${wallet.metro-transfer-enabled:true}") boolean enabled,
             @Value("${wallet.metro-transfer-open-logger:false}") boolean openLogger,
             @Value("${wallet.metro-transfer-timeout-ms:3000}") long timeoutMs,
             WebClient.Builder webClientBuilder) {

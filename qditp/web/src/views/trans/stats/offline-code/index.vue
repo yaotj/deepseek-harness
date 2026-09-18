@@ -59,11 +59,15 @@
 import * as echarts from 'echarts'
 import { listOfflineCodeStats } from '@/api/trans/offlineCodeStats'
 import { ElMessage } from 'element-plus'
+import { defaultTodayRange } from '@/utils/dateRange'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYY-MM-DD'
 
 const loading = ref(false)
 const statsList = ref([])
 const summary = ref({})
-const dateRange = ref([])
+const dateRange = ref(defaultTodayRange(DATE_FORMAT))
 const barRef = ref(null)
 let barChart = null
 
@@ -111,7 +115,7 @@ function handleQuery() {
 }
 
 function resetQuery() {
-  dateRange.value = []
+  dateRange.value = defaultTodayRange(DATE_FORMAT)
   statsList.value = []
   summary.value = {}
 }

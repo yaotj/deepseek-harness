@@ -394,6 +394,9 @@
             <if test="ticketCode != null and ticketCode != ''">
                 AND TICKET_CODE = #{ticketCode,jdbcType=VARCHAR}
             </if>
+            <if test="issueChannelCode != null and issueChannelCode != ''">
+                AND ISSUE_CHANNEL_CODE = #{issueChannelCode,jdbcType=VARCHAR}
+            </if>
             <include refid="Debit_Result_Filter"/>
         )
         <if test="offset != null and limit != null">
@@ -435,6 +438,9 @@
         </if>
         <if test="ticketCode != null and ticketCode != ''">
             AND TICKET_CODE = #{ticketCode,jdbcType=VARCHAR}
+        </if>
+        <if test="issueChannelCode != null and issueChannelCode != ''">
+            AND ISSUE_CHANNEL_CODE = #{issueChannelCode,jdbcType=VARCHAR}
         </if>
         <include refid="Debit_Result_Filter"/>
     </select>

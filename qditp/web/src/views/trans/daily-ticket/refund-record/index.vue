@@ -67,6 +67,10 @@
 
 <script setup name="DailyTicketRefundRecord">
 import { listDailyTicketRefundRecords, queryDailyTicketRefund, retryDailyTicketRefund } from '@/api/trans/dailyTicketRefund'
+import { defaultTodayRange } from '@/utils/dateRange'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 
 const { proxy } = getCurrentInstance()
 const route = useRoute()
@@ -77,7 +81,7 @@ const refundList = ref([])
 const queryParams = reactive({
   pageNum: 1,
   pageSize: 10,
-  dateRange: [],
+  dateRange: defaultTodayRange(DATE_FORMAT),
   orderNo: route.query.orderNo || undefined,
   paymentOrderNo: route.query.paymentOrderNo || undefined,
   refundOrderNo: undefined,
@@ -106,7 +110,7 @@ function handleQuery() {
 
 function resetQuery() {
   proxy.resetForm('queryRef')
-  queryParams.dateRange = []
+  queryParams.dateRange = defaultTodayRange(DATE_FORMAT)
   handleQuery()
 }
 

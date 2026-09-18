@@ -3,6 +3,10 @@ package com.chinasofti.huateng.rpc.transquery;
 import cn.hutool.core.lang.TypeReference;
 import cn.hutool.json.JSONUtil;
 import com.chinasofti.huateng.micro.web.client.ProxyWebClient;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespVO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListRespDTO;
 import com.chinasofti.huateng.model.app.RequestTransDetailReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransDetailResult;
 import com.chinasofti.huateng.model.app.RequestTransListReqDTO;
@@ -55,6 +59,20 @@ public class TransQueryClient extends ProxyWebClient {
     public RequestTransDetailResult requestTransDetail(@RequestBody RequestTransDetailReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/requestTransDetail", request);
         return JSONUtil.toBean(result, new TypeReference<RequestTransDetailResult>() {
+        }, true);
+    }
+
+    /** 支付宝出行-查询乘车记录列表。 */
+    public AlipayTripFindTravelListRespDTO findTravelList(@RequestBody AlipayTripFindTravelListReqDTO request) {
+        String result = postJsonAndGetResponse("/ci/alipay/travel/list", request);
+        return JSONUtil.toBean(result, new TypeReference<AlipayTripFindTravelListRespDTO>() {
+        }, true);
+    }
+
+    /** 支付宝出行-查询乘车记录详情（返回的是三层 VO，retCode / retMsg / data）。 */
+    public AlipayTripFindTravelDetailRespVO findTravelDetail(@RequestBody AlipayTripFindTravelDetailReqDTO request) {
+        String result = postJsonAndGetResponse("/ci/alipay/travel/detail", request);
+        return JSONUtil.toBean(result, new TypeReference<AlipayTripFindTravelDetailRespVO>() {
         }, true);
     }
 }

@@ -9,7 +9,9 @@ const clusterNodePortHost = 'http://172.20.211.23'
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd())
   const { VITE_APP_ENV } = env
+  const accSimulatorTarget = env.VITE_ACC_SIMULATOR_URL || 'http://127.0.0.1:9114'
   const serviceProxies = {
+    '/employee-card-acc-simulator': accSimulatorTarget,
     '/fep-acc-server': `${clusterNodePortHost}:30030`,
     '/fep-acc': `${clusterNodePortHost}:30030`,
     '/collect-pay-server': `http://127.0.0.1:58101`,

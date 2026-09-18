@@ -194,8 +194,7 @@ class OfflineFareRecoveryTest {
                 gateTxnPayMapper, writer, fareCalculator,
                 new PaySignInitiator(paySignClient, alipayPaySignClient, writer,
                         new GatePayRequestFactory("AGM_GATE", "1", "地铁乘车扣费", "地铁乘车费用", 60L),
-                        new AlipayTripPayRequestFactory("TRIP", "05", "1", "地铁乘车扣费", "地铁乘车费用", 60,
-                                "http://localhost/payNotify")),
+                        new AlipayTripPayRequestFactory("TRIP", "05", "1", "地铁乘车扣费", "地铁乘车费用", 60)),
                 new MetroTransferPushTaskProcessor(null, null, false, 0, 0, 0L),
                 noopStationNameBackfiller());
     }

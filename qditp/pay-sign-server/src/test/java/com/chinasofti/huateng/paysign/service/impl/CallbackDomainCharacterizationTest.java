@@ -1,8 +1,10 @@
 package com.chinasofti.huateng.paysign.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -20,6 +22,7 @@ import com.chinasofti.huateng.paysign.model.response.BaseRespDTO;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DuplicateKeyException;
 
 /** 护栏：签约成功回调只发事件不直接通知；解约回调只接受 SCANNING，终态幂等短路。 */
 class CallbackDomainCharacterizationTest {
@@ -37,7 +40,7 @@ class CallbackDomainCharacterizationTest {
 
         assertEquals(PaySignErrorCodeEnum.SUCCESS.getCode(), result.getRetCode());
         verify(fixture.eventPublisher).publishEvent(any(SignResultCommittedEvent.class));
-        verifyNoInteractions(fixture.appNotifyService);
+        verifyNoInteractions(fixture.terminationNotifyService);
     }
 
     @Test
@@ -83,6 +86,41 @@ class CallbackDomainCharacterizationTest {
         assertEquals(WALLET_VENDOR, captor.getValue().getPaymentVendor());
         assertEquals("SIGNED", captor.getValue().getContractStatus());
         verify(fixture.eventPublisher).publishEvent(any(SignResultCommittedEvent.class));
+    }
+
+    /**
+     * 渠道重推同一笔已成功的签约回调：撞唯一键即幂等返 {@code 0000}，
+     * 且 <b>NEVER 再发事件、NEVER 再插 {@code NOTIFY_STATUS='PENDING'} 流水</b>（2026-09-17，ADR-D123）。
+     *
+     * <p>异常故意包一层 {@code RuntimeException} —— 本模块开了 tracing，观测切面会换类型（ADR-D53），
+     * 裸 {@code catch (DuplicateKeyException)} 在线上根本进不去。
+     */
+    @Test
+    void duplicateSignResultCallbackIsIdempotentAndNeverRenotifies() {
+        PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
+        doThrow(new RuntimeException(new DuplicateKeyException("UK_APPSI_REQUEST_SIGN_SEQ")))
+                .when(fixture.paySignInfoMapper).insert(any());
+        when(fixture.paySignInfoMapper.selectSignStatusBySeq(SEQ)).thenReturn("SIGNED");
+
+        PaySignCallbackResult result = fixture.service.receiveSignResult(signResult("SUCCESS"), "01");
+
+        assertEquals(PaySignErrorCodeEnum.SUCCESS.getCode(), result.getRetCode());
+        verify(fixture.eventPublisher, never()).publishEvent(any(SignResultCommittedEvent.class));
+        for (PaySignRequest logRecord : fixture.auditLogs()) {
+            assertNull(logRecord.getNotifyStatus());
+        }
+    }
+
+    /** 非唯一键冲突的异常 MUST 继续按系统异常处置，NEVER 被幂等分支吞成成功。 */
+    @Test
+    void nonConflictInsertFailureIsNotSwallowedAsReplay() {
+        PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
+        doThrow(new IllegalStateException("ORA-00904")).when(fixture.paySignInfoMapper).insert(any());
+
+        PaySignCallbackResult result = fixture.service.receiveSignResult(signResult("SUCCESS"), "01");
+
+        assertEquals(PaySignErrorCodeEnum.SYSTEM_ERROR.getCode(), result.getRetCode());
+        verify(fixture.eventPublisher, never()).publishEvent(any(SignResultCommittedEvent.class));
     }
 
     @Test

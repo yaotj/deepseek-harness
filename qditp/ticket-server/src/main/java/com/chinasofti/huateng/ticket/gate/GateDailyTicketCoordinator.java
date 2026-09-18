@@ -9,6 +9,7 @@ import com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO;
 import com.chinasofti.huateng.model.ticket.NotifyVerifyResultRespDTO;
 import com.chinasofti.huateng.rpc.dailyticket.DailyTicketClient;
 import com.chinasofti.huateng.ticket.constant.TicketErrorCodeEnum;
+import com.chinasofti.huateng.ticket.notify.AppNotifyService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,9 @@ class GateDailyTicketCoordinator {
 
     @Autowired
     private DailyTicketClient dailyTicketClient;
+
+    @Autowired
+    private AppNotifyService appNotifyService;
 
     /** 远端调用的技术失败（RPC 抛异常 / 响应解析为 null）处置口径。 */
     private enum FailurePolicy {
@@ -139,6 +143,7 @@ class GateDailyTicketCoordinator {
             return;
         }
         log.info("IF1A-01 日票出站处理完成, cardId={}", request.getCardId());
+        appNotifyService.notifyCountingTicketTimes(request, DAILY_TICKET_TIMES_PER_TRIP);
     }
 
     /** 解析 {@code countingTimes}（本次行程消耗次数），恒有值、 */

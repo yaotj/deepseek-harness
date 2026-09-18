@@ -31,7 +31,7 @@ public class MetroTransferPushTaskProcessor {
     private final long processingLeaseSeconds;
 
     public MetroTransferPushTaskProcessor(MetroTransferPushTaskMapper taskMapper, MetroTransferPushClient client,
-                                          @Value("${wallet.metro-transfer-enabled:false}") boolean enabled,
+                                          @Value("${wallet.metro-transfer-enabled:true}") boolean enabled,
                                           @Value("${wallet.metro-transfer-batch-size:50}") int batchSize,
                                           @Value("${wallet.metro-transfer-max-retry:10}") int maxRetry,
                                           @Value("${wallet.metro-transfer-processing-lease-seconds:120}") long processingLeaseSeconds) {

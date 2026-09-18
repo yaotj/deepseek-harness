@@ -71,18 +71,27 @@ public class AlipayPaySignClient extends ProxyWebClient {
 
     /**
      * 支付宝出行-支付结果查询。
+     *
+     * <p>2026-09-18：路径由 {@code /api/payment/payQuery} 迁至 {@code /internal/alipay/payment/payQuery}
+     * （该端点只有本方法一个调用方、属内部接口）。<b>旧路径已在服务端删除、没有别名</b>，
+     * 因此本文件所在的 {@code fep-alipay} 与 {@code alipay-pay-sign-server} 两个镜像 MUST 同批滚更。
      */
     public AlipayTripPayQueryRespDTO alipayTripPayQuery(@RequestBody AlipayTripPayQueryReqDTO request) {
-        String result = postJsonAndGetResponse("/api/payment/payQuery", request);
+        String result = postJsonAndGetResponse("/internal/alipay/payment/payQuery", request);
         return JSONUtil.toBean(result, new TypeReference<AlipayTripPayQueryRespDTO>() {
         }, true);
     }
 
     /**
      * 支付宝出行-退款申请。
+     *
+     * <p>2026-09-18：路径由 {@code /api/payment/requestRefund} 迁至
+     * {@code /internal/alipay/payment/requestRefund}（该端点只有本方法一个调用方、真实入口是运维侧人工退款）。
+     * <b>旧路径已在服务端删除、没有别名</b>，因此 {@code fep-alipay} 与 {@code alipay-pay-sign-server}
+     * 两个镜像 MUST 同批滚更。
      */
     public AlipayTripRequestRefundRespDTO alipayTripRequestRefund(@RequestBody AlipayTripRequestRefundReqDTO request) {
-        String result = postJsonAndGetResponse("/api/payment/requestRefund", request);
+        String result = postJsonAndGetResponse("/internal/alipay/payment/requestRefund", request);
         return JSONUtil.toBean(result, new TypeReference<AlipayTripRequestRefundRespDTO>() {
         }, true);
     }
@@ -167,9 +176,17 @@ public class AlipayPaySignClient extends ProxyWebClient {
 
     /**
      * 执行解约。
+     *
+     * <p>2026-09-18：路径由 {@code /channel/executeTermination} 迁至
+     * {@code /internal/alipay/termination/execute}（该端点只有本方法一个调用方、属内部接口，
+     * 且与同前缀的 {@code /process} 走同一套销卡语义）。<b>旧路径已在服务端删除、没有别名</b>，
+     * 因此 {@code fep-alipay} 与 {@code alipay-pay-sign-server} 两个镜像 MUST 同批滚更。
+     *
+     * <p><b>HTTP 形态刻意保持 GET + query 串拼接不变</b>：改成 POST 属另一件事，
+     * 不与「迁 internal」混做。
      */
     public com.chinasofti.huateng.common.response.AlipayCommonResponse executeTermination(String agreementCode) {
-        String response = getAndGetResponse("/channel/executeTermination?agreementCode=" + agreementCode, new java.util.HashMap<>());
+        String response = getAndGetResponse("/internal/alipay/termination/execute?agreementCode=" + agreementCode, new java.util.HashMap<>());
         if (response == null || response.isEmpty()) {
             return null;
         }
@@ -270,6 +287,28 @@ public class AlipayPaySignClient extends ProxyWebClient {
         JSONObject wrapper = JSONUtil.parseObj(result);
         Object data = wrapper.get("data");
         String parseTarget = (data instanceof JSONObject) ? ((JSONObject) data).toString() : result;
+        return JSONUtil.toBean(parseTarget, com.chinasofti.huateng.common.response.AlipayCommonResponse.class);
+    }
+
+    /**
+     * 支付宝出行-支付通道同步补偿（ADR-D132）。
+     *
+     * <p>无入参：批量大小与重试上限都是 alipay-pay-sign-server 侧的配置项。
+     * 这里传空 body 只为满足 POST 形态，**NEVER 改成让调用方传批量大小** ——
+     * 那等于把「一次扫多少」交给 Quartz 配置页面。</p>
+     *
+     * <p>由 web-admin 的 `alipayChannelSyncQuartzTask` 带 trace 头打进来；
+     * 该端点是本模块补偿的**唯一驱动源**，判断它有没有在跑 MUST 查 `SYS_JOB_LOG`。</p>
+     */
+    public com.chinasofti.huateng.common.response.AlipayCommonResponse compensateChannelSync(Map<String, String> headers) {
+        String response = postJsonAndGetResponse("/internal/alipay/channelSync/compensate",
+                java.util.Collections.emptyMap(), headers);
+        if (response == null || response.isEmpty()) {
+            return null;
+        }
+        JSONObject wrapper = JSONUtil.parseObj(response);
+        Object data = wrapper.get("data");
+        String parseTarget = (data instanceof JSONObject) ? ((JSONObject) data).toString() : response;
         return JSONUtil.toBean(parseTarget, com.chinasofti.huateng.common.response.AlipayCommonResponse.class);
     }
 

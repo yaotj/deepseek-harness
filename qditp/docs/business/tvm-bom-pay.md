@@ -40,18 +40,19 @@ TVM 单程票下单出票、TVM 充值、BOM 非现金收款、当面付订单�
 
 ## 接口清单
 
-**TVM** `controller/ci/tvm/TvmOrderController.java`（前缀 `/itptvm/ci/tvm`）
-- `notiDeviceHeard`、IF2A-01 `requestGenSjtOrder`、IF2A-11 `requestPayment`、IF2A-03 `requestPayResult`
+**TVM** `controller/ci/tvm/TvmOrderController.java`（前缀 **`/itptvm/ci/tvm` + `/itpbom/ci/tvm`**，face-pay 1.0.60 起类级挂两个前缀）
+- `notiDeviceHeard`（**别名 `deviceHeartbeat`，1.0.61 起**，与 `fep-dev-server` AGM 侧的双别名对齐）、IF2A-01 `requestGenSjtOrder`、IF2A-11 `requestPayment`、IF2A-03 `requestPayResult`（**别名 `requestGetPayResult`**）
 - IF2A-04 `notiTakeTicketResult`、IF2A-05 `notiTakeTicketFailResult`、`requestRefund`
 - IF8A-15 `requestActiveTicket`、IF2A-08 `requestTakeTicketAuth`
 - IF2A-09 `requestTopup`、IF2A-06 `topupCardResultNoti`、IF2A-07 `topupCardFailNoti`
 - `requestPayOrderDetail`、`payNotice`
 
-**BOM** `controller/ci/bom/BomOrderController.java`（前缀 `/itpbom/ci/bom`）
-- `notiDeviceHeard`、IF8A-04 `requestGenNoCashOrder`、IF8A-05 `requestPayment`、IF8A-06 `requestGetPayResult`
+**BOM** `controller/ci/bom/BomOrderController.java`（前缀 **`/itpbom/ci/bom` + `/itptvm/ci/bom`**，face-pay 1.0.60 起类级挂两个前缀）
+- `notiDeviceHeard`（**别名 `deviceHeartbeat`，1.0.61 起**）、IF8A-04 `requestGenNoCashOrder`、IF8A-05 `requestPayment`、IF8A-06 `requestGetPayResult`（**别名 `requestPayResult`，1.0.61 起，与 TVM 侧那对双别名互为镜像；响应族仍是 BOM 的 8xxx，NEVER 改成 2xxx**）
 - IF2A-08 `notiBusResult`、IF2A-09 `notiTopupResult`
 - IF5A-01 `requestCardDataAnalyse`、IF5A-03 `requestUpdateCardData`、IF5A-09 `notiUpdateHceData`
 - `requestOrderResult`、`requestTicketRefund`
+- **票卡状态查询别名（face-pay 1.0.60 起，只在新模块有）**：IF1A-04 `requestQrCodeStatus` —— **真实归属是 `fep-dev-server` 的 `/itpagm/ci/agm/requestQrCodeStatus`**，本条只是给把该报文打到 BOM / TVM 前缀的设备补一条落点，下游同一个 `TicketClient.queryQrCodeStatus`（ticket-server `/ci/app/queryQrCodeStatus`），应答键 `itpUserId` / `cardId` / `lastTicketStatus` / `lastHandleDateTime` 与 AGM 那条逐字一致。**`thirdUserId` 原样填设备送的 `itpUserId`、NEVER 抄 fep-dev 的 `DeviceUserIdCodec` 换算** —— `AgmRideStatusServiceImpl.queryQrCodeStatus` 只按 `cardId` 查 `QRCODE_STATUS`，`thirdUserId` 仅被原样回显；一旦下游改成按它查，这里 MUST 同步补换算。加它的原因与出票上报别名同型：2026-09-18 13:34 BOM 设备 `02451201` 把 IF1A-04 打到 `/itpbom/ci/bom/requestQrCodeStatus`，face-pay 无 handler ⇒ 落静态资源解析 ⇒ **HTTP 200 + UUID `retCode`**（服务端日志 `No static resource itpbom/ci/bom/requestQrCodeStatus.`），设备侧完全看不出是地址打错了。`BomOrderController.requestQrCodeStatus` + `service/F2fQrCodeStatusService`
 - **出票上报别名（face-pay 1.0.42 起，只在新模块有）**：IF2A-05 `notiTakeTicketResult`、IF2A-06 `notiTakeTicketFailResult` —— 与 TVM 前缀那两条是**同一个 `F2fTicketIssueService`、同一个 2xxx 响应族、同一张 `F2F_RESULT_REPORT`**（幂等仍靠 `UK_F2F_REPORT_IDEM`，同一笔打两个前缀也只落一行），差别只有渠道兜底值：本前缀兜底 `BOM`、TVM 那条兜底 `TVM`。加它的原因是现场设备把出票上报打到了 BOM 前缀，而该 URL 在 face-pay 与旧 collect-pay 里**都不存在**，落到静态资源解析后被全局异常处理器兜成 **HTTP 200 + UUID `retCode`**、订单永久卡 `PAID`（2026-09-16 实测，见 ADR-D97）。**排查这类「上报返 UUID」MUST 先在日志里找 `No static resource <path>.`**
 - **出票成功上报「订单不存在」的 retCode 按 `providerId` 分两个码：`03` → `2999`，其余（含缺失）→ `-1`**（2026-09-16 / 1.0.54 修回，ADR-D112）。旧实现是在 `TvmOrderController:163-176` 按 `providerId=="03"` 分流到 `BomOrderServiceImpl:1137` 才落 2999，新实现的 `channelOf()` 只折算渠道码、不再分流，于是 1.0.53 及之前**三种 providerId 一律 `-1`** —— 而现场设备发的正是 `providerId=03`，属**只在 BOM 那一支上踩的契约回归**。判据 **MUST 用 `providerId` 本身，NEVER 换成 `channelOf(...)` 的渠道码**（BOM 前缀那两条别名在 providerId 缺失时兜底 BOM，用渠道码判会把「BOM 前缀 + 无 providerId」也判成 2999，而旧实现那一支不存在、没有基线）。**兄弟接口 `notiTakeTicketFailResult` 两侧三种 providerId 本来就全是 `2999`，不需要分叉、NEVER 顺手改**
 

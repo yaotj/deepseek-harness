@@ -21,9 +21,9 @@ import com.chinasofti.huateng.paysign.client.AppNotificationClient;
 import com.chinasofti.huateng.paysign.constant.PaySignErrorCodeEnum;
 import com.chinasofti.huateng.paysign.entity.PaySignInfo;
 import com.chinasofti.huateng.paysign.entity.PaySignRequest;
-import com.chinasofti.huateng.paysign.mapper.AppTerminationRequestMapper;
 import com.chinasofti.huateng.paysign.mapper.PaySignInfoMapper;
 import com.chinasofti.huateng.paysign.mapper.PaySignRequestMapper;
+import com.chinasofti.huateng.paysign.port.AppNotifyHttpAdapter;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,7 +39,6 @@ class AppNotifyCompensationCharacterizationTest {
 
     private final PaySignRequestMapper paySignRequestMapper = mock(PaySignRequestMapper.class);
     private final PaySignInfoMapper paySignInfoMapper = mock(PaySignInfoMapper.class);
-    private final AppTerminationRequestMapper terminationRequestMapper = mock(AppTerminationRequestMapper.class);
     private final AppNotificationClient appNotificationClient = mock(AppNotificationClient.class);
 
     /** 同线程执行，且计数被提交了几次 —— 「人工重放 NEVER 走线程池」这条要靠它断言。 */
@@ -49,9 +48,13 @@ class AppNotifyCompensationCharacterizationTest {
         task.run();
     };
 
-    private final AppNotifyServiceImpl service = new AppNotifyServiceImpl(
-            paySignRequestMapper, paySignInfoMapper, terminationRequestMapper,
-            appNotificationClient, sameThreadExecutor);
+    private final SignNotifyServiceImpl service = new SignNotifyServiceImpl(
+            paySignRequestMapper, paySignInfoMapper,
+            new AppNotifyHttpAdapter(appNotificationClient,
+                    "http://app.example/ci/app/receiveSignResult",
+                    "http://app.example/ci/app/receiveTerminationResultFromItp",
+                    "06", "UTF-8", "json", "ITP-PAY-SIGN", "00", ""),
+            sameThreadExecutor);
 
     @Test
     void emptyBatchAnswersSuccessAndNeverTouchesRetryBudget() {

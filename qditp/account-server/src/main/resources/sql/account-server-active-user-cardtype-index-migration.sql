@@ -1,31 +1,59 @@
--- ADR-D49 ① 的开户防重唯一索引。此前只写在 account-server-schema.sql 里、没有独立迁移脚本，
--- 而 *-schema.sql 只服务「新建库」，对已存在的库等于没写（AGENTS.md §8「一天撞三次」的第 ③ 条）。
--- 没有这个索引时 AccountRegistrationServiceImpl 的前置查重与 INSERT 之间有窗口：两条并发 IF8A-01
--- 或 APP 超时重推会双双通过查重、双双落库，用户拿到两张有效卡，而 handleDuplicateRegistration
--- 那段 DuplicateKeyException 兜底永远走不到 —— 编译、单测、xmllint 全都发现不了。
--- 2026-09-14 已在 AFCITPDB 执行并回查（UNIQUE / FUNCTION-BASED NORMAL / VALID / PARTITIONED=NO）。
+-- ADR-D49 / ticketLimit 改造后的开户防重唯一索引。
+-- 这份脚本用于把既有库里的旧索引 UK_UIRI_ACTIVE_USER_CARDTYPE 改成新口径；也可以手工执行。
+-- 新口径与 UserItpRegInfoMapper.selectActiveUniqueCard 保持一致：
+--   thirdUserId + ISSUE_ORG_CODE + 映射后 CARD_TYPE
+--   且只约束 ticketLimit=1，兼容历史普通卡（ticketLimit is null 且 companionFlag 非 Y/C）。
+-- CARD_ISSUE_CODE 存的是归一后的发行渠道码（如 5412/0008 -> 0001），用于注册乘车状态、码体/行业数据；
+-- ISSUE_ORG_CODE 存 APP 上送原值，用于区分所属平台和唯一卡归属，不能用归一后的 CARD_ISSUE_CODE 参与开户查重。
 --
 -- 两处 NEVER：
--- ① NEVER 简化成朴素的 UNIQUE (THIRD_USER_ID, CARD_TYPE)。两个 CASE 刻意把 COMPANION_FLAG 为
---    Y（同行票）/ C（第三方代开）的行排除在唯一性之外，那类票按业务定义「每次都给新卡」；
---    改朴素两列会让这些合法请求的第二张卡直接 INSERT 失败。查重侧 UserItpRegInfoMapper.xml 的
---    selectActiveByThirdUserIdAndCardType MUST 与本谓词逐字对齐。
--- ② NEVER 顺手加 LOCAL。USER_ITP_REG_INFO 按 THIRD_USER_ID 派生值 LIST 分区，而键是两个 CASE
+-- ① NEVER 简化成朴素的 UNIQUE (THIRD_USER_ID, CARD_TYPE)，也 NEVER 用 CARD_ISSUE_CODE 替代 ISSUE_ORG_CODE。
+--    不同所属方可能归一到同一个 CARD_ISSUE_CODE；用 CARD_ISSUE_CODE 会误判已开户，或把唯一冲突归错平台。
+-- ② NEVER 只按 companionFlag 排除 Y/C。新开卡数量由 ticketLimit 决定：ticketLimit=2 每次新卡，
+--    ticketLimit=1 即使 companionFlag=Y/C 也必须按唯一卡处理。
+-- ③ NEVER 顺手加 LOCAL。USER_ITP_REG_INFO 按 THIRD_USER_ID 派生值 LIST 分区，而键是三个 CASE
 --    表达式、不是分区键，Oracle 只允许 GLOBAL，加 LOCAL 报 ORA-14039。
 --
--- 在新库上执行前 MUST 先按索引的确切谓词做 ORA-01452 前置统计，有重复只能与业务定归属、NEVER 删行
--- （卡号可能已发给用户）：
---   SELECT COUNT(*) AS TOTAL,
---          COUNT(DISTINCT THIRD_USER_ID || '#' || CARD_TYPE) AS DISTINCT_KEY
---     FROM USER_ITP_REG_INFO
---    WHERE DEL_YN = 1
---      AND NVL(COMPANION_FLAG, 'N') NOT IN ('Y', 'C');
---
--- 经 mcp_database_qd 执行时 MUST 包一层 PL/SQL —— 它的 SQL 解析器拒绝带 CASE 的 CREATE INDEX
--- （McpSqlValidationException），内层单引号写两个：
---   BEGIN EXECUTE IMMEDIATE 'CREATE UNIQUE INDEX UK_UIRI_ACTIVE_USER_CARDTYPE ON USER_ITP_REG_INFO (CASE WHEN DEL_YN = 1 AND NVL(COMPANION_FLAG, ''N'') NOT IN (''Y'', ''C'') THEN THIRD_USER_ID END, CASE WHEN DEL_YN = 1 AND NVL(COMPANION_FLAG, ''N'') NOT IN (''Y'', ''C'') THEN CARD_TYPE END)'; END;
-CREATE UNIQUE INDEX UK_UIRI_ACTIVE_USER_CARDTYPE
-    ON USER_ITP_REG_INFO (
-        CASE WHEN DEL_YN = 1 AND NVL(COMPANION_FLAG, 'N') NOT IN ('Y', 'C') THEN THIRD_USER_ID END,
-        CASE WHEN DEL_YN = 1 AND NVL(COMPANION_FLAG, 'N') NOT IN ('Y', 'C') THEN CARD_TYPE END
+-- 执行前 MUST 按索引的确切谓词做 ORA-01452 前置检查；有重复只能与业务定归属，NEVER 直接删行。
+SELECT THIRD_USER_ID, ISSUE_ORG_CODE, CARD_TYPE, COUNT(*) AS CNT
+FROM USER_ITP_REG_INFO
+WHERE DEL_YN = 1
+  AND (TICKET_LIMIT = '1' OR (TICKET_LIMIT IS NULL AND NVL(COMPANION_FLAG, 'N') NOT IN ('Y', 'C')))
+GROUP BY THIRD_USER_ID, ISSUE_ORG_CODE, CARD_TYPE
+HAVING COUNT(*) > 1;
+
+DECLARE
+    DUPLICATE_GROUPS NUMBER;
+    INDEX_EXISTS NUMBER;
+BEGIN
+    SELECT COUNT(*) INTO DUPLICATE_GROUPS
+    FROM (
+        SELECT THIRD_USER_ID, ISSUE_ORG_CODE, CARD_TYPE
+        FROM USER_ITP_REG_INFO
+        WHERE DEL_YN = 1
+          AND (TICKET_LIMIT = '1' OR (TICKET_LIMIT IS NULL AND NVL(COMPANION_FLAG, 'N') NOT IN ('Y', 'C')))
+        GROUP BY THIRD_USER_ID, ISSUE_ORG_CODE, CARD_TYPE
+        HAVING COUNT(*) > 1
     );
+    IF DUPLICATE_GROUPS > 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Duplicate unique-card keys; stop rebuilding UK_UIRI_ACTIVE_USER_CARDTYPE');
+    END IF;
+
+    SELECT COUNT(*) INTO INDEX_EXISTS
+    FROM USER_INDEXES
+    WHERE INDEX_NAME = 'UK_UIRI_ACTIVE_USER_CARDTYPE';
+    IF INDEX_EXISTS > 0 THEN
+        EXECUTE IMMEDIATE 'DROP INDEX UK_UIRI_ACTIVE_USER_CARDTYPE';
+    END IF;
+
+    EXECUTE IMMEDIATE 'CREATE UNIQUE INDEX UK_UIRI_ACTIVE_USER_CARDTYPE ON USER_ITP_REG_INFO (
+        CASE WHEN DEL_YN = 1 AND (TICKET_LIMIT = ''1'' OR (TICKET_LIMIT IS NULL AND NVL(COMPANION_FLAG, ''N'') NOT IN (''Y'', ''C''))) THEN THIRD_USER_ID END,
+        CASE WHEN DEL_YN = 1 AND (TICKET_LIMIT = ''1'' OR (TICKET_LIMIT IS NULL AND NVL(COMPANION_FLAG, ''N'') NOT IN (''Y'', ''C''))) THEN ISSUE_ORG_CODE END,
+        CASE WHEN DEL_YN = 1 AND (TICKET_LIMIT = ''1'' OR (TICKET_LIMIT IS NULL AND NVL(COMPANION_FLAG, ''N'') NOT IN (''Y'', ''C''))) THEN CARD_TYPE END)';
+END;
+/
+
+SELECT COLUMN_POSITION, COLUMN_EXPRESSION
+FROM USER_IND_EXPRESSIONS
+WHERE INDEX_NAME = 'UK_UIRI_ACTIVE_USER_CARDTYPE'
+ORDER BY COLUMN_POSITION;

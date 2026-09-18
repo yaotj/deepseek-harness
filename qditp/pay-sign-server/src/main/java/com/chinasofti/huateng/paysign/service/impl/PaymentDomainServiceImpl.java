@@ -19,8 +19,6 @@ import com.chinasofti.huateng.model.app.PaySignCallbackResult;
 import com.chinasofti.huateng.model.app.ReceivePayResultReqDTO;
 import com.chinasofti.huateng.model.app.RequestPayReqDTO;
 import com.chinasofti.huateng.model.app.RequestPayResult;
-import com.chinasofti.huateng.model.pay.GateTxnPayRespDTO;
-import com.chinasofti.huateng.model.pay.GateTxnPaySyncStatusReqDTO;
 import com.chinasofti.huateng.paysign.config.PaySignProperties;
 import com.chinasofti.huateng.paysign.constant.PaySignErrorCodeEnum;
 import com.chinasofti.huateng.paysign.entity.PayCallbackLog;
@@ -31,21 +29,23 @@ import com.chinasofti.huateng.paysign.model.response.PaySignGatewayResponse;
 import com.chinasofti.huateng.paysign.service.PaymentDomainService;
 import com.chinasofti.huateng.paysign.port.AccountDomainPort;
 import com.chinasofti.huateng.paysign.port.GatewayReply;
+import com.chinasofti.huateng.paysign.port.DebitSyncPort;
 import com.chinasofti.huateng.paysign.port.PaymentGatewayPort;
 import com.chinasofti.huateng.paysign.port.PaymentReply;
 import com.chinasofti.huateng.paysign.port.AccountQuery;
 import com.chinasofti.huateng.paysign.port.AccountUserView;
 import com.chinasofti.huateng.rpc.blacklist.BlacklistClient;
-import com.chinasofti.huateng.rpc.pay.GateTxnPayClient;
+import com.chinasofti.huateng.rpc.outcome.RpcOutcome;
+import com.chinasofti.huateng.paysign.domain.PaySignDuplicateKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /** 支付领域服务：免密扣款（支付 API 1.1）与支付结果回调（5.1）的真实现。 */
 @Service
@@ -54,13 +54,23 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
 
     /** 钱包渠道号常量已收口到 support/PaymentChannels，本类只 import static isWallet(...)。 */
 
+    /**
+     * 支付中心网关 §1.1 的 {@code scene} 合法取值（{@code docs/external/支付中心网关接口文档.md:123} 逐字）。
+     *
+     * <p>本集合只用于打 WARN，NEVER 升级成校验白名单直接拒绝：上游 {@code fep-app-server} 在
+     * {@code scene} 为空时会把 {@code channelType} 透传进来，{@code gate-txn-pay-server} 的仓库默认值
+     * 长期是非法的 {@code AGM_GATE}（线上靠 env 覆盖成 {@code withholding}），硬拒绝会打挂在跑的免密扣款。
+     */
+    private static final Set<String> GATEWAY_PAY_SCENES = Set.of("scan", "app", "withholding", "wap", "qrcode");
+
     private final PaySignProperties paySignProperties;
     private final PayTxnDetailMapper payTxnDetailMapper;
     private final PayCallbackLogMapper payCallbackLogMapper;
     /** 账户域出向调用的唯一出口（ADR-D94 续）。 */
     private final AccountDomainPort accountDomainPort;
     private final BlacklistClient blacklistClient;
-    private final GateTxnPayClient gateTxnPayClient;
+    /** 闸机域**扣费状态收敛方向**出向调用的唯一出口（2026-09-17，ADR-D119）。 */
+    private final DebitSyncPort debitSyncPort;
     /** 支付中心网关的调用与应答判读收口点。 */
     /** 支付中心**扣款方向**出向调用的唯一出口（2026-09-16，ADR-D113 续）。 */
     private final PaymentGatewayPort paymentGatewayPort;
@@ -72,14 +82,14 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
             PayCallbackLogMapper payCallbackLogMapper,
             AccountDomainPort accountDomainPort,
             BlacklistClient blacklistClient,
-            GateTxnPayClient gateTxnPayClient,
+            DebitSyncPort debitSyncPort,
             PaymentGatewayPort paymentGatewayPort) {
         this.paySignProperties = paySignProperties;
         this.payTxnDetailMapper = payTxnDetailMapper;
         this.payCallbackLogMapper = payCallbackLogMapper;
         this.accountDomainPort = accountDomainPort;
         this.blacklistClient = blacklistClient;
-        this.gateTxnPayClient = gateTxnPayClient;
+        this.debitSyncPort = debitSyncPort;
         this.paymentGatewayPort = paymentGatewayPort;
     }
 
@@ -121,6 +131,7 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
                 return response;
             }
 
+            warnIfSceneOutsideGatewayEnum(request);
             ensurePayTxn(request, existingTxn);
             payTxnDetailMapper.markRequesting(request.getOrderNo());
             log.info("REQUEST_PAY ensurePayTxn完成, orderNo={}, paymentVendor={}, discountFee={}, discountInfo={}",
@@ -297,6 +308,21 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
     }
 
     /**
+     * {@code scene} 不在网关枚举内时只打 WARN、照常放行。
+     *
+     * <p>NEVER 改成拒绝：{@code gate-txn-pay-server} 的仓库默认值是非法的 {@code AGM_GATE}、
+     * {@code fep-app-server} 在 {@code scene} 缺失时会把 {@code channelType} 透传进来，
+     * 拒绝等于把在跑的免密扣款打挂。这里的 WARN 只用于让「上游送了网关不认的场景值」在日志里可检索。
+     */
+    private void warnIfSceneOutsideGatewayEnum(RequestPayReqDTO request) {
+        String scene = request.getScene();
+        if (!GATEWAY_PAY_SCENES.contains(scene)) {
+            log.warn("REQUEST_PAY scene 不在支付中心网关枚举内（仅告警不拒绝）, orderNo={}, scene={}, 网关枚举={}",
+                    request.getOrderNo(), scene, GATEWAY_PAY_SCENES);
+        }
+    }
+
+    /**
      * 创建支付订单当前态记录。
      *
      * @param existingTxn 调用方已查到的现存记录，null 表示不存在、需要插入
@@ -327,7 +353,8 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         record.setDiscountFee(request.getDiscountFee());
         try {
             payTxnDetailMapper.insert(record);
-        } catch (DuplicateKeyException e) {
+        } catch (RuntimeException e) {
+            if (!PaySignDuplicateKey.isConflict(e)) { throw e; }
             log.warn("ensurePayTxn 并发插入重复，orderNo={}, msg={}", request.getOrderNo(), e.getMessage());
         }
     }
@@ -404,23 +431,22 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
      * @return true 表示远端已确认收敛（含幂等命中），false 表示需要支付中心重推
      */
     private boolean syncGateTxnPayStatus(String orderNo, String payStatus) {
-        GateTxnPaySyncStatusReqDTO syncRequest = new GateTxnPaySyncStatusReqDTO();
-        syncRequest.setOrderNo(orderNo);
-        syncRequest.setPayStatus(payStatus);
-        syncRequest.setRemark("支付结果回调");
-        try {
-            GateTxnPayRespDTO syncResponse = gateTxnPayClient.syncDebitStatus(syncRequest);
-            if (syncResponse == null || !"0000".equals(syncResponse.getRetCode())) {
-                log.error("扣费订单状态同步失败，待支付中心重推, orderNo={}, payStatus={}, 返回={}",
-                        orderNo, payStatus, syncResponse);
-                return false;
+        return switch (debitSyncPort.syncDebitStatus(orderNo, payStatus, "支付结果回调")) {
+            case RpcOutcome.Ok ignored -> {
+                log.info("扣费订单状态同步成功, orderNo={}, payStatus={}", orderNo, payStatus);
+                yield true;
             }
-            log.info("扣费订单状态同步成功, orderNo={}, payStatus={}", orderNo, payStatus);
-            return true;
-        } catch (Exception e) {
-            log.error("扣费订单状态同步异常，待支付中心重推, orderNo={}, payStatus={}", orderNo, payStatus, e);
-            return false;
-        }
+            case RpcOutcome.BizRejected rejected -> {
+                log.error("扣费订单状态同步被闸机域拒绝，待支付中心重推, orderNo={}, payStatus={}, retCode={}, retMsg={}",
+                        orderNo, payStatus, rejected.retCode(), rejected.retMsg());
+                yield false;
+            }
+            case RpcOutcome.Unreachable unreachable -> {
+                log.error("扣费订单状态同步未获答复，待支付中心重推, orderNo={}, payStatus={}",
+                        orderNo, payStatus, unreachable.cause());
+                yield false;
+            }
+        };
     }
 
     /** 回填应答里来自网关的四个字段。 */
@@ -451,6 +477,13 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
             blacklistRequest.setCardId(request.getCardId());
             blacklistRequest.setCardType(request.getCardType());
             blacklistRequest.setThirdUserId(request.getThirdUserId());
+            // 渠道填 99 未知：本链路只知道支付通道（paymentVendor），拿不到卡的业务渠道，
+            // NEVER 拿 paymentVendor 当 channelCode —— 那是支付通道、不是渠道。
+            blacklistRequest.setChannelCode("99");
+            blacklistRequest.setBlackSource("01");
+            blacklistRequest.setBlackCause("01");
+            blacklistRequest.setBizNo(request.getOrderNo());
+            blacklistRequest.setCreateBy("pay-sign-server");
 
             String gatewayMsg = gatewayResponse != null ? gatewayResponse.getMsg() : null;
             if (StringUtils.hasText(gatewayMsg)) {

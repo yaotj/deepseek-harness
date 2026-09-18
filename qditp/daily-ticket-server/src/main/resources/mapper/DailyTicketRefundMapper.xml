@@ -4,6 +4,11 @@
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.dailyticket.model.DailyTicketRefund">
         <id column="ID" jdbcType="VARCHAR" property="id"/>
         <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="ORDER_TYPE" jdbcType="VARCHAR" property="orderType"/>
+        <result column="REFUND_SCOPE" jdbcType="VARCHAR" property="refundScope"/>
+        <result column="PARENT_ORDER_NO" jdbcType="VARCHAR" property="parentOrderNo"/>
+        <result column="REFUND_REASON" jdbcType="VARCHAR" property="refundReason"/>
+        <result column="OPERATOR" jdbcType="VARCHAR" property="operator"/>
         <result column="REFUND_ORDER_NO" jdbcType="VARCHAR" property="refundOrderNo"/>
         <result column="PLATFORM_REFUND_NO" jdbcType="VARCHAR" property="platformRefundNo"/>
         <result column="REFUND_AMOUNT" jdbcType="INTEGER" property="refundAmount"/>
@@ -20,11 +25,23 @@
     </resultMap>
 
     <select id="selectByOrderNo" resultMap="BaseResultMap">
-        select ID, ORDER_NO, REFUND_ORDER_NO, PLATFORM_REFUND_NO, REFUND_AMOUNT, REFUND_STATUS,
+        select ID, ORDER_NO, ORDER_TYPE, REFUND_SCOPE, PARENT_ORDER_NO, REFUND_REASON, OPERATOR,
+               REFUND_ORDER_NO, PLATFORM_REFUND_NO, REFUND_AMOUNT, REFUND_STATUS,
                REFUND_TYPE, REFUND_DATE, VERIFY_AFTER_TIME, CREATE_TIME, UPDATE_TIME,
                NOTIFY_STATUS, NOTIFY_TIMES, NOTIFY_TIME, NOTIFY_MSG
         from DAILY_TICKET_REFUND
         where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+        order by CREATE_TIME desc
+        fetch first 1 rows only
+    </select>
+
+    <select id="selectByRefundOrderNo" resultMap="BaseResultMap">
+        select ID, ORDER_NO, ORDER_TYPE, REFUND_SCOPE, PARENT_ORDER_NO, REFUND_REASON, OPERATOR,
+               REFUND_ORDER_NO, PLATFORM_REFUND_NO, REFUND_AMOUNT, REFUND_STATUS,
+               REFUND_TYPE, REFUND_DATE, VERIFY_AFTER_TIME, CREATE_TIME, UPDATE_TIME,
+               NOTIFY_STATUS, NOTIFY_TIMES, NOTIFY_TIME, NOTIFY_MSG
+        from DAILY_TICKET_REFUND
+        where REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
     </select>
 
     <select id="selectRefunds" resultType="com.chinasofti.huateng.dailyticket.page.DailyTicketRefundView">
@@ -70,10 +87,14 @@
 
     <insert id="insert" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketRefund">
         insert into DAILY_TICKET_REFUND (
-            ID, ORDER_NO, REFUND_ORDER_NO, PLATFORM_REFUND_NO, REFUND_AMOUNT, REFUND_STATUS,
+            ID, ORDER_NO, ORDER_TYPE, REFUND_SCOPE, PARENT_ORDER_NO, REFUND_REASON, OPERATOR,
+            REFUND_ORDER_NO, PLATFORM_REFUND_NO, REFUND_AMOUNT, REFUND_STATUS,
             REFUND_TYPE, REFUND_DATE, VERIFY_AFTER_TIME, CREATE_TIME, UPDATE_TIME
         ) values (
-            #{id,jdbcType=VARCHAR}, #{orderNo,jdbcType=VARCHAR}, #{refundOrderNo,jdbcType=VARCHAR}, #{platformRefundNo,jdbcType=VARCHAR},
+            #{id,jdbcType=VARCHAR}, #{orderNo,jdbcType=VARCHAR}, #{orderType,jdbcType=VARCHAR},
+            #{refundScope,jdbcType=VARCHAR}, #{parentOrderNo,jdbcType=VARCHAR},
+            #{refundReason,jdbcType=VARCHAR}, #{operator,jdbcType=VARCHAR},
+            #{refundOrderNo,jdbcType=VARCHAR}, #{platformRefundNo,jdbcType=VARCHAR},
             #{refundAmount,jdbcType=INTEGER}, #{refundStatus,jdbcType=VARCHAR},
             #{refundType,jdbcType=VARCHAR}, #{refundDate,jdbcType=TIMESTAMP},
             #{verifyAfterTime,jdbcType=TIMESTAMP}, #{createTime,jdbcType=TIMESTAMP},
@@ -87,7 +108,7 @@
             PLATFORM_REFUND_NO = NVL(#{platformRefundNo,jdbcType=VARCHAR}, PLATFORM_REFUND_NO),
             REFUND_DATE = #{refundDate,jdbcType=TIMESTAMP},
             UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
-        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+        where REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
     </update>
 
     <update id="updateNotifyStatus">
@@ -101,7 +122,8 @@
     </update>
 
     <select id="selectPendingNotify" resultMap="BaseResultMap">
-        select ID, ORDER_NO, REFUND_ORDER_NO, PLATFORM_REFUND_NO, REFUND_AMOUNT, REFUND_STATUS,
+        select ID, ORDER_NO, ORDER_TYPE, REFUND_SCOPE, PARENT_ORDER_NO, REFUND_REASON, OPERATOR,
+               REFUND_ORDER_NO, PLATFORM_REFUND_NO, REFUND_AMOUNT, REFUND_STATUS,
                REFUND_TYPE, REFUND_DATE, VERIFY_AFTER_TIME, CREATE_TIME, UPDATE_TIME,
                NOTIFY_STATUS, NOTIFY_TIMES, NOTIFY_TIME, NOTIFY_MSG
         from DAILY_TICKET_REFUND

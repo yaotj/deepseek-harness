@@ -86,7 +86,7 @@ class CardDataAnalyseHandler {
         response.setMsisdn(SupplementCodec.defaultString(request.getMsisdn(), ""));
         response.setCardIssueDate("");
         try {
-            queryUserInfo(cardId, request.getProviderId(), response);
+            queryUserInfo(cardId, response);
         } catch (Exception e) {
             log.warn("IF5A-01 查询用户信息失败, cardId={}", cardId, e);
         }
@@ -133,27 +133,48 @@ class CardDataAnalyseHandler {
     }
 
     /** 查询用户信息，把 msisdn / cardIssueDate 写进 response。 */
-    private void queryUserInfo(String cardId, String providerId, RequestCardDataAnalyseRespDTO response) {
+    private void queryUserInfo(String cardId, RequestCardDataAnalyseRespDTO response) {
+        if (applyAccountUserInfo(cardId, response)) {
+            return;
+        }
+        applyAlipayPhone(cardId, response);
+    }
+
+    /**
+     * account 域（{@code USER_ITP_REG_INFO}）补 msisdn 与 cardIssueDate，返回是否拿到手机号。
+     * cardIssueDate 只有这一个数据源，支付宝出行账户域没有对应字段。
+     */
+    private boolean applyAccountUserInfo(String cardId, RequestCardDataAnalyseRespDTO response) {
         QueryUserInfoResult cardTypeResult = accountClient.queryCardTypeByCardId(cardId);
         if (cardTypeResult == null || !SupplementCodec.RET_SUCCESS.equals(cardTypeResult.getRetCode())
                 || !StringUtils.hasText(cardTypeResult.getThirdUserId())) {
-            log.warn("IF5A-01 查询用户卡类型失败, cardId={}", cardId);
-            return;
-        }
-
-        if (SupplementCodec.PROVIDER_ID_ALIPAY.equals(providerId)) {
-            AlipayUserInfoDTO alipayUser = alipayAccountClient.selectByThirdUserId(cardTypeResult.getThirdUserId());
-            if (alipayUser != null && StringUtils.hasText(alipayUser.getPhone())) {
-                response.setMsisdn(alipayUser.getPhone());
-            }
-            return;
-        }
-
-        if (StringUtils.hasText(cardTypeResult.getMsisdn())) {
-            response.setMsisdn(cardTypeResult.getMsisdn());
+            log.warn("IF5A-01 account 域未查到该卡，回落支付宝账户域, cardId={}", cardId);
+            return false;
         }
         if (StringUtils.hasText(cardTypeResult.getRegTms())) {
             response.setCardIssueDate(cardTypeResult.getRegTms());
         }
+        if (!StringUtils.hasText(cardTypeResult.getMsisdn())) {
+            log.warn("IF5A-01 account 域无手机号，回落支付宝账户域, cardId={}", cardId);
+            return false;
+        }
+        response.setMsisdn(cardTypeResult.getMsisdn());
+        return true;
+    }
+
+    /**
+     * account 域拿不到手机号时，回落支付宝出行账户域（{@code ALIPAY_USER_INFO}）按卡号补 msisdn，
+     * 与 IF1A-01 的 {@code GateCardTypeEnricher} 同一判据：看卡在哪个域里查得到。
+     * NEVER 改回按报文 {@code providerId} 分流 —— 那个字段是设备编码
+     * （{@code 01} APP / {@code 02} TVM / {@code 03} BOM / {@code 04} AGM / {@code 05} ACC
+     * / {@code 06} ITP / {@code 07} STT），不是发卡渠道，BOM 恒送 {@code 03}，支付宝分支永不触发。
+     */
+    private void applyAlipayPhone(String cardId, RequestCardDataAnalyseRespDTO response) {
+        AlipayUserInfoDTO alipayUser = alipayAccountClient.selectByCardId(cardId);
+        if (alipayUser == null || !StringUtils.hasText(alipayUser.getPhone())) {
+            log.warn("IF5A-01 支付宝账户域也未查到手机号，msisdn 保留 BOM 上送值, cardId={}", cardId);
+            return;
+        }
+        response.setMsisdn(alipayUser.getPhone());
     }
 }

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.accsimulator.mapper.AccSimulationHistoryMapper">
+    <resultMap id="historyMap" type="com.chinasofti.huateng.accsimulator.entity.AccSimulationHistory">
+        <id column="ID" property="id" jdbcType="NUMERIC"/>
+        <result column="OPERATION" property="operation" jdbcType="VARCHAR"/>
+        <result column="TARGET_URL" property="targetUrl" jdbcType="VARCHAR"/>
+        <result column="TRANSPORT_SUCCESS" property="transportSuccess" jdbcType="INTEGER"/>
+        <result column="HTTP_STATUS" property="httpStatus" jdbcType="INTEGER"/>
+        <result column="REQUEST_BODY" property="requestBody" jdbcType="CLOB"/>
+        <result column="RESPONSE_BODY" property="responseBody" jdbcType="CLOB"/>
+        <result column="ERROR_MESSAGE" property="errorMessage" jdbcType="VARCHAR"/>
+        <result column="CREATED_AT" property="createdAt" jdbcType="TIMESTAMP"/>
+        <result column="ELAPSED_MS" property="elapsedMs" jdbcType="NUMERIC"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.chinasofti.huateng.accsimulator.entity.AccSimulationHistory">
+        insert into ACC_SIMULATION_HISTORY
+        (ID, OPERATION, TARGET_URL, TRANSPORT_SUCCESS, HTTP_STATUS, REQUEST_BODY, RESPONSE_BODY, ERROR_MESSAGE, CREATED_AT, ELAPSED_MS)
+        values (ACC_SIM_HISTORY_SEQ.nextval, #{operation,jdbcType=VARCHAR}, #{targetUrl,jdbcType=VARCHAR}, #{transportSuccess,jdbcType=INTEGER}, #{httpStatus,jdbcType=INTEGER}, #{requestBody,jdbcType=CLOB}, #{responseBody,jdbcType=CLOB}, #{errorMessage,jdbcType=VARCHAR}, #{createdAt,jdbcType=TIMESTAMP}, #{elapsedMs,jdbcType=NUMERIC})
+    </insert>
+
+    <select id="selectPage" resultMap="historyMap">
+        select ID, OPERATION, TARGET_URL, TRANSPORT_SUCCESS, HTTP_STATUS, REQUEST_BODY, RESPONSE_BODY, ERROR_MESSAGE, CREATED_AT, ELAPSED_MS
+        from ACC_SIMULATION_HISTORY
+        <where><if test="operation != null and operation != ''">OPERATION = #{operation,jdbcType=VARCHAR}</if></where>
+        order by CREATED_AT desc, ID desc
+    </select>
+
+    <delete id="deleteAll">delete from ACC_SIMULATION_HISTORY</delete>
+</mapper>

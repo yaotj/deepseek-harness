@@ -29,11 +29,59 @@ public class IndustryCardDataServiceImpl implements IndustryCardDataService {
     private static final LocalDateTime BASE_TIME = LocalDateTime.of(2000, 1, 1, 0, 0, 0);
     private static final String RET_SUCCESS = "0000";
 
-    /** 码体是定长 64 位十六进制。 */
-    private static final Pattern HEX_BODY = Pattern.compile("[0-9A-F]{64}");
-
     /** 码体定长。 */
     private static final int BODY_LENGTH = 64;
+
+    /** 码体是定长 64 位十六进制。 */
+    private static final Pattern HEX_BODY = Pattern.compile("[0-9A-F]{" + BODY_LENGTH + "}");
+
+    /**
+     * 签名段定长 16 位（ADR-D142）。
+     *
+     * <p><b>这一段游离在 {@link #BODY_LAYOUT} 之外</b>：它不参与签名前码体拼装，
+     * 而是拼在 64 位码体**之后**。因此 `BODY_LAYOUT` 的 static 断言只能护住前 64 位，
+     * 总长 80 位靠 {@link #CARD_DATA_LENGTH} + 出口校验兜。
+     *
+     * <p><b>与上游的隐式约定</b>：`acc-security-server` 的 `ItpServiceImpl` 只回 TAC 的前 8 个字符，
+     * 靠 {@link #normalizeHex} 左补零凑到 16 位。这条约定两边都没有共享常量，
+     * 因此**改任一侧都不会编译报错、只会静默产出错码**（闸机侧才发现）。
+     * 出口那道长度 + 十六进制校验就是为这条约定设的唯一护栏，<b>NEVER 删</b>。
+     */
+    private static final int SIGN_LENGTH = 16;
+
+    /** 对外 `cardData` 的定长：码体 + 签名段。 */
+    private static final int CARD_DATA_LENGTH = BODY_LENGTH + SIGN_LENGTH;
+
+    /** 整个 `cardData` 的合法形态。 */
+    private static final Pattern HEX_CARD_DATA = Pattern.compile("[0-9A-F]{" + CARD_DATA_LENGTH + "}");
+
+    /** 渠道位（发行 / 签约）定长。 */
+    private static final int CHANNEL_LENGTH = 2;
+
+    /** 票种段定长。 */
+    private static final int TICKET_TYPE_LENGTH = 4;
+
+    /** 逻辑卡号段定长。 */
+    private static final int LOGIC_NO_LENGTH = 16;
+
+    /** 卡版本段定长。 */
+    private static final int CARD_VERSION_LENGTH = 2;
+
+    /** 票卡状态段定长。 */
+    private static final int TICKET_STATUS_LENGTH = 2;
+
+    /** 车站编码段定长。 */
+    private static final int STATION_LENGTH = 4;
+
+    /** 四字节 hex 段（时间 / 序列号 / 用户号）定长。 */
+    private static final int FOUR_BYTE_HEX_LENGTH = 8;
+
+    /** 四字节 hex 的格式串与掩码，两处取值都用它们，NEVER 再内联一份。 */
+    private static final String FOUR_BYTE_HEX_FORMAT = "%08X";
+    private static final long FOUR_BYTE_MASK = 0xFFFFFFFFL;
+
+    /** 业务时间串定长（yyyyMMddHHmmss）。 */
+    private static final int BIZ_TIME_LENGTH = 14;
 
     /** 段取值。 */
     private interface SegmentReader {
@@ -45,22 +93,25 @@ public class IndustryCardDataServiceImpl implements IndustryCardDataService {
 
     /** 码体段布局。 */
     private static final List<BodySegment> BODY_LAYOUT = List.of(
-            new BodySegment("thirdUserId", 8, (s, r) -> s.toFourByteHex(r.getThirdUserId())),
-            new BodySegment("ticketStatus", 2, (s, r) -> s.normalizeHex(r.getTicketStatus(), 2, "03")),
-            new BodySegment("lastStationCode", 4, (s, r) -> s.normalizeHex(
-                    s.firstNonBlankExcludeZero(r.getLastTxnStation(), r.getGateInStation()), 4, "FFFF")),
-            new BodySegment("handleDate", 8, (s, r) -> s.toFourByteHexByBizTime(
+            new BodySegment("thirdUserId", FOUR_BYTE_HEX_LENGTH, (s, r) -> s.toFourByteHex(r.getThirdUserId())),
+            new BodySegment("ticketStatus", TICKET_STATUS_LENGTH,
+                    (s, r) -> s.normalizeHex(r.getTicketStatus(), TICKET_STATUS_LENGTH, "03")),
+            new BodySegment("lastStationCode", STATION_LENGTH, (s, r) -> s.normalizeHex(
+                    s.firstNonBlankExcludeZero(r.getLastTxnStation(), r.getGateInStation()),
+                    STATION_LENGTH, "FFFF")),
+            new BodySegment("handleDate", FOUR_BYTE_HEX_LENGTH, (s, r) -> s.toFourByteHexByBizTime(
                     s.firstNonBlank(r.getLastTxnTime(), r.getGateInTime()))),
-            new BodySegment("timeStamp", 8, (s, r) -> s.toFourByteHexByDateTime(
+            new BodySegment("timeStamp", FOUR_BYTE_HEX_LENGTH, (s, r) -> s.toFourByteHexByDateTime(
                     LocalDateTime.now().plusHours(s.timestampExpireHours))),
-            new BodySegment("ticketLogicNo", 16, (s, r) -> s.normalizeHex(r.getCardId(), 16, "")),
-            new BodySegment("ticketType", 4, (s, r) -> s.resolveTicketType(r.getCardType())),
-            new BodySegment("transSeq", 8, (s, r) -> s.toFourByteHex(r.getTxnSeq())),
-            new BodySegment("issueChannelCode", 2, (s, r) -> s.resolveChannelCode(
+            new BodySegment("ticketLogicNo", LOGIC_NO_LENGTH,
+                    (s, r) -> s.normalizeHex(r.getCardId(), LOGIC_NO_LENGTH, "")),
+            new BodySegment("ticketType", TICKET_TYPE_LENGTH, (s, r) -> s.resolveTicketType(r.getCardType())),
+            new BodySegment("transSeq", FOUR_BYTE_HEX_LENGTH, (s, r) -> s.toFourByteHex(r.getTxnSeq())),
+            new BodySegment("issueChannelCode", CHANNEL_LENGTH, (s, r) -> s.resolveChannelCode(
                     "issueChannelCode", r.getIssueChannelCode(), s.defaultIssueChannelCode, r.getCardId())),
-            new BodySegment("signChannelCode", 2, (s, r) -> s.resolveChannelCode(
+            new BodySegment("signChannelCode", CHANNEL_LENGTH, (s, r) -> s.resolveChannelCode(
                     "signChannelCode", r.getSignChannelCode(), "01", r.getCardId())),
-            new BodySegment("cardVersion", 2, (s, r) -> "01"));
+            new BodySegment("cardVersion", CARD_VERSION_LENGTH, (s, r) -> "01"));
 
     static {
         int declaredLength = BODY_LAYOUT.stream().mapToInt(BodySegment::length).sum();
@@ -126,9 +177,24 @@ public class IndustryCardDataServiceImpl implements IndustryCardDataService {
             return response;
         }
 
+        /*
+         * 出口护栏（ADR-D142）：签名段是拼在 64 位码体之后的第 12 段、不在 BODY_LAYOUT 的
+         * static 断言范围内，而它的长度靠「上游只回 8 字符 + 这里左补零到 16」这条隐式约定成立。
+         * 因此这里 MUST 对整个 cardData 再校一次长度与十六进制，NEVER 直接返回给上游 ——
+         * 少了这道校验，上游改一版签名长度就会静默产出错码，只有闸机侧才会发现。
+         */
+        String cardData = unsignedIndustryData + normalizeHex(signResp.getIndustryDataSign(), SIGN_LENGTH, "");
+        if (!HEX_CARD_DATA.matcher(cardData).matches()) {
+            log.error("行业数据卡数据非法, 期望{}位十六进制, actualLength={}, cardData={}, industryDataSign={}",
+                    CARD_DATA_LENGTH, cardData.length(), cardData, signResp.getIndustryDataSign());
+            response.setRetCode("8001");
+            response.setRetMsg("行业数据卡数据非法（期望 " + CARD_DATA_LENGTH + " 位十六进制），请检查签名段长度");
+            return response;
+        }
+
         response.setRetCode(RET_SUCCESS);
         response.setRetMsg("成功");
-        response.setCardData(unsignedIndustryData + normalizeHex(signResp.getIndustryDataSign(), 16, ""));
+        response.setCardData(cardData);
         return response;
     }
 
@@ -149,8 +215,8 @@ public class IndustryCardDataServiceImpl implements IndustryCardDataService {
     /** 渠道位取值：入参为空取默认值，超长留痕后取右 2 位。 */
     private String resolveChannelCode(String field, String rawValue, String defaultValue, String cardId) {
         String value = firstNonBlank(rawValue, defaultValue);
-        warnIfTruncated(field, value, 2, cardId);
-        return normalizeHex(value, 2, "01");
+        warnIfTruncated(field, value, CHANNEL_LENGTH, cardId);
+        return normalizeHex(value, CHANNEL_LENGTH, "01");
     }
 
     /** 票种段：员工票与日票族的账户卡种各不相同，但行业码体统一压成二维码票种 0441。 */
@@ -160,7 +226,7 @@ public class IndustryCardDataServiceImpl implements IndustryCardDataService {
             return CardTypeCodeEnum.QR_POSTPAID.getCode();
         }
         CardTypeCodeEnum known = CardTypeCodeEnum.fromCode(normalizedCardType);
-        return normalizeHex(known != null ? known.getCode() : normalizedCardType, 4,
+        return normalizeHex(known != null ? known.getCode() : normalizedCardType, TICKET_TYPE_LENGTH,
                 CardTypeCodeEnum.QR_POSTPAID.getCode());
     }
 
@@ -192,7 +258,7 @@ public class IndustryCardDataServiceImpl implements IndustryCardDataService {
                 numericValue = Integer.toUnsignedLong(normalized.hashCode());
             }
         }
-        return String.format("%08X", numericValue & 0xFFFFFFFFL);
+        return String.format(FOUR_BYTE_HEX_FORMAT, numericValue & FOUR_BYTE_MASK);
     }
 
     private String toFourByteHexByBizTime(String bizTime) {
@@ -200,7 +266,7 @@ public class IndustryCardDataServiceImpl implements IndustryCardDataService {
             return toFourByteHexByDateTime(LocalDateTime.now());
         }
         String trimmed = bizTime.trim();
-        if (trimmed.length() != 14 || isAllZeros(trimmed)) {
+        if (trimmed.length() != BIZ_TIME_LENGTH || isAllZeros(trimmed)) {
             return toFourByteHexByDateTime(LocalDateTime.now());
         }
         try {
@@ -220,7 +286,7 @@ public class IndustryCardDataServiceImpl implements IndustryCardDataService {
 
     private String toFourByteHexByDateTime(LocalDateTime dateTime) {
         long seconds = ChronoUnit.SECONDS.between(BASE_TIME, dateTime);
-        return String.format("%08X", seconds & 0xFFFFFFFFL);
+        return String.format(FOUR_BYTE_HEX_FORMAT, seconds & FOUR_BYTE_MASK);
     }
 
     /** 码体渠道位是定长 2 位，normalizeHex 对超长入参取右侧 2 位。 */

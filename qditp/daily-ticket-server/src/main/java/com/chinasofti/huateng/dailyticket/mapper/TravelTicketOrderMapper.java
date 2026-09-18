@@ -9,4 +9,13 @@ public interface TravelTicketOrderMapper {
     int insert(TravelTicketOrder record);
 
     TravelTicketOrder selectByOrderNo(@Param("orderNo") String orderNo);
+
+    int updatePayRequest(TravelTicketOrder record);
+
+    int updatePayResultIfPaying(TravelTicketOrder record);
+
+    int updatePaymentOrderNo(@Param("orderNo") String orderNo,
+                             @Param("paymentOrderNo") String paymentOrderNo);
+
+    int updateOrderStatus(@Param("orderNo") String orderNo, @Param("orderStatus") String orderStatus);
 }

@@ -188,6 +188,7 @@
             NOTIFY_RESULT = #{notifyResult,jdbcType=VARCHAR},
             UPDATE_TIME = sysdate
         where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+          and TERMINATION_STATUS = #{expectedTerminationStatus,jdbcType=VARCHAR}
     </update>
 
     <update id="increaseNotifyRetryCount">
@@ -196,6 +197,7 @@
             NOTIFY_STATUS = 'FAILED',
             UPDATE_TIME = sysdate
         where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+          and TERMINATION_STATUS = #{expectedTerminationStatus,jdbcType=VARCHAR}
     </update>
 
     <update id="reactivateFailed">

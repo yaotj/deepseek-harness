@@ -6407,6 +6407,7 @@ e2e 报告原本建议给 `PaySignValidators.validateRequestPay` 加 `scene` 白
 
 ### 未闭合
 
+- **经验教训（2026-09-17 复盘，按代价排序）** —— ①**「收口」前 MUST 先问那处绕过是不是有理由**：残留 3 我自己的原方案是「两个 handler 统一走 `auditLogger.write(...)`」，照做会产出「签约已落库、APP 永远收不到通知、也没人补」（`write` 是 fail-soft 而载体行必须 fail-hard，且 `OPERATION_TYPE` 一经归并补偿扫表恒扫 0 行），**而这个缺陷编译、单测、日志全绿**；判据是**看起来重复的两条写入通路 MUST 先比对「失败语义」与「落的列」**，再决定合并还是各起一个具名方法。②**敢否决自己上一轮的重构建议**：「接口签名带 entity → 改值传递」也是我提的，实读后否决（11/8/5 个字段摊平成 8~11 参数更糟；「只传主键、实现内回查」会打掉 ADR-D125 的轮次闸门）——**重构清单本身也 MUST 被验证**。③**联调 MUST 两侧都做，「共用同一私有方法所以等价」是错误推理**：我据此把解约侧列为「可推断」，补测后直接推翻了自己写进 javadoc 与本 ADR 的口径（见上面那节口径订正）——**代码路径共享 ≠ 下游消费方相同**。④**「测试全绿」有可能是空的**：本次特意确认两个 fixture 里的 `auditLogger` 是**真实**的 `PaySignAuditLogger`（包着假 mapper），若是 mock 则 300 个断言无一碰到载体行；**改完 MUST 反问一次新代码有没有被断言覆盖到**。⑤**ADR 编号 MUST 在写第一行代码注释之前就 grep 定下来**：同一天被打中三次（D88 / D126 / D129 那批），每次返工约 10 个文件批量改号 —— 规则早在 `AGENTS.md` §9，**说明「写进文档」不等于会被执行，它 MUST 排在动作顺序第一步**。⑥两个小坑：`Map.of` 最多 10 对，护栏清单到 11 条会编译失败，此时**删条目凑数等于少检测一个出网出口**（改 `Map.ofEntries`）；合成数据 MUST 当场清理 + 回查，且**解约成功路径会自己删掉 `APP_PAY_SIGN_INFO`**，NEVER 把「查不到」当成没造出来。⑦**反面样本：无内容变化的版本号跳号** —— 同日按用户要求把 pom 从 2.0.110 跳到 **2.1.1**（`pay-sign-server/pom.xml:8`，跳过 2.0.111~2.1.0）并重建滚更（300/300 + BUILD SUCCESS、`digest: sha256:0d1402ca5a38…`、`Pushed …/itp/pay-sign-server:2.1.1`；探活首次 `503` 属滚更瞬态，40 秒后 `http=200` 且 `db` / `livenessState` / `readinessState` 全 UP；回滚 tag 2.0.110），**该镜像与 2.0.110 逐字无差异**。这类跳号让 image tag 与内容脱钩，日后判断「跑的是哪版代码」只能靠 `AGENTS.md` §7 那条容器内 `javap` 反查 —— **要留痕，改注释 / 文档比刷版本号更可查。**
 - 载体行的 `REQUEST_BODY` 恒为空是**沿用旧行为、非本次引入**（两侧都已实测确认落库即 `null`）；它意味着签约侧补偿重投的 bizData 是「用三列兜底拼」的，与首轮直接用入向 DTO 拼的结果**在 `signResult` / `realNameAuthResult` 两个字段上可能不同**（首轮取 `receiveRequest.getStatus()`，补偿取 `request.getSignStatus()`）。要对齐得给载体行落报文，属独立议题。
 
 
@@ -6603,6 +6604,8 @@ SELECT * FROM (
 
 批次 4 的动作是**做矩阵、不动代码**。与 ADR-D111 那次（pay-sign 三个领域服务）结论相同、但**理由不同**，这个区别本身就是要记的判据。
 
+> **本节结论已于 2026-09-18 被 ADR-D139 推翻：该类已拆，解约那簇迁入 `termination/TerminationCoordinator`。** 下面的矩阵与「簇不相交只是必要条件」这条判据仍有效，但**「不拆」这个结论作废，NEVER 据本 ADR 把拆分改回去**。
+
 ### 实测矩阵（含私有方法的传递闭包）
 
 `AlipayContractServiceImpl` 共 230 行、4 个 public 方法（与 `AlipayContractService` 接口一一对应）、7 个注入字段、3 个私有方法（各只被一个 public 方法调用、不构成桥接）。按字段可达性做连通分量，**恰好两个不相交的簇**：
@@ -6741,6 +6744,447 @@ ADR-D111 是「找不到不相交的簇 ⇒ 不拆」；本例是「**找到了�
 **真正可行的形态是两步**：①`ALTER TABLE ... ADD (col ... GENERATED ALWAYS AS (CASE WHEN ...) VIRTUAL)`
 —— 校验器**接受 `ALTER TABLE` 里的 `CASE`**；②对虚拟列建**朴素**唯一索引。
 这条留档只为「下次真需要函数索引时不必再试五遍」，**不表示本表需要它**。
+
+## ADR-D136：支付中心 V1.2 `discountInfo` 落 `PAY_CALLBACK_LOG`，`cash`/`coupon` 的无效值按裁决**不做任何校验**（2026-09-17~18，pay-sign-server 2.1.2 → 2.1.4 / fep-app 2.0.88，已部署）
+
+### 背景：三个字段的真实状态是实测出来的，不是文档说的
+
+供方文档 V1.2 给支付回调（§5.1）与支付查询（§1.2）各加了 `discountInfo`（优惠详情 list，元素 `type`/`name`/`amount`）。核对时在 `AFCITPDB` 实测出三条与文档预期不符的事实：
+
+- `PAY_CALLBACK_LOG` 179 行（全 `CALLBACK_TYPE='PAY'`）的 `RAW_BODY` 原文里 **`cashAmount` == `couponAmount` == `totalAmount`，179/179 无例外**；`PAY_TXN_DETAIL` 68 行里 67 行同样四值全等（连 `AMOUNT`）。**是对方送来就相等**，不是我方解析缺陷 —— 「实付 = 优惠 = 总额」三者不可能同时成立。
+- **`RAW_BODY` 含 `discountInfo` 的行数为 0**：该字段支付中心一次都没下发过。
+- `PAY_TXN_DETAIL.DISCOUNT_FEE` 全 0 非空、`DISCOUNT_INFO` 全 NULL —— 请求侧 gate-txn-pay 也从没送过优惠（`GATE_TXN_PAY` 里 `DISCOUNT_LEVEL_AMT` 只 10 行非空且全为 0，`INDUSTRY_DETAIL` 列 0 行有值）。
+
+因此 **`PAY_TXN_DETAIL.COUPON_AMOUNT` / `CASH_AMOUNT` 现在不可用于任何优惠口径的报表、对账或结算** —— 用了会得出「每笔全额优惠」。
+
+### 决策一：`discountInfo` 落 `PAY_CALLBACK_LOG`，不进 `PAY_TXN_DETAIL`
+
+`PAY_TXN_DETAIL.DISCOUNT_INFO` **已被闸机侧自算优惠占用**（发起支付时由 `RequestPayReqDTO.discountInfo` 写入，落库点 `PaymentDomainServiceImpl:352~353`）。渠道优惠与闸机自算优惠是**两个来源、两套口径**，混进同一列后这列语义变成「看情况」，对账必踩。
+
+选 `PAY_CALLBACK_LOG` 的判据：**渠道优惠是「回调事实」**，随重推各存一份；`PAY_TXN_DETAIL` 是业务主表、语义应单一。代价是查订单优惠要 JOIN，接受。
+
+落地：`ALTER TABLE PAY_CALLBACK_LOG ADD DISCOUNT_INFO VARCHAR2(2000 CHAR)` + 列注释，脚本 `pay-sign-server/src/main/resources/sql/pay-sign-callback-discount-info-migration.sql`，`pay-txn-schema.sql` 同步。**回查结果**：`USER_TAB_COLS` 读回 `DATA_TYPE=VARCHAR2` / `CHAR_LENGTH=2000` / `CHAR_USED=C` / `NULLABLE=Y` / `COLUMN_ID=24`。
+
+取 `VARCHAR2(2000)` 而非 CLOB：优惠详情是至多数项的小数组，VARCHAR2 可直接参与 `WHERE`/`LIKE` 与索引；同表 `RAW_BODY` 是 CLOB（存整包原文），两者分工不同。此前数 CLOB 非空行必须写 `COUNT(CASE WHEN col IS NOT NULL THEN 1 END)` 的麻烦也一并避开。
+
+代码侧四处：`model/app/ReceivePayResultReqDTO` 加 `discountInfo`（String）、`PayCallbackLog` 加同名字段、`PayCallbackLogMapper.xml` 的 INSERT 列清单与占位符同步、`PayTxnRules.buildPayCallbackLog` set。
+
+### 决策二：`cash + coupon` 是否恒等于 `total` —— **不做任何匹配校验**（用户裁决，NEVER 回退）
+
+2.1.2 曾上线一段过渡保护：`totalAmount > 0 && cash == total && coupon == total` 时不回写 `CASH_AMOUNT`/`COUPON_AMOUNT`、只打 WARN，理由是「NULL（未知）好过存一个已知错的值」，且该判定**会随对方修好自动失效**（无优惠 / 有优惠 / 全额优惠三种合法形态都不满足它）。
+
+**用户明确要求拆掉**，2.1.4 已整段删除（`PayTxnRules.isAmountBreakdownContradictory` 方法 + 静态导入 + 那条 WARN，全仓 grep `isAmountBreakdownContradictory|金额拆分自相矛盾` 为 0，无兼容壳残留）。现在回调送什么就照原样写进 `PAY_TXN_DETAIL`。
+
+**连带裁决：存量 67 行的垃圾 `CASH_AMOUNT`/`COUPON_AMOUNT` 不处理**，保持原样。**NEVER 再提议清理或置 NULL、NEVER 再加回这类金额关系校验。**
+
+### 一条能省下返工的实测结论
+
+`ReceivePayResultReqDTO.discountInfo` 声明为 `String`，而支付中心按文档送的是 **JSON 数组**。端到端实测：**Fastjson2 会把数组自动归一成转义字符串再赋给 String 字段**，落库值与「对方直接送转义字符串」**逐字相同**（`BodyCacheFilter` 打出的 `requestParams` 里两种形态都是 `"discountInfo":"[{\"type\":\"COUPON\",...}]"`）。因此**不需要为它建嵌套 DTO**，符合 `docs/domain` 那条「能被 `parseBizData` 解析的 DTO 就是对外契约、NEVER 加结构」的判据。
+
+### 端到端验证（测试环境，零真实订单副作用）
+
+用虚构 `merchantOrderNo` 打 `fep-app:30010/ci/app/receivePayResult`（`PAY_CALLBACK_LOG` 无条件先 INSERT、`PAY_TXN_DETAIL` 的 UPDATE 命中 0 行，因此不动任何真实数据）：
+
+- **A1 数组形态**：`DISCOUNT_INFO` 落库 `[{"type":"COUPON","name":"E2E-Coupon","amount":20}]`；INSERT 语句列清单含 `DISCOUNT_INFO`。
+- **A2 转义字符串形态**：落库值与 A1 逐字相同。
+- **B `cash==coupon==total=200`（2.1.2 时）**：WARN 出现，UPDATE 里 `CASH_AMOUNT = NVL(null, CASH_AMOUNT)` —— 确认不回写；A1/A2 那两笔是 `NVL('180', ...)` / `NVL('20', ...)` 正常回写，判定不误伤。
+- **C 同形报文（2.1.4 拆除后复验）**：**无 WARN**，UPDATE 里 `CASH_AMOUNT = NVL('200', CASH_AMOUNT), COUPON_AMOUNT = NVL('200', COUPON_AMOUNT)` —— 确认已回到照原样回写。
+
+4 行测试数据验完即删，回查 `LEFTOVER=0`。
+
+### 部署与两条踩坑
+
+镜像：`itp/pay-sign-server:2.1.4`（`digest: sha256:7f96a072...`）、`itp/fep-app:2.0.88`（`digest: sha256:10398507...`）。**顺序 MUST 先 fep-app 后 pay-sign** —— `discountInfo` 在 `model` 里，接入层用旧 class 会静默吃掉该字段。
+
+**踩坑一：滚更被另一方的批量部署覆盖。** `kubectl set image` 到 2.1.3 且 `rollout status` 报 successfully rolled out，但随后读回 spec image 仍是 **2.1.2**，同时 `fep-app` 变成了**我从未构建过的 2.0.89**，事件显示 30 秒内 `ticket-server`/`face-pay-server`/`trans-query`/`card-pool-server`/`web-admin` 等一整批在同时重建 Pod。**判据：`rollout status` 成功不代表你那次 set image 生效 —— MUST 紧接着 `kubectl get deploy ... -o jsonpath='{.spec.template.spec.containers[0].image}'` 读回校验**，读回值与预期不符即说明有并发写入方。最终改用新号 2.1.4 重建 + 读回确认才落稳。
+**踩坑二（同一处的连带风险）：** 别人构建的 `fep-app:2.0.89` 是否含 `discountInfo` 字段无法从 tag 推断。用 §7 那条容器内反查确认过 —— 注意 `model` 是**依赖 jar**、不在 `BOOT-INF/classes`，路径是 `BOOT-INF/lib/model-2.0.0.jar`，要先 `jar xf /app.jar BOOT-INF/lib/` 再 `jar xf` 那个 jar 取 class，结果 `private java.lang.String discountInfo` + getter/setter 齐全，因此未重建。
+
+### 决策三：三条待澄清项按用户裁决关闭，我方只保证「正确落库」（2026-09-18 追加）
+
+用户原话：「你正确落库即可：`cash + coupon` 加法关系、`discountInfo` 下发时间、`payQuery` 口径这三条。」即**不向支付中心追问这三条**，只对我方落库正确性负责。逐条核完的结论：
+
+- **`cash + coupon` 加法关系** —— 已满足。回调侧原样照写、不做任何金额关系推断：`PAY_TXN_DETAIL` 走 `updatePayCallback` 的 `NVL(#{cashAmount}, CASH_AMOUNT)` / `NVL(#{couponAmount}, COUPON_AMOUNT)`，`PAY_CALLBACK_LOG` 走 insert 双写。对方送什么就存什么，加法关系成立与否**不影响落库正确性**。
+- **`discountInfo` 下发时间** —— 已满足。列与写入点都已就位（`PayTxnRules.buildPayCallbackLog` → `PAY_CALLBACK_LOG.DISCOUNT_INFO`），对方**任何时候开始下发都会自动落库，无需再改代码或再部署**。当前 0 行下发只是对方还没送。
+- **`payQuery` 口径** —— **决定不落库，这是有意为之，NEVER 改成「顺手把优惠字段也存下来」**。三条判据：
+  1. **它不是状态收敛通道。** `pay.sign.pay-query-url` 在本模块的唯一用途是 `PaymentGatewayAdapter.queryPayStatus` → `PaymentDomainServiceImpl.queryGatewayPayStatus` → `addBlacklistForPaymentFailure` 的**拉黑前二次确认**，且只在 `requestPay` 返 `Rejected` 且 `paymentVendor ∈ {03, 05}` 时才出网。也就是说**它只在支付失败那一支被调用**，那一支的优惠金额没有业务含义。状态收敛靠回调（`receivePayResult`），不靠它。
+  2. **写 `PAY_CALLBACK_LOG` 会打坏重推硬限次。** `countByMerchantOrderNo(merchantOrderNo, 'PAY')` 是按 `MERCHANT_ORDER_NO + CALLBACK_TYPE` 计数的，而 `buildPayCallbackLog` 把 `CALLBACK_TYPE` 硬编码成 `'PAY'`。查询也插一行就等于**虚增支付中心的推送次数**，`MAX_PAY_CALLBACK_PUSH = 2` 会提前触顶、`fillSuccess` 让对方停止重推，**真实失败从此静默沉底**。要避开就得新造一个 `CALLBACK_TYPE`，为一条只服务拉黑判据的查询新增载体，收益为负。
+  3. **写 `PAY_TXN_DETAIL` 与决策二自相矛盾。** payQuery 的 `cashAmount` / `couponAmount` 与回调同源、同样是「等于总额」的无效值，回写等于往主表灌已知错的数，而决策二刚裁决过「不校验、存量不处理」。另外网关 §1.2 的响应表里**根本没有 `discountInfo`**（那是 V1.2 回调才新增的），查询方向拿不到它。
+  4. 追溯需求已被满足：`PaymentGatewayAdapter` 把整个应答 `JSON.toJSONString(response)` 打进 INFO 日志，要复盘有原文可查。
+
+  **判断某笔查询回来是什么，MUST 去 pay-sign-server 日志搜「拉黑前查询支付中心支付状态」，NEVER 去库里找 —— 库里本来就没有。**
+
+### 未闭合
+- **线上已被他方推到 `pay-sign-server:2.1.5` / `fep-app:2.0.90`（2026-09-18 现查），而仓库 pom 仍是 2.1.4 / 2.0.88 —— 本次改动没有被覆盖，已逐项验过**：容器内反查 `PayCallbackLog` 有 `discountInfo` 字段 + getter/setter、`PayTxnRules` 有 1 处 `setDiscountInfo`、`PayCallbackLogMapper.xml` 有 2 处 `DISCOUNT_INFO`、`grep -c contradictory` = **0**（金额判定没被谁恢复）；`fep-app` 的 `BOOT-INF/lib/model-2.0.0.jar` 里 `ReceivePayResultReqDTO.discountInfo` 齐全；探活 `30016/actuator/health` = 200、`db` UP。**连带结论：2.1.5 的源码不在本机工作副本里（pom 没升号），继续改本模块前 MUST 先 `svn up`，NEVER 拿 2.1.4 的副本直接构建 2.1.6 —— 那会把他方 2.1.5 的改动整体回退掉。**
+- **判断对方是否已改成有效值 MUST 现查 `PAY_CALLBACK_LOG.RAW_BODY`**（`cash + coupon` 是否等于 `total`、有没有出现 `discountInfo` 键），**NEVER 引用本 ADR 的「179/179」与「0 行」** —— 那是 2026-09-17 的快照，随对方发版即失效。
+- `pay-sign-server` **零测试文件**（无 `src/test` 目录），本次未新建测试基础设施，验证全靠端到端 + 日志与落库核对。
+
+## ADR-D137：alipay-pay-sign 的 controller 层按聚合重排 + 补齐 `closeResultForAlipay` 这条断链（2026-09-18，alipay-pay-sign-server 1.1.24，未部署）
+
+支付宝渠道「高内聚低耦合」改造的第一步，**只动 controller 层**：service / mapper / DTO 一行未改。范围按用户裁决收在 `alipay-pay-sign-server`（fep-alipay 与 alipay-account 本轮不动）。
+
+### 改造前的真实形态（先溯源、后动手）
+
+用 Explore 做过全仓调用方溯源，两条事实决定了本轮能改什么：
+
+- **入向唯一通道是 `rpc/AlipayPaySignClient`**（baseUrl 键 `service.alipay-pay-sign.url`，**中划线**），调用方仅 5 处：fep-alipay 4 个 service impl、gate-txn-pay `PaySignInitiator`、blacklist-server 2 处、web-admin `AlipayTerminationQuartzTask`。**前端 `web/src` 零调用**（`vite.config.js` 那条 `/alipay-pay-sign-server` 代理是死配置）。
+- **21 个端点里 9 个零调用方**：`/channel/selectSignInfo`、`/channel/findTravelDetail`、payLog 的 7 个（只有 `POST payLog/travelList` 有调用方）、`/internal/alipay/channelSync/compensate`（设计上待建 `sys_job`）。
+
+controller 层三处耦合：①`AlipayPaySignController`（签约）同时注 `AlipayContractService` + `AlipayTripPaymentService`，并挂着支付查询与黑名单通知；②`/api/payment` 前缀被交易与查询两个类共用；③`AlipayPayLogController` 的 GET/POST 各一份逐字重复实现。
+
+### 决策：端点一个不删，只重排归属；URL 只改零调用方那一条
+
+**用户裁决「不删任何端点」**（`keep_all`），因此 9 个零调用端点连同 `rpc` 里 6 个零引用包装方法一并保留。重排后 4 个业务 controller 各只依赖一个 service：
+
+- `AlipayPaySignController`（`/channel`）：签约聚合 4 个端点，只注 `AlipayContractService`。
+- `AlipayTripPaymentController`（`/api/payment`）：`requestPay` / `payQuery` / `requestRefund` / `findTravelDetail`。
+- `AlipayNotifyController`（**新增类**）：三条入向通知 —— `POST /api/payment/payNotify`（迁入）、`POST /channel/notify/blackListChange`（迁入）、`POST /channel/notify/closeResultForAlipay`（**新增端点**）。
+- `AlipayPayLogController`（`/api/payment`）：8 个查询端点不变，GET/POST 收口到同一个私有 `queryList`。
+
+**`AlipayNotifyController` 类级不写 `@RequestMapping`、方法级写完整路径**：三条通知分属 `/api/payment` 与 `/channel/notify` 两个历史前缀，而 `payNotify` 的地址是 `application.properties` 的 `pay.center.callback-url` 下发给支付中心的回调地址，改前缀等于改已在用的对外契约。**因此这个类的前缀不代表归属，NEVER 据前缀判断端点归谁。**
+
+**唯一改动的 URL 是 `findTravelDetail`：`/channel/findTravelDetail` → `/api/payment/findTravelDetail`。** 起因是一个 Spring 语义错误：方法级路径**相对**类级前缀、不能写成绝对路径，若保留原 URL 就得让该类也不写类级前缀。既然它零调用方（`rpc` 里没有指向它的方法，`TicketClient.alipayTripFindTravelDetail` 打的是 ticket-server 的同名路径、不是本服务），直接改前缀最干净。
+
+### 顺手补齐的一条断链（本轮唯一行为变更）
+
+`AlipayPaySignClient.notifyCloseResult`（`rpc/.../AlipayPaySignClient.java:141`）一直在 POST `/channel/notify/closeResultForAlipay`，而**本服务从来没有这个 handler** —— fep-alipay 的 `/notify/closeResultForAlipay`（`AlipayNotifyServiceImpl:72`）打过来必然 404，而按 §8 那条已知机理，404 会被伪装成 HTTP 200 + UUID `retCode`，**链路静默不通**。service 侧实现（`AlipayTripPaymentServiceImpl.notifyCloseResult` → `PaymentNotifyAdapter`）一直都在，只缺入口。
+
+新端点入参用 `model` 里现有的 `AlipayTripCloseResultReqDTO`（`agreementNo` + `Boolean result`）、路径与 Client 现有字面量**逐字一致**，因此 `rpc` 侧零改动。`agreementNo` 空或 `result` 为 null 时返 `fail("协议号与关闭结果必填")`，不进 service。
+
+### 验证
+
+- `mise exec -- mvn -o clean test -pl alipay-pay-sign-server -Djkube.skip=true` → **76 tests / 0 failures / BUILD SUCCESS**。
+- 端点清单逐条核对：改造前 21 条 → 改造后 22 条（21 条里 `findTravelDetail` 换前缀 + 新增 `closeResultForAlipay`），`grep '@(Request|Post|Get)Mapping'` 出 28 处（含 5 个类级前缀 + 1 处新增），与预期一致。
+- **未部署**：pom 已升 1.1.23 → **1.1.24**，镜像未构建。该模块 jkube 绑定阶段未逐一核实，构建前 MUST 先 `grep -A6 kubernetes-maven-plugin alipay-pay-sign-server/pom.xml`。
+
+### 本轮刻意不做的四件事（NEVER 当成遗漏）
+
+1. **payLog 两组端点的页码基数不一致保持原样**（`payLog/list` 从 1 起、`payLog/travelList` 从 0 起，同一个 service 方法两种基数）。统一属行为变更，且用户已说 `ALIPAY_PAY_LOG` 表**准备废弃**。
+2. **POST 版 `Integer.parseInt` 不加保护**（非数字入参仍 500）。同上，不在将死的代码上加固。
+3. **`/api/payment/**` 与三个 `/internal/**` 仍无鉴权** —— 这是 ADR-D133 批次 6 未裁决的既有降级，本轮只在类注释里标注，**NEVER 在这里自造签名**。
+4. **`AlipayPaySignService`（`extends AlipayContractService, AlipayTripPaymentService, AlipayPayLogQueryService` 的三合一死壳，全仓零实现零注入）未删** —— 它在 service 层，留给下一步。
+
+## ADR-D138：`ALIPAY_PAY_TXN_DETAIL` 按「支付主表复用 `GATE_TXN_PAY`」重新设计并 DROP 重建（2026-09-18，alipay-pay-sign-server 1.1.25，未部署）
+
+### 背景
+
+`ALIPAY_PAY_TXN_DETAIL` 是 2026-09-16 按「另起一张新表替代 `ALIPAY_PAY_LOG`」建的（见 `docs/business/alipay-channel.md` §1.8），52 列、6 个索引，**建成后一直零调用方**。这一版的问题是它**同时想当订单表和支付明细表**：`THIRD_USER_ID` / `CARD_ID` / `CARD_TYPE` / `PAYMENT_VENDOR` / `PAY_CHANNEL_CODE` / `INDUSTRY_DETAIL` 这些列，在 `GATE_TXN_PAY` 里都已经有权威值 —— 而支付宝出行（小程序）的订单本来就落在 `GATE_TXN_PAY`（`ISSUE_CHANNEL_CODE='07'`，`fep-dev-server` 的 `GateTransactionHandler` 分流），扣费成没成的权威是 `GATE_TXN_PAY.DEBIT_STATUS`（ADR 系列已多次确认，`PaymentRequestService` / `PaymentQueryService` 都已不写旧日志表）。两张表各存一份同样的事实，就是「状态一旦分叉无法判定谁对」。
+
+用户 2026-09-18 明确裁决：**支付主表复用 `GATE_TXN_PAY`，重新设计这张支付详情表；沿用表名 DROP 重建；口径就是现有支付宝出行渠道（不含小程序内主动购票 / 充值那类非过闸场景）。**
+
+### 决定
+
+**本表只承载「这笔 `GATE_TXN_PAY` 订单在支付中心 / 支付宝这一侧发生了什么」，按 `ORDER_NO` 一对一挂在主表上。** 52 列 → **41 列**：
+
+- **删 11 列，NEVER 加回**：`PAY_TYPE`（退款有独立表 `ALIPAY_REFUND_TXN_DETAIL`，本表恒 `'PAY'`）、`CARD_TYPE`、`PAYMENT_VENDOR`、`PAY_CHANNEL_CODE`（出行恒 `07`，等于主表 `ISSUE_CHANNEL_CODE`）、`INDUSTRY_DETAIL`（主表那列是权威）、`SUBJECT` / `BODY` / `AUTH_CODE` / `NOTIFY_URL` / `RETURN_URL` / `ORDER_TIME_OUT`（我方送出的请求参数，`REQUEST_BODY` 里有整份原文、从无查询按它们过滤）。连带：**`REQUEST_BODY` 从此 MUST 写**，它是那 6 列信息的唯一载体。
+- **保留 `THIRD_USER_ID` / `CARD_ID` 两个冗余列**，理由是运营列表要按用户 / 卡号过滤 + 分页排序，不留就得跨域 join 分区表。**它们是落单时一次性带入的快照、之后 NEVER 更新、NEVER 当权威。**
+- **`ENTRY_ID` / `EXIT_ID` 是本表存在的核心理由之一**：同样的信息在 `GATE_TXN_PAY` 里只存在于 `INDUSTRY_DETAIL` 这个 JSON 串里，建不了索引、也没法安全比较；提取成独立列 + 两条索引后，`payLog/entryId` / `payLog/exitId` / `findTravelDetail` 才不用全表扫。
+- **删掉 `countUnsettledByCardId` 与它的支撑索引 `IDX_APTD_CARD_STATUS`**：欠费判定的权威是 `GATE_TXN_PAY.DEBIT_STATUS`，MUST 由 gate-txn-pay-server 回答。`AlipayArrearsQueryService` 接线到新表时 MUST 一并改成走 RPC，**NEVER 在本表上重造一份欠费口径** —— 旧表那份口径本身已被「支付中心的幂等拒答被当扣款失败、连带写 `PAY_STATUS='FAIL'`」这个未修缺陷污染（§1.7 末条）。
+- **索引 8 条**（原 6 条 + PK）：`PK` / `UK_APTD_ORDER(ORDER_NO,TXN_DATE)` / `IDX_APTD_STATUS` / `IDX_APTD_USER_DATE` / **`IDX_APTD_CARD_DATE(CARD_ID,TXN_DATE)`（新，替代原 `IDX_APTD_CARD_STATUS`）** / `IDX_APTD_CHANNEL_ORDER` / `IDX_APTD_ENTRY_ID` / `IDX_APTD_EXIT_ID`。
+
+三条与查询直接相关的口径变更：
+
+1. **列表时间过滤从 `CREATE_TIME` 改成 `TXN_DATE`**（`yyyyMMdd`，闭区间）。`TXN_DATE` 等于分区键、能裁剪，且运营真正想筛的是「交易日」不是「落库时刻」（跨零点两者不同日）。入参改名 `startTxnDate` / `endTxnDate`，格式转换由 service 层负责。排序仍 `CREATE_TIME DESC + ID DESC`（稳定翻页）。
+2. **`Paged_Where` 从 `WHERE 1 = 1` 换成 `<where>` 标签**。原写法在「筛选条件全空」那一支上会被 Druid WallFilter 判成注入（`select alway true condition not allow`），而那一支正是前台首次进页面的默认加载 —— 与 `account-server` 2.0.73 修的那个是同型缺陷（AGENTS.md §5.1 第二条）。**接线前不修这条，第一次打开页面就炸。**
+3. **可退上限从 `NVL(NULLIF(TOTAL_AMOUNT,0), AMOUNT)` 收窄成裸 `AMOUNT`**。`TOTAL_AMOUNT` / `CASH_AMOUNT` / `COUPON_AMOUNT` / `DISCOUNT_FEE` 是支付中心回传原文，而 ADR-D136 已实测 `cash` / `coupon` 恒等于总金额（179/179 无效值），拿它们参与账务计算迟早出资损。这四列保留、只作核对留痕。
+
+**五条写语句与 `selectByOrderNo` 的 WHERE 刻意只按 `ORDER_NO`、不带 `TXN_DATE`**（与退款明细表那两条按 `REFUND_ORDER_NO + TXN_DATE` 有意不同）：回调与查询报文里都没有交易日，带上就得靠调用方自己填，一旦填空 WHERE 恒不匹配、静默返 0 行 —— 而 0 行在本表的语义是「已幂等」，等于**把失败伪装成成功**。代价只是跨 8 个分区探测本地唯一索引，可接受。**NEVER 顺手给这几条加 `TXN_DATE` 做分区裁剪。**
+
+### 执行与回查
+
+DROP 前实测 `SELECT COUNT(*) FROM ALIPAY_PAY_TXN_DETAIL` = **0**（零调用方、无数据可丢），因此选 DROP 重建而非逐条 ALTER。序列 `SEQ_ALIPAY_PAY_TXN_DETAIL` **不动**（与表结构无关，重复 `CREATE SEQUENCE` 会报对象已存在）。回查结果：
+
+- `USER_TAB_COLS`（`HIDDEN_COLUMN='NO'`）：**41 列**，其中 NOT NULL **10 个**（`ID` / `ORDER_NO` / `TXN_DATE` / `PAY_STATUS` / `AMOUNT` / `REFUND_STATUS` / `REFUND_AMOUNT` / `REQUEST_COUNT` / `CREATE_TIME` / `UPDATE_TIME`）。
+- `USER_INDEXES`（排除 `SYS_IL%` 三条 LOB 索引）：**8 条**，`PK_ALIPAY_PAY_TXN_DETAIL` UNIQUE / `UK_APTD_ORDER` UNIQUE 且 `PARTITIONED=YES` / 其余 6 条 NONUNIQUE 且 `PARTITIONED=YES`。
+- `USER_TAB_PARTITIONS`：**8 个**，`HIGH_VALUE` 逐个核对为 `'20260701'`~`'20270101'` + `MAXVALUE`。
+- 36 条 `COMMENT ON`（1 表 + 35 列）全部 `success:true`。
+- `mise exec -- mvn -o clean package -pl alipay-pay-sign-server -DskipTests -Djkube.skip=true` **BUILD SUCCESS**（jkube 两个 goal 都 skipped，未推镜像）；`xmllint --noout AlipayPayTxnDetailMapper.xml` 通过。
+
+**新增 MCP 实测事实两条**：① **`DROP TABLE ... PURGE` 过不了 MCP 的 SQL 校验器**（`Encountered: <K_PURGE>`），去掉 `PURGE` 立即成功 —— 脚本里保留 `PURGE` 是给 sqlplus 用的，经 MCP 执行 MUST 去掉；② 本次 `executeQuery` / `executeDdl` 的连接键是 **`connection`**，传 `connectionName` 报「Connection is required but not provided」，与 AGENTS.md §8 记的相反，**用前 MUST 看报错提示里列出的键名**。
+
+### 本轮的边界（NEVER 当成已完成）
+
+- **仍然零业务调用方**：本轮只落表 + entity + mapper + XML，`PaymentRequestService` / `PaymentQueryService` / `PaymentRefundService` / `AlipayPayLogQueryServiceImpl` 一行没动，它们**还在读写旧表 `ALIPAY_PAY_LOG`**（而那张表已无 INSERT 方，新单永远进不来）。接线是下一轮。
+- **接线时 MUST 同时解决**：① 落单点从哪里取 `TXN_DATE` / `THIRD_USER_ID` / `CARD_ID` / `ENTRY_ID` / `EXIT_ID`（应取自 `GATE_TXN_PAY` 那行 + `INDUSTRY_DETAIL`，**NEVER 自己另算当天日期**）；② `AlipayArrearsQueryService` 改走 gate-txn-pay RPC；③ 对外 `payLog/travelList` 的 `invoice` 过滤参数 —— `INVOICE` 列在旧表 33 行里实测全 NULL、从未被写过，本表保留了该列但**同样没有写入方**，接线前 MUST 先确认发票状态归谁维护。
+- **存量 `ALIPAY_PAY_LOG` / `ALIPAY_REFUND_LOG` 的处置（迁移 / 双读 / 冻结）仍未裁决**；`UK_ARL_REFUND_ORDER_NO` 仍因 7 行联调造数未建成（见 §1.8）。
+- **镜像未推、未部署**：pom 已升到 1.1.25，但本轮显式加了 `-Djkube.skip=true`。
+
+## ADR-D139：alipay-pay-sign 的 service 层按域分六个子包 + 新增 `PayCenterNotifyPort` + **推翻 ADR-D133「刻意不拆 `AlipayContractServiceImpl`」**（2026-09-18，alipay-pay-sign-server 1.1.28，未部署）
+
+接 ADR-D137（controller 层重排）的第二步，**只动 service 层与新增一个出网端口**：mapper / XML / DTO / 表结构一行未改。三处边界由用户逐条裁决：范围 `move_plus_fix`（搬包 + 顺手修两处已知不一致）、可见性 `conservative`（全部类保持 public，只挪包不收紧）、死件 `keep_both`（两个零调用件都留）。
+
+### 改造前的形态
+
+`service/impl/` 下 17 个实现类**平铺在一个包**里、跨 8 个业务域，`service/` 根还混着一个实现类（`AlipayArrearsQueryService`，不是接口）。用 Explore 做过依赖表，三条事实决定了本轮的切法：`PaymentNotifyAdapter` 被签约 / 解约 / 支付**三个域共用**（不能归任一子包，只能自成一包）；`ChannelSyncDeliverer` 是唯一包私有类；`AlipayPaySignService`（三合一空壳接口）与 `PayLogBuilder`（69 行）**全仓零引用**。
+
+### 决定一：六个子包，`service/` 根只留接口
+
+`service/impl/` 下**已无 `.java`**，只有 6 个子目录：`contract/`（签约）、`termination/`（解约）、`payment/`（支付/退款/查询）、`notify/`（三域共用的支付中心通知适配）、`channelsync/`（通道同步 outbox）、`query/`（运营查询 + 欠费）。`service/` 根只剩 5 个接口、一行未改。
+
+**两处必须同步、漏改即静默失效的地方**：
+
+1. **`AlipayPaySignTransactionBoundaryArchTest` 的 `OUTBOUND_SINKS` 写死全限定类名**（`.service.impl.PaymentNotifyAdapter` / `.service.impl.TerminationNotifier`）。挪包后不同步改，**ArchUnit 断言照样通过、但它已经识别不到任何出网出口** —— 这是本轮最危险的一处，护栏从「冻结事务内出网清单」退化成「什么都不看」。两行已改，`arch` 那 2 个 test 仍绿。
+2. **`ChannelSyncDeliverer` 类与 `deliver()` 方法都从包私有改 public**。`conservative` 裁决本身不要求改可见性，但 `contract` 包要跨包注它，不改编译不过 —— 属**必要越界**，已记录。
+
+5 个测试类**package 保持 `...service.impl` 不变、只补被测类 import，1539 行断言一行未改**（这是选 `conservative` 的直接收益：包私有收口一放弃，测试就不必跟着分包）。
+
+### 决定二：新增 `PayCenterNotifyPort`，**而不是**把两条通知塞进 `PayCenterPort`
+
+`PaymentNotifyAdapter` 原先直接注 `util.PayCenterClient`，绕过了 ADR-D131 建立的端口层。但 `PayCenterPort` 的类注释逐字写着「**NEVER 把 `closeResultNotify` / `blacklistNotify` 加进本端口**」，因此**改走既有端口等于违反 D131**。用户裁决 `new_notify_port`：**新建第二个端口**。
+
+- `port/PayCenterNotifyPort` 两方法 `blacklistNotify` / `closeResultNotify`，**刻意返回原始 `PayCenterResponse`**、`port/PayCenterNotifyRpcAdapter` 各一行转发。
+- **成功判据刻意留在 `PaymentNotifyAdapter` 内、刻意各不相同**：黑名单认 `retCode=0000` / `success=true` / `code=200` **三者任一**，销卡**只认 `code=200`**。合成一个端口就得在端口里做判定，那正是 D131 想避免的「大而全的出网门面」。**NEVER 把判据挪进端口、NEVER 合并这两条判据。**
+- 顺手删掉该类里未使用的 `payCenterProperties` 字段，3 处 `...model.response.PayCenterResponse` 全限定名换成 import。
+
+### 决定三：拆 `AlipayContractServiceImpl` —— **本条推翻 ADR-D133**
+
+ADR-D133 的原文结论是「簇确实不相交，但结论仍是**不拆**」，并留了一句「NEVER 只凭簇不相交启动拆分」。本轮用户裁决 `split_with_adr`，**明确推翻它**，依据是 D133 当时不成立的两条：
+
+- **体量已过阈值**：该类当时已涨到 301 行，签约与解约两簇的**依赖交集为空**（签约用 `AlipaySignInfoMapper` / `AccountChannelPort` / `ChannelSyncDeliverer` / `SignLogRecorder`，解约用 `AlipayTerminationRequestMapper` / `TerminationNotifier` / `TerminationRegistrationService`）。
+- **拆分可以不动测试**：新建 `termination/TerminationCoordinator`（101 行，`@Service`、**无 `@Transactional`**）承载解约编排（空值校验 → 补登记 → 取登记行 → `terminationNotifier.execute` → `Outcome` 三分支 switch），`AlipayContractServiceImpl`（现 267 行）**仍实现接口那 4 个方法、内部一行委派**。于是 24 个特征测试只在 `setUp` 里多建一个 coordinator、改注入目标，**用例本体与断言一行未改**。
+
+因此 D133 的**结论作废**，但它记的那条判据仍然有效：**「依赖簇不相交」是拆分的必要条件、不是充分条件；充分条件是「体量已过阈值」且「拆完不需要改断言」**。**NEVER 回退成「这个类刻意不拆」。**
+
+### 死件：两个都留（用户裁决 `keep_both`）
+
+`AlipayPaySignService`（26 行，`extends` 三个接口的空壳，零实现零注入）与 `PayLogBuilder`（69 行，全仓零引用）**都只搬包 + 加「零调用方」注释，未删**。ADR-D137 末条把前者列为「留给下一步」，本轮的下一步结论是**继续留**。
+
+### 验证
+
+- `mise exec -- mvn -o clean test -pl alipay-pay-sign-server -Djkube.skip=true` → **76 tests / 0 failures / BUILD SUCCESS**（三批分别验过：新端口 → 机械搬迁 → 拆分）。
+- 包结构逐条核对：`service/impl/` 下 0 个 `.java`、6 个子目录；`service/` 根 5 个接口。
+- **未部署**：pom 现为 **1.1.28**，本轮显式 `-Djkube.skip=true`、镜像未构建。
+
+### 本轮刻意不做的（NEVER 当成遗漏）
+
+1. **可见性一律没收紧**（用户裁决）。跨包注入需要 public，收口包私有得先决定「哪些类允许被跨域注入」，属另一轮的事。
+2. **`PaymentNotifyAdapter` 仍被三个域共用**，`notify/` 子包只是「无处可归」的落点，不是一个领域。
+3. **`AlipayArrearsQueryService` 只是从 `service/` 根挪进 `query/`**，它「在本模块自己算欠费」这个错口径未改 —— 按 ADR-D138 那条，它 MUST 改走 gate-txn-pay RPC，属接线那一轮。
+4. **`/api/payment/**` 与 `/internal/**` 仍无鉴权**（沿 D137 第 3 条）。
+
+## ADR-D140：IF5A-01 建议码 `020` 语义反转 —— `020` 是 2026-09 新增需求，甲方规格 docx（2020 版）里没有它属**规格待更新**（2026-09-18，ticket-server 2.1.91，已部署）
+
+`adviceOpt=020` 在本轮之前经历过三版口径，反复的根因是**「已闭环的卡」到底该不该给更新建议**这件事从未落成文字。本条把它定死。
+
+### 三版口径与最终结论
+
+- **第一版（历史实现）**：`cardStatus=05`（闭环、行程已完整）+ `updateType=00`（非付费区）→ 返 `020`。语义被当成「无需更新但需回写」。
+- **第二版（本轮早期改动）**：一度把 `020` 扩展成「窄口径补更新」，`ride-code.md` 里现存约 15 处描述属这一版残留（`:374 / :375 / :393 / :394 / :836 / :838 / :873 / :949 / :964 / :966 / :967 / :999` 及反模式表若干行），**已作废、待订正**。
+- **第三版（现行，用户三项裁决 `full_exit` / `narrow_none` / `both`）**：闭环卡在非付费区一律返 **`000`**（无需更新），`020` 只用于**明确需要回写但不改变票卡可用性**的场景。**「刷卡未进站成功」这一场景刻意不处理**（设备侧不会走到 IF5A-01）。
+
+### `020` 的规格依据 —— 用户裁决
+
+2026-09-18 逐字核对 `docs/技术规范文档/城市轨道交通自动售检票系统技术规范-第9部分-互联网业务规范.docx`（IF5A-01 在段落 1760~1845），**表 41 的 `adviceOpt` 取值原文只有 4 个**：`000` 无需更新 / `018` 补进站（无法出站）/ `006` 补出站（最低票价，无法进站）/ `005` 20 分免费进站更新（无法进站）。**规格里查不到 `020`**。
+
+我一度把这条列为「超规格自定义码、疑似实现方私自加码」。**用户当日明确裁决：「020 需要更新到规格中，是新的需求」。** 因此：
+
+- **`020` 是 2026-09 新增需求，规格 docx 是 2020 版、没有它是正常的**，**NOT 实现缺陷、NOT 文档读漏、NOT 实现方私自加码**。
+- **待甲方把 `020` 补进规格**；在那之前，`020` 的权威口径以**本 ADR** 为准。
+- **NEVER 因为「规格里没有 020」就把它当历史遗留删掉**，也 NEVER 再把它记成「超规格自定义码」。
+
+### 代码落点
+
+权威字典在 `model/.../enums/AdviceOptEnum.java`；建议侧规则表 `SupplementStateRules:108~120`，执行侧白名单 `:219~227`；`GateCodeStatusResolver.ADVICE_OPT_TABLE:23~27`；`GateFarePaymentOrchestrator.BOM_SUPPLEMENT_EXIT_ADVICE_OPTS:25`；`CardDataUpdateHandler.resolveTrxType:187~199`；免费窗 `FREE_UPDATE_WINDOW_MINUTES = 20`。
+
+### 验证
+
+- ticket-server 全量单测 **180 tests / 0 failures**。
+- 线上实证（2.1.91）：`cardStatus=05` + `updateType=00` → 应答 `adviceOpt=["000"]`（旧口径此格发 `020`）。
+
+### 本轮刻意不做的（NEVER 当成遗漏）
+
+1. **`[020,006]` 同时命中时的候选顺序未定**（当前按规则表顺序，未做显式排序约定）。
+2. **`10` 入站码更新超出 20 分窗口后仍给 `000`**，未改成 `005`；改动牵涉免费窗语义，等甲方澄清（见 D141 待澄清项②）。
+3. **`ride-code.md` 里第二版口径的约 15 处残留未逐条订正**，行号已在上面列出。
+4. **`AGENTS.md` 若有引用 `020` 旧口径处未改。**
+
+## ADR-D141：IF5A-01 支付宝手机号回落 —— 判据从「报文 `providerId`」改成「卡在哪个域查得到」，两套 `providerId` 字典冲突导致支付宝分支从未触发（2026-09-18，ticket-server 2.1.91，已部署）
+
+### 根因：两套 `providerId` 字典在 `07` 这一格语义相反
+
+`CardDataAnalyseHandler` 原先按**报文里的 `providerId == "07"`** 判断「这是支付宝发行的卡」，于是走支付宝账户域补手机号。但项目里有**两套互不相干的 `providerId` 字典**：
+
+- **设备 / 商户编码**（`BaseDeviceRequest.java:6` 逐字写着）：`01` APP / `02` TVM / `03` BOM / `04` AGM / `05` ACC / `06` ITP / `07` STT。
+- **发行渠道**（`model/.../enums/IssueChannelCodeEnum.java:12`）：`01` 正常 / **`07` 支付宝**。
+
+报文里那个字段是**前者**。而 IF5A-01 只从 BOM 进来，**BOM 恒送 `03`**，因此「`07` ⇒ 支付宝」这个分支**永不触发**；更糟的是它被 try/catch 静默兜住，既不报错也无日志异常。**同一个 `07` 在两套字典里分别是「STT 设备」与「支付宝渠道」，这是本项目已知最容易踩的一处字典冲突。**
+
+决定性证据是 `face-pay-server/.../api/device/DeviceRequests.java:25`：`unwrap` 把报文**公共参数**回填进 bizData 解出的 DTO，`request.setProviderId(form.getProviderId())` 是**无条件覆盖**——即便设备在 bizData 里送了发行方代码，也会被公共参数的设备编码顶掉。
+
+### 决定：判据换成「卡在哪个域查得到」，与 IF1A-01 同形
+
+改法照 `ticket/gate/GateCardTypeEnricher:126~128` 那个已在跑的样板：先查 account 域（`USER_ITP_REG_INFO`），查不到 / 没手机号才回落支付宝出行账户域（`ALIPAY_USER_INFO`，走 `alipayAccountClient.selectByCardId(cardId)`）。
+
+- `queryUserInfo(cardId, response)` 不再接 `providerId`；拆成 `applyAccountUserInfo`（返 boolean）+ `applyAlipayPhone`。
+- **回落判据 NEVER 读 `response.getMsisdn()`**：`handle():86` 已经把 BOM 上送的 `msisdn` 放进 response 了，据它判断等于「BOM 一送手机号，回落就永不触发」。必须用 boolean 返回值跟踪「是否由权威域补齐」——这是本次改动最容易写错的一处。
+- 回落用 `selectByCardId` 而**不是** `selectByThirdUserId`，后者要求 account 域先命中，而支付宝用户在 account 域根本没有行。
+- 删掉 `SupplementCodec.PROVIDER_ID_ALIPAY = "07"` 常量（全仓已无引用），`PROVIDER_ID_DEFAULT = "99"` 保留。
+- **`cardIssueDate` 只有 account 域的 `regTms` 一个数据源**：`AlipayUserInfoDTO` 的 7 个字段（`thirdUserId` / `cardId` / `cardType` / `thirdPayId` / `reqContractNo` / `channel` / `phone`）里**没有发卡日期**，因此走支付宝路径时该字段恒为空串。这是**数据缺口、不是 bug**。
+
+**NEVER 改回按报文 `providerId` 分流。**
+
+### 实证：支付宝出行用户在 account 域确实没有行
+
+此前 `ride-code.md:333/:856` 记过这条但标着「未实测」。本轮端到端实测：支付宝卡查 account 域返 **`8004`**。因此**回落分支对支付宝渠道是常态路径、不是兜底**。三条用例证明 `msisdn=15064255197` 与报文 `providerId` 已完全解耦，日志证据链完整。
+
+### 与甲方规格的逐字核对结论
+
+同批把 IF5A-01 与规格 docx（表 40 请求 4 字段 / 表 41 应答 15 字段）逐字对了一遍，**结论是符合**，并**撤回我此前两条错误判断**：
+
+- **撤回：`lastTikcetTransSeq` 是拼写错误 / 契约不一致。** 规格表 41 原文与应答示例**就是** `lastTikcetTransSeq`（缺 `e`），因此 `face-pay-server/.../BomResponses.java:131` 照抄原文才是**符合规格**的一侧，ticket-server 内部用的 `lastTicketTransSeq` 才是「修正后的拼写」（内部接口，不算违规）。**方向此前说反了。** `TvmContractTest:184` 有断言钉住对外那个拼写，**NEVER 改。**
+- **撤回：`managerCode` 走 BOM 入口丢失，属待确认缺口。** 表 40（请求）**根本没有 `managerCode`** 这个字段，应答示例里它就是 `""`。face-pay 入向 DTO 只解析 3 个字段是**严格符合规格**的。
+
+### 待甲方澄清（3 条）
+
+1. **`providerId` 双语义**：表 41 说明写「发行方代码 01:青岛地铁」，但请求示例报文里该字段在**公共参数（`=03`）与 bizData（`="01"`）同时出现且取值不同**，而 `DeviceRequests.unwrap:25` 无条件用公共参数覆盖，于是我方应答回显的是**设备 / 商户编码**、不是发行方代码。**已定为「已知偏差、暂不改」**——改前 MUST 先实测现网 BOM 是否真的在 bizData 里送该字段。
+2. **`005` 的方向措辞相反**：规格原文写「20 分免费**进站**更新」，我方把 `005` / `006` 都归**补出站**方向（`trxType=02`）。
+3. **`transAmount` 说明「20 分付费更新 金额」与 `adviceOpt` 取值表不自洽。**
+
+### 验证
+
+- `CardDataAnalyseHandlerTest`（新建，5 条用例：account 命中不回落 / account 查不到按 cardId 回落 / account 有卡但无手机号时回落且 `cardIssueDate` 仍保留 `regTms` / 两域都查不到保留 BOM 上送值 / 支付宝域抛异常整笔仍返 `0000`），用 `ReflectionTestUtils.setField` 注 6 个 mock（照 `GateCardTypeEnricherTest`）。ticket-server **175 → 180 tests / 0 failures**。
+- 已部署 `itp/ticket-server:2.1.91`，滚更后探活 `http=200`、`db` / `readinessState` 全 UP（首次探活 `503` 属 §7 已记的正常现象）。
+
+### 本轮刻意不做的（NEVER 当成遗漏）
+
+1. **IF5A-03（`requestUpdateCardData`，票卡更新）没有支付宝回落，是已知缺口。** `SupplementUserLookup` 只注 `AccountClient`，查不到 `thirdUserId` 即 `BizRejected("未注册用户")` → `CardDataUpdateHandler.fillUserLookupFailure` 转成 `8004 QR_CODE_NOT_FOUND` **整笔拒绝**。**现状是：支付宝用户能拿到分析建议，但拿这个建议去执行更新会被拒。** 用户裁决本轮先修分析链路（IF5A-01）、更新链路暂缓。
+2. **`SupplementUserLookup` NEVER 与 `queryUserInfo` 合并** —— 两者判据不同：前者是执行侧的强制前置校验（查不到即拒），后者是分析侧的信息补齐（查不到只降级）。
+
+## ADR-D142：行业数据编排从 `fep-app-server` 整体迁到 ticket-server —— 425 行接入层越位收敛成 40 行转发，签名段补出口护栏（2026-09-18，ticket-server 2.1.92 / fep-app 2.0.91 / industry-data-server 2.0.20，**已部署**）
+
+### 背景：接入层里长出一个 425 行的编排
+
+`fep-app-server` 的 `IndustryDataServiceImpl`（IF8A-03 在线码 / IF8D-03 离线码）实测 **425 行、4 个下游 Client、31 个 `if` + 1 个 `switch`**，还按三类维度分流（卡种 HCE / 日票族 / 爱山东、渠道、站内外）。同模块另外 6 个 Service 的行数中位数是 **89.5**、`if` 数 0~5，其中 4 个是纯单行转发 —— 即**这是个别越位，不是该模块的通行做法**。
+
+另有 **4 组成对的近逐字副本**（实测 diff）：`queryUserInfo` × 2、`queryTicketStatus` × 2、`validateRequest` × 2（15 行里只有方法签名那一行不同）、生码入参组装 × 2。逐字相同约 38 行，卷入这 4 组结构的代码共 105 行（占全类 25%）。**根因不是逻辑不同，而是入参 DTO 不同**：`RequestIndustryDataReqDTO` 与 `RequestNoSignalDataReqDTO` 都是能被 `parseBizData` 解析的**对外契约**，按判据 NEVER 共享父类。
+
+### 决定：编排宿主选 ticket-server，理由是「零双向 RPC」
+
+这条链路要「查账户 → 查乘车码状态 → 日票前置 → 生码」，其中**乘车码状态就是 ticket-server 自己的聚合**（`AgmRideStatusService`，迁移后从 RPC 变进程内调用），其余三个都是单向出网，而 `service.account.url` / `service.dailyTicket.url` / `service.industryData.url` 与对应 `@EnableRpc*` 该模块**本来就有**，配置零新增。
+
+**NEVER 迁到 industry-data-server**：它得回头查 ticket-server 的码状态，而 ticket-server 的 `IndustryDataNotifier` 又要调它生码 ⇒ A→B→A，违反「双向 RPC 即边界画错」。
+
+落地形态（新增 4 个类、无新增 DTO）：
+
+- `ticket/industry/IndustryDataQuery`（record）—— 在**边界上**把两个对外 DTO 各自翻译成一个内部三字段入参，之后整条链路只认它。这是消掉 4 组副本的唯一手段，**NEVER 给它加字段去迁就某一条链路**。
+- `ticket/industry/IndustryCardDataAssembler` —— 唯一一份生码入参组装 + 调 industry-data；把原先两份只差 `ticketStatus` / `txnSeq` 的组装提成入参。
+- `ticket/industry/IndustryDataOrchestrator` —— 两个 public 方法共用一套私有方法。
+- `controller/internal/IndustryDataInternalController` —— `POST /internal/ticket/industry/{online,offline}`，只被 fep-app 转发调用；两个端点都是**只读**（生码不落库），因此不属「状态变更型接口 MUST 有鉴权」范围，鉴权现状与其余 `/internal/**` 一致。
+- `TicketClient` 加两个方法（`rpc` 版本号不动）；`fep-app-server` 那 425 行退化成 **40 行两条转发**。
+
+### 顺带修掉的一处并发/取值隐患
+
+原实现的日票前置校验若改成「返回 retMsg 字符串」，对端不带文案时会退化成 `null`、与「放行」撞语义。现在返回 `RpcOutcome.BizRejected` 本体，**NEVER 改回返字符串**。
+
+### industry-data-server：签名段补出口护栏
+
+`cardData` = 64 位码体 + 16 位签名段，而**签名段游离在 `BODY_LAYOUT` 的 static 断言之外**；它的长度靠「`acc-security-server` 只回 TAC 前 8 字符 + 这里左补零到 16」这条**两边都没有共享常量**的隐式约定成立 —— 改任一侧都不编译报错、只静默产出错码，闸机侧才发现。
+
+因此：把 `SIGN_LENGTH=16` / `CARD_DATA_LENGTH=80` 提成常量，出口加 `[0-9A-F]{80}` 校验，不合法即返 `8001` + 明确文案而**不是**把错码返给上游。同批把 `2/4/16` 的内联副本、两处 `"%08X"` 与 `0xFFFFFFFFL`、`14` 收成常量（此前段长在 `BODY_LAYOUT` 声明一次、又在各 reader 里内联一遍，static 断言只校验「和为 64」、兜不住这类错位）。
+
+### 验证
+
+- ticket-server **180 → 191 tests / 0 failures**：新增 `IndustryDataOrchestratorTest` 11 条（HCE 短路 / HCE 缺数据 / HCE 格式非法 / 渠道空返 8001 / 日票拒发 8004 带回对端文案 / 日票不可达降级放行 / 在线码取码状态当前值 / 缺卡号 INVALID_PARAM / 站外双码共用 +1 序列号 / 站内只发出站码且不推进 / 生码失败透传）。
+- rpc `install` + 三模块 `compile` 全 BUILD SUCCESS。
+
+### 未做（NEVER 当成遗漏）
+
+1. **三个镜像已于 2026-09-18 一起上线**（`ticket-server:2.1.92` / `fep-app:2.0.91` / `industry-data-server:2.0.20`，回滚点分别 2.1.91 / 2.0.90 / 2.0.19），四条 `rollout status` 全成功、三个 NodePort（30014 / 30010 / 30018）探活 200 且 `readinessState` UP。**落点已实证**：`POST 172.20.211.23:30014/internal/ticket/industry/{online,offline}` 送 `{}` 各返 `8001 thirdUserId不能为空` —— 是业务码而非 UUID `retCode`，说明新端点确实注册上了（404 在本项目会被伪装成 HTTP 200 + UUID，见 AGENTS.md §8）。**本条此前写「三个模块都没升版本号、没推镜像、没部署」已作废、NEVER 回退**；「MUST 一起上」这条判据仍然成立（只上 fep-app 会打到 ticket-server 上不存在的端点），下次改动这条链路时照旧适用。
+2. 对外 retMsg 有**唯一一处**措辞变更：码状态查询失败从「ticket-server调用失败，返回为空」改为「查询乘车码状态失败，返回为空」（迁移后那句话在 ticket-server 内部说自己失败已不成立）。retCode 未变。
+
+## ADR-D143：支付宝开户按聚合拆三块 + 卡池 `businessId` 换成长度前缀键（2026-09-18，alipay-account-server 1.0.18，**已部署**）
+
+**背景**：`AlipayAccountServiceImpl` 349 行 / 5 个 public / 6 个字段，把**开户**、**换手机号**、**只读查询**三种职责压在一个类里。开户四步（卡池预占 → 注册乘车状态 → 短事务落两表 → 卡池 confirm）本身**骨架是合规的** —— 三次 RPC 全在事务外、失败不 release 预占、confirm 失败不返成功，这三条与 ITP 侧 `AccountRegistrationServiceImpl` 一致，**不是这次改的对象**。
+
+**为什么拆**：按两条判据实测，两条同时成立（任一单独成立都不足以拆）：
+1. **依赖簇不相交**：`alipayRegLogMapper` / `ticketClient` / `cardPoolClient` / `transactionTemplate` **只被开户用**；`alipayPhoneChangeLogMapper` 只被换号用；唯一相交的 `alipayUserInfoMapper` 在两边**一个写一个读**。
+2. **规模造成真实成本**：开户那一个方法就占掉全类六成篇幅，而换号与三个只读查询各只有几行 —— 读任何一条都要先翻过开户。
+
+**落地**（4 个文件，`AlipayAccountServiceImpl` 349 → 68 行纯委派门面）：
+- 新建 `service/impl/AlipayRegistrationService`：开户全量 + 6 个私有方法，构造注入 5 个依赖。类注释把「四步顺序 NEVER 改」与三条口径（本方法 NEVER 加 `@Transactional` / 失败 NEVER release / confirm 失败 NEVER 返成功）逐条写下。
+- 新建 `service/impl/AlipayUserQueryService`：`selectByThirdUserId` / `selectByCardId` / `updatePaymentChannel`。
+- 新建 `service/impl/AlipayPhoneChangeService`：`updatePhone`。
+- `AlipayAccountServiceImpl` 只留 5 个一行 `@Override` 委派，构造注三个协作者。**接口与 URL 一行未动**，对外契约零变更。
+
+**同批改掉的一个真实缺陷 —— `businessId` 键格式**：原键是 `ALIPAY_ACCOUNT_OPEN:<thirdUserId>:<发卡票种>` 的裸拼接。`thirdUserId` 由支付宝侧给定、**可能含冒号**，那种取值下会与另一组入参拼出同一个键 —— 卡池按 `businessId` 幂等，撞键即**两个用户抢同一张卡**。现改为长度前缀 `ALIPAY_ACCOUNT_OPEN:<len>:<thirdUserId>:<发卡票种>`，与 ITP 侧 `buildAccountOpenBusinessId`（ADR-D122）同形，但**保留 `ALIPAY_ACCOUNT_OPEN` 前缀把两条链路的键空间分开，NEVER 与 ITP 侧合并**。
+- **改键的代价，部署前 MUST 知道**：改键那一刻，库里**在途的 `PENDING` 预占会变成孤儿**（新键查不到旧预占，重试会重新发一张卡）。不做数据迁移是有意的 —— 孤儿预占由 `sys_job` 107「卡池维护」（cron `0 0/5 * * * ?`）到期回收，而迁移脚本要按旧键反解 `thirdUserId`，正是这个 bug 本身做不到的事。**建议在业务低峰滚更。**
+
+**测试**（8 个用例、`mvn -o clean test -pl alipay-account-server` 全绿）：
+- 原 `AlipayAccountCardPoolConfirmTest`（2 例）改为直接构造 `AlipayRegistrationService`，反射注字段的 `inject` 辅助方法已删。
+- 新增 `AlipayRegistrationCharacterizationTest`（6 例）：四步顺序（`InOrder`）/ 已开户幂等短路（四步一步都不走）/ 三种预占失败分流（`POOL_EMPTY→9999`、`REJECTED→8001`、`CALL_FAILED→9001`）/ 注册乘车状态失败不落库不 confirm 不 release / **`businessId` 长度前缀键格式且 reserve 与 confirm 用同一个值** / HCE 与员工票在入参校验即被挡。键格式那条尤其 **NEVER 删** —— 撞键在真实环境既造不出也看不见。
+
+**仍未闭合（不在本次范围）**：
+1. **confirm 失败不落异常工单**（`ALIPAY_*` 里没有 `EXCEPTION_TICKET`，本模块零命中）。ITP 侧走 `ACCOUNT_EXCEPTION_TICKET` 的 `CARD_POOL_CONFIRM_REJECTED`；支付宝侧三个选项（跨模块写 ITP 的表 / 新建 `ALIPAY_EXCEPTION_TICKET` 需生产 DDL / RPC 调 account-server 开工单）都有代价，**待用户裁决，NEVER 擅自建表**。当前形态是「只留一行 ERROR 日志 + 对上游返 9001」—— 不一致对运营完全不可见。
+2. ticket 注册失败被 `catch (Exception)` 收成 9001，`BizRejected` 与 `Unreachable` 分不开（该 Client 尚未 `RpcOutcome` 化）。
+3. `account-server/.../AlipayTripRegistrationServiceImpl` 是**零调用的平行实现**（ADR-D15 已裁定收口到本模块），建议删除、待确认。
+4. **部署记录（2026-09-18）**：`alipay-account:1.0.18` 已推 Harbor 并滚更（回滚点 `1.0.17`），`kubectl rollout status` 成功、`172.20.211.23:30021/actuator/health` 返 200 且 `db` / `readinessState` 全 UP。同批部署的还有 ADR-D142 那三个（`ticket-server:2.1.92` / `fep-app:2.0.91` / `industry-data-server:2.0.20`）。
+
+## ADR-D144：IF5A-03 票卡更新补支付宝回落 —— 与 IF5A-01 同判据、但**准入闸门**语义不同，另**撤回「006 付费更新会触发扣费」这条判断**（2026-09-18，ticket-server 2.1.93，未部署）
+
+接 ADR-D141（IF5A-01 分析侧回落）的第二步。用户裁决：方案 `plan_a`（**显式回落**，而不是「放行、交给下游 enricher 补」）、端到端 `both`（018 与 006 都验）。
+
+### 改造前的形态与真实影响面
+
+`SupplementUserLookup.query` 走 account 域两跳（`queryCardTypeByCardId` → `queryUserInfo`），**查不到 `thirdUserId` 即 `BizRejected("未注册用户")`** → `CardDataUpdateHandler.fillUserLookupFailure` 转 `8004 QR_CODE_NOT_FOUND` **整笔拒绝**。而支付宝出行用户在 `USER_ITP_REG_INFO` 里**恒 0 命中**（ADR-D141 已实证），于是「能拿到分析建议、拿建议去执行更新必被拒」。
+
+调研中发现一条**决定选型的事实**：该 lookup 的产出在 `CardDataUpdateHandler:126~128` **只被用于三个字段**（`thirdUserId` / `cardType` / `channel`），而 `dispatchToGate` 末端调的 `agmRideStatusService.notifyVerifyResult` 就是 IF1A-01 编排，其中 `GateCardTypeEnricher.applyActualCardType` **本来就会做同一套支付宝回落**并覆盖 `cardType`（`:136`）、`paymentVendor`（`:142`）、`itpUserId`（`:145`）。**因此这道 lookup 对支付宝卡的实际作用是「准入闸门」，不是数据补齐** —— 数据下游自己会补，是这道闸门先把整笔拒了。
+
+**选 `plan_a` 而非「放行」的理由**：IF5A-03 是**涉资金的执行侧**，让它自己知道「这是支付宝卡」比把正确性押在下游兜底上更可控，且与 IF5A-01 同形、维护心智一致。**NEVER 因为「下游反正会重算」就把这道校验删成放行。**
+
+### 决定：`fallbackToAlipay`，产出与失败处置都与 IF5A-01 刻意不同
+
+`SupplementUserLookup` 注入 `AlipayAccountClient`，account 域查不到 `thirdUserId` 时按 `cardId` 查 `ALIPAY_USER_INFO`，用 `thirdUserId` / `cardType`（经 `CardTypeMapping.toIssueCardType` 映射，与 `GateCardTypeEnricher:134` 同一映射）/ `channel` 拼 `QueryUserInfoResult` 返 `Ok`。
+
+三条口径 **NEVER 改**：
+
+1. **两域都查不到才 `BizRejected("未注册用户")`**（→ `8004`）。
+2. **支付宝域抛异常归 `Unreachable`、NEVER 退化成 `BizRejected`** —— 按 ADR-D45 那条，「业务拒绝」重推一万次也不会成功、而「网络不可达」才该进重试；混成一个就把可恢复的失败判成了终态。**这与 IF5A-01 刻意相反**：那边抛异常只打 WARN + 保留 BOM 上送值（分析是只读的、降级无害），这边**必须**让上游知道。
+3. **`SupplementUserLookup` 仍然 NEVER 与 `CardDataAnalyseHandler.queryUserInfo` 合并**（ADR-D71 那条继续有效，但理由要换）：判据现在同源了（都是「看卡在哪个域查得到」），**但产出与失败处置仍不同** —— IF5A-01 补 `msisdn` / `cardIssueDate`、失败只降级；IF5A-03 补 `thirdUserId` / `cardType` / `channel`、失败即拒整笔。**NEVER 再拿「IF5A-03 没有回落」当不合并的理由**（那个前提已经不成立）。
+
+`model` / `rpc` 一行未改（`AlipayUserInfoDTO` 三个字段齐全），因此**不触发「重建链路上每个镜像」那条**，只需重建 ticket-server。
+
+### 撤回：「IF5A-03 的 `006` 付费更新会真实触发出站扣费」
+
+评估阶段我据「006 是补出站、`trxType=02`」推断它会经 `GateFarePaymentOrchestrator` → gate-txn-pay → 支付中心 / alipay-pay-sign 真实扣费，并据此提示用户「联调会产生真实扣费单」。**实测推翻**：`shouldPay` 有两道门，IF5A-03 的**四个 `adviceOpt` 全部出局** ——
+
+- `:60` `!TrxTypeCodeEnum.isExitTxn(trxType)` 直接 `return false`（`isExitTxn` 只认 `02`/`03`），`018` 补进站在此出局；
+- `:67` `BOM_SUPPLEMENT_EXIT_ADVICE_OPTS`（= `AdviceOptEnum.SUPPLEMENT_EXIT_CODES`）**把 `005`/`006`/`020` 这些 BOM 补出站码全部挡掉**，它们虽然 `trxType=02` 也照样不扣费。
+
+于是 `gateTxnPayClient.requestGateTxnPay`（`:82`）压根不会调，gate-txn-pay 侧无订单、`PaySignInitiator:81` 那个 `isAlipay` 守卫更无从触发。**结论：IF5A-03 全链路不产生扣费单、不调 alipay-pay-sign。NEVER 再据「trxType=02」推断补出站会扣费。**
+
+### 支付宝方向的出网是两条：行业数据 + 行程数据（都与 `trxType` 无关）
+
+**本节此前写「唯一的支付宝方向出网：行程推送」，是错的（用户 2026-09-18 当场指正），NEVER 回退成「支付宝方向只有行程推送」。** `GateTicketHandler:125` 的类注释原文即「HCE 卡仅回写；非 HCE 卡推进行业数据；支付宝渠道额外推送行程数据」——**行业数据是无条件的那条、行程数据才是支付宝额外加的那条**：
+
+- **第一条（先发）行业数据**：`pushDownstream:134` 对**所有非 HCE 卡无条件**调 `appNotifyService.notifyVerifyResult(...)`（`AppNotifyServiceImpl:34~42` → `IndustryDataNotifier`），支付宝卡也走。**它不是打 APP 网关**：`IndustryDataNotifier:72` 按 `isAlipayTripChannel(request)` 三元选址，命中时用 `app.notify.alipay-industry-data-url`（`:39~40`，默认 `https://dtcustomer.bestonepay.com/ngopenplatform/notify/receiveCardDataFromItp`），否则才是 `app.notify.industry-data-url`（`:33`）。开关 `app.notify.industry-data-enabled` **默认 `true`**（`:36~37`）。这条**还额外带一次内部 RPC**：`:61` 先调 industry-data-server `buildCardData` 生码，`:63~69` 生码失败即整条不推。
+- **第二条（后发）行程数据**：`GateTicketHandler:136~138`，OkHttp 直连 bestonepay（`app.notify.alipay-push-trans-data-url`，`ticket-server/application.properties:66`）。**这条没有开关键**（`AlipayTripNotifier:26` 只注了 URL），**NEVER 去找 `alipay-push-trans-data-enabled`，那个键不存在**。
+
+两条守卫**完全同形**：`IndustryDataNotifier:121~126` 的 `isAlipayTripChannel` 与 `GateTicketHandler:136~137` 都是 `isAlipay(request.getIssueChannelCode()) && !isAiShanDong(request.getCardType())`，**都不看 `trxType`** —— 支付宝卡做补进站（`018`）同样两条都发。两条最终都打到 bestonepay，**仍不经任何内部支付宝模块**（不调 alipay-pay-sign、不调 alipay-account 的出向）。
+
+**这个守卫读的 `issueChannelCode` 来自 `QRCODE_STATUS.CHANNEL`**（`SupplementGateRequestAssembler:17~18`、`:22`），**不是** `userInfo.getChannel()`（后者填的是 `:23` 的 `signChannelCode`，另一个字段）。**排查「支付宝卡为什么没推行程 / 行业数据打错地址」MUST 查 `QRCODE_STATUS.CHANNEL`，NEVER 查 lookup 补出来的那个 channel。**
+
+
+### 验证
+
+- `mise exec -- mvn -o clean test -pl ticket-server -Djkube.skip=true` → **196 tests / 0 failures / BUILD SUCCESS**。
+- 新建 `SupplementUserLookupTest` 5 条：account 两跳都命中不回落（`verifyNoInteractions`）、account 查不到按 cardId 回落返 `Ok`、两域都查不到仍 `BizRejected("未注册用户")`、**支付宝域抛异常归 `Unreachable`**、支付宝域查到但 `thirdUserId` 为空仍拒。
+- **未部署**：pom 现为 **2.1.93**，本轮显式 `-Djkube.skip=true`、镜像未构建。
+
+### 联调选卡约束（实测，MUST 遵守）
+
+`AFCITPDB` 现查 9 个支付宝出行用户：`ALIPAY_USER_INFO.CHANNEL` **9/9 = `07`**，但 `QRCODE_STATUS.CHANNEL` **只有 2 张 = `07`、7 张 = `01`**（2026-09-17~18 新产生的，用户裁决为**测试数据**、非缺陷）。由于渠道分支与行程推送**都读 `QRCODE_STATUS.CHANNEL`**，**用那 7 张 `01` 的卡联调会验出假绿**（支付宝分支与行程推送都不走）。
+
+可用样本只有两张：`2607031119542741`（`CODE_STATUS=05`）与 `0426090949000069`（`CODE_STATUS=03`，今天 09:32 产生）。**补出站要 `03` 那张，跑完 `CODE_STATUS` 就变、要再验得重新造数。**
+
+### 本轮刻意不做的（NEVER 当成遗漏）
+
+1. **`SupplementRequestLedger` 的 `markUnknown` 悬挂态仍无人收**（`CardDataUpdateHandler:290`）。ticket-server 既没有扫表补偿也没有 outbox 载体表（`docs/domain/outbox.md` §七①）。本轮不是引入方，但支付宝卡走通后**多一类能踩到它的流量**，补不补是独立决定。
+2. **`QRCODE_STATUS.CHANNEL` 写入口径不一致未查**（同一天内 `01` / `07` 都在产生，说明有两条写入路径）。已按用户裁决当测试数据处理，**但代码路径本身没动**。
+3. **未部署、未端到端**。用户已裁决 018 与 006 都验，但那要等部署与造数。
+
+
+
+
+
 
 
 

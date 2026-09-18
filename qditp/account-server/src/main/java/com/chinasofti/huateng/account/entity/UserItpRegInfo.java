@@ -101,6 +101,17 @@ public class UserItpRegInfo {
      */
     private String companionFlag;
 
+    /** 开卡数量限制：1 唯一卡，2 多卡；null 为保留旧规则的历史/渠道记录。 */
+    private String ticketLimit;
+
+    public String getTicketLimit() {
+        return ticketLimit;
+    }
+
+    public void setTicketLimit(String ticketLimit) {
+        this.ticketLimit = ticketLimit;
+    }
+
     public Integer getId() {
         return id;
     }

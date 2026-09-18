@@ -40,10 +40,14 @@
 <script setup name="RegStats">
 import * as echarts from 'echarts'
 import { listRegStats } from '@/api/trans/regStats'
+import { defaultTodayRange } from '@/utils/dateRange'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYY-MM-DD'
 
 const loading = ref(false)
 const statsList = ref([])
-const dateRange = ref([])
+const dateRange = ref(defaultTodayRange(DATE_FORMAT))
 const pieRef = ref(null)
 let pieChart = null
 
@@ -92,7 +96,7 @@ function handleQuery() {
 }
 
 function resetQuery() {
-  dateRange.value = []
+  dateRange.value = defaultTodayRange(DATE_FORMAT)
   getList()
 }
 

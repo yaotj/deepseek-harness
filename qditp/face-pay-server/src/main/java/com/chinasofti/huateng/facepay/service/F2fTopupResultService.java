@@ -70,6 +70,7 @@ public class F2fTopupResultService {
             return TvmResponses.fail(DeviceRetCode.ORDER_NO_ERROR);
         }
         boolean reportOnly = !REPORTABLE.contains(order.getOrderStatus());
+        warnIfPhysicsNumMismatch(order, request.getTicketPhysicsNum(), "充值成功通知");
         if (!insertReport(buildOkReport(order, request))) {
             log.info("充值成功通知重复到达，幂等返回成功, orderNo={}", order.getOrderNo());
             return TvmResponses.success();
@@ -94,6 +95,7 @@ public class F2fTopupResultService {
         }
         boolean reportOnly = !REPORTABLE.contains(order.getOrderStatus())
                 && !STATUS_REFUNDING.equals(order.getOrderStatus());
+        warnIfPhysicsNumMismatch(order, request.getTicketPhysicsNum(), "充值失败通知");
         boolean firstReport = insertReport(buildFailReport(order, request));
         if (!firstReport) {
             log.info("充值失败通知重复到达，幂等返回成功, orderNo={}", order.getOrderNo());
@@ -240,6 +242,23 @@ public class F2fTopupResultService {
         if (transit.conflict()) {
             log.warn("F2F CAS 冲突 {} 未推进到 {}，仍按原口径应答, orderNo={}, observed={}",
                     scene, target, orderNo, transit.observedStatus());
+        }
+    }
+
+    /**
+     * 记「设备本次上送的物理卡号与下单时留证的不一致」。
+     *
+     * <p>只告警不拒绝：物理卡号不参与状态推进与金额计算，拒绝会把「钱已收、卡已充」的单挡在门外。
+     * 下单时未留证的历史单（1.0.58 之前）一律跳过，那不是设备的问题。
+     */
+    private void warnIfPhysicsNumMismatch(F2fOrder order, String reported, String scene) {
+        String stored = order.getTicketPhysicsNum();
+        if (stored == null || stored.isBlank() || reported == null || reported.isBlank()) {
+            return;
+        }
+        if (!stored.equals(reported)) {
+            log.warn("{} 物理卡号与下单时不一致，仅告警不拒绝, orderNo={}, stored={}, reported={}",
+                    scene, order.getOrderNo(), stored, reported);
         }
     }
 }

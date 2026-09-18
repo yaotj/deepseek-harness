@@ -26,8 +26,8 @@
       <el-table-column label="申请卡类型" width="140" align="center"><template #default="{ row }">{{ cardTypeLabel(row.itpCardType) }}</template></el-table-column>
       <el-table-column label="手机号" prop="msisdn" width="140" align="center" />
       <el-table-column label="姓名" prop="userName" width="100" align="center" />
-      <el-table-column label="发卡机构" prop="cardIssueCode" width="110" align="center" />
-      <el-table-column label="默认渠道" width="120" align="center"><template #default="{ row }">{{ channelLabel(row.channel) }}</template></el-table-column>
+      <el-table-column label="发卡机构" width="180" align="center"><template #default="{ row }">{{ issueOrgLabel(row.issueOrgCode) }}</template></el-table-column>
+      <el-table-column label="默认渠道" width="150" align="center"><template #default="{ row }">{{ channelLabel(row.channel) }}</template></el-table-column>
       <el-table-column label="二维码类型" width="140" align="center"><template #default="{ row }"><el-tag :type="qrCodeTypeTag(row.companionFlag)">{{ qrCodeTypeLabel(row.companionFlag) }}</el-tag></template></el-table-column>
       <el-table-column label="注册状态" prop="status" width="100" align="center"><template #default="{ row }"><el-tag :type="row.status === '有效' ? 'success' : row.status === '已注销' ? 'info' : 'danger'">{{ row.status }}</el-tag></template></el-table-column>
       <el-table-column label="申卡时间" width="170" align="center"><template #default="{ row }">{{ formatRegistrationTime(row.regTms) }}</template></el-table-column>
@@ -47,6 +47,7 @@
 
 <script setup name="ItpUserSearch">
 import { searchItpUsers } from '@/api/trans/userSearch'
+import { formatCodeLabel } from '@/utils/codeLabel'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
@@ -75,12 +76,42 @@ const cardTypeLabels = {
   '0448': '多日计次票'
 }
 
+/** 发卡机构：取 USER_ITP_REG_INFO.ISSUE_ORG_CODE 原值。 */
+const issueOrgLabels = {
+  '0004': '海上巴士',
+  '0007': '支付宝出行',
+  '0008': '成都地铁',
+  '0020': '青岛地铁（早期）',
+  '5412': '青岛地铁',
+  '5413': '畅行U惠小程序'
+}
+
+/** 支付渠道：保持上送原值（含 0B/0C 这类 16 进制写法）做码值匹配，不做进制转换。 */
+const channelLabels = {
+  '03': '支付宝',
+  '04': '微信',
+  '05': '支付宝出行',
+  '06': '龙支付',
+  '0601': '招商银行',
+  '0602': '中国银行',
+  '08': '建行数币',
+  '0801': '中行数币',
+  '0802': '邮储数币',
+  '0803': '交行数币',
+  '0B': '钱包',
+  '0C': '数币APP'
+}
+
 function cardTypeLabel(value) {
-  return cardTypeLabels[value] || value || '-'
+  return formatCodeLabel(value, cardTypeLabels)
+}
+
+function issueOrgLabel(value) {
+  return formatCodeLabel(value, issueOrgLabels)
 }
 
 function channelLabel(value) {
-  return value ? `渠道 ${value}` : '-'
+  return formatCodeLabel(value, channelLabels)
 }
 
 function qrCodeTypeLabel(companionFlag) {
@@ -99,7 +130,7 @@ function qrCodeTypeTag(companionFlag) {
 
 function formatRegistrationTime(value) {
   if (!value || /^0[-/]0[-/]0(?:\s|T)0:0:0(?:\.0+)?$/.test(String(value))) return '-'
-  return parseTime(value) || '-'
+  return proxy.parseTime(value) || '-'
 }
 
 function handleQuery() {
@@ -109,11 +140,18 @@ function handleQuery() {
   }
   loading.value = true
   searchItpUsers({ ...queryParams, keyword: queryParams.keyword.trim() }).then((response) => {
-    users.value = response.data || []
+    users.value = normalizeRows(response)
     // 异步数据渲染后重算布局，避免右侧固定列与主体行错位
     nextTick(() => tableRef.value?.doLayout())
     if (!users.value.length) proxy.$modal.msgInfo('未查询到其他渠道注册记录')
   }).finally(() => { loading.value = false })
+}
+
+function normalizeRows(response) {
+  if (Array.isArray(response)) return response
+  if (Array.isArray(response?.data)) return response.data
+  if (Array.isArray(response?.data?.data)) return response.data.data
+  return []
 }
 
 function resetQuery() {

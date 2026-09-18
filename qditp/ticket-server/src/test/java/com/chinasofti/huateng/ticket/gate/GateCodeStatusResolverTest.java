@@ -24,7 +24,7 @@ class GateCodeStatusResolverTest {
     @ParameterizedTest(name = "trxType={0}, excessFareType={1}, adviceOpt={2} -> {3}")
     @CsvSource(nullValues = "NULL", value = {
             "NULL, NULL, 018, 04",
-            "NULL, NULL, 020, 04",
+            "NULL, NULL, 020, 08",
             "NULL, NULL, 005, 08",
             "NULL, NULL, 006, 09",
             "NULL, 01,   NULL, 81",

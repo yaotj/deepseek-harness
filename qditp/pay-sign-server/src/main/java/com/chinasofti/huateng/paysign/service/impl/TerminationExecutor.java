@@ -23,9 +23,9 @@ import com.chinasofti.huateng.paysign.port.ContractGatewayPort;
 import com.chinasofti.huateng.paysign.port.GatewayReply;
 import com.chinasofti.huateng.paysign.support.PaymentChannel;
 import com.chinasofti.huateng.paysign.support.PaymentChannels;
+import com.chinasofti.huateng.paysign.domain.PaySignDuplicateKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -231,7 +231,7 @@ public class TerminationExecutor {
         try {
             terminationRequestMapper.insert(record);
         } catch (RuntimeException e) {
-            if (!isDuplicateKeyViolation(e)) {
+            if (!PaySignDuplicateKey.isConflict(e)) {
                 throw e;
             }
             log.info("解约申请已被并发插入，改用库中记录继续, requestSignSeq={}", request.getRequestSignSeq());
@@ -240,20 +240,5 @@ public class TerminationExecutor {
         log.info("解约申请不存在，已按签约记录补建 PENDING 申请, requestSignSeq={}, thirdUserId={}",
                 record.getRequestSignSeq(), record.getThirdUserId());
         return record;
-    }
-
-    /**
-     * 异常链上是否有唯一键冲突。
-     *
-     * @param e 捕获到的异常
-     * @return 链上出现过唯一键冲突即 true
-     */
-    private boolean isDuplicateKeyViolation(Throwable e) {
-        for (Throwable cause = e; cause != null && cause != cause.getCause(); cause = cause.getCause()) {
-            if (cause instanceof DuplicateKeyException) {
-                return true;
-            }
-        }
-        return false;
     }
 }

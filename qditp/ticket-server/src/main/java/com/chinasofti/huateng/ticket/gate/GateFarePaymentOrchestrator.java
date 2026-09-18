@@ -21,7 +21,7 @@ class GateFarePaymentOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(GateFarePaymentOrchestrator.class);
 
-    /** BOM 补站里属于「出站方向」的 adviceOpt 白名单：{@code 005} 免费更新、{@code 006} 补出站。 */
+    /** BOM 补站里属于「出站方向」的 adviceOpt 白名单：{@code 005} 免费更新、{@code 006} 补出站、{@code 020} 无时间窗免费更新。 */
     private static final Set<String> BOM_SUPPLEMENT_EXIT_ADVICE_OPTS = AdviceOptEnum.SUPPLEMENT_EXIT_CODES;
 
     private final GateTxnPayClient gateTxnPayClient;
@@ -55,7 +55,7 @@ class GateFarePaymentOrchestrator {
     private boolean isAlipayTransaction(NotifyVerifyResultReqDTO request) {
         return request != null && IssueChannelCodeEnum.isAlipay(request.getIssueChannelCode());
     }
-    /** 判断是否需要发起扣费：仅 trxType 为 "02"（正常出站）或 "03"（超时出站）时触发， 且 BOM 补站的 005 / 006 一律不扣。 */
+    /** 判断是否需要发起扣费：仅 trxType 为 "02"（正常出站）或 "03"（超时出站）时触发， 且 BOM 补站的 005 / 006 / 020 一律不扣。 */
     private boolean shouldPay(NotifyVerifyResultReqDTO request) {
         if (request == null || !TrxTypeCodeEnum.isExitTxn(request.getTrxType())) {
             return false;

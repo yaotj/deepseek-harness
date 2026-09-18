@@ -5,6 +5,10 @@ import java.util.Date;
 /** 退款操作页展示的日票订单摘要。金额单位为分。 */
 public class DailyTicketRefundOrderView {
     private String orderNo;
+    private String orderType;
+    private String parentOrderNo;
+    private Integer ticketCount;
+    private Integer totalAmount;
     private String paymentOrderNo;
     private String tradeNo;
     private String ticketName;
@@ -27,6 +31,14 @@ public class DailyTicketRefundOrderView {
 
     public String getOrderNo() { return orderNo; }
     public void setOrderNo(String orderNo) { this.orderNo = orderNo; }
+    public String getOrderType() { return orderType; }
+    public void setOrderType(String orderType) { this.orderType = orderType; }
+    public String getParentOrderNo() { return parentOrderNo; }
+    public void setParentOrderNo(String parentOrderNo) { this.parentOrderNo = parentOrderNo; }
+    public Integer getTicketCount() { return ticketCount; }
+    public void setTicketCount(Integer ticketCount) { this.ticketCount = ticketCount; }
+    public Integer getTotalAmount() { return totalAmount; }
+    public void setTotalAmount(Integer totalAmount) { this.totalAmount = totalAmount; }
     public String getPaymentOrderNo() { return paymentOrderNo; }
     public void setPaymentOrderNo(String paymentOrderNo) { this.paymentOrderNo = paymentOrderNo; }
     public String getTradeNo() { return tradeNo; }

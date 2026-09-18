@@ -15,6 +15,8 @@ public interface DailyTicketRefundMapper {
 
     DailyTicketRefund selectByOrderNo(@Param("orderNo") String orderNo);
 
+    DailyTicketRefund selectByRefundOrderNo(@Param("refundOrderNo") String refundOrderNo);
+
     /** 运营页面退款记录查询。 */
     java.util.List<DailyTicketRefundView> selectRefunds(DailyTicketRefundQuery query);
 

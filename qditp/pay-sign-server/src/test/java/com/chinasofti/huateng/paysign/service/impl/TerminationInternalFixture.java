@@ -10,9 +10,10 @@ import com.chinasofti.huateng.paysign.mapper.PaySignRequestMapper;
 import com.chinasofti.huateng.paysign.port.AccountDomainPort;
 import com.chinasofti.huateng.paysign.port.ContractGatewayPort;
 import com.chinasofti.huateng.paysign.port.GatewayReply;
-import com.chinasofti.huateng.paysign.service.AppNotifyService;
 import com.chinasofti.huateng.paysign.service.TerminationInternalService;
+import com.chinasofti.huateng.paysign.service.TerminationNotifyService;
 import com.chinasofti.huateng.paysign.support.PaySignGateway;
+import com.chinasofti.huateng.paysign.port.UnsettledOrderRpcAdapter;
 import com.chinasofti.huateng.rpc.pay.GateTxnPayClient;
 
 /** 测试夹具：解约内部端点专用，断言挂在接口上，解约执行簇用真实现。 */
@@ -24,7 +25,7 @@ final class TerminationInternalFixture {
 
     /** 支付中心签约/解约方向的出向端口（2026-09-16，ADR-D115）。 */
     final ContractGatewayPort contractGatewayPort = mock(ContractGatewayPort.class);
-    final AppNotifyService appNotifyService = mock(AppNotifyService.class);
+    final TerminationNotifyService terminationNotifyService = mock(TerminationNotifyService.class);
     /** 扫表补偿三兄弟已于 2026-09-16 拆到 {@link TerminationCompensationService}，本类只剩一行委托。 */
     final TerminationCompensationService terminationCompensationService =
             mock(TerminationCompensationService.class);
@@ -57,8 +58,8 @@ final class TerminationInternalFixture {
                 terminationCompensationService,
                 executor,
                 terminationRequestMapper,
-                gateTxnPayClient,
-                appNotifyService);
+                new UnsettledOrderRpcAdapter(gateTxnPayClient),
+                terminationNotifyService);
     }
 
     static TerminationInternalFixture create() {

@@ -11,7 +11,7 @@ import static com.chinasofti.huateng.paysign.support.PaySignResponses.fillSucces
 import com.chinasofti.huateng.paysign.constant.PaySignErrorCodeEnum;
 import com.chinasofti.huateng.paysign.entity.AppTerminationRequest;
 import com.chinasofti.huateng.paysign.mapper.AppTerminationRequestMapper;
-import com.chinasofti.huateng.paysign.service.AppNotifyService;
+import com.chinasofti.huateng.paysign.service.TerminationNotifyService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -60,7 +60,7 @@ public class TerminationCompensationService {
 
     private final AppTerminationRequestMapper terminationRequestMapper;
 
-    private final AppNotifyService appNotifyService;
+    private final TerminationNotifyService terminationNotifyService;
 
     private final TerminationProcessor terminationProcessor;
 
@@ -68,11 +68,11 @@ public class TerminationCompensationService {
     public TerminationCompensationService(
             ChannelSyncDeliverer channelSyncDeliverer,
             AppTerminationRequestMapper terminationRequestMapper,
-            AppNotifyService appNotifyService,
+            TerminationNotifyService terminationNotifyService,
             TerminationProcessor terminationProcessor) {
         this.channelSyncDeliverer = channelSyncDeliverer;
         this.terminationRequestMapper = terminationRequestMapper;
-        this.appNotifyService = appNotifyService;
+        this.terminationNotifyService = terminationNotifyService;
         this.terminationProcessor = terminationProcessor;
     }
 
@@ -175,8 +175,9 @@ public class TerminationCompensationService {
             response.setScanned(records.size());
             for (AppTerminationRequest record : records) {
                 try {
-                    terminationRequestMapper.increaseNotifyRetryCount(record.getRequestSignSeq());
-                    appNotifyService.asyncRetryTerminationNotify(record);
+                    terminationRequestMapper.increaseNotifyRetryCount(record.getRequestSignSeq(),
+                            record.getTerminationStatus());
+                    terminationNotifyService.asyncRetryTerminationNotify(record);
                     response.setSubmitted(response.getSubmitted() + 1);
                 } catch (Exception e) {
                     log.error("提交解约通知重发异常, requestSignSeq={}", record.getRequestSignSeq(), e);

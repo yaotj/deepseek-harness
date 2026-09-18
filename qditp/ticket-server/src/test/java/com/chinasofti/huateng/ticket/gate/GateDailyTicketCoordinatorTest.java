@@ -5,6 +5,7 @@ import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult;
 import com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO;
 import com.chinasofti.huateng.model.ticket.NotifyVerifyResultRespDTO;
 import com.chinasofti.huateng.rpc.dailyticket.DailyTicketClient;
+import com.chinasofti.huateng.ticket.notify.AppNotifyService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,13 +34,16 @@ class GateDailyTicketCoordinatorTest {
     private static final String QR_CARD_TYPE = "0441";
 
     private DailyTicketClient dailyTicketClient;
+    private AppNotifyService appNotifyService;
     private GateDailyTicketCoordinator coordinator;
 
     @BeforeEach
     void setUp() {
         dailyTicketClient = mock(DailyTicketClient.class);
+        appNotifyService = mock(AppNotifyService.class);
         coordinator = new GateDailyTicketCoordinator();
         ReflectionTestUtils.setField(coordinator, "dailyTicketClient", dailyTicketClient);
+        ReflectionTestUtils.setField(coordinator, "appNotifyService", appNotifyService);
     }
 
     private NotifyVerifyResultReqDTO request(String trxType) {
@@ -142,11 +146,30 @@ class GateDailyTicketCoordinatorTest {
         when(dailyTicketClient.markUsed(anyString(), isNull(), isNull(), anyString(), anyString()))
                 .thenReturn(baseResult("0000", "成功"));
 
-        coordinator.markUsedOnExit(request("02"), DAILY_TICKET_CARD_TYPE);
+        NotifyVerifyResultReqDTO request = request("02");
+        coordinator.markUsedOnExit(request, DAILY_TICKET_CARD_TYPE);
 
         verify(dailyTicketClient, times(1)).markUsed(
                 eq("0426091000000013"), isNull(), isNull(),
                 eq("1001"), eq("2002"));
+        verify(appNotifyService, times(1)).notifyCountingTicketTimes(eq(request), eq(1));
+    }
+
+    @Test
+    @DisplayName("扣次没成功 MUST NOT 通知 APP：三种失败形态都不推 §3.63")
+    void 扣次未成功MUST不推次数扣减通知() {
+        when(dailyTicketClient.markUsed(anyString(), any(), any(), any(), any()))
+                .thenReturn(baseResult("8001", "次数不足"));
+        coordinator.markUsedOnExit(request("02"), DAILY_TICKET_CARD_TYPE);
+
+        when(dailyTicketClient.markUsed(anyString(), any(), any(), any(), any())).thenReturn(null);
+        coordinator.markUsedOnExit(request("02"), DAILY_TICKET_CARD_TYPE);
+
+        when(dailyTicketClient.markUsed(anyString(), any(), any(), any(), any()))
+                .thenThrow(new RuntimeException("connect timed out"));
+        coordinator.markUsedOnExit(request("02"), DAILY_TICKET_CARD_TYPE);
+
+        verifyNoInteractions(appNotifyService);
     }
 
     @Test

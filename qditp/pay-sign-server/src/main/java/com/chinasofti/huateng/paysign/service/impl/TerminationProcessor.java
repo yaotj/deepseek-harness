@@ -2,8 +2,6 @@ package com.chinasofti.huateng.paysign.service.impl;
 
 import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.model.domain.TerminationStatus;
-import com.chinasofti.huateng.model.pay.GateTxnPayFailedOrderReqDTO;
-import com.chinasofti.huateng.model.pay.GateTxnPayFailedOrderRespDTO;
 import com.chinasofti.huateng.paysign.audit.PaySignAuditLogger;
 import com.chinasofti.huateng.paysign.constant.PaySignErrorCodeEnum;
 import com.chinasofti.huateng.paysign.constant.SignChannelEnum;
@@ -15,9 +13,10 @@ import com.chinasofti.huateng.model.app.ReceiveTerminationResultReqDTO;
 import com.chinasofti.huateng.paysign.model.response.BaseRespDTO;
 import com.chinasofti.huateng.paysign.port.ContractGatewayPort;
 import com.chinasofti.huateng.paysign.port.GatewayReply;
-import com.chinasofti.huateng.paysign.service.AppNotifyService;
+import com.chinasofti.huateng.paysign.port.UnsettledOrderAnswer;
+import com.chinasofti.huateng.paysign.port.UnsettledOrderPort;
+import com.chinasofti.huateng.paysign.service.TerminationNotifyService;
 import com.chinasofti.huateng.paysign.service.CallbackDomainService;
-import com.chinasofti.huateng.rpc.pay.GateTxnPayClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -35,9 +34,19 @@ public class TerminationProcessor {
     private static final String STATUS_PENDING = TerminationStatus.PENDING.name();
     private static final String STATUS_SCANNING = TerminationStatus.SCANNING.name();
 
-    /** 支付平台协议状态：已解约。 */
+    /**
+     * 支付平台协议状态：已解约。
+     *
+     * <p><b>这是外部契约值、不是本地状态，NEVER 改成 {@code SignStatus.UNSIGNED.name()}</b>（ADR-D127）：
+     * 它与本地 {@code SIGN_STATUS} 恰好同名同值纯属巧合，语义是「支付中心侧协议已解」。
+     * 一旦支付中心换了取值，这里要跟着换而本地枚举**不能**动；反过来也一样。
+     */
     private static final String GATEWAY_STATUS_UNSIGNED = "UNSIGNED";
-    /** 解约回调报文的成功状态值，见 CallbackDomainServiceImpl.receiveTerminationResult。 */
+    /**
+     * 解约回调报文的成功状态值，见 {@code TerminationResultCallbackHandler}。
+     *
+     * <p>同上属**入向报文契约**，与 {@code TerminationStatus.SUCCESS} 同名不同源，NEVER 合并。
+     */
     private static final String CALLBACK_STATUS_SUCCESS = "SUCCESS";
 
     private static final DateTimeFormatter DISMISSAL_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
@@ -70,9 +79,10 @@ public class TerminationProcessor {
     /** 审计流水的唯一写入点（2026-09-14 抽出）；此前是 {@code paySignWorkflow.writeLog}，属反向依赖。 */
     private final PaySignAuditLogger auditLogger;
 
-    private final GateTxnPayClient gateTxnPayClient;
+    /** 闸机域**未结清欠费查询方向**的出向端口（2026-09-17，ADR-D119）。 */
+    private final UnsettledOrderPort unsettledOrderPort;
 
-    private final AppNotifyService appNotifyService;
+    private final TerminationNotifyService terminationNotifyService;
 
     /** 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备。 */
     public TerminationProcessor(
@@ -80,14 +90,14 @@ public class TerminationProcessor {
             ContractGatewayPort contractGatewayPort,
             CallbackDomainService callbackDomainService,
             PaySignAuditLogger auditLogger,
-            GateTxnPayClient gateTxnPayClient,
-            AppNotifyService appNotifyService) {
+            UnsettledOrderPort unsettledOrderPort,
+            TerminationNotifyService terminationNotifyService) {
         this.terminationRequestMapper = terminationRequestMapper;
         this.contractGatewayPort = contractGatewayPort;
         this.callbackDomainService = callbackDomainService;
         this.auditLogger = auditLogger;
-        this.gateTxnPayClient = gateTxnPayClient;
-        this.appNotifyService = appNotifyService;
+        this.unsettledOrderPort = unsettledOrderPort;
+        this.terminationNotifyService = terminationNotifyService;
     }
 
     public Outcome processOne(AppTerminationRequest record) {
@@ -106,17 +116,23 @@ public class TerminationProcessor {
     /** PENDING：确认无未结清欠费后发起支付平台解约。 */
     private Outcome processPending(AppTerminationRequest record) {
         String requestSignSeq = record.getRequestSignSeq();
-        GateTxnPayFailedOrderRespDTO orderResp = queryUnsettledOrder(record);
-        if (orderResp == null || !PaySignErrorCodeEnum.SUCCESS.getCode().equals(orderResp.getResultCode())) {
-            log.error("查询未结清扣费订单未成功，本次不处理, requestSignSeq={}, response={}",
-                    requestSignSeq, orderResp == null ? null : JSON.toJSONString(orderResp));
-            return Outcome.SKIPPED;
-        }
-
-        if (orderResp.isHasFailedOrder()) {
-            return rejectByUnsettledOrder(record, requestSignSeq);
-        }
-        return requestTermination(record, requestSignSeq);
+        // 三分支穷尽：「问不出来」MUST 阻断本轮，NEVER 当成「无欠费」放行（ADR-D119）。
+        // 少写一个分支这里直接编译失败 —— 这正是把 boolean 换成三态答复的目的。
+        return switch (unsettledOrderPort.hasUnsettledOrder(
+                record.getThirdUserId(), record.getPaymentVendor(), null)) {
+            case UnsettledOrderAnswer.Answered answered -> answered.hasUnsettledOrder()
+                    ? rejectByUnsettledOrder(record, requestSignSeq)
+                    : requestTermination(record, requestSignSeq);
+            case UnsettledOrderAnswer.Rejected rejected -> {
+                log.error("查询未结清扣费订单未成功，本次不处理, requestSignSeq={}, retCode={}, retMsg={}",
+                        requestSignSeq, rejected.retCode(), rejected.retMsg());
+                yield Outcome.SKIPPED;
+            }
+            case UnsettledOrderAnswer.Unknown unknown -> {
+                log.error("查询未结清扣费订单未获答复，本次不处理, requestSignSeq={}", requestSignSeq, unknown.cause());
+                yield Outcome.SKIPPED;
+            }
+        };
     }
 
     /** SCANNING：主动向支付平台查协议状态收口。 */
@@ -170,19 +186,6 @@ public class TerminationProcessor {
         }
         Object status = data.get("status");
         return status == null ? null : String.valueOf(status);
-    }
-
-    /** 查询该用户该支付渠道下是否还有未结清扣费订单。 */
-    private GateTxnPayFailedOrderRespDTO queryUnsettledOrder(AppTerminationRequest record) {
-        try {
-            GateTxnPayFailedOrderReqDTO request = new GateTxnPayFailedOrderReqDTO();
-            request.setThirdUserId(record.getThirdUserId());
-            request.setPaymentVendor(record.getPaymentVendor());
-            return gateTxnPayClient.hasFailedOrder(request);
-        } catch (Exception e) {
-            log.error("查询未结清扣费订单异常, requestSignSeq={}", record.getRequestSignSeq(), e);
-            return null;
-        }
     }
 
     /** 存在未结清欠费：不调支付平台，置 FAILED 并通知 APP 解约失败。 */
@@ -241,7 +244,7 @@ public class TerminationProcessor {
         notifyRequest.setCardId(record.getCardId());
         notifyRequest.setCardType(record.getCardType());
         notifyRequest.setFailReason(failReason);
-        appNotifyService.asyncNotifyTerminationFailed(record, notifyRequest);
+        terminationNotifyService.asyncNotifyTerminationFailed(record, notifyRequest);
     }
 
     /** 无未结清欠费：CAS 抢执行权置 SCANNING，再调支付平台解约。 */

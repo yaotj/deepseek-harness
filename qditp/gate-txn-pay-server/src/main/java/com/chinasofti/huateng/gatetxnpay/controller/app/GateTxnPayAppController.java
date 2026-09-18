@@ -39,6 +39,7 @@ public class GateTxnPayAppController {
                 request.getEndDate(),
                 request.getTicketCode(),
                 request.getDebitRequestResult(),
+                request.getIssueChannelCode(),
                 request.getOffset(),
                 request.getLimit());
         log.info("APP查询交易记录列表完成, 返回{}条", list == null ? 0 : list.size());
@@ -56,7 +57,8 @@ public class GateTxnPayAppController {
                 request.getStartDate(),
                 request.getEndDate(),
                 request.getTicketCode(),
-                request.getDebitRequestResult());
+                request.getDebitRequestResult(),
+                request.getIssueChannelCode());
         log.info("APP统计交易记录总数完成, 返回={}", count);
         return count;
     }

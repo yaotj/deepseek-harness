@@ -25,7 +25,7 @@ public interface RegistrationCommitService {
     void persistRegistration(UserItpRegInfo regInfo);
 
     /**
-     * 留存 APP / 渠道上送的发卡机构码原值；未知机构码打 ERROR 但**不拒绝开户**。
+     * 留存 APP / 渠道上送的所属方原值，仅去首尾空格，不做机构字典校验。
      *
      * @param cardIssueCode 上送的发卡机构码
      * @return trim 后的原值

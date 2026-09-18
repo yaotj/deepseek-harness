@@ -97,6 +97,7 @@
 
 <script setup name="UserPayChannel">
 import { executeTermination, getItpPayChannels } from '@/api/trans/userSearch'
+import { formatCodeLabel } from '@/utils/codeLabel'
 
 const { proxy } = getCurrentInstance()
 const route = useRoute()
@@ -130,28 +131,35 @@ const cardTypeLabels = {
   '0448': '多日计次票'
 }
 
+/** 支付渠道：保持上送原值（含 0B/0C 这类 16 进制写法）做码值匹配，不做进制转换。 */
 const channelLabels = {
   '03': '支付宝',
   '04': '微信',
   '05': '支付宝出行',
   '06': '龙支付',
-  '07': '银联',
-  '0B': '钱包'
+  '0601': '招商银行',
+  '0602': '中国银行',
+  '08': '建行数币',
+  '0801': '中行数币',
+  '0802': '邮储数币',
+  '0803': '交行数币',
+  '0B': '钱包',
+  '0C': '数币APP'
 }
 
 const defaultChannel = computed(() => channels.value.find((channel) => channel.defaultChannel))
 
 function cardTypeLabel(value) {
-  return cardTypeLabels[value] || value || '-'
+  return formatCodeLabel(value, cardTypeLabels)
 }
 
 function channelLabel(value) {
-  return channelLabels[value] || (value ? `渠道 ${value}` : '-')
+  return formatCodeLabel(value, channelLabels)
 }
 
 function formatTime(value) {
   if (!value) return '-'
-  return parseTime(value) || String(value)
+  return proxy.parseTime(value) || String(value)
 }
 
 function normalizeChannels(list) {

@@ -23,6 +23,7 @@
         <result column="SHIFT_ID" jdbcType="VARCHAR" property="shiftId"/>
         <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
         <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="TICKET_PHYSICS_NUM" jdbcType="VARCHAR" property="ticketPhysicsNum"/>
         <result column="TICKET_NUM" jdbcType="INTEGER" property="ticketNum"/>
         <result column="TICKET_PRICE" jdbcType="BIGINT" property="ticketPrice"/>
         <result column="SINGLE_TICKET_TYPE" jdbcType="VARCHAR" property="singleTicketType"/>
@@ -48,6 +49,7 @@
         ID, ORDER_NO, CHANNEL, BIZ_TYPE, TRANS_TYPE, ADMIN_TRANS_TYPE, ORDER_STATUS, ORDER_AMOUNT,
         REFUND_STATUS, REFUND_AMOUNT, LAST_REFUND_TMS,
         DEVICE_ID, DEVICE_SEQ, STATION_CODE, OPERATOR_ID, SHIFT_ID, THIRD_USER_ID, CARD_ID,
+        TICKET_PHYSICS_NUM,
         TICKET_NUM, TICKET_PRICE, SINGLE_TICKET_TYPE, ENTRY_STATION_CODE, EXIT_STATION_CODE,
         CARD_BEFORE_AMOUNT, CARD_AFTER_AMOUNT, SUSPECT_SLIP_NO, QRCODE_GEN_DATE, RANDOM_FACT,
         ACTIVATE_FLAG, ACTIVATE_DEVICE_ID, ACTIVATE_TMS, EXPIRE_TMS, PAID_TMS, FULFILL_TMS,
@@ -58,6 +60,7 @@
         INSERT INTO F2F_ORDER (
             ORDER_NO, CHANNEL, BIZ_TYPE, TRANS_TYPE, ADMIN_TRANS_TYPE, ORDER_STATUS, ORDER_AMOUNT,
             DEVICE_ID, DEVICE_SEQ, STATION_CODE, OPERATOR_ID, SHIFT_ID, THIRD_USER_ID, CARD_ID,
+            TICKET_PHYSICS_NUM,
             TICKET_NUM, TICKET_PRICE, SINGLE_TICKET_TYPE, ENTRY_STATION_CODE, EXIT_STATION_CODE,
             CARD_BEFORE_AMOUNT, CARD_AFTER_AMOUNT, SUSPECT_SLIP_NO, QRCODE_GEN_DATE, RANDOM_FACT,
             ACTIVATE_FLAG, EXPIRE_TMS, CREATE_TMS, UPDATE_TMS, REMARK
@@ -76,6 +79,7 @@
             #{shiftId,jdbcType=VARCHAR},
             #{thirdUserId,jdbcType=VARCHAR},
             #{cardId,jdbcType=VARCHAR},
+            #{ticketPhysicsNum,jdbcType=VARCHAR},
             #{ticketNum,jdbcType=INTEGER},
             #{ticketPrice,jdbcType=BIGINT},
             #{singleTicketType,jdbcType=VARCHAR},
@@ -267,6 +271,7 @@
         SELECT O.ORDER_NO AS orderNo,
                O.ORDER_STATUS AS orderStatus,
                O.CHANNEL AS channel,
+               O.BIZ_TYPE AS bizType,
                P.PAY_CENTER_ORDER_NO AS payCenterOrderNo,
                P.CHANNEL_ORDER_NO AS payCenterChannelOrderNo,
                P.PAY_CHANNEL_CODE AS payChannelCode,
@@ -287,7 +292,7 @@
                TO_CHAR(O.CREATE_TMS, 'YYYY-MM-DD HH24:MI:SS') AS createTime,
                TO_CHAR(O.UPDATE_TMS, 'YYYY-MM-DD HH24:MI:SS') AS updateTime
         FROM (
-            SELECT ORDER_NO, ORDER_STATUS, CHANNEL, ENTRY_STATION_CODE, EXIT_STATION_CODE,
+            SELECT ORDER_NO, ORDER_STATUS, CHANNEL, BIZ_TYPE, ENTRY_STATION_CODE, EXIT_STATION_CODE,
                    TICKET_PRICE, TICKET_NUM, ORDER_AMOUNT, SINGLE_TICKET_TYPE, DEVICE_ID,
                    REFUND_STATUS, REFUND_AMOUNT, LAST_REFUND_TMS, CREATE_TMS, UPDATE_TMS
             FROM F2F_ORDER

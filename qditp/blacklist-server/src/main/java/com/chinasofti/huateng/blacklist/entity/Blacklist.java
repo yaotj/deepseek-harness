@@ -3,7 +3,7 @@ package com.chinasofti.huateng.blacklist.entity;
 import java.time.LocalDateTime;
 
 /**
- * 黑名单表实体。
+ * 黑名单表实体，只承载当前生效记录；解除后的快照见 {@link BlacklistReleased}。
  */
 public class Blacklist {
     /**
@@ -12,24 +12,74 @@ public class Blacklist {
     private Long id;
 
     /**
-     * 卡ID。
+     * 卡ID，唯一业务键。
      */
     private String cardId;
 
     /**
-     * 三方用户ID。
+     * 三方用户ID，审计冗余，不参与命中判定。
      */
     private String thirdUserId;
 
     /**
-     * 拉黑原因。
+     * 卡类型编码（票种，如0441），出向通知契约需要。
+     */
+    private String cardType;
+
+    /**
+     * 业务渠道：01地铁APP，02支付宝，99未知。
+     */
+    private String channelCode;
+
+    /**
+     * 发起方：01系统自动，02渠道通知，09运维手工。
+     */
+    private String blackSource;
+
+    /**
+     * 拉黑原因：01未付费欠费，02挂失补卡，09其他。
+     */
+    private String blackCause;
+
+    /**
+     * 关联业务单号，语义由 channelCode 与 blackSource 共同决定。
+     */
+    private String bizNo;
+
+    /**
+     * 拉黑备注，自由文本，非判定依据。
      */
     private String reason;
+
+    /**
+     * 操作者：运维手工记管理员账号，系统触发记服务名。
+     */
+    private String createBy;
 
     /**
      * 创建时间。
      */
     private LocalDateTime createTime;
+
+    /**
+     * 渠道同步状态：PENDING/SUCCESS/FAILED/REJECTED。
+     */
+    private String channelSyncStatus;
+
+    /**
+     * 渠道同步时间。
+     */
+    private LocalDateTime channelSyncTime;
+
+    /**
+     * 渠道同步重试次数。
+     */
+    private Integer channelSyncRetry;
+
+    /**
+     * 渠道同步失败原因。
+     */
+    private String channelSyncFailReason;
 
     public Long getId() {
         return id;
@@ -55,6 +105,46 @@ public class Blacklist {
         this.thirdUserId = thirdUserId;
     }
 
+    public String getCardType() {
+        return cardType;
+    }
+
+    public void setCardType(String cardType) {
+        this.cardType = cardType;
+    }
+
+    public String getChannelCode() {
+        return channelCode;
+    }
+
+    public void setChannelCode(String channelCode) {
+        this.channelCode = channelCode;
+    }
+
+    public String getBlackSource() {
+        return blackSource;
+    }
+
+    public void setBlackSource(String blackSource) {
+        this.blackSource = blackSource;
+    }
+
+    public String getBlackCause() {
+        return blackCause;
+    }
+
+    public void setBlackCause(String blackCause) {
+        this.blackCause = blackCause;
+    }
+
+    public String getBizNo() {
+        return bizNo;
+    }
+
+    public void setBizNo(String bizNo) {
+        this.bizNo = bizNo;
+    }
+
     public String getReason() {
         return reason;
     }
@@ -63,11 +153,51 @@ public class Blacklist {
         this.reason = reason;
     }
 
+    public String getCreateBy() {
+        return createBy;
+    }
+
+    public void setCreateBy(String createBy) {
+        this.createBy = createBy;
+    }
+
     public LocalDateTime getCreateTime() {
         return createTime;
     }
 
     public void setCreateTime(LocalDateTime createTime) {
         this.createTime = createTime;
+    }
+
+    public String getChannelSyncStatus() {
+        return channelSyncStatus;
+    }
+
+    public void setChannelSyncStatus(String channelSyncStatus) {
+        this.channelSyncStatus = channelSyncStatus;
+    }
+
+    public LocalDateTime getChannelSyncTime() {
+        return channelSyncTime;
+    }
+
+    public void setChannelSyncTime(LocalDateTime channelSyncTime) {
+        this.channelSyncTime = channelSyncTime;
+    }
+
+    public Integer getChannelSyncRetry() {
+        return channelSyncRetry;
+    }
+
+    public void setChannelSyncRetry(Integer channelSyncRetry) {
+        this.channelSyncRetry = channelSyncRetry;
+    }
+
+    public String getChannelSyncFailReason() {
+        return channelSyncFailReason;
+    }
+
+    public void setChannelSyncFailReason(String channelSyncFailReason) {
+        this.channelSyncFailReason = channelSyncFailReason;
     }
 }

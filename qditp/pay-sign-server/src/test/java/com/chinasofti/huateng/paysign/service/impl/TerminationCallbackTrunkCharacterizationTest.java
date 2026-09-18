@@ -41,8 +41,8 @@ class TerminationCallbackTrunkCharacterizationTest {
         verify(fixture.paySignInfoMapper).deleteByUserAndVendor(USER, ALIPAY_VENDOR);
         verify(fixture.terminationRequestMapper).initChannelSyncPending(SEQ);
 
-        InOrder order = inOrder(fixture.appNotifyService, fixture.channelSyncDeliverer);
-        order.verify(fixture.appNotifyService).asyncNotifyTerminationResult(any(), any(), any());
+        InOrder order = inOrder(fixture.terminationNotifyService, fixture.channelSyncDeliverer);
+        order.verify(fixture.terminationNotifyService).asyncNotifyTerminationResult(any(), any(), any());
         order.verify(fixture.channelSyncDeliverer)
                 .deliver(SEQ, USER, ALIPAY_VENDOR, CARD_ID, CARD_TYPE);
     }
@@ -78,7 +78,7 @@ class TerminationCallbackTrunkCharacterizationTest {
         BaseRespDTO result = fixture.service.receiveTerminationResult(terminationResult("SUCCESS"), "01");
 
         assertEquals(PaySignErrorCodeEnum.SUCCESS.getCode(), result.getRetCode());
-        verify(fixture.appNotifyService, never()).asyncNotifyTerminationResult(any(), any(), any());
+        verify(fixture.terminationNotifyService, never()).asyncNotifyTerminationResult(any(), any(), any());
         verify(fixture.channelSyncDeliverer, never())
                 .deliver(anyString(), anyString(), anyString(), anyString(), anyString());
         verify(fixture.terminationRequestMapper, never()).initChannelSyncPending(anyString());
@@ -96,7 +96,7 @@ class TerminationCallbackTrunkCharacterizationTest {
         BaseRespDTO result = fixture.service.receiveTerminationResult(terminationResult("SUCCESS"), "01");
 
         assertEquals(PaySignErrorCodeEnum.SUCCESS.getCode(), result.getRetCode());
-        verify(fixture.appNotifyService, never()).asyncNotifyTerminationResult(any(), any(), any());
+        verify(fixture.terminationNotifyService, never()).asyncNotifyTerminationResult(any(), any(), any());
         verify(fixture.channelSyncDeliverer, never())
                 .deliver(anyString(), anyString(), anyString(), anyString(), anyString());
         verify(fixture.terminationRequestMapper, never()).initChannelSyncPending(anyString());
@@ -116,7 +116,7 @@ class TerminationCallbackTrunkCharacterizationTest {
         assertEquals(PaySignErrorCodeEnum.SUCCESS.getCode(), result.getRetCode());
         ArgumentCaptor<NotifyTerminationFailedReqDTO> captor =
                 ArgumentCaptor.forClass(NotifyTerminationFailedReqDTO.class);
-        verify(fixture.appNotifyService).asyncNotifyTerminationFailed(any(), captor.capture());
+        verify(fixture.terminationNotifyService).asyncNotifyTerminationFailed(any(), captor.capture());
         assertEquals(SEQ, captor.getValue().getRequestSignSeq());
         assertEquals("FAILED", captor.getValue().getFailReason());
         verify(fixture.paySignInfoMapper, never()).deleteByUserAndVendor(anyString(), anyString());
@@ -135,7 +135,7 @@ class TerminationCallbackTrunkCharacterizationTest {
 
         fixture.service.receiveTerminationResult(terminationResult("FAILED"), "01");
 
-        verify(fixture.appNotifyService, never()).asyncNotifyTerminationFailed(any(), any());
+        verify(fixture.terminationNotifyService, never()).asyncNotifyTerminationFailed(any(), any());
         verify(fixture.terminationRequestMapper)
                 .markFailureConflictForManualReview(anyString(), anyString(), anyString());
     }

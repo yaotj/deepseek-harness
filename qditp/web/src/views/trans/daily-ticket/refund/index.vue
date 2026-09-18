@@ -12,8 +12,8 @@
           style="width: 340px"
         />
       </el-form-item>
-      <el-form-item label="日票订单号" prop="orderNo">
-        <el-input v-model="queryParams.orderNo" placeholder="请输入日票订单号" clearable style="width: 230px" @keyup.enter="handleQuery" />
+      <el-form-item label="订单号" prop="orderNo">
+        <el-input v-model="queryParams.orderNo" placeholder="请输入日票/旅游票订单号" clearable style="width: 230px" @keyup.enter="handleQuery" />
       </el-form-item>
       <el-form-item label="支付平台订单号" prop="paymentOrderNo">
         <el-input v-model="queryParams.paymentOrderNo" placeholder="请输入支付平台订单号" clearable style="width: 230px" @keyup.enter="handleQuery" />
@@ -26,7 +26,7 @@
     </el-form>
 
     <el-alert
-      title="仅支付成功、未使用且未存在退款申请的订单可发起退款；已激活未使用的订单将进入核验退款流程。"
+      title="列表默认展示独立日票和旅游票主单；旅游票详情可查看子单。退款按钮仅作前端提示，最终以服务端校验为准。"
       type="info"
       :closable="false"
       show-icon
@@ -34,10 +34,13 @@
     />
 
     <el-table v-loading="loading" :data="orderList" border>
-      <el-table-column label="日票订单号" prop="orderNo" min-width="190" show-overflow-tooltip />
+      <el-table-column label="订单类型" width="90" align="center">
+        <template #default="{ row }">{{ row.orderType === '2' ? '旅游票' : '日票' }}</template>
+      </el-table-column>
+      <el-table-column label="订单号" prop="orderNo" min-width="190" show-overflow-tooltip />
       <el-table-column label="支付平台订单号" prop="paymentOrderNo" min-width="190" show-overflow-tooltip />
       <el-table-column label="订单金额" width="110" align="right">
-        <template #default="{ row }">{{ formatAmount(row.payAmount ?? row.ticketPrice) }}</template>
+        <template #default="{ row }">{{ formatAmount(orderAmount(row)) }}</template>
       </el-table-column>
       <el-table-column label="订单状态" width="110" align="center">
         <template #default="{ row }"><el-tag :type="orderStatusType(row.orderStatus)">{{ formatOrderStatus(row.orderStatus) }}</el-tag></template>
@@ -67,25 +70,48 @@
 
     <pagination v-show="total > 0" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize" :total="total" @pagination="getList" />
 
-    <el-dialog v-model="detailOpen" title="日票订单详情" width="760px" append-to-body>
+    <el-dialog v-model="detailOpen" :title="currentOrder.orderType === '2' ? '旅游票主单详情' : '日票订单详情'" width="900px" append-to-body>
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="日票订单号">{{ currentOrder.orderNo }}</el-descriptions-item>
+        <el-descriptions-item label="订单号">{{ currentOrder.orderNo }}</el-descriptions-item>
+        <el-descriptions-item label="订单类型">{{ currentOrder.orderType === '2' ? '旅游票' : '日票' }}</el-descriptions-item>
         <el-descriptions-item label="支付平台订单号">{{ currentOrder.paymentOrderNo || '-' }}</el-descriptions-item>
         <el-descriptions-item label="第三方交易号">{{ currentOrder.tradeNo || '-' }}</el-descriptions-item>
         <el-descriptions-item label="支付渠道">{{ currentOrder.payChannelCode || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="订单金额">{{ formatAmount(currentOrder.payAmount ?? currentOrder.ticketPrice) }}</el-descriptions-item>
+        <el-descriptions-item label="订单金额">{{ formatAmount(orderAmount(currentOrder)) }}</el-descriptions-item>
+        <el-descriptions-item v-if="currentOrder.orderType === '2'" label="张数">{{ currentOrder.ticketCount || '-' }}</el-descriptions-item>
         <el-descriptions-item label="票实例状态">{{ formatTicketStatus(currentOrder.ticketStatus) }}</el-descriptions-item>
         <el-descriptions-item label="商户退款单号">{{ currentOrder.refundOrderNo || '-' }}</el-descriptions-item>
         <el-descriptions-item label="平台退款单号">{{ currentOrder.platformRefundNo || '-' }}</el-descriptions-item>
         <el-descriptions-item label="退款状态">{{ formatRefundStatus(currentOrder.refundStatus) }}</el-descriptions-item>
         <el-descriptions-item label="核验时间" :span="2">{{ parseTime(currentOrder.verifyAfterTime) || '-' }}</el-descriptions-item>
       </el-descriptions>
+      <el-table v-if="currentOrder.orderType === '2'" :data="subOrders" border class="mt16">
+        <el-table-column label="子单号" prop="orderNo" min-width="190" show-overflow-tooltip />
+        <el-table-column label="子单金额" width="110" align="right">
+          <template #default="{ row }">{{ formatAmount(row.ticketPrice) }}</template>
+        </el-table-column>
+        <el-table-column label="激活/使用状态" width="130" align="center">
+          <template #default="{ row }">{{ formatTicketStatus(row.ticketStatus) }}</template>
+        </el-table-column>
+        <el-table-column label="退款状态" width="120" align="center">
+          <template #default="{ row }"><el-tag v-if="row.refundStatus" :type="refundStatusType(row.refundStatus)">{{ formatRefundStatus(row.refundStatus) }}</el-tag><span v-else>-</span></template>
+        </el-table-column>
+        <el-table-column label="操作" width="120" align="center">
+          <template #default="{ row }">
+            <el-button link type="danger" icon="Money" :disabled="!canRefundSubOrder(row)" @click="confirmSubRefund(row)">子单退款</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
     </el-dialog>
   </div>
 </template>
 
 <script setup name="DailyTicketRefund">
-import { listDailyTicketRefundOrders, queryDailyTicketPay, queryDailyTicketRefund, requestDailyTicketRefund, retryDailyTicketRefund } from '@/api/trans/dailyTicketRefund'
+import { listDailyTicketRefundOrders, listTravelTicketSubOrders, queryDailyTicketPay, queryDailyTicketRefund, requestDailyTicketRefund, requestTravelTicketSubRefund, retryDailyTicketRefund } from '@/api/trans/dailyTicketRefund'
+import { defaultTodayRange } from '@/utils/dateRange'
+
+/** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
+const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
@@ -94,7 +120,8 @@ const total = ref(0)
 const orderList = ref([])
 const detailOpen = ref(false)
 const currentOrder = ref({})
-const queryParams = reactive({ pageNum: 1, pageSize: 10, dateRange: [], orderNo: undefined, paymentOrderNo: undefined })
+const subOrders = ref([])
+const queryParams = reactive({ pageNum: 1, pageSize: 10, dateRange: defaultTodayRange(DATE_FORMAT), orderNo: undefined, paymentOrderNo: undefined })
 
 function buildQuery() {
   // 日期控件值转换为后端约定的 beginTime/endTime 参数。
@@ -118,12 +145,18 @@ function handleQuery() {
 
 function resetQuery() {
   proxy.resetForm('queryRef')
-  queryParams.dateRange = []
+  queryParams.dateRange = defaultTodayRange(DATE_FORMAT)
   handleQuery()
 }
 
 function showDetail(row) {
   currentOrder.value = row
+  subOrders.value = []
+  if (row.orderType === '2') {
+    listTravelTicketSubOrders(row.orderNo).then((response) => {
+      subOrders.value = response.data || []
+    })
+  }
   detailOpen.value = true
 }
 
@@ -138,7 +171,7 @@ function canQueryPay(row) {
 }
 
 function queryPay(row) {
-  queryDailyTicketPay(row.orderNo).then((response) => {
+  queryDailyTicketPay(row.orderNo, row.orderType).then((response) => {
     const result = response.data || {}
     const message = ({ success: '支付成功，订单状态已同步', failed: '支付失败，订单状态已同步', processing: '支付仍在处理中' })[result.payResult] || '支付结果查询完成'
     proxy.$modal.msgSuccess(message)
@@ -148,7 +181,8 @@ function queryPay(row) {
 
 function confirmRefund(row) {
   // 退款为资金操作，先确认再调用接口；接口已保证重复申请幂等。
-  proxy.$modal.confirm(`确认对日票订单“${row.orderNo}”发起退款？`).then(() => requestDailyTicketRefund(row.orderNo)).then((response) => {
+  const typeName = row.orderType === '2' ? '旅游票主单' : '日票订单'
+  proxy.$modal.confirm(`确认对${typeName}“${row.orderNo}”发起退款？`).then(() => requestDailyTicketRefund(row.orderNo, row.orderType)).then((response) => {
     const result = response.data || {}
     proxy.$modal.msgSuccess(result.refundResultDesc || '退款申请已提交')
     getList()
@@ -166,7 +200,7 @@ function canRetryPlatformRefund(row) {
 }
 
 function queryRefund(row) {
-  queryDailyTicketRefund(row.orderNo).then((response) => {
+  queryDailyTicketRefund(row.orderNo, row.orderType).then((response) => {
     const result = response.data || {}
     proxy.$modal.msgSuccess(result.refundResultDesc || '退款结果查询完成')
     getList()
@@ -175,9 +209,30 @@ function queryRefund(row) {
 
 function retryRefund(row) {
   // 后端会先向支付平台查询，因此重试仅在尚未完成时真正发起。
-  proxy.$modal.confirm(`确认使用原商户退款单号“${row.refundOrderNo}”重试退款？`).then(() => retryDailyTicketRefund(row.orderNo)).then((response) => {
+  proxy.$modal.confirm(`确认使用原商户退款单号“${row.refundOrderNo}”重试退款？`).then(() => retryDailyTicketRefund(row.orderNo, row.orderType)).then((response) => {
     const result = response.data || {}
     proxy.$modal.msgSuccess(result.refundResultDesc || '退款重试已提交')
+    getList()
+  }).catch(() => {})
+}
+
+function canRefundSubOrder(row) {
+  return currentOrder.value?.payStatus === 'PAID'
+    && !row.refundStatus
+    && !['USED', 'EXPIRED', 'REFUND_LOCKED', 'REFUNDED'].includes(row.ticketStatus)
+}
+
+function confirmSubRefund(row) {
+  proxy.$modal.confirm(`确认对旅游票子单“${row.orderNo}”发起退款？`).then(() => requestTravelTicketSubRefund({
+    parentOrderNo: currentOrder.value.orderNo,
+    subOrderNo: row.orderNo,
+    refundReason: '运营子单退款'
+  })).then((response) => {
+    const result = response.data || {}
+    proxy.$modal.msgSuccess(result.refundResultDesc || '子单退款申请已提交')
+    return listTravelTicketSubOrders(currentOrder.value.orderNo)
+  }).then((response) => {
+    subOrders.value = response.data || []
     getList()
   }).catch(() => {})
 }
@@ -189,8 +244,9 @@ function toRefundRecords() {
 
 // 数据库存储金额单位为分，页面统一转换为元展示。
 function formatAmount(value) { return value == null ? '-' : `¥ ${(Number(value) / 100).toFixed(2)}` }
-function formatOrderStatus(value) { return ({ PAID: '已支付', REFUNDING: '退款中', REFUNDED: '已退款', CREATED: '待支付', PAYING: '支付中', CANCELED: '已取消' })[value] || value || '-' }
-function formatTicketStatus(value) { return ({ ACTIVATED: '已激活', USED: '已使用', REFUNDED: '已退款', INIT: '待激活' })[value] || value || '未激活' }
+function orderAmount(row) { return row?.orderType === '2' ? (row.payAmount ?? row.totalAmount) : (row?.payAmount ?? row?.ticketPrice) }
+function formatOrderStatus(value) { return ({ PAID: '已支付', PARTIAL_USED: '部分使用', USED: '已使用', PARTIAL_REFUNDED: '部分退款', REFUNDING: '退款中', REFUNDED: '已退款', CREATED: '待支付', PAYING: '支付中', CANCELED: '已取消' })[value] || value || '-' }
+function formatTicketStatus(value) { return ({ ACTIVATED: '已激活', USED: '已使用', EXPIRED: '已用完', REFUND_LOCKED: '退款占用', REFUNDED: '已退款', INIT: '待激活' })[value] || value || '未激活' }
 function formatRefundStatus(value) { return ({ REFUNDING: '退款处理中', REFUNDED: '退款完成', FAILED: '退款失败', WAIT_VERIFY: '待核验' })[value] || value || '-' }
 function orderStatusType(value) { return ({ PAID: 'success', REFUNDING: 'warning', REFUNDED: 'info', CANCELED: 'info' })[value] || '' }
 function refundStatusType(value) { return ({ REFUNDED: 'success', FAILED: 'danger', WAIT_VERIFY: 'warning', REFUNDING: 'warning' })[value] || 'info' }

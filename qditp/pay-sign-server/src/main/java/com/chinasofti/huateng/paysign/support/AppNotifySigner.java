@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** ITP **出向通知**（IF8B）的加签（2026-09-16 由 {@code AppNotifyServiceImpl} 逐字搬出，ADR-D99）。 */
+/** ITP **出向通知**（IF8B）的加签（2026-09-16 由当时的 {@code AppNotifyServiceImpl} 逐字搬出，ADR-D99；该类已于 ADR-D127 按聚合拆分）。 */
 public final class AppNotifySigner {
 
     private static final Logger log = LoggerFactory.getLogger(AppNotifySigner.class);

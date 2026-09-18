@@ -95,6 +95,22 @@ class GateTxnPayMapperSqlTest {
                 "传 0 却没拼出条件，说明 test 里的字符串被当成 char 比较了");
     }
 
+    /**
+     * 渠道过滤是可选谓词：不传即全渠道，传了才收窄。
+     *
+     * <p>断言写成 {@code ISSUE_CHANNEL_CODE = ?} 而不是列名本身 —— {@code selectTransList} 的
+     * {@code All_Column_List} 里本来就有这一列，只判列名会恒为真。
+     */
+    @Test
+    void issueChannelFilterIsOptionalAndNarrowsWhenPassed() {
+        for (String id : new String[] {"selectTransList", "countTransList"}) {
+            assertFalse(sqlOf(id).contains("ISSUE_CHANNEL_CODE = ?"),
+                    id + " 不传 issueChannelCode 时 MUST 不拼渠道条件，否则打断现有全渠道口径");
+            assertTrue(sqlWith(id, "issueChannelCode", "07").contains("ISSUE_CHANNEL_CODE = ?"),
+                    id + " 传了 issueChannelCode 却没拼出条件，支付宝出行记录会混进非支付宝的单");
+        }
+    }
+
     /** 状态推进的前置状态是显式白名单。 */
     @Test
     void statusTransitionsKeepExplicitWhitelist() {
