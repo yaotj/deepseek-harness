@@ -80,6 +80,13 @@ public class GateTxnPayQuartzTask
         check(response, "补站扣费周期查询更新");
     }
 
+    /** ADR-D169 方案 A：用户主动重试扣费队列消费 */
+    private void consumeRetryQueueOnce(String traceId)
+    {
+        CommonResult response = gateTxnPayClient.consumeRetryQueue(QuartzTraceUtils.traceHeaders(traceId));
+        check(response, "用户主动重试扣费队列消费");
+    }
+
     private void check(CommonResult response, String action)
     {
         if (response == null)
@@ -92,5 +99,18 @@ public class GateTxnPayQuartzTask
                     + response.getRetCode() + ", retMsg=" + response.getRetMsg());
         }
         log.info("gate-txn-pay-server {}调用成功, retMsg={}", action, response.getRetMsg());
+    }
+
+    /** ADR-D169 方案 A：用户主动重试扣费队列消费 */
+    private void consumeRetryQueueOnce(String traceId)
+    {
+        CommonResult response = gateTxnPayClient.consumeRetryQueue(QuartzTraceUtils.traceHeaders(traceId));
+        check(response, "用户主动重试扣费队列消费");
+    }
+
+    /** 前台调用目标填写 gateTxnPayQuartzTask.consumeRetryQueue() 时执行（sys_job 400，ADR-D169 方案 A）。 */
+    public void consumeRetryQueue()
+    {
+        QuartzTraceUtils.runWithTrace(this::consumeRetryQueueOnce);
     }
 }

@@ -5,6 +5,7 @@ import com.chinasofti.huateng.gatetxnpay.service.GateTxnPayService;
 import com.chinasofti.huateng.gatetxnpay.service.impl.DebitRetryProcessor;
 import com.chinasofti.huateng.gatetxnpay.service.impl.MetroTransferPushTaskProcessor;
 import com.chinasofti.huateng.gatetxnpay.service.impl.OfflineFareRecoveryProcessor;
+import com.chinasofti.huateng.gatetxnpay.service.impl.RetryQueueConsumer;
 import com.chinasofti.huateng.model.pay.GateTxnPayDebitConvergeReqDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayDebitConvergeRespDTO;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,19 +20,23 @@ public class CompensationInternalController {
 
     private final OfflineFareRecoveryProcessor offlineFareRecoveryProcessor;
     private final MetroTransferPushTaskProcessor metroTransferPushTaskProcessor;
-    /** 甲方需求「行程扣费重试」（220 / 255）与「补站扣费周期查询更新」（235）三个端点共用。 */
+    /** 甲方需求「行程扣费重试」（220 / 255）与「补站扣费周期查询更新」（235）与「用户主动重试扣费队列消费」（400）共用。 */
     private final DebitRetryProcessor debitRetryProcessor;
     /** 补款收敛用（2026-09-16 新增的第三个端点）。 */
     private final GateTxnPayService gateTxnPayService;
+    /** ADR-D169 方案 A：用户主动重试扣费队列消费。 */
+    private final RetryQueueConsumer retryQueueConsumer;
 
     public CompensationInternalController(OfflineFareRecoveryProcessor offlineFareRecoveryProcessor,
                                           MetroTransferPushTaskProcessor metroTransferPushTaskProcessor,
                                           DebitRetryProcessor debitRetryProcessor,
-                                          GateTxnPayService gateTxnPayService) {
+                                          GateTxnPayService gateTxnPayService,
+                                          RetryQueueConsumer retryQueueConsumer) {
         this.offlineFareRecoveryProcessor = offlineFareRecoveryProcessor;
         this.metroTransferPushTaskProcessor = metroTransferPushTaskProcessor;
         this.debitRetryProcessor = debitRetryProcessor;
         this.gateTxnPayService = gateTxnPayService;
+        this.retryQueueConsumer = retryQueueConsumer;
     }
 
     /**
@@ -74,6 +79,20 @@ public class CompensationInternalController {
     @PostMapping("/offline-fare/recover")
     public CommonResult recoverOfflineFare() {
         return describe("离线码金额补偿", offlineFareRecoveryProcessor.recoverOfflineFarePendingOrders());
+    }
+
+    /**
+     * ADR-D169 方案 A：消费用户主动重试扣费队列表。对应 {@code sys_job} 400，每 5 分钟一轮。
+     *
+     * <p>用户通过 APP 触发 `/app/payment/requestPayFailOrder` 后，订单进入 {@code GATE_RETRY_QUEUE} 表
+     * （状态 `PENDING`），本任务扫描并调 {@code PaySignInitiator.retryAndConverge} 发起扣款。
+     * 速率控制：每轮最多消费 10 笔（`batchSize`），失败最多重试 3 次（`maxRetries`），
+     * 超时 24 小时自动恢复（`timeoutMinutes`）。与 sys_job 220/255/345 并行不替代。
+     */
+    @PostMapping("/retry-queue/consume")
+    public CommonResult consumeRetryQueue() {
+        int consumed = retryQueueConsumer.consumeBatch();
+        return describe("用户主动重试扣费队列消费", consumed);
     }
 
     /** 跑一轮公交换乘推送（原 `MetroTransferPushTaskProcessor` 的 `@Scheduled`，周期 10s → 60s）。 */

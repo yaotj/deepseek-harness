@@ -242,4 +242,16 @@ public class GateTxnPayClient extends ProxyWebClient {
         return JSONUtil.toBean(result, new TypeReference<GateTxnPayDebitConvergeRespDTO>() {
         }, true);
     }
+
+    /**
+     * ADR-D169 方案 A：消费用户主动重试扣费队列表，供 web-admin 的
+     * {@code gateTxnPayQuartzTask.consumeRetryQueue()}（{@code sys_job} 400，每 5 分钟一轮）调用。
+     * @param headers 附加请求头，同上。
+     */
+    public CommonResult consumeRetryQueue(Map<String, String> headers) {
+        String result = postJsonAndGetResponse("/internal/gate-txn-pay/retry-queue/consume",
+                Collections.emptyMap(), headers);
+        return JSONUtil.toBean(result, new TypeReference<CommonResult>() {
+        }, true);
+    }
 }
