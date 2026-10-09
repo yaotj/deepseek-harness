@@ -8154,18 +8154,27 @@ AND NVL(OUT_STATION, IN_STATION) = #{stationCode}   -- 可选
 ## ADR-D169：用户主动发起免密订单重试扣费（新增接口 `requestPayFailOrder`，2026-10-09，model 2.0.0 / rpc 2.0.1 / gate-txn-pay-server 2.0.103 / fep-app-server 2.0.103）
 
 - 需求：APP 用户对自己「扣费失败订单」主动触发一次免密重扣。接口 `http(s)://[ip]:[port]/[project]/app/payment/requestPayFailOrder`；请求 `thirdUserId`（第三方用户 ID）+ `cardNums`（逻辑卡号，逗号拼接）；应答 `retCode` / `retMsg`（表 162 / 表 163）。
-- 落点：本接口是**用户触发的第四类重试入口**，与定时补偿 `sys_job` 220 / 255 / 345（ADR-D149 / D154）**并行、不替代**；四者共用同一个出账口 `PaySignInitiator.retryAndConverge`（三态收敛 Ok→PROCESSING / BizRejected→FAIL / Unreachable→RETRY），**NEVER 在调用方另拼 `GatePayRequestDTO`**（「出账口 MUST 只有一处」那条的延伸）。
-- 链路：`fep-app-server` 双别名 `{"/ci/app/payment/requestPayFailOrder", "/app/payment/requestPayFailOrder"}`（透传 `@ModelAttribute ItpCommonFormRequest` → `parseBizData`）→ `GateTxnPayClient.requestPayFailOrder`（RPC，`/ci/gateTxnPay/app/requestPayFailOrder`）→ `gate-txn-pay-server` `GateTxnPayAppController.requestPayFailOrder` → `UserDebitRetryService.requestPayFailOrder`。
+- **方案 A（队列解耦，2026-10-09 追加裁决）**：用户触发后**仅入队，不起调支付中心**，立即返回受理成功。由 `RetryQueueConsumer` 定时扫描 `GATE_RETRY_QUEUE` 表，控制速率消费。理由：钱包等银行渠道有 TPA 限制，当场批量重试会冲击正常扣费流程。
+- 落点：本接口是**用户触发的第四类重试入口**，与定时补偿 `sys_job` 220 / 255 / 345（ADR-D149 / D154）**并行、不替代**；四者共用同一个出账口 `PaySignInitiator.retryAndConverge`（三态收敛 Ok→PROCESSING / BizRejected→FAIL / Unreachable→RETRY），**NEVER 在调用方另拼 `GatePayRequestDTO`**。
+- 链路：`fep-app-server` 双别名 `{"/ci/app/payment/requestPayFailOrder", "/app/payment/requestPayFailOrder"}` → `GateTxnPayClient.requestPayFailOrder`（RPC，`/ci/gateTxnPay/app/requestPayFailOrder`）→ `gate-txn-pay-server` `GateTxnPayAppController.requestPayFailOrder` → `UserDebitRetryService.requestPayFailOrder`（入队）→ `RetryQueueConsumer.consumeBatch()`（定时消费）。
 - 三处用户裁决（AskUserQuestion，2026-10-09）：
   1. **次数上限**：无视 `DEBIT_RETRY_TIMES` 上限**全量重扣**（含已判 `FAIL` 的死单）；定时任务的 `maxTimes` / `backoffMinutes` 防无限重扣机制**刻意不走**。
   2. **重试范围**：覆盖 `DEBIT_STATUS IN ('INIT','RETRY','FAIL')`（落单未发起 + 待重试 + 已判失败）。
-  3. **返回语义**：**同步发起 + 受理返回**，`retMsg` 带「共 N 笔（跳过 X 笔已被处理）/ Y 笔异常」。
+  3. **返回语义**：**立即受理返回**，`retMsg` 带「已加入重试队列，共 N 笔」；实际扣款由队列消费者异步完成。
+- 队列表 `GATE_RETRY_QUEUE`（DDL：`gate-txn-pay-retry-queue-migration.sql`）：
+  - 状态机：`PENDING` → `PROCESSING` → `DONE` / `FAILED`；`FAILED` 且 `retry_count < max_retries` 可重新入队；超 `max_retries` 次后需人工介入。
+  - 幂等：`(ORDER_NO, TXN_DATE)` 唯一索引，重复入队跳过。
+  - 超时恢复：超过 24 小时的 `PENDING`/`PROCESSING` 自动重置为 `PENDING`，防止死锁。
 - 两道安全闸 MUST 保留（**NEVER 因「用户主动」去掉**）：
-  - **CAS 抢占**：逐笔先 `prepareUserRetry` 把状态 CAS 归一成 `RETRY`（不清记账列、不卡次数上限），再调 `retryAndConverge`。因 `GateTxnPayWriter.updateOrderStatusFromPending` 的 CAS 白名单只认 `INIT`/`RETRY`，`FAIL` 单不归一则结果回写恒 0 行、下一轮又被扫到、形成静默重扣（与 `prepareBatchRetry` 的「第三件事 NEVER 删」同源）。
-  - **排除 `DISCOUNT_CALC_STATUS='OFFLINE_FARE_PENDING'`**：离线码金额待重算的行 NEVER 走重扣（防错额扣款）。
-- `UserDebitRetryService` **NEVER 带 `@Transactional`**：链路含 `PaySignInitiator.retryAndConverge` 的 RPC 出网，事务包住 RPC 会放大行锁持有时长（见 AGENTS.md §5.2「`@Transactional` 方法内 NEVER 发起任何 RPC」）；刻意逐笔 try-catch，单笔异常不阻断其余。
-- 扫描 SQL `selectUserRetryCandidates`：`WHERE DEBIT_STATUS IN (...) AND THIRD_USER_ID = ? [AND CARD_ID IN (?)]`，排除 `OFFLINE_FARE_PENDING`，**不卡 `DEBIT_RETRY_TIMES` 与 `DEBIT_NEXT_RETRY_TIME`**，限 `userBatchSize`（默认 200）；`cardNums` 在 Java 侧逗号拆分、去空格、去空、去重。
-- 关联文档：`docs/business/gate-txn-pay.md`（接口清单 + 核心类 + 关键业务规则）、AGENTS.md §2.2.1（扣费失败重试入口清单）。
+  - **CAS 抢占**：入队前逐笔 `prepareUserRetry` 把状态 CAS 归一成 `RETRY`（不清记账列、不卡次数上限）；消费时 `SELECT ... FOR UPDATE SKIP LOCKED` 防多实例重复消费。
+  - **排除 `DISCOUNT_CALC_STATUS='OFFLINE_FARE_PENDING'`**：离线码金额待重算的行 NEVER 走重扣。
+- 速率控制配置（`application.properties`）：
+  - `gate.debitRetry.queue.batchSize=10`：每轮最多消费 10 笔
+  - `gate.debitRetry.queue.maxRetries=3`：失败最大重试 3 次
+  - `gate.debitRetry.queue.timeoutMinutes=1440`：1440 分钟（24 小时）超时恢复
+  - cron：由 web-admin Quartz 配置 `sys_job`，建议 `0 0/5 * * * ?`（每 5 分钟一轮）
+- `UserDebitRetryService` 带 `@Transactional`（批量入队原子性）；`RetryQueueConsumer` 带 `@Transactional`（消费过程原子性）。
+- 关联文档：`docs/business/gate-txn-pay.md`、AGENTS.md §2.2.1。
 
 
 
