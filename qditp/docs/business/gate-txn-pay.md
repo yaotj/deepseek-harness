@@ -34,11 +34,13 @@
 - `/queryByOrderNo`（IF8A-34）
 - `/requestPayOrder`（IF8A-26）— 补款下单（本组唯一有写的端点）
 - `/requestUserAccInfo`（IF8A-35）— APP 用户账务信息：未支付订单数 + 扣费失败订单数
+- `/requestPayFailOrder`（用户主动重试扣费，ADR-D169）— APP 用户对自己 `DEBIT_STATUS IN (INIT,RETRY,FAIL)` 的扣费单主动全量重扣，无视 `DEBIT_RETRY_TIMES` 上限；与 `sys_job` 220/255/345 并行、不替代
 
 
 `fep-app-server/.../controller/GateTxnPayController.java`（APP 入口，双别名）
 - `{"/ci/app/requestPayOrder", "/app/requestPayOrder"}`（IF8A-26）
 - `{"/ci/app/requestUserAccInfo", "/app/requestUserAccInfo"}`（IF8A-35）
+- `{"/ci/app/payment/requestPayFailOrder", "/app/payment/requestPayFailOrder"}`（用户主动重试扣费，ADR-D169）
 
 ⚠️ **IF8A-35 落在本模块而不是 account-server**：数据源就是 `GATE_TXN_PAY`，account-server 无任何账务表、也没注入 `GateTxnPayClient`，经它中转只是多一跳。`docs/ops/README.md` 早期方案曾把它列在 account-server，**以本文件为准**。
 
@@ -50,13 +52,14 @@
 ## 核心类
 - `service/impl/GateTxnPayServiceImpl.java` — 扣费主逻辑。**2.0.71（ADR-D77）起它不再 import 任何 `com.chinasofti.huateng.rpc` 下的类**：退款与人工重试整块搬到 `service/impl/GateTxnPayManualOpsService.java`（`retryPay` / `requestRefund` 在 Impl 里只剩一行委派，接口签名未变）。**NEVER 把退款搬回来** —— 出站扣费跟着闸机报文与算价规则变，退款跟着运营流程与支付中心退款接口变，两者只共用一张表。新类同样 **NEVER 加 `@Transactional`**（退款分支内有支付中心 RPC）。
 - `paysign/PaySignInitiator.java` — 三入口收敛 + 渠道分派 + 状态回写，**不读任何 `@Value`**。两个渠道的报文组装在 `paysign/GatePayRequestFactory.java`（`gate.pay.*`）与 `paysign/AlipayTripPayRequestFactory.java`（`alipay.trip.*` + `pay.center.callback-url`）。**NEVER 把两套配置合并回一串构造参数**：`orderTimeOut` 在 pay-sign 分支是**秒**、支付宝分支是**分钟**，混用不报错、只在对端超时行为上表现。
-- `constant/` 四个类是状态与码值的唯一来源（2.0.72）：`DebitStatus`（`DEBIT_STATUS` 五取值 + `isRetryable` / `isRefundable` 白名单，入库 MUST 用 `code()`、**NEVER 用 `name()`**）、`GateTxnPayRetCode`（`0000/8001/8002/8003/9002`，全模块硬编码已收口）、`GateTxnPayFieldCode`（`isExitTrxType` / `isWalletVendor` / `isBluetoothChannel` / `isCompanionOrThirdParty`）、`DiscountCalcStatus`（`DISCOUNT_CALC_STATUS` 四取值 `SUCCESS/SKIPPED/FALLBACK/OFFLINE_FARE_PENDING`，第三套状态词汇，列宽已加宽至 32；`SUPPLEMENT_ORDER.PAY_STATUS` 是**第四套**、**按用户 2026-09-14 裁决暂不收口**，详见 ADR-D79）。**收口 MUST 按「哪个字段」分组，NEVER 按「哪个字面量」分组** —— `FareCalculator` 的 `01/02/03` 是 `TRANSFER_FLAG` / `CUMULATIVE_TYPE`，与 `TRX_TYPE` 同形不同义，合并会让改 `TRX_TYPE` 连带改掉钱包减免标记。
+- `constant/` 四个类是状态与码值的唯一来源（2.0.72）：`DebitStatus`（`DEBIT_STATUS` 五取值 + `isRetryable` / `isRefundable` 白名单，**2026-09-20 新增第三个白名单 `isBatchRetryable` = `RETRY || FAIL`，专供 `sys_job` 220 / 255 批量重试用；`isRetryable`（`RETRY | INIT`，人工单笔 `retryPay` 在用）一字未动，NEVER 把 `FAIL` 并进它**，见 ADR-D147。入库 MUST 用 `code()`、**NEVER 用 `name()`**）、`GateTxnPayRetCode`（`0000/8001/8002/8003/9002`，全模块硬编码已收口）、`GateTxnPayFieldCode`（`isExitTrxType` / `isWalletVendor` / `isBluetoothChannel` / `isCompanionOrThirdParty`）、`DiscountCalcStatus`（`DISCOUNT_CALC_STATUS` 四取值 `SUCCESS/SKIPPED/FALLBACK/OFFLINE_FARE_PENDING`，第三套状态词汇，列宽已加宽至 32；`SUPPLEMENT_ORDER.PAY_STATUS` 是**第四套**、**按用户 2026-09-14 裁决暂不收口**，详见 ADR-D79）。**收口 MUST 按「哪个字段」分组，NEVER 按「哪个字面量」分组** —— `FareCalculator` 的 `01/02/03` 是 `TRANSFER_FLAG` / `CUMULATIVE_TYPE`，与 `TRX_TYPE` 同形不同义，合并会让改 `TRX_TYPE` 连带改掉钱包减免标记。
 - `writer/GateTxnPayWriter.java` — 事务边界与幂等落库（写操作 **MUST** 经此类）
 - `mapper/GateTxnPayMapper.java` + `src/main/resources/mapper/GateTxnPayMapper.xml`
 - **换乘推送链路**（本模块内独立子链路）：`entity/MetroTransferPushTask.java`、`mapper/MetroTransferPushTaskMapper.java`、`service/impl/MetroTransferPushTaskProcessor.java`、`service/impl/MetroTransferPushClient.java`。**投递的调度自 2.0.73 起不在本模块**：`processReadyTasks` 已摘掉 `@Scheduled`，改由 web-admin `sys_job`「公交换乘推送」cron `0 0/1 * * * ?` 经 `POST /internal/gate-txn-pay/metro-transfer/push` 触发，**轮询周期由 10 秒变成 60 秒**（用户 2026-09-15 裁决，公交卡系统那侧的推送时延上限随之变化）；`wallet.metro-transfer-poll-ms` 已废弃、无读取方。**NEVER 加回 `@Scheduled`**，见 ADR-D80。
 - **钱包与优惠**：`service/impl/WalletAppGatewayClient.java`、`entity/DiscountLevel.java` + `mapper/DiscountLevelMapper.java`
 - **三个出向 client 都对接外部系统、都继承 `ProxyWebClient`**（2026-09-14 / 2.0.67，ADR-D68）：`WalletAppGatewayClient`（ITP-App 网关）、`MetroTransferPushClient` + `OfflineMetroTransferClient`（`172.20.202.10:8885` 公交卡系统，后两个此前是裸 `WebClient`；**本行此前写 `8980` 是错的，真实端口以 `wallet.metro-transfer-url` / `wallet.metro-transfer-check-url` 为准，NEVER 回退**）。**NEVER 把它们搬进 `rpc` 模块** —— 那是 ITP 内部服务 Client 的位置（参照物是 pay-sign-server 的 `PayGatewayClient`，同样住业务模块）。两个换乘 client 的 3 秒超时靠**带 `responseTimeout` 参数的 `ProxyWebClient` 构造器**传入，**NEVER 改成覆写 `getResponseTimeout()` 读注入字段** —— 那个方法在父类构造期就被调用，那时子类字段还是 0，且编译与单测都发现不了。
 - **IF8A-35 账务信息**：`GateTxnPayServiceImpl.requestUserAccInfo` + `GateTxnPayMapper.countUserAccInfo`（一条 SQL 出两个数量，避免同区间扫两遍）；DTO 在 `model` 的 `RequestUserAccInfoReqDTO` / `RequestUserAccInfoResult`；RPC 是 `rpc/.../pay/GateTxnPayClient.requestUserAccInfo`
+- **用户主动重试扣费（ADR-D169）**：`service/impl/UserDebitRetryService.java`（`requestPayFailOrder`）—— `selectUserRetryCandidates` 扫 `DEBIT_STATUS IN (INIT,RETRY,FAIL)` + `THIRD_USER_ID` + 可选 `CARD_ID IN(...)`（排除 `OFFLINE_FARE_PENDING`）→ 逐笔 `prepareUserRetry` CAS 归一成 `RETRY` → `PaySignInitiator.retryAndConverge` 出账；**NEVER 去掉两道安全闸（CAS 抢占 + 排除 OFFLINE_FARE_PENDING）**、**NEVER 带 `@Transactional`**（链路含 RPC）、刻意不走 `DEBIT_RETRY_TIMES` 上限与 `DEBIT_NEXT_RETRY_TIME` 退避；`cardNums` 逗号拼接、Java 侧去空格去空去重。
 
 ## 关键业务规则（改动前必须遵守）
 - 只处理 `trxType=02 出站` / `03 超时出站`；其余直接返回 **8001「非出站扣费交易」**
@@ -64,6 +67,7 @@
 - 金额单位为 **分**；`totalAmount = trxAmount + overtimeAmount`
 - 日票（`CardTypeCodeEnum.isDailyTicket`）或 `totalAmount <= 0`：直接入库置 SUCCESS，**不调支付**
 - 扣款走 pay-sign 免密代扣，失败订单会阻断用户解约（配合 `/hasFailedOrder`）
+- **用户主动重试扣费（ADR-D169，`/app/payment/requestPayFailOrder`）**：覆盖 `DEBIT_STATUS IN (INIT, RETRY, FAIL)`、**无视 `DEBIT_RETRY_TIMES` 上限全量重扣**（用户裁决，与定时补偿 220/255/345 并行、不替代）；两道安全闸 MUST 保留：①每笔先 CAS 归一成 `RETRY` 再走 `retryAndConverge`（否则 `FAIL` 单结果回写恒 0 行、被反复重扣）；②排除 `DISCOUNT_CALC_STATUS='OFFLINE_FARE_PENDING'`（防离线码错额扣款）。`cardNums` 逗号拼接、去重去空。
 - **签约信息的唯一合法来源是 `NotifyVerifyResultRespDTO`**，即 ticket-server 的响应体，由 `GateTicketHandler.applyActualCardType` 查 account-server 后写入：`payChannelCode`（= `USER_ITP_REG_INFO.CHANNEL`，fep-dev 用它填 `paymentVendor`）、`requestSignSeq`、`payUserId`。响应体里**NEVER 再加 `paymentVendor` 字段**——它与 `payChannelCode` 同源，两个字段表达同一个值必然漂移。`fep-dev-server` **NEVER** 从自己的 `NotifyVerifyResultReqDTO` 读这几个字段——AGM 不上送、恒为 null；ticket-server 改的是它自己那份跨进程反序列化副本，改不回上游。已发生事故：2026-08-26 这条链路签约信息全程 null，免密扣款只能靠 pay-sign-server 回查 account-server 兜底，且 gate-txn-pay-server 内依赖 `paymentVendor='0B'` 的钱包优惠（`calculateWalletDiscount`）与地铁换乘推送（`shouldPushMetroTransfer`）分支一直不触发。根因还包括 `AccountApplicationServiceImpl.queryCardTypeByCardId` 当时未回填 `channel` / `reqContractNo` / `thirdPayId`（已一并修复）。
 
 ## 数据表
@@ -82,6 +86,18 @@
 2. 改用 `TXN_DATE >= ADD_MONTHS(TRUNC(SYSDATE), ?)` → 变成「VARCHAR2 列 >= DATE」，Oracle 反向把列值 `'20260828'` 按 `NLS_DATE_FORMAT` 解析 → `ORA-01861 文字与格式字符串不匹配`。**该错误只在扫到实际数据行时触发**，没有匹配行的用户反而正常返回 `0000`，极易误判为已修复——验证 **MUST** 用有数据的 `thirdUserId`。
 
 同理 `DEBIT_STATUS`、`THIRD_USER_ID` 也都是 `VARCHAR2`。改本表任何查询前 **MUST** 先核对生产库实际列类型，勿信仓库 DDL。
+
+### 批量扣费重试的四个新列（2026-09-20 新增，ADR-D147）
+
+`gate-txn-pay-debit-retry-migration.sql` 已在 `AFCITPDB` 执行并用 `USER_TAB_COLS` 回查（同步写进 `gate-txn-pay-schema.sql`）：
+
+- `DEBIT_RETRY_TIMES NUMBER(2) DEFAULT 0 NOT NULL` —— 批量重试已发起次数，上限 `gate.debitRetry.maxTimes`（默认 5）
+- `DEBIT_NEXT_RETRY_TIME TIMESTAMP(6)` —— 下次可重试时刻，退避 `backoffMinutes`（默认 720 分钟）
+- `DEBIT_FAIL_CODE VARCHAR2(32 CHAR)` / `DEBIT_FAIL_MSG VARCHAR2(512 CHAR)` —— 最近一次失败的分类码（`BIZ_REJECTED` / `UNREACHABLE`）与原因
+
+**未新建索引**：扫表谓词已被现有 `IDX_GATE_TXN_PAY_STATUS_DATE (DEBIT_STATUS, TXN_DATE, CREATE_TIME) LOCAL` 覆盖，**NEVER 为这四列再加索引**（本表 6 个 LOCAL 索引已足，多一个只增写放大）。
+
+**`prepareBatchRetry` 那条 UPDATE 同时做三件事：CAS 抢占 + 次数记账 + 把终态 `FAIL` 归一成 `RETRY`，第三件 NEVER 删** —— `retryAndConverge` 内部的 `updateOrderStatusFromPending` CAS 白名单只认 `INIT`/`RETRY`，不归一则 `FAIL` 那批发出去的扣费有结果也写不回来（UPDATE 恒 0 行），下一轮又被扫到、形成静默重扣。
 
 ## 状态字典冲突
 `GATE_TXN_PAY.TICKET_STATUS` 注释为"04 进站失败、05 已进站"，与 `QRCodeStatusEnum`（04 已进站、FF 进站失败）**不同源**。
@@ -275,7 +291,9 @@
 
 ### 三、内部补偿端点
 
-**【契约】`/internal/gate-txn-pay/**` 只有三个端点**（`CompensationInternalController`，`controller/internal/CompensationInternalController.java:41~42`）：`POST /offline-fare/recover`（离线码金额补偿，`:69~71`）、`POST /metro-transfer/push`（公交换乘推送，`:77~79`）、`POST /debit/converge`（补款收敛，2026-09-16 新增，`:96~99`）。前两个由 web-admin Quartz `sys_job` 驱动（`gateTxnPayQuartzTask.recoverOfflineFare()` / `pushMetroTransfer()`，cron 均 `0 0/1 * * * ?`），第三个「**不是补偿批处理**，而是由 face-pay-server 在单笔补款支付成功后同步调用的收敛入口，只是恰好共用本类的 `/internal/gate-txn-pay` 前缀」（`:47~51`）。
+**【契约】`/internal/gate-txn-pay/**` 现在有六个端点**（`CompensationInternalController`，`controller/internal/CompensationInternalController.java:41~42`）：`POST /offline-fare/recover`（离线码金额补偿）、`POST /metro-transfer/push`（公交换乘推送）、`POST /debit/converge`（补款收敛，2026-09-16 新增）、**`POST /debit/retry/default`（行程扣费重试·非支付宝，`sys_job` 220）与 `POST /debit/retry/alipay`（行程扣费重试·支付宝出行，`sys_job` 255）—— 后两个是 2026-09-20 由原单个 `POST /debit/retry` 按渠道拆分而来（甲方需求 5 + 需求 18，两条 cron 都是 `0 0 1 * * ?`，见 ADR-D147 与 ADR-D149；两条 job_id 于 2026-09-21 分别由 133 / 134 改号，NEVER 回退）**、**`POST /debit/retry/recent`（补站扣费周期查询更新，2026-09-21 新增，`sys_job` **345**、cron `0 0/1 * * * ?`，编号先后为 135 → 265 → 235 → 345，**NEVER 回退成 135 / 265 / 235**，见 ADR-D154）**。除补款收敛外其余五个都由 web-admin Quartz `sys_job` 驱动（`gateTxnPayQuartzTask.recoverOfflineFare()` / `pushMetroTransfer()` / `retryRecentUnpaidDebits()` cron 均 `0 0/1 * * * ?`、`retryDefaultChannelDebits()` / `retryAlipayChannelDebits()` cron 均 `0 0 1 * * ?`），补款收敛那条「**不是补偿批处理**，而是由 face-pay-server 在单笔补款支付成功后同步调用的收敛入口，只是恰好共用本类的 `/internal/gate-txn-pay` 前缀」（`:47~51`）。**本处此前写「只有三个端点」「四个端点 / 单个 `debit/retry`」与「五个端点」都已过期，NEVER 回退。**
+
+**【契约】`debit/retry/recent` 与 220 / 255 并行、不可相互替代、NEVER 合并**（`service/impl/DebitRetryProcessor.retryRecentUnpaidDebits`；mapper `selectRecentUnpaidCandidates` / `prepareRecentRetry`）。三处刻意差别：①**不分渠道**（220 / 255 按 `PAY_CHANNEL_CODE` 二分，本条全量扫）；②**多捞 `INIT`**（候选是 `DEBIT_STATUS IN ('INIT','RETRY','FAIL')`，`prepareRecentRetry` 先把它们归一成 `RETRY` 再复用 `PaySignInitiator.retryAndConverge` 出口 —— `updateStatusFromPending` 的 CAS 白名单只认 `INIT, RETRY`）；③**按 `CREATE_TIME` 取近 10 分钟的窗口**，不看最后重试时间。四个键：`gate.debitRetry.recent.enabled`（默认 true）/ `.batchSize`（200）/ `.windowMinutes`（10）/ `.minAgeSeconds`（60）。**业主裁决不设退避**：`prepareRecentRetry` 刻意**不写** `DEBIT_RETRY_TIMES` 与 `DEBIT_NEXT_RETRY_TIME`（否则 10 分钟内就把 220 / 255 的次数预算烧光），代价是一笔 `Unreachable` 单在窗口内最多被重发约 10 次 —— **这是已知并接受的代价、不是缺陷，NEVER 自行加退避或加记账**。防重扣只剩三道闸：`minAgeSeconds=60` 下界、`windowMinutes=10` 上界、排除 `DISCOUNT_CALC_STATUS='OFFLINE_FARE_PENDING'`（离线码金额未算准，扣下去就是扣错钱），**三者 NEVER 删任何一个**；要收紧只能调那两个键或 cron。
 
 **【契约】前两个端点恒返 `0000` 且吞异常，第三个都不**：
 - `recoverOfflineFare` —— 「**恒返 `0000`**：本轮扫表异常属可自愈（下一分钟再来一轮），返非 0 会让 `sys_job_log` 记一次失败、淹没真正需要人看的失败。本轮结论在 `retMsg` 里，排查 MUST 看 `retMsg` 与模块日志」（`controller/internal/CompensationInternalController.java:66~67`）。异常在 Processor 内兜住、以 `-2` 表达（`service/impl/OfflineFareRecoveryProcessor.java:57~59`：本方法现在由 HTTP 入口调用，抛出去会让 web-admin 侧 `sys_job_log` 记失败——那是对的，但**本轮扫表异常属于可自愈**，记成调度失败会淹没真正需要人看的失败）。
@@ -290,7 +308,7 @@
 
 **【契约】本源标识 `gate-txn-pay` 是跨服务契约字段值，NEVER 改**（`ReconExportService.SOURCE`，`service/ReconExportService.java:52`）。
 
-**【陷阱 / 待恢复】三个 `/internal/**` 端点当前无鉴权，上线前 MUST 恢复**（`controller/internal/CompensationInternalController.java:23~35`）：用户 2026-09-15 明确要求「不需要鉴权」。本模块没有 spring-security、没有全局拦截器兜底，因此**现状等于允许任何网络可达方触发扫表级别的补偿批处理（其中离线码那条会真的发起扣款）**，与 AGENTS.md §5.2 冲突，属**有意为之的临时降级**。补款收敛那条尤其要紧 —— 「它能把任意订单号的 `DEBIT_STATUS` 直接改成 `SUCCESS`，等于免单」（`:93~94`）。恢复做法：引入共享令牌配置 + 请求头比对，比较 **MUST 用 `MessageDigest.isEqual` 做定长时间比较，NEVER 用 `String.equals`**（后者短路返回，可被逐字节计时探测出令牌内容）；令牌值由 K8s Secret 注入，**NEVER 在仓库里写默认真值**。恢复时 MUST 同批给 `GateTxnPayClient.recoverOfflineFare` / `pushMetroTransfer` 补请求头 —— 这两个方法**已预留 `Map<String,String> headers` 形参**（当前只用来传 traceId），加令牌不需要改签名。**注意 `ReconExportController` 当前也没有鉴权**（`X-Recon-Token` 已按用户 2026-09-11 要求整段删除），两者是「同样待恢复」，不是「照着一份已有实现抄」（`:28~29`；`controller/internal/ReconExportController.java:14~23`）。
+**【陷阱 / 待恢复】六个 `/internal/**` 端点当前无鉴权，上线前 MUST 恢复**（`controller/internal/CompensationInternalController.java:23~35`）：用户 2026-09-15 明确要求「不需要鉴权」。本模块没有 spring-security、没有全局拦截器兜底，因此**现状等于允许任何网络可达方触发扫表级别的补偿批处理（其中离线码那条、2026-09-20 新增的两个 `debit/retry/*` 与 2026-09-21 新增的 `debit/retry/recent` 都会真的发起扣款）**，与 AGENTS.md §5.2 冲突，属**有意为之的临时降级**。**新增的 `debit/retry/recent` 同样无鉴权，属同一批待恢复、NEVER 单独给它开口子。**补款收敛那条尤其要紧 —— 「它能把任意订单号的 `DEBIT_STATUS` 直接改成 `SUCCESS`，等于免单」（`:93~94`）。恢复做法：引入共享令牌配置 + 请求头比对，比较 **MUST 用 `MessageDigest.isEqual` 做定长时间比较，NEVER 用 `String.equals`**（后者短路返回，可被逐字节计时探测出令牌内容）；令牌值由 K8s Secret 注入，**NEVER 在仓库里写默认真值**。恢复时 MUST 同批给 `GateTxnPayClient.recoverOfflineFare` / `pushMetroTransfer` 补请求头 —— 这两个方法**已预留 `Map<String,String> headers` 形参**（当前只用来传 traceId），加令牌不需要改签名。**注意 `ReconExportController` 当前也没有鉴权**（`X-Recon-Token` 已按用户 2026-09-11 要求整段删除），两者是「同样待恢复」，不是「照着一份已有实现抄」（`:28~29`；`controller/internal/ReconExportController.java:14~23`）。
 
 **【陷阱 / 待恢复】`/page/**` 写接口同样没有鉴权**（`GateTxnPayPageController`，`controller/page/GateTxnPayPageController.java:76~77`、`:97~99`）：批量退超时罚金是**资金操作**、原价补数是**写接口**，「与本模块其它 `/page/**` 接口一样，**当前没有鉴权**：模块内无 spring-security、无全局拦截器，网络可达方即可调用。上线前 MUST 由运维在入口侧限制该路径只对运营网段开放，或补齐与 `AccountRequestVerifier` 对齐的验签。」
 
@@ -351,7 +369,8 @@
 
 **【契约】原价回填的 `ORIGINAL_FARE IS NULL` 是幂等 + 保护条件**（`GateTxnPayMapper.updateOriginalFareIfNull`，`mapper/GateTxnPayMapper.java:304~306`；`resources/mapper/GateTxnPayMapper.xml:638~641`）：「并发重复调用或人工重跑都只会写第一次，**NEVER 去掉它** —— 出站时已写好的原价快照是当时参数版本的值，回填用的是当前版本，覆盖等于篡改历史账单口径。」补数三条设计约束：不带事务 / 只写空值行 / **回填用的是当前参数版本的票价**（费率矩阵只保留少数历史版本，无法还原当时版本，因此结果是近似口径；若期间调过价 **MUST 先与业务确认可接受**，`service/OriginalFareBackfillService.java:16~25`）。`affected == 0` 是并发下的**幂等结果**，既不计 updated 也不计 failed（`:39`）。
 
-**【契约】圈单查询只是粗筛，NEVER 当成可退款结论**（`GateTxnPayMapper.selectOvertimeRefundablePage`，`mapper/GateTxnPayMapper.java:144~151`；`resources/mapper/GateTxnPayMapper.xml:306~313`）：口径四要素 `OVERTIME_AMOUNT > 0` + `ORDER_EXP_TYPE='1'`（单边）+ `TICKET_STATUS='07'`（超时出站）+ `DEBIT_STATUS IN ('SUCCESS','PROCESSING')`（`DebitStatus.isRefundable` 白名单）+ `NVL(OUT_STATION, IN_STATION)=stationCode`。「该口径是『圈出候选』，真正的可退校验（日票拒退、金额上限、状态白名单）仍由单笔 `requestRefund` 逐单把关，因此本查询只做粗筛，**NEVER** 用它直接判定能否退款。」`countOvertimeRefundable` 的过滤条件 **MUST 与分页查询完全一致**（`:161`）；同理 `countTransList` 与 `selectTransList`（`:200`）、`selectTransStatistics` 与 `countTransList`（`:221~222`）、`countOperationPage` 与 `selectOperationPage`（`:92`）。
+**【契约】圈单查询只是粗筛，NEVER 当成可退款结论**（`GateTxnPayMapper.selectOvertimeRefundablePage`，`mapper/GateTxnPayMapper.java:144~151`；`resources/mapper/GateTxnPayMapper.xml` 的**公共片段 `Overtime_Refundable_Filter`**，grep `<sql id="Overtime_Refundable_Filter">`）：口径四要素 `OVERTIME_AMOUNT IS NOT NULL AND > 0` + `ORDER_EXP_TYPE='1'`（单边）+ `TICKET_STATUS='07'`（超时出站）+ `DEBIT_STATUS IN ('SUCCESS','PROCESSING')`（`DebitStatus.isRefundable` 白名单）+ `NVL(OUT_STATION, IN_STATION)=stationCode`（可选，缺省时不加该条）。该片段**只被圈单两条语句（分页查询与计数）共用**，抽成公共片段是为了让 `countOvertimeRefundable` 的过滤条件与分页查询**完全一致、无法漂移**（`:161`）。「该口径是『圈出候选』，真正的可退校验（日票拒退、金额上限、状态白名单）仍由单笔 `requestRefund` 逐单把关，因此本查询只做粗筛，**NEVER** 用它直接判定能否退款。」同理 `countTransList` 与 `selectTransList`（`:200`）、`selectTransStatistics` 与 `countTransList`（`:221~222`）、`countOperationPage` 与 `selectOperationPage`（`:92`）也 MUST 成对同口径。
+**⚠️ 圈单口径的 `ORDER_EXP_TYPE='1'` 本身有歧义**：库注释的 `'1'` 是「单边账**(入)**」，而注释自称「已确认」却没有出处 —— 见「矛盾与待裁决」#17，**改本条前 MUST 先确认业务口径**。
 
 **【契约】IF8A-05 的 `cardTypeList` 与 `cardType` 互斥**（`mapper/GateTxnPayMapper.java:183~184`；`resources/mapper/GateTxnPayMapper.xml:425~426`、`:468`）：`cardTypeList` 非空时按 `CARD_TYPE IN (...)` 过滤并**忽略** `cardType` —— APP 日票聚合码 `05` 会展开成 `0445~0448`，因此不能用单值；「两个条件互斥，**NEVER 同时拼**（AND 起来必然命中 0 行）」。
 
@@ -481,11 +500,11 @@
 **【契约】离线码统计视图不含任何个人信息字段，汇总行复用同一类型**（`model/page/OfflineCodeStatView.java:4~7`「只读聚合 `OFFLINE_FLAG='Y'` 的行，不含任何个人信息字段」「`stationCode` / `stationName` 为空即汇总」；`:10` 车站编码「出站站，缺省时回落进站站」、`:12` 站名「由 `STATION_INFO` 补」）。**判「这行是明细还是汇总」MUST 看两个站字段是否为空，NEVER 靠行序或额外标志位**。
 ### 七、internal 层与调度归属（本轮只补阶段一没说清的三处）
 
-**【契约·纠正】`CompensationInternalController` 现在是 3 个端点，`/internal/gate-txn-pay/**` 下没有补款「下单」端点、但有补款「收敛」端点**（`controller/internal/CompensationInternalController.java:47~52` 与 `:82~99`）。AGENTS.md §2.2.1 写的「该 Controller 只有这两个端点，没有补款端点」**在 2026-09-16 起只对一半**：补款**下单**（IF8A-26）确实整体迁到 face-pay-server、本模块没有（`controller/GateTxnPayController.java:110~113`、`controller/app/GateTxnPayAppController.java:30`），但同日新增了第三个端点 `POST /internal/gate-txn-pay/debit/converge`（补款支付成功后收敛原行程扣费状态，由 face-pay 同步调用）。**排查「谁能改 `DEBIT_STATUS`」MUST 按 3 个端点算**，见下面「矛盾与待裁决」#1。
+**【契约·纠正】`CompensationInternalController` 现在是 6 个端点，`/internal/gate-txn-pay/**` 下没有补款「下单」端点、但有补款「收敛」端点与三个扣费「重试」端点**（`controller/internal/CompensationInternalController.java:47~52` 与 `:82~99`）。补款**下单**（IF8A-26）确实整体迁到 face-pay-server、本模块没有（`controller/GateTxnPayController.java:110~113`、`controller/app/GateTxnPayAppController.java:30`），但 2026-09-16 新增了 `POST /internal/gate-txn-pay/debit/converge`（补款支付成功后收敛原行程扣费状态，由 face-pay 同步调用）、2026-09-20 又新增了 `POST /internal/gate-txn-pay/debit/retry/default`（非支付宝，`sys_job` 220）与 `POST /internal/gate-txn-pay/debit/retry/alipay`（支付宝出行，`sys_job` 255，ADR-D147 + ADR-D149；两条 job_id 于 2026-09-21 分别由 133 / 134 改号）、2026-09-21 再新增 `POST /internal/gate-txn-pay/debit/retry/recent`（补站扣费周期查询更新，`sys_job` 345、cron `0 0/1 * * * ?`，编号先后为 135 → 265 → 235 → 345，ADR-D154）。**排查「谁能改 `DEBIT_STATUS`」MUST 按 6 个端点算**（AGENTS.md §2.2.1 已同步改成 6 个），见下面「矛盾与待裁决」#1。
 
 **【陷阱】类注释开头「本模块两条补偿链路的外部调度入口」与类内第三个端点自相矛盾**（`controller/internal/CompensationInternalController.java:15` vs `:48~51`）。第三个端点的方法注释自己点明了这一点：「与上面两个 Processor 不同：这条**不是补偿批处理**，而是由 face-pay-server 在单笔补款支付成功后同步调用的收敛入口，**只是恰好共用本类的 `/internal/gate-txn-pay` 前缀**」。因此**按类注释估算「本模块有几条补偿链路」会少算，且会误以为第三个端点也恒返 `0000`**（它恰好相反）。
 
-**【契约】调度归属的墓碑现在有构建期防线，不再只靠注释**（`src/test/java/com/chinasofti/huateng/gatetxnpay/arch/GateTxnPayGuardTest.java:18~34`）。该类把两条约束固化成会失败的测试：①**本模块不得有任何 `@Scheduled`**（「ADR-D80 起调度全部外移：补款任务连类整体迁到 face-pay-server，离线码补偿与公交换乘推送迁到 web-admin 的 `sys_job` **120 / 121**」，「加回一个既不编译失败也不告警，只会让同一件事在两处各跑一份」）；②**两条 converge 语句的状态白名单必须不同**（「补款专用那条含 `FAIL` … 支付回调那条不含 … 谁把两条合并成一条，这个测试就红」）。判定「只读源码与 mapper 文本，不起 Spring、不连库」，且**一律在剥离注释后的内容上做** —— 因为那些 NEVER 告示本身就写着被禁止的写法与取值（`:33~34`，`:50` 有 `commentLine` 的实现痕迹）。**注释里的 `sys_job` 号 120 / 121 与 AGENTS.md 一致，但 cron 不在代码里、MUST 查 `sys_job` 表。**
+**【契约】调度归属的墓碑现在有构建期防线，不再只靠注释**（`src/test/java/com/chinasofti/huateng/gatetxnpay/arch/GateTxnPayGuardTest.java:18~34`）。该类把两条约束固化成会失败的测试：①**本模块不得有任何 `@Scheduled`**（「ADR-D80 起调度全部外移：补款任务连类整体迁到 face-pay-server，离线码补偿与公交换乘推送迁到 web-admin 的 `sys_job` **295 / 300**」，「加回一个既不编译失败也不告警，只会让同一件事在两处各跑一份」）；②**两条 converge 语句的状态白名单必须不同**（「补款专用那条含 `FAIL` … 支付回调那条不含 … 谁把两条合并成一条，这个测试就红」）。判定「只读源码与 mapper 文本，不起 Spring、不连库」，且**一律在剥离注释后的内容上做** —— 因为那些 NEVER 告示本身就写着被禁止的写法与取值（`:33~34`，`:50` 有 `commentLine` 的实现痕迹）。**注释里的 `sys_job` 号现为 295 / 300（2026-09-21 由 120 / 121 改号，代码注释与本行已同批改齐）与 AGENTS.md 同源，但 cron 不在代码里、MUST 查 `sys_job` 表。**
 
 **【墓碑·反向】这个断言 NEVER 扩成连 `@EnableScheduling` 一起禁**（`arch/GateTxnPayGuardTest.java:24~27`）：「启动类上那个开关不是死代码 —— `resource/micro` 里有 3 个 `@Scheduled`（`SqlConfiguration` 与 `ResetMetersJob` 的 Prometheus 指标重置与打印），删掉开关会把那三个监控任务一并停掉。2026-09-16 本测试第一版就是这么写的，当场被自己抓到」。**这条是本模块唯一记录了「作者自己踩中并当场修正」的门禁设计细节**，改动该测试或清理启动类注解前 MUST 先读它。
 
@@ -504,7 +523,7 @@
 
 **【契约】异步扣费线程池的形状与拒绝策略**（`config/AsyncConfig.java:10~24`）：`paySignAsyncExecutor` core 4 / max 16 / queue 1000 / 线程名前缀 `pay-sign-async-` / 拒绝策略 `CallerRunsPolicy`。**`CallerRunsPolicy` 意味着队列满时出站扣费会退化成在请求线程上同步调 pay-sign** —— 与 AGENTS.md §5.2「NEVER 在请求线程上做长时间阻塞的 DB / IO」（虚拟线程 pin）撞在一起；改这里 MUST 连带评估那条。类注释只有一行「用于 pay-sign 异步补偿更新」，**这四个数字与拒绝策略在任何文档里都没有，只在这个文件里**。
 
-**【契约·tracing】本模块打开 tracing 的三行是成组的，且理由写在注释里**（`application.properties:9~24`）：`management.tracing.enabled=true` + `sampling.probability=0` + `spring.autoconfigure.exclude=...OtlpAutoConfiguration`。注释给出三条**别处没有的判据**：①打开的直接动因是**对账链路**「recon-server 下发 `/internal/recon/export` 时带来的 W3C `traceparent` 才能被续接进 MDC，否则按 `sys_job_log`（job 109 日终对账）的 traceId 检索本模块的抽取日志会 0 条 —— 对账链路是 web-admin → recon-server → 本模块，少一环就断在这里」；②**本模块没有自带 log4j2 配置、走公共 `log4j2-linux.xml`**，其 pattern 已含 `%X{traceId}`，「只差这个开关」；③排除那行 **NEVER 删**，三个理由是「`sampling.probability=0` 只让本服务发起的 trace 不采样，采样器是 `parentBased(traceIdRatioBased(0))`，**上游带 `sampled=1` 的头进来时 span 仍会被采样并进导出队列**」「`micro/web` 的 `web.properties` 已把 endpoint 整行注释掉，本行是第二道保险 —— Deployment 只要注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` 就会重新激活 exporter」「Boot 3.2.6 **没有** `management.tracing.export.enabled` 这个开关，把 endpoint 置空也不行（`OtlpAutoConfiguration` 只判断键是否存在），只能排掉整个自动配置」。
+**【契约·tracing】本模块打开 tracing 的三行是成组的，且理由写在注释里**（`application.properties:9~24`）：`management.tracing.enabled=true` + `sampling.probability=0` + `spring.autoconfigure.exclude=...OtlpAutoConfiguration`。注释给出三条**别处没有的判据**：①打开的直接动因是**对账链路**「recon-server 下发 `/internal/recon/export` 时带来的 W3C `traceparent` 才能被续接进 MDC，否则按 `sys_job_log`（job 109 日终对账）的 traceId 检索本模块的抽取日志会 0 条 —— 对账链路是 web-admin → recon-server → 本模块，少一环就断在这里」（注释原文；job 109 现为 225「给ACC上传扣费交易」）；②**本模块没有自带 log4j2 配置、走公共 `log4j2-linux.xml`**，其 pattern 已含 `%X{traceId}`，「只差这个开关」；③排除那行 **NEVER 删**，三个理由是「`sampling.probability=0` 只让本服务发起的 trace 不采样，采样器是 `parentBased(traceIdRatioBased(0))`，**上游带 `sampled=1` 的头进来时 span 仍会被采样并进导出队列**」「`micro/web` 的 `web.properties` 已把 endpoint 整行注释掉，本行是第二道保险 —— Deployment 只要注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` 就会重新激活 exporter」「Boot 3.2.6 **没有** `management.tracing.export.enabled` 这个开关，把 endpoint 置空也不行（`OtlpAutoConfiguration` 只判断键是否存在），只能排掉整个自动配置」。
 
 **【契约】`service.*.url` 默认值的书写规则与三条「键缺失会怎样」的实测**（`application.properties:36~62`）：默认值一律用集群内网 Service 名，「**NEVER 再写 127.0.0.1** —— 在 K8s 里等于打到自己，且键缺失时 rpc 会退化成默认服务名 `*-service`、DNS 解析不到」；「各 Service 端口不统一：有的等于容器 `server.port`（account 9098 / ticket 9100），有的等于 NodePort 号（para 30026 / recon 30034），**照抄实测值、NEVER 按 `server.port` 推断**」。三条键缺失的**具体症状实测**：`service.ticket.url` 缺失 ⇒ 离线码出站整笔失败，2026-09-11 实测 `requestPay` 返 `8002`「Failed to resolve 'ticket-service'」、`GATE_TXN_PAY` 零订单、APP 乘车记录看不到行程（`:46~48`）；`service.alipay-pay-sign.url` 缺失 ⇒ 落到 `http://alipay-pay-sign-server:8080`、解析不到，**`ISSUE_CHANNEL_CODE=07` 的单全部收敛成 `RETRY`**（`:51~53`）；`service.collectPay.url` 缺失 ⇒ 落到 `collect-pay-service`，「每笔补款下单都返『补款单正在准备支付入口』而补偿轮轮失败 —— NEVER 删」（`:56~60`，**该注释是补款迁走前的现状，与 `:155` 那行「本服务不再读取任何 `supplement.*` 配置」并存**，见「矛盾与待裁决」#7）。
 
@@ -604,7 +623,7 @@
 ### 十二、`src/test` 逐类：每个测试钉住什么不变量（11 个文件）
 
 **【门禁】`arch/GateTxnPayGuardTest`（116 行）是本模块唯一有构建期效力的约束**，两条断言：
-- `moduleHasNoScheduledAnnotation`（`src/test/java/com/chinasofti/huateng/gatetxnpay/arch/GateTxnPayGuardTest.java:42~61`）遍历 `src/main/java` 全部 `.java`，**行首 trim 后 `startsWith("@Scheduled")` 且该行不是注释行**才算命中（`:50~52` 的 `commentLine` 判定）—— 正因为先排除注释行，Javadoc 里写「NEVER 加回 `@Scheduled`」不会让门禁自伤。失败信息原文「本模块的调度已全部外移（补款迁 face-pay、离线码与换乘迁 web-admin sys_job 120/121），NEVER 加回模块内定时任务」。
+- `moduleHasNoScheduledAnnotation`（`src/test/java/com/chinasofti/huateng/gatetxnpay/arch/GateTxnPayGuardTest.java:42~61`）遍历 `src/main/java` 全部 `.java`，**行首 trim 后 `startsWith("@Scheduled")` 且该行不是注释行**才算命中（`:50~52` 的 `commentLine` 判定）—— 正因为先排除注释行，Javadoc 里写「NEVER 加回 `@Scheduled`」不会让门禁自伤。失败信息原文「本模块的调度已全部外移（补款迁 face-pay、离线码与换乘迁 web-admin sys_job 295/300），NEVER 加回模块内定时任务」（2026-09-21 由 120/121 改号，测试里的提示文案已同批改齐）。
 - `supplementConvergeWhitelistKeepsFailWhileCallbackOneDoesNot`（`:63~78`）三段断言：补款侧 `convergeDebitStatusForSupplement` 的语句体 MUST 含 `FAIL`（否则「放行下单 + 补款支付成功 + 收敛不了」，钱已实收而行程仍挂欠费）；回调侧 `convergeDebitStatus` MUST NOT 含 `FAIL`（FAIL 在那条链路里是已到达的终态、不该被回调改写）；补款侧 `targetStatus(...)` MUST 等于 `SUCCESS`（「目标状态写死 SUCCESS、不做入参，少一个入参就少一处传错状态的可能」）。
 - **作者第一版把第一条断言扩成连 `@EnableScheduling` 一起禁，那是错的**（`:24~27`）：启动类上那个开关不是死代码 —— `resource/micro` 里有 **3 个 `@Scheduled`** 靠它（`SqlConfiguration` 与 `ResetMetersJob` 的 Prometheus 指标重置与打印），删掉开关会把这三个监控任务一并停掉。原文即「2026-09-16 本测试第一版就是这么写的，当场被自己抓到」。**NEVER 回退成禁 `@EnableScheduling`。**
 - 两个技术前提：判定一律在**剥离注释后**的文本上做（`:33~34` 与 `stripXmlComments` `:99~115`，因为那些 NEVER 告示本身就写着被禁止的写法与取值）；`statementBody` 取语句体时 **`id` 必须精确匹配 `id="..."`**（`:80~88`）—— `convergeDebitStatus` 是 `convergeDebitStatusForSupplement` 的前缀，按 `contains` 取会取错那条，这是两条 converge 断言最容易写错的地方。
@@ -758,7 +777,7 @@
 ### 删除后仍在代码里的护栏（2026-09-16 收尾，共 6 组）
 
 删注释时**刻意保留**下面这几处一行式护栏 —— 判据是「删掉它，下一个改动者会在没有任何提示的情况下做出一次不报错的错误改动」：
-1. `service/impl/OfflineFareRecoveryProcessor.java`、`service/impl/MetroTransferPushTaskProcessor.java` 类上各一行：**NEVER 加回 `@Scheduled`，已改由 web-admin `sys_job` 120 / 121 触发（ADR-D80）**。
+1. `service/impl/OfflineFareRecoveryProcessor.java`、`service/impl/MetroTransferPushTaskProcessor.java` 类上各一行：**NEVER 加回 `@Scheduled`，已改由 web-admin `sys_job` 295 / 300 触发（ADR-D80）**（2026-09-21 由 120 / 121 改号，注释已同批改齐）。
 2. `controller/internal/CompensationInternalController.java` 的 `debit/converge` 端点上一行：**该端点能把任意订单号的 `DEBIT_STATUS` 直接改成 `SUCCESS`（等于免单），与另两个端点语义相反 —— NEVER 恒返 `0000`、NEVER 吞异常**。
 3. `resources/mapper/GateTxnPayMapper.xml` 的 `convergeDebitStatus` 与 `convergeDebitStatusForSupplement` 上各一行：**补款侧白名单含 `FAIL`、回调侧不含，差异是有意的，改一侧会打挂另一侧（有守卫测试）**。
 4. `arch/GateTxnPayGuardTest` 类与两个测试方法上各一行「防什么」。

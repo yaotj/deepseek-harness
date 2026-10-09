@@ -91,7 +91,7 @@
 - 事务外调用：`updatePhone` 本身**不带 `@Transactional`**，本地写入用 `transactionTemplate.execute` 包成短事务（`PhoneChangeServiceImpl.java:149`），RPC 在其**之后**（`:161`）。`updatePhoneLocally` 内标注「本方法内 NEVER 发起任何 RPC」（`:171`）。
 - 返回值检查并转异常：`:236~238`（ADR-D13 那次「丢返回值 ⇒ 被写成 SUCCESS」的实测事故已写进注释，标 NEVER 回退）。
 - `SIGN_SYNC_*` 四列齐全：`account-server-schema.sql:447~450`；mapper 四条语句都是「白名单 + CAS」写法（`UserPhoneChangeLogMapper.xml:62 / 76 / 109`）。
-- 补偿链：`sys_job` job 108（cron `0 0/5 * * * ?`）→ `AccountQuartzTask.compensatePhoneSignSync()` → `POST /phoneSignSyncCompensate`（`TaskController.java:87`，单线程 executor + `AtomicBoolean` 拒重入）→ `PhoneChangeServiceImpl.compensateSignSync()`（`:284`）。
+- 补偿链：`sys_job` job 108（cron `0 0/5 * * * ?`；**该 job 现为 290**，2026-09-21 重编号）→ `AccountQuartzTask.compensatePhoneSignSync()` → `POST /phoneSignSyncCompensate`（`TaskController.java:87`，单线程 executor + `AtomicBoolean` 拒重入）→ `PhoneChangeServiceImpl.compensateSignSync()`（`:284`）。
 - 达上限开工单：`openTicketIfRetryExhausted`（`:323~351`），类型 `SIGN_SYNC_RETRY_EXHAUSTED`，幂等靠 `UK_ACCT_EXC_TICKET_TYPE_KEY`。
 - **与「落地形态」的唯一出入**：重试上限与扫描上限是 Java 常量（`SIGN_SYNC_MAX_RETRY = 10` @`:53`、`SIGN_SYNC_SCAN_LIMIT = 200` @`:62`），**不是配置键**。全仓没有 `sign-sync.max-retry` 之类的 properties，改上限只能改代码 + 重建镜像。不影响功能，但排查时 NEVER 去找配置。
 
@@ -393,7 +393,7 @@ face-pay-server 早已用「整个类无事务 + `F2F_NOTIFY_TASK` 落库 + `F2f
 
 **验证**：`rpc` → `account-server` → `web-server` 三次 `mise exec -- mvn clean package/install -DskipTests -Djkube.skip=true` 全部 BUILD SUCCESS（`account-server` 2.0.45 → **2.0.46**；`web-server/pom.xml` 的 `<project.version>` 1.1.15 → **1.1.16**，带动 6 个子模块与 `itp/web-admin` 镜像 tag；`rpc` 版本按规则不动）。
 
-**未验证**：无单元测试。`sys_job` 种子已于 **2026-09-11 在唯一目标库 `AFCITPDB` 执行，生成 `job_id=108`**（`job_name='签约展示账号同步补偿'`，`status='0'` 启动态，`cron='0 0/5 * * * ?'`，回滚 `DELETE FROM sys_job WHERE job_id = 108`）。
+**未验证**：无单元测试。`sys_job` 种子已于 **2026-09-11 在唯一目标库 `AFCITPDB` 执行，生成 `job_id=108`**（`job_name='签约展示账号同步补偿'`，`status='0'` 启动态，`cron='0 0/5 * * * ?'`，回滚 `DELETE FROM sys_job WHERE job_id = 290;`（现号，**原 108，2026-09-21 已重编号**））。
 
 **端到端已在测试环境跑通（2026-09-11 14:00~14:16）**：
 
@@ -535,7 +535,7 @@ face-pay-server 早已用「整个类无事务 + `F2F_NOTIFY_TASK` 落库 + `F2f
 
 **`mcp_database_qd` 是本项目的 MCP，它指向的 `172.20.222.3:1521 / AFCITPDB`（用户 `qditp`）是唯一的目标业务库。** 同名的 `mcp_database_cc` **不属于本项目、也连不上**（实测 `MCP Server mcp_database_cc 未连接`），**NEVER 拿它做任何核对**。
 
-由此**作废一整类悬空 TODO**：本文件与 `state-machines.md` 里曾反复出现「测试库已执行、**生产库仍未执行**」的表述，那是把同一个库拆成了两个。实测 2026-09-11 该库内四组账户域 DDL **全部已在**：`USER_PHONE_CHANGE_LOG` 的 4 个 `SIGN_SYNC*` 列、`ALIPAY_PHONE_CHANGE_LOG` 表、`sys_job` 的 `job_id=108`、`UK_APPSI_REQUEST_SIGN_SEQ`（连带 `RECON_*` 四张也在）。**NEVER 再新增「生产库未执行」这类条目**；确实要区分环境时，MUST 先拿到第二个库的真实地址再写。
+由此**作废一整类悬空 TODO**：本文件与 `state-machines.md` 里曾反复出现「测试库已执行、**生产库仍未执行**」的表述，那是把同一个库拆成了两个。实测 2026-09-11 该库内四组账户域 DDL **全部已在**：`USER_PHONE_CHANGE_LOG` 的 4 个 `SIGN_SYNC*` 列、`ALIPAY_PHONE_CHANGE_LOG` 表、`sys_job` 的 `job_id=108`（**现为 290**，2026-09-21 重编号）、`UK_APPSI_REQUEST_SIGN_SEQ`（连带 `RECON_*` 四张也在）。**NEVER 再新增「生产库未执行」这类条目**；确实要区分环境时，MUST 先拿到第二个库的真实地址再写。
 
 ⚠️ 遗留的文档冲突（**不由本条裁决，需运维确认**）：`docs/ops/生产环境清单.md:121` 记「`172.20.211.23:300xx` 是生产集群（2026-08-25 确认）」，`AGENTS.md` §8 记「该网段 2026-09-08 裁决为测试环境」，同文件 §八 第 1 条又把「生产 Oracle 地址」列为待确认。三者不能同时成立，但**都不影响上面这条** —— 无论那个网段叫什么，可达的 Oracle 只有这一个。
 
@@ -549,10 +549,10 @@ face-pay-server 早已用「整个类无事务 + `F2F_NOTIFY_TASK` 落库 + `F2f
 - `PhoneChangeServiceImpl`（374 行）—— 换号 + 显示账号同步补偿。选它是因为它**只有 2 个 public 入口、0 个与其它块共享的 private 方法**，独占 `USER_PHONE_CHANGE_LOG`。
 - `CardPoolAllocationServiceImpl`（165 行）—— 卡池预占 / 确认 / 释放 + HCE 取卡。它是 IF8A-01 与支付宝出行**两条链路共用**的纯出网包装，抽出后 `CardPoolClient` / `SecurityClient` 两个 Client 从主类消失。
 
-**刻意没做的**：销户归档 `archiveUserInfoIfLastChannelRemoved` 被 `requestRemovePayChannel` 与 `tryArchiveAfterCancel` 双方调用，抽出来会同时被两块依赖，**边界不干净，本轮不动**。
+**刻意没做的**：销户归档 `archiveUserInfoIfLastChannelRemoved`（**现名 `archiveIfLastChannelRemoved`，宿主 `AccountArchiveServiceImpl`；2026-09-23 核对补注，本轮决策原文保留不改**）被 `requestRemovePayChannel` 与 `tryArchiveAfterCancel` 双方调用，抽出来会同时被两块依赖，**边界不干净，本轮不动**。
 
 **约束**（后续改动 MUST 遵守）：
-1. **`AccountApplicationService` 接口一个字没改**。`updatePhone` / `compensateSignSync` 在 Impl 里退化为一行转发，上游 `TaskController`（web-admin 的 `sys_job` job 108 打的就是它）与 `ItpUserPageController` 完全不受影响。**NEVER 让 Controller 直接注入 `PhoneChangeService`** —— 那会让同一能力有两个调用面。
+1. **`AccountApplicationService` 接口一个字没改**。`updatePhone` / `compensateSignSync` 在 Impl 里退化为一行转发，上游 `TaskController`（web-admin 的 `sys_job` job 108（**现为 290**，2026-09-21 重编号）打的就是它）与 `ItpUserPageController` 完全不受影响。**NEVER 让 Controller 直接注入 `PhoneChangeService`** —— 那会让同一能力有两个调用面。
 2. **搬迁是逐字搬，行为零变化**：`updatePhone` 仍不带 `@Transactional`（尾部要发 RPC，见 AGENTS.md §5.2）、`updatePhoneLocally` 内仍无任何 RPC、员工码手机号同步仍在同一事务内且**不被 catch**。这三条是 2026-09-11 刚验证过的不变量，**NEVER 在新类里"顺手优化"掉**。
 3. **业务策略留在主类**：「哪种票种走卡池、`businessId` 怎么拼、同行票是否幂等」仍在 `allocateCard` / `buildAccountOpenBusinessId`。协作者只做 RPC + 日志，**NEVER 把这些判断挪进去**，否则两条链路的差异会被埋进公共类。
 4. `isDuplicateKeyViolation` 在两个类里各有一份（6 行、无成员依赖），**这是有意重复** —— 为它建工具类违反 AGENTS.md §5.1。
@@ -1516,7 +1516,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 
 ### ADR-D52 续：修法已按「①+② 组合」实施（2026-09-14，account-server 2.0.65）
 
-上面「可选修法（未实施，需定）」已收口，**选的是 ②「confirm 被拒不返成功」+ 「失败分支一律不释放」，NEVER 回退到「只在创建者才释放」的 ①**。放弃 ① 的理由是**它做不到**：`reserveFromPool` 即便回传「新建 / 复用」标志，两条并发请求也可能都拿到「新建」（卡池侧的幂等窗口在它自己的事务里，我方无法据此判定归属）；更根本的是任何以 `reservationId` 为键的 CAS 都**分不清兄弟请求** —— 它们持有的就是同一个 id。因此改成「失败路径不做任何回收动作」，把回收整体交给 `sys_job` 107「卡池维护」的超时回收（DB 实测在跑：`cardPoolQuartzTask.runMaintenance()`，cron `0 0/5 * * * ?`，`STATUS='0'`）。代价是**卡号最长多滞留一个超时周期**，比「把兄弟的卡抽走」轻得多。
+上面「可选修法（未实施，需定）」已收口，**选的是 ②「confirm 被拒不返成功」+ 「失败分支一律不释放」，NEVER 回退到「只在创建者才释放」的 ①**。放弃 ① 的理由是**它做不到**：`reserveFromPool` 即便回传「新建 / 复用」标志，两条并发请求也可能都拿到「新建」（卡池侧的幂等窗口在它自己的事务里，我方无法据此判定归属）；更根本的是任何以 `reservationId` 为键的 CAS 都**分不清兄弟请求** —— 它们持有的就是同一个 id。因此改成「失败路径不做任何回收动作」，把回收整体交给 `sys_job` 107「卡池维护」（**现为 240「卡池数据导入」**，2026-09-21 改名改号）的超时回收（DB 实测在跑：`cardPoolQuartzTask.runMaintenance()`，cron `0 0/5 * * * ?`，`STATUS='0'`）。代价是**卡号最长多滞留一个超时周期**，比「把兄弟的卡抽走」轻得多。
 
 落地的改动（6 个文件）：
 
@@ -3029,9 +3029,9 @@ controller 把它翻成 `retMsg`、`retCode` **恒 `0000`** —— 本轮扫表�
   **回滚 tag 2.0.72**）、`itp/web-admin:1.1.20`（digest `sha256:6da4ba688cafdf56030af176df7eeb4f93fcd4e751a1ec8e6b631da08e5dd9f7`，
   **回滚 tag 1.1.19**）。gate-txn-pay 探活 `http=200`、body 里 `db` / `readinessState` 全 UP。
 - **`scripts/20260915_sys_job_gate_txn_pay_compensate.sql` 已在 `AFCITPDB` 执行**：
-  生成 **job_id=120「离线码金额补偿」/ job_id=121「公交换乘推送」**，回查确认
+  生成 **job_id=120「离线码金额补偿」/ job_id=121「公交换乘推送」**（**现分别为 295 / 300**，2026-09-21 重编号），回查确认
   `cron_expression='0 0/1 * * * ?'`、`concurrent='1'`、`misfire_policy='3'`、`status='0'`。
-  回滚 `DELETE FROM sys_job WHERE job_id IN (120, 121);`。
+  回滚 `DELETE FROM sys_job WHERE job_id IN (295, 300);`（现号，**原 120 / 121，2026-09-21 已重编号**）。
 - **两个端点直连实测**（`172.20.211.23:30019`，`http=200`）：
   `/offline-fare/recover` → `{"retCode":"0000","retMsg":"离线码金额补偿本轮处理 0 笔"}`；
   `/metro-transfer/push` → `{"retCode":"0000","retMsg":"公交换乘推送开关未开启，本轮跳过"}`
@@ -3716,7 +3716,7 @@ AGENTS.md §8 那份「7 处残留」是全仓 grep 的结果，**本条不改�
 
 **为什么不需要同批补补偿**：ADR-D8 要求的「落同步状态 + 补偿」在这里**本来就齐了** ——
 同步状态就是那条 CAS 一并写入的 `NOTIFY_STATUS='PENDING'` + `NOTIFY_RETRY_COUNT=0`；
-补偿是**已经在跑**的 `sys_job` 7「解约结果通知补发」→
+补偿是**已经在跑**的 `sys_job` 7「解约结果通知补发」（**现为 275**，2026-09-21 重编号）→
 `POST /internal/termination/compensateNotify` → `compensateTerminationNotify`。
 **NEVER 因为「摘了事务怕丢通知」把注解加回** —— 丢通知有人补，
 事务回滚把状态一起撤掉才是**没人能补**的那一种。
@@ -3791,8 +3791,8 @@ AGENTS.md §8 那份「7 处残留」是全仓 grep 的结果，**本条不改�
 
 | job_id | 名称 | invoke_target | cron |
 |---|---|---|---|
-| **122** | 退款回查补偿 | `refundCompensateQuartzTask.compensateRefundQuery()` | `0 0/10 * * * ?` |
-| **123** | 退款汇总跨表对账 | `refundCompensateQuartzTask.compensateRefundSummary()` | `0 15 * * * ?` |
+| **122**（**现为 305**，2026-09-21 重编号） | 退款回查补偿 | `refundCompensateQuartzTask.compensateRefundQuery()` | `0 0/10 * * * ?` |
+| **123**（**现为 310**，2026-09-21 重编号） | 退款汇总跨表对账 | `refundCompensateQuartzTask.compensateRefundSummary()` | `0 15 * * * ?` |
 
 两条都 `misfire_policy='3'` / `concurrent='1'` / `status='0'` / `job_group='DEFAULT'`。
 **`SYS_JOB_LOG` 7198 实测**：122 于 17:30:00 触发、`STATUS='0'`、1776ms、带 traceId。
@@ -6668,7 +6668,7 @@ ADR-D111 是「找不到不相交的簇 ⇒ 不拆」；本例是「**找到了�
 
 先用 `kubectl set env` 开 env 做一次即时验证，再改仓库默认值 + 升 2.0.90 重建镜像固化：
 
-- 15:42:00 `sys_job` **121「公交换乘推送」**（cron `0 0/1 * * * ?`）触发
+- 15:42:00 `sys_job` **121「公交换乘推送」**（**现为 300**，2026-09-21 重编号）（cron `0 0/1 * * * ?`）触发
   `POST /internal/gate-txn-pay/metro-transfer/push` → `0000 公交换乘推送本轮处理 0 笔`，
   新 Pod 日志里「公交换乘推送开关未开启」**0 条**（开关关闭时每轮必打这行，可直接当判据）。
 - 15:46:37 进站 / 15:46:46 出站，订单 `GT20260917154647808135717`（`DEBIT_STATUS=SUCCESS`，90 分）→
@@ -7106,7 +7106,7 @@ ADR-D133 的原文结论是「簇确实不相交，但结论仍是**不拆**」�
 - `AlipayAccountServiceImpl` 只留 5 个一行 `@Override` 委派，构造注三个协作者。**接口与 URL 一行未动**，对外契约零变更。
 
 **同批改掉的一个真实缺陷 —— `businessId` 键格式**：原键是 `ALIPAY_ACCOUNT_OPEN:<thirdUserId>:<发卡票种>` 的裸拼接。`thirdUserId` 由支付宝侧给定、**可能含冒号**，那种取值下会与另一组入参拼出同一个键 —— 卡池按 `businessId` 幂等，撞键即**两个用户抢同一张卡**。现改为长度前缀 `ALIPAY_ACCOUNT_OPEN:<len>:<thirdUserId>:<发卡票种>`，与 ITP 侧 `buildAccountOpenBusinessId`（ADR-D122）同形，但**保留 `ALIPAY_ACCOUNT_OPEN` 前缀把两条链路的键空间分开，NEVER 与 ITP 侧合并**。
-- **改键的代价，部署前 MUST 知道**：改键那一刻，库里**在途的 `PENDING` 预占会变成孤儿**（新键查不到旧预占，重试会重新发一张卡）。不做数据迁移是有意的 —— 孤儿预占由 `sys_job` 107「卡池维护」（cron `0 0/5 * * * ?`）到期回收，而迁移脚本要按旧键反解 `thirdUserId`，正是这个 bug 本身做不到的事。**建议在业务低峰滚更。**
+- **改键的代价，部署前 MUST 知道**：改键那一刻，库里**在途的 `PENDING` 预占会变成孤儿**（新键查不到旧预占，重试会重新发一张卡）。不做数据迁移是有意的 —— 孤儿预占由 `sys_job` 107「卡池维护」（**现为 240「卡池数据导入」**，2026-09-21 改名改号）（cron `0 0/5 * * * ?`）到期回收，而迁移脚本要按旧键反解 `thirdUserId`，正是这个 bug 本身做不到的事。**建议在业务低峰滚更。**
 
 **测试**（8 个用例、`mvn -o clean test -pl alipay-account-server` 全绿）：
 - 原 `AlipayAccountCardPoolConfirmTest`（2 例）改为直接构造 `AlipayRegistrationService`，反射注字段的 `inject` 辅助方法已删。
@@ -7180,6 +7180,1004 @@ ADR-D133 的原文结论是「簇确实不相交，但结论仍是**不拆**」�
 1. **`SupplementRequestLedger` 的 `markUnknown` 悬挂态仍无人收**（`CardDataUpdateHandler:290`）。ticket-server 既没有扫表补偿也没有 outbox 载体表（`docs/domain/outbox.md` §七①）。本轮不是引入方，但支付宝卡走通后**多一类能踩到它的流量**，补不补是独立决定。
 2. **`QRCODE_STATUS.CHANNEL` 写入口径不一致未查**（同一天内 `01` / `07` 都在产生，说明有两条写入路径）。已按用户裁决当测试数据处理，**但代码路径本身没动**。
 3. **未部署、未端到端**。用户已裁决 018 与 006 都验，但那要等部署与造数。
+
+## ADR-D145：黑名单解除改两阶段 + `BLACKLIST` 实测 19 列 + 两个 Oracle DEFAULT 陷阱 + 运营页全量重构（2026-09-18，blacklist-server 2.0.29，**已部署并端到端双分支验通**）
+
+### 一、解除从「物理删除」改成两阶段，加黑保持乐观
+
+**改造前**：`deleteBlackList` 先删主表行、再（afterCommit）通知渠道。通知失败无伤 —— 反正本地已经放行了。
+**改造后**：阶段一 `markReleasing` CAS（`WHERE CARD_ID=? AND STATUS='ACTIVE'`）把行标成 `STATUS='RELEASING'`、**行仍留在 `BLACKLIST` 里、`queryBlackList` 判黑照样命中**；提交后出网；**只有 `RpcOutcome.Ok` 才进阶段二** `completeRelease`（`deleteReleasedById` + 插 `BLACKLIST_RELEASED`）。
+
+**加黑刻意仍是乐观的**（先落库 + afterCommit 异步通知）：加黑的业务后果是「更严」，通知晚到不会放行不该放行的人；解除反过来 —— 通知没到就放行等于**欠费用户当场能过闸**。**NEVER 把加黑也改成两阶段**（没有收益，只会让加黑链路多一个中间态）。
+
+**端到端双分支已验（2026-09-18，2.0.28 / 2.0.29）**：
+- **失败分支**：`service.alipay-pay-sign.url` 指 `127.0.0.1:1`，解除返 `0000` 后 —— 主表行**未删**、`STATUS='RELEASING'`、`RELEASE_REASON`/`RELEASE_BY` 已落、`queryBlackList` 仍 `inBlack=1`。
+- **成功分支**（`TEST9001VERIFY01`）：容器内完整日志拿到 `insert into BLACKLIST_RELEASED ( ORIGIN_ID, ... CHANNEL_SYNC_STATUS ) values ( '7', ... 'SUCCESS' )` / `fetchRowCount:1`，随后 `page` 返 `total:0`、`queryBlackList` 返 `inBlack=0`。
+
+### 二、`BLACKLIST` 是 19 列，不是 5 列 —— `docs/business/common-services.md` 旧描述已全面作废
+
+**本文件与 `common-services.md` 此前都写「`BLACKLIST` 只有 5 列（`ID`/`CARD_ID`/`THIRD_USER_ID`/`REASON`/`CREATE_TIME`）、没有拉黑类型来源字段、生产不存在第三张黑名单历史表」—— 三条全部已过期，NEVER 回退。** 2026-09-18 用 `USER_TAB_COLS` 实测，关键列与长度（**长度都很短，联调造数必踩**）：
+
+- `CARD_ID VARCHAR2(32) NOT NULL`、`THIRD_USER_ID VARCHAR2(16)`、**`CARD_TYPE VARCHAR2(8)`**（不是 32）
+- **`CHANNEL_CODE VARCHAR2(2) NOT NULL DEFAULT '99'`** —— **只能送两位码**。实测送 `ALIPAY` 报 `ORA-12899: 列 CHANNEL_CODE 的值太大 (实际值: 6, 最大值: 2)`；支付宝是 `01`。
+- `BLACK_SOURCE VARCHAR2(2) NOT NULL DEFAULT '09'`、`BLACK_CAUSE VARCHAR2(2) NOT NULL DEFAULT '09'`
+- outbox 四列 `CHANNEL_SYNC_STATUS VARCHAR2(16)` / `CHANNEL_SYNC_TIME` / `CHANNEL_SYNC_RETRY NUMBER DEFAULT 0` / `CHANNEL_SYNC_FAIL_REASON VARCHAR2(500)`
+- 两阶段列 `STATUS VARCHAR2(16) DEFAULT 'ACTIVE'` / `RELEASE_REASON VARCHAR2(500)` / `RELEASE_BY VARCHAR2(32)`
+- `ID` 是 Oracle **IDENTITY**（`ISEQ$$_130792.nextval`），**没有对应序列、NEVER 改成 `selectKey` 取 nextval**
+
+**`BLACKLIST_RELEASED` 确实存在**（解除历史表，带 `ORIGIN_ID` 回指原主键）。它上面的 `CHANNEL_SYNC_*` 四列自本次改造起**已降级为历史审计**：解除方向的 outbox 载体是**主表里 `STATUS='RELEASING'` 的那些行**，`compensate-release` 扫的是主表。**NEVER 再据 `BLACKLIST_RELEASED` 的 `CHANNEL_SYNC_*` 扫表补偿。**
+
+### 三、两个同源缺陷：Oracle 列 DEFAULT 只在「列不出现在 INSERT 列表里」时生效
+
+`insert` 语句的列清单里有 `STATUS` / `CHANNEL_CODE`，于是**显式传 `null` 会真落 `null`、把 DEFAULT 顶掉**。两次都是这个机理，且**编译、单测、`xmllint` 全都发现不了**：
+
+1. **`STATUS` 落成 null（本次改造引入的 P0，已修）**：`buildBlacklist` 漏 `setStatus`。后果是 `selectPendingChannelSync` / `markReleasing` / `selectForInspect` 三条读路径全带 `STATUS='ACTIVE'` 谓词 ⇒ 该行**同时失去「加黑通知补偿」「能被解除」「进盘点清单」三种能力** —— 那张卡**再也解不掉**。修法：新增常量 `STATUS_ACTIVE` 并**显式赋值**。连带纠正我自己的一次误读：`compensate-add` 返 `scanned:0` 当时被我当成「没有待推行」，实际是 `STATUS` 为 null 扫不到。
+2. **`CHANNEL_CODE` 落成 null 触发 `ORA-01400`（既有缺陷，已修）**：运营页新增必然失败。**我一度判断「成因是该列没有默认值」，那是错的** —— 它有 `DEFAULT '99'`，**NEVER 回退成这个错误结论**。修法：`buildBlacklist` 用 `defaultIfBlank` 给 `CHANNEL_CODE`/`BLACK_SOURCE`/`BLACK_CAUSE` 三个 NOT NULL 列兜与列 DEFAULT 一致的值（`99`/`09`/`09`）。**成功分支那条 `BLACKLIST_RELEASED` INSERT 日志里 `BLACK_SOURCE='09'`/`BLACK_CAUSE='09'` 就是这个兜底生效的硬证据**（请求里没送这两个字段）。
+
+回填脚本 `blacklist-server/src/main/resources/sql/blacklist-status-backfill-migration.sql`（`UPDATE BLACKLIST SET STATUS='ACTIVE' WHERE STATUS IS NULL`）**已在 `AFCITPDB` 执行，`affectedRows:1`**。
+
+### 四、`DuplicateKeyException` 的父类不能当「幂等命中」
+
+原 `insertIgnoreDuplicate` 的 `isConflict` 认的是 `DataIntegrityViolationException`（**父类**），而它还涵盖 NOT NULL 违反、外键违反、检查约束违反、列长超限。于是上面那个 `ORA-01400` 被**静默吞成「幂等命中」**：日志打「卡号已在黑名单中，本次新增按幂等命中处理」、操作日志照写、对上游返 `0000`，而 `BLACKLIST` 里**一行都没有**。已改成 `isDuplicateKey`、**沿 cause 链只认 `DuplicateKeyException` 子类**。
+
+顺带一条实测：`ORA-12899`（列长超限）被 Spring 翻成 `UncategorizedSQLException`、**不是** `DataIntegrityViolationException`，所以它没被吞、正确返了 UUID retCode。**排查「返 0000 但表里没行」MUST 先看兜底 catch 认的是父类还是子类。**
+
+### 五、`9001` 判 `Unreachable` 而非 `BizRejected` —— 否则外部网关抖一下就永久锁死
+
+`AlipayBlacklistNotifyPort` 原判据是「拿到应答且 `retCode != 0000` ⇒ `BizRejected`」⇒ 一次即终态 `REJECTED`。而 `REJECTED` **不在补偿扫表白名单 `IN ('PENDING','FAILED')` 里** ⇒ 两阶段下那张卡**永久卡在 `RELEASING`、判黑恒命中、补偿再也扫不到、乘客再也解不了黑**。
+
+**实证**：2026-09-18 17:23 支付中心 `dtcustomer.bestonepay.com/.../receiveBlackListFromItp` 返 **HTTP 502**，`PayCenterClient` 把它吞成 null 响应，`PaymentNotifyAdapter` 统一返 `9001` ⇒ 卡 `TEST2P0000000001` 当场被锁死。**同一地址同一链路 7 分钟后（17:30）两次都返 `{"retCode":"0000"}`** —— 这正是「可重试的传输层抖动」被判成永久终态的活样例。
+
+**判据不是猜码值**：`PaymentNotifyAdapter.notifyBlackListChange` 只在两种情形返 `9001`（`FepAppErrorCodeEnum.SYSTEM_ERROR`）—— 支付中心应答为 `null`、或它自己 catch 到异常，**两者都是「这一次压根没问出结论」**；真业务拒绝走 `9999`（`FAIL`，拿到应答但判不成功）与 `8001`（`INVALID_PARAM`，卡号为空）。
+
+**这是「只在 blacklist 侧按码值兜」的有意取舍（用户 2026-09-18 裁决 `fix_blacklist_only`）**。治根做法是让 alipay 侧把传输层失败与业务拒绝分开上报，但那会牵动所有走 `PayCenterClient` 的通知。代价是**与 alipay 侧的码分配形成隐式耦合**：alipay 若把 `SYSTEM_ERROR` 挪去表达别的语义，本判断即失效且**编译期发现不了**。**改动 `PaymentNotifyAdapter` 的返码分配时 MUST 同步看齐 `AlipayBlacklistNotifyPort.CHANNEL_UNREACHABLE`。**
+
+### 六、运营页全量重构（用户裁决 `scope: full` + `releasing_view: tag_retry`）
+
+`web/src/api/trans/blacklist.js` + `web/src/views/trans/blacklist/index.vue` 两个文件整体重写：
+
+- `delBlacklist` 改名 `releaseBlacklist(cardId, params)` 并带 `releaseReason` / `releaseBy`（**不传就永久丢失审计信息**）；新增 `compensateAddNotify` / `compensateReleaseNotify` 两个补推入口
+- 查询区加「状态」「渠道同步」两个 `el-select`；表格加「状态」`el-tag`（`RELEASING` → warning「解除中」）、「渠道同步」`el-tag` + 失败原因 + `重试 N 次`、「解除原因」列
+- **`RELEASING` 的行照常显示、但禁用「解除」按钮**（那些行仍算黑名单），另给「重推通知」入口
+- 新增表单的 `channelCode` 改成下拉选**两位码**（`01` 支付宝 / `99` 其他）、`cardType` 的 maxlength 从 32 改 **8** —— 都是对齐上面第二节的实测列长
+- 成功文案刻意不说「移除成功」，改为「已发起解除，通知推达渠道后该卡才会放行」
+
+`/internal/**` 能被前端直接调的依据：`web/src/utils/request.js:77,105-107` 是 `Number(res.data.code || 200)` + `else return Promise.resolve(res.data)`，因此 `OutboxScan.Result` 这种裸 JSON（无 `code`）会走成功分支原样返回。
+
+### 七、查询条件端到端 31 条用例全过（2026-09-18，2.0.29）
+
+造 3 行（2 行 `ACTIVE`+`SUCCESS`、1 行 `RELEASING`+`REJECTED`）取得区分度后逐条打 `/page/blacklist`，**全部符合预期**：全空 / 不带任何参数 / 六条件全传空串 / 只传空格都返全量（`<where>` 生效、`trimToNull` 生效）；`cardId` 写错一位与只传前缀都返 0（**证实等值不是 `like`**）；`status`、`channelSyncStatus` 单条与组合都是交集语义；时间上下界都真实生效；`pageSize=1` → `pages=3`。
+
+两条**纠正我自己事前预期**的实测结论：
+
+1. **时间只给日期（`createTimeBegin=2026-09-18`）不报 `ORA-01861`**。我原以为位数不足会炸，实际 Oracle `TO_TIMESTAMP` 对缺失的时间部分补 `00:00:00`，等价当天零点、正常返全量。**NEVER 再据此判定前端必须补时分秒**（前端 `value-format="YYYY-MM-DD HH:mm:ss"` 与后端 `'YYYY-MM-DD HH24:MI:SS'` 本来就对齐）。
+2. **`pageNum=99` 不返空页**，被 `safePageNum` 夹回第 1 页；`pageSize=0`/`-1` 夹到 10、`99999` 夹到 100。运营点到越界页不会看到空白列表。
+
+### 八、本轮刻意不做的（NEVER 当成遗漏）
+
+1. **`/internal/blacklist/**` 仍无验签**。该前缀下现在已有**写接口**（两个 compensate 端点会改 `CHANNEL_SYNC_*` 与删主表行），与 §5.2「新增状态变更型接口 MUST 有鉴权」冲突 —— `BlacklistInternalController` 类注释里那句「当前只有一个只读盘点接口，因此无需鉴权」**已不成立**，上生产前 MUST 补。
+2. ~~**两个 compensate 端点还没有 `sys_job` 触发记录**，目前只能手工调。~~ **已于同日闭合，见 §九，NEVER 回退成「只能手工调」。**
+3. ~~**`BLACKLIST_OPERATE_LOG.CARD_ID` 是 16 位、`BLACKLIST.CARD_ID` 是 32 位**，列长分叉未修。~~ **已于同日 MODIFY 并回查；且逐列比对后发现分叉共 4 处、修 2 留 2，见 §九，NEVER 回退。**
+4. **`docs/business/common-services.md` 的黑名单节尚未同步**（第二节列出的三条过期描述、`notifyAlipayExternalBlacklistAsync` 已删、测试断言表里 #18 还在引用已删的 `deleteByCardIds`）。
+5. **残留测试数据**：`TEST2P0000000001` 按用户裁决**原样留着当「锁死」回归样本**（`RELEASING` + `REJECTED`、补偿扫不到）；`QRY0000000000001`/`0002` 是查询用例造的，仍在表里。
+
+### 九、2026-09-18 续：补偿端点接上 `sys_job` 125 / 126，`BLACKLIST_OPERATE_LOG` 两列扩长（rpc + web-admin 1.1.29）
+
+**（一）补偿终于有驱动源**。此前两个 compensate 端点只能手工 curl —— 等于「落库状态 + 扫表补偿」只落了快速路径那一半，JVM 崩溃或对端不可达的行会永久躺在 `PENDING`/`FAILED`。三件落地：
+
+- `rpc/.../BlacklistClient` 增 `compensateChannelSyncAdd` / `compensateChannelSyncRelease`（`limit` 走 query string，传 `null` 就不带、用服务端缺省 200），共用私有 `postOutboxScan`。**那里逐字段读 `scanned`/`success`/`failed` 再手工 new `OutboxScan.Result`，NEVER 改成 `JSONUtil.toBean(result, OutboxScan.Result.class)`** —— `Result` 是 record（无空构造、无 setter），Hutool 的 bean 填充拿不到值、**静默返回三项全 0 的对象**，编译与调用都不报错，但补偿任务从此永远看不到失败数。
+- web-admin 新增 `quartz/task/BlacklistChannelSyncQuartzTask`（`@Component("blacklistChannelSyncQuartzTask")`，两个方法各走 `QuartzTraceUtils.runWithTrace`）。判定口径：响应 `null` **MUST 抛异常**（静默返回会让调度日志记成成功，「补偿根本没跑通」看起来一切正常）；而 `failed > 0` **只打 ERROR、NEVER 抛** —— 不可达的失败下一轮还会重入，抛出去只把 `SYS_JOB_LOG` 刷成一片红，真正需要人工的那类（业务拒绝已落 `REJECTED` 终态、扫表再也捞不到）反倒被淹掉。**人工核对的判据是日志里的 failed 数，不是任务状态。**
+- `sys_job` 插 **125「黑名单加黑通知补偿」cron `0 0/5 * * * ?`** 与 **126「黑名单解除通知补偿」cron `0 2/5 * * * ?`**（**两条现分别为 320 / 325**，2026-09-21 重编号）（均 `DEFAULT` / `MISFIRE_POLICY=3` / `CONCURRENT=1` / `STATUS=0`；脚本 `web-server/web-quartz/src/main/resources/sql/web-quartz-blacklist-channel-sync-job-migration.sql`，已在 `AFCITPDB` 执行并回查两行齐全）。**刻意错开 2 分钟**，避免同一时刻两个任务打同一个服务。**126 比 125 要紧**：两阶段解除下通知没推成功那行仍算黑名单，停用等于「运营已点解除、用户却永远过不了闸」。
+
+**`rpc` 只新增方法、不改任何现有签名，因此只有真正调用新方法的 web-admin 需要新 jar**，其余模块的旧 class 不受影响。这与 AGENTS.md「`rpc` 的 Client 改动 ⇒ 全部调用方模块」的字面要求有出入 —— **判据是「有没有改动既有方法的行为或签名」，纯增量方法不触发全量重建**。
+
+**（二）`BLACKLIST_OPERATE_LOG` 与 `blacklist-schema.sql` 逐列比对后，分叉是 4 处、不是 1 处**（`USER_TAB_COLS.CHAR_LENGTH` 实测）：`CARD_ID` 线上 16 / 文件 32、`REASON` 线上 500 / 文件 1000、`THIRD_USER_ID` 线上 128 / 文件 16、`OPERATE_TYPE` 线上 16 / 文件 32。**这张表压根不是按那个 schema 文件建的。**
+
+**修前两处**（`blacklist-server/src/main/resources/sql/blacklist-operate-log-column-length-migration.sql`，已执行并回查 `CARD_ID` 32 / `REASON` 1000、三个索引仍 `VALID`）。判据不是「看起来该一致」，而是**这两列的值与主表同源、在同一个事务里**：`insertOperateLog` 传的 `cardId` 就是写进 `BLACKLIST.CARD_ID`（32）的那个，`reason` 就是写进 `BLACKLIST.REASON`（1000）的那个。于是来一个 17~32 位卡号、或一条 500~1000 字的原因，**主表 INSERT 成功、操作日志 INSERT 抛 `ORA-12899`，整笔加黑 / 整笔发起解除连带回滚** —— 不是「日志少记点信息」，而是**审计表把主业务事务拖失败**，而编译、单测、`xmllint` 全都发现不了。
+
+**后两处有意不动**：`THIRD_USER_ID` 线上 128 比同族 16 更宽，只是分叉、无截断风险（现存 43 行最长 10），收窄是有损 DDL 且零收益；`OPERATE_TYPE` 只写 `ADD`/`DELETE`（最长 6），16 够用。**改的是 `blacklist-schema.sql`，让它照实写线上现状** —— 该文件只服务新建库，它与线上分叉时新环境会原样复现上面那个「审计表拖挂主事务」的缺陷。
+
+## ADR-D146：支付宝出行乘车记录列表与详情统一到「`GATE_TXN_PAY` + `ALIPAY_PAY_TXN_DETAIL` 两张表」，新增 `payTxnBrief` 批量端点替掉 N+1（2026-09-18，model / rpc + alipay-pay-sign-server 1.1.41 / trans-query-server 1.0.6 / ticket-server 2.1.97 / fep-alipay 1.0.64）
+
+### 一、取数口径（用户裁决，NEVER 回退）
+
+- **只允许从 `GATE_TXN_PAY` 与 `ALIPAY_PAY_TXN_DETAIL` 取数**。列表 = gate 分页 + **一次** `payTxnBrief` 批查合并；详情 = gate 单笔 + 同一条端点单笔补齐。
+- **能在第一次请求拿到的字段全部在第一次拿**（主从关系反转）：站点 / 进出站时间 / 金额 / `orderExpType` / `cardNum` / `companionFlag` / `ticketCode` / `countingTimes` / `countingFlag` 全取 `GATE_TXN_PAY`；只有 `payTradeOrderNo` / `payOrderNoDate` / `invoice` 来自支付明细（`debitRequestResult` **也取 `GATE_TXN_PAY.DEBIT_STATUS`**，见下面「续」）。
+- **`discountFee` / `discountInfo` 恒为空串**（不是 null，契约要求字段在）：两张表都没有渠道优惠列。**NEVER 拿 `DISCOUNT_LEVEL_AMT`（优惠档位阈值）或 `ORIGINAL_FARE - TOTAL_AMOUNT` 顶替。**
+- **`invoice` 原样返回、不参与筛选**（用户原话「invoice 不做查询过滤，原样返回」）。
+- 金额口径：`payAmount` = `TRX_AMOUNT`（车费），`totalAmount` = 车费 + 超时费。**NEVER 两者都填 `TOTAL_AMOUNT`**，否则超时那笔看不出差额。
+- **`page` 保持 0 基**（`offset = pageNum * pageSize`），与迁入前 `payLog/travelList` 的旧契约逐字一致；同模块 `payLog/list` 是 1 基，**两者刻意不统一**。
+
+### 二、新增的内部端点与两条 NEVER
+
+`POST /internal/alipay/payment/payTxnBrief`（alipay-pay-sign-server）：**请求体与响应体都是裸 JSON 数组**，响应元素只 5 个字段（`orderNo` / `payStatus` / `channelOrderNo` / `transTime` / `invoice`）。
+
+- **入参刻意不包 DTO** —— 包了就给「顺手加 startDate / pageNum」留口子；**NEVER 复用 `model/app/QueryPayTxnBatchReqDTO`**，那是 pay-sign 域 IF8A-05 的**对外契约** DTO。
+- 本模块**没有 ResponseBodyAdvice**（只有 `GlobalControllerExceptionHandler`），所以响应体就是裸数组，**NEVER 照抄 `AlipayPaySignClient` 里其它方法的 `wrapper.get("data")` 写法**。
+- 条数上限 **1000（= Oracle IN 列表上限）在 `AlipayPaySignClient.queryPayTxnBrief` 里硬抛 `IllegalArgumentException`，NEVER 静默 `subList`**；命中不到的 `orderNo` **不补空行**，因此合并 **MUST 按 `orderNo` 建 map，NEVER 按下标对齐**。
+- **查不到支付明细的行照样出现在列表里**（闸机建了单、支付明细还没落），支付侧三字段留空、`debitRequestResult` 照常由 `GATE_TXN_PAY.DEBIT_STATUS` 给；**NEVER 因为查不到就把整行丢掉**。
+
+### 三、被删掉的旧实现
+
+- `trans-query-server/AlipayTravelQueryHandler`：删掉**每行两次** `ticketClient.alipayTripFindTravelDetail` + `CompletableFuture` + 500ms 超时那套并发代码，连带删 `DETAIL_TIMEOUT_MILLIS`、`buildDetailRequest`、`TicketClient` 注入；启动类去掉 `@EnableRpcTicket`、properties 删 `service.ticket.url`（**该模块现已无 TicketClient 调用方**，两处都留了「刻意不配」的注释）。
+- `alipay-pay-sign-server` 的 `payLog/travelList` 与 `AlipayPaySignClient.alipayTripPayLogTravelList` **随之零调用方**，但**保留未删** —— `ALIPAY_PAY_LOG` 的存量数据只能从那 8 个端点读。
+- **`ticket-server/AlipayTripHandler.convertToAlipayDTO` 的 `companionFlag` / `countingTimes` / `countingFlag` 三处硬编码空值 NEVER 改成透传 `record`**：那条链路的数据源是 `QRCODE_TXN_DETAIL`，`alipayTripTravelRecordResultMap` 里 `companionFlag` 映射的是 `TRX_TYPE`、`ticketCode` 映射的是 `CARD_TYPE`（**既有错映射**），`countingTimes` / `countingFlag` 压根没映射 —— 透传等于把「交易类型」当同行标志答给 APP。本次已在代码里留了这段注释。
+
+### 四、实测证据
+
+- **两列时间格式一致，不需要任何转换**（本次专门查库验证）：`GATE_TXN_PAY.IN_TIME` / `OUT_TIME` 与 `QRCODE_TXN_DETAIL.HANDLE_DATE_TIME` 同为 14 位 `yyyyMMddHHmmss`，同一订单逐字相同（`GT20260918154944719542741` → IN `20260918154934` / OUT `20260918154944`；QRCODE 侧 `01`=`20260918154934`、`02`=`20260918154944`）。**NEVER 再为「怕格式不一致」加一层格式化。**
+- 单测：`trans-query-server` 的 `AlipayTravelDetailFromGateTxnPayTest` 已按新口径整体重写（5 例，钉住「行程字段全来自 gate」「支付侧四字段来自 brief」「无 brief 时回落 + 支付侧留空」「订单不存在时不发批查」「行业明细坏 JSON 不影响应答」）；旧那 5 例断言 ticket 两次调用与 `entryId`/`exitId` 切片的用例**已整体作废、NEVER 照它回归**。
+
+### 五、本轮刻意不做的
+
+1. `invoice` **全库无写入方**（旧 `ALIPAY_PAY_LOG` 33 行实测全 null，新表同列也没有写入点），需甲方澄清由谁写。
+2. Apifox 未同步 `payTxnBrief`。
+
+### ADR-D146 续：`debitRequestResult` 收口到 `GATE_TXN_PAY.DEBIT_STATUS`（2026-09-18 当日，trans-query-server 1.0.7）
+
+用户指出「扣款结果应该和 gate-txn-pay 语义相同」。**原实现是反的**：`AlipayTravelQueryHandler` 有 brief 就用 `ALIPAY_PAY_TXN_DETAIL.PAY_STATUS`、无 brief 才回落 `DEBIT_STATUS`，而同模块 IF8A-05 的 `TransRecordAssembler.toAppDebitResult` 与两份 schema 列注释（「订单整体是否扣费成功以 `GATE_TXN_PAY.DEBIT_STATUS` 为准」）都是「gate 权威」。上面 §一 / §二 / §五 里与此相关的表述**已按本条改写**。
+
+- 现实现：列表与详情都**恒取 `gate.debitStatus`**，`brief` 只补 `payTradeOrderNo` / `payOrderNoDate` / `invoice` 三个字段；方法名由 `mapPayStatusToDebitResult` 改为 `mapDebitStatusToResult`。
+- **为什么不是等价重构**：支付明细一行 = **某一次支付尝试**的结果，重试成功后主表已 `SUCCESS` 而旧明细行仍可能 `FAIL` ⇒ 原写法会把**已扣费成功**的行对 APP 报成未成功。实测库内当前 5 条 join 行里就有 **2 行 `DEBIT_STATUS=RETRY` / `PAY_STATUS=FAIL`** 的组合（另 3 行 SUCCESS/SUCCESS）；`ALIPAY_PAY_TXN_DETAIL` 现在**每个 `ORDER_NO` 恰好 1 行**，所以 `briefs.get(0)` 暂时没歧义，但这正是「哪次尝试」不可依赖的证据。
+- `GATE_TXN_PAY.DEBIT_STATUS` 实测值域（2026-09-18，122 行）：`SUCCESS` 107 / `RETRY` 7 / `FAIL` 6 / `INIT` 2 ⇒ 只有 `SUCCESS` 映射 `"0"`，其余全 `"1"`。
+- 单测：`AlipayTravelDetailFromGateTxnPayTest` 现 6 例，新增 `debitRequestResultComesFromGateDebitStatusEvenWhenPayDetailSaysFail`（brief `PAY_STATUS=FAIL` + gate `SUCCESS` ⇒ `"0"`）；`trans-query-server` 全模块 12 tests 通过。
+- **另两处同名映射刻意没动**：①`alipay-pay-sign-server/PaymentQueryService.findTravelDetail` 只读 `ALIPAY_PAY_LOG`、拿不到 `DEBIT_STATUS`，且其端点 `/api/payment/findTravelDetail` **全仓零调用方**（活链路是 fep-alipay → `TransQueryClient`）；②`ticket-server/AlipayTripController` 那条旧 URL 同理。**NEVER 为了「统一」给它们加一次 gate RPC**。
+
+### ADR-D146 续 2：`payOrderNoDate` 归一成 14 位 `yyyyMMddHHmmss`（2026-09-19，trans-query-server 1.0.8）
+
+用户指出「需要按照支付宝格式 format」。线上实测详情返回的 `payOrderNoDate` 是 `2026-09-18 16:44:41`（带横线空格冒号 19 位），而同一份应答里 `entryDate` / `exitDate` 都是 14 位 `20260918164650` —— **同一个 DTO 内两种时间格式**，APP 侧无法用一套解析。
+
+- **14 位不是新定的口径，是全仓既有契约**：`docs/business/ride-code.md:351` / `:679` 两条都写明「`payOrderNoDate` 是支付时间（`yyyyMMddHHmmss`）」，`docs/business/daily-ticket.md:417` 那条回填用的是 `new SimpleDateFormat("yyyyMMddHHmmss")`。**NEVER 为支付宝出行另定一种格式。**
+- **实现规则**：`AlipayTravelQueryHandler.normalizePayOrderNoDate` 剥掉全部非数字字符后取前 14 位；不足 14 位打 WARN 并**原样返回**。**NEVER 补零**（月日被补成 `01` 会造出一个看着合法的假时间）、**NEVER 按时间戳换算**（库里有 13 位毫秒串形态，但没有证据说明它与那些 19 位字符串同源）、**NEVER 用 `TO_DATE` 或 `SimpleDateFormat.parse` 去解析这一列**。
+- **成因在列本身**：`ALIPAY_PAY_TXN_DETAIL.TRANS_TIME` 当时存的是支付回调原文、格式不统一（该列因此被定义成 `VARCHAR2(32)` 而不是 `DATE`）。~~**只在查询侧归一，NEVER 改写落库值**~~ —— **这半句已于 2026-09-20 被用户裁决推翻，见下面的「续 3」：落库值现在也统一成 14 位，NEVER 回退**。当时给的理由「那是回调证据」在 `ALIPAY_PAY_CALLBACK_LOG` 上依然成立（原文留在那张台账的 `TRANS_TIME` / `RAW_BODY`），因此改写明细表并不损失举证能力。
+
+- **证据与回滚**：`AlipayTravelDetailFromGateTxnPayTest` 现 8 例（新增 `payOrderNoDateIsNormalizedToFourteenDigits`、`payOrderNoDateTooShortIsReturnedAsIs`），全模块 `Tests run: 14, Failures: 0`；1.0.8 已滚更，线上复验详情返 `"payOrderNoDate":"20260918164441"`（原 `2026-09-18 16:44:41`）、`retCode=0000`。回滚 `kubectl set image deploy/trans-query trans-query=os-harbor-svc.default.svc.cloudos:443/itp/trans-query:1.0.7 -n itp`。
+- **【已闭合，且原判断被推翻】此前写的「`TRANS_TIME` 落库覆盖率低 ⇒ 支付回调写入侧有问题」是错的，NEVER 回退。** 2026-09-20 重走端到端 + 查数据字典后定案：**写入侧没有缺陷，那 2 笔 `SUCCESS` 却 `TRANS_TIME=null` 的单子（15:49:24 / 15:49:44）发生时这一列还不存在** —— `USER_OBJECTS` 实测 `ALIPAY_PAY_TXN_DETAIL.LAST_DDL_TIME='2026-09-18 16:15:06'`（即加列时刻），两笔都在它之前。判据链三条：①那两笔的回调日志 `ALIPAY_PAY_CALLBACK_LOG.TRANS_TIME` **是有值的**（`2026-09-18 15:49:30` / `15:49:46`）⇒ 支付中心确实送了 `transTime`、不是对端没给；②两笔明细行的 `UPDATE_TIME` 都等于回调时刻 `15:49:48` ⇒ 那次 `updatePayCallback` **影响了行**，因此**也不是被状态白名单挡掉的**（挡掉会 0 行、不刷 `UPDATE_TIME`）；③加列之后的两笔成功单 100% 有值（`16:44:38` 的 `2026-09-18 16:44:41`，与 2026-09-20 10:02 新跑那笔的 `2026-09-20 10:02:44`）。另两笔 `PAY_STATUS=FAIL` 恒 null **属正常**（从未扣成功，支付中心不会送 `transTime`）。**结论：`TRANS_TIME` 为空只有两种正常成因 —— 该单没扣成功，或该单早于 2026-09-18 16:15 的加列时刻；NEVER 再把这两种当缺陷去查写入侧。** 仍然成立的一条：**NEVER 在查询侧拿 `GATE_TXN_PAY.TXN_DATE` 兜**（只有 `yyyyMMdd`，且 ride-code 那两条已写明 NEVER 改回 `TXN_DATE`）。
+- **2026-09-20 端到端复验证据**（订单 `GT20260920100237056542741`，走真实闸机入口 `POST 172.20.211.23:30019/ci/gateTxnPay/requestPay`，`ticketTransSeq=61`、站码 `0245`、`trxAmount=200`）：同步应答 `0000 / payStatus=PROCESSING`；`10:02:48` 收到支付中心 `payNotify`，回调日志与明细行 `TRANS_TIME` **双侧一致**为 `2026-09-20 10:02:44`，`PAY_STATUS=SUCCESS`、`CHANNEL_ORDER_NO=2026092023001451031419202410`；随后打 `POST 30020/channel/findTravelList`（`thirdUserId=0700001448`）返 `payOrderNoDate="20260920100244"`（14 位）、`debitRequestResult="0"`。**同一份应答里三种形态并存，可直接当口径样本**：新单 14 位、加列前的两笔 null、`FAIL` 单 null。
+
+### ADR-D146 续 3：`ALIPAY_PAY_TXN_DETAIL.TRANS_TIME` 的**落库值**统一成 14 位 `yyyyMMddHHmmss`（2026-09-20，alipay-pay-sign-server 1.1.43，**已部署并端到端验通**）
+
+用户裁决原话：「这个需要统一这个列的值，按照一个格式，需要按照地铁 app 和项目中的多数格式落库」。**这条直接推翻续 2 里的「只在查询侧归一、NEVER 改写落库值」，NEVER 回退。**
+
+1. **为什么翻**：续 2 只在 trans-query 侧归一，等于**每个读取方都得各自再归一一次** —— 该列还会被 `payTxnBrief`、后续对账 / 运营页取用，漏一处就把 19 位发出去。而 14 位是全仓既有契约（`ride-code.md:351` / `:679`、`daily-ticket.md:417`、同响应里的 `entryDate` / `exitDate`），**列自身格式不统一才是根**。
+2. **归一落点是唯一写入口**：`PayTxnCallbackWriter.applyCallback` 先过 `normalizeTransTime(String)`（新增私有方法 + 常量 `TRANS_TIME_LENGTH = 14`）再 `setTransTime`，日志同时打 `transTime`（归一后）与 `rawTransTime`（原文）。**NEVER 放在 mapper 里**（`updatePayCallback` 的 `NVL` 语义与归一是两件事，混在 SQL 里既测不了也看不见），**NEVER 只留查询侧那一处**。三条 NEVER 与 trans-query 侧逐字相同：不补零、不按时间戳换算、不用 `TO_DATE` / `SimpleDateFormat.parse`；不足 14 位打 WARN 后**原样入库**（因此列类型 `VARCHAR2(32)` 保持不缩，**NEVER 改成 `DATE` / `LocalDateTime`**）。
+3. **报文原文不丢**：`AlipayPayCallbackServiceImpl.onAccepted` 是**先** `callbackLogRepository.recordPayCallback(...)` 存台账、**后**调 `payTxnCallbackWriter.applyCallback(...)`，所以 `ALIPAY_PAY_CALLBACK_LOG` 的 `TRANS_TIME` 与 `RAW_BODY` 仍是原文。**NEVER 反过来把回调台账也归一** —— 举证要原文。
+4. **存量迁移已执行 + 回查**：新建 `alipay-pay-sign-server/src/main/resources/sql/alipay-pay-txn-detail-trans-time-normalize-migration.sql`（幂等 WHERE：剥非数字后位数 ≥ 14 且与归一结果不同；含执行前原值与还原 SQL）。在 `AFCITPDB` 执行 `UPDATE` 返 **`affectedRows=2`**、`COMMENT ON COLUMN` 成功；回查 6 行 = 2 行 `LEN=14`（`20260918164441` / `20260920100244`）+ 4 行 null（2 笔 `FAIL` + 2 笔加列前）。同批把加列脚本 `alipay-pay-txn-detail-trans-time-migration.sql` 的头部注释标成「已被 normalize 脚本取代」，避免后人照旧注释以为仍是原文直存。
+5. **无单测，靠同形实现 + 端到端**：`alipay-pay-sign-server/src/test` **实测 0 个文件**（该模块没有测试目录），按项目规则不为此新建测试目录；`normalizeTransTime` 与 trans-query 侧已被 8 例单测钉住的 `normalizePayOrderNoDate` **逐字同形**（两处有意保留两份、**NEVER 合并成公共工具类**，理由写在方法 Javadoc 里）。
+6. **部署与端到端证据（2026-09-20）**：`itp/alipay-pay-sign:1.1.43` 已推 Harbor（`digest: sha256:fb82079f...`）并滚更，回滚点 **1.1.41**（滚更前现查 Deployment 得到的实际 tag，**NEVER 引用本行、MUST 每次现查**），`rollout status` 成功、`172.20.211.23:30022/actuator/health` 返 `UP`（`db` / `readinessState` 全 UP；首探 `Connection refused` 属启动窗口，复探即 200）。新跑订单 `GT20260920101619588542741`（`ticketTransSeq=62`）：回调台账 `TRANS_TIME='2026-09-20 10:16:23'`（LEN=19）、明细行 `TRANS_TIME='20260920101623'`（LEN=14）、`PAY_STATUS='SUCCESS'`、`CHANNEL_ORDER_NO='2026092023001451031420996308'`；`findTravelList` 返 `payOrderNoDate="20260920101623"` / `debitRequestResult="0"`。**这一对 19/14 就是「归一发生在写入侧、台账仍留原文」的硬证据。**
+7. **trans-query 侧不动代码**：`AlipayTravelQueryHandler.normalizePayOrderNoDate` **保留**（只补了一句 Javadoc 说明写入侧已归一、它现在只兜 2026-09-20 归一前的旧行），**不升 1.0.9** —— 双保险在这里是有价值的：库里仍存在归一失败即原样入库的可能。
+
+### ADR-D146 续 4：`findTravelList` 的 `startDate` / `endDate` 入参归一成 8 位 `yyyyMMdd`（2026-09-20，trans-query-server 1.0.9，**已部署并端到端验通**）
+
+用户裁决原话：「这个需要按照时间过滤，按照支付宝接口契约的格式进行查询」。**这条修的是一个静默返全量的缺陷，NEVER 回退成原样透传。**
+
+1. **缺陷形态：条件退化成恒真、静默返回未筛选的全量。** 谓词是 `TXN_DATE >= #{startDate}`（`GateTxnPayMapper.xml:388~393`），而 `TXN_DATE` 是 `VARCHAR2(8)` —— 这是**字符串比较**。上游传 `2026-09-20` 时逐字符比到第 5 位是 `'0'(0x30)` vs `'-'(0x2D)`，于是 `'20260920' >= '2026-09-20'` 恒成立。2026-09-20 修复前实测：`startDate=2026-09-20` 返回**全部 10 条**、`retCode=0000`，与「不传日期」逐字相同。**这比「忽略了条件」危险得多** —— 不报错、不打 WARN，上游以为筛过了。
+2. **契约没规定格式，因此选宽容归一而不是严格校验。** 甲方 R6 表145 对这两个字段只写「String / 开始日期（可选）」「String / 结束日期（可选）」，**无格式、无长度、无示例**（同表 `entryDate` / `exitDate` / `payOrderNoDate` 也都没写格式，14 位那条口径是从 `ride-code.md:351` / `:679` 推的）。既然契约没写，**NEVER 自造一个必填格式去拒绝上游**。
+3. **落点**：`AlipayTravelQueryHandler.normalizeQueryDate(String, String)`（新增私有方法 + 常量 `QUERY_DATE_LENGTH = 8`），在**必填校验之后、进大 try 之前**调用，非法时单独 `catch (IllegalArgumentException)` 转 `8001 无效的参数`（**NEVER 让它落到方法末尾那个 `catch (Exception)`** —— 那里返的是 `FAIL 系统内部错误`，会把「参数写错」报成「我方故障」）。手法与 `normalizePayOrderNoDate`、`PayTxnCallbackWriter.normalizeTransTime` 同形（剥非数字 + 取前 N 位），**三处有意各留一份、NEVER 抽公共工具类**：N 与非法时的处置各不相同（14 位原样返回 / 14 位原样入库 / 8 位抛异常）。**也 NEVER 复用 `TransQueryParamNormalizer.normalizeDate`** —— 那是 IF8A-05 的 `yyyy-MM-dd` 口径，喂 8 位纯数字必抛异常、把合法请求打成 `8001`（`ride-code.md:349` 已记这条 NEVER）。
+4. **反区间保持返 0 条、不报 `8001`**（用户明确选的，与 IF8A-05 的 `TransListQueryHandler` 不一致是**有意的**）：`start > end` 属「空结果」而非「参数非法」。**NEVER 为了两个接口一致就顺手加校验。**
+5. **端到端实证（2026-09-20，`itp/trans-query:1.0.9`，`digest: sha256:68edb646...`，回滚点 1.0.8）**：滚更后 `172.20.211.23:30035/actuator/health` 返 200。同一账号 `0700001448`（10 笔、5 笔 `TXN_DATE=20260920`）：`2026-09-20` / `2026/09/20` / `20260920101623` **都返 5 条**（修复前是 10 条），`20260920` 基准同样 5 条；`2026-09-18 ~ 2026-09-20` 返 10 条；`endDate=2026-09-18` 返 5 条；反区间返 0 条 + `0000`；`2026` 与 `abc` 返 **`8001`**；空串与不传仍不筛选、返 10 条。
+6. **落点确认：这条链路真的落在 trans-query 上。** `fep-alipay` 的 `service.transQuery.url` 指向 `trans-query-57wpd-svc.itp.svc:30035`（仓库 `application.properties:45` 与集群 Deployment env 两处都已现查确认）。**因此 `AGENTS.md` §3.2 里 trans-query-server 那条「已出镜像但尚未接线：无任何模块配置其地址」已过期** —— 它对 APP 域三条 IF8A URL 仍成立，但支付宝出行的 `findTravelList` / `findTravelDetail` 自 1.0.5 起就走这里。**NEVER 再据那句话认为改 trans-query 不生效。**
+7. **未收紧、仍是现状的两条**（用户本轮明确保留）：`debitRequestResult` 传非 `0`/`1`（实测 `9`）**静默不过滤**、返全量；`invoice` 是死参数、不参与筛选（续 3 之后的裁决，见 `alipay-channel.md:196`）。
+
+### ADR-D146 续 5：分页 `offset` 改 long 算再钳制 + `size` 加上界 100（2026-09-20，trans-query-server 1.0.10，**已部署并端到端验通**）
+
+用户裁决：「需要，按你建议执行」。修的是**上游传个大数就能绕开分页语义**这一类缺陷，与续 4 同一轮测试挖出来。
+
+1. **缺陷一：`offset` 整数溢出，越界页返回真实数据。** 原实现 `gateRequest.setOffset(pageNum * pageSize)` 是两个 int 直乘、无溢出保护，而 `page` / `size` 都是上游可控的字符串入参。2026-09-20 修复前实测两例：`page=1073741824 & size=4` ⇒ `1073741824 × 4 = 2^32 ≡ 0`，**越界页返回了第 0 页的 4 条**（`pageNumber` 仍回显 1073741824）；`page=2 & size=2000000000` ⇒ offset 溢出成 `-294967296`，谓词 `rn > 负数` 成立，**返回了全部 10 条**。
+2. **缺陷二：`size` 没有上界。** 原先只有 `pageSize <= 0` 回落默认 10，`size=100000` 原样进 SQL 的 `rn <= offset + limit` —— 本渠道数据量小时看不出，表大了就是一次全窗口扫描 + 把全部行序列化进一个响应。
+3. **修法**：新增私有 `resolveOffset(int, int)` —— `(long) pageNum * pageSize`，超 `Integer.MAX_VALUE` 打 WARN 后**钳到 `Integer.MAX_VALUE`**（`rn > 2147483647` 必然无行；SQL 里 `#{offset} + #{limit}` 是 Oracle 端 NUMERIC 相加、**不会再溢出一次**，所以传这个值是安全的）。新增常量 `MAX_PAGE_SIZE = 100`、超界打 WARN 后钳到 100。**两处都钳制而不抛异常**：越界页属「空结果」不属「参数非法」，与续 4 里 `start > end` 返 0 条同一口径。
+4. **三条 NEVER**：①**NEVER 为了塞更大的 offset 去改 `QueryTransListReqDTO.offset` 的字段类型** —— 那是跨模块共享的对内契约，`Integer` 够用；②**NEVER 把 `size` 超界改成「回落 10」** —— 上游要 100 给 10 属静默截断，钳到上界才可解释；③`MAX_PAGE_SIZE = 100` **与 IF8A-05（`TransListQueryHandler`）的 `pageSize` 上限对齐**，不是本接口新定的数，**NEVER 单独调它**。
+5. **端到端实证（`itp/trans-query:1.0.10`，`digest: sha256:7ca28834…`，回滚点 1.0.9，探活 200）**：`page=1073741824 & size=4` → **0 条**（修复前 4 条）、`totalCount=10 / totalPage=3` 仍正确；`page=2 & size=2000000000` → **0 条**（修复前 10 条）、`pageSize` 回显 **100**；`size=100000` / `size=101` → `pageSize` 回显 **100**、返 10 条；正常分页回归 `size=4` 的 page 0/2 分别 4 / 2 条、`totalPage=3`；真越界 `page=9 & size=3` → 0 条且 `totalCount=10 / totalPage=4` 正确；续 4 的日期归一同批回归（`2026-09-20` → 5 条）。
+6. **响应回显的是钳制后的值**（`pageSize=100` 而不是 100000），这是有意的 —— 上游据此能看出被钳过；而 `pageNumber` 仍回显原值（那只是回声、不参与取数）。
+
+## ADR-D147：甲方需求 1/2/3 三类批量退款迁到 `F2F_*` + 需求 5 行程扣费重试落地，四条新 `sys_job`（2026-09-20，face-pay-server 1.0.62 / gate-txn-pay-server 2.0.93 / collect-pay-server 1.1.86 / web-admin 1.1.32，**四个镜像均已推送并滚更**）
+
+用户裁决两批：第一批「1. 动手」= 需求 1/2/3 三类退款迁到 face-pay 的 `F2F_*` + 调度统一进 web-admin `sys_job`；第二批要求需求 5 连同 DDL 一起实现（原话「注意这两个参数只是定下来了，需求 5 本身一行代码都还没写 —— 它要先出 `gate-txn-pay-debit-retry-migration.sql`……否则重试次数无处落、上限判定不成立」）。需求映射见 `docs/ops/定时任务需求对照.md`，`sys_job` 总账见 `docs/ops/定时任务清单.csv`。
+
+### 一、需求 1/2/3：三类批量退款（face-pay-server）
+
+- **新增端点**：`facepay/controller/internal/BatchRefundInternalController`，类级 `@RequestMapping("/internal/f2f/batch-refund")`，3 个 POST：`/single-ticket`（`BIZ_TYPE=01`）、`/topup`（`02`）、`/no-cash`（`04`）。各自一个 `AtomicBoolean`，busy 返 `9998`、成功 `0000`，响应体是 `CommonResult`。
+- **新增服务**：`facepay/service/F2fBatchRefundService.refundBatch(taskName, bizTypes)`，逐笔调 `F2fRefundService.refund(new RefundCommand(...))`、来源 `DAILY_BATCH`，返回 `record BatchRefundResult(int scanned, int submitted, int skipped, int failed)`。可配键 `f2f.batchRefund.limit:200` / `silenceMinutes:60` / `lookbackDays:7`。
+- **扫表**：`F2fOrderMapper.selectPaidNotFulfilled` 由 `(deadline, limit)` 扩为 `(bizTypes, earliest, deadline, limit)`（原零调用方，扩签名安全）；SQL 为 `ORDER_STATUS='PAID' AND BIZ_TYPE IN <foreach> AND PAID_TMS >= #{earliest} AND PAID_TMS < #{deadline} ORDER BY PAID_TMS FETCH FIRST #{limit} ROWS ONLY`。
+- **DDL**：`face-pay-server/src/main/resources/sql/f2f-batch-refund-migration.sql` 新建 `CREATE INDEX IDX_F2F_ORDER_BATCH_REFUND ON F2F_ORDER (ORDER_STATUS, BIZ_TYPE, PAID_TMS) LOCAL;`，同步写入 `f2f-schema.sql`（紧跟 `IDX_F2F_ORDER_SCAN`）。**已在 `AFCITPDB` 执行并回查**：`USER_INDEXES` 命中、`PARTITIONED=YES`。
+- **调度**：**`web-admin`**（`web-server/web-admin/src/main/java/com/chinasofti/huateng/quartz/task/`，**不是 `web-quartz` —— 本条原写 `web-quartz` 是错的，那个目录下只有示例 `RyTask.java`，NEVER 照错的路径去找任务类**）新增 `F2fBatchRefundQuartzTask`（`@Component("f2fBatchRefundQuartzTask")`，3 个方法走 `QuartzTraceUtils.runWithTrace` + `traceHeaders`，`9998` 只打 WARN 不抛）+ `rpc` 的 `FacePayClient` 三个方法 + `web-quartz-f2f-batch-refund-job-migration.sql` 的 `sys_job` **130/131/132**（**现分别为 200 / 205 / 210**，2026-09-21 重编号）（cron `0 0 20` / `0 0 20` / `0 0 9,15,21`，`status=0`、`concurrent=1`、`misfire_policy=3`，**已执行并回查**）。
+- **同批修掉一个装配缺陷**：web-admin 启动类原先只有 `@EnableRpcF2f`（扫 `rpc.f2f` 包），`FacePayClient` 在 `rpc.facepay` 包下，**不加 `@EnableRpcFacePay` 这三个任务一个都注不进去**，而症状是启动期注入失败、不是运行期报错。
+
+**三条 NEVER**：
+1. **三类共用 `REFUND_SOURCE='DAILY_BATCH'` 是安全的，NEVER 为此新增来源枚举或改 `CK_F2F_REFUND_SOURCE`。** 幂等键是 `UK_F2F_REFUND_IDEM (ORIG_ORDER_NO, NVL(TICKET_LOGIC_NUM,'#WHOLE#'), REFUND_SOURCE)`，而一笔订单只属一个 `BIZ_TYPE` ⇒ 三个任务的候选集天然不相交，同一来源值不会互相撞。**原计划里「改 `CK_F2F_REFUND_SOURCE`」是多余的** —— 实测该约束已含 `DAILY_BATCH`、常量与 `ALLOWED_SOURCES` 也都在。
+2. **`refundBatch` NEVER 加 `@Transactional`。** 逐笔独立提交，一笔失败只计 `failed`、不拖累整批；加事务等于「一笔挂了整批回滚」，且链路里有支付中心调用（违反「事务内 NEVER 发 RPC」）。
+3. **collect-pay 那 4 个 `@Scheduled` NEVER 停、NEVER 改。** 它们扫的是旧表（`TBL_TVM_APP_ORDER` / `TBL_TVM_ORDER_TOPUP` / `TBL_BOM_ORDER_PAY`），与新任务覆盖面互不重叠；旧表存量按裁决人工清退。**不退 `TOPUP_SUSPECT`**，`F2fOrderStatus` 枚举一行未动。
+
+### 二、需求 5：行程扣费重试（gate-txn-pay-server）
+
+- **DDL**：`gate-txn-pay-server/src/main/resources/sql/gate-txn-pay-debit-retry-migration.sql` —— `ALTER TABLE GATE_TXN_PAY ADD (DEBIT_RETRY_TIMES NUMBER(2) DEFAULT 0 NOT NULL, DEBIT_NEXT_RETRY_TIME TIMESTAMP(6), DEBIT_FAIL_CODE VARCHAR2(32 CHAR), DEBIT_FAIL_MSG VARCHAR2(512 CHAR));` + 4 条 `COMMENT ON COLUMN`；同步写进 `gate-txn-pay-schema.sql`（插在 `INDUSTRY_DETAIL` 前）。**已在 `AFCITPDB` 执行并回查**：`USER_TAB_COLS` 四列齐、类型与长度一致、`DEBIT_RETRY_TIMES` 为 `NOT NULL DEFAULT 0`，4 条 COMMENT `succeeded:4`。
+- **未新建索引，这是刻意的**：扫表谓词 `(DEBIT_STATUS, TXN_DATE, ...)` 已被现有 `IDX_GATE_TXN_PAY_STATUS_DATE (DEBIT_STATUS, TXN_DATE, CREATE_TIME) LOCAL` 覆盖；`GATE_TXN_PAY` 是手工枚举 `PARTITION BY RANGE (TXN_DATE)` 月分区表、6 个索引全 `LOCAL`，多加一个只增写放大。
+- **枚举**：新增 `DebitStatus.isBatchRetryable(String)` = `RETRY.is(v) || FAIL.is(v)`，Javadoc 写明「**NEVER 把 `FAIL` 并进 `isRetryable`**」；`isRetryable`（`RETRY | INIT`，人工单笔 `retryPay` 在用）**一字未动**。
+- **Mapper 三条**：`selectBatchRetryCandidates` / `prepareBatchRetry` / `updateDebitFailInfo`。扫表 `WHERE DEBIT_STATUS IN ('RETRY','FAIL') AND TXN_DATE BETWEEN ... AND DEBIT_RETRY_TIMES < #{maxTimes} AND (DEBIT_NEXT_RETRY_TIME IS NULL OR DEBIT_NEXT_RETRY_TIME <= SYSTIMESTAMP) ORDER BY CREATE_TIME FETCH FIRST #{limit} ROWS ONLY`。`xmllint --noout` 通过。
+- **处理器**：`service/impl/DebitRetryProcessor` 复用现成的 `PaySignInitiator.retryAndConverge(GateTxnPay)`，**没有第二份扣费逻辑**。键 `gate.debitRetry.enabled:true` / `batchSize:200` / `maxTimes:5` / `lookbackDays:7` / `backoffMinutes:720`；返回 `-1` 关 / `-2` 扫表异常 / 否则处理笔数（沿用 `CompensationInternalController.describe()` 的翻译口径）。落点非 `PROCESSING` 时写 `DEBIT_FAIL_CODE`（`BIZ_REJECTED` / `UNREACHABLE`）。
+- **端点与调度**：`CompensationInternalController` 加第 4 个端点 `POST /internal/gate-txn-pay/debit/retry`（原有 3 个：`offline-fare/recover`、`metro-transfer/push`、`debit/converge`）；`rpc` 的 `GateTxnPayClient.retryFailedDebits` + `GateTxnPayQuartzTask.retryFailedDebits()` + `web-quartz-debit-retry-job-migration.sql` 的 `sys_job` **133**（**现为 220**，2026-09-21 重编号；同日拆出的 **134 现为 255**）（cron `0 0 1 * * ?`，**已执行并回查**）。**本行属当日中间状态：同日即按渠道拆成两个端点 + 两条任务（133/134），`retryFailedDebits` 已删除 —— 见 ADR-D149，NEVER 照本行去找那个方法或那个单一端点。**
+
+**两条不可回退的实现约束**：
+1. **`prepareBatchRetry` 是一条 UPDATE 同时做三件事：CAS 抢占 + 次数记账 + 把终态 `FAIL` 归一成 `RETRY`。第三件是必需的，NEVER 删。** `retryAndConverge` 内部走 `GateTxnPayWriter.updateOrderStatusFromPending`，其 CAS 白名单**只认 `INIT`/`RETRY`** —— 不归一的话，`FAIL` 那批发出去的扣费请求有结果也写不回来（UPDATE 恒 0 行），状态永远不动、下一轮再扫到，形成「每天重复发起、从不收口」的静默重扣。
+2. **三道防重扣闸缺一不可**：`DEBIT_RETRY_TIMES < maxTimes`（默认 5，防死单永久重扣）+ `TXN_DATE` 回溯窗口（默认 7 天，防翻整张分区表）+ `DEBIT_NEXT_RETRY_TIME` 退避（默认 720 分钟，防同日多次触发时连打）。**NEVER 只留其中一两道** —— 少了次数上限，一笔渠道侧永久拒绝的单会被无限重试；少了窗口，随分区增长退化成全表扫。
+
+### 三、同批的第三件事：collect-pay 三处静默失败补日志（collect-pay-server 1.1.86）
+
+`SingleTicketRefundTask` 原有四处 `catch (Exception e) { return returnFail(); }` —— **异常被整段吞掉，本轮一笔都没退成却只回一个失败码、日志里没有任何堆栈**。四处全部改为先 `log.error("<方法名> 定时任务执行失败，本轮一笔都没退成，MUST 查本条堆栈定位原因", e)`；同时修正 `refundBomTopupNotTakeTickets` 里误打成 `refundBomSaleNotTakeTickets` 的收尾日志（**方法名打错的日志比没有日志更坏**：会把排查引到另一个任务上）。**SQL 与 `@Scheduled` 一行未动** —— 那三个业务硬缺陷（TVM `ORA-00904` 别名笔误、BOM 两条 `transAmount=null`）本轮**未修**，按裁决旧表存量人工清退。
+
+### 四、部署与回滚点
+
+版本各 +0.0.1：`face-pay-server` 1.0.61→**1.0.62**（`-Premote` 必需）、`collect-pay-server` 1.1.85→**1.1.86**、`gate-txn-pay-server` 2.0.92→**2.0.93**、`web-server/pom.xml` 的 `<project.version>` 1.1.31→**1.1.32**。四镜像 push 成功（`digest:` 齐全）、四个 Deployment `successfully rolled out`，探活 30019 / 30024 / 30025 = 200，**web-admin 是 30028**（`web-admin-4e2zf-svc`；**30029 是前端 `web`，NEVER 拿它当 web-admin 探活口**）返 200 + 401。回滚即 `kubectl set image` 回上面那四个旧 tag。
+
+**首跑核查（尚未做，次日补）**：`SYS_JOB_LOG` 里 `JOB_ID IN (200,205,210,220)`（现号，**原 130,131,132,133，2026-09-21 已重编号**）有无记录 + `F2F_REFUND` 是否出现 `REFUND_SOURCE='DAILY_BATCH'` 的新行 + `GATE_TXN_PAY` 是否出现 `DEBIT_RETRY_TIMES > 0`。**注意 Quartz 是内存 JobStore**：这四条 `sys_job` 是直接 INSERT 进库的，**web-admin 必须重启过才会加载**（本批滚更即满足）。
+
+## ADR-D148：`findTravelDetail` 严格对齐 R6 §3.72 —— 应答去掉 `data` 包装层改扁平、请求删 3 个契约外字段（2026-09-20，model / rpc + trans-query-server 1.0.11 / fep-alipay 1.0.65，**已部署并端到端验通**）
+
+> ⚠️ **本条「应答改扁平」那半已于同日被 ADR-D150 作废**（支付宝侧实测按 `data` 解析，应答已改回 `retCode`/`retMsg`/`data` 三层），**NEVER 再按本条把详情应答拍平**；**请求侧删掉 `handleDateTime`/`trxType`/`cardId` 那半仍然有效**。另注本条**漏改了 ticket-server 的并存旧实现** `AlipayTripHandler`（仍在调那三个已删的 getter），该模块自本条起主代码编译不过，见 D150 §三。
+
+用户裁决：**「按支付宝的接口契约修改，严格遵循接口契约」**。逐字段核对 R6 §3.72（表147 请求 / 表148 应答）后动手，只改结构、**不动任何取数口径**（`GATE_TXN_PAY` + `ALIPAY_PAY_TXN_DETAIL` 两张表那套仍按 ADR-D146 及其 5 条续）。
+
+### 一、应答改扁平（P0，这是这次唯一会改变对方可用性的一条）
+
+**表148 是 `retCode` / `retMsg` + 19 个业务字段直接铺在顶层、表148 之后没有任何子表**，而我方原先返的是三层 VO（`retCode` / `retMsg` / `data{...}`）。后果不是「多一层无害」：**支付宝按表148 从顶层取字段，19 个业务字段全部是 null**，而 `retCode` 又是 `0000` ⇒ 对方拿到「成功但全空」，既不报错也无从自查。
+
+- 删掉 `model/.../AlipayTripFindTravelDetailRespVO.java`（整类，仅这一条链路引用），链路统一返 `AlipayTripFindTravelDetailRespDTO`（`extends CommonResult` 提供 `retCode`/`retMsg`）。
+- `AlipayTravelQueryHandler` 删掉私有 `wrap(...)`、3 处 `return wrap(detailResp)` 改 `return detailResp`；连带改签名的 8 个引用点：`TransQueryService(Impl)` / `AlipayTravelQueryController` / `TransQueryClient` / `AlipayQueryService(Impl)` / `AlipayTripService(Impl)` / `FepAlipayTripController`。`AlipayQueryServiceImpl` 的 null 兜底段由「造 DTO 再塞进 VO」简化成直接 `new ...RespDTO()` + `SYSTEM_ERROR`。
+- **NEVER 照同族 IF8A-34 的形状再把明细包起来** —— §3.38 顶层是 `retCode`/`retMsg`/`ticketTransRecord` + 一张子表，**与 §3.72 结构不同**；同理 §3.71 列表接口**仍有** `ticketTransRecord` 子表（表146），**这次没动、NEVER 顺手拍平它**。
+
+### 二、请求删 3 个契约外字段
+
+表147 的字段集**严格等于 `thirdUserId` / `orderNo` 两个**。`AlipayTripFindTravelDetailReqDTO` 原先还有 `handleDateTime` / `trxType` / `cardId`，是取数源切到 `GATE_TXN_PAY` 之前用来定位进出站明细的，切源后**已零引用** ⇒ 整组删除（73 行 → 45 行）。**NEVER 加回**：这是能被 `parseBizData` 解析的对外契约，加字段即违反 `docs/domain` 那条判据。
+
+### 三、部署与实测
+
+版本：`trans-query-server` 1.0.10→**1.0.11**、`fep-alipay-server` 1.0.64→**1.0.65**（`model` / `rpc` 按规矩只 install 不升号）。走标准三步序列，两镜像 `digest:` 齐全、两个 Deployment `successfully rolled out`，30035 探活 200。**回滚点**：`trans-query:1.0.10` / `fep-alipay:1.0.65` 之前的 `1.0.64`。
+
+线上实测（`0700001448` 的真实单 `GT20260920102452321542741`）：**直连 `172.20.211.23:30035/ci/alipay/travel/detail` 与经 fep-alipay 的 `/channel/findTravelDetail` 两条路应答逐字一致、均为扁平**，顶层 21 个键、**没有 `data`**。单测 14 个全绿（`AlipayTravelDetailFromGateTxnPayTest` 8 个已同步去掉 `.getData()`）。
+
+### 四、三项仍待用户/甲方裁决（本次未动）
+
+1. **`invoice` 是契约外字段**：全仓 9 份 docx 里 `invoice` 只在表145（列表请求侧）出现 1 次，**应答侧零命中**；但用户 2026-09-18 已裁决「invoice 不用处理，原样返回」⇒ **当前保留**。这是「严格遵循契约」与那条裁决的**直接冲突**，需用户定。
+2. **`thirdUserId` 没有归属校验**：`:342` 只校验两个字段非空，取数只用 `orderNo` ⇒ 任何人拿到订单号即可查他人行程。表147 没写这条要求，加了是收紧。
+3. **「查不到记录返什么码」规格空白**：现返 `FAIL` + 「支付订单不存在」，而表2 那 34 个码里没有「订单不存在」。
+4. 另注一处规格空白：`orderNo` 在表148 里**没有同名字段**，现实现按 `orderNo ≡ GATE_TXN_PAY.ORDER_NO ≡ 应答的 tradeOrderNo` 落地（文档未定义它对应 `tradeOrderNo` 还是 `payTradeOrderNo`）。
+
+## ADR-D149：行程扣费重试按渠道拆成两条独立任务（`sys_job` 133 非支付宝 / 134 支付宝出行），需求 18 由此闭合（2026-09-20，gate-txn-pay-server 2.0.94 / web-admin 1.1.34，**已推送并滚更**）
+
+用户裁决：**「行程扣费重试 改为两个，分支付宝和当前的（不包含支付宝）」**。随后两问定下：支付宝那条 cron 取 **`0 0 1 * * ?`**（与非支付宝同一时刻）；`maxTimes` / `lookbackDays` / `backoffMinutes` **两条任务共用**，只把 `enabled` 与 `batchSize` 拆成两套。本条是 ADR-D147 §二的续作，那一节的 DDL / 枚举 / `prepareBatchRetry` 三件事一行未动。
+
+**编号注意**：`D148` 已被同日的 `findTravelDetail` 扁平化占用（见上一条）。这次先误判「D147 是最后一个」并按 D148 写进了 8 处文档 + 2 处代码注释 + `sys_job` 两行 remark，事后逐处改成 **D149**。**`docs/AGENTS.md` §9 那条「追加新 ADR 前 MUST `grep -n '^#\{2,3\} ADR-D'`」不是形式要求** —— 只查文件尾部或凭记忆都会撞号，这已是第二次（上次是 D86→D88）。
+
+### 一、为什么拆得动：两个渠道的单子在同一张表里，出口却不同
+
+- **判据只有一列**：`GATE_TXN_PAY.ISSUE_CHANNEL_CODE`，`IssueChannelCodeEnum` 只有 `NORMAL("01")` / `ALIPAY("07")`，`isAlipay()` 是精确等值 `"07".equals(...)`、不 trim。支付宝出行的行程扣费单**也落在 `GATE_TXN_PAY`**，`ALIPAY_PAY_TXN_DETAIL` 只是渠道侧明细（其 schema 注释原文「订单整体是否扣费成功以 `GATE_TXN_PAY.DEBIT_STATUS` 为准」）。
+- **出口早就自动分流**：`PaySignInitiator.converge:92~94` 按 `IssueChannelCodeEnum.isAlipay(order.getIssueChannelCode())` 决定走 `requestPaySign`（打支付中心）还是 `requestAlipayTripPay`（打 alipay-pay-sign）。**因此本次拆分零 DDL、零改 alipay-pay-sign、零新增扫表载体**，只是扫表谓词加渠道条件 + 两个端点 + 两条 `sys_job`，两支复用同一个 `retryAndConverge`。
+- **拆分的实质理由是故障隔离，不是「便于分别配 cron」**：混在一条任务里时，一侧渠道整体故障会拖慢另一侧，且两者共用一个批量上限。
+
+### 二、改动清单
+
+- **Mapper**：`selectBatchRetryCandidates` 加首参 `boolean alipayChannel`，XML 里两个互补的 `<if>`：`true` ⇒ `AND ISSUE_CHANNEL_CODE = '07'`；`false` ⇒ `AND (ISSUE_CHANNEL_CODE IS NULL OR ISSUE_CHANNEL_CODE <> '07')`。`prepareBatchRetry` / `updateDebitFailInfo` **未动**。`xmllint --noout` 通过。
+- **处理器**：`DebitRetryProcessor` 整体重写为「两个 public 入口 + 一个私有 `retry(alipayChannel, channelDesc, enabled, batchSize)`」，7 个 `@Value`：`gate.debitRetry.default.enabled:true` / `default.batchSize:200` / `alipay.enabled:true` / `alipay.batchSize:200` / `maxTimes:5` / `lookbackDays:7` / `backoffMinutes:720`。两条各有独立 `AtomicBoolean`，同一时刻并发跑互不阻塞。私有 `prepare` / `recordLanding` 逻辑不变。
+- **端点**：`CompensationInternalController` 的 `POST /internal/gate-txn-pay/debit/retry` 拆成 `/debit/retry/default` 与 `/debit/retry/alipay`（该 Controller 现共 **5 个**端点）。
+- **rpc**：`GateTxnPayClient.retryFailedDebits` 删除，改为 `retryDefaultChannelDebits` / `retryAlipayChannelDebits` 两个方法。
+- **Quartz**：`GateTxnPayQuartzTask` 对应拆两个方法 + 两个私有 `...Once`，`check(response, "行程扣费重试(非支付宝)")` / `"...(支付宝出行)"`。**任务类在 `web-server/web-admin/.../quartz/task/`**（15~16 个类），`web-quartz` 同名目录下只有示例 `RyTask.java` —— **ADR-D147 §一那句「`web-quartz` 新增 `F2fBatchRefundQuartzTask`」是错的，路径应为 web-admin，NEVER 照那句去找任务类**。
+- **迁移脚本**：`web-quartz-debit-retry-job-migration.sql` 重写为 `DELETE ... WHERE job_id IN (133,134)` + 两条 INSERT（cron 都是 `0 0 1 * * ?`，`status=0` / `concurrent=1` / `misfire_policy=3`）。
+
+### 三、两条不可回退的约束
+
+1. **非支付宝那支的谓词 MUST 是 `(IS NULL OR <> '07')`，NEVER 写成 `= '01'`。** `ISSUE_CHANNEL_CODE` 可空且历史行有空值 —— 写等值会让**空值与未知渠道值的单子两条任务都扫不到、永远没人重试**，而且两条任务各自的日志都一片绿、完全看不出漏了谁。这条已同时写进 mapper XML 注释、Mapper Javadoc、`DebitRetryProcessor` 类注释与两条 `sys_job` 的 remark。
+2. **ADR-D147 §二那两条（`prepareBatchRetry` 三件事一体、三道防重扣闸）继续全额适用**，本次一个字没改。
+
+### 四、DB 与部署
+
+- **原值（回滚依据）**：`sys_job` 133 原为 `'行程扣费重试'` / `'gateTxnPayQuartzTask.retryFailedDebits()'` / `'0 0 1 * * ?'` / `status=0`，**134 原本不存在**。
+- 执行结果：`UPDATE ... job_id=133` → `affectedRows:1`，`INSERT ... 134` → `affectedRows:1`。回查：两行齐全，`invoke_target` 分别是 `retryDefaultChannelDebits()` / `retryAlipayChannelDebits()`，cron 都是 `0 0 1 * * ?`，`LENGTH(remark)` 352 / 334（**`SYS_JOB.REMARK` 是 `VARCHAR2(500)`**，写之前查过 `USER_TAB_COLS`；初稿 remark 远超 500，**在执行前就缩短了，没有真的踩 `ORA-12899`**）。事后又按本条的编号返工把两行 remark 里的 `ADR-D148` / `2026-09-21` 替换掉（`affectedRows:2`）。
+- **编号已变更（2026-09-21，按用户要求）**：`job_id` **133 → 220**（同时去掉任务名的「(非支付宝)」后缀）、**134 → 255**；`invoke_target` / cron / `status` 均未变，两行 `remark` 里的编号引用与 `web-quartz-debit-retry-job-migration.sql` 已同批改齐（`UPDATE` 各 `affectedRows:1`，`REMARK` 替换 `affectedRows:2`，回查 220 / 255 两行齐全）。**本条标题与下面两行仍写 133 / 134，属当时事实；现行编号 MUST 以 220 / 255 为准，NEVER 回退。**
+- 版本：`gate-txn-pay-server` 2.0.93→**2.0.94**、`web-server/pom.xml` 的 `<project.version>` 1.1.33→**1.1.34**（1.1.33 是同日给 `SysJobController.export` 补 `startOrderBy()` 那次）。两镜像 `digest:` 齐全、两个 Deployment `successfully rolled out`。**回滚点：`gate-txn-pay-server:2.0.93` / `web-admin:1.1.33`**。
+- 探活：30019 返 `200` + `status:"UP"`；**30028（web-admin）返 `HTTP 200` + body `{"code":401,...认证失败}` —— 这就是「起来了」的正常形态**（RuoYi 的 Security 拦截 `/actuator/health`），**NEVER 把这个 401 当成部署失败**。
+- **本次滚更同时满足了「Quartz 内存 JobStore 必须重启才加载 `sys_job`」**，两条任务已在内存里。
+
+### 五、首跑核查（次日补）
+
+`SYS_JOB_LOG` 里 `JOB_ID IN (200,205,210,220,255)`（现号，**原 130,131,132,133,134，2026-09-21 已重编号**）各自有无记录；`GATE_TXN_PAY` 是否出现 `DEBIT_RETRY_TIMES > 0`，并按 `ISSUE_CHANNEL_CODE` 分组确认**两个渠道都有被捞到**（只有一侧有记录 ⇒ 大概率是渠道谓词或某条任务的 `enabled` 出了问题）；`F2F_REFUND` 的 `REFUND_SOURCE='DAILY_BATCH'` 新行。
+
+**已知残留（本条未处理）**：线上 `gate-txn-pay-server:2.0.94` 的 jar 里 `DebitRetryProcessor` 类注释仍写着 `ADR-D148` / `2026-09-21`（构建早于本次改号），源码已改正，下次该模块出镜像时自动带上。
+
+## ADR-D150：`findTravelDetail` 应答改回「`retCode`/`retMsg` + `data`」三层 —— **ADR-D148 的扁平口径当日作废**，外部契约以对接方实际解析行为为准（2026-09-20，model 新增 `AlipayTripTravelDetailDTO` + trans-query-server / ticket-server / alipay-pay-sign-server / fep-alipay 同批）
+
+### 一、裁决与理由
+
+用户带着线上应答报文提出「支付宝详情用 data 包装起来」，并确认：**支付宝侧实测按 `data` 解析，契约以对方为准，ADR-D148 作废**。
+
+- D148（同日）依据 R6 §3.72 表148「`retCode` / `retMsg` + 19 个业务字段直接铺在顶层、表148 之后无子表」把应答拍平，删掉了 `AlipayTripFindTravelDetailRespVO` 那层 `data`。
+- 本条把 `data` 加回来，但**不是回到旧 VO**：业务体收口成 `model/alipaytrip/AlipayTripTravelDetailDTO`（20 个字段），`AlipayTripFindTravelDetailRespDTO`（仍 `extends CommonResult`）顶层只留 `retCode` / `retMsg` / `data`。
+- 判据与「支付中心网关字段名 MUST 实测」（ADR-D92）同源：**甲方文档与对接方真实解析不一致时，以对方的真实解析行为为准**。同一天内两次反转本身就是证据 —— **NEVER 再只凭表148 的排版把这个应答拍平**。
+
+### 二、改动清单
+
+- `model`：新增 `alipaytrip/AlipayTripTravelDetailDTO`（20 字段 + 注释里的 NEVER 清单）；`AlipayTripFindTravelDetailRespDTO` 瘦成 `retCode`/`retMsg`/`data`。
+- `trans-query-server`（现行主实现，`AlipayTravelQueryHandler.findTravelDetail`）：组装 `detail` 再 `setData`；**失败分支 `data` 留 `null`**（单测已钉住）。
+- `ticket-server`（`AlipayTripHandler.fillResponse`，并存旧实现）与 `alipay-pay-sign-server`（`PaymentQueryService.findTravelDetail`，**端点零调用方**）：同形改成 `setData`，只为保持两处并存实现的应答结构一致。
+- `fep-alipay-server`：**零代码改动**（`AlipayQueryServiceImpl` 是一次 RPC 薄转发、不读字段），只更新类注释里已作废的那段 D148 口径。
+- 单测：`AlipayTravelDetailFromGateTxnPayTest` 全部断言改走 `resp.getData().getXxx()` + 新增「失败分支 `data` 为 null」；`TravelDetailDebitResultTest` 同改。
+- 文档：`docs/business/alipay-channel.md` 那条【契约】整条重写（D148 已作废、列表接口不受影响、两个业务体 DTO NEVER 互相复用）。
+
+### 三、验证与未闭合
+
+- `mvn -o clean install -pl model,rpc` → 两个模块 `BUILD SUCCESS`；`mvn -o clean package -pl trans-query-server,fep-alipay-server` → **两个 `BUILD SUCCESS`，trans-query 的单测全通过**；`alipay-pay-sign-server` **主代码编译通过**（`maven-compiler-plugin:compile` 无错）。
+- **两处与本条无关的预存编译破损（本次未修，MUST 另行裁决）**：①`ticket-server` 主代码编译不过 —— `AlipayTripHandler` 仍在调 `AlipayTripFindTravelDetailReqDTO.getHandleDateTime()` / `getTrxType()` / `getCardId()`，**而这三个字段是 D148 收窄请求侧时删掉的**（11 处「找不到符号」），即 **D148 当日漏改了这个并存旧实现、该模块从那时起就编译不过**；②`alipay-pay-sign-server` 的 **测试**源集编译不过 —— `AlipayPayRefundServiceImplTest:64` 的构造器参数与 `AlipayPayRefundServiceImpl`（已加 `PayCenterProperties`）不匹配。两处都**先于本次改动存在**，因此本条**没有出镜像、没有部署**。
+- **上面那条「两处预存编译破损」已于同日复核、现在都不成立，NEVER 再据它断言这两个模块坏着**：①`alipay-pay-sign-server` 的 `mvn -o test-compile` **通过** —— 那次「构造器参数不匹配」是 `~/.m2` 里 `model` 旧 jar 造成的**连锁误报**（测试第 67~70 行本来就传了 `PayCenterProperties`）；②`ticket-server` 的 `mvn -o clean compile` **通过** —— `AlipayTripHandler` 里引用那三个已删字段的整段**已不存在**（该文件在首次构建之后被改过），而 `AlipayTripFindTravelDetailReqDTO` 确实只剩 `thirdUserId` / `orderNo`。**连带判据**：编译错误指向「`model` 的 DTO 缺某个方法」时 **MUST 先确认 `~/.m2` 里那份 `model` 是不是刚 install 的、再用 `clean compile` 复核一次**，NEVER 只凭一次 reactor 内的报错就写成「预存破损」。
+- **未闭合（这两个模块的镜像仍未重建）**：`ticket-server` 线上 `2.1.99` **与仓库 pom 一致**，升版部署只带本条的 `data` 改动、低风险；`alipay-pay-sign-server` 线上 `1.1.43` **而仓库 pom 已 1.1.47**，给它出镜像会**一并带上 1.1.44~1.1.47 四个未部署版本的改动**，属扩大影响面、**MUST 先与用户确认**。两者都不在支付宝详情的活链路上（ticket-server 那三条 URL 未接支付宝、`PaymentQueryService` 端点零调用方），因此不影响本次交付。
+
+### 四、部署与端到端验证（同批完成）
+
+- 构建：`install model,rpc` 两个 `BUILD SUCCESS` + `Installing model-2.0.0.jar` / `rpc-2.0.1.jar`；随后 `package` 推出 **`itp/trans-query:1.0.12`**（`digest: sha256:11f573d4…`）与 **`itp/fep-alipay:1.0.66`**（`digest: sha256:ba83e764…`），两条 `Pushed` 齐全。
+- **fep-alipay 必须同批重建**：它是薄转发、代码零改动，但经手该 DTO，旧镜像里是旧 class（`model` 版本号恒为 2.0.0）。
+- 滚更：`trans-query` / `fep-alipay` 两个 Deployment（容器名与 Deployment 同名）`successfully rolled out`；**回滚点 `itp/trans-query:1.0.11` / `itp/fep-alipay:1.0.65`**。
+- 探活：30035 / 30020 的 `/actuator/health` 都是 `http=200` + `status:"UP"`。
+- **端到端实证（真实链路）**：`POST 172.20.211.23:30020/channel/findTravelDetail`（form-data + `bizData={"thirdUserId":"0700001448","orderNo":"GT20260920101619588542741"}`）返回 **`{"retCode":"0000","retMsg":"成功","data":{...20 个字段...}}`** —— 顶层只有 3 个键、业务字段全在 `data` 里，与本条裁决一致。
+- **第二批（两个并存实现，同日按用户裁决补部署）**：`itp/ticket-server:2.1.100`（`digest: sha256:8ae0495f…`）与 `itp/alipay-pay-sign:1.1.48`（`digest: sha256:bbf8bf12…`）都 `Pushed`，两个 Deployment `successfully rolled out`，35 秒后探活 **30014 / 30022 均 `http=200` + `db` / `readinessState` 全 UP**。**回滚点 `itp/ticket-server:2.1.99` / `itp/alipay-pay-sign:1.1.43`**。注意 `alipay-pay-sign` 这次是**从 1.1.43 跨到 1.1.48**，即一并带上了 1.1.44~1.1.47 四个此前从未部署的版本（用户明确选择接受）；`ticket-server` 线上原本就与 pom 一致，只带本条的 `data` 改动。至此本条**四个模块全部部署完毕**。
+
+### 五、四项端到端复验（部署后，2026-09-20）
+
+- **主链路详情 ✅**：`POST 30020/channel/findTravelDetail` 返 `data` 三层，且 `payTradeOrderNo=2026092023001451031420996308` / `payOrderNoDate=20260920101623` **都有值** —— 这同时证明 **`alipay-pay-sign` 升到 1.1.48 后 `queryPayTxnBrief` 仍正常**（详情的支付三字段就靠它补齐）。
+- **主链路列表 ✅（回归）**：`POST 30020/channel/findTravelList` 仍是**顶层 `ticketTransRecord` + 分页四字段、没有 `data`**（`totalCount=10`、返回 3 条），确认「只改详情、NEVER 顺手包列表」落实到位。
+- **`ticket-server` 两条并存 URL 均返 `9001 系统内部错误`** —— **与本条改动无关，是该并存实现的两处现存缺陷**（应答**结构**是对的：详情有 `data` 键、列表仍顶层子表，说明我的 `fillResponse` 改动本身没问题）。根因已从日志取到原文：
+  - `POST 30014/ci/channel/findTravelDetail` ⇒ `BindingException: Invalid bound statement (not found): QRCodeTxnDetailMapper.selectAlipayTravelDetailByOrderNo` —— `QRCodeTxnDetailMapper.java:91` 声明了该方法，但 `QRCodeTxnDetailMapper.xml` 里**没有对应的 `<select id=...>`**（全文件 grep 只命中 Java 那一处）。
+  - `POST 30014/ci/channel/findTravelList` ⇒ `BindingException: Parameter 'startDate' not found. Available parameters are [thirdUserId, ..., startTime, endTime, ...]` —— Java 侧 `:73` 的 `@Param` 是 `startTime` / `endTime`，而 XML `:335` 那条 `selectAlipayTravelList` 的 `<if>` 与占位符（`:360` / `:377`）写的是 `startDate` / `endDate`，**两边参数名不一致**。
+  - **两条都是「上线即 100% 失败」**，但**不影响线上业务** —— 支付宝详情/列表的入向已由 `fep-alipay` 指向 `trans-query`，这两条 URL 没有调用方。**修法二选一（未裁决）**：给 XML 补一条 `selectAlipayTravelDetailByOrderNo`、并把列表那条 XML 的参数名对齐成 `startTime`/`endTime`（或反过来改 Java 的 `@Param`）。**本次未改** —— 这两处看起来属另一路并行工作（同日 `AlipayTripHandler` 被改成按 `orderNo` 查、ADR-D151 也是那一路写的）的未完成部分，**MUST 先与该负责人对齐再动**。
+
+
+## ADR-D151：多日票批量退款（甲方需求 16/17）落地 —— 两条 `sys_job` 245 / 250（原 135 / 136，2026-09-21 改号）+ 复用单笔退款 + 顺手补齐退款单的唯一索引兜底（2026-09-20，daily-ticket-server 1.0.39 / web-admin 1.1.36）
+
+**编号注意**：本条本想用 D150、结果 D150 已被同日的 `findTravelDetail` 改回三层那条占用（见上一条），**这是当天第二次撞号**（D149 那次更严重，已按 D148 写进 8 处文档才发现）。这次是在写 ADR 正文**之前**先 grep 的，只需把 `sys_job` 两行 remark 从 D150 改成 D151（`affectedRows:2`）。**`AGENTS.md` §9 那条「追加新 ADR 前 MUST `grep -n '^#\{2,3\} ADR-D'`」是硬要求，一天内两次踩中足以说明凭记忆推号必错。**
+
+### 一、用户裁决（五问，全部照做）
+
+甲方原文里两条需求各有一处无法直接编码，逐条问过用户：
+
+1. 需求 16 写「对**当日使用APP的乘客**，若检测出存在未激活电子多日票」——**我方查不到「某乘客今天用过 APP」这个信号**（无活跃度表、无登录流水可用）。
+2. **等待期原文没给**：付款后多久未激活才允许自动退，两条需求都没写，而这是自动扣减真金白银的闸门。
+3. 旅游票子单要不要纳入。
+4. 需求 17 写「每月30日」——Quartz 的 `0 0 20 30 * ?` **在 2 月不触发**（2 月没有 30 日），那个月整月不跑。
+
+用户裁决：等待期 **3 天**；旅游票**纳入但按主单整单退**；月度条改**月末最后一天**（cron 用 `L`）。第 1 条先选了「按当日支付」，但**那与「满 3 天」直接互斥**（今天支付的单不可能已过 3 天、候选恒为空），我把矛盾摆出来后用户改选：**两条都用「满 3 天」谓词，只是回溯窗口不同 —— 当日条扫近 7 天、月度条扫近 60 天，重叠部分靠幂等兼容**。
+
+### 二、候选谓词：判「未激活」只能靠「票实例不存在」
+
+- **`DAILY_TICKET_ORDER` 里没有任何激活状态列 / 激活时间列**（逐列看过 schema）。激活状态在 `DAILY_TICKET_INSTANCE`，而该表**首次落库即 `ACTIVATED`**（`INIT` 零写入点）⇒ **「已付款未激活」= 订单 `ORDER_STATUS='PAID'` 且 `PAY_STATUS='PAID'` 且 `DAILY_TICKET_INSTANCE` 里没有同 `ORDER_NO` 的行**。**NEVER 去订单表找激活字段。**
+- 独立日票候选**MUST 带 `PARENT_ORDER_NO IS NULL`**：不带就会把旅游票子单当独立日票单独退掉，与「按主单整单退」的裁决冲突、还会让主单进半退状态。
+- 两条语句都额外加了 `NOT EXISTS (... DAILY_TICKET_REFUND ...)` 预排除已有退款单的（省一次必然被拒的 RPC）。
+- 旅游票主单候选：`TRAVEL_TICKET_ORDER` 的 `PAID`/`PAID` + 满等待期 + 回溯窗口 + **该主单下全部子单都没有票实例**（`EXISTS 有子单` + `NOT EXISTS 子单已有实例` 两条一起）。
+
+### 三、只写扫表、退款逻辑一行不复制
+
+批量服务**只做扫表 + 逐笔调现成的 `DailyTicketService.requestRefundTicket`**（独立日票传 `orderType="1"`、旅游票主单传 `"2"`），网关调用 / `refundType` 判定（`00` 未激活直退 / `01` 激活后 5 天核验）/ 锁票 / 状态回写全在里面。**旅游票那支的子单校验也是现成的**：`requestTravelRefund:525~535` 已内建「任一子单已使用/已过期/已退款或已有退款单 ⇒ 整单拒退」，因此批量侧**不需要也 NEVER 再写一份**。
+
+- 新建 `DailyTicketBatchRefundService`（`@Service`，**刻意不带 `@Transactional`，类注释已写 NEVER 加** —— 每笔都要调支付网关）+ `BatchRefundInternalController`（`/internal/daily-ticket/batch-refund/{daily,monthly}`，**两个独立 `AtomicBoolean`**，抢不到返 `9998` + 文案，`finally` 恢复）。
+- 四个可配键：`daily.batchRefund.limit:200` / `waitDays:3` / `daily.lookbackDays:7` / `monthly.lookbackDays:60`。**`limit` 是「每类各取 200」，因此单轮 `scanned` 上限是 2×limit。**
+- web-admin 侧 `DailyTicketBatchRefundQuartzTask`（`@Component("dailyTicketBatchRefundQuartzTask")`，`9998` 只 WARN 不抛，照 `F2fBatchRefundQuartzTask`）+ `rpc` 的 `DailyTicketClient` 两个新方法。**启动类没动**：`DailyTicketClient` 是 `@Service` 且落在被默认组件扫描覆盖的包里（同目录已有的 `DailyTicketQuartzTask` 一直在注它），**本项目并不存在 `@EnableRpcDailyTicket`**。
+
+### 四、顺手修掉一个现存幂等缺口（不属需求，但批量一上线必踩）
+
+`requestRefundTicket` 的 `refundMapper.insert(refund)` **三处**（核验退款支 / 普通退款支 / 旅游票整单）此前**没有唯一索引冲突兜底** —— 只有前置 `selectByOrderNo` 查重，查完到插入之间有窗口。批量任务与运营页面并发同一单时，第二路直接抛主键冲突，被全局异常处理器包成 UUID `retCode`。已改成 `try { insert } catch (RuntimeException e) { if (!isDuplicateRefund(e)) throw e; 回查 selectByOrderNo → buildExistingRefundResult }`，`isDuplicateRefund` **沿 `getCause()` 链判定**（深度上限 16）—— 该模块已开 tracing，观测切面会把异常换类型，**只看最外层类名必然落空**（ADR-D53 同源）。
+**旅游票那支的 duplicate 分支刻意不释放已加的票锁**：命中 duplicate 说明另一路已在退款、锁本该锁着，释放等于把兄弟请求的锁抽走（ADR-D52「按业务键幂等的远端资源 NEVER 在失败分支回滚」同型判据）。
+**未处理**：运营侧「旅游票按子单退」那第 4 处 `insert`（现行 `:984` 附近）同样缺兜底，本次未扩大范围，属遗留。
+
+### 五、DB 与部署
+
+- **索引（`daily-ticket-batch-refund-migration.sql`，已执行 + 回查）**：`IDX_DAILY_TICKET_ORDER_BATCH_REFUND (ORDER_STATUS, PAY_STATUS, PAY_DATE)` 与 `IDX_TRAVEL_TICKET_ORDER_BATCH_REFUND` 同三列，`USER_INDEXES` + `USER_IND_COLUMNS` 回查两条均 `VALID`、列序 1/2/3 正确。同批补进 `daily-ticket-server-schema.sql`。
+- **`sys_job`（已执行 + 回查）**：**245**（**2026-09-21 按用户要求由 135 改号为 245，触发目标与 cron 未变，NEVER 回退成 135**）「多日票批量退款(当日)」cron `0 0 20 * * ?`、**250**（**同日由 136 改号，NEVER 回退成 136**）「多日票批量退款(月度)」cron **`0 0 20 L * ?`**，都 `status=0` / `concurrent=1` / `misfire_policy=3`。**`L` 可用已验证**：前台与后端校验都走 `CronUtils.isValid` → `org.quartz.CronExpression.isValidExpression`（Quartz 原生支持 day-of-month 的 `L`），**NEVER 因为「怕不支持」改回 30 日**。
+- **`SYS_JOB.REMARK` 实测是 `VARCHAR2(500 CHAR)`**（`CHAR_USED='C'`，同批查了 `JOB_NAME` 64 CHAR / `INVOKE_TARGET` 500 CHAR）—— 因此 500 是**字符数**不是字节数，中文 remark 不必按 3 字节折算。**这条此前没查过、属新事实。**
+- 版本：`daily-ticket-server` 1.0.38→**1.0.39**、`web-server` 的 `<project.version>` 1.1.35→**1.1.36**。`rpc` 动过 ⇒ 走了「先 `install model,rpc` 再 `package`」三步序列（第一步两个 `Installing ... .jar` + `BUILD SUCCESS` 已确认）。
+
+### 六、首跑前必须知道的一件事：候选恒为 0
+
+**库内现在一条候选都没有**（实测三个窗口 `DAILY_ALL` / 近 7 天 / 近 60 天全是 **0**）。成因不是谓词写错，而是 `DAILY_TICKET_ORDER` 里**根本没有 `ORDER_STATUS='PAID'` 的行** —— 按状态分组实测只有 `CREATED/INIT` 139 行、`REFUNDED/PAID` 28 行、`REFUNDING/PAID` 1 行、`PAY_FAILED/FAIL` 1 行。
+
+两条连带结论：
+1. **首跑不会误退真钱**（这也是本次没给 `enabled` 开关的依据 —— 真要停用改 `sys_job.status='1'` 即可）。
+2. **本功能在测试库里无法自然验证**，要验必须造数据：插一条 `PAID`/`PAID` + `PAY_DATE` 早于 3 天 + 无 `DAILY_TICKET_INSTANCE` 的订单，再点前台「执行一次」。**NEVER 把「首跑日志显示候选 0」当成功能已验证。**
+
+### 七、待核查
+
+`SYS_JOB_LOG` 里 `JOB_ID IN (245,250)`（245 今晚 20:00、250 本月最后一天 20:00）；有候选时看 `DAILY_TICKET_REFUND` 新行的 `REFUND_TYPE` 是否为 `00`（未激活直退）。
+
+
+## ADR-D152：支付宝出行退款改走新表链路（新增 /internal/alipay/payment/requestTxnRefund），并修正「退款申请按 retCode 判成功」的错判（2026-09-20，model / rpc + alipay-pay-sign-server 1.1.50 / gate-txn-pay-server 2.0.96，均已推送并滚更）
+
+### 一、起因：报「原支付记录不存在」不是分流没生效
+
+运营后台扣费信息页对**支付宝出行**订单点退款，返回「原支付记录不存在」。
+
+- **不是分流问题**：`gate-txn-pay-server` 2.0.95 的按渠道分流**已生效**，请求确实到了 `alipay-pay-sign-server`。
+- **根因是读了一张已无写入方的表**：`AlipayPayRefundServiceImpl.loadSettledPayLog` 读 `ALIPAY_PAY_LOG`，而该表自 `PaymentRequestService.requestPay` 把落单收口到 gate-txn-pay 之后**已没有任何写入方**（`PayLogBuilder` 成死代码）。因此**对任何新订单都必然返 `9999`**，与订单本身、与分流配置都无关。**NEVER 再把这个报文当成「分流没配好 / 订单不存在」去查。**
+
+### 二、落地形态：并存、不替换
+
+- **`model` 新增两个 DTO**：`AlipayTripTxnRefundReqDTO`（`orderNo` / `refundAmount` / `refundReason`）与 `AlipayTripTxnRefundRespDTO`（`retCode` / `retMsg` / **`refundOrderNo`**，比旧应答多回我方退款单号、便于对账）。**NEVER 与旧的 `AlipayTripRequestRefundReqDTO` / `AlipayTripRequestRefundRespDTO` 合并** —— 两条链路读写的是不同的表，合并即让「回滚位」消失。
+- **`rpc/AlipayPaySignClient` 新增 `alipayTripTxnRefund`**，打 `POST /internal/alipay/payment/requestTxnRefund`。
+- **`alipay-pay-sign-server` 新增 `service/impl/refund/AlipayTxnRefundService` + 同族新端点**。旧端点 `/internal/alipay/payment/requestRefund` 与 `AlipayPayRefundServiceImpl` **原样保留作回滚位**，**两条链路互不调用**。
+- **`gate-txn-pay-server` 的 `GateTxnPayManualOpsService.requestAlipayTripRefund` 改调新端点**，并把页面填的 `refundReason` 带过去 —— 它**只落对端明细的 `REFUND_REASON` 留痕、NEVER 进支付中心 bizData**。
+- **重要既有事实：本次没有新建表、没有 DDL。** 新表 `ALIPAY_REFUND_TXN_DETAIL`（库内实测 **18 列**）、序列 `SEQ_ALIPAY_REFUND_TXN_DETAIL`、唯一索引 `UK_ARTD_REFUND_ORDER(REFUND_ORDER_NO, TXN_DATE)` 与 `AlipayRefundTxnDetailMapper` **在本次之前就已存在、只是零 Java 调用方**，本次只是把它接上。mapper 上**只新增了一条 `settleFromCallback` 语句**（无新增列 / 索引，**因此刻意不出 `*-migration.sql`** —— 与「新增列 / 索引 MUST 出迁移脚本」那条不冲突，本次确实什么都没加）。
+
+### 三、`AlipayTxnRefundService` 的六步编排与不可回退的口径
+
+按类注释：**校验入参 → 查 `ALIPAY_PAY_TXN_DETAIL` 且 `PAY_STATUS='SUCCESS'`（白名单）→ 幂等短路 → 按签约回查卡号 → insert(`INIT`) + `markRequesting` 并提交 → 无事务出网 + 按应答回写。**
+
+- **幂等短路 MUST 在落库之前**：同一 `orderNo` 只要存在 `PROCESSING` 明细即拒。**顺序 NEVER 调换** —— 金额校验读的是**主表汇总列**，而那一笔未收口的退款还没进汇总，**校验拦不住它**。
+- **`CARD_ID` 由服务端按 `CHANNEL_AGREEMENT_NO` 回查 `ALIPAY_SIGN_INFO` 取，NEVER 让调用方送卡号**。该列**没有唯一约束**，一码多行时**让 MyBatis 抛 `TooManyResultsException`、本次退款失败**即正确行为，**NEVER 改成取第一行** —— 取第一行等于用一个可能张冠李戴的卡号发起真实退款。
+- **NEVER 给本方法加 `@Transactional`**：方法体内有支付中心 HTTP 调用（AGENTS.md §5.2 那条 2026-08-26 生产事故同一成因）。「先留痕、再出网、后回写」的顺序就是靠无事务下每条 SQL 自动提交成立的。
+
+### 四、核心修正（P0）：退款申请 NEVER 按 `data.retCode` 判成功
+
+- **实测应答体就是 `{"code":200,"msg":"操作成功"}`** —— **无 `data`、无 `retCode`**。而 `PayCenterRpcAdapter` 的 `retCode` 取自 `data`、`decodeDataMap` 在 `data == null` 时返回**空 Map**，于是 `retCode` 恒为 `null`，`"SUCCESS".equals(null)` = false ⇒ **每一笔已被支付中心受理的退款都会被写成 `FAIL`**。首单 `R1789899554336b230c487` 即如此（库里 `REFUND_STATUS='FAIL'` 而 `REMARK='操作成功'`，自相矛盾），**已人工改回 `PROCESSING`**。
+- **契约侧佐证**：网关文档退款申请（§3.1）的应答参数只有 `merchantRefundNo` / `refundNo` / `channelRefundNo` / `refundTime` **四个，没有任何结果字段**；退款结果只出现在 **§5.2 回调的 `refundResult`（`SUCCESS`/`FAIL`/`PROCESSING`）与 §3.2 查询的 `status`**。
+- **对照已跑通的 pay-sign 链路**（`RefundDomainServiceImpl` → `PayGatewayClient.isSuccess`）：它**只看传输层 code**，`0` 与 `200` 都算成功；网关拒绝时置 `RETRY` 而非 `FAIL`。
+- 因此新实现的口径是：**能走到 `Accepted` 就算受理成功** —— 回 `0000`「退款申请已受理」、明细留 `PROCESSING`、**申请时一律不刷汇总**；`Rejected` / `NoAnswer` 也保持 `PROCESSING`、**只回写 `REMARK`**。
+- **与支付方向的差异是有原因的，NEVER 拿「两边应该一致」把退款改回去**：`AlipayPayRequestServiceImpl` 能用 `retCode`，是因为**支付应答确实带 `data.retCode`**。两个方向的应答形态本就不同。
+
+### 五、新表的终态收口（不做就会「退一次后永久锁死」）
+
+- 新增 **`TxnRefundCallbackSettler`**，并把 `AlipayPayCallbackServiceImpl.onRefundAccepted` 改成「**先试旧表 `RefundCallbackSettler`，返回 `NOT_MATCHED` 再试新表**」。
+- 新 mapper 语句 `settleFromCallback` 的 WHERE 带 **`REFUND_STATUS='PROCESSING'` 做 CAS（幂等地基，NEVER 去掉）**。
+- **它刻意不带 `TXN_DATE`**：回调报文只有 `outRefundNo`、**没有交易日**；唯一索引前导列就是退款单号、仍然走索引；**用「当天日期」凑第二列会让跨日回调一行都命中不到**。这与本文件里「退款明细两条 UPDATE MUST 按 `REFUND_ORDER_NO + TXN_DATE`」是**不同场景**，NEVER 混为一谈。
+- **只有收口为 `SUCCESS` 才调 `AlipayPayTxnDetailMapper.updateRefundSummary`**；汇总影响 0 行**只记 ERROR、不抛异常**（回调已收口，抛出去只会引来对端重推）。
+- 同时记一条**既有不一致**：`PayCenterCallbackController` 的 javadoc 仍写「退款明细与汇总的回写尚未接线、这条地址没有配置键也没下发」，而实现早已在收口、本次 env 也已配上地址 —— **那段注释已过期**。
+
+### 六、配置：`pay.center.refund-notify-url` 此前集群 env 里根本没有
+
+- 仓库默认值是空，集群 env **也没配**，因此那笔退款出网时**没送 `notifyUrl`** ⇒ **支付中心永远不会回推结果**。
+- 已按用户给的地址补上集群 env：`pay.center.refund-notify-url=http://58.56.166.170:48000/fep-alipay/api/payment/refundNotify`（我方端点是 `/api/payment/refundNotify`，外部前缀 `/fep-alipay`）。
+- **配置只对后续新单有效**：`R1789899554336b230c487` 那笔因当时未送 `notifyUrl`，**仍需靠退款查询或人工核对收口**。
+
+### 七、验证、回滚与未闭合
+
+- `model` + `rpc` 已 `install`；`alipay-pay-sign-server` **全量单测绿**，含新增 `AlipayTxnRefundServiceTest` **8 例**（未命中 / 非 `SUCCESS` / 幂等 / 超额 / 签约缺失 / 受理留 `PROCESSING` 且不刷汇总 / `data` 带单号时回填 / 无应答保持 `PROCESSING`）。
+- 镜像 **`itp/alipay-pay-sign:1.1.50`**（`digest: sha256:2b81fb60ed68d3194c8b6ea823ddae168171c406cd36ad01c90ce354053dbb51`）与 **`itp/gate-txn-pay-server:2.0.96`**（`digest: sha256:559587c7527f2a9100c547fae6ff6b7480da25ebd1afb5f44c59abdcedc2bdfe`）均已推送并滚更，NodePort **30022 / 30019** 探活 `http=200`。
+- **回滚 MUST 两个镜像同批换回 `alipay-pay-sign:1.1.48` + `gate-txn-pay-server:2.0.95`** —— 新端点在旧 alipay 镜像上**不存在**，只回滚一侧会得到 404 被伪装成的 UUID `retCode`。
+- **未闭合**：
+  1. 新表链路**只有回调收口、没有回查补偿**（用户既有裁决：状态收敛优先做在回调里、不做扫表定时任务）。因此**回调不来时明细会长期停在 `PROCESSING`，而幂等短路会挡住该订单后续退款** —— 需人工介入。
+  2. `/internal/alipay/**` 全族仍**无鉴权**，而新端点**既改状态又出网发起真实退款**，与 AGENTS.md §5.2 冲突，属既有缺口扩大一条。
+
+## ADR-D153：新表退款回查补偿落地（扫 ALIPAY_REFUND_TXN_DETAIL）+ 实测发现支付宝渠道网关根本没有 refundQuery 端点（2026-09-21，alipay-pay-sign-server 1.1.51，已推送并滚更、端到端验通）
+
+### 一、起因：新表只有回调这一条收口路径，而回调注定不来
+
+ADR-D152 给支付宝出行退款接上了新表链路（`/internal/alipay/payment/requestTxnRefund` → `ALIPAY_REFUND_TXN_DETAIL`），但新表**只有回调这一条收口路径**（`TxnRefundCallbackSettler`）。而 `pay.center.refund-notify-url` 为空时我方**压根不送 `notifyUrl`**、回调必然不来 ⇒ 那一行**永久卡 `PROCESSING`**；同时申请侧的幂等短路「同一原订单存在 `PROCESSING` 即拒」会让**这笔原支付再也退不了**。
+
+**NEVER 通过放宽幂等短路来绕** —— 那条短路是「远端已受理、本地结果未回写」时唯一能挡住重复退款的防线。
+
+### 二、关键前置事实：此前的判断被推翻
+
+本模块**早就有**一套退款回查补偿：`RefundQueryCompensationService` + `POST /internal/alipay/refund/compensateQuery` + `sys_job` **137「支付宝退款回查补偿」cron `0 0/10 * * * ?`**（**137 现为 340**，2026-09-21 重编号）。但它**只扫旧表 `ALIPAY_REFUND_LOG`**。
+
+因此本次**不是新建补偿链路，而是给同一个端点补上新表那一轮**，**NEVER 再说「支付宝渠道没有退款回查补偿」**。
+
+### 三、落地形态（alipay-pay-sign-server 1.1.50 → 1.1.51）
+
+- 新增 `service/impl/refund/TxnRefundQueryCompensationService`（public `@Service`，**无 `@Scheduled`、无 `@Transactional`**）。
+- `AlipayRefundTxnDetailMapper` + XML 新增两条语句：`selectCompensableRefundQuery(scanDays, staleMinutes, limit)` 与 `delayNextRefundQuery(refundOrderNo, delaySeconds)`。
+- **端点不变**：`controller/task/AlipayRefundQueryInternalController.compensateQuery` 改为**两张表各扫一轮、合并计数**，`retMsg` 形如「旧表扫描 N 条、收口 N 条、仍处理中 N 条；新表扫描 N 条、收口 N 条、仍处理中 N 条」。**不新增端点、不新增 `sys_job`**（137 那条继续驱动两轮）。
+- 参数：`SCAN_DAYS=7`、`STALE_MINUTES=5`、`BACKOFF_SECONDS=300`、批量 `alipay.refund-query.batch-size:200`。
+- 收口**复用 `TxnRefundCallbackSettler`**（明细 CAS + 仅成功时重算 `ALIPAY_PAY_TXN_DETAIL` 汇总，全项目只有这一份实现）。连带后果：该类日志前缀写的是「退款回调」，回查路径下看着像回调收的 —— **判来源看 `REMARK`**（回查路径写「退款回查收口为 X」）。**NEVER 为了日志好看抄第二份收口 SQL。**
+- 与旧表实现的**实质差异**：本表有 `NEXT_REQUEST_TIME` / `LAST_REQUEST_TIME` / `REQUEST_COUNT` 三个退避列，未得终态时推 `NEXT_REQUEST_TIME` 降频；旧表没有这些列、只能靠 `UPDATE_TIME` 静默期兜。**NEVER 照旧表把退避删掉。**
+- **无 DDL**：那三个退避列本来就在表里，本次没有任何建表 / 加列。
+
+### 四、实测发现的外部契约缺口（本次最重要的产出，MUST 保留）
+
+2026-09-21 从 `k8s-master` 直接探活，用同一份报文对照（`merchantNo=UIQ2N4F0Q2` + `sign=test`，只看端点存在性：**404 = 不存在、HTTP 200 + 业务码 = 存在**，与 ADR-D120 记的 APP 侧判据同源）：
+
+- 支付宝渠道在用的网关 `https://dtcustomer.bestonepay.com/ngopenplatform`：
+  - `/api/payment/requestPay`、`/api/payment/payQuery`、`/api/payment/requestRefund` 都**存在**（返 `code=604` 参数校验，如「逻辑卡号不能为空,订单号不能为空,...」）。
+  - **`refundQuery` 三种路径全 404**：`/api/refund/refundQuery`、`/api/payment/refundQuery`、`/api/v1/refund/refundQuery`，应答体是 Spring 的 `{"timestamp":...,"status":404,"error":"Not Found","path":"..."}`。
+- pay-sign-server 在用的另一个网关 `http://dtcustomer.bestonepay.com/ngpayment-gateway`：`/api/v1/refund/refundQuery` **存在**，但用支付宝的 `merchantNo=UIQ2N4F0Q2` 打过去返 **`code=1002 商户不存在`** ⇒ **两个网关商户隔离，NEVER 简单把支付宝的回查地址指到 `ngpayment-gateway`**。
+- 结论：**支付宝渠道当前没有可用的退款查询接口**。`pay.center.refund-query-url`（仓库值 `.../ngopenplatform/api/refund/refundQuery`，**裸硬编码无 `${ENV:}`**）**从写下那天起就是 404**，此前零调用方所以从未暴露。
+- 因此新表回查在当前地址下**永远拿不到终态**，只会每轮退避 300 秒重问 —— 这是「未拿到应答一律保持 `PROCESSING`、NEVER 落 FAIL」那条判据在起作用，**不是本次改动的缺陷**；但它意味着**退款终态目前只能靠回调或人工**。
+- **待外部澄清（阻塞项）**：支付宝渠道商户在 `ngopenplatform` 上如何查退款结果（是否另有端点 / 是否必须走 `ngpayment-gateway` 并换商户号 / 还是只能等 `refundNotify` 回调）。**澄清前 NEVER 再改那条 URL 去试。**
+
+### 五、验证（2026-09-21 测试环境，逐条实测）
+
+- 单测 **154 个全过**（新增 `TxnRefundQueryCompensationServiceTest` **10 例**：出网两键 / `SUCCESS` / `FAIL` / 未知 `status` / 业务码非成功 / 网关拒绝 / 无应答 / CAS 未命中 / 单条异常不中断 / 空扫不出网），`xmllint` 校验 mapper XML 通过。
+- 镜像 **`itp/alipay-pay-sign:1.1.51`**，`digest: sha256:541b4350432cc538c1f1568cc608dcdc2262930a54b64d370a462860bdbdcbd9`；`kubectl set image` 后 `rollout status` 成功，`http://172.20.211.23:30022/actuator/health` 返 `http=200`、`db` / `readinessState` 全 `UP`。
+- 打 `POST http://172.20.211.23:30022/internal/alipay/refund/compensateQuery` 返 `{"retCode":"0000","retMsg":"旧表扫描 0 条、收口 0 条、仍处理中 0 条；新表扫描 1 条、收口 0 条、仍处理中 1 条"}`。
+- 日志逐环齐全（`traceId=f66d1e35725fa681c1bd7bb58d2a1317`）：新表扫表 SQL `fetchRowCount:1` → 出网 `bizData={"refundOrderNo":"R1789899554336b230c487","merchantRefundNo":"R1789899554336b230c487"}`（**两个键都送，ADR-D92 口径**）→ `调用支付中心失败, code=404` → `新表退款回查未拿到任何应答（地址未配置或网络不可达），保持 PROCESSING` → `UPDATE ... SET NEXT_REQUEST_TIME = SYSTIMESTAMP + NUMTODSINTERVAL('300','SECOND')` 影响 1 行 → `新表退款回查补偿完成, scanned=1, settled=0, pendingAgain=1`。
+- 回查 `AFCITPDB`：`R1789899554336b230c487` 仍 `PROCESSING`（**未被误写终态**），`NEXT_REQUEST_TIME` 由 `null` 变成 `2026-09-21 10:42:44`（DB 当时 `10:38:30`，正好 +300 秒），`UPDATE_TIME` 保持 `09-21 09:29:41` **未被刷**（退避语句刻意不动它）。
+
+### 六、回滚
+
+单镜像回滚即可：
+
+```
+kubectl set image deploy/alipay-pay-sign-server alipay-pay-sign-server=os-harbor-svc.default.svc.cloudos:443/itp/alipay-pay-sign:1.1.50 -n itp
+```
+
+回滚后新表那一轮消失、端点退回只扫旧表；**无 DDL 需要回退**，`NEXT_REQUEST_TIME` 上已推的值不影响旧代码（旧代码不读这列）。
+
+### 七、未闭合
+
+- 上面 §四 那条**外部契约缺口**（阻塞退款终态自愈）。
+- `/internal/alipay/**` 全族仍**无鉴权**（与 AGENTS.md §5.2 冲突，属测试期既有降级）。
+- `pay.center.refund-query-url` 是**裸硬编码的外部生产地址、无 `${ENV:}` 包装**（与 §5.2「敏感 / 环境相关配置」口径不一致），等上面那条澄清后一并整改。
+
+## ADR-D154：补站扣费周期查询更新落地 —— `sys_job` 345（编号先后为 135 → 265 → 235 → 345）每分钟扫「近 10 分钟未扣费」的过闸单重发扣费，**刻意不设退避**（2026-09-21，gate-txn-pay-server 2.0.97 / web-admin 1.1.39）
+
+### 一、背景与业主裁决
+
+甲方需求「补站扣费周期查询更新」。四个口径**全部由业主当场裁决**，**NEVER 自行改动**：
+
+- **范围 = 全量**，不是只挑补站单。原因是 `GATE_TXN_PAY` **没有** `EXCESS_FARE_TYPE` 之类的列，识别补站单只能靠 `DEVICE_ID` 的「车站码+36+01」形态，不可靠；业主直接裁决做成「全量未扣费单的 10 分钟快速轮」。
+- **语义 = 重发扣费**（复用 `PaySignInitiator.retryAndConverge`，与 `sys_job` 220 / 255 同一个出口），**不是回查**。
+- **窗口 = `CREATE_TIME` 落在近 10 分钟内**，cron **每分钟**一轮。
+- **不设退避**：只靠 10 分钟窗口 + `DEBIT_STATUS` 的 CAS 兜。
+
+### 二、落地形态
+
+- 端点：`POST /internal/gate-txn-pay/debit/retry/recent`（`CompensationInternalController` 的**第 6 个**端点）→ `DebitRetryProcessor.retryRecentUnpaidDebits()`。
+- 两条新 mapper 语句：`selectRecentUnpaidCandidates(windowMinutes, minAgeSeconds, maxTimes, limit)` 与 `prepareRecentRetry(orderNo, txnDate, maxTimes, failMsg)`。**无 DDL**，用的都是现有列。
+- 四个新键：`gate.debitRetry.recent.enabled:true` / `.batchSize:200` / `.windowMinutes:10` / `.minAgeSeconds:60`；次数上限 `gate.debitRetry.maxTimes` 与 220 / 255 **共用**。
+- 链路：web-admin `GateTxnPayQuartzTask.retryRecentUnpaidDebits()` → `rpc` 的 `GateTxnPayClient.retryRecentUnpaidDebits` → 上面那个端点；三条任务共用 `DebitRetryProcessor.runRound` 的逐笔骨架。
+
+### 三、与 220 / 255 的三处刻意差别（**NEVER 合并这三条任务**）
+
+- **不分渠道**（业主选择）；渠道分流仍由 `PaySignInitiator#converge` 按 `ISSUE_CHANNEL_CODE` 自己决定。
+- **多捞 `INIT`**：本任务的核心场景正是「落单后扣费压根没发起」（`GateFarePaymentOrchestrator` 的 RPC 异常只记日志、不改状态），220 / 255 只认 `RETRY / FAIL`，**这种单它们永远捞不到**。
+- **按 `CREATE_TIME` 而非 `TXN_DATE` 收窄**：窗口只有分钟级，8 位日期字符串收不出来。
+
+### 四、不设退避的代价与两道仅存的闸（**删任何一道都是资损方向**）
+
+`prepareRecentRetry` **刻意不写 `DEBIT_RETRY_TIMES` 与 `DEBIT_NEXT_RETRY_TIME`** —— 一旦记账，10 分钟内就会把 220 / 255 的 5 次预算烧光、那两条日跑任务从此再也捞不到这批单。代价是**一笔落 `RETRY`（对端不可达）的单在窗口内最多被重新发起 10 次**。因此只剩两道闸，**NEVER 删**：
+
+- **`minAgeSeconds=60` 下界**：刚落库几秒的单可能**正在**走扣费 RPC，立刻再发一笔就是重复扣款。
+- **`windowMinutes=10` 上界**：出窗即交给 220 / 255 按 720 分钟退避慢跑。
+
+另加一道与退避无关的排除：`DISCOUNT_CALC_STATUS = 'OFFLINE_FARE_PENDING'`（离线码金额未重算，按当前金额扣下去就是**扣错钱**），**NEVER 去掉**。要收紧只能调那两个键或 cron，**NEVER 在这条链路上加记账**。
+
+### 五、DB 侧（已执行并回查）
+
+`web-server/web-quartz/src/main/resources/sql/web-quartz-supplement-debit-job-migration.sql`，2026-09-21 在 `AFCITPDB` 执行、`affectedRows=1`，**现行回查（改号后）**：`JOB_ID=345` / `JOB_NAME=补站扣费周期查询更新` / `INVOKE_TARGET=gateTxnPayQuartzTask.retryRecentUnpaidDebits()` / `CRON=0 0/1 * * * ?` / `MISFIRE_POLICY=3` / `CONCURRENT=1` / `STATUS=0`。**编号在库里改过两轮**：首次入库 265 → 同日按用户要求改 235（`UPDATE SYS_JOB SET JOB_ID=235, REMARK=REPLACE(...) WHERE JOB_ID=265`）→ 同日再按「新任务接在当前最大号之后往下排」改 **345**（`UPDATE SYS_JOB SET JOB_ID=345 ... WHERE JOB_ID=235`，`affectedRows=1`，回查 `JOB_ID=235` / `265` 均已 0 行）。**每次改号后 web-admin MUST 重启（滚更即可）**：内存 JobStore 下 JobKey 取自启动时读到的 `job_id`，不重启时在跑的那份仍挂在旧 id 上、`SYS_JOB_LOG` 里的任务名虽对得上但与 `sys_job` 的 id 对不上。
+
+两条踩过的坑：
+
+- **`SYS_JOB.REMARK` 是 500 *字节*、不是 500 字符**。第一版 remark 594 字节直接 `ORA-12899`（中文 3 字节/字）。**写 `sys_job` 的 remark MUST 先按字节估**，长论证放 ADR、不要塞进 remark。
+- **编号四次变动**：原定 135 → 同日随「200 以下全量重编号」定为 **265** → 当日改为 **235** → 当日按「新任务接在当前最大号之后往下排」最终定为 **345**（代码 / 迁移脚本 / DB remark / 文档已同批改齐）；而 **ADR 号也被占用过**（D153 当天被支付宝新表退款回查用掉），本条最终是 **D154**。**追加 ADR 前 MUST 先 `grep -n '^#\{2,3\} ADR-D'`**（AGENTS.md §9 已有这条，这次是它第二次生效）。**引用本任务编号 MUST 写 345，NEVER 回退成 135 / 265 / 235。**
+
+### 六、部署与验证（已闭环）
+
+- 镜像已推并滚更：`itp/gate-txn-pay-server:2.0.97`（digest `sha256:f93384aa…`）、`itp/web-admin:1.1.39`（digest `sha256:9236067e…`）；回滚 tag 是 **2.0.96 / 1.1.38**。探活 `172.20.211.23:30019` 与 `:30028` 均 `http=200`。
+- **web-admin 滚更即完成「重启加载 `sys_job`」**（内存 JobStore，运行中 INSERT 不生效）。`SYS_JOB_LOG` 已连续两轮命中：`JOB_LOG_ID=33525`（10:58:00，耗时 974ms）与 `33527`（10:59:00，耗时 28ms），`STATUS='0'`。**判断这条任务在不在跑 MUST 查 `SYS_JOB_LOG`，`QRTZ_*` 恒 0 行。**
+
+### 七、未闭合
+
+- 上面那条「一笔不可达的单窗口内可能被重发 10 次」是**业主已知并接受的代价**，不是缺陷；若线上出现重复扣款，**先调 `minAgeSeconds` / cron，NEVER 直接加记账**。
+- 本任务**无单元测试覆盖**（`DebitRetryProcessor` 三条任务都没有），现有防线只是 `GateTxnPayMapperSqlTest` 那两条 SQL 形状断言（排除离线码待重算态 + 抢占语句不碰两个记账列）。
+
+## ADR-D155：出站扣次与 APP 首次使用通知 NEVER 再写 `ACC_NOTICE_*` —— 一条从未成功的 ACC 售票上报被洗成 `SUCCESS`、补偿从此永久失联（2026-09-22，daily-ticket-server 1.0.63，**已推送并滚更**）
+
+### 一、缺陷事实（库内硬证据，不是推断）
+
+`DAILY_TICKET_INSTANCE` 里 `CARD_NUM='0426090954000021'`（联名票）那行同时满足三件互相矛盾的事：
+
+- `ACC_NOTICE_STATUS = 'SUCCESS'`
+- `ACC_NOTICE_MSG` 仍是 `HTTP 400, body={"retCode":"1003","returnMsg":"解析请求数据失败:Value cannot be null. (Parameter 'value')"}`
+- `ACC_NOTICE_TIMES = 1`、`ACC_NOTICE_TIME = 2026-09-22 15:22:54.471` —— 正是**出站扣次**那一刻，不是任何一次 ACC 上报的时刻
+
+天然对照组是同一用户那张**没出站**的一日票（`0426090951000040`）：`FAIL` / `TIMES=2` / `15:25:00.033`，补偿**真的重试过**。两行的差别只有「有没有出站」，因此成因唯一。
+
+### 二、根因
+
+`DailyTicketInstanceLifecycleService` 有两个方法在推进票状态时**顺手写了 `ACC_NOTICE_*`**：`markUsed`（出站扣次）与 `updateAndNotice`（APP 首次使用通知 IF8A-33），各写 `setAccNoticeStatus("SUCCESS")` + `setAccNoticeTime(now)`；`DailyTicketInstanceMapper.xml` 的 `markUsed` 语句也显式更新那两列。
+
+而补偿扫表 `selectPendingAccNotice` 的白名单是 `ACC_NOTICE_STATUS in ('PENDING', 'FAIL', 'INIT')` —— **一旦被写成 `SUCCESS`，这行就永久出队**，那笔从未被 ACC 受理的售票上报再也没有任何一条链路会重发。**「乘客出站了」与「ACC 受理了发售」是两件毫不相关的事，用前者去断言后者就是凭空造事实。**
+
+### 三、修法（**NEVER 回退**）
+
+- `DailyTicketInstanceMapper.xml` 的 `markUsed` 去掉 `ACC_NOTICE_STATUS` / `ACC_NOTICE_TIME` 两列（该语句是显式列更新，去掉即不再触碰），并在语句前加 XML 注释写明原因。
+- `DailyTicketInstanceLifecycleService.markUsed` / `updateAndNotice` 各删两行 setter，两处 javadoc 补「NEVER 在这里写 `ACC_NOTICE_*`」。
+- **那两列的唯一 owner 是 `updateAccNoticeStatus`**（ACC 发售通知链路），**NEVER 让任何别的语句写它们**。
+- 新增 `DailyTicketInstanceAccNoticeIsolationTest` 钉住边界：用 `ArgumentCaptor` 捕获传给 `instanceMapper.markUsed` 的实体，断言 `FAIL` / `PENDING` 原值不被改写、`accNoticeTime` 仍为 `null`。
+
+判据可推广：**状态机 A 的推进语句 NEVER 顺手写状态机 B 的列** —— 尤其当 B 的补偿扫表是白名单式的，误写终态等于让那行永久失联，而且**不报错、不告警、编译与单测都发现不了**（本条与 §5.1 那三条「只在 Oracle 运行时炸」的陷阱同族，但比它们更隐蔽：这条连运行时都不炸）。
+
+### 四、验证与部署
+
+- `xmllint --noout` 通过；`mvn -o clean package -pl daily-ticket-server` 全量单测 `Tests run: 88, Failures: 0`，含新增 2 条。
+- 镜像 `itp/daily-ticket-server:1.0.63`（digest `sha256:81034a78…`）已推并滚更，**回滚 tag 是 1.0.62**；探活 `172.20.211.23:30027` 首次 `503`、35 秒后 `http=200` 且 body 里 `db` / `readinessState` 全 UP。
+
+### 五、未闭合（需外部输入，**NEVER 自行猜**）
+
+- **被洗白那一行的数据修正未执行**（属破坏性写库，待用户确认）。原值 MUST 记全：`ACC_NOTICE_STATUS='SUCCESS'` / `ACC_NOTICE_TIMES=1` / `ACC_NOTICE_TIME='2026-09-22 15:22:54.471'`；修正动作是把状态改回 `FAIL` 让补偿重新捞到。
+- **补偿有次数上限、耗尽即 `GIVEUP`，而 `GIVEUP` 不在 `selectPendingAccNotice` 的白名单里 ⇒ 它是终态**（2026-09-22 15:40 实测：对照组那张一日票已从 `FAIL`/`TIMES=2` 走到 **`GIVEUP`/`TIMES=5`**）。连带两条：①**把被洗白那行改回 `FAIL` 只能换来 4 次重试**，ACC 侧 `1003` 不解决就会在几分钟内走到 `GIVEUP`、再次永久出队 —— 因此**修正数据 MUST 在 ACC 侧字段问题闭合之后做，NEVER 为了「让它重新入队」先改状态**；②要让它真正有机会成功，修正 SQL **MUST 同时把 `ACC_NOTICE_TIMES` 归零**，只改状态等于只剩 4 次预算。
+- **ACC 售票上报那个 `1003` 的真因仍未知**：两张票同一个报错，而我方 payload 11 个字段全有值（`{"operationDate":"20260922","transType":"01","cardType":"04","cardSubType":"48","cardNum":"0426090954000021","transDate":"20260922152156","payChannel":"03","transTimes":1,"transAmount":1,"discountAmount":0,"period":1}`）⇒ 是 ACC 侧某必填字段没送，**MUST 向 ACC 侧索取字段名，NEVER 靠试**。修完本条后补偿会重新开始重试，**在 ACC 侧字段问题解决前这批上报仍然会持续失败** —— 本 ADR 只恢复「失败可见、可重试」，不修上报本身。
+- 「新联名三日」实际是 1 天 1 次（`PERIOD=1`、初始 `ACTUAL_TIMES=1`、`COUNTING_END - COUNTING_START ≈ 24h`），而 `TICKET_SPEC` 类表在 `AFCITPDB` 零命中，**票种配置来源待用户告知**。
+
+## ADR-D156：取消订单覆盖日票/旅游票未激活全状态 + 已取消单收到支付成功自动退款（2026-09-22，daily-ticket-server 1.0.65，**已编译已单测、未部署**）
+
+### 一、缺陷事实（读码确认，两处都属「从未可用」级别）
+
+`IF8A-65 cancelOrder` 是本模块取消订单的**唯一入口**（`POST /ci/daily-ticket/ticket/cancelOrder` → `DailyTicketOrderCreationService.cancelOrder`），改前有两个硬缺陷：
+
+- **只认 `CREATED`、且只查子单表 `DAILY_TICKET_ORDER`** ⇒ 旅游票主单（`0T...`，在 `TRAVEL_TICKET_ORDER`）一律返「订单不存在」，**旅游票的取消从上线起从未可用过**；已付未激活的日票（`PAID`）也一律拒。
+- 状态推进用 `updateOrderStatus`（无 CAS）⇒ 与支付回调并发时后写覆盖前写。
+- **`receivePayResult` 的 `markPaySuccess` CAS 白名单只有 `PAYING + PAYING`** ⇒ 订单已置 `CANCELED` 后再收到支付成功通知必落 0 行，只留一行「重复处理被忽略」日志：**钱收了、票已取消、没有任何链路会退款**。本模块零 `@Scheduled`、无扫表兜底，这笔钱永久滞留。
+
+### 二、裁决口径（业主 2026-09-22 确认，**NEVER 自行放宽或收紧**）
+
+- **可取消的前置状态白名单是四态**：`CREATED` / `PAYING` / `PAY_FAILED` / `PAID`（业主原话「非激活订单都可以取消」）。**已激活判据是 `DAILY_TICKET_INSTANCE` 有对应行**（`instanceMapper.selectByOrderNo != null`），**NEVER 改用 `ORDER_STATUS` 猜**；旅游票 MUST 逐子单查，任一子单已激活即整单拒。
+- **`PAYING` 单 MUST 先 `queryAndRefreshPayResult` 回查再重读订单**，否则会把一笔其实已支付成功的单按未支付路径取消掉、错过退款。
+- **`PAID` 未激活单取消 = 置 `CANCELED` + 立即发起自动退款**（同一次请求内同步做，不排队）。
+- **已取消单收到支付成功通知 ⇒ 推进为 `REFUNDING → REFUNDED`**，与手工退款同一套状态流；`CANCELED` 只作中间痕迹，**订单状态 NEVER 因为收到支付成功就回写 `PAID`**（未激活 + `PAID` 等于可激活，等于把已取消的票放回去）。
+- **旅游票取消 = 主单 + 全部子单**，且顺序固定：**主单 CAS 成功后才 `cancelSubOrdersByParent`**，NEVER 先动子单（主单 CAS 失败时子单已被改，无人回滚）。
+- **退款只能按主单整单退**（`REFUND_SCOPE=TRAVEL_FULL`）—— 旅游票是主单聚合支付一次（`merchantOrderNo` 送 `0T...`，见 ADR-D155 所在的 §2.2.2 旅游票对账口径）。
+- **三条来源特判**：海之巴士来源（`isSeaBusOrderSource`）拒绝 ITP 侧取消；`cxuh`（`ORDER_SOURCE=6`）落库留痕但**不出网**（对方同步）；免费票不退款。
+- **自动退款出网失败一律留 `REFUNDING` + 记 ERROR 日志并返 true**（退款单已落库即算受理），靠运营页 `/page/daily-ticket/refund/retry` + `/pay-query` 人工收口。**业主明确不加定时任务，NEVER 自行加 `@Scheduled` 或扫表**（与 `feedback-callback-over-batch` 那条一致）。
+
+### 三、实现约束（**NEVER 回退**）
+
+- **三条 CAS 语句 NEVER 退回 `updateOrderStatus`**：`cancelIfPending`（白名单 `CREATED/PAYING/PAY_FAILED`）、`cancelIfPaid`（`ORDER_STATUS='PAID' and PAY_STATUS='PAID'`）、`cancelSubOrdersByParent`（四态白名单）。前置状态写在 WHERE 里是本模块唯一的并发保证。
+- **`updatePayResultIfCanceled` 刻意不改 `ORDER_STATUS`**：只落支付快照（`PAY_STATUS='PAID'` + `TRADE_NO` / `PAYMENT_ORDER_NO` / `PAY_AMOUNT` / `PAY_DATE`，优惠两列用 `NVL` 保留原值），WHERE 是 `ORDER_STATUS='CANCELED' and PAY_STATUS <> 'PAID'`。**CAS 落 0 行仍继续调退款服务**（重复回调的补偿出口：首次回调落库成功但退款炸了时，上游重推能自愈；退款服务自己按「已有退款单」幂等短路）。
+- **新服务 `CanceledOrderRefundService` NEVER 注入 `DailyTicketPaymentService`**：`DailyTicketRefundInitiationService` 已注入 payment，反向注入即构造器循环依赖。依赖方向固定 `order / payment → canceledRefund`。
+- **本模块零 `@Transactional`、新增代码同样 NEVER 加**（链路含支付网关出网，见 AGENTS.md §5.2 两条）。
+- **唯一索引兜底 MUST 沿 `getCause()` 链判定**（本模块已开 tracing，切面会换异常类型，见 ADR-D53）：两条链路共用的 `DailyTicketRefundMessages.isDuplicateRefund(Throwable)`，`DailyTicketRefundInitiationService` 的私有版本已改为委派它。
+- **IF8B-04 退款结果通知不需要另写**：复用 `DailyTicketRefundSettlementService`（`markRefundNotifyPending` + `deliverOne`）即自动带上。
+
+### 四、验证
+
+- `xmllint --noout` 两个 mapper XML 通过；`mise exec -- mvn -o clean test -pl daily-ticket-server -Djkube.skip=true` → **`Tests run: 99, Failures: 0, Errors: 0, Skipped: 0` / BUILD SUCCESS**（含新增 11 条：`DailyTicketCancelOrderTest` 7 + `DailyTicketPaymentCanceledCallbackTest` 4）。
+- **连带订正一条过期记载**：`docs/business/daily-ticket.md` 里「本模块 0 个单测」已作废 —— 实测模块已有约 88 条既有单测，**判断有无覆盖 MUST 跑 `mvn test` 看数字，NEVER 引用那句话**。
+- 镜像 `itp/daily-ticket-server:1.0.65` 已构建推送并滚更，**回滚 tag 是 1.0.64**（2026-09-22 滚更前现查集群实际跑的即 1.0.64；**本行数字 NEVER 直接引用，MUST 现查 Deployment**）。
+
+### 五、已知缺口（按裁决未修）
+
+- **`DailyTicketRefundSettlementService.markRefundFailed:112` 会把订单置回 `PAID`**。取消单走运营页 `/pay-query` 回查判为失败时，会从 `REFUNDING` 回到 `PAID` ⇒ 未激活 + 已支付 = **可再激活**。该方法被全部手工退款链路共用，**自动退款自己的失败分支刻意不置 `PAID`**；要修得先把「取消单」与「普通退款单」的失败归宿分开，属独立改动。
+- 本次**无 DDL 变更**，故不需要 `*-migration.sql`。
+- 按 AGENTS.md §5.3：**IF8A-65 的 Apifox 配置需同步更新**（新增可取消状态范围与旅游票主单号入参说明）。
+
+## ADR-D157：票卡分析「20 分钟免费更新」加站点约束 —— 同站窗内才免费、跨站一律付费（含窗内），站码由 BOM 设备号前 4 位推导（2026-09-23，ticket-server 2.1.108 / face-pay-server 58101 / model 2.0.0，**已编译已单测、未部署**）
+
+### 一、需求与事实（读码 + 库验证确认）
+
+- **需求变更**：IF5A-01 票卡分析的「20 分钟免费更新（`005`）」原**不限制站点**；现改为**只有进出站站点相同的数据才能 20 分钟免费更新，不同站点的使用付费更新（`006`）**。用户 2026-09-23 明确裁决：**窗内不同站也收费（`006`）** —— 这**推翻了此前「窗内免费、NEVER 收费」对跨站场景的适用**（代码注释里那句裁决被标为 ADR-D136，但 decisions.md 的 D136 实为「支付中心 discountInfo 落 PAY_CALLBACK_LOG」，系**误引**；本 ADR 是站点感知规则的唯一权威来源）。
+- **BOM 站码来源（MCP 直连库验证确认）**：
+  - `F2F_DEVICE_STATUS` 中 BOM 设备 `CHANNEL='03'`、`DEVICE_ID` 形如 `06220801`/`11280801`/`03520801`，**`STATION_CODE` 全 null**（心跳传 null，恒为空，不可用）。
+  - **`deviceId` 前 4 位即所属站码**，与 TVM 同口径；已用 `STATION_INFO` 核验：`0622`=辛屯、`0352`=双山、`1128`=世博园、`0220`=国际邮轮港均为有效站码（`TvmResponses.java:151` 已有 `deviceId.substring(0,4)` 先例）。
+  - QRCODE_STATUS 开环样本 `GATE_IN_STATION="0622" = LAST_TXN_STATION="0622"`（开环态两站恒等），**证伪**「QR 内部互比进站/上次交易站」方案 —— 必须用设备号前缀。
+- **接口契约不变**：`bomStationCode` 是 `model/.../RequestCardDataAnalyseReqDTO` 的**内部 RPC 字段**（face-pay → ticket-server 透传用），**非对外契约**，BOM 报文与应答字段一个都没动（业主裁决：设备已实现、不可改契约）。
+
+### 二、裁决口径（业主 2026-09-23 确认，**NEVER 自行放宽或收紧**）
+
+- **站码比较**：进站站 `GATE_IN_STATION`（来自 QRCODE_STATUS 开环态）vs BOM 所属站 `bomStationCode`（deviceId 前 4 位）。**任一侧未知（含 `FFFF`/空）即判为未知**，NEVER 误判跨站而错收费。
+- **建议侧（IF5A-01 `resolveAdviceOpt`）**：
+  - **跨站（两站确认不同）**：不论是否仍在 20 分钟窗内，**一律 `[006, 020]`**（006 在前、020 兜底免费）。站码已确认不同 ⇒ 可报价，NEVER 落入 020-only（否则 BOM 取首个候选走免费）。
+  - **同站或站码未知**：沿用原口径（窗内 `005`、超窗走 `resolveOverWindowAdvice` 给 `[006,020]`）。
+- **执行侧（IF5A-03 `checkUpdate` / `FreeWindow`）**：
+  - `005` 免费更新：**跨站 MUST 拒绝**（`CROSS_STATION_NOT_FREE`，提示改走 006）；同站窗内放行。
+  - `006` 付费更新：**跨站无论窗内窗外一律放行收费**（用户「窗内不同站也收费」）；**同站且仍在窗内则拒绝**（应走 005）；**站码未知沿用旧兜底「证明不了超窗就 NEVER 收费」**（沿用误引 D136 的行为，不引入资损）。
+- **付费更新报价基线修正**：`CardDataAnalyseHandler.estimatePayAmount` 的票价基线由「进站站 → 上次交易站」改为**「进站站 → BOM 所属站」**（出站站即 BOM 站码）；`CardDataUpdateHandler.fillPaidUpdateAmount` 的告警比较同步改为 `GATE_IN_STATION` vs `updateStationCode`（= BOM 站码）。
+
+### 三、实现约束（**NEVER 回退**）
+
+- **过载兼容**：`resolveAdviceOpt` 新增 7 参重载（带 `bomStationCode`）、`checkUpdate`/`isUpdateAllowed` 新增 6 参重载（带 `gateInStation, updateStationCode`），**旧签名委托新签名**（`bomStationCode=null` → 回退旧口径，向后兼容既有调用）。
+- **`face-pay-server` `F2fHceService.deriveStationCode(String deviceId)`**：取前 4 位，不足 4 位返回空串（由下游按未知站处理），**NEVER** 对 deviceId 做其他解析。
+- **`compareStations` 私有方法**统一处理「任一未知 → UNKNOWN」，建议侧与执行侧共用，**NEVER** 在两处各写一遍比较逻辑。
+- **跨站拒绝映射**：`UpdateRejection.CROSS_STATION_NOT_FREE` → `CardDataUpdateHandler.fillUpdateRejection` 返 `CARD_STATUS_CHANGED` +「跨站更新不可走免费更新(005)，请重新执行票卡分析获取付费更新(006)」，**NEVER** 复用 `FREE_WINDOW_EXPIRED` 文案（语义不同，现场据此误操作）。
+- **站码未知分支 NEVER 改回「直接收费」**：旧兜底（证明不了超窗就拒收费）保留为未知态防线，只针对跨站已确认不同的场景放开收费。
+
+### 四、验证
+
+- `mise exec -- mvn -o -pl ticket-server -am test -Dtest=SupplementStateRulesTest,SupplementStateRulesMatrixTest,CardDataAnalyseHandlerTest -Dsurefire.failIfNoSpecifiedTests=false` → **`Tests run: 85, Failures: 0, Errors: 0, Skipped: 0` / BUILD SUCCESS**（含新增 `stationAwareAdviceOpt`、`stationAwareEnforcement` 两项；`CardDataAnalyseHandlerTest` 的 mock 已对齐 7 参重载）。
+- 运行日志实测命中：`IF5A-01 开环状态跨站补站(0101≠0202), 建议付费更新` 与 `IF5A-03 跨站补站禁止走免费更新(005)，应走付费更新(006)`。
+- MCP 库验证（连接 `qditp-verify`）：`STATION_INFO` 站码 4 位、`F2F_DEVICE_STATUS` 的 BOM `STATION_CODE` 全 null、`deviceId` 前缀映射有效，结论同 §一。
+
+### 五、已知缺口（按裁决未修）
+
+- 代码注释里把「窗内免费、NEVER 收费」裁决标为 **ADR-D136 系误引**（decisions.md D136 是 discountInfo 主题）；本 ADR 取代它作为站点感知规则的权威来源，但既有误引注释未逐一改正（属另一独立清理项）。
+- **`acc-secure-server` / `collect-ticket-server` 的 `service.token.url` 仍为空**（既有缺口，与本次无关）。
+
+## ADR-D158：pay-sign 向支付中心发起退款收到 `code=600` 的真实语义是「结果未知」—— **NEVER** 当失败落 `RETRY` / `REFUND_AMOUNT=0`（2026-09-22，pay-sign-server 2.1.7，**已推送并滚更**）
+
+### 一、事实（库内 + 支付中心应答双证据）
+
+- 场景：pay-sign 向支付中心发退款请求，应答 `{"code":600,"msg":"操作失败"}`。**这个码的真实语义是「结果未知」，不代表没有退成功。** 旧实现把 600 直接当失败、落 `RETRY` / `REFUND_AMOUNT=0` 是错的。
+- 证据链（订单 **`GT20260920112101771000006`**，9 分，`PAYMENT_VENDOR=03`）：
+  - 2026-09-21 我方发起退款，支付中心返 `{"code":600,"msg":"操作失败"}` ⇒ 我方落 `RETRY` / `REFUND_AMOUNT=0`。
+  - 2026-09-22 对同一笔再发一次，支付中心改口回「该订单已全部退款」⇒ 说明 09-21 那次 600 的请求**在支付中心侧其实已经把钱退了**。
+- 修正后的口径（单测钉住）：
+  - **收到 600 且回查未得终态 ⇒ 落 `PROCESSING`（NEVER 落 `RETRY`）**；回查 `status=SUCCESS` ⇒ 明细 `SUCCESS` + 重算汇总；回查 `FAIL` ⇒ 终态 `FAIL` 且不动汇总。
+  - **600 之后 MUST 调 `refundQuery`（配置键 `pay.sign.refund-query-url`）回查真实结果，NEVER 凭 600 直接定性。**
+- **`600` 不是钱包支付（`0B`）通道特有** —— 支付宝渠道（`PAYMENT_VENDOR=03`）同样出；同码此前还出现在钱包支付 90/90/90/180 四笔上。因此 **NEVER 按渠道归因 600**（会话里「倾向归因到 0B 通道」的判断已明确更正为不成立）。
+- 新增内部只读端点 **`GET /internal/payment/queryRefundResult`**，用于按退款流水号回查支付中心侧的真实退款状态。
+
+### 二、那批 `code=9999「该订单已全部退款」` 的单：**不可定性，两种终态都不能置**
+
+- 支付中心在拒绝退款时返回 `code=9999「该订单已全部退款」`，**无法被它自己的退款查询证实** —— 这两种应答互相矛盾。因此这批单 **两种终态都不能置**：写 `SUCCESS` 等于把没退的钱记成已退；写 `FAIL` 又可能在对方真退过时造成我方漏账。
+- 证据：`GET /internal/payment/queryRefundResult` 对三笔订单的**全部 9 个退款流水号（每笔试过 3 次）一律返 `code=9999 未找到数据`**；配套库内事实 —— `PAY_TXN_DETAIL` 三笔都是 `PAY_STATUS=SUCCESS` / `REFUND_AMOUNT=0`（200 分未退）、`PAY_REFUND_DETAIL` 9 行**全 `RETRY`、无一条 `SUCCESS`**、`PAY_CALLBACK_LOG` 对这三笔**零条退款回调**。三笔支付中心订单号：`288334506182475776`（`GT20260918143404374000104`）、`288334610959335424`（`GT20260918143545484000104`）、`288340501654831104`（`GT20260918160920819075710`）。第 4 笔 `0E202609181121120008` 在 `PAY_REFUND_DETAIL` 里**根本没有行**（只有 `DAILY_TICKET_REFUND` 那条 `OPERATOR='manual-ops'` 的人工记录），refundQuery 无从查起。
+- 这 9 行 `RETRY` **保持原样即可**：没有任何扫表任务会捞 `RETRY`，等于已冻结、无副作用。**这是刻意不置终态、不是遗漏 —— NEVER 当成待办去「补终态」。**
+
+### 三、版本与回滚
+
+- 单测 **302 全绿**；已上线 **`pay-sign-server:2.1.7`**，回滚 tag **2.1.6**。
+
+## ADR-D159：`sys_job` 全量重编号（业务任务落 200~350、步长 5、跳过 1/2/3）—— 引用编号 MUST 现查、回滚 SQL MUST 改现号、内存 JobStore 下改号 MUST 重启 web-admin（2026-09-21 重编号 / 2026-09-23 现查确认）
+
+### 一、编号规则与现状
+
+- **业务任务现落在 `200~350` 区间、步长 5**；`1` / `2` / `3` 是 RuoYi 示例任务（`STATUS=1`），**跳过不动**。
+- 2026-09-23 MCP 现查 `QDITP.SYS_JOB` 共 **32 行** = 3 条示例 + **29 条业务任务**；**全部 `MISFIRE_POLICY=3` / `CONCURRENT=1`**。
+
+现号全量清单（`JOB_ID` / `JOB_NAME` / `CRON`；**旧号只列已明确者，`—` 表示旧号未在权威映射表内、引用前 MUST 现查**）：
+
+| 旧号 | 现号 | 任务名 | cron |
+|---|---|---|---|
+| 130 | **200** | 单程票未取票批量退款 | `0 0 20 * * ?` |
+| 131 | **205** | TVM充值未到账批量退款 | `0 0 20 * * ?` |
+| 132 | **210** | 非现金收款批量退款 | `0 0 9,15,21 * * ?` |
+| 4 | **215** | 解约申请确认 | `0 0 4 * * ?` |
+| 133 | **220** | 行程扣费重试 | `0 0 1 * * ?` |
+| 109 | **225** | 给ACC上传扣费交易 | `0 0 2 * * ?` |
+| —（新增） | **230** | 自动解除黑名单 | `0 0 10,16 * * ?` |
+| 107 | **240** | 卡池数据导入 | `0 0/5 * * * ?` |
+| 135（见 ADR-D151） | **245** | 多日票批量退款(当日) | `0 0 20 * * ?` |
+| 136（见 ADR-D151） | **250** | 多日票批量退款(月度) | `0 0 20 L * ?` |
+| 134 | **255** | 支付宝出行重试扣费 | `0 0 1 * * ?` |
+| 5 | **260** | 支付宝出行销卡 | `0 30 2 * * ?` |
+| 6 | **270** | 签约结果通知补发 | `0 0/10 * * * ?` |
+| 7 | **275** | 解约结果通知补发 | `0 5/10 * * * ?` |
+| 105 | **280** | 黑名单可解除性盘点 | `0 0 10,16 * * ?` |
+| 106 | **285** | ACC参数文件同步 | `0 2/10 * * * ?` |
+| 108 | **290** | 签约展示账号同步补偿 | `0 0/5 * * * ?` |
+| 120 | **295** | 离线码金额补偿 | `0 0/1 * * * ?` |
+| 121 | **300** | 公交换乘推送 | `0 0/1 * * * ?` |
+| 122 | **305** | 退款回查补偿 | `0 0/10 * * * ?` |
+| 123 | **310** | 退款汇总跨表对账 | `0 15 * * * ?` |
+| 124 | **315** | 支付宝支付通道同步补偿 | `0 0/5 * * * ?` |
+| 125 | **320** | 黑名单加黑通知补偿 | `0 0/5 * * * ?` |
+| 126 | **325** | 黑名单解除通知补偿 | `0 2/5 * * * ?` |
+| 127 | **330** | 日票支付结果通知补偿 | `0 0/5 * * * ?` |
+| — | **335** | 日票ACC发售通知补偿 | `0 0/5 * * * ?` |
+| 137 | **340** | 支付宝退款回查补偿 | `0 0/10 * * * ?` |
+| 135→265→235（见 ADR-D154） | **345** | 补站扣费周期查询更新 | `0 0/1 * * * ?` |
+| —（新增） | **350** | 日票过期状态收敛（**`STATUS=1` 暂停**） | `0 5 * * * ?` |
+
+### 二、改名与拆分（与旧名不同的三条半）
+
+- `109`「日终对账」→ **`225`「给ACC上传扣费交易」**（**改名**，触发目标与 cron 未变）。
+- `133`「行程扣费重试(非支付宝)」→ **`220`「行程扣费重试」**（**去掉「(非支付宝)」后缀**）；支付宝那条拆出为 **`255`「支付宝出行重试扣费」** —— **拆分口径见 ADR-D149，NEVER 合并这两条任务**。
+- `107`「卡池维护」→ **`240`「卡池数据导入」**（改名；`docs/testing/itp-acc/02` 里按 `job_name='卡池维护'` 的判据 SQL 已随之改）。
+- `134` → **`255`** 同时改名「支付宝出行重试扣费」（见上一条）。
+
+### 三、编号沿革 MUST 记录、NEVER 回退
+
+- **`补站扣费周期查询更新` 的编号先后为 `135 → 265 → 235 → 345`（现行 `345`）**，沿革与口径见 ADR-D154。
+- `245` / `250`（多日票批量退款 当日 / 月度）的改号沿革见 ADR-D151（原 135 / 136，2026-09-21 改号）。
+- **引用任何 `sys_job` 编号 MUST 现查库**（会话内同一编号多次变动，凭记忆必错）；文档里的逐字引文按「**保留原号 + 加注现号**」处理，**NEVER 改既有引文**。
+
+### 四、两条硬规则
+
+- **回滚 SQL 一律改成现号**：写成 `DELETE FROM sys_job WHERE job_id = <现号>`。保留旧号的回滚脚本**照着执行删不掉任何行**（本批已把 `decisions.md` 396 / 3034 两处回滚 SQL 改为现号）。
+- **内存 JobStore 下，`sys_job` 改号后 MUST 重启 web-admin**（滚更即可，或在界面逐条保存一次），新编号才在页面与调度器生效 —— 运行中直接 INSERT / UPDATE 表不生效。判据：任务在不在跑 **MUST 查 `SYS_JOB_LOG`，`QRTZ_*` 恒 0 行**。
+
+### 五、连带订正（旧号残留会让新建库回到旧号）
+
+- `web-quartz-refund-compensate-job-migration.sql` 等 6 个脚本、外加 `web-quartz-supplement-debit-job-migration.sql` 已全部改为现号；**未改会让新建库回到旧号**。
+- `web-quartz-daily-ticket-pay-notify-job-migration.sql` 首行原写 `DELETE ... job_id = 125` 是**历史笔误**（原本会误删「黑名单加黑通知补偿」那条），已修（该脚本 127 → 330）。
+- `docs/architecture/web-server.md` §七（含附 B/C/D）、`docs/ops/定时任务清单.csv`、`docs/ops/定时任务需求对照.md` 等处的旧号已按现号改齐；**若其它处所仍在写旧号，MUST 同步**。
+
+## ADR-D160：对账是**四个源**（face-pay 是 2026-09-16 新增第 4 源，与 collect-pay 新旧表并列、**NEVER 二选一**）—— 旧表已自行冻结，唯一残留风险是手工补跑 2026-09-16 及之前账期（2026-09-22 核实）
+
+### 一、四个源与「逐列相加、无跨源去重」
+
+`recon-server/src/main/resources/application.properties:57~70`：
+
+| 源 | 地址 | file-types |
+|---|---|---|
+| `sources[0]` gate-txn-pay | `:30019` | `EXP,PAY,BUS,DETAIL` |
+| `sources[1]` collect-pay | `:30024` | `PAY,BUS` |
+| `sources[2]` daily-ticket | `:30027` | `PAY,DETAIL` |
+| `sources[3]` face-pay | `http://face-pay-server-svc.itp.svc:30025` | `PAY,BUS` |
+
+- `sources[3]` 是 **2026-09-16 新增的第 4 个源**，配置文件注释原文：「face-pay（2026-09-16 新增第 4 个源），与 collect-pay 是新旧表并列，NEVER 二选一」。**NEVER 再把「三个源」当现状。**
+- 四个源各自导出自己的数据（谁拥有表谁导出，见「撤回 10」）；recon-server 只做编排 + 聚合 + 投递。
+- **聚合是「逐列相加」，聚合键不含来源标识**：`joinKey` 只取前 5 段（日期 / 线路 / 车站 / 设备 / 支付方式），同键度量直接 `metrics[i] += ...`（`ReconFileGenerationService.java:178`）；**recon-server 侧没有任何跨源去重 / 互斥 / 优先级逻辑**（全模块 grep `face|f2f` 在 Java 侧零命中）。⇒ **跨源重叠一旦发生就是直接双算，不会自动去重。**
+- 运维常量：`RECON_FTP_ENABLED=true`（recon-server Deployment env）**保持不改为 `false`**；每天 02:30 的 `sys_job` 225 照常生成并投递四类文件到 `/itp/recon`。recon-server 部署地址 `recon-server-bjzdy-svc.itp.svc:30034`。
+
+### 二、新旧表重叠的实测（按订单号 join `AFCITPDB`）
+
+- `TBL_TVM_ORDER_PAY` 成功单 **24 笔全部**也在 `F2F_ORDER`。
+- `TBL_BOM_ORDER_PAY` 成功单 **151 笔全部**在 `F2F_ORDER`（其中 150 笔在 F2F 侧也是 `PAY_STATUS='SUCCESS'`）。
+- `TBL_TVM_APP_ORDER`（42 笔成功）与 `TBL_TVM_ORDER_TOPUP`（5 笔成功）**0 笔**在 F2F 里。
+
+### 三、旧表已自行冻结 ⇒ 日常调度不会双算
+
+旧表最后写入时刻（**全部早于 2026-09-16 17:31 那次切流**，之后零新增）：
+
+- `TBL_BOM_ORDER_PAY`：`CREATE_TIME` 最大 `2026-09-16 17:30:29` / `UPDATE_TIME` 最大 `17:30:33`
+- `TBL_TVM_ORDER_PAY`：两者都是 `2026-09-16 16:55:20`
+- `TBL_TVM_APP_ORDER`：`CREATE_TIME` 最大 `2026-09-11 20:45:39` / `UPDATE_TIME` 最大 `2026-09-14 19:45:12`
+- `TBL_TVM_ORDER_TOPUP`：最后一天 `2026-09-11`
+
+且 `POST /internal/recon/daily/run` **不接任何参数**（`ReconInternalController.java:84~85`），账期由服务端按 **T-2** 硬算；**从 2026-09-18 的账期起，collect-pay 的四个查询窗口再也覆盖不到旧表任何一行**。
+
+### 四、唯一残留风险：手工补跑历史账期
+
+`POST /internal/recon/batches` 可指定 `businessDate` 建批次。**一旦指定 2026-09-16 或更早，双算立刻发生**：TVM 购票 24 笔 + BOM 收款 151 笔各算两次。**TOPUP 类不双算**（不重叠，见 §二）。⇒ **在未排除新旧表重叠前，MUST NOT 手工补跑 2026-09-16 及之前账期**（该判据由上述实测事实直接推出）。
+
+### 五、face-pay 侧已知缺口（连带记，**NEVER 当成待办去「补齐」而不先确认口径**）
+
+- **线路段（PAY 第 2 段）face-pay 恒空**，靠 `recon.line-backfill` 按车站码反查补齐。
+- **APP 购票段（`BIZ_TYPE='01' AND CHANNEL='01'`）face-pay 实测 0 笔** —— 与 ADR-D116「旧数据已全量迁入」**对 APP 域不成立**（`TBL_TVM_APP_ORDER` 42 笔一笔都没迁到 `F2F_*`）。
+- `sources[3].file-types` 若误加 `EXP` 或 `DETAIL`，face-pay 的 switch 走 default 只 warn（`:120~122`），既不 `declareComplete` 也不 `markFailed` ⇒ **那行永远停在 `EXPORTING`、批次永不 `SUCCESS`** —— **NEVER 给 face-pay 的 file-types 加 `EXP` / `DETAIL`**。
+- 漏账探针 `countUncoveredPaidOrders` **只打日志、不开工单**（实测 `BIZ_TYPE='03'` 有 10 笔成功支付、金额 3000 分）。
+- 段 15/16 与 19/20（BOM 行政处理 / BOM 处理）**只有 face-pay 在出**（`TRANS_TYPE='42'` 走段 15/16、其余走 19/20），旧结构（collect-pay）因 `TRANS_TYPE` 三处矛盾恒 0。
+
+## ADR-D161：旅游票主单 `TRAVEL_TICKET_ORDER` 就是聚合支付的实际承载 —— 子单**永不支付**；对账 MUST 按主单统计、张数用 `SUM(NVL(TICKET_COUNT,0))`（2026-09-22，daily-ticket-server 1.0.59）
+
+### 一、推翻旧口径（旧表述方向正好说反了）
+
+- 实测 `TRAVEL_TICKET_ORDER` 共 **73 行**：`PAY_STATUS`/`ORDER_STATUS` 分布 `INIT/CREATED` 52、**`PAID` 18**、**`FAIL` 2**、`PAYING` 1；21 行非 `INIT` **全是 `ORDER_SOURCE='1'`（APP）**、`PAY_CHANNEL_CODE` 为 `03`/`04`、`TRADE_NO` 与 `PAYMENT_ORDER_NO` 是支付中心雪花号、**零条 `SEA_BUS-*` / `FREE-*` 前缀**，最近一次 `2026-09-20 17:59`。
+- 子单 `PARENT_ORDER_NO IS NOT NULL` 共 **114 行，114/114 全是 `INIT`/`CREATED`、零条 `PAID`**。
+- 代码链路：分支开关 `orderType=2`（`DailyTicketOrderSupport.java:29` `ORDER_TYPE_TRAVEL_TICKET = "2"`）；`DailyTicketPaymentService.java:172` 的 `buildPayRequest(order.getOrderNo(), ...)` 送出去的 `merchantOrderNo` 就是**主单号 `0T...`**，因此回调 `receivePayResult:262` 在 `DAILY_TICKET_ORDER` 必然查不到、必然走 else 的旅游票分支。
+- ⇒ **旅游票主单聚合支付一次、子单永不支付**。旧表述「主单是聚合壳、`PAY_STATUS` 永不回写、聚合支付未实现」**方向正好说反了，NEVER 回退**。
+
+### 二、对账口径 MUST 按主单（改回按子单恒返 0 行）
+
+- `selectTravelTicketPaySummary` **MUST** 按主单 `TRAVEL_TICKET_ORDER` 统计（`PAY_STATUS='PAID'` + `PAY_DATE` 窗口）；**张数用 `SUM(NVL(T.TICKET_COUNT, 0))`、不是 `COUNT(*)`**（一张主单含 N 张票）；金额用 `SUM(NVL(T.PAY_AMOUNT, T.TOTAL_AMOUNT))`（实付优先、回落订单总额）。
+- 证据：`ReconExportMapper.xml:29~42`；改前按子单的 SQL 条件为 `O.PARENT_ORDER_NO IS NOT NULL AND O.PAY_STATUS='PAID' AND O.PAY_DATE >= #{windowStart} AND O.PAY_DATE < #{windowEnd}`，而子单 114/114 恒 `INIT`、`PAY_DATE` 全空 ⇒ **恒返 0 行**。改后在真库同口径实跑，从 0 行变成 4 行：`20260918 03 张数4 金额4` / `20260918 04 张数4 金额4` / `20260920 03 张数6 金额6` / `20260920 04 张数14 金额14`。4 个列名（`TXN_DATE`/`PAY_CHANNEL_CODE`/`TICKET_COUNT`/`TICKET_AMOUNT`）未变，消费侧 `ReconExportService.exportPaySummary:171~186` 一行没动。
+- 已在 `ReconExportMapper.java` 方法 javadoc 写明「NEVER 改回按子单」+「张数 NEVER 用 `COUNT(*)`」。已随 **`daily-ticket-server:1.0.59`** 上线（回滚 tag 1.0.57）。
+
+### 三、连带后果
+
+- 本次修正使甲方每天的 `ITP.PAY` 里**首次出现旅游票数据**（此前从上线起一直是 0）。**下游若有按「旅游票段恒为 0」做过的假设或对账脚本，MUST 一并知会甲方 / 业务。**
+- 该 SQL 的真实线上效果**要到 `sys_job` 225 跑完后看 `ITP.PAY` 里有没有旅游票行**才能确认（会话未现场触发 `/internal/recon/export` —— 会凭空建批次、污染 `RECON_*`、干扰凌晨 2 点跑批）。
+
+### 四、两条同步撤回的旧判断（**NEVER 回退**）
+
+- 「旅游票子单不回写、实例没建 = 缺陷」**已撤回**：`DAILY_TICKET_INSTANCE` 全模块只有一个插入点、支付回调从不建实例（见 ADR-D165），子单保持 `CREATED`/`INIT` 是设计。
+- 「`markTravelPayFailed` 缺 `updatePayTerminalIfPaying` 的三件事 = 真缺陷」**已撤回**：逐条比对后确认它是 **no-op** —— 失败路径不带 `paymentOrderNo`，回填 SQL 带幂等谓词 `PAYMENT_ORDER_NO is null or PAYMENT_ORDER_NO = #{paymentOrderNo}`，写同值零效果；日票侧同分支对 `markPayFailed` 同样 no-op。
+
+## ADR-D162：「单边」在本项目是**四处不同口径 + 一个同名无关业务动作** —— `ORDER_EXP_TYPE` 三套编码、对账单边组共用 `Recon_Exp_Filter`、`ITP.PAY` 0 基下标 17/18、BOM 单边处理与单边账无关（2026-09-22）
+
+### 一、`ORDER_EXP_TYPE` 存在三套互不相同的编码（**映射待甲方澄清、NEVER 自行折算**）
+
+- **我方库注释（`0~5`）**：`0` 正常 / `1` 单边账(入) / `2` 单边账(出) / `3` 单边入站人工 / `4` 单边出站人工 / `5` 双段计费超时。证据：`scripts/20260818_if8a_schema_migration.sql:21` / `gate-txn-pay-schema.sql:173`。
+- **第二套（实体口径）**：`0` 正常 / `1` 单边 / `2` 补站，记在 `docs/business/gate-txn-pay.md`「矛盾与待裁决」#2~#6。**改代码前 MUST 先看该文档的 #2~#6，NEVER 指望从实体类源码注释读取值域。**
+- **第三套（甲方对账文档，`ITP.EXP` 第 11 段，从 1 开始、没有 `0`）**：`1 单边账(入站)` / `2 单边账(出站)` / `3 单边入站(人工处理单)` / `4 单边出站(人工处理单)` / `5 乘客自主补进站` / `6 乘客自主补出站` / `7 TVM补币找零不足` / `8 TVM卡票` / `9 TVM/BOM发售无效票` / `10 闸门无用` / `11 无票出闸` / `12 人为单程票无效` / `13 非人为单程票无效` / `14 储值票无效` / `15 其他情况`（源：《ACC与ITP之间的文件.docx》）。其中 **`5` 与我方 `5`「双段计费超时」撞号**；原文 `5`/`6`/`15` 编号粘连 / 缺空格，**解析时 NEVER 按「数字+空格+名称」硬切**。
+- ⇒ **甲方 `1~15` 与我方 `0~5` 的映射 MUST 待甲方澄清，NEVER 自行折算。**
+
+### 二、对账 EXP / PAY 单边组**共用同一 SQL 片段**
+
+`gate-txn-pay-server/.../mapper/ReconExportMapper.xml:22~26`，片段名 `Recon_Exp_Filter`：
+
+```sql
+T.ORDER_EXP_TYPE IS NOT NULL AND T.ORDER_EXP_TYPE <> ' ' AND T.ORDER_EXP_TYPE <> '0'
+```
+
+- 排除 `'0'` **必须**（不排会把全部正常单捞进单边账文件、与过闸组重复计账；2026-09-11 实测 EXP 3 行全是误报后修的）。
+- 空格判定 **MUST 留**（历史数据用单个空格表示无异常）。
+- **NEVER 加 `DEBIT_STATUS`**。
+- **EXP 与 PAY 单边组口径 NEVER 分叉**。
+
+### 三、`ITP.PAY` 的 0 基下标 17/18 与 `ITP.EXP` 的文件定位
+
+- `ITP.PAY` 里单边交易占 **0 基下标 17/18（第 18/19 段）**，**只有 gate-txn-pay 填**，collect-pay / face-pay / daily-ticket 一律写字面 `0`。
+- `ITP.EXP` **整个文件即单边 / 异常明细**（13 段），**NEVER 当成全量过闸明细**。
+- `ITP.EXP` 文件名格式 `ITP.EXP.yyyyMMdd`；账期口径原文：「T日2点统计T-2日2点 - T-1日2点的单边明细…Eg：8月20号2点生成单边交易文件，文件名为「ITP.EXP.20190818」」；原文**未给任何段的长度 / 类型定义**，「文件存放路径：」原文为空。
+
+### 四、「BOM 单边处理」与「单边账」**无关**
+
+- 它指补进站 / 补出站的设备操作链路：`IF5A-01 requestCardDataAnalyse` + `IF5A-03 requestUpdateCardData` → `ticket-server/.../CardDataHandler`，参数 `updateType` + `adviceOpt`，`deviceId = operaterId`。
+- 优先级 `adviceOpt > excessFareType > trxType` 由 `GateCodeStatusResolver.RESOLVE_LEVELS` 列表顺序**单点承载，NEVER 调整**。
+- 与 APP 自助补站（`IF8A-04 requestExcessFare` → `ExcessFareHandler`，参数 `upgradeAreaType`）是**两条独立链路，NEVER 混用**；测试用例在 `docs/testing/bom-oneside/`。
+
+### 五、附：超时罚金批量退款的圈单口径（**只圈候选，NEVER 直接判定能否退款**）
+
+`GateTxnPayMapper.xml:286~294`（片段 `Overtime_Refundable_Filter` / `selectOvertimeRefundablePage`）：
+
+```sql
+OVERTIME_AMOUNT IS NOT NULL AND OVERTIME_AMOUNT > 0
+AND ORDER_EXP_TYPE = '1'
+AND TICKET_STATUS = '07'
+AND DEBIT_STATUS IN ('SUCCESS','PROCESSING')
+AND TXN_DATE BETWEEN ...
+AND NVL(OUT_STATION, IN_STATION) = #{stationCode}   -- 可选
+```
+
+**仅圈候选，NEVER 直接判定能否退款**（真正校验在单笔 `requestRefund`）；`countOvertimeRefundable` 与分页查询共用该片段。
+
+## ADR-D163：daily-ticket 原本**没有「过期」状态机** —— `EXPIRED` 的唯一写入点是扣次到 0；新增 `sys_job 350`「日票过期状态收敛」（`STATUS=1` 暂停待业主裁决）（2026-09-22，daily-ticket-server 1.0.62 / web-admin 1.1.41）
+
+### 一、原貌（读码 + 库验证）
+
+- `daily-ticket-server` 里**没有「过期」这台状态机**。`EXPIRED` 只有一个写入点：计次票次数扣到 0 的那一刻（`DailyTicketInstanceLifecycleService.java:289`），语义是「票已用尽 / 终态」，**不是「有效期已到」**。
+- 「有效期到了」全靠查询时拿 `System.currentTimeMillis()` 和 `COUNTING_END` 动态比较（`:203` / `:242`），**从不回写状态、也没有任何扫表 / 定时任务**。该模块**零 `@Scheduled`**，已有的 6 个 `/internal/**` 端点全由 web-admin Quartz 触发。
+- `COUNTING_END` **在激活时不写**（`DailyTicketActivateReqDTO` 没有 `countingEnd` 字段），只在 IF8A-33 首次使用通知（`:171`）或出站 `markUsed`（`:291`）时才写；而 `PERIOD`（有效期天数）**落库后零读取**。库内实测：`ACTIVATED` 的 2 行 `COUNTING_END` **全为 NULL**；`PERIOD`（一日票=1、三日票=3）与 `ACTIVATE_TIME` **36/36 行全非空**。
+
+### 二、新任务 `sys_job` 350（**`STATUS=1` 暂停**）
+
+- cron **`0 5 * * * ?`**；端点 `POST /internal/daily-ticket/expire/converge`（`AtomicBoolean` 限流返 `9998`）。
+- 过期判据两支：`COUNTING_END` 非空按它比，为空则回退 `ACTIVATE_TIME + PERIOD 天`（开关 `daily-ticket.expire.fallback-by-period=false` 可关）。
+- 只扫 `ACTIVATED` / `USED` 两态，CAS 置 `EXPIRED`，**排除 `REFUND_LOCKED` / `REFUNDED`**。
+- 落地类：`DailyTicketInstanceMapper.selectExpiredCandidates`、`service/expire/DailyTicketExpireService`、`DailyTicketClient.convergeExpiredTickets` + `DailyTicketQuartzTask.convergeExpiredTickets()`。
+- 版本 **`daily-ticket-server:1.0.62` + `web-admin:1.1.41`**，回滚点 `1.0.61` / `1.1.40`；迁移脚本已在 `AFCITPDB` 执行并回查。
+
+### 三、行为变更（**待业主裁决的口径变更，不是既定规则**）
+
+- 该任务关掉了一个此前实际存在的口子：`DailyTicketRefundInitiationService.java:114` 对**非 `ACTIVATED`** 一律返「车票已使用，不允许退款」，因此**被收敛成 `EXPIRED` 的票从此不能再发起退款**。
+- 这是「过期票不该再退」的自然结果，但它属**行为变更**，会话中**未获裁决**，所以 `sys_job` 350 的 `status` **先置成 `1`（暂停）**，**须业主确认业务口径后才启用**。两条互斥路径：认可 ⇒ 置 0；若要求过期仍可退 ⇒ 须同批放开退款侧判断。
+
+### 四、运维与验证状态
+
+- **改完 MUST 重启 web-admin（或在后台对该任务改存一次）**：内存 JobStore 下直接改表不生效（与 ADR-D159 §四 同一条）。
+- 调用端点时库内恰好没有到期候选（响应 `候选=0`，日志里 SQL 与参数均正常下发）。
+
+## ADR-D164：`subOrders` 是**有意为之的对外契约** —— `String` 类型的 JSON 字符串、需双层解析，**NEVER 改序列化**（2026-09-22）
+
+- `subOrders` 是 **String 类型的 JSON 字符串**（一层转义），**不是 JSON 数组**，**是有意为之的对外契约**，三处口径完全一致 ⇒ **NEVER 改序列化**。消费方须先取 `subOrders` 这个字符串、再对它做一次 `JSON.parse`（**双层解析**），**不能当数组直接遍历**。
+- 证据：
+  - `TravelTicketOrderResult.java:12~15` DTO 字段声明为 `private String subOrders;`，注释写明「内含的日票子单号 JSON 字符串，形如 ["0E...","0E..."]」（`DailyTicketFreeOrderResult.java:12~15` 同形）。
+  - `DailyTicketOrderCreationService.java:88` `result.setSubOrders(JSON.toJSONString(subOrderNos))`。
+  - `docs/testing/青岛地铁ITP对外接口清单-20260922.md:1726` 标 `String`、「子单号 JSON 字符串数组」。
+  - 实测 APP 收到的报文为 `"subOrders":"[\"0E202609221758160007\",\"0E202609221758160008\"]"`，且 fep-app 是原样透传、第二笔 2 张票确实返 2 个子单号，数量对得上 `TICKET_COUNT=2`。
+- 会话中「把 `subOrders` 改成 JSON 数组」这条候选修法**已被明确撤回**，**NEVER 重新提出**。
+
+## ADR-D165：`DAILY_TICKET_INSTANCE` 全模块**只有一个插入点**（IF8A-67 激活接口）—— 支付回调从不建票实例，子单保持 `CREATED`/`INIT` 是设计（2026-09-22）
+
+- `DAILY_TICKET_INSTANCE` 在整个 `daily-ticket-server` 里**只有一个插入点** —— IF8A-67 激活接口（`/ci/daily-ticket/ticket/updateTicket`）里的 `instanceMapper.upsert`（`DailyTicketInstanceLifecycleService.java:128`）。
+- **支付成功回调（无论旅游票还是普通日票）都不创建票实例**；旅游票那一支连子单都不碰，只回写主单一行 + 发 APP 通知 + 落支付日志。
+- 证据：支付回调 DTO `DailyTicketPayCallbackReqDTO` 只有 10 个字段，**连 `cardNum` / `ticketCode` 都没有**，手上根本没有建票所需的数据。子单保持 `CREATED`/`INIT` 也是设计 —— `canActivate` 专门为旅游票写了「回看主单 `PAID`」的分支（`:133~153`）。
+- ⇒ 「子单恒 `INIT`、实例没建 = 缺陷」**已撤回**（与 ADR-D161 §四 同源），**NEVER 再据它去补「支付成功后建票」的逻辑**。
+
+## ADR-D166：ticket-server 新增错误码 `8911「上次行程为空」` —— 哨兵 `FFFF`，Javadoc 记 **NEVER 当异常码处理**（2026-09-22，ticket-server 2.1.107，**已推送并滚更**）
+
+- 新增错误码 **`8911「上次行程为空」`**（`TicketErrorCodeEnum.LAST_ITINERARY_EMPTY("8911","上次行程为空")`，Javadoc 记了成因与「**NEVER 当异常码处理**」）。
+- 触发：`TicketRideStatusServiceImpl.queryUserItinerary` 装配完行程后判 `isLastItineraryEmpty`，命中即返 `8911`，**`memberItinerary` 仍照常返回**（本次行程字段不丢）。
+- 哨兵取构造器注入的 `defaultLastTxnStation`（配置键 `ticket.default-last-txn-station`，默认 `FFFF`），**没有硬编码第二份 `FFFF`**。
+- **判定口径两种都算空**：① `lastStationCode` 压根没装配（该卡尚无任何过闸明细）；② 它等于建行哨兵 `FFFF`（新卡首次进站就是这一支）。
+- **根因**：「查询失败」是 `lastStationName` 返回哨兵值 `FFFF` —— 日票是**新卡首次使用**，`QRCODE_STATUS` 里 `LAST_TXN_STATION` 初值就是 `FFFF`，进站只更新 `GATE_IN_STATION`、不动 `LAST_TXN_STATION`；而 `MemberItineraryAssembler.java:51` 走 `stationNameResolver.resolveNameOrCode(...)`，**查不到站名就原样返回站码**，于是 `FFFF` 被当成站名吐给 APP（原接口返的是 `0000`，不是错误码）。
+- 版本：`ticket-server/pom.xml` `2.1.106` → **`2.1.107`**，**207 个单测全过**；镜像 `itp/ticket-server:2.1.107`（digest `sha256:dcd80c7d3a2cfa993f3ac5f4aa983a11c92c62195e16a4da9228e70513ffee76`）已推并滚更，**回滚 `2.1.106`**。
+- 上线验证（两个对照样本）：`cardNum=0426090944000008`（`LAST_TXN_STATION=FFFF`）→ `{"retCode":"8911","retMsg":"上次行程为空",...}`；`cardNum=0426090951000084`（已出站）→ `{"retCode":"0000","retMsg":"成功","lastStationName":"合川路","lastStationCode":"0245"}`。
+- **本次刻意未扩大范围**：改动只覆盖「上次行程」字段，哨兵卡的 `thisStationName` / `thisStationCode` 仍会吐 `FFFF`（APP 若拿它渲染仍会看到 `FFFF`）。
+
+## ADR-D167：行业数据推送链路的 outbox 重试方案于 **2026-09-14 被裁决搁置、代码一行未改**（2026-09-14 裁决 / 2026-09-22 回写）
+
+- ticket-server 的行业数据推送**失败处置口径是只打 WARN 日志、不落库、不重试**（推一次失败即永久丢失）；`IndustryDataNotifier` 推送未受理时日志明写「**APP 行业数据推送未受理，本次不补偿, ...**」（`:74~77`）。ticket-server **没有任何 `@Scheduled`**、没有通知记录表，**结构上不具备补偿能力**。
+- 已有设计：`docs/domain/outbox.md` §七① 已为这条链路写好 outbox 方案要点（`CountingTicketTimesNotifier` 类注释也指向它），但 **2026-09-14 被用户裁决搁置、代码一行未改**。⇒ **未经重新裁决，NEVER 自行给这条链路加重试 / 扫表 / `sys_job`。**
+- 该链路若将来要做补偿，两条已定的口径：**补偿推最新码、不推快照**（行业卡数据含 `transSeq` / `ticketStatus` 等实时值，推送时 MUST 重新调 `industry-data-server` 生码）；**短路条件** `TICKET_TRANS_SEQ < QRCODE_STATUS.TXN_SEQ` 时直接标终态跳过。
+- 项目内最完整的 outbox 落地样例是 pay-sign-server 的 `CHANNEL_SYNC_*`（有 outbox 列、有 `/internal/**` 补偿端点、有 `sys_job` 配置），要做时可直接当模板。
+
+## ADR-D168：本项目已有一套**自建 SDD**（`AGENTS.md` 当 constitution / `docs/business` 当 spec / `decisions.md` 当 ADR 链）—— 是有意选择、不再叠一层外部框架；真要引**只考虑 OpenSpec**，**NEVER 上 Spec Kit 或 BMAD**（2026-09-22）
+
+- 现状：`AGENTS.md` 当 constitution、`docs/business/*.md` 当领域 spec、`docs/domain/decisions.md` 当 ADR 链，外加 product-manager → architect → engineer → qa 的 subagent 编排；结构上等价于 BMAD 的角色分工 + Spec Kit 的 constitution，**只是人工维护**。
+- 裁决：**这套自建 SDD 是有意选择，不再叠一层外部框架**。本仓库是 20+ 微服务、SVN、强历史约束的大型 brownfield，外部框架的收益不抵迁移与双轨维护成本。
+- **真要引，只考虑 `OpenSpec`**（本批评估里唯一被认为值得试的）；**NEVER 上 GitHub Spec Kit 或 BMAD**。
+
+## ADR-D169：用户主动发起免密订单重试扣费（新增接口 `requestPayFailOrder`，2026-10-09，model 2.0.0 / rpc 2.0.1 / gate-txn-pay-server 2.0.103 / fep-app-server 2.0.103）
+
+- 需求：APP 用户对自己「扣费失败订单」主动触发一次免密重扣。接口 `http(s)://[ip]:[port]/[project]/app/payment/requestPayFailOrder`；请求 `thirdUserId`（第三方用户 ID）+ `cardNums`（逻辑卡号，逗号拼接）；应答 `retCode` / `retMsg`（表 162 / 表 163）。
+- 落点：本接口是**用户触发的第四类重试入口**，与定时补偿 `sys_job` 220 / 255 / 345（ADR-D149 / D154）**并行、不替代**；四者共用同一个出账口 `PaySignInitiator.retryAndConverge`（三态收敛 Ok→PROCESSING / BizRejected→FAIL / Unreachable→RETRY），**NEVER 在调用方另拼 `GatePayRequestDTO`**（「出账口 MUST 只有一处」那条的延伸）。
+- 链路：`fep-app-server` 双别名 `{"/ci/app/payment/requestPayFailOrder", "/app/payment/requestPayFailOrder"}`（透传 `@ModelAttribute ItpCommonFormRequest` → `parseBizData`）→ `GateTxnPayClient.requestPayFailOrder`（RPC，`/ci/gateTxnPay/app/requestPayFailOrder`）→ `gate-txn-pay-server` `GateTxnPayAppController.requestPayFailOrder` → `UserDebitRetryService.requestPayFailOrder`。
+- 三处用户裁决（AskUserQuestion，2026-10-09）：
+  1. **次数上限**：无视 `DEBIT_RETRY_TIMES` 上限**全量重扣**（含已判 `FAIL` 的死单）；定时任务的 `maxTimes` / `backoffMinutes` 防无限重扣机制**刻意不走**。
+  2. **重试范围**：覆盖 `DEBIT_STATUS IN ('INIT','RETRY','FAIL')`（落单未发起 + 待重试 + 已判失败）。
+  3. **返回语义**：**同步发起 + 受理返回**，`retMsg` 带「共 N 笔（跳过 X 笔已被处理）/ Y 笔异常」。
+- 两道安全闸 MUST 保留（**NEVER 因「用户主动」去掉**）：
+  - **CAS 抢占**：逐笔先 `prepareUserRetry` 把状态 CAS 归一成 `RETRY`（不清记账列、不卡次数上限），再调 `retryAndConverge`。因 `GateTxnPayWriter.updateOrderStatusFromPending` 的 CAS 白名单只认 `INIT`/`RETRY`，`FAIL` 单不归一则结果回写恒 0 行、下一轮又被扫到、形成静默重扣（与 `prepareBatchRetry` 的「第三件事 NEVER 删」同源）。
+  - **排除 `DISCOUNT_CALC_STATUS='OFFLINE_FARE_PENDING'`**：离线码金额待重算的行 NEVER 走重扣（防错额扣款）。
+- `UserDebitRetryService` **NEVER 带 `@Transactional`**：链路含 `PaySignInitiator.retryAndConverge` 的 RPC 出网，事务包住 RPC 会放大行锁持有时长（见 AGENTS.md §5.2「`@Transactional` 方法内 NEVER 发起任何 RPC」）；刻意逐笔 try-catch，单笔异常不阻断其余。
+- 扫描 SQL `selectUserRetryCandidates`：`WHERE DEBIT_STATUS IN (...) AND THIRD_USER_ID = ? [AND CARD_ID IN (?)]`，排除 `OFFLINE_FARE_PENDING`，**不卡 `DEBIT_RETRY_TIMES` 与 `DEBIT_NEXT_RETRY_TIME`**，限 `userBatchSize`（默认 200）；`cardNums` 在 Java 侧逗号拆分、去空格、去空、去重。
+- 关联文档：`docs/business/gate-txn-pay.md`（接口清单 + 核心类 + 关键业务规则）、AGENTS.md §2.2.1（扣费失败重试入口清单）。
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
