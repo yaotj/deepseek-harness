@@ -4,7 +4,9 @@ import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.dailyticket.client.DailyTicketAppNotifyClient;
 import com.chinasofti.huateng.dailyticket.client.DailyTicketAppNotifyResult;
 import com.chinasofti.huateng.dailyticket.config.DailyTicketAppNotifyProperties;
+import com.chinasofti.huateng.dailyticket.mapper.DailyTicketOrderMapper;
 import com.chinasofti.huateng.dailyticket.mapper.DailyTicketPayNotifyTaskMapper;
+import com.chinasofti.huateng.dailyticket.mapper.TravelTicketOrderMapper;
 import com.chinasofti.huateng.dailyticket.model.DailyTicketOrder;
 import com.chinasofti.huateng.dailyticket.model.DailyTicketPayNotifyTask;
 import com.chinasofti.huateng.dailyticket.model.TravelTicketOrder;
@@ -44,13 +46,19 @@ public class DailyTicketPayResultNotifyService {
     private final DailyTicketPayNotifyTaskMapper taskMapper;
     private final DailyTicketAppNotifyClient appNotifyClient;
     private final DailyTicketAppNotifyProperties properties;
+    private final DailyTicketOrderMapper dailyTicketOrderMapper;
+    private final TravelTicketOrderMapper travelOrderMapper;
 
     public DailyTicketPayResultNotifyService(DailyTicketPayNotifyTaskMapper taskMapper,
                                              DailyTicketAppNotifyClient appNotifyClient,
-                                             DailyTicketAppNotifyProperties properties) {
+                                             DailyTicketAppNotifyProperties properties,
+                                             DailyTicketOrderMapper dailyTicketOrderMapper,
+                                             TravelTicketOrderMapper travelOrderMapper) {
         this.taskMapper = taskMapper;
         this.appNotifyClient = appNotifyClient;
         this.properties = properties;
+        this.dailyTicketOrderMapper = dailyTicketOrderMapper;
+        this.travelOrderMapper = travelOrderMapper;
     }
 
     /** 日票支付回调首次进入终态后入队并快速投递。 */
@@ -59,7 +67,8 @@ public class DailyTicketPayResultNotifyService {
             return;
         }
         enqueueAndDeliver(buildTask(order.getOrderNo(), ORDER_TYPE_DAILY_TICKET,
-                order.getUserId(), order.getTradeNo(), payResult, order.getPayAmount(), order.getPayDate()));
+                order.getUserId(), order.getTradeNo(), payResult, order.getPayAmount(), order.getPayDate(),
+                order.getPayChannelCode()));
     }
 
     /** 旅游票主单支付回调首次进入终态后入队并快速投递。 */
@@ -68,7 +77,8 @@ public class DailyTicketPayResultNotifyService {
             return;
         }
         enqueueAndDeliver(buildTask(order.getOrderNo(), ORDER_TYPE_TRAVEL_TICKET,
-                order.getUserId(), order.getTradeNo(), payResult, order.getPayAmount(), order.getPayDate()));
+                order.getUserId(), order.getTradeNo(), payResult, order.getPayAmount(), order.getPayDate(),
+                order.getPayChannelCode()));
     }
 
     /**
@@ -113,7 +123,7 @@ public class DailyTicketPayResultNotifyService {
     }
 
     private DailyTicketPayNotifyTask buildTask(String orderNo, String orderType, String userId, String tradeNo,
-                                               String payResult, Integer payAmount, Date payDate) {
+                                               String payResult, Integer payAmount, Date payDate, String payChannel) {
         Date now = new Date();
         DailyTicketPayNotifyTask task = new DailyTicketPayNotifyTask();
         task.setId(UUID.randomUUID().toString().replace("-", ""));
@@ -121,7 +131,7 @@ public class DailyTicketPayResultNotifyService {
         task.setOrderType(orderType);
         task.setPayResult(normalizePayResult(payResult));
         task.setPayload(JSON.toJSONString(buildBizData(orderNo, orderType, userId, tradeNo,
-                task.getPayResult(), payAmount, payDate)));
+                task.getPayResult(), payAmount, payDate, payChannel)));
         task.setNotifyStatus(NOTIFY_PENDING);
         task.setNotifyTimes(0);
         task.setCreateTime(now);
@@ -130,12 +140,15 @@ public class DailyTicketPayResultNotifyService {
     }
 
     private Map<String, Object> buildBizData(String orderNo, String orderType, String userId, String tradeNo,
-                                             String payResult, Integer payAmount, Date payDate) {
+                                             String payResult, Integer payAmount, Date payDate, String payChannel) {
         Map<String, Object> bizData = new LinkedHashMap<>();
         putIfText(bizData, "userId", userId);
         bizData.put("orderNo", orderNo);
         putIfText(bizData, "tradeNo", tradeNo);
         bizData.put("payResult", payResult);
+        // 2026-09-29：APP 侧（bestonepay）确认缺少支付方式会返 7004 未受理，
+        // 支付渠道码取自订单 PAY_CHANNEL_CODE（requestPay 时落库）。
+        putIfText(bizData, "payChannel", payChannel);
         if (payAmount != null) {
             bizData.put("payAmount", String.valueOf(payAmount));
         }
@@ -143,7 +156,7 @@ public class DailyTicketPayResultNotifyService {
             bizData.put("payDate", new SimpleDateFormat(DATE_PATTERN).format(payDate));
         }
         // voucher 是 R6 §3.30 表63 的「取票凭证」，规格标注为预留字段。日票 / 旅游票没有取票动作、
-        // 无真实凭证可填，因此恒送空串——与 face-pay 的 F2fPayCenterFlow 保持一致，凑齐表63 的 8 个字段。
+        // 无真实凭证可填，因此恒送空串——与 face-pay 的 F2fPayCenterFlow 保持一致。
         // NEVER 据此认为它能解决 APP 返 7001：2026-09-20 / 1.0.36 实测，报文带上 voucher 后 APP 仍返 7001，
         // 「缺 voucher 导致 7001」那条因果已作废。
         bizData.put("voucher", "");
@@ -152,10 +165,11 @@ public class DailyTicketPayResultNotifyService {
     }
 
     private boolean deliverInternal(DailyTicketPayNotifyTask task) {
+        String payload = enrichPayChannelIfAbsent(task);
         log.info("日票支付结果通知准备投递 orderNo={}, url={}, bizData={}",
-                task.getOrderNo(), properties.getPayResultUrl(), task.getPayload());
+                task.getOrderNo(), properties.getPayResultUrl(), payload);
         DailyTicketAppNotifyResult result =
-                appNotifyClient.postMultipart(properties.getPayResultUrl(), task.getPayload());
+                appNotifyClient.postMultipart(properties.getPayResultUrl(), payload);
         int times = (task.getNotifyTimes() == null ? 0 : task.getNotifyTimes()) + 1;
         Date now = new Date();
         if (result.delivered()) {
@@ -168,6 +182,39 @@ public class DailyTicketPayResultNotifyService {
         log.warn("日票支付结果通知未被受理 orderNo={}, notifyTimes={}, notifyStatus={}, reason={}",
                 task.getOrderNo(), times, status, result.failureReason());
         return false;
+    }
+
+    /**
+     * 存量 PENDING 任务的 payload 是加 payChannel 之前落库的（2026-09-29 前的任务），
+     * 投递时懒补支付方式，避免存量任务永远 7004。解析/查询失败一律原样投递，不阻断补偿。
+     */
+    private String enrichPayChannelIfAbsent(DailyTicketPayNotifyTask task) {
+        String payload = task.getPayload();
+        try {
+            com.alibaba.fastjson2.JSONObject json = JSON.parseObject(payload);
+            if (json == null || StringUtils.hasText(json.getString("payChannel"))) {
+                return payload;
+            }
+            String payChannel = lookupPayChannel(task.getOrderNo(), task.getOrderType());
+            if (!StringUtils.hasText(payChannel)) {
+                return payload;
+            }
+            json.put("payChannel", payChannel);
+            return json.toJSONString();
+        } catch (RuntimeException e) {
+            log.warn("日票支付结果通知 payload 补 payChannel 失败，按原报文投递 orderNo={}", task.getOrderNo(), e);
+            return payload;
+        }
+    }
+
+    /** 按订单类型回查订单表取支付渠道码：1-日票子单，2-旅游票主单。 */
+    private String lookupPayChannel(String orderNo, String orderType) {
+        if (ORDER_TYPE_TRAVEL_TICKET.equals(orderType)) {
+            TravelTicketOrder order = travelOrderMapper.selectByOrderNo(orderNo);
+            return order == null ? null : order.getPayChannelCode();
+        }
+        DailyTicketOrder order = dailyTicketOrderMapper.selectByOrderNo(orderNo);
+        return order == null ? null : order.getPayChannelCode();
     }
 
     private String normalizePayResult(String payResult) {

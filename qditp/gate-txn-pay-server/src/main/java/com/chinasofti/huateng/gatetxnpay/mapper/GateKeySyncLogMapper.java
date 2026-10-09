@@ -7,26 +7,25 @@ import org.apache.ibatis.annotations.Param;
 import java.util.List;
 
 /**
- * AGM 密钥同步日志 Mapper。
+ * AGM 密钥同步日志 Mapper（每个设备一行，UPSERT 模式）。
  */
 @Mapper
 public interface GateKeySyncLogMapper {
 
     /**
-     * 插入密钥同步日志。
+     * 插入或更新密钥同步日志（每个设备一行）。
      */
-    int insert(GateKeySyncLog log);
+    int upsert(GateKeySyncLog log);
 
     /**
-     * 批量插入密钥同步日志。
+     * 按设备查询同步状态。
      */
-    int batchInsert(@Param("list") List<GateKeySyncLog> list);
+    GateKeySyncLog selectByDeviceId(@Param("deviceId") String deviceId);
 
     /**
-     * 按设备查询同步历史。
+     * 查询所有设备同步状态。
      */
-    List<GateKeySyncLog> selectByDeviceId(@Param("deviceId") String deviceId,
-                                           @Param("limit") int limit);
+    List<GateKeySyncLog> selectAll();
 
     /**
      * 统计最近 N 小时的同步情况。
