@@ -2,11 +2,11 @@ package com.chinasofti.huateng.key.service.impl;
 
 import com.chinasofti.huateng.key.entity.MetroCaKeystore;
 import com.chinasofti.huateng.key.entity.ComDeviceSynKey;
-import com.chinasofti.huateng.key.entity.F2fKeySyncLog;
+
 import com.chinasofti.huateng.key.entity.MetroAgmKeyPool;
 import com.chinasofti.huateng.key.entity.MetroMemberStaticKey;
 import com.chinasofti.huateng.key.mapper.ComDeviceSynKeyMapper;
-import com.chinasofti.huateng.key.mapper.F2fKeySyncLogMapper;
+
 import com.chinasofti.huateng.key.mapper.MetroAgmKeyPoolMapper;
 import com.chinasofti.huateng.key.mapper.MetroAgmKeyVersionMapper;
 import com.chinasofti.huateng.key.mapper.MetroCaKeystoreMapper;
@@ -62,7 +62,6 @@ public class KeySyncServiceImpl implements KeySyncService {
     private final MetroAgmKeyVersionMapper metroAgmKeyVersionMapper;
     private final MetroAgmKeyPoolMapper metroAgmKeyPoolMapper;
     private final ComDeviceSynKeyMapper comDeviceSynKeyMapper;
-    private final F2fKeySyncLogMapper f2fKeySyncLogMapper;
     private final SecurityClient securityClient;
 
     @Value("${key.sync.days:7}")
@@ -82,14 +81,12 @@ public class KeySyncServiceImpl implements KeySyncService {
                               MetroAgmKeyVersionMapper metroAgmKeyVersionMapper,
                               MetroAgmKeyPoolMapper metroAgmKeyPoolMapper,
                               ComDeviceSynKeyMapper comDeviceSynKeyMapper,
-                              F2fKeySyncLogMapper f2fKeySyncLogMapper,
                               SecurityClient securityClient) {
         this.metroCaKeystoreMapper = metroCaKeystoreMapper;
         this.metroMemberStaticKeyMapper = metroMemberStaticKeyMapper;
         this.metroAgmKeyVersionMapper = metroAgmKeyVersionMapper;
         this.metroAgmKeyPoolMapper = metroAgmKeyPoolMapper;
         this.comDeviceSynKeyMapper = comDeviceSynKeyMapper;
-        this.f2fKeySyncLogMapper = f2fKeySyncLogMapper;
         this.securityClient = securityClient;
     }
 
@@ -171,7 +168,7 @@ public class KeySyncServiceImpl implements KeySyncService {
         if (validationMessage != null) {
             result.setRetCode(KeyErrorCodeEnum.INVALID_PARAM.getCode());
             result.setRetMsg(validationMessage);
-            saveKeySyncLog(request, result, startTime, false, validationMessage);
+            saveDeviceKeyVersion(request, result, startTime, false, validationMessage);
             return result;
         }
 
@@ -184,32 +181,31 @@ public class KeySyncServiceImpl implements KeySyncService {
             result.setKeyCurVerList(responseList);
             result.setRetCode(KeyErrorCodeEnum.SUCCESS.getCode());
             result.setRetMsg(KeyErrorCodeEnum.SUCCESS.getMsg());
-            saveKeySyncLog(request, result, startTime, true, null);
+            saveDeviceKeyVersion(request, result, startTime, true, null);
             return result;
         } catch (Exception e) {
             log.error("AGM key synchronization failed, deviceId={}", request.getDeviceId(), e);
             result.setRetCode(KeyErrorCodeEnum.SYSTEM_ERROR.getCode());
             result.setRetMsg(KeyErrorCodeEnum.SYSTEM_ERROR.getMsg());
-            saveKeySyncLog(request, result, startTime, false, e.getMessage());
+            saveDeviceKeyVersion(request, result, startTime, false, e.getMessage());
             return result;
         }
     }
 
-    private void saveKeySyncLog(RequestAgmSynKeyListReqDTO request, RequestAgmSynKeyListResult result,
-                                 long startTime, boolean success, String errorMsg) {
+    private void saveDeviceKeyVersion(RequestAgmSynKeyListReqDTO request, RequestAgmSynKeyListResult result,
+                                       long startTime, boolean success, String errorMsg) {
         try {
-            F2fKeySyncLog log = new F2fKeySyncLog();
-            log.setDeviceId(request.getDeviceId());
-            log.setSyncDate(java.time.LocalDateTime.now());
-            log.setReqBizData(request.getRequestBizData());
-            log.setReqKeyCount(request.getKeyCurVerList() == null ? 0 : request.getKeyCurVerList().size());
-            log.setRespRetCode(result.getRetCode());
-            log.setRespRetMsg(result.getRetMsg());
-            log.setRespKeyVersionCount(result.getKeyCurVerList() == null ? 0 : result.getKeyCurVerList().size());
-            log.setProcessDurationMs(System.currentTimeMillis() - startTime);
-            log.setStatus(success ? "SUCCESS" : "FAIL");
-            log.setErrorMsg(errorMsg);
-            f2fKeySyncLogMapper.upsert(log);
+            ComDeviceSynKey deviceSynKey = new ComDeviceSynKey();
+            deviceSynKey.setDeviceId(request.getDeviceId().trim());
+            deviceSynKey.setStationCode(request.getDeviceId().trim().substring(0, 4));
+            deviceSynKey.setAgmKeyCurverList(request.getRequestBizData());
+            deviceSynKey.setRespRetCode(result.getRetCode());
+            deviceSynKey.setRespRetMsg(result.getRetMsg());
+            deviceSynKey.setRespKeyVersionCount(result.getKeyCurVerList() == null ? 0 : result.getKeyCurVerList().size());
+            deviceSynKey.setProcessDurationMs(System.currentTimeMillis() - startTime);
+            deviceSynKey.setStatus(success ? "SUCCESS" : "FAIL");
+            deviceSynKey.setErrorMsg(errorMsg);
+            comDeviceSynKeyMapper.merge(deviceSynKey);
         } catch (Exception e) {
             log.warn("Failed to save key sync log, deviceId={}", request.getDeviceId(), e);
         }

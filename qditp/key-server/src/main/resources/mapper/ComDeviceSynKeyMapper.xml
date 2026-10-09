@@ -5,16 +5,32 @@
         merge into COM_DEVICE_SYN_KEY target
         using (select #{deviceId} as DEVICE_ID,
                       #{agmKeyCurverList,jdbcType=CLOB} as AGM_KEY_CURVER_LIST,
-                      #{stationCode} as STATION_CODE
+                      #{stationCode} as STATION_CODE,
+                      #{respRetCode,jdbcType=VARCHAR} as RESP_RET_CODE,
+                      #{respRetMsg,jdbcType=VARCHAR} as RESP_RET_MSG,
+                      #{respKeyVersionCount,jdbcType=INTEGER} as RESP_KEY_VERSION_COUNT,
+                      #{processDurationMs,jdbcType=BIGINT} as PROCESS_DURATION_MS,
+                      #{status,jdbcType=VARCHAR} as STATUS,
+                      #{errorMsg,jdbcType=VARCHAR} as ERROR_MSG
                from dual) source
         on (target.DEVICE_ID = source.DEVICE_ID)
         when matched then update set
             target.AGM_KEY_CURVER_LIST = source.AGM_KEY_CURVER_LIST,
             target.REQ_SYN_KEY_DATE = systimestamp,
-            target.STATION_CODE = source.STATION_CODE
+            target.STATION_CODE = source.STATION_CODE,
+            target.RESP_RET_CODE = source.RESP_RET_CODE,
+            target.RESP_RET_MSG = source.RESP_RET_MSG,
+            target.RESP_KEY_VERSION_COUNT = source.RESP_KEY_VERSION_COUNT,
+            target.PROCESS_DURATION_MS = source.PROCESS_DURATION_MS,
+            target.STATUS = source.STATUS,
+            target.ERROR_MSG = source.ERROR_MSG
         when not matched then insert
-            (DEVICE_ID, AGM_KEY_CURVER_LIST, REQ_SYN_KEY_DATE, STATION_CODE, REG_DATE)
+            (DEVICE_ID, AGM_KEY_CURVER_LIST, REQ_SYN_KEY_DATE, STATION_CODE,
+             RESP_RET_CODE, RESP_RET_MSG, RESP_KEY_VERSION_COUNT,
+             PROCESS_DURATION_MS, STATUS, ERROR_MSG, REG_DATE)
         values
-            (source.DEVICE_ID, source.AGM_KEY_CURVER_LIST, systimestamp, source.STATION_CODE, systimestamp)
+            (source.DEVICE_ID, source.AGM_KEY_CURVER_LIST, systimestamp, source.STATION_CODE,
+             source.RESP_RET_CODE, source.RESP_RET_MSG, source.RESP_KEY_VERSION_COUNT,
+             source.PROCESS_DURATION_MS, source.STATUS, source.ERROR_MSG, systimestamp)
     </insert>
 </mapper>
