@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: key-server
+  name: key-server
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: key-server
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: key-server
+    spec:
+      containers:
+      - env:
+        - name: appserver.3des.key
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: appserver.3des.key
+        - name: spring.application.name
+          value: key
+        - name: other.web.enableLogRequestInFilter
+          value: 'true'
+        - name: other.web.enableBodyCacheFilter
+          value: 'true'
+        - name: other.sql.double-datasource
+          value: 'false'
+        - name: key.sync.kek-idx
+          value: '0012'
+        - name: mybatis.mapper-locations
+          value: classpath*:mapper/*.xml
+        - name: other.web.unSafeUrlChars
+          value: 'null'
+        - name: other.sql.page.type
+          value: oracle
+        - name: knife4j.production
+          value: 'false'
+        - name: other.sql.password
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: other.sql.password
+        - name: other.sql.database
+          value: AFCITPDB
+        - name: server.port
+          value: '8080'
+        - name: other.sql.type
+          value: oracle
+        - name: service.security.openLogger
+          value: 'true'
+        - name: other.sql.username
+          value: qditp
+        - name: other.web.enableLogTakeTimesInInterceptor
+          value: 'true'
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        - name: other.sql.host
+          value: 172.20.222.3:1521
+        - name: service.security.url
+          value: http://172.20.211.200:30012
+        - name: acc.3des.key
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: acc.3des.key
+        - name: key.sync.days
+          value: '7'
+        - name: SERVICE_NAME
+          value: key-server
+        - name: NAMESPACE
+          value: itp
+        image: os-harbor-svc.default.svc.cloudos:443/itp/key-server:2.0.12
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: key-server
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-95id8lv40
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-95id8lv40

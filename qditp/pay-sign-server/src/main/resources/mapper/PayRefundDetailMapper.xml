@@ -94,12 +94,30 @@
         RET_CODE, RET_MSG, PAY_CENTER_CODE, PAY_CENTER_MSG, CREATE_TIME, UPDATE_TIME
     </sql>
 
+    <select id="countInFlightByOrderNo" resultType="java.lang.Integer">
+        select count(*)
+        from PAY_REFUND_DETAIL
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          and REFUND_STATUS in ('INIT', 'PROCESSING', 'RETRY')
+    </select>
+
+    <select id="selectByRefundOrderNo" resultMap="BaseResultMap">
+        select <include refid="Scan_Column_List"/>
+        from (
+            select <include refid="Scan_Column_List"/>
+            from PAY_REFUND_DETAIL
+            where REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
+            order by CREATE_TIME desc
+        )
+        where ROWNUM &lt;= 1
+    </select>
+
     <select id="selectCompensableRefundQuery" resultMap="BaseResultMap">
         select <include refid="Scan_Column_List"/>
         from (
             select <include refid="Scan_Column_List"/>
             from PAY_REFUND_DETAIL
-            where REFUND_STATUS = 'PROCESSING'
+            where REFUND_STATUS in ('PROCESSING', 'RETRY')
               and TXN_DATE &gt;= #{txnDateFrom,jdbcType=VARCHAR}
               and NVL(LAST_REQUEST_TIME, CREATE_TIME)
                   &lt; SYSTIMESTAMP - NUMTODSINTERVAL(#{staleMinutes,jdbcType=INTEGER}, 'MINUTE')
@@ -123,7 +141,7 @@
             UPDATE_TIME = SYSTIMESTAMP
         WHERE REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
           AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
-          AND REFUND_STATUS = 'PROCESSING'
+          AND REFUND_STATUS IN ('PROCESSING', 'RETRY')
     </update>
 
     <update id="delayNextRefundQuery">
@@ -132,7 +150,19 @@
             UPDATE_TIME = SYSTIMESTAMP
         WHERE REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
           AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
-          AND REFUND_STATUS = 'PROCESSING'
+          AND REFUND_STATUS IN ('PROCESSING', 'RETRY')
+    </update>
+
+    <update id="exhaustFromQuery">
+        UPDATE PAY_REFUND_DETAIL
+        SET REFUND_STATUS = 'CLOSED',
+            PAY_CENTER_CODE = #{payCenterCode,jdbcType=VARCHAR},
+            PAY_CENTER_MSG = #{payCenterMsg,jdbcType=VARCHAR},
+            NEXT_REQUEST_TIME = NULL,
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
+          AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
+          AND REFUND_STATUS IN ('PROCESSING', 'RETRY')
     </update>
 
     <select id="selectDriftedRefundSummary" resultType="java.lang.String">

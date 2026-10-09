@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: fep-dev-server
+  name: fep-dev-server
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fep-dev-server
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: fep-dev-server
+    spec:
+      containers:
+      - env:
+        - name: spring.application.name
+          value: fep-dev
+        - name: other.web.enableLogRequestInFilter
+          value: 'true'
+        - name: other.web.enableBodyCacheFilter
+          value: 'true'
+        - name: service.gateTxnPay.url
+          value: http://172.20.211.23:30019
+        - name: alipay.notify.pay-callback-url
+          value: https://dtcustomer.bestonepay.com/ngopenplatform/api/payment/requestPay
+        - name: service.key.url
+          value: http://172.20.211.200:30015
+        - name: pay.center.callback-url
+          value: http://58.56.166.170:48000/fep-alipay/notify/payment/payNotify
+        - name: service.para.url
+          value: http://172.20.211.23:30026
+        - name: other.web.unSafeUrlChars
+          value: 'null'
+        - name: service.gateTxnPay.openLogger
+          value: 'true'
+        - name: knife4j.production
+          value: 'false'
+        - name: service.account.openLogger
+          value: 'true'
+        - name: service.para.openLogger
+          value: 'true'
+        - name: service.ticket.url
+          value: http://172.20.211.23:30014
+        - name: server.port
+          value: '8080'
+        - name: service.security.openLogger
+          value: 'true'
+        - name: service.ticket.openLogger
+          value: 'true'
+        - name: other.web.enableLogTakeTimesInInterceptor
+          value: 'true'
+        - name: service.account.url
+          value: http://172.20.211.23:30013
+        - name: service.alipay-pay-sign.url
+          value: http://172.20.211.23:30022
+        - name: service.security.url
+          value: http://172.20.211.23:30012
+        - name: SERVICE_NAME
+          value: fep-dev-server
+        - name: NAMESPACE
+          value: itp
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-dev-server:2.0.66
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: fep-dev-server
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-bk1ygqwa0
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-bk1ygqwa0

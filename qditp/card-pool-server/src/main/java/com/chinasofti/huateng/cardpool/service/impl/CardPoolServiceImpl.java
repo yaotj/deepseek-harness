@@ -273,7 +273,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         return card != null && "ASSIGNED".equals(card.getStatus()) && businessId.equals(card.getBusinessId());
     }
 
-    /** {@inheritDoc} NEVER 在失败分支调用：预占为并发请求共享，超时回收交 sys_job 107（ADR-D52）。 */
+    /** {@inheritDoc} NEVER 在失败分支调用：预占为并发请求共享，超时回收交 sys_job 240（2026-09-21 由 107 改号为 240，ADR-D52）。 */
     @Override
     public boolean release(String reservationId, String businessId) {
         if (!StringUtils.hasText(reservationId) || !StringUtils.hasText(businessId)) {

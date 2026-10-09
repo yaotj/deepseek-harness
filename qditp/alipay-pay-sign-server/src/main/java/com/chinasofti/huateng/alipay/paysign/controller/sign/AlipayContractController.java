@@ -39,7 +39,8 @@ import org.springframework.web.bind.annotation.RestController;
  * <ul>
  *   <li>旧的 {@code AlipayContractService} + {@code impl/contract/AlipayContractServiceImpl} **原样留着**，
  *       现在它的 {@code addContract} / {@code terminateContract} / {@code executeTermination} 已成零调用方，
- *       只剩 {@code selectSignInfo} 还被 {@code controller/AlipayPaySignController} 用着 ——
+ *       只剩 {@code selectSignInfo} 还被 {@code controller/legacy/AlipayPaySignController} 用着
+ *       （该类 2026-09-20 迁入 {@code controller.legacy}，URL 逐字未变）——
  *       **回滚某一条只需把对应方法改回注旧接口**，这就是保留它的目的；
  *   <li>新旧两侧**互不调用**：NEVER 让旧实现转发到新服务、也 NEVER 反过来，否则「哪一侧在跑」无法判断。
  * </ul>

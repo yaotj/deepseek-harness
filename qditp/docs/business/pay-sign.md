@@ -29,8 +29,8 @@
 
 本模块 `/internal/**` 端点现共 **10 个**（termination 6 + paySign 2 + payment 2），
 **全部无鉴权**（见 §待修问题 P0），**全部由 web-admin Quartz 触发、本模块无 `@Scheduled`**。
-对应 `sys_job`：4 解约申请确认、6 签约结果通知补发、7 解约结果通知补发、
-**122 退款回查补偿（`0 0/10 * * * ?`）**、**123 退款汇总跨表对账（`0 15 * * * ?`）**。
+对应 `sys_job`：4 解约申请确认（**这个编号未随 2026-09-21 那轮「200 以下全量重编号」一并核对过，引用前 MUST 现查 `sys_job` / `SYS_JOB_LOG`**）、270 签约结果通知补发、275 解约结果通知补发、
+**305 退款回查补偿（`0 0/10 * * * ?`）**、**310 退款汇总跨表对账（`0 15 * * * ?`）**（2026-09-21 由 6 / 7 / 122 / 123 依次改号）。
 排查「pay-sign 的补偿有没有跑」**MUST 查 `SYS_JOB_LOG`**，NEVER 在本模块里找 `@Scheduled`。
 
 代码中真实出现的编号：IF8A-05/06/16/19/21/22/36、IF8B-02。
@@ -127,6 +127,19 @@ Controller → PaySignServiceImpl（202 行，纯路由，零业务逻辑）
 ⚠️ **日级调度与 `SCANNING_TIMEOUT_MINUTES=1440` 的相互作用（已知风险，暂不处理）**：`TerminationProcessor` 的超时阈值注释写明是按「5 分钟一轮、重试约 288 次」标定的。当前只有每天 4 点一轮，一条 SCANNING 记录每 24 小时只被查一次，**下一轮时滞留已达阈值，一次 `queryResult` 查询失败就会 `expireScanning` 置 FAILED 并通知 APP 解约失败**，而此时本地签约记录与 account 支付通道都还没清。响应里 `expired > 0` 即属此类，`TerminationQuartzTask` 会打 `log.error`。
 
 **处置结论：暂不处理（用户 2026-09-07 决定）**，带风险上线，靠 `expired > 0` 的 `log.error` 人工兜底。后续要修时**优先另建每 5 分钟只跑 SCANNING 收口的任务**，**NEVER 只是调大 `SCANNING_TIMEOUT_MINUTES`**——调大阈值只把误判时间往后推，SCANNING 记录依然一天只有一次收口机会。运维若收到「APP 提示解约失败、但支付中心协议已是 `UNSIGNED`」的投诉，先查这一条。
+
+#### 测试环境要立刻解约，只能把 `referenceTime` 往后推一天（2026-09-22 实测）
+
+cutoff 是 `referenceTime - delayDays`，而 `delayDays` 默认 4，**因此「当天申请、当天想看到解约结果」在默认配置下必然扫不到**。2026-09-22 实测形态（`requestSignSeq=0052296701524035`、`thirdUserId=00522967`）：16:12:23 `requestTermination` 落申请行，随后手工触发三次 `processTermination`，`referenceTime` 依次为 `20260914112600` / `20260922112600` / `20260923112600`，**前两次都 `scanned=0`**（申请时间 16:12 晚于当天 cutoff 11:26），第三次 `cutoff=2026-09-23T11:26` 才 `scanned=1, terminated=1`。**联调时 MUST 显式传一个比申请时间更晚的 `referenceTime`（或同时传 `delayDays=0`），NEVER 反复空跑同一个当天时间然后判定「解约链路不工作」。** 生产不受影响 —— 那里本来就是按业务规定等满 4 天。
+
+#### 解约成功后 `APP_PAY_SIGN_INFO` 整行消失，签约历史不在这张表上（2026-09-22 实测）
+
+成功分支第一阶段是 **DELETE**（`TerminationResultCallbackHandler.java:157` 的 `deleteByUserAndVendor`，按 `THIRD_USER_ID + PAYMENT_VENDOR` 删，**不是**同 mapper 里那个 `markUnsigned`——后者只服务 IF8A-36 与 `unbindAgreement` 那条链路）。因此**解约收口后按 `thirdUserId` 查 `APP_PAY_SIGN_INFO` 是 0 行，这是设计行为、NEVER 当成丢数据去排查**。连带两条：
+
+- **查解约历史 MUST 去 `APP_TERMINATION_REQUEST`（申请 + 三组状态 + 时间戳）与 `APP_PAY_SIGN_REQUEST`（审计流水）**，那张签约表上什么都不剩。2026-09-22 那笔的证据形态：`TERMINATION_STATUS=SUCCESS`、`CHANNEL_SYNC_STATUS=SUCCESS` + `CHANNEL_SYNC_RESULT=账户支付通道已清理`、`NOTIFY_STATUS=SUCCESS`，`REQUEST_TIME` 16:12:23 → `SCAN_TIME` 16:22:54.28 → `COMPLETE_TIME` 16:22:54.96 → `CHANNEL_SYNC_TIME` 16:22:55.05。
+- **解约后重签走的是全新 INSERT，`reactivateForResign` 在这条路径上永远命中 0 行**（它的 WHERE 要求 `SIGN_STATUS IN ('UNSIGNED','FAILED')`，而行已经不存在了）。**NEVER 据「重签后 `SIGN_TIME` 是新值」推断复位逻辑生效过。**
+
+同批实测的账户域联动（与上面 §成功分支的操作顺序一致，可作为回归基线）：`APP_USER_PAY_CHANNEL` 该用户该渠道的行被删除（日志 `ChannelSyncDeliverer:51` 打 `rows=1`），`USER_ITP_REG_INFO` 的 `CHANNEL` / `THIRD_PAY_ID` / `REQ_CONTRACT_NO` 三列被清空（默认支付方式随之失效），**但卡本身保留、`UN_REG_TMS` 仍为 NULL —— 解约不销户**。
 
 
 网关文档 §2.3 请求解约的 bizData **只有 `requestSignSeq`，没有 `notifyUrl`**；§五 说回调发往「商户配置的 `notifyUrl`」。支付（§1.1）、签约（§2.2）、退款（§3.1）都能逐次传回调地址，**解约是唯一一个只能靠支付中心侧商户配置的接口**——我方既看不到也改不了。
@@ -284,12 +297,12 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
 
 `requestRefund` **刻意不带 `@Transactional`**（批次 5B，ADR-D90 的兄弟批次）：它要出网调支付中心，
 事务包住网络调用即复现 2026-08-26 那类事故。移出事务后「明细置终态」与「重算原单已退总额」
-不再原子，配套补偿就是 `compensateRefundQuery`（`sys_job` **122**，`0 0/10 * * * ?`）。
+不再原子，配套补偿就是 `compensateRefundQuery`（`sys_job` **305**，`0 0/10 * * * ?`）。
 **删掉那个补偿端点等于只做了 ADR-D8 的前一半，NEVER 删。**
 
 ### 退款汇总跨表对账：A 类可自愈、B 类不可自愈（NEVER 混为一谈）
 
-`POST /internal/payment/compensateRefundSummary`（`sys_job` **123**，`0 15 * * * ?`）**不出网**，
+`POST /internal/payment/compensateRefundSummary`（`sys_job` **310**，`0 15 * * * ?`）**不出网**，
 只重算 `PAY_TXN_DETAIL` 与 `PAY_REFUND_DETAIL` 之间的汇总，分两类：
 
 | 类别 | 判据 | 处置 |

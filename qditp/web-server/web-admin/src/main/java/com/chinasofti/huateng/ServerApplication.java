@@ -1,6 +1,7 @@
 package com.chinasofti.huateng;
 
 import com.chinasofti.huateng.rpc.EnableRpcF2f;
+import com.chinasofti.huateng.rpc.EnableRpcFacePay;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
@@ -23,6 +24,7 @@ import com.chinasofti.huateng.rpc.EnableRpcRecon;
 @EnableRpcBlacklist
 @EnableRpcCardPool
 @EnableRpcF2f
+@EnableRpcFacePay
 @EnableRpcGateTxnPay
 @EnableRpcPara
 @EnableRpcPaySign

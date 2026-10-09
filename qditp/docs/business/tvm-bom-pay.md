@@ -1,6 +1,6 @@
 ---
 业务域: TVM / BOM 非现金购票、充值、退款
-模块: face-pay-server（本域现行主实现；**流量是否已切 MUST 现查 VS，2026-09-16 实测仍指向 collect-pay，见下文 ⚠️ 现状块与 ADR-D112**）; collect-pay-server（仍在收真实设备流量 + 内部端点 + 旧单退款）
+模块: face-pay-server（本域现行主实现；**2026-09-16 17:31 起已承接设备域 + APP 域全部入向流量，ADR-D117；流量归属 MUST 每次现查 VS + `fep-app` env**）; collect-pay-server（**已退出入向流量**；仍承担内部端点 + 旧表通知 + 旧单退款）
 ---
 
 # 提示词：TVM / BOM 非现金支付
@@ -10,7 +10,7 @@ TVM 单程票下单出票、TVM 充值、BOM 非现金收款、当面付订单�
 
 ## 模块定位
 
-**设备（TVM / BOM）与 APP 的当面付流量已于 2026-09-15 全部切到 `face-pay-server`**（端口 58101，Service `face-pay-server-svc:30025`，`F2F_*` 表）。`collect-pay-server`（端口 58101，`spring.application.name=itpagm`，`application.yml` 而非 properties）**进程保留未停**，只承担三类残留职责：
+**设备（TVM / BOM）与 APP 的当面付流量已于 2026-09-16 17:31 全部切到 `face-pay-server`**（端口 58101，Service `face-pay-server-svc:30025`，`F2F_*` 表；ADR-D117，旧库 TVM/BOM 的订单/支付/退款/票/上报已全量迁进 `F2F_*`，ADR-D116）。`collect-pay-server`（端口 58101，`spring.application.name=itpagm`，`application.yml` 而非 properties）**进程保留未停**，只承担三类残留职责：
 
 - `/internal/recon/export` —— 日终对账源（`recon-server` 的 `sources[1]` 直连 `collect-pay-c23ku-svc:30024`）
 - `/internal/app-order/{register,close-unpaid,pay-result}` —— gate-txn-pay 补款链路（`SupplementCollectPayGateway`）
@@ -18,7 +18,7 @@ TVM 单程票下单出票、TVM 充值、BOM 非现金收款、当面付订单�
 
 ⚠️ **安全**：`collect-pay-server/src/main/resources/application.yml` 中明文内置支付中心商户私钥。触碰该文件 **MUST** 提示人工复核安全合规，**NEVER** 把私钥值输出到对话或日志。
 
-## ⚠️ 切换已完成（2026-09-15），切换机制不是改 Service selector
+## ⚠️ 切换已完成（2026-09-16 17:31，ADR-D117），切换机制不是改 Service selector
 
 `face-pay-server` 是本域的**新模块重写版**：全新表（`F2F_*`）、全新服务，**不动旧表**。设备侧 URL、响应键名、四套 retCode 族与中文提示语**全部保持不变**。
 
@@ -29,7 +29,7 @@ TVM 单程票下单出票、TVM 充值、BOM 非现金收款、当面付订单�
 
 **这个切法让三条内部链路零影响**：recon / gate-txn-pay / web-admin 都是**直连** `collect-pay-c23ku-svc:30024`、不经网关，所以对账、补款、旧表通知任务都还在旧服务上跑，不需要先把 `/internal/**` 迁到新模块。
 
-> ⚠️ **现状（2026-09-16 实测，ADR-D112）：设备域流量当时并不在 face-pay 上。** `kubectl get vs fep-app-vr -n itp` 读回显示 `/itptvm/` 与 `/itpbom/` 两条 route 的 `destination.host` **都还是 `collect-pay-c23ku-svc:30024`**，旧应用日志里能看到当天 15:40 的真实设备交易（下单 → 支付 → `payNotice` → 出票上报，全部经 envoy 进来）。也就是说 **AGENTS.md §2.2 与本文件开头「已于 2026-09-15 切至 face-pay（ADR-D85）」与集群实况不符** —— 可能是切过又切回、也可能那次只改了 APP 域。**判断「现在流量在哪个应用」MUST 每次现查 VS，NEVER 引用任何文档里的那句话**（含本段）。附带的好处：旧应用日志中的 `BodyCacheFilter` 行**请求参数与响应体成对**，是做新旧契约基线核对最好用的回放语料，取法与对比矩阵见 ADR-D112。
+> ⚠️ **现状（2026-09-16 17:31 起，ADR-D117）：设备域与 APP 域入向流量都已在 face-pay 上。** `fep-app-vr` 的 `/itptvm/`、`/itpbom/` 两条 route 指向 `face-pay-server-svc:30025`，`fep-app` 的 env `service.collectPay.url` 也已改指 30025。**此前本段记的「2026-09-16 实测 VS 仍指向 `collect-pay-c23ku-svc:30024`、真实设备流量还在旧应用」是 ADR-D112 的当日口径，已被 D117 取代，NEVER 回退。** 但那条方法论仍成立：**判断「现在流量在哪个应用」MUST 每次现查 `kubectl get vs fep-app-vr -n itp -o yaml` + `fep-app` Deployment 的 `service.collectPay.url` env，NEVER 引用任何文档里的结论**（含本段）。另记一条仍有用的取证手法：旧应用日志中的 `BodyCacheFilter` 行**请求参数与响应体成对**，是做新旧契约基线核对最好用的回放语料，取法与对比矩阵见 ADR-D112。
 
 - 下面的接口清单对**两个模块都成立**（同一批 URL），改接口 **MUST 同时评估两边**；新逻辑只落 `face-pay-server`，`collect-pay-server` 只做上面三类残留职责的维护。
 - 新模块的表结构、状态机、幂等索引、已修掉的旧缺陷清单与未完成项，见 **`docs/architecture/face-pay-refactor.md`**（§二十一 是按 URL 的进度台账）。
@@ -71,6 +71,17 @@ TVM 单程票下单出票、TVM 充值、BOM 非现金收款、当面付订单�
 - `POST close-unpaid` — `PAY_STATUS` `'0'→'2'` 白名单关单，命中 0 行按成功处理（已是终态）
 - `POST pay-result` — 回查支付结果，未建单返 `found=false` 而**不是**报错
 ⚠️ **三个端点无鉴权**（与 `/internal/recon` 同款临时降级，2026-09-14 用户裁决），**上线前 MUST 补**。三条资损口径全部落在 `AppPayOrderInternalServiceImpl` 里，改动 MUST 先读 ADR-D64。
+
+**内部端点（face-pay-server）** `controller/internal/BatchRefundInternalController.java`（前缀 `/internal/f2f/batch-refund`，**2026-09-20 / 1.0.62 新增，甲方需求 1/2/3，唯一调用方是 web-admin 的 `F2fBatchRefundQuartzTask`**，见 ADR-D147）
+- `POST single-ticket` —— 单程票未取票批量退款（`BIZ_TYPE='01'`），`sys_job` **200** cron `0 0 20 * * ?`
+- `POST topup` —— 充值未取票批量退款（`BIZ_TYPE='02'`），`sys_job` **205** cron `0 0 20 * * ?`
+- `POST no-cash` —— 非现金购票未履约批量退款（`BIZ_TYPE='04'`），`sys_job` **210** cron `0 0 9,15,21 * * ?`（三条 job_id 均于 2026-09-21 由 130 / 131 / 132 改号）
+
+实现 `F2fBatchRefundService.refundBatch(taskName, bizTypes)`：扫 `F2fOrderMapper.selectPaidNotFulfilled(bizTypes, earliest, deadline, limit)`（`ORDER_STATUS='PAID'` + `BIZ_TYPE IN (...)` + `PAID_TMS` 窗口，走新索引 `IDX_F2F_ORDER_BATCH_REFUND (ORDER_STATUS, BIZ_TYPE, PAID_TMS) LOCAL`），逐笔调 `F2fRefundService.refund` 落 `REFUND_SOURCE='DAILY_BATCH'`。可配键 `f2f.batchRefund.limit:200` / `silenceMinutes:60` / `lookbackDays:7`。
+
+**三条 NEVER**：①**三类共用 `REFUND_SOURCE='DAILY_BATCH'` 是安全的，NEVER 为此新增来源枚举或改 `CK_F2F_REFUND_SOURCE`**（该约束已含 `DAILY_BATCH`）—— 幂等键 `UK_F2F_REFUND_IDEM (ORIG_ORDER_NO, NVL(TICKET_LOGIC_NUM,'#WHOLE#'), REFUND_SOURCE)` 加上「一笔订单只属一个 `BIZ_TYPE`」已保证三个任务候选集不相交；②`refundBatch` **刻意不带 `@Transactional`**（逐笔独立、一笔失败只计 `failed`；链路含支付中心调用，加事务即违反「事务内 NEVER 发 RPC」）；③三个端点各有一个 `AtomicBoolean`，busy 返 `9998`、Quartz 侧只打 WARN 不抛 —— **NEVER 把 `9998` 当失败去重试**。
+⚠️ **同样无鉴权**，与上面那组同款临时降级、上线前 MUST 补；它能按扫表结果发起真实退款，敏感度不低于 `/internal/app-order/**`。
+⚠️ **与 collect-pay 那 4 个旧表 `@Scheduled` 覆盖面互不重叠、NEVER 认为重复**：那 4 个扫 `TBL_TVM_APP_ORDER` / `TBL_TVM_ORDER_TOPUP` / `TBL_BOM_ORDER_PAY`（切流前的历史单只在旧表里），本组只扫 `F2F_ORDER`。旧表存量按裁决人工清退。
 
 **出向通知（face-pay-server，IF8B 族）** —— 载体是 `F2F_NOTIFY_TASK` + `F2fNotifyJob` 扫表投递，**本项目无 MQ**；地址来自 `f2f.notify.app.*`（env `NOTIFY_APP_*`），**判断线上实际值 MUST 查 Deployment env**
 - IF8B-06 出票成功 / IF8B-07 出票故障 —— `NOTIFY_TYPE='TAKE_TICKET_OK'` / `'TAKE_TICKET_FAIL'`，生产者 `F2fTicketIssueService.enqueueAppNotify`，**只推 APP 来源单**（`TRANS_TYPE='03'`）
@@ -776,7 +787,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 
 - **该模块的 `spring.application.name` 是 `itpagm`（不是 `collect-pay`）**，`log4j2-collectpay.xml` 的 `appName` 属性同为 `itpagm`，因此日志文件名与检索键都是 `itpagm`。`collect-pay-server` — `application.yml:73`~`:74`；`log4j2-collectpay.xml:29`
 - **tracing 三行成组已在本模块落地**：`management.tracing.enabled=true` + `management.tracing.sampling.probability=0` + `spring.autoconfigure.exclude=...OtlpAutoConfiguration`。注释逐条给了理由：`probability=0` 只让本服务发起的 trace 不采样（采样器是 `parentBased(traceIdRatioBased(0))`，上游带 `sampled=1` 的 `traceparent` / `b3` 进来时 span 仍会被采样并进导出队列）；`micro/web` 的 `web.properties` 已把 `management.otlp.tracing.endpoint` 整行注释掉，那条 `exclude` 是**第二道保险**——K8s Deployment 只要注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` env 就会重新激活 exporter；Boot 3.2.6 **没有** `management.tracing.export.enabled` 这个开关，把 endpoint 置空也不行（`OtlpAutoConfiguration` 只判断键是否存在），只能排掉整个自动配置。**NEVER 删除那行 exclude。** `collect-pay-server` — `application.yml:75`~`:84`、`:91`~`:95`
-- **打开 tracing 后能对上的两条链路**：① recon-server 下发 `/internal/recon/export` 带来的 W3C `traceparent`（源头是 `sys_job` 109 日终对账）；② APP / TVM / BOM 入向请求自身的 `traceparent`。只需要 MDC 里的 `traceId` / `spanId` 供 VictoriaLogs 检索，**span 上报一律不要**。`collect-pay-server` — `application.yml:85`~`:90`
+- **打开 tracing 后能对上的两条链路**：① recon-server 下发 `/internal/recon/export` 带来的 W3C `traceparent`（源头是 `sys_job` 225「给ACC上传扣费交易」，2026-09-21 由 109「日终对账」改号改名）；② APP / TVM / BOM 入向请求自身的 `traceparent`。只需要 MDC 里的 `traceId` / `spanId` 供 VictoriaLogs 检索，**span 上报一律不要**。`collect-pay-server` — `application.yml:85`~`:90`
 - **`service.recon.url` 是 2026-09-11 按 `kubectl get svc -n itp` 实测回填的真实 Service 名**，注释同时点明「Service 端口等于 NodePort 号（30034），不等于容器 `server.port`（9112）」。`collect-pay-server` — `application.yml:103`~`:106`
 - **`recon.internal-token` 默认必须为空、由 K8s Secret 注入 `RECON_INTERNAL_TOKEN`**（该键当前已无读取方，见 附.2 的鉴权降级条）。`collect-pay-server` — `application.yml:108`~`:109`
 - **TVM 取票授权挂起等待的三个参数（2026-09-11 新增）**：`waitMillis: 10000` / `pollIntervalMillis: 500` / `maxWaiting: 500`。注释原文：TVM 每轮只发一次 `requestTakeTicketAuth`、且比 APP 扫码激活早 4~8 秒，厂商不改轮询逻辑，因此查不到订单时把这次请求挂住等激活事件；**`waitMillis` MUST < 15000**——istio 的 `fep-app-vr` `/itptvm/` 路由没配 timeout，走 Envoy 默认 15 秒，超过就变成网关 504 而不是我方响应。`collect-pay-server` — `application.yml:63`~`:71`；`service/impl/TvmTakeTicketServiceImpl.java:54`~`:57`
@@ -790,7 +801,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 #### 附.2.1 为什么本模块不停、退款与通知留在这里
 
 - **`/internal/app-order/**` 存在的原因是把跨域直写收回来**：`TBL_TVM_APP_ORDER` / `TBL_TVM_ORDER_PAY_PRE` 两张表的 owner 是本模块（`docs/business/tvm-bom-pay.md`），但 2026-09-11 起 gate-txn-pay-server 的 IF8A-26 补款单为了复用本模块的收银台链路，**直接在自己进程里 INSERT / UPDATE 这两张表**——那违反 `docs/domain/README.md` 的「热路径写入定 owner」判据：字段口径散落在两个模块，本模块改一列语义就可能静默打挂对方。2026-09-14 按用户要求收口成本接口。`collect-pay-server` `AppPayOrderInternalService`（类注释）— `service/AppPayOrderInternalService.java:11`~`:15`；`controller/internal/AppPayOrderInternalController.java:17`~`:18`
-- **切换尚未发生、两条写入路径并存**：gate-txn-pay-server 的 `mapper/AppPayOrderMapper.java` 与 `resources/mapper/AppPayOrderMapper.xml` **仍在原地**，`SupplementOrderServiceImpl` 的私有 `registerAppPayOrder` 也仍在用它直写两张表，因此本接口这一条**暂时无人调用**。完成切换的那一笔 MUST 同时删掉对方那个 mapper 与 XML、并改掉它的三处调用点与单测桩，**NEVER 在两条路径并存的状态下上线**——那样同一笔单据可能被两种口径各写一次。`collect-pay-server` `AppPayOrderInternalService`（类注释）— `service/AppPayOrderInternalService.java:17`~`:22`
+- **切换已完成，写入路径唯一**（2026-09-14 收口，ADR-D64）：gate-txn-pay-server 的 `mapper/AppPayOrderMapper.java` 与 `resources/mapper/AppPayOrderMapper.xml` **已删除**，其 mapper 目录只剩 `DiscountLevelMapper` / `GateTxnPayMapper` / `MetroTransferPushTaskMapper` / `ReconExportMapper`（Java 与 XML 均如此），`SupplementOrderServiceImpl` 的私有 `registerAppPayOrder` 也已不存在；`TBL_TVM_APP_ORDER` / `TBL_TVM_ORDER_PAY_PRE` 的**唯一写入方是本模块**，唯一调用方是 gate-txn-pay 补款链路经 `rpc` 的 `CollectPayClient.registerAppPayOrder` → `POST /internal/app-order/register`。**NEVER 让任何其它模块再直写这两张表**。原「切换尚未发生、两条写入路径并存、本接口暂时无人调用」的表述**已作废、NEVER 回退**（2026-09-23 实测核对：gate-txn-pay-server 内 `AppPayOrder*` 与 `registerAppPayOrder` 均零命中，见 `docs/reviews/提示词过期检查记录-2026-09-23.md`）。`collect-pay-server` `AppPayOrderInternalService`（接口注释）— `service/AppPayOrderInternalService.java:8`
 - **为什么另开 `/page/app/orders/{orderNo}/refund` 而不是改旧入口**：`/ci/app/requestRefundTicket` 的退款金额取 `PAY_AMOUNT` 全额，对已部分退款的订单必然超额被支付中心拒；那条是 APP 对外契约（APP 只传 `orderNo`），**NEVER 给它加金额字段**，因此另开本入口。放在 `/page/**` 而不是 `/ci/**`：这是运营 / 清退用的内部操作，不属于 APP 契约，与同目录的 `FacePayOrderPageController` 同类。`collect-pay-server` `AppOrderPageController`（类注释）— `controller/page/AppOrderPageController.java:16`~`:23`
 - **运营端退款复用 `TvmOrderPreService`** 是为了沿用既有的支付中心退款与退款单号落库流程。`collect-pay-server` `FacePayOrderPageController.refund` — `controller/page/FacePayOrderPageController.java:86`~`:87`
 - **`/internal/recon/export` 与 `/internal/app-order/**` 当前无鉴权，是有意为之的临时降级、上线前 MUST 恢复**。对账那条：用户 2026-09-11 明确要求「删除令牌要求，不用令牌了，当前处于开发测试阶段」，原 `X-Recon-Token` 共享令牌校验整段删除；本项目多数业务模块没有 spring-security、没有全局拦截器兜底，现状等于允许任何网络可达方触发区间全扫级别的批处理，与 AGENTS.md §5.2 冲突。补款那条：用户 2026-09-14 裁决「不加鉴权，照本模块现有 `/internal/recon` 的做法」，但它**比 `/internal/recon` 更敏感**——拿到任意订单号即可给他人建单、或关掉他人的待支付单，**NEVER 拿「`/internal/recon` 也没加」当长期理由**（那批是只读导出与内部编排，本批是按订单号改他人的支付状态，敏感度不同级）。`collect-pay-server` — `controller/internal/ReconExportController.java:14`~`:18`；`controller/internal/AppPayOrderInternalController.java:20`~`:25`；`service/AppPayOrderInternalService.java:38`~`:41`
@@ -873,7 +884,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 
 > 以下条目的注释形态是「已迁走 / NEVER 加回 / 本条路径暂无调用方 / 整段已删除或已注释」，按要求不进正文。路径前缀同上。每条给：`文件:行号` + 禁止的事 + 能否断言化。
 
-1. `service/AppPayOrderInternalService.java:17`~`:22` —— 禁止在「两条写入路径并存」的状态下上线：gate-txn-pay-server 的 `mapper/AppPayOrderMapper.java` + `resources/mapper/AppPayOrderMapper.xml` 仍在原地直写 `TBL_TVM_APP_ORDER` / `TBL_TVM_ORDER_PAY_PRE`，本接口这一条**暂时无人调用**；完成切换的那一笔 MUST 同时删掉对方 mapper 与 XML、并改掉三处调用点与单测桩。**可断言**（跨模块）：gate-txn-pay-server 内不存在 `AppPayOrderMapper`，且 `SupplementOrderServiceImpl` 无私有 `registerAppPayOrder`。
+1. `service/AppPayOrderInternalService.java:8` —— 切换已于 2026-09-14 完成（ADR-D64）：gate-txn-pay-server 的 `mapper/AppPayOrderMapper.java` + `resources/mapper/AppPayOrderMapper.xml` **已删除**，其 mapper 目录只剩 `DiscountLevelMapper` / `GateTxnPayMapper` / `MetroTransferPushTaskMapper` / `ReconExportMapper`，`SupplementOrderServiceImpl` 已无私有 `registerAppPayOrder`；补款改走 `CollectPayClient.registerAppPayOrder` → `POST /internal/app-order/register`。**可断言（跨模块）**：gate-txn-pay-server 内不存在 `AppPayOrderMapper` 的 Java 与 XML，且 `SupplementOrderServiceImpl` 无 `registerAppPayOrder`。（原「两条写入路径并存、本接口暂时无人调用」的表述已作废，2026-09-23 核对。）
 2. `service/AppPayOrderInternalService.java:11`~`:15` / `controller/internal/AppPayOrderInternalController.java:17`~`:18` —— 禁止任何模块再跨域直写这两张表（owner 是本模块，写入 MUST 走 `/internal/app-order/**`）。**部分可断言**：全仓 grep 只有 collect-pay-server 出现这两张表的 INSERT / UPDATE。
 3. `service/AppOrderService.java:71`~`:77` / `controller/page/AppOrderPageController.java:18`~`:20` —— 禁止给旧入口 `/ci/app/requestRefundTicket` 加金额字段、也禁止改它的金额来源（恒取 `PAY_AMOUNT` 全额）。**可断言**：`requestRefundTicket` 的入参只有 `orderNo`；对已部分退款订单调它会被支付中心拒。
 4. `service/AppOrderService.java:79`~`:82` / `service/impl/AppOrderServiceImpl.java:538`~`:540` —— 禁止去掉 `refundByAmount` 的可退余额闸门（「让运营能强退」不是理由）。**可断言**：入参金额 > `PAY_AMOUNT` − 已成功退款额时不落 `TBL_APP_ORDER_REFUND`、不发支付中心请求。
@@ -1228,6 +1239,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 
 - **collect-pay-server 已退出设备域与 APP 域的入向流量**（2026-09-16 17:31 切至 face-pay，ADR-D117），但**进程仍在跑、NEVER 停掉它**。它现在承担四类职责：①**日终对账源** `POST /internal/recon/export`（本服务是四个源里的第 4 个，只出 `ITP.PAY` 与 `ITP.BUS`）；②**补款** `/internal/app-order/**`（`gate-txn-pay` 侧 `AppPayOrderMapper` 及其 XML 已删除，写入改走 `CollectPayClient.registerAppPayOrder`）；③`NoticeAppTask` 的 **4 个旧表通知端点**（对应三张 `TBL_NOTICE_APP_*` 与失败记录表）；④**旧单按票退款**入口（切流前由本服务建的历史单只在旧表里，face-pay 上一律「订单不存在」）。
 - **本模块是全项目仅剩两个「自带 `@Scheduled`」的业务模块之一**：`task/SingleTicketRefundTask.java` **4 处**，cron 分别 `0 0 20 * * ?`（两条）、`0 1 9,15,21 * * ?`、`0 0 9,15,21 * * ?`。四者**无分布式锁 ⇒ collect-pay-server MUST 单副本**。**已知内部矛盾**：方法内日志写着「收到由 web-server Quartz 定时任务发起的调用」，而对应的三个 `@PostMapping` 入口**已被整段注释掉** —— 也就是说「外部触发方并不存在，真正在驱动的是本模块 `@Scheduled`」。**迁 Quartz 时 MUST 先摘 `@Scheduled` 再放开 HTTP 入口**，顺序反了同一批退款会跑两遍。`task/SingleTicketRefundTask.java:34` / `:51` / `:69` / `:87`
+  - **2026-09-20 / 1.1.86 已给四处 `catch (Exception e)` 补 `log.error(..., e)`**（此前一律 `return returnFail()` 把堆栈整段吞掉：本轮一笔都没退成，却只回一个失败码、日志里查不到任何原因），同批修正 `refundBomTopupNotTakeTickets` 里误打成 `refundBomSaleNotTakeTickets` 的收尾日志。**SQL 与 cron 一行未动**；那三个业务硬缺陷（TVM `ORA-00904` 别名笔误、BOM 两条 `transAmount=null`）**本轮未修**，旧表存量按裁决人工清退。见 ADR-D147 §三。
 - **`TRANS_TYPE` 三处证据互相矛盾，后果是日终对账「BOM 行政处理」与「BOM 处理」两组度量恒 0**：①entity 注释的取值清单里**没有发售**；②`BomBusinessCodeEnum` 的 `01` 与 `22` 描述都写「充值」，而 `01` 不在 `transType` 取值表里；③建单处**硬编码 `setTransType("01")`**。物证还包括 `TvmOrderServiceImpl` 里被整段注释掉的 `getBomOrderSalePre`（**NEVER 删那段注释、也 NEVER 自行猜值补写**）。现状裁决是整表归发售组、两组度量留 0，**待甲方给判据**。
 - **端口有两个数字，判断哪个生效 MUST 查 Deployment env**：仓库 `application.yml:56` 是 `port: 58101`，而集群 `collect-pay-c23ku-svc` 的 `targetPort` 是 **8080** —— 线上靠 Deployment env `server.port=8080` 顶掉 yml。**因此 NEVER 用 yml 里的 58101 去探活或配 Service**，也 NEVER 反过来改 yml「对齐线上」（那会打断本机与测试环境的既有用法）。
 - **旧表与 `F2F_*` 的落点差异**：切流后新单只进 `F2F_ORDER` / `F2F_PAYMENT` / `F2F_REFUND` / `F2F_TICKET` / `F2F_RESULT_REPORT` / `F2F_NOTIFY_TASK` / `F2F_DEVICE_STATUS`；本模块的 18 张旧表**只读不再增长**（按 mapper 引用频次排序：`TBL_TVM_APP_ORDER`、`TBL_BOM_ORDER_PAY`、`TBL_TVM_ORDER_PAY`、`TBL_TVM_ORDER_TOPUP`、`TBL_TVM_SUB_TICKET`、`TBL_TVM_TAKE_TICKET_ORDER`、`TBL_TVM_ORDER_REFUND`、`TBL_BOM_SUB_TICKET`、`TBL_APP_ORDER_REFUND`、`TBL_BOM_ORDER_REFUND`、`TBL_BOM_BUS_RESULT`、`TBL_TVM_T`、`TBL_NOTICE_APP_FAILURE_RECORD`、`TBL_TVM_ORDER_PAY_PRE`、`TBL_BOM_TOPUP_RESULT`、`TBL_BOM_SALE_INFO`、`TBL_TICKET_REFUND_RECORD`、`TBL_BOM_TICKET_REFUND`）。**唯一例外是补款与对账**：补款单仍写旧表、对账仍从旧表抽取 —— 所以「旧表不再增长」这句**只对设备与 APP 下单成立**，NEVER 推广成「旧表已冻结」。
@@ -1533,7 +1545,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 #### 四、配置（application.yml）
 
 - **TVM 取票授权的挂起等待 `waitMillis` MUST 小于 15000**：istio `fep-app-vr` 的 `/itptvm/` 路由没配 timeout、走 Envoy 默认 15 秒，超过就变成网关 504 而不是我方响应。挂起的成因是 TVM 每轮只发一次 `requestTakeTicketAuth`、且比 APP 扫码激活早 4 至 8 秒，厂商不改轮询逻辑，因此查不到订单时把这次请求挂住等激活事件。`collect-pay-server/src/main/resources/application.yml:63-66`
-- **本模块打开了 tracing（`management.tracing.enabled=true`）**，目的只是让 MDC 里的 `traceId` / `spanId` 供 VictoriaLogs 检索、span 上报一律不要；打开后两条链路能对上：recon-server 下发 `/internal/recon/export` 带来的 W3C `traceparent`（源头是 `sys_job` 109 日终对账），以及 APP / TVM / BOM 入向请求自身的 `traceparent`。`application.yml:85-90`
+- **本模块打开了 tracing（`management.tracing.enabled=true`）**，目的只是让 MDC 里的 `traceId` / `spanId` 供 VictoriaLogs 检索、span 上报一律不要；打开后两条链路能对上：recon-server 下发 `/internal/recon/export` 带来的 W3C `traceparent`（源头是 `sys_job` 225「给ACC上传扣费交易」），以及 APP / TVM / BOM 入向请求自身的 `traceparent`。`application.yml:85-90`
 - **`log4j2-collectpay.xml` 的 pattern 一直写着 `%X{traceId}`（该文件第 34 行），开关没打开前那一列恒为空**。`application.yml:86-87`
 - **NEVER 删除 `spring.autoconfigure.exclude` 里对 `OtlpAutoConfiguration` 的排除**，三条理由：1）`sampling.probability=0` 只让本服务发起的 trace 不采样，采样器是 `parentBased(traceIdRatioBased(0))`，上游带 `sampled=1` 的 `traceparent` / `b3` 进来时仍会采；2）`micro/web` 的 `web.properties` 已把 `management.otlp.tracing.endpoint` 整行注释掉，本行是第二道保险，K8s Deployment 只要注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` 就会重新激活 exporter；3）Boot 3.2.6 没有 `management.tracing.export.enabled` 这个开关，把 endpoint 置空也不行（`OtlpAutoConfiguration` 只判断键是否存在），只能排掉整个自动配置。口径同 pay-sign-server 与 card-pool-server 的 properties。`application.yml:75-82`
 - **`service.recon.url` 是 `kubectl get svc -n itp` 实测的真实 Service 名（recon-server 2026-09-11 已部署）**，且 **Service 端口等于 NodePort 号（30034），不等于容器 `server.port`（9112）**。`application.yml:103-104`
@@ -1807,12 +1819,13 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 
 #### 矛盾 / 待裁决条目
 
-**1. `AppPayOrderInternalService` 类注释里的「切换尚未发生、两条写入路径并存、本接口暂时无人调用」已过期**
+**1. `AppPayOrderInternalService` 类注释里的「切换尚未发生、两条写入路径并存、本接口暂时无人调用」已过期**（**2026-09-23 已裁决并执行**；本条保留为留痕，**NEVER 回退**）
 
 - 注释说什么：gate-txn-pay-server 的 `mapper/AppPayOrderMapper.java` 与 `resources/mapper/AppPayOrderMapper.xml` **仍在原地**，`SupplementOrderServiceImpl` 的私有 `registerAppPayOrder` 也仍在用它直写 `TBL_TVM_APP_ORDER` / `TBL_TVM_ORDER_PAY_PRE`；因此**现在有两条写入路径并存，本接口这一条暂时无人调用**；完成切换的那一笔 MUST 同时删掉对方 mapper 与 XML、并改掉三处调用点与单测桩。
 - 实际是什么：**切换已完成**。gate-txn-pay-server 的 mapper 目录只剩 `DiscountLevelMapper` / `GateTxnPayMapper` / `MetroTransferPushTaskMapper` / `ReconExportMapper`（Java 与 XML 均如此），没有 `AppPayOrderMapper`；写入改走 `rpc` 的 `CollectPayClient.registerAppPayOrder` → `POST /internal/app-order/register`，返回类型已是 `RpcOutcome`。因此本接口**有唯一调用方、不再是无人调用**。
-- 证据坐标：`gate-txn-pay-server/src/main/java/com/chinasofti/huateng/gatetxnpay/mapper/`（目录清单）；`rpc/src/main/java/com/chinasofti/huateng/rpc/collectpay/CollectPayClient.java:86`、`:99`、`:102`；`docs/business/gate-txn-pay.md:149`（「`mapper/AppPayOrderMapper.java` 与 `.xml` 已删除，NEVER 加回」，ADR-D64）；过期表述所在：`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/AppPayOrderInternalService.java:69-74`。
-- 建议裁决：迁移到 docs 时**不要搬运这段表述**，改写为「切换已于 ADR-D64 完成，两张表的唯一写入方是本模块，唯一调用方是 gate-txn-pay 补款链路的 `CollectPayClient`」，并保留「NEVER 让任何其它模块再直写这两张表」这一条约束。同批 MUST 修正 `docs/business/tvm-bom-pay.md:786` 与 `:869` 里同源的过期副本（那两处已自带「可断言：gate-txn-pay-server 内不存在 `AppPayOrderMapper`」的反证，说明矛盾已被记录但未收口）。源码注释本身是否改动需另行确认（本次只做抽取）。
+- 证据坐标：`gate-txn-pay-server/src/main/java/com/chinasofti/huateng/gatetxnpay/mapper/`（目录清单）；`rpc/.../rpc/collectpay/CollectPayClient.java` 的 `registerAppPayOrder`（**按方法名定位，NEVER 记行号**；2026-09-23 实测在 `:89`，方法体指向 `POST /internal/app-order/register`）；`docs/business/gate-txn-pay.md:149`（「`mapper/AppPayOrderMapper.java` 与 `.xml` 已删除，NEVER 加回」，ADR-D64）。
+- **源码侧已无残留**：原过期表述所在的 `AppPayOrderInternalService.java:69-74` **已不存在**——该文件现仅 19 行、只有接口定义与三行方法注释，过期的类注释段落随接口精简一并消失（2026-09-23 复核）。因此**本条只需修文档、无需动代码**。
+- **裁决结果（2026-09-23 执行）**：按原建议改写，已落到本文 `:804`（附.2.1）与 `:887`（附.4 第 1 条），统一表述为「切换已于 ADR-D64 完成，两张表的唯一写入方是本模块，唯一调用方是 gate-txn-pay 补款链路的 `CollectPayClient.registerAppPayOrder`」，并保留「NEVER 让任何其它模块再直写这两张表」。原建议指向的 `:786` / `:869` 两处同源副本，实际行号已漂移到 `:804` / `:887`（文档增长所致），**NEVER 按旧行号去找**。
 
 **2. `BomOrderServiceImpl.notiBusResult`（IF2A-08）带 `@Transactional` 且在事务内调支付中心退款**
 

@@ -12,7 +12,7 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;
-import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespVO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestRefundReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestRefundRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayQueryReqDTO;
@@ -76,7 +76,7 @@ public class AlipayTripServiceImpl implements AlipayTripService {
     }
 
     @Override
-    public AlipayTripFindTravelDetailRespVO findTravelDetail(AlipayTripFindTravelDetailReqDTO request) {
+    public AlipayTripFindTravelDetailRespDTO findTravelDetail(AlipayTripFindTravelDetailReqDTO request) {
         return alipayQueryService.findTravelDetail(request);
     }
 

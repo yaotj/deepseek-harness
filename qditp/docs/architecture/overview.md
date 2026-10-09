@@ -47,7 +47,7 @@
 | daily-ticket-server | 9108 | daily-ticket-server | |
 | fep-acc-server | 9110 | fep-acc-server | |
 | card-pool-server | 9111 | card-pool | 无 `@Scheduled`，维护动作走 `POST /card-pools/maintenance` |
-| recon-server | 9112 | recon | 无 `@Scheduled`，由 web-admin `sys_job` 109 触发 `POST /internal/recon/daily/run`；**MUST 单副本** |
+| recon-server | 9112 | recon | 无 `@Scheduled`，由 web-admin `sys_job` 225 触发 `POST /internal/recon/daily/run`（2026-09-21 由 109 改号）；**MUST 单副本** |
 | trans-query-server | 9113 | trans-query | APP 交易查询独立服务（1.0.4）；**已出镜像但未接线**，三条 URL 与 ticket-server 并存 |
 | acc-security-server | 9012 | acc-security | Undertow |
 | acc-es-server | 9011 / Netty 5000 | acc-es | |

@@ -81,6 +81,7 @@ class TravelDetailDebitResultTest {
         AlipayTripFindTravelDetailReqDTO request = new AlipayTripFindTravelDetailReqDTO();
         request.setOrderNo(ORDER_NO);
         AlipayTripFindTravelDetailRespDTO response = service.findTravelDetail(request);
-        return response.getDebitRequestResult();
+        // 业务字段在 data 里（ADR-D150），NEVER 改回从顶层取。
+        return response.getData().getDebitRequestResult();
     }
 }

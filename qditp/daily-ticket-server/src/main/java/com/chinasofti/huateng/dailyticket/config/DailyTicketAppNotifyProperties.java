@@ -2,12 +2,15 @@ package com.chinasofti.huateng.dailyticket.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-/** IF8B-04 退款结果通知 APP 的出向配置。 */
+/** 日票/旅游票通知 APP 的出向配置。 */
 @ConfigurationProperties(prefix = "daily-ticket.notify.app")
 public class DailyTicketAppNotifyProperties {
 
     /** IF8B-04 退款结果通知地址（完整 URL），路径形如 {@code /ci/app/v2/receiveRefundResult}。 */
     private String refundResultUrl;
+
+    /** IF8B-05 支付结果通知地址（完整 URL），路径形如 {@code /app/receivePaymentResult}。 */
+    private String payResultUrl;
 
     /** ITP 信封 {@code providerId}。 */
     private String providerId = "06";
@@ -42,6 +45,14 @@ public class DailyTicketAppNotifyProperties {
 
     public void setRefundResultUrl(String refundResultUrl) {
         this.refundResultUrl = refundResultUrl;
+    }
+
+    public String getPayResultUrl() {
+        return payResultUrl;
+    }
+
+    public void setPayResultUrl(String payResultUrl) {
+        this.payResultUrl = payResultUrl;
     }
 
     public String getProviderId() {

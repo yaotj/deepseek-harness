@@ -3,6 +3,7 @@ package com.chinasofti.huateng.paysign.service.impl;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripAddContractReqDTO;
 import com.chinasofti.huateng.model.app.PaySignCallbackResult;
 import com.chinasofti.huateng.model.app.ReceivePayResultReqDTO;
+import com.chinasofti.huateng.model.app.ReceiveRefundResultReqDTO;
 import com.chinasofti.huateng.model.app.ReceiveSignResultReqDTO;
 import com.chinasofti.huateng.model.app.RequestAgreeReleaseReqDTO;
 import com.chinasofti.huateng.model.app.RequestAgreeReleaseResult;
@@ -113,6 +114,11 @@ public class PaySignServiceImpl implements PaySignService {
     @Override
     public PaySignCallbackResult receivePayResult(ReceivePayResultReqDTO request, String rawBody) {
         return paymentDomainService.receivePayResult(request, rawBody);
+    }
+
+    @Override
+    public PaySignCallbackResult receiveRefundResult(ReceiveRefundResultReqDTO request) {
+        return refundDomainService.receiveRefundResult(request);
     }
 
     @Override

@@ -21,6 +21,7 @@ import com.chinasofti.huateng.paysign.mapper.PayTxnDetailMapper;
 import com.chinasofti.huateng.paysign.port.RefundGatewayAdapter;
 import com.chinasofti.huateng.paysign.model.response.PaySignGatewayResponse;
 import com.chinasofti.huateng.paysign.support.PaySignGateway;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -176,5 +177,50 @@ class PaymentRefundQueryCompensationTest {
         assertEquals("9001", response.getResultCode(),
                 "缺配置 MUST 返系统错误码，让 Quartz 侧看得见；注意本 DTO 用的是 resultCode，不是 retCode");
         verify(payRefundDetailMapper, never()).selectCompensableRefundQuery(anyString(), anyInt(), anyInt());
+    }
+
+    /**
+     * 超过放弃龄期仍拿不到终态：MUST 落 CLOSED 停止轮询，NEVER 再推一次退避。
+     *
+     * <p>这条钉住的是 P1「退款单永久空转」的出口：在它之前唯一的退出条件是 TXN_DATE 掉出 7 天窗口 ——
+     * 那不是收敛而是静默消失（行永久停 PROCESSING，端点每轮照返 0000）。
+     */
+    @Test
+    void rowBeyondGiveUpAgeIsClosedInsteadOfDelayedForever() {
+        RefundDomainServiceImpl service = newService();
+        PayRefundDetail stale = processingRow();
+        stale.setCreateTime(LocalDateTime.now().minusHours(7));
+        when(payRefundDetailMapper.selectCompensableRefundQuery(anyString(), anyInt(), anyInt()))
+                .thenReturn(List.of(stale));
+        gatewayReturns("REFUNDING");
+        when(payRefundDetailMapper.exhaustFromQuery(anyString(), anyString(), any(), any())).thenReturn(1);
+
+        CompensateNotifyRespDTO response = service.compensateRefundQuery();
+
+        assertEquals(1, response.getSkipped(), "放弃自动定性 MUST 计入本轮未收口");
+        assertEquals(0, response.getSubmitted(), "落 CLOSED 不是收口成功，NEVER 计入 submitted");
+        verify(payRefundDetailMapper, times(1))
+                .exhaustFromQuery(eq("RF20260915000000001"), eq("20260915"), any(), any());
+        verify(payRefundDetailMapper, never()).delayNextRefundQuery(anyString(), anyString(), anyInt());
+        verify(payRefundDetailMapper, never()).finishFromQuery(any(PayRefundDetail.class));
+        verify(payTxnDetailMapper, never()).updateRefundSummary(anyString());
+    }
+
+    /** 龄期未到：MUST 照常退避，NEVER 提前放弃 —— 那会把正常收敛中的单误判成需人工。 */
+    @Test
+    void rowWithinGiveUpAgeStillDelaysWithoutClosing() {
+        RefundDomainServiceImpl service = newService();
+        PayRefundDetail fresh = processingRow();
+        fresh.setCreateTime(LocalDateTime.now().minusHours(1));
+        when(payRefundDetailMapper.selectCompensableRefundQuery(anyString(), anyInt(), anyInt()))
+                .thenReturn(List.of(fresh));
+        gatewayReturns("REFUNDING");
+        when(payRefundDetailMapper.delayNextRefundQuery(anyString(), anyString(), anyInt())).thenReturn(1);
+
+        service.compensateRefundQuery();
+
+        verify(payRefundDetailMapper, times(1))
+                .delayNextRefundQuery(eq("RF20260915000000001"), eq("20260915"), anyInt());
+        verify(payRefundDetailMapper, never()).exhaustFromQuery(anyString(), anyString(), any(), any());
     }
 }

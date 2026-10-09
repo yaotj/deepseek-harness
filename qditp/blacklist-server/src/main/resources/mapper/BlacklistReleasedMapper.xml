@@ -66,41 +66,8 @@
         order by RELEASE_TIME desc, ID desc
     </select>
 
-    <!-- 解黑通知的 outbox 扫表取数，四个坑逐条对应： -->
-    <!-- ① 状态用 IN ('PENDING','FAILED') 白名单，NEVER 写成「非 SUCCESS 即扫」；改造前解除的历史行 -->
-    <!--    CHANNEL_SYNC_STATUS 是 NULL，白名单天然把它们排除在外，黑名单式写法会把全表历史重推一遍。 -->
-    <!-- ② FAILED 仍在白名单内，这是补偿能重入的前提，NEVER 只扫 PENDING。 -->
-    <!-- ③ REJECTED 是终态（渠道明确业务拒绝，重推一万次也不会成功），刻意不在白名单内。 -->
-    <!-- ④ ROWNUM MUST 在排序子查询之外：写在同一层会先截断再排序，拿到的不是最早那批。 -->
-    <select id="selectPendingChannelSync" resultMap="BaseResultMap">
-        select * from (
-            select
-            <include refid="BaseColumnList"/>
-            from BLACKLIST_RELEASED
-            where CHANNEL_SYNC_STATUS in ('PENDING', 'FAILED')
-            order by CHANNEL_SYNC_TIME asc nulls first, ID asc
-        ) where ROWNUM &lt;= #{limit,jdbcType=INTEGER}
-    </select>
-
-    <!-- 收口成功：WHERE 带同一份白名单做 CAS，避免把已被别处收口的行重复回写。 -->
-    <update id="markChannelSyncSuccess">
-        update BLACKLIST_RELEASED
-        set CHANNEL_SYNC_STATUS = 'SUCCESS',
-            CHANNEL_SYNC_TIME = SYSTIMESTAMP,
-            CHANNEL_SYNC_FAIL_REASON = null
-        where ID = #{id,jdbcType=NUMERIC}
-          and CHANNEL_SYNC_STATUS in ('PENDING', 'FAILED')
-    </update>
-
-    <!-- 收口失败：status 由调用方传 FAILED（可重试）或 REJECTED（业务拒绝、终态）。 -->
-    <!-- 重试次数只在本语句 +1，历史 NULL 行用 nvl 归零后再累加。 -->
-    <update id="markChannelSyncFailed">
-        update BLACKLIST_RELEASED
-        set CHANNEL_SYNC_STATUS = #{status,jdbcType=VARCHAR},
-            CHANNEL_SYNC_TIME = SYSTIMESTAMP,
-            CHANNEL_SYNC_RETRY = nvl(CHANNEL_SYNC_RETRY, 0) + 1,
-            CHANNEL_SYNC_FAIL_REASON = #{failReason,jdbcType=VARCHAR}
-        where ID = #{id,jdbcType=NUMERIC}
-          and CHANNEL_SYNC_STATUS in ('PENDING', 'FAILED')
-    </update>
+    <!-- 以下三个 outbox 语句自 2026-09-18 起不再使用：解除通知的载体已回到主表（STATUS='RELEASING'）， -->
+    <!-- 补偿扫表走的是 BlacklistMapper.selectPendingReleaseSync，这张表的 CHANNEL_SYNC_* 四列 -->
+    <!-- 降级为历史审计字段。保留 XML 片段会让 mapper 接口与 XML 不对齐（接口侧已删方法）。 -->
+    <!-- NEVER 再据这三条做补偿扫表。 -->
 </mapper>

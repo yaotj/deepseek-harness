@@ -4,263 +4,28 @@ import com.chinasofti.huateng.common.response.CommonResult;
 
 /**
  * 支付宝出行-查询乘车记录详情响应参数。
+ *
+ * <p><b>应答形态：顶层只有 {@code retCode} / {@code retMsg} + 一个 {@code data} 对象</b>
+ * （2026-09-20 按支付宝侧实测要求改回，ADR-D150）。20 个业务字段全在
+ * {@link AlipayTripTravelDetailDTO} 里，<b>NEVER 再把它们平铺回顶层</b> —— 扁平结构是 ADR-D148
+ * 按 R6 §3.72 表148 推出的口径，已被对接方的实测要求取代（外部契约以对方实际解析行为为准，
+ * 与「支付中心网关字段名 MUST 实测」同一条判据）。
+ *
+ * <p>失败分支（参数非法 / 订单不存在 / 系统异常）**只填 {@code retCode} / {@code retMsg}、
+ * {@code data} 留 null**，NEVER 为了「字段齐全」塞一个空对象。
  */
 public class AlipayTripFindTravelDetailRespDTO extends CommonResult {
 
     /**
-     * 进站站点名称。
+     * 乘车记录详情业务体；查询失败时为 {@code null}。
      */
-    private String entryStationName;
+    private AlipayTripTravelDetailDTO data;
 
-    /**
-     * 进站时间。
-     */
-    private String entryDate;
-
-    /**
-     * 出站站点名称。
-     */
-    private String exitStationName;
-
-    /**
-     * 出站时间。
-     */
-    private String exitDate;
-
-    /**
-     * 实付金额（单位：分）
-     */
-    private String payAmount;
-
-    /**
-     * 总金额（单位：分）
-     */
-    private String totalAmount;
-
-    /**
-     * 订单扩展类型。
-     */
-    private String orderExpType;
-
-    /**
-     * 交易订单号。
-     */
-    private String tradeOrderNo;
-
-    /**
-     * 支付交易订单号。
-     */
-    private String payTradeOrderNo;
-
-    /**
-     * 支付订单日期。
-     */
-    private String payOrderNoDate;
-
-    /**
-     * 扣款请求结果。
-     */
-    private String debitRequestResult;
-
-    /**
-     * 支付渠道代码。
-     */
-    private String payChannelCode;
-
-    /**
-     * 同行票标识。
-     */
-    private String companionFlag;
-
-    private String cardNum;
-
-    /**
-     * 日票票号。
-     */
-    private String ticketCode;
-
-    /**
-     * 计次次数（预留）
-     */
-    private String countingTimes;
-
-    /**
-     * 计次标识（预留）
-     */
-    private String countingFlag;
-
-    /**
-     * 发票状态（可选）
-     */
-    private String invoice;
-
-    /**
-     * 优惠金额（单位：分）
-     */
-    private String discountFee;
-
-    /**
-     * 优惠信息。
-     */
-    private String discountInfo;
-
-    public String getEntryStationName() {
-        return entryStationName;
+    public AlipayTripTravelDetailDTO getData() {
+        return data;
     }
 
-    public void setEntryStationName(String entryStationName) {
-        this.entryStationName = entryStationName;
-    }
-
-    public String getEntryDate() {
-        return entryDate;
-    }
-
-    public void setEntryDate(String entryDate) {
-        this.entryDate = entryDate;
-    }
-
-    public String getExitStationName() {
-        return exitStationName;
-    }
-
-    public void setExitStationName(String exitStationName) {
-        this.exitStationName = exitStationName;
-    }
-
-    public String getExitDate() {
-        return exitDate;
-    }
-
-    public void setExitDate(String exitDate) {
-        this.exitDate = exitDate;
-    }
-
-    public String getPayAmount() {
-        return payAmount;
-    }
-
-    public void setPayAmount(String payAmount) {
-        this.payAmount = payAmount;
-    }
-
-    public String getTotalAmount() {
-        return totalAmount;
-    }
-
-    public void setTotalAmount(String totalAmount) {
-        this.totalAmount = totalAmount;
-    }
-
-    public String getOrderExpType() {
-        return orderExpType;
-    }
-
-    public void setOrderExpType(String orderExpType) {
-        this.orderExpType = orderExpType;
-    }
-
-    public String getTradeOrderNo() {
-        return tradeOrderNo;
-    }
-
-    public void setTradeOrderNo(String tradeOrderNo) {
-        this.tradeOrderNo = tradeOrderNo;
-    }
-
-    public String getPayTradeOrderNo() {
-        return payTradeOrderNo;
-    }
-
-    public void setPayTradeOrderNo(String payTradeOrderNo) {
-        this.payTradeOrderNo = payTradeOrderNo;
-    }
-
-    public String getPayOrderNoDate() {
-        return payOrderNoDate;
-    }
-
-    public void setPayOrderNoDate(String payOrderNoDate) {
-        this.payOrderNoDate = payOrderNoDate;
-    }
-
-    public String getDebitRequestResult() {
-        return debitRequestResult;
-    }
-
-    public void setDebitRequestResult(String debitRequestResult) {
-        this.debitRequestResult = debitRequestResult;
-    }
-
-    public String getPayChannelCode() {
-        return payChannelCode;
-    }
-
-    public void setPayChannelCode(String payChannelCode) {
-        this.payChannelCode = payChannelCode;
-    }
-
-    public String getCompanionFlag() {
-        return companionFlag;
-    }
-
-    public void setCompanionFlag(String companionFlag) {
-        this.companionFlag = companionFlag;
-    }
-
-    public String getCardNum() {
-        return cardNum;
-    }
-
-    public void setCardNum(String cardNum) {
-        this.cardNum = cardNum;
-    }
-
-    public String getTicketCode() {
-        return ticketCode;
-    }
-
-    public void setTicketCode(String ticketCode) {
-        this.ticketCode = ticketCode;
-    }
-
-    public String getCountingTimes() {
-        return countingTimes;
-    }
-
-    public void setCountingTimes(String countingTimes) {
-        this.countingTimes = countingTimes;
-    }
-
-    public String getCountingFlag() {
-        return countingFlag;
-    }
-
-    public void setCountingFlag(String countingFlag) {
-        this.countingFlag = countingFlag;
-    }
-
-    public String getInvoice() {
-        return invoice;
-    }
-
-    public void setInvoice(String invoice) {
-        this.invoice = invoice;
-    }
-
-    public String getDiscountFee() {
-        return discountFee;
-    }
-
-    public void setDiscountFee(String discountFee) {
-        this.discountFee = discountFee;
-    }
-
-    public String getDiscountInfo() {
-        return discountInfo;
-    }
-
-    public void setDiscountInfo(String discountInfo) {
-        this.discountInfo = discountInfo;
+    public void setData(AlipayTripTravelDetailDTO data) {
+        this.data = data;
     }
 }

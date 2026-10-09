@@ -78,6 +78,19 @@ public class TicketClient extends ProxyWebClient {
         return JSONUtil.toBean(result, new TypeReference<QueryFirstEntryTxnResult>() {}, true);
     }
 
+    /**
+     * 查「同卡 + 早于本次出站时间的最近一笔进站明细」（离线码出站重算票价用）。
+     *
+     * <p>取代上面那条按 {@code ticketTransSeq} 相等配对的口径：<b>NEVER 退回按序列号相等配对</b> ——
+     * 进站与出站是同一张卡的两笔不同交易，闸机上送的 {@code ticketTransSeq} 天然不同
+     * （2026-09-22 实测进站 0 / 出站 1），按相等配对恒命中 0 行、订单永久卡 {@code OFFLINE_FARE_PENDING}。
+     * 上面那条方法保留未删（可能仍有别的调用方），本方法只增不改。
+     */
+    public QueryLatestEntryTxnResult queryLatestEntryTxnBeforeExit(QueryLatestEntryTxnReqDTO request) {
+        String result = postJsonAndGetResponse("/ci/app/queryLatestEntryTxnBeforeExit", request);
+        return JSONUtil.toBean(result, new TypeReference<QueryLatestEntryTxnResult>() {}, true);
+    }
+
     public RequestTransListResult requestTransList(@RequestBody RequestTransListReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/requestTransList", request);
         return JSONUtil.toBean(result, new TypeReference<RequestTransListResult>() {

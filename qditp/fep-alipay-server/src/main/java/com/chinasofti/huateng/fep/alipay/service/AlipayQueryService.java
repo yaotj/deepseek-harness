@@ -3,7 +3,7 @@ package com.chinasofti.huateng.fep.alipay.service;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
-import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespVO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayQueryReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayQueryRespDTO;
 
@@ -22,9 +22,9 @@ public interface AlipayQueryService {
     /**
      * 查询乘车记录详情。
      * @param request 请求对象
-     * @return 响应对象
+     * @return 应答对象（扁平结构，R6 §3.72 表148，NEVER 再包 {@code data} 层）
      */
-    AlipayTripFindTravelDetailRespVO findTravelDetail(AlipayTripFindTravelDetailReqDTO request);
+    AlipayTripFindTravelDetailRespDTO findTravelDetail(AlipayTripFindTravelDetailReqDTO request);
 
     /**
      * 支付结果查询。

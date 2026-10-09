@@ -131,13 +131,24 @@ class GateDailyTicketCoordinatorTest {
     }
 
     @Test
-    @DisplayName("出站扣次只在 trxType=02 且日票时触发（03 超时出站现状不扣次）")
-    void 出站扣次只在02且日票时触发() {
-        for (String nonExit : new String[]{"01", "03", "04", "99"}) {
+    @DisplayName("出站扣次只在出站（02 / 03）且日票时触发，其余 trxType 与非日票一律不触发")
+    void 出站扣次只在出站且日票时触发() {
+        for (String nonExit : new String[]{"01", "04", "99"}) {
             coordinator.markUsedOnExit(request(nonExit), DAILY_TICKET_CARD_TYPE);
         }
         coordinator.markUsedOnExit(request("02"), QR_CARD_TYPE);
         verifyNoInteractions(dailyTicketClient);
+    }
+
+    @Test
+    @DisplayName("超时出站 trxType=03 MUST 与 02 一样扣次（NEVER 退回只认 02，那等于免费乘车一次）")
+    void 超时出站同样扣次() {
+        when(dailyTicketClient.markUsed(anyString(), isNull(), isNull(), anyString(), anyString()))
+                .thenReturn(baseResult("0000", "成功"));
+
+        coordinator.markUsedOnExit(request("03"), DAILY_TICKET_CARD_TYPE);
+
+        verify(dailyTicketClient).markUsed(anyString(), isNull(), isNull(), anyString(), anyString());
     }
 
     @Test

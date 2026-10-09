@@ -20,7 +20,7 @@
 - IF8A-61 `/payment/requestPay`
 - IF8A-62 `/payment/requestPayResult`
 - IF8A-64 `/payment/requestRefundTicket`
-- IF8A-65 `/ticket/cancelOrder`
+- IF8A-65 `/ticket/cancelOrder` —— **2026-09-22 起（1.0.65，ADR-D156）覆盖「日票 + 旅游票 / 未激活即可取消 / 已收款则自动退款」三件事**，详见下面「取消订单与取消后自动退款」那节。**NEVER 回退成「只认 `CREATED`、只查子单表」** —— 那版旅游票主单（`0T` 前缀）永远返「订单不存在」。
 - IF8A-67 `/ticket/updateTicket`
 - IF8A-71 `/ticket/updateAndNotice`
 - 无编号内部接口：`/payment/receivePayResult`（支付回调）、`/queryDailyTicketInfo`、`/queryDailyTicketPayInfo`、`/entry/check`（进站校验）、`/ticket/markUsed`（出站扣次，由 ticket-server `GateTicketHandler` 调用）、`/ticket/rideAvailability`（拉码前置可用性查询）
@@ -38,9 +38,41 @@
 `controller/DailyTicketRefundController.java`（前缀 `/page/daily-ticket/refund`，运营页面，强制 `orderType=1`）
 - `GET /orders`、`POST /request`、`/pay-query`、`/query`、`/retry`、`/resubmit`、`GET /records`
 
+`controller/internal/BatchRefundInternalController.java`（前缀 `/internal/daily-ticket/batch-refund`，**2026-09-20 新增，甲方需求 16/17，ADR-D151**）
+- `POST /daily`（`sys_job` **245**，cron `0 0 20 * * ?`）、`POST /monthly`（`sys_job` **250**，cron **`0 0 20 L * ?`** 月末最后一天）—— 两条 job_id 均于 2026-09-21 由 135 / 136 改号，**NEVER 回退**
+- 两条只差回溯窗口（7 天 / 60 天），**候选判据完全相同**：`ORDER_STATUS='PAID'` + `PAY_STATUS='PAID'` + **`DAILY_TICKET_INSTANCE` 无同 `ORDER_NO` 行**（= 未激活，**订单表没有激活列，NEVER 去那里找**）+ `PAY_DATE` 早于 `waitDays`（默认 3 天）
+- **独立日票谓词 MUST 带 `PARENT_ORDER_NO IS NULL`，NEVER 去掉** —— 否则旅游票子单会被当独立日票单独退掉、主单进半退状态
+- 旅游票走**主单整单退**（`orderType="2"` → `requestTravelRefund`，子单校验已在那里，批量侧 NEVER 重写）
+- `DailyTicketBatchRefundService` **只扫表 + 逐笔复用 `requestRefundTicket`**，**刻意不带 `@Transactional`（每笔调支付网关，NEVER 加）**；两个独立 `AtomicBoolean`，busy 返 `9998`（**属限流不是失败**，web-admin 侧只打 WARN）
+- 可配键：`daily.batchRefund.limit:200`（**两类各取一次，单轮 scanned 上限 2×limit**）/ `waitDays:3` / `daily.lookbackDays:7` / `monthly.lookbackDays:60`
+- **无鉴权**（沿用本模块 internal 端点现状，与 AGENTS.md §5.2 冲突）
+
 > 注意：日票的运营端后台接口在**本模块**，不在 web-server。
 
+### 取消订单与取消后自动退款（IF8A-65，1.0.65 / 2026-09-22，ADR-D156）
+
+甲方需求原话：「日票/旅游票 非已激活状态收到取消订单请求需要后台进行取消订单，如果取消状态订单收到支付结果通知需要自动发起退款」。
+
+**两个入口、同一套处置**（`CanceledOrderRefundService`，退款包内）：
+- `DailyTicketOrderCreationService.cancelOrder` —— 取消时订单已是 `PAID`；
+- `DailyTicketPaymentService.receivePayResult` —— **已取消的单随后收到支付成功通知**（取消与支付赛跑，钱晚到）。
+
+**取消侧口径**（改任一条 MUST 同批改单测 `DailyTicketCancelOrderTest`）：
+- 前置白名单 `CREATED` / `PAYING` / `PAY_FAILED` / `PAID`；`CANCELED` 幂等返 `0000`；`REFUNDING` / `REFUNDED` 拒。**NEVER 写成「非终态即可取消」**。
+- 「已激活」判据 = `DAILY_TICKET_INSTANCE` 有同 `ORDER_NO` 行（旅游票 = 任一子单有行），与退款侧 `refundType` 判据同源。**订单表没有激活列，NEVER 去那里找**。
+- `PAYING` 先 `queryAndRefreshPayResult` / `queryAndRefreshTravelPayResult` 主动查一次再决策 —— 不查就会把已到账的单按未付取消、漏掉退款。
+- 状态推进全走 CAS（`cancelIfPending` / `cancelIfPaid` / `cancelSubOrdersByParent`），**NEVER 退回无条件 `updateOrderStatus`**：与支付回调赛跑时那样写会把已落 `PAID` 的单改成 `CANCELED` 而支付事实仍在。
+- 旅游票 = **主单 CAS 成功后**再 `cancelSubOrdersByParent` 批量取消子单，顺序 NEVER 颠倒（反过来写、主单 CAS 失败时会留下「主单还在、子单全没」）。
+- 海之巴士单（`ORDER_SOURCE=4`）**一律拒绝取消**（下单即已收款且不走我方网关，退款只能由该渠道发起）；小程序单（`6`）允许取消、退款单落库后等对方同步；免费票（`FREE-` 前缀）允许取消、不出网退款。
+
+**回调侧口径**：`CANCELED` 单走新 CAS `updatePayResultIfCanceled`（`where ORDER_STATUS='CANCELED' and PAY_STATUS <> 'PAID'`），**只补支付事实、`ORDER_STATUS` 仍留 `CANCELED`**，再交给退款链路推 `REFUNDING → REFUNDED`。**NEVER 在这里把订单改回 `PAID`** —— 那等于把已取消的未激活票又变成可激活状态。CAS 落 0 行（重复回调）时**仍调一次退款**，退款服务自身按「已有退款单」幂等短路，这是首次回调落库成功但退款炸了时的唯一补偿出口。
+
+**自动退款口径**：`refundType` 恒 `00` 直退（未激活没有可核验的行程，**NEVER 写 `01`**）、`REFUND_REASON='订单取消自动退款'`、旅游票 `REFUND_SCOPE=TRAVEL_FULL` 按主单整单退（钱按主单那一笔收的）；收口复用 `DailyTicketRefundSettlementService`，因此 IF8B-04 退款结果通知自动走它的 outbox。**出网失败 / 网关未返成功时退款单与订单都留 `REFUNDING`、NEVER 回写 `PAID`**，交运营页 `/pay-query` + `/retry` 人工收口（业主裁决：不加定时任务）。
+
+**已知缺口**：`DailyTicketRefundSettlementService.markRefundFailed` 会把订单置回 `PAID`，因此取消单若走**运营页回查链路**判定退款失败，会回到 `PAID`（未激活 + 已支付 ⇒ 可激活）。该方法被全部手工退款共用（重退要求 `PAID`），本次刻意没动；只有自动退款自己的失败分支不置 `PAID`。
+
 ### `POST /resubmit`（1.0.24 新增，退款重提交）
+
 判据只有一个：**`DAILY_TICKET_REFUND.PLATFORM_REFUND_NO IS NULL`**，即支付平台从未受理过这张退款单，此时沿用原 `REFUND_ORDER_NO` 重发是安全的（对端按 `refundOrderNo` 外部幂等）。与 `/retry` **互斥、NEVER 混用**：`/retry` 处理「对端已受理、结果未回」，`/resubmit` 处理「对端从未受理」。
 - 前置状态白名单：`REFUNDING` / `FAILED` / `WAIT_VERIFY`，其余状态直接返回已有退款结果、不调支付平台。
 - `WAIT_VERIFY` 还要求观察期 `VERIFY_AFTER_TIME` 已过；这是 `REFUND_TYPE='01'`（核验退款）目前**唯一的出口**——`WAIT_VERIFY` 只被写入、全模块无任何代码读取，无补偿任务驱动。
@@ -53,7 +85,37 @@
 → 回调或主动查询置 `PAID` → 激活生成票实例 → 进站校验 / 出站扣次
 → 退款：未激活直退 `refundType=00`；已激活需核验退 `refundType=01`
 
-核心类：`service/DailyTicketService.java`、`service/impl/DailyTicketServiceImpl.java`
+核心类（god class 拆分后的形态，1.0.51~1.0.56）：
+
+- 入口契约 `service/DailyTicketService.java`（25 个方法）。
+- `service/impl/DailyTicketServiceImpl.java` —— **纯委派门面，200 行**：25 个 `@Override` 每个只有一行
+  `return xxxService.yyy(...)`，注入 8 个协作者（`refundInitiationService` / `refundCallbackService` /
+  `travelSubRefundService` / `refundProgressService` / `lifecycleService` / `orderSyncService` /
+  `paymentService` / `orderCreationService`），**不注入任何 mapper、没有 logger、没有一行业务逻辑**。
+  **NEVER 在它里面找实现**，也 NEVER 往它里面加逻辑 —— 按方法名去下面对应的服务类。
+- 本轮拆出的五个服务：
+  - `service/lifecycle/DailyTicketInstanceLifecycleService` —— 票实例生命周期：激活 `updateTicket`（IF8A-67）、
+    首次使用通知 `updateAndNotice`（IF8A-71）、进站校验 `validateEntryCheck`、拉码可用性 `checkRideAvailability`、
+    出站扣次 `markUsed`、使用流水 `queryUsageLog`、票实例查询 `queryDailyTicketInfo`
+  - `service/sync/DailyTicketOrderSyncService` —— 小程序（CXUH）订单状态同步 `syncOrder`（IF8A-72），日票 / 旅游票两支
+  - `service/payment/DailyTicketPaymentService` —— 支付执行与回调：`requestPay` / `requestPayResult` /
+    `queryPayTicket` / `receivePayResult` / `queryDailyTicketPayInfo`，外加 **public** 的
+    `queryAndRefreshPayResult` / `queryAndRefreshTravelPayResult`（退款侧要用它们回填 `PAYMENT_ORDER_NO`，
+    **是有意放开的跨包入口、NEVER 改回 private**）
+  - `service/refund/DailyTicketRefundInitiationService` —— 退款发起：`requestRefundTicket`（IF8A-64）、
+    旅游票 `requestTravelRefund`
+  - `service/order/DailyTicketOrderCreationService` —— 下单与取消：`requestCountingOrder`（IF8A-60）、
+    `requestTravelOrder`（IF8A-70）、`requestOrderFree`（IF8A-73）、`cancelOrder`（IF8A-65）
+- 拆分前就存在、本轮未新建的协作类：`service/refund/` 下的 `DailyTicketRefundSettlementService`、
+  `DailyTicketRefundCallbackService`、`RefundProgressService`、`RefundGatewayRequests`、`TravelSubRefundService`、
+  `DailyTicketTicketLockWriter`、`DailyTicketRefundMessages`；另有 `service/travel/TravelParentSummaryWriter`、
+  `service/DailyTicketBatchRefundService`、`service/DailyTicketRefundQueryService`、`service/ReconExportService`、
+  `service/support/DailyTicketOrderSupport`、`service/support/DailyTicketInstanceStatus`、
+  `service/paylog/DailyTicketPayLogWriter`。
+
+> **拆出来的服务全部零 `@Transactional`，这是刻意的、NEVER 加**：它们的链路里都有支付网关调用，
+> 按 AGENTS.md §5.2「`@Transactional` 方法内 NEVER 发起任何 RPC / 网络调用」，加上注解等于把行锁的持有时长
+> 绑到对端响应时长上。本模块至今**全模块 `@Transactional` 为 0**，一致性靠落库顺序与状态可判定性。
 
 ⚠️ **安全**：`daily-ticket-server` 配置中含商户私钥明文。触碰配置或签名逻辑 **MUST** 提示人工复核，**NEVER** 输出私钥值。
 
@@ -66,12 +128,18 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
 - **拆子单是被唯一索引逼出来的**：`UK_DAILY_TICKET_INSTANCE_ORDER ON DAILY_TICKET_INSTANCE(ORDER_NO)` 限定一个订单号只能挂一张票实例，一单挂多票在现有表上无法表达。
 - 落库顺序**先子单后主单**：中途失败只留孤儿子单，APP 拿不到 `orderNo` 因而无法支付；反序会留下「可支付但子单缺张」的主单。本模块全局无 `@Transactional`，一致性靠顺序而非回滚。
 - `totalAmount` 只做校验、不采信：服务端按 `ticketPrice * ticketCount` 重算，不一致直接拒单；`ticketCount` 上限 `MAX_TRAVEL_TICKET_COUNT=20`（待业务确认）。
-- **支付 / 退款 / 激活链路尚未适配聚合单**（本轮只做下单落库）：`requestPay` 等接口的 `validateOrderNo` 强制 `orderType=1`，只认日票子单号，传主单号会被拒。聚合支付方案待定。
+- **【契约】主单就是聚合支付的实际承载 —— 主单支付一次、子单永不支付**（2026-09-22 起）。支付 / 退款 / 激活三条链路**早已适配聚合单**，全部以主单为对象：
+  - 分支开关是 `orderType`（**不是单号前缀**）：`"1"` = 日票（独立日票与旅游票子单同值）、`"2"` = 旅游票主单，见 `service/support/DailyTicketOrderSupport.java` 的 `ORDER_TYPE_DAILY_TICKET` / `ORDER_TYPE_TRAVEL_TICKET`。`validateOrderNo(orderNo, orderType)` 只校验 `orderType ∈ {"1","2"}` 且 `orderNo` 非空，**NEVER 据前缀判类型**。
+  - 支付：`DailyTicketPaymentService.requestPay` 见 `orderType="2"` 即转 `requestTravelPay`，用 `travelOrderMapper.selectByOrderNo(主单号)`、`updatePayRequest` 把主单置 `PAYING`/`PAYING`，送网关的**商户单号是主单号**、金额是**主单 `TOTAL_AMOUNT`**（独立日票才送子单号 + 单张 `TICKET_PRICE`）。回调 `receivePayResult` 先查 `DAILY_TICKET_ORDER`，命中 0 行即转 `travelOrderMapper` → `markTravelPaySuccess` / `markTravelPaySuccessOnCanceled`。
+  - 激活：`DailyTicketInstanceLifecycleService.canActivate` 对**子单**（`PARENT_ORDER_NO` 非空）**回看主单**，要求主单 `ORDER_STATUS` 与 `PAY_STATUS` 双 `PAID` 才放行；子单自身恒 `CREATED`/`INIT` 不影响激活。
+  - 退款：`DailyTicketRefundInitiationService.requestTravelRefund` 按 `TRAVEL_FULL` 整单退主单 `TOTAL_AMOUNT`。
+  - **子单恒 `CREATED`/`INIT`、`PAY_DATE` 恒空是设计，不是故障**（2026-09-23 库实测：`PARENT_ORDER_NO` 非空的 6 行全部 `CREATED/INIT`、`PAY_DATE` 全 null，`PAY_STATUS='PAID'` 的子单 0 行）。**NEVER 拿「子单没支付」判 P0。**
+- ⚠️ **本处此前写「支付 / 退款 / 激活链路尚未适配聚合单（本轮只做下单落库）」「聚合支付方案待定」，已过期**（那是 2026-09-16 阶段的中间态）。**NEVER 回退成「主单是聚合壳」「旅游票没有聚合支付」的口径。**
 
-## 状态取值（**无枚举类，全是 `DailyTicketServiceImpl` 中的字符串字面量**）
+## 状态取值（**无枚举类**；`TICKET_STATUS` 除 `INIT` 外的取值收在常量类 `service/support/DailyTicketInstanceStatus`，其余状态列仍是各服务里的字符串字面量）
 - `ORDER_STATUS`：`CREATED` / `PAYING` / `PAID` / `PAY_FAILED` / `CANCELED` / `REFUNDING` / `REFUNDED`
 - `PAY_STATUS`：`INIT` / `PAYING` / `PAID` / `FAIL`
-- `TICKET_STATUS`：`ACTIVATED` / `USED`
+- `TICKET_STATUS`：`INIT` / `ACTIVATED` / `USED` / `EXPIRED` / `REFUND_LOCKED` / `REFUNDED`（六态；常量类 `DailyTicketInstanceStatus` 只收了后五个，**`INIT` 没有常量、仍是字面量**。完整语义与终态判定见 §一）
 - `ACC_NOTICE_STATUS`：`INIT` / `SUCCESS`
 - `REFUND_STATUS`：`REFUNDING` / `WAIT_VERIFY` / `REFUNDED` / `FAILED`
 
@@ -79,9 +147,45 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
 
 改动状态 **MUST** 全局 grep 字面量确认所有比较点；**NEVER** 只改一处赋值。
 
+## 票实例落库与「过期」口径（2026-09-22 补）
+
+### `DAILY_TICKET_INSTANCE` 只有一个插入点
+- **【契约】全模块唯一的票实例落库点是 IF8A-67 激活接口**：`DailyTicketInstanceLifecycleService.updateTicket` 里那一次 `instanceMapper.upsert(ticket)`（`MERGE INTO DAILY_TICKET_INSTANCE ... ON (T.ORDER_NO = S.ORDER_NO)`，`resources/mapper/DailyTicketInstanceMapper.xml`）。**支付回调 `receivePayResult` 从不建票实例**，它只回写订单表（`DAILY_TICKET_ORDER` / `TRAVEL_TICKET_ORDER`）的支付事实。`DAILY_TICKET_INSTANCE.ORDER_NO` 与订单一一对应（唯一索引 `UK_DAILY_TICKET_INSTANCE_ORDER`）。**NEVER 在支付链路上「顺手」插一张实例** —— 那会绕过 `canActivate` 的支付校验，让未付单也能激活。
+- 佐证一：支付回调入参 `DailyTicketPayCallbackReqDTO` **只有 10 个字段**（`orderNo` / `tradeNo` / `paymentOrderNo` / `payResult` / `payAmount` / `payDate` / `payChannel` / `cashAmount` / `couponAmount` / `rawBody`）—— **没有 `cardNum`、没有 `ticketCode`、没有 `countingEnd`**，物理上组不出 `DAILY_TICKET_INSTANCE` 的必填列。**NEVER 往回调 DTO 里加卡号 / 票号「以便建实例」。**
+- 佐证二：激活入参 `DailyTicketActivateReqDTO`（17 个字段）**没有 `countingEnd`** —— 有效期在激活请求里根本不存在（见下）。
+
+### 「过期」不是状态机，是「查询时动态比较」+ 事后收敛
+- **本模块没有「过期」状态机**：`DailyTicketInstanceLifecycleService.validateEntryCheck` 与 `checkRideAvailability` 拿 `System.currentTimeMillis()` 与 `COUNTING_END` **现算现比**（`日票已过期` 文案在这两处，**改一处 MUST 同批改另一处**，与拉码校验逐字一致）。
+- **`EXPIRED` 原先只有一个写入点**：出站扣次 `markUsed` 里 `remainTimes == 0`（计次票扣完最后一次）。**2026-09-22 新增第二个写入点**：`DailyTicketExpireService.convergeExpired`（定时收敛，见下节）。两者共用同一状态值，**属有意**（业主未要求区分，下游处置一致：不可过闸、不可退款）；要区分就得新增状态值并同批改 `selectForEntryCheck` 白名单与退款侧判断。
+- **NEVER 因为「状态还是 `ACTIVATED`」就认为票没过期**；也 **NEVER 因为新增了收敛任务就删掉那两处动态比较** —— 收敛按小时跑、有延迟，动态比较是过闸拦截的最后一道闸（`DailyTicketExpireService` 类注释原文：「只做状态收敛，**NEVER 顺手去掉那两处动态判断**」）。
+- **`COUNTING_END` 在激活时不写**：`updateTicket` 只写 `PERIOD`（`setPeriod(request.getPeriod())`）与 `COUNTING_START`，**没有 `setCountingEnd`**；`COUNTING_END` 只由 APP 的 IF8A-33 `updateAndNotice`（首次使用）写入，闸机出站 `markUsed` 传 null 不覆盖。因此「激活但从未乘车」的票 `COUNTING_END` **恒为空**。
+- **`PERIOD`（有效期天数）此前落库后零读取**：写入方只有 `updateTicket`（`request.getPeriod()`），全模块无任何比较点；「过期」判定一律走 `COUNTING_END`。**2026-09-22 起收敛任务的 `fallbackByPeriod` 回退支成为它的第一个读取处**（见下节），这是唯一例外。
+
+## 定时任务（Quartz 入口在 web-admin，**本模块零 `@Scheduled`**）
+
+本模块**没有任何 `@Scheduled`（全模块 grep 为 0，刻意如此）**；所有定时补偿都由 `web-server/web-admin` 的 Quartz 任务经 rpc 打本模块的 `/internal/**` 端点。任务类在 `web-server/web-admin/src/main/java/com/chinasofti/huateng/quartz/task/`。**JobStore 是内存态**（改 `sys_job` 表后 MUST 重启 web-admin、或在界面上改存一次才生效，只改库不生效）。**排查「定时任务有没有跑」MUST 查 `SYS_JOB` / `SYS_JOB_LOG` + 本模块日志，NEVER 在本模块里找 `@Scheduled`。**
+
+| job_id | 任务名 | 触发目标（quartz/task） | cron | 初始 status | 打到本模块的端点 |
+|---|---|---|---|---|---|
+| 225 | 给ACC上传扣费交易 | `reconQuartzTask.runDailyBatch()` | `0 0 2 * * ?` | 0 启用 | 对账抽取 `/internal/recon/...` |
+| 245 | 多日票批量退款(当日) | `dailyTicketBatchRefundQuartzTask.refundDaily()` | `0 0 20 * * ?` | 0 启用 | `POST /internal/daily-ticket/batch-refund/daily` |
+| 250 | 多日票批量退款(月度) | `dailyTicketBatchRefundQuartzTask.refundMonthly()` | `0 0 20 L * ?` | 0 启用 | `POST /internal/daily-ticket/batch-refund/monthly` |
+| 350 | 日票过期状态收敛 | `dailyTicketQuartzTask.convergeExpiredTickets()` | `0 5 * * * ?` | **1 暂停** | `POST /internal/daily-ticket/expire/converge` |
+
+- **`sys_job` 350「日票过期状态收敛」**（2026-09-22 新增；脚本 `web-server/web-quartz/src/main/resources/sql/web-quartz-daily-ticket-expire-job-migration.sql`，**注意在 `web-quartz` 模块、不是 `web-admin`**）：每小时第 5 分扫一轮 `DAILY_TICKET_INSTANCE`，把「有效期已过、状态还停在 `ACTIVATED` / `USED`」的票**逐条 CAS** 推进成 `EXPIRED`。
+  - **初始 `status=1`（暂停）**，脚本 remark 原文：「初始 status=1 暂停：收敛成 EXPIRED 后该票不能再退款，属行为变更，须经业主确认后置 0。」**NEVER 未确认就置 0 上线。**
+  - 候选两支（`DailyTicketInstanceMapper.selectExpiredCandidates`，白名单 `TICKET_STATUS in ('ACTIVATED','USED')`）：① `COUNTING_END` 非空 → `COUNTING_END < nowMillis`；② `COUNTING_END` 为空 → 回退 `ACTIVATE_TIME + NUMTODSINTERVAL(PERIOD,'DAY') < now`（`fallbackByPeriod` 默认 true，配键 `daily-ticket.expire.fallback-by-period:true`；关掉后「激活但从未乘车」的票永不被收敛）。`REFUND_LOCKED` / `REFUNDED` 天然被白名单排除。
+  - 逐条 CAS 走 `updateStatusIfCurrent(id, expectStatus, EXPIRED, now)`，`expectStatus` 取自扫描时状态；**CAS 影响 0 行计入 `skipped`（多为并发被退款锁票，属正常竞态、不是失败）**，单张异常计入 `failed` 不中断整批。CAS 语句只改 `TICKET_STATUS` 与 `UPDATE_TIME`，**NEVER 在这里补 `COUNTING_END` / `FIRST_USE_TIME`**。
+  - `batchLimit` 默认 500（`daily-ticket.expire.batch-limit:500`），单轮上限，防一次把全库历史票拉进内存。候选按 `UPDATE_TIME` 升序、`fetch first N rows only`。
+  - 端点 `ExpireInternalController` 带 `AtomicBoolean` 限流，busy 返 **`9998`（限流不是失败）**，web-admin 侧 `convergeExpiredTickets` 只记 WARN **不抛**，**不能复用 `assertSuccess`**（否则前台调度日志每轮记红）。
+  - 收敛后按子单状态重算旅游票主单汇总（`TravelParentSummaryWriter.refreshBySubOrder`），失败只记日志不回滚。
+  - **⚠️「待裁决」——「过期票仍可退」旧口子关闭属行为变更**：`DailyTicketRefundInitiationService` 对非 `ACTIVATED` 一律返「车票已使用，不允许退款」，因此被收敛成 `EXPIRED` 的票**从此不能再发起退款**。这关闭了一个此前事实上存在的口子（`EXPIRED` 票被当「未激活」走 `refundType='00'` 全额退，见 §一 · 退款前置条件那段）。**该变更属行为变更、MUST 经业主确认后才允许启用任务；确认前收敛任务保持 `status=1`，文档口径 MUST 写成「待裁决」而不是既定规则。**
+  - **⚠️ CAS 推进那一支（按日期过期）尚未被真实数据验证**：会话期内库中候选恒为 0 行（没有 `COUNTING_END` 已过、或 `ACTIVATE_TIME + PERIOD` 已过的 `ACTIVATED`/`USED` 行），**「能收敛」只在代码层验证过、未在真实数据上跑通**。**启用前 MUST 先造数演练**（造一张 `COUNTING_END` 已过的 `USED` 票，跑一次 `/converge`，确认 `expired=1`）。
+- **无鉴权**：`/internal/daily-ticket/expire/converge` 与 `/internal/daily-ticket/batch-refund/{daily,monthly}` 都是**裸暴露**（沿用本模块 internal 端点现状），与 AGENTS.md §5.2 冲突，上线前 MUST 随那批端点统一补齐。
+
 ## 拉码前置可用性校验（2026-09-17 新增，daily-ticket-server 1.0.29 + fep-app 2.0.87，ADR-D126）
 
-`POST /ci/daily-ticket/ticket/rideAvailability` → `DailyTicketServiceImpl.checkRideAvailability`。
+`POST /ci/daily-ticket/ticket/rideAvailability` → `DailyTicketInstanceLifecycleService.checkRideAvailability`（门面 `DailyTicketServiceImpl.checkRideAvailability` 只是一行委派）。
 起因：IF8A-03 拉码链路原先**一行都不碰日票**，次票用完的用户照样能拉到可用乘车码，只在闸机侧被拦。这条把拒绝提前到拉码时。**以下五条 NEVER 改**：
 
 1. **这是拉码时的提前反馈，不是护栏。** 闸机侧 `GateDailyTicketCoordinator.checkEntryAllowed` 那道权威校验**保持原样**，**NEVER 因为有了这条就撤掉** —— 拉码到进站之间可能隔很久，APP 还可能缓存旧码，只有进站那一刻的校验才是权威的。
@@ -132,6 +236,9 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
 > **行号会漂**。抽取当天 `DailyTicketServiceImpl.java` 在同一次会话内从 1440 行变成 1462 行，
 > 同一条注释的行号出现过 1332 / 1336 两个值。因此**引用本节任何 `文件:行号` 前 MUST 先 grep 定位关键字**
 > （例如 `grep -n 'NEVER 置' <file>`），NEVER 直接按本节行号跳转或据行号判断注释是否还在。
+> **更彻底的一次漂移已经发生**：1.0.51~1.0.56 把 `DailyTicketServiceImpl` 从 2455 行拆成 200 行的纯委派门面，
+> 本节原先所有 `DailyTicketServiceImpl.java:8xx~14xx` 形式的锚点**对应的行已不存在**，
+> 现已按「类名 + 方法名」重新指向拆出来的服务类（归属见正文「核心类」）。**NEVER 再去门面里找这些注释。**
 > 路径均相对 `daily-ticket-server/src/main/`。
 > 注释原文中的 MUST / NEVER 逐条保留、未合并；本节不含 ADR 编号 —— 抽取范围内的注释**一处都没有引用 `ADR-D*`**，
 > 它们只写日期（`2026-09-10` / `2026-09-11` / `2026-09-15`）与规格章节号（网关 §3.1 / §3.3、甲方文件 §一）。
@@ -140,7 +247,7 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
 
 **契约与判据**
 
-- `daily-ticket-server` / `DailyTicketServiceImpl`（常量区，`java/com/chinasofti/huateng/dailyticket/service/impl/DailyTicketServiceImpl.java:81~96`）
+- `daily-ticket-server` / `DailyTicketInstanceStatus`（常量类与类注释，`java/com/chinasofti/huateng/dailyticket/service/support/DailyTicketInstanceStatus.java`）
   —— `DAILY_TICKET_INSTANCE.TICKET_STATUS` 六态：`INIT` 已下单未激活 / `ACTIVATED` 已激活未开始使用（可进站）/
   `USED` 已开始使用（可继续进站，一日票有效期内不限次、计次票凭剩余次数）/ `EXPIRED` 已过期或次数用尽（终态）/
   `REFUND_LOCKED` 退票锁定中（终态，锁定期不可过闸）/ `REFUNDED` 已退票（终态）。
@@ -149,7 +256,7 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
   —— 进站校验**状态白名单**是 `ACTIVATED`（已激活未使用）+ `USED`（已开始使用），排除
   `INIT` / `EXPIRED` / `REFUND_LOCKED` / `REFUNDED`；收口条件是 `COUNTING_END` 与 `ACTUAL_TIMES`。
   取最新一行（`order by CREATE_TIME desc` + `fetch first 1 rows only`）。
-- `daily-ticket-server` / `DailyTicketServiceImpl.validateEntryCheck`（`.../DailyTicketServiceImpl.java:833~841`）
+- `daily-ticket-server` / `DailyTicketInstanceLifecycleService.validateEntryCheck`（`.../service/lifecycle/DailyTicketInstanceLifecycleService.java`）
   —— 「计次票次数检查（仅校验，不扣减；扣减在出站时执行）」；
   「`ACTUAL_TIMES` 负数是「不限次」哨兵值（APP 上送 -99，见 `DailyTicketActivateReqDTO#actualTimes`），
   一日票 / 多日票走有效期而非次数，**NEVER 用 `<= 0` 判断用完**——那会把不限次票判成已用完」。
@@ -159,55 +266,48 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
 
 **决策理由**
 
-- 同上 `DailyTicketServiceImpl.java:94~95` —— 「收口条件应是有效期（`COUNTING_END`）与次数，不是 `USED` 这个状态本身」。
+- 同上 `DailyTicketInstanceStatus` 类注释 —— 「收口条件应是有效期（`COUNTING_END`）与次数，不是 `USED` 这个状态本身」。
 
 **陷阱**
 
-- `daily-ticket-server` / `DailyTicketServiceImpl`（`.../DailyTicketServiceImpl.java:91~95`）与
+- `daily-ticket-server` / `DailyTicketInstanceStatus`（`.../service/support/DailyTicketInstanceStatus.java` 类注释）与
   `DailyTicketInstanceMapper.selectForEntryCheck`（`resources/mapper/DailyTicketInstanceMapper.xml:153~154`）
   —— 「2026-09-10 线上事故：进站后 APP 的 `updateAndNotice` 把状态推到 `USED`，
   而 `selectForEntryCheck` 用 `TICKET_STATUS != 'USED'` 过滤，导致一日票刷一次就再也进不了站」。
   XML 侧原文：「**NEVER 写成 `TICKET_STATUS != 'USED'`**」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.validateEntryCheck`（`.../DailyTicketServiceImpl.java:836`）
+- `daily-ticket-server` / `DailyTicketInstanceLifecycleService.validateEntryCheck`（同上文件，`ACTUAL_TIMES` 判据处）
   —— 「（2026-09-10 线上：-99 被判「计次票次数已用完」，日票进不了站）」。
 
 ### 二、旅游票（IF8A-70 聚合单）
 
 **契约与判据**
 
-- `daily-ticket-server` / `DailyTicketServiceImpl.requestTravelOrder`（`.../DailyTicketServiceImpl.java:132~147`）
+- `daily-ticket-server` / `DailyTicketOrderCreationService.requestTravelOrder`（`.../service/order/DailyTicketOrderCreationService.java`）
   —— 「旅游票是聚合单：主单落 `TRAVEL_TICKET_ORDER`，内含的每张日票落一条 `DAILY_TICKET_ORDER` 子单
   （`ORDER_TYPE='1'`、`PARENT_ORDER_NO` 指向主单）」。
-- 同方法 `:145~146` —— 「**金额一律服务端重算**：`totalAmount` 只用于与 `ticketPrice * ticketCount` 比对，
+- 同方法 —— 「**金额一律服务端重算**：`totalAmount` 只用于与 `ticketPrice * ticketCount` 比对，
   比对不过直接拒单，**NEVER** 直接采信 APP 上送值落库」；校验实现在
-  `DailyTicketServiceImpl.validateTravelOrderRequest`（`.../DailyTicketServiceImpl.java:1420~1423`，
+  `DailyTicketOrderCreationService.validateTravelOrderRequest`（`.../service/order/DailyTicketOrderCreationService.java`，
   不一致时返「totalAmount与ticketPrice*ticketCount不一致」）。
-- `daily-ticket-server` / `DailyTicketServiceImpl.MAX_TRAVEL_TICKET_COUNT`（`.../DailyTicketServiceImpl.java:75~79`）
+- `daily-ticket-server` / `DailyTicketOrderCreationService.MAX_TRAVEL_TICKET_COUNT`（`.../service/order/DailyTicketOrderCreationService.java`）
   —— 「旅游票单次购买张数上限。旅游票下单按张数循环 INSERT，不设上限等于把 for 循环次数交给外部输入。
   上限值待业务确认，暂按 20 张」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.nextTravelOrderNo`（`.../DailyTicketServiceImpl.java:1336`）
+- `daily-ticket-server` / `DailyTicketOrderCreationService.nextTravelOrderNo`（`.../service/order/DailyTicketOrderCreationService.java`）
   —— 「旅游票主单号，前缀 `0T` 与日票子单的 `0E` 区分，便于日志与运营侧一眼分辨聚合单」。
-- `daily-ticket-server` / `ReconExportMapper.selectTravelTicketPaySummary`（`java/com/chinasofti/huateng/dailyticket/mapper/ReconExportMapper.java:118~121`）
-  —— 「旅游票**没有聚合支付**。APP 只能拿子单号逐张付，拿主单号 `0T...` 调 `requestPay` 会在
-  `orderMapper.selectByOrderNo` 命中 0 行、返回「订单不存在」（`validateOrderNo` 只校验 `orderType='1'` 与非空，
-  不认单号前缀）」。
+- ⚠️ **本处此前摘录的两条（`ReconExportMapper.selectTravelTicketPaySummary` 处的「旅游票**没有聚合支付**」「APP 只能拿子单号逐张付，拿主单号 `0T...` 调 `requestPay` 命中 0 行、返回订单不存在」「`validateOrderNo` 只校验 `orderType='1'`」）已过期**（那是 2026-09-16 的中间态，源码注释已重写）。**正确口径见 §数据表「旅游票（IF8A-70）落库形态」：主单是聚合支付承载，`orderType="2"` 走 `requestTravelPay`、送主单号；子单恒 `CREATED`/`INIT`。NEVER 回退。**
+- `daily-ticket-server` / `ReconExportMapper.selectTravelTicketPaySummary`（`java/com/chinasofti/huateng/dailyticket/mapper/ReconExportMapper.java`，现 javadoc 起于 `:30`）
+  —— 「口径取**主单 `TRAVEL_TICKET_ORDER`**：旅游票是「主单聚合支付一次」，支付终态只回写主单，子单（`DAILY_TICKET_ORDER` 里 `PARENT_ORDER_NO` 非空那些）恒为 `CREATED`/`INIT`、`PAY_DATE` 恒空。**NEVER 改回按子单统计** —— 2026-09-22 实测：改回去这条查询恒返 0 行，旅游票在 `ITP.PAY` 里就一直没有数据（该缺陷自上线起存在，当日修复）。张数取 `SUM(TICKET_COUNT)`（一张主单含 N 张票，**NEVER 用 `COUNT(*)`** —— 那数的是订单数）」。
 
 **决策理由**
 
-- `daily-ticket-server` / `DailyTicketServiceImpl.requestTravelOrder`（`.../DailyTicketServiceImpl.java:137~138`）
+- `daily-ticket-server` / `DailyTicketOrderCreationService.requestTravelOrder`（落库顺序那段注释，`.../service/order/DailyTicketOrderCreationService.java`）
   —— 「拆子单不是设计取舍——`UK_DAILY_TICKET_INSTANCE_ORDER` 限定一个订单号只能挂一张票实例，
   一单挂多票在现有表上无法表达」。
-- 同方法 `:140~143` —— 「**落库顺序是先子单、后主单**：中途失败时只留下父单不存在的孤儿子单，
+- 同方法 —— 「**落库顺序是先子单、后主单**：中途失败时只留下父单不存在的孤儿子单，
   APP 拿不到 `orderNo` 也就无法发起支付，不会出现「能付款但票数不足」的单。反序则会留下可支付但子单缺张的主单。
   本模块没有任何 `@Transactional`（全模块 grep 为 0），因此不靠事务回滚保证一致性，靠顺序与状态可判定性」。
-- `daily-ticket-server` / `ReconExportMapper.selectTravelTicketPaySummary`（`.../mapper/ReconExportMapper.java:84~94`）
-  与 `ReconExportMapper.xml:90~96` —— 主单是聚合壳：「`requestTravelOrder` 插入时写死
-  `ORDER_STATUS='CREATED'` / `PAY_STATUS='INIT'`，而全仓库对 `travelTicketOrderMapper` 只有一次 `insert`、
-  **没有任何 UPDATE**，主单状态永不回写。支付实际是**每张子单各走一次**：
-  `DailyTicketServiceImpl.requestPay` 第一步 `orderMapper.selectByOrderNo` 查的是 `DAILY_TICKET_ORDER`，
-  上送网关的商户单号是子单号、金额是单张 `TICKET_PRICE`；回写走 `updatePayResultIfPaying`，把
-  `PAY_STATUS='PAID'` / `PAY_DATE` / `PAY_AMOUNT` 落在子单上」。
-- 同上 `:118~121` —— 「补充事实（**不是缺陷，是当前设计**）」，且「NEVER 再据「主单 `PAY_STATUS` 恒为 `INIT`」判 P0」。
+- ⚠️ **本处此前摘录的整段（`ReconExportMapper` `:84~94` 与 `ReconExportMapper.xml:90~96` 处的「主单是聚合壳」「全仓库对 `travelTicketOrderMapper` 只有一次 `insert`、**没有任何 UPDATE**，主单状态永不回写」「支付实际是**每张子单各走一次**：`requestPay` 查 `DAILY_TICKET_ORDER`、商户单号是子单号、`PAY_STATUS='PAID'` 落在子单上」，以及 `:118~121` 处「主单 `PAY_STATUS` 恒为 `INIT`」）已过期**。**正确口径**：主单承载聚合支付 —— `orderType="2"` → `DailyTicketPaymentService.requestTravelPay` 送**主单号**、金额取主单 `TOTAL_AMOUNT`，支付终态只回写主单；`TravelTicketOrderMapper` 现有 `updatePayRequest` / `updatePayResultIfPaying` / `updatePaySuccessByExternalSync` / `updatePaymentOrderNo` / `cancelIfPending` / `cancelIfPaid` / `updatePayResultIfCanceled` 七个写方法。**NEVER 回退，也 NEVER 再据「主单 `PAY_STATUS` 恒为 `INIT`」判 P0。**
+- 仍成立的部分（**不是缺陷，是当前设计**）：子单恒 `CREATED`/`INIT`、`PAY_DATE` 恒空 —— 钱是按主单那一笔收的。2026-09-23 库实测一致（`PARENT_ORDER_NO` 非空的 6 行全 `CREATED/INIT`、`PAY_DATE` 全 null）。
 - `daily-ticket-server` / `TravelTicketOrder`（`java/com/chinasofti/huateng/dailyticket/model/TravelTicketOrder.java:5~10`）
   —— 「主单只承载聚合信息与支付状态，内含的每张日票落在 `DAILY_TICKET_ORDER`，
   通过 `PARENT_ORDER_NO` 回指本主单」；`ORDER_STATUS` / `PAY_STATUS` 取值与日票一致（`:58`、`:63`）。
@@ -216,32 +316,32 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
 
 **契约与判据**
 
-- `daily-ticket-server` / `DailyTicketServiceImpl.updateTicket`（`.../DailyTicketServiceImpl.java:637~702`）
+- `daily-ticket-server` / `DailyTicketInstanceLifecycleService.updateTicket`（`.../service/lifecycle/DailyTicketInstanceLifecycleService.java`）
   —— 激活（IF8A-32）前置：订单必须 `PAID`（否则「订单未支付，不能激活」）；
   已存在实例且状态不是 `ACTIVATED` 时**短路返成功**（重复激活幂等）；
   已存在实例且卡号与首次不一致时返失败「卡号与已激活车票不一致」。
   落库走 `instanceMapper.upsert`（`MERGE INTO ... ON (T.ORDER_NO = S.ORDER_NO)`）。
-- 同方法 `:640~644` —— 「**`CARD_NUM` 直接取 APP 上送的 `cardNum`，NEVER 在此处向 card-pool-server 再预占卡号。**
+- 同方法 —— 「**`CARD_NUM` 直接取 APP 上送的 `cardNum`，NEVER 在此处向 card-pool-server 再预占卡号。**
   该卡号是开户（`businessType=ACCOUNT_OPEN`）时预占并下发给 APP 的那张，APP 取码与闸机上送用的都是它」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.updateAndNotice`（`.../DailyTicketServiceImpl.java:704~711`）
+- `daily-ticket-server` / `DailyTicketInstanceLifecycleService.updateAndNotice`（`.../service/lifecycle/DailyTicketInstanceLifecycleService.java`）
   —— 「APP 在首次进站后上送 `countingEnd`（一日票 = 首次使用 + 24h），语义是**有效期截止**，不是「票已用完」。
   因此这里只把状态推到 `USED`（已开始使用），**NEVER 置 `EXPIRED` 或任何终态**，票在有效期内仍要能继续进出站。
   `FIRST_USE_TIME` 只在首次写入，重复通知不覆盖」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.markUsed`（`.../DailyTicketServiceImpl.java:845~857`）
+- `daily-ticket-server` / `DailyTicketInstanceLifecycleService.markUsed`（`.../service/lifecycle/DailyTicketInstanceLifecycleService.java`）
   —— 出站状态推进三分支：不限次票（`ACTUAL_TIMES < 0`，如一日票）保持 `USED`、靠 `COUNTING_END` 过期收口；
   计次票扣完最后一次（扣后为 0）推进到 `EXPIRED` 终态；计次票仍有剩余次数保持 `USED`、下次仍可进站。
-- 同方法 `:854~856` —— 「**`countingEnd` 为 null 时 NEVER 覆盖库里已有的有效期**——闸机出站不带有效期
+- 同方法 —— 「**`countingEnd` 为 null 时 NEVER 覆盖库里已有的有效期**——闸机出站不带有效期
   （`GateTicketHandler:188` 传的就是 null），有效期由 APP 的 `updateAndNotice` 写入。`FIRST_USE_TIME` 同理只在首次写入」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.insertUsageLog`（`.../DailyTicketServiceImpl.java:893`、`:903~907`）
+- `daily-ticket-server` / `DailyTicketInstanceLifecycleService.insertUsageLog`（`.../service/lifecycle/DailyTicketInstanceLifecycleService.java`）
   与 `DailyTicketUsageLog`（`java/com/chinasofti/huateng/dailyticket/model/DailyTicketUsageLog.java:5~8`）
   —— 「INSERT 扣次明细（`UK_DTUL_ORDER` 做幂等，重推不多扣）」；「每次出站扣次 INSERT 一行，
   `ORDER_NO` 唯一索引做幂等」。
 - `daily-ticket-server` / `DailyTicketController.markUsed`（`java/com/chinasofti/huateng/dailyticket/controller/DailyTicketController.java:154~160`）
   —— 「扩展参数 `orderNo` / `inStation` / `outStation` 用于记录扣次明细，老调用方（不传这三个字段）仍兼容」。
-  `orderNo` 关联 `GATE_TXN_PAY.ORDER_NO`（`DailyTicketService.java:170`）。
+  `orderNo` 关联 `GATE_TXN_PAY.ORDER_NO`（`DailyTicketService.markUsed` 的 javadoc）。
 - `daily-ticket-server` / `DailyTicketInstance`（`java/com/chinasofti/huateng/dailyticket/model/DailyTicketInstance.java:95`、`:100`）
   —— `COUNTING_START` / `COUNTING_END` 是**毫秒时间戳**（`jdbcType=BIGINT`），不是日期列；
-  `DailyTicketService.markUsed` 的 `countingEnd` 参数同样是毫秒时间戳（`DailyTicketService.java:160`、`:169`）。
+  `DailyTicketService.markUsed` 的 `countingEnd` 参数同样是毫秒时间戳（两个重载的 `@param` 都写明）。
 
 **决策理由**
 
@@ -250,24 +350,24 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
   会因 `UK_LOGIC_CARD_POOL_BUSINESS` 唯一约束必然拿到另一个卡号，与 APP 侧持有并上送闸机的开户卡号不一致，
   导致 `selectForEntryCheck` / `markUsed` 按 `CARD_NUM` 精确匹配恒命中 0 行（2026-09-10 线上事故）。
   若后续 ACC 要求日票持独立卡号，MUST 先设计「开户卡号 ↔ 日票卡号」映射表并同步改 APP 取码链路」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.insertUsageLog`（`.../DailyTicketServiceImpl.java:903~906`）
+- `daily-ticket-server` / `DailyTicketInstanceLifecycleService.insertUsageLog`（同上文件）
   —— 「明细落库失败不中断出站流程，只记 ERROR 留证据」。
 
 **陷阱**
 
-- `daily-ticket-server` / `DailyTicketServiceImpl.markUsed` / `insertUsageLog` / `isIntegrityViolation`
-  （`.../DailyTicketServiceImpl.java:894~895`、`:905`、`:933`）
+- `daily-ticket-server` / `DailyTicketInstanceLifecycleService.markUsed` / `insertUsageLog` / `isIntegrityViolation`
+  （`.../service/lifecycle/DailyTicketInstanceLifecycleService.java`）
   —— 「daily-ticket-server 已开 tracing，`DuplicateKeyException` 可能被切面包一层 `RuntimeException`，
   因此用 cause 链判定而非直接 catch `DuplicateKeyException`」；工具方法注释为
   「沿 cause 链判定是否为唯一索引冲突（兼容 tracing 切面包装）」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.updateTicket`（`.../DailyTicketServiceImpl.java:644`）
+- `daily-ticket-server` / `DailyTicketInstanceLifecycleService.updateTicket`（同上文件）
   —— 「2026-09-10 线上进站被拒即此原因」（激活处另占卡号 ⇒ 后续按 `CARD_NUM` 精确匹配恒 0 行）。
 
 ### 四、支付与退款
 
 **契约与判据**
 
-- `daily-ticket-server` / `DailyTicketServiceImpl.requestPay`（`.../DailyTicketServiceImpl.java:219~232`）
+- `daily-ticket-server` / `DailyTicketPaymentService.requestPay`（`.../service/payment/DailyTicketPaymentService.java`）
   —— 支付前置状态白名单只有 `CREATED` 与 `PAYING`（其余返「订单状态不允许支付」）；
   已 `PAYING` 时先 `queryAndRefreshPayResult` 再按最新状态答（`PAID` 返成功、`PAY_FAILED`+`FAIL` 返「支付已失败，请重新下单」、
   其余返「支付处理中，请查询支付结果」）。
@@ -278,38 +378,38 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
   —— 支付结果回写只在 `ORDER_STATUS='PAYING' and PAY_STATUS='PAYING'` 时生效。
 - `daily-ticket-server` / `DailyTicketOrderMapper.updatePaymentOrderNo`（`resources/mapper/DailyTicketOrderMapper.xml:137~143`）
   —— `where ... and (PAYMENT_ORDER_NO is null or PAYMENT_ORDER_NO = #{paymentOrderNo})`，
-  对应 `DailyTicketServiceImpl.updatePayTerminalIfPaying`（`.../DailyTicketServiceImpl.java:982~983`）的注释
+  对应 `DailyTicketPaymentService.updatePayTerminalIfPaying`（`.../service/payment/DailyTicketPaymentService.java`）的注释
   「A duplicate success callback may carry the platform order number that was missing from the first terminal update. Keep it for refunds.」
-- `daily-ticket-server` / `DailyTicketServiceImpl.requestRefundTicket`（`.../DailyTicketServiceImpl.java:340~362`）
+- `daily-ticket-server` / `DailyTicketRefundInitiationService.requestRefundTicket`（`.../service/refund/DailyTicketRefundInitiationService.java`）
   —— 「同一日票订单只生成一笔退款单；重复请求直接返回已有处理结果」；
   订单必须 `PAID`+`PAID`、`PAYMENT_ORDER_NO` 必须有值；票实例 `USED` 直接拒退（「车票已使用，不允许退款」）；
   「未激活票可直退；已激活但尚未使用的票进入后续人工/定时核验流程」——
   `refundType` = 实例为空或非 `ACTIVATED` 时 `00`，否则 `01`（核验退款，订单置 `REFUNDING`，
   提示「已激活车票进入5天核验退款流程」）。
-- `daily-ticket-server` / `DailyTicketServiceImpl.queryRefundTicket`（`.../DailyTicketServiceImpl.java:440~447`）
+- `daily-ticket-server` / `RefundProgressService.queryRefundTicket`（`.../service/refund/RefundProgressService.java`）
   —— 「两个定位字段必须同时传入。历史数据先从原退款网关响应补齐平台退款单号」，
   查询报文同时送 `refundOrderNo`（平台退款单号）与 `merchantRefundNo`（我方 `REFUND_ORDER_NO`）；
   恢复不到时返「支付平台退款单号缺失，无法执行双字段退款查询」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.resubmitRefundTicket`（`.../DailyTicketServiceImpl.java:550~565`）
+- `daily-ticket-server` / `RefundProgressService.resubmitRefundTicket`（`.../service/refund/RefundProgressService.java`）
   —— 「白名单：只有这三种前置状态才可能出现「支付平台从未受理」，其余状态一律按已有结果返回」
   （`REFUNDING` / `FAILED` / `WAIT_VERIFY`）；「核验退款只在观察期满后才允许转支付平台，观察期内仍按原设计等核销」
   （`VERIFY_AFTER_TIME` 未到即拒）；「本方法的唯一判据：对端从未受理。先按历史网关响应尝试恢复，
   恢复到了说明对端建过退款单，应走重试而不是重提交」；「沿用原退款单号重发，支付平台按 `refundOrderNo`
   保证外部幂等，不会重复退款」。
-- `daily-ticket-server` / `DailyTicketService.resubmitRefundTicket`（`java/com/chinasofti/huateng/dailyticket/service/DailyTicketService.java:66~78`）
+- `daily-ticket-server` / `DailyTicketService.resubmitRefundTicket`（接口 javadoc，`java/com/chinasofti/huateng/dailyticket/service/DailyTicketService.java`）
   —— 「与 `retryRefundTicket` 的分工是**互斥的，不要混用**：`retryRefundTicket` 先查再重发，
   前提是支付平台已建过退款单、查得到结论；而对端从未受理时 `refundQuery` 永远查不到东西，
   那条链路会一直卡在「支付平台退款单号缺失，无法执行双字段退款查询」，退款能力永久丧失。
   本方法就是补这个分支：**对端没受理过 ⇒ 重发是安全的，不会重复退款**」；
   且「它也是 `REFUND_TYPE='01'`（核验退款）唯一的出口 —— `WAIT_VERIFY` 在本模块内**只被写入、从无任何代码读取**，
   核销观察期满后没有任何驱动方」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.isGatewaySuccess`（`.../DailyTicketServiceImpl.java:1304~1307`）
+- `daily-ticket-server` / `DailyTicketRefundMessages.isGatewaySuccess`（`.../service/refund/DailyTicketRefundMessages.java`；`DailyTicketRefundInitiationService` 与 `DailyTicketPaymentService` 各有一个同名私有转调）
   —— 网关成功判定：`success=true` 或 `code=0` 或 `code=200`；
   `isGatewayExplicitFailure`（`:1310~1318`）才是「明确失败」，只有它成立时才 `markPayFailed`。
-- `daily-ticket-server` / `DailyTicketServiceImpl.isRefundSuccessStatus` / `isRefundFailedStatus`
-  （`.../DailyTicketServiceImpl.java:1033`、`:1039`）—— 「支付平台退款查询的成功状态兼容不同渠道返回值」；
+- `daily-ticket-server` / `RefundProgressService.isRefundSuccessStatus` / `isRefundFailedStatus`
+  （`.../service/refund/RefundProgressService.java`）—— 「支付平台退款查询的成功状态兼容不同渠道返回值」；
   「仅将平台明确的失败终态回写为 FAILED；未知状态继续保持处理中」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.buildDailyTicketRefundRequest`（`.../DailyTicketServiceImpl.java:1249~1251`）
+- `daily-ticket-server` / `DailyTicketRefundInitiationService.buildDailyTicketRefundRequest`（`.../service/refund/DailyTicketRefundInitiationService.java`，实际组报文在 `RefundGatewayRequests`）
   与 `DailyTicketPayProperties.refundNotifyUrl`（`java/com/chinasofti/huateng/dailyticket/config/DailyTicketPayProperties.java:54~60`）
   —— 「支付中心网关 §3.1 的 `notifyUrl` 是必填项。缺它对端不回调，退款单只能靠人工点「退款结果查询」收口，
   且日志一片绿、没有任何报错。用 `putIfText` 而不是 `put`：配置为空时不送空串，让网关按缺参报错、
@@ -339,19 +439,19 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
 
 **决策理由**
 
-- `daily-ticket-server` / `DailyTicketServiceImpl.requestRefundTicket`（`.../DailyTicketServiceImpl.java:382~386`）
+- `daily-ticket-server` / `DailyTicketRefundInitiationService.requestRefundTicket`（出网异常分支，`.../service/refund/DailyTicketRefundInitiationService.java`）
   —— 「出网异常（超时 / 连接断开 / 应答解析失败）时对端可能已经受理了这笔退款，
   因此 NEVER 返成功（会让 APP 以为钱已到账）、也 NEVER 返失败（会让 APP 以为没扣、引导用户重发）。
   顺序上先 `insertPayLog` 留证据、再把订单置 `REFUNDING` 等回调或人工回查收口：
   反过来写时后面这行 UPDATE 一旦再抛，就连一条「发过退款请求」的痕迹都不剩。
   退款单本身在 `buildRefund` 里已是 `REFUNDING`，不用再动」。
 - 同方法 `:410` —— 「网关仅确认受理时不能直接标为完成，保存平台退款单号后等待结果查询」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.markRefundNotifyPending`（`.../DailyTicketServiceImpl.java:1082~1091`）
+- `daily-ticket-server` / `DailyTicketRefundSettlementService.markRefundNotifyPending`（`.../service/refund/DailyTicketRefundSettlementService.java`）
   —— 「**只落库、不出网**：出网由 `DailyTicketRefundNotifyService` 的扫表端点驱动，回调链路另有一次快速路径调用。
   这里若直接发 HTTP，退款收口的响应时长就等于 APP 网关的响应时长，上游对同一笔的重推会全部堆在同一行上」；
   「次数一并重置为 0：终态是新的一轮通知，NEVER 复用上一轮的计数（否则上一轮攒到 4 次的单子这轮只剩 1 次机会
   就被判 `GIVEUP`）」。
-- `daily-ticket-server` / `DailyTicketService.receiveRefundResult`（`.../service/DailyTicketService.java:107~113`）
+- `daily-ticket-server` / `DailyTicketService.receiveRefundResult`（接口 javadoc，`.../service/DailyTicketService.java`；实现在 `service/refund/DailyTicketRefundCallbackService`）
   —— 「只落库：白名单推进退款单状态、回填 `PLATFORM_REFUND_NO`、把 IF8B-04 通知置 `PENDING`；
   出网通知交给 `DailyTicketRefundNotifyService`。**NEVER 在本方法里同步发 APP 通知**——收口响应时长会等于 APP 网关响应时长」。
 - `daily-ticket-server` / `DailyTicketRefundNotifyService`（`.../service/DailyTicketRefundNotifyService.java:22~31`、`:97~104`）
@@ -373,16 +473,16 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
 - `daily-ticket-server` / `DailyTicketPayGatewayClient`（`java/com/chinasofti/huateng/dailyticket/client/DailyTicketPayGatewayClient.java:26~28`）
   —— 「该客户端绕开 pay-sign-server 的签约卡支付封装，避免影响原有通用支付接口」；
   退款结果查询的「签名、Base64 编码和公共报文结构与支付、退款请求保持一致」（`:55~58`）。
-- `daily-ticket-server` / `DailyTicketServiceImpl.retryRefundTicket`（`.../DailyTicketServiceImpl.java:502`、`:509`、`:521`）
+- `daily-ticket-server` / `RefundProgressService.retryRefundTicket`（`.../service/refund/RefundProgressService.java`）
   —— 「重试前先查询，避免上一笔请求已经在支付平台成功但本地尚未更新」；
   「使用已有退款单号重发，支付平台可按 `refundOrderNo` 保证外部幂等」；
   「与首次退款一致，网关同步成功时直接落终态；其余场景保持处理中等待查询」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.markRefundFailed` / `restorePlatformRefundNoFromPayLog` /
-  `persistPlatformRefundNoIfChanged`（`.../DailyTicketServiceImpl.java:1070`、`:1124~1127`、`:1147`）
+- `daily-ticket-server` / `DailyTicketRefundSettlementService.markRefundFailed` / `restorePlatformRefundNoFromPayLog` /
+  `persistPlatformRefundNoIfChanged`（`.../service/refund/DailyTicketRefundSettlementService.java`）
   —— 「明确失败时保留原退款单，后续重试必须继续使用该退款单号」；
   「对旧退款数据从最近一笔退款网关响应中恢复平台退款单号。恢复失败时不降级为单字段查询，防止错误关联到其他退款单」；
   「仅在响应实际带回新平台退款单号时更新，避免查询处理中覆盖退款完成时间」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.buildExistingRefundResult`（`.../DailyTicketServiceImpl.java:1289`）
+- `daily-ticket-server` / `DailyTicketRefundMessages.buildExistingRefundResult`（`.../service/refund/DailyTicketRefundMessages.java`；`DailyTicketRefundInitiationService` 有一个同名私有转调）
   —— 「处理中和待核验以退款单为最终处理依据，禁止创建新的退款单」。
 
 **陷阱**
@@ -410,12 +510,12 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
   —— 「⚠️ 与本控制器其余端点一致，**当前无鉴权**，与 AGENTS.md §5.2「新增状态变更型接口 MUST 有鉴权与归属校验」冲突，
   属测试期临时降级；上线前 MUST 补验签或限定只能由内网 web-admin 经 rpc 调用。也**不做幂等**：
   连调两次会向支付平台发两次请求（对端按 `refundOrderNo` 幂等，不会重复退款，但会多两条 `DAILY_TICKET_PAY_LOG`）」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.updatePlatformRefundNo`（`.../DailyTicketServiceImpl.java:1108~1110`）
+- `daily-ticket-server` / `DailyTicketRefundSettlementService.updatePlatformRefundNo`（`.../service/refund/DailyTicketRefundSettlementService.java`；发起侧 `DailyTicketRefundInitiationService` 有一个同名私有方法）
   —— 「支付平台版本的字段名存在 `refundOrderNo`/`refundNo` 两种实现，优先读取文档字段，兼容旧实现」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.queryDailyTicketPayInfo`（`.../DailyTicketServiceImpl.java:805`）
+- `daily-ticket-server` / `DailyTicketPaymentService.queryDailyTicketPayInfo`（`.../service/payment/DailyTicketPaymentService.java`）
   —— 「`payOrderNoDate` 是「购票付款时刻」而不是本次过闸时刻，长周期票会显示成很早的时间，属有意为之」，
   格式为 `new SimpleDateFormat("yyyyMMddHHmmss")`。
-- `daily-ticket-server` / `DailyTicketServiceImpl.validateEntryCheck`（`.../DailyTicketServiceImpl.java:820`）
+- `daily-ticket-server` / `DailyTicketInstanceLifecycleService.validateEntryCheck`（无实例分支，`.../service/lifecycle/DailyTicketInstanceLifecycleService.java`）
   —— 「无有效日票实例，返回失败但允许闸机走常规流程」（该分支返失败码，不是 `0000`）。
 
 ### 五、对账导出（DETAIL / PAY）
@@ -576,8 +676,8 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
   `BIZ_TYPE in ('REFUND', 'REFUND_RETRY', 'REFUND_RESUBMIT')`。
 - `daily-ticket-server` / `DailyTicketUsageLogMapper.selectByCardNum`（`resources/mapper/DailyTicketUsageLogMapper.xml:40`）
   —— 「按卡号查扣次明细，时间倒序」。
-- `daily-ticket-server` / `DailyTicketServiceImpl.pageRefundOrders` / `pageRefundRecords`
-  （`.../DailyTicketServiceImpl.java:602`、`:612`）—— 「统一收敛分页参数，避免无效页码和超大页造成数据库压力」；
+- `daily-ticket-server` / `DailyTicketRefundQueryService.pageRefundOrders` / `pageRefundRecords`
+  （`.../service/DailyTicketRefundQueryService.java`）—— 「统一收敛分页参数，避免无效页码和超大页造成数据库压力」；
   「退款记录与订单检索分开分页，页面可独立追踪核验退款的后续状态」。
 
 **陷阱**
@@ -612,19 +712,19 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
 | 序 | 文件:行号 | 禁止的事 | 能否断言化 |
 |---|---|---|---|
 | 1 | `java/com/chinasofti/huateng/DailyTicketServer.java:13` | NEVER 加 `@EnableRpcCardPool` | 能。扫启动类注解集合，断言不含 `EnableRpcCardPool` |
-| 2 | `.../service/impl/DailyTicketServiceImpl.java:640` | NEVER 在激活处再向 card-pool-server 预占卡号 | 能。单测断言 `updateTicket` 落库的 `CARD_NUM` 恒等于入参 `cardNum` |
-| 3 | `.../service/impl/DailyTicketServiceImpl.java:709` | `updateAndNotice` NEVER 置 `EXPIRED` 或任何终态 | 能。调用后断言 `TICKET_STATUS == USED` |
-| 4 | `.../service/impl/DailyTicketServiceImpl.java:854` | `countingEnd` 为 null 时 NEVER 覆盖库里已有的有效期 | 能。传 null 后断言 `COUNTING_END` 不变 |
-| 5 | `.../service/impl/DailyTicketServiceImpl.java:835` | NEVER 用 `<= 0` 判断计次票次数用完 | 能。`actualTimes=-99` 进站断言放行、`=0` 断言拒绝 |
+| 2 | `.../service/lifecycle/DailyTicketInstanceLifecycleService.java` `updateTicket` | NEVER 在激活处再向 card-pool-server 预占卡号 | 能。单测断言 `updateTicket` 落库的 `CARD_NUM` 恒等于入参 `cardNum` |
+| 3 | `.../service/lifecycle/DailyTicketInstanceLifecycleService.java` `updateAndNotice` | `updateAndNotice` NEVER 置 `EXPIRED` 或任何终态 | 能。调用后断言 `TICKET_STATUS == USED` |
+| 4 | `.../service/lifecycle/DailyTicketInstanceLifecycleService.java` `markUsed` | `countingEnd` 为 null 时 NEVER 覆盖库里已有的有效期 | 能。传 null 后断言 `COUNTING_END` 不变 |
+| 5 | `.../service/lifecycle/DailyTicketInstanceLifecycleService.java` `validateEntryCheck` | NEVER 用 `<= 0` 判断计次票次数用完 | 能。`actualTimes=-99` 进站断言放行、`=0` 断言拒绝 |
 | 6 | `resources/mapper/DailyTicketInstanceMapper.xml:153` | NEVER 写成 `TICKET_STATUS != 'USED'` | 能。XML 文本断言 + `USED` 行可被 `selectForEntryCheck` 命中的集成用例 |
 | 7 | `resources/mapper/DailyTicketInstanceMapper.xml:56` / `.../mapper/DailyTicketInstanceMapper.java:23` | NEVER 去掉 `FETCH FIRST 1 ROWS ONLY` | 部分。需造重复 `TICKET_CODE` 的集成用例；退化方案是 XML 文本断言 |
-| 8 | `.../service/impl/DailyTicketServiceImpl.java:146` | NEVER 直接采信 APP 上送的 `totalAmount` 落库 | 能。`totalAmount != ticketPrice*ticketCount` 断言拒单 |
-| 9 | `.../service/DailyTicketService.java:127` / `.../controller/DailyTicketController.java:137` | NEVER 把 `queryDailyTicketPayInfo` 合并进 `queryDailyTicketInfo` | 弱。只能反射断言两个方法/两条 URL 并存 |
-| 10 | `.../service/DailyTicketService.java:131` / `.../service/impl/DailyTicketServiceImpl.java:782` | 查不到实例或订单时 NEVER 返失败码（MUST 返 `0000` + 三字段空） | 能。无实例 / 无订单两个分支断言 `retCode=0000` |
+| 8 | `.../service/order/DailyTicketOrderCreationService.java` `validateTravelOrderRequest` | NEVER 直接采信 APP 上送的 `totalAmount` 落库 | 能。`totalAmount != ticketPrice*ticketCount` 断言拒单 |
+| 9 | `.../service/DailyTicketService.java` / `.../controller/DailyTicketController.java` | NEVER 把 `queryDailyTicketPayInfo` 合并进 `queryDailyTicketInfo` | 弱。只能反射断言两个方法/两条 URL 并存 |
+| 10 | `.../service/DailyTicketService.java` / `.../service/payment/DailyTicketPaymentService.java` `queryDailyTicketPayInfo` | 查不到实例或订单时 NEVER 返失败码（MUST 返 `0000` + 三字段空） | 能。无实例 / 无订单两个分支断言 `retCode=0000` |
 | 11 | `.../service/ReconExportService.java:275` | 将来补上车站段后，NEVER 在本模块加 `STATION_INFO` 的 join 自己算线路 | 能。断言本模块 mapper XML 全文不含 `STATION_INFO` |
 | 12 | `.../service/ReconExportService.java:199` / `resources/mapper/ReconExportMapper.xml:55` | NEVER 凭推测给 DETAIL 加 `AND O.PARENT_ORDER_NO IS NULL` | 能。XML 文本断言 `selectDetailPage` 不含该谓词 |
-| 13 | `.../mapper/ReconExportMapper.java:96` / `resources/mapper/ReconExportMapper.xml:99` | 张数 NEVER 换回 `SUM(TICKET_COUNT)` | 能。XML 文本断言含 `COUNT(*)`、不含 `SUM(TICKET_COUNT)` |
-| 14 | `.../mapper/ReconExportMapper.java:110` | 识别旅游票子单 NEVER 改用 `ORDER_TYPE` 或 `CARD_TYPE` | 能。XML 文本断言 PAY 查询谓词含 `PARENT_ORDER_NO IS NOT NULL` |
+| 13 | `.../mapper/ReconExportMapper.java:30` / `resources/mapper/ReconExportMapper.xml:29` | 张数 NEVER 用 `COUNT(*)`（MUST `SUM(NVL(T.TICKET_COUNT,0))`；PAY 按**主单**统计） | 能。XML 文本断言含 `SUM(NVL(T.TICKET_COUNT, 0))`、不含 `COUNT(*)` |
+| 14 | `.../mapper/ReconExportMapper.java:30` | PAY 取数对象 NEVER 回退成子单（MUST 主单 `TRAVEL_TICKET_ORDER`） | 能。XML 文本断言 `selectTravelTicketPaySummary` 的 `FROM` 是 `TRAVEL_TICKET_ORDER`、不含 `PARENT_ORDER_NO` |
 | 15 | `.../mapper/ReconExportMapper.java:17` | NEVER 在 `ReconExportMapper` 里加写方法 | 能。反射断言接口方法名全部以 `select` 开头 |
 | 16 | `.../mapper/ReconExportMapper.java:14` | NEVER 按本项目口径重排对账字段 | 能。对 `ReconRecord.line(...)` 出参做逐段快照测试（DETAIL 7 段 / PAY 21 段） |
 | 17 | `.../service/ReconExportService.java:47` | NEVER 换成 `newVirtualThreadPerTaskExecutor` 或 `@Async` 默认执行器 | 能。断言抽取线程名前缀 `recon-export` 且非虚拟线程 |
@@ -659,11 +759,11 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
 1. `.../client/DailyTicketAppNotifyResult.java:18~21`（工厂方法叫 `ok` 而不是 `delivered`，
    因为 record 已为组件生成同名访问器、静态方法重名编译不过）—— 是 Java 语言约束而非业务判据，
    暂归「决策理由」，也可视为「陷阱」。
-2. `.../service/impl/DailyTicketServiceImpl.java:982~983`（`A duplicate success callback may carry the
+2. `.../service/payment/DailyTicketPaymentService.java` `updatePayTerminalIfPaying`（`A duplicate success callback may carry the
    platform order number that was missing from the first terminal update. Keep it for refunds.`）——
    全模块唯一一处英文注释，既是 `updatePaymentOrderNo` 的 WHERE 契约又是「重复回调别丢单号」的陷阱，
    暂归「契约与判据」。
-3. `.../service/impl/DailyTicketServiceImpl.java:820`（`validateEntryCheck` 无实例时「返回失败但允许闸机走常规流程」）
+3. `.../service/lifecycle/DailyTicketInstanceLifecycleService.java`（`validateEntryCheck` 无实例时「返回失败但允许闸机走常规流程」）
    与 §四那条 `queryDailyTicketPayInfo`「查不到 MUST 返 `0000`」方向相反 —— 两个查询的语义确实不同
    （前者是闸机判据、后者是详情富化），但并列在一起容易被误当成前后矛盾，暂各归各节并在此点明。
 4. AGENTS.md §5.1 的另两条 Druid / XML 规则（`where 1 = 1` 打头 + 全可选 `<if>`；mapper XML 注释里连续减号）
@@ -687,7 +787,17 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
 `daily-ticket-refund-page-migration.sql` 1 条 + 3 行文件头行注释、`daily-ticket-recon-export-index.sql` 0 条）。
 **`COMMENT ON` 是 DDL 语句、不是注释，本次不删**；它承载的取值域汇总在 §六。
 
-文件别名：〔impl〕`daily-ticket-server/src/main/java/com/chinasofti/huateng/dailyticket/service/impl/DailyTicketServiceImpl.java`、
+文件别名：〔impl〕`daily-ticket-server/src/main/java/com/chinasofti/huateng/dailyticket/service/impl/DailyTicketServiceImpl.java`
+（**纯委派门面，200 行、无业务逻辑**，下面各条已不再引用它）、
+〔lifecycle〕`.../service/lifecycle/DailyTicketInstanceLifecycleService.java`、
+〔order〕`.../service/order/DailyTicketOrderCreationService.java`、
+〔pay〕`.../service/payment/DailyTicketPaymentService.java`、
+〔refundInit〕`.../service/refund/DailyTicketRefundInitiationService.java`、
+〔refundCb〕`.../service/refund/DailyTicketRefundCallbackService.java`、
+〔refundSettle〕`.../service/refund/DailyTicketRefundSettlementService.java`、
+〔refundProgress〕`.../service/refund/RefundProgressService.java`、
+〔refundGwReq〕`.../service/refund/RefundGatewayRequests.java`、
+〔status〕`.../service/support/DailyTicketInstanceStatus.java`、〔sync〕`.../service/sync/DailyTicketOrderSyncService.java`、
 〔svc〕`.../service/DailyTicketService.java`、〔notifySvc〕`.../service/DailyTicketRefundNotifyService.java`、
 〔reconSvc〕`.../service/ReconExportService.java`、〔ctl〕`.../controller/DailyTicketController.java`、
 〔refundCtl〕`.../controller/DailyTicketRefundController.java`、
@@ -704,14 +814,14 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
 
 ### 一、日票 / 多日计次票状态机与取值
 
-**票实例状态机**（`DAILY_TICKET_INSTANCE.TICKET_STATUS`，〔impl〕:81~95 是权威定义、〔ddl〕:104 是列注释）：
+**票实例状态机**（`DAILY_TICKET_INSTANCE.TICKET_STATUS`，〔status〕是权威定义、〔ddl〕:104 是列注释）：
 
 | 取值 | 含义 | 是否终态 | 能否进站 | 写入方 |
 |---|---|---|---|---|
 | `INIT` | 已下单未激活 | 否 | 否 | **无写入方**（票实例首次落库即 `ACTIVATED`） |
 | `ACTIVATED` | 已激活未开始使用 | 否 | **能** | 激活 IF8A-67；退款失败回退 |
 | `USED` | **已开始使用**（不是「已用完」） | **否** | **能继续**（一日票有效期内不限次、计次票凭剩余次数） | IF8A-71 首用通知；出站扣次未清零 |
-| `EXPIRED` | 已过期 / 次数用尽 | 是 | 否 | 出站扣次 `remainTimes == 0` |
+| `EXPIRED` | 已过期 / 次数用尽 | 是 | 否 | 出站扣次 `remainTimes == 0`；**2026-09-22 起新增** `DailyTicketExpireService.convergeExpired`（按日期过期，见正文「票实例落库与「过期」口径」） |
 | `REFUND_LOCKED` | **核验退款观察期锁定**（不可过闸、不可放款前流转） | 否（可回 `ACTIVATED`） | 否 | 发起核验退款（`refundType='01'`） |
 | `REFUNDED` | 已退票 | 是 | 否 | 放款成功（`markRefunded`） |
 
@@ -731,10 +841,12 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
 
 - **`USED` 不是终态 —— 2026-09-10 线上事故**：进站后 APP 的 `updateAndNotice` 把状态推到 `USED`，而
   `selectForEntryCheck` 曾用 `TICKET_STATUS != 'USED'` 过滤，**一日票刷一次就再也进不了站**
-  （〔impl〕:91~95、〔instXml〕:149~155）。**进站白名单只有 `ACTIVATED` + `USED`**，收口条件是有效期
+  （〔status〕类注释、〔instXml〕:149~155）。**进站白名单只有 `ACTIVATED` + `USED`**，收口条件是有效期
   `COUNTING_END` 与次数 `ACTUAL_TIMES`，**NEVER 写成 `TICKET_STATUS != 'USED'`**。
+- **`REFUND_LOCKED` 与 `REFUNDED` 都不在 `selectForEntryCheck` 白名单里，这是「已申请退款的票不能再乘坐」的唯一落点，
+  NEVER 把它们加进那个白名单**。该不变量的原文现在写在〔status〕的**类注释**里。
 - **`ACTUAL_TIMES` 负数是「不限次」哨兵**（APP 上送 `-99`，见 `DailyTicketActivateReqDTO#actualTimes`；
-  〔ddl〕:99 列注释「-99表示不限次」；〔impl〕:925~928）。**NEVER 用 `<= 0` 判次数用完** —— 2026-09-10 线上
+  〔ddl〕:99 列注释「-99表示不限次」；〔lifecycle〕`validateEntryCheck`）。**NEVER 用 `<= 0` 判次数用完** —— 2026-09-10 线上
   实测 `-99` 被判成「计次票次数已用完」，日票进不了站。一日票 / 多日票走有效期、不走次数。
 - 订单状态（`DAILY_TICKET_ORDER.ORDER_STATUS`，〔ddl〕:45）：`CREATED` / `PAYING` / `PAID` / `CANCELED` /
   `REFUNDING` / `REFUNDED` 等；支付状态（`PAY_STATUS`，〔ddl〕:46）：`INIT` / `PAYING` / `PAID` / `FAIL`。
@@ -742,87 +854,100 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
 - 退款状态（`DAILY_TICKET_REFUND.REFUND_STATUS`，〔ddl〕:170）：`REFUNDING` / `REFUNDED` / `FAILED` /
   `WAIT_VERIFY`；退款类型（`REFUND_TYPE`，〔ddl〕:171）：`00` 直接退款、`01` 激活后核验退款。
 - ACC 通知状态（`ACC_NOTICE_STATUS`，〔ddl〕:109）：`INIT` / `SUCCESS` / `FAIL`。
-- **本模块无枚举类，全是字符串字面量**（正文「状态取值」小节已记）：改任何一个取值 MUST 全局 grep 比较点。
+  **`ACC_NOTICE_*` 四列的唯一写入方是 `updateAccNoticeStatus`（ACC 发售通知链路），NEVER 让任何别的语句写它们**
+  （daily-ticket-server 1.0.63 修，ADR-D155）。此前 `markUsed`（出站扣次）与 `updateAndNotice`（APP 首次使用通知）
+  都顺手写 `SUCCESS` + 通知时间，而补偿扫表 `selectPendingAccNotice` 只捞 `PENDING` / `FAIL` / `INIT`
+  ⇒ **一条从未被 ACC 受理的上报被洗成终态、永久出队，不报错不告警**。
+  「乘客出站了」与「ACC 受理了发售」是两件事，**NEVER 用前者断言后者**；
+  防回退用 `DailyTicketInstanceAccNoticeIsolationTest`（`ArgumentCaptor` 断言 `markUsed` 不改那两列）。
+- **本模块无枚举类**：`TICKET_STATUS` 除 `INIT` 外的取值收在常量类〔status〕，其余状态列仍是各服务里的字符串字面量（正文「状态取值」小节已记）：改任何一个取值 MUST 全局 grep 比较点。
 ### 二、激活（IF8A-67 / IF8A-32）与出站扣次
 
 - **`CARD_NUM` 直接取 APP 上送的 `cardNum`，NEVER 在激活时再向 card-pool-server 预占卡号**
-  （〔impl〕:637~644、〔boot〕:13~19）。该卡号是开户（`businessType=ACCOUNT_OPEN`）时预占并下发给 APP 的那张，
+  （〔lifecycle〕`updateTicket`、〔boot〕:13~19）。该卡号是开户（`businessType=ACCOUNT_OPEN`）时预占并下发给 APP 的那张，
   APP 取码与闸机上送用的都是它。若激活时另占一张，因 `UK_LOGIC_CARD_POOL_BUSINESS` 唯一约束**必然是不同卡号**，
   后续 `selectForEntryCheck` / `markUsed` / `queryDailyTicketInfo` 按 `CARD_NUM` 精确匹配**恒命中 0 行**
   —— 2026-09-10 线上进站被拒即此原因。**本服务 NEVER 加 `@EnableRpcCardPool`**；若后续 ACC 要求日票持独立卡号，
   MUST 先设计「开户卡号 ↔ 日票卡号」映射表并同步改 APP 取码链路。
-- **激活时 `CODE_TICKET_TYPE` 无条件写 `'0441'`**（`CardTypeCodeEnum.QR_POSTPAID`，〔impl〕:591 附近；
+- **激活时 `CODE_TICKET_TYPE` 无条件写 `'0441'`**（`CardTypeCodeEnum.QR_POSTPAID`，〔lifecycle〕`updateTicket` 内；
   〔ddl〕:93 列注释「码体车票类型，日票固定为0441」）。该列**名不副实**：`0441` 是二维码后付费单程票，
   多日计次票本应是 `0448` —— 这是 §五 票种无法收窄的根因之一。
-- **首次使用通知（IF8A-33）只推 `USED`，NEVER 置 `EXPIRED` 或任何终态**（〔impl〕:704~710）：APP 上送的
+- **激活只写 `PERIOD` 与 `COUNTING_START`，NEVER 写 `COUNTING_END`**（〔lifecycle〕`updateTicket`，**没有**
+  `setCountingEnd`）：有效期截止只由 APP 的 IF8A-33 `updateAndNotice` 在首次使用时写入。因此「激活但从未乘车」
+  的票 `COUNTING_END` **恒为空** —— 这是今天 `selectExpiredCandidates` 需要 `fallbackByPeriod`（回退 `ACTIVATE_TIME + PERIOD` 天）
+  回退支的唯一原因。`DailyTicketActivateReqDTO` 里也没有 `countingEnd` 字段（有效期压根不在激活入参里）。
+- **首次使用通知（IF8A-33）只推 `USED`，NEVER 置 `EXPIRED` 或任何终态**（〔lifecycle〕`updateAndNotice`）：APP 上送的
   `countingEnd` 语义是**有效期截止**（一日票 = 首次使用 + 24h），不是「票已用完」。`FIRST_USE_TIME` 只在首次写入、
   重复通知不覆盖。
-- **出站扣次规则**（〔impl〕:937~948）：不限次票（`ACTUAL_TIMES < 0`）保持 `USED`、靠 `COUNTING_END` 过期收口；
+- **出站扣次规则**（〔lifecycle〕`markUsed`）：不限次票（`ACTUAL_TIMES < 0`）保持 `USED`、靠 `COUNTING_END` 过期收口；
   计次票扣完最后一次（扣后为 0）推进 `EXPIRED`；仍有剩余次数保持 `USED`。
   扣减是 atomic update（`ACTUAL_TIMES - 1`、下限 0，〔instXml〕:165、〔instMapper〕:36~37），防并发超扣。
-- **`countingEnd` 为 null 时 NEVER 覆盖库里已有有效期**（〔impl〕:946~948）：闸机出站不带有效期
+- **`countingEnd` 为 null 时 NEVER 覆盖库里已有有效期**（〔lifecycle〕`markUsed`）：闸机出站不带有效期
   （`GateTicketHandler:188` 传的就是 null），有效期只由 APP 的 `updateAndNotice` 写入。
-- **扣次明细 `DAILY_TICKET_USAGE_LOG` 靠 `UK_DTUL_ORDER` 幂等**（〔impl〕:985~998），`ORDER_NO` 关联
+- **扣次明细 `DAILY_TICKET_USAGE_LOG` 靠 `UK_DTUL_ORDER` 幂等**（〔lifecycle〕`insertUsageLog`），`ORDER_NO` 关联
   `GATE_TXN_PAY.ORDER_NO`（〔ddl-usage〕:23 列注释）。**本模块已开 tracing，`DuplicateKeyException` 可能被切面
-  包一层 `RuntimeException`，因此 MUST 沿 cause 链判定**（〔impl〕:1025 私有方法），
+  包一层 `RuntimeException`，因此 MUST 沿 cause 链判定**（〔lifecycle〕`isIntegrityViolation` 私有方法），
   与 card-pool 的 `isIntegrityViolation` 同源（ADR-D53）。明细落库失败**不中断出站流程**，只记 ERROR 留证据。
-- 进站校验查不到实例时**返回失败但允许闸机走常规流程**（〔impl〕:912）—— 与 §四那条「详情富化查不到 MUST 返
+- 进站校验查不到实例时**返回失败但允许闸机走常规流程**（〔lifecycle〕`validateEntryCheck`）—— 与 §四那条「详情富化查不到 MUST 返
   `0000`」方向相反，两者语义不同（前者是闸机判据、后者是页面富化），**NEVER 互相套用**。
 - **按票号查实例 MUST 保留 `FETCH FIRST 1 ROWS ONLY`**（〔instXml〕:54~58、〔instMapper〕:15~25）：
   2026-09-15 实测 `DAILY_TICKET_INSTANCE` 共 12 行、`TICKET_CODE` 12 个不重复且无空值，
   **但库里没有唯一索引兜着**；真出现重复票号时 MyBatis 会抛 `TooManyResultsException`，而调用方只是
   IF8A-34 详情页的富化步骤，不该因此让整条详情失败。**入参用票号而不是卡号** —— 一张卡可先后买过多张日票。
 
-### 三、旅游票（IF8A-70）：子单承载支付，主单是聚合壳
+### 三、旅游票（IF8A-70）：主单聚合支付，子单只承载票实例
 
-- **拆子单不是设计取舍，是表结构约束**（〔impl〕:132~138）：`UK_DAILY_TICKET_INSTANCE_ORDER` 限定
+- **拆子单不是设计取舍，是表结构约束**（〔order〕`requestTravelOrder`）：`UK_DAILY_TICKET_INSTANCE_ORDER` 限定
   一个订单号只能挂一张票实例，一单挂多票在现有表上无法表达。主单落 `TRAVEL_TICKET_ORDER`（单号前缀 `0T`，
-  〔impl〕:1428、〔ddl〕:209），每张日票落一条 `DAILY_TICKET_ORDER` 子单（`ORDER_TYPE='1'`、
+  〔order〕`nextTravelOrderNo`、〔ddl〕:209），每张日票落一条 `DAILY_TICKET_ORDER` 子单（`ORDER_TYPE='1'`、
   `PARENT_ORDER_NO` 指向主单，〔ddl〕:185 列注释「独立日票为空」，日票子单前缀 `0E`）。
-- **落库顺序 MUST 先子单、后主单**（〔impl〕:140~143）：中途失败只留「父单不存在的孤儿子单」，APP 拿不到
+- **落库顺序 MUST 先子单、后主单**（〔order〕`requestTravelOrder`）：中途失败只留「父单不存在的孤儿子单」，APP 拿不到
   `orderNo` 也就无法发起支付；反序会留下「可支付但子单缺张」的主单。**本模块没有任何 `@Transactional`
   （全模块 grep 为 0）**，一致性不靠回滚、靠顺序与状态可判定性。
-- **金额一律服务端重算**（〔impl〕:145~146、〔ddl〕:215）：`totalAmount` 只用于与 `ticketPrice * ticketCount`
+- **金额一律服务端重算**（〔order〕`validateTravelOrderRequest`、〔ddl〕:215）：`totalAmount` 只用于与 `ticketPrice * ticketCount`
   比对，比对不过直接拒单，**NEVER 直接采信 APP 上送值落库**。
-- **单次购买张数上限 20（待业务确认）**（〔impl〕:75~78）：按张数循环 INSERT，不设上限等于把 for 循环次数
+- **单次购买张数上限 20（待业务确认）**（〔order〕`MAX_TRAVEL_TICKET_COUNT`）：按张数循环 INSERT，不设上限等于把 for 循环次数
   交给外部输入。
-- **主单 `PAY_STATUS` 永不回写，属当前设计、不是缺陷**（〔reconMapper〕:84~94、〔reconSvc〕:252~255、
-  〔impl〕对 `travelTicketOrderMapper` **只有一次 `insert`、没有任何 UPDATE**）：插入时写死
-  `ORDER_STATUS='CREATED'` / `PAY_STATUS='INIT'`。
-- **旅游票没有聚合支付**（〔reconMapper〕:118~121）：APP 只能拿子单号逐张付；拿主单号 `0T...` 调 `requestPay`
-  会在 `orderMapper.selectByOrderNo` 命中 0 行、返「订单不存在」（`validateOrderNo` 只校验 `orderType='1'`
-  与非空、不认单号前缀）。**NEVER 再据「主单 `PAY_STATUS` 恒为 `INIT`」判 P0。**
+- ⚠️ **本处此前写「主单 `PAY_STATUS` 永不回写，属当前设计、不是缺陷」（含「〔order〕对 `travelTicketOrderMapper` **只有一次 `insert`、没有任何 UPDATE**」）与「**旅游票没有聚合支付**……拿主单号 `0T...` 调 `requestPay` 命中 0 行」两条，已过期**（2026-09-16 的中间态）。**现口径**：
+  - **主单就是聚合支付的实际承载**（〔pay〕`requestPay` → `requestTravelPay`）：`orderType="2"` 用 `travelOrderMapper.selectByOrderNo(主单号)`、`updatePayRequest` 置主单 `PAYING`/`PAYING`，送网关**商户单号 = 主单号**、金额 = 主单 `TOTAL_AMOUNT`；回调 `receivePayResult` 查子单命中 0 行即转主单表 → `markTravelPaySuccess` / `markTravelPaySuccessOnCanceled`。`TravelTicketOrderMapper` 现有 `updatePayRequest` / `updatePayResultIfPaying` / `updatePaySuccessByExternalSync` / `updatePaymentOrderNo` / `cancelIfPending` / `cancelIfPaid` / `updatePayResultIfCanceled` 七个写方法。
+  - **子单恒 `CREATED`/`INIT`、`PAY_DATE` 恒空仍是设计**（钱按主单收），2026-09-23 库实测一致；激活时 `canActivate` 对子单**回看主单**双 `PAID`。
+  - `validateOrderNo` 只校验 `orderType ∈ {"1","2"}` 与非空，**不认单号前缀**；旧文「只校验 `orderType='1'`」「传主单号会被拒」均错。
+  - **NEVER 回退成「主单是聚合壳」「旅游票没有聚合支付」，也 NEVER 再据「主单 `PAY_STATUS` 恒为 `INIT`」判 P0。**
 ### 四、支付、退款与 IF8B-04 通知
 
-- **退款回调（网关 §3.3）三道闸口，顺序不可换**（〔impl〕:755~770）：①**幂等** —— 已 `REFUNDED` / `FAILED`
+- **退款回调（网关 §3.3）三道闸口，顺序不可换**（〔refundCb〕`receiveRefundResult`）：①**幂等** —— 已 `REFUNDED` / `FAILED`
   直接返成功（支付中心会重推，重复推进会把 `REFUND_DATE` 覆盖成第二次回调时间并重置通知次数）；
   ②**白名单** —— 只允许 `REFUNDING` / `WAIT_VERIFY` 推进，**NEVER 写成「非终态即可处理」**；
-  ③**结果分派** —— `SUCCESS` / `FAIL` 才推终态，`PROCESSING` 只回填平台退款单号（〔impl〕:812~813）。
-- **回调方法只落库，出网交给通知服务**（〔impl〕:755~761、〔svc〕:107~112）：收尾那次 `deliverOne` 是
+  ③**结果分派** —— `SUCCESS` / `FAIL` 才推终态，`PROCESSING` 只回填平台退款单号（同方法内）。
+- **回调方法只落库，出网交给通知服务**（〔refundCb〕`receiveRefundResult`、〔svc〕`receiveRefundResult`）：收尾那次 `deliverOne` 是
   **快速路径**、排在全部落库语句之后（本模块无事务、每条 SQL 自动提交），且内部 catch 全部异常。
   **NEVER 把它挪到落库之前**，也 **NEVER 在回调里同步发 APP 通知** —— 否则收口响应时长等于 APP 网关响应时长。
-- **`PLATFORM_REFUND_NO` 只能写平台单号**（〔impl〕:832~838）：回调里的 `refundNo` 才是**平台**退款单号，
+  另一条同源不变量：**四个终态入口在 `markRefundNotifyPending` 之后那行 `deliverOne` NEVER 删、也 NEVER 把首次投递
+  只挂在回调路径上** —— 同步退款链路比支付中心的异步回调早约 100ms 到，回调必然落进「已是 `REFUNDED`」的幂等分支、
+  不会再投递（2026-09-20 生产实测：连续四笔 `NOTIFY_STATUS` 全停在 `PENDING`、`NOTIFY_TIMES=0`）。
+  该不变量的原文现在写在〔refundSettle〕的**类注释**里。
+- **`PLATFORM_REFUND_NO` 只能写平台单号**（〔refundCb〕组 `refundData` 处）：回调里的 `refundNo` 才是**平台**退款单号，
   `outRefundNo` 是我方商户退款单号。**NEVER 把 `outRefundNo` 放进 `refundOrderNo` 键** —— 否则
-  `PLATFORM_REFUND_NO` 被写成我方单号，退款查询永久对不上。字段名两种实现兼容见〔impl〕:1200~1201。
-- **`/resubmit` 与 `/retry` 互斥、NEVER 混用**（〔refundCtl〕:78~89、〔svc〕:66~77）：`retry` 先查再重发，
+  `PLATFORM_REFUND_NO` 被写成我方单号，退款查询永久对不上。字段名两种实现兼容见〔refundSettle〕`updatePlatformRefundNo`。
+- **`/resubmit` 与 `/retry` 互斥、NEVER 混用**（〔refundCtl〕:78~89、〔svc〕`resubmitRefundTicket` javadoc）：`retry` 先查再重发，
   前提是支付平台已建过退款单；对端从未受理（`PLATFORM_REFUND_NO IS NULL`）时 `refundQuery` 永远查不到，
   链路会一直卡在「支付平台退款单号缺失，无法执行双字段退款查询」、**退款能力永久丧失**。`resubmit` 是那个死角的
   唯一出口，也是 `WAIT_VERIFY`（核验退款 `REFUND_TYPE='01'`）唯一的出口 —— **该状态在本模块内只被写入、
   从无任何读取方**，观察期（`VERIFY_AFTER_TIME`，〔ddl〕:173「通常为申请后5天」）满后没有任何驱动方，
-  因此对已过观察期的核验单放行重提交、观察期内仍拒绝（〔impl〕:550~570 白名单三态）。
+  因此对已过观察期的核验单放行重提交、观察期内仍拒绝（〔refundProgress〕`resubmitRefundTicket` 白名单三态）。
 - **`resubmit` 当前无鉴权、也不做幂等**（〔refundCtl〕:86~89）：连调两次会向支付平台发两次请求（对端按
   `refundOrderNo` 幂等、不会重复退款，但会多两条 `DAILY_TICKET_PAY_LOG`）。与 AGENTS.md §5.2 冲突，
   属测试期临时降级，**上线前 MUST 补验签或限定只能由内网 web-admin 经 rpc 调用**。
-- **退款出网异常时既不能返成功也不能返失败**（〔impl〕:382~386）：对端可能已受理。顺序 MUST 是
+- **退款出网异常时既不能返成功也不能返失败**（〔refundInit〕`requestRefundTicket`）：对端可能已受理。顺序 MUST 是
   先 `insertPayLog` 留证据、再把订单置 `REFUNDING` 等回调或人工回查 —— 反过来写时后面那行 UPDATE 一旦再抛，
   **连一条「发过退款请求」的痕迹都不剩**。
-- **`notifyUrl` 是网关 §3.1 的必填项**（〔payProp〕:54~59、〔impl〕:1341~1343、〔prop〕:46~49）：缺它对端不回调、
+- **`notifyUrl` 是网关 §3.1 的必填项**（〔payProp〕:54~59、〔refundGwReq〕、〔pay〕组支付报文处、〔prop〕:46~49）：缺它对端不回调、
   退款单只能靠人工点「退款结果查询」收口，**且日志一片绿、没有任何报错**。组报文用 `putIfText` 而不是 `put`：
   配置为空时不送空串，让网关按缺参报错、别把空地址当有效回调地址。目标路径 MUST 在 `fep-app-server` 的
   `AppDailyTicketController` 注册（扁平那条 `/app/payment/receiveRefundResult`），**改一边 MUST 同步另一边**，
   否则回调落到静态资源处理器、响应退化成全局异常处理器的 UUID `retCode`。
 - **IF8B-04 退款结果通知 = 落库状态 + 扫表补偿**（〔notifySvc〕:19~31、〔notifyCtl〕:12~26）：终态收口时只把
-  `NOTIFY_STATUS` 置 `PENDING`（〔impl〕:1174~1182，**次数一并重置为 0** —— 终态是新一轮通知，
+  `NOTIFY_STATUS` 置 `PENDING`（〔refundSettle〕`markRefundNotifyPending`，**次数一并重置为 0** —— 终态是新一轮通知，
   NEVER 复用上一轮计数，否则上一轮攒到 4 次的单子这轮只剩 1 次机会就被判 `GIVEUP`）；真正 HTTP 由
   `POST /internal/daily-ticket/refund/notify` 驱动。**本模块 NEVER 加 `@Scheduled`（现在一个都没有，刻意如此）**，
   由 web-admin Quartz 定时打；**排查「退款通知有没有发」MUST 查 `SYS_JOB_LOG` + 本服务日志，
@@ -872,39 +997,28 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
   **线路段自 2026-09-16 起由 recon-server 按车站段反查 `STATION_INFO` 并无条件覆盖**，本模块连车站段都没有、
   补出来仍是空串、文件逐字节一致；**将来本模块若补上车站段，NEVER 在本模块 join `STATION_INFO` 自己算线路**
   （〔reconSvc〕:269~275）。
-- **PAY 取数对象是旅游票子单、不是主单（2026-09-11 改口径）**（〔reconMapper〕:84~121、〔reconXml〕:87~118）：
-  原实现查主单 + `PAY_STATUS='PAID'` + `UPDATE_TIME` 切窗口，**前提不成立、该口径下恒返 0 行**。
-  现口径：`DAILY_TICKET_ORDER` + `PARENT_ORDER_NO IS NOT NULL` + `PAY_STATUS='PAID'` + `PAY_DATE` 窗口，
-  按（日期, `PAY_CHANNEL_CODE`）在**库内 GROUP BY**（**NEVER 拉全量明细回 JVM 再 group**）。
-  - **张数用 `COUNT(*)`，NEVER 换回 `SUM(TICKET_COUNT)`**：`TICKET_COUNT` 只在主单表；下单时按 `ticketCount`
-    循环拆单，一条子单恰好一张票，笔数即张数。
-  - 金额 `NVL(SUM(NVL(PAY_AMOUNT, TICKET_PRICE)), 0)`：内层兜历史脏数据、外层兜「无行时 SUM 返 NULL」，
-    **NEVER 去掉外层 NVL**。
-  - **`PARENT_ORDER_NO IS NOT NULL` 是识别子单的唯一判据**，**NEVER 改用 `ORDER_TYPE`**（旅游票子单与独立日票
-    同为 `'1'`）**或 `CARD_TYPE`**（原样落 APP 入参、混着三套编码空间）。
+- ⚠️ **本处此前整条（「PAY 取数对象是旅游票子单、不是主单（2026-09-11 改口径）」，含「张数用 `COUNT(*)`，NEVER 换回 `SUM(TICKET_COUNT)`」「金额 `NVL(SUM(NVL(PAY_AMOUNT, TICKET_PRICE)), 0)`」「`PARENT_ORDER_NO IS NOT NULL` 是识别子单的唯一判据」）已过期**。2026-09-22 又改回**按主单统计** —— 子单口径下这条查询恒返 0 行的缺陷自上线起存在，当日修复。
+- **PAY 取数对象是旅游票主单、不是子单**（〔reconMapper〕:30~45、〔reconXml〕:29~41）：`TRAVEL_TICKET_ORDER` + `PAY_STATUS='PAID'` + `PAY_DATE` 窗口，
+  按（日期, 主单 `PAY_CHANNEL_CODE`）在**库内 GROUP BY**（**NEVER 拉全量明细回 JVM 再 group**）。
+  - **张数用 `NVL(SUM(NVL(T.TICKET_COUNT, 0)), 0)`，NEVER 用 `COUNT(*)`** —— 一张主单含 N 张票，`COUNT(*)` 数的是**订单数**、不是张数。
+  - **金额用 `NVL(SUM(NVL(T.PAY_AMOUNT, T.TOTAL_AMOUNT)), 0)`**：内层优先 `PAY_AMOUNT`、回退 `TOTAL_AMOUNT`（主单未回写 `PAY_AMOUNT` 时的兜底），外层兜「无行时 `SUM` 返 NULL」，**NEVER 去掉外层 NVL**。
+  - **NEVER 改回按子单统计** —— 子单恒 `CREATED`/`INIT`、`PAY_DATE` 恒空，按子单查恒返 0 行（2026-09-22 实测）。
+  - 旧文那句「旅游票是每张子单各走一次支付」是前提错误（见 §三）；`PARENT_ORDER_NO IS NOT NULL` 现在 PAY 侧已不使用。
 - **票种范围待甲方确认，当前导出全部已付日票（有意降级、不是遗漏）**（〔reconSvc〕:177~189、〔reconXml〕:31~46）：
   三个候选判据逐一核对都不可靠 —— ①`CODE_TICKET_TYPE` 全表恒 `'0441'`、零区分度（〔ddl〕:60 默认值 +
-  〔impl〕:591 无条件写入）；②`DAILY_TICKET_ORDER.CARD_TYPE` 原样落 APP 入参（〔impl〕:182 下单、:1153 旅游票子单，
+  〔lifecycle〕`updateTicket` 无条件写入）；②`DAILY_TICKET_ORDER.CARD_TYPE` 原样落 APP 入参（〔order〕`requestCountingOrder` 下单、`requestTravelOrder` 旅游票子单，
   入口 `validateOrderRequest` 只校验非空、**没有**调 `CardTypeMapping.isSupportedAppCardType`），库里可能混着
   APP 口径（含日票聚合桶 `'05'`，一个值覆盖 `0445`~`0448`、本身分不出计次票）、ACC 两位口径（`'48'`）
   与发卡口径（`'0448'`）；③`SHOW_TYPE` 同样原样落入参、全仓库无比较点、语义未定义。
   **宁可多导并标注，NEVER 凭猜写码值** —— 猜错会静默命中 0 行或漏掉整类票。
-- **旅游票子单也在 DETAIL 里，是已知事实**（〔reconSvc〕:191~199、〔reconXml〕:48~55）：每条子单各自走一次支付、
-  各自回写 `PAY_STATUS='PAID'` 与 `PAY_DATE`，因此被 `PAY_STATUS='PAID'` 全部捞进来。PAY 是汇总、DETAIL 是逐笔明细，
-  **并存不构成重复计账**。甲方是否要求 DETAIL 只含独立日票**在规格原文里没有依据**，
-  **当前无依据、NEVER 凭推测加 `AND O.PARENT_ORDER_NO IS NULL`** —— 加错等于让整类已售票在 ACC 侧凭空消失。
+- ⚠️ **本处此前写「旅游票子单也在 DETAIL 里，是已知事实」，该前提已不成立**（〔reconSvc〕`exportDetail`、〔reconXml〕:7~26）：DETAIL 只查 `DAILY_TICKET_ORDER` 且过滤 `PAY_STATUS='PAID'`；而子单恒 `CREATED`/`INIT`、`PAY_DATE` 恒空，**因此旅游票子单一条都进不了 DETAIL**（2026-09-23 库实测：子单 6 行全 `CREATED/INIT`）。旅游票的账只在 PAY 汇总里出现（按主单）。
+  **「待复核」**：甲方是否要求 DETAIL 覆盖旅游票购买行，规格原文里**没有依据**；当前实现等价于「DETAIL 只含独立日票」（已付子单实际为 0 行）。**NEVER 凭推测给 `selectDetailPage` 加 `AND O.PARENT_ORDER_NO IS NULL` 或 `IS NOT NULL`** —— 任一方向改错都会让整类票在 ACC 侧凭空消失或重复。**MUST 先与甲方确认口径再动。**
 - **窗口一律左闭右开、跨两个自然日**，两类文件的日期段都由时间列现算，**NEVER 用指令里的 `businessDate` 顶替**
   （〔reconMapper〕:42~43、〔reconXml〕:117）。窗口列是 `PAY_DATE`（支付完成时点，TIMESTAMP）、**不是 `CREATE_TIME`**。
   **NEVER 对窗口列套 `TO_CHAR` / `TRUNC` 做比较**（索引失效、退化全表扫）；`SELECT` 列表与 `GROUP BY` 里的
   `TO_CHAR` 只作用于输出分组，不影响 WHERE 用索引（〔reconXml〕:13~15）。
-- **索引：不新增，现有两条够用**（〔reconMapper〕:123~138）：
-  ①`IDX_DAILY_TICKET_ORDER_RECON (PAY_STATUS, PAY_DATE, ORDER_NO)`（`sql/daily-ticket-recon-export-index.sql`）
-  —— 前导列等值 + 第二列范围，正是 B-tree 的「等值 + 范围」组合，一次 range scan 定位窗口内已付单；
-  ②`IDX_DAILY_TICKET_ORDER_PARENT (PARENT_ORDER_NO)` —— Oracle B-tree **不存全 NULL 键**，
-  因此这条单列索引里只有旅游票子单，对 `IS NOT NULL` 反而是可用路径（反过来说该谓词无法在 ①里评估）。
-  两条都要回表取 `PAY_AMOUNT` / `TICKET_PRICE` / `PAY_CHANNEL_CODE`、都不是覆盖索引，但窗口只两个自然日、
-  回表代价可接受；**为一天跑一次的对账 SQL 给高频写入的订单表加宽索引不划算，故不加**。
-  原 `IDX_TRAVEL_TICKET_ORDER_RECON ON TRAVEL_TICKET_ORDER (PAY_STATUS, UPDATE_TIME)` 已随口径变更**删除**。
+- ⚠️ **本处此前写「索引：不新增，现有两条够用」（`IDX_DAILY_TICKET_ORDER_RECON` 等值+范围、`IDX_DAILY_TICKET_ORDER_PARENT` 走 `IS NOT NULL`）与「原 `IDX_TRAVEL_TICKET_ORDER_RECON ... 已随口径变更删除 —— 不再查主单，那条索引无用」，已过期**（那是按子单统计的口径）。现口径查**主单 `TRAVEL_TICKET_ORDER`**、过滤 `PAY_STATUS='PAID'` + `PAY_DATE` 窗口。
+  **索引现状（2026-09-23 核对）**：`sql/daily-ticket-recon-export-index.sql` 只有 `IDX_DAILY_TICKET_ORDER_RECON (PAY_STATUS, PAY_DATE, ORDER_NO)`（**子单表**）；主单表现存索引为 `IDX_TRAVEL_TICKET_ORDER_USER / _STATUS / _CREATE / _PAYMENT / _BATCH_REFUND`（`daily-ticket-server-schema.sql:264~268`），**没有一条以 `PAY_STATUS` 为前导列**（`_STATUS` 与 `_BATCH_REFUND` 都以 `ORDER_STATUS` 打头）。**「待复核」**：是否重建 `IDX_TRAVEL_TICKET_ORDER_RECON` 或确认由 `_BATCH_REFUND` 兜底。**NEVER 照抄旧文「那条索引无用」。**
 - **DETAIL 用 Keyset 游标 `(PAY_DATE, ORDER_NO)` 翻页，NEVER 改成大页码 `OFFSET`**（〔reconMapper〕:54~59）：
   Oracle 的 `OFFSET n ROWS` 仍要扫掉前 n 行，单页耗时随页码线性上涨，而抽取跑在阻塞 DB 调用上、慢 SQL 会 pin 载体线程。
   `LEFT JOIN DAILY_TICKET_INSTANCE` 取 `CARD_NUM`：`UK_DAILY_TICKET_INSTANCE_ORDER` 保证一对一、不放大行数，
@@ -964,7 +1078,7 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
 | `TRAVEL_TICKET_ORDER.ORDER_NO` | 「旅游票单号，**前缀 0T**」 | 〔ddl〕:209 |
 | `TRAVEL_TICKET_ORDER.TOTAL_AMOUNT` | 「单位分，**服务端按 TICKET_PRICE 乘 TICKET_COUNT 重算**」 | 〔ddl〕:215 |
 | `TRAVEL_TICKET_ORDER.ORDER_STATUS` | `CREATED`/`PAYING`/`PAID`/`PAY_FAILED`/`CANCELED`/`REFUNDING`/`REFUNDED` | 〔ddl〕:217 |
-| `TRAVEL_TICKET_ORDER.PAY_STATUS` | `INIT`/`PAYING`/`PAID`/`FAIL`（**实际永停 `INIT`**，见 §三） | 〔ddl〕:218 |
+| `TRAVEL_TICKET_ORDER.PAY_STATUS` | `INIT`/`PAYING`/`PAID`/`FAIL`（**主单承载聚合支付，实测已回写 `PAYING`/`PAID`**；此处此前写「实际永停 `INIT`」已过期，见 §三） | 〔ddl〕:218 |
 | `DAILY_TICKET_USAGE_LOG.ID` | 主键取 `SEQ_DAILY_TICKET_USAGE_LOG.NEXTVAL` | usage:21 |
 | `DAILY_TICKET_USAGE_LOG.ORDER_NO` | 关联 `GATE_TXN_PAY.ORDER_NO`，**唯一索引做幂等** | usage:23 |
 | `DAILY_TICKET_USAGE_LOG.TXN_DATE` | `YYYYMMDD` | usage:24 |
@@ -980,7 +1094,7 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
   card-pool（见 `docs/business/card-pool.md` §八），**样板在 `card-pool-server/src/main/resources/application.properties:9~24`**。
 - 打开的直接动机：对账链路是 **web-admin → recon-server → 本模块**，`recon-server` 下发
   `/internal/recon/export` 时带 W3C `traceparent`，不开这三行则 `%X{traceId}` 恒空、
-  **按 `sys_job_log`（job 109 日终对账）的 traceId 检索本模块抽取日志会 0 条**、链路断在这一环。
+  **按 `sys_job_log`（job 225「给ACC上传扣费交易」，2026-09-21 由 109「日终对账」改号改名）的 traceId 检索本模块抽取日志会 0 条**、链路断在这一环。
 - 本模块**没有自带 log4j2 配置、走公共 `log4j2-linux.xml`**，其 pattern 已含 `%X{traceId}`，只差这个开关。
 - 连带：本模块已开 tracing ⇒ 幂等兜底 catch **MUST 沿 cause 链判定**（见 §二 扣次明细那条）。
 
@@ -989,6 +1103,7 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
 | 文件 | 注释行 | 本阶段处置 | 迁入位置 |
 |---|---|---|---|
 | 〔impl〕 | 173 | 状态机表、事故史、三闸口、行内 MUST/NEVER 全删，留一句式 Javadoc | §一~§四 |
+| —— 上一行是**拆分前**（2455 行 god class）的口径；1.0.51~1.0.56 拆分后这些注释已分散到〔lifecycle〕〔order〕〔pay〕〔refundInit〕〔sync〕〔status〕等类，门面只剩一句 Javadoc | —— | 仅作历史记录，NEVER 据它去门面里找注释 | —— |
 | 〔svc〕 | 112 | `resubmit` vs `retry` 分工、查不到返 `0000` 等叙述删除 | §二、§四 |
 | 〔reconSvc〕 | 161 | 段序、票种降级、平台线程池、Keyset 等叙述删除 | §五 |
 | 〔reconMapper〕 | 126 | 类注释两张段序表、索引论证、口径清单删除 | §五 |
@@ -1006,8 +1121,8 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
 ### 矛盾与待裁决
 
 1. **「查不到返 `0000`」与「查不到返失败」并存**：`queryDailyTicketPayInfo` MUST 返 `0000` + 三字段留空
-   （〔svc〕:131~132、〔impl〕:874~876，调用方是详情主链路），而 `validateEntryCheck` 无实例时**返失败**
-   但允许闸机走常规流程（〔impl〕:912）。**两者语义确实不同、不是矛盾**，但并列易被误判，**NEVER 互相套用**。
+   （〔svc〕`queryDailyTicketPayInfo`、〔pay〕`queryDailyTicketPayInfo`，调用方是详情主链路），而 `validateEntryCheck` 无实例时**返失败**
+   但允许闸机走常规流程（〔lifecycle〕`validateEntryCheck`）。**两者语义确实不同、不是矛盾**，但并列易被误判，**NEVER 互相套用**。
 2. **`CODE_TICKET_TYPE` 列名与实际值不符**：列名说「码体车票类型」、DDL 默认与代码都写 `0441`（二维码后付费单程票），
    而多日计次票本应 `0448`（〔reconXml〕:37）。**待甲方确认票种码值口径**；在此之前对账无法按票种收窄（§五）。
 3. **`DAILY_TICKET_ORDER.CARD_TYPE` 混着三套编码空间**（APP 口径含聚合桶 `05` / ACC 两位 / 发卡四位），
@@ -1016,7 +1131,7 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
    唯一出口是人工点 `/resubmit`。**待业务确认是否要补一条 web-admin 定时任务。**
 5. **`resubmit` / `retry` / 对账 / 通知四类内部端点当前全部无鉴权**（〔refundCtl〕:86、〔reconCtl〕:16、〔notifyCtl〕:20），
    与 AGENTS.md §5.2 冲突，属测试期临时降级，**上线前 MUST 恢复**。
-6. **旅游票张数上限 20 是暂定值**（〔impl〕:75~78），**待业务确认**。
+6. **旅游票张数上限 20 是暂定值**（〔order〕`MAX_TRAVEL_TICKET_COUNT`），**待业务确认**。
 7. **`daily-ticket-refund-notify-migration.sql` 的 4 条 `COMMENT ON` 与 schema 里逐字重复**：
    两处都改才不会漂移，**当前无机制保证**。
 8. **本模块 0 个单测**：§一~§五 的结论多来自线上事故与实测，**没有任何断言锁住**；墓碑清单里标「可断言」的几条
@@ -1025,28 +1140,28 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
 
 | # | 原位置 | 墓碑内容（短语可 grep 本文档） | 为什么不能重犯 | 可否断言 |
 |---|---|---|---|---|
-| 1 | 〔impl〕:91~95 / 〔instXml〕:151~154 | 「NEVER 写成 `TICKET_STATUS != 'USED'`」（2026-09-10 事故） | 一日票刷一次就再也进不了站 | 可断言：进站白名单含 `USED` |
-| 2 | 〔impl〕:925~928 | 「`-99` 被判『计次票次数已用完』」（2026-09-10 事故） | 不限次票整类进不了站 | 可断言：`ACTUAL_TIMES=-99` 放行 |
-| 3 | 〔impl〕:640~644 / 〔boot〕:13~19 | 「NEVER 在激活时再向卡池预占，`UK_LOGIC_CARD_POOL_BUSINESS` 必然给出另一个卡号」 | `CARD_NUM` 精确匹配恒 0 行、进站被拒 | 可断言：源码扫描无 `@EnableRpcCardPool` |
-| 4 | 〔impl〕:140~143 | 「落库顺序 MUST 先子单后主单」 | 反序留下「可支付但缺张」的主单 | 可断言：顺序断言 |
-| 5 | 〔reconMapper〕:84~94 / 〔reconSvc〕:252~255 | 「原实现查主单 + `UPDATE_TIME` 切窗口，前提不成立、恒 0 行」 | PAY 第 10/11 段整段丢账 | 可断言：SQL 文本含 `PARENT_ORDER_NO IS NOT NULL` |
-| 6 | 〔reconMapper〕:96~99 | 「张数 NEVER 换回 `SUM(TICKET_COUNT)`」（子单表没这列） | 直接 `ORA-00904` 或算错张数 | 可断言 |
+| 1 | 〔status〕类注释 / 〔instXml〕:151~154 | 「NEVER 写成 `TICKET_STATUS != 'USED'`」（2026-09-10 事故） | 一日票刷一次就再也进不了站 | 可断言：进站白名单含 `USED` |
+| 2 | 〔lifecycle〕`validateEntryCheck` | 「`-99` 被判『计次票次数已用完』」（2026-09-10 事故） | 不限次票整类进不了站 | 可断言：`ACTUAL_TIMES=-99` 放行 |
+| 3 | 〔lifecycle〕`updateTicket` / 〔boot〕:13~19 | 「NEVER 在激活时再向卡池预占，`UK_LOGIC_CARD_POOL_BUSINESS` 必然给出另一个卡号」 | `CARD_NUM` 精确匹配恒 0 行、进站被拒 | 可断言：源码扫描无 `@EnableRpcCardPool` |
+| 4 | 〔order〕`requestTravelOrder` | 「落库顺序 MUST 先子单后主单」 | 反序留下「可支付但缺张」的主单 | 可断言：顺序断言 |
+| 5 | 〔reconMapper〕:30~45 / 〔reconSvc〕:165~166 | 「改按子单统计后恒返 0 行（子单恒 `CREATED`/`INIT`、`PAY_DATE` 恒空），PAY MUST 按**主单** `TRAVEL_TICKET_ORDER`」 | PAY 第 10/11 段整段丢账 | 可断言：SQL 的 `FROM` 是 `TRAVEL_TICKET_ORDER`、不含 `PARENT_ORDER_NO IS NOT NULL` |
+| 6 | 〔reconMapper〕:30~45 | 「张数 NEVER 用 `COUNT(*)`，MUST `SUM(NVL(TICKET_COUNT,0))`」（主单一张含 N 票） | `COUNT(*)` 数的是**订单数**、静默少账 | 可断言：SQL 含 `SUM(NVL(T.TICKET_COUNT, 0))` |
 | 7 | 〔reconSvc〕:177~189 / 〔reconXml〕:31~46 | 「三个候选票种判据逐一核对都不可靠，NEVER 凭猜写码值」 | 猜错即静默 0 行或漏整类票 | 弱断言：SQL 无票种谓词 |
 | 8 | 〔reconSvc〕:191~199 | 「NEVER 凭推测加 `AND O.PARENT_ORDER_NO IS NULL`」 | 整类已售票在 ACC 侧凭空消失 | 可断言：SQL 不含该谓词 |
 | 9 | 〔reconMapper〕:54~59 | 「NEVER 改成大页码 `OFFSET`」 | 单页耗时随页码线性上涨、慢 SQL pin 载体线程 | 弱断言：SQL 含 Keyset 谓词 |
 | 10 | 〔reconXml〕:83~84 | 「用 LEFT 而非 INNER，改 INNER 会静默少账」 | 已付未激活单从发售明细消失 | 可断言：SQL 含 `LEFT JOIN` |
-| 11 | 〔impl〕:382~386 | 「出网异常 NEVER 返成功也 NEVER 返失败；先 `insertPayLog` 再置 `REFUNDING`」 | 反序时连「发过退款」的痕迹都不剩 | 可断言：调用顺序 |
-| 12 | 〔impl〕:835~838 | 「NEVER 把 `outRefundNo` 放进 `refundOrderNo` 键」 | `PLATFORM_REFUND_NO` 写成我方单号、退款查询永久对不上 | 可断言 |
+| 11 | 〔refundInit〕`requestRefundTicket` | 「出网异常 NEVER 返成功也 NEVER 返失败；先 `insertPayLog` 再置 `REFUNDING`」 | 反序时连「发过退款」的痕迹都不剩 | 可断言：调用顺序 |
+| 12 | 〔refundCb〕`receiveRefundResult` | 「NEVER 把 `outRefundNo` 放进 `refundOrderNo` 键」 | `PLATFORM_REFUND_NO` 写成我方单号、退款查询永久对不上 | 可断言 |
 | 13 | 〔svc〕:69~73 / 〔refundCtl〕:81~84 | 「对端从未受理时 `refundQuery` 永远查不到，退款能力永久丧失」 | `/retry` 与 `/resubmit` 混用即卡死 | 可断言：`PLATFORM_REFUND_NO IS NULL` 分支 |
 | 14 | 〔refundXml〕:95~98 | 「四列一起写，NEVER 拆成多条语句」 | 「次数没加但原因写了」⇒ 永久重投 | 可断言：mapper XML 单语句 |
 | 15 | 〔refundXml〕:109~112 | 「不包 `NVL(NOTIFY_TIMES,0)` 时历史 NULL 行永远捞不出来」 | 老退款单的通知永不补发 | 可断言：SQL 含 `NVL` |
-| 16 | 〔impl〕:1181~1182 | 「次数一并重置为 0，NEVER 复用上一轮计数」 | 上一轮攒到 4 次的单子这轮只剩 1 次机会 | 可断言 |
+| 16 | 〔refundSettle〕`markRefundNotifyPending` | 「次数一并重置为 0，NEVER 复用上一轮计数」 | 上一轮攒到 4 次的单子这轮只剩 1 次机会 | 可断言 |
 | 17 | 〔notifyClient〕:30~36 | 「裸 JSON 实测返 `7004`；NEVER 把 `7004` 加进成功码」（ADR-D89） | 把「对端没受理」永久记成投递完成 | 可断言：成功码集合 |
-| 18 | 〔impl〕:1341~1343 / 〔payProp〕:56~59 | 「`notifyUrl` 必填，缺它对端不回调且日志一片绿」 | 退款单只能靠人工收口、无任何报错 | 可断言：报文含该键 |
+| 18 | 〔refundGwReq〕 / 〔payProp〕:56~59 | 「`notifyUrl` 必填，缺它对端不回调且日志一片绿」 | 退款单只能靠人工收口、无任何报错 | 可断言：报文含该键 |
 | 19 | 〔prop〕:53~56 | 「`subject`/`body` MUST 写 `\uXXXX`，NEVER 直接写中文」 | ISO-8859-1 读取 ⇒ mojibake 原样送支付中心 | 可断言：properties 无非 ASCII |
 | 20 | 〔prop〕:19~25 / 〔reconXml〕:9~11 | tracing 三行成组理由、Druid `commentAllow=false` 说明 | 只加第一行 ⇒ OTLP exporter 被 env 激活；SQL 带注释 ⇒ 语句静默失效 | 可断言：配置三行齐全 |
-| 21 | 〔impl〕:986~987 / :995~998 | 「已开 tracing，`DuplicateKeyException` 可能被切面包一层」（ADR-D53） | 按类型 catch 的幂等兜底全部落空 | 可断言：cause 链判定 |
-| 22 | 〔impl〕:1074~1075（英文注释） | 「重复成功回调可能带来首次终态更新时缺失的平台单号，留着给退款用」 | 丢单号后退款查询无法定位 | 可断言 |
+| 21 | 〔lifecycle〕`insertUsageLog` / `isIntegrityViolation` | 「已开 tracing，`DuplicateKeyException` 可能被切面包一层」（ADR-D53） | 按类型 catch 的幂等兜底全部落空 | 可断言：cause 链判定 |
+| 22 | 〔pay〕`updatePayTerminalIfPaying`（英文注释） | 「重复成功回调可能带来首次终态更新时缺失的平台单号，留着给退款用」 | 丢单号后退款查询无法定位 | 可断言 |
 | 23 | 〔instMapper〕:21~25 / 〔instXml〕:54~57 | 「12 行 / 12 个不重复但库里没有唯一索引，NEVER 去掉 `FETCH FIRST 1 ROWS ONLY`」 | 重复票号 ⇒ `TooManyResultsException` 打挂 IF8A-34 | 可断言：SQL 含该子句 |
 | 24 | 〔reconSvc〕:370~371 | 「NEVER 静默把游标置回 null」 | Keyset 从头再翻、死循环并重复上送分片 | 可断言 |
 | 25 | 〔reconSvc〕:269~275 | 「线路段由 recon-server 无条件覆盖，本模块 NEVER 自己 join `STATION_INFO`」 | 两处各算一次、口径漂移 | 弱断言 |
@@ -1057,7 +1172,7 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
   （逐文件核对见 §八）。其余约 560 行是实体 / page / config 的字段级一句式 Javadoc 与 `@param` 段，
   **属标准 Javadoc、不在删除范围**。
 - **任务点名的 8 项**：状态机与取值 §一 ✅；激活与出站扣次 §二 ✅；106 条列注释取值域 §六 ✅；
-  旅游票按子单统计 + 主单聚合壳 + `PAY_STATUS` 永不回写（属设计非缺陷）§三 / §五 ✅；
+  旅游票**按主单聚合支付 + PAY 按主单统计**（子单恒 `CREATED`/`INIT` 属设计）§三 / §五 ✅；
   `IDX_DAILY_TICKET_ORDER_RECON` 与对账窗口 §五 ✅；退款相关表 §四 / §六 ✅；已开 tracing（1.0.22）§七 ✅。
 - **「退款相关表与分区」中的「分区」据实说明**：本模块 5 张表 + `DAILY_TICKET_USAGE_LOG` **都不是分区表**，
   `daily-ticket-server-schema.sql` 与三个 migration 里**没有任何 `PARTITION` 子句**（月分区表是

@@ -30,12 +30,20 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 @Service
 public class GateTxnPayServiceImpl implements GateTxnPayService {
     private static final Logger log = LoggerFactory.getLogger(GateTxnPayServiceImpl.class);
     private static final DateTimeFormatter ORDER_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+    /**
+     * BOM 补站的三个 {@code adviceOpt}：{@code 005} 免费更新 / {@code 006} 付费更新 / {@code 020} 免费更新（无时间窗）。
+     *
+     * <p>这三种的钱都由 BOM 现场收取（006 收的是补票款，005/020 本身不收钱），ITP 只负责落单让乘车记录可查，
+     * **NEVER 由 ITP 再发起一次免密扣款** —— 006 的 {@code trxAmount} 是正数，仅靠「总额 ≤ 0」判不住它。
+     */
+    private static final Set<String> BOM_SUPPLEMENT_ADVICE_OPTS = Set.of("005", "006", "020");
 
     private final GateTxnPayMapper gateTxnPayMapper;
     private final GateTxnPayWriter gateTxnPayWriter;
@@ -109,12 +117,29 @@ public class GateTxnPayServiceImpl implements GateTxnPayService {
                 + (order.getOvertimeAmount() == null ? 0 : order.getOvertimeAmount()));
         MetroTransferPushTask pushTask = metroTransferPushTaskProcessor.buildMetroTransferPushTask(order);
 
-        if (isDailyTicket(order) || order.getTotalAmount() <= 0) {
-            String reason = isDailyTicket(order) ? "日票交易默认支付成功" : "免扣费交易默认支付成功";
+        if (isDailyTicket(order) || order.getTotalAmount() <= 0 || isBomSupplement(order)) {
+            String reason;
+            if (isDailyTicket(order)) {
+                reason = "日票交易默认支付成功";
+            } else if (isBomSupplement(order)) {
+                reason = "BOM补站现场已收款，不由ITP扣款";
+            } else {
+                reason = "免扣费交易默认支付成功";
+            }
             order.setExpectedGateAmount(0);
             if (!StringUtils.hasText(order.getDiscountCalcStatus())) {
                 order.setDiscountCalcStatus(DiscountCalcStatus.SKIPPED.code());
                 order.setDiscountCalcMsg(reason + "，不参与钱包折扣计算");
+            }
+            if (isBomSupplement(order)) {
+                String registerFailure = paySignInitiator.registerCompletedTxnForBomSupplement(order, request, reason);
+                if (registerFailure != null) {
+                    response.setRetCode(GateTxnPayRetCode.ORDER_PERSIST_FAILED);
+                    response.setRetMsg(registerFailure);
+                    log.error("BOM补站单未能在支付域登记支付流水，本笔不落单、返错给上游, orderNo={}, cardId={}, msg={}",
+                            order.getOrderNo(), order.getCardId(), registerFailure);
+                    return response;
+                }
             }
             GateTxnPay savedOrder = gateTxnPayWriter.insertOrderAndUpdateStatusWithMetroTransferPushTask(
                     order, DebitStatus.SUCCESS.code(), reason, pushTask);
@@ -244,6 +269,7 @@ public class GateTxnPayServiceImpl implements GateTxnPayService {
         order.setUpdateTime(LocalDateTime.now());
         order.setTicketStatus(request.getTicketStatus());
         order.setOrderExpType(request.getOrderExpType());
+        order.setAdviceOpt(trimToNull(request.getAdviceOpt()));
         order.setEntryStationName(request.getEntryStationName());
         order.setExitStationName(request.getExitStationName());
         order.setCompanionFlag(request.getCompanionFlag());
@@ -258,9 +284,9 @@ public class GateTxnPayServiceImpl implements GateTxnPayService {
                 : (dailyTicketOrder ? "Y" : "N"));
         order.setAttributableParty(request.getAttributableParty());
         order.setReceivingParty(request.getReceivingParty());
-        log.info("IF1A-01 构建 GateTxnPay 订单快照, cardId={}, orderNo={}, ticketStatus={}, orderExpType={}, offlineFlag={}, companionFlag={}, ticketCode={}, countingTimes={}, countingFlag={}, attributableParty={}, receivingParty={}, entryStationName={}, exitStationName={}",
+        log.info("IF1A-01 构建 GateTxnPay 订单快照, cardId={}, orderNo={}, ticketStatus={}, orderExpType={}, adviceOpt={}, offlineFlag={}, companionFlag={}, ticketCode={}, countingTimes={}, countingFlag={}, attributableParty={}, receivingParty={}, entryStationName={}, exitStationName={}",
                 request.getCardId(), order.getOrderNo(), order.getTicketStatus(),
-                order.getOrderExpType(), order.getOfflineFlag(),
+                order.getOrderExpType(), order.getAdviceOpt(), order.getOfflineFlag(),
                 order.getCompanionFlag(), order.getTicketCode(), order.getCountingTimes(),
                 order.getCountingFlag(), order.getAttributableParty(), order.getReceivingParty(),
                 order.getEntryStationName(), order.getExitStationName());
@@ -380,6 +406,20 @@ public class GateTxnPayServiceImpl implements GateTxnPayService {
 
     private boolean isDailyTicket(GateTxnPay order) {
         return CardTypeCodeEnum.isDailyTicket(order.getCardType());
+    }
+
+    /**
+     * BOM 补站单：{@code ADVICE_OPT} 落在 {@link #BOM_SUPPLEMENT_ADVICE_OPTS} 内。
+     *
+     * <p>这类单 MUST 落单让乘车记录可查，但 **NEVER 走 pay-sign 扣款** —— 钱已由 BOM 现场收取，
+     * 再扣一次就是让乘客重复付费。**NEVER 退化成只按金额判断**：006 付费更新的 {@code trxAmount} 是正数。
+     */
+    private boolean isBomSupplement(GateTxnPay order) {
+        if (order == null) {
+            return false;
+        }
+        String adviceOpt = trimToNull(order.getAdviceOpt());
+        return adviceOpt != null && BOM_SUPPLEMENT_ADVICE_OPTS.contains(adviceOpt);
     }
 
     private String trimToNull(String value) {

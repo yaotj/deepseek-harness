@@ -1,7 +1,10 @@
 package com.chinasofti.huateng.gatetxnpay.controller.app;
 
 import com.chinasofti.huateng.gatetxnpay.service.GateTxnPayQueryService;
+import com.chinasofti.huateng.gatetxnpay.service.impl.UserDebitRetryService;
 import com.chinasofti.huateng.model.app.QueryTransListReqDTO;
+import com.chinasofti.huateng.model.app.RequestPayFailOrderReqDTO;
+import com.chinasofti.huateng.model.app.RequestPayFailOrderResult;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
 import com.chinasofti.huateng.model.app.RequestUserAccInfoReqDTO;
@@ -26,6 +29,9 @@ public class GateTxnPayAppController {
 
     @Autowired
     private GateTxnPayQueryService gateTxnPayQueryService;
+
+    @Autowired
+    private UserDebitRetryService userDebitRetryService;
 
     @PostMapping("/requestTransList")
     public List<GateTxnPayListDTO> requestTransList(@RequestBody QueryTransListReqDTO request) {
@@ -87,6 +93,19 @@ public class GateTxnPayAppController {
         log.info("IF8A-35 查询用户账务信息, 入参={}", request);
         RequestUserAccInfoResult response = gateTxnPayQueryService.requestUserAccInfo(request);
         log.info("IF8A-35 查询用户账务信息返回={}", response);
+        return response;
+    }
+
+    /**
+     * 用户主动发起免密失败订单重试扣费（requestPayFailOrder）。
+     * 同步对指定 thirdUserId（可选按 cardNums 收窄）下 INIT / RETRY / FAIL 的过闸扣费单重新发起免密扣款，
+     * 终态由支付中心回调后续收敛。详见 {@link UserDebitRetryService}。
+     */
+    @PostMapping("/requestPayFailOrder")
+    public RequestPayFailOrderResult requestPayFailOrder(@RequestBody RequestPayFailOrderReqDTO request) {
+        log.info("用户主动发起免密失败订单重试扣费, 入参={}", request);
+        RequestPayFailOrderResult response = userDebitRetryService.requestPayFailOrder(request);
+        log.info("用户主动发起免密失败订单重试扣费返回={}", response);
         return response;
     }
 }

@@ -518,7 +518,7 @@ daily-ticket-server **正在** tracing 名单里）。
 - **放开 `overtimeAmount`**：`GateCardTypeEnricher:156~159` 改成「只在**非**超时出站时清 `overtimeAmount`」，
   `trxAmount` 照旧恒清 0。
 - **对账**：`ITP.DETAIL` 数据源改挂 `DAILY_TICKET_OVERTIME_FEE`；按 Q3 结论定金额单位与钳制。
-  **验证 MUST 跑一次完整账期**（`sys_job` 109 → 批次收口 `SUCCESS` → 看 recon-server 的
+  **验证 MUST 跑一次完整账期**（`sys_job` 225「给ACC上传扣费交易」→ 批次收口 `SUCCESS` → 看 recon-server 的
   「对账文件投递已回查通过」日志），并与改动前的产物逐行比对差异。
 
 ### S5 — 离线码口径收敛（依赖 Q2，**可能是空操作**）

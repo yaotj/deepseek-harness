@@ -1,6 +1,8 @@
 package com.chinasofti.huateng.alipay.paysign.service.impl.callback;
 
 import com.chinasofti.huateng.alipay.paysign.port.DebitSyncPort;
+import com.chinasofti.huateng.alipay.paysign.service.impl.refund.RefundCallbackSettler;
+import com.chinasofti.huateng.alipay.paysign.service.impl.refund.TxnRefundCallbackSettler;
 import com.chinasofti.huateng.common.response.AlipayCommonResponse;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayNotifyReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRefundNotifyReqDTO;
@@ -36,7 +38,8 @@ import static org.mockito.Mockito.when;
  * <p>④ 同步失败时**未达上限返 9999 让对端重推、已达上限返 0000 让对端停推 + 标 MANUAL**。
  * 后者与「真成功」对外都是 {@code 0000}，只能靠 {@code HANDLE_STATUS} 区分。
  *
- * <p>⑤ 退款回调**恒返 0000、只落证据**，业务回写未接线；{@code REFUND_ORDER_NO} 取 {@code outRefundNo}。
+ * <p>⑤ 退款回调**恒返 0000**：先落 {@code PROCESSING} 证据、再按 {@code refundResult} 收口退款明细，
+ * 最后按收口归宿回写处置状态；{@code REFUND_ORDER_NO} 取 {@code outRefundNo}。
  */
 class AlipayPayCallbackServiceImplTest {
 
@@ -46,6 +49,8 @@ class AlipayPayCallbackServiceImplTest {
     private CallbackLogRepository callbackLogRepository;
     private PayTxnCallbackWriter payTxnCallbackWriter;
     private DebitSyncPort debitSyncPort;
+    private RefundCallbackSettler refundCallbackSettler;
+    private TxnRefundCallbackSettler txnRefundCallbackSettler;
     private AlipayPayCallbackServiceImpl service;
 
     @BeforeEach
@@ -53,10 +58,16 @@ class AlipayPayCallbackServiceImplTest {
         callbackLogRepository = mock(CallbackLogRepository.class);
         payTxnCallbackWriter = mock(PayTxnCallbackWriter.class);
         debitSyncPort = mock(DebitSyncPort.class);
-        service = new AlipayPayCallbackServiceImpl(callbackLogRepository, payTxnCallbackWriter, debitSyncPort);
+        refundCallbackSettler = mock(RefundCallbackSettler.class);
+        txnRefundCallbackSettler = mock(TxnRefundCallbackSettler.class);
+        service = new AlipayPayCallbackServiceImpl(callbackLogRepository, payTxnCallbackWriter, debitSyncPort,
+                refundCallbackSettler, txnRefundCallbackSettler);
         when(callbackLogRepository.recordPayCallback(any(), anyString(), any())).thenReturn(CALLBACK_SEQ);
+        when(callbackLogRepository.recordRefundCallback(any(), any(), anyString(), any())).thenReturn(CALLBACK_SEQ);
         when(callbackLogRepository.countPayPush(ORDER_NO)).thenReturn(1);
         when(debitSyncPort.syncDebitStatus(anyString(), anyString(), anyString())).thenReturn(new RpcOutcome.Ok());
+        when(refundCallbackSettler.settle(anyString(), anyString(), anyString(), any()))
+                .thenReturn(RefundCallbackSettler.Outcome.SETTLED_SUCCESS);
     }
 
     @Test
@@ -159,7 +170,8 @@ class AlipayPayCallbackServiceImplTest {
 
         assertEquals("8001", response.getRetCode());
         assertEquals("参数异常：orderNo不能为空", response.getRetMsg());
-        verify(callbackLogRepository, never()).recordRefundCallback(any(), any());
+        verify(callbackLogRepository, never()).recordRefundCallback(any(), any(), anyString(), any());
+        verify(refundCallbackSettler, never()).settle(anyString(), anyString(), anyString(), any());
     }
 
     @Test
@@ -174,6 +186,44 @@ class AlipayPayCallbackServiceImplTest {
         assertEquals("成功", response.getRetMsg());
     }
 
+    /**
+     * 留证据 MUST 在收口明细**之前** —— 收口过程中抛异常那一轮，若反序写就什么痕迹都不留。
+     * 同时钉住收口的入参：{@code refundOrderNo} 取 {@code outRefundNo}、描述取 {@code refundResultDesc}。
+     */
+    @Test
+    void refundEvidenceIsRecordedBeforeSettlingDetail() {
+        service.handleRefundNotify(refundNotify(ORDER_NO, "400"));
+
+        InOrder ordered = inOrder(callbackLogRepository, refundCallbackSettler);
+        ordered.verify(callbackLogRepository).recordRefundCallback(any(), any(), eq("PROCESSING"), isNull());
+        ordered.verify(refundCallbackSettler).settle(ORDER_NO, "R20260918000001", "SUCCESS", "退款成功");
+        verify(callbackLogRepository).updateHandleResult(CALLBACK_SEQ, "SUCCESS", "退款明细已收口为 SUCCESS，汇总已重算");
+    }
+
+    /** {@code PROCESSING} 不是失败：处置状态留在 {@code PROCESSING} 等终态回调，仍返 {@code 0000}。 */
+    @Test
+    void refundStillProcessingKeepsHandleStatusProcessing() {
+        when(refundCallbackSettler.settle(anyString(), anyString(), anyString(), any()))
+                .thenReturn(RefundCallbackSettler.Outcome.STILL_PROCESSING);
+
+        AlipayCommonResponse response = service.handleRefundNotify(refundNotify(ORDER_NO, "400"));
+
+        verify(callbackLogRepository).updateHandleResult(CALLBACK_SEQ, "PROCESSING", "退款仍处理中，等待终态回调");
+        assertEquals("0000", response.getRetCode());
+    }
+
+    /** {@code refundResult} 取值不在契约内时转人工，但**仍返 0000** —— 让对端重推不会带来新信息。 */
+    @Test
+    void refundUnknownResultIsMarkedManualButStillStopsRepush() {
+        when(refundCallbackSettler.settle(anyString(), anyString(), anyString(), any()))
+                .thenReturn(RefundCallbackSettler.Outcome.UNKNOWN_RESULT);
+
+        AlipayCommonResponse response = service.handleRefundNotify(refundNotify(ORDER_NO, "400"));
+
+        verify(callbackLogRepository).updateHandleResult(CALLBACK_SEQ, "MANUAL", "refundResult 取值不在契约内: SUCCESS");
+        assertEquals("0000", response.getRetCode(), "退款回调 MUST 恒返 0000、NEVER 靠 9999 引对端重推");
+    }
+
     @Test
     void unparsableRefundAmountLeavesColumnEmptyInsteadOfFailing() {
         AlipayCommonResponse response = service.handleRefundNotify(refundNotify(ORDER_NO, "4.00元"));
@@ -184,7 +234,7 @@ class AlipayPayCallbackServiceImplTest {
 
     private RefundNotifyCommand.Accepted capturedRefundCommand() {
         ArgumentCaptor<RefundNotifyCommand.Accepted> captor = ArgumentCaptor.forClass(RefundNotifyCommand.Accepted.class);
-        verify(callbackLogRepository).recordRefundCallback(any(), captor.capture());
+        verify(callbackLogRepository).recordRefundCallback(any(), captor.capture(), anyString(), any());
         return captor.getValue();
     }
 
@@ -205,6 +255,7 @@ class AlipayPayCallbackServiceImplTest {
         request.setRefundNo("PC20260918000001");
         request.setRefundAmount(refundAmount);
         request.setRefundResult("SUCCESS");
+        request.setRefundResultDesc("退款成功");
         return request;
     }
 }

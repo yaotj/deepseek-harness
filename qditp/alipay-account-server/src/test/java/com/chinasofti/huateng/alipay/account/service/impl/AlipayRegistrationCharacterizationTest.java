@@ -122,7 +122,7 @@ class AlipayRegistrationCharacterizationTest {
 
     /**
      * 已开户即幂等短路：返 0000 带库里那张卡，四步一步都不走。
-     * 重试因此 NEVER 补 confirm —— 首次 confirm 失败留下的预占只能等 sys_job 107 回收。
+     * 重试因此 NEVER 补 confirm —— 首次 confirm 失败留下的预占只能等 sys_job 240 回收（2026-09-21 由 107 改号为 240）。
      */
     @Test
     void existingUserShouldShortCircuitBeforeAnyStep() {

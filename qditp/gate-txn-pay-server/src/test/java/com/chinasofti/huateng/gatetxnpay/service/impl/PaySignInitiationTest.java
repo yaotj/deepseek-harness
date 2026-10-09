@@ -20,6 +20,7 @@ import com.chinasofti.huateng.gatetxnpay.fare.FareDataGateway;
 import com.chinasofti.huateng.gatetxnpay.mapper.GateTxnPayMapper;
 import com.chinasofti.huateng.gatetxnpay.paysign.AlipayTripPayRequestFactory;
 import com.chinasofti.huateng.gatetxnpay.paysign.GatePayRequestFactory;
+import com.chinasofti.huateng.gatetxnpay.paysign.PayInitiationRpcAdapter;
 import com.chinasofti.huateng.gatetxnpay.paysign.PaySignInitiator;
 import com.chinasofti.huateng.gatetxnpay.station.StationNameBackfiller;
 import com.chinasofti.huateng.gatetxnpay.writer.GateTxnPayWriter;
@@ -104,27 +105,27 @@ class PaySignInitiationTest {
         verify(writer).updateOrderStatusFromPending(any(), eq("PROCESSING"), any());
     }
 
-    /** 非 0000 一律落 RETRY。 */
+    /** 对端明确拒绝（非 0000）落 FAIL 终态，**NEVER 回退成 RETRY** —— 那会把它和「未获答复」混成一类。 */
     @Test
-    void nonSuccessRetCodeFallsBackToRetry() {
+    void bizRejectedRetCodeLandsOnFailNeverRetry() {
         stubRetryable(order("GT14", 400, 0));
         when(paySignClient.requestPay(any())).thenReturn(payResult("9999"));
 
-        assertEquals("RETRY", service().retryPay("GT14").getPayStatus());
-        verify(writer).updateOrderStatusFromPending(any(), eq("RETRY"), any());
+        assertEquals("FAIL", service().retryPay("GT14").getPayStatus());
+        verify(writer).updateOrderStatusFromPending(any(), eq("FAIL"), contains("业务拒绝"));
     }
 
-    /** 返回 null（连接不上 / 报文解析失败）同样落 RETRY。 */
+    /** 返回 null：HTTP 已通、只是应答体空，属契约问题 ⇒ 与非 0000 同归 FAIL，重试解决不了。 */
     @Test
-    void nullResponseFallsBackToRetryWithReason() {
+    void nullResponseLandsOnFailWithChannelInReason() {
         stubRetryable(order("GT15", 400, 0));
         when(paySignClient.requestPay(any())).thenReturn(null);
 
-        assertEquals("RETRY", service().retryPay("GT15").getPayStatus());
-        verify(writer).updateOrderStatusFromPending(any(), eq("RETRY"), contains("重试调用pay-sign失败"));
+        assertEquals("FAIL", service().retryPay("GT15").getPayStatus());
+        verify(writer).updateOrderStatusFromPending(any(), eq("FAIL"), contains("pay-sign"));
     }
 
-    /** 补偿链路（异步入口）上 pay-sign 抛异常 → 落 RETRY 且异常信息进备注。 */
+    /** 补偿链路（异步入口）上 pay-sign 抛异常 = 未获答复 → 落 RETRY 且异常信息进备注。 */
     @Test
     void paySignExceptionIsRecordedAsRetry() {
         stubPending(pendingOrder("GT16"));
@@ -165,14 +166,15 @@ class PaySignInitiationTest {
         assertEquals(700, sent.getValue().getAmount(), "金额 MUST 是 TOTAL_AMOUNT（实扣 + 超时费）");
     }
 
+    /** 支付宝渠道被业务拒绝同样落 FAIL，且 REMARK MUST 写 alipay-pay-sign 而不是 pay-sign。 */
     @Test
-    void alipayNonSuccessRetCodeIsRecordedAsRetry() {
+    void alipayBizRejectedLandsOnFailWithAlipayChannelInReason() {
         stubRetryable(alipayOrder("GT22"));
         when(alipayPaySignClient.alipayTripRequestPay(any())).thenReturn(alipayPayResult("9999"));
 
         service().retryPay("GT22");
 
-        verify(writer).updateOrderStatusFromPending(any(), eq("RETRY"), anyString());
+        verify(writer).updateOrderStatusFromPending(any(), eq("FAIL"), contains("alipay-pay-sign"));
     }
 
     /** 反向错了同样打不通。 */
@@ -275,7 +277,7 @@ class PaySignInitiationTest {
         return new GateTxnPayServiceImpl(
                 mapper, writer, fareCalculator, initiator(),
                 new MetroTransferPushTaskProcessor(null, null, false, 0, 0, 0L),
-                new GateTxnPayManualOpsService(mapper, paySignClient, initiator()),
+                new GateTxnPayManualOpsService(mapper, paySignClient, alipayPaySignClient, initiator()),
                 noopStationNameBackfiller(),
                 null);
     }
@@ -294,7 +296,8 @@ class PaySignInitiationTest {
 
     /** 两个渠道的报文工厂传真实实例：本文件断言的正是它们组出来的报文字段，mock 掉就什么都没测到。 */
     private PaySignInitiator initiator() {
-        return new PaySignInitiator(paySignClient, alipayPaySignClient, writer,
+        return new PaySignInitiator(writer,
+                new PayInitiationRpcAdapter(paySignClient, alipayPaySignClient),
                 new GatePayRequestFactory("AGM_GATE", "1", "地铁乘车扣费", "地铁乘车费用", 60L),
                 new AlipayTripPayRequestFactory("TRIP", "05", "1", "地铁乘车扣费", "地铁乘车费用", 60));
     }

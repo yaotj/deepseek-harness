@@ -133,6 +133,37 @@
         WHERE ROWNUM = 1
     </select>
 
+    <!--
+        离线码出站重算票价用：同卡 + 进站 + 早于或等于本次出站时间的最近一笔明细。
+        两条不可回退的口径（理由见 QRCodeTxnDetailMapper.java 同名方法的 Javadoc）：
+        1. NEVER 退回按 TICKET_TRANS_SEQ 相等配对进出站（见上面的 selectFirstEntryBySequence）。
+           进站与出站是同一张卡的两笔不同交易，闸机上送的序列号天然不同，实测进站 0 / 出站 1，
+           相等配对恒命中 0 行，订单永久卡在 OFFLINE_FARE_PENDING。
+        2. NEVER 改用 QRCODE_STATUS 的 GATE_IN_STATION / GATE_IN_TIME。那是票卡当前状态快照、
+           会被下一趟行程覆盖；本补偿是延迟执行的，延迟期间该卡再进站一次就会拿新行程的进站信息
+           去算上一笔的钱，那比算不出更坏。本表是历史流水、不会被覆盖。
+        HANDLE_DATE_TIME 与出站时间同为 yyyyMMddHHmmss 定长字符串，字典序等于时间序，可直接比较。
+    -->
+    <select id="selectLatestEntryBeforeExit" resultType="com.chinasofti.huateng.ticket.entity.QRCodeTxnDetail">
+        SELECT *
+        FROM (
+            SELECT ID AS id, DEVICE_ID AS deviceId, ITP_USER_ID AS itpUserId,
+                   TRX_TYPE AS trxType, ISSUE_CHANNEL_CODE AS issueChannelCode,
+                   SIGN_CHANNEL_CODE AS signChannelCode, CARD_ID AS cardId,
+                   CARD_TYPE AS cardType, HANDLE_DATE_TIME AS handleDateTime,
+                   TXN_DATE AS txnDate, HANDLE_STATION_CODE AS handleStationCode,
+                   TRX_AMOUNT AS trxAmount, OVERTIME_AMOUNT AS overtimeAmount,
+                   TICKET_TRANS_SEQ AS ticketTransSeq, CREATE_TIME AS createTime
+            FROM QRCODE_TXN_DETAIL
+            WHERE CARD_ID = #{cardId,jdbcType=VARCHAR}
+              AND TRX_TYPE = '01'
+              AND HANDLE_DATE_TIME IS NOT NULL
+              AND HANDLE_DATE_TIME &lt;= #{exitHandleDateTime,jdbcType=VARCHAR}
+            ORDER BY HANDLE_DATE_TIME DESC, ID DESC
+        )
+        WHERE ROWNUM = 1
+    </select>
+
     <resultMap id="transRecordResultMap" type="com.chinasofti.huateng.model.app.TransRecordDTO">
         <result column="HANDLE_STATION_CODE" property="entryStationName"/>
         <result column="HANDLE_DATE_TIME" property="entryDate"/>

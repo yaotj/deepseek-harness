@@ -67,6 +67,15 @@ public class DailyTicketInstance {
     /** ACC通知状态。 */
     private String accNoticeStatus;
 
+    /** ACC通知重试次数。 */
+    private Integer accNoticeTimes;
+
+    /** ACC通知失败原因。 */
+    private String accNoticeMsg;
+
+    /** ACC通知业务报文，bizData原始JSON字符串。 */
+    private String accNoticePayload;
+
     /** 激活时间。 */
     private Date activateTime;
 
@@ -248,6 +257,30 @@ public class DailyTicketInstance {
 
     public void setAccNoticeStatus(String accNoticeStatus) {
         this.accNoticeStatus = accNoticeStatus;
+    }
+
+    public Integer getAccNoticeTimes() {
+        return accNoticeTimes;
+    }
+
+    public void setAccNoticeTimes(Integer accNoticeTimes) {
+        this.accNoticeTimes = accNoticeTimes;
+    }
+
+    public String getAccNoticeMsg() {
+        return accNoticeMsg;
+    }
+
+    public void setAccNoticeMsg(String accNoticeMsg) {
+        this.accNoticeMsg = accNoticeMsg;
+    }
+
+    public String getAccNoticePayload() {
+        return accNoticePayload;
+    }
+
+    public void setAccNoticePayload(String accNoticePayload) {
+        this.accNoticePayload = accNoticePayload;
     }
 
     public Date getActivateTime() {

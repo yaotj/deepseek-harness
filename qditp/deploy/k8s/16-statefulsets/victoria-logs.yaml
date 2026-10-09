@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: victoria-logs
+  name: victoria-logs
+  namespace: itp
+spec:
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  selector:
+    matchLabels:
+      app: victoria-logs
+  serviceName: victoria-logs
+  template:
+    metadata:
+      labels:
+        app: victoria-logs
+    spec:
+      containers:
+      - args:
+        - -storageDataPath=/victoria-logs-data
+        - -retentionPeriod=15d
+        - -syslog.listenAddr.udp=:514
+        env:
+        - name: SERVICE_NAME
+          value: victoria-logs
+        - name: NAMESPACE
+          value: itp
+        image: os-harbor-svc.default.svc.cloudos:443/itp/victoria-logs:v1.51.1
+        imagePullPolicy: Always
+        lifecycle: {}
+        name: victoria-logs
+        resources:
+          limits:
+            cpu: '2'
+            memory: 2Gi
+          requests:
+            cpu: '1'
+            memory: 1Gi
+        securityContext:
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-63z1nec90
+        - mountPath: /victoria-logs-data
+          name: victoria-logs-victoria-logs-data
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-63z1nec90
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+    type: RollingUpdate
+  volumeClaimTemplates:
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: victoria-logs-victoria-logs-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 15Gi
+      storageClassName: apigateway2
+      volumeMode: Filesystem

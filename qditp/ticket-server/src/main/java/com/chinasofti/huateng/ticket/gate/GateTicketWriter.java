@@ -59,7 +59,7 @@ class GateTicketWriter {
             log.warn("IF1A-01 CAS upsert 未命中: cardId={}, expectedTxnSeq={}, actualTxnSeq={}, actualCodeStatus={}. "
                             + "序号已被其他请求推进（AGM 超时重发或并发），降级使用库内状态。",
                     nextStatus.getCardId(), expectedTxnSeq, actual.getTxnSeq(), actual.getCodeStatus());
-            return new WriteResult(false, 0, actual);
+            return new WriteResult(duplicate, 0, actual);
         }
 
         log.warn("IF1A-01 CAS upsert 未命中且回查为空, cardId={}, expectedTxnSeq={}. 降级走无条件 upsert。",

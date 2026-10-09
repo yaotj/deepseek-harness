@@ -48,6 +48,14 @@ public class PayCenterProperties {
     /** 补款单（IF8A-26，{@code SP} 前缀）专用的支付结果回调地址。 */
     private String supplementNoticeUrl;
 
+    /**
+     * 退款结果回调地址，对应契约 §3.1 请求退款 bizData 的必填键 {@code notifyUrl}。
+     *
+     * <p>空值时不送该键并打 WARN：支付中心只往「本次请求带的 notifyUrl」推退款结果，
+     * 不送就永远收不到 §5.2 退款回调，只能靠 §3.2 退款回查兜。
+     */
+    private String refundNoticeUrl;
+
     /** 订单超时秒数，旧实现固定 180。 */
     private long orderTimeOutSeconds = 180L;
 
@@ -178,6 +186,14 @@ public class PayCenterProperties {
     public String effectiveSupplementNoticeUrl() {
         return supplementNoticeUrl == null || supplementNoticeUrl.isBlank()
                 ? payNoticeUrl : supplementNoticeUrl;
+    }
+
+    public String getRefundNoticeUrl() {
+        return refundNoticeUrl;
+    }
+
+    public void setRefundNoticeUrl(String refundNoticeUrl) {
+        this.refundNoticeUrl = refundNoticeUrl;
     }
 
     public long getOrderTimeOutSeconds() {

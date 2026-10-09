@@ -1,6 +1,6 @@
 -- ============================================================
 -- 用途: 新增「签约展示账号同步补偿」定时任务（每 5 分钟一次）
--- ⚠️ 已于 2026-09-11 在 AFCITPDB 执行、job_id=108；重复执行会产生同名重复任务。执行前提 / 核对 SQL / 回滚 见 docs/ops/生产环境清单.md 附.二.2
+-- ⚠️ 已于 2026-09-11 在 AFCITPDB 执行、job_id=108（2026-09-21 随「200 以下全量重编号」改为 290）；重复执行会产生同名重复任务。执行前提 / 核对 SQL / 回滚 见 docs/ops/生产环境清单.md 附.二.2
 INSERT INTO sys_job (job_name, job_group, invoke_target, cron_expression,
                      misfire_policy, concurrent, status, create_by, create_time, remark)
 VALUES ('签约展示账号同步补偿（手机号变更）', 'DEFAULT', 'accountQuartzTask.compensatePhoneSignSync()',

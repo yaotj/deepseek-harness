@@ -100,7 +100,7 @@ OutboxScan.Result scan = OutboxScan.run(pending,
 ## 六、当前落地清单
 
 - `USER_PHONE_CHANGE_LOG.SIGN_SYNC_*` — 已落地，四列在 `AFCITPDB` 已在（2026-09-11 实测），
-  `sys_job` job 108 触发 `POST /phoneSignSyncCompensate`。
+  `sys_job` job 290（2026-09-21 由 108 改号）触发 `POST /phoneSignSyncCompensate`。
 - `APP_TERMINATION_REQUEST.CHANNEL_SYNC_*` — **代码已落地（2026-09-12 / 2.0.80，ADR-D48）**：
   `ChannelSyncDeliverer` 是投递与三分支落状态的唯一实现，快速路径（`CallbackDomainServiceImpl.receiveTerminationResult`
   解约成功收口后，2026-09-15 前宿主是已删除的 `PaySignWorkflow`，见 ADR-D87）

@@ -23,6 +23,8 @@
         <result column="CHANNEL_TYPE" jdbcType="VARCHAR" property="channelType"/>
         <result column="PAY_RESULT" jdbcType="INTEGER" property="payResult"/>
         <result column="PAY_AMOUNT" jdbcType="INTEGER" property="payAmount"/>
+        <result column="CASH_AMOUNT" jdbcType="INTEGER" property="cashAmount"/>
+        <result column="COUPON_AMOUNT" jdbcType="INTEGER" property="couponAmount"/>
         <result column="PAY_DATE" jdbcType="TIMESTAMP" property="payDate"/>
         <result column="REFUND_TMS" jdbcType="TIMESTAMP" property="refundTms"/>
         <result column="REFUND_AMT" jdbcType="INTEGER" property="refundAmt"/>
@@ -112,6 +114,11 @@
             CHANNEL_TYPE = #{channelType,jdbcType=VARCHAR},
             PAY_RESULT = #{payResult,jdbcType=INTEGER},
             PAY_AMOUNT = #{payAmount,jdbcType=INTEGER},
+            <!-- CASH_AMOUNT / COUPON_AMOUNT 只有支付中心支付成功回调那一支带值；失败分支与其它调用路径
+                 传进来的实体这两个字段为空，直接赋值会把已落库的金额抹成 NULL，因此用 NVL 保留原值。
+                 两列原样照写，NEVER 在此校验 CASH_AMOUNT + COUPON_AMOUNT 是否等于 PAY_AMOUNT。 -->
+            CASH_AMOUNT = NVL(#{cashAmount,jdbcType=INTEGER}, CASH_AMOUNT),
+            COUPON_AMOUNT = NVL(#{couponAmount,jdbcType=INTEGER}, COUPON_AMOUNT),
             PAY_DATE = #{payDate,jdbcType=TIMESTAMP},
             REFUND_TMS = #{refundTms,jdbcType=TIMESTAMP},
             REFUND_AMT = #{refundAmt,jdbcType=INTEGER},

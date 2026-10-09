@@ -95,7 +95,7 @@ class AlipayContractCharacterizationTest {
         inject(contractService, "alipaySignInfoMapper", signInfoMapper);
         inject(contractService, "alipayAccountClient", alipayAccountClient);
         inject(contractService, "channelSyncDeliverer", channelSyncDeliverer);
-        inject(contractService, "terminationCoordinator", terminationCoordinator);
+        inject(contractService, "alipayTerminationService", terminationCoordinator);
         inject(contractService, "signLogRecorder", signLogRecorder);
     }
 

@@ -10,12 +10,15 @@ import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripPayQueryRe
 import com.chinasofti.huateng.alipay.paysign.port.PayCenterPort;
 import com.chinasofti.huateng.alipay.paysign.port.PayCenterReply;
 import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayTxnBriefDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -98,6 +101,51 @@ public class AlipayTxnPayQueryService {
 
         String centerPayDate = applyReply(reply, orderNo);
         return response(alipayPayTxnDetailMapper.selectByOrderNo(orderNo), centerPayDate, null);
+    }
+
+    /**
+     * 按订单号列表批量取「补齐支付侧字段」—— 支付宝出行乘车记录列表的**第二次请求**。
+     *
+     * <p>调用方（乘车记录列表）先以 {@code GATE_TXN_PAY} 为主表分页拿到本页 {@code orderNo}，再调本方法
+     * 一次性把支付侧那几列取回来合并。**本方法纯只读、不碰支付中心、不写任何表**。
+     *
+     * <p>三条约束 <b>NEVER 改</b>：
+     * <ol>
+     *   <li><b>只回 5 个字段</b>（{@code orderNo} / {@code payStatus} / {@code channelOrderNo} /
+     *       {@code transTime} / {@code invoice}）。要更多字段说明调用方把它当通用明细查询在用了，
+     *       那是另一个接口（{@code payQuery}）的职责。</li>
+     *   <li><b>字段原样返回、不做任何语义转换</b>：{@code payStatus} 是库里原文，契约的
+     *       {@code debitRequestResult} 由调用方映射；{@code transTime} 是回调报文原文、格式不统一，
+     *       <b>NEVER 在这里解析或格式化</b>。</li>
+     *   <li><b>列表长度由调用方限制</b>（Oracle IN 列表上限 1000）。本方法只做空值短路，
+     *       <b>NEVER 在这里悄悄截断</b> —— 截断会让调用方拿到「部分行没有支付信息」却毫不知情。</li>
+     * </ol>
+     *
+     * <p>命中不到的 {@code orderNo} **不会出现在返回列表里**（不补空行）：那种单子是「闸机建了单但支付
+     * 明细还没落」，调用方按缺失处理即可，补空行反而分不清「查不到」与「查到了但字段为空」。
+     */
+    public List<AlipayTripPayTxnBriefDTO> queryPayTxnBrief(List<String> orderNos) {
+        if (orderNos == null || orderNos.isEmpty()) {
+            log.info("支付宝出行-批量补齐支付明细,入参为空,直接返回空列表");
+            return List.of();
+        }
+        List<AlipayPayTxnDetail> details = alipayPayTxnDetailMapper.selectByOrderNos(orderNos);
+        if (details == null || details.isEmpty()) {
+            log.info("支付宝出行-批量补齐支付明细,未命中任何支付明细, 请求条数={}", orderNos.size());
+            return List.of();
+        }
+        List<AlipayTripPayTxnBriefDTO> result = new ArrayList<>(details.size());
+        for (AlipayPayTxnDetail detail : details) {
+            AlipayTripPayTxnBriefDTO brief = new AlipayTripPayTxnBriefDTO();
+            brief.setOrderNo(detail.getOrderNo());
+            brief.setPayStatus(detail.getPayStatus());
+            brief.setChannelOrderNo(detail.getChannelOrderNo());
+            brief.setTransTime(detail.getTransTime());
+            brief.setInvoice(detail.getInvoice());
+            result.add(brief);
+        }
+        log.info("支付宝出行-批量补齐支付明细完成, 请求条数={}, 命中条数={}", orderNos.size(), result.size());
+        return result;
     }
 
     /**

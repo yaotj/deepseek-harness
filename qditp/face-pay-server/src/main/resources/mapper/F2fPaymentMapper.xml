@@ -11,6 +11,8 @@
         <result column="PAY_SCENE" jdbcType="VARCHAR" property="payScene"/>
         <result column="PAY_STATUS" jdbcType="VARCHAR" property="payStatus"/>
         <result column="PAY_AMOUNT" jdbcType="BIGINT" property="payAmount"/>
+        <result column="CASH_AMOUNT" jdbcType="INTEGER" property="cashAmount"/>
+        <result column="COUPON_AMOUNT" jdbcType="INTEGER" property="couponAmount"/>
         <result column="PAY_TYPE" jdbcType="VARCHAR" property="payType"/>
         <result column="AUTH_CODE" jdbcType="VARCHAR" property="authCode"/>
         <result column="PAYMENT_VENDOR" jdbcType="VARCHAR" property="paymentVendor"/>
@@ -90,6 +92,18 @@
         ORDER BY ATTEMPT_NO DESC
         FETCH FIRST 1 ROWS ONLY
     </select>
+
+    <!-- CASH_AMOUNT / COUPON_AMOUNT 取支付中心回调（契约 5.1）的原值，用 NVL 包住：
+         主动查询与失败分支不带这两个值，直接赋值会把回调已落的金额抹成 NULL。
+         原样照写，NEVER 在此校验 CASH_AMOUNT + COUPON_AMOUNT 是否等于订单金额。 -->
+    <update id="updateCallbackAmounts">
+        UPDATE F2F_PAYMENT
+        SET CASH_AMOUNT = NVL(#{cashAmount,jdbcType=INTEGER}, CASH_AMOUNT),
+            COUPON_AMOUNT = NVL(#{couponAmount,jdbcType=INTEGER}, COUPON_AMOUNT),
+            UPDATE_TMS = SYSTIMESTAMP
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          AND ATTEMPT_NO = #{attemptNo,jdbcType=INTEGER}
+    </update>
 
     <update id="markSuccess">
         UPDATE F2F_PAYMENT

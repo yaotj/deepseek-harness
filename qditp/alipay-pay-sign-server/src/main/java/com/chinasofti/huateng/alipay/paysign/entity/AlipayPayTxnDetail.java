@@ -78,12 +78,18 @@ public class AlipayPayTxnDetail {
     private String channelOrderNo;
 
     /**
-     * 支付时刻，支付中心回调报文的 {@code transTime} <b>原文直存不解析</b>。
+     * 支付时刻，**统一存 14 位 {@code yyyyMMddHHmmss}**（2026-09-20 起，用户裁决「这一列按一个格式统一」）。
      *
-     * <p>格式不统一：实测既有 {@code 2026-09-18 15:49:30} 也有 {@code 20260918021500}。因此
-     * <b>NEVER 改成 {@code LocalDateTime}</b>，也 NEVER 在查询里 {@code TO_DATE(TRANS_TIME, ...)}
-     * —— 既走不到索引，遇到另一种格式还会抛 {@code ORA-01861}。要按时间筛选一律去主表用
-     * {@code GATE_TXN_PAY.TXN_DATE} / {@code OUT_TIME}。
+     * <p>归一在 Java 侧唯一写入口做：{@code PayTxnCallbackWriter.normalizeTransTime}。
+     * <b>此前是「报文原文直存」，NEVER 回退</b> —— 原文格式不统一（实测既有 {@code 2026-09-18 16:44:41}
+     * 也有 {@code 20260918021500}），于是每个读取方都得各自再归一一次，漏一处就把 19 位原样发给对外契约
+     * （{@code payOrderNoDate} 的全仓口径是 14 位）。报文原文并没有丢：
+     * {@code ALIPAY_PAY_CALLBACK_LOG} 的 {@code TRANS_TIME} 与 {@code RAW_BODY} 是回调台账、仍存原文。
+     *
+     * <p>列类型保持 {@code VARCHAR2(32)} 不缩：**归一失败（数字位数不足 14）时原样入库**，
+     * 而对端给过什么长度无法约束。因此 <b>NEVER 改成 {@code LocalDateTime}</b>，也 NEVER 在查询里
+     * {@code TO_DATE(TRANS_TIME, ...)} —— 仍可能遇到归一前的历史行或短串，会抛 {@code ORA-01861}。
+     * 要按时间筛选一律去主表用 {@code GATE_TXN_PAY.TXN_DATE} / {@code OUT_TIME}。
      *
      * <p>唯一写入方是支付回调（{@code updatePayCallback} 的 SET 段，套 NVL 不覆盖已有值）。落单时
      * 恒为 null —— 那一刻对端还没告诉我们支付时刻；payQuery 方向也不写它。

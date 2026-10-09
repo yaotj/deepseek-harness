@@ -1,0 +1,165 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: pay-sign-server
+  name: pay-sign-server
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pay-sign-server
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: pay-sign-server
+    spec:
+      containers:
+      - env:
+        - name: pay.sign.request-pay-notify-url
+          value: http://58.56.166.170:48000/fep-app/ci/app/receivePayResult
+        - name: itp.format
+          value: json
+        - name: other.web.enableLogRequestInFilter
+          value: 'true'
+        - name: other.web.enableBodyCacheFilter
+          value: 'true'
+        - name: itp.charset
+          value: UTF-8
+        - name: pay.sign.request-pay-path
+          value: /api/v1/payment/requestPay
+        - name: mybatis.mapper-locations
+          value: classpath*:mapper/*.xml
+        - name: knife4j.production
+          value: 'false'
+        - name: other.sql.username
+          value: qditp
+        - name: service.account.url
+          value: http://172.20.211.23:30013
+        - name: pay.sign.sign-type
+          value: RSA2
+        - name: spring.application.name
+          value: pay-sign
+        - name: pay.sign.request-refund-path
+          value: /api/v1/refund/requestRefund
+        - name: service.gateTxnPay.url
+          value: http://172.20.211.23:30019
+        - name: service.blacklist.url
+          value: http://172.20.211.23:30017
+        - name: other.web.unSafeUrlChars
+          value: 'null'
+        - name: other.sql.page.type
+          value: oracle
+        - name: itp.deviceId
+          value: 'null'
+        - name: pay.sign.merchant-no
+          value: JOPJ490HLK9Z
+        - name: pay.sign.wechat.app-id
+          value: wx426a3015555a46be
+        - name: service.gateTxnPay.openLogger
+          value: 'true'
+        - name: other.sql.password
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: other.sql.password
+        - name: itp.providerId
+          value: '06'
+        - name: other.sql.database
+          value: AFCITPDB
+        - name: service.account.openLogger
+          value: 'true'
+        - name: other.sql.type
+          value: oracle
+        - name: itp.signType
+          value: '00'
+        - name: pay.sign.alipay.app-id
+          value: '60000157'
+        - name: pay.sign.wechat.entrust-url
+          value: https://api.mch.weixin.qq.com/papay/entrustweb
+        - name: app.notify.sign-result-url
+          value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receiveSignResult
+        - name: other.sql.double-datasource
+          value: 'false'
+        - name: pay.sign.charset
+          value: UTF-8
+        - name: app.notify.termination-result-url
+          value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receiveTerminationResultFromItp
+        - name: pay.sign.test-force-amount
+          value: '0'
+        - name: pay.sign.api-version
+          value: '1.0'
+        - name: pay.sign.termination-path
+          value: https://dtcustomer.bestonepay.com/testngbackV2/api/v1/contract/dismissal
+        - name: pay.sign.default-notify-url
+          value: http://58.56.166.170:48000/fep-app/ci/app/receiveSignResult
+        - name: server.port
+          value: '8080'
+        - name: pay.sign.contract-path
+          value: https://dtcustomer.bestonepay.com/testngbackV2//api/v1/contract/contract
+        - name: other.web.enableLogTakeTimesInInterceptor
+          value: 'true'
+        - name: pay.sign.alipay.merchant-app-id
+          value: '2015101000413186'
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        - name: other.sql.host
+          value: 172.20.222.3:1521
+        - name: app.notify.executor.queue-capacity
+          value: '1000'
+        - name: app.notify.executor.thread-name-prefix
+          value: app-notify-
+        - name: app.notify.executor.core-pool-size
+          value: '4'
+        - name: itp.signKey
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: itp.signKey
+        - name: pay.sign.contract-advisory-path
+          value: https://dtcustomer.bestonepay.com/testngbackV2//api/v1/contract/creditQuery
+        - name: pay.sign.contract-result-path
+          value: https://dtcustomer.bestonepay.com/testngbackV2//api/v1/contract/queryResult
+        - name: pay.sign.gateway-url
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway
+        - name: app.notify.executor.max-pool-size
+          value: '16'
+        - name: pay.sign.contract-config-path
+          value: https://dtcustomer.bestonepay.com/testngbackV2//api/v1/contract/requestContractConfig
+        - name: SERVICE_NAME
+          value: pay-sign-server
+        - name: NAMESPACE
+          value: itp
+        - name: pay.sign.request-refund-notify-url
+          value: http://58.56.166.170:48000/fep-app/ci/app/paySign/payment/receiveRefundResult
+        image: os-harbor-svc.default.svc.cloudos:443/itp/pay-sign-server:2.1.10
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: pay-sign-server
+        resources:
+          limits:
+            cpu: '1'
+            memory: 2Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-eh0u8bdk0
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-eh0u8bdk0

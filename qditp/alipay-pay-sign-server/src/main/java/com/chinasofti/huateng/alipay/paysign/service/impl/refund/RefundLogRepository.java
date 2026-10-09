@@ -62,10 +62,16 @@ class RefundLogRepository {
      * <p><b>顺序 MUST 是「落库并提交 → 出网」</b>：先留痕才有失败可核对、对账有源。调用方 NEVER 把
      * 这一步与出网包进同一个事务。
      *
-     * <p>并发下第二条 INSERT 会撞 {@code UK_ARL_REFUND_ORDER_NO}。这里的处置与扣费方向<b>刻意不同</b>：
-     * 扣费方向撞唯一索引是「同一 {@code orderNo} 已有人落好」，可以按幂等继续；
+     * <p>撞 {@code UK_ARL_REFUND_ORDER_NO}（2026-09-20 建成，单列 {@code REFUND_ORDER_NO}）时的处置与扣费方向
+     * <b>刻意不同</b>：扣费方向撞唯一索引是「同一 {@code orderNo} 已有人落好」，可以按幂等继续；
      * 退款方向的 {@code refundOrderNo} 是**本次现生成的**，撞上只能是重复提交 ——
      * 继续下去等于对同一笔原支付发两次退款，<b>MUST 拒绝、NEVER 按幂等放行</b>。
+     *
+     * <p><b>NEVER 把这条兜底当成「并发双提交的防线」</b>：两条并发请求各自生成的 {@code refundOrderNo}
+     * 本就不同、都能插入成功，该索引只挡「同一退款单号被重复落库」（重试 / 补偿重入）。
+     * 同一 {@code orderNo} 的并发双提交仍只靠编排层 {@code countProcessing} 的状态短路，
+     * 那是「先查后插」、库层没有互斥 —— 要在库层挡住得另建「{@code PROCESSING} 时按 {@code ORDER_NO} 唯一」
+     * 的部分唯一索引（尚未做，见 {@code docs/business/alipay-channel.md}）。
      *
      * <p>判定 MUST 沿 {@code getCause()} 链走，NEVER 只 catch 最外层的 {@code DuplicateKeyException}
      * —— 本模块开了 tracing，观测切面会把异常重新包一层，只认最外层类名的写法会静默失效。
@@ -115,6 +121,31 @@ class RefundLogRepository {
     }
 
     /**
+     * 退款回调收口：按商户退款单号把 {@code PROCESSING} 推进到终态，返回受影响行数。
+     *
+     * <p>SQL 的 WHERE 里带 {@code REFUND_STATUS = 'PROCESSING'}，因此这是一次 CAS：
+     * 支付中心重推第二次影响 0 行（幂等命中），也不会把已收口的终态覆盖回去。
+     * <b>影响 0 行 NEVER 当成失败</b>——它同时覆盖「重推」「已被回查补偿收口」「单号不属于本方」三种情形，
+     * 由调用方按处置状态区分。
+     *
+     * <p>刻意不写 {@code RESPONSE_BODY} 与 {@code RESULT_CODE}：那两列是申请方向的网关应答，
+     * 回调原文落在 {@code ALIPAY_PAY_CALLBACK_LOG.RAW_BODY}，覆盖掉等于把申请证据擦了。
+     */
+    int settleFromCallback(String refundOrderNo, String refundStatus, String resultMsg) {
+        return alipayRefundLogMapper.settleFromCallback(refundOrderNo, refundStatus, resultMsg, LocalDateTime.now());
+    }
+
+    /**
+     * 扫一批可回查的 {@code PROCESSING} 退款明细。
+     *
+     * <p>与本类其余方法一样是包私有：回查补偿在同包，跨包的调用点 MUST 走 public 门面
+     * （{@link RefundCallbackSettler}），<b>NEVER 为了让别的包能扫表就把本类改成 public</b>。
+     */
+    java.util.List<AlipayRefundLog> scanCompensable(int scanDays, int staleMinutes, int limit) {
+        return alipayRefundLogMapper.selectCompensableRefundQuery(scanDays, staleMinutes, limit);
+    }
+
+    /**
      * 按 {@code ALIPAY_REFUND_LOG} 重算原支付订单的已退金额与退款状态。
      *
      * <p><b>MUST 在明细已置为 {@code SUCCESS} 之后调</b>：SQL 是按本表现值重算的，早调一步算出来的是旧值。
@@ -130,8 +161,14 @@ class RefundLogRepository {
         }
     }
 
-    /** 沿 cause 链判完整性冲突，理由见 {@link #openRefund} 的注释。 */
-    private boolean isIntegrityViolation(Throwable throwable) {
+    /**
+     * 沿 cause 链判完整性冲突，理由见 {@link #openRefund} 的注释。
+     *
+     * <p><b>刻意是包私有 static</b>：同包的新表退款链路（{@code AlipayTxnRefundService}）需要**同一份**判定，
+     * 而抄一份私有方法等于留两处会各自腐化的逐字副本。这不算违反 AGENTS.md §5.1「NEVER 新建工具类」——
+     * 没有新建类，只是把已有判定开放给同包复用。<b>NEVER 为了给别的包用就把它改成 public</b>。
+     */
+    static boolean isIntegrityViolation(Throwable throwable) {
         Throwable current = throwable;
         while (current != null) {
             if (current instanceof DataIntegrityViolationException) {
@@ -144,5 +181,15 @@ class RefundLogRepository {
             current = current.getCause() == current ? null : current.getCause();
         }
         return false;
+    }
+    /**
+     * 读原支付流水（旧表 {@code ALIPAY_PAY_LOG}）。
+     *
+     * <p><b>2026-09-21 收口</b>：该表的**汇总回写**（{@code refreshSummary}）一直在本类，
+     * 而服务层又各注一份 {@code AlipayPayLogMapper} 只为读一行 —— 同一张表两处持有，
+     * Repository 就不排他了。<b>本表的读写一律经本类，NEVER 在退款聚合里再注 {@code AlipayPayLogMapper}</b>。
+     */
+    AlipayPayLog findPayLog(String orderNo) {
+        return alipayPayLogMapper.selectByOrderNo(orderNo);
     }
 }

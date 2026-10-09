@@ -27,6 +27,8 @@ class AlipayIndustryDetailAssembler {
 
     private static final String ENTRY_ID_SUFFIX = "01";
     private static final String EXIT_ID_SUFFIX = "02";
+    private static final DateTimeFormatter ORDER_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final int FORMATTED_DATE_LENGTH = 19;
 
     private final EntryTxnQueryService entryTxnQueryService;
     private final StationLineResolver stationLineResolver;
@@ -85,7 +87,7 @@ class AlipayIndustryDetailAssembler {
         String exitStationCode = request.getHandleStationCode();
 
         Map<String, Object> detail = new LinkedHashMap<>();
-        detail.put("orderDate", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+        detail.put("orderDate", resolveOrderDate(request));
         detail.put("cardNum", blankIfNull(request.getCardId()));
         detail.put("channelAgreementNo", "");
         detail.put("tikcetTransSeq", blankIfNull(request.getTicketTransSeq()));
@@ -110,6 +112,27 @@ class AlipayIndustryDetailAssembler {
         detail.put("fineAmount", blankIfNull(request.getOvertimeAmount()));
         return detail;
     }
+    /**
+     * {@code orderDate} 取本次出站时刻（与 {@code exitDate} 同源同值）。
+     *
+     * <p>支付中心的必填项 {@code orderTime} 由这个键派生 —— 我方**不单独送 orderTime 字段**，
+     * 缺这个键对端返 {@code retCode=10002 交易时间orderTime不可为空}（2026-09-18 实测）。
+     * <b>NEVER 改回 {@code LocalDateTime.now()}</b>：那样一旦走扫表补偿重推，orderDate 会漂到
+     * 重推时刻、与同报文里的 {@code exitDate} 分叉，渠道账本上同一笔行程出现两个交易时间。
+     *
+     * <p>闸机没送出站时间（或格式短于 14 位）时才回落当前时刻并留 WARN：这个键
+     * <b>NEVER 允许落空串</b>，空串对支付中心等于缺失、照样返 10002。
+     */
+    private String resolveOrderDate(NotifyVerifyResultReqDTO request) {
+        String exitDate = convertHandleDateTime(request.getHandleDateTime());
+        if (exitDate != null && exitDate.length() >= FORMATTED_DATE_LENGTH) {
+            return exitDate;
+        }
+        log.warn("IF1A-01 出站时间缺失或格式异常，orderDate 回落当前时刻, cardId={}, handleDateTime={}",
+                request.getCardId(), request.getHandleDateTime());
+        return LocalDateTime.now().format(ORDER_DATE_FORMATTER);
+    }
+
     /** industryDetail 的字段值 */
     private String blankIfNull(String value) {
         return value == null ? "" : value;

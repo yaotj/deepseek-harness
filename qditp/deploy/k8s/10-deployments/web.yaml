@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: web
+  name: web
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+      - env:
+        - name: NGINX_VERSION
+          value: '1.20'
+        - name: SERVICE_NAME
+          value: web
+        - name: NAMESPACE
+          value: itp
+        - name: H3CLOUD_APM_TRIGGER
+          value: 'OFF'
+        - name: JAR_PARM
+        - name: JAR_NAME
+          value: web-frontend-1.2.29.zip
+        image: os-harbor-svc.default.svc.cloudos:443/user/1df71957d770436493a84f24d9344853/web-nginx1.20:1.2.29-1790045565782
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: web
+        resources:
+          limits:
+            cpu: '1'
+            memory: 1Gi
+          requests:
+            cpu: '1'
+            memory: 1Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-d1u8j5b70
+        - mountPath: /usr/share/nginx/conf/nginx.conf
+          name: websyspresetweb
+          subPath: nginx.conf
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-d1u8j5b70
+      - configMap:
+          defaultMode: 420
+          name: websyspresetweb-version-1.29
+        name: websyspresetweb

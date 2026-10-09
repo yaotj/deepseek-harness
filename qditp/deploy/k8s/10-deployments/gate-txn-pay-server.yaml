@@ -1,0 +1,127 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: gate-txn-pay-server
+  name: gate-txn-pay-server
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gate-txn-pay-server
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: gate-txn-pay-server
+    spec:
+      containers:
+      - env:
+        - name: gate.pay.scene
+          value: withholding
+        - name: pay.sign.request-refund-url
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/refund/requestRefund
+        - name: other.web.enableLogRequestInFilter
+          value: 'true'
+        - name: other.web.enableBodyCacheFilter
+          value: 'true'
+        - name: other.sql.double-datasource
+          value: 'false'
+        - name: gate.pay.subject
+          value: 地铁乘车扣费
+        - name: pay.sign.contract-result-url
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/contract/queryResult
+        - name: mybatis.mapper-locations
+          value: classpath*:mapper/*.xml
+        - name: pay.sign.request-pay-url
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/payment/requestPay
+        - name: pay.sign.contract-advisory-url
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/contract/creditQuery
+        - name: knife4j.production
+          value: 'false'
+        - name: gate.pay.order-timeout-seconds
+          value: '60'
+        - name: server.port
+          value: '8080'
+        - name: other.sql.username
+          value: qditp
+        - name: pay.sign.contract-config-url
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/contract/requestContractConfig
+        - name: other.web.enableLogTakeTimesInInterceptor
+          value: 'true'
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        - name: other.sql.host
+          value: 172.20.222.3
+        - name: service.paySign.url
+          value: http://172.20.211.23:30016
+        - name: spring.application.name
+          value: gate-txn-pay
+        - name: pay.sign.termination-url
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/contract/dismissal
+        - name: pay.sign.contract-url
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/contract/contract
+        - name: service.para.url
+          value: http://para-server-pufrl-svc.itp.svc:30026
+        - name: other.web.unSafeUrlChars
+          value: 'null'
+        - name: other.sql.page.type
+          value: oracle
+        - name: other.sql.password
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: other.sql.password
+        - name: other.sql.database
+          value: AFCITPDB
+        - name: gate.pay.body
+          value: 地铁乘车费用
+        - name: other.sql.type
+          value: oracle
+        - name: service.paySign.openLogger
+          value: 'true'
+        - name: gate.pay.industry-type
+          value: '1'
+        - name: SERVICE_NAME
+          value: gate-txn-pay-server
+        - name: NAMESPACE
+          value: itp
+        - name: service.account.url
+          value: http://account-n4ba6-svc.itp.svc:9098
+        - name: RECON_INTERNAL_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: RECON_INTERNAL_TOKEN
+        - name: SERVICE_RECON_URL
+          value: http://recon-server-bjzdy-svc.itp.svc:30034
+        image: os-harbor-svc.default.svc.cloudos:443/itp/gate-txn-pay-server:2.0.99
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: gate-txn-pay-server
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-asxprvw00
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-asxprvw00

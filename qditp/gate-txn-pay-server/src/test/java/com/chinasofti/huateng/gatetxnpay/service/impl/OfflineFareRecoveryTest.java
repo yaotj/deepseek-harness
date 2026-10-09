@@ -20,6 +20,7 @@ import com.chinasofti.huateng.gatetxnpay.fare.FareDataGateway;
 import com.chinasofti.huateng.gatetxnpay.mapper.GateTxnPayMapper;
 import com.chinasofti.huateng.gatetxnpay.paysign.AlipayTripPayRequestFactory;
 import com.chinasofti.huateng.gatetxnpay.paysign.GatePayRequestFactory;
+import com.chinasofti.huateng.gatetxnpay.paysign.PayInitiationRpcAdapter;
 import com.chinasofti.huateng.gatetxnpay.paysign.PaySignInitiator;
 import com.chinasofti.huateng.gatetxnpay.station.StationNameBackfiller;
 import com.chinasofti.huateng.gatetxnpay.writer.GateTxnPayWriter;
@@ -192,7 +193,8 @@ class OfflineFareRecoveryTest {
     private OfflineFareRecoveryServiceImpl service(GateTxnPayMapper gateTxnPayMapper) {
         return new OfflineFareRecoveryServiceImpl(
                 gateTxnPayMapper, writer, fareCalculator,
-                new PaySignInitiator(paySignClient, alipayPaySignClient, writer,
+                new PaySignInitiator(writer,
+                        new PayInitiationRpcAdapter(paySignClient, alipayPaySignClient),
                         new GatePayRequestFactory("AGM_GATE", "1", "地铁乘车扣费", "地铁乘车费用", 60L),
                         new AlipayTripPayRequestFactory("TRIP", "05", "1", "地铁乘车扣费", "地铁乘车费用", 60)),
                 new MetroTransferPushTaskProcessor(null, null, false, 0, 0, 0L),

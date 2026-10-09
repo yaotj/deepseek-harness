@@ -39,7 +39,10 @@ class GateResponseAssembler {
      * @param request 闸机检票请求（已被 {@code GateCardTypeEnricher} 富化过）
      * @param response 待填充的应答
      * @param effectiveStatus 已持久化的票卡状态，来自 {@link GateTicketWriter.WriteResult#status()}
-     * @param resolvedCardType {@code CardTypeMapping.toIssueCardType(signChannelCode)} 的结果，
+     * @param resolvedCardType 账户侧富化后的真实卡种（{@code CardTypeMapping.toIssueCardType(request.getCardType())}），
+     *        <b>NEVER 传 {@code signChannelCode} 推导出来的值</b> —— 本参数决定 {@code countingFlag} /
+     *        {@code countingTimes} / {@code ticketCode} 三个字段，传错会让日票应答整组失真，
+     *        成因见 {@code GateTicketHandler.handleGateTransaction} 的注释。
      */
     public void fillSuccessResponse(NotifyVerifyResultReqDTO request, NotifyVerifyResultRespDTO response,
                                     QRCodeStatus effectiveStatus, String resolvedCardType) {

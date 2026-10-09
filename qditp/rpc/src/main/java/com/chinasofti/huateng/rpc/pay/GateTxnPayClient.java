@@ -9,6 +9,8 @@ import com.chinasofti.huateng.model.app.CardUnsettledQueryRespDTO;
 import com.chinasofti.huateng.model.app.QueryTransListReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
+import com.chinasofti.huateng.model.app.RequestPayFailOrderReqDTO;
+import com.chinasofti.huateng.model.app.RequestPayFailOrderResult;
 import com.chinasofti.huateng.model.app.RequestUserAccInfoReqDTO;
 import com.chinasofti.huateng.model.app.RequestUserAccInfoResult;
 import com.chinasofti.huateng.model.pay.GateTxnPayDebitConvergeReqDTO;
@@ -155,6 +157,19 @@ public class GateTxnPayClient extends ProxyWebClient {
         }, true);
     }
 
+    // ==================== 用户主动发起免密失败订单重试扣费（APP requestPayFailOrder） ====================
+
+    /**
+     * 用户主动发起免密失败订单重试扣费：把指定 thirdUserId（可选按 cardNums 收窄）下
+     * {@code DEBIT_STATUS IN ('INIT','RETRY','FAIL')} 的过闸扣费单重新发起免密扣款。
+     * 供 fep-app-server 的 {@code GateTxnPayController#requestPayFailOrder} 调用。
+     */
+    public RequestPayFailOrderResult requestPayFailOrder(@RequestBody RequestPayFailOrderReqDTO request) {
+        String result = postJsonAndGetResponse("/ci/gateTxnPay/app/requestPayFailOrder", request);
+        return JSONUtil.toBean(result, new TypeReference<RequestPayFailOrderResult>() {
+        }, true);
+    }
+
     // ==================== web-admin Quartz 触发的补偿入口 ====================
 
     /**
@@ -174,6 +189,45 @@ public class GateTxnPayClient extends ProxyWebClient {
      */
     public CommonResult pushMetroTransfer(Map<String, String> headers) {
         String result = postJsonAndGetResponse("/internal/gate-txn-pay/metro-transfer/push",
+                Collections.emptyMap(), headers);
+        return JSONUtil.toBean(result, new TypeReference<CommonResult>() {
+        }, true);
+    }
+
+    /**
+     * 跑一轮**非支付宝渠道**的行程扣费批量重试，供 web-admin 的
+     * {@code gateTxnPayQuartzTask.retryDefaultChannelDebits()}（{@code sys_job} 220）调用。
+     * @param headers 附加请求头，同上。
+     */
+    public CommonResult retryDefaultChannelDebits(Map<String, String> headers) {
+        String result = postJsonAndGetResponse("/internal/gate-txn-pay/debit/retry/default",
+                Collections.emptyMap(), headers);
+        return JSONUtil.toBean(result, new TypeReference<CommonResult>() {
+        }, true);
+    }
+
+    /**
+     * 跑一轮**支付宝出行渠道**的行程扣费批量重试，供 web-admin 的
+     * {@code gateTxnPayQuartzTask.retryAlipayChannelDebits()}（{@code sys_job} 255）调用。
+     * <p>与上一个方法**NEVER 合并**：两类单子的扣费出口不同（支付宝那支走 alipay-pay-sign、不经支付中心）。
+     * @param headers 附加请求头，同上。
+     */
+    public CommonResult retryAlipayChannelDebits(Map<String, String> headers) {
+        String result = postJsonAndGetResponse("/internal/gate-txn-pay/debit/retry/alipay",
+                Collections.emptyMap(), headers);
+        return JSONUtil.toBean(result, new TypeReference<CommonResult>() {
+        }, true);
+    }
+
+    /**
+     * 跑一轮**近 N 分钟未扣费订单**的重试，供 web-admin 的
+     * {@code gateTxnPayQuartzTask.retryRecentUnpaidDebits()}（{@code sys_job} 345「补站扣费周期查询更新」，2026-09-21 编号先后为 135 → 265 → 235 → 345）调用。
+     * <p>与上面两个方法**并行、NEVER 合并**：本条不分渠道、多捞 {@code INIT}、每分钟一轮且不写记账列，
+     * 判据见 gate-txn-pay-server 的 {@code DebitRetryProcessor#retryRecentUnpaidDebits()} 与 ADR-D154。
+     * @param headers 附加请求头，同上。
+     */
+    public CommonResult retryRecentUnpaidDebits(Map<String, String> headers) {
+        String result = postJsonAndGetResponse("/internal/gate-txn-pay/debit/retry/recent",
                 Collections.emptyMap(), headers);
         return JSONUtil.toBean(result, new TypeReference<CommonResult>() {
         }, true);

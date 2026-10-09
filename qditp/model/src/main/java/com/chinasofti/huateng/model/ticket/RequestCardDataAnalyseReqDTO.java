@@ -15,6 +15,12 @@ public class RequestCardDataAnalyseReqDTO {
      */
     private String managerCode;
 
+    /**
+     * BOM 设备所属站码（由 face-pay 按 deviceId 前 4 位推导后带入，仅用于 IF5A-01 同站/跨站判定）。
+     * 非对外契约字段，face-pay 与 ticket-server 之间的内部 RPC 入参；BOM 设备报文本身不含此值。
+     */
+    private String bomStationCode;
+
     public String getProviderId() {
         return providerId;
     }
@@ -53,5 +59,13 @@ public class RequestCardDataAnalyseReqDTO {
 
     public void setManagerCode(String managerCode) {
         this.managerCode = managerCode;
+    }
+
+    public String getBomStationCode() {
+        return bomStationCode;
+    }
+
+    public void setBomStationCode(String bomStationCode) {
+        this.bomStationCode = bomStationCode;
     }
 }

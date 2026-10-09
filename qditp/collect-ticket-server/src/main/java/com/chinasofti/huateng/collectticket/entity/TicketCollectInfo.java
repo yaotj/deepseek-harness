@@ -108,6 +108,16 @@ public class TicketCollectInfo {
     private Integer payAmount;
 
     /**
+     * 实付现金金额（单位：分），取支付中心回调的 cashAmount 原值。
+     */
+    private Integer cashAmount;
+
+    /**
+     * 优惠金额（单位：分），取支付中心回调的 couponAmount 原值。
+     */
+    private Integer couponAmount;
+
+    /**
      * 支付时间。
      */
     private LocalDateTime payDate;
@@ -290,6 +300,22 @@ public class TicketCollectInfo {
 
     public void setPayAmount(Integer payAmount) {
         this.payAmount = payAmount;
+    }
+
+    public Integer getCashAmount() {
+        return cashAmount;
+    }
+
+    public void setCashAmount(Integer cashAmount) {
+        this.cashAmount = cashAmount;
+    }
+
+    public Integer getCouponAmount() {
+        return couponAmount;
+    }
+
+    public void setCouponAmount(Integer couponAmount) {
+        this.couponAmount = couponAmount;
     }
 
     public LocalDateTime getPayDate() {

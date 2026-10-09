@@ -40,4 +40,41 @@
             UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
         WHERE REFUND_SEQ = #{refundSeq,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
     </update>
+
+    <!--
+      退款回调收口专用：按商户退款单号做 CAS。
+      1. WHERE 带 REFUND_STATUS = 'PROCESSING'，因此重复推送第二次影响 0 行（幂等命中），也不会把已收口的终态覆盖回去。
+      2. 不动 RESPONSE_BODY（该列是申请方向的网关应答原文，回调原文落在 ALIPAY_PAY_CALLBACK_LOG.RAW_BODY）。
+      3. 不动 RESULT_CODE（该列语义是申请受理结果，回调只表达退款终态）。
+    -->
+    <update id="settleFromCallback">
+        UPDATE ALIPAY_REFUND_LOG
+        SET REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR},
+            RESULT_MSG = #{resultMsg,jdbcType=VARCHAR},
+            UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        WHERE REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
+          AND REFUND_STATUS = 'PROCESSING'
+          AND DELETE_FLAG = '0'
+    </update>
+
+    <!--
+      退款回查补偿的扫表语句。四要素：状态白名单 + 时间窗口 + 排序 + 外层 ROWNUM 限流。
+      1. 内层先 order by、外层再 ROWNUM，顺序 NEVER 反过来：先截断再排序取到的是任意一批。
+      2. 列清单刻意不含 REQUEST_BODY / RESPONSE_BODY 两个大字段，扫描只需要出网与收口用的键。
+      3. UPDATE_TIME 闸门是本表唯一的节流手段（本表没有退避列），NVL 兜住历史空值。
+      4. 本表没有 TXN_DATE 这类分区键，窗口谓词落在 CREATE_TIME 上。
+    -->
+    <select id="selectCompensableRefundQuery" resultType="com.chinasofti.huateng.alipay.paysign.entity.AlipayRefundLog">
+        SELECT * FROM (
+            SELECT REFUND_SEQ, THIRD_USER_ID, CARD_ID, ORDER_NO, REFUND_AMOUNT,
+                   REFUND_STATUS, CHANNEL_AGREEMENT_NO, REFUND_ORDER_NO,
+                   RESULT_CODE, RESULT_MSG, CREATE_TIME, UPDATE_TIME
+            FROM ALIPAY_REFUND_LOG
+            WHERE REFUND_STATUS = 'PROCESSING'
+              AND DELETE_FLAG = '0'
+              AND CREATE_TIME &gt;= SYSTIMESTAMP - NUMTODSINTERVAL(#{scanDays,jdbcType=INTEGER}, 'DAY')
+              AND NVL(UPDATE_TIME, CREATE_TIME) &lt; SYSTIMESTAMP - NUMTODSINTERVAL(#{staleMinutes,jdbcType=INTEGER}, 'MINUTE')
+            ORDER BY NVL(UPDATE_TIME, CREATE_TIME)
+        ) WHERE ROWNUM &lt;= #{limit,jdbcType=INTEGER}
+    </select>
 </mapper>

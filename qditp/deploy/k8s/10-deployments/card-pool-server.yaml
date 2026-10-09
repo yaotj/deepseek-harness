@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: card-pool-server
+  name: card-pool-server
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: card-pool-server
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: card-pool-server
+    spec:
+      containers:
+      - env:
+        - name: CARD_POOL_PORT
+          value: '9111'
+        - name: CARD_POOL_FTP_CONNECT_TIMEOUT_MILLIS
+          value: '10000'
+        - name: CARD_POOL_FTP_DATA_TIMEOUT_SECONDS
+          value: '120'
+        - name: CARD_POOL_RESERVATION_MINUTES
+          value: '10'
+        - name: DB_NAME
+          value: AFCITPDB
+        - name: DB_HOST
+          value: 172.20.222.3:1521
+        - name: ACC_BASE_URL
+          value: http://172.20.211.11:32605/aclc
+        - name: CARD_POOL_LOCK_STALE_SECONDS
+          value: '1800'
+        - name: CARD_POOL_IMPORT_CHUNK_SIZE
+          value: '1000'
+        - name: CARD_POOL_FTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: CARD_POOL_FTP_PASSWORD
+        - name: CARD_POOL_THRESHOLD
+          value: '10000'
+        - name: CARD_POOL_FTP_SO_TIMEOUT_MILLIS
+          value: '30000'
+        - name: DB_USERNAME
+          value: qditp
+        - name: CARD_POOL_FTP_MAX_FILE_SIZE
+          value: '52428800'
+        - name: CARD_POOL_FTP_PORT
+          value: '21'
+        - name: CARD_POOL_SEQUENCE_ALERT_THRESHOLD
+          value: '999900'
+        - name: ACC_SECURE_URL
+          value: http://security-server-8h3eo-svc.itp.svc:8080
+        - name: CARD_POOL_FTP_USERNAME
+          value: ftpuser
+        - name: CARD_POOL_FTP_BASE_DIR
+          value: /itp/qrLoigcNum
+        - name: ACC_QR_LOGIC_NUM_PATH
+          value: /ci/Itp/requestQrLoigcNumList
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        - name: CARD_POOL_REQUEST_NUM
+          value: '100000'
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: DB_PASSWORD
+        - name: CARD_POOL_FTP_HOST
+          value: 172.20.215.3
+        - name: SERVICE_NAME
+          value: card-pool-server
+        - name: NAMESPACE
+          value: itp
+        image: os-harbor-svc.default.svc.cloudos:443/itp/card-pool-server:1.0.19
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: card-pool-server
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-4qfdjw030
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-4qfdjw030

@@ -1,0 +1,161 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: collect-pay
+  name: collect-pay
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: collect-pay
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: collect-pay
+    spec:
+      containers:
+      - env:
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        - name: management.tracing.enabled
+          value: 'true'
+        - name: pay.center.app-refund-notice-url
+          value: http://58.56.166.170:48000/fep-app/ci/app/receiveRefundResult
+        - name: app.charset
+          value: UTF-8
+        - name: jhm.key
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: jhm.key
+        - name: pay.center.notice-app-taketicketresult-url
+          value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receiveTakeTicketResult
+        - name: other.sql.double-datasource
+          value: 'false'
+        - name: other.web.enableBodyCacheFilter
+          value: 'true'
+        - name: other.web.enableLogRequestInFilter
+          value: 'true'
+        - name: pay.center.gateway-url
+          value: https://pay-gateway.example.com/api
+        - name: pay.center.pay-center-query-url
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/payment/payQuery
+        - name: pay.center.merchant-no
+          value: JOPJ490HLK9Z
+        - name: pay.center.notice-app-refundresult-url
+          value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receiveRefundResult
+        - name: pay.center.charset
+          value: UTF-8
+        - name: pay.center.sign-type
+          value: RSA
+        - name: server.tomcat.basedir
+          value: /Users/zhoucong/logs
+        - name: app.retryTimes
+          value: '5'
+        - name: mybatis.mapper-locations
+          value: classpath:mapper/*Mapper.xml
+        - name: doTime.noticeTakeTicketFailureTask
+          value: 0 */4 * * * ?
+        - name: pay.center.api-version
+          value: '1.0'
+        - name: service.ticket.url
+          value: http://172.20.211.23:30014
+        - name: doTime.noticeRefundTask
+          value: 0 */3 * * * ?
+        - name: server.port
+          value: '8080'
+        - name: other.sql.username
+          value: qditp
+        - name: other.web.enableLogTakeTimesInInterceptor
+          value: 'true'
+        - name: service.account.url
+          value: http://172.20.211.23:30013
+        - name: other.sql.host
+          value: 172.20.222.3:1521
+        - name: app.signType
+          value: '00'
+        - name: pay.center.pay-center-refund-url
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/refund/requestRefund
+        - name: pay.center.pay-center-pay-url
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/payment/requestPay
+        - name: app.format
+          value: json
+        - name: spring.application.name
+          value: collect-pay
+        - name: doTime.noticeTakeTicketTask
+          value: 0 */2 * * * ?
+        - name: pay.center.refundReason
+          value: \u51FA\u7968\u6570\u91CF\u4E0D\u8DB3
+        - name: pay.center.callback-url
+          value: http://localhost:9098/ci/app/ticketCollectPayNotify
+        - name: bom.payTimeOut
+          value: '180'
+        - name: pay.center.notice-app-taketicketfailureresult-url
+          value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receiveTakeTicketFaultResult
+        - name: other.sql.page.type
+          value: oracle
+        - name: app.signKey
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: app.signKey
+        - name: other.web.unSafeUrlChars
+          value: 'null'
+        - name: other.sql.password
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: other.sql.password
+        - name: other.sql.database
+          value: AFCITPDB
+        - name: other.sql.type
+          value: oracle
+        - name: bom.payTimeInterval
+          value: '3'
+        - name: sign.algorithm
+          value: SHA256WithRSA
+        - name: app.providerId
+          value: '06'
+        - name: SERVICE_NAME
+          value: collect-pay
+        - name: NAMESPACE
+          value: itp
+        - name: RECON_INTERNAL_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: RECON_INTERNAL_TOKEN
+        - name: SERVICE_RECON_URL
+          value: http://recon-server-bjzdy-svc.itp.svc:30034
+        image: os-harbor-svc.default.svc.cloudos:443/itp/collect-pay-server:1.1.88
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: collect-pay
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-gzexys9l0
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-gzexys9l0

@@ -5,7 +5,7 @@ import com.chinasofti.huateng.common.response.AlipayCommonResponse;
 import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
 import com.chinasofti.huateng.model.app.ItpCommonFormRequest;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
-import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespVO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestApplicationReqDTO;
@@ -138,17 +138,17 @@ public class FepAlipayTripController {
      * 查询乘车记录详情。
      */
     @PostMapping("/findTravelDetail")
-    public AlipayTripFindTravelDetailRespVO findTravelDetail(@ModelAttribute ItpCommonFormRequest request) {
+    public AlipayTripFindTravelDetailRespDTO findTravelDetail(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-查询乘车记录详情,请求参数：{}", request);
         if (request == null || request.getBizData() == null) {
-            AlipayTripFindTravelDetailRespVO result = new AlipayTripFindTravelDetailRespVO();
+            AlipayTripFindTravelDetailRespDTO result = new AlipayTripFindTravelDetailRespDTO();
             result.setRetCode(FepAppErrorCodeEnum.INVALID_PARAM.getCode());
             result.setRetMsg("无效的参数");
             return result;
         }
         AlipayTripFindTravelDetailReqDTO bizData = JSON.parseObject(request.getBizData(), AlipayTripFindTravelDetailReqDTO.class);
         log.info("支付宝出行-查询乘车记录详情,解码后业务参数：{}", JSON.toJSONString(bizData));
-        AlipayTripFindTravelDetailRespVO resp = alipayTripService.findTravelDetail(bizData);
+        AlipayTripFindTravelDetailRespDTO resp = alipayTripService.findTravelDetail(bizData);
         log.info("支付宝出行-查询乘车记录详情,响应结果：{}", JSON.toJSONString(resp));
         return resp;
     }

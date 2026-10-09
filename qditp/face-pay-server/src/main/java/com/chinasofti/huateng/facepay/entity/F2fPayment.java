@@ -23,6 +23,12 @@ public class F2fPayment {
     /** 本次尝试的支付金额，单位分。 */
     private Long payAmount;
 
+    /** 支付中心回调回传的实付现金金额（分）；原样落库，不做与订单金额的匹配校验。 */
+    private Integer cashAmount;
+
+    /** 支付中心回调回传的优惠金额（分）；原样落库，不做与订单金额的匹配校验。 */
+    private Integer couponAmount;
+
     /** 0-本地拼聚合码URL不调支付中心，其他-调支付中心预下单。 */
     private String payType;
 
@@ -117,6 +123,22 @@ public class F2fPayment {
 
     public void setPayAmount(Long payAmount) {
         this.payAmount = payAmount;
+    }
+
+    public Integer getCashAmount() {
+        return cashAmount;
+    }
+
+    public void setCashAmount(Integer cashAmount) {
+        this.cashAmount = cashAmount;
+    }
+
+    public Integer getCouponAmount() {
+        return couponAmount;
+    }
+
+    public void setCouponAmount(Integer couponAmount) {
+        this.couponAmount = couponAmount;
     }
 
     public String getPayType() {

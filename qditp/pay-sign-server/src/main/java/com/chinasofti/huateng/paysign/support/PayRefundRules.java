@@ -28,6 +28,9 @@ public final class PayRefundRules {
         if (!"SUCCESS".equals(payTxn.getPayStatus())) {
             return "原支付订单未支付成功";
         }
+        if (resolvePaidAmount(payTxn) <= 0) {
+            return "原支付订单实收金额为0，不可退款";
+        }
         if (!StringUtils.hasText(payTxn.getPayCenterOrderNo())) {
             return "原支付订单缺少支付中心订单号，无法发起退款";
         }

@@ -1,7 +1,7 @@
 package com.chinasofti.huateng.transquery.service;
 
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
-import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespVO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListRespDTO;
 import com.chinasofti.huateng.model.app.QueryTransListReqDTO;
@@ -26,6 +26,6 @@ public interface TransQueryService {
     /** 支付宝出行-查询乘车记录列表。 */
     AlipayTripFindTravelListRespDTO findTravelList(AlipayTripFindTravelListReqDTO request);
 
-    /** 支付宝出行-查询乘车记录详情。 */
-    AlipayTripFindTravelDetailRespVO findTravelDetail(AlipayTripFindTravelDetailReqDTO request);
+    /** 支付宝出行-查询乘车记录详情（应答扁平，R6 §3.72 表148，NEVER 再包 {@code data} 层）。 */
+    AlipayTripFindTravelDetailRespDTO findTravelDetail(AlipayTripFindTravelDetailReqDTO request);
 }

@@ -84,14 +84,23 @@ public final class PaySignGatewayMessages {
         return bizData;
     }
 
-    /** 请求退款（requestRefund）。{@code orderNo} 取原支付的 {@code PAY_CENTER_ORDER_NO}，见类注释。 */
-    public static Map<String, Object> buildRequestRefundBizData(PayRefundDetail refundDetail, PayTxnDetail payTxn) {
+    /**
+     * 请求退款（requestRefund）。{@code orderNo} 取原支付的 {@code PAY_CENTER_ORDER_NO}，见类注释。
+     *
+     * <p>{@code notifyUrl} 是网关 §3.1 的**必填键**（`docs/external/支付中心网关接口文档.md:329`），
+     * 而 2026-09-22 之前这里根本没送 —— 于是退款回调结构上永远到不了我方，收敛只能靠 §3.2 回查
+     * （P1-3）。**空值时刻意不进报文**（`putIfHasText`）：宁可维持「只靠回查」的现状，
+     * 也 NEVER 送一个我方没有端点的地址 —— 那会让支付中心每笔退款都打到 404。
+     */
+    public static Map<String, Object> buildRequestRefundBizData(PayRefundDetail refundDetail, PayTxnDetail payTxn,
+                                                               String notifyUrl) {
         Map<String, Object> bizData = new LinkedHashMap<>();
         bizData.put("refundOrderNo", refundDetail.getRefundOrderNo());
         bizData.put("merchantOrderNo", payTxn.getOrderNo());
         bizData.put("orderNo", payTxn.getPayCenterOrderNo());
         bizData.put("refundAmount", refundDetail.getRefundAmount());
         bizData.put("refundReason", refundDetail.getRefundReason());
+        putIfHasText(bizData, "notifyUrl", notifyUrl);
         return bizData;
     }
 

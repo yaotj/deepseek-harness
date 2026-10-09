@@ -31,15 +31,18 @@ public class BlacklistController {
     @Autowired
     private BlacklistService blacklistService;
 
-    /** 后台分页查询黑名单记录，支持卡ID、三方用户ID和创建时间范围。 */
+    /** 后台分页查询黑名单记录，支持卡ID、三方用户ID、行状态、渠道同步状态与创建时间范围。 */
     @GetMapping("/page/blacklist")
     public ResultVO<PageInfo<Blacklist>> page(@RequestParam(required = false) String cardId,
                                               @RequestParam(required = false) String thirdUserId,
+                                              @RequestParam(required = false) String status,
+                                              @RequestParam(required = false) String channelSyncStatus,
                                               @RequestParam(required = false) String createTimeBegin,
                                               @RequestParam(required = false) String createTimeEnd,
                                               @RequestParam(defaultValue = "1") Integer pageNum,
                                               @RequestParam(defaultValue = "10") Integer pageSize) {
-        return blacklistService.page(cardId, thirdUserId, createTimeBegin, createTimeEnd, pageNum, pageSize);
+        return blacklistService.page(cardId, thirdUserId, status, channelSyncStatus,
+                createTimeBegin, createTimeEnd, pageNum, pageSize);
     }
 
     /** 后台新增黑名单，复用原业务逻辑以保留操作日志与支付宝渠道同步。 */

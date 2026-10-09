@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: database
+  name: database
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: database
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: database
+    spec:
+      containers:
+      - env:
+        - name: SERVER_PORT
+          value: '8686'
+        - name: NAMESPACE
+          value: itp
+        - name: SERVICE_NAME
+          value: database
+        - name: ENTROPY_MCP_DATABASE_DDL_ALLOWED
+          value: 'true'
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:h2:file:/app/audit/mcp_audit
+        - name: SPRING_PROFILES_ACTIVE
+          value: production
+        - name: SPRING_DATASOURCE_USERNAME
+          value: sa
+        - name: ENTROPY_MCP_DATABASE_BYOK_URL_GUARD_BLOCK_PRIVATE_NETWORKS
+          value: 'false'
+        - name: ENTROPY_MCP_DATABASE_BYOK_URL_GUARD_ALLOWED_DRIVERS
+          value: oracle
+        - name: ENTROPY_MCP_DATABASE_CONNECTIONS_QDITP_READONLY
+          value: 'false'
+        - name: ENTROPY_MCP_SECURITY_ENABLED
+          value: 'true'
+        - name: ENTROPY_MCP_SECURITY_ALLOW_UNAUTHENTICATED_IN_PRODUCTION
+          value: 'false'
+        - name: MCP_SECURITY_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: MCP_SECURITY_ADMIN_PASSWORD
+        - name: ENTROPY_MCP_DATABASE_CONNECTIONS_QDITP_JDBC_URL
+          value: jdbc:oracle:thin:@172.20.222.3:1521/AFCITPDB
+        - name: ENTROPY_MCP_DATABASE_CONNECTIONS_QDITP_USERNAME
+          value: qditp
+        - name: ENTROPY_MCP_DATABASE_CONNECTIONS_QDITP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: ENTROPY_MCP_DATABASE_CONNECTIONS_QDITP_PASSWORD
+        image: os-harbor-svc.default.svc.cloudos:443/itp/database-server:0.6.7
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: database
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-kxj375420
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-kxj375420

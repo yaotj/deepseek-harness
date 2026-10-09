@@ -14,6 +14,8 @@
         <result column="TICKET_NAME" jdbcType="VARCHAR" property="ticketName"/>
         <result column="TICKET_PRICE" jdbcType="INTEGER" property="ticketPrice"/>
         <result column="PAY_AMOUNT" jdbcType="INTEGER" property="payAmount"/>
+        <result column="CASH_AMOUNT" jdbcType="INTEGER" property="cashAmount"/>
+        <result column="COUPON_AMOUNT" jdbcType="INTEGER" property="couponAmount"/>
         <result column="PAY_CHANNEL_CODE" jdbcType="VARCHAR" property="payChannelCode"/>
         <result column="CHANNEL_TYPE" jdbcType="VARCHAR" property="channelType"/>
         <result column="PAY_SCENE" jdbcType="VARCHAR" property="payScene"/>
@@ -28,7 +30,7 @@
 
     <sql id="BaseColumnList">
         ID, ORDER_NO, ORDER_TYPE, PARENT_ORDER_NO, THIRD_USER_ID, USER_ID, ORDER_SOURCE, CARD_TYPE,
-        SHOW_TYPE, TICKET_NAME, TICKET_PRICE, PAY_AMOUNT, PAY_CHANNEL_CODE,
+        SHOW_TYPE, TICKET_NAME, TICKET_PRICE, PAY_AMOUNT, CASH_AMOUNT, COUPON_AMOUNT, PAY_CHANNEL_CODE,
         CHANNEL_TYPE, PAY_SCENE, ORDER_STATUS, PAY_STATUS, TRADE_NO,
         PAYMENT_ORDER_NO, PAY_DATE, CREATE_TIME, UPDATE_TIME
     </sql>
@@ -62,6 +64,24 @@
         from DAILY_TICKET_ORDER
         where PARENT_ORDER_NO = #{parentOrderNo,jdbcType=VARCHAR}
         order by ORDER_NO
+    </select>
+
+    <!-- 批量退款扫表：已支付 + 未激活（DAILY_TICKET_INSTANCE 无同 ORDER_NO 行）+ 过等待期 + 无退款单。
+         PARENT_ORDER_NO IS NULL 是硬约束：旅游票子单按主单整单退，NEVER 去掉这个谓词。
+         SQL 正文内禁止写注释（Druid WallFilter 会判成注入并静默失效），说明只写在本 XML 注释里。 -->
+    <select id="selectPaidNotActivated" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from DAILY_TICKET_ORDER O
+        where O.ORDER_STATUS = 'PAID'
+          and O.PAY_STATUS = 'PAID'
+          and O.PARENT_ORDER_NO is null
+          and O.PAY_DATE is not null
+          and O.PAY_DATE <![CDATA[ <= ]]> #{paidBefore,jdbcType=TIMESTAMP}
+          and O.PAY_DATE <![CDATA[ >= ]]> #{paidAfter,jdbcType=TIMESTAMP}
+          and not exists (select 1 from DAILY_TICKET_INSTANCE I where I.ORDER_NO = O.ORDER_NO)
+          and not exists (select 1 from DAILY_TICKET_REFUND R where R.ORDER_NO = O.ORDER_NO)
+        order by O.PAY_DATE
+        fetch first #{limit,jdbcType=INTEGER} rows only
     </select>
 
     <select id="selectRefundOrders" resultType="com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderView">
@@ -125,19 +145,19 @@
         ) O
         <where>
             <if test="beginTime != null">
-                and O.CREATE_TIME <![CDATA[ >= ]]> #{beginTime,jdbcType=TIMESTAMP}
+                and O.createTime <![CDATA[ >= ]]> #{beginTime,jdbcType=TIMESTAMP}
             </if>
             <if test="endTime != null">
-                and O.CREATE_TIME <![CDATA[ <= ]]> #{endTime,jdbcType=TIMESTAMP}
+                and O.createTime <![CDATA[ <= ]]> #{endTime,jdbcType=TIMESTAMP}
             </if>
             <if test="orderNo != null and orderNo != ''">
-                and O.ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+                and O.orderNo = #{orderNo,jdbcType=VARCHAR}
             </if>
             <if test="paymentOrderNo != null and paymentOrderNo != ''">
-                and O.PAYMENT_ORDER_NO = #{paymentOrderNo,jdbcType=VARCHAR}
+                and O.paymentOrderNo = #{paymentOrderNo,jdbcType=VARCHAR}
             </if>
         </where>
-        order by O.CREATE_TIME desc
+        order by O.createTime desc
     </select>
 
     <select id="selectTravelSubRefundOrders" resultType="com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderView">
@@ -187,6 +207,8 @@
             or (ORDER_STATUS = 'PAYING' and PAY_STATUS = 'PAYING'))
     </update>
 
+    <!-- CASH_AMOUNT / COUPON_AMOUNT 用 NVL 包住：支付失败分支与主动查询分支可能不带这两个值，
+         直接赋值会把回调已落的金额抹成 NULL。原样照写、不做与总额的匹配校验。 -->
     <update id="updatePayResultIfPaying" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketOrder">
         update DAILY_TICKET_ORDER
         set ORDER_STATUS = #{orderStatus,jdbcType=VARCHAR},
@@ -194,11 +216,28 @@
             TRADE_NO = #{tradeNo,jdbcType=VARCHAR},
             PAYMENT_ORDER_NO = #{paymentOrderNo,jdbcType=VARCHAR},
             PAY_AMOUNT = #{payAmount,jdbcType=INTEGER},
+            CASH_AMOUNT = NVL(#{cashAmount,jdbcType=INTEGER}, CASH_AMOUNT),
+            COUPON_AMOUNT = NVL(#{couponAmount,jdbcType=INTEGER}, COUPON_AMOUNT),
             PAY_DATE = #{payDate,jdbcType=TIMESTAMP},
             UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
         where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
           and ORDER_STATUS = 'PAYING'
           and PAY_STATUS = 'PAYING'
+    </update>
+
+    <update id="updatePaySuccessByExternalSync" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketOrder">
+        update DAILY_TICKET_ORDER
+        set ORDER_STATUS = 'PAID',
+            PAY_STATUS = 'PAID',
+            TRADE_NO = #{tradeNo,jdbcType=VARCHAR},
+            PAYMENT_ORDER_NO = #{paymentOrderNo,jdbcType=VARCHAR},
+            PAY_AMOUNT = #{payAmount,jdbcType=INTEGER},
+            PAY_CHANNEL_CODE = #{payChannelCode,jdbcType=VARCHAR},
+            PAY_DATE = #{payDate,jdbcType=TIMESTAMP},
+            UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          and ((ORDER_STATUS = 'CREATED' and PAY_STATUS = 'INIT')
+            or (ORDER_STATUS = 'PAYING' and PAY_STATUS = 'PAYING'))
     </update>
 
     <update id="updatePaymentOrderNo">
@@ -214,5 +253,51 @@
         set ORDER_STATUS = #{orderStatus,jdbcType=VARCHAR},
             UPDATE_TIME = SYSTIMESTAMP
         where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+
+    <!-- 取消订单三条 CAS：前置状态写在 WHERE 里，与支付回调赛跑时靠谓词兜住。
+         NEVER 退回用无条件的 updateOrderStatus 取消 —— 那会把已落 PAID 的订单改成 CANCELED
+         而支付事实仍在，钱收了票也没了。SQL 正文内禁止写注释，说明只写在本 XML 注释里。 -->
+    <update id="cancelIfPending">
+        update DAILY_TICKET_ORDER
+        set ORDER_STATUS = 'CANCELED',
+            UPDATE_TIME = SYSTIMESTAMP
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          and ORDER_STATUS in ('CREATED', 'PAYING', 'PAY_FAILED')
+    </update>
+
+    <update id="cancelIfPaid">
+        update DAILY_TICKET_ORDER
+        set ORDER_STATUS = 'CANCELED',
+            UPDATE_TIME = SYSTIMESTAMP
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          and ORDER_STATUS = 'PAID'
+          and PAY_STATUS = 'PAID'
+    </update>
+
+    <update id="cancelSubOrdersByParent">
+        update DAILY_TICKET_ORDER
+        set ORDER_STATUS = 'CANCELED',
+            UPDATE_TIME = SYSTIMESTAMP
+        where PARENT_ORDER_NO = #{parentOrderNo,jdbcType=VARCHAR}
+          and ORDER_STATUS in ('CREATED', 'PAYING', 'PAY_FAILED', 'PAID')
+    </update>
+
+    <!-- 已取消订单收到支付成功通知：只补支付事实（含 PAY_STATUS），ORDER_STATUS 保持 CANCELED，
+         状态推进交给自动退款链路。PAY_STATUS 不等于 PAID 这个谓词是重复回调的幂等闸。
+         CASH_AMOUNT / COUPON_AMOUNT 用 NVL 包住，理由与 updatePayResultIfPaying 相同。 -->
+    <update id="updatePayResultIfCanceled" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketOrder">
+        update DAILY_TICKET_ORDER
+        set PAY_STATUS = 'PAID',
+            TRADE_NO = #{tradeNo,jdbcType=VARCHAR},
+            PAYMENT_ORDER_NO = #{paymentOrderNo,jdbcType=VARCHAR},
+            PAY_AMOUNT = #{payAmount,jdbcType=INTEGER},
+            CASH_AMOUNT = NVL(#{cashAmount,jdbcType=INTEGER}, CASH_AMOUNT),
+            COUPON_AMOUNT = NVL(#{couponAmount,jdbcType=INTEGER}, COUPON_AMOUNT),
+            PAY_DATE = #{payDate,jdbcType=TIMESTAMP},
+            UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          and ORDER_STATUS = 'CANCELED'
+          and PAY_STATUS <![CDATA[ <> ]]> 'PAID'
     </update>
 </mapper>

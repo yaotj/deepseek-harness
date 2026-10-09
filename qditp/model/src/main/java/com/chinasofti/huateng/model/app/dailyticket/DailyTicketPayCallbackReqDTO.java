@@ -42,6 +42,16 @@ public class DailyTicketPayCallbackReqDTO {
     private String payChannel;
 
     /**
+     * 支付中心回传的实付现金金额，单位分。原样透传落库，不做与总额的匹配校验。
+     */
+    private Integer cashAmount;
+
+    /**
+     * 支付中心回传的优惠金额，单位分。原样透传落库，不做与总额的匹配校验。
+     */
+    private Integer couponAmount;
+
+    /**
      * 原始回调报文，便于审计和排障。
      */
     private String rawBody;
@@ -110,11 +120,28 @@ public class DailyTicketPayCallbackReqDTO {
         this.rawBody = rawBody;
     }
 
+    public Integer getCashAmount() {
+        return cashAmount;
+    }
+
+    public void setCashAmount(Integer cashAmount) {
+        this.cashAmount = cashAmount;
+    }
+
+    public Integer getCouponAmount() {
+        return couponAmount;
+    }
+
+    public void setCouponAmount(Integer couponAmount) {
+        this.couponAmount = couponAmount;
+    }
+
     @Override
     public String toString() {
         return "DailyTicketPayCallbackReqDTO{orderNo='" + orderNo + "', tradeNo='" + tradeNo
                 + "', paymentOrderNo='" + paymentOrderNo + "', payResult='" + payResult
                 + "', payAmount=" + payAmount + ", payDate=" + payDate + "', payChannel='" + payChannel
-                + "', rawBody='" + (rawBody != null ? "[length=" + rawBody.length() + "]" : null) + "'}";
+                + "', cashAmount=" + cashAmount + ", couponAmount=" + couponAmount
+                + ", rawBody='" + (rawBody != null ? "[length=" + rawBody.length() + "]" : null) + "'}";
     }
 }

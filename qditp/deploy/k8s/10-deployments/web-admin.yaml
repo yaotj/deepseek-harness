@@ -1,0 +1,235 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: web-admin
+  name: web-admin
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web-admin
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: web-admin
+    spec:
+      containers:
+      - env:
+        - name: spring.datasource.druid.slave.enabled
+          value: 'false'
+        - name: spring.datasource.druid.statViewServlet.login-password
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: spring.datasource.druid.statViewServlet.login-password
+        - name: spring.datasource.druid.validationQuery
+          value: SELECT
+        - name: spring.datasource.druid.statViewServlet.url-pattern
+          value: /druid/*
+        - name: spring.datasource.druid.timeBetweenEvictionRunsMillis
+          value: '60000'
+        - name: xss.excludes
+          value: /system/notice
+        - name: spring.devtools.restart.enabled
+          value: 'true'
+        - name: pagehelper.params
+          value: count
+        - name: token.header
+          value: Authorization
+        - name: spring.datasource.druid.initialSize
+          value: '5'
+        - name: spring.datasource.druid.master.username
+          value: qditp
+        - name: pagehelper.supportMethodsArguments
+          value: 'true'
+        - name: spring.datasource.druid.master.url
+          value: jdbc:oracle:thin:@//172.20.222.3:1521/AFCITPDB
+        - name: service.para.openLogger
+          value: 'true'
+        - name: swagger.enabled
+          value: 'true'
+        - name: spring.datasource.druid.maxWait
+          value: '60000'
+        - name: spring.datasource.druid.filter.stat.slow-sql-millis
+          value: '1000'
+        - name: spring.datasource.druid.filter.wall.config.multi-statement-allow
+          value: 'true'
+        - name: service.account.url
+          value: http://account-n4ba6-svc.itp.svc:9098
+        - name: points.profile
+          value: /points/uploadPath
+        - name: spring.datasource.druid.connectTimeout
+          value: '30000'
+        - name: spring.datasource.druid.master.validation-query
+          value: SELECT 1 FROM DUAL
+        - name: service.alipay-pay-sign.openLogger
+          value: 'true'
+        - name: spring.datasource.druid.minIdle
+          value: '10'
+        - name: service.paySign.url
+          value: ${PAY_SIGN_SERVICE_URL:http://pay-sign-server-hsa9w-svc.itp.svc:8080}
+        - name: points.version
+          value: 1.0.0
+        - name: xss.urlPatterns
+          value: /system/*,/monitor/*,/tool/*
+        - name: spring.datasource.druid.filter.stat.log-slow-sql
+          value: 'true'
+        - name: points.copyrightYear
+          value: '2025'
+        - name: spring.datasource.password
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: spring.datasource.password
+        - name: spring.datasource.druid.master.password
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: spring.datasource.druid.master.password
+        - name: server.tomcat.threads.max
+          value: '800'
+        - name: token.secret
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: token.secret
+        - name: spring.datasource.druid.maxActive
+          value: '20'
+        - name: service.blacklist.url
+          value: http://blacklist-server-wmfzs-svc.itp.svc:8080
+        - name: points.name
+          value: points
+        - name: user.password.lockTime
+          value: '10'
+        - name: spring.datasource.url
+          value: jdbc:oracle:thin:@//172.20.222.3:1521/AFCITPDB
+        - name: mybatis.typeAliasesPackage
+          value: com.chinasofti.huateng.**.domain
+        - name: service.account.openLogger
+          value: 'true'
+        - name: points.addressEnabled
+          value: 'false'
+        - name: spring.servlet.multipart.max-request-size
+          value: 20MB
+        - name: spring.datasource.type
+          value: com.alibaba.druid.pool.DruidDataSource
+        - name: service.alipay-pay-sign.url
+          value: http://alipay-pay-sign-server-t3o7n-svc.itp.svc:30022
+        - name: spring.messages.basename
+          value: i18n/messages
+        - name: spring.datasource.druid.testWhileIdle
+          value: 'true'
+        - name: service.blacklist.openLogger
+          value: 'true'
+        - name: pagehelper.helperDialect
+          value: oracle
+        - name: spring.datasource.driverClassName
+          value: oracle.jdbc.OracleDriver
+        - name: spring.datasource.druid.minEvictableIdleTimeMillis
+          value: '300000'
+        - name: mybatis.configLocation
+          value: classpath:mybatis/mybatis-config.xml
+        - name: referer.allowed-domains
+          value: localhost,127.0.0.1,ruoyi.vip,www.ruoyi.vip
+        - name: server.tomcat.accept-count
+          value: '1000'
+        - name: mybatis.mapperLocations
+          value: classpath*:mapper/**/*Mapper.xml
+        - name: spring.datasource.driver-class-name
+          value: oracle.jdbc.OracleDriver
+        - name: referer.enabled
+          value: 'false'
+        - name: CARD_POOL_SERVICE_URL
+          value: http://card-pool-server-86mc1-svc.itp.svc:30033
+        - name: points.captchaType
+          value: math
+        - name: logging.level.org.springframework
+          value: warn
+        - name: spring.datasource.druid.statViewServlet.enabled
+          value: 'true'
+        - name: server.port
+          value: '8080'
+        - name: spring.datasource.druid.filter.stat.enabled
+          value: 'true'
+        - name: spring.autoconfigure.exclude
+          value: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,com.alibaba.druid.spring.boot3.autoconfigure.DruidDataSourceAutoConfigure
+        - name: logging.level.com.chinasofti.huateng
+          value: debug
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        - name: xss.enabled
+          value: 'true'
+        - name: VLOGS_QUERY_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        - name: spring.datasource.druid.maxEvictableIdleTimeMillis
+          value: '900000'
+        - name: spring.datasource.druid.webStatFilter.enabled
+          value: 'true'
+        - name: spring.datasource.druid.statViewServlet.login-username
+          value: admin
+        - name: spring.servlet.multipart.max-file-size
+          value: 10MB
+        - name: spring.datasource.druid.filter.stat.merge-sql
+          value: 'true'
+        - name: server.tomcat.uri-encoding
+          value: UTF-8
+        - name: token.expireTime
+          value: '30'
+        - name: spring.datasource.druid.socketTimeout
+          value: '60000'
+        - name: service.para.url
+          value: http://para-server-pufrl-svc.itp.svc:30026
+        - name: spring.datasource.username
+          value: qditp
+        - name: swagger.pathMapping
+          value: /dev-api
+        - name: server.servlet.context-path
+          value: /
+        - name: server.tomcat.threads.min-spare
+          value: '100'
+        - name: user.password.maxRetryCount
+          value: '5'
+        - name: spring.datasource.druid.testOnBorrow
+          value: 'false'
+        - name: service.paySign.openLogger
+          value: 'true'
+        - name: spring.datasource.druid.testOnReturn
+          value: 'false'
+        - name: SERVICE_NAME
+          value: web-admin
+        - name: NAMESPACE
+          value: itp
+        - name: RECON_SERVICE_URL
+          value: http://recon-server-bjzdy-svc.itp.svc:30034
+        image: os-harbor-svc.default.svc.cloudos:443/itp/web-admin:1.1.41
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: web-admin
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-c0u1phbt0
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-c0u1phbt0

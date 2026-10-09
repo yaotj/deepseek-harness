@@ -28,16 +28,15 @@
 
     <select id="selectTravelTicketPaySummary" resultType="java.util.Map">
         SELECT
-            TO_CHAR(O.PAY_DATE, 'YYYYMMDD') AS TXN_DATE,
-            O.PAY_CHANNEL_CODE AS PAY_CHANNEL_CODE,
-            COUNT(*) AS TICKET_COUNT,
-            NVL(SUM(NVL(O.PAY_AMOUNT, O.TICKET_PRICE)), 0) AS TICKET_AMOUNT
-        FROM DAILY_TICKET_ORDER O
-        WHERE O.PARENT_ORDER_NO IS NOT NULL
-          AND O.PAY_STATUS = 'PAID'
-          AND O.PAY_DATE &gt;= #{windowStart,jdbcType=TIMESTAMP}
-          AND O.PAY_DATE &lt; #{windowEnd,jdbcType=TIMESTAMP}
-        GROUP BY TO_CHAR(O.PAY_DATE, 'YYYYMMDD'), O.PAY_CHANNEL_CODE
+            TO_CHAR(T.PAY_DATE, 'YYYYMMDD') AS TXN_DATE,
+            T.PAY_CHANNEL_CODE AS PAY_CHANNEL_CODE,
+            NVL(SUM(NVL(T.TICKET_COUNT, 0)), 0) AS TICKET_COUNT,
+            NVL(SUM(NVL(T.PAY_AMOUNT, T.TOTAL_AMOUNT)), 0) AS TICKET_AMOUNT
+        FROM TRAVEL_TICKET_ORDER T
+        WHERE T.PAY_STATUS = 'PAID'
+          AND T.PAY_DATE &gt;= #{windowStart,jdbcType=TIMESTAMP}
+          AND T.PAY_DATE &lt; #{windowEnd,jdbcType=TIMESTAMP}
+        GROUP BY TO_CHAR(T.PAY_DATE, 'YYYYMMDD'), T.PAY_CHANNEL_CODE
         ORDER BY 1, 2
     </select>
 

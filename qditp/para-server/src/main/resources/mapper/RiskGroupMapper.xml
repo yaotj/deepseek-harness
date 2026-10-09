@@ -19,12 +19,15 @@
         <!-- 规则编辑页下拉选项，按名称排序便于选择。 -->
         SELECT GROUP_ID, GROUP_NAME, GROUP_DESC, CREATE_TIME, UPDATE_TIME FROM TBL_RISK_GROUP ORDER BY GROUP_NAME
     </select>
+    <!-- 参数为 null 时 MyBatis 无法推断类型，Oracle 下按 OTHER(1111) 下发会报「无效的列类型」。
+         GROUP_DESC 可空、页面留空时前端送的就是字面 null，因此所有参数 MUST 显式写 jdbcType。NEVER 删。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.para.entity.risk.RiskGroup">
         INSERT INTO TBL_RISK_GROUP (GROUP_NAME, GROUP_DESC, CREATE_TIME, UPDATE_TIME)
-        VALUES (#{groupName}, #{groupDesc}, SYSDATE, SYSDATE)
+        VALUES (#{groupName,jdbcType=VARCHAR}, #{groupDesc,jdbcType=VARCHAR}, SYSDATE, SYSDATE)
     </insert>
     <update id="update" parameterType="com.chinasofti.huateng.para.entity.risk.RiskGroup">
-        UPDATE TBL_RISK_GROUP SET GROUP_NAME = #{groupName}, GROUP_DESC = #{groupDesc}, UPDATE_TIME = SYSDATE WHERE GROUP_ID = #{groupId}
+        UPDATE TBL_RISK_GROUP SET GROUP_NAME = #{groupName,jdbcType=VARCHAR}, GROUP_DESC = #{groupDesc,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSDATE WHERE GROUP_ID = #{groupId,jdbcType=NUMERIC}
     </update>
     <delete id="deleteById">DELETE FROM TBL_RISK_GROUP WHERE GROUP_ID = #{groupId}</delete>
 </mapper>

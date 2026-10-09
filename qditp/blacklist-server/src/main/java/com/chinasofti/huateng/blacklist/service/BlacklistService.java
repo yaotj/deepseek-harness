@@ -13,8 +13,9 @@ import com.chinasofti.huateng.model.app.DeleteBlackListReqDTO;
  * 黑名单业务服务。
  */
 public interface BlacklistService {
-    /** 分页查询运营端黑名单管理记录。 */
-    ResultVO<PageInfo<Blacklist>> page(String cardId, String thirdUserId, String createTimeBegin,
+    /** 分页查询运营端黑名单管理记录，status / channelSyncStatus 均为可选筛选。 */
+    ResultVO<PageInfo<Blacklist>> page(String cardId, String thirdUserId, String status,
+                                       String channelSyncStatus, String createTimeBegin,
                                        String createTimeEnd, Integer pageNum, Integer pageSize);
 
     /**

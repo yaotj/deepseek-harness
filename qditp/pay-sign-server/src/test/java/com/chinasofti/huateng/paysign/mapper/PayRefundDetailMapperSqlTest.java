@@ -25,8 +25,11 @@ class PayRefundDetailMapperSqlTest {
         String sql = boundSql(parseMapper(), "selectCompensableRefundQuery").replaceAll("\\s+", " ");
         String lower = sql.toLowerCase();
 
-        assertTrue(sql.contains("REFUND_STATUS = 'PROCESSING'"),
-                "MUST 只捞 PROCESSING：只有它代表退款请求已经发给支付中心；实际渲染：" + sql);
+        assertTrue(sql.contains("REFUND_STATUS in ('PROCESSING', 'RETRY')"),
+                "状态白名单 MUST 恰好是 PROCESSING + RETRY：PROCESSING 代表请求已发给支付中心；"
+                        + "RETRY 是旧版本的落法、当前代码已不再写入，但库里那 17 行历史数据在纳入本扫描前"
+                        + "没有任何路径会碰（本查询只取 PROCESSING、selectDriftedRefundSummary 只取 SUCCESS）⇒ 永久悬挂。"
+                        + "NEVER 把 RETRY 删掉，也 NEVER 把 INIT 加进来（请求从未发出，回查必然「未找到数据」）；实际渲染：" + sql);
         assertFalse(sql.contains("REFUND_STATUS !=") || sql.contains("REFUND_STATUS <>")
                         || sql.contains("REFUND_STATUS not in"),
                 "状态 MUST 用白名单，NEVER 写成「非终态即可处理」的黑名单；实际渲染：" + sql);
@@ -44,22 +47,39 @@ class PayRefundDetailMapperSqlTest {
                 "ROWNUM MUST 套在已排序子查询的外层，否则先截断再排序；实际渲染：" + sql);
     }
 
-    /** 两条写回状态的语句 MUST 都是 CAS：WHERE 同时带主键（{@code REFUND_ORDER_NO} + {@code TXN_DATE}） */
+    /** 三条写回状态的语句 MUST 都是 CAS：WHERE 同时带主键（{@code REFUND_ORDER_NO} + {@code TXN_DATE}） */
     @Test
     void everyRefundQueryWriteIsCasOnProcessing() {
         Configuration configuration = parseMapper();
 
-        for (String id : new String[]{"finishFromQuery", "delayNextRefundQuery"}) {
+        for (String id : new String[]{"finishFromQuery", "delayNextRefundQuery", "exhaustFromQuery"}) {
             String where = whereClauseOf(boundSql(configuration, id), id);
 
             assertTrue(where.contains("REFUND_ORDER_NO"),
                     id + " 的 WHERE MUST 带 REFUND_ORDER_NO，否则是全表更新；实际渲染：" + where);
             assertTrue(where.contains("TXN_DATE"),
                     id + " 的 WHERE MUST 带 TXN_DATE：本表是分区表、唯一索引是「退款单号 + 交易日期」；实际渲染：" + where);
-            assertTrue(where.contains("REFUND_STATUS = 'PROCESSING'"),
-                    id + " 的 WHERE MUST 带前置状态 REFUND_STATUS = 'PROCESSING'，"
-                            + "这是该语句唯一的并发保证；实际渲染：" + where);
+            assertTrue(where.contains("REFUND_STATUS IN ('PROCESSING', 'RETRY')"),
+                    id + " 的 WHERE MUST 带前置状态 REFUND_STATUS IN ('PROCESSING', 'RETRY')，"
+                            + "这是该语句唯一的并发保证；三条语句的白名单 MUST 与 selectCompensableRefundQuery 一致，"
+                            + "否则扫得到却推不动、行会一直卡着；实际渲染：" + where);
         }
+    }
+
+    /** 放弃收口语句 MUST 落 {@code CLOSED} 并清空 {@code NEXT_REQUEST_TIME}，且 NEVER 落 FAIL / SUCCESS。 */
+    @Test
+    void exhaustStatementClosesWithoutGuessingOutcome() {
+        String sql = boundSql(parseMapper(), "exhaustFromQuery").replaceAll("\\s+", " ");
+        String lower = sql.toLowerCase();
+        String setClause = sql.substring(lower.indexOf("set "), lower.lastIndexOf("where "));
+
+        assertTrue(setClause.contains("REFUND_STATUS = 'CLOSED'"),
+                "超龄放弃 MUST 落 CLOSED：语义是「我方无法自动定性」。NEVER 落 FAIL（会让运营以为没退成功、再发一笔）"
+                        + "也 NEVER 落 SUCCESS（会虚增 PAY_TXN_DETAIL 的已退金额）；实际 SET：" + setClause);
+        assertFalse(setClause.contains("'FAIL'") || setClause.contains("'SUCCESS'"),
+                "exhaustFromQuery NEVER 猜终态；实际 SET：" + setClause);
+        assertTrue(setClause.contains("NEXT_REQUEST_TIME = NULL"),
+                "MUST 清空 NEXT_REQUEST_TIME，否则这一行在状态白名单外还留着一个到点时间、语义自相矛盾；实际 SET：" + setClause);
     }
 
     /** 退避语句 NEVER 动 {@code REQUEST_COUNT} 与 {@code REFUND_STATUS}。 */
@@ -75,6 +95,20 @@ class PayRefundDetailMapperSqlTest {
                 "delayNextRefundQuery NEVER 动 REQUEST_COUNT：那一列计的是发起退款次数；实际 SET：" + setClause);
         assertFalse(setClause.contains("REFUND_STATUS"),
                 "delayNextRefundQuery NEVER 改状态：退避不等于订正；实际 SET：" + setClause);
+    }
+
+    /** 在途拦截 MUST 按原单号统计三个非终态，缺任一个都会放过一次重复提交。 */
+    @Test
+    void inFlightGuardCountsAllThreeNonTerminalStates() {
+        String sql = boundSql(parseMapper(), "countInFlightByOrderNo").replaceAll("\\s+", " ");
+
+        assertTrue(sql.contains("ORDER_NO = "),
+                "MUST 按原支付订单号统计，NEVER 按退款单号（那样每次都是 0，等于没拦）；实际渲染：" + sql);
+        assertTrue(sql.contains("REFUND_STATUS in ('INIT', 'PROCESSING', 'RETRY')"),
+                "在途集合 MUST 是 INIT + PROCESSING + RETRY 三个：INIT 是 insert 后 markRequesting 前的窗口、"
+                        + "RETRY 是旧版本遗留，三者都不会被 selectDriftedRefundSummary 计入 PAY_TXN_DETAIL.REFUND_AMOUNT，"
+                        + "因此「按已退金额判可退额」那条校验对它们完全透明 —— 这正是同一原单被重复提交 3~4 次的成因；"
+                        + "实际渲染：" + sql);
     }
 
     /** 收口语句 MUST 用 {@code NVL} 兜住三个单号与退款时间，NEVER 直接覆盖。 */

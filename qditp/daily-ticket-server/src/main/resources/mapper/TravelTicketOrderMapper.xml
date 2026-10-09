@@ -13,6 +13,8 @@
         <result column="ORDER_SOURCE" jdbcType="VARCHAR" property="orderSource"/>
         <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
         <result column="PAY_AMOUNT" jdbcType="INTEGER" property="payAmount"/>
+        <result column="CASH_AMOUNT" jdbcType="INTEGER" property="cashAmount"/>
+        <result column="COUPON_AMOUNT" jdbcType="INTEGER" property="couponAmount"/>
         <result column="PAY_CHANNEL_CODE" jdbcType="VARCHAR" property="payChannelCode"/>
         <result column="CHANNEL_TYPE" jdbcType="VARCHAR" property="channelType"/>
         <result column="PAY_SCENE" jdbcType="VARCHAR" property="payScene"/>
@@ -27,7 +29,7 @@
 
     <sql id="BaseColumnList">
         ID, ORDER_NO, USER_ID, CARD_TYPE, SHOW_TYPE, TICKET_PRICE, TICKET_COUNT,
-        TOTAL_AMOUNT, ORDER_SOURCE, THIRD_USER_ID, PAY_AMOUNT, PAY_CHANNEL_CODE,
+        TOTAL_AMOUNT, ORDER_SOURCE, THIRD_USER_ID, PAY_AMOUNT, CASH_AMOUNT, COUPON_AMOUNT, PAY_CHANNEL_CODE,
         CHANNEL_TYPE, PAY_SCENE, ORDER_STATUS, PAY_STATUS, TRADE_NO,
         PAYMENT_ORDER_NO, PAY_DATE, CREATE_TIME, UPDATE_TIME
     </sql>
@@ -56,6 +58,26 @@
         where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </select>
 
+    <!-- 批量退款扫表：已支付 + 过等待期 + 无主单退款单 + 至少有一条子单 + 全部子单都没有票实例。
+         子单的「已使用 / 已过期 / 已退款」校验由 requestTravelRefund 内建，本查询不重复一份。
+         SQL 正文内禁止写注释（Druid WallFilter 会判成注入并静默失效），说明只写在本 XML 注释里。 -->
+    <select id="selectPaidNotActivated" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from TRAVEL_TICKET_ORDER T
+        where T.ORDER_STATUS = 'PAID'
+          and T.PAY_STATUS = 'PAID'
+          and T.PAY_DATE is not null
+          and T.PAY_DATE <![CDATA[ <= ]]> #{paidBefore,jdbcType=TIMESTAMP}
+          and T.PAY_DATE <![CDATA[ >= ]]> #{paidAfter,jdbcType=TIMESTAMP}
+          and not exists (select 1 from DAILY_TICKET_REFUND R where R.ORDER_NO = T.ORDER_NO)
+          and exists (select 1 from DAILY_TICKET_ORDER C where C.PARENT_ORDER_NO = T.ORDER_NO)
+          and not exists (select 1 from DAILY_TICKET_ORDER C2
+                          join DAILY_TICKET_INSTANCE I2 on I2.ORDER_NO = C2.ORDER_NO
+                          where C2.PARENT_ORDER_NO = T.ORDER_NO)
+        order by T.PAY_DATE
+        fetch first #{limit,jdbcType=INTEGER} rows only
+    </select>
+
     <update id="updatePayRequest" parameterType="com.chinasofti.huateng.dailyticket.model.TravelTicketOrder">
         update TRAVEL_TICKET_ORDER
         set THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR},
@@ -70,6 +92,8 @@
             or (ORDER_STATUS = 'PAYING' and PAY_STATUS = 'PAYING'))
     </update>
 
+    <!-- CASH_AMOUNT / COUPON_AMOUNT 用 NVL 包住：支付失败分支与主动查询分支可能不带这两个值，
+         直接赋值会把回调已落的金额抹成 NULL。原样照写、不做与总额的匹配校验。 -->
     <update id="updatePayResultIfPaying" parameterType="com.chinasofti.huateng.dailyticket.model.TravelTicketOrder">
         update TRAVEL_TICKET_ORDER
         set ORDER_STATUS = #{orderStatus,jdbcType=VARCHAR},
@@ -77,11 +101,28 @@
             TRADE_NO = #{tradeNo,jdbcType=VARCHAR},
             PAYMENT_ORDER_NO = #{paymentOrderNo,jdbcType=VARCHAR},
             PAY_AMOUNT = #{payAmount,jdbcType=INTEGER},
+            CASH_AMOUNT = NVL(#{cashAmount,jdbcType=INTEGER}, CASH_AMOUNT),
+            COUPON_AMOUNT = NVL(#{couponAmount,jdbcType=INTEGER}, COUPON_AMOUNT),
             PAY_DATE = #{payDate,jdbcType=TIMESTAMP},
             UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
         where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
           and ORDER_STATUS = 'PAYING'
           and PAY_STATUS = 'PAYING'
+    </update>
+
+    <update id="updatePaySuccessByExternalSync" parameterType="com.chinasofti.huateng.dailyticket.model.TravelTicketOrder">
+        update TRAVEL_TICKET_ORDER
+        set ORDER_STATUS = 'PAID',
+            PAY_STATUS = 'PAID',
+            TRADE_NO = #{tradeNo,jdbcType=VARCHAR},
+            PAYMENT_ORDER_NO = #{paymentOrderNo,jdbcType=VARCHAR},
+            PAY_AMOUNT = #{payAmount,jdbcType=INTEGER},
+            PAY_CHANNEL_CODE = #{payChannelCode,jdbcType=VARCHAR},
+            PAY_DATE = #{payDate,jdbcType=TIMESTAMP},
+            UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          and ((ORDER_STATUS = 'CREATED' and PAY_STATUS = 'INIT')
+            or (ORDER_STATUS = 'PAYING' and PAY_STATUS = 'PAYING'))
     </update>
 
     <update id="updatePaymentOrderNo">
@@ -97,5 +138,39 @@
         set ORDER_STATUS = #{orderStatus,jdbcType=VARCHAR},
             UPDATE_TIME = SYSTIMESTAMP
         where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+
+    <!-- 取消主单两条 CAS + 一条支付事实回补，口径与 DailyTicketOrderMapper 同名语句逐条对齐，
+         改一处 MUST 看齐另一处。SQL 正文内禁止写注释，说明只写在本 XML 注释里。 -->
+    <update id="cancelIfPending">
+        update TRAVEL_TICKET_ORDER
+        set ORDER_STATUS = 'CANCELED',
+            UPDATE_TIME = SYSTIMESTAMP
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          and ORDER_STATUS in ('CREATED', 'PAYING', 'PAY_FAILED')
+    </update>
+
+    <update id="cancelIfPaid">
+        update TRAVEL_TICKET_ORDER
+        set ORDER_STATUS = 'CANCELED',
+            UPDATE_TIME = SYSTIMESTAMP
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          and ORDER_STATUS = 'PAID'
+          and PAY_STATUS = 'PAID'
+    </update>
+
+    <update id="updatePayResultIfCanceled" parameterType="com.chinasofti.huateng.dailyticket.model.TravelTicketOrder">
+        update TRAVEL_TICKET_ORDER
+        set PAY_STATUS = 'PAID',
+            TRADE_NO = #{tradeNo,jdbcType=VARCHAR},
+            PAYMENT_ORDER_NO = #{paymentOrderNo,jdbcType=VARCHAR},
+            PAY_AMOUNT = #{payAmount,jdbcType=INTEGER},
+            CASH_AMOUNT = NVL(#{cashAmount,jdbcType=INTEGER}, CASH_AMOUNT),
+            COUPON_AMOUNT = NVL(#{couponAmount,jdbcType=INTEGER}, COUPON_AMOUNT),
+            PAY_DATE = #{payDate,jdbcType=TIMESTAMP},
+            UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          and ORDER_STATUS = 'CANCELED'
+          and PAY_STATUS <![CDATA[ <> ]]> 'PAID'
     </update>
 </mapper>

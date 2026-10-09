@@ -81,7 +81,7 @@
 1. **跨域只读**：直接 RPC 查对方聚合，允许。
 2. **跨域写**：**NEVER** 直接改对方的表或调对方的命令式接口后不管结果。MUST 落「同步状态列 + `@Scheduled` 补偿重推 + 达重试上限转异常工单」。
 3. **跨域一致性**：不引 MQ / Seata。用**本地消息表 + 扫表补偿**，参照 `face-pay-server` 的 `F2F_NOTIFY_TASK`（已在跑）与 `APP_TERMINATION_REQUEST` 的 `NOTIFY_*`（已在跑）。
-4. **派生规则不是状态迁移**：跨聚合的联动由 owner 服务在收到事实后自行判定。例：「最后一个通道解绑 ⇒ 销户归档」由 account-server 自己算（`AccountApplicationServiceImpl.archiveUserInfoIfLastChannelRemoved`），**不是**由 pay-sign-server 远程驱动的一次状态迁移。
+4. **派生规则不是状态迁移**：跨聚合的联动由 owner 服务在收到事实后自行判定。例：「最后一个通道解绑 ⇒ 销户归档」由 account-server 自己算（`AccountArchiveServiceImpl.archiveIfLastChannelRemoved`；**旧名 `AccountApplicationServiceImpl.archiveUserInfoIfLastChannelRemoved` 已随账户域六轮拆分作废**，见 `decisions.md:730`，2026-09-23 核对），**不是**由 pay-sign-server 远程驱动的一次状态迁移。
 
 ## 四、对外接口 vs 对内接口
 

@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: industry-data-server
+  name: industry-data-server
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: industry-data-server
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: industry-data-server
+    spec:
+      containers:
+      - env:
+        - name: other.web.unSafeUrlChars
+          value: 'null'
+        - name: knife4j.production
+          value: 'false'
+        - name: spring.application.name
+          value: industry-data-server
+        - name: other.web.enableLogRequestInFilter
+          value: 'true'
+        - name: other.web.enableBodyCacheFilter
+          value: 'true'
+        - name: industry.issue-channel-code
+          value: '01'
+        - name: industry.timestamp-expire-hours
+          value: '4'
+        - name: server.port
+          value: '8080'
+        - name: service.security.openLogger
+          value: 'true'
+        - name: industry.ticket-type
+          value: '0441'
+        - name: other.web.enableLogTakeTimesInInterceptor
+          value: 'true'
+        - name: service.security.url
+          value: http://172.20.211.23:30012
+        - name: SERVICE_NAME
+          value: industry-data-server
+        - name: NAMESPACE
+          value: itp
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        image: os-harbor-svc.default.svc.cloudos:443/itp/industry-data-server:2.0.21
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: industry-data-server
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-hu8ed09b0
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-hu8ed09b0

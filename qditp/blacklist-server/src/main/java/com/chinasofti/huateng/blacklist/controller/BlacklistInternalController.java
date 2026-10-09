@@ -1,7 +1,9 @@
 package com.chinasofti.huateng.blacklist.controller;
 
+import com.chinasofti.huateng.blacklist.service.BlacklistAutoReleaseService;
 import com.chinasofti.huateng.blacklist.service.BlacklistReleaseInspectService;
 import com.chinasofti.huateng.blacklist.service.impl.BlacklistChannelSyncService;
+import com.chinasofti.huateng.model.app.BlacklistAutoReleaseRespDTO;
 import com.chinasofti.huateng.model.app.BlacklistReleaseInspectRespDTO;
 import com.chinasofti.huateng.model.domain.OutboxScan;
 import org.slf4j.Logger;
@@ -12,11 +14,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 黑名单内部接口。只读盘点 + 渠道同步补偿，全部由 web-admin 的 Quartz 任务驱动。
+ * 黑名单内部接口。只读盘点 + 渠道同步补偿 + 自动解除，全部由 web-admin 的 Quartz 任务驱动。
  *
  * <p><b>本前缀下的接口目前都没有验签</b>，与 AGENTS.md §5.2「新增状态变更型接口 MUST 有鉴权」冲突。
  * 这是沿用本模块与 recon 那批内部端点的现状（开发测试期的有意降级），<b>上生产前 MUST 补验签</b>。
- * 两个补偿端点只推进渠道同步状态、不改黑名单本体，误调的后果是向支付宝多推一次已成功的通知。
+ * 两个补偿端点只推进渠道同步状态、不改黑名单本体，误调的后果是向支付宝多推一次已成功的通知；
+ * <b>但 {@code /auto-release} 会真的解除黑名单</b>，误调的后果是把欠费已结清的卡提前放行，
+ * 因此补验签时 MUST 优先覆盖它。
  */
 @RestController
 @RequestMapping("/internal/blacklist")
@@ -29,11 +33,33 @@ public class BlacklistInternalController {
 
     private final BlacklistReleaseInspectService blacklistReleaseInspectService;
     private final BlacklistChannelSyncService blacklistChannelSyncService;
+    private final BlacklistAutoReleaseService blacklistAutoReleaseService;
 
     public BlacklistInternalController(BlacklistReleaseInspectService blacklistReleaseInspectService,
-                                       BlacklistChannelSyncService blacklistChannelSyncService) {
+                                       BlacklistChannelSyncService blacklistChannelSyncService,
+                                       BlacklistAutoReleaseService blacklistAutoReleaseService) {
         this.blacklistReleaseInspectService = blacklistReleaseInspectService;
         this.blacklistChannelSyncService = blacklistChannelSyncService;
+        this.blacklistAutoReleaseService = blacklistAutoReleaseService;
+    }
+
+    /**
+     * 自动解除黑名单：扫 BLACK_CAUSE='01'（欠费）且生效中的行，按渠道查对应欠费源，已结清即发起解除。
+     *
+     * <p>由 web-admin 的 {@code sys_job} 230「自动解除黑名单」定时调用。
+     * <b>这是本前缀下唯一会改黑名单本体的端点</b>，判据与不放行的三种情形见
+     * {@link BlacklistAutoReleaseService} 类注释。
+     *
+     * @param limit 单轮上限；{@code null} 或非正数时取服务端配置缺省值
+     */
+    @PostMapping("/auto-release")
+    public BlacklistAutoReleaseRespDTO autoRelease(@RequestParam(required = false) Integer limit) {
+        log.info("接收到黑名单自动解除请求, limit={}", limit);
+        BlacklistAutoReleaseRespDTO response = blacklistAutoReleaseService.autoRelease(limit);
+        log.info("黑名单自动解除响应, scanned={}, released={}, unsettled={}, unknown={}, skipped={}, failed={}",
+                response.getScanned(), response.getReleased(), response.getUnsettled(),
+                response.getUnknown(), response.getSkipped(), response.getFailed());
+        return response;
     }
 
     /**
@@ -65,9 +91,11 @@ public class BlacklistInternalController {
     }
 
     /**
-     * 补推解黑方向的渠道同步（`BLACKLIST_RELEASED.CHANNEL_SYNC_*` 里 PENDING / FAILED 的行）。
+     * 补推解黑方向的渠道同步（主表里 STATUS='RELEASING' 且 CHANNEL_SYNC_STATUS 为 PENDING / FAILED 的行）。
      *
-     * <p>载体在解除历史表、不在主表：解黑那一刻主表行已被删除。其余同上。
+     * <p><b>载体在主表、不在解除历史表</b>：解除改成两阶段后，通知推达渠道前那行仍留在 BLACKLIST
+     * （STATUS='RELEASING'、判黑仍命中），推成功才搬历史 + 删行。BLACKLIST_RELEASED 上的
+     * CHANNEL_SYNC_* 四列已降级为历史审计，<b>NEVER 再据它们扫表</b>。其余同上。
      */
     @PostMapping("/channel-sync/compensate-release")
     public OutboxScan.Result compensateRelease(@RequestParam(required = false) Integer limit) {

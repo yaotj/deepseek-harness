@@ -96,7 +96,11 @@ class GateDailyTicketCoordinator {
     }
 
     /**
-     * 日票进站校验：{@code SIGN_CHANNEL_CODE ∈ {12,13,14,15}} 且本笔是进站交易时才拦截。
+     * 日票进站校验：{@code resolvedCardType ∈ {0445,0446,0447,0448}} 且本笔是进站交易时才拦截。
+     *
+     * <p>{@code resolvedCardType} 由 {@code GateTicketHandler} 取<b>账户侧富化后的真实卡种</b>传入，
+     * <b>NEVER 再按 {@code signChannelCode} 推导</b>（那是签约渠道代码、不是票种码，
+     * 仅在 {@code 12~15} 上偶然与映射表重合，成因见 {@code GateTicketHandler.handleGateTransaction} 的注释）。
      *
      * @return true=允许继续检票流程；
      */
@@ -120,9 +124,23 @@ class GateDailyTicketCoordinator {
         return true;
     }
 
-    /** 日票出站处理：出站时扣减计次票次数、标记已使用（仅出站 trxType 触发）。 */
+    /**
+     * 日票出站处理：出站时扣减计次票次数、标记已使用。
+     *
+     * <p><b>NEVER 退回 {@code TrxTypeCodeEnum.EXIT.getCode().equals(...)} 这种精确等值只认 {@code "02"} 的写法。</b>
+     * {@link TrxTypeCodeEnum#isExitTxn} 把 {@code 02}（正常出站）与 {@code 03}（<b>超时出站</b>）都算出站，
+     * 本方法 MUST 与它保持一致 —— 只认 {@code 02} 时，闸机送 {@code trxType=03} 会让整段扣次逻辑直接 return：
+     * 既不扣次、也不推进 {@code TICKET_STATUS}、也不发 §3.63 通知，<b>等于免费乘车一次</b>；
+     * 而同一笔却照常走扣费链路（{@code GateFarePaymentOrchestrator.shouldPay} 用的就是 {@code isExitTxn}）、
+     * 金额又已被 {@code GateCardTypeEnricher} 连同车费清零 ⇒ 扣次与扣费两头落空（2026-09-22 修复的 A2 缺陷本体）。
+     *
+     * <p>另注：本方法对 {@code 02} / {@code 03} <b>一视同仁各扣 1 次</b>。甲方「超时再额外扣一次作为超时费」的条款
+     * 尚未落地（三项前置不闭合，见 {@code docs/business/overtime-handling.md}）；真要实现时
+     * {@code times} 可能变成 2，届时 <b>MUST 把通知宿主迁到 daily-ticket 侧</b>（只有它知道实际扣了几次），
+     * NEVER 在这里硬编码 2。
+     */
     public void markUsedOnExit(NotifyVerifyResultReqDTO request, String resolvedCardType) {
-        if (!TrxTypeCodeEnum.EXIT.getCode().equals(request.getTrxType())
+        if (!TrxTypeCodeEnum.isExitTxn(request.getTrxType())
                 || !CardTypeCodeEnum.isDailyTicket(resolvedCardType)) {
             return;
         }

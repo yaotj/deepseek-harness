@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: alipay-account-server
+  name: alipay-account-server
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alipay-account-server
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: alipay-account-server
+    spec:
+      containers:
+      - env:
+        - name: itp.format
+          value: json
+        - name: other.sql.double-datasource
+          value: 'false'
+        - name: other.web.enableLogRequestInFilter
+          value: 'true'
+        - name: other.web.enableBodyCacheFilter
+          value: 'true'
+        - name: itp.charset
+          value: UTF-8
+        - name: mybatis.mapper-locations
+          value: classpath*:mapper/*.xml
+        - name: knife4j.production
+          value: 'false'
+        - name: service.ticket.url
+          value: http://172.20.211.23:30014
+        - name: server.port
+          value: '8080'
+        - name: other.sql.username
+          value: qditp
+        - name: service.ticket.openLogger
+          value: 'true'
+        - name: other.web.enableLogTakeTimesInInterceptor
+          value: 'true'
+        - name: other.sql.host
+          value: 172.20.222.3
+        - name: service.cardPool.openLogger
+          value: 'true'
+        - name: spring.application.name
+          value: alipay-account
+        - name: alipay.card-pool.debug-manual-card-id
+          value: '00000000'
+        - name: itp.signKey
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: itp.signKey
+        - name: alipay.card-pool.debug-manual-allocate
+          value: 'false'
+        - name: alipay.card-pool.batch-size
+          value: '20'
+        - name: service.cardPool.url
+          value: ${CARD_POOL_URL:http://card-pool-server-86mc1-svc.itp.svc:30033}
+        - name: other.sql.page.type
+          value: oracle
+        - name: other.web.unSafeUrlChars
+          value: 'null'
+        - name: other.sql.password
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: other.sql.password
+        - name: itp.providerId
+          value: '01'
+        - name: other.sql.database
+          value: AFCITPDB
+        - name: alipay.card-pool.threshold
+          value: '10'
+        - name: other.sql.type
+          value: oracle
+        - name: SERVICE_NAME
+          value: alipay-account-server
+        - name: NAMESPACE
+          value: itp
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        image: os-harbor-svc.default.svc.cloudos:443/itp/alipay-account:1.0.21
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: alipay-account-server
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-berwcsiy0
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-berwcsiy0

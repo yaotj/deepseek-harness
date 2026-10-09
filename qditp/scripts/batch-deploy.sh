@@ -7,6 +7,10 @@
 #   ./batch-deploy.sh svc1 svc2    # 仅部署指定服务
 # ==========================================
 
+# 由脚本自身位置推导目录，保证从任意 cwd 调用都能找到同目录的 deploy-to-harbor.sh
+# （旧写法用相对路径 ./deploy-to-harbor.sh，从仓库根调用时报 No such file or directory）
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 
 # ✅ 在此维护你的全量部署清单（严格按此顺序执行）
@@ -66,7 +70,7 @@ for SERVICE in "${SERVICES[@]}"; do
     echo -e "${BLUE}[STEP] ▶️  (${SUCCESS_COUNT}/${TOTAL}) 正在部署: ${SERVICE}${NC}"
     echo -e "${YELLOW}------------------------------------------${NC}"
 
-    if ./deploy-to-harbor.sh "$SERVICE"; then
+    if "$SCRIPT_DIR/deploy-to-harbor.sh" "$SERVICE"; then
         SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         echo -e "\n${GREEN}[INFO] ✅ ${SERVICE} 部署成功!${NC}\n"
     else

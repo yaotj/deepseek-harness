@@ -5,6 +5,7 @@ import com.chinasofti.huateng.fep.app.service.PaySignAppService;
 import com.chinasofti.huateng.model.app.PaySignCallbackResult;
 import com.chinasofti.huateng.model.app.QueryPayTxnBatchReqDTO;
 import com.chinasofti.huateng.model.app.ReceivePayResultReqDTO;
+import com.chinasofti.huateng.model.app.ReceiveRefundResultReqDTO;
 import com.chinasofti.huateng.model.app.ReceiveSignResultReqDTO;
 import com.chinasofti.huateng.model.app.ReceiveTerminationResultReqDTO;
 import com.chinasofti.huateng.model.app.RequestContractResultReqDTO;
@@ -86,6 +87,14 @@ public class PaySignAppServiceImpl implements PaySignAppService {
         log.info("call pay-sign receivePayResult request={}", JSON.toJSONString(request));
         PaySignCallbackResult result = paySignClient.receivePayResult(request);
         log.info("call pay-sign receivePayResult response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    @Override
+    public PaySignCallbackResult receiveRefundResult(ReceiveRefundResultReqDTO request) {
+        log.info("call pay-sign receiveRefundResult request={}", JSON.toJSONString(request));
+        PaySignCallbackResult result = paySignClient.receiveRefundResult(request);
+        log.info("call pay-sign receiveRefundResult response={}", JSON.toJSONString(result));
         return result;
     }
 

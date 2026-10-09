@@ -9,7 +9,7 @@ import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripAddContrac
 import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripTerminateContractRespDTO;
 import com.chinasofti.huateng.alipay.paysign.service.AlipayContractService;
 import com.chinasofti.huateng.alipay.paysign.service.impl.channelsync.ChannelSyncDeliverer;
-import com.chinasofti.huateng.alipay.paysign.service.impl.termination.TerminationCoordinator;
+import com.chinasofti.huateng.alipay.paysign.service.AlipayTerminationService;
 import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
 import com.chinasofti.huateng.common.response.AlipayCommonResponse;
 import com.chinasofti.huateng.model.alipaytrip.AlipaySignInfo;
@@ -36,9 +36,17 @@ import java.time.LocalDateTime;
  * 解约链路的新落点是 {@code service.AlipayTerminationService}。
  *
  * <p>2026-09-18 的口径是**新旧两套接口与实现完全分开、并行存在**，逐条把正确的行为搬到新服务、
- * 搬一条切一条 URL。因此本类仍是当前在跑的那一侧：三条 URL 的 handler 依旧注
- * {@code AlipayContractService}。**切换某条端点时 MUST 只改对应 controller 的注入**，
- * NEVER 让本类去调新服务、也 NEVER 让新服务反过来调本类 —— 那会让「哪一侧在跑」无法判断。
+ * 搬一条切一条 URL。**切换某条端点时 MUST 只改对应 controller 的注入**。
+ * <b>唯一的例外是解约那两个方法</b>：本类的 {@code terminateContract} / {@code executeTermination}
+ * 是纯转发壳，依赖已于 2026-09-21 收窄到 {@code service} 层抽象 {@link AlipayTerminationService}
+ * （此前直注 {@code impl.termination.TerminationCoordinator}，属旧实现包反钉新实现包的反向边）。
+ * 因此本处此前那句「NEVER 让本类去调新服务」<b>与代码自相矛盾、已作废</b>：准确口径是
+ * <b>NEVER 让新服务反过来调本类，也 NEVER 把依赖退回具体实现类</b>。
+ *
+ * <p><b>三条 URL 已全部切到新接口</b>（签约 {@code AlipaySignContractService} / 解约
+ * {@code AlipayTerminationService}），本类现在唯一还在跑的方法是 {@code selectSignInfo}
+ * （{@code controller/legacy/AlipayPaySignController} 注它，端点本身也零调用方）；
+ * {@code addContract} 与解约两条都已成零调用方、按裁决保留作回滚位。
  *
  * <p>已知行为要点（与新实现逐条对照用）：{@code addContract} 无 {@code @Transactional}（ADR-D129）、
  * 落库三支（短路 / {@code reactivateSign} / INSERT，ADR-D135）、换号一律拒绝、
@@ -61,9 +69,19 @@ public class AlipayContractServiceImpl implements AlipayContractService {
     @Autowired
     private ChannelSyncDeliverer channelSyncDeliverer;
 
-    /** 解约域编排入口；本类只转发，NEVER 把解约的三个协作者注回来。 */
+    /**
+     * 解约域入口 —— <b>只依赖 {@code service} 层抽象，NEVER 回退成注 {@code impl.termination} 里的实现类</b>
+     * （2026-09-21 断反向依赖：原先直注 {@code TerminationCoordinator}，等于旧 contract 实现包反过来钉住
+     * 新 termination 实现包，与本类类注释那条「NEVER 让本类去调新服务」自相矛盾）。
+     *
+     * <p>收窄成接口后仍是**转发**，但依赖方向只剩「旧实现 → 共享抽象」这一条，
+     * 且本类的两个解约方法**已是零调用方**（三条 URL 自 2026-09-18 起都注新接口，
+     * 唯一还注 {@code AlipayContractService} 的 {@code controller/legacy/AlipayPaySignController}
+     * 只调 {@code selectSignInfo}）。按裁决整个旧实现保留作回滚位，
+     * <b>NEVER 在这两个方法里加任何逻辑</b> —— 要改解约行为一律改 {@code service/impl/termination/}。
+     */
     @Autowired
-    private TerminationCoordinator terminationCoordinator;
+    private AlipayTerminationService alipayTerminationService;
 
     @Autowired
     private SignLogRecorder signLogRecorder;
@@ -187,7 +205,7 @@ public class AlipayContractServiceImpl implements AlipayContractService {
     /** 解约登记 —— 转发；事务在 {@code TerminationRegistrationService#terminateContract} 上，本层 NEVER 加事务。 */
     @Override
     public AlipayTripTerminateContractRespDTO terminateContract(AlipayTripTerminateContractReqDTO request) {
-        return terminationCoordinator.terminateContract(request);
+        return alipayTerminationService.terminateContract(request);
     }
 
     @Override
@@ -210,6 +228,6 @@ public class AlipayContractServiceImpl implements AlipayContractService {
     /** 立即执行一条解约 —— 转发；编排与三分支映射都在 coordinator 里，NEVER 在本类重实现。 */
     @Override
     public AlipayCommonResponse executeTermination(String agreementCode) {
-        return terminationCoordinator.executeTermination(agreementCode);
+        return alipayTerminationService.executeTermination(agreementCode);
     }
 }

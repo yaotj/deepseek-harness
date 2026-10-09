@@ -7,6 +7,8 @@ import com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO;
 import com.chinasofti.huateng.model.ticket.NotifyVerifyResultRespDTO;
 import com.chinasofti.huateng.model.ticket.QueryFirstEntryTxnReqDTO;
 import com.chinasofti.huateng.model.ticket.QueryFirstEntryTxnResult;
+import com.chinasofti.huateng.model.ticket.QueryLatestEntryTxnReqDTO;
+import com.chinasofti.huateng.model.ticket.QueryLatestEntryTxnResult;
 import com.chinasofti.huateng.model.ticket.QueryStatusReqDTO;
 import com.chinasofti.huateng.model.ticket.QueryStatusRespDTO;
 import com.chinasofti.huateng.model.ticket.RegisterRideStatusReqDTO;
@@ -81,5 +83,21 @@ public class TicketRideStatusController {
     public QueryFirstEntryTxnResult queryFirstEntryTxn(@RequestBody QueryFirstEntryTxnReqDTO request) {
         log.info("查询首笔进站交易，请求参数：{}", JSON.toJSONString(request));
         return entryTxnQueryService.queryFirstEntryTxn(request);
+    }
+
+    /**
+     * 查询「早于本次出站时间的最近一笔进站交易」（{@code gate-txn-pay-server} 离线码出站重算票价用）。
+     *
+     * <p>与上面那条 {@code /queryFirstEntryTxn} <b>并存、NEVER 合并、NEVER 删上面那条</b>：
+     * 两者是两套配对口径的独立契约（序列号相等 vs 时间早于出站），口径理由见
+     * {@code EntryTxnQueryService.queryLatestEntryBeforeExit} 的 Javadoc。
+     */
+    @PostMapping("/queryLatestEntryTxnBeforeExit")
+    public QueryLatestEntryTxnResult queryLatestEntryTxnBeforeExit(
+            @RequestBody QueryLatestEntryTxnReqDTO request) {
+        log.info("查询出站前最近一笔进站交易，请求参数：{}", JSON.toJSONString(request));
+        return entryTxnQueryService.queryLatestEntryBeforeExit(
+                request == null ? null : request.getCardId(),
+                request == null ? null : request.getExitHandleDateTime());
     }
 }

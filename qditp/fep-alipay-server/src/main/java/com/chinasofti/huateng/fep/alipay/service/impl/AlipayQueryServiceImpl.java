@@ -4,7 +4,6 @@ import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;
-import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespVO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayQueryReqDTO;
@@ -23,8 +22,13 @@ import org.slf4j.LoggerFactory;
  *
  * <p>{@code findTravelList} / {@code findTravelDetail} 的编排实现已迁入
  * {@code trans-query-server} 的 {@code AlipayTravelQueryHandler}（1.0.5 起），本类只做一次 RPC 转发：
- * 进出站明细拼装、{@code entryId} / {@code exitId} 切片、扣款结果映射、三层 VO 包装全在那边，
+ * 进出站明细拼装、{@code entryId} / {@code exitId} 切片、扣款结果映射全在那边，
  * **NEVER 在本类重新实现一份** —— 那等于两处并存、改一处漏一处。
+ *
+ * <p>详情应答是 <b>`retCode` / `retMsg` + `data` 三层结构</b>（2026-09-20 按支付宝侧实测要求改回，ADR-D150）：
+ * 业务字段在 {@code AlipayTripFindTravelDetailRespDTO.data} 里，本类只把 trans-query 的应答**原样转发**，
+ * <b>NEVER 在这里拆平或重新组装字段</b>（那等于把编排搬回接入层）。同日 ADR-D148 的「扁平、NEVER 包 data」
+ * 口径**已作废**。
  */
 @Service
 public class AlipayQueryServiceImpl implements AlipayQueryService {
@@ -59,9 +63,9 @@ public class AlipayQueryServiceImpl implements AlipayQueryService {
     }
 
     @Override
-    public AlipayTripFindTravelDetailRespVO findTravelDetail(AlipayTripFindTravelDetailReqDTO request) {
+    public AlipayTripFindTravelDetailRespDTO findTravelDetail(AlipayTripFindTravelDetailReqDTO request) {
         log.info("支付宝出行-查询乘车记录详情,转发 trans-query-server,请求参数：{}", JSON.toJSONString(request));
-        AlipayTripFindTravelDetailRespVO response;
+        AlipayTripFindTravelDetailRespDTO response;
         try {
             response = transQueryClient.findTravelDetail(request);
         } catch (Exception e) {
@@ -69,13 +73,9 @@ public class AlipayQueryServiceImpl implements AlipayQueryService {
             response = null;
         }
         if (response == null) {
-            AlipayTripFindTravelDetailRespDTO data = new AlipayTripFindTravelDetailRespDTO();
-            data.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
-            data.setRetMsg("系统内部错误");
-            response = new AlipayTripFindTravelDetailRespVO();
-            response.setRetCode(data.getRetCode());
-            response.setRetMsg(data.getRetMsg());
-            response.setData(data);
+            response = new AlipayTripFindTravelDetailRespDTO();
+            response.setRetCode(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode());
+            response.setRetMsg("系统内部错误");
         }
         log.info("支付宝出行-查询乘车记录详情,响应结果：{}", JSON.toJSONString(response));
         return response;

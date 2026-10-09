@@ -14,7 +14,10 @@ import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 /** 参数管理页面查询服务实现。 */
 @Service
@@ -58,30 +61,41 @@ public class ParaPageServiceImpl implements ParaPageService {
     @Override
     public ResultVO<PageInfo<LineStationVersion>> pageLineStationVersion(Integer pageNum, Integer pageSize) {
         int safePageNum = safePageNum(pageNum);
-        ParaVersion currentVersion = currentNetworkVersion();
+        int safePageSize = safePageSize(pageSize);
+        // 每种参数类型独立成行：版本号、文件名、更新/生效时间均取自各自的 PARA_VERSION 记录。
+        List<LineStationVersion> versions = new ArrayList<>();
+        versions.add(buildVersionRow("路网拓扑", paraVersionMapper.selectByParaType(NETWORK_PARA_TYPE)));
+        versions.add(buildVersionRow("费率", paraVersionMapper.selectByParaType(RATE_PARA_TYPE)));
+        versions.removeIf(Objects::isNull);
+
+        // 本方法的数据是按参数类型手工构造的、不查 SQL 列表，因此刻意不走 PageHelper.startPage()：
+        // 那样会留下一个用不上的分页拦截器上下文，可能被同线程后续查询误用。分页元数据在此手工回填。
+        List<LineStationVersion> pageRows = safePageNum > 1 ? Collections.emptyList() : versions;
+        int total = versions.size();
         PageInfo<LineStationVersion> pageInfo = new PageInfo<>();
         pageInfo.setPageNum(safePageNum);
-        pageInfo.setPageSize(safePageSize(pageSize));
-
-        if (currentVersion == null || safePageNum > 1) {
-            pageInfo.setList(Collections.emptyList());
-            pageInfo.setTotal(currentVersion == null ? 0 : 1);
-            return ResultMapper.ok(pageInfo);
-        }
-
-        LineStationVersion version = new LineStationVersion();
-        version.setLineCodeVersion(currentVersion.getCurrentVerNo());
-        version.setStationCodeVersion(currentVersion.getCurrentVerNo());
-        version.setNetworkFileName(currentVersion.getCurrentFileName());
-        ParaVersion rateVersion = paraVersionMapper.selectByParaType(RATE_PARA_TYPE);
-        if (rateVersion != null) {
-            version.setRateFileName(rateVersion.getCurrentFileName());
-        }
-        version.setUpdateTime(currentVersion.getLastUpdTms());
-        version.setEffectiveTime(currentVersion.getValidDateTime());
-        pageInfo.setList(Collections.singletonList(version));
-        pageInfo.setTotal(1);
+        pageInfo.setPageSize(safePageSize);
+        pageInfo.setList(pageRows);
+        pageInfo.setTotal(total);
+        pageInfo.setSize(pageRows.size());
+        // 页数按 total 与 pageSize 向上取整，NEVER 写死成 1：参数类型变多后行数会超过一页。
+        pageInfo.setPages(total == 0 ? 0 : (total + safePageSize - 1) / safePageSize);
+        pageInfo.setStartRow(pageRows.isEmpty() ? 0 : (safePageNum - 1) * safePageSize + 1);
+        pageInfo.setEndRow(pageRows.isEmpty() ? 0 : (safePageNum - 1) * safePageSize + pageRows.size());
         return ResultMapper.ok(pageInfo);
+    }
+
+    private LineStationVersion buildVersionRow(String paraTypeName, ParaVersion paraVersion) {
+        if (paraVersion == null || paraVersion.getCurrentVerNo() == null) {
+            return null;
+        }
+        LineStationVersion version = new LineStationVersion();
+        version.setParaTypeName(paraTypeName);
+        version.setVersionNo(paraVersion.getCurrentVerNo());
+        version.setFileName(paraVersion.getCurrentFileName());
+        version.setUpdateTime(paraVersion.getLastUpdTms());
+        version.setEffectiveTime(paraVersion.getValidDateTime());
+        return version;
     }
 
     private ParaVersion currentNetworkVersion() {

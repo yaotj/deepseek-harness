@@ -13,8 +13,13 @@
 --                                 分流后落单。「订单是否成立、扣费到底成没成」权威只在
 --                                 GATE_TXN_PAY.DEBIT_STATUS。
 --
---   ALIPAY_PAY_TXN_DETAIL         支付侧**当前态**，一单一行，有唯一索引，21 列、无 CLOB。
+--   ALIPAY_PAY_TXN_DETAIL         支付侧**当前态**，一单一行，有唯一索引，19 列、无 CLOB。
 --                                 只回答「这笔在支付中心侧现在是什么状态、已退多少」。
+--                                 列数以本文件的 CREATE TABLE 为准：2026-09-20 按 AFCITPDB 实测复核，
+--                                 库内就是 19 列、与本文件逐列一致。**本处与下面「删除清单」此前都写
+--                                 「21 列」，那是错的**（alipay-pay-txn-detail-rebuild-migration.sql:9
+--                                 与 alipay-pay-center-msg-log-migration.sql:24 里那两处「21 列」同样
+--                                 不准，属当时的意图记述，NEVER 拿它们当列数依据）。
 --
 --   ALIPAY_PAY_CENTER_MSG_LOG     **我方出网**报文流水，一次调用一行，无唯一索引。
 --                                 requestPay / payQuery / requestRefund / refundQuery 四个接口
@@ -37,7 +42,7 @@
 -- selectByOrderNos 两条读语句，**没有任何分页查询，也没有按用户 / 卡号 / 进出站的过滤能力**，
 -- NEVER 加回 —— 那些维度全在主表上。
 --
--- 【删除清单，NEVER 加回】从最初 52 列一路收窄到 21 列，分三类：
+-- 【删除清单，NEVER 加回】从最初 52 列一路收窄到 19 列，分三类：
 --
 --   A 主体已有（去 GATE_TXN_PAY 拿）：
 --     THIRD_USER_ID / CARD_ID / CARD_TYPE / PAYMENT_VENDOR
@@ -159,7 +164,7 @@ COMMENT ON COLUMN ALIPAY_PAY_TXN_DETAIL.REFUND_STATUS IS '退款状态：NONE未
 COMMENT ON COLUMN ALIPAY_PAY_TXN_DETAIL.REFUND_AMOUNT IS '已退款总金额（分），由 ALIPAY_REFUND_TXN_DETAIL 重算得出，NEVER 累加写入';
 COMMENT ON COLUMN ALIPAY_PAY_TXN_DETAIL.PAY_CENTER_ORDER_NO IS '支付中心支付订单号，来自 requestPay 的同步应答；退款报文的「原支付订单号」取此列，缺它退款必失败';
 COMMENT ON COLUMN ALIPAY_PAY_TXN_DETAIL.CHANNEL_ORDER_NO IS '渠道订单号，即支付宝交易号（旧表 TRADE_NO）；属当前态关键标识，故留在本表';
-COMMENT ON COLUMN ALIPAY_PAY_TXN_DETAIL.TRANS_TIME IS '支付时刻，支付中心回调报文transTime原文直存不解析；格式不统一（既有yyyy-MM-dd HH:mm:ss也有yyyyMMddHH24MISS），NEVER建成DATE也NEVER用TO_DATE查询；支付宝出行记录应答的payOrderNoDate取此列；只由支付回调写入且套NVL';
+COMMENT ON COLUMN ALIPAY_PAY_TXN_DETAIL.TRANS_TIME IS '支付时刻，统一存14位yyyyMMddHHmmss（2026-09-20起，归一在PayTxnCallbackWriter.normalizeTransTime做，NEVER回退成原文直存）；报文原文留在ALIPAY_PAY_CALLBACK_LOG的TRANS_TIME与RAW_BODY；列仍是VARCHAR2因归一失败时原样入库，NEVER建成DATE也NEVER用TO_DATE查询；支付宝出行记录应答的payOrderNoDate取此列；只由支付回调写入且套NVL';
 COMMENT ON COLUMN ALIPAY_PAY_TXN_DETAIL.REQUEST_SIGN_SEQ IS '我方签约流水号，取 ALIPAY_SIGN_INFO.AGREEMENT_CODE';
 COMMENT ON COLUMN ALIPAY_PAY_TXN_DETAIL.CHANNEL_AGREEMENT_NO IS '渠道协议号，取 ALIPAY_SIGN_INFO.CHANNEL_AGREEMENT_CODE；与上一列不是同一个号，销卡通知与退款只认这个';
 COMMENT ON COLUMN ALIPAY_PAY_TXN_DETAIL.REQUEST_COUNT IS '已发起支付请求次数；每次出网的请求与应答原文在 ALIPAY_PAY_CENTER_MSG_LOG，一次一行';
@@ -167,10 +172,23 @@ COMMENT ON COLUMN ALIPAY_PAY_TXN_DETAIL.NEXT_REQUEST_TIME IS '下次允许重试
 COMMENT ON COLUMN ALIPAY_PAY_TXN_DETAIL.INVOICE IS '发票状态；旧表 33 行实测全为 NULL、从未被写过，本表同样没有写入方，属占位列。接线前 MUST 先确认发票状态归谁维护，NEVER 假定它有值';
 
 -- ============================================================================
--- 退款明细表
+-- 退款明细表（18 列，与 AFCITPDB 实测逐列一致）
 -- ============================================================================
 -- 报文原文同样不在本表：退款的 requestRefund / refundQuery 请求与应答落
 -- ALIPAY_PAY_CENTER_MSG_LOG（API_NAME 区分，REQUEST_NO 填退款单号）。
+--
+-- 【删除清单，NEVER 加回】以下 10 列在本表 DDL 里从来没有过，而 2026-09-20 之前
+-- entity/AlipayRefundTxnDetail 与 mapper/AlipayRefundTxnDetailMapper.xml 却按 28 列在写 ——
+-- insert / updateRequestResult / 三条 select 一旦被调用就是 ORA-00904。当时没炸只是因为
+-- 这张表零业务调用方（退款链路仍走旧表 ALIPAY_REFUND_LOG），属「代码在用、库里没有」的潜伏形态。
+-- 同批已把实体与 mapper 收窄回 18 列：
+--   A 主体已有（按 ORDER_NO 去 GATE_TXN_PAY 回查）：THIRD_USER_ID / CARD_ID / CARD_ISSUE_CODE
+--   B 报文与应答码留痕（归 ALIPAY_PAY_CENTER_MSG_LOG，一次调用一行）：
+--     RET_CODE / RET_MSG / PAY_CENTER_CODE / PAY_CENTER_MSG / IP_ADDRESS / REQUEST_BODY / RESPONSE_BODY
+-- 注意 B 组与 pay-sign-server 的 PAY_REFUND_DETAIL 不同：那张表确实有这几列，
+-- **NEVER 因为两张表「形态对齐」就照它补列**。
+-- 另注：支付中心应答码在本域落 ALIPAY_PAY_CENTER_MSG_LOG.RET_CODE（实测取值即对端的
+-- SUCCESS / 20000 之类），本域不再分「我方码 / 对端码」两列。
 
 CREATE TABLE ALIPAY_REFUND_TXN_DETAIL (
     ID                  NUMBER(22) NOT NULL,
@@ -235,7 +253,7 @@ COMMENT ON COLUMN ALIPAY_REFUND_TXN_DETAIL.REFUND_STATUS IS '退款状态：INIT
 COMMENT ON COLUMN ALIPAY_REFUND_TXN_DETAIL.REFUND_AMOUNT IS '退款金额，单位分';
 COMMENT ON COLUMN ALIPAY_REFUND_TXN_DETAIL.MERCHANT_REFUND_NO IS '商户退款流水号；支付中心退款查询实测只认这个键，NEVER 只送 refundOrderNo';
 COMMENT ON COLUMN ALIPAY_REFUND_TXN_DETAIL.TXN_DATE IS '退款发起日期，格式YYYYMMDD，用于月分区与唯一键；与原支付单的 TXN_DATE 各自独立，NEVER 复用原单日期';
-COMMENT ON COLUMN ALIPAY_REFUND_TXN_DETAIL.PAY_CENTER_CODE IS '支付中心应答码，与我方 RET_CODE 分列存放';
+COMMENT ON COLUMN ALIPAY_REFUND_TXN_DETAIL.REMARK IS '人工备注与收口说明；支付中心应答码不落本表，去 ALIPAY_PAY_CENTER_MSG_LOG 的 RET_CODE / RET_MSG 看';
 
 -- ============================================================================
 -- 出网报文留痕表（我方 -> 支付中心，一次调用一行）

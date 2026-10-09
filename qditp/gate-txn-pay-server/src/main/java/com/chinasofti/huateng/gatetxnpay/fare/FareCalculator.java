@@ -9,7 +9,7 @@ import com.chinasofti.huateng.model.app.QueryUserInfoResult;
 import com.chinasofti.huateng.model.app.QueryWalletTotalAmtResult;
 import com.chinasofti.huateng.model.enums.CardTypeCodeEnum;
 import com.chinasofti.huateng.model.pay.GateTxnPayReqDTO;
-import com.chinasofti.huateng.model.ticket.QueryFirstEntryTxnResult;
+import com.chinasofti.huateng.model.ticket.QueryLatestEntryTxnResult;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
@@ -122,17 +122,25 @@ public class FareCalculator {
             log.warn("钱包优惠计算失败，继续原始金额扣款, orderNo={}", order.getOrderNo(), e);
         }
     }
-    /** 离线码出站金额由服务端重算：同序列号首笔进站、超时费、换乘减免、钱包折扣。 */
+    /** 离线码出站金额由服务端重算：出站前最近一笔进站、超时费、换乘减免、钱包折扣。 */
     public void calculateOfflineFare(GateTxnPay order, GateTxnPayReqDTO request) {
         if (!StringUtils.hasText(request.getTicketTransSeq())) {
             throw new IllegalStateException("离线码交易缺少ticketTransSeq");
         }
-        QueryFirstEntryTxnResult entry = gateway.queryFirstEntryTxn(
-                request.getCardId(), request.getTicketTransSeq());
+        if (!StringUtils.hasText(order.getOutTime())) {
+            throw new IllegalStateException("离线码交易缺少出站时间");
+        }
+        // 进站取数口径（2026-09-22 修 C9）：按「同卡 + 进站 + HANDLE_DATE_TIME <= 本次出站时间」取最近一笔。
+        // NEVER 退回按 ticketTransSeq 相等配对（gateway.queryFirstEntryTxn）：进站与出站是两笔不同交易，
+        // 闸机上送的序列号天然不同（实测进站 0 / 出站 1），相等配对恒命中 0 行、订单永久卡 OFFLINE_FARE_PENDING。
+        // NEVER 用 QRCODE_STATUS.GATE_IN_STATION / GATE_IN_TIME：那是会被后续行程覆盖的状态快照，
+        // 而本方法也被延迟执行的补偿链路调用，延迟期间该卡再进站一次就会算错钱（比算不出更坏）。
+        QueryLatestEntryTxnResult entry = gateway.queryLatestEntryTxnBeforeExit(
+                request.getCardId(), order.getOutTime());
         if (entry == null || !RET_SUCCESS.equals(entry.getRetCode())
                 || !StringUtils.hasText(entry.getHandleDateTime())
                 || !StringUtils.hasText(entry.getHandleStationCode())) {
-            throw new IllegalStateException(entry == null ? "同序列号进站交易查询失败" : entry.getRetMsg());
+            throw new IllegalStateException(entry == null ? "出站前进站交易查询失败" : entry.getRetMsg());
         }
         order.setInStation(entry.getHandleStationCode());
         order.setInTime(entry.getHandleDateTime());

@@ -20,6 +20,16 @@ public enum TicketErrorCodeEnum {
     ACC_RETURN_STATUS_ABNORMAL("8502", "ACC返回值状态异常"),
     SYSTEM_ERROR("9001", "系统内部错误"),
     NO_DATA("8002", "无数据"),
+    /**
+     * IF8A-29 查询用户行程时「上次行程为空」（2026-09-22 业主裁决新增）。
+     *
+     * <p>用于「本次行程有、上次行程没有」这一形态，典型是**新卡首次进站**：`QRCODE_STATUS.LAST_TXN_STATION`
+     * 还是建行时的哨兵 `FFFF`（`ticket.default-last-txn-station`），于是 `lastStationName` 会把 `FFFF`
+     * 当站名吐给 APP，APP 拿它渲染就报「查询失败」（2026-09-22 日票卡 `0426090951000084` 实测）。
+     *
+     * <p><b>NEVER 把它当异常码处理</b> —— 这是正常业务态，`memberItinerary` 里的本次行程字段仍然有效、仍会返回。
+     */
+    LAST_ITINERARY_EMPTY("8911", "上次行程为空"),
     ENTRY_TXN_NOT_FOUND("8004", "未找到同序列号进站交易");
 
     private final String code;

@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    h3c.cloudos.io/refresh: 'true'
+    kubernetes.io/change-cause: Deployed 1.2.5 via k8s-deploy.sh at 2026-06-04 13:56:58
+    security: 'true'
+  labels:
+    app: blacklist-server
+  name: blacklist-server
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: blacklist-server
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: blacklist-server
+    spec:
+      containers:
+      - env:
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        - name: management.tracing.enabled
+          value: 'true'
+        - name: spring.application.name
+          value: blacklist
+        - name: other.web.enableLogRequestInFilter
+          value: 'true'
+        - name: other.web.enableBodyCacheFilter
+          value: 'true'
+        - name: other.sql.double-datasource
+          value: 'false'
+        - name: app.notify.blacklist-url
+          value: https://dtcustomer.bestonepay.com/ngopenplatform/notify/receiveCardDataFromItp
+        - name: mybatis.mapper-locations
+          value: classpath*:mapper/*.xml
+        - name: other.web.unSafeUrlChars
+          value: 'null'
+        - name: other.sql.page.type
+          value: oracle
+        - name: knife4j.production
+          value: 'false'
+        - name: other.sql.password
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: other.sql.password
+        - name: other.sql.database
+          value: AFCITPDB
+        - name: server.port
+          value: '8080'
+        - name: other.sql.type
+          value: oracle
+        - name: other.sql.username
+          value: qditp
+        - name: other.web.enableLogTakeTimesInInterceptor
+          value: 'true'
+        - name: service.alipay-pay-sign.url
+          value: http://172.20.211.23:30022
+        - name: other.sql.host
+          value: 172.20.222.3:1521
+        - name: SERVICE_NAME
+          value: blacklist-server
+        - name: NAMESPACE
+          value: itp
+        image: os-harbor-svc.default.svc.cloudos:443/itp/blacklist-server:2.0.31
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: blacklist-server
+        resources:
+          limits:
+            cpu: '1'
+            memory: 2Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-2otz4mqb0
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-2otz4mqb0

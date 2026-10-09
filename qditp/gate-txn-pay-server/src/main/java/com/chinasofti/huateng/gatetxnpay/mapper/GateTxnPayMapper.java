@@ -188,4 +188,119 @@ public interface GateTxnPayMapper {
     int updateOfflineFarePendingMsg(@Param("orderNo") String orderNo,
                                     @Param("txnDate") String txnDate,
                                     @Param("discountCalcMsg") String discountCalcMsg);
+
+    /**
+     * 扫出「每日批量扣费重试」的候选：{@code DEBIT_STATUS IN ('RETRY','FAIL')}、账期在窗口内、
+     * 重试次数未达上限、且已过退避时刻。走现有索引 {@code IDX_GATE_TXN_PAY_STATUS_DATE}。
+     *
+     * @param alipayChannel {@code true} 只捞支付宝出行（{@code ISSUE_CHANNEL_CODE='07'}），
+     *                      {@code false} 捞其余全部（含该列为空的历史行）。两条批量重试任务靠这个参数分流，
+     *                      因为两类单子的扣费出口完全不同（见 {@code PaySignInitiator#converge}）。
+     *                      两支谓词互补且覆盖全集，**NEVER 把 false 那支写成 {@code = '01'}**，
+     *                      否则空值与未知渠道值的单子两边都扫不到、永远没人重试。
+     * @param maxTimes 重试次数上限，达到即不再被捞出（人工用 {@code DEBIT_RETRY_TIMES >= maxTimes} 找这批）
+     */
+    List<GateTxnPay> selectBatchRetryCandidates(@Param("alipayChannel") boolean alipayChannel,
+                                               @Param("startDate") String startDate,
+                                               @Param("endDate") String endDate,
+                                               @Param("maxTimes") int maxTimes,
+                                               @Param("limit") int limit);
+
+    /**
+     * 抢占一笔待批量重试的订单：把 {@code FAIL / RETRY} 统一 CAS 成 {@code RETRY}、次数 +1、下次重试时刻后移。
+     *
+     * <p>这一条同时承担三件事，**NEVER 拆开**：①并发/重入下的唯一抢占（返回 1 才算抢到）；
+     * ②把终态 {@code FAIL} 归一成 {@code RETRY}，否则后续 {@code updateStatusFromPending} 的
+     * CAS 白名单（只认 INIT / RETRY）会全部落 0 行、扣费结果无处回写；③记账，防止同日重复触发连扣。
+     *
+     * @return 1 抢到，0 未抢到（已被别人处理、次数已达上限或退避未到）
+     */
+    int prepareBatchRetry(@Param("orderNo") String orderNo,
+                          @Param("txnDate") String txnDate,
+                          @Param("maxTimes") int maxTimes,
+                          @Param("backoffMinutes") int backoffMinutes,
+                          @Param("failMsg") String failMsg);
+
+    /**
+     * 扫出「近 N 分钟未扣费」的候选（`sys_job` 345 补站扣费周期查询更新，2026-09-21 编号先后为 135、265、235、345）：
+     * {@code DEBIT_STATUS IN ('INIT','RETRY','FAIL')}、{@code CREATE_TIME} 落在
+     * {@code [now - windowMinutes, now - minAgeSeconds]} 这个**左右都闭**的窗口内。
+     *
+     * <p>与 {@link #selectBatchRetryCandidates} 的三处差别，**改一处 MUST 回头看另一条**：
+     * <ul>
+     *   <li><b>不分渠道</b> —— 业主选择「全量未扣费单的 10 分钟快速轮」，与按渠道拆开的那两条并行；</li>
+     *   <li><b>多捞 {@code INIT}</b> —— 本任务的核心场景正是「落单后扣费压根没发起」
+     *       （`GateFarePaymentOrchestrator` 的 RPC 异常只记日志、不改状态）；那两条日跑任务捞不到这种；</li>
+     *   <li><b>按 {@code CREATE_TIME} 而不是 {@code TXN_DATE} 收窄</b> —— 窗口只有分钟级，
+     *       用 8 位日期字符串收不出来。</li>
+     * </ul>
+     *
+     * <p>两条谓词 **NEVER 删**：
+     * ①{@code minAgeSeconds} 下界 —— 刚落库几秒的单可能**正在**走扣费 RPC，
+     * 立刻再发一笔就是重复扣款；②排除 {@code DISCOUNT_CALC_STATUS='OFFLINE_FARE_PENDING'} ——
+     * 那是离线码待重算态，金额还没算准（见 {@link #selectOfflineFarePending}），
+     * 按当前金额扣下去等于扣错钱。
+     *
+     * @param maxTimes 与那两条日跑任务**共用**的次数上限：本任务只读不写 {@code DEBIT_RETRY_TIMES}，
+     *                 带上它只为「已被日跑任务耗尽次数的死单不再碰」，NEVER 去掉
+     */
+    List<GateTxnPay> selectRecentUnpaidCandidates(@Param("windowMinutes") int windowMinutes,
+                                                 @Param("minAgeSeconds") int minAgeSeconds,
+                                                 @Param("maxTimes") int maxTimes,
+                                                 @Param("limit") int limit);
+
+    /**
+     * 抢占一笔近 N 分钟未扣费的订单：把 {@code INIT / FAIL} 统一 CAS 成 {@code RETRY}。
+     *
+     * <p>与 {@link #prepareBatchRetry} 的唯一差别是**不碰那两个记账列**
+     * （{@code DEBIT_RETRY_TIMES} 不 +1、{@code DEBIT_NEXT_RETRY_TIME} 不后移）：本任务每分钟一轮、
+     * 靠 10 分钟窗口自然收敛（业主裁决，见 ADR-D154），若在这里记账会把 `sys_job` 220 / 255
+     * 的次数预算在 10 分钟内烧光、那两条日跑任务从此再也捞不到这批单。**NEVER 在这条语句里加回记账。**
+     *
+     * <p>归一成 {@code RETRY} 本身是必须的：后续 {@code updateStatusFromPending} 的 CAS 白名单
+     * 只认 {@code INIT / RETRY}，{@code FAIL} 不归一就会让扣费结果无处回写。
+     *
+     * @return 1 抢到，0 未抢到（已被别人推进、次数已达上限、退避未到或已转成离线码待重算态）
+     */
+    int prepareRecentRetry(@Param("orderNo") String orderNo,
+                           @Param("txnDate") String txnDate,
+                           @Param("maxTimes") int maxTimes,
+                           @Param("failMsg") String failMsg);
+
+    /** 批量重试落点不是 PROCESSING 时记下语义码，供人工按 {@code DEBIT_FAIL_CODE} 归类。 */
+    int updateDebitFailInfo(@Param("orderNo") String orderNo,
+                            @Param("txnDate") String txnDate,
+                            @Param("failCode") String failCode,
+                            @Param("failMsg") String failMsg);
+
+    /**
+     * 用户主动重试扣费：扫出指定 thirdUserId（可选按 cardIdList 收窄）下
+     * {@code DEBIT_STATUS IN ('INIT','RETRY','FAIL')}、且非离线码待重算态的待重扣候选。
+     *
+     * <p>与 {@link #selectBatchRetryCandidates} / {@link #selectRecentUnpaidCandidates} 的<b>关键差别</b>：
+     * <b>不卡 {@code DEBIT_RETRY_TIMES} 上限、不卡 {@code DEBIT_NEXT_RETRY_TIME} 退避</b>——
+     * 业主裁决用户显式触发即全量重扣，覆盖已达上限的死单。其余两道闸照旧：
+     * ①排除 {@code DISCOUNT_CALC_STATUS='OFFLINE_FARE_PENDING'}（防错额扣款）；
+     * ②只认 INIT/RETRY/FAIL 三态（PROCESSING 正在扣费中的单不碰，防并发双扣）。
+     *
+     * @param cardIdList 为空列表表示不限卡号、只按 thirdUserId 范围
+     */
+    List<GateTxnPay> selectUserRetryCandidates(@Param("thirdUserId") String thirdUserId,
+                                              @Param("cardIdList") List<String> cardIdList,
+                                              @Param("limit") int limit);
+
+    /**
+     * 用户主动重试扣费的抢占 CAS：把单归一成 {@code RETRY}、清空失败码与原因，**不碰记账列**
+     * （不 +1 {@code DEBIT_RETRY_TIMES}、不后移 {@code DEBIT_NEXT_RETRY_TIME}）。
+     *
+     * <p>与 {@link #prepareRecentRetry} 的唯一差别是<b>去掉了 {@code DEBIT_RETRY_TIMES < maxTimes} 这道闸</b>
+     * （用户主动触发即允许对死单再试，见 {@code UserDebitRetryService}）；其余完全一致：
+     * 归一成 RETRY 是必须的（后续 {@code updateStatusFromPending} 的 CAS 白名单只认 INIT/RETRY），
+     * 排除 OFFLINE_FARE_PENDING 是必须的（防错额扣款）。
+     *
+     * @return 1 抢到，0 未抢到（已被别人推进 / 已不在三态内 / 已转成离线码待重算态）
+     */
+    int prepareUserRetry(@Param("orderNo") String orderNo,
+                         @Param("txnDate") String txnDate,
+                         @Param("failMsg") String failMsg);
 }

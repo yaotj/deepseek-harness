@@ -27,7 +27,7 @@ class GateTxnPayGuardTest {
     private static final Path MAPPER_XML =
             Path.of("src", "main", "resources", "mapper", "GateTxnPayMapper.xml");
 
-    /** 防本模块加回模块内定时任务（调度已外移到 face-pay 与 web-admin sys_job 120/121）。 */
+    /** 防本模块加回模块内定时任务（调度已外移到 face-pay 与 web-admin sys_job 295/300，2026-09-21 由 120/121 改号）。 */
     @Test
     void moduleHasNoScheduledAnnotation() throws IOException {
         List<String> hits = new ArrayList<>();
@@ -45,7 +45,7 @@ class GateTxnPayGuardTest {
             }
         }
         assertTrue(hits.isEmpty(),
-                "本模块的调度已全部外移（补款迁 face-pay、离线码与换乘迁 web-admin sys_job 120/121），"
+                "本模块的调度已全部外移（补款迁 face-pay、离线码与换乘迁 web-admin sys_job 295/300），"
                         + "NEVER 加回模块内定时任务；命中: " + hits);
     }
 

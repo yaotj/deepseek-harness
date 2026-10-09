@@ -40,6 +40,19 @@ public interface F2fPaymentMapper {
     F2fPayment selectByPayCenterOrderNo(@Param("payCenterOrderNo") String payCenterOrderNo);
 
     /**
+     * 回写支付中心回调里的两个金额（契约 §5.1 的 {@code cashAmount} / {@code couponAmount}）。
+     *
+     * <p>原样照写，NEVER 在这里校验「cash + coupon 是否等于 total」—— 支付中心实测这三个值恒相等、
+     * 属无效值，加校验会把正常报文判成异常。两列在 SQL 里用 {@code NVL} 包住，传 null 不会抹掉已落的值。
+     *
+     * @return 影响行数；0 表示该尝试不存在，调用方只记日志、NEVER 因此拒绝回调
+     */
+    int updateCallbackAmounts(@Param("orderNo") String orderNo,
+                              @Param("attemptNo") Integer attemptNo,
+                              @Param("cashAmount") Integer cashAmount,
+                              @Param("couponAmount") Integer couponAmount);
+
+    /**
      * 把某次尝试标记为支付成功：PAY_STATUS 置 SUCCESS 并回填终态字段。
      *
      * @param payChannelCode 支付方式（渠道码，对端 {@code paymentVendor}）。

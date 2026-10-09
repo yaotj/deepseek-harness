@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: fep-app
+  name: fep-app
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fep-app
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: fep-app
+    spec:
+      containers:
+      - env:
+        - name: service.collectPay.url
+          value: http://172.20.211.23:30025
+        - name: service.blacklist.openLogger
+          value: 'true'
+        - name: service.key.openLogger
+          value: 'true'
+        - name: other.web.enableLogRequestInFilter
+          value: 'true'
+        - name: other.web.enableBodyCacheFilter
+          value: 'true'
+        - name: knife4j.production
+          value: 'false'
+        - name: service.para.openLogger
+          value: 'true'
+        - name: industry.issue-channel-code
+          value: '01'
+        - name: service.ticket.url
+          value: http://172.20.211.200:30014
+        - name: service.dailyTicket.url
+          value: http://172.20.211.23:30027
+        - name: server.port
+          value: '9101'
+        - name: service.security.openLogger
+          value: 'true'
+        - name: industry.ticket-type
+          value: '0441'
+        - name: service.ticket.openLogger
+          value: 'true'
+        - name: service.collectPay.openLogger
+          value: 'true'
+        - name: other.web.enableLogTakeTimesInInterceptor
+          value: 'true'
+        - name: service.account.url
+          value: http://172.20.211.23:30013
+        - name: service.security.url
+          value: http://172.20.211.200:30012
+        - name: service.paySign.url
+          value: http://172.20.211.200:30016
+        - name: industry.signature-type
+          value: '01'
+        - name: spring.application.name
+          value: fep-app
+        - name: service.industryData.openLogger
+          value: 'true'
+        - name: service.gateTxnPay.url
+          value: http://gate-txn-pay-server-jomf4-svc.itp.svc:30019
+        - name: service.key.url
+          value: http://172.20.211.200:30015
+        - name: service.para.url
+          value: http://172.20.211.23:30026
+        - name: service.blacklist.url
+          value: http://172.20.211.200:30017
+        - name: service.industryData.url
+          value: http://172.20.211.23:30018
+        - name: other.web.unSafeUrlChars
+          value: 'null'
+        - name: service.account.openLogger
+          value: 'true'
+        - name: industry.timestamp-expire-hours
+          value: '4'
+        - name: service.paySign.openLogger
+          value: 'true'
+        - name: SERVICE_NAME
+          value: fep-app
+        - name: NAMESPACE
+          value: itp
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        - name: SERVICE_TRANS_QUERY_URL
+          value: http://trans-query-57wpd-svc.itp.svc:30035
+        - name: SERVICE_TRANS_QUERY_OPEN_LOGGER
+          value: 'true'
+        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-app:2.0.100
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: fep-app
+        resources:
+          limits:
+            cpu: '1'
+            memory: 2Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-fs2qdiah0
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-fs2qdiah0

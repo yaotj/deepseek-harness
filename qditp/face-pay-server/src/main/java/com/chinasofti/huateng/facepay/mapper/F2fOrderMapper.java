@@ -81,8 +81,17 @@ public interface F2fOrderMapper {
     /** 统计「已过放弃窗口、仍停在 CREATED / PAYING」的订单数，供收口任务打告警。 */
     long countStaleExpired(@Param("earliestExpireTms") LocalDateTime earliestExpireTms);
 
-    /** 扫出已支付但未完成业务的订单，供「每日批量退款未取票交易」使用。 */
-    List<F2fOrder> selectPaidNotFulfilled(@Param("deadline") LocalDateTime deadline,
+    /**
+     * 扫出已支付但未完成业务的订单，供「每日批量退款未取票交易」使用。
+     *
+     * @param bizTypes 业务类型白名单（{@code 01} 购票 / {@code 02} 充值 / {@code 03} 取票 / {@code 04} 非现金收款），
+     *                 NEVER 传空集合——三条批量退款任务各退各自那类单，混退等于跨业务乱退款
+     * @param earliest 只捞这个时刻之后支付的单，防止每天把几个月前的死单反复捞出来
+     * @param deadline 只捞这个时刻之前支付的单，等于「已付未履约」的静默期
+     */
+    List<F2fOrder> selectPaidNotFulfilled(@Param("bizTypes") List<String> bizTypes,
+                                          @Param("earliest") LocalDateTime earliest,
+                                          @Param("deadline") LocalDateTime deadline,
                                           @Param("limit") int limit);
 
     /**

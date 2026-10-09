@@ -11,11 +11,14 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayTripAddContractRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripCloseResultReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayQueryReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayQueryRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayTxnBriefDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayNotifyReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestPayReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestPayRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestRefundReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestRefundRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripTxnRefundReqDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripTxnRefundRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripTerminateContractReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripTerminateContractRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipaySignInfoDTO;
@@ -35,6 +38,9 @@ import java.util.Map;
  */
 @Service
 public class AlipayPaySignClient extends ProxyWebClient {
+
+    /** {@link #queryPayTxnBrief} 单次可传的订单号上限，等于 Oracle IN 列表上限。 */
+    private static final int PAY_TXN_BRIEF_MAX_SIZE = 1000;
 
     public AlipayPaySignClient(@Value("${service.alipay-pay-sign.url:http://alipay-pay-sign-server:8080}") String baseUrl,
                                @Value("${service.alipay-pay-sign.openLogger:true}") boolean openLogger,
@@ -93,6 +99,25 @@ public class AlipayPaySignClient extends ProxyWebClient {
     public AlipayTripRequestRefundRespDTO alipayTripRequestRefund(@RequestBody AlipayTripRequestRefundReqDTO request) {
         String result = postJsonAndGetResponse("/internal/alipay/payment/requestRefund", request);
         return JSONUtil.toBean(result, new TypeReference<AlipayTripRequestRefundRespDTO>() {
+        }, true);
+    }
+
+    /**
+     * 支付宝出行-退款申请（**读新表 {@code ALIPAY_PAY_TXN_DETAIL}、落 {@code ALIPAY_REFUND_TXN_DETAIL}**）。
+     *
+     * <p>与上面那个 {@link #alipayTripRequestRefund} <b>是两条并存的链路，NEVER 二选一地删掉任何一个</b>：
+     * 旧方法打的端点读 {@code ALIPAY_PAY_LOG}，而那张表自「落单收口到 gate-txn-pay」后**已无写入方**，
+     * 按它退款必然返 {@code 9999 原支付记录不存在}；本方法打的新端点读的是真正有数据的新表。
+     * 旧方法保留作回滚位（把 {@code gate-txn-pay-server} 那一处调用换回去即可）。
+     *
+     * <p>唯一调用方是 {@code gate-txn-pay-server} 的
+     * {@code GateTxnPayManualOpsService.requestAlipayTripRefund}（运营后台扣费信息页按渠道分流的支付宝那一支）。
+     * <b>因此 {@code gate-txn-pay-server} 与 {@code alipay-pay-sign-server} 两个镜像 MUST 同批滚更</b> ——
+     * 新端点在旧的 alipay 镜像上不存在，会被全局异常处理器包成 HTTP 200 + UUID retCode。
+     */
+    public AlipayTripTxnRefundRespDTO alipayTripTxnRefund(@RequestBody AlipayTripTxnRefundReqDTO request) {
+        String result = postJsonAndGetResponse("/internal/alipay/payment/requestTxnRefund", request);
+        return JSONUtil.toBean(result, new TypeReference<AlipayTripTxnRefundRespDTO>() {
         }, true);
     }
 
@@ -310,6 +335,62 @@ public class AlipayPaySignClient extends ProxyWebClient {
         Object data = wrapper.get("data");
         String parseTarget = (data instanceof JSONObject) ? ((JSONObject) data).toString() : response;
         return JSONUtil.toBean(parseTarget, com.chinasofti.huateng.common.response.AlipayCommonResponse.class);
+    }
+
+    /**
+     * 支付宝出行-退款回查补偿。
+     *
+     * <p>配套 {@code POST /internal/alipay/refund/compensateQuery}：扫 {@code ALIPAY_REFUND_LOG} 里停在
+     * {@code PROCESSING} 的退款明细，逐条问支付中心 §3.2 退款查询并按终态 CAS 收口。
+     *
+     * <p>无入参，理由同 {@link #compensateChannelSync(Map)}：窗口 / 静默期 / 批量都在服务侧，
+     * <b>NEVER 改成让调用方传</b>。
+     *
+     * <p>由 web-admin 的 `alipayRefundQueryQuartzTask` 带 trace 头打进来，是该补偿的**唯一驱动源**；
+     * 判断它有没有在跑 MUST 查 `SYS_JOB_LOG`。<b>该端点恒返 `0000`</b>（本轮收口 0 条也算成功，
+     * 条数写在 `retMsg` 里），因此调用方 <b>NEVER 把「收口 0 条」当失败</b>。
+     */
+    public com.chinasofti.huateng.common.response.AlipayCommonResponse compensateRefundQuery(Map<String, String> headers) {
+        String response = postJsonAndGetResponse("/internal/alipay/refund/compensateQuery",
+                java.util.Collections.emptyMap(), headers);
+        if (response == null || response.isEmpty()) {
+            return null;
+        }
+        JSONObject wrapper = JSONUtil.parseObj(response);
+        Object data = wrapper.get("data");
+        String parseTarget = (data instanceof JSONObject) ? ((JSONObject) data).toString() : response;
+        return JSONUtil.toBean(parseTarget, com.chinasofti.huateng.common.response.AlipayCommonResponse.class);
+    }
+
+    /**
+     * 支付宝出行-按订单号列表批量取支付侧字段（乘车记录列表的**第二次请求**）。
+     *
+     * <p>配套 {@code POST /internal/alipay/payment/payTxnBrief}。请求体是**裸 JSON 数组**、
+     * 响应体是**裸 JSON 数组**（该端点直接返回 {@code List}，本项目没有全局响应包装，
+     * 因此 <b>NEVER 照抄本类里那些 {@code wrapper.get("data")} 的写法</b>）。
+     *
+     * <p><b>上限 {@value #PAY_TXN_BRIEF_MAX_SIZE} 在这里硬拒、不截断</b>：服务端最终走
+     * {@code SELECT ... WHERE ORDER_NO IN (...)}，Oracle 的 IN 列表上限是 1000，超了会在 SQL 层
+     * 报 {@code ORA-01795}、表现成一条看不懂的 UUID retCode。这里抛出是为了让调用方**立刻知道自己
+     * 分页页长设得过大**；<b>NEVER 改成静默 subList</b> —— 那会让列表里后面若干行没有支付信息，
+     * 而调用方毫不知情（本方法是「补齐」语义，缺行不会报错）。
+     *
+     * <p>命中不到的 {@code orderNo} 不在返回列表里，合并 MUST 按 {@code orderNo} 做 map 查找、
+     * <b>NEVER 按下标与入参列表对齐</b>。
+     */
+    public java.util.List<AlipayTripPayTxnBriefDTO> queryPayTxnBrief(@RequestBody java.util.List<String> orderNos) {
+        if (orderNos == null || orderNos.isEmpty()) {
+            return java.util.List.of();
+        }
+        if (orderNos.size() > PAY_TXN_BRIEF_MAX_SIZE) {
+            throw new IllegalArgumentException("批量补齐支付明细的订单号条数超限: " + orderNos.size()
+                    + ", 上限 " + PAY_TXN_BRIEF_MAX_SIZE);
+        }
+        String result = postJsonAndGetResponse("/internal/alipay/payment/payTxnBrief", orderNos);
+        if (result == null || result.isEmpty()) {
+            return java.util.List.of();
+        }
+        return JSONUtil.toList(JSONUtil.parseArray(result), AlipayTripPayTxnBriefDTO.class);
     }
 
     /**

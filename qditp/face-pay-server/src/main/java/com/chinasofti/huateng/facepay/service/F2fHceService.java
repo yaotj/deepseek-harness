@@ -54,6 +54,9 @@ public class F2fHceService {
         remote.setMsisdn(request.getMsisdn());
         remote.setCardId(request.getCardId());
         remote.setUpdateType(request.getUpdateType());
+        // BOM 设备报文不含站码，但 deviceId 前 4 位即其所属站码（与 TVM 同口径，已用 STATION_INFO 核验：
+        // 0622=辛屯 / 0352=双山 / 1128=世博园 / 0220=国际邮轮港）。IF5A-01 同站/跨站判定依赖此值。
+        remote.setBomStationCode(deriveStationCode(request.getDeviceId()));
 
         RequestCardDataAnalyseRespDTO response;
         try {
@@ -166,5 +169,17 @@ public class F2fHceService {
             }
             return false;
         }
+    }
+
+    /**
+     * 由设备号推导所属站码：取前 4 位。与 TVM 侧 {@code TvmResponses} 的口径一致，且已用
+     * {@code STATION_INFO} 核验（BOM 设备号形如 {@code 06220801} → 站码 {@code 0622}=辛屯）。
+     * 设备号不足 4 位时返回空串（由下游按未知站处理）。
+     */
+    private static String deriveStationCode(String deviceId) {
+        if (deviceId == null || deviceId.length() < 4) {
+            return "";
+        }
+        return deviceId.substring(0, 4);
     }
 }

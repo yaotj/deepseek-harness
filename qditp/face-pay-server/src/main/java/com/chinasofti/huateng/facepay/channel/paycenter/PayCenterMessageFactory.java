@@ -1,6 +1,8 @@
 package com.chinasofti.huateng.facepay.channel.paycenter;
 
 import com.alibaba.fastjson2.JSON;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -9,6 +11,8 @@ import java.util.Map;
 
 /** 支付中心报文组装。 */
 public class PayCenterMessageFactory {
+
+    private static final Logger log = LoggerFactory.getLogger(PayCenterMessageFactory.class);
 
     private final PayCenterProperties properties;
 
@@ -52,7 +56,13 @@ public class PayCenterMessageFactory {
         return envelope(bizData);
     }
 
-    /** 退款。 */
+    /**
+     * 退款。
+     *
+     * <p><b>{@code notifyUrl} 是契约 §3.1 的必填键</b>：支付中心只往「本次请求带的这个地址」推
+     * §5.2 退款回调，不送就永远收不到回调、只能靠 §3.2 退款回查兜。配置为空时不送该键并打 WARN，
+     * NEVER 静默省掉。
+     */
     public PayCenterRequest buildRefundRequest(String refundNo, String origOrderNo,
                                                String payCenterOrderNo, long refundAmount) {
         if (refundAmount <= 0) {
@@ -64,6 +74,14 @@ public class PayCenterMessageFactory {
         bizData.put("orderNo", payCenterOrderNo);
         bizData.put("refundAmount", refundAmount);
         bizData.put("refundReason", properties.getRefundReason());
+        String refundNoticeUrl = properties.getRefundNoticeUrl();
+        if (refundNoticeUrl != null && !refundNoticeUrl.isBlank()) {
+            bizData.put("notifyUrl", refundNoticeUrl);
+        } else {
+            log.warn("pay.center.refund-notice-url 未配置，本次退款申请不送 notifyUrl，"
+                    + "支付中心将无法回推退款结果，只能靠退款回查收口, refundNo={}, origOrderNo={}",
+                    refundNo, origOrderNo);
+        }
         return envelope(bizData);
     }
 

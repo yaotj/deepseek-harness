@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  name: itp-gateway
+  namespace: itp-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        inject.istio.io/templates: gateway
+      labels:
+        istio: ingressgateway
+        sidecar.istio.io/inject: 'true'
+    spec:
+      containers:
+      - env:
+        - name: SERVICE_NAME
+          value: itp-gateway
+        - name: NAMESPACE
+          value: itp-gateway
+        image: auto
+        imagePullPolicy: IfNotPresent
+        name: istio-proxy
+        resources:
+          limits:
+            cpu: '2'
+            memory: 2000Mi
+          requests:
+            cpu: '2'
+            memory: 2000Mi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+          runAsUser: 1337
+      securityContext:
+        sysctls:
+        - name: net.ipv4.ip_unprivileged_port_start
+          value: '0'
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    istio: ingressgateway
+    sidecar.istio.io/inject: 'true'
+  name: itp-gateway
+  namespace: itp-gateway
+spec:
+  ports:
+  - name: http
+    port: 50908
+    protocol: TCP
+    targetPort: 8080
+  - name: https
+    port: 45609
+    protocol: TCP
+    targetPort: 443
+  selector:
+    istio: ingressgateway
+    sidecar.istio.io/inject: 'true'
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    istio: ingressgateway
+    sidecar.istio.io/inject: 'true'
+  name: itp-gateway-tgrce-svc
+  namespace: itp-gateway
+spec:
+  ports:
+  - name: http-utc-port
+    port: 8817
+    protocol: TCP
+    targetPort: 8081
+  selector:
+    istio: ingressgateway
+    sidecar.istio.io/inject: 'true'
+  type: ClusterIP

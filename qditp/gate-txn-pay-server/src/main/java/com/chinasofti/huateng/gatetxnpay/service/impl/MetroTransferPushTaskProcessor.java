@@ -17,7 +17,7 @@ import java.util.List;
 /**
  * 公交推送 outbox 的消费入口，任务抢占依赖条件更新，支持多实例并发运行。
  *
- * <p>NEVER 加回 {@code @Scheduled}，已改由 web-admin {@code sys_job} 121 触发（ADR-D80）。
+ * <p>NEVER 加回 {@code @Scheduled}，已改由 web-admin {@code sys_job} 300 触发（2026-09-21 由 121 改号为 300，ADR-D80）。
  */
 @Service
 public class MetroTransferPushTaskProcessor {

@@ -57,8 +57,8 @@
 - **本模块不注册 `@Scheduled` / `@EnableScheduling`**：维护动作由外部调度经
   `POST /card-pools/maintenance` 触发，多副本不会各跑一份。定时配置建在 web-admin：
   任务 Bean `CardPoolQuartzTask`（`web-server/web-admin/.../quartz/task/CardPoolQuartzTask.java`），
-  调用目标 `cardPoolQuartzTask.runMaintenance()`，`sys_job` **job_id=107、cron `0 0/5 * * * ?`**
-  （2026-09-09 创建）。跨服务调用走 `rpc` 的 `CardPoolClient.runMaintenance(headers)`，
+  调用目标 `cardPoolQuartzTask.runMaintenance()`，`sys_job` **job_id=240「卡池数据导入」、cron `0 0/5 * * * ?`**
+  （2026-09-09 创建；2026-09-21 由 107「卡池维护」改号改名）。跨服务调用走 `rpc` 的 `CardPoolClient.runMaintenance(headers)`，
   地址键 `service.cardPool.url`（集群实测形态 `http://card-pool-server-86mc1-svc.itp.svc:30033`）。
   ⚠️ **`accepted=false` 不是失败**：上一轮未结束时服务端限流丢弃本轮，任务侧只打日志不抛异常，
   否则十万行导入期间前台调度日志会长期一片红。
@@ -612,7 +612,7 @@
 - **ADR-D52 那组结论在本模块 `src/main` 注释里没有任何文字**：`release` / `releaseExpired` 附近
   （〔impl〕:364~375、:603~607；〔mapper〕:202~215；〔xml〕:189~211）都只写「释放预占」「回收所有已过期的预占」，
   **没有**「失败分支 NEVER `releaseReservation`」「两条并发请求拿到同一个 `cardNo` 与 `reservationId`」
-  「留给 `sys_job` 107 超时回收」「NEVER 用只有创建者才释放或对 `reservationId` 做 CAS」
+  「留给 `sys_job` 240 超时回收」「NEVER 用只有创建者才释放或对 `reservationId` 做 CAS」
   「确认失败 MUST NOT 返成功、MUST 开 `CARD_POOL_CONFIRM_REJECTED` 工单」这些字样。
   本模块注释里与超时回收有关的只有中性描述「预占超时由维护动作回收」（〔poolProp〕:28~29、〔cardEntity〕:8）。
   这些结论的权威出处是 `AGENTS.md` §5.2 与 `docs/domain/decisions.md` ADR-D52，
@@ -621,7 +621,7 @@
   `card-pool-server/src/test/java/com/chinasofti/huateng/cardpool/service/impl/CardPoolReservationTest.java:189`
   「『8003 暂无卡数据资源』—— 池子里明明有卡。切面已改成原样抛出，本用例锁住 ……」。
   本模块只产出 `code=200 data=null`（〔ctl〕:50），`8003` 是**调用侧**的翻译结果。
-- **`sys_job` 107 / cron `0 0/5 * * * ?` 在本模块注释里没有**：`src/main` 只说「由外部调度」「由 web-admin 的
+- **`sys_job` 240 / cron `0 0/5 * * * ?` 在本模块注释里没有**：`src/main` 只说「由外部调度」「由 web-admin 的
   Quartz 任务或运维按需触发」（〔boot〕:10~11、〔ctl〕:179、〔svc〕:102~103），未写 job_id 与 cron。
   这两个值的出处是本文件正文「编码约束」小节与 `docs/architecture/web-server.md` §七。
 
@@ -661,7 +661,7 @@ SQL 1 个文件（`card-pool-schema.sql`，只有 3 条 `COMMENT ON TABLE`、**�
 3. **⇒ 失败分支 NEVER 调 `releaseReservation`**：兄弟请求可能已 `confirm`、已把卡号写进
    `USER_ITP_REG_INFO` 并对 APP 返 `0000`；此时释放会把卡号抽回池子，形成「账户表已发给 A、
    `LOGIC_CARD_POOL_CARD` 是 `AVAILABLE` 可再发给 B」，只留一行 ERROR 日志。2026-09-14 真实并发实测到。
-4. **⇒ 正确形态是留给对方的超时回收**：`sys_job` 107「卡池维护」cron `0 0/5 * * * ?` →
+4. **⇒ 正确形态是留给对方的超时回收**：`sys_job` 240「卡池数据导入」（2026-09-21 由 107「卡池维护」改号改名）cron `0 0/5 * * * ?` →
    `POST /internal/card-pools/maintenance`（〔ctl〕:176~186「受理一轮卡池维护」）→ `releaseExpired`
    （〔impl〕:603~607、〔mapper〕:211~215「回收所有已过期的预占」）。
 5. **NEVER 用「只有创建者才释放」或对 `reservationId` 做 CAS 来兜** —— 兄弟请求持有的就是同一个 id。
@@ -843,7 +843,7 @@ SQL 1 个文件（`card-pool-schema.sql`，只有 3 条 `COMMENT ON TABLE`、**�
 3. **`ERROR_MSG` 列长口径两说**：〔impl〕:89~92 说「列声明 `VARCHAR2(2000 CHAR)`、物理上限 4000 字节、
    这里留足余量」，而〔batchEntity〕:88~90 与 :383~395 写「最长 1900 字符」。两者不冲突（1900 是留余量后的
    业务口径），但**数字不一致、易被当成矛盾**；未去库上核 `USER_TAB_COLS.CHAR_LENGTH`，**待裁决时 MUST 实测**。
-4. **`sys_job` 107 与 cron `0 0/5 * * * ?` 在本模块代码里查不到**（阶段一 §六 已记）：`src/main` 只说
+4. **`sys_job` 240 与 cron `0 0/5 * * * ?` 在本模块代码里查不到**（阶段一 §六 已记）：`src/main` 只说
    「由外部调度 / web-admin Quartz 或运维触发」。本阶段把 job_id 与 cron 写进 §一，**出处是 AGENTS.md §5.2
    与 `docs/architecture/web-server.md` §七，不是本模块代码** —— 引用时 MUST 现查 `sys_job`。
 5. **`AccSecureProperties` 的 `signKey` 有默认真值风险**：〔accProp〕:51~53 只说「MD5 签名 key，仅 signType=02 时使用」，
@@ -875,7 +875,7 @@ SQL 1 个文件（`card-pool-schema.sql`，只有 3 条 `COMMENT ON TABLE`、**�
 - **任务点名的 8 项**：ADR-D52 完整判据 §一 ✅；`RESERVED`+`ASSIGNED` 可复用 §二 ✅；`reserve` 返 null 两条 §三 ✅；
   `isIntegrityViolation` 与 ADR-D53 §四 ✅；IF7B-01 直连 ACC + FTP 下载 + 入库 §五/§六 ✅；无 `@Scheduled` §七 ✅；
   tracing 三行成组（`application.properties:9~24` 是样板）§八 ✅。
-- **未覆盖 / 降级说明**：①`ERROR_MSG` 真实列长未去库核（矛盾 3）；②`sys_job` 107 / cron 非本模块代码事实（矛盾 4）；
+- **未覆盖 / 降级说明**：①`ERROR_MSG` 真实列长未去库核（矛盾 3）；②`sys_job` 240 / cron 非本模块代码事实（矛盾 4）；
   ③`8003` 只存在于测试注释、正式实现不产出该码；④DDL 无列注释，字段取值域只能以实体 Javadoc 为准。
 - **代码侧保留的一行式护栏（删除阶段后逐条复核过）**：
   1. `card-pool-server/src/main/resources/application.properties` tracing「三行成组、NEVER 只加第一行」

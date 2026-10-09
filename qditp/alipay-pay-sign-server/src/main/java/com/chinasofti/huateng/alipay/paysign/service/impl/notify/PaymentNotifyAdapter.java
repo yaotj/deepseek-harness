@@ -20,7 +20,9 @@ import java.util.Map;
  * 支付中心**通知方向**的出向门面：黑名单状态变更、业务关闭（销卡）结果。
  *
  * <p>本类是这两条通知的**唯一**发起处，三个调用方（支付申请加黑后通知、解约执行器、
- * 出行支付服务的对外门面）都经它出网。
+ * {@code controller/legacy/AlipayNotifyController} 的两条入向 handler）都经它出网。
+ * 最后那个调用方 2026-09-21 起**直连本类**，此前是经 {@code AlipayTripPaymentService} 那个
+ * 跨聚合门面转一跳（拆门面第 1 步），<b>NEVER 回退成经门面</b>。
  *
  * <p><b>两条的成功判据刻意不同、也刻意留在本类内</b>（ADR-D131）：黑名单变更认
  * {@code retCode=0000} / {@code success=true} / {@code code=200} 三者任一（支付中心对通知类接口

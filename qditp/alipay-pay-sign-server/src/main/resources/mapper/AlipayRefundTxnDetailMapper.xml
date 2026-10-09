@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.alipay.paysign.mapper.AlipayRefundTxnDetailMapper">
+    <!--
+      ALIPAY_REFUND_TXN_DETAIL 只有 18 列（2026-09-20 按 AFCITPDB 实测收窄）。
+      此前本文件按 28 列写，多出来的 10 个在 DDL 里从来没有过：
+      THIRD_USER_ID / CARD_ID / CARD_ISSUE_CODE / RET_CODE / RET_MSG /
+      PAY_CENTER_CODE / PAY_CENTER_MSG / IP_ADDRESS / REQUEST_BODY / RESPONSE_BODY。
+      任何一条语句带上它们就是 ORA-00904，NEVER 加回。
+      主体维度去 GATE_TXN_PAY 按 ORDER_NO 回查；报文与应答码留痕去
+      ALIPAY_PAY_CENTER_MSG_LOG（API_NAME 取 requestRefund / refundQuery，REQUEST_NO 填退款单号），
+      理由见 entity/AlipayRefundTxnDetail 的类注释与 sql/alipay-pay-txn-schema.sql。
+    -->
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.alipay.paysign.entity.AlipayRefundTxnDetail">
         <id column="ID" jdbcType="NUMERIC" property="id"/>
         <result column="REFUND_ORDER_NO" jdbcType="VARCHAR" property="refundOrderNo"/>
@@ -8,9 +18,6 @@
         <result column="REFUND_STATUS" jdbcType="VARCHAR" property="refundStatus"/>
         <result column="REFUND_AMOUNT" jdbcType="NUMERIC" property="refundAmount"/>
         <result column="REFUND_REASON" jdbcType="VARCHAR" property="refundReason"/>
-        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
-        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
-        <result column="CARD_ISSUE_CODE" jdbcType="VARCHAR" property="cardIssueCode"/>
         <result column="MERCHANT_REFUND_NO" jdbcType="VARCHAR" property="merchantRefundNo"/>
         <result column="REFUND_NO" jdbcType="VARCHAR" property="refundNo"/>
         <result column="CHANNEL_REFUND_NO" jdbcType="VARCHAR" property="channelRefundNo"/>
@@ -19,27 +26,18 @@
         <result column="LAST_REQUEST_TIME" jdbcType="TIMESTAMP" property="lastRequestTime"/>
         <result column="REFUND_TIME" jdbcType="VARCHAR" property="refundTime"/>
         <result column="TXN_DATE" jdbcType="VARCHAR" property="txnDate"/>
-        <result column="RET_CODE" jdbcType="VARCHAR" property="retCode"/>
-        <result column="RET_MSG" jdbcType="VARCHAR" property="retMsg"/>
-        <result column="PAY_CENTER_CODE" jdbcType="VARCHAR" property="payCenterCode"/>
-        <result column="PAY_CENTER_MSG" jdbcType="VARCHAR" property="payCenterMsg"/>
         <result column="OPERATOR" jdbcType="VARCHAR" property="operator"/>
-        <result column="IP_ADDRESS" jdbcType="VARCHAR" property="ipAddress"/>
         <result column="REMARK" jdbcType="VARCHAR" property="remark"/>
-        <result column="REQUEST_BODY" jdbcType="CLOB" property="requestBody"/>
-        <result column="RESPONSE_BODY" jdbcType="CLOB" property="responseBody"/>
         <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
         <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
     </resultMap>
 
     <sql id="Base_Column_List">
         ID, REFUND_ORDER_NO, ORDER_NO, REFUND_STATUS, REFUND_AMOUNT, REFUND_REASON,
-        THIRD_USER_ID, CARD_ID, CARD_ISSUE_CODE,
         MERCHANT_REFUND_NO, REFUND_NO, CHANNEL_REFUND_NO,
         REQUEST_COUNT, NEXT_REQUEST_TIME, LAST_REQUEST_TIME,
         REFUND_TIME, TXN_DATE,
-        RET_CODE, RET_MSG, PAY_CENTER_CODE, PAY_CENTER_MSG,
-        OPERATOR, IP_ADDRESS, REMARK, REQUEST_BODY, RESPONSE_BODY,
+        OPERATOR, REMARK,
         CREATE_TIME, UPDATE_TIME
     </sql>
     <!-- 新建一笔退款明细。 -->
@@ -53,9 +51,6 @@
             #{refundStatus,jdbcType=VARCHAR},
             #{refundAmount,jdbcType=NUMERIC},
             #{refundReason,jdbcType=VARCHAR},
-            #{thirdUserId,jdbcType=VARCHAR},
-            #{cardId,jdbcType=VARCHAR},
-            #{cardIssueCode,jdbcType=VARCHAR},
             #{merchantRefundNo,jdbcType=VARCHAR},
             #{refundNo,jdbcType=VARCHAR},
             #{channelRefundNo,jdbcType=VARCHAR},
@@ -64,15 +59,8 @@
             #{lastRequestTime,jdbcType=TIMESTAMP},
             #{refundTime,jdbcType=VARCHAR},
             #{txnDate,jdbcType=VARCHAR},
-            #{retCode,jdbcType=VARCHAR},
-            #{retMsg,jdbcType=VARCHAR},
-            #{payCenterCode,jdbcType=VARCHAR},
-            #{payCenterMsg,jdbcType=VARCHAR},
             #{operator,jdbcType=VARCHAR},
-            #{ipAddress,jdbcType=VARCHAR},
             #{remark,jdbcType=VARCHAR},
-            #{requestBody,jdbcType=CLOB},
-            #{responseBody,jdbcType=CLOB},
             #{createTime,jdbcType=TIMESTAMP},
             #{updateTime,jdbcType=TIMESTAMP}
         )
@@ -106,19 +94,25 @@
           AND REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR}
     </select>
 
-    <!-- 调支付中心前留痕：计数 +1、状态置 PROCESSING、落本次请求报文快照。 -->
+    <!--
+      调支付中心前留痕：计数 +1、状态置 PROCESSING。
+      本次请求报文不落这张表（本表没有 REQUEST_BODY 列），MUST 由调用方在出网前后写
+      ALIPAY_PAY_CENTER_MSG_LOG，一次调用一行；那里才留得住每次重试的报文。
+    -->
     <update id="markRequesting">
         UPDATE ALIPAY_REFUND_TXN_DETAIL
         SET REQUEST_COUNT = NVL(REQUEST_COUNT, 0) + 1,
             REFUND_STATUS = 'PROCESSING',
             LAST_REQUEST_TIME = SYSTIMESTAMP,
-            REQUEST_BODY = #{requestBody,jdbcType=CLOB},
             UPDATE_TIME = SYSTIMESTAMP
         WHERE REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
           AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
     </update>
 
-    <!-- 回写支付中心退款受理结果。 -->
+    <!--
+      回写支付中心退款受理结果。应答码不在本表（见文件头那段），
+      判「对端怎么答的」MUST 去 ALIPAY_PAY_CENTER_MSG_LOG 的 RET_CODE / RET_MSG。
+    -->
     <update id="updateRequestResult" parameterType="com.chinasofti.huateng.alipay.paysign.entity.AlipayRefundTxnDetail">
         UPDATE ALIPAY_REFUND_TXN_DETAIL
         SET REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR},
@@ -126,13 +120,59 @@
             REFUND_NO = NVL(#{refundNo,jdbcType=VARCHAR}, REFUND_NO),
             CHANNEL_REFUND_NO = NVL(#{channelRefundNo,jdbcType=VARCHAR}, CHANNEL_REFUND_NO),
             REFUND_TIME = NVL(#{refundTime,jdbcType=VARCHAR}, REFUND_TIME),
-            RET_CODE = #{retCode,jdbcType=VARCHAR},
-            RET_MSG = #{retMsg,jdbcType=VARCHAR},
-            PAY_CENTER_CODE = #{payCenterCode,jdbcType=VARCHAR},
-            PAY_CENTER_MSG = #{payCenterMsg,jdbcType=VARCHAR},
-            RESPONSE_BODY = #{responseBody,jdbcType=CLOB},
+            REMARK = NVL(#{remark,jdbcType=VARCHAR}, REMARK),
             UPDATE_TIME = SYSTIMESTAMP
         WHERE REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
           AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
+    </update>
+
+    <!--
+      退款回调收口：PROCESSING 明细 CAS 成终态。
+      WHERE 里那个 REFUND_STATUS = 'PROCESSING' 是幂等地基，重推第二次影响 0 行，调用方据此判已收口。
+      刻意不带 TXN_DATE：回调报文里只有 outRefundNo、没有交易日；唯一索引 UK_ARTD_REFUND_ORDER
+      的前导列就是 REFUND_ORDER_NO，仍走索引。用当天日期去凑第二列会让跨日回调一行都命中不到。
+    -->
+    <update id="settleFromCallback">
+        UPDATE ALIPAY_REFUND_TXN_DETAIL
+        SET REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR},
+            REMARK = NVL(#{remark,jdbcType=VARCHAR}, REMARK),
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
+          AND REFUND_STATUS = 'PROCESSING'
+    </update>
+
+    <!--
+      退款回查补偿的扫表语句。四要素：状态白名单 + 时间窗口 + 排序 + 外层 ROWNUM 限流。
+      1. 内层先 order by、外层再 ROWNUM，顺序 NEVER 反过来：先截断再排序取到的是任意一批。
+      2. 内层列清单用 Base_Column_List（全是物理列名、没有驼峰别名），因此外层 SELECT * 与
+         BaseResultMap 能对上；一旦给内层起驼峰别名，Oracle 会把别名折叠成大写无下划线，
+         外层再按物理列名引用就是 ORA-00904（AGENTS.md §5.1 有同款事故）。
+      3. NEXT_REQUEST_TIME 闸门是本表的退避手段（旧表 ALIPAY_REFUND_LOG 没有这一列，只能靠静默期），
+         IS NULL 兜住从没退避过的行。
+      4. NVL(UPDATE_TIME, CREATE_TIME) 静默期闸门与退避闸门并存：前者给正常回调留时间，
+         后者给「回查过但没拿到终态」的行降频。
+    -->
+    <select id="selectCompensableRefundQuery" resultMap="BaseResultMap">
+        SELECT * FROM (
+            SELECT <include refid="Base_Column_List"/>
+            FROM ALIPAY_REFUND_TXN_DETAIL
+            WHERE REFUND_STATUS = 'PROCESSING'
+              AND CREATE_TIME &gt;= SYSTIMESTAMP - NUMTODSINTERVAL(#{scanDays,jdbcType=INTEGER}, 'DAY')
+              AND (NEXT_REQUEST_TIME IS NULL OR NEXT_REQUEST_TIME &lt;= SYSTIMESTAMP)
+              AND NVL(UPDATE_TIME, CREATE_TIME) &lt; SYSTIMESTAMP - NUMTODSINTERVAL(#{staleMinutes,jdbcType=INTEGER}, 'MINUTE')
+            ORDER BY NVL(NEXT_REQUEST_TIME, NVL(UPDATE_TIME, CREATE_TIME))
+        ) WHERE ROWNUM &lt;= #{limit,jdbcType=INTEGER}
+    </select>
+
+    <!--
+      回查未得终态时的退避：只推 NEXT_REQUEST_TIME。
+      刻意不动 UPDATE_TIME（那是状态最后一次真实变化的时间），也带 PROCESSING 谓词
+      （期间被回调收口的行不该被这条语句碰）。
+    -->
+    <update id="delayNextRefundQuery">
+        UPDATE ALIPAY_REFUND_TXN_DETAIL
+        SET NEXT_REQUEST_TIME = SYSTIMESTAMP + NUMTODSINTERVAL(#{delaySeconds,jdbcType=INTEGER}, 'SECOND')
+        WHERE REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
+          AND REFUND_STATUS = 'PROCESSING'
     </update>
 </mapper>

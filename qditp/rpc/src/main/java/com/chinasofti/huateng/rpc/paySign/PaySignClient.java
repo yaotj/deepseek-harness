@@ -9,6 +9,7 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayTripTerminateContractReqDTO
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripTerminateContractRespDTO;
 import com.chinasofti.huateng.model.app.PaySignCallbackResult;
 import com.chinasofti.huateng.model.app.ReceivePayResultReqDTO;
+import com.chinasofti.huateng.model.app.ReceiveRefundResultReqDTO;
 import com.chinasofti.huateng.model.app.ReceiveSignResultReqDTO;
 import com.chinasofti.huateng.model.app.ReceiveTerminationResultReqDTO;
 import com.chinasofti.huateng.model.app.RequestContractResultReqDTO;
@@ -29,6 +30,7 @@ import com.chinasofti.huateng.model.paysign.PaySignInfoDTO;
 import com.chinasofti.huateng.model.paysign.PayTxnDetailDTO;
 import com.chinasofti.huateng.model.paysign.ProcessTerminationReqDTO;
 import com.chinasofti.huateng.model.paysign.ProcessTerminationRespDTO;
+import com.chinasofti.huateng.model.paysign.RegisterCompletedPayTxnReqDTO;
 import com.chinasofti.huateng.rpc.outcome.RpcOutcome;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,11 +89,22 @@ public class PaySignClient extends ProxyWebClient {
     }
 
     /**
+     * 支付 API §5.2 退款回调内部转发（2026-09-22 新增，P1-3）。
+     *
+     * <p>与 {@link #receivePayResult} 是**两条独立回调**，NEVER 合并：§5.1 送的是支付结果，
+     * §5.2 送的是退款结果，报文字段与落库表都不同。
+     */
+    public PaySignCallbackResult receiveRefundResult(@RequestBody ReceiveRefundResultReqDTO request) {
+        String result = postJsonAndGetResponse("/ci/app/receiveRefundResult", request);
+        return JSONUtil.toBean(result, new TypeReference<PaySignCallbackResult>() {
+        }, true);
+    }
+
+    /**
      * IF8A-06 请求解约。
      * @param request 请求解约业务参数。
      * @return 请求解约受理结果。
-     */
-    public RequestTerminationResult requestTermination(@RequestBody RequestTerminationReqDTO request) {
+     */    public RequestTerminationResult requestTermination(@RequestBody RequestTerminationReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/requestTermination", request);
         return JSONUtil.toBean(result, new TypeReference<RequestTerminationResult>() {
         }, true);
@@ -260,6 +273,40 @@ public class PaySignClient extends ProxyWebClient {
         String result = postJsonAndGetResponse("/internal/payment/compensateRefundSummary", new java.util.HashMap<>(), headers);
         return JSONUtil.toBean(result, new TypeReference<CompensateNotifyRespDTO>() {
         }, true);
+    }
+
+    /**
+     * 登记一条「已完成、不经支付中心」的支付流水（内部接口 /internal/payment/registerCompletedTxn）。
+     *
+     * <p>用于 BOM 补站（{@code adviceOpt} 005 / 006 / 020）这类「现场已收款、ITP 不扣款」的订单：
+     * 它们走不到 {@code requestPay}，但用户 2026-09-22 裁决「没有 {@code PAY_TXN_DETAIL} 行就不是完整订单」。
+     *
+     * <p><b>调用方 MUST 在落单之前调本方法、失败即整笔失败</b>（用户 2026-09-22 选定强一致口径）：
+     * 顺序颠倒会留下「订单已 SUCCESS、流水缺行」，而这正是本次要消灭的状态；
+     * 本方法按 {@code UK_PAY_TXN_DETAIL_ORDER} 幂等，重试安全。
+     *
+     * @return {@code Ok} 已登记（含「本来就有」）；{@code BizRejected} 参数或口径被拒、重推无用；
+     *         {@code Unreachable} 未获业务答复、可重试。
+     */
+    public RpcOutcome registerCompletedTxn(@RequestBody RegisterCompletedPayTxnReqDTO request) {
+        String result;
+        try {
+            result = postJsonAndGetResponse("/internal/payment/registerCompletedTxn", request);
+        } catch (Exception e) {
+            log.warn("登记已完成支付流水未获业务答复（可重试）, orderNo={}", request.getOrderNo(), e);
+            return new RpcOutcome.Unreachable(e);
+        }
+        if (result == null || result.isEmpty()) {
+            return new RpcOutcome.BizRejected(null, "支付域响应体为空");
+        }
+        try {
+            cn.hutool.json.JSONObject wrapper = JSONUtil.parseObj(result);
+            return RpcOutcome.ofRetCode(wrapper.getStr("retCode"), wrapper.getStr("retMsg"));
+        } catch (Exception e) {
+            log.warn("登记已完成支付流水响应体非JSON（按业务拒绝处理，重推同一报文不会变好）, orderNo={}, result={}",
+                    request.getOrderNo(), result, e);
+            return new RpcOutcome.BizRejected(null, "支付域响应体非JSON");
+        }
     }
 
     /**

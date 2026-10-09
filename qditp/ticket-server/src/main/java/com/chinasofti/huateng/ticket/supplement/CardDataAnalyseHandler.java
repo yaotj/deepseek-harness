@@ -68,18 +68,20 @@ class CardDataAnalyseHandler {
         String unknownStation = stateRules.unknownStationCode();
         String gateInStation = SupplementCodec.defaultString(status.getGateInStation(), unknownStation);
         String lastTxnStation = SupplementCodec.defaultString(status.getLastTxnStation(), unknownStation);
+        String bomStationCode = SupplementCodec.defaultString(request.getBomStationCode(), unknownStation);
 
         String lastLineCode = queryLineCode(lastTxnStation, cardId);
 
         String updateType = SupplementCodec.defaultString(
                 request.getUpdateType(), SupplementCodec.UPDATE_TYPE_FREE_AREA);
         List<String> adviceOpt = stateRules.resolveAdviceOpt(
-                codeStatus, gateInStation, lastTxnStation, updateType, status.getGateInTime(), cardId);
+                codeStatus, gateInStation, lastTxnStation, updateType, status.getGateInTime(), cardId, bomStationCode);
         response.setAdviceOpt(adviceOpt);
 
         String transAmount = SupplementCodec.AMOUNT_ZERO;
         if (adviceOpt.contains(AdviceOptEnum.PAID_UPDATE.getCode())) {
-            transAmount = estimatePayAmount(gateInStation, lastTxnStation, cardId);
+            // 付费更新报价基线：进站站 → BOM 所属站（本次更新站），而非 lastTxnStation（开环态恒等于进站站）
+            transAmount = estimatePayAmount(gateInStation, bomStationCode, cardId);
         }
         response.setTransAmount(transAmount);
 
@@ -123,13 +125,13 @@ class CardDataAnalyseHandler {
         return SupplementCodec.defaultString(lineResult.getLineCode(), "");
     }
 
-    /** 付费更新（{@code 006}）的预估报价。 */
-    private String estimatePayAmount(String gateInStation, String lastTxnStation, String cardId) {
-        if (stateRules.isUnknownStation(lastTxnStation)) {
-            log.warn("IF5A-01 上次交易站未知，付费更新预估按 0 元返回，实扣以 IF5A-03 重算为准, cardId={}", cardId);
+    /** 付费更新（{@code 006}）的预估报价，报价基线为「进站站 → 本次更新站（BOM 所属站）」。 */
+    private String estimatePayAmount(String gateInStation, String exitStation, String cardId) {
+        if (stateRules.isUnknownStation(exitStation)) {
+            log.warn("IF5A-01 更新站未知，付费更新预估按 0 元返回，实扣以 IF5A-03 重算为准, cardId={}", cardId);
             return SupplementCodec.AMOUNT_ZERO;
         }
-        return fareQuery.query(gateInStation, lastTxnStation, "IF5A-01").priceOrZero();
+        return fareQuery.query(gateInStation, exitStation, "IF5A-01").priceOrZero();
     }
 
     /** 查询用户信息，把 msisdn / cardIssueDate 写进 response。 */

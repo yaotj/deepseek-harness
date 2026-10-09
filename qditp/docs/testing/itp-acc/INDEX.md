@@ -56,7 +56,7 @@
   ⚠️ **两处文字未同步**（按 README 约定结果回填不改写链路事实段落，留待下次代码/环境核对）：`01-参数管理.md` 链路事实段的「`sys_job` 记录尚未创建」、`03-阻塞项与缺陷候选.md` A2 的同一表述。
 - 2026-09-09（同日稍后）**补充 card-pool-server 定时维护与链路追踪用例**（`02` 新增「事实基线变更」段 + T003-4~T003-9）。
   变更原因：`card-pool-server` 的 5 分钟卡池维护定时任务与 trace 链路本日上线并实测。
-  链路：web-admin Quartz（`sys_job` job_id=107，cron `0 0/5 * * * ?`）→ `CardPoolClient.runMaintenance` → `POST /internal/card-pools/maintenance`（受理式）→ 平台线程池 `card-pool-maintenance` 异步执行。
+  链路：web-admin Quartz（`sys_job` job_id=107（**现为 240「卡池数据导入」**，2026-09-21 改名改号），cron `0 0/5 * * * ?`）→ `CardPoolClient.runMaintenance` → `POST /internal/card-pools/maintenance`（受理式）→ 平台线程池 `card-pool-maintenance` 异步执行。
   已通过：T003-4 定时准点触发、T003-5 异步线程 traceId 与调度端一致（定时路径 `f4638949…`；手工注入 traceparent 路径 `1111222233334444aaaabbbbccccdddd`）。
   未执行：T003-6 受理式限流、T003-7 tracing 关闭降级、T003-8 失败分支、T003-9 多副本。
   ⚠️ **回归提醒**：`itp/card-pool-server:1.0.13` 曾把异步交接改成「只拷 MDC」（pay-sign 口径），**导致 T003-5 失败**；1.0.14 回退为建子 span。改动 `CardPoolServiceImpl.withTraceContext` 后必须重跑 T003-5。

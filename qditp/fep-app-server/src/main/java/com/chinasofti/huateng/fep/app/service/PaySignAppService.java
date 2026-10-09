@@ -3,6 +3,7 @@ package com.chinasofti.huateng.fep.app.service;
 import com.chinasofti.huateng.model.app.PaySignCallbackResult;
 import com.chinasofti.huateng.model.app.QueryPayTxnBatchReqDTO;
 import com.chinasofti.huateng.model.app.ReceivePayResultReqDTO;
+import com.chinasofti.huateng.model.app.ReceiveRefundResultReqDTO;
 import com.chinasofti.huateng.model.app.ReceiveSignResultReqDTO;
 import com.chinasofti.huateng.model.app.ReceiveTerminationResultReqDTO;
 import com.chinasofti.huateng.model.app.RequestContractResultReqDTO;
@@ -32,6 +33,9 @@ public interface PaySignAppService {
     PaySignCallbackResult receiveSignResult(ReceiveSignResultReqDTO request);
 
     PaySignCallbackResult receivePayResult(ReceivePayResultReqDTO request);
+
+    /** 支付中心网关 §5.2 退款回调转发（2026-09-22 新增，P1-3）。 */
+    PaySignCallbackResult receiveRefundResult(ReceiveRefundResultReqDTO request);
 
     PaySignCallbackResult receiveTerminationResult(ReceiveTerminationResultReqDTO request);
 

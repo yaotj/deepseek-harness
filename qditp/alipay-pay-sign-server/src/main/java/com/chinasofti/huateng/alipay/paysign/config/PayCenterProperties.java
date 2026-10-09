@@ -42,6 +42,14 @@ public class PayCenterProperties {
      */
     private String callbackUrl;
     /**
+     * 退款结果回调地址，对应契约 §3.1 请求退款 bizData 的必填键 {@code notifyUrl}。
+     *
+     * <p>空值时 {@code notifyUrl} 不送、并打 WARN：支付中心只往「本次请求带的 notifyUrl」推退款结果，
+     * 这个键不配等于**永远收不到退款回调**，退款明细只能靠退款回查补偿收口。
+     * 值 MUST 是支付中心侧网络可达的我方地址，形态参照 {@code callbackUrl}。
+     */
+    private String refundNotifyUrl;
+    /**
      * 支付接口固定地址。
      */
     private String requestPayUrl;
@@ -128,6 +136,14 @@ public class PayCenterProperties {
 
     public void setCallbackUrl(String callbackUrl) {
         this.callbackUrl = callbackUrl;
+    }
+
+    public String getRefundNotifyUrl() {
+        return refundNotifyUrl;
+    }
+
+    public void setRefundNotifyUrl(String refundNotifyUrl) {
+        this.refundNotifyUrl = refundNotifyUrl;
     }
 
     public String getRequestPayUrl() {

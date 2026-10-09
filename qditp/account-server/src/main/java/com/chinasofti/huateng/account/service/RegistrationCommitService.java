@@ -10,7 +10,7 @@ public interface RegistrationCommitService {
     /**
      * 向 ticket-server 注册乘车状态（<b>RPC，MUST 在事务外调用</b>）。
      *
-     * <p>NEVER 在失败分支 releaseReservation：预占按 businessId 幂等、是并发请求共享的，超时回收交 {@code sys_job} 107（ADR-D52）。</p>
+     * <p>NEVER 在失败分支 releaseReservation：预占按 businessId 幂等、是并发请求共享的，超时回收交 {@code sys_job} 240（2026-09-21 由 107 改号为 240，ADR-D52）。</p>
      *
      * @param regInfo 已组装完成的注册信息
      * @return ticket-server 的响应；<b>{@code null} 表示不可用</b>，调用方 MUST 视为失败

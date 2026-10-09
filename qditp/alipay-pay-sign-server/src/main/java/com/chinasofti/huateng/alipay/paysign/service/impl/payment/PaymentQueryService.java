@@ -7,6 +7,7 @@ import com.chinasofti.huateng.alipay.paysign.mapper.AlipayPayLogMapper;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
 import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripPayQueryReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripTravelDetailDTO;
 import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripPayQueryRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayNotifyReqDTO;
 import com.chinasofti.huateng.alipay.paysign.port.DebitSyncPort;
@@ -362,11 +363,14 @@ public class PaymentQueryService {
 
         response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
         response.setRetMsg("查询成功");
-        response.setPayOrderNoDate(payLog.getTransTime());
-        response.setPayChannelCode("ALIPAY");
-        response.setTradeOrderNo(payLog.getTradeNo());
-        response.setTotalAmount(payLog.getPayAmount());
-        response.setDebitRequestResult(mapPayStatusToDebitResult(payLog.getPayStatus()));
+        // 业务字段 MUST 包在 data 里（ADR-D150：支付宝侧按 data 解析），NEVER 平铺回顶层。
+        AlipayTripTravelDetailDTO detail = new AlipayTripTravelDetailDTO();
+        detail.setPayOrderNoDate(payLog.getTransTime());
+        detail.setPayChannelCode("ALIPAY");
+        detail.setTradeOrderNo(payLog.getTradeNo());
+        detail.setTotalAmount(payLog.getPayAmount());
+        detail.setDebitRequestResult(mapPayStatusToDebitResult(payLog.getPayStatus()));
+        response.setData(detail);
         log.info("查询乘车记录详情响应结果：{}", JSON.toJSONString(response));
         return response;
     }

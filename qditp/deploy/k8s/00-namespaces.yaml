@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    istio-injection: enabled
+    kubernetes.io/metadata.name: itp
+    project: itp
+  name: itp
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    kubernetes.io/metadata.name: itp-gateway
+    project: itp-gateway
+  name: itp-gateway

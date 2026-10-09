@@ -11,6 +11,13 @@
 -- transAmount / transStatus / cardNo 仍然 NEVER 加回（金额权威是 AMOUNT，状态权威是 PAY_STATUS
 -- 与 GATE_TXN_PAY.DEBIT_STATUS，卡号在主表），本次只加 TRANS_TIME 这一列。
 --
+-- 【已被后续脚本取代的部分，读到这里 MUST 接着看 alipay-pay-txn-detail-trans-time-normalize-migration.sql】
+-- 下面「原文直存不解析」与本文件末尾那条 COMMENT ON 是 2026-09-18 的口径，2026-09-20 已按用户裁决翻转：
+-- 该列现在统一存 14 位 yyyyMMddHHmmss（归一在 alipay-pay-sign-server 1.1.43 的
+-- PayTxnCallbackWriter.normalizeTransTime 做，存量行与列注释由那个 normalize 脚本改掉）。
+-- 本文件保留原样不改 SQL —— 它记录的是「这一列当初为什么加、为什么是 VARCHAR2」，属历史依据；
+-- NEVER 据本文件的注释认为该列仍是报文原文。
+--
 -- 【类型与格式】VARCHAR2(32 CHAR)，与 ALIPAY_PAY_CALLBACK_LOG.TRANS_TIME 同宽。
 -- 原文直存不解析：存量与在途报文格式并不统一，实测既有 '2026-09-18 15:49:30' 也有 '20260918021500'
 -- 两种写法（见 alipay-pay-txn-schema.sql 关于旧表 TRANS_TIME 的说明）。因此 NEVER 建成 DATE /

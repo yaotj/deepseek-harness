@@ -84,38 +84,38 @@ web/src/
 前台（监控管理 → 定时任务） → web-server Quartz → XxxQuartzTask → XxxClient → 下游服务
 ```
 
-已落地四条：`AccountQuartzTask → AccountClient → account-server`（`accountQuartzTask.invokeDemo()`，联调用）、`TBNoticeAppTask → F2FClient → collect-pay-server`（扫码取票通知 App 出票 / 故障 / 退款）、`TerminationQuartzTask → PaySignClient → pay-sign-server`（解约申请确认，`terminationQuartzTask.confirmTermination()`，业务口径「申请满 4 天才确认解约」见 [`../business/pay-sign.md`](../business/pay-sign.md) §解约申请满 4 天才确认）、`AlipayTerminationQuartzTask → AlipayPaySignClient → alipay-pay-sign-server`（支付宝出行销卡，`alipayTerminationQuartzTask.cancelCard()`，每天 2:00，链路见 [`../business/alipay-channel.md`](../business/alipay-channel.md) §支付宝出行销卡链路）。
+已落地四条：`AccountQuartzTask → AccountClient → account-server`（`accountQuartzTask.invokeDemo()`，联调用）、`TBNoticeAppTask → F2FClient → collect-pay-server`（扫码取票通知 App 出票 / 故障 / 退款）、`TerminationQuartzTask → PaySignClient → pay-sign-server`（解约申请确认，`terminationQuartzTask.confirmTermination()`，业务口径「申请满 4 天才确认解约」见 [`../business/pay-sign.md`](../business/pay-sign.md) §解约申请满 4 天才确认）、`AlipayTerminationQuartzTask → AlipayPaySignClient → alipay-pay-sign-server`（支付宝出行销卡，`alipayTerminationQuartzTask.cancelCard()`，**每天 2:30**（2026-09-20 由 2:00 挪来，让位给业主要求的对账 2:00），链路见 [`../business/alipay-channel.md`](../business/alipay-channel.md) §支付宝出行销卡链路）。
 
-2026-09-11 新增第五条：`ReconQuartzTask → ReconClient → recon-server`（日终对账，`reconQuartzTask.runDailyBatch()`，`sys_job` job_id 109，cron `0 30 2 * * ?` 每日一次，`@EnableRpcRecon` + `service.recon.url`）。**它是目前唯一一条「一次调用要跑几分钟」的链路**：recon-server 端同步建批次、下发抽取、再轮询推进到批次收口才返回（`ReconOrchestrationService.runDailyBatch()`），因此 `ReconClient.getResponseTimeout()` 被覆写成 5 分钟、服务端 `recon.orchestration.run-timeout-millis` 是 240 秒，**改任一处 MUST 保证「服务端超时 < 客户端超时」**，否则会出现「web-admin 记失败、recon-server 还在跑」。recon-server 侧**一个 `@Scheduled` 都没有**，频率完全由这条 cron 决定，详见 [`../business/recon.md`](../business/recon.md)。
+2026-09-11 新增第五条：`ReconQuartzTask → ReconClient → recon-server`（日终对账，`reconQuartzTask.runDailyBatch()`，`sys_job` job_id 225（2026-09-21 由 109 改号），cron `0 0 2 * * ?` 每日一次（**2026-09-20 按业主要求由 `0 30 2` 改为 `0 0 2`，同批把 job 260 销卡挪到 `0 30 2` 错开**），`@EnableRpcRecon` + `service.recon.url`）。**它是目前唯一一条「一次调用要跑几分钟」的链路**：recon-server 端同步建批次、下发抽取、再轮询推进到批次收口才返回（`ReconOrchestrationService.runDailyBatch()`），因此 `ReconClient.getResponseTimeout()` 被覆写成 5 分钟、服务端 `recon.orchestration.run-timeout-millis` 是 240 秒，**改任一处 MUST 保证「服务端超时 < 客户端超时」**，否则会出现「web-admin 记失败、recon-server 还在跑」。recon-server 侧**一个 `@Scheduled` 都没有**，频率完全由这条 cron 决定，详见 [`../business/recon.md`](../business/recon.md)。
 
 2026-09-15 新增第六、七条：`GateTxnPayQuartzTask → GateTxnPayClient → gate-txn-pay-server`，两个方法各对应一条 `sys_job`（`gateTxnPayQuartzTask.recoverOfflineFare()` → `POST /internal/gate-txn-pay/offline-fare/recover`，`gateTxnPayQuartzTask.pushMetroTransfer()` → `POST /internal/gate-txn-pay/metro-transfer/push`；cron 均 `0 0/1 * * * ?`，`@EnableRpcGateTxnPay` + `service.gateTxnPay.url`）。**这两条是「模块内 `@Scheduled` 迁过来」的首例**（gate-txn-pay 2.0.73 起那两个 Processor 上已无 `@Scheduled`），因此有一条**别处没有的约束**：`fixedDelay` 语义在 cron 下无法表达，不重叠**只靠 `sys_job.concurrent='1'`（禁止并发）保证**，那一列改成 `'0'` 就是并发重复扣款；公交换乘推送的周期也因此由 10 秒变成 60 秒（用户 2026-09-15 裁决，属外部可感知变化）。两个端点**当前无鉴权**（同一裁决），上线前 MUST 恢复。建表 SQL 在 `scripts/20260915_sys_job_gate_txn_pay_compensate.sql`，详见 `docs/domain/decisions.md` ADR-D80。
 
 > `AlipayPaySignClient` 的 Bean 由已有的 `@EnableRpcPaySign` 一并扫入（该注解的 `basePackages` 同时含 `com.chinasofti.huateng.rpc.paySign` 与 `com.chinasofti.huateng.rpc.alipay.paysign`），**无需**新增 `@EnableRpcXxx`；但地址键是独立的 `service.alipay-pay-sign.url`（注意是中划线，不是 `alipayPaySign`），漏配会落到默认服务名。
 
-⚠️ **这不等于「业务模块不再有定时任务」**。模块内部的落库补偿仍按 AGENTS.md §5.1 用本模块 `@Scheduled` 扫表，**当前仍在跑的只剩两个模块**（2026-09-16 逐模块实测：行首锚定匹配、已排除 Javadoc 注释里的字样）：`face-pay-server`（**7 个、分布在 6 个类**，含补款 `converge` / `closeTimeout`）与 `collect-pay-server/.../task/SingleTicketRefundTask.java`（**4 个**）。已全部迁走、模块内 `@Scheduled` 现为 **0 个** 的是 **`pay-sign-server`**（其 10 个 `/internal/**` 补偿端点**全部由本处 `sys_job` 触发**，排查 MUST 查 `SYS_JOB_LOG`）与 **`gate-txn-pay-server`**（原 `SupplementOrderCloseProcessor` 的补款任务已连同该类**整体迁到 `face-pay-server`**；`MetroTransferPushTaskProcessor` 与 `OfflineFareRecoveryProcessor` 两个类留在本模块但已迁到本处 `sys_job` 120 / 121）。
+⚠️ **这不等于「业务模块不再有定时任务」**。模块内部的落库补偿仍按 AGENTS.md §5.1 用本模块 `@Scheduled` 扫表，**当前仍在跑的只剩两个模块**（2026-09-16 逐模块实测：行首锚定匹配、已排除 Javadoc 注释里的字样）：`face-pay-server`（**7 个、分布在 6 个类**，含补款 `converge` / `closeTimeout`）与 `collect-pay-server/.../task/SingleTicketRefundTask.java`（**4 个**）。已全部迁走、模块内 `@Scheduled` 现为 **0 个** 的是 **`pay-sign-server`**（其 10 个 `/internal/**` 补偿端点**全部由本处 `sys_job` 触发**，排查 MUST 查 `SYS_JOB_LOG`）与 **`gate-txn-pay-server`**（原 `SupplementOrderCloseProcessor` 的补款任务已连同该类**整体迁到 `face-pay-server`**；`MetroTransferPushTaskProcessor` 与 `OfflineFareRecoveryProcessor` 两个类留在本模块但已迁到本处 `sys_job` 295 / 300）。
 
 ⚠️ 本处旧记载「`collect-pay-server/.../task/NoticeAppTask.java`（3 个）」**已作废** —— 该文件仍在但**已无 `@Scheduled`**，collect-pay 的调度实际在 `SingleTicketRefundTask`、是 **4 个**；旧记载把 `pay-sign-server/.../service/AppNotifyService.java` 列为在跑也**已作废**（该模块 0 个 `@Scheduled`）。**NEVER 回退。** 两种方式的分工：**要人工可控（改 Cron / 暂停 / 补跑）的走 web-server Quartz，纯内部重试留在本模块 `@Scheduled`**；同一件事 **NEVER** 两边各建一份。
 
 ### 现行 `sys_job` 全量清单（2026-09-15 实测，16 条）
 
-排查「某个补偿有没有跑」**MUST** 查 `SYS_JOB_LOG`。编号与 cron 以 `web-server/web-quartz/src/main/resources/sql/web-quartz-refund-compensate-job-migration.sql` 头部注释的 `SELECT JOB_ID, JOB_NAME, INVOKE_TARGET, CRON_EXPRESSION FROM SYS_JOB ORDER BY JOB_ID` 实测结果为准（**最大 job_id 是 123，不是 109**）：
+排查「某个补偿有没有跑」**MUST** 查 `SYS_JOB_LOG`。编号与 cron 以 `web-server/web-quartz/src/main/resources/sql/web-quartz-refund-compensate-job-migration.sql` 头部注释的 `SELECT JOB_ID, JOB_NAME, INVOKE_TARGET, CRON_EXPRESSION FROM SYS_JOB ORDER BY JOB_ID` 实测结果为准（**最大 job_id 是 123，不是 109**；这两个号现分别为 310 / 225，2026-09-21 全量重编号后的现行最大编号 MUST 现查）：
 
 | job_id | 名称 | invoke_target | cron |
 |---|---|---|---|
 | 1 / 2 / 3 | 系统默认（无参 / 有参 / 多参） | `ryTask.ryNoParams` / `ryParams` / `ryMultipleParams` | `0/10` `0/15` `0/20` |
 | 4 | 解约申请确认 | `terminationQuartzTask.confirmTermination()` | `0 0 4 * * ?` |
-| 5 | 支付宝出行销卡 | `alipayTerminationQuartzTask.cancelCard()` | `0 0 2 * * ?` |
-| 6 | 签约结果通知补发 | `notifyCompensateQuartzTask.compensateSignNotify()` | `0 0/10 * * * ?` |
-| 7 | 解约结果通知补发 | `notifyCompensateQuartzTask.compensateTerminationNotify()` | `0 5/10 * * * ?` |
-| 105 | 黑名单可解除性盘点 | `blacklistReleaseInspectQuartzTask.inspect()` | `0 0 10,16 * * ?` |
-| 106 | ACC 参数文件同步 | `paraQuartzTask.scanFtpPara()` | `0 2/10 * * * ?` |
-| 107 | 卡池维护 | `cardPoolQuartzTask.runMaintenance()` | `0 0/5 * * * ?` |
-| 108 | 签约展示账号同步补偿 | `accountQuartzTask.compensatePhoneSignSync()` | `0 0/5 * * * ?` |
-| 109 | 日终对账 | `reconQuartzTask.runDailyBatch()` | `0 30 2 * * ?` |
-| 120 | 离线码金额补偿 | `gateTxnPayQuartzTask.recoverOfflineFare()` | `0 0/1 * * * ?` |
-| 121 | 公交换乘推送 | `gateTxnPayQuartzTask.pushMetroTransfer()` | `0 0/1 * * * ?` |
-| 122 | 退款回查补偿 | `refundCompensateQuartzTask.compensateRefundQuery()` | `0 0/10 * * * ?` |
-| 123 | 退款汇总跨表对账 | `refundCompensateQuartzTask.compensateRefundSummary()` | `0 15 * * * ?` |
+| 260 | 支付宝出行销卡（2026-09-21 由 5 改号，中间曾为 265；触发目标与 cron 未变，NEVER 回退成 5 或 265） | `alipayTerminationQuartzTask.cancelCard()` | `0 30 2 * * ?` |
+| 270 | 签约结果通知补发（2026-09-21 由 6 改号） | `notifyCompensateQuartzTask.compensateSignNotify()` | `0 0/10 * * * ?` |
+| 275 | 解约结果通知补发（由 7 改号） | `notifyCompensateQuartzTask.compensateTerminationNotify()` | `0 5/10 * * * ?` |
+| 280 | 黑名单可解除性盘点（由 105 改号） | `blacklistReleaseInspectQuartzTask.inspect()` | `0 0 10,16 * * ?` |
+| 285 | ACC 参数文件同步（由 106 改号） | `paraQuartzTask.scanFtpPara()` | `0 2/10 * * * ?` |
+| 240 | 卡池数据导入（2026-09-21 由 107「卡池维护」改名改号） | `cardPoolQuartzTask.runMaintenance()` | `0 0/5 * * * ?` |
+| 290 | 签约展示账号同步补偿（由 108 改号） | `accountQuartzTask.compensatePhoneSignSync()` | `0 0/5 * * * ?` |
+| 225 | 给ACC上传扣费交易（由 109「日终对账」改名改号） | `reconQuartzTask.runDailyBatch()` | `0 0 2 * * ?` |
+| 295 | 离线码金额补偿（由 120 改号） | `gateTxnPayQuartzTask.recoverOfflineFare()` | `0 0/1 * * * ?` |
+| 300 | 公交换乘推送（由 121 改号） | `gateTxnPayQuartzTask.pushMetroTransfer()` | `0 0/1 * * * ?` |
+| 305 | 退款回查补偿（由 122 改号） | `refundCompensateQuartzTask.compensateRefundQuery()` | `0 0/10 * * * ?` |
+| 310 | 退款汇总跨表对账（由 123 改号） | `refundCompensateQuartzTask.compensateRefundSummary()` | `0 15 * * * ?` |
 
 ⚠️ Quartz 用**内存 JobStore**：任务只在 web-admin 启动时由 `@PostConstruct` 从 `sys_job` 全量加载，**运行期直接 INSERT 不会生效**，MUST 重启 web-admin、或在后台对任务做一次修改保存才会注册进调度器；`misfire_policy='3'`（不补跑）意味着重启期间错过的调度不追补。其余列照现有行抄：`job_group='DEFAULT'`、`concurrent='1'`（禁止并发）、`status='0'`。
 
@@ -323,12 +323,12 @@ end   = create_time + query-window-after-millis
   最大 JOB_ID 是 121（不是 109），故新增取 122 / 123」）：
   `1 ryTask.ryNoParams 0/10 * * * * ?`、`2 ryTask.ryParams('ry') 0/15 * * * * ?`、
   `3 ryTask.ryMultipleParams(...) 0/20 * * * * ?`、`4 terminationQuartzTask.confirmTermination(...) 0 0 4 * * ?`、
-  `5 alipayTerminationQuartzTask.cancelCard() 0 0 2 * * ?`、
+  `5 alipayTerminationQuartzTask.cancelCard() 0 30 2 * * ?`、
   `6 notifyCompensateQuartzTask.compensateSignNotify() 0 0/10 * * * ?`、
   `7 notifyCompensateQuartzTask.compensateTerminationNotify() 0 5/10 * * * ?`、
   `105 blacklistReleaseInspectQuartzTask.inspect() 0 0 10,16 * * ?`、
-  `106 paraQuartzTask.scanFtpPara() 0 2/10 * * * ?`、`107 cardPoolQuartzTask.runMaintenance() 0 0/5 * * * ?`、
-  `108 accountQuartzTask.compensatePhoneSignSync() 0 0/5 * * * ?`、`109 reconQuartzTask.runDailyBatch() 0 30 2 * * ?`、
+  `106 paraQuartzTask.scanFtpPara() 0 2/10 * * * ?`、`240 cardPoolQuartzTask.runMaintenance() 0 0/5 * * * ?`、
+  `108 accountQuartzTask.compensatePhoneSignSync() 0 0/5 * * * ?`、`109 reconQuartzTask.runDailyBatch() 0 0 2 * * ?`、
   `120 gateTxnPayQuartzTask.recoverOfflineFare() 0 0/1 * * * ?`、`121 gateTxnPayQuartzTask.pushMetroTransfer() 0 0/1 * * * ?`。
 - 【契约】**本脚本新建的两条**（同文件 `:56~66`）：`122 退款回查补偿 refundCompensateQuartzTask.compensateRefundQuery() 0 0/10 * * * ?`、
   `123 退款汇总跨表对账 refundCompensateQuartzTask.compensateRefundSummary() 0 15 * * * ?`；
@@ -336,8 +336,8 @@ end   = create_time + query-window-after-millis
   「间隔必须大于下游 staleMinutes=5 分钟，禁止单次调度内循环。停用会让退款单永久悬挂。单条结果看 REFUND_STATUS，不要看 submitted」。
 - 【契约】**其余列的取值口径**（同文件 `:31~36`）：「其余列取值照现有行抄：job_group='DEFAULT'、misfire_policy='3'、
   concurrent='1'（禁止并发）、status='0'（正常）、create_by='admin'」；幂等做法是「先 DELETE 这两个 JOB_ID 再 INSERT，
-  重复执行不会撞主键」；「JOB_ID 是 IDENTITY 列但可显式赋值，与 sys_job 现有 105~121 那批同一做法」。
-- 【陷阱】**job 123 remark 里的「不可自愈记录条数」是时点快照**（同文件 `:38~48`）：原文「引用前 MUST 现查」并给出
+  重复执行不会撞主键」；「JOB_ID 是 IDENTITY 列但可显式赋值，与 sys_job 现有 105~121 那批同一做法」（现已全量重编号到 200~340 区间）。
+- 【陷阱】**job 310 remark 里的「不可自愈记录条数」是时点快照**（2026-09-21 由 123 改号）（同文件 `:38~48`）：原文「引用前 MUST 现查」并给出
   `SELECT COUNT(DISTINCT R.ORDER_NO) FROM PAY_REFUND_DETAIL R WHERE R.REFUND_STATUS='SUCCESS' AND NOT EXISTS (...)`；
   「该值只会随「退款回查收口成功」而**增加**」；「本脚本初版写「当前6条」，当天 2.0.88 修掉 refundQuery 字段名缺陷（ADR-D92）、
   收口 RF2026062516090566197559552 之后即变成 7 条」；结论是「**NEVER 把这个数字当成告警阈值或断言基线**」。
@@ -877,8 +877,8 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
 19. `web-admin/.../quartz/task/GateTxnPayQuartzTask.java:20` 与 `ReconQuartzTask.java:19~20` —
     禁止在 gate-txn-pay-server / recon-server 里加回 `@Scheduled` — **可断言但跨模块**
     （对那两个模块的源码或字节码做静态断言；本模块内无法验证，建议放到各自模块的架构测试里）。
-20. `web-admin/.../quartz/task/GateTxnPayQuartzTask.java:48` — 禁止把 job 120/121 的 `concurrent` 改成允许 — **可断言**
-    （DB 断言 `sys_job` 中 `job_id in (120,121)` 的 `concurrent='1'`、`misfire_policy='3'`）。
+20. `web-admin/.../quartz/task/GateTxnPayQuartzTask.java:48` — 禁止把 job 295/300 的 `concurrent` 改成允许 — **可断言**
+    （DB 断言 `sys_job` 中 `job_id in (295,300)` 的 `concurrent='1'`、`misfire_policy='3'`）。
 21. `web-admin/.../quartz/task/GateTxnPayQuartzTask.java:83` — 禁止两条任务各写一份收口判定 — **不可断言**
     （结构约束，只能靠评审）。
 22. `web-admin/.../quartz/task/NotifyCompensateQuartzTask.java:23~27` — 禁止在单次调度内循环排空；
@@ -1009,9 +1009,9 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
 ### 附C、现行 `sys_job` 全量清单（16 条，编号 + cron）
 
 依据 `web-quartz/src/main/resources/sql/web-quartz-refund-compensate-job-migration.sql` 头部注释
-（原 `:1~43`，grep 「编号依据：2026-09-15 实测」）里那份 14 行实测清单，加上该脚本自己新增的 122 / 123。
+（原 `:1~43`，grep 「编号依据：2026-09-15 实测」）里那份 14 行实测清单，加上该脚本自己新增的 122 / 123（现为 305 / 310）。
 **该脚本已把这份清单写在注释里，本节是它的迁移目的地；`JOB_ID` 是 IDENTITY 列但可显式赋值**
-（与现有 105~121 那批同一做法），脚本用「先 DELETE 再 INSERT」保证幂等。
+（与现有 105~121 那批同一做法（现已全量重编号到 200~340 区间）），脚本用「先 DELETE 再 INSERT」保证幂等。
 
 | job_id | 名称 | invokeTarget | cron |
 |---|---|---|---|
@@ -1019,18 +1019,18 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
 | 2 | 系统默认（有参） | `ryTask.ryParams('ry')` | `0/15 * * * * ?` |
 | 3 | 系统默认（多参） | `ryTask.ryMultipleParams(...)` | `0/20 * * * * ?` |
 | 4 | 解约申请确认 | `terminationQuartzTask.confirmTermination(...)` | `0 0 4 * * ?` |
-| 5 | 支付宝出行销卡 | `alipayTerminationQuartzTask.cancelCard()` | `0 0 2 * * ?` |
-| 6 | 签约结果通知补发 | `notifyCompensateQuartzTask.compensateSignNotify()` | `0 0/10 * * * ?` |
-| 7 | 解约结果通知补发 | `notifyCompensateQuartzTask.compensateTerminationNotify()` | `0 5/10 * * * ?` |
-| 105 | 黑名单可解除性盘点 | `blacklistReleaseInspectQuartzTask.inspect()` | `0 0 10,16 * * ?` |
-| 106 | ACC 参数文件同步 | `paraQuartzTask.scanFtpPara()` | `0 2/10 * * * ?` |
-| 107 | 卡池维护 | `cardPoolQuartzTask.runMaintenance()` | `0 0/5 * * * ?` |
-| 108 | 签约展示账号同步补偿 | `accountQuartzTask.compensatePhoneSignSync()` | `0 0/5 * * * ?` |
-| 109 | 日终对账 | `reconQuartzTask.runDailyBatch()` | `0 30 2 * * ?` |
-| 120 | 离线码金额补偿 | `gateTxnPayQuartzTask.recoverOfflineFare()` | `0 0/1 * * * ?` |
-| 121 | 公交换乘推送 | `gateTxnPayQuartzTask.pushMetroTransfer()` | `0 0/1 * * * ?` |
-| 122 | 退款回查补偿 | `refundCompensateQuartzTask.compensateRefundQuery()` | `0 0/10 * * * ?` |
-| 123 | 退款汇总跨表对账 | `refundCompensateQuartzTask.compensateRefundSummary()` | `0 15 * * * ?` |
+| 260 | 支付宝出行销卡（2026-09-21 由 5 改号，中间曾为 265；触发目标与 cron 未变，NEVER 回退成 5 或 265） | `alipayTerminationQuartzTask.cancelCard()` | `0 30 2 * * ?` |
+| 270 | 签约结果通知补发（2026-09-21 由 6 改号） | `notifyCompensateQuartzTask.compensateSignNotify()` | `0 0/10 * * * ?` |
+| 275 | 解约结果通知补发（由 7 改号） | `notifyCompensateQuartzTask.compensateTerminationNotify()` | `0 5/10 * * * ?` |
+| 280 | 黑名单可解除性盘点（由 105 改号） | `blacklistReleaseInspectQuartzTask.inspect()` | `0 0 10,16 * * ?` |
+| 285 | ACC 参数文件同步（由 106 改号） | `paraQuartzTask.scanFtpPara()` | `0 2/10 * * * ?` |
+| 240 | 卡池数据导入（2026-09-21 由 107「卡池维护」改名改号） | `cardPoolQuartzTask.runMaintenance()` | `0 0/5 * * * ?` |
+| 290 | 签约展示账号同步补偿（由 108 改号） | `accountQuartzTask.compensatePhoneSignSync()` | `0 0/5 * * * ?` |
+| 225 | 给ACC上传扣费交易（由 109「日终对账」改名改号） | `reconQuartzTask.runDailyBatch()` | `0 0 2 * * ?` |
+| 295 | 离线码金额补偿（由 120 改号） | `gateTxnPayQuartzTask.recoverOfflineFare()` | `0 0/1 * * * ?` |
+| 300 | 公交换乘推送（由 121 改号） | `gateTxnPayQuartzTask.pushMetroTransfer()` | `0 0/1 * * * ?` |
+| 305 | 退款回查补偿（由 122 改号） | `refundCompensateQuartzTask.compensateRefundQuery()` | `0 0/10 * * * ?` |
+| 310 | 退款汇总跨表对账（由 123 改号） | `refundCompensateQuartzTask.compensateRefundSummary()` | `0 15 * * * ?` |
 
 **清单外的列取值一律照现有行抄**：`job_group='DEFAULT'`、`misfire_policy='3'`（错过不补跑）、
 `concurrent='1'`（**注意 `'0'` 才是允许并发**）、`status='0'`、`create_by='admin'`。
@@ -1043,7 +1043,7 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
 
 **cron 与「开始即入库」的连带效应**：`SYS_JOB_LOG` 现在每次执行落两次写（插 + 回写），
 **cron 每打密一档，那张表日增行数就翻一档**（原 `GateTxnPayQuartzTask.java:58~64`，
-grep 「cron 每打密一档那张表日增行数就翻一档」）。120 / 121 两条是每分钟一轮。
+grep 「cron 每打密一档那张表日增行数就翻一档」）。295 / 300 两条是每分钟一轮。
 
 ### 附D、web-admin `quartz/task` 任务类：收口判据与逐类差异
 
@@ -1064,10 +1064,10 @@ grep 「cron 每打密一档那张表日增行数就翻一档」）。120 / 121 
    `confirmTermination` **在单次调度内循环排空**直到 cutoff 前无待处理；
    **整个循环复用同一个 request、cutoff 固定不变，NEVER 每轮重取当前时间**（边界会随耗时漂移、
    刚好卡边界的申请被漏掉）。另有「单次调度内最多调下游多少轮」的上限常量（grep 「单次调度内最多调下游多少轮」）。
-2. **`AlipayTerminationQuartzTask`（job 5）**：同样是循环排空 + cutoff 固定；
+2. **`AlipayTerminationQuartzTask`（job 260，2026-09-21 由 5 改号）**：同样是循环排空 + cutoff 固定；
    补跑入口示例 `alipayTerminationQuartzTask.cancelCard('20260907')`，参数 `yyyyMMdd` 或 `yyyyMMddHHmmss`，
    只处理登记时间早于它的记录。
-3. **`NotifyCompensateQuartzTask`（job 6 / 7）**：两个入口扫**不同的表**
+3. **`NotifyCompensateQuartzTask`（job 270 / 275，由 6 / 7 改号）**：两个入口扫**不同的表**
    （`compensateSignNotify` → `APP_PAY_SIGN_REQUEST`，`compensateTerminationNotify` → `APP_TERMINATION_REQUEST`），
    pay-sign 侧也是两个独立接口，**不可互相替代**，前台各建一条 `sys_job`。
    **NEVER 在单次调度内循环排空**：下游在提交重发**之前**就同步递增 `NOTIFY_RETRY_COUNT` 并置 FAILED，
@@ -1075,7 +1075,7 @@ grep 「cron 每打密一档那张表日增行数就翻一档」）。120 / 121 
    **几秒内把重试预算烧光**。排空只能靠 cron，**调度间隔 MUST 大于下游 `PENDING_STALE_MINUTES`=10 分钟**。
    **NEVER 用 `submitted` 判断通知是否送达** —— 它只代表「提交成功」，真实结果由下游异步回写
    `NOTIFY_STATUS` / `NOTIFY_RESULT`。
-4. **`RefundCompensateQuartzTask`（job 122 / 123）**：两个入口是两件不同的事，也不可互替。
+4. **`RefundCompensateQuartzTask`（job 305 / 310，由 122 / 123 改号）**：两个入口是两件不同的事，也不可互替。
    - `compensateRefundQuery` → `POST /internal/payment/compensateRefundQuery`，扫 `PAY_REFUND_DETAIL`
      停在 `PROCESSING` 的退款单，**会出网**调支付中心 §3.2 `refundQuery` 回查并 CAS 收口；
      它是 `requestRefund` 摘掉 `@Transactional` 后的配套补偿，**停掉等于让那批单子永久悬挂**。
@@ -1094,7 +1094,7 @@ grep 「cron 每打密一档那张表日增行数就翻一档」）。120 / 121 
      收口 `RF2026062516090566197559552` 后即变 7 条（第 7 条 `ORDER_NO` 280638294097559552）——
      **「改一行 remark 就过期一次」本身就是「不要写死数字」的判据**。
 
-5. **`GateTxnPayQuartzTask`（job 120 / 121）**：**这两条补偿链路的唯一调度源**。
+5. **`GateTxnPayQuartzTask`（job 295 / 300，由 120 / 121 改号）**：**这两条补偿链路的唯一调度源**。
    gate-txn-pay-server 2.0.73 起 `OfflineFareRecoveryProcessor` / `MetroTransferPushTaskProcessor`
    都没有 `@Scheduled`，频率完全由 cron 决定；**NEVER 在那两个类上加回 `@Scheduled`** ——
    两套调度源互不知情，**离线码那条会并发发起扣款**。
@@ -1107,23 +1107,23 @@ grep 「cron 每打密一档那张表日增行数就翻一档」）。120 / 121 
    实际只在「无响应 / 不可达」时生效；**本轮结论在 `retMsg` 里、会进 `sys_job_log`，
    排查「补偿为什么不动」MUST 先看那一列**（能区分「开关未开启」「扫表异常」「本轮 0 笔」三种情形）。
    两条任务共用一个收口判定方法，**NEVER 让两条各写一份**。
-6. **`ReconQuartzTask`（job 109）**：**日终对账的唯一调度源**，recon-server 已按用户 2026-09-11 要求
+6. **`ReconQuartzTask`（job 225，由 109 改号）**：**日终对账的唯一调度源**，recon-server 已按用户 2026-09-11 要求
    删掉 `@EnableScheduling`、一个 `@Scheduled` 都没有；**NEVER 在 recon-server 那边加回**
    （两套调度源会重复建批次与重复投递）。账期由下游按 `recon.orchestration.window-offset-days` 推算（T-2 日），
    **本任务不传参 ⇒ 重复触发幂等**。下游**同步**跑完才返回，单次实测约 60 秒、上限由
    `recon.orchestration.run-timeout-millis`（默认 4 分钟）控制，因此**执行策略建议「禁止并发」**。
-7. **`CardPoolQuartzTask`（job 107）**：card-pool-server **本模块不注册 `@Scheduled`**，
+7. **`CardPoolQuartzTask`（job 240，原 107）**：card-pool-server **本模块不注册 `@Scheduled`**，
    卡池的回收 / 补货 / 批次推进全靠本任务，**这个 Bean 一旦不跑，卡池只会被消耗、不会被补充**。
    下游是**受理式**接口：提交给单线程维护池后立刻返回，ACC 申请 / FTP 下载 / 十万行入库都在下游后台跑
    ⇒ **本方法返回成功只代表「已受理」，NEVER 当成「这一轮已导完」**（结果看下游日志与
    `/card-pools/summary` 水位）。**`accepted=false`（上一轮未结束）不抛异常**：
    一次十万行导入远超 5 分钟间隔，常态会被限流丢弃，抛异常会让调度日志长期一片红、真故障被淹掉。
-8. **`ParaQuartzTask`（job 106）**：**NEVER 在单次调度内循环重扫** —— para-server 的判据是
+8. **`ParaQuartzTask`（job 285，由 106 改号）**：**NEVER 在单次调度内循环重扫** —— para-server 的判据是
    「版本号 + MD5」，同一批文件第一轮就收敛，再扫只会重复下载 500KB 拿到全 skipped；提高时效性 MUST 调 cron。
-9. **`AccountQuartzTask`（job 108）**：触发 account-server 扫 `USER_PHONE_CHANGE_LOG` 里
+9. **`AccountQuartzTask`（job 290，由 108 改号）**：触发 account-server 扫 `USER_PHONE_CHANGE_LOG` 里
    `SIGN_SYNC_STATUS` 为 PENDING / FAILED 的行，逐条向支付域重推显示账号；**扫描范围与批量上限由下游决定，
    本任务不传参**。
-10. **`BlacklistReleaseInspectQuartzTask`（job 105）**：**只读盘点，NEVER 解除任何黑名单**。
+10. **`BlacklistReleaseInspectQuartzTask`（job 280，由 105 改号）**：**只读盘点，NEVER 解除任何黑名单**。
     它把每条记录的欠费事实（闸机出站扣费 + 支付宝出行两个源）查清后输出日志，由人工据 `REASON` 判断。
     不直接删的理由：`BLACKLIST` 只有 5 列、**没有拉黑类型字段**，`REASON` 是四个来源混写的自由文本，
     生产实测 35 条 ADD 里 22 条是「用户挂失补卡」——与欠费无关，按「欠费结清」删掉等于**让挂失旧卡恢复过闸**。

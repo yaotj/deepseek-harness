@@ -57,7 +57,7 @@
 本模块的 FTP 只做**编码设备任务与报告文件**，与 ACC 对账和逻辑卡号文件**彻底无关**。
 `docs/接口规范文档/ACC与ITP之间的文件.docx` 描述的两类文件接口已由其他模块落地：
 
-- **ITP → ACC 对账文件（EXP / PAY / BUS / DETAIL）** → `recon-server` + 三个源服务（gate-txn-pay / collect-pay / daily-ticket），详见 `docs/business/recon.md`
+- **ITP → ACC 对账文件（EXP / PAY / BUS / DETAIL）** → `recon-server` + **四个源服务**（gate-txn-pay / collect-pay / daily-ticket / **face-pay**；**本行此前写「三个源服务」已过期、NEVER 回退**），详见 `docs/business/recon.md`
 - **ACC → ITP 逻辑卡号文件** → `card-pool-server`，IF7B-01 直连 ACC 申请批次 + FTP 下载卡号文件 + 入库卡池，详见 `docs/business/card-pool.md`
 
 接到这两类需求 **MUST** 跳到对应模块的提示词文档，**NEVER** 在本模块找对账或逻辑卡号代码。

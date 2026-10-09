@@ -7,6 +7,7 @@ import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderView;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundQuery;
 import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundView;
 import com.chinasofti.huateng.dailyticket.page.TravelTicketSubRefundRequest;
+import com.chinasofti.huateng.dailyticket.service.DailyTicketRefundQueryService;
 import com.chinasofti.huateng.dailyticket.service.DailyTicketService;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderNoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayQueryResult;
@@ -28,9 +29,12 @@ public class DailyTicketRefundController {
     private static final String TRAVEL_TICKET_ORDER_TYPE = "2";
 
     private final DailyTicketService dailyTicketService;
+    private final DailyTicketRefundQueryService refundQueryService;
 
-    public DailyTicketRefundController(DailyTicketService dailyTicketService) {
+    public DailyTicketRefundController(DailyTicketService dailyTicketService,
+                                       DailyTicketRefundQueryService refundQueryService) {
         this.dailyTicketService = dailyTicketService;
+        this.refundQueryService = refundQueryService;
     }
 
     @GetMapping("/orders")
@@ -38,7 +42,7 @@ public class DailyTicketRefundController {
         if (!validPeriod(query == null ? null : query.getBeginTime(), query == null ? null : query.getEndTime())) {
             return ResultMapper.illegalParams("开始时间不能晚于结束时间");
         }
-        return dailyTicketService.pageRefundOrders(query);
+        return refundQueryService.pageRefundOrders(query);
     }
 
     @PostMapping("/request")
@@ -87,12 +91,12 @@ public class DailyTicketRefundController {
         if (!validPeriod(query == null ? null : query.getBeginTime(), query == null ? null : query.getEndTime())) {
             return ResultMapper.illegalParams("开始时间不能晚于结束时间");
         }
-        return dailyTicketService.pageRefundRecords(query);
+        return refundQueryService.pageRefundRecords(query);
     }
 
     @GetMapping("/travel/{orderNo}/sub-orders")
     public ResultVO<java.util.List<DailyTicketRefundOrderView>> listTravelSubOrders(@PathVariable String orderNo) {
-        return dailyTicketService.listTravelSubRefundOrders(orderNo);
+        return refundQueryService.listTravelSubRefundOrders(orderNo);
     }
 
     @PostMapping("/travel/sub-refund")

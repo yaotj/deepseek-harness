@@ -5,6 +5,8 @@ import com.alibaba.fastjson2.JSONObject;
 import com.chinasofti.huateng.fep.app.service.DailyTicketAppService;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketActivateReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketBaseResult;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketFreeOrderReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketFreeOrderResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderNoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderResult;
@@ -14,6 +16,7 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundCallbackReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketSyncOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderResult;
@@ -54,6 +57,22 @@ public class DailyTicketAppServiceImpl implements DailyTicketAppService {
         log.info("call daily-ticket requestTravelOrder request={}", JSON.toJSONString(request));
         TravelTicketOrderResult result = dailyTicketClient.requestTravelOrder(request);
         log.info("call daily-ticket requestTravelOrder response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    @Override
+    public DailyTicketFreeOrderResult requestOrderFree(DailyTicketFreeOrderReqDTO request) {
+        log.info("call daily-ticket requestOrderFree request={}", JSON.toJSONString(request));
+        DailyTicketFreeOrderResult result = dailyTicketClient.requestOrderFree(request);
+        log.info("call daily-ticket requestOrderFree response={}", JSON.toJSONString(result));
+        return result;
+    }
+
+    @Override
+    public DailyTicketBaseResult syncOrder(DailyTicketSyncOrderReqDTO request) {
+        log.info("call daily-ticket syncOrder request={}", JSON.toJSONString(request));
+        DailyTicketBaseResult result = dailyTicketClient.syncOrder(request);
+        log.info("call daily-ticket syncOrder response={}", JSON.toJSONString(result));
         return result;
     }
 
@@ -154,6 +173,8 @@ public class DailyTicketAppServiceImpl implements DailyTicketAppService {
             request.setPaymentOrderNo(callbackData.getString("orderNo"));
             request.setPayResult(callbackData.getString("status"));
             request.setPayAmount(firstInteger(callbackData.getInteger("cashAmount"), callbackData.getInteger("totalAmount")));
+            request.setCashAmount(callbackData.getInteger("cashAmount"));
+            request.setCouponAmount(callbackData.getInteger("couponAmount"));
             request.setPayDate(parsePayDate(callbackData.getString("payTime")));
             request.setPayChannel(callbackData.getString("paymentVendor"));
             request.setRawBody(requestBody);

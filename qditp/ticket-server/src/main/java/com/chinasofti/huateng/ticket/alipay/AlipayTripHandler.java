@@ -4,6 +4,7 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListRespDTO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripTravelDetailDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripTravelRecordDTO;
 import com.chinasofti.huateng.model.app.RequestStationNameReqDTO;
 import com.chinasofti.huateng.model.app.RequestStationNameResult;
@@ -83,9 +84,8 @@ public class AlipayTripHandler {
     public AlipayTripFindTravelDetailRespDTO alipayTripFindTravelDetail(AlipayTripFindTravelDetailReqDTO request) {
         AlipayTripFindTravelDetailRespDTO response = new AlipayTripFindTravelDetailRespDTO();
         try {
-            log.info("支付宝出行-查询乘车记录详情, thirdUserId={}, handleDateTime={}, trxType={}, orderNo={}, cardId={}",
-                    request.getThirdUserId(), request.getHandleDateTime(), request.getTrxType(),
-                    request.getOrderNo(), request.getCardId());
+            log.info("支付宝出行-查询乘车记录详情, thirdUserId={}, orderNo={}",
+                    request.getThirdUserId(), request.getOrderNo());
 
             AlipayTripTravelRecordDTO record = queryRecord(request);
             if (record == null) {
@@ -138,24 +138,20 @@ public class AlipayTripHandler {
         return size;
     }
 
+    /**
+     * 按 orderNo 查明细。
+     *
+     * <p>原先还有一支「按 thirdUserId + handleDateTime + trxType 查」，随 R6 表147 把请求契约收窄成
+     * thirdUserId + orderNo 后已无入参来源，整支删除。NEVER 加回 —— 那三个字段在
+     * {@code AlipayTripFindTravelDetailReqDTO} 里已不存在。
+     */
     private AlipayTripTravelRecordDTO queryRecord(AlipayTripFindTravelDetailReqDTO request) {
-        String queryType;
-        if (StringUtils.hasText(request.getHandleDateTime()) && StringUtils.hasText(request.getTrxType())) {
-            queryType = "byUserAndDateTime";
-            log.info("支付宝出行-按用户和时间查询, thirdUserId={}, handleDateTime={}, trxType={}",
-                    request.getThirdUserId(), request.getHandleDateTime(), request.getTrxType());
-            return qrCodeTxnDetailMapper.selectAlipayTravelDetailByUserAndDateTime(
-                    request.getThirdUserId(), request.getHandleDateTime(), request.getTrxType());
-        } else if (StringUtils.hasText(request.getOrderNo())) {
-            queryType = "byOrderNo";
-            log.info("支付宝出行-按订单号查询, orderNo={}", request.getOrderNo());
-            return qrCodeTxnDetailMapper.selectAlipayTravelDetailByOrderNo(request.getOrderNo());
-        } else {
-            queryType = "none";
-            log.warn("支付宝出行-无有效查询条件: thirdUserId={}, handleDateTime={}, trxType={}, orderNo={}",
-                    request.getThirdUserId(), request.getHandleDateTime(), request.getTrxType(), request.getOrderNo());
+        if (!StringUtils.hasText(request.getOrderNo())) {
+            log.warn("支付宝出行-无有效查询条件: thirdUserId={}, orderNo 为空", request.getThirdUserId());
             return null;
         }
+        log.info("支付宝出行-按订单号查询, orderNo={}", request.getOrderNo());
+        return qrCodeTxnDetailMapper.selectAlipayTravelDetailByOrderNo(request.getOrderNo());
     }
 
     private void enrichStationNamesForAlipay(List<AlipayTripTravelRecordDTO> records) {
@@ -227,6 +223,11 @@ public class AlipayTripHandler {
         dto.setPayTradeOrderNo(record.getPayTradeOrderNo());
         dto.setPayOrderNoDate(record.getPayOrderNoDate());
         dto.setDebitRequestResult(record.getDebitRequestResult());
+        // companionFlag / countingTimes / countingFlag 在本链路**恒为空**，且 NEVER 改成透传 record：
+        // 本类的数据源是 QRCODE_TXN_DETAIL，`alipayTripTravelRecordResultMap` 里 companionFlag 映射的是
+        // TRX_TYPE、ticketCode 映射的是 CARD_TYPE（错映射），countingTimes / countingFlag 压根没映射。
+        // 透传等于把「交易类型」当成同行标志答给 APP。这三个字段的正确来源是 GATE_TXN_PAY，
+        // 已在 trans-query-server 的 AlipayTravelQueryHandler 按那条口径实现（2026-09-18）。
         dto.setCompanionFlag("");
         dto.setCardNum(record.getCardNum());
         dto.setTicketCode(record.getTicketCode());
@@ -238,21 +239,24 @@ public class AlipayTripHandler {
     private void fillResponse(AlipayTripFindTravelDetailRespDTO response, AlipayTripTravelRecordDTO dto) {
         response.setRetCode(TicketErrorCodeEnum.SUCCESS.getCode());
         response.setRetMsg(TicketErrorCodeEnum.SUCCESS.getMsg());
-        response.setEntryStationName(dto.getEntryStationName());
-        response.setEntryDate(dto.getEntryDate());
-        response.setExitStationName(dto.getExitStationName());
-        response.setExitDate(dto.getExitDate());
-        response.setPayAmount(dto.getPayAmount());
-        response.setTotalAmount(dto.getTotalAmount());
-        response.setOrderExpType(dto.getOrderExpType());
-        response.setTradeOrderNo(dto.getTradeOrderNo());
-        response.setPayTradeOrderNo(dto.getPayTradeOrderNo());
-        response.setPayOrderNoDate(dto.getPayOrderNoDate());
-        response.setDebitRequestResult(dto.getDebitRequestResult());
-        response.setCompanionFlag(dto.getCompanionFlag());
-        response.setCardNum(dto.getCardNum());
-        response.setTicketCode(dto.getTicketCode());
-        response.setCountingTimes(dto.getCountingTimes());
-        response.setCountingFlag(dto.getCountingFlag());
+        // 业务字段 MUST 包在 data 里（ADR-D150：支付宝侧按 data 解析），NEVER 平铺回顶层。
+        AlipayTripTravelDetailDTO detail = new AlipayTripTravelDetailDTO();
+        detail.setEntryStationName(dto.getEntryStationName());
+        detail.setEntryDate(dto.getEntryDate());
+        detail.setExitStationName(dto.getExitStationName());
+        detail.setExitDate(dto.getExitDate());
+        detail.setPayAmount(dto.getPayAmount());
+        detail.setTotalAmount(dto.getTotalAmount());
+        detail.setOrderExpType(dto.getOrderExpType());
+        detail.setTradeOrderNo(dto.getTradeOrderNo());
+        detail.setPayTradeOrderNo(dto.getPayTradeOrderNo());
+        detail.setPayOrderNoDate(dto.getPayOrderNoDate());
+        detail.setDebitRequestResult(dto.getDebitRequestResult());
+        detail.setCompanionFlag(dto.getCompanionFlag());
+        detail.setCardNum(dto.getCardNum());
+        detail.setTicketCode(dto.getTicketCode());
+        detail.setCountingTimes(dto.getCountingTimes());
+        detail.setCountingFlag(dto.getCountingFlag());
+        response.setData(detail);
     }
 }

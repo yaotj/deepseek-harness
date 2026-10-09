@@ -7,7 +7,16 @@
 - [ITP 与 ACC 交互](itp-acc/INDEX.md) — 参数下载、参数自动同步、逻辑卡号获取（ACLC_ACC_Test_001~003）
 - [当面付](face-pay/INDEX.md) — TVM / BOM / STT 扫码购票、充值、取票、补票（ITP_Payment_012~020）
 - [BOM 单边处理](bom-oneside/INDEX.md) — 补出站、补进站、超时补票、未进/出站补票（ITP_ETicket_Test_020~023）
-- [支付宝渠道](alipay-channel/00-开户与签约真实链路基线.md) — 小程序开户 + 签约实测链路基线与请求明细（2026-09-11）
+- [支付宝渠道](alipay-channel/05-测试账号登记.md) — 测试账号登记表（现行/失效/沿革 + 现查 SQL，**MUST 现查**）；链路基线见 [00](alipay-channel/00-开户与签约真实链路基线.md)，各 e2e 用例（01~04）见目录内
+- [电子票管理](e-ticket/INDEX.md) — 生码、检票过闸、离线码、特殊票种、异常行程与补站（ITP_ETicket_Test_001~031，2026-09-22 建）
+- [支付](payment/INDEX.md) — 签约/解约/默认支付方式/实时扣费/失败重试/退款（ITP_Payment_001~011 为主，012~018 指向 face-pay）
+- [综合管理后台](admin-web/INDEX.md) — 39 条页面用例，前端路由 → `/page/**` 接口 → 模块 → 主表三元组对照
+- [APP 侧](app/INDEX.md) — APP_test_001~019，全部用 curl 模拟 APP 上送报文，真机部分单独标注
+- [AGM 设备域](device-sle/INDEX.md) — ACLC_Device_Test_001~004（检票通知、票卡状态、密钥同步、心跳）
+
+## 原始来源
+
+- `ITP测试案例 - 可验证20260904-问题.xlsx` — 同事维护的测试案例总表（8 个 sheet：用户卡管理 / 电子票管理 / ITP-ACC / 支付 / SLE / 综管台 / 定时任务 / APP），带测试结果与「问题」备注。本目录各域页面均由它拆解而来，**是唯一外部来源、只读**：有新版本整体替换，**NEVER** 在其中回填我方结论（结论写进对应域的 md）。
 
 ## 共同约定
 

@@ -25,9 +25,17 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 		from sys_job
     </sql>
 	
+	<!--
+		列表与导出统一屏蔽 RuoYi 自带的三条示例任务（invoke_target 以 ryTask. 开头，job_id 1/2/3）。
+		它们与本项目业务无关、始终处于暂停状态、SYS_JOB_LOG 里一条执行记录都没有。
+		这里只过滤 selectJobList：selectJobAll 供 SysJobServiceImpl.init 启动加载调度器使用，
+		加了过滤会改变调度器装载行为，因此不动它；selectJobById 也不过滤，按主键仍可查到。
+		如果以后需要在综管台重新看到这三条，删掉下面那行谓词即可，库里的行始终没有被删除。
+	-->
 	<select id="selectJobList" parameterType="SysJob" resultMap="SysJobResult">
 		<include refid="selectJobVo"/>
 		<where>
+			AND invoke_target not like 'ryTask.%'
 			<if test="jobName != null and jobName != ''">
 				AND job_name like '%' || #{jobName} || '%'
 			</if>

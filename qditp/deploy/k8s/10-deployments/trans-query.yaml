@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: trans-query
+  name: trans-query
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trans-query
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: trans-query
+    spec:
+      containers:
+      - env:
+        - name: SERVER_PORT
+          value: '9113'
+        - name: SERVICE_PAY_SIGN_URL
+          value: http://pay-sign-server-hsa9w-svc.itp.svc:8080
+        - name: APP_TRANS_NEW_ATTRIBUTABLE_PARTY
+          value: cjdsj
+        - name: SERVICE_GATE_TXN_PAY_OPEN_LOGGER
+          value: 'true'
+        - name: SERVICE_PAY_SIGN_OPEN_LOGGER
+          value: 'true'
+        - name: SERVICE_PARA_URL
+          value: http://para-server-pufrl-svc.itp.svc:30026
+        - name: APP_TRANS_NEW_RECEIVING_PARTY
+          value: qddt
+        - name: APP_TRANS_MERCHANT_CHANGE_DATE
+          value: '20260901'
+        - name: APP_TRANS_OLD_RECEIVING_PARTY
+          value: qddt
+        - name: OTHER_WEB_ENABLE_LOG_REQUEST_IN_FILTER
+          value: 'true'
+        - name: SERVICE_PARA_OPEN_LOGGER
+          value: 'true'
+        - name: SPRING_APPLICATION_NAME
+          value: trans-query-server
+        - name: SERVICE_GATE_TXN_PAY_URL
+          value: http://gate-txn-pay-server-jomf4-svc.itp.svc:30019
+        - name: OTHER_WEB_ENABLE_LOG_TAKE_TIMES_IN_INTERCEPTOR
+          value: 'true'
+        - name: OTHER_WEB_UNSAFEURLCHARS
+          value: 'null'
+        - name: OTHER_WEB_ENABLE_BODY_CACHE_FILTER
+          value: 'true'
+        - name: APP_TRANS_OLD_ATTRIBUTABLE_PARTY
+          value: cjdsj
+        - name: SERVICE_NAME
+          value: trans-query
+        - name: NAMESPACE
+          value: itp
+        image: os-harbor-svc.default.svc.cloudos:443/itp/trans-query:1.0.15
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: trans-query
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-rxmnjped0
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-rxmnjped0

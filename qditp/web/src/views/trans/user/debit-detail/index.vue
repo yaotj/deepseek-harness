@@ -97,8 +97,22 @@ const orders = ref([])
 const refundOpen = ref(false)
 const currentOrder = ref({})
 const refundForm = reactive({ amountYuan: undefined, refundReason: '' })
+/**
+ * 带 cardId 跳进来时**不预设日期窗**。
+ *
+ * 原实现无条件给 dateRange 填 [今天, 今天]，于是从「用户查询」页点「扣费信息」跳过来时，
+ * 实际查的是「该卡今天的扣费」——只要用户今天没坐车，页面就空，看着像功能坏了
+ * （2026-09-21 实测：该卡库里 11 行，分布在 20260918 / 20260920，当天 0 行）。
+ *
+ * cardId / orderNo 本身就是强定位键，hasSearchScope() 只要其一非空即放行，
+ * 不需要再叠一个时间范围。NEVER 改回无条件填今天。
+ */
+function initialDateRange() {
+  return route.query.cardId ? [] : defaultTodayRange(DATE_FORMAT)
+}
+
 const queryParams = reactive({
-  orderNo: '', cardId: route.query.cardId || '', thirdUserId: '', signChannelCode: '', cardType: '', debitStatus: '', dateRange: defaultTodayRange(DATE_FORMAT), pageNum: 1, pageSize: 10
+  orderNo: '', cardId: route.query.cardId || '', thirdUserId: '', signChannelCode: '', cardType: '', debitStatus: '', dateRange: initialDateRange(), pageNum: 1, pageSize: 10
 })
 const maxRefundAmount = computed(() => Number(currentOrder.value.totalAmount || 0) / 100)
 const refundRules = {
@@ -142,7 +156,7 @@ function resetQuery() {
   queryParams.signChannelCode = ''
   queryParams.cardType = ''
   queryParams.debitStatus = ''
-  queryParams.dateRange = defaultTodayRange(DATE_FORMAT)
+  queryParams.dateRange = initialDateRange()
   handleQuery()
 }
 

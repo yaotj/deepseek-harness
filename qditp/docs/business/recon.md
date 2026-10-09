@@ -1,20 +1,26 @@
-# 日终对账（recon-server + 三个源服务）
+# 日终对账（recon-server + 四个源服务）
 
 > 本文按代码实际落地情况编写，不是需求文档。改动本域代码前先读本文，再读点名的核心类源码。
 > 四类文件的行格式与字段顺序**来自甲方规格原文**
 > `docs/接口规范文档/ACC与ITP之间的文件.docx` §一「对账文件」（规格原文一直在仓库内，
 > 本文此前记为「甲方规格缺失、行格式是本项目自定义 v1」，**该结论是错的，已于 2026-09-11 全部返工**）。
-> 行格式是**跨四个模块的契约**，改一处必须同时改 recon-server 与三个源服务。
+> 行格式是**跨五个模块的契约**，改一处必须同时改 recon-server 与四个源服务
+> （`face-pay` 是 2026-09-16 新增的第 4 个源；**本文前半部分此前通篇写「三个源」，已于 2026-09-22 全量订正，NEVER 回退**。
+> ticket-server 侧的保留代码也要跟着改，否则将来启用即错位）。
 
 ## 涉及模块与端口
 
 | 模块 | 端口 | 版本 / 镜像 | 在本域中的角色 |
 |---|---|---|---|
-| recon-server | 9112（`SERVER_PORT`） | `1.0.10` / `itp/recon-server` | 批次编排、分片接收、流式聚合、FTP 投递；**自身无调度**，由 web-admin `sys_job` 109 每日触发 |
+| recon-server | 9112（`SERVER_PORT`） | `1.0.16` / `itp/recon-server`（2026-09-22 现查：仓库 pom 与集群 Deployment 一致） | 批次编排、分片接收、流式聚合、FTP 投递；**自身无调度**，由 web-admin `sys_job` 225「给ACC上传扣费交易」每日触发 |
 | gate-txn-pay-server | 9106 | `2.0.50` | 源 `gate-txn-pay`，产出 **EXP、PAY、BUS、DETAIL** 四类 |
-| collect-pay-server | 58101 | `1.1.69` | 源 `collect-pay`，产出 **PAY、BUS**（原有的 DETAIL 导出已删除） |
+| collect-pay-server | 58101 | `1.1.69` | 源 `collect-pay`，产出 **PAY、BUS**（原有的 DETAIL 导出已删除）。**旧表口径，与 `face-pay` 并列、NEVER 二选一** |
+| face-pay-server | 58101 | `1.0.64`（仓库 pom） | 源 `face-pay`（**2026-09-16 新增的第 4 个源**），产出 **PAY、BUS**，口径来自 `F2F_ORDER join F2F_PAYMENT`。**切流后的新单只进 `F2F_*`，只有这个源导得出来** |
 | daily-ticket-server | 9108 | `1.0.17` | 源 `daily-ticket`，产出 **PAY、DETAIL** |
 | ticket-server | 9103 | `2.1.60`（本轮未再动） | **不在期望清单内**。`ReconExportController` / `ReconExportService` / `ReconExportMapper` + XML 与 `recon.*` 配置**全部保留未删**，只是 `recon.orchestration.sources` 里没有它，因此永远收不到抽取指令 |
+
+> ⚠️ 上表除 recon-server 那行外的版本号**都不是现查值、易过期**，判断「某改动上没上线」MUST 现查
+> `kubectl get deploy -n itp -o custom-columns='NAME:.metadata.name,IMAGE:.spec.template.spec.containers[*].image'`。
 
 `spring.application.name=recon-server`，已在根 `pom.xml` 聚合列表（`pom.xml:60`）。
 `recon-server/pom.xml:104` 的 `kubernetes-maven-plugin` 1.19.0 execution id `build-image-after-package`、
@@ -35,8 +41,8 @@
 ## 链路总览
 
 ```
-                       web-admin sys_job 109「日终对账」reconQuartzTask.runDailyBatch()
-                       cron 0 30 2 * * ?（频率只在这里改）
+                       web-admin sys_job 225「给ACC上传扣费交易」reconQuartzTask.runDailyBatch()
+                       cron 0 0 2 * * ?（频率只在这里改；2026-09-20 按业主要求由 0 30 2 改为 0 0 2）
                                     |
                        POST <service.recon.url>/internal/recon/daily/run（同步，等批次收口）
                                     |
@@ -46,10 +52,11 @@
                                     |
               ReconExportClient 逐源 POST <源地址>/internal/recon/export（绝对 URL）
                                     |
-   +------------------------+----------------+------------------+
-   |      gate-txn-pay      |   collect-pay  |   daily-ticket   |  ← 受理即返回 accepted
-   | EXP  PAY  BUS  DETAIL  |    PAY  BUS    |   PAY  DETAIL    |    抽取跑在平台线程池 recon-export
-   +------------------------+----------------+------------------+
+   +------------------------+----------------+------------------+----------------+
+   |      gate-txn-pay      |   collect-pay  |   daily-ticket   |    face-pay    |  ← 受理即返回 accepted
+   | EXP  PAY  BUS  DETAIL  |    PAY  BUS    |   PAY  DETAIL    |    PAY  BUS    |    抽取跑在平台线程池 recon-export
+   +------------------------+----------------+------------------+----------------+
+                        （collect-pay = 旧表、face-pay = 新表，并列不互替）
         Keyset 分页读库 / 库内 GROUP BY → ReconRecord.line(...) 拼管道分隔文本
         → ReconPartUploader/ReconPartSink 按 20 万行或 64MB 滚片、边写边算 SHA-256
                                     |
@@ -77,7 +84,7 @@
 
 | 编号 | 方法 | URL | 所属模块 | 说明 |
 |---|---|---|---|---|
-| R-00 | POST | `/internal/recon/daily/run` | recon-server | **web-admin `sys_job` 109 的唯一入口**，无参；同步跑完整批后返回 `CommonResult`（`0000` 成功 / `9999` 失败），耗时可达数分钟 |
+| R-00 | POST | `/internal/recon/daily/run` | recon-server | **web-admin `sys_job` 225 的唯一入口**，无参；同步跑完整批后返回 `CommonResult`（`0000` 成功 / `9999` 失败），耗时可达数分钟 |
 | R-01 | POST | `/internal/recon/batches` | recon-server | 建批次，按 `batchId` 幂等（`ReconBatchMapper.insertIfAbsent`） |
 | R-02 | GET | `/internal/recon/batches/{batchId}` | recon-server | 查批次，不存在返回 404 |
 | R-03 | GET | `/internal/recon/batches/{batchId}/sources` | recon-server | 查该批次各 `(来源, 文件类型)` 的收齐进度 |
@@ -90,6 +97,7 @@
 | R-10 | POST | `/internal/recon/export` | gate-txn-pay-server | 受理抽取指令即返回，实际抽取转平台线程池 |
 | R-11 | POST | `/internal/recon/export` | collect-pay-server | 同上 |
 | R-12 | POST | `/internal/recon/export` | daily-ticket-server | 同上 |
+| R-12A | POST | `/internal/recon/export` | face-pay-server | 同上（**第 4 个源，2026-09-16 新增**；`F2F_*` 新表口径） |
 | R-13 | POST | `/internal/recon/export` | ticket-server | **接口存在但从不被调用**（`ticket` 不在期望清单），保留待甲方要求全量过闸明细时启用 |
 
 **鉴权**：⚠️ **当前处于开发测试阶段，这组接口（含各源的 `/internal/recon/export`）全部无鉴权**。
@@ -140,13 +148,21 @@
 |出站处理设备类型|出站设备编码|出站时间|订单异常类型|支付方式|交易日期
 ```
 
-第 11 段「订单异常类型」甲方定义 1~15：1 单边账(入站)、2 单边账(出站)、3 单边入站(人工处理单)、
-4 单边出站(人工处理单)、5 乘客自主补进站、6 乘客自主补出站、7 TVM 补币找零不足、8 TVM 卡票、
-9 TVM/BOM 发售无效票、10 闸门无用、11 无票出闸、12 人为单程票无效、13 非人为单程票无效、
-14 储值票无效、15 其他情况。
+第 11 段「订单异常类型」甲方定义 **1~15、从 `1` 开始、没有 `0`**，逐条原文
+（`docs/接口规范文档/ACC与ITP之间的文件.docx` §一 1 (1)；**编号 `5`/`6`/`15` 在原文里粘连、
+解析该 docx 时 NEVER 按「数字 + 空格 + 名称」硬切**）：
+`1 单边账(入站)`、`2 单边账(出站)`、`3 单边入站(人工处理单)`、`4 单边出站(人工处理单)`、
+`5 乘客自主补进站`、`6 乘客自主补出站`、`7 TVM 补币找零不足`、`8 TVM 卡票`、
+`9 TVM/BOM 发售无效票`、`10 闸门无用`、`11 无票出闸`、`12 人为单程票无效`、
+`13 非人为单程票无效`、`14 储值票无效`、`15 其他情况`。
+文件名格式 `ITP.EXP.yyyyMMdd`；账期原文「**T 日 2 点统计 T-2 日 2 点 - T-1 日 2 点的单边明细**」
+（甲方例：8 月 20 号 2 点生成 `ITP.EXP.20190818`）。
+⚠️ **原文未给任何段的长度 / 类型定义** —— 13 段是我方数出来的（见遗留问题 B11），
+**首次与 ACC 联调 MUST 拿真实文件逐段核对**。
 
 ⚠️ **EXP 的语义是「单边账 / 异常交易明细」，NEVER 当成全量过闸明细**——
 筛选条件是「订单异常类型有值」，不是「过闸成功」。这正是 `ticket` 源被移出期望清单的原因。
+EXP 的唯一来源是 gate-txn-pay（见「各源抽取口径」里的结构性缺失说明）。
 
 ### ITP.PAY — 统计汇总文件（聚合类，21 段 = 5 段键 + 16 段度量）
 
@@ -180,6 +196,20 @@
 - 多日计次票**正常过闸不对账**，只对「车票购买」与「产生超时费的行程」两类。
 - 车票购买的交易类型记「发售」，**当前车站与设备编码传空**（第 6、7 段固定空串）。
 - 超时行程的交易类型记「出站」，费用为**线网最高票价或者 1**。
+
+**【契约】`ITP.DETAIL` 没有独立的「超时费」字段 / 段**（甲方表头只有这 7 段）：
+超时费靠「**交易类型=出站**那行 + **第 5 段交易金额**」表达 ——
+第 5 段放的是**超时费本身**，不是我方 `TOTAL_AMOUNT`（报全额等于重复计账）。
+**NEVER 擅自给表头加一段「超时费」。**
+
+⚠️ **【未闭合】`ITP.DETAIL` 的金额单位存在三处文档冲突，「线网最高票价或者 1」的 `1` 是元还是分未定义
+（相差 100 倍）⇒ MUST 向甲方澄清后再定对账口径，在此之前 NEVER 当成规则**：
+- `docs/接口规范文档/ACC与ITP之间的文件.docx` 的 `ITP.DETAIL` 表头**未标金额单位**；
+- `docs/接口规范文档/青岛地铁日票-ITP与ACC交互文档.docx` 的 `ITP.DETAIL` 表头写「交易金额**（元）**」；
+- 而 `ACC与ITP之间的文件.docx` 里 `ITP.EXP` 那节写的是「订单金额（**单位分**）」「实际扣款金额(**单位分** )」，
+  同一份文档内两种口径并存。
+- 连带：DETAIL 的「费用为线网最高票价**或者 1**」——这个 `1` 的**单位在原文里完全没有定义**，
+  若按元理解与其它段的分口径差 100 倍。**未澄清前 NEVER 按某一种单位去换算或钳制**（见遗留问题 B9）。
 
 ### 净化与拆解
 
@@ -220,7 +250,7 @@
 ## 数据表
 
 DDL：`recon-server/src/main/resources/sql/recon-server-schema.sql`，增量脚本 `recon-server-schema-migration.sql`。
-**测试库 `AFCITPDB` 已于 2026-09-11 建好并验证，生产库仍未执行 DDL**（见文末遗留问题 A1）。
+**已在唯一目标库 `AFCITPDB` 于 2026-09-11 建好并回查验证**（见文末遗留问题 A1；**本行此前写「测试库已建、生产库仍未执行 DDL」是把同一个库当成了两个，NEVER 回退 —— `AFCITPDB` 就是唯一的目标业务库，见 AGENTS.md §8**）。
 
 | 表 | 主键 | 关键列 |
 |---|---|---|
@@ -240,10 +270,12 @@ CREATE INDEX IDX_DAILY_TICKET_ORDER_RECON ON DAILY_TICKET_ORDER (PAY_STATUS, PAY
 ```
 
 DETAIL 的 Keyset 与 PAY 的旅游票汇总**共用这一条**：两者都是 `PAY_STATUS` 等值 + `PAY_DATE` 范围。
-旅游票汇总不再查主单 `TRAVEL_TICKET_ORDER`，因此**主单侧不需要任何新索引**。旅游票汇总另有的
-`PARENT_ORDER_NO IS NOT NULL` 谓词由已存在的
-`IDX_DAILY_TICKET_ORDER_PARENT (PARENT_ORDER_NO)` 兜住（Oracle B-tree 不存全 NULL 键，
-该单列索引里只有旅游票子单，对 `IS NOT NULL` 是可用路径），**无需新增索引**。
+⚠️ **本段此前写「旅游票汇总查子单、主单侧不需要任何新索引、`PARENT_ORDER_NO IS NOT NULL` 由
+`IDX_DAILY_TICKET_ORDER_PARENT` 兜住」已过期**：2026-09-22 起 `selectTravelTicketPaySummary`
+改查**主单 `TRAVEL_TICKET_ORDER`**（见「各源抽取口径」源 `daily-ticket`），
+`PARENT_ORDER_NO IS NOT NULL` 这个谓词已从该查询里删掉，而本索引脚本**只建在 `DAILY_TICKET_ORDER` 上** ——
+**主单表当前没有任何对账专用索引**，是否补一条 `(PAY_STATUS, PAY_DATE)` **待按实际数据量与执行计划确认（未闭合）**。
+`IDX_DAILY_TICKET_ORDER_PARENT (PARENT_ORDER_NO)` 仍被其他查询使用，**NEVER 因为本处改动而删它**。
 
 ## 状态取值
 
@@ -276,7 +308,7 @@ DETAIL 的 Keyset 与 PAY 的旅游票汇总**共用这一条**：两者都是 `
 
 ## 批次编排与调度
 
-调度**在 web-admin 的 Quartz（`sys_job` job_id 109「日终对账」，`reconQuartzTask.runDailyBatch()`，cron `0 30 2 * * ?`）**。
+调度**在 web-admin 的 Quartz（`sys_job` job_id 225「给ACC上传扣费交易」，`reconQuartzTask.runDailyBatch()`，cron `0 0 2 * * ?`）**（2026-09-21 由 109「日终对账」改号改名）。
 recon-server 本身**一个 `@Scheduled` 都没有**、启动类也没有 `@EnableScheduling`（2026-09-11 按用户要求
 「不使用 EnableScheduling，改用 web-admin 调用，改为每日执行一次，由 web-admin 控制频率」返工）。
 本节此前记载的「调度全在 recon-server 自己的 `@Scheduled` 里、`sys_job` 里没有对账任务」**已作废，NEVER 回退**。
@@ -298,10 +330,10 @@ recon-server 本身**一个 `@Scheduled` 都没有**、启动类也没有 `@Enab
   全齐推 `ALL_SOURCE_COMPLETED` → 逐类型 generate → 推 `UPLOADING` 并逐类型 upload → 推 `SUCCESS`。
   任一步抛异常统一 `catch` 后置 `FAILED`，下一轮从 `FAILED` 重入。
 - 要生成哪几类文件由 `RECON_BATCH_SOURCE` 里出现过的 `FILE_TYPE` 并集决定，按 `ReconFileTypeEnum` 声明顺序输出。
-  当前三个源的并集恰好是四类全覆盖（EXP 只有 gate-txn-pay 一个来源）。
+  当前四个源的并集恰好是四类全覆盖（EXP 只有 gate-txn-pay 一个来源）。
 - **只有进程内 `AtomicBoolean`、没有数据库锁**，因此 **recon-server MUST 单副本**（web-admin 同样单副本）。
   多副本会让两个 Pod 同时推进同一批次、重复生成与重复投递。
-- 人工补跑有两条路：web-admin 前台对 job 109 点「执行一次」，或直接打
+- 人工补跑有两条路：web-admin 前台对 job 225 点「执行一次」，或直接打
   `POST /internal/recon/daily/run`；单批次单步推进仍可用 R-09 `/internal/recon/batches/{batchId}/advance`。
 
 因为每轮都会重算目标状态，`ReconBatchService.transitionIfNeeded` 把「已在目标状态」判为成功，
@@ -354,7 +386,7 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
   `spring.autoconfigure.exclude` 要并进已有的 `spring:` 段）
 
 链路是 web-admin（`AbstractQuartzJob` 造 traceId 并写进 `sys_job_log.job_message`）→ recon-server
-（`ReconClient` 带 `traceparent` 进来）→ 三个源（recon-server 侧 `ProxyWebClient` 用 Boot 托管的
+（`ReconClient` 带 `traceparent` 进来）→ 四个源（recon-server 侧 `ProxyWebClient` 用 Boot 托管的
 `WebClient.Builder`，观测自动带出 `traceparent`）。**四个模块 MUST 一起开**，漏一个链路就断在那一环。
 
 三条注意：**①`sampling.probability=0` 不影响 MDC**，它只管 span 上不上报，traceId 照样进 MDC；
@@ -362,6 +394,30 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
 只要 Deployment 注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` 就会重新起 exporter；
 **③NEVER 自造一个 `traceId` 请求头** —— `FirstFilter` 会把所有请求头小写后塞进 MDC，
 自定义头会落到 `traceid` 键、和 pattern 里的 `%X{traceId}` 对不上，永远不显示。
+
+### `SYS_JOB_LOG` 语义：「开始即入库、收口按主键回写」（web-admin 侧，2026-09 改）
+
+**本域按 `SYS_JOB_LOG` 的 traceId 检索日志、按该表判断 job 225 成没成，因此这条语义 MUST 记准。**
+来源是 web-admin 的 `web-quartz` 模块（**不是 recon-server**）：
+
+- **开始即入库**：`AbstractQuartzJob.before(...)` 先落一行状态 `Constants.RUNNING`（**值 `'2'`**）的日志，
+  并把 `traceId` 拼进 `job_message`
+  （`buildJobMessage(text, traceId)`，grep `job_message` / `traceId=`）—— 目的是**让长任务在执行期间
+  就能在前台被看到并按 traceId 检索**，而不是跑完才出现。
+- **收口按主键回写**：`after(...)` 走 `jobLogService.updateJobLog(sysJobLog)`，
+  注释原文是「**`before()` 已落「进行中」时按主键回写，否则退化成新增**」。
+- 配套三处，**改任意一处 MUST 四件同批看**：
+  1. `SysJobLogMapper.insertJobLog` 必须带 `useGeneratedKeys="true" keyProperty="jobLogId" keyColumn="job_log_id"`
+     —— 主键靠 `getGeneratedKeys` 回填；**`JOB_LOG_ID` 是 Oracle `IDENTITY` 列，NEVER 用 `selectKey`**
+     （`web-server/web-quartz/src/main/resources/mapper/quartz/SysJobLogMapper.xml`，grep `IDENTITY`）。
+  2. mapper 新增了 `updateJobLog` 与 `closeRunningJobLog` 两条语句（同 XML）。
+  3. `SysJobServiceImpl.init()`（`@PostConstruct`）在**启动时把上一个进程遗留的 `'2'` 收口成失败**：
+     `closeRunningJobLog(Constants.RUNNING, Constants.FAIL, ...)`，并 `log.warn("启动时收口遗留的进行中调度日志 {} 条", closed)`
+     —— 否则 Pod 被杀留下的「进行中」行会永远挂着、前台看起来像任务一直没结束。
+- **连带结论**：`SYS_JOB_LOG` 的**日增行数 = 每轮调度一次**，因此 `sys_job` 的 cron 每打密一档，
+  这张表的增长就翻一档（换乘推送从 `fixedDelay 10s` 改成 `cron 每分钟` 那次即如此，
+  见 `docs/business/gate-txn-pay.md`）。排查「job 看起来在跑其实早死了」**MUST 看这行的 STATUS 与 UPDATED 时间**，
+  **NEVER 只凭「有一行今天的记录」判断它在正常运行**。
 
 ## 幂等与重试设计
 
@@ -402,16 +458,31 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
 
 ## 各源抽取口径
 
-三个源的共性：
-- 入口都是 `POST /internal/recon/export`，同一个 `X-Recon-Token`，**受理即返回**（`accepted`），
+四个源的共性（`face-pay` 与 `collect-pay` 同为 TVM/BOM 域，只是新表 / 旧表口径不同）：
+- 入口都是 `POST /internal/recon/export`，**受理即返回**（`accepted`），
   真正的抽取提交到名为 `recon-export` 的**固定大小平台线程池**（`recon.export.worker`，默认 1）。
   **NEVER 在请求线程上抽取**——全服务 `spring.threads.virtual.enabled=true`，
   阻塞的 ojdbc8 调用会 pin 住载体线程。
+  ⚠️ **本处此前写「同一个 `X-Recon-Token`」已过期**：该头已按用户 2026-09-11 要求从
+  recon-server 与四个源的 `ReconExportController` 中**整段删除**，`ReconClient` / `ReconExportClient`
+  也不再发送它（见「真实接口清单」的鉴权段与 §九）。**NEVER 据本行去找 token 校验代码。**
 - 明细分页一律 **Keyset 游标**（`(时间列, 主键)` 复合游标 + `FETCH FIRST #{limit} ROWS ONLY`），
   **没有 OFFSET**，每批默认 5000 行（`recon.export.page-size`）。
 - 抽取方法**不带 `@Transactional`**，每条 SQL 自动提交、不保持长事务。
 - 汇总（PAY / BUS）在**数据库内 GROUP BY** 后上送，源侧不做内存聚合。
 - 期望清单（`recon.orchestration.sources`）共 **8 组** `(来源, 文件类型)`。
+
+**【契约】recon-server 的跨源合并是「逐列相加」，没有去重 / 互斥 / 优先级**
+（`recon/service/ReconFileGenerationService.java`：`String key = joinKey(fields, keyFields);`、
+`metrics[i] += ReconRecord.metric(fields, keyFields + i);`，聚合在 `mergeAggregated` 里）：
+- **聚合键不含来源标识** —— `joinKey(fields, keyFields)` 只取**前 `keyFields` 段**（PAY 是前 5 段、
+  BUS 是前 1 段），`keyFields` 取自 `ReconFileTypeEnum`；来源名不在键里、也进不了键。
+- 同键的行**直接 `metrics[i] += ...` 逐列累加**，**recon-server 侧没有任何跨源去重、互斥或优先级逻辑**：
+  它不知道「这一行来自旧表、那一行来自新表」，也不判断两者是否重复。
+- 因此**「两个源对同一笔交易各出一行」在 recon-server 侧表现为把度量翻倍**，
+  而不是被合并成一行 —— 这是「`face-pay` 与 `collect-pay` NEVER 二选一」背后真正的风险面：
+  一旦新旧表重叠期间两个源都覆盖到同一批单，账会**静默翻倍**（见下「新旧表重叠实测」）。
+  派生约束：**任何「同一笔交易只会落在一个源」的假设 MUST 在源侧数据上验证过，NEVER 靠 recon-server 兜底。**
 
 ### 源 `gate-txn-pay`（gate-txn-pay-server，主表 `GATE_TXN_PAY`）→ EXP / PAY / BUS / DETAIL
 
@@ -421,9 +492,9 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
 
 | 文件 | SQL | 业务筛选 | 说明 |
 |---|---|---|---|
-| EXP | `selectExpPage` | `ORDER_EXP_TYPE IS NOT NULL AND ORDER_EXP_TYPE <> ' '` | **全量单边账明细**。**刻意不加 `DEBIT_STATUS`**：单边账的本质就是扣费链路没走完，按 `SUCCESS` 过滤等于把要报的行全滤掉。空格判定是必须的（历史数据可能写单个空格表示无异常） |
+| EXP | `selectExpPage` | `<include refid="Recon_Exp_Filter"/>` = `ORDER_EXP_TYPE IS NOT NULL AND <> ' ' AND <> '0'` | **全量单边账明细**。**刻意不加 `DEBIT_STATUS`**：单边账的本质就是扣费链路没走完，按 `SUCCESS` 过滤等于把要报的行全滤掉。空格判定**必须留**（历史数据可能写单个空格表示无异常）；**排除 `'0'` 必须**（不排除会把全部正常单捞进单边账，见 B7）。**EXP 与 PAY 单边组 MUST 共用同一个片段、NEVER 分叉** —— 片段抽出来就是为了让两处无法漂移 |
 | PAY | `selectPayGateSummary` | `DEBIT_STATUS='SUCCESS'` | 填「过闸」组，0 基下标 **11 / 12** |
-| PAY | `selectPayExpSummary` | 同 EXP 的异常口径 | 填「单边交易」组，0 基下标 **17 / 18** |
+| PAY | `selectPayExpSummary` | `<include refid="Recon_Exp_Filter"/>`（与 EXP 逐字同源，**NEVER 分叉**） | 填「单边交易」组，0 基下标 **17 / 18**；**这四个下标只有 gate-txn-pay 会填，其余源写字面 `0`** |
 | BUS | `selectBusSummary` | `DEBIT_STATUS='SUCCESS'` | 按 `TXN_DATE` 单键分组，对账金额与付款金额都取 `NVL(SUM(TOTAL_AMOUNT),0)`（本表无独立实收列，两列同值是有意的） |
 | DETAIL | `selectDetailPage` | `NVL(OVERTIME_AMOUNT,0) > 0 AND CARD_TYPE IN ('0445','0446','0447','0448')` | **只出「超时费」那部分**，交易类型固定中文「出站」。**刻意不加 `DEBIT_STATUS`**：超时费是否结清与是否要报账是两件事 |
 
@@ -446,6 +517,30 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
 - EXP 行里由 Java 侧补空 / 补 0 的段：第 5 段优惠金额（补 `0`）、第 6 段进站设备编码（补空）、
   第 8 段出站处理设备类型（补空）。第 3、4 段（订单金额 / 实际扣款金额）都取 `TOTAL_AMOUNT`，
   第 9 段出站设备编码取 `DEVICE_ID`。第 11 段 `ORDER_EXP_TYPE` **原样输出、不做映射**（见遗留问题 B7）。
+- **【契约】单边口径的唯一定义是 SQL 片段 `Recon_Exp_Filter`**（`gate-txn-pay-server/src/main/resources/mapper/ReconExportMapper.xml`，
+  grep `<sql id="Recon_Exp_Filter">`），原文三条件：
+  ```
+  T.ORDER_EXP_TYPE IS NOT NULL
+  AND T.ORDER_EXP_TYPE <> ' '
+  AND T.ORDER_EXP_TYPE <> '0'
+  ```
+  三条**都 MUST 保留**，逐条理由写在段名上方的 XML 注释里（同文件的 `<!-- -->`）：
+  ①`IS NOT NULL` 是「有异常」的前提；②**空格判定必须留**——Oracle 里长度为 0 的字符串等于 NULL，
+  但历史数据可能写入单个空格表示「无异常」，只判 `IS NOT NULL` 会让 EXP 文件虚增；
+  ③**排除 `'0'` 必须**——`'0'` 就是我方口径里的「正常」，不排除会把**全部正常订单**捞进单边账，
+  同时让「单边交易」（0 基 17/18）与「过闸」（0 基 11/12）两组逐字重复，ACC 侧把同一笔既算过闸收入、
+  又算单边账，**必然对不平**（2026-09-11 端到端实测确认：EXP 3 行全是误报）。
+  - **本片段 NEVER 加 `DEBIT_STATUS` 条件**：单边账的本质就是扣费链路没走完，按 `SUCCESS` 过滤
+    等于把要报的行全部滤掉。
+  - **EXP 的 `selectExpPage` 与 PAY 的 `selectPayExpSummary` MUST 共用本片段、口径 NEVER 分叉** ——
+    抽成公共片段就是为了让两处无法漂移（`ReconExportMapper.java` 处的同类约束见
+    `gate-txn-pay-server/.../service/ReconExportService.java` 的 `exportExp`）。
+  - 本片段与 `Recon_Window` / `Recon_Keyset` 一样，**列名一律带 `T.` 前缀**，
+    新增 select 也必须把主表别名写成 `T`，否则 include 进来解析不到该别名。
+- ⚠️ **`ITP.EXP` 是整个文件即「单边 / 异常明细」，NEVER 当成全量过闸明细**（13 段，见「分片文件格式契约」）；
+  它的唯一来源是 gate-txn-pay，**甲方 15 类异常里 `7~15` 属 TVM/BOM 口径、`5/6` 属自助补站口径，
+  而这两个域当前都没有向 `ITP.EXP` 供数的源** —— 这是**结构性缺失**（不是缺陷、也不是配置问题）：
+  想补必须新加源或让现有源产出 EXP，**在甲方明确要这几类之前 NEVER 自行往 EXP 里塞数据**。
 
 ### 源 `collect-pay`（collect-pay-server，四张表）→ PAY / BUS
 
@@ -482,12 +577,106 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
   `writePayRow` 因此多了一个 `lineCode` 形参（第 3 位），四处调用点都已同步。
 - 该模块配置写在 `application.yml`（**没有 `application.properties`**）。
 
+### 源 `face-pay`（face-pay-server，新表 `F2F_ORDER` join `F2F_PAYMENT`）→ PAY / BUS
+
+**2026-09-16 新增的第 4 个源，与 `collect-pay` 是「新表 / 旧表」并列关系、NEVER 二选一**。
+口径来自 `F2F_ORDER O JOIN F2F_PAYMENT P ON P.ORDER_NO = O.ORDER_NO AND P.PAY_STATUS = 'SUCCESS'`，
+窗口 `O.PAID_TMS` 左闭右开。核心类：`face-pay-server/.../facepay/service/ReconExportService.java`
+（grep `SOURCE = "face-pay"`）、`.../controller/internal/ReconExportController.java`、
+`src/main/resources/mapper/F2fReconExportMapper.xml`。
+
+**【契约】五组 PAY 度量各对应一条 `*PaySummary` 查询**（`F2fReconExportMapper.xml`，行号会漂、按 id grep）：
+
+| 度量组（0 基下标） | SQL id | 业务过滤 | 分组键 |
+|---|---|---|---|
+| 设备发售 **5 / 6** | `selectDeviceSalePaySummary` | `BIZ_TYPE='01' AND CHANNEL IN ('02','03')` | `NVL(O.STATION_CODE, O.ENTRY_STATION_CODE)` / `O.DEVICE_ID` / `P.PAY_CHANNEL_CODE` |
+| 充值 **7 / 8** | `selectTopupPaySummary` | `BIZ_TYPE='02'` | 同上 |
+| APP 购票 **13 / 14** | `selectAppSalePaySummary` | `BIZ_TYPE='01' AND CHANNEL='01'` | 同上 |
+| BOM 行政处理 **15 / 16** | `selectBomAdminPaySummary` | `BIZ_TYPE='04' AND TRANS_TYPE='42'` | 同上 |
+| BOM 处理 **19 / 20** | `selectBomOtherPaySummary` | `BIZ_TYPE='04' AND (TRANS_TYPE IS NULL OR TRANS_TYPE<>'42')` | 同上 |
+
+五个查询一律 `COUNT(*) AS TXN_COUNT`、`NVL(SUM(P.PAY_AMOUNT),0) AS TXN_AMOUNT`，
+按 `TO_CHAR(O.PAID_TMS,'YYYYMMDD')` 分组；BUS 那条 `selectBusSummary` 过滤 `BIZ_TYPE IN ('01','02','04')`。
+
+- **枚举取值**（`face-pay-server/.../facepay/entity/F2fOrder.java` 字段注释）：
+  `BIZ_TYPE` `01` 购票 / `02` 充值 / **`03` 取票** / `04` 非现金收款；
+  `CHANNEL` `01` APP / `02` TVM / `03` BOM。
+  ⚠️ **`BIZ_TYPE='03'`（取票）刻意不纳入对账** —— 五组过滤里没有任何一组取它，
+  这不是漏写；`TRANS_TYPE` 是 BOM 交易类型（规格九个取值，代码只对 `42` 做校验）。
+- **段 15/16 与 19/20（BOM 行政处理 / BOM 处理）只有 face-pay 在出**：
+  `collect-pay` 四张旧表**没有这两种业务**，那两组在旧源上恒 `0`；
+  **face-pay 自 2026-09-16 加入后已能填**（见上表两条 `BIZ_TYPE='04'` 的查询）。
+  **AGENTS.md §2.2.2 记的「这两组恒 0」是旧实现缺口、已过期，NEVER 据那句话判断 face-pay 也出不了数。**
+  实测面：`BIZ_TYPE='01' AND CHANNEL='01'`（APP 购票段）**当前 0 笔**，
+  与 ADR-D116「旧数据已全量迁入」不符 —— **APP 域历史单实际没有迁进 `F2F_*`**（见下「已知缺口」）。
+- **21 段 PAY 行只有本组两段非 0**（`ReconExportService.writePayRow`）：
+  `Arrays.fill(fields, 5, 21, 0L)` 先把 16 段度量全清零，再写本组两段；
+  **`fields[1]`（线路段）face-pay 恒为空串**，靠 recon-server 的 `recon.line-backfill` 反查补齐
+  （见「线路段补齐」与遗留问题 C15）。
+- **【契约】本源标识 `SOURCE="face-pay"` 是跨服务契约字段值，MUST 与 recon-server 配置逐字一致、
+  NEVER 改**：它落 `RECON_BATCH_SOURCE.SOURCE_NAME`，与 `recon.orchestration.sources[3].name` 对不上时
+  「全部 `COMPLETED`」永远凑不齐（`ReconOrchestrationProperties` 要求匹配 `[A-Za-z0-9_-]{1,32}`）。
+- **对账导出端点唯一**：`ReconExportController` 只有 `@PostMapping("/export")` 一个端点、前缀
+  `@RequestMapping("/internal/recon")`，**由 recon-server 下发、不对外暴露**。
+  **本组接口当前无鉴权**（配置键 `recon.internal-token`（`face-pay-server/src/main/resources/application.yml`）
+  **已无任何读取方**，2026-09-11 有意降级，与其余三个源同款）；**上线前 MUST 恢复**。
+- **`ReconExportService.submit()` 受理即异步返回**：`ConcurrentHashMap.newKeySet()` 按 `batchId` 去重
+  （同批次在途时重复提交返 `false` + WARN，是**限流不是失败**），随后派线程池立即返回；
+  线程池名 `recon-export`、daemon、`recon.export.worker` 默认 1（**NEVER 随手放大**）。
+  **本类刻意不带 `@Transactional`（类注释原文 NEVER 加）**：抽取只读、链路里夹着 RPC。
+- **【known gap】face-pay 对账侧的五个已知缺口**（改本域前 MUST 逐条确认是否仍成立）：
+  1. **线路段恒空**（`F2fReconExportMapper.xml` 全文件无 `LINE_CODE`、也没有 join `STATION_INFO`），
+     靠 recon-server 事后补齐；⚠️ `F2fReconExportMapper.java` 的 Javadoc 写着「每行含 TXN_DATE / LINE_CODE / …」，
+     **与 SQL 不一致、是过期注释**，NEVER 据它认为 face-pay 已填线路段。
+  2. **APP 购票段恒空**（实测 `BIZ_TYPE='01' AND CHANNEL='01'` 0 笔），**与 ADR-D116「旧数据已全量迁入」不符**、
+     APP 域历史单实际没迁 —— 排查「APP 购票段为 0」MUST 先查 `F2F_ORDER` 里有没有这批单，NEVER 先怀疑 SQL。
+  3. **漏账探针只打日志不开工单**：`countUncoveredPaidOrders` / `countPaidWithoutPaidTms`
+     两个探针**只 `log.warn`**，不落库、不告警、不生成工单 ⇒ **漏账不会主动暴露**，
+     只能靠人看日志或对账文件本身。
+  4. **`sources[3].file-types` 若误加 `EXP` / `DETAIL`，会让那行永远停 `EXPORTING`、批次永不 `SUCCESS`**：
+     face-pay 的 `switch` 对未知文件类型走 `default` 分支**只 `log.warn`**，
+     **既不 `declareComplete` 也不 `markFailed`** ⇒ 该 `(来源, 文件类型)` 永远收不齐。
+     **MUST 保持 `sources[3].file-types=PAY,BUS`**（`face-pay-server` 只出这两类）。
+  5. **两侧零单测**（face-pay 与本域都无单元测试覆盖）—— 改动只能靠端到端实测。
+
+### 新旧表重叠实测与旧表冻结（collect-pay ↔ face-pay）
+
+**这段是「`face-pay` 与 `collect-pay` NEVER 二选一」的定量依据，也是「为什么 NEVER 手工补跑历史账期」的依据。**
+
+- **【实测】新旧表在切流前的时间窗内高度重叠**（2026-09-16 切流前后在 `AFCITPDB` 实测）：
+  `TBL_TVM_ORDER_PAY` 的成功单 **24 笔全部**也在 `F2F_ORDER` 里；
+  `TBL_BOM_ORDER_PAY` 的成功单 **151 笔全部**也在 `F2F_ORDER` 里。
+- **但并非四张旧表都重叠**：`TBL_TVM_APP_ORDER`（42 笔）与 `TBL_TVM_ORDER_TOPUP`（5 笔）
+  **0 笔**在 `F2F_ORDER` 里 —— 即 **TOPUP（充值）与 APP 订单这两类不在双算清单里，别写错**。
+  这正是 face-pay 那条 `selectTopupPaySummary`（`BIZ_TYPE='02'`）与
+  `selectAppSalePaySummary`（`BIZ_TYPE='01' AND CHANNEL='01'`）**实测 0 笔**的来源：
+  充值与 APP 单从未迁进新表。
+- ⚠️ **推论 MUST 说清楚**：「旧表已冻结」只对**重叠的那两类**成立的前提是 **切流后不再有旧表写入**；
+  而 TOPUP / APP 两类**根本不在新表里**，它们的账**永远只能由 collect-pay 出**（删掉 collect-pay 源
+  就会让充值段与 APP 购票段凭空少一截）。这也是「NEVER 二选一」不能只按「旧表已冻结」就简化的原因。
+- **【契约】旧表已自行冻结，NEVER 手工补跑 2026-09-16 及之前账期**：
+  设备域与 APP 域入向流量已于 **2026-09-16 17:31** 切到 face-pay（ADR-D117），
+  四张旧表的**最后写入全部早于该切流时刻**（已实测），因此：
+  - **2026-09-16 及之前的账期**：账在旧表（`collect-pay`）里，`F2F_*` 只覆盖自己那份 ——
+    重跑这些账期**必须两个源都在**，且**NEVER** 指望「重跑能修好什么」——
+    历史账期早已跑过、`RECON_BATCH.STATUS=SUCCESS` 是终态，**要重跑只能换 `batchId`**
+    （`POST /internal/recon/batches` 可指定 `businessDate`，属人工干预）。
+  - **`POST /internal/recon/daily/run` 不接任何参数**，账期一律由服务端按 T-2 硬算
+    （`ReconOrchestrationService.dispatchDailyBatch`：`businessDate = 今天 - windowOffsetDays`，
+    `windowOffsetDays` 默认 2）；**从 2026-09-18 账期起，collect-pay 的四个窗口
+    再也覆盖不到旧表任何一行**（旧表已无新数据、窗口又全在切流之后）。
+  - 因此「手工补跑旧账期」**除了重算一遍已冻结的数据外没有任何收益，只会造成重复投递**，
+    **NEVER 做**（要复核旧账只能查当时那次运行留下的 `RECON_*` 行与 FTP 上的文件）。
+
 ### 源 `daily-ticket`（daily-ticket-server）→ PAY / DETAIL
 
 | 文件 | SQL | 主表 | 窗口列 | 状态过滤 |
 |---|---|---|---|---|
 | DETAIL | `selectDetailPage` | `DAILY_TICKET_ORDER` LEFT JOIN `DAILY_TICKET_INSTANCE` | `PAY_DATE`（TIMESTAMP，绑 `jdbcType=TIMESTAMP`） | `PAY_STATUS='PAID'` |
-| PAY | `selectTravelTicketPaySummary` | `DAILY_TICKET_ORDER`（旅游票**子单**，`PARENT_ORDER_NO IS NOT NULL`） | `PAY_DATE` | `PAY_STATUS='PAID'` |
+| PAY | `selectTravelTicketPaySummary` | **`TRAVEL_TICKET_ORDER`（旅游票主单）** | `PAY_DATE` | `PAY_STATUS='PAID'` |
+
+> ⚠️ **PAY 行的取数对象已于 2026-09-22 由「旅游票子单」改为「旅游票主单」，本表此前写子单已过期、NEVER 回退。**
+> 详见下方 PAY 段落与遗留问题 C14。
 
 - DETAIL 出**「车票购买（发售）」**行：第 2 段固定中文「发售」，
   **第 6 段当前车站名称与第 7 段设备编码固定空串**（甲方明文要求传空）。
@@ -496,17 +685,38 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
   **DETAIL 里也含旅游票子单**（没有加 `PARENT_ORDER_NO IS NULL`）：PAY 是汇总、DETAIL 是明细，
   并存不算重复计账；甲方是否要求 DETAIL 只含独立日票**无依据，当前不加该条件**。
 - PAY 只填「旅游票张数(发售) / 旅游票金额」一组，0 基下标 **9 / 10**。
-  **取数对象是旅游票子单 `DAILY_TICKET_ORDER`，不是主单 `TRAVEL_TICKET_ORDER`**（2026-09-11 改）：
-  主单是聚合壳、`PAY_STATUS` 永不回写，支付事实（`PAY_DATE` / `PAY_AMOUNT` / `PAY_CHANNEL_CODE`）
-  全在子单上，见下方 C13。
-  **张数用 `COUNT(*)`**——子单表没有 `TICKET_COUNT` 列，且下单时按 `ticketCount` 循环拆单、
-  一条子单恰好一张票，笔数即张数；**NEVER 换回 `SUM(TICKET_COUNT)`**（那是主单的列）。
-  金额用 `NVL(SUM(NVL(PAY_AMOUNT, TICKET_PRICE)), 0)`。
-  5 段键中**第 5 段「支付方式」填子单 `PAY_CHANNEL_CODE`**（因此 SQL 按「日期 + 渠道」分组、
+  **【契约】取数对象自 2026-09-22 起是旅游票主单 `TRAVEL_TICKET_ORDER`（`daily-ticket-server:1.0.59`）：
+  本处此前写「按子单 `DAILY_TICKET_ORDER` + `PARENT_ORDER_NO IS NOT NULL`」已过期，NEVER 回退。**
+  现 SQL 形状（`selectTravelTicketPaySummary`）：
+  ```
+  SELECT TO_CHAR(T.PAY_DATE,'YYYYMMDD') AS TXN_DATE, T.PAY_CHANNEL_CODE AS PAY_CHANNEL_CODE,
+         NVL(SUM(NVL(T.TICKET_COUNT, 0)), 0) AS TICKET_COUNT,
+         NVL(SUM(NVL(T.PAY_AMOUNT, T.TOTAL_AMOUNT)), 0) AS TICKET_AMOUNT
+  FROM TRAVEL_TICKET_ORDER T
+  WHERE T.PAY_STATUS = 'PAID' AND T.PAY_DATE >= #{windowStart} AND T.PAY_DATE < #{windowEnd}
+  GROUP BY TO_CHAR(T.PAY_DATE,'YYYYMMDD'), T.PAY_CHANNEL_CODE
+  ```
+  **张数 MUST 用 `SUM(TICKET_COUNT)`、NEVER 用 `COUNT(*)`** —— 一张主单含 N 张票，
+  `COUNT(*)` 数的是订单数、不是张数（`daily-ticket-server/.../mapper/ReconExportMapper.java` 的
+  `selectTravelTicketPaySummary` Javadoc 原文即如此）。金额用 `NVL(SUM(NVL(PAY_AMOUNT, TOTAL_AMOUNT)), 0)`。
+  5 段键中**第 5 段「支付方式」填主单 `PAY_CHANNEL_CODE`**（因此 SQL 按「日期 + 渠道」分组、
   一天可能多行），线路 / 车站 / 设备三段仍由 Java 补空串（本模块 5 张表无这三列）。
+- ⚠️ **【未闭合】旅游票对账的线上真实效果尚未实测确认，且与 C13 存在直接冲突**：
+  ①会话明确**未现场触发 `/internal/recon/export` 验证**，改回按子单统计**实测恒返 0 行**
+  （2026-09-22 实测结论，见 `ReconExportMapper.java` Javadoc 的 `NEVER 改回按子单统计` 一行），
+  但**主单口径是否真能出数，要看 2026-09-23 `sys_job 225` 跑完后该账户期的 `ITP.PAY` 里有没有旅游票行**；
+  ②C13 记「**主单 `TRAVEL_TICKET_ORDER.PAY_STATUS` 永不回写、恒 `INIT`**」，
+  而新 SQL 的过滤条件正是主单 `T.PAY_STATUS='PAID'` —— **两条必有一条已过期，本次无法连库复核**。
+  因此 **MUST 以 `ITP.PAY` 文件内容为准**，在拿到真实文件之前：
+  **NEVER 把「旅游票段已能出数」当既成事实**去改下游对「旅游票段恒 0」的假设；
+  **NEVER 据本节结论推定 `TRAVEL_TICKET_ORDER.PAY_STATUS` 会被回写**；
+  下游若确有「旅游票段恒 0」的假设，MUST 知会甲方后再动。
 - `TO_CHAR(PAY_DATE, ...)` 只出现在 SELECT 列表与 GROUP BY，**不进 WHERE**。
-- 两条查询**共用一条索引** `IDX_DAILY_TICKET_ORDER_RECON`（都是 `PAY_STATUS` 等值 + `PAY_DATE`
-  范围），不建即 400 万级全表扫，见遗留问题 A2。
+- DETAIL 的 Keyset 与 PAY 的旅游票汇总**共用一条索引** `IDX_DAILY_TICKET_ORDER_RECON`
+  （都建在 `DAILY_TICKET_ORDER` 上，`PAY_STATUS` 等值 + `PAY_DATE` 范围），不建即 400 万级全表扫，见遗留问题 A2。
+  ⚠️ **主单 `TRAVEL_TICKET_ORDER` 侧当前没有任何对账专用索引**（脚本 `daily-ticket-recon-export-index.sql`
+  只建在子单表上）——是否需要补一条 `(PAY_STATUS, PAY_DATE)` **待按实际数据量与执行计划确认（未闭合）**，
+  **在确认前 NEVER 想当然认为主单查询走了索引**。
 
 ## 新增配置键
 
@@ -523,9 +733,11 @@ recon-server（`recon-server/src/main/resources/application.properties`）：
   **`window-offset-days`（默认 2，按甲方账期从 1 改过来）** /
   `window-start-time`（默认 `020000`）/ `max-retry`（默认 3）
 - **`dispatch-cron` / `RECON_DISPATCH_CRON` 已于 2026-09-11 删除，NEVER 加回**：触发时机与频率由
-  web-admin `sys_job` 109 的 cron 决定，本模块没有任何 cron 配置。
-- `recon.orchestration.sources[N].name` / `.url` / `.file-types`，**N=0..2 三个源**：
-  `gate-txn-pay`（EXP,PAY,BUS,DETAIL）、`collect-pay`（PAY,BUS）、`daily-ticket`（PAY,DETAIL）
+  web-admin `sys_job` 225 的 cron 决定，本模块没有任何 cron 配置。
+- `recon.orchestration.sources[N].name` / `.url` / `.file-types`，**N=0..3 四个源**：
+  `gate-txn-pay`（EXP,PAY,BUS,DETAIL）、`collect-pay`（PAY,BUS）、`daily-ticket`（PAY,DETAIL）、
+  **`face-pay`（PAY,BUS，2026-09-16 新增）**。**`face-pay` 与 `collect-pay` NEVER 二选一**：
+  切流后的新单只进 `F2F_*`、切流前的历史单只在 collect-pay 那四张旧表里，删任一个都会让对应时间段的账凭空少一截。
 - **`service.recon.self-url` 已删除**（2026-09-11）：`ReconExportClient` 的 baseUrl 现在固定为空串，
   复用 `URLDynamicRouter` 的动态路由做法，下发地址只来自 `recon.orchestration.sources[].url` 的绝对 URL。
   原占位 baseUrl 让 `InternalMicroHttp` 的 INFO 日志打出
@@ -542,6 +754,10 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 `recon.internal-token` 虽然形态相同，但**已无任何读取方、不需要注入**（见 §鉴权现状）——
 **NEVER 再写「由 Secret 注入」把它和 `recon.ftp.password` 并列**，否则上线核对会去找一个没人读的值。
 `recon.ftp.enabled=false` 时 `ReconFtpService.upload` 直接抛「对账 FTP 未启用」，批次会停在 `FAILED`。
+⚠️ **线上 MUST 为 `true`**：jar 内默认值是 `false`（`recon.ftp.enabled=${RECON_FTP_ENABLED:false}`），
+线上靠 Deployment env **`RECON_FTP_ENABLED=true`** 打开 —— **本项保持现状、MUST NOT 改**，
+判断线上是否真的开 FTP **MUST 现查 Deployment env，NEVER 看 jar 内默认值**。
+（`recon-server` 部署地址 `recon-server-bjzdy-svc.itp.svc:30034`，见 A4。）
 
 ⚠️ **`recon.sources`（环境变量 `RECON_SOURCES`）是死配置**，默认值里还留着 `ticket`，
 **别拿它当「参与对账的源清单」**（见遗留问题 D10）。真实清单只看 `recon.orchestration.sources`。
@@ -550,7 +766,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 
 - **改行格式、字段顺序或分隔符前 MUST 先核对甲方规格原文**
   `docs/接口规范文档/ACC与ITP之间的文件.docx` §一，**NEVER 自行发明字段或调整顺序**。
-  改动 **MUST 同时改 recon-server 与三个源服务**（ticket-server 侧的保留代码也要跟着改，否则将来启用即错位），
+  改动 **MUST 同时改 recon-server 与四个源服务**（ticket-server 侧的保留代码也要跟着改，否则将来启用即错位），
   并按 AGENTS.md §7 的约束重建链路上每一个经手 `model` DTO 的模块镜像。
 - **NEVER 用 JSON 承载分片或最终文件**。四类文件都是无 schema 的管道分隔纯文本，
   拼行只能走 `ReconRecord.line(...)`；**NEVER 自己 `String.join("|", ...)`**——
@@ -581,15 +797,17 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 
 ### A 环境类
 
-- **A1 四张 `RECON_*` 表：测试库已建、生产库仍未建**：`RECON_BATCH` / `RECON_BATCH_SOURCE` /
+- **A1 四张 `RECON_*` 表：已闭合（保留记录）**：`RECON_BATCH` / `RECON_BATCH_SOURCE` /
   `RECON_BATCH_PART` / `RECON_BATCH_FILE`（含索引 `IDX_RECON_SOURCE_STATUS`、`IDX_RECON_PART_STATUS`）
-  已于 **2026-09-11 在测试库 `172.20.222.3:1521/AFCITPDB`（用户 `qditp`，口令走 K8s env、不入文档）执行**，
+  已于 **2026-09-11 在唯一目标库 `172.20.222.3:1521/AFCITPDB`（用户 `qditp`，口令走 K8s env、不入文档）执行**，
   并用 `USER_TABLES` 查到 4 张表全在。当时库内数据量很小：
   `DAILY_TICKET_ORDER` 44 行、`TRAVEL_TICKET_ORDER` 3 行、`GATE_TXN_PAY` 40 行。
-  **生产库仍未执行**：DDL `recon-server/src/main/resources/sql/recon-server-schema.sql`，
+  **本条此前写「测试库已建、生产库仍未建」是把同一个库当成了两个，已作废、NEVER 回退** ——
+  `AFCITPDB` 就是本项目唯一的目标业务库（AGENTS.md §8）；要区分环境 MUST 先拿到第二个库的真实地址。
+  DDL 仍在 `recon-server/src/main/resources/sql/recon-server-schema.sql`，
   增量脚本 `recon-server-schema-migration.sql`。后三张有外键，**建表顺序必须先 `RECON_BATCH`**。
-  本项目「代码有 mapper、生产库无表」是高频缺陷，**NEVER 假定仓库有 DDL 就等于生产库已建表**。
-  测试库回退用的还原 SQL（**按外键反序**，与 A2 的索引一并列出）：
+  另留一条通则：本项目「代码有 mapper、库里无表」是高频缺陷，**新增落库功能 NEVER 假定仓库有 DDL 就等于库里已建表**。
+  回退用的还原 SQL（**按外键反序**，与 A2 的索引一并列出）：
 
   ```sql
   DROP TABLE RECON_BATCH_FILE PURGE;
@@ -598,25 +816,30 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
   DROP TABLE RECON_BATCH PURGE;
   DROP INDEX IDX_DAILY_TICKET_ORDER_RECON;
   ```
-- **A2 索引：测试库已建、生产库仍未建**：`IDX_DAILY_TICKET_ORDER_RECON (PAY_STATUS, PAY_DATE, ORDER_NO)`，
+- **A2 索引：已闭合（保留记录）**：`IDX_DAILY_TICKET_ORDER_RECON (PAY_STATUS, PAY_DATE, ORDER_NO)`，
   脚本在 `daily-ticket-server/src/main/resources/sql/daily-ticket-recon-export-index.sql`。
-  2026-09-11 已在测试库 `AFCITPDB` 建好并用 `USER_INDEXES` 验证存在
-  （同表另有既存的 `IDX_DAILY_TICKET_ORDER_PARENT`）。
-  DETAIL 与 PAY 两条查询共用它，生产库不建即 400 万级全表扫。
-  这是对账**唯一**需要新建的索引——主单侧索引已随旅游票改按子单统计而废弃、脚本里也已删除。
+  2026-09-11 已在唯一目标库 `AFCITPDB` 建好并用 `USER_INDEXES` 验证存在
+  （同表另有既存的 `IDX_DAILY_TICKET_ORDER_PARENT`）。**本条此前的「生产库仍未建」同 A1 已作废、NEVER 回退。**
+  DETAIL 与 PAY 两条查询共用它，缺它即 400 万级全表扫。
+  ⚠️ **本句此前写「这是对账唯一需要新建的索引——主单侧索引已随旅游票改按子单统计而废弃」已过期**：
+  旅游票汇总 **2026-09-22 起改回按主单 `TRAVEL_TICKET_ORDER`**（见 C14），
+  而该索引脚本**只建在 `DAILY_TICKET_ORDER` 上** —— **主单侧是否需要补一条 `(PAY_STATUS, PAY_DATE)` 索引
+  尚未确认（未闭合）**，待按实际数据量与执行计划判定。`IDX_DAILY_TICKET_ORDER_PARENT` 仍被其他查询使用，
+  **NEVER 因为口径变化而删它。**
 - **A3 共享存储未落地 + 必须单副本**：`recon.storage.root` 默认 `/home/javaapp/app/recon`，
   **不挂 ReadWriteMany PVC 就是 Pod 本地盘**——recon-server 重启会丢已收分片（库里有记录、文件没了，
   生成时报「分片文件不存在或路径非法」）。且 `advance()` 只有进程内 `AtomicBoolean`、没有数据库锁，
   **recon-server MUST 单副本**。
-- **A4 三个源地址已实测回填，recon-server 自身尚未部署**：recon 侧
-  `recon.orchestration.sources[0..2].url` 的默认值已按 **2026-09-11 `kubectl get svc -n itp` 实测**回填为
+- **A4 四个源地址已实测回填，recon-server 也已部署**（**本条标题此前写「recon-server 自身尚未部署」已作废、NEVER 回退**）：recon 侧
+  `recon.orchestration.sources[0..3].url` 的默认值已按 **`kubectl get svc -n itp` 实测**回填为
   `http://gate-txn-pay-server-jomf4-svc.itp.svc:30019`、
   `http://collect-pay-c23ku-svc.itp.svc:30024`、
-  `http://daily-ticket-server-rdbe5-svc.itp.svc:30027`。
+  `http://daily-ticket-server-rdbe5-svc.itp.svc:30027`，
+  以及 **`http://face-pay-server-svc.itp.svc:30025`（2026-09-16 新增的第 4 个源）**。
   ⚠️ **易错点：这些 Service 的端口等于 NodePort 号，不等于容器内的 `server.port`**
   （collect-pay 容器是 58101，但 Service 端口是 30024；gate-txn-pay 是 9106 / 30019、
   daily-ticket 是 9108 / 30027）。**NEVER 按容器端口拼 Service 地址。**
-  **三个源的 `service.recon.url` 已于 2026-09-11 回填 recon-server 的真实 Service 名**
+  **四个源的 `service.recon.url` 已回填 recon-server 的真实 Service 名**
   （`http://recon-server-bjzdy-svc.itp.svc:30034`，该服务同日部署完成）。
   ⚠️ **本段此前写的「仍是占位值、集群内既没有 recon-server 的 Service 也没有 Deployment、本服务尚未部署」
   已全部作废，NEVER 回退**。线上真实值一律 **MUST 查 Deployment env**
@@ -644,10 +867,15 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
   「0 正常, 1 单边账(入), 2 单边账(出), 3 单边入站人工, 4 单边出站人工, **5 双段计费超时**」——
   1~4 能对上，**第 5 位含义完全不同**（甲方是「乘客自主补进站」），且我方多一个「0 正常」而甲方无 0。
   当前实现**原样输出 `ORDER_EXP_TYPE`、不做任何映射**（猜错会把超时行程报成自主补站，账目性质变了）。
-  连带后果：**`ORDER_EXP_TYPE='0'`（正常单）也会被 EXP 与 PAY 单边组捞进去**，
-  需甲方裁决是否排除 `'0'`。
+  ⚠️ **本处此前写「`ORDER_EXP_TYPE='0'`（正常单）也会被 EXP 与 PAY 单边组捞进去、需甲方裁决是否排除」已过期**：
+  排除 `'0'` **已经落地、且是必须的** —— SQL 片段 `Recon_Exp_Filter` 现在是
+  `T.ORDER_EXP_TYPE IS NOT NULL AND T.ORDER_EXP_TYPE <> ' ' AND T.ORDER_EXP_TYPE <> '0'`
+  （见「各源抽取口径」源 `gate-txn-pay`）。不排除 `'0'` 会让**全部正常订单**被捞进单边账、
+  且与「过闸」组逐字重复，ACC 侧必然对不平（2026-09-11 端到端实测确认：EXP 3 行全是误报）。
+  因此**「是否排除 `'0'`」这一项已裁决、落地为「排除」，NEVER 回退**；
+  仍待甲方澄清的**只有** 1~15 与我方 0~5 的**映射关系**，**NEVER 自行折算**。
 - **B8 DETAIL 的「总金额」没有产出**：甲方要求「加入虚拟电子多日计次票的明细**和总金额**」，
-  「总金额」这一行 / 字段**三个源与 recon-server 都没有实现**（DETAIL 是 7 段明细，没有汇总行的位置）。
+  「总金额」这一行 / 字段**四个源与 recon-server 都没有实现**（DETAIL 是 7 段明细，没有汇总行的位置）。
 - **B9 超时费金额未做钳制**：甲方要求「费用为线网最高票价或者 1」，
   当前 `gate-txn-pay` 直接取 `OVERTIME_AMOUNT` 原值、**没有钳制**。
   钳制需要 para-server 的线网最高票价参数，属跨模块改动。
@@ -699,9 +927,13 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
   `entity/BomNoCashOrder.java` 的注释清单里**没有「购票 / 发售」这一项**；
   `constant/BomBusinessCodeEnum` 把 `01` 与 `22` 的描述**都写成「充值」**；
   `BomOrderServiceImpl` 发售建单却硬编码 `setTransType("01")`。
-  且该列有一条来源是**设备上送**。因此**未按购票 / 充值拆分，整张表计入「BOM/TVM 发售」组**；
-  连带 **「BOM 行政处理」（idx 15/16）与「BOM 处理」（idx 19/20）两组恒 0**。
-  四张表均无优惠列，**BUS 优惠段恒 0**。
+  且该列有一条来源是**设备上送**。因此本表**未按购票 / 充值拆分，整张表计入「BOM/TVM 发售」组**。
+  ⚠️ **本处此前写「「BOM 行政处理」（idx 15/16）与「BOM 处理」（idx 19/20）两组恒 0」已过期**：
+  这两组是 **face-pay 新表专属**（`F2F_ORDER` 里 `BIZ_TYPE='04'` 的两支：`TRANS_TYPE='42'` 与
+  `TRANS_TYPE IS NULL OR <> '42'`），`collect-pay` 四张旧表**没有这两种业务**、那两组在旧源上恒 0；
+  但 **`face-pay` 源自 2026-09-16 加入后已经能填**（见「各源抽取口径」源 `face-pay` 的度量表）。
+  **AGENTS.md §2.2.2 记的「恒 0」是旧实现缺口、已作废，NEVER 据那句判断 face-pay 也出不了数。**
+  四张旧表均无优惠列，**BUS 优惠段恒 0**（此处仅指 collect-pay 侧）。
 - **C12 `daily-ticket` 无法按票种收窄**：`DAILY_TICKET_INSTANCE.CODE_TICKET_TYPE` 全表恒 `'0441'`
   （DDL 默认值与激活时无条件写入的值都是 `'0441'`，零区分度；且该值语义是「二维码后付费单程票」、
   与列名不符）；`DAILY_TICKET_ORDER.CARD_TYPE` 直接落 APP 上送值、入口不做码值校验，
@@ -718,17 +950,26 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
   APP 只能拿子单号逐张付：上送网关的商户单号是**子单号**、金额是**单张 `TICKET_PRICE`**
   （`buildDailyTicketPayRequest`），回写走 `updatePayResultIfPaying`，把
   `PAY_STATUS='PAID'` / `PAY_DATE` / `PAY_AMOUNT` 落在子单上。
-- **C14 旅游票 PAY 汇总已改按子单取数（2026-09-11 修复，原记「恒 0 行 P0」已失效）**：
-  `selectTravelTicketPaySummary` 现在查 `DAILY_TICKET_ORDER`，
-  过滤 `PARENT_ORDER_NO IS NOT NULL AND PAY_STATUS='PAID' AND PAY_DATE` 窗口，
-  按 `TO_CHAR(PAY_DATE,'YYYYMMDD')` 与 `PAY_CHANNEL_CODE` 分组；
-  张数 `COUNT(*)`（一条子单一张票），金额 `NVL(SUM(NVL(PAY_AMOUNT, TICKET_PRICE)), 0)`，
-  **支付方式段填 `PAY_CHANNEL_CODE`、不再留空**。
-  这同时消掉了原来「主单无 `PAY_DATE`、只能用 `UPDATE_TIME` 切窗口、非支付更新会重复计入」的偏差。
-  排查「旅游票段为 0」**MUST 先确认子单是否真有 `PAY_STATUS='PAID'` 且 `PAY_DATE` 落在窗口内**，
-  NEVER 再回去看主单状态。
+- **C14 旅游票 PAY 汇总的口径变了两次，当前是「按主单」，且线上效果【未闭合】**：
+  - **2026-09-11** 曾把口径从「按主单」改成「按子单 `DAILY_TICKET_ORDER` + `PARENT_ORDER_NO IS NOT NULL`」；
+  - **2026-09-22 又改回「按主单 `TRAVEL_TICKET_ORDER`」**（`daily-ticket-server:1.0.59`，
+    `selectTravelTicketPaySummary`），过滤 `PAY_STATUS='PAID'` + `PAY_DATE` 窗口，
+    按 `TO_CHAR(PAY_DATE,'YYYYMMDD')` 与 `PAY_CHANNEL_CODE` 分组；
+    **张数 `NVL(SUM(NVL(TICKET_COUNT, 0)), 0)`、NEVER 换回 `COUNT(*)`**（`COUNT(*)` 数的是订单数），
+    金额 `NVL(SUM(NVL(PAY_AMOUNT, TOTAL_AMOUNT)), 0)`，**支付方式段填主单 `PAY_CHANNEL_CODE`**。
+    **本处此前整段写「按子单」已过期、NEVER 回退**（2026-09-22 实测：改回按子单那条查询**恒返 0 行**，
+    表现为「旅游票段永远为 0」）。
+  - ⚠️ **【未闭合】本条改动的线上真实效果尚未实测确认**：会话明确**未现场触发
+    `/internal/recon/export` 验证**，`ITP.PAY` 是否首次出现旅游票行，
+    **要看 2026-09-23 `sys_job 225` 跑完后该账户期的 `ITP.PAY` 里有没有旅游票行**。
+    在此之前 **NEVER 把「旅游票段已能出数」当既成事实**，也 **NEVER 据此推定
+    `TRAVEL_TICKET_ORDER.PAY_STATUS` 会被回写** —— 这与 **C13「主单 `PAY_STATUS` 永不回写、恒 `INIT`」**
+    直接冲突（新 SQL 却按主单 `PAY_STATUS='PAID'` 过滤），**两条必有一条已过期，本次无法连库复核**。
+    排查「旅游票段为 0」的**正确第一步**是**看真实 `ITP.PAY` 文件里有没有旅游票行**，
+    再看主单是否真有 `PAY_STATUS='PAID'` 且 `PAY_DATE` 落在窗口内；
+    **在拿到真实文件之前 NEVER 断言主单或子单哪一侧是对的**。
 - **C15 线路段（PAY 第 2 段）已部分补齐（2026-09-11 实测 + 改造）**：
-  改造前三个源全部硬填空串；现在改为 LEFT JOIN 同库同 schema 的车站维表 `STATION_INFO`
+  改造前当时的三个源全部硬填空串（**`face-pay` 2026-09-16 才成为第 4 个源、不在那批改造范围内**）；现在改为 LEFT JOIN 同库同 schema 的车站维表 `STATION_INFO`
   （`STATION_CODE` / `LINE_CODE` / `STATION_NAME` / `STATION_EN_NAME`，实测共 8 条线路
   `01/02/03/04/06/08/11/13`，车站码 4 位如 `0121`）取 `LINE_CODE`。
   **已能填**：`gate-txn-pay` 的过闸组与单边组（join `GATE_TXN_PAY.OUT_STATION`，
@@ -736,6 +977,11 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
   `collect-pay` 的 TVM 购票组与 APP 购票组（join `IN_STATION_CODE`）。
   **仍为空**：`collect-pay` 的 TVM 充值组与 BOM 组（两表只有 `DEVICE_ID`、无车站码列）、
   `daily-ticket` 全部组（连设备列都没有）。
+  **`face-pay` 源（2026-09-16 加入）的线路段也是空的**（2026-09-22 实测：
+  `F2fReconExportMapper.xml` 五个 `*PaySummary` 查询只取 `NVL(O.STATION_CODE, O.ENTRY_STATION_CODE)`
+  与 `O.DEVICE_ID`，**全文件无 `LINE_CODE`、也没有 join `STATION_INFO`**）。
+  ⚠️ 注意 `F2fReconExportMapper.java:19` 的 Javadoc 写着「每行含 TXN_DATE / LINE_CODE / ...」，
+  **与 SQL 不一致、是过期注释**，NEVER 据那行 Javadoc 认为 face-pay 已填线路段。
   **MUST 用 `LEFT JOIN`，NEVER 用 `INNER JOIN`**：像 `0245` 这种维表里没有的车站码，
   INNER JOIN 会把整组数据从对账文件里丢掉，那是漏账，比线路段为空严重得多。
   collect-pay 侧同样存在这种车站码——`TBL_TVM_APP_ORDER.IN_STATION_CODE='0101'`
@@ -783,7 +1029,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
   同一文档 §一 2 还定义了第三方账单文件、参数文件与**逻辑卡号文件**的路径（`/itp/qrLoigcNum/`），
   其中**逻辑卡号文件对账仍无实现**（逻辑卡号的申请与导入在 `docs/business/card-pool.md`）。
 - 与本域相邻的已有提示词：`docs/business/gate-txn-pay.md`、`docs/business/tvm-bom-pay.md`、
-  `docs/business/daily-ticket.md`（三个源的业务口径与状态取值）；
+  `docs/business/daily-ticket.md`（四个源的业务口径与状态取值，**其中 `tvm-bom-pay.md` 同时覆盖 `collect-pay` 与 `face-pay` 两个源**）；
   `docs/business/ride-code.md`（ticket-server，**其对账代码保留但不在期望清单**）；
   `docs/business/acc-es-file.md`（acc-es-server 的 FTP，**与本域 FTP 是不同的服务器与用途**）。
 - 部署、环境变量、PVC 与上线核对：`docs/ops/生产环境清单.md`（§二 FTP、§三 环境变量、§六 P0、§七 核对清单）。
@@ -931,8 +1177,8 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 - **`X-Recon-Token` 鉴权已整段删除，属有意为之的临时降级，上线前 MUST 恢复**（`controller/ReconInternalController.java:35~43`）：用户 2026-09-11 明确要求「删除令牌要求，不用令牌了，当前处于开发测试阶段」。本组含分片接收、状态变更、生成与投递等状态变更型端点，无鉴权状态下任何网络可达方都能改批次状态或塞入分片，与 AGENTS.md §5.2 相冲突。恢复时把 `recon.internal-token` 与请求头的 `MessageDigest.isEqual` 定长比较加回每个端点即可。配置键 `recon.internal-token=${RECON_INTERNAL_TOKEN:}` 仍留在 `application.properties:49`。
 - **recon-server MUST 单副本**（`ReconOrchestrationService` 类注释:44~46）：`running` / `advancing` 两把 `AtomicBoolean` 只在进程内有效，没有数据库锁。
 - **`ignore.url` 类配置 NEVER 把 `/internal/recon/**` 写进去**（`application.properties:9~13`）：该键名与语义相反——`FirstFilter.checkToken()` 里只有值等于 `/**`（`web.properties:28` 的默认值）才整体跳过 JWT 校验，其余情况列表内的 URL 反而是「必须带 `Authentication` 头的 JWT」才放行。2026-09-11 实测：写成 `/internal/recon/**` 后所有分片上送一律 `403 {"msg":"check token error"}`。
-- **tracing 三行成组**（`application.properties:16~32`：`management.tracing.enabled=true` + `sampling.probability=0` + `spring.autoconfigure.exclude=...OtlpAutoConfiguration`）：打开后 web-admin `sys_job` 109 发来的 W3C `traceparent` 才能续接进 MDC，公共 `log4j2-linux.xml` 的 `%X{traceId}` 才有值（2026-09-11 实测：调度日志记着 traceId，recon-server 日志里那一列全空）。**NEVER 删除排除那行**：`sampling.probability=0` 只让本服务发起的 trace 不采样，上游带 `sampled=1` 时 span 仍会进导出队列；`web.properties` 已把 `management.otlp.tracing.endpoint` 整行注释掉，本行是第二道保险（Deployment 一注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` 就会重新激活 exporter）；Boot 3.2.6 没有 `management.tracing.export.enabled` 这个开关，把 endpoint 置空也不行。
-- **三个源模块 MUST 一起打开 tracing 开关**（`application.properties:21~22`）：同一条 `traceparent` 会由 Boot 的 WebClient 观测自动带给源服务的 `/internal/recon/export`，否则链路在源侧断开。
+- **tracing 三行成组**（`application.properties:16~32`：`management.tracing.enabled=true` + `sampling.probability=0` + `spring.autoconfigure.exclude=...OtlpAutoConfiguration`）：打开后 web-admin `sys_job` 225 发来的 W3C `traceparent` 才能续接进 MDC，公共 `log4j2-linux.xml` 的 `%X{traceId}` 才有值（2026-09-11 实测：调度日志记着 traceId，recon-server 日志里那一列全空）。**NEVER 删除排除那行**：`sampling.probability=0` 只让本服务发起的 trace 不采样，上游带 `sampled=1` 时 span 仍会进导出队列；`web.properties` 已把 `management.otlp.tracing.endpoint` 整行注释掉，本行是第二道保险（Deployment 一注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` 就会重新激活 exporter）；Boot 3.2.6 没有 `management.tracing.export.enabled` 这个开关，把 endpoint 置空也不行。
+- **四个源模块 MUST 一起打开 tracing 开关**（`application.properties:21~22`）：同一条 `traceparent` 会由 Boot 的 WebClient 观测自动带给源服务的 `/internal/recon/export`，否则链路在源侧断开。**四个源现已全部打开** —— `gate-txn-pay` / `collect-pay` / `daily-ticket` 早已开，**`face-pay` 于 2026-09-22（1.0.65）补齐并已滚更、实测续接通过**（打一条带 `traceparent` 的请求，face-pay 日志 traceId 列与入向 trace-id 逐字一致）。**本处此前写「face-pay 尚未打开、是已知缺口」已作废、NEVER 回退**；补的时候 **MUST 按 AGENTS.md 那条「三行成组」写**，NEVER 只加 `enabled=true`。
 - **`ReconExportClient` 的 `baseUrl` 固定为空串，不需要自身地址配置项**（`application.properties:110~113`）：下发地址一律取 `recon.orchestration.sources[].url` 的绝对 URL。原 `service.recon.self-url` 已删除——它只是占位 baseUrl，却让 `InternalMicroHttp` 的 INFO 日志打出 `http://127.0.0.1:9112/http://<源服务>/internal/recon/export` 这种双份地址（2026-09-11 实录）。
 - **`InternalMicroHttp` 的 logger 被压到 WARN**（`application.properties:116~117`）：它会把整个请求头 Map 直接打进 INFO 日志，其中包含内部令牌明文；公共构件 `resource/micro` 不改，改这里避免令牌落进日志文件与日志采集。
 - **期望清单当前是四个源**（`application.properties:84~108`）：`sources[0] gate-txn-pay` = EXP,PAY,BUS,DETAIL；`sources[1] collect-pay` = PAY,BUS；`sources[2] daily-ticket` = PAY,DETAIL；`sources[3] face-pay`（2026-09-16 新增）= PAY,BUS，口径来自 `F2F_ORDER join F2F_PAYMENT`。地址是 `kubectl get svc -n itp` 实测值（Service 端口等于 NodePort 号），**线上仍以 Deployment env 覆盖为准**。
@@ -1021,7 +1267,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 
 ### 四、触发方与频率（改频率只有一个地方可改）
 
-- 触发方是 web-admin 的 `sys_job` **job_id 109「日终对账」**：`reconQuartzTask.runDailyBatch()`、cron **`0 30 2 * * ?`**、走 `service.recon.url`（`recon-server/src/main/resources/application.properties:78`，grep `触发时机与频率由 web-admin`）。
+- 触发方是 web-admin 的 `sys_job` **job_id 225「给ACC上传扣费交易」**（2026-09-21 由 109「日终对账」改号改名）：`reconQuartzTask.runDailyBatch()`、cron **`0 0 2 * * ?`**（2026-09-20 按业主要求由 `0 30 2` 改为 `0 0 2`，同批把 job 5（现为 260）销卡挪到 `0 30 2` 错开）、走 `service.recon.url`（`recon-server/src/main/resources/application.properties:78`，grep `触发时机与频率由 web-admin`）。
 - **要改频率只能改这条 cron。`recon.orchestration.dispatch-cron` 与 env `RECON_DISPATCH_CRON` 已删除、NEVER 加回**（`application.properties:79`，grep `NEVER 加回`；`ReconOrchestrationProperties.java:16~19`，grep `本类不再有 cron 配置`）。那两个键现在**没有任何读取方**，留着只会让运维误以为改它能改调度频率。
 - `recon.orchestration.enabled`（默认 true，`ReconOrchestrationProperties.java:24`）是编排总开关：关掉后 `runDailyBatch` 抛「对账编排总开关已关闭」、`advance` 直接返回，**单批次人工接口仍可用**。
 
@@ -1111,7 +1357,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 
 ### 十二、配置与日志
 
-- **traceId**（`application.properties:20~27`，grep `traceId 关联`）：`micro/web` 默认 `management.tracing.enabled=false`，本模块显式打开（现值 `:28~29` + `:37` 的 `spring.autoconfigure.exclude`，**三行成组**）。打开后 web-admin `sys_job` 109 发来的 W3C `traceparent` 才能续接进 MDC、日志 pattern 的 `%X{traceId}` 才有值；否则前台按 `SYS_JOB_LOG` 的 traceId 检索本模块日志会 **0 条**（2026-09-11 实测：调度日志记着 traceId、recon-server 那一列全空）。本模块**没有自带 log4j2 配置、走公共 `log4j2-linux.xml`**，其 pattern 已含 `%X{traceId}`、只差这个开关。同一条 `traceparent` 会由 Boot 的 WebClient 观测自动带给三个源服务的 `/internal/recon/export`，因此 **gate-txn-pay / collect-pay / daily-ticket 三个源 MUST 一起打开本开关**，否则链路在源侧断开。
+- **traceId**（`application.properties:20~27`，grep `traceId 关联`）：`micro/web` 默认 `management.tracing.enabled=false`，本模块显式打开（现值 `:28~29` + `:37` 的 `spring.autoconfigure.exclude`，**三行成组**）。打开后 web-admin `sys_job` 225 发来的 W3C `traceparent` 才能续接进 MDC、日志 pattern 的 `%X{traceId}` 才有值；否则前台按 `SYS_JOB_LOG` 的 traceId 检索本模块日志会 **0 条**（2026-09-11 实测：调度日志记着 traceId、recon-server 那一列全空）。本模块**没有自带 log4j2 配置、走公共 `log4j2-linux.xml`**，其 pattern 已含 `%X{traceId}`、只差这个开关。同一条 `traceparent` 会由 Boot 的 WebClient 观测自动带给四个源服务的 `/internal/recon/export`，因此 **gate-txn-pay / collect-pay / daily-ticket / face-pay 四个源 MUST 一起打开本开关**，否则链路在源侧断开。**四个源现已全部打开**：前三个早已开，**`face-pay-server` 于 2026-09-22（1.0.65）补齐三行并已滚更、实测续接通过**。**本处此前写「face-pay 至今未开、追到第 4 个源就断」已作废、NEVER 回退。**
 - **`spring.autoconfigure.exclude=...OtlpAutoConfiguration` 这行 NEVER 删**（`application.properties:30~36`，grep `NEVER 删除下面这行排除`），三条理由：① `sampling.probability=0` 只让**本服务发起**的 trace 不采样（采样器是 `parentBased(traceIdRatioBased(0))`），上游带 `sampled=1` 的 `traceparent` / `b3` 进来时 span 仍会被采样并进导出队列；② `micro/web` 的 `web.properties` 虽已把 `management.otlp.tracing.endpoint` 整行注释掉，但 **K8s Deployment 只要注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` env 就会重新激活 exporter**，本行是第二道保险；③ Boot 3.2.6 **没有** `management.tracing.export.enabled` 这个开关，把 endpoint 置空也不行（`OtlpAutoConfiguration` 只判断键是否存在），只能排掉整个自动配置。
 - **`InternalMicroHttp` 的 logger 压到 WARN、NEVER 删那行配置**（`application.properties:123~129`，grep `NEVER 删除下面这行配置`）。原始理由（防内部令牌明文落日志）**已不成立** —— `X-Recon-Token` 不再发送；**NEVER 回退成「其中包含内部令牌 X-Recon-Token 的明文」那个说法**。现行理由：该 logger 会把**整个请求头 Map** 直接打进 INFO，加上下面那条双份地址，噪音对排查无益；且恢复鉴权后同一风险会立刻回来。公共构件 `resource/micro` 不改，只压本模块这个 logger。
 - **`ReconExportClient` 的 baseUrl 固定为空串**（复用 `URLDynamicRouter` 的动态路由做法），下发地址一律取 `recon.orchestration.sources[].url` 的绝对 URL，因此**不需要自身地址配置项**；原 `service.recon.self-url` **已删除** —— 它只是占位 baseUrl，却让 `InternalMicroHttp` 的 INFO 打出 `http://127.0.0.1:9112/http://<源服务>/internal/recon/export` 这种双份地址（2026-09-11 实录）（`application.properties:117~120`，grep `双份地址`）。
@@ -1143,6 +1389,25 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 3. **共享存储（ReadWriteMany PVC）与「MUST 单副本」两条约束都只写在文档里，集群侧未落地**：当前靠「事实上只部了一个副本」兜着，没有任何机制阻止有人把 replicas 改成 2。待裁决：加 PDB / 注释说明 / 还是在启动时自检（例如探测同名批次的并发写）。
 4. **两个 SQL 文件 0 条 `COMMENT ON`**：`RECON_*` 四张表的列语义只存在于本文与 mapper XML。待裁决：是否补 `COMMENT ON COLUMN`（本项目其它模块也普遍没有，属全局风格问题，**MUST 先问用户再动**）。
 5. **`amountTotal` 在明细与汇总两条路径上语义不同**（明细=业务金额，汇总=所有度量列之和的校验和），同一列名承载两种语义。待裁决：是否拆成两列 / 改列名。**在裁决前 NEVER 把 `RECON_BATCH_FILE.AMOUNT_TOTAL` 当业务金额对外汇报。**
+6. **【未闭合】旅游票对账改按主单后的线上真实效果**（见「各源抽取口径」源 `daily-ticket` 与 C14）：
+   会话**未现场触发 `/internal/recon/export` 验证**，`ITP.PAY` 是否首次出现旅游票行要看
+   **2026-09-23 `sys_job 225` 跑完后**的文件内容；且新 SQL 按主单 `PAY_STATUS='PAID'` 过滤，
+   **与 C13「主单 `PAY_STATUS` 永不回写」直接冲突 —— 两条必有一条已过期，本次无法连库复核**。
+   待裁决 / 待验证：`TRAVEL_TICKET_ORDER.PAY_STATUS` 到底会不会被回写？
+   在拿到 2026-09-23 的真实 `ITP.PAY` 之前，**NEVER 把「旅游票段已能出数」当既成事实**，
+   也 **NEVER 据本节结论改下游对「旅游票段恒 0」的假设**。
+7. **【未闭合】`ITP.DETAIL` 的金额单位与「线网最高票价或者 1」的 `1` 的单位**（见「分片文件格式契约」ITP.DETAIL 段与 B9）：
+   三处文档冲突（甲方 ACC 文件未标单位 / 日票 ACC 文档写「（元）」 / 同文档 `ITP.EXP` 写「（单位分）」），
+   相差 100 倍。**MUST 向甲方澄清后再定对账口径**；澄清前 **NEVER 按某一种单位去换算或钳制超时费**，
+   也 **NEVER 据本文件的某一处措辞就认定单位是分或元**。
+8. **【未闭合】主单 `TRAVEL_TICKET_ORDER` 侧是否需要一条对账索引**（见「数据表」索引说明与 A2）：
+   旅游票汇总已改查主单，而索引只建在子单表 `DAILY_TICKET_ORDER` 上。
+   待按实际数据量与执行计划判定是否需要补 `(PAY_STATUS, PAY_DATE)` 索引；
+   **在确认前 NEVER 想当然认为主单查询走了索引**（`EXPLAIN PLAN` 缺失时宁可先加索引再看，但 MUST 先量数据量）。
+9. **【未闭合】`ITP.EXP` 的结构性缺失**（见「各源抽取口径」源 `gate-txn-pay`）：
+   EXP 的唯一来源是 gate-txn-pay，甲方 15 类异常里 `7~15`（TVM/BOM 口径）与 `5/6`（自助补站口径）
+   **当前没有任何源供数**。待裁决：是否新加源 / 让现有源产出这两类 EXP。
+   **在甲方明确要这几类之前 NEVER 自行往 EXP 里塞数据**（会改变账目性质）。
 
 ### 墓碑清单（本轮删除的注释里带「NEVER 回退 / 已删除 / 已过期」的断言）
 
@@ -1168,6 +1433,6 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 - **按文件**：40 个文件里有注释的 30 个（Java 24 / XML 5 / properties 1），本节逐条覆盖 **30/30**；无注释的 10 个（2 个 SQL + 8 个纯字段 record / 枚举）已按「无可迁移知识」说明。
 - **按注释行**：829 行中，**判为「有知识、已迁入本节」的约 470 行**（含 §一~§十二 全部条目）；**判为「标准 Javadoc、随代码保留」的约 300 行**（`@param` / `@return` / 一句话方法说明 / 枚举常量说明）；**判为「纯样板、丢弃」的约 60 行**（`/**` `*/` 单独成行、复述方法名）。
 - **按四类**：契约与判据（段数 / 账期 / 白名单 / 收齐三项 / jdbcType / 装箱）**全覆盖**；决策理由（为何同步轮询 / 为何不加事务 / 为何线路收口到本模块 / 为何不缓存维表 / 为何不加 WHERE）**全覆盖**；陷阱（覆盖 COMPLETED / 白名单缺项 / SUCCESS 短路 / 装箱 `!=` / `OTHER(1111)` / XML 连续减号 / 兜底 catch 被切面吞 / 明细走汇总路径 OOM / 降级空 Map / `skipCheckTokenUrls` 语义相反）**全覆盖 10 条**；墓碑 **14 条**（阶段一记 12 条，本轮新增 M1「调度形态易读反」与 M10「重复触发安全未兑现」两条）。
-- **未覆盖 / 无法从注释得到的**：① `RECON_*` 四张表的列长与非空约束（注释里没有，MUST 看 `sql/recon-server-schema.sql` 或 `USER_TAB_COLS`）；② 分片落盘目录结构（`recon.storage.root` 之下的实际布局只在代码里，注释没写）；③ 各源的抽取 SQL 口径（在三个源服务里，属那三个模块的迁移范围，本文正文「各源抽取口径」已有）；④ 甲方规格原文的逐段字段名（只在 `.docx` 里，本文正文「分片文件格式契约」已按规格落地）。
+- **未覆盖 / 无法从注释得到的**：① `RECON_*` 四张表的列长与非空约束（注释里没有，MUST 看 `sql/recon-server-schema.sql` 或 `USER_TAB_COLS`）；② 分片落盘目录结构（`recon.storage.root` 之下的实际布局只在代码里，注释没写）；③ 各源的抽取 SQL 口径（在四个源服务里，属那四个模块的迁移范围，本文正文「各源抽取口径」已有）；④ 甲方规格原文的逐段字段名（只在 `.docx` 里，本文正文「分片文件格式契约」已按规格落地）。
 
 

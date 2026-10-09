@@ -41,8 +41,6 @@ class CallbackLogRepository {
     static final String HANDLE_STATUS_FAIL = "FAIL";
     /** 转人工：报文非法，或已达重推上限仍未成功。 */
     static final String HANDLE_STATUS_MANUAL = "MANUAL";
-    /** 退款方向专用：只留证据、业务回写未接线，故恒为它。 */
-    private static final String HANDLE_STATUS_PENDING = "PENDING";
 
     private static final int HANDLE_MSG_MAX = 500;
 
@@ -85,31 +83,39 @@ class CallbackLogRepository {
     }
 
     /**
-     * 落一行退款回调证据，处置状态恒为 {@code PENDING}（业务回写未接线）。
+     * 落一行退款回调证据，返回主键；落库失败返回 {@code null}（调用方据此跳过回写）。
+     *
+     * <p>与支付方向同形：<b>先落 {@code PROCESSING} 证据、再做业务收口</b>，处置结果随后按主键回写。
+     * NEVER 退回成「落库时就写终态」——那时收口还没做，写出来的处置状态是猜的。
      *
      * <p>不对两个字符串列做截断：{@code REFUND_ORDER_NO} 是我方生成的号（64 字符）、{@code REFUND_STATUS}
      * 是枚举值（16 字符），都在列长内；万一对端送超长值，Oracle 报 {@code ORA-12899} 会被本方法的 catch
      * 兜住，代价只是丢这一行证据 + 一条 ERROR 日志，不影响回调收口。
      */
-    void recordRefundCallback(AlipayTripRefundNotifyReqDTO request, RefundNotifyCommand.Accepted command) {
+    String recordRefundCallback(AlipayTripRefundNotifyReqDTO request, RefundNotifyCommand.Accepted command,
+                                String handleStatus, String handleMsg) {
+        String callbackSeq = newCallbackSeq();
         try {
             AlipayPayCallbackLog callbackLog = new AlipayPayCallbackLog();
-            callbackLog.setCallbackSeq(newCallbackSeq());
+            callbackLog.setCallbackSeq(callbackSeq);
             callbackLog.setOrderNo(command.orderNo());
             callbackLog.setCallbackType(CALLBACK_TYPE_REFUND);
             callbackLog.setRefundOrderNo(command.refundOrderNo());
             callbackLog.setRefundAmount(command.refundAmount());
             callbackLog.setRefundStatus(command.refundResult());
             callbackLog.setRawBody(JSON.toJSONString(request));
-            callbackLog.setHandleStatus(HANDLE_STATUS_PENDING);
-            callbackLog.setHandleMsg("退款回调回写未接线，仅留证据");
+            callbackLog.setHandleStatus(handleStatus);
+            callbackLog.setHandleMsg(truncate(handleMsg));
             callbackLog.setCreateTime(LocalDateTime.now());
             callbackLog.setUpdateTime(LocalDateTime.now());
             alipayPayCallbackLogMapper.insert(callbackLog);
+            return callbackSeq;
         } catch (Exception e) {
             log.error("支付宝退款回调凭据落库失败，本次处理继续, orderNo={}", command.orderNo(), e);
+            return null;
         }
     }
+
 
     /**
      * 统计该订单 {@code PAY} 回调的累计推送次数（含本次）。

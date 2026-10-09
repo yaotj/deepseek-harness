@@ -25,7 +25,10 @@
         <result column="ACTIVATE_TIME" jdbcType="TIMESTAMP" property="activateTime"/>
         <result column="FIRST_USE_TIME" jdbcType="TIMESTAMP" property="firstUseTime"/>
         <result column="ACC_NOTICE_STATUS" jdbcType="VARCHAR" property="accNoticeStatus"/>
+        <result column="ACC_NOTICE_TIMES" jdbcType="INTEGER" property="accNoticeTimes"/>
         <result column="ACC_NOTICE_TIME" jdbcType="TIMESTAMP" property="accNoticeTime"/>
+        <result column="ACC_NOTICE_MSG" jdbcType="VARCHAR" property="accNoticeMsg"/>
+        <result column="ACC_NOTICE_PAYLOAD" jdbcType="CLOB" property="accNoticePayload"/>
         <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
         <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
     </resultMap>
@@ -35,7 +38,8 @@
         CODE_TICKET_TYPE, TICKET_TYPE, SHOW_TYPE, TICKET_CODE, TICKET_NAME,
         PERIOD, ACTUAL_TIMES, TRANS_SEQ, TRANS_AMOUNT, DISCOUNT_AMOUNT,
         PAY_CHANNEL, TICKET_STATUS, COUNTING_START, COUNTING_END,
-        ACTIVATE_TIME, FIRST_USE_TIME, ACC_NOTICE_STATUS, ACC_NOTICE_TIME,
+        ACTIVATE_TIME, FIRST_USE_TIME, ACC_NOTICE_STATUS, ACC_NOTICE_TIMES, ACC_NOTICE_TIME,
+        ACC_NOTICE_MSG, ACC_NOTICE_PAYLOAD,
         CREATE_TIME, UPDATE_TIME
     </sql>
 
@@ -89,7 +93,10 @@
                 #{activateTime,jdbcType=TIMESTAMP} AS ACTIVATE_TIME,
                 #{firstUseTime,jdbcType=TIMESTAMP} AS FIRST_USE_TIME,
                 #{accNoticeStatus,jdbcType=VARCHAR} AS ACC_NOTICE_STATUS,
+                #{accNoticeTimes,jdbcType=INTEGER} AS ACC_NOTICE_TIMES,
                 #{accNoticeTime,jdbcType=TIMESTAMP} AS ACC_NOTICE_TIME,
+                #{accNoticeMsg,jdbcType=VARCHAR} AS ACC_NOTICE_MSG,
+                #{accNoticePayload,jdbcType=CLOB} AS ACC_NOTICE_PAYLOAD,
                 #{createTime,jdbcType=TIMESTAMP} AS CREATE_TIME,
                 #{updateTime,jdbcType=TIMESTAMP} AS UPDATE_TIME
             FROM DUAL
@@ -115,33 +122,63 @@
             T.COUNTING_START = S.COUNTING_START,
             T.ACTIVATE_TIME = S.ACTIVATE_TIME,
             T.ACC_NOTICE_STATUS = S.ACC_NOTICE_STATUS,
+            T.ACC_NOTICE_TIMES = S.ACC_NOTICE_TIMES,
+            T.ACC_NOTICE_TIME = S.ACC_NOTICE_TIME,
+            T.ACC_NOTICE_MSG = S.ACC_NOTICE_MSG,
+            T.ACC_NOTICE_PAYLOAD = S.ACC_NOTICE_PAYLOAD,
             T.UPDATE_TIME = S.UPDATE_TIME
+            WHERE NVL(T.ACC_NOTICE_STATUS, ' ') != 'SUCCESS'
         WHEN NOT MATCHED THEN INSERT (
             ID, ORDER_NO, THIRD_USER_ID, CARD_NUM, CARD_ISSUE, APP_CARD_TYPE,
             CODE_TICKET_TYPE, TICKET_TYPE, SHOW_TYPE, TICKET_CODE, TICKET_NAME,
             PERIOD, ACTUAL_TIMES, TRANS_SEQ, TRANS_AMOUNT, DISCOUNT_AMOUNT,
             PAY_CHANNEL, TICKET_STATUS, COUNTING_START, COUNTING_END,
-            ACTIVATE_TIME, FIRST_USE_TIME, ACC_NOTICE_STATUS, ACC_NOTICE_TIME,
+            ACTIVATE_TIME, FIRST_USE_TIME, ACC_NOTICE_STATUS, ACC_NOTICE_TIMES, ACC_NOTICE_TIME,
+            ACC_NOTICE_MSG, ACC_NOTICE_PAYLOAD,
             CREATE_TIME, UPDATE_TIME
         ) VALUES (
             S.ID, S.ORDER_NO, S.THIRD_USER_ID, S.CARD_NUM, S.CARD_ISSUE, S.APP_CARD_TYPE,
             S.CODE_TICKET_TYPE, S.TICKET_TYPE, S.SHOW_TYPE, S.TICKET_CODE, S.TICKET_NAME,
             S.PERIOD, S.ACTUAL_TIMES, S.TRANS_SEQ, S.TRANS_AMOUNT, S.DISCOUNT_AMOUNT,
             S.PAY_CHANNEL, S.TICKET_STATUS, S.COUNTING_START, S.COUNTING_END,
-            S.ACTIVATE_TIME, S.FIRST_USE_TIME, S.ACC_NOTICE_STATUS, S.ACC_NOTICE_TIME,
+            S.ACTIVATE_TIME, S.FIRST_USE_TIME, S.ACC_NOTICE_STATUS, S.ACC_NOTICE_TIMES, S.ACC_NOTICE_TIME,
+            S.ACC_NOTICE_MSG, S.ACC_NOTICE_PAYLOAD,
             S.CREATE_TIME, S.UPDATE_TIME
         )
     </insert>
 
+    <!--
+        本语句只推进票状态与有效期，NEVER 再把 ACC_NOTICE_STATUS / ACC_NOTICE_TIME 加回来。
+        那两列只归 updateAccNoticeStatus（ACC 发售通知链路）维护：出站扣次与首次使用通知
+        都不代表 ACC 已受理，写进来会把一条从未成功的上报洗成 SUCCESS，
+        而 selectPendingAccNotice 只捞 PENDING / FAIL / INIT，补偿从此再也扫不到它。
+    -->
     <update id="markUsed" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketInstance">
         update DAILY_TICKET_INSTANCE
         set TICKET_STATUS = #{ticketStatus,jdbcType=VARCHAR},
             COUNTING_END = #{countingEnd,jdbcType=BIGINT},
             FIRST_USE_TIME = #{firstUseTime,jdbcType=TIMESTAMP},
-            ACC_NOTICE_STATUS = #{accNoticeStatus,jdbcType=VARCHAR},
-            ACC_NOTICE_TIME = #{accNoticeTime,jdbcType=TIMESTAMP},
             UPDATE_TIME = #{updateTime,jdbcType=TIMESTAMP}
         where ID = #{id,jdbcType=VARCHAR}
+    </update>
+
+    <select id="selectPendingAccNotice" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from DAILY_TICKET_INSTANCE
+        where ACC_NOTICE_STATUS in ('PENDING', 'FAIL', 'INIT')
+          and NVL(ACC_NOTICE_TIMES, 0) <![CDATA[ < ]]> #{maxTimes,jdbcType=INTEGER}
+        order by UPDATE_TIME
+        fetch first #{limit,jdbcType=INTEGER} rows only
+    </select>
+
+    <update id="updateAccNoticeStatus">
+        update DAILY_TICKET_INSTANCE
+        set ACC_NOTICE_STATUS = #{accNoticeStatus,jdbcType=VARCHAR},
+            ACC_NOTICE_TIMES = #{accNoticeTimes,jdbcType=INTEGER},
+            ACC_NOTICE_TIME = #{accNoticeTime,jdbcType=TIMESTAMP},
+            ACC_NOTICE_MSG = #{accNoticeMsg,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSTIMESTAMP
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </update>
 
     <select id="selectForEntryCheck" resultMap="BaseResultMap">
@@ -160,6 +197,31 @@
         where ID = #{id,jdbcType=VARCHAR}
           and ACTUAL_TIMES > 0
     </update>
+
+    <!--
+        过期收敛候选：状态白名单 ACTIVATED / USED（REFUND_LOCKED / REFUNDED / 已 EXPIRED 一律不捞）
+        + 两支有效期判据。第二支之所以必须有：激活接口 IF8A-32 不写 COUNTING_END，
+        激活后从未乘车的票该列恒为空，只按第一支判它们永远不会过期。
+        第二支可由 fallbackByPeriod=false 整段关掉，届时该查询退化成只认 COUNTING_END。
+        NEVER 在 SQL 正文里写行注释（Druid WallFilter 会判成注入并让整条语句静默失效）。
+    -->
+    <select id="selectExpiredCandidates" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from DAILY_TICKET_INSTANCE
+        where TICKET_STATUS in ('ACTIVATED', 'USED')
+          and (
+            (COUNTING_END is not null and COUNTING_END <![CDATA[ < ]]> #{nowMillis,jdbcType=BIGINT})
+            <if test="fallbackByPeriod">
+            or (COUNTING_END is null
+                and ACTIVATE_TIME is not null
+                and PERIOD is not null
+                and PERIOD <![CDATA[ > ]]> 0
+                and ACTIVATE_TIME + NUMTODSINTERVAL(PERIOD, 'DAY') <![CDATA[ < ]]> #{now,jdbcType=TIMESTAMP})
+            </if>
+          )
+        order by UPDATE_TIME
+        fetch first #{limit,jdbcType=INTEGER} rows only
+    </select>
 
     <!-- 票状态 CAS：只改 TICKET_STATUS 与 UPDATE_TIME，NEVER 在这里补 COUNTING_END / FIRST_USE_TIME。 -->
     <update id="updateStatusIfCurrent">

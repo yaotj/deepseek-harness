@@ -1,16 +1,16 @@
 package com.chinasofti.huateng.alipay.paysign.service.impl.refund;
 
 import com.alibaba.fastjson2.JSON;
+import com.chinasofti.huateng.alipay.paysign.config.PayCenterProperties;
 import com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog;
 import com.chinasofti.huateng.alipay.paysign.exception.BusinessException;
-import com.chinasofti.huateng.alipay.paysign.mapper.AlipayPayLogMapper;
 import com.chinasofti.huateng.alipay.paysign.mapper.AlipaySignInfoMapper;
 import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripRequestRefundReqDTO;
 import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripRequestRefundRespDTO;
 import com.chinasofti.huateng.alipay.paysign.port.PayCenterPort;
 import com.chinasofti.huateng.alipay.paysign.port.PayCenterReply;
 import com.chinasofti.huateng.alipay.paysign.service.AlipayPayRefundService;
-import com.chinasofti.huateng.alipay.paysign.service.impl.payment.RefundAmountCalculator;
+import com.chinasofti.huateng.alipay.paysign.service.impl.support.RefundAmountCalculator;
 import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
 import com.chinasofti.huateng.model.alipaytrip.AlipaySignInfo;
 import org.slf4j.Logger;
@@ -63,22 +63,22 @@ public class AlipayPayRefundServiceImpl implements AlipayPayRefundService {
     /** 支付中心业务成功的 {@code retCode}。 */
     private static final String PAY_CENTER_SUCCESS = "SUCCESS";
 
-    private final AlipayPayLogMapper alipayPayLogMapper;
     private final AlipaySignInfoMapper alipaySignInfoMapper;
     private final RefundAmountCalculator refundAmountCalculator;
     private final RefundLogRepository refundLogRepository;
     private final PayCenterPort payCenterPort;
+    private final PayCenterProperties payCenterProperties;
 
-    public AlipayPayRefundServiceImpl(AlipayPayLogMapper alipayPayLogMapper,
-                                     AlipaySignInfoMapper alipaySignInfoMapper,
+    public AlipayPayRefundServiceImpl(AlipaySignInfoMapper alipaySignInfoMapper,
                                      RefundAmountCalculator refundAmountCalculator,
                                      RefundLogRepository refundLogRepository,
-                                     PayCenterPort payCenterPort) {
-        this.alipayPayLogMapper = alipayPayLogMapper;
+                                     PayCenterPort payCenterPort,
+                                     PayCenterProperties payCenterProperties) {
         this.alipaySignInfoMapper = alipaySignInfoMapper;
         this.refundAmountCalculator = refundAmountCalculator;
         this.refundLogRepository = refundLogRepository;
         this.payCenterPort = payCenterPort;
+        this.payCenterProperties = payCenterProperties;
     }
 
     @Override
@@ -109,7 +109,7 @@ public class AlipayPayRefundServiceImpl implements AlipayPayRefundService {
      * 白名单不用黑名单）—— {@code PROCESSING} 的单子钱还没确定扣没扣，退它是凭空出账。
      */
     private AlipayPayLog loadSettledPayLog(String orderNo) {
-        AlipayPayLog payLog = alipayPayLogMapper.selectByOrderNo(orderNo);
+        AlipayPayLog payLog = refundLogRepository.findPayLog(orderNo);
         if (payLog == null) {
             throw new BusinessException(FepAppErrorCodeEnum.FAIL.getCode(), "原支付记录不存在");
         }
@@ -150,7 +150,12 @@ public class AlipayPayRefundServiceImpl implements AlipayPayRefundService {
     /**
      * 组装 bizData 并出网。
      *
-     * <p>六个键名是供方契约，<b>NEVER 改</b>（含 {@code cardNum} 这个与本模块内部用词不一致的键）。
+     * <p>七个键名是供方契约，<b>NEVER 改</b>（含 {@code cardNum} 这个与本模块内部用词不一致的键）。
+     *
+     * <p><b>{@code notifyUrl} 是契约 §3.1 的必填键</b>，支付中心只往「本次请求带的这个地址」推退款结果 ——
+     * 此前一直没送，因此 {@code POST /api/payment/refundNotify} <b>从未收到过任何回调</b>。
+     * 配置为空时只打 WARN、不送该键、<b>NEVER 阻断退款申请</b>：申请本身能成功，缺的只是终态回调，
+     * 由退款回查补偿兜。
      */
     private AlipayTripRequestRefundRespDTO callPayCenter(RefundCommand command, String cardNum,
                                                         String channelAgreementNo, String refundAmount,
@@ -163,6 +168,13 @@ public class AlipayPayRefundServiceImpl implements AlipayPayRefundService {
         bizData.put("channelAgreementNo", channelAgreementNo);
         bizData.put("refundAmount", refundAmount);
         bizData.put("refundOrderNo", refundOrderNo);
+        String refundNotifyUrl = payCenterProperties.getRefundNotifyUrl();
+        if (StringUtils.hasText(refundNotifyUrl)) {
+            bizData.put("notifyUrl", refundNotifyUrl);
+        } else {
+            log.warn("pay.center.refund-notify-url 未配置，本次退款申请不送 notifyUrl，支付中心将无法回推退款结果，MUST 配置后重试, orderNo={}, refundOrderNo={}",
+                    orderNo, refundOrderNo);
+        }
 
         log.info("支付宝出行-退款申请,调用支付中心退款接口,请求参数: {}", JSON.toJSONString(bizData));
         PayCenterReply reply = payCenterPort.requestRefund(bizData);

@@ -30,7 +30,15 @@ public class AlipayTripFindTravelListReqDTO {
     private String debitRequestResult;
 
     /**
-     * 发票状态筛选（可选）
+     * 发票状态（可选）。
+     *
+     * <p><b>按用户裁决刻意不参与筛选</b>（2026-09-18 定、2026-09-20 重申，见
+     * {@code docs/business/alipay-channel.md} 与 ADR-D146 一带）：本字段在
+     * {@code AlipayTravelQueryHandler.findTravelList} 里<b>零引用</b>，传 {@code 0} / {@code 1} / 不传
+     * 三种返回逐字一致 —— 这是预期行为，<b>NEVER 当成漏实现去补过滤谓词</b>。
+     * 发票语义只体现在响应侧：{@code AlipayTripTravelRecordDTO.invoice} 原样透出
+     * {@code ALIPAY_PAY_TXN_DETAIL.INVOICE}（该列全库尚无写入方，故实际恒为空）。
+     * 本字段属对外契约，<b>NEVER 因为无人引用就删掉</b>。
      */
     private String invoice;
 

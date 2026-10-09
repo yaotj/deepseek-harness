@@ -1,6 +1,6 @@
 -- ============================================================
 -- 用途: 新增「卡池维护」定时任务（每 5 分钟一次）
--- ⚠️ 已于 2026-09-09 在 AFCITPDB 执行、job_id=107；重复执行会产生同名重复任务。执行前提 / 核对 SQL / 回滚 见 docs/ops/生产环境清单.md 附.二.2
+-- ⚠️ 已于 2026-09-09 在 AFCITPDB 执行、job_id=107（2026-09-21 随「200 以下全量重编号」改为 240，任务名同批改为「卡池数据导入」，见 web-server/web-quartz/src/main/resources/sql/web-quartz-card-pool-job-rename-migration.sql）；重复执行会产生同名重复任务。执行前提 / 核对 SQL / 回滚 见 docs/ops/生产环境清单.md 附.二.2
 INSERT INTO sys_job (job_name, job_group, invoke_target, cron_expression,
                      misfire_policy, concurrent, status, create_by, create_time, remark)
 VALUES ('卡池维护（回收预占/补货/推进批次）', 'DEFAULT', 'cardPoolQuartzTask.runMaintenance()',

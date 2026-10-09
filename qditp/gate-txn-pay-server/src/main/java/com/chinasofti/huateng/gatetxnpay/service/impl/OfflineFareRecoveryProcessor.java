@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 /**
  * 离线码出站时金额重算失败订单的补偿入口。
  *
- * <p>NEVER 加回 {@code @Scheduled}，已改由 web-admin {@code sys_job} 120 触发（ADR-D80）。
+ * <p>NEVER 加回 {@code @Scheduled}，已改由 web-admin {@code sys_job} 295 触发（2026-09-21 由 120 改号为 295，ADR-D80）。
  */
 @Service
 public class OfflineFareRecoveryProcessor {

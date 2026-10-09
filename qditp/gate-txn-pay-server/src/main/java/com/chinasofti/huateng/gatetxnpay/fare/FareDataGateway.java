@@ -16,6 +16,8 @@ import com.chinasofti.huateng.model.app.RequestTicketPriceByStationReqDTO;
 import com.chinasofti.huateng.model.app.RequestTicketPriceByStationResult;
 import com.chinasofti.huateng.model.ticket.QueryFirstEntryTxnReqDTO;
 import com.chinasofti.huateng.model.ticket.QueryFirstEntryTxnResult;
+import com.chinasofti.huateng.model.ticket.QueryLatestEntryTxnReqDTO;
+import com.chinasofti.huateng.model.ticket.QueryLatestEntryTxnResult;
 import com.chinasofti.huateng.rpc.account.AccountClient;
 import com.chinasofti.huateng.rpc.para.ParaClient;
 import com.chinasofti.huateng.rpc.ticket.TicketClient;
@@ -94,6 +96,23 @@ public class FareDataGateway {
         entryRequest.setCardId(cardId);
         entryRequest.setTicketTransSeq(ticketTransSeq);
         return ticketClient.queryFirstEntryTxn(entryRequest);
+    }
+
+    /**
+     * 查「同卡 + 早于或等于本次出站时间的最近一笔进站交易」，返回原始应答，判定留给调用方。
+     *
+     * <p>离线码出站算价的现行取数口径。<b>NEVER 退回上面那条按 {@code ticketTransSeq} 相等配对的方法</b> ——
+     * 进站与出站是同一张卡的两笔不同交易，闸机上送的序列号天然不同（2026-09-22 实测进站 0 / 出站 1），
+     * 相等配对恒命中 0 行，订单永久卡在 {@code OFFLINE_FARE_PENDING}。
+     * <b>也 NEVER 改用 {@code QRCODE_STATUS.GATE_IN_STATION} / {@code GATE_IN_TIME}</b>：
+     * 那是会被下一趟行程覆盖的状态快照，而补偿是延迟执行的，延迟期间该卡再进站就会算错钱。
+     * 上面那条方法保留未删（可能仍有别的调用方），两者并存、只增不改。
+     */
+    public QueryLatestEntryTxnResult queryLatestEntryTxnBeforeExit(String cardId, String exitHandleDateTime) {
+        QueryLatestEntryTxnReqDTO entryRequest = new QueryLatestEntryTxnReqDTO();
+        entryRequest.setCardId(cardId);
+        entryRequest.setExitHandleDateTime(exitHandleDateTime);
+        return ticketClient.queryLatestEntryTxnBeforeExit(entryRequest);
     }
 
     /** 查账户信息，返回原始应答，判定留给调用方（两条路径的失败措辞不同）。 */

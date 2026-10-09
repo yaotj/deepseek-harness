@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: fep-acc
+  name: fep-acc
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fep-acc
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: fep-acc
+    spec:
+      containers:
+      - env:
+        - name: other.web.unSafeUrlChars
+          value: 'null'
+        - name: knife4j.production
+          value: 'false'
+        - name: spring.application.name
+          value: fep-acc-server
+        - name: service.account.openLogger
+          value: 'true'
+        - name: other.web.enableLogRequestInFilter
+          value: 'true'
+        - name: other.web.enableBodyCacheFilter
+          value: 'true'
+        - name: server.port
+          value: '9110'
+        - name: other.web.enableLogTakeTimesInInterceptor
+          value: 'true'
+        - name: service.account.url
+          value: http://172.20.211.23:30013
+        - name: SERVICE_NAME
+          value: fep-acc
+        - name: NAMESPACE
+          value: itp
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-acc:1.0.7
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: fep-acc
+        resources:
+          limits:
+            cpu: '1'
+            memory: 2Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-o3vwrc4k0
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-o3vwrc4k0

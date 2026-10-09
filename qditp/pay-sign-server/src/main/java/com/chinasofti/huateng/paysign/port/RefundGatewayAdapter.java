@@ -34,6 +34,18 @@ public class RefundGatewayAdapter implements RefundGatewayPort {
         return StringUtils.hasText(paySignProperties.getRefundQueryUrl());
     }
 
+    /**
+     * §3.1 请求退款 bizData 的 {@code notifyUrl}（2026-09-22 新增，P1-3）。
+     *
+     * <p>**只读配置、不做兜底**：NEVER 退化成 {@code defaultNotifyUrl}（那是签约回调地址）
+     * 或 {@code requestPayNotifyUrl}（那是支付回调地址）—— 三条回调的报文与处理分支完全不同，
+     * 串了地址等于把退款结果送进支付回调解析链。
+     */
+    @Override
+    public String refundNotifyUrl() {
+        return paySignProperties.getRequestRefundNotifyUrl();
+    }
+
     /** 成功码判定的唯一入口，NEVER 在本类重写一份（同 {@link ContractGatewayAdapter#judge}）。 */
     private GatewayReply judge(PaySignGatewayResponse response) {
         return paySignGateway.isSuccess(response)

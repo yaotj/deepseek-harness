@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: para-server
+  name: para-server
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: para-server
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: para-server
+    spec:
+      containers:
+      - env:
+        - name: other.web.enableLogRequestInFilter
+          value: 'true'
+        - name: other.web.enableBodyCacheFilter
+          value: 'true'
+        - name: other.sql.double-datasource
+          value: 'false'
+        - name: para.ftp.passive-mode
+          value: 'true'
+        - name: management.tracing.enabled
+          value: 'true'
+        - name: knife4j.production
+          value: 'false'
+        - name: para.ftp.remote-dir
+          value: ${PARA_FTP_REMOTE_DIR:/parameter/cur/}
+        - name: server.port
+          value: '8080'
+        - name: para.ftp.connect-timeout-millis
+          value: '10000'
+        - name: other.sql.username
+          value: qditp
+        - name: para.ftp.port
+          value: ${PARA_FTP_PORT:21}
+        - name: other.web.enableLogTakeTimesInInterceptor
+          value: 'true'
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        - name: other.sql.host
+          value: 172.20.222.3:1521
+        - name: para.ftp.data-timeout-millis
+          value: '60000'
+        - name: spring.application.name
+          value: para-server
+        - name: para.ftp.username
+          value: ${PARA_FTP_USERNAME:ftpuser}
+        - name: para.ftp.ip
+          value: ${PARA_FTP_IP:172.20.214.101}
+        - name: other.web.unSafeUrlChars
+          value: 'null'
+        - name: other.sql.page.type
+          value: oracle
+        - name: other.sql.password
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: other.sql.password
+        - name: other.sql.database
+          value: AFCITPDB
+        - name: para.ftp.password
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: para.ftp.password
+        - name: other.sql.type
+          value: oracle
+        - name: management.tracing.sampling.probability
+          value: '0'
+        - name: para.ftp.local-dir
+          value: ${PARA_FTP_LOCAL_DIR:/data/acc-para}
+        - name: SERVICE_NAME
+          value: para-server
+        - name: NAMESPACE
+          value: itp
+        image: os-harbor-svc.default.svc.cloudos:443/itp/para-server:2.0.26
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: para-server
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-hzmsqw2a0
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-hzmsqw2a0

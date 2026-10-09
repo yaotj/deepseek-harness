@@ -23,6 +23,14 @@ public class PaySignProperties {
     private String refundQueryUrl;
     private String defaultNotifyUrl;
     private String requestPayNotifyUrl;
+    /**
+     * §3.1 请求退款的回调地址（{@code pay.sign.request-refund-notify-url}，2026-09-22 新增，P1-3）。
+     *
+     * <p>与 {@link #requestPayNotifyUrl}（§5.1 支付回调）、{@link #defaultNotifyUrl}（签约回调）
+     * **是三条不同的回调、报文与处理分支都不同，NEVER 互相顶用**。
+     * 空值即「不送该键」，退款仍只靠 §3.2 回查收敛。
+     */
+    private String requestRefundNotifyUrl;
     private String alipayAppId = "60000157";
     private String alipayMerchantAppId = "2015101000413186";
     private String wechatAppId = "wx426a3015555a46be";
@@ -155,6 +163,14 @@ public class PaySignProperties {
 
     public void setRequestPayNotifyUrl(String requestPayNotifyUrl) {
         this.requestPayNotifyUrl = requestPayNotifyUrl;
+    }
+
+    public String getRequestRefundNotifyUrl() {
+        return requestRefundNotifyUrl;
+    }
+
+    public void setRequestRefundNotifyUrl(String requestRefundNotifyUrl) {
+        this.requestRefundNotifyUrl = requestRefundNotifyUrl;
     }
 
     public String getAlipayAppId() {

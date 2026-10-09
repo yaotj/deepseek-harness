@@ -61,17 +61,31 @@ class SupplementStateRules {
     }
 
     /**
-     * IF5A-01 解析建议操作列表。
+     * IF5A-01 解析建议操作列表（无 BOM 站码时回退旧口径，向后兼容既有调用）。
      *
-     * @param codeStatus 已由 {@link #resolveCodeStatus} 解析且非 null
+     * @see #resolveAdviceOpt(QRCodeStatusEnum, String, String, String, String, String, String)
      */
     List<String> resolveAdviceOpt(QRCodeStatusEnum codeStatus, String gateInStation, String lastTxnStation,
                                   String updateType, String gateInTime, String cardId) {
+        return resolveAdviceOpt(codeStatus, gateInStation, lastTxnStation, updateType, gateInTime, cardId, null);
+    }
+
+    /**
+     * IF5A-01 解析建议操作列表。
+     *
+     * @param codeStatus      已由 {@link #resolveCodeStatus} 解析且非 null
+     * @param bomStationCode  BOM 设备所属站码（由 face-pay 由 {@code deviceId} 前 4 位推导）；
+     *                       为 null/未知时回退旧口径（不按站点区分）。
+     *                       <b>跨站（bomStationCode ≠ gateInStation）一律走付费更新 006</b>，
+     *                       即使用户仍在 20 分钟免费窗内也按用户裁决收费；同站或未知则沿用原规则。
+     */
+    List<String> resolveAdviceOpt(QRCodeStatusEnum codeStatus, String gateInStation, String lastTxnStation,
+                                  String updateType, String gateInTime, String cardId, String bomStationCode) {
         if (codeStatus == null) {
             return AdviceOptEnum.NONE.asSingletonList();
         }
         AdviceContext ctx = new AdviceContext(codeStatus, gateInStation, lastTxnStation,
-                updateType, gateInTime, cardId);
+                updateType, gateInTime, cardId, bomStationCode);
         boolean inPaidArea = SupplementCodec.UPDATE_TYPE_PAID_AREA.equals(updateType);
         for (AdviceRule rule : ADVICE_RULES) {
             if (rule.matches().test(codeStatus)) {
@@ -81,9 +95,20 @@ class SupplementStateRules {
         return AdviceOptEnum.NONE.asSingletonList();
     }
 
+    /** 站码比较结果：同站 / 跨站 / 未知（任一站码缺失或被判为未知）。 */
+    private enum StationCompare { SAME, DIFFERENT, UNKNOWN }
+
+    /** 比较进站站与 BOM 站码。任一侧未知则整体判为未知（不误判为跨站而错误收费）。 */
+    private StationCompare compareStations(String gateInStation, String bomStation) {
+        if (isUnknownStation(gateInStation) || isUnknownStation(bomStation)) {
+            return StationCompare.UNKNOWN;
+        }
+        return gateInStation.equals(bomStation) ? StationCompare.SAME : StationCompare.DIFFERENT;
+    }
+
     /** 建议侧一次判定的全部入参，只为让分支能按名取值，不参与业务。 */
     private record AdviceContext(QRCodeStatusEnum codeStatus, String gateInStation, String lastTxnStation,
-                                 String updateType, String gateInTime, String cardId) {
+                                 String updateType, String gateInTime, String cardId, String bomStationCode) {
     }
 
     /** 建议侧一格的结果计算。 */
@@ -128,6 +153,20 @@ class SupplementStateRules {
     }
 
     private static List<String> updateForOpenLoopInFreeArea(SupplementStateRules rules, AdviceContext ctx) {
+        StationCompare cmp = rules.compareStations(ctx.gateInStation(), ctx.bomStationCode());
+        if (cmp == StationCompare.DIFFERENT) {
+            // 跨站补站：不论是否仍在 20 分钟窗内，一律付费更新（006 在前，020 兜底免费更新）。
+            // 站码已确认不同 ⇒ 可报价，NEVER 落入 020-only 分支（否则 BOM 取首个候选会走免费）。
+            // （2026-09-23 / ADR-D157：推翻「窗内免费、NEVER 收费」对跨站场景的适用）
+            if (rules.isUnknownStation(ctx.gateInStation())) {
+                return AdviceOptEnum.FREE_UPDATE_020.asSingletonList();
+            }
+            log.info("IF5A-01 开环状态跨站补站({}≠{}), 建议付费更新, gateInTime={}, codeStatus={}, cardId={}",
+                    ctx.gateInStation(), ctx.bomStationCode(), ctx.gateInTime(),
+                    ctx.codeStatus().getCode(), ctx.cardId());
+            return List.of(AdviceOptEnum.PAID_UPDATE.getCode(), AdviceOptEnum.FREE_UPDATE_020.getCode());
+        }
+        // 同站或站码未知：沿用原口径（ADR-D136 行为，不改变无站码时的表现）
         if (rules.isWithinFreeWindow(ctx.gateInTime())) {
             log.info("IF5A-01 开环状态在非付费区且进站未超{}分钟, 建议免费更新, gateInTime={}, codeStatus={}, cardId={}",
                     FREE_UPDATE_WINDOW_MINUTES, ctx.gateInTime(), ctx.codeStatus().getCode(), ctx.cardId());
@@ -153,7 +192,10 @@ class SupplementStateRules {
     }
 
     /**
-     * 开环 + 非付费区 + 不在 20 分钟窗内：先给无时间窗限制的 {@code 020} 免费更新，再按能否收费追加 {@code 006}。
+     * 开环 + 非付费区 + 不在 20 分钟窗内：能收费时把 {@code 006} 付费更新排在首位，兜底才是无时间窗的 {@code 020}。
+     *
+     * <p><b>顺序即语义，NEVER 调回 020 在前</b>（用户 2026-09-22 裁决）：BOM 取 {@code adviceOpt} 列表的第一个
+     * 作为默认操作，020 在前时现场一律走免费更新、超窗那笔永远收不到钱（当日端到端实测，BOM 上送 020 + 0 元）。
      *
      * <p>审查项 M007：进站站未知时报不出价，那个 {@code 006} 必然执行不下去，本次只给 {@code 020}。
      *
@@ -181,7 +223,7 @@ class SupplementStateRules {
                             + " cardId={}",
                     gateInStation, codeStatus.getCode(), cardId);
         }
-        return List.of(AdviceOptEnum.FREE_UPDATE_020.getCode(), AdviceOptEnum.PAID_UPDATE.getCode());
+        return List.of(AdviceOptEnum.PAID_UPDATE.getCode(), AdviceOptEnum.FREE_UPDATE_020.getCode());
     }
 
     /**
@@ -189,9 +231,17 @@ class SupplementStateRules {
      *
      * <p>只给出「放行 / 不放行」，拒绝原因用 {@link #checkUpdate} 取。
      */
+    /** IF5A-03 判断当前状态是否允许执行建议操作（白名单，不是黑名单）。无站码信息时回退旧口径。 */
     boolean isUpdateAllowed(QRCodeStatusEnum codeStatus, String adviceOpt,
                             String updateType, String gateInTime) {
-        return checkUpdate(codeStatus, adviceOpt, updateType, gateInTime) == UpdateRejection.NONE;
+        return isUpdateAllowed(codeStatus, adviceOpt, updateType, gateInTime, null, null);
+    }
+
+    boolean isUpdateAllowed(QRCodeStatusEnum codeStatus, String adviceOpt,
+                           String updateType, String gateInTime,
+                           String gateInStation, String updateStationCode) {
+        return checkUpdate(codeStatus, adviceOpt, updateType, gateInTime,
+                gateInStation, updateStationCode) == UpdateRejection.NONE;
     }
 
     /**
@@ -203,8 +253,25 @@ class SupplementStateRules {
      * 现场据此以为「只是来晚了、重新分析一次就行」，而实际重试多少次都不会通过。
      * **NEVER 把时间窗判定挪回状态白名单之前。**
      */
+    /** IF5A-03 执行侧校验，无站码信息时回退旧口径。 */
     UpdateRejection checkUpdate(QRCodeStatusEnum codeStatus, String adviceOpt,
                                 String updateType, String gateInTime) {
+        return checkUpdate(codeStatus, adviceOpt, updateType, gateInTime, null, null);
+    }
+
+    /**
+     * IF5A-03 执行侧校验，按「状态 + 区域」在前、「时间窗 + 站码」在后。
+     *
+     * <p>新增站码维度（用户裁决）：
+     * <ul>
+     *   <li>{@code 005} 免费更新：跨站（gateInStation ≠ updateStationCode）时 MUST 拒绝，跨站只能走付费更新 006；</li>
+     *   <li>{@code 006} 付费更新：跨站时无论是否仍在 20 分钟窗内都放行（窗内不同站也收费）；
+     *       同站且仍在窗内则拒绝（应走免费 005）；站码未知时沿用 ADR-D136「证明不了超窗就 NEVER 收费」。</li>
+     * </ul>
+     */
+    UpdateRejection checkUpdate(QRCodeStatusEnum codeStatus, String adviceOpt,
+                               String updateType, String gateInTime,
+                               String gateInStation, String updateStationCode) {
         if (codeStatus == null) {
             return UpdateRejection.STATE_NOT_ALLOWED;
         }
@@ -215,12 +282,12 @@ class SupplementStateRules {
         if (!rule.allowedStatus().test(codeStatus) || !rule.requiredArea().matches(updateType)) {
             return UpdateRejection.STATE_NOT_ALLOWED;
         }
-        return rule.freeWindow().check(this, gateInTime, codeStatus);
+        return rule.freeWindow().check(this, gateInTime, codeStatus, gateInStation, updateStationCode);
     }
 
     /** IF5A-03 执行侧的拒绝原因，{@link #NONE} 表示放行。 */
     enum UpdateRejection {
-        NONE, STATE_NOT_ALLOWED, FREE_WINDOW_EXPIRED, FREE_WINDOW_NOT_EXPIRED
+        NONE, STATE_NOT_ALLOWED, FREE_WINDOW_EXPIRED, FREE_WINDOW_NOT_EXPIRED, CROSS_STATION_NOT_FREE
     }
 
     /** 执行侧要求的 {@code updateType}。 */
@@ -246,17 +313,41 @@ class SupplementStateRules {
     private enum FreeWindow {
         IGNORED, REQUIRE_WITHIN, REQUIRE_EXPIRED;
 
-        UpdateRejection check(SupplementStateRules rules, String gateInTime, QRCodeStatusEnum codeStatus) {
+        UpdateRejection check(SupplementStateRules rules, String gateInTime, QRCodeStatusEnum codeStatus,
+                              String gateInStation, String updateStationCode) {
             if (this == IGNORED) {
                 return UpdateRejection.NONE;
             }
-            if (this == REQUIRE_WITHIN && !rules.isWithinFreeWindow(gateInTime)) {
-                log.warn("IF5A-03 免费更新已超 {} 分钟时间窗，拒绝, gateInTime={}, codeStatus={}",
-                        FREE_UPDATE_WINDOW_MINUTES, gateInTime, codeStatus.getCode());
-                return UpdateRejection.FREE_WINDOW_EXPIRED;
+            StationCompare cmp = rules.compareStations(gateInStation, updateStationCode);
+            if (this == REQUIRE_WITHIN) {
+                if (!rules.isWithinFreeWindow(gateInTime)) {
+                    log.warn("IF5A-03 免费更新已超 {} 分钟时间窗，拒绝, gateInTime={}, codeStatus={}",
+                            FREE_UPDATE_WINDOW_MINUTES, gateInTime, codeStatus.getCode());
+                    return UpdateRejection.FREE_WINDOW_EXPIRED;
+                }
+                if (cmp == StationCompare.DIFFERENT) {
+                    log.warn("IF5A-03 跨站补站禁止走免费更新(005)，应走付费更新(006), gateIn={}, update={}, codeStatus={}",
+                            gateInStation, updateStationCode, codeStatus.getCode());
+                    return UpdateRejection.CROSS_STATION_NOT_FREE; // 2026-09-23 / ADR-D157
+                }
+                return UpdateRejection.NONE;
             }
-            if (this == REQUIRE_EXPIRED && !rules.isFreeWindowExpired(gateInTime)) {
-                log.warn("IF5A-03 付费更新要求已确认超出免费时间窗（时间缺失或窗内均拒绝）, gateInTime={}, codeStatus={}",
+            // REQUIRE_EXPIRED：006 付费更新
+            if (cmp == StationCompare.SAME) {
+                if (rules.isWithinFreeWindow(gateInTime)) {
+                    log.warn("IF5A-03 同站且在 20 分钟窗内应走免费更新(005)，拒绝付费更新(006), gateIn={}, codeStatus={}",
+                            gateInStation, codeStatus.getCode());
+                    return UpdateRejection.FREE_WINDOW_NOT_EXPIRED;
+                }
+                return UpdateRejection.NONE;
+            }
+            if (cmp == StationCompare.DIFFERENT) {
+                // 跨站：无论窗内窗外一律放行收费（用户裁决「窗内不同站也收费」，2026-09-23 / ADR-D157）
+                return UpdateRejection.NONE;
+            }
+            // 站码未知：沿用 ADR-D136「证明不了超窗就 NEVER 收费」
+            if (!rules.isFreeWindowExpired(gateInTime)) {
+                log.warn("IF5A-03 付费更新站码未知且无法确认已超窗，拒绝收费, gateInTime={}, codeStatus={}",
                         gateInTime, codeStatus.getCode());
                 return UpdateRejection.FREE_WINDOW_NOT_EXPIRED;
             }

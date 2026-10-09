@@ -118,7 +118,9 @@
     <!-- 支付回调回写。本表不存对端回传的金额与账户字段（那些在支付宝出行链路里没有入向来源，
          见实体注释），         也不再有 DEBIT_REQUEST_RESULT，因此这条语句只推状态、单号与支付时刻。
          TRANS_TIME 是本表唯一由回调写入的字符串时间列（2026-09-18 加入，支付宝出行记录应答的
-         payOrderNoDate 取它），存的是报文 transTime 原文、NEVER 在这里 TO_DATE 解析。
+         payOrderNoDate 取它），2026-09-20 起**存的是归一后的 14 位 yyyyMMddHHmmss**、不再是报文原文
+         （归一在 Java 侧 PayTxnCallbackWriter.normalizeTransTime 做，报文原文留在
+         ALIPAY_PAY_CALLBACK_LOG 的 TRANS_TIME 与 RAW_BODY 里）。本列 NEVER 在 SQL 里 TO_DATE 解析。
          三条约束改这条 SQL 前 MUST 逐条读懂（形态照 pay-sign 的 PayTxnDetailMapper.updatePayCallback）：
          1 SET 段除 PAY_STATUS 外全部套 NVL。支付中心重推报文字段稀疏，不套 NVL 时一次重推就能把首推
            写好的 CHANNEL_ORDER_NO 覆盖成 NULL。

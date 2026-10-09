@@ -1,7 +1,7 @@
 package com.chinasofti.huateng.transquery.controller.ci.alipay;
 
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailReqDTO;
-import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespVO;
+import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelListRespDTO;
 import com.chinasofti.huateng.transquery.service.TransQueryService;
@@ -37,7 +37,7 @@ public class AlipayTravelQueryController {
 
     /** 支付宝出行-查询乘车记录详情。 */
     @PostMapping("/detail")
-    public AlipayTripFindTravelDetailRespVO findTravelDetail(@RequestBody AlipayTripFindTravelDetailReqDTO request) {
+    public AlipayTripFindTravelDetailRespDTO findTravelDetail(@RequestBody AlipayTripFindTravelDetailReqDTO request) {
         log.info("支付宝出行-查询乘车记录详情,请求参数: {}", request);
         return transQueryService.findTravelDetail(request);
     }

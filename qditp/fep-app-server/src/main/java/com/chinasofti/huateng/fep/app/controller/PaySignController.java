@@ -7,6 +7,7 @@ import com.chinasofti.huateng.fep.app.service.PaySignAppService;
 import com.chinasofti.huateng.model.app.PaySignCallbackResult;
 import com.chinasofti.huateng.model.app.QueryPayTxnBatchReqDTO;
 import com.chinasofti.huateng.model.app.ReceivePayResultReqDTO;
+import com.chinasofti.huateng.model.app.ReceiveRefundResultReqDTO;
 import com.chinasofti.huateng.model.app.ReceiveSignResultReqDTO;
 import com.chinasofti.huateng.model.app.ReceiveTerminationResultReqDTO;
 import com.chinasofti.huateng.model.app.RequestContractResultReqDTO;
@@ -78,6 +79,29 @@ public class PaySignController extends BaseAppController {
             dto = parseBizData(JSON.parseObject(requestBody, ItpCommonFormRequest.class), ReceivePayResultReqDTO.class);
         }
         return paySignAppService.receivePayResult(dto);
+    }
+
+    /**
+     * 支付中心网关 §5.2 退款回调（支付中心 -> fep-app -> pay-sign-server），2026-09-22 新增（P1-3）。
+     *
+     * <p>**URL 里为什么带 {@code paySign/payment} 这段业务域中缀**：裸的 {@code /ci/app/receiveRefundResult}
+     * 已被 {@code CollectPayController} 占用（转发给 collect-pay / face-pay 的 TVM/BOM 退款通知），
+     * 两者报文与下游完全不同、**NEVER 复用同一条 URL**；这里沿用日票域
+     * {@code /ci/app/dailyTicket/payment/receiveRefundResult} 已有的避让写法。
+     *
+     * <p>**本端点没有验签**（2026-09-22 用户裁决「不补验签」）：与兄弟端点 {@code receivePayResult} 现状一致，
+     * 属已知待补的安全缺口、不是本项目约定，**NEVER 当成新增端点可以免签的先例**。
+     *
+     * <p>兼容 form 与 JSON 两种请求体，理由同 {@code receivePayResult}：支付中心两种都发过。
+     */
+    @PostMapping({"/ci/app/paySign/payment/receiveRefundResult", "/app/paySign/payment/receiveRefundResult"})
+    public PaySignCallbackResult receiveRefundResult(@RequestBody String requestBody) {
+        log.info("支付中心 §5.2 退款回调, 请求参数: {}", requestBody);
+        ReceiveRefundResultReqDTO dto = parseCallbackBody(requestBody, ReceiveRefundResultReqDTO.class);
+        if (dto == null) {
+            dto = parseBizData(JSON.parseObject(requestBody, ItpCommonFormRequest.class), ReceiveRefundResultReqDTO.class);
+        }
+        return paySignAppService.receiveRefundResult(dto);
     }
 
     /**

@@ -42,7 +42,7 @@ import java.util.UUID;
  *       2026-08-26 那起生产事故的同型（行锁持有时长 = 对端响应时长），
  *       落库那两条 INSERT 只能收进 {@link TransactionTemplate}（同类自调用绕不过 Spring 代理）。</li>
  *   <li><b>失败 NEVER release 预占</b> —— 预占按 `businessId` 幂等、是共享资源而非本请求私有，
- *       抽回会打掉兄弟请求已发给用户的卡号；到期由 `sys_job` 107 回收。</li>
+ *       抽回会打掉兄弟请求已发给用户的卡号；到期由 `sys_job` 240 回收（2026-09-21 由 107 改号为 240）。</li>
  *   <li><b>confirm 失败 NEVER 返成功</b> —— 卡号已写进 `ALIPAY_USER_INFO`，对上游必须报失败。</li>
  * </ol>
  */
@@ -126,7 +126,7 @@ public class AlipayRegistrationService {
 
             CardPoolActionResult confirmResult = cardPoolClient.confirm(cardPool.getData().getReservationId(),
                     reservationBusinessId(thirdUserId, request.getCardType()));
-            /* confirm 失败 NEVER 返成功、NEVER release 预占：卡号已写进 ALIPAY_USER_INFO；重试会命中幂等短路而不补 confirm，预占到期由 sys_job 107 回收，MUST 人工核对该卡号。 */
+            /* confirm 失败 NEVER 返成功、NEVER release 预占：卡号已写进 ALIPAY_USER_INFO；重试会命中幂等短路而不补 confirm，预占到期由 sys_job 240 回收，MUST 人工核对该卡号。 */
             if (!confirmResult.isSuccess()) {
                 log.error("确认逻辑卡号预占失败，卡号已发给用户、开户数据 NEVER 回滚，对上游返失败等人工核对, thirdUserId={}, cardId={}, reservationId={}, outcome={}, msg={}",
                         thirdUserId, cardId, cardPool.getData().getReservationId(),

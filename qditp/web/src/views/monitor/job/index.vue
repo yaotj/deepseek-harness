@@ -87,15 +87,17 @@
          <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
       </el-row>
 
-      <el-table v-loading="loading" :data="jobList" @selection-change="handleSelectionChange">
+      <el-table
+         v-loading="loading"
+         :data="jobList"
+         :default-sort="{ prop: 'jobId', order: 'ascending' }"
+         @selection-change="handleSelectionChange"
+         @sort-change="handleSortChange"
+      >
          <el-table-column type="selection" width="55" align="center" />
-         <el-table-column label="任务编号" width="100" align="center" prop="jobId" />
-         <el-table-column label="任务名称" align="center" prop="jobName" :show-overflow-tooltip="true" />
-         <el-table-column label="任务组名" align="center" prop="jobGroup">
-            <template #default="scope">
-               <dict-tag :options="sys_job_group" :value="scope.row.jobGroup" />
-            </template>
-         </el-table-column>
+         <el-table-column label="任务编号" width="80" align="center" prop="jobId" sortable="custom" />
+         <el-table-column label="任务名称" align="center" prop="jobName" min-width="220" :show-overflow-tooltip="true" />
+
          <el-table-column label="调用目标字符串" align="center" prop="invokeTarget" :show-overflow-tooltip="true" />
          <el-table-column label="cron执行表达式" align="center" prop="cronExpression" :show-overflow-tooltip="true" />
          <el-table-column label="任务说明" align="center" prop="remark" min-width="160" :show-overflow-tooltip="true">
@@ -354,7 +356,9 @@ const data = reactive({
     pageSize: 10,
     jobName: undefined,
     jobGroup: undefined,
-    status: undefined
+    status: undefined,
+    orderByColumn: "jobId",
+    isAsc: "asc"
   },
   rules: {
     jobName: [{ required: true, message: "任务名称不能为空", trigger: "blur" }],
@@ -411,6 +415,15 @@ function handleQuery() {
 /** 重置按钮操作 */
 function resetQuery() {
   proxy.resetForm("queryRef")
+  queryParams.value.orderByColumn = "jobId"
+  queryParams.value.isAsc = "asc"
+  handleQuery()
+}
+
+/** 表头排序（服务端排序，orderByColumn 传驼峰字段名，后端 PageDomain 会转成下划线列名） */
+function handleSortChange(column) {
+  queryParams.value.orderByColumn = column.prop || "jobId"
+  queryParams.value.isAsc = column.order === "descending" ? "desc" : "asc"
   handleQuery()
 }
 

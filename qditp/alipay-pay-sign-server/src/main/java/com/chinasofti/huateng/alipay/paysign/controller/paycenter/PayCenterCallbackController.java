@@ -17,7 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>只承载「支付中心 → 本服务」的回调，判断某条回调归属看本类。§5.3 签约结果与 §5.4 解约结果不在此处：
  * 本模块没有配 签约 / 解约 的出向 URL（{@code application.properties} 只有 request-pay / request-refund /
  * pay-query / refund-query 四条），那两条属 {@code pay-sign-server}。
- * 内部约定的两条通知（黑名单变更、业务关闭结果）不在契约 §5 内，留在 {@code controller/AlipayNotifyController}。
+ * 内部约定的两条通知（黑名单变更、业务关闭结果）不在契约 §5 内，留在 {@code controller/legacy/AlipayNotifyController}
+ * （2026-09-20 迁入 `controller.legacy`，URL 未动）。
  *
  * <p>**包位置是 `controller.paycenter`、不是 `controller`**（2026-09-18 迁入）：迁包只改 Java 包名与文件位置，
  * **URL、Bean 名、入向 DTO 一行未动** —— {@code /api/payment/payNotify} 是已下发给支付中心的回调地址，

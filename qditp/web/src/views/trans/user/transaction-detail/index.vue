@@ -56,7 +56,21 @@ const route = useRoute()
 const loading = ref(false)
 const total = ref(0)
 const records = ref([])
-const queryParams = reactive({ cardId: route.query.cardId || '', thirdUserId: '', signChannelCode: '', cardType: '', dateRange: defaultTodayRange(DATE_FORMAT), pageNum: 1, pageSize: 10 })
+/**
+ * 带 cardId 跳进来时**不预设日期窗**。
+ *
+ * 原实现无条件给 dateRange 填 [今天, 今天]，于是从「用户查询」页点「交易明细」跳过来时，
+ * 实际查的是「该卡今天的交易」——只要用户今天没坐车，页面就空，看着像功能坏了
+ * （2026-09-21 实测：该卡 QRCODE_TXN_DETAIL 共 75 行，分布在 20260626~20260920，当天 0 行）。
+ *
+ * cardId 本身就是强定位键，hasSearchScope() 只要其一非空即放行，不需要再叠一个时间范围。
+ * NEVER 改回无条件填今天。
+ */
+function initialDateRange() {
+  return route.query.cardId ? [] : defaultTodayRange(DATE_FORMAT)
+}
+
+const queryParams = reactive({ cardId: route.query.cardId || '', thirdUserId: '', signChannelCode: '', cardType: '', dateRange: initialDateRange(), pageNum: 1, pageSize: 10 })
 
 /** QRCODE_TXN_DETAIL.TRX_TYPE 码值翻译。 */
 const transactionTypes = Object.freeze({
@@ -110,7 +124,7 @@ function resetQuery() {
   queryParams.thirdUserId = ''
   queryParams.signChannelCode = ''
   queryParams.cardType = ''
-  queryParams.dateRange = defaultTodayRange(DATE_FORMAT)
+  queryParams.dateRange = initialDateRange()
   handleQuery()
 }
 

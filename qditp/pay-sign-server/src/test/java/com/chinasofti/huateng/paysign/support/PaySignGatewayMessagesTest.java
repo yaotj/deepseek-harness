@@ -139,12 +139,30 @@ class PaySignGatewayMessagesTest {
         payTxn.setOrderNo("ORD-1");
         payTxn.setPayCenterOrderNo("PC-1");
 
-        Map<String, Object> bizData = buildRequestRefundBizData(refundDetail, payTxn);
+        Map<String, Object> bizData = buildRequestRefundBizData(refundDetail, payTxn, null);
 
         assertThat(bizData.keySet()).containsExactly("refundOrderNo", "merchantOrderNo", "orderNo",
                 "refundAmount", "refundReason");
         assertThat(bizData).containsEntry("merchantOrderNo", "ORD-1");
         assertThat(bizData).containsEntry("orderNo", "PC-1");
         assertThat(bizData).containsEntry("refundAmount", 50);
+    }
+
+    @Test
+    @DisplayName("退款：配了退款回调地址时 notifyUrl 必送（§3.1 必填键，缺它回调结构上到不了）")
+    void requestRefundCarriesNotifyUrlWhenConfigured() {
+        PayRefundDetail refundDetail = new PayRefundDetail();
+        refundDetail.setRefundOrderNo("RF-2");
+        refundDetail.setRefundAmount(50);
+
+        PayTxnDetail payTxn = new PayTxnDetail();
+        payTxn.setOrderNo("ORD-2");
+        payTxn.setPayCenterOrderNo("PC-2");
+
+        Map<String, Object> bizData = buildRequestRefundBizData(refundDetail, payTxn,
+                "http://127.0.0.1:48000/fep-app/ci/app/paySign/payment/receiveRefundResult");
+
+        assertThat(bizData).containsEntry("notifyUrl",
+                "http://127.0.0.1:48000/fep-app/ci/app/paySign/payment/receiveRefundResult");
     }
 }

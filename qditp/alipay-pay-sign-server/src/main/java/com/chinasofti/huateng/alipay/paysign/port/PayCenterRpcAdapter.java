@@ -50,6 +50,11 @@ public class PayCenterRpcAdapter implements PayCenterPort {
         return translate(payCenterClient.requestRefund(bizData));
     }
 
+    @Override
+    public PayCenterReply refundQuery(Map<String, Object> bizData) {
+        return translate(payCenterClient.refundQuery(bizData));
+    }
+
     private PayCenterReply translate(PayCenterResponse response) {
         if (response == null) {
             return new PayCenterReply.NoAnswer();

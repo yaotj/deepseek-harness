@@ -61,7 +61,7 @@ class F2fMapperSmokeTest {
         assertTrue(orderMapper.selectByUserAndActivateFlag(ABSENT, "0").isEmpty());
         assertNull(orderMapper.selectLatestByCardId(ABSENT, "02"));
         assertTrue(orderMapper.selectExpiredCandidates(NOW.minusHours(24), NOW, 10).isEmpty());
-        assertTrue(orderMapper.selectPaidNotFulfilled(NOW, 10).isEmpty());
+        assertTrue(orderMapper.selectPaidNotFulfilled(java.util.List.of("01"), NOW.minusDays(7), NOW, 10).isEmpty());
         assertTrue(orderMapper.countStaleExpired(NOW.minusHours(24)) == 0L);
     }
 

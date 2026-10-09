@@ -34,6 +34,10 @@ public class F2fAppRefundService {
     /** 退款相关响应里的 {@code refundDate} 格式：8 位日期。 */
     private static final DateTimeFormatter DAY_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
 
+    /** 契约 §5.2 退款回调的 {@code refundDate} 格式：14 位。 */
+    private static final DateTimeFormatter REFUND_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
     private final F2fOrderMapper orderMapper;
 
     private final F2fPaymentMapper paymentMapper;
@@ -136,40 +140,102 @@ public class F2fAppRefundService {
         return AppResponses.refund(key, refundDate, refund.getRefundAmount(),
                 refundResult, desc, null);
     }
-    /** 支付中心退款结果回调。 */
+    /**
+     * 支付中心退款结果回调（契约 §5.2）。
+     *
+     * <p><b>两个退款单号 NEVER 再弄反</b>：契约里 {@code outRefundNo} 是「商户退款单号」= 我方
+     * {@code F2F_REFUND.REFUND_NO}（出向报文把它填在 §3.1 的 {@code refundOrderNo}、
+     * 退款查询填在 {@code merchantRefundNo}，见 {@code PayCenterMessageFactory}），
+     * 而 {@code refundNo} 是**支付中心侧**的退款单号、落 {@code PAY_CENTER_REFUND_NO}。
+     * 原实现拿 {@code refundNo} 去查本地 {@code REFUND_NO}、把 {@code outRefundNo} 写进
+     * {@code PAY_CENTER_REFUND_NO}，两处都反了（回调永远查不到单、返「订单号错误」）。
+     * 兼容起见按「我方号 → 支付中心号 → 我方号回落」三级定位。
+     */
     public JSONObject receiveRefundResult(AppRefundNotiResultReqDTO request) {
-        F2fRefund refund = refundMapper.selectByRefundNo(request.getRefundNo());
+        F2fRefund refund = locateRefund(request);
         if (refund == null) {
-            log.warn("退款回调 退款单不存在, refundNo={}", request.getRefundNo());
+            log.warn("退款回调 退款单不存在, outRefundNo={}, refundNo={}",
+                    request.getOutRefundNo(), request.getRefundNo());
             return AppResponses.failMessage("订单号错误");
         }
+        String localRefundNo = refund.getRefundNo();
         String status = refund.getRefundStatus();
         if (F2fRefundService.STATUS_SUCCESS.equals(status) || F2fRefundService.STATUS_FAILED.equals(status)) {
-            log.info("退款回调重复到达，已是终态直接回成功, refundNo={}, status={}",
-                    request.getRefundNo(), status);
+            log.info("退款回调重复到达，已是终态直接回成功, refundNo={}, status={}", localRefundNo, status);
             return AppResponses.success();
         }
         if (!request.isSuccess() && !request.isFailed()) {
             log.warn("退款回调 refundResult 取值不识别，不动状态, refundNo={}, refundResult={}",
-                    request.getRefundNo(), request.getRefundResult());
+                    localRefundNo, request.getRefundResult());
             return AppResponses.success();
         }
+        warnIfAmountMismatch(refund, request);
         String toStatus = request.isSuccess()
                 ? F2fRefundService.STATUS_SUCCESS : F2fRefundService.STATUS_FAILED;
-        int updated = refundMapper.updateStatus(request.getRefundNo(),
+        int updated = refundMapper.updateStatus(localRefundNo,
                 List.of(F2fRefundService.STATUS_INIT, F2fRefundService.STATUS_PROCESSING,
                         F2fRefundService.STATUS_MANUAL),
-                toStatus, request.getOutRefundNo(), LocalDateTime.now());
+                toStatus, request.getRefundNo(), parseRefundTime(request.getRefundDate()));
         if (updated == 0) {
-            log.info("退款回调 状态已被其他路径收口，幂等返回成功, refundNo={}", request.getRefundNo());
+            log.info("退款回调 状态已被其他路径收口，幂等返回成功, refundNo={}", localRefundNo);
             return AppResponses.success();
         }
         int summaryRows = orderMapper.updateRefundSummary(refund.getOrigOrderNo());
         log.info("退款回调 订单退款汇总已重算, orderNo={}, refundNo={}, updatedRows={}",
-                refund.getOrigOrderNo(), request.getRefundNo(), summaryRows);
+                refund.getOrigOrderNo(), localRefundNo, summaryRows);
         enqueueRefundNotify(refund, request);
-        log.info("退款回调处理完成, refundNo={}, toStatus={}", request.getRefundNo(), toStatus);
+        log.info("退款回调处理完成, refundNo={}, payCenterRefundNo={}, toStatus={}",
+                localRefundNo, request.getRefundNo(), toStatus);
         return AppResponses.success();
+    }
+
+    /** 按「商户退款单号（我方）→ 支付中心退款单号 → 我方号回落」三级定位本地退款单。 */
+    private F2fRefund locateRefund(AppRefundNotiResultReqDTO request) {
+        String outRefundNo = request.getOutRefundNo();
+        if (outRefundNo != null && !outRefundNo.isBlank()) {
+            F2fRefund byOut = refundMapper.selectByRefundNo(outRefundNo);
+            if (byOut != null) {
+                return byOut;
+            }
+        }
+        String payCenterRefundNo = request.getRefundNo();
+        if (payCenterRefundNo == null || payCenterRefundNo.isBlank()) {
+            return null;
+        }
+        F2fRefund byCenter = refundMapper.selectByPayCenterRefundNo(payCenterRefundNo);
+        return byCenter != null ? byCenter : refundMapper.selectByRefundNo(payCenterRefundNo);
+    }
+
+    /** 回调金额与本地退款金额不一致时只告警、不阻断收口（部分退款口径未定，NEVER 在这里拒绝回调）。 */
+    private void warnIfAmountMismatch(F2fRefund refund, AppRefundNotiResultReqDTO request) {
+        String amount = request.getRefundAmount();
+        if (amount == null || amount.isBlank()) {
+            return;
+        }
+        try {
+            long callbackAmount = Long.parseLong(amount.trim());
+            Long local = refund.getRefundAmount();
+            if (local != null && local != callbackAmount) {
+                log.warn("退款回调 金额与本地退款单不一致, refundNo={}, localAmount={}, callbackAmount={}",
+                        refund.getRefundNo(), local, callbackAmount);
+            }
+        } catch (NumberFormatException e) {
+            log.warn("退款回调 refundAmount 非数字, refundNo={}, refundAmount={}",
+                    refund.getRefundNo(), amount);
+        }
+    }
+
+    /** 契约 §5.2 的 {@code refundDate} 是 {@code yyyyMMddHHmmss}；解析不了才回落本机时间。 */
+    private LocalDateTime parseRefundTime(String refundDate) {
+        if (refundDate == null || refundDate.isBlank()) {
+            return LocalDateTime.now();
+        }
+        try {
+            return LocalDateTime.parse(refundDate.trim(), REFUND_TIME_FORMATTER);
+        } catch (RuntimeException e) {
+            log.warn("退款回调 refundDate 格式无法解析，回落本机时间, refundDate={}", refundDate);
+            return LocalDateTime.now();
+        }
     }
     /** 入队一条退款结果通知。 */
     private void enqueueRefundNotify(F2fRefund refund, AppRefundNotiResultReqDTO request) {

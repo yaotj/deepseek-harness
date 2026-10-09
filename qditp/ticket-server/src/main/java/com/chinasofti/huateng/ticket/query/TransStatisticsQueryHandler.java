@@ -42,6 +42,8 @@ public class TransStatisticsQueryHandler {
                 request.setCardTypeList(cardTypes);
                 request.setCardType(null);
             }
+            request.setStartDate(paramNormalizer.normalizeDate(request.getStartDate()));
+            request.setEndDate(paramNormalizer.normalizeDate(request.getEndDate()));
             request.setCardIdList(paramNormalizer.parseCardIds(request.getCardId()));
 
             RequestTransStatisticsResult result = gateTxnPayClient.requestTransStatistics(request);
@@ -59,6 +61,9 @@ public class TransStatisticsQueryHandler {
                     request.getThirdUserId(), request.getCardTypeList(),
                     request.getCardIdList(), result.getTripData());
             return result;
+        } catch (IllegalArgumentException e) {
+            log.warn("IF8A-41 查询账单统计参数非法, request={}", request, e);
+            return invalidParam(response, e.getMessage());
         } catch (Exception e) {
             log.error("IF8A-41 查询账单统计异常, request={}", request, e);
             response.setRetCode(TicketErrorCodeEnum.SYSTEM_ERROR.getCode());

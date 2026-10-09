@@ -81,6 +81,49 @@ public class Blacklist {
      */
     private String channelSyncFailReason;
 
+    /**
+     * 行状态：ACTIVE 生效中 / RELEASING 解除中（解除通知尚未推达渠道）。
+     *
+     * <p>RELEASING 的行<b>仍算黑名单</b>：判黑入口（countByCardIds / selectByCardIds / queryBlackList）
+     * 刻意不带 STATUS 过滤，通知没推成功前 NEVER 提前放行。解除通知推成功后该行才被搬进
+     * BLACKLIST_RELEASED 并从主表删除，因此本表里永远看不到「已解除」这个状态。
+     */
+    private String status;
+
+    /**
+     * 解除原因，解除中暂存在主表，推成功后随快照搬进 BLACKLIST_RELEASED。
+     */
+    private String releaseReason;
+
+    /**
+     * 解除操作者，与 releaseReason 同为暂存字段。
+     */
+    private String releaseBy;
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public String getReleaseReason() {
+        return releaseReason;
+    }
+
+    public void setReleaseReason(String releaseReason) {
+        this.releaseReason = releaseReason;
+    }
+
+    public String getReleaseBy() {
+        return releaseBy;
+    }
+
+    public void setReleaseBy(String releaseBy) {
+        this.releaseBy = releaseBy;
+    }
+
     public Long getId() {
         return id;
     }

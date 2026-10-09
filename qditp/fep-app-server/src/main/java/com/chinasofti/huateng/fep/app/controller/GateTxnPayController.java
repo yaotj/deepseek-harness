@@ -1,6 +1,8 @@
 package com.chinasofti.huateng.fep.app.controller;
 
 import com.chinasofti.huateng.model.app.ItpCommonFormRequest;
+import com.chinasofti.huateng.model.app.RequestPayFailOrderReqDTO;
+import com.chinasofti.huateng.model.app.RequestPayFailOrderResult;
 import com.chinasofti.huateng.model.app.RequestUserAccInfoReqDTO;
 import com.chinasofti.huateng.model.app.RequestUserAccInfoResult;
 import com.chinasofti.huateng.model.pay.SupplementOrderReqDTO;
@@ -44,5 +46,16 @@ public class GateTxnPayController extends BaseAppController {
     public RequestUserAccInfoResult requestUserAccInfo(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-35 查询用户账务信息, 请求参数: {}", request);
         return gateTxnPayClient.requestUserAccInfo(parseBizData(request, RequestUserAccInfoReqDTO.class));
+    }
+
+    /**
+     * 用户主动发起免密失败订单重试扣费（requestPayFailOrder）。
+     * 与 IF8A-35 同链路：fep-app 透传 → gate-txn-pay-server 重新发起免密扣款。
+     * 路由同时挂 {@code /ci/app/payment/...} 与 {@code /app/payment/...} 两套别名（网关前缀 + 业务域前缀）。
+     */
+    @PostMapping({"/ci/app/payment/requestPayFailOrder", "/app/payment/requestPayFailOrder"})
+    public RequestPayFailOrderResult requestPayFailOrder(@ModelAttribute ItpCommonFormRequest request) {
+        log.info("用户主动发起免密失败订单重试扣费, 请求参数: {}", request);
+        return gateTxnPayClient.requestPayFailOrder(parseBizData(request, RequestPayFailOrderReqDTO.class));
     }
 }

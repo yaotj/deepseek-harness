@@ -3,6 +3,8 @@ package com.chinasofti.huateng.alipay.paysign.service.impl.callback;
 import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.alipay.paysign.port.DebitSyncPort;
 import com.chinasofti.huateng.alipay.paysign.service.AlipayPayCallbackService;
+import com.chinasofti.huateng.alipay.paysign.service.impl.refund.RefundCallbackSettler;
+import com.chinasofti.huateng.alipay.paysign.service.impl.refund.TxnRefundCallbackSettler;
 import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
 import com.chinasofti.huateng.common.response.AlipayCommonResponse;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripPayNotifyReqDTO;
@@ -50,13 +52,19 @@ public class AlipayPayCallbackServiceImpl implements AlipayPayCallbackService {
     private final CallbackLogRepository callbackLogRepository;
     private final PayTxnCallbackWriter payTxnCallbackWriter;
     private final DebitSyncPort debitSyncPort;
+    private final RefundCallbackSettler refundCallbackSettler;
+    private final TxnRefundCallbackSettler txnRefundCallbackSettler;
 
     public AlipayPayCallbackServiceImpl(CallbackLogRepository callbackLogRepository,
                                        PayTxnCallbackWriter payTxnCallbackWriter,
-                                       DebitSyncPort debitSyncPort) {
+                                       DebitSyncPort debitSyncPort,
+                                       RefundCallbackSettler refundCallbackSettler,
+                                       TxnRefundCallbackSettler txnRefundCallbackSettler) {
         this.callbackLogRepository = callbackLogRepository;
         this.payTxnCallbackWriter = payTxnCallbackWriter;
         this.debitSyncPort = debitSyncPort;
+        this.refundCallbackSettler = refundCallbackSettler;
+        this.txnRefundCallbackSettler = txnRefundCallbackSettler;
     }
 
     @Override
@@ -127,14 +135,53 @@ public class AlipayPayCallbackServiceImpl implements AlipayPayCallbackService {
                 log.warn("支付宝退款回调报文为空或订单号为空");
                 yield response(FepAppErrorCodeEnum.INVALID_PARAM.getCode(), "参数异常：orderNo不能为空");
             }
-            case RefundNotifyCommand.Accepted accepted -> {
-                callbackLogRepository.recordRefundCallback(request, accepted);
-                log.info("支付宝退款回调已留证据，业务回写未接线, orderNo={}, refundNo={}, outRefundNo={}, refundResult={}",
-                        accepted.orderNo(), request.getRefundNo(), accepted.refundOrderNo(), accepted.refundResult());
-                yield response(FepAppErrorCodeEnum.SUCCESS.getCode(), "成功");
-            }
+            case RefundNotifyCommand.Accepted accepted -> onRefundAccepted(request, accepted);
         };
     }
+
+    /**
+     * 退款回调三步：① 落 {@code PROCESSING} 证据 → ② 按 {@code refundResult} 收口退款明细与汇总 →
+     * ③ 按收口归宿回写处置状态。
+     *
+     * <p><b>一律返 {@code 0000}</b>：退款明细的收口是 CAS，重推第二次影响 0 行即幂等命中，
+     * 让支付中心重推不会带来任何新信息；真正没收口的形态（{@code MANUAL}）靠运维巡检与
+     * pay-sign 侧那套退款回查补偿捞回来。<b>NEVER 改成失败时返 {@code 9999}</b> ——
+     * 本表没有退款方向的推送次数上限判定，返 9999 等于让对端无休止重推、持续制造证据行。
+     *
+     * <p><b>NEVER 把 ② 挪到 ① 之前</b>：留证据是唯一能事后举证「支付中心确实推过、推的是什么」的载体，
+     * 先收口再落证据时，收口过程中抛异常那一轮就什么痕迹都没有。
+     */
+    private AlipayCommonResponse onRefundAccepted(AlipayTripRefundNotifyReqDTO request,
+                                                  RefundNotifyCommand.Accepted accepted) {
+        String callbackSeq = callbackLogRepository.recordRefundCallback(request, accepted,
+                CallbackLogRepository.HANDLE_STATUS_PROCESSING, null);
+        log.info("支付宝退款回调已留证据，准备收口退款明细, orderNo={}, refundNo={}, outRefundNo={}, refundResult={}, refundAmount={}",
+                accepted.orderNo(), request.getRefundNo(), accepted.refundOrderNo(), accepted.refundResult(),
+                accepted.refundAmount());
+
+        RefundCallbackSettler.Outcome outcome = refundCallbackSettler.settle(accepted.orderNo(),
+                accepted.refundOrderNo(), accepted.refundResult(), request.getRefundResultDesc());
+        if (outcome == RefundCallbackSettler.Outcome.NOT_MATCHED) {
+            outcome = txnRefundCallbackSettler.settle(accepted.orderNo(), accepted.refundOrderNo(),
+                    accepted.refundResult(), request.getRefundResultDesc());
+        }
+
+        switch (outcome) {
+            case SETTLED_SUCCESS -> callbackLogRepository.updateHandleResult(callbackSeq,
+                    CallbackLogRepository.HANDLE_STATUS_SUCCESS, "退款明细已收口为 SUCCESS，汇总已重算");
+            case SETTLED_FAIL -> callbackLogRepository.updateHandleResult(callbackSeq,
+                    CallbackLogRepository.HANDLE_STATUS_SUCCESS, "退款明细已收口为 FAIL");
+            case STILL_PROCESSING -> callbackLogRepository.updateHandleResult(callbackSeq,
+                    CallbackLogRepository.HANDLE_STATUS_PROCESSING, "退款仍处理中，等待终态回调");
+            case NOT_MATCHED -> callbackLogRepository.updateHandleResult(callbackSeq,
+                    CallbackLogRepository.HANDLE_STATUS_SUCCESS, "未命中处理中明细，按幂等处理（重推或已收口）");
+            case UNKNOWN_RESULT -> callbackLogRepository.updateHandleResult(callbackSeq,
+                    CallbackLogRepository.HANDLE_STATUS_MANUAL,
+                    "refundResult 取值不在契约内: " + accepted.refundResult());
+        }
+        return response(FepAppErrorCodeEnum.SUCCESS.getCode(), "成功");
+    }
+
 
     /**
      * 通知 gate-txn-pay-server 把 {@code GATE_TXN_PAY.DEBIT_STATUS} 收敛到终态。

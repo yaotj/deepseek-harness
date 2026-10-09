@@ -37,6 +37,12 @@ public class DailyTicketOrder {
     /** 实付金额，单位分。 */
     private Integer payAmount;
 
+    /** 支付中心回传的实付现金金额，单位分。原样落库，不做与总额的匹配校验。 */
+    private Integer cashAmount;
+
+    /** 支付中心回传的优惠金额，单位分。原样落库，不做与总额的匹配校验。 */
+    private Integer couponAmount;
+
     /** 支付渠道编码。 */
     private String payChannelCode;
 
@@ -164,6 +170,22 @@ public class DailyTicketOrder {
 
     public void setPayAmount(Integer payAmount) {
         this.payAmount = payAmount;
+    }
+
+    public Integer getCashAmount() {
+        return cashAmount;
+    }
+
+    public void setCashAmount(Integer cashAmount) {
+        this.cashAmount = cashAmount;
+    }
+
+    public Integer getCouponAmount() {
+        return couponAmount;
+    }
+
+    public void setCouponAmount(Integer couponAmount) {
+        this.couponAmount = couponAmount;
     }
 
     public String getPayChannelCode() {

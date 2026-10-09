@@ -13,4 +13,12 @@ public interface RefundGatewayPort {
 
     /** 退款查询地址是否已配置。 */
     boolean refundQueryConfigured();
+
+    /**
+     * §3.1 请求退款要送的 {@code notifyUrl}（2026-09-22 新增，P1-3）。
+     *
+     * <p>未配置时返回空串 / {@code null}，由调用方决定「不送该键 + 打 WARN」；
+     * **NEVER 在实现里退化成签约或支付的回调地址**（三条回调的报文与处理分支完全不同）。
+     */
+    String refundNotifyUrl();
 }

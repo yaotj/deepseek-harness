@@ -52,6 +52,15 @@ class PayRefundRulesTest {
         assertNull(PayRefundRules.validateRefundPayTxn(payTxn, 300));
     }
 
+    /** BOM 补站代收单（ITP 实收 0 元）MUST 拒退，NEVER 放宽成「只看有没有支付中心号」。 */
+    @Test
+    void zeroPaidAmountIsRejected() {
+        PayTxnDetail payTxn = payTxn("SUCCESS", 0, 0);
+        payTxn.setAmount(0);
+        assertEquals("原支付订单实收金额为0，不可退款",
+                PayRefundRules.validateRefundPayTxn(payTxn, 100));
+    }
+
     /** 顺序不可调：未支付成功**且**缺支付中心号时，报的是前者。 */
     @Test
     void validationOrderIsPinned() {

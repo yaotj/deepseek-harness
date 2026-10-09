@@ -86,7 +86,13 @@ public class GateTxnPayReqDTO extends NotifyVerifyResultReqDTO {
     private String industryDetail;
 
     /**
-     * 从 IF1A-01 设备报文搬运本类继承自 {@link NotifyVerifyResultReqDTO} 的那 20 个字段。
+     * 从 IF1A-01 设备报文搬运本类继承自 {@link NotifyVerifyResultReqDTO} 的那 21 个字段。
+     *
+     * <p>{@code adviceOpt} 是第 21 个、也是最后加入的一个：它决定 gate-txn-pay 侧要不要发起扣款。
+     * 非空即 BOM 补站（{@code 005} / {@code 006} / {@code 020}），钱是 BOM 现场收的，
+     * 落单但 **NEVER 由 ITP 再扣一次**；空值才是闸机真实检票与 APP 自助补站，走正常后付费。
+     * **NEVER 从拷贝列表里删掉它** —— 漏掉这一行时 006 会被当成普通出站免密扣款，乘客重复付费。
+     *
      * @param request 设备上送的 IF1A-01 业务参数。
      * @return 只填好继承字段的扣费入参；其余字段由调用方按各自来源补齐。
      */
@@ -112,6 +118,7 @@ public class GateTxnPayReqDTO extends NotifyVerifyResultReqDTO {
         payRequest.setReserve2(request.getReserve2());
         payRequest.setChannelType(request.getChannelType());
         payRequest.setCompanionFlag(request.getCompanionFlag());
+        payRequest.setAdviceOpt(request.getAdviceOpt());
         return payRequest;
     }
 

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.dailyticket.mapper.DailyTicketPayNotifyTaskMapper">
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.dailyticket.model.DailyTicketPayNotifyTask">
+        <id column="ID" jdbcType="VARCHAR" property="id"/>
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="ORDER_TYPE" jdbcType="VARCHAR" property="orderType"/>
+        <result column="PAY_RESULT" jdbcType="VARCHAR" property="payResult"/>
+        <result column="PAYLOAD" jdbcType="CLOB" property="payload"/>
+        <result column="NOTIFY_STATUS" jdbcType="VARCHAR" property="notifyStatus"/>
+        <result column="NOTIFY_TIMES" jdbcType="INTEGER" property="notifyTimes"/>
+        <result column="NOTIFY_TIME" jdbcType="TIMESTAMP" property="notifyTime"/>
+        <result column="NOTIFY_MSG" jdbcType="VARCHAR" property="notifyMsg"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
+    </resultMap>
+
+    <sql id="BaseColumnList">
+        ID, ORDER_NO, ORDER_TYPE, PAY_RESULT, PAYLOAD, NOTIFY_STATUS,
+        NOTIFY_TIMES, NOTIFY_TIME, NOTIFY_MSG, CREATE_TIME, UPDATE_TIME
+    </sql>
+
+    <insert id="insertIfAbsent" parameterType="com.chinasofti.huateng.dailyticket.model.DailyTicketPayNotifyTask">
+        insert into DAILY_TICKET_PAY_NOTIFY (
+            ID, ORDER_NO, ORDER_TYPE, PAY_RESULT, PAYLOAD, NOTIFY_STATUS,
+            NOTIFY_TIMES, NOTIFY_TIME, NOTIFY_MSG, CREATE_TIME, UPDATE_TIME
+        )
+        select #{id,jdbcType=VARCHAR}, #{orderNo,jdbcType=VARCHAR}, #{orderType,jdbcType=VARCHAR},
+               #{payResult,jdbcType=VARCHAR}, #{payload,jdbcType=CLOB}, #{notifyStatus,jdbcType=VARCHAR},
+               #{notifyTimes,jdbcType=INTEGER}, #{notifyTime,jdbcType=TIMESTAMP},
+               #{notifyMsg,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP},
+               #{updateTime,jdbcType=TIMESTAMP}
+        from dual
+        where not exists (
+            select 1
+            from DAILY_TICKET_PAY_NOTIFY
+            where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <select id="selectByOrderNo" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from DAILY_TICKET_PAY_NOTIFY
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectPendingNotify" resultMap="BaseResultMap">
+        select <include refid="BaseColumnList"/>
+        from DAILY_TICKET_PAY_NOTIFY
+        where NOTIFY_STATUS = 'PENDING'
+          and NVL(NOTIFY_TIMES, 0) <![CDATA[ < ]]> #{maxTimes,jdbcType=INTEGER}
+        order by UPDATE_TIME
+        fetch first #{limit,jdbcType=INTEGER} rows only
+    </select>
+
+    <update id="updateNotifyStatus">
+        update DAILY_TICKET_PAY_NOTIFY
+        set NOTIFY_STATUS = #{notifyStatus,jdbcType=VARCHAR},
+            NOTIFY_TIMES = #{notifyTimes,jdbcType=INTEGER},
+            NOTIFY_TIME = #{notifyTime,jdbcType=TIMESTAMP},
+            NOTIFY_MSG = #{notifyMsg,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSTIMESTAMP
+        where ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+    </update>
+</mapper>

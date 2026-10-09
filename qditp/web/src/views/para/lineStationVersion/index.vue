@@ -6,10 +6,20 @@
           {{ (queryParams.pageNum - 1) * queryParams.pageSize + scope.$index + 1 }}
         </template>
       </el-table-column>
-      <el-table-column label="线路代码版本号" prop="lineCodeVersion" min-width="220" align="center" />
-      <el-table-column label="车站代码版本号" prop="stationCodeVersion" min-width="220" align="center" />
-      <el-table-column label="路网拓扑参数文件名" prop="networkFileName" min-width="260" align="center" show-overflow-tooltip />
-      <el-table-column label="费率参数文件名" prop="rateFileName" min-width="260" align="center" show-overflow-tooltip />
+      <el-table-column label="参数类型" min-width="160" align="center">
+        <template #default="scope">
+          <el-tag :type="scope.row.paraTypeName === '费率' ? 'success' : 'primary'" disable-transitions>
+            {{ scope.row.paraTypeName }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="版本号" min-width="180" align="center">
+        <template #default="scope">
+          {{ scope.row.versionNo }}
+          <span v-if="scope.row.paraTypeName === '路网拓扑'" class="version-note">（线路 / 车站代码共用）</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="参数文件名" prop="fileName" min-width="300" align="center" show-overflow-tooltip />
       <el-table-column label="更新时间" min-width="220" align="center">
         <template #default="scope">{{ formatDateTime(scope.row.updateTime) }}</template>
       </el-table-column>
@@ -58,3 +68,10 @@ function getList() {
 
 onMounted(getList)
 </script>
+
+<style scoped>
+.version-note {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+</style>

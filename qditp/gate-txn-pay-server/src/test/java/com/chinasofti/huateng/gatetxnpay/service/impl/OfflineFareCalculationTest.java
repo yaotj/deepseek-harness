@@ -25,8 +25,8 @@ import com.chinasofti.huateng.model.app.QueryWalletTotalAmtResult;
 import com.chinasofti.huateng.model.app.RequestTicketPriceByStationReqDTO;
 import com.chinasofti.huateng.model.app.RequestTicketPriceByStationResult;
 import com.chinasofti.huateng.model.pay.GateTxnPayReqDTO;
-import com.chinasofti.huateng.model.ticket.QueryFirstEntryTxnReqDTO;
-import com.chinasofti.huateng.model.ticket.QueryFirstEntryTxnResult;
+import com.chinasofti.huateng.model.ticket.QueryLatestEntryTxnReqDTO;
+import com.chinasofti.huateng.model.ticket.QueryLatestEntryTxnResult;
 import com.chinasofti.huateng.rpc.account.AccountClient;
 import com.chinasofti.huateng.rpc.para.ParaClient;
 import com.chinasofti.huateng.rpc.ticket.TicketClient;
@@ -195,11 +195,11 @@ class OfflineFareCalculationTest {
     }
 
     private void stubEntry() {
-        QueryFirstEntryTxnResult entry = new QueryFirstEntryTxnResult();
+        QueryLatestEntryTxnResult entry = new QueryLatestEntryTxnResult();
         entry.setRetCode("0000");
         entry.setHandleDateTime(ENTRY_TIME);
         entry.setHandleStationCode(IN_STATION);
-        when(ticketClient.queryFirstEntryTxn(any(QueryFirstEntryTxnReqDTO.class))).thenReturn(entry);
+        when(ticketClient.queryLatestEntryTxnBeforeExit(any(QueryLatestEntryTxnReqDTO.class))).thenReturn(entry);
     }
 
     private void stubFare() {

@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.blacklist.mapper.BlacklistMapper">
-    <!-- 本表只存当前生效记录，解除后整行搬至 BLACKLIST_RELEASED，因此所有查询都无需再带生效状态谓词。 -->
+    <!-- 本表存「生效中」与「解除中」两种行：STATUS='RELEASING' 的行解除通知尚未推达渠道， -->
+    <!-- 仍算黑名单。解除通知推成功后该行才被搬进 BLACKLIST_RELEASED 并从本表删除， -->
+    <!-- 因此本表里永远看不到「已解除」。判黑查询刻意不带 STATUS 谓词，NEVER 给它们加 -->
+    <!-- STATUS='ACTIVE' 条件 —— 那等于把解除中的卡提前放行。 -->
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.blacklist.entity.Blacklist">
         <id column="ID" jdbcType="NUMERIC" property="id"/>
         <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
@@ -18,12 +21,16 @@
         <result column="CHANNEL_SYNC_TIME" jdbcType="TIMESTAMP" property="channelSyncTime"/>
         <result column="CHANNEL_SYNC_RETRY" jdbcType="NUMERIC" property="channelSyncRetry"/>
         <result column="CHANNEL_SYNC_FAIL_REASON" jdbcType="VARCHAR" property="channelSyncFailReason"/>
+        <result column="STATUS" jdbcType="VARCHAR" property="status"/>
+        <result column="RELEASE_REASON" jdbcType="VARCHAR" property="releaseReason"/>
+        <result column="RELEASE_BY" jdbcType="VARCHAR" property="releaseBy"/>
     </resultMap>
 
     <sql id="BaseColumnList">
         ID, CARD_ID, THIRD_USER_ID, CARD_TYPE, CHANNEL_CODE, BLACK_SOURCE, BLACK_CAUSE,
         BIZ_NO, REASON, CREATE_BY, CREATE_TIME,
-        CHANNEL_SYNC_STATUS, CHANNEL_SYNC_TIME, CHANNEL_SYNC_RETRY, CHANNEL_SYNC_FAIL_REASON
+        CHANNEL_SYNC_STATUS, CHANNEL_SYNC_TIME, CHANNEL_SYNC_RETRY, CHANNEL_SYNC_FAIL_REASON,
+        STATUS, RELEASE_REASON, RELEASE_BY
     </sql>
 
     <select id="countByCardIds" resultType="int">
@@ -45,8 +52,10 @@
         </foreach>
     </select>
 
-    <!-- 运营页按创建时间倒序，支持卡ID、三方用户ID和时间范围筛选。 -->
+    <!-- 运营页按创建时间倒序，支持卡ID、三方用户ID、时间范围、行状态与渠道同步状态筛选。 -->
     <!-- 用 where 标签而不是恒真条件打头：所有可选条件都不传时不产出 WHERE，否则被 Druid WallFilter 判为注入。 -->
+    <!-- STATUS 与 CHANNEL_SYNC_STATUS 都是可选筛选，缺省时两种状态的行都要出现在列表里 -->
+    <!-- （运营需要看到「解除中」的行，那些行仍算黑名单）。NEVER 给本语句写死 STATUS = 'ACTIVE'。 -->
     <select id="selectPage" resultMap="BaseResultMap">
         select
         <include refid="BaseColumnList"/>
@@ -57,6 +66,12 @@
             </if>
             <if test="thirdUserId != null and thirdUserId != ''">
                 and THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+            </if>
+            <if test="status != null and status != ''">
+                and STATUS = #{status,jdbcType=VARCHAR}
+            </if>
+            <if test="channelSyncStatus != null and channelSyncStatus != ''">
+                and CHANNEL_SYNC_STATUS = #{channelSyncStatus,jdbcType=VARCHAR}
             </if>
             <if test="createTimeBegin != null and createTimeBegin != ''">
                 and CREATE_TIME &gt;= TO_TIMESTAMP(#{createTimeBegin,jdbcType=VARCHAR}, 'YYYY-MM-DD HH24:MI:SS')
@@ -76,7 +91,7 @@
             useGeneratedKeys="true" keyProperty="id" keyColumn="ID">
         insert into BLACKLIST (
             CARD_ID, THIRD_USER_ID, CARD_TYPE, CHANNEL_CODE, BLACK_SOURCE, BLACK_CAUSE,
-            BIZ_NO, REASON, CREATE_BY, CREATE_TIME, CHANNEL_SYNC_STATUS
+            BIZ_NO, REASON, CREATE_BY, CREATE_TIME, CHANNEL_SYNC_STATUS, STATUS
         ) values (
             #{cardId,jdbcType=VARCHAR},
             #{thirdUserId,jdbcType=VARCHAR},
@@ -88,29 +103,42 @@
             #{reason,jdbcType=VARCHAR},
             #{createBy,jdbcType=VARCHAR},
             SYSTIMESTAMP,
-            #{channelSyncStatus,jdbcType=VARCHAR}
+            #{channelSyncStatus,jdbcType=VARCHAR},
+            #{status,jdbcType=VARCHAR}
         )
     </insert>
 
-    <delete id="deleteByCardIds">
-        delete from BLACKLIST
-        where CARD_ID in
-        <foreach collection="cardIds" item="cardId" open="(" separator="," close=")">
-            #{cardId,jdbcType=VARCHAR}
-        </foreach>
-    </delete>
-
     <!-- 「可解除性」只读盘点取数：按 CREATE_TIME 升序取最早的 limit 条。 -->
     <!-- REASON 与 BLACK_CAUSE 必须取出：前者是人工判断依据，后者决定该行是否该进候选。 -->
+    <!-- MUST 排除 RELEASING：那些卡已经在解除流程里了，再报进待解除清单会被重复发起一次。 -->
     <select id="selectForInspect" resultMap="BaseResultMap">
         select
         <include refid="BaseColumnList"/>
         from BLACKLIST
+        where STATUS = 'ACTIVE'
         order by CREATE_TIME asc, ID asc
         fetch first #{limit,jdbcType=INTEGER} rows only
     </select>
 
-    <!-- 加黑通知的 outbox 扫表取数，与 BlacklistReleasedMapper 同名语句形状逐字对齐。 -->
+    <!-- 自动解除的候选取数：与 selectForInspect 同形，只多一条 BLACK_CAUSE = '01' 谓词。 -->
+    <!-- 这条谓词是自动解除的安全边界，NEVER 放宽：02 挂失补卡的卡即便欠费清了也不能自动放行 -->
+    <!-- （旧卡会恢复过闸），09 其他只有自由文本 REASON、没有可判定的失效条件。 -->
+    <!-- MUST 保留 STATUS = 'ACTIVE'：RELEASING 的行已在解除流程里，再发起一次等于重复推通知。 -->
+    <!-- 渠道（CHANNEL_CODE）刻意不在这里过滤，99 未知渠道要能被计数与打日志，见 mapper 接口注释。 -->
+    <select id="selectForAutoRelease" resultMap="BaseResultMap">
+        select
+        <include refid="BaseColumnList"/>
+        from BLACKLIST
+        where STATUS = 'ACTIVE'
+          and BLACK_CAUSE = '01'
+        order by CREATE_TIME asc, ID asc
+        fetch first #{limit,jdbcType=INTEGER} rows only
+    </select>
+
+    <!-- 加黑通知的 outbox 扫表取数。 -->
+    <!-- ⓿ STATUS = 'ACTIVE' 是本语句的方向声明，MUST 有：解除中的行也是 CHANNEL_SYNC_STATUS='PENDING'， -->
+    <!--    少了这个条件会把它捞进来推成一条「加黑」通知，方向完全相反。 -->
+    <!--    对偶语句是下面的 selectPendingReleaseSync（STATUS='RELEASING'），改一条 MUST 看另一条。 -->
     <!-- ① 状态用 IN ('PENDING','FAILED') 白名单，NEVER 写成「非 SUCCESS 即扫」；本改造之前拉黑的 -->
     <!--    历史行 CHANNEL_SYNC_STATUS 是 NULL，白名单天然把它们排除，黑名单式写法会把全表历史重推一遍。 -->
     <!-- ② FAILED 仍在白名单内，这是补偿能重入的前提，NEVER 只扫 PENDING。 -->
@@ -121,10 +149,50 @@
             select
             <include refid="BaseColumnList"/>
             from BLACKLIST
-            where CHANNEL_SYNC_STATUS in ('PENDING', 'FAILED')
+            where STATUS = 'ACTIVE'
+              and CHANNEL_SYNC_STATUS in ('PENDING', 'FAILED')
             order by CHANNEL_SYNC_TIME asc nulls first, ID asc
         ) where ROWNUM &lt;= #{limit,jdbcType=INTEGER}
     </select>
+
+    <!-- 解黑通知的 outbox 扫表取数，与上面那条是对偶：唯一差别是 STATUS 取 'RELEASING'。 -->
+    <!-- 载体在主表而不在 BLACKLIST_RELEASED：解除通知推成功后才搬历史 + 删主表行，通知没成功时 -->
+    <!-- 这行还在主表、且仍算黑名单。BLACKLIST_RELEASED 上那四个 CHANNEL_SYNC_* 列已降级为历史审计， -->
+    <!-- NEVER 再据它们做补偿扫表。 -->
+    <select id="selectPendingReleaseSync" resultMap="BaseResultMap">
+        select * from (
+            select
+            <include refid="BaseColumnList"/>
+            from BLACKLIST
+            where STATUS = 'RELEASING'
+              and CHANNEL_SYNC_STATUS in ('PENDING', 'FAILED')
+            order by CHANNEL_SYNC_TIME asc nulls first, ID asc
+        ) where ROWNUM &lt;= #{limit,jdbcType=INTEGER}
+    </select>
+
+    <!-- 阶段一：把行从 ACTIVE CAS 成 RELEASING，同时把渠道同步重置为 PENDING、暂存解除原因与操作者。 -->
+    <!-- 影响 0 行有两种情形，调用方都按「无需再发起」处置：卡不在黑名单里，或它已经在解除中。 -->
+    <!-- CHANNEL_SYNC_RETRY 归 0、FAIL_REASON 清空：这是一次新的投递，NEVER 继承加黑那次的计数。 -->
+    <update id="markReleasing">
+        update BLACKLIST
+        set STATUS = 'RELEASING',
+            RELEASE_REASON = #{releaseReason,jdbcType=VARCHAR},
+            RELEASE_BY = #{releaseBy,jdbcType=VARCHAR},
+            CHANNEL_SYNC_STATUS = 'PENDING',
+            CHANNEL_SYNC_TIME = null,
+            CHANNEL_SYNC_RETRY = 0,
+            CHANNEL_SYNC_FAIL_REASON = null
+        where CARD_ID = #{cardId,jdbcType=VARCHAR}
+          and STATUS = 'ACTIVE'
+    </update>
+
+    <!-- 阶段二只删「解除中且本次通知已收口成功」的那一行，WHERE 带双条件做 CAS。 -->
+    <!-- NEVER 退回按 CARD_ID 裸删：那样在「通知还没成功」时也会把行删掉，等于回到乐观解除。 -->
+    <delete id="deleteReleasedById">
+        delete from BLACKLIST
+        where ID = #{id,jdbcType=NUMERIC}
+          and STATUS = 'RELEASING'
+    </delete>
 
     <!-- 收口成功：WHERE 带同一份白名单做 CAS，避免把已被别处收口的行重复回写。 -->
     <update id="markChannelSyncSuccess">

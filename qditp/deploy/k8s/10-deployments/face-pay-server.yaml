@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: face-pay-server
+  name: face-pay-server
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: face-pay-server
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: face-pay-server
+    spec:
+      containers:
+      - env:
+        - name: PAY_CENTER_SUPPLEMENT_NOTICE_URL
+          value: http://58.56.166.170:48000/itpbom/ci/bom/supplementPayNotice
+        - name: DB_HOST
+          value: 172.20.222.3:1521
+        - name: DB_DATABASE
+          value: AFCITPDB
+        - name: DB_USERNAME
+          value: qditp
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: DB_PASSWORD
+        - name: PAY_CENTER_MERCHANT_NO
+          value: JOPJ490HLK9Z
+        - name: JHM_KEY
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: JHM_KEY
+        - name: PAY_CENTER_PAY_URL
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/payment/requestPay
+        - name: PAY_CENTER_QUERY_URL
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/payment/payQuery
+        - name: PAY_CENTER_REFUND_URL
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/refund/requestRefund
+        - name: PAY_CENTER_REFUND_QUERY_URL
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/refund/refundQuery
+        - name: PAY_CENTER_CHECKOUT_COUNTER_URL
+          value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/checkoutCounter
+        - name: PAY_CENTER_PAY_NOTICE_URL
+          value: http://58.56.166.170:48000/itptvm/ci/tvm/payNotice
+        - name: NOTIFY_APP_TAKE_TICKET_RESULT_URL
+          value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receiveTakeTicketResult
+        - name: NOTIFY_APP_TAKE_TICKET_FAULT_RESULT_URL
+          value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receiveTakeTicketFaultResult
+        - name: NOTIFY_APP_REFUND_RESULT_URL
+          value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receiveRefundResult
+        - name: SERVICE_TICKET_URL
+          value: http://ticket-server-bsyju-svc.itp.svc:9100
+        - name: SERVICE_ACCOUNT_URL
+          value: http://account-n4ba6-svc.itp.svc:9098
+        - name: SERVICE_NAME
+          value: face-pay-server
+        - name: NAMESPACE
+          value: itp
+        - name: NOTIFY_APP_REFUND_NOTICE_URL
+          value: http://58.56.166.170:48000/fep-app/ci/app/receiveRefundResult
+        - name: NOTIFY_APP_PAY_RESULT_URL
+          value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receivePaymentResult
+        - name: PAY_CENTER_REFUND_NOTICE_URL
+          value: http://58.56.166.170:48000/itpbom/ci/bom/receiveRefundResult
+        image: os-harbor-svc.default.svc.cloudos:443/itp/face-pay-server:1.0.66
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: face-pay-server
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-nk8ct6520
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-nk8ct6520

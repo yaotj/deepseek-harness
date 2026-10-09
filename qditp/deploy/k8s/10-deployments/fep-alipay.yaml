@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: fep-alipay
+  name: fep-alipay
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fep-alipay
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: fep-alipay
+    spec:
+      containers:
+      - env:
+        - name: service.blacklist.openLogger
+          value: 'true'
+        - name: alipay.notify.push-trans-data-url
+          value: https://openapi.alipay.com/gateway.do
+        - name: service.key.openLogger
+          value: 'true'
+        - name: other.web.enableLogRequestInFilter
+          value: 'true'
+        - name: other.web.enableBodyCacheFilter
+          value: 'true'
+        - name: server.tomcat.basedir
+          value: ./logs
+        - name: alipay.notify.close-result-url
+          value: https://openapi.alipay.com/gateway.do
+        - name: knife4j.production
+          value: 'false'
+        - name: service.para.openLogger
+          value: 'true'
+        - name: service.ticket.url
+          value: http://172.20.211.23:30014
+        - name: industry.issue-channel-code
+          value: '07'
+        - name: server.port
+          value: '8080'
+        - name: service.security.openLogger
+          value: 'true'
+        - name: alipay.notify.blacklist-url
+          value: https://openapi.alipay.com/gateway.do
+        - name: service.ticket.openLogger
+          value: 'true'
+        - name: other.web.enableLogTakeTimesInInterceptor
+          value: 'true'
+        - name: service.account.url
+          value: http://172.20.211.23:30021
+        - name: service.security.url
+          value: http://127.0.0.1:9012
+        - name: service.alipay-pay-sign.openLogger
+          value: 'true'
+        - name: service.paySign.url
+          value: http://172.20.211.23:30022
+        - name: spring.application.name
+          value: fep-alipay
+        - name: service.industryData.openLogger
+          value: 'true'
+        - name: service.key.url
+          value: http://127.0.0.1:9103
+        - name: service.para.url
+          value: http://127.0.0.1:9107
+        - name: service.blacklist.url
+          value: http://172.20.211.23:30017
+        - name: service.industryData.url
+          value: http://172.20.211.23:30018
+        - name: other.web.unSafeUrlChars
+          value: 'null'
+        - name: alipay.notify.card-data-url
+          value: https://openapi.alipay.com/gateway.do
+        - name: service.account.openLogger
+          value: 'true'
+        - name: service.paySign.openLogger
+          value: 'true'
+        - name: service.alipay-pay-sign.url
+          value: http://172.20.211.23:30022
+        - name: SERVICE_NAME
+          value: fep-alipay
+        - name: NAMESPACE
+          value: itp
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        - name: service.transQuery.url
+          value: http://trans-query-57wpd-svc.itp.svc:30035
+        - name: service.transQuery.openLogger
+          value: 'true'
+        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-alipay:1.0.68
+        imagePullPolicy: Always
+        lifecycle: {}
+        name: fep-alipay
+        resources:
+          limits:
+            cpu: '2'
+            memory: 4Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-1b3m09qw0
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-1b3m09qw0

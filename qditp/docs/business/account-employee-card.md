@@ -237,8 +237,8 @@
 
 ## 编码约束
 - **`USER_ITP_REG_INFO.DEL_YN` 的极性是反直觉的**，取值与全部过滤点见上方「状态列取值全集」。**行号会漂，按方法名定位，NEVER 记行号。**
-- **销户分两段，不要只看一段**：IF8A-42 先原地标记（`DEL_YN=0` + `DEL_THIRD_USER_ID` + `UN_REG_TMS`，`updateCancelByThirdUserId`），记录仍在原表；等 IF8A-75 把**最后一个签约渠道**解绑掉，`requestRemovePayChannel` 的 `archiveUserInfoIfLastChannelRemoved` 才做归档——往 `USER_ITP_REG_LOG` 写 `OPER_TYPE=3` 快照后 `deleteCanceledByThirdUserId` 物理删原表行（WHERE 带 `DEL_YN = 0`，不误删并发新开户）。**「用户信息历史表」就是 `USER_ITP_REG_LOG`**（用户 2026-09-08 裁决复用），因此 **NEVER 新建 `*_HISTORY` 表**——同一事实两处存储、既有查询都不认。代价是该表只有 6 个业务列，原表 19 列中的 `ITP_CARD_TYPE` / `USER_NAME` / `USER_ID` / `CARD_ISSUE_CODE` / `REG_TMS` 等 13 列归档后不可恢复，已被接受。
-  - ⚠️ `archiveUserInfoIfLastChannelRemoved` 内部**先 `for update` 取锁、后 count**，这个顺序不可颠倒。
+- **销户分两段，不要只看一段**：IF8A-42 先原地标记（`DEL_YN=0` + `DEL_THIRD_USER_ID` + `UN_REG_TMS`，`updateCancelByThirdUserId`），记录仍在原表；等 IF8A-75 把**最后一个签约渠道**解绑掉，`requestRemovePayChannel` 链路在 `PayChannelServiceImpl:410` 调 `AccountArchiveServiceImpl.archiveIfLastChannelRemoved`（**旧名 `AccountApplicationServiceImpl.archiveUserInfoIfLastChannelRemoved`，随账户域拆分改名，2026-09-23 核对**）才做归档——往 `USER_ITP_REG_LOG` 写 `OPER_TYPE=3` 快照后 `deleteCanceledByThirdUserId` 物理删原表行（WHERE 带 `DEL_YN = 0`，不误删并发新开户）。**「用户信息历史表」就是 `USER_ITP_REG_LOG`**（用户 2026-09-08 裁决复用），因此 **NEVER 新建 `*_HISTORY` 表**——同一事实两处存储、既有查询都不认。代价是该表只有 6 个业务列，原表 19 列中的 `ITP_CARD_TYPE` / `USER_NAME` / `USER_ID` / `CARD_ISSUE_CODE` / `REG_TMS` 等 13 列归档后不可恢复，已被接受。
+  - ⚠️ `AccountArchiveServiceImpl.archiveIfLastChannelRemoved` 内部**先 `for update` 取锁、后 count**，这个顺序不可颠倒。**NEVER 按旧名 `archiveUserInfoIfLastChannelRemoved` 去搜**——该方法随账户域拆分已改名（2026-09-23 核对）。
 - **归档有两个触发点，NEVER 只在解绑侧调**（2026-09-09 修复）：除 `requestRemovePayChannel` 外，`userCancel` 的**两条出口**（正常销户提交后、以及「无有效开户记录」的幂等分支）也各调一次 `tryArchiveAfterCancel`。原因是实测存在**反序场景**——用户先把支付通道全解绑、之后才销户（`00522946`：通道 10:07 / 10:45 已删完，14:24 才销户），此时 75 那条路径永不再触发，归档三条件明明全满足却没有代码去检查，记录以 `DEL_YN=0` 永久残留。补上销户侧后，对残留数据**重复调一次 IF8A-42 即可收口**（实测 14:50:33 归档成功）。`tryArchiveAfterCancel` 吞异常只记 warn：归档幂等、失败下次再试，**NEVER** 让归档失败把已成功的销户翻成失败。
 - **`requestRemovePayChannel` 的 `cardType` 映射 MUST 在参数校验之后做**（2026-09-09 修复）：原先方法第一行就是 `CardTypeMapping.toIssueCardType(request.getCardType().trim())`，`cardType` 为 null 直接 NPE，冒到全局异常处理器后 `retCode` 退化成 UUID，调用方（解约回调）只能判失败并回滚。已发生事故：支付宝已解约、本地 `APP_USER_PAY_CHANNEL` 与 `APP_PAY_SIGN_INFO` 全部回退。现在先 `validateRemovePayChannelRequest` 返回 `8001` + 明确原因，再做映射。
 - **归档时点 NEVER 提前到 42**：42 时支付通道还没解绑，删掉原表行会让 75 解约成功分支回调清通道返 `8004`，且 `selectAnyByThirdUserIdAndCardIdAndCardType`（忽略 `DEL_YN` 的兜底）同时失效，通道永久残留。触发归档 **MUST** 先确认 `UserPayChannelMapper.countByThirdUserId` 为 0（thirdUserId 全量口径），且该用户所有开户记录都是 `DEL_YN=0`。
@@ -301,7 +301,7 @@
   卡池确认 / 释放全是 RPC，AGENTS.md §5.2 禁止把网络调用包在事务里。编排顺序按同节『先调远端、后改本地』：
   预占卡号 → 注册乘车状态 → 短事务落库 → 确认预占」；「落库失败时乘车状态留在远端等重推（cardId 由卡池按 businessId 幂等发放，
   重推拿到的是同一张卡号，不会产生第二条乘车状态）；**任何失败分支都不 release 预占**（ADR-D52）」，
-  滞留预占「一律由 `sys_job` 107『卡池维护』的超时回收兜底」。
+  滞留预占「一律由 `sys_job` 240『卡池数据导入』的超时回收兜底」（2026-09-21 由 107『卡池维护』改号改名）。
 - **两行落库必须一起成立** —— `RegistrationCommitService.persistRegistration`（`<J>/service/RegistrationCommitService.java:44-50`）：
   「两条写必须一起成立（流水行是注册行的凭证），因此这里**确实需要事务**——与 ADR-D30 里『展示列回写不包事务』是相反的情形，
   判据同样是『两条写是否必须一起成立』。实现用 `TransactionTemplate` 而非 `@Transactional`，
@@ -390,7 +390,7 @@
 - **「按业务键幂等的远端资源 NEVER 在失败分支回滚」（ADR-D52）** —— 四个失败分支都逐条写明：
   `AccountRegistrationServiceImpl.requestApplication`（`<J>/service/impl/AccountRegistrationServiceImpl.java:158-160`、`:208-210`）
   「NEVER 在这里 releaseReservation：预占按 businessId 幂等、是并发请求共享的，释放会把兄弟请求正要 confirm 的卡号抽走（ADR-D52 实测）。
-  滞留的预占交给 sys_job 107『卡池维护』的超时回收」；同文件 `:270-274`「**本方法 NEVER releaseReservation**（2026-09-14 / ADR-D52 起，
+  滞留的预占交给 sys_job 240『卡池数据导入』的超时回收」；同文件 `:270-274`「**本方法 NEVER releaseReservation**（2026-09-14 / ADR-D52 起，
   此前会释放）。撞唯一索引恰恰证明**兄弟请求已经落库成功**，而单卡场景下两条请求共享同一个 `businessId` ⇒ 同一个 `reservationId` ⇒
   **同一张卡号**……在这里释放等于把已发出去的卡号退回池子」；支付宝渠道同款在
   `AlipayTripRegistrationServiceImpl`（`<J>/service/impl/AlipayTripRegistrationServiceImpl.java:120-122`、`:159`）。
@@ -944,7 +944,7 @@
   `reserveFromPool` 按 `businessId` 幂等，**同一用户同一票种的并发请求拿到的是同一个 `reservationId`**，即预占是这批请求**共享**的、
   不是本请求私有的。于是失败方一 release 就把兄弟请求正要 confirm 的那张卡抽走 —— 实测后果是成功方 confirm 被拒、
   卡号回到 `AVAILABLE` 却已写进账户表。而**任何以 `reservationId` 为条件的 CAS 都挡不住这件事**（兄弟持有的是同一个 id），
-  请求内也拿不到『有没有兄弟正要 confirm』的信息，因此唯一正确的做法是**不释放**，交给 `sys_job` 107『卡池维护』
+  请求内也拿不到『有没有兄弟正要 confirm』的信息，因此唯一正确的做法是**不释放**，交给 `sys_job` 240『卡池数据导入』
   （`cardPoolQuartzTask.runMaintenance()`，cron `0 0/5 * * * ?`）的预占超时回收」；
   「本方法**保留**是因为『明确不该占着这张卡』的场景仍需要它（如运维显式回收），**NEVER 因为开户链路不再调用就删掉**」；
   实现侧（`<J>/service/impl/CardPoolAllocationServiceImpl.java:96-98`）「确认失败不回滚已提交的开户数据——卡号已发给用户，回滚才是错的；
@@ -1561,7 +1561,7 @@
   「背景：`AccountApplicationServiceImpl.updatePhone` **目前在 `@Transactional` 内调 `paySignClient.updatePaySignDisplayAccount`
   （事务内出网，违反 AGENTS.md 5.2）**。改造后该 RPC 移到事务外，成败落到本组列，由 `@Scheduled` 扫表补偿重推，
   达重试上限转异常工单。**列名与 `APP_TERMINATION_REQUEST` 的 `NOTIFY_*` 对称**。详见 `docs/domain/decisions.md` ADR-D8。」
-  **注意脚本里「由 `@Scheduled` 扫表」已过期**（现由 web-admin `sys_job` 108 触发 `/phoneSignSyncCompensate`），见 §矛盾第 4 条。
+  **注意脚本里「由 `@Scheduled` 扫表」已过期**（现由 web-admin `sys_job` 290 触发 `/phoneSignSyncCompensate`；2026-09-21 由 108 改号），见 §矛盾第 4 条。
 - **另两个迁移脚本各只有一行、但都是执行前提** —— `<S>/account-server-hce-data-migration.sql:1`：
   「HCE 卡数据存储。**已执行 `account-server-card-type-migration.sql` 的环境也必须执行本脚本**」；
   `<S>/account-server-companion-flag-migration.sql:1`：「为既有 `USER_ITP_REG_INFO` 表增加同行票/第三方票标识。」
@@ -1698,13 +1698,13 @@ UUID retCode」那一例，ADR-D93 / D97 续）。本轮抽取时刻仓库 `acco
    接口 Javadoc 原文：「按 AGENTS.md §5.2『先调远端、后改本地』，调用方 MUST 在本方法成功后才落库；**失败时 MUST 释放卡池预占**。」
    代码证据（本轮逐处核对，三方一致地反对这句话）：
    ①`AccountRegistrationServiceImpl.requestApplication:158-160` 与 `:208-210` 的注释是
-   「**NEVER 在这里 `releaseReservation`**：预占按 `businessId` 幂等、是并发请求共享的……滞留的预占交给 `sys_job` 107『卡池维护』的超时回收」；
+   「**NEVER 在这里 `releaseReservation`**：预占按 `businessId` 幂等、是并发请求共享的……滞留的预占交给 `sys_job` 240『卡池数据导入』的超时回收」；
    ②同类 `:270-274`「**本方法 NEVER `releaseReservation`**（2026-09-14 / ADR-D52 起，此前会释放）」；
    ③支付宝渠道 `AlipayTripRegistrationServiceImpl:120-122`、`:159` 同款；
    ④`CardPoolAllocationService.releaseReservation:45-56` 的墓碑注释（阶段一墓碑第 34 条）明确「**在失败分支调 `releaseReservation`** 是被禁止的，
    但**因链路不再调用就删掉该方法也是被禁止的**」。
    **结论：`registerRideStatus` 的 Javadoc 是 ADR-D52 之前的旧措辞，属注释与实现不一致，且危险方向是「照 Javadoc 写新代码会重现 ADR-D52 的缺陷」。**
-   本轮**按约束只记录、未改代码**。**建议裁决**：把该句改成「失败时**不要**释放预占，滞留预占由 `sys_job` 107 超时回收（ADR-D52）」，
+   本轮**按约束只记录、未改代码**。**建议裁决**：把该句改成「失败时**不要**释放预占，滞留预占由 `sys_job` 240 超时回收（ADR-D52）」，
    并同批检查是否还有别处沿用旧措辞。**在裁决落地前，读到这句话 MUST 以 ADR-D52 为准。**
 2. **`PhoneChangeService.java:18` / `:27` 的 `{@link AccountApplicationService#updatePhone}` 指向已删除的类。**
    本轮全模块 grep 实测：`AccountApplicationService` / `AccountApplicationServiceImpl` **只剩注释里的字样，源文件已不存在**
@@ -1718,7 +1718,7 @@ UUID retCode」那一例，ADR-D93 / D97 续）。本轮抽取时刻仓库 `acco
    归档那条注释想表达的约束（**NEVER 让 Controller 直接依赖归档实现类**）仍成立，但它给出的理由已失效。
    **待裁决**：改成「上游注入的是 `PayChannelService` / `AccountCancelService`，归档只是它们的收尾步骤」。
 4. **`<S>/account-server-phone-sync-migration.sql:4` 写「由 `@Scheduled` 扫表补偿重推」，与「account-server 全模块无 `@Scheduled`」冲突。**
-   现行事实：调度在 web-admin 的 `sys_job`（108），入口是 `TaskController.phoneSignSyncCompensate`，
+   现行事实：调度在 web-admin 的 `sys_job`（290），入口是 `TaskController.phoneSignSyncCompensate`，
    `<X>/UserPhoneChangeLogMapper.xml:118-120` 写的正是「**account-server 侧 NEVER 加 `@Scheduled`**」。
    脚本注释是改造当时的措辞，**已过期**；**NEVER 据它在本模块里加 `@Scheduled`**。
 5. **`AccountRequestVerifier` 的存在与 §5.2「新增状态变更型接口 MUST 有鉴权」处于长期冲突态**：类注释自己承认 24 个端点全裸露，
@@ -1905,7 +1905,7 @@ grep 短语：`UK_UIRI_ACTIVE_USER_CARDTYPE`、`ORA-14039`、`ORA-01452`、`EXEC
   —— 这条对应 `docs/domain/decisions.md` 撤回记录里的「用 `DATA_LENGTH` 判列长」那条（阶段二墓碑第 91 条）。
 - **`account-server-phone-sync-migration.sql`（20 行 / 6 `--` / 4 `COMMENT ON` / 1 索引）**：
   `--` 那 6 行阶段二已记（矛盾第 4 条：`:4` 的「由 `@Scheduled` 扫表补偿重推」**已过期**，
-  现行调度在 web-admin `sys_job` 108，**NEVER 据它在本模块加 `@Scheduled`**），本轮只补 4 条 `COMMENT ON`
+  现行调度在 web-admin `sys_job` 290，**NEVER 据它在本模块加 `@Scheduled`**），本轮只补 4 条 `COMMENT ON`
   与一处**与 schema 不一致**的事实：
   - `:14` 的 `SIGN_SYNC_STATUS` 注释是「**PENDING-待投递，SUCCESS-已送达，FAILED-投递失败待重试；
     `NULL` 表示本行早于改造，NEVER 被补偿扫描捞取**」，而 `<S>/account-server-schema.sql:369` 同一列的注释是

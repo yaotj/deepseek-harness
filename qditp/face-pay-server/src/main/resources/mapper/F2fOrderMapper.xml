@@ -208,6 +208,11 @@
         SELECT <include refid="Base_Column_List"/>
         FROM F2F_ORDER
         WHERE ORDER_STATUS = 'PAID'
+          AND BIZ_TYPE IN
+        <foreach collection="bizTypes" item="bizType" open="(" separator="," close=")">
+            #{bizType,jdbcType=VARCHAR}
+        </foreach>
+          AND PAID_TMS &gt;= #{earliest,jdbcType=TIMESTAMP}
           AND PAID_TMS &lt; #{deadline,jdbcType=TIMESTAMP}
         ORDER BY PAID_TMS
         FETCH FIRST #{limit,jdbcType=INTEGER} ROWS ONLY

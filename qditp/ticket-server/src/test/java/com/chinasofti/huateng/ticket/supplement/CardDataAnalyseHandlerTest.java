@@ -47,7 +47,7 @@ class CardDataAnalyseHandlerTest {
         when(stateRules.resolveCodeStatus(anyString())).thenReturn(QRCodeStatusEnum.ENTRY);
         when(stateRules.unknownStationCode()).thenReturn(SupplementCodec.STATION_UNKNOWN);
         when(stateRules.isUnknownStation(anyString())).thenReturn(true);
-        when(stateRules.resolveAdviceOpt(any(), anyString(), anyString(), anyString(), any(), anyString()))
+        when(stateRules.resolveAdviceOpt(any(), anyString(), anyString(), anyString(), any(), anyString(), anyString()))
                 .thenReturn(List.of("000"));
 
         handler = new CardDataAnalyseHandler();

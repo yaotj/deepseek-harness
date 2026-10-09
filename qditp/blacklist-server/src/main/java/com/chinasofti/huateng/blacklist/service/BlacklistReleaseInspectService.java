@@ -4,10 +4,6 @@ import com.chinasofti.huateng.blacklist.entity.Blacklist;
 import com.chinasofti.huateng.blacklist.mapper.BlacklistMapper;
 import com.chinasofti.huateng.model.app.BlacklistReleaseCandidateDTO;
 import com.chinasofti.huateng.model.app.BlacklistReleaseInspectRespDTO;
-import com.chinasofti.huateng.model.app.CardUnsettledQueryReqDTO;
-import com.chinasofti.huateng.model.app.CardUnsettledQueryRespDTO;
-import com.chinasofti.huateng.rpc.alipay.paysign.AlipayPaySignClient;
-import com.chinasofti.huateng.rpc.pay.GateTxnPayClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,7 +24,6 @@ public class BlacklistReleaseInspectService {
     private static final Logger log = LoggerFactory.getLogger(BlacklistReleaseInspectService.class);
 
     private static final String RESULT_CODE_SUCCESS = "0000";
-    private static final String DOWNSTREAM_SUCCESS = "0000";
 
     /** 两个欠费源都查成功且都无欠费。 */
     private static final String STATUS_SETTLED = "SETTLED";
@@ -40,8 +35,7 @@ public class BlacklistReleaseInspectService {
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final BlacklistMapper blacklistMapper;
-    private final GateTxnPayClient gateTxnPayClient;
-    private final AlipayPaySignClient alipayPaySignClient;
+    private final CardUnsettledQuery cardUnsettledQuery;
 
     /**
      * 单次盘点上限。
@@ -50,11 +44,9 @@ public class BlacklistReleaseInspectService {
     private int batchSize;
 
     public BlacklistReleaseInspectService(BlacklistMapper blacklistMapper,
-                                          GateTxnPayClient gateTxnPayClient,
-                                          AlipayPaySignClient alipayPaySignClient) {
+                                          CardUnsettledQuery cardUnsettledQuery) {
         this.blacklistMapper = blacklistMapper;
-        this.gateTxnPayClient = gateTxnPayClient;
-        this.alipayPaySignClient = alipayPaySignClient;
+        this.cardUnsettledQuery = cardUnsettledQuery;
     }
 
     /**
@@ -108,8 +100,8 @@ public class BlacklistReleaseInspectService {
         candidate.setCreateTime(record.getCreateTime() != null
                 ? record.getCreateTime().format(TIME_FORMATTER) : null);
 
-        Boolean gateUnsettled = queryGate(record.getCardId());
-        Boolean alipayUnsettled = queryAlipay(record.getCardId());
+        Boolean gateUnsettled = cardUnsettledQuery.gateUnsettled(record.getCardId());
+        Boolean alipayUnsettled = cardUnsettledQuery.alipayUnsettled(record.getCardId());
         candidate.setGateUnsettled(gateUnsettled);
         candidate.setAlipayUnsettled(alipayUnsettled);
 
@@ -129,44 +121,8 @@ public class BlacklistReleaseInspectService {
     }
 
     /**
-     * 查闸机出站扣费欠费，返回 null 表示查询未成功执行（事实不明）。
+     * 把「哪个欠费源查不通」写成人能看懂的一句话，供人工核对。
      */
-    private Boolean queryGate(String cardId) {
-        try {
-            CardUnsettledQueryReqDTO request = new CardUnsettledQueryReqDTO();
-            request.setCardId(cardId);
-            CardUnsettledQueryRespDTO result = gateTxnPayClient.hasUnsettledOrderByCard(request);
-            // 但那是「不明」不是「有欠费」，两者在报表上要区分开。
-            if (result == null || !DOWNSTREAM_SUCCESS.equals(result.getResultCode())) {
-                log.warn("查询闸机扣费欠费未成功, cardId={}, response={}", cardId, result);
-                return null;
-            }
-            return result.isHasUnsettled();
-        } catch (Exception e) {
-            log.error("查询闸机扣费欠费异常, cardId={}", cardId, e);
-            return null;
-        }
-    }
-
-    /**
-     * 查支付宝出行欠费，返回 null 表示查询未成功执行（事实不明）。
-     */
-    private Boolean queryAlipay(String cardId) {
-        try {
-            CardUnsettledQueryReqDTO request = new CardUnsettledQueryReqDTO();
-            request.setCardId(cardId);
-            CardUnsettledQueryRespDTO result = alipayPaySignClient.hasUnsettledOrderByCard(request);
-            if (result == null || !DOWNSTREAM_SUCCESS.equals(result.getResultCode())) {
-                log.warn("查询支付宝出行欠费未成功, cardId={}, response={}", cardId, result);
-                return null;
-            }
-            return result.isHasUnsettled();
-        } catch (Exception e) {
-            log.error("查询支付宝出行欠费异常, cardId={}", cardId, e);
-            return null;
-        }
-    }
-
     private String buildFailReason(Boolean gateUnsettled, Boolean alipayUnsettled) {
         if (gateUnsettled == null && alipayUnsettled == null) {
             return "闸机扣费与支付宝出行欠费查询均失败";

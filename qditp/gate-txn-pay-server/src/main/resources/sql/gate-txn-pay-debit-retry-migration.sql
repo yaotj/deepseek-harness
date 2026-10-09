@@ -1,0 +1,11 @@
+ALTER TABLE GATE_TXN_PAY ADD (
+    DEBIT_RETRY_TIMES     NUMBER(2) DEFAULT 0 NOT NULL,
+    DEBIT_NEXT_RETRY_TIME TIMESTAMP(6),
+    DEBIT_FAIL_CODE       VARCHAR2(32 CHAR),
+    DEBIT_FAIL_MSG        VARCHAR2(512 CHAR)
+);
+
+COMMENT ON COLUMN GATE_TXN_PAY.DEBIT_RETRY_TIMES IS '批量重试已发起次数，达到 gate.debitRetry.maxTimes 后不再被扫表谓词命中；上限判定写在扫表 SQL 的 DEBIT_RETRY_TIMES < :maxTimes 里，人工排查用 DEBIT_RETRY_TIMES >= 上限 过滤';
+COMMENT ON COLUMN GATE_TXN_PAY.DEBIT_NEXT_RETRY_TIME IS '下次允许批量重试的时刻，NULL 表示立即可重试；每次发起后置为 SYSTIMESTAMP + gate.debitRetry.backoffMinutes，防止同日多次触发把同一笔连扣两遍';
+COMMENT ON COLUMN GATE_TXN_PAY.DEBIT_FAIL_CODE IS '批量重试后的落点语义码：BIZ_REJECTED 支付中心业务拒绝（重试无意义、等人工），UNREACHABLE 未获答复（下轮继续）；明细原因看 REMARK';
+COMMENT ON COLUMN GATE_TXN_PAY.DEBIT_FAIL_MSG IS '批量重试记账说明，含第几次重试与落点状态；NEVER 拿它当扫表谓词';

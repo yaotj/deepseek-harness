@@ -421,7 +421,14 @@ public class TicketCollectServiceImpl implements TicketCollectService {
             if ("SUCCESS".equalsIgnoreCase(request.getStatus())) {
                 collectInfo.setOrderStatus(ORDER_STATUS_PAID);
                 collectInfo.setPayResult(PAY_RESULT_SUCCESS);
-                collectInfo.setPayAmount(request.getTotalAmount());
+                // PAY_AMOUNT 口径是实付现金金额：优先取报文 cashAmount，为空才回落 totalAmount
+                collectInfo.setPayAmount(request.getCashAmount() != null
+                        ? request.getCashAmount()
+                        : request.getTotalAmount());
+                // cashAmount / couponAmount 原样落库，NEVER 加 cash + coupon 是否等于 total 的校验：
+                // 支付中心实测这三个值恒相等，属无效值，加校验会把正常报文误判成异常
+                collectInfo.setCashAmount(request.getCashAmount());
+                collectInfo.setCouponAmount(request.getCouponAmount());
                 collectInfo.setPayDate(parsePayTime(request.getPayTime()));
                 collectInfo.setPayChannelCode(request.getPaymentVendor());
                 collectInfo.setTradeNo(request.getChannelOrderNo());

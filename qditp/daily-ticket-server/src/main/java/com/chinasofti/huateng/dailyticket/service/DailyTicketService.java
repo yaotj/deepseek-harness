@@ -2,6 +2,8 @@ package com.chinasofti.huateng.dailyticket.service;
 
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketActivateReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketBaseResult;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketFreeOrderReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketFreeOrderResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderNoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderResult;
@@ -11,6 +13,7 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundCallbackReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketSyncOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult;
@@ -18,13 +21,7 @@ import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketPayInfoReqDT
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketPayInfoResult;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderResult;
-import com.chinasofti.huateng.common.response.ResultVO;
-import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderQuery;
-import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundOrderView;
-import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundQuery;
-import com.chinasofti.huateng.dailyticket.page.DailyTicketRefundView;
 import com.chinasofti.huateng.dailyticket.page.TravelTicketSubRefundRequest;
-import com.github.pagehelper.PageInfo;
 
 /** 日票业务服务。 */
 public interface DailyTicketService {
@@ -33,6 +30,12 @@ public interface DailyTicketService {
 
     /** IF8A-70 旅游票下单。生成聚合主单及其内含的日票子单。 */
     TravelTicketOrderResult requestTravelOrder(TravelTicketOrderReqDTO request);
+
+    /** IF8A-73 免费票请求下单。 */
+    DailyTicketFreeOrderResult requestOrderFree(DailyTicketFreeOrderReqDTO request);
+
+    /** IF8A-72 小程序票状态同步。 */
+    DailyTicketBaseResult syncOrder(DailyTicketSyncOrderReqDTO request);
 
     /** 日票支付，转换支付场景并调用支付服务。 */
     DailyTicketPayResult requestPay(DailyTicketPayReqDTO request);
@@ -55,17 +58,8 @@ public interface DailyTicketService {
     /** 重提交：支付平台从未受理过的退款单（{@code PLATFORM_REFUND_NO IS NULL}）重新发起退款。 */
     DailyTicketRefundResult resubmitRefundTicket(DailyTicketOrderNoReqDTO request);
 
-    /** 运营页面分页查询日票订单及退款、票实例摘要。 */
-    ResultVO<PageInfo<DailyTicketRefundOrderView>> pageRefundOrders(DailyTicketRefundOrderQuery query);
-
-    /** 查询旅游票主单下的日票子单退款明细。 */
-    ResultVO<java.util.List<DailyTicketRefundOrderView>> listTravelSubRefundOrders(String parentOrderNo);
-
     /** 运营端按旅游票主单+子单发起部分退款。 */
     DailyTicketRefundResult requestTravelSubRefund(TravelTicketSubRefundRequest request);
-
-    /** 运营页面分页查询日票退款记录。 */
-    ResultVO<PageInfo<DailyTicketRefundView>> pageRefundRecords(DailyTicketRefundQuery query);
 
     /** 取消未支付日票订单。 */
     DailyTicketBaseResult cancelOrder(DailyTicketOrderNoReqDTO request);
@@ -79,7 +73,7 @@ public interface DailyTicketService {
     /** 处理支付结果回调。 */
     DailyTicketBaseResult receivePayResult(DailyTicketPayCallbackReqDTO request);
 
-    /** 处理支付中心退款结果回调（网关文档 §3.3）。 */
+    /** 处理支付中心退款结果回调（网关文档 §5.2）。 */
     DailyTicketBaseResult receiveRefundResult(DailyTicketRefundCallbackReqDTO request);
 
     /** 查询日票票实例信息（ticketCode、actualTimes）。 */

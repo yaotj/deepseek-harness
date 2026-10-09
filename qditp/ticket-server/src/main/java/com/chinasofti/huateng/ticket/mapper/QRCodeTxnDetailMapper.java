@@ -24,6 +24,20 @@ public interface QRCodeTxnDetailMapper {
                                                @Param("ticketTransSeq") String ticketTransSeq);
 
     /**
+     * 查同卡、进站（{@code TRX_TYPE='01'}）、且 {@code HANDLE_DATE_TIME} 早于或等于本次出站时间的最近一笔明细。
+     *
+     * <p>离线码出站重算票价用。两条不可回退的口径：
+     * <p>1. <b>NEVER 退回按 {@code ticketTransSeq} 相等配对</b>（即上面的 {@code selectFirstEntryBySequence}）
+     * —— 进站与出站是同一张卡的两笔不同交易，闸机上送的序列号天然不同（2026-09-22 实测进站 0 / 出站 1），
+     * 相等配对恒命中 0 行、订单永久卡 {@code OFFLINE_FARE_PENDING}。上面那条保留未删、本条只增不改。
+     * <p>2. <b>NEVER 改用 {@code QRCODE_STATUS.GATE_IN_STATION} / {@code GATE_IN_TIME}</b> ——
+     * 那是当前状态快照、会被下一趟行程覆盖；补偿是延迟执行的，延迟期间该卡再进站一次就会算错钱。
+     * 本表是历史流水、不会被覆盖，「早于本次出站时间」这一条保证同卡连续多趟也不会配错。
+     */
+    QRCodeTxnDetail selectLatestEntryBeforeExit(@Param("cardId") String cardId,
+                                                @Param("exitHandleDateTime") String exitHandleDateTime);
+
+    /**
      * IF8A-05 查询交易记录列表。
      *
      * @deprecated 请迁移至 {@link com.chinasofti.huateng.gatetxnpay.mapper.GateTxnPayMapper#selectTransList}

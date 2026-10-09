@@ -11,7 +11,9 @@
 # ==========================================
 REMOTE_HOST="k8s-master"
 REMOTE_DIR="/home/java"
-LOCAL_BASE_DIR="/Users/tuanjie/workspace/chinasofti/qd/qditp"
+# 由脚本自身位置推导仓库根（脚本在 <repo>/scripts/ 下），NEVER 再硬编码绝对路径
+# （旧值 /Users/tuanjie/workspace/chinasofti/qd/qditp 少了 company/ 一层，导致报「target 目录不存在」）
+LOCAL_BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # 全量服务列表（不传参时按此顺序部署）
 ALL_SERVICES=(

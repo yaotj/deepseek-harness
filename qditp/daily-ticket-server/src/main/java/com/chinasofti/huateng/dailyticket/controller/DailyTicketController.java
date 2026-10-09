@@ -3,6 +3,8 @@ package com.chinasofti.huateng.dailyticket.controller;
 import com.chinasofti.huateng.dailyticket.service.DailyTicketService;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketActivateReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketBaseResult;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketFreeOrderReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketFreeOrderResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderNoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderResult;
@@ -12,6 +14,7 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundCallbackReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketSyncOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult;
@@ -44,6 +47,18 @@ public class DailyTicketController {
     @PostMapping("/requestTravelOrder")
     public TravelTicketOrderResult requestTravelOrder(@RequestBody TravelTicketOrderReqDTO request) {
         return dailyTicketService.requestTravelOrder(request);
+    }
+
+    /** IF8A-73 免费票请求下单。 */
+    @PostMapping("/requestOrderFree")
+    public DailyTicketFreeOrderResult requestOrderFree(@RequestBody DailyTicketFreeOrderReqDTO request) {
+        return dailyTicketService.requestOrderFree(request);
+    }
+
+    /** IF8A-72 小程序票状态同步。 */
+    @PostMapping("/syncOrder")
+    public DailyTicketBaseResult syncOrder(@RequestBody DailyTicketSyncOrderReqDTO request) {
+        return dailyTicketService.syncOrder(request);
     }
 
     /** IF8A-61 日票支付。 */
@@ -88,7 +103,7 @@ public class DailyTicketController {
         return dailyTicketService.receivePayResult(request);
     }
 
-    /** 退款结果回调内部入口（支付中心网关 §3.3 → fep-app-server → 本接口）。 */
+    /** 退款结果回调内部入口（支付中心网关 §5.2 → fep-app-server → 本接口）。 */
     @PostMapping("/payment/receiveRefundResult")
     public DailyTicketBaseResult receiveRefundResult(@RequestBody DailyTicketRefundCallbackReqDTO request) {
         return dailyTicketService.receiveRefundResult(request);

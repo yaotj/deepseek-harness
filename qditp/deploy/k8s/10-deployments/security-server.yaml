@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    security: 'true'
+  labels:
+    app: security-server
+  name: security-server
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: security-server
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: security-server
+    spec:
+      containers:
+      - env:
+        - name: security.index
+          value: '01'
+        - name: logging.file.path
+          value: logs/acc-security
+        - name: security.connectOutTime
+          value: '3000'
+        - name: other.web.enableLogRequestInFilter
+          value: 'true'
+        - name: other.web.enableBodyCacheFilter
+          value: 'true'
+        - name: thread.socketNamePrefix
+          value: socket-connect
+        - name: itp.tacKeyIdex
+          value: '195'
+        - name: itp.dpkIdex
+          value: '178'
+        - name: security.publicKey
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: security.publicKey
+        - name: server.undertow.worker-threads
+          value: '10'
+        - name: security.secondPort
+          value: '7002'
+        - name: knife4j.production
+          value: 'false'
+        - name: security.firstPort
+          value: '6666'
+        - name: server.port
+          value: '8080'
+        - name: other.web.enableLogTakeTimesInInterceptor
+          value: 'true'
+        - name: logging.level.root
+          value: info
+        - name: thread.maxPoolSize
+          value: '10'
+        - name: security.readOutTime
+          value: '3000'
+        - name: thread.corePoolSize
+          value: '10'
+        - name: itp.kekIdex
+          value: '2'
+        - name: spring.application.name
+          value: acc-security
+        - name: logging.level.com.chinasofti
+          value: debug
+        - name: itp.signKey
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: itp.signKey
+        - name: security.firstIp
+          value: 172.20.201.4
+        - name: other.web.unSafeUrlChars
+          value: 'null'
+        - name: security.privateKey
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: security.privateKey
+        - name: server.undertow.io-threads
+          value: '10'
+        - name: thread.queueCapacity
+          value: '99999'
+        - name: itp.mac1KeyIdex
+          value: '192'
+        - name: itp.mac2KeyIdex
+          value: '193'
+        - name: SERVICE_NAME
+          value: security-server
+        - name: NAMESPACE
+          value: itp
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        image: os-harbor-svc.default.svc.cloudos:443/itp/acc-security-server:2.0.15
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: security-server
+        resources:
+          limits:
+            cpu: '1'
+            memory: 2Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /home/javaapp/app/logs/
+          name: hostpath-bky1e5tz0
+      volumes:
+      - hostPath:
+          path: /home/app/logs/security-server
+          type: ''
+        name: hostpath-bky1e5tz0

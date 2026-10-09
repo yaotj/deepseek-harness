@@ -2,6 +2,8 @@ package com.chinasofti.huateng.fep.app.service;
 
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketActivateReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketBaseResult;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketFreeOrderReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketFreeOrderResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderNoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderResult;
@@ -11,6 +13,7 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundCallbackReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketSyncOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderResult;
@@ -28,6 +31,16 @@ public interface DailyTicketAppService {
      * IF8A-70 旅游票下单。
      */
     TravelTicketOrderResult requestTravelOrder(TravelTicketOrderReqDTO request);
+
+    /**
+     * IF8A-73 免费票请求下单。
+     */
+    DailyTicketFreeOrderResult requestOrderFree(DailyTicketFreeOrderReqDTO request);
+
+    /**
+     * IF8A-72 小程序票状态同步。
+     */
+    DailyTicketBaseResult syncOrder(DailyTicketSyncOrderReqDTO request);
 
     /**
      * IF8A-61 日票支付。
@@ -65,7 +78,7 @@ public interface DailyTicketAppService {
     DailyTicketBaseResult receivePayResult(DailyTicketPayCallbackReqDTO request);
 
     /**
-     * 转发支付中心的日票退款结果通知（网关文档 §3.3）。
+     * 转发支付中心的日票退款结果通知（网关文档 §5.2）。
      */
     DailyTicketBaseResult receiveRefundResult(DailyTicketRefundCallbackReqDTO request);
 

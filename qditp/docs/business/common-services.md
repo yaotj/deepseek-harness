@@ -17,24 +17,51 @@
 ## 1. blacklist-server（端口 9102）
 启动类 `blacklist-server/.../BlacklistServer.java`（`@EnableRpcGateTxnPay` / `@EnableRpcPaySign` / `@EnableRpcRoute`）
 `blacklist/controller/BlacklistController.java`：
-- 业务：`POST /queryBlackList`、`POST /addBlackList`、`POST /deleteBlackList`（**物理删除**）
-- 运营：`GET /page/blacklist`、`POST /page/blacklist`、`DELETE /page/blacklist/{cardId}`
+- 业务：`POST /queryBlackList`、`POST /addBlackList`、`POST /deleteBlackList`（**两阶段解除，不再是物理删除**，见下面「解除是两阶段」）
+- 运营：`GET /page/blacklist`（支持 `cardId` / `thirdUserId` / `status` / `channelSyncStatus` / `createTimeBegin` / `createTimeEnd` 六个可选筛选 + 分页）、`POST /page/blacklist`、`DELETE /page/blacklist/{cardId}`（带 `releaseReason` / `releaseBy` 两个 `@RequestParam`，**不传就永久丢失审计信息**）
 
-`blacklist/controller/BlacklistInternalController.java`：
-- `POST /internal/blacklist/inspectReleasable` — 「可解除性」**只读**盘点，无入参，NEVER 删除任何记录
+`blacklist/controller/BlacklistInternalController.java`（**2026-09-21 起有 4 个端点、其中三个是写接口**，`POST`）：
+- `/internal/blacklist/inspectReleasable` — 「可解除性」**只读**盘点，无入参，NEVER 删除任何记录
+- `/internal/blacklist/channel-sync/compensate-add` — 补推**加黑**方向的渠道同步（扫 `STATUS='ACTIVE'` 且 `CHANNEL_SYNC_STATUS IN ('PENDING','FAILED')`）
+- `/internal/blacklist/channel-sync/compensate-release` — 补推**解黑**方向（扫**主表**里 `STATUS='RELEASING'` 且同白名单的行；**载体在主表、NEVER 据 `BLACKLIST_RELEASED` 的 `CHANNEL_SYNC_*` 扫表**）
+- `/internal/blacklist/auto-release` — **自动解除**（2026-09-21 新增，`sys_job` 230，见下面「自动解除」一节）。**这是本前缀下唯一会改黑名单本体的端点**，`limit` 是可选 `@RequestParam`
 
-RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackList`、`alipayTripReceiveBlackList`（内部复用查询）、`inspectReleasable`。**没有 `deleteBlackList`**，解除只能走 HTTP 或运营页。
-表：`BLACKLIST`、`BLACKLIST_OPERATE_LOG`
+⚠️ **该前缀下现在已有三个写接口，但仍无验签** —— `BlacklistInternalController` 类注释里那句「当前只有一个只读盘点接口，因此无需鉴权」**已不成立**，与 AGENTS.md §5.2 冲突，上生产前 MUST 补，**且 MUST 优先覆盖 `/auto-release`**（误调等于把欠费卡提前放行）。四个端点现在**都有 `sys_job` 触发记录**：280 盘点 / 320 加黑补偿 / 325 解黑补偿 / 230 自动解除（**前三个 2026-09-21 随「200 以下全量重编号」由 105 / 125 / 126 改为 280 / 320 / 325，触发目标与 cron 均未变，NEVER 回退成旧号**）；**本文件此前写「两个 compensate 端点还没有 `sys_job` 触发记录、只能手工调」已过期，NEVER 回退**。
 
-### 表结构（2026-09-07 生产实测）
-`BLACKLIST` **只有 5 列**：`ID` / `CARD_ID` / `THIRD_USER_ID`（可空）/ `REASON`(VARCHAR2 1000) / `CREATE_TIME`。
-**没有拉黑类型、来源、有效期、是否允许自动解除等任何字段**。`BLACKLIST_OPERATE_LOG.OPERATE_TYPE` 只有 `ADD` / `DELETE`，是操作类型不是原因分类；`AddBlackListReqDTO.cardType` 是卡类型且**不落库**（只用于外发通知）。
+RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackList`、`alipayTripReceiveBlackList`（内部复用查询）、`inspectReleasable`、`compensateChannelSyncAdd`、`compensateChannelSyncRelease`、`autoRelease`。**仍没有 `deleteBlackList`**：人工解除只能走 HTTP 或运营页，程序化解除只有 `autoRelease` 这一条（且被 `BLACK_CAUSE='01'` 收窄）。
+表：`BLACKLIST`、`BLACKLIST_OPERATE_LOG`、**`BLACKLIST_RELEASED`**（解除历史表）
 
-生产不存在第三张「黑名单历史表」——`%BLACK%` 只有上述两张。
+### 解除是两阶段（2026-09-18，blacklist-server 2.0.29，已部署并端到端双分支验通，ADR-D145）
+**加黑仍是乐观的**（先落库 + `afterCommit` 异步通知）；**只有解除改成两阶段**：
+
+1. `markReleasing` CAS（`WHERE CARD_ID=? AND STATUS='ACTIVE'`）把行标成 `STATUS='RELEASING'` —— **行仍留在 `BLACKLIST` 里、`queryBlackList` 判黑照样命中、`RELEASE_REASON`/`RELEASE_BY` 已落**
+2. 提交后出网通知渠道
+3. **只有 `RpcOutcome.Ok` 才进阶段二** `completeRelease`：搬 `BLACKLIST_RELEASED` + 删主表行
+
+**为什么加黑不跟着改**：加黑的业务后果是「更严」，通知晚到不会放行不该放行的人；解除反过来 —— 通知没到就放行等于**欠费用户当场能过闸**。**NEVER 把加黑也改成两阶段。**
+
+**`9001` MUST 判 `Unreachable`、NEVER 判 `BizRejected`**（`AlipayBlacklistNotifyPort`）：`REJECTED` 是终态且**不在补偿白名单 `IN ('PENDING','FAILED')` 里**，一旦把「支付中心网关抖动」判成业务拒绝，那张卡就**永久卡在 `RELEASING`、判黑恒命中、补偿再也扫不到**。2026-09-18 实测：支付中心返 HTTP 502 → `PayCenterClient` 吞成 null → alipay 侧统一返 `9001`，而**同一地址 7 分钟后返 `0000`**。真业务拒绝走 `9999` / `8001`。详见 ADR-D145 §五（含这条判据与 alipay 侧码分配的隐式耦合告示）。
+
+### 表结构（2026-09-18 实测，`USER_TAB_COLS`）
+**`BLACKLIST` 是 19 列。此前本文件写「只有 5 列」「没有拉黑类型来源字段」「生产不存在第三张黑名单历史表」—— 三条全部已作废，NEVER 回退。**
+
+关键列与长度（**长度都很短，联调造数必踩**）：
+- `CARD_ID VARCHAR2(32) NOT NULL`、`THIRD_USER_ID VARCHAR2(16)`、**`CARD_TYPE VARCHAR2(8)`**（不是 32）
+- **`CHANNEL_CODE VARCHAR2(2) NOT NULL DEFAULT '99'`** —— **只能送两位码**；实测送 `ALIPAY` 报 `ORA-12899`，支付宝是 `01`
+- `BLACK_SOURCE VARCHAR2(2) NOT NULL DEFAULT '09'`、`BLACK_CAUSE VARCHAR2(2) NOT NULL DEFAULT '09'`
+- `BIZ_NO VARCHAR2(128)`、`REASON VARCHAR2(1000)`、`CREATE_BY VARCHAR2(32)`
+- outbox 四列：`CHANNEL_SYNC_STATUS VARCHAR2(16)` / `CHANNEL_SYNC_TIME` / `CHANNEL_SYNC_RETRY NUMBER DEFAULT 0` / `CHANNEL_SYNC_FAIL_REASON VARCHAR2(500)`
+- 两阶段三列：`STATUS VARCHAR2(16) DEFAULT 'ACTIVE'` / `RELEASE_REASON VARCHAR2(500)` / `RELEASE_BY VARCHAR2(32)`
+- `ID` 是 Oracle **IDENTITY**，**库里没有对应序列、NEVER 改成 `selectKey` 取 nextval**
+
+⚠️ **Oracle 列 DEFAULT 只在「列不出现在 INSERT 列表里」时生效**，而 `insert` 的列清单里有 `STATUS` / `CHANNEL_CODE` ⇒ **显式传 null 会真落 null、把 DEFAULT 顶掉**。已因此发生两个缺陷（均已修，见 ADR-D145 §三）：`STATUS` 落 null 时三条带 `STATUS='ACTIVE'` 谓词的读路径全扫不到该行（**那张卡再也解不掉**）；`CHANNEL_CODE` 落 null 触发 `ORA-01400` 而被 `isConflict` 当成幂等命中静默吞掉。**新增列进 insert 清单时 MUST 在 `buildBlacklist` 里显式赋值，NEVER 指望列 DEFAULT。**
+
+`BLACKLIST_OPERATE_LOG.OPERATE_TYPE` 只有 `ADD` / `DELETE`，是操作类型不是原因分类。**`BLACKLIST_OPERATE_LOG.CARD_ID` 是 16 位、`BLACKLIST.CARD_ID` 是 32 位**，列长分叉未修。
 
 ### 四个拉黑入口（物理写点只有 `BlacklistServiceImpl.addBlackList` 一处）
+
 - **A. pay-sign 免密扣款失败** — `PaymentDomainServiceImpl.requestPay`（`:139`）→ `addBlacklistForPaymentFailure`（`:850`）。**2026-09-15 前宿主是已删除的 `PaySignWorkflow`（ADR-D87），旧行号 `:620 → :2250-2285` 已失效。** **有** payQuery 二次确认（`queryGatewayPayStatus`，`:898`），只有支付中心明确回 FAIL 才拉黑；仅 `paymentVendor ∈ {03,05}`。欠费落 `GATE_TXN_PAY`。
-- **B. 支付宝出行扣款失败** — `alipay-pay-sign-server/PaymentRequestService.java:124/129 → :158-176`。**无二次确认**。欠费落 `ALIPAY_PAY_LOG.PAY_STATUS='FAIL'`，`GATE_TXN_PAY` 里**没有对应行**。
+- **B. 支付宝出行扣款失败** — **发起点是三个**，统一经 `port/BlacklistPort` → `BlacklistRpcAdapter.addBlackList`（`:29`→`:42`）出网：`service/impl/pay/AlipayPayRequestServiceImpl`（`:197` → `addBlackListIfNeeded` `:309`）、`service/impl/payment/PaymentRequestService`（`:92` → `:131`）、`service/impl/payment/AlipayTxnPayService`（`:180` → `:270`）。**本文件此前只列 `PaymentRequestService.java:124/129 → :158-176` 一处、行号也已全错，NEVER 回退**。**「无二次确认」这条现在不全成立**：`domain/PayCenterTradeStatus` 的类注释明确它是 `AlipayPayRequestServiceImpl.addBlackListIfNeeded` 的「确认真的失败」判据，**判断某个发起点到底有没有二次确认 MUST 现读那三个方法，NEVER 沿用本行的旧断言**。欠费落 `ALIPAY_PAY_LOG.PAY_STATUS='FAIL'`，`GATE_TXN_PAY` 里**没有对应行**。
 - **C. `POST /admin/payment/addBlackList`** — `fep-alipay-server/AlipayPaymentServiceImpl.java:70-105` 纯转发，reason 完全由外部传入，仓库内找不到调用方。
 - **D. 运营后台手工** — `POST /page/blacklist`，reason 自由文本。
 
@@ -50,13 +77,32 @@ RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackL
 - **两个源都要问，NEVER 只查一个**：`addBlackList` 按 cardId 去重，一张卡只有一行，A 先拉黑后 B 重复拉黑时第二次 insert 被跳过，行上留不下第二个来源的痕迹
 - `SETTLED` 只代表钱结清，**NEVER 等同于「可以解除」**；本任务只输出日志供人工判断，**不删数据**
 - blacklist-server **NEVER 直接查 `GATE_TXN_PAY` / `ALIPAY_PAY_LOG`**（不归它管），MUST 走 rpc
+- 两个源的查询已抽成 `service/CardUnsettledQuery`（`gateUnsettled` / `alipayUnsettled`，三态：`TRUE` 有欠费 / `FALSE` 已结清 / `null` 查询未成功执行），**盘点与自动解除共用这一份**，NEVER 在任一侧再抄一份私有方法
 
-⚠️ 外发通知现状（`service/impl/BlacklistServiceImpl.java`）：
-- `alipayPaySignClient.notifyBlackListChange` — **在用**（`service.alipay-pay-sign.url`，生产由 pod env 覆盖为 NodePort 地址）
-- `notifyAppBlacklistAsync`（`app.notify.blacklist-url`）、`notifyAlipayBlacklistAsync` — **已被注释掉**
+### 自动解除（2026-09-21，blacklist-server 2.0.30 + web-admin 1.1.38，已部署并端到端验通）
+**本文件此前那句「整条链路里没有自动解除、只能人工」已作废，NEVER 回退。**
 
-排查"黑名单没通知到 APP" 时 **MUST** 先确认这两处仍是注释状态，**NEVER** 假设通知链路完整。
-删除接口是物理删除，新增删除入口 **MUST** 提示数据不可恢复并确认是否应改逻辑删除。
+- 入口 `POST /internal/blacklist/auto-release` → `service/BlacklistAutoReleaseService`（**不带 `@Transactional`**，方法内有出网）
+- 触发方：web-admin 的 `sys_job` **230「自动解除黑名单」**，`blacklistAutoReleaseQuartzTask.autoRelease()`，cron `0 0 10,16 * * ?`
+- 取数 `BlacklistMapper.selectForAutoRelease`：`STATUS='ACTIVE'` **且 `BLACK_CAUSE='01'`**，`blacklist.auto-release.batch-size` 默认 200
+- 渠道路由：`01` 地铁APP → 闸机出站扣费欠费；`02` 支付宝 → 支付宝出行欠费；**`99` 未知渠道跳过**（计入 `skipped`）
+- 放行条件只有一个：对应欠费源返回**已结清**。随后**复用 `BlacklistServiceImpl.deleteBlackList`** 走两阶段解除，`releaseReason='欠费已结清自动解除'`、`releaseBy='auto-release-job'`
+- 响应六计数互斥且相加等于 `scanned`：`released` / `unsettled` / `unknown` / `skipped` / `failed`
+
+三条 **NEVER**：
+1. **NEVER 放宽 `BLACK_CAUSE='01'`** —— 自动解除的前提是「加黑原因已失效」，只有欠费类的失效条件能被机器证明；`02` 挂失补卡即便欠费清了也不能放行（旧卡恢复过闸），`09` 其他只有自由文本 `REASON`、无判据
+2. **NEVER 把 `null`（欠费查询未成功执行）当成已结清** —— 那等于「查不通就放行」
+3. **NEVER 在本类里自己 `markReleasing` + 删行** —— 会绕过渠道通知与操作日志，出现「本地已解除、支付宝侧仍拉黑」
+
+与 `sys_job` 280 盘点**职责不同、NEVER 合并**：280 只读、覆盖全部加黑原因、结论交人工；230 会改数据、只覆盖能被机器证明的那一类。
+
+**已知覆盖缺口（未闭合）**：`pay-sign-server` 免密扣款失败加黑时刻意写 `channelCode="99"`（`PaymentDomainServiceImpl.java:492`，注释说明不能拿 `paymentVendor` 当渠道）、运营后台默认也是 `99`，因此**这类加黑每轮计入 `skipped` 且永远解不掉**。`skipped` 长期不为 0 **MUST 从加黑入口治**（补 `channelCode`），**NEVER 在解除侧猜渠道**。另有数据脏值：库里存在 `BLACK_CAUSE='1'`（非 `'01'`）的历史行，按契约严格匹配时扫不到，是否归一化待裁决。
+
+⚠️ 外发通知现状（2026-09-18 复核）：
+- 出网**唯一**收口在 `blacklist/port/AlipayBlacklistNotifyPort`（把 `AlipayPaySignClient.notifyBlackListChange` 的「空响应返 null、异常上抛」翻成 sealed `RpcOutcome`，调用点穷尽 `switch`）。`BlacklistServiceImpl` 里原先那个 `notifyAlipayExternalBlacklistAsync` **已删除，NEVER 再按那个方法名去找出网点**。
+- `notifyAppBlacklistAsync`（`app.notify.blacklist-url`）、`notifyAlipayBlacklistAsync` — **历史上被注释掉、本轮随死代码清理一并删除**。`app.notify.blacklist-url` / `alipay.notify.blacklist-url` 两个键属**死配置**（无读取方）。
+
+排查「黑名单没通知到 APP」时 **MUST** 先确认 APP 方向压根没有实现（不是配错地址），**NEVER** 假设通知链路完整。
 
 ⚠️ `queryBlackList` 是**纯查询**，仓库内唯一调用方是 `fep-app-server/TicketAppServiceImpl.java:38-39`（IF8A-73）。过闸 / 开码 / 开户链路**都不调它**，本地查询不产生拦截，实际「过不了闸」来自出向通知支付宝。`account-server` 的 `IN_BLACKLIST("8005")` 是**死代码**，全仓库无引用。
 
@@ -212,6 +258,8 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 
 ### 三、黑名单与渠道通知（blacklist-server）
 
+> ⚠️ **本节及下方「§三、blacklist-server（9102）：黑名单增删查与渠道通知」都是 2026-09-16 的注释抽取快照，其中与解除链路 / 表结构 / 出网点相关的描述已于 2026-09-18 被 ADR-D145 取代。** 以下四类表述**一律以本文件 §1 与 ADR-D145 为准，NEVER 按本节的旧口径动手**：①「`deleteBlackList` 是物理删除」→ 现为**两阶段解除**；②「`BLACKLIST` 只有 5 列」→ 现为 **19 列**；③「唯一活着的出网点是 `notifyAlipayExternalBlacklistAsync` / `alipay.external.blacklist-url`」→ 该方法**已删除**，出网收口在 `AlipayBlacklistNotifyPort`；④「`/internal/blacklist/**` 只有一个只读端点、无需鉴权」→ 现有**三个写端点**（含 2026-09-21 新增的 `/auto-release`）、鉴权 MUST 补。快照本身保留，是为了留住当时的取证过程；但**其中「为什么不自动解除」那套判据已被 2026-09-21 的自动解除部分推翻 —— 结论不是「不能自动解除」，而是「只有 `BLACK_CAUSE='01'` 欠费类能自动解除」，见 §1「自动解除」一节**。
+
 **契约与判据**
 
 - blacklist-server / `BlacklistInternalController`（类注释）— `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/controller/BlacklistInternalController.java:14-16`：「当前只有一个只读盘点接口，不改任何数据，因此无需鉴权与归属校验。后续若在本前缀下新增写接口（例如真正执行自动解除），MUST 先补验签（对齐 `AccountRequestVerifier` / `ItpRequestSignVerifier`，NEVER 自造签名逻辑）。」
@@ -281,6 +329,7 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 **陷阱**
 
 - para-server / `RiskGroupMapper.xml`（insert 语句上方）— `.../mapper/RiskGroupMapper.xml:23-26`：「NEVER 在此加回 useGeneratedKeys="true"：Oracle 下 MyBatis 会走 connection.prepareStatement(sql, RETURN_GENERATED_KEYS)，ojdbc 返回的是 ROWID，无法回填 Long groupId，于是插入已提交却仍抛 MyBatisSystemException——表现为「新增风险组必然报错、数据其实已落库」（2026-09-08 生产日志实测并修复）。」
+- para-server / `RiskGroupMapper.xml` + `RiskRuleMapper.xml`（两个写 mapper 的全部参数）— 两文件的 insert / update **MUST 显式写 `jdbcType=`**（字符串列 `VARCHAR`、数值列 `NUMERIC`），NEVER 依赖 MyBatis 推断。可空列（`GROUP_DESC` / `GROUP_ID` / `MANAGER_CODE` / `REMARK`）为 `null` 时 MyBatis 按 `JdbcType.OTHER`(1111) 下发，Oracle 报 `java.sql.SQLException: 无效的列类型: 1111`，包成 `MyBatisSystemException: null`（message 是 `null`）。**NEVER 用全局 `mybatis.configuration.jdbc-type-for-null` 兜底、也 NEVER 把 null 归一成空串**（前者改所有模块行为、后者改变列语义）。2026-09-23 生产日志实测：综管台风险组新增时描述留空（前端 `groupDesc: form.groupDesc.trim()||null`）⇒ **HTTP 500**，日志原文 `Could not set parameters for mapping: ParameterMapping{property='groupDesc', ..., jdbcType=null, ...}`；`PUT /page/risk/groups/{id}` 清空描述、`POST /page/risk/rules` 不带管理编码/备注/风险组三处同样 500。同期全模块核对：`para-server` 的 25 个 mapper 里**只有这两个写 mapper 没写 `jdbcType`**（`RiskControlLogMapper` 只有 SELECT、不受影响），其余（含 `OrderRefundCycleMapper`、`SingleTicketPurchaseLimitMapper`）均合规 ⇒ 本条已按既成约定收口，见 `recon-server/.../ReconPartMapper.xml:29`。
 - para-server / `OrderRefundCycleServiceImpl.isDuplicateKeyViolation` — `.../service/impl/OrderRefundCycleServiceImpl.java:53-57`：「**MUST** 逐层遍历 cause，**NEVER** 直接 `catch (DuplicateKeyException)`：`MapperAspectToTrace`（`resource/micro/web/src/main/java/com/chinasofti/huateng/micro/monitor/trace/MapperAspectToTrace.java:51`）把 mapper 抛出的任何异常统一包成 `RuntimeException`，单层类型判断在 `management.tracing.enabled=true` 的模块（para-server 即是）捕不到，唯一键冲突会漏成全局异常处理器的 UUID retCode。」（与上一小节 `RiskManagementServiceImpl` 那条是两处独立的近似条款，未合并。）
 
 关于「Druid WallFilter 拒 SQL 正文注释」「`where 1 = 1` 打头 + 全部谓词可选 `<if>`」「mapper XML 注释里连续减号」三条已知陷阱：
@@ -324,7 +373,7 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 | 15 | `key-server/src/main/java/com/chinasofti/huateng/key/service/impl/KeyVersionQueryServiceImpl.java:21` | 单域查询失败导致整体接口 500 | 可（mock 三个 mapper 之一抛异常，断言返回含「查询失败」行且不抛出） |
 | 16 | `key-server/src/main/java/com/chinasofti/huateng/key/service/impl/KeyVersionQueryServiceImpl.java:24` | 把 AGM 与 CA/HCE 两套状态码映射合并成一张表 | 否（属结构性约束，无运行期可观测差异，除非断言 `STATUS_DESC` 的键集合形状） |
 | 17 | `key-server/src/main/resources/application.properties:22` | 按 `server.port` 推断签名服务的 Service 端口 | 否（人类判断类告示） |
-| 18 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/BlacklistReleaseInspectService.java:23` | 本类删除黑名单记录 | 可（mock `BlacklistMapper`，断言 `deleteByCardIds` 零调用） |
+| 18 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/BlacklistReleaseInspectService.java:23` | 本类删除黑名单记录 | 可（mock `BlacklistMapper`，断言删除类方法零调用；**注意 `deleteByCardIds` 已于 2026-09-18 随两阶段改造删除，现在的删除方法是 `deleteReleasedById`**） |
 | 19 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/BlacklistReleaseInspectService.java:32` | 在本模块直接写 SQL 查 `GATE_TXN_PAY` / `ALIPAY_PAY_LOG` | 部分可（可断言本模块 mapper XML 不含这两个表名） |
 | 20 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/BlacklistReleaseInspectService.java:49` | 把 `SETTLED` 当成「可以解除」 | 否（语义约束，落在人工流程上） |
 | 21 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/BlacklistReleaseInspectService.java:155-156` | 不判 `resultCode` 就用 `hasUnsettled` | 可（mock 下游返 `resultCode != 0000` 且 `hasUnsettled=true`，断言状态为 `UNKNOWN` 而非 `UNSETTLED`） |
@@ -451,10 +500,10 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 
 **保留的实现约定**：**MUST 逐层遍历 `getCause()`，NEVER 直接 `catch (DuplicateKeyException)`** ——`resource/micro/web/src/main/java/com/chinasofti/huateng/micro/monitor/trace/MapperAspectToTrace.java` 会把 mapper 抛出的异常统一包一层，单层类型判断捕不到。这段 cause 链兜底是**为将来按「三行成组」开启 tracing 后准备的唯一防线**，**NEVER 简化回裸 catch 具体异常类型**。
 
-**归因存疑（本次迁移重点保留的现场标记）**：
-- **`para-server` 当前未开 tracing**：`para-server/src/main/resources/application.properties` **全文没有任何 `management.tracing` 键**（本次现查确认，全文 25 行），因此那两个观测切面被 `shouldSkipAopTraceLogic()` 短路、**在本模块从未生效**。AGENTS.md §2.2.1 的 tracing 名单里也**没有 para-server**。
-- **已删的墓碑**：源码曾写「`management.tracing.enabled=true` 的模块（para-server 即是）」——**是错的**（把那份 7 个模块的名单套到了本模块上），**NEVER 回退**。
-- **⚠️ 归因存疑、MUST 重查、NEVER 直接引用**：这两处注释此前引用的 2026-09-08 实测结论（退款周期「唯一键冲突漏成全局异常处理器的 UUID `retCode`」、风险组「重复名落到全局异常处理器、返 UUID `retCode`」）**不能**归因于观测切面换异常类型——**切面在本模块从未生效**。真实成因**需重查**，候选是 AGENTS.md §5.1 那两条 Druid WallFilter 规则（**SQL 正文写了注释** / **`where 1 = 1` 打头 + 全部谓词都是可选 `<if>`**，后者对应 `RiskGroupMapper` / `RiskRuleMapper` 的分页查询）或别的路径。**NEVER 把「切面换异常类型」当成已确认结论写进任何地方。**
+**归因存疑本次已部分闭合（2026-09-23 实测，据此重写本小节，旧表述 NEVER 回退）**：
+- **旧前提之一已被实测推翻**：页面曾写「`para-server` 当前未开 tracing、`application.properties` 全文无 `management.tracing` 键 ⇒ 那两个观测切面在本模块从未生效」——**后半句推论是错的**。`application.properties` 确实没有该键，但 **`deploy/k8s/10-deployments/para-server.yaml:35` 由 Deployment env 注入了 `management.tracing.enabled=true`**（`:81` 为 `sampling.probability=0`），因此 `shouldSkipAopTraceLogic()` 返回 `false`、**切面在 para-server 里实际在跑**（日志实证：`MapperAspectToTrace.around` 打出 `Mapper method execute error: ...RiskGroupMapper.insert`；且 para-server 日志行的 traceId 列有值）。**判据随之修正：判断某模块是否开了 tracing，MUST 同时查 Deployment env，NEVER 只 grep 模块的配置文件。**
+- **旧结论「切面把异常换类型导致 UUID retCode」仍然不成立，但理由换了**：自 ADR-D53 起两个切面已改成 `observation.start()` + `openScope()` + **`throw e` 原样抛出**（`MapperAspectToTrace.java:57` 带护栏注释），现在即便切面在跑也不会改变异常类型。2026-09-23 实测重复风险组名：返 `{"code":"500","msg":"风险组名称已存在"}`，**cause 链兜底正常生效、UUID retCode 未复现**。
+- **剩余候选（仍未定位，NEVER 当作已确认）**：AGENTS.md §5.1 那两条 Druid WallFilter 规则（SQL 正文写了注释 / `where 1 = 1` 打头 + 全部谓词可选 `<if>`），或 cause 链判定是在 2026-09-08 之后才补上的（老镜像行为）。**NEVER 把「切面换异常类型」当成已确认结论写进任何地方。**
 - 源码里**各留了一行式现场标记**（`路径:行号` MUST 现查，grep 短语「归因存疑」），作用是「别再照这个结论排查」。
 
 #### 1.7 构建与部署（para-server 专有坑）
@@ -546,7 +595,7 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 
 | # | 矛盾点 | 两侧说法 | 现状裁决 |
 |---|---|---|---|
-| 1 | **para 那两处「唯一键冲突返 UUID retCode」的成因** | 源码注释归因于观测切面换异常类型 / 实测 `para-server` **从未开 tracing**、切面被短路 | **归因作废、成因未知，MUST 重查**。候选：Druid WallFilter 的「SQL 正文注释」或「`where 1 = 1` + 全可选 `<if>`」两条。**NEVER 引用旧归因**（源码保留一行式标记） |
+| 1 | **para 那两处「唯一键冲突返 UUID retCode」的成因** | 源码注释归因于观测切面换异常类型 / 实测 contra：**para-server 的 tracing 由 Deployment env 打开（切面在跑，推翻「从未生效」的旧前提），但切面自 ADR-D53 起原样 `throw e`、不换类型**；2026-09-23 重复组名实测返 `code=500 + 风险组名称已存在`，UUID retCode 未复现 | **归因作废、成因未知，MUST 重查**。候选仍是 Druid WallFilter 的「SQL 正文注释」或「`where 1 = 1` + 全可选 `<if>`」两条（另有可能是 cause 链判定后补）。**NEVER 引用旧归因**，也 **NEVER 再用「para-server 没开 tracing」当论据**（详见 §1.6） |
 | 2 | **cause 链兜底是否还有必要** | 本模块未开 tracing ⇒ 当前无切面包装 / 将来开 tracing 后它是唯一防线 | **保留**。`NEVER` 简化回裸 `catch (DuplicateKeyException)` |
 | 3 | **para-server 该不该开 tracing** | AGENTS.md §2.2.1 名单里没有它 ⇒ 按 traceId 检索它的日志恒 0 条 / 开之前 MUST「三行成组」 | **未裁决**。要开 MUST 三行成组 + 重建镜像（`-Djkube.skip=true` 不能带） |
 | 4 | **阶段一文档的行号与措辞** | 阶段一 §墓碑注释清单给了 25 条精确行号 / 本次删注释后**行号全部失效** | 阶段一那张表**只保留「想禁止的事」与「能否写成断言测试」两列可用**，**行号 NEVER 引用** |
@@ -579,6 +628,7 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 | 15 | `blacklist/service/impl/BlacklistServiceImpl.java`（两处） | **取消注释恢复已停用的 APP / 内部支付宝通知调用** | **是**（用户点名保留，2 处各一行） |
 | 16 | `blacklist-server/src/main/resources/application.properties` | 删除 `service.*.url` 键（键缺失 ⇒ `rpc` 退化成 `*-service`、DNS 解析不到） | **是** |
 | 17 | `para/config/ParaFtpProperties.java` | 把远端目录写成带 `97000000` 子目录 | 否（迁入 §1.3 末条） |
+| 18 | `para/../mapper/RiskGroupMapper.xml` + `RiskRuleMapper.xml` | 删掉写语句参数上的 `jdbcType=`（含看似无害的「顺手简化」）—— 2026-09-23 生产日志实测：可空列为 `null` 时报 `无效的列类型: 1111`，表现为「描述留空时新增/修改必现 HTTP 500」；已于 para-server `2.0.26` 修复并生产复测通过（描述 `null` → `200`） | 源码 XML 注释留了一行式护栏；**可写断言测试**（对两个 XML 的 insert / update 文本断言每个 `#{...}` 都含 `jdbcType=`） |
 
 ### 覆盖率自评
 

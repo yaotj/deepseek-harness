@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.gatetxnpay.mapper.GateRetryQueueMapper">
+
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.gatetxnpay.entity.GateRetryQueue">
+        <id column="ID" property="id"/>
+        <result column="ORDER_NO" property="orderNo"/>
+        <result column="TXN_DATE" property="txnDate"/>
+        <result column="THIRD_USER_ID" property="thirdUserId"/>
+        <result column="CARD_ID" property="cardId"/>
+        <result column="STATUS" property="status"/>
+        <result column="RETRY_COUNT" property="retryCount"/>
+        <result column="MAX_RETRIES" property="maxRetries"/>
+        <result column="ERROR_MSG" property="errorMsg"/>
+        <result column="CREATE_TIME" property="createTime"/>
+        <result column="UPDATE_TIME" property="updateTime"/>
+        <result column="CONSUME_TIME" property="consumeTime"/>
+        <result column="FINISH_TIME" property="finishTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        ID, ORDER_NO, TXN_DATE, THIRD_USER_ID, CARD_ID, STATUS,
+        RETRY_COUNT, MAX_RETRIES, ERROR_MSG,
+        CREATE_TIME, UPDATE_TIME, CONSUME_TIME, FINISH_TIME
+    </sql>
+
+    <!-- 幂等插入：订单已存在则跳过 -->
+    <insert id="insertIgnoreDuplicate" parameterType="com.chinasofti.huateng.gatetxnpay.entity.GateRetryQueue">
+        INSERT INTO GATE_RETRY_QUEUE
+            (ID, ORDER_NO, TXN_DATE, THIRD_USER_ID, CARD_ID, STATUS, RETRY_COUNT, MAX_RETRIES, CREATE_TIME, UPDATE_TIME)
+        SELECT SEQ_GATE_RETRY_QUEUE.NEXTVAL,
+               #{orderNo,jdbcType=VARCHAR}, #{txnDate,jdbcType=VARCHAR},
+               #{thirdUserId,jdbcType=VARCHAR}, #{cardId,jdbcType=VARCHAR},
+               'PENDING', #{retryCount,jdbcType=INTEGER}, #{maxRetries,jdbcType=INTEGER},
+               SYSTIMESTAMP, SYSTIMESTAMP
+        FROM DUAL
+        WHERE NOT EXISTS (
+            SELECT 1 FROM GATE_RETRY_QUEUE
+            WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+              AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <!-- 批量幂等插入 -->
+    <insert id="batchInsertIgnoreDuplicate">
+        INSERT INTO GATE_RETRY_QUEUE
+            (ID, ORDER_NO, TXN_DATE, THIRD_USER_ID, CARD_ID, STATUS, RETRY_COUNT, MAX_RETRIES, CREATE_TIME, UPDATE_TIME)
+        SELECT SEQ_GATE_RETRY_QUEUE.NEXTVAL, t.*
+        FROM (
+            <foreach collection="list" item="item" separator="UNION ALL">
+                SELECT
+                    #{item.orderNo,jdbcType=VARCHAR},
+                    #{item.txnDate,jdbcType=VARCHAR},
+                    #{item.thirdUserId,jdbcType=VARCHAR},
+                    #{item.cardId,jdbcType=VARCHAR},
+                    'PENDING',
+                    #{item.retryCount,jdbcType=INTEGER},
+                    #{item.maxRetries,jdbcType=INTEGER}
+                FROM DUAL
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM GATE_RETRY_QUEUE q
+                    WHERE q.ORDER_NO = #{item.orderNo,jdbcType=VARCHAR}
+                      AND q.TXX_DATE = #{item.txnDate,jdbcType=VARCHAR}
+                )
+            </foreach>
+        ) t
+    </insert>
+
+    <!-- 扫描待消费队列：锁定行防并发 -->
+    <select id="selectPendingForConsume" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM GATE_RETRY_QUEUE
+        WHERE STATUS IN ('PENDING', 'FAILED')
+          AND (STATUS = 'PENDING'
+               OR (STATUS = 'FAILED' AND RETRY_COUNT &lt; MAX_RETRIES))
+        ORDER BY CREATE_TIME
+        FETCH FIRST #{limit,jdbcType=INTEGER} ROWS ONLY
+        FOR UPDATE SKIP LOCKED
+    </select>
+
+    <!-- 标记为消费中 -->
+    <update id="markProcessing">
+        UPDATE GATE_RETRY_QUEUE
+        SET STATUS = 'PROCESSING',
+            CONSUME_TIME = #{now,jdbcType=TIMESTAMP},
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ID = #{id,jdbcType=BIGINT}
+          AND STATUS IN ('PENDING', 'FAILED')
+    </update>
+
+    <!-- 标记完成 -->
+    <update id="markDone">
+        UPDATE GATE_RETRY_QUEUE
+        SET STATUS = 'DONE',
+            FINISH_TIME = #{now,jdbcType=TIMESTAMP},
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ID = #{id,jdbcType=BIGINT}
+          AND STATUS = 'PROCESSING'
+    </update>
+
+    <!-- 标记失败 -->
+    <update id="markFailed">
+        UPDATE GATE_RETRY_QUEUE
+        SET STATUS = CASE WHEN #{retryCount,jdbcType=INTEGER} &lt; #{maxRetries,jdbcType=INTEGER}
+                          THEN 'PENDING'
+                          ELSE 'FAILED' END,
+            RETRY_COUNT = #{retryCount,jdbcType=INTEGER},
+            ERROR_MSG = #{errorMsg,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ID = #{id,jdbcType=BIGINT}
+          AND STATUS = 'PROCESSING'
+    </update>
+
+    <!-- 超时恢复：超过 N 小时的 PENDING 恢复为 PENDING（实际是重设时间） -->
+    <update id="recoverTimeout">
+        UPDATE GATE_RETRY_QUEUE
+        SET STATUS = 'PENDING',
+            CONSUME_TIME = NULL,
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE STATUS IN ('PENDING', 'PROCESSING')
+          AND UPDATE_TIME &lt; #{now,jdbcType=TIMESTAMP} - INTERVAL #{timeoutMinutes,jdbcType=INTEGER} MINUTE
+    </update>
+
+    <!-- 统计队列状态 -->
+    <select id="countByStatus" resultType="com.chinasofti.huateng.gatetxnpay.mapper.GateRetryQueueMapper$QueueStat">
+        SELECT STATUS, COUNT(*) AS COUNT
+        FROM GATE_RETRY_QUEUE
+        GROUP BY STATUS
+    </select>
+
+</mapper>

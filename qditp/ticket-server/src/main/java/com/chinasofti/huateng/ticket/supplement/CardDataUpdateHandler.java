@@ -93,7 +93,8 @@ class CardDataUpdateHandler {
         }
 
         SupplementStateRules.UpdateRejection rejection = stateRules.checkUpdate(
-                codeStatus, adviceOpt, updateType, currentStatus.getGateInTime());
+                codeStatus, adviceOpt, updateType, currentStatus.getGateInTime(),
+                currentStatus.getGateInStation(), updateStationCode);
         if (rejection != SupplementStateRules.UpdateRejection.NONE) {
             return fillUpdateRejection(response, rejection, cardId, rawCodeStatus, adviceOpt, updateType,
                     currentStatus.getGateInTime());
@@ -216,10 +217,10 @@ class CardDataUpdateHandler {
 
         String entryStation = SupplementCodec.defaultString(
                 currentStatus.getGateInStation(), stateRules.unknownStationCode());
-        if (!updateStationCode.equals(currentStatus.getLastTxnStation())) {
-            log.warn("IF5A-03 付费更新的出站站与 IF5A-01 报价基准不一致, cardId={}, 报价基准lastTxn={},"
+        if (!updateStationCode.equals(entryStation)) {
+            log.warn("IF5A-03 跨站付费更新(进站站≠更新站), 按 进站站→更新站 重算票价对账, cardId={}, 进站站={},"
                             + " 本次updateStation={}",
-                    cardId, currentStatus.getLastTxnStation(), updateStationCode);
+                    cardId, entryStation, updateStationCode);
         }
         logFareReconcile(entryStation, updateStationCode, requestTransAmount, cardId);
         log.info("IF5A-03 付费更新按 BOM 上送金额入账, cardId={}, entry={}, exit={}, bom={}, operaterId={}",
@@ -331,6 +332,10 @@ class CardDataUpdateHandler {
             case FREE_WINDOW_NOT_EXPIRED -> {
                 response.setRetCode(TicketErrorCodeEnum.CARD_STATUS_CHANGED.getCode());
                 response.setRetMsg("未确认超出免费更新时间窗（20 分钟），本次无需收费，请重新执行票卡分析");
+            }
+            case CROSS_STATION_NOT_FREE -> {
+                response.setRetCode(TicketErrorCodeEnum.CARD_STATUS_CHANGED.getCode());
+                response.setRetMsg("跨站更新不可走免费更新(005)，请重新执行票卡分析获取付费更新(006)");
             }
             case NONE -> throw new IllegalStateException("放行分支不该走到拒绝处置: cardId=" + cardId);
         }

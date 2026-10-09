@@ -131,7 +131,7 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
             UserItpRegInfo regInfo = buildRegInfo(request, allocation.cardId(), allocation.hceData());
             RegisterRideStatusRespDTO ticketResponse = registrationCommitService.registerRideStatus(regInfo);
             if (ticketResponse == null || !AccountErrorCodeEnum.SUCCESS.getCode().equals(ticketResponse.getRetCode())) {
-                // NEVER 在失败分支 releaseReservation：预占按 businessId 幂等、是并发请求共享的，超时回收交 sys_job 107（ADR-D52）。
+                // NEVER 在失败分支 releaseReservation：预占按 businessId 幂等、是并发请求共享的，超时回收交 sys_job 240（2026-09-21 由 107 改号为 240，ADR-D52）。
                 allocation = null;
                 response.setRetCode(AccountErrorCodeEnum.SERVICE_PROVIDER_UNAVAILABLE.getCode());
                 response.setRetMsg(ticketResponse == null ? "ticket-server不可用" : ticketResponse.getRetMsg());
@@ -146,7 +146,7 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
                 if (!uniqueTicket || !isDuplicateKeyViolation(e)) {
                     throw e;
                 }
-                // NEVER 在失败分支 releaseReservation：预占按 businessId 幂等、是并发请求共享的，超时回收交 sys_job 107（ADR-D52）。
+                // NEVER 在失败分支 releaseReservation：预占按 businessId 幂等、是并发请求共享的，超时回收交 sys_job 240（ADR-D52）。
                 RequestApplicationResult duplicated = handleDuplicateRegistration(thirdUserId, issueOrgCode, cardType, e);
                 allocation = null;
                 return duplicated;

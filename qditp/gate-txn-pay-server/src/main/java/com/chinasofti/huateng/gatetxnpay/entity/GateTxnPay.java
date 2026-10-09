@@ -32,6 +32,12 @@ public class GateTxnPay {
     private String entryStationName;
     private String exitStationName;
     private String orderExpType;
+    /**
+     * BOM 补站操作类型：空 = 闸机真实检票或 APP 自助补站，{@code 005} / {@code 006} / {@code 020} = BOM 补站。
+     *
+     * <p>非空即「BOM 现场已收款」，落单时直接置 {@code SUCCESS} 且 **NEVER 调 pay-sign 再扣一次**。
+     */
+    private String adviceOpt;
     private String companionFlag;
     private String offlineFlag;
     private String ticketCode;
@@ -107,6 +113,8 @@ public class GateTxnPay {
     public void setExitStationName(String exitStationName) { this.exitStationName = exitStationName; }
     public String getOrderExpType() { return orderExpType; }
     public void setOrderExpType(String orderExpType) { this.orderExpType = orderExpType; }
+    public String getAdviceOpt() { return adviceOpt; }
+    public void setAdviceOpt(String adviceOpt) { this.adviceOpt = adviceOpt; }
     public String getCompanionFlag() { return companionFlag; }
     public void setCompanionFlag(String companionFlag) { this.companionFlag = companionFlag; }
     public String getOfflineFlag() { return offlineFlag; }

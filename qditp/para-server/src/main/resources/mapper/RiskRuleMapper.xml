@@ -25,13 +25,17 @@
         </where>
         ORDER BY R.UPDATE_TIME DESC, R.RULE_ID
     </select>
+    <!-- 同 RiskGroupMapper：GROUP_ID / MANAGER_CODE / REMARK 均可空，参数 MUST 显式写 jdbcType。NEVER 删。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.para.entity.risk.RiskRule">
         INSERT INTO TBL_RISK_RULE (RULE_ID, GROUP_ID, RULE_NAME, RISK_LEVEL, RISK_LIMIT_VALUE, MANAGER_CODE, REMARK, CREATE_TIME, UPDATE_TIME)
-        VALUES (#{ruleId}, #{groupId}, #{ruleName}, #{riskLevel}, #{riskLimitValue}, #{managerCode}, #{remark}, SYSDATE, SYSDATE)
+        VALUES (#{ruleId,jdbcType=VARCHAR}, #{groupId,jdbcType=NUMERIC}, #{ruleName,jdbcType=VARCHAR}, #{riskLevel,jdbcType=NUMERIC},
+            #{riskLimitValue,jdbcType=NUMERIC}, #{managerCode,jdbcType=VARCHAR}, #{remark,jdbcType=VARCHAR}, SYSDATE, SYSDATE)
     </insert>
     <update id="update" parameterType="com.chinasofti.huateng.para.entity.risk.RiskRule">
-        UPDATE TBL_RISK_RULE SET GROUP_ID=#{groupId}, RULE_NAME=#{ruleName}, RISK_LEVEL=#{riskLevel}, RISK_LIMIT_VALUE=#{riskLimitValue},
-            MANAGER_CODE=#{managerCode}, REMARK=#{remark}, UPDATE_TIME=SYSDATE WHERE RULE_ID=#{ruleId}
+        UPDATE TBL_RISK_RULE SET GROUP_ID=#{groupId,jdbcType=NUMERIC}, RULE_NAME=#{ruleName,jdbcType=VARCHAR},
+            RISK_LEVEL=#{riskLevel,jdbcType=NUMERIC}, RISK_LIMIT_VALUE=#{riskLimitValue,jdbcType=NUMERIC},
+            MANAGER_CODE=#{managerCode,jdbcType=VARCHAR}, REMARK=#{remark,jdbcType=VARCHAR}, UPDATE_TIME=SYSDATE
+        WHERE RULE_ID=#{ruleId,jdbcType=VARCHAR}
     </update>
     <delete id="deleteById">DELETE FROM TBL_RISK_RULE WHERE RULE_ID = #{ruleId}</delete>
     <select id="countByGroupId" resultType="int">SELECT COUNT(1) FROM TBL_RISK_RULE WHERE GROUP_ID = #{groupId}</select>

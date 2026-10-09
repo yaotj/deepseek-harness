@@ -46,7 +46,7 @@
             </DefaultRolloverStrategy>
         </RollingFile>
         <Console name="Console" target="SYSTEM_OUT">
-            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"/>
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %X{traceId} [%t] %-5level %l [] %msg%n" />
         </Console>
 
         <!-- VictoriaLogs 上报：url 为空即自动禁用（不起线程、不丢日志）；VLOGS_URL 端口 MUST 是 30032 而不是默认 9428；app 取 ${appName}，NEVER 写死服务名；stream 只放低基数字段、traceId 走正文；MDC 白名单只有 traceId/spanId，NEVER 改成全量输出（FirstFilter 会把 authorization 塞进 MDC）。详见 docs/ops/生产环境清单.md 附.三.3 -->

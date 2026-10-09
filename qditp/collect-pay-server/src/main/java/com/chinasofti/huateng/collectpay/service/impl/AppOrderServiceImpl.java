@@ -940,6 +940,8 @@ public class AppOrderServiceImpl implements AppOrderService {
             return AppOrderResult.fail(AppCodeEnum.FAIL.getCode(), "订单号错误");
         }
 
+        warnIfRefundAmountMismatch(appRefundOrder, request.getRefundAmount());
+
         // itp数据库的退款状态
         String dbRefundStatus = appRefundOrder.getRefundStatus();
         if (StringUtils.equals(dbRefundStatus, ItpStatusEnum.REFUND_SUCCESS.getCode())) {
@@ -964,6 +966,31 @@ public class AppOrderServiceImpl implements AppOrderService {
         } else {
             log.info("退款中 处理结束 ");
             return AppOrderResult.success();
+        }
+    }
+
+    /**
+     * 契约 §5.2 退款回调带 refundAmount（单位分、字符串形态），与本地 TBL_APP_ORDER_REFUND.REFUND_AMOUNT 比对。
+     * 不一致只打 WARN，NEVER 因此拒绝回调或改状态（部分退款口径未定，拒绝会让退款单永久空转）；解析失败同样只打 WARN。
+     */
+    private void warnIfRefundAmountMismatch(AppRefundOrder appRefundOrder, String callbackAmount) {
+        if (appRefundOrder == null || callbackAmount == null || callbackAmount.trim().isEmpty()) {
+            return;
+        }
+        String localAmount = appRefundOrder.getRefundAmount();
+        if (localAmount == null || localAmount.trim().isEmpty()) {
+            return;
+        }
+        try {
+            long local = Long.parseLong(localAmount.trim());
+            long callback = Long.parseLong(callbackAmount.trim());
+            if (local != callback) {
+                log.warn("退款回调：金额与本地退款单不一致，只告警不阻断 refundNo={}, payOrderNo={}, localAmount={}, callbackAmount={}",
+                        appRefundOrder.getRefundNo(), appRefundOrder.getPayOrderNo(), local, callback);
+            }
+        } catch (NumberFormatException e) {
+            log.warn("退款回调：refundAmount 不是整数分，跳过金额比对 refundNo={}, localAmount={}, callbackAmount={}",
+                    appRefundOrder.getRefundNo(), localAmount, callbackAmount);
         }
     }
 

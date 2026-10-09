@@ -6,6 +6,8 @@ import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.micro.web.client.ProxyWebClient;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketActivateReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketBaseResult;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketFreeOrderReqDTO;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketFreeOrderResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderNoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderResult;
@@ -15,6 +17,7 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketPayResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundCallbackReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketRefundResult;
+import com.chinasofti.huateng.model.app.dailyticket.DailyTicketSyncOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.QueryDailyTicketInfoResult;
@@ -70,6 +73,34 @@ public class DailyTicketClient extends ProxyWebClient {
         TravelTicketOrderResult response = JSONUtil.toBean(result, new TypeReference<TravelTicketOrderResult>() {
         }, true);
         log.info("调用daily-ticket-server旅游票下单接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
+     * 调用免费票下单接口（IF8A-73）。
+     */
+    public DailyTicketFreeOrderResult requestOrderFree(@RequestBody DailyTicketFreeOrderReqDTO request) {
+        String path = "/ci/daily-ticket/requestOrderFree";
+        log.info("调用daily-ticket-server免费票下单接口入参 path={}, request={}", path, JSON.toJSONString(request));
+        String result = postJsonAndGetResponse(path, request);
+        log.info("调用daily-ticket-server免费票下单接口原始返回 path={}, response={}", path, result);
+        DailyTicketFreeOrderResult response = JSONUtil.toBean(result, new TypeReference<DailyTicketFreeOrderResult>() {
+        }, true);
+        log.info("调用daily-ticket-server免费票下单接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
+     * 调用小程序订单状态同步接口（IF8A-72）。
+     */
+    public DailyTicketBaseResult syncOrder(@RequestBody DailyTicketSyncOrderReqDTO request) {
+        String path = "/ci/daily-ticket/syncOrder";
+        log.info("调用daily-ticket-server小程序订单状态同步接口入参 path={}, request={}", path, JSON.toJSONString(request));
+        String result = postJsonAndGetResponse(path, request);
+        log.info("调用daily-ticket-server小程序订单状态同步接口原始返回 path={}, response={}", path, result);
+        DailyTicketBaseResult response = JSONUtil.toBean(result, new TypeReference<DailyTicketBaseResult>() {
+        }, true);
+        log.info("调用daily-ticket-server小程序订单状态同步接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
         return response;
     }
 
@@ -172,7 +203,92 @@ public class DailyTicketClient extends ProxyWebClient {
     }
 
     /**
-     * 转发退款结果回调到日票服务（支付中心网关 §3.3）。
+     * 调用日票支付结果通知 APP 的补偿接口。
+     *
+     * <p>该接口由 web-admin 的 Quartz 任务通过 RPC 调用，daily-ticket-server
+     * 内部扫描待重试的 IF8B-05 通知任务并负责实际请求 APP。</p>
+     */
+    public DailyTicketBaseResult compensatePayNotify(Map<String, String> headers) {
+        String path = "/internal/daily-ticket/pay/notify";
+        log.info("调用daily-ticket-server支付结果通知补偿接口 path={}, headers={}", path, headers);
+        String result = postJsonAndGetResponse(path, new java.util.HashMap<>(), headers);
+        log.info("调用daily-ticket-server支付结果通知补偿接口原始返回 path={}, response={}", path, result);
+        DailyTicketBaseResult response = JSONUtil.toBean(result, new TypeReference<DailyTicketBaseResult>() {
+        }, true);
+        log.info("调用daily-ticket-server支付结果通知补偿接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
+     * 调用日票激活后通知 ACC 发售的补偿接口。
+     *
+     * <p>该接口由 web-admin 的 Quartz 任务通过 RPC 调用，daily-ticket-server
+     * 内部扫描待重试的 ACC 发售通知任务并负责实际请求 ACC。</p>
+     */
+    public DailyTicketBaseResult compensateAccActiveNotify(Map<String, String> headers) {
+        String path = "/internal/daily-ticket/acc/active-notify";
+        log.info("调用daily-ticket-server ACC发售通知补偿接口 path={}, headers={}", path, headers);
+        String result = postJsonAndGetResponse(path, new java.util.HashMap<>(), headers);
+        log.info("调用daily-ticket-server ACC发售通知补偿接口原始返回 path={}, response={}", path, result);
+        DailyTicketBaseResult response = JSONUtil.toBean(result, new TypeReference<DailyTicketBaseResult>() {
+        }, true);
+        log.info("调用daily-ticket-server ACC发售通知补偿接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
+     * 调用多日票批量退款（当日）内部端点（甲方需求 16）。
+     *
+     * <p>由 web-admin 的 Quartz 任务通过 RPC 调用，daily-ticket-server 内部扫「已支付未激活且过等待期」
+     * 的日票 / 旅游票主单并逐笔发起退款。{@code retCode=9998} 表示上一轮仍在执行，属限流不是失败。</p>
+     */
+    public DailyTicketBaseResult batchRefundDaily(Map<String, String> headers) {
+        String path = "/internal/daily-ticket/batch-refund/daily";
+        log.info("调用daily-ticket-server多日票批量退款(当日)接口 path={}, headers={}", path, headers);
+        String result = postJsonAndGetResponse(path, new java.util.HashMap<>(), headers);
+        log.info("调用daily-ticket-server多日票批量退款(当日)接口原始返回 path={}, response={}", path, result);
+        DailyTicketBaseResult response = JSONUtil.toBean(result, new TypeReference<DailyTicketBaseResult>() {
+        }, true);
+        log.info("调用daily-ticket-server多日票批量退款(当日)接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
+     * 调用多日票批量退款（月度）内部端点（甲方需求 17）。
+     *
+     * <p>与当日那条只差回溯窗口（默认 60 天 vs 7 天），谓词有重叠、靠退款单唯一索引幂等兼容。</p>
+     */
+    public DailyTicketBaseResult batchRefundMonthly(Map<String, String> headers) {
+        String path = "/internal/daily-ticket/batch-refund/monthly";
+        log.info("调用daily-ticket-server多日票批量退款(月度)接口 path={}, headers={}", path, headers);
+        String result = postJsonAndGetResponse(path, new java.util.HashMap<>(), headers);
+        log.info("调用daily-ticket-server多日票批量退款(月度)接口原始返回 path={}, response={}", path, result);
+        DailyTicketBaseResult response = JSONUtil.toBean(result, new TypeReference<DailyTicketBaseResult>() {
+        }, true);
+        log.info("调用daily-ticket-server多日票批量退款(月度)接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
+     * 调用日票有效期过期收敛内部端点。
+     *
+     * <p>由 web-admin 的 Quartz 任务通过 RPC 调用，daily-ticket-server 内部把「有效期已过、
+     * 状态还停在 ACTIVATED / USED」的票逐条 CAS 推进成 EXPIRED。
+     * {@code retCode=9998} 表示上一轮仍在执行，属限流不是失败。</p>
+     */
+    public DailyTicketBaseResult convergeExpiredTickets(Map<String, String> headers) {
+        String path = "/internal/daily-ticket/expire/converge";
+        log.info("调用daily-ticket-server日票过期收敛接口 path={}, headers={}", path, headers);
+        String result = postJsonAndGetResponse(path, new java.util.HashMap<>(), headers);
+        log.info("调用daily-ticket-server日票过期收敛接口原始返回 path={}, response={}", path, result);
+        DailyTicketBaseResult response = JSONUtil.toBean(result, new TypeReference<DailyTicketBaseResult>() {
+        }, true);
+        log.info("调用daily-ticket-server日票过期收敛接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
+        return response;
+    }
+
+    /**
+     * 转发退款结果回调到日票服务（支付中心网关 §5.2）。
      */
     public DailyTicketBaseResult receiveRefundResult(@RequestBody DailyTicketRefundCallbackReqDTO request) {
         String path = "/ci/daily-ticket/payment/receiveRefundResult";

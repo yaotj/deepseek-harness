@@ -36,6 +36,7 @@ public class SingleTicketRefundTask {
             log.info("refundAppNotTakeTickets 定时任务调用结束 result is {}", result);
             return returnSuccess();
         } catch (Exception e) {
+            log.error("refundAppNotTakeTickets 定时任务执行失败，本轮一笔都没退成，MUST 查本条堆栈定位原因", e);
             return returnFail();
         }
 
@@ -51,6 +52,7 @@ public class SingleTicketRefundTask {
             log.info("refundTvmTopupNotTakeTickets 定时任务调用结束 result is {}", result);
             return returnSuccess();
         } catch (Exception e) {
+            log.error("refundTvmTopupNotTakeTickets 定时任务执行失败，本轮一笔都没退成，MUST 查本条堆栈定位原因", e);
             return returnFail();
         }
 
@@ -67,6 +69,7 @@ public class SingleTicketRefundTask {
             log.info("refundBomSaleNotTakeTickets 定时任务调用结束 result is {}", result);
             return returnSuccess();
         } catch (Exception e) {
+            log.error("refundBomSaleNotTakeTickets 定时任务执行失败，本轮一笔都没退成，MUST 查本条堆栈定位原因", e);
             return returnFail();
         }
 
@@ -80,9 +83,10 @@ public class SingleTicketRefundTask {
 
         try {
             JSONObject result = bomOrderService.refundBomTopupNotTopup();
-            log.info("refundBomSaleNotTakeTickets 定时任务调用结束 result is {}", result);
+            log.info("refundBomTopupNotTakeTickets 定时任务调用结束 result is {}", result);
             return returnSuccess();
         } catch (Exception e) {
+            log.error("refundBomTopupNotTakeTickets 定时任务执行失败，本轮一笔都没退成，MUST 查本条堆栈定位原因", e);
             return returnFail();
         }
 

@@ -136,11 +136,16 @@ public class F2fTvmPayResultService {
         Integer attemptNo = lastAttemptNo(orderNo);
         LocalDateTime now = LocalDateTime.now();
         if (notified == PayCenterStatus.SUCCESS) {
+            LocalDateTime paidTms = parseCallbackPayTime(request.getPayTime(), now);
             paymentMapper.markSuccess(orderNo, attemptNo, request.getOrderNo(), request.getChannelOrderNo(),
-                    request.getPaymentVendor(), PayCenterResponses.CODE_SUCCESS, "回调通知支付成功", now);
-            int updated = orderMapper.markPaid(orderNo, now);
-            log.info("支付回调置为已支付, orderNo={}, updatedRows={}", orderNo, updated);
-            payCenterFlow.enqueuePayResultNotify(orderNo, request.getOrderNo(), now);
+                    request.getPaymentVendor(), PayCenterResponses.CODE_SUCCESS, "回调通知支付成功", paidTms);
+            paymentMapper.updateCallbackAmounts(orderNo, attemptNo,
+                    parseCallbackAmount(request.getCashAmount()),
+                    parseCallbackAmount(request.getCouponAmount()));
+            int updated = orderMapper.markPaid(orderNo, paidTms);
+            log.info("支付回调置为已支付, orderNo={}, paidTms={}, cashAmount={}, couponAmount={}, updatedRows={}",
+                    orderNo, paidTms, request.getCashAmount(), request.getCouponAmount(), updated);
+            payCenterFlow.enqueuePayResultNotify(orderNo, request.getOrderNo(), paidTms);
             return PayCenterResponses.success();
         }
         if (notified != null && notified.isFailed()) {
@@ -153,6 +158,39 @@ public class F2fTvmPayResultService {
         }
         log.warn("支付回调状态不明确，回失败让支付中心重推, orderNo={}, status={}", orderNo, request.getStatus());
         return PayCenterResponses.fail();
+    }
+
+    /**
+     * 契约 §5.1 的 {@code payTime} 是 {@code yyyyMMddHHmmss}，MUST 按它落 PAID_TMS / FINISH_TMS。     *
+     * <p>NEVER 退回用本机 {@code now()}：跨零点到达的回调会把交易落到错误账期，而对账按支付时间切窗口。
+     * 只有报文缺失或格式不认识时才回落本机时间，并打 WARN。
+     */
+    private LocalDateTime parseCallbackPayTime(String payTime, LocalDateTime fallback) {
+        if (payTime == null || payTime.isBlank()) {
+            return fallback;
+        }
+        try {
+            return LocalDateTime.parse(payTime.trim(), PAY_CENTER_DATE_FORMATTER);
+        } catch (RuntimeException e) {
+            log.warn("支付回调 payTime 格式无法解析，回落本机时间, payTime={}", payTime);
+            return fallback;
+        }
+    }
+
+    /**
+     * 回调里的金额是字符串，落库前转成整数（分）。解析不了只返回 null、让 NVL 保住原值，
+     * NEVER 因为金额格式不对就拒绝回调 —— 状态收口比这两个统计字段重要。
+     */
+    private Integer parseCallbackAmount(String amount) {
+        if (amount == null || amount.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(amount.trim());
+        } catch (NumberFormatException e) {
+            log.warn("支付回调金额非数字，跳过该字段落库, amount={}", amount);
+            return null;
+        }
     }
 
     /** 支付中心反查 ITP 订单详情（收银台页面渲染用）。 */

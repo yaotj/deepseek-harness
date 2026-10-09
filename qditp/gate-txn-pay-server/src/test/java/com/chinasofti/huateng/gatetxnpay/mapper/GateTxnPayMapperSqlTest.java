@@ -47,8 +47,17 @@ class GateTxnPayMapperSqlTest {
     private static final Pattern OFFLINE_PENDING_LITERAL =
             Pattern.compile("'OFFLINE_FARE_PENDING'");
 
-    /** 剥离注释后，{@code 'OFFLINE_FARE_PENDING'} 字面量只允许出现 3 次，即上面三条语句各 1 次。 */
-    private static final int ALLOWED_OFFLINE_PENDING_LITERALS = 3;
+    /** 近 N 分钟未扣费那条任务的两条语句：MUST 把离线码待重算态**排除**在外（金额还没算准）。 */
+    private static final String[] OFFLINE_PENDING_EXCLUSIONS = {
+            "selectRecentUnpaidCandidates",
+            "prepareRecentRetry"};
+
+    /**
+     * 剥离注释后，{@code 'OFFLINE_FARE_PENDING'} 字面量只允许出现 5 次：
+     * {@link #OFFLINE_PENDING_STATEMENTS} 三条各 1 次（捞单、抢占回写、失败留痕，都是 {@code =} 包含），
+     * 外加 {@link #OFFLINE_PENDING_EXCLUSIONS} 两条各 1 次（都是 {@code <>} 排除）。
+     */
+    private static final int ALLOWED_OFFLINE_PENDING_LITERALS = 5;
 
     private final Configuration configuration = parseMapper();
 
@@ -149,7 +158,7 @@ class GateTxnPayMapperSqlTest {
     }
 
     @Test
-    void offlinePendingLiteralStaysInThreeStatements() {
+    void offlinePendingLiteralStaysInAllowedStatements() {
         String withoutComments = XML_COMMENT.matcher(readMapperSource()).replaceAll("");
         Matcher matcher = OFFLINE_PENDING_LITERAL.matcher(withoutComments);
         int literals = 0;
@@ -157,7 +166,33 @@ class GateTxnPayMapperSqlTest {
             literals++;
         }
         assertEquals(ALLOWED_OFFLINE_PENDING_LITERALS, literals,
-                "OFFLINE_FARE_PENDING 字面量只允许出现在捞单、抢占回写、失败留痕三条语句里");
+                "OFFLINE_FARE_PENDING 字面量只允许出现在捞单、抢占回写、失败留痕三条语句（包含），"
+                        + "以及近 N 分钟未扣费那条任务的扫表与抢占两条语句（排除）里");
+    }
+
+    /** 离线码金额没算准就发起扣费等于扣错钱，这两条语句的排除谓词 NEVER 删。 */
+    @Test
+    void recentRetryStatementsExcludeOfflinePending() {
+        for (String id : OFFLINE_PENDING_EXCLUSIONS) {
+            String sql = sqlOf(id);
+            assertTrue(sql.contains("DISCOUNT_CALC_STATUS IS NULL")
+                            && sql.contains("'OFFLINE_FARE_PENDING'"),
+                    id + " MUST 排除离线码待重算态（金额未算准，扣下去就是扣错钱）");
+            assertFalse(sql.contains("DISCOUNT_CALC_STATUS = 'OFFLINE_FARE_PENDING'"),
+                    id + " 的谓词方向反了：应为排除而不是只捞待重算的那批");
+        }
+    }
+
+    /** 近 N 分钟那条任务刻意不记账，否则 10 分钟内会烧光日跑任务的次数预算。 */
+    @Test
+    void recentRetryClaimNeverTouchesRetryAccounting() {
+        String setClause = sqlOf("prepareRecentRetry").replaceAll("(?i)\\s+WHERE\\s+.*$", "");
+        assertFalse(setClause.contains("DEBIT_RETRY_TIMES"),
+                "prepareRecentRetry 的 SET 子句 NEVER 出现 DEBIT_RETRY_TIMES");
+        assertFalse(setClause.contains("DEBIT_NEXT_RETRY_TIME"),
+                "prepareRecentRetry 的 SET 子句 NEVER 出现 DEBIT_NEXT_RETRY_TIME");
+        assertTrue(setClause.contains("DEBIT_STATUS = 'RETRY'"),
+                "INIT / FAIL MUST 归一成 RETRY，否则 updateStatusFromPending 的 CAS 白名单回写不进去");
     }
 
     @Test

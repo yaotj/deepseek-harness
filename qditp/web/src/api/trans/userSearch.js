@@ -1,6 +1,11 @@
 import request from '@/utils/request'
 
-/** 查询支付宝注册用户，仅对应 ALIPAY_USER_INFO。 */
+/**
+ * 查询支付宝注册用户，仅对应 ALIPAY_USER_INFO。
+ *
+ * @param params { queryType, keyword, pageNum, pageSize }
+ * @returns data 为 PageInfo，取 `list` 与 `total`
+ */
 export function searchAlipayUsers(params) {
   return request({
     url: '/alipay-account-server/page/user/alipay/search',

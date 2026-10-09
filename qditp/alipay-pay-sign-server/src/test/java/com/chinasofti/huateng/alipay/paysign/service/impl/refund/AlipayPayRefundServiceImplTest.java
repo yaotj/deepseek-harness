@@ -1,6 +1,7 @@
 package com.chinasofti.huateng.alipay.paysign.service.impl.refund;
 
 import com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog;
+import com.chinasofti.huateng.alipay.paysign.config.PayCenterProperties;
 import com.chinasofti.huateng.alipay.paysign.exception.BusinessException;
 import com.chinasofti.huateng.alipay.paysign.mapper.AlipayPayLogMapper;
 import com.chinasofti.huateng.alipay.paysign.mapper.AlipaySignInfoMapper;
@@ -8,10 +9,11 @@ import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripRequestRefu
 import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripRequestRefundRespDTO;
 import com.chinasofti.huateng.alipay.paysign.port.PayCenterPort;
 import com.chinasofti.huateng.alipay.paysign.port.PayCenterReply;
-import com.chinasofti.huateng.alipay.paysign.service.impl.payment.RefundAmountCalculator;
+import com.chinasofti.huateng.alipay.paysign.service.impl.support.RefundAmountCalculator;
 import com.chinasofti.huateng.model.alipaytrip.AlipaySignInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 import java.util.HashMap;
@@ -48,6 +50,7 @@ class AlipayPayRefundServiceImplTest {
     private static final String CARD_ID = "0007000000000001";
     private static final String CHANNEL_AGREEMENT_NO = "20260918990001";
     private static final String REFUND_SEQ = "9f1c2b7a4d5e4f0a8b3c6d7e8f901234";
+    private static final String REFUND_NOTIFY_URL = "http://58.56.166.170:48000/fep-alipay/notify/payment/refundNotify";
 
     private AlipayPayLogMapper alipayPayLogMapper;
     private AlipaySignInfoMapper alipaySignInfoMapper;
@@ -61,10 +64,12 @@ class AlipayPayRefundServiceImplTest {
         alipaySignInfoMapper = mock(AlipaySignInfoMapper.class);
         refundLogRepository = mock(RefundLogRepository.class);
         payCenterPort = mock(PayCenterPort.class);
-        service = new AlipayPayRefundServiceImpl(alipayPayLogMapper, alipaySignInfoMapper,
-                new RefundAmountCalculator(), refundLogRepository, payCenterPort);
+        PayCenterProperties payCenterProperties = new PayCenterProperties();
+        payCenterProperties.setRefundNotifyUrl(REFUND_NOTIFY_URL);
+        service = new AlipayPayRefundServiceImpl(alipaySignInfoMapper,
+                new RefundAmountCalculator(), refundLogRepository, payCenterPort, payCenterProperties);
 
-        when(alipayPayLogMapper.selectByOrderNo(ORDER_NO)).thenReturn(payLog("SUCCESS"));
+        when(refundLogRepository.findPayLog(ORDER_NO)).thenReturn(payLog("SUCCESS"));
         when(alipaySignInfoMapper.selectByCardIdAndChannel(CARD_ID, "ALIPAY")).thenReturn(signInfo());
         when(refundLogRepository.countProcessing(ORDER_NO)).thenReturn(0);
         when(refundLogRepository.openRefund(any(), any(), anyString(), anyString(), anyString(), anyString()))
@@ -84,7 +89,7 @@ class AlipayPayRefundServiceImplTest {
 
     @Test
     void unsettledPayLogIsRejectedBeforeCountingRefunds() {
-        when(alipayPayLogMapper.selectByOrderNo(ORDER_NO)).thenReturn(payLog("PROCESSING"));
+        when(refundLogRepository.findPayLog(ORDER_NO)).thenReturn(payLog("PROCESSING"));
 
         BusinessException error = assertThrows(BusinessException.class, () -> service.requestRefund(request(null)));
 
@@ -95,7 +100,7 @@ class AlipayPayRefundServiceImplTest {
 
     @Test
     void missingPayLogIsRejected() {
-        when(alipayPayLogMapper.selectByOrderNo(ORDER_NO)).thenReturn(null);
+        when(refundLogRepository.findPayLog(ORDER_NO)).thenReturn(null);
 
         BusinessException error = assertThrows(BusinessException.class, () -> service.requestRefund(request(null)));
 
@@ -189,6 +194,22 @@ class AlipayPayRefundServiceImplTest {
 
         verify(refundLogRepository, never()).openRefund(any(), any(), anyString(), anyString(), anyString(), anyString());
         verify(payCenterPort, never()).requestRefund(any());
+    }
+
+    /**
+     * 出网 bizData MUST 带上 {@code notifyUrl}（契约 §3.1 必填）——
+     * 不送这个键时支付中心无处回推退款结果，`/api/payment/refundNotify` 永远收不到回调。
+     */
+    @Test
+    void outboundBizDataCarriesRefundNotifyUrl() {
+        when(payCenterPort.requestRefund(any())).thenReturn(accepted("SUCCESS", "退款成功"));
+
+        service.requestRefund(request(null));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+        verify(payCenterPort).requestRefund(captor.capture());
+        assertEquals(REFUND_NOTIFY_URL, captor.getValue().get("notifyUrl"));
     }
 
     private PayCenterReply accepted(String retCode, String retMsg) {

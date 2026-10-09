@@ -26,6 +26,8 @@ import com.chinasofti.huateng.paysign.entity.PayTxnDetail;
 import com.chinasofti.huateng.paysign.mapper.PayCallbackLogMapper;
 import com.chinasofti.huateng.paysign.mapper.PayTxnDetailMapper;
 import com.chinasofti.huateng.paysign.model.response.PaySignGatewayResponse;
+import com.chinasofti.huateng.paysign.model.response.BaseRespDTO;
+import com.chinasofti.huateng.model.paysign.RegisterCompletedPayTxnReqDTO;
 import com.chinasofti.huateng.paysign.service.PaymentDomainService;
 import com.chinasofti.huateng.paysign.port.AccountDomainPort;
 import com.chinasofti.huateng.paysign.port.GatewayReply;
@@ -43,6 +45,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -153,6 +156,16 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
                 String transIn = reply.data() != null ? stringValue(reply.data().get("transIn"), null) : null;
                 updatePayRequestResult(request.getOrderNo(), "RETRY", response, transIn);
 
+                // 自动拉黑只对支付宝系两个通道开（03 支付宝 / 05 支付宝出行，见 PaymentVendorEnum）。
+                // 这个白名单是 2026-08-26 生产事故的止血手段、NEVER 当成「漏写了其他通道」随手补全 ——
+                // 那次测试卡 0178606904586419 被误拉黑，直接后果是乘客过不了闸。
+                // 地铁 APP 自有钱包是 0B（PaymentVendorEnum.WALLET），刻意落在白名单之外：
+                // 2026-09-10 用户明确裁决「钱包渠道扣款失败不进黑名单」，欠款走人工追收，
+                // 见 docs/ops/生产环境清单.md 的「P2 — 钱包渠道扣款失败不进黑名单」。
+                // 2026-09-20 再次评估后用户维持原判，**NEVER 把 0B 加进来、也 NEVER 改成「非空即拉黑」**。
+                // 真要恢复自动拉黑，MUST 先复核 8-26 那次的误判条件（该条件目前只有上面那份 ops 文档记着、
+                // 代码注释在 ADR-D87 拆分时已丢失），并保留下面 addBlacklistForPaymentFailure 里的
+                // queryGatewayPayStatus 二次确认。
                 String paymentVendor = request.getPaymentVendor();
                 if (StringUtils.hasText(paymentVendor)
                         && ("03".equals(paymentVendor) || "05".equals(paymentVendor))) {
@@ -357,6 +370,102 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
             if (!PaySignDuplicateKey.isConflict(e)) { throw e; }
             log.warn("ensurePayTxn 并发插入重复，orderNo={}, msg={}", request.getOrderNo(), e.getMessage());
         }
+    }
+
+    /**
+     * 登记一条「已完成、不经支付中心」的支付流水。
+     *
+     * <p><b>与 {@link #requestPay} 的唯一区别、也是本方法存在的全部理由：不出网。</b>
+     * {@code requestPay} 在建行后无条件 {@code markRequesting} + 调支付中心，
+     * 拿它来处理「BOM 现场已收款」的单子等于对乘客重复收费（ADR-D136）。
+     *
+     * <p>落库口径（**NEVER 改**，改一处就要同步看齐 {@code RegisterCompletedPayTxnReqDTO} 的类注释）：
+     * {@code PAY_STATUS='SUCCESS'} + {@code DEBIT_REQUEST_RESULT='SUCCESS'}（与 {@code GATE_TXN_PAY.DEBIT_STATUS} 同源）、
+     * {@code AMOUNT} = ITP 实收（BOM 代收单为 0）、{@code MERCHANT_ORDER_NO} = 我方订单号、
+     * {@code PAY_CENTER_ORDER_NO} / {@code CHANNEL_ORDER_NO} **留空**（确实没有渠道流水，
+     * 编不出来的号 NEVER 造假，退款侧 {@code PayRefundRules} 正靠它为空来拦这类单）。
+     *
+     * <p>幂等：先查后插 + {@code UK_PAY_TXN_DETAIL_ORDER} 唯一键兜底（cause 链判定，见 AGENTS.md §5.2），
+     * 重复登记一律返成功，调用方可安全重试。
+     */
+    @Override
+    public BaseRespDTO registerCompletedTxn(RegisterCompletedPayTxnReqDTO request) {
+        BaseRespDTO response = new BaseRespDTO();
+        String validMsg = validateRegisterCompletedTxn(request);
+        if (validMsg != null) {
+            response.setRetCode(PaySignErrorCodeEnum.INVALID_PARAM.getCode());
+            response.setRetMsg(validMsg);
+            log.warn("REGISTER_COMPLETED_TXN 参数校验失败, request={}, msg={}", request, validMsg);
+            return response;
+        }
+        PayTxnDetail existing = payTxnDetailMapper.selectByOrderNo(request.getOrderNo());
+        if (existing != null) {
+            response.setRetCode("0000");
+            response.setRetMsg("成功");
+            log.info("REGISTER_COMPLETED_TXN 流水已存在，按幂等返回成功, orderNo={}, payStatus={}",
+                    request.getOrderNo(), existing.getPayStatus());
+            return response;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        PayTxnDetail record = new PayTxnDetail();
+        record.setOrderNo(request.getOrderNo());
+        record.setPayType("PAY");
+        record.setPayStatus("SUCCESS");
+        record.setDebitRequestResult("SUCCESS");
+        record.setThirdUserId(request.getThirdUserId());
+        record.setCardId(request.getCardId());
+        record.setCardType(request.getCardType());
+        record.setPaymentVendor(request.getPaymentVendor());
+        record.setRequestSignSeq(request.getRequestSignSeq());
+        record.setPayUserId(request.getPayUserId());
+        record.setAmount(request.getAmount());
+        record.setTotalAmount(request.getAmount());
+        record.setMerchantOrderNo(request.getOrderNo());
+        record.setRefundStatus("NONE");
+        record.setRefundAmount(0);
+        record.setRequestCount(0);
+        record.setPayTime(DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(now));
+        record.setResponseTime(now);
+        record.setTxnDate(resolveTxnDate(request.getTxnDate()));
+        record.setCreateTime(now);
+        record.setUpdateTime(now);
+        try {
+            payTxnDetailMapper.insert(record);
+        } catch (RuntimeException e) {
+            if (!PaySignDuplicateKey.isConflict(e)) { throw e; }
+            log.warn("REGISTER_COMPLETED_TXN 并发插入重复，按幂等返回成功, orderNo={}, msg={}",
+                    request.getOrderNo(), e.getMessage());
+        }
+        response.setRetCode("0000");
+        response.setRetMsg("成功");
+        log.info("REGISTER_COMPLETED_TXN 已登记不经支付中心的支付流水, orderNo={}, amount={}, txnDate={}, reason={}",
+                request.getOrderNo(), request.getAmount(), record.getTxnDate(), request.getReason());
+        return response;
+    }
+
+    /**
+     * 校验「已完成流水」登记入参。
+     *
+     * <p>**NEVER 复用 {@code validateRequestPay}**：那套要求 {@code scene} / {@code subject} / {@code body}
+     * 等只对支付中心有意义的字段，对「现场已收款」的单子没有语义。
+     *
+     * <p>{@code amount} 允许为 0（BOM 代收单的常态），但 **NEVER 允许负数**；
+     * {@code txnDate} 不强制（缺失时按当天补），但 {@code orderNo} 缺了就没有幂等键、一律拒。
+     */
+    private String validateRegisterCompletedTxn(RegisterCompletedPayTxnReqDTO request) {
+        if (request == null) {
+            return "请求体不能为空";
+        }
+        if (!StringUtils.hasText(request.getOrderNo())) {
+            return "orderNo不能为空";
+        }
+        if (request.getAmount() == null) {
+            return "amount不能为空";
+        }
+        if (request.getAmount() < 0) {
+            return "amount不能为负数: " + request.getAmount();
+        }
+        return null;
     }
 
     /** 兜底逻辑：当 PAY_TXN_DETAIL 不存在且 request 中签约信息缺失时。 */

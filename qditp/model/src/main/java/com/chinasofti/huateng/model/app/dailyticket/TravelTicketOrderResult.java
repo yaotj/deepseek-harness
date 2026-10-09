@@ -10,7 +10,7 @@ public class TravelTicketOrderResult extends DailyTicketBaseResult {
     private String orderNo;
 
     /**
-     * 内含的日票子单号，多个子单号用英文逗号分隔。
+     * 内含的日票子单号 JSON 字符串，形如 ["0E...","0E..."]。
      */
     private String subOrders;
 
