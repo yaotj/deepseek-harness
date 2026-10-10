@@ -150,6 +150,15 @@
           <el-col :span="12">
             <el-form-item v-if="form.userId == undefined" label="用户密码" prop="password">
               <el-input v-model="form.password" placeholder="请输入用户密码" type="password" maxlength="20" show-password />
+              <div v-if="form.password" class="password-strength">
+                <div class="strength-bar">
+                  <div :class="['strength-level', getStrengthLevel(form.password)]"></div>
+                </div>
+                <span class="strength-text">{{ getStrengthText(form.password) }}</span>
+              </div>
+              <div class="password-hint">
+                <small>密码需包含：大写字母、小写字母、数字、特殊字符中的至少3种</small>
+              </div>
             </el-form-item>
           </el-col>
         </el-row>
