@@ -1,0 +1,1 @@
+function o(n,t){const r=n==null?"":String(n).trim();if(!r)return"-";const i=t==null?"":String(t).trim();return i?`${r}-${i}`:r}function u(n,t){const r=n==null?"":String(n).trim();return r?o(r,(t==null?void 0:t[r])??(t==null?void 0:t[r.toUpperCase()])):"-"}export{o as a,u as f};
