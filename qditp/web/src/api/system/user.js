@@ -134,3 +134,12 @@ export function deptTreeSelect() {
     method: 'get'
   })
 }
+
+// 查询用户账务信息
+export function requestUserAccInfo(query) {
+  return request({
+    url: '/web-server/system/user/userAccInfo',
+    method: 'get',
+    params: query
+  })
+}

@@ -86,6 +86,20 @@
                   </el-tag>
                 </template>
               </el-table-column>
+              <el-table-column label="待扣费订单" align="center" key="unpaidCount" v-if="columns.unpaidCount.visible" width="120">
+                <template #default="scope">
+                  <el-tag :type="scope.row.unpaidCount > 0 ? 'warning' : 'info'" size="small">
+                    {{ scope.row.unpaidCount || 0 }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="扣费失败订单" align="center" key="failCount" v-if="columns.failCount.visible" width="140">
+                <template #default="scope">
+                  <el-tag :type="scope.row.failCount > 0 ? 'danger' : 'info'" size="small">
+                    {{ scope.row.failCount || 0 }}
+                  </el-tag>
+                </template>
+              </el-table-column>
               <el-table-column label="创建时间" align="center" prop="createTime" v-if="columns.createTime.visible" width="160">
                 <template #default="scope">
                   <span>{{ parseTime(scope.row.createTime) }}</span>
@@ -240,6 +254,7 @@ import { getToken } from "@/utils/auth"
 import useAppStore from '@/store/modules/app'
 import { changeUserStatus, listUser, resetUserPwd, delUser, getUser, updateUser, addUser, deptTreeSelect } from "@/api/system/user"
 import { Splitpanes, Pane } from "splitpanes"
+import { requestUserAccInfo } from "@/api/system/user"
 import "splitpanes/dist/splitpanes.css"
 import { defaultTodayRange } from '@/utils/dateRange'
 
@@ -291,6 +306,8 @@ const columns = ref({
   phonenumber: { label: '手机号码', visible: true },
   status: { label: '状态', visible: true },
   cardStatus: { label: '卡号状态', visible: true },
+  unpaidCount: { label: '待扣费订单', visible: true },
+  failCount: { label: '扣费失败订单', visible: true },
   createTime: { label: '创建时间', visible: true }
 })
 
@@ -328,7 +345,28 @@ watch(deptName, val => {
 })
 
 /** 查询用户列表 */
-function getList() {
+/** 加载用户扣费信息 */
+function loadUserAccInfo(userId) {
+  if (!userId) return Promise.resolve({ unpaidCount: 0, failCount: 0 })
+  return requestUserAccInfo({ thirdUserId: userId, startDate: formatDate(new Date(), 'yyyyMMdd') })
+    .then(res => ({
+      unpaidCount: res.unpaidCount || 0,
+      failCount: res.failCount || 0
+    }))
+    .catch(() => ({ unpaidCount: 0, failCount: 0 }))
+}
+
+function
+  getList().then(() => {
+    // 批量加载用户扣费信息
+    const promises = userList.value.map(user => 
+      loadUserAccInfo(user.userId).then(info => {
+        Object.assign(user, info)
+      })
+    )
+    Promise.all(promises)
+  })
+  getList() {
   loading.value = true
   listUser(proxy.addDateRange(queryParams.value, dateRange.value)).then(res => {
     loading.value = false
@@ -367,6 +405,16 @@ function handleNodeClick(data) {
 /** 搜索按钮操作 */
 function handleQuery() {
   queryParams.value.pageNum = 1
+ 
+  getList().then(() => {
+    // 批量加载用户扣费信息
+    const promises = userList.value.map(user => 
+      loadUserAccInfo(user.userId).then(info => {
+        Object.assign(user, info)
+      })
+    )
+    Promise.all(promises)
+  })
   getList()
 }
 
@@ -385,7 +433,17 @@ function handleDelete(row) {
   proxy.$modal.confirm('是否确认删除用户编号为"' + userIds + '"的数据项？').then(function () {
     return delUser(userIds)
   }).then(() => {
-    getList()
+   
+  getList().then(() => {
+    // 批量加载用户扣费信息
+    const promises = userList.value.map(user => 
+      loadUserAccInfo(user.userId).then(info => {
+        Object.assign(user, info)
+      })
+    )
+    Promise.all(promises)
+  })
+  getList()
     proxy.$modal.msgSuccess("删除成功")
   }).catch(() => {})
 }
@@ -490,6 +548,16 @@ const handleFileSuccess = (response, file, fileList) => {
   upload.isUploading = false
   proxy.$refs["uploadRef"].handleRemove(file)
   proxy.$alert("<div style='overflow: auto;overflow-x: hidden;max-height: 70vh;padding: 10px 20px 0;'>" + response.msg + "</div>", "导入结果", { dangerouslyUseHTMLString: true })
+ 
+  getList().then(() => {
+    // 批量加载用户扣费信息
+    const promises = userList.value.map(user => 
+      loadUserAccInfo(user.userId).then(info => {
+        Object.assign(user, info)
+      })
+    )
+    Promise.all(promises)
+  })
   getList()
 }
 
@@ -564,13 +632,33 @@ function submitForm() {
         updateUser(form.value).then(response => {
           proxy.$modal.msgSuccess("修改成功")
           open.value = false
-          getList()
+         
+  getList().then(() => {
+    // 批量加载用户扣费信息
+    const promises = userList.value.map(user => 
+      loadUserAccInfo(user.userId).then(info => {
+        Object.assign(user, info)
+      })
+    )
+    Promise.all(promises)
+  })
+  getList()
         })
       } else {
         addUser(form.value).then(response => {
           proxy.$modal.msgSuccess("新增成功")
           open.value = false
-          getList()
+         
+  getList().then(() => {
+    // 批量加载用户扣费信息
+    const promises = userList.value.map(user => 
+      loadUserAccInfo(user.userId).then(info => {
+        Object.assign(user, info)
+      })
+    )
+    Promise.all(promises)
+  })
+  getList()
         })
       }
     }
@@ -579,6 +667,16 @@ function submitForm() {
 
 onMounted(() => {
   getDeptTree()
+ 
+  getList().then(() => {
+    // 批量加载用户扣费信息
+    const promises = userList.value.map(user => 
+      loadUserAccInfo(user.userId).then(info => {
+        Object.assign(user, info)
+      })
+    )
+    Promise.all(promises)
+  })
   getList()
   proxy.getConfigKey("sys.user.initPassword").then(response => {
     initPassword.value = response.msg
