@@ -98,6 +98,26 @@ const activeMenu = computed(() => {
 
     .el-sub-menu__title {
       color: v-bind(getMenuTextColor);
+      font-size: 14px;
+    }
+    
+    /* 一级菜单样式 */
+    > .el-sub-menu > .el-sub-menu__title {
+      font-size: 15px;
+      font-weight: 600;
+      background-color: rgba(0, 0, 0, 0.05) !important;
+    }
+    
+    /* 嵌套菜单（二级）样式 */
+    .nest-menu .el-sub-menu > .el-sub-menu__title,
+    .nest-menu .el-menu-item {
+      font-size: 13px;
+      font-weight: normal;
+      padding-left: 40px !important;
+    }
+    
+    .nest-menu .el-menu-item:not(.is-active) {
+      color: opacity(getMenuTextColor, 0.9);
     }
   }
 }
