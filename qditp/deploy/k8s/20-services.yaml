@@ -263,7 +263,7 @@ spec:
     nodePort: 30019
     port: 30019
     protocol: TCP
-    targetPort: 8080
+    targetPort: 9106
   selector:
     app: gate-txn-pay-server
   type: NodePort
