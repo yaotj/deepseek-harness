@@ -28,6 +28,12 @@
                   <el-option v-for="dict in sys_normal_disable" :key="dict.value" :label="dict.label" :value="dict.value" />
                 </el-select>
               </el-form-item>
+              <el-form-item label="卡号状态" prop="cardStatus">
+                <el-select v-model="queryParams.cardStatus" placeholder="卡号状态" clearable style="width: 240px">
+                  <el-option label="有效" value="0" />
+                  <el-option label="失效" value="1" />
+                </el-select>
+              </el-form-item>
               <el-form-item label="创建时间" style="width: 308px">
                 <el-date-picker v-model="dateRange" value-format="YYYY-MM-DD" type="daterange" range-separator="-" start-placeholder="开始日期" end-placeholder="结束日期"></el-date-picker>
               </el-form-item>
@@ -71,6 +77,13 @@
                     inactive-value="1"
                     @change="handleStatusChange(scope.row)"
                   ></el-switch>
+                </template>
+              </el-table-column>
+              <el-table-column label="卡号状态" align="center" key="cardStatus" v-if="columns.cardStatus.visible">
+                <template #default="scope">
+                  <el-tag :type="scope.row.cardStatus === '0' ? 'success' : 'danger'">
+                    {{ scope.row.cardStatus === '0' ? '有效' : '失效' }}
+                  </el-tag>
                 </template>
               </el-table-column>
               <el-table-column label="创建时间" align="center" prop="createTime" v-if="columns.createTime.visible" width="160">
@@ -268,6 +281,7 @@ const columns = ref({
   deptName: { label: '部门', visible: true },
   phonenumber: { label: '手机号码', visible: true },
   status: { label: '状态', visible: true },
+  cardStatus: { label: '卡号状态', visible: true },
   createTime: { label: '创建时间', visible: true }
 })
 
@@ -279,6 +293,7 @@ const data = reactive({
     userName: undefined,
     phonenumber: undefined,
     status: undefined,
+    cardStatus: undefined,
     deptId: undefined
   },
   rules: {
