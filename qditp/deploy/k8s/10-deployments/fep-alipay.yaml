@@ -24,6 +24,12 @@ spec:
     spec:
       containers:
       - env:
+        - name: management.tracing.enabled
+          value: 'true'
+        - name: management.tracing.sampling.probability
+          value: '0'
+        - name: spring.autoconfigure.exclude
+          value: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration
         - name: service.blacklist.openLogger
           value: 'true'
         - name: alipay.notify.push-trans-data-url
@@ -96,7 +102,7 @@ spec:
           value: http://trans-query-57wpd-svc.itp.svc:30035
         - name: service.transQuery.openLogger
           value: 'true'
-        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-alipay:1.0.68
+        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-alipay:1.0.71
         imagePullPolicy: Always
         lifecycle: {}
         name: fep-alipay

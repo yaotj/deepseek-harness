@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.recon.mapper.PayTxnDetailMapper">
+    <resultMap id="ItpTxnRecordMap" type="com.chinasofti.huateng.recon.thirdparty.ItpTxnRecord">
+        <result column="ORDER_NO" property="orderNo" />
+        <result column="PAY_TYPE" property="txnType" />
+        <result column="CARD_ID" property="logicCardNo" />
+        <result column="PAY_TIME" property="txnDateTime" />
+        <result column="ORIGINAL_FARE" property="originalFare" />
+        <result column="ORDER_AMOUNT" property="orderAmount" />
+        <result column="CARD_TYPE" property="ticketType" />
+        <result column="PAYMENT_VENDOR" property="payChannel" />
+        <result column="CASH_AMOUNT" property="actualAmount" />
+        <result column="COUPON_AMOUNT" property="discountCumulativeAmount" />
+        <result column="REQUEST_SIGN_SEQ" property="ticketTransSeq" />
+        <result column="MERCHANT_ORDER_NO" property="merchantOrderNo" />
+        <result column="CHANNEL_ORDER_NO" property="channelTradeNo" />
+        <result column="ITP_PAY_STATUS" property="itpPayStatus" />
+        <result column="SRC" property="source" />
+    </resultMap>
+
+    <select id="selectByTxnDate" resultMap="ItpTxnRecordMap">
+        SELECT ORDER_NO,
+            PAY_TYPE,
+            CARD_ID,
+            PAY_TIME,
+            TOTAL_AMOUNT                     AS ORIGINAL_FARE,
+            TOTAL_AMOUNT                     AS ORDER_AMOUNT,
+            CARD_TYPE,
+            PAYMENT_VENDOR,
+            CASH_AMOUNT,
+            COUPON_AMOUNT,
+            REQUEST_SIGN_SEQ,
+            MERCHANT_ORDER_NO,
+            CHANNEL_ORDER_NO,
+            CASE
+                WHEN DEBIT_REQUEST_RESULT = 'SUCCESS' OR PAY_STATUS = 'SUCCESS' THEN 'SUCCESS'
+                WHEN DEBIT_REQUEST_RESULT = 'FAIL' OR PAY_STATUS = 'FAIL' THEN 'FAIL'
+                ELSE NULL
+            END                              AS ITP_PAY_STATUS,
+            'pay-sign'                       AS SRC
+        FROM PAY_TXN_DETAIL
+        WHERE TXN_DATE = #{txnDate,jdbcType=VARCHAR}
+    </select>
+</mapper>

@@ -50,7 +50,7 @@ public class F2fBatchRefundService {
     public F2fBatchRefundService(F2fOrderMapper orderMapper, F2fRefundService refundService,
                                  @Value("${f2f.batchRefund.limit:200}") int batchLimit,
                                  @Value("${f2f.batchRefund.silenceMinutes:60}") int silenceMinutes,
-                                 @Value("${f2f.batchRefund.lookbackDays:7}") int lookbackDays) {
+                                 @Value("${f2f.batchRefund.lookbackDays:1}") int lookbackDays) {
         this.orderMapper = orderMapper;
         this.refundService = refundService;
         this.batchLimit = batchLimit;

@@ -19,7 +19,13 @@
 | [定时任务清单.csv](定时任务清单.csv) | **代码侧定时任务总账**（按实测维护）：19 条 `sys_job` + 15 处真实 `@Scheduled`，含触发目标、cron、并发与单副本约束 | 排查「某个补偿到底有没有在跑」、新增定时任务前先确认有没有重复 |
 | [定时任务需求对照.md](定时任务需求对照.md) | 甲方 19 项定时任务需求 ↔ 代码现状逐条对照（完全落地 4 / 部分落地 5 / 零实现 7 / 已关闭 3），附 7 处「同名但语义不同」的易混点与 5 点待业务确认 | 回答甲方「这些定时任务做了没有」、评估定时任务类需求工作量 |
 | [数据库容量规划.md](数据库容量规划.md) | **上线后 12 个月的容量预估 + 已按实测校准**：126 张表的分域口径、**§5.1 老 ITP 环境实测对标**（总 10,010 GB／已用 7,283 GB，其中 `RACDG` **89.60% 仅剩 624 GB**、两组偏差 **1,006 GB**）；**实测日增 < 3 GB ⇒ 原「60 万日行程」假设高估 7.7 倍，修正为约 7.8 万、年增 1.07~3.21 TB**；**原「申请 20 TB」结论已作废，改为维持现有 10 TB + 先做磁盘组均衡**；Oracle 全栈容量、P0~P2 风险清单、分层保留策略、**10 项待确认**、**附录 A 实测校准 SQL**。**未连库、纯 DDL 静态解析**，§4 的绝对值已标注「高估 7.7 倍、NEVER 引用」，以 §5.1 修正值为准 | 向 DBA 申请存储前先读 §5.1、设计归档保留策略、排查表空间增长；**三条与数据量无关的紧急项**：①老环境 `RACDG` 仅剩 624 GB（按实测也只够 208 天，均衡可到 543 天）；②2026-12 前必做「分区到期」整改（7 张手工 RANGE 分区只建到 `P202612`，2027-01-01 起新数据全落 `P_MAX`）；③全库零归档零清理 |
+| [数据库按域分库计划.md](数据库按域分库计划.md) | **按域分库规划总纲**（2026-10-14 建，库内实测 162 张业务表 + 3 张 `BAK_RECON_*` 快照、15 张分区表 = 13 RANGE + 2 LIST）：按模块归 13 业务域，标出跨域共享表（`USER_ITP_REG_INFO` / `BLACKLIST*` / `TBL_*` / `SYS_*` / `QRTZ_*` / `APP_USER_PAY_CHANNEL`）与技术债（`STATION_INFO`(ticket) 与 `TBL_STATION_INFO`(para) 两处并存）；厘清**逻辑分库（同实例多 schema，不扩容）≠ 物理分库（多实例，才解容量）**——当前 `RACDG` 89.6% 满，逻辑分库不解容量；推荐路径 M0 修 P0（补 2027 分区 / 定归档 / `F2F_*` GLOBAL→LOCAL / 磁盘均衡）→ M1 建 `QDITP_PLAT` + 共享同义词 → M2 迁 USER+RIDE → M3 迁 TXN（容量热点，须双跑锁）→ M4 全量校验回滚；含 4 用户库映射、跨库共享策略、无第二环境迁移兜底（CTAS 快照 + 双跑锁）。**状态：草案 v2**——用户已定**方案 A 逻辑分库 + 4 个用户库**（`QDITP_USER`/`QDITP_TXN`/`QDITP_RIDE`/`QDITP_PLAT`），尚待甲方 DBA / 业务方校准（4 库分组认可度 / 独立表空间 / DB Link / `itp_ro` 只读契约 / 与「唯一目标库」裁决的关系），**NEVER 当作已定案执行**；**归属清单实测只覆盖 127/162 张，34 张漏统（ALIPAY_* 8 / TBL_BOM_* 8 + BOM_TOPUP_RESULT / TBL_TVM_* 9 / BLACKLIST 主表等）待补** | 规划拆库 / 分域 schema；承接容量规划 §5.1 的整改项 |
+| [数据库按域分库迁移手册.md](数据库按域分库迁移手册.md) | **分库迁移执行手册**（v1.0，2026-10-14 定稿，**待甲方 DBA 审批后执行**）：现状与目标、M0~M4 逐步操作、`scripts/migration/` 16 个 SQL 的配套关系、校验与回滚。是「计划 + DDL 草案 + 容量规划」的执行摘要与操作指南，后三者保留为详细参考 | 真要动手分库迁移时；**先读手册再碰任何 SQL** |
+| [数据库按域分库迁移DDL草案.md](数据库按域分库迁移DDL草案.md) | **迁移 DDL 草案**（v1.1，**仅供评审，NEVER 直接在生产库执行**）：4 用户库 + 4 独立表空间 + 4 临时表空间、同义词 + 只读授权（网关 `itp_ro`）、CTAS 剥光分区/索引/约束等三大必炸坑、`F2F_*` GLOBAL 唯一索引处理、库内 CTAS 快照 + 同实例可逆兜底。执行前 MUST 甲方 DBA 复核口令与磁盘组路径，且完成 M0 | 评审迁移 DDL；与 `scripts/migration/` 脚本配套 |
+| [链路跟踪全量接入评估.md](链路跟踪全量接入评估.md) | **Tracing 全量接入评估**（v1.0，2026-10-14）：结论**不建议简单「全量三行成组」**，按模块重要度分三档接入、先补配置缺口；现状 tracing 9 模块 / `VLOGS_URL` 21 个 Deployment；`para-server` / `blacklist-server` 配置缺口；traceId 机制（W3C `traceparent` + VictoriaLogs）与 Quartz 侧 `sys_job_log.job_message` 落点 | 决定某模块开不开 tracing、排查 traceId 断链、治理日志上报量与存储 |
 | [排障手册.md](排障手册.md) | **「现象有了、但代码看着没错」时的排查顺序**：§0 三步定性、§1 六类高频症状（兜底 catch 失效 / 加了字段收不到 / Druid WallFilter 三陷阱 / 返回成功实际没成 / 虚拟线程 pin / 时间窗类判定整体失效——容器时区 ≠ 业务时区）、§2 部署后五个不可靠信号与可靠替代、§3 两条「不是 bug」的误报 | 定位不到原因时；**尤其当缺陷「编译通过、单测全绿、只在特定运行时分支上炸」时**。本手册**只做索引与排查顺序，规则条文以 `AGENTS.md` §5 / §7 为准**，冲突时以 AGENTS.md 为准并回来修 |
+| [部署手册.md](部署手册.md) | **部署与上线操作的 Runbook**：把散落在 `AGENTS.md` §7/§8、`生产环境清单.md`、`K8S迁移清单.md`、`deploy/k8s/` 的部署事实压缩成可照做的步骤，含项目就绪度评估。**只做索引与裁剪**，细节与最新数字 MUST 回查权威源；其中的版本号 / NodePort / Service 名 / 镜像 tag 一律视为占位，执行当天 MUST 现查 | 上线、扩环境、评估生产就绪度 |
+| [构建与部署规范.md](构建与部署规范.md) | **`AGENTS.md` §7 / §8 的下沉承载（完整条文）**：构建顺序与 `model`/`rpc` 不升版本、出 jar 必带 `-Djkube.skip=true` + `-Dmaven.test.skip=true`、`face-pay` 必加 `-Premote`、推镜像的两套绑定、镜像名取 `<image.prefix>`、管道吃退出码、digest 强制替换、容器内 `javap` 反查字节码、`service.*.url` 三类问题、内存 JobStore 三后果、`targetPort` 陷阱、`*-schema.sql` 与 `*-migration.sql` 的分界、`testngbackV2` 7 处残留、外部网关地址 MUST 实测 | 部署 / 发版 / 排查「推没推上去」「跑的到底是哪版」。**规则条文以本文件为准**，`AGENTS.md` 只留精简指针 |
 
 > 生产 Oracle 地址与 `DB_*` 环境变量见本目录 `生产环境清单.md` §二、§四；`other.sql.*` 数据源装配与「哪些模块无库」见 [`../architecture/common-components.md`](../architecture/common-components.md)。
 
@@ -43,7 +49,7 @@
 
 1. 重建 MCP 命名连接（连接有租约 `leaseTtl=1h` / `maxLifetime=2h`，报「连接不存在」直接重建，**不要**去排查网络或数据库）
 2. `SELECT table_name FROM all_tables WHERE owner='QDITP' AND table_name='APP_TERMINATION_REQUEST'`
-3. 缺失则按 `pay-sign-server/src/main/resources/sql/pay-sign-schema.sql:148` 建表，含 `UK_ATR_REQUEST_SIGN_SEQ`、`IDX_ATR_USER_STATUS`、`IDX_ATR_NOTIFY_STATUS` 三个索引
+3. 缺失则按 `pay-sign-server/src/main/resources/sql/pay-sign-schema.sql` 建表，含 `UK_ATR_REQUEST_SIGN_SEQ`、`IDX_ATR_USER_STATUS`、`IDX_ATR_NOTIFY_STATUS` 三个索引
 4. 建表后调一次 IF8A-06 验证落库，并确认 `pay-sign` Pod 日志无 `ORA-00942`
 5. MCP 仍不可用时的退路：`ssh k8s-master` 在 pay-sign 容器内用现有数据源验证
 
@@ -59,14 +65,14 @@
 
 pay-sign-server 侧已落地（`ContractDomainServiceImpl.removeSignAgreement`、`PaySignService` / `PaySignServiceImpl`、`PaySignAppController` 的 `POST /ci/app/requestAgreeRelease`，`model` 新增 `RequestAgreeReleaseReqDTO` / `RequestAgreeReleaseResult`），语义是**不请求支付平台**，按 `agreementCode`（= `APP_PAY_SIGN_INFO.REQUEST_SIGN_SEQ`）直接把 `SIGN_STATUS` 置 `UNSIGNED` 并写 `TERMINATION_TIME`。
 
-**⚠️ 先裁决再动手：同名接口已有另一条链路。** `requestAgreeRelease` 在 account 链路上已实现——`fep-app-server/AppAccountController` → `rpc/AccountClient.requestAgreeRelease` → `AccountApplicationServiceImpl:519-524`，注释写「钱包协议 requestAgreeRelease：解绑语义与本地删除支付通道一致」，实现是直接委托 `requestRemovePayChannel`，用的 DTO 是 `RequestRemovePayChannelReqDTO`。两条链路语义不同（一个删支付通道、一个改签约状态），DTO 不同，**若再在 fep-app 加一个 `/app/requestAgreeRelease` 路由会撞车**。
+**⚠️ 先裁决再动手：同名接口已有另一条链路。** `requestAgreeRelease` 在 account 链路上已实现——`fep-app-server/AppAccountController` → `rpc/AccountClient.requestAgreeRelease` → `AccountApplicationServiceImpl`，注释写「钱包协议 requestAgreeRelease：解绑语义与本地删除支付通道一致」，实现是直接委托 `requestRemovePayChannel`，用的 DTO 是 `RequestRemovePayChannelReqDTO`。两条链路语义不同（一个删支付通道、一个改签约状态），DTO 不同，**若再在 fep-app 加一个 `/app/requestAgreeRelease` 路由会撞车**。
 
 待办：
 
 1. 与甲方/用户确认 IF8A-36 的落点究竟是 account 侧的「解绑支付通道」还是 pay-sign 侧的「签约置解约成功」，**NEVER** 两处并存
 2. 裁决后再决定是否补 fep-app 透传层（`PaySignAppService` / `PaySignAppServiceImpl` / `PaySignController` 路由 + `rpc/PaySignClient` 方法）；新增内部接口的 DTO 已在 `model`，符合 §5.2
 3. **鉴权缺口**：`/ci/app/requestAgreeRelease` 是状态变更型端点，当前无鉴权与归属校验，任何网络可达方凭 `agreementCode` 即可改他人签约状态（AGENTS.md §5.2 明令要求），上线前必须补
-4. **字段一致性**：本次只写了 `SIGN_STATUS` + `TERMINATION_TIME`，未写 `TERMINATION_STATUS`。解约链路是双状态列设计（`pay-sign-schema.sql:180` / `:185`），需确认移除签约是否也要同步该列，否则解约扫表逻辑可能读到不一致状态
+4. **字段一致性**：本次只写了 `SIGN_STATUS` + `TERMINATION_TIME`，未写 `TERMINATION_STATUS`。解约链路是双状态列设计（`pay-sign-schema.sql`），需确认移除签约是否也要同步该列，否则解约扫表逻辑可能读到不一致状态
 5. 补 `docs/business/pay-sign.md` 接口清单与「移除签约 vs 解约」差异说明；**NEVER** 新建「未实现服务开发计划.md」这类汇总文档（§5.3 已禁止，仓库内也不存在该文件）
 
 ### ✅ IF8A-35 / IF8A-42 / IF8A-75 已实现（2026-09-08）
@@ -74,7 +80,7 @@ pay-sign-server 侧已落地（`ContractDomainServiceImpl.removeSignAgreement`�
 - IF8A-35 `/app/requestUserAccInfo` — 查用户账务信息（`gate-txn-pay-server`，返回 `unpaidCount` / `failureCount`）
 - IF8A-42 `/app/cancelAccount` — 销户（**2026-09-09 按规范表 91 收敛**：原落地路径 `/app/userCancel` 及 `/ci/app` 前缀已删除，只保留这一条；account-server 内部路径仍是 `/userCancel`，属实现细节）。落点 `account-server`：`AccountApplicationServiceImpl.userCancel` 置 `DEL_YN=0` + 写 `USER_ITP_REG_LOG`（`OPER_TYPE=2`），登记前先调一次 IF8A-35 校验欠费（`app.user-cancel.check-unsettled`，fail-closed → `8024`；有欠费 → `8023`）。**不删支付通道**——APP 顺序是 35→42→75，通道由 75 清理。`bizData` 接 `thirdUserId` + `phone`，但**注销口径只用 `thirdUserId`**：`USER_ITP_REG_INFO` 无手机号列，`phone` 仅打掩码日志
 - IF8A-75 `/app/unbindAgreement` — 直接解绑支付方式。落点 **`pay-sign-server`**：`TerminationInternalServiceImpl.unbindAgreement` 委托既有 `executeTermination`（`/internal/termination/execute` 的同一套状态机 + CAS，立即调支付中心），APP 入口 `PaySignAppController` `/ci/app/unbindAgreement`，链路 `fep-app-server PaySignController` → `rpc/PaySignClient.unbindAgreement`
-  - **APP 实际在调 `/userData/unbindAgreement`**（2026-09-09 实测）。该路径原先未注册，被全局异常处理器兜成 `retCode=<UUID>` + HTTP 200，**不是 404**，APP 无法识别失败 → 用户 `00522948` 已注销但支付宝签约仍 `SIGNED`、通道残留 `ACTIVE`、`APP_TERMINATION_REQUEST` 零条。已在 `fep-app-server/PaySignController.java:97` 加为兼容别名（与 `/ci/app/` `/app/` 两条并存），规范正式路径待甲方确认后再收敛到一条
+  - **APP 实际在调 `/userData/unbindAgreement`**（2026-09-09 实测）。该路径原先未注册，被全局异常处理器兜成 `retCode=<UUID>` + HTTP 200，**不是 404**，APP 无法识别失败 → 用户 `00522948` 已注销但支付宝签约仍 `SIGNED`、通道残留 `ACTIVE`、`APP_TERMINATION_REQUEST` 零条。已在 `fep-app-server/PaySignController.java` 加为兼容别名（与 `/ci/app/` `/app/` 两条并存），规范正式路径待甲方确认后再收敛到一条
   - 2026-09-09 首次端到端跑通：`/userData/unbindAgreement` → 支付中心解约 → 回调 `receiveTerminationResult` → 清通道 + 删签约 + 销户归档，一次事务内完成
   - **NEVER 把 75 接到 `requestTermination`**（本文件此前如此记载，已更正）：`requestTermination`（IF8A-06）只登记申请等账期结束的扫表任务，与 75「立即请求支付渠道」正相反
   - 钱包渠道 `0B` 在 `unbindAgreement` 里短路为 `8001`：钱包开户后直接绑通道、不生成签约流水，没有可解约的协议
@@ -87,7 +93,7 @@ pay-sign-server 侧已落地（`ContractDomainServiceImpl.removeSignAgreement`�
 
 1. **`DEL_YN` 极性别搞反：`1 = 有效`，`0 = 已注销`**。`UserItpRegInfoMapper.xml` 多数 select/update 带 `and DEL_YN = 1`，新增查询默认也要带；仅销户后的清理链路例外（见上）
 2. **鉴权缺口**：`/userCancel` 与 `/app/unbindAgreement` 均为裸 POST，无验签与归属校验（AGENTS.md §5.2 明令要求），上线前必须补，单独立项
-3. **`service.paySign.url` 在 account-server（`application.properties:29`）是 `http://127.0.0.1:9096`**，K8s 内指向自身 Pod；判断线上是否可达 **MUST 查 Deployment env**
+3. **`service.paySign.url` 在 account-server（`application.properties`）是 `http://127.0.0.1:9096`**，K8s 内指向自身 Pod；判断线上是否可达 **MUST 查 Deployment env**
 4. IF8A-42 的 `8024`（账务查询失败）分支尚未实测，需临时改坏 `service.gateTxnPay.url` 才能触发
 5. **销户归档已实现（2026-09-08），2026-09-09 补第二个触发点**：口径不是「42 时就删」，而是**通道全部解绑 + 记录全为注销态时才归档**。落点两处：①`account-server.requestRemovePayChannel` → `AccountArchiveServiceImpl.archiveIfLastChannelRemoved`（**旧名 `archiveUserInfoIfLastChannelRemoved`，随账户域拆分改名**，2026-09-23 核对；正常顺序 35→42→75）；②`userCancel` 的两条出口经 `tryArchiveAfterCancel` 各调一次（应对**反序场景**：通道先解绑完、之后才销户，此时 75 那条路径永不再触发。实测 `00522946` 通道 10:07/10:45 删完、14:24 销户，靠该补丁在 14:50:33 重调 IF8A-42 收口）。触发条件三个同时满足：①`APP_USER_PAY_CHANNEL` 中该用户已无任何通道（`countByThirdUserId` 为 0，thirdUserId 全量口径）；②`USER_ITP_REG_INFO` 中该用户还有记录；③这些记录**全部** `DEL_YN = 0`（IF8A-42 已执行）。动作是逐行往 `USER_ITP_REG_LOG` 插 `OPER_TYPE=3` 快照，再 `deleteCanceledByThirdUserId`（WHERE 带 `DEL_YN = 0`，不误删并发新开户）。归档幂等，`tryArchiveAfterCancel` 吞异常只记 warn，**NEVER** 让归档失败把已成功的销户翻成失败
    - **排查残留的口径**：`select count(*) from USER_ITP_REG_INFO where DEL_YN = 0` 应为 0；不为 0 时对这些 `THIRD_USER_ID` 重调一次 IF8A-42 即可

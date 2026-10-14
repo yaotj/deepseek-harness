@@ -94,8 +94,10 @@ public class PayCenterClient {
         Object code = json.get("code");
         String msg = json.getString("msg");
         Map<String, Object> data = json.getJSONObject("data");
-        log.info("支付中心响应, url={}, code={}, msg={}, status={}, costMs={}",
-                url, code, msg, data == null ? null : data.get("status"), costMs);
+//        log.info("支付中心响应, url={}, code={}, msg={}, status={}, costMs={}",
+//                url, code, msg, data == null ? null : data.get("status"), costMs);
+        log.info("支付中心响应 json is {}",json);
+        log.info("支付中心响应 data is {}",data);
         return PayCenterResult.answered(code == null ? null : String.valueOf(code), msg, data, raw, costMs);
     }
 

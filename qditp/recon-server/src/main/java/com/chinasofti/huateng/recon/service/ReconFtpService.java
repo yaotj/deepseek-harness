@@ -39,7 +39,7 @@ public class ReconFtpService {
                 || properties.getPassword() == null || properties.getPassword().isBlank()) {
             throw new IllegalStateException("对账 FTP 配置不完整");
         }
-        if (fileName == null || !fileName.matches("ITP\\.(EXP|PAY|BUS|DETAIL)\\.\\d{8}")) {
+        if (fileName == null || !fileName.matches("ITP\\.(EXP|PAY|BUS|DETAIL|TXNDIFF)\\.\\d{8}")) {
             throw new IllegalArgumentException("非法对账文件名");
         }
         Path path = localFile.toAbsolutePath().normalize();

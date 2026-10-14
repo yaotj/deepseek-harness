@@ -1,11 +1,13 @@
 package com.chinasofti.huateng.micro.web.global;
 
 import com.chinasofti.huateng.micro.web.Webconfig;
+import com.chinasofti.huateng.micro.web.utils.HeartbeatUrlUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -27,6 +29,9 @@ public class MoreInterceptor implements HandlerInterceptor {
 
     @Autowired
     Webconfig webconfig;
+
+    @Value("${other.interceptor.heartbeat.skip:false}")
+    private boolean skipHeartbeat;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
@@ -71,10 +76,16 @@ public class MoreInterceptor implements HandlerInterceptor {
                     if (timeOut) {
                         timeoutCnt.getAndIncrement();
                     }
-                    if (timeOut || response.getStatus() > 300) {
-                        log.error(logs.toString());
-                    } else {
-                        log.info(logs.toString());
+                    // 心跳请求（URL 含 Heartbeat）刷屏时，默认关闭 INFO 请求日志；
+                    // 超时 / 5xx 仍走 error，不丢。
+                    boolean isNormalHeartbeat = skipHeartbeat && isHeartbeatUrl(request)
+                            && !timeOut && response.getStatus() <= 300;
+                    if (!isNormalHeartbeat) {
+                        if (timeOut || response.getStatus() > 300) {
+                            log.error(logs.toString());
+                        } else {
+                            log.info(logs.toString());
+                        }
                     }
                 }
             }
@@ -93,5 +104,10 @@ public class MoreInterceptor implements HandlerInterceptor {
         String realIp = request.getHeader("x-real-ip");
         return MessageFormat.format("receive request url={0} method={1} client={2} real-client={3} "
                 , url, method, ip, realIp);
+    }
+
+    private boolean isHeartbeatUrl(HttpServletRequest request) {
+        String url = request.getRequestURI();
+        return HeartbeatUrlUtil.isHeartbeat(url);
     }
 }

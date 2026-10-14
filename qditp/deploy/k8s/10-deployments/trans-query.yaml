@@ -24,6 +24,14 @@ spec:
     spec:
       containers:
       - env:
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        - name: management.tracing.enabled
+          value: 'true'
+        - name: management.tracing.sampling.probability
+          value: '0'
+        - name: spring.autoconfigure.exclude
+          value: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration
         - name: SERVER_PORT
           value: '9113'
         - name: SERVICE_PAY_SIGN_URL
@@ -62,7 +70,7 @@ spec:
           value: trans-query
         - name: NAMESPACE
           value: itp
-        image: os-harbor-svc.default.svc.cloudos:443/itp/trans-query:1.0.15
+        image: os-harbor-svc.default.svc.cloudos:443/itp/trans-query:1.0.18
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: trans-query

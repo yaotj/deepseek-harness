@@ -30,9 +30,11 @@ public class F2fRefundReconcileJob {
     @Scheduled(fixedDelayString = "${f2f.refund.scanIntervalMs:60000}",
             initialDelayString = "${f2f.refund.scanInitialDelayMs:30000}")
     public void reconcileRefunds() {
+        log.info("开始执行主动查询退款结果定时任务");
         List<F2fRefund> candidates;
         try {
             candidates = refundService.loadRetryCandidates(LocalDateTime.now(), batchLimit);
+            log.info("candidates.size is {}",candidates);
         } catch (RuntimeException e) {
             log.error("退款收口扫表失败", e);
             return;
@@ -44,6 +46,7 @@ public class F2fRefundReconcileJob {
         int pending = 0;
         int failed = 0;
         for (F2fRefund refund : candidates) {
+            log.info("开始处理退款记录 refund is{}",refund);
             try {
                 if (refundService.reconcileRefund(refund)) {
                     resolved++;

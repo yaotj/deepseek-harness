@@ -24,6 +24,14 @@ spec:
     spec:
       containers:
       - env:
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        - name: management.tracing.enabled
+          value: 'true'
+        - name: management.tracing.sampling.probability
+          value: '0'
+        - name: spring.autoconfigure.exclude
+          value: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration
         - name: PAY_CENTER_SUPPLEMENT_NOTICE_URL
           value: http://58.56.166.170:48000/itpbom/ci/bom/supplementPayNotice
         - name: DB_HOST
@@ -76,7 +84,7 @@ spec:
           value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receivePaymentResult
         - name: PAY_CENTER_REFUND_NOTICE_URL
           value: http://58.56.166.170:48000/itpbom/ci/bom/receiveRefundResult
-        image: os-harbor-svc.default.svc.cloudos:443/itp/face-pay-server:1.0.66
+        image: os-harbor-svc.default.svc.cloudos:443/itp/face-pay-server:1.0.77
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: face-pay-server

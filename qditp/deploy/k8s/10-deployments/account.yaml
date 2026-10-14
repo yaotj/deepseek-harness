@@ -24,6 +24,12 @@ spec:
     spec:
       containers:
       - env:
+        - name: management.tracing.enabled
+          value: 'true'
+        - name: management.tracing.sampling.probability
+          value: '0'
+        - name: spring.autoconfigure.exclude
+          value: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration
         - name: employee-card.format
           value: json
         - name: itp.format
@@ -106,6 +112,19 @@ spec:
               key: other.sql.password
         - name: itp.providerId
           value: '01'
+        # DB_* 下划线命名：Spring Boot _relaxed binding_ 对 dot-name env var（如 other.sql.host）识别不稳定，
+        # 2026-10-14 实测 account 因此落到 localhost/orcl 导致启动失败。保留 other.sql.* 仅作兼容性备份。
+        - name: DB_HOST
+          value: 172.20.222.3:1521
+        - name: DB_NAME
+          value: AFCITPDB
+        - name: DB_USERNAME
+          value: qditp
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: other.sql.password
         - name: other.sql.database
           value: AFCITPDB
         - name: other.sql.type
@@ -120,7 +139,7 @@ spec:
           value: account
         - name: NAMESPACE
           value: itp
-        image: os-harbor-svc.default.svc.cloudos:443/itp/account-server:2.0.77
+        image: os-harbor-svc.default.svc.cloudos:443/itp/account-server:2.0.80
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: account

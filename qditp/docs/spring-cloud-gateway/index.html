@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spring Cloud Gateway 5.0.3 完整说明书（离线版）</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; margin: 0; background: #f7f8fa; color: #1f2328; }
+  .container { display: flex; min-height: 100vh; }
+  .sidebar { width: 380px; background: #fff; border-right: 1px solid #e4e7eb; padding: 20px; overflow-y: auto; position: sticky; top: 0; height: 100vh; box-sizing: border-box; }
+  .content { flex: 1; padding: 40px 48px; max-width: 960px; }
+  .sidebar h1 { font-size: 18px; margin-top: 0; }
+  .sidebar ul { list-style: none; padding-left: 0; margin: 8px 0; }
+  .sidebar ul ul { padding-left: 16px; }
+  .sidebar a { text-decoration: none; color: #0969da; font-size: 13px; line-height: 1.8; }
+  .sidebar a:hover { text-decoration: underline; }
+  .content h1 { font-size: 32px; border-bottom: 2px solid #e4e7eb; padding-bottom: 12px; }
+  .content h2 { font-size: 22px; margin-top: 28px; }
+  .content p, .content li { font-size: 15px; line-height: 1.7; }
+  .badge { display: inline-block; background: #1f883d; color: #fff; border-radius: 12px; padding: 2px 10px; font-size: 12px; }
+  .meta { background: #fff; border: 1px solid #e4e7eb; border-radius: 8px; padding: 16px 20px; margin-top: 16px; }
+  .meta code { background: #f0f1f3; padding: 2px 6px; border-radius: 4px; }
+  a { color: #0969da; }
+</style>
+</head>
+<body>
+<div class="container">
+  <nav class="sidebar">
+    <h1>📘 Spring Cloud Gateway 5.0.3 完整说明书</h1>
+    <p style="font-size:12px;color:#666;">离线版 · 共 125 个章节页面</p>
+    <li><a href="index.html">Introduction</a></li>
+<li><a href="spring-cloud-gateway-server-webflux.html">Spring Cloud Gateway Server WebFlux</a>
+<ul>
+  <li><a href="spring-cloud-gateway-server-webflux/starter.html">Starter (如何引入)</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/glossary.html">Glossary (术语表)</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/how-it-works.html">How It Works (工作原理)</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/configuring-route-predicate-factories-and-filter-factories.html">配置路由断言与过滤器工厂</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/request-predicates-factories.html">Route Predicate Factories (路由断言)</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories.html">GatewayFilter Factories (过滤器工厂)</a>
+  <ul>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/addrequestheader-factory.html">AddRequestHeader</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/addrequestheadersifnotpresent-factory.html">AddRequestHeadersIfNotPresent</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/addrequestparameter-factory.html">AddRequestParameter</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/addresponseheader-factory.html">AddResponseHeader</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/circuitbreaker-filter-factory.html">CircuitBreaker</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/cacherequestbody-factory.html">CacheRequestBody</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/deduperesponseheader-factory.html">DedupeResponseHeader</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/fallback-headers.html">FallbackHeaders</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/jsontogrpc-factory.html">JsonToGrpc</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/local-cache-response-filter.html">LocalResponseCache</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/maprequestheader-factory.html">MapRequestHeader</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/modifyrequestbody-factory.html">ModifyRequestBody</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/modifyresponsebody-factory.html">ModifyResponseBody</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/prefixpath-factory.html">PrefixPath</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/preservehostheader-factory.html">PreserveHostHeader</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/redirectto-factory.html">RedirectTo</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/removejsonattributesresponsebody-factory.html">RemoveJsonAttributesResponseBody</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/removerequestheader-factory.html">RemoveRequestHeader</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/removerequestparameter-factory.html">RemoveRequestParameter</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/removeresponseheader-factory.html">RemoveResponseHeader</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/requestheadersize-factory.html">RequestHeaderSize</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/requestheadertorequesturi-factory.html">RequestHeaderToRequestUri</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/requestratelimiter-factory.html">RequestRateLimiter</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/rewritelocationresponseheader-factory.html">RewriteLocationResponseHeader</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/rewritepath-factory.html">RewritePath</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/rewriterequestparameter-factory.html">RewriteRequestParameter</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/rewriteresponseheader-factory.html">RewriteResponseHeader</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/savesession-factory.html">SaveSession</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/secureheaders-factory.html">SecureHeaders</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/setpath-factory.html">SetPath</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/setrequestheader-factory.html">SetRequestHeader</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/setresponseheader-factory.html">SetResponseHeader</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/setstatus-factory.html">SetStatus</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/stripprefix-factory.html">StripPrefix</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/retry-factory.html">Retry</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/requestsize-factory.html">RequestSize</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/setrequesthostheader-factory.html">SetRequestHostHeader</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/tokenrelay-factory.html">TokenRelay</a></li>
+    <li><a href="spring-cloud-gateway-server-webflux/gatewayfilter-factories/default-filters.html">Default Filters</a></li>
+  </ul></li>
+  <li><a href="spring-cloud-gateway-server-webflux/global-filters.html">Global Filters (全局过滤器)</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/httpheadersfilters.html">HttpHeadersFilters</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/tls-and-ssl.html">TLS and SSL</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/spring-security.html">Spring Security Integration</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/http-client.html">The HttpClientCustomizer</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/configuration.html">Configuration</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/route-metadata-configuration.html">Route Metadata Configuration</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/http-timeouts-configuration.html">Http timeouts configuration</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/fluent-java-routes-api.html">Fluent Java Routes API</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/the-discoveryclient-route-definition-locator.html">DiscoveryClient Route Definition Locator</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/reactor-netty-access-logs.html">Reactor Netty Access Logs</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/cors-configuration.html">CORS Configuration</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/actuator-api.html">Actuator API</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/sharing-routes.html">Sharing Routes between multiple Gateway instances</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/troubleshooting.html">Troubleshooting</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/developer-guide.html">Developer Guide</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/aot-and-native-image-support.html">AOT and Native Image Support</a></li>
+  <li><a href="spring-cloud-gateway-server-webflux/configuration-properties.html">Configuration properties</a></li>
+</ul></li>
+<li><a href="spring-cloud-gateway-server-webmvc.html">Spring Cloud Gateway Server Web MVC</a>
+<ul>
+  <li><a href="spring-cloud-gateway-server-webmvc/starter.html">Starter</a></li>
+  <li><a href="spring-cloud-gateway-server-webmvc/glossary.html">Glossary</a></li>
+  <li><a href="spring-cloud-gateway-server-webmvc/how-it-works.html">How It Works</a></li>
+  <li><a href="spring-cloud-gateway-server-webmvc/java-routes-api.html">Java Routes API</a></li>
+  <li><a href="spring-cloud-gateway-server-webmvc/gateway-request-predicates.html">Gateway Request Predicates</a></li>
+  <li><a href="spring-cloud-gateway-server-webmvc/gateway-handler-filter-functions.html">Gateway Handler Filter Functions</a></li>
+  <li><a href="spring-cloud-gateway-server-webmvc/httpheadersfilters.html">HttpHeadersFilters</a></li>
+  <li><a href="spring-cloud-gateway-server-webmvc/writing-custom-predicates-and-filters.html">Writing Custom Predicates and Filters</a></li>
+  <li><a href="spring-cloud-gateway-server-webmvc/working-with-servlets-and-filters.html">Working with Servlets and Servlet Filters</a></li>
+  <li><a href="spring-cloud-gateway-server-webmvc/tls-and-ssl.html">TLS and SSL</a></li>
+  <li><a href="spring-cloud-gateway-server-webmvc/spring-security.html">Spring Security Integration</a></li>
+</ul></li>
+<li><a href="spring-cloud-gateway-proxy-exchange.html">Proxy Exchange Gateway with Spring Web MVC or WebFlux</a></li>
+<li><a href="appendix.html">Appendix: Common application properties</a></li>
+  </nav>
+  <main class="content">
+    <h1>Spring Cloud Gateway 5.0.3 完整说明书 <span class="badge">离线版</span></h1>
+    <p>本目录为 <strong>Spring Cloud Gateway 5.0.3</strong> 官方参考文档的完整离线副本，由官方 GitHub 仓库
+    <code>v5.0.3</code> tag 的 AsciiDoc 源文件构建。</p>
+    <div class="meta">
+      <p><strong>📅 构建日期：</strong>2026-10-13</p>
+      <p><strong>📦 版本：</strong>5.0.3</p>
+      <p><strong>🔗 在线原文：</strong><a href="https://docs.spring.io/spring-cloud-gateway/reference/">https://docs.spring.io/spring-cloud-gateway/reference/</a></p>
+      <p><strong>📂 源码位置：</strong><code>docs/spring-cloud-gateway/源文件/</code>（AsciiDoc 原文，129 个文件）</p>
+      <p><strong>🖥 页面文件：</strong><code>docs/spring-cloud-gateway/html/</code>（125 个 HTML 页面）</p>
+    </div>
+    <h2>目录导航</h2>
+    <p>使用左侧侧边栏浏览全部章节。点击任意链接即可阅读对应章节。</p>
+    <h2>文档内容概览</h2>
+    <ul>
+      <li><strong>WebFlux 版</strong>：Spring Cloud Gateway 基于 Spring WebFlux（响应式）的核心实现，包含路由、断言、过滤器工厂、全局过滤器、TLS、安全、配置、Actuator、故障排查、开发者指南、AOT/原生镜像支持、全部配置属性。</li>
+      <li><strong>Web MVC 版</strong>：Spring Cloud Gateway Server Web MVC（基于 Servlet 的网关实现），包含 Java Routes API、请求断言、处理器过滤器函数等。</li>
+      <li><strong>Proxy Exchange</strong>：基于 Spring Web MVC 或 WebFlux 的代理交换网关。</li>
+      <li><strong>附录</strong>：Common application properties（常用配置属性全表）。</li>
+    </ul>
+    <h2>开始阅读</h2>
+    <p>建议从 <a href="spring-cloud-gateway-server-webflux.html">Spring Cloud Gateway Server WebFlux</a> 开始，或先读
+    <a href="spring-cloud-gateway-server-webflux/starter.html">如何引入</a> 与
+    <a href="spring-cloud-gateway-server-webflux/how-it-works.html">工作原理</a>。</p>
+  </main>
+</div>
+</body>
+</html>

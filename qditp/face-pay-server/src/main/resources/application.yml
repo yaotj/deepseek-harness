@@ -10,12 +10,18 @@ other:
     database: ${DB_DATABASE:}
     username: ${DB_USERNAME:}
     password: ${DB_PASSWORD:}
+    audit:
+      heartbeat:
+        skip: true
   web:
     # MUST 带引号写 "null"：YAML 裸 null 绑成空串后 url.contains("") 恒为 true，所有请求一律 403。详见 docs/ops/生产环境清单.md 附.三.5
     unSafeUrlChars: "null"
     enableBodyCacheFilter: true
     enableLogRequestInFilter: true
     enableLogTakeTimesInInterceptor: true
+  interceptor:
+    heartbeat:
+      skip: true
 
 server:
   port: 58101

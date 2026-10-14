@@ -26,7 +26,7 @@
 - `/internal/blacklist/channel-sync/compensate-release` — 补推**解黑**方向（扫**主表**里 `STATUS='RELEASING'` 且同白名单的行；**载体在主表、NEVER 据 `BLACKLIST_RELEASED` 的 `CHANNEL_SYNC_*` 扫表**）
 - `/internal/blacklist/auto-release` — **自动解除**（2026-09-21 新增，`sys_job` 230，见下面「自动解除」一节）。**这是本前缀下唯一会改黑名单本体的端点**，`limit` 是可选 `@RequestParam`
 
-⚠️ **该前缀下现在已有三个写接口，但仍无验签** —— `BlacklistInternalController` 类注释里那句「当前只有一个只读盘点接口，因此无需鉴权」**已不成立**，与 AGENTS.md §5.2 冲突，上生产前 MUST 补，**且 MUST 优先覆盖 `/auto-release`**（误调等于把欠费卡提前放行）。四个端点现在**都有 `sys_job` 触发记录**：280 盘点 / 320 加黑补偿 / 325 解黑补偿 / 230 自动解除（**前三个 2026-09-21 随「200 以下全量重编号」由 105 / 125 / 126 改为 280 / 320 / 325，触发目标与 cron 均未变，NEVER 回退成旧号**）；**本文件此前写「两个 compensate 端点还没有 `sys_job` 触发记录、只能手工调」已过期，NEVER 回退**。
+⚠️ **该前缀下现在已有三个写接口，但仍无验签** —— `BlacklistInternalController` 类注释里那句「当前只有一个只读盘点接口，因此无需鉴权」**已不成立**，与 AGENTS.md §5.2 冲突，上生产前 MUST 补，**且 MUST 优先覆盖 `/auto-release`**（误调等于把欠费卡提前放行）。四个端点现在**都有 `sys_job` 触发记录**：280 盘点 / 320 加黑补偿 / 325 解黑补偿 / 230 自动解除（**前三个 2026-09-21 随「200 以下全量重编号」由 105 / 125 / 126 改为 280 / 320 / 325，触发目标与 cron 均未变，NEVER 回退成旧号**）。
 
 RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackList`、`alipayTripReceiveBlackList`（内部复用查询）、`inspectReleasable`、`compensateChannelSyncAdd`、`compensateChannelSyncRelease`、`autoRelease`。**仍没有 `deleteBlackList`**：人工解除只能走 HTTP 或运营页，程序化解除只有 `autoRelease` 这一条（且被 `BLACK_CAUSE='01'` 收窄）。
 表：`BLACKLIST`、`BLACKLIST_OPERATE_LOG`、**`BLACKLIST_RELEASED`**（解除历史表）
@@ -60,9 +60,9 @@ RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackL
 
 ### 四个拉黑入口（物理写点只有 `BlacklistServiceImpl.addBlackList` 一处）
 
-- **A. pay-sign 免密扣款失败** — `PaymentDomainServiceImpl.requestPay`（`:139`）→ `addBlacklistForPaymentFailure`（`:850`）。**2026-09-15 前宿主是已删除的 `PaySignWorkflow`（ADR-D87），旧行号 `:620 → :2250-2285` 已失效。** **有** payQuery 二次确认（`queryGatewayPayStatus`，`:898`），只有支付中心明确回 FAIL 才拉黑；仅 `paymentVendor ∈ {03,05}`。欠费落 `GATE_TXN_PAY`。
-- **B. 支付宝出行扣款失败** — **发起点是三个**，统一经 `port/BlacklistPort` → `BlacklistRpcAdapter.addBlackList`（`:29`→`:42`）出网：`service/impl/pay/AlipayPayRequestServiceImpl`（`:197` → `addBlackListIfNeeded` `:309`）、`service/impl/payment/PaymentRequestService`（`:92` → `:131`）、`service/impl/payment/AlipayTxnPayService`（`:180` → `:270`）。**本文件此前只列 `PaymentRequestService.java:124/129 → :158-176` 一处、行号也已全错，NEVER 回退**。**「无二次确认」这条现在不全成立**：`domain/PayCenterTradeStatus` 的类注释明确它是 `AlipayPayRequestServiceImpl.addBlackListIfNeeded` 的「确认真的失败」判据，**判断某个发起点到底有没有二次确认 MUST 现读那三个方法，NEVER 沿用本行的旧断言**。欠费落 `ALIPAY_PAY_LOG.PAY_STATUS='FAIL'`，`GATE_TXN_PAY` 里**没有对应行**。
-- **C. `POST /admin/payment/addBlackList`** — `fep-alipay-server/AlipayPaymentServiceImpl.java:70-105` 纯转发，reason 完全由外部传入，仓库内找不到调用方。
+- **A. pay-sign 免密扣款失败** — `PaymentDomainServiceImpl.requestPay`→ `addBlacklistForPaymentFailure`。**2026-09-15 前宿主是已删除的 `PaySignWorkflow`（ADR-D87），旧行号 ` → ` 已失效。有** payQuery 二次确认（`queryGatewayPayStatus`），只有支付中心明确回 FAIL 才拉黑；仅 `paymentVendor ∈ {03,05}`。欠费落 `GATE_TXN_PAY`。
+- **B. 支付宝出行扣款失败** — **发起点是三个**，统一经 `port/BlacklistPort` → `BlacklistRpcAdapter.addBlackList`（→）出网：`service/impl/pay/AlipayPayRequestServiceImpl`（ → `addBlackListIfNeeded` ）、`service/impl/payment/PaymentRequestService`（ → ）、`service/impl/payment/AlipayTxnPayService`（ → ）。。**「无二次确认」这条现在不全成立**：`domain/PayCenterTradeStatus` 的类注释明确它是 `AlipayPayRequestServiceImpl.addBlackListIfNeeded` 的「确认真的失败」判据，**判断某个发起点到底有没有二次确认 MUST 现读那三个方法，NEVER 沿用本行的旧断言**。欠费落 `ALIPAY_PAY_LOG.PAY_STATUS='FAIL'`，`GATE_TXN_PAY` 里**没有对应行**。
+- **C. `POST /admin/payment/addBlackList`** — `fep-alipay-server/AlipayPaymentServiceImpl.java` 纯转发，reason 完全由外部传入，仓库内找不到调用方。
 - **D. 运营后台手工** — `POST /page/blacklist`，reason 自由文本。
 
 ⚠️ **REASON 是四个来源混写的自由文本，NEVER 用它做程序判定**。生产 35 条 ADD 实测分布：`用户挂失补卡` 22、`订单已支付成功，请勿重复支付` 9、`操作失败` 2、`交易超过审核周期` 1、`地铁扣款失败` 1。**占比最高的挂失补卡与欠费无关**，按「欠费结清」自动删除会让挂失旧卡恢复过闸。
@@ -80,7 +80,7 @@ RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackL
 - 两个源的查询已抽成 `service/CardUnsettledQuery`（`gateUnsettled` / `alipayUnsettled`，三态：`TRUE` 有欠费 / `FALSE` 已结清 / `null` 查询未成功执行），**盘点与自动解除共用这一份**，NEVER 在任一侧再抄一份私有方法
 
 ### 自动解除（2026-09-21，blacklist-server 2.0.30 + web-admin 1.1.38，已部署并端到端验通）
-**本文件此前那句「整条链路里没有自动解除、只能人工」已作废，NEVER 回退。**
+
 
 - 入口 `POST /internal/blacklist/auto-release` → `service/BlacklistAutoReleaseService`（**不带 `@Transactional`**，方法内有出网）
 - 触发方：web-admin 的 `sys_job` **230「自动解除黑名单」**，`blacklistAutoReleaseQuartzTask.autoRelease()`，cron `0 0 10,16 * * ?`
@@ -96,7 +96,7 @@ RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackL
 
 与 `sys_job` 280 盘点**职责不同、NEVER 合并**：280 只读、覆盖全部加黑原因、结论交人工；230 会改数据、只覆盖能被机器证明的那一类。
 
-**已知覆盖缺口（未闭合）**：`pay-sign-server` 免密扣款失败加黑时刻意写 `channelCode="99"`（`PaymentDomainServiceImpl.java:492`，注释说明不能拿 `paymentVendor` 当渠道）、运营后台默认也是 `99`，因此**这类加黑每轮计入 `skipped` 且永远解不掉**。`skipped` 长期不为 0 **MUST 从加黑入口治**（补 `channelCode`），**NEVER 在解除侧猜渠道**。另有数据脏值：库里存在 `BLACK_CAUSE='1'`（非 `'01'`）的历史行，按契约严格匹配时扫不到，是否归一化待裁决。
+**已知覆盖缺口（未闭合）**：`pay-sign-server` 免密扣款失败加黑时刻意写 `channelCode="99"`（`PaymentDomainServiceImpl.java`，注释说明不能拿 `paymentVendor` 当渠道）、运营后台默认也是 `99`，因此**这类加黑每轮计入 `skipped` 且永远解不掉**。`skipped` 长期不为 0 **MUST 从加黑入口治**（补 `channelCode`），**NEVER 在解除侧猜渠道**。另有数据脏值：库里存在 `BLACK_CAUSE='1'`（非 `'01'`）的历史行，按契约严格匹配时扫不到，是否归一化待裁决。
 
 ⚠️ 外发通知现状（2026-09-18 复核）：
 - 出网**唯一**收口在 `blacklist/port/AlipayBlacklistNotifyPort`（把 `AlipayPaySignClient.notifyBlackListChange` 的「空响应返 null、异常上抛」翻成 sealed `RpcOutcome`，调用点穷尽 `switch`）。`BlacklistServiceImpl` 里原先那个 `notifyAlipayExternalBlacklistAsync` **已删除，NEVER 再按那个方法名去找出网点**。
@@ -104,7 +104,7 @@ RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackL
 
 排查「黑名单没通知到 APP」时 **MUST** 先确认 APP 方向压根没有实现（不是配错地址），**NEVER** 假设通知链路完整。
 
-⚠️ `queryBlackList` 是**纯查询**，仓库内唯一调用方是 `fep-app-server/TicketAppServiceImpl.java:38-39`（IF8A-73）。过闸 / 开码 / 开户链路**都不调它**，本地查询不产生拦截，实际「过不了闸」来自出向通知支付宝。`account-server` 的 `IN_BLACKLIST("8005")` 是**死代码**，全仓库无引用。
+⚠️ `queryBlackList` 是**纯查询**，仓库内唯一调用方是 `fep-app-server/TicketAppServiceImpl.java`（IF8A-73）。过闸 / 开码 / 开户链路**都不调它**，本地查询不产生拦截，实际「过不了闸」来自出向通知支付宝。`account-server` 的 `IN_BLACKLIST("8005")` 是**死代码**，全仓库无引用。
 
 
 ---
@@ -118,7 +118,7 @@ RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackL
 RPC：`rpc/.../key/KeyClient.java`
 下游：`SecurityClient` → acc-security-server 的
 `requestDpk` / `requestUserSm2Key` / `requestSignPubkey` / `requestExportUserPriKey`
-地址取 `service.security.url`（`key-server/src/main/resources/application.properties:23`，
+地址取 `service.security.url`（`key-server/src/main/resources/application.properties`，
 当前默认值是集群内网 Service 名 `http://security-server-8h3eo-svc.itp.svc:8080`，2026-09-11 `kubectl get svc -n itp` 实测回填）。
 ⚠️ **该 Service 端口是 8080，acc-security-server 容器自身的 `server.port` 才是 9012，NEVER 按 `server.port` 拼地址**。
 本行原记的 `http://127.0.0.1:9012` 已作废（2026-09-14 核对源码更正），**NEVER 回退**。
@@ -193,32 +193,32 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 
 **契约与判据**
 
-- para-server / `ParaImportController.importFromFtpForQuartz` — `para-server/src/main/java/com/chinasofti/huateng/para/controller/ParaImportController.java:54-56`：「供 web-server Quartz 定时任务调用：扫描FTP参数文件并入库。retCode=0000 表示本次扫描全部成功，存在失败文件时返回 9999。」
-- para-server / `ParaFileImportService.importLocalFile` — `para-server/src/main/java/com/chinasofti/huateng/para/service/ParaFileImportService.java:49-54`：「入库判据是「版本号 + MD5」（2026-09-08 由「仅版本号」改成本形态）：库中无该 paraType，或文件版本号更高 → 导入；文件版本号更低 → 跳过（版本回退不处理）；版本号相同：MD5 不同 → 导入；MD5 相同 → 跳过；库中 MD5 为空 → 导入（补齐 MD5）」。
-- para-server / `ParaFtpScanService`（类注释）— `para-server/src/main/java/com/chinasofti/huateng/para/service/ParaFtpScanService.java:26-28`：「扫描FTP目录中的路网拓扑(0001)、费率(0004)参数文件，按「版本号 + MD5」判断有无变更，有变更时下载并解析入库。」
-- para-server / `ParaFtpScanService.PARA_FILE_PATTERN` — `.../service/ParaFtpScanService.java:36`：「参数文件名规则：PRM. + 参数类型(4位) + . + 节点编码(4位) + . + 版本号(6位) + [. + 尾段]」。
-- para-server / `ParaFtpScanService.findCandidates` — `.../service/ParaFtpScanService.java:126-132`：「2026-09-08 起预筛判据是「版本号 + MD5」。FTP LIST 拿不到 MD5，必须下载后才能算，因此本方法只能按版本号做**粗筛**，等版本的文件也要进候选下载：文件版本号 &gt; 库中版本 → 候选（版本升高）；文件版本号 = 库中版本 → 候选（需下载后比 MD5 才能确定有无变更）；文件版本号 &lt; 库中版本 → 跳过（版本回退不处理）」。
-- para-server / `ParaFileReadUtils.md5Hex` — `para-server/src/main/java/com/chinasofti/huateng/para/util/ParaFileReadUtils.java:102-103`：「参数文件的 MD5 约定是「除尾部 16 字节校验值外的全文」，即 md5Hex(bytes, 0, len - 16)，结果就是 TBL_PARA_VERSION.MD5_VALUE 存的值。」
-- para-server / `ParaImportResult.skippedSameContent` — `para-server/src/main/java/com/chinasofti/huateng/para/model/ParaImportResult.java:29`：「版本号与库中一致、且文件内容 MD5 也一致 —— 真正的「无变更」，跳过。」
-- para-server / `ParaFtpScanService.importCandidate`（下载后入库处，行内注释）— `.../service/ParaFtpScanService.java:192`：「解析入库（内部按文件头版本号 + 全文MD5做权威复核，无变更会跳过）」。
-- para-server / `ParaFtpProperties.remoteDir` — `para-server/src/main/java/com/chinasofti/huateng/para/config/ParaFtpProperties.java:14`：「ACC 放置参数文件的远端目录。2026-09-08 实测真实路径是 /parameter/cur/，其下没有 97000000 子目录。」
-- para-server / `AppParaController`（类注释）— `para-server/src/main/java/com/chinasofti/huateng/para/controller/AppParaController.java:13-14`：「fep-app-server 接收 APP 公共报文后，会通过 rpc 模块调用这里的接口；本 Controller 不处理 APP 公共报文字段，只接收 fep-app 传入的 bizData 对象。」
-- para-server / `AppParaController` 的接口编号映射 — 同文件 `:27`「IF8A-09 获取单次购买单程票最大张数」、`:37`「IF8A-07 获取线路代码」、`:49`「IF8A-08 获取车站代码」、`:61`「IF8A-10 计算票价」、`:73`「IF8A-17 获取线路站点代码版本」；`:39` 与 `:75` 均注明「请求参数；接口规范未定义业务字段，允许为空」，`:51`「请求参数；lineCode 为空时返回全部线路车站」。
-- para-server / `AppParaController.queryStationName` — 同文件 `:87`：「该接口给内部服务使用，例如 ticket-server 查询上一笔行程时按站点代码补充站名。」
-- para-server / `AppParaServiceImpl.requestFareCalc` — `para-server/src/main/java/com/chinasofti/huateng/para/service/impl/AppParaServiceImpl.java:93`：「根据进出站查询费率等级，并按默认 FARE_TYPE = 0 换算为基础票价。」；`:99`「进出站是计算票价的必要条件，缺任意一个都无法继续查询费率矩阵。」；`:123`「数据完整时返回成功，并按 APP 接口字段类型转成字符串。」
-- para-server / `AppParaServiceImpl.requestLineStationVersion` — 同文件 `:133`「线路和车站代码同属路网参数文件，当前使用路网参数版本作为二者版本号。」、`:139`「0001 是路网拓扑参数类型，线路和车站代码都来自该参数文件。」、`:143`「如果尚未导入路网参数，返回成功但版本字段为空，避免查询接口异常。」、`:145`「APP 接口要求线路版本和车站版本分别返回，这里二者共用当前路网版本号。」、`:149`「版本变更日期取参数文件头中的生效时间。」
-- para-server / `AppParaServiceImpl.requestLineCode` — 同文件 `:70`：「查询类接口只要查询过程正常，即返回成功码。」；`:73`「线路数据取 TBL_PARA_VERSION 中路网参数的当前版本。」；`:87`「request 为空时按全部线路查询；lineCode 有值时只查指定线路车站。」
-- para-server / `AppParaQueryMapper.xml` 版本口径 — `para-server/src/main/resources/mapper/AppParaQueryMapper.xml:5-6`「IF8A-07：查询当前路网参数版本下的线路代码。PARA_TYPE = '0001' 表示路网拓扑参数，CURRENT_VER_NO 是当前已入库并生效的版本号。」；`:21-22`「IF8A-08：…transferYn 通过换乘站参数表判断，只要车站出现在换乘关系中即认为是换乘站。」；`:45-46`「IF8A-10：按进出站查询当前费率参数版本中的费率等级。PARA_TYPE = '0004' 表示费率参数，FARE_MATRIX 保存站点到站点的费率等级。」；`:59-60`「IF8A-10：按费率等级查询当前费率参数版本中的基础票价。APP 入参没有票价类型，按默认 FARE_TYPE = 0 查询基础票价。」；`:73-74` 与 `:104` 注明按车站代码查站名、批量查站名均为 ticket-server 行程记录查询使用。
+- para-server / `ParaImportController.importFromFtpForQuartz` — `para-server/src/main/java/com/chinasofti/huateng/para/controller/ParaImportController.java`：「供 web-server Quartz 定时任务调用：扫描FTP参数文件并入库。retCode=0000 表示本次扫描全部成功，存在失败文件时返回 9999。」
+- para-server / `ParaFileImportService.importLocalFile` — `para-server/src/main/java/com/chinasofti/huateng/para/service/ParaFileImportService.java`：「入库判据是「版本号 + MD5」（2026-09-08 由「仅版本号」改成本形态）：库中无该 paraType，或文件版本号更高 → 导入；文件版本号更低 → 跳过（版本回退不处理）；版本号相同：MD5 不同 → 导入；MD5 相同 → 跳过；库中 MD5 为空 → 导入（补齐 MD5）」。
+- para-server / `ParaFtpScanService`（类注释）— `para-server/src/main/java/com/chinasofti/huateng/para/service/ParaFtpScanService.java`：「扫描FTP目录中的路网拓扑(0001)、费率(0004)参数文件，按「版本号 + MD5」判断有无变更，有变更时下载并解析入库。」
+- para-server / `ParaFtpScanService.PARA_FILE_PATTERN` — `.../service/ParaFtpScanService.java`：「参数文件名规则：PRM. + 参数类型(4位) + . + 节点编码(4位) + . + 版本号(6位) + [. + 尾段]」。
+- para-server / `ParaFtpScanService.findCandidates` — `.../service/ParaFtpScanService.java`：「2026-09-08 起预筛判据是「版本号 + MD5」。FTP LIST 拿不到 MD5，必须下载后才能算，因此本方法只能按版本号做**粗筛**，等版本的文件也要进候选下载：文件版本号 &gt; 库中版本 → 候选（版本升高）；文件版本号 = 库中版本 → 候选（需下载后比 MD5 才能确定有无变更）；文件版本号 &lt; 库中版本 → 跳过（版本回退不处理）」。
+- para-server / `ParaFileReadUtils.md5Hex` — `para-server/src/main/java/com/chinasofti/huateng/para/util/ParaFileReadUtils.java`：「参数文件的 MD5 约定是「除尾部 16 字节校验值外的全文」，即 md5Hex(bytes, 0, len - 16)，结果就是 TBL_PARA_VERSION.MD5_VALUE 存的值。」
+- para-server / `ParaImportResult.skippedSameContent` — `para-server/src/main/java/com/chinasofti/huateng/para/model/ParaImportResult.java`：「版本号与库中一致、且文件内容 MD5 也一致 —— 真正的「无变更」，跳过。」
+- para-server / `ParaFtpScanService.importCandidate`（下载后入库处，行内注释）— `.../service/ParaFtpScanService.java`：「解析入库（内部按文件头版本号 + 全文MD5做权威复核，无变更会跳过）」。
+- para-server / `ParaFtpProperties.remoteDir` — `para-server/src/main/java/com/chinasofti/huateng/para/config/ParaFtpProperties.java`：「ACC 放置参数文件的远端目录。2026-09-08 实测真实路径是 /parameter/cur，其下没有 97000000 子目录。」
+- para-server / `AppParaController`（类注释）— `para-server/src/main/java/com/chinasofti/huateng/para/controller/AppParaController.java`：「fep-app-server 接收 APP 公共报文后，会通过 rpc 模块调用这里的接口；本 Controller 不处理 APP 公共报文字段，只接收 fep-app 传入的 bizData 对象。」
+- para-server / `AppParaController` 的接口编号映射 — 同文件 「IF8A-09 获取单次购买单程票最大张数」、「IF8A-07 获取线路代码」、「IF8A-08 获取车站代码」、「IF8A-10 计算票价」、「IF8A-17 获取线路站点代码版本」； 均注明「请求参数；接口规范未定义业务字段，允许为空」，「请求参数；lineCode 为空时返回全部线路车站」。
+- para-server / `AppParaController.queryStationName` — 同文件 ：「该接口给内部服务使用，例如 ticket-server 查询上一笔行程时按站点代码补充站名。」
+- para-server / `AppParaServiceImpl.requestFareCalc` — `para-server/src/main/java/com/chinasofti/huateng/para/service/impl/AppParaServiceImpl.java`：「根据进出站查询费率等级，并按默认 FARE_TYPE = 0 换算为基础票价。」；「进出站是计算票价的必要条件，缺任意一个都无法继续查询费率矩阵。」；「数据完整时返回成功，并按 APP 接口字段类型转成字符串。」
+- para-server / `AppParaServiceImpl.requestLineStationVersion` — 同文件 「线路和车站代码同属路网参数文件，当前使用路网参数版本作为二者版本号。」、「0001 是路网拓扑参数类型，线路和车站代码都来自该参数文件。」、「如果尚未导入路网参数，返回成功但版本字段为空，避免查询接口异常。」、「APP 接口要求线路版本和车站版本分别返回，这里二者共用当前路网版本号。」、「版本变更日期取参数文件头中的生效时间。」
+- para-server / `AppParaServiceImpl.requestLineCode` — 同文件 ：「查询类接口只要查询过程正常，即返回成功码。」；「线路数据取 TBL_PARA_VERSION 中路网参数的当前版本。」；「request 为空时按全部线路查询；lineCode 有值时只查指定线路车站。」
+- para-server / `AppParaQueryMapper.xml` 版本口径 — `para-server/src/main/resources/mapper/AppParaQueryMapper.xml`「IF8A-07：查询当前路网参数版本下的线路代码。PARA_TYPE = '0001' 表示路网拓扑参数，CURRENT_VER_NO 是当前已入库并生效的版本号。」；「IF8A-08：…transferYn 通过换乘站参数表判断，只要车站出现在换乘关系中即认为是换乘站。」；「IF8A-10：按进出站查询当前费率参数版本中的费率等级。PARA_TYPE = '0004' 表示费率参数，FARE_MATRIX 保存站点到站点的费率等级。」；「IF8A-10：按费率等级查询当前费率参数版本中的基础票价。APP 入参没有票价类型，按默认 FARE_TYPE = 0 查询基础票价。」； 注明按车站代码查站名、批量查站名均为 ticket-server 行程记录查询使用。
 
 **决策理由**
 
-- para-server / `ParaFileImportService.importLocalFile` — `.../service/ParaFileImportService.java:56-57`：「改成带 MD5 的原因：ACC 实际出现过同一版本号两份不同内容的文件（0001 版本 41 有 4 段命名与 5 段命名两份，MD5 不同）。只比版本号时后到的那份永远进不来，两边数据无法收敛。」
-- para-server / `ParaFtpScanService.findCandidates` — `.../service/ParaFtpScanService.java:134-135`：「最终「导入还是跳过」由 ParaFileImportService 单点裁决，本方法 NEVER 自己比 MD5——那会让 /para/import/ftp 与 /para/import/directory 两条路径的判据分叉。」
+- para-server / `ParaFileImportService.importLocalFile` — `.../service/ParaFileImportService.java`：「改成带 MD5 的原因：ACC 实际出现过同一版本号两份不同内容的文件（0001 版本 41 有 4 段命名与 5 段命名两份，MD5 不同）。只比版本号时后到的那份永远进不来，两边数据无法收敛。」
+- para-server / `ParaFtpScanService.findCandidates` — `.../service/ParaFtpScanService.java`：「最终「导入还是跳过」由 ParaFileImportService 单点裁决，本方法 NEVER 自己比 MD5——那会让 /para/import/ftp 与 /para/import/directory 两条路径的判据分叉。」
 
 **陷阱**
 
-- para-server / `ParaFtpScanService.PARA_FILE_PATTERN` — `.../service/ParaFtpScanService.java:37-38`：「2026-09-08 实测 ACC 真实文件名带第 5 段（如 PRM.0001.9900.000041.02000000），因此尾段做可选匹配；原先以 (\d{6})$ 收尾会一个文件都匹配不上。」
-- para-server / `ParaFileReadUtils.md5Hex` — `.../util/ParaFileReadUtils.java:105-108`：「⚠️ RowNetworkParser / CalendarParser / TicketParser / RateParser 各有一份**算法完全相同的私有 md5Hex**（历史实现，未合并）。ParaFileImportService 的「版本号 + MD5」预筛依赖本方法与那四份的结果**逐字节一致**——改动任意一处 MUST 同步改其余四处，否则内容相同的文件会被误判成有变更，每轮扫描都重复入库。」
+- para-server / `ParaFtpScanService.PARA_FILE_PATTERN` — `.../service/ParaFtpScanService.java`：「2026-09-08 实测 ACC 真实文件名带第 5 段（如 PRM.0001.9900.000041.02000000），因此尾段做可选匹配；原先以 (\d{6})$ 收尾会一个文件都匹配不上。」
+- para-server / `ParaFileReadUtils.md5Hex` — `.../util/ParaFileReadUtils.java`：「⚠️ RowNetworkParser / CalendarParser / TicketParser / RateParser 各有一份**算法完全相同的私有 md5Hex**（历史实现未合并）。ParaFileImportService 的「版本号 + MD5」预筛依赖本方法与那四份的结果**逐字节一致**——改动任意一处 MUST 同步改其余四处，否则内容相同的文件会被误判成有变更，每轮扫描都重复入库。」
 
 本小节抽取源中**没有**关于「改 `TBL_PARA_VERSION.CURRENT_VER_NO` 做重导验证 NEVER 用当前版本减 1」的任何文字（全模块 grep `CURRENT_VER_NO 减` / `减 1` 均 0 命中），因此不收录。
 
@@ -226,31 +226,31 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 
 **契约与判据**
 
-- key-server / `KeyController`（类注释）— `key-server/src/main/java/com/chinasofti/huateng/key/controller/KeyController.java:17-19`：「承接 IF8A-02 请求同步密钥的后端业务编排，供 fep-app-server 调用。按卡类型处理二维码 SM2 密钥或 HCE DPK；APP 侧公共报文解析仍放在 fep-app-server，key-server 只处理 bizData 中的业务参数。」
-- key-server / `KeyController.requestKeyList` — 同文件 `:34-35`：「卡类型 `03`/`04` 时返回 HCE 消费 DPK；其余卡均按二维码卡生成用户 SM2 密钥。具体密钥材料均由 acc-security-server 导出后转加密。」
-- key-server / `KeySyncServiceImpl`（类注释）— `key-server/src/main/java/com/chinasofti/huateng/key/service/impl/KeySyncServiceImpl.java:47-49`：「处理步骤与旧系统保持一致：查询可用 CA 密钥，随机选择一条 CA，调用 acc-security-server 生成用户 SM2 密钥对，使用 CA 签名用户公钥，导出用户私钥后进行 3DES 转加密，最后组装 keyList 返回 APP。」
-- key-server / `KeySyncServiceImpl.requestHceKeyList` — 同文件 `:269-270` 与 `:273`：「安全服务返回的是 ACC KEK 加密的 DPK。key-server 在内存中使用 ACC 3DES 密钥解密，并立即按 APP_SERVER 3DES 密钥转加密，最终只向 APP 返回转加密结果。」「@return keyId=00、keyType=0 的 DPK 密钥列表」。
-- key-server / `KeySyncServiceImpl.buildHexEffectiveDate` — 同文件 `:498`：「旧系统按当前时间加 key.sync.days 后转成 2000-01-01 以来秒数的四字节HEX。」
-- key-server / `KeySyncService.requestAgmSynKeyList` — `key-server/src/main/java/com/chinasofti/huateng/key/service/KeySyncService.java:32-33`：「Compares an AGM's reported key batches with approved platform batches and returns the key material required to bring the AGM up to date.」
-- key-server / `TripleDesEcbUtils`（类注释）— `key-server/src/main/java/com/chinasofti/huateng/key/util/TripleDesEcbUtils.java:14-16`：「IF8A-02 中用户私钥需要先用 ACC 侧 3DES 密钥解密，再用 APP_SERVER 侧 3DES 密钥加密后返回给 APP。旧系统配置可能使用16字节双长度密钥或24字节三长度密钥；本工具在遇到16字节密钥时按 K1 + K2 + K1 扩展为24字节。」
-- key-server / `TripleDesEcbUtils.encryptTextToBase64` — 同文件 `:50-51`：「旧工具类使用 DESede/ECB/PKCS5Padding，明文和密钥都按 UTF-8 字符串取字节，加密结果用 Base64 输出。IF8A-02 返回给 APP 的 keyPrivate 需要保持这种格式。」
-- key-server / `MetroMemberStaticKey`（类注释）— `key-server/src/main/java/com/chinasofti/huateng/key/entity/MetroMemberStaticKey.java:8`：「仅保存 ACC KEK 加密的 DPK，不能在数据库中保存解密后的 DPK 明文。」
-- key-server / `MetroCaKeystore.keyStatus` — `key-server/src/main/java/com/chinasofti/huateng/key/entity/MetroCaKeystore.java:35`：「状态：0初始化，1使用，2暂停。」
-- key-server / `KeyVersionQueryServiceImpl.STATUS_DESC` — `key-server/src/main/java/com/chinasofti/huateng/key/service/impl/KeyVersionQueryServiceImpl.java:23-24` 与 `:34`：「状态码→中文的映射集中在 STATUS_DESC：AGM 域用 20010/20020/20030，CA 与 HCE 域用 0/1/2，两套口径共存，NEVER 合并成一张表（两个域的 1 含义不同）。」「域 → (状态码 → 中文)。AGM 与另两域是两套独立口径，键冲突属预期，故按域分表。」
-- key-server / `KeyVersionQueryService.listCurrentVersions` — `key-server/src/main/java/com/chinasofti/huateng/key/service/KeyVersionQueryService.java:11-14`：「**安全红线**：本接口只暴露版本号、状态、时间等元信息，NEVER 返回任何密钥材料明文（KEY_VALUE / KEY_PRIVATE / KEY_PUBLIC / KEY_WRAP_VALUE*）。任何一个域查询失败时该域记一条「查询失败」行而不让整体 500，避免单个域的库表问题把整个监控页打挂。」
-- key-server / `KeyPageController`（类注释）— `key-server/src/main/java/com/chinasofti/huateng/key/controller/page/KeyPageController.java:15-16`：「**安全红线**：响应 NEVER 包含任何密钥材料明文，只放版本号/状态/时间，见 KeyVersionView 的类注释。」
-- key-server / `KeyVersionView`（类注释与字段）— `key-server/src/main/java/com/chinasofti/huateng/key/page/KeyVersionView.java:6-8`：「本视图 NEVER 携带任何密钥材料明文（KEY_VALUE / KEY_PRIVATE / KEY_PUBLIC / KEY_WRAP_VALUE*），只放版本号、状态、时间等元信息。填充方 MUST 逐字段核对来源 SQL 的 select 列表。」；字段口径见 `:11`「密钥域：AGM_KEY（闸机密钥）/ CA_KEYSTORE（CA 密钥仓库）/ HCE_STATIC_KEY（HCE 静态密钥）」、`:13`「接入方编码（仅 AGM 密钥按接入方分组，其余域为 null）」、`:15`「当前版本标识：AGM 为批次号，CA 为 KEY_IDX，HCE 为卡数汇总」、`:17`「状态码（域内各自口径，页面原样展示）」、`:21`「生效日期（源列原样，yyyyMMdd）」。
-- key-server / `MetroAgmKeyVersionMapper.selectLatestByProvider` — `key-server/src/main/java/com/chinasofti/huateng/key/mapper/MetroAgmKeyVersionMapper.java:17-18`：「只读元信息（批次号/状态/时间），本表不存密钥材料。NEVER 在本接口加返回 KEY_VALUE 的方法——密钥材料在 METRO_AGM_KEY_POOL，出库即越红线。」
-- key-server / `MetroCaKeystoreMapper.selectVersionSummary` — `key-server/src/main/java/com/chinasofti/huateng/key/mapper/MetroCaKeystoreMapper.java:26`：「NEVER 在对应 SQL 里 select KEY_PRIVATE / KEY_PUBLIC / KEY_PAIR。」
-- key-server / `MetroMemberStaticKeyMapper.selectStatusSummary` — `key-server/src/main/java/com/chinasofti/huateng/key/mapper/MetroMemberStaticKeyMapper.java:33-35`：「按状态聚合的 HCE 静态密钥卡数汇总（每卡一条、无统一版本号）。NEVER 在对应 SQL 里 select KEY_WRAP_VALUE1 明文。」
-- key-server / `MetroMemberStaticKeyMapper.insertIfAbsent` — 同文件 `:25`：「写入静态密钥缓存；若同一卡号已由并发请求写入则保持原有记录。」
-- key-server / `MetroAgmKeyVersionMapper.xml` — `key-server/src/main/resources/mapper/MetroAgmKeyVersionMapper.xml:12-14`：「按接入方取最新一条版本记录（按批次号降序取首行）。只读元信息，本表本就不存密钥材料；NEVER 关联 METRO_AGM_KEY_POOL 取 KEY_VALUE。PROVIDER_ID 排序保证多接入方时输出稳定。」
-- key-server / `MetroCaKeystoreMapper.xml` — `key-server/src/main/resources/mapper/MetroCaKeystoreMapper.xml:27-29`：「CA 密钥仓库的元信息列表。NEVER 在本语句 select KEY_PRIVATE / KEY_PUBLIC / KEY_PAIR —— 运营页只看版本索引、生效日期、状态，密钥材料明文出库即越红线。」
-- key-server / `MetroMemberStaticKeyMapper.xml` — `key-server/src/main/resources/mapper/MetroMemberStaticKeyMapper.xml:21-22`：「HCE 静态密钥按状态聚合计数（每卡一条、无统一版本号，版本列展示状态对应的卡数）。NEVER select KEY_WRAP_VALUE1 明文。」
+- key-server / `KeyController`（类注释）— `key-server/src/main/java/com/chinasofti/huateng/key/controller/KeyController.java`：「承接 IF8A-02 请求同步密钥的后端业务编排，供 fep-app-server 调用。按卡类型处理二维码 SM2 密钥或 HCE DPK；APP 侧公共报文解析仍放在 fep-app-server，key-server 只处理 bizData 中的业务参数。」
+- key-server / `KeyController.requestKeyList` — 同文件 ：「卡类型 `03`/`04` 时返回 HCE 消费 DPK；其余卡均按二维码卡生成用户 SM2 密钥。具体密钥材料均由 acc-security-server 导出后转加密。」
+- key-server / `KeySyncServiceImpl`（类注释）— `key-server/src/main/java/com/chinasofti/huateng/key/service/impl/KeySyncServiceImpl.java`：「处理步骤与旧系统保持一致：查询可用 CA 密钥，随机选择一条 CA，调用 acc-security-server 生成用户 SM2 密钥对，使用 CA 签名用户公钥，导出用户私钥后进行 3DES 转加密，最后组装 keyList 返回 APP。」
+- key-server / `KeySyncServiceImpl.requestHceKeyList` — 同文件 ：「安全服务返回的是 ACC KEK 加密的 DPK。key-server 在内存中使用 ACC 3DES 密钥解密，并立即按 APP_SERVER 3DES 密钥转加密，最终只向 APP 返回转加密结果。」「@return keyId=00、keyType=0 的 DPK 密钥列表」。
+- key-server / `KeySyncServiceImpl.buildHexEffectiveDate` — 同文件 ：「旧系统按当前时间加 key.sync.days 后转成 2000-01-01 以来秒数的四字节HEX。」
+- key-server / `KeySyncService.requestAgmSynKeyList` — `key-server/src/main/java/com/chinasofti/huateng/key/service/KeySyncService.java`：「Compares an AGM's reported key batches with approved platform batches and returns the key material required to bring the AGM up to date.」
+- key-server / `TripleDesEcbUtils`（类注释）— `key-server/src/main/java/com/chinasofti/huateng/key/util/TripleDesEcbUtils.java`：「IF8A-02 中用户私钥需要先用 ACC 侧 3DES 密钥解密，再用 APP_SERVER 侧 3DES 密钥加密后返回给 APP。旧系统配置可能使用16字节双长度密钥或24字节三长度密钥；本工具在遇到16字节密钥时按 K1 + K2 + K1 扩展为24字节。」
+- key-server / `TripleDesEcbUtils.encryptTextToBase64` — 同文件 ：「旧工具类使用 DESede/ECB/PKCS5Padding，明文和密钥都按 UTF-8 字符串取字节，加密结果用 Base64 输出。IF8A-02 返回给 APP 的 keyPrivate 需要保持这种格式。」
+- key-server / `MetroMemberStaticKey`（类注释）— `key-server/src/main/java/com/chinasofti/huateng/key/entity/MetroMemberStaticKey.java`：「仅保存 ACC KEK 加密的 DPK，不能在数据库中保存解密后的 DPK 明文。」
+- key-server / `MetroCaKeystore.keyStatus` — `key-server/src/main/java/com/chinasofti/huateng/key/entity/MetroCaKeystore.java`：「状态：0初始化，1使用，2暂停。」
+- key-server / `KeyVersionQueryServiceImpl.STATUS_DESC` — `key-server/src/main/java/com/chinasofti/huateng/key/service/impl/KeyVersionQueryServiceImpl.java`：「状态码→中文的映射集中在 STATUS_DESC：AGM 域用 20010/20020/20030，CA 与 HCE 域用 0/1/2，两套口径共存，NEVER 合并成一张表（两个域的 1 含义不同）。」「域 → (状态码 → 中文)。AGM 与另两域是两套独立口径，键冲突属预期，故按域分表。」
+- key-server / `KeyVersionQueryService.listCurrentVersions` — `key-server/src/main/java/com/chinasofti/huateng/key/service/KeyVersionQueryService.java`：「**安全红线**：本接口只暴露版本号、状态、时间等元信息，NEVER 返回任何密钥材料明文（KEY_VALUE / KEY_PRIVATE / KEY_PUBLIC / KEY_WRAP_VALUE*）。任何一个域查询失败时该域记一条「查询失败」行而不让整体 500，避免单个域的库表问题把整个监控页打挂。」
+- key-server / `KeyPageController`（类注释）— `key-server/src/main/java/com/chinasofti/huateng/key/controller/page/KeyPageController.java`：「**安全红线**：响应 NEVER 包含任何密钥材料明文，只放版本号/状态/时间，见 KeyVersionView 的类注释。」
+- key-server / `KeyVersionView`（类注释与字段）— `key-server/src/main/java/com/chinasofti/huateng/key/page/KeyVersionView.java`：「本视图 NEVER 携带任何密钥材料明文（KEY_VALUE / KEY_PRIVATE / KEY_PUBLIC / KEY_WRAP_VALUE*），只放版本号、状态、时间等元信息。填充方 MUST 逐字段核对来源 SQL 的 select 列表。」；字段口径见 「密钥域：AGM_KEY（闸机密钥）/ CA_KEYSTORE（CA 密钥仓库）/ HCE_STATIC_KEY（HCE 静态密钥）」、「接入方编码（仅 AGM 密钥按接入方分组，其余域为 null）」、「当前版本标识：AGM 为批次号，CA 为 KEY_IDX，HCE 为卡数汇总」、「状态码（域内各自口径，页面原样展示）」、「生效日期（源列原样，yyyyMMdd）」。
+- key-server / `MetroAgmKeyVersionMapper.selectLatestByProvider` — `key-server/src/main/java/com/chinasofti/huateng/key/mapper/MetroAgmKeyVersionMapper.java`：「只读元信息（批次号/状态/时间），本表不存密钥材料。NEVER 在本接口加返回 KEY_VALUE 的方法——密钥材料在 METRO_AGM_KEY_POOL，出库即越红线。」
+- key-server / `MetroCaKeystoreMapper.selectVersionSummary` — `key-server/src/main/java/com/chinasofti/huateng/key/mapper/MetroCaKeystoreMapper.java`：「NEVER 在对应 SQL 里 select KEY_PRIVATE / KEY_PUBLIC / KEY_PAIR。」
+- key-server / `MetroMemberStaticKeyMapper.selectStatusSummary` — `key-server/src/main/java/com/chinasofti/huateng/key/mapper/MetroMemberStaticKeyMapper.java`：「按状态聚合的 HCE 静态密钥卡数汇总（每卡一条、无统一版本号）。NEVER 在对应 SQL 里 select KEY_WRAP_VALUE1 明文。」
+- key-server / `MetroMemberStaticKeyMapper.insertIfAbsent` — 同文件 ：「写入静态密钥缓存；若同一卡号已由并发请求写入则保持原有记录。」
+- key-server / `MetroAgmKeyVersionMapper.xml` — `key-server/src/main/resources/mapper/MetroAgmKeyVersionMapper.xml`：「按接入方取最新一条版本记录（按批次号降序取首行）。只读元信息，本表本就不存密钥材料；NEVER 关联 METRO_AGM_KEY_POOL 取 KEY_VALUE。PROVIDER_ID 排序保证多接入方时输出稳定。」
+- key-server / `MetroCaKeystoreMapper.xml` — `key-server/src/main/resources/mapper/MetroCaKeystoreMapper.xml`：「CA 密钥仓库的元信息列表。NEVER 在本语句 select KEY_PRIVATE / KEY_PUBLIC / KEY_PAIR —— 运营页只看版本索引、生效日期、状态，密钥材料明文出库即越红线。」
+- key-server / `MetroMemberStaticKeyMapper.xml` — `key-server/src/main/resources/mapper/MetroMemberStaticKeyMapper.xml`：「HCE 静态密钥按状态聚合计数（每卡一条、无统一版本号，版本列展示状态对应的卡数）。NEVER select KEY_WRAP_VALUE1 明文。」
 
 **决策理由**
 
-- key-server / `KeyVersionQueryServiceImpl`（类注释）— `.../service/impl/KeyVersionQueryServiceImpl.java:20-21`：「三个域各自独立查询：单域失败只降级成一条「查询失败」行，NEVER 让整体接口 500（监控页的意义就是在出问题时仍看得到其它域）。」；`:61`「单域查询 + 域标记 + 状态翻译；失败降级成一条错误行。」
+- key-server / `KeyVersionQueryServiceImpl`（类注释）— `.../service/impl/KeyVersionQueryServiceImpl.java`：「三个域各自独立查询：单域失败只降级成一条「查询失败」行，NEVER 让整体接口 500（监控页的意义就是在出问题时仍看得到其它域）。」；「单域查询 + 域标记 + 状态翻译；失败降级成一条错误行。」
 
 **陷阱**
 
@@ -262,75 +262,75 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 
 **契约与判据**
 
-- blacklist-server / `BlacklistInternalController`（类注释）— `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/controller/BlacklistInternalController.java:14-16`：「当前只有一个只读盘点接口，不改任何数据，因此无需鉴权与归属校验。后续若在本前缀下新增写接口（例如真正执行自动解除），MUST 先补验签（对齐 `AccountRequestVerifier` / `ItpRequestSignVerifier`，NEVER 自造签名逻辑）。」
-- blacklist-server / `BlacklistInternalController.inspectReleaseCandidates` — 同文件 `:31` 与 `:33-34`：「盘点黑名单记录的欠费结清情况，供 web-server 的 Quartz 任务调用。」「**只读，NEVER 删除任何黑名单记录。**无入参：批量范围由服务端的 `blacklist.inspect.batch-size` 控制，避免调用方能通过参数放大单次开销。」
-- blacklist-server / `BlacklistReleaseInspectService`（类注释）— `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/BlacklistReleaseInspectService.java:23-27`：「**本类 NEVER 删除任何黑名单记录。**它只把每条记录的欠费事实查清楚并输出，供人工核对。原因：`BLACKLIST` 只有 5 列、没有拉黑类型字段，`REASON` 是四个来源混写的自由文本（支付中心应答原文 / 代码拼接模板 / 外部接口传入 / 运营手工输入）。生产实测 35 条 ADD 里 22 条是「用户挂失补卡」——与欠费无关，按「欠费结清」删掉等于让挂失旧卡恢复过闸。「钱结清了」与「可以解除」不是一回事，后者 MUST 由人看 REASON 判断。」
-- blacklist-server / `BlacklistReleaseInspectService`（类注释续）— 同文件 `:29-32`：「欠费事实要问两个模块，缺一个就会漏判：闸机出站扣费在 gate-txn-pay-server 的 `GATE_TXN_PAY`，支付宝出行在 alipay-pay-sign-server 的 `ALIPAY_PAY_LOG`，两张表都不归 blacklist-server 管，因此 MUST 走 rpc 只读接口，**NEVER** 在本模块直接写 SQL 查它们。」
-- blacklist-server / `BlacklistReleaseInspectService` 三态口径 — 同文件 `:49`「两个欠费源都查成功且都无欠费。只代表钱结清，NEVER 等同于「可以解除」。」、`:51`「至少一个欠费源仍有未结清订单。」、`:53`「至少一个欠费源查询失败，事实不明。」；`:148` 与 `:169`「返回 null 表示查询未成功执行（事实不明）」。
-- blacklist-server / `BlacklistMapper.selectForInspect` — `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/mapper/BlacklistMapper.java:65-66`：「按 CREATE_TIME 升序取最早的 limit 条：先拉黑的先盘点，避免长期积压的记录永远排不上。MUST 带 limit——盘点每条都要跨模块查两次欠费，条数不受控会把单次调度拖成长事务级别的耗时。」
-- blacklist-server / `BlacklistReleaseInspectService.batchSize` — `.../service/BlacklistReleaseInspectService.java:63`：「单次盘点上限。每条要跨模块查两次，条数不受控会把单次调度拖得很长。」
-- blacklist-server / `BlacklistController.mapOperateResult` — `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/controller/BlacklistController.java:60`：「内部业务接口使用 0000 协议；运营页面统一转换为 ResultVO 响应。」
-- blacklist-server / `BlacklistController.createForPage` / `deleteForPage` — 同文件 `:45` 与 `:51`：「后台新增黑名单，复用原业务逻辑以保留操作日志和渠道同步。」「后台删除指定卡ID，复用原业务逻辑以保留操作日志和渠道同步。」
-- blacklist-server / `BlacklistServiceImpl.page` — `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/impl/BlacklistServiceImpl.java:62`：「运营管理页查询不触发外部渠道通知。」
-- blacklist-server / 渠道通知的 `blackListType` 取值 — `.../service/impl/BlacklistServiceImpl.java:233`、`:276`、`:320`（三处出向通知方法的同形参数说明）：「黑名单类型，1：加入黑名单，2：移除黑名单」。
-- blacklist-server / `BlacklistOperateLog.operateType` — `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/entity/BlacklistOperateLog.java:25`：「操作类型，ADD新增，DELETE删除。」
-- blacklist-server / `BlacklistMapper.xml` — `blacklist-server/src/main/resources/mapper/BlacklistMapper.xml:4`：「黑名单运营页按创建时间倒序，支持卡ID、三方用户ID和时间范围筛选。」；`:70-73`「「可解除性」只读盘点取数：按 CREATE_TIME 升序取最早的 limit 条。升序而非倒序：先拉黑的先盘点，避免积压最久的记录被新记录一直挤到后面。REASON 必须取出来——它是人工判断「这条该不该解除」的唯一依据（BLACKLIST 没有拉黑类型字段，生产实测 REASON 里既有欠费类也有挂失补卡类）。」
+- blacklist-server / `BlacklistInternalController`（类注释）— `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/controller/BlacklistInternalController.java`：「当前只有一个只读盘点接口，不改任何数据，因此无需鉴权与归属校验。后续若在本前缀下新增写接口（例如真正执行自动解除），MUST 先补验签（对齐 `AccountRequestVerifier` / `ItpRequestSignVerifier`，NEVER 自造签名逻辑）。」
+- blacklist-server / `BlacklistInternalController.inspectReleaseCandidates` — 同文件 ：「盘点黑名单记录的欠费结清情况，供 web-server 的 Quartz 任务调用。」「**只读，NEVER 删除任何黑名单记录。**无入参：批量范围由服务端的 `blacklist.inspect.batch-size` 控制，避免调用方能通过参数放大单次开销。」
+- blacklist-server / `BlacklistReleaseInspectService`（类注释）— `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/BlacklistReleaseInspectService.java`：「**本类 NEVER 删除任何黑名单记录。**它只把每条记录的欠费事实查清楚并输出，供人工核对。原因：`BLACKLIST` 只有 5 列、没有拉黑类型字段，`REASON` 是四个来源混写的自由文本（支付中心应答原文 / 代码拼接模板 / 外部接口传入 / 运营手工输入）。生产实测 35 条 ADD 里 22 条是「用户挂失补卡」——与欠费无关，按「欠费结清」删掉等于让挂失旧卡恢复过闸。「钱结清了」与「可以解除」不是一回事，后者 MUST 由人看 REASON 判断。」
+- blacklist-server / `BlacklistReleaseInspectService`（类注释续）— 同文件 ：「欠费事实要问两个模块，缺一个就会漏判：闸机出站扣费在 gate-txn-pay-server 的 `GATE_TXN_PAY`，支付宝出行在 alipay-pay-sign-server 的 `ALIPAY_PAY_LOG`，两张表都不归 blacklist-server 管，因此 MUST 走 rpc 只读接口，**NEVER** 在本模块直接写 SQL 查它们。」
+- blacklist-server / `BlacklistReleaseInspectService` 三态口径 — 同文件 「两个欠费源都查成功且都无欠费。只代表钱结清，NEVER 等同于「可以解除」。」、「至少一个欠费源仍有未结清订单。」、「至少一个欠费源查询失败，事实不明。」；「返回 null 表示查询未成功执行（事实不明）」。
+- blacklist-server / `BlacklistMapper.selectForInspect` — `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/mapper/BlacklistMapper.java`：「按 CREATE_TIME 升序取最早的 limit 条：先拉黑的先盘点，避免长期积压的记录永远排不上。MUST 带 limit——盘点每条都要跨模块查两次欠费，条数不受控会把单次调度拖成长事务级别的耗时。」
+- blacklist-server / `BlacklistReleaseInspectService.batchSize` — `.../service/BlacklistReleaseInspectService.java`：「单次盘点上限。每条要跨模块查两次，条数不受控会把单次调度拖得很长。」
+- blacklist-server / `BlacklistController.mapOperateResult` — `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/controller/BlacklistController.java`：「内部业务接口使用 0000 协议；运营页面统一转换为 ResultVO 响应。」
+- blacklist-server / `BlacklistController.createForPage` / `deleteForPage` — 同文件 ：「后台新增黑名单，复用原业务逻辑以保留操作日志和渠道同步。」「后台删除指定卡ID，复用原业务逻辑以保留操作日志和渠道同步。」
+- blacklist-server / `BlacklistServiceImpl.page` — `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/impl/BlacklistServiceImpl.java`：「运营管理页查询不触发外部渠道通知。」
+- blacklist-server / 渠道通知的 `blackListType` 取值 — `.../service/impl/BlacklistServiceImpl.java`（三处出向通知方法的同形参数说明）：「黑名单类型，1：加入黑名单，2：移除黑名单」。
+- blacklist-server / `BlacklistOperateLog.operateType` — `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/entity/BlacklistOperateLog.java`：「操作类型，ADD新增，DELETE删除。」
+- blacklist-server / `BlacklistMapper.xml` — `blacklist-server/src/main/resources/mapper/BlacklistMapper.xml`：「黑名单运营页按创建时间倒序，支持卡ID、三方用户ID和时间范围筛选。」；「「可解除性」只读盘点取数：按 CREATE_TIME 升序取最早的 limit 条。升序而非倒序：先拉黑的先盘点，避免积压最久的记录被新记录一直挤到后面。REASON 必须取出来——它是人工判断「这条该不该解除」的唯一依据（BLACKLIST 没有拉黑类型字段，生产实测 REASON 里既有欠费类也有挂失补卡类）。」
 
 **决策理由**
 
-- blacklist-server / `BlacklistReleaseInspectService`（类注释）— `.../service/BlacklistReleaseInspectService.java:34-36`：「不按拉黑来源分流去只查一个源：`BlacklistServiceImpl.addBlackList` 按 cardId 去重，一张卡在表里只有一行，先被闸机链路拉黑、后被支付宝链路重复拉黑时第二次 insert 会被跳过，行上留不下第二个来源的痕迹。只查一个源必然漏判。」
-- blacklist-server / `BlacklistReleaseInspectService`（类注释）— 同文件 `:38-39`：「本类**无 `@Transactional`**：方法内有 RPC，事务包住网络调用会让行锁持有时长等于对端响应时长（AGENTS.md 硬约束，已有生产事故）。而且本类只读，本来也不需要事务。」
-- blacklist-server / `BlacklistReleaseInspectService.inspectOne` — 同文件 `:117`：「盘点单条记录，任何异常都收敛为 UNKNOWN，不让一条坏数据中断整批。」
-- blacklist-server / `BlacklistServiceImpl.addBlackList` — `.../service/impl/BlacklistServiceImpl.java:136`：「TODO 先注释掉地铁APP和内部支付宝通知，只保留支付宝外部通知」（`:137` `notifyAppBlacklistAsync(...)`、`:138` `notifyAlipayBlacklistAsync(...)` 两行为注释掉的调用）。
-- blacklist-server / `BlacklistServiceImpl.deleteBlackList` — 同文件 `:171`：「TODO 先注释掉内部支付宝通知，只保留支付宝外部通知」（`:172` `notifyAlipayBlacklistAsync(...)` 为注释掉的调用）。
+- blacklist-server / `BlacklistReleaseInspectService`（类注释）— `.../service/BlacklistReleaseInspectService.java`：「不按拉黑来源分流去只查一个源：`BlacklistServiceImpl.addBlackList` 按 cardId 去重，一张卡在表里只有一行，先被闸机链路拉黑、后被支付宝链路重复拉黑时第二次 insert 会被跳过，行上留不下第二个来源的痕迹。只查一个源必然漏判。」
+- blacklist-server / `BlacklistReleaseInspectService`（类注释）— 同文件 ：「本类**无 `@Transactional`**：方法内有 RPC，事务包住网络调用会让行锁持有时长等于对端响应时长（AGENTS.md 硬约束，已有生产事故）。而且本类只读，本来也不需要事务。」
+- blacklist-server / `BlacklistReleaseInspectService.inspectOne` — 同文件 ：「盘点单条记录，任何异常都收敛为 UNKNOWN，不让一条坏数据中断整批。」
+- blacklist-server / `BlacklistServiceImpl.addBlackList` — `.../service/impl/BlacklistServiceImpl.java`：「TODO 先注释掉地铁APP和内部支付宝通知，只保留支付宝外部通知」（ `notifyAppBlacklistAsync(...)`、 `notifyAlipayBlacklistAsync(...)` 两行为注释掉的调用）。
+- blacklist-server / `BlacklistServiceImpl.deleteBlackList` — 同文件 ：「TODO 先注释掉内部支付宝通知，只保留支付宝外部通知」（ `notifyAlipayBlacklistAsync(...)` 为注释掉的调用）。
 
 **陷阱**
 
-- blacklist-server / `BlacklistReleaseInspectService.queryGate` — `.../service/BlacklistReleaseInspectService.java:155-156`：「MUST 先判 resultCode：下游查询未执行时会把 hasUnsettled 置 true，但那是「不明」不是「有欠费」，两者在报表上要区分开。」
+- blacklist-server / `BlacklistReleaseInspectService.queryGate` — `.../service/BlacklistReleaseInspectService.java`：「MUST 先判 resultCode：下游查询未执行时会把 hasUnsettled 置 true，但那是「不明」不是「有欠费」，两者在报表上要区分开。」
 
 ### 四、风控与限购（para-server）
 
 **契约与判据**
 
-- para-server / `RiskManagementController`（类注释）— `para-server/src/main/java/com/chinasofti/huateng/para/controller/RiskManagementController.java:22-23`：「运营端风险参数及风险命中记录接口。风险组和风险规则可维护；命中记录属于审计数据，仅允许分页查询。」
-- para-server / `RiskManagementController` 逐端点口径 — 同文件 `:56`「删除无关联规则的风险组。」、`:70`「新增风险规则，规则编号在创建后不可变更。」、`:80`「删除风险规则；历史命中日志仍保留规则编号用于审计。」、`:84`「分页查询风险规则命中记录，不提供页面侧写入或删除能力。」
-- para-server / `RiskRule` 字段口径 — `para-server/src/main/java/com/chinasofti/huateng/para/entity/risk/RiskRule.java:6`「风险阈值规则定义；规则编号是稳定的业务主键。」、`:11`「可选的所属风险组主键。」、`:14`「关联查询得到的风险组名称，不直接落规则表。」、`:20`「风险等级，限定为1至5。」、`:23`「规则触发阈值或最大值。」
-- para-server / `RiskControlLog` — `para-server/src/main/java/com/chinasofti/huateng/para/entity/risk/RiskControlLog.java:5`「风险规则命中审计记录，仅供运营端查询。」、`:19`「左关联当前规则表得到的规则名称，规则删除后可能为空。」、`:22`「风险发生或最后一次命中时间。」
-- para-server / `RiskManagementServiceImpl` 校验口径 — `para-server/src/main/java/com/chinasofti/huateng/para/service/impl/RiskManagementServiceImpl.java:24`「页面输入统一在此处做裁剪和边界校验，避免风险参数直接依赖数据库异常提示。」、`:52`「风险组名称唯一，重复时转为可读的业务错误。」、`:83`「删除前先判断规则引用，防止丢失规则归属关系。」、`:99`「新建规则时校验编号、等级与非负阈值。」、`:114`「规则编号取路径参数，防止请求体篡改主键。」、`:149`「删除规则配置；风险控制历史日志不会级联删除。」、`:156`「风险命中记录是审计数据，因此只提供查询。」
-- para-server / `RiskRuleMapper.countByGroupId` — `para-server/src/main/java/com/chinasofti/huateng/para/mapper/risk/RiskRuleMapper.java:25`：「统计风险组的引用规则数，用于删除保护。」
-- para-server / `SingleTicketPurchaseLimitMapper` — `para-server/src/main/java/com/chinasofti/huateng/para/mapper/ticket/SingleTicketPurchaseLimitMapper.java:10`：「使用版本号更新，防止两个运营人员的修改相互覆盖。」
-- para-server / `OrderRefundCycle` — `para-server/src/main/java/com/chinasofti/huateng/para/entity/ticket/OrderRefundCycle.java:5`「票卡类型对应的订单自动退款周期参数，周期单位为天。」、`:7`「唯一票卡类型，作为该参数的业务主键。」、`:10`「自动退款等待周期，单位天。」
-- para-server / `OrderRefundCycleServiceImpl` — `para-server/src/main/java/com/chinasofti/huateng/para/service/impl/OrderRefundCycleServiceImpl.java:15`「退款周期参数校验与维护实现，周期范围由服务层和表约束双重保证。」、`:24`「票卡类型为唯一配置键，查询使用精确匹配。」、`:68`「更新以路径票卡类型为准，防止请求体修改配置键。」、`:83`「删除不存在的配置时返回业务错误，避免误以为删除成功。」、`:93`「该范围与 TBL_ORDER_REFUND_CYCLE 的 CHECK 约束保持一致。」
-- para-server / `BaseFarePageServiceImpl` — `para-server/src/main/java/com/chinasofti/huateng/para/service/impl/BaseFarePageServiceImpl.java:18`「基础票价页面服务，只读取参数当前版本而不暴露历史版本。」、`:26`「查询费率矩阵与 FARE_TYPE=0 基础票价关联后的当前有效票价。」
+- para-server / `RiskManagementController`（类注释）— `para-server/src/main/java/com/chinasofti/huateng/para/controller/RiskManagementController.java`：「运营端风险参数及风险命中记录接口。风险组和风险规则可维护；命中记录属于审计数据，仅允许分页查询。」
+- para-server / `RiskManagementController` 逐端点口径 — 同文件 「删除无关联规则的风险组。」、「新增风险规则，规则编号在创建后不可变更。」、「删除风险规则；历史命中日志仍保留规则编号用于审计。」、「分页查询风险规则命中记录，不提供页面侧写入或删除能力。」
+- para-server / `RiskRule` 字段口径 — `para-server/src/main/java/com/chinasofti/huateng/para/entity/risk/RiskRule.java`「风险阈值规则定义；规则编号是稳定的业务主键。」、「可选的所属风险组主键。」、「关联查询得到的风险组名称，不直接落规则表。」、「风险等级，限定为1至5。」、「规则触发阈值或最大值。」
+- para-server / `RiskControlLog` — `para-server/src/main/java/com/chinasofti/huateng/para/entity/risk/RiskControlLog.java`「风险规则命中审计记录，仅供运营端查询。」、「左关联当前规则表得到的规则名称，规则删除后可能为空。」、「风险发生或最后一次命中时间。」
+- para-server / `RiskManagementServiceImpl` 校验口径 — `para-server/src/main/java/com/chinasofti/huateng/para/service/impl/RiskManagementServiceImpl.java`「页面输入统一在此处做裁剪和边界校验，避免风险参数直接依赖数据库异常提示。」、「风险组名称唯一，重复时转为可读的业务错误。」、「删除前先判断规则引用，防止丢失规则归属关系。」、「新建规则时校验编号、等级与非负阈值。」、「规则编号取路径参数，防止请求体篡改主键。」、「删除规则配置；风险控制历史日志不会级联删除。」、「风险命中记录是审计数据，因此只提供查询。」
+- para-server / `RiskRuleMapper.countByGroupId` — `para-server/src/main/java/com/chinasofti/huateng/para/mapper/risk/RiskRuleMapper.java`：「统计风险组的引用规则数，用于删除保护。」
+- para-server / `SingleTicketPurchaseLimitMapper` — `para-server/src/main/java/com/chinasofti/huateng/para/mapper/ticket/SingleTicketPurchaseLimitMapper.java`：「使用版本号更新，防止两个运营人员的修改相互覆盖。」
+- para-server / `OrderRefundCycle` — `para-server/src/main/java/com/chinasofti/huateng/para/entity/ticket/OrderRefundCycle.java`「票卡类型对应的订单自动退款周期参数，周期单位为天。」、「唯一票卡类型，作为该参数的业务主键。」、「自动退款等待周期，单位天。」
+- para-server / `OrderRefundCycleServiceImpl` — `para-server/src/main/java/com/chinasofti/huateng/para/service/impl/OrderRefundCycleServiceImpl.java`「退款周期参数校验与维护实现周期范围由服务层和表约束双重保证。」、「票卡类型为唯一配置键，查询使用精确匹配。」、「更新以路径票卡类型为准，防止请求体修改配置键。」、「删除不存在的配置时返回业务错误，避免误以为删除成功。」、「该范围与 TBL_ORDER_REFUND_CYCLE 的 CHECK 约束保持一致。」
+- para-server / `BaseFarePageServiceImpl` — `para-server/src/main/java/com/chinasofti/huateng/para/service/impl/BaseFarePageServiceImpl.java`「基础票价页面服务，只读取参数当前版本而不暴露历史版本。」、「查询费率矩阵与 FARE_TYPE=0 基础票价关联后的当前有效票价。」
 
 **决策理由**
 
-- para-server / `RiskManagementServiceImpl.createGroup` / `updateGroup` — `.../service/impl/RiskManagementServiceImpl.java:52` 与 `:67`：唯一约束冲突「转为可读的业务错误」/「重复名称同样转为业务错误」，即不让库异常直接冒到页面。
-- para-server / `OrderRefundCycleServiceImpl.create` — `.../service/impl/OrderRefundCycleServiceImpl.java:32`：「先规范化输入，再将唯一键冲突转为明确提示。」
+- para-server / `RiskManagementServiceImpl.createGroup` / `updateGroup` — `.../service/impl/RiskManagementServiceImpl.java`：唯一约束冲突「转为可读的业务错误」/「重复名称同样转为业务错误」，即不让库异常直接冒到页面。
+- para-server / `OrderRefundCycleServiceImpl.create` — `.../service/impl/OrderRefundCycleServiceImpl.java`：「先规范化输入，再将唯一键冲突转为明确提示。」
 
 **陷阱**
 
-- para-server / `RiskManagementServiceImpl.isDuplicateKeyViolation` — `.../service/impl/RiskManagementServiceImpl.java:133-138`：「**MUST** 逐层遍历 cause，**NEVER** 直接 `catch (DuplicateKeyException)`：`MapperAspectToTrace`（`resource/micro/web/src/main/java/com/chinasofti/huateng/micro/monitor/trace/MapperAspectToTrace.java:51`）把 mapper 抛出的任何异常统一包成 `RuntimeException`，单层类型判断在 `management.tracing.enabled=true` 的模块（para-server 即是）捕不到。2026-09-08 实测：重复风险组名原本落到全局异常处理器、返回 UUID retCode，页面完全看不到「名称已存在」。」
+- para-server / `RiskManagementServiceImpl.isDuplicateKeyViolation` — `.../service/impl/RiskManagementServiceImpl.java`：「**MUST** 逐层遍历 cause，**NEVER** 直接 `catch (DuplicateKeyException)`：`MapperAspectToTrace`（`resource/micro/web/src/main/java/com/chinasofti/huateng/micro/monitor/trace/MapperAspectToTrace.java`）把 mapper 抛出的任何异常统一包成 `RuntimeException`，单层类型判断在 `management.tracing.enabled=true` 的模块（para-server 即是）捕不到。2026-09-08 实测：重复风险组名原本落到全局异常处理器、返回 UUID retCode，页面完全看不到「名称已存在」。」
 
 ### 五、持久层与 mapper（三模块）
 
 **契约与判据**
 
-- para-server / `RiskControlLogMapper.xml` — `para-server/src/main/resources/mapper/RiskControlLogMapper.xml:4`「审计日志使用左关联：规则删除后仍可查询历史命中记录。」、`:12`「命中时间倒序，便于运营人员优先处理最新风险。」
-- para-server / `RiskGroupMapper.xml` — `para-server/src/main/resources/mapper/RiskGroupMapper.xml:4`「风险组基础映射，时间字段由数据库的 SYSDATE 维护。」、`:13`「管理页按名称模糊查询，按最近修改时间优先展示。」、`:19`「规则编辑页下拉选项，按名称排序便于选择。」
-- para-server / `RiskRuleMapper.xml` — `para-server/src/main/resources/mapper/RiskRuleMapper.xml:4`「风险规则查询通过左关联带出分组名称，允许规则暂未分组。」、`:19`「编号精确匹配，名称模糊匹配，支持按所属风险组筛选。」
-- para-server / `OrderRefundCycleMapper.xml` — `para-server/src/main/resources/mapper/OrderRefundCycleMapper.xml:4`「票卡类型为业务主键，创建和修改时间统一由数据库时间生成。」、`:14`「票卡类型为精确筛选条件，保证配置查询可预期。」
-- para-server / `BaseFarePageMapper.xml` — `para-server/src/main/resources/mapper/BaseFarePageMapper.xml:4`「票价页只读当前费率版本；基础票价固定关联 FARE_TYPE=0。」、`:44`「进出站筛选只展示当前路网版本的车站，可按线路过滤。」、`:55`「线路下拉只展示当前路网版本的线路。」
+- para-server / `RiskControlLogMapper.xml` — `para-server/src/main/resources/mapper/RiskControlLogMapper.xml`「审计日志使用左关联：规则删除后仍可查询历史命中记录。」、「命中时间倒序，便于运营人员优先处理最新风险。」
+- para-server / `RiskGroupMapper.xml` — `para-server/src/main/resources/mapper/RiskGroupMapper.xml`「风险组基础映射，时间字段由数据库的 SYSDATE 维护。」、「管理页按名称模糊查询，按最近修改时间优先展示。」、「规则编辑页下拉选项，按名称排序便于选择。」
+- para-server / `RiskRuleMapper.xml` — `para-server/src/main/resources/mapper/RiskRuleMapper.xml`「风险规则查询通过左关联带出分组名称，允许规则暂未分组。」、「编号精确匹配，名称模糊匹配，支持按所属风险组筛选。」
+- para-server / `OrderRefundCycleMapper.xml` — `para-server/src/main/resources/mapper/OrderRefundCycleMapper.xml`「票卡类型为业务主键，创建和修改时间统一由数据库时间生成。」、「票卡类型为精确筛选条件，保证配置查询可预期。」
+- para-server / `BaseFarePageMapper.xml` — `para-server/src/main/resources/mapper/BaseFarePageMapper.xml`「票价页只读当前费率版本；基础票价固定关联 FARE_TYPE=0。」、「进出站筛选只展示当前路网版本的车站，可按线路过滤。」、「线路下拉只展示当前路网版本的线路。」
 
 **决策理由**
 
-- para-server / `RiskGroupMapper.xml`（insert 语句上方）— `.../mapper/RiskGroupMapper.xml:27-28`：「GROUP_ID 由库侧生成，调用方 RiskManagementServiceImpl.createGroup 不使用回填值。确有回填需求时 MUST 补 keyColumn="GROUP_ID"，或改用 selectKey 显式取序列值。」
+- para-server / `RiskGroupMapper.xml`（insert 语句上方）— `.../mapper/RiskGroupMapper.xml`：「GROUP_ID 由库侧生成，调用方 RiskManagementServiceImpl.createGroup 不使用回填值。确有回填需求时 MUST 补 keyColumn="GROUP_ID"，或改用 selectKey 显式取序列值。」
 
 **陷阱**
 
-- para-server / `RiskGroupMapper.xml`（insert 语句上方）— `.../mapper/RiskGroupMapper.xml:23-26`：「NEVER 在此加回 useGeneratedKeys="true"：Oracle 下 MyBatis 会走 connection.prepareStatement(sql, RETURN_GENERATED_KEYS)，ojdbc 返回的是 ROWID，无法回填 Long groupId，于是插入已提交却仍抛 MyBatisSystemException——表现为「新增风险组必然报错、数据其实已落库」（2026-09-08 生产日志实测并修复）。」
-- para-server / `RiskGroupMapper.xml` + `RiskRuleMapper.xml`（两个写 mapper 的全部参数）— 两文件的 insert / update **MUST 显式写 `jdbcType=`**（字符串列 `VARCHAR`、数值列 `NUMERIC`），NEVER 依赖 MyBatis 推断。可空列（`GROUP_DESC` / `GROUP_ID` / `MANAGER_CODE` / `REMARK`）为 `null` 时 MyBatis 按 `JdbcType.OTHER`(1111) 下发，Oracle 报 `java.sql.SQLException: 无效的列类型: 1111`，包成 `MyBatisSystemException: null`（message 是 `null`）。**NEVER 用全局 `mybatis.configuration.jdbc-type-for-null` 兜底、也 NEVER 把 null 归一成空串**（前者改所有模块行为、后者改变列语义）。2026-09-23 生产日志实测：综管台风险组新增时描述留空（前端 `groupDesc: form.groupDesc.trim()||null`）⇒ **HTTP 500**，日志原文 `Could not set parameters for mapping: ParameterMapping{property='groupDesc', ..., jdbcType=null, ...}`；`PUT /page/risk/groups/{id}` 清空描述、`POST /page/risk/rules` 不带管理编码/备注/风险组三处同样 500。同期全模块核对：`para-server` 的 25 个 mapper 里**只有这两个写 mapper 没写 `jdbcType`**（`RiskControlLogMapper` 只有 SELECT、不受影响），其余（含 `OrderRefundCycleMapper`、`SingleTicketPurchaseLimitMapper`）均合规 ⇒ 本条已按既成约定收口，见 `recon-server/.../ReconPartMapper.xml:29`。
-- para-server / `OrderRefundCycleServiceImpl.isDuplicateKeyViolation` — `.../service/impl/OrderRefundCycleServiceImpl.java:53-57`：「**MUST** 逐层遍历 cause，**NEVER** 直接 `catch (DuplicateKeyException)`：`MapperAspectToTrace`（`resource/micro/web/src/main/java/com/chinasofti/huateng/micro/monitor/trace/MapperAspectToTrace.java:51`）把 mapper 抛出的任何异常统一包成 `RuntimeException`，单层类型判断在 `management.tracing.enabled=true` 的模块（para-server 即是）捕不到，唯一键冲突会漏成全局异常处理器的 UUID retCode。」（与上一小节 `RiskManagementServiceImpl` 那条是两处独立的近似条款，未合并。）
+- para-server / `RiskGroupMapper.xml`（insert 语句上方）— `.../mapper/RiskGroupMapper.xml`：「NEVER 在此加回 useGeneratedKeys="true"：Oracle 下 MyBatis 会走 connection.prepareStatement(sql, RETURN_GENERATED_KEYS)，ojdbc 返回的是 ROWID，无法回填 Long groupId，于是插入已提交却仍抛 MyBatisSystemException——表现为「新增风险组必然报错、数据其实已落库」（2026-09-08 生产日志实测并修复）。」
+- para-server / `RiskGroupMapper.xml` + `RiskRuleMapper.xml`（两个写 mapper 的全部参数）— 两文件的 insert / update **MUST 显式写 `jdbcType=`**（字符串列 `VARCHAR`、数值列 `NUMERIC`），NEVER 依赖 MyBatis 推断。可空列（`GROUP_DESC` / `GROUP_ID` / `MANAGER_CODE` / `REMARK`）为 `null` 时 MyBatis 按 `JdbcType.OTHER`(1111) 下发，Oracle 报 `java.sql.SQLException: 无效的列类型: 1111`，包成 `MyBatisSystemException: null`（message 是 `null`）。**NEVER 用全局 `mybatis.configuration.jdbc-type-for-null` 兜底、也 NEVER 把 null 归一成空串**（前者改所有模块行为、后者改变列语义）。2026-09-23 生产日志实测：综管台风险组新增时描述留空（前端 `groupDesc: form.groupDesc.trim()||null`）⇒ **HTTP 500**，日志原文 `Could not set parameters for mapping: ParameterMapping{property='groupDesc', ..., jdbcType=null, ...}`；`PUT /page/risk/groups/{id}` 清空描述、`POST /page/risk/rules` 不带管理编码/备注/风险组三处同样 500。同期全模块核对：`para-server` 的 25 个 mapper 里**只有这两个写 mapper 没写 `jdbcType`**（`RiskControlLogMapper` 只有 SELECT、不受影响），其余（含 `OrderRefundCycleMapper`、`SingleTicketPurchaseLimitMapper`）均合规 ⇒ 本条已按既成约定收口，见 `recon-server/.../ReconPartMapper.xml`。
+- para-server / `OrderRefundCycleServiceImpl.isDuplicateKeyViolation` — `.../service/impl/OrderRefundCycleServiceImpl.java`：「**MUST** 逐层遍历 cause，**NEVER** 直接 `catch (DuplicateKeyException)`：`MapperAspectToTrace`（`resource/micro/web/src/main/java/com/chinasofti/huateng/micro/monitor/trace/MapperAspectToTrace.java`）把 mapper 抛出的任何异常统一包成 `RuntimeException`，单层类型判断在 `management.tracing.enabled=true` 的模块（para-server 即是）捕不到，唯一键冲突会漏成全局异常处理器的 UUID retCode。」（与上一小节 `RiskManagementServiceImpl` 那条是两处独立的近似条款，未合并。）
 
 关于「Druid WallFilter 拒 SQL 正文注释」「`where 1 = 1` 打头 + 全部谓词可选 `<if>`」「mapper XML 注释里连续减号」三条已知陷阱：
 - para-server 注释中无相关告示，属抽取源缺失而非已确认无风险。
@@ -341,14 +341,14 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 
 **契约与判据**
 
-- key-server / `service.security.url` — `key-server/src/main/resources/application.properties:21`：「签名服务（acc-security-server）地址：默认值用集群内网 Service 名（`kubectl get svc -n itp` 实测，2026-09-11）。」
-- blacklist-server / `service.*.url` — `blacklist-server/src/main/resources/application.properties:23`：「服务间调用地址：默认值一律用集群内网 Service 名（`kubectl get svc -n itp` 实测，2026-09-11），取代原先的 `172.20.211.23:30xxx` NodePort 写法。」
-- para-server / `application.properties`：**全文无注释**（25 行，含 `para.ftp.*` 六个键与 `DB_*` 五个键），因此本小节没有 para-server 条目；`para.ftp.remote-dir` 的实测口径写在 `ParaFtpProperties.java:14`（见第一小节）。
+- key-server / `service.security.url` — `key-server/src/main/resources/application.properties`：「签名服务（acc-security-server）地址：默认值用集群内网 Service 名（`kubectl get svc -n itp` 实测，2026-09-11）。」
+- blacklist-server / `service.*.url` — `blacklist-server/src/main/resources/application.properties`：「服务间调用地址：默认值一律用集群内网 Service 名（`kubectl get svc -n itp` 实测，2026-09-11），取代原先的 `172.20.211.23:30xxx` NodePort 写法。」
+- para-server / `application.properties`：**全文无注释**（25 行，含 `para.ftp.*` 六个键与 `DB_*` 五个键），因此本小节没有 para-server 条目；`para.ftp.remote-dir` 的实测口径写在 `ParaFtpProperties.java`（见第一小节）。
 
 **陷阱**
 
-- key-server / `service.security.url` — `key-server/src/main/resources/application.properties:22`：「Service 端口是 8080，容器 server.port 才是 9012，NEVER 按 server.port 推断。」
-- blacklist-server / `service.*.url` — `blacklist-server/src/main/resources/application.properties:24`：「NEVER 删键：键缺失时 rpc 退化成默认服务名 `*-service`、DNS 解析不到。」
+- key-server / `service.security.url` — `key-server/src/main/resources/application.properties`：「Service 端口是 8080，容器 server.port 才是 9012，NEVER 按 server.port 推断。」
+- blacklist-server / `service.*.url` — `blacklist-server/src/main/resources/application.properties`：「NEVER 删键：键缺失时 rpc 退化成默认服务名 `*-service`、DNS 解析不到。」
 
 ### 墓碑注释清单（建议转为断言测试）
 
@@ -356,31 +356,31 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 
 | # | 文件:行号 | 想禁止的事 | 能否写成断言测试 |
 |---|---|---|---|
-| 1 | `para-server/src/main/java/com/chinasofti/huateng/para/service/ParaFtpScanService.java:134-135` | 在 `ParaFtpScanService` 里自己比 MD5（判据必须单点在 `ParaFileImportService`） | 部分可（可断言该类不引用 `md5Hex`，无法断言语义单点） |
-| 2 | `para-server/src/main/java/com/chinasofti/huateng/para/util/ParaFileReadUtils.java:105-108` | 五份 `md5Hex` 实现结果不一致 | 可（同一字节数组喂五处实现，断言输出逐字节相等） |
-| 3 | `para-server/src/main/resources/mapper/RiskGroupMapper.xml:23-26` | 在 insert 上加回 `useGeneratedKeys="true"`（无 `keyColumn`） | 部分可（可对 XML 文本断言不含该属性；真实症状需 Oracle 集成环境） |
-| 4 | `para-server/src/main/java/com/chinasofti/huateng/para/service/impl/OrderRefundCycleServiceImpl.java:53-57` | 直接 `catch (DuplicateKeyException)`、不沿 cause 链判定 | 可（构造 `new RuntimeException(new DuplicateKeyException(...))`，断言 `isDuplicateKeyViolation` 为 true） |
-| 5 | `para-server/src/main/java/com/chinasofti/huateng/para/service/impl/RiskManagementServiceImpl.java:133-138` | 同上（风险组/规则维护侧） | 可（同 4 的构造方式） |
-| 6 | `key-server/src/main/java/com/chinasofti/huateng/key/mapper/MetroAgmKeyVersionMapper.java:17-18` | 在该 mapper 上新增返回 `KEY_VALUE` 的方法 | 部分可（可断言接口方法返回类型只含 `KeyVersionView`、无 `KEY_VALUE` 相关方法名） |
-| 7 | `key-server/src/main/java/com/chinasofti/huateng/key/mapper/MetroCaKeystoreMapper.java:26` | 对应 SQL 里 select `KEY_PRIVATE` / `KEY_PUBLIC` / `KEY_PAIR` | 可（对 `MetroCaKeystoreMapper.xml` 的 `selectVersionSummary` 文本断言不含这三列） |
-| 8 | `key-server/src/main/resources/mapper/MetroCaKeystoreMapper.xml:28-29` | 同 7（语句侧） | 可（同 7） |
-| 9 | `key-server/src/main/java/com/chinasofti/huateng/key/mapper/MetroMemberStaticKeyMapper.java:35` | 对应 SQL 里 select `KEY_WRAP_VALUE1` 明文 | 可（对 XML `selectStatusSummary` 文本断言） |
-| 10 | `key-server/src/main/resources/mapper/MetroMemberStaticKeyMapper.xml:22` | 同 9（语句侧） | 可（同 9） |
-| 11 | `key-server/src/main/resources/mapper/MetroAgmKeyVersionMapper.xml:13` | 关联 `METRO_AGM_KEY_POOL` 取 `KEY_VALUE` | 可（对该 select 文本断言不含表名与列名） |
-| 12 | `key-server/src/main/java/com/chinasofti/huateng/key/page/KeyVersionView.java:6-8` | 视图携带任何密钥材料明文字段 | 部分可（可反射断言字段名白名单，仍拦不住把明文塞进已有字符串字段） |
-| 13 | `key-server/src/main/java/com/chinasofti/huateng/key/service/KeyVersionQueryService.java:11-12` | 该接口返回密钥材料明文 | 部分可（同 12） |
-| 14 | `key-server/src/main/java/com/chinasofti/huateng/key/controller/page/KeyPageController.java:15-16` | 响应体包含密钥材料明文 | 部分可（可对响应 JSON 断言不含 `keyValue` / `keyPrivate` 等键） |
-| 15 | `key-server/src/main/java/com/chinasofti/huateng/key/service/impl/KeyVersionQueryServiceImpl.java:21` | 单域查询失败导致整体接口 500 | 可（mock 三个 mapper 之一抛异常，断言返回含「查询失败」行且不抛出） |
-| 16 | `key-server/src/main/java/com/chinasofti/huateng/key/service/impl/KeyVersionQueryServiceImpl.java:24` | 把 AGM 与 CA/HCE 两套状态码映射合并成一张表 | 否（属结构性约束，无运行期可观测差异，除非断言 `STATUS_DESC` 的键集合形状） |
-| 17 | `key-server/src/main/resources/application.properties:22` | 按 `server.port` 推断签名服务的 Service 端口 | 否（人类判断类告示） |
-| 18 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/BlacklistReleaseInspectService.java:23` | 本类删除黑名单记录 | 可（mock `BlacklistMapper`，断言删除类方法零调用；**注意 `deleteByCardIds` 已于 2026-09-18 随两阶段改造删除，现在的删除方法是 `deleteReleasedById`**） |
-| 19 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/BlacklistReleaseInspectService.java:32` | 在本模块直接写 SQL 查 `GATE_TXN_PAY` / `ALIPAY_PAY_LOG` | 部分可（可断言本模块 mapper XML 不含这两个表名） |
-| 20 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/BlacklistReleaseInspectService.java:49` | 把 `SETTLED` 当成「可以解除」 | 否（语义约束，落在人工流程上） |
-| 21 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/BlacklistReleaseInspectService.java:155-156` | 不判 `resultCode` 就用 `hasUnsettled` | 可（mock 下游返 `resultCode != 0000` 且 `hasUnsettled=true`，断言状态为 `UNKNOWN` 而非 `UNSETTLED`） |
-| 22 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/controller/BlacklistInternalController.java:15-16` | 在 `/internal/**` 下新增写接口而不补验签 | 部分可（可断言该 Controller 只有 GET/只读端点，验签本身需接线后才可测） |
-| 23 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/controller/BlacklistInternalController.java:33` | 该端点删除黑名单记录 | 可（同 18，端点级 mock 验证） |
-| 24 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/mapper/BlacklistMapper.java:66` | 盘点取数不带 limit | 可（断言 `selectForInspect` 必传 limit，且 XML 含 `fetch first ... rows only`） |
-| 25 | `blacklist-server/src/main/resources/application.properties:24` | 删除 `service.*.url` 键 | 部分可（可断言 properties 含这两个键；DNS 退化行为不可单测） |
+| 1 | `para-server/src/main/java/com/chinasofti/huateng/para/service/ParaFtpScanService.java` | 在 `ParaFtpScanService` 里自己比 MD5（判据必须单点在 `ParaFileImportService`） | 部分可（可断言该类不引用 `md5Hex`，无法断言语义单点） |
+| 2 | `para-server/src/main/java/com/chinasofti/huateng/para/util/ParaFileReadUtils.java` | 五份 `md5Hex` 实现结果不一致 | 可（同一字节数组喂五处实现断言输出逐字节相等） |
+| 3 | `para-server/src/main/resources/mapper/RiskGroupMapper.xml` | 在 insert 上加回 `useGeneratedKeys="true"`（无 `keyColumn`） | 部分可（可对 XML 文本断言不含该属性；真实症状需 Oracle 集成环境） |
+| 4 | `para-server/src/main/java/com/chinasofti/huateng/para/service/impl/OrderRefundCycleServiceImpl.java` | 直接 `catch (DuplicateKeyException)`、不沿 cause 链判定 | 可（构造 `new RuntimeException(new DuplicateKeyException(...))`，断言 `isDuplicateKeyViolation` 为 true） |
+| 5 | `para-server/src/main/java/com/chinasofti/huateng/para/service/impl/RiskManagementServiceImpl.java` | 同上（风险组/规则维护侧） | 可（同 4 的构造方式） |
+| 6 | `key-server/src/main/java/com/chinasofti/huateng/key/mapper/MetroAgmKeyVersionMapper.java` | 在该 mapper 上新增返回 `KEY_VALUE` 的方法 | 部分可（可断言接口方法返回类型只含 `KeyVersionView`、无 `KEY_VALUE` 相关方法名） |
+| 7 | `key-server/src/main/java/com/chinasofti/huateng/key/mapper/MetroCaKeystoreMapper.java` | 对应 SQL 里 select `KEY_PRIVATE` / `KEY_PUBLIC` / `KEY_PAIR` | 可（对 `MetroCaKeystoreMapper.xml` 的 `selectVersionSummary` 文本断言不含这三列） |
+| 8 | `key-server/src/main/resources/mapper/MetroCaKeystoreMapper.xml` | 同 7（语句侧） | 可（同 7） |
+| 9 | `key-server/src/main/java/com/chinasofti/huateng/key/mapper/MetroMemberStaticKeyMapper.java` | 对应 SQL 里 select `KEY_WRAP_VALUE1` 明文 | 可（对 XML `selectStatusSummary` 文本断言） |
+| 10 | `key-server/src/main/resources/mapper/MetroMemberStaticKeyMapper.xml` | 同 9（语句侧） | 可（同 9） |
+| 11 | `key-server/src/main/resources/mapper/MetroAgmKeyVersionMapper.xml` | 关联 `METRO_AGM_KEY_POOL` 取 `KEY_VALUE` | 可（对该 select 文本断言不含表名与列名） |
+| 12 | `key-server/src/main/java/com/chinasofti/huateng/key/page/KeyVersionView.java` | 视图携带任何密钥材料明文字段 | 部分可（可反射断言字段名白名单，仍拦不住把明文塞进已有字符串字段） |
+| 13 | `key-server/src/main/java/com/chinasofti/huateng/key/service/KeyVersionQueryService.java` | 该接口返回密钥材料明文 | 部分可（同 12） |
+| 14 | `key-server/src/main/java/com/chinasofti/huateng/key/controller/page/KeyPageController.java` | 响应体包含密钥材料明文 | 部分可（可对响应 JSON 断言不含 `keyValue` / `keyPrivate` 等键） |
+| 15 | `key-server/src/main/java/com/chinasofti/huateng/key/service/impl/KeyVersionQueryServiceImpl.java` | 单域查询失败导致整体接口 500 | 可（mock 三个 mapper 之一抛异常，断言返回含「查询失败」行且不抛出） |
+| 16 | `key-server/src/main/java/com/chinasofti/huateng/key/service/impl/KeyVersionQueryServiceImpl.java` | 把 AGM 与 CA/HCE 两套状态码映射合并成一张表 | 否（属结构性约束，无运行期可观测差异，除非断言 `STATUS_DESC` 的键集合形状） |
+| 17 | `key-server/src/main/resources/application.properties` | 按 `server.port` 推断签名服务的 Service 端口 | 否（人类判断类告示） |
+| 18 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/BlacklistReleaseInspectService.java` | 本类删除黑名单记录 | 可（mock `BlacklistMapper`，断言删除类方法零调用；**注意 `deleteByCardIds` 已于 2026-09-18 随两阶段改造删除，现在的删除方法是 `deleteReleasedById`**） |
+| 19 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/BlacklistReleaseInspectService.java` | 在本模块直接写 SQL 查 `GATE_TXN_PAY` / `ALIPAY_PAY_LOG` | 部分可（可断言本模块 mapper XML 不含这两个表名） |
+| 20 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/BlacklistReleaseInspectService.java` | 把 `SETTLED` 当成「可以解除」 | 否（语义约束，落在人工流程上） |
+| 21 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/service/BlacklistReleaseInspectService.java` | 不判 `resultCode` 就用 `hasUnsettled` | 可（mock 下游返 `resultCode != 0000` 且 `hasUnsettled=true`，断言状态为 `UNKNOWN` 而非 `UNSETTLED`） |
+| 22 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/controller/BlacklistInternalController.java` | 在 `/internal/**` 下新增写接口而不补验签 | 部分可（可断言该 Controller 只有 GET/只读端点，验签本身需接线后才可测） |
+| 23 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/controller/BlacklistInternalController.java` | 该端点删除黑名单记录 | 可（同 18，端点级 mock 验证） |
+| 24 | `blacklist-server/src/main/java/com/chinasofti/huateng/blacklist/mapper/BlacklistMapper.java` | 盘点取数不带 limit | 可（断言 `selectForInspect` 必传 limit，且 XML 含 `fetch first ... rows only`） |
+| 25 | `blacklist-server/src/main/resources/application.properties` | 删除 `service.*.url` 键 | 部分可（可断言 properties 含这两个键；DNS 退化行为不可单测） |
 
 ---
 
@@ -501,13 +501,13 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 **保留的实现约定**：**MUST 逐层遍历 `getCause()`，NEVER 直接 `catch (DuplicateKeyException)`** ——`resource/micro/web/src/main/java/com/chinasofti/huateng/micro/monitor/trace/MapperAspectToTrace.java` 会把 mapper 抛出的异常统一包一层，单层类型判断捕不到。这段 cause 链兜底是**为将来按「三行成组」开启 tracing 后准备的唯一防线**，**NEVER 简化回裸 catch 具体异常类型**。
 
 **归因存疑本次已部分闭合（2026-09-23 实测，据此重写本小节，旧表述 NEVER 回退）**：
-- **旧前提之一已被实测推翻**：页面曾写「`para-server` 当前未开 tracing、`application.properties` 全文无 `management.tracing` 键 ⇒ 那两个观测切面在本模块从未生效」——**后半句推论是错的**。`application.properties` 确实没有该键，但 **`deploy/k8s/10-deployments/para-server.yaml:35` 由 Deployment env 注入了 `management.tracing.enabled=true`**（`:81` 为 `sampling.probability=0`），因此 `shouldSkipAopTraceLogic()` 返回 `false`、**切面在 para-server 里实际在跑**（日志实证：`MapperAspectToTrace.around` 打出 `Mapper method execute error: ...RiskGroupMapper.insert`；且 para-server 日志行的 traceId 列有值）。**判据随之修正：判断某模块是否开了 tracing，MUST 同时查 Deployment env，NEVER 只 grep 模块的配置文件。**
-- **旧结论「切面把异常换类型导致 UUID retCode」仍然不成立，但理由换了**：自 ADR-D53 起两个切面已改成 `observation.start()` + `openScope()` + **`throw e` 原样抛出**（`MapperAspectToTrace.java:57` 带护栏注释），现在即便切面在跑也不会改变异常类型。2026-09-23 实测重复风险组名：返 `{"code":"500","msg":"风险组名称已存在"}`，**cause 链兜底正常生效、UUID retCode 未复现**。
+- **旧前提之一已被实测推翻**：页面曾写「`para-server` 当前未开 tracing、`application.properties` 全文无 `management.tracing` 键 ⇒ 那两个观测切面在本模块从未生效」——**后半句推论是错的**。`application.properties` 确实没有该键，但 **`deploy/k8s/10-deployments/para-server.yaml:35` 由 Deployment env 注入了 `management.tracing.enabled=true`**（ 为 `sampling.probability=0`），因此 `shouldSkipAopTraceLogic()` 返回 `false`、**切面在 para-server 里实际在跑**（日志实证：`MapperAspectToTrace.around` 打出 `Mapper method execute error: ...RiskGroupMapper.insert`；且 para-server 日志行的 traceId 列有值）。**判据随之修正：判断某模块是否开了 tracing，MUST 同时查 Deployment env，NEVER 只 grep 模块的配置文件。**
+- **旧结论「切面把异常换类型导致 UUID retCode」仍然不成立，但理由换了**：自 ADR-D53 起两个切面已改成 `observation.start()` + `openScope()` + **`throw e` 原样抛出**（`MapperAspectToTrace.java` 带护栏注释），现在即便切面在跑也不会改变异常类型。2026-09-23 实测重复风险组名：返 `{"code":"500","msg":"风险组名称已存在"}`，**cause 链兜底正常生效、UUID retCode 未复现**。
 - **剩余候选（仍未定位，NEVER 当作已确认）**：AGENTS.md §5.1 那两条 Druid WallFilter 规则（SQL 正文写了注释 / `where 1 = 1` 打头 + 全部谓词可选 `<if>`），或 cause 链判定是在 2026-09-08 之后才补上的（老镜像行为）。**NEVER 把「切面换异常类型」当成已确认结论写进任何地方。**
 - 源码里**各留了一行式现场标记**（`路径:行号` MUST 现查，grep 短语「归因存疑」），作用是「别再照这个结论排查」。
 
 #### 1.7 构建与部署（para-server 专有坑）
-- **`para-server` 的 jkube `build-image-remote` 绑在 `<phase>package</phase>`**（`para-server/pom.xml:121`）：**`mvn clean package` 就会 build + push 到 Harbor**，2026-09-08 实测直接推出 `itp/para-server:2.0.19`。这条实测**推翻了「`build-image-remote` 等于绑 `install`」的旧记载**，**NEVER 回退**；**execution id 不能用来推断阶段**。
+- **`para-server` 的 jkube `build-image-remote` 绑在 `<phase>package</phase>`**（`para-server/pom.xml`）：**`mvn clean package` 就会 build + push 到 Harbor**，2026-09-08 实测直接推出 `itp/para-server:2.0.19`。这条实测**推翻了「`build-image-remote` 等于绑 `install`」的旧记载**，**NEVER 回退execution id 不能用来推断阶段**。
 - 因此只想拿 jar **MUST 加 `-Djkube.skip=true`**。
 - `/para-server/` 是 `fep-app-vr` 那 8 条入向前缀之一（见 `docs/ops/流量切换.md`）。
 
@@ -517,7 +517,7 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 
 #### 2.1 IF8A-02 请求同步密钥
 - 入口 `key-server/src/main/java/com/chinasofti/huateng/key/controller/KeyController.java`，供 `fep-app-server` 调；**APP 公共报文解析仍在 fep-app-server，key-server 只处理 bizData 业务参数**。
-- **按卡类型分流**：`cardType` **`03` / `04` → 返回 HCE 消费 DPK**；**其余卡一律按二维码卡生成用户 SM2 密钥**。密钥材料均由 `acc-security-server` 导出后**在 key-server 内存里转加密**。
+- **按卡类型分流**：`cardType` **`03` / `04` → 返回 HCE 消费 DPK其余卡一律按二维码卡生成用户 SM2 密钥**。密钥材料均由 `acc-security-server` 导出后**在 key-server 内存里转加密**。
 - SM2 链路（`KeySyncServiceImpl`，与旧系统步骤一致）：查可用 CA 密钥 → **随机选一条启用状态的 CA** → 调 acc-security 生成用户 SM2 密钥对 → 用 CA 签名用户公钥 → 导出 KEK 加密的用户私钥 → **3DES 转加密**（ACC 侧 `acc.3des.key` 解密 → APP 侧 `appserver.3des.key` 加密）→ 组装 `keyList` 返 APP。
 - HCE DPK 链路：`acc-security-server` 返回的是 **ACC KEK 加密的 DPK**；key-server **在内存中**用 ACC 3DES 密钥解密、**立即**按 APP_SERVER 3DES 密钥转加密，**只向 APP 返回转加密结果**。返回形态固定 `keyId=00` / `keyType=0`。
 - `METRO_MEMBER_STATIC_KEY` **只保存 ACC KEK 加密的 DPK，NEVER 在库里保存解密后的 DPK 明文**；写入时若同一卡号已被并发请求写入则**保持原有记录**（`insertIfAbsent` 语义）。`KEY_STATUS`：**`1` 启用、`2` 停用**。
@@ -555,7 +555,7 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 | `deleteBlackList`（解黑） | 支付宝外部 | **内部支付宝** | 解黑名单时**内部支付宝收不到通知** |
 
 连带的**死配置**（键还在、字段还注入、但已无生效读取方）：
-- `app.notify.blacklist-url`（`blacklist-server/src/main/resources/application.properties`，约 `:21`）仍被注入到 `appNotifyBlacklistUrl` 字段，但 `notifyAppBlacklistAsync` **在 `src/main` 内零调用方**。
+- `app.notify.blacklist-url`（`blacklist-server/src/main/resources/application.properties`，约 ）仍被注入到 `appNotifyBlacklistUrl` 字段，但 `notifyAppBlacklistAsync` **在 `src/main` 内零调用方**。
 - `alipay.notify.blacklist-url` 对应字段**属声明即死**（`notifyAlipayBlacklistAsync` 零调用方）。
 - `alipay.external.blacklist-url` 是**唯一还活着**的通知地址。
 

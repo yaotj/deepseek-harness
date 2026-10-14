@@ -73,12 +73,15 @@ public class F2fPageRefundService {
      */
     private ResultVO<Map<String, Object>> doRefund(String orderNo, Long requestedAmount,
                                                    String reason, String operatorId) {
+        log.info("service 开始发起app订单退款");
         F2fOrder order = orderMapper.selectByOrderNo(orderNo);
         if (order == null) {
+            log.info("未找到对应的当面付订单");
             return ResultMapper.error("未找到对应的当面付订单");
         }
         F2fRefund existing = findPageRefund(orderNo);
         if (existing != null) {
+            log.info("该订单已发起退款，退款单号 {}", existing.getRefundNo());
             return ResultMapper.error("该订单已发起退款，退款单号：" + existing.getRefundNo());
         }
         int unsettled = orderMapper.countUnsettledRefunds(orderNo);
@@ -91,6 +94,7 @@ public class F2fPageRefundService {
             return ResultMapper.error("仅支付成功的订单可以退款");
         }
         if (order.getOrderAmount() == null || order.getOrderAmount() <= 0) {
+            log.info("订单金额无效，不能退款");
             return ResultMapper.error("订单金额无效，不能退款");
         }
         long refunded = order.getRefundAmount() == null ? 0L : order.getRefundAmount();
@@ -120,6 +124,7 @@ public class F2fPageRefundService {
                 orderNo, outcome.refundNo(), amount, order.getOrderAmount(), refunded,
                 outcome.refundStatus(), operatorId, outcome.alreadyExisted());
 
+        // todo 增加通知app退款
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("retCode", "0000");
         data.put("retMsg", "成功");

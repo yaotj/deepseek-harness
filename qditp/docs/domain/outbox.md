@@ -144,22 +144,22 @@ OutboxScan.Result scan = OutboxScan.run(pending,
   **`detail.TICKET_TRANS_SEQ < QRCODE_STATUS.TXN_SEQ` 时该行 MUST 直接标 SUCCESS 短路**
   —— 说明乘客后来又过闸并成功推过一次，这行已被自然覆盖，再推等于把同一张最新码重复推一遍。
 - 补偿重建入参需要 `companionFlag` 与 account `CHANNEL`，ticket-server 已注入 `AccountClient` /
-  `AlipayAccountClient`（`GateTicketHandler:79,83`），有现成通路。
+  `AlipayAccountClient`（`GateTicketHandler`），有现成通路。
 
-**② 日票扣次失败无补偿**（`GateTicketHandler:217~238` 的 `markUsed` 分支）
+**② 日票扣次失败无补偿**（`GateTicketHandler` 的 `markUsed` 分支）
 
 - 载体表同为 `QRCODE_TXN_DETAIL`，四列前缀 `MARK_USED_`；只有日票出站行（`TRX_TYPE='02'` +
   `CARD_TYPE` ∈ `0445~0448`）有值，其余行恒 `NULL`、天然扫不到。
 - 比 ① 简单的地方：重推入参（`cardId` / `inStation` = `LAST_HANDLE_STATION_CODE` /
   `outStation` = `HANDLE_STATION_CODE`）**在明细行里已全部落库，原样取值即可**，不存在快照过期问题。
 - **比 ① 危险的地方，也是这条链路的真正阻塞点**：当前 `markUsed` 传 `orderNo=null`
-  （`GateTicketHandler:223`，因为 `GATE_TXN_PAY.ORDER_NO` 由 gate-txn-pay-server 生成、ticket-server 拿不到），
+  （`GateTicketHandler`，因为 `GATE_TXN_PAY.ORDER_NO` 由 gate-txn-pay-server 生成、ticket-server 拿不到），
   而 daily-ticket-server 的 `UK_DTUL_ORDER` 在 `null` 上**不拦截**（Oracle 允许多个 null）。
   于是**重试会重复扣次 —— 反向资损，比不补偿更糟**。因此 **MUST 先补确定性 `orderNo`**
   （形如 `"DTMU_" + QRCODE_TXN_DETAIL.ID`）让对端唯一键挡住重复，**NEVER 先上扫表再想幂等**。
   连带收益：快速路径也传同一个值后，AGM 超时重发导致同一笔出站被调两次时也不会重复扣次。
   动手前 MUST 先查清「库内 `orderNo IS NULL` 的历史行有多少、改成非 null 对 daily-ticket-server 有无副作用」。
-- **一条必须先闭合的历史冲突**：`GateTicketHandler:215` 的注释原文记载「跨服务补偿的形态还没定
+- **一条必须先闭合的历史冲突**：`GateTicketHandler` 的注释原文记载「跨服务补偿的形态还没定
   （**用户已否决扫表/定时任务**）」，而本文 §五 与 AGENTS.md §5.1 要求「异步补偿统一为落库状态 + 扫表重试」。
   2026-09-14 用户提出要做「`markUsed` 落库 + 扫表重试」，**等于推翻那条旧裁决**，但随后又要求整体搁置。
   因此那条注释**原样保留、未改**。重新开工时 MUST 先向用户确认「扫表方案是否已解禁」，

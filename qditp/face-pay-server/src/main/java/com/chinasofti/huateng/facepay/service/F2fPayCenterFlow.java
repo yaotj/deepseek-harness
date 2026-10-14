@@ -10,6 +10,7 @@ import com.chinasofti.huateng.facepay.domain.F2fOrderStatusTransition;
 import com.chinasofti.huateng.facepay.entity.F2fOrder;
 import com.chinasofti.huateng.facepay.mapper.F2fOrderMapper;
 import com.chinasofti.huateng.facepay.mapper.F2fPaymentMapper;
+import com.chinasofti.huateng.facepay.support.F2fChannel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -40,7 +41,13 @@ public class F2fPayCenterFlow {
     /** IF8B-05 {@code payDate} 的格式。 */
     private static final DateTimeFormatter PAY_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    /** 设备单（{@code THIRD_USER_ID} 为空）推 IF8B-05 时的重试上限：一次即终态。 */
+    /**
+     * APP 渠道单在 {@code THIRD_USER_ID} 异常缺失时的重试上限：一次即终态。
+     *
+     * <p>正常 APP 单必带 {@code THIRD_USER_ID}；走到这条分支说明数据有问题（如对端开户未回写），
+     * 报文必然被 {@code userId} 校验拒掉，重推 5 次只是把同一条 ERROR 刷 5 遍。留 GIVEUP 让它可见，
+     * 便于人工核对是哪张单缺用户号。
+     */
     private static final int NO_USER_ID_NOTIFY_RETRY = 1;
 
     private final PayCenterClient payCenterClient;
@@ -296,6 +303,12 @@ public class F2fPayCenterFlow {
     /**
      * IF8B-05 支付结果通知（我方 → APP_SERVER）的生产者：只入队，不投递。
      *
+     * <p><b>只推 APP 购票的单</b>（甲方 2026-10-13 裁决「单程票不是 APP 购票的不要发过来」）：
+     * TVM / BOM 现场匿名购票没有 {@code THIRD_USER_ID}，而对端 {@code receivePaymentResult} 的
+     * {@code userId} 是必填且**空串也拒**，这类报文发出去必然 {@code 7004} 且无补救字段可用；
+     * 而它们并非 APP 下单，对端库里也没有对应订单数据（实测退到 {@code 7001 找不到对应的数据}）。此前的处置是「仍全推、只把重试上限压到 1」（ADR-D112），
+     * 代价是每笔设备单都留一条 {@code GIVEUP}，现已按对方口径直接不入队。
+     *
      * @param tradeNo 支付中心订单号；null 时上送空串
      * @param paidTms 支付成功时刻，MUST 由调用方传入刚刚写进 {@code PAID_TMS} 的那个值。
      */
@@ -304,6 +317,11 @@ public class F2fPayCenterFlow {
             F2fOrder order = orderMapper.selectByOrderNo(orderNo);
             if (order == null) {
                 log.error("IF8B-05 支付结果通知入队失败：订单不存在, orderNo={}", orderNo);
+                return;
+            }
+            if (!F2fChannel.APP.equals(order.getChannel())) {
+                log.info("IF8B-05 跳过非 APP 渠道订单，不入队, orderNo={}, channel={}, bizType={}",
+                        orderNo, order.getChannel(), order.getBizType());
                 return;
             }
             Map<String, Object> payload = new LinkedHashMap<>();

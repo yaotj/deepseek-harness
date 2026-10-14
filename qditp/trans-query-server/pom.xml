@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.chinasofti.huateng</groupId>
     <artifactId>trans-query-server</artifactId>
-    <version>1.0.16</version>
+    <version>1.0.18</version>
     <packaging>jar</packaging>
 
     <parent>
@@ -19,7 +19,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>21</java.version>
-        <web.version>2.0</web.version>
+        <web.version>2.1</web.version>
         <rpc.version>2.0.1</rpc.version>
         <model.version>2.0.0</model.version>
         <fastjson.version>2.0.57</fastjson.version>

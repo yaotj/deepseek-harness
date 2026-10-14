@@ -24,6 +24,12 @@ spec:
     spec:
       containers:
       - env:
+        - name: management.tracing.enabled
+          value: 'true'
+        - name: management.tracing.sampling.probability
+          value: '0'
+        - name: spring.autoconfigure.exclude
+          value: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration
         - name: service.collectPay.url
           value: http://172.20.211.23:30025
         - name: service.blacklist.openLogger
@@ -96,7 +102,7 @@ spec:
           value: http://trans-query-57wpd-svc.itp.svc:30035
         - name: SERVICE_TRANS_QUERY_OPEN_LOGGER
           value: 'true'
-        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-app:2.0.100
+        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-app:2.0.105
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: fep-app

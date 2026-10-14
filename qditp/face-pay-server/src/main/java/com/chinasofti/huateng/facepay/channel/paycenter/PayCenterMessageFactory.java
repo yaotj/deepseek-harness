@@ -76,6 +76,8 @@ public class PayCenterMessageFactory {
         bizData.put("refundReason", properties.getRefundReason());
         String refundNoticeUrl = properties.getRefundNoticeUrl();
         if (refundNoticeUrl != null && !refundNoticeUrl.isBlank()) {
+            log.info("退款申请携带 notifyUrl={}，支付中心将回推退款结果至此, refundNo={}, origOrderNo={}",
+                    refundNoticeUrl, refundNo, origOrderNo);
             bizData.put("notifyUrl", refundNoticeUrl);
         } else {
             log.warn("pay.center.refund-notice-url 未配置，本次退款申请不送 notifyUrl，"

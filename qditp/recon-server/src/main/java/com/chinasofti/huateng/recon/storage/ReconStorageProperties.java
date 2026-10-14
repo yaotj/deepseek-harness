@@ -11,7 +11,7 @@ public class ReconStorageProperties {
     private long maxPartBytes = 134217728L;
     private long maxPartRecords = 250000L;
     private String internalToken;
-    private List<String> sources = new ArrayList<>(List.of("gate-txn-pay", "ticket", "collect-pay", "daily-ticket"));
+    private List<String> sources = new ArrayList<>(List.of("gate-txn-pay", "ticket", "daily-ticket"));
 
     public String getStorageRoot() { return storageRoot; }
     public void setStorageRoot(String storageRoot) { this.storageRoot = storageRoot; }

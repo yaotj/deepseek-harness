@@ -90,7 +90,7 @@
         ORDER BY T.TXN_DATE
     </select>
 
-    <!-- DETAIL 虚拟电子多日计次票明细，甲方 7 段行格式的数据来源，本模块只出「超时费」那一部分。 -->
+    <!-- DETAIL 虚拟电子多日计次票明细，甲方 21 段行格式的数据来源，本模块只出「出站/超时费」那一部分。 -->
     <select id="selectDetailPage" resultType="java.util.Map">
         SELECT
             T.ID,
@@ -99,7 +99,14 @@
             T.OUT_TIME,
             T.OVERTIME_AMOUNT,
             T.EXIT_STATION_NAME,
-            T.DEVICE_ID
+            T.DEVICE_ID,
+            T.ORIGINAL_FARE,
+            T.CARD_TYPE,
+            T.TICKET_TRANS_SEQ,
+            T.ORDER_NO,
+            T.TOTAL_AMOUNT,
+            T.SIGN_CHANNEL_CODE,
+            T.COUNTING_TIMES
         FROM GATE_TXN_PAY T
         WHERE <include refid="Recon_Window"/>
           AND NVL(T.OVERTIME_AMOUNT, 0) &gt; 0

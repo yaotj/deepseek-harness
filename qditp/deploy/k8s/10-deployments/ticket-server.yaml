@@ -24,6 +24,12 @@ spec:
     spec:
       containers:
       - env:
+        - name: management.tracing.enabled
+          value: 'true'
+        - name: management.tracing.sampling.probability
+          value: '0'
+        - name: spring.autoconfigure.exclude
+          value: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration
         - name: app.notify.counting-ticket-times-url
           value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receiveCountingTicketTimes
         - name: app.notify.counting-ticket-times-enabled
@@ -127,7 +133,7 @@ spec:
           value: ticket-server
         - name: NAMESPACE
           value: itp
-        image: os-harbor-svc.default.svc.cloudos:443/itp/ticket-server:2.1.103
+        image: os-harbor-svc.default.svc.cloudos:443/itp/ticket-server:2.1.111
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: ticket-server

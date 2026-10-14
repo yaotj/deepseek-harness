@@ -131,4 +131,28 @@
           AND P.FINISH_TMS &lt; #{windowEnd,jdbcType=TIMESTAMP}
     </select>
 
+    <select id="selectFacePayTxnDetails" resultType="java.util.Map">
+        SELECT
+            O.CARD_ID AS CARD_ID,
+            TO_CHAR(O.PAID_TMS, 'YYYYMMDDHH24MISS') AS PAID_TMS_STR,
+            O.TICKET_PRICE AS TICKET_PRICE,
+            NVL(O.STATION_CODE, O.ENTRY_STATION_CODE) AS STATION_CODE,
+            O.DEVICE_ID AS DEVICE_ID,
+            TO_CHAR(O.TICKET_NUM) AS TICKET_NUM,
+            P.PAY_CHANNEL_CODE AS PAY_CHANNEL_CODE,
+            TO_CHAR(O.ACTIVATE_TMS, 'YYYYMMDDHH24MISS') AS ACTIVATE_TMS_STR,
+            O.DEVICE_SEQ AS DEVICE_SEQ,
+            O.ORDER_NO AS ORDER_NO,
+            O.ORDER_AMOUNT AS ORDER_AMOUNT,
+            NVL(P.CASH_AMOUNT, O.ORDER_AMOUNT) AS ACTUAL_AMOUNT,
+            P.COUPON_AMOUNT AS COUPON_AMOUNT,
+            P.CHANNEL_ORDER_NO AS CHANNEL_ORDER_NO,
+            P.PAY_STATUS AS PAY_STATUS
+        FROM F2F_ORDER O
+        JOIN F2F_PAYMENT P ON P.ORDER_NO = O.ORDER_NO AND P.PAY_STATUS = 'SUCCESS'
+        WHERE O.PAID_TMS &gt;= #{windowStart,jdbcType=TIMESTAMP}
+          AND O.PAID_TMS &lt; #{windowEnd,jdbcType=TIMESTAMP}
+        ORDER BY O.PAID_TMS, O.ORDER_NO
+    </select>
+
 </mapper>

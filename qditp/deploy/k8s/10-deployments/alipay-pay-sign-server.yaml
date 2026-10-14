@@ -26,6 +26,12 @@ spec:
       - env:
         - name: VLOGS_URL
           value: http://victoria-logs-pbi6a-svc.itp.svc:30032
+        - name: management.tracing.enabled
+          value: 'true'
+        - name: management.tracing.sampling.probability
+          value: '0'
+        - name: spring.autoconfigure.exclude
+          value: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration
         - name: service.blacklist.openLogger
           value: 'true'
         - name: service.key.openLogger
@@ -129,7 +135,7 @@ spec:
           value: itp
         - name: pay.center.refund-notify-url
           value: http://58.56.166.170:48000/fep-alipay/api/payment/refundNotify
-        image: os-harbor-svc.default.svc.cloudos:443/itp/alipay-pay-sign:1.1.56
+        image: os-harbor-svc.default.svc.cloudos:443/itp/alipay-pay-sign:1.1.59
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: alipay-pay-sign-server

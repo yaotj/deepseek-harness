@@ -44,8 +44,6 @@ spec:
           value: qditp
         - name: RECON_SRC_GATE_TXN_PAY_URL
           value: http://gate-txn-pay-server-jomf4-svc.itp.svc:30019
-        - name: RECON_SRC_COLLECT_PAY_URL
-          value: http://collect-pay-c23ku-svc.itp.svc:30024
         - name: RECON_FTP_PASSWORD
           valueFrom:
             secretKeyRef:

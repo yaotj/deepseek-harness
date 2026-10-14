@@ -1,6 +1,7 @@
 package com.chinasofti.huateng.facepay.service;
 
 import com.chinasofti.huateng.facepay.mapper.F2fReconExportMapper;
+import com.chinasofti.huateng.model.recon.F2fTxnLine;
 import com.chinasofti.huateng.model.recon.ReconExportReqDTO;
 import com.chinasofti.huateng.model.recon.ReconFileTypeEnum;
 import com.chinasofti.huateng.model.recon.ReconRecord;
@@ -22,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** 日终对账分片导出，本源标识 {@code face-pay}，只负责 ITP.PAY 与 ITP.BUS 两类文件。本类刻意不带 {@code @Transactional}（抽取只读、链路里夹着 RPC），NEVER 加。 */
+/** 日终对账分片导出，本源标识 {@code face-pay}，负责 ITP.PAY、ITP.BUS 与 F2F_TXN 三类文件。本类刻意不带 {@code @Transactional}（抽取只读、链路里夹着 RPC），NEVER 加。 */
 @Service
 public class ReconExportService {
 
@@ -117,6 +118,7 @@ public class ReconExportService {
                 switch (type) {
                     case PAY -> exportPay(request);
                     case BUS -> exportBus(request);
+                    case F2F_TXN -> exportF2fTxn(request);
                     default -> log.warn("face-pay 不负责该对账文件类型，已跳过 batchId={}, fileType={}",
                             request.getBatchId(), type);
                 }
@@ -215,7 +217,56 @@ public class ReconExportService {
         }
     }
 
-    /** Oracle 数字列转 long（单位分）。 */
+    /**
+     * F2F_TXN 明细导出：按窗口逐行读 {@code F2F_ORDER JOIN F2F_PAYMENT(SUCCESS)}，每笔成功支付写一行分片，
+     * 经 {@code ReconPartSink} 上送 recon-server（再由 FacePayTxnShardFetcher 读回）。行格式见 {@link F2fTxnLine}。
+     */
+    private void exportF2fTxn(ReconExportReqDTO request) {
+        Timestamp windowStart = request.getWindowStartTimestamp();
+        Timestamp windowEnd = request.getWindowEndTimestamp();
+        try (ReconPartSink sink = uploader.open(request.getBatchId(), SOURCE, ReconFileTypeEnum.F2F_TXN)) {
+            for (Map<String, Object> row : reconExportMapper.selectFacePayTxnDetails(windowStart, windowEnd)) {
+                sink.write(buildF2fTxnLine(row), f2fTxnAmountCents(row));
+            }
+            sink.commit();
+            log.info("F2F_TXN 抽取完成 batchId={}, parts={}, records={}, amount={}",
+                    request.getBatchId(), sink.getUploadedParts(), sink.getTotalRecords(), sink.getTotalAmount());
+        }
+    }
+
+    /** 把一行查询结果按 {@link F2fTxnLine} 的 21 段契约拼装成一行。 */
+    private String buildF2fTxnLine(Map<String, Object> row) {
+        String[] f = new String[F2fTxnLine.FIELD_COUNT];
+        f[F2fTxnLine.TXN_TYPE] = "当面付";
+        f[F2fTxnLine.LOGIC_CARD_NO] = toStr(row.get("CARD_ID"));
+        f[F2fTxnLine.TXN_DATE_TIME] = toStr(row.get("PAID_TMS_STR"));
+        f[F2fTxnLine.ORIGINAL_FARE] = String.valueOf(toLong(row.get("TICKET_PRICE")));
+        f[F2fTxnLine.CUR_STATION_NAME] = toStr(row.get("STATION_CODE"));
+        f[F2fTxnLine.DEVICE_NO] = toStr(row.get("DEVICE_ID"));
+        f[F2fTxnLine.TICKET_TYPE] = "";
+        f[F2fTxnLine.TICKET_SUB_TYPE] = "";
+        f[F2fTxnLine.TIMES] = toStr(row.get("TICKET_NUM"));
+        f[F2fTxnLine.PAY_CHANNEL] = toStr(row.get("PAY_CHANNEL_CODE"));
+        f[F2fTxnLine.ACTIVATE_TIME] = toStr(row.get("ACTIVATE_TMS_STR"));
+        f[F2fTxnLine.QUANTITY] = "1";
+        f[F2fTxnLine.TICKET_TRANS_SEQ] = toStr(row.get("DEVICE_SEQ"));
+        f[F2fTxnLine.ORDER_NO] = toStr(row.get("ORDER_NO"));
+        f[F2fTxnLine.ORDER_AMOUNT] = String.valueOf(toLong(row.get("ORDER_AMOUNT")));
+        f[F2fTxnLine.ACTUAL_AMOUNT] = String.valueOf(toLong(row.get("ACTUAL_AMOUNT")));
+        f[F2fTxnLine.DISCOUNT_CUMULATIVE_AMOUNT] = String.valueOf(toLong(row.get("COUPON_AMOUNT")));
+        f[F2fTxnLine.OVERTIME_AMOUNT] = "";
+        f[F2fTxnLine.MERCHANT_ORDER_NO] = toStr(row.get("ORDER_NO"));
+        f[F2fTxnLine.CHANNEL_TRADE_NO] = toStr(row.get("CHANNEL_ORDER_NO"));
+        f[F2fTxnLine.ITP_PAY_STATUS] = toStr(row.get("PAY_STATUS"));
+        return F2fTxnLine.toLine(f);
+    }
+
+    /** 本行计入收齐校验的金额（分），用实际扣款金额。 */
+    private long f2fTxnAmountCents(Map<String, Object> row) {
+        return toLong(row.get("ACTUAL_AMOUNT"));
+    }
+
+    /** Oracle 数字列转 long（单位分），null 按 0。 */
     private long toLong(Object value) {
         if (value == null) {
             return 0L;

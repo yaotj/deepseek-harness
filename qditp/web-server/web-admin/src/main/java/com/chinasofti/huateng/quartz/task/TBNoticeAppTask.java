@@ -67,14 +67,14 @@ public class TBNoticeAppTask {
             CommonResult response = action.apply(QuartzTraceUtils.traceHeaders(traceId));
             if (response == null)
             {
-                throw new IllegalStateException("collect-pay-server Quartz 联调接口未返回响应: " + bizName);
+                throw new IllegalStateException("f2f-service(face-pay) Quartz 联调接口未返回响应: " + bizName);
             }
             if (!SUCCESS_CODE.equals(response.getRetCode()))
             {
-                throw new IllegalStateException("collect-pay-server Quartz 联调失败: " + bizName
+                throw new IllegalStateException("f2f-service(face-pay) Quartz 联调失败: " + bizName
                         + ", retCode=" + response.getRetCode() + ", retMsg=" + response.getRetMsg());
             }
-            log.info("调用 collect-pay-server Quartz {} 联调调用成功, retMsg={}", bizName, response.getRetMsg());
+            log.info("调用 f2f-service(face-pay) Quartz {} 联调调用成功, retMsg={}", bizName, response.getRetMsg());
         });
     }
 

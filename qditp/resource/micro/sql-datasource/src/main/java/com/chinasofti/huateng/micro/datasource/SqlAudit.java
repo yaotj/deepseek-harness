@@ -36,6 +36,9 @@ public class SqlAudit extends FilterEventAdapter {
     @Value("${other.sql.trace:false}")
     private boolean trace;
 
+    @Value("${other.sql.audit.heartbeat.skip:false}")
+    private boolean skipHeartbeat;
+
     public long getRowsWarn() {
         return rowsWarn;
     }
@@ -88,9 +91,16 @@ public class SqlAudit extends FilterEventAdapter {
         try {
             String runSqlF = "" + runSql;
             long take = System.currentTimeMillis() - startTime;
-            String cnt_str = String.valueOf(fetchRowCount);
+        String cnt_str = String.valueOf(fetchRowCount);
 
-            if (trace) {
+        // 心跳相关 SQL（F2F_DEVICE_HEARTBEAT / F2F_DEVICE_STATUS）刷屏时，默认关闭 INFO 审计；
+        // 慢 SQL / 大结果集仍走 error，不丢。
+        if (skipHeartbeat && isHeartbeatSql(runSqlF)
+                && !(getSlowSqlMillis() <= take || Long.parseLong(cnt_str) >= getRowsWarn())) {
+            return;
+        }
+
+        if (trace) {
                 Observation observation = Observation.createNotStarted("custom.sql", this.observationRegistry);
                 observation.lowCardinalityKeyValue("custom.slow.sql", getSlowSqlMillis() + "ms");
                 observation.lowCardinalityKeyValue("custom.run.sql", runSqlF);
@@ -164,6 +174,14 @@ public class SqlAudit extends FilterEventAdapter {
         return 0;
     }
 
+
+    private static final java.util.regex.Pattern HEARTBEAT_SQL_PATTERN =
+            java.util.regex.Pattern.compile("F2F_DEVICE_HEARTBEAT|F2F_DEVICE_STATUS",
+                    java.util.regex.Pattern.CASE_INSENSITIVE);
+
+    private boolean isHeartbeatSql(String sql) {
+        return sql != null && HEARTBEAT_SQL_PATTERN.matcher(sql).find();
+    }
 
     private String getRunSql(StatementProxy statement) {
         String runSql = statement.getRawObject().toString();

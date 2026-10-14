@@ -1,0 +1,30 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: route-sentinel
+  datasource:
+    url: "jdbc:oracle:thin:@//172.20.222.3:1521/AFCITPDB"
+    username: qditp
+    password: ${DB_PASSWORD:qditp}
+    driver-class-name: oracle.jdbc.OracleDriver
+    hikari:
+      minimum-idle: 2
+      maximum-pool-size: 20
+      connection-timeout: 2000
+      max-lifetime: 300000
+      idle-timeout: 600000
+      pool-name: gateway-readonly-pool
+management:
+  endpoints:
+    web:
+      exposure:
+        include: gatewayroutes,health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+logging:
+  level:
+    org.qd.scg: INFO
+    org.springframework.cloud.gateway: INFO

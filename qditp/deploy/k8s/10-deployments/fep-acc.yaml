@@ -24,6 +24,12 @@ spec:
     spec:
       containers:
       - env:
+        - name: management.tracing.enabled
+          value: 'true'
+        - name: management.tracing.sampling.probability
+          value: '0'
+        - name: spring.autoconfigure.exclude
+          value: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration
         - name: other.web.unSafeUrlChars
           value: 'null'
         - name: knife4j.production
@@ -48,7 +54,7 @@ spec:
           value: itp
         - name: VLOGS_URL
           value: http://victoria-logs-pbi6a-svc.itp.svc:30032
-        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-acc:1.0.7
+        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-acc:1.0.10
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: fep-acc

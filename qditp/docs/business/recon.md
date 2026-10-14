@@ -1,32 +1,35 @@
-# 日终对账（recon-server + 四个源服务）
+# 日终对账（recon-server + 三个源服务）
 
 > 本文按代码实际落地情况编写，不是需求文档。改动本域代码前先读本文，再读点名的核心类源码。
 > 四类文件的行格式与字段顺序**来自甲方规格原文**
 > `docs/接口规范文档/ACC与ITP之间的文件.docx` §一「对账文件」（规格原文一直在仓库内，
 > 本文此前记为「甲方规格缺失、行格式是本项目自定义 v1」，**该结论是错的，已于 2026-09-11 全部返工**）。
-> 行格式是**跨五个模块的契约**，改一处必须同时改 recon-server 与四个源服务
-> （`face-pay` 是 2026-09-16 新增的第 4 个源；**本文前半部分此前通篇写「三个源」，已于 2026-09-22 全量订正，NEVER 回退**。
+> 行格式是**跨五个模块的契约**，改一处必须同时改 recon-server 与各源服务（源清单 MUST 现查 `recon.orchestration.sources[*]`）
+> （`face-pay` 2026-09-16 接入为当时第 4 个源；**本文前半部分此前通篇写「三个源」，已于 2026-09-22 全量订正；2026-10-13 collect-pay 旧表源随该模块下线移除，现为三源，「四个源」自此是过期口径**。
 > ticket-server 侧的保留代码也要跟着改，否则将来启用即错位）。
 
 ## 涉及模块与端口
 
 | 模块 | 端口 | 版本 / 镜像 | 在本域中的角色 |
 |---|---|---|---|
-| recon-server | 9112（`SERVER_PORT`） | `1.0.16` / `itp/recon-server`（2026-09-22 现查：仓库 pom 与集群 Deployment 一致） | 批次编排、分片接收、流式聚合、FTP 投递；**自身无调度**，由 web-admin `sys_job` 225「给ACC上传扣费交易」每日触发 |
-| gate-txn-pay-server | 9106 | `2.0.50` | 源 `gate-txn-pay`，产出 **EXP、PAY、BUS、DETAIL** 四类 |
-| collect-pay-server | 58101 | `1.1.69` | 源 `collect-pay`，产出 **PAY、BUS**（原有的 DETAIL 导出已删除）。**旧表口径，与 `face-pay` 并列、NEVER 二选一** |
-| face-pay-server | 58101 | `1.0.64`（仓库 pom） | 源 `face-pay`（**2026-09-16 新增的第 4 个源**），产出 **PAY、BUS**，口径来自 `F2F_ORDER join F2F_PAYMENT`。**切流后的新单只进 `F2F_*`，只有这个源导得出来** |
-| daily-ticket-server | 9108 | `1.0.17` | 源 `daily-ticket`，产出 **PAY、DETAIL** |
-| ticket-server | 9103 | `2.1.60`（本轮未再动） | **不在期望清单内**。`ReconExportController` / `ReconExportService` / `ReconExportMapper` + XML 与 `recon.*` 配置**全部保留未删**，只是 `recon.orchestration.sources` 里没有它，因此永远收不到抽取指令 |
+| recon-server | 9112（`SERVER_PORT`） | `1.0.24`（2026-10-13 现查仓库 pom） | 批次编排、分片接收、流式聚合、FTP 投递；**自身无调度**，由 web-admin `sys_job` 225「给ACC上传扣费交易」每日触发 |
+| gate-txn-pay-server | 9106 | `2.0.103`（2026-10-13 现查仓库 pom） | 源 `gate-txn-pay`，产出 **EXP、PAY、BUS、DETAIL** 四类 |
+| collect-pay-server | 58101 | `1.1.89`（2026-10-13 现查仓库 pom） | 源 `collect-pay`（**2026-10-13 已随该模块下线移除，本行留作历史记录**），产出 **PAY、BUS**（原有的 DETAIL 导出已删除）。**旧表口径，与 `face-pay` 并列、NEVER 二选一** |
+| face-pay-server | 58101 | `1.0.70`（2026-10-13 现查仓库 pom） | 源 `face-pay`（2026-09-16 接入），产出 **PAY、BUS**，口径来自 `F2F_ORDER join F2F_PAYMENT`。**切流后的新单只进 `F2F_*`，只有这个源导得出来** |
+| daily-ticket-server | 9108 | `1.0.66`（2026-10-13 现查仓库 pom） | 源 `daily-ticket`，产出 **PAY、DETAIL** |
+| ticket-server | 9103 | `2.1.109`（2026-10-13 现查仓库 pom） | **不在期望清单内**。`ReconExportController` / `ReconExportService` / `ReconExportMapper` + XML 与 `recon.*` 配置**全部保留未删**，只是 `recon.orchestration.sources` 里没有它，因此永远收不到抽取指令 |
 
-> ⚠️ 上表除 recon-server 那行外的版本号**都不是现查值、易过期**，判断「某改动上没上线」MUST 现查
-> `kubectl get deploy -n itp -o custom-columns='NAME:.metadata.name,IMAGE:.spec.template.spec.containers[*].image'`。
+> ⚠️ **上表版本列全部是「现查仓库 pom」的快照，每次部署都会 +1，因此必然过期。**
+> 判断「某改动上没上线」MUST 现查集群：
+> `kubectl get deploy -n itp -o custom-columns='NAME:.metadata.name,IMAGE:.spec.template.spec.containers[*].image'`
+> （**MUST 查集群 image tag，NEVER 查仓库 pom 当上线版本** —— 仓库 pom 是「将要发布的」，不是「已发布的」）。
+> 2026-10-13 订正记录：本表 6 个版本号**全部过期**（recon 1.0.16→1.0.24、gate-txn-pay 2.0.50→2.0.103、collect-pay 1.1.69→1.1.89、face-pay 1.0.64→1.0.70、daily-ticket 1.0.17→1.0.66、ticket-server 2.1.60→2.1.109）。
 
-`spring.application.name=recon-server`，已在根 `pom.xml` 聚合列表（`pom.xml:60`）。
-`recon-server/pom.xml:104` 的 `kubernetes-maven-plugin` 1.19.0 execution id `build-image-after-package`、
+`spring.application.name=recon-server`，已在根 `pom.xml` 聚合列表（`pom.xml`）。
+`recon-server/pom.xml` 的 `kubernetes-maven-plugin` 1.19.0 execution id `build-image-after-package`、
 `<phase>package</phase>`、goals 是未注释的 `build` + `push`（`deploy` 在 XML 注释里），
 因此 **`mise exec -- mvn clean package` 就会 build + push 到 Harbor**；只想拿 jar 必须加 `-Djkube.skip=true`。
-镜像名取自 `<image.prefix>recon-server</image.prefix>`（`recon-server/pom.xml:31`），tag 等于 pom `<version>`。
+镜像名取自 `<image.prefix>recon-server</image.prefix>`（`recon-server/pom.xml`），tag 等于 pom `<version>`。
 
 启动类 `com.chinasofti.huateng.ReconServer`：
 `@SpringBootApplication` + `@EnableDefaultMybatisAutoConfig` + `@EnableRpcRecon`
@@ -53,10 +56,10 @@
               ReconExportClient 逐源 POST <源地址>/internal/recon/export（绝对 URL）
                                     |
    +------------------------+----------------+------------------+----------------+
-   |      gate-txn-pay      |   collect-pay  |   daily-ticket   |    face-pay    |  ← 受理即返回 accepted
+   |      gate-txn-pay      |   daily-ticket   |    face-pay    |  ← 受理即返回 accepted
    | EXP  PAY  BUS  DETAIL  |    PAY  BUS    |   PAY  DETAIL    |    PAY  BUS    |    抽取跑在平台线程池 recon-export
    +------------------------+----------------+------------------+----------------+
-                        （collect-pay = 旧表、face-pay = 新表，并列不互替）
+                        （face-pay = 新表；collect-pay 旧表源已于 2026-10-13 移除）
         Keyset 分页读库 / 库内 GROUP BY → ReconRecord.line(...) 拼管道分隔文本
         → ReconPartUploader/ReconPartSink 按 20 万行或 64MB 滚片、边写边算 SHA-256
                                     |
@@ -95,9 +98,9 @@
 | R-08 | POST | `/internal/recon/batches/{batchId}/files/{fileType}/upload` | recon-server | FTP 投递最终文件 |
 | R-09 | POST | `/internal/recon/batches/{batchId}/advance` | recon-server | 人工推进一个批次，等价编排器的一轮 |
 | R-10 | POST | `/internal/recon/export` | gate-txn-pay-server | 受理抽取指令即返回，实际抽取转平台线程池 |
-| R-11 | POST | `/internal/recon/export` | collect-pay-server | 同上 |
+| R-11 | POST | `/internal/recon/export` | collect-pay-server | 同上（**该模块 2026-10-13 已下线，端点不可达；源已移除**） |
 | R-12 | POST | `/internal/recon/export` | daily-ticket-server | 同上 |
-| R-12A | POST | `/internal/recon/export` | face-pay-server | 同上（**第 4 个源，2026-09-16 新增**；`F2F_*` 新表口径） |
+| R-12A | POST | `/internal/recon/export` | face-pay-server | 同上（2026-09-16 接入；`F2F_*` 新表口径） |
 | R-13 | POST | `/internal/recon/export` | ticket-server | **接口存在但从不被调用**（`ticket` 不在期望清单），保留待甲方要求全量过闸明细时启用 |
 
 **鉴权**：⚠️ **当前处于开发测试阶段，这组接口（含各源的 `/internal/recon/export`）全部无鉴权**。
@@ -250,7 +253,7 @@ EXP 的唯一来源是 gate-txn-pay（见「各源抽取口径」里的结构性
 ## 数据表
 
 DDL：`recon-server/src/main/resources/sql/recon-server-schema.sql`，增量脚本 `recon-server-schema-migration.sql`。
-**已在唯一目标库 `AFCITPDB` 于 2026-09-11 建好并回查验证**（见文末遗留问题 A1；**本行此前写「测试库已建、生产库仍未执行 DDL」是把同一个库当成了两个，NEVER 回退 —— `AFCITPDB` 就是唯一的目标业务库，见 AGENTS.md §8**）。
+**已在唯一目标库 `AFCITPDB` 于 2026-09-11 建好并回查验证**（见文末遗留问题 A1）。
 
 | 表 | 主键 | 关键列 |
 |---|---|---|
@@ -308,7 +311,7 @@ DETAIL 的 Keyset 与 PAY 的旅游票汇总**共用这一条**：两者都是 `
 
 ## 批次编排与调度
 
-调度**在 web-admin 的 Quartz（`sys_job` job_id 225「给ACC上传扣费交易」，`reconQuartzTask.runDailyBatch()`，cron `0 0 2 * * ?`）**（2026-09-21 由 109「日终对账」改号改名）。
+调度**在 web-admin 的 Quartz（`sys_job` job_id 225「给ACC上传扣费交易」，`reconQuartzTask.runDailyBatch()`，cron `0 0 2 * * ?`）。
 recon-server 本身**一个 `@Scheduled` 都没有**、启动类也没有 `@EnableScheduling`（2026-09-11 按用户要求
 「不使用 EnableScheduling，改用 web-admin 调用，改为每日执行一次，由 web-admin 控制频率」返工）。
 本节此前记载的「调度全在 recon-server 自己的 `@Scheduled` 里、`sys_job` 里没有对账任务」**已作废，NEVER 回退**。
@@ -330,7 +333,7 @@ recon-server 本身**一个 `@Scheduled` 都没有**、启动类也没有 `@Enab
   全齐推 `ALL_SOURCE_COMPLETED` → 逐类型 generate → 推 `UPLOADING` 并逐类型 upload → 推 `SUCCESS`。
   任一步抛异常统一 `catch` 后置 `FAILED`，下一轮从 `FAILED` 重入。
 - 要生成哪几类文件由 `RECON_BATCH_SOURCE` 里出现过的 `FILE_TYPE` 并集决定，按 `ReconFileTypeEnum` 声明顺序输出。
-  当前四个源的并集恰好是四类全覆盖（EXP 只有 gate-txn-pay 一个来源）。
+  当前三个源的并集恰好是四类全覆盖（EXP 只有 gate-txn-pay 一个来源）。
 - **只有进程内 `AtomicBoolean`、没有数据库锁**，因此 **recon-server MUST 单副本**（web-admin 同样单副本）。
   多副本会让两个 Pod 同时推进同一批次、重复生成与重复投递。
 - 人工补跑有两条路：web-admin 前台对 job 225 点「执行一次」，或直接打
@@ -361,7 +364,7 @@ recon-server 本身**一个 `@Scheduled` 都没有**、启动类也没有 `@Enab
    `transitionIfNeeded(EXPORTING)`；`create` 用的是 `insertIfAbsent`、不改任何列，但白名单里
    `case SUCCESS -> false`，于是抛「非法的对账批次状态变更: SUCCESS -> EXPORTING」。
    cron 每天算出的 batchId 不同所以碰不到，**但前台「执行一次」在同一天点第二下必然踩**
-   （2026-09-11 在 1.0.11 的 Pod 上实测到这条栈：`ReconOrchestrationService.java:195`
+   （2026-09-11 在 1.0.11 的 Pod 上实测到这条栈：`ReconOrchestrationService.java`
    → `ReconBatchService$$SpringCGLIB$$0.transitionIfNeeded`）。修法是在 `create` 之后加一句
    「已 `SUCCESS` 就 log 后直接 `return batchId`」，外层第一轮 `advanceBatch` 拿到 `SUCCESS`
    即正常收口。**NEVER 删这个短路**。1.0.12 实测：`{"retCode":"0000","retMsg":"日终对账已完成:
@@ -375,7 +378,7 @@ recon-server 本身**一个 `@Scheduled` 都没有**、启动类也没有 `@Enab
 按 `sys_job_log` 里那条 traceId 去查四个模块的日志，此前**一条都查不到**：`ReconQuartzTask` 早就在发
 W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Capture: 1`），
 公共 `log4j2-linux.xml` 的 pattern 也早就写着 `%X{traceId}`，但四个模块都没打开
-`management.tracing.enabled`（`resource/micro/web/src/main/resources/web.properties:78` 默认 `false`），
+`management.tracing.enabled`（`resource/micro/web/src/main/resources/web.properties` 默认 `false`），
 于是**入向的 traceparent 无人续接、那一列恒为空**。已在四个模块的配置里补上同一组三行
 （`management.tracing.enabled=true` + `sampling.probability=0` + 排除 `OtlpAutoConfiguration`）：
 
@@ -386,8 +389,8 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
   `spring.autoconfigure.exclude` 要并进已有的 `spring:` 段）
 
 链路是 web-admin（`AbstractQuartzJob` 造 traceId 并写进 `sys_job_log.job_message`）→ recon-server
-（`ReconClient` 带 `traceparent` 进来）→ 四个源（recon-server 侧 `ProxyWebClient` 用 Boot 托管的
-`WebClient.Builder`，观测自动带出 `traceparent`）。**四个模块 MUST 一起开**，漏一个链路就断在那一环。
+（`ReconClient` 带 `traceparent` 进来）→ 各源（recon-server 侧 `ProxyWebClient` 用 Boot 托管的
+`WebClient.Builder`，观测自动带出 `traceparent`）。**链上每个模块 MUST 一起开**，漏一个链路就断在那一环。
 
 三条注意：**①`sampling.probability=0` 不影响 MDC**，它只管 span 上不上报，traceId 照样进 MDC；
 **②排除 `OtlpAutoConfiguration` 那行 NEVER 删**，Boot 3.2.6 没有 `management.tracing.export.enabled`，
@@ -458,12 +461,12 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
 
 ## 各源抽取口径
 
-四个源的共性（`face-pay` 与 `collect-pay` 同为 TVM/BOM 域，只是新表 / 旧表口径不同）：
+三个源的共性（`face-pay` 为 TVM/BOM 域新表源，collect-pay 旧表源已于 2026-10-13 移除）：
 - 入口都是 `POST /internal/recon/export`，**受理即返回**（`accepted`），
   真正的抽取提交到名为 `recon-export` 的**固定大小平台线程池**（`recon.export.worker`，默认 1）。
   **NEVER 在请求线程上抽取**——全服务 `spring.threads.virtual.enabled=true`，
   阻塞的 ojdbc8 调用会 pin 住载体线程。
-  ⚠️ **本处此前写「同一个 `X-Recon-Token`」已过期**：该头已按用户 2026-09-11 要求从
+  ⚠️ ：该头已按用户 2026-09-11 要求从
   recon-server 与四个源的 `ReconExportController` 中**整段删除**，`ReconClient` / `ReconExportClient`
   也不再发送它（见「真实接口清单」的鉴权段与 §九）。**NEVER 据本行去找 token 校验代码。**
 - 明细分页一律 **Keyset 游标**（`(时间列, 主键)` 复合游标 + `FETCH FIRST #{limit} ROWS ONLY`），
@@ -494,7 +497,7 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
 |---|---|---|---|
 | EXP | `selectExpPage` | `<include refid="Recon_Exp_Filter"/>` = `ORDER_EXP_TYPE IS NOT NULL AND <> ' ' AND <> '0'` | **全量单边账明细**。**刻意不加 `DEBIT_STATUS`**：单边账的本质就是扣费链路没走完，按 `SUCCESS` 过滤等于把要报的行全滤掉。空格判定**必须留**（历史数据可能写单个空格表示无异常）；**排除 `'0'` 必须**（不排除会把全部正常单捞进单边账，见 B7）。**EXP 与 PAY 单边组 MUST 共用同一个片段、NEVER 分叉** —— 片段抽出来就是为了让两处无法漂移 |
 | PAY | `selectPayGateSummary` | `DEBIT_STATUS='SUCCESS'` | 填「过闸」组，0 基下标 **11 / 12** |
-| PAY | `selectPayExpSummary` | `<include refid="Recon_Exp_Filter"/>`（与 EXP 逐字同源，**NEVER 分叉**） | 填「单边交易」组，0 基下标 **17 / 18**；**这四个下标只有 gate-txn-pay 会填，其余源写字面 `0`** |
+| PAY | `selectPayExpSummary` | `<include refid="Recon_Exp_Filter"/>`（与 EXP 逐字同源，**NEVER 分叉**） | 填「单边交易」组，0 基下标 **17 / 18这四个下标只有 gate-txn-pay 会填，其余源写字面 `0`** |
 | BUS | `selectBusSummary` | `DEBIT_STATUS='SUCCESS'` | 按 `TXN_DATE` 单键分组，对账金额与付款金额都取 `NVL(SUM(TOTAL_AMOUNT),0)`（本表无独立实收列，两列同值是有意的） |
 | DETAIL | `selectDetailPage` | `NVL(OVERTIME_AMOUNT,0) > 0 AND CARD_TYPE IN ('0445','0446','0447','0448')` | **只出「超时费」那部分**，交易类型固定中文「出站」。**刻意不加 `DEBIT_STATUS`**：超时费是否结清与是否要报账是两件事 |
 
@@ -542,7 +545,7 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
   而这两个域当前都没有向 `ITP.EXP` 供数的源** —— 这是**结构性缺失**（不是缺陷、也不是配置问题）：
   想补必须新加源或让现有源产出 EXP，**在甲方明确要这几类之前 NEVER 自行往 EXP 里塞数据**。
 
-### 源 `collect-pay`（collect-pay-server，四张表）→ PAY / BUS
+### 源 `collect-pay`（collect-pay-server，四张表）→ PAY / BUS —— **对账源已于 2026-10-13 移除**
 
 四张表：`TBL_TVM_ORDER_PAY` / `TBL_TVM_ORDER_TOPUP` / `TBL_TVM_APP_ORDER` / `TBL_BOM_ORDER_PAY`。
 窗口列一律 `CREATE_TIME`（**VARCHAR2(100) 存 `yyyy-MM-dd HH:mm:ss`，直接字符串比较**，左闭右开，
@@ -579,7 +582,7 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
 
 ### 源 `face-pay`（face-pay-server，新表 `F2F_ORDER` join `F2F_PAYMENT`）→ PAY / BUS
 
-**2026-09-16 新增的第 4 个源，与 `collect-pay` 是「新表 / 旧表」并列关系、NEVER 二选一**。
+**2026-09-16 新增，原为第 4 个源、与 `collect-pay` 旧表并列；collect-pay 源已于 2026-10-13 移除，face-pay 现为 TVM/BOM 域唯一新表源**。
 口径来自 `F2F_ORDER O JOIN F2F_PAYMENT P ON P.ORDER_NO = O.ORDER_NO AND P.PAY_STATUS = 'SUCCESS'`，
 窗口 `O.PAID_TMS` 左闭右开。核心类：`face-pay-server/.../facepay/service/ReconExportService.java`
 （grep `SOURCE = "face-pay"`）、`.../controller/internal/ReconExportController.java`、
@@ -614,7 +617,7 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
   **`fields[1]`（线路段）face-pay 恒为空串**，靠 recon-server 的 `recon.line-backfill` 反查补齐
   （见「线路段补齐」与遗留问题 C15）。
 - **【契约】本源标识 `SOURCE="face-pay"` 是跨服务契约字段值，MUST 与 recon-server 配置逐字一致、
-  NEVER 改**：它落 `RECON_BATCH_SOURCE.SOURCE_NAME`，与 `recon.orchestration.sources[3].name` 对不上时
+  NEVER 改**：它落 `RECON_BATCH_SOURCE.SOURCE_NAME`，与 `recon.orchestration.sources[2].name` 对不上时
   「全部 `COMPLETED`」永远凑不齐（`ReconOrchestrationProperties` 要求匹配 `[A-Za-z0-9_-]{1,32}`）。
 - **对账导出端点唯一**：`ReconExportController` 只有 `@PostMapping("/export")` 一个端点、前缀
   `@RequestMapping("/internal/recon")`，**由 recon-server 下发、不对外暴露**。
@@ -633,10 +636,10 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
   3. **漏账探针只打日志不开工单**：`countUncoveredPaidOrders` / `countPaidWithoutPaidTms`
      两个探针**只 `log.warn`**，不落库、不告警、不生成工单 ⇒ **漏账不会主动暴露**，
      只能靠人看日志或对账文件本身。
-  4. **`sources[3].file-types` 若误加 `EXP` / `DETAIL`，会让那行永远停 `EXPORTING`、批次永不 `SUCCESS`**：
+  4. **`sources[2].file-types` 若误加 `EXP` / `DETAIL`，会让那行永远停 `EXPORTING`、批次永不 `SUCCESS`**：
      face-pay 的 `switch` 对未知文件类型走 `default` 分支**只 `log.warn`**，
      **既不 `declareComplete` 也不 `markFailed`** ⇒ 该 `(来源, 文件类型)` 永远收不齐。
-     **MUST 保持 `sources[3].file-types=PAY,BUS`**（`face-pay-server` 只出这两类）。
+     **MUST 保持 `sources[2].file-types=PAY,BUS`**（`face-pay-server` 只出这两类）。
   5. **两侧零单测**（face-pay 与本域都无单元测试覆盖）—— 改动只能靠端到端实测。
 
 ### 新旧表重叠实测与旧表冻结（collect-pay ↔ face-pay）
@@ -685,8 +688,7 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
   **DETAIL 里也含旅游票子单**（没有加 `PARENT_ORDER_NO IS NULL`）：PAY 是汇总、DETAIL 是明细，
   并存不算重复计账；甲方是否要求 DETAIL 只含独立日票**无依据，当前不加该条件**。
 - PAY 只填「旅游票张数(发售) / 旅游票金额」一组，0 基下标 **9 / 10**。
-  **【契约】取数对象自 2026-09-22 起是旅游票主单 `TRAVEL_TICKET_ORDER`（`daily-ticket-server:1.0.59`）：
-  本处此前写「按子单 `DAILY_TICKET_ORDER` + `PARENT_ORDER_NO IS NOT NULL`」已过期，NEVER 回退。**
+  
   现 SQL 形状（`selectTravelTicketPaySummary`）：
   ```
   SELECT TO_CHAR(T.PAY_DATE,'YYYYMMDD') AS TXN_DATE, T.PAY_CHANNEL_CODE AS PAY_CHANNEL_CODE,
@@ -734,10 +736,9 @@ recon-server（`recon-server/src/main/resources/application.properties`）：
   `window-start-time`（默认 `020000`）/ `max-retry`（默认 3）
 - **`dispatch-cron` / `RECON_DISPATCH_CRON` 已于 2026-09-11 删除，NEVER 加回**：触发时机与频率由
   web-admin `sys_job` 225 的 cron 决定，本模块没有任何 cron 配置。
-- `recon.orchestration.sources[N].name` / `.url` / `.file-types`，**N=0..3 四个源**：
-  `gate-txn-pay`（EXP,PAY,BUS,DETAIL）、`collect-pay`（PAY,BUS）、`daily-ticket`（PAY,DETAIL）、
-  **`face-pay`（PAY,BUS，2026-09-16 新增）**。**`face-pay` 与 `collect-pay` NEVER 二选一**：
-  切流后的新单只进 `F2F_*`、切流前的历史单只在 collect-pay 那四张旧表里，删任一个都会让对应时间段的账凭空少一截。
+- `recon.orchestration.sources[N].name` / `.url` / `.file-types`，**N=0..2 三个源**：
+  `gate-txn-pay`（EXP,PAY,BUS,DETAIL）、`daily-ticket`（PAY,DETAIL）、
+  **`face-pay`（PAY,BUS，2026-09-16 新增）**。collect-pay 旧表源已于 **2026-10-13 移除**：旧表在 2026-09-18 账期起已落在对账窗口外、不再有新数据，其 PAY/BUS 由 face-pay 承接，删源不会让任何账期少数据。
 - **`service.recon.self-url` 已删除**（2026-09-11）：`ReconExportClient` 的 baseUrl 现在固定为空串，
   复用 `URLDynamicRouter` 的动态路由做法，下发地址只来自 `recon.orchestration.sources[].url` 的绝对 URL。
   原占位 baseUrl 让 `InternalMicroHttp` 的 INFO 日志打出
@@ -766,7 +767,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 
 - **改行格式、字段顺序或分隔符前 MUST 先核对甲方规格原文**
   `docs/接口规范文档/ACC与ITP之间的文件.docx` §一，**NEVER 自行发明字段或调整顺序**。
-  改动 **MUST 同时改 recon-server 与四个源服务**（ticket-server 侧的保留代码也要跟着改，否则将来启用即错位），
+  改动 **MUST 同时改 recon-server 与三个源服务**（ticket-server 侧的保留代码也要跟着改，否则将来启用即错位），
   并按 AGENTS.md §7 的约束重建链路上每一个经手 `model` DTO 的模块镜像。
 - **NEVER 用 JSON 承载分片或最终文件**。四类文件都是无 schema 的管道分隔纯文本，
   拼行只能走 `ReconRecord.line(...)`；**NEVER 自己 `String.join("|", ...)`**——
@@ -802,7 +803,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
   已于 **2026-09-11 在唯一目标库 `172.20.222.3:1521/AFCITPDB`（用户 `qditp`，口令走 K8s env、不入文档）执行**，
   并用 `USER_TABLES` 查到 4 张表全在。当时库内数据量很小：
   `DAILY_TICKET_ORDER` 44 行、`TRAVEL_TICKET_ORDER` 3 行、`GATE_TXN_PAY` 40 行。
-  **本条此前写「测试库已建、生产库仍未建」是把同一个库当成了两个，已作废、NEVER 回退** ——
+   ——
   `AFCITPDB` 就是本项目唯一的目标业务库（AGENTS.md §8）；要区分环境 MUST 先拿到第二个库的真实地址。
   DDL 仍在 `recon-server/src/main/resources/sql/recon-server-schema.sql`，
   增量脚本 `recon-server-schema-migration.sql`。后三张有外键，**建表顺序必须先 `RECON_BATCH`**。
@@ -819,7 +820,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 - **A2 索引：已闭合（保留记录）**：`IDX_DAILY_TICKET_ORDER_RECON (PAY_STATUS, PAY_DATE, ORDER_NO)`，
   脚本在 `daily-ticket-server/src/main/resources/sql/daily-ticket-recon-export-index.sql`。
   2026-09-11 已在唯一目标库 `AFCITPDB` 建好并用 `USER_INDEXES` 验证存在
-  （同表另有既存的 `IDX_DAILY_TICKET_ORDER_PARENT`）。**本条此前的「生产库仍未建」同 A1 已作废、NEVER 回退。**
+  （同表另有既存的 `IDX_DAILY_TICKET_ORDER_PARENT`）。
   DETAIL 与 PAY 两条查询共用它，缺它即 400 万级全表扫。
   ⚠️ **本句此前写「这是对账唯一需要新建的索引——主单侧索引已随旅游票改按子单统计而废弃」已过期**：
   旅游票汇总 **2026-09-22 起改回按主单 `TRAVEL_TICKET_ORDER`**（见 C14），
@@ -863,11 +864,11 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 - **B6 EXP / PAY / BUS 三节的「文件存放路径：」在原文里是空的**：`/itp/recon/` 只出现在 DETAIL 节末尾
   （「ITP 上传至固定路径：/itp/recon/」）。当前按**四类文件共用该路径**实现，需甲方确认。
 - **B7 「订单异常类型」取值冲突**：甲方定义 1~15，而我方 `GATE_TXN_PAY.ORDER_EXP_TYPE` 的列注释
-  （`scripts/20260818_if8a_schema_migration.sql:28`）是
+  （`scripts/20260818_if8a_schema_migration.sql`）是
   「0 正常, 1 单边账(入), 2 单边账(出), 3 单边入站人工, 4 单边出站人工, **5 双段计费超时**」——
   1~4 能对上，**第 5 位含义完全不同**（甲方是「乘客自主补进站」），且我方多一个「0 正常」而甲方无 0。
   当前实现**原样输出 `ORDER_EXP_TYPE`、不做任何映射**（猜错会把超时行程报成自主补站，账目性质变了）。
-  ⚠️ **本处此前写「`ORDER_EXP_TYPE='0'`（正常单）也会被 EXP 与 PAY 单边组捞进去、需甲方裁决是否排除」已过期**：
+  ⚠️ ：
   排除 `'0'` **已经落地、且是必须的** —— SQL 片段 `Recon_Exp_Filter` 现在是
   `T.ORDER_EXP_TYPE IS NOT NULL AND T.ORDER_EXP_TYPE <> ' ' AND T.ORDER_EXP_TYPE <> '0'`
   （见「各源抽取口径」源 `gate-txn-pay`）。不排除 `'0'` 会让**全部正常订单**被捞进单边账、
@@ -919,7 +920,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 ### C 数据侧空缺（导致部分字段恒 0 或范围过宽）
 
 - **C10 `gate-txn-pay` 无可靠优惠金额列**：`DISCOUNT_LEVEL_AMT` 的语义是「命中的累计金额门槛」
-  （`GateTxnPay.java:54`），**不是本笔优惠额**，且生产数据大面积为 NULL
+  （`GateTxnPay.java`），**不是本笔优惠额**，且生产数据大面积为 NULL
   （见 `docs/testing/user-card/01-二维码电子票.md` 与 `05-阻塞项与缺陷候选.md`）。
   因此 **EXP 第 5 段与 BUS 第 4 段恒 0**。同源还有两段恒空：
   EXP 第 6 段「进站设备编码」与第 8 段「出站处理设备类型」（表无对应列）。
@@ -928,7 +929,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
   `constant/BomBusinessCodeEnum` 把 `01` 与 `22` 的描述**都写成「充值」**；
   `BomOrderServiceImpl` 发售建单却硬编码 `setTransType("01")`。
   且该列有一条来源是**设备上送**。因此本表**未按购票 / 充值拆分，整张表计入「BOM/TVM 发售」组**。
-  ⚠️ **本处此前写「「BOM 行政处理」（idx 15/16）与「BOM 处理」（idx 19/20）两组恒 0」已过期**：
+  ⚠️ ：
   这两组是 **face-pay 新表专属**（`F2F_ORDER` 里 `BIZ_TYPE='04'` 的两支：`TRANS_TYPE='42'` 与
   `TRANS_TYPE IS NULL OR <> '42'`），`collect-pay` 四张旧表**没有这两种业务**、那两组在旧源上恒 0；
   但 **`face-pay` 源自 2026-09-16 加入后已经能填**（见「各源抽取口径」源 `face-pay` 的度量表）。
@@ -957,7 +958,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
     按 `TO_CHAR(PAY_DATE,'YYYYMMDD')` 与 `PAY_CHANNEL_CODE` 分组；
     **张数 `NVL(SUM(NVL(TICKET_COUNT, 0)), 0)`、NEVER 换回 `COUNT(*)`**（`COUNT(*)` 数的是订单数），
     金额 `NVL(SUM(NVL(PAY_AMOUNT, TOTAL_AMOUNT)), 0)`，**支付方式段填主单 `PAY_CHANNEL_CODE`**。
-    **本处此前整段写「按子单」已过期、NEVER 回退**（2026-09-22 实测：改回按子单那条查询**恒返 0 行**，
+    （2026-09-22 实测：改回按子单那条查询**恒返 0 行**，
     表现为「旅游票段永远为 0」）。
   - ⚠️ **【未闭合】本条改动的线上真实效果尚未实测确认**：会话明确**未现场触发
     `/internal/recon/export` 验证**，`ITP.PAY` 是否首次出现旅游票行，
@@ -980,7 +981,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
   **`face-pay` 源（2026-09-16 加入）的线路段也是空的**（2026-09-22 实测：
   `F2fReconExportMapper.xml` 五个 `*PaySummary` 查询只取 `NVL(O.STATION_CODE, O.ENTRY_STATION_CODE)`
   与 `O.DEVICE_ID`，**全文件无 `LINE_CODE`、也没有 join `STATION_INFO`**）。
-  ⚠️ 注意 `F2fReconExportMapper.java:19` 的 Javadoc 写着「每行含 TXN_DATE / LINE_CODE / ...」，
+  ⚠️ 注意 `F2fReconExportMapper.java` 的 Javadoc 写着「每行含 TXN_DATE / LINE_CODE / ...」，
   **与 SQL 不一致、是过期注释**，NEVER 据那行 Javadoc 认为 face-pay 已填线路段。
   **MUST 用 `LEFT JOIN`，NEVER 用 `INNER JOIN`**：像 `0245` 这种维表里没有的车站码，
   INNER JOIN 会把整组数据从对账文件里丢掉，那是漏账，比线路段为空严重得多。
@@ -1045,77 +1046,77 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 
 #### 契约与判据
 
-- **批次状态机白名单**（`recon-server/model/ReconBatchStatus.java:3~14`）：`CREATED -> EXPORTING -> PARTIAL -> ALL_SOURCE_COMPLETED -> GENERATING -> UPLOADING -> SUCCESS`。`FAILED` 不是终态，而是补偿重试的入口，可流向 `EXPORTING` / `GENERATING` / `UPLOADING`（`ReconBatchService.allowed`:73~91）。`SUCCESS` 是终态，NEVER 从 SUCCESS 再流出。重跑 MUST 换批次号。
-- **`PARTIAL -> EXPORTING` MUST 在白名单里**（`ReconBatchService.allowed`:68~71）：`runDailyBatch()` 每天或人工重跑都会先 `dispatchDailyBatch()`，对已存在的批次做 `transitionIfNeeded(EXPORTING)`。批次停在 PARTIAL 时少了这一条重入就直接抛「非法的对账批次状态变更: PARTIAL -> EXPORTING」，返 9999，**那个账期再也补不回来**。2026-09-11 实测（batchId=RECON20260909 停在 PARTIAL）。
-- **`FAILED -> ALL_SOURCE_COMPLETED` MUST 在白名单里**（`ReconBatchService.allowed`:61~66）：批次在「来源已全部收齐但生成或投递失败」时落到 FAILED，下一轮 `advanceBatch` 走的是 `transitionIfNeeded(ALL_SOURCE_COMPLETED)` 再重新生成。少了这一条，FAILED 批次只能靠 `dispatchDailyBatch` 的 `FAILED -> EXPORTING` 复活，而生产 cron 一天只跑一次且 batchId 按账期变化，昨天失败的批次今天不会再被下发，**永久卡在 FAILED、每轮只刷错误日志**。2026-09-11 实测复现（batchId=RECON20260907）。
-- **`dispatchDailyBatch` 的「已 SUCCESS 就短路」NEVER 删**（`ReconOrchestrationService.dispatchDailyBatch`:176~183, 202~205）：`create` 用的是 `insertIfAbsent`，对已存在的批次不改任何列，但紧随的 `transitionIfNeeded(EXPORTING)` 走 `transition`，白名单里 SUCCESS 是终态一律拒绝流出，同一账期第二次触发必抛「非法的对账批次状态变更: SUCCESS -> EXPORTING」。cron 每天 batchId 不同碰不到，但**前台「执行一次」当天点第二下必踩**（1.0.11 的 Pod 上已实测到该栈）。
-- **账期与窗口推算公式**（`ReconOrchestrationService.dispatchDailyBatch`:162~173）：`businessDate = 今天 - windowOffsetDays`（默认 T-2）；`windowStart = businessDate 当天 + windowStartTime`（默认 02:00:00）；`windowEnd = businessDate + 1 天 + windowStartTime`；文件名后缀 = `businessDate` 即 T-2 日；batchId = `"RECON" + businessDateText`（形如 `RECON20260910`）。甲方自校验例：今天 2019-08-20、offset 2 ⇒ 后缀 `20190818`、窗口 `[20190818 020000, 20190819 020000)`，与甲方一致。
-- **`window-offset-days` 默认 2，NEVER 改回 1**（`storage/ReconOrchestrationProperties.java:49~55`，配置在 `application.properties:80`）：改成 1 会让文件名后缀与统计区间同时前移一天，与甲方对不上。
-- **`run-timeout-millis` MUST 小于 `ReconClient.getResponseTimeout()` 的 5 分钟**（`storage/ReconOrchestrationProperties.java:36~46`，默认 240000，配置在 `application.properties:78`）：web-admin 同步等 `POST /internal/recon/daily/run` 的响应，本值若超过客户端超时会变成「客户端先超时报错、服务端还在跑」，`sys_job_log` 记的失败原因失去意义。要放宽 **MUST 两处一起改**。
+- **批次状态机白名单**（`recon-server/model/ReconBatchStatus.java`）：`CREATED -> EXPORTING -> PARTIAL -> ALL_SOURCE_COMPLETED -> GENERATING -> UPLOADING -> SUCCESS`。`FAILED` 不是终态，而是补偿重试的入口，可流向 `EXPORTING` / `GENERATING` / `UPLOADING`（`ReconBatchService.allowed`）。`SUCCESS` 是终态，NEVER 从 SUCCESS 再流出。重跑 MUST 换批次号。
+- **`PARTIAL -> EXPORTING` MUST 在白名单里**（`ReconBatchService.allowed`）：`runDailyBatch()` 每天或人工重跑都会先 `dispatchDailyBatch()`，对已存在的批次做 `transitionIfNeeded(EXPORTING)`。批次停在 PARTIAL 时少了这一条重入就直接抛「非法的对账批次状态变更: PARTIAL -> EXPORTING」，返 9999，**那个账期再也补不回来**。2026-09-11 实测（batchId=RECON20260909 停在 PARTIAL）。
+- **`FAILED -> ALL_SOURCE_COMPLETED` MUST 在白名单里**（`ReconBatchService.allowed`）：批次在「来源已全部收齐但生成或投递失败」时落到 FAILED，下一轮 `advanceBatch` 走的是 `transitionIfNeeded(ALL_SOURCE_COMPLETED)` 再重新生成。少了这一条，FAILED 批次只能靠 `dispatchDailyBatch` 的 `FAILED -> EXPORTING` 复活，而生产 cron 一天只跑一次且 batchId 按账期变化，昨天失败的批次今天不会再被下发，**永久卡在 FAILED、每轮只刷错误日志**。2026-09-11 实测复现（batchId=RECON20260907）。
+- **`dispatchDailyBatch` 的「已 SUCCESS 就短路」NEVER 删**（`ReconOrchestrationService.dispatchDailyBatch`）：`create` 用的是 `insertIfAbsent`，对已存在的批次不改任何列，但紧随的 `transitionIfNeeded(EXPORTING)` 走 `transition`，白名单里 SUCCESS 是终态一律拒绝流出，同一账期第二次触发必抛「非法的对账批次状态变更: SUCCESS -> EXPORTING」。cron 每天 batchId 不同碰不到，但**前台「执行一次」当天点第二下必踩**（1.0.11 的 Pod 上已实测到该栈）。
+- **账期与窗口推算公式**（`ReconOrchestrationService.dispatchDailyBatch`）：`businessDate = 今天 - windowOffsetDays`（默认 T-2）；`windowStart = businessDate 当天 + windowStartTime`（默认 02:00:00）；`windowEnd = businessDate + 1 天 + windowStartTime`；文件名后缀 = `businessDate` 即 T-2 日；batchId = `"RECON" + businessDateText`（形如 `RECON20260910`）。甲方自校验例：今天 2019-08-20、offset 2 ⇒ 后缀 `20190818`、窗口 `[20190818 020000, 20190819 020000)`，与甲方一致。
+- **`window-offset-days` 默认 2，NEVER 改回 1**（`storage/ReconOrchestrationProperties.java`，配置在 `application.properties`）：改成 1 会让文件名后缀与统计区间同时前移一天，与甲方对不上。
+- **`run-timeout-millis` MUST 小于 `ReconClient.getResponseTimeout()` 的 5 分钟**（`storage/ReconOrchestrationProperties.java`，默认 240000，配置在 `application.properties`）：web-admin 同步等 `POST /internal/recon/daily/run` 的响应，本值若超过客户端超时会变成「客户端先超时报错、服务端还在跑」，`sys_job_log` 记的失败原因失去意义。要放宽 **MUST 两处一起改**。
 - **超时不丢数据**：超时抛 `IllegalStateException`，批次留非终态，下一次运行从 FAILED / PARTIAL 重入（白名单允许）。实测一整轮（4 个文件、6 行 PAY）约 60 秒（同上 36~42）。
-- **并发拒绝语义**：`running` 守整批运行、`advancing` 守单轮推进，两把都是进程内 `AtomicBoolean`，因此 **recon-server MUST 单副本**（`ReconOrchestrationService` 类注释:44~46）。上一次还在跑就直接拒绝，**NEVER 改成排队等待**——那会让 Quartz worker 越积越多（`runDailyBatch`:99~101）。
-- **`transitionIfNeeded` 的幂等语义**：目标状态与当前状态相同则原样返回、不抛异常（`ReconBatchService.transitionIfNeeded`:29~45）。编排每轮都会重算目标状态，沿用 `transition` 会每轮因「非法流转」刷错误日志。
-- **`transition` 带 CAS**：`updateStatus(batchId, 新, 旧)` 影响行数不等于 1 即抛「对账批次状态已被其他请求更新」（`ReconBatchService.transition`:47~56）。
-- **MISMATCH 停止自动推进**：任一来源为 MISMATCH 时批次置 FAILED 并要求人工介入（`ReconOrchestrationService.advanceBatch`:298~301；`model/ReconSourceStatus.java:20~24` 说明 MISMATCH 不可自动放行——数据已不一致，重试同一窗口只会重复不一致）。
-- **来源级重试上限**：同一 `(来源, 文件类型)` 超过 `max-retry`（默认 3，`application.properties:82`）后编排器不再自动重下发，只记 error（`retryFailedSources`:328~337）。
-- **`selectUnfinished` 的口径**：取 `STATUS <> 'SUCCESS'` 的批次、按创建时间升序、最多 20 条，FAILED 也在结果里（`mapper/ReconBatchMapper.java:18~22`；`mapper/ReconBatchMapper.xml:37` 说明 ROWNUM 限流放在外层，保证先排序再截断）。
-- **需要产出的文件类型 = 期望清单里所有 `fileTypes` 的并集**，按 `ReconFileTypeEnum` 声明顺序输出（`requiredFileTypes`:381~393）。
-- **`dispatchDailyBatch` 建批次失败 MUST 抛异常**（`dispatchDailyBatch`:186~188）：原先是记日志后 return，那样 `runDailyBatch()` 会拿着一个不存在的批次轮询到超时。
-- **人工改状态端点仅供人工干预**（`ReconInternalController.updateStatus`:81~88，`POST /internal/recon/batches/{batchId}/status`）：正常链路的状态推进一律由编排器按收齐结果决定，手工改会绕过收齐校验，MUST 在确认数据一致后才使用。
-- **`POST /internal/recon/daily/run` 是本模块唯一的日常触发入口**（`ReconInternalController.runDailyBatch`:93~105）：同步跑完再返回，失败或超时返回非 `0000`，让 `sys_job_log` 反映真实成败；返回 `CommonResult` 而非 `BatchView`，因为调用方是 Quartz、只需要「成/败 + 原因」，批次明细另查 `GET /internal/recon/batches/{batchId}`。
+- **并发拒绝语义**：`running` 守整批运行、`advancing` 守单轮推进，两把都是进程内 `AtomicBoolean`，因此 **recon-server MUST 单副本**（`ReconOrchestrationService` 类注释:44~46）。上一次还在跑就直接拒绝，**NEVER 改成排队等待**——那会让 Quartz worker 越积越多（`runDailyBatch`）。
+- **`transitionIfNeeded` 的幂等语义**：目标状态与当前状态相同则原样返回、不抛异常（`ReconBatchService.transitionIfNeeded`）。编排每轮都会重算目标状态，沿用 `transition` 会每轮因「非法流转」刷错误日志。
+- **`transition` 带 CAS**：`updateStatus(batchId, 新, 旧)` 影响行数不等于 1 即抛「对账批次状态已被其他请求更新」（`ReconBatchService.transition`）。
+- **MISMATCH 停止自动推进**：任一来源为 MISMATCH 时批次置 FAILED 并要求人工介入（`ReconOrchestrationService.advanceBatch`；`model/ReconSourceStatus.java` 说明 MISMATCH 不可自动放行——数据已不一致，重试同一窗口只会重复不一致）。
+- **来源级重试上限**：同一 `(来源, 文件类型)` 超过 `max-retry`（默认 3，`application.properties`）后编排器不再自动重下发，只记 error（`retryFailedSources`）。
+- **`selectUnfinished` 的口径**：取 `STATUS <> 'SUCCESS'` 的批次、按创建时间升序、最多 20 条，FAILED 也在结果里（`mapper/ReconBatchMapper.java`；`mapper/ReconBatchMapper.xml` 说明 ROWNUM 限流放在外层，保证先排序再截断）。
+- **需要产出的文件类型 = 期望清单里所有 `fileTypes` 的并集**，按 `ReconFileTypeEnum` 声明顺序输出（`requiredFileTypes`）。
+- **`dispatchDailyBatch` 建批次失败 MUST 抛异常**（`dispatchDailyBatch`）：原先是记日志后 return，那样 `runDailyBatch()` 会拿着一个不存在的批次轮询到超时。
+- **人工改状态端点仅供人工干预**（`ReconInternalController.updateStatus`，`POST /internal/recon/batches/{batchId}/status`）：正常链路的状态推进一律由编排器按收齐结果决定，手工改会绕过收齐校验，MUST 在确认数据一致后才使用。
+- **`POST /internal/recon/daily/run` 是本模块唯一的日常触发入口**（`ReconInternalController.runDailyBatch`）：同步跑完再返回，失败或超时返回非 `0000`，让 `sys_job_log` 反映真实成败；返回 `CommonResult` 而非 `BatchView`，因为调用方是 Quartz、只需要「成/败 + 原因」，批次明细另查 `GET /internal/recon/batches/{batchId}`。
 
 #### 决策理由
 
-- **为什么 `@Scheduled` 全删、改由 sys_job 触发**（`ReconServer.java:13~22`；`ReconOrchestrationService` 类注释:34~38）：用户 2026-09-11 明确要求「不使用 EnableScheduling，改用 web-admin 调用，改为每日执行一次，由 web-admin 控制频率」。加回 `@EnableScheduling` 等于让 `sys_job` 与本模块形成两套互不知情的调度源，改 cron 时只改一处就会出现「以为改了、实际另一套还在按老频率跑」，并造成重复建批次与重复投递。
-- **为什么 `runDailyBatch` 要在服务端轮询而不是「下发完就返回」**（`runDailyBatch`:88~97）：源服务的抽取是**异步**的（受理即返回、之后才回推分片），不等收齐就没有任何东西会来推进批次——本模块已没有 `@Scheduled` 兜底了。同步跑完再返回是为了让 `sys_job_log` 反映真实成败（`docs/architecture/web-server.md` §7.1：不抛异常 Quartz 一律记「成功」）。
+- **为什么 `@Scheduled` 全删、改由 sys_job 触发**（`ReconServer.java`；`ReconOrchestrationService` 类注释:34~38）：用户 2026-09-11 明确要求「不使用 EnableScheduling，改用 web-admin 调用，改为每日执行一次，由 web-admin 控制频率」。加回 `@EnableScheduling` 等于让 `sys_job` 与本模块形成两套互不知情的调度源，改 cron 时只改一处就会出现「以为改了、实际另一套还在按老频率跑」，并造成重复建批次与重复投递。
+- **为什么 `runDailyBatch` 要在服务端轮询而不是「下发完就返回」**（`runDailyBatch`）：源服务的抽取是**异步**的（受理即返回、之后才回推分片），不等收齐就没有任何东西会来推进批次——本模块已没有 `@Scheduled` 兜底了。同步跑完再返回是为了让 `sys_job_log` 反映真实成败（`docs/architecture/web-server.md` §7.1：不抛异常 Quartz 一律记「成功」）。
 - **为什么本类绝不能加 `@Transactional`**（`ReconOrchestrationService` 类注释:40~42）：内部既有 RPC（下发抽取指令）又有大文件 IO（合并生成、FTP 投递），被事务包住会让行级锁的持有时长等于对端响应时长与文件大小，并在 Druid 回收连接后把整个事务连同状态记录一起丢弃。每一步都靠单条 SQL 自动提交落状态。
-- **为什么轮询等待用 `Thread.sleep` 而不是 `synchronized` + `wait`**（`ReconOrchestrationService.sleep`:144~149）：全服务默认虚拟线程（AGENTS.md §5.2），`Thread.sleep` 在虚拟线程上会让出载体线程、不 pin。
-- **为什么本类不再有 cron 配置项**（`storage/ReconOrchestrationProperties.java:16~19`）：原 `dispatch-cron` 已删除，也 NEVER 在 K8s 注入 `RECON_DISPATCH_CRON`——那个键现在没有任何读取方，留着只会让运维误以为改它能改调度频率。
+- **为什么轮询等待用 `Thread.sleep` 而不是 `synchronized` + `wait`**（`ReconOrchestrationService.sleep`）：全服务默认虚拟线程（AGENTS.md §5.2），`Thread.sleep` 在虚拟线程上会让出载体线程、不 pin。
+- **为什么本类不再有 cron 配置项**（`storage/ReconOrchestrationProperties.java`）：原 `dispatch-cron` 已删除，也 NEVER 在 K8s 注入 `RECON_DISPATCH_CRON`——那个键现在没有任何读取方，留着只会让运维误以为改它能改调度频率。
 - **为什么期望清单是配置而不是硬编码**（同上 8~14）：`sources[].fileTypes` 决定 `RECON_BATCH_SOURCE` 登记哪些 `(来源, 文件类型)` 行，进而决定「全部 COMPLETED」的判据与最终产出哪几个文件。新增 / 下线一个源 MUST 改这里，NEVER 在代码里硬编码来源名。
 
 #### 陷阱
 
-- **`retryCount` 是装箱 `Integer`，MUST 先判空兜 0 再与 `maxRetry` 比**（`retryFailedSources`:324~326）：直接 `progress.retryCount() >= ...` 会在列为 NULL 时抛 NPE，而 NPE 会被 `advanceBatch` 的 catch 吞成「批次推进失败」，掩盖真实原因。
-- **`ReconInternalExceptionHandler` 必须存在，否则分片上送的失败会被上游当成成功**（`controller/ReconInternalExceptionHandler.java:15~31`）：公共 `GlobalControllerExceptionHandler` 的兜底是 `@ExceptionHandler(Exception.class) @ResponseStatus(HttpStatus.OK)`，任何未被更具体处理器捕获的异常都返回 HTTP 200 + UUID `retCode`；而 `ReconClient` 只按 HTTP 状态码判成败。于是令牌校验失败（401）上游看到 200 认为分片已接收，分片落盘 IO 失败 / 哈希不一致拒收同样是 200、源服务继续删本地分片。本类以 `Ordered.HIGHEST_PRECEDENCE` 抢在公共 advice 之前，作用范围用 `assignableTypes` 限定在 `ReconInternalController`。2026-09-11 实测：无令牌请求 `GET /internal/recon/batches/{id}` 返回 `200 {"retCode":"<uuid>",...}`。
+- **`retryCount` 是装箱 `Integer`，MUST 先判空兜 0 再与 `maxRetry` 比**（`retryFailedSources`）：直接 `progress.retryCount() >= ...` 会在列为 NULL 时抛 NPE，而 NPE 会被 `advanceBatch` 的 catch 吞成「批次推进失败」，掩盖真实原因。
+- **`ReconInternalExceptionHandler` 必须存在，否则分片上送的失败会被上游当成成功**（`controller/ReconInternalExceptionHandler.java`）：公共 `GlobalControllerExceptionHandler` 的兜底是 `@ExceptionHandler(Exception.class) @ResponseStatus(HttpStatus.OK)`，任何未被更具体处理器捕获的异常都返回 HTTP 200 + UUID `retCode`；而 `ReconClient` 只按 HTTP 状态码判成败。于是令牌校验失败（401）上游看到 200 认为分片已接收，分片落盘 IO 失败 / 哈希不一致拒收同样是 200、源服务继续删本地分片。本类以 `Ordered.HIGHEST_PRECEDENCE` 抢在公共 advice 之前，作用范围用 `assignableTypes` 限定在 `ReconInternalController`。2026-09-11 实测：无令牌请求 `GET /internal/recon/batches/{id}` 返回 `200 {"retCode":"<uuid>",...}`。
 
 ### 二、分片接收
 
 #### 契约与判据
 
-- **分片幂等键是 `(BATCH_ID, SOURCE_NAME, FILE_TYPE, PART_NO)`**（`ReconPartService.receive`:41~51, 67~77）：先按键查，已存在则比对 SHA-256，一致直接返回原回执、不一致抛「重复分片内容不一致」；INSERT 撞唯一键时删掉刚落盘的文件、回查并比对，仍不一致抛「并发接收的分片内容不一致」。
-- **分片入参校验规则**（`ReconPartService.validatePart` / `validateBatchId`:96~107）：`source` MUST 匹配 `[A-Za-z0-9_-]{1,32}`；`partNo` ∈ `[0, 99999999]`；`records` ≤ `recon.max-part-records`（默认 250000，`application.properties:48`）；`sha256` MUST 匹配 `[0-9a-fA-F]{64}`；`batchId` MUST 匹配 `[A-Za-z0-9_-]{1,64}`。分片字节数超过 `recon.max-part-bytes`（默认 134217728，`:47`）即删临时文件并拒收。
-- **边收边算 SHA-256、先写 `.receiving` 临时文件再原子改名**（`receive`:53~66，`copyAndDigest`:80~94，`moveAtomically`:109~115）：1MB 缓冲，`ATOMIC_MOVE` 不被支持时退回普通 move。校验失败即删临时文件。
-- **收齐判定只认三项总账全等**（`ReconSourceService` 类注释:19~24，`declare`:90~137）：落库分片数 / 记录数 / 金额合计逐一等于源声明的 `totalParts / totalRecords / totalAmount`，任一不等即置 MISMATCH，把差异写进 `FAIL_REASON` 并 `log.error`。NEVER 放行——分片少一片最终文件就少几十万行，而纯文本文件本身看不出缺失。
-- **`allCompleted` 还要求行数等于期望条数**（`ReconSourceService.allCompleted`:139~150）：否则 dispatch 那一轮若中途异常少登记了几行，剩下几行全 COMPLETED 也会被误判成收齐。期望条数 = 期望清单里所有 `(来源, 文件类型)` 组合数（`expectedCount`:158~165）。
-- **`FAIL_REASON` 列长 1024，超长截断**（`ReconSourceService.truncate`:194~198）：避免 `ORA-12899` 让整条声明失败。
-- **`declare` 的重复声明短路**：当前已 COMPLETED 且三项与本次声明完全相同即原样返回（`declare`:116~124）。
-- **`registerExpectations` 按主键幂等**（`ReconSourceService.registerExpectations`:45~63；`mapper/ReconSourceMapper.java:15~17`；`mapper/ReconSourceMapper.xml:32` 说明重复登记不覆盖已有进度）。
-- **`selectTotals` 零行返回 `(0,0,0)` 而不是 null**（`mapper/ReconPartMapper.java:42~46`；`mapper/ReconPartMapper.xml:71` 的 `NVL`），但调用点仍 MUST 判空（`model/PartTotals.java:10~13`）。
-- **分片序号 MUST 从 0 起连续**（`ReconFileGenerationService.orderedParts`:396~411）：不连续即抛「分片序号不连续」；`partNo` 为 NULL 时判定为不连续而不是抛 NPE。
+- **分片幂等键是 `(BATCH_ID, SOURCE_NAME, FILE_TYPE, PART_NO)`**（`ReconPartService.receive`）：先按键查，已存在则比对 SHA-256，一致直接返回原回执、不一致抛「重复分片内容不一致」；INSERT 撞唯一键时删掉刚落盘的文件、回查并比对，仍不一致抛「并发接收的分片内容不一致」。
+- **分片入参校验规则**（`ReconPartService.validatePart` / `validateBatchId`）：`source` MUST 匹配 `[A-Za-z0-9_-]{1,32}`；`partNo` ∈ `[0, 99999999]`；`records` ≤ `recon.max-part-records`（默认 250000，`application.properties`）；`sha256` MUST 匹配 `[0-9a-fA-F]{64}`；`batchId` MUST 匹配 `[A-Za-z0-9_-]{1,64}`。分片字节数超过 `recon.max-part-bytes`（默认 134217728）即删临时文件并拒收。
+- **边收边算 SHA-256、先写 `.receiving` 临时文件再原子改名**（`receive`，`copyAndDigest`，`moveAtomically`）：1MB 缓冲，`ATOMIC_MOVE` 不被支持时退回普通 move。校验失败即删临时文件。
+- **收齐判定只认三项总账全等**（`ReconSourceService` 类注释:19~24，`declare`）：落库分片数 / 记录数 / 金额合计逐一等于源声明的 `totalParts / totalRecords / totalAmount`，任一不等即置 MISMATCH，把差异写进 `FAIL_REASON` 并 `log.error`。NEVER 放行——分片少一片最终文件就少几十万行，而纯文本文件本身看不出缺失。
+- **`allCompleted` 还要求行数等于期望条数**（`ReconSourceService.allCompleted`）：否则 dispatch 那一轮若中途异常少登记了几行，剩下几行全 COMPLETED 也会被误判成收齐。期望条数 = 期望清单里所有 `(来源, 文件类型)` 组合数（`expectedCount`）。
+- **`FAIL_REASON` 列长 1024，超长截断**（`ReconSourceService.truncate`）：避免 `ORA-12899` 让整条声明失败。
+- **`declare` 的重复声明短路**：当前已 COMPLETED 且三项与本次声明完全相同即原样返回（`declare`）。
+- **`registerExpectations` 按主键幂等**（`ReconSourceService.registerExpectations`；`mapper/ReconSourceMapper.java`；`mapper/ReconSourceMapper.xml` 说明重复登记不覆盖已有进度）。
+- **`selectTotals` 零行返回 `(0,0,0)` 而不是 null**（`mapper/ReconPartMapper.java`；`mapper/ReconPartMapper.xml` 的 `NVL`），但调用点仍 MUST 判空（`model/PartTotals.java`）。
+- **分片序号 MUST 从 0 起连续**（`ReconFileGenerationService.orderedParts`）：不连续即抛「分片序号不连续」；`partNo` 为 NULL 时判定为不连续而不是抛 NPE。
 
 #### 决策理由
 
-- **为什么置 EXPORTING 要挪到下发 RPC 之前、并改用 `updateStatusIfNotTerminal`**（`ReconOrchestrationService.dispatchSource`:248~250；`ReconSourceService.markExporting`:64~74；`mapper/ReconSourceMapper.java:50~60`；`mapper/ReconSourceMapper.xml:85~89`）：下发原先是「先发 HTTP、后写 EXPORTING」，而源侧抽取跑在自己的线程池里，空结果集（如 gate-txn-pay 的 EXP 0 行）**可能在 200ms 内就回调 complete 声明 COMPLETED**，此时编排线程才写 EXPORTING 就把 COMPLETED 覆盖回去。条件更新加了 `STATUS NOT IN ('COMPLETED','MISMATCH')` 守卫。**NEVER 换回无条件的 `updateStatus`。**
-- **为什么 `isDuplicateKeyViolation` 沿 cause 链判定、NEVER 简化回 `catch (DuplicateKeyException)`**（`ReconPartService.isDuplicateKeyViolation`:122~138，ADR-D53）：本模块打开了 tracing，`MapperAspectToTrace` 会切到所有 `@Mapper` 方法上；它此前把异常包成 `new RuntimeException(e)`，按类型 catch 的幂等兜底一条都进不去，`ORA-00001` 直接冒到全局处理器。切面已改成原样抛出，这层按 cause 链判定作为第二道防线保留。
+- **为什么置 EXPORTING 要挪到下发 RPC 之前、并改用 `updateStatusIfNotTerminal`**（`ReconOrchestrationService.dispatchSource`；`ReconSourceService.markExporting`；`mapper/ReconSourceMapper.java`；`mapper/ReconSourceMapper.xml`）：下发原先是「先发 HTTP、后写 EXPORTING」，而源侧抽取跑在自己的线程池里，空结果集（如 gate-txn-pay 的 EXP 0 行）**可能在 200ms 内就回调 complete 声明 COMPLETED**，此时编排线程才写 EXPORTING 就把 COMPLETED 覆盖回去。条件更新加了 `STATUS NOT IN ('COMPLETED','MISMATCH')` 守卫。**NEVER 换回无条件的 `updateStatus`。**
+- **为什么 `isDuplicateKeyViolation` 沿 cause 链判定、NEVER 简化回 `catch (DuplicateKeyException)`**（`ReconPartService.isDuplicateKeyViolation`，ADR-D53）：本模块打开了 tracing，`MapperAspectToTrace` 会切到所有 `@Mapper` 方法上；它此前把异常包成 `new RuntimeException(e)`，按类型 catch 的幂等兜底一条都进不去，`ORA-00001` 直接冒到全局处理器。切面已改成原样抛出，这层按 cause 链判定作为第二道防线保留。
 
 #### 陷阱
 
 - **空结果集的源可能在 RPC 响应到达前就回调 `complete`**（同上决策理由第一条）：反过来写会把 COMPLETED 覆盖成 EXPORTING，该 `(来源, 文件类型)` 从此永远停在 EXPORTING、**批次永不收齐**。2026-09-11 实测复现：batchId=RECON20260909，gate-txn-pay/EXP 已 declareComplete 却仍是 EXPORTING，整批 240s 超时停在 PARTIAL。
-- **两个装箱类型 NEVER 直接用 `==` / `!=` 比较**（`ReconSourceService.diff`:167~173）：`PartTotals` 的分量是装箱类型（MyBatis 构造器映射要求），两侧都是装箱时 `!=` 退化成引用比较，超过 `Integer` 缓存范围（-128~127）的相等值会被判成不等。MUST 先判空拆成基本类型再比。
+- **两个装箱类型 NEVER 直接用 `==` / `!=` 比较**（`ReconSourceService.diff`）：`PartTotals` 的分量是装箱类型（MyBatis 构造器映射要求），两侧都是装箱时 `!=` 退化成引用比较，超过 `Integer` 缓存范围（-128~127）的相等值会被判成不等。MUST 先判空拆成基本类型再比。
 ### 三、流式聚合与文件格式
 
 #### 契约与判据
 
-- **两条生成路径按 `ReconFileTypeEnum.isAggregate()` 分流**（`ReconFileGenerationService` 类注释:43~58）：明细（EXP 13 段 / DETAIL 7 段）走 1MB 缓冲的流式字节拼接、全程不解析内容，内存占用与文件大小无关（`mergeDetail`:135~169）；汇总（PAY 5 键 + 16 度量 / BUS 1 键 + 3 度量）走流式逐行读 + `TreeMap` 二次聚合（`mergeAggregated`:171~216）。
-- **段数一律取自 `ReconFileTypeEnum.getKeyFieldCount()` / `getMetricFieldCount()`，NEVER 在本类里硬编码下标**（同上 50~53）：键是下标 `[0, keyFieldCount)`，度量是 `[keyFieldCount, keyFieldCount + metricFieldCount)`。行字段数不足 `keyFieldCount + metricFieldCount` 时直接抛异常——错位一段就是整份错账，**NEVER 静默补零放过**（`mergeAggregated`:174~178, 198~201）。
-- **来源清单取自 `RECON_BATCH_SOURCE` 中该文件类型 `STATUS='COMPLETED'` 的行，不再读 `recon.sources`**（类注释:57~58，`generate`:112~115）：没有已收齐的来源即抛「该文件类型没有已收齐的来源」。
-- **文件名 = `meta.getPrefix() + "." + batch.businessDate()`**（`generate`:117），落 `<storageRoot>/<batchId>/final/`，先写 `.generating` 再原子改名；目录做了 `startsWith(root)` 越权校验，分片路径同样校验（`generate`:118~129，`resolvePart`:413~419）。
-- **生成前置状态白名单**：`ALL_SOURCE_COMPLETED` / `FAILED` 时转 `GENERATING`，已是 `GENERATING` 则继续，其余一律抛「当前批次不可生成文件」（`generate`:99~103）。已有 `GENERATED` 且文件确实在磁盘上就直接返回（`generate`:105~109）。
-- **明细文件校验：记录数与金额 MUST 与来源声明之和严格相等**，不等即删临时文件并抛异常（`verify`:341~373）。
+- **两条生成路径按 `ReconFileTypeEnum.isAggregate()` 分流**（`ReconFileGenerationService` 类注释:43~58）：明细（EXP 13 段 / DETAIL 7 段）走 1MB 缓冲的流式字节拼接、全程不解析内容，内存占用与文件大小无关（`mergeDetail`）；汇总（PAY 5 键 + 16 度量 / BUS 1 键 + 3 度量）走流式逐行读 + `TreeMap` 二次聚合（`mergeAggregated`）。
+- **段数一律取自 `ReconFileTypeEnum.getKeyFieldCount()` / `getMetricFieldCount()`，NEVER 在本类里硬编码下标**（同上 50~53）：键是下标 `[0, keyFieldCount)`，度量是 `[keyFieldCount, keyFieldCount + metricFieldCount)`。行字段数不足 `keyFieldCount + metricFieldCount` 时直接抛异常——错位一段就是整份错账，**NEVER 静默补零放过**（`mergeAggregated`）。
+- **来源清单取自 `RECON_BATCH_SOURCE` 中该文件类型 `STATUS='COMPLETED'` 的行，不再读 `recon.sources`**（类注释:57~58，`generate`）：没有已收齐的来源即抛「该文件类型没有已收齐的来源」。
+- **文件名 = `meta.getPrefix() + "." + batch.businessDate()`**（`generate`），落 `<storageRoot>/<batchId>/final/`，先写 `.generating` 再原子改名；目录做了 `startsWith(root)` 越权校验，分片路径同样校验（`generate`，`resolvePart`）。
+- **生成前置状态白名单**：`ALL_SOURCE_COMPLETED` / `FAILED` 时转 `GENERATING`，已是 `GENERATING` 则继续，其余一律抛「当前批次不可生成文件」（`generate`）。已有 `GENERATED` 且文件确实在磁盘上就直接返回（`generate`）。
+- **明细文件校验：记录数与金额 MUST 与来源声明之和严格相等**，不等即删临时文件并抛异常（`verify`）。
 - **汇总文件的 `amountTotal` 是「所有度量列之和」，只是跨环节比对的校验和，不是业务金额**（`verify` 注释:344~354）：PAY 的 16 个度量里 8 列是笔数、8 列是金额（下标 6/8/10/12/14/16/18/20，即第 7/9/11/13/15/17/19/21 段），一起相加没有业务含义；BUS 的 3 个度量恰好全是金额，但为口径统一同样按「所有度量之和」计。
 - **汇总文件 NEVER 与 `declaredAmount` 严格比对**（同上 351~354）：量纲不同，强行相等只会把正常批次全部误判为失败。汇总只做健全性检查：输出行数 > 0、校验和非负；行数只在「实际 > 声明之和」时告警提示复核源端聚合口径（跨源合并后行数必然 ≤ 各源声明之和）。
-- **空文件是正常的零交易日，NEVER 当失败**（`verify`:380~383）：甲方要求每个账期都要有文件，空文件也必须投递。但「来源已声明记录数 > 0 而输出 0 行」是失败（`verify`:375~379）。
-- **汇总输出格式**：按键升序写 `key|m0|m1|...|m(n-1)`，分隔符与行分隔符取 `ReconRecord.DELIMITER` / `LINE_SEPARATOR`，UTF-8（`writeAggregated`:303~330）。
+- **空文件是正常的零交易日，NEVER 当失败**（`verify`）：甲方要求每个账期都要有文件，空文件也必须投递。但「来源已声明记录数 > 0 而输出 0 行」是失败（`verify`）。
+- **汇总输出格式**：按键升序写 `key|m0|m1|...|m(n-1)`，分隔符与行分隔符取 `ReconRecord.DELIMITER` / `LINE_SEPARATOR`，UTF-8（`writeAggregated`）。
 
 #### 决策理由
 
@@ -1124,92 +1125,92 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 
 #### 陷阱
 
-- **任一失败分支都要删临时文件**（`mergeDetail`:164~167，`mergeAggregated`:212~215，`verify` 各分支）：否则残留的 `.generating` 会与下一轮混淆。
+- **任一失败分支都要删临时文件**（`mergeDetail`，`mergeAggregated`，`verify` 各分支）：否则残留的 `.generating` 会与下一轮混淆。
 
 ### 四、线路段补齐
 
 #### 契约与判据
 
-- **2026-09-16 起线路段由 recon-server 在聚合完成、写文件之前统一补齐，四个源不再各自 `LEFT JOIN STATION_INFO`**（`ReconFileGenerationService.backfillLineSegment`:218~238；`mapper/ReconStationMapper.java:8~25`；`storage/ReconLineBackfillProperties.java:8~27`；`application.properties:51~63`）。
+- **2026-09-16 起线路段由 recon-server 在聚合完成、写文件之前统一补齐，四个源不再各自 `LEFT JOIN STATION_INFO`**（`ReconFileGenerationService.backfillLineSegment`；`mapper/ReconStationMapper.java`；`storage/ReconLineBackfillProperties.java`；`application.properties`）。
 - **覆盖是无条件的**：不看源上送的线路段是空还是有值，一律按车站码重算（`backfillLineSegment` 注释:232~234；`ReconLineBackfillProperties` 类注释:21~26）。
-- **只有 PAY 需要补，NEVER 往 `file-types` 里加 EXP 或 DETAIL**（`ReconLineBackfillProperties.java:34~40`；`application.properties:58~59`）：BUS 只有 1 段键（日期），EXP 与 DETAIL 走明细路径、字节流式拼接、全程不解析行内容，加进去既不生效也不报错。
-- **下标契约**：`line-field-index=1`（甲方 21 段 PAY 行格式的第 2 段）、`station-field-index=2`（第 3 段），均 0 基（`ReconLineBackfillProperties.java:43~46`；`application.properties:62~63`）。下标超出键段范围即抛异常（`backfillLineSegment`:246~249）；汇总键段数与文件类型不符也抛异常（:255~258）。
+- **只有 PAY 需要补，NEVER 往 `file-types` 里加 EXP 或 DETAIL**（`ReconLineBackfillProperties.java`；`application.properties`）：BUS 只有 1 段键（日期），EXP 与 DETAIL 走明细路径、字节流式拼接、全程不解析行内容，加进去既不生效也不报错。
+- **下标契约**：`line-field-index=1`（甲方 21 段 PAY 行格式的第 2 段）、`station-field-index=2`（第 3 段），均 0 基（`ReconLineBackfillProperties.java`；`application.properties`）。下标超出键段范围即抛异常（`backfillLineSegment`）；汇总键段数与文件类型不符也抛异常。
 - **补齐后 MUST 用新键重新插入一个新 `TreeMap` 重排**（`backfillLineSegment` 注释:224~227）：`TreeMap` 按键升序输出、键的第 2 段就是线路，只替换字符串不重排会让输出行序变成「按空线路段排」，与现行文件（日期 / 线路 / 车站 / 设备 / 支付方式 升序）不一致。重排后行序与改造前逐字节一致。
 - **撞键 MUST 逐列累加度量、NEVER 覆盖**（同上 229~231）：补齐可能让两个原本不同的键变成同一个键（典型情形是「已改的源留空线路」与「未改的源自带线路」在同一账期上送同一车站的账），覆盖等于丢掉一个源的账。
-- **维表查不到的车站 MUST 留空、NEVER 丢行**（`backfillLineSegment` 注释:236~237；`mapper/ReconStationMapper.java:22~24`）：线路段留空、该组单独成行，账仍在，与各源原先用 `LEFT JOIN`（而非 `INNER JOIN`）的语义一致；用内连接会把该组的账整组抹掉，那是静默漏账。按不同车站码去重计数后告警一次（`:272~276`）。
-- **`STATION_INFO` 只有 4 列**（`STATION_CODE` / `LINE_CODE` / `STATION_NAME` / `STATION_EN_NAME`，2026-09-16 按 `USER_TAB_COLS` 实测），本模块只读、零写入（`mapper/ReconStationMapper.xml:4~7`）。
-- **`selectStationLineCodes` 的三条 SQL 口径**（`mapper/ReconStationMapper.xml:25~38`）：不加 `WHERE` 是因为 PAY 里出现的车站码来自四个源、事前不可枚举，逐个查等于把批处理退化成 N+1；带 `LINE_CODE IS NOT NULL` 是因为线路为空的行对补齐没用；`DISTINCT` 是防御性的（防维表被导入成重复行），但拦不住「同一车站码两个不同线路」那种真冲突——那种情况调用方保留后读到的一条，**MUST 去参数域修数据、NEVER 在本文件里挑一个**。
-- **NEVER 用车站码前 2 位推线路**（`mapper/ReconStationMapper.java:18~20`）：实测前 2 位恰好等于 `LINE_CODE`，但那是编码巧合、不是契约，甲方改编码规则时不会通知我方，猜错等于把汇总账挂到错误线路上。
+- **维表查不到的车站 MUST 留空、NEVER 丢行**（`backfillLineSegment` 注释:236~237；`mapper/ReconStationMapper.java`）：线路段留空、该组单独成行，账仍在，与各源原先用 `LEFT JOIN`（而非 `INNER JOIN`）的语义一致；用内连接会把该组的账整组抹掉，那是静默漏账。按不同车站码去重计数后告警一次。
+- **`STATION_INFO` 只有 4 列**（`STATION_CODE` / `LINE_CODE` / `STATION_NAME` / `STATION_EN_NAME`，2026-09-16 按 `USER_TAB_COLS` 实测），本模块只读、零写入（`mapper/ReconStationMapper.xml`）。
+- **`selectStationLineCodes` 的三条 SQL 口径**（`mapper/ReconStationMapper.xml`）：不加 `WHERE` 是因为 PAY 里出现的车站码来自四个源、事前不可枚举，逐个查等于把批处理退化成 N+1；带 `LINE_CODE IS NOT NULL` 是因为线路为空的行对补齐没用；`DISTINCT` 是防御性的（防维表被导入成重复行），但拦不住「同一车站码两个不同线路」那种真冲突——那种情况调用方保留后读到的一条，**MUST 去参数域修数据、NEVER 在本文件里挑一个**。
+- **NEVER 用车站码前 2 位推线路**（`mapper/ReconStationMapper.java`）：实测前 2 位恰好等于 `LINE_CODE`，但那是编码巧合、不是契约，甲方改编码规则时不会通知我方，猜错等于把汇总账挂到错误线路上。
 
 #### 决策理由
 
-- **为什么线路段统一由本模块补、而不是各源自算**（`mapper/ReconStationMapper.java:11~16`）：`STATION_INFO` 属车站 / 参数域、owner 不是本模块，在本模块直连它是**有意破例**，理由是它把原先散在四个源服务里的四处同样破例收敛成一处——gate-txn-pay / collect-pay / face-pay / ticket 的 recon mapper 曾各自写一遍 `LEFT JOIN STATION_INFO S ON S.STATION_CODE = ...`，于是「线路怎么取」这件事有四份副本、四份各自的 join 列名、四次维表结构变更的暴露面。线路是车站的函数（一个车站码只对应一条线路），因此完全可以在聚合完成后由消费端一次补齐。
-- **为什么下标写成配置而不是常量**（`storage/ReconLineBackfillProperties.java:14~19`）：段数一律取自 `ReconFileTypeEnum`，但它只给「键有几段、度量有几段」、给不出「第几段是线路」；写成配置是为了**出问题时能一键关闭（`enabled=false`）退回「原样写出源上送的线路段」，不必回滚镜像**。
+- **为什么线路段统一由本模块补、而不是各源自算**（`mapper/ReconStationMapper.java`）：`STATION_INFO` 属车站 / 参数域、owner 不是本模块，在本模块直连它是**有意破例**，理由是它把原先散在四个源服务里的四处同样破例收敛成一处——gate-txn-pay / collect-pay / face-pay / ticket 的 recon mapper 曾各自写一遍 `LEFT JOIN STATION_INFO S ON S.STATION_CODE = ...`，于是「线路怎么取」这件事有四份副本、四份各自的 join 列名、四次维表结构变更的暴露面。线路是车站的函数（一个车站码只对应一条线路），因此完全可以在聚合完成后由消费端一次补齐。
+- **为什么下标写成配置而不是常量**（`storage/ReconLineBackfillProperties.java`）：段数一律取自 `ReconFileTypeEnum`，但它只给「键有几段、度量有几段」、给不出「第几段是线路」；写成配置是为了**出问题时能一键关闭（`enabled=false`）退回「原样写出源上送的线路段」，不必回滚镜像**。
 - **为什么无条件覆盖正是它能安全上线的原因**（同上 21~26）：线路是车站的函数，对「还没改、仍自带线路」的旧源来说覆盖进去的是同一个值、文件逐字节不变；对「已改、线路留空」的新源才是真正填上。于是**四个源与 recon-server 的部署顺序完全自由**，不存在「必须同批上线」的窗口。**NEVER 改成「只在源上送为空时才补」**——那样重新引入顺序依赖，而且一旦某个源把线路取错，错值会被当成「有值」原样放过。
-- **为什么返回 `List<Map>` 而不是实体、且不做进程级缓存**（`mapper/ReconStationMapper.java:29~38`）：只要两列，没必要为一张他域维表建实体类；维表几百行量级，一次全量拉回做 Map 比逐车站查库便宜得多。日终一天只跑一轮，缓存省下的一次查询毫无意义，却会引入「参数改了但 recon-server 没重启、线路仍按旧映射填」这种只在跨天时暴露的偏差。
+- **为什么返回 `List<Map>` 而不是实体、且不做进程级缓存**（`mapper/ReconStationMapper.java`）：只要两列，没必要为一张他域维表建实体类；维表几百行量级，一次全量拉回做 Map 比逐车站查库便宜得多。日终一天只跑一轮，缓存省下的一次查询毫无意义，却会引入「参数改了但 recon-server 没重启、线路仍按旧映射填」这种只在跨天时暴露的偏差。
 
 #### 陷阱
 
-- **维表查询失败 MUST 抛异常、NEVER 降级成空 Map**（`loadStationLines`:282~301）：降级的后果是「整份 PAY 文件的线路段全空」，而这份文件仍会被判定为生成成功并投递给 ACC——那是静默错账。查不出维表就让本次文件生成失败、批次留非终态等下次重入。`mapping.isEmpty()` 时抛「STATION_INFO 没有任何可用的车站到线路映射，拒绝生成线路段全空的对账文件」。
-- **`file-types` 的类型名大小写不敏感**（`ReconLineBackfillProperties.appliesTo`:60）：避免配置里写成小写就静默失效。
+- **维表查询失败 MUST 抛异常、NEVER 降级成空 Map**（`loadStationLines`）：降级的后果是「整份 PAY 文件的线路段全空」，而这份文件仍会被判定为生成成功并投递给 ACC——那是静默错账。查不出维表就让本次文件生成失败、批次留非终态等下次重入。`mapping.isEmpty()` 时抛「STATION_INFO 没有任何可用的车站到线路映射，拒绝生成线路段全空的对账文件」。
+- **`file-types` 的类型名大小写不敏感**（`ReconLineBackfillProperties.appliesTo`）：避免配置里写成小写就静默失效。
 ### 五、FTP 投递与回查
 
 #### 契约与判据
 
-- **投递成功的判据不是返回码，而是 RNTO 之后回查远端确实存在同字节数的文件**（`ReconFtpService` 类注释:18~24；`verifyRemote`:122~128；`storage/ReconFtpProperties.java:13~18`，配置键 `recon.ftp.verify-after-upload` 默认 true）：`storeFile` 的 226 与 `rename` 的 250 只说明命令被接受，回查（SIZE，失败退回 LIST）才是「文件真的躺在 `/itp/recon` 上」的证据。成功时打「对账文件投递已回查通过」，失败抛 `IOException` 让该文件落 FAILED 等下一轮重试。
-- **核对投递结果 MUST 看回查日志，NEVER 用 226 / 250 应答码或事后 LIST 当判据**（同上；`ReconFtpProperties.java:20~25`）：LIST 只能证明「还没被取走」。
+- **投递成功的判据不是返回码，而是 RNTO 之后回查远端确实存在同字节数的文件**（`ReconFtpService` 类注释:18~24；`verifyRemote`；`storage/ReconFtpProperties.java`，配置键 `recon.ftp.verify-after-upload` 默认 true）：`storeFile` 的 226 与 `rename` 的 250 只说明命令被接受，回查（SIZE，失败退回 LIST）才是「文件真的躺在 `/itp/recon` 上」的证据。成功时打「对账文件投递已回查通过」，失败抛 `IOException` 让该文件落 FAILED 等下一轮重试。
+- **核对投递结果 MUST 看回查日志，NEVER 用 226 / 250 应答码或事后 LIST 当判据**（同上；`ReconFtpProperties.java`）：LIST 只能证明「还没被取走」。
 - **NEVER 再把「事后 LIST 看不到 `ITP.BUS.yyyyMMdd`」当成投递失败**（`ReconFtpService` 类注释:26~32）：2026-09-11 一度如此误判（DB 记 UPLOADED、几分钟后 curl 取回 550，且四个文件原本在 70ms 内投完）。用四个变体命名的探针文件在 `172.20.215.3`（vsFTPd 3.0.3）上实测推翻：`ITP.BUS.20260910` / `ITP.BUS.20260909` / `ITP.BUSX.20260910` 都在 30~45 秒内被删除，`PROBE.BUS.20260910` 与 `ITP.EXP/PAY/DETAIL.*` 一直留着——**是 ACC 侧有个按 `ITP.BUS*` 取件的进程，取完即删**，我方投递本来就是成功的（同一轮日志里 BUS bytes=19 回查通过）。
-- **`verify-after-upload` NEVER 关掉**（`ReconFtpProperties.java:16~18`）：回查是链路上唯一的正向证据，也是「BUS 文件不见了」这类误判的唯一证伪手段。
+- **`verify-after-upload` NEVER 关掉**（`ReconFtpProperties.java`）：回查是链路上唯一的正向证据，也是「BUS 文件不见了」这类误判的唯一证伪手段。
 - **SIZE / LIST 两条路都问不出结果时按失败处理**（`verifyRemote` 注释:125~127）：这里的存在意义就是兜住「返回码说成功、文件其实没落地」，问不出来就不能声称投递成功。
-- **远端目录固定 `/itp/recon/`**，来源是甲方《ACC与ITP之间的文件》一、对账文件（`application.properties:69`）。
-- **单个文件投递成功后不判批次 SUCCESS**（`ReconFileTransferService.upload`:28~34）：允许的前置批次状态是 `GENERATING` / `UPLOADING` / `FAILED`（FAILED 是重试入口），批次是否收口由编排器在全部文件都 UPLOADED 后统一决定（`ReconOrchestrationService.uploadAll`:369~379：任一文件状态不是 UPLOADED 即抛异常）。
-- **`updateUpload` 的 `remotePath` 在失败分支为 null，MUST 保留 `jdbcType=VARCHAR`**（`mapper/ReconFileMapper.xml:46`，`REMOTE_PATH` 是可空 `VARCHAR2(512)`）。
+- **远端目录固定 `/itp/recon/`**，来源是甲方《ACC与ITP之间的文件》一、对账文件（`application.properties`）。
+- **单个文件投递成功后不判批次 SUCCESS**（`ReconFileTransferService.upload`）：允许的前置批次状态是 `GENERATING` / `UPLOADING` / `FAILED`（FAILED 是重试入口），批次是否收口由编排器在全部文件都 UPLOADED 后统一决定（`ReconOrchestrationService.uploadAll`：任一文件状态不是 UPLOADED 即抛异常）。
+- **`updateUpload` 的 `remotePath` 在失败分支为 null，MUST 保留 `jdbcType=VARCHAR`**（`mapper/ReconFileMapper.xml`，`REMOTE_PATH` 是可空 `VARCHAR2(512)`）。
 
 #### 决策理由
 
-- **为什么投递串行化用 `ReentrantLock` 而不是 `synchronized`**（`ReconFtpService.awaitUploadInterval`:74~79）：本方法后面紧跟着阻塞式 FTP IO，而 JDK 21 的虚拟线程在 `synchronized` 内阻塞会 pin 住载体线程（AGENTS.md §5.2）。
-- **投递间隔是保守限流、不是修复项**（`ReconFtpProperties.java:28~34`）：引入时以为对端在极短间隔的连续会话上会丢文件，后经探针实测推翻（真实原因是 ACC 取件进程）。保留是因为日终一天只跑一次、多等 2.4 秒没有代价，且对端是甲方 vsFTPd + 取件进程，少并发更稳。要调小可以，但 **MUST 先在测试环境连跑几轮，并以「回查通过」日志而不是事后 LIST 作为判据**。
+- **为什么投递串行化用 `ReentrantLock` 而不是 `synchronized`**（`ReconFtpService.awaitUploadInterval`）：本方法后面紧跟着阻塞式 FTP IO，而 JDK 21 的虚拟线程在 `synchronized` 内阻塞会 pin 住载体线程（AGENTS.md §5.2）。
+- **投递间隔是保守限流、不是修复项**（`ReconFtpProperties.java`）：引入时以为对端在极短间隔的连续会话上会丢文件，后经探针实测推翻（真实原因是 ACC 取件进程）。保留是因为日终一天只跑一次、多等 2.4 秒没有代价，且对端是甲方 vsFTPd + 取件进程，少并发更稳。要调小可以，但 **MUST 先在测试环境连跑几轮，并以「回查通过」日志而不是事后 LIST 作为判据**。
 
 ### 六、配置与单副本约束
 
 #### 契约与判据
 
-- **`X-Recon-Token` 鉴权已整段删除，属有意为之的临时降级，上线前 MUST 恢复**（`controller/ReconInternalController.java:35~43`）：用户 2026-09-11 明确要求「删除令牌要求，不用令牌了，当前处于开发测试阶段」。本组含分片接收、状态变更、生成与投递等状态变更型端点，无鉴权状态下任何网络可达方都能改批次状态或塞入分片，与 AGENTS.md §5.2 相冲突。恢复时把 `recon.internal-token` 与请求头的 `MessageDigest.isEqual` 定长比较加回每个端点即可。配置键 `recon.internal-token=${RECON_INTERNAL_TOKEN:}` 仍留在 `application.properties:49`。
+- **`X-Recon-Token` 鉴权已整段删除，属有意为之的临时降级，上线前 MUST 恢复**（`controller/ReconInternalController.java`）：用户 2026-09-11 明确要求「删除令牌要求，不用令牌了，当前处于开发测试阶段」。本组含分片接收、状态变更、生成与投递等状态变更型端点，无鉴权状态下任何网络可达方都能改批次状态或塞入分片，与 AGENTS.md §5.2 相冲突。恢复时把 `recon.internal-token` 与请求头的 `MessageDigest.isEqual` 定长比较加回每个端点即可。配置键 `recon.internal-token=${RECON_INTERNAL_TOKEN:}` 仍留在 `application.properties`。
 - **recon-server MUST 单副本**（`ReconOrchestrationService` 类注释:44~46）：`running` / `advancing` 两把 `AtomicBoolean` 只在进程内有效，没有数据库锁。
-- **`ignore.url` 类配置 NEVER 把 `/internal/recon/**` 写进去**（`application.properties:9~13`）：该键名与语义相反——`FirstFilter.checkToken()` 里只有值等于 `/**`（`web.properties:28` 的默认值）才整体跳过 JWT 校验，其余情况列表内的 URL 反而是「必须带 `Authentication` 头的 JWT」才放行。2026-09-11 实测：写成 `/internal/recon/**` 后所有分片上送一律 `403 {"msg":"check token error"}`。
-- **tracing 三行成组**（`application.properties:16~32`：`management.tracing.enabled=true` + `sampling.probability=0` + `spring.autoconfigure.exclude=...OtlpAutoConfiguration`）：打开后 web-admin `sys_job` 225 发来的 W3C `traceparent` 才能续接进 MDC，公共 `log4j2-linux.xml` 的 `%X{traceId}` 才有值（2026-09-11 实测：调度日志记着 traceId，recon-server 日志里那一列全空）。**NEVER 删除排除那行**：`sampling.probability=0` 只让本服务发起的 trace 不采样，上游带 `sampled=1` 时 span 仍会进导出队列；`web.properties` 已把 `management.otlp.tracing.endpoint` 整行注释掉，本行是第二道保险（Deployment 一注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` 就会重新激活 exporter）；Boot 3.2.6 没有 `management.tracing.export.enabled` 这个开关，把 endpoint 置空也不行。
-- **四个源模块 MUST 一起打开 tracing 开关**（`application.properties:21~22`）：同一条 `traceparent` 会由 Boot 的 WebClient 观测自动带给源服务的 `/internal/recon/export`，否则链路在源侧断开。**四个源现已全部打开** —— `gate-txn-pay` / `collect-pay` / `daily-ticket` 早已开，**`face-pay` 于 2026-09-22（1.0.65）补齐并已滚更、实测续接通过**（打一条带 `traceparent` 的请求，face-pay 日志 traceId 列与入向 trace-id 逐字一致）。**本处此前写「face-pay 尚未打开、是已知缺口」已作废、NEVER 回退**；补的时候 **MUST 按 AGENTS.md 那条「三行成组」写**，NEVER 只加 `enabled=true`。
-- **`ReconExportClient` 的 `baseUrl` 固定为空串，不需要自身地址配置项**（`application.properties:110~113`）：下发地址一律取 `recon.orchestration.sources[].url` 的绝对 URL。原 `service.recon.self-url` 已删除——它只是占位 baseUrl，却让 `InternalMicroHttp` 的 INFO 日志打出 `http://127.0.0.1:9112/http://<源服务>/internal/recon/export` 这种双份地址（2026-09-11 实录）。
-- **`InternalMicroHttp` 的 logger 被压到 WARN**（`application.properties:116~117`）：它会把整个请求头 Map 直接打进 INFO 日志，其中包含内部令牌明文；公共构件 `resource/micro` 不改，改这里避免令牌落进日志文件与日志采集。
-- **期望清单当前是四个源**（`application.properties:84~108`）：`sources[0] gate-txn-pay` = EXP,PAY,BUS,DETAIL；`sources[1] collect-pay` = PAY,BUS；`sources[2] daily-ticket` = PAY,DETAIL；`sources[3] face-pay`（2026-09-16 新增）= PAY,BUS，口径来自 `F2F_ORDER join F2F_PAYMENT`。地址是 `kubectl get svc -n itp` 实测值（Service 端口等于 NodePort 号），**线上仍以 Deployment env 覆盖为准**。
-- **`face-pay` 与 `collect-pay` 是「新表 / 旧表」并列关系、NEVER 二选一**（`application.properties:100~103`）：新单只进 `F2F_*`，切流之前的历史单仍在 collect-pay 那四张旧表里、只有那个源导得出来。去掉任何一个都会让对应时间段的账凭空少一截，而对账文件是纯文本、下游读不出异常。
-- **ticket-server 的 `ReconExportMapper` / `ReconExportService` 代码保留但不在期望清单内**（`application.properties:87~89`）：甲方四类文件中没有 ticket 源的位置（过闸笔数与金额由 gate-txn-pay 出，`QRCODE_TXN_DETAIL` 不参与）。如后续甲方需要过闸明细，把 ticket 源加回清单即可，**勿删源服务代码**。
-- **编排总开关**（`recon.orchestration.enabled`，`application.properties:73`；`ReconOrchestrationProperties.java:24`）：关掉后 `runDailyBatch` 与 `advance` 都直接返回，单批次人工接口仍可用。
-- **期望清单为空属配置缺失**（`ReconOrchestrationProperties.java:69`）：dispatch 无事可做，MUST 在部署清单里核对。
-- **`SourceExpectation.name` MUST 匹配 `[A-Za-z0-9_-]{1,32}`**（`ReconOrchestrationProperties.java:107`），落库到 `RECON_BATCH_SOURCE.SOURCE_NAME`。
+- **`ignore.url` 类配置 NEVER 把 `/internal/recon/**` 写进去**（`application.properties`）：该键名与语义相反——`FirstFilter.checkToken()` 里只有值等于 `/**`（`web.properties` 的默认值）才整体跳过 JWT 校验，其余情况列表内的 URL 反而是「必须带 `Authentication` 头的 JWT」才放行。2026-09-11 实测：写成 `/internal/recon/**` 后所有分片上送一律 `403 {"msg":"check token error"}`。
+- **tracing 三行成组**（`application.properties`：`management.tracing.enabled=true` + `sampling.probability=0` + `spring.autoconfigure.exclude=...OtlpAutoConfiguration`）：打开后 web-admin `sys_job` 225 发来的 W3C `traceparent` 才能续接进 MDC，公共 `log4j2-linux.xml` 的 `%X{traceId}` 才有值（2026-09-11 实测：调度日志记着 traceId，recon-server 日志里那一列全空）。**NEVER 删除排除那行**：`sampling.probability=0` 只让本服务发起的 trace 不采样，上游带 `sampled=1` 时 span 仍会进导出队列；`web.properties` 已把 `management.otlp.tracing.endpoint` 整行注释掉，本行是第二道保险（Deployment 一注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` 就会重新激活 exporter）；Boot 3.2.6 没有 `management.tracing.export.enabled` 这个开关，把 endpoint 置空也不行。
+- **四个源模块 MUST 一起打开 tracing 开关**（`application.properties`）：同一条 `traceparent` 会由 Boot 的 WebClient 观测自动带给源服务的 `/internal/recon/export`，否则链路在源侧断开。**四个源现已全部打开** —— `gate-txn-pay` / `collect-pay` / `daily-ticket` 早已开，**`face-pay` 于 2026-09-22（1.0.65）补齐并已滚更、实测续接通过**（打一条带 `traceparent` 的请求，face-pay 日志 traceId 列与入向 trace-id 逐字一致）。；补的时候 **MUST 按 AGENTS.md 那条「三行成组」写**，NEVER 只加 `enabled=true`。
+- **`ReconExportClient` 的 `baseUrl` 固定为空串，不需要自身地址配置项**（`application.properties`）：下发地址一律取 `recon.orchestration.sources[].url` 的绝对 URL。原 `service.recon.self-url` 已删除——它只是占位 baseUrl，却让 `InternalMicroHttp` 的 INFO 日志打出 `http://127.0.0.1:9112/http://<源服务>/internal/recon/export` 这种双份地址（2026-09-11 实录）。
+- **`InternalMicroHttp` 的 logger 被压到 WARN**（`application.properties`）：它会把整个请求头 Map 直接打进 INFO 日志，其中包含内部令牌明文；公共构件 `resource/micro` 不改，改这里避免令牌落进日志文件与日志采集。
+- **期望清单当前是三个源**（`application.properties` 的 `recon.orchestration.sources[0..2]`）：`sources[0] gate-txn-pay` = EXP,PAY,BUS,DETAIL；`sources[1] daily-ticket` = PAY,DETAIL；`sources[2] face-pay`（2026-09-16 新增）= PAY,BUS，口径来自 `F2F_ORDER join F2F_PAYMENT`。地址是 `kubectl get svc -n itp` 实测值（Service 端口等于 NodePort 号），**线上仍以 Deployment env 覆盖为准**。
+- **collect-pay（旧表）源已于 2026-10-13 移除**：旧表在 2026-09-18 账期起已落在对账窗口外、不再有新数据，其 PAY/BUS 由 face-pay 承接；故「face-pay 与 collect-pay NEVER 二选一」不再适用于当前配置——该原则仅用于解释历史上为何同时保留两源、以及为何 NEVER 手工补跑 2026-09-16 及之前账期。
+- **ticket-server 的 `ReconExportMapper` / `ReconExportService` 代码保留但不在期望清单内**（`application.properties`）：甲方四类文件中没有 ticket 源的位置（过闸笔数与金额由 gate-txn-pay 出，`QRCODE_TXN_DETAIL` 不参）。如后续甲方需要过闸明细，把 ticket 源加回清单即可，**勿删源服务代码**。
+- **编排总开关**（`recon.orchestration.enabled`，`application.properties`；`ReconOrchestrationProperties.java`）：关掉后 `runDailyBatch` 与 `advance` 都直接返回，单批次人工接口仍可用。
+- **期望清单为空属配置缺失**（`ReconOrchestrationProperties.java`）：dispatch 无事可做，MUST 在部署清单里核对。
+- **`SourceExpectation.name` MUST 匹配 `[A-Za-z0-9_-]{1,32}`**（`ReconOrchestrationProperties.java`），落库到 `RECON_BATCH_SOURCE.SOURCE_NAME`。
 
 #### 决策理由
 
-- **`advance-delay-millis` 的语义已改**（`ReconOrchestrationProperties.java:27~32`）：沿用原键名与默认值（60s），语义从「定时扫描间隔」变为「同一次运行内的轮询间隔」，因为源服务的抽取是异步的、dispatch 之后必须轮询等收齐。
+- **`advance-delay-millis` 的语义已改**（`ReconOrchestrationProperties.java`）：沿用原键名与默认值（60s），语义从「定时扫描间隔」变为「同一次运行内的轮询间隔」，因为源服务的抽取是异步的、dispatch 之后必须轮询等收齐。
 
 ### 七、持久层与 mapper
 
 #### 契约与判据
 
-- **record 的数值分量 MUST 用装箱类型，NEVER 退回 `int` / `long`**（`model/SourceProgress.java:16~23`，同款说明在 `PartReceipt.java:17~19`、`PartTotals.java:10~12`、`ReconFileView.java:17~19`、`BatchView.java:8~9`）：MyBatis 走构造器映射时，resultMap 里 `javaType="int"` / `"long"` 经 `TypeAliasRegistry` 解析出来的是 `Integer` / `Long`，随后用 `getDeclaredConstructor(装箱类型...)` 精确查找构造器——基本类型不会自动拆箱匹配，**一旦真正查出数据行就必抛 `NoSuchMethodException`（空结果集不会触发，因此极易假通过）**。装箱后各调用点 MUST 显式判空兜底，NEVER 直接参与算术或 `>=` 比较。
-- **resultMap 的 `javaType` MUST 写全限定装箱类型，NEVER 改回 `"int"` / `"long"` 别名**（`mapper/ReconSourceMapper.xml:4~7`，同款一行说明在 `ReconFileMapper.xml:4`、`ReconPartMapper.xml:4`）：写全限定名是为了让映射意图与 record 的装箱分量一一对上。
-- **本目录所有 `#{}` 一律显式写 `jdbcType`，NEVER 省略**（`mapper/ReconSourceMapper.xml:22~30`，引用说明在 `ReconBatchMapper.xml:16~21`、`ReconFileMapper.xml:20~23`、`ReconPartMapper.xml:29`）：Oracle + ojdbc8 下 `#{}` 值为 null 且未写 `jdbcType` 时，MyBatis 用 `JdbcType.OTHER(1111)` 调 `setNull`，驱动报「无效的列类型: 1111」。2026-09-11 实测阻断来源声明收口（`ReconSourceService.declare()` 成功路径 `failReason` 传 null 更新 `RECON_BATCH_SOURCE`，整条 UPDATE 抛 `MyBatisSystemException`、接口 500）。取值按 `recon-server-schema.sql` 的列类型：`VARCHAR2` 列写 `VARCHAR`、`NUMBER` 列写 `NUMERIC`。
-- **两处已知的 null 参数位置**：`updateDeclared` / `updateStatus` 的 `failReason` 在成功路径恒为 null（`mapper/ReconSourceMapper.xml:60, 74`，`FAIL_REASON` 是可空 `VARCHAR2(1024)`）；`updateUpload` 的 `remotePath` 在失败分支为 null（`ReconFileMapper.xml:46`）。
-- **`RECON_BATCH` 侧当前没有写 `FAIL_REASON` 的语句**（`mapper/ReconBatchMapper.xml:19~20`）：该列由人工排查用，代码只在 `RECON_BATCH_SOURCE` 侧写失败原因；日后若新增写它的 UPDATE，MUST 带 `jdbcType=VARCHAR`。
-- **重跑生成时覆盖既有行，`AMOUNT_TOTAL` 在 `MATCHED` 分支也要写**（`mapper/ReconFileMapper.xml:20~21`）。
-- **分片表的重试计数口径**：`RETRY_COUNT` 首次落库固定写 0（`mapper/ReconPartMapper.xml:40`），状态变更即视为一次重投、`RETRY_COUNT` 同步 +1，便于定位反复失败的分片（`:50`）。
-- **`selectTotals` 只统计 `STATUS='RECEIVED'` 的分片**（`mapper/ReconPartMapper.xml:20`）。
+- **record 的数值分量 MUST 用装箱类型，NEVER 退回 `int` / `long`**（`model/SourceProgress.java`，同款说明在 `PartReceipt.java`、`PartTotals.java`、`ReconFileView.java`、`BatchView.java`）：MyBatis 走构造器映射时，resultMap 里 `javaType="int"` / `"long"` 经 `TypeAliasRegistry` 解析出来的是 `Integer` / `Long`，随后用 `getDeclaredConstructor(装箱类型...)` 精确查找构造器——基本类型不会自动拆箱匹配，**一旦真正查出数据行就必抛 `NoSuchMethodException`（空结果集不会触发，因此极易假通过）**。装箱后各调用点 MUST 显式判空兜底，NEVER 直接参与算术或 `>=` 比较。
+- **resultMap 的 `javaType` MUST 写全限定装箱类型，NEVER 改回 `"int"` / `"long"` 别名**（`mapper/ReconSourceMapper.xml`，同款一行说明在 `ReconFileMapper.xml`、`ReconPartMapper.xml`）：写全限定名是为了让映射意图与 record 的装箱分量一一对上。
+- **本目录所有 `#{}` 一律显式写 `jdbcType`，NEVER 省略**（`mapper/ReconSourceMapper.xml`，引用说明在 `ReconBatchMapper.xml`、`ReconFileMapper.xml`、`ReconPartMapper.xml`）：Oracle + ojdbc8 下 `#{}` 值为 null 且未写 `jdbcType` 时，MyBatis 用 `JdbcType.OTHER(1111)` 调 `setNull`，驱动报「无效的列类型: 1111」。2026-09-11 实测阻断来源声明收口（`ReconSourceService.declare()` 成功路径 `failReason` 传 null 更新 `RECON_BATCH_SOURCE`，整条 UPDATE 抛 `MyBatisSystemException`、接口 500）。取值按 `recon-server-schema.sql` 的列类型：`VARCHAR2` 列写 `VARCHAR`、`NUMBER` 列写 `NUMERIC`。
+- **两处已知的 null 参数位置**：`updateDeclared` / `updateStatus` 的 `failReason` 在成功路径恒为 null（`mapper/ReconSourceMapper.xml`，`FAIL_REASON` 是可空 `VARCHAR2(1024)`）；`updateUpload` 的 `remotePath` 在失败分支为 null（`ReconFileMapper.xml`）。
+- **`RECON_BATCH` 侧当前没有写 `FAIL_REASON` 的语句**（`mapper/ReconBatchMapper.xml`）：该列由人工排查用，代码只在 `RECON_BATCH_SOURCE` 侧写失败原因；日后若新增写它的 UPDATE，MUST 带 `jdbcType=VARCHAR`。
+- **重跑生成时覆盖既有行，`AMOUNT_TOTAL` 在 `MATCHED` 分支也要写**（`mapper/ReconFileMapper.xml`）。
+- **分片表的重试计数口径**：`RETRY_COUNT` 首次落库固定写 0（`mapper/ReconPartMapper.xml`），状态变更即视为一次重投、`RETRY_COUNT` 同步 +1，便于定位反复失败的分片。
+- **`selectTotals` 只统计 `STATUS='RECEIVED'` 的分片**（`mapper/ReconPartMapper.xml`）。
 
 #### 陷阱
 
-- **NEVER 在 SQL 正文写注释**（`mapper/ReconStationMapper.xml:11~13`）：全服务共用的 Druid WallFilter 默认 `commentAllow=false`，SQL 带注释会被判成注入并抛 `sql injection violation`，该语句**静默失效、编译与单测都发现不了**。说明一律写在 XML 注释里。
-- **mapper XML 的注释里 NEVER 出现两个连续减号**（`mapper/ReconStationMapper.xml:15~18`）：XML 规范禁止注释文本含连续减号，MyBatis 解析该 mapper 直接失败、`sqlSessionFactory` 建不起来、**整个服务启动即挂**，而异常链最外层报的是某个无关 mapper 的注入失败，极易误判成依赖问题。这与上一条是孪生陷阱：上一条要求把「禁止在 SQL 正文写行注释」写进 XML 注释，而说明里若原样引用那两个符号就会踩本条。
-- **`ReconStationMapper.xml` 当前没有 `#{}` 参数，因此不涉及「Oracle 下 null 参数必须显式写 `jdbcType`」那条**（`mapper/ReconStationMapper.xml:20~22`）；后续若加带参数的语句，MUST 照 `ReconSourceMapper.xml` 的做法逐个补。
+- **NEVER 在 SQL 正文写注释**（`mapper/ReconStationMapper.xml`）：全服务共用的 Druid WallFilter 默认 `commentAllow=false`，SQL 带注释会被判成注入并抛 `sql injection violation`，该语句**静默失效、编译与单测都发现不了**。说明一律写在 XML 注释里。
+- **mapper XML 的注释里 NEVER 出现两个连续减号**（`mapper/ReconStationMapper.xml`）：XML 规范禁止注释文本含连续减号，MyBatis 解析该 mapper 直接失败、`sqlSessionFactory` 建不起来、**整个服务启动即挂**，而异常链最外层报的是某个无关 mapper 的注入失败，极易误判成依赖问题。这与上一条是孪生陷阱：上一条要求把「禁止在 SQL 正文写行注释」写进 XML 注释，而说明里若原样引用那两个符号就会踩本条。
+- **`ReconStationMapper.xml` 当前没有 `#{}` 参数，因此不涉及「Oracle 下 null 参数必须显式写 `jdbcType`」那条**（`mapper/ReconStationMapper.xml`）；后续若加带参数的语句，MUST 照 `ReconSourceMapper.xml` 的做法逐个补。
 - **`*-schema.sql` 只服务「新建库」**：本次抽取范围内的源码注释未涉及 `recon-server-schema.sql` 与迁移脚本的执行状态；四张 `RECON_*` 表的建表与回查结论以正文与 AGENTS.md 为准，**新增列 / 索引 MUST 出独立 `*-migration.sql` 并当场执行 + 回查**（AGENTS.md §8）。
 ### 墓碑注释清单（建议转为断言测试）
 
@@ -1217,16 +1218,16 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 
 | # | 文件:行号 | 禁止的事 | 能否断言化 |
 |---|---|---|---|
-| T1 | `recon-server/src/main/java/com/chinasofti/huateng/ReconServer.java:16~21` | NEVER 加回 `@EnableScheduling`（会与 `sys_job` 形成两套互不知情的调度源，重复建批次与重复投递） | **可**：反射断言 `ReconServer.class.getAnnotation(EnableScheduling.class) == null`，并加一条「`src/main` 下 `@Scheduled` 出现次数为 0」的源码扫描断言（需排除注释行，锚定行首） |
-| T2 | `recon-server/storage/ReconOrchestrationProperties.java:16~19`；`application.properties:74~75` | NEVER 加回 `recon.orchestration.dispatch-cron`，NEVER 在 K8s 注入 `RECON_DISPATCH_CRON`（无读取方，留着会让运维误以为改它能改频率） | **可**：断言 `ReconOrchestrationProperties` 无 `dispatchCron` 属性 + 断言 `application.properties` 不含 `dispatch-cron` 字样 |
-| T3 | `application.properties:87~89` | NEVER 删 ticket-server 侧的 `ReconExportMapper` / `ReconExportService`（当前不在期望清单，但甲方若要过闸明细需加回） | **难**：跨模块存在性断言只能写成「`ticket-server` 下这两个类文件存在」的弱断言，且属另一个模块，建议留文档 |
-| T4 | `ReconSourceMapper.java:59`；`ReconSourceMapper.xml:85~89`；`ReconOrchestrationService.dispatchSource:248~249`；`ReconSourceService.markExporting:69` | NEVER 把置 EXPORTING 换回无条件的 `updateStatus`（空结果集的源会被打回 EXPORTING、批次永不收齐） | **可**：断言 `ReconSourceMapper.xml` 的 `updateStatusIfNotTerminal` 语句含 `STATUS NOT IN ('COMPLETED', 'MISMATCH')`；行为断言需要 DB，可写成 mapper 语句文本断言 |
+| T1 | `recon-server/src/main/java/com/chinasofti/huateng/ReconServer.java` | NEVER 加回 `@EnableScheduling`（会与 `sys_job` 形成两套互不知情的调度源，重复建批次与重复投递） | **可**：反射断言 `ReconServer.class.getAnnotation(EnableScheduling.class) == null`，并加一条「`src/main` 下 `@Scheduled` 出现次数为 0」的源码扫描断言（需排除注释行，锚定行首） |
+| T2 | `recon-server/storage/ReconOrchestrationProperties.java`；`application.properties` | NEVER 加回 `recon.orchestration.dispatch-cron`，NEVER 在 K8s 注入 `RECON_DISPATCH_CRON`（无读取方，留着会让运维误以为改它能改频率） | **可**：断言 `ReconOrchestrationProperties` 无 `dispatchCron` 属性 + 断言 `application.properties` 不含 `dispatch-cron` 字样 |
+| T3 | `application.properties` | NEVER 删 ticket-server 侧的 `ReconExportMapper` / `ReconExportService`（当前不在期望清单，但甲方若要过闸明细需加回） | **难**：跨模块存在性断言只能写成「`ticket-server` 下这两个类文件存在」的弱断言，且属另一个模块，建议留文档 |
+| T4 | `ReconSourceMapper.java`；`ReconSourceMapper.xml`；`ReconOrchestrationService.dispatchSource:248~249`；`ReconSourceService.markExporting:69` | NEVER 把置 EXPORTING 换回无条件的 `updateStatus`（空结果集的源会被打回 EXPORTING、批次永不收齐） | **可**：断言 `ReconSourceMapper.xml` 的 `updateStatusIfNotTerminal` 语句含 `STATUS NOT IN ('COMPLETED', 'MISMATCH')`；行为断言需要 DB，可写成 mapper 语句文本断言 |
 | T5 | `ReconOrchestrationService.dispatchDailyBatch:176~183` | 「已 SUCCESS 就直接 return」这一条 NEVER 删（同一账期第二次触发必抛 `SUCCESS -> EXPORTING`） | **可**：纯单测——mock `batchService.create` 返回 `status=SUCCESS`，断言 `dispatchDailyBatch` 不调用 `transitionIfNeeded` 且不抛异常 |
 | T6 | `ReconPartService.isDuplicateKeyViolation:125~128`（ADR-D53） | NEVER 简化回 `catch (DuplicateKeyException)`（本模块开了 tracing，切面曾把异常包一层，按类型 catch 全部落空） | **可**：纯单测——构造 `new RuntimeException(new IllegalStateException(new DuplicateKeyException("x")))`，断言 `isDuplicateKeyViolation` 为 true |
-| T7 | `ReconLineBackfillProperties.java:25~26`；`application.properties:58~59` | NEVER 把线路补齐改成「只在源上送为空时才补」（重新引入部署顺序依赖，且源取错的线路会被当「有值」放过）；NEVER 往 `file-types` 加 EXP / DETAIL（明细路径不解析行内容，加了不生效也不报错） | **可**：前者纯单测——同一车站码分别用「线路为空」与「线路为错值」两组键，断言两者补齐后落到同一键且度量累加；后者断言 `appliesTo("EXP")` / `appliesTo("DETAIL")` 在默认配置下为 false |
-| T8 | `ReconFtpProperties.java:16~18, 25`；`ReconFtpService` 类注释:26~32 | NEVER 关掉 `verify-after-upload`；NEVER 再把「事后 LIST 看不到 `ITP.BUS`」当成我方缺陷 | **半可**：可断言默认值为 true；「不得据 LIST 判缺陷」是人的判断，只能留文档 |
-| T9 | `mapper/ReconSourceMapper.xml:7`（及 `ReconFileMapper.xml:4`、`ReconPartMapper.xml:4`） | NEVER 把 resultMap 的 `javaType` 改回 `"int"` / `"long"` 别名；record 数值分量 NEVER 退回基本类型 | **可**：反射断言四个 record（`SourceProgress` / `PartReceipt` / `PartTotals` / `ReconFileView`）的数值分量类型都是 `Integer` / `Long`；再加一条「mapper XML 内不出现 `javaType="int"` / `javaType="long"`」的文本断言 |
-| T10 | `mapper/ReconStationMapper.java:18~20` | NEVER 用车站码前 2 位推线路（编码巧合、非契约） | **半可**：可断言 `backfillLineSegment` 的线路值只来自 `stationMapper` 返回的映射（用只含一条映射的 mock，断言其余车站的线路段为空而不是前 2 位） |
+| T7 | `ReconLineBackfillProperties.java`；`application.properties` | NEVER 把线路补齐改成「只在源上送为空时才补」（重新引入部署顺序依赖，且源取错的线路会被当「有值」放过）；NEVER 往 `file-types` 加 EXP / DETAIL（明细路径不解析行内容，加了不生效也不报错） | **可**：前者纯单测——同一车站码分别用「线路为空」与「线路为错值」两组键，断言两者补齐后落到同一键且度量累加；后者断言 `appliesTo("EXP")` / `appliesTo("DETAIL")` 在默认配置下为 false |
+| T8 | `ReconFtpProperties.java`；`ReconFtpService` 类注释:26~32 | NEVER 关掉 `verify-after-upload`；NEVER 再把「事后 LIST 看不到 `ITP.BUS`」当成我方缺陷 | **半可**：可断言默认值为 true；「不得据 LIST 判缺陷」是人的判断，只能留文档 |
+| T9 | `mapper/ReconSourceMapper.xml`（及 `ReconFileMapper.xml`、`ReconPartMapper.xml`） | NEVER 把 resultMap 的 `javaType` 改回 `"int"` / `"long"` 别名；record 数值分量 NEVER 退回基本类型 | **可**：反射断言四个 record（`SourceProgress` / `PartReceipt` / `PartTotals` / `ReconFileView`）的数值分量类型都是 `Integer` / `Long`；再加一条「mapper XML 内不出现 `javaType="int"` / `javaType="long"`」的文本断言 |
+| T10 | `mapper/ReconStationMapper.java` | NEVER 用车站码前 2 位推线路（编码巧合、非契约） | **半可**：可断言 `backfillLineSegment` 的线路值只来自 `stationMapper` 返回的映射（用只含一条映射的 mock，断言其余车站的线路段为空而不是前 2 位） |
 | T11 | `ReconFileGenerationService` 类注释:52 | NEVER 在本类里硬编码段数下标（一律取自 `ReconFileTypeEnum`） | **半可**：可写「本类源码不出现字面量下标 `fields[5]` 这类模式」的弱文本断言；更可靠的是断言改 `ReconFileTypeEnum` 的段数后聚合行为随之变化 |
 | T12 | `ReconOrchestrationService.runDailyBatch:101` | NEVER 把并发拒绝改成排队等待（Quartz worker 会越积越多） | **可**：纯单测——并发两次调用，断言第二次立刻抛 `IllegalStateException("上一次日终对账运行尚未结束，本次拒绝")` 而不是阻塞 |
 
@@ -1243,66 +1244,66 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 ### 一、调度形态：本模块最容易被读反的一处
 
 - **`recon-server` 没有任何 `@Scheduled`，启动类也没有 `@EnableScheduling` —— 但调度本身是开着的。** 判据两条，MUST 同时看：
-  - `recon-server/src/main/java/com/chinasofti/huateng/ReconServer.java:16`（grep `NEVER 加回`）：用户 2026-09-11 明确要求「不使用 EnableScheduling，改用 web-admin 调用，改为每日执行一次，由 web-admin 控制频率」，因此本模块**不显式声明**该注解，`src/main` 下也没有任何 `@Scheduled`。
-  - 同文件 `:24`（grep `但调度本身是开着的`）：`resource/micro/web` 的 `WebAutoConfig` **类上带 `@EnableScheduling`**，并经 `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` 注册成自动配置 —— 凡依赖 micro web 构件的模块**调度一律开启**；公共构件里那 3 个 `@Scheduled`（`SqlConfiguration.resetAllDruidStatData` 与 `ResetMetersJob` 的两个 Prometheus 指标重置 / 打印）在本模块**照样在跑**。
+  - `recon-server/src/main/java/com/chinasofti/huateng/ReconServer.java`（grep `NEVER 加回`）：用户 2026-09-11 明确要求「不使用 EnableScheduling，改用 web-admin 调用，改为每日执行一次，由 web-admin 控制频率」，因此本模块**不显式声明**该注解，`src/main` 下也没有任何 `@Scheduled`。
+  - 同文件（grep `但调度本身是开着的`）：`resource/micro/web` 的 `WebAutoConfig` **类上带 `@EnableScheduling`**，并经 `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` 注册成自动配置 —— 凡依赖 micro web 构件的模块**调度一律开启**；公共构件里那 3 个 `@Scheduled`（`SqlConfiguration.resetAllDruidStatData` 与 `ResetMetersJob` 的两个 Prometheus 指标重置 / 打印）在本模块**照样在跑**。
   - **因此「本模块一个 `@Scheduled` 都没有、启动类也没有 `@EnableScheduling`」只在「本模块源码」这个口径下成立。NEVER 据「启动类没有这个注解」推断调度未启用，也 NEVER 把它写成可断言项** —— 能断言的只有「本模块源码不含这两个字样」，断言不到「容器里没有调度器」。
   - 加回 `@EnableScheduling` 的后果：`sys_job` 与本模块形成**两套互不知情的调度源**，改 cron 时只改一处就出现「以为改了、实际另一套仍按老频率跑」，并造成**重复建批次与重复投递**（与 `docs/architecture/web-server.md` §7.1 末条同一约束）。
 
 ### 二、唯一入口与同步编排
 
-- 唯一日常入口 **`POST /internal/recon/daily/run`** → `ReconOrchestrationService.runDailyBatch()`（`recon-server/src/main/java/com/chinasofti/huateng/recon/controller/ReconInternalController.java:104`，grep `/daily/run`；服务侧 `recon/service/ReconOrchestrationService.java:106`，grep `上一次日终对账运行尚未结束`）。
-- 编排是**同步**的：`dispatchDailyBatch()` 建批次 + 登记期望 + 逐源下发（`ReconOrchestrationService.java:189`），随后 `while(true)` 轮询 `advanceBatch(batchId)` 直到 `SUCCESS`。轮询间隔 = `recon.orchestration.advance-delay-millis`（**60s**，`recon/storage/ReconOrchestrationProperties.java:34`），下限被 `Math.max(1000L, ...)` 钳到 1s（`ReconOrchestrationService.java:117`）。
-- **为什么必须在这里轮询、而不是「下发完就返回」**：源服务的抽取是**异步**的（受理即返回、之后才回推分片），不等收齐就没有任何东西会推进批次 —— 本模块已经没有 `@Scheduled` 兜底了（`ReconOrchestrationService.java:93`，grep `本模块已没有`）。
-- **为什么同步跑完再返回**：让 `SYS_JOB_LOG` 反映真实成败 —— Quartz 侧「不抛异常一律记成功」（`docs/architecture/web-server.md` §7.1），因此失败或超时都抛 `IllegalStateException`，Controller 转成非 `0000` 的 retCode（`ReconInternalController.java:112~116`，grep `日终对账运行失败`）。返回 `CommonResult` 而不是 `BatchView`，是因为调用方只需要「成/败 + 原因」、判据与 web-admin 其它任务一致（`retCode` 是否 `0000`），批次明细另走 `GET /internal/recon/batches/{batchId}`。
-- 总超时 `recon.orchestration.run-timeout-millis` = **240000ms（4 分钟）**（`ReconOrchestrationProperties.java:47`），**MUST 小于 `ReconClient.getResponseTimeout()` 的 5 分钟**（同文件 `:43`，grep `MUST 小于`）。超过客户端超时会变成「客户端先超时报错、服务端还在跑」，`SYS_JOB_LOG` 记的失败原因**就没有意义了**；要放宽 **MUST 两处一起改**。超时抛错时批次留**非终态**，下一次运行从 `FAILED` / `PARTIAL` 重入、**不丢数据**（`ReconOrchestrationService.java:128~130`，grep `批次留在非终态`）。实测一整轮（4 个文件、6 行 PAY）约 60 秒。
-- **本类绝不能加 `@Transactional`**（`ReconOrchestrationService.java:40`，grep `绝不能加`）：内部既有 RPC（下发抽取）又有大文件 IO（合并、FTP），被事务包住会让行级锁持有时长等于对端响应时长 + 文件大小，并在 Druid 回收连接后把整个事务连同状态记录一起丢弃。每一步都靠单条 SQL 自动提交落状态。
-- 用 `Thread.sleep` 而不是 `synchronized` + `wait`（`ReconOrchestrationService.java:147`，grep `不 pin`）：全服务默认虚拟线程（AGENTS.md §5.2），`Thread.sleep` 在虚拟线程上让出载体线程、不 pin。
+- 唯一日常入口 **`POST /internal/recon/daily/run`** → `ReconOrchestrationService.runDailyBatch()`（`recon-server/src/main/java/com/chinasofti/huateng/recon/controller/ReconInternalController.java`，grep `/daily/run`；服务侧 `recon/service/ReconOrchestrationService.java`，grep `上一次日终对账运行尚未结束`）。
+- 编排是**同步**的：`dispatchDailyBatch()` 建批次 + 登记期望 + 逐源下发（`ReconOrchestrationService.java`），随后 `while(true)` 轮询 `advanceBatch(batchId)` 直到 `SUCCESS`。轮询间隔 = `recon.orchestration.advance-delay-millis`（**60s**，`recon/storage/ReconOrchestrationProperties.java`），下限被 `Math.max(1000L, ...)` 钳到 1s（`ReconOrchestrationService.java`）。
+- **为什么必须在这里轮询、而不是「下发完就返回」**：源服务的抽取是**异步**的（受理即返回、之后才回推分片），不等收齐就没有任何东西会推进批次 —— 本模块已经没有 `@Scheduled` 兜底了（`ReconOrchestrationService.java`，grep `本模块已没有`）。
+- **为什么同步跑完再返回**：让 `SYS_JOB_LOG` 反映真实成败 —— Quartz 侧「不抛异常一律记成功」（`docs/architecture/web-server.md` §7.1），因此失败或超时都抛 `IllegalStateException`，Controller 转成非 `0000` 的 retCode（`ReconInternalController.java`，grep `日终对账运行失败`）。返回 `CommonResult` 而不是 `BatchView`，是因为调用方只需要「成/败 + 原因」、判据与 web-admin 其它任务一致（`retCode` 是否 `0000`），批次明细另走 `GET /internal/recon/batches/{batchId}`。
+- 总超时 `recon.orchestration.run-timeout-millis` = **240000ms（4 分钟）**（`ReconOrchestrationProperties.java`），**MUST 小于 `ReconClient.getResponseTimeout()` 的 5 分钟**（同文件 ，grep `MUST 小于`）。超过客户端超时会变成「客户端先超时报错、服务端还在跑」，`SYS_JOB_LOG` 记的失败原因**就没有意义了**；要放宽 **MUST 两处一起改**。超时抛错时批次留**非终态**，下一次运行从 `FAILED` / `PARTIAL` 重入、**不丢数据**（`ReconOrchestrationService.java`，grep `批次留在非终态`）。实测一整轮（4 个文件、6 行 PAY）约 60 秒。
+- **本类绝不能加 `@Transactional`**（`ReconOrchestrationService.java`，grep `绝不能加`）：内部既有 RPC（下发抽取）又有大文件 IO（合并、FTP），被事务包住会让行级锁持有时长等于对端响应时长 + 文件大小，并在 Druid 回收连接后把整个事务连同状态记录一起丢弃。每一步都靠单条 SQL 自动提交落状态。
+- 用 `Thread.sleep` 而不是 `synchronized` + `wait`（`ReconOrchestrationService.java`，grep `不 pin`）：全服务默认虚拟线程（AGENTS.md §5.2），`Thread.sleep` 在虚拟线程上让出载体线程、不 pin。
 
 ### 三、单副本约束（进程内锁，没有数据库锁）
 
-- `runDailyBatch` 用 `running`（`AtomicBoolean`）拒绝并发：上一次还在跑，第二次**直接抛异常拒绝、NEVER 改成排队等待** —— 排队会让 Quartz worker 越积越多（`ReconOrchestrationService.java:100~101`，grep `NEVER 改成排队等待`）。
-- `advance()`（扫全部非终态批次、供人工干预）另有一把 `advancing`（`ReconOrchestrationService.java:265`，grep `进程内串行化`）：上一轮没结束就跳过本轮。
-- **两把锁都只在进程内有效、库里没有任何锁行或 `SELECT FOR UPDATE`**，因此 **`recon-server` 与 `web-admin` 都 MUST 单副本**（`ReconOrchestrationService.java:44~46`，grep `MUST 单副本`；web-admin 侧同一约束见 AGENTS.md §8 Quartz 那条：内存 JobStore 下每个副本各跑一份）。两副本同时跑同一账期的后果不是报错而是**重复投递**：批次幂等只挡住「同一批次的状态流转」，挡不住两个进程各自把文件 STOR 到 `/itp/recon` 一次。
+- `runDailyBatch` 用 `running`（`AtomicBoolean`）拒绝并发：上一次还在跑，第二次**直接抛异常拒绝、NEVER 改成排队等待** —— 排队会让 Quartz worker 越积越多（`ReconOrchestrationService.java`，grep `NEVER 改成排队等待`）。
+- `advance()`（扫全部非终态批次、供人工干预）另有一把 `advancing`（`ReconOrchestrationService.java`，grep `进程内串行化`）：上一轮没结束就跳过本轮。
+- **两把锁都只在进程内有效、库里没有任何锁行或 `SELECT FOR UPDATE`**，因此 **`recon-server` 与 `web-admin` 都 MUST 单副本**（`ReconOrchestrationService.java`，grep `MUST 单副本`；web-admin 侧同一约束见 AGENTS.md §8 Quartz 那条：内存 JobStore 下每个副本各跑一份）。两副本同时跑同一账期的后果不是报错而是**重复投递**：批次幂等只挡住「同一批次的状态流转」，挡不住两个进程各自把文件 STOR 到 `/itp/recon` 一次。
 - 共享存储（ReadWriteMany PVC）**至今未落地**（正文「已知坑 A 环境类」已记）：分片落在 `recon.storage.root`（默认 `/home/javaapp/app/recon`）的容器本地盘，多副本时第二个副本看不到第一个副本收到的分片，`generate` 会直接报缺片。这是「MUST 单副本」的第二个独立理由。
 
 ### 四、触发方与频率（改频率只有一个地方可改）
 
-- 触发方是 web-admin 的 `sys_job` **job_id 225「给ACC上传扣费交易」**（2026-09-21 由 109「日终对账」改号改名）：`reconQuartzTask.runDailyBatch()`、cron **`0 0 2 * * ?`**（2026-09-20 按业主要求由 `0 30 2` 改为 `0 0 2`，同批把 job 5（现为 260）销卡挪到 `0 30 2` 错开）、走 `service.recon.url`（`recon-server/src/main/resources/application.properties:78`，grep `触发时机与频率由 web-admin`）。
-- **要改频率只能改这条 cron。`recon.orchestration.dispatch-cron` 与 env `RECON_DISPATCH_CRON` 已删除、NEVER 加回**（`application.properties:79`，grep `NEVER 加回`；`ReconOrchestrationProperties.java:16~19`，grep `本类不再有 cron 配置`）。那两个键现在**没有任何读取方**，留着只会让运维误以为改它能改调度频率。
-- `recon.orchestration.enabled`（默认 true，`ReconOrchestrationProperties.java:24`）是编排总开关：关掉后 `runDailyBatch` 抛「对账编排总开关已关闭」、`advance` 直接返回，**单批次人工接口仍可用**。
+- 触发方是 web-admin 的 `sys_job` **job_id 225「给ACC上传扣费交易」**：`reconQuartzTask.runDailyBatch()`、cron **`0 0 2 * * ?`**（2026-09-20 按业主要求由 `0 30 2` 改为 `0 0 2`，同批把支付宝出行销卡（job 260）挪到 `0 30 2` 错开）、走 `service.recon.url`（`recon-server/src/main/resources/application.properties`，grep `触发时机与频率由 web-admin`）。
+- **要改频率只能改这条 cron。`recon.orchestration.dispatch-cron` 与 env `RECON_DISPATCH_CRON` 已删除、NEVER 加回**（`application.properties`，grep `NEVER 加回`；`ReconOrchestrationProperties.java`，grep `本类不再有 cron 配置`）。那两个键现在**没有任何读取方**，留着只会让运维误以为改它能改调度频率。
+- `recon.orchestration.enabled`（默认 true，`ReconOrchestrationProperties.java`）是编排总开关：关掉后 `runDailyBatch` 抛「对账编排总开关已关闭」、`advance` 直接返回，**单批次人工接口仍可用**。
 
 ### 五、三个修复过的缺陷：逐条「缺这一条会怎样」
 
 这三条只在**同步链路**下暴露，`@Scheduled` 自驱时代碰不到。**NEVER 回退**。
 
 1. **1.0.9：把「置 `EXPORTING`」挪到下发 RPC 之前，并改用 `updateStatusIfNotTerminal`**
-   - 位置：`ReconOrchestrationService.dispatchSource:248~250`（grep `MUST 先置 EXPORTING 再发 HTTP`）；`recon/service/ReconSourceService.java:64~70`（grep `NEVER 换回无条件的 updateStatus`）；`recon/mapper/ReconSourceMapper.java:50~60`（grep `为什么必须条件更新`）；SQL 守卫在 `resources/mapper/ReconSourceMapper.xml:85~89`（grep `置 EXPORTING 专用`），谓词是 `STATUS NOT IN ('COMPLETED', 'MISMATCH')`。
+   - 位置：`ReconOrchestrationService.dispatchSource:248~250`（grep `MUST 先置 EXPORTING 再发 HTTP`）；`recon/service/ReconSourceService.java`（grep `NEVER 换回无条件的 updateStatus`）；`recon/mapper/ReconSourceMapper.java`（grep `为什么必须条件更新`）；SQL 守卫在 `resources/mapper/ReconSourceMapper.xml`（grep `置 EXPORTING 专用`），谓词是 `STATUS NOT IN ('COMPLETED', 'MISMATCH')`。
    - **缺这一条会怎样**：源侧抽取跑在自己的线程池里，**空结果集（如 gate-txn-pay 的 EXP 0 行）可能在 200ms 内就回调 `complete` 声明 `COMPLETED`**，而编排线程此时才写 `EXPORTING`，于是把 `COMPLETED` **覆盖回中间态** —— 该 `(来源, 文件类型)` 从此永远停在 `EXPORTING`、批次永不收齐、整批 240s 超时停在 `PARTIAL`。2026-09-11 实测复现（`batchId=RECON20260909`，gate-txn-pay/EXP 已 `declareComplete` 却仍是 `EXPORTING`）。
 2. **1.0.10：把 `PARTIAL -> EXPORTING` 补进状态白名单**
-   - 位置：`recon/service/ReconBatchService.java:68~71`（grep `PARTIAL -&gt; EXPORTING 也必须在白名单里`，实际源码里是 `PARTIAL -> EXPORTING`）。
+   - 位置：`recon/service/ReconBatchService.java`（grep `PARTIAL -&gt; EXPORTING 也必须在白名单里`，实际源码里是 `PARTIAL -> EXPORTING`）。
    - **缺这一条会怎样**：`runDailyBatch()` 每天（或人工重跑）都先 `dispatchDailyBatch()`，而它对已存在批次做 `transitionIfNeeded(EXPORTING)`；批次只要停在 `PARTIAL`（部分来源收齐），重入就直接抛「非法的对账批次状态变更: PARTIAL -> EXPORTING」、接口返 9999，**那个账期再也补不回来**（cron 每天算出新 batchId，昨天那个批次再没人下发）。2026-09-11 实测（`RECON20260909` 停在 `PARTIAL`）。
-   - 同处还有一条同型的：**`FAILED -> ALL_SOURCE_COMPLETED` 也必须在白名单里**（`ReconBatchService.java:61~66`，grep `FAILED -&gt; ALL_SOURCE_COMPLETED 必须在白名单里`）。批次在「来源已全部收齐、但生成或投递失败」时落 `FAILED`，下一轮 `advanceBatch` 走的正是 `transitionIfNeeded(ALL_SOURCE_COMPLETED)` 再重新生成；少了它，`FAILED` 批次只能靠 `dispatchDailyBatch` 的 `FAILED -> EXPORTING` 复活，而生产 cron 一天只跑一次且 batchId 按账期变，**昨天失败的批次今天不会再被下发**，于是永久卡 `FAILED`、每轮只刷「非法的对账批次状态变更」错误日志。2026-09-11 实测复现（`RECON20260907`）。
+   - 同处还有一条同型的：**`FAILED -> ALL_SOURCE_COMPLETED` 也必须在白名单里**（`ReconBatchService.java`，grep `FAILED -&gt; ALL_SOURCE_COMPLETED 必须在白名单里`）。批次在「来源已全部收齐、但生成或投递失败」时落 `FAILED`，下一轮 `advanceBatch` 走的正是 `transitionIfNeeded(ALL_SOURCE_COMPLETED)` 再重新生成；少了它，`FAILED` 批次只能靠 `dispatchDailyBatch` 的 `FAILED -> EXPORTING` 复活，而生产 cron 一天只跑一次且 batchId 按账期变，**昨天失败的批次今天不会再被下发**，于是永久卡 `FAILED`、每轮只刷「非法的对账批次状态变更」错误日志。2026-09-11 实测复现（`RECON20260907`）。
 3. **1.0.12：`dispatchDailyBatch` 加「批次已 `SUCCESS` 就直接 return」的短路**
-   - 位置：`ReconOrchestrationService.dispatchDailyBatch:176~183`（grep `已 SUCCESS 就直接返回`）与实现处 `:202~205`（grep `对账批次本账期已收口`）。
+   - 位置：`ReconOrchestrationService.dispatchDailyBatch:176~183`（grep `已 SUCCESS 就直接返回`）与实现处（grep `对账批次本账期已收口`）。
    - **缺这一条会怎样**：`create` 用的是 `insertIfAbsent`、对已存在批次不改任何列，但紧随其后的 `transitionIfNeeded(EXPORTING)` 会走 `ReconBatchService.transition`，而白名单里 **`SUCCESS` 是终态、一律拒绝流出**，于是同一账期第二次触发必抛「非法的对账批次状态变更: SUCCESS -> EXPORTING」、接口返 9999。**cron 每天 batchId 不同碰不到，前台「执行一次」当天点第二下必踩**；1.0.11 的 Pod 上已实测到该栈。
-   - 连带一条同源修复：`dispatchDailyBatch` 的 catch 分支**现在 MUST 抛 `IllegalStateException`**，原先是「记日志后 return」（`ReconOrchestrationService.java:186~187`，grep `原先是记日志后 return`）—— 不抛的话 `runDailyBatch()` 会拿着一个**不存在的批次**去轮询到超时。
+   - 连带一条同源修复：`dispatchDailyBatch` 的 catch 分支**现在 MUST 抛 `IllegalStateException`**，原先是「记日志后 return」（`ReconOrchestrationService.java`，grep `原先是记日志后 return`）—— 不抛的话 `runDailyBatch()` 会拿着一个**不存在的批次**去轮询到超时。
 
 ### 六、状态机与收齐判定
 
-- 批次状态白名单（`ReconBatchService.allowed`，`ReconBatchService.java:58` 起）：`CREATED -> EXPORTING -> PARTIAL -> ALL_SOURCE_COMPLETED -> GENERATING -> UPLOADING -> SUCCESS`；`FAILED -> EXPORTING | GENERATING | UPLOADING`（三个补偿入口）；外加上面那两条 `FAILED -> ALL_SOURCE_COMPLETED`、`PARTIAL -> EXPORTING`。**`SUCCESS` 是终态、NEVER 从它流出，重跑 MUST 换批次号**（`recon/model/ReconBatchStatus.java:12~13`，grep `NEVER 从 SUCCESS 再流出`）。
-- `transitionIfNeeded` 是**幂等**的：目标状态与当前相同就原样返回、不抛异常（`ReconBatchService.java:29~33`，grep `幂等的状态推进`）—— 编排每轮都会重算目标状态，用 `transition` 会每轮刷「非法流转」。
-- 收齐判定**只认三项总账全等**：落库分片数 / 记录数 / 金额合计逐一等于源声明的 `totalParts / totalRecords / totalAmount`，任一不等即置 `MISMATCH`、**NEVER 放行**（`ReconSourceService.java:19~24`，grep `收齐判定只认三项总账全等`）—— 分片少一片，最终文件就少几十万行，而纯文本文件本身看不出缺失。`MISMATCH` 是**不可自动放行**的状态：数据已不一致，重试同一窗口只会重复不一致，MUST 人工介入（`recon/model/ReconSourceStatus.java:20~23`）；`advanceBatch` 一旦看到任一来源 `MISMATCH` 就停止自动推进并把批次置 `FAILED`（`ReconOrchestrationService.java:298~301`，grep `MUST 人工介入 batchId`）。
-- `allCompleted` 除了「每行都是 COMPLETED」还要求**行数等于期望条数**（`ReconSourceService.java:139~144`，grep `否则 dispatch 那一轮若中途异常`）—— 否则 dispatch 那轮若中途异常少登记了几行，剩下几行全 `COMPLETED` 也会被误判成收齐。
-- 期望清单是收齐判定的源头：`sources[].fileTypes` 决定 `RECON_BATCH_SOURCE` 登记哪些 `(来源, 文件类型)` 行，进而决定「全部 COMPLETED」的判据与最终产出哪几个文件。**新增 / 下线一个源 MUST 改配置，NEVER 在代码里硬编码来源名**（`ReconOrchestrationProperties.java:11~14`，grep `NEVER 在代码里硬编码来源名`）。
-- 重试上限 `recon.orchestration.max-retry=3`；`retryCount` 是装箱 `Integer`（MyBatis 构造器映射要求），**MUST 先判空兜 0 再与 `maxRetry` 比** —— 直接 `>=` 会在列为 NULL 时抛 NPE，而 NPE 会被 `advanceBatch` 的 catch 吞成「批次推进失败」、掩盖真实原因（`ReconOrchestrationService.java:324~326`，grep `此处 MUST 先判空`）。
+- 批次状态白名单（`ReconBatchService.allowed`，`ReconBatchService.java` 起）：`CREATED -> EXPORTING -> PARTIAL -> ALL_SOURCE_COMPLETED -> GENERATING -> UPLOADING -> SUCCESS`；`FAILED -> EXPORTING | GENERATING | UPLOADING`（三个补偿入口）；外加上面那两条 `FAILED -> ALL_SOURCE_COMPLETED`、`PARTIAL -> EXPORTING`。**`SUCCESS` 是终态、NEVER 从它流出，重跑 MUST 换批次号**（`recon/model/ReconBatchStatus.java`，grep `NEVER 从 SUCCESS 再流出`）。
+- `transitionIfNeeded` 是**幂等**的：目标状态与当前相同就原样返回、不抛异常（`ReconBatchService.java`，grep `幂等的状态推进`）—— 编排每轮都会重算目标状态，用 `transition` 会每轮刷「非法流转」。
+- 收齐判定**只认三项总账全等**：落库分片数 / 记录数 / 金额合计逐一等于源声明的 `totalParts / totalRecords / totalAmount`，任一不等即置 `MISMATCH`、**NEVER 放行**（`ReconSourceService.java`，grep `收齐判定只认三项总账全等`）—— 分片少一片，最终文件就少几十万行，而纯文本文件本身看不出缺失。`MISMATCH` 是**不可自动放行**的状态：数据已不一致，重试同一窗口只会重复不一致，MUST 人工介入（`recon/model/ReconSourceStatus.java`）；`advanceBatch` 一旦看到任一来源 `MISMATCH` 就停止自动推进并把批次置 `FAILED`（`ReconOrchestrationService.java`，grep `MUST 人工介入 batchId`）。
+- `allCompleted` 除了「每行都是 COMPLETED」还要求**行数等于期望条数**（`ReconSourceService.java`，grep `否则 dispatch 那一轮若中途异常`）—— 否则 dispatch 那轮若中途异常少登记了几行，剩下几行全 `COMPLETED` 也会被误判成收齐。
+- 期望清单是收齐判定的源头：`sources[].fileTypes` 决定 `RECON_BATCH_SOURCE` 登记哪些 `(来源, 文件类型)` 行，进而决定「全部 COMPLETED」的判据与最终产出哪几个文件。**新增 / 下线一个源 MUST 改配置，NEVER 在代码里硬编码来源名**（`ReconOrchestrationProperties.java`，grep `NEVER 在代码里硬编码来源名`）。
+- 重试上限 `recon.orchestration.max-retry=3`；`retryCount` 是装箱 `Integer`（MyBatis 构造器映射要求），**MUST 先判空兜 0 再与 `maxRetry` 比** —— 直接 `>=` 会在列为 NULL 时抛 NPE，而 NPE 会被 `advanceBatch` 的 catch 吞成「批次推进失败」、掩盖真实原因（`ReconOrchestrationService.java`，grep `此处 MUST 先判空`）。
 
 ### 七、四类文件的段数、账期口径与生成路径
 
-- **段数固定**（全部取自 `model` 的 `ReconFileTypeEnum`，**NEVER 在生成类里硬编码下标** —— `recon/service/ReconFileGenerationService.java:52`，grep `NEVER 在本类里硬编码下标`）：
-  - **EXP 13 段**（单边交易明细，明细类）、**DETAIL 7 段**（虚拟电子多日计次票，明细类）：走 **1MB 缓冲的流式字节拼接**，全程不解析行内容，内存占用与文件大小无关；行数与金额直接取分片回执上的声明值累加（`ReconFileGenerationService.java:135~138`，grep `不解析行内容`）。
-  - **PAY 21 段 = 5 键 + 16 度量**、**BUS 4 段 = 1 键 + 3 度量**（汇总类）：流式逐行读 + `TreeMap` 二次聚合，键是下标 `[0, keyFieldCount)`、度量是 `[keyFieldCount, keyFieldCount + metricFieldCount)`，逐列累加进 `long[metricFieldCount]`。**行字段数不足即抛异常，NEVER 静默补零放过** —— 错位一段就是整份错账（`ReconFileGenerationService.java:171~178`，grep `NEVER 静默补零放过`）。
-  - **明细文件绝不能走汇总路径**：几千万行的键全量入 `TreeMap` 会直接把堆打满；汇总行基数只有几百到几千，常驻内存安全（`ReconFileGenerationService.java:53~54` 与 `:180~181`，grep `明细文件绝不能`）。
-- **来源清单取自 `RECON_BATCH_SOURCE` 中该文件类型 `STATUS='COMPLETED'` 的行，不再读 `recon.sources`**（`ReconFileGenerationService.java:57~58`，grep `不再读`）—— 各源产出哪些文件类型完全由期望清单决定。`application.properties:50` 那个 `recon.sources=gate-txn-pay,ticket,collect-pay,daily-ticket` 是**遗留键**（仍含已移出的 `ticket`），**判断「谁出哪个文件」MUST 看 `recon.orchestration.sources[*]`，NEVER 看 `recon.sources`**。
+- **段数固定**（全部取自 `model` 的 `ReconFileTypeEnum`，**NEVER 在生成类里硬编码下标** —— `recon/service/ReconFileGenerationService.java`，grep `NEVER 在本类里硬编码下标`）：
+  - **EXP 13 段**（单边交易明细，明细类）、**DETAIL 7 段**（虚拟电子多日计次票，明细类）：走 **1MB 缓冲的流式字节拼接**，全程不解析行内容，内存占用与文件大小无关；行数与金额直接取分片回执上的声明值累加（`ReconFileGenerationService.java`，grep `不解析行内容`）。
+  - **PAY 21 段 = 5 键 + 16 度量**、**BUS 4 段 = 1 键 + 3 度量**（汇总类）：流式逐行读 + `TreeMap` 二次聚合，键是下标 `[0, keyFieldCount)`、度量是 `[keyFieldCount, keyFieldCount + metricFieldCount)`，逐列累加进 `long[metricFieldCount]`。**行字段数不足即抛异常，NEVER 静默补零放过** —— 错位一段就是整份错账（`ReconFileGenerationService.java`，grep `NEVER 静默补零放过`）。
+  - **明细文件绝不能走汇总路径**：几千万行的键全量入 `TreeMap` 会直接把堆打满；汇总行基数只有几百到几千，常驻内存安全（`ReconFileGenerationService.java`，grep `明细文件绝不能`）。
+- **来源清单取自 `RECON_BATCH_SOURCE` 中该文件类型 `STATUS='COMPLETED'` 的行，不再读 `recon.sources`**（`ReconFileGenerationService.java`，grep `不再读`）—— 各源产出哪些文件类型完全由期望清单决定。`application.properties` 那个 `recon.sources=gate-txn-pay,ticket,collect-pay,daily-ticket` 是**遗留键**（仍含已移出的 `ticket`），**判断「谁出哪个文件」MUST 看 `recon.orchestration.sources[*]`，NEVER 看 `recon.sources`**。
 - **账期与窗口**（`ReconOrchestrationService.dispatchDailyBatch:162~173`，grep `businessDate = 今天 -`）：
   ```
   businessDate = 今天 - windowOffsetDays   默认 2 ⇒ T-2
@@ -1311,61 +1312,61 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
   文件名后缀    = businessDate               即 T-2 日
   batchId      = "RECON" + businessDate     形如 RECON20260910
   ```
-  甲方例子作为自校验依据：8 月 20 号 2 点生成，文件名 `ITP.EXP.20190818`，统计区间 T-2 日 2 点 ~ T-1 日 2 点；代入公式得后缀 `20190818`、窗口 `[20190818 020000, 20190819 020000)`，与甲方一致。**`window-offset-days` NEVER 改回 1** —— 改 1 会让文件名后缀与统计区间同时前移一天、与甲方对不上（`ReconOrchestrationProperties.java:50~54`，grep `NEVER 改回 1`）。
+  甲方例子作为自校验依据：8 月 20 号 2 点生成，文件名 `ITP.EXP.20190818`，统计区间 T-2 日 2 点 ~ T-1 日 2 点；代入公式得后缀 `20190818`、窗口 `[20190818 020000, 20190819 020000)`，与甲方一致。**`window-offset-days` NEVER 改回 1** —— 改 1 会让文件名后缀与统计区间同时前移一天、与甲方对不上（`ReconOrchestrationProperties.java`，grep `NEVER 改回 1`）。
 - 生成后的**校验口径按明细 / 汇总分开**（`ReconFileGenerationService.verify:341~355`，grep `NEVER 与 declaredAmount 严格比对`）：
   - 明细（EXP / DETAIL）：记录数与金额都 **MUST 与各 COMPLETED 来源声明之和严格相等**，不等即删除临时文件并抛异常。
   - 汇总（PAY / BUS）的 `amountTotal` 是「该文件所有度量列之和」，只是**跨环节比对的校验和、不是业务金额**：PAY 的 16 个度量里 8 列是笔数、8 列是金额（0 基下标 6/8/10/12/14/16/18/20，即甲方第 7/9/11/13/15/17/19/21 段），相加没有业务含义；BUS 的 3 个度量恰好全是金额，但为口径统一同样按「所有度量之和」计。因此汇总文件 **NEVER 与 `declaredAmount` 严格比对**（不同量纲，强行相等会把正常批次全判失败），只做健全性检查：输出行数 > 0、校验和非负；**行数同样不可比**（多源可能落在同一聚合键上，跨源合并后输出行数必然 ≤ 各源声明之和，只在大于时告警提示复核源端聚合口径）。
-- 分片连续性：取某来源该文件类型的已接收分片时**校验分片号从 0 起连续**，`partNo` 是装箱 `Integer`、先判空兜 -1 再比，NULL 直接判「序号不连续」抛异常而不是抛 NPE（`ReconFileGenerationService.java:396~400`，grep `先判空兜成 -1`）。
+- 分片连续性：取某来源该文件类型的已接收分片时**校验分片号从 0 起连续**，`partNo` 是装箱 `Integer`、先判空兜 -1 再比，NULL 直接判「序号不连续」抛异常而不是抛 NPE（`ReconFileGenerationService.java`，grep `先判空兜成 -1`）。
 
 ### 八、FTP 投递：唯一判据是回查，不是应答码
 
-- **投递成功的判据不是返回码，而是 RNTO 之后回查远端确实存在同字节数的文件**（`recon/service/ReconFtpService.java:21~24`，grep `投递成功的判据不是返回码`）：`storeFile` 的 **226** 与 `rename` 的 **250** 只说明命令被接受；回查（先 `SIZE`，BINARY 模式下回 `213 <bytes>`；拿不到再退回 `LIST` 解析目录项）才是「文件真的躺在 `/itp/recon` 上」的证据。成功时打 **「对账文件投递已回查通过」**，失败抛 `IOException` 让该文件落 `FAILED` 等下一轮重试。两条路都问不出结果时**按失败处理**（`ReconFtpService.java:122~127`，grep `问不出来就不能声称投递成功`）。
-- 开关 `recon.ftp.verify-after-upload` 默认 **true、NEVER 关掉**（`recon/storage/ReconFtpProperties.java:16~18`，grep `NEVER 关掉`）。它同时是「BUS 文件不见了」这类误判的**唯一证伪手段**。
-- **ACC 侧会在约 30~45 秒内自行取走并删除 `ITP.BUS*` 文件 —— NEVER 再把「事后 LIST 看不到 `ITP.BUS.yyyyMMdd`」当成我方缺陷**（`ReconFtpService.java:26~32`，grep `NEVER 再把`；`ReconFtpProperties.java:20~25`，grep `取完即删`）。2026-09-11 曾据「DB 记 `UPLOADED`、几分钟后 curl 取回 550，且四个文件原本在 70ms 内投完」判定投递静默失败；用四个变体命名的探针在 `172.20.215.3`（vsFTPd 3.0.3）上实测推翻：`ITP.BUS.20260910` / `ITP.BUS.20260909` / `ITP.BUSX.20260910` 都在 30~45 秒内被删除，而 `PROBE.BUS.20260910` 与 `ITP.EXP/PAY/DETAIL.*` 一直留着 —— 是 ACC 侧有个**按 `ITP.BUS*` 取件的进程**，取完即删；同一轮日志里 BUS `bytes=19` 回查通过，我方投递本来就是成功的。**核对投递结果 MUST 看回查日志，LIST 只能证明「还没被取走」，NEVER 用 226 / 250 应答码或事后 LIST 当判据。**
-- 远端目录固定 `/itp/recon`（`recon.ftp.remote-root`，`application.properties:73~74`，grep `固定路径`）—— 来源是甲方《ACC与ITP之间的文件》§一「对账文件」。`recon.ftp.enabled` 默认 **false**，线上靠 env 打开。
-- 串行化 + 相邻投递间隔用 `ReentrantLock` 而不是 `synchronized`（`ReconFtpService.java:74~78`，grep `而不是`）：后面紧跟阻塞式 FTP IO，JDK 21 虚拟线程在 `synchronized` 内阻塞会 pin 载体线程。间隔项 **不是修复项、只是保守限流**（`ReconFtpProperties.java:28~34`，grep `这不是修复项`）：引入时以为对端在极短间隔连续会话上会丢文件，已被探针实测推翻；保留是因为日终一天只跑一次、多等 2.4 秒没代价。要调小 MUST 先在测试环境连跑几轮，并以「回查通过」日志而不是事后 LIST 作判据。
-- 文件投递成功后**不判 `SUCCESS`**：批次是否收口由编排器在全部文件都 `UPLOADED` 后统一决定，单个文件只更新自己的状态与远端路径；允许的前置批次状态是 `GENERATING / UPLOADING / FAILED`（`FAILED` 是重试入口）（`recon/service/ReconFileTransferService.java:28~33`，grep `投递成功后**不判 SUCCESS**` 的关键词 `不判`）。
+- **投递成功的判据不是返回码，而是 RNTO 之后回查远端确实存在同字节数的文件**（`recon/service/ReconFtpService.java`，grep `投递成功的判据不是返回码`）：`storeFile` 的 **226** 与 `rename` 的 **250** 只说明命令被接受；回查（先 `SIZE`，BINARY 模式下回 `213 <bytes>`；拿不到再退回 `LIST` 解析目录项）才是「文件真的躺在 `/itp/recon` 上」的证据。成功时打 **「对账文件投递已回查通过」**，失败抛 `IOException` 让该文件落 `FAILED` 等下一轮重试。两条路都问不出结果时**按失败处理**（`ReconFtpService.java`，grep `问不出来就不能声称投递成功`）。
+- 开关 `recon.ftp.verify-after-upload` 默认 **true、NEVER 关掉**（`recon/storage/ReconFtpProperties.java`，grep `NEVER 关掉`）。它同时是「BUS 文件不见了」这类误判的**唯一证伪手段**。
+- **ACC 侧会在约 30~45 秒内自行取走并删除 `ITP.BUS*` 文件 —— NEVER 再把「事后 LIST 看不到 `ITP.BUS.yyyyMMdd`」当成我方缺陷**（`ReconFtpService.java`，grep `NEVER 再把`；`ReconFtpProperties.java`，grep `取完即删`）。2026-09-11 曾据「DB 记 `UPLOADED`、几分钟后 curl 取回 550，且四个文件原本在 70ms 内投完」判定投递静默失败；用四个变体命名的探针在 `172.20.215.3`（vsFTPd 3.0.3）上实测推翻：`ITP.BUS.20260910` / `ITP.BUS.20260909` / `ITP.BUSX.20260910` 都在 30~45 秒内被删除，而 `PROBE.BUS.20260910` 与 `ITP.EXP/PAY/DETAIL.*` 一直留着 —— 是 ACC 侧有个**按 `ITP.BUS*` 取件的进程**，取完即删；同一轮日志里 BUS `bytes=19` 回查通过，我方投递本来就是成功的。**核对投递结果 MUST 看回查日志，LIST 只能证明「还没被取走」，NEVER 用 226 / 250 应答码或事后 LIST 当判据。**
+- 远端目录固定 `/itp/recon`（`recon.ftp.remote-root`，`application.properties`，grep `固定路径`）—— 来源是甲方《ACC与ITP之间的文件》§一「对账文件」。`recon.ftp.enabled` 默认 **false**，线上靠 env 打开。
+- 串行化 + 相邻投递间隔用 `ReentrantLock` 而不是 `synchronized`（`ReconFtpService.java`，grep `而不是`）：后面紧跟阻塞式 FTP IO，JDK 21 虚拟线程在 `synchronized` 内阻塞会 pin 载体线程。间隔项 **不是修复项、只是保守限流**（`ReconFtpProperties.java`，grep `这不是修复项`）：引入时以为对端在极短间隔连续会话上会丢文件，已被探针实测推翻；保留是因为日终一天只跑一次、多等 2.4 秒没代价。要调小 MUST 先在测试环境连跑几轮，并以「回查通过」日志而不是事后 LIST 作判据。
+- 文件投递成功后**不判 `SUCCESS`**：批次是否收口由编排器在全部文件都 `UPLOADED` 后统一决定，单个文件只更新自己的状态与远端路径；允许的前置批次状态是 `GENERATING / UPLOADING / FAILED`（`FAILED` 是重试入口）（`recon/service/ReconFileTransferService.java`，grep `投递成功后**不判 SUCCESS**` 的关键词 `不判`）。
 
 ### 九、鉴权现状：整段删除、当前无鉴权
 
-- **`/internal/recon/**` 当前【无鉴权】**：原先每个端点上的 `X-Recon-Token` 定长比较（`MessageDigest.isEqual`）已按用户 2026-09-11 的明确要求（原话「删除令牌要求，不用令牌了，当前处于开发测试阶段」）**整段删除**，`ReconInternalController` 里连 `checkToken` 方法都不存在了（`ReconInternalController.java:38~43`，grep `本组接口当前无鉴权`；配置侧 `application.properties:13~17`，grep `当前【无鉴权】`）。
-- 这组端点里含**分片接收、状态变更、生成与投递**等状态变更型接口，无鉴权状态下任何网络可达方都能改批次状态或塞入分片 —— 与 AGENTS.md §5.2「新增状态变更型接口 MUST 有鉴权」**直接冲突，属有意为之的临时降级，上线前 MUST 恢复**。恢复方式：把 `recon.internal-token` 与请求头的定长比较加回每个端点。`recon.internal-token` / env `RECON_INTERNAL_TOKEN` 目前**只留配置键、无读取方**（`application.properties:53`）。
-- **NEVER 回退成「鉴权靠 `ReconInternalController.checkToken()` 的 `X-Recon-Token` 定长比较」**（那段代码已删）；也 **NEVER 把 `/internal/recon/**` 写进 `other.web.skipCheckTokenUrls`** —— 该键名与语义相反：`FirstFilter.checkToken()` 里只有值等于 `/**`（`web.properties:28` 的默认值）才整体跳过 JWT 校验，其余情况**列表内的 URL 反而是「必须带 `Authentication` 头的 JWT」才放行**；2026-09-11 实测写成 `/internal/recon/**` 后所有分片上送一律 `403 {"msg":"check token error"}`。本模块现值是 `other.web.skipCheckTokenUrls=/**`（`application.properties:18`）。
-- 另一条与鉴权配套的护栏：`recon/controller/ReconInternalExceptionHandler.java:15~31`（grep `必须存在`）—— 公共构件 `GlobalControllerExceptionHandler` 的兜底是 `@ExceptionHandler(Exception.class) @ResponseStatus(HttpStatus.OK)`，即**任何未被更具体处理器捕获的异常都返回 HTTP 200 + 一个 UUID `retCode`**，而 `ReconClient` 只按 HTTP 状态码判成败。于是「令牌校验失败」「分片落盘 IO 失败」「哈希不一致拒收」都会被上游当成**接收成功**、源服务继续删本地分片。本类以 `Ordered.HIGHEST_PRECEDENCE` 抢在公共 advice 之前、用 `assignableTypes` 限定在 `ReconInternalController`，把状态码还原成真实语义。**NEVER 删这个类**。
+- **`/internal/recon/**` 当前【无鉴权】**：原先每个端点上的 `X-Recon-Token` 定长比较（`MessageDigest.isEqual`）已按用户 2026-09-11 的明确要求（原话「删除令牌要求，不用令牌了，当前处于开发测试阶段」）**整段删除**，`ReconInternalController` 里连 `checkToken` 方法都不存在了（`ReconInternalController.java`，grep `本组接口当前无鉴权`；配置侧 `application.properties`，grep `当前【无鉴权】`）。
+- 这组端点里含**分片接收、状态变更、生成与投递**等状态变更型接口，无鉴权状态下任何网络可达方都能改批次状态或塞入分片 —— 与 AGENTS.md §5.2「新增状态变更型接口 MUST 有鉴权」**直接冲突，属有意为之的临时降级，上线前 MUST 恢复**。恢复方式：把 `recon.internal-token` 与请求头的定长比较加回每个端点。`recon.internal-token` / env `RECON_INTERNAL_TOKEN` 目前**只留配置键、无读取方**（`application.properties`）。
+- **NEVER 回退成「鉴权靠 `ReconInternalController.checkToken()` 的 `X-Recon-Token` 定长比较」**（那段代码已删）；也 **NEVER 把 `/internal/recon/**` 写进 `other.web.skipCheckTokenUrls`** —— 该键名与语义相反：`FirstFilter.checkToken()` 里只有值等于 `/**`（`web.properties` 的默认值）才整体跳过 JWT 校验，其余情况**列表内的 URL 反而是「必须带 `Authentication` 头的 JWT」才放行**；2026-09-11 实测写成 `/internal/recon/**` 后所有分片上送一律 `403 {"msg":"check token error"}`。本模块现值是 `other.web.skipCheckTokenUrls=/**`（`application.properties`）。
+- 另一条与鉴权配套的护栏：`recon/controller/ReconInternalExceptionHandler.java`（grep `必须存在`）—— 公共构件 `GlobalControllerExceptionHandler` 的兜底是 `@ExceptionHandler(Exception.class) @ResponseStatus(HttpStatus.OK)`，即**任何未被更具体处理器捕获的异常都返回 HTTP 200 + 一个 UUID `retCode`**，而 `ReconClient` 只按 HTTP 状态码判成败。于是「令牌校验失败」「分片落盘 IO 失败」「哈希不一致拒收」都会被上游当成**接收成功**、源服务继续删本地分片。本类以 `Ordered.HIGHEST_PRECEDENCE` 抢在公共 advice 之前、用 `assignableTypes` 限定在 `ReconInternalController`，把状态码还原成真实语义。**NEVER 删这个类**。
 
 ### 十、线路段补齐（2026-09-16 起生效）
 
-- 线路段由 **recon-server 在聚合完成、写文件之前统一补齐**，四个源服务不再各自 `LEFT JOIN STATION_INFO`（`recon/mapper/ReconStationMapper.java:11~16`，grep `为什么这张表在 recon-server 里`）。判据：`STATION_INFO` 属车站 / 参数域、owner 不是本模块，直连它是**有意破例**，理由是它把原先散在 gate-txn-pay / collect-pay / face-pay / ticket 四处的同样破例收敛成一处 —— 「线路怎么取」曾有四份副本、四份 join 列名、四次维表结构变更暴露面；而**线路是车站的函数**（一个车站码只对应一条线路），完全可以在聚合后由消费端一次补齐。
-- **NEVER 用车站码前 2 位推线路**（`ReconStationMapper.java:18~20`，grep `NEVER 用车站码前 2 位`）：实测前 2 位恰好等于 `LINE_CODE`，但那是**编码巧合、不是契约**，甲方改编码规则不会通知我方，猜错等于把汇总账挂到错误线路上。
-- **查不到的车站 MUST 留空、NEVER 丢行**（同处 `:22~24`）：维表缺记录时线路段为空、该组单独成行，账仍在；与原先各源用 `LEFT JOIN`（而非 `INNER JOIN`）的取舍一致 —— 内连接会把该组账整组抹掉，那是**静默漏账**，比线路段为空严重得多。补不到的车站按不同车站码去重计数后**告警一次**，便于回头补参数（`ReconFileGenerationService.java:236~237`）。
-- **维表查询失败时抛异常、NEVER 降级成空 Map**（`ReconFileGenerationService.java:282~286`，grep `NEVER 降级成空 Map`）：降级的后果是「整份 PAY 文件线路段全空」，而这份文件仍会被判定生成成功并投递给 ACC —— 那是静默错账。查不出维表就让本次生成失败、批次留非终态等重入。
-- **补完必须按新键重排、并对撞上的键逐列累加**（`ReconFileGenerationService.java:224~231`，grep `为什么必须重排`）：`TreeMap` 按键升序输出、键的第 2 段就是线路，只就地替换字符串会让行序变成「按空线路段排」的顺序，与现行文件（日期 / 线路 / 车站 / 设备 / 支付方式 升序）不一致；因此换一个新 `TreeMap` 用补好的新键重插，行序与改造前逐字节一致。补齐可能让两个原本不同的键变成同一个（典型情形：「已改的源留空线路」与「未改的源自带线路」同账期上送同一车站），那本来就该是一组，**MUST 逐列累加、NEVER 覆盖**（覆盖等于丢掉一个源的账）。
-- **覆盖是无条件的，这正是它能安全上线的原因**（`recon/storage/ReconLineBackfillProperties.java:21~26`，grep `覆盖是无条件的`）：不判断源上送的线路段是空还是有值，一律按车站码重算。对「还没改、仍自带线路」的旧源，覆盖进去的是同一个值、文件逐字节不变；对「已改、线路留空」的新源才是真正填上。于是**四个源与 recon-server 的部署顺序完全自由**，不存在「必须同批上线」的窗口。**NEVER 改成「只在源上送为空时才补」** —— 那样重新引入顺序依赖，且某个源把线路取错时错值会被当「有值」原样放过。
-- **为什么下标是配置项而不是常量**（同文件 `:14~19`）：生成类的规矩是「段数一律取自 `ReconFileTypeEnum`」，而 `ReconFileTypeEnum` 只给「键几段、度量几段」、给不出「第几段是线路」；写成配置是为了**出问题时一键关闭（`enabled=false`）退回「原样写出源上送的线路段」，不必回滚镜像**。现值：`recon.line-backfill.enabled=true`、`file-types=PAY`、`line-field-index=1`、`station-field-index=2`（`application.properties:64~67`）。
-- **NEVER 往 `file-types` 里加 EXP 或 DETAIL**（`ReconLineBackfillProperties.java:34~39`）：那两类走明细路径、字节流式拼接、全程不解析行内容，**加进去既不生效也不报错**。BUS 只有 1 段键（日期），也没有线路 / 车站段。类型名大小写不敏感（`appliesTo`，同文件 `:60`），避免配置写成小写就静默失效。
+- 线路段由 **recon-server 在聚合完成、写文件之前统一补齐**，四个源服务不再各自 `LEFT JOIN STATION_INFO`（`recon/mapper/ReconStationMapper.java`，grep `为什么这张表在 recon-server 里`）。判据：`STATION_INFO` 属车站 / 参数域、owner 不是本模块，直连它是**有意破例**，理由是它把原先散在 gate-txn-pay / collect-pay / face-pay / ticket 四处的同样破例收敛成一处 —— 「线路怎么取」曾有四份副本、四份 join 列名、四次维表结构变更暴露面；而**线路是车站的函数**（一个车站码只对应一条线路），完全可以在聚合后由消费端一次补齐。
+- **NEVER 用车站码前 2 位推线路**（`ReconStationMapper.java`，grep `NEVER 用车站码前 2 位`）：实测前 2 位恰好等于 `LINE_CODE`，但那是**编码巧合、不是契约**，甲方改编码规则不会通知我方，猜错等于把汇总账挂到错误线路上。
+- **查不到的车站 MUST 留空、NEVER 丢行**（同处 ）：维表缺记录时线路段为空、该组单独成行，账仍在；与原先各源用 `LEFT JOIN`（而非 `INNER JOIN`）的取舍一致 —— 内连接会把该组账整组抹掉，那是**静默漏账**，比线路段为空严重得多。补不到的车站按不同车站码去重计数后**告警一次**，便于回头补参数（`ReconFileGenerationService.java`）。
+- **维表查询失败时抛异常、NEVER 降级成空 Map**（`ReconFileGenerationService.java`，grep `NEVER 降级成空 Map`）：降级的后果是「整份 PAY 文件线路段全空」，而这份文件仍会被判定生成成功并投递给 ACC —— 那是静默错账。查不出维表就让本次生成失败、批次留非终态等重入。
+- **补完必须按新键重排、并对撞上的键逐列累加**（`ReconFileGenerationService.java`，grep `为什么必须重排`）：`TreeMap` 按键升序输出、键的第 2 段就是线路，只就地替换字符串会让行序变成「按空线路段排」的顺序，与现行文件（日期 / 线路 / 车站 / 设备 / 支付方式 升序）不一致；因此换一个新 `TreeMap` 用补好的新键重插，行序与改造前逐字节一致。补齐可能让两个原本不同的键变成同一个（典型情形：「已改的源留空线路」与「未改的源自带线路」同账期上送同一车站），那本来就该是一组，**MUST 逐列累加、NEVER 覆盖**（覆盖等于丢掉一个源的账）。
+- **覆盖是无条件的，这正是它能安全上线的原因**（`recon/storage/ReconLineBackfillProperties.java`，grep `覆盖是无条件的`）：不判断源上送的线路段是空还是有值，一律按车站码重算。对「还没改、仍自带线路」的旧源，覆盖进去的是同一个值、文件逐字节不变；对「已改、线路留空」的新源才是真正填上。于是**四个源与 recon-server 的部署顺序完全自由**，不存在「必须同批上线」的窗口。**NEVER 改成「只在源上送为空时才补」** —— 那样重新引入顺序依赖，且某个源把线路取错时错值会被当「有值」原样放过。
+- **为什么下标是配置项而不是常量**（同文件 ）：生成类的规矩是「段数一律取自 `ReconFileTypeEnum`」，而 `ReconFileTypeEnum` 只给「键几段、度量几段」、给不出「第几段是线路」；写成配置是为了**出问题时一键关闭（`enabled=false`）退回「原样写出源上送的线路段」，不必回滚镜像**。现值：`recon.line-backfill.enabled=true`、`file-types=PAY`、`line-field-index=1`、`station-field-index=2`（`application.properties`）。
+- **NEVER 往 `file-types` 里加 EXP 或 DETAIL**（`ReconLineBackfillProperties.java`）：那两类走明细路径、字节流式拼接、全程不解析行内容，**加进去既不生效也不报错**。BUS 只有 1 段键（日期），也没有线路 / 车站段。类型名大小写不敏感（`appliesTo`，同文件 ），避免配置写成小写就静默失效。
 
 ### 十一、持久层：MyBatis 映射的三条硬约束
 
-1. **record 的数值分量 MUST 用装箱类型，NEVER 退回 `int` / `long`**（`recon/model/SourceProgress.java:16~23`，grep `MyBatis 走构造器映射`）。MyBatis 走构造器映射时，resultMap 里 `javaType="int"` / `"long"` 经 `TypeAliasRegistry` 解析出来的是 `Integer` / `Long`，随后用 `getDeclaredConstructor(装箱类型...)` **精确查找**构造器 —— 基本类型不会自动拆箱匹配，**一旦真正查出数据行就必抛 `NoSuchMethodException`；空结果集不触发，因此极易假通过**。四个 record 受此约束：`SourceProgress` / `PartReceipt`（`model/PartReceipt.java:17~19`）/ `PartTotals`（`model/PartTotals.java:10~12`）/ `ReconFileView`（`model/ReconFileView.java:17~19`）；`BatchView` **没有任何基本类型分量**、不受影响，但新增数值分量时同样 MUST 用装箱（`model/BatchView.java:8~9`）。装箱后各调用点 **MUST 显式判空兜底、NEVER 直接参与算术或 `>=` 比较**。
-   - mapper XML 侧配套：`javaType` **MUST 写全限定装箱类型**（`resources/mapper/ReconSourceMapper.xml:4~7`，grep `NEVER 改回`；同形注释在 `ReconFileMapper.xml:4`、`ReconPartMapper.xml:4`），写全限定名是为了让映射意图与 record 的装箱分量一一对上。
-   - 还有一条同源的比较陷阱：`PartTotals` 的分量是装箱类型，三项总账比对**MUST 先判空拆成基本类型再比** —— 两侧都是装箱时 `!=` 退化成**引用比较**，超过 `Integer` 缓存范围（-128~127）的相等值会被判成不等。**NEVER 让两个装箱类型直接用 `==` / `!=` 比较**（`ReconSourceService.java:167~173`，grep `NEVER 让两个装箱类型`）。
-2. **Oracle + ojdbc8 下所有 `#{}` MUST 显式写 `jdbcType`，NEVER 省略**（`ReconSourceMapper.xml:22~30`，grep `无效的列类型`）。参数值为 null 且未写 `jdbcType` 时 MyBatis 用 `JdbcType.OTHER(1111)` 调 `setNull`，驱动报「无效的列类型: 1111」。2026-09-11 实测阻断来源声明收口：`ReconSourceService.declare()` 成功路径的 `failReason` 传 null 去更新 `RECON_BATCH_SOURCE`，整条 UPDATE 抛 `MyBatisSystemException`、接口 500。**MySQL 能容忍 `OTHER`，因此这类缺陷只在 Oracle 暴露，编译与单测都发现不了。** 取值按 `sql/recon-server-schema.sql` 的列类型：`VARCHAR2` 列写 `VARCHAR`、`NUMBER` 列写 `NUMERIC`（与 `gate-txn-pay-server/ReconExportMapper.xml` 的 `lastId` 同风格）。逐处提醒：`ReconSourceMapper.xml:60`（`declare` 成功路径 `failReason` 恒 null）、`:74`（下发成功时 `failReason` 为 null）、`ReconFileMapper.xml:46`（上传失败分支 `remotePath` 为 null，`REMOTE_PATH` 是可空 `VARCHAR2(512)`）、`ReconBatchMapper.xml:16~21`（本表当前没有写 `FAIL_REASON` 的语句，**日后新增 UPDATE MUST 带 `jdbcType=VARCHAR`**）。
-3. **`NEVER` 在 SQL 正文写注释**（`--` 或 `/* */`）—— 全服务共用的 Druid WallFilter 默认 `commentAllow=false`，SQL 带注释会被判成注入并抛 `sql injection violation`，该语句**静默失效**、编译与单测都发现不了；说明一律写在 XML 注释里。而 **XML 注释里 NEVER 出现两个连续减号**，否则 MyBatis 解析该 mapper 直接失败 ⇒ `sqlSessionFactory` 建不起来 ⇒ **整个服务启动即挂**，且异常链最外层报的是某个无关 mapper 的注入失败、极易误判成依赖问题。这两条是**孪生陷阱**（原文成段写在 `resources/mapper/ReconStationMapper.xml:9~22`，grep `三条约定`）。
-- 其余持久层细节：`selectUnfinished` 取 `STATUS <> 'SUCCESS'` 的批次、按创建时间升序、最多 20 条，**`FAILED` 也在结果里**（它是补偿入口不是终态，`recon/mapper/ReconBatchMapper.java:18~21`；SQL 侧 `ReconBatchMapper.xml:37` 的 `ROWNUM` 限流放在外层，保证先排序再截断）。`selectTotals` 用 `NVL` + `COUNT` 保证零行时返回 `(0,0,0)` 而不是 null（`ReconPartMapper.java:42~45`、`ReconPartMapper.xml:71`）。`RECON_BATCH_PART` 的 `RETRY_COUNT` 首次落库固定写 0、之后由 `updateStatus` 递增，**状态变更即视为一次重投**（`ReconPartMapper.xml:40`、`:50`）。`FAIL_REASON` 列长 1024、超长截断，避免 `ORA-12899` 让整条声明失败（`ReconSourceService.java:194`）。
-- 车站维表查询（`ReconStationMapper.xml:25~39`）四条设计判据：**不加 WHERE**（PAY 里出现的车站码来自四个源、事前不可枚举，逐个查等于把批处理退化成 N+1；表基数几百行、全量拉回内存做 Map 更便宜）；**带 `LINE_CODE IS NOT NULL`**（线路为空的行对补齐没用，真正「线路为空」的结果由「查不到即留空」给出）；**带 `DISTINCT`**（防御性，拦不住「同一车站码对应两个线路」那种真冲突，那种情况调用方会保留后读到的一条，**MUST 去参数域修数据、NEVER 在 SQL 里挑一个**）；**每生成一个 PAY 文件查一次、不做进程级缓存**（日终一天一轮，缓存省下的一次查询毫无意义，却会引入「参数改了但 recon-server 没重启、线路仍按旧映射填」这种只在跨天暴露的偏差）。`STATION_INFO` 只有 `STATION_CODE` / `LINE_CODE` / `STATION_NAME` / `STATION_EN_NAME` 四列（2026-09-16 按 `USER_TAB_COLS` 实测），本模块**只读、零写入**。
-- 分片重复接收的幂等兜底 **NEVER 简化回 `catch (DuplicateKeyException)`**（`recon/service/ReconPartService.java:122~128`，grep `NEVER 简化回`，ADR-D53）：本模块**开了 tracing**，`MapperAspectToTrace` 会切到所有 `@Mapper` 方法上；它此前把异常包成 `new RuntimeException(e)`，按类型 catch 的兜底**一条都进不去**、`ORA-00001` 直接冒到全局处理器。切面已改成原样抛出，本模块这层**沿 cause 链判定**作为第二道防线保留。
+1. **record 的数值分量 MUST 用装箱类型，NEVER 退回 `int` / `long`**（`recon/model/SourceProgress.java`，grep `MyBatis 走构造器映射`）。MyBatis 走构造器映射时，resultMap 里 `javaType="int"` / `"long"` 经 `TypeAliasRegistry` 解析出来的是 `Integer` / `Long`，随后用 `getDeclaredConstructor(装箱类型...)` **精确查找**构造器 —— 基本类型不会自动拆箱匹配，**一旦真正查出数据行就必抛 `NoSuchMethodException`；空结果集不触发，因此极易假通过**。四个 record 受此约束：`SourceProgress` / `PartReceipt`（`model/PartReceipt.java`）/ `PartTotals`（`model/PartTotals.java`）/ `ReconFileView`（`model/ReconFileView.java`）；`BatchView` **没有任何基本类型分量**、不受影响，但新增数值分量时同样 MUST 用装箱（`model/BatchView.java`）。装箱后各调用点 **MUST 显式判空兜底、NEVER 直接参与算术或 `>=` 比较**。
+   - mapper XML 侧配套：`javaType` **MUST 写全限定装箱类型**（`resources/mapper/ReconSourceMapper.xml`，grep `NEVER 改回`；同形注释在 `ReconFileMapper.xml`、`ReconPartMapper.xml`），写全限定名是为了让映射意图与 record 的装箱分量一一对上。
+   - 还有一条同源的比较陷阱：`PartTotals` 的分量是装箱类型，三项总账比对**MUST 先判空拆成基本类型再比** —— 两侧都是装箱时 `!=` 退化成**引用比较**，超过 `Integer` 缓存范围（-128~127）的相等值会被判成不等。**NEVER 让两个装箱类型直接用 `==` / `!=` 比较**（`ReconSourceService.java`，grep `NEVER 让两个装箱类型`）。
+2. **Oracle + ojdbc8 下所有 `#{}` MUST 显式写 `jdbcType`，NEVER 省略**（`ReconSourceMapper.xml`，grep `无效的列类型`）。参数值为 null 且未写 `jdbcType` 时 MyBatis 用 `JdbcType.OTHER(1111)` 调 `setNull`，驱动报「无效的列类型: 1111」。2026-09-11 实测阻断来源声明收口：`ReconSourceService.declare()` 成功路径的 `failReason` 传 null 去更新 `RECON_BATCH_SOURCE`，整条 UPDATE 抛 `MyBatisSystemException`、接口 500。**MySQL 能容忍 `OTHER`，因此这类缺陷只在 Oracle 暴露，编译与单测都发现不了。** 取值按 `sql/recon-server-schema.sql` 的列类型：`VARCHAR2` 列写 `VARCHAR`、`NUMBER` 列写 `NUMERIC`（与 `gate-txn-pay-server/ReconExportMapper.xml` 的 `lastId` 同风格）。逐处提醒：`ReconSourceMapper.xml`（`declare` 成功路径 `failReason` 恒 null）、（下发成功时 `failReason` 为 null）、`ReconFileMapper.xml`（上传失败分支 `remotePath` 为 null，`REMOTE_PATH` 是可空 `VARCHAR2(512)`）、`ReconBatchMapper.xml`（本表当前没有写 `FAIL_REASON` 的语句，**日后新增 UPDATE MUST 带 `jdbcType=VARCHAR`**）。
+3. **`NEVER` 在 SQL 正文写注释**（`--` 或 `/* */`）—— 全服务共用的 Druid WallFilter 默认 `commentAllow=false`，SQL 带注释会被判成注入并抛 `sql injection violation`，该语句**静默失效**、编译与单测都发现不了；说明一律写在 XML 注释里。而 **XML 注释里 NEVER 出现两个连续减号**，否则 MyBatis 解析该 mapper 直接失败 ⇒ `sqlSessionFactory` 建不起来 ⇒ **整个服务启动即挂**，且异常链最外层报的是某个无关 mapper 的注入失败、极易误判成依赖问题。这两条是**孪生陷阱**（原文成段写在 `resources/mapper/ReconStationMapper.xml`，grep `三条约定`）。
+- 其余持久层细节：`selectUnfinished` 取 `STATUS <> 'SUCCESS'` 的批次、按创建时间升序、最多 20 条，**`FAILED` 也在结果里**（它是补偿入口不是终态，`recon/mapper/ReconBatchMapper.java`；SQL 侧 `ReconBatchMapper.xml` 的 `ROWNUM` 限流放在外层，保证先排序再截断）。`selectTotals` 用 `NVL` + `COUNT` 保证零行时返回 `(0,0,0)` 而不是 null（`ReconPartMapper.java`、`ReconPartMapper.xml`）。`RECON_BATCH_PART` 的 `RETRY_COUNT` 首次落库固定写 0、之后由 `updateStatus` 递增，**状态变更即视为一次重投**（`ReconPartMapper.xml`）。`FAIL_REASON` 列长 1024、超长截断，避免 `ORA-12899` 让整条声明失败（`ReconSourceService.java`）。
+- 车站维表查询（`ReconStationMapper.xml`）四条设计判据：**不加 WHERE**（PAY 里出现的车站码来自四个源、事前不可枚举，逐个查等于把批处理退化成 N+1；表基数几百行、全量拉回内存做 Map 更便宜）；**带 `LINE_CODE IS NOT NULL`**（线路为空的行对补齐没用，真正「线路为空」的结果由「查不到即留空」给出）；**带 `DISTINCT`**（防御性，拦不住「同一车站码对应两个线路」那种真冲突，那种情况调用方会保留后读到的一条，**MUST 去参数域修数据、NEVER 在 SQL 里挑一个**）；**每生成一个 PAY 文件查一次、不做进程级缓存**（日终一天一轮，缓存省下的一次查询毫无意义，却会引入「参数改了但 recon-server 没重启、线路仍按旧映射填」这种只在跨天暴露的偏差）。`STATION_INFO` 只有 `STATION_CODE` / `LINE_CODE` / `STATION_NAME` / `STATION_EN_NAME` 四列（2026-09-16 按 `USER_TAB_COLS` 实测），本模块**只读、零写入**。
+- 分片重复接收的幂等兜底 **NEVER 简化回 `catch (DuplicateKeyException)`**（`recon/service/ReconPartService.java`，grep `NEVER 简化回`，ADR-D53）：本模块**开了 tracing**，`MapperAspectToTrace` 会切到所有 `@Mapper` 方法上；它此前把异常包成 `new RuntimeException(e)`，按类型 catch 的兜底**一条都进不去**、`ORA-00001` 直接冒到全局处理器。切面已改成原样抛出，本模块这层**沿 cause 链判定**作为第二道防线保留。
 
 ### 十二、配置与日志
 
-- **traceId**（`application.properties:20~27`，grep `traceId 关联`）：`micro/web` 默认 `management.tracing.enabled=false`，本模块显式打开（现值 `:28~29` + `:37` 的 `spring.autoconfigure.exclude`，**三行成组**）。打开后 web-admin `sys_job` 225 发来的 W3C `traceparent` 才能续接进 MDC、日志 pattern 的 `%X{traceId}` 才有值；否则前台按 `SYS_JOB_LOG` 的 traceId 检索本模块日志会 **0 条**（2026-09-11 实测：调度日志记着 traceId、recon-server 那一列全空）。本模块**没有自带 log4j2 配置、走公共 `log4j2-linux.xml`**，其 pattern 已含 `%X{traceId}`、只差这个开关。同一条 `traceparent` 会由 Boot 的 WebClient 观测自动带给四个源服务的 `/internal/recon/export`，因此 **gate-txn-pay / collect-pay / daily-ticket / face-pay 四个源 MUST 一起打开本开关**，否则链路在源侧断开。**四个源现已全部打开**：前三个早已开，**`face-pay-server` 于 2026-09-22（1.0.65）补齐三行并已滚更、实测续接通过**。**本处此前写「face-pay 至今未开、追到第 4 个源就断」已作废、NEVER 回退。**
-- **`spring.autoconfigure.exclude=...OtlpAutoConfiguration` 这行 NEVER 删**（`application.properties:30~36`，grep `NEVER 删除下面这行排除`），三条理由：① `sampling.probability=0` 只让**本服务发起**的 trace 不采样（采样器是 `parentBased(traceIdRatioBased(0))`），上游带 `sampled=1` 的 `traceparent` / `b3` 进来时 span 仍会被采样并进导出队列；② `micro/web` 的 `web.properties` 虽已把 `management.otlp.tracing.endpoint` 整行注释掉，但 **K8s Deployment 只要注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` env 就会重新激活 exporter**，本行是第二道保险；③ Boot 3.2.6 **没有** `management.tracing.export.enabled` 这个开关，把 endpoint 置空也不行（`OtlpAutoConfiguration` 只判断键是否存在），只能排掉整个自动配置。
-- **`InternalMicroHttp` 的 logger 压到 WARN、NEVER 删那行配置**（`application.properties:123~129`，grep `NEVER 删除下面这行配置`）。原始理由（防内部令牌明文落日志）**已不成立** —— `X-Recon-Token` 不再发送；**NEVER 回退成「其中包含内部令牌 X-Recon-Token 的明文」那个说法**。现行理由：该 logger 会把**整个请求头 Map** 直接打进 INFO，加上下面那条双份地址，噪音对排查无益；且恢复鉴权后同一风险会立刻回来。公共构件 `resource/micro` 不改，只压本模块这个 logger。
-- **`ReconExportClient` 的 baseUrl 固定为空串**（复用 `URLDynamicRouter` 的动态路由做法），下发地址一律取 `recon.orchestration.sources[].url` 的绝对 URL，因此**不需要自身地址配置项**；原 `service.recon.self-url` **已删除** —— 它只是占位 baseUrl，却让 `InternalMicroHttp` 的 INFO 打出 `http://127.0.0.1:9112/http://<源服务>/internal/recon/export` 这种双份地址（2026-09-11 实录）（`application.properties:117~120`，grep `双份地址`）。
-- **四个源的期望清单**（`application.properties:88~115`）：`sources[0] gate-txn-pay → EXP,PAY,BUS,DETAIL`、`sources[1] collect-pay → PAY,BUS`、`sources[2] daily-ticket → PAY,DETAIL`、`sources[3] face-pay → PAY,BUS`。地址是 `kubectl get svc -n itp` 实测值（**Service 端口等于 NodePort 号、不等于容器 `server.port`**），线上仍以 Deployment env 覆盖为准；`SourceExpectation.url` 的注释也强调 **NEVER 按对方容器 `server.port` 推断端口**，并声明此前示例 `http://ticket-server-svc.itp.svc:9103` **两处都已过期、NEVER 回退**（`ReconOrchestrationProperties.java:110~115`）。
-  - **`face-pay` 与 `collect-pay` 是「新表 / 旧表」并列关系、NEVER 二选一**（`application.properties:103~112`，grep `NEVER 二选一`）：设备域与 APP 域入向流量已于 2026-09-16 17:31 切到 face-pay（ADR-D117），新单只进 `F2F_*`；**切流之前的历史单仍在 collect-pay 那四张旧表里，只有那个源导得出来**。去掉任何一个都会让对应时间段的账**凭空少一截**，而对账文件是纯文本、下游读不出异常。此处还留了一条纠错：**此前写「已于 2026-09-15 切到 face-pay（ADR-D85）」是错的** —— ADR-D85 只是「切流量 MUST 改 VirtualService、NEVER 改 Service selector」的方法论，日期也与真实切流时点不符（其间 ADR-D112 还曾按当日口径记成「尚未切」，已被 D117 取代），**NEVER 回退**。
-  - **ticket 源已移出期望清单**，但 `ticket-server` 侧的 `ReconExportMapper` / `ReconExportService` **保留未删、NEVER 删**（`application.properties:91~93`）：甲方四类文件里没有 ticket 源的位置（过闸笔数与金额由 gate-txn-pay 出，`QRCODE_TXN_DETAIL` 不参与），后续甲方若要过闸明细，把 ticket 源加回清单即可。
-- 期望清单为空时 dispatch 无事可做，属**配置缺失**，MUST 在部署清单里核对（`ReconOrchestrationProperties.java:69`）。来源标识落 `RECON_BATCH_SOURCE.SOURCE_NAME`，**MUST 匹配 `[A-Za-z0-9_-]{1,32}`**（同文件 `:107`）。
-- 人工干预端点的边界：`PUT /internal/recon/batches/{batchId}/status` **仅供人工干预**，正常链路的状态推进一律由编排器按收齐结果决定，**手工改状态会绕过收齐校验，MUST 在确认数据一致后才用**（`ReconInternalController.java:81~86`，grep `仅供人工干预`）。
+- **traceId**（`application.properties`，grep `traceId 关联`）：`micro/web` 默认 `management.tracing.enabled=false`，本模块显式打开（现值 + 的 `spring.autoconfigure.exclude`，**三行成组**）。打开后 web-admin `sys_job` 225 发来的 W3C `traceparent` 才能续接进 MDC、日志 pattern 的 `%X{traceId}` 才有值；否则前台按 `SYS_JOB_LOG` 的 traceId 检索本模块日志会 **0 条**（2026-09-11 实测：调度日志记着 traceId、recon-server 那一列全空）。本模块**没有自带 log4j2 配置、走公共 `log4j2-linux.xml`**，其 pattern 已含 `%X{traceId}`、只差这个开关。同一条 `traceparent` 会由 Boot 的 WebClient 观测自动带给四个源服务的 `/internal/recon/export`，因此 **gate-txn-pay / collect-pay / daily-ticket / face-pay 四个源 MUST 一起打开本开关**，否则链路在源侧断开。**四个源现已全部打开**：前三个早已开，**`face-pay-server` 于 2026-09-22（1.0.65）补齐三行并已滚更、实测续接通过**。
+- **`spring.autoconfigure.exclude=...OtlpAutoConfiguration` 这行 NEVER 删**（`application.properties`，grep `NEVER 删除下面这行排除`），三条理由：① `sampling.probability=0` 只让**本服务发起**的 trace 不采样（采样器是 `parentBased(traceIdRatioBased(0))`），上游带 `sampled=1` 的 `traceparent` / `b3` 进来时 span 仍会被采样并进导出队列；② `micro/web` 的 `web.properties` 虽已把 `management.otlp.tracing.endpoint` 整行注释掉，但 **K8s Deployment 只要注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` env 就会重新激活 exporter**，本行是第二道保险；③ Boot 3.2.6 **没有** `management.tracing.export.enabled` 这个开关，把 endpoint 置空也不行（`OtlpAutoConfiguration` 只判断键是否存在），只能排掉整个自动配置。
+- **`InternalMicroHttp` 的 logger 压到 WARN、NEVER 删那行配置**（`application.properties`，grep `NEVER 删除下面这行配置`）。原始理由（防内部令牌明文落日志）**已不成立** —— `X-Recon-Token` 不再发送；**NEVER 回退成「其中包含内部令牌 X-Recon-Token 的明文」那个说法**。现行理由：该 logger 会把**整个请求头 Map** 直接打进 INFO，加上下面那条双份地址，噪音对排查无益；且恢复鉴权后同一风险会立刻回来。公共构件 `resource/micro` 不改，只压本模块这个 logger。
+- **`ReconExportClient` 的 baseUrl 固定为空串**（复用 `URLDynamicRouter` 的动态路由做法），下发地址一律取 `recon.orchestration.sources[].url` 的绝对 URL，因此**不需要自身地址配置项**；原 `service.recon.self-url` **已删除** —— 它只是占位 baseUrl，却让 `InternalMicroHttp` 的 INFO 打出 `http://127.0.0.1:9112/http://<源服务>/internal/recon/export` 这种双份地址（2026-09-11 实录）（`application.properties`，grep `双份地址`）。
+- **四个源的期望清单**（`application.properties`）：`sources[0] gate-txn-pay → EXP,PAY,BUS,DETAIL`、`sources[1] collect-pay → PAY,BUS`、`sources[2] daily-ticket → PAY,DETAIL`、`sources[3] face-pay → PAY,BUS`。地址是 `kubectl get svc -n itp` 实测值（**Service 端口等于 NodePort 号、不等于容器 `server.port`**），线上仍以 Deployment env 覆盖为准；`SourceExpectation.url` 的注释也强调 **NEVER 按对方容器 `server.port` 推断端口**，并声明此前示例 `http://ticket-server-svc.itp.svc:9103` **两处都已过期、NEVER 回退**（`ReconOrchestrationProperties.java`）。
+  - **`face-pay` 与 `collect-pay` 是「新表 / 旧表」并列关系、NEVER 二选一**（`application.properties`，grep `NEVER 二选一`）：设备域与 APP 域入向流量已于 2026-09-16 17:31 切到 face-pay（ADR-D117），新单只进 `F2F_*`；**切流之前的历史单仍在 collect-pay 那四张旧表里，只有那个源导得出来**。去掉任何一个都会让对应时间段的账**凭空少一截**，而对账文件是纯文本、下游读不出异常。此处还留了一条纠错：**此前写「已于 2026-09-15 切到 face-pay（ADR-D85）」是错的** —— ADR-D85 只是「切流量 MUST 改 VirtualService、NEVER 改 Service selector」的方法论，日期也与真实切流时点不符（其间 ADR-D112 还曾按当日口径记成「尚未切」，已被 D117 取代），**NEVER 回退**。
+  - **ticket 源已移出期望清单**，但 `ticket-server` 侧的 `ReconExportMapper` / `ReconExportService` **保留未删、NEVER 删**（`application.properties`）：甲方四类文件里没有 ticket 源的位置（过闸笔数与金额由 gate-txn-pay 出，`QRCODE_TXN_DETAIL` 不参），后续甲方若要过闸明细，把 ticket 源加回清单即可。
+- 期望清单为空时 dispatch 无事可做，属**配置缺失**，MUST 在部署清单里核对（`ReconOrchestrationProperties.java`）。来源标识落 `RECON_BATCH_SOURCE.SOURCE_NAME`，**MUST 匹配 `[A-Za-z0-9_-]{1,32}`**（同文件 ）。
+- 人工干预端点的边界：`PUT /internal/recon/batches/{batchId}/status` **仅供人工干预**，正常链路的状态推进一律由编排器按收齐结果决定，**手工改状态会绕过收齐校验，MUST 在确认数据一致后才用**（`ReconInternalController.java`，grep `仅供人工干预`）。
 
 ### 十三、删除后代码里保留的一行式护栏（recon 侧 6 条）
 
@@ -1384,7 +1385,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 
 ### 矛盾与待裁决
 
-1. **`recon.sources` 与 `recon.orchestration.sources[*]` 并存且内容不一致**：前者 `application.properties:50` 仍是 `gate-txn-pay,ticket,collect-pay,daily-ticket`（含已移出的 `ticket`、缺 2026-09-16 新增的 `face-pay`），后者是四个源的真实期望清单。生成路径已改成「读 `RECON_BATCH_SOURCE` 里 `COMPLETED` 的行」，因此 `recon.sources` **当前是否还有读取方尚未逐处确认**。待裁决：删掉该键，还是回填成与 `sources[*]` 一致。**在裁决前 NEVER 拿 `recon.sources` 判断「谁出哪个文件」。**
+1. **`recon.sources` 与 `recon.orchestration.sources[*]` 并存且内容不一致**：前者 `application.properties` 仍是 `gate-txn-pay,ticket,collect-pay,daily-ticket`（含已移出的 `ticket`、缺 2026-09-16 新增的 `face-pay`），后者是四个源的真实期望清单。生成路径已改成「读 `RECON_BATCH_SOURCE` 里 `COMPLETED` 的行」，因此 `recon.sources` **当前是否还有读取方尚未逐处确认**。待裁决：删掉该键，还是回填成与 `sources[*]` 一致。**在裁决前 NEVER 拿 `recon.sources` 判断「谁出哪个文件」。**
 2. **`recon.internal-token` / `RECON_INTERNAL_TOKEN` 留键无读取方**：与 §九「上线前 MUST 恢复鉴权」配套。待裁决：上线前恢复定长比较（推荐），还是改走 `AccountRequestVerifier` / `ItpRequestSignVerifier` 那套现成验签。**NEVER 自造签名逻辑**（AGENTS.md §5.2）。
 3. **共享存储（ReadWriteMany PVC）与「MUST 单副本」两条约束都只写在文档里，集群侧未落地**：当前靠「事实上只部了一个副本」兜着，没有任何机制阻止有人把 replicas 改成 2。待裁决：加 PDB / 注释说明 / 还是在启动时自检（例如探测同名批次的并发写）。
 4. **两个 SQL 文件 0 条 `COMMENT ON`**：`RECON_*` 四张表的列语义只存在于本文与 mapper XML。待裁决：是否补 `COMMENT ON COLUMN`（本项目其它模块也普遍没有，属全局风格问题，**MUST 先问用户再动**）。
@@ -1413,20 +1414,20 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 
 | # | 原注释位置 | 断言内容（迁入本节后仍生效） |
 |---|---|---|
-| M1 | `ReconServer.java:28~30` | 此前只写「本模块一个 `@Scheduled` 都没有、启动类也没有 `@EnableScheduling`」，会被读成「调度未启用」；**NEVER 据此推断，NEVER 写成可断言项** |
-| M2 | `ReconOrchestrationProperties.java:16~19`、`application.properties:79` | `recon.orchestration.dispatch-cron` / `RECON_DISPATCH_CRON` **已删除、NEVER 加回** |
-| M3 | `application.properties:15~16` | 「鉴权靠 `checkToken()` 的 `X-Recon-Token` 定长比较」**已作废**（代码已删），NEVER 回退 |
-| M4 | `application.properties:125~126` | 「压 logger 是因为请求头含 `X-Recon-Token` 明文」**已不成立**（不再发送该头），NEVER 回退；但那行配置本身 NEVER 删 |
-| M5 | `application.properties:107~109` | 「已于 2026-09-15 切到 face-pay（ADR-D85）」**是错的**（D85 是方法论、日期不符，D112 的「尚未切」也已被 D117 取代），NEVER 回退 |
-| M6 | `ReconOrchestrationProperties.java:113~115` | 源地址示例 `http://ticket-server-svc.itp.svc:9103` **两处都已过期**（ticket 已移出清单、9103 是容器端口口径），NEVER 回退 |
-| M7 | `application.properties:117~120` | `service.recon.self-url` **已删除**（占位 baseUrl 导致双份地址日志），NEVER 加回 |
-| M8 | `ReconFtpService.java:26~32`、`ReconFtpProperties.java:20~25` | 「BUS 投递静默失败」**已被探针实证推翻**（ACC 侧取件即删），NEVER 再当我方缺陷 |
-| M9 | `ReconFtpProperties.java:31~34` | 相邻投递间隔**不是修复项**（「对端在极短间隔连续会话丢文件」那个判断已被推翻），只是保守限流 |
-| M10 | `ReconOrchestrationService.java:182~183` | 「重复触发安全」此前只在 `advanceBatch` 那层成立、`dispatchDailyBatch` 这层**并未兑现**（1.0.12 才补上短路） |
-| M11 | `ReconOrchestrationService.java:186~187` | `dispatchDailyBatch` 失败分支**原先是记日志后 return**，现在 MUST 抛，NEVER 回退 |
-| M12 | `ReconPartService.java:125~128` | 兜底 catch **NEVER 简化回 `catch (DuplicateKeyException)`**（ADR-D53，本模块开了 tracing） |
-| M13 | `ReconLineBackfillProperties.java:25~26` | 线路补齐 **NEVER 改成「只在源上送为空时才补」**；NEVER 往 `file-types` 加 EXP / DETAIL |
-| M14 | `ReconOrchestrationProperties.java:52~54` | `window-offset-days` **NEVER 改回 1** |
+| M1 | `ReconServer.java` | 此前只写「本模块一个 `@Scheduled` 都没有、启动类也没有 `@EnableScheduling`」，会被读成「调度未启用」；**NEVER 据此推断，NEVER 写成可断言项** |
+| M2 | `ReconOrchestrationProperties.java`、`application.properties` | `recon.orchestration.dispatch-cron` / `RECON_DISPATCH_CRON` **已删除、NEVER 加回** |
+| M3 | `application.properties` | 「鉴权靠 `checkToken()` 的 `X-Recon-Token` 定长比较」**已作废**（代码已删），NEVER 回退 |
+| M4 | `application.properties` | 「压 logger 是因为请求头含 `X-Recon-Token` 明文」**已不成立**（不再发送该头），NEVER 回退；但那行配置本身 NEVER 删 |
+| M5 | `application.properties` | 「已于 2026-09-15 切到 face-pay（ADR-D85）」**是错的**（D85 是方法论、日期不符，D112 的「尚未切」也已被 D117 取代），NEVER 回退 |
+| M6 | `ReconOrchestrationProperties.java` | 源地址示例 `http://ticket-server-svc.itp.svc:9103` **两处都已过期**（ticket 已移出清单、9103 是容器端口口径），NEVER 回退 |
+| M7 | `application.properties` | `service.recon.self-url` **已删除**（占位 baseUrl 导致双份地址日志），NEVER 加回 |
+| M8 | `ReconFtpService.java`、`ReconFtpProperties.java` | 「BUS 投递静默失败」**已被探针实证推翻**（ACC 侧取件即删），NEVER 再当我方缺陷 |
+| M9 | `ReconFtpProperties.java` | 相邻投递间隔**不是修复项**（「对端在极短间隔连续会话丢文件」那个判断已被推翻），只是保守限流 |
+| M10 | `ReconOrchestrationService.java` | 「重复触发安全」此前只在 `advanceBatch` 那层成立、`dispatchDailyBatch` 这层**并未兑现**（1.0.12 才补上短路） |
+| M11 | `ReconOrchestrationService.java` | `dispatchDailyBatch` 失败分支**原先是记日志后 return**，现在 MUST 抛，NEVER 回退 |
+| M12 | `ReconPartService.java` | 兜底 catch **NEVER 简化回 `catch (DuplicateKeyException)`**（ADR-D53，本模块开了 tracing） |
+| M13 | `ReconLineBackfillProperties.java` | 线路补齐 **NEVER 改成「只在源上送为空时才补」**；NEVER 往 `file-types` 加 EXP / DETAIL |
+| M14 | `ReconOrchestrationProperties.java` | `window-offset-days` **NEVER 改回 1** |
 
 ### 覆盖率自评
 

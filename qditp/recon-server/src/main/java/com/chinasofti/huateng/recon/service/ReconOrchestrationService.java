@@ -22,8 +22,10 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -159,18 +161,18 @@ public class ReconOrchestrationService {
             throw new IllegalStateException("对账批次建立失败: " + batchId + ", " + ex.getMessage(), ex);
         }
         for (SourceExpectation expectation : properties.getSources()) {
-            dispatchSource(batchId, businessDateText, windowStart, windowEnd, expectation, null);
+            dispatchSource(batchId, expectation, null);
         }
         return batchId;
     }
 
     /**
-     * 向一个源下发抽取指令。
+     * 向一个源下发抽取指令。按各文件类型独立的账期偏移（{@code windowOffsetDaysByType}，缺省回退全局）分组，
+     * 每组单独推算窗口后下发——使 DETAIL 等可按运营日口径抽取，而 EXP/PAY/BUS 维持 T-2~T-1。
      *
      * @param onlyType 非空时只重下发该文件类型（补偿单个 {@code (来源, 文件类型)}），为空时下发该源的全部类型
      */
-    private void dispatchSource(String batchId, String businessDate, String windowStart, String windowEnd,
-                                SourceExpectation expectation, ReconFileType onlyType) {
+    private void dispatchSource(String batchId, SourceExpectation expectation, ReconFileType onlyType) {
         List<ReconFileType> targets = new ArrayList<>();
         for (String name : expectation.getFileTypes()) {
             ReconFileType type = ReconFileType.valueOf(name.trim().toUpperCase());
@@ -178,29 +180,45 @@ public class ReconOrchestrationService {
         }
         if (targets.isEmpty()) return;
 
-        ReconExportReqDTO request = new ReconExportReqDTO();
-        request.setBatchId(batchId);
-        request.setBusinessDate(businessDate);
-        request.setWindowStart(windowStart);
-        request.setWindowEnd(windowEnd);
-        request.setFileTypes(targets.stream().map(ReconFileType::name).toList());
-        try {
-            request.validate();
-        } catch (RuntimeException ex) {
-            targets.forEach(type -> sourceService.markFailed(batchId, expectation.getName(), type,
-                    "抽取指令参数非法: " + ex.getMessage()));
-            log.error("对账抽取指令参数非法 batchId={}, source={}, msg={}", batchId, expectation.getName(), ex.getMessage());
-            return;
+        Map<Integer, List<ReconFileType>> byOffset = new LinkedHashMap<>();
+        for (ReconFileType type : targets) {
+            int offset = properties.getWindowOffsetDaysByType()
+                    .getOrDefault(type.name(), properties.getWindowOffsetDays());
+            byOffset.computeIfAbsent(offset, k -> new ArrayList<>()).add(type);
         }
 
-        targets.forEach(type -> sourceService.markExporting(batchId, expectation.getName(), type));
-        ReconExportRespDTO response = exportClient.dispatch(expectation.getUrl(), request);
-        if (response.isAccepted()) {
-            log.info("对账抽取指令已受理 batchId={}, source={}, fileTypes={}", batchId, expectation.getName(), targets);
-        } else {
-            targets.forEach(type -> sourceService.markFailed(batchId, expectation.getName(), type, response.getMessage()));
-            log.error("对账抽取指令被回绝 batchId={}, source={}, fileTypes={}, msg={}",
-                    batchId, expectation.getName(), targets, response.getMessage());
+        for (Map.Entry<Integer, List<ReconFileType>> entry : byOffset.entrySet()) {
+            int offset = entry.getKey();
+            LocalDate businessDate = LocalDate.now().minusDays(offset);
+            String businessDateText = businessDate.format(DATE);
+            String windowStart = businessDateText + properties.getWindowStartTime();
+            String windowEnd = businessDate.plusDays(1).format(DATE) + properties.getWindowStartTime();
+
+            ReconExportReqDTO request = new ReconExportReqDTO();
+            request.setBatchId(batchId);
+            request.setBusinessDate(businessDateText);
+            request.setWindowStart(windowStart);
+            request.setWindowEnd(windowEnd);
+            request.setFileTypes(entry.getValue().stream().map(ReconFileType::name).toList());
+            try {
+                request.validate();
+            } catch (RuntimeException ex) {
+                entry.getValue().forEach(type -> sourceService.markFailed(batchId, expectation.getName(), type,
+                        "抽取指令参数非法: " + ex.getMessage()));
+                log.error("对账抽取指令参数非法 batchId={}, source={}, msg={}", batchId, expectation.getName(), ex.getMessage());
+                continue;
+            }
+
+            entry.getValue().forEach(type -> sourceService.markExporting(batchId, expectation.getName(), type));
+            ReconExportRespDTO response = exportClient.dispatch(expectation.getUrl(), request);
+            if (response.isAccepted()) {
+                log.info("对账抽取指令已受理 batchId={}, source={}, fileTypes={}, windowOffsetDays={}",
+                        batchId, expectation.getName(), entry.getValue(), offset);
+            } else {
+                entry.getValue().forEach(type -> sourceService.markFailed(batchId, expectation.getName(), type, response.getMessage()));
+                log.error("对账抽取指令被回绝 batchId={}, source={}, fileTypes={}, msg={}",
+                        batchId, expectation.getName(), entry.getValue(), response.getMessage());
+            }
         }
     }
 
@@ -271,8 +289,7 @@ public class ReconOrchestrationService {
                 continue;
             }
             sourceService.increaseRetry(batch.batchId(), progress.source(), progress.fileType());
-            dispatchSource(batch.batchId(), batch.businessDate(), batch.windowStart(), batch.windowEnd(),
-                    expectation, progress.fileType());
+            dispatchSource(batch.batchId(), expectation, progress.fileType());
             retried = true;
         }
         if (retried && batchService.get(batch.batchId()).status() == ReconBatchStatus.FAILED) {

@@ -24,6 +24,12 @@ spec:
     spec:
       containers:
       - env:
+        - name: management.tracing.enabled
+          value: 'true'
+        - name: management.tracing.sampling.probability
+          value: '0'
+        - name: spring.autoconfigure.exclude
+          value: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration
         - name: spring.application.name
           value: fep-dev
         - name: other.web.enableLogRequestInFilter
@@ -53,7 +59,7 @@ spec:
         - name: service.ticket.url
           value: http://172.20.211.23:30014
         - name: server.port
-          value: '8080'
+          value: '9104'
         - name: service.security.openLogger
           value: 'true'
         - name: service.ticket.openLogger
@@ -72,10 +78,14 @@ spec:
           value: itp
         - name: VLOGS_URL
           value: http://victoria-logs-pbi6a-svc.itp.svc:30032
-        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-dev-server:2.0.66
+        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-dev-server:2.0.69
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: fep-dev-server
+        ports:
+        - containerPort: 9104
+          name: http
+          protocol: TCP
         resources:
           limits:
             cpu: '2'

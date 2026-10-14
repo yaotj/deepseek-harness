@@ -29,7 +29,7 @@
 
 ### 已确认的关键边界
 
-- **`GATE_TXN_PAY` 与 `PAY_TXN_DETAIL` NEVER 合并。** 两表按 `ORDER_NO` 1:1，是刻意的「地铁侧账单 / 支付侧执行」纵切（`gate-txn-pay-server/src/main/resources/sql/gate-txn-pay-schema.sql:3` 注释；该文件 2026-09-14 从 `fep-dev-server` 迁入 owner 模块，同批把 `pay-txn-schema.sql` 迁到 `pay-sign-server`。**两份都是全仓唯一的 DDL，NEVER 当成重复副本删除**）。**这条纵切线就是行程域与支付域的边界。**
+- **`GATE_TXN_PAY` 与 `PAY_TXN_DETAIL` NEVER 合并。** 两表按 `ORDER_NO` 1:1，是刻意的「地铁侧账单 / 支付侧执行」纵切（`gate-txn-pay-server/src/main/resources/sql/gate-txn-pay-schema.sql` 注释；该文件 2026-09-14 从 `fep-dev-server` 迁入 owner 模块，同批把 `pay-txn-schema.sql` 迁到 `pay-sign-server`。**两份都是全仓唯一的 DDL，NEVER 当成重复副本删除**）。**这条纵切线就是行程域与支付域的边界。**
 - **签约拆成两个概念**：`APP_USER_PAY_CHANNEL`（「用户授权了哪些支付方式、默认用哪个」= 账户能力）属账户域；`APP_PAY_SIGN_INFO` + `APP_TERMINATION_REQUEST`（「与某渠道的协议实例」，协议号由渠道下发）属支付域。`APP_USER_PAY_CHANNEL.REQ_CONTRACT_NO` 是账户域对支付域聚合的**引用（只存 ID）**，这是跨域引用的正确做法，**不要改成存副本**。
 - **黑名单不是账户状态**，是与账户状态正交的标志，owner 在 blacklist-server。查询用户全貌 = 账户状态 × 黑名单标志 × 各通道签约状态。
 - **票实例横跨三域**：售出信息（销售）、使用状态（行程）、ACC 上报（结算）同在一行（如 `DAILY_TICKET_INSTANCE`）。owner 定为**行程域**（过闸是热路径写），销售域与结算域只读。`ACC_NOTICE_STATUS` / `ACC_NOTICE_TIME` 是结算域写行程域表的一处例外，建 `RECON_*` 时应挪走。
@@ -81,7 +81,7 @@
 1. **跨域只读**：直接 RPC 查对方聚合，允许。
 2. **跨域写**：**NEVER** 直接改对方的表或调对方的命令式接口后不管结果。MUST 落「同步状态列 + `@Scheduled` 补偿重推 + 达重试上限转异常工单」。
 3. **跨域一致性**：不引 MQ / Seata。用**本地消息表 + 扫表补偿**，参照 `face-pay-server` 的 `F2F_NOTIFY_TASK`（已在跑）与 `APP_TERMINATION_REQUEST` 的 `NOTIFY_*`（已在跑）。
-4. **派生规则不是状态迁移**：跨聚合的联动由 owner 服务在收到事实后自行判定。例：「最后一个通道解绑 ⇒ 销户归档」由 account-server 自己算（`AccountArchiveServiceImpl.archiveIfLastChannelRemoved`；**旧名 `AccountApplicationServiceImpl.archiveUserInfoIfLastChannelRemoved` 已随账户域六轮拆分作废**，见 `decisions.md:730`，2026-09-23 核对），**不是**由 pay-sign-server 远程驱动的一次状态迁移。
+4. **派生规则不是状态迁移**：跨聚合的联动由 owner 服务在收到事实后自行判定。例：「最后一个通道解绑 ⇒ 销户归档」由 account-server 自己算（`AccountArchiveServiceImpl.archiveIfLastChannelRemoved`；**旧名 `AccountApplicationServiceImpl.archiveUserInfoIfLastChannelRemoved` 已随账户域六轮拆分作废**，见 `decisions.md`，2026-09-23 核对），**不是**由 pay-sign-server 远程驱动的一次状态迁移。
 
 ## 四、对外接口 vs 对内接口
 
@@ -93,13 +93,13 @@
 
 | 路径 | 位置 |
 |---|---|
-| `/ci/app/requestAgreeRelease` + `/app/requestAgreeRelease`（双别名） | `fep-app-server/.../AppAccountController.java:65` |
-| `/ci/app/requestRemovePayChannel` + `/app/requestRemovePayChannel`（双别名） | 同上 `:98` |
-| 换手机号 | `fep-app-server/.../PhoneChangeController.java:37`，该文件 `:21` 另有约束「NEVER 再加 `updatePhone` / `/ci/app` 路径别名或 `newMsisdn`」 |
+| `/ci/app/requestAgreeRelease` + `/app/requestAgreeRelease`（双别名） | `fep-app-server/.../AppAccountController.java` |
+| `/ci/app/requestRemovePayChannel` + `/app/requestRemovePayChannel`（双别名） | 同上 |
+| 换手机号 | `fep-app-server/.../PhoneChangeController.java`，该文件 另有约束「NEVER 再加 `updatePhone` / `/ci/app` 路径别名或 `newMsisdn`」 |
 
 连带红线：
 
-- `RequestRemovePayChannelReqDTO` / `RequestRemovePayChannelResult` **同时是对外 bizData 契约和内部 RPC 参数**（`AccountAppServiceImpl:80` 原样透传）。**NEVER 给这两个类加字段** —— 加字段等于改对外接口，且会踩 `AGENTS.md §7` 的「`model` 版本恒 2.0.0 + Fastjson2 静默丢字段 + 链路上每个模块镜像都要重建」那个坑。需要携带新信息时**新建内部 DTO**。
+- `RequestRemovePayChannelReqDTO` / `RequestRemovePayChannelResult` **同时是对外 bizData 契约和内部 RPC 参数**（`AccountAppServiceImpl` 原样透传）。**NEVER 给这两个类加字段** —— 加字段等于改对外接口，且会踩 `AGENTS.md §7` 的「`model` 版本恒 2.0.0 + Fastjson2 静默丢字段 + 链路上每个模块镜像都要重建」那个坑。需要携带新信息时**新建内部 DTO**。
 - `ItpCommonFormRequest`（2026-09-11 收口前各模块自有副本的统称是 `CommonFormRequest`，现全项目唯一、在 `model` 模块）报文形态（`x-www-form-urlencoded` + `bizData` JSON）不可改。
 
 各业务服务上与对外路径同名的端点（如 account-server 的 `/requestRemovePayChannel`）**是对内端点**，可以改。

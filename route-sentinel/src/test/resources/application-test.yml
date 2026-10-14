@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:user_route;MODE=Oracle;DB_CLOSE_DELAY=-1;INIT=RUNSCRIPT FROM 'classpath:schema-h2.sql'
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: gatewayroutes,health,info,metrics
+  endpoint:
+    gateway:
+      enabled: false

@@ -1,6 +1,7 @@
 package com.chinasofti.huateng.micro.web.filter;
 
 import com.chinasofti.huateng.micro.web.Webconfig;
+import com.chinasofti.huateng.micro.web.utils.HeartbeatUrlUtil;
 import com.chinasofti.huateng.micro.web.utils.HttpRequestWrapper;
 import com.chinasofti.huateng.micro.web.utils.HttpResponseWrapper;
 import com.chinasofti.huateng.micro.web.utils.PathMatcher;
@@ -10,6 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -27,6 +29,9 @@ public class BodyCacheFilter implements Filter {
 
     @Autowired
     Webconfig webconfig;
+
+    @Value("${other.interceptor.heartbeat.skip:false}")
+    private boolean skipHeartbeat;
 
     private boolean checkSkipUrl(ServletRequest servletRequest) {
         if (servletRequest instanceof HttpServletRequest) {
@@ -79,7 +84,9 @@ public class BodyCacheFilter implements Filter {
                             status,
                             HttpResponseWrapper.getResponseBody(response, webconfig.getLogResponseMaxSize()));
                     content = content.replaceAll("\r\n", "").replaceAll("\n", "");
-                    log.info(content);
+                    if (!(skipHeartbeat && HeartbeatUrlUtil.isHeartbeat(request_url))) {
+                        log.info(content);
+                    }
                 }
             }
         } else {

@@ -166,8 +166,8 @@
             <el-form-item label="角色名称">
                <el-input v-model="form.roleName" :disabled="true" />
             </el-form-item>
-            <el-form-item label="权限字符">
-               <el-input v-model="form.'dept')">展开/折叠</el-checkbox>
+            <el-form-item label="数据权限">
+               <el-checkbox v-model="deptExpand" @change="handleCheckedTreeExpand($event, 'dept')">展开/折叠</el-checkbox>
                <el-checkbox v-model="deptNodeAll" @change="handleCheckedTreeNodeAll($event, 'dept')">全选/全不选</el-checkbox>
                <el-checkbox v-model="form.deptCheckStrictly" @change="handleCheckedTreeConnect($event, 'dept')">父子联动</el-checkbox>
                <el-tree
@@ -244,8 +244,6 @@ const data = reactive({
   },
   rules: {
     roleName: [{ required: true, message: "角色名称不能为空", trigger: "blur" }],
-    message: "权限字符不能为空", trigger: "blur" }],
-    message: "角色顺序不能为空", trigger: "blur" }]
   },
 })
 

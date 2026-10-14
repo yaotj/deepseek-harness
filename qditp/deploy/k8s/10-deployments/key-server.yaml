@@ -68,6 +68,17 @@ spec:
           value: http://victoria-logs-pbi6a-svc.itp.svc:30032
         - name: other.sql.host
           value: 172.20.222.3:1521
+        # 2.0.14 起数据源实际读 DB_HOST/DB_NAME/DB_USERNAME/DB_PASSWORD 占位符
+        # （application.properties 的 ${DB_HOST:127.0.0.1:1521} 默认值），
+        # other.sql.host 那套键已不被引用。缺 DB_HOST ⇒ 落 127.0.0.1:1521/orcl（Pod 内不可达）⇒ 应用 8080/9103 起不来 ⇒ 外部 503。
+        - name: DB_HOST
+          value: 172.20.222.3:1521
+        - name: DB_NAME
+          value: AFCITPDB
+        - name: DB_USERNAME
+          value: qditp
+        - name: DB_PASSWORD
+          value: qditp
         - name: service.security.url
           value: http://172.20.211.200:30012
         - name: acc.3des.key
@@ -81,7 +92,7 @@ spec:
           value: key-server
         - name: NAMESPACE
           value: itp
-        image: os-harbor-svc.default.svc.cloudos:443/itp/key-server:2.0.12
+        image: os-harbor-svc.default.svc.cloudos:443/itp/key-server:2.0.15
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: key-server

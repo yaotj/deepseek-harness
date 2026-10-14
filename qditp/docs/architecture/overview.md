@@ -11,8 +11,8 @@
   ① 接入层(FEP)      fep-app-server  fep-dev-server  fep-acc-server  fep-alipay-server
                     │  （薄网关：解析 ItpCommonFormRequest → RPC 转发，多数无数据库）
   ② 业务服务层       account / ticket / pay-sign / face-pay / daily-ticket
-                    │  gate-txn-pay / card-pool / recon / trans-query（已建未接线）
-                    │  （事务与落库在这一层；collect-pay 已退居后台、仅留内部端点）
+                    │  gate-txn-pay / card-pool / recon / trans-query（已接线）
+                    │  （事务与落库在这一层；collect-pay 2026-10-13 已下线，0 pod）
   ③ 公共能力层       para  key  blacklist  industry-data
                     │
   ④ ACC / 安全层     acc-security(HSM)   acc-secure(未接线)   acc-es(FTP+Netty)
@@ -26,7 +26,7 @@
 - **无注册中心、无网关、无 Feign / Dubbo、无服务发现**。调用由 `rpc` 模块 `ProxyWebClient`（WebClient）发起 HTTP 直连。
 - **不使用 Redis 与消息队列**。异步与重试 = `@Scheduled` 扫库 + 重试状态字段 / 防重表。
 - 所有 Maven 模块在**仓库根目录**，无 `micro/`、`common/` 父目录。
-- 根 `pom.xml` 共 23 个 `<module>`；`resource/micro`、`dsh-orchestrator`、前端 `web` **不在根聚合构建中**。
+- 根 `pom.xml` 共 27 个 `<module>`；`resource/micro`、`dsh-orchestrator`、前端 `web` **不在根聚合构建中**。
 
 ## 二、真实端口与服务名
 
@@ -47,12 +47,12 @@
 | daily-ticket-server | 9108 | daily-ticket-server | |
 | fep-acc-server | 9110 | fep-acc-server | |
 | card-pool-server | 9111 | card-pool | 无 `@Scheduled`，维护动作走 `POST /card-pools/maintenance` |
-| recon-server | 9112 | recon | 无 `@Scheduled`，由 web-admin `sys_job` 225 触发 `POST /internal/recon/daily/run`（2026-09-21 由 109 改号）；**MUST 单副本** |
-| trans-query-server | 9113 | trans-query | APP 交易查询独立服务（1.0.4）；**已出镜像但未接线**，三条 URL 与 ticket-server 并存 |
+| recon-server | 9112 | recon | 无模块内业务 `@Scheduled`（第三方对账那个默认关闭，见 web-server.md §7.0.1）；主链路由 web-admin `sys_job` 触发 `POST /internal/recon/daily/run`（编号清单见 web-server.md §七，**MUST 现查**）；**MUST 单副本** |
+| trans-query-server | 9113 | trans-query | APP 交易查询独立服务；三条 URL 与 ticket-server 并存未替换，**2026-09-20 起已接线承接真实流量**（`fep-alipay` 的 `/channel/findTravelList` → 本服务，NodePort 30035），`fep-app` 域那三条尚未切 |
 | acc-security-server | 9012 | acc-security | Undertow |
 | acc-es-server | 9011 / Netty 5000 | acc-es | |
-| face-pay-server | 58101 | face-pay | **TVM / BOM / APP 当面付现行主模块**（2026-09-15 起承接设备与 APP 流量，ADR-D85）；**7 个 `@Scheduled` 分布在 6 个类**，无分布式锁，**MUST 单副本** |
-| collect-pay-server | 58101 | **itpagm** | ⚠️ **与 face-pay-server 端口冲突**（同机部署需确认）；**已退居后台**，只留 `/internal/recon/export`、`/internal/app-order/**` 与旧单退款，**NEVER 停掉它**；与 face-pay 同用 `application.yml`；服务名与模块名不一致 |
+| face-pay-server | 58101 | face-pay | **TVM / BOM / APP 当面付现行主模块**（2026-09-16 17:31 起承接设备域 + APP 域入向流量，ADR-D116 数据迁移 + ADR-D117 切流；此前「2026-09-15 已切（ADR-D85）」被 ADR-D112 实测推翻，NEVER 再引用）；**7 个 `@Scheduled` 分布在 6 个类**，无分布式锁，**MUST 单副本** |
+| collect-pay-server | 58101 | **itpagm** | ⚠️ **与 face-pay-server 端口冲突**（同机部署需确认）；**2026-10-13 已下线（0 pod）**：入向流量 2026-09-16 已切 face-pay，对账旧表源当日已移除（recon 现三源），`NoticeAppTask` 4 端点由 face-pay 逐字复刻承接、web-admin 已切并验证，`fep-app` 已切并验证；残留 collect-ticket 未部署无流量、gate-txn-pay 死配置待清理。**判断 MUST 现查 Deployment，NEVER 只凭仓库有代码就当在跑** |
 | fep-alipay-server | 8080 | fep-alipay | ⚠️ 8080 四方冲突 |
 | alipay-pay-sign-server | 8080 | alipay-pay-sign | ⚠️ |
 | alipay-account-server | 8080 | alipay-account | ⚠️ |
@@ -115,7 +115,7 @@
 > **2026-09-16 逐项复核：下面 ①②③ 均已修复，只有 ④ 仍成立。** 修复前的旧值在此仅作历史留痕，**NEVER 当作现状引用** —— 按旧记载排查会得出「线上正在错配」的错误结论。
 
 1. ~~`service.industryData.url` 指向 9104（fep-dev-server）~~ **已修复**：`fep-app-server:32`、`fep-alipay-server:32`、`alipay-pay-sign-server:43` 三处现均为 `http://industry-data-server-6dv5u-svc.itp.svc:30018`（K8s DNS + NodePort）。
-2. ~~`fep-dev-server:15` 的 `service.ticket.url=http://127.0.0.1:9097`~~ **已修复**：现为 `http://ticket-server-bsyju-svc.itp.svc:9100`（`fep-dev-server/application.properties:29`，该行上方注释仍留着旧值说明）。
+2. ~~`fep-dev-server:15` 的 `service.ticket.url=http://127.0.0.1:9097`~~ **已修复**：现为 `http://ticket-server-bsyju-svc.itp.svc:9100`（`fep-dev-server/application.properties`，该行上方注释仍留着旧值说明）。
 3. ~~地址形态不统一 + 四处生产错配~~ **已全部修复并统一为 K8s DNS**：ticket-server 现为 `alipay-account-server-2n6kc-svc:30021`、`gate-txn-pay-server-jomf4-svc:30019`、`daily-ticket-server-rdbe5-svc:30027`；`service.fepDev.url` 已按 **ADR-D63（2026-09-14）整体删除**，不再是错配项。
    ⚠️ **Service 端口 ≠ 容器 `server.port`，这不是错配**：如 ticket-server 的 Service 端口是 **9100**、容器 `server.port` 是 **9103**；recon-server 的 Service 端口（NodePort 30034）也不等于容器 9112。排障时 **MUST** 先分清说的是哪一层，切勿据此改配置。
 4. **仍存在**：`acc-secure-server:11`、`collect-ticket-server:11` 的 `service.token.url` 为空。
@@ -125,13 +125,13 @@
 ## 四、部署链路
 
 - 镜像基底：`docker/Dockerfile` —— `FROM os-harbor-svc.default.svc.cloudos:443/itp/jdk:21` + `COPY app.jar /app.jar`
-- 编排：各模块 pom 内 `org.eclipse.jkube:kubernetes-maven-plugin`（部分模块把它注释掉了，如 `ticket-server/pom.xml:115`）
+- 编排：各模块 pom 内 `org.eclipse.jkube:kubernetes-maven-plugin`（部分模块把它注释掉了，如 `ticket-server/pom.xml`）
 - 脚本：`scripts/deploy-to-harbor.sh`（单服务）、`scripts/batch-deploy.sh`（串行批量）
 - 日志辅助：`scripts/klog.sh`、`scripts/klog-watcher.sh`
 
 ⚠️ `scripts/batch-deploy.sh` 与 `scripts/deploy-to-harbor.sh` **各有一份 `ALL_SERVICES`，两处 MUST 保持一致**（2026-09-16 已校对统一为 24 项，改动时 MUST 同时改两处）。
 历史坑（已修，勿回退）：原清单含仓库内**根本不存在**的 `wallet-server`、`online-server`，而脚本**失败即 `break`**，全量部署会在第二个服务就中断；同时漏了 `face-pay-server`（现行主模块）、`recon-server`、`card-pool-server` 等 9 个模块。
-**服务名必须是仓库根目录下的模块目录名** —— `deploy-to-harbor.sh` 按 `${LOCAL_BASE_DIR}/${NAME}/target` 找 `${NAME}-*.jar`，因此 **`web-admin`（位于 `web-server/` 下）不适用本脚本，勿加入**。另：`ticket-server` 的 `kubernetes-maven-plugin` 在 `ticket-server/pom.xml:115` 被注释掉，能否构建镜像需先确认。上述补齐项按 pom 是否声明 JKube 插件判定，**未经实际部署验证**，首次执行前 **MUST** 与运维核对。
+**服务名必须是仓库根目录下的模块目录名** —— `deploy-to-harbor.sh` 按 `${LOCAL_BASE_DIR}/${NAME}/target` 找 `${NAME}-*.jar`，因此 **`web-admin`（位于 `web-server/` 下）不适用本脚本，勿加入**。另：`ticket-server` 的 `kubernetes-maven-plugin` 在 `ticket-server/pom.xml` 被注释掉，能否构建镜像需先确认。上述补齐项按 pom 是否声明 JKube 插件判定，**未经实际部署验证**，首次执行前 **MUST** 与运维核对。
 
 ## 五、构建
 

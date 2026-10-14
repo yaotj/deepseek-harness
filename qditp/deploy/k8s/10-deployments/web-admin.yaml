@@ -210,6 +210,8 @@ spec:
           value: itp
         - name: RECON_SERVICE_URL
           value: http://recon-server-bjzdy-svc.itp.svc:30034
+        - name: F2F_SERVICE_URL
+          value: http://face-pay-server-svc.itp.svc:30025
         image: os-harbor-svc.default.svc.cloudos:443/itp/web-admin:1.1.41
         imagePullPolicy: IfNotPresent
         lifecycle: {}

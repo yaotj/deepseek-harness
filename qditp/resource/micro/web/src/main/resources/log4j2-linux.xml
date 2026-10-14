@@ -53,12 +53,13 @@
         <VictoriaLogs name="VictoriaLogs" url="${env:VLOGS_URL:-}"
             queueCapacity="8192" batchSize="512" flushIntervalMillis="2000"
             connectTimeoutMillis="2000" requestTimeoutMillis="5000">
-            <!-- 两级过滤：MDC 有 x-vlogs-capture=1 即 ACCEPT 全量上报（键 MUST 小写，NEVER 写驼峰），未命中落到 ThresholdFilter、只上报 WARN 及以上 -->
+            <!-- 两级过滤：MDC 有 x-vlogs-capture=1 即 ACCEPT 全量上报（键 MUST 小写，NEVER 写驼峰），未命中落到 ThresholdFilter、上报 DEBUG 及以上。
+                 2026-10-14 按需求下调为 DEBUG，以便链路跟踪的 INFO/DEBUG 细节进入 VictoriaLogs；本地 RollingFile/Console 仍通过 AppenderRef level 兜底为 INFO。 -->
             <Filters>
                 <ThreadContextMapFilter onMatch="ACCEPT" onMismatch="NEUTRAL">
                     <KeyValuePair key="x-vlogs-capture" value="1" />
                 </ThreadContextMapFilter>
-                <ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="DENY" />
+                <ThresholdFilter level="DEBUG" onMatch="ACCEPT" onMismatch="DENY" />
             </Filters>
             <JsonTemplateLayout eventTemplateUri="classpath:victorialogs-event-template.json">
                 <EventTemplateAdditionalField key="app" value="${appName}" />
@@ -88,17 +89,21 @@
             <AppenderRef ref="tempFile" />
         </Logger>
 
-        <!-- 关键链路埋点专用 logger：LoggerFactory.getLogger("VLOGS")，全量进 VictoriaLogs 不受 Root 阈值限制，additivity=false 防重复推送 -->
-        <Logger name="VLOGS" level="INFO" additivity="false">
-            <AppenderRef ref="RollingFile" />
-            <AppenderRef ref="Console" />
+        <!-- 关键链路埋点专用 logger：LoggerFactory.getLogger("VLOGS")，全量进 VictoriaLogs 不受 Root 阈值限制，additivity=false 防重复推送。
+             level 下调为 DEBUG， RollingFile/Console 通过 AppenderRef level="INFO" 兜底。 -->
+        <Logger name="VLOGS" level="DEBUG" additivity="false">
+            <AppenderRef ref="RollingFile" level="INFO" />
+            <AppenderRef ref="Console" level="INFO" />
             <AppenderRef ref="VictoriaLogs" />
         </Logger>
 
-        <!-- NEVER 删这个 logger，也 NEVER 给它的 VictoriaLogs 引用加 level 属性：AppenderRef 的 level 是「引用层过滤器」、先于 appender 的 Filters 求值，加了会让业务 INFO 在引用层就被 DENY、永远走不到 ThreadContextMapFilter；也 NEVER 在这里写死 DEBUG（本文件 RollingFile 无 ThresholdFilter 兜底）。详见 docs/ops/生产环境清单.md 附.三.3 -->
-        <Logger name="com.chinasofti.huateng" level="${webLoggerLevel}" additivity="false">
-            <AppenderRef ref="RollingFile" />
-            <AppenderRef ref="Console" />
+        <!-- com.chinasofti.huateng 业务日志：
+             level 写 DEBUG 以便 VictoriaLogs 能收到 DEBUG 明细；RollingFile/Console 通过 AppenderRef level="INFO" 兜底，避免本地文件被 DEBUG 打爆。
+             注意：AppenderRef 的 level 先于 appender 的 Filters 求值，因此 INFO 以下在引用层即被 DENY，不会走到 VictoriaLogs 的 ThreadContextMapFilter。
+             如需临时关闭 DEBUG，改 other.logging.level 或在启动参数加 -DwebLoggerLevel=INFO（RollingFile/Console 仍保持 INFO）。 -->
+        <Logger name="com.chinasofti.huateng" level="DEBUG" additivity="false">
+            <AppenderRef ref="RollingFile" level="INFO" />
+            <AppenderRef ref="Console" level="INFO" />
             <AppenderRef ref="VictoriaLogs" />
         </Logger>
 

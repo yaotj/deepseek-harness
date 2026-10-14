@@ -3,7 +3,9 @@ package com.chinasofti.huateng.recon.storage;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 日终对账编排配置：一次整批运行的节奏、账期窗口推算规则与各源的期望清单。
@@ -27,6 +29,16 @@ public class ReconOrchestrationProperties {
 
     /** 账期偏移天数：{@code businessDate = 今天 - windowOffsetDays}，默认 2 即 T-2 日。 */
     private int windowOffsetDays = 2;
+
+    /**
+     * 各文件类型独立的账期偏移天数；未列出的类型回退到 {@link #windowOffsetDays}。
+     *
+     * <p>用途：DETAIL 按「运营日」口径（需求 §一(4) 运营日期 T日 = T日2点~T+1日2点），
+     * 与 EXP/PAY/BUS 的 T-2~T-1 窗口不同。配置示例 {@code recon.orchestration.window-offset-days-by-type.DETAIL=1}。
+     * 注意：仅改变下发给源的数据抽取窗口；最终文件名后缀仍跟随批次的全局 businessDate，
+     * DETAIL 文件名是否应同步为运营日(如 T-1)属待甲方确认项，NEVER 自行决定。</p>
+     */
+    private Map<String, Integer> windowOffsetDaysByType = new HashMap<>();
 
     /** 窗口的日切时刻 {@code HHmmss}，默认 02:00:00，窗口为 [businessDate 日切, +1 天 日切)。 */
     private String windowStartTime = "020000";
@@ -52,6 +64,12 @@ public class ReconOrchestrationProperties {
     public int getWindowOffsetDays() { return windowOffsetDays; }
 
     public void setWindowOffsetDays(int windowOffsetDays) { this.windowOffsetDays = windowOffsetDays; }
+
+    public Map<String, Integer> getWindowOffsetDaysByType() { return windowOffsetDaysByType; }
+
+    public void setWindowOffsetDaysByType(Map<String, Integer> windowOffsetDaysByType) {
+        this.windowOffsetDaysByType = windowOffsetDaysByType == null ? new HashMap<>() : new HashMap<>(windowOffsetDaysByType);
+    }
 
     public String getWindowStartTime() { return windowStartTime; }
 

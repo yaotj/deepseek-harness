@@ -57,6 +57,14 @@ public class ReconSourceService {
             }
         }
     }
+
+    /**
+     * 为单个 {@code (来源, 文件类型)} 登记期望，按主键幂等。供 TXNDIFF 的 face-pay F2F_TXN 小批次等
+     * 不走全量期望清单的下发场景使用。
+     */
+    public void registerSingle(String batchId, String source, ReconFileType fileType) {
+        sourceMapper.insertIfAbsent(batchId, source, fileType.name(), ReconSourceStatus.PENDING.name());
+    }
     /** 指令已被源受理，置 EXPORTING 并清空上一轮的失败原因（走条件更新，不覆盖终态）。 */
     public void markExporting(String batchId, String source, ReconFileType fileType) {
         sourceMapper.updateStatusIfNotTerminal(batchId, source, fileType.name(),

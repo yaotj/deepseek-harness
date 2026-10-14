@@ -1,5 +1,6 @@
 package com.chinasofti.huateng.facepay.service;
 
+import com.chinasofti.huateng.facepay.api.device.app.AppRefundNotiResultReqDTO;
 import com.chinasofti.huateng.facepay.channel.paycenter.PayCenterClient;
 import com.chinasofti.huateng.facepay.channel.paycenter.PayCenterMessageFactory;
 import com.chinasofti.huateng.facepay.channel.paycenter.PayCenterResult;
@@ -12,35 +13,55 @@ import com.chinasofti.huateng.facepay.support.F2fOrderNo;
 import com.chinasofti.huateng.facepay.support.F2fOrderNoGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
-/** 退款编排。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。 */
+/**
+ * 退款编排。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。
+ */
 @Service
 public class F2fRefundService {
 
-    /** 出票故障自动退（差额退）。 */
+    /**
+     * 出票故障自动退（差额退）。
+     */
     public static final String SOURCE_TAKE_TICKET_FAIL = "TAKE_TICKET_FAIL";
 
-    /** BOM 单程票原路退。 */
+    /**
+     * BOM 单程票原路退。
+     */
     public static final String SOURCE_BOM_ORIGINAL = "BOM_ORIGINAL";
 
-    /** APP 用户主动退。 */
+    /**
+     * APP 用户主动退。
+     */
     public static final String SOURCE_APP_REQUEST = "APP_REQUEST";
 
-    /** 每日批量退未取票交易。 */
+    /**
+     * 每日批量退未取票交易。
+     */
     public static final String SOURCE_DAILY_BATCH = "DAILY_BATCH";
 
-    /** 充值写卡失败退。 */
+    /**
+     * 充值写卡失败退。
+     */
     public static final String SOURCE_TOPUP_FAIL = "TOPUP_FAIL";
 
-    /** 运营端手工退。 */
+    /**
+     * 运营端手工退。
+     */
     public static final String SOURCE_PAGE_MANUAL = "PAGE_MANUAL";
 
-    /** 设备侧 {@code requestRefund} 发起。 */
+    /**
+     * 设备侧 {@code requestRefund} 发起。
+     */
     public static final String SOURCE_TVM_REQUEST = "TVM_REQUEST";
 
     static final String STATUS_INIT = "INIT";
@@ -51,17 +72,23 @@ public class F2fRefundService {
 
     static final String STATUS_FAILED = "FAILED";
 
-    /** 超过自动收口时间窗仍拿不到明确结果，转人工介入。 */
+    /**
+     * 超过自动收口时间窗仍拿不到明确结果，转人工介入。
+     */
     static final String STATUS_MANUAL = "MANUAL";
 
-    /** 可推进到终态的前置状态白名单。 */
+    /**
+     * 可推进到终态的前置状态白名单。
+     */
     private static final List<String> PENDING_STATUSES = List.of(STATUS_INIT, STATUS_PROCESSING);
 
     private static final Logger log = LoggerFactory.getLogger(F2fRefundService.class);
 
     private final F2fRefundMapper refundMapper;
 
-    /** 只用于退款收口后重算订单上的退款汇总三列（{@code REFUND_STATUS} / {@code REFUND_AMOUNT} / {@code LAST_REFUND_TMS}）。 */
+    /**
+     * 只用于退款收口后重算订单上的退款汇总三列（{@code REFUND_STATUS} / {@code REFUND_AMOUNT} / {@code LAST_REFUND_TMS}）。
+     */
     private final F2fOrderMapper orderMapper;
 
     private final F2fOrderNoGenerator orderNoGenerator;
@@ -70,7 +97,9 @@ public class F2fRefundService {
 
     private final PayCenterMessageFactory messageFactory;
 
-    /** 退避与放弃的全部参数与算法。 */
+    /**
+     * 退避与放弃的全部参数与算法。
+     */
     private final F2fRefundRetryPolicy retryPolicy;
 
     public F2fRefundService(F2fRefundMapper refundMapper, F2fOrderMapper orderMapper,
@@ -84,6 +113,9 @@ public class F2fRefundService {
         this.messageFactory = messageFactory;
         this.retryPolicy = retryPolicy;
     }
+
+    @Autowired
+    private F2fNotifyService notifyService;
 
     /**
      * 发起一笔退款。
@@ -122,7 +154,9 @@ public class F2fRefundService {
         return submitToPayCenter(refundNo, command);
     }
 
-    /** 把退款单送到支付中心。 */
+    /**
+     * 把退款单送到支付中心。
+     */
     private RefundOutcome submitToPayCenter(String refundNo, RefundCommand command) {
         PayCenterResult result = payCenterClient.execute(
                 payCenterClient.properties().getRefundUrl(),
@@ -133,7 +167,7 @@ public class F2fRefundService {
             String reason = result.isTransportFailed() ? result.getFailureReason() : result.getMsg();
             refundMapper.increaseRetryTimes(refundNo, truncate(reason), retryPolicy.nextQueryTms(0));
             log.error("退款未被支付中心受理，留在 INIT 等扫表收口（NEVER 置 FAILED，钱可能已退）,"
-                    + " refundNo={}, transportFailed={}, code={}", refundNo, result.isTransportFailed(),
+                            + " refundNo={}, transportFailed={}, code={}", refundNo, result.isTransportFailed(),
                     result.getCode());
             return new RefundOutcome(refundNo, STATUS_INIT, false, reason);
         }
@@ -151,9 +185,12 @@ public class F2fRefundService {
      */
     public boolean reconcileRefund(F2fRefund refund) {
         String refundNo = refund.getRefundNo();
+        log.info("refundNo is {}", refundNo);
         PayCenterResult result = payCenterClient.execute(
                 payCenterClient.properties().getRefundQueryUrl(),
                 messageFactory.buildRefundQueryRequest(refundNo));
+
+        log.info("退款结果查询 result is {}", result);
 
         if (result.isTransportFailed() || !result.isSuccessCode()) {
             String reason = result.isTransportFailed() ? result.getFailureReason() : result.getMsg();
@@ -167,13 +204,18 @@ public class F2fRefundService {
             return false;
         }
 
+        log.info("组装通知app数据");
         PayCenterStatus status = result.status();
+        String msg = result.string("msg");
+        String refundTime = result.string("refundTime");
         LocalDateTime now = LocalDateTime.now();
         if (status == PayCenterStatus.SUCCESS) {
             int updated = refundMapper.updateStatus(refundNo, PENDING_STATUSES, STATUS_SUCCESS,
                     result.string("refundOrderNo"), now);
             log.info("退款收口为成功, refundNo={}, updatedRows={}", refundNo, updated);
             refreshOrderRefundSummary(refund);
+            log.info("退款成功 开始落库通知记录");
+            enqueueRefundNotify(refund.getOrigOrderNo(), refund.getRefundNo(), status.getCode(), msg, refundTime.substring(0, 8), String.valueOf(refund.getRefundAmount()));
             return true;
         }
         if (status != null && status.isFailed()) {
@@ -181,19 +223,45 @@ public class F2fRefundService {
                     result.string("refundOrderNo"), now);
             log.error("退款收口为失败，需人工介入, refundNo={}, updatedRows={}", refundNo, updated);
             refreshOrderRefundSummary(refund);
+            log.info("退款失败 开始落库通知记录");
+            enqueueRefundNotify(refund.getOrigOrderNo(), refund.getRefundNo(), status.getCode(), msg, refundTime.substring(0, 8), String.valueOf(refund.getRefundAmount()));
             return true;
         }
         String pending = "支付中心仍报 " + status;
         if (giveUpToManual(refund, pending)) {
             return true;
         }
+
         refundMapper.increaseRetryTimes(refundNo, truncate(pending),
                 retryPolicy.nextQueryTms(refund.getRetryTimes()));
         log.info("退款收口时{}，按退避排下一轮, refundNo={}", pending, refundNo);
         return false;
     }
 
-    /** 退款单收口到终态后，重算订单上的退款汇总三列。 */
+    /**
+     * 入队一条退款结果通知。
+     */
+    private void enqueueRefundNotify(String payOrderNo, String refundNo, String refundResult, String refundResultDesc, String refundDate, String refundAmount) {
+        log.info("主动发起退款结果查询 入队一条退款结果通知 payOrderNo is {} refundNo is {} refundResult is {} refundResultDesc is {} refundDate is {} refundAmount is {}", payOrderNo, refundNo, refundResult, refundResultDesc, refundDate, refundAmount);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("orderNo", payOrderNo);
+        payload.put("refundType", "00");
+        payload.put("refundResult", refundResult);
+        payload.put("refundResultDesc", refundResultDesc);
+        payload.put("refundDate", refundDate == null
+                ? LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) : refundDate);
+        payload.put("refundAmount", refundAmount);
+        boolean enqueued = notifyService.enqueue(F2fNotifyService.TYPE_REFUND_RESULT,
+                payOrderNo, refundNo, payload);
+        log.info("报错结束 enqueued is {}",enqueued);
+        if (!enqueued) {
+            log.info("退款结果通知已存在，跳过入队, refundNo={}", refundNo);
+        }
+    }
+
+    /**
+     * 退款单收口到终态后，重算订单上的退款汇总三列。
+     */
     private void refreshOrderRefundSummary(F2fRefund refund) {
         String origOrderNo = refund.getOrigOrderNo();
         if (origOrderNo == null || origOrderNo.isBlank()) {
@@ -229,17 +297,23 @@ public class F2fRefundService {
         return true;
     }
 
-    /** 扫一批到点该查的退款单，供定时任务调用。 */
+    /**
+     * 扫一批到点该查的退款单，供定时任务调用。
+     */
     public List<F2fRefund> loadRetryCandidates(LocalDateTime now, int limit) {
         return refundMapper.selectRetryCandidates(PENDING_STATUSES, now, limit);
     }
 
-    /** 按退款单号查询，供运营端与通知链路使用。 */
+    /**
+     * 按退款单号查询，供运营端与通知链路使用。
+     */
     public F2fRefund findByRefundNo(String refundNo) {
         return refundMapper.selectByRefundNo(refundNo);
     }
 
-    /** 撞唯一索引后回查已有退款单。 */
+    /**
+     * 撞唯一索引后回查已有退款单。
+     */
     private F2fRefund findExisting(RefundCommand command) {
         List<F2fRefund> refunds = refundMapper.selectByOrigOrderNo(command.origOrderNo());
         for (F2fRefund candidate : refunds) {
@@ -251,7 +325,9 @@ public class F2fRefundService {
         return null;
     }
 
-    /** {@code FAIL_REASON} 列宽 512，超长截断由应用负责（mapper 文档已注明）。 */
+    /**
+     * {@code FAIL_REASON} 列宽 512，超长截断由应用负责（mapper 文档已注明）。
+     */
     private static String truncate(String reason) {
         if (reason == null) {
             return null;

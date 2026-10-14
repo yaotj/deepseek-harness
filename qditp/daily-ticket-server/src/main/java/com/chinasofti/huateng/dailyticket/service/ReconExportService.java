@@ -122,7 +122,7 @@ public class ReconExportService {
         }
     }
 
-    /** DETAIL：虚拟电子多日计次票的「车票购买（发售）」明细，Keyset 游标翻页逐行写出。 */
+    /** DETAIL：虚拟电子多日计次票的「车票购买（发售）」明细，对齐需求 21 段行格式，Keyset 游标翻页逐行写出。 */
     private void exportDetail(ReconExportReqDTO req) {
         Timestamp windowStart = req.getWindowStartTimestamp();
         Timestamp windowEnd = req.getWindowEndTimestamp();
@@ -137,14 +137,35 @@ public class ReconExportService {
                 }
                 for (Map<String, Object> row : rows) {
                     long payAmount = toLong(pick(row, "PAY_AMOUNT"));
+                    // 21 段顺序严格对齐需求表头；本源仅持有「发售」域字段，跨域字段留空并待甲方确认：
+                    // 第8段票卡类型源为APP侧码(需经CardTypeMapping归一为044X)、第9/14/18段本表无对应列、第19段发售恒空。
+                    // 金额未澄清前一律按分。订单状态由ORDER_STATUS派生(含REFUND->退款订单，否则正常订单)。
+                    String orderStatus = toStr(pick(row, "ORDER_STATUS"));
+                    String orderStatusLabel = (orderStatus != null && orderStatus.contains("REFUND"))
+                            ? "退款订单" : "正常订单";
                     sink.write(ReconRecord.line(
-                            toStr(pick(row, "OPERATE_DATE")),
-                            TXN_TYPE_SALE,
-                            toStr(pick(row, "CARD_NUM")),
-                            toStr(pick(row, "TXN_DATE_TIME")),
-                            payAmount,
-                            "",
-                            ""), payAmount);
+                            toStr(pick(row, "OPERATE_DATE")),           // 1 运营日期
+                            TXN_TYPE_SALE,                              // 2 交易类型=发售
+                            toStr(pick(row, "CARD_NUM")),              // 3 逻辑卡号
+                            toStr(pick(row, "TXN_DATE_TIME")),         // 4 交易日期
+                            toLong(pick(row, "TICKET_PRICE")),         // 5 交易原价(分)
+                            "",                                        // 6 当前车站名称(线上购买无车站)
+                            "",                                        // 7 设备编码(线上购买无设备)
+                            "",                                        // 8 票卡类型(需归一044X，待确认)
+                            "",                                        // 9 票卡子类型(无对应列，待确认)
+                            toLong(pick(row, "ACTUAL_TIMES")),         // 10 次数
+                            toStr(pick(row, "PAY_CHANNEL_CODE")),      // 11 支付渠道
+                            toStr(pick(row, "ACTIVATE_TIME")),         // 12 激活时间
+                            "1",                                       // 13 数量(固定1)
+                            "",                                        // 14 交易流水号(购票无闸机里程序列号，待确认)
+                            toStr(pick(row, "ORDER_NO")),             // 15 交易订单号
+                            toLong(pick(row, "TICKET_PRICE")),         // 16 订单金额(分)
+                            payAmount,                                 // 17 实际扣款金额(分)
+                            "",                                        // 18 优惠累计消费金额(无对应列，待确认)
+                            "",                                        // 19 超时金额(发售恒空)
+                            orderStatusLabel,                          // 20 订单状态(正常/退款，派生，待确认映射)
+                            toLong(pick(row, "REFUND_AMOUNT"))),       // 21 退款金额(分，LEFT JOIN DAILY_TICKET_REFUND)
+                            payAmount);
                 }
                 Map<String, Object> last = rows.get(rows.size() - 1);
                 lastPayDate = toTimestamp(pick(last, "PAY_DATE"));

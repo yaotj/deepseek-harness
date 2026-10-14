@@ -51,5 +51,18 @@ public interface F2fReconExportMapper {
 
     /** 漏账探针二：窗口内支付成功（按 {@code F2F_PAYMENT.FINISH_TMS} 落窗）、但订单 {@code PAID_TMS} 为空的单数。 */
     Long countPaidWithoutPaidTms(@Param("windowStart") Timestamp windowStart,
-                                 @Param("windowEnd") Timestamp windowEnd);
+                                @Param("windowEnd") Timestamp windowEnd);
+
+    /**
+     * F2F_TXN —— TXNDIFF 第三方对账的 face-pay 侧明细流水：{@code F2F_ORDER} JOIN {@code F2F_PAYMENT(SUCCESS)}，
+     * 按支付成功时间({@code PAID_TMS})落窗、逐行返回。不复用 PAY/BUS 的聚合口径，行格式见 {@code F2fTxnLine}。
+     *
+     * @param windowStart 窗口下限（含）
+     * @param windowEnd   窗口上限（不含）
+     * @return 每行含 CARD_ID / PAID_TMS_STR / TICKET_PRICE / STATION_CODE / DEVICE_ID / TICKET_NUM /
+     *         PAY_CHANNEL_CODE / ACTIVATE_TMS_STR / DEVICE_SEQ / ORDER_NO / ORDER_AMOUNT / ACTUAL_AMOUNT /
+     *         COUPON_AMOUNT / CHANNEL_ORDER_NO / PAY_STATUS
+     */
+    List<Map<String, Object>> selectFacePayTxnDetails(@Param("windowStart") Timestamp windowStart,
+                                                     @Param("windowEnd") Timestamp windowEnd);
 }

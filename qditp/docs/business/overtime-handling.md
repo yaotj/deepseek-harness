@@ -118,7 +118,7 @@ lastTicketStatus| String | ... 06：超时出站 ...
 
 ### ① P0 缺陷：超时出站时多日计次票一次都不扣
 
-`ticket-server/src/main/java/com/chinasofti/huateng/ticket/gate/GateDailyTicketCoordinator.java:125`
+`ticket-server/src/main/java/com/chinasofti/huateng/ticket/gate/GateDailyTicketCoordinator.java`
 
 ```java
 if (!TrxTypeCodeEnum.EXIT.getCode().equals(request.getTrxType())   // 只认 "02"
@@ -127,8 +127,8 @@ if (!TrxTypeCodeEnum.EXIT.getCode().equals(request.getTrxType())   // 只认 "02
 }
 ```
 
-`TrxTypeCodeEnum`（`model/.../enums/TrxTypeCodeEnum.java:15`）里 `EXIT_OVERTIME("03","超时出站")` 是独立取值，
-同类 `:43` 的 `isExitTxn()` **明确把 `02` 和 `03` 都当出站**（`:44` 原文
+`TrxTypeCodeEnum`（`model/.../enums/TrxTypeCodeEnum.java`）里 `EXIT_OVERTIME("03","超时出站")` 是独立取值，
+同类 的 `isExitTxn()` **明确把 `02` 和 `03` 都当出站**（ 原文
 `return EXIT.code.equals(trxType) || EXIT_OVERTIME.code.equals(trxType);`），而这里用的是 `EXIT.getCode()` 精确等值。
 
 后果：闸机上送 `trxType=03` 时**整段扣次逻辑直接 return** —— 既不扣正常次数、也不扣超时次数、
@@ -138,7 +138,7 @@ if (!TrxTypeCodeEnum.EXIT.getCode().equals(request.getTrxType())   // 只认 "02
 
 ### ② 闸机传来的线网最高票价被就地丢弃
 
-`ticket-server/.../gate/GateCardTypeEnricher.java:156`
+`ticket-server/.../gate/GateCardTypeEnricher.java`
 
 ```java
 if (CardTypeCodeEnum.isEmployeeCard(actualCardType) || CardTypeCodeEnum.isDailyTicket(actualCardType)) {
@@ -152,20 +152,20 @@ if (CardTypeCodeEnum.isEmployeeCard(actualCardType) || CardTypeCodeEnum.isDailyT
 
 ### ③ 扣次固定 -1，没有「扣两次」的任何入口
 
-- `daily-ticket-server/.../service/impl/DailyTicketServiceImpl.java:912` 起：`actualTimes > 0` 时调一次
+- `daily-ticket-server/.../service/impl/DailyTicketServiceImpl.java` 起：`actualTimes > 0` 时调一次
   `decreaseActualTimes`，`remainTimes = actualTimes - 1`。
-- `daily-ticket-server/src/main/resources/mapper/DailyTicketInstanceMapper.xml:156`：
+- `daily-ticket-server/src/main/resources/mapper/DailyTicketInstanceMapper.xml`：
   `set ACTUAL_TIMES = ACTUAL_TIMES - 1 ... where ID = #{id} and ACTUAL_TIMES > 0` —— **SQL 里硬编码 `- 1`**。
-- RPC 请求体是裸 `Map`（`rpc/.../dailyticket/DailyTicketClient.java:269` 的 `markUsed`，键只有
+- RPC 请求体是裸 `Map`（`rpc/.../dailyticket/DailyTicketClient.java` 的 `markUsed`，键只有
   `cardNum` / `countingEnd` / `orderNo` / `inStation` / `outStation`），**没有次数字段**；接收端
-  `DailyTicketController.java:133` 同样不接次数。
-- `GateDailyTicketCoordinator:27` 的 `DAILY_TICKET_TIMES_PER_TRIP = 1` 是常量。
+  `DailyTicketController.java` 同样不接次数。
+- `GateDailyTicketCoordinator` 的 `DAILY_TICKET_TIMES_PER_TRIP = 1` 是常量。
 - **没有「剩余次数不足两次」的分支，也没有任何「扣次失败转扣款」的链路。**
 
 ### ④ 离线码那个「20 分钟 / 3 元」在甲方文档里查无出处
 
-`gate-txn-pay-server/.../fare/FareCalculator.java:147`：`rideSeconds > offlineTimeoutSeconds` 即
-`overtimeFee = offlineTimeoutFeeCents`，配置在 `gate-txn-pay-server/src/main/resources/application.properties:73`：
+`gate-txn-pay-server/.../fare/FareCalculator.java`：`rideSeconds > offlineTimeoutSeconds` 即
+`overtimeFee = offlineTimeoutFeeCents`，配置在 `gate-txn-pay-server/src/main/resources/application.properties`：
 
 ```properties
 offline.billing.timeout-seconds=${OFFLINE_BILLING_TIMEOUT_SECONDS:1200}
@@ -185,7 +185,7 @@ offline.billing.timeout-fee-cents=${OFFLINE_BILLING_TIMEOUT_FEE_CENTS:300}
 ### ⑤ 「线网最高票价」参数在代码里零命中
 
 `maxFare` / `MAX_FARE` / `最高票价` / `线网最高` / `maxPrice` 全仓 grep **零命中**（仅
-`docs/business/recon.md:651` 与 `docs/ops/生产环境清单.md:959` 两处文档提及，均记为未闭合项 B9）。
+`docs/business/recon.md` 与 `docs/ops/生产环境清单.md` 两处文档提及，均记为未闭合项 B9）。
 
 para-server 的票价体系是两级查询：`TBL_FARE_MATRIX` 存 OD 对 → `FARE_TIER`，再按 `FARE_TIER` 查价，
 **没有 `MAX(票价)` 聚合接口**。`ParaClient` 现有方法只有 `requestTicketPriceByStation`（按进出站算价）、
@@ -193,7 +193,7 @@ para-server 的票价体系是两级查询：`TBL_FARE_MATRIX` 存 OD 对 → `F
 
 ### ⑥ 「默认支付方式扣一笔」有零件、没链路
 
-- 免密扣款入口存在：`rpc/.../paysign/PaySignClient.java:116` 的 `requestPay` → `POST /ci/app/requestPay`，
+- 免密扣款入口存在：`rpc/.../paysign/PaySignClient.java` 的 `requestPay` → `POST /ci/app/requestPay`，
   DTO `model/.../app/RequestPayReqDTO`。现有调用方是 gate-txn-pay-server 的出站扣费。
 - **daily-ticket-server 没有任何 `PaySignClient.requestPay` 调用**；该模块的支付走自己的购票网关
   （`client/DailyTicketPayGatewayClient`，银商 RSA2），与闸机扣费链路完全隔离。
@@ -205,14 +205,14 @@ para-server 的票价体系是两级查询：`TBL_FARE_MATRIX` 存 OD 对 → `F
 
 | 环节 | 位置 |
 |---|---|
-| 落交易明细 | `ticket-server/.../gate/GateTxnAssembler.java:41` → `QRCODE_TXN_DETAIL.OVERTIME_AMOUNT` |
-| 落扣费表 | `gate-txn-pay-server/.../service/impl/GateTxnPayServiceImpl.java:235` → `GATE_TXN_PAY.OVERTIME_AMOUNT` |
+| 落交易明细 | `ticket-server/.../gate/GateTxnAssembler.java` → `QRCODE_TXN_DETAIL.OVERTIME_AMOUNT` |
+| 落扣费表 | `gate-txn-pay-server/.../service/impl/GateTxnPayServiceImpl.java` → `GATE_TXN_PAY.OVERTIME_AMOUNT` |
 | 进扣款总额 | `TOTAL_AMOUNT = 实扣 + 超时费` |
-| IF8A-41 账单统计 | `GateTxnPayMapper.xml:457` 的 `totalOvertime` → `model/app/TripDataDTO.java:13` |
-| 对账 `ITP.DETAIL` | `gate-txn-pay-server/.../mapper/ReconExportMapper.xml:93`：`NVL(OVERTIME_AMOUNT,0) > 0 AND CARD_TYPE IN ('0445','0446','0447','0448')` |
-| **反向功能：综管台批量退超时罚金** | `GateTxnPayPageController.java:62` `GET /page/gate-txn-pay/overtime-refundable`、`:72` `POST /page/gate-txn-pay/batch-refund-overtime`（≤200 笔）；前端 `web/src/views/trans/overtime-refund/index.vue` |
+| IF8A-41 账单统计 | `GateTxnPayMapper.xml` 的 `totalOvertime` → `model/app/TripDataDTO.java` |
+| 对账 `ITP.DETAIL` | `gate-txn-pay-server/.../mapper/ReconExportMapper.xml`：`NVL(OVERTIME_AMOUNT,0) > 0 AND CARD_TYPE IN ('0445','0446','0447','0448')` |
+| **反向功能：综管台批量退超时罚金** | `GateTxnPayPageController.java` `GET /page/gate-txn-pay/overtime-refundable`、 `POST /page/gate-txn-pay/batch-refund-overtime`（≤200 笔）；前端 `web/src/views/trans/overtime-refund/index.vue` |
 
-两条补站链路的 `overtimeAmount` **硬编码 `"0"`**：`SupplementGateRequestAssembler.java:28`（IF8A-04 自助补站
+两条补站链路的 `overtimeAmount` **硬编码 `"0"`**：`SupplementGateRequestAssembler.java`（IF8A-04 自助补站
 `/ci/app/requestExcessFare` 与 IF5A BOM 补站共用）。IF8A-04 的规格参数表（TS9 表101 / R6 表11 逐字一致）
 **没有任何金额字段**，只有 `thirdUserId` / `cardId` / `cardType` / `upgradeAreaType` / `upgradeStationCode` /
 `upgradeReason` / `upgradeDateTime` —— 它是**状态修复**接口，不是补收接口。
@@ -295,8 +295,8 @@ AND 该票为计次类（有 ACTUAL_TIMES 语义）
 | `ticketTransSeq` | String | 票卡交易序列号 | 幂等键 + §3.63 的 `transSeq`（**NEVER 取 `QRCODE_STATUS.TXN_SEQ`**） |
 
 服务端**唯二**行为改动：
-- `GateDailyTicketCoordinator:125` 的 `EXIT.getCode()` 改为 `TrxTypeCodeEnum.isExitTxn(...)`（**放开 `03`**）。
-- `GateCardTypeEnricher:158` 的 `setOvertimeAmount("0")` **只在非超时出站时执行**。
+- `GateDailyTicketCoordinator` 的 `EXIT.getCode()` 改为 `TrxTypeCodeEnum.isExitTxn(...)`（**放开 `03`**）。
+- `GateCardTypeEnricher` 的 `setOvertimeAmount("0")` **只在非超时出站时执行**。
 
 ### 4.2 内部：`markUsed` 扩展（**改签名，daily-ticket-server**）
 
@@ -400,9 +400,9 @@ daily-ticket-server **正在** tracing 名单里）。
 
 - 超时行 = `交易类型=出站`，第 5 段 `交易金额` 填超时费（**不是 `TOTAL_AMOUNT`**）。
 - 数据源改为 `DAILY_TICKET_OVERTIME_FEE`（现在是 `GATE_TXN_PAY` 按 `OVERTIME_AMOUNT > 0` +
-  `CARD_TYPE IN ('0445'..'0448')` 圈单，见 `ReconExportMapper.xml:93`）。
+  `CARD_TYPE IN ('0445'..'0448')` 圈单，见 `ReconExportMapper.xml`）。
 - **刻意不加 `PAY_STATUS` 过滤**：超时费是否结清与是否要报账是两件事（沿用
-  `docs/business/recon.md:428` 已确立的口径）。
+  `docs/business/recon.md` 已确立的口径）。
 - 金额钳制（「线网最高票价或者1」）**Q1 + Q3 闭合后才能实现**，当前 B9 未闭合项照旧。
 
 ---
@@ -420,7 +420,7 @@ daily-ticket-server **正在** tracing 名单里）。
 
 **另有一条内部裁决**（不是甲方问题）：本篇按「闸机送 `overtimeAmount`、ITP 只做扣次/扣款判定」设计，
 与「ITP 侧自行计算超时费」是**两种不同方案**。规格明确是前者（§1.2 第 2、3 条），
-若要改为后者，则需先闭合 Q1 + Q2。注意 `docs/business/ride-code.md:383` 与 `:954` 那两条契约
+若要改为后者，则需先闭合 Q1 + Q2。注意 `docs/business/ride-code.md` 那两条契约
 （「`overtimeAmount` 恒为 `"0"`：ITP 侧不算超时费，超时费只由闸机 / AGM 通过 `trxType=03` 上送」）
 **约束的是两条补站链路（IF8A-04 / IF5A-03），本域不改它们、无需推翻**；
 但那句话里「ITP 侧不算超时费」的**论断范围** MUST 收窄为「补站链路不算」——
@@ -457,10 +457,10 @@ daily-ticket-server **正在** tracing 名单里）。
 ### S0 — 止血：让超时出站至少扣 1 次（**零依赖，可立即开工**）
 
 - **改动**（ticket-server，2 处）：
-  - `gate/GateDailyTicketCoordinator.java:125`：`TrxTypeCodeEnum.EXIT.getCode().equals(...)` → `TrxTypeCodeEnum.isExitTxn(request.getTrxType())`。
-  - 同方法 Javadoc `:123` 的「仅出站 trxType 触发」补一句「含 `03` 超时出站」。
-- **刻意不做**：`GateCardTypeEnricher:158` 的 `setOvertimeAmount("0")` **本阶段不动**。
-  放开它会立刻改变对账输出 —— `ReconExportMapper.xml:93` 的 `ITP.DETAIL` 圈单条件正是
+  - `gate/GateDailyTicketCoordinator.java`：`TrxTypeCodeEnum.EXIT.getCode().equals(...)` → `TrxTypeCodeEnum.isExitTxn(request.getTrxType())`。
+  - 同方法 Javadoc 的「仅出站 trxType 触发」补一句「含 `03` 超时出站」。
+- **刻意不做**：`GateCardTypeEnricher` 的 `setOvertimeAmount("0")` **本阶段不动**。
+  放开它会立刻改变对账输出 —— `ReconExportMapper.xml` 的 `ITP.DETAIL` 圈单条件正是
   `NVL(OVERTIME_AMOUNT,0) > 0 AND CARD_TYPE IN ('0445'..'0448')`，一旦闸机送的线网最高票价落进库里，
   当期 `ITP.DETAIL` 会凭空多出行、且金额单位口径（Q3）还没定。**MUST 留到 S4 与对账一起验。**
 - **口径不变**：本阶段仍是扣 1 次，因此 §3.63 的 `times` **恒传 1 不变**，
@@ -515,7 +515,7 @@ daily-ticket-server **正在** tracing 名单里）。
 - **补偿**：两个 `/internal/daily-ticket/overtime-fee/**` 端点（**MUST 带鉴权**）+ web-admin 两条 `sys_job`
   （新增任务前 MUST 读 `docs/architecture/web-server.md` §七；**改完 `sys_job` MUST 重启 web-admin**，
   内存 JobStore 下直接 INSERT 不生效；判断跑没跑 **MUST 查 `SYS_JOB_LOG`**）。
-- **放开 `overtimeAmount`**：`GateCardTypeEnricher:156~159` 改成「只在**非**超时出站时清 `overtimeAmount`」，
+- **放开 `overtimeAmount`**：`GateCardTypeEnricher` 改成「只在**非**超时出站时清 `overtimeAmount`」，
   `trxAmount` 照旧恒清 0。
 - **对账**：`ITP.DETAIL` 数据源改挂 `DAILY_TICKET_OVERTIME_FEE`；按 Q3 结论定金额单位与钳制。
   **验证 MUST 跑一次完整账期**（`sys_job` 225「给ACC上传扣费交易」→ 批次收口 `SUCCESS` → 看 recon-server 的
@@ -534,8 +534,8 @@ Q2 若裁定维持现状 ⇒ 只更新文档；若裁定统一为线网最高票
 ### 构建与部署备注（本次实测）
 
 - **`ticket-server` 与 `daily-ticket-server` 的 jkube 都在 `remote` profile 内、`activeByDefault=true`、
-  `<phase>package</phase>`、goals `build` + `push` 均未注释**（`ticket-server/pom.xml:178`、
-  `daily-ticket-server/pom.xml:107`），因此**两者 `mvn clean package` 就会直接推镜像到 Harbor**，
+  `<phase>package</phase>`、goals `build` + `push` 均未注释**（`ticket-server/pom.xml`、
+  `daily-ticket-server/pom.xml`），因此**两者 `mvn clean package` 就会直接推镜像到 Harbor**，
   不需要 `-Premote`。只想拿 jar **MUST** 加 `-Djkube.skip=true`。
   （`ticket-server` 另有一段被整体注释掉的 `build-image-after-package`，**勿被它误导**。）
 - 版本号按需 +0.0.1，但 **MUST 每次现查 pom 与 Deployment**，**NEVER 引用文档里的版本数字**。

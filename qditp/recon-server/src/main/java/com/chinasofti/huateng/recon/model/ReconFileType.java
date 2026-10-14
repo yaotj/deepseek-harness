@@ -4,7 +4,8 @@ public enum ReconFileType {
     EXP("ITP.EXP"),
     PAY("ITP.PAY"),
     BUS("ITP.BUS"),
-    DETAIL("ITP.DETAIL");
+    DETAIL("ITP.DETAIL"),
+    F2F_TXN("ITP.F2F_TXN");
 
     private final String prefix;
 

@@ -7,8 +7,10 @@ import com.chinasofti.huateng.facepay.channel.paycenter.PayCenterResult;
 import com.chinasofti.huateng.facepay.channel.paycenter.PayCenterResults;
 import com.chinasofti.huateng.facepay.channel.paycenter.PayCenterStatus;
 import com.chinasofti.huateng.facepay.domain.F2fOrderStatus;
+import com.chinasofti.huateng.facepay.entity.F2fOrder;
 import com.chinasofti.huateng.facepay.mapper.F2fOrderMapper;
 import com.chinasofti.huateng.facepay.mapper.F2fPaymentMapper;
+import com.chinasofti.huateng.facepay.support.F2fChannel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -207,6 +209,56 @@ class F2fPayCenterFlowTest {
         when(orderMapper.selectOrderStatus(ORDER_NO)).thenReturn(F2fOrderStatus.EXPIRED.name());
         flow.markPaidAndReport(ORDER_NO);
         verify(orderMapper, times(1)).selectOrderStatus(ORDER_NO);
+    }
+
+    /**
+     * IF8B-05 只推 APP 渠道单（甲方 2026-10-13 裁决）：TVM / BOM 单必须完全不落 {@code F2F_NOTIFY_TASK}。
+     * 判据取 {@code CHANNEL} 而不是 {@code THIRD_USER_ID} —— 甲方口径是「是不是 APP 购票」。
+     */
+    @Test
+    void payResultNotifySkipsNonAppChannel() {
+        givenOrderWithChannel(F2fChannel.TVM);
+        flow.enqueuePayResultNotify(ORDER_NO, "TRADE1", LocalDateTime.now());
+        verify(notifyService, never()).enqueue(anyString(), anyString(), any(), any());
+        verify(notifyService, never()).enqueue(anyString(), anyString(), any(), any(), anyInt());
+
+        givenOrderWithChannel(F2fChannel.BOM);
+        flow.enqueuePayResultNotify(ORDER_NO, "TRADE1", LocalDateTime.now());
+        verify(notifyService, never()).enqueue(anyString(), anyString(), any(), any());
+        verify(notifyService, never()).enqueue(anyString(), anyString(), any(), any(), anyInt());
+    }
+
+    /** APP 渠道单照旧入队。 */
+    @Test
+    void payResultNotifyEnqueuesAppChannel() {
+        when(notifyService.enqueue(eq(F2fNotifyService.TYPE_PAY_RESULT), eq(ORDER_NO), any(), any()))
+                .thenReturn(true);
+        givenOrderWithChannel(F2fChannel.APP);
+
+        flow.enqueuePayResultNotify(ORDER_NO, "TRADE1", LocalDateTime.now());
+
+        verify(notifyService).enqueue(eq(F2fNotifyService.TYPE_PAY_RESULT), eq(ORDER_NO), any(), any());
+    }
+
+    /** APP 渠道单若异常地缺 {@code THIRD_USER_ID}，仍入队但重试上限压到 1（数据缺陷要可见）。 */
+    @Test
+    void payResultNotifyFallsBackToOneRetryWhenAppOrderMissesUserId() {
+        F2fOrder appOrderWithoutUserId = new F2fOrder();
+        appOrderWithoutUserId.setOrderNo(ORDER_NO);
+        appOrderWithoutUserId.setChannel(F2fChannel.APP);
+        when(orderMapper.selectByOrderNo(ORDER_NO)).thenReturn(appOrderWithoutUserId);
+
+        flow.enqueuePayResultNotify(ORDER_NO, "TRADE1", LocalDateTime.now());
+
+        verify(notifyService).enqueue(eq(F2fNotifyService.TYPE_PAY_RESULT), eq(ORDER_NO), any(), any(), eq(1));
+    }
+
+    private void givenOrderWithChannel(String channel) {
+        F2fOrder order = new F2fOrder();
+        order.setOrderNo(ORDER_NO);
+        order.setChannel(channel);
+        order.setThirdUserId("00522976");
+        when(orderMapper.selectByOrderNo(ORDER_NO)).thenReturn(order);
     }
 
     private F2fPayCenterFlow.SubmitSpec preOrderSpec(F2fPayCenterFlow.RejectTransition transition) {

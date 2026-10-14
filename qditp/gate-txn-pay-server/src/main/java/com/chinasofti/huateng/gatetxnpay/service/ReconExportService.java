@@ -237,7 +237,7 @@ public class ReconExportService {
         }
     }
 
-    /** DETAIL 虚拟电子多日计次票明细导出：keyset 游标逐批查询、逐行写入。 */
+    /** DETAIL 虚拟电子多日计次票明细导出（出站/超时费域）：对齐需求 21 段行格式，keyset 游标逐批写出。 */
     private void exportDetail(ReconExportReqDTO request) {
         try (ReconPartSink sink = uploader.open(request.getBatchId(), SOURCE, ReconFileTypeEnum.DETAIL)) {
             String lastOutTime = null;
@@ -252,14 +252,31 @@ public class ReconExportService {
                 }
                 for (Map<String, Object> row : rows) {
                     long overtimeAmount = toLong(row.get("OVERTIME_AMOUNT"));
+                    // 21 段顺序严格对齐需求表头；本源仅持有「出站/超时费」域字段，跨域字段留空并待甲方确认。
+                    // 金额未澄清前一律按分；第 17 段"实际扣款金额"在 GATE_TXN_PAY 无应扣/实扣拆分，暂用 TOTAL_AMOUNT。
                     String line = ReconRecord.line(
-                            toStr(row.get("TXN_DATE")),
-                            DETAIL_TXN_TYPE_EXIT,
-                            toStr(row.get("CARD_ID")),
-                            toStr(row.get("OUT_TIME")),
-                            overtimeAmount,
-                            toStr(row.get("EXIT_STATION_NAME")),
-                            toStr(row.get("DEVICE_ID")));
+                            toStr(row.get("TXN_DATE")),                 // 1 运营日期
+                            DETAIL_TXN_TYPE_EXIT,                       // 2 交易类型=出站
+                            toStr(row.get("CARD_ID")),                  // 3 逻辑卡号
+                            toStr(row.get("OUT_TIME")),                 // 4 交易日期
+                            toLong(row.get("ORIGINAL_FARE")),           // 5 交易原价(分)
+                            toStr(row.get("EXIT_STATION_NAME")),        // 6 当前车站名称
+                            toStr(row.get("DEVICE_ID")),                // 7 设备编码
+                            toStr(row.get("CARD_TYPE")),               // 8 票卡类型(044X 直接可用)
+                            "",                                        // 9 票卡子类型(本表无，待确认)
+                            toLong(row.get("COUNTING_TIMES")),          // 10 次数
+                            toStr(row.get("SIGN_CHANNEL_CODE")),        // 11 支付渠道
+                            "",                                        // 12 激活时间(过闸无此概念)
+                            "1",                                       // 13 数量(固定1)
+                            toStr(row.get("TICKET_TRANS_SEQ")),        // 14 交易流水号(二维码里程序列号)
+                            toStr(row.get("ORDER_NO")),                // 15 交易订单号
+                            toLong(row.get("TOTAL_AMOUNT")),           // 16 订单金额(分)
+                            toLong(row.get("TOTAL_AMOUNT")),           // 17 实际扣款金额(分)=TOTAL_AMOUNT(无拆分，待确认)
+                            "",                                        // 18 优惠累计消费金额(无对应列，待确认)
+                            overtimeAmount,                            // 19 超时金额(分)
+                            "超时订单",                                  // 20 订单状态(本源只出超时费行，待确认是否含正常出站)
+                            "");                                       // 21 退款金额(本表无退款列，待确认是否跨库JOIN PAY_TXN_DETAIL)
+                    // amount 仅用于 recon-server 明细校验和，沿用历史口径(超时费)保持不变
                     sink.write(line, overtimeAmount);
                 }
                 Map<String, Object> last = rows.get(rows.size() - 1);

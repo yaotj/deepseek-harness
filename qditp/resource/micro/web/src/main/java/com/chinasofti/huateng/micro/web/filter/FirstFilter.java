@@ -2,6 +2,7 @@ package com.chinasofti.huateng.micro.web.filter;
 
 import com.chinasofti.huateng.micro.web.Webconfig;
 import com.chinasofti.huateng.micro.web.utils.FilterUtils;
+import com.chinasofti.huateng.micro.web.utils.HeartbeatUrlUtil;
 import com.chinasofti.huateng.micro.web.utils.JwtUtils;
 import com.chinasofti.huateng.micro.web.utils.PathMatcher;
 import jakarta.servlet.*;
@@ -11,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -32,6 +34,9 @@ public class FirstFilter implements Filter {
 
     @Autowired
     Webconfig webconfig;
+
+    @Value("${other.interceptor.heartbeat.skip:false}")
+    private boolean skipHeartbeat;
 
     private boolean forbidden(HttpServletRequest httpServletRequest) {
         String[] urls = webconfig.getForbiddenUrls().split(",");
@@ -106,7 +111,9 @@ public class FirstFilter implements Filter {
                     } else {
                         queryString = "";
                     }
-                    log.info("receive request url={}{} method={} header={}", request_url, queryString, request.getMethod(), headers);
+                    if (!(skipHeartbeat && HeartbeatUrlUtil.isHeartbeat(request_url))) {
+                        log.info("receive request url={}{} method={} header={}", request_url, queryString, request.getMethod(), headers);
+                    }
                 }
             }
 

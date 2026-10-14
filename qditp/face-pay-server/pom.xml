@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.chinasofti.huateng</groupId>
     <artifactId>face-pay-server</artifactId>
-    <version>1.0.68</version>
+    <version>1.0.78</version>
     <packaging>jar</packaging>
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -18,7 +18,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>21</java.version>
-        <web.version>2.0</web.version>
+        <web.version>2.1</web.version>
         <sql-datasource.version>2.0</sql-datasource.version>
         <mybatis-adaptor.version>2.0</mybatis-adaptor.version>
         <model.version>2.0.0</model.version>

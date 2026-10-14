@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.chinasofti.huateng</groupId>
     <artifactId>blacklist-server</artifactId>
-    <version>2.0.32</version>
+    <version>2.0.34</version>
     <packaging>jar</packaging>
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -21,7 +21,7 @@
         <scope.compile>compile</scope.compile>
         <scope.test>test</scope.test>
 
-        <web.version>2.0</web.version>
+        <web.version>2.1</web.version>
         <sql-datasource.version>2.0</sql-datasource.version>
         <mybatis-adaptor.version>2.0</mybatis-adaptor.version>
         <rpc.version>2.0.1</rpc.version>

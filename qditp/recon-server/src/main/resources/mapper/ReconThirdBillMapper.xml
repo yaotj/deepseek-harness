@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.recon.mapper.ReconThirdBillMapper">
+    <resultMap id="ThirdPartyBillMap" type="com.chinasofti.huateng.recon.thirdparty.ThirdPartyBill">
+        <id column="ID" property="id" />
+        <result column="BILL_DATE" property="billDate" />
+        <result column="PAYMENT_CHANNEL" property="paymentChannel" />
+        <result column="PAYMENT_VENDOR" property="paymentVendor" />
+        <result column="CHANNEL_NAME" property="channelName" />
+        <result column="CHANNEL_MERCHANT_NO" property="channelMerchantNo" />
+        <result column="TERMINAL_NO" property="terminalNo" />
+        <result column="BUSINESS_TYPE" property="businessType" />
+        <result column="TRADE_STATUS" property="tradeStatus" />
+        <result column="TRADE_TIME" property="tradeTime" />
+        <result column="CLEARING_DATE" property="clearingDate" />
+        <result column="MERCHANT_ORDER_NO" property="merchantOrderNo" />
+        <result column="CHANNEL_TRADE_NO" property="channelTradeNo" />
+        <result column="MERCHANT_REFUND_NO" property="merchantRefundNo" />
+        <result column="CHANNEL_REFUND_NO" property="channelRefundNo" />
+        <result column="CURRENCY" property="currency" />
+        <result column="ORDER_AMOUNT" property="orderAmount" />
+        <result column="TRANSACTION_AMOUNT" property="transactionAmount" />
+        <result column="FEE_AMOUNT" property="feeAmount" />
+        <result column="SETTLEMENT_AMOUNT" property="settlementAmount" />
+        <result column="DISCOUNT_AMOUNT" property="discountAmount" />
+        <result column="PRODUCT_NAME" property="productName" />
+        <result column="REMARK" property="remark" />
+        <result column="BATCH_NO" property="batchNo" />
+    </resultMap>
+
+    <insert id="mergeBatch">
+        MERGE INTO RECON_THIRD_BILL T
+        USING (
+            <foreach collection="records" item="r" separator=" UNION ALL ">
+                SELECT
+                    #{r.billDate,jdbcType=VARCHAR} AS BILL_DATE,
+                    #{r.paymentChannel,jdbcType=VARCHAR} AS PAYMENT_CHANNEL,
+                    #{r.paymentVendor,jdbcType=VARCHAR} AS PAYMENT_VENDOR,
+                    #{r.channelName,jdbcType=VARCHAR} AS CHANNEL_NAME,
+                    #{r.channelMerchantNo,jdbcType=VARCHAR} AS CHANNEL_MERCHANT_NO,
+                    #{r.terminalNo,jdbcType=VARCHAR} AS TERMINAL_NO,
+                    #{r.businessType,jdbcType=VARCHAR} AS BUSINESS_TYPE,
+                    #{r.tradeStatus,jdbcType=VARCHAR} AS TRADE_STATUS,
+                    #{r.tradeTime,jdbcType=VARCHAR} AS TRADE_TIME,
+                    #{r.clearingDate,jdbcType=VARCHAR} AS CLEARING_DATE,
+                    #{r.merchantOrderNo,jdbcType=VARCHAR} AS MERCHANT_ORDER_NO,
+                    #{r.channelTradeNo,jdbcType=VARCHAR} AS CHANNEL_TRADE_NO,
+                    #{r.merchantRefundNo,jdbcType=VARCHAR} AS MERCHANT_REFUND_NO,
+                    #{r.channelRefundNo,jdbcType=VARCHAR} AS CHANNEL_REFUND_NO,
+                    #{r.currency,jdbcType=VARCHAR} AS CURRENCY,
+                    #{r.orderAmount,jdbcType=NUMERIC} AS ORDER_AMOUNT,
+                    #{r.transactionAmount,jdbcType=NUMERIC} AS TRANSACTION_AMOUNT,
+                    #{r.feeAmount,jdbcType=NUMERIC} AS FEE_AMOUNT,
+                    #{r.settlementAmount,jdbcType=NUMERIC} AS SETTLEMENT_AMOUNT,
+                    #{r.discountAmount,jdbcType=NUMERIC} AS DISCOUNT_AMOUNT,
+                    #{r.productName,jdbcType=VARCHAR} AS PRODUCT_NAME,
+                    #{r.remark,jdbcType=VARCHAR} AS REMARK,
+                    #{batchNo,jdbcType=VARCHAR} AS BATCH_NO
+                FROM DUAL
+            </foreach>
+        ) S
+        ON (T.BILL_DATE = S.BILL_DATE AND T.CHANNEL_TRADE_NO = S.CHANNEL_TRADE_NO)
+        WHEN MATCHED THEN UPDATE SET
+            T.PAYMENT_CHANNEL = S.PAYMENT_CHANNEL,
+            T.PAYMENT_VENDOR = S.PAYMENT_VENDOR,
+            T.CHANNEL_NAME = S.CHANNEL_NAME,
+            T.CHANNEL_MERCHANT_NO = S.CHANNEL_MERCHANT_NO,
+            T.TERMINAL_NO = S.TERMINAL_NO,
+            T.BUSINESS_TYPE = S.BUSINESS_TYPE,
+            T.TRADE_STATUS = S.TRADE_STATUS,
+            T.TRADE_TIME = S.TRADE_TIME,
+            T.CLEARING_DATE = S.CLEARING_DATE,
+            T.MERCHANT_ORDER_NO = S.MERCHANT_ORDER_NO,
+            T.MERCHANT_REFUND_NO = S.MERCHANT_REFUND_NO,
+            T.CHANNEL_REFUND_NO = S.CHANNEL_REFUND_NO,
+            T.CURRENCY = S.CURRENCY,
+            T.ORDER_AMOUNT = S.ORDER_AMOUNT,
+            T.TRANSACTION_AMOUNT = S.TRANSACTION_AMOUNT,
+            T.FEE_AMOUNT = S.FEE_AMOUNT,
+            T.SETTLEMENT_AMOUNT = S.SETTLEMENT_AMOUNT,
+            T.DISCOUNT_AMOUNT = S.DISCOUNT_AMOUNT,
+            T.PRODUCT_NAME = S.PRODUCT_NAME,
+            T.REMARK = S.REMARK,
+            T.BATCH_NO = S.BATCH_NO,
+            T.CREATE_TIME = SYSTIMESTAMP
+        WHEN NOT MATCHED THEN INSERT (
+            ID, BILL_DATE, PAYMENT_CHANNEL, PAYMENT_VENDOR, CHANNEL_NAME, CHANNEL_MERCHANT_NO,
+            TERMINAL_NO, BUSINESS_TYPE, TRADE_STATUS, TRADE_TIME, CLEARING_DATE, MERCHANT_ORDER_NO,
+            CHANNEL_TRADE_NO, MERCHANT_REFUND_NO, CHANNEL_REFUND_NO, CURRENCY, ORDER_AMOUNT,
+            TRANSACTION_AMOUNT, FEE_AMOUNT, SETTLEMENT_AMOUNT, DISCOUNT_AMOUNT, PRODUCT_NAME,
+            REMARK, BATCH_NO, CREATE_TIME
+        ) VALUES (
+            SEQ_RECON_THIRD_BILL.NEXTVAL, S.BILL_DATE, S.PAYMENT_CHANNEL, S.PAYMENT_VENDOR, S.CHANNEL_NAME, S.CHANNEL_MERCHANT_NO,
+            S.TERMINAL_NO, S.BUSINESS_TYPE, S.TRADE_STATUS, S.TRADE_TIME, S.CLEARING_DATE, S.MERCHANT_ORDER_NO,
+            S.CHANNEL_TRADE_NO, S.MERCHANT_REFUND_NO, S.CHANNEL_REFUND_NO, S.CURRENCY, S.ORDER_AMOUNT,
+            S.TRANSACTION_AMOUNT, S.FEE_AMOUNT, S.SETTLEMENT_AMOUNT, S.DISCOUNT_AMOUNT, S.PRODUCT_NAME,
+            S.REMARK, S.BATCH_NO, SYSTIMESTAMP
+        )
+    </insert>
+
+    <select id="selectByBillDate" resultMap="ThirdPartyBillMap">
+        SELECT ID, BILL_DATE, PAYMENT_CHANNEL, PAYMENT_VENDOR, CHANNEL_NAME, CHANNEL_MERCHANT_NO,
+            TERMINAL_NO, BUSINESS_TYPE, TRADE_STATUS, TRADE_TIME, CLEARING_DATE, MERCHANT_ORDER_NO,
+            CHANNEL_TRADE_NO, MERCHANT_REFUND_NO, CHANNEL_REFUND_NO, CURRENCY, ORDER_AMOUNT,
+            TRANSACTION_AMOUNT, FEE_AMOUNT, SETTLEMENT_AMOUNT, DISCOUNT_AMOUNT, PRODUCT_NAME,
+            REMARK, BATCH_NO
+        FROM RECON_THIRD_BILL
+        WHERE BILL_DATE = #{billDate,jdbcType=VARCHAR}
+    </select>
+</mapper>

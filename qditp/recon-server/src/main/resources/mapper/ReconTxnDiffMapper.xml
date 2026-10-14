@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.recon.mapper.ReconTxnDiffMapper">
+    <delete id="deleteByBillDate">
+        DELETE FROM RECON_TXN_DIFF WHERE BILL_DATE = #{billDate,jdbcType=VARCHAR}
+    </delete>
+
+    <insert id="insertBatch">
+        INSERT ALL
+        <foreach collection="records" item="r" separator=" ">
+            INTO RECON_TXN_DIFF (
+                ID, BILL_DATE, TXN_TYPE, LOGIC_CARD_NO, TXN_DATE, ORIGINAL_FARE, CUR_STATION_NAME,
+                DEVICE_NO, TICKET_TYPE, TICKET_SUB_TYPE, TIMES, PAY_CHANNEL, ACTIVATE_TIME, QUANTITY,
+                TICKET_TRANS_SEQ, ORDER_NO, ORDER_AMOUNT, ACTUAL_AMOUNT, DISCOUNT_CUMULATIVE_AMOUNT,
+                OVERTIME_AMOUNT, DIFF_SIDE, FAIL_REASON, BATCH_NO, CREATE_TIME
+            ) VALUES (
+                SEQ_RECON_TXN_DIFF.NEXTVAL,
+                #{r.billDate,jdbcType=VARCHAR},
+                #{r.txnType,jdbcType=VARCHAR},
+                #{r.logicCardNo,jdbcType=VARCHAR},
+                #{r.txnDateTime,jdbcType=VARCHAR},
+                #{r.originalFare,jdbcType=NUMERIC},
+                #{r.curStationName,jdbcType=VARCHAR},
+                #{r.deviceNo,jdbcType=VARCHAR},
+                #{r.ticketType,jdbcType=VARCHAR},
+                #{r.ticketSubType,jdbcType=VARCHAR},
+                #{r.times,jdbcType=VARCHAR},
+                #{r.payChannel,jdbcType=VARCHAR},
+                #{r.activateTime,jdbcType=VARCHAR},
+                #{r.quantity,jdbcType=VARCHAR},
+                #{r.ticketTransSeq,jdbcType=VARCHAR},
+                #{r.orderNo,jdbcType=VARCHAR},
+                #{r.orderAmount,jdbcType=NUMERIC},
+                #{r.actualAmount,jdbcType=NUMERIC},
+                #{r.discountCumulativeAmount,jdbcType=NUMERIC},
+                #{r.overtimeAmount,jdbcType=NUMERIC},
+                #{r.diffSide,jdbcType=VARCHAR},
+                #{r.failReason,jdbcType=VARCHAR},
+                #{r.batchNo,jdbcType=VARCHAR},
+                SYSTIMESTAMP
+            )
+        </foreach>
+        SELECT 1 FROM DUAL
+    </insert>
+</mapper>

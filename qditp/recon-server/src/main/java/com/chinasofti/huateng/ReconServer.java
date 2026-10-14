@@ -9,6 +9,7 @@ import com.chinasofti.huateng.recon.storage.ReconLineBackfillProperties;
 import com.chinasofti.huateng.recon.storage.ReconStorageProperties;
 import com.chinasofti.huateng.recon.storage.ReconFtpProperties;
 import com.chinasofti.huateng.recon.storage.ReconOrchestrationProperties;
+import com.chinasofti.huateng.recon.storage.ThirdPartyReconProperties;
 
 /**
  * recon-server 启动类。
@@ -20,7 +21,7 @@ import com.chinasofti.huateng.recon.storage.ReconOrchestrationProperties;
 @SpringBootApplication
 @EnableDefaultMybatisAutoConfig
 @EnableRpcRecon
-@EnableConfigurationProperties({ReconStorageProperties.class, ReconFtpProperties.class, ReconOrchestrationProperties.class, ReconLineBackfillProperties.class})
+@EnableConfigurationProperties({ReconStorageProperties.class, ReconFtpProperties.class, ReconOrchestrationProperties.class, ReconLineBackfillProperties.class, ThirdPartyReconProperties.class})
 public class ReconServer {
     public static void main(String[] args) {
         SpringApplication.run(ReconServer.class, args);
