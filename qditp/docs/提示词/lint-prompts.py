@@ -132,6 +132,9 @@ def check_broken_links(txt, rel, base=None):
     for m in pat.finditer(txt):
         ref = m.group(1)
         if ref in _DELETED_ON_PURPOSE: continue
+        cand = (base_dir / ref).resolve() if ref.startswith(("../","./")) else (ROOT / ref)
+        if not cand.exists():
+            out.append(("ERROR", f"{rel}  断链：`{ref}` 不存在"))
     return out
 
 
