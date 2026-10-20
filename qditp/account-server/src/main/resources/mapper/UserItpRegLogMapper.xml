@@ -2,6 +2,16 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.account.mapper.UserItpRegLogMapper">
     <!-- SQL 正文禁写注释（行注释与块注释都不行）：Druid WallFilter 判为注入、语句静默失效；说明只放本 XML 注释里。 -->
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.account.entity.UserItpRegLog">
+        <id column="ID" jdbcType="INTEGER" property="id"/>
+        <result column="CARD_ID" jdbcType="VARCHAR" property="cardId"/>
+        <result column="CARD_TYPE" jdbcType="VARCHAR" property="cardType"/>
+        <result column="THIRD_USER_ID" jdbcType="VARCHAR" property="thirdUserId"/>
+        <result column="MSISDN" jdbcType="VARCHAR" property="msisdn"/>
+        <result column="OPER_DATE_TIME" jdbcType="TIMESTAMP" property="operDateTime"/>
+        <result column="OPER_TYPE" jdbcType="INTEGER" property="operType"/>
+    </resultMap>
+
     <insert id="insert" parameterType="com.chinasofti.huateng.account.entity.UserItpRegLog">
         insert into User_ITP_Reg_log (
             CARD_ID, CARD_TYPE, THIRD_USER_ID, MSISDN, OPER_DATE_TIME, OPER_TYPE
@@ -14,4 +24,28 @@
             #{operType,jdbcType=INTEGER}
         )
     </insert>
+
+    <select id="selectCancelLogByThirdUserId" resultMap="BaseResultMap">
+        select ID, CARD_ID, CARD_TYPE, THIRD_USER_ID, MSISDN, OPER_DATE_TIME, OPER_TYPE
+        from User_ITP_Reg_log
+        where THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+          and OPER_TYPE = 2
+        order by OPER_DATE_TIME desc
+    </select>
+
+    <select id="selectCancelLogByMsisdn" resultMap="BaseResultMap">
+        select ID, CARD_ID, CARD_TYPE, THIRD_USER_ID, MSISDN, OPER_DATE_TIME, OPER_TYPE
+        from User_ITP_Reg_log
+        where MSISDN = #{msisdn,jdbcType=VARCHAR}
+          and OPER_TYPE = 2
+        order by OPER_DATE_TIME desc
+    </select>
+
+    <select id="selectCancelLogByCardId" resultMap="BaseResultMap">
+        select ID, CARD_ID, CARD_TYPE, THIRD_USER_ID, MSISDN, OPER_DATE_TIME, OPER_TYPE
+        from User_ITP_Reg_log
+        where CARD_ID = #{cardId,jdbcType=VARCHAR}
+          and OPER_TYPE = 2
+        order by OPER_DATE_TIME desc
+    </select>
 </mapper>

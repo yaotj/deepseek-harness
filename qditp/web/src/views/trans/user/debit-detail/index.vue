@@ -46,7 +46,7 @@
       <el-table-column label="基础金额" width="105" align="right"><template #default="{ row }">{{ formatAmount(row.trxAmount) }}</template></el-table-column>
       <el-table-column label="超时金额" width="105" align="right"><template #default="{ row }">{{ formatAmount(row.overtimeAmount) }}</template></el-table-column>
       <el-table-column label="扣费总额" width="105" align="right"><template #default="{ row }">{{ formatAmount(row.totalAmount) }}</template></el-table-column>
-      <el-table-column label="签约渠道" prop="signChannelCode" width="110" align="center" />
+      <el-table-column label="签约渠道" width="130" align="center"><template #default="{ row }">{{ signChannelLabel(row.signChannelCode) }}</template></el-table-column>
       <el-table-column label="操作" width="100" fixed="right" align="center">
         <template #default="{ row }">
           <el-tooltip content="发起退款" placement="top">
@@ -83,6 +83,7 @@
 <script setup name="UserDebitDetail">
 import { listGateTxnPays, requestGateTxnPayRefund } from '@/api/trans/userSearch'
 import { defaultTodayRange } from '@/utils/dateRange'
+import { signChannelLabel } from '@/utils/payChannel'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYYMMDD'

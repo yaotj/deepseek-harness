@@ -1,0 +1,33 @@
+# 当前 Service 与端口
+
+account-n4ba6-svc                  NodePort    10.100.234.130   9098    30013    9098
+alipay-account-server-2n6kc-svc    NodePort    10.100.167.117   30021   30021    8080
+alipay-pay-sign-server-t3o7n-svc   NodePort    10.100.205.84    30022   30022    8080
+blacklist-server-wmfzs-svc         NodePort    10.100.149.153   9102    30017    9102
+card-pool-server-86mc1-svc         NodePort    10.100.120.64    30033   30033    9111
+collect-pay-c23ku-svc              NodePort    10.100.164.98    30024   30024    8080
+daily-ticket-server-rdbe5-svc      NodePort    10.100.30.50     30027   30027    9108
+database-gcwp8-svc                 NodePort    10.100.151.215   30031   30031    8686
+details                            ClusterIP   10.100.119.31    9080    <none>   9080
+es-server-38bzh-svc                NodePort    10.100.211.122   8080    30011    8080
+face-pay-server-svc                NodePort    10.100.223.30    30025   30025    58101
+fep-acc-wracu-svc                  NodePort    10.100.12.212    30030   30030    9110
+fep-alipay-rec8g-svc               NodePort    10.100.147.8     30020   30020    8080
+fep-app-hr32k-svc                  NodePort    10.100.146.184   9101    30010    9101
+fep-dev-server-748lq-svc           NodePort    10.100.137.136   30009   30009    9104
+gate-txn-pay-server-jomf4-svc      NodePort    10.100.176.1     30019   30019    9106
+industry-data-server-6dv5u-svc     NodePort    10.100.207.52    30018   30018    8080
+kennethreitz-httpbin               ClusterIP   10.100.16.26     7172    <none>   80
+key-server-vcbmt-svc               NodePort    10.100.108.140   8080    30015    9103
+para-server-pufrl-svc              NodePort    10.100.96.245    30026   30026    9107
+pay-sign-server-hsa9w-svc          NodePort    10.100.157.86    8080    30016    8080
+productpage                        ClusterIP   10.100.217.160   9080    <none>   9080
+ratings                            ClusterIP   10.100.249.118   9080    <none>   9080
+recon-server-bjzdy-svc             NodePort    10.100.251.78    30034   30034    9112
+reviews                            ClusterIP   10.100.87.231    9080    <none>   9080
+security-server-8h3eo-svc          NodePort    10.100.243.155   8080    30012    8080
+ticket-server-bsyju-svc            NodePort    10.100.214.195   9100    30014    9100
+trans-query-57wpd-svc              NodePort    10.100.190.31    30035   30035    9113
+victoria-logs-pbi6a-svc            NodePort    10.100.183.227   30032   30032    9428
+web-3zilk-svc                      NodePort    10.100.45.132    30029   30029    80
+web-admin-4e2zf-svc                NodePort    10.100.98.241    30028   30028    8080

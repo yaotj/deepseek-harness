@@ -113,7 +113,7 @@
 - 7000 报文长度常量的两处注释互相矛盾：Javadoc 写 `不包含长度字段，包头 + 包体 + mac检验码`，同一常量行尾却写 `//不包括mac108`。定位：`acc-es-server` `Constant.DataLength.DATA_7000_SIGN_BYTES` `acc-es-server/src/main/java/com/chinasofti/huateng/acc/es/server/netty/model/Constant.java`。
 - 包体长度算式里 `- Constant.DataLength.DATA_MD5_BYTES` 被注释掉，现算式只减包头 26。**改回扣 MD5 长度会整段错位**，且注释没写为什么去掉。定位：`acc-es-server` `ServerDecoder.decode` `acc-es-server/src/main/java/com/chinasofti/huateng/acc/es/server/netty/coder/ServerDecoder.java`。
 - 异常处理刻意不上抛父类：`super.exceptionCaught(ctx, cause);` 被注释掉，现为记两行 ERROR 日志 + `ctx.close()`。定位：`acc-es-server` `NettyServerHandler.exceptionCaught` `acc-es-server/src/main/java/com/chinasofti/huateng/acc/es/server/netty/service/NettyServerHandler.java`。
-- **本模块注释无此记载**：`netty.port=5000` 是监听端口、`7000~7005` 是报文码这条判据，源码与配置文件的注释里**一个字都没有**；权威出处在 `AGENTS.md` §4 与本文件正文 §Netty 设备报文。
+- **本模块注释无此记载**：`netty.port=5000` 是监听端口、`7000~7005` 是报文码这条判据，源码与配置文件的注释里**一个字都没有**；权威出处在 `docs/business/README.md` 与本文件正文 §一 Netty 报文层（7000~7005）。
 
 ### 二、编码设备任务
 
@@ -199,7 +199,7 @@
 ### 五、配置与部署
 
 - `application.properties` **只有一处中文注释、且已乱码**：`#?????? ???IP`（出现两次，第 5 行与第 7 行），夹着一行被注释掉的 `#other.sql.host=172.20.222.3:1521`。文件内其余 40 余个键（含 `server.port=9011`、`netty.port=5000`、`ftp.*` 九个键、`mybatis.*`、`pagehelper.*`、`excel-path`）**一条注释都没有**。定位：`acc-es-server` `application.properties` `acc-es-server/src/main/resources/application.properties`。
-- **本模块注释无此记载**：「jkube goals 绑 `package` 阶段、`mvn package` 就会推镜像」这条**不在本次抽取范围内**（`pom.xml` 未纳入范围），且 java / properties / sql 注释里没有任何相关文字；权威出处是 `AGENTS.md` §7。
+- **本模块注释无此记载**：jkube 的触发方式**不在本次抽取范围内**（`pom.xml` 未纳入范围），且 java / properties / sql 注释里没有任何相关文字；权威出处是 `docs/ops/构建与部署规范.md` §7「推镜像统一触发（2026-10-20 改为 profile 激活）」——`acc-es-server` 的 jkube 在 2026-10-20 已整体移入 `remote` profile（无 `activeByDefault`），**默认 `mvn package` 不推镜像、推 MUST `-Premote`**。
 
 ### 六、持久层与 mapper
 
@@ -451,8 +451,8 @@
 - `config/FtpComponent.java` 是唯一的 config 类，`@Component` + `@ConfigurationProperties` 形态承载 9 个 `ftp.*` 键，**9 个字段全部无注释**，类上只有 `@author rxwnc`。
 - `component/GlobalExceptionHandler.java` **0 条注释**（全模块唯一的全局异常处理器）。
 - 启动类 `EsServerApplication.java` 只有一段模板类注释（，`@program: spring-cloud-acc` / `@description:` 为空 / `@author: fc` / `@create: 2020-09-10 16:16`），**没有任何一句说明 `CommandLineRunner` 里要起 Netty**。
-- `src/main/resources/application.properties` **只有 3 个注释行、且中文已乱码**：`#?????? ???IP`与同一句重复一次，中间夹着一行**被注释掉的数据库地址** `#other.sql.host=172.20.222.3:1521`。文件内其余 40 余个键（含 `server.port=9011`、`netty.port=5000`、`ftp.*` 九个键、`mybatis.*`、`pagehelper.*`、`excel-path`）**一条注释都没有**。三行已删（乱码注释无信息量、被注释掉的地址属墓碑；该地址与 `mcp_database_qd` 指向的库一致，见 `AGENTS.md` §8）。
-- **本模块注释无此记载**：①「`netty.port=5000` 是监听端口、`7000~7005` 是报文码」这条判据，源码与配置的注释里**一个字都没有**，权威出处是 `AGENTS.md` §4 与本文件正文 §Netty 设备报文；②「jkube goals 绑 `package` 阶段、`mvn package` 就会推镜像」这条**不在 `src/main` 范围内**（在 `pom.xml`），权威出处是 `AGENTS.md` §7 —— 因此本模块**构建时 MUST 加 `-Djkube.skip=true` 才只出 jar**；③全模块**没有 `@Scheduled`、没有 MQ、只有 `@EnableAsync`**，文件处理由 Netty 报文（7002/7004）与 HTTP 接口触发，这条也没有注释依据、判据是 grep 结果。
+- `src/main/resources/application.properties` **只有 3 个注释行、且中文已乱码**：`#?????? ???IP`与同一句重复一次，中间夹着一行**被注释掉的数据库地址** `#other.sql.host=172.20.222.3:1521`。文件内其余 40 余个键（含 `server.port=9011`、`netty.port=5000`、`ftp.*` 九个键、`mybatis.*`、`pagehelper.*`、`excel-path`）**一条注释都没有**。三行已删（乱码注释无信息量、被注释掉的地址属墓碑；该地址与 `mcp_database_qd` 指向的库一致，见 `docs/ops/构建与部署规范.md` §8）。
+- **本模块注释无此记载**：①「`netty.port=5000` 是监听端口、`7000~7005` 是报文码」这条判据，源码与配置的注释里**一个字都没有**，权威出处是 `docs/business/README.md` 与本文件正文 §一 Netty 报文层（7000~7005）；② jkube 的触发方式（**2026-10-20 起 `acc-es-server` 的 jkube 整体移入 `remote` profile、无 `activeByDefault`，默认 `mvn package` 不推镜像、推 MUST `-Premote`**）**不在 `src/main` 范围内**（在 `pom.xml`），权威出处是 `docs/ops/构建与部署规范.md` §7「Build & Run (构建与运行)」→「推镜像统一触发（2026-10-20 改为 profile 激活）」—— 因此本模块**默认 `package` 就是只出 jar、无需 `-Djkube.skip=true`**；③全模块**没有 `@Scheduled`、没有 MQ、只有 `@EnableAsync`**，文件处理由 Netty 报文（7002/7004）与 HTTP 接口触发，这条也没有注释依据、判据是 grep 结果。
 ### 矛盾与待裁决
 
 阶段一记了 8 处，阶段二逐文件复核后合并为下表 **16 处**。表里「谁能裁决」是判据出处，**NEVER 自行按「看起来更合理」那一侧改代码**。

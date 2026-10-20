@@ -26,29 +26,41 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-/** TVM / BOM 单程票的支付结果侧：设备查询、支付中心回调、收银台反查订单详情。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。 */
+/**
+ * TVM / BOM 单程票的支付结果侧：设备查询、支付中心回调、收银台反查订单详情。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。
+ */
 @Service
 public class F2fTvmPayResultService {
 
     private static final Logger log = LoggerFactory.getLogger(F2fTvmPayResultService.class);
 
-    /** 业务类型：充值。 */
+    /**
+     * 业务类型：充值。
+     */
     private static final String BIZ_TOPUP = "02";
 
     private static final String STATUS_PAY_FAILED = F2fOrderStatus.PAY_FAILED.name();
 
-    /** 对设备口径为「已收款」的内部状态白名单。 */
+    /**
+     * 对设备口径为「已收款」的内部状态白名单。
+     */
     private static final List<String> PAID_LIKE = List.of(
             F2fOrderStatus.PAID.name(), F2fOrderStatus.FULFILLED.name(), F2fOrderStatus.FULFILL_FAILED.name(),
             F2fOrderStatus.REFUNDING.name(), F2fOrderStatus.REFUNDED.name());
 
-    /** 对设备口径为「失败」的内部状态白名单。 */
+    /**
+     * 对设备口径为「失败」的内部状态白名单。
+     */
     private static final List<String> FAILED_LIKE = F2fOrderStatus.FAILED_LIKE;
 
-    /** 需要向支付中心查实际结果的状态白名单。 */
+    /**
+     * 需要向支付中心查实际结果的状态白名单。
+     */
     private static final List<String> PENDING = F2fOrderStatus.PENDING;
 
-    /** 收银台侧的时间格式，照搬旧 {@code TvmOrderServiceImpl.DATE_FORMATTER}。 */
+    /**
+     * 收银台侧的时间格式，照搬旧 {@code TvmOrderServiceImpl.DATE_FORMATTER}。
+     */
     private static final DateTimeFormatter PAY_CENTER_DATE_FORMATTER =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -56,7 +68,9 @@ public class F2fTvmPayResultService {
 
     private final F2fPaymentMapper paymentMapper;
 
-    /** 只用来取 {@code getPayNoticeUrl()} 回吐给收银台，本类不自己发起外呼。 */
+    /**
+     * 只用来取 {@code getPayNoticeUrl()} 回吐给收银台，本类不自己发起外呼。
+     */
     private final PayCenterClient payCenterClient;
 
     private final F2fPayCenterFlow payCenterFlow;
@@ -71,41 +85,53 @@ public class F2fTvmPayResultService {
         this.payCenterFlow = payCenterFlow;
     }
 
-    /** 查订单。 */
+    /**
+     * 查订单。
+     */
     private F2fOrder loadOrderForQuery(String orderNo) {
         return orderMapper.selectByOrderNo(orderNo);
     }
 
-    /** IF2A-03 查询支付结果。 */
+    /**
+     * IF2A-03 查询支付结果。
+     */
     public JSONObject queryPayResult(RequestPayResultReqDTO request) {
+        log.info("查询支付结果 开始 request is {}", request);
         String orderNo = request.getOrderNo();
         F2fOrder order = loadOrderForQuery(orderNo);
         if (order == null) {
             log.info("查询支付结果 订单不存在, orderNo={}", orderNo);
             return TvmResponses.payResultFail(DeviceRetCode.INVALID_PARAM, "没有找到匹配的订单，请确认订单号是否正确");
         }
+        log.info("order is {}", order);
         String status = order.getOrderStatus();
         if (PAID_LIKE.contains(status)) {
             return TvmResponses.payResult(PaymentResult.SUCCESS, channelCodeOf(orderNo));
         }
         if (FAILED_LIKE.contains(status)) {
+            log.info("数据库查询到明确结果 ，直接返回");
             return TvmResponses.payResult(PaymentResult.FAILED, channelCodeOf(orderNo));
         }
         if (!PENDING.contains(status)) {
             log.warn("查询支付结果 命中未预期状态，按支付中处理, orderNo={}, status={}", orderNo, status);
             return TvmResponses.payResult(PaymentResult.ORDERED, channelCodeOf(orderNo));
         }
+        log.info("开始向支付中心发起支付结果查询请求");
         return queryAtPayCenter(orderNo);
     }
 
-    /** 向支付中心查实际结果并收口本地状态。 */
+    /**
+     * 向支付中心查实际结果并收口本地状态。
+     */
     private JSONObject queryAtPayCenter(String orderNo) {
         F2fPayCenterFlow.Settled settled = payCenterFlow.settle(new F2fPayCenterFlow.SettleSpec(
                 orderNo, PENDING,
                 result -> markPaymentSuccess(orderNo, result, "查询到支付成功"),
                 "TVM"));
         PayCenterResult result = settled.result();
+        log.info("支付中心查询结束 result is {}", result);
         String vendor = result.string("paymentVendor");
+        log.info("vendor is {}",vendor);
         return switch (settled.settlement()) {
             case PAID -> TvmResponses.payResult(PaymentResult.SUCCESS, vendor);
             case FAILED, UNPAID -> TvmResponses.payResult(PaymentResult.FAILED, vendor);
@@ -114,7 +140,9 @@ public class F2fTvmPayResultService {
         };
     }
 
-    /** 支付结果回调（支付中心 → ITP）。 */
+    /**
+     * 支付结果回调（支付中心 → ITP）。
+     */
     public JSONObject receivePayNotice(PayNoticeReqDTO request) {
         String orderNo = request.getMerchantOrderNo();
         if (orderNo == null || orderNo.isBlank()) {
@@ -193,7 +221,9 @@ public class F2fTvmPayResultService {
         }
     }
 
-    /** 支付中心反查 ITP 订单详情（收银台页面渲染用）。 */
+    /**
+     * 支付中心反查 ITP 订单详情（收银台页面渲染用）。
+     */
     public JSONObject requestPayOrderDetail(RequestPayResultReqDTO request) {
         String orderNo = request.getOrderNo();
         F2fOrder order = loadOrderForQuery(orderNo);
@@ -212,7 +242,9 @@ public class F2fTvmPayResultService {
                 payCenterClient.properties().getPayNoticeUrl());
     }
 
-    /** 内部状态 → 收银台口径。 */
+    /**
+     * 内部状态 → 收银台口径。
+     */
     private static String payCenterOrderStatus(F2fOrder order) {
         String orderStatus = order.getOrderStatus();
         if (PAID_LIKE.contains(orderStatus)) {
@@ -224,18 +256,24 @@ public class F2fTvmPayResultService {
         return "";
     }
 
-    /** {@code yyyyMMddHHmmss}，null 进 null 出——{@code payDate} 为 null 时该 key 不下发。 */
+    /**
+     * {@code yyyyMMddHHmmss}，null 进 null 出——{@code payDate} 为 null 时该 key 不下发。
+     */
     private static String format(LocalDateTime tms) {
         return tms == null ? null : tms.format(PAY_CENTER_DATE_FORMATTER);
     }
 
-    /** 回调要落在最近一次支付尝试上；查不到时按 1 处理（预下单必然已插过 attempt 1）。 */
+    /**
+     * 回调要落在最近一次支付尝试上；查不到时按 1 处理（预下单必然已插过 attempt 1）。
+     */
     private Integer lastAttemptNo(String orderNo) {
         F2fPayment last = paymentMapper.selectLastAttempt(orderNo);
         return last == null || last.getAttemptNo() == null ? 1 : last.getAttemptNo();
     }
 
-    /** 据支付中心查询结果把最近一次支付尝试收口为 SUCCESS，并回填渠道码与两个外部订单号。 */
+    /**
+     * 据支付中心查询结果把最近一次支付尝试收口为 SUCCESS，并回填渠道码与两个外部订单号。
+     */
     public void markPaymentSuccess(String orderNo, PayCenterResult result, String retMsg) {
         try {
             int updated = paymentMapper.markSuccess(orderNo, lastAttemptNo(orderNo),
@@ -253,7 +291,9 @@ public class F2fTvmPayResultService {
         }
     }
 
-    /** 取该订单最近一次支付尝试的渠道码，用于回吐 {@code paymentChannelCode}。 */
+    /**
+     * 取该订单最近一次支付尝试的渠道码，用于回吐 {@code paymentChannelCode}。
+     */
     private String channelCodeOf(String orderNo) {
         F2fPayment last = paymentMapper.selectLastAttempt(orderNo);
         return last == null ? null : last.getPayChannelCode();

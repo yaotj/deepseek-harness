@@ -33,6 +33,7 @@ public enum AccountErrorCodeEnum {
     PAY_CHANNEL_NOT_FOUND("8022", "支付通道不存在"),
     UNSETTLED_ORDER_EXISTS("8023", "存在未支付或扣费失败的订单，请处理后再销户"),
     ACC_INFO_QUERY_FAIL("8024", "账务信息查询失败，请稍后重试"),
+    PAY_CHANNEL_REMAINING("8025", "存在未解绑的支付渠道，请先解绑后再销户"),
     ACC_COMM_ERROR("8501", "ACC通讯异常"),
     ACC_RETURN_STATUS_ABNORMAL("8502", "ACC返回值状态异常"),
     /**

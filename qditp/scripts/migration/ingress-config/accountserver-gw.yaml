@@ -1,0 +1,23 @@
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"networking.istio.io/v1","kind":"Gateway","metadata":{"annotations":{},"creationTimestamp":"2026-02-09T06:23:52Z","generation":1,"name":"accountserver-gw","namespace":"itp","resourceVersion":"296705764","uid":"2dda17e5-6328-4357-89fb-6a3e9167c960"},"spec":{"selector":{"istio":"ingressgateway"},"servers":[{"hosts":["*"],"port":{"name":"http","number":8080,"protocol":"HTTP"},"tls":{}}]}}
+  creationTimestamp: "2026-05-22T05:14:58Z"
+  generation: 1
+  name: accountserver-gw
+  namespace: itp
+  resourceVersion: "35160855"
+  uid: b726f78c-9327-4ba9-b84e-f5a9a448d4ac
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - '*'
+    port:
+      name: http
+      number: 8080
+      protocol: HTTP
+    tls: {}

@@ -121,4 +121,12 @@ public interface ISysDeptService
      * @return 结果
      */
     public int deleteDeptById(Long deptId);
+
+    /**
+     * 级联删除部门及其全部下级部门，并把受影响用户的部门归属置空
+     * 
+     * @param deptId 部门ID
+     * @return 结果
+     */
+    public int deleteDeptCascade(Long deptId);
 }

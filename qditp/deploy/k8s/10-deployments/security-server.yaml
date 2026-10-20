@@ -53,7 +53,7 @@ spec:
           value: 'false'
         - name: security.firstPort
           value: '6666'
-        - name: server.port
+        - name: SERVER_PORT
           value: '8080'
         - name: other.web.enableLogTakeTimesInInterceptor
           value: 'true'

@@ -53,4 +53,4 @@
 
 - `model/src/main/java/com/chinasofti/huateng/model/enums/DeviceTypeEnum.java`
 - `docs/business/tvm-bom-pay.md`
-- `AGENTS.md` §2.2.2（尚未落地的需求）
+- `docs/business/未落地需求.md`（尚未落地的需求）

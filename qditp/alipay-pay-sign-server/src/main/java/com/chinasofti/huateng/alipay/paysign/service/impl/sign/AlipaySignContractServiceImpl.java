@@ -30,7 +30,7 @@ import org.springframework.util.StringUtils;
  *
  * <p><b>本类刻意不带 {@code @Transactional}，NEVER 加回</b>（ADR-D129）：链路里有两次出网
  * —— 查账户域拿卡号、签约后同步支付通道 —— 任一次被事务包住，行锁持有时长就等于对端响应时长，
- * 即 AGENTS.md §5.2 那条已发生过生产事故的形态。落库只有一条语句，自动提交足够。
+ * 即 docs/architecture/transaction-and-consistency.md §6 那条已发生过生产事故的形态。落库只有一条语句，自动提交足够。
  *
  * <p>通道同步失败**仍对上游返 {@code 0000}**：协议号已落库、签约已成立，而扣款链路是按
  * {@code ALIPAY_SIGN_INFO} 查协议号的、不依赖账户域那份通道信息；不一致由 {@code CHANNEL_SYNC_*}

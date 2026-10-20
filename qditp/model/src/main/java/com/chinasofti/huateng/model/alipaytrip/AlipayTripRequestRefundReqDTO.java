@@ -12,7 +12,7 @@ package com.chinasofti.huateng.model.alipaytrip;
  * 已删除、NEVER 加回</b>：接收端 {@code alipay-pay-sign-server} 的同名 DTO
  * （{@code ...alipay.paysign.model.request.AlipayTripRequestRefundReqDTO}）本来就只有这两个字段，
  * Fastjson2 宽松模式**静默丢弃**目标类里不存在的字段，因此那四个值**从来没有到达过服务端**，
- * 调用方按 6 字段传值是无效的（既不报错也不告警，属 AGENTS.md §7「同名 DTO 字段数不一致」那类静默缺陷）。
+ * 调用方按 6 字段传值是无效的（既不报错也不告警，属 docs/ops/构建与部署规范.md §7「同名 DTO 字段数不一致」那类静默缺陷）。
  *
  * <p><b>那四个值也不该由调用方给</b>，服务端是刻意自己解析的（`AlipayPayRefundServiceImpl`）：
  * {@code cardNum} 取原支付单 {@code ALIPAY_PAY_LOG.CARD_ID}、{@code channelAgreementNo} 查

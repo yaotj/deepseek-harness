@@ -99,7 +99,7 @@
 
 连带红线：
 
-- `RequestRemovePayChannelReqDTO` / `RequestRemovePayChannelResult` **同时是对外 bizData 契约和内部 RPC 参数**（`AccountAppServiceImpl` 原样透传）。**NEVER 给这两个类加字段** —— 加字段等于改对外接口，且会踩 `AGENTS.md §7` 的「`model` 版本恒 2.0.0 + Fastjson2 静默丢字段 + 链路上每个模块镜像都要重建」那个坑。需要携带新信息时**新建内部 DTO**。
+- `RequestRemovePayChannelReqDTO` / `RequestRemovePayChannelResult` **同时是对外 bizData 契约和内部 RPC 参数**（`AccountAppServiceImpl` 原样透传）。**NEVER 给这两个类加字段** —— 加字段等于改对外接口，且会踩 `docs/ops/构建与部署规范.md` §7 的「`model` 版本恒 2.0.0 + Fastjson2 静默丢字段 + 链路上每个模块镜像都要重建」那个坑。需要携带新信息时**新建内部 DTO**。
 - `ItpCommonFormRequest`（2026-09-11 收口前各模块自有副本的统称是 `CommonFormRequest`，现全项目唯一、在 `model` 模块）报文形态（`x-www-form-urlencoded` + `bizData` JSON）不可改。
 
 各业务服务上与对外路径同名的端点（如 account-server 的 `/requestRemovePayChannel`）**是对内端点**，可以改。

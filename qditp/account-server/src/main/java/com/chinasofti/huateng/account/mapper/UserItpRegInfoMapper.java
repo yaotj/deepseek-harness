@@ -62,6 +62,24 @@ public interface UserItpRegInfoMapper {
     List<UserItpRegInfo> selectListByCardId(@Param("cardId") String cardId);
 
     /**
+     * 运营查询专用：按第三方用户 ID + {@code DEL_YN} 查开户记录。
+     */
+    List<UserItpRegInfo> selectListByThirdUserIdAndDelYn(@Param("thirdUserId") String thirdUserId,
+                                                          @Param("delYn") Integer delYn);
+
+    /**
+     * 运营查询专用：按手机号 + {@code DEL_YN} 查开户记录。
+     */
+    List<UserItpRegInfo> selectListByMsisdnAndDelYn(@Param("msisdn") String msisdn,
+                                                     @Param("delYn") Integer delYn);
+
+    /**
+     * 运营查询专用：按逻辑卡号 + {@code DEL_YN} 查开户记录。
+     */
+    List<UserItpRegInfo> selectListByCardIdAndDelYn(@Param("cardId") String cardId,
+                                                     @Param("delYn") Integer delYn);
+
+    /**
      * 综管台批量导入查询：按卡号列表批量查，口径与 {@link #selectListByCardId} 完全一致
      * （不过滤 DEL_YN，含已注销）。
      */

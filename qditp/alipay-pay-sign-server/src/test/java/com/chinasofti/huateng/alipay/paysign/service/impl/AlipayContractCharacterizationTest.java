@@ -154,7 +154,7 @@ class AlipayContractCharacterizationTest {
      * ADR-D135：撞主键说明并发请求刚把同一用户签上，结果与幂等重复请求等价 ⇒ 返成功。
      *
      * <p>MUST 沿 cause 链判定：这里刻意把 {@code DuplicateKeyException} 包进一层
-     * {@code RuntimeException}，模拟本模块 tracing 切面换类型的形态（AGENTS.md §5.2）。</p>
+     * {@code RuntimeException}，模拟本模块 tracing 切面换类型的形态（docs/architecture/runtime-observability-traps.md §1）。</p>
      */
     @Test
     void primaryKeyConflictDegradesToIdempotentSuccess() {

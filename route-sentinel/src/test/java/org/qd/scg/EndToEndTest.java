@@ -52,9 +52,9 @@ class EndToEndTest {
     }
 
     @Test
-    void gatewayRouteConfigShouldHaveTwoRoutes() {
+    void gatewayRouteConfigShouldHaveFourRoutes() {
         Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM gateway_route_config", Integer.class);
-        assertTrue(count != null && count >= 2, "Expected at least 2 routes in DB, got " + count);
+        assertTrue(count != null && count >= 4, "Expected at least 4 routes in DB, got " + count);
     }
 
     @Test
@@ -65,10 +65,24 @@ class EndToEndTest {
     }
 
     @Test
-    void newRouteShouldExist() {
+    void facePaySplitRouteShouldExist() {
         Integer count = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM gateway_route_config WHERE route_id = ?", Integer.class, "new-route");
-        assertTrue(count != null && count > 0, "new-route not found in DB");
+            "SELECT COUNT(*) FROM gateway_route_config WHERE route_id = ?", Integer.class, "face-pay-split-route");
+        assertTrue(count != null && count > 0, "face-pay-split-route not found in DB");
+    }
+
+    @Test
+    void facePayDefaultRouteShouldExist() {
+        Integer count = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM gateway_route_config WHERE route_id = ?", Integer.class, "face-pay-default-route");
+        assertTrue(count != null && count > 0, "face-pay-default-route not found in DB");
+    }
+
+    @Test
+    void fepAppRouteShouldExist() {
+        Integer count = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM gateway_route_config WHERE route_id = ?", Integer.class, "fep-app-route");
+        assertTrue(count != null && count > 0, "fep-app-route not found in DB");
     }
 
     @Test

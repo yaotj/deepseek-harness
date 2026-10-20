@@ -1,6 +1,7 @@
 package com.chinasofti.huateng.account.service;
 
 import com.chinasofti.huateng.account.page.ItpPayChannelView;
+import com.chinasofti.huateng.account.page.ItpUserCanceledSearchView;
 import com.chinasofti.huateng.account.page.ItpUserSearchView;
 import com.chinasofti.huateng.account.page.RegStatView;
 
@@ -11,14 +12,16 @@ import java.util.List;
  */
 public interface ItpUserQueryService {
     /**
-     * 按查询类型检索开户记录（含有效与已注销，不含已归档物理删除的行），返回**脱敏后**的视图。
+     * 按查询类型检索开户记录（不含已归档物理删除的行），返回**脱敏后**的视图。
      *
      * @param queryType 支持 {@code THIRD_USER_ID} / {@code MSISDN} / {@code CARD_ID}
      * @param keyword   已由调用方保证非空；本方法内部会 trim
+     * @param status    {@code ACTIVE}=只查有效（{@code DEL_YN=1}），{@code CANCELED}=只查已注销（{@code DEL_YN=0}）；
+     *                  为空时默认只查有效，避免旧调用方在拆分后意外返回已注销记录
      * @return 命中的视图列表；<b>{@code null} 表示查询类型不受支持</b>（调用方据此返回参数错误）。
      * <b>NEVER 把 {@code null} 与「查不到」混为一谈</b> —— 查不到是空列表。
      */
-    List<ItpUserSearchView> search(String queryType, String keyword);
+    List<ItpUserSearchView> search(String queryType, String keyword, String status);
 
     /**
      * 查询指定用户 + 票种下已关联的全部支付渠道与解约参数（账号字段已脱敏）。
@@ -43,4 +46,17 @@ public interface ItpUserQueryService {
      * @return 命中的视图列表，永不返回 {@code null}
      */
     List<ItpUserSearchView> batchSearch(List<String> cardIds);
+
+    /**
+     * 已注销用户查询：数据来源于 {@code USER_ITP_REG_LOG}（{@code OPER_TYPE=2} 销户记录）。
+     *
+     * <p>由于 IF8A-42 销户后通道已清空，注销成功即触发归档物理删除，
+     * {@code USER_ITP_REG_INFO} 中 {@code DEL_YN=0} 的记录窗口极短，
+     * 因此「已注销用户」的持久真源是销户日志而非开户表。
+     *
+     * @param queryType 支持 {@code THIRD_USER_ID} / {@code MSISDN} / {@code CARD_ID}
+     * @param keyword   已由调用方保证非空；本方法内部会 trim
+     * @return 命中的视图列表；{@code null} 表示查询类型不受支持
+     */
+    List<ItpUserCanceledSearchView> searchCanceledLog(String queryType, String keyword);
 }

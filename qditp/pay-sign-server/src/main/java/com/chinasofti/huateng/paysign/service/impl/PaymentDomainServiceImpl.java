@@ -385,7 +385,7 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
      * {@code PAY_CENTER_ORDER_NO} / {@code CHANNEL_ORDER_NO} **留空**（确实没有渠道流水，
      * 编不出来的号 NEVER 造假，退款侧 {@code PayRefundRules} 正靠它为空来拦这类单）。
      *
-     * <p>幂等：先查后插 + {@code UK_PAY_TXN_DETAIL_ORDER} 唯一键兜底（cause 链判定，见 AGENTS.md §5.2），
+     * <p>幂等：先查后插 + {@code UK_PAY_TXN_DETAIL_ORDER} 唯一键兜底（cause 链判定，见 docs/architecture/runtime-observability-traps.md §1），
      * 重复登记一律返成功，调用方可安全重试。
      */
     @Override

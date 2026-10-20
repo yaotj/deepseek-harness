@@ -48,7 +48,7 @@ spec:
           value: 'false'
         - name: gate.pay.order-timeout-seconds
           value: '60'
-        - name: server.port
+        - name: SERVER_PORT
           value: '8080'
         - name: other.sql.username
           value: qditp

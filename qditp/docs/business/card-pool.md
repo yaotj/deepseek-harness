@@ -9,8 +9,8 @@
 | card-pool-server | 9111（`CARD_POOL_PORT`） | 逻辑卡号池；批次申请、ACC 文件导入、卡号预占 |
 | acc-secure-server | 9099 | IF7B-01 `requestQrLogicNumList` 的上游代理，**当前未接线** |
 
-镜像 `itp/card-pool-server`，`remote` profile `activeByDefault=true` 且 jkube 绑 `package`，
-因此 `mvn clean package` 会直接 build + push 到 Harbor；只想拿 jar 加 `-Djkube.skip=true`。
+镜像 `itp/card-pool-server`，`remote` profile（**无 `activeByDefault`**）且 jkube 绑 `package`；
+推镜像 **MUST 显式 `-Premote`**（默认 `mvn package` 只出 jar、不推）；`-Djkube.skip=true` 已不再需要（也不是触发开关）。
 
 ## 真实接口清单
 
@@ -106,7 +106,7 @@
   该 env 为空 ⇒ appender 自动禁用、一条不推；写成 `victoria-logs-pbi6a-svc.itp.svc:30032`
   （缺 scheme）⇒ `vlogs-sender` 线程照样在跑但**推送全部静默失败**，现象与没注入一模一样
   （`status="off"` 吞掉报错）。2026-09-09 两个坑都踩过。正确值与排查方法见
-  `docs/ops/生产环境清单.md` §三 `VLOGS_URL` 行。
+  `docs/ops/生产环境清单.md` §3.2「ConfigMap（非敏感，随环境变化）」的 `VLOGS_URL` 行。
 
 - **`REQUESTING` 状态无法自动续做**：表示已向 ACC 发出申请但未拿到文件名，进程中断后无法判断
   对端是否已生成批次。维护动作会把它置 `FAILED` 并写明原因，需人工核对 ACC 侧后重建批次。
@@ -222,7 +222,7 @@
 - **ACC 成功返回码有两种形态**：`ACC_SUCCESS_CODES = {"0000", "200"}`，注释原文
   「ACC 成功返回码，两种形态都在生产上出现过」。（〔impl〕）
 - **入向报文形态以实测为准**：「ACC 只接受 `application/x-www-form-urlencoded`，公共参数平铺为表单字段、
-  `bizData` 为 **JSON 字符串**，即 AGENTS.md §4 记载的项目统一形态」；发 `application/json`
+  `bizData` 为 **JSON 字符串**，即本仓 `model` 的 `ItpCommonFormRequest` 统一形态」；发 `application/json`
   「实测 ACC 一律回 `1003 解析请求数据失败`」。
   （`card-pool-server` `AccLogicNumClient` 类注释，〔client〕；组装见 `AccLogicNumClient.buildForm`，〔client〕）
 - **响应字段实测**：`fileName` / `retCode` / `returnMsg`——「消息键是 `returnMsg` 而非规格写的 `RetMsg`，
@@ -426,8 +426,8 @@
 #### 2.4 维护与回收
 
 - **为什么维护走平台线程单线程池、且「受理即返回」**（`CardPoolServiceImpl.maintenanceExecutor`，〔impl〕）：
-  「本项目 `spring.threads.virtual.enabled=true` 是全局默认，而 ojdbc8 大量方法为 `synchronized`：
-  一轮十万行导入若跑在请求线程（虚拟线程）上会长时间 pin 住载体线程，严重时全 JVM 虚拟线程停止调度。
+  「本项目 `spring.threads.virtual.enabled` 历史值为 `true`（全局默认，2026-10-20 起已改 `false`），而 ojdbc8 大量方法为 `synchronized`：
+  一轮十万行导入若跑在请求线程上会长时间阻塞（启用虚拟线程时更会 pin 住载体线程，严重时全 JVM 虚拟线程停止调度）。
   因此维护与重试一律『受理即返回』，重活挪到这里执行。单线程即可，
   票种间的并发本来就由 `LOGIC_CARD_POOL_TYPE_LOCK` 串行化。」
 - **为什么申请与导入拆成两段**（`CardPoolService` 类注释，〔svc〕）：
@@ -567,7 +567,7 @@
 > Druid WallFilter 的两条规则、mapper XML 注释内连续减号、MCP 侧函数索引需包一层 PL/SQL、
 > 建唯一索引前先按确切谓词统计重复。`LogicCardPoolMapper.xml` 只有两处注释（〔xml〕），
 > 内容分别是「最小化失败落库」与候选查询的取法，均不涉及这四条；本模块也没有
-> `src/main/resources/sql/*.sql`。这四条的权威出处是 `AGENTS.md` §5.1 与 §8，
+> `src/main/resources/sql/*.sql`。这四条的权威出处是 `docs/architecture/mybatis-oracle-runtime-traps.md` §1「NEVER 在 SQL 正文中写注释」起的三条，以及 `docs/ops/构建与部署规范.md` §8「Ops & Deployment (部署与运维，详见 docs/ops/)」，
 > **NEVER 因为它们没出现在本模块注释里就认为不适用**。
 
 ### 四、墓碑注释清单（建议转为断言测试）
@@ -615,7 +615,7 @@
   「留给 `sys_job` 240 超时回收」「NEVER 用只有创建者才释放或对 `reservationId` 做 CAS」
   「确认失败 MUST NOT 返成功、MUST 开 `CARD_POOL_CONFIRM_REJECTED` 工单」这些字样。
   本模块注释里与超时回收有关的只有中性描述「预占超时由维护动作回收」（〔poolProp〕、〔cardEntity〕）。
-  这些结论的权威出处是 `AGENTS.md` §5.2 与 `docs/domain/decisions.md` ADR-D52，
+  这些结论的权威出处是 `AGENTS.md` §4.2「业务与架构约束」与 `docs/domain/decisions.md` ADR-D52，
   以及**调用侧** `account-server`（本次抽取范围外）。
 - **`8003 无卡资源` 在本模块 `src/main` 里 grep 不到**：全模块唯一出现是测试注释
   `card-pool-server/src/test/java/com/chinasofti/huateng/cardpool/service/impl/CardPoolReservationTest.java`
@@ -650,7 +650,7 @@ SQL 1 个文件（`card-pool-schema.sql`，只有 3 条 `COMMENT ON TABLE`、**�
 
 **这是本模块最贵的一条知识，而它在 `src/main` 注释里原本一个字都没有**（阶段一 §六 已据实记录，
 本阶段复核仍然如此：`release`〔impl〕、`releaseExpired`〔impl〕、〔mapper〕、
-〔xml〕 附近只有中性描述「释放预占」「回收所有已过期的预占」）。因此本节是从 `AGENTS.md` §5.2 与
+〔xml〕 附近只有中性描述「释放预占」「回收所有已过期的预占」）。因此本节是从 `AGENTS.md` §4.2「业务与架构约束」与
 `docs/domain/decisions.md` ADR-D52 迁入文档、并在代码侧只留一行式告警的结果：
 
 1. **幂等键是业务键，不是本次请求的唯一键**：`reserveFromPool` 按 `businessId` 幂等，开户场景
@@ -713,7 +713,7 @@ SQL 1 个文件（`card-pool-schema.sql`，只有 3 条 `COMMENT ON TABLE`、**�
   `@EnableRpcXxx`（〔boot〕、〔accProp〕「只保留卡号池用到的 IF7B-01 路径」）。
 - **报文形态实测结论（〔client〕）**：迁出侧 `AccSecureServiceImpl` 发 `application/json`（整体 JSON、
   `bizData` 为对象），实测 ACC 一律回 **`1003 解析请求数据失败`**；ACC 只接受
-  `application/x-www-form-urlencoded` + 公共参数平铺 + `bizData` 为 **JSON 字符串**（即 AGENTS.md §4 的项目统一形态）。
+  `application/x-www-form-urlencoded` + 公共参数平铺 + `bizData` 为 **JSON 字符串**（即本仓 `model` 的 `ItpCommonFormRequest` 统一形态）。
   迁出侧因始终未接线，该缺陷从未暴露。**NEVER 退回整体 JSON。**
 - **响应键名实测（〔client〕）**：`fileName` / `retCode` / **`returnMsg`** —— 消息键是
   `returnMsg` 而非规格写的 `RetMsg`，解析按 `retMsg` → `returnMsg` 顺序取，两种都能落进 `ERROR_MSG`。
@@ -747,9 +747,8 @@ SQL 1 个文件（`card-pool-schema.sql`，只有 3 条 `COMMENT ON TABLE`、**�
 - **本模块无 `@Scheduled`、无 `@EnableScheduling`**，三处注释互为副本（〔boot〕、〔ctl〕、
   〔svc〕），改一处 MUST 看齐其余两处。维护入口是 `POST /internal/card-pools/maintenance`。
 - **受理即返回**：维护与重试都只做同步校验 + 状态推进后立即返回，重活交给**单线程平台线程池**
-  （〔impl〕 `maintenanceExecutor`）。理由：全服务
-  `spring.threads.virtual.enabled=true`，ojdbc8 大量方法 `synchronized`，一轮十万行导入跑在请求线程
-  （虚拟线程）上会长时间 pin 住载体线程，严重时**全 JVM 虚拟线程停止调度**。
+  （〔impl〕 `maintenanceExecutor`）。理由：`spring.threads.virtual.enabled` 历史值为 `true`（全局默认，2026-10-20 起已改 `false`），ojdbc8 大量方法 `synchronized`，一轮十万行导入跑在请求线程
+  （启用虚拟线程时为虚拟线程）上会长时间阻塞（历史形态下 pin 住载体线程，严重时**全 JVM 虚拟线程停止调度**）。
   单线程足够 —— 票种间并发本就由 `LOGIC_CARD_POOL_TYPE_LOCK` 串行化。重试返回的批次状态是
   `DOWNLOADING` **不是终态**，结果需再查 `/page/card-pools/batches`。
 - **批次状态流转**（〔batchEntity〕）：`CREATED → REQUESTING → DOWNLOADING → IMPORTING → SUCCESS`，
@@ -773,7 +772,7 @@ SQL 1 个文件（`card-pool-schema.sql`，只有 3 条 `COMMENT ON TABLE`、**�
 - 除 `reserve` 外**均不带事务**，逐条 SQL 自动提交；ACC 申请与 FTP 下载**一律不在事务内发起**（〔impl〕）。
 ### 八、可观测性：三行成组（本文件是全项目样板）与异步 span
 
-- **配置块 〔prop〕 是 AGENTS.md §2.2.1 点名的全项目样板**，三行 MUST 成组：
+- **配置块 〔prop〕 是 docs/business/README.md 全局事实 点名的全项目样板**，三行 MUST 成组：
   `management.tracing.enabled=true` + `management.tracing.sampling.probability=0` +
   `spring.autoconfigure.exclude=...OtlpAutoConfiguration`。
   逐条理由（原文可 grep「NEVER 删除下面这行排除」）：
@@ -844,11 +843,11 @@ SQL 1 个文件（`card-pool-schema.sql`，只有 3 条 `COMMENT ON TABLE`、**�
    这里留足余量」，而〔batchEntity〕 与 写「最长 1900 字符」。两者不冲突（1900 是留余量后的
    业务口径），但**数字不一致、易被当成矛盾**；未去库上核 `USER_TAB_COLS.CHAR_LENGTH`，**待裁决时 MUST 实测**。
 4. **`sys_job` 240 与 cron `0 0/5 * * * ?` 在本模块代码里查不到**（阶段一 §六 已记）：`src/main` 只说
-   「由外部调度 / web-admin Quartz 或运维触发」。本阶段把 job_id 与 cron 写进 §一，**出处是 AGENTS.md §5.2
-   与 `docs/architecture/web-server.md` §七，不是本模块代码** —— 引用时 MUST 现查 `sys_job`。
+   「由外部调度 / web-admin Quartz 或运维触发」。本阶段把 job_id 与 cron 写进 §一，**出处是 `AGENTS.md` §4.2「业务与架构约束」
+   与 `docs/architecture/web-server.md` §七「定时任务（Quartz）跨服务调用」，不是本模块代码** —— 引用时 MUST 现查 `sys_job`。
 5. **`AccSecureProperties` 的 `signKey` 有默认真值风险**：〔accProp〕 只说「MD5 签名 key，仅 signType=02 时使用」，
-   未标注 `${ENV:}` 约束。当前生产 `signType=00` 不用它，故未处理；**改成 `02` 前 MUST 先按 AGENTS.md §5.2
-   「敏感配置」把它收成空默认值 + K8s Secret 注入。**
+   未标注 `${ENV:}` 约束。当前生产 `signType=00` 不用它，故未处理；**改成 `02` 前 MUST 先按
+   `docs/architecture/security-sensitivity.md` §一「敏感配置规则」把它收成空默认值 + K8s Secret 注入。**
 
 ### 墓碑清单（本阶段从代码删除、只在文档留证）
 

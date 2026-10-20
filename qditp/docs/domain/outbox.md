@@ -1,6 +1,6 @@
 # Outbox 模板（落库状态 + 扫表补偿）
 
-本项目不使用消息队列（AGENTS.md §5.1），所有「本地已提交、还要告诉别人」的场景一律是
+本项目不使用消息队列（AGENTS.md §4.1「NEVER 引入 Redis / RabbitMQ / Kafka 等中间件」），所有「本地已提交、还要告诉别人」的场景一律是
 **同一张业务表上加四列状态 + 外部定时任务扫表重推**。`USER_PHONE_CHANGE_LOG.SIGN_SYNC_*` 是
 第一处落地（ADR-D13 / ADR-D45），ADR-D8 第一处要补的 `APP_TERMINATION_REQUEST.CHANNEL_SYNC_*`
 是第二处。本文把这套做法固化成模板。
@@ -47,7 +47,7 @@ mapper 的两处白名单与运营查询里，多一个值就要全局 grep 一�
 
 **SQL 正文里 NEVER 写注释**（Druid WallFilter 会判定为注入并静默失效），说明写进 XML 的
 `<!-- -->`；而 XML 注释里 **NEVER 出现两个连续减号**（MyBatis 解析失败 ⇒ 服务启动即挂）。
-改完 MUST 跑 `xmllint --noout <file>`。两条都是 AGENTS.md §5.1 的既有事故。
+改完 MUST 跑 `xmllint --noout <file>`。两条都是 `docs/architecture/mybatis-oracle-runtime-traps.md` §1「NEVER 在 SQL 正文中写注释」与同文件 §3「mapper XML 注释里 NEVER 出现两个连续减号」的既有事故。
 
 ## 三、Java 侧扫描骨架
 
@@ -93,7 +93,7 @@ OutboxScan.Result scan = OutboxScan.run(pending,
 触发端点的路径**目前两套并存**，新增时对齐所在模块的既有那套、**NEVER 混用**：
 `pay-sign-server` 的 7 个补偿端点在 `/internal/**`，account-server 的这一个是
 `TaskController` 上的 `POST /phoneSignSyncCompensate`（该类没有类级 `@RequestMapping`）。
-两套都**尚无鉴权**，与 AGENTS.md §5.2「新增状态变更型接口 MUST 有鉴权」冲突，**上线前 MUST 补**。
+两套都**尚无鉴权**，与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权」冲突，**上线前 MUST 补**。
 
 排查「补偿到底有没有跑」**MUST 查 `SYS_JOB_LOG`**，`QRTZ_*` 表恒为 0 行（内存 JobStore）。
 
@@ -120,7 +120,7 @@ OutboxScan.Result scan = OutboxScan.run(pending,
   ① **调度在本模块的 `@Scheduled`（`SupplementOrderCloseProcessor`）而不是 web-admin**
   —— 该模块已有 3 个在跑的 `@Scheduled`，补款链路的三段（补入口 / 收敛已付 / 关超时）
   不应横跨两个调度器；**要搬 MUST 三段一起搬**，NEVER 只把新这段挪走。
-  ② **落本地在调远端之前**，与 AGENTS.md §5.2「先调远端后改本地」通则相反 ——
+  ② **落本地在调远端之前**，与 docs/architecture/transaction-and-consistency.md §2「MUST 先调远端、后改本地」通则相反 ——
   反过来写会在 collect-pay 留下可支付的孤儿订单（资损方向），论证见 ADR-D64。
   **补偿未闭环**：支付域没有工单表，达重试上限只落 ERROR + 写 `SALE_SYNC_RESULT`，
   **运维 MUST 配告警规则**；**NEVER 跨域写 account-server 的 `ACCOUNT_EXCEPTION_TICKET`**。
@@ -160,7 +160,7 @@ OutboxScan.Result scan = OutboxScan.run(pending,
   连带收益：快速路径也传同一个值后，AGM 超时重发导致同一笔出站被调两次时也不会重复扣次。
   动手前 MUST 先查清「库内 `orderNo IS NULL` 的历史行有多少、改成非 null 对 daily-ticket-server 有无副作用」。
 - **一条必须先闭合的历史冲突**：`GateTicketHandler` 的注释原文记载「跨服务补偿的形态还没定
-  （**用户已否决扫表/定时任务**）」，而本文 §五 与 AGENTS.md §5.1 要求「异步补偿统一为落库状态 + 扫表重试」。
+  （**用户已否决扫表/定时任务**）」，而本文 §五 与 AGENTS.md §4.1「落库状态 + `@Scheduled` 扫表重试」要求「异步补偿统一为落库状态 + 扫表重试」。
   2026-09-14 用户提出要做「`markUsed` 落库 + 扫表重试」，**等于推翻那条旧裁决**，但随后又要求整体搁置。
   因此那条注释**原样保留、未改**。重新开工时 MUST 先向用户确认「扫表方案是否已解禁」，
   **NEVER 只看本文 §五 就动手**，也 NEVER 因为看到那条注释就断定扫表被永久否决。
@@ -177,5 +177,5 @@ OutboxScan.Result scan = OutboxScan.run(pending,
    —— 选 (b) 的后果是**代码完备但没有任何触发方**，与 `APP_TERMINATION_REQUEST.CHANNEL_SYNC_*` 现状同型。
 3. **DDL 落在热表上**：两组四列都 `ALTER TABLE QRCODE_TXN_DETAIL ADD`，该表是过闸热路径写入表。
    `ADD` 不重写数据、风险低，但 MUST 出独立 `ticket-server-{code-push,mark-used}-migration.sql`
-   并当场在 `AFCITPDB` 执行 + `USER_TAB_COLS` 回查（AGENTS.md §8「只改 schema.sql 等于没加」）。
+   并当场在 `AFCITPDB` 执行 + `USER_TAB_COLS` 回查（`docs/ops/构建与部署规范.md` §8「只改 schema.sql 等于没加」）。
 

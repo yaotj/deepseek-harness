@@ -1,6 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.key.mapper.ComDeviceSynKeyMapper">
+
+    <resultMap id="DeviceKeySyncViewMap" type="com.chinasofti.huateng.key.page.DeviceKeySyncView">
+        <id column="DEVICE_ID" property="deviceId"/>
+        <result column="STATION_CODE" property="stationCode"/>
+        <result column="STATUS" property="status"/>
+        <result column="RESP_RET_CODE" property="respRetCode"/>
+        <result column="RESP_RET_MSG" property="respRetMsg"/>
+        <result column="RESP_KEY_VERSION_COUNT" property="respKeyVersionCount"/>
+        <result column="PROCESS_DURATION_MS" property="processDurationMs"/>
+        <result column="REQ_SYN_KEY_DATE" property="reqSynKeyDate"/>
+        <result column="REG_DATE" property="regDate"/>
+        <result column="AGM_KEY_CURVER_LIST" property="agmKeyCurverList" jdbcType="CLOB"/>
+    </resultMap>
+
     <insert id="merge" parameterType="com.chinasofti.huateng.key.entity.ComDeviceSynKey">
         merge into COM_DEVICE_SYN_KEY target
         using (select #{deviceId} as DEVICE_ID,
@@ -33,4 +47,55 @@
              source.RESP_RET_CODE, source.RESP_RET_MSG, source.RESP_KEY_VERSION_COUNT,
              source.PROCESS_DURATION_MS, source.STATUS, source.ERROR_MSG, systimestamp)
     </insert>
+
+    <!-- 综管台设备密钥同步：分页查询最新同步状态。NEVER 把 AGM_KEY_CURVER_LIST 直接用于列表条件。 -->
+    <select id="selectList" resultMap="DeviceKeySyncViewMap">
+        select *
+        from (
+            select t.*, ROWNUM as rn
+            from (
+                select DEVICE_ID,
+                       STATION_CODE,
+                       STATUS,
+                       RESP_RET_CODE,
+                       RESP_RET_MSG,
+                       RESP_KEY_VERSION_COUNT,
+                       PROCESS_DURATION_MS,
+                       TO_CHAR(REQ_SYN_KEY_DATE, 'YYYY-MM-DD HH24:MI:SS') as REQ_SYN_KEY_DATE,
+                       TO_CHAR(REG_DATE, 'YYYY-MM-DD HH24:MI:SS') as REG_DATE,
+                       AGM_KEY_CURVER_LIST
+                from COM_DEVICE_SYN_KEY
+                <where>
+                    <if test="deviceId != null and deviceId != ''">
+                        and DEVICE_ID like '%' || #{deviceId} || '%'
+                    </if>
+                    <if test="stationCode != null and stationCode != ''">
+                        and STATION_CODE like '%' || #{stationCode} || '%'
+                    </if>
+                    <if test="status != null and status != ''">
+                        and STATUS = #{status}
+                    </if>
+                </where>
+                order by REQ_SYN_KEY_DATE desc nulls last, DEVICE_ID
+            ) t
+            where ROWNUM &lt;= #{offset} + #{limit}
+        )
+        where rn &gt; #{offset}
+    </select>
+
+    <select id="count" resultType="long">
+        select count(1)
+        from COM_DEVICE_SYN_KEY
+        <where>
+            <if test="deviceId != null and deviceId != ''">
+                and DEVICE_ID like '%' || #{deviceId} || '%'
+            </if>
+            <if test="stationCode != null and stationCode != ''">
+                and STATION_CODE like '%' || #{stationCode} || '%'
+            </if>
+            <if test="status != null and status != ''">
+                and STATUS = #{status}
+            </if>
+        </where>
+    </select>
 </mapper>

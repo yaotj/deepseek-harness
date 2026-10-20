@@ -72,7 +72,7 @@ spec:
               key: other.sql.password
         - name: other.sql.database
           value: AFCITPDB
-        - name: server.port
+        - name: SERVER_PORT
           value: '9102'
         - name: other.sql.type
           value: oracle

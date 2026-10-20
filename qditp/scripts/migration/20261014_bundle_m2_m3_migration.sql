@@ -1,7 +1,11 @@
 -- =============================================================================
 -- 青岛地铁 ITP 数据库按域分库 — 包 3：M2/M3 迁移（4 库 DDL 导出 + 灌数 + 校验）
 -- 配套文档：docs/ops/数据库按域分库迁移DDL草案.md §4 / §6 / §7
--- 状态：v1.6 执行包（仅供评审，严禁直接在生产库执行）
+-- 状态：v1.6 执行包（⚠️ 同库设计，仅供评审；**跨库场景（老环境→红岛生产）已作废**）
+-- ⚠️ 2026-10-17：本包 Step 2 的 `INSERT INTO QDITP_TXN.x SELECT * FROM QDITP.x` 只在
+--    **同库**成立；实际迁移是跨库（源 172.20.222.3/AFCITPDB → 目标 172.120.110.25/hditpdb），
+--    MUST 改用 20261017_m2m3_crossdb_hongdao.sql（expdp → 传输 → impdp REMAP_SCHEMA）。
+--    Step 1 的 DDL 导出（GET_DDL）作为评审留档仍有参考价值，数据灌数 NEVER 用本包。
 -- 目标：把 130 张表按域迁入 4 个新 schema，保留分区 / 索引 / 约束
 -- 执行顺序：
 --   1. export_qditp_plat.sql   ← PLAT 域 ~77 张表 DDL 导出
@@ -63,6 +67,7 @@ BEGIN
       'SYS_USER','SYS_ROLE','SYS_MENU','SYS_DEPT','SYS_POST',
       'SYS_DICT_TYPE','SYS_DICT_DATA','SYS_CONFIG','SYS_NOTICE',
       'SYS_LOGININFOR','SYS_OPER_LOG','SYS_JOB',
+      'SYS_USER_ROLE','SYS_ROLE_MENU','SYS_ROLE_DEPT','SYS_USER_POST','SYS_JOB_LOG',
       'QRTZ_JOB_DETAILS','QRTZ_TRIGGERS','QRTZ_SIMPLE_TRIGGERS','QRTZ_CRON_TRIGGERS',
       'QRTZ_BLOB_TRIGGERS','QRTZ_CALENDARS','QRTZ_PAUSED_TRIGGER_GRPS',
       'QRTZ_FIRED_TRIGGERS','QRTZ_SCHEDULER_STATE','QRTZ_LOCKS',

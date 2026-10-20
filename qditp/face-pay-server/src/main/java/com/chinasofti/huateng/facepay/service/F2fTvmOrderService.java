@@ -23,24 +23,34 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** TVM 拉码下单与 BOM 柜台售票下单（同一条 URL，{@code providerId} 分流）。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。 */
+/**
+ * TVM 拉码下单与 BOM 柜台售票下单（同一条 URL，{@code providerId} 分流）。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。
+ */
 @Service
 public class F2fTvmOrderService {
 
     private static final Logger log = LoggerFactory.getLogger(F2fTvmOrderService.class);
 
-    /** 受理渠道：TVM。 */
+    /**
+     * 受理渠道：TVM。
+     */
     private static final String CHANNEL_TVM = "02";
 
-    /** 受理渠道：BOM，与 {@code F2fChannel.BOM} 同值。 */
+    /**
+     * 受理渠道：BOM，与 {@code F2fChannel.BOM} 同值。
+     */
     private static final String CHANNEL_BOM = "03";
 
-    /** 业务类型：购票。 */
+    /**
+     * 业务类型：购票。
+     */
     private static final String BIZ_BUY_TICKET = "01";
 
     private static final String STATUS_CREATED = F2fOrderStatus.CREATED.name();
 
-    /** 预下单被拒时的 CAS 前置白名单。 */
+    /**
+     * 预下单被拒时的 CAS 前置白名单。
+     */
     private static final List<String> PENDING = F2fOrderStatus.PENDING;
 
     private static final String PAY_SUBJECT = "单程票购票";
@@ -59,7 +69,9 @@ public class F2fTvmOrderService {
 
     private final int qrcodeExpireSeconds;
 
-    /** BOM 售票单的失效时长（秒）。 */
+    /**
+     * BOM 售票单的失效时长（秒）。
+     */
     private final int bomSaleExpireSeconds;
 
     public F2fTvmOrderService(F2fOrderMapper orderMapper,
@@ -78,9 +90,12 @@ public class F2fTvmOrderService {
         this.bomSaleExpireSeconds = bomSaleExpireSeconds;
     }
 
-    /** IF2A-01 拉码下单。 */
+    /**
+     * IF2A-01 拉码下单。
+     */
     public JSONObject createSingleTicketOrder(RequestGenSjtOrderReqDTO request) {
         TicketAmount parsed = parseTicketAmount(request);
+        log.info("拉码下单 parsed is {}", parsed);
         if (parsed.invalid() != null) {
             return TvmResponses.genSjtOrderFail(DeviceRetCode.INVALID_PARAM, parsed.invalid());
         }
@@ -93,15 +108,18 @@ public class F2fTvmOrderService {
         log.info("拉码下单已落库, orderNo={}, amount={}, deviceId={}", orderNo, amount, request.getDeviceId());
 
         if ("0".equals(request.getPayType())) {
+            log.info("payType=0 走本地聚合码, orderNo={}", orderNo);
             String payUrl = messageFactory.buildAggregateCodePayUrl(orderNo);
             paymentMapper.insert(buildPayment(orderNo, amount, request.getPayType(), "INIT", payUrl, null, now));
-            log.info("payType=0 走本地聚合码, orderNo={}", orderNo);
             return TvmResponses.genSjtOrderSuccess(orderNo, payUrl);
         }
+        log.info("开始从支付中心拉码");
         return preOrderAtPayCenter(orderNo, amount, request.getPayType(), now);
     }
 
-    /** BOM 售票下单（同一条 URL，{@code providerId=03} 分流）。 */
+    /**
+     * BOM 售票下单（同一条 URL，{@code providerId=03} 分流）。
+     */
     public JSONObject createBomSaleOrder(RequestGenSjtOrderReqDTO request) {
         TicketAmount parsed = parseTicketAmount(request);
         if (parsed.invalid() != null) {
@@ -117,7 +135,9 @@ public class F2fTvmOrderService {
         return BomResponses.successOrderNo(orderNo);
     }
 
-    /** 票价与张数的解析结果。 */
+    /**
+     * 票价与张数的解析结果。
+     */
     private record TicketAmount(long ticketPrice, int ticketNum, long total, String invalid) {
     }
 
@@ -162,12 +182,14 @@ public class F2fTvmOrderService {
         return order;
     }
 
-    /** 预下单：本方法必须在事务外执行，中间那次 {@code execute} 是网络调用。 */
+    /**
+     * 预下单：本方法必须在事务外执行，中间那次 {@code execute} 是网络调用。
+     */
     private JSONObject preOrderAtPayCenter(String orderNo, long amount, String payType, LocalDateTime now) {
         PayCenterRequest message = messageFactory.buildPayRequest(new PayCenterPayCommand(
                 orderNo, PayScene.QRCODE, null, payType, amount, PAY_SUBJECT, PAY_BODY, null));
         paymentMapper.insert(buildPayment(orderNo, amount, payType, "INIT", null, message.getBizData(), now));
-
+        log.info("payment 表保存结束");
         F2fPayCenterFlow.Submitted submitted = payCenterFlow.submit(new F2fPayCenterFlow.SubmitSpec(
                 orderNo, 1, message, "二维码串",
                 new F2fPayCenterFlow.RejectTransition(PENDING, "支付中心预下单失败:"),

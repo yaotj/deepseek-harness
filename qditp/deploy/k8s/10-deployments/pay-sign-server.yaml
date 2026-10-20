@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
       - env:
-        - name: pay.sign.request-pay-notify-url
+        - name: PAY_SIGN_REQUEST_PAY_NOTIFY_URL
           value: http://58.56.166.170:48000/fep-app/ci/app/receivePayResult
         - name: itp.format
           value: json
@@ -71,6 +71,11 @@ spec:
             secretKeyRef:
               name: itp-secrets
               key: other.sql.password
+        - name: pay.sign.merchant-private-key
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: pay.sign.merchant-private-key
         - name: itp.providerId
           value: '06'
         - name: other.sql.database
@@ -99,9 +104,9 @@ spec:
           value: '1.0'
         - name: pay.sign.termination-path
           value: https://dtcustomer.bestonepay.com/testngbackV2/api/v1/contract/dismissal
-        - name: pay.sign.default-notify-url
+        - name: PAY_SIGN_DEFAULT_NOTIFY_URL
           value: http://58.56.166.170:48000/fep-app/ci/app/receiveSignResult
-        - name: server.port
+        - name: SERVER_PORT
           value: '8080'
         - name: pay.sign.contract-path
           value: https://dtcustomer.bestonepay.com/testngbackV2//api/v1/contract/contract
@@ -138,7 +143,7 @@ spec:
           value: pay-sign-server
         - name: NAMESPACE
           value: itp
-        - name: pay.sign.request-refund-notify-url
+        - name: PAY_SIGN_REQUEST_REFUND_NOTIFY_URL
           value: http://58.56.166.170:48000/fep-app/ci/app/paySign/payment/receiveRefundResult
         image: os-harbor-svc.default.svc.cloudos:443/itp/pay-sign-server:2.1.10
         imagePullPolicy: IfNotPresent

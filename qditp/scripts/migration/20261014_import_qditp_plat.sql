@@ -1,7 +1,8 @@
 -- =============================================================================
 -- 青岛地铁 ITP 数据库按域分库 — QDITP_PLAT 域数据导入脚本（impdp）
 -- 配套文档：docs/ops/数据库按域分库迁移DDL草案.md
--- 状态：v1.7 执行包（仅供评审，严禁直接在生产库执行）
+-- 状态：v1.7 执行包（⚠️ 同库设计；**跨库场景（红岛生产）以 20261017_m2m3_crossdb_hongdao.sql
+--       为准**——本文件 impdp 连接串指向老环境、行数比对为同库假设，NEVER 直接用于红岛）
 -- 用途：用 Data Pump 导入 qditp_plat.dmp 到 QDITP_PLAT schema
 -- 特殊说明：
 --   - SYS_* / QRTZ_* 导入后 web-server 的 datasource 指向 QDITP_PLAT

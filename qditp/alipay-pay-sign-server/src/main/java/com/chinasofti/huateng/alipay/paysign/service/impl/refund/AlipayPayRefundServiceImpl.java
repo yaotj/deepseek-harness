@@ -47,7 +47,7 @@ import java.util.UUID;
  * {@code controller.internal.AlipayPaymentInternalController.requestRefund} 改回注
  * {@code AlipayTripPaymentService}。
  *
- * <p><b>已知缺口（本次未修）</b>：本端点无鉴权、无归属校验，按 AGENTS.md §5.2 本应有 ——
+ * <p><b>已知缺口（本次未修）</b>：本端点无鉴权、无归属校验，按 docs/architecture/security-sensitivity.md §三 本应有 ——
  * 它既改状态又出网发起真实退款。这是既有缺口、不是本次引入的，见控制器类注释。
  */
 @Service
@@ -105,7 +105,7 @@ public class AlipayPayRefundServiceImpl implements AlipayPayRefundService {
     /**
      * 查原支付并校验「可退」。
      *
-     * <p>三条校验的文案与迁移前逐字一致。<b>白名单只认 {@code SUCCESS}</b>（AGENTS.md §5.2：状态机用
+     * <p>三条校验的文案与迁移前逐字一致。<b>白名单只认 {@code SUCCESS}</b>（AGENTS.md §4.2：状态机用
      * 白名单不用黑名单）—— {@code PROCESSING} 的单子钱还没确定扣没扣，退它是凭空出账。
      */
     private AlipayPayLog loadSettledPayLog(String orderNo) {

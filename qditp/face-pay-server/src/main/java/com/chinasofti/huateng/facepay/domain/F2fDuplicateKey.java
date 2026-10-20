@@ -5,7 +5,7 @@ import org.springframework.dao.DuplicateKeyException;
 
 import java.sql.SQLIntegrityConstraintViolationException;
 
-/** 「唯一索引冲突 = 幂等命中」这条判定的唯一实现。这是对 AGENTS.md §5.1「NEVER 新建工具类」的有意破例（12 处判定散在 9 个类）。 */
+/** 「唯一索引冲突 = 幂等命中」这条判定的唯一实现。这是对 AGENTS.md §4.1「NEVER 新建工具类」的有意破例（12 处判定散在 9 个类）。 */
 public final class F2fDuplicateKey {
 
     private F2fDuplicateKey() {

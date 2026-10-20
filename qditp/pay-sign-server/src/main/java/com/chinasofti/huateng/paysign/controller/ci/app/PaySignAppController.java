@@ -100,7 +100,7 @@ public class PaySignAppController {
      * 支付中心网关 §5.2 退款回调内部入口（2026-09-22 新增，P1-3）。
      *
      * <p>**本端点没有验签**（用户裁决「不补验签」）：与上面 {@code receivePayResult} 现状一致，
-     * 属**已知待补的安全缺口**，**NEVER 拿它当「新增状态变更型端点可以免签」的依据**（AGENTS.md §5.2 仍然有效）。
+     * 属**已知待补的安全缺口**，**NEVER 拿它当「新增状态变更型端点可以免签」的依据**（docs/architecture/security-sensitivity.md §三 仍然有效）。
      */
     @PostMapping("/receiveRefundResult")
     public PaySignCallbackResult receiveRefundResult(@RequestBody ReceiveRefundResultReqDTO request) {

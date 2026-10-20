@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.chinasofti.huateng</groupId>
     <artifactId>trans-query-server</artifactId>
-    <version>1.0.18</version>
+    <version>1.0.19</version>
     <packaging>jar</packaging>
 
     <parent>
@@ -77,9 +77,6 @@
     <profiles>
         <profile>
             <id>remote</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
             <build>
                 <plugins>
                     <plugin>

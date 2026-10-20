@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
  * <p>为什么在本模块新起一个适配器、而不是给 {@code rpc} 模块的 {@code PaySignClient.requestPay} /
  * {@code AlipayPaySignClient.alipayTripRequestPay} 改签名：那两个方法的返回类型分别是
  * {@code RequestPayResult} 与 {@code AlipayTripRequestPayRespDTO}，调用方不止本模块，而 {@code rpc}
- * 的版本号锁死（AGENTS.md §7）只能增方法不能改签名。形态照 {@code pay-sign-server} 与
+ * 的版本号锁死（docs/ops/构建与部署规范.md §7）只能增方法不能改签名。形态照 {@code pay-sign-server} 与
  * {@code alipay-pay-sign-server} 各自的 {@code port/DebitSyncRpcAdapter} —— 本项目已有的
  * 「业务模块内部把裸 DTO 翻成 {@code RpcOutcome}」样板就是它们。
  *

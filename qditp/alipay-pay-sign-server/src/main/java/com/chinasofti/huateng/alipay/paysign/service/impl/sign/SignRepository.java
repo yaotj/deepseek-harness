@@ -81,7 +81,7 @@ class SignRepository {
      * 沿 {@code getCause()} 链判「唯一约束冲突」，<b>NEVER 只看最外层异常类型</b>。
      *
      * <p>本模块开着 tracing，{@code resource/micro/web} 的观测切面会把异常重新包一层，
-     * 只 {@code catch (DuplicateKeyException)} 会静默落空（AGENTS.md §5.2 那条已发生过的坑）。
+     * 只 {@code catch (DuplicateKeyException)} 会静默落空（docs/architecture/runtime-observability-traps.md §1 那条已发生过的坑）。
      */
     private boolean isUniqueConflict(Throwable e) {
         for (Throwable t = e; t != null; t = t.getCause()) {

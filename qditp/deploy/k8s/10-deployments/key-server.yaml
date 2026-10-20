@@ -54,7 +54,7 @@ spec:
               key: other.sql.password
         - name: other.sql.database
           value: AFCITPDB
-        - name: server.port
+        - name: SERVER_PORT
           value: '8080'
         - name: other.sql.type
           value: oracle
@@ -92,7 +92,7 @@ spec:
           value: key-server
         - name: NAMESPACE
           value: itp
-        image: os-harbor-svc.default.svc.cloudos:443/itp/key-server:2.0.15
+        image: os-harbor-svc.default.svc.cloudos:443/itp/key-server:2.0.17
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: key-server

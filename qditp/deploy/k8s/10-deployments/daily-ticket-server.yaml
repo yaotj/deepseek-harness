@@ -38,7 +38,7 @@ spec:
           value: classpath*:mapper/*.xml
         - name: knife4j.production
           value: 'true'
-        - name: server.port
+        - name: SERVER_PORT
           value: '9108'
         - name: other.sql.username
           value: ${DB_USERNAME:qditp}
@@ -48,7 +48,7 @@ spec:
           value: http://victoria-logs-pbi6a-svc.itp.svc:30032
         - name: other.sql.host
           value: ${DB_HOST:172.20.222.3:1521}
-        - name: daily-ticket.pay.notify-url
+        - name: DAILY_TICKET_PAY_NOTIFY_URL
           value: ${DAILY_TICKET_PAY_NOTIFY_URL:http://58.56.166.170:48000/fep-app/app/payment/receivePayResult}
         - name: daily-ticket.pay.gateway-url
           value: ${DAILY_TICKET_PAY_GATEWAY_URL:http://dtcustomer.bestonepay.com/ngpayment-gateway}
@@ -71,6 +71,11 @@ spec:
             secretKeyRef:
               name: itp-secrets
               key: other.sql.password
+        - name: daily-ticket.pay.merchant-private-key
+          valueFrom:
+            secretKeyRef:
+              name: itp-secrets
+              key: daily-ticket.pay.merchant-private-key
         - name: daily-ticket.pay.request-pay-path
           value: ${DAILY_TICKET_PAY_REQUEST_PAY_PATH:/api/v1/payment/requestPay}
         - name: other.sql.database
@@ -102,7 +107,7 @@ spec:
           value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receiveRefundResult
         - name: DAILY_TICKET_NOTIFY_APP_PAY_RESULT_URL
           value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receivePaymentResult
-        - name: daily-ticket.pay.refund-notify-url
+        - name: DAILY_TICKET_PAY_REFUND_NOTIFY_URL
           value: http://58.56.166.170:48000/fep-app/app/payment/receiveRefundResult
         image: os-harbor-svc.default.svc.cloudos:443/itp/daily-ticket-server:1.0.63
         imagePullPolicy: IfNotPresent

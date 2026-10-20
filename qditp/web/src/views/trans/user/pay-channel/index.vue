@@ -14,7 +14,7 @@
         <el-descriptions-item label="逻辑卡号">{{ query.cardId || '-' }}</el-descriptions-item>
         <el-descriptions-item label="票种">{{ cardTypeLabel(query.cardType) }}</el-descriptions-item>
         <el-descriptions-item label="默认渠道">
-          <el-tag v-if="defaultChannel" type="warning">{{ channelLabel(defaultChannel.channel) }}</el-tag>
+          <el-tag v-if="defaultChannel" type="warning">{{ payChannelLabel(defaultChannel.channel) }}</el-tag>
           <span v-else>暂无默认渠道</span>
         </el-descriptions-item>
       </el-descriptions>
@@ -31,7 +31,7 @@
     <el-table v-loading="loading" :data="channels" border empty-text="该票种暂无关联支付渠道">
       <el-table-column label="支付渠道" min-width="150">
         <template #default="{ row }">
-          <span>{{ channelLabel(row.channel) }}</span>
+          <span>{{ payChannelLabel(row.channel) }}</span>
           <el-tag v-if="row.defaultChannel" type="warning" size="small" class="default-tag">默认</el-tag>
         </template>
       </el-table-column>
@@ -81,7 +81,7 @@
         class="confirm-alert"
       />
       <el-descriptions v-if="terminationDialog.channel" :column="1" border>
-        <el-descriptions-item label="支付渠道">{{ channelLabel(terminationDialog.channel.channel) }}</el-descriptions-item>
+        <el-descriptions-item label="支付渠道">{{ payChannelLabel(terminationDialog.channel.channel) }}</el-descriptions-item>
         <el-descriptions-item label="第三方用户 ID">{{ terminationDialog.channel.thirdUserId }}</el-descriptions-item>
         <el-descriptions-item label="逻辑卡号">{{ terminationDialog.channel.cardId }}</el-descriptions-item>
         <el-descriptions-item label="票种">{{ cardTypeLabel(terminationDialog.channel.cardType) }}</el-descriptions-item>
@@ -97,7 +97,8 @@
 
 <script setup name="UserPayChannel">
 import { executeTermination, getItpPayChannels } from '@/api/trans/userSearch'
-import { formatCodeLabel } from '@/utils/codeLabel'
+import { cardTypeLabel } from '@/utils/cardType'
+import { payChannelLabel } from '@/utils/payChannel'
 
 const { proxy } = getCurrentInstance()
 const route = useRoute()
@@ -112,50 +113,9 @@ const query = reactive({
 })
 const terminationDialog = reactive({ visible: false, submitting: false, channel: null })
 
-const cardTypeLabels = {
-  '02': '后付费二维码',
-  '03': 'HCE卡',
-  '04': '新HCE卡',
-  '11': '员工码',
-  '12': '一日票',
-  '13': '三日票',
-  '14': '七日票',
-  '15': '多日计次票',
-  '0441': '后付费二维码',
-  '0442': 'HCE卡',
-  '0443': '新HCE卡',
-  '0444': '员工码',
-  '0445': '一日票',
-  '0446': '三日票',
-  '0447': '七日票',
-  '0448': '多日计次票'
-}
-
-/** 支付渠道：保持上送原值（含 0B/0C 这类 16 进制写法）做码值匹配，不做进制转换。 */
-const channelLabels = {
-  '03': '支付宝',
-  '04': '微信',
-  '05': '支付宝出行',
-  '06': '龙支付',
-  '0601': '招商银行',
-  '0602': '中国银行',
-  '08': '建行数币',
-  '0801': '中行数币',
-  '0802': '邮储数币',
-  '0803': '交行数币',
-  '0B': '钱包',
-  '0C': '数币APP'
-}
+/** 支付渠道码表统一放在 `@/utils/payChannel`（与后端 PaymentVendorEnum 对应），本页不再自带副本。 */
 
 const defaultChannel = computed(() => channels.value.find((channel) => channel.defaultChannel))
-
-function cardTypeLabel(value) {
-  return formatCodeLabel(value, cardTypeLabels)
-}
-
-function channelLabel(value) {
-  return formatCodeLabel(value, channelLabels)
-}
 
 function formatTime(value) {
   if (!value) return '-'

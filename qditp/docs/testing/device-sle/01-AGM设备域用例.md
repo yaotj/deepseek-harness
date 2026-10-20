@@ -15,14 +15,14 @@
 
 | 项 | 值 | 依据 |
 |---|---|---|
-| 落点模块 | `fep-dev-server`（闸机 AGM 前置，**无 DB、无 mapper**） | `AGENTS.md` §3.2 该行 |
+| 落点模块 | `fep-dev-server`（闸机 AGM 前置，**无 DB、无 mapper**） | `docs/architecture/overview.md` 该行 |
 | 类级路径 | `@RequestMapping("/ci/agm")` | `fep-dev-server/src/main/java/com/chinasofti/huateng/fep/dev/controller/FepAgmController.java:30` |
-| 入向网关前缀 | `/itpagm/`（VS `fep-app-vr` 的 8 条前缀之一） | `AGENTS.md` §8 |
+| 入向网关前缀 | `/itpagm/`（VS `fep-app-vr` 的 8 条前缀之一） | `docs/ops/构建与部署规范.md` §8 |
 | 报文格式 | `application/x-www-form-urlencoded`，`@ModelAttribute ItpCommonFormRequest` | `FepAgmController.java:47` / `:71` / `:93` / `:113` |
 | `bizData` 解析 | 私有 `parseBizData`，**Fastjson2 `JSON.parseObject`，解析失败只打 ERROR 并返回 `null` → 统一走 `INVALID_PARAM`** | `FepAgmController.java:126`~`:134` |
 | `deviceId` | **不在 `bizData` 里**，从公共参数取；IF1A-01 里再由 Controller 注入进 bizData | `FepAgmController.java:48` / `:61` |
 | 验签 | 该 Controller **没有验签代码** | 全文件通读（151 行）未见验签调用 |
-| tracing | `fep-dev-server` **不在 tracing 名单**（8 个模块里没有它），`%X{traceId}` 那一列**恒为空** | `AGENTS.md` §2.2.1 |
+| tracing | `fep-dev-server` **不在 tracing 名单**（8 个模块里没有它），`%X{traceId}` 那一列**恒为空** | `docs/business/README.md` 全局事实 |
 
 **⚠️ 最常踩的一条：类级前缀是 `/ci/agm`，不是 `/itpagm/ci/agm`。** `/itpagm/` 只在经网关时出现。直打 NodePort **MUST** 用 `/ci/agm/...`；经网关时 **MUST 先现查 VS 的 `rewrite.uri`** 再拼。
 
@@ -78,12 +78,12 @@ curl -s -X POST "http://$FEPDEV/ci/agm/<端点>" \
 
 | # | 原表预期 | 重写为 | 依据 |
 |---|---|---|---|
-| 1 | 检票记录写入数据库 | `QRCODE_TXN_DETAIL` 新增 1 行：`CARD_ID` / `TRX_TYPE` / `DEVICE_ID` / `HANDLE_DATE_TIME` / `HANDLE_STATION_CODE` / `HANDLE_RESULT_CODE` / `TICKET_TRANS_SEQ` / `TRX_AMOUNT` 与上送报文一致。**注意 `fep-dev-server` 自己不落库**，落库发生在 `ticket-server` | `fep-dev-server` 无 DB（`AGENTS.md` §3.2）；`ticket-server/src/main/resources/mapper/QRCodeTxnDetailMapper.xml` |
+| 1 | 检票记录写入数据库 | `QRCODE_TXN_DETAIL` 新增 1 行：`CARD_ID` / `TRX_TYPE` / `DEVICE_ID` / `HANDLE_DATE_TIME` / `HANDLE_STATION_CODE` / `HANDLE_RESULT_CODE` / `TICKET_TRANS_SEQ` / `TRX_AMOUNT` 与上送报文一致。**注意 `fep-dev-server` 自己不落库**，落库发生在 `ticket-server` | `fep-dev-server` 无 DB（`docs/architecture/overview.md`）；`ticket-server/src/main/resources/mapper/QRCodeTxnDetailMapper.xml` |
 | 2 | 扣费结果正确通知 | 出站笔在 `GATE_TXN_PAY` 新增 1 行并**异步**收敛到 `DEBIT_STATUS='SUCCESS'`。**IF1A-01 返 `0000` 不等于扣费成功**，MUST 隔若干秒复查 | `GATE_TXN_PAY` 列清单见 `docs/testing/app/00-报文与接口字典.md` §四 |
-| 3 | 用户收到乘车记录通知 | **多日计次票**扣次成功后会推 §3.63 `/app/receiveCountingTicketTimes`（`times` **恒传 1**，`transSeq` 取上送的 `ticketTransSeq`、**NEVER 取 `QRCODE_STATUS.TXN_SEQ`**）。⚠️ 但该通知**两个键默认关**（`app.notify.counting-ticket-times-url` / `-enabled`），且失败**只打 WARN、不落库不重试 ⇒ 推失败即永久丢**。**普通乘车码没有这条通知**（grep 未命中） | `AGENTS.md` §2.2.2 §3.63；落地类 `ticket-server/.../ticket/notify/CountingTicketTimesNotifier`；失败处置见 `docs/domain/outbox.md` §七① |
-| 4 | 行程状态更新 | `QRCODE_STATUS.CODE_STATUS` 按方向推进：进站 → `04`，出站 → `05`（超时出站 → `06`）；`TXN_SEQ` 自增 1、比上送的 `ticketTransSeq` **大 1** | `QRCodeStatusEnum.java:9`；`TXN_SEQ` 与 `ticketTransSeq` 差 1 的实测见 `AGENTS.md` §2.2.2 §3.63 口径② |
+| 3 | 用户收到乘车记录通知 | **多日计次票**扣次成功后会推 §3.63 `/app/receiveCountingTicketTimes`（`times` **恒传 1**，`transSeq` 取上送的 `ticketTransSeq`、**NEVER 取 `QRCODE_STATUS.TXN_SEQ`**）。⚠️ 但该通知**两个键默认关**（`app.notify.counting-ticket-times-url` / `-enabled`），且失败**只打 WARN、不落库不重试 ⇒ 推失败即永久丢**。**普通乘车码没有这条通知**（grep 未命中） | `docs/business/未落地需求.md` §3.63；落地类 `ticket-server/.../ticket/notify/CountingTicketTimesNotifier`；失败处置见 `docs/domain/outbox.md` §七① |
+| 4 | 行程状态更新 | `QRCODE_STATUS.CODE_STATUS` 按方向推进：进站 → `04`，出站 → `05`（超时出站 → `06`）；`TXN_SEQ` 自增 1、比上送的 `ticketTransSeq` **大 1** | `QRCodeStatusEnum.java:9`；`TXN_SEQ` 与 `ticketTransSeq` 差 1 的实测见 `docs/business/未落地需求.md` §3.63 口径② |
 | 5 | 日志完整 | `fep-dev-server` 对每笔打 **3 行**：`IF1A-01 闸机检票通知, deviceId=`（`:49`）→ 带 `bizData` 的那行（`:62`）→ `响应 retCode=`（`:65`）。`ticket-server` 侧另打入参 / 响应两行（`controller/ci/agm/TicketAgmController.java:43` / `:63`） | 源码直读 |
-| 6 | — | ⚠️ **`trxType=03` 是一条已知缺陷路径**（多日计次票不扣次 + 金额被清零，两头落空） | `AGENTS.md` §2.2.2「超时处理」P0 条 ⇒ [[02-阻塞项与缺陷候选]] C2 |
+| 6 | — | ⚠️ **`trxType=03` 是一条已知缺陷路径**（多日计次票不扣次 + 金额被清零，两头落空） | `docs/business/未落地需求.md`「超时处理」P0 条 ⇒ [[02-阻塞项与缺陷候选]] C2 |
 | 7 | — | ⚠️ **`LAST_HANDLE_DATE_TIME` 可能指向一笔不存在的交易**：闸机把码体 `handleDate` 位当「上次交易时间」读，而我方填的是**生码时刻** `now()`。实测样本：新卡首程上报 `lastHandleDateTime=20260909192654`，正是那轮拉码时刻、该卡此前从未过闸 | `docs/testing/user-card/INDEX.md:91`（B15 已升级为「确认有实际影响」）⇒ [[02-阻塞项与缺陷候选]] C3 |
 
 **执行方式**
@@ -176,7 +176,7 @@ scripts/klog.sh gate-txn-pay-server 'requestPay' 300
 | 1 | 返回「正常/已进站/已出站」 | `lastTicketStatus` 等于 `QRCODE_STATUS.CODE_STATUS`：`03` 初始化 / `04` 已进站 / `05` 已出站 / `06` 超时出站 / `02` 结束行程 / `08`/`09`/`10` BOM 更新 / `80`/`81` APP 自助补站 | **可验证** |
 | 2 | 返回「黑名单」 | ⚠️ **响应 DTO 里没有黑名单字段**。`QrCodeStatusHandler.java:57`~`:62` 只回填 5 个字段，全链路（`fep-dev-server` → `ticket-server`）**未找到**任何黑名单查询或黑名单状态位。黑名单在本项目是 **APP 主动查 IF8A-73**（`blacklist-server` `POST /queryBlackList`，`controller/BlacklistController.java:84`），**不在这条设备查询里** | **断言不成立** ⇒ [[02-阻塞项与缺陷候选]] C4 |
 | 3 | AGM 据状态正确控制闸机 | **ITP 侧无对应断言** —— 闸机拿到 `lastTicketStatus` 后怎么判、开不开门，完全在闸机本地 | **必须真机** |
-| 4 | 查询响应时间 < 200ms | ⚠️ **当前无性能基线，属需另立压测口径的断言**。单次 curl 的耗时**不能**当成通过判据，理由有 4 条：①链路是 `curl → fep-dev-server → RPC → ticket-server → Oracle`，**跨 2 个服务 + 1 次 DB 查询**；②`ticket-server` 的 `DispatcherServlet` 是**懒初始化**的，冷启动后首次请求已实测到 **4850ms**（热态 36~67ms），**两组数据不可混用**（`docs/testing/user-card/INDEX.md:80`）；③全服务默认 `spring.threads.virtual.enabled=true`，而 ojdbc8 大量方法是 `synchronized` —— 虚拟线程在其中阻塞会 **pin 住载体线程**，一两条慢 SQL 就能让整个 JVM 的虚拟线程停止调度，**尾延迟不是正态分布**；④没有约定 P50/P95/P99、并发度、样本量、预热轮次、是否含网关跳。**要验它 MUST 先定这 4 项口径 + 单独立压测用例**，本库不假装单次 curl 能验 | **不可用单次 curl 验证** ⇒ [[02-阻塞项与缺陷候选]] C6 |
+| 4 | 查询响应时间 < 200ms | ⚠️ **当前无性能基线，属需另立压测口径的断言**。单次 curl 的耗时**不能**当成通过判据，理由有 4 条：①链路是 `curl → fep-dev-server → RPC → ticket-server → Oracle`，**跨 2 个服务 + 1 次 DB 查询**；②`ticket-server` 的 `DispatcherServlet` 是**懒初始化**的，冷启动后首次请求已实测到 **4850ms**（热态 36~67ms），**两组数据不可混用**（`docs/testing/user-card/INDEX.md:80`）；③历史全服务默认 `spring.threads.virtual.enabled=true`（2026-10-20 起已禁用），而 ojdbc8 大量方法是 `synchronized` —— 虚拟线程在其中阻塞会 **pin 住载体线程**，一两条慢 SQL 就能让整个 JVM 的虚拟线程停止调度，**尾延迟不是正态分布**（该机制现已随禁用消除，但压测口径仍需单独定义）；④没有约定 P50/P95/P99、并发度、样本量、预热轮次、是否含网关跳。**要验它 MUST 先定这 4 项口径 + 单独立压测用例**，本库不假装单次 curl 能验 | **不可用单次 curl 验证** ⇒ [[02-阻塞项与缺陷候选]] C6 |
 | 5 | — | `itpUserId` 与 `cardId` 是**原样回显**（`:59` / `:60`），不参与查询结果 —— 因此**它们相等不能证明查到了正确的卡** | 可验证（回归点） |
 | 6 | — | `itpUserId` 经 `DeviceUserIdCodec.normalize` 转换后才送下游（`:45`），传 `null` 也被允许（第二参传 `null`） | 可验证 |
 
@@ -267,7 +267,7 @@ scripts/klog.sh ticket-server  'queryQrCodeStatus' 300
 | 4 | 新旧密钥过渡期无感 | **ITP 侧无对应断言**（过渡逻辑在闸机本地：拿到新版本后何时切、旧版本留多久） | **必须真机** |
 | 5 | 密钥版本记录正确 | `key-server` 侧落表 `COM_DEVICE_SYN_KEY`（`into`）；密钥版本与池在 `METRO_AGM_KEY_VERSION` / `METRO_AGM_KEY_POOL`；另有 `METRO_CA_KEYSTORE`、`METRO_MEMBER_STATIC_KEY`（`into` + `from`） | **可验证**（表名取自 `key-server/src/main/resources` 下 mapper XML） |
 | 6 | 日志完整 | `fep-dev-server` 打 3 行：入口 `deviceId=`（`FepAgmController.java:73`）、`keyCount=`（`:83`）、完成行带 `keyVersionCount`（`:86`）；`KeySyncHandler` 另打完成行（`:64`）。异常路径打 ERROR「IF1A-02 调用key-server同步AGM密钥异常」（`:68`） | **可验证** |
-| 7 | — | ⚠️ **NEVER 在日志、文档或对话里回显任何密钥值**。核对只写「版本号 / 条数 / 表名 / 列名」，**不写密钥内容** | `AGENTS.md` §5.2「敏感配置」+「安全红线」 |
+| 7 | — | ⚠️ **NEVER 在日志、文档或对话里回显任何密钥值**。核对只写「版本号 / 条数 / 表名 / 列名」，**不写密钥内容** | `docs/architecture/security-sensitivity.md` §一「敏感配置」+「安全红线」 |
 | 8 | — | ⚠️ **NEVER 擅自改动加密 / 签名逻辑**；涉及密钥的改动 MUST 提示人工复核安全合规性 | 同上 |
 
 **执行方式**
@@ -351,7 +351,7 @@ public DeviceHeartbeatRespDTO deviceHeartbeat(@ModelAttribute ItpCommonFormReque
 四条事实，逐条都能从上面 8 行直接看出来：
 
 1. **不解析 `bizData`** —— 没调 `hasBizData`、没调 `parseBizData`。上送的「IP、状态、时间戳」**一个都不读**。
-2. **不落库** —— `fep-dev-server` 本身无 DB、无 mapper（`AGENTS.md` §3.2），这个方法也没调任何 Handler / Client。
+2. **不落库** —— `fep-dev-server` 本身无 DB、无 mapper（`docs/architecture/overview.md`），这个方法也没调任何 Handler / Client。
 3. **不做任何 RPC** —— 方法体内零依赖调用。
 4. **恒返 `SUCCESS`** —— 无论上送什么（包括空 `bizData`、错误 `deviceId`、甚至不存在的设备），**一律返成功**。
 
@@ -364,7 +364,7 @@ public DeviceHeartbeatRespDTO deviceHeartbeat(@ModelAttribute ItpCommonFormReque
 | 3 | 日志完整 | **可验证但很弱**：每次心跳恰好 1 行 `IF1A-03 设备心跳, deviceId=`（`:114`）。**上送的 IP / 状态 / 时间戳都不进日志**（因为根本没解析 `bizData`） | **部分可验证** ⇒ 同 C8 |
 | 4 | — | 端点**有两个别名**：`/ci/agm/deviceHeartbeat` 与 `/ci/agm/notiDeviceHeard`（`:112`）。两条行为完全一致 —— **回归时两条都要打**，否则「上游按另一份文档取 URL」这类契约偏差发现不了 | **可验证** |
 | 5 | — | **恒返成功**这一点本身可以当断言：送空 `bizData`、送不存在的 `deviceId`、连 `deviceId` 都不送，都应返 `retCode` = `FepDevErrorCodeEnum.SUCCESS`。**这是现状、不是缺陷判定**，但要写进用例好让人知道「这个接口永远不会告诉你设备有问题」 | **可验证** |
-| 6 | — | 对照：`face-pay-server` 有一个「**设备离线**」`@Scheduled`（7 个 `@Scheduled` 之一，`AGENTS.md` §3.2）—— 那是 **TVM/BOM 域**的设备离线判定，**与 AGM 心跳不是同一套、NEVER 混用**。AGM 侧确实没有 | 事实记录 |
+| 6 | — | 对照：`face-pay-server` 有一个「**设备离线**」`@Scheduled`（7 个 `@Scheduled` 之一，`docs/architecture/overview.md`）—— 那是 **TVM/BOM 域**的设备离线判定，**与 AGM 心跳不是同一套、NEVER 混用**。AGM 侧确实没有 | 事实记录 |
 
 **执行方式**
 

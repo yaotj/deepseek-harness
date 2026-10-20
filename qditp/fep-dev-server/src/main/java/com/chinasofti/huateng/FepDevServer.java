@@ -1,5 +1,6 @@
 package com.chinasofti.huateng;
 
+import com.chinasofti.huateng.micro.mybatis.adaptor.EnableDefaultMybatisAutoConfig;
 import com.chinasofti.huateng.rpc.EnableRpcKey;
 import com.chinasofti.huateng.rpc.EnableRpcRoute;
 import com.chinasofti.huateng.rpc.EnableRpcTicket;
@@ -7,10 +8,12 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
+import org.springframework.scheduling.annotation.EnableAsync;
 
 /** 设备前置服务启动类。 */
 @SpringBootApplication
 @ConfigurationPropertiesScan
+@EnableAsync
 @EnableRpcRoute
 @EnableRpcTicket
 @EnableRpcKey

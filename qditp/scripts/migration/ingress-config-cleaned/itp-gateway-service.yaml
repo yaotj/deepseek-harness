@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    istio: ingressgateway
+    sidecar.istio.io/inject: 'true'
+  name: itp-gateway
+  namespace: itp-gateway
+spec:
+  ports:
+  - name: http
+    port: 50908
+    protocol: TCP
+    targetPort: 8080
+  - name: https
+    port: 45609
+    protocol: TCP
+    targetPort: 443
+  selector:
+    istio: ingressgateway
+    sidecar.istio.io/inject: 'true'
+  type: ClusterIP

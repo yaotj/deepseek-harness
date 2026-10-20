@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <b>NEVER 因为它也有 Quartz 调用方就搬进本包</b>；
  * ③{@code controller.legacy} 收历史形态留存类，判据另有四条（详见该包 {@code AlipayPaySignController} 注释）。
  *
- * <p>由 web-admin 的 Quartz 打进来，本模块自身没有 `@Scheduled`（AGENTS.md §2.2.1）。
+ * <p>由 web-admin 的 Quartz 打进来，本模块自身没有 `@Scheduled`（见 `docs/business/README.md` 全局事实）。
  * <b>驱动源已落地</b>：`sys_job` **315「支付宝支付通道同步补偿」cron `0 0/5 * * * ?`**（2026-09-21 由 124 改号为 315）
  * （任务 Bean `AlipayChannelSyncQuartzTask.compensate()`，迁移脚本
  * `web-server/web-quartz/src/main/resources/sql/web-quartz-alipay-channel-sync-job-migration.sql`）。

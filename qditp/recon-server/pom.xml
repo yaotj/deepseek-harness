@@ -6,7 +6,7 @@
 
     <groupId>com.chinasofti.huateng</groupId>
     <artifactId>recon-server</artifactId>
-    <version>1.0.25</version>
+    <version>1.0.26</version>
     <packaging>jar</packaging>
 
     <parent>
@@ -99,55 +99,63 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
-            <plugin>
-                <groupId>org.eclipse.jkube</groupId>
-                <artifactId>kubernetes-maven-plugin</artifactId>
-                <version>1.19.0</version>
-                <executions>
-                    <execution>
-                        <id>build-image-after-package</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>build</goal>
-                            <goal>push</goal>
-                            <!--                            <goal>deploy</goal>-->
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <namespace>itp</namespace>
-                    <dockerHost>tcp://172.20.211.21:2375</dockerHost>
-                    <pushRegistry>os-harbor-svc.default.svc.cloudos:443</pushRegistry>
-                    <images>
-                        <image>
-                            <name>os-harbor-svc.default.svc.cloudos:443/itp/${image.prefix}:${project.version}</name>
-                            <build>
-                                <dockerFile>${project.basedir}/../docker/Dockerfile</dockerFile>
-                                <filter>true</filter>
-                                <contextDir>${project.basedir}</contextDir>
-                                <assembly>
-                                    <mode>dir</mode>
-                                    <targetDir>/</targetDir>
-                                    <inline>
-                                        <files>
-                                            <file>
-                                                <source>${project.build.directory}/${project.build.finalName}.jar</source>
-                                                <destName>app.jar</destName>
-                                                <outputDirectory>.</outputDirectory>
-                                            </file>
-                                        </files>
-                                    </inline>
-                                </assembly>
-                            </build>
-                        </image>
-                    </images>
-                    <generator>
-                        <excludes>
-                            <exclude>spring-boot</exclude>
-                        </excludes>
-                    </generator>
-                </configuration>
-            </plugin>
         </plugins>
     </build>
+    <profiles>
+        <profile>
+            <id>remote</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.eclipse.jkube</groupId>
+                        <artifactId>kubernetes-maven-plugin</artifactId>
+                        <version>1.19.0</version>
+                        <executions>
+                            <execution>
+                                <id>build-image-remote</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>build</goal>
+                                    <goal>push</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <namespace>itp</namespace>
+                            <dockerHost>tcp://172.20.211.21:2375</dockerHost>
+                            <pushRegistry>os-harbor-svc.default.svc.cloudos:443</pushRegistry>
+                            <images>
+                                <image>
+                                    <name>os-harbor-svc.default.svc.cloudos:443/itp/${image.prefix}:${project.version}</name>
+                                    <build>
+                                        <dockerFile>${project.basedir}/../docker/Dockerfile</dockerFile>
+                                        <filter>true</filter>
+                                        <contextDir>${project.basedir}</contextDir>
+                                        <assembly>
+                                            <mode>dir</mode>
+                                            <targetDir>/</targetDir>
+                                            <inline>
+                                                <files>
+                                                    <file>
+                                                        <source>${project.build.directory}/${project.build.finalName}.jar</source>
+                                                        <destName>app.jar</destName>
+                                                        <outputDirectory>.</outputDirectory>
+                                                    </file>
+                                                </files>
+                                            </inline>
+                                        </assembly>
+                                    </build>
+                                </image>
+                            </images>
+                            <generator>
+                                <excludes>
+                                    <exclude>spring-boot</exclude>
+                                </excludes>
+                            </generator>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

@@ -8,7 +8,7 @@ import org.springframework.util.StringUtils;
 /**
  * 日票域的无状态判定与应答收口。
  *
- * <p>本类是对 AGENTS.md §5.1「NEVER 主动创建新的工具类」的<b>有意破例</b>，理由与
+ * <p>本类是对 AGENTS.md §4.1「NEVER 主动创建新的工具类」的<b>有意破例</b>，理由与
  * {@code face-pay-server} 的 {@code F2fDuplicateKey} 同类：这些判定原先是
  * {@code DailyTicketServiceImpl} 的私有方法，而下单 / 支付 / 退款 / 小程序同步四条链路都在用。
  * 把退款聚合拆成独立服务时，若不先把它们收口，只剩两个选择——让新服务反向依赖那个 god class，

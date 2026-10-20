@@ -1,7 +1,8 @@
 -- =============================================================================
 -- 青岛地铁 ITP 数据库按域分库 — QDITP_USER 域数据导出脚本（expdp）
 -- 配套文档：docs/ops/数据库按域分库迁移DDL草案.md
--- 状态：v1.7 执行包（仅供评审，严禁直接在生产库执行）
+-- 状态：v1.8 执行包（2026-10-17：exclude 收紧为 grant,statistics——索引/约束/触发器
+--       随行导入；跨库全流程见 20261017_m2m3_crossdb_hongdao.sql）
 -- 用途：用 Data Pump 导出 QDITP_USER 域 13 张表的实际数据
 -- 执行前置：
 --   1. 确认 Oracle Data Pump 权限（DBA 角色或 EXPTAB_FULL_DATABASE / IMPFULL_DATABASE）
@@ -41,7 +42,7 @@ PROMPT          &SCHEMA..LOGIC_CARD_POOL_BATCH,&SCHEMA..LOGIC_CARD_POOL_CARD, \
 PROMPT          &SCHEMA..LOGIC_CARD_POOL_TYPE_LOCK \
 PROMPT   parallel=4 \
 PROMPT   compression=all \
-PROMPT   exclude=index,constraint,trigger,grant,statistics \
+PROMPT   exclude=grant,statistics \
 PROMPT   job_name=exp_user_domain
 PROMPT ============================================================================
 

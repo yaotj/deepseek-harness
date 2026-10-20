@@ -43,7 +43,7 @@ class TicketArchitectureTest {
         rule.check(ticketClasses);
     }
 
-    /** controller 不得直连 mapper（AGENTS.md §3.3）。 */
+    /** controller 不得直连 mapper（AGENTS.md §3.1）。 */
     @Test
     void controller不得直接依赖mapper() {
         ArchRule rule = noClasses()

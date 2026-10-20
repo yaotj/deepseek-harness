@@ -165,7 +165,7 @@ class RefundLogRepository {
      * 沿 cause 链判完整性冲突，理由见 {@link #openRefund} 的注释。
      *
      * <p><b>刻意是包私有 static</b>：同包的新表退款链路（{@code AlipayTxnRefundService}）需要**同一份**判定，
-     * 而抄一份私有方法等于留两处会各自腐化的逐字副本。这不算违反 AGENTS.md §5.1「NEVER 新建工具类」——
+     * 而抄一份私有方法等于留两处会各自腐化的逐字副本。这不算违反 AGENTS.md §4.1「NEVER 新建工具类」——
      * 没有新建类，只是把已有判定开放给同包复用。<b>NEVER 为了给别的包用就把它改成 public</b>。
      */
     static boolean isIntegrityViolation(Throwable throwable) {

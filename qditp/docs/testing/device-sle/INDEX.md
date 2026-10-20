@@ -57,7 +57,7 @@
 | ACLC_Device_Test_003 | AGM密钥同步 | IF1A-02 `POST /ci/agm/requestSynKeyList` | 可 curl 模拟（造「有更新」需降 `keyVer`） | ⚠️ **方向相反**：代码是**闸机拉取**、不是 ITP 推送（C7）；「AGM 用新密钥验签」「新旧过渡无感」必须真机 |
 | ACLC_Device_Test_004 | AGM设备心跳 | IF1A-03 `POST /ci/agm/deviceHeartbeat`、`/ci/agm/notiDeviceHeard` | 接口可 curl 模拟 | ⚠️ **预期 1「状态更新为在线」与预期 2「心跳时间记录正确」均未找到实现**（C8）：该方法不解析 `bizData`、不落库、不 RPC、**恒返成功** |
 
-**本库不产出实现率 / 进度百分比**（`AGENTS.md` §5.3）。上表是可执行性分类，不是完成度。
+**本库不产出实现率 / 进度百分比**（`docs/提示词/工程与文档规范.md` §二）。上表是可执行性分类，不是完成度。
 
 ### 本轮实测结论（2026-09-22，逐条原文见 [[03-执行记录-2026-09-22]]）
 

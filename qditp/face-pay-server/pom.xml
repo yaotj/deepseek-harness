@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.chinasofti.huateng</groupId>
     <artifactId>face-pay-server</artifactId>
-    <version>1.0.78</version>
+    <version>1.0.83</version>
     <packaging>jar</packaging>
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -107,7 +107,8 @@
     <!--
       remote profile 故意不设 activeByDefault：新服务在阶段 5 切流量前不应被误推到 Harbor。
       需要出镜像时显式 -Premote；只要 jar 时不加该 profile 即可，无需 -Djkube.skip=true。
-      与其他模块（activeByDefault=true）的差异是有意的，切流量前由本文件此注释说明原因。
+      注意：自 2026-10-20 起「remote 无 activeByDefault」已是全仓统一姿态（其他模块原本的
+      activeByDefault=true 已全部去掉），本模块不再特殊；切流量前由本文件此注释说明原因。
     -->
     <profiles>
         <profile>

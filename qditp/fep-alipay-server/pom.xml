@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.chinasofti.huateng</groupId>
     <artifactId>fep-alipay-server</artifactId>
-    <version>1.0.71</version>
+    <version>1.0.72</version>
     <packaging>jar</packaging>
 
     <parent>
@@ -106,9 +106,6 @@
     <profiles>
         <profile>
             <id>remote</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
             <build>
                 <plugins>
                     <plugin>

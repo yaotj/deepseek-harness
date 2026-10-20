@@ -24,7 +24,7 @@ import java.util.List;
  * 否则退款域与票实例域会各自推一版汇总状态、互相覆盖。
  *
  * <p>主单 {@code TRAVEL_TICKET_ORDER} 是聚合壳，{@code PAY_STATUS} 永不回写（属当前设计非缺陷，
- * 见 AGENTS.md §2.2.2 对账那条）；因此这里**只在主单已 `PAID` 时才重算**，
+ * 见 `docs/business/未落地需求.md` 对账那条）；因此这里**只在主单已 `PAID` 时才重算**，
  * 未支付主单一律不碰 —— NEVER 去掉这道前置判断。
  */
 @Component

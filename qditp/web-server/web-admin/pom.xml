@@ -118,9 +118,6 @@
     <profiles>
         <profile>
             <id>remote</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
             <build>
                 <plugins>
                     <plugin>

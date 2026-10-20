@@ -27,14 +27,20 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 出票结果上报（IF2A-05 成功 / IF2A-06 失败）。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。 */
+/**
+ * 出票结果上报（IF2A-05 成功 / IF2A-06 失败）。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。
+ */
 @Service
 public class F2fTicketIssueService {
 
-    /** 上报类型：出票成功。 */
+    /**
+     * 上报类型：出票成功。
+     */
     public static final String REPORT_TAKE_TICKET_OK = "TAKE_TICKET_OK";
 
-    /** 上报类型：出票失败。 */
+    /**
+     * 上报类型：出票失败。
+     */
     public static final String REPORT_TAKE_TICKET_FAIL = "TAKE_TICKET_FAIL";
 
     private static final String TICKET_ISSUED = "ISSUED";
@@ -47,7 +53,9 @@ public class F2fTicketIssueService {
 
     private static final String ORDER_FULFILL_FAILED = F2fOrderStatus.FULFILL_FAILED.name();
 
-    /** APP 扫码取票的交易类型，只有这类订单需要回推 APP。 */
+    /**
+     * APP 扫码取票的交易类型，只有这类订单需要回推 APP。
+     */
     private static final String TRANS_TYPE_APP_TAKE_TICKET = "03";
 
     private static final Logger log = LoggerFactory.getLogger(F2fTicketIssueService.class);
@@ -75,7 +83,9 @@ public class F2fTicketIssueService {
         this.notifyService = notifyService;
     }
 
-    /** 出票成功上报。 */
+    /**
+     * 出票成功上报。
+     */
     public JSONObject receiveTakeTicketResult(NotiTakeTicketResultReqDTO request, String channel) {
         Integer actualNum = request.actualNum();
         if (actualNum == null) {
@@ -84,6 +94,7 @@ public class F2fTicketIssueService {
             return TvmResponses.fail(DeviceRetCode.INVALID_PARAM);
         }
         F2fOrder order = orderMapper.selectByOrderNo(request.getOrderNo());
+        log.info("出票成功上报 根据订单号查询支付订单 order is {}", order);
         if (order == null) {
             log.warn("出票成功上报 订单不存在, orderNo={}, providerId={}",
                     request.getOrderNo(), request.getProviderId());
@@ -108,10 +119,13 @@ public class F2fTicketIssueService {
         }
         enqueueAppNotify(order, F2fNotifyService.TYPE_TAKE_TICKET_OK, actualNum,
                 request.getTakeTickeDate(), null);
+        log.info("出票成功上报 处理结束");
         return TvmResponses.success();
     }
 
-    /** 出票失败上报，含差额退款。 */
+    /**
+     * 出票失败上报，含差额退款。
+     */
     public JSONObject receiveTakeTicketFailResult(NotiTakeTicketFailResultReqDTO request, String channel) {
         Integer actualNum = request.actualNum();
         if (actualNum == null) {
@@ -120,6 +134,7 @@ public class F2fTicketIssueService {
             return TvmResponses.fail(DeviceRetCode.INVALID_PARAM);
         }
         F2fOrder order = orderMapper.selectByOrderNo(request.getOrderNo());
+        log.info("出票失败上报 查询原支付订单 order is {}", order);
         if (order == null) {
             log.warn("出票失败上报 订单不存在, orderNo={}", request.getOrderNo());
             return TvmResponses.takeTicketFailResultOrderNotFound();
@@ -140,12 +155,14 @@ public class F2fTicketIssueService {
 
         int updated = orderMapper.updateStatus(request.getOrderNo(), List.of(ORDER_PAID),
                 ORDER_FULFILL_FAILED, "出票失败: " + request.getErrorCode());
+        log.info("修改出票状态结束 updated is {}", updated);
         if (updated == 0) {
             log.warn("出票失败上报 订单不在 PAID 状态，仅留上报记录不推进, orderNo={}, status={}",
                     request.getOrderNo(), order.getOrderStatus());
         }
 
         String refundNo = refundShortfall(order, actualNum, request.getFaultSlipSeq());
+        log.info("refundNo is {}", refundNo);
         enqueueAppNotify(order, F2fNotifyService.TYPE_TAKE_TICKET_FAIL, actualNum,
                 request.getFaultOccurDate(), refundNo);
         return TvmResponses.success();
@@ -207,7 +224,9 @@ public class F2fTicketIssueService {
         }
     }
 
-    /** 落票明细。 */
+    /**
+     * 落票明细。
+     */
     private void saveTickets(F2fOrder order, List<TicketInfo> ticketList, String ticketStatus) {
         if (ticketList == null || ticketList.isEmpty()) {
             return;
@@ -255,12 +274,17 @@ public class F2fTicketIssueService {
         }
     }
 
-    /** APP 来源的订单才需要回推结果（{@code TRANS_TYPE=03}）。 */
+    /**
+     * APP 来源的订单才需要回推结果（{@code TRANS_TYPE=03}）。
+     */
     private void enqueueAppNotify(F2fOrder order, String notifyType, int actualNum,
                                   String reportTms, String refundNo) {
+        log.info("开始进行通知内容落库判断");
         if (!TRANS_TYPE_APP_TAKE_TICKET.equals(order.getTransType())) {
+            log.info("当前交易不是APP订单，不落通知表，结束");
             return;
         }
+        log.info("当前交易是APP订单，开始入APP通知表");
         Map<String, Object> payload = new LinkedHashMap<>();
         if (F2fNotifyService.TYPE_TAKE_TICKET_FAIL.equals(notifyType)) {
             payload.put("userId", order.getThirdUserId());
@@ -273,12 +297,15 @@ public class F2fTicketIssueService {
         if (refundNo != null) {
             payload.put("refundNo", refundNo);
         }
+        log.info("组装数据结束,准备入库");
         notifyService.enqueue(notifyType, order.getOrderNo(), refundNo, payload);
     }
 
-    /** 上报记录的公共字段。 */
+    /**
+     * 上报记录的公共字段。
+     */
     private F2fResultReport baseReport(String reportType, String orderNo, String channel, String deviceId,
-                                      Integer orderTicketNum, Integer actualTicketNum, String reportTms) {
+                                       Integer orderTicketNum, Integer actualTicketNum, String reportTms) {
         F2fResultReport report = new F2fResultReport();
         report.setReportType(reportType);
         report.setOrderNo(orderNo);
@@ -332,7 +359,9 @@ public class F2fTicketIssueService {
         return false;
     }
 
-    /** 供出票失败后按票标记故障状态使用（BOM 侧按票退款时会读这个状态）。 */
+    /**
+     * 供出票失败后按票标记故障状态使用（BOM 侧按票退款时会读这个状态）。
+     */
     void markTicketsFault(String ticketLogicNum, String transDate) {
         ticketMapper.updateStatus(F2fLogicCardNo.normalize(ticketLogicNum), transDate,
                 List.of(TICKET_ISSUED), TICKET_FAULT);

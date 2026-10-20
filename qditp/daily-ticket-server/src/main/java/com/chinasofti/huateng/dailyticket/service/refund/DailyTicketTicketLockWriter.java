@@ -13,7 +13,7 @@ import java.util.Date;
  * 票实例在退款链路上的状态守卫：锁票、放款收口、失败解锁。
  *
  * <p>三个方法**全部是 CAS**（{@code updateStatusIfCurrent}），只允许明确的前置状态推进，
- * 符合 AGENTS.md §5.2「状态机校验用白名单」。日票退款与旅游票整单退款都走这里，
+ * 符合 AGENTS.md §4.2「状态机校验用白名单」。日票退款与旅游票整单退款都走这里，
  * 因此它先于退款聚合被抽出来 —— 否则新的退款服务只能反向依赖 {@code DailyTicketServiceImpl}。
  *
  * <p><b>本类零 {@code @Transactional}、也 NEVER 加</b>：调用方（退款链路）自身不带事务、

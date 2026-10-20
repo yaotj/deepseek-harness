@@ -15,7 +15,7 @@ import org.springframework.dao.DuplicateKeyException;
  * }
  * </pre>
  *
- * <p>这是对 AGENTS.md §5.1「NEVER 新建工具类」的**有意破例**，与 {@code face-pay-server} 的
+ * <p>这是对 AGENTS.md §4.1「NEVER 新建工具类」的**有意破例**，与 {@code face-pay-server} 的
  * {@code F2fDuplicateKey} 同形同因：本模块有 3 处调用点（签约结果回调、免密扣款建单、解约申请补建），
  * 抄私有方法等于 3 份逐字副本。
  */

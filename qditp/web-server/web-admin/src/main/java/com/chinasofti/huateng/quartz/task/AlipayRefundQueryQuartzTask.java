@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  * {@code POST /internal/alipay/refund/compensateQuery}。
  *
  * <p>这是那套补偿的**唯一驱动源**：alipay-pay-sign-server 侧的
- * {@code RefundQueryCompensationService} 刻意没有 {@code @Scheduled}（AGENTS.md §2.2.1），
+ * {@code RefundQueryCompensationService} 刻意没有 {@code @Scheduled}（见 `docs/business/README.md` 全局事实），
  * 因此少了本任务 + 对应 {@code sys_job} 行，退款申请里「支付中心没答 / 拒绝」那支落下的
  * {@code REFUND_STATUS='PROCESSING'} 明细**没有任何人再看一眼**，只能人工核。
  * <b>「代码写了」不等于「补偿在跑」，判据是 {@code SYS_JOB_LOG} 有没有记录。</b>

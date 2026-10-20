@@ -32,7 +32,7 @@ public class MetroTransferPushClient extends ProxyWebClient {
         this.enabled = enabled;
     }
 
-    /** 推送一笔换乘行程，返回三态结果而不是 void + 抛异常（AGENTS.md §5.2 / ADR-D45）。 */
+    /** 推送一笔换乘行程，返回三态结果而不是 void + 抛异常（docs/architecture/transaction-and-consistency.md §3 / ADR-D45）。 */
     public RpcOutcome push(MetroTransferPushTask task) {
         if (!enabled) {
             throw new IllegalStateException("公交换乘推送未启用");

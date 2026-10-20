@@ -32,7 +32,7 @@ class CountingTicketTimesNotifier extends FormDataNotifyTemplate {
 
     /**
      * 通知地址。**空默认值 + 由 K8s env 注入**：APP 侧地址未定时不猜、不写死测试域名
-     * （本模块已有 1 处待清的 testngbackV2 硬编码，NEVER 再新增一处，见 AGENTS.md §8）。
+     * （本模块已有 1 处待清的 testngbackV2 硬编码，NEVER 再新增一处，见 docs/ops/构建与部署规范.md §8）。
      */
     @Value("${app.notify.counting-ticket-times-url:}")
     private String countingTicketTimesUrl;

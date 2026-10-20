@@ -164,7 +164,7 @@ public class AlipayContractServiceImpl implements AlipayContractService {
         return onExistingActiveSign(request, committed, response);
     }
 
-    /** 沿 cause 链判唯一约束冲突，NEVER 只看最外层类型（本模块开着 tracing，切面会包一层，AGENTS.md §5.2）。 */
+    /** 沿 cause 链判唯一约束冲突，NEVER 只看最外层类型（本模块开着 tracing，切面会包一层，docs/architecture/runtime-observability-traps.md §1）。 */
     private boolean isUniqueConflict(Throwable e) {
         for (Throwable t = e; t != null; t = t.getCause()) {
             if (t instanceof DuplicateKeyException || t instanceof DataIntegrityViolationException) {

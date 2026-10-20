@@ -42,7 +42,7 @@ ALL_SERVICES=(
     "alipay-pay-sign-server"
     "recon-server"
 )
-# ⚠️ 改动本清单前 MUST 读 docs/ops/生产环境清单.md 附.二.1：本脚本失败即 break、清单 MUST 与 deploy-to-harbor.sh 一致、web-admin 不适用本脚本、ticket-server 实测会推镜像（NEVER 再据「pom 里被注释掉」判断它不出镜像）。
+# ⚠️ 改动本清单前 MUST 读 docs/ops/生产环境清单.md 附.二.1：本脚本失败即 break、清单 MUST 与 deploy-to-harbor.sh 一致、web-admin 不适用本脚本、ticket-server 现在与其他模块一致（默认 `mvn package` 不推镜像，推镜像 MUST `-Premote`，NEVER 再据「pom 里被注释掉」判断它不出镜像）。
 
 # ---------- 确定本次部署列表 ----------
 if [ $# -gt 0 ]; then

@@ -1,0 +1,98 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"networking.istio.io/v1","kind":"VirtualService","metadata":{"annotations":{},"name":"fep-app-vr","namespace":"itp"},"spec":{"gateways":["accountserver-gw"],"hosts":["*"],"http":[{"route":[{"destination":{"host":"fep-app-hr32k-svc","port":{"number":9101}}}]}]}}
+  creationTimestamp: "2026-06-03T05:12:22Z"
+  generation: 20
+  name: fep-app-vr
+  namespace: itp
+  resourceVersion: "76914585"
+  uid: ed74798d-4c41-4e2d-8244-aa8d4881fec0
+spec:
+  gateways:
+  - accountserver-gw
+  hosts:
+  - '*'
+  http:
+  - match:
+    - uri:
+        prefix: /fep-app/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: fep-app-hr32k-svc
+        port:
+          number: 9101
+  - match:
+    - uri:
+        prefix: /fep-dev/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: fep-dev-server-748lq-svc
+        port:
+          number: 30009
+  - match:
+    - uri:
+        prefix: /fep-acc/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: fep-acc-wracu-svc
+        port:
+          number: 30030
+  - match:
+    - uri:
+        prefix: /fep-alipay/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: fep-alipay-rec8g-svc
+        port:
+          number: 30020
+  - match:
+    - uri:
+        prefix: /itptvm/
+    rewrite:
+      uri: /itptvm/
+    route:
+    - destination:
+        host: face-pay-server-svc
+        port:
+          number: 30025
+  - match:
+    - uri:
+        prefix: /itpbom/
+    rewrite:
+      uri: /itpbom/
+    route:
+    - destination:
+        host: face-pay-server-svc
+        port:
+          number: 30025
+  - match:
+    - uri:
+        prefix: /itpagm/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: fep-dev-server-748lq-svc
+        port:
+          number: 30009
+  - match:
+    - uri:
+        prefix: /para-server/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: para-server-pufrl-svc
+        port:
+          number: 30026

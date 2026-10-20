@@ -271,7 +271,11 @@ function submitForm() {
 
 /** 删除按钮操作 */
 function handleDelete(row) {
-  proxy.$modal.confirm('是否确认删除名称为"' + row.deptName + '"的数据项?').then(function() {
+  // 2026-10-15 起后端改为级联删除（级别 0 的公司也可删）：删除会连同全部下级部门一并删除，
+  // 且子树内用户的部门归属被置空 —— 有下级部门时 MUST 先把影响范围写在确认框里。
+  const hasChild = !!(row.children && row.children.length > 0)
+  const tip = hasChild ? '该部门存在下级部门，删除后其全部下级部门将被一并删除、相关用户的部门归属会被清空。' : ''
+  proxy.$modal.confirm(tip + '是否确认删除名称为"' + row.deptName + '"的数据项?').then(function() {
     return delDept(row.deptId)
   }).then(() => {
     getList()

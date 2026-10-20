@@ -32,7 +32,7 @@ import java.util.Map;
  * {@code TravelParentSummaryWriter} 按剩余子单重算。
  *
  * <p><b>零 {@code @Transactional}、NEVER 加</b>：本方法中段要调支付中心网关，
- * 加事务即同时踩 AGENTS.md §5.2「事务内 NEVER 发 RPC」与「事务内 NEVER 发通知」
+ * 加事务即同时踩 docs/architecture/transaction-and-consistency.md §6 / §4（事务内 NEVER 发 RPC / 发通知）
  * （收口服务的终态入口会 {@code deliverOne} 推 APP）。
  *
  * <p>六道前置校验的顺序**逐字保留**、NEVER 重排：主子关系 → 免费单 → 子单已有退款（幂等返成功）

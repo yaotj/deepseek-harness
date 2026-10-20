@@ -156,4 +156,18 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 		update sys_dept set del_flag = '2' where dept_id = #{deptId}
 	</delete>
 
+	<!-- 部门及其全部后代部门ID（含自身，用于级联删除）。祖先串判定沿用 selectChildrenDeptById 的 INSTR 写法。 -->
+	<select id="selectDeptAndDescendantIds" parameterType="Long" resultType="java.lang.Long">
+		select dept_id from sys_dept
+		where del_flag = '0'
+		and (dept_id = #{deptId} or INSTR(',' || ANCESTORS || ',', ',' || #{deptId} || ',') > 0)
+	</select>
+
+	<update id="deleteDeptByIds" parameterType="java.util.List">
+		update sys_dept set del_flag = '2' where dept_id in
+		<foreach collection="deptIds" item="deptId" open="(" separator="," close=")">
+			#{deptId}
+		</foreach>
+	</update>
+
 </mapper> 

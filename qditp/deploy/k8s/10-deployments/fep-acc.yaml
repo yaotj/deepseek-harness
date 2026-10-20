@@ -42,7 +42,7 @@ spec:
           value: 'true'
         - name: other.web.enableBodyCacheFilter
           value: 'true'
-        - name: server.port
+        - name: SERVER_PORT
           value: '9110'
         - name: other.web.enableLogTakeTimesInInterceptor
           value: 'true'

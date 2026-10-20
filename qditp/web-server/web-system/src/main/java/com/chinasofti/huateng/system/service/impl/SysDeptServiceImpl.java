@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.chinasofti.huateng.common.annotation.DataScope;
 import com.chinasofti.huateng.common.constant.UserConstants;
 import com.chinasofti.huateng.common.core.domain.TreeSelect;
@@ -21,6 +22,7 @@ import com.chinasofti.huateng.common.utils.StringUtils;
 import com.chinasofti.huateng.common.utils.spring.SpringUtils;
 import com.chinasofti.huateng.system.mapper.SysDeptMapper;
 import com.chinasofti.huateng.system.mapper.SysRoleMapper;
+import com.chinasofti.huateng.system.mapper.SysUserMapper;
 import com.chinasofti.huateng.system.service.ISysDeptService;
 
 /**
@@ -36,6 +38,9 @@ public class SysDeptServiceImpl implements ISysDeptService
 
     @Autowired
     private SysRoleMapper roleMapper;
+
+    @Autowired
+    private SysUserMapper userMapper;
 
     /**
      * 查询部门管理数据
@@ -295,6 +300,32 @@ public class SysDeptServiceImpl implements ISysDeptService
     public int deleteDeptById(Long deptId)
     {
         return deptMapper.deleteDeptById(deptId);
+    }
+
+    /**
+     * 级联删除部门及其全部下级部门，并把受影响用户的部门归属置空
+     *
+     * 2026-10-15 业主要求：级别为 0 的公司也要能删除。原先 SysDeptController 在删除前有两道拦截
+     * （存在下级部门 / 部门存在用户即拒绝），现放开并由本方法承担收口：
+     * ① 按祖先串取出子树（含自身）—— 祖先串判定与 selectChildrenDeptById 同一写法；
+     * ② 把子树内所有用户的 dept_id 置空（不是删用户）—— dept_id 为 NULL 是本系统既有合法状态；
+     * ③ 子树整体逻辑删除（del_flag='2'），与 deleteDeptById 同一语义，回滚只需把 del_flag 改回 '0'。
+     * 两步写在同一事务内，任一失败整体回滚，NEVER 出现「部门删了但用户还挂在上面」的中间态。
+     *
+     * @param deptId 部门ID
+     * @return 结果
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int deleteDeptCascade(Long deptId)
+    {
+        List<Long> deptIds = deptMapper.selectDeptAndDescendantIds(deptId);
+        if (deptIds == null || deptIds.isEmpty())
+        {
+            return 0;
+        }
+        userMapper.clearDeptIdByDeptIds(deptIds);
+        return deptMapper.deleteDeptByIds(deptIds);
     }
 
     /**

@@ -22,10 +22,10 @@ import java.util.Map;
  * 见 {@link AlipayPayRefundServiceImpl}）。此前**没有任何人再看这些行一眼** ——
  * {@code pay.center.refund-query-url} 与 {@code PayCenterClient.refundQuery} 都在、却零调用方，
  * 于是只能人工核。退款回调（{@code /api/payment/refundNotify}）只是快速路径，本类是兜底路径，
- * <b>NEVER 设计成「只等回调」</b>（AGENTS.md §8 已有同款教训）。
+ * <b>NEVER 设计成「只等回调」</b>（docs/ops/构建与部署规范.md §8 已有同款教训）。
  *
  * <p><b>本类刻意没有 {@code @Scheduled}</b>：本项目补偿一律由 web-admin 的 Quartz 打 {@code /internal/**}
- * 驱动（AGENTS.md §2.2.1）。加了就是「同一份补偿两个驱动源」，而本模块多副本时没有分布式锁。
+ * 驱动（见 `docs/business/README.md` 全局事实）。加了就是「同一份补偿两个驱动源」，而本模块多副本时没有分布式锁。
  *
  * <p><b>本类也刻意不带 {@code @Transactional}</b>：方法体是「扫一批 → 逐条出网 → 逐条 CAS 回写」，
  * 出网 NEVER 被事务包住（§5.2 那条 2026-08-26 生产事故）。每条回写各自自动提交。
@@ -36,7 +36,7 @@ import java.util.Map;
  * 「{@code UPDATE_TIME} 静默期闸门 + {@code CREATE_TIME} 天窗口」——回查本身不写库，所以卡住的行
  * 每轮都会被重新扫到，直到滚出 {@value #SCAN_DAYS} 天窗口。这是**有意选择**：给本表加退避列要出一次
  * DDL 迁移并在库里执行，而回查是只读出网、重复问一次的代价远小于加列。
- * 真要加列 MUST 先出 {@code *-migration.sql} 并当场执行 + 回查（AGENTS.md §8）。
+ * 真要加列 MUST 先出 {@code *-migration.sql} 并当场执行 + 回查（docs/ops/构建与部署规范.md §8）。
  */
 @Service
 public class RefundQueryCompensationService {

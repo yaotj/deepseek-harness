@@ -31,6 +31,11 @@ $base-menu-background: #304156;
 $base-sub-menu-background: #1f2d3d;
 $base-sub-menu-hover: #001528;
 
+// 菜单层级背景（2026-10-15：一级/二级菜单需在字号与背景上作区分）
+// 一级菜单 = 侧边栏底色本身（浅色 #ffffff / 暗色 $base-menu-background），不额外铺色；
+// 二级菜单 = 在底色上再深一档，与暗色主题 $base-sub-menu-background 的角色一一对应。
+$base-sub-menu-light-bg: #f0f1f5;
+
 // 组件变量
 $--color-primary: #409EFF;
 $--color-success: #67C23A;

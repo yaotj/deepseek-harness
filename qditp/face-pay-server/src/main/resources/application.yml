@@ -1,20 +1,16 @@
-mybatis:
-  mapper-locations: classpath:mapper/*Mapper.xml
-other:
-  sql:
-    type: oracle
-    double-datasource: false
+mybatis.mapper-locations: classpath:mapper/*Mapper.xml
+other.sql.type: oracle
+other.sql.double-datasource: false
     page:
       type: oracle
-    host: ${DB_HOST:}
-    database: ${DB_DATABASE:}
-    username: ${DB_USERNAME:}
-    password: ${DB_PASSWORD:}
+    host: ${DB_HOST:172.120.110.25:1521}
+    database: ${DB_NAME:hditpdb}
+    username: ${DB_USERNAME:QDITP_TXN}
+    password: ${DB_PASSWORD:itp!#txn8153}
     audit:
       heartbeat:
         skip: true
   web:
-    # MUST 带引号写 "null"：YAML 裸 null 绑成空串后 url.contains("") 恒为 true，所有请求一律 403。详见 docs/ops/生产环境清单.md 附.三.5
     unSafeUrlChars: "null"
     enableBodyCacheFilter: true
     enableLogRequestInFilter: true
@@ -27,9 +23,11 @@ server:
   port: 58101
 
 spring:
+  threads:
+    virtual:
+      enabled: false
   application:
     name: itpagm
-  ## traceId「三行成组」之三：NEVER 删这行排除。Deployment 一旦注入 MANAGEMENT_OTLP_TRACING_ENDPOINT，没有它就会起 OTLP exporter。详见 AGENTS.md §2.2.1
   autoconfigure:
     exclude: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration
 
@@ -72,12 +70,10 @@ f2f:
   device:
     offlineTimeoutSeconds: 300
     offlineScanIntervalMs: 60000
-  ## 出票结果上报（IF2A-05/06）的补偿扫表，补 PROCESSED='0' 的残留行。见 ADR-D104 与 docs/ops/生产环境清单.md 附.三.5
   report:
     scanIntervalMs: 120000
     scanInitialDelayMs: 60000
     scanLimit: 100
-    ## 静默期：NEVER 调到小于设备上报请求的最长耗时，否则补偿会与正在跑的首报抢同一行
     staleSeconds: 300
 
 pay:
@@ -100,9 +96,7 @@ pay:
     refund-query-url: ${PAY_CENTER_REFUND_QUERY_URL:}
     checkout-counter-url: ${PAY_CENTER_CHECKOUT_COUNTER_URL:}
     pay-notice-url: ${PAY_CENTER_PAY_NOTICE_URL:}
-    ## 补款单（SP 前缀）专用回调地址。留空会回落到 pay-notice-url 而恒返 2001 订单不存在（ADR-D103）；线上取值见 docs/ops/生产环境清单.md 附.三.5
     supplement-notice-url: ${PAY_CENTER_SUPPLEMENT_NOTICE_URL:}
-    ## 退款结果回调地址（契约 §3.1 请求退款 bizData 的必填键 notifyUrl）。留空则不送该键并打 WARN，支付中心不会回推 §5.2 退款回调、只能靠退款回查收口
     refund-notice-url: ${PAY_CENTER_REFUND_NOTICE_URL:}
 
 service:
@@ -112,25 +106,18 @@ service:
   account:
     url: ${SERVICE_ACCOUNT_URL:}
     openLogger: true
-  ## Service 端口等于 NodePort 号（30034）、不等于容器 server.port（9112）；本键缺失时 recon-server 一片都收不到。详见 附.三.5
   recon:
     url: ${SERVICE_RECON_URL:http://recon-server-bjzdy-svc.itp.svc:30034}
     openLogger: true
-  ## 补款成功后收敛原过闸订单；端口是 NodePort 号（30019）不是 9106，本键缺失时明细永远不是 SETTLED。详见 附.三.5
   gateTxnPay:
     url: ${SERVICE_GATE_TXN_PAY_URL:http://gate-txn-pay-server-jomf4-svc.itp.svc:30019}
     openLogger: true
 
-## 日终对账抽取（本服务是第 4 个源，只出 ITP.PAY 与 ITP.BUS）。internal-token 暂无读取方、上线前 MUST 恢复；worker 默认 1，NEVER 随手放大。详见 附.三.5
 recon:
   internal-token: ${RECON_INTERNAL_TOKEN:}
   export:
     temp-dir: ${RECON_EXPORT_TEMP_DIR:/home/javaapp/app/recon-export}
     worker: ${RECON_EXPORT_WORKER:1}
-
-## traceId 关联（2026-09-22 补，「三行成组」之一、之二；之三是上面 spring.autoconfigure.exclude）。
-## micro/web 默认 management.tracing.enabled=false，本模块此前没开，导致对账链路按 traceId 追到第 4 个源（face-pay）就断。
-## sampling.probability=0 只管 span 上不上报、NEVER 以为它会关掉 MDC。三行 NEVER 拆开加。详见 AGENTS.md §2.2.1
 management:
   tracing:
     enabled: true

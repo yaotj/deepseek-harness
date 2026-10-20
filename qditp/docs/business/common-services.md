@@ -26,7 +26,7 @@
 - `/internal/blacklist/channel-sync/compensate-release` — 补推**解黑**方向（扫**主表**里 `STATUS='RELEASING'` 且同白名单的行；**载体在主表、NEVER 据 `BLACKLIST_RELEASED` 的 `CHANNEL_SYNC_*` 扫表**）
 - `/internal/blacklist/auto-release` — **自动解除**（2026-09-21 新增，`sys_job` 230，见下面「自动解除」一节）。**这是本前缀下唯一会改黑名单本体的端点**，`limit` 是可选 `@RequestParam`
 
-⚠️ **该前缀下现在已有三个写接口，但仍无验签** —— `BlacklistInternalController` 类注释里那句「当前只有一个只读盘点接口，因此无需鉴权」**已不成立**，与 AGENTS.md §5.2 冲突，上生产前 MUST 补，**且 MUST 优先覆盖 `/auto-release`**（误调等于把欠费卡提前放行）。四个端点现在**都有 `sys_job` 触发记录**：280 盘点 / 320 加黑补偿 / 325 解黑补偿 / 230 自动解除（**前三个 2026-09-21 随「200 以下全量重编号」由 105 / 125 / 126 改为 280 / 320 / 325，触发目标与 cron 均未变，NEVER 回退成旧号**）。
+⚠️ **该前缀下现在已有三个写接口，但仍无验签** —— `BlacklistInternalController` 类注释里那句「当前只有一个只读盘点接口，因此无需鉴权」**已不成立**，与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突，上生产前 MUST 补，**且 MUST 优先覆盖 `/auto-release`**（误调等于把欠费卡提前放行）。四个端点现在**都有 `sys_job` 触发记录**：280 盘点 / 320 加黑补偿 / 325 解黑补偿 / 230 自动解除（**前三个 2026-09-21 随「200 以下全量重编号」由 105 / 125 / 126 改为 280 / 320 / 325，触发目标与 cron 均未变，NEVER 回退成旧号**）。
 
 RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackList`、`alipayTripReceiveBlackList`（内部复用查询）、`inspectReleasable`、`compensateChannelSyncAdd`、`compensateChannelSyncRelease`、`autoRelease`。**仍没有 `deleteBlackList`**：人工解除只能走 HTTP 或运营页，程序化解除只有 `autoRelease` 这一条（且被 `BLACK_CAUSE='01'` 收窄）。
 表：`BLACKLIST`、`BLACKLIST_OPERATE_LOG`、**`BLACKLIST_RELEASED`**（解除历史表）
@@ -438,7 +438,7 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 
 **`TBL_PARA_VERSION` 是唯一的「当前生效版本」权威表**，下游一律 `WHERE PARA_VER_NO = (SELECT CURRENT_VER_NO FROM TBL_PARA_VERSION WHERE PARA_TYPE = ...)`。
 
-**MUST：改 `TBL_PARA_VERSION.CURRENT_VER_NO` 做重导验证时，NEVER 用「当前版本减 1」。** 明细表只保留少数几个历史版本（2026-09-08 实测 `TBL_LINE_INFO` 只有 28 / 41 两个版本，`TBL_FARE_MATRIX` 只有 33 / 44），把 `CURRENT_VER_NO` 指到一个库里不存在的版本号 **等于把参数整体清空**——下游那句子查询命中 0 行，IF8A-07 / 08 / 10 / 17 全部返空，而**没有任何报错**。**MUST 先 `SELECT PARA_VER_NO, COUNT(*) FROM <明细表> GROUP BY PARA_VER_NO` 查出真实存在的上一个版本**再回退，并当场记下原值与还原 SQL（`172.20.211.23:300xx` 是测试环境，但这条属破坏性写库）。同一条也在 AGENTS.md §8 有一份，两处 MUST 同时改。
+**MUST：改 `TBL_PARA_VERSION.CURRENT_VER_NO` 做重导验证时，NEVER 用「当前版本减 1」。** 明细表只保留少数几个历史版本（2026-09-08 实测 `TBL_LINE_INFO` 只有 28 / 41 两个版本，`TBL_FARE_MATRIX` 只有 33 / 44），把 `CURRENT_VER_NO` 指到一个库里不存在的版本号 **等于把参数整体清空**——下游那句子查询命中 0 行，IF8A-07 / 08 / 10 / 17 全部返空，而**没有任何报错**。**MUST 先 `SELECT PARA_VER_NO, COUNT(*) FROM <明细表> GROUP BY PARA_VER_NO` 查出真实存在的上一个版本**再回退，并当场记下原值与还原 SQL（`172.20.211.23:300xx` 是测试环境，但这条属破坏性写库）。同一条也在 `docs/ops/构建与部署规范.md` §8「Ops & Deployment (部署与运维，详见 docs/ops/)」 有一份，两处 MUST 同时改。
 
 **入库判据（最终裁决单点在 `ParaFileImportService.importLocalFile`）**：
 - 库中无该 `paraType` → 导入
@@ -503,12 +503,12 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 **归因存疑本次已部分闭合（2026-09-23 实测，据此重写本小节，旧表述 NEVER 回退）**：
 - **旧前提之一已被实测推翻**：页面曾写「`para-server` 当前未开 tracing、`application.properties` 全文无 `management.tracing` 键 ⇒ 那两个观测切面在本模块从未生效」——**后半句推论是错的**。`application.properties` 确实没有该键，但 **`deploy/k8s/10-deployments/para-server.yaml:35` 由 Deployment env 注入了 `management.tracing.enabled=true`**（ 为 `sampling.probability=0`），因此 `shouldSkipAopTraceLogic()` 返回 `false`、**切面在 para-server 里实际在跑**（日志实证：`MapperAspectToTrace.around` 打出 `Mapper method execute error: ...RiskGroupMapper.insert`；且 para-server 日志行的 traceId 列有值）。**判据随之修正：判断某模块是否开了 tracing，MUST 同时查 Deployment env，NEVER 只 grep 模块的配置文件。**
 - **旧结论「切面把异常换类型导致 UUID retCode」仍然不成立，但理由换了**：自 ADR-D53 起两个切面已改成 `observation.start()` + `openScope()` + **`throw e` 原样抛出**（`MapperAspectToTrace.java` 带护栏注释），现在即便切面在跑也不会改变异常类型。2026-09-23 实测重复风险组名：返 `{"code":"500","msg":"风险组名称已存在"}`，**cause 链兜底正常生效、UUID retCode 未复现**。
-- **剩余候选（仍未定位，NEVER 当作已确认）**：AGENTS.md §5.1 那两条 Druid WallFilter 规则（SQL 正文写了注释 / `where 1 = 1` 打头 + 全部谓词可选 `<if>`），或 cause 链判定是在 2026-09-08 之后才补上的（老镜像行为）。**NEVER 把「切面换异常类型」当成已确认结论写进任何地方。**
+- **剩余候选（仍未定位，NEVER 当作已确认）**：AGENTS.md §4.1 那两条 Druid WallFilter 规则（SQL 正文写了注释 / `where 1 = 1` 打头 + 全部谓词可选 `<if>`），或 cause 链判定是在 2026-09-08 之后才补上的（老镜像行为）。**NEVER 把「切面换异常类型」当成已确认结论写进任何地方。**
 - 源码里**各留了一行式现场标记**（`路径:行号` MUST 现查，grep 短语「归因存疑」），作用是「别再照这个结论排查」。
 
 #### 1.7 构建与部署（para-server 专有坑）
-- **`para-server` 的 jkube `build-image-remote` 绑在 `<phase>package</phase>`**（`para-server/pom.xml`）：**`mvn clean package` 就会 build + push 到 Harbor**，2026-09-08 实测直接推出 `itp/para-server:2.0.19`。这条实测**推翻了「`build-image-remote` 等于绑 `install`」的旧记载**，**NEVER 回退execution id 不能用来推断阶段**。
-- 因此只想拿 jar **MUST 加 `-Djkube.skip=true`**。
+- **`para-server` 的 jkube `build-image-remote` 绑在 `<phase>package</phase>`**（`para-server/pom.xml`，**在 `remote` profile 内、无 `activeByDefault`**）：**默认 `mvn clean package` 只出 jar、不推镜像；推镜像 MUST 显式 `-Premote`**（2026-09-08 实测直接推出 `itp/para-server:2.0.19` 是当时 `remote` 默认激活所致，2026-10-20 已去掉默认激活）。这条实测**推翻了「`build-image-remote` 等于绑 `install`」的旧记载**，**NEVER 回退execution id 不能用来推断阶段**。
+- 因此默认 `package` 就是拿 jar、**无需 `-Djkube.skip=true`**；要推才加 `-Premote`。
 - `/para-server/` 是 `fep-app-vr` 那 8 条入向前缀之一（见 `docs/ops/流量切换.md`）。
 
 ---
@@ -534,7 +534,7 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 - **状态码→中文的两套口径共存、NEVER 合并成一张表**：AGM 域用 `20010` / `20020` / `20030`，CA 与 HCE 域用 `0` / `1` / `2`。两个域的 `1` 含义不同，合并即错。实现是 `KeyVersionQueryServiceImpl.STATUS_DESC`「域 → (状态码 → 中文)」，**键冲突属预期**，故按域分表。
 
 #### 2.3 端口冲突（key-server 自身）
-**key-server 的 `server.port=9103` 与 `ticket-server` 撞号**（AGENTS.md §2.2.1 端口冲突清单里的那一组）。同机部署需确认；K8s 下各自独立 Pod 不冲突，但**排查「打 9103 打到了谁」MUST 先确认目标 Pod**。
+**key-server 的 `server.port=9103` 与 `ticket-server` 撞号**（docs/business/README.md 全局事实 端口冲突清单里的那一组）。同机部署需确认；K8s 下各自独立 Pod 不冲突，但**排查「打 9103 打到了谁」MUST 先确认目标 Pod**。
 
 #### 2.4 `service.security.url`：被调方 Service 端口 ≠ 对方 `server.port`
 `key-server/src/main/resources/application.properties` 的 `service.security.url` 默认值用集群内网 Service 名（`kubectl get svc -n itp` 实测，2026-09-11）。
@@ -580,7 +580,7 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 - **欠费事实要问两个模块，缺一个就漏判**：闸机出站扣费在 `gate-txn-pay-server` 的 `GATE_TXN_PAY`，支付宝出行在 `alipay-pay-sign-server` 的 `ALIPAY_PAY_LOG`。两张表**都不归 blacklist-server 管**，**MUST 走 `rpc` 只读接口，NEVER 在本模块直接写 SQL 查它们**。
 - **NEVER 按拉黑来源分流只查一个源**：`addBlackList` 按 `cardId` 去重（§3.2），先被闸机链路拉黑、后被支付宝链路重复拉黑时第二次 insert 被跳过，**行上没有第二个来源的痕迹**，只查一个源必然漏判。
 - **MUST 先判下游 `resultCode` 再用 `hasUnsettled`**：下游查询**未执行**时会把 `hasUnsettled` 置 `true`，不判 `resultCode` 会把「事实不明」误报成「有欠费」。两个查询方法各自 `return null` 表示「查询未成功执行（事实不明）」，单条盘点的任何异常都收敛为 `UNKNOWN`、**不让一条坏数据中断整批**。
-- **本类无 `@Transactional`，且是刻意的**：方法内有 RPC，事务包住网络调用会让行锁持有时长等于对端响应时长（AGENTS.md §5.2 硬约束，已有生产事故）。而且本类只读、本来不需要事务。**NEVER 加 `@Transactional`。**
+- **本类无 `@Transactional`，且是刻意的**：方法内有 RPC，事务包住网络调用会让行锁持有时长等于对端响应时长（`docs/architecture/transaction-and-consistency.md` §6「`@Transactional` 方法内 NEVER 发起任何 RPC / 网络调用」，已有生产事故）。而且本类只读、本来不需要事务。**NEVER 加 `@Transactional`。**
 - 取数 SQL（`BlacklistMapper.selectForInspect` / `BlacklistMapper.xml`）：**按 `CREATE_TIME` 升序取最早的 `limit` 条**（升序而非倒序：**先拉黑的先盘点**，避免积压最久的记录被新记录一直挤到后面）；**MUST 带 `limit`** —— 每条要跨模块查两次欠费，条数不受控会把单次调度拖成长事务级别的耗时；**`REASON` 必须 select 出来**，它是人工判断「这条该不该解除」的唯一依据。
 
 #### 3.4 `/internal/**` 前缀的鉴权现状
@@ -597,13 +597,13 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 |---|---|---|---|
 | 1 | **para 那两处「唯一键冲突返 UUID retCode」的成因** | 源码注释归因于观测切面换异常类型 / 实测 contra：**para-server 的 tracing 由 Deployment env 打开（切面在跑，推翻「从未生效」的旧前提），但切面自 ADR-D53 起原样 `throw e`、不换类型**；2026-09-23 重复组名实测返 `code=500 + 风险组名称已存在`，UUID retCode 未复现 | **归因作废、成因未知，MUST 重查**。候选仍是 Druid WallFilter 的「SQL 正文注释」或「`where 1 = 1` + 全可选 `<if>`」两条（另有可能是 cause 链判定后补）。**NEVER 引用旧归因**，也 **NEVER 再用「para-server 没开 tracing」当论据**（详见 §1.6） |
 | 2 | **cause 链兜底是否还有必要** | 本模块未开 tracing ⇒ 当前无切面包装 / 将来开 tracing 后它是唯一防线 | **保留**。`NEVER` 简化回裸 `catch (DuplicateKeyException)` |
-| 3 | **para-server 该不该开 tracing** | AGENTS.md §2.2.1 名单里没有它 ⇒ 按 traceId 检索它的日志恒 0 条 / 开之前 MUST「三行成组」 | **未裁决**。要开 MUST 三行成组 + 重建镜像（`-Djkube.skip=true` 不能带） |
+| 3 | **para-server 该不该开 tracing** | docs/business/README.md 全局事实 名单里没有它 ⇒ 按 traceId 检索它的日志恒 0 条 / 开之前 MUST「三行成组」 | **未裁决**。要开 MUST 三行成组 + 重建镜像（`-Djkube.skip=true` 不能带） |
 | 4 | **阶段一文档的行号与措辞** | 阶段一 §墓碑注释清单给了 25 条精确行号 / 本次删注释后**行号全部失效** | 阶段一那张表**只保留「想禁止的事」与「能否写成断言测试」两列可用**，**行号 NEVER 引用** |
 | 5 | **key-server `service.security.url` 的旧措辞** | 阶段一 §六 引的是缺主语版本 / 源码已订正为带主语版本 | 以 §二·2.4 为准，**NEVER 回退** |
 | 6 | **`app.notify.blacklist-url` 到底算不算残留** | 键在、字段在、被注入 / **零生效读取方** | **算死配置**。清理需与「恢复通知」一并评审，**当前 NEVER 单独删键或单独恢复调用** |
 | 7 | **`BLACKLIST` 无拉黑类型字段** | 盘点想自动解除 / `REASON` 自由文本、22/35 是挂失补卡 | **维持只读盘点**。真要自动化 MUST 先加拉黑类型列（属 DDL 变更，MUST 出 `*-migration.sql`） |
 | 8 | **`RiskGroupMapper.insert` 的主键回填** | 想要 `useGeneratedKeys` 拿 `GROUP_ID` / Oracle + ojdbc 返回 ROWID、回填不进 `Long` | **不回填**。确有需求 MUST 补 `keyColumn="GROUP_ID"` 或改 `selectKey` 取序列，**NEVER 裸加 `useGeneratedKeys="true"`**（详见墓碑 #4） |
-| 9 | **`key-server` 与 `ticket-server` 抢 9103** | 两模块 `server.port` 都是 9103 | **未裁决**（AGENTS.md §2.2.1 已登记）。K8s 下各自 Pod 不冲突 |
+| 9 | **`key-server` 与 `ticket-server` 抢 9103** | 两模块 `server.port` 都是 9103 | **未裁决**（docs/business/README.md 全局事实 已登记）。K8s 下各自 Pod 不冲突 |
 
 ### 墓碑清单
 
@@ -645,7 +645,7 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 | 未覆盖 / 有意不抽 | ①`KeySyncServiceImpl` 那 16 块方法级 Javadoc 的**参数说明**（属标准 Javadoc、保留在源码，本节只抽链路与安全约束）；②`AppParaQueryMapper.xml` 7 段 SQL 说明性 XML 注释（**保留未删**，它们解释的是 `PARA_TYPE='0001'/'0004'` 与 `FARE_TYPE=0` 的口径，同一事实已在 §1.1 / §1.2 有一份）；③`para-schema.sql` 的 3 条 `--` 行注释（风险三表用途说明）**已删**、内容在 §1.5 |
 | 已知缺口 | **三模块里 NEVER 出现过「SQL 正文禁写注释」那条 mapper XML 护栏**（全仓 grep 只在 para 那两处 tracing 注释里以「Druid WallFilter 规则（SQL 正文注释 …）」作为**候选成因**被提及，而那两处正文已删、只留一行式）。因此该护栏**本次无从保留**；要补 MUST 新增，且注释里 NEVER 出现两个连续减号 |
 | 不变量自证 | `svn cat -r BASE` 取 **157 个文件**基线，python 逐文件剥注释 + 空行归一后比对：**删除前 157/157 一致、删除后 157/157 一致**（`DIFFERENT=0`），即**本次一行代码都没动** |
-| 构建 / 测试 | `mise exec -- mvn -o clean package -pl para-server,key-server,blacklist-server -am -DskipTests -Djkube.skip=true`；三模块**都没有测试源码**（`key-server` / `blacklist-server` 无 `src/test` 目录，`para-server/src/test` 存在但 **0 个文件**），编译通过即为验证上限 |
+| 构建 / 测试 | `mise exec -- mvn -o clean package -pl para-server,key-server,blacklist-server -am -DskipTests`（**默认 `package` 不推镜像，无需 `-Djkube.skip=true`；要推才加 `-Premote`**）；三模块**都没有测试源码**（`key-server` / `blacklist-server` 无 `src/test` 目录，`para-server/src/test` 存在但 **0 个文件**），编译通过即为验证上限 |
 
 
 

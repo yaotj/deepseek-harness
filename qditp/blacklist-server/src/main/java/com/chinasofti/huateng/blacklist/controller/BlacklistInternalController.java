@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 黑名单内部接口。只读盘点 + 渠道同步补偿 + 自动解除，全部由 web-admin 的 Quartz 任务驱动。
  *
- * <p><b>本前缀下的接口目前都没有验签</b>，与 AGENTS.md §5.2「新增状态变更型接口 MUST 有鉴权」冲突。
+ * <p><b>本前缀下的接口目前都没有验签</b>，与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权」冲突。
  * 这是沿用本模块与 recon 那批内部端点的现状（开发测试期的有意降级），<b>上生产前 MUST 补验签</b>。
  * 两个补偿端点只推进渠道同步状态、不改黑名单本体，误调的后果是向支付宝多推一次已成功的通知；
  * <b>但 {@code /auto-release} 会真的解除黑名单</b>，误调的后果是把欠费已结清的卡提前放行，

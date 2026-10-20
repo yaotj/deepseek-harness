@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@code 9998} 属**限流、不是失败**，上游 Quartz 任务 MUST 只记 WARN 不抛异常，
  * 否则前台调度日志每轮都记红。
  *
- * <p>本类**无鉴权**：与 AGENTS.md §5.2「新增状态变更型接口 MUST 有鉴权」冲突，
+ * <p>本类**无鉴权**：与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权」冲突，
  * 属沿用本模块现有 {@code /internal/daily-ticket/**} 端点的现状（全部裸暴露、只靠网络可达性隔离），
  * 上线前 MUST 随那批端点统一补齐。
  */

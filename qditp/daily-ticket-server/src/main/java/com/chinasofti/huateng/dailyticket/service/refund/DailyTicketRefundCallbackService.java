@@ -30,7 +30,7 @@ import java.util.Map;
  * <ol>
  *   <li><b>受理白名单</b>：成功结果只接受 {@code REFUNDING} / {@code WAIT_VERIFY} / {@code FAILED}
  *       三个前置态（{@code FAILED} 属「按支付中心结论纠正」，会打 WARN）。其余状态一律拒收，
- *       符合 AGENTS.md §5.2「状态机校验用白名单」。</li>
+ *       符合 AGENTS.md §4.2「状态机校验用白名单」。</li>
  *   <li><b>重复到达一律幂等返成功</b>：已 {@code REFUNDED} 再收成功 → 只补平台退款单号并重推通知；
  *       已 {@code FAILED} 再收失败 → 直接返成功。<b>NEVER 改成报错</b>，否则支付中心会一直重推。</li>
  *   <li><b>已 REFUNDED 却收到失败结果时保持已退款</b>，只打 WARN 转人工 ——

@@ -1,7 +1,7 @@
 ---
 业务域: 超时处理（超时费 / 超时扣次 / 超时补收）
 模块: ticket-server、daily-ticket-server、gate-txn-pay-server、para-server、pay-sign-server、recon-server
-状态: **待实现契约**（不是现状描述）
+状态: "**待实现契约**（不是现状描述）"
 ---
 
 # 提示词：超时处理
@@ -248,7 +248,7 @@ AND 该票为计次类（有 ACTUAL_TIMES 语义）
    - `remainTimes >= 1` ⇒ **再扣 1 次**作为超时费，两次扣减合计 2 次。
    - `remainTimes == 0` ⇒ **不再扣次**，改走「按线网最高票价用默认支付方式扣一笔」（§3.2）。
 4. **出向通知**：§3.63 `receiveCountingTicketTimes` 的 `times` 传**本次实际扣减的总次数**（1 或 2）。
-   ⚠️ **这会推翻 AGENTS.md §2.2.2 现记的「`times` 恒传 1」口径**，且那条明确写着
+   ⚠️ **这会推翻 docs/business/未落地需求.md 现记的「`times` 恒传 1」口径**，且那条明确写着
    「**一旦 `times` 可能为 2，宿主必须改成 daily-ticket 发通知**」—— 因为只有 daily-ticket 知道实际扣了几次。
    **实现场景 A MUST 同批把通知宿主从 `GateDailyTicketCoordinator` 迁到 daily-ticket 侧，并更新 AGENTS.md 那三条口径。**
 
@@ -444,7 +444,7 @@ daily-ticket-server **正在** tracing 名单里）。
    可选谓词 **MUST 用 `<where>` 标签**，NEVER `where 1 = 1`。新增 XML 后 **MUST** 跑 `xmllint --noout`。
 7. **新增补偿端点 MUST 有鉴权**；新增出向地址键 **MUST 写 `${ENV:}` 空默认值 + 默认关**，
    **NEVER 再新增一处 `testngbackV2` 硬编码**。
-8. **改动 §3.63 的 `times` 口径时，MUST 同批更新 AGENTS.md §2.2.2 那三条 NEVER**
+8. **改动 §3.63 的 `times` 口径时，MUST 同批更新 docs/business/未落地需求.md 那三条 NEVER**
    —— 那里现在写着「`times` 恒传 1」，本域一旦落地就与之矛盾。
 
 ---
@@ -504,7 +504,7 @@ daily-ticket-server **正在** tracing 名单里）。
   `times` 改传 `deductedTimes`。
 - **镜像**：`model` 改了 DTO ⇒ **MUST 同批重建 ticket-server + daily-ticket-server 两个镜像**
   （Fastjson2 会静默丢字段，只重建一端等于白改）。
-- **同批文档**：更新 AGENTS.md §2.2.2 §3.63 那三条 NEVER 的第一条 + `docs/business/daily-ticket.md` 扣次那节。
+- **同批文档**：更新 docs/business/未落地需求.md §3.63 那三条 NEVER 的第一条 + `docs/business/daily-ticket.md` 扣次那节。
 - **单测**：`remainTimes>=1` 扣 2 次 / `remainTimes==0` 扣 1 次 + 出降级单 / 重复 `ticketTransSeq` 只扣一次（幂等）
   / 正常出站（`overtime=0`）仍扣 1 次不产生超时费单。
 
@@ -533,11 +533,11 @@ Q2 若裁定维持现状 ⇒ 只更新文档；若裁定统一为线网最高票
 
 ### 构建与部署备注（本次实测）
 
-- **`ticket-server` 与 `daily-ticket-server` 的 jkube 都在 `remote` profile 内、`activeByDefault=true`、
+- **`ticket-server` 与 `daily-ticket-server` 的 jkube 都在 `remote` profile 内（**无 `activeByDefault`**）、
   `<phase>package</phase>`、goals `build` + `push` 均未注释**（`ticket-server/pom.xml`、
-  `daily-ticket-server/pom.xml`），因此**两者 `mvn clean package` 就会直接推镜像到 Harbor**，
-  不需要 `-Premote`。只想拿 jar **MUST** 加 `-Djkube.skip=true`。
-  （`ticket-server` 另有一段被整体注释掉的 `build-image-after-package`，**勿被它误导**。）
+  `daily-ticket-server/pom.xml`）；**自 2026-10-20 起两者默认 `mvn clean package` 只出 jar、不推镜像，
+  推镜像 MUST 显式 `-Premote`**（不再需要 `-Djkube.skip=true`）。
+  （`ticket-server` 另有一段被整体注释掉的 `build-image-after-package`，**勿被它误导**——它已失效、与默认不推无关。）
 - 版本号按需 +0.0.1，但 **MUST 每次现查 pom 与 Deployment**，**NEVER 引用文档里的版本数字**。
 - 每阶段部署后 **MUST** 探活 `curl http://172.20.211.23:<NodePort>/actuator/health`
   （单次 503 不算失败，间隔 30 秒复探），**NEVER 只看 `rollout status`**。
@@ -571,4 +571,4 @@ Q2 若裁定维持现状 ⇒ 只更新文档；若裁定统一为线网最高票
 - `docs/business/gate-txn-pay.md` — 0441 侧超时费搬运与离线码算价
 - `docs/business/recon.md` — `ITP.DETAIL` 行格式与 B9 未闭合项
 - `docs/domain/outbox.md` — 超时费单的 outbox 四列模板与扫表 SQL 的坑
-- `docs/architecture/web-server.md` §七 — 新增 `sys_job` 定时任务的定式
+- `docs/architecture/web-server.md` §七「定时任务（Quartz）跨服务调用」— 新增 `sys_job` 定时任务的定式

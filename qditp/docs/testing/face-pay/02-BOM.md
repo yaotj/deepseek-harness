@@ -25,7 +25,7 @@
 > ⚠️ **接口编号冲突（定位实现只能靠「模块 + URL」）**
 > `IF2A-08` 同时标在 BOM 的 `notiBusResult`（`:159`）与 TVM 的 `requestTakeTicketAuth`（`TvmOrderController.java:237`）；
 > `IF2A-09` 同时标在 BOM 的 `notiTopupResult`（`:186`）与 TVM 的 `requestTopup`（`TvmOrderController.java:255`）。
-> 这与 `AGENTS.md` §2.2.1 记录的 IF8A-04/05/06 双义是同一类问题。测试用例里写编号会指向错误实现，**MUST 写 URL**。
+> 这与 `docs/business/README.md` 全局事实 记录的 IF8A-04/05/06 双义是同一类问题。测试用例里写编号会指向错误实现，**MUST 写 URL**。
 
 BOM 支付走 `scene="scan"`（主动扫用户付款码，`PayCenterCommon.java:95`、`authCode` 在 `:103`），与 TVM 的 `scene="qrcode"` 是相反方向：**BOM 是操作员扫乘客的付款码，不是乘客扫机器**。原用例 015/016 写「用户完成支付」「扫码支付」时要明确是哪一侧扫。
 

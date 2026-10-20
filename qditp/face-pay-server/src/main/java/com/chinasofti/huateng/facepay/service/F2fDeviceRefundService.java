@@ -14,11 +14,15 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-/** 设备侧主动退款（TVM {@code requestRefund}）。 */
+/**
+ * 设备侧主动退款（TVM {@code requestRefund}）。
+ */
 @Service
 public class F2fDeviceRefundService {
 
-    /** 可退款的订单状态白名单：钱已收到、且业务已结束或已失败。 */
+    /**
+     * 可退款的订单状态白名单：钱已收到、且业务已结束或已失败。
+     */
     private static final List<String> REFUNDABLE = F2fOrderStatus.REFUNDABLE;
 
     private static final Logger log = LoggerFactory.getLogger(F2fDeviceRefundService.class);
@@ -36,7 +40,9 @@ public class F2fDeviceRefundService {
         this.refundService = refundService;
     }
 
-    /** TVM 主动退款。 */
+    /**
+     * TVM 主动退款。
+     */
     public JSONObject requestRefund(RequestRefundReqDTO request) {
         Long amount = request.amountInFen();
         if (amount == null) {
@@ -68,14 +74,17 @@ public class F2fDeviceRefundService {
             }
         }
 
+        log.info("参数校验通过");
         F2fPayment payment = paymentMapper.selectLastAttempt(request.getOrderNo());
         RefundCommand command = new RefundCommand(request.getOrderNo(), null,
                 F2fRefundService.SOURCE_TVM_REQUEST, amount, null,
                 request.getRefundReason(), request.getDeviceId(), order.getOperatorId(),
                 order.getTransType(), null, payment == null ? null : payment.getPayCenterOrderNo());
+        log.info("开始发起退款");
         RefundOutcome outcome = refundService.refund(command);
-
+        log.info("退款结束 outcome is {}", outcome);
         if (outcome.isRejected()) {
+            log.info("退款被拒绝，结束");
             return TvmResponses.refundFail(outcome.failureReason());
         }
         if (outcome.alreadyExisted()) {
@@ -92,7 +101,9 @@ public class F2fDeviceRefundService {
         return refundAccepted(outcome);
     }
 
-    /** 把退款单当前状态翻译成设备侧的 {@code refundResult}。 */
+    /**
+     * 把退款单当前状态翻译成设备侧的 {@code refundResult}。
+     */
     private static JSONObject refundAccepted(RefundOutcome outcome) {
         boolean success = F2fRefundService.STATUS_SUCCESS.equals(outcome.refundStatus());
         return TvmResponses.refundSuccess(success ? "SUCCESS" : "PROCESSING",

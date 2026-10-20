@@ -75,7 +75,7 @@ spec:
           value: '07'
         - name: pay.center.blacklist-notify-url
           value: https://dtcustomer.bestonepay.com/ngopenplatform/notify/receiveBlackListFromItp
-        - name: server.port
+        - name: SERVER_PORT
           value: '8080'
         - name: service.security.openLogger
           value: 'true'

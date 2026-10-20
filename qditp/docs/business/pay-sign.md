@@ -64,7 +64,7 @@ Controller → PaySignServiceImpl（202 行，纯路由，零业务逻辑）
 3. 再进对应领域服务读真实现。**`/internal/payment/**` 那两个补偿端点不经门面**，`PaymentInternalController` 直接注入 `RefundDomainService`。
 
 ### 四个 support 类 + 网关门面（`paysign/support/`）
-拆分时为避免「三个领域服务各留一份逐字副本」抽出，属对 AGENTS.md §5.1「NEVER 主动创建新的工具类」的**有意破例**，先例是 `face-pay-server` 的 `F2fDuplicateKey`（ADR-D84）；破例理由写在各自类注释里，**NEVER 删那些注释**。
+拆分时为避免「三个领域服务各留一份逐字副本」抽出，属对 AGENTS.md §4.1「NEVER 主动创建新的工具类」的**有意破例**，先例是 `face-pay-server` 的 `F2fDuplicateKey`（ADR-D84）；破例理由写在各自类注释里，**NEVER 删那些注释**。
 
 | 类 | 内容 | 硬约束 |
 |---|---|---|
@@ -158,10 +158,10 @@ cutoff 是 `referenceTime - delayDays`，而 `delayDays` 默认 4，**因此「�
 2. **阶段二 提交后**：先 `asyncNotifyTerminationResult` 通知 APP，**再** `syncChannelRemovalAfterCommit` 走 `ChannelSyncDeliverer` 删 account 侧支付通道
 
 **Why**：`markSuccess` 与 `initChannelSyncPending` **MUST 同事务** —— 两者之间崩掉会留下 `TERMINATION_STATUS='SUCCESS'` 而 `CHANNEL_SYNC_STATUS=NULL`，而补偿扫表**刻意不捞 NULL**，这一笔的通道清理永久丢失。阶段二两步 **NEVER 反过来**：account-server 慢或不可达会把 APP 通知一起拖住，而通道清理已落 `PENDING`、补偿一定会重推。
-**NEVER 退回「事务内先调 account 删通道、失败即整单回滚」**（ADR-D48 之前的形态）：那同时违反 AGENTS.md §5.2 的两条（事务内 RPC、事务内提交异步通知），且失败只能靠支付中心重推自愈。连带一条：包级方法 `removeAccountPayChannel`（「catch 全部异常后 return false」的旧样例）**已随 `PaySignWorkflow` 一并删除**（零调用方），通道清理的唯一实现是 `ChannelSyncDeliverer`；**NEVER 再写一个返回 boolean 的 RPC 包装方法**，新写的 MUST 返回 `RpcOutcome`（ADR-D45）。
+**NEVER 退回「事务内先调 account 删通道、失败即整单回滚」**（ADR-D48 之前的形态）：那同时违反 AGENTS.md §4.2 的两条（事务内 RPC、事务内提交异步通知），且失败只能靠支付中心重推自愈。连带一条：包级方法 `removeAccountPayChannel`（「catch 全部异常后 return false」的旧样例）**已随 `PaySignWorkflow` 一并删除**（零调用方），通道清理的唯一实现是 `ChannelSyncDeliverer`；**NEVER 再写一个返回 boolean 的 RPC 包装方法**，新写的 MUST 返回 `RpcOutcome`（ADR-D45）。
 
 
-### 待修问题（详见 `docs/reviews/解约链路代码审查记录-2026-08-25.md`）
+### 待修问题
 - **P0：`/internal/**` 全部接口无鉴权、无归属校验**（`/internal/termination/**` 与 `/internal/paySign/compensateNotify`），`pay-sign-server` 无 spring-security、无拦截器兜底，枚举流水号即可强制解约任意用户；三个无入参批处理（`process` / 两个 `compensateNotify`）任何网络可达方都能反复触发批处理与对 APP 的通知重发。补鉴权 **MUST** 对齐现有验签实现，**NEVER** 自造签名逻辑。
 - ~~**P1：事务内提交异步通知**~~ —— 2026-09-11 已修（pay-sign-server 2.0.75），仅限**签约成功分支** `CallbackDomainServiceImpl.receiveSignResult`（当时宿主是 `PaySignWorkflow`，2026-09-15 随拆分迁至此）：事务内改为 `eventPublisher.publishEvent(new SignResultCommittedEvent(requestSignSeq, paymentVendor, request))`，投递挪到 `paysign/event/SignResultCommittedListener`（`@TransactionalEventListener(phase = AFTER_COMMIT, fallbackExecution = false)`）。三条约束 **NEVER 改**：①`fallbackExecution` 保持 `false`，改 `true` 等于「无事务时立刻同步发 HTTP」，退回本次要消除的行为；②监听器**不加 `@Async`**（`asyncNotifySignResult` 本身已异步，再套一层异常彻底无声）；③监听器回查流水 **MUST 用 `selectLatestSignResultBySeq`**，用 `selectByRequestSignSeq` 会取到 `OPERATION_TYPE='SIGN'` 那行（`SIGN_STATUS` 为空、不在通知队列里）。事件是**进程内非持久**的，可靠性仍靠 `NOTIFY_STATUS='PENDING'` + `/internal/paySign/compensateNotify` 扫表补偿，监听器只是快速路径、内部 `catch` 全部异常只记日志（`AFTER_COMMIT` 里抛异常回滚不了已提交的事务，只会让本已成功的回调对支付平台报错、引来重推）。**摘掉 `receiveSignResult` 的 `@Transactional` 时 MUST 同步处理这个监听器**，否则通知静默不发（`fallbackExecution=false` 在无事务的类上等于静默不执行）。
   - ⚠️ **2.0.76 起该监听器做两件事**（ADR-D32）：APP 通知之后追加一次 `accountClient.syncPayAccountId`，把 `PAY_ACCOUNT_ID` 推给账户域 `APP_USER_PAY_CHANNEL`，补 ADR-D30 留下的「该列只有 IF8A-77 会写」缺口。**两者可靠性等级不同**：通知有 `NOTIFY_STATUS='PENDING'` + 扫表补偿兜底，回写**允许丢**（账户域那列是展示值、权威值在本域 `APP_PAY_SIGN_INFO`，且账户域 IF8A-77 仍会主动来取）。**NEVER 给回写加落库状态 + 扫表补偿**，也 **NEVER 让回写失败影响通知或签约结果**。之所以塞进同一个监听器而不新建一个，是因为本项目规定**一个事件类只挂一个监听器**。**NEVER 让这条链路去改 `USER_ITP_REG_INFO.THIRD_PAY_ID`** —— 那是 IF8A-77「更换默认支付方式」的业务动作产物。回写依赖账户域那一列的 DDL，**DDL 未执行时该调用恒返 9999**（不影响签约）。
@@ -273,7 +273,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
 - **无 MQ、无 Redis、无 Spring Retry、无服务内 `@Scheduled`**。新增异步补偿 **MUST** 沿用「落库状态 + 无入参内部接口 + 外部定时任务扫表」模式。
 
 ### 支付结果回调的重推硬限次（2026-08-26 新增）
-- `receivePayResult`（现宿主 `PaymentDomainServiceImpl.java`，2026-09-15 随支付组一起搬来，**它落在支付领域而非回调领域是有意的**：整个方法只读写 `PAY_CALLBACK_LOG` / `PAY_TXN_DETAIL`，并与 `requestPay` 共用 `resolveDebitRequestResult` 等支付组私有方法）**MUST 不带 `@Transactional`**：该方法内要调 `gate-txn-pay-server` 的 `syncDebitStatus`，事务包住网络调用会把行锁持有时长拉成对端响应时长，上游重推全部堆在同一行上，最终 Druid 强杀连接、`PAY_CALLBACK_LOG` 连同业务 UPDATE 一起回滚。见 `AGENTS.md` §5.2 与 `docs/ops/生产环境清单.md` §六 P0。
+- `receivePayResult`（现宿主 `PaymentDomainServiceImpl.java`，2026-09-15 随支付组一起搬来，**它落在支付领域而非回调领域是有意的**：整个方法只读写 `PAY_CALLBACK_LOG` / `PAY_TXN_DETAIL`，并与 `requestPay` 共用 `resolveDebitRequestResult` 等支付组私有方法）**MUST 不带 `@Transactional`**：该方法内要调 `gate-txn-pay-server` 的 `syncDebitStatus`，事务包住网络调用会把行锁持有时长拉成对端响应时长，上游重推全部堆在同一行上，最终 Druid 强杀连接、`PAY_CALLBACK_LOG` 连同业务 UPDATE 一起回滚。见 `docs/architecture/transaction-and-consistency.md` §6 与 `docs/ops/生产环境清单.md` §六 P0。
 - 硬限次 `MAX_PAY_CALLBACK_PUSH = 2`（首推 1 次 + 重推 1 次）。计数用 `PayCallbackLogMapper.countByMerchantOrderNo(merchantOrderNo, 'PAY')`，**计数点 MUST 在 `PAY_CALLBACK_LOG` 的 insert 之后**——方法无事务，insert 已自动提交，这个 COUNT 才等于支付中心实际推送次数（含本次）。
 - 达到上限后，无论本次处理成功与否都 `fillSuccess` 返回 `0000`，让支付中心停止重推。三条失败路径都走 `giveUpRetry`：`updatePayCallback` 命中 0 行、`syncGateTxnPayStatus` 失败、`catch (Exception)`。
 - **代价：真实失败不再被上游重试。** 因此 `giveUpRetry` **MUST** 同时做两件事——打 ERROR 日志、把该笔最后一条 `PAY_CALLBACK_LOG` 的 `HANDLE_STATUS` 置为 `MANUAL`（`markManualByMerchantOrderNo`，`HANDLE_MSG` 记原因，截断 300 字）。**运维 MUST 例行巡检 `HANDLE_STATUS='MANUAL'`**，否则失败会静默沉底。
@@ -470,7 +470,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
     （端口不认识业务语义）」。端口侧理由在 `pay-sign-server` · `ContractGatewayPort`（类注释）·
     `pay-sign-server/src/main/java/com/chinasofti/huateng/paysign/port/ContractGatewayPort.java`：
     「**本接口按用例一个方法，NEVER 退化成 `call(url, bizData)`**……**URL 只允许出现在
-    `ContractGatewayAdapter` 里一处**（AGENTS.md §8「NEVER 退回拼接」的同源约束：路径带 `/v1`，
+    `ContractGatewayAdapter` 里一处**（`docs/ops/构建与部署规范.md` §8「NEVER 退回拼接」的同源约束：路径带 `/v1`，
     散开后漏一处不报 404、极难定位）」、「**方法一律返回 `GatewayReply`**……实现方 **NEVER 抛异常**」；
     适配器侧 `ContractGatewayAdapter` · `.../port/ContractGatewayAdapter.java`
     「NEVER 让领域服务再注 `PaySignProperties` 只为取 URL」、「**NEVER 往里加业务判断**」、
@@ -547,7 +547,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
     第二个补偿队列且永远收不到结果回写 —— 生产上已因此留下 ID=745 / 749 两条幽灵行（2026-08-26 修复）」。
 26. **改 `convertPayStatus` 的返回值必须全局 grep** —— `pay-sign-server` ·
     `PaySignValues.convertPayStatus` · `.../support/PaySignValues.java`：
-    「全模块是按 String 字面量比较状态的（AGENTS.md §2.2.1），**改这里的任何一个返回值 MUST 全局 grep
+    「全模块是按 String 字面量比较状态的（docs/business/README.md 全局事实），**改这里的任何一个返回值 MUST 全局 grep
     所有比较点**。末行故意「认不出就原样返回大写」而不是回落 PROCESSING —— 那样会把未知终态伪装成中间态、
     引来无休止重推」。
 27. **未知渠道编码只 warn、照样原样返回** —— `pay-sign-server` · `PaySignValues.normalizeVendor` ·
@@ -755,7 +755,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
     「留痕只陈述事实、NEVER 自动订正状态」）。
 54. **`IDEMPOTENT` 不是异常，打成 ERROR 会造出假告警** —— 同文件 ：
     「NEVER 把这条打成 ERROR / 「MUST 人工核对」：解约收口本就是「主动查 queryResult 为准 + 回调作快速路径」
-    双路驱动（AGENTS.md §8），两路撞同一个 CAS 是设计内的常态而非异常。2026-09-14 实测
+    双路驱动（`docs/ops/构建与部署规范.md` §8），两路撞同一个 CAS 是设计内的常态而非异常。2026-09-14 实测
     requestSignSeq=0052294901523920，两路相差 46ms，库内三态全 SUCCESS、通道行也已删除，
     却报出一条要求人工核对的 ERROR」；「（IDEMPOTENT 是另一路已正常收口，走下面那个 else，
     NEVER 与本分支合并。）」。
@@ -825,7 +825,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
     静默吞掉等于放弃这笔的最后一次纠错机会」；SQL 侧同一条在 `PayTxnDetailMapper.xml`。
 65. **`syncGateTxnPayStatus` 必须显式检查 retCode** —— 同类 `syncGateTxnPayStatus` ·
     `.../service/impl/PaymentDomainServiceImpl.java`：「MUST 显式检查 retCode：本项目的 RPC 包装方法
-    不抛异常，「没抛异常」不等于远端已收敛（AGENTS.md §5.2 已记录过同类事故）」；失败时 
+    不抛异常，「没抛异常」不等于远端已收敛（AGENTS.md §4.2 已记录过同类事故）」；失败时 
     「NEVER 抛异常回滚——本地状态与 PAY_CALLBACK_LOG 是支付中心结果的唯一凭据，回滚等于丢证据。
     改为回非 0000 让支付中心重推」。
 66. **拉黑前必须用 §1.2 payQuery 二次确认** —— `pay-sign-server` ·
@@ -1060,7 +1060,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
 101. **签约通知的三个 `RpcOutcome` 分支处置** —— `pay-sign-server` ·
      `SignResultCommittedListener.syncPayAccountIdQuietly` ·
      `pay-sign-server/src/main/java/com/chinasofti/huateng/paysign/event/SignResultCommittedListener.java`：
-     「按 AGENTS.md §5.2 <b>显式判 `RpcOutcome` 的每个分支</b>，不假定「没抛异常就是写成功」：
+     「按 AGENTS.md §4.2 <b>显式判 `RpcOutcome` 的每个分支</b>，不假定「没抛异常就是写成功」：
      账户域未命中通道行时返 `8004`，那是「签约先于加通道」的合法时序，记 info 即可。
      这里两个失败分支的日志级别<b>刻意不同</b>（业务拒绝 info / 不可达 warn），但<b>处置相同 —— 都是放弃</b>：
      本方法整体是「允许丢」的展示值同步，<b>NEVER 因为能区分出 `Unreachable` 就给它加重试或补偿</b>」；
@@ -1111,7 +1111,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
      「空响应体按**失败**处理……把空体当成功会让通知静默丢失且不再重试，宁可多发一次由 APP 幂等吸收」。
 107. **出向通知加签的算法与源串一个字都不能改** —— `pay-sign-server` · `AppNotifySigner.buildItpSign` ·
      `pay-sign-server/src/main/java/com/chinasofti/huateng/paysign/support/AppNotifySigner.java`：
-     「**算法与源串拼法一个字都不能改**（AGENTS.md §5.2 安全红线）：`signType=00` 或空 ⇒ 不签；
+     「**算法与源串拼法一个字都不能改**（AGENTS.md §4.2 安全红线）：`signType=00` 或空 ⇒ 不签；
      `01` ⇒ SHA-1；`02` ⇒ MD5；其余 ⇒ `null`。源串是「7 个字段按 `key=value` 收集后**字典序排序**、
      `&` 连接，末尾再拼 `&key=<密钥>`」……**改动本类任何一行 MUST 人工复核安全合规性，并与对端重新联调验签**」；
      「**密钥 MUST 由调用方当参数传进来，本类 NEVER 自己持有 `itpSignKey`**」、
@@ -1133,7 +1133,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
      `SignResultCommittedEvent`（类注释）·
      `pay-sign-server/src/main/java/com/chinasofti/huateng/paysign/event/SignResultCommittedEvent.java`：
      「原实现在 `@Transactional` 方法内直接调 `appNotifyService.asyncNotifySignResult`，
-     违反 AGENTS.md §5.2……事务若在提交阶段失败回滚，APP 已经收到「签约成功」而本地
+     违反 AGENTS.md §4.2……事务若在提交阶段失败回滚，APP 已经收到「签约成功」而本地
      `APP_PAY_SIGN_INFO` 并没有这行。改为发布事件后，投递物理上位于 `afterCommit`，回滚则事件根本不投递」；
      字段取舍 「**NEVER 把 PaySignRequest / PaySignInfo 实体塞进来**：实体在事务内可能还是脏快照，
      监听器 MUST 自己按键回查已提交的数据」；「**本事件是进程内、非持久的**……本事件只是「快速路径」」。
@@ -1152,7 +1152,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
      `.../service/impl/CallbackDomainServiceImpl.java`：「publishEvent 本身是纯内存操作，不碰连接、
      不出网，放在事务内是安全的。NEVER 用它替代 appNotifyService 的直接调用——只有事务内的通知才需要绕这一层」；
      调用点 「NEVER 在这里直接调 appNotifyService：本方法带 `@Transactional`，事务若在提交阶段失败回滚，
-     APP 已收到「签约成功」而 APP_PAY_SIGN_INFO 并没有这行（AGENTS.md §5.2）」。
+     APP 已收到「签约成功」而 APP_PAY_SIGN_INFO 并没有这行（AGENTS.md §4.2）」。
 113. **APP 通知先发、删通道后做** —— `pay-sign-server` ·
      `CallbackDomainServiceImpl.receiveTerminationResult` · `.../service/impl/CallbackDomainServiceImpl.java`：
      「阶段二：先提交 APP 通知（异步、立即返回），再走删通道的快速路径。NEVER 反过来：
@@ -1162,11 +1162,11 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
      `pay-sign-server/src/main/java/com/chinasofti/huateng/paysign/controller/PaymentInternalController.java`：
      「前缀是按**业务域**分的。退款属支付域，塞进 `/internal/paySign`……或 `/internal/termination` 都会让
      「按前缀就能看出归谁」这条约定作废。**NEVER 把支付域的补偿端点挂到那两个前缀下。**」；
-     「**NEVER 在本模块新建同形副本**（AGENTS.md §5.1）」（应答复用 `model` 的 `CompensateNotifyRespDTO`）。
+     「**NEVER 在本模块新建同形副本**（AGENTS.md §4.1）」（应答复用 `model` 的 `CompensateNotifyRespDTO`）。
 115. **本模块所有补偿由 web-admin Quartz 驱动** —— `pay-sign-server` ·
      `PaymentInternalController.compensateRefundQuery` / `compensateRefundSummary` ·
      `.../controller/PaymentInternalController.java`：「**触发方是 web-admin 的 Quartz `sys_job`**，
-     本模块 NEVER 自带 `@Scheduled`（全模块一个都没有，见 AGENTS.md §2.2.1；排查「退款回查有没有跑」
+     本模块 NEVER 自带 `@Scheduled`（全模块一个都没有，见 docs/business/README.md 全局事实；排查「退款回查有没有跑」
      MUST 查 `SYS_JOB_LOG`，NEVER 在本模块里找 `@Scheduled`）」；
      「**停用本任务等于让那批单子永久悬挂**，NEVER 只是「先关掉看看」」；
      「**它与 `/internal/payment/compensateRefundQuery` 是两件不同的事，NEVER 合并成一个端点**……
@@ -1223,7 +1223,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
      `pay-sign-server/src/main/java/com/chinasofti/huateng/paysign/support/PaymentChannel.java`：
      「布尔判断的 else 隐含「其余一切都按传统签约处理」，因此**新增一个需要特殊处理的渠道时，
      漏改的那个分派点不会编译失败、不会告警，只会静默把新渠道当传统渠道处理**（去支付中心查一个不存在的协议）。
-     而这不是假想：`PaymentVendorEnum` 里已有 `0C 数币APP` 与四个 `CBDC_*`，AGENTS.md §2.2.2 记着
+     而这不是假想：`PaymentVendorEnum` 里已有 `0C 数币APP` 与四个 `CBDC_*`，docs/business/未落地需求.md 记着
      数字人民币硬钱包共 7 个接口「docs 有规格、代码无实现」—— 第三个类别是**已经在路上的**既定事实。
      改成 sealed 后，那天只需在这里加一个变体，**编译器会把每一个需要改的分派点逐个列出来**」；
      边界 「**只在「入口级路径选择」处用穷尽 `switch`**（当前 6 处）……这条边界 NEVER 模糊掉：
@@ -1235,7 +1235,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
      `WALLET_PAYMENT_VENDOR` 常量有 <b>5 份副本</b>（4 个业务类 + `PayTxnRules`），
      而且**归一化时机三种写法并存**……后果不是不好看：**新增一个渠道要改 7 处，漏一处既不编译失败也不告警**，
      只会让某一条链路把新渠道当成普通签约渠道处理（去支付中心查一个根本不存在的协议）。
-     这与 AGENTS.md §2.2.1「多数模块用 String 字面量表达状态，改动状态值 MUST 全局 grep」
+     这与 docs/business/README.md 全局事实「多数模块用 String 字面量表达状态，改动状态值 MUST 全局 grep」
      是同一类风险的**活样例**」；「**对外只暴露 `walletCode()`**，字段本身私有，
      避免又被别处 import 成第 6 份副本」；「仅给「要把渠道号当值写出去」的地方用……
      判断请一律走 `isWallet(String)`」。
@@ -1345,7 +1345,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
 
 > 这些注释的正文价值是「禁止某件已被删掉的事情重新出现」，放在源码里只能靠人读。
 > 下表给出每条想禁止的具体事情，以及能否写成 grep 类断言（`grep` 断言 MUST 排除注释行，
-> 否则会被这些注释自身命中 —— 这正是 AGENTS.md §5.2 记过的「据 grep 计数判断已经回退」那类误判）。
+> 否则会被这些注释自身命中 —— 这正是 AGENTS.md §4.2 记过的「据 grep 计数判断已经回退」那类误判）。
 
 | # | 文件:行号 | 想禁止的具体事情 | 可否 grep 断言 |
 |---|---|---|---|
@@ -1385,13 +1385,13 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
 > ADR-D115 / ADR-D115 续（二）已把阶段一第 22 条的结论改掉（见「矛盾与待裁决」M3），
 > 因此引用某条前 **MUST 先 grep 现查行号**，NEVER 直接按本节行号跳转。
 > 纯 `@param` / `@return` / getter-setter 样板不抽，只统计行数（见「本轮覆盖率自评」）。
-> 涉及密钥的条目**只记键名与位置、NEVER 回显值**（AGENTS.md §5.2）。
+> 涉及密钥的条目**只记键名与位置、NEVER 回显值**（AGENTS.md §4.2）。
 
 ### 一、controller 层（对外入口 / 内部补偿端点 / 全局异常）
 
 #### 契约与判据
 
-141. **10 个 `/internal/**` 端点的真实 URL 与前缀归属**（AGENTS.md §2.2.1 只给了数量，这里是逐条 URL）——
+141. **10 个 `/internal/**` 端点的真实 URL 与前缀归属**（docs/business/README.md 全局事实 只给了数量，这里是逐条 URL）——
      解约 6 条在 `pay-sign-server` · `TerminationInternalController`（类级 `@RequestMapping("/internal/termination")`，
      `pay-sign-server/src/main/java/com/chinasofti/huateng/paysign/controller/TerminationInternalController.java`）：
      `/process`、`/compensateNotify`、`/compensateChannelSync`、
@@ -1457,7 +1457,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
 151. **全局异常处理器只兜两类异常** —— `controller/PaySignExceptionHandler.java`
      「统一处理 `PayGatewayException`，避免调用方收到模糊的 500 错误」；「解约流程异常。
      触发事务回滚后，向调用方（含支付平台回调）返回 9999，便于重试」（**这句已与代码不符，见 M7**）。
-     其余异常仍落到 `resource/micro/web` 的全局处理器 → UUID `retCode`（AGENTS.md §8 那条五成因）。
+     其余异常仍落到 `resource/micro/web` 的全局处理器 → UUID `retCode`（`docs/ops/构建与部署规范.md` §8 那条五成因）。
 
 ### 二、config 与 resources（配置 / 日志 / SQL 脚本）
 
@@ -1468,7 +1468,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
      （`contract-config-url` / `contract-url` / `contract-advisory-url` / `contract-result-url` /
      `termination-url` / `request-pay-url` / `pay-query-url` / `request-refund-url`）+ 
      `refund-query-url`，另有 `default-notify-url` 与 `request-pay-notify-url`
-     （两者都指向 `58.56.166.170:48000`，即公网入向网关，见 AGENTS.md §8 那条链路）。
+     （两者都指向 `58.56.166.170:48000`，即公网入向网关，见 `docs/ops/构建与部署规范.md` §8 那条链路）。
      `PaySignProperties` 里还有 `wechatEntrustUrl`（`config/PaySignProperties.java`，硬编码微信
      `papay/entrustweb`）与 `alipayAppId` / `alipayMerchantAppId` / `wechatAppId` 三个硬编码默认值。
      **「7 条」是 2026-08-26 那批的口径，已过期，见 M1。**
@@ -1495,14 +1495,14 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
      （`OtlpAutoConfiguration` 只判断键是否存在），只能排掉整个自动配置」
      「排掉后 Tracer 与 MDC 的 traceId/spanId 照旧（`micrometer-tracing-bridge-otel` 提供），
      仅不再创建 SpanExporter」「不需要排 `ZipkinAutoConfiguration`：`opentelemetry-exporter-zipkin`
-     在 micro/web 里是 optional，未传递到本模块」。**AGENTS.md §2.2.1 只说「三行成组」，
+     在 micro/web 里是 optional，未传递到本模块」。**docs/business/README.md 全局事实 只说「三行成组」，
      这 5 条为什么是本轮唯一记载处。**
 156. **本模块不走公共 log4j2，且该键非空会跳过运行期重载** —— `application.properties`：
      「日志：使用本模块自带配置（含 VictoriaLogs appender），不走 micro/web 的 `log4j2-linux.xml`。
      该键非空会让 `CustomLoggingConfiguration` 跳过运行期重载，配置只影响 pay-sign」
      「VictoriaLogs 推送地址由环境变量 `VLOGS_URL` 注入（log4j2 读不到 Spring 配置项，只能读 env/sysprop）。
      未注入时 appender 自动禁用，文件与控制台日志不受影响」。
-     这解释了 AGENTS.md §7 那条「`Tomcat started` 搜不到」在本模块的表现差异。
+     这解释了 `docs/ops/构建与部署规范.md` §7 那条「`Tomcat started` 搜不到」在本模块的表现差异。
 
 157. **VictoriaLogs appender 的端口是 30032、不是 9428** ——
      `pay-sign-server/src/main/resources/log4j2-paysign.xml`：「url 为空时 appender 自动禁用
@@ -1706,7 +1706,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
      「本方法**不再由服务内 `@Scheduled` 驱动**，改由外部定时任务调用
      `POST /internal/paySign/compensateNotify`，调用方可反复调用直到 `scanned` 为 0。
      重发是异步的，通知是否成功以 `APP_PAY_SIGN_REQUEST` 的 `NOTIFY_STATUS` / `NOTIFY_RESULT` 为准，
-     不要用返回的 `submitted` 判断结果」（AGENTS.md §2.2.1 引的就是这一行，阶段一 T13 只登记了行号；
+     不要用返回的 `submitted` 判断结果」（docs/business/README.md 全局事实 引的就是这一行，阶段一 T13 只登记了行号；
      此处补它的完整语境与「反复调用到 0」这条使用约定）。
 
 ### 五、support / domain 补漏（破例谱系、ADR-D99、ADR-D92 续）
@@ -1773,7 +1773,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
      `pay-sign-server/src/main/java/com/chinasofti/huateng/paysign/event/SignResultCommittedListener.java`：
      「本事件的**唯一**监听方：签约结果落库提交后做两件派生动作 —— ① 触发一次 APP 通知；
      ② 把 `PAY_ACCOUNT_ID` 推给账户域（**ADR-D32**）。两件事共享同一个前提：都**必须在事务提交之后**发 HTTP
-     （AGENTS.md §5.2），所以放在同一个 `AFTER_COMMIT` 回调里、而不是各起一个监听器 ——
+     （AGENTS.md §4.2），所以放在同一个 `AFTER_COMMIT` 回调里、而不是各起一个监听器 ——
      **本项目规定一个事件类只挂一个监听器**。但两者**可靠性等级不同**：① 有 `NOTIFY_STATUS='PENDING'` +
      扫表补偿兜底，② 是允许丢的展示值同步。**NEVER 因为写在一起就给 ② 也加补偿、或让 ② 的失败影响 ①**」；
      字段侧 「ADR-D32：把 `PAY_ACCOUNT_ID` 推给账户域。**允许失败**」。
@@ -1879,7 +1879,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
   - 证据：`pay-sign-server/src/main/resources/application.properties`；
     `pay-sign-server/src/main/java/com/chinasofti/huateng/paysign/config/PaySignProperties.java`。
   - 建议裁决：把「7 条」改成「按 `pay.sign.` 前缀 grep 得到的全部条目」这种**不带数字**的表述。
-    根 `AGENTS.md` §8 也写着「改成 7 条完整 URL」，同属该数字的传播点，一并更新。
+    根 `docs/ops/构建与部署规范.md` §8 也写着「改成 7 条完整 URL」，同属该数字的传播点，一并更新。
     **判据结论不变**（NEVER 退回 `-path` + `gateway-url` 拼接），只是计数不可引用。
 - **M2 「我方只填 `refundOrderNo`」与「两个键都送」正面冲突**
   - 注释说什么：`config/PaySignProperties.java` 仍写着退款查询「我方填 `refundOrderNo`」。
@@ -1909,17 +1909,17 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
   - 建议裁决：以代码（构造器 + `final`）为准， 那段是拆分过程中的残留说明，应删。
     **注意它可能指的是「某一个」依赖**（如为断循环依赖而单独字段注入的那一个）——
     裁决前 MUST 逐个字段核对，**NEVER 直接把整段注释删掉了事**。
-- **M5 根 `AGENTS.md` §8 说「`pay-sign-server` 缺 `service.gateTxnPay.url`」，但该键已存在**
-  - 注释说什么：根 `AGENTS.md` §8「`service.*.url` 有三类问题」把 `pay-sign-server` 缺
+- **M5 根 `docs/ops/构建与部署规范.md` §8 说「`pay-sign-server` 缺 `service.gateTxnPay.url`」，但该键已存在**
+  - 注释说什么：根 `docs/ops/构建与部署规范.md` §8「`service.*.url` 有三类问题」把 `pay-sign-server` 缺
     `service.gateTxnPay.url` 列为「键缺失」的活例子。
   - 代码实际是什么：`pay-sign-server/src/main/resources/application.properties` 已有该键，
     与 另两条 `service.*.url` 并列。
-  - 证据：`pay-sign-server/src/main/resources/application.properties`；`AGENTS.md` §8 该行。
+  - 证据：`pay-sign-server/src/main/resources/application.properties`；`docs/ops/构建与部署规范.md` §8 该行。
   - 建议裁决：按「`ticket-server` 缺 `service.paySign.url` 已补齐」「`fep-dev-server` 缺
     `service.key.url` 已补齐」的既有格式，把 `pay-sign-server` 这条也标为已补齐、NEVER 再列。
     **但 MUST 先查集群 env 确认线上值有效**（仓库有键 ≠ 线上指对了，属该 §同一条的第①/③类问题）。
 - **M6 敏感项默认值：仓库里存在私钥真值默认值（安全红线，本轮只记位置）**
-  - 注释说什么：`AGENTS.md` §5.2「敏感配置」要求私钥等 **MUST 写成 `${ENV_VAR:}`（空默认值）**，
+  - 注释说什么：`docs/architecture/security-sensitivity.md` §一「敏感配置」要求私钥等 **MUST 写成 `${ENV_VAR:}`（空默认值）**，
     **NEVER 写默认真值**。
   - 代码实际是什么：`pay-sign-server/src/main/resources/application.properties` 那组
     商户号 / 私钥键中，**私钥那一行带有非空默认值**；同一份密钥材料还出现在
@@ -1938,7 +1938,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
     因此异常抛到处理器时**未必有事务可回滚**，`pay-sign-channel-sync-migration.sql` 的脚本注释
     也是按 outbox 语义写的。
   - 证据：`.../exception/TerminationException.java`；`.../controller/PaySignExceptionHandler.java`；
-    `.../resources/sql/pay-sign-channel-sync-migration.sql`；`AGENTS.md` §5.2 该条。
+    `.../resources/sql/pay-sign-channel-sync-migration.sql`；`AGENTS.md` §4.2 该条。
   - 建议裁决：把「触发事务回滚后」改为「不改变已提交的本地状态」。**这条是纯注释误导、不改行为**，
     但危害在于会诱导后来者「既然靠回滚兜底，那把 RPC 放回事务里也行」——正是 2026-08-26 事故的成因。
 
@@ -1946,11 +1946,11 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
   - 注释说什么：`controller/ci/app/PaySignAppController.java` 把 `requestTermination` 标为
     **IF8A-34**； 把某端点标为 **IF8A-36**，而 `service/TerminationInternalService.java`
     对同一语义用的是另一个编号。
-  - 代码实际是什么：本文档正文（§接口清单）把解约申请记为 **IF8A-06**；根 `AGENTS.md` §2.2.1 已明说
+  - 代码实际是什么：本文档正文（§接口清单）把解约申请记为 **IF8A-06**；根 `docs/business/README.md` 全局事实 已明说
     「接口编号不唯一映射到一处代码」「IF8A-04/05/06 在 APP 域与 BOM 域含义不同」。
   - 证据：`.../controller/ci/app/PaySignAppController.java`；
     `.../service/TerminationInternalService.java`；本文档 §接口清单对应行。
-  - 建议裁决：**编号一律不作为定位依据**（§2.2.1 已是全局判据），代码注释里 MUST 同时写
+  - 建议裁决：**编号一律不作为定位依据**（`docs/business/README.md` 全局事实 已是全局判据），代码注释里 MUST 同时写
     「模块 + URL」。不必强行统一编号，但 MUST 在本文档接口清单里标注「注释中的编号与此不一致」，
     避免下一轮又按编号去改代码。**NEVER 按编号相同就认为是同一个端点。**
   - 附带一条同源自相矛盾（M8-b）：回调 / 支付两个 controller 的注释一处写「**只做转发**」、
@@ -1965,9 +1965,9 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
     **判断是否可用 MUST 分两段查**：本模块 URL 存在 + `fep-app-server` 有没有对应路由。
 - **M10 `application.properties` 里注释掉的备用库地址与「唯一目标库」判据冲突**
   - 注释说什么：`resources/application.properties` 留了一个被注释掉的备用数据库主机地址。
-  - 代码实际是什么：根 `AGENTS.md` §8 已裁决 **`172.20.222.3:1521 / AFCITPDB` 是唯一目标业务库**，
+  - 代码实际是什么：根 `docs/ops/构建与部署规范.md` §8 已裁决 **`172.20.222.3:1521 / AFCITPDB` 是唯一目标业务库**，
     并要求「凡是『测试库已执行、生产库仍未执行』的表述都是把同一个库当成两个」。
-  - 证据：`pay-sign-server/src/main/resources/application.properties`；`AGENTS.md` §8 该条。
+  - 证据：`pay-sign-server/src/main/resources/application.properties`；`docs/ops/构建与部署规范.md` §8 该条。
   - 建议裁决：若那个地址已无效，MUST 删掉（留着会让后来者以为存在第二个环境）；
     若确实是另一个真实库，则 MUST 先拿到它的角色定义再写进 `docs/ops/生产环境清单.md`，
     **NEVER 以注释形态留在业务模块配置里**。线上真实值一律以 Deployment env 为准。
@@ -2054,8 +2054,10 @@ mapper XML 里的那部分注释阶段一已抽（本轮只补了 Java mapper �
 ### 一、ArchUnit 门禁与事务边界冻结（`src/test/java/.../arch/`，4 个类）
 
 201. **`arch/PaySignTransactionBoundaryArchTest.java`** — 把「哪些方法带 `@Transactional`」与
-     「其中哪些会出网」冻结成两份清单。**为什么冻结而不写成禁止规则**：本模块历史上有
-     6 个方法违反 AGENTS.md §5.2（7 条出口），写成禁止规则会立刻全红、随后被 `@Disabled` 掉、**护栏归零**；
+     「其中哪些会出网」冻结成两份清单。**为什么冻结而不写成禁止规则**：本模块历史上有 6 个方法
+     违反 `docs/architecture/transaction-and-consistency.md` §6「`@Transactional` 方法内 NEVER 发起任何 RPC / 网络调用」
+     （出网出口清单 `OUTBOUND_SINKS` 现为 11 条、事务内出网清单 `KNOWN_TRANSACTIONAL_OUTBOUND` 自批次 5C 起为空集，**数字 MUST 现查**），
+     写成禁止规则会立刻全红、随后被 `@Disabled` 掉、**护栏归零**；
      改成「冻结现状 + 逐条注明」后，纯搬迁批次 MUST 让两份清单一字不变，修边界的批次才让它变短。
      可 grep：`护栏归零`、`NEVER 靠放宽本类来让构建变绿`。
 202. 同类 记 5A/5B/5C 三批的收敛与**每批判据不同型**：5A 四个方法摘 `@Transactional`
@@ -2552,7 +2554,7 @@ mapper XML 里的那部分注释阶段一已抽（本轮只补了 Java mapper �
     真正的 `app.notify.*-url` 是**另外两条**（ sign-result、 termination-result，**均为 `testngbackV2` 地址**）。
   - 建议裁决：**上一轮那句「9 条含 `wechatEntrustUrl`」不准确**（`wechat.entrust-url` 不在那 9 条里），
     且 的前缀是 `pay.sign.` 而非 `app.notify.`。结论仍是**表述里 NEVER 带数字**，
-    改成「按 `pay.sign.` 前缀 grep 得到的全部条目」；`AGENTS.md` §8 那句「7 条完整 URL」同步改。
+    改成「按 `pay.sign.` 前缀 grep 得到的全部条目」；`docs/ops/构建与部署规范.md` §8 那句「7 条完整 URL」同步改。
     **判据本身不变：NEVER 退回 `-path` + `gateway-url` 拼接。**
 - **M2 的本轮裁决：库侧注释同样无裁决力（那三列根本没有注释），以代码 + ADR-D92 实测为准；另发现一条新的口径分叉**
   - 库侧证据：`PAY_REFUND_DETAIL` 的 `MERCHANT_REFUND_NO` / `REFUND_NO` / `CHANNEL_REFUND_NO`
@@ -2601,7 +2603,7 @@ mapper XML 里的那部分注释阶段一已抽（本轮只补了 Java mapper �
     `CREATE TABLE PAY_TXN_DETAIL` 里没有它** ⇒ 拿 schema 建新库会缺该列，而代码在用（`PayTxnDetail` 有该字段）；
     ②反过来 `CHANNEL_SYNC_*` 四列与 `IDX_ATR_CHANNEL_SYNC` **在 `pay-sign-schema.sql`
     与 migration 重复** ⇒ 对已有该组列的库重复执行 migration 会报 `ORA-01430` / `ORA-00955`。
-  - 建议裁决：按 `AGENTS.md` §8 那条口径，**`*-schema.sql` MUST 是「当前全量形状」**：把 `TRANS_IN` 补进 schema；
+  - 建议裁决：按 `docs/ops/构建与部署规范.md` §8 那条口径，**`*-schema.sql` MUST 是「当前全量形状」**：把 `TRANS_IN` 补进 schema；
     migration 保留原样（它是执行历史的物证）。**NEVER 反向删 schema 里的 `CHANNEL_SYNC_*` 去消重** ——
     那会让新建库缺列。**本轮只登记、未改任何 SQL 文件。**
 - **M15 `APP_USER_PAY_CHANNEL.THIRD_USER_ID_SUFFIX` 注释写「分区字段」，而该表没有分区**
@@ -2692,7 +2694,7 @@ mapper XML 里的那部分注释阶段一已抽（本轮只补了 Java mapper �
   `application.properties` **14 行**（24 → 10，含新加的护栏 ④）。**合计删除 4459 行注释 / 133 个文件。**
 - **保留下来的 932 行 Java 注释**＝标准 Javadoc 摘要行 + `@param` / `@return` / `@throws` +
   上表六类一行式护栏；**多行叙述、MUST-NEVER 长论证、事故史与墓碑注释已全部移出代码、只存在于本文档与 SVN 历史**。
-- **不变量自证（逐文件、词法级）**：对 138 个 Java 文件分别取 `svn cat -r BASE`（**NEVER 用 git**，AGENTS.md §7）
+- **不变量自证（逐文件、词法级）**：对 138 个 Java 文件分别取 `svn cat -r BASE`（**NEVER 用 git**，`docs/ops/构建与部署规范.md` §7）
   与当前工作副本，各自剥离注释并归一化空白后逐字比对 —— **code mismatch: 0**；
   mapper XML 同法（剥 `<!-- -->` 后归一化）**0 处不一致**；`application.properties` 的**非注释行逐行相同**，
   其中 `pay.sign.merchant-private-key=` 那一行**字节级未变**（值未在任何地方回显）。
@@ -2700,7 +2702,7 @@ mapper XML 里的那部分注释阶段一已抽（本轮只补了 Java mapper �
 - **XML 校验**：7 个 mapper 逐个 `xmllint --noout` 通过；并额外扫描「注释体内是否含两个连续减号」**0 命中**。
 - **测试数**：删除前 `Tests run: 254, Failures: 0, Errors: 0, Skipped: 0` + `BUILD SUCCESS`；
   删除后**同样是 254 / 0 / 0 / 0 + `BUILD SUCCESS`**（命令 `mise exec -- mvn -o clean test -pl pay-sign-server
-  -am -Djkube.skip=true`；**该模块 `package` 阶段会推镜像，所以 MUST 带 `-Djkube.skip=true`**，
+  -am -Djkube.skip=true`；**该模块 jkube 在 2026-10-20 已移入 `remote` profile、无 `activeByDefault`，默认 `package` 不推镜像、推 MUST `-Premote`**，`-Djkube.skip=true` 已不再需要），
   判成败看 `BUILD SUCCESS` / `[ERROR]`、**NEVER 看退出码**）。
 - **未做的**：一行代码逻辑都没改，SQL 脚本一个字都没动，**未提交 SVN**。
 - ⚠️ **一处不属于本轮作业的改动**：`src/main/resources/log4j2-paysign.xml` 在本次会话期间（文件 mtime 21:31）

@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 避免同一批订单被并发发起两次退款（幂等由 {@code UK_DAILY_TICKET_REFUND_ORDER} 兜底，但没必要靠它）。
  * {@code 9998} 属**限流、不是失败**，上游 Quartz 任务 MUST 只记 WARN 不抛异常。
  *
- * <p>本类**无鉴权**：与 AGENTS.md §5.2「新增状态变更型接口 MUST 有鉴权」冲突，属沿用本模块
+ * <p>本类**无鉴权**：与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权」冲突，属沿用本模块
  * 现有 {@code /internal/daily-ticket/**} 端点的现状（全部裸暴露、只靠网络可达性隔离），上线前 MUST 统一补齐。
  */
 @RestController

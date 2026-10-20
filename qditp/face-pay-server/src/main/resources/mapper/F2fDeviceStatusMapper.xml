@@ -90,4 +90,60 @@
         ORDER BY LAST_HEARTBEAT_TMS DESC
     </select>
 
+    <!-- 运营端「设备心跳状态」页的过滤条件。selectDevicePage 与 countDevicePage MUST 共用，改一处即两处生效。 -->
+    <!-- 谓词一律带 D. 前缀：两条语句都 FROM F2F_DEVICE_STATUS D，不靠「列名恰好不重名」侥幸。 -->
+    <!-- deviceId 走模糊匹配：DEVICE_ID 是复合主键第二列，前置通配符用不上索引，故上限由分页参数兜住。 -->
+    <!-- ESCAPE 要求调用方把 % _ \ 先转义，否则用户输入的 % 会退化成通配符、悄悄放大命中集。 -->
+    <sql id="Device_Page_Where_Clause">
+        <where>
+            <if test="channel != null and channel != ''">
+                AND D.CHANNEL = #{channel,jdbcType=VARCHAR}
+            </if>
+            <if test="onlineFlag != null and onlineFlag != ''">
+                AND D.ONLINE_FLAG = #{onlineFlag,jdbcType=VARCHAR}
+            </if>
+            <if test="deviceId != null and deviceId != ''">
+                AND UPPER(D.DEVICE_ID) LIKE '%' || UPPER(#{deviceId,jdbcType=VARCHAR}) || '%' ESCAPE '\'
+            </if>
+        </where>
+    </sql>
+
+    <!-- 设备心跳状态分页。排序意图：离线在前（ONLINE_FLAG '0' &lt; '1'），同态内最近心跳在前。 -->
+    <!-- 排序与分页 MUST 放在最外层：一旦埋进子查询、外层再 JOIN，Oracle 可能改走 hash join 而打乱顺序， -->
+    <!-- 分页结果就会错位（单测看不出来，只在设备量大、执行计划变化时暴露）。 -->
+    <!-- STATION_INFO.STATION_CODE 是主键（196 行去重 196），故 LEFT JOIN 恒为 1:0..1、不会放大行数。 -->
+    <!-- IDLE_SECONDS 用 DB 时钟现算，不依赖浏览器时区；CAST 成 DATE 相减得到的是「天」，乘 86400 取整到秒。 -->
+    <select id="selectDevicePage" resultType="com.chinasofti.huateng.facepay.api.page.F2fDeviceStatusPageVO">
+        SELECT D.CHANNEL AS channel,
+               D.DEVICE_ID AS deviceId,
+               D.STATION_CODE AS stationCode,
+               S.STATION_NAME AS stationName,
+               D.ONLINE_FLAG AS onlineFlag,
+               TO_CHAR(D.LAST_HEARTBEAT_TMS, 'YYYY-MM-DD HH24:MI:SS') AS lastHeartbeatTms,
+               ROUND((CAST(SYSTIMESTAMP AS DATE) - CAST(D.LAST_HEARTBEAT_TMS AS DATE)) * 86400) AS idleSeconds,
+               D.HEARTBEAT_COUNT AS heartbeatCount,
+               TO_CHAR(D.UPDATE_TMS, 'YYYY-MM-DD HH24:MI:SS') AS updateTms
+        FROM F2F_DEVICE_STATUS D
+        LEFT JOIN STATION_INFO S ON S.STATION_CODE = D.STATION_CODE
+        <include refid="Device_Page_Where_Clause"/>
+        ORDER BY D.ONLINE_FLAG ASC, D.LAST_HEARTBEAT_TMS DESC, D.DEVICE_ID ASC
+        OFFSET #{offset,jdbcType=INTEGER} ROWS FETCH NEXT #{limit,jdbcType=INTEGER} ROWS ONLY
+    </select>
+
+    <select id="countDevicePage" resultType="long">
+        SELECT COUNT(1)
+        FROM F2F_DEVICE_STATUS D
+        <include refid="Device_Page_Where_Clause"/>
+    </select>
+
+    <!-- 全表汇总，刻意不带过滤条件：口径是「一共多少台、几台掉线」，不随页面筛选变化。 -->
+    <!-- SUM 外面 MUST 裹 NVL：空表时 COUNT 是 0 而 SUM 是 NULL，直接送给前端会变成 null 参与算术。 -->
+    <select id="selectDeviceSummary" resultType="com.chinasofti.huateng.facepay.api.page.F2fDeviceStatusSummaryVO">
+        SELECT COUNT(1) AS total,
+               NVL(SUM(CASE WHEN ONLINE_FLAG = '1' THEN 1 ELSE 0 END), 0) AS onlineCount,
+               NVL(SUM(CASE WHEN ONLINE_FLAG = '0' THEN 1 ELSE 0 END), 0) AS offlineCount,
+               TO_CHAR(MAX(LAST_HEARTBEAT_TMS), 'YYYY-MM-DD HH24:MI:SS') AS lastHeartbeatTms
+        FROM F2F_DEVICE_STATUS
+    </select>
+
 </mapper>

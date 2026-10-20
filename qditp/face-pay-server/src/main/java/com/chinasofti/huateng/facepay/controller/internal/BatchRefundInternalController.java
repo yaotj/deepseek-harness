@@ -43,10 +43,10 @@ public class BatchRefundInternalController {
         this.batchRefundService = batchRefundService;
     }
 
-    /** 需求 1：单程票购票未取票批量退款。 */
+    /** 需求 1：app买单程票未取票批量退款。 */
     @PostMapping("/single-ticket")
     public CommonResult refundSingleTicket() {
-        log.info("单程票购票未取票批量退款 定时任务开始执行");
+        log.info("app购买单程票购票未取票批量退款 定时任务开始执行");
         return run("单程票退票", F2fBatchRefundService.BIZ_SINGLE_TICKET, singleTicketRunning);
     }
 

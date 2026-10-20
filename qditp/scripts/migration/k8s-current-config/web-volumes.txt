@@ -1,0 +1,6 @@
+# web Deployment 挂载的卷
+
+- name: hostpath-d1u8j5b70
+  hostPath: /etc/localtime
+- name: websyspresetweb
+  configMapName: websyspresetweb-version-1.29

@@ -54,7 +54,7 @@ public class PaymentInternalController {
      * 而这正是本次改造要消灭的状态。本端点按 {@code UK_PAY_TXN_DETAIL_ORDER} 幂等，重试安全。
      *
      * <p>与 §5.2「新增状态变更型接口 MUST 有鉴权」的偏差：沿用本模块 {@code /internal/**} 其余 9 个端点的
-     * 现状（无鉴权，见 AGENTS.md §2.2.2 对账那条「X-Recon-Token 已整段删除」的同期裁决），
+     * 现状（无鉴权，见 `docs/business/未落地需求.md` 对账那条「X-Recon-Token 已整段删除」的同期裁决），
      * **上生产前 MUST 与那批端点一起补齐**，NEVER 在此单独自造一套签名。
      */
     @PostMapping("/registerCompletedTxn")

@@ -39,7 +39,7 @@ import java.util.Map;
  * <b>NEVER 照旧表把退避删掉</b>。
  *
  * <p><b>刻意没有 {@code @Scheduled}、也没有 {@code @Transactional}</b>：补偿一律由 web-admin 的
- * Quartz 打 {@code /internal/**} 驱动（AGENTS.md §2.2.1），而方法体是「扫一批 → 逐条出网 → 逐条 CAS 回写」，
+ * Quartz 打 {@code /internal/**} 驱动（见 `docs/business/README.md` 全局事实），而方法体是「扫一批 → 逐条出网 → 逐条 CAS 回写」，
  * 出网 NEVER 被事务包住（§5.2 那条 2026-08-26 生产事故）。
  *
  * <p><b>收口复用 {@link TxnRefundCallbackSettler}</b>（明细 CAS + 仅成功时重算汇总只有一份实现）。

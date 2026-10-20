@@ -37,7 +37,7 @@ export function addDept(data) {
 // 修改部门
 export function updateDept(data) {
   return request({
-    url: '/web-serve/system/dept',
+    url: '/web-server/system/dept',
     method: 'put',
     data: data
   })

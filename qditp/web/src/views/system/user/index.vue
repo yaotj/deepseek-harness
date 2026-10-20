@@ -164,15 +164,7 @@
           <el-col :span="12">
             <el-form-item v-if="form.userId == undefined" label="用户密码" prop="password">
               <el-input v-model="form.password" placeholder="请输入用户密码" type="password" maxlength="20" show-password />
-              <div v-if="form.password" class="password-strength">
-                <div class="strength-bar">
-                  <div :class="['strength-level', getStrengthLevel(form.password)]"></div>
-                </div>
-                <span class="strength-text">{{ getStrengthText(form.password) }}</span>
-              </div>
-              <div class="password-hint">
-                <small>密码需包含：大写字母、小写字母、数字、特殊字符中的至少3种</small>
-              </div>
+              <password-strength :password="form.password" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -246,6 +238,25 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 重置密码对话框：2026-10-15 由系统 $prompt 改为对话框，prompt 放不下安全等级提示 -->
+    <el-dialog :title="'重置「' + resetPwdForm.userName + '」的密码'" v-model="resetPwdOpen" width="420px" append-to-body>
+      <el-form ref="resetPwdRef" :model="resetPwdForm" :rules="resetPwdRules" label-width="90px">
+        <el-form-item label="新密码" prop="password">
+          <el-input v-model="resetPwdForm.password" placeholder="请输入新密码" type="password" maxlength="20" show-password />
+          <password-strength :password="resetPwdForm.password" />
+        </el-form-item>
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input v-model="resetPwdForm.confirmPassword" placeholder="请再次输入新密码" type="password" maxlength="20" show-password />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="submitResetPwd">确 定</el-button>
+          <el-button @click="resetPwdOpen = false">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -257,6 +268,8 @@ import { Splitpanes, Pane } from "splitpanes"
 import { requestUserAccInfo } from "@/api/system/user"
 import "splitpanes/dist/splitpanes.css"
 import { defaultTodayRange } from '@/utils/dateRange'
+import PasswordStrength from '@/components/PasswordStrength'
+import { passwordPolicyValidator } from '@/utils/password'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYY-MM-DD'
@@ -325,7 +338,7 @@ const data = reactive({
   rules: {
     userName: [{ required: true, message: "用户名称不能为空", trigger: "blur" }, { min: 2, max: 20, message: "用户名称长度必须介于 2 和 20 之间", trigger: "blur" }],
     nickName: [{ required: true, message: "用户昵称不能为空", trigger: "blur" }],
-    password: [{ required: true, message: "用户密码不能为空", trigger: "blur" }, { min: 5, max: 20, message: "用户密码长度必须介于 5 和 20 之间", trigger: "blur" }, { pattern: /^[^<>"'|\\]+$/, message: "不能包含非法字符：< > \" ' \\\ |", trigger: "blur" }],
+    password: [{ required: true, message: "用户密码不能为空", trigger: "blur" }, { validator: passwordPolicyValidator, trigger: "blur" }],
     email: [{ type: "email", message: "请输入正确的邮箱地址", trigger: ["blur", "change"] }],
     phonenumber: [{ pattern: /^1[3|4|5|6|7|8|9][0-9]\d{8}$/, message: "请输入正确的手机号码", trigger: "blur" }]
   }
@@ -356,8 +369,12 @@ function loadUserAccInfo(userId) {
     .catch(() => ({ unpaidCount: 0, failCount: 0 }))
 }
 
-function
-  getList().then(() => {
+function getList() {
+  loading.value = true
+  listUser(proxy.addDateRange(queryParams.value, dateRange.value)).then(res => {
+    loading.value = false
+    userList.value = res.rows
+    total.value = res.total
     // 批量加载用户扣费信息
     const promises = userList.value.map(user => 
       loadUserAccInfo(user.userId).then(info => {
@@ -365,13 +382,6 @@ function
       })
     )
     Promise.all(promises)
-  })
-  getList() {
-  loading.value = true
-  listUser(proxy.addDateRange(queryParams.value, dateRange.value)).then(res => {
-    loading.value = false
-    userList.value = res.rows
-    total.value = res.total
   })
 }
 
@@ -487,24 +497,45 @@ function handleAuthRole(row) {
   router.push("/system/user-auth/role/" + userId)
 }
 
+/** 重置密码对话框状态（2026-10-15：由系统 $prompt 改为对话框，prompt 放不下安全等级提示） */
+const resetPwdOpen = ref(false)
+const resetPwdRef = ref()
+const resetPwdForm = ref({ userId: undefined, userName: "", password: "", confirmPassword: "" })
+
+const resetPwdRules = {
+  password: [{ required: true, message: "新密码不能为空", trigger: "blur" }, { validator: passwordPolicyValidator, trigger: "blur" }],
+  confirmPassword: [
+    { required: true, message: "确认密码不能为空", trigger: "blur" },
+    {
+      validator: (rule, value, callback) => {
+        value !== resetPwdForm.value.password ? callback(new Error("两次输入的密码不一致")) : callback()
+      },
+      trigger: "blur"
+    }
+  ]
+}
+
 /** 重置密码按钮操作 */
 function handleResetPwd(row) {
-  proxy.$prompt('请输入"' + row.userName + '"的新密码', "提示", {
-    confirmButtonText: "确定",
-    cancelButtonText: "取消",
-    closeOnClickModal: false,
-    inputPattern: /^.{5,20}$/,
-    inputErrorMessage: "用户密码长度必须介于 5 和 20 之间",
-    inputValidator: (value) => {
-      if (/<|>|"|'|\||\\/.test(value)) {
-        return "不能包含非法字符：< > \" ' \\\ |"
-      }
-    },
-  }).then(({ value }) => {
-    resetUserPwd(row.userId, value).then(response => {
-      proxy.$modal.msgSuccess("修改成功，新密码是：" + value)
+  resetPwdForm.value = { userId: row.userId, userName: row.userName, password: "", confirmPassword: "" }
+  resetPwdOpen.value = true
+  nextTick(() => {
+    resetPwdRef.value?.clearValidate()
+  })
+}
+
+/** 重置密码提交 */
+function submitResetPwd() {
+  resetPwdRef.value.validate(valid => {
+    if (!valid) {
+      return
+    }
+    const { userId, password } = resetPwdForm.value
+    resetUserPwd(userId, password).then(() => {
+      proxy.$modal.msgSuccess("修改成功，新密码是：" + password)
+      resetPwdOpen.value = false
     })
-  }).catch(() => {})
+  })
 }
 
 /** 选择条数  */

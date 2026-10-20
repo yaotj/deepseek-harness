@@ -30,7 +30,7 @@ public interface AppNotifyService {
      * {@code GateDailyTicketCoordinator.markUsedOnExit}。
      *
      * @param request 闸机交易通知（{@code transSeq} 取其 {@code ticketTransSeq}）
-     * @param times 本次扣减次数，当前恒为 1（见 AGENTS.md §2.2.2 该条裁决）
+     * @param times 本次扣减次数，当前恒为 1（见 `docs/business/未落地需求.md` 该条裁决）
      */
     void notifyCountingTicketTimes(NotifyVerifyResultReqDTO request, int times);
 }

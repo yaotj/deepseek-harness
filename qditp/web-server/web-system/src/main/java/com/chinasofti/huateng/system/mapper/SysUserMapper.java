@@ -122,6 +122,14 @@ public interface SysUserMapper
     public int deleteUserByIds(Long[] userIds);
 
     /**
+     * 批量清空用户的部门归属（部门被级联删除时，把子树内用户的 dept_id 置空）
+     * 
+     * @param deptIds 被删除的部门ID集合
+     * @return 结果
+     */
+    public int clearDeptIdByDeptIds(@Param("deptIds") List<Long> deptIds);
+
+    /**
      * 校验用户名称是否唯一
      * 
      * @param userName 用户名称

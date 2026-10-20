@@ -5,7 +5,7 @@ import java.util.Locale;
 /**
  * 票逻辑卡号（{@code ticketLogicNum} / {@code TICKET_LOGIC_NUM}）的大小写归一，全模块唯一实现。
  *
- * <p>这是对 AGENTS.md §5.1「NEVER 新建工具类」的有意破例：归一点有 8 处、散在 3 个 service，
+ * <p>这是对 AGENTS.md §4.1「NEVER 新建工具类」的有意破例：归一点有 8 处、散在 3 个 service，
  * 抄私有方法等于 3 份逐字副本，而漏掉任何一处就会重新制造「入库一种大小写、查询另一种」的静默不匹配。
  *
  * <p>为什么必须归一：{@code F2fTicketMapper} 的四条语句全是精确等值（走

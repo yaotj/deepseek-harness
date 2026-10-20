@@ -1,7 +1,8 @@
 -- =============================================================================
 -- 青岛地铁 ITP 数据库按域分库 — 包 2：M1 基础建设（表空间 + schema + 共享暴露）
 -- 配套文档：docs/ops/数据库按域分库迁移DDL草案.md §2 / §5
--- 状态：v1.6 执行包（仅供评审，严禁直接在生产库执行）
+-- 状态：v1.8 执行包（2026-10-17 改 OMF 方案 A：DATAFILE/TEMPFILE 只写磁盘组 '+DATA'，
+--       由 Oracle 解析到 PDB 的 <GUID>/DATAFILE|TEMPFILE/ 目录；仅供评审，执行前 MUST 人工确认）
 -- 目标：创建 4 个独立表空间 + 4 个 schema + itp_ro 网关只读账号 + 跨库同义词授权
 -- 执行顺序：
 --   1. create_tablespaces.sql     ← 4 TS + 4 TEMP + 4 schema + itp_ro + QDITP_MIGRATOR 角色
@@ -20,87 +21,114 @@ PROMPT =========================================================================
 PROMPT 包 2：M1 基础建设 — 表空间 + schema + 共享暴露
 PROMPT ============================================================================
 PROMPT 执行前 MUST：
-PROMPT 1. 用 SYSDBA 或具有 DBA 角色的账号连接（172.20.222.3:1521/AFCITPDB）
-PROMPT 2. DBA 替换所有 '+RACDG/itp/' 路径前缀为真实 ASM / 裸设备路径
-PROMPT 3. DBA 填入 5 个口令（4 个 schema + itp_ro），不入 VCS
-PROMPT 4. 确认 RACDG 有足够空间（至少 4GB 余量）
+PROMPT 1. 用 SYSDBA 连接**红岛生产 hditpdb PDB**（172.120.110.25:1521/hditpdb，NEVER 连 CDB 根）
+PROMPT    —— 连 CDB 会把对象建到根容器，业务侧全部看不到
+PROMPT 2. 路径走 OMF（方案 A，2026-10-17 定）：DATAFILE/TEMPFILE 只写 '+DATA'，
+PROMPT    Oracle 自动落 hditpdb PDB 的 <GUID>/DATAFILE|TEMPFILE/ 目录（前置断言会强校验）
+PROMPT 3. 口令已内联进 CREATE USER 语句（双引号定界；本目录 svn:ignore 不入 VCS；DBA 替换时避 & 和 "）
+PROMPT 4. 确认 +DATA 磁盘组有足够空间（至少 4GB 余量，grid 用户 asmcmd lsdg 查）
 PROMPT ============================================================================
+
+-- =============================================================================
+-- Step 0：前置断言（失败即 EXIT，防止对象建到 CDB 根 / OMF 未开）
+-- =============================================================================
+WHENEVER SQLERROR EXIT SQL.SQLCODE
+BEGIN
+  IF sys_context('USERENV','CON_NAME') <> 'HDTPDB' THEN
+    raise_application_error(-20001,
+      'MUST connect to hditpdb PDB via service name, NOT CDB root. Current container: '
+      || sys_context('USERENV','CON_NAME'));
+  END IF;
+  IF (SELECT value FROM v$parameter WHERE name = 'db_create_file_dest') <> '+DATA' THEN
+    raise_application_error(-20001,
+      'OMF mode requires db_create_file_dest = +DATA. Current: '
+      || (SELECT value FROM v$parameter WHERE name = 'db_create_file_dest'));
+  END IF;
+END;
+/
+WHENEVER SQLERROR CONTINUE
+PROMPT 前置检查通过：容器 = HDTPDB，db_create_file_dest = +DATA（OMF 生效）
 
 -- =============================================================================
 -- Step 1：创建 4 个独立业务表空间 + 4 个独立临时表空间
 -- =============================================================================
--- 命名约定：ITP_<域>_TS / ITP_<域>_TEMP
--- 路径：+RACDG/itp/（DBA 替换为真实值）
+-- 命名约定：ITP_<域>_TS / ITP_<域>_TEMP（表空间名；数据文件名由 OMF 生成，不手工指定）
+-- 路径：OMF 模式（方案 A，2026-10-17 定）——DATAFILE/TEMPFILE 只写磁盘组 '+DATA'，
+--       Oracle 按 db_create_file_dest 解析到当前容器（hditpdb PDB）的
+--       +DATA/ITPCDB/<PDB_GUID>/DATAFILE|TEMPFILE/ 目录，无需关心 GUID 值；
+--       Step 0 断言已强校验容器与 db_create_file_dest，换集群执行 MUST 重新核实
 
 CREATE TABLESPACE ITP_TXN_TS
-  DATAFILE '+RACDG/itp/ITP_TXN_TS01.dbf' SIZE 2G AUTOEXTEND ON NEXT 256M MAXSIZE UNLIMITED
+  DATAFILE '+DATA' SIZE 2G AUTOEXTEND ON NEXT 256M MAXSIZE UNLIMITED
   ONLINE PERMANENT BLOCKSIZE 8192
   EXTENT MANAGEMENT LOCAL AUTOALLOCATE
   SEGMENT SPACE MANAGEMENT AUTO
   ;
 
 CREATE TABLESPACE ITP_PLAT_TS
-  DATAFILE '+RACDG/itp/ITP_PLAT_TS01.dbf' SIZE 1G AUTOEXTEND ON NEXT 128M MAXSIZE UNLIMITED
+  DATAFILE '+DATA' SIZE 1G AUTOEXTEND ON NEXT 128M MAXSIZE UNLIMITED
   ONLINE PERMANENT BLOCKSIZE 8192
   EXTENT MANAGEMENT LOCAL AUTOALLOCATE
   SEGMENT SPACE MANAGEMENT AUTO
   ;
 
 CREATE TABLESPACE ITP_USER_TS
-  DATAFILE '+RACDG/itp/ITP_USER_TS01.dbf' SIZE 512M AUTOEXTEND ON NEXT 128M MAXSIZE UNLIMITED
+  DATAFILE '+DATA' SIZE 512M AUTOEXTEND ON NEXT 128M MAXSIZE UNLIMITED
   ONLINE PERMANENT BLOCKSIZE 8192
   EXTENT MANAGEMENT LOCAL AUTOALLOCATE
   SEGMENT SPACE MANAGEMENT AUTO
   ;
 
 CREATE TABLESPACE ITP_RIDE_TS
-  DATAFILE '+RACDG/itp/ITP_RIDE_TS01.dbf' SIZE 512M AUTOEXTEND ON NEXT 128M MAXSIZE UNLIMITED
+  DATAFILE '+DATA' SIZE 512M AUTOEXTEND ON NEXT 128M MAXSIZE UNLIMITED
   ONLINE PERMANENT BLOCKSIZE 8192
   EXTENT MANAGEMENT LOCAL AUTOALLOCATE
   SEGMENT SPACE MANAGEMENT AUTO
   ;
 
 CREATE TEMPORARY TABLESPACE ITP_TXN_TEMP
-  TEMPFILE '+RACDG/itp/ITP_TXN_TEMP01.dbf' SIZE 512M AUTOEXTEND ON NEXT 64M MAXSIZE UNLIMITED
+  TEMPFILE '+DATA' SIZE 512M AUTOEXTEND ON NEXT 64M MAXSIZE UNLIMITED
   EXTENT MANAGEMENT LOCAL UNIFORM SIZE 1M
   ;
 
 CREATE TEMPORARY TABLESPACE ITP_USER_TEMP
-  TEMPFILE '+RACDG/itp/ITP_USER_TEMP01.dbf' SIZE 256M AUTOEXTEND ON NEXT 64M MAXSIZE UNLIMITED
+  TEMPFILE '+DATA' SIZE 256M AUTOEXTEND ON NEXT 64M MAXSIZE UNLIMITED
   EXTENT MANAGEMENT LOCAL UNIFORM SIZE 1M
   ;
 
 CREATE TEMPORARY TABLESPACE ITP_RIDE_TEMP
-  TEMPFILE '+RACDG/itp/ITP_RIDE_TEMP01.dbf' SIZE 256M AUTOEXTEND ON NEXT 64M MAXSIZE UNLIMITED
+  TEMPFILE '+DATA' SIZE 256M AUTOEXTEND ON NEXT 64M MAXSIZE UNLIMITED
   EXTENT MANAGEMENT LOCAL UNIFORM SIZE 1M
   ;
 
 CREATE TEMPORARY TABLESPACE ITP_PLAT_TEMP
-  TEMPFILE '+RACDG/itp/ITP_PLAT_TEMP01.dbf' SIZE 256M AUTOEXTEND ON NEXT 64M MAXSIZE UNLIMITED
+  TEMPFILE '+DATA' SIZE 256M AUTOEXTEND ON NEXT 64M MAXSIZE UNLIMITED
   EXTENT MANAGEMENT LOCAL UNIFORM SIZE 1M
   ;
 
 -- =============================================================================
 -- Step 2：创建 4 个 schema 用户（绑定独立默认表空间 + 独立临时表空间）
 -- =============================================================================
-DEFINE QDITP_USER_PWD = '<QDITP_USER_PWD>'
-DEFINE QDITP_TXN_PWD   = '<QDITP_TXN_PWD>'
-DEFINE QDITP_RIDE_PWD  = '<QDITP_RIDE_PWD>'
-DEFINE QDITP_PLAT_PWD  = '<QDITP_PLAT_PWD>'
+-- 口令为 2026-10-17 推荐值（风格同部署方案 itp!#951；本目录在 svn:ignore，不入 VCS）
+-- 已内联进下方 CREATE USER（无变量定义；双引号定界，与最终执行版一致）
+-- DBA 替换时 MUST 避免两种字符：
+--   &  —— sqlplus 对任何语句都做替换变量展开，含 & 会弹「Enter value for」；
+--   "  —— 双引号是口令定界符，口令内含 " 会截断导致语法错误（含 ' 无害）
+-- 分发：K8s secret + 各模块 application.properties，NEVER 贴群/截图/邮件正文
 
-CREATE USER QDITP_USER  IDENTIFIED BY &QDITP_USER_PWD
+CREATE USER QDITP_USER  IDENTIFIED BY "itp!#usr4726"
   DEFAULT TABLESPACE ITP_USER_TS
   TEMPORARY TABLESPACE ITP_USER_TEMP
   ;
-CREATE USER QDITP_TXN   IDENTIFIED BY &QDITP_TXN_PWD
+CREATE USER QDITP_TXN   IDENTIFIED BY "itp!#txn8153"
   DEFAULT TABLESPACE ITP_TXN_TS
   TEMPORARY TABLESPACE ITP_TXN_TEMP
   ;
-CREATE USER QDITP_RIDE  IDENTIFIED BY &QDITP_RIDE_PWD
+CREATE USER QDITP_RIDE  IDENTIFIED BY "itp!#rd2947"
   DEFAULT TABLESPACE ITP_RIDE_TS
   TEMPORARY TABLESPACE ITP_RIDE_TEMP
   ;
-CREATE USER QDITP_PLAT  IDENTIFIED BY &QDITP_PLAT_PWD
+CREATE USER QDITP_PLAT  IDENTIFIED BY "itp!#plt6308"
   DEFAULT TABLESPACE ITP_PLAT_TS
   TEMPORARY TABLESPACE ITP_PLAT_TEMP
   ;
@@ -114,9 +142,7 @@ GRANT CREATE SESSION, CREATE TABLE, CREATE VIEW, CREATE SYNONYM,
 -- =============================================================================
 -- Step 3：网关只读账号 itp_ro（共享 USERS + TEMP）
 -- =============================================================================
-DEFINE ITP_RO_PWD = '<ITP_RO_PWD>'
-
-CREATE USER itp_ro IDENTIFIED BY &ITP_RO_PWD
+CREATE USER itp_ro IDENTIFIED BY "itp!#ro1592"
   ;
 GRANT CREATE SESSION, CREATE SYNONYM TO itp_ro
   ;
@@ -134,6 +160,10 @@ GRANT CREATE ANY TABLE, DROP ANY TABLE, ALTER ANY TABLE, INSERT ANY TABLE,
 
 -- =============================================================================
 -- Step 5：itp_ro 对 USER_ITP_REG_INFO 的 SELECT 授权（分流网关依赖）
+-- ⚠️ 新生产 PDB 此时业务表尚未迁入（M3 才建表），Step 5 / Step 6 / Step 7 里的
+--    GRANT ... ON <业务表> 都会报 ORA-00942（表不存在）而失败；脚本无 EXIT ON ERROR
+--    会继续执行，不影响已创建的 TS/用户/同义词（同义词可指向不存在的对象，能建成）。
+--    M3 数据迁移完成后 MUST 重跑 Step 5 + Step 6 + Step 7 的 GRANT 补授权。
 -- =============================================================================
 GRANT SELECT ON QDITP_USER.USER_ITP_REG_INFO TO itp_ro
   ;
@@ -197,7 +227,7 @@ ORDER BY tablespace_name
 PROMPT === 用户 ===
 SELECT username, default_tablespace, temporary_tablespace, created
 FROM   dba_users
-WHERE  username IN ('QDITP_USER','QDITP_TXN','QDITP_RIDE','QDITP_PLAT','itp_ro')
+WHERE  username IN ('QDITP_USER','QDITP_TXN','QDITP_RIDE','QDITP_PLAT','ITP_RO')
 ORDER BY username
 ;
 
@@ -214,7 +244,7 @@ WHERE  grantee = 'ITP_RO' AND table_name = 'USER_ITP_REG_INFO'
 PROMPT === 跨 schema 同义词 ===
 SELECT owner, synonym_name, table_owner, table_name
 FROM   dba_synonyms
-WHERE  owner IN ('QDITP_USER','QDITP_TXN','QDITP_RIDE','itp_ro')
+WHERE  owner IN ('QDITP_USER','QDITP_TXN','QDITP_RIDE','ITP_RO')
 ORDER BY owner, synonym_name
 ;
 

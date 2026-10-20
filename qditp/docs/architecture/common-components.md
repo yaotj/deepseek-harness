@@ -1,6 +1,6 @@
 # 公共构件详细设计（model / rpc / resource-micro）
 
-> 对应 `AGENTS.md` §3.2 中 model、rpc、resource/micro 三行的「详情」。
+> 本文档是 AGENTS.md §3.1「代码分层约定（Spring Boot 模块内部）」导航索引中 model、rpc、resource/micro 三个构件的详细设计。
 > AGENTS.md 5.1 规定 **NEVER 新建工具类，MUST 先在这三个模块中找**。本文档就是那份查找清单。
 
 ---
@@ -53,7 +53,7 @@ model/
   已知反例：`acc-secure-server` 的 `accsecure.model.*` 与 `model/model/security/*` 存在 8 组重复 DTO，属技术债，勿模仿。
 - **公共请求报文骨架只有 `model/app/ItpCommonRequest` 与 `ItpCommonFormRequest` 两个类，NEVER 再在业务模块新建副本**。
   2026-09-11 已把 7 份字段完全相同的副本（`fep-app-server` / `fep-acc-server` 的 `CommonRequest` + `CommonFormRequest`、`fep-dev-server` / `fep-alipay-server` 的 `CommonFormRequest`、`account-server` 的 `CommonRequest`、`collect-pay-server` 的 `AppCommonRequest`、`acc-secure-server` 的 `AccCommonRequest`）全部删除并收口，涉及 23 个引用文件、8 个模块。
-  **这两个类只承载报文骨架，不承载签名语义**：四条链路的加签 / 验签算法互不相同（`AccountRequestVerifier` 摘要式 SHA1/MD5 + signKey、`AccSecureSignUtils`、`AppNotifyServiceImpl.buildItpSign` 的 fastjson2 摘要、`collect-pay-server` 的 `signType=00` 不签），**NEVER 因为共用同一个类就顺手统一签名逻辑**，那会同时改动多个已与对端约定好的链路，属 AGENTS.md §5.2 安全红线。
+  **这两个类只承载报文骨架，不承载签名语义**：四条链路的加签 / 验签算法互不相同（`AccountRequestVerifier` 摘要式 SHA1/MD5 + signKey、`AccSecureSignUtils`、`AppNotifyServiceImpl.buildItpSign` 的 fastjson2 摘要、`collect-pay-server` 的 `signType=00` 不签），**NEVER 因为共用同一个类就顺手统一签名逻辑**，那会同时改动多个已与对端约定好的链路，属 AGENTS.md §4.2「安全红线」。
   `toString` 已在公共类内对 `sign` 恒定脱敏，**NEVER 改成打印真实签名值**；注意 `bizData` 会完整进日志，`fep-alipay-server` 的 controller 有 8 处 `log.info("...{}", request)` 因此从「只打对象 hash」变成「打全部字段」。
 - 枚举取值一旦落库即为数据契约，**NEVER** 修改已有取值，只能新增。
 - 序列化统一 Fastjson2。
@@ -220,12 +220,12 @@ route/URLDynamicRouter           （动态路由辅助类，不是 Client）
 
 ### 附.3 RpcOutcome 与各 Client
 
-- **决策**｜`rpc` · `RpcOutcome`（`rpc/src/main/java/com/chinasofti/huateng/rpc/outcome/RpcOutcome.java`）：「**为什么不是 boolean**：AGENTS.md §5.2 为「内部 catch 全部异常后 return false、从不抛异常」的包装方法专门写了一条规则，而它被违反过两次并双双造成生产不一致（见 `docs/domain/decisions.md` ADR-D13）。规则靠人记、boolean 靠人查；sealed + record 让穷尽性由**编译器**检查 —— 调用点少写一个分支就编译失败。」
+- **决策**｜`rpc` · `RpcOutcome`（`rpc/src/main/java/com/chinasofti/huateng/rpc/outcome/RpcOutcome.java`）：「**为什么不是 boolean**：docs/architecture/transaction-and-consistency.md §3 为「RPC 包装方法 MUST 返回 `RpcOutcome`，NEVER 返回 boolean」的包装方法专门写了一条规则，而它被违反过两次并双双造成生产不一致（见 `docs/domain/decisions.md` ADR-D13）。规则靠人记、boolean 靠人查；sealed + record 让穷尽性由**编译器**检查 —— 调用点少写一个分支就编译失败。」
 - **判据**｜`rpc` · `RpcOutcome`（`.../outcome/RpcOutcome.java`）：三分支处置 ——「**真正的收益是「业务拒绝」与「网络不可达」终于可区分**，两者在 boolean 下都是 false」。`BizRejected`「对端答复了、但业务上拒绝（如「该用户在支付域没有签约记录」，表现为 UPDATE 影响 0 行后返 FAIL）。**重推一万次也不会成功**，MUST 直接转终态 / 工单，NEVER 放进补偿队列反复重试」；`Unreachable`「请求没能拿到业务答复（连不上、超时、HTTP 4xx/5xx）。这才是补偿队列该收的那一类」。
 - **判据**｜`rpc` · `RpcOutcome`（`.../outcome/RpcOutcome.java`）：「**HTTP 4xx 归到 `Unreachable` 是有意的保守选择**：`ProxyWebClient.handleResponse`（`resource/micro/web/.../client/ProxyWebClient.java`）把 `createError()` 产生的 `WebClientResponseException` 与连接失败一起包成 `RuntimeException`，包装方法拿不到可靠的区分依据。误判方向 MUST 是「把永久失败当成可重试」（代价是白重试几轮），**NEVER 反过来** —— 把网络抖动当成业务拒绝会让一笔真实待投递的事实被直接判死。」（注：注释里引用的 `ProxyWebClient.java` 与现文件行号不一致，见文末缺口）
-- **决策**｜`rpc` · `RpcOutcome`（`.../outcome/RpcOutcome.java`）：「**本类型 NEVER 参与序列化**：它是进程内的调用结果，不是报文 DTO，因此放在 `rpc` 而不是 `model`。跨服务的报文契约仍是各 `*Result` / `*RespDTO`。」；「**落地方式是「新增方法、老方法保留」**：`rpc` 版本号锁死在 2.0.1、被 21 个模块引用（AGENTS.md §7），因此 MUST 只增不改签名，逐调用点迁移。」
+- **决策**｜`rpc` · `RpcOutcome`（`.../outcome/RpcOutcome.java`）：「**本类型 NEVER 参与序列化**：它是进程内的调用结果，不是报文 DTO，因此放在 `rpc` 而不是 `model`。跨服务的报文契约仍是各 `*Result` / `*RespDTO`。」；「**落地方式是「新增方法、老方法保留」**：`rpc` 版本号锁死在 2.0.1、被 21 个模块引用（`docs/ops/构建与部署规范.md` §7），因此 MUST 只增不改签名，逐调用点迁移。」
 - **契约**｜`rpc` · `RpcOutcome`（`.../outcome/RpcOutcome.java`）：`BizRejected.retMsg`「仅用于日志与工单，NEVER 用它做分支判断」；`Unreachable.cause`「MUST 保留以便日志带栈；调用方 NEVER 只打 `getMessage()`」；`isOk()`「**只用于日志与计数，分支判断 MUST 用 switch 模式匹配**，否则又退回 boolean」；`ofRetCode`「响应体为空、或 `retCode` 缺失，都算 `BizRejected` 而不是 `Unreachable` —— 那种情况下 HTTP 已经 2xx，是对端契约问题，重推同一报文不会变好」。
-- **决策**｜`rpc` · `PaySignClient.updatePaySignDisplayAccount`（`rpc/src/main/java/com/chinasofti/huateng/rpc/paySign/PaySignClient.java`）：`@Deprecated` 兼容壳。「boolean 把「支付域业务拒绝」与「网络不可达」压成同一个 false……这条方法本身也是 AGENTS.md §5.2 点名的两处之一。**本方法保留只为不改签名**（`rpc` 版本号锁死、被 21 个模块引用），实现已委托给新方法，**NEVER 在此重复一份解析逻辑**。」实现体是 `updateDisplayAccountOutcome(...).isOk()`。
+- **决策**｜`rpc` · `PaySignClient.updatePaySignDisplayAccount`（`rpc/src/main/java/com/chinasofti/huateng/rpc/paySign/PaySignClient.java`）：`@Deprecated` 兼容壳。「boolean 把「支付域业务拒绝」与「网络不可达」压成同一个 false……这条方法本身也是 docs/architecture/transaction-and-consistency.md §3「RPC 包装方法 MUST 返回 `RpcOutcome`，NEVER 返回 boolean」点名的两处之一。**本方法保留只为不改签名**（`rpc` 版本号锁死、被 21 个模块引用），实现已委托给新方法，**NEVER 在此重复一份解析逻辑**。」实现体是 `updateDisplayAccountOutcome(...).isOk()`。
 - **契约**｜`rpc` · `PaySignClient.updateDisplayAccountOutcome`（`.../paySign/PaySignClient.java`）：支付域在 `APP_PAY_SIGN_INFO` UPDATE 影响 0 行时就返 FAIL（`PaySignAppController`），即「该用户没有签约记录」也走这条 ——「那属 `BizRejected`，**MUST 直接转终态 / 工单，NEVER 反复重推**」；「本方法**NEVER 向外抛异常**：异常统一收成 `Unreachable` 并带上原始 cause……调用方仍 MUST 自行决定抛不抛」。行内注释还写明「解析 MUST 与上面的调用一样收在本方法内：HTTP 已 2xx 但响应体不是 JSON（如网关返回 HTML 错误页）时 `JSONUtil.parseObj` 会抛 `JSONException`，逃出去就打破了本方法「NEVER 向外抛异常」的契约 —— 同步链路会退化成全局异常处理器的 UUID retCode，补偿链路则因状态与重试次数都不落库而永远没有出口」。
 - **陷阱**｜`rpc` · `PaySignClient.compensateSignNotify`（`.../paySign/PaySignClient.java`）：「**调用方 NEVER 在同一次调度内循环调用本接口。**下游在提交重发**之前**就同步递增 `NOTIFY_RETRY_COUNT` 并把状态置为 FAILED，而真正的通知是异步发出的；紧接着再调一轮会立刻扫到同一批（计数已 +1、结果还没回写），几秒内烧完全部重试预算。排空要靠 cron 周期，调度间隔 MUST 大于下游的 PENDING 滞留阈值。」返回的 `submitted`「只代表「提交成功」，NEVER 用它判断通知是否送达，真实结果看 `APP_PAY_SIGN_REQUEST` 的 `NOTIFY_STATUS` / `NOTIFY_RESULT`」。
 - **陷阱**｜`rpc` · `PaySignClient`（`.../paySign/PaySignClient.java`、`288`、`313`、`336`）：「下游是无参 POST，但 body **MUST NOT 传 null**：`ProxyWebClient.postJsonAndGetResponse` 无条件调 `bodyValue(requestBody)`，Spring 的 `BodyInserters.fromValue` 断言非 null，传 null 会抛 `IllegalArgumentException: 'body' must not be null`，请求根本发不出去。传空 Map 序列化成 `{}`。」四处方法各有一份同源注释。同一坑的**反向**样例在 `F2FClient.post`（`rpc/src/main/java/com/chinasofti/huateng/rpc/f2f/F2FClient.java`）：「请求体保持原有的 `null`，**NEVER** 改成空 Map —— 下游 `NoticeAppTask` 的入参形态未经验证，改动等于改契约。」两条并列保留、不合并。
@@ -245,7 +245,7 @@ route/URLDynamicRouter           （动态路由辅助类，不是 Client）
 - **决策**｜`rpc` · `ReconClient`（`.../recon/ReconClient.java`）：分片上传走 `application/octet-stream` **流式**发送，「NEVER 改成把文件读成 `byte[]` 再发：单片上限 128MB，读成数组等于每片一次 128MB 的堆分配，并发几片就 OOM。也 NEVER 改成 JSON —— Base64 会把体积放大 33%，且 400 万条明细无法整体入内存」；「本客户端的方法**失败即抛异常**，不返回 `false`……NEVER 吞异常继续写下一片，那会产生分片号空洞，最终在生成阶段报「分片序号不连续」而整批失败」。分片粒度默认 20 万条 / 64MB，「**NEVER 把上限调到百万级**：单片越大，重传成本越高，且服务端 `recon.max-part-bytes`（默认 128MB）会直接拒收」（`ReconPartUploader.java`）。
 - **契约**｜`rpc` · `ReconClient` / `ReconExportClient` 的鉴权降级（`.../recon/ReconClient.java`、`ReconExportClient.java`）：「**【开发测试阶段：不再发送 `X-Recon-Token`】**用户 2026-09-11 要求「删除令牌要求，不用令牌了，当前处于开发测试阶段」，recon-server 侧已不校验该头，故这里连带去掉发送，顺带消除 `InternalMicroHttp` / `FirstFilter` 把请求头 Map 打进日志时的令牌明文泄漏。**恢复鉴权时两端 MUST 同时改回。**」
 - **契约**｜`rpc` · `TransQueryClient`（`rpc/src/main/java/com/chinasofti/huateng/rpc/transquery/TransQueryClient.java`）：三个方法与 `TicketClient` 的同名方法「**路径、请求 DTO、应答 DTO 全部逐字相同**，唯一差别是 baseUrl 指向新服务」；另起 Client 而非改 `TicketClient` 的 baseUrl 是因为「ticket-server 上还有乘车码状态机、自助补站等一批接口没迁走，改 baseUrl 会把它们一起指错」；「**ticket-server 上那三个同路径端点仍在、未删**（过渡期双活）……两边同时在跑期间 MUST 保证 `app.trans.*` 五个键取值一致，否则同一笔订单在新旧链路会返回不同商户号」；支付宝行程与日票乘车记录「**故意不在这里**……仍 MUST 走 TicketClient」。
-- **契约**｜`rpc` · `AccountClient.syncSignDisplayAccount`（`rpc/.../account/AccountClient.java`）：「**调用方 MUST 把它当「允许失败」处理**：本方法只回写一列展示值……因此调用点 MUST catch 全部异常只记日志，**NEVER 让它把已提交的签约结果翻成失败**。」同时「按 AGENTS.md §5.2，调用方 **MUST 判 retCode，NEVER 假定「没抛异常就是写成功」**」——两条并存、方向不同，别当矛盾。
+- **契约**｜`rpc` · `AccountClient.syncSignDisplayAccount`（`rpc/.../account/AccountClient.java`）：「**调用方 MUST 把它当「允许失败」处理**：本方法只回写一列展示值……因此调用点 MUST catch 全部异常只记日志，**NEVER 让它把已提交的签约结果翻成失败**。」同时「按 docs/architecture/transaction-and-consistency.md §3「RPC 包装方法 MUST 返回 `RpcOutcome`，NEVER 返回 boolean」，调用方 **MUST 判 retCode，NEVER 假定「没抛异常就是写成功」**」——两条并存、方向不同，别当矛盾。
 - **契约**｜`model` · 补偿类应答 DTO：`CompensateNotifyRespDTO`（`model/src/main/java/com/chinasofti/huateng/model/paysign/CompensateNotifyRespDTO.java`）「**重发是异步的，submitted 只代表「提交成功」，NEVER 用它判断通知是否真的送达**」+「此前两份并存、靠「改动 MUST 两侧同步」的口头约定维持，而 rpc 反序列化对缺字段是静默的 —— **NEVER 再在业务模块新建同形副本**」；`ResendSignNotifyReqDTO`「NEVER 为了重发一条而去打批量补偿接口 —— 那会把所有符合扫描条件的历史流水一起发给 APP」；`ResendSignNotifyRespDTO`「`resultCode=0000` 只代表接口本身处理完成，通知是否送达 MUST 看 `notified`」。
 
 ### 附.4 ProxyWebClient 与路由
@@ -262,7 +262,7 @@ route/URLDynamicRouter           （动态路由辅助类，不是 Client）
 
 ### 附.5 观测切面与 tracing
 
-- **决策 + 陷阱**｜`resource/micro/web` · `MapperAspectToTrace.around`（`resource/micro/web/src/main/java/com/chinasofti/huateng/micro/monitor/trace/MapperAspectToTrace.java`）：「观测 mapper 调用耗时，并**原样抛出**业务异常。**NEVER 改回 `observation.observe(Supplier)` 那种写法**（2026-09-14 修，ADR-D53）：`observe` 收的是 `Supplier`、不能抛受检异常，于是原实现在 lambda 里 `throw new RuntimeException(e)` 把真实异常包了一层。后果是**调用方按类型 catch 一律失效** —— 本项目的幂等兜底全靠 `catch (DataIntegrityViolationException / DuplicateKeyException)`（AGENTS.md §5.1「唯一索引 + DuplicateKeyException 兜底」），包一层后那些 catch 永远进不去，异常直接冒到全局处理器变成 500。而且**只在打开 tracing 的模块上出现**（`shouldSkipAopTraceLogic()` 为 false 才走这段），因此同一份业务代码在 account-server 上正常、在 card-pool-server 上就崩 —— 2026-09-14 并发开户实测：卡池 `reserve` 明明写了 `catch (DataIntegrityViolationException)` 去回查兄弟请求的预占，却因本条被跳过，并发同 `businessId` 的第二条请求直接 500、APP 收到「暂无卡数据资源」。」修法：「现在改成手工 `start / openScope / error / stop`：观测语义与 `observe` 等价（scope 内 MDC 与 traceId 照旧），但异常路径不再新建包装异常。」代码形态见（`start()` → try-with-resources `openScope()` → `catch (Throwable e) { observation.error(e); log.error(...); throw e; }` → `finally observation.stop()`）。
+- **决策 + 陷阱**｜`resource/micro/web` · `MapperAspectToTrace.around`（`resource/micro/web/src/main/java/com/chinasofti/huateng/micro/monitor/trace/MapperAspectToTrace.java`）：「观测 mapper 调用耗时，并**原样抛出**业务异常。**NEVER 改回 `observation.observe(Supplier)` 那种写法**（2026-09-14 修，ADR-D53）：`observe` 收的是 `Supplier`、不能抛受检异常，于是原实现在 lambda 里 `throw new RuntimeException(e)` 把真实异常包了一层。后果是**调用方按类型 catch 一律失效** —— 本项目的幂等兜底全靠 `catch (DataIntegrityViolationException / DuplicateKeyException)`（AGENTS.md §4.1「唯一索引 + DuplicateKeyException 兜底」），包一层后那些 catch 永远进不去，异常直接冒到全局处理器变成 500。而且**只在打开 tracing 的模块上出现**（`shouldSkipAopTraceLogic()` 为 false 才走这段），因此同一份业务代码在 account-server 上正常、在 card-pool-server 上就崩 —— 2026-09-14 并发开户实测：卡池 `reserve` 明明写了 `catch (DataIntegrityViolationException)` 去回查兄弟请求的预占，却因本条被跳过，并发同 `businessId` 的第二条请求直接 500、APP 收到「暂无卡数据资源」。」修法：「现在改成手工 `start / openScope / error / stop`：观测语义与 `observe` 等价（scope 内 MDC 与 traceId 照旧），但异常路径不再新建包装异常。」代码形态见（`start()` → try-with-resources `openScope()` → `catch (Throwable e) { observation.error(e); log.error(...); throw e; }` → `finally observation.stop()`）。
 - **决策 + 陷阱**｜`resource/micro/web` · `ServiceAspectToTrace.around`（`resource/micro/web/src/main/java/com/chinasofti/huateng/micro/monitor/trace/ServiceAspectToTrace.java`）：与上一条「同一处修复（2026-09-14，ADR-D53）」，原实现同样 `observe(Supplier)` + lambda 内 `throw new RuntimeException(e)`，「**调用方按类型 catch 一律失效**……且只在打开 tracing 的模块上出现。**NEVER 改回 observe 那种写法。**」切点是 `within(@org.springframework.stereotype.Service *)`，mapper 那条是 `within(@org.apache.ibatis.annotations.Mapper *)`（`MapperAspectToTrace.java`）。
 - **契约**｜`resource/micro/web` · tracing 开关默认值（`resource/micro/web/src/main/resources/web.properties`）：`management.tracing.enabled=false`、`management.tracing.propagation.type=W3C,B3,B3_MULTI`、`management.tracing.sampling.probability=1.0`。**「三行成组」这条要求在 properties 注释里没有**（只有 OTLP 那段），见文末缺口。
 - **决策**｜`resource/micro/web` · OTLP 六行为何注释掉（`resource/micro/web/src/main/resources/web.properties`）：「以下 OTLP 上报配置全部注释掉，**勿删除**（2026-09-08）：1) endpoint 指向的 `collector-istio-traces-service.opentelemetry` 在集群里不存在，任何打开 `management.tracing.enabled=true` 的服务都会被 `OtlpAutoConfiguration` 建出 exporter，导出线程每批抛 `UnknownHostException` 刷日志（pay-sign 已实测）。日志采集本项目自建，不依赖 OTel collector。2) 注释掉 endpoint 后 `OtlpTracingConnectionDetails` 的 `@ConditionalOnProperty` 不成立，全局不再创建 SpanExporter，Tracer 与 MDC 的 traceId/spanId 不受影响。要恢复上报：填真实 collector 地址即可。3) 下面 batch/compression/connect-timeout 六行的键名在 Spring Boot 3.2.6 里根本不存在（真实前缀是 `management.otlp.tracing.*`，且只有 endpoint / timeout / compression / headers 四个键），**从来没生效过，恢复上报时勿照抄**。」
@@ -274,7 +274,7 @@ route/URLDynamicRouter           （动态路由辅助类，不是 Client）
 
 #### 附.5.1 开一个模块的 tracing：三行成组 + 名单 + 「MUST 查 Deployment env」判据
 
-> 本节是 **2026-10-13 从 `AGENTS.md` §2.2.1 下沉而来**，是「哪些模块开着 tracing」这一事实的唯一出处。
+> 本节是 **2026-10-13 从 `docs/business/README.md` 全局事实 下沉而来**，是「哪些模块开着 tracing」这一事实的唯一出处。
 > 上游依据：`resource/micro/web/src/main/resources/web.properties`（默认 `enabled=false`）
 > 与 2026-09-23 实测。
 
@@ -293,14 +293,16 @@ spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.otel.OtlpAut
 - `%X{traceId}` 有值的前提就是这三行；**日志 pattern 里有 `%X{traceId}` 不等于会显示** ——
   开关没开时那一列**恒为空、不报错、编译与单测都发现不了**。
 
-**② 已打开 tracing 的模块共 9 个（2026-09-22/23 实测）**
+**② 已打开 tracing 的模块（数量 MUST 现查；2026-10-15 静态核实为 17 个，替代此前「9 个」的旧记录）**
 
 | 来源 | 模块 |
 |---|---|
-| `application.properties` / `application.yml` 显式打开（8 个） | `pay-sign-server`、`card-pool-server`、`recon-server`、`gate-txn-pay-server`、`daily-ticket-server`、`collect-pay-server`（YAML 写法）、`face-pay-server`（YAML 写法，2026-09-22 补齐并滚更）、`alipay-pay-sign-server` |
+| `application.properties` / `application.yml` 显式打开 | `pay-sign-server`、`card-pool-server`、`recon-server`、`gate-txn-pay-server`、`daily-ticket-server`、`blacklist-server`、`account-server`、`alipay-account-server`、`alipay-pay-sign-server`、`ticket-server`、`trans-query-server`、`fep-app-server`、`fep-acc-server`、`fep-alipay-server`、`fep-dev-server`、`collect-pay-server`（YAML 写法）、`face-pay-server`（YAML 写法，2026-09-22 补齐并滚更） |
 | **只靠 K8s Deployment 注入 env**（properties 里一个键都没有） | `para-server` |
 
 `face-pay-server` 补齐的动因：对账链路按 traceId 追到第 4 个源就断，补后已实测续接通过。
+
+> ⚠️ **仍有模块缺这一环（2026-10-15 静态核实）**：以下模块 `pom.xml` 依赖 `resource/micro/web`（切面由它装配），但源码 `application.properties` 与 `deploy/k8s/10-deployments/*.yaml` **两层都没有** `management.tracing.*`，故 `%X{traceId}` 恒空：`industry-data-server`、`key-server`、`collect-ticket-server`、`acc-es-server` / `acc-secure-server` / `acc-security-server`。**MUST 至少把「依赖 micro-web starter」列为开 tracing 的前置判据。**（不依赖 micro-web starter、因切面根本不生效的 `es-server` / `route-sentinel` / `web-server` 不算缺口。）
 
 **③ 🔴 判据修正（2026-09-23 实测）：判断某模块是否开了 tracing，MUST 同时查 K8s Deployment 的 env**
 
@@ -310,7 +312,7 @@ spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.otel.OtlpAut
 `MapperAspectToTrace` / `ServiceAspectToTrace` 也确实在跑。
 因此**「properties 里没配置项」不等于「切面没生效」**，据此得出的任何归因 MUST 作废重查。
 
-> 注意**不能拿仓库 `deploy/k8s/` 的 manifest 当依据** —— 按 `AGENTS.md` §8，集群 env 会覆盖 jar 内配置、
+> 注意**不能拿仓库 `deploy/k8s/` 的 manifest 当依据** —— 按 `docs/ops/构建与部署规范.md` §8，集群 env 会覆盖 jar 内配置、
 > `deploy/k8s/` 只作模板；实测 `deploy/` 下 grep `MANAGEMENT_TRACING` **零命中**，
 > 而 `para-server` 线上确实开着。**MUST 查线上 Deployment**（`kubectl -n itp get deploy <d> -o yaml`）。
 
@@ -329,23 +331,23 @@ spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.otel.OtlpAut
 
 - **契约**｜`resource/micro/sql-datasource` · Druid 池级超时兜底（`resource/micro/sql-datasource/src/main/resources/sql.properties`）：「池级查询超时兜底：未显式 `setQueryTimeout` 的语句默认 30s 超时，与 `oracle.jdbc.ReadTimeout`（10s socket 读）形成双层保护。业务代码显式 `setQueryTimeout` 的（如对账抽取）会覆盖此值。」对应键 `spring.datasource.druid.query-timeout=30`。
 - **决策**｜`resource/micro/sql-datasource` · `remove-abandoned-timeout` 从 30 分钟降到 5 分钟（`sql.properties`）：「虚拟线程环境下 30 分钟的 abandoned 超时太长，pin 满载体线程前连接不会被回收。降至 5 分钟，配合 `ReadTimeout`/`query-timeout` 在更早层就切断。长耗时批处理（对账抽取等）显式跑在平台线程池上，不受此限制。」
-- **契约**｜`resource/micro/sql-datasource` · WallFilter 现状（`sql.properties`，**无注释、按配置读**）：`spring.datasource.druid.filter.wall.enabled=true`，只显式放开 `delete-allow` 与 `drop-table-allow` 两项。**「SQL 正文里 NEVER 写注释」与「NEVER 写 `where 1 = 1` + 全可选 `<if>`」这两条规则在 properties 里一个字都没有**（只在 AGENTS.md §5.1），见文末缺口。
+- **契约**｜`resource/micro/sql-datasource` · WallFilter 现状（`sql.properties`，**无注释、按配置读**）：`spring.datasource.druid.filter.wall.enabled=true`，只显式放开 `delete-allow` 与 `drop-table-allow` 两项。**「SQL 正文里 NEVER 写注释」与「NEVER 写 `where 1 = 1` + 全可选 `<if>`」这两条规则在 properties 里一个字都没有**（只在 docs/architecture/mybatis-oracle-runtime-traps.md §1「NEVER 在 SQL 正文中写注释」与 §2「NEVER 写 `where 1 = 1` 打头 + 全可选 `<if>`」），见文末缺口。
 - **契约**｜`resource/micro/sql-datasource` · 达梦环境关掉 WallFilter（`resource/micro/sql-datasource/src/main/resources/dm.properties`，**无注释、按配置读**）：`spring.datasource.druid.filter.wall.enabled=false`。这一行是「WallFilter 类缺陷只在 Oracle 环境暴露」的成因，但**该文件里没有任何说明**。
 - **契约**｜`resource/micro/sql-datasource` · Oracle 数据源 URL 模板（`resource/micro/sql-datasource/src/main/resources/oracle.properties`）：`jdbc:oracle:thin:@${other.sql.host}/${other.sql.database}`。数据源三要素统一走 `other.sql.*` 占位，驱动固定 `oracle.jdbc.OracleDriver`。
 - **契约**｜`resource/micro/mybatis-adaptor` · mapper 扫描路径（`resource/micro/mybatis-adaptor/src/main/resources/persistent.properties`）：`mybatis.mapper-locations=classpath*:/mappers/*.xml`（第二行是注释掉的 `logging.level` 样例）。**注意它是构件默认值、不是实际生效值**：抽样 `pay-sign-server` / `account-server` / `recon-server` 的 `application.properties` 都用 `classpath*:mapper/*.xml` 覆盖了它，磁盘上的目录也叫 `mapper`（单数）。因此本文档 §3.2 写的 `resources/mapper/*.xml` 描述的是业务模块现状，与构件默认值 `mappers`（复数）**不一致但不冲突**；**排查「mapper 没被加载」MUST 先看业务模块自己有没有覆盖这个键**。
-- **缺口**｜`resource/micro/sql-datasource` / `mybatis-adaptor` 的 Java 侧注释：9 + 3 个类里**只有 7 行注释**，且全是流程性行注释（`GenericDoubleDatasourceCondition.java` 的「1. 先判断全局开关 …… 4. 所有条件满足则返回 true」六行，`DynamicMybatisConfiguration.java` 的 `// PageInterceptor` 一行）。`SqlAudit`、`AutoSelectDbType`、`DbPropertyFactory`、`MoreDruidDataSourceConfig`、`DruidDataSourceWrapper1`、`SqlConfiguration`、`DefaultMybatisConfiguration`、`EnableDefaultMybatisAutoConfig` 等 **没有任何类级 Javadoc**。「自研持久层的使用约定」在这两个子模块的源码注释里**不存在**，现有约定只在本文档 §3.2 与 AGENTS.md §5.1。
+- **缺口**｜`resource/micro/sql-datasource` / `mybatis-adaptor` 的 Java 侧注释：9 + 3 个类里**只有 7 行注释**，且全是流程性行注释（`GenericDoubleDatasourceCondition.java` 的「1. 先判断全局开关 …… 4. 所有条件满足则返回 true」六行，`DynamicMybatisConfiguration.java` 的 `// PageInterceptor` 一行）。`SqlAudit`、`AutoSelectDbType`、`DbPropertyFactory`、`MoreDruidDataSourceConfig`、`DruidDataSourceWrapper1`、`SqlConfiguration`、`DefaultMybatisConfiguration`、`EnableDefaultMybatisAutoConfig` 等 **没有任何类级 Javadoc**。「自研持久层的使用约定」在这两个子模块的源码注释里**不存在**，现有约定只在本文档 §3.2 与 AGENTS.md §4.1「NEVER 直接写原生 JDBC 或标准 MyBatis 注解」。
 
 ### 附.7 虚拟线程
 
 - **契约 + 陷阱**｜`resource/micro/sql-datasource` · `oracle.jdbc.ReadTimeout=10000` 的存在理由（`resource/micro/sql-datasource/src/main/resources/oracle.properties`）：「虚拟线程 pinning 兜底：socket 读超时直接限制单次慢 SQL 的 pin 时长上限。ojdbc8 的 `PhysicalConnection` / `OracleStatement` 大量方法是 `synchronized`，JDK 21 未落地 JEP 491，虚拟线程在 `synchronized` 内阻塞会 pin 载体线程；一条慢 SQL 就等于把一个载体线程 pin 住同样长的时间。这里 10s 的 `ReadTimeout` 让 DB 响应超过 10s 的语句直接抛 `SocketTimeoutException`，pin 的载体线程立刻释放，不再拖到 `remove-abandoned-timeout`。**已在 2026-08-26 pay-sign-server 生产事故中观察到「对端 17ms 答完、本端 287s 才处理」的形态，根因就是载体线程被 pin 满后虚拟线程停止调度。**长耗时批量任务（对账抽取等）已显式切到 `newFixedThreadPool` 平台线程上跑，不受此限制。」
-- **契约**｜`resource/micro/web` · 虚拟线程全局默认（`resource/micro/web/src/main/resources/web.properties`，**无注释、按配置读**）：`spring.threads.virtual.enabled=true`。这一行本身没有任何说明，它的后果只在 `oracle.properties`（上一条）与 `VictoriaLogsAppender` 类注释（下一条）里被解释。
+- **契约**｜`resource/micro/web` · 虚拟线程全局默认（`resource/micro/web/src/main/resources/web.properties`，**无注释、按配置读**）：`spring.threads.virtual.enabled=false`（**2026-10-20 起由 `true` 改为禁用**；历史启用期间的后果只在 `oracle.properties`（上一条）与 `VictoriaLogsAppender` 类注释（下一条）里被解释）。
 - **决策**｜`resource/micro/web` · `VictoriaLogsAppender` 为什么用平台线程发送（`resource/micro/web/src/main/java/com/chinasofti/huateng/log4j2/VictoriaLogsAppender.java`）：「业务线程只做「序列化 + 入有界队列」，绝不在业务线程上发 HTTP。全服务开了 `spring.threads.virtual.enabled=true`，在虚拟线程上做阻塞 IO 会 pin 载体线程。」「发送线程是**平台线程**（`Thread.ofPlatform()`），阻塞它不影响虚拟线程调度。」
-- **缺口**｜「取证 MUST 用 `jcmd Thread.dump_to_file -format=json` / `-Djdk.tracePinnedThreads=full` / JFR `jdk.VirtualThreadPinned`」与「载体线程池 `parallelism` 等于容器可见 CPU 数」这两条，在这三块的源码注释里**都没有**，只在 AGENTS.md §5.2。
+- **缺口**｜「取证 MUST 用 `jcmd Thread.dump_to_file -format=json` / `-Djdk.tracePinnedThreads=full` / JFR `jdk.VirtualThreadPinned`」与「载体线程池 `parallelism` 等于容器可见 CPU 数」这两条，在这三块的源码注释里**都没有**，只在 docs/architecture/runtime-observability-traps.md §3「虚拟线程 pin（JDK 21 基线下的现实风险）」。
 
 ### 附.8 历史遗留构件
 
-- **缺口 / 决策**｜`resource/micro/rabbitmq-adaptor`：4 个 Java 类（`DefaultRabbitmqConfiguration`、`EnableDefaultRabbitmqAutoConfig`、`MqConsumersCheckFilter`、`SimpleProducer`）与 `mq.properties` 里**一条注释都没有**，因此「它是历史遗留、业务模块 NEVER 引用、为什么留着不删」这套结论在源码里**完全没有落笔**，只存在于 AGENTS.md §5.1 与本文档正文。
-- **陷阱**｜`resource/micro/rabbitmq-adaptor` · `mq.properties`（**无注释、按配置读**）：默认值是一个**具体的内网地址** `spring.rabbitmq.host=130.251.235.235` 加 `guest/guest` 明文口令。按 AGENTS.md §5.2「敏感项 MUST 写成 `${ENV_VAR:}`」的口径这属违例；因为无人引用而未暴露，但**只要有一个模块加了 `spring-boot-starter-amqp` 与本 properties，它就会去连那个地址**。
+- **缺口 / 决策**｜`resource/micro/rabbitmq-adaptor`：4 个 Java 类（`DefaultRabbitmqConfiguration`、`EnableDefaultRabbitmqAutoConfig`、`MqConsumersCheckFilter`、`SimpleProducer`）与 `mq.properties` 里**一条注释都没有**，因此「它是历史遗留、业务模块 NEVER 引用、为什么留着不删」这套结论在源码里**完全没有落笔**，只存在于 AGENTS.md §4.1「`resource/micro/rabbitmq-adaptor` 是历史遗留基础构件」与本文档正文。
+- **陷阱**｜`resource/micro/rabbitmq-adaptor` · `mq.properties`（**无注释、按配置读**）：默认值是一个**具体的内网地址** `spring.rabbitmq.host=130.251.235.235` 加 `guest/guest` 明文口令。按 docs/architecture/security-sensitivity.md §一「敏感项 MUST 写成 `${ENV_VAR:}`」的口径这属违例；因为无人引用而未暴露，但**只要有一个模块加了 `spring-boot-starter-amqp` 与本 properties，它就会去连那个地址**。
 - **契约**｜`rpc` · `TransQueryClient` 与 `TicketClient` 的双活过渡（`rpc/src/main/java/com/chinasofti/huateng/rpc/transquery/TransQueryClient.java`）：见 §附.3 该条。这是本次抽取里唯一一处「新旧实现并存」在注释中被显式登记的地方。
 - **契约**｜`rpc` · `GateTxnPayClient` 中已迁走的接口（`rpc/.../pay/GateTxnPayClient.java` 的 `// ==================== IF8A-26 APP 在线补款下单 RPC ====================` 段）：「IF8A-26 补款下单已随补款功能迁入 face-pay-server（2026-09-15），调用方改用 `FacePayClient#requestPayOrder`。」——方法体已删、只留这条指路注释。
 
@@ -353,16 +355,16 @@ spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.otel.OtlpAut
 
 以下结论**在本次抽取范围的注释里查无实据**，引用时 MUST 回到 AGENTS.md 或对应文档，NEVER 说「代码注释里写了」：
 
-1. 「`model` / `rpc` 版本号锁死为 2.0.0 / 2.0.1、被 21 个模块 pom 的 `<model.version>` / `<rpc.version>` 引用、升一次要改 21 个文件」——注释里只有 `RpcOutcome.java` 与 `PaySignClient.java`、`GateTxnPayClient.java` 三处提到「`rpc` 版本号锁死、被 21 个模块引用」，**`model` 侧一处都没有**，具体版本号与「21 个 pom 属性」的机制只在 AGENTS.md §7。
+1. 「`model` / `rpc` 版本号锁死为 2.0.0 / 2.0.1、被 21 个模块 pom 的 `<model.version>` / `<rpc.version>` 引用、升一次要改 21 个文件」——注释里只有 `RpcOutcome.java` 与 `PaySignClient.java`、`GateTxnPayClient.java` 三处提到「`rpc` 版本号锁死、被 21 个模块引用」，**`model` 侧一处都没有**，具体版本号与「21 个 pom 属性」的机制只在 `docs/ops/构建与部署规范.md` §7。
 2. 「`mvn install` 只更新本机 `~/.m2`、对已在跑的 Pod 零影响，改公共构件 MUST 逐个重建镜像」——注释里唯一沾边的是 `GateTxnPayReqDTO.java`「调用方 MUST 用重新 install 过的 `model` 重建镜像」，只覆盖一个 DTO 的一个调用方；整条规则与 ADR-D53 那个「只重建了 card-pool-server、其余 6 个 tracing 模块线上仍是旧切面」的实例，注释里都没有。
 3. 「tracing 开一个模块 MUST 三行成组（`enabled=true` + `sampling.probability=0` + 排除 `OtlpAutoConfiguration`）」「哪些模块开着 tracing」——`web.properties` 只解释了 OTLP 六行为何注释掉，**这两条在源码注释里至今仍不存在**；本文档的承接处是 §附.5.1（2026-10-13 补，含 9 模块名单与「MUST 查 Deployment env」判据；原记「7 个模块」已因 `para-server` 与 `face-pay-server` 补开而过期）。
-4. 「Druid WallFilter 的两条规则（SQL 正文禁注释、禁 `where 1 = 1` + 全可选 `<if>`）」「mapper XML 注释里禁两个连续减号」——`sql.properties` / `dm.properties` 只有开关本身，**三条规则与各自的事故记录全在 AGENTS.md §5.1**。
+4. 「Druid WallFilter 的两条规则（SQL 正文禁注释、禁 `where 1 = 1` + 全可选 `<if>`）」「mapper XML 注释里禁两个连续减号」——`sql.properties` / `dm.properties` 只有开关本身，**三条规则与各自的事故记录全在 docs/architecture/mybatis-oracle-runtime-traps.md §1「NEVER 在 SQL 正文中写注释」、§2「NEVER 写 `where 1 = 1` 打头 + 全可选 `<if>`」、§3「mapper XML 注释里 NEVER 出现两个连续减号」**。
 5. 「`FirstFilter` 把请求头小写后塞 MDC」——这条**在 `FirstFilter` 自己身上没有注释**，只由 5 处 rpc Client 注释间接记载（§附.5）。
 6. 「`ProxyWebClient` 的连接池 / 超时常量为什么取这些值」「`addAuthorizationToHeader` 为什么只转发 `authorization`」——两处代码都**无注释**。
 7. 「`CommonResult` 的 `retCode` 取值集合与 `0000` 语义」——`CommonResult` 自身注释里没有，只有 `RpcOutcome.SUCCESS_CODE` 一处。
 8. 「自研 `sql-datasource` / `mybatis-adaptor` 的使用约定」——两个子模块共 12 个类、**7 行流程性注释**，无任何约定性说明。
 9. 「`rabbitmq-adaptor` 为什么留着不删」——源码与 properties **零注释**。
-10. 「虚拟线程 pin 的取证手段与载体线程池 parallelism」——只在 AGENTS.md §5.2。
+10. 「虚拟线程 pin 的取证手段与载体线程池 parallelism」——只在 docs/architecture/runtime-observability-traps.md §3「虚拟线程 pin（JDK 21 基线下的现实风险）」。
 
 ### 附.10 墓碑注释清单（建议转为断言测试）
 
@@ -566,7 +568,7 @@ spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.otel.OtlpAut
 
 ### 附二.7 rpc —— `RpcOutcome` 三分支（`Ok` / `BizRejected` / `Unreachable`）
 
-- **为什么不是 boolean**（`outcome/RpcOutcome.java`）：AGENTS.md §5.2 为「内部 catch 全部异常后 `return false`」的包装方法
+- **为什么不是 boolean**（`outcome/RpcOutcome.java`）：docs/architecture/transaction-and-consistency.md §3 为「RPC 包装方法 MUST 返回 `RpcOutcome`，NEVER 返回 boolean」的包装方法
   专门写过规则，而它被违反过两次并双双造成生产不一致（`docs/domain/decisions.md` ADR-D13）。规则靠人记、boolean 靠人查；
   `sealed` + `record` 让穷尽性由**编译器**检查 —— 调用点少写一个分支直接编译失败。
 - **真正的收益是可区分「业务拒绝」与「网络不可达」**：`BizRejected`（对端答复但业务拒绝，如 UPDATE 影响 0 行后返 FAIL）
@@ -630,7 +632,7 @@ spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.otel.OtlpAut
 - 新增跨服务调用的三件套（缺一不可）：① 在对应 Client 加方法；② 调用方启动类加 `@EnableRpcXxx`；③ 调用方配置补 `service.xxx.url`。
 - **`@EnableRpcTransQuery` 与 `@EnableRpcTicket` 不互斥、通常成对出现**（`EnableRpcTransQuery.java`）：交易列表 / 统计 / 详情
   走前者，支付宝行程与乘车码状态机等仍留 ticket-server。加了它 **MUST 同批补 `service.transQuery.url`**，
-  否则 baseUrl 退化成默认服务名 `trans-query-service`、**集群里 DNS 解析不到**（这是 AGENTS.md §8「键缺失」那类问题的成因）。
+  否则 baseUrl 退化成默认服务名 `trans-query-service`、**集群里 DNS 解析不到**（这是 `docs/ops/构建与部署规范.md` §8「键缺失」那类问题的成因）。
 
 ### 附二.10 resource/micro —— `sql-datasource`（Druid 配置与两条孪生陷阱）
 
@@ -663,7 +665,7 @@ spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.otel.OtlpAut
 - `persistent.properties` 的 `mybatis.mapper-locations=classpath*:/mappers/*.xml` 是**默认值**，
   而多数业务模块把 mapper 放在 `resources/mapper/`（单数）并在自己的 `application.properties` 里覆盖该键 ——
   **新建模块时 MUST 确认这两者对得上**，否则表现为「mapper XML 明明在、方法却报 `Invalid bound statement`」。
-- 数据访问 **MUST 走 `mybatis-adaptor` + mapper XML，NEVER 写原生 JDBC 或 MyBatis 注解 SQL**（AGENTS.md §5.1）。
+- 数据访问 **MUST 走 `mybatis-adaptor` + mapper XML，NEVER 写原生 JDBC 或 MyBatis 注解 SQL**（AGENTS.md §4.1「NEVER 直接写原生 JDBC 或标准 MyBatis 注解」）。
 
 ### 附二.12 resource/micro —— web 组件（`WebAutoConfig` / `FirstFilter` / 两个观测切面 / `web.properties`）
 
@@ -675,7 +677,7 @@ spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.otel.OtlpAut
   `micro/monitor/prometheus/ResetMetersJob.java`（`other.monitor.resetAllMetersCron`，默认 `0 0 2 * * ?`）、
   `ResetMetersJob.java`（`other.monitor.logAllMetersCron`，默认 `0/30 * * * * ?`）、
   `micro/datasource/SqlConfiguration.java`（同 `resetAllMetersCron`）。它们**在每个依赖 micro 的服务里都跑**，
-  统计「某模块有几个 `@Scheduled`」时 **MUST 声明是否含这三个**（AGENTS.md §2.2.1 那份清单是**业务侧口径、不含它们**）。
+  统计「某模块有几个 `@Scheduled`」时 **MUST 声明是否含这三个**（docs/business/README.md 全局事实 那份清单是**业务侧口径、不含它们**）。
 - **`FirstFilter`（`micro/web/filter/FirstFilter.java`，`doFilter` 内约 ）把全部请求头名 `toLowerCase()` 后
   逐个 `MDC.put(key, value)`**。三条连带结论：① **NEVER 自造 `traceId` 请求头** —— 会落到 `traceid` 键、与 log4j2 的
   `%X{traceId}` 大小写对不上、**永远不显示**（这条在 5 个 rpc Client 的注释里各写了一份，源头就是这里）；
@@ -692,7 +694,7 @@ spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.otel.OtlpAut
   明明写了 `catch (DataIntegrityViolationException)` 去回查兄弟请求的预占，却因本条被跳过，并发同 `businessId` 的第二条请求
   直接 500、APP 收到「暂无卡数据资源」。**这两处各保留了一行式护栏注释，见 §附二.14。**
 - **`web.properties` 里六个「一改就全局生效」的键**： `server.port=8080`（业务模块各自覆盖）、
-   `spring.threads.virtual.enabled=true`（**全服务虚拟线程默认，日志里 `tomcat-handler-N` 即虚拟线程命名**）、
+   `spring.threads.virtual.enabled=false`（**2026-10-20 起全服务默认禁用虚拟线程**；历史曾是 `true`，平台线程命名 `http-nio-<port>-exec-N`）、
    `spring.mvc.throw-exception-if-no-handler-found=true` + `spring.resources.add-mappings=false`
   （**这两条正是「404 变成 HTTP 200 + UUID retCode」的机理**：无 handler 抛异常 → 全局处理器兜成 UUID 码）、
    `management.tracing.enabled=false`（**默认关闭**，因此 `%X{traceId}` 那一列默认恒空；打开 MUST「三行成组」）、
@@ -707,7 +709,7 @@ spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.otel.OtlpAut
 
 ### 附二.13 公共构件改动的连带影响（版本号锁死 + 逐个重建镜像）
 
-- **`model` / `rpc` 的 `<version>` 锁死在 2.0.0 / 2.0.1**（用户 2026-09-07 明确要求，AGENTS.md §7）：被 21 个模块 pom 的
+- **`model` / `rpc` 的 `<version>` 锁死在 2.0.0 / 2.0.1**（用户 2026-09-07 明确要求，`docs/ops/构建与部署规范.md` §7）：被 21 个模块 pom 的
   `<model.version>` / `<rpc.version>` 引用，升一次要连带改 21 个文件、漏一个即构建期报「找不到依赖」。
   连带三条硬约束：① 公共构件里 **MUST 只增方法、NEVER 改已有签名**（`RpcOutcome` 的落地方式、
   `GateTxnPayClient.convergeDebitStatusForSupplement` 的「要加令牌就新增重载」都是这条的产物）；
@@ -732,7 +734,7 @@ spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.otel.OtlpAut
 ### 矛盾与待裁决
 
 1. **`stat-view-servlet` 默认开启 + 弱口令**（`sql.properties`：`enabled=true`、`login-username/password=admin`、
-   `reset-enable=true`、`allow=` 为空即不限 IP）。与 AGENTS.md §5.2「敏感配置」冲突，**上线前 MUST 处置**（关掉或按 IP 白名单 + Secret 注入）。
+   `reset-enable=true`、`allow=` 为空即不限 IP）。与 docs/architecture/security-sensitivity.md §一「敏感配置」冲突，**上线前 MUST 处置**（关掉或按 IP 白名单 + Secret 注入）。
    本次只迁移注释、**未改任何配置值**。
 2. **`ReconClient.java` / `ReconExportClient.java` 的 `X-Recon-Token` 已整段删除**（用户 2026-09-11 要求，开发测试阶段），
    与 §5.2「新增状态变更型接口 MUST 有鉴权」冲突；恢复时**两端 MUST 同时改回**。属待办、不是断言对象。

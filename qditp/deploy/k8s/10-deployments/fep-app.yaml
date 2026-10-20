@@ -50,7 +50,7 @@ spec:
           value: http://172.20.211.200:30014
         - name: service.dailyTicket.url
           value: http://172.20.211.23:30027
-        - name: server.port
+        - name: SERVER_PORT
           value: '9101'
         - name: service.security.openLogger
           value: 'true'

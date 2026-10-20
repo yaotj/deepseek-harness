@@ -156,7 +156,7 @@ spec:
           value: warn
         - name: spring.datasource.druid.statViewServlet.enabled
           value: 'true'
-        - name: server.port
+        - name: SERVER_PORT
           value: '8080'
         - name: spring.datasource.druid.filter.stat.enabled
           value: 'true'
@@ -212,7 +212,7 @@ spec:
           value: http://recon-server-bjzdy-svc.itp.svc:30034
         - name: F2F_SERVICE_URL
           value: http://face-pay-server-svc.itp.svc:30025
-        image: os-harbor-svc.default.svc.cloudos:443/itp/web-admin:1.1.41
+        image: os-harbor-svc.default.svc.cloudos:443/itp/web-admin:1.1.45
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: web-admin

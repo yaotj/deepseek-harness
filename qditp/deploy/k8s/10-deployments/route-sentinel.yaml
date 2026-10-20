@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: route-sentinel
+  name: route-sentinel
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: route-sentinel
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: route-sentinel
+    spec:
+      containers:
+      - env:
+        - name: spring.application.name
+          value: route-sentinel
+        - name: SERVER_PORT
+          value: '8080'
+        - name: spring.datasource.url
+          value: jdbc:oracle:thin:@//172.20.222.3:1521/AFCITPDB
+        - name: spring.datasource.username
+          value: qditp
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: DB_PASSWORD
+              name: itp-secrets
+        - name: management.endpoints.web.exposure.include
+          value: gatewayroutes,health,info,metrics,routecache
+        - name: management.endpoint.health.probes.enabled
+          value: 'true'
+        image: os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.1
+        imagePullPolicy: IfNotPresent
+        lifecycle: {}
+        name: route-sentinel
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        resources:
+          limits:
+            cpu: '1'
+            memory: 2Gi
+          requests:
+            cpu: '1'
+            memory: 2Gi
+        securityContext:
+          capabilities: {}
+          privileged: false
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /etc/localtime
+          name: hostpath-localtime
+      volumes:
+      - hostPath:
+          path: /etc/localtime
+          type: ''
+        name: hostpath-localtime

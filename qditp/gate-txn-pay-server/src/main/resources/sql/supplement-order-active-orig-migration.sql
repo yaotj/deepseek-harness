@@ -5,7 +5,7 @@
 -- （ORDER_NO 带毫秒 + 卡号后 6 位，撞不上 UK_SUPPLEMENT_ORDER_NO），两行 TBL_TVM_APP_ORDER
 -- 都是 PAY_STATUS='0'，收银台两张单都能付 ⇒ 同一笔欠费收两次钱。
 -- Java 侧的 selectPendingOrderNosByOrigOrderNos 是 check-then-act，挡不住真并发，
--- 因此按 AGENTS.md §5.1「并发控制 MUST 用唯一索引 + DuplicateKeyException 兜底」加 DB 硬约束。
+-- 因此按 AGENTS.md §4.1「并发控制 MUST 用唯一索引 + DuplicateKeyException 兜底」加 DB 硬约束。
 --
 -- 列语义：非 NULL 表示「本明细仍在独占该原订单」。Oracle 唯一索引不约束全 NULL 行，
 -- 因此置 NULL 即释放独占、允许该原订单重新进入新的补款单。

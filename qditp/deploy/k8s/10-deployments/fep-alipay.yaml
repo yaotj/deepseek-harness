@@ -52,7 +52,7 @@ spec:
           value: http://172.20.211.23:30014
         - name: industry.issue-channel-code
           value: '07'
-        - name: server.port
+        - name: SERVER_PORT
           value: '8080'
         - name: service.security.openLogger
           value: 'true'

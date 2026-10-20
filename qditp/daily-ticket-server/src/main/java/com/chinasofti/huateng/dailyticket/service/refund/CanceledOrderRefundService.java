@@ -36,7 +36,7 @@ import java.util.Map;
  * {@code order / payment → canceledRefund}。
  *
  * <p><b>零 {@code @Transactional}、NEVER 加</b>：链路里有支付中心出网调用，
- * 理由同 {@link DailyTicketRefundSettlementService} 类注释（AGENTS.md §5.2 两条）。
+ * 理由同 {@link DailyTicketRefundSettlementService} 类注释（docs/architecture/transaction-and-consistency.md §4 / §6 两条）。
  *
  * <p><b>与手工退款 {@code DailyTicketRefundInitiationService.requestRefundTicket} 的差别只在前置状态</b>：
  * 那条要求订单 {@code PAID + PAID}，本条要求 {@code CANCELED + PAY_STATUS=PAID}。

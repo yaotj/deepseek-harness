@@ -120,8 +120,8 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - TVM：`TBL_TVM_ORDER_PAY`、`TBL_TVM_ORDER_PAY_PRE`、`TBL_TVM_ORDER_TOPUP`、`TBL_TVM_Topup_Notiy`、`TBL_TVM_ORDER_REFUND`、`TBL_TVM_TAKE_TICKET_ORDER`、`TBL_TVM_MAIN_TICKET`、`TBL_TVM_SUB_TICKET`
 - APP：`TBL_TVM_APP_ORDER`、`TBL_APP_ORDER_REFUND`、`APP_PAY_LOGS`
   - ⚠️ **这两张表的唯一写入方就是本模块**（2026-09-14 收回 owner）。2026-09-11~14 期间 `gate-txn-pay-server` 曾用自带的 `AppPayOrderMapper` 跨域直插两张表，**现已删除**；补款单（IF8A-26）改由本模块新增的三个内部端点 `POST /internal/app-order/{register,close-unpaid,pay-result}`（`AppPayOrderInternalServiceImpl`）代写，仍借 IF8A-11 / `payNotice` / IF8A-18 收款。**NEVER 让任何其它模块再直写这两张表**；改动 `AppOrderServiceImpl` / `TvmOrderPreServiceImpl` 的分派 / `TvmAppOrderMapper.xml` 或这两张表结构前 **MUST** 先看 `docs/business/gate-txn-pay.md` §补款单的收款通道 与 ADR-D64。补款行的特征是 `TICKET_TYPE='SP'` / `RSV2='SP'`；三条资损口径（前置单 `TRANS_TYPE='03'` 必须一起插、`RSV2` MUST 非空、`ACTIVATE_FLAG='0'`）现在只在本模块，**NEVER 改动其中任何一条**。**`refundAppNotTakeTickets` 的「已支付 + 无票 + `RSV2 IS NULL` 即自动退款」规则 NEVER 放宽成不看 `RSV2`**，否则补款单的钱会被次日退掉、造成资损。
-  - ⚠️ **`/internal/app-order/*` 三个端点当前无鉴权**（与 `/internal/recon` 同款临时降级，2026-09-14 用户裁决），与 AGENTS.md §5.2 冲突，**上线前 MUST 补**。
-  - ⚠️ **`/itptvm/ci/tvm/payNotice` 没有任何验签**（`validateRequestOrder` 只判字段非空，`bizData` 是明文 JSON），任何网络可达方都能伪造支付成功回调把订单改成已支付。2026-09-11 端到端测试正是靠这一点模拟的回调。与 AGENTS.md §5.2「状态变更型接口 MUST 有鉴权」冲突，**上线前 MUST 补齐**。
+  - ⚠️ **`/internal/app-order/*` 三个端点当前无鉴权**（与 `/internal/recon` 同款临时降级，2026-09-14 用户裁决），与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突，**上线前 MUST 补**。
+  - ⚠️ **`/itptvm/ci/tvm/payNotice` 没有任何验签**（`validateRequestOrder` 只判字段非空，`bizData` 是明文 JSON），任何网络可达方都能伪造支付成功回调把订单改成已支付。2026-09-11 端到端测试正是靠这一点模拟的回调。与 docs/architecture/security-sensitivity.md §三「状态变更型接口 MUST 有鉴权」冲突，**上线前 MUST 补齐**。
 - BOM：`TBL_BOM_ORDER_PAY`、`TBL_BOM_ORDER_REFUND`、`TBL_BOM_SALE_INFO`、`TBL_BOM_MAIN_TICKET`、`TBL_BOM_SUB_TICKET`、`TBL_BOM_BUS_RESULT`、`TBL_BOM_TOPUP_RESULT`、`TBL_BOM_TICKET_REFUND`
 - 通用：`TBL_TICKET_REFUND_RECORD`
 - 通知重试表：`tbl_notice_app_taketicket_record`、`tbl_notice_app_refund_record`、`TBL_NOTICE_APP_FAILURE_RECORD`（后者建表脚本 `scripts/create_tbl_notice_app_failure_record.sql`）
@@ -225,7 +225,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 
 #### 1.2 决策理由
 
-- **三条不可违反的编排约束**：①整个类不带 `@Transactional`（链路里有支付中心调用，事务包住网络调用会把行锁持有时长拉长到对端响应时长，AGENTS.md §5.2 的 2026-08-26 生产事故），顺序固定「INSERT 订单 → 事务外调支付中心 → UPDATE 结果」；②**对端没答上来时 NEVER 把订单写成 PAY_FAILED**（钱可能已经扣了），订单留在 `CREATED`、由 180 秒过期扫表或后续查询接口收口，旧实现在这里直接写 FAILED、是本次重写要修掉的行为；③状态判断用白名单，只有明确列举的状态才短路。`F2fTvmOrderService`（类注释）— `service/F2fTvmOrderService.java`
+- **三条不可违反的编排约束**：①整个类不带 `@Transactional`（链路里有支付中心调用，事务包住网络调用会把行锁持有时长拉长到对端响应时长，docs/architecture/transaction-and-consistency.md §6「`@Transactional` 方法内 NEVER 发起任何 RPC / 网络调用」的 2026-08-26 生产事故），顺序固定「INSERT 订单 → 事务外调支付中心 → UPDATE 结果」；②**对端没答上来时 NEVER 把订单写成 PAY_FAILED**（钱可能已经扣了），订单留在 `CREATED`、由 180 秒过期扫表或后续查询接口收口，旧实现在这里直接写 FAILED、是本次重写要修掉的行为；③状态判断用白名单，只有明确列举的状态才短路。`F2fTvmOrderService`（类注释）— `service/F2fTvmOrderService.java`
 - **`CHANNEL_BOM` 常量单列的理由**：BOM 卖单程票走的是 **TVM 的 URL**（`/itptvm/ci/tvm/requestGenSjtOrder`）、靠 `providerId=03` 分流，不是 `/itpbom` 下的接口（2026-09-10 双跑抓包实测确认）。旧实现把这笔单写进三张表且**没有任何一列存 `'03'`**，渠道信息只存在于路由分支里、落库后无从分辨；新表用 `CHANNEL` 记住它。`F2fTvmOrderService.CHANNEL_BOM` — `service/F2fTvmOrderService.java`
 - **`TicketSpec.invalid` 用一个字段带回文案而不是直接抛异常**：为了让 TVM 与 BOM 两条分支**共用同一套校验但各自组装自己族的响应**，同时不改动既有文案。`F2fTvmOrderService.TicketSpec` — `service/F2fTvmOrderService.java`
 - **两种 PENDING 的 `channelCode` 取值不同，这是重构前就有的区别、不是笔误**：对端没答上来时报文里没有 `paymentVendor`、只能回落到本地订单的渠道；答上来但状态仍在处理中时，以对端给的 `paymentVendor` 为准。`F2fTvmOrderService.requestPayResult`（行内注释）— `service/F2fTvmOrderService.java`
@@ -316,7 +316,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **HCE 链路两处与旧实现的差异**：①远端错误码不再原样透给 BOM 的那条已被上面「MUST 透传」的实测结论取代（当前只有「下游异常 / 无应答」两支收敛成 8999 + 远端文案）；②状态变更型操作补审计 —— `requestUpdateCardData` 与 `notiUpdateHceData` 都会改票卡数据，旧实现前者完全不落库、后者落一条 `STATUS` 列被静默丢弃的记录，这里统一落到 `F2F_RESULT_REPORT`、`ORDER_NO` 位放 `cardId`（本链路没有订单号）。`F2fHceService`（类注释）— `service/F2fHceService.java`
 - **HCE 审计的 `ORDER_NO` 位放 `cardId`**，而 `UK_F2F_REPORT_IDEM` 是 (REPORT_TYPE, ORDER_NO)，因此同一张卡的重复通知会被挡住。`F2fHceService.saveReport` — `service/F2fHceService.java`
 - **BOM 域设备心跳与旧实现的差别是「现在真的落库了」**：旧实现在 controller 里直接 return success、从不记录心跳。`BomOrderController.notiDeviceHeard` — `controller/ci/bom/BomOrderController.java`；补上的缺口说明见 `F2fDeviceHeartbeatService` — `service/F2fDeviceHeartbeatService.java`
-- **IF8A-06 改成 BOM 自己轮询、服务端不再阻塞**：旧实现的 `requestPayment` 在服务端 `Thread.sleep` 轮询本方法最长 180 秒（AGENTS.md §5.2）。`BomOrderController.requestGetPayResult` — `controller/ci/bom/BomOrderController.java`
+- **IF8A-06 改成 BOM 自己轮询、服务端不再阻塞**：旧实现的 `requestPayment` 在服务端 `Thread.sleep` 轮询本方法最长 180 秒（docs/architecture/runtime-observability-traps.md §3「NEVER 在请求线程上做长时间阻塞的 DB / IO」）。`BomOrderController.requestGetPayResult` — `controller/ci/bom/BomOrderController.java`
 - **付款码支付三处与旧实现的有意差异**：①不再轮询（旧 `BomOrderServiceImpl.getBomPayResult` 在请求线程上 `Thread.sleep` 轮询到 `bom.payTimeOut`，违反「NEVER 在请求线程上做长时间阻塞」；本实现只发一次支付、必要时补一次查询就返回，剩下由设备自己调 `requestPayResult` 收口）；②**对端没答上来时回 `ORDERED` 而不是失败**（付款码已经扫过、钱可能已经扣了，回 FAILED 会让设备当场提示失败并可能重复收款）；③订单从统一的 `F2F_ORDER` 查（旧实现这条 URL 挂在 `/itptvm` 下却去查 `BOM_NO_CASH_ORDER`，TVM 自己下的单在那张表里根本不存在 —— 即 TVM 付款码支付一直查不到订单，新表合一后这个缺陷自然消失）。错误码族是 8999 而不是 2999、**NEVER 统一**；整个类不带 `@Transactional`。`F2fScanPayService`（类注释）— `service/F2fScanPayService.java`
 - **IF8A-06 与 TVM 的 `requestPayResult` 是同一件事、只有响应壳不同**（TVM 回 `paymentResult/paymentResultDesc/paymentChannelCode`，BOM 回 `paymentResult/paymentResultDesc/msg`），业务判定完全共用 `resolve`，因此不存在两套状态映射。**问不到时回 `ORDERED` 让 BOM 继续轮询，NEVER 回 FAILED。** `F2fScanPayService.requestGetPayResult` — `service/F2fScanPayService.java` / 行内 
 - **同步就收到钱时「先落成功的支付流水、再推订单 PAID」，顺序 MUST 保持**；被拒与「返回支付失败」对设备是同一句话、差别只在日志。`F2fScanPayService`（行内注释）— `service/F2fScanPayService.java`
@@ -324,7 +324,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 #### 2.3 陷阱
 
 - **设备侧 `paymentCode` / `paymentVendor` 的命名与实际语义是反的，落库与外发都 MUST 按语义放、NEVER 按名字放。** 设备上送的 `paymentCode` 其实是**支付渠道码**（实测 `03`），`paymentVendor` 其实是**用户付款码**（实测 18 位数字）。旧实现在 `BomOrderServiceImpl` → `PayCenterCommon` 完成这次交叉：设备 `paymentCode` → 网关 `paymentVendor`，设备 `paymentVendor` → 网关 `authCode`。2026-09-10 BOM 售票重放实测：本方法原先照名字直接对应，把 18 位付款码写进 `PAYMENT_VENDOR VARCHAR2(8)`，当场 `ORA-12899`、响应退化成 UUID retCode；即便列宽够，外发报文也会把付款码当渠道码、把 `03` 当付款码，支付中心必然拒付。`F2fScanPayService`（字段交叉说明）— `service/F2fScanPayService.java`
-- **`markSuccess` 返回 0 或撞唯一键都属正常**（回调先到、或并发第二次扣款尝试），一律幂等吞掉，**NEVER 让这里的异常打断订单状态推进** —— 钱确实收到了。撞键判定走 `F2fDuplicateKey.isConflict(Throwable)` 的 cause 链，**NEVER 退回 `catch (DuplicateKeyException)`**：本模块一旦打开 tracing，观测切面会把异常包一层、按类型 catch 当场失效（AGENTS.md §5.2）。`F2fScanPayService.markPaymentSuccess` — `service/F2fScanPayService.java`
+- **`markSuccess` 返回 0 或撞唯一键都属正常**（回调先到、或并发第二次扣款尝试），一律幂等吞掉，**NEVER 让这里的异常打断订单状态推进** —— 钱确实收到了。撞键判定走 `F2fDuplicateKey.isConflict(Throwable)` 的 cause 链，**NEVER 退回 `catch (DuplicateKeyException)`**：本模块一旦打开 tracing，观测切面会把异常包一层、按类型 catch 当场失效（docs/architecture/runtime-observability-traps.md §1「切面把真实异常包一层」）。`F2fScanPayService.markPaymentSuccess` — `service/F2fScanPayService.java`
 - **票状态 CAS 返 0 行是重复退款的唯一信号，NEVER 降级成 info**：退款已提交给支付中心（`refundService` 在前面），说明这张票在本次校验之后被别人推走了，最常见是 BOM 对同一张票并发发退款。订单主状态不再参与退款（ADR-D88），票状态是现在仅存的那道 CAS。`F2fBomOrderService`（行内注释）— `service/F2fBomOrderService.java`
 - **`warnIfConflict` 只告警、不改应答、不拒绝请求**，改一处 MUST 看齐其余三处（TVM / APP / 充值）。`F2fBomOrderService.warnIfConflict` — `service/F2fBomOrderService.java`
 
@@ -377,7 +377,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **`AppPartialRefundRequest` 同样只在业务模块内、不在 `model` 模块** —— 它是运营后台与本服务之间的内部契约、不经 `parseBizData`、不属于对外契约。与旧类的差异：旧类只有 `refundAmount`，本类补 `refundReason` 与 `operatorId`（退款单要落 `F2F_REFUND.OPERATOR_ID` 才能查「谁点的」，旧实现没有这个列可落）。`api/page/AppPartialRefundRequest.java`
 - **为什么不沿用 collect-pay 的 `FacePayOrderPageView`**：那个类是旧表的单行结构投影（旧单表把支付中心单号、退款单号都塞在一行里），拆成 `F2F_ORDER + F2F_PAYMENT + F2F_REFUND` 之后字段来源和口径都变了，硬套旧 View 只会让两套命名在前端打架。`api/page/FacePayOrderPageVO.java`
 - **`/page/app/orders/{orderNo}/refund` 与 `/page/face-pay/orders/{orderNo}/refund` 的关系是「按指定金额」与「退剩余全额」两种入口，共用同一套闸门与同一张 `F2F_REFUND`**、不是两条独立链路，差异只在金额来源。存在原因：APP 取票订单已随 2026-09-15 切流落到 `F2F_ORDER`（`BIZ_TYPE='03'`），旧端点操作的 `TBL_TVM_APP_ORDER` / `TBL_APP_ORDER_REFUND` 不再有新数据，运营后台照旧调这个 URL 时旧模块只会答「未找到订单」—— 不是没退成，是根本查不到那张单。`AppOrderPageController`（类注释）— `controller/page/AppOrderPageController.java`
-- **请求体可空校验放 controller、金额有效性校验放 service**：前者是「报文有没有」，后者是「业务允不允许」；**NEVER 把可退余额判断挪到 controller** —— 那需要读订单与已退汇总、属业务逻辑（AGENTS.md §3.3）。`AppOrderPageController.refund` — `controller/page/AppOrderPageController.java`
+- **请求体可空校验放 controller、金额有效性校验放 service**：前者是「报文有没有」，后者是「业务允不允许」；**NEVER 把可退余额判断挪到 controller** —— 那需要读订单与已退汇总、属业务逻辑（AGENTS.md §3.1「controller 仅参数校验与路由」）。`AppOrderPageController.refund` — `controller/page/AppOrderPageController.java`
 
 #### 3.3 陷阱
 
@@ -479,7 +479,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **通知地址只配完整 URL，NEVER 用 base + path 拼接**：2026-08-26 事故 —— `pay-sign-server` 5 条路径漏了 `/v1`，网关返回 `code=600 操作失败`（不是 404），免密扣款自上线起零条成功却没人发现。**默认值一律为空**（`${ENV:}` 形态由 K8s 注入）；旧 `collect-pay-server/application.yml` 三条通知地址硬编码了 `dtcustomer.bestonepay.com/testngbackV2/...`，**`testngbackV2` 是测试环境残留**、属未修复 P0，**本模块 NEVER 继承这些值**。URL 未配置时 `F2fNotifyJob` 把该任务记为失败并退避重试、**不会静默丢弃**（通知任务已落库，配好地址后自动补发）。`AppNotifyProperties`（类注释）— `channel/app/AppNotifyProperties.java`
 - **`refundNoticeUrl` 与 `refundResultUrl` 是两个不同的值，NEVER 合并**：前者只出现在退款受理响应体里、我方从不请求它；后者是 `F2fNotifyJob` 真正 POST 的出向地址。旧实现两个键各配各的，合并会改变响应内容。`AppNotifyProperties.refundNoticeUrl` — `channel/app/AppNotifyProperties.java`
 - **信封那六个字段 NEVER 删**（2026-09-15 实测 ADR-D89）；取值逐字对齐旧 `collect-pay-server/application.yml` 的 `app.*`（`providerId=06` / `charset=UTF-8` / `format=json` / `signType=00`），`sign` 与 `deviceId` 旧实现都是空串。但「信封就能被受理」只对出票 / 退款那几条成立 —— `receivePaymentResult` 七组全返 `7004`，**NEVER 为了那条通知去动这六个字段的取值**，成因在对端。`AppNotifyProperties`（`providerId` 字段注释）— `channel/app/AppNotifyProperties.java`
-- **出向通知当前不加签**（`signType=00` + 空 `sign`），与 pay-sign / ticket / collect-pay 三条链路现状一致。与 AGENTS.md §5.2 的鉴权要求冲突、属测试期敞口，上线前 MUST 补；**NEVER 在本模块自造签名逻辑**，要加 MUST 对齐现有验签实现。`AppNotifyProperties.signType` — `channel/app/AppNotifyProperties.java`
+- **出向通知当前不加签**（`signType=00` + 空 `sign`），与 pay-sign / ticket / collect-pay 三条链路现状一致。与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」的鉴权要求冲突、属测试期敞口，上线前 MUST 补；**NEVER 在本模块自造签名逻辑**，要加 MUST 对齐现有验签实现。`AppNotifyProperties.signType` — `channel/app/AppNotifyProperties.java`
 - **`F2F_NOTIFY_TASK` 幂等靠函数唯一索引 `UK_F2F_NOTIFY_IDEM (NOTIFY_TYPE, ORDER_NO, NVL(REFUND_NO,'#NONE#'))`**：同类型同订单同退款单只投递一次；落库 MUST 直接 INSERT、**NEVER 先查后插**，重复由 `DuplicateKeyException` 兜底。退避策略由应用算好 `nextRetryTms` 后写入、**SQL 内不做任何时间计算**；扫表只按 `IDX_F2F_NOTIFY_SCAN (NOTIFY_STATUS, NEXT_RETRY_TMS)` 取。`notifyStatus` 取值 `PENDING / SUCCESS / FAILED / GIVEUP`，其中 `GIVEUP` 表示超过最大重试次数放弃、需人工介入、不再被扫表捞出。`F2fNotifyTask`（类注释）— `entity/F2fNotifyTask.java`
 - **通知目标当前仅 APP**：旧实现三张表均为 `tbl_notice_app_*`、无向 BOM / TVM 的出向通知；**新增目标 MUST 先确认对端有接收接口，NEVER 先放开 CHECK 再找场景**。`entity/F2fNotifyTask.java`
 - **`selectByIdemKey` 的 SQL 内 `REFUND_NO` 用 `NVL(..., '#NONE#')` 与索引表达式保持一致**：`refundNo` 传 null 即表示「整单类通知」，**NEVER 改写成 `REFUND_NO = #{refundNo}`** —— 那样 null 永远比不中、且用不上函数索引。主要用途是 INSERT 撞唯一索引后回查已有任务做幂等返回，**NEVER 用它做「先查后插」的前置判断**。`mapper/F2fNotifyTaskMapper.java`；XML 侧 — `F2fNotifyTaskMapper.xml`
@@ -496,7 +496,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **`/pay/noticeAppTask/**` 四条端点无鉴权**（与 collect-pay 的 `NoticeAppTask`、本模块 `/page/face-pay/orders/**` 一致，靠网络隔离）。这四条**不改业务数据、只重发通知**，最坏后果是 APP 侧收到重复通知（**APP MUST 按 orderNo 幂等**，同 `F2fNotifyJob` 的多副本约束），因此风险低于 `/internal/app-order/**` 那类建单端点；**上线前 MUST 与其余裸端点一并补鉴权**。`NoticeAppTaskController` — `controller/notice/NoticeAppTaskController.java`
 - **三个投递端点恒返 `0000`**：本端点的语义是「触发一轮投递」，单笔通知投递失败属正常业务分支（已按退避排下次重试），不该让调用方以为触发本身失败、从而立刻重试整轮 —— 那只会把同一批任务重复捞出。真实结果看 `retMsg` 的计数与服务端日志。`NoticeAppTaskController`（公共体）— `controller/notice/NoticeAppTaskController.java`
 - **连通性探针端点不碰任何表、恒返 `0000`**：运维用它确认「这台服务的通知重投入口通不通」，与「有没有待投递任务」解耦 —— 投递端点返 0 条时分不清是没任务还是没连上。`NoticeAppTaskController` — `controller/notice/NoticeAppTaskController.java`
-- **`F2fNotifyDeliverer` 的三条约束（与原 `F2fNotifyJob` 一致，NEVER 放宽）**：①不带 `@Transactional`（每笔都要发 HTTP，AGENTS.md §5.2）；②逐笔 try/catch（一笔异常不能让整批停摆）；③**URL 未配置也要记失败，NEVER 静默跳过** —— 否则配置漏了没人知道。扫表本身失败（DB 不可用等）时返回空计数并记 ERROR、不抛出。未知类型的 `urlOf` 返回 null 时 `AppNotifyClient.post` 会记「通知地址未配置」并判失败、走退避重试，**未知类型不静默丢弃**，最终 GIVEUP 时人工能从 `LAST_ERROR` 看出原因。`F2fNotifyDeliverer` — `service/F2fNotifyDeliverer.java`
+- **`F2fNotifyDeliverer` 的三条约束（与原 `F2fNotifyJob` 一致，NEVER 放宽）**：①不带 `@Transactional`（每笔都要发 HTTP，docs/architecture/transaction-and-consistency.md §6「`@Transactional` 方法内 NEVER 发起任何 RPC / 网络调用」）；②逐笔 try/catch（一笔异常不能让整批停摆）；③**URL 未配置也要记失败，NEVER 静默跳过** —— 否则配置漏了没人知道。扫表本身失败（DB 不可用等）时返回空计数并记 ERROR、不抛出。未知类型的 `urlOf` 返回 null 时 `AppNotifyClient.post` 会记「通知地址未配置」并判失败、走退避重试，**未知类型不静默丢弃**，最终 GIVEUP 时人工能从 `LAST_ERROR` 看出原因。`F2fNotifyDeliverer` — `service/F2fNotifyDeliverer.java`
 - **`F2fReportRecovery` 只重放 `TAKE_TICKET_OK` / `TAKE_TICKET_FAIL` 两类**：`BOM_BIZ_RESULT` / `TOPUP_OK` 等类型的后续动作在各自链路里内联完成，**NEVER 往这个列表里加它们** —— 那等于让本任务去重放它没有实现的语义。`F2fReportRecovery.REPLAY_TYPES` — `service/F2fReportRecovery.java`
 - **`F2fReportRecovery` 三条不变量**（改本类前逐条对）：①**先重放、成功了才 `markProcessed`** —— 顺序颠倒会把「标记成功但动作没做」变成新的静默丢失，而这正是本任务要修的那类缺陷；②**`markProcessed` 返回 0 就当别人已处理，NEVER 记 ERROR**（WHERE 带 `PROCESSED='0'`，0 行是并发保护生效、不是故障）；③单条异常只计数、不中断整批，异常行保持 `'0'`、下轮自然重来。`service/F2fReportRecovery.java`
 - **`resumeFromReport` 三步都幂等，所以重放安全**：状态推进是带 `PAID` 白名单的 CAS（重复即 0 行）；差额退款撞 `UK_F2F_REFUND_IDEM`（出票故障退款是整单粒度 + 固定 source，同一单重放不会二次出款）；通知入队撞 `UK_F2F_NOTIFY_IDEM`。**NEVER 在这里补「先查有没有做过」的判断** —— 那等于把幂等从唯一索引挪到应用层。返回 false 表示订单查不到或类型不属本任务，**留着 `'0'` 等人工**。`F2fTicketIssueService.resumeFromReport` — `service/F2fTicketIssueService.java`
@@ -525,7 +525,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **退避策略在应用侧算**：按已重试次数指数退避 30s → 60s → 120s → 240s → 480s、上限 10 分钟；是否 `GIVEUP` 由 mapper 的同一条 UPDATE 用 `CASE WHEN` 判定，避免「加次数」与「置 GIVEUP」拆成两条 SQL 后被重复捞出。`F2fNotifyService.markFailure` — `service/F2fNotifyService.java`
 - **`enqueue` 只 INSERT、不做前置判重**；`NEXT_RETRY_TMS` 留空即「立即可发」，下一轮扫表（默认 30 秒内）就会取到。**这里不做同步推送** —— 接收链路 MUST 毫秒级返回设备。`service/F2fNotifyService.java`
 - **`F2fPayCenterFlow` 是「与支付中心交互并收口本地状态」这条骨架的唯一实现**（模板方法 + 结果策略）。重构前，同一条骨架在 4 个 service 里各抄一遍预下单、3 个 service 里各抄一遍查询收口，判定序列逐行相同、**差别只在「用哪个响应壳回话」**。**本类只管状态推进、绝不组装响应**：四个渠道的 retCode 族互不相同（TVM `0000/2002/2999`、BOM `0000/8003/8006/8999`、APP `0000/9999`），统一它们是明确禁止的；因此本类返回 `Submitted` / `Settled` 这类**判定结果**，由调用方 `switch` 模式匹配后各自组壳 —— 少写一个分支直接编译失败。`service/F2fPayCenterFlow.java`
-- **`F2fPayCenterFlow` 不是「统一 CAS 入口」**（`docs/domain/state-machines.md` §二③ 明令禁止）：它只承担「支付中心答复所蕴含的那几步推进」（受理→`PAYING`、收款→`PAID`、被拒→`PAY_FAILED`、未支付→`EXPIRED`）；退款域（`REFUNDING` / `REFUNDED`）与履约域（`FULFILL_FAILED`）的 CAS **仍留在各自 service，NEVER 挪进来** —— 那些转移的副作用与冲突口径按链路不同，合并即失去分辨力。本类**不带 `@Transactional` 且 MUST 保持如此**。`service/F2fPayCenterFlow.java`
+- **`F2fPayCenterFlow` 不是「统一 CAS 入口」**（docs/domain/state-machines.md §二「NEVER 扩成通用状态机引擎」③ 明令禁止）：它只承担「支付中心答复所蕴含的那几步推进」（受理→`PAYING`、收款→`PAID`、被拒→`PAY_FAILED`、未支付→`EXPIRED`）；退款域（`REFUNDING` / `REFUNDED`）与履约域（`FULFILL_FAILED`）的 CAS **仍留在各自 service，NEVER 挪进来** —— 那些转移的副作用与冲突口径按链路不同，合并即失去分辨力。本类**不带 `@Transactional` 且 MUST 保持如此**。`service/F2fPayCenterFlow.java`
 - **判定顺序不可调换**：传输失败 → 业务码非 0 → （可选）同步支付状态 → （可选）`data` 为空 → 受理成功；**调用方 MUST 自己先 INSERT 一行 `INIT` 的支付流水**（各渠道列不同），本方法只负责把它推向终态。`F2fPayCenterFlow.submit` — `service/F2fPayCenterFlow.java`
 - **`rejectTransition` 的 `null` 是有意的取值**：APP 侧被拒后订单要留在 `CREATED`、乘客可以换个支付通道再来一次；TVM / BOM 侧一次被拒即置 `PAY_FAILED`。**重构前这个差异只体现为「某个类里少了两行」**，现在必须显式写出来。`service/F2fPayCenterFlow.java`
 - **`Unknown` 结局：支付流水置 `UNKNOWN`、订单一律不动**，留给收口任务；两种成因合并在这里，调用方要区分就看 `result.isTransportFailed()`（①对端没答上来；②答了 `code=0` 但 `data` 是空的）。`SyncPaid` 分支**刻意什么都没写** —— 支付流水的成功行各渠道列不同，由调用方写完再调 `markPaidAndReport`。`service/F2fPayCenterFlow.java`
@@ -538,9 +538,9 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **两处 IF8B-05 入队点 NEVER 替换成 `markPaidAndReport`**：该分支与 `markPaidAndReport` 的语义/日志都不同，只能在其后追加入队；`tradeNo` 取支付中心订单号（与上一行 `markPaymentSuccess` / `markSuccess` 落 `PAY_CENTER_ORDER_NO` 用的是同一个值），时刻复用同一个 `now`。`F2fTvmOrderService`（行内注释）— `service/F2fTvmOrderService.java`
 - **`F2fReportRecovery` 是 `F2F_RESULT_REPORT.PROCESSED` 的唯一消费方** —— 没有它，那一列恒为 `'0'`、而「落上报之后失败」的单子永远不会有人补。接收链路是「落票 → **落上报（幂等锚点）** → 推进订单 → 差额退款 → 入队通知」，上报行一旦提交、设备重传就会撞 `UK_F2F_REPORT_IDEM` 并**直接回 `0000`**，因此后三步中任何一步失败都不会再被重做：订单永久卡 `PAID`、出票故障的差额退款永不发起、APP 永不收到通知，且线上只留一行日志。表设计早就把 `PROCESSED` 留成了出口（列注释写着「后续动作由扫表驱动」），但 **1.0.45 之前 `selectPendingReports` / `markProcessed` 零调用方**。`service/F2fReportRecovery.java`
 - **`F2fOrderExpireJob` 是方向 1 防重下单的兜底**：重复下单产生的多余订单靠它从 `CREATED` / `PAYING` 收敛掉，没有这个任务，设计文档 §十六 的风险边界不成立。`countStaleExpiredOrders` 告警方法自身的异常吞掉 —— 告警失败 **NEVER 影响收口主流程**。`scheduler/F2fOrderExpireJob.java`
-- **`F2fRefundReconcileJob` 为什么必须主动查而不能只等回调**：与解约链路同理（AGENTS.md §8 末条）—— 退款回调只是快速路径，回调丢失、回调地址配错、我方短暂不可用都会让状态永久悬空；唯一可靠的收口方式是主动查支付中心的退款查询接口。没有它，`F2fRefundService` 的「对端未答留 INIT」就是个死状态。`scheduler/F2fRefundReconcileJob.java`
+- **`F2fRefundReconcileJob` 为什么必须主动查而不能只等回调**：与解约链路同理（docs/ops/构建与部署规范.md §8「回调只作为快速路径」末条）—— 退款回调只是快速路径，回调丢失、回调地址配错、我方短暂不可用都会让状态永久悬空；唯一可靠的收口方式是主动查支付中心的退款查询接口。没有它，`F2fRefundService` 的「对端未答留 INIT」就是个死状态。`scheduler/F2fRefundReconcileJob.java`
 - **`F2fDeviceOfflineJob` 是纯本地 UPDATE、没有网络调用，也不需要逐条处理**：`markOfflineByDeadline` 一条 SQL 批量搞定，且 WHERE 带 `ONLINE_FLAG='1'`，多副本重复执行只是第二次命中 0 行。心跳只负责「我还在」，判定「谁不在了」必须靠扫表 —— 设备掉线时不会发一条「我下线了」的报文。`scheduler/F2fDeviceOfflineJob.java`
-- **心跳为什么必须用 `MERGE INTO`**：主键是 `(CHANNEL, DEVICE_ID)`、一台设备一行；心跳是高频并发写（每设备约 1 分钟一次、全线设备数百台），「先 SELECT 判断存在再决定 insert / update」在同一设备重连或多线程重投时会撞主键。单条 MERGE 由数据库保证原子性，这也是本项目的既有约定（AGENTS.md §2.2.1）。不带 `@Transactional`：单条 SQL、自动提交即可。`F2fDeviceHeartbeatService` — `service/F2fDeviceHeartbeatService.java`
+- **心跳为什么必须用 `MERGE INTO`**：主键是 `(CHANNEL, DEVICE_ID)`、一台设备一行；心跳是高频并发写（每设备约 1 分钟一次、全线设备数百台），「先 SELECT 判断存在再决定 insert / update」在同一设备重连或多线程重投时会撞主键。单条 MERGE 由数据库保证原子性，这也是本项目的既有约定（docs/business/README.md 全局事实）。不带 `@Transactional`：单条 SQL、自动提交即可。`F2fDeviceHeartbeatService` — `service/F2fDeviceHeartbeatService.java`
 - **`AppNotifyResult` 只有两种状态、没有「不确定」**：通知是幂等可重投的（APP 侧按 orderNo 去重），因此拿不准时按失败重试比按成功丢弃安全。**这与支付链路相反** —— 支付的「对端未答」绝不能当失败，因为钱可能已经扣了。工厂方法叫 `ok` 而不是 `delivered`：record 会为组件 `delivered` 自动生成同名访问器，静态方法重名会被编译器判为「记录中的存取方法无效」。`channel/app/AppNotifyResult.java`
 - **`AppNotifyChannelConfig` 只负责把 `AppNotifyProperties` 注册成 Bean**：`AppNotifyClient` 自带 `@Component`，因为它没有「必须能脱离 Spring 单测」的要求（不像 `PayCenterSigner` 要逐字比对待签串）。`channel/app/AppNotifyChannelConfig.java`
 - **`payResultUrl` 看着像死配置、其实不是：NEVER 删。** `F2fNotifyJob.urlOf()` 的 `case TYPE_PAY_RESULT` 在读它（`F2fNotifyJob.java`），删字段直接编译失败。2026-09-15 曾据一次**大小写敏感**的 grep（只搜 `payResultUrl`、漏掉 `getPayResultUrl`）误判成零读取方而删除、构建即报「找不到符号」。**判断某属性有无读取方 MUST 用不区分大小写的 grep 或直接搜 `get<Name>`。** 生产者已于 2026-09-15（1.0.36 / ADR-D89）补齐（`F2fPayCenterFlow.enqueuePayResultNotify`，覆盖三个支付成功收口点），集群 env `NOTIFY_APP_PAY_RESULT_URL` 也已配上真实地址。`channel/app/AppNotifyProperties.java`
@@ -561,7 +561,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 
 #### 7.1 契约与判据
 
-- **全库 SQL 正文 NEVER 出现 `- -` 行注释或 `/* */` 块注释**：Druid WallFilter 的 `commentAllow=false` 会把带注释的语句判定为注入并**静默失效**（只在 Oracle 生产暴露，达梦环境关了 WallFilter 测不出来），说明一律写在 XML 注释里，见 AGENTS.md §5.1。同一段禁令逐字出现在 8 个 mapper XML 的文件头 — `F2fOrderMapper.xml`、`F2fPaymentMapper.xml`、`F2fTicketMapper.xml`、`F2fRefundMapper.xml`、`F2fDeviceStatusMapper.xml`、`F2fSequenceMapper.xml`、`F2fReconExportMapper.xml`。
+- **全库 SQL 正文 NEVER 出现 `- -` 行注释或 `/* */` 块注释**：Druid WallFilter 的 `commentAllow=false` 会把带注释的语句判定为注入并**静默失效**（只在 Oracle 生产暴露，达梦环境关了 WallFilter 测不出来），说明一律写在 XML 注释里，见 docs/architecture/mybatis-oracle-runtime-traps.md §1「NEVER 在 SQL 正文中写注释」。同一段禁令逐字出现在 8 个 mapper XML 的文件头 — `F2fOrderMapper.xml`、`F2fPaymentMapper.xml`、`F2fTicketMapper.xml`、`F2fRefundMapper.xml`、`F2fDeviceStatusMapper.xml`、`F2fSequenceMapper.xml`、`F2fReconExportMapper.xml`。
 - **XML 注释内也 NEVER 出现两个连续的半角减号**，否则 SAX 直接报「注释中不允许出现字符串」、整个服务启动即挂。`F2fSequenceMapper.xml`；同一条约束在对账 mapper 里写成「本文件的 XML 注释内也不出现连续两个半角减号」— `F2fReconExportMapper.xml`
 - **`F2F_ORDER` 三条本表约束（改 `F2fOrderMapper` 前 MUST 先读）**：① **下单只 INSERT，不先查后插** —— 并发下「先 SELECT 判存在再 INSERT」无效，且旧实现正是这个形态；重复下单靠 `UK_F2F_ORDER_NO` 抛 `DuplicateKeyException`，由 application 层捕获后查已有订单幂等返回。② **状态推进走白名单** —— `updateStatus` 的 `fromStatuses` 必填，**NEVER 写成「非终态即可更新」**，中间态往往尚未通过前置校验。③ **取票激活用条件更新抢锁** —— `activateForDevice` 的 WHERE 带 `ACTIVATE_DEVICE_ID IS NULL`，靠返回行数判断是否抢到，返回 0 表示已被其他设备激活、对外返回 `2008`。`F2fOrderMapper`（类注释）— `mapper/F2fOrderMapper.java`；XML 侧「返回 0 → 2008（规格 §7.5 异常流程）、前置状态要求 `PAID`（未支付不允许激活）」— `F2fOrderMapper.xml`
 - **`activateForDevice` MUST 一并写入取票二维码三要素**：IF2A-08 `requestTakeTicketAuth` 正是按 `ACTIVATE_DEVICE_ID + QRCODE_GEN_DATE + RANDOM_FACT` 回查这一行，**这三列不在激活时落库，取票鉴权就永远查不到订单**。`F2fOrderMapper.activateForDevice` — `mapper/F2fOrderMapper.java`；`F2fOrderMapper.xml`
@@ -590,9 +590,9 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **`selectPendingReports` 的静默期 `staleBefore` 与 `reportTypes` 都不是可选的**：接收链路是「落票 → 落上报 → 推进订单 → 差额退款 → 入队通知」，落上报之后那几步还在同一个请求里跑，不排除刚落库的行会让补偿任务与首报**并发**做同一件事（三步虽都幂等，但会白发一遍支付中心退款查询）；本表还承载 `BOM_BIZ_RESULT` / `TOPUP_OK` 等类型，它们的后续动作在各自链路里内联完成、不该被本任务重放，不过滤会让那些行被反复扫到又什么都做不了。`mapper/F2fResultReportMapper.java`
 - **`updateOptResult` 用幂等键而不是自增 id 定位**：`insert` 不回填主键，而 `(REPORT_TYPE, ORDER_NO)` 本身就是 `UK_F2F_REPORT_IDEM`、唯一。`mapper/F2fResultReportMapper.java`
 - **`selectByOrderNo` 的 `orderNo` 在 `ERROR_CODE=2101` 时是取票二维码的 `randomFact`。** `mapper/F2fResultReportMapper.java`
-- **`F2F_DEVICE_STATUS` 三条约束**：① **心跳更新只能用单条 `MERGE INTO`，不是 insert / update 两步** —— 主键是复合主键 `(CHANNEL, DEVICE_ID)`、一台设备只有一行，先 SELECT 判断存在再决定 insert 还是 update，在每 1 分钟并发心跳下会撞主键（同一设备重连、多线程重投都会命中同一行）；本项目的约定是「唯一索引 / 主键 + MERGE INTO」而不是应用层判断，见 AGENTS.md §2.2.1。② **只存最新状态不存历史**，MERGE 命中已有行时覆盖车站与心跳时间、`HEARTBEAT_COUNT` 自增，**NEVER 追加新行**。③ 离线判定不在心跳链路里做，由 `selectHeartbeatTimeout` + `markOfflineByDeadline` 的扫表任务完成、命中 `IDX_F2F_DEVICE_HB`。`mapper/F2fDeviceStatusMapper.java`；`F2fDeviceStatusMapper.xml`
+- **`F2F_DEVICE_STATUS` 三条约束**：① **心跳更新只能用单条 `MERGE INTO`，不是 insert / update 两步** —— 主键是复合主键 `(CHANNEL, DEVICE_ID)`、一台设备只有一行，先 SELECT 判断存在再决定 insert 还是 update，在每 1 分钟并发心跳下会撞主键（同一设备重连、多线程重投都会命中同一行）；本项目的约定是「唯一索引 / 主键 + MERGE INTO」而不是应用层判断，见 docs/business/README.md 全局事实。② **只存最新状态不存历史**，MERGE 命中已有行时覆盖车站与心跳时间、`HEARTBEAT_COUNT` 自增，**NEVER 追加新行**。③ 离线判定不在心跳链路里做，由 `selectHeartbeatTimeout` + `markOfflineByDeadline` 的扫表任务完成、命中 `IDX_F2F_DEVICE_HB`。`mapper/F2fDeviceStatusMapper.java`；`F2fDeviceStatusMapper.xml`
 - **心跳 MERGE 的三个细节**：`STATION_CODE` 用 `NVL` 保护（本次心跳未带车站时保留已有值、不被 NULL 覆盖）；`ONLINE_FLAG` 置 `'1'`（超时被置离线的设备重新上报即自动恢复在线）；`ON` 子句里的 `CHANNEL` / `DEVICE_ID` 是主键、**Oracle 不允许在 UPDATE SET 中出现**，故未列入。目标表不起别名，因此 UPDATE SET 右侧可直接写 `F2F_DEVICE_STATUS.HEARTBEAT_COUNT + 1`。`F2fDeviceStatusMapper.xml`；`mapper/F2fDeviceStatusMapper.java`
-- **`F2F_ORDER_NO_SEQ` 建为 `MAXVALUE 9999 + CYCLE`，返回值恒在 1~9999，订单号序列段定长 4 位**；SQL 写在 XML 里、不用 MyBatis 注解（AGENTS.md §5.1：统一走自研 mybatis-adaptor，SQL 不进 Java 注解），旧实现 `OrderSeqMapper` 用 `@Select` 把 SQL 写在注解里、本模块不沿用。`mapper/F2fSequenceMapper.java`；`F2fSequenceMapper.xml`
+- **`F2F_ORDER_NO_SEQ` 建为 `MAXVALUE 9999 + CYCLE`，返回值恒在 1~9999，订单号序列段定长 4 位**；SQL 写在 XML 里、不用 MyBatis 注解（AGENTS.md §4.1「NEVER 直接写原生 JDBC 或标准 MyBatis 注解」：统一走自研 mybatis-adaptor，SQL 不进 Java 注解），旧实现 `OrderSeqMapper` 用 `@Select` 把 SQL 写在注解里、本模块不沿用。`mapper/F2fSequenceMapper.java`；`F2fSequenceMapper.xml`
 - **`GateTxnPayMapper` 现在只剩只读查询，NEVER 在本接口 / 本文件里加回任何 `GATE_TXN_PAY` 的写方法 / 写语句**：`GATE_TXN_PAY` 的 owner 是 gate-txn-pay-server。剩下的 `selectByOrderNos` 仍是**跨域读**（共享 Oracle schema），属有意保留的现状；**若未来拆库，它也 MUST 改 RPC**。该查询不带 `TXN_DATE` 因此走不到分区裁剪、只命中 `UK_GATE_TXN_PAY_ORDER_NO` 的前缀列，**调用方 MUST 限制列表长度（Oracle IN 列表上限 1000）**。`mapper/GateTxnPayMapper.java`；`GateTxnPayMapper.xml`
 - **补款单状态推进用白名单而非黑名单**：`SUCCESS` / `FAIL` / `CLOSED` 已是终态，**重复回调 NEVER 改写**；`updatePreOrderResult` 的 WHERE 只认 `INIT`，同一笔重复调预下单时第二次返回 0 行，**上层收到 0 行 MUST 改为回放库里已有的 `PAYMENT_INFO`、NEVER 再向支付中心预下单一次**。`mapper/SupplementOrderMapper.java`
 - **强制销账的三个渠道凭据参数 MUST 一起传**：分两步写会留下「状态已 SUCCESS 但商户单号为空」的行；白名单只放 `CLOSED` / `FAIL` 两个状态 —— 作废 / 关单 / 判失败与乘客付款之间存在毫秒级竞态，**钱既然收了就 MUST 用来清欠费**。`mapper/SupplementOrderMapper.java`
@@ -624,7 +624,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **线路段（`ITP.PAY` 第 2 段）本模块一律不出，2026-09-16 起由 recon-server 在聚合完成、写文件之前按车站码统一补齐**（见该模块的 `ReconStationMapper` 与 `recon.line-backfill.*` 配置），本文件因此删掉了原先五条 PAY 汇总里各自一份的 `LEFT JOIN STATION_INFO S ON S.STATION_CODE = NVL(O.STATION_CODE, O.ENTRY_STATION_CODE)` 与 SELECT / GROUP BY / ORDER BY 里的 `S.LINE_CODE`。收口判据：`STATION_INFO` 属车站 / 参数域、owner 不是 face-pay，原先四个源各写一遍这个 join，等于「线路怎么取」有四份副本、四份各自的 join 列名、四次维表结构变更的暴露面；而线路是车站的函数（一个车站码只对应一条线路），完全可以在聚合完成后由消费端一次补齐。实际动到 gate-txn-pay / collect-pay / face-pay 三个源 + recon-server 四个模块（daily-ticket 本来就没有这个 join；ticket-server 那处 join 在明细 EXP 里、明细走字节流式拼接不解析行内容、recon-server 补不了，而且 ticket 已不在期望清单，故不动）。`F2fReconExportMapper.xml`
 - **`ITP.PAY` 充值组不按 `CHANNEL` 拆**：甲方段名本身就是「BOM/TVM 充值」合并一段；充值单没有入站车站，车站段实际取到的是 `STATION_CODE`（设备所在车站）。`F2fReconExportMapper.xml`
 - **APP 购票组的 `DEVICE_ID` 通常为空，仍照常放进分组键、为空时该段留空**（APP 单没有受理设备）。`mapper/F2fReconExportMapper.java`；`F2fReconExportMapper.xml`
-- **`selectPendingReports` 的三个谓词都是必填、没有可选分支**，因此不会踩 Druid WallFilter 那条「恒真条件成为唯一谓词」的规则（AGENTS.md §5.1）。`F2fResultReportMapper.xml`
+- **`selectPendingReports` 的三个谓词都是必填、没有可选分支**，因此不会踩 Druid WallFilter 那条「恒真条件成为唯一谓词」的规则（docs/architecture/mybatis-oracle-runtime-traps.md §2「NEVER 写 `where 1 = 1` 打头 + 全可选 `<if>`」）。`F2fResultReportMapper.xml`
 - **`insert` 语句显式传 `CREATE_TMS` / `UPDATE_TMS`（列上有 `DEFAULT SYSTIMESTAMP`）是为了单测可控**；`ID` 由 `GENERATED BY DEFAULT AS IDENTITY` 生成、不在插入列里。四张表同款说明：`F2fOrderMapper.xml`、`F2fPaymentMapper.xml`、`F2fTicketMapper.xml`、`F2fRefundMapper.xml`（`F2F_REFUND` 另有 `RETRY_TIMES` 有 `DEFAULT 0`、为空时传 0 保持 NOT NULL）。
 
 #### 7.3 陷阱
@@ -676,11 +676,11 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 25. `controller/ci/bom/BomOrderController.java` —— BOM 支付只校验 `orderNo` 与 `paymentVendor`、不校验 `paymentCode`；禁止以「补齐校验」为理由加回来。断言点：缺 `paymentCode` 时不返 `8003`，而是走到支付中心后回 `0000 + paymentResult=FAILED`。
 26. `controller/ci/bom/BomOrderController.java` —— `requestUpdateCardData` 不校验 `updateType`、也不校验 `optDate` 的格式（曾按「补齐校验」加过这两条，用户 2026-09-11 裁决「不校验」已移除）；禁止以「旧实现漏校验」为理由加回来。断言点：这两种情况透传给 ticket-server、返回下游码。
 27. `controller/page/FacePayOrderPageController.java` —— `payCenterChannelOrderNo`（渠道订单号）是旧端点就支持的检索维度、也算一种检索范围；禁止再把它从入参里去掉。断言点：controller 存在该 `@RequestParam`，且三个 select 入参一致。
-28. `controller/page/AppOrderPageController.java` —— 旧端点操作的 `TBL_TVM_APP_ORDER` / `TBL_APP_ORDER_REFUND` 不再有新数据（APP 取票订单已随 2026-09-15 切流落到 `F2F_ORDER` 的 `BIZ_TYPE='03'`），因此本模块必须自带同 URL 端点；另**禁止把可退余额判断挪到 controller**（那需要读订单与已退汇总，属业务逻辑，AGENTS.md §3.3）。断言点：URL `POST /page/app/orders/{orderNo}/refund` 存在；controller 内无余额计算。
+28. `controller/page/AppOrderPageController.java` —— 旧端点操作的 `TBL_TVM_APP_ORDER` / `TBL_APP_ORDER_REFUND` 不再有新数据（APP 取票订单已随 2026-09-15 切流落到 `F2F_ORDER` 的 `BIZ_TYPE='03'`），因此本模块必须自带同 URL 端点；另**禁止把可退余额判断挪到 controller**（那需要读订单与已退汇总，属业务逻辑，AGENTS.md §3.1「controller 仅参数校验与路由」）。断言点：URL `POST /page/app/orders/{orderNo}/refund` 存在；controller 内无余额计算。
 29. `channel/app/AppNotifyProperties.java`（ADR-D89）—— `payResultUrl` 的生产者已于 2026-09-15（1.0.36）补齐（`F2fPayCenterFlow.enqueuePayResultNotify`，覆盖三个支付成功收口点，集群 env `NOTIFY_APP_PAY_RESULT_URL` 也已配真实地址）；此前那段「没有任何生产者、env 已删除、分支走不到」已作废、禁止回退，更禁止据此删除该属性（2026-09-15 曾因大小写敏感 grep 漏掉 `getPayResultUrl` 而误删、构建即报「找不到符号」）。断言点：该属性存在且有读取方。
 30. `channel/app/AppNotifyClient.java` —— IF8B-05 `receivePaymentResult` 的 `7004` **成因已定性为报文缺 `userId` 字段（`THIRD_USER_ID` 为空时 Fastjson2 会把该键整个丢掉）**，ADR-D102 的「对端端点自身处理异常」结论**已作废**。禁止把 `7004` 加进成功码把它藏起来。断言点：成功码集合只含 `0000` / `code=0`。
 31. `service/F2fPayCenterFlow.java`（`enqueuePayResultNotify` 方法体）—— IF8B-05 **只入队 `CHANNEL='01'` 的 APP 单**，非 APP 渠道在读到订单后直接 return。断言点：该方法体出现 `F2fChannel.APP.equals(order.getChannel())` 的守卫 return，且位于任何 `notifyService.enqueue` 之前。
-32. `service/F2fTicketIssueService.java` —— 三步（状态推进 CAS / 差额退款撞 `UK_F2F_REFUND_IDEM` / 通知入队撞 `UK_F2F_NOTIFY_IDEM`）都幂等，因此重放安全；禁止在这里补「先查有没有做过」的判断（那等于把幂等从唯一索引挪到应用层，AGENTS.md §5.1 末条）。断言点：该方法无前置存在性 SELECT。
+32. `service/F2fTicketIssueService.java` —— 三步（状态推进 CAS / 差额退款撞 `UK_F2F_REFUND_IDEM` / 通知入队撞 `UK_F2F_NOTIFY_IDEM`）都幂等，因此重放安全；禁止在这里补「先查有没有做过」的判断（那等于把幂等从唯一索引挪到应用层，AGENTS.md §4.2「幂等与一致性」那条）。断言点：该方法无前置存在性 SELECT。
 33. `mapper/F2fReconExportMapper.java` —— 对账抽取刻意独立成一个 mapper、现有 mapper / XML 一行都没改；禁止把这些聚合查询合并进联机链路的 mapper（任一方调过滤条件都会误伤另一方）。断言点：`F2fReconExportMapper` 只被 `ReconExportService` 使用、且不出现在联机 service 中。
 34. `api/device/tvm/RequestTopupReqDTO.java` —— 两个字段的合法区间不同，禁止再合并成同一个 parse。断言点：存在两个独立的解析方法/校验区间。
 35. `service/F2fTopupService.java` —— 旧实现的 `afterAmount` 直接复制 `transAmount`、数据是错的，本实现不再写该列；禁止把该列的赋值加回来。断言点：充值落库语句不含 `AFTER_AMOUNT` 赋值。
@@ -804,10 +804,10 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 #### 附.2.1 为什么本模块不停、退款与通知留在这里
 
 - **`/internal/app-order/**` 存在的原因是把跨域直写收回来**：`TBL_TVM_APP_ORDER` / `TBL_TVM_ORDER_PAY_PRE` 两张表的 owner 是本模块（`docs/business/tvm-bom-pay.md`），但 2026-09-11 起 gate-txn-pay-server 的 IF8A-26 补款单为了复用本模块的收银台链路，**直接在自己进程里 INSERT / UPDATE 这两张表**——那违反 `docs/domain/README.md` 的「热路径写入定 owner」判据：字段口径散落在两个模块，本模块改一列语义就可能静默打挂对方。2026-09-14 按用户要求收口成本接口。`collect-pay-server` `AppPayOrderInternalService`（类注释）— `service/AppPayOrderInternalService.java`；`controller/internal/AppPayOrderInternalController.java`
-- **切换已完成，写入路径唯一**（2026-09-14 收口，ADR-D64）：gate-txn-pay-server 的 `mapper/AppPayOrderMapper.java` 与 `resources/mapper/AppPayOrderMapper.xml` **已删除**，其 mapper 目录只剩 `DiscountLevelMapper` / `GateTxnPayMapper` / `MetroTransferPushTaskMapper` / `ReconExportMapper`（Java 与 XML 均如此），`SupplementOrderServiceImpl` 的私有 `registerAppPayOrder` 也已不存在；`TBL_TVM_APP_ORDER` / `TBL_TVM_ORDER_PAY_PRE` 的**唯一写入方是本模块**，唯一调用方是 gate-txn-pay 补款链路经 `rpc` 的 `CollectPayClient.registerAppPayOrder` → `POST /internal/app-order/register`。**NEVER 让任何其它模块再直写这两张表**。原「切换尚未发生、两条写入路径并存、本接口暂时无人调用」的表述**已作废、NEVER 回退**（2026-09-23 实测核对：gate-txn-pay-server 内 `AppPayOrder*` 与 `registerAppPayOrder` 均零命中，见 `docs/reviews/提示词过期检查记录-2026-09-23.md`）。`collect-pay-server` `AppPayOrderInternalService`（接口注释）— `service/AppPayOrderInternalService.java`
+- **切换已完成，写入路径唯一**（2026-09-14 收口，ADR-D64）：gate-txn-pay-server 的 `mapper/AppPayOrderMapper.java` 与 `resources/mapper/AppPayOrderMapper.xml` **已删除**，其 mapper 目录只剩 `DiscountLevelMapper` / `GateTxnPayMapper` / `MetroTransferPushTaskMapper` / `ReconExportMapper`（Java 与 XML 均如此），`SupplementOrderServiceImpl` 的私有 `registerAppPayOrder` 也已不存在；`TBL_TVM_APP_ORDER` / `TBL_TVM_ORDER_PAY_PRE` 的**唯一写入方是本模块**，唯一调用方是 gate-txn-pay 补款链路经 `rpc` 的 `CollectPayClient.registerAppPayOrder` → `POST /internal/app-order/register`。**NEVER 让任何其它模块再直写这两张表**。原「切换尚未发生、两条写入路径并存、本接口暂时无人调用」的表述**已作废、NEVER 回退**（2026-09-23 实测核对：gate-txn-pay-server 内 `AppPayOrder*` 与 `registerAppPayOrder` 均零命中）。`collect-pay-server` `AppPayOrderInternalService`（接口注释）— `service/AppPayOrderInternalService.java`
 - **为什么另开 `/page/app/orders/{orderNo}/refund` 而不是改旧入口**：`/ci/app/requestRefundTicket` 的退款金额取 `PAY_AMOUNT` 全额，对已部分退款的订单必然超额被支付中心拒；那条是 APP 对外契约（APP 只传 `orderNo`），**NEVER 给它加金额字段**，因此另开本入口。放在 `/page/**` 而不是 `/ci/**`：这是运营 / 清退用的内部操作，不属于 APP 契约，与同目录的 `FacePayOrderPageController` 同类。`collect-pay-server` `AppOrderPageController`（类注释）— `controller/page/AppOrderPageController.java`
 - **运营端退款复用 `TvmOrderPreService`** 是为了沿用既有的支付中心退款与退款单号落库流程。`collect-pay-server` `FacePayOrderPageController.refund` — `controller/page/FacePayOrderPageController.java`
-- **`/internal/recon/export` 与 `/internal/app-order/**` 当前无鉴权，是有意为之的临时降级、上线前 MUST 恢复**。对账那条：用户 2026-09-11 明确要求「删除令牌要求，不用令牌了，当前处于开发测试阶段」，原 `X-Recon-Token` 共享令牌校验整段删除；本项目多数业务模块没有 spring-security、没有全局拦截器兜底，现状等于允许任何网络可达方触发区间全扫级别的批处理，与 AGENTS.md §5.2 冲突。补款那条：用户 2026-09-14 裁决「不加鉴权，照本模块现有 `/internal/recon` 的做法」，但它**比 `/internal/recon` 更敏感**——拿到任意订单号即可给他人建单、或关掉他人的待支付单，**NEVER 拿「`/internal/recon` 也没加」当长期理由**（那批是只读导出与内部编排，本批是按订单号改他人的支付状态，敏感度不同级）。`collect-pay-server` — `controller/internal/ReconExportController.java`；`controller/internal/AppPayOrderInternalController.java`；`service/AppPayOrderInternalService.java`
+- **`/internal/recon/export` 与 `/internal/app-order/**` 当前无鉴权，是有意为之的临时降级、上线前 MUST 恢复**。对账那条：用户 2026-09-11 明确要求「删除令牌要求，不用令牌了，当前处于开发测试阶段」，原 `X-Recon-Token` 共享令牌校验整段删除；本项目多数业务模块没有 spring-security、没有全局拦截器兜底，现状等于允许任何网络可达方触发区间全扫级别的批处理，与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突。补款那条：用户 2026-09-14 裁决「不加鉴权，照本模块现有 `/internal/recon` 的做法」，但它**比 `/internal/recon` 更敏感**——拿到任意订单号即可给他人建单、或关掉他人的待支付单，**NEVER 拿「`/internal/recon` 也没加」当长期理由**（那批是只读导出与内部编排，本批是按订单号改他人的支付状态，敏感度不同级）。`collect-pay-server` — `controller/internal/ReconExportController.java`；`controller/internal/AppPayOrderInternalController.java`；`service/AppPayOrderInternalService.java`
 - **恢复鉴权的方式已写死**：MUST 对齐现有验签实现（`AccountRequestVerifier` / `ItpRequestSignVerifier`），**NEVER 自造签名逻辑**；若走共享令牌，比较 MUST 用 `MessageDigest.isEqual` 做**定长时间比较**、**NEVER 用 `String.equals`**（后者短路返回，可被逐字节计时探测出令牌内容），令牌值由 K8s Secret 注入、**NEVER 在仓库里写默认真值**。`collect-pay-server` — `controller/internal/ReconExportController.java`；`controller/internal/AppPayOrderInternalController.java`
 - **运营端 APP 退款端点没有鉴权这一点被单独标注过风险边界**：已知的唯一防线是服务层的可退余额闸门，**它挡的是「退多了」，挡不住「不该退的人来退」**；上线前 MUST 补鉴权，或改由 web-admin 经 rpc 调用并只在内网暴露。`collect-pay-server` `AppOrderPageController`（类注释）— `controller/page/AppOrderPageController.java`
 
@@ -823,13 +823,13 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 
 #### 附.2.3 线程模型与事务边界
 
-- **抽取绝不能跑在请求线程上**：全服务默认 `spring.threads.virtual.enabled=true`（`resource/micro/web/src/main/resources/web.properties`），Tomcat 处理线程是虚拟线程；JDK 21 未落地 JEP 491，虚拟线程在 `synchronized` 内阻塞会 **pin 住载体线程**，而 ojdbc8 的 `PhysicalConnection` / `OracleStatement` 大量方法是 `synchronized`——一条 60s 慢 SQL 就是 60s 的 pin。载体线程池 parallelism 默认等于容器可见 CPU 数，CPU limit 偏小时一两条慢 SQL 即可 pin 满，**全 JVM 虚拟线程停止调度**，连 WebClient 响应的续体都唤不醒。对账抽取是区间全扫级别的批处理，放在请求线程上等于必然触发该故障。因此本类把任务派给一个**固定大小的平台线程池**（`new Thread(...)` 造出的就是平台线程），控制器只负责受理与立即返回。`collect-pay-server` `ReconExportService`（类注释）— `service/ReconExportService.java`；`controller/internal/ReconExportController.java`
+- **抽取绝不能跑在请求线程上**：历史全服务默认 `spring.threads.virtual.enabled=true`（`resource/micro/web/src/main/resources/web.properties`，2026-10-20 起已禁用），Tomcat 处理线程曾为虚拟线程；JDK 21 未落地 JEP 491，虚拟线程在 `synchronized` 内阻塞会 **pin 住载体线程**，而 ojdbc8 的 `PhysicalConnection` / `OracleStatement` 大量方法是 `synchronized`——一条 60s 慢 SQL 就是 60s 的 pin。载体线程池 parallelism 默认等于容器可见 CPU 数，CPU limit 偏小时一两条慢 SQL 即可 pin 满，**全 JVM 虚拟线程停止调度**，连 WebClient 响应的续体都唤不醒。对账抽取是区间全扫级别的批处理，放在请求线程上等于必然触发该故障。因此本类把任务派给一个**固定大小的平台线程池**（`new Thread(...)` 造出的就是平台线程），控制器只负责受理与立即返回。`collect-pay-server` `ReconExportService`（类注释）— `service/ReconExportService.java`；`controller/internal/ReconExportController.java`
 - **并发控制不依赖任何中间件**（本项目不用 Redis / MQ）：同一 `batchId` 的在途标记放在 `ConcurrentHashMap.newKeySet()` 里，`add` 成功才受理、`finally` 里移除；单副本内足够，多副本场景由 recon-server 侧按批次分发保证只下发一次。`collect-pay-server` `ReconExportService`（类注释）— `service/ReconExportService.java`
 - **`runExport` 及其调用链刻意不加 `@Transactional`**：每类一次查询、每条 SQL 自动提交。若把整轮抽取包进一个事务，事务时长等于抽取时长，期间还夹着 `sink.write` 触发的分片上送（HTTP 网络调用）——**事务内发起 RPC 是本项目明令禁止的**：连接被 Druid 的 `remove-abandoned-timeout` 判定为泄漏后强杀，`commit` 抛 `connection closed`，整轮白跑。抽取是纯只读，本来也不需要事务。`collect-pay-server` `ReconExportService.runExport` — `service/ReconExportService.java`
 - **每类文件独立 try-with-resources、一类失败不中断整轮**：某一类抛异常时 `ReconPartSink.close()` 会自动向 recon-server 声明该类失败，本方法 catch 住后继续跑下一类。**NEVER 让一类的失败中断整轮**——PAY 与 BUS 是两份独立的对账文件，一类挂掉不该拖累另一类，否则重跑成本翻倍。`collect-pay-server` `ReconExportService.runExport` — `service/ReconExportService.java`
 - **`notiTopupResult` 有意不带 `@Transactional`（2026-09-14 摘除，NEVER 加回）**：充值失败分支要调支付中心退款（`callPayCenter`），一旦被事务包住，`TBL_TVM_ORDER_TOPUP` 那一行的排他锁持有时长就等于支付中心的响应时长，BOM 对同一笔的重推会全部堆在同一行上串行等锁；等待超过 Druid `remove-abandoned-timeout` 后连接被强杀、`commit` 抛 `connection closed`，**连「充值结果通知已入库」那条 INSERT 一起回滚**——证据全丢、响应退化成全局异常处理器的 UUID `retCode`、BOM 继续重推，自我放大且没有出口。摘掉之后每条 SQL 自动提交：通知记录与「退款中」状态先落地，退款结果再各自回写，失败也留得下痕迹。`collect-pay-server` `BomOrderServiceImpl.notiTopupResult` — `service/impl/BomOrderServiceImpl.java`
 - **`register` 反过来可以安全地包事务**：它全程无 RPC，因此两张表能放在同一个本地事务里；**NEVER 在本方法内新增任何远端调用**。`collect-pay-server` `AppPayOrderInternalServiceImpl.register` — `service/impl/AppPayOrderInternalServiceImpl.java`
-- **取票挂起 NEVER 放进带 `@Transactional` 的方法**：行级锁会被持有整个等待时长，这正是 AGENTS.md §5.2 记录的 2026-08-26 生产事故形态。`collect-pay-server` `TakeTicketWaiter`（类注释）— `service/support/TakeTicketWaiter.java`
+- **取票挂起 NEVER 放进带 `@Transactional` 的方法**：行级锁会被持有整个等待时长，这正是 docs/architecture/transaction-and-consistency.md §6「`@Transactional` 方法内 NEVER 发起任何 RPC / 网络调用」记录的 2026-08-26 生产事故形态。`collect-pay-server` `TakeTicketWaiter`（类注释）— `service/support/TakeTicketWaiter.java`
 - **取票挂起的唤醒是「内存事件 + 固定间隔回查数据库」双路**：唤醒走内存事件（本服务单副本），并由调用方按固定间隔回查数据库兜底，避免「激活落在别的副本」或「signal 与 await 之间存在窗口」导致漏唤醒。全局挂起上限（`maxWaiting`）超限时直接退回「立即返回」的原有行为，防止设备异常时把线程占满；等待键就是二维码三要素，与 `selectByDeviceAndQrcode` 的查询条件一一对应。`collect-pay-server` `TakeTicketWaiter`（类注释与字段）— `service/support/TakeTicketWaiter.java`
 - **推送与解析 MUST 兜住异常**：`noticeAppRefundResult` 在 `tvmexecutor` 线程里跑，抛出去没人接，通知记录会卡在 `status=0` 且 `retryTimes` 不递增，`NoticeAppTask` 会反复扫到同一条。`collect-pay-server` `AppOrderServiceImpl` — `service/impl/AppOrderServiceImpl.java`
 - **不先查后插也不重复报错，靠主键兜底**：`selectByOrderNo` + INSERT 是 check-then-act，并发重放会在主键上撞出来；撞了说明另一条并发请求已登记成功，按幂等返成功而不是让对方进补偿队列重推。判定 **MUST 沿 cause 链**——本模块开了 tracing，观测切面会把异常换类型。`collect-pay-server` `AppPayOrderInternalServiceImpl` — `service/impl/AppPayOrderInternalServiceImpl.java`
@@ -845,7 +845,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 
 - **SQL 正文 NEVER 出现行注释或块注释**：Druid WallFilter 的 `commentAllow=false` 会把带注释的语句判定为注入、**语句静默失效**。共同约定一律写在 XML 注释里。同一条禁令在本模块 mapper XML 里出现三处 — `ReconExportMapper.xml`、`AppRefundOrderMapper.xml`、`TvmAppOrderMapper.xml`
 - **mapper XML 的注释里也 NEVER 出现连续两个半角减号**，否则 XML 解析直接报错（进而 `sqlSessionFactory` 建不起来、服务启动即挂）。本模块把这条与上一条写成一组、成对出现 — `ReconExportMapper.xml`
-- **注**：本次抽取未在本模块 mapper XML 中见到「`where 1 = 1` 打头 + 全部谓词可选 `<if>`」那条 WallFilter 规则的显式告示（AGENTS.md §5.1 第二条）。该规则对本模块**仍然适用**，只是**代码注释里没有对应条目**，属抽取源缺失、不是已确认无风险。
+- **注**：本次抽取未在本模块 mapper XML 中见到「`where 1 = 1` 打头 + 全部谓词可选 `<if>`」那条 WallFilter 规则的显式告示（docs/architecture/mybatis-oracle-runtime-traps.md §2「NEVER 写 `where 1 = 1` 打头 + 全可选 `<if>`」第二条）。该规则对本模块**仍然适用**，只是**代码注释里没有对应条目**，属抽取源缺失、不是已确认无风险。
 
 #### 附.3.2 Oracle 与列名陷阱
 
@@ -857,7 +857,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 
 #### 附.3.3 yml 与 Deployment env 的覆盖关系
 
-- **`server.port` 在仓库里是 `58101`，线上被 Deployment env 顶成 `8080`**，而 `collect-pay-c23ku-svc` 的 `targetPort` 就是 **8080**。判断本模块实际监听端口 MUST 查 Deployment env，NEVER 只看 yml。`collect-pay-server` — `application.yml`（该覆盖关系的实测记录在 AGENTS.md §8「为什么不能改 Service selector」一条与 `docs/ops/流量切换.md`）
+- **`server.port` 在仓库里是 `58101`，线上被 Deployment env 顶成 `8080`**，而 `collect-pay-c23ku-svc` 的 `targetPort` 就是 **8080**。判断本模块实际监听端口 MUST 查 Deployment env，NEVER 只看 yml。`collect-pay-server` — `application.yml`（该覆盖关系的实测记录在 `docs/ops/构建与部署规范.md` §8「为什么不能改 Service selector」一条与 `docs/ops/流量切换.md`）
 - **`service.recon.url` 是本模块唯一带 `${ENV:}` 包装的服务地址**（`${SERVICE_RECON_URL:...}`），另外两条 `service.ticket.url` / `service.account.url` 是**裸的 `http://127.0.0.1:9103` / `http://127.0.0.1:9098`**——在 K8s 里等于打到自己，线上只能靠 Deployment env 覆盖。`collect-pay-server` — `application.yml`
 - **`recon.export.*` 三个键都带 `${ENV:}`**（`RECON_EXPORT_TEMP_DIR` 默认 `/home/javaapp/app/recon-export`、`RECON_EXPORT_PAGE_SIZE` 默认 5000、`RECON_EXPORT_WORKER` 默认 1）。`collect-pay-server` — `application.yml`
 - **`Properties` 段的位置在 log4j2 里是硬约束**：**NEVER 把 `Properties` 之后的任何元素挪到它前面**。2026-09-11 实测把 `<Filters>` 写在 `<Properties>` 之前，整份配置的 `${logPath}` / `${appName}` / `${webLoggerLevel}` **全部不做替换**，日志文件被建成字面量路径 `/home/javaapp/soft/${logPath}/${appName}.log`，Root 级别失效、INFO 全丢（`status="off"` 时 log4j2 自身的报错也被吞掉，只能靠「文件名里带 `${}`」反推）。`collect-pay-server` — `log4j2-collectpay.xml`
@@ -870,7 +870,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **`pay.center.callback-url` 是 `http://localhost:9098/ci/app/ticketCollectPayNotify`**——`localhost` 在 K8s 里等于打到自己 Pod，且端口 `9098` 与本模块的 `server.port`（yml 58101 / 线上 8080）都不一致。`collect-pay-server` — `application.yml`
 - **`pay.center.gateway-url` 是占位域名 `https://pay-gateway.example.com/api`**；同段下面五条真实支付中心 URL（`pay-center-pay-url` / `pay-center-query-url` / `pay-center-refund-url` / `pay-center-jhm-url` / `query-refund-url`）都是完整 `.../api/v1/...` 形态、与 `gateway-url` 无关。`collect-pay-server` — `application.yml`
 - **`pay-notice` 与 `app-refund-notice-url` 两条指向同一个公网地址** `http://58.56.166.170:48000/itptvm/ci/tvm/payNotice`（即经 istio 网关绕回自己的 `/itptvm/` 前缀）。`collect-pay-server` — `application.yml`
-- **`pay.center.private-key` 与 `jhm.key` 在 yml 里是明文真值、没有 `${ENV:}` 包装**，与 AGENTS.md §5.2「敏感配置 MUST 写成 `${ENV_VAR:}` 并由 K8s Secret 注入」冲突。本条只记键名与位置、不回显值。`collect-pay-server` — `application.yml`
+- **`pay.center.private-key` 与 `jhm.key` 在 yml 里是明文真值、没有 `${ENV:}` 包装**，与 docs/architecture/security-sensitivity.md §一「敏感配置 MUST 写成 `${ENV_VAR:}` 并由 K8s Secret 注入」冲突。本条只记键名与位置、不回显值。`collect-pay-server` — `application.yml`
 - **数据源账号口令同为明文**（`other.sql.username` / `other.sql.password`），同上只记键名与位置。`collect-pay-server` — `application.yml`
 
 #### 附.3.5 其它运行期陷阱
@@ -976,7 +976,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **IF2A-04 心跳与旧实现的真实差别是「现在真的落库了」**：旧实现在 controller 里直接 return success、从不记录任何心跳。`controller/ci/tvm/TvmOrderController.java`
 - **两个上报接口的重复上报由 `UK_F2F_REPORT_IDEM` 幂等挡住**（出票成功 IF2A-05 / 充值成功 IF2A-06），controller 注释即写明这一点。`controller/ci/tvm/TvmOrderController.java`
 - **IF8A-15 激活取票订单是「手机扫 TVM 二维码后调用」**，IF2A-08 取票鉴权**没有 orderNo**、靠二维码三要素定位。`controller/ci/tvm/TvmOrderController.java`
-- **BOM 侧 IF8A-06 查询支付结果由 BOM 自己轮询**：旧实现的 `requestPayment` 在**服务端 `Thread.sleep` 轮询最长 180 秒**，新实现让设备轮询、服务端不再阻塞（AGENTS.md §5.2）。`controller/ci/bom/BomOrderController.java`
+- **BOM 侧 IF8A-06 查询支付结果由 BOM 自己轮询**：旧实现的 `requestPayment` 在**服务端 `Thread.sleep` 轮询最长 180 秒**，新实现让设备轮询、服务端不再阻塞（docs/architecture/runtime-observability-traps.md §3「NEVER 在请求线程上做长时间阻塞的 DB / IO」）。`controller/ci/bom/BomOrderController.java`
 - **IF5A-03 票卡更新的校验项逐条对齐旧实现且「不校验」是裁决过的**：旧服务只校验 `cardId` / `adviceOpt` / `updateStationCode` / `optDate`（四条都回 `8003 xxx不能为空`），**不校验 `updateType`、也不校验 `optDate` 格式** —— 这两种情况旧服务直接透传 ticket-server 并返下游码（实测 `8004 未注册用户`）。曾按「补齐校验」加过这两条，用户 2026-09-11 裁决「不校验」已移除，**NEVER 再以「旧实现漏校验」为理由加回来**。`controller/ci/bom/BomOrderController.java`
 - **BOM 前缀的两条出票上报别名（`notiTakeTicketResult` / `notiTakeTicketFailResult`）是为了兼容现场设备的实际 URL**：2026-09-16 实测订单 `00202609160953330199` 已 `PAID`、票已实际出，上报却落到静态资源解析、被全局异常处理器兜成 HTTP 200 + UUID `retCode`，订单永久卡 `PAID`、`F2F_TICKET` / `F2F_RESULT_REPORT` 零行（ADR-D97）。**两条别名与 TVM 前缀同一实现同一响应族（2xxx）渠道归属兜底值是 BOM（不是 TVM），NEVER 把兜底值改成 TVM** —— 与 `TvmOrderController.channelOf` 只差这一个默认值。`controller/ci/bom/BomOrderController.java`
 - **BOM controller 注入的是七个业务服务**（BOM 非现金订单 / 心跳 / 扫码付 / 充值下单 / 充值结果 / HCE / 出票上报），其中出票上报服务是被两条 BOM 别名复用的。`controller/ci/bom/BomOrderController.java`
@@ -1002,11 +1002,11 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **`PayScene` 三态来自旧实现三个报文组装方法、不是我方设计**：`QRCODE`（设备拉码、`paymentVendor` 旧实现**固定 `0C`**、不由入参决定）/ `SCAN`（设备扫用户付款码，BOM 与 TVM 扫码都走这条，**必须带 `authCode` 且旧实现不传 `payType`**）/ `APP`。**STT 未接入、落地时属于哪一种取决于「谁扫谁」，需求未定，因此枚举不预留 STT 值。** `channel/paycenter/PayScene.java`、`PayCenterPayCommand.java`
 - **退款报文三个订单号都要传**：`refundOrderNo`（我方退款单号，幂等键）、`merchantOrderNo`（我方原支付订单号）、`orderNo`（**支付中心侧**原订单号）。后者为空时支付中心按前者定位，但旧实现始终传，此处保持一致。`PayCenterMessageFactory.refund` — `channel/paycenter/PayCenterMessageFactory.java`
 - **支付结果查询的入参是我方订单号、报文键名却是 `merchantOrderNo`**，勿与响应里的 `orderNo`（支付中心订单号）混淆。`PayCenterMessageFactory.query` — `channel/paycenter/PayCenterMessageFactory.java`
-- **`payType=0` 的本地分支不调支付中心、只拼聚合码收银台 URL**（照搬旧 `TvmOrderServiceImpl`）；**这条分支的 `F2F_PAYMENT` 该记什么状态在设计里仍是空的**（`docs/architecture/face-pay-refactor.md` §十六 P1），**实现落库前 MUST 先定口径**。`PayCenterMessageFactory.localAggregateUrl` — `channel/paycenter/PayCenterMessageFactory.java`
+- **`payType=0` 的本地分支不调支付中心、只拼聚合码收银台 URL**（照搬旧 `TvmOrderServiceImpl`）；**这条分支的 `F2F_PAYMENT` 该记什么状态在设计里仍是空的**（docs/architecture/face-pay-refactor.md §十六「尚未处理的 P1」那条），**实现落库前 MUST 先定口径**。`PayCenterMessageFactory.localAggregateUrl` — `channel/paycenter/PayCenterMessageFactory.java`
 - **信封组装时原始 JSON 要单独留一份传给签名器**：待签串取自 bizData 的内部字段、信封里放的是它的 Base64，两者不能互相推导。`PayCenterMessageFactory.envelope` — `channel/paycenter/PayCenterMessageFactory.java`
 - **`PayCenterRequest.bizData` 是 Base64(业务 JSON, UTF-8) 而不是裸 JSON**：旧实现三套客户端里**只有走 `PayCenterCommon` 的这一套是线上真实形态**，另两套（`CollectPayServiceImpl`、`TvmTopupServiceImpl` 的私有方法）发裸 JSON **且都是死代码，NEVER 参照它们**；`toString()` 里 `bizData` 与 `sign` 只出长度。`channel/paycenter/PayCenterRequest.java`
 - **入向回调的 `bizData` 同样是 Base64，取明文 MUST 走 `bizDataJson()`**，**NEVER 把 `getBizData()` 直接丢给 `JSON.parseObject`** —— 重写初版就是这么写的，真实回调必然解析失败（2026-09-11 定位）。判定「解出来以 `{` 开头」而不是「Base64 解码没抛异常」，因为**裸 JSON 串里只含 Base64 字母表字符时也能被解码成乱码而不报错**；兜裸 JSON 的理由是联调回放多为人手构造 + 旧死代码曾发裸 JSON。`api/paycenter/PayCenterCallbackRequest.java`
-- **⚠️ 安全项（已知风险、有意保留）：支付结果回调带 `sign` 但旧实现从不验签，本次重写保持同契约、同样不验签** —— 意味着**任何网络可达方都能构造一条 `status=SUCCESS` 的回调把订单改成已支付**。加验签属契约变更 + 支付安全红线（AGENTS.md §5.2），**MUST 人工评审后单独实施，NEVER 在重写里顺手加**；已在交付说明里单列为风险项。`api/paycenter/PayCenterCallbackRequest.java`
+- **⚠️ 安全项（已知风险、有意保留）：支付结果回调带 `sign` 但旧实现从不验签，本次重写保持同契约、同样不验签** —— 意味着**任何网络可达方都能构造一条 `status=SUCCESS` 的回调把订单改成已支付**。加验签属契约变更 + 支付安全红线（AGENTS.md §4.2「涉及支付、密钥、签名的代码改动」），**MUST 人工评审后单独实施，NEVER 在重写里顺手加**；已在交付说明里单列为风险项。`api/paycenter/PayCenterCallbackRequest.java`
 - **回调业务报文里两个订单号极易搞混**：`orderNo` 是**支付中心侧**订单号，`merchantOrderNo` 才是**我方**订单号 —— 定位本地订单 MUST 用后者。旧实现 `payNotice` 查库用的是 `merchantOrderNo`，**但同一方法的日志打的是 `orderNo`，读日志时容易被误导**。`api/paycenter/PayNoticeReqDTO.java`
 - **回调 `status` 值域 `SUCCESS / FAILED / ORDERED / UNPAID`，`payChannelCode` 回填 `F2F_PAYMENT.PAY_CHANNEL_CODE`，金额单位分**。`api/paycenter/PayNoticeReqDTO.java`
 
@@ -1128,7 +1128,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 
 ### 十七、entity 与表列语义补遗（`entity/**`、`api/page`）
 
-- **`F2fOrder` 与旧实体的两处刻意差异**：金额用 `Long`（单位分，新表列 `NUMBER(12)`，**单位已由用户 2026-09-08 确认为分**），时间用 `LocalDateTime`（新表列 `TIMESTAMP(6)`）—— 旧表两者都是 `String`。**改字段 MUST 同步改 DDL 与 `docs/architecture/face-pay-refactor.md` §14.1 的映射表。** `entity/F2fOrder.java`
+- **`F2fOrder` 与旧实体的两处刻意差异**：金额用 `Long`（单位分，新表列 `NUMBER(12)`，**单位已由用户 2026-09-08 确认为分**），时间用 `LocalDateTime`（新表列 `TIMESTAMP(6)`）—— 旧表两者都是 `String`。**改字段 MUST 同步改 DDL 与 docs/architecture/face-pay-refactor.md §14.1「`F2F_ORDER` ← 四张订单表」的映射表。** `entity/F2fOrder.java`
 - **`F2F_ORDER` 关键列语义**：`BIZ_TYPE` = `01` 购票 / `02` 充值 / `03` 取票 / `04` 非现金收款；`ORDER_STATUS` 是**内部状态机、不等于对外 `paymentResult`**；`REFUND_AMOUNT` 由 `F2F_REFUND` 中 SUCCESS 的行**重算得出、NEVER 累加**；`DEVICE_TXN_SEQ` 只有 BOM 传（`bomOptSeq`）、TVM / APP 不传；`THIRD_USER_ID` 只有 APP 侧有值；`OPERATOR_ID` / `SHIFT_NO` BOM 侧有值；`ACTIVATE_DEVICE_ID` **非空即锁定，其他设备查询返 `2008`**；`CREATE_TMS` 是**分区键**；`REMARK` 承载旧表 `MSG` 列的内容。`entity/F2fOrder.java`
 - **`F2F_PAYMENT` 三条唯一性约束决定访问方式**：`UK_F2F_PAY_ATTEMPT (ORDER_NO, ATTEMPT_NO)` 同一订单内尝试序号唯一、从 1 递增；**`UK_F2F_PAY_SUCCESS` 是函数索引 `CASE WHEN PAY_STATUS='SUCCESS' THEN ORDER_NO ELSE NULL END`，即一笔订单最多一条 SUCCESS 记录 —— 标记成功靠该索引兜底，NEVER 先查有没有成功记录再更新（并发下无效）**；`IDX_F2F_PAY_CENTER_NO` 与 `IDX_F2F_PAY_ORDER (ORDER_NO, ATTEMPT_NO DESC)` 支撑回调查询与「最后一次尝试」查询。`entity/F2fPayment.java`
 - **`F2F_PAYMENT.PAY_STATUS` 五个取值 `INIT / PROCESSING / SUCCESS / FAILED / UNKNOWN`，其中 `UNKNOWN` 表示对端未明确应答、需靠查询接口收口、不得直接判失败**；`PAY_SCENE` 三值 `qrcode` / `scan` / `app`；`PAY_TYPE=0` 表示本地拼聚合码 URL 不调支付中心；`PAY_CODE` 仅 `scan` 场景有值；`QR_CONTENT` 是**返给设备显示为二维码的完整字符串、设备不解析**；`COST_MS` 用于**排查虚拟线程 pin 与超时**；`CREATE_TMS` 是分区键。`entity/F2fPayment.java`
@@ -1152,7 +1152,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **「每日批量退款未取票交易」的扫表是新增能力**（规格 §7.5，**旧实现无此任务，缺口 E3**），`deadline` 由调用方按业务规则算出、语句内不内置时间窗。`mapper/F2fOrderMapper.java`、`F2fOrderMapper.xml`
 - **BOM 幂等回查那条 select 的三列与 `UK_F2F_ORDER_DEV_SEQ` 一致**（撞键后按同样三列回查已有订单）。`F2fOrderMapper.xml`
 - **回调 / 反查各自命中的索引在 XML 注释里点名**：退款单号 → `UK_F2F_REFUND_NO`、支付中心退款单号 → `IDX_F2F_REFUND_CENTER`（**回调带来的单号在本地不存在时调用方 MUST 拒绝并留痕**）、上报幂等键 → `UK_F2F_REPORT_IDEM`、故障单号 → `IDX_F2F_REPORT_SLIP`、票按订单 → `IDX_F2F_TICKET_ORDER`、票按（逻辑卡号 + 交易日期）→ `UK_F2F_TICKET_LOGIC`、用户激活订单 → `IDX_F2F_ORDER_USER`。`F2fRefundMapper.xml`、`F2fResultReportMapper.xml`、`F2fTicketMapper.xml`、`F2fOrderMapper.xml`、`mapper/F2fRefundMapper.java`
-- **两个 mapper XML 头部各有一段「本文件内所有 SQL 正文 NEVER 出现行注释或块注释」的告示**（Druid WallFilter `commentAllow=false` 会把带注释语句判成注入并**静默失效**，且**只在 Oracle 生产暴露、达梦环境关了 WallFilter 测不出来**）—— 这两段是本模块对 AGENTS.md §5.1 的现场提醒，**NEVER 删**。`F2fNotifyTaskMapper.xml`、`F2fResultReportMapper.xml`
+- **两个 mapper XML 头部各有一段「本文件内所有 SQL 正文 NEVER 出现行注释或块注释」的告示**（Druid WallFilter `commentAllow=false` 会把带注释语句判成注入并**静默失效**，且**只在 Oracle 生产暴露、达梦环境关了 WallFilter 测不出来**）—— 这两段是本模块对 docs/architecture/mybatis-oracle-runtime-traps.md §1「NEVER 在 SQL 正文中写注释」的现场提醒，**NEVER 删**。`F2fNotifyTaskMapper.xml`、`F2fResultReportMapper.xml`
 - **`ITP.PAY` 的「BOM/TVM 充值」组（段 7 / 8）判据是 `BIZ_TYPE='02'`、不分渠道**。`mapper/F2fReconExportMapper.java`
 - **补款单相关四个 mapper 方法的语义**：新增补款单靠 `ORDER_NO` 唯一索引兜底重复下单、明细结清标记单条更新、捞超时**仅限 `INIT`**、关单白名单**只放 `INIT`**。`mapper/SupplementOrderMapper.java`
 
@@ -1170,12 +1170,12 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 2. **`EXPIRE_TMS` 是否恒为「创建时间 + 180 秒」**。注释说：「二维码失效时间，创建时间加 180 秒」（`entity/F2fOrder.java`）。实际是：**只有 TVM 拉码单是 180 秒**，BOM 售票单是 30 分钟（`bomSaleExpireSeconds`，`service/F2fTvmOrderService.java`），APP 取票单另有取值。**建议裁决**：把列注释改成「按渠道不同，取值见 `F2fTvmOrderService.insertOrder` 的 `expireSeconds`」，**NEVER 让读者据这条注释推断 BOM 单 3 分钟就过期**。
 3. **`CK_F2F_REFUND_STATUS` 到底几个取值**。注释说：「取值见 `CK_F2F_REFUND_STATUS`：INIT / PROCESSING / SUCCESS / FAILED」四个（`entity/F2fRefund.java`）。实际是：**DDL 是五个、含 `MANUAL`**（`sql/f2f-schema.sql`，列注释原文亦写明「MANUAL 超过自动收口时间窗仍查不到结果需人工介入（钱是否已退未知）」），而 `F2fRefundService` 的放弃分支正是置 `MANUAL`（`service/F2fRefundService.java`），同一实体的 `FINISH_TMS` 注释也写了「进入 SUCCESS / FAILED / **MANUAL** 终态时回填」（`entity/F2fRefund.java`）。**建议裁决**：补上 `MANUAL`；**NEVER 反过来据这条四值注释去删 DDL 里的 `MANUAL`** —— 那会让放弃分支写入即 `ORA-02290`。
 4. **`TOPUP_SUSPECT` / `CANCELED` 有取值、无写入方**。注释说：这两个状态「**主代码没有任何地方把订单写成它们**，因此白名单里没有入边 —— 这是照实记录、不是遗漏」（`domain/F2fOrderStatus.java`）。但业务上「充值存疑」确实存在：`topupStatus=02` 存疑时**不退款、留人工处理**（`api/device/tvm/TopupCardFailNotiReqDTO.java`，阶段一已记），却没有任何状态承载它。**建议裁决**：二选一 —— 要么给 `02` 分支补 `TOPUP_SUSPECT` 写入方（同时补白名单入边），要么在文档与列注释里明确「存疑只留上报、订单状态不动」；**NEVER 让「有状态取值但没人写」的现状继续无归属**。
-5. **支付结果回调不验签，与 AGENTS.md §5.2 直接冲突**。注释自述：「本回调带 `sign`，但旧实现从不验签，本次重写保持同契约、同样不验签 …… 意味着任何网络可达方都能构造一条 `status=SUCCESS` 的回调把订单改成已支付」，并声明「加验签属契约变更 + 支付安全红线，**MUST 人工评审后单独实施**」（`api/paycenter/PayCenterCallbackRequest.java`）；同一条现状在设备链路是「本链路没有验签」（`api/device/BaseDeviceRequest.java`）。**建议裁决**：作为**上线前必须闭合的安全项**单列，与对账那条「`X-Recon-Token` 已删、上线前 MUST 恢复」同批处理。
+5. **支付结果回调不验签，与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」直接冲突**。注释自述：「本回调带 `sign`，但旧实现从不验签，本次重写保持同契约、同样不验签 …… 意味着任何网络可达方都能构造一条 `status=SUCCESS` 的回调把订单改成已支付」，并声明「加验签属契约变更 + 支付安全红线，**MUST 人工评审后单独实施**」（`api/paycenter/PayCenterCallbackRequest.java`）；同一条现状在设备链路是「本链路没有验签」（`api/device/BaseDeviceRequest.java`）。**建议裁决**：作为**上线前必须闭合的安全项**单列，与对账那条「`X-Recon-Token` 已删、上线前 MUST 恢复」同批处理。
 6. **两套待签串里至少有一条的网关验签实际未生效**。注释自述：`collect-pay-server` 签外层信封五键、`pay-sign-server` 签 bizData 内部字段，**两套没有交集（一个签壳、一个签芯）而两条链路都在生产跑通过**，因此「说明至少有一条的验签在网关侧实际未生效」；当前按用户裁决取 pay-sign 口径，**后续联调失败再回退**（`channel/paycenter/PayCenterSigner.java`）。**建议裁决**：向支付中心确认「到底校不校验签名、校的是哪一套」，拿到一次真实应答做证据（对齐 ADR-D92 的口径）；**在拿到结论前 NEVER 把两套之一当成「已验证正确」**。
 7. **`payType=0` 本地聚合码分支的 `F2F_PAYMENT` 落库口径仍是空的**。注释自述：「这条分支没有任何支付中心交互，因此 `F2F_PAYMENT` 该记什么状态在设计里仍是空的（§十六 P1），**实现落库前 MUST 先定口径**」（`channel/paycenter/PayCenterMessageFactory.java`）。而该分支**已经在跑**（IF2A-01 / IF2A-09 的 `payType=0`）。**建议裁决**：先按「记一条 `PAY_SCENE=qrcode`、`PAY_TYPE=0`、`PAY_STATUS=INIT` 的尝试」补齐，还是明确「本分支不落 `F2F_PAYMENT`」—— 两种都要在对账口径上复核（`ITP.PAY` 五组度量取的是 `F2F_PAYMENT.PAY_AMOUNT`）。
 8. **IF8B-05 通知有四处按我方推断填的值**（`payResult` 只推成功、金额按分、`voucher` 恒空串、`orderType` 固定 `"0"`），其中**规格原文对 `voucher` 的说明自相矛盾**（既写「整段用于生成二维码」又写「预留字段」）且未给必填性，**充值单在 `orderType` 枚举里根本没有对应取值**（`service/F2fPayCenterFlow.java`）。**建议裁决**：四条一并向甲方澄清；**NEVER 在澄清前按猜测改任何一处**（改了就是静默改变对外通知内容）。
 9. **APP 族 `8999` 同码两义**：既表示「支付中（`requestPayResult` 拿不到明确结果）」、又是 service 层通用失败（旧 `failMessage`）（`api/device/app/AppResponses.java`）。**建议裁决**：属既有契约、**NEVER 拆码**；但排查 APP 侧问题时 **MUST 以报文体里的 `payResult` 而不是 `retCode` 判断支付结论**。
-10. **`F2fRefundRetryPolicy` 的「约 27 次覆盖满 24 小时」是注释里的推算结论、不是配置值**（`service/F2fRefundRetryPolicy.java`）。**建议裁决**：判断线上真实退避 / 放弃行为 **MUST 现查 `f2f.refund.*` 的 yml 值与 Deployment env**（AGENTS.md §8 那条「判断线上真实值 MUST 查 env」同样适用），**NEVER 直接引用注释里的次数**。
+10. **`F2fRefundRetryPolicy` 的「约 27 次覆盖满 24 小时」是注释里的推算结论、不是配置值**（`service/F2fRefundRetryPolicy.java`）。**建议裁决**：判断线上真实退避 / 放弃行为 **MUST 现查 `f2f.refund.*` 的 yml 值与 Deployment env**（docs/ops/构建与部署规范.md §8「判断线上真实地址 MUST 查 Deployment env」那条「判断线上真实值 MUST 查 env」同样适用），**NEVER 直接引用注释里的次数**。
 
 ### 墓碑清单（阶段二新增；已删除或已废弃，NEVER 恢复）
 
@@ -1221,7 +1221,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 
 1. **`COMMENT ON` 里的表 / 列语义没有系统性抽取**：`f2f-schema.sql` 有数百条 `COMMENT ON COLUMN`，本轮只在核对矛盾时点取了几条。若要把「表列语义」也变成 docs 唯一载体，MUST 单独一轮按表逐列搬。
 2. **`src/test` 未纳入**（本轮分母只算 `src/main`）；单测里的断言注释可能承载「为什么这样断言」的判据。
-3. **`pom.xml` / `log4j2-*.xml` / K8s 描述文件的注释未纳入**（`face-pay-server/pom.xml` 那段「jkube 刻意不 `activeByDefault`」的说明已在 AGENTS.md §7，未重复搬）。
+3. **`pom.xml` / `log4j2-*.xml` / K8s 描述文件的注释未纳入**（`face-pay-server/pom.xml` 那段「jkube 刻意不 `activeByDefault`」的说明已在 `docs/ops/构建与部署规范.md` §7，未重复搬）。
 4. **注释里点名但仓库内未核对的外部文档**：`docs/architecture/face-pay-refactor.md` §七 / §十四 / §十六 被多处注释引用，本轮未回读那份设计文档核对编号是否仍对得上。
 5. **行内 `//` 注释里的一次性调试说明**未逐条抽（本轮只抽了带 NEVER / 事故日期 / 契约结论的那些）。
 
@@ -1304,7 +1304,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **运营端 TVM 当面付分页查询强制要求「订单标识或完整下单时间范围」**，目的是保护数据库、避免全表扫。`.../controller/page/FacePayOrderPageController.java`
 - **运营端 TVM 当面付退款金额只从订单总额计算、不信任页面输入**，且复用 `TvmOrderPreService` 以沿用既有支付中心退款与退款单号落库流程；请求体只允许填退款原因，未填用默认原因。`.../controller/page/FacePayOrderPageController.java`、`.../controller/page/FacePayRefundRequest.java`
 
-- **collect-pay-server 全部入口当前都没有鉴权**：该模块无 spring-security、无全局拦截器兜底，`signType=00` 即免签。三处新增端点的注释都明确写着这是**有意为之的临时降级、与 AGENTS.md §5.2「新增状态变更型接口 MUST 有鉴权与归属校验」冲突、上线前 MUST 恢复**。`.../controller/internal/AppPayOrderInternalController.java`、`.../controller/internal/ReconExportController.java`、`.../controller/page/AppOrderPageController.java`
+- **collect-pay-server 全部入口当前都没有鉴权**：该模块无 spring-security、无全局拦截器兜底，`signType=00` 即免签。三处新增端点的注释都明确写着这是**有意为之的临时降级、与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突、上线前 MUST 恢复**。`.../controller/internal/AppPayOrderInternalController.java`、`.../controller/internal/ReconExportController.java`、`.../controller/page/AppOrderPageController.java`
 - **`/internal/app-order/**` 的敏感度高于 `/internal/recon`，NEVER 拿后者当长期免鉴权的理由**：`/internal/recon` 是只读导出与内部编排，而 `/internal/app-order` 是按订单号改他人支付状态（拿到任意订单号即可给他人建单、或关掉他人的待支付单）。用户 2026-09-14 裁决「不加鉴权，照本模块现有 `/internal/recon` 的做法」。`.../controller/internal/AppPayOrderInternalController.java`
 - **恢复鉴权 MUST 对齐 `AccountRequestVerifier` / `ItpRequestSignVerifier`，NEVER 自造签名逻辑**；若走共享令牌，比较 **MUST 用 `MessageDigest.isEqual` 做定长时间比较、NEVER 用 `String.equals`**（后者短路返回，可被逐字节计时探测出令牌内容），令牌值由 K8s Secret 注入、**NEVER 在仓库里写默认真值**。`.../controller/internal/AppPayOrderInternalController.java`、`.../controller/internal/ReconExportController.java`
 - **运营端按金额退款的唯一现存防线是服务层的可退余额闸门，它只挡「退多了」、挡不住「不该退的人来退」**；补救方案二选一：补验签，或改由 web-admin 经 rpc 调用并只在内网暴露。`.../controller/page/AppOrderPageController.java`
@@ -1393,10 +1393,10 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **待支付状态取值来自 `ItpStatusEnum.PAYING`，`requestPayInfo` 只对这个状态发起预下单。** `.../service/impl/AppPayOrderInternalServiceImpl.java`
 - **登记按 `orderNo` 幂等，已登记过直接返成功**：调用方是「本地先落 PENDING、提交后再同步、失败留给扫表补偿」的 outbox 模式，同一笔会被重放。**NEVER 改成「重复即报错」** —— 那会让对方的补偿永远收不了口。`.../service/AppPayOrderInternalService.java`
 - **两张表 MUST 在同一个本地事务里写**：只落其中一张的后果分别是「乘客看不到单」与「支付中心回调无处分派」，都需要人工介入。该方法全程无 RPC，因此可以安全地包事务；**NEVER 在本方法内新增任何远端调用**。`.../service/AppPayOrderInternalService.java`、`.../service/impl/AppPayOrderInternalServiceImpl.java`
-- **`selectByOrderNo` 是 check-then-act，并发重放靠主键撞出来**：撞了说明另一条并发请求已登记成功，按幂等返成功而不是让对方进补偿队列重推。**判定 MUST 沿 `getCause()` 链**（本模块开了 tracing，`resource/micro/web` 的观测切面历史上会把异常换类型，只 `catch (DuplicateKeyException)` 会静默落空，AGENTS.md §5.2 / ADR-D53）。`.../service/impl/AppPayOrderInternalServiceImpl.java`
+- **`selectByOrderNo` 是 check-then-act，并发重放靠主键撞出来**：撞了说明另一条并发请求已登记成功，按幂等返成功而不是让对方进补偿队列重推。**判定 MUST 沿 `getCause()` 链**（本模块开了 tracing，`resource/micro/web` 的观测切面历史上会把异常换类型，只 `catch (DuplicateKeyException)` 会静默落空，AGENTS.md §4.2 / ADR-D53）。`.../service/impl/AppPayOrderInternalServiceImpl.java`
 - **关单（`close-unpaid`）带 `PAY_STATUS='0'` 白名单，影响 0 行也算成功**：行不存在、已支付、已失败都是正常结果，关单语义是「保证乘客付不了」，目标已达成即返成功。**NEVER 把 0 行当失败返回** —— 调用方会当成可重试、白重推。`.../service/AppPayOrderInternalService.java`、`.../service/impl/AppPayOrderInternalServiceImpl.java`
 - **支付结果回查查不到时返 `found=false`、不抛异常**：查不到是真实的业务事实，调用方据此落 ERROR 或补登记；抛异常只留给「本模块自己出错」。`.../service/AppPayOrderInternalService.java`
-- **`/internal/app-order/**` 当前无鉴权，是有意为之的临时降级**（用户 2026-09-14 裁决，与本模块 `/internal/recon` 保持一致）。它是状态变更型接口，与 AGENTS.md §5.2 冲突：任何网络可达方都能按订单号给他人建单或关掉他人的待支付单。**上线前 MUST 补鉴权，方式对齐现有验签实现NEVER 自造签名逻辑**。`.../service/AppPayOrderInternalService.java`
+- **`/internal/app-order/**` 当前无鉴权，是有意为之的临时降级**（用户 2026-09-14 裁决，与本模块 `/internal/recon` 保持一致）。它是状态变更型接口，与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突：任何网络可达方都能按订单号给他人建单或关掉他人的待支付单。**上线前 MUST 补鉴权，方式对齐现有验签实现NEVER 自造签名逻辑**。`.../service/AppPayOrderInternalService.java`
 - **APP 单程票订单号是 20 位** = `ProductType(2)` + `yyyyMMddHHmmss(14)` + 序列(4)。2026-09-11 由「`00` + 时间 + UUID 前 8 位」的 24 位改成 20 位，与 BOM（`BomOrderServiceImpl.generateOrderNo`）和新服务 face-pay 完全同口径；前缀仍是 `ProductType.ordinaryTicket = "00"`，历史 24 位订单不受影响。`.../service/impl/AppOrderServiceImpl.java`
 - **20 位长度由序列属性兜住**：`ORDER_NO_SEQ` 实测 `MAX_VALUE=9999` + `CYCLE=Y`，序列值永远不超过 4 位。**NEVER 把该序列改成不循环或放大上限**，否则订单号会超过 20 位。`.../service/impl/AppOrderServiceImpl.java`
 
@@ -1427,7 +1427,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **collect-pay 在日终对账里的本源标识是 `collect-pay`，只负责 ITP.PAY 与 ITP.BUS 两类文件**；本源标识是跨服务契约的第一段字段值，**NEVER 改**。`.../service/ReconExportService.java`
 - **ITP.DETAIL 是虚拟电子多日计次票专用文件，本模块 NEVER 产出**：甲方规格《ACC与ITP之间的文件》第一章第 4 节明确 DETAIL 口径与 TVM / BOM 的非现金收款无关，已改由 gate-txn-pay 与 daily-ticket 负责。收到 `DETAIL` 或 `EXP` 指令只记 warn 并跳过，**NEVER 拿本模块的四张收款表去凑 DETAIL 行** —— 凑出来的是错账文件，而纯文本分片没有 schema、下游读不出异常。`.../service/ReconExportService.java`
 - **对账覆盖四张收款主表，只导成功单**：`TBL_TVM_ORDER_PAY`（TVM 扫码购票）、`TBL_TVM_ORDER_TOPUP`（TVM 扫码充值）、`TBL_TVM_APP_ORDER`（APP 在线购票）、`TBL_BOM_ORDER_PAY`（BOM 非现金收款），四张表只导 `STATUS` / `PAY_STATUS` 为 `'1'` 的行（`ItpStatusEnum`）。`.../service/ReconExportService.java`
-- **抽取绝不能跑在请求线程上，MUST 派给固定大小的平台线程池**：全服务默认 `spring.threads.virtual.enabled=true`（`resource/micro/web/src/main/resources/web.properties`），Tomcat 处理线程是虚拟线程；JDK 21 未落地 JEP 491，虚拟线程在 `synchronized` 内阻塞会 **pin 住载体线程**，而 ojdbc8 的 `PhysicalConnection` / `OracleStatement` 大量方法是 `synchronized` —— 一条 60s 慢 SQL 就是 60s 的 pin。载体线程池 parallelism 默认等于容器可见 CPU 数，CPU limit 偏小时一两条慢 SQL 即可 pin 满，**全 JVM 虚拟线程停止调度**，连 WebClient 响应的续体都唤不醒。对账抽取是区间全扫级别的批处理，放在请求线程上等于必然触发该故障；控制器只负责受理与立即返回（`new Thread(...)` 造出的就是平台线程）。`.../service/ReconExportService.java`
+- **抽取绝不能跑在请求线程上，MUST 派给固定大小的平台线程池**：历史全服务默认 `spring.threads.virtual.enabled=true`（`resource/micro/web/src/main/resources/web.properties`，2026-10-20 起已禁用），Tomcat 处理线程曾为虚拟线程；JDK 21 未落地 JEP 491，虚拟线程在 `synchronized` 内阻塞会 **pin 住载体线程**，而 ojdbc8 的 `PhysicalConnection` / `OracleStatement` 大量方法是 `synchronized` —— 一条 60s 慢 SQL 就是 60s 的 pin。载体线程池 parallelism 默认等于容器可见 CPU 数，CPU limit 偏小时一两条慢 SQL 即可 pin 满，**全 JVM 虚拟线程停止调度**，连 WebClient 响应的续体都唤不醒。对账抽取是区间全扫级别的批处理，放在请求线程上等于必然触发该故障；控制器只负责受理与立即返回（`new Thread(...)` 造出的就是平台线程）。`.../service/ReconExportService.java`
 - **并发控制不依赖任何中间件**（本项目不用 Redis / MQ）：同一 `batchId` 的在途标记放在 `ConcurrentHashMap.newKeySet()` 里，`add` 成功才受理，`finally` 里移除；单副本内足够，多副本由 recon-server 按批次分发保证只下发一次。受理返 `false` 表示同批次上一轮仍在执行，**是限流不是失败**。`.../service/ReconExportService.java`
 - **抽取线程数 `recon.export.worker` 默认 1（串行），刻意不放大**：抽取是重 IO 的区间扫描，并发只会互相抢 Oracle 的 IO 与 Druid 连接，反而拖慢联机链路。`.../service/ReconExportService.java`
 - **一类文件的失败 NEVER 中断整轮**：每类文件独立 try-with-resources，某类抛异常时 `ReconPartSink.close()` 自动向 recon-server 声明该类失败，catch 住后继续跑下一类。PAY 与 BUS 是两份独立文件，一类挂掉不该拖累另一类，否则重跑成本翻倍。`.../service/ReconExportService.java`
@@ -1442,7 +1442,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **优惠段填 0 是核对过 DDL 的结论**：`collect-pay-server/sql.txt` 里那四张表**都没有任何优惠或折扣金额列**。**NEVER 拿票价与实付之差去推算优惠** —— `TICKET_PRICE * TICKET_NUM` 与实付的差额可能来自分单、退款或脏数据，算出来的不是优惠。`.../service/ReconExportService.java`
 - **`resultType=java.util.Map` 下 `COUNT` 与 `TO_NUMBER` 的结果一律是 `BigDecimal`，直接强转 `(Long)` 会抛 ClassCastException**，因此有一个私有的金额转 long（单位分）方法；它只服务本类，不是新建公共工具类。`.../service/ReconExportService.java`
 - **Map 取字符串时 `null` 保持 `null`**，由 `ReconRecord.line(Object...)` 统一转空串（表无该列时车站段 / 设备段也一律传 `null`）。`.../service/ReconExportService.java`
-- **完整性冲突判定 MUST 沿 `getCause()` 链，NEVER 只看最外层类名**：本模块开了 tracing，`resource/micro/web` 的观测切面历史上会把异常重新包一层，只 `catch (DuplicateKeyException)` 会静默落空（AGENTS.md §5.2 / ADR-D53）。`.../service/impl/AppPayOrderInternalServiceImpl.java`
+- **完整性冲突判定 MUST 沿 `getCause()` 链，NEVER 只看最外层类名**：本模块开了 tracing，`resource/micro/web` 的观测切面历史上会把异常重新包一层，只 `catch (DuplicateKeyException)` 会静默落空（AGENTS.md §4.2 / ADR-D53）。`.../service/impl/AppPayOrderInternalServiceImpl.java`
 - **时间格式在两个方向上不同**：给 APP 的通知与库内退款时间是 `yyyyMMddHHmmss`（无分隔符），而 `TvmCommonServiceImpl` 内部对非空时间统一转成 `yyyy-MM-dd HH:mm:ss`。跨这两层传时间 MUST 显式转换。`.../service/impl/TvmCommonServiceImpl.java`、`.../service/impl/AppOrderServiceImpl.java`
 
 
@@ -1453,7 +1453,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **取票授权查不到激活订单时 MUST 挂住这次请求、NEVER 立即返回**：TVM 每轮取票只发**一次** `requestTakeTicketAuth`（自己出码后约 1 秒，之后不再轮询），而 APP 扫码激活要等用户操作、实测滞后 4~8 秒，于是 TVM 那一次查询必然落在激活之前，拿到「无激活的订单」后直接终止、票永远打不出来；TVM 厂商不改轮询逻辑，因此在 ITP 侧挂起等待激活事件。`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/support/TakeTicketWaiter.java`、`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/impl/TvmTakeTicketServiceImpl.java`。
 - **挂起时长 NEVER 配到 15000 以上**：`tvm.takeTicket.waitMillis` 默认 10000，上限受 istio 路由超时约束 —— `fep-app-vr` 的 `/itptvm/` 路由没配 timeout、走 Envoy 默认 15 秒，超了 TVM 收到的是网关 504（不是我方报文）。`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/impl/TvmTakeTicketServiceImpl.java`。
 - **兜底回查间隔 NEVER 小于 500ms**：`tvm.takeTicket.pollIntervalMillis` 默认 500；内存唤醒之外还要查库兜底，防止漏唤醒，但间隔过小会因 JDBC 阻塞 pin 住载体线程。`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/impl/TvmTakeTicketServiceImpl.java`。
-- **挂起 NEVER 放进带 `@Transactional` 的方法**：行级锁会被持有整个等待时长，这正是 AGENTS.md §5.2 记录的 2026-08-26 生产事故形态。`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/support/TakeTicketWaiter.java`。
+- **挂起 NEVER 放进带 `@Transactional` 的方法**：行级锁会被持有整个等待时长，这正是 docs/architecture/transaction-and-consistency.md §6「`@Transactional` 方法内 NEVER 发起任何 RPC / 网络调用」记录的 2026-08-26 生产事故形态。`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/support/TakeTicketWaiter.java`。
 - **唤醒走进程内存事件，成立前提是本服务单副本**：`signal` 只在激活成功（`updateAppOrder` 影响行数大于 0）后调用，没有等待者时什么都不做；「激活落在别的副本」或「signal 与 await 之间的窗口」由调用方按固定间隔回查数据库兜底。`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/support/TakeTicketWaiter.java`、`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/impl/TvmTakeTicketServiceImpl.java`。
 - **等待键就是二维码三要素 `deviceId|qrcodeGenDate|randomFact`，与 `selectByDeviceAndQrcode` 的查询条件一一对应**：改查询条件 MUST 同步改 key，否则 signal 与 await 永远对不上。`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/support/TakeTicketWaiter.java`。
 - **挂起有全局额度，超限 MUST 退回「立即返回」的原有行为**：`tvm.takeTicket.maxWaiting` 默认 500，`tryAcquire` 返 false 即不再等待，防止设备异常时把线程占满；等待结束 MUST `discard(key)` 清理 map。`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/support/TakeTicketWaiter.java`。
@@ -1577,7 +1577,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 #### 二、架构门禁（`arch/F2fGuardTest.java`、`arch/F2fOrderStatusArchTest.java`）
 
 - **`F2fGuardTest` 把两条「只靠注释维持」的约束固化成会失败的构建**：①幂等兜底一律走 `F2fDuplicateKey.isConflict(Throwable)` 沿 cause 链判定（ADR-D84）—— 裸 `catch` 具体异常类型在**打开 tracing 的模块里会静默失效**，本模块尚未开 tracing，所以这条**现在不会在运行时暴露、一旦有人开了才炸**；②`@Scheduled` 的**数量与宿主类数被钉住**（当前 7 个分布在 6 个类，补款那个类里有两个），谁新增一个调度这个测试就红，提醒他一并复核单副本约束与文档口径。判定**在剥离注释后的代码上做**，因为那两处 NEVER 告示本身就写着被禁止的写法。`arch/F2fGuardTest.java`
-- **`F2fOrderStatusArchTest` 的两条规则加进来时全绿**，目的是拦住「下一个人退回旧写法」；**规则失败时 NEVER 改规则去迁就代码**，先读 `docs/domain/state-machines.md` §二确认是新写法有理由还是又踩同一个坑。`arch/F2fOrderStatusArchTest.java`
+- **`F2fOrderStatusArchTest` 的两条规则加进来时全绿**，目的是拦住「下一个人退回旧写法」；**规则失败时 NEVER 改规则去迁就代码**，先读 docs/domain/state-machines.md §二「三件套规范」确认是新写法有理由还是又踩同一个坑。`arch/F2fOrderStatusArchTest.java`
 - **四个取值域 NEVER 混谈**：该门禁只列**订单域** 11 个取值；票（`ISSUED` / `FAULT`）、支付（`INIT` / `SUCCESS` / `FAILED` / `PROCESSING`）、退款（另加 `MANUAL`）是**另外三个取值域**。允许保留裸字面量的**唯一形态**是常量名带取值域前缀（活样例 `F2fBomOrderService.TICKET_REFUNDING = "REFUNDING"`，它是 `F2F_TICKET.TICKET_STATUS`，与订单状态**拼写相同、取值域不同**）；**NEVER 靠加白名单文件名放行**，那等于把整个类豁免掉。
 - **三条 CAS 的返回行数不得被丢弃 —— 这是本组门禁里价值最高的一条**：2026-09-14 首次跑它时，**40 个调用点里有 12 个直接丢掉返回值**，其中 `F2fTvmOrderService` 查询到支付成功那处 `markPaid` 属于「钱已收、状态可能没落上」，是人工逐条 review 时漏掉的。CAS 的返回行数是它唯一的输出，丢掉等于把条件更新退化成无条件更新。认定「接住了」的四种形态：赋给变量，或交给三个解读入口之一（含 `F2fOrderStatusTransition.classify`）；唯一豁免形态是行内显式写 `// CAS-DISCARD: <理由>`，**NEVER 改成按文件名或方法名豁免、也 NEVER 只写标记不写理由**。
 - **为什么这两组门禁扫源码而不用 ArchUnit**：ArchUnit **看不见字符串常量**（`String` 常量池不在它的领域模型内），也**看不到「返回值有没有被使用」**（字节码里那是一条 POP 指令）。因此形态照 `account-server` 那种「离线解析工程文件」的做法，工作目录是模块根、不连库不起 Spring；判定窗口取**匹配行 + 上一行**，因为项目里有同行与跨行两种写法。
@@ -1758,7 +1758,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **注释说什么**：两者类注释**逐字相同**：「BOM 非现金收款订单实体类。对应数据库表 `TBL_BOM_NOCASH_ORDER`，存储 BOM 非现金收款业务的订单信息」。
 - **实际是什么**：类名一个是 `BomSaleOrder`（售票）、一个是 `BomNoCashOrder`（非现金），字段集不同（`BomNoCashOrder` 有 `transType` / 行政交易类型 / 订单状态 / 状态描述，`BomSaleOrder` 注释里只见到更新时间）。同一张表两个实体、或其中一个注释指错了表。
 - **证据坐标**：`.../entity/BomSaleOrder.java`、`.../entity/BomNoCashOrder.java`
-- **建议裁决**：按两个类的字段逐列比对 `TBL_BOM_NOCASH_ORDER` 的实际列（`USER_TAB_COLS`）判断谁是真 owner；另一个若是历史遗留 **MUST 标注废弃**。日终对账口径里的「BOM 处理 / BOM 行政处理两组恒 0」问题（AGENTS.md §2.2.2 已记）很可能与「读了错的那个实体 / 错的 `TRANS_TYPE` 取值口径」同源，**排查那两组恒 0 MUST 先闭合本条**。
+- **建议裁决**：按两个类的字段逐列比对 `TBL_BOM_NOCASH_ORDER` 的实际列（`USER_TAB_COLS`）判断谁是真 owner；另一个若是历史遗留 **MUST 标注废弃**。日终对账口径里的「BOM 处理 / BOM 行政处理两组恒 0」问题（docs/business/未落地需求.md 已记）很可能与「读了错的那个实体 / 错的 `TRANS_TYPE` 取值口径」同源，**排查那两组恒 0 MUST 先闭合本条**。
 
 #### 7. `BomBusinessCodeEnum` 两个常量描述都是「充值」
 
@@ -1770,14 +1770,14 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 #### 8. `ProductType` 的 `0C` 与 `0D` 描述完全相同
 
 - **注释说什么**：`CmbSUPPLEMENT("0C", "招行一网通_垫资补缴")`、`EcnyActPay("0D", "招行一网通_垫资补缴")`。
-- **实际是什么**：枚举名 `EcnyActPay` 明示是数字人民币（e-CNY）相关，与「招行一网通」无关，`0D` 的描述是复制 `0C` 时漏改。**这是 AGENTS.md §2.2.2 所说「仅 collect-pay-server 支付方式枚举含 e-CNY 字样」的那一处**。
+- **实际是什么**：枚举名 `EcnyActPay` 明示是数字人民币（e-CNY）相关，与「招行一网通」无关，`0D` 的描述是复制 `0C` 时漏改。**这是 docs/business/未落地需求.md 所说「仅 collect-pay-server 支付方式枚举含 e-CNY 字样」的那一处**。
 - **证据坐标**：`.../constant/ProductType.java`
-- **建议裁决**：`0D` 的描述 MUST 按 e-CNY 语义修正。**但 NEVER 据此认为数字人民币硬钱包已有实现** —— 它只是订单号前缀枚举里的一个占位项，无业务实现、无表（AGENTS.md §2.2.2）。
+- **建议裁决**：`0D` 的描述 MUST 按 e-CNY 语义修正。**但 NEVER 据此认为数字人民币硬钱包已有实现** —— 它只是订单号前缀枚举里的一个占位项，无业务实现、无表（docs/business/未落地需求.md）。
 
 #### 9. `SingleTicketRefundTask` 的日志自称「由 web-server Quartz 触发」，实际是本模块 `@Scheduled` 自驱
 
 - **注释说什么**：四个方法体内的日志文案统一是「收到由 web-server Quartz 定时任务发起的调用 xxx 接口」，且方法上方留有被注释掉的 `@PostMapping`。
-- **实际是什么**：四个方法上都挂着未注释的 `@Scheduled`（cron `0 0 20 * * ?` 两个、`0 1 9,15,21 * * ?`、`0 0 9,15,21 * * ?`），而三个 `@PostMapping` 被注释掉了 —— **web-admin 根本没有 HTTP 入口可调**，所以那句日志描述的触发方不存在。AGENTS.md §2.2.1 也把本模块列为「还有在跑的 `@Scheduled`」的两个模块之一（`SingleTicketRefundTask` 4 处），与代码一致、与日志文案不一致。
+- **实际是什么**：四个方法上都挂着未注释的 `@Scheduled`（cron `0 0 20 * * ?` 两个、`0 1 9,15,21 * * ?`、`0 0 9,15,21 * * ?`），而三个 `@PostMapping` 被注释掉了 —— **web-admin 根本没有 HTTP 入口可调**，所以那句日志描述的触发方不存在。docs/business/README.md 全局事实 也把本模块列为「还有在跑的 `@Scheduled`」的两个模块之一（`SingleTicketRefundTask` 4 处），与代码一致、与日志文案不一致。
 - **证据坐标**：`.../task/SingleTicketRefundTask.java`（`@Scheduled` 在 34/51/69/87，被注释的 `@PostMapping` 在 33/68/86），日志文案在 
 - **建议裁决**：这四个任务**没有分布式锁**，因此 collect-pay-server **MUST 单副本**；若打算迁到 web-admin `sys_job` 统一调度，**MUST 先摘 `@Scheduled` 再放开 `@PostMapping`，NEVER 两者同时存在**（会同一批退款跑两遍，属资损）。在裁决前 **MUST 修正日志文案**，否则排查「退款到底谁触发的」会被误导到 `SYS_JOB_LOG` 去查一个不存在的任务。
 
@@ -1788,9 +1788,9 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **证据坐标**：`.../constant/DevicePayCodeEnum.java`、`.../constant/PayCenterStatusEnum.java`、`.../constant/PayCenterRefundStatusEnum.java`、`.../constant/AppStatusEnum.java`、`.../model/response/tvm/RequestPaymentRespDTO.java`、`.../model/response/tvm/RequestRefundRespDTO.java`
 - **建议裁决**：**NEVER 做统一归一**（对外契约字面量一改就是设备侧解析失败）；MUST 在 docs 里按「哪条链路的哪个字段用哪个字面量」逐条列出，并在新写比较逻辑时用枚举常量而非硬编码字符串。
 
-#### 11. 三处状态变更型端点无鉴权，与 AGENTS.md §5.2 直接冲突（注释自述为临时降级）
+#### 11. 三处状态变更型端点无鉴权，与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」直接冲突（注释自述为临时降级）
 
-- **注释说什么**：`AppPayOrderInternalController`、`ReconExportController`、`AppOrderPageController` 三处类注释都写「开发测试阶段：本接口当前无鉴权，上线前 MUST 恢复」，并自认与 AGENTS.md §5.2 冲突、属**有意为之的临时降级**。
+- **注释说什么**：`AppPayOrderInternalController`、`ReconExportController`、`AppOrderPageController` 三处类注释都写「开发测试阶段：本接口当前无鉴权，上线前 MUST 恢复」，并自认与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突、属**有意为之的临时降级**。
 - **实际是什么**：当前代码里确实没有任何校验，且本模块无 spring-security、无全局拦截器兜底、`signType=00` 即免签。三者的暴露面依次是：按订单号给他人建单或关掉他人待支付单；触发区间全扫级别的批处理；按指定金额给任意订单退款。
 - **证据坐标**：`.../controller/internal/AppPayOrderInternalController.java`、`.../controller/internal/ReconExportController.java`、`.../controller/page/AppOrderPageController.java`
 - **建议裁决**：保持现状是已获用户裁决的（2026-09-14 / 2026-09-11 两次），但 **MUST 进上线核对清单**；恢复形态已写死在注释里（对齐 `AccountRequestVerifier` / `ItpRequestSignVerifier`，或共享令牌 + `MessageDigest.isEqual` + K8s Secret）。**NEVER 把「`/internal/recon` 也没加」当成 `/internal/app-order` 长期免鉴权的理由。**
@@ -1798,13 +1798,13 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 #### 12. 同一批 `IF2A-08` / `IF2A-09` 编号在 TVM 与 BOM 两个 controller 里指不同接口
 
 - **注释说什么**：`TvmOrderController` 里 IF2A-08 是「扫码取票订单查询」、IF2A-09 是「请求充值下单」；`BomOrderController` 里 IF2A-08 是「业务操作结果通知」、IF2A-09 是「充值结果通知（7.3.3.5）」。
-- **实际是什么**：两组注释同时存在于代码里，四个方法都是实打实的端点。这与 AGENTS.md §2.2.1「接口编号不唯一映射到一处代码，定位实现 MUST 以模块 + URL 为准」一致，但**本模块内部就撞号**，比跨模块撞号更容易误判。
+- **实际是什么**：两组注释同时存在于代码里，四个方法都是实打实的端点。这与 docs/business/README.md 全局事实「接口编号不唯一映射到一处代码，定位实现 MUST 以模块 + URL 为准」一致，但**本模块内部就撞号**，比跨模块撞号更容易误判。
 - **证据坐标**：`.../controller/ci/tvm/TvmOrderController.java`、`.../controller/ci/bom/BomOrderController.java`
 - **建议裁决**：docs 里 **MUST 用「域 + 编号 + URL」三元组标注，NEVER 只写 IF2A-08**。按编号查实现时 MUST 同时 grep `controller/ci/tvm` 与 `controller/ci/bom` 两个包。
 
 #### 13. `TvmTopupOrder` 已有 `payType` 列，而 AGENTS.md 记「IF2A-01 / IF2A-09 需加 payType」属未落地
 
-- **注释说什么**：`TvmTopupOrder` 的字段注释是「`0`：其他支付方式 / `1`：数字人民币 app」，取值与 AGENTS.md §2.2.2 里「另有 IF2A-01 / IF2A-09 需加 `payType`（`0` 其他 / `1` 数字人民币 app）」逐字一致。
+- **注释说什么**：`TvmTopupOrder` 的字段注释是「`0`：其他支付方式 / `1`：数字人民币 app」，取值与 docs/business/未落地需求.md 里「另有 IF2A-01 / IF2A-09 需加 `payType`（`0` 其他 / `1` 数字人民币 app）」逐字一致。
 - **实际是什么**：实体（即库列）侧已有该字段，但 AGENTS.md 把它列在「尚未落地的需求」里。两者可能都对（列已建、接口 DTO 未加），也可能是 AGENTS 该条已过期。
 - **证据坐标**：`.../entity/TvmTopupOrder.java`
 - **建议裁决**：MUST 分两步核实 —— ①查 `USER_TAB_COLS` 确认 `PAY_TYPE` 列是否真在库里；②grep `RequestGenSjtOrderReqDTO` 与充值下单 req DTO 有没有 `payType` 字段。**在核实前 NEVER 声称「payType 已实现」，也 NEVER 声称「连列都没有」。**
@@ -1812,7 +1812,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 #### 14. 「文档表 70」「7.5.1.1」「7.3.3.5」三处规格章节号在仓库内无法自证
 
 - **注释说什么**：错误码注释引「文档表 70 错误代码列表」，公共参数基类引「7.5.1.1 请求公共参数」，BOM 充值结果通知引「7.3.3.5 IF2A-09」。
-- **实际是什么**：这些章节号指向甲方 `.docx` 原文，注释里没写是哪一份文档；而 AGENTS.md §9 已记「《技术规范-第 4 部分-系统接口规范》在仓库内没有源文件」。因此这三处溯源目前**不可验证**。
+- **实际是什么**：这些章节号指向甲方 `.docx` 原文，注释里没写是哪一份文档；而 AGENTS.md §8「《技术规范-第 4 部分-系统接口规范》在仓库内没有源文件」。因此这三处溯源目前**不可验证**。
 - **证据坐标**：`.../constant/TvmPayCodeEnum.java`、`.../model/request/BaseRequestDTO.java`、`.../model/request/PayCenterBaseRequestDTO.java`、`.../controller/ci/bom/BomOrderController.java`
 - **建议裁决**：迁移 docs 时 **MUST 把章节号连同「出自哪份 docx 待确认」一起记下**，NEVER 直接当成已核实的规格出处；补齐时优先在 `docs/接口规范文档/` 下按章节号反查并把文件名回填注释。
 
@@ -1832,14 +1832,14 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 
 **2. `BomOrderServiceImpl.notiBusResult`（IF2A-08）带 `@Transactional` 且在事务内调支付中心退款**
 
-- 注释说什么：同一个类的 `notiTopupResult` 有一整段注释解释「本方法有意不带 `@Transactional`（2026-09-14 摘除，NEVER 加回）」，理由是 AGENTS.md §5.2「`@Transactional` 方法内 NEVER 发起任何 RPC / 网络调用」，并把行锁堆积 → Druid 强杀连接 → `commit` 抛 connection closed → 证据全丢 → UUID `retCode` → 上游继续重推的完整链条写清楚了。
+- 注释说什么：同一个类的 `notiTopupResult` 有一整段注释解释「本方法有意不带 `@Transactional`（2026-09-14 摘除，NEVER 加回）」，理由是 docs/architecture/transaction-and-consistency.md §6「`@Transactional` 方法内 NEVER 发起任何 RPC / 网络调用」，并把行锁堆积 → Druid 强杀连接 → `commit` 抛 connection closed → 证据全丢 → UUID `retCode` → 上游继续重推的完整链条写清楚了。
 - 实际是什么：**同一个类里 `notiBusResult` 仍带 `@Transactional(rollbackFor = Exception.class)`，而它的 `optResult=FAILED` 分支正是 `this.doRefund(...)` 调支付中心**，随后还有 `updateBomBusResult` 回写 —— 与被摘除的那个方法是同型结构。同类的 `requestPayment`（IF8A-05 扫码支付）也带 `@Transactional` 且链路里有支付中心调用。
-- 证据坐标：`.../service/impl/BomOrderServiceImpl.java`（`@Transactional` + `notiBusResult`）、 区间的 `doRefund` 调用、（`@Transactional` + `requestPayment`）；对照样板 `.../service/impl/BomOrderServiceImpl.java`（已摘除的那段说明）；规则出处 AGENTS.md §5.2。
+- 证据坐标：`.../service/impl/BomOrderServiceImpl.java`（`@Transactional` + `notiBusResult`）、 区间的 `doRefund` 调用、（`@Transactional` + `requestPayment`）；对照样板 `.../service/impl/BomOrderServiceImpl.java`（已摘除的那段说明）；规则出处 docs/architecture/transaction-and-consistency.md §6「`@Transactional` 方法内 NEVER 发起任何 RPC / 网络调用」。
 - 建议裁决：按 `notiTopupResult` 同款处理 —— 摘掉这两处 `@Transactional`，让通知记录与「退款中」状态先自动提交、退款结果各自回写。**这是改行为的动作，MUST 先向用户确认**；在确认前，docs 里 MUST 记为「已知未修复：BOM 域仍有两个事务内调支付中心的方法」，**NEVER 只搬 `notiTopupResult` 那段「已摘除」的注释就宣称该模块已合规**。
 
-**3. `/internal/app-order/**` 三个端点无鉴权，与 AGENTS.md §5.2 直接冲突**
+**3. `/internal/app-order/**` 三个端点无鉴权，与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」直接冲突**
 
-- 注释说什么：「本接口当前无鉴权（用户 2026-09-14 裁决：与本模块 `/internal/recon` 的临时降级保持一致）。它是状态变更型接口，与 AGENTS.md §5.2 冲突，属**有意为之的临时降级**：任何网络可达方都能按订单号给他人建单或关掉他人的待支付单。**上线前 MUST 补鉴权**。」
+- 注释说什么：「本接口当前无鉴权（用户 2026-09-14 裁决：与本模块 `/internal/recon` 的临时降级保持一致）。它是状态变更型接口，与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突，属**有意为之的临时降级**：任何网络可达方都能按订单号给他人建单或关掉他人的待支付单。**上线前 MUST 补鉴权**。」
 - 实际是什么：冲突真实存在且**尚未闭合**，`docs/ops/生产环境清单.md` 已把它列为 P0 与上线核对项；`docs/business/tvm-bom-pay.md` 另加一条判据「**NEVER 拿「`/internal/recon` 也没加」当长期理由**」（只读导出与「按订单号改他人支付状态」不同级）。
 - 证据坐标：`.../service/AppPayOrderInternalService.java`；`docs/ops/生产环境清单.md`；`docs/business/tvm-bom-pay.md`。
 - 建议裁决：保留为**显式登记的临时降级**，迁移时 MUST 同时搬运「NEVER 拿 recon 当长期理由」那条判据，**NEVER 把它写成「本模块内部端点按约定无需鉴权」**。是否本次恢复鉴权属安全红线，MUST 由用户决定。
@@ -1847,14 +1847,14 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 **4. 单副本约束的表述不一致：注释暗示 recon-server 可多副本**
 
 - 注释说什么：`ReconExportService` 的并发控制说明写「单副本内足够；**多副本场景由 recon-server 侧按批次分发保证只下发一次**」，读起来像是 recon-server 支持多副本、由它兜住幂等。
-- 实际是什么：AGENTS.md §2.2.1 明确 `ReconOrchestrationService.runDailyBatch` 只有进程内 `AtomicBoolean` 拒绝并发、**没有数据库锁**，因此 **recon-server 与 web-admin 都 MUST 单副本**。也就是说「多副本场景由 recon-server 兜住」这个前提当前不成立。
-- 证据坐标：`.../service/ReconExportService.java`；AGENTS.md §2.2.1「日终对账的调度也在 web-server」那条末句。
+- 实际是什么：docs/business/README.md 全局事实 明确 `ReconOrchestrationService.runDailyBatch` 只有进程内 `AtomicBoolean` 拒绝并发、**没有数据库锁**，因此 **recon-server 与 web-admin 都 MUST 单副本**。也就是说「多副本场景由 recon-server 兜住」这个前提当前不成立。
+- 证据坐标：`.../service/ReconExportService.java`；docs/business/README.md 全局事实「日终对账的调度也在 web-server」那条末句。
 - 建议裁决：迁移时改写为「本源侧的在途标记只在**单副本内**有效；下发端 recon-server 自身也 MUST 单副本，**NEVER 据本条认为多副本已被兜住**」。属文档口径修正，不改代码。
 
 **5. `BomOrderService` 里 IF2A-04 的注释写的是 TVM 语义**
 
 - 注释说什么：`BomOrderService` 的 IF2A-04 出票结果通知，注释原文是「**TVM** 出票成功后通知 ITP 平台」。
-- 实际是什么：该方法挂在 BOM 服务接口上；而 `TvmOrderService` 里另有一条同编号 IF2A-04、注释同样是「TVM 出票成功后通知 ITP 平台」。两处**同号同注释、分属两个渠道接口**，无法据注释判断 BOM 侧那条的真实语义（是 BOM 代 TVM 上报，还是 BOM 自身出票上报）。这与 AGENTS.md §2.2.1「接口编号不唯一映射到一处代码」同型。
+- 实际是什么：该方法挂在 BOM 服务接口上；而 `TvmOrderService` 里另有一条同编号 IF2A-04、注释同样是「TVM 出票成功后通知 ITP 平台」。两处**同号同注释、分属两个渠道接口**，无法据注释判断 BOM 侧那条的真实语义（是 BOM 代 TVM 上报，还是 BOM 自身出票上报）。这与 docs/business/README.md 全局事实「接口编号不唯一映射到一处代码」同型。
 - 证据坐标：`.../service/BomOrderService.java`；`.../service/TvmOrderService.java`。
 - 建议裁决：迁移时**只写「模块 + URL」**，不搬「TVM 出票成功后通知」这句渠道断言；BOM 侧那条的真实语义 MUST 从 Controller 的 `@PostMapping` 与调用它的设备报文取证后再补。
 
@@ -1875,8 +1875,8 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 **8. ITP.PAY 线路段与车站段的空缺待甲方补数据源**
 
 - 注释说什么：TVM 充值与 BOM 两组的车站段本身就空（表里连车站码列都没有），因此 recon-server 也补不出线路段；「待甲方补数据源后，本模块只要把车站段填上，线路段就会由 recon-server 自动补齐」。
-- 实际是什么：这是**已声明但未闭合的数据侧空缺**，与 AGENTS.md §2.2.2 记录的「collect-pay 的 `TRANS_TYPE` 三处矛盾致 BOM 行政处理与 BOM 处理两组恒 0」是同一批未闭合项；甲方规格对这些段位的必填性尚无澄清结论。
-- 证据坐标：`.../service/ReconExportService.java`；AGENTS.md §2.2.2 ACC 对账文件那条的「④甲方文档歧义」与「⑤数据侧 5 处空缺」。
+- 实际是什么：这是**已声明但未闭合的数据侧空缺**，与 docs/business/未落地需求.md 记录的「collect-pay 的 `TRANS_TYPE` 三处矛盾致 BOM 行政处理与 BOM 处理两组恒 0」是同一批未闭合项；甲方规格对这些段位的必填性尚无澄清结论。
+- 证据坐标：`.../service/ReconExportService.java`；docs/business/未落地需求.md ACC 对账文件那条的「④甲方文档歧义」与「⑤数据侧 5 处空缺」。
 - 建议裁决：迁移为**待甲方澄清清单**的一项，明确「当前产出这几段为空或恒 0 是有意标注、不是缺陷」，并保留「宁可标注也不凭猜写取值」这条判据。
 
 
@@ -1888,7 +1888,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 #### 一、`TRANS_TYPE`：BOM 发售取值无写入方（与既有「三处矛盾致对账两组恒 0」同源）
 
 - **注释说什么**：`TvmOrderServiceImpl` 里整段注释掉的 `getBomOrderSalePre` 明确要把前置单的 `transType` 写成 `BusinessTypeEnum.BOM_SCANED_SALE_PAY`，即「BOM 发售」独立成一个交易类型。
-- **实际是什么**：该方法零调用方、整段注释。当前真实写入前置单 `TRANS_TYPE` 的只有四处，且**没有一处写 BOM 发售**：`TVM_SCAN_QR_BUYTICKET`（TVM 扫码购票）、`TVM_SCAN_QR_RECHARGE`（扫码充值）、`TVM_SCAN_QR_TAKETICKET`（APP 扫码取票）、`BOM_SCANED_PAY`（BOM 扫码支付，笼统一个值）。于是 BOM 侧「发售 / 充值 / 行政处理」在库里无法区分，对账导出只能整表计入「发售」组、不按 `TRANS_TYPE` 拆分，BOM 行政处理与 BOM 处理两组度量恒 0（与 AGENTS.md §2.2.2 ⑤ 记载的既有结论一致）。
+- **实际是什么**：该方法零调用方、整段注释。当前真实写入前置单 `TRANS_TYPE` 的只有四处，且**没有一处写 BOM 发售**：`TVM_SCAN_QR_BUYTICKET`（TVM 扫码购票）、`TVM_SCAN_QR_RECHARGE`（扫码充值）、`TVM_SCAN_QR_TAKETICKET`（APP 扫码取票）、`BOM_SCANED_PAY`（BOM 扫码支付，笼统一个值）。于是 BOM 侧「发售 / 充值 / 行政处理」在库里无法区分，对账导出只能整表计入「发售」组、不按 `TRANS_TYPE` 拆分，BOM 行政处理与 BOM 处理两组度量恒 0（与 docs/business/未落地需求.md ⑤ 记载的既有结论一致）。
 - **证据坐标**：`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/impl/TvmOrderServiceImpl.java`（注释版 BOM 发售前置单）、（TVM 购票实际取值）、`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/impl/TvmTopupServiceImpl.java`（充值）、`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/impl/AppOrderServiceImpl.java`（取票）、`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/impl/BomOrderServiceImpl.java`（BOM 唯一取值）、`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/mapper/ReconExportMapper.java`（整表计入发售、设备上送来源）、`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/ReconExportService.java`（一律填 0、有意降级）、`collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/service/impl/AppPayOrderInternalServiceImpl.java`（`TRANS_TYPE` 为空时回调查不到前置单、状态永远停在待支付）。
 - **建议裁决**：属**数据侧口径缺失、不是代码 bug**，MUST 先与甲方确认 BOM 侧「发售 / 充值 / 行政处理」在 `TBL_BOM_ORDER_PAY.TRANS_TYPE` 上的取值表，再回头决定是补写入（把 `BOM_SCANED_SALE_PAY` 之类的细分值落库）还是维持「整表发售 + 标注」的降级；**NEVER 在没有甲方取值表的情况下自行猜值写库**，也 NEVER 删 那段注释（它是缺口的物证）。
 
@@ -1974,7 +1974,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 
 - 注释说什么：`application.yml`「内部接口共享令牌，默认必须为空、由 K8s Secret 注入 `RECON_INTERNAL_TOKEN`」。
 - 实际是什么：`X-Recon-Token` 鉴权已按用户 2026-09-11 的明确要求整段删除，四个源的 `ReconExportController` 与 `ReconInternalController` 都不再校验、`ReconClient` / `ReconExportClient` 也不再发送，该键**已无读取方、不需要注入**（属有意为之的临时降级，上线前 MUST 恢复）。
-- 证据坐标：`collect-pay-server/src/main/resources/application.yml`（注释）对 `AGENTS.md` §2.2.2 该条现状记载。
+- 证据坐标：`collect-pay-server/src/main/resources/application.yml`（注释）对 `docs/business/未落地需求.md` 该条现状记载。
 - 建议裁决：该注释已过期，**NEVER 据它去 K8s 里注 Secret**；上线前恢复鉴权时再让注释与代码同时生效，恢复动作 MUST 各源与 recon-server 一起做。
 
 **7. 车站段与线路段的空缺：注释承认无数据源**
@@ -2018,9 +2018,9 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **`PayCenterCommon` 的 `bizDataMap.put("orderNo", order.getPayCenterOrderNo())` 被注释**。删的是「出向 `orderNo` 取支付中心订单号」这一取值口径，现行取的是我方订单号。**NEVER 恢复的理由**：`orderNo` 字段的归属方一旦切回支付中心订单号，我方按订单号做的幂等与回查（`/internal/app-order` 的 `orderNo` 幂等键）就对不上，属跨域主键混用。`.../common/PayCenterCommon.java`
 - **`model/request/app/RequestPayResultReqDTO` 整个类被注释掉**（package / import / 类声明 / `userId` 与 `orderNo` 的 getter setter / `toString`）。**为什么**：IF8A-18 支付结果查询改用现行 DTO 与 `bizData` 解析路径。**NEVER 恢复的理由**：它 `extends BaseRequestDTO`（把公共参数与业务参数混在一个类里），与现行「公共参数走 `ItpCommonFormRequest`、业务参数走 `bizData` 单独 DTO」的分层相反，恢复即回退报文骨架收口。`.../model/request/app/RequestPayResultReqDTO.java`
 - **`model/request/tvm/APPRefundNotiResultReqDTO` 的类声明被注释**（`public class APPRefundNotiResultReqDTO extends BaseRequestDTO`）。同上一条同源：APP 退款通知入参不再用 `extends BaseRequestDTO` 的形态。**NEVER 恢复的理由**：该类放在 `model/request/tvm/` 包下却承载 APP 域退款通知，包归属本身是错的，恢复会把 APP 域契约又混进 TVM 包。`.../model/request/tvm/APPRefundNotiResultReqDTO.java`
-- **`RequestQueryRefundReqDTO.refundOrderNo` 字段被注释**。删的是「退款查询按退款流水号查」这一入参。**为什么**：本模块退款查询改为按订单号查。**NEVER 恢复的理由（重要且有反例）**：支付中心网关侧的退款查询恰恰**只认 `merchantRefundNo`**，只送 `refundOrderNo` 会被网关拒（AGENTS.md §8 记有该实测：返 `code=9999`「退款流水号或商户退款流水号必填」，表现为退款单永久空转而端点每轮返 `0000`）。因此这个字段名在**出向**方向是坑，恢复到入参上只会再引一次同名混淆。`.../model/request/RequestQueryRefundReqDTO.java`
+- **`RequestQueryRefundReqDTO.refundOrderNo` 字段被注释**。删的是「退款查询按退款流水号查」这一入参。**为什么**：本模块退款查询改为按订单号查。**NEVER 恢复的理由（重要且有反例）**：支付中心网关侧的退款查询恰恰**只认 `merchantRefundNo`**，只送 `refundOrderNo` 会被网关拒（docs/ops/构建与部署规范.md §8「只认 `merchantRefundNo`」记有该实测：返 `code=9999`「退款流水号或商户退款流水号必填」，表现为退款单永久空转而端点每轮返 `0000`）。因此这个字段名在**出向**方向是坑，恢复到入参上只会再引一次同名混淆。`.../model/request/RequestQueryRefundReqDTO.java`
 - **`TvmOrderController` 里两条 `8999` 参数校验被注释掉**：`orderNo` 为空返 `RequestPaymentRespDTO.fail("8999","orderNo不能为空","FAILED","参数错误")`、`paymentVendor` 为空返同形失败。**为什么**：TVM 域的失败码空间是 `2xxx`（`2999` 失败 / `2002` 非法参数），`8999` 是 BOM 域的失败码，写在 TVM 应答里是串域错误。**NEVER 恢复的理由**：恢复等于在 TVM 应答里混进 BOM 错误码，设备侧按 `2xxx` 解析会落到未知码分支；要补校验 MUST 用 `TvmPayCodeEnum.INVALID_PARAM`（`2002`）。`.../controller/ci/tvm/TvmOrderController.java`
-- **`SignUtils` 的 `private final String SIGN_ALGORITHM = "SHA256WithRSA"` 被注释**。**为什么**：本模块出向加签算法不再由这个常量固定，改由配置的 `signType` 决定（`00` 不签名 / `01` sha1withrsa / `02` MD5）。**NEVER 恢复的理由**：把算法写死成 `SHA256WithRSA` 会与 `signType` 配置产生两个真相源；且 AGENTS.md §4 已确立「签名算法不统一、`SHA256WithRSA` 仅用于渠道对接方向」，恢复即在设备域引入错误算法。改这里属安全红线，**MUST 人工复核**。`.../utils/SignUtils.java`
+- **`SignUtils` 的 `private final String SIGN_ALGORITHM = "SHA256WithRSA"` 被注释**。**为什么**：本模块出向加签算法不再由这个常量固定，改由配置的 `signType` 决定（`00` 不签名 / `01` sha1withrsa / `02` MD5）。**NEVER 恢复的理由**：把算法写死成 `SHA256WithRSA` 会与 `signType` 配置产生两个真相源；且 AGENTS.md §2.1「SHA256WithRSA」已确立「签名算法不统一、`SHA256WithRSA` 仅用于渠道对接方向」，恢复即在设备域引入错误算法。改这里属安全红线，**MUST 人工复核**。`.../utils/SignUtils.java`
 - **`SingleTicketRefundTask` 的三个 `@PostMapping` 被注释掉**（`/refundAppNotTakeTickets`、`/refundBomSaleNotTakeTickets`、`/refundBomTopupNotTakeTickets`），只留 `@Scheduled`。**为什么**：这些补偿改由本模块 `@Scheduled` 自驱，不再暴露 HTTP 入口。**NEVER 恢复的理由 / 注意**：这与方法内日志「收到由 web-server Quartz 定时任务发起的调用」**互相矛盾**（见 `frag_g1_contra.md` 第 9 条）；在裁决清楚「到底谁触发」之前恢复 HTTP 入口，会出现「Quartz 与本模块 `@Scheduled` 同时跑同一批退款」的双跑风险，而这四个任务**没有分布式锁**。`.../task/SingleTicketRefundTask.java`
 - **`App_Pay_Logs` 的渠道类型 `2`（ETC 端，tradeType `06`）已弃用**，只有 `1`（APP 端，tradeType `03`）在用。**NEVER 恢复的理由**：注释直接标注「已弃用」，新写查询与统计 MUST NOT 把 `2` 当有效渠道纳入口径；若历史数据里存在 `2`，属遗留数据、不代表在跑的链路。`.../entity/AppPayLogs.java`
 - **`X-Recon-Token` 共享令牌校验已整段删除**（`ReconExportController` 不再校验、`ReconExportClient` 不再发送）。**为什么**：用户 2026-09-11 明确要求「删除令牌要求，不用令牌了，当前处于开发测试阶段」。**NEVER 恢复的理由（有前提）**：这不是「永久不要」，而是**有意为之的临时降级，上线前 MUST 恢复**；恢复时的形态已在注释里写死（重新引入 `recon.internal-token` 配置 + 请求头比对 + `MessageDigest.isEqual` 定长比较 + K8s Secret 注入），**NEVER 用 `String.equals` 比对、NEVER 在仓库写默认真值**。`.../controller/internal/ReconExportController.java`
@@ -2039,7 +2039,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 - **`BomOrderServiceImpl.requestTicketTRefund(RequestTicketRefundReqDTO)` 已整段注释掉**（约 40 行，含 `generateRefundOrderNo` / `insertTicketRefund` / `doRefund` / `updateBomRefundOrder("2","退款失败")` 全套分支）。BOM 侧退款现由 `notiBusResult` 的 FAILED 分支与出票数量差额分支承担。**NEVER 直接解注释复活**：它把「退款失败」与「退款成功」都走同一个 `updateBomOrder` 回写，且没有超退闸门。`.../service/impl/BomOrderServiceImpl.java`
 - **APP 订单号的 24 位旧格式（`00` + `yyyyMMddHHmmss` + UUID 前 8 位）已废弃**，2026-09-11 起统一为 20 位 `ProductType(2) + yyyyMMddHHmmss(14) + 序列(4)`，与 BOM 及 face-pay 同口径。历史 24 位订单不受影响、**NEVER 回改新单格式**。`.../service/impl/AppOrderServiceImpl.java`
 - **对账 ITP.PAY 里「靠 `LEFT JOIN STATION_INFO` 取 `LINE_CODE`」的两条写法（TVM 购票、APP 购票）已整段删除，NEVER 加回**。2026-09-16 起线路段由 recon-server 在写文件前按车站码统一补齐（`ReconStationMapper` + `recon.line-backfill.*`），且 recon-server 侧是**无条件覆盖** —— 加回来不改变产出、只让「线路怎么取」重新分叉成四份副本；`STATION_INFO` 的 owner 也不是本模块。`.../service/ReconExportService.java`
-- **`BomOrderServiceImpl` 的 `notiTopupResult` 上的 `@Transactional` 已于 2026-09-14 摘除，NEVER 加回**。理由是 AGENTS.md §5.2「`@Transactional` 方法内 NEVER 发起任何 RPC」：失败分支要调支付中心退款，被事务包住会让 `TBL_TVM_ORDER_TOPUP` 那行的排他锁持有时长等于支付中心响应时长，重推堆积、连接被 Druid `remove-abandoned-timeout` 强杀、`commit` 抛 connection closed，连「通知已入库」的 INSERT 一起回滚。`.../service/impl/BomOrderServiceImpl.java`
+- **`BomOrderServiceImpl` 的 `notiTopupResult` 上的 `@Transactional` 已于 2026-09-14 摘除，NEVER 加回**。理由是 docs/architecture/transaction-and-consistency.md §6「`@Transactional` 方法内 NEVER 发起任何 RPC / 网络调用」：失败分支要调支付中心退款，被事务包住会让 `TBL_TVM_ORDER_TOPUP` 那行的排他锁持有时长等于支付中心响应时长，重推堆积、连接被 Druid `remove-abandoned-timeout` 强杀、`commit` 抛 connection closed，连「通知已入库」的 INSERT 一起回滚。`.../service/impl/BomOrderServiceImpl.java`
 - **`refundTime.substring(0, 8)` 这种取退款日期的写法已废弃、NEVER 恢复**（2026-08-27 生产事故，订单 `0020260827131329f68e95f4`）。支付中心返 ISO 形态 `2026-08-27T12:55:57`，截前 8 位得到 `2026-08-`，APP 侧解析 `refundDate` 直接失败。现行做法是剥掉全部非数字字符再取前 14 位。`.../service/impl/AppOrderServiceImpl.java`
 - **「用 `businessType` 把 APP 主动退款排除在退款通知之外」的判断已废弃、NEVER 回退**（2026-08-27 生产事故，订单 `00202608271248044c519a98`）。原代码只放行 `TVM_SCAN_QR_TAKETICKET`，而 APP 退款走 `BusinessTypeEnum.APP_REFUND`，结果退款成功、`REFUND_STATUS=1`，但 `TBL_NOTICE_APP_REFUND_RECORD` 零条、APP 永远停在「退款进行中」。`.../service/impl/AppOrderServiceImpl.java`
 - **ITP.DETAIL 已从本模块的产出清单中移除，本模块 NEVER 产出该文件**（改由 gate-txn-pay 与 daily-ticket 负责）。收到 `DETAIL` 或 `EXP` 指令只记 warn 并跳过；**NEVER 拿本模块四张收款表去凑 DETAIL 行**，纯文本分片没有 schema、错账下游读不出来。`.../service/ReconExportService.java`
@@ -2130,5 +2130,5 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
 
 - **2026-09-16 本轮已把上面这些知识从代码里删掉了**：`collect-pay-server/src/main`（144 个文件，注释行 4165 至 2062）与 `face-pay-server/src/test`（13 个文件，356 至 115）**只保留标准 Javadoc**（首句摘要 + `@param` / `@return` / `@throws`），叙述段、`MUST` 与 `NEVER` 告示、事故史与墓碑说明**一律不在代码里了 —— 它们的唯一载体就是本节**。因此**在 collect-pay 的源码里搜不到某条约束时 NEVER 判断「这条约束不存在」，MUST 回来查本节**。
 - **`face-pay-server/src/main` 本轮一行未动**（它的注释仍是重构期的完整形态，删除留给后续统一处理，避免与其它并行改动冲突）。
-- **两类注释是刻意留下的**：①mapper XML 头部的**一行式**「SQL 正文 NEVER 出现行注释或块注释」告警（现存于 `ReconExportMapper.xml`、`AppRefundOrderMapper.xml`），删掉它等于把 AGENTS.md §5.1 那个静默失效的坑重新埋回去；②`service/impl/TvmCommonServiceImpl.java` 与 `service/impl/TvmOrderServiceImpl.java` 里**整段注释掉的死代码块**（含 `getBomOrderSalePre` 那段 `TRANS_TYPE` 物证）—— 它们不是叙述型注释，本轮**没有删**。
-- **不变量自证方式（后续轮次照做）**：逐文件用词法剥离器去掉注释后，与 **`svn cat -r BASE`** 及删除前快照两路比对，**157 个文件的代码文本全部逐字一致**（Java 剥离时保护字符串、字符与文本块，XML 剥 `<!-- -->`，yml 剥 `#` 行）；mapper XML 另跑 `xmllint --noout` 全通过，且**没有任何 XML 注释里出现连续两个半角减号**。**NEVER 用 git 做这个基线**（AGENTS.md §7：`qd/` 上层那个旁挂 git 仓库会静默返回陈旧快照）。
+- **两类注释是刻意留下的**：①mapper XML 头部的**一行式**「SQL 正文 NEVER 出现行注释或块注释」告警（现存于 `ReconExportMapper.xml`、`AppRefundOrderMapper.xml`），删掉它等于把 docs/architecture/mybatis-oracle-runtime-traps.md §1「NEVER 在 SQL 正文中写注释」那个静默失效的坑重新埋回去；②`service/impl/TvmCommonServiceImpl.java` 与 `service/impl/TvmOrderServiceImpl.java` 里**整段注释掉的死代码块**（含 `getBomOrderSalePre` 那段 `TRANS_TYPE` 物证）—— 它们不是叙述型注释，本轮**没有删**。
+- **不变量自证方式（后续轮次照做）**：逐文件用词法剥离器去掉注释后，与 **`svn cat -r BASE`** 及删除前快照两路比对，**157 个文件的代码文本全部逐字一致**（Java 剥离时保护字符串、字符与文本块，XML 剥 `<!-- -->`，yml 剥 `#` 行）；mapper XML 另跑 `xmllint --noout` 全通过，且**没有任何 XML 注释里出现连续两个半角减号**。**NEVER 用 git 做这个基线**（`docs/ops/构建与部署规范.md` §7：`qd/` 上层那个旁挂 git 仓库会静默返回陈旧快照）。

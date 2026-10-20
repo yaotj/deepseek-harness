@@ -71,7 +71,7 @@ spec:
           value: http://172.20.211.23:30014
         - name: doTime.noticeRefundTask
           value: 0 */3 * * * ?
-        - name: server.port
+        - name: SERVER_PORT
           value: '8080'
         - name: other.sql.username
           value: qditp

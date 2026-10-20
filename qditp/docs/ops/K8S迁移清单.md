@@ -36,7 +36,7 @@
 **仓库有模块但集群里没部署**：`collect-ticket-server`、`acc-secure-server`。迁移前 MUST 确认是「刻意未上线」还是「漏了」——前者不必迁。
 
 - 资源配额两档：`1C2Gi`（requests=limits）或 `limits 2C4Gi / requests 1C2Gi`。24 个业务服务合计 requests 约 **26 vCPU / 52Gi**，limits 约 **38 vCPU / 76Gi**（不含 sidecar）。新集群按 limits 留量。
-- **全部 Deployment 都没有 livenessProbe / readinessProbe**，也没有 HPA / PDB / NetworkPolicy / PeerAuthentication / AuthorizationPolicy。这是迁移**最该顺手补上**的一项（没有探针，「Pod Running 但端口不监听」这类故障只能靠人工探活发现，见 AGENTS.md §7）。
+- **全部 Deployment 都没有 livenessProbe / readinessProbe**，也没有 HPA / PDB / NetworkPolicy / PeerAuthentication / AuthorizationPolicy。这是迁移**最该顺手补上**的一项（没有探针，「Pod Running 但端口不监听」这类故障只能靠人工探活发现，见 `docs/ops/构建与部署规范.md` §7）。
 - **单副本是强约束、NEVER 在新集群顺手扩副本**：`recon-server`（进程内 `AtomicBoolean` 无 DB 锁）、`web-admin`（Quartz 内存 JobStore）、`face-pay-server`（7 个 `@Scheduled`）、`collect-pay`（`SingleTicketRefundTask` 4 处）。
 
 ### 1.3 网络与入向路由
@@ -84,7 +84,7 @@ Service 侧两个坑：
 ### 1.5 存储
 
 - **唯一 PVC**：`victoria-logs-victoria-logs-data-victoria-logs-0`，15Gi RWO，sc `apigateway2`，`Retain`。日志数据要不要带走是业务决定（§3 问了）。
-- **`recon-server` 的对账文件落在容器本地**：`RECON_STORAGE_ROOT=/home/javaapp/app/recon`，**无 PVC、无 hostPath** ⇒ Pod 一重启产物即丢。AGENTS.md §2.2.2 已记「共享存储（RWX PVC）与单副本约束未落地」，**迁移是补这一项的最佳时机**；但 `apigateway2` 只给 RWO，新集群 MUST 确认有 RWX 供应者（NFS / CephFS），否则这项仍然落不了地。
+- **`recon-server` 的对账文件落在容器本地**：`RECON_STORAGE_ROOT=/home/javaapp/app/recon`，**无 PVC、无 hostPath** ⇒ Pod 一重启产物即丢。docs/business/未落地需求.md 已记「共享存储（RWX PVC）与单副本约束未落地」，**迁移是补这一项的最佳时机**；但 `apigateway2` 只给 RWO，新集群 MUST 确认有 RWX 供应者（NFS / CephFS），否则这项仍然落不了地。
 - 其余服务全部无状态，状态都在 Oracle。
 
 ### 1.6 外部依赖（**异网迁移必须逐条重新开通 + 换地址**）
@@ -132,7 +132,7 @@ Service 侧两个坑：
 - `testngbackV2` 测试回调地址：`pay-sign`（sign-result / termination-result）、`collect-pay`（3 条 notice-app-*）、`daily-ticket`（2 条）、`face-pay`（4 条 NOTIFY_APP_*）、`ticket-server`（industry-data / counting-ticket-times）、`account`（employee-card.app-register-url）。**迁生产前 MUST 全换成甲方 APP 的正式地址**。
 - `knife4j.production=false`（15 个服务，接口文档对外可见）、`web-admin` 的 `spring.datasource.druid.statViewServlet.enabled=true` + `spring.devtools.restart.enabled=true` + `logging.level.com.chinasofti.huateng=debug`、`account` 的 `account.card-pool.debug-manual-allocate=true` + `debug-manual-card-id`（**开着会绕过真实卡池分配**）。这些都是测试期取向，**生产集群 MUST 逐条复核**。
 
-**⑤ 密钥治理**：把 §1.4 列的键从 env 明文改为 **K8s Secret + `envFrom`/`secretKeyRef`**，仓库侧对应配置保持 `${ENV:}` 空默认（AGENTS.md §5.2）。异网迁移是唯一「不改代码就能换掉全部凭据」的窗口——**新环境 MUST 换新口令，NEVER 照搬旧值**。
+**⑤ 密钥治理**：把 §1.4 列的键从 env 明文改为 **K8s Secret + `envFrom`/`secretKeyRef`**，仓库侧对应配置保持 `${ENV:}` 空默认（`docs/architecture/security-sensitivity.md` §一「敏感配置规则」）。异网迁移是唯一「不改代码就能换掉全部凭据」的窗口——**新环境 MUST 换新口令，NEVER 照搬旧值**。
 
 ### 2.3 入向路由与对外契约
 
@@ -141,7 +141,7 @@ Service 侧两个坑：
 
 ## 三、必须先定的 5 个问题（不定就没法排期）
 
-- **R1 镜像来源**：新集群的 Harbor 地址？镜像是「从旧 Harbor 导出 32 个 tar 再导入」还是「在新环境重新 build 全部模块」？后者要先确认新环境有 mise/JDK21/Maven 与 SVN 可达（`svn://130.251.101.176/qditp`），且会触发 AGENTS.md §7 那套「先 install model/rpc」的序列。
+- **R1 镜像来源**：新集群的 Harbor 地址？镜像是「从旧 Harbor 导出 32 个 tar 再导入」还是「在新环境重新 build 全部模块」？后者要先确认新环境有 mise/JDK21/Maven 与 SVN 可达（`svn://130.251.101.176/qditp`），且会触发 `docs/ops/构建与部署规范.md` §7 那套「先 install model/rpc」的序列。
 - **R2 谁来建对象**：继续用 PaaS 控制台点，还是这次落 YAML/IaC？**建议落 YAML** —— 控制台生成的随机后缀 Service 名是本次最大改动面的根因，而且当前没有任何可复现的部署描述文件。
 - **R3 数据库**：新集群连哪个 Oracle？是「连同一个库（只改网络）」还是「新库 + 数据迁移」？后者要单独排 schema + 数据核对（110+ 张表），本文不覆盖。
 - **R4 日志**：victoria-logs 的 15Gi 历史日志带不带走？不带走则新集群起空实例即可。
@@ -153,7 +153,7 @@ Service 侧两个坑：
 2. 新集群底座：istio 1.24.6 + 两个 ns + StorageClass + 镜像仓库 + 节点时区
 3. **YAML 基线已就绪**：`deploy/k8s/` 即 2026-09-22 的导出结果（已去 `status` / PaaS 注解 / 集群分配值，敏感 env 已换成 `secretKeyRef`）。**重新导出就重跑那套清洗流程并覆盖该目录**，NEVER 把带真实值的 `raw-*.yaml` 拷进仓库
 4. 配置治理：密钥进 Secret、地址统一成 Service DNS、修 §2.2③④ 那批死配置、补 liveness/readiness 探针
-5. 按依赖顺序部署（公共能力 `para` / `key` / `blacklist` / `security` / `industry-data` / `card-pool` → 业务层 → 接入层 → 网关 → 后台），每个服务用 `/actuator/health` 探活（**注意 `rollout status` 成功 ≠ 起来了**，见 AGENTS.md §7）
+5. 按依赖顺序部署（公共能力 `para` / `key` / `blacklist` / `security` / `industry-data` / `card-pool` → 业务层 → 接入层 → 网关 → 后台），每个服务用 `/actuator/health` 探活（**注意 `rollout status` 成功 ≠ 起来了**，见 `docs/ops/构建与部署规范.md` §7）
 6. 建 Gateway + VS，用「同一份报文打新旧两套、比对 retCode」做契约基线核对
 7. 切公网入口；**旧集群业务 Deployment 缩到 0（NEVER 直接删）**，保留至少一个对账周期（T+2）作回滚位
 8. 回滚位：旧集群 YAML + 原 image tag + 公网入口指回旧地址，三者缺一不可
@@ -167,4 +167,4 @@ Service 侧两个坑：
 - **NEVER 漏掉 `/etc/localtime`**：新节点非 CST 会让对账账期与乘车码时效全线错 8 小时
 - **NEVER 只迁 `/itptvm/` `/itpbom/` 的 destination 而把 rewrite 写成 `/`**——这两条的 rewrite 带前缀
 - **NEVER 迁那 7 个 istio 示例负载**（bookinfo + httpbin）与 40+ 个 `websyspresetweb-version-*` 历史 ConfigMap
-- **NEVER 认为「改完 env 就生效」**：涉及公共构件（`model` / `rpc` / `resource/micro`）的改动必须重建镜像（AGENTS.md §7 末三条）
+- **NEVER 认为「改完 env 就生效」**：涉及公共构件（`model` / `rpc` / `resource/micro`）的改动必须重建镜像（`docs/ops/构建与部署规范.md` §7「Build & Run (构建与运行)」末三条）

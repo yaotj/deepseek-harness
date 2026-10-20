@@ -3,32 +3,28 @@ package org.qd.scg.predicate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.function.RequestPredicate;
 
-import com.alibaba.fastjson2.JSONObject;
-
 @Component
 public class RoutePredicateStrategy {
+    private final BizDataExtractor bizDataExtractor;
     private final UserRouteService userRouteService;
 
-    public RoutePredicateStrategy(UserRouteService userRouteService) {
+    public RoutePredicateStrategy(BizDataExtractor bizDataExtractor, UserRouteService userRouteService) {
+        this.bizDataExtractor = bizDataExtractor;
         this.userRouteService = userRouteService;
     }
 
     public RequestPredicate legacyPredicate() {
         return request -> {
-            java.util.Optional<String> bizDataOpt = request.param("bizData");
-            String bizData = bizDataOpt.orElse(null);
-            if (bizData == null) return false;
-            try {
-                JSONObject json = JSONObject.parseObject(bizData);
-                String thirdUserId = json.getString("thirdUserId");
-                return thirdUserId != null && userRouteService.isLegacy(thirdUserId);
-            } catch (Exception e) {
+            String path = request.path();
+            // 动态检查路径是否在分流范围内（从 Actuator 路由配置读取）
+            if (!userRouteService.isSplitPath(path)) {
                 return false;
             }
+            String thirdUserId = bizDataExtractor.extractThirdUserIdFast(request);
+            if (thirdUserId == null) {
+                return true;
+            }
+            return userRouteService.isLegacy(thirdUserId);
         };
-    }
-
-    public RequestPredicate fallbackPredicate() {
-        return request -> true;
     }
 }

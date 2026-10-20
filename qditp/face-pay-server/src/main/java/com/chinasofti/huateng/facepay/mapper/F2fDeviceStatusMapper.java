@@ -1,5 +1,7 @@
 package com.chinasofti.huateng.facepay.mapper;
 
+import com.chinasofti.huateng.facepay.api.page.F2fDeviceStatusPageVO;
+import com.chinasofti.huateng.facepay.api.page.F2fDeviceStatusSummaryVO;
 import com.chinasofti.huateng.facepay.entity.F2fDeviceStatus;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -68,4 +70,41 @@ public interface F2fDeviceStatusMapper {
      */
     List<F2fDeviceStatus> selectByChannel(@Param("channel") String channel,
                                          @Param("onlineFlag") String onlineFlag);
+
+    /**
+     * 分页查询设备最新心跳状态，供运营端「设备心跳状态」页使用。
+     *
+     * <p>排序固定为「离线优先 + 最近心跳倒序」（{@code ONLINE_FLAG ASC, LAST_HEARTBEAT_TMS DESC}），
+     * 运维打开页面第一屏就该是掉线设备；DEVICE_ID 兜底保证翻页稳定不重不漏。
+     *
+     * @param channel    受理渠道过滤，null 或空串表示不过滤
+     * @param onlineFlag 在线标志过滤，null 或空串表示不过滤
+     * @param deviceId   设备号模糊匹配关键字，<b>已由调用方转义</b> {@code % _ \}，null 或空串表示不过滤
+     * @param offset     偏移量
+     * @param limit      单页条数
+     * @return 当前页数据；{@code stationName} 关联不到时为 null
+     */
+    List<F2fDeviceStatusPageVO> selectDevicePage(@Param("channel") String channel,
+                                                @Param("onlineFlag") String onlineFlag,
+                                                @Param("deviceId") String deviceId,
+                                                @Param("offset") int offset,
+                                                @Param("limit") int limit);
+
+    /**
+     * 统计 {@link #selectDevicePage} 的命中总数，过滤条件 MUST 与之一致。
+     *
+     * @return 命中行数
+     */
+    long countDevicePage(@Param("channel") String channel,
+                         @Param("onlineFlag") String onlineFlag,
+                         @Param("deviceId") String deviceId);
+
+    /**
+     * 全表汇总：设备总数、在线数、离线数、最近一次心跳时间。
+     *
+     * <p>刻意不接受过滤条件，口径见 {@link F2fDeviceStatusSummaryVO}。
+     *
+     * @return 恒返回一行；表为空时各计数为 0、时间戳为 null
+     */
+    F2fDeviceStatusSummaryVO selectDeviceSummary();
 }

@@ -53,7 +53,7 @@
     <el-table v-loading="loading" :data="orders" border>
       <el-table-column label="业务订单号" prop="orderNo" min-width="200" show-overflow-tooltip />
       <el-table-column label="订单状态" width="100" align="center"><template #default="{ row }"><el-tag :type="orderStatusTagType(row.orderStatus)">{{ formatOrderStatus(row.orderStatus) }}</el-tag></template></el-table-column>
-      <el-table-column label="受理渠道" width="90" align="center"><template #default="{ row }">{{ formatChannel(row.channel) }}</template></el-table-column>
+      <el-table-column label="受理渠道" width="90" align="center"><template #default="{ row }">{{ f2fChannelLabel(row.channel) }}</template></el-table-column>
       <el-table-column label="业务类型" width="110" align="center"><template #default="{ row }">{{ formatBizType(row.bizType) }}</template></el-table-column>
       <el-table-column label="支付渠道编码" prop="payChannelCode" width="130" align="center" />
       <el-table-column label="支付中心订单号" prop="payCenterOrderNo" min-width="190" show-overflow-tooltip />
@@ -99,6 +99,7 @@
 import { listFacePayOrders, requestFacePayRefund } from '@/api/trans/facePayOrder'
 import { defaultTodayRange } from '@/utils/dateRange'
 import { formatCodeLabel } from '@/utils/codeLabel'
+import { f2fChannelLabel } from '@/utils/f2fChannel'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
@@ -170,7 +171,6 @@ function orderStatusTagType(value) {
     EXPIRED: 'info', REFUNDING: 'warning', REFUNDED: 'danger', CANCELED: 'info'
   })[value] || 'info'
 }
-function formatChannel(value) { return formatCodeLabel(value, { '01': 'APP', '02': 'TVM', '03': 'BOM' }) }
 function formatBizType(value) { return formatCodeLabel(value, { '01': '购票', '02': '充值', '03': '取票', '04': '非现金收款' }) }
 function formatTicketType(value) { return formatCodeLabel(value, { '0': '按站点购票', '1': '固定票价购票' }) }
 function formatRefundStatus(value) { return ({ NONE: '未退款', PARTIAL: '部分退款', SUCCESS: '已退款' })[value] || value || '-' }

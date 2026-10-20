@@ -58,7 +58,7 @@ import java.util.UUID;
  * 等于对端响应时长，超过 Druid {@code remove-abandoned-timeout} 后连接被强杀、连「留证据」的 INSERT 一起
  * 回滚 —— pay-sign 侧 2026-08-26 已因此出过循环重推 8 分钟、单请求 287 秒的生产事故。
  *
- * <p><b>已知缺口（本次未修）</b>：本端点无鉴权、无归属校验，按 AGENTS.md §5.2 本应有 —— 它既改状态又出网
+ * <p><b>已知缺口（本次未修）</b>：本端点无鉴权、无归属校验，按 docs/architecture/security-sensitivity.md §三 本应有 —— 它既改状态又出网
  * 发起真实退款。这是 {@code /internal/alipay/**} 全族的既有缺口、不是本次引入的，见控制器类注释。
  */
 @Service
@@ -130,7 +130,7 @@ public class AlipayTxnRefundService {
     /**
      * 查原支付并校验「可退」。
      *
-     * <p><b>白名单只认 {@code SUCCESS}</b>（AGENTS.md §5.2：状态机用白名单不用黑名单）——
+     * <p><b>白名单只认 {@code SUCCESS}</b>（AGENTS.md §4.2：状态机用白名单不用黑名单）——
      * {@code PROCESSING} 的单子钱还没确定扣没扣，退它是凭空出账。
      *
      * <p>文案「原支付记录不存在」与旧链路<b>逐字一致</b>，这是刻意的：运维侧已按这句话排错。要区分是哪条链路

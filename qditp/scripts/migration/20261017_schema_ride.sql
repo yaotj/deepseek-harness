@@ -1,0 +1,207 @@
+-- ===========================================================================
+-- 青岛地铁 ITP 分库迁移 — QDITP_RIDE 域建表脚本（v1.0 · 2026-10-17）
+-- 目标：红岛生产 hditpdb PDB，schema = QDITP_RIDE，默认表空间 = ITP_RIDE_TS
+-- 表数：3/3（缺 0，见 20261017_schema_manifest.md）
+-- 执行：sqlplus QDITP_RIDE/<pwd>@//172.120.110.25:1521/hditpdb @20261017_schema_ride.sql
+--   - MUST 以 QDITP_RIDE 用户执行（无 TABLESPACE 子句 → 落默认表空间 ITP_RIDE_TS）
+--   - NEVER 用 SYS；重复执行 ORA-00955 可忽略；分区表的分区上界见文件末注
+-- 前置：M1 已完成（QDITP_RIDE 用户 + ITP_RIDE_TS 存在）；PLAT MUST 先于 USER/RIDE/TXN
+-- ===========================================================================
+
+-- [来源] ticket-server/src/main/resources/sql/ticket-server-schema.sql（base）
+CREATE TABLE QRCODE_STATUS (
+                               CARD_ID           VARCHAR2(32 CHAR)   NOT NULL,
+                               USE_COUNT         NUMBER(10),
+                               CHANNEL           VARCHAR2(4),
+                               CODE_STATUS       VARCHAR2(4),
+                               GATE_IN_TIME      VARCHAR2(14),
+                               GATE_IN_STATION   VARCHAR2(4),
+                               LAST_TXN_TIME     VARCHAR2(14),
+                               LAST_TXN_STATION  VARCHAR2(4),
+                               TXN_SEQ           VARCHAR2(64),
+                               CREATE_TIME       TIMESTAMP,
+                               UPDATE_TIME       TIMESTAMP,
+                               GATE_STATUS       VARCHAR2(32),
+                               CARD_ID_TAIL      VARCHAR2(2 CHAR) GENERATED ALWAYS AS (SUBSTR(CARD_ID, -2)) VIRTUAL,
+                               CONSTRAINT PK_QRCODE_STATUS PRIMARY KEY (CARD_ID)
+)
+    PARTITION BY LIST (CARD_ID_TAIL) (
+    PARTITION P_00 VALUES ('00'),
+    PARTITION P_01 VALUES ('01'),
+    PARTITION P_02 VALUES ('02'),
+    PARTITION P_03 VALUES ('03'),
+    PARTITION P_04 VALUES ('04'),
+    PARTITION P_05 VALUES ('05'),
+    PARTITION P_06 VALUES ('06'),
+    PARTITION P_07 VALUES ('07'),
+    PARTITION P_08 VALUES ('08'),
+    PARTITION P_09 VALUES ('09'),
+    PARTITION P_10 VALUES ('10'),
+    PARTITION P_11 VALUES ('11'),
+    PARTITION P_12 VALUES ('12'),
+    PARTITION P_13 VALUES ('13'),
+    PARTITION P_14 VALUES ('14'),
+    PARTITION P_15 VALUES ('15'),
+    PARTITION P_16 VALUES ('16'),
+    PARTITION P_17 VALUES ('17'),
+    PARTITION P_18 VALUES ('18'),
+    PARTITION P_19 VALUES ('19'),
+    PARTITION P_20 VALUES ('20'),
+    PARTITION P_21 VALUES ('21'),
+    PARTITION P_22 VALUES ('22'),
+    PARTITION P_23 VALUES ('23'),
+    PARTITION P_24 VALUES ('24'),
+    PARTITION P_25 VALUES ('25'),
+    PARTITION P_26 VALUES ('26'),
+    PARTITION P_27 VALUES ('27'),
+    PARTITION P_28 VALUES ('28'),
+    PARTITION P_29 VALUES ('29'),
+    PARTITION P_30 VALUES ('30'),
+    PARTITION P_31 VALUES ('31'),
+    PARTITION P_32 VALUES ('32'),
+    PARTITION P_33 VALUES ('33'),
+    PARTITION P_34 VALUES ('34'),
+    PARTITION P_35 VALUES ('35'),
+    PARTITION P_36 VALUES ('36'),
+    PARTITION P_37 VALUES ('37'),
+    PARTITION P_38 VALUES ('38'),
+    PARTITION P_39 VALUES ('39'),
+    PARTITION P_40 VALUES ('40'),
+    PARTITION P_41 VALUES ('41'),
+    PARTITION P_42 VALUES ('42'),
+    PARTITION P_43 VALUES ('43'),
+    PARTITION P_44 VALUES ('44'),
+    PARTITION P_45 VALUES ('45'),
+    PARTITION P_46 VALUES ('46'),
+    PARTITION P_47 VALUES ('47'),
+    PARTITION P_48 VALUES ('48'),
+    PARTITION P_49 VALUES ('49'),
+    PARTITION P_50 VALUES ('50'),
+    PARTITION P_51 VALUES ('51'),
+    PARTITION P_52 VALUES ('52'),
+    PARTITION P_53 VALUES ('53'),
+    PARTITION P_54 VALUES ('54'),
+    PARTITION P_55 VALUES ('55'),
+    PARTITION P_56 VALUES ('56'),
+    PARTITION P_57 VALUES ('57'),
+    PARTITION P_58 VALUES ('58'),
+    PARTITION P_59 VALUES ('59'),
+    PARTITION P_60 VALUES ('60'),
+    PARTITION P_61 VALUES ('61'),
+    PARTITION P_62 VALUES ('62'),
+    PARTITION P_63 VALUES ('63'),
+    PARTITION P_64 VALUES ('64'),
+    PARTITION P_65 VALUES ('65'),
+    PARTITION P_66 VALUES ('66'),
+    PARTITION P_67 VALUES ('67'),
+    PARTITION P_68 VALUES ('68'),
+    PARTITION P_69 VALUES ('69'),
+    PARTITION P_70 VALUES ('70'),
+    PARTITION P_71 VALUES ('71'),
+    PARTITION P_72 VALUES ('72'),
+    PARTITION P_73 VALUES ('73'),
+    PARTITION P_74 VALUES ('74'),
+    PARTITION P_75 VALUES ('75'),
+    PARTITION P_76 VALUES ('76'),
+    PARTITION P_77 VALUES ('77'),
+    PARTITION P_78 VALUES ('78'),
+    PARTITION P_79 VALUES ('79'),
+    PARTITION P_80 VALUES ('80'),
+    PARTITION P_81 VALUES ('81'),
+    PARTITION P_82 VALUES ('82'),
+    PARTITION P_83 VALUES ('83'),
+    PARTITION P_84 VALUES ('84'),
+    PARTITION P_85 VALUES ('85'),
+    PARTITION P_86 VALUES ('86'),
+    PARTITION P_87 VALUES ('87'),
+    PARTITION P_88 VALUES ('88'),
+    PARTITION P_89 VALUES ('89'),
+    PARTITION P_90 VALUES ('90'),
+    PARTITION P_91 VALUES ('91'),
+    PARTITION P_92 VALUES ('92'),
+    PARTITION P_93 VALUES ('93'),
+    PARTITION P_94 VALUES ('94'),
+    PARTITION P_95 VALUES ('95'),
+    PARTITION P_96 VALUES ('96'),
+    PARTITION P_97 VALUES ('97'),
+    PARTITION P_98 VALUES ('98'),
+    PARTITION P_99 VALUES ('99'),
+    PARTITION P_OTHER VALUES (DEFAULT)
+);
+
+COMMENT ON TABLE QRCODE_STATUS IS '二维码状态表';
+
+-- [来源] ticket-server/src/main/resources/sql/ticket-server-supplement-request-migration.sql（migration）
+
+CREATE TABLE QRCODE_SUPPLEMENT_REQUEST (
+    CARD_ID              VARCHAR2(32)  NOT NULL,
+    TXN_SEQ              VARCHAR2(32)  NOT NULL,
+    ADVICE_OPT           VARCHAR2(8)   NOT NULL,
+    CODE_STATUS_SNAPSHOT VARCHAR2(8),
+    HANDLE_STATION_CODE  VARCHAR2(16),
+    HANDLE_DATE_TIME     VARCHAR2(20),
+    TRX_AMOUNT           VARCHAR2(16),
+    HANDLE_STATUS        VARCHAR2(16)  NOT NULL,
+    FAIL_REASON          VARCHAR2(256),
+    RETRY_COUNT          NUMBER(6)     DEFAULT 0 NOT NULL,
+    CREATE_TIME          DATE          DEFAULT SYSDATE NOT NULL,
+    UPDATE_TIME          DATE          DEFAULT SYSDATE NOT NULL
+);
+
+-- [来源] ticket-server/src/main/resources/sql/qrcode-txn-detail-schema.sql（base）
+
+CREATE TABLE QRCODE_TXN_DETAIL (
+    ID                        NUMBER(20) NOT NULL,
+    DEVICE_ID                 VARCHAR2(16 CHAR),
+
+    ITP_USER_ID               VARCHAR2(64 CHAR),
+    TRX_TYPE                  VARCHAR2(4 CHAR) NOT NULL,
+    ISSUE_CHANNEL_CODE        VARCHAR2(8 CHAR),
+    SIGN_CHANNEL_CODE         VARCHAR2(8 CHAR),
+    CARD_ID                   VARCHAR2(32 CHAR) NOT NULL,
+    CARD_TYPE                 VARCHAR2(8 CHAR),
+    HANDLE_DATE_TIME          VARCHAR2(14 CHAR) NOT NULL,
+    TXN_DATE                  VARCHAR2(8 CHAR) NOT NULL,
+    HANDLE_STATION_CODE       VARCHAR2(16 CHAR),
+    TRX_AMOUNT                NUMBER(12),
+    OVERTIME_AMOUNT           NUMBER(12),
+    LAST_TICKET_STATUS        VARCHAR2(4 CHAR),
+    HANDLE_RESULT_CODE        VARCHAR2(8 CHAR),
+    LAST_HANDLE_STATION_CODE  VARCHAR2(16 CHAR),
+    LAST_HANDLE_DATE_TIME     VARCHAR2(14 CHAR),
+    TICKET_TRANS_SEQ          VARCHAR2(64 CHAR),
+    RESERVE1                  VARCHAR2(512 CHAR),
+    RESERVE2                  VARCHAR2(512 CHAR),
+    CARD_NUM                  VARCHAR2(32 CHAR),
+    PAY_CHANNEL_CODE          VARCHAR2(16 CHAR),
+    -- DEBIT_REQUEST_RESULT 在 AFCITPDB 里并不存在（2026-09-14 查 USER_TAB_COLS 实测：
+    DEBIT_REQUEST_RESULT      VARCHAR2(16 CHAR),
+    DISCOUNT_FEE              NUMERIC(10),
+    DISCOUNT_INFO             VARCHAR2(512 CHAR),
+
+    CREATE_TIME               TIMESTAMP DEFAULT SYSTIMESTAMP NOT NULL,
+
+    CONSTRAINT PK_QRCODE_TXN_DETAIL PRIMARY KEY (ID)
+)
+PARTITION BY RANGE (TXN_DATE) (
+    PARTITION P202606 VALUES LESS THAN ('20260701'),
+    PARTITION P202607 VALUES LESS THAN ('20260801'),
+    PARTITION P202608 VALUES LESS THAN ('20260901'),
+    PARTITION P202609 VALUES LESS THAN ('20261001'),
+    PARTITION P202610 VALUES LESS THAN ('20261101'),
+    PARTITION P202611 VALUES LESS THAN ('20261201'),
+    PARTITION P202612 VALUES LESS THAN ('20270101'),
+    PARTITION P_MAX VALUES LESS THAN (MAXVALUE)
+);
+
+-- [序列] ticket-server/src/main/resources/sql/qrcode-txn-detail-schema.sql
+
+CREATE SEQUENCE SEQ_QRCODE_TXN_DETAIL
+    START WITH 1
+    INCREMENT BY 1
+    CACHE 1000
+    NOCYCLE;
+
+-- ===========================================================================
+-- QDITP_RIDE 域完成。缺表 0 张：[]
+-- ===========================================================================

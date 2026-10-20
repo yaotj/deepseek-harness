@@ -12,7 +12,7 @@ package com.chinasofti.huateng.model.app;
  *
  * <p>{@code times} 规格原文注「扣减次数（最大值为2）」，但按用户 2026-09-17 裁决**恒传 1**：
  * 我方 {@code DailyTicketServiceImpl.markUsed} 一次固定扣 1、没有「扣几次」入参。
- * 若日后确实出现一次扣 2 的场景，**MUST 先改扣次实现与发起方归属**（见 AGENTS.md §2.2.2 该条），
+ * 若日后确实出现一次扣 2 的场景，**MUST 先改扣次实现与发起方归属**（见 `docs/business/未落地需求.md` 该条），
  * NEVER 只把这里的值改成 2。
  */
 public class AppCountingTicketTimesNotifyReqDTO {

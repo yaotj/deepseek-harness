@@ -35,7 +35,7 @@ import java.util.List;
  *       调用，让绝大多数通知在一秒内到达。它是**进程内非持久**的，JVM 崩溃即丢。</li>
  *   <li><b>扫表补偿</b>（{@code compensateAdd} / {@code compensateRelease}）由 web-admin 的
  *       {@code sys_job} 定时触发内部端点驱动，是**唯一的兜底**。
- *       <b>NEVER 在本模块加 `@Scheduled`</b> —— 调度一律在 web-admin，见 AGENTS.md §2.2.1。</li>
+ *       <b>NEVER 在本模块加 `@Scheduled`</b> —— 调度一律在 web-admin，见 `docs/business/README.md` 全局事实。</li>
  * </ul>
  *
  * <p><b>NEVER 给本类或其方法加 {@code @Transactional}</b>：方法内有出网 HTTP。事务包住它会让行锁持有

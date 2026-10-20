@@ -1,0 +1,44 @@
+-- 设备心跳状态菜单（挂「系统监控」目录 parent_id = 2 下）。
+--
+-- 执行记录：2026-10-15 已在 AFCITPDB 执行并回查通过，实际落到 menu_id = 2091
+-- （执行前 max(menu_id) = 2090、SYS_MENU 共 138 行；回查 menu_id=2091 / menu_type=C /
+--  parent_id=2 / order_num=10 / path=device-heartbeat / route_name=DeviceHeartbeat /
+--  component=monitor/device-heartbeat/index / perms=monitor:deviceHeartbeat:list）。
+-- 因此本文件已是「已落库」状态，重复执行会被下面的 not exists 拦住、affectedRows=0。
+-- 注：2026-10-15 17:2x 事后修正了本文件下面「回滚」一段的注释（原写「须让菜单缓存失效」，
+--     实为菜单无缓存、即时生效）——**只改注释、语句一字未动，无需重新执行**。
+--
+-- 为什么挂系统监控（2）而不是交易管理（2077）：运营要的是「有没有设备掉线」这种设备健康视图，
+-- 与「服务状态监控」(2088) 同类；仓内先例见 2088（monitor/service-status/index）与
+-- 2078「卡池管理」（parent_id=2 但 component 取 trans/card-pool/index）。
+--
+-- 数据来源：face-pay-server 的 F2F_DEVICE_STATUS（设备最新心跳，一设备一行，由心跳 MERGE INTO 维护）。
+-- 页面为**纯只读**，没有按钮级功能，故本菜单不需要 F 型（按钮）子行；
+-- 若后续加了操作按钮，MUST 按 user-query-debit-detail-perm-migration.sql 的做法补 F 型行并给角色授权。
+--
+-- route_name MUST 与前端组件 <script setup name="DeviceHeartbeat"> 完全一致
+-- （web/src/views/monitor/device-heartbeat/index.vue）。写错会让 keep-alive 匹配不上——
+-- is_cache 本行是 0 不缓存，但口径仍 MUST 对齐，详见 user-query-menu.sql 头部说明。
+--
+-- 本页 perms 当前只用于路由可见性；库内 role_id=1「超级管理员」(role_key=admin) 走 `*:*:*` 且
+-- getRouters 对 admin 返回全量菜单树，无需补 SYS_ROLE_MENU；其它角色 MUST 在后台「角色管理」里勾上本菜单。
+--
+-- NEVER 在本文件里写死 menu_id：2090 已被「扣费信息查询」占用，中间号段是否空闲无法凭仓库判断。
+-- 因此取 max(menu_id)+1，并用 not exists 按 perms 做幂等。
+--
+-- 执行后回查：
+--   select menu_id, menu_name, parent_id, path, component, route_name, perms from sys_menu
+--   where perms = 'monitor:deviceHeartbeat:list';
+-- 回滚（本行由本文件新增，可安全删除）：
+--   delete from sys_menu where perms = 'monitor:deviceHeartbeat:list';
+--   -- 菜单**无缓存**：SysMenuServiceImpl.selectMenuTreeByUserId 每次直接查库
+--   -- （selectMenuTreeAll / selectMenuTreeByUserId，mapper 里也没有 <cache>），
+--   -- 因此增删都是即时生效、**不需要**刷新缓存或重启 web-server。（注意与 sys_config 区分：
+--   -- sys_config 才有进程内 LocalCache。）
+--
+-- 数值列（MENU_ID / PARENT_ID / ORDER_NUM / IS_FRAME / IS_CACHE）刻意写数字字面量而非字符串：
+-- 库内它们是 NUMBER，靠隐式转换虽能通过，但会把类型错误留到运行期。
+insert into sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
+select (select max(menu_id) + 1 from sys_menu), '设备心跳状态', 2, 10, 'device-heartbeat', 'monitor/device-heartbeat/index', '', 'DeviceHeartbeat', 1, 0, 'C', '0', '0', 'monitor:deviceHeartbeat:list', 'monitor', 'admin', sysdate, '', null, '只读展示 F2F_DEVICE_STATUS 的 TVM/BOM 设备在线状态，车站取设备号前 4 位'
+from dual
+where not exists (select 1 from sys_menu where perms = 'monitor:deviceHeartbeat:list');

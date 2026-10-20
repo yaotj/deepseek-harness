@@ -164,12 +164,12 @@ Controller（**均无接口编号标注**）：
 
 - **`acc-security-server/src/main/resources/application.properties` 里一条注释都没有**（全文 33 行，纯键值）。因此这一小节的「注释知识」为空，以下只按任务要求点出**键名与位置**，供后续补注释与整改用，**不回显任何值**：
   - HSM 连接类：`security.firstIp`、`security.firstPort`、`security.secondPort`、`security.connectOutTime`、`security.readOutTime`、`security.index`。**注释里没有任何一条说明「firstPort / secondPort 分别是什么」「connectOutTime 与 readOutTime 的单位」，与 §一 `Constant.OverTime` 那两个常量的关系也没有记录 —— 属缺口。**
-  - **密钥类（含疑似明文真值，值见源码该行，本处不回显）**：`security.publicKey`、**`security.privateKey`**、**`itp.signKey`**、`itp.tacKeyIdex`（，注意键名拼写是 `Idex` 而非 `Index`）。**这四行既无注释、也未写成 `${ENV_VAR:}` 形态，与 AGENTS.md §5.2「敏感配置 MUST 写成 `${ENV_VAR:}`（空默认值）并由 K8s Secret 注入，NEVER 写默认真值」直接冲突。**
+  - **密钥类（含疑似明文真值，值见源码该行，本处不回显）**：`security.publicKey`、**`security.privateKey`**、**`itp.signKey`**、`itp.tacKeyIdex`（，注意键名拼写是 `Idex` 而非 `Index`）。**这四行既无注释、也未写成 `${ENV_VAR:}` 形态，与 `docs/architecture/security-sensitivity.md` §一「敏感项 MUST 写成 `${ENV_VAR:}`（空默认值）并由 K8s Secret 注入，NEVER 写默认真值」直接冲突。**
   - 线程池类：`thread.corePoolSize`、`thread.maxPoolSize`、`thread.queueCapacity`、`thread.socketNamePrefix`—— 对应 §一 `ExecutorConfig` 那四条字段注释。
   - `SecurityConfig`（acc-security-server，`.../server/config/SecurityConfig.java`）**只有一行类注释「加密服务配置」**，没有逐字段说明。
 - **`acc-secure-server/src/main/resources/application.properties` 只有一条「注释」，而且是误报**（acc-secure-server）：抽取工具把 `acc.secure.base-url=http://127.0.0.1:8080` 里的 `//127.0.0.1:8080` 当成行注释命中。**该文件真实注释数为 0。** 该文件的 `acc.secure.sign-key`是**空值**（符合 `${ENV:}` 精神但没写成 `${ENV_VAR:}` 形态），`acc.secure.base-url`是 `127.0.0.1` 占位（本文档上方「已知问题」已记）。
 - **`AccSecureProperties` 的字段注释是这批配置键的唯一语义来源**（acc-secure-server，`AccSecureProperties`，`.../accsecure/config/AccSecureProperties.java`）：类注释「ACC 安全接口调用配置。」，字段注释依次为「ACC 服务根地址。」「商户编码。」「字符集。」「数据格式。」「设备编码。」「签名类型。」「**MD5 签名 key。**」「ACC 接口路径配置。」
-  - **「MD5 签名 key」（，对应键 `acc.secure.sign-key`）是本域出向签名算法的唯一记录 —— 注释说是 MD5，与 AGENTS.md §4「SHA256WithRSA 仅用于渠道对接方向、入向验签分散在三处」的描述属另一条链路，MUST NOT 与其它链路的签名逻辑合并。**
+  - **「MD5 签名 key」（，对应键 `acc.secure.sign-key`）是本域出向签名算法的唯一记录 —— 注释说是 MD5，与本域口径「`SHA256WithRSA` 仅用于渠道对接方向、入向验签分散在三处」（本域结论；签名链路的分工与「鉴权 MUST 对齐现有验签实现」的约束见 `docs/architecture/security-sensitivity.md` §三「鉴权 MUST 对齐现有验签实现」）属另一条链路，MUST NOT 与其它链路的签名逻辑合并。**
   - 「签名类型。」（，键 `acc.secure.sign-type`，配置值 `00`）与 `AccountRequestVerifier` 的 `signType=00` 免签语义**同名不同链路**，注释里没说这里的 `00` 是否也代表免签 —— 属缺口。
 - **`ItpConstants`（acc-security-server，`.../server/itp/util/ItpConstants.java`）一条注释都没有**，`itp.signKey` / `itp.tacKeyIdex` 两个键在代码侧的用法无注释可依。
 
@@ -179,7 +179,7 @@ Controller（**均无接口编号标注**）：
 
 - `acc-security-server`：无 `mapper` 目录、无 `*Mapper.java`、无 `src/main/resources/mapper/*.xml`、无数据源配置（`application.properties` 里没有 `spring.datasource.*` 或 `other.sql.*`）。**唯一带「持久」语义的是 `LocalCache`（进程内 Map + 定时清理，见 §一），以及 `ItpLogicNumberService` 的内存自增发号（该类零注释，本文档上方「死代码警告」段落已记其重启不持久化的限制 —— 那条限制是文档结论，注释里没有）。**
 - `acc-secure-server`：同样无 mapper、无数据源。
-- 因此 AGENTS.md §5.1 那两条 Druid WallFilter 陷阱（SQL 正文注释、`where 1 = 1`）与 mapper XML 连续减号陷阱，**在这两个模块内都不适用**，本节不复制。
+- 因此 `docs/architecture/mybatis-oracle-runtime-traps.md` §1「NEVER 在 SQL 正文中写注释」起的三条陷阱（SQL 正文注释、`where 1 = 1`、mapper XML 连续减号），**在这两个模块内都不适用**，本节不复制。
 
 ### 七、缺口与矛盾（照实记录，注释里没有的不代笔）
 
@@ -248,7 +248,7 @@ Controller（**均无接口编号标注**）：
 > - `SECURE/` = `acc-secure-server/src/main/java/com/chinasofti/huateng/accsecure/`
 >
 > **行号是 2026-09-16 迁移完成后的快照**（删注释会让后面的行号上移），引用前 MUST 先 grep 现查。
-> **安全口径**：密钥只写键名与位置，**任何值都不回显**（AGENTS.md §5.2「敏感配置」）。
+> **安全口径**：密钥只写键名与位置，**任何值都不回显**（`docs/architecture/security-sensitivity.md` §一「敏感配置规则」）。
 
 ### 一、HSM TCP 长连接与连接池
 
@@ -353,11 +353,11 @@ Controller（**均无接口编号标注**）：
 - 报文口径注释：「命令类型：D3 / 命令：02 / 算法标识：07 / 秘钥长度：0100 / 秘钥索引：0001 / 秘钥口令：0000000000000000」；秘钥标识由 `securityConfig.getIndex() + "00"` 拼出，秘钥口令直接用 `LocalCache.getSequence()`。
 - 拼包顺序：`orderType` → `order` → `algorithmFlag` → `secretFlag` → `secretIndex` → `secretPassword`（与 `SEC/param/CertificateBean.java` 的字段注释「命令类型 / 命令 / 算法标识 / 秘钥标识 / 秘钥索引 / 秘钥口令」一一对应，**该 Bean 仍在、注释仍在**）。
 - 应答解析：`resultData.substring(6, 223)` 当**私钥密文**（217 个 hex 字符），并注明「公钥明文X+Y」。
-- **关键：核心方法 `getSM2SignFromMachine` 的方法体只有两行日志 + `return "";`** —— 即便当年解注释也拿不到签名。**因此「加密机侧证书签名」这条链路在本仓库从未存在过实现**，需要它 MUST 当新功能做（AGENTS.md §2.2.2 同型约束）。
+- **关键：核心方法 `getSM2SignFromMachine` 的方法体只有两行日志 + `return "";`** —— 即便当年解注释也拿不到签名。**因此「加密机侧证书签名」这条链路在本仓库从未存在过实现**，需要它 MUST 当新功能做（docs/business/未落地需求.md 同型约束）。
 - 另一半 `getSM2SignFromLocal` 依赖 `SM2EncDecUtils` / `SM2KeyVO` / `SM2SignVO` / `SM2SignVerUtils` 四个类，**这四个类在当前 `SEC/util/sm2/` 下都不存在** —— 解注释会直接编译失败。这是「为什么它被注释掉」的最可能原因，但**注释里没有任何说明，属推断、MUST 找原作者确认**。
 
 **3. 联调脚本里有两处硬编码密钥对（只记位置，不回显值）**
-- `SEC/service/Main.java`：`main` 方法里的公钥字面量、`getCertificateSign` 里的公钥 + **私钥**字面量；本轮**已删除**其中 4 行样例注释（两串证书报文样例、一串签名结果样例、标题「公钥证书-测试」），**代码里的密钥字面量一行未动**（AGENTS.md §5.2 安全红线：NEVER 擅自改加密/签名代码）。
+- `SEC/service/Main.java`：`main` 方法里的公钥字面量、`getCertificateSign` 里的公钥 + **私钥**字面量；本轮**已删除**其中 4 行样例注释（两串证书报文样例、一串签名结果样例、标题「公钥证书-测试」），**代码里的密钥字面量一行未动**（`AGENTS.md` §4.2「安全红线」：NEVER 擅自改加密/签名代码）。
 - `SEC/util/sm2/Main.java`：`test1` / `test2` / `getSign` 三个方法各自带公钥 + 私钥字面量与签名样例。
 - **这两个文件都是 `main` 方法脚本、零调用方**，但会被打进 jar。**MUST 处置**：连同下面第七节那 4 个配置项一起，把密钥搬到 K8s Secret，并对这两个脚本文件的存留做裁决（删除或移到 `src/test`）。**MUST 视这些字面量为已泄露、纳入轮换范围。**
 
@@ -374,7 +374,7 @@ Controller（**均无接口编号标注**）：
 - `POST /ci/itp/requestSignInsData` → 传 `industryData` / `logicNum` 两个字段。
 
 **1. 验签调用已被注释掉——这是事实，不是推断**（【保留】grep `if (!itpRequestSignVerifier.checkSign(request))`）
-两个方法体开头各有一段被 `//` 注释掉的三行：`if (!itpRequestSignVerifier.checkSign(request)) { return ResultMapper.error("签名校验未通过"); }`。**这两段注释本轮刻意未删**（AGENTS.md §5.2 安全红线：它们本身就是被停用的签名逻辑，删掉等于抹掉「这里本该有验签」的唯一现场证据）。同时删除的是同文件那个注释掉的 `parseBizData(HttpServletRequest)` 私有方法（4 行，原文 `JSON.parseObject(request.getParameter("bizData"), Map.class)`）。
+两个方法体开头各有一段被 `//` 注释掉的三行：`if (!itpRequestSignVerifier.checkSign(request)) { return ResultMapper.error("签名校验未通过"); }`。**这两段注释本轮刻意未删**（`AGENTS.md` §4.2「安全红线」：它们本身就是被停用的签名逻辑，删掉等于抹掉「这里本该有验签」的唯一现场证据）。同时删除的是同文件那个注释掉的 `parseBizData(HttpServletRequest)` 私有方法（4 行，原文 `JSON.parseObject(request.getParameter("bizData"), Map.class)`）。
 连带事实：`itpRequestSignVerifier` 仍然**通过构造器注入并持有**，只是没人调用 —— 编译器不会报警，IDE 也只会提示「字段未使用」。
 
 **2. 恢复验签 NEVER 只是「解注释」**（本条是本节最重要的结论）
@@ -383,7 +383,7 @@ Controller（**均无接口编号标注**）：
 
 **3. 当前实际暴露面**
 - 该 Controller 两个端点 + `SEC/controller/ItpRemainingController.java` 五个端点（`requestCaKey` / `requestUserSm2Key` / `requestExportUserPriKey` / `requestDPK` / `requestHceCardData`）**共用同一个类级前缀 `/ci/itp`**，且后者**同样注入了 `ItpRequestSignVerifier` 却一次都没调用**（连注释掉的调用都没有）。
-- 即：`/ci/itp/**` 七个端点**全部无鉴权**，其中包含「导出用户私钥」「导出 DPK」「生成 CA 密钥」。与 AGENTS.md §5.2「新增状态变更型接口 MUST 有鉴权与归属校验」直接冲突。**这是当前网络可达性兜底的（仅集群内 `service.security.url` 调用），不是设计上安全，上线前 MUST 关闭或补齐。**
+- 即：`/ci/itp/**` 七个端点**全部无鉴权**，其中包含「导出用户私钥」「导出 DPK」「生成 CA 密钥」。与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」直接冲突。**这是当前网络可达性兜底的（仅集群内 `service.security.url` 调用），不是设计上安全，上线前 MUST 关闭或补齐。**
 - 阶段一已记「`itp.signKey` 在 `ItpRequestSignVerifier` 的 `@Value` 里带一个非空默认值」—— 即**即使 properties 不配也能算出签名**，见第七节。
 
 ### 六、IF7B 出向代理（acc-secure-server，当前未接线）
@@ -393,7 +393,7 @@ Controller（**均无接口编号标注**）：
 
 **2. 出向调用的四段职责**（`SECURE/service/impl/AccSecureServiceImpl.java`，Javadoc 【保留】）
 `post(path, bizData, responseClass)`：OkHttp（`JSON_MEDIA_TYPE = application/json; charset=utf-8`）→ `buildAccRequest` 组装 `ItpCommonRequest`（公共参数取 `acc.secure.provider-id` / `charset` / `format` / `device-id` / `sign-type`，签名走 `AccSecureSignUtils.buildSign`）→ `buildUrl` = `acc.secure.base-url` + `acc.secure.paths.*` → `parseResponse` **兼容「retCode 在外层」与「retCode 在 bizData 内」两种结构** → `normalizeBaseFields` 兜底补 `retCode` / `retMsg` → 出错走 `buildErrorResponse`。
-**判据（阶段一已记，此处重申因为它决定调用方写法）：`post` 任何失败都不抛异常、只返回带错误码的响应对象。调用方 MUST 显式检查 `retCode`，NEVER 假定「没抛异常就是成功」**（同 AGENTS.md §5.2 那条 boolean 陷阱）。
+**判据（阶段一已记，此处重申因为它决定调用方写法）：`post` 任何失败都不抛异常、只返回带错误码的响应对象。调用方 MUST 显式检查 `retCode`，NEVER 假定「没抛异常就是成功」**（同 `docs/architecture/transaction-and-consistency.md` §3「RPC 包装方法 MUST 返回 `RpcOutcome`，NEVER 返回 boolean」那条陷阱）。
 
 **3. 接线前必然踩的两个 404（本轮新增实测结论）**
 `acc.secure.paths.*` 里的两条路径与 acc-security-server 侧真实端点**对不上**：
@@ -411,7 +411,7 @@ Controller（**均无接口编号标注**）：
 - 服务：`server.port=9012`、`server.undertow.io-threads=10`、`server.undertow.worker-threads=10`、`spring.application.name=acc-security`。
 - 日志：`logging.level.root=info`、`logging.level.com.chinasofti=debug`、`logging.file.path=logs/acc-security`。**注意 `com.chinasofti` 是 debug**，而第四节那几处日志会打签名原文 / 公钥。
 - 文档：`knife4j.production=false`（**测试期口径，生产 MUST 改 true**；acc-secure 侧已是 true）。
-- HSM 连接：`security.firstIp` / `security.firstPort` / `security.secondPort` / `security.connectOutTime` / `security.readOutTime` / `security.index`。**`firstIp` / `firstPort` 是裸硬编码的加密机内网地址与端口、没有 `${ENV:}` 包装**，判断线上真实值 MUST 查 Deployment env（AGENTS.md §8）。`security.secondPort` 与 `security.connectOutTime` **在代码里有 getter 但没有任何读取方**（`SecurityConfig` 只被 `SocketClient` / `ShortConnectClient` / `ClientSendMsg` / `CertificateServiceImpl` 用到，分别只读 `firstIp` / `firstPort` / `readOutTime` / `privateKey` / `publicKey`）—— 属预留双机字段，**NEVER 以为配了 `secondPort` 就有备机**。
+- HSM 连接：`security.firstIp` / `security.firstPort` / `security.secondPort` / `security.connectOutTime` / `security.readOutTime` / `security.index`。**`firstIp` / `firstPort` 是裸硬编码的加密机内网地址与端口、没有 `${ENV:}` 包装**，判断线上真实值 MUST 查 Deployment env（`docs/ops/构建与部署规范.md` §8）。`security.secondPort` 与 `security.connectOutTime` **在代码里有 getter 但没有任何读取方**（`SecurityConfig` 只被 `SocketClient` / `ShortConnectClient` / `ClientSendMsg` / `CertificateServiceImpl` 用到，分别只读 `firstIp` / `firstPort` / `readOutTime` / `privateKey` / `publicKey`）—— 属预留双机字段，**NEVER 以为配了 `secondPort` 就有备机**。
 - 线程池：`thread.corePoolSize=10` / `thread.maxPoolSize=10` / `thread.queueCapacity=99999` / `thread.socketNamePrefix=socket-connect`。`corePoolSize` **同时兼任「目标 HSM 连接数」**（第一节第 3 条），改它会连带改重连判据。
 - **明文密钥项 4 个（只写键名与位置，值一律不回显）**：
   | 键名 | 位置 | 用途 | 现状 |
@@ -420,7 +420,7 @@ Controller（**均无接口编号标注**）：
   | `security.privateKey` | 同文件 | 证书签名用 SM2 **私钥** | 明文真值，无 `${ENV:}` |
   | `itp.signKey` | 同文件 ；**另有一份非空默认值内联在 `SEC/itp/service/ItpRequestSignVerifier.java` 的 `@Value("${itp.signKey:...}")` 里** | `/ci/itp/**` 入向验签的共享密钥 | 明文真值，且**删掉配置也不会失效**（有代码内默认值兜底） |
   | `itp.tacKeyIdex` | 同文件 ；默认值 `195` 内联在 `ItpServiceImpl` / `ItpRemainingService` / `ItpRequestService` 三处 `@Value` | TAC 次主密钥索引 | 明文；键名拼写 `Idex`，改名会静默回落默认值 |
-  **MUST（AGENTS.md §5.2「敏感配置」）**：这 4 项一律改成 `${ENV_VAR:}`（**空默认值**）+ K8s Secret 注入，`ItpRequestSignVerifier` 里那个内联默认值 MUST 一并去掉（**留着它等于 Secret 没注入也照样能算签名，故障被掩盖**）。因为真值已随代码库长期存在（并且第四节第 3 条那两个脚本里还有另一对硬编码密钥对），**MUST 视为已泄露并安排轮换**，NEVER 只是改成环境变量了事。
+  **MUST（`docs/architecture/security-sensitivity.md` §一「敏感配置规则」）**：这 4 项一律改成 `${ENV_VAR:}`（**空默认值**）+ K8s Secret 注入，`ItpRequestSignVerifier` 里那个内联默认值 MUST 一并去掉（**留着它等于 Secret 没注入也照样能算签名，故障被掩盖**）。因为真值已随代码库长期存在（并且第四节第 3 条那两个脚本里还有另一对硬编码密钥对），**MUST 视为已泄露并安排轮换**，NEVER 只是改成环境变量了事。
 - **`ItpConstants`（`SEC/itp/util/ItpConstants.java`）零注释**，`RET_SUCCESS="0000"` / `CHECK_FAILED_CODE="0001"` / `ERR_GETSOCKET_TIMEOUT="0101"` / `ERR_HEX_FORMAT="0202"` / `ERR_HEX_ODD="0203"` / `ERR_LENGTH="0204"` / `ERR_BYTE_IO="0205"` / `ERR_UNKNOW="9999"`，以及 `SIGN`/`SIGN_TYPE`/`NO_SIGN="00"`/`SHA1_SIGN="01"`/`MD5_SIGN="02"`。**这 8 个错误码常量当前没有任何读取方**（在跑的实现走 `ResultMapper.error("...")` 直接给文案），**NEVER 以为错误码已经按这套编号对外了**。
 
 **2. 三个 config 类的现状**
@@ -471,7 +471,7 @@ Controller（**均无接口编号标注**）：
 | 13 | `SEC/util/sm2/SM2.java` | 两组 Base64 测试向量、注释掉的 `getHash(byte[],byte[])` 旧签名、两个注释掉的 `signBase64`、一个注释掉的 `verifyBase64`、若干注释掉的中间变量 | 第四节第 4 条（**测试向量含密钥材料、不回显**） |
 | 14 | `SEC/util/sm2/Main.java`、`SEC/util/Util.java` | 1 行注释掉的 `genSM2KeyPair()` 调用；1 行注释掉的 `return hs.toUpperCase();` | 第四节第 3 条 |
 
-**B. 保留的一行式护栏（紧贴加密/签名/MAC/TAC 计算、说明字节序或索引取值；AGENTS.md §5.2 安全红线，NEVER 删）**
+**B. 保留的一行式护栏（紧贴加密/签名/MAC/TAC 计算、说明字节序或索引取值；`AGENTS.md` §4.2「安全红线」，NEVER 删）**
 
 | # | 位置（grep 短语） | 为什么必须留 |
 |---|---|---|
@@ -502,7 +502,7 @@ Controller（**均无接口编号标注**）：
   - **这部分知识在代码里从来不存在，docs 也无法凭空补齐**：具体缺的是 —— ①为什么成功码是 `'A'`(65) / 失败码是 `'E'`(69)，错误码 `errCode` 那一字节的取值表；②`RawResponseSpec.reserved()` 何时该为 true（哪些指令带 8 字节保留域）；③两条应答路径为什么并存、旧路径是否计划下线；④`security.secondPort` 预留的双机方案；⑤`ContextHolder` 这个失效状态位当年想解决什么问题。**这些 MUST 找原作者（`@author houkepan`）或用加密机联调实测补齐，NEVER 由文档代笔编造。**
 - **未覆盖 / 有意不迁**：`SEC/util/sm2/**` 的算法内部注释（SM2/SM3 标准实现，属通识 + GPL 来源，只迁了三条实现约束）；`Util` / `TransformUtils` / `NumberUtil` 的 `@param`/`@return` 标准 Javadoc（原地保留，未迁）；`feign/domain/**` 与 `itp/model/**` 的字段注释（阶段一已逐条归档，本轮不重复）；三个 `main` 方法 demo 类（`NettyServer` / `NettyClient` / `SimpleServerHandler`）的教学式注释**只删不迁**。
 - **本轮不变量自证**：对每个改动文件用 Python 剥离全部注释（含字符串字面量保护）后与 `svn cat -r BASE` 的同样处理结果逐字节比对，**17 个文件全部一致** ⇒ 只删注释、**未动任何一行代码**（含全部加密/签名/MAC/TAC 逻辑）。改动集中在 `acc-security-server`（17 个 `.java`）；**`acc-secure-server` 一行未删**（它的注释全是标准单行 Javadoc）。
-- **构建校验**：`mise exec -- mvn -o clean package -pl acc-security-server,acc-secure-server -am -DskipTests -Djkube.skip=true` **不可用** —— 报 `Could not find the selected project in the reactor: acc-secure-server`（成因见矛盾清单第 9 条）。实际拆成两条、**均 `BUILD SUCCESS`**：①`mise exec -- mvn -o clean package -pl acc-security-server -am -DskipTests -Djkube.skip=true`（产物 `acc-security-server/target/acc-security-server-2.0.14.jar`，输出里 `Pushed` / `digest:` 命中 **0** 条，确认 `-Djkube.skip=true` 挡住了该模块 `package` 阶段的推镜像）；②`cd acc-secure-server && mise exec -- mvn -o clean package -DskipTests -Djkube.skip=true`（产物 `acc-secure-server-2.0.6.jar`）。**判成败看 `BUILD SUCCESS` / `[ERROR]`，NEVER 看退出码** —— 第一次那条失败命令经管道后 shell 退出码仍是 `0`（AGENTS.md §7 那条陷阱本轮再次复现）。
+- **构建校验**：`mise exec -- mvn -o clean package -pl acc-security-server,acc-secure-server -am -DskipTests -Djkube.skip=true` **不可用** —— 报 `Could not find the selected project in the reactor: acc-secure-server`（成因见矛盾清单第 9 条）。实际拆成两条、**均 `BUILD SUCCESS`**：①`mise exec -- mvn -o clean package -pl acc-security-server -am -DskipTests -Djkube.skip=true`（产物 `acc-security-server/target/acc-security-server-2.0.14.jar`，输出里 `Pushed` / `digest:` 命中 **0** 条，确认 `-Djkube.skip=true` 挡住了该模块 `package` 阶段的推镜像）；②`cd acc-secure-server && mise exec -- mvn -o clean package -DskipTests -Djkube.skip=true`（产物 `acc-secure-server-2.0.6.jar`）。**判成败看 `BUILD SUCCESS` / `[ERROR]`，NEVER 看退出码** —— 第一次那条失败命令经管道后 shell 退出码仍是 `0`（`docs/ops/构建与部署规范.md` §7「Build & Run (构建与运行)」 那条陷阱本轮再次复现）。
 
 
 

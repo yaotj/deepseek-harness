@@ -28,7 +28,7 @@
 两类接口鉴权完全不同，**curl 时不要混用**：
 
 - **web-admin 侧（`/login`、`/system/**`、`/monitor/**`）需要 JWT**。`web-server/web-common/pom.xml` 是**全仓唯一**引入 `spring-boot-starter-security` 的 pom；`SecurityConfig.java:113~118` 的 permitAll 只放开 `/login`、`/register`、`/captchaImage`、静态资源与 swagger，其余一律需要 `Authorization: Bearer <token>`（JJWT）。取 token 步骤见 `00` §三。
-- **业务模块 `/page/**` 侧当前完全没有鉴权**：para / account / alipay-account / ticket / gate-txn-pay / daily-ticket / face-pay / blacklist / key / card-pool 这些模块都**没有** spring-security、没有全局拦截器，`/page/**` 裸 curl 即通，**包括退款、改乘车状态、黑名单增删、参数增删改这些写操作**。这是已知缺口（与 `AGENTS.md` §5.2「新增状态变更型接口 MUST 有鉴权与归属校验」冲突），已落 `06` 的 A8，**不是本次测试造成的**。
+- **业务模块 `/page/**` 侧当前完全没有鉴权**：para / account / alipay-account / ticket / gate-txn-pay / daily-ticket / face-pay / blacklist / key / card-pool 这些模块都**没有** spring-security、没有全局拦截器，`/page/**` 裸 curl 即通，**包括退款、改乘车状态、黑名单增删、参数增删改这些写操作**。这是已知缺口（与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突），已落 `06` 的 A8，**不是本次测试造成的**。
 
 ## 用例可执行性一览
 
@@ -96,7 +96,7 @@
 - 预期结果只写能核对的断言，**不照抄手册措辞**（原表「查询成功」一律改写为响应结构 / 行数 / 列值断言）。
 - 原表 ⚠️ 与备注问题**不在用例页裁决**，统一收敛到 `06`。
 - 纯 UI 校验（样式、列渲染、分页控件、导出文件能否打开）标「需人工」。
-- 本目录**不产出实现率 / 进度百分比**（`AGENTS.md` §5.3）。
+- 本目录**不产出实现率 / 进度百分比**（`docs/提示词/工程与文档规范.md` §二）。
 - 行号与前端代理表（NodePort）来自仓库快照；**判断线上实际地址 MUST 现查 `kubectl get svc -n itp` 与 Deployment env**。
 
 ## 更新记录

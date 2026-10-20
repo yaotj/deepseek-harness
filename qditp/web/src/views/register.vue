@@ -18,12 +18,14 @@
           v-model="registerForm.password"
           type="password"
           size="large"
+          maxlength="20"
           auto-complete="off"
           placeholder="密码"
           @keyup.enter="handleRegister"
         >
           <template #prefix><svg-icon icon-class="password" class="el-input__icon input-icon" /></template>
         </el-input>
+        <password-strength :password="registerForm.password" />
       </el-form-item>
       <el-form-item prop="confirmPassword">
         <el-input
@@ -78,6 +80,8 @@
 <script setup>
 import { ElMessageBox } from "element-plus"
 import { getCodeImg, register } from "@/api/login"
+import PasswordStrength from '@/components/PasswordStrength'
+import { passwordPolicyValidator } from '@/utils/password'
 
 const title = import.meta.env.VITE_APP_TITLE
 const router = useRouter()
@@ -106,8 +110,7 @@ const registerRules = {
   ],
   password: [
     { required: true, trigger: "blur", message: "请输入您的密码" },
-    { min: 5, max: 20, message: "用户密码长度必须介于 5 和 20 之间", trigger: "blur" },
-    { pattern: /^[^<>"'|\\]+$/, message: "不能包含非法字符：< > \" ' \\\ |", trigger: "blur" }
+    { validator: passwordPolicyValidator, trigger: "blur" }
   ],
   confirmPassword: [
     { required: true, trigger: "blur", message: "请再次输入您的密码" },

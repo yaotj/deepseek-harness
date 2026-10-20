@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  * 那会立刻出现「两处对同一个状态值的理解不同」。
  *
  * <p><b>NEVER 加 {@code @Transactional}</b>：调用方所在的回调链路要先落证据、再出网，
- * 事务包住会把「留证据」的 INSERT 一起回滚（AGENTS.md §5.2 已有生产事故）。
+ * 事务包住会把「留证据」的 INSERT 一起回滚（docs/architecture/transaction-and-consistency.md §6 已有生产事故）。
  * 本类两步（明细 CAS + 汇总重算）各自自动提交，中途失败的形态由退款回查补偿收口。
  */
 @Component

@@ -38,7 +38,7 @@ spec:
           value: 'false'
         - name: para.ftp.remote-dir
           value: ${PARA_FTP_REMOTE_DIR:/parameter/cur/}
-        - name: server.port
+        - name: SERVER_PORT
           value: '9107'
         - name: para.ftp.connect-timeout-millis
           value: '10000'

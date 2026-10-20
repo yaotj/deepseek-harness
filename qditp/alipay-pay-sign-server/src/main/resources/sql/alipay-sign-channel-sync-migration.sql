@@ -1,12 +1,12 @@
 -- 支付宝渠道签约表：补「支付通道同步」outbox 四列（ADR-D129）。
 -- 背景：addContract 原先在 @Transactional 内先 INSERT 本地签约行、再调 account 域
--- updatePaymentChannel（事务内出网），失败即整笔回滚。两条都违反 AGENTS.md §5.2：
+-- updatePaymentChannel（事务内出网），失败即整笔回滚。两条都违反 docs/architecture/transaction-and-consistency.md §6：
 --   1) @Transactional 方法内 NEVER 发起任何 RPC（行锁持有时长 = 对端响应时长）；
 --   2) 顺序颠倒时留下「本地已成、远端未配」的不一致且无补偿出口。
 -- 改造后形态与 pay-sign-server 的 APP_TERMINATION_REQUEST.CHANNEL_SYNC_* 同款（ADR-D48）：
 -- 签约行落库即带 PENDING，提交后（事务外）出网，按结果回写这四列；未成功的留给补偿扫描。
 --
--- 本脚本对已存在的库有效，schema 文件不承担该职责（AGENTS.md §8 那条「*-schema.sql
+-- 本脚本对已存在的库有效，schema 文件不承担该职责（docs/ops/构建与部署规范.md §8 那条「*-schema.sql
 -- 只服务新建库」）。执行后 MUST 用 USER_TAB_COLS 回查并把结果写进 ADR-D129。
 ALTER TABLE ALIPAY_SIGN_INFO ADD (
     CHANNEL_SYNC_STATUS       VARCHAR2(16)  DEFAULT 'PENDING' NOT NULL,

@@ -110,7 +110,7 @@ CREATED ──> PAYING ──> PAID ──> FULFILLED
 | 通知 | `(NOTIFY_TYPE, ORDER_NO, NVL(REFUND_NO,'#NONE#'))` | `UK_F2F_NOTIFY_IDEM` |
 | 心跳 | `(CHANNEL, DEVICE_ID)` | 主键，`MERGE INTO` |
 
-配 `DuplicateKeyException` 兜底，符合 `AGENTS.md` §5.1「唯一索引 + `DuplicateKeyException` 兜底」。
+配 `DuplicateKeyException` 兜底，符合 `AGENTS.md` §4.1「唯一索引 + `DuplicateKeyException` 兜底」。
 
 **部分退款不受 `UK_F2F_REFUND_IDEM` 误拦**：需求 R2 是「全部或部分单程票退款」，按票粒度；买 3 退 1 再退 1 是两条不同 `TICKET_LOGIC_NUM` 的记录。整单退时 `TICKET_LOGIC_NUM` 为空，用 `NVL` 占位避免多笔整单退绕过约束。
 
@@ -131,7 +131,7 @@ CREATED ──> PAYING ──> PAID ──> FULFILLED
 
 ## 七、服务内部分层
 
-单服务，端口沿用 `58101`，`spring.application.name` **沿用 `itpagm`**（改名会连带 `rpc` 默认服务名问题，见 `AGENTS.md` §8 键缺失一条）。
+单服务，端口沿用 `58101`，`spring.application.name` **沿用 `itpagm`**（改名会连带 `rpc` 默认服务名问题，见 docs/ops/构建与部署规范.md §8「`service.*.url` 有三类问题，排查调用不通 MUST 三类都查」里的键缺失一条）。
 
 - `controller/` 协议接入。三组 URL 前缀原样保留：`/itptvm/ci/tvm/**`、`/itpbom/ci/bom/**`、`/ci/app/**`，加运营端 `/page/face-pay/**`。只做参数校验与 DTO 转换
 - `application/` 业务编排。**按用例组织，不按设备**。核心用例六个：下单、拉码支付、查支付结果、结果上报、退款、票卡透传。TVM/BOM/APP 差异用策略，旧实现是三套复制
@@ -143,15 +143,15 @@ CREATED ──> PAYING ──> PAID ──> FULFILLED
 
 ## 八、两条硬性编码约束
 
-**`@Transactional` 方法内禁止调 channel 层。** 对照 `AGENTS.md` §5.2 与 2026-08-26 生产事故（`PaySignWorkflow.receivePayResult`，订单循环重推 8 分钟、`PAY_CALLBACK_LOG` 零条落库）。要在**代码结构上**保证：channel 层调用只能从不带事务的 orchestrator 发起，或用 `TransactionSynchronizationManager` 的 `afterCommit`。不靠 review 记住。
+**`@Transactional` 方法内禁止调 channel 层。** 对照 docs/architecture/transaction-and-consistency.md §6「`@Transactional` 方法内 NEVER 发起任何 RPC / 网络调用」与 2026-08-26 生产事故（`PaySignWorkflow.receivePayResult`，订单循环重推 8 分钟、`PAY_CALLBACK_LOG` 零条落库）。要在**代码结构上**保证：channel 层调用只能从不带事务的 orchestrator 发起，或用 `TransactionSynchronizationManager` 的 `afterCommit`。不靠 review 记住。
 
 旧实现里同形态的已知点：`collect-ticket-server/.../TicketCollectServiceImpl#ticketCollectPayNotify`（带 `@Transactional`）、`ticket-server/.../CardDataHandler`（714 行版，ADR-D59 已拆为 `CardDataAnalyseHandler` / `CardDataUpdateHandler`）。
 
-**支付中心调用不得在请求线程上长时间阻塞。** `spring.threads.virtual.enabled=true` 是全服务默认（`resource/micro/web/src/main/resources/web.properties`）。300 QPS 峰值 + ojdbc8 大量 `synchronized` 方法，一两条慢 SQL 即可 pin 满载体线程池导致全 JVM 虚拟线程停止调度。`F2F_PAYMENT.COST_MS` 落库就是为了给这类问题留取证数据。
+**支付中心调用不得在请求线程上长时间阻塞。** `spring.threads.virtual.enabled=false` 自 2026-10-20 起为全服务默认（`resource/micro/web/src/main/resources/web.properties`，由历史值 `true` 改为禁用）。启用期间 300 QPS 峰值 + ojdbc8 大量 `synchronized` 方法，一两条慢 SQL 即可 pin 满载体线程池导致全 JVM 虚拟线程停止调度——该机制现已随禁用消除，但「NEVER 在请求线程上长时间阻塞」约束保留。`F2F_PAYMENT.COST_MS` 落库就是为了给这类问题留取证数据。
 
 ## 九、ADR
 
-- **ADR-1 单服务而非拆分**。300 QPS 单服务足够；本项目无注册中心无网关，`service.*.url` 全硬编码，`AGENTS.md` §8 已记三类错配事故，多一个服务多一组错配面。**备选**：按设备域拆两服务——拒绝，共享订单模型会重复
+- **ADR-1 单服务而非拆分**。300 QPS 单服务足够；本项目无注册中心无网关，`service.*.url` 全硬编码，docs/ops/构建与部署规范.md §8「`service.*.url` 有三类问题，排查调用不通 MUST 三类都查」已记三类错配事故，多一个服务多一组错配面。**备选**：按设备域拆两服务——拒绝，共享订单模型会重复
 - **ADR-2 新建表不复用旧表**（2026-09-08 用户决定，推翻初版共库方案）。收益是可重新建模并把幂等做进约束；代价是生产切换需要 `LegacyOrderReader`，见 §二
 - **ADR-3 URL、端口、`application.name` 全部沿用**。设备侧动不了；改 name 连带 rpc 默认服务名问题
 - **ADR-4 第一阶段只做行为等价，不修缺陷**。保证切换失败与新逻辑 bug 可区分
@@ -172,11 +172,11 @@ CREATED ──> PAYING ──> PAID ──> FULFILLED
 | 6 | 逐条修 14 处缺口 | 是 |
 | 7 | 生产切换的在途兼容方案（§二 推迟项） | 阶段 5 前必须完成决策 |
 
-阶段 2 要独立验证的原因：`AGENTS.md` §8 记「代码有 mapper、生产库无表」是本项目高频缺陷，`acc-es-server` 13 张表曾全缺。
+阶段 2 要独立验证的原因：docs/ops/构建与部署规范.md §8「代码有 mapper、生产库无表」是本项目高频缺陷，`acc-es-server` 13 张表曾全缺。
 
 ## 十一、落地时的 Oracle 注意点
 
-- **注释只能用 `COMMENT ON`**。SQL 正文内 `--` 或 `/* */` 会被 Druid WallFilter 判定注入并**静默失效**（`AGENTS.md` §5.1，`PayTxnDetailMapper.updatePayCallback` 已炸过）。且 `dm.properties` 在达梦关了 WallFilter，**该类缺陷只在 Oracle 生产暴露**——测试环境若连达梦测不出来
+- **注释只能用 `COMMENT ON`**。SQL 正文内 `--` 或 `/* */` 会被 Druid WallFilter 判定注入并**静默失效**（`docs/architecture/mybatis-oracle-runtime-traps.md`，`PayTxnDetailMapper.updatePayCallback` 已炸过）。且 `dm.properties` 在达梦关了 WallFilter，**该类缺陷只在 Oracle 生产暴露**——测试环境若连达梦测不出来
 - **分区表的唯一索引必须 GLOBAL**。`F2F_ORDER` / `F2F_PAYMENT` / `F2F_RESULT_REPORT` 按 `CREATE_TMS` interval 月分区，唯一索引不含分区键，归档 `DROP PARTITION` 时 **MUST** 带 `UPDATE GLOBAL INDEXES`
 - **`DEVICE_SEQ` 的部分唯一索引**用 `CASE WHEN ... IS NULL THEN NULL` 写法。直接建复合唯一索引会因 Oracle 在部分列非 NULL 时仍校验，导致同一台 TVM 的多笔订单互相冲突（TVM 不传 `bomOptSeq`）
 - 金额一律 `NUMBER(12)`，单位分（规格统一为分）
@@ -198,11 +198,11 @@ CREATED ──> PAYING ──> PAID ──> FULFILLED
 
 - **假设**：34 个接口的调用方只有 TVM / BOM / APP / 支付中心 / web-server Quartz 五方。若有第三方直连或直接读库，`LegacyOrderReader` 方案需重评
 - **风险（最大）**：契约基线的完整性。若基线从代码推而非生产流量抓，切换后暴露的问题会集中在「设备实际在传但代码未声明的字段」上，而这类问题**在测试环境复现不出来**
-- **待确认**：上游三个调用方向的真实地址。`fep-app-server` **缺 `service.collectPay.url`**（`AGENTS.md` §8 已记，落到默认服务名 `collect-pay-server-service`）；`collect-ticket-server` 用自己模块的 `CollectPayClient`；`web-server` Quartz 经 `F2FClient` 调 `service.f2f.url`。按 §8，线上真实值 **MUST 查 K8s Deployment env**
+- **待确认**：上游三个调用方向的真实地址。`fep-app-server` **缺 `service.collectPay.url`**（docs/ops/构建与部署规范.md §8「`service.*.url` 有三类问题，排查调用不通 MUST 三类都查」已记，落到默认服务名 `collect-pay-server-service`）；`collect-ticket-server` 用自己模块的 `CollectPayClient`；`web-server` Quartz 经 `F2FClient` 调 `service.f2f.url`。按 docs/ops/构建与部署规范.md §8「判断线上真实地址 MUST 查 Deployment env」，线上真实值 **MUST 查 K8s Deployment env**
 
 ## 十四、旧表字段映射（`LegacyOrderReader` 用）
 
-**来源**：`collect-pay-server/src/main/resources/mapper/*.xml` 的 `resultMap` 与 `insert` 语句实际写法，2026-09-08 逐文件核对。**不是**从生产库 `USER_TAB_COLUMNS` 读的——列的**物理类型与长度未经核实**，只有 mapper 声明的 `jdbcType`。阶段 2 上线前 **MUST** 用 MCP 核对一次真实表结构（先 `createNamedConnection`，见 `AGENTS.md` §8）。
+**来源**：`collect-pay-server/src/main/resources/mapper/*.xml` 的 `resultMap` 与 `insert` 语句实际写法，2026-09-08 逐文件核对。**不是**从生产库 `USER_TAB_COLUMNS` 读的——列的**物理类型与长度未经核实**，只有 mapper 声明的 `jdbcType`。阶段 2 上线前 **MUST** 用 MCP 核对一次真实表结构（先 `createNamedConnection`，见 `docs/ops/构建与部署规范.md` §8）。
 
 **旧表清单（23 张，按语义分组，组间无重复）**：
 
@@ -353,7 +353,7 @@ CREATED ──> PAYING ──> PAID ──> FULFILLED
 
 ### 15.1 34 个接口的清单：**已存在，不再新建汇总文件**
 
-`AGENTS.md` §5.3 明确禁止在仓库内重建「接口清单」类汇总文件（2026-08-25 删过 8 份派生产物）。清单已分散记录在三处，**MUST 直接用这三处，NEVER 另起一份**：
+docs/提示词/工程与文档规范.md §二「NEVER 重新生成这类汇总报告」明确禁止在仓库内重建「接口清单」类汇总文件（2026-08-25 删过 8 份派生产物）。清单已分散记录在三处，**MUST 直接用这三处，NEVER 另起一份**：
 
 - **TVM 侧 14 条**（带 URL + 行号 + 注释编号的表格）：`docs/testing/face-pay/01-TVM.md`
 - **APP 侧 7 条**（散文体，带行号）：`docs/testing/face-pay/01-TVM.md`
@@ -433,7 +433,7 @@ CREATED ──> PAYING ──> PAID ──> FULFILLED
 
 ### 尚未处理的 P1
 
-- **IF5A 三个透传接口的定位有内部矛盾**：§七 说「只转 ticket-server 无落库」，`AGENTS.md` §2.2.2 说 IF5A 链路不完整，`docs/testing/bom-oneside/00:9-10` 说 IF5A-01+03 → `CardDataHandler`「链路完整可跑」。三处未闭合，透传层开工前 MUST 确认是否真无落库需求——若有，七张表不够。
+- **IF5A 三个透传接口的定位有内部矛盾**：§七 说「只转 ticket-server 无落库」，`docs/business/未落地需求.md` 说 IF5A 链路不完整，`docs/testing/bom-oneside/00:9-10` 说 IF5A-01+03 → `CardDataHandler`「链路完整可跑」。三处未闭合，透传层开工前 MUST 确认是否真无落库需求——若有，七张表不够。
 - **`PAY_TYPE=0`（本地拼聚合码不调支付中心）时 `F2F_PAYMENT` 记什么状态未定**。`PAY_STATUS` 的五个取值都围绕「与支付中心交互」定义，这条分支是否落库、落什么状态，设计里是空的。
 
 ## 十七、建表执行记录与回滚 SQL
@@ -481,7 +481,7 @@ DROP TABLE F2F_DEVICE_STATUS PURGE;
 
 **已修的旧实现缺陷**：`PayCenterServiceImpl.callPayCenter` 异常后 `return null`，各调用方一律按「支付中心返回结果为空」写 `status=FAILED`——把「不知道」当成了「没付成功」。新实现区分 `transportFailed`，该分支 MUST 落 `PAY_STATUS='UNKNOWN'`。另去掉了旧 `SignUtils` 打印私钥的那行日志。
 
-**必须人工复核的一点（支付签名，AGENTS.md §5.2 安全红线）**：同一个支付中心网关，本项目存在**两套待签串算法**——collect-pay 侧是信封五键固定序（本模块沿用），pay-sign 侧 `PayGatewayClient.buildSignSource` 是「bizData 的 JSON 键 TreeMap 排序后拼接、剔空值」。本次按「同契约重写」保留 collect-pay 口径，**没有**去统一，两者该并到哪一套需人工与支付中心确认。
+**必须人工复核的一点（支付签名，AGENTS.md §4.2「安全红线」）**：同一个支付中心网关，本项目存在**两套待签串算法**——collect-pay 侧是信封五键固定序（本模块沿用），pay-sign 侧 `PayGatewayClient.buildSignSource` 是「bizData 的 JSON 键 TreeMap 排序后拼接、剔空值」。本次按「同契约重写」保留 collect-pay 口径，**没有**去统一，两者该并到哪一套需人工与支付中心确认。
 
 **验证状态**：`mise exec -- mvn clean test -pl face-pay-server` 通过，19 个用例 0 失败。
 - 报文层 11 例（不需数据库）：三种 scene 的 bizData 逐字比对、退款 / 查询报文、待签串形态（并用公钥验签）、聚合码 URL、三条入参校验。
@@ -525,14 +525,14 @@ DROP TABLE F2F_DEVICE_STATUS PURGE;
 
 ## 二十一、重写进度台账（2026-09-09，按 URL 逐条）
 
-**唯一进度依据是 Controller 的 `@PostMapping` 注解**（AGENTS.md §5.3 禁止另建汇总文件，本节是设计文档内的实现记录，不是派生报告）。
+**唯一进度依据是 Controller 的 `@PostMapping` 注解**（`docs/提示词/工程与文档规范.md` §二 禁止另建汇总文件，本节是设计文档内的实现记录，不是派生报告）。
 
 ### 已实现并通过测试（TVM 14 条）
 
 - `/itptvm/ci/tvm/requestGenSjtOrder` — 拉码下单
 - `/itptvm/ci/tvm/requestPayResult` — 查询支付结果
 - `/itptvm/ci/tvm/payNotice` — 支付中心回调（⚠️ 无验签，待人工复核）
-- `/itptvm/ci/tvm/notiDeviceHeard` — 心跳。**旧实现只 return success 不落库**，现落 `F2F_DEVICE_STATUS`（MERGE INTO）
+- `/itptvm/ci/tvm/notiDeviceHeard` — 心跳。**旧实现只 return success 不落库**，现落 `F2F_DEVICE_STATUS`（MERGE INTO）。**`STATION_CODE` 由设备号前 4 位补算**（2026-10-15，ADR-D171 / IT-008）：设备报文不带站码时由 `F2fDeviceHeartbeatService` 用 `F2fDeviceId.stationCode(deviceId)` 推导后传入，落库 SQL 一行未改——既有 MERGE 内本就是 `STATION_CODE = NVL(SRC.STATION_CODE, 原值)`，故只在服务层补值即可
 - `/itptvm/ci/tvm/notiTakeTicketResult` — 出票成功上报，幂等靠 `UK_F2F_REPORT_IDEM`
 - `/itptvm/ci/tvm/notiTakeTicketFailResult` — 出票失败上报 + 差额退款
 - `/itptvm/ci/tvm/requestRefund` — 设备主动退款（错误码族 **9999**）
@@ -547,6 +547,7 @@ DROP TABLE F2F_DEVICE_STATUS PURGE;
 ### 已实现并通过测试（BOM 11 条，`/itpbom/ci/bom`）
 
 - `notiDeviceHeard`、`requestGenNoCashOrder`、`requestPayment`、`requestGetPayResult`、`notiBusResult`、`notiTopupResult`、`requestOrderResult`、`requestTicketRefund`、`requestCardDataAnalyse`、`requestUpdateCardData`、`notiUpdateHceData`
+- 其中 `notiDeviceHeard` 与 TVM 同名接口共用 `F2fDeviceHeartbeatService` 的落库与站码补算逻辑（`CHANNEL=03`），站码规则同 ADR-D171
 - `F2fBomOrderService`：下单幂等靠 `UK_F2F_ORDER_DEV_SEQ`（CHANNEL+DEVICE_ID+DEVICE_SEQ），`DuplicateKeyException` → 回既有 `orderNo`；业务结果上报幂等靠 `UK_F2F_REPORT_IDEM`，失败触发 `SOURCE_BOM_ORIGINAL` 全额退款；`requestTicketRefund` 按张退并回写 `TICKET_STATUS=REFUNDING`
 - `F2fHceService`（IF5A-01/03/09）：**远端 retCode 不再透传给 BOM**（BOM 只认 8xxx 族），统一收敛成 `8999` + 内嵌远端码的消息；改状态的操作在 `F2F_RESULT_REPORT` 留审计行（`ORDER_NO` 存 `cardId`）
 - 错误码族沿用 BOM 既有的 `0000/8999/8001-8007`，`8003` 为参数非法
@@ -558,11 +559,17 @@ DROP TABLE F2F_DEVICE_STATUS PURGE;
 - 错误码族 `0000/8001/8003/8999/9999`；`payInfo` 响应固定 `signType="00"`、`sign=""`——**响应确实不签名，是既有形态**
 - 修掉旧实现 4 处缺陷：状态判定写成字面量 `"3"` 而非 `"FAILED"`；`orderNo` 当 `refundNo` 用；线程池内同步推 APP；`catch` 一切后统一回 `9999 请求异常`（现按 `RefundOutcome` 区分）
 
-### 已实现并通过测试（运营后台 2 条，`/page/face-pay/orders`）
+### 已实现并通过测试（运营后台 3 条）
+
+`/page/face-pay/orders` 两条：
 
 - `GET /page/face-pay/orders` — 分页查询。**必须给检索范围**（订单号 / 支付中心订单号 / 完整下单时间区间之一），否则回 `illegalParams`；`payCenterOrderNo` 用 `EXISTS` 子查询过滤，**NEVER 改成 JOIN**——一单多次支付尝试会把行数乘开、`total` 失真
 - `POST /page/face-pay/orders/{orderNo}/refund` — 后台整单退款（`SOURCE_PAGE_MANUAL`）。可退状态白名单 `PAID/FULFILLED/FULFILL_FAILED`；重复退款靠扫 `selectByOrigOrderNo` 找同来源退款单判定（旧实现靠 `RSV2` 非空判定）；**请求体故意没有金额字段**，金额只从订单总额算
 - 返回 `ResultVO`（管理后台形态），**不套设备侧 retCode 契约**
+
+`/page/face-pay/devices` 一条（2026-10-15 新增，ADR-D171）：
+
+- `GET /page/face-pay/devices` — 设备心跳状态分页（`F2fDeviceStatusPageController` → `F2fDeviceQueryService` → `F2fDeviceStatusMapper.selectDevicePage`）。筛选 `channel` / `onlineFlag` / `deviceId`（模糊，关键字由服务层转义 `% _ \`，XML 配 `ESCAPE '\'`）；排序固定「离线优先 + 最近心跳倒序」；响应除 `list`/`total` 外带**全表口径**的 `summary`（总数 / 在线 / 离线 / 最近心跳）供统计卡使用，**不随筛选变化**。**不设「必须给检索范围」**——本表只有设备台数那么多行（当前 21 行）且只存最新状态，与上面订单表不同。**纯只读**：本表由心跳 MERGE 维护、离线翻转由 `F2fDeviceOfflineJob` 负责，故不提供任何写操作
 
 ### 已建好的支撑服务
 
@@ -580,12 +587,13 @@ DROP TABLE F2F_DEVICE_STATUS PURGE;
 2. **Phase 0 建唯一索引：已暂缓**（用户 2026-09-09 裁决「先不要改旧表、旧应用」）。脚本留档在 `face-pay-server/src/main/resources/sql/legacy-phase0-ticket-refund-index.sql`，**NEVER 执行**，解禁需重新授权。**被接受的敞口**：按票退款的旧库判重只有 `LegacyOrderReader.hasTicketRefund` 的 COUNT，挡串行不挡并发——并发两笔同票退款会双双穿透到支付中心（支付中心侧是否再判重未核实）。**Phase 4 双写影子比对**同样受此裁决约束：影子比对若需要改旧应用来双写，不做；只能做「新服务读旧库 + 离线比对」这种不碰旧应用的形态
 3. **切换步骤**：改路由前 3 分钟停止新下单，或明确接受「已下单未支付旧单收不到 payNotice」的 180 秒窗口（见 §二.1 最后一段）
 4. **上线前必办**：`payNotice` 生产验签口径确认（测试环境已裁决不做）；订单号 20/22 位长度待 ACC 确认；`sign` 待签串待与 bestonepay 联调确认；**`application.yml` 的 `pay-center.private-key` 与 `jhm-key` 目前是内联明文**（用户 2026-09-09 为测试环境便利裁决），生产前 **MUST** 改回 `${ENV:}` + K8s Secret 注入（§5.2 敏感配置）——旧应用同样是明文，属同类既存缺陷，不因此免除
-5. **部署未接线**：`face-pay-server/pom.xml` 没有 `activeByDefault` 的 remote profile，`mvn package` **不会**推镜像（与 §7 列出的那批模块不同）
+5. **部署未接线**：`face-pay-server/pom.xml` 没有 `activeByDefault` 的 remote profile，`mvn package` **不会**推镜像（与 docs/ops/构建与部署规范.md §7「推镜像统一触发（2026-10-20 改为 profile 激活）」统一口径一致：所有模块都需 `-Premote` 才推）
 6. **`NOTIFY_APP_PAY_RESULT_URL` 旧配置无对应项**（2026-09-09 核实：仓库 grep + `kubectl get deploy collect-pay -n itp` env 双查）：APP 通知地址只有三条——`notice-app-taketicketresult-url`、`notice-app-taketicketfailureresult-url`、`notice-app-refundresult-url`（集群 env 与仓库 `application.yml` 一致，均为 `dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receive*`），没有支付结果通知。`PAY_RESULT` 是重写新增的第四种类型（`CK_F2F_NOTIFY_TYPE`、`F2fNotifyService.TYPE_PAY_RESULT`、`F2fNotifyJob` → `AppNotifyProperties.getPayResultUrl()`），旧实现从未发过。**留空的后果**：该类型只入队不投递，`F2fNotifyJob` 记「通知地址未配置」并退避重试至 `GIVEUP`，另外三类不受影响。**待办**：与 APP 侧确认是否真需要这条通知
 7. **`pay.center.app-refund-notice-url` 集群值与仓库值不同，且它不是「我方出向地址」**（2026-09-09 实测，纠正此前记载）：集群 env 是 `http://58.56.166.170:48000/fep-app/ci/app/receiveRefundResult`（指向 fep-app，形态正确），仓库 `application.yml` 是 `http://58.56.166.170:48000/itptvm/ci/tvm/payNotice`（**过期值**）。用途见 `AppOrderServiceImpl`——它被塞进请求支付中心退款报文的 `notifyUrl` 字段，是**告诉支付中心往哪推**，与 `notice-app-refundresult-url`（`AppOrderServiceImpl`，我方 `doPostFormData` 出向）是两件事。新服务若要复刻这个 `notifyUrl`，**MUST** 取集群 env 值，**NEVER** 抄仓库 yml。另：`pay.center.pay-notice` 与 `query-refund-url` **不在集群 env 里**，线上生效的是 jar 内默认值
-8. **`SERVICE_TICKET_URL` / `SERVICE_ACCOUNT_URL` 的真实值已确认**（2026-09-09 取自 collect-pay Deployment env）：`service.ticket.url=http://172.20.211.23:30014`、`service.account.url=http://172.20.211.23:30013`。仓库 `collect-pay-server/application.yml` 的 `127.0.0.1:9103` / `127.0.0.1:9098` 是 §8 第三类缺陷（值指向自身 Pod），**NEVER** 按仓库值填 face-pay 的 env
+8. **`SERVICE_TICKET_URL` / `SERVICE_ACCOUNT_URL` 的真实值已确认**（2026-09-09 取自 collect-pay Deployment env）：`service.ticket.url=http://172.20.211.23:30014`、`service.account.url=http://172.20.211.23:30013`。仓库 `collect-pay-server/application.yml` 的 `127.0.0.1:9103` / `127.0.0.1:9098` 是 docs/ops/构建与部署规范.md §8「`service.*.url` 有三类问题，排查调用不通 MUST 三类都查」第三类缺陷（值指向自身 Pod），**NEVER** 按仓库值填 face-pay 的 env
 9. **心跳落库的三个配套项：用户 2026-09-09 裁决「暂不处理」**。心跳本身继续落库（`F2fDeviceHeartbeatService.mergeHeartbeat` → `F2F_DEVICE_STATUS`，旧实现不落库），但以下三项挂起，解禁需重新提出：
    - **`F2F_DEVICE_STATUS` 当前只写不读**：mapper 的 `selectByChannelAndDevice` / `selectHeartbeatTimeout` / `selectByChannel` 三个查询方法**无任何调用方**，controller 层零引用。设备在线状态没有出口，运营侧看不到。补一个 `/page/face-pay/` 设备状态列表接口即可兑现价值
+     - **2026-10-15 更新（ADR-D171 / IT-008）：出口已补，本条部分兑现**。新增的 `GET /page/face-pay/devices`（`selectDevicePage` + `countDevicePage` + `selectDeviceSummary`）兑现了「运营侧能看到」；但上面点名的**这三个方法至今仍无调用方**，属独立清理项（删还是留待裁决），**NEVER 据此认为 mapper 已无死代码**。同批还改了写路径：心跳侧按 `F2fDeviceId.stationCode` 补算 `STATION_CODE`（此前两个控制器恒传 `null`，该列全表为空、不可用），使运营端能按车站定位设备。
    - **`deviceId` 无取值校验（被接受的敞口）**：设备接口全部不验签，而 `MERGE INTO` 对新 `deviceId` 走 INSERT，因此**任何网络可达方用随机 deviceId 刷心跳可无限撑大该表**。旧实现不落库，故这是重写新增的攻击面。缓解方式：按设备台账白名单校验，或至少校验格式（实测均为 8 位数字，如 `06220701` / `03520801`），不合规只回 `0000` 不落库
    - **`f2f.device.offlineTimeoutSeconds=300` 与实测心跳间隔不匹配**：该值按「1 分钟心跳 × 5 倍容忍」定，但 2026-09-09 实测 BOM 约 20~30 秒一次、TVM 约 60 秒一次，等于要漏 15 次心跳才判离线，掉线发现偏慢。建议值 120，属参数决策
    - 另：`HEARTBEAT_COUNT` 累加列同样无读取方，若不做心跳次数统计可省，优先级最低
@@ -920,7 +928,7 @@ comm -23 /tmp/ep-collect-pay-server.txt /tmp/ep-face-pay-server.txt
 - 逐字段抽取请求 DTO：**错别字是契约**，`singelTicketNum` / `takeTickeDate` / `transAount` / `tranDate` / `lastTransAmout` / `lastTikcetTransSeq` / `operaterId` 全部原样保留。改成正确拼写等于改契约。
 - 逐错误码抽取：本域四套 retCode 族**并存且不能统一**（TVM 2xxx；TVM-requestRefund 9999；BOM 0000/8999/8001-8007；APP 0000/8001/8003/8999/9999）。统一错误码是重写中最常见的破坏性「改进」。
 - 校验顺序与提示语也是契约：同一入参在旧实现里先校验哪个、失败回什么中文，设备侧可能按文案分支。
-- **门禁**：每个接口都能在旧代码里指出「响应体这几个键从哪一行 put 进去」。做不到就是没抽完，**NEVER** 凭甲方接口文档补齐——文档与代码不一致时以代码为准（AGENTS.md §4 开头）。
+- **门禁**：每个接口都能在旧代码里指出「响应体这几个键从哪一行 put 进去」。做不到就是没抽完，**NEVER** 凭甲方接口文档补齐——文档与代码不一致时以代码为准（AGENTS.md §4「STRICT RULES (严格开发准则 - AI 必读)」开头）。
 
 ### 22.2 新表设计与旧表映射
 
@@ -931,7 +939,7 @@ comm -23 /tmp/ep-collect-pay-server.txt /tmp/ep-face-pay-server.txt
 
 ### 22.3 编码期硬约束（本项目专有，违反必翻车）
 
-按 AGENTS.md §5.1 / §5.2 执行，重写场景里最容易踩的四条：
+按 AGENTS.md §4.1 / §5.2 执行，重写场景里最容易踩的四条：
 
 - SQL 正文**不能有注释**（Druid WallFilter `commentAllow=false`，语句静默失效且只在 Oracle 暴露）。注释写在 mapper XML 的 `<!-- -->` 里。
 - `@Transactional` 内**不能有 RPC**，也不能提交通知任务（2026-08-26 生产事故同形）。重写时「顺手把调用挪进事务」是高频误操作。
@@ -1068,9 +1076,9 @@ comm -23 /tmp/ep-collect-pay-server.txt /tmp/ep-face-pay-server.txt
 ### 22.11 记录纪律
 
 - 每个**裁决**（含「暂不处理」）都要落到文档，写清：结论、日期、被接受的敞口、解禁条件。本次 §二十一 待办第 2 / 9 条即此形态。
-- 每个**被实测推翻的结论**都要就地改写并标注「纠正此前记载」，不要只追加新结论——两个互相矛盾的结论并存比没有结论更糟（AGENTS.md §5.3 删掉 4 份互相矛盾进度报告的教训）。
-- 新发现的环境类问题追加到 `docs/ops/生产环境清单.md`；新发现的工程陷阱追加到 `AGENTS.md` §7 / §8。
-- **NEVER** 新建「实现进度报告 / 接口清单」这类汇总文件（AGENTS.md §5.3）。进度写在本文件的台账章节里。
+- 每个**被实测推翻的结论**都要就地改写并标注「纠正此前记载」，不要只追加新结论——两个互相矛盾的结论并存比没有结论更糟（docs/提示词/工程与文档规范.md §二「四个互相矛盾的实现率」删掉 4 份互相矛盾进度报告的教训）。
+- 新发现的环境类问题追加到 `docs/ops/生产环境清单.md`；新发现的工程陷阱追加到 `docs/ops/构建与部署规范.md` §8。
+- **NEVER** 新建「实现进度报告 / 接口清单」这类汇总文件（`docs/提示词/工程与文档规范.md` §二）。进度写在本文件的台账章节里。
 
 ### 22.12 一页速查
 
@@ -1106,4 +1114,4 @@ comm -23 /tmp/ep-collect-pay-server.txt /tmp/ep-face-pay-server.txt
 - `docs/external/支付中心网关接口文档.md`
 - `docs/技术规范文档/城市轨道交通自动售检票系统技术规范-第9部分-互联网业务规范.docx` §7.3 / §7.5
 - `docs/业务需求文档/非现金购票单程票退款功能3.docx`
-- `AGENTS.md` §2.2.1、§5.1、§5.2、§8
+- `docs/business/README.md` 全局事实、§5.1、§5.2、§8

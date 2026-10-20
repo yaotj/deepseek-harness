@@ -106,6 +106,7 @@ public class TvmOrderController {
         log.info("接收到出票成功结果上报, form={}", form);
         NotiTakeTicketResultReqDTO request = DeviceRequests.unwrap(form, NotiTakeTicketResultReqDTO.class);
         if (request == null || isBlank(request.getOrderNo())) {
+            log.info("接收到出票成功结果上报 orderNo不能为空");
             return TvmResponses.fail(DeviceRetCode.INVALID_PARAM, "orderNo不能为空");
         }
         return ticketIssueService.receiveTakeTicketResult(request, channelOf(request.getProviderId()));
@@ -118,6 +119,7 @@ public class TvmOrderController {
         NotiTakeTicketFailResultReqDTO request =
                 DeviceRequests.unwrap(form, NotiTakeTicketFailResultReqDTO.class);
         if (request == null || isBlank(request.getOrderNo())) {
+            log.info("接收到出票失败结果上报 orderNo不能为空");
             return TvmResponses.fail(DeviceRetCode.INVALID_PARAM, "orderNo不能为空");
         }
         return ticketIssueService.receiveTakeTicketFailResult(request, channelOf(request.getProviderId()));
@@ -129,6 +131,7 @@ public class TvmOrderController {
         log.info("接收到设备退款请求, form={}", form);
         RequestRefundReqDTO request = DeviceRequests.unwrap(form, RequestRefundReqDTO.class);
         if (request == null || isBlank(request.getOrderNo()) || isBlank(request.getRefundAmt())) {
+            log.info("设备侧主动退款 订单号和退款金额不能为空");
             return TvmResponses.refundFail("订单号和退款金额不能为空");
         }
         return deviceRefundService.requestRefund(request);
@@ -144,9 +147,11 @@ public class TvmOrderController {
         }
         String invalid = validateGenSjtOrder(request);
         if (invalid != null) {
+            log.info("非法参数");
             return TvmResponses.genSjtOrderFail(DeviceRetCode.INVALID_PARAM, invalid);
         }
         if (PROVIDER_BOM.equals(request.getProviderId())) {
+            log.info("当前为bom交易");
             return tvmOrderService.createBomSaleOrder(request);
         }
         return tvmOrderService.createSingleTicketOrder(request);

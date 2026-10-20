@@ -154,7 +154,7 @@ bizData={"agreementCode":"070000992222894922","cardIssueCode":"0007","channel":"
 
 同一笔的日志里，tomcat 线程那几行 traceId 是 `ddfd233ecb61fed3ea58e999fab5f18a`，而 **`[pay-sign-async-4]` 线程的两行 traceId 列是空的**（`PaySignInitiator:102` 与 `:106`）；中间 `InternalMicroHttp` 与 `SqlAudit` 那两行又各自是**另外两个 traceId**（`12ae17377ddc3a86...`、`412edf2f8ac8518e...`，是 WebClient 观测新建的 span）。
 
-`gate-txn-pay-server` 在 §2.2.1 那份 tracing 名单里、开关是开的，所以这不是「没开 tracing」那条。成因是 **`paySignAsyncExecutor` 没做 MDC / 观测上下文传播**。后果：**拿入向 traceId 去检索，只能捞到「建单 + 同步应答」，捞不到「调 alipay-pay-sign + 回写 DEBIT_STATUS」这后半段** —— 而后半段才是排查扣费失败要看的。排查扣费 **MUST 用 `orderNo` 检索，NEVER 只用 traceId**。
+`gate-txn-pay-server` 在 `docs/business/README.md` 全局事实 那份 tracing 名单里、开关是开的，所以这不是「没开 tracing」那条。成因是 **`paySignAsyncExecutor` 没做 MDC / 观测上下文传播**。后果：**拿入向 traceId 去检索，只能捞到「建单 + 同步应答」，捞不到「调 alipay-pay-sign + 回写 DEBIT_STATUS」这后半段** —— 而后半段才是排查扣费失败要看的。排查扣费 **MUST 用 `orderNo` 检索，NEVER 只用 traceId**。
 
 ### 9.3 站码不存在时不报错，直接用闸机上送金额
 

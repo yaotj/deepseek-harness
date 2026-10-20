@@ -78,7 +78,7 @@ APP 端单程票购买张数限制、票价试算、下单、请求支付、取�
   - 「支付中心回调取票订单支付结果。」→ `ticketCollectPayNotify`（**注释没给编号**，这条不属于 IF8A / IF2A 任何一个）
 - `TicketCollectController.ticketCollectPayNotify` 的入向 DTO 自带反混淆判据（`collect-ticket-server/src/main/java/com/chinasofti/huateng/collectticket/model/request/TicketCollectPayNotifyReqDTO.java`）：「支付中心回调取票订单支付结果请求报文。**注意：这里不是 IF8A-11 请求支付报文。**」
 - `TicketCollectServiceImpl.requestPaymentInfo` 的出向报文里带溯源常量（`service/impl/TicketCollectServiceImpl.java`）：`payRequest.put("remark", "IF8A-11 requestPaymentInfo")`。这是代码常量不是注释，但它是「支付服务侧日志里怎么认出这笔来自取票」的唯一线索，一并记下。
-- `PaySignUtils.buildSignData` 的签名串构造规则写在注释里（`util/PaySignUtils.java`）：「Build signature data. Sort by parameter name alphabetically, concatenate as key=value&key=value.」算法常量 `SIGN_ALGORITHM = "SHA256WithRSA"`。改这里属 AGENTS.md §5.2「安全红线」，**MUST** 提示人工复核。
+- `PaySignUtils.buildSignData` 的签名串构造规则写在注释里（`util/PaySignUtils.java`）：「Build signature data. Sort by parameter name alphabetically, concatenate as key=value&key=value.」算法常量 `SIGN_ALGORITHM = "SHA256WithRSA"`。改这里属 AGENTS.md §4.2「安全红线」，**MUST** 提示人工复核。
 - `TicketCollectResultNotifyReqDTO`（`model/request/TicketCollectResultNotifyReqDTO.java`）注释写的是「**IF2A-04 取票结果通知（ITP通知APP）**」—— 注释本身声明了这是**出向**通知契约，与 Controller 那 8 条入向端点不同类；该 DTO 及其响应 DTO 在本模块存在，但 Controller 里没有对应端点。
 
 ### 订单与票状态
@@ -109,7 +109,7 @@ APP 端单程票购买张数限制、票价试算、下单、请求支付、取�
   - `/collect-pay-server/ci/app/ticketCollectPayNotify`
   走的是 `rpc` 的 `URLDynamicRouter.postProxy(path, request, null)`，**目标由路径首段 `/collect-pay-server/` 经动态路由解析**，而 `application.properties` 的 `service.route.mapping.default` 是**空值**。
   连带两条：`payQuery`与 `requestRefund`**在本模块零调用方**（`TicketCollectServiceImpl` 只用到 `requestPayForJson` 与 `notifyPayResult`），但退款相关列在 `Ticket_Collect_Info` 里齐全 —— 判断「取票单退款走谁」**MUST** 现查 collect-pay / face-pay 侧，**NEVER** 据本模块有 `requestRefund` 方法就认为链路在这里。
-  `CollectPayClient` 四个方法**全部 `catch (Exception) { return null; }`**，符合 AGENTS.md §5.2「返回 boolean / null 的 RPC 包装方法」那条：调用点 **MUST** 显式判空，**NEVER** 假定「没抛异常就是成功」。`TicketCollectServiceImpl.requestPaymentInfo:149~153` 确实把 `null` 映射成 `SERVICE_PROVIDER_UNAVAILABLE`。
+  `CollectPayClient` 四个方法**全部 `catch (Exception) { return null; }`**，符合 `docs/architecture/transaction-and-consistency.md` §3「RPC 包装方法 MUST 返回 `RpcOutcome`，NEVER 返回 boolean」那条：调用点 **MUST** 显式判空，**NEVER** 假定「没抛异常就是成功」。`TicketCollectServiceImpl.requestPaymentInfo:149~153` 确实把 `null` 映射成 `SERVICE_PROVIDER_UNAVAILABLE`。
 - **支付结果回调的方向是双向的**，边界容易看反：入向是支付中心 → 本模块 `ticketCollectPayNotify`（`TicketCollectPayNotifyReqDTO` 那条「注意：这里不是 IF8A-11」），出向是本模块 → collect-pay 的同名端点 `notifyPayResultToPayServer`（`service/impl/TicketCollectServiceImpl.java`），**两个方向复用同一个 DTO 类**。改这个 DTO 的字段会同时动两个方向的契约。
 - 错误码是**本模块自己的一套**（`constant/CollectTicketErrorCodeEnum.java`「取票服务错误码定义。」）：`0000` 成功 / `9999` 失败 / `9001` 系统内部错误 / `8001` 无效参数 / `8002` 订单不存在 / `8003` 订单状态异常 / `8004` 不允许取票 / `8005` 已取票完成 / `8006` 二维码已过期 / `8007` 设备不存在 / `8008` 服务提供商不可用 / `8009` 签名验证失败。注意 **`8003` 在本模块是「订单状态异常」**，与卡池那边的 `8003 无卡资源` 不是同一套编码，跨模块比对 retCode **MUST** 带上模块名。
 - **两张主表是 1:1 关系，写在两个 entity 的类注释里**（`entity/TicketCollectInfo.java`「Ticket_Collect_Info 铁运维保取票订单信息表实体。**订单号与 Ticket_Collect_Logs 一一对应**。」；`entity/TicketCollectLogs.java` 是对称的一句）。`entity/TicketCollectLogDetail.java` 只说明「Ticket_Collect_Log_Detail 取票明细记录表实体。」，1:N 关系没有写进注释。
@@ -117,14 +117,14 @@ APP 端单程票购买张数限制、票价试算、下单、请求支付、取�
 ### 配置与部署
 
 - `application.properties`（`collect-ticket-server/src/main/resources/application.properties`，共 20 行）**一条注释都没有**，因此本小节没有可归档的注释知识；下面三条是抽取过程中为了核对注释而读到的**配置事实**，明确标注非注释来源：
-  - `server.port=9098`、 `spring.application.name=collect-ticket`。**9098 与 account-server 撞端口**（AGENTS.md §2.2.1 端口冲突清单里的第一组），同机部署 **MUST** 先确认。
-  - `service.route.mapping.default=` 为空、且整个文件**没有任何 `service.*.url`**，而 `CollectPayClient` 依赖 `URLDynamicRouter` 出网 —— 属 AGENTS.md §8「`service.*.url` 键缺失」那一类形态（仓库里连一个写错的键都没有），**判断线上真实目标 MUST 查 Deployment env**。
+  - `server.port=9098`、 `spring.application.name=collect-ticket`。**9098 与 account-server 撞端口**（docs/business/README.md 全局事实 端口冲突清单里的第一组），同机部署 **MUST** 先确认。
+  - `service.route.mapping.default=` 为空、且整个文件**没有任何 `service.*.url`**，而 `CollectPayClient` 依赖 `URLDynamicRouter` 出网 —— 属 `docs/ops/构建与部署规范.md` §8「`service.*.url` 键缺失」那一类形态（仓库里连一个写错的键都没有），**判断线上真实目标 MUST 查 Deployment env**。
   - 两个业务开关 `collect.ticket.buy-single-ticket-max-num=10` / `collect.ticket.default-ticket-price=0`，分别被 IF8A-09 与 IF8A-10 直接读取（`service/impl/TicketCollectServiceImpl.java`）； 的 `server.tomcat.basedir` / `logging.file.path` 现值均为 `./logs`。另外 `collect.ticket.pay.callback-url`（`TicketCollectServiceImpl.java`）与 `pay.center.paycenter-public-key` / `pay.center.merchant-private-key`（`util/PaySignUtils.java`）三个键**在 properties 里根本不存在**，全部依赖默认空值或 env 注入。
-- **`mvn package` 就会推镜像**：`collect-ticket-server/pom.xml` 的 jkube execution id 是 `build-image-after-package`、`<phase>package</phase>`，`<goal>build</goal>` + `<goal>push</goal>` **未注释**（ 只有 `deploy` 被 XML 注释掉 —— 这是本模块**范围外但唯一带判据的注释**）。镜像名取 `<image.prefix>collect-ticket-server</image.prefix>`、tag 取 `<version>`（，当时 **2.0.6**）。只想拿 jar **MUST** 加 `-Djkube.skip=true`。
+- **推镜像 MUST 显式 `-Premote`**：`collect-ticket-server/pom.xml` 的 jkube 现已整体移入 `remote` profile（**无 `activeByDefault`**）、execution id 是 `build-image-remote`、`<phase>package</phase>`，`<goal>build</goal>` + `<goal>push</goal>` **未注释**（ 只有 `deploy` 被 XML 注释掉）。镜像名取 `<image.prefix>collect-ticket-server</image.prefix>`、tag 取 `<version>`。**默认 `mvn package` 只出 jar、不推镜像**；`-Djkube.skip=true` 已不再需要。
 
 ### 持久层与 mapper
 
-- 三个 mapper XML（`src/main/resources/mapper/TicketCollectInfoMapper.xml`、`TicketCollectLogsMapper.xml`、`TicketCollectLogDetailMapper.xml`）**一条 `<!-- -->` 注释都没有**，因此没有可归档的注释知识。顺带记两条**核查结论**（非注释来源，供后续改动做基线）：三个文件里**没有** `where 1 = 1`、也**没有任何 `<if>` / `<where>` 动态标签**（全是固定谓词的 `select` / `insert` / 全列 `update`），SQL 正文里**没有 `--` 或 `/* */`**，因此 AGENTS.md §5.1 那两条 Druid WallFilter 陷阱当前**都没踩**；新增动态查询时才会撞上，**MUST 用 `<where>` 标签**。
+- 三个 mapper XML（`src/main/resources/mapper/TicketCollectInfoMapper.xml`、`TicketCollectLogsMapper.xml`、`TicketCollectLogDetailMapper.xml`）**一条 `<!-- -->` 注释都没有**，因此没有可归档的注释知识。顺带记两条**核查结论**（非注释来源，供后续改动做基线）：三个文件里**没有** `where 1 = 1`、也**没有任何 `<if>` / `<where>` 动态标签**（全是固定谓词的 `select` / `insert` / 全列 `update`），SQL 正文里**没有 `--` 或 `/* */`**，因此 `docs/architecture/mybatis-oracle-runtime-traps.md` §1「NEVER 在 SQL 正文中写注释」与 §2「NEVER 写 `where 1 = 1` 打头 + 全可选 `<if>`」那两条 Druid WallFilter 陷阱当前**都没踩**；新增动态查询时才会撞上，**MUST 用 `<where>` 标签**。
 - mapper 接口的 Javadoc 全是复述方法名的一行（如 `mapper/TicketCollectInfoMapper.java`「根据订单号查询取票订单信息。」），已丢弃。唯一带信息量的是 `selectByDeviceIdAndQrcodeDate`「根据设备ID和二维码生成时间查询取票订单信息。」—— 该方法**在本模块零调用方**，但它揭示了「设备号 + 二维码生成时间」曾被当作一组查询键（对应 `TicketCollectServiceImpl` 用 `orderNo` / `userId` 查的现状，见 `findCollectInfo:593~604`）。同类零调用方法还有 `mapper/TicketCollectLogDetailMapper.java` 的 `insertBatch` 与 `mapper/TicketCollectLogsMapper.java` 的 `selectByUserId`。
 - `updateByOrderNo` 是**全列覆盖式 UPDATE**（`mapper/TicketCollectInfoMapper.xml`，23 个 `set` 列 + `where ORDER_NO`），**没有** `<if>` 收窄、也**没有**状态 CAS 谓词。这解释了本文件前面「幂等（本仓最薄的一处）」那节的成因：并发两笔回调各自 `selectByOrderNo` → 改内存对象 → 全列写回，后写者会把前写者的列一起覆盖。新增写入路径 **MUST** 按那节的三条执行。
 
@@ -136,7 +136,7 @@ APP 端单程票购买张数限制、票价试算、下单、请求支付、取�
 |---|---|---|---|
 | 1 | `collect-ticket-server/src/main/java/com/chinasofti/huateng/collectticket/model/request/TicketCollectPayNotifyReqDTO.java` | 「注意：这里不是 IF8A-11 请求支付报文。」—— 禁止把支付中心回调 DTO 当成 IF8A-11 的请求体复用 | **能**（弱形式）。可断言 `TicketCollectPayNotifyReqDTO` 与 `RequestPaymentInfoReqDTO` 的字段名集合无交集、且两者不共享父类；无法断言「人不会混用」 |
 | 2 | `collect-ticket-server/src/main/java/com/chinasofti/huateng/collectticket/entity/TicketCollectInfo.java` | 「2-ETC端（**已弃用**，tradeType06）」—— 禁止新链路继续产出 `channelType='2'` | **勉强能**。可断言「本模块 `src/main` 内不存在写入 `channelType="2"` 的常量」；但入向 `channelType` 来自 APP 报文、运行期挡不住，真要挡需在 `validateCreateOrder` 加白名单（属改行为，不在本阶段） |
-| 3 | `collect-ticket-server/pom.xml`（**范围外，仅记录**） | `<!-- <goal>deploy</goal> -->` —— 被刻意注释掉的 jkube deploy goal，禁止误以为 `mvn package` 会自动 `k8s:deploy` | **能**。可断言 pom 里 `build` / `push` 未注释而 `deploy` 仍在注释内（照 AGENTS.md §7「MUST 看 `<goals>` 里有没有未注释的 goal」那条判据） |
+| 3 | `collect-ticket-server/pom.xml`（**范围外，仅记录**） | `<!-- <goal>deploy</goal> -->` —— 被刻意注释掉的 jkube deploy goal，禁止误以为 `mvn package` 会自动 `k8s:deploy` | **能**。可断言 pom 里 `build` / `push` 未注释而 `deploy` 仍在注释内（照 `docs/ops/构建与部署规范.md` §7「MUST 看 `<goals>` 里有没有未注释的 goal」那条判据） |
 
 ### 本次抽取没把握归类的条目
 
@@ -161,7 +161,7 @@ APP 端单程票购买张数限制、票价试算、下单、请求支付、取�
 **结论：那个判断在「注释里」当时基本成立，但现在已不成立；而且它掩盖了一个更重要的事实 —— 本模块真正的陷阱不在注释里，在代码里。** 三条依据：
 
 1. **注释侧已出现 3 条墓碑型注释**（阶段一之后补写的，见 §五）：`CreateTicketCollectOrderReqDTO` 的类注释与 `ticketPrice` / `singleTicketType` 两个字段注释，现在各自带「**本注释此前写…是错的**」+「**NEVER 回退**」。阶段一「没把握归类」那 3 条正是它们的旧文本，**现已在代码里被逐条纠正、并留下墓碑**。因此「墓碑 0 条」已过期。
-2. **注释侧还有 1 条现状告警**（`singleTicketType` 的注释）：甲方 IF8A-20 只定义取值 `0`，而实现**没有取值白名单校验**，上游送 `1` 会被原样落库 —— 这是对 AGENTS.md §5.2「状态校验用白名单」的**已知偏离点**，属陷阱型知识。
+2. **注释侧还有 1 条现状告警**（`singleTicketType` 的注释）：甲方 IF8A-20 只定义取值 `0`，而实现**没有取值白名单校验**，上游送 `1` 会被原样落库 —— 这是对 AGENTS.md §4.2「状态校验用白名单」的**已知偏离点**，属陷阱型知识。
 3. **581 行注释里确实几乎没有陷阱，原因可以精确定位**：注释的分布是「**字段级 Javadoc 占绝大多数、业务实现类零注释**」—— `service/impl/TicketCollectServiceImpl.java` **699 行、0 条注释**（`python` 剥注释实测），`service/TicketCollectService.java`、`resources/mapper/*.xml`、`application.properties` 同样 0 条。**陷阱本来就发生在实现里，而实现里没有人写注释**，所以「注释里没陷阱」不等于「模块没陷阱」。本节 §四把从代码读出的 8 条**风险现状**单列出来，并明确标注**来源是代码而不是注释** —— 这是本轮复核的主要增量。
 
 ### 一、取票链路（APP 扫码取票 · 单程票）
@@ -186,16 +186,16 @@ APP 端单程票购买张数限制、票价试算、下单、请求支付、取�
 |---|---|---|---|
 | 1 | 类注释（grep `已全部覆盖，缺失数为 0`） | 「当前 DTO 尚未完全覆盖接口文档字段」 | 甲方 IF8A-20 请求侧 **7 个字段全覆盖、缺失数 0**（`userId` / `entryStationCode` / `exitStationCode` / `ticketPrice` / `singelTicketNum` / `singleTicketType` / `channelCode`），另有本项目**自加**的 `channelType`（规格里没有，落库在 `buildCollectInfo`）。旧文本**方向正好相反**，会诱发「照文档补字段」的无意义返工 |
 | 2 | `ticketPrice`（grep `此前写「当前服务实现尚未使用」是错的`） | 「当前服务实现尚未使用」 | **三处在用**：`validateCreateOrder` 必填 + 非负校验（为空或 <0 返「ticketPrice不能为空」，`TicketCollectServiceImpl`）；`buildCollectInfo:613` 与 `buildCollectLogs:634` 双表写库；`calculateOrderAmount:689` 乘张数算请求支付金额。**NEVER 因为旧注释说没用就删字段** —— 删掉会同时打挂下单校验与请求支付的金额计算 |
-| 3 | `singleTicketType`（grep `此前写「固定按 0 处理」是错的`） | 「当前服务实现固定按 0 处理」 | 实际是「**传了就用、没传补 0**」：`buildCollectInfo:615` 与 `buildCollectLogs:636` 都是 `request.getSingleTicketType() != null ? ... : 0`。**同处还留了一条现状告警**：甲方只定义取值 `0`，而实现**没有取值白名单校验**，上游送 `1` 会被原样落库 —— 对 AGENTS.md §5.2「状态校验用白名单」的偏离点，取值范围待与甲方澄清后再补校验 |
+| 3 | `singleTicketType`（grep `此前写「固定按 0 处理」是错的`） | 「当前服务实现固定按 0 处理」 | 实际是「**传了就用、没传补 0**」：`buildCollectInfo:615` 与 `buildCollectLogs:636` 都是 `request.getSingleTicketType() != null ? ... : 0`。**同处还留了一条现状告警**：甲方只定义取值 `0`，而实现**没有取值白名单校验**，上游送 `1` 会被原样落库 —— 对 AGENTS.md §4.2「状态校验用白名单」的偏离点，取值范围待与甲方澄清后再补校验 |
 
 ### 三、与相邻模块的边界
 
-- **与 collect-pay**：出向四条路径**硬编码在 `client/CollectPayClient.java` 方法体内**、不是 `service.*.url` 形态 —— `/collect-pay-server/ci/app/requestPay`、 `.../payQuery`、 `.../requestRefund`、 `.../ticketCollectPayNotify`；走 `rpc` 的 `URLDynamicRouter.postProxy(path, request, null)`，**目标由路径首段 `/collect-pay-server/` 经动态路由解析**，而 `application.properties` 的 `service.route.mapping.default` **是空值**、整个文件**没有任何 `service.*.url`**（属 AGENTS.md §8「键缺失」那类形态，**判断线上真实目标 MUST 查 Deployment env**）。
+- **与 collect-pay**：出向四条路径**硬编码在 `client/CollectPayClient.java` 方法体内**、不是 `service.*.url` 形态 —— `/collect-pay-server/ci/app/requestPay`、 `.../payQuery`、 `.../requestRefund`、 `.../ticketCollectPayNotify`；走 `rpc` 的 `URLDynamicRouter.postProxy(path, request, null)`，**目标由路径首段 `/collect-pay-server/` 经动态路由解析**，而 `application.properties` 的 `service.route.mapping.default` **是空值**、整个文件**没有任何 `service.*.url`**（属 `docs/ops/构建与部署规范.md` §8「键缺失」那类形态，**判断线上真实目标 MUST 查 Deployment env**）。
   - **与 face-pay 的关系是本轮新增的待裁决项**：TVM / BOM / APP 当面付主实现已于 2026-09-16 17:31 迁到 `face-pay-server`（ADR-D117），而本模块的支付出向仍打 `collect-pay` 的 `/ci/app/requestPay`。**collect-pay 已于 2026-10-13 下线（0 pod）、且 collect-ticket 本身集群未部署（无 Pod/Service）⇒ 这条出向链线上跑不到、不断也不通**；降级结论：仅当甲方上线 APP 扫码取票业务、要部署 collect-ticket 时，才需在 face-pay 补等价端点，届时「取票支付到底该落哪个应用」MUST 现查 + 向用户确认，见 §六-1。
   - `payQuery` / `requestRefund` **在本模块零调用方**，而 `Ticket_Collect_Info` 的四个退款列（`REFUND_TMS` / `REFUND_AMT` / `REFUND_RESULT` / `REFUND_REASON`）齐全、Controller 又**没有任何退款端点** —— 判断「取票单退款走谁」**MUST 现查 collect-pay / face-pay 侧，NEVER 据本模块有 `requestRefund` 方法就认为链路在这里**。
-  - `CollectPayClient` 四个方法**全部 `catch (Exception) { return null; }`**，属 AGENTS.md §5.2「返回 boolean / null 的 RPC 包装方法」同一族：调用点 **MUST 显式判空**。现状：`requestPaymentInfo:149~153` 把 `null` 映射成 `8008 服务提供商不可用`（**接住了**）；`notifyPayResultToPayServer:488` 的返回值**被完全丢弃**（**没接住**，见 §四-6）。**新写 RPC 包装 MUST 返回 `RpcOutcome`、NEVER 再返回 null**。
+  - `CollectPayClient` 四个方法**全部 `catch (Exception) { return null; }`**，属 `docs/architecture/transaction-and-consistency.md` §3「RPC 包装方法 MUST 返回 `RpcOutcome`，NEVER 返回 boolean」同一族：调用点 **MUST 显式判空**。现状：`requestPaymentInfo:149~153` 把 `null` 映射成 `8008 服务提供商不可用`（**接住了**）；`notifyPayResultToPayServer:488` 的返回值**被完全丢弃**（**没接住**，见 §四-6）。**新写 RPC 包装 MUST 返回 `RpcOutcome`、NEVER 再返回 null**。
 - **支付结果回调是双向的、且两个方向复用同一个 DTO**：入向是支付中心 → 本模块 `ticketCollectPayNotify`（DTO 类注释 `model/request/TicketCollectPayNotifyReqDTO.java` 自带反混淆判据「**注意：这里不是 IF8A-11 请求支付报文**」），出向是本模块 → collect-pay 的**同名端点**（`notifyPayResultToPayServer:479~492`）。**改这个 DTO 的字段会同时动两个方向的契约。**
-- **验签是本模块自建的 `PaySignUtils`**（`util/PaySignUtils.java`）：`SIGN_ALGORITHM = "SHA256WithRSA"`，签名串规则写在注释里（「Sort by parameter name alphabetically, concatenate as key=value&key=value」，实现是 `TreeMap` 升序拼接）；密钥取 `pay.center.paycenter-public-key` / `pay.center.merchant-private-key`（，**两个键在 properties 里都不存在**、靠 env 注入）。改这里属 AGENTS.md §5.2「安全红线」，**MUST 提示人工复核**。它也是对「NEVER 新建工具类」的一处既存破例，**NEVER 再新增同类**。
+- **验签是本模块自建的 `PaySignUtils`**（`util/PaySignUtils.java`）：`SIGN_ALGORITHM = "SHA256WithRSA"`，签名串规则写在注释里（「Sort by parameter name alphabetically, concatenate as key=value&key=value」，实现是 `TreeMap` 升序拼接）；密钥取 `pay.center.paycenter-public-key` / `pay.center.merchant-private-key`（，**两个键在 properties 里都不存在**、靠 env 注入）。改这里属 AGENTS.md §4.2「安全红线」，**MUST 提示人工复核**。它也是对「NEVER 新建工具类」的一处既存破例，**NEVER 再新增同类**。
 - **错误码是本模块自己的一套**（`constant/CollectTicketErrorCodeEnum.java`）：`0000` 成功 / `9999` 失败 / `9001` 系统内部错误 / `8001` 无效参数 / `8002` 订单不存在 / `8003` 订单状态异常 / `8004` 不允许取票 / `8005` 已取票完成 / `8006` 二维码已过期 / `8007` 设备不存在 / `8008` 服务提供商不可用 / `8009` 签名验证失败。**`8003` 在本模块是「订单状态异常」，与卡池的 `8003 无卡资源` 不是一套编码 —— 跨模块比对 retCode MUST 带模块名。** 另注意 **`8006 二维码已过期` 与 `8007 设备不存在` 在实现里零使用**（超时那支走的是响应里的 `errorCode=2101`，不是 `8006`）。
 - **两张主表 1:1**（`entity/TicketCollectInfo.java` 与 `entity/TicketCollectLogs.java` 对称写着「订单号与 … 一一对应」）；`Ticket_Collect_Log_Detail` 是 1:N，但**关系没有写进注释**（`entity/TicketCollectLogDetail.java` 只说明表名）。
 
@@ -204,11 +204,11 @@ APP 端单程票购买张数限制、票价试算、下单、请求支付、取�
 以下 8 条都读自 `service/impl/TicketCollectServiceImpl.java`（**该文件 699 行、0 条注释**）与 `util/PaySignUtils.java`，**注释里一个字都没有**。它们是本模块真正的陷阱，**改这个模块前 MUST 先读本小节**。
 
 1. **IF8A-10 计算票价是占位实现**：`resolveTicketPrice:682~687` 同站进出返 0、否则返回 `collect.ticket.default-ticket-price`（**默认 0**），**不查票价矩阵、不调 para-server**。连带后果：`requestPaymentInfo` 的 `amount` 也可能是 0。改造前 **MUST** 与用户确认票价来源（para-server 的票价矩阵 / 上游 APP 传入 / 还是保持配置兜底）。
-2. **`@Transactional` 方法内发起 RPC，两处**：`requestPaymentInfo`（ 注解 + 调 collect-pay）与 `ticketCollectPayNotify`（ 注解 + 出网通知）。这直接违反 AGENTS.md §5.2「`@Transactional` 方法内 NEVER 发起任何 RPC / 网络调用」与「NEVER 在事务内提交异步通知」两条 —— 后者在 pay-sign 域已发生过 8 分钟锁等待 + 证据全丢的生产事故。**修法**：把出网移出事务（`afterCommit` 或摘事务注解），**NEVER 只是把超时调小**。
+2. **`@Transactional` 方法内发起 RPC，两处**：`requestPaymentInfo`（ 注解 + 调 collect-pay）与 `ticketCollectPayNotify`（ 注解 + 出网通知）。这直接违反 `docs/architecture/transaction-and-consistency.md` §6「`@Transactional` 方法内 NEVER 发起任何 RPC / 网络调用」与同文件 §4「`@Transactional` 方法内 NEVER 提交异步通知任务」两条 —— 后者在 pay-sign 域已发生过 8 分钟锁等待 + 证据全丢的生产事故。**修法**：把出网移出事务（`afterCommit` 或摘事务注解），**NEVER 只是把超时调小**。
 3. **二维码超时的 `orderStatus=99` 不落库**： 只改内存对象、后续**没有任何 `updateByOrderNo`**，因此库里那行仍是 `0`（未支付）。表现为「查一次说超时、再查一次还能继续支付」，且 `99` 这个值**只出现在响应里**。本文件上文「状态取值」小节写的「取消置 `99`」**也与代码不符** —— 代码里取消置的是 `0`（见下条），`99` 只在这一处内存赋值。**NEVER 据文档或响应值以为库里有 99。**
 4. **支付失败分支把 `ORDER_STATUS` 写回 `0`（未支付）**：而实体注释声明 `1~99` 是「支付失败或异常」—— **代码从不写 1~99**。于是「从未支付」与「支付失败」在库里无法区分，对账与客诉都取不到失败证据。
 5. **取消订单没有独立终态**：`cancelTicketCollectOrder:378` 把 `ORDER_STATUS` 置回 `0`，与「未支付」同值；`Ticket_Collect_Info` 也没有取消时间 / 取消原因列（`CancelTicketCollectOrderReqDTO.cancelReason` **收到即丢弃**）。因此「用户主动取消」在库里**不可见**。
-6. **`notifyPayResultToPayServer` 的失败被彻底吞掉**：整段 `try/catch` 只 `log.error`，且 `collectPayClient.notifyPayResult` 本身也 `catch → return null`。于是「collect-pay 没收到支付结果」既不重试、也不落任何待补偿状态 —— 本模块**没有任何 `@Scheduled`、没有 outbox 列**。属 AGENTS.md §5.2「静默不一致」那一族。
+6. **`notifyPayResultToPayServer` 的失败被彻底吞掉**：整段 `try/catch` 只 `log.error`，且 `collectPayClient.notifyPayResult` 本身也 `catch → return null`。于是「collect-pay 没收到支付结果」既不重试、也不落任何待补偿状态 —— 本模块**没有任何 `@Scheduled`、没有 outbox 列**。属 `docs/architecture/transaction-and-consistency.md` §3「静默不一致」那一族。
 7. **`PaySignUtils.verify` 在公钥未配置时直接返回 `true`**（，`log.warn("Pay center public key not configured, skip verification")`）。而 `pay.center.paycenter-public-key` 在 `application.properties` 里**根本不存在**、只靠 env 注入 —— **env 一旦漏注，支付回调验签等于全放过**，任何网络可达方都能伪造「支付成功」把订单改成已支付。这是本模块**最高优先级的安全现状**，改造 **MUST 提示人工复核**（fail-closed 还是保留 fail-open 属安全裁决，见 §六-2）。
 8. **`@Transactional(rollbackFor = Exception.class)` + 方法内 `catch (Exception)` ⇒ 回滚永不触发**：五个写方法（`requestPaymentInfo` / `createTicketCollectOrder` / `ticketCollectNotify` / `cancelTicketCollectOrder` / `ticketCollectPayNotify`）都把全部异常在方法内接住并返 `9001`，异常**不会传播出代理**，`rollbackFor` 形同虚设。后果：`ticketCollectNotify` 里「主表已更新、`TicketCollectLogs` 或明细 insert 抛异常」时**主表那次更新会被提交**。
    - 连带两条更小的：**没有唯一索引依据**（本模块**无 `sql/` 目录、无 DDL**，`ORDER_NO` 是否唯一约束在仓库里**无法确认**，属 AGENTS.md 那条「代码有 mapper、库里表结构未知」的形态）；**`updateByOrderNo` 是全列覆盖式 UPDATE**（`resources/mapper/TicketCollectInfoMapper.xml` 起 23 个 `set` 列 + `where ORDER_NO`，**没有 `<if>` 收窄、没有状态 CAS 谓词**），并发两笔回调各自「查 → 改内存 → 全列写回」时**后写者会把前写者的列一起覆盖**。
@@ -218,15 +218,15 @@ APP 端单程票购买张数限制、票价试算、下单、请求支付、取�
 
 - 状态取值在本模块**只有注释这一处成文**（实现里是 `private static final int`、entity 里是裸 `Integer`，**没有枚举**）；阶段一已逐条列出四组取值与三处不一致（`COLLECT_STATUS` 的「1-已计次」只在 `Ticket_Collect_Info` 一侧、`110-重复取票成功` 三处都有、`CHANNEL_TYPE` 的「2-ETC 已弃用 / tradeType03 与 tradeType06 映射」只在 entity 一侧），**本轮复核确认那些注释未变、结论继续有效**，此处不重复抄录，改动状态值 **MUST 全局 grep 所有比较点**。
 - **本轮补一条**：代码里实际写过的取值只有 `0` / `1` / `100`（外加内存里那个不落库的 `99`）；注释里的 `1~99`、`110`、`1-已计次` **实现从不写入**，`collectStatus` 直接取上游值、**无白名单** —— 「注释里的取值清单」与「代码会写的取值集合」**是两回事**，做对账或前台字典 **MUST 分清**。
-- 端口 **9098 与 account-server 冲突**（`application.properties`，`spring.application.name=collect-ticket`），同机部署 **MUST 先确认**；这条在 AGENTS.md §2.2.1 端口冲突清单里是第一组。启动类 `CollectTicketServer` **只有 `@SpringBootApplication` + `@EnableConfigurationProperties`**，没有 `@EnableDefaultMybatisAutoConfig`（recon-server 有）—— mapper 靠 `@Mapper` + `mybatis-adaptor` 自动配置装配，**改持久层装配前 MUST 现验**。
-- `mvn package` **就会推镜像**（`collect-ticket-server/pom.xml` 的 `build-image-after-package` / `<phase>package</phase>`，`build` + `push` 未注释、`deploy` 在注释里），只想拿 jar **MUST 加 `-Djkube.skip=true`**。
+- 端口 **9098 与 account-server 冲突**（`application.properties`，`spring.application.name=collect-ticket`），同机部署 **MUST 先确认**；这条在 docs/business/README.md 全局事实 端口冲突清单里是第一组。启动类 `CollectTicketServer` **只有 `@SpringBootApplication` + `@EnableConfigurationProperties`**，没有 `@EnableDefaultMybatisAutoConfig`（recon-server 有）—— mapper 靠 `@Mapper` + `mybatis-adaptor` 自动配置装配，**改持久层装配前 MUST 现验**。
+- 推镜像 **MUST 显式 `-Premote`**（`collect-ticket-server/pom.xml` 的 jkube 已整体移入 `remote` profile / `<phase>package</phase>`，`build` + `push` 未注释、`deploy` 在注释里）；**默认 `mvn package` 只出 jar、不推镜像**，`-Djkube.skip=true` 已不再需要。
 
 ### 六、矛盾与待裁决
 
 1. **取票支付的目标应用**：本模块出向仍打 `collect-pay` 的 `/collect-pay-server/ci/app/requestPay`，而 TVM / BOM / APP 当面付主实现已迁 `face-pay-server`（ADR-D117）。**collect-pay 2026-10-13 已下线、本模块也未部署 ⇒ 该出向链线上无流量**；「取票支付是否也要切到 face-pay」仍未裁决——仅当要部署 collect-ticket 时才需落地。届时 **MUST 现查** `fep-app` env 与 `fep-app-vr` 后向用户确认，**NEVER 自行改 `URLDynamicRouter` 的路径首段**（属改服务间路由）。
 2. **`PaySignUtils.verify` 的 fail-open**（§四-7）：公钥未配置即放过。待裁决：改成 fail-closed（未配置即拒绝，**推荐**）还是保留现状 + 在部署清单里列为强制 env。属安全红线，**MUST 由人裁决**。
 3. **`ORDER_STATUS` / `COLLECT_STATUS` 的失败态**（§四-4、§四-5）：代码从不写 `1~99`，「支付失败」「用户取消」在库里都退化成 `0`。待裁决：补失败态取值 + 取消态（需要 DDL）还是维持现状。**在裁决前 NEVER 拿 `ORDER_STATUS=0` 断言「用户没付过」。**
-4. **三张表无仓库 DDL**：`Ticket_Collect_Info` / `Ticket_Collect_Logs` / `Ticket_Collect_Log_Detail` 在 `collect-ticket-server` 下**没有 `sql/` 目录**，列长、非空、`ORDER_NO` 是否唯一索引**仓库内不可知**。待裁决：补 `*-schema.sql` + `*-migration.sql`（照 AGENTS.md §8 那条），还是从 `AFCITPDB` 反查后回填文档。**在补齐前 NEVER 断言「靠唯一索引兜幂等」。**
+4. **三张表无仓库 DDL**：`Ticket_Collect_Info` / `Ticket_Collect_Logs` / `Ticket_Collect_Log_Detail` 在 `collect-ticket-server` 下**没有 `sql/` 目录**，列长、非空、`ORDER_NO` 是否唯一索引**仓库内不可知**。待裁决：补 `*-schema.sql` + `*-migration.sql`（照 `docs/ops/构建与部署规范.md` §8「Ops & Deployment (部署与运维，详见 docs/ops/)」 那条），还是从 `AFCITPDB` 反查后回填文档。**在补齐前 NEVER 断言「靠唯一索引兜幂等」。**
 5. **`singleTicketType` 无白名单**（§二-3）：甲方只定义 `0`，实现放过任意值。待裁决：补白名单校验（属改行为、会拒掉现有上游报文）还是先向甲方澄清取值范围。
 6. **IF2A-04 出向通知未接线**（§一末条）：DTO 在、端点与调用都没有。待裁决：是否本期实现。
 

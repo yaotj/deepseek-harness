@@ -14,10 +14,27 @@ export function searchAlipayUsers(params) {
   })
 }
 
-/** 查询其他渠道注册用户，仅对应 USER_ITP_REG_INFO。 */
+/**
+ * 查询其他渠道注册用户，仅对应 USER_ITP_REG_INFO。
+ *
+ * @param {object} params { queryType, keyword, status }，status=ACTIVE/CANCELED
+ */
 export function searchItpUsers(params) {
   return request({
     url: '/account-server/page/user/itp/search',
+    method: 'get',
+    params
+  })
+}
+
+/**
+ * 查询已注销用户，数据来源于 USER_ITP_REG_LOG（OPER_TYPE=2 销户记录）。
+ *
+ * @param {object} params { queryType, keyword }
+ */
+export function searchItpCanceledUsers(params) {
+  return request({
+    url: '/account-server/page/user/itp/canceled-log/search',
     method: 'get',
     params
   })

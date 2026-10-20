@@ -17,7 +17,7 @@ import java.util.List;
  * 首推不可达时那一行就停在 {@code CHANNEL_SYNC_STATUS != 'SUCCESS'} 上 ——
  * 在本类之前**没有任何人再看它一眼**，账户域缺一条支付通道、对上游完全不可见。</p>
  *
- * <p><b>本类刻意没有 {@code @Scheduled}</b>：按 AGENTS.md §2.2.1，本项目的补偿一律由 web-admin 的
+ * <p><b>本类刻意没有 {@code @Scheduled}</b>：按 `docs/business/README.md` 全局事实，本项目的补偿一律由 web-admin 的
  * Quartz 打 {@code /internal/**} 端点驱动，服务内自驱调度只剩 face-pay 与 collect-pay 两个模块。
  * <b>NEVER 在本类上加 {@code @Scheduled}</b> —— 加了就成了「同一份补偿两个驱动源」，
  * 而本模块多副本时没有任何分布式锁。</p>

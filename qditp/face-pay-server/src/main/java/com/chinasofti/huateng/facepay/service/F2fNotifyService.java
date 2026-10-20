@@ -12,23 +12,35 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-/** 出向通知（IF8B-04/05/06/07）的落库与状态推进。 */
+/**
+ * 出向通知（IF8B-04/05/06/07）的落库与状态推进。
+ */
 @Service
 public class F2fNotifyService {
 
-    /** 出票成功通知。 */
+    /**
+     * 出票成功通知。
+     */
     public static final String TYPE_TAKE_TICKET_OK = "TAKE_TICKET_OK";
 
-    /** 出票失败通知。 */
+    /**
+     * 出票失败通知。
+     */
     public static final String TYPE_TAKE_TICKET_FAIL = "TAKE_TICKET_FAIL";
 
-    /** 退款结果通知。 */
+    /**
+     * 退款结果通知。
+     */
     public static final String TYPE_REFUND_RESULT = "REFUND_RESULT";
 
-    /** 支付结果通知。 */
+    /**
+     * 支付结果通知。
+     */
     public static final String TYPE_PAY_RESULT = "PAY_RESULT";
 
-    /** 目前只有 APP 一个通知目标（{@code CK_F2F_NOTIFY_TARGET} 也只允许这一个值）。 */
+    /**
+     * 目前只有 APP 一个通知目标（{@code CK_F2F_NOTIFY_TARGET} 也只允许这一个值）。
+     */
     public static final String TARGET_APP = "APP";
 
     private static final String STATUS_PENDING = "PENDING";
@@ -51,6 +63,7 @@ public class F2fNotifyService {
      * @return true 表示本次新建了任务；false 表示已存在（幂等命中），调用方 NEVER 再触发别的动作
      */
     public boolean enqueue(String notifyType, String orderNo, String refundNo, Map<String, Object> payload) {
+        log.info("执行 enqueue 方法");
         return enqueue(notifyType, orderNo, refundNo, payload, DEFAULT_MAX_RETRY_TIMES);
     }
 
@@ -61,6 +74,8 @@ public class F2fNotifyService {
      */
     public boolean enqueue(String notifyType, String orderNo, String refundNo,
                            Map<String, Object> payload, int maxRetryTimes) {
+        log.info("执行 enqueue 方法,notifyType is {} orderNo is {} refundNo is {} payload is {} maxRetryTimes is {}", notifyType, orderNo, refundNo,
+                payload, maxRetryTimes);
         F2fNotifyTask task = new F2fNotifyTask();
         task.setNotifyType(notifyType);
         task.setTarget(TARGET_APP);
@@ -74,9 +89,11 @@ public class F2fNotifyService {
         task.setCreateTms(now);
         task.setUpdateTms(now);
         try {
-            notifyTaskMapper.insert(task);
-            log.info("通知任务已入队, notifyType={}, orderNo={}, refundNo={}, maxRetry={}",
-                    notifyType, orderNo, refundNo, task.getMaxRetryTimes());
+            log.info("开始入库 task is {}", task);
+            int i = notifyTaskMapper.insert(task);
+            log.info("通知app表入库结束 i is {}",i);
+//            log.info("通知任务已入队, notifyType={}, orderNo={}, refundNo={}, maxRetry={}",
+//                    notifyType, orderNo, refundNo, task.getMaxRetryTimes());
             return true;
         } catch (RuntimeException e) {
             if (!F2fDuplicateKey.isConflict(e)) {
@@ -88,12 +105,16 @@ public class F2fNotifyService {
         }
     }
 
-    /** 扫出到期任务，供 {@code F2fNotifyJob} 使用。 */
+    /**
+     * 扫出到期任务，供 {@code F2fNotifyJob} 使用。
+     */
     public List<F2fNotifyTask> loadDueTasks(int limit) {
         return notifyTaskMapper.selectDueTasks(LocalDateTime.now(), limit);
     }
 
-    /** 只扫某一个通知类型的到期任务，供 {@code /pay/noticeAppTask/**} 三个外部触发端点使用。 */
+    /**
+     * 只扫某一个通知类型的到期任务，供 {@code /pay/noticeAppTask/**} 三个外部触发端点使用。
+     */
     public List<F2fNotifyTask> loadDueTasksByType(String notifyType, int limit) {
         return notifyTaskMapper.selectDueTasksByType(LocalDateTime.now(), notifyType, limit);
     }
@@ -107,7 +128,9 @@ public class F2fNotifyService {
         return notifyTaskMapper.markSuccess(id, LocalDateTime.now()) > 0;
     }
 
-    /** 记一次投递失败并安排下次重试。 */
+    /**
+     * 记一次投递失败并安排下次重试。
+     */
     public void markFailure(F2fNotifyTask task, String error) {
         int retried = task.getRetryTimes() == null ? 0 : task.getRetryTimes();
         long backoffSeconds = Math.min(600L, 30L * (1L << Math.min(retried, 5)));
@@ -124,7 +147,9 @@ public class F2fNotifyService {
                 backoffSeconds, task.getId(), task.getNotifyType(), task.getOrderNo(), error);
     }
 
-    /** {@code LAST_ERROR} 列宽 512，超长由调用方截断（mapper 文档已注明）。 */
+    /**
+     * {@code LAST_ERROR} 列宽 512，超长由调用方截断（mapper 文档已注明）。
+     */
     private static String truncate(String error) {
         if (error == null) {
             return null;

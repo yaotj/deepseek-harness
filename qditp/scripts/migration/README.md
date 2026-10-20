@@ -78,25 +78,59 @@ ORDER BY table_name;
 
 **操作**：
 ```bash
-# 2.1 DBA 替换路径前缀 + 审核/替换 5 个口令
-#   - +RACDG/itp/ → 真实 ASM 磁盘组路径
-#   - 5 个口令见手册 §九.1（草案，DBA 可改）
+# 2.0 ASM 路径决策（2026-10-17 定，方案 A = OMF）
+#   实测（红岛 HDTPDB，dba_data_files）：磁盘组 = +DATA，一级目录 = ITPCDB（CDB 级）；
+#   hditpdb PDB 的文件在 +DATA/ITPCDB/<PDB_GUID>/DATAFILE|TEMPFILE/ 下（GUID 子目录）
+#   ⇒ 已放弃手写路径（平级 ITPCDB/ 写法绕过 PDB 目录树，已作废），改用 OMF：
+#     DATAFILE/TEMPFILE 只写 '+DATA'，Oracle 自动落 PDB 的 GUID 目录，无需关心 GUID
+#   ⇒ 前置条件：db_create_file_dest = '+DATA' 且容器 = HDTPDB
+#     （脚本 Step 0 断言强校验，不满足即 EXIT；换集群执行 MUST 重新核实）
+#   ⇒ 手写路径方案作废记录：原占位 '+RACDG/itp/' 来自老 ITP 测试库磁盘组，NEVER 回退
 
-# 2.2 用 SYSDBA 执行
-sqlplus / as sysdba @scripts/migration/20261014_bundle_m1_infra.sql
+# 2.1 口令已按推荐值内联进本地脚本 CREATE USER 语句（双引号定界；本目录 svn:ignore，不入 VCS）
+#   DBA 审核/可替换；替换时 MUST 避 & （sqlplus 对任何语句都做替换展开）和 " （口令定界符）
+
+# 2.2 用 SYSDBA 连 hditpdb PDB 执行（NEVER 连 CDB 根）
+sqlplus sys/<sys_pwd>@//172.120.110.25:1521/hditpdb as sysdba @scripts/migration/20261014_bundle_m1_infra.sql
 
 # 2.3 自检输出：8 张 TS + 5 个用户 + 1 个角色 + 同义词 全绿
+#     （Step 5/6 的 GRANT 预期报 ORA-00942——业务表要等 M3 迁入，M3 后 MUST 重跑这两步）
 # 2.4 把 4 个 schema 口令安全分发到各模块 K8s secret + application.properties
 ```
 
 **风险控制**：
 - ⚠️ 本步骤只做创建，不删不改任何现有对象，安全
 - ⚠️ 口令不入 VCS，落地 K8s secret
-- ⚠️ RACDG 磁盘组需有至少 4GB 余量（4 张 TS 初始 4.5GB）
+- ⚠️ +DATA 磁盘组需有至少 4GB 余量（4 张 TS 初始 4.5GB，grid 用户 `asmcmd lsdg` 查）
+- ⚠️ **建错位置/路径需清理时**：用 `20261017_cleanup_m1_wrong_objects.sql`（带安全闸：有数据即中止 + 人工确认闸），NEVER 手写裸 DROP；建在 CDB 根的就用 SYS 连根跑该脚本
+
+---
+
+### Step 2.5：分域 Schema 建表（`20261017_schema_*.sql`）
+
+> **DDL 全部来自本仓库存量 SQL，NEVER 从老库 GET_DDL**（防老库漂移；老库只做数据导出 + 结构 diff）。由 `20261017_schema_gen.py` 从 46 个 DDL 源文件按域清单拆分生成，可重复生成。
+
+```bash
+# 顺序 MUST：PLAT → USER → RIDE → TXN（跨域外键/同义词依赖）
+sqlplus QDITP_PLAT/<pwd>@//172.120.110.25:1521/hditpdb @scripts/migration/20261017_schema_plat.sql
+sqlplus QDITP_USER/<pwd>@//172.120.110.25:1521/hditpdb @scripts/migration/20261017_schema_user.sql
+sqlplus QDITP_RIDE/<pwd>@//172.120.110.25:1521/hditpdb @scripts/migration/20261017_schema_ride.sql
+sqlplus QDITP_TXN/<pwd>@//172.120.110.25:1521/hditpdb @scripts/migration/20261017_schema_txn.sql
+```
+
+**覆盖与口径**（详见 `20261017_schema_manifest.md`）：
+- ✅ 域清单 **123/123 张全部有本地 DDL**（PLAT 71 / USER 13 / RIDE 3 / TXN 36）+ 24 个序列按域归位；外键依赖已拓扑排序（如 RECON_BATCH 先于子表）
+- ✅ 方言已校验：只收 Oracle 方言（`ry_20250522.sql` / `quartz.sql` 两个 MySQL 原版 NEVER 入池，用 `_oracle` 版）
+- ⚠️ 4 张表 DDL 仅在 migration 文件（QRCODE_SUPPLEMENT_REQUEST / ALIPAY_PAY_CALLBACK_LOG / DAILY_TICKET_USAGE_LOG / GATE_RETRY_QUEUE）——已选入，注意与后续 migration 的关系
+- ⚠️ 10 张本地有 DDL 但不在域清单（5 张 SYS_* / QRTZ_SIMPROP_TRIGGERS / AGM_DEVICE_STATUS / GATEWAY_ROUTE_CONFIG×2 / STATION_INFO），归属建议见 manifest，**MUST 人工裁决后决定是否补入 PLAT**
+- ⚠️ 无 `TABLESPACE` 子句 ⇒ MUST 以域用户执行（落 M1 默认表空间）；NEVER 用 SYS
+- ⚠️ 分区表分区上界以本地 DDL 为准；若仍到 `P202612`，灌数后 MUST 按 M0 补分区
 
 ---
 
 ### Step 3：M2/M3/M4 数据导出
+
+> 🔴 **2026-10-17 起实际场景是跨库**（源 = 老 ITP `172.20.222.3:1521/AFCITPDB` → 目标 = 红岛生产 `172.120.110.25:1521/hditpdb`）。同库设计的 `INSERT INTO QDITP_TXN.x SELECT * FROM QDITP.x` 跨库不成立，**MUST 走 `20261017_m2m3_crossdb_hongdao.sql`**（expdp → 传输 → impdp REMAP_SCHEMA）；本节命令仅为该脚本 Phase 2 的展开，`20261014_bundle_m2_m3_migration.sql` 与 4 个 `import_qditp_*.sql` 已标作废（同库设计）。
 
 **目标**：用 expdp 把 129 张表的数据导出成 4 个 dump 文件。
 
@@ -108,7 +142,7 @@ expdp <DBA_USER>/<DBA_PWD>@//172.20.222.3:1521/AFCITPDB \
   directory=DATA_PUMP_DIR dumpfile=qditp_plat.dmp logfile=qditp_plat_export.log \
   tables=QDITP.BLACKLIST,QDITP.TBL_STATION_INFO,... \
   parallel=8 compression=all \
-  exclude=index,constraint,trigger,grant,statistics \
+  exclude=grant,statistics \
   job_name=exp_plat_domain
 
 # 3.3 USER / RIDE / TXN 并行导出
@@ -122,37 +156,40 @@ tail -50 /data/dump/qditp_*/qditp_*_export.log
 
 **风险控制**：
 - ⚠️ expdp 是只读操作，不影响生产
-- ⚠️ `exclude=index,constraint,trigger,grant,statistics` 避免依赖源 schema 的索引定义
+- ⚠️ `exclude=grant,statistics`（2026-10-17 起）：grant 由分库设计显式重授（M1 Step 5/6/7），statistics 导后重新收集；索引/约束/触发器随行导入，F2F GLOBAL 唯一索引保持现状（GLOBAL→LOCAL 是 M0 裁定项，单独处理）
 - ⚠️ parallel=8 + compression=all 加速大数据量表导出
-- ⚠️ 导出前行数基线已打印到日志，导入后可比对
+- ⚠️ 导出前行数基线已打印到日志，导入后可比对（跨库比对方法见 20261017_m2m3_crossdb_hongdao.sql Phase 1.5/6.2）
+- ⚠️ 源库在线写入：导出窗口 MUST 与业务停写窗口对齐，TXN 域 recon/face-pay/web-admin 定时任务双跑硬约束照旧
 
 ---
 
 ### Step 4：M2/M3/M4 数据导入
 
+> 🔴 **跨库场景以 `20261017_m2m3_crossdb_hongdao.sql` Phase 5 为准**：impdp 连接串 MUST 指向**目标库** `172.120.110.25:1521/hditpdb`（PDB，SYS AS SYSDBA），`remap_tablespace` 的源端表空间名 MUST 先从源库查实（不再是写死的 USERS）。本节为同库设计存档。
+
 **目标**：用 impdp 把 dump 文件导入到对应 schema。
 
 **操作**：
 ```bash
-# 4.1 PLAT 先导入
-impdp <DBA_USER>/<DBA_PWD>@//172.20.222.3:1521/AFCITPDB \
-  directory=DATA_PUMP_DIR dumpfile=qditp_plat.dmp logfile=qditp_plat_import.log \
-  remap_schema=QDITP:QDITP_PLAT remap_tablespace=USERS:ITP_PLAT_TS \
+# 4.1 PLAT 先导入（跨库 = 连目标 PDB；remap_tablespace 源端以源库实际 TS 为准）
+impdp '"sys/<sys_pwd>@//172.120.110.25:1521/hditpdb" AS SYSDBA' \
+  directory=hongdao_dp_dir dumpfile=qditp_plat.dmp logfile=qditp_plat_import.log \
+  remap_schema=QDITP:QDITP_PLAT remap_tablespace=<SRC_TS>:ITP_PLAT_TS \
   table_exists_action=replace parallel=8 job_name=imp_plat_domain
 
 # 4.2 导入后建跨库同义词（参见 create_split_grants_synonyms.sql）
 # 4.3 USER / RIDE / TXN 并行导入
 # （TXN 域导入期 MUST 停 recon/face-pay/web-admin 定时任务，双跑硬约束）
 
-# 4.4 导入后行数比对
-# （参考 import_qditp_{user,ride,txn,plat}.sql 里的比对 SQL）
+# 4.4 导入后行数比对（跨库 = 源侧基线 vs 目标侧计数，见跨库脚本 Phase 1.5/6.2）
 ```
 
 **风险控制**：
 - 🔴 **TXN 域导入期 MUST 停相关定时任务**（recon/face-pay/web-admin），否则双跑重复扣费
-- 🔴 F2F_ORDER/PAYMENT/RESULT_REPORT 的 GLOBAL 唯一索引需手动重建（exclude 掉）
+- 🔴 索引/约束/触发器本版随行导入（2026-10-17 起 exclude 只排 grant,statistics）；F2F GLOBAL 唯一索引保持现状，GLOBAL→LOCAL 是 M0 裁定项单独处理
 - 🔴 `table_exists_action=replace` 会 drop + recreate 目标表，适合重跑但不适合增量
 - ✅ PLAT 先导，其他域依赖 PLAT 的同义词，顺序不能乱
+- ✅ 导入后 MUST 校准序列（Data Pump 不保留序列当前值）与重跑 M1 Step 5/6/7 授权
 
 ---
 

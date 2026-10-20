@@ -7,7 +7,7 @@ import com.chinasofti.huateng.rpc.outcome.RpcOutcome;
  *
  * <p>存在的唯一理由：{@code AlipayAccountClient.updatePaymentChannel} 返回 {@code boolean}，
  * 而 {@code boolean} 分不清「对端答复了但拒绝」与「压根没答上」—— 前者重推一万次也不会成功、
- * MUST 一次即终态并开工单，后者才该进补偿队列（AGENTS.md §5.2）。</p>
+ * MUST 一次即终态并开工单，后者才该进补偿队列（docs/architecture/transaction-and-consistency.md §3）。</p>
  *
  * <p>能做这个区分的前提是一条实测事实：那个 client <b>内部并不 catch 异常</b>，
  * {@code getAndGetResponse} 抛出的 {@code RuntimeException} 会原样冒泡；它只在响应体为空时返

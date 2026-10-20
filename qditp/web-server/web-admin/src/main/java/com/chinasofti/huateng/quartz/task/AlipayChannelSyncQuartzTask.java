@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  * {@code POST /internal/alipay/channelSync/compensate}（ADR-D132）。
  *
  * <p>这是那套补偿的**唯一驱动源**：alipay-pay-sign-server 侧的
- * {@code ChannelSyncCompensationService} 刻意没有 {@code @Scheduled}（AGENTS.md §2.2.1），
+ * {@code ChannelSyncCompensationService} 刻意没有 {@code @Scheduled}（见 `docs/business/README.md` 全局事实），
  * 因此少了本任务 + 对应 {@code sys_job} 行，签约首推不可达的行会永久停在
  * {@code CHANNEL_SYNC_STATUS != 'SUCCESS'} 上、账户域缺一条支付通道且对上游完全不可见。
  * <b>「代码写了」不等于「补偿在跑」，判据是 {@code SYS_JOB_LOG} 有没有记录。</b></p>

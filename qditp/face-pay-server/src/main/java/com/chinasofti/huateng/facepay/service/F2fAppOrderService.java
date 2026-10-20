@@ -38,7 +38,8 @@ public class F2fAppOrderService {
     private static final Logger log = LoggerFactory.getLogger(F2fAppOrderService.class);
 
     /** 业务类型：取票，对应 {@code CK_F2F_ORDER_BIZ} 的 03。 */
-    private static final String BIZ_TAKE_TICKET = "03";
+//    private static final String BIZ_TAKE_TICKET = "03";
+    private static final String BIZ_TAKE_TICKET = "01";
 
     /** 交易类型：APP 扫码取票。 */
     private static final String TRANS_TYPE_APP_TAKE_TICKET = "03";
@@ -260,6 +261,7 @@ public class F2fAppOrderService {
         F2fOrder order = new F2fOrder();
         order.setOrderNo(orderNo);
         order.setChannel(F2fChannel.APP);
+        // 20261015改为01-购票
         order.setBizType(BIZ_TAKE_TICKET);
         order.setTransType(TRANS_TYPE_APP_TAKE_TICKET);
         order.setOrderStatus(STATUS_CREATED);

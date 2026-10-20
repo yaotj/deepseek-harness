@@ -223,5 +223,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
  			#{userId}
         </foreach> 
  	</delete>
+
+	<!-- 部门被级联删除时，把子树内用户的部门归属置空（dept_id 为 NULL 是本系统既有合法状态，不删除用户） -->
+	<update id="clearDeptIdByDeptIds" parameterType="java.util.List">
+		update sys_user set dept_id = null, update_time = SYSDATE where dept_id in
+		<foreach collection="deptIds" item="deptId" open="(" separator="," close=")">
+			#{deptId}
+		</foreach>
+	</update>
 	
 </mapper> 

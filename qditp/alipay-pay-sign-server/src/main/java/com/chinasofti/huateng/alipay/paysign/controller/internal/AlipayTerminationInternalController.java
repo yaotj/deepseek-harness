@@ -37,7 +37,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 超出「迁 internal」这一步的范围。「GET 做状态变更」是既有现状，要改是单独一步。
  *
  * <p><b>迁到 internal 不带来任何鉴权收益</b>：本模块无拦截器、无验签，四个 {@code /internal/**}
- * controller 全部裸暴露。{@code executeTermination} 是状态变更型接口、按 AGENTS.md §5.2 应当有鉴权，
+ * controller 全部裸暴露。{@code executeTermination} 是状态变更型接口、按 docs/architecture/security-sensitivity.md §三 应当有鉴权，
  * <b>迁移前后都不满足</b>，属已知缺口 —— 迁包与迁 URL 都只是结构收敛，不承担安全语义。
  */
 @RestController

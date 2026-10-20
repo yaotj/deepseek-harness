@@ -164,6 +164,30 @@
         order by REG_TMS desc
     </select>
 
+    <select id="selectListByThirdUserIdAndDelYn" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from USER_ITP_REG_INFO
+        where THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+          and DEL_YN = #{delYn,jdbcType=INTEGER}
+        order by REG_TMS desc
+    </select>
+
+    <select id="selectListByMsisdnAndDelYn" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from USER_ITP_REG_INFO
+        where MSISDN = #{msisdn,jdbcType=VARCHAR}
+          and DEL_YN = #{delYn,jdbcType=INTEGER}
+        order by REG_TMS desc
+    </select>
+
+    <select id="selectListByCardIdAndDelYn" resultMap="BaseResultMap">
+        select <include refid="Base_Column_List"/>
+        from USER_ITP_REG_INFO
+        where CARD_ID = #{cardId,jdbcType=VARCHAR}
+          and DEL_YN = #{delYn,jdbcType=INTEGER}
+        order by REG_TMS desc
+    </select>
+
     <!-- MUST 用 <where>、NEVER 写 where 1 = 1 打头 + 全部可选 <if>：Druid 判 select alway true condition（2.0.73 修复）。 -->
     <select id="countGroupByCardType" resultType="com.chinasofti.huateng.account.page.RegStatView">
         select CARD_TYPE as cardType,

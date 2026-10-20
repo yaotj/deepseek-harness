@@ -1,0 +1,37 @@
+# ITP 测试环境待迁移镜像清单
+# 来源：deploy/k8s/ 下全部 Deployment / StatefulSet 的 image 字段（已排除 istio auto）
+# 生成时间：2026-10-14
+# 旧 Harbor：os-harbor-svc.default.svc.cloudos:443
+# 注意：该地址是 K8s 集群内 Service DNS，本机无法解析，须在能访问旧集群网络的节点上执行下载
+
+# 基础镜像
+os-harbor-svc.default.svc.cloudos:443/itp/jdk:21
+os-harbor-svc.default.svc.cloudos:443/itp/victoria-logs:v1.51.1
+os-harbor-svc.default.svc.cloudos:443/itp/database-server:0.6.7
+os-harbor-svc.default.svc.cloudos:443/user/1df71957d770436493a84f24d9344853/web-nginx1.20:1.2.29-1790045565782
+
+# 业务 Deployment 镜像
+os-harbor-svc.default.svc.cloudos:443/itp/account-server:2.0.80
+os-harbor-svc.default.svc.cloudos:443/itp/acc-es-server:2.0.21
+os-harbor-svc.default.svc.cloudos:443/itp/acc-security-server:2.0.15
+os-harbor-svc.default.svc.cloudos:443/itp/alipay-account:1.0.24
+os-harbor-svc.default.svc.cloudos:443/itp/alipay-pay-sign:1.1.59
+os-harbor-svc.default.svc.cloudos:443/itp/blacklist-server:2.0.34
+os-harbor-svc.default.svc.cloudos:443/itp/card-pool-server:1.0.19
+os-harbor-svc.default.svc.cloudos:443/itp/collect-pay-server:1.1.88
+os-harbor-svc.default.svc.cloudos:443/itp/daily-ticket-server:1.0.63
+os-harbor-svc.default.svc.cloudos:443/itp/face-pay-server:1.0.77
+os-harbor-svc.default.svc.cloudos:443/itp/fep-acc:1.0.10
+os-harbor-svc.default.svc.cloudos:443/itp/fep-alipay:1.0.71
+os-harbor-svc.default.svc.cloudos:443/itp/fep-app:2.0.105
+os-harbor-svc.default.svc.cloudos:443/itp/fep-dev-server:2.0.69
+os-harbor-svc.default.svc.cloudos:443/itp/gate-txn-pay-server:2.0.99
+os-harbor-svc.default.svc.cloudos:443/itp/industry-data-server:2.0.21
+os-harbor-svc.default.svc.cloudos:443/itp/key-server:2.0.15
+os-harbor-svc.default.svc.cloudos:443/itp/para-server:2.0.28
+os-harbor-svc.default.svc.cloudos:443/itp/pay-sign-server:2.1.10
+os-harbor-svc.default.svc.cloudos:443/itp/recon-server:1.0.17
+os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.0
+os-harbor-svc.default.svc.cloudos:443/itp/ticket-server:2.1.111
+os-harbor-svc.default.svc.cloudos:443/itp/trans-query:1.0.18
+os-harbor-svc.default.svc.cloudos:443/itp/web-admin:1.1.41

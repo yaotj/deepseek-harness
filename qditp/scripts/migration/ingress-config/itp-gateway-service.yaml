@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: "2026-03-13T01:53:44Z"
+  labels:
+    istio: ingressgateway
+    sidecar.istio.io/inject: "true"
+  name: itp-gateway
+  namespace: itp-gateway
+  resourceVersion: "10593347"
+  uid: 6cc12536-9d8a-4125-817c-1e56c2d818b2
+spec:
+  clusterIP: 10.100.192.240
+  clusterIPs:
+  - 10.100.192.240
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: http
+    port: 50908
+    protocol: TCP
+    targetPort: 8080
+  - name: https
+    port: 45609
+    protocol: TCP
+    targetPort: 443
+  selector:
+    istio: ingressgateway
+    sidecar.istio.io/inject: "true"
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}

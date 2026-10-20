@@ -64,7 +64,7 @@ import java.util.List;
  *
  * <p><b>迁到 internal 只是结构收敛，不承担任何安全语义</b>：本模块无拦截器、无验签，
  * 该族全部裸暴露。{@code requestRefund} 是本族里敞口最大的一条 ——
- * 它既改状态又出网到支付中心发起真实退款，按 AGENTS.md §5.2 本应有鉴权与归属校验，
+ * 它既改状态又出网到支付中心发起真实退款，按 docs/architecture/security-sensitivity.md §三 本应有鉴权与归属校验，
  * <b>迁移前后都不满足</b>。这是既有缺口、不是本次引入的，但**新增本族端点时 NEVER 把
  * 「反正同族都没有鉴权」当成理由**。
  */

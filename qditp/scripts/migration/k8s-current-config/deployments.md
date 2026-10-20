@@ -1,0 +1,34 @@
+# 当前 Deployment 与镜像
+
+account                  os-harbor-svc.default.svc.cloudos:443/itp/account-server:2.0.80
+alipay-account-server    os-harbor-svc.default.svc.cloudos:443/itp/alipay-account:1.0.24
+alipay-pay-sign-server   os-harbor-svc.default.svc.cloudos:443/itp/alipay-pay-sign:1.1.59
+blacklist-server         os-harbor-svc.default.svc.cloudos:443/itp/blacklist-server:2.0.34
+card-pool-server         os-harbor-svc.default.svc.cloudos:443/itp/card-pool-server:1.0.20
+collect-pay              os-harbor-svc.default.svc.cloudos:443/itp/collect-pay-server:1.1.89
+daily-ticket-server      os-harbor-svc.default.svc.cloudos:443/itp/daily-ticket-server:1.0.66
+database                 os-harbor-svc.default.svc.cloudos:443/itp/database-server:0.6.7
+details-v1               os-harbor-svc.default.svc.cloudos:443/itp/details-v1:1.20.2
+es-server                os-harbor-svc.default.svc.cloudos:443/itp/acc-es-server:2.0.22
+face-pay-server          os-harbor-svc.default.svc.cloudos:443/itp/face-pay-server:1.0.79
+fep-acc                  os-harbor-svc.default.svc.cloudos:443/itp/fep-acc:1.0.10
+fep-alipay               os-harbor-svc.default.svc.cloudos:443/itp/fep-alipay:1.0.71
+fep-app                  os-harbor-svc.default.svc.cloudos:443/itp/fep-app:2.0.105
+fep-dev-server           os-harbor-svc.default.svc.cloudos:443/itp/fep-dev-server:2.0.69
+gate-txn-pay-server      os-harbor-svc.default.svc.cloudos:443/itp/gate-txn-pay-server:2.0.103
+industry-data-server     os-harbor-svc.default.svc.cloudos:443/itp/industry-data-server:2.0.22
+kennethreitz-httpbin     os-harbor-svc.default.svc.cloudos:443/itp/kennethreitz-httpbin:latest
+key-server               os-harbor-svc.default.svc.cloudos:443/itp/key-server:2.0.15
+para-server              os-harbor-svc.default.svc.cloudos:443/itp/para-server:2.0.28
+pay-sign-server          os-harbor-svc.default.svc.cloudos:443/itp/pay-sign-server:2.1.12
+productpage-v1           os-harbor-svc.default.svc.cloudos:443/itp/productpage-v1:1.20.2
+ratings-v1               os-harbor-svc.default.svc.cloudos:443/itp/ratings-v1:1.20.2
+recon-server             os-harbor-svc.default.svc.cloudos:443/itp/recon-server:1.0.25
+reviews-v1               os-harbor-svc.default.svc.cloudos:443/itp/reviews-v1:1.20.2
+reviews-v2               os-harbor-svc.default.svc.cloudos:443/itp/reviews-v2:1.20.2
+reviews-v3               os-harbor-svc.default.svc.cloudos:443/itp/reviews-v3:1.20.2
+security-server          os-harbor-svc.default.svc.cloudos:443/itp/acc-security-server:2.0.16
+ticket-server            os-harbor-svc.default.svc.cloudos:443/itp/ticket-server:2.1.111
+trans-query              os-harbor-svc.default.svc.cloudos:443/itp/trans-query:1.0.18
+web                      os-harbor-svc.default.svc.cloudos:443/user/1df71957d770436493a84f24d9344853/web-nginx1.20:1.2.29-1790045565782
+web-admin                os-harbor-svc.default.svc.cloudos:443/itp/web-admin:1.1.42

@@ -1,0 +1,1 @@
+import{f as e}from"./codeLabel-nDyLZdCT.js";const a={"01":"APP","02":"TVM","03":"BOM"},t={"02":"TVM","03":"BOM"};function o(n){return e(n,a)}function s(n){const r=n==null?"":String(n).trim();return r?t[r]??t[r.toUpperCase()]??r:"-"}export{t as F,o as a,s as f};

@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
  * 再试本类。<b>NEVER 把两者合并成一个「同时写两张表」的实现</b> —— 那会让「这单走的是哪条链路」不可判定。
  *
  * <p><b>NEVER 加 {@code @Transactional}</b>：调用方所在的回调链路要先落证据再收口，事务包住会把
- * 「留证据」的 INSERT 一起回滚（AGENTS.md §5.2 已有生产事故）。本类两步（明细 CAS + 汇总重算）
+ * 「留证据」的 INSERT 一起回滚（docs/architecture/transaction-and-consistency.md §6 已有生产事故）。本类两步（明细 CAS + 汇总重算）
  * 各自自动提交。
  */
 @Component

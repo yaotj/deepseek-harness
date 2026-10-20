@@ -115,4 +115,20 @@ public interface SysDeptMapper
      * @return 结果
      */
     public int deleteDeptById(Long deptId);
+
+    /**
+     * 查询某部门及其全部后代部门的ID（含自身，仅未删除的部门），用于级联删除
+     *
+     * @param deptId 部门ID
+     * @return 部门ID集合
+     */
+    public List<Long> selectDeptAndDescendantIds(Long deptId);
+
+    /**
+     * 批量逻辑删除部门（del_flag 置 '2'）
+     *
+     * @param deptIds 部门ID集合
+     * @return 结果
+     */
+    public int deleteDeptByIds(@Param("deptIds") List<Long> deptIds);
 }

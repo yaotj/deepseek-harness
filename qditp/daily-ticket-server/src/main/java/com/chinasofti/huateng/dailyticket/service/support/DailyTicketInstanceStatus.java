@@ -3,7 +3,7 @@ package com.chinasofti.huateng.dailyticket.service.support;
 /**
  * {@code DAILY_TICKET_INSTANCE.TICKET_STATUS} 的取值与判定。
  *
- * <p>本项目用 String 字面量而非枚举表达状态（AGENTS.md §2.2.1），因此这些值散落在多处比较点。
+ * <p>本项目用 String 字面量而非枚举表达状态（见 `docs/business/README.md` 全局事实），因此这些值散落在多处比较点。
  * 收口到这里的目的只有一个：**改动取值时有唯一来源**，
  * 而不是像以前那样要在 god class 里逐个 grep 字面量。
  *

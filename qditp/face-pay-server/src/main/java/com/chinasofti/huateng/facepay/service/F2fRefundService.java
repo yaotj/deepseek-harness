@@ -130,11 +130,14 @@ public class F2fRefundService {
         }
 
         String refundNo = orderNoGenerator.next(F2fOrderNo.BIZ_REFUND);
+        log.info("F2fRefundService refund 发起退款 refundNo is {}", refundNo);
         F2fRefund refund = command.toEntity(refundNo, LocalDateTime.now());
         refund.setNextQueryTms(retryPolicy.firstQueryTms(refund.getRequestTms()));
         try {
-            refundMapper.insert(refund);
+            int i = refundMapper.insert(refund);
+            log.info("退款交易明细入库结束 i is {}", i);
         } catch (RuntimeException e) {
+            log.info("入库发生异常 e is {}", e);
             if (!F2fDuplicateKey.isConflict(e)) {
                 throw e;
             }
@@ -158,11 +161,13 @@ public class F2fRefundService {
      * 把退款单送到支付中心。
      */
     private RefundOutcome submitToPayCenter(String refundNo, RefundCommand command) {
+        log.info("submitToPayCenter refundNo is {} command is {} ", refundNo, command);
         PayCenterResult result = payCenterClient.execute(
                 payCenterClient.properties().getRefundUrl(),
                 messageFactory.buildRefundRequest(refundNo, command.origOrderNo(),
                         command.payCenterOrderNo(), command.refundAmount()));
 
+        log.info("submitToPayCenter 请求结束 result is {}", result);
         if (result.isTransportFailed() || !result.isSuccessCode()) {
             String reason = result.isTransportFailed() ? result.getFailureReason() : result.getMsg();
             refundMapper.increaseRetryTimes(refundNo, truncate(reason), retryPolicy.nextQueryTms(0));
@@ -172,9 +177,10 @@ public class F2fRefundService {
             return new RefundOutcome(refundNo, STATUS_INIT, false, reason);
         }
 
+        log.info("开始修改退款订单状态");
         int updated = refundMapper.updateStatus(refundNo, List.of(STATUS_INIT), STATUS_PROCESSING,
                 result.string("refundOrderNo"), null);
-        log.info("退款已被支付中心受理, refundNo={}, updatedRows={}", refundNo, updated);
+        log.info("修改结束 updated is {}", updated);
         return new RefundOutcome(refundNo, STATUS_PROCESSING, false, null);
     }
 
@@ -253,7 +259,7 @@ public class F2fRefundService {
         payload.put("refundAmount", refundAmount);
         boolean enqueued = notifyService.enqueue(F2fNotifyService.TYPE_REFUND_RESULT,
                 payOrderNo, refundNo, payload);
-        log.info("报错结束 enqueued is {}",enqueued);
+        log.info("报错结束 enqueued is {}", enqueued);
         if (!enqueued) {
             log.info("退款结果通知已存在，跳过入队, refundNo={}", refundNo);
         }

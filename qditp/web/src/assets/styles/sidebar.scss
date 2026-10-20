@@ -101,6 +101,28 @@
       }
     }
 
+    /* ===== 菜单层级区分（2026-10-15）=====
+       需求：一级菜单与二级菜单在「字号」与「背景色」上可区分。
+       层级判据：SidebarItem.vue 把 class="nest-menu" 透传到「非顶层」子项的根元素上
+       （顶层项不带该类），故 .nest-menu 之内即二级及更深层。
+       ⚠️ MUST 写在全局样式里：Sidebar/index.vue 是 <style scoped>，而 el-menu-item /
+       el-sub-menu__title 由 SidebarItem.vue 与 Element Plus 渲染、不带它的作用域属性，
+       写在那里是死代码（历史遗留，已清理）。
+       配色口径：一级 = 侧边栏底色本身（不额外铺色）；二级 = 底色再深一档，
+       与暗色主题 $base-sub-menu-background 的角色一一对应。 */
+    .el-sub-menu__title,
+    .el-menu-item {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .nest-menu .el-sub-menu>.el-sub-menu__title,
+    .nest-menu .el-menu-item {
+      font-size: 13px;
+      font-weight: 400;
+      background-color: vars.$base-sub-menu-light-bg;
+    }
+
     & .theme-dark .nest-menu .el-sub-menu>.el-sub-menu__title,
     & .theme-dark .el-sub-menu .el-menu-item {
       background-color: vars.$base-sub-menu-background;
@@ -108,6 +130,62 @@
       &:hover {
         background-color: vars.$base-sub-menu-hover !important;
       }
+    }
+
+    /* 暗黑模式（html.dark）下 sideTheme 仍可能是 theme-light、侧边栏底色走 var(--sidebar-bg)，
+       此时二级菜单若沿用浅灰底会「浅底压深侧边栏」⇒ 必须按暗色再覆盖一次。
+       与上面的浅色规则同权重，靠源序取胜 ⇒ MUST 排在那条浅色规则之后。 */
+    html.dark & {
+      .nest-menu .el-sub-menu>.el-sub-menu__title,
+      .nest-menu .el-menu-item {
+        background-color: var(--el-bg-color-overlay, #1d1e1f);
+      }
+    }
+
+    /* ===== 选中菜单项高亮（2026-10-15 补）=====
+       原先选中态只有文字变蓝（走 el-menu 的 active-text-color 属性），背景高亮那条历史规则是
+       <style scoped> 里的死代码（同 IT-005 根因），被清理后浅色主题下几乎看不出选中项。
+       这里补两重信号：
+       ① 左侧 3px 主色指示条 —— 三态通用，作为主要识别信号；
+       ② 底色淡蓝高亮 —— 一级在侧边栏底色上取一档，二级本身已有 $base-sub-menu-light-bg 灰底、
+          故取更浓一档，否则叠在灰底上看不出来；暗色主题再把浓度提一档。
+       底色高亮统一加 !important：暗色主题的 #1f2d3d 与 html.dark 的覆盖规则都没带 !important，
+       不加会被它们按权重压掉。左侧指示条无同类冲突，不需要 !important。 */
+    .el-menu-item,
+    .el-sub-menu__title {
+      position: relative;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background-color: transparent;
+        transition: background-color 0.2s;
+      }
+    }
+
+    .el-menu-item.is-active,
+    .el-sub-menu.is-active>.el-sub-menu__title {
+      background-color: rgba(64, 158, 255, 0.1) !important;
+
+      &::before {
+        background-color: vars.$menuActiveText;
+      }
+    }
+
+    .nest-menu .el-menu-item.is-active,
+    .nest-menu .el-sub-menu.is-active>.el-sub-menu__title {
+      background-color: rgba(64, 158, 255, 0.16) !important;
+    }
+
+    & .theme-dark .el-menu-item.is-active,
+    & .theme-dark .el-sub-menu.is-active>.el-sub-menu__title,
+    html.dark & .el-menu-item.is-active,
+    html.dark & .el-sub-menu.is-active>.el-sub-menu__title {
+      background-color: rgba(64, 158, 255, 0.22) !important;
     }
   }
 

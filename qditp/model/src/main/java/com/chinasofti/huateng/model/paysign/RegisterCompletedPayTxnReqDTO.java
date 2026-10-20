@@ -9,7 +9,7 @@ package com.chinasofti.huateng.model.paysign;
  * 故新增本契约，由 gate-txn-pay 在落单前调 {@code /internal/payment/registerCompletedTxn} 补一行。
  *
  * <p><b>NEVER 复用 {@code RequestPayReqDTO}</b>：那个是能被 {@code parseBizData} 解析的对外契约
- * （见 AGENTS.md §9 那条判据），而且它带 {@code scene} / {@code subject} / {@code body} 等
+ * （见 docs/domain/README.md 那条判据），而且它带 {@code scene} / {@code subject} / {@code body} 等
  * 只对支付中心有意义的字段，对「现场已收款」的单子没有语义。
  *
  * <p><b>金额口径 NEVER 改</b>：{@code amount} 恒为 ITP 实收金额，BOM 代收单即 {@code 0}。

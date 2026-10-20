@@ -16,7 +16,7 @@
 - `POST /internal/alipay/payment/requestRefund` → **`9001 系统内部错误`（端点不存在）**
 - `POST /api/payment/payQuery` / `POST /api/payment/requestRefund` → `9001`（旧路径已按 hard_switch 删除）
 
-即：迁移第 7 条（payQuery / executeTermination）已在 1.1.32 上线，**第 8 条（requestRefund 改 URL）从未上线**，而上游 fep-alipay 那侧已经切了 —— 于是**运维退款入口在那段时间内一打就是 `9001`**，两侧都不报 404、日志里只有一行 `9001`。这是 AGENTS.md §7「pom `<version>` 不等于线上版本」的又一次实证：**判断某条迁移上没上线 MUST 探活 + 查 Deployment tag，NEVER 看仓库 pom**。
+即：迁移第 7 条（payQuery / executeTermination）已在 1.1.32 上线，**第 8 条（requestRefund 改 URL）从未上线**，而上游 fep-alipay 那侧已经切了 —— 于是**运维退款入口在那段时间内一打就是 `9001`**，两侧都不报 404、日志里只有一行 `9001`。这是 `docs/ops/构建与部署规范.md` §7「pom `<version>` 不等于线上版本」的又一次实证：**判断某条迁移上没上线 MUST 探活 + 查 Deployment tag，NEVER 看仓库 pom**。
 
 连带一条本模块专属判据：**`9001 系统内部错误` 是本模块「路径无 handler」的伪装形态**（不是 UUID retCode）。但它**不唯一**——见 §三 E1，参数类异常也落这个码，因此 **看到 `9001` MUST 去服务端日志取原文**。
 
@@ -62,4 +62,4 @@ DELETE FROM ALIPAY_PAY_LOG    WHERE ORDER_NO = 'E2E20260918REFUND001';
 
 - **没有真正验到 `Accepted` + `SUCCESS` 那一支**（明细置 `SUCCESS` → 紧接着刷 `ALIPAY_PAY_LOG` 汇总）：需要一笔支付中心侧真实存在且可退的订单，测试环境暂无。该分支目前只有单测覆盖（`AlipayPayRefundServiceImplTest` 的 `refundSuccessWritesDetailBeforeRefreshingSummary`，用 `InOrder` 钉住「先明细后汇总」）。
 - E1 那条 `IllegalArgumentException → 9001` 的伪装，见 §三。
-- 本端点仍**无鉴权、无归属校验**（既改状态又出网发起真实退款），与 AGENTS.md §5.2 冲突，属既有缺口。
+- 本端点仍**无鉴权、无归属校验**（既改状态又出网发起真实退款），与 AGENTS.md §4.2 冲突，属既有缺口。

@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.chinasofti.huateng</groupId>
     <artifactId>para-server</artifactId>
-    <version>2.0.28</version>
+    <version>2.0.31</version>
     <packaging>jar</packaging>
 
     <parent>
@@ -106,9 +106,6 @@
     <profiles>
         <profile>
             <id>remote</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
             <build>
                 <plugins>
                     <plugin>

@@ -69,56 +69,20 @@ const activeMenu = computed(() => {
 </script>
 
 <style lang="scss" scoped>
+/* 本块只允许出现「能命中本组件自身模板元素」的规则：.sidebar-container，以及本组件直接使用的
+   .el-menu 根节点。
+   el-menu-item / el-sub-menu__title / .scrollbar-wrapper 都由 SidebarItem.vue 与 Element Plus 渲染，
+   身上不带本组件的作用域属性（实测：它们带的是 data-v-4d78b7c7 与组件自身 id，不是本组件的 id），
+   写在这里必然是死代码。2026-10-15 已把这批历史遗留规则整体清理 ——
+   菜单「一级 / 二级」的字号与背景色层级样式统一放在全局 assets/styles/sidebar.scss，
+   NEVER 再写回本块的 scoped 作用域里。 */
 .sidebar-container {
   background-color: v-bind(getMenuBackground);
-  
-  .scrollbar-wrapper {
-    background-color: v-bind(getMenuBackground);
-  }
 
   .el-menu {
     border: none;
     height: 100%;
     width: 100% !important;
-    
-    .el-menu-item, .el-sub-menu__title {
-      &:hover {
-        background-color: var(--menu-hover, rgba(0, 0, 0, 0.06)) !important;
-      }
-    }
-
-    .el-menu-item {
-      color: v-bind(getMenuTextColor);
-      
-      &.is-active {
-        color: var(--menu-active-text, #409eff);
-        background-color: var(--menu-hover, rgba(0, 0, 0, 0.06)) !important;
-      }
-    }
-
-    .el-sub-menu__title {
-      color: v-bind(getMenuTextColor);
-      font-size: 14px;
-    }
-    
-    /* 一级菜单样式 */
-    > .el-sub-menu > .el-sub-menu__title {
-      font-size: 15px;
-      font-weight: 600;
-      background-color: rgba(0, 0, 0, 0.05) !important;
-    }
-    
-    /* 嵌套菜单（二级）样式 */
-    .nest-menu .el-sub-menu > .el-sub-menu__title,
-    .nest-menu .el-menu-item {
-      font-size: 13px;
-      font-weight: normal;
-      padding-left: 40px !important;
-    }
-    
-    .nest-menu .el-menu-item:not(.is-active) {
-      color: opacity(getMenuTextColor, 0.9);
-    }
   }
 }
 </style>

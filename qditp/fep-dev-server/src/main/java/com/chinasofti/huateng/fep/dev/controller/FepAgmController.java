@@ -111,7 +111,9 @@ public class FepAgmController {
     /** IF1A-03 设备心跳。 */
     @PostMapping({"/deviceHeartbeat", "/notiDeviceHeard"})
     public DeviceHeartbeatRespDTO deviceHeartbeat(@ModelAttribute ItpCommonFormRequest request) {
-        log.info("IF1A-03 设备心跳, deviceId={}", request == null ? null : request.getDeviceId());
+        String deviceId = request == null ? null : request.getDeviceId();
+        log.info("IF1A-03 设备心跳, deviceId={}", deviceId);
+        // 异步落库：失败不得影响接口返回成功
         DeviceHeartbeatRespDTO response = new DeviceHeartbeatRespDTO();
         response.setRetCode(FepDevErrorCodeEnum.SUCCESS.getCode());
         response.setRetMsg(FepDevErrorCodeEnum.SUCCESS.getMessage());

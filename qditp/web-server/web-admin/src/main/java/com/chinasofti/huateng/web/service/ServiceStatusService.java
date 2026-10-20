@@ -28,11 +28,11 @@ public class ServiceStatusService {
     private static final Duration PROBE_TIMEOUT = Duration.ofSeconds(3);
     private static final DateTimeFormatter CHECKED_AT_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    /** 探活并发用虚拟线程池：任务是纯 IO 等待，平台线程池只会徒增调参负担。 */
-    private final Executor probeExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    /** 探活并发用平台线程池：禁用虚拟线程后改用 cached 线程池处理纯 IO 等待。 */
+    private final Executor probeExecutor = Executors.newCachedThreadPool();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(PROBE_TIMEOUT)
-            .executor(Executors.newVirtualThreadPerTaskExecutor())
+            .executor(Executors.newCachedThreadPool())
             .build();
 
     private final List<ServiceTarget> targets;

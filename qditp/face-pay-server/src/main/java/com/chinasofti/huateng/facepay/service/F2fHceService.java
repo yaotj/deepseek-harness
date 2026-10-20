@@ -9,6 +9,7 @@ import com.chinasofti.huateng.facepay.domain.F2fDuplicateKey;
 import com.chinasofti.huateng.facepay.entity.F2fResultReport;
 import com.chinasofti.huateng.facepay.mapper.F2fResultReportMapper;
 import com.chinasofti.huateng.facepay.support.F2fChannel;
+import com.chinasofti.huateng.facepay.support.F2fDeviceId;
 import com.chinasofti.huateng.model.app.UpdateHceDataReqDTO;
 import com.chinasofti.huateng.model.app.UpdateHceDataResult;
 import com.chinasofti.huateng.model.ticket.RequestCardDataAnalyseRespDTO;
@@ -172,14 +173,14 @@ public class F2fHceService {
     }
 
     /**
-     * 由设备号推导所属站码：取前 4 位。与 TVM 侧 {@code TvmResponses} 的口径一致，且已用
-     * {@code STATION_INFO} 核验（BOM 设备号形如 {@code 06220801} → 站码 {@code 0622}=辛屯）。
-     * 设备号不足 4 位时返回空串（由下游按未知站处理）。
+     * 由设备号推导所属站码，供 {@code bomStationCode} 使用。
+     *
+     * <p>解析口径的唯一真源是 {@link F2fDeviceId#stationCode(String)}（取前 4 位，规则见 ADR-D157）。
+     * 本方法只负责把「推不出来」表示成该 RPC 字段约定的空串（下游按未知站处理），
+     * NEVER 在此重写解析规则、也 NEVER 改回 {@code TvmResponses} 那种 {@code <= 4} 判据。
      */
     private static String deriveStationCode(String deviceId) {
-        if (deviceId == null || deviceId.length() < 4) {
-            return "";
-        }
-        return deviceId.substring(0, 4);
+        String stationCode = F2fDeviceId.stationCode(deviceId);
+        return stationCode == null ? "" : stationCode;
     }
 }

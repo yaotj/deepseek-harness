@@ -1,6 +1,6 @@
 # 架构总览（qd-itp）
 
-> 本文档承载 `AGENTS.md` §3 移出的详细信息：真实端口、调用拓扑、配置现状、部署链路。
+> 本文档承载 AGENTS.md §3「Architecture & Modules (架构与模块)」移出的详细信息：真实端口、调用拓扑、配置现状、部署链路。
 > 端口与配置值均为从各模块 `src/main/resources/application.properties|yml` 实读，非推测。
 
 ## 一、分层与通信形态

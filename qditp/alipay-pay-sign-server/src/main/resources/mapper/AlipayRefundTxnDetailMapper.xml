@@ -146,7 +146,7 @@
       1. 内层先 order by、外层再 ROWNUM，顺序 NEVER 反过来：先截断再排序取到的是任意一批。
       2. 内层列清单用 Base_Column_List（全是物理列名、没有驼峰别名），因此外层 SELECT * 与
          BaseResultMap 能对上；一旦给内层起驼峰别名，Oracle 会把别名折叠成大写无下划线，
-         外层再按物理列名引用就是 ORA-00904（AGENTS.md §5.1 有同款事故）。
+         外层再按物理列名引用就是 ORA-00904（docs/architecture/mybatis-oracle-runtime-traps.md §4 有同款事故）。
       3. NEXT_REQUEST_TIME 闸门是本表的退避手段（旧表 ALIPAY_REFUND_LOG 没有这一列，只能靠静默期），
          IS NULL 兜住从没退避过的行。
       4. NVL(UPDATE_TIME, CREATE_TIME) 静默期闸门与退避闸门并存：前者给正常回调留时间，

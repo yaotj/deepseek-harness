@@ -54,7 +54,7 @@ spec:
           value: 'false'
         - name: service.ticket.url
           value: http://172.20.211.200:30014
-        - name: server.port
+        - name: SERVER_PORT
           value: '9098'
         - name: other.sql.username
           value: qditp
@@ -139,7 +139,7 @@ spec:
           value: account
         - name: NAMESPACE
           value: itp
-        image: os-harbor-svc.default.svc.cloudos:443/itp/account-server:2.0.80
+        image: os-harbor-svc.default.svc.cloudos:443/itp/account-server:2.0.83
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: account

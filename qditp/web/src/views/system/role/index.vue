@@ -382,7 +382,13 @@ function handleUpdate(row) {
   const roleMenu = getRoleMenuTreeselect(roleId)
   getRole(roleId).then(response => {
     form.value = response.data
-    form.value.true, false)
+    open.value = true
+    nextTick(() => {
+      roleMenu.then(res => {
+        let checkedKeys = res.checkedKeys
+        checkedKeys.forEach((v) => {
+          nextTick(() => {
+            menuRef.value.setChecked(v, true, false)
           })
         })
       })

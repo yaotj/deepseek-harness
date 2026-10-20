@@ -38,7 +38,7 @@ spec:
           value: '01'
         - name: industry.timestamp-expire-hours
           value: '4'
-        - name: server.port
+        - name: SERVER_PORT
           value: '8080'
         - name: service.security.openLogger
           value: 'true'

@@ -1,0 +1,1 @@
+import t from"./ItpUserSearchPanel-DcT9AfLQ.js";import{o as e,l as o,z as r}from"./index-YjtM4NJK.js";import"./userSearch-Ck34p_EK.js";import"./codeLabel-nDyLZdCT.js";import"./cardType-Cb31yq6x.js";import"./payChannel-lsaTSVoi.js";const s=r({name:"ItpUserSearch"}),l=Object.assign(s,{setup(a){return(p,c)=>(e(),o(t,{"fixed-status":"ACTIVE"}))}});export{l as default};

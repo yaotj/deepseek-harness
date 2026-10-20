@@ -112,21 +112,18 @@ public class SysDeptController extends BaseController
 
     /**
      * 删除部门
+     *
+     * 2026-10-15 业主要求：级别为 0 的公司也要能删除。原先这里拦两道（存在下级部门 / 部门存在用户即返回 warn），
+     * 现改为级联删除 —— 下级部门一并删除、子树内用户的部门归属置空，收口逻辑见 ISysDeptService#deleteDeptCascade
+     * （逻辑删除 del_flag='2'，可回滚）。
+     * ⚠️ 数据权限校验 MUST 保留：去掉后普通角色可越权删除其数据范围外的部门。
      */
     @PreAuthorize("@ss.hasPermi('system:dept:remove')")
     @Log(title = "部门管理", businessType = BusinessType.DELETE)
     @DeleteMapping("/{deptId}")
     public AjaxResult remove(@PathVariable Long deptId)
     {
-        if (deptService.hasChildByDeptId(deptId))
-        {
-            return warn("存在下级部门,不允许删除");
-        }
-        if (deptService.checkDeptExistUser(deptId))
-        {
-            return warn("部门存在用户,不允许删除");
-        }
         deptService.checkDeptDataScope(deptId);
-        return toAjax(deptService.deleteDeptById(deptId));
+        return toAjax(deptService.deleteDeptCascade(deptId));
     }
 }

@@ -34,7 +34,7 @@ import java.util.Map;
  *
  * <p><b>本类零 {@code @Transactional}、NEVER 加</b>：四个终态入口在最后都要
  * {@code refundNotifyService.deliverOne} 出网推 APP，加事务会同时踩
- * AGENTS.md §5.2「事务内 NEVER 发通知」与「事务内 NEVER 发 RPC」两条。
+ * docs/architecture/transaction-and-consistency.md §4 / §6 两条（事务内 NEVER 发通知 / 发 RPC）。
  * 若将来确实要加，MUST 同批把那四处投递改成 afterCommit 触发。
  *
  * <p><b>以下两段是从拆分前宿主 {@code DailyTicketServiceImpl.markRefundNotifyPending}
@@ -49,7 +49,7 @@ import java.util.Map;
  * {@code NOTIFY_TIMES=0}，APP 一次都没收到退款结果。
  *
  * <p>本类零 {@code @Transactional}（每条 SQL 自动提交），因此在这里出网不违反
- * AGENTS.md §5.2「事务内不发通知 / 事务内不发 RPC」两条；
+ * docs/architecture/transaction-and-consistency.md §4 / §6 两条（事务内不发通知 / 不发 RPC）；
  * <b>若将来给本类加上事务注解，MUST 同批把这四处投递改成 afterCommit 触发。</b>
  *
  * <p>方法名与拆分前的私有方法**逐字保持一致**，为的是让「拆分前后行为一致」这件事可以逐行对照，

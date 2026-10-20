@@ -55,7 +55,7 @@ spec:
           value: 'false'
         - name: ftp.ip
           value: 10.4.22.69
-        - name: server.port
+        - name: SERVER_PORT
           value: '8080'
         - name: pagehelper.helper-dialect
           value: oracle

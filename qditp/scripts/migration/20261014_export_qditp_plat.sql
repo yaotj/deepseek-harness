@@ -1,10 +1,13 @@
 -- =============================================================================
 -- 青岛地铁 ITP 数据库按域分库 — QDITP_PLAT 域数据导出脚本（expdp）
 -- 配套文档：docs/ops/数据库按域分库迁移DDL草案.md
--- 状态：v1.7 执行包（仅供评审，严禁直接在生产库执行）
--- 用途：用 Data Pump 导出 QDITP_PLAT 域 ~71 张表的实际数据
+-- 状态：v1.8 执行包（2026-10-17：exclude 收紧为 grant,statistics——索引/约束/触发器
+--       随行导入，F2F GLOBAL 索引保持现状；跨库全流程见 20261017_m2m3_crossdb_hongdao.sql）
+-- 用途：用 Data Pump 导出 QDITP_PLAT 域 ~76 张表的实际数据
 -- 特殊说明：
 --   - SYS_* / QRTZ_* 是管理后台 + 调度表，数据量小但数量多
+--   - SYS_USER_ROLE / SYS_ROLE_MENU / SYS_ROLE_DEPT / SYS_USER_POST / SYS_JOB_LOG
+--     为 RuoYi 多对多关联/日志表（2026-10-19 补入；原 bundle 漏列，曾导致授权数据不被导出）
 --   - TBL_* 参数/票价/线路/站点是全域只读引用数据，导完需建同义词
 --   - BLACKLIST* 黑名单表导完后需对 USER/TXN/RIDE 建同义词
 -- =============================================================================
@@ -49,6 +52,8 @@ PROMPT     &SCHEMA..SYS_USER,&SCHEMA..SYS_ROLE,&SCHEMA..SYS_MENU, \
 PROMPT     &SCHEMA..SYS_DEPT,&SCHEMA..SYS_POST,&SCHEMA..SYS_DICT_TYPE, \
 PROMPT     &SCHEMA..SYS_DICT_DATA,&SCHEMA..SYS_CONFIG,&SCHEMA..SYS_NOTICE, \
 PROMPT     &SCHEMA..SYS_LOGININFOR,&SCHEMA..SYS_OPER_LOG,&SCHEMA..SYS_JOB, \
+PROMPT     &SCHEMA..SYS_USER_ROLE,&SCHEMA..SYS_ROLE_MENU,&SCHEMA..SYS_ROLE_DEPT, \
+PROMPT     &SCHEMA..SYS_USER_POST,&SCHEMA..SYS_JOB_LOG, \
 PROMPT     &SCHEMA..QRTZ_JOB_DETAILS,&SCHEMA..QRTZ_TRIGGERS, \
 PROMPT     &SCHEMA..QRTZ_SIMPLE_TRIGGERS,&SCHEMA..QRTZ_CRON_TRIGGERS, \
 PROMPT     &SCHEMA..QRTZ_BLOB_TRIGGERS,&SCHEMA..QRTZ_CALENDARS, \
@@ -59,7 +64,7 @@ PROMPT     &SCHEMA..COM_DEVICE_SYN_KEY,&SCHEMA..METRO_AGM_KEY_POOL, \
 PROMPT     &SCHEMA..METRO_AGM_KEY_VERSION,&SCHEMA..TBL_NOTICE_APP_FAILURE_RECORD \
 PROMPT   parallel=8 \
 PROMPT   compression=all \
-PROMPT   exclude=index,constraint,trigger,grant,statistics \
+PROMPT   exclude=grant,statistics \
 PROMPT   job_name=exp_plat_domain
 PROMPT ============================================================================
 
@@ -71,6 +76,8 @@ BEGIN
     SELECT 'TBL_LINE_INFO'         FROM dual UNION ALL
     SELECT 'SYS_USER'              FROM dual UNION ALL
     SELECT 'SYS_JOB'               FROM dual UNION ALL
+    SELECT 'SYS_ROLE_MENU'         FROM dual UNION ALL
+    SELECT 'SYS_USER_ROLE'         FROM dual UNION ALL
     SELECT 'QRTZ_JOB_DETAILS'      FROM dual
   ) LOOP
     BEGIN

@@ -6,6 +6,7 @@ import com.chinasofti.huateng.account.entity.UserItpRegInfo;
 import com.chinasofti.huateng.account.entity.UserItpRegLog;
 import com.chinasofti.huateng.account.mapper.UserItpRegInfoMapper;
 import com.chinasofti.huateng.account.mapper.UserItpRegLogMapper;
+import com.chinasofti.huateng.account.mapper.UserPayChannelMapper;
 import com.chinasofti.huateng.account.service.AccountArchiveService;
 import com.chinasofti.huateng.account.service.AccountCancelService;
 import com.chinasofti.huateng.model.app.RequestUserAccInfoReqDTO;
@@ -40,6 +41,11 @@ public class AccountCancelServiceImpl implements AccountCancelService {
     private final UserItpRegLogMapper userItpRegLogMapper;
 
     /**
+     * 销户前校验支付通道是否已清空用。
+     */
+    private final UserPayChannelMapper userPayChannelMapper;
+
+    /**
      * 销户归档的协作者。
      */
     private final AccountArchiveService accountArchiveService;
@@ -65,11 +71,13 @@ public class AccountCancelServiceImpl implements AccountCancelService {
      */
     public AccountCancelServiceImpl(UserItpRegInfoMapper userItpRegInfoMapper,
                                     UserItpRegLogMapper userItpRegLogMapper,
+                                    UserPayChannelMapper userPayChannelMapper,
                                     AccountArchiveService accountArchiveService,
                                     GateTxnPayClient gateTxnPayClient,
                                     TransactionTemplate transactionTemplate) {
         this.userItpRegInfoMapper = userItpRegInfoMapper;
         this.userItpRegLogMapper = userItpRegLogMapper;
+        this.userPayChannelMapper = userPayChannelMapper;
         this.accountArchiveService = accountArchiveService;
         this.gateTxnPayClient = gateTxnPayClient;
         this.transactionTemplate = transactionTemplate;
@@ -113,11 +121,18 @@ public class AccountCancelServiceImpl implements AccountCancelService {
             log.warn("IF8A-42销户已关闭未结清订单校验(app.user-cancel.check-unsettled=false), thirdUserId={}", thirdUserId);
         }
 
+        String channelCheckRejectCode = checkPayChannelCleared(thirdUserId);
+        if (channelCheckRejectCode != null) {
+            response.setRetCode(channelCheckRejectCode);
+            response.setRetMsg(AccountErrorCodeEnum.PAY_CHANNEL_REMAINING.getMsg());
+            return response;
+        }
+
         try {
             Integer canceled = transactionTemplate.execute(status -> doCancelUserCards(thirdUserId, activeCards));
             response.setRetCode(AccountErrorCodeEnum.SUCCESS.getCode());
             response.setRetMsg(AccountErrorCodeEnum.SUCCESS.getMsg());
-            log.info("IF8A-42销户成功, thirdUserId={}, 本次注销票卡数={}, 支付通道未删除(留给IF8A-75解绑)",
+            log.info("IF8A-42销户成功, thirdUserId={}, 本次注销票卡数={}, 支付通道已清空",
                     thirdUserId, canceled);
             accountArchiveService.tryArchiveAfterCancel(thirdUserId);
             return response;
@@ -155,6 +170,22 @@ public class AccountCancelServiceImpl implements AccountCancelService {
             return AccountErrorCodeEnum.UNSETTLED_ORDER_EXISTS.getCode();
         }
         log.info("IF8A-42销户前账务校验通过, thirdUserId={}", thirdUserId);
+        return null;
+    }
+
+    /**
+     * 销户前校验该用户的签约支付通道是否已全部解绑。
+     *
+     * @return {@code null} 表示允许销户；否则返回应拒绝的错误码
+     */
+    private String checkPayChannelCleared(String thirdUserId) {
+        int remainingChannels = userPayChannelMapper.countByThirdUserId(thirdUserId);
+        if (remainingChannels > 0) {
+            log.warn("IF8A-42销户被拒绝, 存在未解绑支付渠道, thirdUserId={}, remainingChannels={}",
+                    thirdUserId, remainingChannels);
+            return AccountErrorCodeEnum.PAY_CHANNEL_REMAINING.getCode();
+        }
+        log.info("IF8A-42销户前支付通道校验通过, thirdUserId={}", thirdUserId);
         return null;
     }
 

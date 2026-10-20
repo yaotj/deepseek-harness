@@ -46,6 +46,7 @@
 <script setup name="AlipayUserSearch">
 import { searchAlipayUsers } from '@/api/trans/userSearch'
 import { formatCodeLabel } from '@/utils/codeLabel'
+import { cardTypeLabel } from '@/utils/cardType'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
@@ -55,38 +56,14 @@ const users = ref([])
 const queryParams = reactive({ queryType: 'MSISDN', keyword: '', pageNum: 1, pageSize: 10 })
 const keywordPlaceholder = computed(() => ({ MSISDN: '请输入手机号', CARD_ID: '请输入逻辑卡号', THIRD_USER_ID: '请输入第三方用户 ID' })[queryParams.queryType])
 
-/** ALIPAY_USER_INFO.CARD_TYPE 原样落开户请求上送值，两位与四位写法并存，与 trans/user/itp 页保持同一套码表。 */
-const cardTypeLabels = {
-  '02': '后付费二维码',
-  '03': 'HCE卡',
-  '04': '新HCE卡',
-  '11': '员工码',
-  '12': '一日票',
-  '13': '三日票',
-  '14': '七日票',
-  '15': '多日计次票',
-  '0441': '后付费二维码',
-  '0442': 'HCE卡',
-  '0443': '新HCE卡',
-  '0444': '员工码',
-  '0445': '一日票',
-  '0446': '三日票',
-  '0447': '七日票',
-  '0448': '多日计次票'
-}
-
 /**
  * ALIPAY_USER_INFO.CHANNEL 是**发卡渠道**（`IssueChannelCodeEnum`，开户时固定写 ALIPAY），
- * NEVER 套用 trans/user/itp 页的 channelLabels —— 那张表是支付渠道（03 支付宝 / 04 微信 …），
+ * NEVER 套用 `@/utils/payChannel` 的 PAY_CHANNEL_LABELS —— 那张表是支付渠道（03 支付宝 / 04 微信 …），
  * 两者码值空间不同，混用会把 07 翻成错的名字。本表取值只能跟着 IssueChannelCodeEnum 走。
  */
 const issueChannelLabels = {
   '01': '正常渠道',
   '07': '支付宝'
-}
-
-function cardTypeLabel(value) {
-  return formatCodeLabel(value, cardTypeLabels)
 }
 
 function issueChannelLabel(value) {

@@ -1,6 +1,6 @@
 # web-server / web 详细设计（管理后台）
 
-> 对应 `AGENTS.md` §3.2 中 web-server、web 两行的「详情」。
+> 本文档是 AGENTS.md §3.1「代码分层约定（Spring Boot 模块内部）」导航索引中 web-server、web 两个模块的详细设计。
 > 本文档讲**技术结构**；运营页面接口该放哪个模块的约定见 [`../business/admin-web.md`](../business/admin-web.md)。
 
 ## 一、定位与关键事实
@@ -92,7 +92,7 @@ web/src/
 
 > `AlipayPaySignClient` 的 Bean 由已有的 `@EnableRpcPaySign` 一并扫入（该注解的 `basePackages` 同时含 `com.chinasofti.huateng.rpc.paySign` 与 `com.chinasofti.huateng.rpc.alipay.paysign`），**无需**新增 `@EnableRpcXxx`；但地址键是独立的 `service.alipay-pay-sign.url`（注意是中划线，不是 `alipayPaySign`），漏配会落到默认服务名。
 
-⚠️ **这不等于「业务模块不再有定时任务」**。模块内部的落库补偿仍按 AGENTS.md §5.1 用本模块 `@Scheduled` 扫表，**当前仍在跑的只剩两个模块**（2026-09-16 逐模块实测：行首锚定匹配、已排除 Javadoc 注释里的字样）：`face-pay-server`（**7 个、分布在 6 个类**，含补款 `converge` / `closeTimeout`）与 `collect-pay-server/.../task/SingleTicketRefundTask.java`（**4 个**）。已全部迁走、模块内 `@Scheduled` 现为 **0 个** 的是 **`pay-sign-server`**（其 10 个 `/internal/**` 补偿端点**全部由本处 `sys_job` 触发**，排查 MUST 查 `SYS_JOB_LOG`）与 **`gate-txn-pay-server`**（原 `SupplementOrderCloseProcessor` 的补款任务已连同该类**整体迁到 `face-pay-server`**；`MetroTransferPushTaskProcessor` 与 `OfflineFareRecoveryProcessor` 两个类留在本模块但已迁到本处 `sys_job` 295 / 300）。
+⚠️ **这不等于「业务模块不再有定时任务」**。模块内部的落库补偿仍按 AGENTS.md §4.1「落库状态 + `@Scheduled` 扫表重试」用本模块 `@Scheduled` 扫表，**当前仍在跑的只剩两个模块**（2026-09-16 逐模块实测：行首锚定匹配、已排除 Javadoc 注释里的字样）：`face-pay-server`（**7 个、分布在 6 个类**，含补款 `converge` / `closeTimeout`）与 `collect-pay-server/.../task/SingleTicketRefundTask.java`（**4 个**）。已全部迁走、模块内 `@Scheduled` 现为 **0 个** 的是 **`pay-sign-server`**（其 10 个 `/internal/**` 补偿端点**全部由本处 `sys_job` 触发**，排查 MUST 查 `SYS_JOB_LOG`）与 **`gate-txn-pay-server`**（原 `SupplementOrderCloseProcessor` 的补款任务已连同该类**整体迁到 `face-pay-server`**；`MetroTransferPushTaskProcessor` 与 `OfflineFareRecoveryProcessor` 两个类留在本模块但已迁到本处 `sys_job` 295 / 300）。
 
 ⚠️ 本处旧记载「`collect-pay-server/.../task/NoticeAppTask.java`（3 个）」**已作废** —— 该文件仍在但**已无 `@Scheduled`**，collect-pay 的调度实际在 `SingleTicketRefundTask`、是 **4 个**；旧记载把 `pay-sign-server/.../service/AppNotifyService.java` 列为在跑也**已作废**（该模块 0 个 `@Scheduled`）。**NEVER 回退。** 两种方式的分工：**要人工可控（改 Cron / 暂停 / 补跑）的走 web-server Quartz，纯内部重试留在本模块 `@Scheduled`**；同一件事 **NEVER** 两边各建一份。
 
@@ -228,9 +228,9 @@ public class AccountQuartzTask {
 
 约束：
 - 任务方法 **MUST** 是 `public` 无参（前台 `invokeTarget` 也支持字面量入参，但本项目现有任务都用无参）。
-- **MUST 显式校验 `response == null` 与 `retCode != "0000"` 并抛异常**：不抛异常 Quartz 一律记「成功」，`sys_job_log` 里看不出失败。这与 AGENTS.md §5.2「返回值必须显式检查」是同一条要求。
+- **MUST 显式校验 `response == null` 与 `retCode != "0000"` 并抛异常**：不抛异常 Quartz 一律记「成功」，`sys_job_log` 里看不出失败。这与 docs/architecture/transaction-and-consistency.md §3「RPC 包装方法 MUST 返回 `RpcOutcome`，NEVER 返回 boolean」是同一条要求。
 - 任务类里 **NEVER** 写业务逻辑与 SQL，只做「调 Client + 判返回 + 抛异常」；补偿逻辑留在下游服务自己的表和状态机上。
-- **下游服务的补偿扫表 NEVER 用 `@Scheduled` 与本处的 `sys_job` 并存**。两套调度源互不知情，改 cron 时只改一处就会出现「以为改了、实际另一套还在按老频率跑」。已落地的第一个真实补偿任务是 `accountQuartzTask.compensatePhoneSignSync()`（2026-09-11，触发 account-server `POST /phoneSignSyncCompensate` 重推 `USER_PHONE_CHANGE_LOG.SIGN_SYNC_STATUS` 为 `PENDING`/`FAILED` 的行），account-server 侧**刻意没有** `@Scheduled`。注意这条只约束**前台可配的**补偿；`collect-pay-server` / `pay-sign-server` / `gate-txn-pay-server` 模块内既有的 `@Scheduled` 保持不动（AGENTS.md §2.2.1）。
+- **下游服务的补偿扫表 NEVER 用 `@Scheduled` 与本处的 `sys_job` 并存**。两套调度源互不知情，改 cron 时只改一处就会出现「以为改了、实际另一套还在按老频率跑」。已落地的第一个真实补偿任务是 `accountQuartzTask.compensatePhoneSignSync()`（2026-09-11，触发 account-server `POST /phoneSignSyncCompensate` 重推 `USER_PHONE_CHANGE_LOG.SIGN_SYNC_STATUS` 为 `PENDING`/`FAILED` 的行），account-server 侧**刻意没有** `@Scheduled`。注意这条只约束**前台可配的**补偿；`collect-pay-server` / `pay-sign-server` / `gate-txn-pay-server` 模块内既有的 `@Scheduled` 保持不动（docs/business/README.md 全局事实）。
 
 ### 7.2 前台新增任务
 
@@ -259,7 +259,7 @@ public CommonResult quartzDemo() {
 }
 ```
 
-⚠️ 这类接口**没有鉴权**。只放「触发本服务内部扫表补偿」这类动作是可接受的；**NEVER** 让它接收外部可控的业务参数去改单笔用户数据（AGENTS.md §5.2「新增状态变更型接口 MUST 有鉴权与归属校验」）。同时下游被触发的逻辑 **MUST** 幂等 —— 前台「执行一次」和 Cron 重叠会重复调用。
+⚠️ 这类接口**没有鉴权**。只放「触发本服务内部扫表补偿」这类动作是可接受的；**NEVER** 让它接收外部可控的业务参数去改单笔用户数据（docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」）。同时下游被触发的逻辑 **MUST** 幂等 —— 前台「执行一次」和 Cron 重叠会重复调用。
 
 ### 7.4 rpc 侧与配置
 
@@ -295,7 +295,7 @@ service.recon.url=${RECON_SERVICE_URL:http://recon-server-bjzdy-svc.itp.svc:3003
 service.recon.openLogger=true
 ```
 
-⚠️ 默认值是本地地址，仅用于开发；上线 **MUST** 由 K8s 注入 `ACCOUNT_SERVICE_URL` / `F2F_SERVICE_URL` / `PAY_SIGN_SERVICE_URL` / `ALIPAY_PAY_SIGN_SERVICE_URL` 指向集群 Service，并把新增的键补进 `docs/ops/生产环境清单.md` 的环境变量清单。缺键会落到 `rpc` 默认服务名 `*-service`、DNS 解析不到（AGENTS.md §8）。`service.alipay-pay-sign.url` 的默认值故意不写 `127.0.0.1:8080`——那是 web-admin 自己的端口，写了会自调。
+⚠️ 默认值是本地地址，仅用于开发；上线 **MUST** 由 K8s 注入 `ACCOUNT_SERVICE_URL` / `F2F_SERVICE_URL` / `PAY_SIGN_SERVICE_URL` / `ALIPAY_PAY_SIGN_SERVICE_URL` 指向集群 Service，并把新增的键补进 `docs/ops/生产环境清单.md` 的环境变量清单。缺键会落到 `rpc` 默认服务名 `*-service`、DNS 解析不到（`docs/ops/构建与部署规范.md` §8）。`service.alipay-pay-sign.url` 的默认值故意不写 `127.0.0.1:8080`——那是 web-admin 自己的端口，写了会自调。
 
 
 ### 7.5 已知约束
@@ -388,7 +388,7 @@ end   = create_time + query-window-after-millis
   ⚠️ **出处说明**：由此推出的运维判据「`QRTZ_JOB_DETAILS` / `QRTZ_TRIGGERS` 恒为 0 行、这不等于任务没跑、
   判断任务是否在跑 MUST 查 `SYS_JOB_LOG`」**在 Java 注释里没有**，真实出处是
   `web-server/web-quartz/src/main/resources/sql/web-quartz-refund-compensate-job-migration.sql`
-  的脚本头注释与 AGENTS.md §8。
+  的脚本头注释与 `docs/ops/构建与部署规范.md` §8。
 - 【契约】**迁移脚本头注释给出的四条生效条件**（web-quartz · `web-quartz-refund-compensate-job-migration.sql`，
   标题原文「执行方式与生效条件（MUST 先读完再执行）」）：
   1. 「Quartz 用内存 JobStore，任务只在 web-admin 启动时由 @PostConstruct 从 sys_job 全量加载。
@@ -521,7 +521,7 @@ end   = create_time + query-window-after-millis
   配套字典行由 web-quartz · `web-quartz-job-log-running-status-migration.sql`（**该文件没有头注释**，只有 SQL 与
   remark 列文案）落库，第 2 行的 remark 原文是「任务开始时先落该状态，收口后回写为成功或失败」，
   `list_class` 取 `'warning'`、`dict_sort=3`、`is_default='N'`、`status='0'`，并用
-  `WHERE NOT EXISTS (...)` 做幂等。⚠️ **「回查 DICT_CODE=100」这一条只在 AGENTS.md §8 里，脚本内没有。**
+  `WHERE NOT EXISTS (...)` 做幂等。⚠️ **「回查 DICT_CODE=100」这一条只在 docs/ops/构建与部署规范.md §8「回查 `DICT_CODE=100`」里，脚本内没有。**
 - 【契约】**`sys_job_log` 只有 `create_time` 一个时间列**（web-quartz · `JobTraceLogServiceImpl` 类注释，
   `.../quartz/service/impl/JobTraceLogServiceImpl.java`）：「时间窗由 `sys_job_log.create_time` 与
   `job_message` 里的耗时反推。该表**没有** start_time / stop_time 列（见 `SysJobLogMapper.xml` 的 resultMap），
@@ -688,7 +688,7 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
   （默认值在 `resource/micro/web/src/main/resources/web.properties` 里是 false，目前只有 pay-sign-server 显式打开）。
   未打开时头仍会发出去，但对端 `%X{traceId}` 取不到，只能靠 `x-vlogs-capture` 做日志采集——
   **这一点部署后 MUST 用日志实测确认**。」`CardPoolQuartzTask.java` 同款但已注明 card-pool-server 已打开。
-  ⚠️ 这两处「目前只有 pay-sign-server 显式打开」与 AGENTS.md §2.2.1 的「已打开的模块只有 7 个」不一致（见文末矛盾清单）。
+  ⚠️ 这两处「目前只有 pay-sign-server 显式打开」与 docs/business/README.md 全局事实 的「已打开的模块只有 7 个」不一致（见文末矛盾清单）。
 - 【契约】**`AccountQuartzTask.compensatePhoneSignSync` 的扫描对象**（`AccountQuartzTask.java`）：
   「触发 account-server 扫 USER_PHONE_CHANGE_LOG 里 SIGN_SYNC_STATUS 为 PENDING / FAILED 的行，
   逐条向支付域重推显示账号。扫描范围与批量上限由下游决定，本任务不传参。」
@@ -766,7 +766,7 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
   `<dict-tag :options="sys_common_status" :value="scope.row.status" />`，字典在 
   `proxy.useDict("sys_common_status", "sys_job_group")` 注入；查询条件下拉在 ）。
   ⚠️ 「缺字典项时该列渲染成空白且后端毫无报错」这条判据**前端文件里没有注释**，
-  真实出处是 web-common · `Constants.RUNNING` 的 Javadoc（见附二）与 AGENTS.md §8。
+  真实出处是 web-common · `Constants.RUNNING` 的 Javadoc（见附二）与 `docs/ops/构建与部署规范.md` §8。
 - 【契约】**「执行日志」按钮的可用前提是 `job_message` 里有 32 位 hex traceId**
   （`web/src/views/monitor/job/log.vue`）：「是否记录了 traceId：AbstractQuartzJob 把它追加在 job_message 末尾，
   没有则无从检索」，判据是正则 `/traceId=[0-9a-fA-F]{32}/`。
@@ -866,7 +866,7 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
    `statViewServlet.login-username`、 `statViewServlet.login-password`、
    `spring.datasource.druid.filter.wall.config.multi-statement-allow`、 `token.secret`。
   ⚠️ **这些行本身没有任何注释**，「敏感项 MUST 写成 `${ENV_VAR:}` 空默认值并由 K8s Secret 注入、
-  NEVER 写默认真值」这条判据的真实出处是 AGENTS.md §5.2，不是源文件注释。
+  NEVER 写默认真值」这条判据的真实出处是 docs/architecture/security-sensitivity.md §一「敏感配置规则」，不是源文件注释。
   本节按要求只记键名与行号，**不回显值**。
 - 【契约】**主/从数据源与 Druid 连接池的分节位置**（`application.properties`「用户配置」、
   「主库数据源」、（一行乱码占位注释，原文为连续问号，疑似编码损坏，见文末无把握清单）、
@@ -880,18 +880,18 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
    第 7 条是 ORDER_NO 280638294097559552」，且脚本自己声明该数「只增不减、是时点快照不是阈值」。
    **两处都不可引用，MUST 现查那条 SQL。**
 2. **tracing 已打开的模块名单不一致**：`ParaQuartzTask.java` 与 `CardPoolQuartzTask.java`
-   都写「目前只有 pay-sign-server 显式打开」，而 AGENTS.md §2.2.1 记「已打开的模块只有 7 个」
+   都写「目前只有 pay-sign-server 显式打开」，而 docs/business/README.md 全局事实 记「已打开的模块只有 7 个」
    （含 card-pool-server / recon-server / gate-txn-pay-server / daily-ticket-server / collect-pay-server /
    alipay-pay-sign-server）。任务类注释是较早的时点快照。
 3. **TVM 当面付流量归属不一致**：`web/src/api/trans/facePayOrder.js:3` 写「自 2026-09-15（ADR-D85）起
-   由 collect-pay-server 切至 face-pay-server」，而 AGENTS.md §2.2 记 2026-09-16 实测 `fep-app-vr` 的
+   由 collect-pay-server 切至 face-pay-server」，而 `docs/business/README.md` 全局事实记 2026-09-16 实测 `fep-app-vr` 的
    `/itptvm/` 与 `/itpbom/` 仍指向 collect-pay（ADR-D112 推翻了「已切」的记载）。
    注意这两件事**不一定冲突**：前端页面查的是综管台只读接口，与设备入向路由是两条独立开关。
 4. **`ReconQuartzTask.java` 写「默认 4 分钟」**，`application.properties` 写「ReconClient 的响应超时已放宽到
    5 分钟」——前者指 `recon.orchestration.run-timeout-millis`，后者指客户端响应超时，是两个值，
    但同一段文字里并列出现时易被读成同一个。
 5. **`GateTxnPayQuartzTask.java` 写「gate-txn-pay-server 2.0.73 起 …… 都没有 `@Scheduled` 了」**，
-   `application.properties` 同口径；AGENTS.md §2.2.1 记该模块「现在一个 `@Scheduled` 都没有」——一致，
+   `application.properties` 同口径；docs/business/README.md 全局事实 记该模块「现在一个 `@Scheduled` 都没有」——一致，
    但两处都点名那两个 Processor 类**仍留在** gate-txn-pay-server，引用时 MUST 区分「类还在」与「注解没了」。
 
 ### 附九、没把握归类的条目（留待第二阶段裁决）
@@ -1019,7 +1019,7 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
 > **每条给 `路径:行号` + 可 grep 的原文短语。行号是迁移前基线**（删注释后会前移），
 > 定位 **MUST 用 grep 短语，NEVER 直接跳行号**。
 >
-> **本节不改变任何事实**：与 `AGENTS.md` §8「Quartz 内存 JobStore」「`SYS_JOB_LOG` 四处配套」两条重复的部分，
+> **本节不改变任何事实**：与 `docs/ops/构建与部署规范.md` §8「Quartz 内存 JobStore」「`SYS_JOB_LOG` 四处配套」两条重复的部分，
 > 以 AGENTS.md 为准；本节负责的是**代码级细节**（哪个类、哪一行、为什么这么写）。
 
 ### 附A、web-quartz：Quartz 装配与内存 JobStore
@@ -1090,7 +1090,7 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
 **本节原有的 16 条清单已删除，唯一事实源是 [§七「现行 `sys_job` 全量清单」](#现行-sys_job-全量清单2026-10-13-查库实测33-条)。**
 删除原因：本节与 §七 各存一份同样内容的表，2026-10-13 查库实测发现**两份都已过期**
 （实际 33 条、两份都只有 16 条，且 215 的调用目标、255 的名称、最大编号均与库不符）。
-**NEVER 再在本文件里复制第二份 `sys_job` 表** —— 同一个事实散落两处，必然分叉（AGENTS.md §6 第 6 步一致性铁律）。
+**NEVER 再在本文件里复制第二份 `sys_job` 表** —— 同一个事实散落两处，必然分叉（AGENTS.md §5.2「回写义务（通用）」第 5 步一致性铁律）。
 
 本脚本自身的历史信息仍有效，保留备查：
 - 脚本 `web-quartz/src/main/resources/sql/web-quartz-refund-compensate-job-migration.sql`
@@ -1223,7 +1223,7 @@ grep 「cron 每打密一档那张表日增行数就翻一档」）。295 / 300 
    自定义头会与 Micrometer 写入的 traceId 争抢同一个键，行为取决于执行先后、不可控。
 7. **下游要真拿到 traceId，还取决于该模块有没有开 `management.tracing.enabled`**
    （默认值在 `resource/micro/web/src/main/resources/web.properties` 是 `false`）。
-   **已打开的名单在 `AGENTS.md` §2.2.1，NEVER 在代码注释或本节再嵌一份会过期的枚举**；
+   **已打开的名单在 `docs/business/README.md` 全局事实，NEVER 在代码注释或本节再嵌一份会过期的枚举**；
    `para-server` / `card-pool-server` 两个任务类的注释里都提过这件事，其中 para-server **不在**名单内 ——
    未打开时头仍会发出去，但对端 `%X{traceId}` 取不到，只能靠 `x-vlogs-capture` 做采集，
    **这一点部署后 MUST 用日志实测确认**。
@@ -1351,10 +1351,11 @@ grep 「cron 每打密一档那张表日增行数就翻一档」）。295 / 300 
    `RegStats`=`trans/stats/register`、`OfflineCodeStats`=`trans/stats/offline-code`、
    `ItpUserBatchSearch`=`trans/user/batch-search`、`KeyVersion`=`trans/key/version`、
    `ServiceStatus`=`monitor/service-status`、`OvertimeRefund`=`trans/overtime-refund`、
+   **`DeviceHeartbeat`=`monitor/device-heartbeat`**、**`DeviceKeySync`=`monitor/device-key-sync`**、
    `FacePayOrder`=`trans/face-pay/order`、`CardPoolManagement`=`trans/card-pool`、
    `BlacklistManagement`=`trans/blacklist`、`DailyTicketRefund` / `DailyTicketRefundRecord`=`trans/daily-ticket/*`、
-   `ItpUserSearch` / `AlipayUserSearch` / `UserPayChannel` / `UserRideStatus` / `UserDebitDetail` /
-   `UserTransactionDetail`=`trans/user/*`。
+   `ItpUserSearch` / `ItpUserCanceledSearch` / `AlipayUserSearch` / `UserPayChannel` /
+   `UserRideStatus` / `UserDebitDetail` / `UserTransactionDetail`=`trans/user/*`。
 2. **前端请求统一带 `/{服务名}` 前缀、转发时删前缀**（`web/vite.config.js:86`，grep 「页面请求统一带」；
    生产侧等价物是 `web/nginx.conf` 的一组 `location /<服务名>` + `proxy_pass .../`）。
    **`web/nginx.conf` 不在本轮删除范围内**（它在 `web/` 根、不在 `web/src/**`），其注释原样保留。
@@ -1365,8 +1366,11 @@ grep 「cron 每打密一档那张表日增行数就翻一档」）。295 / 300 
    URL 后半段 `/page/face-pay/orders` 两服务一字不差、只换前缀，**NEVER 退回 `/collect-pay-server`**。
    **这一条源码侧作为一行式护栏保留了首行**，完整版在此。
 4. **nginx 侧成对关系（改一处 MUST 改另一处）**：
-   `location /face-pay-server` → `172.20.211.23:30025` ↔ `web/src/api/trans/facePayOrder.js`；
-   `location /key-server` → ↔ `web/src/api/trans/keyVersion.js` 的 `/key-server/page/key/versions`。
+   `location /face-pay-server` → `172.20.211.23:30025` ↔ `web/src/api/trans/facePayOrder.js`
+   **以及 `web/src/api/monitor/deviceHeartbeat.js`**（2026-10-15 新增，ADR-D171 / IT-008）——
+   后者 URL 是 `/face-pay-server/page/face-pay/devices`，**前缀复用同一条 `location`、nginx 侧无需改动**；
+   `location /key-server` → ↔ `web/src/api/trans/keyVersion.js` 的 `/key-server/page/key/versions`
+   **以及 `web/src/api/monitor/deviceKeySync.js` 的 `/key-server/page/key/device-sync/list`**。
    `location /collect-pay-server` → 原指向 collect-pay（30024），**该模块 2026-10-13 已下线（0 pod）、旧单页面当前不可用**；
    **NEVER 改指向 30025**——face-pay 上没有那些旧表单。`card-pool-server` 那条**唯一用的是 Service DNS**
    （`card-pool-server-86mc1-svc.itp.svc:30033`），其余都是 `172.20.211.23:<NodePort>`。

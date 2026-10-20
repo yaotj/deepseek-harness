@@ -1,11 +1,14 @@
 package com.chinasofti.huateng.account.service.impl;
 
 import com.chinasofti.huateng.account.entity.UserItpRegInfo;
+import com.chinasofti.huateng.account.entity.UserItpRegLog;
 import com.chinasofti.huateng.account.entity.UserPayChannel;
 import com.chinasofti.huateng.account.mapper.TerminationTimeSummaryMapper;
 import com.chinasofti.huateng.account.mapper.UserItpRegInfoMapper;
+import com.chinasofti.huateng.account.mapper.UserItpRegLogMapper;
 import com.chinasofti.huateng.account.mapper.UserPayChannelMapper;
 import com.chinasofti.huateng.account.page.ItpPayChannelView;
+import com.chinasofti.huateng.account.page.ItpUserCanceledSearchView;
 import com.chinasofti.huateng.account.page.ItpUserSearchView;
 import com.chinasofti.huateng.account.page.RegStatView;
 import com.chinasofti.huateng.account.page.TerminationTimeSummary;
@@ -25,24 +28,28 @@ import java.util.stream.Collectors;
 @Service
 public class ItpUserQueryServiceImpl implements ItpUserQueryService {
     private final UserItpRegInfoMapper userItpRegInfoMapper;
+    private final UserItpRegLogMapper userItpRegLogMapper;
     private final UserPayChannelMapper userPayChannelMapper;
     private final TerminationTimeSummaryMapper terminationTimeSummaryMapper;
 
     public ItpUserQueryServiceImpl(UserItpRegInfoMapper userItpRegInfoMapper,
+                                   UserItpRegLogMapper userItpRegLogMapper,
                                    UserPayChannelMapper userPayChannelMapper,
                                    TerminationTimeSummaryMapper terminationTimeSummaryMapper) {
         this.userItpRegInfoMapper = userItpRegInfoMapper;
+        this.userItpRegLogMapper = userItpRegLogMapper;
         this.userPayChannelMapper = userPayChannelMapper;
         this.terminationTimeSummaryMapper = terminationTimeSummaryMapper;
     }
 
     @Override
-    public List<ItpUserSearchView> search(String queryType, String keyword) {
+    public List<ItpUserSearchView> search(String queryType, String keyword, String status) {
         String trimmed = keyword.trim();
+        int delYn = "CANCELED".equalsIgnoreCase(status) ? 0 : 1;
         List<UserItpRegInfo> users = switch (queryType) {
-            case "THIRD_USER_ID" -> userItpRegInfoMapper.selectListByThirdUserId(trimmed);
-            case "MSISDN" -> userItpRegInfoMapper.selectListByMsisdn(trimmed);
-            case "CARD_ID" -> userItpRegInfoMapper.selectListByCardId(trimmed);
+            case "THIRD_USER_ID" -> userItpRegInfoMapper.selectListByThirdUserIdAndDelYn(trimmed, delYn);
+            case "MSISDN" -> userItpRegInfoMapper.selectListByMsisdnAndDelYn(trimmed, delYn);
+            case "CARD_ID" -> userItpRegInfoMapper.selectListByCardIdAndDelYn(trimmed, delYn);
             default -> null;
         };
         if (users == null) {
@@ -50,6 +57,33 @@ public class ItpUserQueryServiceImpl implements ItpUserQueryService {
         }
         Map<String, TerminationTimeSummary> terminations = loadTerminationTimes(users);
         return users.stream().map(user -> toView(user, terminations)).toList();
+    }
+
+    @Override
+    public List<ItpUserCanceledSearchView> searchCanceledLog(String queryType, String keyword) {
+        String trimmed = keyword.trim();
+        List<UserItpRegLog> logs = switch (queryType) {
+            case "THIRD_USER_ID" -> userItpRegLogMapper.selectCancelLogByThirdUserId(trimmed);
+            case "MSISDN" -> userItpRegLogMapper.selectCancelLogByMsisdn(trimmed);
+            case "CARD_ID" -> userItpRegLogMapper.selectCancelLogByCardId(trimmed);
+            default -> null;
+        };
+        if (logs == null) {
+            return null;
+        }
+        return logs.stream().map(this::toCanceledView).toList();
+    }
+
+    private ItpUserCanceledSearchView toCanceledView(UserItpRegLog log) {
+        ItpUserCanceledSearchView view = new ItpUserCanceledSearchView();
+        view.setId(log.getId());
+        view.setThirdUserId(log.getThirdUserId());
+        view.setCardId(log.getCardId());
+        view.setCardType(log.getCardType());
+        view.setMsisdn(log.getMsisdn());
+        view.setCancelTime(log.getOperDateTime());
+        view.setOperType(log.getOperType());
+        return view;
     }
 
     /**
