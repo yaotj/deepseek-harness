@@ -12,12 +12,12 @@
 
 | 模块 | 端口 | 版本 / 镜像 | 在本域中的角色 |
 |---|---|---|---|
-| recon-server | 9112（`SERVER_PORT`） | `1.0.24`（2026-10-13 现查仓库 pom） | 批次编排、分片接收、流式聚合、FTP 投递；**自身无调度**，由 web-admin `sys_job` 225「给ACC上传扣费交易」每日触发 |
-| gate-txn-pay-server | 9106 | `2.0.103`（2026-10-13 现查仓库 pom） | 源 `gate-txn-pay`，产出 **EXP、PAY、BUS、DETAIL** 四类 |
+| recon-server | 8080（默认；容器见 overview §二） | `1.0.24`（2026-10-13 现查仓库 pom） | 批次编排、分片接收、流式聚合、FTP 投递；**自身无调度**，由 web-admin `sys_job` 225「给ACC上传扣费交易」每日触发 |
+| gate-txn-pay-server | 8080（默认；容器见 overview §二） | `2.0.103`（2026-10-13 现查仓库 pom） | 源 `gate-txn-pay`，产出 **EXP、PAY、BUS、DETAIL** 四类 |
 | collect-pay-server | 58101 | `1.1.89`（2026-10-13 现查仓库 pom） | 源 `collect-pay`（**2026-10-13 已随该模块下线移除，本行留作历史记录**），产出 **PAY、BUS**（原有的 DETAIL 导出已删除）。**旧表口径，与 `face-pay` 并列、NEVER 二选一** |
 | face-pay-server | 58101 | `1.0.70`（2026-10-13 现查仓库 pom） | 源 `face-pay`（2026-09-16 接入），产出 **PAY、BUS**，口径来自 `F2F_ORDER join F2F_PAYMENT`。**切流后的新单只进 `F2F_*`，只有这个源导得出来** |
 | daily-ticket-server | 9108 | `1.0.66`（2026-10-13 现查仓库 pom） | 源 `daily-ticket`，产出 **PAY、DETAIL** |
-| ticket-server | 9103 | `2.1.109`（2026-10-13 现查仓库 pom） | **不在期望清单内**。`ReconExportController` / `ReconExportService` / `ReconExportMapper` + XML 与 `recon.*` 配置**全部保留未删**，只是 `recon.orchestration.sources` 里没有它，因此永远收不到抽取指令 |
+| ticket-server | 8080（默认；容器见 overview §二） | `2.1.109`（2026-10-13 现查仓库 pom） | **不在期望清单内**。`ReconExportController` / `ReconExportService` / `ReconExportMapper` + XML 与 `recon.*` 配置**全部保留未删**，只是 `recon.orchestration.sources` 里没有它，因此永远收不到抽取指令 |
 
 > ⚠️ **上表版本列全部是「现查仓库 pom」的快照，每次部署都会 +1，因此必然过期。**
 > 判断「某改动上没上线」MUST 现查集群：
@@ -57,7 +57,7 @@ execution id `build-image-remote`、`<phase>package</phase>`、goals 是未注�
                                     |
    +------------------------+----------------+------------------+----------------+
    |      gate-txn-pay      |   daily-ticket   |    face-pay    |  ← 受理即返回 accepted
-   | EXP  PAY  BUS  DETAIL  |    PAY  BUS    |   PAY  DETAIL    |    PAY  BUS    |    抽取跑在平台线程池 recon-export
+   | EXP  PAY  BUS  DETAIL  |   PAY  DETAIL   |    PAY  BUS     |    PAY  BUS    |    抽取跑在平台线程池 recon-export
    +------------------------+----------------+------------------+----------------+
                         （face-pay = 新表；collect-pay 旧表源已于 2026-10-13 移除）
         Keyset 分页读库 / 库内 GROUP BY → ReconRecord.line(...) 拼管道分隔文本
@@ -109,7 +109,7 @@ execution id `build-image-remote`、`<phase>package</phase>`、goals 是未注�
 `ReconClient` / `ReconExportClient` 也不再发送该头（连带消除了请求头被打进日志时的令牌明文泄漏）。
 `recon.internal-token` / `RECON_INTERNAL_TOKEN` 配置键仍留在各模块 properties 里但**已无任何读取方**。
 **上线前 MUST 恢复**：这组端点含分片接收、批次状态变更、生成与投递，无鉴权等于允许任何网络可达方
-篡改对账结果，与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权」相冲突，属有意为之的临时降级。
+篡改对账结果，与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权」相冲突，属有意为之的临时降级。
 恢复时比较 MUST 用 `MessageDigest.isEqual`，两端注入同一个值。
 另注意 recon-server 的 `other.web.skipCheckTokenUrls` **MUST 保持 `/**`**（键名语义与直觉相反，
 写成 `/internal/recon/**` 会让所有分片上送返回 403 `check token error`）。
@@ -358,7 +358,7 @@ recon-server 本身**一个 `@Scheduled` 都没有**、启动类也没有 `@Enab
    `分片文件不存在或路径非法: /home/javaapp/app/recon/RECON20260909/gate-txn-pay/pay/part-00000000.dat`，
    批次反复落 `FAILED`；而已 `COMPLETED` 的来源不会被重下发，**该账期只能靠清掉 `RECON_*` 四张表里
    这个 batchId 的行后重跑**。因此「一次运行必须在同一个 Pod 生命周期内跑完」，
-   **上线前 MUST 落地 PVC**（见 `docs/ops/生产环境清单.md` §六「上线前必须处理的问题」P0 第 2 条）。
+   **上线前 MUST 落地 PVC**（见 `docs/ops/environments/跨环境共性.md` §六「上线前必须处理的问题」P0 第 2 条）。
 4. **同一账期第二次触发直接返 9999：`SUCCESS -> EXPORTING` 是终态流出**（1.0.12 修复）。
    `runDailyBatch()` 一进来就调 `dispatchDailyBatch()`，后者无条件执行
    `transitionIfNeeded(EXPORTING)`；`create` 用的是 `insertIfAbsent`、不改任何列，但白名单里
@@ -767,7 +767,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 - **改行格式、字段顺序或分隔符前 MUST 先核对甲方规格原文**
   `docs/接口规范文档/ACC与ITP之间的文件.docx` §一，**NEVER 自行发明字段或调整顺序**。
   改动 **MUST 同时改 recon-server 与三个源服务**（ticket-server 侧的保留代码也要跟着改，否则将来启用即错位），
-  并按 `docs/ops/构建与部署规范.md` §7「Build & Run (构建与运行)」 的约束重建链路上每一个经手 `model` DTO 的模块镜像。
+  并按 `AGENTS.md §6`「Build & Run (构建与运行)」 的约束重建链路上每一个经手 `model` DTO 的模块镜像。
 - **NEVER 用 JSON 承载分片或最终文件**。四类文件都是无 schema 的管道分隔纯文本，
   拼行只能走 `ReconRecord.line(...)`；**NEVER 自己 `String.join("|", ...)`**——
   字段里带上分隔符或换行会让整个文件从该行起全部错位，而下游读不出异常。
@@ -803,7 +803,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
   并用 `USER_TABLES` 查到 4 张表全在。当时库内数据量很小：
   `DAILY_TICKET_ORDER` 44 行、`TRAVEL_TICKET_ORDER` 3 行、`GATE_TXN_PAY` 40 行。
    ——
-  `AFCITPDB` 就是本项目唯一的目标业务库（`docs/ops/构建与部署规范.md` §8）；要区分环境 MUST 先拿到第二个库的真实地址。
+  `AFCITPDB` 就是本项目唯一的目标业务库（`AGENTS.md §7`）；要区分环境 MUST 先拿到第二个库的真实地址。
   DDL 仍在 `recon-server/src/main/resources/sql/recon-server-schema.sql`，
   增量脚本 `recon-server-schema-migration.sql`。后三张有外键，**建表顺序必须先 `RECON_BATCH`**。
   另留一条通则：本项目「代码有 mapper、库里无表」是高频缺陷，**新增落库功能 NEVER 假定仓库有 DDL 就等于库里已建表**。
@@ -837,7 +837,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
   `http://daily-ticket-server-rdbe5-svc.itp.svc:30027`，
   以及 **`http://face-pay-server-svc.itp.svc:30025`（2026-09-16 新增的第 4 个源）**。
   ⚠️ **易错点：这些 Service 的端口等于 NodePort 号，不等于容器内的 `server.port`**
-  （collect-pay 容器是 58101，但 Service 端口是 30024；gate-txn-pay 是 9106 / 30019、
+  （collect-pay 容器是 58101，但 Service 端口是 30024；gate-txn-pay 是 8080 / 30019、
   daily-ticket 是 9108 / 30027）。**NEVER 按容器端口拼 Service 地址。**
   **四个源的 `service.recon.url` 已回填 recon-server 的真实 Service 名**
   （`http://recon-server-bjzdy-svc.itp.svc:30034`，该服务同日部署完成）。
@@ -1032,7 +1032,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
   `docs/business/daily-ticket.md`（四个源的业务口径与状态取值，**其中 `tvm-bom-pay.md` 同时覆盖 `collect-pay` 与 `face-pay` 两个源**）；
   `docs/business/ride-code.md`（ticket-server，**其对账代码保留但不在期望清单**）；
   `docs/business/acc-es-file.md`（acc-es-server 的 FTP，**与本域 FTP 是不同的服务器与用途**）。
-- 部署、环境变量、PVC 与上线核对：`docs/ops/生产环境清单.md`（§二 FTP、§三 环境变量、§六 P0、§七 核对清单）。
+- 部署、环境变量、PVC 与上线核对：`docs/ops/environments/跨环境共性.md`（§二 FTP、§三 环境变量、§六 P0、§七 核对清单）。
 
 ## 附：recon-server 源码注释知识抽取（2026-09-16，阶段一）
 
@@ -1174,7 +1174,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 
 #### 契约与判据
 
-- **`X-Recon-Token` 鉴权已整段删除，属有意为之的临时降级，上线前 MUST 恢复**（`controller/ReconInternalController.java`）：用户 2026-09-11 明确要求「删除令牌要求，不用令牌了，当前处于开发测试阶段」。本组含分片接收、状态变更、生成与投递等状态变更型端点，无鉴权状态下任何网络可达方都能改批次状态或塞入分片，与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」 相冲突。恢复时把 `recon.internal-token` 与请求头的 `MessageDigest.isEqual` 定长比较加回每个端点即可。配置键 `recon.internal-token=${RECON_INTERNAL_TOKEN:}` 仍留在 `application.properties`。
+- **`X-Recon-Token` 鉴权已整段删除，属有意为之的临时降级，上线前 MUST 恢复**（`controller/ReconInternalController.java`）：用户 2026-09-11 明确要求「删除令牌要求，不用令牌了，当前处于开发测试阶段」。本组含分片接收、状态变更、生成与投递等状态变更型端点，无鉴权状态下任何网络可达方都能改批次状态或塞入分片，与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」 相冲突。恢复时把 `recon.internal-token` 与请求头的 `MessageDigest.isEqual` 定长比较加回每个端点即可。配置键 `recon.internal-token=${RECON_INTERNAL_TOKEN:}` 仍留在 `application.properties`。
 - **recon-server MUST 单副本**（`ReconOrchestrationService` 类注释:44~46）：`running` / `advancing` 两把 `AtomicBoolean` 只在进程内有效，没有数据库锁。
 - **`ignore.url` 类配置 NEVER 把 `/internal/recon/**` 写进去**（`application.properties`）：该键名与语义相反——`FirstFilter.checkToken()` 里只有值等于 `/**`（`web.properties` 的默认值）才整体跳过 JWT 校验，其余情况列表内的 URL 反而是「必须带 `Authentication` 头的 JWT」才放行。2026-09-11 实测：写成 `/internal/recon/**` 后所有分片上送一律 `403 {"msg":"check token error"}`。
 - **tracing 三行成组**（`application.properties`：`management.tracing.enabled=true` + `sampling.probability=0` + `spring.autoconfigure.exclude=...OtlpAutoConfiguration`）：打开后 web-admin `sys_job` 225 发来的 W3C `traceparent` 才能续接进 MDC，公共 `log4j2-linux.xml` 的 `%X{traceId}` 才有值（2026-09-11 实测：调度日志记着 traceId，recon-server 日志里那一列全空）。**NEVER 删除排除那行**：`sampling.probability=0` 只让本服务发起的 trace 不采样，上游带 `sampled=1` 时 span 仍会进导出队列；`web.properties` 已把 `management.otlp.tracing.endpoint` 整行注释掉，本行是第二道保险（Deployment 一注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` 就会重新激活 exporter）；Boot 3.2.6 没有 `management.tracing.export.enabled` 这个开关，把 endpoint 置空也不行。
@@ -1210,7 +1210,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 - **NEVER 在 SQL 正文写注释**（`mapper/ReconStationMapper.xml`）：全服务共用的 Druid WallFilter 默认 `commentAllow=false`，SQL 带注释会被判成注入并抛 `sql injection violation`，该语句**静默失效、编译与单测都发现不了**。说明一律写在 XML 注释里。
 - **mapper XML 的注释里 NEVER 出现两个连续减号**（`mapper/ReconStationMapper.xml`）：XML 规范禁止注释文本含连续减号，MyBatis 解析该 mapper 直接失败、`sqlSessionFactory` 建不起来、**整个服务启动即挂**，而异常链最外层报的是某个无关 mapper 的注入失败，极易误判成依赖问题。这与上一条是孪生陷阱：上一条要求把「禁止在 SQL 正文写行注释」写进 XML 注释，而说明里若原样引用那两个符号就会踩本条。
 - **`ReconStationMapper.xml` 当前没有 `#{}` 参数，因此不涉及「Oracle 下 null 参数必须显式写 `jdbcType`」那条**（`mapper/ReconStationMapper.xml`）；后续若加带参数的语句，MUST 照 `ReconSourceMapper.xml` 的做法逐个补。
-- **`*-schema.sql` 只服务「新建库」**：本次抽取范围内的源码注释未涉及 `recon-server-schema.sql` 与迁移脚本的执行状态；四张 `RECON_*` 表的建表与回查结论以正文与 AGENTS.md 为准，**新增列 / 索引 MUST 出独立 `*-migration.sql` 并当场执行 + 回查**（`docs/ops/构建与部署规范.md` §8）。
+- **`*-schema.sql` 只服务「新建库」**：本次抽取范围内的源码注释未涉及 `recon-server-schema.sql` 与迁移脚本的执行状态；四张 `RECON_*` 表的建表与回查结论以正文与 AGENTS.md 为准，**新增列 / 索引 MUST 出独立 `*-migration.sql` 并当场执行 + 回查**（`AGENTS.md §7`）。
 ### 墓碑注释清单（建议转为断言测试）
 
 以下条目**只记「禁止做什么」**，不进上面的正文。每条给「文件:行号 + 禁止的事 + 能否断言化」。行号同样会漂，引用前 MUST 先 grep。
@@ -1262,7 +1262,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 
 - `runDailyBatch` 用 `running`（`AtomicBoolean`）拒绝并发：上一次还在跑，第二次**直接抛异常拒绝、NEVER 改成排队等待** —— 排队会让 Quartz worker 越积越多（`ReconOrchestrationService.java`，grep `NEVER 改成排队等待`）。
 - `advance()`（扫全部非终态批次、供人工干预）另有一把 `advancing`（`ReconOrchestrationService.java`，grep `进程内串行化`）：上一轮没结束就跳过本轮。
-- **两把锁都只在进程内有效、库里没有任何锁行或 `SELECT FOR UPDATE`**，因此 **`recon-server` 与 `web-admin` 都 MUST 单副本**（`ReconOrchestrationService.java`，grep `MUST 单副本`；web-admin 侧同一约束见 `docs/ops/构建与部署规范.md` §8「Ops & Deployment (部署与运维，详见 docs/ops/)」 Quartz 那条：内存 JobStore 下每个副本各跑一份）。两副本同时跑同一账期的后果不是报错而是**重复投递**：批次幂等只挡住「同一批次的状态流转」，挡不住两个进程各自把文件 STOR 到 `/itp/recon` 一次。
+- **两把锁都只在进程内有效、库里没有任何锁行或 `SELECT FOR UPDATE`**，因此 **`recon-server` 与 `web-admin` 都 MUST 单副本**（`ReconOrchestrationService.java`，grep `MUST 单副本`；web-admin 侧同一约束见 `AGENTS.md §7`「Ops & Deployment (部署与运维，详见 docs/ops/)」 Quartz 那条：内存 JobStore 下每个副本各跑一份）。两副本同时跑同一账期的后果不是报错而是**重复投递**：批次幂等只挡住「同一批次的状态流转」，挡不住两个进程各自把文件 STOR 到 `/itp/recon` 一次。
 - 共享存储（ReadWriteMany PVC）**至今未落地**（正文「已知坑 A 环境类」已记）：分片落在 `recon.storage.root`（默认 `/home/javaapp/app/recon`）的容器本地盘，多副本时第二个副本看不到第一个副本收到的分片，`generate` 会直接报缺片。这是「MUST 单副本」的第二个独立理由。
 
 ### 四、触发方与频率（改频率只有一个地方可改）
@@ -1329,7 +1329,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 ### 九、鉴权现状：整段删除、当前无鉴权
 
 - **`/internal/recon/**` 当前【无鉴权】**：原先每个端点上的 `X-Recon-Token` 定长比较（`MessageDigest.isEqual`）已按用户 2026-09-11 的明确要求（原话「删除令牌要求，不用令牌了，当前处于开发测试阶段」）**整段删除**，`ReconInternalController` 里连 `checkToken` 方法都不存在了（`ReconInternalController.java`，grep `本组接口当前无鉴权`；配置侧 `application.properties`，grep `当前【无鉴权】`）。
-- 这组端点里含**分片接收、状态变更、生成与投递**等状态变更型接口，无鉴权状态下任何网络可达方都能改批次状态或塞入分片 —— 与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权」**直接冲突，属有意为之的临时降级，上线前 MUST 恢复**。恢复方式：把 `recon.internal-token` 与请求头的定长比较加回每个端点。`recon.internal-token` / env `RECON_INTERNAL_TOKEN` 目前**只留配置键、无读取方**（`application.properties`）。
+- 这组端点里含**分片接收、状态变更、生成与投递**等状态变更型接口，无鉴权状态下任何网络可达方都能改批次状态或塞入分片 —— 与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权」**直接冲突，属有意为之的临时降级，上线前 MUST 恢复**。恢复方式：把 `recon.internal-token` 与请求头的定长比较加回每个端点。`recon.internal-token` / env `RECON_INTERNAL_TOKEN` 目前**只留配置键、无读取方**（`application.properties`）。
 - **NEVER 回退成「鉴权靠 `ReconInternalController.checkToken()` 的 `X-Recon-Token` 定长比较」**（那段代码已删）；也 **NEVER 把 `/internal/recon/**` 写进 `other.web.skipCheckTokenUrls`** —— 该键名与语义相反：`FirstFilter.checkToken()` 里只有值等于 `/**`（`web.properties` 的默认值）才整体跳过 JWT 校验，其余情况**列表内的 URL 反而是「必须带 `Authentication` 头的 JWT」才放行**；2026-09-11 实测写成 `/internal/recon/**` 后所有分片上送一律 `403 {"msg":"check token error"}`。本模块现值是 `other.web.skipCheckTokenUrls=/**`（`application.properties`）。
 - 另一条与鉴权配套的护栏：`recon/controller/ReconInternalExceptionHandler.java`（grep `必须存在`）—— 公共构件 `GlobalControllerExceptionHandler` 的兜底是 `@ExceptionHandler(Exception.class) @ResponseStatus(HttpStatus.OK)`，即**任何未被更具体处理器捕获的异常都返回 HTTP 200 + 一个 UUID `retCode`**，而 `ReconClient` 只按 HTTP 状态码判成败。于是「令牌校验失败」「分片落盘 IO 失败」「哈希不一致拒收」都会被上游当成**接收成功**、源服务继续删本地分片。本类以 `Ordered.HIGHEST_PRECEDENCE` 抢在公共 advice 之前、用 `assignableTypes` 限定在 `ReconInternalController`，把状态码还原成真实语义。**NEVER 删这个类**。
 
@@ -1385,7 +1385,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 ### 矛盾与待裁决
 
 1. **`recon.sources` 与 `recon.orchestration.sources[*]` 并存且内容不一致**：前者 `application.properties` 仍是 `gate-txn-pay,ticket,collect-pay,daily-ticket`（含已移出的 `ticket`、缺 2026-09-16 新增的 `face-pay`），后者是四个源的真实期望清单。生成路径已改成「读 `RECON_BATCH_SOURCE` 里 `COMPLETED` 的行」，因此 `recon.sources` **当前是否还有读取方尚未逐处确认**。待裁决：删掉该键，还是回填成与 `sources[*]` 一致。**在裁决前 NEVER 拿 `recon.sources` 判断「谁出哪个文件」。**
-2. **`recon.internal-token` / `RECON_INTERNAL_TOKEN` 留键无读取方**：与 §九「上线前 MUST 恢复鉴权」配套。待裁决：上线前恢复定长比较（推荐），还是改走 `AccountRequestVerifier` / `ItpRequestSignVerifier` 那套现成验签。**NEVER 自造签名逻辑**（`docs/architecture/security-sensitivity.md` §三「鉴权 MUST 对齐现有验签实现」）。
+2. **`recon.internal-token` / `RECON_INTERNAL_TOKEN` 留键无读取方**：与 §九「上线前 MUST 恢复鉴权」配套。待裁决：上线前恢复定长比较（推荐），还是改走 `AccountRequestVerifier` / `ItpRequestSignVerifier` 那套现成验签。**NEVER 自造签名逻辑**（security-sensitivity.md（已删除） §三「鉴权 MUST 对齐现有验签实现」）。
 3. **共享存储（ReadWriteMany PVC）与「MUST 单副本」两条约束都只写在文档里，集群侧未落地**：当前靠「事实上只部了一个副本」兜着，没有任何机制阻止有人把 replicas 改成 2。待裁决：加 PDB / 注释说明 / 还是在启动时自检（例如探测同名批次的并发写）。
 4. **两个 SQL 文件 0 条 `COMMENT ON`**：`RECON_*` 四张表的列语义只存在于本文与 mapper XML。待裁决：是否补 `COMMENT ON COLUMN`（本项目其它模块也普遍没有，属全局风格问题，**MUST 先问用户再动**）。
 5. **`amountTotal` 在明细与汇总两条路径上语义不同**（明细=业务金额，汇总=所有度量列之和的校验和），同一列名承载两种语义。待裁决：是否拆成两列 / 改列名。**在裁决前 NEVER 把 `RECON_BATCH_FILE.AMOUNT_TOTAL` 当业务金额对外汇报。**
@@ -1418,7 +1418,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 | M3 | `application.properties` | 「鉴权靠 `checkToken()` 的 `X-Recon-Token` 定长比较」**已作废**（代码已删），NEVER 回退 |
 | M4 | `application.properties` | 「压 logger 是因为请求头含 `X-Recon-Token` 明文」**已不成立**（不再发送该头），NEVER 回退；但那行配置本身 NEVER 删 |
 | M5 | `application.properties` | 「已于 2026-09-15 切到 face-pay（ADR-D85）」**是错的**（D85 是方法论、日期不符，D112 的「尚未切」也已被 D117 取代），NEVER 回退 |
-| M6 | `ReconOrchestrationProperties.java` | 源地址示例 `http://ticket-server-svc.itp.svc:9103` **两处都已过期**（ticket 已移出清单、9103 是容器端口口径），NEVER 回退 |
+| M6 | `ReconOrchestrationProperties.java` | 源地址示例 `http://ticket-server-svc.itp.svc:9103` **两处都已过期**（ticket 已移出清单、9103 是旧容器端口口径，现 ticket-server 容器端口 9100，见 `overview.md` §二），NEVER 回退 |
 | M7 | `application.properties` | `service.recon.self-url` **已删除**（占位 baseUrl 导致双份地址日志），NEVER 加回 |
 | M8 | `ReconFtpService.java`、`ReconFtpProperties.java` | 「BUS 投递静默失败」**已被探针实证推翻**（ACC 侧取件即删），NEVER 再当我方缺陷 |
 | M9 | `ReconFtpProperties.java` | 相邻投递间隔**不是修复项**（「对端在极短间隔连续会话丢文件」那个判断已被推翻），只是保守限流 |
@@ -1434,5 +1434,4 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 - **按注释行**：829 行中，**判为「有知识、已迁入本节」的约 470 行**（含 §一~§十二 全部条目）；**判为「标准 Javadoc、随代码保留」的约 300 行**（`@param` / `@return` / 一句话方法说明 / 枚举常量说明）；**判为「纯样板、丢弃」的约 60 行**（`/**` `*/` 单独成行、复述方法名）。
 - **按四类**：契约与判据（段数 / 账期 / 白名单 / 收齐三项 / jdbcType / 装箱）**全覆盖**；决策理由（为何同步轮询 / 为何不加事务 / 为何线路收口到本模块 / 为何不缓存维表 / 为何不加 WHERE）**全覆盖**；陷阱（覆盖 COMPLETED / 白名单缺项 / SUCCESS 短路 / 装箱 `!=` / `OTHER(1111)` / XML 连续减号 / 兜底 catch 被切面吞 / 明细走汇总路径 OOM / 降级空 Map / `skipCheckTokenUrls` 语义相反）**全覆盖 10 条**；墓碑 **14 条**（阶段一记 12 条，本轮新增 M1「调度形态易读反」与 M10「重复触发安全未兑现」两条）。
 - **未覆盖 / 无法从注释得到的**：① `RECON_*` 四张表的列长与非空约束（注释里没有，MUST 看 `sql/recon-server-schema.sql` 或 `USER_TAB_COLS`）；② 分片落盘目录结构（`recon.storage.root` 之下的实际布局只在代码里，注释没写）；③ 各源的抽取 SQL 口径（在四个源服务里，属那四个模块的迁移范围，本文正文「各源抽取口径」已有）；④ 甲方规格原文的逐段字段名（只在 `.docx` 里，本文正文「分片文件格式契约」已按规格落地）。
-
 

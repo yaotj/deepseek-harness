@@ -18,7 +18,7 @@
 - 无 `RestTemplate` / `WebClient` / `@FeignClient` / 任何 `XxxClient` 注入
 - `application.properties` 中**没有任何 `service.*.url`**
 - 唯一 HTTP 工具 `web-common/.../utils/http/HttpUtils.java` 只被 IP 归属地查询 `AddressUtils` 使用
-- 与业务服务的唯一交集是**共用同一个 Oracle 实例**（`web-admin/src/main/resources/application.properties` 的 `jdbc:oracle:thin:@//...:1521/AFCITPDB`），但当前只读写 `sys_*`
+- 与业务服务的唯一交集是**共用同一个 Oracle 实例**（`web-admin/src/main/resources/application.properties` 的 `jdbc:oracle:thin:@//...:1521/hditpdb`，注意业务库是 `AFCITPDB`、综管台库是 `hditpdb`，两者不同），但当前只读写 `sys_*`
 
 因此：**要给运营页面加后端接口时，MUST 先确认放在哪一侧。**
 现状是业务运营接口放在**各业务模块的 `/page/**` controller** 中，例如：

@@ -106,7 +106,7 @@
   该 env 为空 ⇒ appender 自动禁用、一条不推；写成 `victoria-logs-pbi6a-svc.itp.svc:30032`
   （缺 scheme）⇒ `vlogs-sender` 线程照样在跑但**推送全部静默失败**，现象与没注入一模一样
   （`status="off"` 吞掉报错）。2026-09-09 两个坑都踩过。正确值与排查方法见
-  `docs/ops/生产环境清单.md` §3.2「ConfigMap（非敏感，随环境变化）」的 `VLOGS_URL` 行。
+  `docs/ops/environments/跨环境共性.md` §3.2「ConfigMap（非敏感，随环境变化）」的 `VLOGS_URL` 行。
 
 - **`REQUESTING` 状态无法自动续做**：表示已向 ACC 发出申请但未拿到文件名，进程中断后无法判断
   对端是否已生成批次。维护动作会把它置 `FAILED` 并写明原因，需人工核对 ACC 侧后重建批次。
@@ -567,7 +567,7 @@
 > Druid WallFilter 的两条规则、mapper XML 注释内连续减号、MCP 侧函数索引需包一层 PL/SQL、
 > 建唯一索引前先按确切谓词统计重复。`LogicCardPoolMapper.xml` 只有两处注释（〔xml〕），
 > 内容分别是「最小化失败落库」与候选查询的取法，均不涉及这四条；本模块也没有
-> `src/main/resources/sql/*.sql`。这四条的权威出处是 `docs/architecture/mybatis-oracle-runtime-traps.md` §1「NEVER 在 SQL 正文中写注释」起的三条，以及 `docs/ops/构建与部署规范.md` §8「Ops & Deployment (部署与运维，详见 docs/ops/)」，
+> `src/main/resources/sql/*.sql`。这四条的权威出处是 `docs/architecture/mybatis-oracle-runtime-traps.md` §1「NEVER 在 SQL 正文中写注释」起的三条，以及 `AGENTS.md §7`「Ops & Deployment (部署与运维，详见 docs/ops/)」，
 > **NEVER 因为它们没出现在本模块注释里就认为不适用**。
 
 ### 四、墓碑注释清单（建议转为断言测试）
@@ -847,7 +847,7 @@ SQL 1 个文件（`card-pool-schema.sql`，只有 3 条 `COMMENT ON TABLE`、**�
    与 `docs/architecture/web-server.md` §七「定时任务（Quartz）跨服务调用」，不是本模块代码** —— 引用时 MUST 现查 `sys_job`。
 5. **`AccSecureProperties` 的 `signKey` 有默认真值风险**：〔accProp〕 只说「MD5 签名 key，仅 signType=02 时使用」，
    未标注 `${ENV:}` 约束。当前生产 `signType=00` 不用它，故未处理；**改成 `02` 前 MUST 先按
-   `docs/architecture/security-sensitivity.md` §一「敏感配置规则」把它收成空默认值 + K8s Secret 注入。**
+   security-sensitivity.md（已删除） §一「敏感配置规则」把它收成空默认值 + K8s Secret 注入。**
 
 ### 墓碑清单（本阶段从代码删除、只在文档留证）
 

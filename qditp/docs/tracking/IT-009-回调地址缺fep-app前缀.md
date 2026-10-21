@@ -41,7 +41,7 @@
   - `pay-sign-server/src/main/resources/application.properties`
   - `deploy/k8s/10-deployments/daily-ticket-server.yaml`
   - `deploy/k8s/10-deployments/pay-sign-server.yaml`
-  - 同步更新文档：`docs/ops/生产环境清单.md`、`docs/testing/payment/00-链路事实与配置字典.md`、`docs/testing/payment/01-签约与解约.md`、`docs/testing/payment/02-扣费与失败重试.md`
+  - 同步更新文档：`docs/ops/environments/跨环境共性.md`、`docs/testing/payment/00-链路事实与配置字典.md`、`docs/testing/payment/01-签约与解约.md`、`docs/testing/payment/02-扣费与失败重试.md`
 
 ### 具体修改
 

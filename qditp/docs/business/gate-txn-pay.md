@@ -9,7 +9,7 @@
 后付费乘车码出站扣款、扣费失败重试、APP 交易记录/详情（IF8A-05 / IF8A-34）、APP 用户账务信息（IF8A-35）、解约前的失败订单校验相关改动。
 
 ## 模块定位
-`gate-txn-pay-server`，端口 **9106**（`gate-txn-pay-server/src/main/resources/application.properties`）。
+`gate-txn-pay-server`，端口 **8080**（默认；容器有效端口见 `overview.md` §二）（`gate-txn-pay-server/src/main/resources/application.properties`）。
 职责：接收 fep-dev-server 转发的出站交易 → 生成扣费订单 → 异步调 pay-sign 免密扣款；
 并为 ticket-server 提供交易查询、为 pay-sign 提供"是否存在扣费失败订单"判断、为运营端提供分页与退款。
 
@@ -32,7 +32,6 @@
 - `/requestTransList`（IF8A-05）、`/countTransList`
 - `/requestTransStatistics`（IF8A-41）— 账单统计
 - `/queryByOrderNo`（IF8A-34）
-- `/requestPayOrder`（IF8A-26）— 补款下单（本组唯一有写的端点）
 - `/requestUserAccInfo`（IF8A-35）— APP 用户账务信息：未支付订单数 + 扣费失败订单数
 - `/requestPayFailOrder`（用户主动重试扣费，ADR-D169）— APP 用户对自己 `DEBIT_STATUS IN (INIT,RETRY,FAIL)` 的扣费单主动全量重扣，无视 `DEBIT_RETRY_TIMES` 上限；与 `sys_job` 220/255/345 并行、不替代
 
@@ -113,7 +112,7 @@
 
 ### 离线码金额待重算态：`DISCOUNT_CALC_STATUS='OFFLINE_FARE_PENDING'`（2026-09-11 新增）
 
-离线码出站（`OFFLINE_FLAG='Y'`）的金额由服务端重算（`calculateOfflineFare`：同序列号首笔进站 → 票价 → 超时费 → 换乘减免 → 钱包折扣），依赖 ticket-server `/ci/app/queryFirstEntryTxn` 与 para-server 票价。**此前任一环节失败会直接返回 `8002` 且不落任何库**，闸机侧仍收到 `0000` 放行，结果是「乘客过闸无感 + APP 查不到订单 + 无任何补偿」（2026-09-11 因 `service.ticket.url` 键缺失实际发生，见 `docs/ops/生产环境清单.md` P1）。
+离线码出站（`OFFLINE_FLAG='Y'`）的金额由服务端重算（`calculateOfflineFare`：同序列号首笔进站 → 票价 → 超时费 → 换乘减免 → 钱包折扣），依赖 ticket-server `/ci/app/queryFirstEntryTxn` 与 para-server 票价。**此前任一环节失败会直接返回 `8002` 且不落任何库**，闸机侧仍收到 `0000` 放行，结果是「乘客过闸无感 + APP 查不到订单 + 无任何补偿」（2026-09-11 因 `service.ticket.url` 键缺失实际发生，见 `docs/ops/environments/跨环境共性.md` P1）。
 
 现在改为**落单留痕 + 扫表补偿**：
 
@@ -173,7 +172,7 @@
 - **`found=false` 不等于调用失败**：`CollectPayClient.queryAppPayOrderResult` 网络失败会**抛异常**，`found` 只表达对端的业务答复。判「上一笔是否已支付」MUST 先接住异常并拒绝作废（否则可能把已付款的单子作废）。
 - **收款后 collect-pay 不会通知本模块**，收口只有一条路：`SupplementOrderServiceImpl.convergePendingOrders`（2.0.70 起只是一行委派，真正实现在 `SupplementConvergeService.convergePending`）+ `SupplementOrderCloseProcessor.convergePaidSupplementOrders`（`supplement.converge-*`，默认 30s）扫 `INIT` / `PROCESSING` 补款单、经 `/internal/app-order/pay-result` 回查 APP 订单行，`PAY_STATUS='1'` 即回填渠道信息并把补款单与原订单收敛为 `SUCCESS`。**NEVER 关掉这个任务**，关掉等于乘客付了钱而欠费不清。`selectPendingOrders` **MUST 包含 `INIT`**——收银台流程下我方无从得知支付时点。
 - 已知不精确：collect-pay 组装支付报文时把商品名硬编码为「APP单程票购票」/「地铁单程票」，补款单在收银台会显示成单程票。属现状，重构时一并改。
-- **三个 `/internal/app-order/*` 端点当前无鉴权**（与本模块 IF8A-26、collect-pay 的 `/internal/recon` 同款临时降级，2026-09-14 用户裁决）。与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突，**上线前 MUST 补**。
+- **三个 `/internal/app-order/*` 端点当前无鉴权**（与本模块 IF8A-26、collect-pay 的 `/internal/recon` 同款临时降级，2026-09-14 用户裁决）。与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突，**上线前 MUST 补**。
 - **端到端实测（2026-09-14，测试环境，`gate-txn-pay-server` 2.0.66 + `collect-pay-server` 1.1.83）**：三个端点 8/8 行为用例通过——`register` 幂等重入、`found` 语义（未建单返 `found=false` 而非报错）、`close-unpaid` 的 `PAY_STATUS 0→2` 白名单、重复关单 0 行按成功处理、`supplementFlag` 缺失时拒绝返 `8001`。回滚 tag：2.0.65 / 1.1.82。
 - **端到端实测（2026-09-11，测试环境，直写时代，保留作背景）**：
   - 第一轮 `gate-txn-pay-server` 2.0.57，`SP20260911180915493000095`（200 分，覆盖 `GT20260911141953000000095`）：手工把 APP 订单行改 `PAY_STATUS='1'` 模拟收银台支付，32 秒内收敛完成。
@@ -182,7 +181,7 @@
 
 ## 编码约束
 - 新增写路径 **MUST** 走 `GateTxnPayWriter` 并依赖唯一索引 + `DuplicateKeyException` 兜底，**NEVER** 引入 Redis 锁
-- **IF8A-26 目前没有身份认证**（2026-09-14 用户裁决：与 recon 的 `X-Recon-Token` 降级同款处理，本轮不接验签、记入本文件与上线核对清单）。`thirdUserId` 由客户端上送，`validateOrigOrders` 只做「列表内各单归属彼此一致」的自洽校验，**不是认证**：拿到别人的 `GATE_TXN_PAY.ORDER_NO` 即可给他人欠费建单，并经 `isCoveredByPendingSupplement` 阻断对方的免密扣款重试。这与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突，**上线前 MUST 接入 `ItpRequestSignVerifier` 或同款验签，NEVER 自造签名逻辑**。
+- **IF8A-26 目前没有身份认证**（2026-09-14 用户裁决：与 recon 的 `X-Recon-Token` 降级同款处理，本轮不接验签、记入本文件与上线核对清单）。`thirdUserId` 由客户端上送，`validateOrigOrders` 只做「列表内各单归属彼此一致」的自洽校验，**不是认证**：拿到别人的 `GATE_TXN_PAY.ORDER_NO` 即可给他人欠费建单，并经 `isCoveredByPendingSupplement` 阻断对方的免密扣款重试。这与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突，**上线前 MUST 接入 `ItpRequestSignVerifier` 或同款验签，NEVER 自造签名逻辑**。
 - **两个配置开关按 2026-09-14 裁决保持现状，改前 MUST 复核风险**：`supplement.strict-amount-check` 置 false 会跳过「`price` 与原订单合计相等」的校验（落库与收银台收的是 `sumAmount`，两者不符时乘客付的钱与展示金额不一致）；`supplement.max-order-count` 默认 200，意味着 `settleOrigOrders` 最多在请求线程上串行跑 400 条 SQL，在虚拟线程 + ojdbc8 `synchronized` 下有 pin 风险，要缓解 **MUST** 调小它或把收敛整体交给扫表任务，**NEVER** 在 `settleOrigOrders` 里加事务
 - 涉及扣款金额与免密代扣的改动 **MUST** 提示人工复核资金安全
 - 相关迁移脚本参考 `scripts/20260821_pay_txn_detail_data_migration.sql`
@@ -308,7 +307,7 @@
 
 **【契约】本源标识 `gate-txn-pay` 是跨服务契约字段值，NEVER 改**（`ReconExportService.SOURCE`，`service/ReconExportService.java`）。
 
-**【陷阱 / 待恢复】六个 `/internal/**` 端点当前无鉴权，上线前 MUST 恢复**（`controller/internal/CompensationInternalController.java`）：用户 2026-09-15 明确要求「不需要鉴权」。本模块没有 spring-security、没有全局拦截器兜底，因此**现状等于允许任何网络可达方触发扫表级别的补偿批处理（其中离线码那条、2026-09-20 新增的两个 `debit/retry/*` 与 2026-09-21 新增的 `debit/retry/recent` 都会真的发起扣款）**，与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突，属**有意为之的临时降级**。**新增的 `debit/retry/recent` 同样无鉴权，属同一批待恢复、NEVER 单独给它开口子。**补款收敛那条尤其要紧 —— 「它能把任意订单号的 `DEBIT_STATUS` 直接改成 `SUCCESS`，等于免单」。恢复做法：引入共享令牌配置 + 请求头比对，比较 **MUST 用 `MessageDigest.isEqual` 做定长时间比较，NEVER 用 `String.equals`**（后者短路返回，可被逐字节计时探测出令牌内容）；令牌值由 K8s Secret 注入，**NEVER 在仓库里写默认真值**。恢复时 MUST 同批给 `GateTxnPayClient.recoverOfflineFare` / `pushMetroTransfer` 补请求头 —— 这两个方法**已预留 `Map<String,String> headers` 形参**（当前只用来传 traceId），加令牌不需要改签名。**注意 `ReconExportController` 当前也没有鉴权**（`X-Recon-Token` 已按用户 2026-09-11 要求整段删除），两者是「同样待恢复」，不是「照着一份已有实现抄」（；`controller/internal/ReconExportController.java`）。
+**【陷阱 / 待恢复】六个 `/internal/**` 端点当前无鉴权，上线前 MUST 恢复**（`controller/internal/CompensationInternalController.java`）：用户 2026-09-15 明确要求「不需要鉴权」。本模块没有 spring-security、没有全局拦截器兜底，因此**现状等于允许任何网络可达方触发扫表级别的补偿批处理（其中离线码那条、2026-09-20 新增的两个 `debit/retry/*` 与 2026-09-21 新增的 `debit/retry/recent` 都会真的发起扣款）**，与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突，属**有意为之的临时降级**。**新增的 `debit/retry/recent` 同样无鉴权，属同一批待恢复、NEVER 单独给它开口子。**补款收敛那条尤其要紧 —— 「它能把任意订单号的 `DEBIT_STATUS` 直接改成 `SUCCESS`，等于免单」。恢复做法：引入共享令牌配置 + 请求头比对，比较 **MUST 用 `MessageDigest.isEqual` 做定长时间比较，NEVER 用 `String.equals`**（后者短路返回，可被逐字节计时探测出令牌内容）；令牌值由 K8s Secret 注入，**NEVER 在仓库里写默认真值**。恢复时 MUST 同批给 `GateTxnPayClient.recoverOfflineFare` / `pushMetroTransfer` 补请求头 —— 这两个方法**已预留 `Map<String,String> headers` 形参**（当前只用来传 traceId），加令牌不需要改签名。**注意 `ReconExportController` 当前也没有鉴权**（`X-Recon-Token` 已按用户 2026-09-11 要求整段删除），两者是「同样待恢复」，不是「照着一份已有实现抄」（；`controller/internal/ReconExportController.java`）。
 
 **【陷阱 / 待恢复】`/page/**` 写接口同样没有鉴权**（`GateTxnPayPageController`，`controller/page/GateTxnPayPageController.java`）：批量退超时罚金是**资金操作**、原价补数是**写接口**，「与本模块其它 `/page/**` 接口一样，**当前没有鉴权**：模块内无 spring-security、无全局拦截器，网络可达方即可调用。上线前 MUST 由运维在入口侧限制该路径只对运营网段开放，或补齐与 `AccountRequestVerifier` 对齐的验签。」
 
@@ -543,7 +542,7 @@
 
 **【契约】`InternalMicroHttp` 的日志级别被本模块单独压到 WARN，理由是令牌明文**（`application.properties`）：「`InternalMicroHttp` 会把整个请求头 Map 直接打进 INFO 日志，其中包含内部令牌 `X-Recon-Token` 的明文。公共构件 `resource/micro` 不改，改这里把该 logger 压到 WARN，避免令牌落进日志文件与日志采集。」**这行是「令牌鉴权恢复后仍然有效的防线」**，即便当前 `X-Recon-Token` 已删；**NEVER 因为「令牌都没了」把这行删掉**（恢复鉴权时会立刻又开始泄露）。
 
-**【契约】数据库连接与分页走 `other.sql.*`，本模块单数据源**（`application.properties`）：`other.sql.double-datasource=false`、`type=oracle`、`page.type=oracle`，`DB_HOST` 默认 `172.20.222.3:1521`、`DB_NAME` 默认 `AFCITPDB`，账号口令走 `${DB_USERNAME:}` / `${DB_PASSWORD:}` 形态（**默认值是真值、属 `docs/architecture/security-sensitivity.md` §一「敏感配置规则」的例外现状，本轮只记录不改**）。`mybatis.mapper-locations=classpath*:mapper/*.xml`—— 新增 mapper XML **MUST** 放 `resources/mapper/` 下，放别处静默不加载。
+**【契约】数据库连接与分页走 `other.sql.*`，本模块单数据源**（`application.properties`）：`other.sql.double-datasource=false`、`type=oracle`、`page.type=oracle`，`DB_HOST` 默认 `172.20.222.3:1521`、`DB_NAME` 默认 `AFCITPDB`，账号口令走 `${DB_USERNAME:}` / `${DB_PASSWORD:}` 形态（**默认值是真值、属 security-sensitivity.md（已删除） §一「敏感配置规则」的例外现状，本轮只记录不改**）。`mybatis.mapper-locations=classpath*:mapper/*.xml`—— 新增 mapper XML **MUST** 放 `resources/mapper/` 下，放别处静默不加载。
 ### 十、sql 脚本与月分区表（7 个脚本，阶段一未涉及）
 
 **【陷阱】`DISCOUNT_CALC_STATUS` 列宽 16 → 32 那次是「最后防线 100% 失效」**（`sql/gate-txn-pay-discount-calc-status-widen-migration.sql`）：`saveOfflineFarePendingOrder` 写入的 `'OFFLINE_FARE_PENDING'` 是 **20 字符**，而列原为 `VARCHAR2(16 CHAR)` ⇒ 整条 INSERT 被 Oracle 拒（`ORA-12899 ... 实际值: 20, 最大值: 16`），后果是「落单留痕待补偿」这条最后防线全废：**本次出站在 `GATE_TXN_PAY` 零痕迹**，而补偿靠 `DEBIT_STATUS='INIT' AND DISCOUNT_CALC_STATUS='OFFLINE_FARE_PENDING'` 扫表，行都没落进去、**永远扫不到、无法自愈**。实测样本：卡号 …095 在 18:28:44 与 18:30:23 两笔离线码出站，闸机侧已放行（ticket-server 返 `0000`、`QRCODE_STATUS` 已推进 `81 → 05`），但 `GATE_TXN_PAY` 当日 0 行。**为什么改列宽而不改常量**：那个字面量在 `GateTxnPayMapper.xml` 有 3 处硬编码 WHERE（； 的 SET 是参数、不含字面量），改常量要同步 3 处 WHERE + Java 写入点，「漏一处即『重算捞不到』或『重算完状态对不上』」；加宽列**不改代码、不重建镜像、不重启、对已有数据无损**。回查实测 `CHAR_LENGTH=32 / DATA_LENGTH=64`。**回退语句仅在本列无超过 16 字符的数据时才能成功，NEVER 在已产生 `OFFLINE_FARE_PENDING` 后回退。**
@@ -582,7 +581,7 @@
 | 9 | properties：`wallet.metro-transfer-enabled` 默认 **true**（2026-09-17 / 2.0.90 起，ADR-D134；**此前是 `false`，NEVER 回退**） | 阶段一记「2.0.77 起该开关等于『本功能是否启用』，关闭期间连任务都不建」 | `application.properties`；`service/impl/MetroTransferPushTaskProcessor.java` | 两条合起来才是完整事实：**开启是常态、关闭需要显式注入 `WALLET_METRO_TRANSFER_ENABLED=false`**。之所以翻默认值：此前线上仅靠手工 `kubectl set env` 兜着（2026-09-17 现查 Deployment 里根本没这个 env、跑的是 jar 内 `false`），**一次 apply Deployment 就会静默回落、只留一行 INFO「本单不建推送任务」**。判断线上是否开启仍 **MUST 查 Deployment env**，但**默认值已站在「更容易被发现」那一侧** |
 | 10 | properties：钱包累计查询实测 `{"thirdUserId":"00522943"}` → `totalAmt=0` | 该用户我方有 8 笔扣费，**`0` 是不是真值未确认** | `application.properties` | 向接口方确认口径（是否只统计某类交易 / 是否按渠道隔离）。**未确认前 NEVER 把 `totalAmt` 当作对账依据**，它只喂折扣档位命中 |
 | 11 | properties：公交卡推送改对地址后仍返 `retCode=1002`「接收地铁交易数据失败null」 | 链路已通、**对端业务侧仍在拒**；三种报文形态回的完全一样 | `application.properties` | 属**外部依赖未闭合**，已请接口方查服务端异常栈。**NEVER 在我方改报文结构去试**（阶段一同款结论）；换乘推送上线判据 MUST 是对端返 `0000` |
-| 12 | `DB_USERNAME` / `DB_PASSWORD` 写了**默认真值** | `docs/architecture/security-sensitivity.md` §一「敏感配置规则」要求敏感项写 `${ENV:}` 空默认值由 Secret 注入 | `application.properties` | 上线前 MUST 清空默认值。本轮只记录（改配置属改运行时行为，且与本轮「只写 docs」约束冲突） |
+| 12 | `DB_USERNAME` / `DB_PASSWORD` 写了**默认真值** | security-sensitivity.md（已删除） §一「敏感配置规则」要求敏感项写 `${ENV:}` 空默认值由 Secret 注入 | `application.properties` | 上线前 MUST 清空默认值。本轮只记录（改配置属改运行时行为，且与本轮「只写 docs」约束冲突） |
 ### 墓碑清单（阶段二新增，与阶段一那 25 条不重复）
 
 > 「墓碑」= 唯一作用是**禁止把某个已迁走 / 已废弃 / 已实测错误的东西加回来**，不承载正向知识。
@@ -600,7 +599,7 @@
 | 9 | `src/main/resources/sql/gate-txn-pay-station-name-backfill.sql` | 「NEVER 去掉 `IS NULL` 条件」「NEVER 用 `NVL(..., IN_STATION)` 把编码写进名字列」「**NEVER 把下面这条盘点 SQL 直接改成 UPDATE**」 | SQL 注释（第 4 步刻意只留 SELECT） |
 | 10 | `src/main/resources/sql/supplement-order-sale-sync-migration.sql` | 「历史行该列为 NULL、天然扫不到，这是 outbox 模板要求的行为：**NEVER 把 NULL 兜底成 PENDING**，否则本功能上线那一刻会把改造前的全部补款单一次性推给 collect-pay」 | SQL 注释 |
 | 11 | `src/main/resources/sql/supplement-order-active-orig-migration.sql` | 「**SUCCESS 刻意不释放**：钱已收 …… 该原订单都 NEVER 允许再被补款」 | SQL 注释（语义型墓碑，防止有人「顺手」把 SUCCESS 也加进释放点） |
-| 12 | `pom.xml`、`pom.xml` | `<goal>deploy</goal>` 与 `<outputDirectory>target</outputDirectory>` 被整行注释掉 —— 即**本模块 `mvn package` 会 `build` + `push` 但不会 `deploy`**，jar 落在镜像根目录 `/app.jar` | XML 注释（`pom.xml` 全文仅这 2 行注释；与 `docs/ops/构建与部署规范.md` §7「`build-image-after-package`」一致，`<version>` 现为 **2.0.88**，**线上跑哪版 MUST 现查 Deployment**） |
+| 12 | `pom.xml`、`pom.xml` | `<goal>deploy</goal>` 与 `<outputDirectory>target</outputDirectory>` 被整行注释掉 —— 即**本模块 `mvn package` 会 `build` + `push` 但不会 `deploy`**，jar 落在镜像根目录 `/app.jar` | XML 注释（`pom.xml` 全文仅这 2 行注释；与 `AGENTS.md §6`「`build-image-after-package`」一致，`<version>` 现为 **2.0.88**，**线上跑哪版 MUST 现查 Deployment**） |
 
 ### 本轮覆盖率自评
 

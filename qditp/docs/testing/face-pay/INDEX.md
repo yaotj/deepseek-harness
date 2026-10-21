@@ -45,7 +45,7 @@
 ## 更新记录
 
 - 2026-09-08 首次建立。来源：用户提供的测试案例 + 仓库代码实测（collect-pay-server / collect-ticket-server / ticket-server / rpc / web-server）。
-  主要发现：STT 零实现且编码冲突（018~020）、扫码取票两套实现同 URL 且其一无退款（014）、ITP 无补票金额计算（017/020）、`CollectPayController` 整个文件被注释（IF8A-09）、`ticketCollectPayNotify` 事务内发 RPC（与 8/26 生产事故同形态）、补偿任务已从 `@Scheduled` 迁到 web-server Quartz 但 `docs/ops/生产环境清单.md:203-204` 未同步。
+  主要发现：STT 零实现且编码冲突（018~020）、扫码取票两套实现同 URL 且其一无退款（014）、ITP 无补票金额计算（017/020）、`CollectPayController` 整个文件被注释（IF8A-09）、`ticketCollectPayNotify` 事务内发 RPC（与 8/26 生产事故同形态）、补偿任务已从 `@Scheduled` 迁到 web-server Quartz 但 `docs/ops/environments/跨环境共性.md:203-204` 未同步。
 - 2026-09-08 补 `04` 的 E 节：按《技术规范-第9部分》§7.5 与《非现金购票单程票退款功能3.docx》逐条核对，新增 7 条缺口。
   接口编号层面 TVM/BOM 域**全部有实现**（`IF2A-02`/`IF5A-02` 是规格自身编号缺口，非漏实现）；缺口全在业务规则层面：充值限额 2004 未拦（E1）、取票订单锁定 2008 未实现（E2）、「每日批量退款未取票交易」无对应任务（E3）、`transType` 九个取值只实现 `42` 的校验（E4）、退款 6 处规则不符需求（E5）、**退款无幂等可重复退款**（E6，最高优先级）。
   同时更正 B4：`IF2A-07/08/09` 双义是**甲方规格在同一份文档两个章节各定义一次**，代码两处都与各自章节一致，不是代码标错。

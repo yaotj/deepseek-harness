@@ -26,7 +26,7 @@
 - `/internal/blacklist/channel-sync/compensate-release` — 补推**解黑**方向（扫**主表**里 `STATUS='RELEASING'` 且同白名单的行；**载体在主表、NEVER 据 `BLACKLIST_RELEASED` 的 `CHANNEL_SYNC_*` 扫表**）
 - `/internal/blacklist/auto-release` — **自动解除**（2026-09-21 新增，`sys_job` 230，见下面「自动解除」一节）。**这是本前缀下唯一会改黑名单本体的端点**，`limit` 是可选 `@RequestParam`
 
-⚠️ **该前缀下现在已有三个写接口，但仍无验签** —— `BlacklistInternalController` 类注释里那句「当前只有一个只读盘点接口，因此无需鉴权」**已不成立**，与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突，上生产前 MUST 补，**且 MUST 优先覆盖 `/auto-release`**（误调等于把欠费卡提前放行）。四个端点现在**都有 `sys_job` 触发记录**：280 盘点 / 320 加黑补偿 / 325 解黑补偿 / 230 自动解除（**前三个 2026-09-21 随「200 以下全量重编号」由 105 / 125 / 126 改为 280 / 320 / 325，触发目标与 cron 均未变，NEVER 回退成旧号**）。
+⚠️ **该前缀下现在已有三个写接口，但仍无验签** —— `BlacklistInternalController` 类注释里那句「当前只有一个只读盘点接口，因此无需鉴权」**已不成立**，与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突，上生产前 MUST 补，**且 MUST 优先覆盖 `/auto-release`**（误调等于把欠费卡提前放行）。四个端点现在**都有 `sys_job` 触发记录**：280 盘点 / 320 加黑补偿 / 325 解黑补偿 / 230 自动解除（**前三个 2026-09-21 随「200 以下全量重编号」由 105 / 125 / 126 改为 280 / 320 / 325，触发目标与 cron 均未变，NEVER 回退成旧号**）。
 
 RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackList`、`alipayTripReceiveBlackList`（内部复用查询）、`inspectReleasable`、`compensateChannelSyncAdd`、`compensateChannelSyncRelease`、`autoRelease`。**仍没有 `deleteBlackList`**：人工解除只能走 HTTP 或运营页，程序化解除只有 `autoRelease` 这一条（且被 `BLACK_CAUSE='01'` 收窄）。
 表：`BLACKLIST`、`BLACKLIST_OPERATE_LOG`、**`BLACKLIST_RELEASED`**（解除历史表）
@@ -109,7 +109,7 @@ RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackL
 
 ---
 
-## 2. key-server（端口 9103）
+## 2. key-server（端口 8080，默认；容器有效端口见 `overview.md` §二）
 启动类 `key-server/.../KeyServer.java`
 `key/controller/KeyController.java`：
 - IF8A-02 `POST /requestKeyList` — 按卡类型分流 QR SM2 / HCE DPK
@@ -131,7 +131,7 @@ AGM 密钥同步相关脚本：`scripts/20260807_agm_key_sync_schema.sql`、`scr
 触碰该文件 **MUST** 提示人工复核并建议外置到密钥管理，**NEVER** 把密钥值输出到对话或日志。
 密钥派生 / 3DES / SM2 逻辑 **NEVER** 擅自修改。
 
-⚠️ 端口 9103 与 ticket-server 相同，同机部署 **MUST** 提示改端口。
+⚠️ key-server 默认 `server.port=8080`，与 ticket-server 默认值相同；K8s 下各自独立 Pod 不冲突，但同机裸跑 **MUST** 注意端口占用。
 
 ---
 
@@ -438,7 +438,7 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 
 **`TBL_PARA_VERSION` 是唯一的「当前生效版本」权威表**，下游一律 `WHERE PARA_VER_NO = (SELECT CURRENT_VER_NO FROM TBL_PARA_VERSION WHERE PARA_TYPE = ...)`。
 
-**MUST：改 `TBL_PARA_VERSION.CURRENT_VER_NO` 做重导验证时，NEVER 用「当前版本减 1」。** 明细表只保留少数几个历史版本（2026-09-08 实测 `TBL_LINE_INFO` 只有 28 / 41 两个版本，`TBL_FARE_MATRIX` 只有 33 / 44），把 `CURRENT_VER_NO` 指到一个库里不存在的版本号 **等于把参数整体清空**——下游那句子查询命中 0 行，IF8A-07 / 08 / 10 / 17 全部返空，而**没有任何报错**。**MUST 先 `SELECT PARA_VER_NO, COUNT(*) FROM <明细表> GROUP BY PARA_VER_NO` 查出真实存在的上一个版本**再回退，并当场记下原值与还原 SQL（`172.20.211.23:300xx` 是测试环境，但这条属破坏性写库）。同一条也在 `docs/ops/构建与部署规范.md` §8「Ops & Deployment (部署与运维，详见 docs/ops/)」 有一份，两处 MUST 同时改。
+**MUST：改 `TBL_PARA_VERSION.CURRENT_VER_NO` 做重导验证时，NEVER 用「当前版本减 1」。** 明细表只保留少数几个历史版本（2026-09-08 实测 `TBL_LINE_INFO` 只有 28 / 41 两个版本，`TBL_FARE_MATRIX` 只有 33 / 44），把 `CURRENT_VER_NO` 指到一个库里不存在的版本号 **等于把参数整体清空**——下游那句子查询命中 0 行，IF8A-07 / 08 / 10 / 17 全部返空，而**没有任何报错**。**MUST 先 `SELECT PARA_VER_NO, COUNT(*) FROM <明细表> GROUP BY PARA_VER_NO` 查出真实存在的上一个版本**再回退，并当场记下原值与还原 SQL（`172.20.211.23:300xx` 是测试环境，但这条属破坏性写库）。同一条也在 `AGENTS.md §7`「Ops & Deployment (部署与运维，详见 docs/ops/)」 有一份，两处 MUST 同时改。
 
 **入库判据（最终裁决单点在 `ParaFileImportService.importLocalFile`）**：
 - 库中无该 `paraType` → 导入
@@ -509,11 +509,11 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 #### 1.7 构建与部署（para-server 专有坑）
 - **`para-server` 的 jkube `build-image-remote` 绑在 `<phase>package</phase>`**（`para-server/pom.xml`，**在 `remote` profile 内、无 `activeByDefault`**）：**默认 `mvn clean package` 只出 jar、不推镜像；推镜像 MUST 显式 `-Premote`**（2026-09-08 实测直接推出 `itp/para-server:2.0.19` 是当时 `remote` 默认激活所致，2026-10-20 已去掉默认激活）。这条实测**推翻了「`build-image-remote` 等于绑 `install`」的旧记载**，**NEVER 回退execution id 不能用来推断阶段**。
 - 因此默认 `package` 就是拿 jar、**无需 `-Djkube.skip=true`**；要推才加 `-Premote`。
-- `/para-server/` 是 `fep-app-vr` 那 8 条入向前缀之一（见 `docs/ops/流量切换.md`）。
+- `/para-server/` 是 `fep-app-vr` 那 8 条入向前缀之一（见 `docs/ops/流量切换Runbook.md`）。
 
 ---
 
-### 二、key-server（9103）：密钥同步 SM2 / DPK / AGM 密钥池
+### 二、key-server（8080，默认；见 `overview.md` §二）：密钥同步 SM2 / DPK / AGM 密钥池
 
 #### 2.1 IF8A-02 请求同步密钥
 - 入口 `key-server/src/main/java/com/chinasofti/huateng/key/controller/KeyController.java`，供 `fep-app-server` 调；**APP 公共报文解析仍在 fep-app-server，key-server 只处理 bizData 业务参数**。
@@ -534,13 +534,13 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 - **状态码→中文的两套口径共存、NEVER 合并成一张表**：AGM 域用 `20010` / `20020` / `20030`，CA 与 HCE 域用 `0` / `1` / `2`。两个域的 `1` 含义不同，合并即错。实现是 `KeyVersionQueryServiceImpl.STATUS_DESC`「域 → (状态码 → 中文)」，**键冲突属预期**，故按域分表。
 
 #### 2.3 端口冲突（key-server 自身）
-**key-server 的 `server.port=9103` 与 `ticket-server` 撞号**（docs/business/README.md 全局事实 端口冲突清单里的那一组）。同机部署需确认；K8s 下各自独立 Pod 不冲突，但**排查「打 9103 打到了谁」MUST 先确认目标 Pod**。
+**key-server 的 `server.port=8080`（默认）与 `ticket-server` 默认值相同**（docs/business/README.md 全局事实 端口冲突清单里的那一组）。同机部署需确认；K8s 下各自独立 Pod 不冲突，但**排查「打 8080 打到了谁」MUST 先确认目标 Pod**。
 
 #### 2.4 `service.security.url`：被调方 Service 端口 ≠ 对方 `server.port`
 `key-server/src/main/resources/application.properties` 的 `service.security.url` 默认值用集群内网 Service 名（`kubectl get svc -n itp` 实测，2026-09-11）。
 
 **MUST 用集群实测的 Service 端口填地址，NEVER 按对方 `server.port` 推断。** 被调方 `acc-security-server` 的 **Service 端口是 8080、而它容器内 `server.port` 是 9012**，两者不一致。
-**已删的墓碑**：此前注释写「Service 端口是 8080，容器 `server.port` 才是 9012，NEVER 按 `server.port` 推断」——**那句缺主语**，读者会误当成 key-server 自己（**本文件第 1 行是 `server.port=9103`，9012 属 acc-security-server**）。**NEVER 回退成那句缺主语的写法。** 源码 properties 里**保留一行式护栏**。
+**已删的墓碑**：此前注释写「Service 端口是 8080，容器 `server.port` 才是 9012，NEVER 按 `server.port` 推断」——**那句缺主语**，读者会误当成 key-server 自己（**key-server 现行 `server.port=8080`，9012 属 acc-security-server**）。**NEVER 回退成那句缺主语的写法。** 源码 properties 里**保留一行式护栏**。
 
 ---
 
@@ -603,7 +603,7 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 | 6 | **`app.notify.blacklist-url` 到底算不算残留** | 键在、字段在、被注入 / **零生效读取方** | **算死配置**。清理需与「恢复通知」一并评审，**当前 NEVER 单独删键或单独恢复调用** |
 | 7 | **`BLACKLIST` 无拉黑类型字段** | 盘点想自动解除 / `REASON` 自由文本、22/35 是挂失补卡 | **维持只读盘点**。真要自动化 MUST 先加拉黑类型列（属 DDL 变更，MUST 出 `*-migration.sql`） |
 | 8 | **`RiskGroupMapper.insert` 的主键回填** | 想要 `useGeneratedKeys` 拿 `GROUP_ID` / Oracle + ojdbc 返回 ROWID、回填不进 `Long` | **不回填**。确有需求 MUST 补 `keyColumn="GROUP_ID"` 或改 `selectKey` 取序列，**NEVER 裸加 `useGeneratedKeys="true"`**（详见墓碑 #4） |
-| 9 | **`key-server` 与 `ticket-server` 抢 9103** | 两模块 `server.port` 都是 9103 | **未裁决**（docs/business/README.md 全局事实 已登记）。K8s 下各自 Pod 不冲突 |
+| 9 | ~~`key-server` 与 `ticket-server` 抢 9103~~ | 两模块默认 `server.port` 均为 8080；K8s 各自 Pod 不冲突 | **已澄清**（key-server 实际 `server.port=8080`，见 `overview.md` §二） |
 
 ### 墓碑清单
 
@@ -646,7 +646,6 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 | 已知缺口 | **三模块里 NEVER 出现过「SQL 正文禁写注释」那条 mapper XML 护栏**（全仓 grep 只在 para 那两处 tracing 注释里以「Druid WallFilter 规则（SQL 正文注释 …）」作为**候选成因**被提及，而那两处正文已删、只留一行式）。因此该护栏**本次无从保留**；要补 MUST 新增，且注释里 NEVER 出现两个连续减号 |
 | 不变量自证 | `svn cat -r BASE` 取 **157 个文件**基线，python 逐文件剥注释 + 空行归一后比对：**删除前 157/157 一致、删除后 157/157 一致**（`DIFFERENT=0`），即**本次一行代码都没动** |
 | 构建 / 测试 | `mise exec -- mvn -o clean package -pl para-server,key-server,blacklist-server -am -DskipTests`（**默认 `package` 不推镜像，无需 `-Djkube.skip=true`；要推才加 `-Premote`**）；三模块**都没有测试源码**（`key-server` / `blacklist-server` 无 `src/test` 目录，`para-server/src/test` 存在但 **0 个文件**），编译通过即为验证上限 |
-
 
 
 

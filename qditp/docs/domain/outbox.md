@@ -93,7 +93,7 @@ OutboxScan.Result scan = OutboxScan.run(pending,
 触发端点的路径**目前两套并存**，新增时对齐所在模块的既有那套、**NEVER 混用**：
 `pay-sign-server` 的 7 个补偿端点在 `/internal/**`，account-server 的这一个是
 `TaskController` 上的 `POST /phoneSignSyncCompensate`（该类没有类级 `@RequestMapping`）。
-两套都**尚无鉴权**，与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权」冲突，**上线前 MUST 补**。
+两套都**尚无鉴权**，与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权」冲突，**上线前 MUST 补**。
 
 排查「补偿到底有没有跑」**MUST 查 `SYS_JOB_LOG`**，`QRTZ_*` 表恒为 0 行（内存 JobStore）。
 
@@ -101,25 +101,27 @@ OutboxScan.Result scan = OutboxScan.run(pending,
 
 - `USER_PHONE_CHANGE_LOG.SIGN_SYNC_*` — 已落地，四列在 `AFCITPDB` 已在（2026-09-11 实测），
   `sys_job` job 290（2026-09-21 由 108 改号）触发 `POST /phoneSignSyncCompensate`。
-- `APP_TERMINATION_REQUEST.CHANNEL_SYNC_*` — **代码已落地（2026-09-12 / 2.0.80，ADR-D48）**：
-  `ChannelSyncDeliverer` 是投递与三分支落状态的唯一实现，快速路径（`CallbackDomainServiceImpl.receiveTerminationResult`
-  解约成功收口后，2026-09-15 前宿主是已删除的 `PaySignWorkflow`，见 ADR-D87）
-  与补偿扫表（`POST /internal/termination/compensateChannelSync`）共用它。
-  **DDL 是否已在 `AFCITPDB` 尚未核实**（列不存在时解约成功收口会整体报 `ORA-00904`），
-  `sys_job` 也还没插——**当前补偿端点没有任何触发方**。
-  本文此前记载的「DDL 未执行、代码未落地」中的后半句已作废，**NEVER 回退**。
+- `APP_TERMINATION_REQUEST.CHANNEL_SYNC_*` — **代码已落地（2026-09-12 / 2.0.80，ADR-D48）**，载体在 `pay-sign-server`。
+  投递与三分支落状态的实现是 `TerminationInternalService.compensateChannelSync`，
+  端点 `POST /internal/termination/compensateChannelSync`（`TerminationInternalController`）；
+  快速路径在解约收口 `CallbackDomainServiceImpl`（ADR-D87 起宿主已由已删除的 `PaySignWorkflow` 迁来）。
+  DDL 真源是 `pay-sign-server/src/main/resources/sql/pay-sign-channel-sync-migration.sql`
+  （`ALTER TABLE APP_TERMINATION_REQUEST ADD (CHANNEL_SYNC_STATUS / CHANNEL_SYNC_RETRY_COUNT / CHANNEL_SYNC_TIME / CHANNEL_SYNC_RESULT)`
+  + 索引 `IDX_ATR_CHANNEL_SYNC`），随 `2.0.80` 已部署。
+  **触发方现状**：`sys_job` 尚未插入（本条 outbox 的补偿**暂无外部驱动方**，`CHANNEL_SYNC_*` 只能靠快速路径落、扫表补偿空转）。
+  **NEVER 与 blacklist 的 `CHANNEL_SYNC_*` 混为一谈**：`blacklist-server` 的拉黑/解黑渠道同步是**独立另一处** outbox
+  （载体表 `BLACKLIST` / `BLACKLIST_RELEASED`，`ChannelSyncCompensationService` + web-admin sys_job 315，见 ADR-D132），前缀同名但表不同、调度不同。
   改动时 MUST 按本文模板，**NEVER 另起一套列名或状态值**。
-- `SUPPLEMENT_ORDER.SALE_SYNC_*` — **已落地并已部署（2026-09-14，gate-txn-pay-server 2.0.66，ADR-D64）**：
-  投递目标是销售域（collect-pay 的 `POST /internal/app-order/register`），所以前缀是 `SALE_SYNC_`。
-  四列 + 索引 `IDX_SUPPLEMENT_ORDER_SALESYNC` **已在 `AFCITPDB` 执行并用
-  `USER_TAB_COLS` / `USER_INDEXES` 回查通过**；脚本
-  `gate-txn-pay-server/src/main/resources/sql/supplement-order-sale-sync-migration.sql`。
-  实现是 `SupplementOrderServiceImpl.deliverSaleSync`（三分支）+ `syncPendingSaleOrders`（走
-  `OutboxScan`），`insert` **硬编码** `SALE_SYNC_STATUS='PENDING'`。
+- `SUPPLEMENT_ORDER.SALE_SYNC_*` — **已落地并已部署（gate-txn-pay-server 2.0.66，ADR-D64，四列 DDL 在
+  `gate-txn-pay-server/src/main/resources/sql/supplement-order-sale-sync-migration.sql` 并已在 `AFCITPDB` 回查通过）**。
+  ⚠️ **载体模块已漂移**：补款的下单/收敛/关单实现**现居 `face-pay-server`**（`service/supplement/SupplementOrderServiceImpl` +
+  `SupplementPayCenterFlow` + `SupplementOrderLocalWriter`），而非本条最初记的 `gate-txn-pay-server`；
+  四列 DDL 仍由 gate-txn 的 schema 承载（同表跨模块读写），但**驱动扫描的是 face-pay**。
   **两处与本文其余条目不同、都是有意为之**：
-  ① **调度在本模块的 `@Scheduled`（`SupplementOrderCloseProcessor`）而不是 web-admin**
-  —— 该模块已有 3 个在跑的 `@Scheduled`，补款链路的三段（补入口 / 收敛已付 / 关超时）
-  不应横跨两个调度器；**要搬 MUST 三段一起搬**，NEVER 只把新这段挪走。
+  ① **调度在 face-pay-server 模块内的 `@Scheduled`**（`face-pay-server/.../scheduler/SupplementOrderCloseProcessor`，
+  `converge-cron` / `close-cron` 两个，MUST 单副本、无分布式锁），**不是 web-admin `sys_job`** ——
+  该模块自身已有 3 个在跑的 `@Scheduled`，补款链路三段（补入口 / 收敛已付 / 关超时）不应横跨两个调度器；
+  **要搬 MUST 三段一起搬**，NEVER 只把新这段挪走。
   ② **落本地在调远端之前**，与 docs/architecture/transaction-and-consistency.md §2「MUST 先调远端、后改本地」通则相反 ——
   反过来写会在 collect-pay 留下可支付的孤儿订单（资损方向），论证见 ADR-D64。
   **补偿未闭环**：支付域没有工单表，达重试上限只落 ERROR + 写 `SALE_SYNC_RESULT`，
@@ -132,7 +134,7 @@ OutboxScan.Result scan = OutboxScan.run(pending,
 **用户 2026-09-14 明确要求搁置、本轮不实施，代码一行未改**。重新捡起来时 MUST 先读本节，
 **NEVER 从零重新设计**，也 NEVER 直接开工——三个共同待裁决点还没定（见末尾）。
 
-**① 反向推码无失败补偿**（`AppNotifyServiceImpl.doNotifyIndustryData`，`docs/business/ride-code.md` 有对应条目）
+**① 反向推码无失败补偿**（`IndustryDataNotifier.doNotifyIndustryData`，宿主由 `AppNotifyServiceImpl` 迁来；`docs/business/ride-code.md` 有对应条目）
 
 - 载体表 `QRCODE_TXN_DETAIL`，四列前缀 `CODE_PUSH_`。该表有代理主键 `ID`（`PK_QRCODE_TXN_DETAIL`），
   回写按 `ID`，**不需要拼 `UK_QRCODE_TXN_DETAIL_BIZ` 那 6 列**。
@@ -146,14 +148,15 @@ OutboxScan.Result scan = OutboxScan.run(pending,
 - 补偿重建入参需要 `companionFlag` 与 account `CHANNEL`，ticket-server 已注入 `AccountClient` /
   `AlipayAccountClient`（`GateTicketHandler`），有现成通路。
 
-**② 日票扣次失败无补偿**（`GateTicketHandler` 的 `markUsed` 分支）
+**② 日票扣次失败无补偿**（`GateDailyTicketCoordinator.markUsedOnExit` 分支；宿主由 `GateTicketHandler` 拆出）
 
 - 载体表同为 `QRCODE_TXN_DETAIL`，四列前缀 `MARK_USED_`；只有日票出站行（`TRX_TYPE='02'` +
   `CARD_TYPE` ∈ `0445~0448`）有值，其余行恒 `NULL`、天然扫不到。
 - 比 ① 简单的地方：重推入参（`cardId` / `inStation` = `LAST_HANDLE_STATION_CODE` /
   `outStation` = `HANDLE_STATION_CODE`）**在明细行里已全部落库，原样取值即可**，不存在快照过期问题。
-- **比 ① 危险的地方，也是这条链路的真正阻塞点**：当前 `markUsed` 传 `orderNo=null`
-  （`GateTicketHandler`，因为 `GATE_TXN_PAY.ORDER_NO` 由 gate-txn-pay-server 生成、ticket-server 拿不到），
+- **比 ① 危险的地方，也是这条链路的真正阻塞点**：当前 `markUsedOnExit` 调 `dailyTicketClient.markUsed` 传 `orderNo=null`
+  （`GATE_TXN_PAY.ORDER_NO` 由 gate-txn-pay-server 生成、ticket-server 拿不到；`GateDailyTicketCoordinator` 现传的是
+  `request.getCardId(), null, null, inStation, outStation`——第 3 个参数 `orderNo` 恒 null），
   而 daily-ticket-server 的 `UK_DTUL_ORDER` 在 `null` 上**不拦截**（Oracle 允许多个 null）。
   于是**重试会重复扣次 —— 反向资损，比不补偿更糟**。因此 **MUST 先补确定性 `orderNo`**
   （形如 `"DTMU_" + QRCODE_TXN_DETAIL.ID`）让对端唯一键挡住重复，**NEVER 先上扫表再想幂等**。
@@ -177,5 +180,4 @@ OutboxScan.Result scan = OutboxScan.run(pending,
    —— 选 (b) 的后果是**代码完备但没有任何触发方**，与 `APP_TERMINATION_REQUEST.CHANNEL_SYNC_*` 现状同型。
 3. **DDL 落在热表上**：两组四列都 `ALTER TABLE QRCODE_TXN_DETAIL ADD`，该表是过闸热路径写入表。
    `ADD` 不重写数据、风险低，但 MUST 出独立 `ticket-server-{code-push,mark-used}-migration.sql`
-   并当场在 `AFCITPDB` 执行 + `USER_TAB_COLS` 回查（`docs/ops/构建与部署规范.md` §8「只改 schema.sql 等于没加」）。
-
+   并当场在 `AFCITPDB` 执行 + `USER_TAB_COLS` 回查（`AGENTS.md §7`「只改 schema.sql 等于没加」）。

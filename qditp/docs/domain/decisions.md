@@ -238,7 +238,7 @@ SELECT r.THIRD_USER_ID, r.CARD_TYPE, r.CHANNEL, r.REQ_CONTRACT_NO
 
 ### 撤回 7：「事务内提交通知的三处候选：`PaySignWorkflow` 成功分支 + `F2fTicketIssueService.enqueueAppNotify` + `F2fAppOrderService.enqueueRefundNotify`」
 
-**错误结论**（2026-09-11）：评估引入 Spring Event 时，按 `docs/architecture/transaction-and-consistency.md` §4 与 `docs/business/pay-sign.md`、`docs/architecture/face-pay-refactor.md` 的描述，列出上述三处作为 `@TransactionalEventListener(AFTER_COMMIT)` 的首批改造点。
+**错误结论**（2026-09-11）：评估引入 Spring Event 时，按 `docs/architecture/transaction-and-consistency.md` §4 与 `docs/business/pay-sign.md`、历史设计文档 face-pay-refactor.md（已删除）的描述，列出上述三处作为 `@TransactionalEventListener(AFTER_COMMIT)` 的首批改造点。
 
 **为什么错**（核对源码后）：**face-pay-server 的两处根本没有事务**，且是有意为之：
 1. `F2fTicketIssueService.java` —— 「不带 `@Transactional`：失败分支要调支付中心退款（docs/architecture/transaction-and-consistency.md §6「@Transactional 方法内 NEVER 发起任何 RPC / 网络调用」）」，`receiveTakeTicketResult:107` / `receiveTakeTicketFailResult:142` 均无注解。
@@ -250,7 +250,7 @@ face-pay-server 早已用「整个类无事务 + `F2F_NOTIFY_TASK` 落库 + `F2f
 
 同文件的 `receiveTerminationResult:1073` 看似同类，但它**事务内还有 RPC**（收口时经 `removeAccountPayChannel` 调 account-server，见 `TerminationProcessor.java`）——那是 2026-08-26 生产事故的同一成因，比通知时机严重。**NEVER 只把它的通知挪到 `afterCommit`**：会造成「已合规」的假象而地基未修，要修 MUST 先收缩事务边界。
 
-**教训**：文档里的「待修问题」条目**不等于代码现状**——`face-pay-refactor.md` 那批重写已经顺手修掉了其中两条，但 §5.2 的规则行文没同步。据文档挑改造点前 **MUST 先 grep 目标类有没有 `@Transactional`**；`fallbackExecution = false` 在无事务类上是**静默不执行**，编译与单测都发现不了。
+**教训**：文档里的「待修问题」条目**不等于代码现状**——历史设计文档 face-pay-refactor.md（已删除）那批重写已经顺手修掉了其中两条，但 §5.2 的规则行文没同步。据文档挑改造点前 **MUST 先 grep 目标类有没有 `@Transactional`**；`fallbackExecution = false` 在无事务类上是**静默不执行**，编译与单测都发现不了。
 
 
 ### 撤回 8：「签约时把 `CARD_ID` / `CARD_TYPE` 写进 `APP_PAY_SIGN_INFO`，解约就不用回查账户域」
@@ -389,7 +389,7 @@ face-pay-server 早已用「整个类无事务 + `F2F_NOTIFY_TASK` 落库 + `F2f
 
 **三个刻意的设计点**：
 
-1. **端点不收任何入参**。这是它可以不鉴权的前提：触发的是「本服务自己决定范围的扫表」，不是按流水号操作单笔数据。**NEVER 后续给它加 `changeLogId` / `thirdUserId` 参数** —— 那会变成裸暴露的单笔写接口，必须先有鉴权（docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」）。
+1. **端点不收任何入参**。这是它可以不鉴权的前提：触发的是「本服务自己决定范围的扫表」，不是按流水号操作单笔数据。**NEVER 后续给它加 `changeLogId` / `thirdUserId` 参数** —— 那会变成裸暴露的单笔写接口，必须先有鉴权（security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」）。
 2. **`ROWNUM` 套在已排序子查询外层**。Oracle 的 `ROWNUM` 在 `ORDER BY` 之前求值，写成同层会先随机截断再排序，表现为「每次捞的不是最旧那批」且旧行长期饿死。
 3. **单条失败不中断整批**，且有重试上限。不限次数等于对恒定失败的下游无限重试，RPC 量随时间线性堆积、真实故障被重复日志淹没；达上限的行留在 `FAILED` 等人工介入（后续接异常工单表）。
 
@@ -539,7 +539,7 @@ face-pay-server 早已用「整个类无事务 + `F2F_NOTIFY_TASK` 落库 + `F2f
 
 由此**作废一整类悬空 TODO**：本文件与 `state-machines.md` 里曾反复出现「测试库已执行、**生产库仍未执行**」的表述，那是把同一个库拆成了两个。实测 2026-09-11 该库内四组账户域 DDL **全部已在**：`USER_PHONE_CHANGE_LOG` 的 4 个 `SIGN_SYNC*` 列、`ALIPAY_PHONE_CHANGE_LOG` 表、`sys_job` 的 `job_id=108`（**现为 290**，2026-09-21 重编号）、`UK_APPSI_REQUEST_SIGN_SEQ`（连带 `RECON_*` 四张也在）。**NEVER 再新增「生产库未执行」这类条目**；确实要区分环境时，MUST 先拿到第二个库的真实地址再写。
 
-⚠️ 遗留的文档冲突（**不由本条裁决，需运维确认**）：`docs/ops/生产环境清单.md` 记「`172.20.211.23:300xx` 是生产集群（2026-08-25 确认）」，docs/ops/构建与部署规范.md §8「`172.20.211.23:300xx` 网段：用户 2026-09-08 裁决为测试环境」，同文件 §八 第 1 条又把「生产 Oracle 地址」列为待确认。三者不能同时成立，但**都不影响上面这条** —— 无论那个网段叫什么，可达的 Oracle 只有这一个。
+⚠️ 遗留的文档冲突（**不由本条裁决，需运维确认**）：`docs/ops/environments/跨环境共性.md` 记「`172.20.211.23:300xx` 是生产集群（2026-08-25 确认）」，AGENTS.md §7，同文件 §八 第 1 条又把「生产 Oracle 地址」列为待确认。三者不能同时成立，但**都不影响上面这条** —— 无论那个网段叫什么，可达的 Oracle 只有这一个。
 
 ---
 
@@ -684,7 +684,7 @@ face-pay-server 早已用「整个类无事务 + `F2F_NOTIFY_TASK` 落库 + `F2f
 
 **为什么不拒绝**：ACC 是权威发卡方，拒绝它的通知会造成「ACC 已注销、本地仍启用」这类**永久不一致**，比放行更糟。这与 `applyActivationResult`（本地发起激活/禁用，必须白名单）是两类语义，**NEVER 混同去「统一加白名单」**。本告警的作用是让这类通知**可被事后发现**，从而把「ACC 到底会不会下发 4→1 / 2→3」这个待确认项变成可查证的事实——**该确认项仍未闭合**（原 Task #2 的第①步）。
 
-**一条被推翻的自述**：我此前在 ADR-D16 / D17 / D18 / D19 与业务文档里反复写「账户域没有 `src/test`」。**这是错的**：`account-server/src/test/java/.../AccountCardPoolAllocationTest.java` 一直在仓库里（8 条用例，覆盖开户发号编排）。之所以从没被察觉，是因为 docs/ops/构建与部署规范.md §7「构建命令: `mise exec -- mvn clean package -DskipTests`」一律带 `-DskipTests`，**测试从未在本机或流水线上跑过**。上述四条 ADR 的「无 src/test」表述已就地更正为指向本条。
+**一条被推翻的自述**：我此前在 ADR-D16 / D17 / D18 / D19 与业务文档里反复写「账户域没有 `src/test`」。**这是错的**：`account-server/src/test/java/.../AccountCardPoolAllocationTest.java` 一直在仓库里（8 条用例，覆盖开户发号编排）。之所以从没被察觉，是因为 AGENTS.md §6一律带 `-DskipTests`，**测试从未在本机或流水线上跑过**。上述四条 ADR 的「无 src/test」表述已就地更正为指向本条。
 
 **由此暴露的真实缺陷**：`AccountCardPoolAllocationTest` **自 2.0.56 第一轮拆分起就是全量报错状态**（8/8 ERROR，`IllegalArgumentException: Could not find field 'cardPoolClient'` —— 该字段随第一轮搬去了 `CardPoolAllocationServiceImpl`），一直到本轮才发现。也就是说前四轮「行为不变」的说法**只有编译与端到端抽查支撑，没有单测支撑**。已修：测试改为装一个真实 `CardPoolAllocationServiceImpl`、把 mock 的 `CardPoolClient` 注进协作者，断言原样不动（仍然直接盯 `cardPoolClient` 的 reserve/confirm/release 交互与顺序）。
 
@@ -801,7 +801,7 @@ face-pay-server 早已用「整个类无事务 + `F2F_NOTIFY_TASK` 落库 + `F2f
 
 **为什么这次只合并两对、没动另外两对**：`buildRegInfo` / `buildAlipayTripRegInfo` 与 `validateRequest` / `validateAlipayTripRequestApplication` **入参 DTO 类型就不同**（`RequestApplicationReqDTO` vs `AlipayTripRequestApplicationReqDTO`），且字段集合真实分叉（`COMPANION_FLAG` / `HCE_DATA` / `CARD_ISSUE_CODE` 归一化），属**正当分化，NEVER 合并** —— 强行合并只能靠 `instanceof` 或再造一个中间 DTO，两者都比现在差。
 
-**`buildTicketRequest` 的重复危险性高于 `buildRegLog`**：它组装的 `RegisterRideStatusReqDTO` 在 `model` 模块、是跨模块契约。给它加字段时漏改一份副本**不会编译失败**，表现是「ticket-server 那条链路收到 null」——正是 docs/ops/构建与部署规范.md §7「给 `model` 的 DTO 加字段后，MUST 重建链路上每一个经手该 DTO 的模块镜像」记的 IF8A-41 那类故障形态。
+**`buildTicketRequest` 的重复危险性高于 `buildRegLog`**：它组装的 `RegisterRideStatusReqDTO` 在 `model` 模块、是跨模块契约。给它加字段时漏改一份副本**不会编译失败**，表现是「ticket-server 那条链路收到 null」——正是 AGENTS.md §6记的 IF8A-41 那类故障形态。
 
 **这条重复是我自己留下的**：五轮拆分时我按「接口归属」把 IF8A-01 与支付宝出行放进同一个 service，而不是按渠道切。**更彻底的做法是拆成两个 service**，但那会动接口面，且这四块（支付通道 / 销户 / 换号 / 运营查询）**目前零单测覆盖 + 服务器不可部署**，改完没有任何验证手段，因此**本轮只做纯搬迁式去重，渠道拆分列入恢复部署后的待办**。
 
@@ -892,7 +892,7 @@ face-pay-server 早已用「整个类无事务 + `F2F_NOTIFY_TASK` 落库 + `F2f
 
 **验证边界**：仅 `mvn -o install -pl model,rpc` + `mvn -o test -pl account-server`（15/15）+ `mvn -o test-compile -pl pay-sign-server`。**没有镜像、没有部署、没有端到端**。恢复部署后 MUST 按序：
 1. 先执行 D30 的 `ALTER TABLE APP_USER_PAY_CHANNEL ADD (PAY_ACCOUNT_ID VARCHAR2(128 CHAR));`——**本条与 D30 共用这一列，DDL 没执行时两条都跑不通**；
-2. **`model` 改了 DTO，MUST 同时重建 account-server 与 pay-sign-server 两个镜像**（`docs/ops/构建与部署规范.md` §7：Fastjson2 静默丢字段，只重建一端会收到 null）；
+2. **`model` 改了 DTO，MUST 同时重建 account-server 与 pay-sign-server 两个镜像**（`AGENTS.md §6`：Fastjson2 静默丢字段，只重建一端会收到 null）；
 3. 探针：做一次真实签约，查 `APP_USER_PAY_CHANNEL.PAY_ACCOUNT_ID` 是否在**未走 IF8A-77** 的情况下就有值；pay-sign 日志应有「向账户域回写支付账号成功」。
 
 ---
@@ -1196,7 +1196,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
   - `SELECT COUNT(*) FROM USER_ITP_REG_INFO WHERE DEL_YN IS NULL` —— 判定 ADR-D41 的幽灵态是否真实存在；结果决定加不加 `NOT NULL` + `DEFAULT 1`。
   - `SELECT DISTINCT DEBIT_STATUS FROM GATE_TXN_PAY` —— 代码里只 grep 到 `PROCESSING` / `SUCCESS` 两个值，需确认这一列**是否真的没有失败态**，再决定该列要不要建状态机。**NEVER 凭 grep 结果就断言取值集合**。
 - `USER_ITP_REG_INFO` 中 `CARD_TYPE = 0445` 的 4 行 `CHANNEL = '12'`（3 行）/ `'00'`（1 行），`REQ_CONTRACT_NO` 与 `THIRD_PAY_ID` 全为 null，且 `12` / `00` 从未出现在 `APP_USER_PAY_CHANNEL`。**`0445` 卡上 `CHANNEL` 列的业务含义待业务确认** —— 若不表示签约渠道，检测规则需加 `AND CARD_TYPE <> '0445'`。
-- 新增 internal 端点是否加鉴权。**用户 2026-09-11 裁定：暂不加**，对齐 recon 的 `X-Recon-Token` 临时降级；与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突，**上线前 MUST 恢复**。
+- 新增 internal 端点是否加鉴权。**用户 2026-09-11 裁定：暂不加**，对齐 recon 的 `X-Recon-Token` 临时降级；与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突，**上线前 MUST 恢复**。
 - 票实例的 `ACC_NOTICE_STATUS` / `ACC_NOTICE_TIME` 是否从行程域表挪到结算域自己的表（建 `RECON_*` 时一并处理）。
 - `USER_PHONE_CHANGE_LOG` 生产实际表结构（建权威 DDL 前 MUST 先 `describeTable`，NEVER 直接 `CREATE`）。
 - **IF8B 解约通知报文里 `cardId` / `cardType` 是不是必填？** 这一条决定 `APP_TERMINATION_REQUEST.CARD_ID` / `CARD_TYPE` 的 `NOT NULL`（`pay-sign-schema.sql`）能不能放开，而那两个 NOT NULL 是 pay-sign → account 的 `fillCardInfoFromAccount` 这条跨域读**唯一**的存在理由。
@@ -1239,7 +1239,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 - `BizRejected` —— 对端答复了但业务拒绝（支付域在 `APP_PAY_SIGN_INFO` UPDATE 影响 0 行时返 FAIL，即「该用户没有签约记录」）。**重推一万次也不会成功**。改造后一次即终态：`markSignSyncRejected` 把重试次数直接置成上限、当轮开工单。旧版把它当可重试，补偿队列要白跑 10 轮才开单，期间真实故障被同一条日志淹没。
 - `Unreachable` —— 没拿到业务答复（连不上 / 超时 / HTTP 错误）。**这才是补偿队列该收的那一类**，仍走 `markSignSyncFailed` 次数 +1。
 
-**落地方式受 `rpc` 版本锁死约束**（2.0.1、被 21 个模块引用，见 `docs/ops/构建与部署规范.md` §7）：**只新增方法、不改签名**。`PaySignClient.updateDisplayAccountOutcome` 是新方法，旧 `updatePaySignDisplayAccount` 打 `@Deprecated` 并**委托给新方法**（NEVER 在它里面再抄一份解析逻辑）。`alipay-account-server` 仍在用旧方法，编译通过、行为不变，逐调用点迁移。
+**落地方式受 `rpc` 版本锁死约束**（2.0.1、被 21 个模块引用，见 `AGENTS.md §6`）：**只新增方法、不改签名**。`PaySignClient.updateDisplayAccountOutcome` 是新方法，旧 `updatePaySignDisplayAccount` 打 `@Deprecated` 并**委托给新方法**（NEVER 在它里面再抄一份解析逻辑）。`alipay-account-server` 仍在用旧方法，编译通过、行为不变，逐调用点迁移。
 
 **已迁移的两个调用点**：
 
@@ -1298,7 +1298,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 
 **如实记录两处护栏空缺**：①三个 pay-sign 调用点的迁移**没有单测**——该模块现有 34 例全是纯领域类与静态断言（`SignStatus*` / `TerminationStatus*` / ArchUnit / `AppTerminationRequestMapperSqlTest`），没有一例用 Mockito 装配过 `PaySignWorkflow`，为这次改动新建 mock 脚手架属独立立项。这三处**靠「行为逐条对照」的代码审查保证，不是靠测试**。②`AccountDomainRpcAdapter` 自身的 retCode→outcome 映射同样无测试，同因。
 
-**未部署**。ADR-D34~D46 十三轮至今一个镜像都没建。本轮动了 `model`（新增 `OutboxScan`）：按 `docs/ops/构建与部署规范.md` §7，`model` 版本号恒为 2.0.0、`mvn install` 只更新本机 `~/.m2`，**部署时 MUST 确认目标模块镜像已重建**；不过 `OutboxScan` **不参与序列化**（纯本地工具类），因此不存在「加字段被 Fastjson2 静默丢弃」那类跨模块风险，只需保证 account-server 的镜像里有这个 class。
+**未部署**。ADR-D34~D46 十三轮至今一个镜像都没建。本轮动了 `model`（新增 `OutboxScan`）：按 `AGENTS.md §6`，`model` 版本号恒为 2.0.0、`mvn install` 只更新本机 `~/.m2`，**部署时 MUST 确认目标模块镜像已重建**；不过 `OutboxScan` **不参与序列化**（纯本地工具类），因此不存在「加字段被 Fastjson2 静默丢弃」那类跨模块风险，只需保证 account-server 的镜像里有这个 class。
 
 ## ADR-D47：解约状态机补 CAS + 枚举，CONFLICT 改为落库留痕（2026-09-12，model + pay-sign-server 2.0.78）
 
@@ -1342,7 +1342,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 
 **顺带纠正一处文档误读**（已同步改 `state-machines.md`）：该文长期把「`pay-sign-server` 里还有一堆裸 `"SUCCESS"`」当成「解约状态机没收口」的证据。2026-09-12 复核，14 个匹配行里属于 `TERMINATION_STATUS` 的是 **0 处**，其余分属支付/退款状态、支付平台回调报文、`NOTIFY_STATUS`、`CHANNEL_SYNC_STATUS`（后者还多一个 `MANUAL`）四个互不相同的值域。**NEVER 拿一个枚举去统一它们**，那是把「字面量相同」当成「概念相同」。
 
-**未部署**。ADR-D34~D47 十四轮至今一个镜像都没建。本轮动了 `model`（新增 `TerminationStatus`）：`TerminationStatus` 只在 pay-sign-server 内使用、**不参与序列化**，但按 `docs/ops/构建与部署规范.md` §7，部署时 MUST 确认 pay-sign-server 的镜像里有这个 class。`pay-sign-server` 版本号已升到 **2.0.78**（该模块 `package` 即推 Harbor，构建前 MUST 确认部署意图）。
+**未部署**。ADR-D34~D47 十四轮至今一个镜像都没建。本轮动了 `model`（新增 `TerminationStatus`）：`TerminationStatus` 只在 pay-sign-server 内使用、**不参与序列化**，但按 `AGENTS.md §6`，部署时 MUST 确认 pay-sign-server 的镜像里有这个 class。`pay-sign-server` 版本号已升到 **2.0.78**（该模块 `package` 即推 Harbor，构建前 MUST 确认部署意图）。
 
 ### 当日修正：留痕文案泄漏给终端用户（2026-09-12，2.0.79）
 
@@ -1512,7 +1512,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 
 根因不在唯一索引，而在**「幂等发号」与「谁有权释放」之间没有归属约定**：`releaseReservation` 被当成本请求私有的回滚动作，而预占实际上是同 `businessId` 的所有并发请求**共享**的。可选修法（**未实施，需定**）：①`releaseReservation` 只在「本请求是该预占的创建者」时才执行，`reserveFromPool` 需回传「新建 / 复用」标志；②`confirmReservation` 返 `REJECTED` 时**不再返成功**，改为回滚本地落库或落异常工单；③把预占的幂等边界从 `thirdUserId:票种` 收窄到含请求维度。**NEVER 只做 ②** —— 那只是把不一致从「静默」变成「报错」，卡号仍会漏回池子。
 
-**已做的数据修复（我自己造的隐患，不修就等着撞）**：把 `LOGIC_CARD_POOL_CARD` 的这一行对齐到「已发给 99900914」，`UPDATE … SET STATUS='ASSIGNED', BUSINESS_TYPE='ACCOUNT_OPEN', BUSINESS_ID='99900914:0441', OWNER_ID='99900914', RESERVED_TIME=TIMESTAMP '2026-09-14 09:53:33.575399', CONFIRM_TIME=SYSTIMESTAMP, EXPIRE_TIME=NULL, UPDATE_TIME=SYSTIMESTAMP WHERE ID=91 …`，`affectedRows:1`，回查那条一致性 SQL 已回到 **0**。**还原 SQL**：`UPDATE LOGIC_CARD_POOL_CARD SET STATUS='AVAILABLE', BUSINESS_TYPE=NULL, BUSINESS_ID=NULL, OWNER_ID=NULL, RESERVED_TIME=NULL, EXPIRE_TIME=NULL, CONFIRM_TIME=NULL, RESERVATION_ID='d8f7e202-d09c-4ba5-a3f7-cff6717083b3', UPDATE_TIME=TIMESTAMP '2026-09-14 09:53:34.368679' WHERE ID=91;`。**选这个方向而不是删账户行，是因为账户表已经把卡号发出去了**，按 `docs/ops/构建与部署规范.md` §8「有重复只能与业务定归属、NEVER 删行」的同一逻辑，让池子服从既成事实更安全。
+**已做的数据修复（我自己造的隐患，不修就等着撞）**：把 `LOGIC_CARD_POOL_CARD` 的这一行对齐到「已发给 99900914」，`UPDATE … SET STATUS='ASSIGNED', BUSINESS_TYPE='ACCOUNT_OPEN', BUSINESS_ID='99900914:0441', OWNER_ID='99900914', RESERVED_TIME=TIMESTAMP '2026-09-14 09:53:33.575399', CONFIRM_TIME=SYSTIMESTAMP, EXPIRE_TIME=NULL, UPDATE_TIME=SYSTIMESTAMP WHERE ID=91 …`，`affectedRows:1`，回查那条一致性 SQL 已回到 **0**。**还原 SQL**：`UPDATE LOGIC_CARD_POOL_CARD SET STATUS='AVAILABLE', BUSINESS_TYPE=NULL, BUSINESS_ID=NULL, OWNER_ID=NULL, RESERVED_TIME=NULL, EXPIRE_TIME=NULL, CONFIRM_TIME=NULL, RESERVATION_ID='d8f7e202-d09c-4ba5-a3f7-cff6717083b3', UPDATE_TIME=TIMESTAMP '2026-09-14 09:53:34.368679' WHERE ID=91;`。**选这个方向而不是删账户行，是因为账户表已经把卡号发出去了**，按 `AGENTS.md §7`「有重复只能与业务定归属、NEVER 删行」的同一逻辑，让池子服从既成事实更安全。
 
 **残留测试数据（未清理，等你定）**：`USER_ITP_REG_INFO` / `USER_ITP_REG_LOG` 各 1 行，`THIRD_USER_ID='99900914'`、`CARD_ID='0426090949000126'`、`CARD_TYPE='0441'`；ticket-server 侧还有一条该卡的乘车状态（`cardStatus=03`）。要清就三处一起清，**NEVER 只删账户表那行**（会再造出一个「池子已发、账户无主」的反向不一致）。
 
@@ -1560,7 +1560,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 
 **其余 6 个 tracing 模块只吃到第 1 层的修复**（切面已改），它们内部按类型 catch 的位置**没有逐个加第 2 层**，也**没有逐个 grep 排查过还有多少个受影响的 catch** —— 这是本轮**已知空缺**，MUST 后续补一次全模块 grep（判据：tracing 模块内 `catch (.*Exception)` 且捕的是 Spring `DataAccessException` 子类）。
 
-**验证**：`card-pool-server` 29 个单测全绿，其中新增两条锁死本次语义 —— `reserveResolvesUniqueKeyRaceWhenExceptionWrapped`（冲突被包成 `RuntimeException` 也要复用）与 `reserveRethrowsNonIntegrityFailure`（非冲突异常 MUST 原样抛、不许走回查）。镜像 `itp/card-pool-server:1.0.17`（digest `sha256:6374f622…`）已推并滚更，日志确认 `Starting CardPoolServer v1.0.17` + `Tomcat started on port 9111`。**回滚命令**：`kubectl set image deploy/card-pool-server card-pool-server=os-harbor-svc.default.svc.cloudos:443/itp/card-pool-server:1.0.15 -n itp`（线上原本跑 **1.0.15**，仓库 pom 却已是 1.0.16 —— 又一次「升过号没部署」，同 docs/ops/构建与部署规范.md §7「pom `<version>` 不等于线上版本」那条）。
+**验证**：`card-pool-server` 29 个单测全绿，其中新增两条锁死本次语义 —— `reserveResolvesUniqueKeyRaceWhenExceptionWrapped`（冲突被包成 `RuntimeException` 也要复用）与 `reserveRethrowsNonIntegrityFailure`（非冲突异常 MUST 原样抛、不许走回查）。镜像 `itp/card-pool-server:1.0.17`（digest `sha256:6374f622…`）已推并滚更，日志确认 `Starting CardPoolServer v1.0.17` + `Tomcat started on port 9111`。**回滚命令**：`kubectl set image deploy/card-pool-server card-pool-server=os-harbor-svc.default.svc.cloudos:443/itp/card-pool-server:1.0.15 -n itp`（线上原本跑 **1.0.15**，仓库 pom 却已是 1.0.16 —— 又一次「升过号没部署」，同 AGENTS.md §6那条）。
 
 ### 第 3~7 轮端到端（account 2.0.65 + card-pool 1.0.17，全部真实调用）
 
@@ -1590,7 +1590,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 
 回查：上述五张表对这三个用户 / 五个卡号**全部 0 行**，五张卡 `STATUS<>'AVAILABLE'` 计数 0、`BUSINESS_ID LIKE '999009%'` 计数 0；全库一致性判据 `r.DEL_YN=1 AND p.STATUS='AVAILABLE'` 仍为 **0**（这条在清理后仍成立才算干净 —— 账户行已删除，不会再与回池的卡配对）。
 
-**清理过程中又踩了两次同一个坑**：`SELECT ... STATUS FROM ACCOUNT_EXCEPTION_TICKET` 与 `SELECT ... CARD_TYPE FROM QRCODE_STATUS` 都报成 `McpToolException cannot be cast to java.util.Map`，实际成因都是**列名不存在**（前者真名 `TICKET_STATUS`，后者压根没有 `CARD_TYPE`）。与 docs/ops/构建与部署规范.md §8「报 `McpToolException cannot be cast to java.util.Map/List` 有两个成因，NEVER 只按第一个查」已记的判据一致：**这个 cast 报错先当「列名写错」查，MUST 先 `SELECT COLUMN_NAME FROM USER_TAB_COLS` 对一遍**。
+**清理过程中又踩了两次同一个坑**：`SELECT ... STATUS FROM ACCOUNT_EXCEPTION_TICKET` 与 `SELECT ... CARD_TYPE FROM QRCODE_STATUS` 都报成 `McpToolException cannot be cast to java.util.Map`，实际成因都是**列名不存在**（前者真名 `TICKET_STATUS`，后者压根没有 `CARD_TYPE`）。与 AGENTS.md §7已记的判据一致：**这个 cast 报错先当「列名写错」查，MUST 先 `SELECT COLUMN_NAME FROM USER_TAB_COLS` 对一遍**。
 
 ### ADR-D53 续：全模块 grep 已补做，受影响的裸 catch 只有 2 处（2026-09-14）
 
@@ -1602,13 +1602,13 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 - **`gate-txn-pay-server` / `daily-ticket-server` / `collect-pay-server` / `alipay-pay-sign-server` 一处都没有** —— gate-txn-pay 的 `GateTxnPayWriter` 与 `SupplementOrderServiceImpl` 早就是 cause 链判定（两处 grep 命中是它们的 javadoc）。
 - **`face-pay-server` 有 12 处裸 `catch (DuplicateKeyException)`**（`F2fNotifyService` / `F2fBomOrderService` ×2 / `F2fScanPayService` / `F2fTicketIssueService` ×3 / `F2fAppOrderService` / `F2fTopupService` / `F2fHceService` / `F2fTvmOrderService` / `F2fRefundService`），**是全项目最密集的一处，但该模块没开 tracing、当前不受影响**（`application.properties` 里没有 `management.tracing.enabled`，同 account-server）。**结论：谁要给 face-pay-server 开 tracing，MUST 同批把这 12 处一起改成 cause 链判定**，否则一开就是 12 条幂等同时失效。`account-server` / `ticket-server` / `para-server` 的对应位置已是 cause 链判定，不受开关影响。
 
-**同时记一条比 grep 更要紧的部署事实**：第 1 层修复落在 `resource/micro/web`，而该模块**按惯例不升版本号、只 `mvn install`** —— 这只更新本机 `~/.m2`，**对已在跑的 Pod 毫无影响**。因此**要让切面修复真正生效，MUST 逐个重建并滚更这 7 个模块的镜像**，`mvn install` 与改 Deployment env 都不够。这与 docs/ops/构建与部署规范.md §7「给 `model` 的 DTO 加字段后，MUST 重建链路上每一个经手该 DTO 的模块镜像」是**同一个机理**（公共构件版本号恒定 + 旧 class 打进旧镜像）。
+**同时记一条比 grep 更要紧的部署事实**：第 1 层修复落在 `resource/micro/web`，而该模块**按惯例不升版本号、只 `mvn install`** —— 这只更新本机 `~/.m2`，**对已在跑的 Pod 毫无影响**。因此**要让切面修复真正生效，MUST 逐个重建并滚更这 7 个模块的镜像**，`mvn install` 与改 Deployment env 都不够。这与 AGENTS.md §6是**同一个机理**（公共构件版本号恒定 + 旧 class 打进旧镜像）。
 
 **2026-09-14 已完成 5 个模块的重建 + 滚更，7 个里只剩 pay-sign 未上线**（此前只有 `card-pool-server:1.0.17`）：
 
 - `itp/recon-server:1.0.14`（原 1.0.13）、`itp/gate-txn-pay-server:2.0.62`（原 **2.0.60**，注意仓库 pom 早已是 2.0.61 但那个 tag 从没推过，回滚要回 2.0.60）、`itp/daily-ticket-server:1.0.23`（原 1.0.22）、`itp/collect-pay-server:1.1.81`（原 1.1.80）、`itp/alipay-pay-sign:1.1.18`（原 1.1.17）。五个都是 `BUILD SUCCESS` + `Pushed`，`kubectl set image` 后五个 Deployment 全部 `successfully rolled out`、Pod `2/2 Running`、Deployment image tag 回查一致。
 - **`pay-sign-server` 仍停在 2.0.80、切面修复未上线**：工作区 `PaySignWorkflow.java`（未提交、`git status` 为 `M`）那次半成品重构仍未收口 —— 复测 6 个私有方法全是「有调用、零声明」（`validatePaySignInfo` / `updatePayRequestResult` 4 处 / `buildPayRefundDetail` / `resolveDebitRequestResult` / `resolvePaySignInfoFromAccount` / `syncGateTxnPayStatus`），整模块编译不过。**NEVER 为了推镜像去动那个文件**（属别人在做的支付主链路重构 + §5.2 安全红线），等重构收口后单独重建。
-- 顺带坐实了 docs/ops/构建与部署规范.md §7「推镜像统一触发（2026-10-20 改为 profile 激活）」里两个「尚未逐个核实」的模块：**`collect-pay-server` 与 `alipay-pay-sign-server` 的 `build-image-remote` 都绑在 `package`**（该条「阶段逐模块不同」的待办已于 2026-10-20 闭合：全仓统一 `package`，且 `remote` profile 改为无 `activeByDefault`、推镜像 MUST `-Premote`），`local` 不会激活，`mvn clean package` 默认不推 Harbor、要推加 `-Premote`。另外 `daily-ticket-server` / `alipay-pay-sign` 的 push 日志走**短前缀**（`Pushed itp/...`）、其余三个走长前缀 —— 再次印证过滤只能用 `Pushed` / `digest:`。
+- 顺带坐实了 AGENTS.md §6里两个「尚未逐个核实」的模块：**`collect-pay-server` 与 `alipay-pay-sign-server` 的 `build-image-remote` 都绑在 `package`**（该条「阶段逐模块不同」的待办已于 2026-10-20 闭合：全仓统一 `package`，且 `remote` profile 改为无 `activeByDefault`、推镜像 MUST `-Premote`），`local` 不会激活，`mvn clean package` 默认不推 Harbor、要推加 `-Premote`。另外 `daily-ticket-server` / `alipay-pay-sign` 的 push 日志走**短前缀**（`Pushed itp/...`）、其余三个走长前缀 —— 再次印证过滤只能用 `Pushed` / `digest:`。
 - **验证方式换了，且这条比日志更可靠**：这 4 个模块的**文件日志里根本没有 `Tomcat started`**（`scripts/klog.sh` 连查两次都是 0 条，而 `collect-pay` 有）。实测 `recon-server` 的日志文件首行就是 `10:54:56 Log4j2 configuration has been reloaded from classpath:log4j2-linux.xml`、下一行已是 `10:55:20` 的 `CustomMeterRegistry`，中间那句 Tomcat 启动**没进文件**。**因此 NEVER 把「klog 里搜不到 `Tomcat started`」当成启动失败**，改用 `curl` 探 `/actuator/health`：从 `k8s-master` 打 `172.20.211.23:{30034,30019,30027,30024,30022}/actuator/health`，五个全 **`http=200`**（NodePort 依次是 recon / gate-txn-pay / daily-ticket / collect-pay / alipay-pay-sign）。同批也确认无 `APPLICATION FAILED` / `Failed to parse mapping resource`。
 
 
@@ -1648,7 +1648,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 
 **据此的定性（待用户/业务确认）**：**2026-06-24 的一次签约联调残留**，判据是同一分钟内反复发起签约、从未开户、从未乘车，且 `APP_PAY_SIGN_INFO` 0 行。**⚠️ 原先还列了第三条判据「`DISPLAY_ACCOUNT` 恒为占位值 `QingDaoMetro`（不是手机号）」，2026-09-14 已实测作废、NEVER 再用**：`SELECT DISPLAY_ACCOUNT, COUNT(*) ... GROUP BY` 出来是 **`QingDaoMetro` 20 行 / `138**0000` 1 行**，也就是说占位值是**正常签约的常态**（当天新开的 `00522955` 也是它），不能当异常信号。结论本身不变（另两条判据独立成立），但**这条判据是错的**。处置建议 **删除那一行**而不是归一成 `0441` —— 它对应的签约在支付域也不存在（`APP_PAY_SIGN_INFO` 0 行），保留它只会让 `countByThirdUserId` 这类「该用户还有几条通道」的判断多一个假阳性。**但删除属破坏性写库，MUST 由用户裁决后再执行**，届时 MUST 先记原值与还原 INSERT。
 
-**部署状态**：**2.0.66 已构建、已推 Harbor、已滚更**（`kubectl set image deploy/account account=...:2.0.66 -n itp`，Deployment / 容器名都是 `account`；`curl http://172.20.211.23:30013/actuator/health` 返 200）。滚更前实测集群上的旧 tag 是 **2.0.65**（docs/ops/构建与部署规范.md §7「pom `<version>` 不等于线上版本」记的 2.0.62 已过期）。**本段此前写的「只编译过、镜像未推、未部署」已作废，NEVER 回退。**
+**部署状态**：**2.0.66 已构建、已推 Harbor、已滚更**（`kubectl set image deploy/account account=...:2.0.66 -n itp`，Deployment / 容器名都是 `account`；`curl http://172.20.211.23:30013/actuator/health` 返 200）。滚更前实测集群上的旧 tag 是 **2.0.65**（AGENTS.md §6记的 2.0.62 已过期）。**本段此前写的「只编译过、镜像未推、未部署」已作废，NEVER 回退。**
 
 **新 ERROR 分支的线上变异验证（2026-09-14，2.0.66 实跑）**：选 `00522943`（两条通道行、`USER_ITP_REG_INFO.CHANNEL='0B'`），用非默认 channel 调 `/requestRemovePayChannel`，因此完全绕开清默认通道 + 写 `USER_ITP_REG_LOG` 的副作用。
 - **探针 1（零写）**：`channel=99`，库里无此行 → `removed=0`、`countByThirdUserId=2` → 打出 ERROR 且 `retCode=0000`。**该分支至此从「预防性护栏」变成「已实测可触发」。**
@@ -1683,7 +1683,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 
 **这不是代码改动，也不需要构建部署** —— 只新增一个 SQL 资产：`account-server/src/main/resources/sql/account-server-active-user-cardtype-index-migration.sql`。
 
-**为什么必须补**。docs/ops/构建与部署规范.md §8「2026-09-14 一天内撞了三次同型缺陷」里，① 与 ② 都已闭合，只剩 ③：这个承载多卡语义的函数索引**只写在 `account-server-schema.sql` 里，没有独立迁移脚本**，而 `*-schema.sql` 只服务「新建库」。当前 `AFCITPDB` 里索引是在的（ADR-D51 用 PL/SQL 包装建过并回查），**所以现在不影响运行**；风险在换环境或新建库时**静默漏掉** —— 一漏，`AccountRegistrationServiceImpl` 前置查重与 INSERT 之间的窗口就没有任何防线，并发 IF8A-01 / APP 重推会双双落库、用户拿到两张有效卡，而 `handleDuplicateRegistration` 那段 `DuplicateKeyException` 兜底永远走不到，**编译、单测、`xmllint` 全都发现不了**。
+**为什么必须补**。AGENTS.md §7里，① 与 ② 都已闭合，只剩 ③：这个承载多卡语义的函数索引**只写在 `account-server-schema.sql` 里，没有独立迁移脚本**，而 `*-schema.sql` 只服务「新建库」。当前 `AFCITPDB` 里索引是在的（ADR-D51 用 PL/SQL 包装建过并回查），**所以现在不影响运行**；风险在换环境或新建库时**静默漏掉** —— 一漏，`AccountRegistrationServiceImpl` 前置查重与 INSERT 之间的窗口就没有任何防线，并发 IF8A-01 / APP 重推会双双落库、用户拿到两张有效卡，而 `handleDuplicateRegistration` 那段 `DuplicateKeyException` 兜底永远走不到，**编译、单测、`xmllint` 全都发现不了**。
 
 **脚本头里刻意写进去的四件事**（照 `account-server-pay-account-id-migration.sql` 的体例）：
 - 缺这个索引的**后果**，而不只是「这里有个索引」；
@@ -1691,12 +1691,12 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 - **NEVER 加 `LOCAL`** —— 表按 `THIRD_USER_ID` 派生值 LIST 分区，键是两个 `CASE` 表达式、不是分区键，Oracle 只允许 GLOBAL，加了报 `ORA-14039`；
 - 新库上执行前的 **`ORA-01452` 前置统计 SQL**（按索引确切谓词数 `COUNT(*)` vs `COUNT(DISTINCT 键)`，有重复只能与业务定归属、**NEVER 删行**），以及经 `mcp_database_qd` 执行时**必须包一层 `BEGIN EXECUTE IMMEDIATE '...'; END;`**（该 MCP 的 SQL 解析器拒绝带 `CASE` 的 `CREATE INDEX`，内层单引号写两个）。
 
-**回查结果（2026-09-14，`AFCITPDB`）**，满足 docs/ops/构建与部署规范.md §8「同一次会话内在 `AFCITPDB` 执行」要求 (b)：
+**回查结果（2026-09-14，`AFCITPDB`）**，满足 AGENTS.md §7要求 (b)：
 - `USER_INDEXES`：`INDEX_TYPE=FUNCTION-BASED NORMAL` / `UNIQUENESS=UNIQUE` / `STATUS=VALID` / `FUNCIDX_STATUS=ENABLED` / `PARTITIONED=NO`（即 GLOBAL，与分区表的要求一致）。
 - `USER_IND_EXPRESSIONS` 两个键列：`CASE WHEN ("DEL_YN"=1 AND NVL("COMPANION_FLAG",'N')<>'Y' AND NVL("COMPANION_FLAG",'N')<>'C') THEN "THIRD_USER_ID"/"CARD_TYPE" END`，与新脚本逐字对应（Oracle 把 `NOT IN ('Y','C')` 规范化成两个 `<>`，语义等价）。
 - 脚本头那条 `ORA-01452` 前置统计**当场跑通、可直接复制使用**：当前 `TOTAL=18` / `DISTINCT_KEY=18`，无重复。（ADR-D51 建索引时是 19/19；差 1 是期间的销户与测试数据清理，与索引无关。）
 
-**因此库里没有任何变更**（索引早已存在，脚本在本库上重跑会报 `ORA-00955`，这是预期的）。本 ADR 关闭的是「物证缺失」，不是「库里缺东西」。至此 docs/ops/构建与部署规范.md §8「2026-09-14 一天内撞了三次同型缺陷」那三条同型缺陷**全部闭合**。
+**因此库里没有任何变更**（索引早已存在，脚本在本库上重跑会报 `ORA-00955`，这是预期的）。本 ADR 关闭的是「物证缺失」，不是「库里缺东西」。至此 AGENTS.md §7那三条同型缺陷**全部闭合**。
 
 **顺手修掉一处与现实相反的注释**：`AccountCardPoolAllocationTest` 的用例 javadoc 还写着「该索引在 AFCITPDB 上**尚未执行**，因此这条分支目前只有单测能走到」—— 那句自 ADR-D51 建索引、ADR-D53 第 3 轮真实并发触发到该分支后就已作废（`AccountRegistrationServiceImpl` 里的同款说明当时已改，测试类漏了）。已改成与实测一致的表述，**NEVER 回退**。
 
@@ -1730,7 +1730,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 
 **验证**：`AdviceOptEnumTest` 4 例钉住两条不变量 —— ①四个码值逐字等于对外契约、枚举总数为 4（新增取值会红，逼迫作者确认 `isSupplementExit()` 的归属）；②`SUPPLEMENT_EXIT_CODES` 恰为 `{005,006}`，且 `018` 与未知取值都**不**命中。ticket-server + fep-dev-server 全量 13 测试通过、两模块编译通过。
 
-**如实记录空缺**：①**两个镜像都还没重建、没部署** —— `model` 版本号锁死 2.0.0，`mvn install` 只更新 `~/.m2`，线上跑的仍是旧 class（正是 docs/ops/构建与部署规范.md §7「改了 `resource/micro/*` 或 `model` / `rpc` 后，`mvn install` 只更新本机 `~/.m2`，对已在跑的 Pod 零影响」末条那个机理）；②**没有端到端复测** `005`/`006` 的跳过扣费行为，本轮只有单测；③本轮**没碰** `CardDataHandler` 的 711 行主体，该文件仍未逐行审查过。
+**如实记录空缺**：①**两个镜像都还没重建、没部署** —— `model` 版本号锁死 2.0.0，`mvn install` 只更新 `~/.m2`，线上跑的仍是旧 class（正是 AGENTS.md §6末条那个机理）；②**没有端到端复测** `005`/`006` 的跳过扣费行为，本轮只有单测；③本轮**没碰** `CardDataHandler` 的 711 行主体，该文件仍未逐行审查过。
 
 ## ADR-D58 续：`supplement/` 门面（同批，ticket-server 2.1.66）
 
@@ -1773,7 +1773,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 
 **仍未闭合（本轮不做，用户 2026-09-10 已裁决 defer）**：L003 IF5A-03 无鉴权、L004 `cardId` 无归属校验。两者都与 §5.2「新增状态变更型接口 MUST 有鉴权」冲突，**上线前 MUST 恢复**。另有两项验证空缺：`UK_QSR_CARD_SEQ_ADVICE` 的**真实并发未实测**（只有单测覆盖规则表）；`005`/`006` 跳过扣费的端到端回归**仍未做**。`UNKNOWN` 行目前**只能查、没有调度方**（`selectUnknown` 已就绪，但 ticket-server 没有 `@EnableScheduling`，按 `docs/business/README.md` 全局事实 新增定时任务 MUST 建在 web-admin `sys_job`，接线是独立事项）。
 
-**验证**：`mise exec -- mvn test -pl ticket-server` 25 项通过（新增 `SupplementStateRulesTest` 6 项）；`xmllint --noout SupplementRequestMapper.xml` 通过；字符级超长行与通配符导入在 `supplement/` 下均为 0。**镜像未重建、未部署** —— 按 docs/ops/构建与部署规范.md §7「pom `<version>` 不等于线上版本」那条，2.1.69 目前只是仓库版本号。
+**验证**：`mise exec -- mvn test -pl ticket-server` 25 项通过（新增 `SupplementStateRulesTest` 6 项）；`xmllint --noout SupplementRequestMapper.xml` 通过；字符级超长行与通配符导入在 `supplement/` 下均为 0。**镜像未重建、未部署** —— 按 AGENTS.md §6那条，2.1.69 目前只是仓库版本号。
 
 ## ADR-D60：`gate/` 与 `query/` 按职责拆包，4 处绕过门面的调用点收口（2026-09-14，ticket-server 2.1.70）
 
@@ -1793,7 +1793,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 
 **收口后的跨包依赖全貌（实测，非推断）**：`station.StationNameResolver`×3、`merchant.MerchantPartyResolver`×2、`supplement.SupplementService`×1、`notify.AppNotifyService`×1、`entrytxn.EntryTxnQueryService`×1、`alipay.AlipayTripHandler`×1（门面内部委派）。**`gate/` 与 `query/` 的内部类被包外 import 的次数是 0。**
 
-**验证**：`mise exec -- mvn test -pl ticket-server` — 25 项全通过（`SelfServiceSupplementCodeStatusTest` 6 项现在 `new GateCodeStatusResolver()`，不再需要整个编排类）。**镜像未重建、未部署** —— 按 docs/ops/构建与部署规范.md §7「pom `<version>` 不等于线上版本」那条，2.1.70 目前只是仓库版本号，与 2.1.69（ADR-D59 的补站拆分）一样都还没上线。
+**验证**：`mise exec -- mvn test -pl ticket-server` — 25 项全通过（`SelfServiceSupplementCodeStatusTest` 6 项现在 `new GateCodeStatusResolver()`，不再需要整个编排类）。**镜像未重建、未部署** —— 按 AGENTS.md §6那条，2.1.70 目前只是仓库版本号，与 2.1.69（ADR-D59 的补站拆分）一样都还没上线。
 
 **未做**：`gate/` 拆出的五个协作者**没有各自的单测**（现有 25 项里只有状态码解析那 6 项直接命中新类），本轮是「行为不变的结构重排 + 编译与既有测试通过」，**NEVER 把它当成「已回归验证过 IF1A-01 全链路」** —— 真实过闸的端到端回归仍未做。
 
@@ -1844,7 +1844,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
   原因是**本项目的版本控制是 SVN（`svn://130.251.101.176/qditp`，工作副本根 `qditp/`），
   而 `qditp/` 的上一层 `qd/` 里另有一个旁挂 git 仓库**（最近提交 2026-09-10），
   那 272 行来自这个与项目无关的陈旧快照。**ADR-D53 续（本文件 1658 行）早已写明「排查历史版本 MUST 以 SVN 为准、
-  NEVER 用 git」，本轮仍二次踩中同一个坑** —— 因此该纪律已于 2026-09-14 提升进 `docs/ops/构建与部署规范.md` §7，
+  NEVER 用 git」，本轮仍二次踩中同一个坑** —— 因此该纪律已于 2026-09-14 提升进 `AGENTS.md §6`，
   见那条「版本控制是 SVN」。
 - `notify/` 两条链路**都没有单测**，且都要打外部 HTTP，真实推送的端到端回归**未做**。
 
@@ -1931,7 +1931,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
    + 同步投递 + `@Scheduled` 扫表补偿。**NEVER 因为看到 §5.2 就把这两段调过来**（同一论证已同步写进
    migration SQL 头、`requestPayOrder` javadoc、`SupplementOrderLocalWriter.persist` javadoc 三处）。
 2. **鉴权 = 无**，与 collect-pay 现有 `/internal/recon` 的临时降级同款处理。与 §5.2「新增状态变更型接口
-   MUST 有鉴权」冲突，属**有意为之的临时降级、上线前 MUST 补**（已记进 `docs/ops/生产环境清单.md`）。
+   MUST 有鉴权」冲突，属**有意为之的临时降级、上线前 MUST 补**（已记进 `docs/ops/environments/跨环境共性.md`）。
 
 **结构性新增 `SupplementOrderLocalWriter`（唯一理由是 Spring 事务的代理语义）**：`requestPayOrder`
 降级为**非事务编排层**（链路里有三段 RPC），两段本地写（主表+明细、作废+释放独占）搬到独立 `@Service`
@@ -1943,7 +1943,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 回查失败即返「支付状态确认中，请稍后重试」。把网络抖动当成「没付过」会去作废一张可能已收款的旧单 ——
 乘客付两遍。
 
-**DDL 已执行并回查（docs/ops/构建与部署规范.md §8「新增列 / 索引 MUST 出独立 `*-migration.sql` 并当场执行 + 回查」硬规则）**：`ALTER TABLE SUPPLEMENT_ORDER ADD (SALE_SYNC_STATUS
+**DDL 已执行并回查（AGENTS.md §7硬规则）**：`ALTER TABLE SUPPLEMENT_ORDER ADD (SALE_SYNC_STATUS
 VARCHAR2(32 CHAR), SALE_SYNC_RETRY_COUNT NUMBER DEFAULT 0, SALE_SYNC_TIME TIMESTAMP(6),
 SALE_SYNC_RESULT VARCHAR2(1024 CHAR))` + `CREATE INDEX IDX_SUPPLEMENT_ORDER_SALESYNC
 (SALE_SYNC_STATUS, CREATE_TIME)`，脚本
@@ -2124,7 +2124,7 @@ supplement 侧只剩 `gate.AgmRideStatusService` 一条出边（其余 `GateTick
 1. **`fep-dev-server/pom.xml` 有两个未注释的 jkube execution**（`build-image-after-package` 与
    `build-image-remote`），一次 `mvn package` **连推两遍同一个 tag**，实测两次 digest 不同
    （`sha256:a1c1add5...` 然后 `sha256:2bc403c2...`），**后者覆盖前者，线上拉到的是第二个**。
-   docs/ops/构建与部署规范.md §7「推镜像统一触发（2026-10-20 改为 profile 激活）」里曾列过的 `build-image-after-package` 名单（该家族已于 2026-10-20 废除、6 个模块的 jkube 整体移入 `remote` profile），不完整。
+   AGENTS.md §6里曾列过的 `build-image-after-package` 名单（该家族已于 2026-10-20 废除、6 个模块的 jkube 整体移入 `remote` profile），不完整。
    两次都成功时无害，但**若第二次失败而第一次成功，push 日志里会同时出现成功与失败**，
    核对 MUST 看最后一条 `Pushed`。
 2. **fep-dev-server 的 NodePort 是 30009**（`fep-dev-server-748lq-svc`，`30009:30009/TCP`）。
@@ -2140,7 +2140,7 @@ supplement 侧只剩 `gate.AgmRideStatusService` 一条出边（其余 `GateTick
 建议的归属是「长度规则上移 `model`（挂在已有的 `IssueChannelCodeEnum` 上，那里已经有 `isAlipay`）、
 `hex → dec` 留在 fep-dev」；**NEVER 把整个函数上移** —— 两处输入形态不同（hex / decimal），
 合成一个函数要么带 `boolean hexInput`、要么两个重载，等于把「AGM 用十六进制」这个只属于接入层的
-事实拖进 `model`。真要做 **MUST 同批重建 fep-dev + ticket-server 两个镜像**（`docs/ops/构建与部署规范.md` §7：
+事实拖进 `model`。真要做 **MUST 同批重建 fep-dev + ticket-server 两个镜像**（`AGENTS.md §6`：
 `model` 版本号恒定，只重建一边就是「一边新长度、一边旧长度」，恰好制造出要防的那个漂移）。
 
 ## ADR-D68：两个裸 `WebClient` 出向 client 收口到 `ProxyWebClient`，17 个入向端点按调用方分文件（2026-09-14，gate-txn-pay-server 2.0.67）
@@ -2306,7 +2306,7 @@ IF1A-04 的报文里没有 `issueChannelCode`，改造前那里硬传 `false`（
 - **第二批（当前线上，注释已改为 D70）**：`ticket-server:2.1.76`
   （digest `sha256:d8664399cb3497d3…`）+ `fep-dev-server:2.0.63`
   （`build-image-after-package` 与 `build-image-remote` 两个 execution 各推一次同 tag，
-  digest 先 `c5a94a79…` 后 `7f577cda…`，后者覆盖前者 —— 即早期 docs/ops/构建与部署规范.md §7「推镜像统一触发（2026-10-20 改为 profile 激活）」提到的「一次 package 推两遍」现象（该现象已于 2026-10-20 修复：`fep-dev-server` 移除了 `<build>` 内那份重复的 jkube 块，现不再双推）；
+  digest 先 `c5a94a79…` 后 `7f577cda…`，后者覆盖前者 —— 即早期 AGENTS.md §6提到的「一次 package 推两遍」现象（该现象已于 2026-10-20 修复：`fep-dev-server` 移除了 `<build>` 内那份重复的 jkube 块，现不再双推）；
   两模块 `mvn clean package` 均 BUILD SUCCESS（**未跳测试**）；
   滚更后探活 → `http=200`（`db` / `readinessState` UP）、 → `http=200`；
   `kubectl get deploy -n itp` 现查确认 tag 已是 **2.1.76 / 2.0.63**。
@@ -2553,7 +2553,7 @@ NEVER 按上一轮记得的号往下加一** —— 这个仓库同一天里有�
   **NEVER 让这两个 DTO 共享父类、也 NEVER 让 IF1A-07 复用 `NotifyVerifyResultDeviceReqDTO`** ——
   合并即违反 `docs/domain/README.md` 那条「对外契约 NEVER 加字段」的判据，
   而 Fastjson2 宽松模式下少一个字段是**静默丢值**，编译与单测都发现不了
-  （IF8A-41 已为此出过一次真实事故，见 `docs/ops/构建与部署规范.md` §7）。
+  （IF8A-41 已为此出过一次真实事故，见 `AGENTS.md §6`）。
 - 规格文档自身版本号不自洽：封面写「版本信息：V1.9」，变更记录只到 1.8，文件名是 V2。
   引用条款前 **MUST** 确认手上是最新版。
 
@@ -2685,7 +2685,7 @@ body 里 `db` / `livenessState` / `readinessState` 全 `UP`。**回滚 tag：2.0
 `PaySignInitiationTest` 的类注释里本来就写着「构造器增删参数时 MUST 同步这里的占位数量」，这次正是它兜住的。
 
 **部署**：镜像 `itp/gate-txn-pay-server:2.0.71`（`digest sha256:52e4de3f00e85751010cda13207f8b7463dc0f683b3849a4719589f0ff6acac6`）
-已推 Harbor（`mvn clean package` 阶段即 push，见 `docs/ops/构建与部署规范.md` §7），`kubectl set image` 从 2.0.70 换上；
+已推 Harbor（`mvn clean package` 阶段即 push，见 `AGENTS.md §6`），`kubectl set image` 从 2.0.70 换上；
 `rollout status` 报 successfully rolled out，30 秒后从 `k8s-master` 探
 `http://172.20.211.23:30019/actuator/health` 返 **`http=200`**、body 里 `db` / `livenessState` / `readinessState` 全 `UP`，
 Pod `gate-txn-pay-server-75877bb4c9-qjk7p` `2/2 Running`、`RESTARTS=0`。**回滚 tag：2.0.70。**
@@ -2735,7 +2735,7 @@ ADR-D62 已把这段判据从 fep-dev-server 迁到 ticket-server，**排查扣�
 
 **验证**：`mise exec -- mvn -pl ticket-server test` **125/125 通过**（8 个测试类），其中
 `AdviceOptEnumTest` **5 个用例**（含新增的厂家命名错位那条）、`SupplementStateRulesTest` **7 个用例**全绿。
-因 `model` 有改动，按 docs/ops/构建与部署规范.md §7「`model` / `rpc` 有改动时，MUST 先 `install` 这两个模块、再构建业务模块并部署，顺序 NEVER 颠倒、NEVER 合成一条 `-pl` 里跑」重新 `mvn install` 过 `model`（**版本号未动，仍 2.0.0**）。
+因 `model` 有改动，按 AGENTS.md §6重新 `mvn install` 过 `model`（**版本号未动，仍 2.0.0**）。
 
 **未验证（NEVER 说成已验证）**：**未部署**（`ticket-server` pom 仍 2.1.77，镜像未推、Deployment 未换）；
 「BOM 上送 020 → IF5A-03 受理 → 落 08 → 闸机出站不扣费」这条端到端**本次未实打**，
@@ -3009,7 +3009,7 @@ gate-txn-pay 2.0.73 / web-admin 1.1.20 / `rpc` 版本号不动（2.0.1）。
 ### 无鉴权是有意降级
 
 `CompensationInternalController` 无任何鉴权（用户明确「不需要鉴权」），
-与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权」冲突。
+与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权」冲突。
 现状等于**任何网络可达方都能触发一轮真实扣款**。类注释已照 `ReconExportController` 写了整段
 恢复说明（`MessageDigest.isEqual` 定长比较、令牌走 K8s Secret），**上线前 MUST 恢复**，
 恢复时 MUST 同批给 `GateTxnPayClient` 那两个方法补上令牌头。
@@ -3101,7 +3101,7 @@ controller 把它翻成 `retMsg`、`retCode` **恒 `0000`** —— 本轮扫表�
 上**没有唯一索引**（实测 12 行 / 12 个不同 `TICKET_CODE` / 0 个 null），因此 SQL 显式
 `order by CREATE_TIME desc fetch first 1 rows only`，**NEVER 删那一行** —— 一旦出现重复票号，
 MyBatis 会抛 `TooManyResultsException` 把整个 IF8A-34 打挂。
-本批**没有新增列或索引**，因此按 docs/ops/构建与部署规范.md §8「新增列 / 索引 MUST 出独立 `*-migration.sql` 并当场执行 + 回查」那条判据**不需要** `*-migration.sql`。
+本批**没有新增列或索引**，因此按 AGENTS.md §7那条判据**不需要** `*-migration.sql`。
 
 **仍未闭合**：三个改动点都**没有单元测试**；两份 `enrichDailyTicketPayInfo` 是**人工保持一致**，
 没有任何机制能在只改单边时报错。
@@ -3150,7 +3150,7 @@ MyBatis 会抛 `TooManyResultsException` 把整个 IF8A-34 打挂。
 新增 `StationNameBackfillerTest` 5 个用例（两列都回填 / 进站码查不到时出站名照填 / 一个都查不到时不擦原值 /
 编码全空时不发 RPC / 进出同站去重后只查一个码）。`GateTxnPayMapperSqlTest` 的三类口径不受影响
 （SET 子句仍无 `DEBIT_STATUS`、WHERE 仍带 `TXN_DATE`、剥离注释后 `'OFFLINE_FARE_PENDING'` 仍 3 次）。
-本批**没有新增列或索引**，按 docs/ops/构建与部署规范.md §8「新增列 / 索引 MUST 出独立 `*-migration.sql` 并当场执行 + 回查」判据**不需要** `*-migration.sql`。
+本批**没有新增列或索引**，按 AGENTS.md §7判据**不需要** `*-migration.sql`。
 
 **部署**：镜像 `itp/gate-txn-pay-server:2.0.74`（`digest sha256:294c8cbfd738cec90c51ebe9e16474f00463feee157761908fc123c4fe204d74`）
 已推 Harbor（`mvn clean package` 阶段即 push），`kubectl set image` 从 **2.0.73** 换上，
@@ -3181,7 +3181,7 @@ MyBatis 会抛 `TooManyResultsException` 把整个 IF8A-34 打挂。
 无 `FFFF` 残留 —— `FFFF` 只出现在 `QRCODE_STATUS.LAST_TXN_STATION`，那张表**没有站名列**）；
 `ALIPAY_TRAVEL_RECORD`（另一张有这两列的表）**0 行**。因此「存量历史行没有站名」这个前提在本库不成立，
 **NEVER 据此再发起一次全表 UPDATE**。唯一那条真有问题的历史行是手工测试数据 `GTTEST20260915OFFLINE001`，
-已在本 ADR 上半段修好。补齐脚本仍按 `docs/ops/构建与部署规范.md` §8 的「留物证」要求落库：
+已在本 ADR 上半段修好。补齐脚本仍按 `AGENTS.md §7` 的「留物证」要求落库：
 `gate-txn-pay-server/src/main/resources/sql/gate-txn-pay-station-name-backfill.sql`，四段（盘点 / 只补 NULL / 回查 /
 名码不一致仅盘点），**第 2 段带 `IS NULL` 前置因此可重复执行**，**第 4 段 NEVER 改成 UPDATE**
 （覆盖非空站名原值无处可查、不可回滚，MUST 逐单人工核对 + 先建快照表）。换库或换账期后 MUST 重跑第 1 段再判断。
@@ -3207,7 +3207,7 @@ MyBatis 会抛 `TooManyResultsException` 把整个 IF8A-34 打挂。
 进站码是占位 `FFFF` 时进站名留空且**绝不把编码写进站名列** / 出站码空白仍填进站名 / 两码全空时**不发 RPC** /
 进出同站去重后只查一个码），`mise exec -- mvn -o test -pl ticket-server` **Tests run: 164, Failures: 0, Errors: 0**。
 夹具是**手写匿名 `StationNameResolver` 实现，不用 Mockito**（与 ADR-D84 末尾那条同源的取舍，避免夹具依赖 mock maker）。
-本批**没有新增列或索引**，按 docs/ops/构建与部署规范.md §8「新增列 / 索引 MUST 出独立 `*-migration.sql` 并当场执行 + 回查」判据**不需要** `*-migration.sql`。
+本批**没有新增列或索引**，按 AGENTS.md §7判据**不需要** `*-migration.sql`。
 
 **部署**：`itp/ticket-server:2.1.84`（`digest sha256:e7abb7cce275505c4634bb867c6df397b1066dcf4a42f7624687cb9769aeeba9`）
 已推 Harbor，`kubectl set image` 从 **2.1.83** 换上，`rollout status` 报 successfully rolled out，
@@ -3557,7 +3557,7 @@ D85 续、D86 都是 `###`）。已把 face-pay 侧 12 处注释统一改为 **A
 **DDL 与回查**：三列由 `face-pay-server/src/main/resources/sql/f2f-order-refund-summary-migration.sql`
 在 `AFCITPDB` 执行（`ALTER TABLE F2F_ORDER ADD`），并同步补进 `f2f-schema.sql`
 （含 `REFUND_STATUS` 的 `CHECK` 约束与三列注释）。**只改 `f2f-schema.sql` 不算加完**
-（docs/ops/构建与部署规范.md §8「NEVER 只改 `*-schema.sql` 就算加完」那条），迁移脚本 MUST 保留。
+（AGENTS.md §7那条），迁移脚本 MUST 保留。
 迁移同时把 14 行历史 `ORDER_STATUS IN ('REFUNDING','REFUNDED')` 的行改写为
 「主状态回到已付/已履约 + 三列填实」，**逐行原值与还原 SQL 落在
 `/tmp/f2f-refund-summary-rollback.sql`**（`/tmp` 会被清理，**要留档 MUST 另存**）。
@@ -3684,7 +3684,7 @@ NVL(REFUND_NO,'#NONE#'))`。`F2fNotifyService.enqueue(...)` 撞索引即返 `fal
 通知地址按用户提供的地址形态写入 Deployment env：
 `NOTIFY_APP_PAY_RESULT_URL=https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receivePaymentResult`
 （**又是一处 `testngbackV2` 测试地址，但它只存在于 Deployment env、仓库里 grep 不到** ——
-docs/ops/构建与部署规范.md §8「`testngbackV2` 残留是 7 处、不是 3 处」是全仓 grep 的结果，**本条不改那个数字，而是补一条：
+AGENTS.md §7是全仓 grep 的结果，**本条不改那个数字，而是补一条：
 清理 `testngbackV2` MUST 同时查集群 env，NEVER 只靠仓库 grep 判断已清干净**。上生产前 MUST 换）。
 回滚：`kubectl set image deploy/face-pay-server face-pay-server=….0.35 -n itp` +
 删除该条 env（追加在 env 数组末位）。
@@ -3864,7 +3864,7 @@ gatewayResponse={"code":9999,"msg":"退款流水号或商户退款流水号必�
 NEVER 只凭供方文档就认为对。** 供方文档与真实应答冲突时**以真实应答为准**，
 并在 `docs/external/` 的对应小节留一条指向本 ADR 的实测注记
 （**只加注记，NEVER 改供方原文的表格内容** —— 那份文件是原样保存的供方版本，
-差异分析写 `docs/business/pay-sign.md` 与 `docs/ops/生产环境清单.md`，见 `docs/文档地图.md`）。
+差异分析写 `docs/business/pay-sign.md` 与 `docs/ops/environments/跨环境共性.md`，见 `docs/文档地图.md`）。
 
 **仍未解决的（MUST 向 bestonepay 索取完整字段清单）**：
 `PAY_REFUND_DETAIL` 的 `REFUND_NO` / `CHANNEL_REFUND_NO` / `MERCHANT_REFUND_NO` 三列
@@ -3961,7 +3961,7 @@ pay-sign 返 `9001 代扣签约请求流水号不能为空` —— 造数据的�
 
 **一条工程口径（与本 ADR 同批踩到）**：后台跑 `mvn ... | tail -N` 时 shell 退出码是 `tail` 的 `0`，
 Maven `BUILD FAILURE` 会被通知成「exit code 0」。**判构建成功 MUST 看输出里有 `digest:` / `Pushed`，
-NEVER 看退出码**（与 `docs/ops/构建与部署规范.md` §7「push 日志有两种措辞」那条配套）。
+NEVER 看退出码**（与 `AGENTS.md §6`「push 日志有两种措辞」那条配套）。
 
 
 
@@ -4075,7 +4075,7 @@ NEVER 看退出码**（与 `docs/ops/构建与部署规范.md` §7「push 日志
 
 - 构建：`mise exec -- mvn -o clean package -pl pay-sign-server` →
   `k8s: 2.0.91: digest: sha256:d7d556e9faa8...` + `Pushed os-harbor-svc.default.svc.cloudos:443/itp/pay-sign-server:2.0.91`。
-  **判据是这两行、不是退出码**（该次命令带管道，shell 退出码恒为 `tail` 的 0，见 `docs/ops/构建与部署规范.md` §7）。
+  **判据是这两行、不是退出码**（该次命令带管道，shell 退出码恒为 `tail` 的 0，见 `AGENTS.md §6`）。
 - 滚更：`kubectl set image deploy/pay-sign-server pay-sign-server=...:2.0.91 -n itp` → `successfully rolled out`。
   **容器名与 Deployment 名同为 `pay-sign-server`，Service 是 `pay-sign-server-hsa9w-svc`（8080:30016）**。
 - 探活按「间隔 ≥30s 复探 + 带 body」执行：第一次 `http=503`（envoy「无健康上游」，**不是失败**），
@@ -4794,7 +4794,7 @@ NEVER 先在代码里写号。**
 - 构建：`mise exec -- mvn -o clean package -pl pay-sign-server` → `Tests run: 124, Failures: 0`、
   **`2.0.97: digest: sha256:5a11583450e8f51b910bfed56dd30150b66958bb095332591564fa31b1caf3f2`**、
   `Pushed os-harbor-svc.default.svc.cloudos:443/itp/pay-sign-server:2.0.97 in 5 seconds`、`BUILD SUCCESS`
-  （按 docs/ops/构建与部署规范.md §7「推镜像判成功 MUST 在输出里找 `digest:` / `Pushed`」那条判据，**不看退出码**）；
+  （按 AGENTS.md §6那条判据，**不看退出码**）；
 - 滚更：`kubectl set image deploy/pay-sign-server pay-sign-server=...:2.0.97 -n itp`
   → `deployment "pay-sign-server" successfully rolled out`，新 Pod `pay-sign-server-55f5fcc976-jqpwb` `2/2 Running`；
 - 探活两次、间隔 35 秒、带 body（`172.20.211.23:30016/actuator/health`）：两次都 `http=200`，
@@ -4964,7 +4964,7 @@ Unreachable / 缺 cardType 本地拒 / 不建解约申请也不出网），按 A
 2. 滚更 —— `successfully rolled out`（回滚命令即换回 **2.0.98**）。
 3. 探活 —— NodePort 30016：`rollout status` 刚返成功时 **`http=503`**（body 是 envoy 的
    「upstream connect error … Connection refused」，即容器端口还没听上），**40 秒后复探 `http=200`**、
-   `db` / `readinessState` 全 `UP`。这正是 docs/ops/构建与部署规范.md §7「单次 503 NEVER 当成部署失败」那一条的又一次实测复现，
+   `db` / `readinessState` 全 `UP`。这正是 AGENTS.md §6那一条的又一次实测复现，
    本轮两次部署里 2.0.98 首探就 200、2.0.99 首探 503 —— **同一个服务同一天两种表现，NEVER 靠首探定论**。
 4. 字节码反查 —— Pod `pay-sign-server-64b66d7fc4-lb24h`（image 确认为 `.0.99`）内 `javap`：
    `PaymentChannels` 已含 `classify(String)`，`ContractDomainServiceImpl` 内 `PaymentChannels.classify`
@@ -5126,7 +5126,7 @@ ADR-D109 收尾时按判据「零覆盖的方法 NEVER 先拆」做了一次**�
 第一步就纠正了一个前提：**流量当时并不在新应用上**。`fep-app-vr` 读回显示
 `/itptvm/` 与 `/itpbom/` 两条 route 的 `destination.host` 都是 `collect-pay-c23ku-svc:30024`，
 而 `docs/business/README.md` 全局事实与 `docs/business/tvm-bom-pay.md` 记的是「2026-09-15 已切至 face-pay（ADR-D85）」。
-**因此那两处文档与集群实况不符**，`docs/ops/流量切换.md` 的现状表 MUST 按实测回填。
+**因此那两处文档与集群实况不符**，`docs/ops/流量切换Runbook.md` 的现状表 MUST 按实测回填。
 好处是旧应用日志里有真实设备流量可用作基线：13:57 Pod 重启后 `itpagm.log` 有 11 条
 `BodyCacheFilter` 记录（**请求参数与响应体成对**，这是本项目最好用的回放语料形态），
 其中一笔完整 TVM 单程票链路（下单 → 支付 → 支付中心 `payNotice` → 出票上报）。
@@ -5263,7 +5263,7 @@ IF8B-07 返 7005 已受理，顺序是 A→B→C→D，C 在 B 之后）。**MUS
   `F2F_LEGACY_READ_ENABLED=true` 这个已无读取方的死 env** —— 与 `RECON_INTERNAL_TOKEN` 同型残留，
   **NEVER 据集群 env 判断某个开关背后的代码还在**（本轮正是先看到这条 env 才误以为「旁路开着却没生效」）。
 
-**由此新增一条切流量前的阻塞项**（补进 `docs/ops/流量切换.md` 的检查面）：
+**由此新增一条切流量前的阻塞项**（补进 `docs/ops/流量切换Runbook.md` 的检查面）：
 切流后**设备查切流前的历史单一律查不到** —— `requestOrderResult` 返 `8999 没有查找到出票信息`、
 `requestPayResult` 返 `2002`，而同一份报文打旧应用返 `0000` + 完整交易数据（本轮实测两组）。
 这是删旁路的**已知有意后果**，但**MUST 先与业务确认可接受**，NEVER 在切流当天才发现。
@@ -5287,7 +5287,7 @@ IF8B-07 返 7005 已受理，顺序是 A→B→C→D，C 在 B 之后）。**MUS
 
 **判据（与 ADR-D108 续那条「文件工具与磁盘不一致」同源，这是第二次踩同型）**：
 - **单次编译失败 NEVER 直接当成「代码有问题」，MUST 先重跑一次**，两次都失败才进入排查。
-  这条与 docs/ops/构建与部署规范.md §7「管道会吃掉 Maven 的退出码」那条「exit code 0 不等于成功」正好成对：**判成功看关键字，判失败看可复现性**。
+  这条与 AGENTS.md §6那条「exit code 0 不等于成功」正好成对：**判成功看关键字，判失败看可复现性**。
 - 报错说「某方法找不到符号」而该方法在源码里**肉眼可见**时，**MUST 用磁盘工具复核**
   （`wc -l` / `grep -n` / `stat` 看修改时间），NEVER 只凭一次文件读取就断言磁盘状态。
 - **`svn status` 的 `?` 只说明未纳管，NEVER 用它推断「这是个半成品」** ——
@@ -5329,7 +5329,7 @@ IF5A 的 `requestCardDataAnalyse` / `requestUpdateCardData` / `notiUpdateHceData
 本轮即时复打同一份真实报文取证：**旧返 `0000` + 数据，新返 `8999 没有查找到出票信息`**。
 于是**一旦把 `/itpbom/` 切到 face-pay，这台设备 0.8 次/秒的轮询会立刻全部变成 `8999`** ——
 它在拿到 `0000` 时都不停，拿到 `8999` 后的行为完全未知（有可能退避、也有可能加速重试）。
-因此切流前 **MUST 先让这台设备停止轮询**，这条已写进 `docs/ops/流量切换.md`：
+因此切流前 **MUST 先让这台设备停止轮询**，这条已写进 `docs/ops/流量切换Runbook.md`：
 **NEVER 在有设备正对历史单高频轮询时切流**。
 
 ## ADR-D113：补上 `AccountDomainPort` 对称的另一半 —— 支付中心出向也收成端口（2026-09-16，pay-sign-server 2.0.100，已部署）
@@ -5530,7 +5530,7 @@ Mockito 对 `int` 默认返 0，于是走了「已被其它路径接手」那支
 
 **判据**：**「Nothing to compile」+ BUILD SUCCESS NEVER 当成「改动能编过」的证据。**
 凡是**删除 / 重命名 / 改签名**（不只是改方法体）之后，MUST 跑 `mise exec -- mvn -o clean test-compile`
-或直接 `clean test`。这与 docs/ops/构建与部署规范.md §7「管道会吃掉 Maven 退出码」那条是同族陷阱：
+或直接 `clean test`。这与 AGENTS.md §6那条是同族陷阱：
 两者都让「没看到报错」被误读成「没有错」，而这一条更隐蔽 —— 它连退出码都是真的 0。
 
 ### ADR-D115 续（二）：把「留给人裁决」的三条一次做完 —— 审计流水两行合一、`RESULT_CODE` 不再恒空、金额覆盖开关整段删除（2026-09-16，pay-sign-server 2.0.104）
@@ -6037,7 +6037,7 @@ NEVER 硬塞进一张表** —— 那会把差异挤进 lambda 里，比 if-else
   **35 秒后 `http=200`** 且 body 里 `db` / `livenessState` / `readinessState` 全 UP；
   当前只剩一个 Pod、image 是 `2.0.107`
 - **`2.0.106` 是个只推到 Harbor、从未被任何 Deployment 用过的中间产物**：那一版是 A+B+C 三项，
-  推完之后才做上面这处内联。**没有覆盖同 tag 重推**，因为 docs/ops/构建与部署规范.md §7「镜像 tag 等于 pom `<version>`，重复构建会覆盖 Harbor 上的同 tag 镜像」那条「同名 tag 被覆盖后
+  推完之后才做上面这处内联。**没有覆盖同 tag 重推**，因为 AGENTS.md §6那条「同名 tag 被覆盖后
   `IfNotPresent` 节点不换镜像」的坑成本远高于多占一个版本号。
 
 ## ADR-D123：`receiveSignResult` 的重推幂等 —— 撞 `UK_APPSI_REQUEST_SIGN_SEQ` 从「整事务回滚返 9001」改成「返 0000 且不重复通知」（2026-09-17，pay-sign-server 2.0.108）
@@ -6157,7 +6157,7 @@ DDL 列注释与 `docs/business/daily-ticket.md` 都列着，常量类只定义�
 
 **两条方法论**：
 1. **「某个状态值有 DDL 注释、有文档、但代码里零写入方」是一条独立的缺陷嗅探判据**，与「代码有 mapper、库里无表」
-   （`docs/ops/构建与部署规范.md` §8）互为镜像。排查状态机 **MUST 逐个取值 grep 写入方**，**NEVER 因为文档列着就认为实现了**。
+   （`AGENTS.md §7`）互为镜像。排查状态机 **MUST 逐个取值 grep 写入方**，**NEVER 因为文档列着就认为实现了**。
 2. **「有观察期」不等于「有核验」**。`verifyAfterTime` 这类时间窗只保证「早于某时刻不放款」，
    **不保证窗口内发生的事被检查过**。设计带观察期的流程 **MUST 同时回答「窗口期内标的物被谁占住」**。
 
@@ -6213,13 +6213,13 @@ e2e 报告原本建议给 `PaySignValidators.validateRequestPay` 加 `scene` 白
 ### 验证
 
 - 单测 **300 个全绿**（`mise exec -- mvn -o test -pl pay-sign-server`，含新增的 1 条 SQL 护栏；上一批 D123 是 299）。
-- 构建 + 推镜像 **两个模块均成功**：`itp/pay-sign-server:2.0.109` `digest: sha256:67aa0d5dab4e893e82b7fcf8640f73e3518e4f17a9dafa5f141c4d292b6def91`、`itp/gate-txn-pay-server:2.0.89` `digest: sha256:92f68b52b90d39fc972faf67303204fd8a15fa6c642dbaa0fb5085f7b2af80bd`。**判构建成功 MUST 看 `digest:` / `Pushed`，NEVER 看退出码**（`docs/ops/构建与部署规范.md` §7）。
+- 构建 + 推镜像 **两个模块均成功**：`itp/pay-sign-server:2.0.109` `digest: sha256:67aa0d5dab4e893e82b7fcf8640f73e3518e4f17a9dafa5f141c4d292b6def91`、`itp/gate-txn-pay-server:2.0.89` `digest: sha256:92f68b52b90d39fc972faf67303204fd8a15fa6c642dbaa0fb5085f7b2af80bd`。**判构建成功 MUST 看 `digest:` / `Pushed`，NEVER 看退出码**（`AGENTS.md §6`）。
 - 滚更 + 探活：两个 Deployment 都 `successfully rolled out`；35 秒后探活 `172.20.211.23:30016`（pay-sign）与（gate-txn-pay）**均 `http=200`**，body 里 `db` / `livenessState` / `readinessState` 全 `UP`。**回滚目标（滚更前现查）：`pay-sign-server:2.0.108`、`gate-txn-pay-server:2.0.88`。**
 - 线上 `gate.pay.scene` env 现查为 **`withholding`**（合法），即本次仓库默认值订正**不改变线上行为**，只消除「env 一旦丢失就退化成非法值」这个隐患。
 
 ### 验证（补充：2026-09-17 12:46~12:53 线上端到端第二轮，全过程见 `docs/testing/pay-sign/e2e-2026-09-17.md` §六）
 
-- **先证「跑着的 Pod 里确实是新代码」**（NEVER 只凭 image tag，`docs/ops/构建与部署规范.md` §7）：容器内 `javap` 反查 `AppTerminationRequestMapper` 显示 `updateNotifyStatus` 已是 **5 参**、`increaseNotifyRetryCount` 已是 **2 参**；`PaymentDomainServiceImpl` 里 `GATEWAY_PAY_SCENES` 与 `warnIfSceneOutsideGatewayEnum` 都在。
+- **先证「跑着的 Pod 里确实是新代码」**（NEVER 只凭 image tag，`AGENTS.md §6`）：容器内 `javap` 反查 `AppTerminationRequestMapper` 显示 `updateNotifyStatus` 已是 **5 参**、`increaseNotifyRetryCount` 已是 **2 参**；`PaymentDomainServiceImpl` 里 `GATEWAY_PAY_SCENES` 与 `warnIfSceneOutsideGatewayEnum` 都在。
 - **② 已线上验证**：`scene=SIGN_PAY` 未被本地拒绝、照常出网（网关返 `1001`），日志逐字命中那句 WARN（`PaymentDomainServiceImpl.java`，集合打印顺序为 `[scan, app, withholding, qrcode, wap]` —— `Set.of` 无序，**NEVER 拿这个顺序做断言**）；`withholding` 正常出网；不传 `scene` 仍 `8001`。
 - **⑤ 的闸门已在真实 Oracle 上验证**（这是本条相对首轮的**证据升级**）：在 `TERMINATION_STATUS='FAILED'` 的真实行上执行 mapper 原文 —— `updateNotifyStatus` 传 `expectedTerminationStatus='SUCCESS'` → **`affectedRows=0`**、传 `'FAILED'` → **`affectedRows=1`**；`increaseNotifyRetryCount` 传 `'SUCCESS'` → **`affectedRows=0`**。随后走应用链路 `POST /internal/termination/compensateNotify` → `scanned=1 submitted=1`，`NOTIFY_RETRY_COUNT` 0→1、`NOTIFY_STATUS` 回写 `SUCCESS`，**证明加闸门没有打挂正常路径**。
 - **① 的线上幂等也一并复验**：同一份 `receiveSignResult` 连推 3 次全返 `0000`，两次重放**都没有再插 `NOTIFY_STATUS='PENDING'` 流水**。
@@ -6278,7 +6278,7 @@ e2e 报告原本建议给 `PaySignValidators.validateRequestPay` 加 `scene` 白
 
 ### model 零改动是有意为之
 
-新端点**复用 `DailyTicketBaseResult` + 用 `retCode` 表达结论**，正是为了规避「给 `model` 加 DTO 就要重建全链路镜像、漏一个即静默丢字段」那个坑（docs/ops/构建与部署规范.md §7「给 `model` 的 DTO 加字段后，MUST 重建链路上每一个经手该 DTO 的模块镜像」那条）。因此本次**只需重建 `daily-ticket-server` 与 `fep-app-server` 两个镜像**，`rpc` 只需 `mvn install`（版本号不变）。
+新端点**复用 `DailyTicketBaseResult` + 用 `retCode` 表达结论**，正是为了规避「给 `model` 加 DTO 就要重建全链路镜像、漏一个即静默丢字段」那个坑（AGENTS.md §6那条）。因此本次**只需重建 `daily-ticket-server` 与 `fep-app-server` 两个镜像**，`rpc` 只需 `mvn install`（版本号不变）。
 
 ### 验证
 
@@ -6409,7 +6409,7 @@ e2e 报告原本建议给 `PaySignValidators.validateRequestPay` 加 `scene` 白
 
 ### 未闭合
 
-- **经验教训（2026-09-17 复盘，按代价排序）** —— ①**「收口」前 MUST 先问那处绕过是不是有理由**：残留 3 我自己的原方案是「两个 handler 统一走 `auditLogger.write(...)`」，照做会产出「签约已落库、APP 永远收不到通知、也没人补」（`write` 是 fail-soft 而载体行必须 fail-hard，且 `OPERATION_TYPE` 一经归并补偿扫表恒扫 0 行），**而这个缺陷编译、单测、日志全绿**；判据是**看起来重复的两条写入通路 MUST 先比对「失败语义」与「落的列」**，再决定合并还是各起一个具名方法。②**敢否决自己上一轮的重构建议**：「接口签名带 entity → 改值传递」也是我提的，实读后否决（11/8/5 个字段摊平成 8~11 参数更糟；「只传主键、实现内回查」会打掉 ADR-D125 的轮次闸门）——**重构清单本身也 MUST 被验证**。③**联调 MUST 两侧都做，「共用同一私有方法所以等价」是错误推理**：我据此把解约侧列为「可推断」，补测后直接推翻了自己写进 javadoc 与本 ADR 的口径（见上面那节口径订正）——**代码路径共享 ≠ 下游消费方相同**。④**「测试全绿」有可能是空的**：本次特意确认两个 fixture 里的 `auditLogger` 是**真实**的 `PaySignAuditLogger`（包着假 mapper），若是 mock 则 300 个断言无一碰到载体行；**改完 MUST 反问一次新代码有没有被断言覆盖到**。⑤**ADR 编号 MUST 在写第一行代码注释之前就 grep 定下来**：同一天被打中三次（D88 / D126 / D129 那批），每次返工约 10 个文件批量改号 —— 规则早在 `docs/domain/README.md`，**说明「写进文档」不等于会被执行，它 MUST 排在动作顺序第一步**。⑥两个小坑：`Map.of` 最多 10 对，护栏清单到 11 条会编译失败，此时**删条目凑数等于少检测一个出网出口**（改 `Map.ofEntries`）；合成数据 MUST 当场清理 + 回查，且**解约成功路径会自己删掉 `APP_PAY_SIGN_INFO`**，NEVER 把「查不到」当成没造出来。⑦**反面样本：无内容变化的版本号跳号** —— 同日按用户要求把 pom 从 2.0.110 跳到 **2.1.1**（`pay-sign-server/pom.xml`，跳过 2.0.111~2.1.0）并重建滚更（300/300 + BUILD SUCCESS、`digest: sha256:0d1402ca5a38…`、`Pushed …/itp/pay-sign-server:2.1.1`；探活首次 `503` 属滚更瞬态，40 秒后 `http=200` 且 `db` / `livenessState` / `readinessState` 全 UP；回滚 tag 2.0.110），**该镜像与 2.0.110 逐字无差异**。这类跳号让 image tag 与内容脱钩，日后判断「跑的是哪版代码」只能靠 docs/ops/构建与部署规范.md §7「MUST 在容器内反查字节码，NEVER 只凭 image tag」那条容器内 `javap` 反查 —— **要留痕，改注释 / 文档比刷版本号更可查。**
+- **经验教训（2026-09-17 复盘，按代价排序）** —— ①**「收口」前 MUST 先问那处绕过是不是有理由**：残留 3 我自己的原方案是「两个 handler 统一走 `auditLogger.write(...)`」，照做会产出「签约已落库、APP 永远收不到通知、也没人补」（`write` 是 fail-soft 而载体行必须 fail-hard，且 `OPERATION_TYPE` 一经归并补偿扫表恒扫 0 行），**而这个缺陷编译、单测、日志全绿**；判据是**看起来重复的两条写入通路 MUST 先比对「失败语义」与「落的列」**，再决定合并还是各起一个具名方法。②**敢否决自己上一轮的重构建议**：「接口签名带 entity → 改值传递」也是我提的，实读后否决（11/8/5 个字段摊平成 8~11 参数更糟；「只传主键、实现内回查」会打掉 ADR-D125 的轮次闸门）——**重构清单本身也 MUST 被验证**。③**联调 MUST 两侧都做，「共用同一私有方法所以等价」是错误推理**：我据此把解约侧列为「可推断」，补测后直接推翻了自己写进 javadoc 与本 ADR 的口径（见上面那节口径订正）——**代码路径共享 ≠ 下游消费方相同**。④**「测试全绿」有可能是空的**：本次特意确认两个 fixture 里的 `auditLogger` 是**真实**的 `PaySignAuditLogger`（包着假 mapper），若是 mock 则 300 个断言无一碰到载体行；**改完 MUST 反问一次新代码有没有被断言覆盖到**。⑤**ADR 编号 MUST 在写第一行代码注释之前就 grep 定下来**：同一天被打中三次（D88 / D126 / D129 那批），每次返工约 10 个文件批量改号 —— 规则早在 `docs/domain/README.md`，**说明「写进文档」不等于会被执行，它 MUST 排在动作顺序第一步**。⑥两个小坑：`Map.of` 最多 10 对，护栏清单到 11 条会编译失败，此时**删条目凑数等于少检测一个出网出口**（改 `Map.ofEntries`）；合成数据 MUST 当场清理 + 回查，且**解约成功路径会自己删掉 `APP_PAY_SIGN_INFO`**，NEVER 把「查不到」当成没造出来。⑦**反面样本：无内容变化的版本号跳号** —— 同日按用户要求把 pom 从 2.0.110 跳到 **2.1.1**（`pay-sign-server/pom.xml`，跳过 2.0.111~2.1.0）并重建滚更（300/300 + BUILD SUCCESS、`digest: sha256:0d1402ca5a38…`、`Pushed …/itp/pay-sign-server:2.1.1`；探活首次 `503` 属滚更瞬态，40 秒后 `http=200` 且 `db` / `livenessState` / `readinessState` 全 UP；回滚 tag 2.0.110），**该镜像与 2.0.110 逐字无差异**。这类跳号让 image tag 与内容脱钩，日后判断「跑的是哪版代码」只能靠 AGENTS.md §6那条容器内 `javap` 反查 —— **要留痕，改注释 / 文档比刷版本号更可查。**
 - 载体行的 `REQUEST_BODY` 恒为空是**沿用旧行为、非本次引入**（两侧都已实测确认落库即 `null`）；它意味着签约侧补偿重投的 bizData 是「用三列兜底拼」的，与首轮直接用入向 DTO 拼的结果**在 `signResult` / `realNameAuthResult` 两个字段上可能不同**（首轮取 `receiveRequest.getStatus()`，补偿取 `request.getSignStatus()`）。要对齐得给载体行落报文，属独立议题。
 
 
@@ -6447,7 +6447,7 @@ fep-app 侧短路点是 `IndustryDataServiceImpl.java`：account 的 `queryUserI
 ### 未闭合
 
 - ~~**当次数据仍是脏的**~~ / ~~**本批只有编译证据，未部署未端到端**~~ → **已闭环（2026-09-17 14:2x，account-server 2.0.74 已部署，端到端通过）**，证据链四步：
-  1. 镜像 `itp/account-server:2.0.74` 推成（`digest: sha256:63195cce5b858bc31a8b76db832ceee387080901d8113624dd4012dd4f481344`），Deployment `account` 的 image 读回一致，探活第一次 `503`、30 秒后 `200` 且 `db` / `readinessState` 全 UP（**单次 503 不是失败，见 docs/ops/构建与部署规范.md §7「单次 503 NEVER 当成部署失败」那条**）。
+  1. 镜像 `itp/account-server:2.0.74` 推成（`digest: sha256:63195cce5b858bc31a8b76db832ceee387080901d8113624dd4012dd4f481344`），Deployment `account` 的 image 读回一致，探活第一次 `503`、30 秒后 `200` 且 `db` / `readinessState` 全 UP（**单次 503 不是失败，见 AGENTS.md §6那条**）。
   2. 重放 IF8A-77（`thirdUserId=00522959` / `channel=03` / `cardIssueCode=0008` / `regSignSeq=0052295901523995`）返 **`0000 成功`** —— 修复前同一份报文返 `NO_ACCOUNT_CARD`，这一条应答本身就是「谓词从 0 行变成命中」的硬证据。
   3. `queryUserInfo` 回查该卡：`channel` 由 `null` 变 **`03`**，并连带回填 `thirdPayId=2088802410306118` / `reqContractNo=0052295901523995`。
   4. IF8A-03 拉码返 **`0000`** 且 `cardData` 有值：`0007FACF 03 FFFF 323EB4B0 323EECF0 0426090942000062 0441 00000000 01 **03** 01 00000000B0D71A55` —— 按 `BODY_LAYOUT` 逐段对齐，第 10 段签约渠道码正是 `03`，票种段 `0441`、卡号段与入参一致，首段 `0007FACF` 是 `522959` 的十六进制（`DeviceUserIdCodec` 口径，不是 bug）。
@@ -6476,7 +6476,7 @@ fep-app 侧短路点是 `IndustryDataServiceImpl.java`：account 的 `queryUserI
 
 ### 库侧回查（2026-09-17，`AFCITPDB` 实测，已闭环）
 
-**四列与索引都已在库里，`alipay-sign-channel-sync-migration.sql` 不需要再执行。** 本条初稿曾写「脚本尚未执行、上线即 `ORA-00904`」，**那个判断是错的、已作废，NEVER 回退** —— 它是照 docs/ops/构建与部署规范.md §8「2026-09-14 一天内撞了三次同型缺陷」那条「一天撞三次」的历史教训**推断**出来的，没有先查库。教训：**「migration.sql 存在」既不能推出「已执行」，也不能推出「未执行」，两个方向都 MUST 先查数据字典。**
+**四列与索引都已在库里，`alipay-sign-channel-sync-migration.sql` 不需要再执行。** 本条初稿曾写「脚本尚未执行、上线即 `ORA-00904`」，**那个判断是错的、已作废，NEVER 回退** —— 它是照 AGENTS.md §7那条「一天撞三次」的历史教训**推断**出来的，没有先查库。教训：**「migration.sql 存在」既不能推出「已执行」，也不能推出「未执行」，两个方向都 MUST 先查数据字典。**
 
 `USER_TAB_COLS`（`TABLE_NAME='ALIPAY_SIGN_INFO'`，`COLUMN_NAME LIKE 'CHANNEL_SYNC%'`）返回 4 行，与脚本逐字一致：
 
@@ -6658,7 +6658,7 @@ ADR-D111 是「找不到不相交的簇 ⇒ 不拆」；本例是「**找到了�
 1. **`decisions.md` 记的「公交卡系统在测试环境不可达、两个 client 的实际外呼没验」已作废。**
    2026-09-17 从 `gate-txn-pay-server` Pod 内实测 `172.20.202.10:8885` **TCP 可达**
    （`timeout 5 bash -c "</dev/tcp/172.20.202.10/8885"` 返 `TCP_OPEN`）。
-   **测连通性 MUST 从 Pod 内测，NEVER 从 `k8s-master` 测** —— 那台不在 Pod 网络里（见 docs/ops/构建与部署规范.md §8「从 `k8s-master` 压测服务 MUST 用 `172.20.211.23:<NodePort>`」那条）。
+   **测连通性 MUST 从 Pod 内测，NEVER 从 `k8s-master` 测** —— 那台不在 Pod 网络里（见 AGENTS.md §7那条）。
 2. **对端从 2026-09-15 17:31~17:40 之间才开始接受我方数据。** 任务表历史清楚分成两段：
    ID 4~8（09-10）与 1002/1003（09-15 17:23 / 17:31）**全部 `FAILED`**，`LAST_ERROR` 一律
    `对端业务拒绝:1002/{"retCode":"1002","retMsg":"接收地铁交易数据失败null"}`；
@@ -6739,7 +6739,7 @@ ADR-D111 是「找不到不相交的簇 ⇒ 不拆」；本例是「**找到了�
 
 ### 一条 AGENTS.md 记载被推翻
 
-docs/ops/构建与部署规范.md §8「带 `CASE` 的 `CREATE UNIQUE INDEX` 一律 `McpSqlValidationException`」那条「带 `CASE` 的 `CREATE UNIQUE INDEX` **绕法是包一层 PL/SQL**，实测通过」**已不成立**：
+AGENTS.md §7那条「带 `CASE` 的 `CREATE UNIQUE INDEX` **绕法是包一层 PL/SQL**，实测通过」**已不成立**：
 本次 `BEGIN EXECUTE IMMEDIATE '...'; END;` 被 MCP 校验器直接拒（`DDL statement not allowed: Block [VAL001]`），
 裸 `CASE` / `DECODE(a||b, ...)` / 嵌套 `DECODE` 三种写法也全拒
 （分别报 `<K_WHEN>` / `<OP_CONCAT>` / `<OPENING_BRACKET>`）。
@@ -6799,7 +6799,7 @@ docs/ops/构建与部署规范.md §8「带 `CASE` 的 `CREATE UNIQUE INDEX` 一
 镜像：`itp/pay-sign-server:2.1.4`（`digest: sha256:7f96a072...`）、`itp/fep-app:2.0.88`（`digest: sha256:10398507...`）。**顺序 MUST 先 fep-app 后 pay-sign** —— `discountInfo` 在 `model` 里，接入层用旧 class 会静默吃掉该字段。
 
 **踩坑一：滚更被另一方的批量部署覆盖。** `kubectl set image` 到 2.1.3 且 `rollout status` 报 successfully rolled out，但随后读回 spec image 仍是 **2.1.2**，同时 `fep-app` 变成了**我从未构建过的 2.0.89**，事件显示 30 秒内 `ticket-server`/`face-pay-server`/`trans-query`/`card-pool-server`/`web-admin` 等一整批在同时重建 Pod。**判据：`rollout status` 成功不代表你那次 set image 生效 —— MUST 紧接着 `kubectl get deploy ... -o jsonpath='{.spec.template.spec.containers[0].image}'` 读回校验**，读回值与预期不符即说明有并发写入方。最终改用新号 2.1.4 重建 + 读回确认才落稳。
-**踩坑二（同一处的连带风险）：** 别人构建的 `fep-app:2.0.89` 是否含 `discountInfo` 字段无法从 tag 推断。用 docs/ops/构建与部署规范.md §7「MUST 在容器内反查字节码，NEVER 只凭 image tag」那条容器内反查确认过 —— 注意 `model` 是**依赖 jar**、不在 `BOOT-INF/classes`，路径是 `BOOT-INF/lib/model-2.0.0.jar`，要先 `jar xf /app.jar BOOT-INF/lib/` 再 `jar xf` 那个 jar 取 class，结果 `private java.lang.String discountInfo` + getter/setter 齐全，因此未重建。
+**踩坑二（同一处的连带风险）：** 别人构建的 `fep-app:2.0.89` 是否含 `discountInfo` 字段无法从 tag 推断。用 AGENTS.md §6那条容器内反查确认过 —— 注意 `model` 是**依赖 jar**、不在 `BOOT-INF/classes`，路径是 `BOOT-INF/lib/model-2.0.0.jar`，要先 `jar xf /app.jar BOOT-INF/lib/` 再 `jar xf` 那个 jar 取 class，结果 `private java.lang.String discountInfo` + getter/setter 齐全，因此未重建。
 
 ### 决策三：三条待澄清项按用户裁决关闭，我方只保证「正确落库」（2026-09-18 追加）
 
@@ -6848,7 +6848,7 @@ controller 层三处耦合：①`AlipayPaySignController`（签约）同时注 `
 
 ### 顺手补齐的一条断链（本轮唯一行为变更）
 
-`AlipayPaySignClient.notifyCloseResult`（`rpc/.../AlipayPaySignClient.java`）一直在 POST `/channel/notify/closeResultForAlipay`，而**本服务从来没有这个 handler** —— fep-alipay 的 `/notify/closeResultForAlipay`（`AlipayNotifyServiceImpl`）打过来必然 404，而按 docs/ops/构建与部署规范.md §8「MUST 逐 Pod grep 容器内完整日志文件的 `No static resource`」那条已知机理，404 会被伪装成 HTTP 200 + UUID `retCode`，**链路静默不通**。service 侧实现（`AlipayTripPaymentServiceImpl.notifyCloseResult` → `PaymentNotifyAdapter`）一直都在，只缺入口。
+`AlipayPaySignClient.notifyCloseResult`（`rpc/.../AlipayPaySignClient.java`）一直在 POST `/channel/notify/closeResultForAlipay`，而**本服务从来没有这个 handler** —— fep-alipay 的 `/notify/closeResultForAlipay`（`AlipayNotifyServiceImpl`）打过来必然 404，而按 AGENTS.md §7那条已知机理，404 会被伪装成 HTTP 200 + UUID `retCode`，**链路静默不通**。service 侧实现（`AlipayTripPaymentServiceImpl.notifyCloseResult` → `PaymentNotifyAdapter`）一直都在，只缺入口。
 
 新端点入参用 `model` 里现有的 `AlipayTripCloseResultReqDTO`（`agreementNo` + `Boolean result`）、路径与 Client 现有字面量**逐字一致**，因此 `rpc` 侧零改动。`agreementNo` 空或 `result` 为 null 时返 `fail("协议号与关闭结果必填")`，不进 service。
 
@@ -6901,7 +6901,7 @@ DROP 前实测 `SELECT COUNT(*) FROM ALIPAY_PAY_TXN_DETAIL` = **0**（零调用�
 - 36 条 `COMMENT ON`（1 表 + 35 列）全部 `success:true`。
 - `mise exec -- mvn -o clean package -pl alipay-pay-sign-server -DskipTests -Djkube.skip=true` **BUILD SUCCESS**（jkube 两个 goal 都 skipped，未推镜像）；`xmllint --noout AlipayPayTxnDetailMapper.xml` 通过。
 
-**新增 MCP 实测事实两条**：① **`DROP TABLE ... PURGE` 过不了 MCP 的 SQL 校验器**（`Encountered: <K_PURGE>`），去掉 `PURGE` 立即成功 —— 脚本里保留 `PURGE` 是给 sqlplus 用的，经 MCP 执行 MUST 去掉；② 本次 `executeQuery` / `executeDdl` 的连接键是 **`connection`**，传 `connectionName` 报「Connection is required but not provided」，与 docs/ops/构建与部署规范.md §8「参数名不统一，MUST 逐工具看 schema」记的相反，**用前 MUST 看报错提示里列出的键名**。
+**新增 MCP 实测事实两条**：① **`DROP TABLE ... PURGE` 过不了 MCP 的 SQL 校验器**（`Encountered: <K_PURGE>`），去掉 `PURGE` 立即成功 —— 脚本里保留 `PURGE` 是给 sqlplus 用的，经 MCP 执行 MUST 去掉；② 本次 `executeQuery` / `executeDdl` 的连接键是 **`connection`**，传 `connectionName` 报「Connection is required but not provided」，与 AGENTS.md §7记的相反，**用前 MUST 看报错提示里列出的键名**。
 
 ### 本轮的边界（NEVER 当成已完成）
 
@@ -7044,7 +7044,7 @@ ADR-D133 的原文结论是「簇确实不相交，但结论仍是**不拆**」�
 ### 验证
 
 - `CardDataAnalyseHandlerTest`（新建，5 条用例：account 命中不回落 / account 查不到按 cardId 回落 / account 有卡但无手机号时回落且 `cardIssueDate` 仍保留 `regTms` / 两域都查不到保留 BOM 上送值 / 支付宝域抛异常整笔仍返 `0000`），用 `ReflectionTestUtils.setField` 注 6 个 mock（照 `GateCardTypeEnricherTest`）。ticket-server **175 → 180 tests / 0 failures**。
-- 已部署 `itp/ticket-server:2.1.91`，滚更后探活 `http=200`、`db` / `readinessState` 全 UP（首次探活 `503` 属 docs/ops/构建与部署规范.md §7「单次 503 NEVER 当成部署失败」已记的正常现象）。
+- 已部署 `itp/ticket-server:2.1.91`，滚更后探活 `http=200`、`db` / `readinessState` 全 UP（首次探活 `503` 属 AGENTS.md §6已记的正常现象）。
 
 ### 本轮刻意不做的（NEVER 当成遗漏）
 
@@ -7090,7 +7090,7 @@ ADR-D133 的原文结论是「簇确实不相交，但结论仍是**不拆**」�
 
 ### 未做（NEVER 当成遗漏）
 
-1. **三个镜像已于 2026-09-18 一起上线**（`ticket-server:2.1.92` / `fep-app:2.0.91` / `industry-data-server:2.0.20`，回滚点分别 2.1.91 / 2.0.90 / 2.0.19），四条 `rollout status` 全成功、三个 NodePort（30014 / 30010 / 30018）探活 200 且 `readinessState` UP。**落点已实证**：`POST 172.20.211.23:30014/internal/ticket/industry/{online,offline}` 送 `{}` 各返 `8001 thirdUserId不能为空` —— 是业务码而非 UUID `retCode`，说明新端点确实注册上了（404 在本项目会被伪装成 HTTP 200 + UUID，见 `docs/ops/构建与部署规范.md` §8）。；「MUST 一起上」这条判据仍然成立（只上 fep-app 会打到 ticket-server 上不存在的端点），下次改动这条链路时照旧适用。
+1. **三个镜像已于 2026-09-18 一起上线**（`ticket-server:2.1.92` / `fep-app:2.0.91` / `industry-data-server:2.0.20`，回滚点分别 2.1.91 / 2.0.90 / 2.0.19），四条 `rollout status` 全成功、三个 NodePort（30014 / 30010 / 30018）探活 200 且 `readinessState` UP。**落点已实证**：`POST 172.20.211.23:30014/internal/ticket/industry/{online,offline}` 送 `{}` 各返 `8001 thirdUserId不能为空` —— 是业务码而非 UUID `retCode`，说明新端点确实注册上了（404 在本项目会被伪装成 HTTP 200 + UUID，见 `AGENTS.md §7`）。；「MUST 一起上」这条判据仍然成立（只上 fep-app 会打到 ticket-server 上不存在的端点），下次改动这条链路时照旧适用。
 2. 对外 retMsg 有**唯一一处**措辞变更：码状态查询失败从「ticket-server调用失败，返回为空」改为「查询乘车码状态失败，返回为空」（迁移后那句话在 ticket-server 内部说自己失败已不成立）。retCode 未变。
 
 ## ADR-D143：支付宝开户按聚合拆三块 + 卡池 `businessId` 换成长度前缀键（2026-09-18，alipay-account-server 1.0.18，**已部署**）
@@ -7358,7 +7358,7 @@ ADR-D133 的原文结论是「簇确实不相交，但结论仍是**不拆**」�
 3. **落点**：`AlipayTravelQueryHandler.normalizeQueryDate(String, String)`（新增私有方法 + 常量 `QUERY_DATE_LENGTH = 8`），在**必填校验之后、进大 try 之前**调用，非法时单独 `catch (IllegalArgumentException)` 转 `8001 无效的参数`（**NEVER 让它落到方法末尾那个 `catch (Exception)`** —— 那里返的是 `FAIL 系统内部错误`，会把「参数写错」报成「我方故障」）。手法与 `normalizePayOrderNoDate`、`PayTxnCallbackWriter.normalizeTransTime` 同形（剥非数字 + 取前 N 位），**三处有意各留一份、NEVER 抽公共工具类**：N 与非法时的处置各不相同（14 位原样返回 / 14 位原样入库 / 8 位抛异常）。**也 NEVER 复用 `TransQueryParamNormalizer.normalizeDate`** —— 那是 IF8A-05 的 `yyyy-MM-dd` 口径，喂 8 位纯数字必抛异常、把合法请求打成 `8001`（`ride-code.md` 已记这条 NEVER）。
 4. **反区间保持返 0 条、不报 `8001`**（用户明确选的，与 IF8A-05 的 `TransListQueryHandler` 不一致是**有意的**）：`start > end` 属「空结果」而非「参数非法」。**NEVER 为了两个接口一致就顺手加校验。**
 5. **端到端实证（2026-09-20，`itp/trans-query:1.0.9`，`digest: sha256:68edb646...`，回滚点 1.0.8）**：滚更后 `172.20.211.23:30035/actuator/health` 返 200。同一账号 `0700001448`（10 笔、5 笔 `TXN_DATE=20260920`）：`2026-09-20` / `2026/09/20` / `20260920101623` **都返 5 条**（修复前是 10 条），`20260920` 基准同样 5 条；`2026-09-18 ~ 2026-09-20` 返 10 条；`endDate=2026-09-18` 返 5 条；反区间返 0 条 + `0000`；`2026` 与 `abc` 返 **`8001`**；空串与不传仍不筛选、返 10 条。
-6. **落点确认：这条链路真的落在 trans-query 上。** `fep-alipay` 的 `service.transQuery.url` 指向 `trans-query-57wpd-svc.itp.svc:30035`（仓库 `application.properties` 与集群 Deployment env 两处都已现查确认）。**因此 trans-query-server 那条「已出镜像但尚未接线：无任何模块配置其地址」已过期**（该表 2026-10-15 已迁至 docs/architecture/overview.md §二「2026-09-20 起已接线承接真实流量」） —— 它对 APP 域三条 IF8A URL 仍成立，但支付宝出行的 `findTravelList` / `findTravelDetail` 自 1.0.5 起就走这里。**NEVER 再据那句话认为改 trans-query 不生效。**
+6. **落点确认：这条链路真的落在 trans-query 上。** `fep-alipay` 的 `service.transQuery.url` 指向 `trans-query-57wpd-svc.itp.svc:30035`（仓库 `application.properties` 与集群 Deployment env 两处都已现查确认）。**因此 trans-query-server 那条「已出镜像但尚未接线：无任何模块配置其地址」已过期**（该事实现维护于 `docs/architecture/overview.md` §二 `trans-query-server` 行） —— 它对 APP 域三条 IF8A URL 仍成立，但支付宝出行的 `findTravelList` / `findTravelDetail` 自 1.0.5 起就走这里。**NEVER 再据那句话认为改 trans-query 不生效。**
 7. **未收紧、仍是现状的两条**（用户本轮明确保留）：`debitRequestResult` 传非 `0`/`1`（实测 `9`）**静默不过滤**、返全量；`invoice` 是死参数、不参与筛选（续 3 之后的裁决，见 `alipay-channel.md`）。
 
 ### ADR-D146 续 5：分页 `offset` 改 long 算再钳制 + `size` 加上界 100（2026-09-20，trans-query-server 1.0.10，**已部署并端到端验通**）
@@ -7374,7 +7374,7 @@ ADR-D133 的原文结论是「簇确实不相交，但结论仍是**不拆**」�
 
 ## ADR-D147：甲方需求 1/2/3 三类批量退款迁到 `F2F_*` + 需求 5 行程扣费重试落地，四条新 `sys_job`（2026-09-20，face-pay-server 1.0.62 / gate-txn-pay-server 2.0.93 / collect-pay-server 1.1.86 / web-admin 1.1.32，**四个镜像均已推送并滚更**）
 
-用户裁决两批：第一批「1. 动手」= 需求 1/2/3 三类退款迁到 face-pay 的 `F2F_*` + 调度统一进 web-admin `sys_job`；第二批要求需求 5 连同 DDL 一起实现（原话「注意这两个参数只是定下来了，需求 5 本身一行代码都还没写 —— 它要先出 `gate-txn-pay-debit-retry-migration.sql`……否则重试次数无处落、上限判定不成立」）。需求映射与 `sys_job` 总账统一见 `docs/ops/定时任务总览.md`（原 `定时任务清单.csv` 与 `定时任务需求对照.md` 已于 2026-10-20 合并删除，本文件成为唯一权威）。
+用户裁决两批：第一批「1. 动手」= 需求 1/2/3 三类退款迁到 face-pay 的 `F2F_*` + 调度统一进 web-admin `sys_job`；第二批要求需求 5 连同 DDL 一起实现（原话「注意这两个参数只是定下来了，需求 5 本身一行代码都还没写 —— 它要先出 `gate-txn-pay-debit-retry-migration.sql`……否则重试次数无处落、上限判定不成立」）。需求映射与 `sys_job` 总账统一见 `docs/ops/tasks/00-总览.md`（原 `定时任务清单.csv` 与 `定时任务需求对照.md` 已于 2026-10-20 合并删除，后于 2026-10-20 进一步拆分为菜单 + 模块详细文档，本文件成为唯一权威）。
 
 ### 一、需求 1/2/3：三类批量退款（face-pay-server）
 
@@ -7640,7 +7640,7 @@ ADR-D133 的原文结论是「簇确实不相交，但结论仍是**不拆**」�
 - **回滚 MUST 两个镜像同批换回 `alipay-pay-sign:1.1.48` + `gate-txn-pay-server:2.0.95`** —— 新端点在旧 alipay 镜像上**不存在**，只回滚一侧会得到 404 被伪装成的 UUID `retCode`。
 - **未闭合**：
   1. 新表链路**只有回调收口、没有回查补偿**（用户既有裁决：状态收敛优先做在回调里、不做扫表定时任务）。因此**回调不来时明细会长期停在 `PROCESSING`，而幂等短路会挡住该订单后续退款** —— 需人工介入。
-  2. `/internal/alipay/**` 全族仍**无鉴权**，而新端点**既改状态又出网发起真实退款**，与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突，属既有缺口扩大一条。
+  2. `/internal/alipay/**` 全族仍**无鉴权**，而新端点**既改状态又出网发起真实退款**，与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突，属既有缺口扩大一条。
 
 ## ADR-D153：新表退款回查补偿落地（扫 ALIPAY_REFUND_TXN_DETAIL）+ 实测发现支付宝渠道网关根本没有 refundQuery 端点（2026-09-21，alipay-pay-sign-server 1.1.51，已推送并滚更、端到端验通）
 
@@ -7699,7 +7699,7 @@ kubectl set image deploy/alipay-pay-sign-server alipay-pay-sign-server=os-harbor
 ### 七、未闭合
 
 - 上面 §四 那条**外部契约缺口**（阻塞退款终态自愈）。
-- `/internal/alipay/**` 全族仍**无鉴权**（与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突，属测试期既有降级）。
+- `/internal/alipay/**` 全族仍**无鉴权**（与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突，属测试期既有降级）。
 - `pay.center.refund-query-url` 是**裸硬编码的外部生产地址、无 `${ENV:}` 包装**（与 §5.2「敏感 / 环境相关配置」口径不一致），等上面那条澄清后一并整改。
 
 ## ADR-D154：补站扣费周期查询更新落地 —— `sys_job` 345（编号先后为 135 → 265 → 235 → 345）每分钟扫「近 10 分钟未扣费」的过闸单重发扣费，**刻意不设退避**（2026-09-21，gate-txn-pay-server 2.0.97 / web-admin 1.1.39）
@@ -7965,7 +7965,7 @@ kubectl set image deploy/alipay-pay-sign-server alipay-pay-sign-server=os-harbor
 
 - `web-quartz-refund-compensate-job-migration.sql` 等 6 个脚本、外加 `web-quartz-supplement-debit-job-migration.sql` 已全部改为现号；**未改会让新建库回到旧号**。
 - `web-quartz-daily-ticket-pay-notify-job-migration.sql` 首行原写 `DELETE ... job_id = 125` 是**历史笔误**（原本会误删「黑名单加黑通知补偿」那条），已修（该脚本 127 → 330）。
-- `docs/architecture/web-server.md` §七（含附 B/C/D）、`docs/ops/定时任务总览.md`（2026-10-20 由 `定时任务清单.csv` + `定时任务需求对照.md` 合并，后两份原文档已删除）等处的旧号已按现号改齐；**若其它处所仍在写旧号，MUST 同步**。
+- `docs/architecture/web-server.md` §七（含附 B/C/D）、`docs/ops/tasks/00-总览.md`（2026-10-20 由 `定时任务清单.csv` + `定时任务需求对照.md` 合并，后两份原文档已删除；2026-10-20 进一步拆分为菜单 + 模块详细文档）等处的旧号已按现号改齐；**若其它处所仍在写旧号，MUST 同步**。
 
 ## ADR-D160：对账是**四个源**（face-pay 是 2026-09-16 新增第 4 源，与 collect-pay 新旧表并列、**NEVER 二选一**）—— 旧表已自行冻结，唯一残留风险是手工补跑 2026-09-16 及之前账期（2026-09-22 核实）
 
@@ -8263,7 +8263,7 @@ AND NVL(OUT_STATION, IN_STATION) = #{stationCode}   -- 可选
 ### 一、需求与事实（读码 + 库验证确认）
 
 - **需求**：业主 2026-10-15 要求把 BOM/TVM 设备心跳在线状态在综管台前端展示，并明确「先设计问询、设计定稿再执行」。四项设计裁决当轮选定：① 菜单挂**系统监控**下；② 车站**取设备号前缀、且在心跳接口预处理**；③ 在线态**直接读落库 `ONLINE_FLAG`**；④ 页面**只读列表 + 筛选**。
-- **本 ADR 兑现的是文档里已登记的待办**：`docs/architecture/face-pay-refactor.md` 的「`F2F_DEVICE_STATUS` 当前只写不读……补一个 `/page/face-pay/` 设备状态列表接口即可兑现价值」（原始裁决 2026-09-09「暂不处理」，本次解禁）。
+- **本 ADR 兑现的是历史设计文档里已登记的待办**：历史设计文档 face-pay-refactor.md（已删除）的「`F2F_DEVICE_STATUS` 当前只写不读……补一个 `/page/face-pay/` 设备状态列表接口即可兑现价值」（原始裁决 2026-09-09「暂不处理」，本次解禁）。
 - **库实测**（`172.20.222.3:1521/AFCITPDB`，2026-10-15 17:00）：`F2F_DEVICE_STATUS` **21 行**，只有 `02`(TVM) 与 `03`(BOM) 两个渠道（3 / 18 台），在线 16 / 离线 5，最新心跳与库时钟同步；`STATION_CODE` **21 行全为 NULL**（两个心跳控制器都传 `null`，该列自建表起从未被写过）。
 - **设备号 = 站码 + 站内序号**：前 4 位即 `STATION_INFO.STATION_CODE`，`COM_DEVICE_SYN_KEY` 里 19/21 台可对上（`06220801`→`0622`、`03520801`→`0352`、`11280801`→`1128`、`02431101`→`0243`）。该口径**不是本次新定**，ADR-D157 已裁定并核验过；本次只是把它用到第二个场景。
 - **时钟无坑**：DB `sessiontimezone=+08:00`，`LAST_HEARTBEAT_TMS` 由 Java `LocalDateTime.now()` 写入，与 `SYSTIMESTAMP` 差值个位数秒 ⇒ 本表**没有** `QRCODE_STATUS` 那种「前期 UTC、后期北京时间」的混用问题。
@@ -8347,7 +8347,7 @@ AND NVL(OUT_STATION, IN_STATION) = #{stationCode}   -- 可选
 - **`COM_DEVICE_SYN_KEY.STATION_CODE` 不是独立源，NEVER 拿它做交叉验证**：`KeySyncServiceImpl.saveDeviceKeyVersion` 里写的就是
   `request.getDeviceId().trim().substring(0, 4)`，与心跳侧**同一条前缀规则**⇒「两者一致」属**循环印证**。
   前缀法真正的独立佐证是 `TBL_STATION_INFO`（12/12 落到真实站名）与 `GATE_TXN_PAY` 的真实交易站名（`0245`→合川路 21 笔、`0622`→辛屯 27 笔）。
-- **设备离线阈值与实测心跳间隔不匹配**（`offlineTimeoutSeconds=300` vs 实测 20~60 秒一次）—— `face-pay-refactor.md` 已登记，本次未动。
+- **设备离线阈值与实测心跳间隔不匹配**（`offlineTimeoutSeconds=300` vs 实测 20~60 秒一次）—— 历史设计文档 face-pay-refactor.md（已删除）曾登记，本次未动。
 - **`/page/**` 整层无鉴权**：本接口沿既有约定落业务模块 `/page/face-pay/devices`，一并继承了这条已知安全债。只读查询、风险低于同前缀的退款接口，但仍是敞口。
 - **`F2fMapperSmokeTest.deviceStatusQueriesExecute` 在非空库上必然失败**：它断言 `selectByChannel("02","1").isEmpty()` 与 `selectHeartbeatTimeout(NOW,10).isEmpty()`，而真库上这两条都非空；该用例 `@EnabledIfEnvironmentVariable(DB_HOST)`、本地默认跳过，故长期无人发现。本次**未改**（属独立清理项），新加的 `devicePageQueriesExecute` 刻意只断言「空库与有数据都成立」的事实。
 

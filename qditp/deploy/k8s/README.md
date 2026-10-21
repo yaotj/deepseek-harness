@@ -33,4 +33,4 @@
 - **不要直接把这套 apply 到新集群**：至少三类东西必须先改 —— 镜像仓库地址（`os-harbor-svc.default.svc.cloudos:443` 是旧集群内的 Service DNS）、Service 名里的 PaaS 随机后缀、env 里写死的旧节点 IP / 旧 Service DNS。逐类改法见 `docs/ops/K8S迁移清单.md` §2.2。
 - **这份基线不含探针**：现集群 24 个 Deployment 一个 liveness / readiness 都没有，导出时原样保留。新集群部署时建议补 `/actuator/health`。
 - **单副本约束照抄自现集群、NEVER 改大**：`recon-server` / `web-admin` / `face-pay-server` / `collect-pay` 的定时任务无分布式锁。
-- **本目录是快照、不是真相源**：现集群改过 env / 镜像后这里不会自动跟。判断线上实际值仍 **MUST** 现查 `kubectl get deploy <名> -n itp -o yaml`（docs/ops/构建与部署规范.md §8）。重新导出即重跑上面的清洗流程并覆盖本目录。
+- **本目录是快照、不是真相源**：现集群改过 env / 镜像后这里不会自动跟。判断线上实际值仍 **MUST** 现查 `kubectl get deploy <名> -n itp -o yaml`（AGENTS.md §7）。重新导出即重跑上面的清洗流程并覆盖本目录。

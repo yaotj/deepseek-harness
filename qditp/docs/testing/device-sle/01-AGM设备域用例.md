@@ -17,7 +17,7 @@
 |---|---|---|
 | 落点模块 | `fep-dev-server`（闸机 AGM 前置，**无 DB、无 mapper**） | `docs/architecture/overview.md` 该行 |
 | 类级路径 | `@RequestMapping("/ci/agm")` | `fep-dev-server/src/main/java/com/chinasofti/huateng/fep/dev/controller/FepAgmController.java:30` |
-| 入向网关前缀 | `/itpagm/`（VS `fep-app-vr` 的 8 条前缀之一） | `docs/ops/构建与部署规范.md` §8 |
+| 入向网关前缀 | `/itpagm/`（VS `fep-app-vr` 的 8 条前缀之一） | `AGENTS.md §7` |
 | 报文格式 | `application/x-www-form-urlencoded`，`@ModelAttribute ItpCommonFormRequest` | `FepAgmController.java:47` / `:71` / `:93` / `:113` |
 | `bizData` 解析 | 私有 `parseBizData`，**Fastjson2 `JSON.parseObject`，解析失败只打 ERROR 并返回 `null` → 统一走 `INVALID_PARAM`** | `FepAgmController.java:126`~`:134` |
 | `deviceId` | **不在 `bizData` 里**，从公共参数取；IF1A-01 里再由 Controller 注入进 bizData | `FepAgmController.java:48` / `:61` |
@@ -267,7 +267,7 @@ scripts/klog.sh ticket-server  'queryQrCodeStatus' 300
 | 4 | 新旧密钥过渡期无感 | **ITP 侧无对应断言**（过渡逻辑在闸机本地：拿到新版本后何时切、旧版本留多久） | **必须真机** |
 | 5 | 密钥版本记录正确 | `key-server` 侧落表 `COM_DEVICE_SYN_KEY`（`into`）；密钥版本与池在 `METRO_AGM_KEY_VERSION` / `METRO_AGM_KEY_POOL`；另有 `METRO_CA_KEYSTORE`、`METRO_MEMBER_STATIC_KEY`（`into` + `from`） | **可验证**（表名取自 `key-server/src/main/resources` 下 mapper XML） |
 | 6 | 日志完整 | `fep-dev-server` 打 3 行：入口 `deviceId=`（`FepAgmController.java:73`）、`keyCount=`（`:83`）、完成行带 `keyVersionCount`（`:86`）；`KeySyncHandler` 另打完成行（`:64`）。异常路径打 ERROR「IF1A-02 调用key-server同步AGM密钥异常」（`:68`） | **可验证** |
-| 7 | — | ⚠️ **NEVER 在日志、文档或对话里回显任何密钥值**。核对只写「版本号 / 条数 / 表名 / 列名」，**不写密钥内容** | `docs/architecture/security-sensitivity.md` §一「敏感配置」+「安全红线」 |
+| 7 | — | ⚠️ **NEVER 在日志、文档或对话里回显任何密钥值**。核对只写「版本号 / 条数 / 表名 / 列名」，**不写密钥内容** | security-sensitivity.md（已删除） §一「敏感配置」+「安全红线」 |
 | 8 | — | ⚠️ **NEVER 擅自改动加密 / 签名逻辑**；涉及密钥的改动 MUST 提示人工复核安全合规性 | 同上 |
 
 **执行方式**

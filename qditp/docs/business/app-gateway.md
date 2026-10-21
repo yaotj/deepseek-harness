@@ -6,7 +6,10 @@
 # 提示词：APP 统一接入层（fep-app-server）
 
 ## 何时读本文件
+
 需要新增/修改 APP 侧 `IF8A-xx`、`IF8B-xx`、`IF8D-xx` 接口，或调整 APP 请求的报文解析、路由、透传逻辑时。
+
+> **设备域 + APP 订单域的分流网关**不在本模块，在 [`route-sentinel.md`](route-sentinel.md)（上级目录独立 SCG 项目）。涉及 `/itptvm/**`、`/itpbom/**` 的分流路由、名单判定、新/旧系统流量切换时 MUST 读该文件。
 
 ## 模块定位（重要认知）
 `fep-app-server` 是**薄接入层**，端口 **9101**（`fep-app-server/src/main/resources/application.properties`）。
@@ -42,7 +45,7 @@
 - **有双别名**：`AppAccountController`、`AppParaController`、`AppTicketController`、`AppDailyTicketController`、`PhoneChangeController`、`GateTxnPayController`（IF8A-26 / IF8A-35 两条均为 `{"/ci/app/...", "/app/..."}`）
 - **只有 `/ci/app/` 单路径**：`CollectPayController`（8 个接口）、`IndustryDataController`（2 个）、`PaySignController`（除 `requestPay` 外）
 
-> ⚠️ 上述清单为 2026-09-16 按 `@PostMapping` 实测（fep-app-server 共 43 条映射 / 10 个 Controller）。**`GateTxnPayController` 此前未列入任何一类**，导致按「只有单路径」的旧认知去改它时会漏加 `/app/` 别名——**该 Controller 属双别名一类**。
+> ⚠️ 上述清单为 2026-09-16 按 `@PostMapping` 实测（fep-app-server 当时共 43 条映射 / 9 个 Controller；现查重算约 49 条映射 / 9 个 Controller，此后接口有新增，数字已滞后，改动前 MUST 以代码为准）。**`GateTxnPayController` 此前未列入任何一类**，导致按「只有单路径」的旧认知去改它时会漏加 `/app/` 别名——**该 Controller 属双别名一类**。
 
 新增接口时 **MUST** 先看目标 Controller 属于哪一类并保持一致，**NEVER** 给单路径 Controller 硬加 `/app/` 别名。
 
@@ -131,7 +134,7 @@
 ### 六、配置与部署
 
 - **`application.properties` 里唯一带业务语义的非路由键是 `industry.issue-channel-code=01`，无注释**（`fep-app-server/src/main/resources/application.properties`）。
-- **镜像名 `itp/fep-app`（来自 `<image.prefix>`、不等于 artifactId）、`remote` profile（**无 `activeByDefault`**，推镜像 **MUST 显式 `-Premote`**、默认 `mvn package` 只出 jar）、以及「给 model DTO 加字段后 MUST 同时重建本模块镜像否则 Fastjson2 静默丢字段」这三条，本模块 `src/main` 的注释里全部无记载**（`pom.xml` 不在本次抽取范围）。权威出处在 `docs/ops/构建与部署规范.md` §7「Build & Run (构建与运行)」→「推镜像统一触发（2026-10-20 改为 profile 激活）」 对应条目。
+- **镜像名 `itp/fep-app`（来自 `<image.prefix>`、不等于 artifactId）、`remote` profile（**无 `activeByDefault`**，推镜像 **MUST 显式 `-Premote`**、默认 `mvn package` 只出 jar）、以及「给 model DTO 加字段后 MUST 同时重建本模块镜像否则 Fastjson2 静默丢字段」这三条，本模块 `src/main` 的注释里全部无记载**（`pom.xml` 不在本次抽取范围）。权威出处在 `AGENTS.md §6`「Build & Run (构建与运行)」→「推镜像统一触发（2026-10-20 改为 profile 激活）」 对应条目。
 - 启动类只有一句「APP 前置服务启动类」，`run(String... args)` 为空实现注释无内容（`fep-app-server` `FepAppServer`，`fep-app-server/src/main/java/com/chinasofti/huateng/FepAppServer.java`）——**装配了 14 个 `@EnableRpcXxx`，但注释未解释任何一个的取舍**。
 
 ### 墓碑注释清单（建议转为断言测试）
@@ -169,13 +172,13 @@
 
 - **实测事实**：`fep-app-server/src/main/**` 全部 26 个文件的注释里（阶段一 89 行、阶段二完整 320 行两轮都确认过）**没有任何一处**提到「不验签」「`sign` 原样透传」或验签责任如何分布。代码层面唯一的物证是 `CollectPayController.toFormDataMap()` 里那句 `map.put("sign", request.getSign());`（可 grep 短语：`map.put("sign"`，原 `fep-app-server/src/main/java/com/chinasofti/huateng/fep/app/controller/CollectPayController.java`）—— 它**把上游送来的 `sign` 原值塞进出向 form-data 直接转给 collect-pay，中间没有任何校验分支**。
 - **为什么这是风险，而不只是「文档缺失」**：
-  1. 本模块**没有** spring-security、**没有**全局验签拦截器、**没有** `*Verifier` 类。`fep-app-server` 的 43 条 `@PostMapping` 里**每一条都是裸暴露的状态变更或查询端点**，其中 `/app/cancelAccount`（销户）、`/userData/unbindAgreement`（解绑支付方式）、`/app/changePhone`（换手机号）、`/app/payment/requestRefundTicket`（退款）**都是按 `thirdUserId` / 订单号操作他人数据的写接口**。这直接撞上 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」（裸暴露的 POST 接口等于允许任何网络可达方按流水号操作任意用户数据）。
+  1. 本模块**没有** spring-security、**没有**全局验签拦截器、**没有** `*Verifier` 类。`fep-app-server` 的 43 条 `@PostMapping` 里**每一条都是裸暴露的状态变更或查询端点**，其中 `/app/cancelAccount`（销户）、`/userData/unbindAgreement`（解绑支付方式）、`/app/changePhone`（换手机号）、`/app/payment/requestRefundTicket`（退款）**都是按 `thirdUserId` / 订单号操作他人数据的写接口**。这直接撞上 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」（裸暴露的 POST 接口等于允许任何网络可达方按流水号操作任意用户数据）。
   2. **「知识只在 docs、代码里零痕迹」本身就是缺陷放大器**：改本模块的人在代码里看不到任何「此处不验签、下游负责」的提示，于是会**默认接入层已经验过**。而下游的校验强度参差不齐 —— `AccountRequestVerifier` 在 `signType=00` 时**直接免签**，`ItpRequestSignVerifier` 是 SHA1/MD5，`CollectPayController` 这条链路则完全依赖 collect-pay / face-pay 自己的 `SignUtils`。**没有任何一层能保证「所有 43 条端点都被校验过至少一次」。**
   3. 阶段一已把这条记成「本模块注释无此记载」（本文件上一节 §三）。**本次迁移刻意没有把它写回代码**：写进注释等于在 40 处 Controller 方法上复制同一段话，且注释不是防线。**正确的收口是补一层真实的入向验签**，而不是加注释。
 - **MUST / NEVER**：
   - 改 `fep-app-server` 任何端点前 **MUST 先读本条**，NEVER 假定「接入层已验签」。
   - 新增状态变更型端点 **MUST 同时明确它的鉴权归属**（本层补，还是下游哪个 `*Verifier`），并把结论写进本文件 §「⚠️ 验签现状（安全红线）」。
-  - **NEVER 在本模块自造签名逻辑**（`docs/architecture/security-sensitivity.md` §三「鉴权 MUST 对齐现有验签实现」 末条），**NEVER 因为 `ItpCommonFormRequest` 是全项目唯一报文骨架就顺手在它上面统一签名语义**（`docs/architecture/security-sensitivity.md` §三「鉴权 MUST 对齐现有验签实现」，该类只承载骨架、四条链路加签验签互不相同）。
+  - **NEVER 在本模块自造签名逻辑**（security-sensitivity.md（已删除） §三「鉴权 MUST 对齐现有验签实现」 末条），**NEVER 因为 `ItpCommonFormRequest` 是全项目唯一报文骨架就顺手在它上面统一签名语义**（security-sensitivity.md（已删除） §三「鉴权 MUST 对齐现有验签实现」，该类只承载骨架、四条链路加签验签互不相同）。
   - 上线前 **MUST** 把「43 条端点逐条确认鉴权归属」列进上线核对清单（与 `recon` 的 `X-Recon-Token` 临时删除属同类未闭合项）。
 
 ### 二、报文骨架与 `parseBizData` 的解析边界
@@ -200,9 +203,9 @@
 
 **这是两层、不是一层，排查 404 MUST 分清是哪一层缺映射。**
 
-**第 1 层 — 网关侧 8 条前缀**（`fep-app-vr` 这条 VirtualService，ns `itp`，是本项目**唯一**的入向路由开关）：`/fep-app/`、`/fep-dev/`、`/fep-acc/`、`/fep-alipay/`、`/itptvm/`、`/itpbom/`、`/itpagm/`、`/para-server/`。链路 `58.56.166.170:48000` → 节点 `172.20.211.200`（`k8s02-gateway-866a2`）→ `itp-gateway`（ns `itp-gateway`，svc ）→ `fep-app-vr` → 各业务 Service。**只有 `/fep-app/` 那条落到本模块**；`/itptvm/` 与 `/itpbom/` 已于 2026-09-16 17:31 指向 `face-pay-server-svc:30025`。**判断某前缀现在归谁 MUST 现查 `kubectl get vs fep-app-vr -n itp -o yaml` 或 envoy `config_dump`，NEVER 用 `kubectl get vs -A` 的摘要表**（那张表不显示 path）。Runbook 是 `docs/ops/流量切换.md`。
+**第 1 层 — 网关侧 8 条前缀**（`fep-app-vr` 这条 VirtualService，ns `itp`，是本项目**唯一**的入向路由开关）：`/fep-app/`、`/fep-dev/`、`/fep-acc/`、`/fep-alipay/`、`/itptvm/`、`/itpbom/`、`/itpagm/`、`/para-server/`。链路 `58.56.166.170:48000` → 节点 `172.20.211.200`（`k8s02-gateway-866a2`）→ `itp-gateway`（ns `itp-gateway`，svc ）→ `fep-app-vr` → 各业务 Service。**只有 `/fep-app/` 那条落到本模块**；`/itptvm/` 与 `/itpbom/` 已于 2026-09-16 17:31 指向 `face-pay-server-svc:30025`。**判断某前缀现在归谁 MUST 现查 `kubectl get vs fep-app-vr -n itp -o yaml` 或 envoy `config_dump`，NEVER 用 `kubectl get vs -A` 的摘要表**（那张表不显示 path）。Runbook 是 `docs/ops/流量切换Runbook.md`。
 
-**第 2 层 — 本模块内部的 5 个路径族**（`@PostMapping` 实测，43 条映射 / 10 个 Controller）：
+**第 2 层 — 本模块内部的 5 个路径族**（`@PostMapping` 实测，约 49 条映射 / 9 个 Controller，不含抽象基类 BaseAppController；数字随接口新增持续滞后，改动前 MUST 以代码为准）：
 
 | 路径族 | 谁在用 | 约束 |
 |---|---|---|
@@ -237,8 +240,8 @@
 - **本次迁移在该键上留了一行式护栏**（末节护栏 ②）：「本模块 NEVER 依赖 rpc 默认服务名，新增下游 MUST 显式配 `service.*.url`」。**这是唯一还留在代码里的这类告示，NEVER 删。**
 
 **③ 键存在但值指向自身 Pod —— `service.gateTxnPay.url`**
-- `docs/ops/构建与部署规范.md` §8「Ops & Deployment (部署与运维，详见 docs/ops/)」 记录的形态是 `service.gateTxnPay.url=http://127.0.0.1:9106`（`fep-app-server/application.properties`，2026-09-08 实测）。在 K8s 里 `127.0.0.1` **等于打到自己这个 Pod**，`fep-app` 自己不听 9106 ⇒ 连接失败 ⇒ 响应退化成全局异常处理器的 **UUID `retCode`**（不是 404、不是超时，最难认的一种表现）。
-- **2026-09-16 复核：仓库里那一行已经不是 `127.0.0.1` 了**，现值 `service.gateTxnPay.url=${SERVICE_GATE_TXN_PAY_URL:http://gate-txn-pay-server-jomf4-svc.itp.svc:30019}`（迁移前 `application.properties`）。**因此 `docs/ops/构建与部署规范.md` §8「Ops & Deployment (部署与运维，详见 docs/ops/)」 那条「 是 `127.0.0.1:9106`」按仓库口径已过期**，见「矛盾与待裁决」第 1 条。
+- `AGENTS.md §7`「Ops & Deployment (部署与运维，详见 docs/ops/)」 记录的形态是 `service.gateTxnPay.url=http://127.0.0.1:9106`（`fep-app-server/application.properties`，2026-09-08 实测）。在 K8s 里 `127.0.0.1` **等于打到自己这个 Pod**，`fep-app` 自己不听 9106 ⇒ 连接失败 ⇒ 响应退化成全局异常处理器的 **UUID `retCode`**（不是 404、不是超时，最难认的一种表现）。
+- **2026-09-16 复核：仓库里那一行已经不是 `127.0.0.1` 了**，现值 `service.gateTxnPay.url=${SERVICE_GATE_TXN_PAY_URL:http://gate-txn-pay-server-jomf4-svc.itp.svc:30019}`（迁移前 `application.properties`）。**因此 `AGENTS.md §7`「Ops & Deployment (部署与运维，详见 docs/ops/)」 那条「 是 `127.0.0.1:9106`」按仓库口径已过期**，见「矛盾与待裁决」第 1 条。
 - **本次迁移仍在该键上留了一行式护栏**（末节护栏 ①），措辞按现状调整为「**NEVER 回退成 `127.0.0.1`（在 K8s 里等于打到自身 Pod，表现为 UUID retCode）**」——**没有按原指令写成「此值指向自身 Pod、是已知缺陷」，因为那与现值不符、会变成一条假注释**。
 
 **① 键值错配 —— 本模块的形态是「Service 端口不统一」**
@@ -260,7 +263,7 @@
 - **键名带点、不是下划线大写**：APP 域那个 env 的 key 是 **`service.collectPay.url`**，**NEVER 写成 `SERVICE_COLLECT_PAY_URL`**（Spring relaxed binding 两种都能读，但集群里现存的那条 env 用的是带点形式；照下划线形式新加一条会变成**两条键同时存在**、谁生效取决于 PropertySource 顺序，属于最难查的一类）。
 - **「切一个业务域的全部流量」通常要动两处**（网关 route + `fep-app` env）。只改一处的典型后果：设备侧已切到新应用、APP 侧还打旧应用，**两边落到不同的表**（旧 `*_ORDER` vs 新 `F2F_*`），对账时才发现。
 - **NEVER 改 K8s Service selector 来切流量**：目标服务未必听同一个 `targetPort`（`collect-pay-c23ku-svc` 的 `targetPort` 是 8080，靠 Deployment env `server.port=8080` 顶掉 yml 里的 58101），且**翻 selector 会连带打断所有「直连该 Service、不经网关」的内部调用方**（recon 对账源、gate-txn-pay 补款、web-admin Quartz）。
-- **改前 MUST 记下原值作为回滚命令**；切完 MUST 用「同一份报文分别打新旧服务、比对 retCode」做契约基线核对，并在目标服务日志里确认落点。完整 Runbook：`docs/ops/流量切换.md`。
+- **改前 MUST 记下原值作为回滚命令**；切完 MUST 用「同一份报文分别打新旧服务、比对 retCode」做契约基线核对，并在目标服务日志里确认落点。完整 Runbook：`docs/ops/流量切换Runbook.md`。
 - **判断流量现在在哪，MUST 现查 VS + `fep-app` env，NEVER 引用本节任何具体地址**（这类值在 2026-09-16 一天内就变过一轮）。
 
 ### 六、构建与镜像：三条只在本模块成立的判据
@@ -318,7 +321,7 @@
 
 | # | 矛盾 | 两侧口径 | 现状处置 | 待裁决点 |
 |---|---|---|---|---|
-| 1 | **`service.gateTxnPay.url` 到底是不是 `127.0.0.1`** | `docs/ops/构建与部署规范.md` §8「Ops & Deployment (部署与运维，详见 docs/ops/)」 第三类问题写「`fep-app-server/application.properties` 是 `service.gateTxnPay.url=http://127.0.0.1:9106`，2026-09-08 实测」；**2026-09-16 现查仓库该键在 、值是 `${SERVICE_GATE_TXN_PAY_URL:http://gate-txn-pay-server-jomf4-svc.itp.svc:30019}`**，不含 `127.0.0.1`（全文件 grep `127.0.0.1` 零命中） | **护栏措辞按现状写成「NEVER 回退成 `127.0.0.1`」，没有按原指令写「此值指向自身 Pod、是已知缺陷」** —— 后者与现值不符，写进代码等于制造一条假注释 | `docs/ops/构建与部署规范.md` §8「Ops & Deployment (部署与运维，详见 docs/ops/)」 那条**按仓库口径已过期**，是否改写为「已修复，NEVER 回退」需用户裁决（**线上 env 是否也已修，MUST 现查 `fep-app` Deployment**，仓库对不等于线上对） |
+| 1 | **`service.gateTxnPay.url` 到底是不是 `127.0.0.1`** | `AGENTS.md §7`「Ops & Deployment (部署与运维，详见 docs/ops/)」 第三类问题写「`fep-app-server/application.properties` 是 `service.gateTxnPay.url=http://127.0.0.1:9106`，2026-09-08 实测」；**2026-09-16 现查仓库该键在 、值是 `${SERVICE_GATE_TXN_PAY_URL:http://gate-txn-pay-server-jomf4-svc.itp.svc:30019}`**，不含 `127.0.0.1`（全文件 grep `127.0.0.1` 零命中） | **护栏措辞按现状写成「NEVER 回退成 `127.0.0.1`」，没有按原指令写「此值指向自身 Pod、是已知缺陷」** —— 后者与现值不符，写进代码等于制造一条假注释 | `AGENTS.md §7`「Ops & Deployment (部署与运维，详见 docs/ops/)」 那条**按仓库口径已过期**，是否改写为「已修复，NEVER 回退」需用户裁决（**线上 env 是否也已修，MUST 现查 `fep-app` Deployment**，仓库对不等于线上对） |
 | 2 | **`local` profile 声明的端口与真实 `server.port` 不一致** | `fep-app-server/pom.xml` 的 `local` profile Service 写 `<port>9103</port><targetPort>9103</targetPort><nodePort>30085</nodePort>`；而 `application.properties` 是 `server.port=9101`，且 9103 是 `ticket-server` / `key-server` 的端口（`docs/business/README.md` 全局事实 已记的三组端口冲突之一） | 未改（`local` profile 未被激活、不影响 `remote` 部署） | 是否把 `local` 那三行改成 9101，或整段删掉 |
 | 3 | **`.../fep/app/config/` 与 `.../fep/app/model/` 两个空目录** | 本文件 §报文契约（第 19 行）写「`fep-app-server/src/main/java/.../fep/app/model/` **目录已不存在**」；**实测两个目录都在磁盘上、且都被 SVN 纳管**（`svn ls .../fep/app/` 返回 `config/ controller/ model/ service/`，`ls` 显示两者均为空目录、0 文件） | 未动（空目录不影响编译，删除属 SVN 结构变更） | 本文件第 19 行的「已不存在」MUST 改成「已清空但目录仍在」；两个空目录是否 `svn delete` |
 | 4 | `PaySignController` 日志里的 IF 编号与 `AppParaController` 冲突 | `PaySignController.receiveSignResult` 打 `IF8A-07`、`receiveTerminationResult` 打 `IF8A-10`；而 `AppParaController` 的 IF8A-07 是线路代码、IF8A-10 是计算票价 | 未改（属日志文案，改动不影响行为） | 以 `docs/接口规范文档/青岛地铁-ITP与APP接口规范R6.docx` 为准确认哪一处编号错（本文件「已知不一致」章已记，本次未推进） |
@@ -355,7 +358,7 @@
 - **抽取条目 46 条**：§一 1 条 + §二 8 条 + §三 12 条（5 个路径族 + 4 次事故 + 2 条回调归属 + 1 条网关前缀）+ §四 7 条 + §五 6 条 + §六 3 条 + §七 4 条 + §八 15 条 —— 去重合并后**正文 46 条**，另加 7 条矛盾 + 15 条墓碑。
 - **每条都带 `路径:行号` + 可 grep 短语**：行号是**迁移前**位置，短语取自注释或代码原文，**代码里仍存在的短语**（如 `map.put("sign"`、`rawBizData`、`signChannelCode = "17"`、`bizData.containsKey("channelType")`、`<image.prefix>`）标注为可直接 grep 验证。
 - **未覆盖 / 有意丢弃**：复述方法名与参数名的纯 Javadoc（`FepAppServer` 的 `@param args`、`DailyTicketAppService` 11 个方法的「IF8A-xx 日票 XX」单句、`PhoneChangeAppService` 的 `@param`/`@return`）—— 这类**不承载知识、且本次未从代码删除**（属标准 Javadoc，按要求保留）。
-- **已知盲区 3 处**：①`pom.xml` 与 `docker/Dockerfile` 不在「注释抽取」范围内，§六那三条是**从 pom 结构 + `docs/ops/构建与部署规范.md` §7「Build & Run (构建与运行)」 反推**、非注释来源；②线上 `fep-app` Deployment 的 env 未在本次会话现查，§四 / §五涉及线上值的判断**MUST 自行现查**；③本模块**没有任何单元测试**（`src/test` 不存在），墓碑清单里标「能断言化」的 12 条**一条都还没写成测试**。
+- **已知盲区 3 处**：①`pom.xml` 与 `docker/Dockerfile` 不在「注释抽取」范围内，§六那三条是**从 pom 结构 + `AGENTS.md §6`「Build & Run (构建与运行)」 反推**、非注释来源；②线上 `fep-app` Deployment 的 env 未在本次会话现查，§四 / §五涉及线上值的判断**MUST 自行现查**；③本模块**没有任何单元测试**（`src/test` 不存在），墓碑清单里标「能断言化」的 12 条**一条都还没写成测试**。
 - **删除侧实测（迁移闭环的另一半）**：`src/main` 注释行 **320 → 187，删除 133 行、涉 14 个文件**（`AppDailyTicketController` -41、`PaySignController` -23、`GateTxnPayController` -11、`AppTicketController` -10、`PhoneChangeController` -9、`AppAccountController` -8、`BaseAppController` -8、`application.properties` -7、`PhoneChangeAppServiceImpl` -4、`AppParaController` -3、`TicketAppServiceImpl` -3、`CollectPayController` -2、`IndustryDataController` -2、`DailyTicketAppServiceImpl` -2）。剩下的 187 行全部是标准 Javadoc + 4 条护栏里的 3 条。**不变量已自证**：python 逐文件剥注释（字符串/字符字面量感知的状态机）后与 `svn cat -r BASE` 比对，**26/26 文件代码逐行一致**，即本次改动**未触碰任何一行可执行代码**。
 
 ### 保留的一行式护栏（代码里仅剩这 4 处告示，NEVER 删）

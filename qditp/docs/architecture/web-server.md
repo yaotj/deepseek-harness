@@ -259,7 +259,7 @@ public CommonResult quartzDemo() {
 }
 ```
 
-⚠️ 这类接口**没有鉴权**。只放「触发本服务内部扫表补偿」这类动作是可接受的；**NEVER** 让它接收外部可控的业务参数去改单笔用户数据（docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权与归属校验」）。同时下游被触发的逻辑 **MUST** 幂等 —— 前台「执行一次」和 Cron 重叠会重复调用。
+⚠️ 这类接口**没有鉴权**。只放「触发本服务内部扫表补偿」这类动作是可接受的；**NEVER** 让它接收外部可控的业务参数去改单笔用户数据（security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」）。同时下游被触发的逻辑 **MUST** 幂等 —— 前台「执行一次」和 Cron 重叠会重复调用。
 
 ### 7.4 rpc 侧与配置
 
@@ -295,7 +295,7 @@ service.recon.url=${RECON_SERVICE_URL:http://recon-server-bjzdy-svc.itp.svc:3003
 service.recon.openLogger=true
 ```
 
-⚠️ 默认值是本地地址，仅用于开发；上线 **MUST** 由 K8s 注入 `ACCOUNT_SERVICE_URL` / `F2F_SERVICE_URL` / `PAY_SIGN_SERVICE_URL` / `ALIPAY_PAY_SIGN_SERVICE_URL` 指向集群 Service，并把新增的键补进 `docs/ops/生产环境清单.md` 的环境变量清单。缺键会落到 `rpc` 默认服务名 `*-service`、DNS 解析不到（`docs/ops/构建与部署规范.md` §8）。`service.alipay-pay-sign.url` 的默认值故意不写 `127.0.0.1:8080`——那是 web-admin 自己的端口，写了会自调。
+⚠️ 默认值是本地地址，仅用于开发；上线 **MUST** 由 K8s 注入 `ACCOUNT_SERVICE_URL` / `F2F_SERVICE_URL` / `PAY_SIGN_SERVICE_URL` / `ALIPAY_PAY_SIGN_SERVICE_URL` 指向集群 Service，并把新增的键补进 `docs/ops/environments/跨环境共性.md` 的环境变量清单。缺键会落到 `rpc` 默认服务名 `*-service`、DNS 解析不到（`AGENTS.md §7`）。`service.alipay-pay-sign.url` 的默认值故意不写 `127.0.0.1:8080`——那是 web-admin 自己的端口，写了会自调。
 
 
 ### 7.5 已知约束
@@ -388,7 +388,7 @@ end   = create_time + query-window-after-millis
   ⚠️ **出处说明**：由此推出的运维判据「`QRTZ_JOB_DETAILS` / `QRTZ_TRIGGERS` 恒为 0 行、这不等于任务没跑、
   判断任务是否在跑 MUST 查 `SYS_JOB_LOG`」**在 Java 注释里没有**，真实出处是
   `web-server/web-quartz/src/main/resources/sql/web-quartz-refund-compensate-job-migration.sql`
-  的脚本头注释与 `docs/ops/构建与部署规范.md` §8。
+  的脚本头注释与 `AGENTS.md §7`。
 - 【契约】**迁移脚本头注释给出的四条生效条件**（web-quartz · `web-quartz-refund-compensate-job-migration.sql`，
   标题原文「执行方式与生效条件（MUST 先读完再执行）」）：
   1. 「Quartz 用内存 JobStore，任务只在 web-admin 启动时由 @PostConstruct 从 sys_job 全量加载。
@@ -521,7 +521,7 @@ end   = create_time + query-window-after-millis
   配套字典行由 web-quartz · `web-quartz-job-log-running-status-migration.sql`（**该文件没有头注释**，只有 SQL 与
   remark 列文案）落库，第 2 行的 remark 原文是「任务开始时先落该状态，收口后回写为成功或失败」，
   `list_class` 取 `'warning'`、`dict_sort=3`、`is_default='N'`、`status='0'`，并用
-  `WHERE NOT EXISTS (...)` 做幂等。⚠️ **「回查 DICT_CODE=100」这一条只在 docs/ops/构建与部署规范.md §8「回查 `DICT_CODE=100`」里，脚本内没有。**
+  `WHERE NOT EXISTS (...)` 做幂等。⚠️ **「回查 DICT_CODE=100」这一条只在 AGENTS.md §7里，脚本内没有。**
 - 【契约】**`sys_job_log` 只有 `create_time` 一个时间列**（web-quartz · `JobTraceLogServiceImpl` 类注释，
   `.../quartz/service/impl/JobTraceLogServiceImpl.java`）：「时间窗由 `sys_job_log.create_time` 与
   `job_message` 里的耗时反推。该表**没有** start_time / stop_time 列（见 `SysJobLogMapper.xml` 的 resultMap），
@@ -766,7 +766,7 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
   `<dict-tag :options="sys_common_status" :value="scope.row.status" />`，字典在 
   `proxy.useDict("sys_common_status", "sys_job_group")` 注入；查询条件下拉在 ）。
   ⚠️ 「缺字典项时该列渲染成空白且后端毫无报错」这条判据**前端文件里没有注释**，
-  真实出处是 web-common · `Constants.RUNNING` 的 Javadoc（见附二）与 `docs/ops/构建与部署规范.md` §8。
+  真实出处是 web-common · `Constants.RUNNING` 的 Javadoc（见附二）与 `AGENTS.md §7`。
 - 【契约】**「执行日志」按钮的可用前提是 `job_message` 里有 32 位 hex traceId**
   （`web/src/views/monitor/job/log.vue`）：「是否记录了 traceId：AbstractQuartzJob 把它追加在 job_message 末尾，
   没有则无从检索」，判据是正则 `/traceId=[0-9a-fA-F]{32}/`。
@@ -866,7 +866,7 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
    `statViewServlet.login-username`、 `statViewServlet.login-password`、
    `spring.datasource.druid.filter.wall.config.multi-statement-allow`、 `token.secret`。
   ⚠️ **这些行本身没有任何注释**，「敏感项 MUST 写成 `${ENV_VAR:}` 空默认值并由 K8s Secret 注入、
-  NEVER 写默认真值」这条判据的真实出处是 docs/architecture/security-sensitivity.md §一「敏感配置规则」，不是源文件注释。
+  NEVER 写默认真值」这条判据的真实出处是 security-sensitivity.md（已删除） §一「敏感配置规则」，不是源文件注释。
   本节按要求只记键名与行号，**不回显值**。
 - 【契约】**主/从数据源与 Druid 连接池的分节位置**（`application.properties`「用户配置」、
   「主库数据源」、（一行乱码占位注释，原文为连续问号，疑似编码损坏，见文末无把握清单）、
@@ -1019,7 +1019,7 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
 > **每条给 `路径:行号` + 可 grep 的原文短语。行号是迁移前基线**（删注释后会前移），
 > 定位 **MUST 用 grep 短语，NEVER 直接跳行号**。
 >
-> **本节不改变任何事实**：与 `docs/ops/构建与部署规范.md` §8「Quartz 内存 JobStore」「`SYS_JOB_LOG` 四处配套」两条重复的部分，
+> **本节不改变任何事实**：与 `AGENTS.md §7`「Quartz 内存 JobStore」「`SYS_JOB_LOG` 四处配套」两条重复的部分，
 > 以 AGENTS.md 为准；本节负责的是**代码级细节**（哪个类、哪一行、为什么这么写）。
 
 ### 附A、web-quartz：Quartz 装配与内存 JobStore
@@ -1362,7 +1362,7 @@ grep 「cron 每打密一档那张表日增行数就翻一档」）。295 / 300 
 3. **`facePayOrder.js` 是「三个开关别搞混」的唯一提示点**（`web/src/api/trans/facePayOrder.js:3~6`）：
    本页数据源是 face-pay-server 的 `F2F_ORDER`（综管台只读接口，走 web 侧 nginx 前缀）；
    它与 `fep-app-vr` 的**设备入向路由**、`fep-app` 的 **APP 域 env** 是**三个互不相干的开关** ——
-   改这里只换综管台读哪个服务，**NEVER 读成「设备入向流量切换」**（那两个开关见 `docs/ops/流量切换.md`，ADR-D117）。
+   改这里只换综管台读哪个服务，**NEVER 读成「设备入向流量切换」**（那两个开关见 `docs/ops/流量切换Runbook.md`，ADR-D117）。
    URL 后半段 `/page/face-pay/orders` 两服务一字不差、只换前缀，**NEVER 退回 `/collect-pay-server`**。
    **这一条源码侧作为一行式护栏保留了首行**，完整版在此。
 4. **nginx 侧成对关系（改一处 MUST 改另一处）**：
@@ -1488,7 +1488,6 @@ grep 「cron 每打密一档那张表日增行数就翻一档」）。295 / 300 
 - 本节的行号会随本轮删除**整体前移**，**定位 MUST 用 grep 短语**（阶段一那份行号清单同理，见「矛盾与待裁决」7）。
 - 附C 那份 `sys_job` 清单是 2026-09-15 的实测快照 + 本次新增两条，**MUST 现查 `SELECT JOB_ID, JOB_NAME,
   INVOKE_TARGET, CRON_EXPRESSION FROM SYS_JOB ORDER BY JOB_ID` 核对**，NEVER 直接引用本表下结论。
-
 
 
 

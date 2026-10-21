@@ -25,6 +25,7 @@
 |--------|--------|----------|
 | **尚未落地的需求**（docs 有规格、代码无实现） | [未落地需求.md](未落地需求.md) | 数字人民币硬钱包 IF1A-06~12、`0x2001~0x9004` 系统级报文、IF5A HCE 补全、IF8B §3.64、超时处理。**接这类需求 MUST 先读它，NEVER 声称可复用现有实现** |
 | APP 统一接入层 | [app-gateway.md](app-gateway.md) | fep-app-server |
+| **用户分流透明网关（SCG）** | [route-sentinel.md](route-sentinel.md) | `route-sentinel`（上级目录独立项目）：设备域 + APP 订单域按 `thirdUserId` 分流到旧 ITP / 新系统 |
 | 账户开户 / 支付通道 / 电子员工卡 | [account-employee-card.md](account-employee-card.md) | account-server, fep-acc-server |
 | 乘车码与过闸票卡状态 | [ride-code.md](ride-code.md) | ticket-server, fep-dev-server, industry-data-server |
 | APP 交易查询（IF8A-05 / 34 / 41） | [ride-code.md](ride-code.md) | **trans-query-server (9113)** — 独立服务，三条 URL 与 `ticket-server` 的 `TicketTransController` **逐字一致、并存未替换已接线并在承接真实流量**（`fep-alipay` 的 `/channel/findTravelList` → `trans-query-*-svc:30035`），`fep-app-server` 的 `service.ticket.url` 仍指向 ticket-server（APP 域那三条尚未切过来） |
@@ -50,7 +51,7 @@
 | 事实簇 | 唯一权威文档 |
 |---|---|
 | `sys_job` 清单 / cron / 任务编号、`gate-txn-pay` 7 个内部端点、模块内 `@Scheduled` 现状 | [`docs/architecture/web-server.md`](docs/architecture/web-server.md) §七（含 §7.0 端点表、§7.0.1 `@Scheduled` 实测表） |
-| tracing 开关「三行成组」、已打开的 9 个模块名单、「MUST 同时查 Deployment env」判据 | [`docs/architecture/common-components.md`](docs/architecture/common-components.md) §附.5.1 |
+| tracing 开关「三行成组」、已打开的模块名单、「MUST 同时查 Deployment env」判据 | [`docs/architecture/common-components.md`](docs/architecture/common-components.md) §3.1.2 |
 | 用户报 bug 时如何用 traceId / VictoriaLogs 排查入口服务链路、管理范围边界、常见无 traceId 原因 | [`docs/ops/入口服务链路排查规范.md`](docs/ops/入口服务链路排查规范.md) |
 | 开户数量由 `ticketLimit` 控制、唯一卡查重条件、`ISSUE_ORG_CODE` vs `CARD_ISSUE_CODE` | [`docs/business/account-employee-card.md`](docs/business/account-employee-card.md) §IF8A-01 当前开户规则（ADR-D122） |
 | 黑名单自动解除（`sys_job` 230）三条判据与 `skipped` 覆盖缺口 | [`docs/business/common-services.md`](docs/business/common-services.md) |

@@ -1,24 +1,28 @@
 # 架构总览（qd-itp）
 
-> 本文档承载 AGENTS.md §3「Architecture & Modules (架构与模块)」移出的详细信息：真实端口、调用拓扑、配置现状、部署链路。
-> 端口与配置值均为从各模块 `src/main/resources/application.properties|yml` 实读，非推测。
+> 本文档承载 AGENTS.md §3「Architecture & Modules (架构与模块)」移出的架构事实：分层、模块归属、端口约定、调用拓扑。
+>
+> - 端口默认值来自各模块 `src/main/resources/application.properties|yml`；**实际容器端口以 K8s Deployment 注入的 `SERVER_PORT` 为准**（未注入则使用默认值）。Service `targetPort` / NodePort 见具体环境文档，MUST 现查。
+> - 所有服务间调用由 `rpc` 模块 `ProxyWebClient`（WebClient）通过 `service.*.url` 发起 HTTP 直连，**无注册中心、无网关、无 Feign / Dubbo、无服务发现**。
 
 ## 一、分层与通信形态
 
 ```
-外部：APP / 闸机AGM / TVM / BOM / ACC清分中心 / 支付中心 / 支付宝
+外部：APP / 闸机 AGM / TVM / BOM / ACC 清分中心 / 支付中心 / 支付宝
                     │
   ① 接入层(FEP)      fep-app-server  fep-dev-server  fep-acc-server  fep-alipay-server
                     │  （薄网关：解析 ItpCommonFormRequest → RPC 转发，多数无数据库）
+  ①-1 分流网关       route-sentinel（SCG 透明网关，旁路分流 APP/设备部分流量）
+                    │
   ② 业务服务层       account / ticket / pay-sign / face-pay / daily-ticket
-                    │  gate-txn-pay / card-pool / recon / trans-query（已接线）
-                    │  （事务与落库在这一层；collect-pay 2026-10-13 已下线，0 pod）
+                    │  gate-txn-pay / card-pool / recon / trans-query
+                    │  （事务与落库在这一层）
   ③ 公共能力层       para  key  blacklist  industry-data
                     │
-  ④ ACC / 安全层     acc-security(HSM)   acc-secure(未接线)   acc-es(FTP+Netty)
+  ④ ACC / 安全层     acc-security(HSM)   acc-secure(未部署)   acc-es(FTP+Netty)
 
-  旁路：web-server(管理后台，只读写 sys_*) + web(前端)
-  构件：model(DTO/枚举)  rpc(Client)  resource/micro(持久层与web组件)
+  旁路：web-server(web-admin，只读写 sys_*) + web（前端）
+  构件：model(DTO/枚举)  rpc(Client)  resource/micro(持久层与 web 组件)
 ```
 
 关键约束（**与常规 Spring Cloud 假设完全不同，勿推断**）：
@@ -26,126 +30,122 @@
 - **无注册中心、无网关、无 Feign / Dubbo、无服务发现**。调用由 `rpc` 模块 `ProxyWebClient`（WebClient）发起 HTTP 直连。
 - **不使用 Redis 与消息队列**。异步与重试 = `@Scheduled` 扫库 + 重试状态字段 / 防重表。
 - 所有 Maven 模块在**仓库根目录**，无 `micro/`、`common/` 父目录。
-- 根 `pom.xml` 共 27 个 `<module>`；`resource/micro`、`dsh-orchestrator`、前端 `web` **不在根聚合构建中**。
+- 根 `pom.xml` 共 27 个 `<module>`；`resource/micro`、前端 `web` **不在根聚合构建中**。
+- `route-sentinel` 是独立 Spring Cloud Gateway 项目，目录 `../route-sentinel/`，部署见 `deploy/k8s/10-deployments/route-sentinel.yaml`，业务契约见 [`../business/route-sentinel.md`](../business/route-sentinel.md)。
 
-## 二、真实端口与服务名
+## 二、模块清单与端口约定
 
-| 模块 | 端口 | `spring.application.name` | 备注 |
-|---|---|---|---|
-| pay-sign-server | 9096 | pay-sign | |
-| account-server | 9098 | account | |
-| collect-ticket-server | 9098 | collect-ticket | ⚠️ 与 account-server 冲突 |
-| acc-secure-server | 9099 | acc-secure | 未被任何模块调用 |
-| fep-app-server | 9101 | fep-app | |
-| blacklist-server | 9102 | blacklist | |
-| ticket-server | 9103 | ticket-server | |
-| key-server | 9103 | key | ⚠️ 与 ticket-server 冲突 |
-| fep-dev-server | 9104 | fep-dev | |
-| industry-data-server | 9105 | industry-data-server | |
-| gate-txn-pay-server | 9106 | gate-txn-pay | |
-| para-server | 9107 | para-server | |
-| daily-ticket-server | 9108 | daily-ticket-server | |
-| fep-acc-server | 9110 | fep-acc-server | |
-| card-pool-server | 9111 | card-pool | 无 `@Scheduled`，维护动作走 `POST /card-pools/maintenance` |
-| recon-server | 9112 | recon | 无模块内业务 `@Scheduled`（第三方对账那个默认关闭，见 web-server.md §7.0.1）；主链路由 web-admin `sys_job` 触发 `POST /internal/recon/daily/run`（编号清单见 web-server.md §七，**MUST 现查**）；**MUST 单副本** |
-| trans-query-server | 9113 | trans-query | APP 交易查询独立服务；三条 URL 与 ticket-server 并存未替换，**2026-09-20 起已接线承接真实流量**（`fep-alipay` 的 `/channel/findTravelList` → 本服务，NodePort 30035），`fep-app` 域那三条尚未切 |
-| acc-security-server | 9012 | acc-security | Undertow |
-| acc-es-server | 9011 / Netty 5000 | acc-es | |
-| face-pay-server | 58101 | face-pay | **TVM / BOM / APP 当面付现行主模块**（2026-09-16 17:31 起承接设备域 + APP 域入向流量，ADR-D116 数据迁移 + ADR-D117 切流；此前「2026-09-15 已切（ADR-D85）」被 ADR-D112 实测推翻，NEVER 再引用）；**7 个 `@Scheduled` 分布在 6 个类**，无分布式锁，**MUST 单副本** |
-| collect-pay-server | 58101 | **itpagm** | ⚠️ **与 face-pay-server 端口冲突**（同机部署需确认）；**2026-10-13 已下线（0 pod）**：入向流量 2026-09-16 已切 face-pay，对账旧表源当日已移除（recon 现三源），`NoticeAppTask` 4 端点由 face-pay 逐字复刻承接、web-admin 已切并验证，`fep-app` 已切并验证；残留 collect-ticket 未部署无流量、gate-txn-pay 死配置待清理。**判断 MUST 现查 Deployment，NEVER 只凭仓库有代码就当在跑** |
-| fep-alipay-server | 8080 | fep-alipay | ⚠️ 8080 四方冲突 |
-| alipay-pay-sign-server | 8080 | alipay-pay-sign | ⚠️ |
-| alipay-account-server | 8080 | alipay-account | ⚠️ |
-| web-server / web-admin | 8080 | **未设置** | ⚠️ |
+> **容器端口 ≠ Service `targetPort` ≠ NodePort**。例：`ticket-server` 容器默认 `8080`，Deployment 注入 `SERVER_PORT=9100`，Service `targetPort=9100`，NodePort `30014`。排障 MUST 先分清说的是哪一层，切勿据此改配置。
 
-## 三、调用拓扑（按 `service.*.url` 实测）
+### 在线服务
 
-`rpc/src/main/java` 下的构成：一组 Client + `URLDynamicRouter` + 一组 `@EnableRpcXxx` 注解（数量随新增模块变化，**勿引用固定计数**）。Client 与其配置键：
+| 模块 | `spring.application.name` | 默认端口 | 容器有效端口 | 备注 |
+|---|---|---|---|---|
+| account-server | account | 8080 | 9098（env） | DB |
+| acc-security-server | acc-security | 9012 | 9012 | Undertow，HSM；无 DB |
+| acc-es-server | acc-es | 8080 / Netty 5000 | 8080 | FTP + Netty |
+| alipay-account-server | alipay-account | 8080 | 8080 | DB |
+| alipay-pay-sign-server | alipay-pay-sign | 8080 | 8080 | DB |
+| blacklist-server | blacklist | 8080 | 9102（env） | DB |
+| card-pool-server | card-pool | `${CARD_POOL_PORT:8080}` | 8080 | DB；无 `@Scheduled` |
+| daily-ticket-server | daily-ticket-server | 8080 | 9108（env） | DB |
+| face-pay-server | itpagm | 58101 | 58101 | DB；TVM/BOM/APP 当面付主模块；**MUST 单副本** |
+| fep-acc-server | fep-acc-server | 8080 | 9110（env） | 无 DB |
+| fep-alipay-server | fep-alipay | 8080 | 8080 | 无 DB |
+| fep-app-server | fep-app | 8080 | 9101（env） | 无 DB |
+| fep-dev-server | fep-dev | 8080 | 9104（env） | 无 DB |
+| gate-txn-pay-server | gate-txn-pay | 8080 | 8080 | DB |
+| industry-data-server | industry-data-server | 8080 | 8080 | 无 DB |
+| key-server | key | 8080 | 8080 | DB |
+| para-server | para-server | 8080 | 9107（env） | DB |
+| pay-sign-server | pay-sign | 8080 | 8080 | DB |
+| recon-server | recon-server | `${SERVER_PORT:8080}` | 9112（env） | DB；第三方对账默认关闭；主链由 web-admin `sys_job` 触发；**MUST 单副本** |
+| ticket-server | ticket-server | 8080 | 9100（env） | DB |
+| trans-query-server | `${SPRING_APPLICATION_NAME:trans-query-server}` | `${SERVER_PORT:8080}` | 9113（env） | 无 DB；2026-09-20 起 `fep-alipay` 的 `/channel/findTravelList` 已切到本服务；APP 域三条 URL 仍在 ticket-server |
+| web-server(web-admin) | web-server | 8080 | 8080 | 无 DB；只读写 `sys_*` |
+| web（前端） | — | — | — | nginx；承载综管台 UI |
+| route-sentinel | route-sentinel | 8080 | 8080 | SCG 透明网关；项目目录 `../route-sentinel/` |
 
-| Client | 配置键 | 目标模块 |
+### 已下线 / 未部署
+
+| 模块 | 状态 | 说明 |
 |---|---|---|
-| `AccountClient` | `service.account.url` | account-server（支付宝域指向 alipay-account-server） |
-| `CardPoolClient` | `service.cardPool.url`（默认 `card-pool-service`） | card-pool-server |
-| `TicketClient` | `service.ticket.url` | ticket-server |
-| `PaySignClient` | `service.paySign.url` | pay-sign-server |
-| `GateTxnPayClient` | `service.gateTxnPay.url` | gate-txn-pay-server |
-| `DailyTicketClient` | `service.dailyTicket.url` | daily-ticket-server |
-| `CollectPayClient` | `service.collectPay.url`（默认 `collect-pay-service`） | collect-pay-server |
-| `ParaClient` | `service.para.url` | para-server |
-| `KeyClient` | `service.key.url` | key-server |
+| collect-pay-server | 2026-10-13 已下线（0 pod） | 入向流量、对账旧表源、`NoticeAppTask` 4 端点、web-admin 菜单均已切 face-pay；残留代码勿部署 |
+| collect-ticket-server | 未部署 | 无流量 |
+| acc-secure-server | 未部署 | 死模块；未被任何模块调用 |
+
+## 三、调用拓扑（按 `service.*.url`）
+
+`rpc/src/main/java` 下为一组 Client + `URLDynamicRouter` + 一组 `@EnableRpcXxx` 注解。Client 与配置键、目标模块对应关系：
+
+| Client | 配置键 | 目标模块 / 说明 |
+|---|---|---|
+| `AccountClient` | `service.account.url` | account-server |
+| `AlipayAccountClient` | `service.alipayAccount.url`（回退 `service.account.url`） | alipay-account-server |
+| `AlipayPaySignClient` | `service.alipay-pay-sign.url` | alipay-pay-sign-server |
 | `BlacklistClient` | `service.blacklist.url` | blacklist-server |
-| `IndustryDataClient` | `service.industryData.url` | industry-data-server |
-| `SecurityClient` | `service.security.url` | acc-security-server |
+| `CardPoolClient` | `service.cardPool.url` | card-pool-server |
+| `CollectPayClient` | `service.collectPay.url` | collect-pay-server（已下线） |
+| `DailyTicketClient` | `service.dailyTicket.url` | daily-ticket-server |
+| `F2FClient` | `service.f2f.url` | face-pay-server |
+| `FacePayClient` | `service.facePay.url` | face-pay-server |
 | `FepDevClient` | `service.fepDev.url` | fep-dev-server |
-| `AlipayAccountClient` | `service.account.url` | alipay-account-server |
-| `AlipayPaySignClient` | `service.alipay-pay-sign.url`（默认 `http://alipay-pay-sign-server:8080`） | alipay-pay-sign-server |
-| `URLDynamicRouter`（非 Client） | `service.route.url.openLogger` | 动态路由辅助类，目标由入参决定 |
+| `GateTxnPayClient` | `service.gateTxnPay.url` | gate-txn-pay-server |
+| `IndustryDataClient` | `service.industryData.url` | industry-data-server |
+| `KeyClient` | `service.key.url` | key-server |
+| `ParaClient` | `service.para.url` | para-server |
+| `PaySignClient` | `service.paySign.url` | pay-sign-server |
+| `ReconClient` / `ReconExportClient` | `service.recon.url` | recon-server |
+| `SecurityClient` | `service.security.url` | acc-security-server |
+| `TicketClient` | `service.ticket.url` | ticket-server |
+| `TransQueryClient` | `service.transQuery.url` | trans-query-server |
 
-> ⚠️ **不存在 `collect.ticket.*` 配置键**（旧版本文档误记）。`pay.center.*` 是支付中心网关地址，与 `CollectPayClient` 无关。
+> `URLDynamicRouter` 不是 Client，配置键为 `service.route.url.openLogger`，目标由入参动态决定。
 
-各模块出向依赖（依据启动类 `@EnableRpcXxx` + 实际 `@Autowired` 注入点核对，2026-08-25）：
+模块出向依赖（按启动类 `@EnableRpcXxx` + 实际注入点，2026-10-21 核查）：
 
-- **fep-app-server** → account、security、paySign、blacklist、key、ticket、industryData、para、dailyTicket、**collectPay**、**alipayAccount**
-- **fep-dev-server** → account、security、ticket、gateTxnPay、para、**key**、**alipayAccount**、**alipay-pay-sign**
+- **fep-app-server** → account、alipayAccount、blacklist、collectPay（死配置）、dailyTicket、facePay、gateTxnPay、industryData、key、para、paySign、ticket、transQuery
+- **fep-dev-server** → key、ticket（另启用 `@EnableRpcRoute`，可经 `URLDynamicRouter` 动态转发）
 - **fep-acc-server** → account
-- **fep-alipay-server** → account(alipay)、paySign、blacklist、ticket、**alipay-pay-sign**；`security` / `key` / `para` **只有配置键、代码未注入 Client**
-- **ticket-server** → security、industryData、account、alipayAccount、para、fepDev、gateTxnPay、dailyTicket、**paySign**
-- **account-server** → ticket、security、paySign
-- **pay-sign-server** → account、blacklist、**gateTxnPay**（+ 支付网关 `PayGatewayClient`）
-- **gate-txn-pay-server** → paySign、**account**、**para**
+- **fep-alipay-server** → account、alipayAccount、alipayPaySign、blacklist、industryData、paySign、ticket、transQuery
+- **ticket-server** → account、alipayAccount、dailyTicket、gateTxnPay、industryData、para、paySign、recon、ticket（内部复用）
+- **account-server** → cardPool、gateTxnPay、paySign、security、ticket
+- **pay-sign-server** → account、blacklist、gateTxnPay
+- **gate-txn-pay-server** → account、alipayPaySign、para、paySign、ticket
+- **blacklist-server** → alipayPaySign、gateTxnPay、paySign
+- **alipay-account-server** → cardPool、ticket
+- **alipay-pay-sign-server** → alipayAccount、blacklist、gateTxnPay、para、ticket
 - **key-server** → security
 - **industry-data-server** → security
-- **blacklist-server** → **alipay-pay-sign**（`@EnableRpcPaySign` + `service.alipay-pay-sign.url`）
-- **collect-pay-server** → **ticket**、**account**（`application.yml` 中 `service.ticket.url` / `service.account.url`）
-- **collect-ticket-server** → **collect-pay**（自有 `client/CollectPayClient`，经 `URLDynamicRouter` 解析）
-- **para-server** → **security**、**route**（`@EnableRpcRoute` / `@EnableRpcSecurity`）
-- **alipay-pay-sign-server** → account(alipay)、blacklist、para；`security` / `key` / `ticket` / `industryData` **只有配置键、代码未注入 Client**
-- **alipay-account-server** → ticket
-- **web-server** → 无（不调用任何业务服务，仅共库读写 `sys_*`）
+- **para-server** → （启用 `@EnableRpcRoute` 与 `@EnableRpcSecurity`；无直接注入的 Client）
+- **daily-ticket-server** → recon
+- **recon-server** → recon（内部导出 Client）
+- **face-pay-server** → account、gateTxnPay、ticket
+- **trans-query-server** → alipayPaySign、dailyTicket、gateTxnPay、para、paySign、ticket
+- **acc-security-server** → `SocketClient`（HSM 专用，非 rpc Client）
+- **acc-es-server** → 无 rpc Client
+- **card-pool-server** → 无 rpc Client
+- **web-server** → account、blacklist、cardPool、f2f、facePay、gateTxnPay、para、paySign、recon（共 9 个 `@EnableRpcXxx`）
 
-> ⚠️ **三处依赖存在但 URL 键完全没配**，运行时落到 `rpc` 默认服务名，而这些名字与生产集群实际 Service 名不一致，**集群内无法解析**：
-> - `ticket-server` 缺 `service.paySign.url` → 默认 `pay-sign-service`
-> - `fep-app-server` 缺 `service.collectPay.url` → 默认 `collect-pay-service`
-> - `pay-sign-server` 缺 `service.gateTxnPay.url` → 默认 `gate-txn-pay-service`
->
-> 详见 `../ops/生产环境清单.md` 问题清单。
+> `collectPay` 已下线，相关配置键属死配置；新增模块 / 切流后 MUST 回写本文。
 
-### ⚠️ 配置现状问题（排查故障时先看这里）
+### 配置现状红线
 
-> **2026-09-16 逐项复核：下面 ①②③ 均已修复，只有 ④ 仍成立。** 修复前的旧值在此仅作历史留痕，**NEVER 当作现状引用** —— 按旧记载排查会得出「线上正在错配」的错误结论。
+1. **容器端口 ≠ Service 端口**。Deployment `SERVER_PORT` 决定容器监听端口；K8s Service `targetPort` 必须与之相同。例：`ticket-server` 容器 9100、`recon-server` 容器 9112。
+2. **`service.*.url` 缺配会落到 rpc 默认服务名**。部分模块代码中使用了某 Client，但 `application.properties` 未显式配置对应 URL，运行期可能解析到不存在的默认 Service 名。**排障时 MUST 现查**具体模块的 `application.properties` 与 Deployment env。
+3. **线上真实地址 MUST 现查 K8s Deployment env**，NEVER 只凭仓库 properties 推断；`deploy/k8s/` 的 manifest 是模板，集群 env 会覆盖 jar 内配置。
 
-1. ~~`service.industryData.url` 指向 9104（fep-dev-server）~~ **已修复**：`fep-app-server:32`、`fep-alipay-server:32`、`alipay-pay-sign-server:43` 三处现均为 `http://industry-data-server-6dv5u-svc.itp.svc:30018`（K8s DNS + NodePort）。
-2. ~~`fep-dev-server:15` 的 `service.ticket.url=http://127.0.0.1:9097`~~ **已修复**：现为 `http://ticket-server-bsyju-svc.itp.svc:9100`（`fep-dev-server/application.properties`，该行上方注释仍留着旧值说明）。
-3. ~~地址形态不统一 + 四处生产错配~~ **已全部修复并统一为 K8s DNS**：ticket-server 现为 `alipay-account-server-2n6kc-svc:30021`、`gate-txn-pay-server-jomf4-svc:30019`、`daily-ticket-server-rdbe5-svc:30027`；`service.fepDev.url` 已按 **ADR-D63（2026-09-14）整体删除**，不再是错配项。
-   ⚠️ **Service 端口 ≠ 容器 `server.port`，这不是错配**：如 ticket-server 的 Service 端口是 **9100**、容器 `server.port` 是 **9103**；recon-server 的 Service 端口（NodePort 30034）也不等于容器 9112。排障时 **MUST** 先分清说的是哪一层，切勿据此改配置。
-4. **仍存在**：`acc-secure-server:11`、`collect-ticket-server:11` 的 `service.token.url` 为空。
+## 四、构建与部署（指针）
 
-修改这些值属**部署配置变更**，会影响线上路由，**MUST** 先与用户确认环境再动手。
+- 构建：见 `AGENTS.md §6「Build (构建)」`；`resource/micro` 不在根聚合，修改后须先 `mvn install`。
+- 部署 / 滚更 / 镜像：见 `AGENTS.md §7「Ops & Deployment」` 与 [`../ops/README.md`](../ops/README.md)。
+- 流量切换 / VirtualService：见 [`../ops/流量切换Runbook.md`](../ops/流量切换Runbook.md)。
 
-## 四、部署链路
+## 五、相关文档
 
-- 镜像基底：`docker/Dockerfile` —— `FROM os-harbor-svc.default.svc.cloudos:443/itp/jdk:21` + `COPY app.jar /app.jar`
-- 编排：各模块 pom 内 `org.eclipse.jkube:kubernetes-maven-plugin`（部分模块把它注释掉了，如 `ticket-server/pom.xml`）
-- 脚本：`scripts/deploy-to-harbor.sh`（单服务）、`scripts/batch-deploy.sh`（串行批量）
-- 日志辅助：`scripts/klog.sh`、`scripts/klog-watcher.sh`
-
-⚠️ `scripts/batch-deploy.sh` 与 `scripts/deploy-to-harbor.sh` **各有一份 `ALL_SERVICES`，两处 MUST 保持一致**（2026-09-16 已校对统一为 24 项，改动时 MUST 同时改两处）。
-历史坑（已修，勿回退）：原清单含仓库内**根本不存在**的 `wallet-server`、`online-server`，而脚本**失败即 `break`**，全量部署会在第二个服务就中断；同时漏了 `face-pay-server`（现行主模块）、`recon-server`、`card-pool-server` 等 9 个模块。
-**服务名必须是仓库根目录下的模块目录名** —— `deploy-to-harbor.sh` 按 `${LOCAL_BASE_DIR}/${NAME}/target` 找 `${NAME}-*.jar`，因此 **`web-admin`（位于 `web-server/` 下）不适用本脚本，勿加入**。另：`ticket-server` 的 `kubernetes-maven-plugin` 在 `ticket-server/pom.xml` 被注释掉，能否构建镜像需先确认。上述补齐项按 pom 是否声明 JKube 插件判定，**未经实际部署验证**，首次执行前 **MUST** 与运维核对。
-
-## 五、构建
-
-```bash
-mvn clean package -DskipTests                          # 全量
-mvn clean package -pl <module-name> -am -DskipTests    # 单模块（含依赖）
-```
-
-`resource/micro` 不在根聚合中，修改自研持久层后 **MUST** 先单独 `mvn install` 该模块再构建业务模块。
-
-## 六、相关文档
-
-- 业务域提示词索引：[`docs/business/README.md`](../business/README.md)
+- 业务域索引：[`docs/business/README.md`](../business/README.md)
 - 公共构件（model / rpc / resource-micro）：[`common-components.md`](common-components.md)
-- 管理后台：[`web-server.md`](web-server.md)
-- 生产环境清单（含 Oracle 地址与环境变量）：[`../ops/生产环境清单.md`](../ops/生产环境清单.md)
-- 生产环境清单：[`../ops/生产环境清单.md`](../ops/生产环境清单.md)
+- 综管台开发工作流：[`web-admin-development-workflow.md`](web-admin-development-workflow.md)
+- 管理后台结构事实：[`web-server.md`](web-server.md)
+- 用户分流透明网关：[`../business/route-sentinel.md`](../business/route-sentinel.md)
+- 环境与部署清单：[`docs/ops/README.md`](../ops/README.md) → `environments/`

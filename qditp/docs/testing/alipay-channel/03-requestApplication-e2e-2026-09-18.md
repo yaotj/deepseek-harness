@@ -76,7 +76,7 @@
 
 1. **第 ④ 步 confirm 失败仍对上游返 `0000`，且不开异常工单**（`AlipayAccountServiceImpl:116~119` 只打一行 ERROR「留人工核对」）。这与 AGENTS.md §4.2 / ADR-D52 的「最后那步确认失败 MUST NOT 返成功，MUST 落 `ACCOUNT_EXCEPTION_TICKET.CARD_POOL_CONFIRM_REJECTED`」相反；`alipay-account-server` 模块内也没有工单表的 Mapper。`account-server` 那份**未接线**的同 URL 实现（`AlipayTripRegistrationServiceImpl:132~137`）是按 D52 写的（开工单 + 返 8007）。**两处口径不一致，MUST 定归属后统一。**
 2. **失败分支仍 `releaseReservation`**（`:129~135`）—— ADR-D52 明确「按业务键幂等的远端资源 NEVER 在失败分支回滚，交 `sys_job` 107 超时回收」（**107 现为 240「卡池数据导入」**，2026-09-21 改名改号），account-server 那份已删掉全部 release 并留了 NEVER 注释。本域并发下会踩 D52 记录的那类「卡号已发给 A、卡池却回到 AVAILABLE」。本次为单线程用例，未触发。
-3. **线上镜像的字节码与仓库当前源码不一致**：日志行号是 `AlipayAccountServiceImpl.java:85 / 103 / 312 / 146`，而工作副本对应位置是 `:66 / 84 / 284 / 127`（`svn status` 干净、`svn diff` 为空、BASE 与工作副本均 367 行）。偏移量不固定（19 / 28），与「注释知识迁移」那批改动剥掉分散注释的形态一致。也就是说 **`itp/alipay-account:1.0.15` 这个 tag 上的镜像是注释剥离前构建的**，下次 `mvn package`（该模块 jkube 在 `remote` profile 且 `activeByDefault=true`、绑 `package`）会**同 tag 覆盖**。行为预期等价（只是注释），但要按 `docs/ops/构建与部署规范.md` §7 取硬证据得在容器内 `javap` 反查。**本次未做该反查。**
+3. **线上镜像的字节码与仓库当前源码不一致**：日志行号是 `AlipayAccountServiceImpl.java:85 / 103 / 312 / 146`，而工作副本对应位置是 `:66 / 84 / 284 / 127`（`svn status` 干净、`svn diff` 为空、BASE 与工作副本均 367 行）。偏移量不固定（19 / 28），与「注释知识迁移」那批改动剥掉分散注释的形态一致。也就是说 **`itp/alipay-account:1.0.15` 这个 tag 上的镜像是注释剥离前构建的**，下次 `mvn package`（该模块 jkube 在 `remote` profile 且 `activeByDefault=true`、绑 `package`）会**同 tag 覆盖**。行为预期等价（只是注释），但要按 `AGENTS.md §6` 取硬证据得在容器内 `javap` 反查。**本次未做该反查。**
 
 ## 八、本次产生的测试数据（不需要清理，可作后续签约用例的账号）
 

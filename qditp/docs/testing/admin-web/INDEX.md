@@ -28,7 +28,7 @@
 两类接口鉴权完全不同，**curl 时不要混用**：
 
 - **web-admin 侧（`/login`、`/system/**`、`/monitor/**`）需要 JWT**。`web-server/web-common/pom.xml` 是**全仓唯一**引入 `spring-boot-starter-security` 的 pom；`SecurityConfig.java:113~118` 的 permitAll 只放开 `/login`、`/register`、`/captchaImage`、静态资源与 swagger，其余一律需要 `Authorization: Bearer <token>`（JJWT）。取 token 步骤见 `00` §三。
-- **业务模块 `/page/**` 侧当前完全没有鉴权**：para / account / alipay-account / ticket / gate-txn-pay / daily-ticket / face-pay / blacklist / key / card-pool 这些模块都**没有** spring-security、没有全局拦截器，`/page/**` 裸 curl 即通，**包括退款、改乘车状态、黑名单增删、参数增删改这些写操作**。这是已知缺口（与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突），已落 `06` 的 A8，**不是本次测试造成的**。
+- **业务模块 `/page/**` 侧当前完全没有鉴权**：para / account / alipay-account / ticket / gate-txn-pay / daily-ticket / face-pay / blacklist / key / card-pool 这些模块都**没有** spring-security、没有全局拦截器，`/page/**` 裸 curl 即通，**包括退款、改乘车状态、黑名单增删、参数增删改这些写操作**。这是已知缺口（与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突），已落 `06` 的 A8，**不是本次测试造成的**。
 
 ## 用例可执行性一览
 

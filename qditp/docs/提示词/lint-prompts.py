@@ -132,7 +132,14 @@ def check_broken_links(txt, rel, base=None):
     for m in pat.finditer(txt):
         ref = m.group(1)
         if ref in _DELETED_ON_PURPOSE: continue
-        cand = (base_dir / ref).resolve() if ref.startswith(("../","./")) else (ROOT / ref)
+        # 相对路径（`../`、`./` 开头）按文档所在目录解析；
+        # 绝对式（`docs/` / `scripts/` 等仓库根级别路径）直接按根解析，避免 base_dir 拼出 `docs/ops/docs/ops/...` 假断链。
+        if ref.startswith(("../","./")):
+            cand = (base_dir / ref).resolve()
+        elif ref.startswith(("docs/","scripts/")):
+            cand = (ROOT / ref).resolve()
+        else:
+            cand = (base_dir / ref).resolve()
         if not cand.exists():
             out.append(("ERROR", f"{rel}  断链：`{ref}` 不存在"))
     return out
@@ -328,7 +335,7 @@ def _build_sections(txt):
     """{章节号: (标题, 正文)}；章节号支持 4 / 4.1 / 四 三种写法。
 
     **无编号的子标题（`### 规则` / `### 现状`）不切分父节**，其正文归入父节——
-    否则 `security-sensitivity.md` §三 的正文会被截成空串，规则级锚点永远匹配不上。
+    否则 `runtime-observability-traps.md` §三 的正文会被截成空串，规则级锚点永远匹配不上。
     """
     secs, cur, head, body = {}, None, "", []
     for ln in (txt or "").splitlines():

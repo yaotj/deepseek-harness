@@ -8,7 +8,7 @@
 ## 本目录文件
 
 - `README.md`（本文）— 六个领域、聚合归属、四条边界自查判据
-- `state-machines.md` — 四台在跑的状态机、三件套规范、为什么不引状态机框架
+- `state-machines.md` — 五台在跑的状态机、三件套规范、为什么不引状态机框架
 - `outbox.md` — 「落库状态 + 扫表补偿」模板：四列形状、扫表 SQL 的四个坑、Java 扫描骨架的三条不变量、三分支处置（**NEVER 抽公共 outbox 表**）
 - `decisions.md` — 领域相关 ADR，含**已撤回的判断**（撤回记录 NEVER 删，防止重新踩）
 
@@ -19,7 +19,7 @@
 | 领域 | 目标库 | 聚合与主要表 | owner 服务 |
 |---|---|---|---|
 | **账户 Account** | `itp_account` | ItpUser(`USER_ITP_REG_INFO`)、PayChannel(`APP_USER_PAY_CHANNEL`)、EmployeeCard(`USER_ACC_EMPLOYEE_CARD*`)、CardPool(`LOGIC_CARD_POOL_*`) | account-server、alipay-account-server、card-pool-server |
-| **销售 Sales** | `itp_sale` | SalesOrder(`F2F_ORDER` / `TBL_TVM_*` / `TBL_BOM_*` / `TICKET_COLLECT_*`)、DailyTicketOrder、TravelTicketOrder、RefundRequest | collect-pay-server、face-pay-server、collect-ticket-server、daily-ticket-server |
+| **销售 Sales** | `itp_sale` | SalesOrder(`F2F_ORDER` / `TBL_TVM_*` / `TBL_BOM_*` / `TICKET_COLLECT_*`)、DailyTicketOrder、TravelTicketOrder、RefundRequest | face-pay-server、daily-ticket-server（`collect-pay-server` 2026-10-13 已下线、`collect-ticket-server` 未部署，见 `docs/ops/environments/跨环境共性.md` §一） |
 | **行程 Journey** | `itp_journey` | RideCode(`QRCODE_STATUS`)、GateTxn(`QRCODE_TXN_DETAIL`)、GateTxnPay(`GATE_TXN_PAY` + `SUPPLEMENT_ORDER*`)、TicketInstance(`F2F_TICKET` / `DAILY_TICKET_INSTANCE`)、`STATION_INFO` | ticket-server、gate-txn-pay-server |
 | **支付 Payment** | `itp_pay` | PayTxn(`PAY_TXN_DETAIL`)、PayRefund(`PAY_REFUND_DETAIL`)、PayCallback(`PAY_CALLBACK_LOG`)、ChannelContract(`APP_PAY_SIGN_INFO` + `APP_TERMINATION_REQUEST`)、`ALIPAY_PAY_*` | pay-sign-server、alipay-pay-sign-server |
 | **参数 Reference** | `itp_common` | 25 张 `TBL_PARA_*` / 票价 / 风控、`METRO_*` 密钥、`BLACKLIST*` | para-server、key-server、blacklist-server |
@@ -46,9 +46,12 @@
 
 查法：`grep -rn "xxxClient\." <module>/src --include="*.java"` 双向各查一次。
 
-**只读方向的双向引用是正常的**（跨域读别人的聚合），**双向写才是病根**。
+**只读方向的双向引用是正常的**（跨域读对方的聚合），**双向写才是病根**。
 
-已知的一处：pay-sign-server 与 account-server 互调 5 个方法，其中 2 个是写。见 `decisions.md` ADR-D8。
+已知的一处双向引用（2026-10-21 现查代码）：`pay-sign-server` ↔ `account-server` 互调，但**各写各的域**（被调方持有该数据，非共享实体互写）：
+- `pay-sign-server` → `account-server`：经 `AccountDomainRpcAdapter` 调 5 方法 —— `removeChannel` / `agreeRelease` / `syncPayAccountId`（写账户域的通道与账户）、`queryUser` / `queryPayChannelByContract`（读）；
+- `account-server` → `pay-sign-server`：经 `PaySignClient` 调 `updateDisplayAccountOutcome`（写签约域展示账户）、`requestSignInfo`（触发签约）、`querySignInfoBySeq`（读）。
+**不存在「两域互写同一实体」的共享实体双向写** —— 判据 1 担心的病根在 ADR-D8/D115 切断后未复现；此条作为「若出现共享实体双向写 MUST 回头核」的自查判据保留。
 
 ### 判据 2：1:N 的子实体 NEVER 是父实体状态机的一个状态
 
@@ -99,7 +102,7 @@
 
 连带红线：
 
-- `RequestRemovePayChannelReqDTO` / `RequestRemovePayChannelResult` **同时是对外 bizData 契约和内部 RPC 参数**（`AccountAppServiceImpl` 原样透传）。**NEVER 给这两个类加字段** —— 加字段等于改对外接口，且会踩 `docs/ops/构建与部署规范.md` §7 的「`model` 版本恒 2.0.0 + Fastjson2 静默丢字段 + 链路上每个模块镜像都要重建」那个坑。需要携带新信息时**新建内部 DTO**。
+- `RequestRemovePayChannelReqDTO` / `RequestRemovePayChannelResult` **同时是对外 bizData 契约和内部 RPC 参数**（`AccountAppServiceImpl` 原样透传）。**NEVER 给这两个类加字段** —— 加字段等于改对外接口，且会踩 `AGENTS.md §6` 的「`model` 版本恒 2.0.0 + Fastjson2 静默丢字段 + 链路上每个模块镜像都要重建」那个坑。需要携带新信息时**新建内部 DTO**。
 - `ItpCommonFormRequest`（2026-09-11 收口前各模块自有副本的统称是 `CommonFormRequest`，现全项目唯一、在 `model` 模块）报文形态（`x-www-form-urlencoded` + `bizData` JSON）不可改。
 
 各业务服务上与对外路径同名的端点（如 account-server 的 `/requestRemovePayChannel`）**是对内端点**，可以改。

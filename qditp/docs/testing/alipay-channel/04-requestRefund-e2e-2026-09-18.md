@@ -16,7 +16,7 @@
 - `POST /internal/alipay/payment/requestRefund` → **`9001 系统内部错误`（端点不存在）**
 - `POST /api/payment/payQuery` / `POST /api/payment/requestRefund` → `9001`（旧路径已按 hard_switch 删除）
 
-即：迁移第 7 条（payQuery / executeTermination）已在 1.1.32 上线，**第 8 条（requestRefund 改 URL）从未上线**，而上游 fep-alipay 那侧已经切了 —— 于是**运维退款入口在那段时间内一打就是 `9001`**，两侧都不报 404、日志里只有一行 `9001`。这是 `docs/ops/构建与部署规范.md` §7「pom `<version>` 不等于线上版本」的又一次实证：**判断某条迁移上没上线 MUST 探活 + 查 Deployment tag，NEVER 看仓库 pom**。
+即：迁移第 7 条（payQuery / executeTermination）已在 1.1.32 上线，**第 8 条（requestRefund 改 URL）从未上线**，而上游 fep-alipay 那侧已经切了 —— 于是**运维退款入口在那段时间内一打就是 `9001`**，两侧都不报 404、日志里只有一行 `9001`。这是 `AGENTS.md §6`「pom `<version>` 不等于线上版本」的又一次实证：**判断某条迁移上没上线 MUST 探活 + 查 Deployment tag，NEVER 看仓库 pom**。
 
 连带一条本模块专属判据：**`9001 系统内部错误` 是本模块「路径无 handler」的伪装形态**（不是 UUID retCode）。但它**不唯一**——见 §三 E1，参数类异常也落这个码，因此 **看到 `9001` MUST 去服务端日志取原文**。
 

@@ -5,7 +5,7 @@
 **任何一条前缀**都成立。
 
 > 本文是 ADR-D85 的操作化展开。判据与「为什么不能那样做」的依据见 `../domain/decisions.md` ADR-D85、
-> `docs/ops/构建与部署规范.md` §8；本域的业务差异见 `../business/tvm-bom-pay.md`。
+> `AGENTS.md §7`；本域的业务差异见 `../business/tvm-bom-pay.md`。
 
 ## 一、只有两个开关
 
@@ -188,4 +188,3 @@ ssh k8s-master "kubectl logs -n itp-gateway <itp-gateway-pod> --since=5m | grep 
 
 三次都**只动 VS 两条 route，没动 `fep-app` env**（APP 域全程留在 face-pay），因此
 `fep-app` 一次都没重启，APP 侧零影响。三次 patch 的 `test` op 全部通过，未出现下标漂移。
-

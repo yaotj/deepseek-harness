@@ -24,7 +24,7 @@
 - IF8A-67 `/ticket/updateTicket`
 - IF8A-71 `/ticket/updateAndNotice`
 - 无编号内部接口：`/payment/receivePayResult`（支付回调）、`/queryDailyTicketInfo`、`/queryDailyTicketPayInfo`、`/entry/check`（进站校验）、`/ticket/markUsed`（出站扣次，由 ticket-server `GateTicketHandler` 调用）、`/ticket/rideAvailability`（拉码前置可用性查询）
-  - `POST /ci/daily-ticket/ticket/rideAvailability`（2026-09-17 新增，1.0.29，ADR-D126）：**拉码前置的只读可用性查询**，调用方是 `fep-app-server` 的 IF8A-03 `requestIndustryData`（`IndustryDataServiceImpl`，经 `DailyTicketClient.checkRideAvailability`）。
+  - `POST /ci/daily-ticket/ticket/rideAvailability`（2026-09-17 新增，1.0.29，ADR-D126）：**拉码前置的只读可用性查询**，调用方是 `ticket-server` 的 IF8A-03 `requestIndustryData` 编排主体 `IndustryDataOrchestrator`（经 `DailyTicketClient.checkRideAvailability`）；`fep-app-server` 的 `IndustryDataServiceImpl` 仅经 `TicketClient.requestIndustryData` 透传，不在此调用日票 client。
     入参只有 `cardNum`，应答复用 `DailyTicketBaseResult`：`retCode=0000` 可发码，其余不可发、原因在 `retMsg`。
     判据与 `validateEntryCheck` 同源（`selectForEntryCheck` 白名单 + 退款占用 + 有效期 + `ACTUAL_TIMES`），但**只读、不推进任何状态**，且**异常一律吞成 retCode、绝不抛出**。详见下面「拉码前置可用性校验」那节。
   - `/queryDailyTicketPayInfo`（2026-09-15 新增，ADR-D82）：按 `ticketCode` 回溯购票订单，给 IF8A-34 交易详情填
@@ -45,7 +45,7 @@
 - 旅游票走**主单整单退**（`orderType="2"` → `requestTravelRefund`，子单校验已在那里，批量侧 NEVER 重写）
 - `DailyTicketBatchRefundService` **只扫表 + 逐笔复用 `requestRefundTicket`**，**刻意不带 `@Transactional`（每笔调支付网关，NEVER 加）**；两个独立 `AtomicBoolean`，busy 返 `9998`（**属限流不是失败**，web-admin 侧只打 WARN）
 - 可配键：`daily.batchRefund.limit:200`（**两类各取一次，单轮 scanned 上限 2×limit**）/ `waitDays:3` / `daily.lookbackDays:7` / `monthly.lookbackDays:60`
-- **无鉴权**（沿用本模块 internal 端点现状，与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突）
+- **无鉴权**（沿用本模块 internal 端点现状，与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突）
 
 > 注意：日票的运营端后台接口在**本模块**，不在 web-server。
 
@@ -181,7 +181,7 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
   - 收敛后按子单状态重算旅游票主单汇总（`TravelParentSummaryWriter.refreshBySubOrder`），失败只记日志不回滚。
   - **⚠️「待裁决」——「过期票仍可退」旧口子关闭属行为变更**：`DailyTicketRefundInitiationService` 对非 `ACTIVATED` 一律返「车票已使用，不允许退款」，因此被收敛成 `EXPIRED` 的票**从此不能再发起退款**。这关闭了一个此前事实上存在的口子（`EXPIRED` 票被当「未激活」走 `refundType='00'` 全额退，见 §一 · 退款前置条件那段）。**该变更属行为变更、MUST 经业主确认后才允许启用任务；确认前收敛任务保持 `status=1`，文档口径 MUST 写成「待裁决」而不是既定规则。**
   - **⚠️ CAS 推进那一支（按日期过期）尚未被真实数据验证**：会话期内库中候选恒为 0 行（没有 `COUNTING_END` 已过、或 `ACTIVATE_TIME + PERIOD` 已过的 `ACTIVATED`/`USED` 行），**「能收敛」只在代码层验证过、未在真实数据上跑通**。**启用前 MUST 先造数演练**（造一张 `COUNTING_END` 已过的 `USED` 票，跑一次 `/converge`，确认 `expired=1`）。
-- **无鉴权**：`/internal/daily-ticket/expire/converge` 与 `/internal/daily-ticket/batch-refund/{daily,monthly}` 都是**裸暴露**（沿用本模块 internal 端点现状），与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突，上线前 MUST 随那批端点统一补齐。
+- **无鉴权**：`/internal/daily-ticket/expire/converge` 与 `/internal/daily-ticket/batch-refund/{daily,monthly}` 都是**裸暴露**（沿用本模块 internal 端点现状），与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突，上线前 MUST 随那批端点统一补齐。
 
 ## 拉码前置可用性校验（2026-09-17 新增，daily-ticket-server 1.0.29 + fep-app 2.0.87，ADR-D126）
 
@@ -504,10 +504,10 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
   与本包已有的 `DailyTicketPayProperties` 走同一条装配路径，**NEVER 另加 `@Component` 或单独的
   `@EnableConfigurationProperties`**（会重复注册）」。
 - 同文件 —— 「出向通知当前不加签，与 pay-sign / ticket / collect-pay 三条同族链路现状一致。
-  与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突、属测试期敞口，上线前 MUST 补；**NEVER 在本模块自造签名逻辑**，
+  与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突、属测试期敞口，上线前 MUST 补；**NEVER 在本模块自造签名逻辑**，
   要加 MUST 对齐现有验签实现」（`signType` 默认 `00` 免签）。
 - `daily-ticket-server` / `DailyTicketRefundController.resubmit`（`.../controller/DailyTicketRefundController.java`）
-  —— 「⚠️ 与本控制器其余端点一致，**当前无鉴权**，与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突，
+  —— 「⚠️ 与本控制器其余端点一致，**当前无鉴权**，与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突，
   属测试期临时降级；上线前 MUST 补验签或限定只能由内网 web-admin 经 rpc 调用。也**不做幂等**：
   连调两次会向支付平台发两次请求（对端按 `refundOrderNo` 幂等，不会重复退款，但会多两条 `DAILY_TICKET_PAY_LOG`）」。
 - `daily-ticket-server` / `DailyTicketRefundSettlementService.updatePlatformRefundNo`（`.../service/refund/DailyTicketRefundSettlementService.java`；发起侧 `DailyTicketRefundInitiationService` 有一个同名私有方法）
@@ -652,7 +652,7 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
 - `daily-ticket-server` / `ReconExportController`（`.../controller/internal/ReconExportController.java`）
   —— 「**【开发测试阶段：本接口当前无鉴权，上线前 MUST 恢复】**用户 2026-09-11 明确要求「删除令牌要求，不用令牌了，
   当前处于开发测试阶段」，故原先的 `X-Recon-Token` 共享令牌校验已整段删除。本模块没有 spring-security、
-  也没有全局验签拦截器，因此现状等于允许任何网络可达方触发全量导出，与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」相冲突，
+  也没有全局验签拦截器，因此现状等于允许任何网络可达方触发全量导出，与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」相冲突，
   属**有意为之的临时降级**」；「恢复方式：重新引入 `recon.internal-token` 配置与请求头 `X-Recon-Token` 的逐字节比对，
   **MUST 用 `java.security.MessageDigest#isEqual` 而不是 `equals`**，避免按字符短路带来的时序侧信道」。
 
@@ -701,7 +701,7 @@ DDL：`daily-ticket-server/src/main/resources/sql/daily-ticket-server-schema.sql
   本模块 `resources/sql/` 下现有 5 个脚本：`daily-ticket-server-schema.sql`（只服务新建库）+
   `daily-ticket-recon-export-index.sql` / `daily-ticket-refund-notify-migration.sql` /
   `daily-ticket-refund-page-migration.sql` / `daily-ticket-usage-log-migration.sql` 四个增量脚本。
-  **注意：`docs/ops/构建与部署规范.md` §8「Ops & Deployment (部署与运维，详见 docs/ops/)」 那条「`*-schema.sql` 只服务新建库、新增列/索引 MUST 出独立 `*-migration.sql` 并执行 + 回查」
+  **注意：`AGENTS.md §7`「Ops & Deployment (部署与运维，详见 docs/ops/)」 那条「`*-schema.sql` 只服务新建库、新增列/索引 MUST 出独立 `*-migration.sql` 并执行 + 回查」
   在本模块源码注释里只有上面那一条脚本头注释是相关的，其余四个脚本没有任何头注释**，
   因此「这些脚本是否已在 `AFCITPDB` 执行过」在代码注释里查不到，MUST 现查库。
 
@@ -936,7 +936,7 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
   从无任何读取方**，观察期（`VERIFY_AFTER_TIME`，〔ddl〕「通常为申请后5天」）满后没有任何驱动方，
   因此对已过观察期的核验单放行重提交、观察期内仍拒绝（〔refundProgress〕`resubmitRefundTicket` 白名单三态）。
 - **`resubmit` 当前无鉴权、也不做幂等**（〔refundCtl〕）：连调两次会向支付平台发两次请求（对端按
-  `refundOrderNo` 幂等、不会重复退款，但会多两条 `DAILY_TICKET_PAY_LOG`）。与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突，
+  `refundOrderNo` 幂等、不会重复退款，但会多两条 `DAILY_TICKET_PAY_LOG`）。与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突，
   属测试期临时降级，**上线前 MUST 补验签或限定只能由内网 web-admin 经 rpc 调用**。
 - **退款出网异常时既不能返成功也不能返失败**（〔refundInit〕`requestRefundTicket`）：对端可能已受理。顺序 MUST 是
   先 `insertPayLog` 留证据、再把订单置 `REFUNDING` 等回调或人工回查 —— 反过来写时后面那行 UPDATE 一旦再抛，
@@ -971,7 +971,7 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
   一一对应；其余状态保守报 `PROCESSING`。六个 bizData 字段逐字对齐 collect-pay 的 `NoticeAppRefundDTO`
   + 多一个 `orderType="1"` 标明日票，**NEVER 改字段名**（对外契约）。
 - 出向通知 `signType=00` 免签（〔notifyProp〕）：与 pay-sign / ticket / collect-pay 三条同族链路现状一致，
-  与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突、属测试期敞口，**上线前 MUST 补；NEVER 在本模块自造签名逻辑**。
+  与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突、属测试期敞口，**上线前 MUST 补；NEVER 在本模块自造签名逻辑**。
 - 通知地址默认值**刻意留空**、由 K8s env `DAILY_TICKET_NOTIFY_APP_REFUND_RESULT_URL` 注入（〔prop〕、
   〔notifyProp〕）：旧 collect-pay 同族三条通知地址硬编码了 `testngbackV2` 测试域名，**本模块 NEVER 继承**；
   地址未配置时通知任务记失败并退避重试、不会静默丢弃（已落库，配好即自动补发）。
@@ -1130,7 +1130,7 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
 4. **`WAIT_VERIFY` 在本模块内只被写入、无任何读取方**（〔svc〕）：核销观察期满后没有自动驱动方，
    唯一出口是人工点 `/resubmit`。**待业务确认是否要补一条 web-admin 定时任务。**
 5. **`resubmit` / `retry` / 对账 / 通知四类内部端点当前全部无鉴权**（〔refundCtl〕、〔reconCtl〕、〔notifyCtl〕），
-   与 `docs/architecture/security-sensitivity.md` §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突，属测试期临时降级，**上线前 MUST 恢复**。
+   与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突，属测试期临时降级，**上线前 MUST 恢复**。
 6. **旅游票张数上限 20 是暂定值**（〔order〕`MAX_TRAVEL_TICKET_COUNT`），**待业务确认**。
 7. **`daily-ticket-refund-notify-migration.sql` 的 4 条 `COMMENT ON` 与 schema 里逐字重复**：
    两处都改才不会漂移，**当前无机制保证**。
@@ -1187,7 +1187,6 @@ SQL 5 个文件共 **106 条 `COMMENT ON`**（`daily-ticket-server-schema.sql` 9
   1. 〔prop〕tracing「三行成组、NEVER 只加第一行」整段 —— 与 card-pool 同源，删掉会导致别的模块照抄错；
   2. 7 个 mapper XML 中 `ReconExportMapper.xml` / `DailyTicketInstanceMapper.xml` 的「SQL 正文禁写注释」一行；
   3. `daily-ticket-refund-page-migration.sql` 头 3 行执行前提说明（一次性脚本的执行说明，不是叙述型注释）。
-
 
 
 

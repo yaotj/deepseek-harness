@@ -272,7 +272,7 @@ fep-acc 两条只能定到 `IF3A`（员工卡）这个编号族：代码与注�
 | `POST /employee_card/notify` | `POST /employeeCard/notify`（`AccountClient:159`） |
 | `POST /employee_card/update_notify` | `POST /employeeCard/updateNotify`（`AccountClient:177`） |
 
-**已知环境问题（压测前必读）**：`consumes = multipart/form-data` 是**硬约束**。2026-08-20 日志里 ACC 侧按 `application/x-www-form-urlencoded` 发送，fep-acc 返回 `HttpMediaTypeNotSupportedException`，且 `GlobalControllerExceptionHandler` 自身在返回时二次抛出 `HttpMediaTypeNotAcceptableException: No acceptable representation`（`accept=text/html` 时无可用 message converter），最终落到 `/error`。因此这两个端点用错 Content-Type 时**拿不到 `retCode`、拿到的是 `/error` 页面**，压测脚本的断言必须能区分这一种失败（见 `docs/ops/生产环境清单.md` §P2）。
+**已知环境问题（压测前必读）**：`consumes = multipart/form-data` 是**硬约束**。2026-08-20 日志里 ACC 侧按 `application/x-www-form-urlencoded` 发送，fep-acc 返回 `HttpMediaTypeNotSupportedException`，且 `GlobalControllerExceptionHandler` 自身在返回时二次抛出 `HttpMediaTypeNotAcceptableException: No acceptable representation`（`accept=text/html` 时无可用 message converter），最终落到 `/error`。因此这两个端点用错 Content-Type 时**拿不到 `retCode`、拿到的是 `/error` 页面**，压测脚本的断言必须能区分这一种失败（见 `docs/ops/environments/跨环境共性.md` §P2）。
 
 ---
 

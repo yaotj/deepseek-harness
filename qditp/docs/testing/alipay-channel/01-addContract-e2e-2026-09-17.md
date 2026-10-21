@@ -71,7 +71,7 @@
 
 **成因**：Harbor 上的 `itp/alipay-pay-sign:1.1.21` 是 ADR-D129 之前的构建 —— pom `<version>` 已升到 1.1.21，但那次改动**没有重新 build/push**（或 push 的是改动前的工作副本）。
 
-**这是 `docs/ops/构建与部署规范.md` §7「pom `<version>` 不等于线上版本」的同型问题，但更隐蔽：image tag 与 pom 号已经完全一致，只看 tag 会判成「已上线」。** 因此新增一条判据：**改动落在「新增列 / 新增类 / 改 mapper XML」上时，MUST 用容器内 `jar xf` + `grep` 反查该类或该 SQL 片段是否真在 jar 里，NEVER 只对比 tag 与 pom 号。**
+**这是 `AGENTS.md §6`「pom `<version>` 不等于线上版本」的同型问题，但更隐蔽：image tag 与 pom 号已经完全一致，只看 tag 会判成「已上线」。** 因此新增一条判据：**改动落在「新增列 / 新增类 / 改 mapper XML」上时，MUST 用容器内 `jar xf` + `grep` 反查该类或该 SQL 片段是否真在 jar 里，NEVER 只对比 tag 与 pom 号。**
 
 **连带后果**：`ChannelSyncCompensationService` 与 `POST /internal/alipay/channelSync/compensate` 端点在线上**也都不存在**，即使 web-admin 建了 `sys_job` 也打不通。ADR-D132 那条「上线前 MUST 在 web-admin 建对应 `sys_job`」现在还多一个前置：**先把镜像重建出来**。
 
@@ -92,7 +92,7 @@ Fastjson2 宽松模式静默丢弃目标类里不存在的字段，于是网关�
 
 **影响**：规格 §3.67 的应答含协议号。签约成功那一支上游本来就知道自己送了什么协议号，影响有限；**真正会咬人的是「该用户已签约」那一支** —— 上游在那里拿到的是**它没送过的、库里既有的那个协议号**，而这一支恰恰是唯一需要靠应答告知协议号的场景。现在这个值到不了上游。
 
-**修法（MUST 先确认口径再动）**：给 `model` 的 `AlipayTripAddContractRespDTO` 加 `agreementCode` 字段。注意这属于 `docs/ops/构建与部署规范.md` §7 那条 —— **`model` 版本号恒为 2.0.0，加完字段 MUST 同时重建 `fep-alipay` 与 `alipay-pay-sign-server` 两个镜像**，只重建一边等于没改。另外该 DTO 是**能被上游解析的对外契约**，加字段前 MUST 与甲方核对 §3.67 应答字段清单。
+**修法（MUST 先确认口径再动）**：给 `model` 的 `AlipayTripAddContractRespDTO` 加 `agreementCode` 字段。注意这属于 `AGENTS.md §6` 那条 —— **`model` 版本号恒为 2.0.0，加完字段 MUST 同时重建 `fep-alipay` 与 `alipay-pay-sign-server` 两个镜像**，只重建一边等于没改。另外该 DTO 是**能被上游解析的对外契约**，加字段前 MUST 与甲方核对 §3.67 应答字段清单。
 
 ## 七、复查 SQL
 

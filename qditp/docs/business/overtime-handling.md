@@ -116,25 +116,25 @@ lastTicketStatus| String | ... 06：超时出站 ...
 
 ## 二、现状与差距（本节是现状，每条带证据）
 
-### ① P0 缺陷：超时出站时多日计次票一次都不扣
+### ① 现状：超时出站（trxType=03）已与正常出站同样扣 1 次；差距在「额外超时扣次」未落地
 
 `ticket-server/src/main/java/com/chinasofti/huateng/ticket/gate/GateDailyTicketCoordinator.java`
 
 ```java
-if (!TrxTypeCodeEnum.EXIT.getCode().equals(request.getTrxType())   // 只认 "02"
+if (!TrxTypeCodeEnum.isExitTxn(request.getTrxType())   // 02 与 03 都算出站
         || !CardTypeCodeEnum.isDailyTicket(resolvedCardType)) {
     return;
 }
 ```
 
-`TrxTypeCodeEnum`（`model/.../enums/TrxTypeCodeEnum.java`）里 `EXIT_OVERTIME("03","超时出站")` 是独立取值，
-同类 的 `isExitTxn()` **明确把 `02` 和 `03` 都当出站**（ 原文
-`return EXIT.code.equals(trxType) || EXIT_OVERTIME.code.equals(trxType);`），而这里用的是 `EXIT.getCode()` 精确等值。
+`TrxTypeCodeEnum.isExitTxn()` 把 `02`（正常出站）与 `03`（**超时出站**）都算出站，本方法与之保持一致。
+**现状**：闸机上送 `trxType=03` 时**照常扣 1 次**、推进 `TICKET_STATUS`、发 `receiveCountingTicketTimes` 通知 ——
+即「一次都不扣」的 A2 缺陷已于 2026-09-22 修复，**不再免费乘车**。
 
-后果：闸机上送 `trxType=03` 时**整段扣次逻辑直接 return** —— 既不扣正常次数、也不扣超时次数、
-`DAILY_TICKET_INSTANCE.TICKET_STATUS` 不推进、§3.63 的 `receiveCountingTicketTimes` 通知也不发。
-**乘客超时出站等于免费乘车一次。** 同一次出站却照常触发扣费链路（`GateFarePaymentOrchestrator.shouldPay` 用的是
-`isExitTxn`，`02`/`03` 都进），因此**日票走的是「不扣次 + 金额已被清零」两头落空**。
+**真正的差距（仍未实现）**：甲方 §1.1 要求超时出站「正常扣 1 次 + 额外扣 1 次超时费 = 2 次」，
+而现行代码对 `02` / `03` **一视同仁各扣 1 次**，并未多扣那一次超时费（依赖项不闭合，见 §七）。
+实现该条款时 `times` 可能变 2，且 MUST 把通知宿主迁到 daily-ticket 侧（只有它知道实际扣了几次），
+NEVER 在 `GateDailyTicketCoordinator` 硬编码 2。
 
 ### ② 闸机传来的线网最高票价被就地丢弃
 
@@ -185,7 +185,7 @@ offline.billing.timeout-fee-cents=${OFFLINE_BILLING_TIMEOUT_FEE_CENTS:300}
 ### ⑤ 「线网最高票价」参数在代码里零命中
 
 `maxFare` / `MAX_FARE` / `最高票价` / `线网最高` / `maxPrice` 全仓 grep **零命中**（仅
-`docs/business/recon.md` 与 `docs/ops/生产环境清单.md` 两处文档提及，均记为未闭合项 B9）。
+`docs/business/recon.md` 与 `docs/ops/environments/跨环境共性.md` 两处文档提及，均记为未闭合项 B9）。
 
 para-server 的票价体系是两级查询：`TBL_FARE_MATRIX` 存 OD 对 → `FARE_TIER`，再按 `FARE_TIER` 查价，
 **没有 `MAX(票价)` 聚合接口**。`ParaClient` 现有方法只有 `requestTicketPriceByStation`（按进出站算价）、
@@ -267,7 +267,7 @@ AND 该票为计次类（有 ACTUAL_TIMES 语义）
 ### 3.3 场景 C：离线码超时（现状保留 + 待裁决）
 
 现状是「> 1200 秒 ⇒ 固定 300 分」，甲方无出处。**闭合 Q2 前 MUST 保持现状不动**，
-但 **MUST** 把两个配置键的「无规格出处」写进 `docs/ops/生产环境清单.md`。
+但 **MUST** 把两个配置键的「无规格出处」写进 `docs/ops/environments/跨环境共性.md`。
 若甲方裁定统一为「线网最高票价」，则 `FareCalculator` 的 `offlineTimeoutFeeCents` 改为从 para-server 取值，
 **MUST 带本地兜底**（para 不可达时不能把超时费算成 0，也不能让整条出站扣费失败）。
 
@@ -478,7 +478,7 @@ daily-ticket-server **正在** tracing 名单里）。
 - 给甲方：Q1 线网最高票价的取值来源与维护方式、Q2 离线码阈值与金额、Q3 `ITP.DETAIL` 金额单位与「或者1」、
   Q4 订单异常类型用哪套编码、Q5 超程判定归属。
 - 给 APP 侧：Q6 §3.64 `receiveAgreementException` 的真实字段。
-- 同时把 §二④ 那两个「无规格出处」的配置键补进 `docs/ops/生产环境清单.md` 的问题章节。
+- 同时把 §二④ 那两个「无规格出处」的配置键补进 `docs/ops/environments/跨环境共性.md` 的问题章节。
 
 ### S2 — 数据与参数基建（依赖 Q1）
 

@@ -16,7 +16,7 @@
 
 `SimpleObservationMonitor.shouldSkipAopTraceLogic()` 是**两级短路**：① tracing 未开（`management.tracing.enabled` 默认 `false`）直接 `pjp.proceed()`；② 即使开了，Observation 实例数超上限（`management.tracing.otlp.tracing.batch.max-queue-size` / 2）也短路。因此**同一份代码在 A 模块好、在 B 模块坏**，单测里没有切面、更看不到。
 
-**名单与「MUST 同时查 K8s Deployment env」判据见 [`common-components.md`](common-components.md) §附.5.1**（当前数量 MUST 现查，NEVER 引用文档里的数字）。⚠️ **缺口清单（2026-10-15 静态核实）**：`industry-data-server` / `key-server` / `collect-ticket-server` / `acc-es-server` / `acc-secure-server` / `acc-security-server` 依赖 `resource/micro/web`（切面由它装配），但源码 `application.properties` 与 `deploy/k8s/10-deployments/*.yaml` **两层都没有** `management.tracing.*`，故 `%X{traceId}` 恒空。线上是否真的开着 MUST 以 Deployment env 为准（`kubectl -n itp get deploy <d> -o yaml`）。
+**名单与「MUST 同时查 K8s Deployment env」判据见 [`common-components.md`](common-components.md) §3.1.2**（当前数量 MUST 现查，NEVER 引用文档里的数字）。⚠️ **缺口清单（2026-10-15 静态核实）**：`industry-data-server` / `key-server` / `collect-ticket-server` / `acc-es-server` / `acc-secure-server` / `acc-security-server` 依赖 `resource/micro/web`（切面由它装配），但源码 `application.properties` 与 `deploy/k8s/10-deployments/*.yaml` **两层都没有** `management.tracing.*`，故 `%X{traceId}` 恒空。线上是否真的开着 MUST 以 Deployment env 为准（`kubectl -n itp get deploy <d> -o yaml`）。
 
 ## 3. 虚拟线程 pin（JDK 21 基线下的现实风险）
 
