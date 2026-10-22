@@ -58,6 +58,8 @@ ORDER_NO    NUMBER        路由优先级
 
 ### 当前两条核心路由（schema-local-h2.sql / 已同步到 DB）
 
+> ⚠️ 下表是**种子基线**（来自 `schema-local-h2.sql` 初始入库值）。运行期路由 URI 以 `GATEWAY_ROUTE_CONFIG` 库表 + Actuator `gatewayroutes` 的**实时值**为准，**NEVER 把这里的 `face-pay-server-svc:30025` 当永久事实**；改路由或排障前 MUST 现查运行态（`curl -X GET <route-sentinel>/actuator/gatewayroutes`）。
+
 | route_id | 说明 | uri | predicates |
 |---|---|---|---|
 | `legacy-route` | 旧用户全部走 face-pay | `http://face-pay-server-svc:30025` | 7 条设备域 + APP 域订单 URL |

@@ -177,7 +177,7 @@ ssh k8s-master "kubectl logs -n itp-gateway <itp-gateway-pod> --since=5m | grep 
 
 - 设备域：`/itptvm/` `/itpbom/`（`spec.http[4]` / `[5]`）`collect-pay-c23ku-svc:30024` → `face-pay-server-svc:30025`，
   `test` op 全过；三重验证过（VS 读回 / envoy 出现 `face-pay-server-svc...:30025/itptvm/*` 与 `/itpbom/*` / 探活 200 且 `db` `readinessState` UP）。
-- APP 域：`fep-app` 的 `service.collectPay.url` 由 `http://172.20.211.23:30024` 改为 ，
+- APP 域：`fep-app` 的 `service.collectPay.url` 由 collect-pay（`http://172.20.211.23:30024`）改为 face-pay 的等效端点（具体值见 fep-app Deployment env，MUST 现查），
   滚更成功、探活 200（**回滚就是把这条 env 改回 30024**）。
 - 落点证据（按分钟数请求行）：collect-pay 17:30 还有 4 条、17:31 起 **0 条**；face-pay 17:32 起稳定 7 条/分钟。
 - 切流前置动作：迁移增量补了 3 条（1 单 + 1 支付 + 1 退款），并按用户裁决补迁
