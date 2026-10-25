@@ -270,6 +270,9 @@ k8s_deploy_all() {
 # ---------------------------------------------------------------- 域入口
 k8s_main() {
     need_cmd ssh scp
+    # 默认 test：远端 build-push.sh / 工作目录只在测试环境 k8s-master 上实测可用，
+    # 红岛侧通道与镜像项目（itpb）尚未就绪。需要打红岛时显式 --env hongdao。
+    itp_env_init test || return 1
     local cmd="${1:-}"; shift || true
     case "$cmd" in
         ""|help|-h|--help) k8s_usage; return 0 ;;
@@ -277,8 +280,10 @@ k8s_main() {
             printf '%s\n' "${ALL_SERVICES[@]}"
             return 0 ;;
         deploy)
+            itp_env_banner "推送到 ${REMOTE_HOST}:${REMOTE_DIR}（Harbor 项目 ${HARBOR_PROJECT}）"
             k8s_deploy "$@" ;;
         deploy-all)
+            itp_env_banner "全量推送到 ${REMOTE_HOST}:${REMOTE_DIR}（Harbor 项目 ${HARBOR_PROJECT}）"
             k8s_deploy_all "$@" ;;
         *)
             echo "未知命令：${cmd}" >&2

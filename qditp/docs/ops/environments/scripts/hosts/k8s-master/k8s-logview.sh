@@ -13,7 +13,9 @@
 set -euo pipefail
 
 # 🎯 【配置区】
-NS="itp"
+# 2026-10-26：原为写死的 "itp"（测试 ns）。红岛是 itpb —— 用 --env hongdao 或
+# 直接 export ITP_NS=itpb / K8S_NS=itpb 切换，NEVER 改这里的默认值去「对齐」某个环境。
+NS="${ITP_NS:-${K8S_NS:-itp}}"
 LOG_BASE="/home/javaapp/app/logs"
 BUILD_SCRIPT="/home/java/build-push.sh"
 DEFAULT_LINES=100

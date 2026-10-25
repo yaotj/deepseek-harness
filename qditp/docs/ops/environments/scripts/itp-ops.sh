@@ -40,6 +40,8 @@ set -uo pipefail
 source "${ITP_OPS_DIR}/lib/core.sh"
 # shellcheck source=lib/remote.sh
 source "${ITP_OPS_DIR}/lib/remote.sh"
+# shellcheck source=lib/env.sh
+source "${ITP_OPS_DIR}/lib/env.sh"
 for _lib in cloudos-auth cloudos-http cloudos-image cloudos-pkg; do
     # shellcheck source=/dev/null
     source "${ITP_OPS_DIR}/lib/${_lib}.sh"
@@ -60,7 +62,10 @@ itp-ops v${ITP_OPS_VERSION} —— 青岛地铁 ITP 平台运维单一入口
       itp-ops.sh help
 
 全局参数（可出现在任意位置）
-  --env hongdao|test   CloudOS 环境切换（默认 hongdao = 红岛生产；仅 cloudos 域使用）
+  --env hongdao|test   环境切换（全局，所有域生效）。未指定时用各域自己的默认：
+                       cloudos=hongdao、k8s/log=test、diag 按子命令（reach=hongdao、routes=test）
+                       默认值刻意不统一——NEVER 擅自改齐，那会让原可用的命令失效；
+                       每个域运行前都会打印「[环境]」横幅，明确当前打的是哪个环境
   --yes                确认写操作；缺它写命令一律拒绝
   -h | --help          总帮助（仅域前）
   --version           版本号（仅域前）
@@ -91,7 +96,9 @@ EOF
 
 # ---------------------------------------------------------------- 全局参数扫描
 OPT_YES=0
-CLOUDOS_ENV="${CLOUDOS_ENV:-hongdao}"   # 仅 cloudos 域使用
+# --env 全局化：写入 ITP_ENV，由 lib/env.sh 的 itp_env_init 消费。
+# 未指定 --env 时不在此设默认——各域按自身可用性传默认（见 lib/env.sh 头注）。
+# CLOUDOS_ENV 保留为兼容别名（cloudos 域历史变量名）。
 DOMAIN=""
 DOMAIN_ARGS=()
 
@@ -99,9 +106,13 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --env)
             [[ $# -ge 2 ]] || die "--env 缺值（hongdao|test）"
-            CLOUDOS_ENV="$2"; shift 2 ;;
+            ITP_ENV="$2"; ITP_ENV_EXPLICIT=1
+            CLOUDOS_ENV="$2"      # 兼容别名：cloudos 域历史变量名
+            shift 2 ;;
         --env=*)
-            CLOUDOS_ENV="${1#--env=}"; shift ;;
+            ITP_ENV="${1#--env=}"; ITP_ENV_EXPLICIT=1
+            CLOUDOS_ENV="${ITP_ENV}"   # 兼容别名
+            shift ;;
         --yes)
             OPT_YES=1; shift ;;
         -h|--help)

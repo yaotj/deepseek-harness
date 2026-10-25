@@ -27,8 +27,11 @@
 
 REMOTE_SCRIPT="${ITP_KLOG_SCRIPT:-/home/java/k8s-logview.sh}"
 
-# watcher 配置（旧值逐字保留；NS 首次开放 env 覆盖）
-WATCH_NS="${KLOG_NS:-itp}"
+# watcher 配置
+# ⚠ 2026-10-26：WATCH_NS 原为写死的 "itp"（测试环境命名空间）。红岛生产命名空间是 itpb，
+#   红岛跑 log watch 会**静默 watch 错命名空间**（不报错、只是永远查不到 Pod）。
+#   现改为由环境 profile 提供 K8S_NS（itp_entry_init 时按 --env 设定），KLOG_NS 仍可覆盖。
+WATCH_NS="${KLOG_NS:-${K8S_NS:-itp}}"
 WATCH_HISTORY="${KLOG_HISTORY:-1000}"
 WATCH_STATE_FILE="${KLOG_WATCH_STATE:-/tmp/klog-watcher-state.txt}"
 
@@ -220,11 +223,14 @@ log_watch() {
 # ---------------------------------------------------------------- 域入口
 log_main() {
     need_cmd ssh
+    # 默认 test：红岛侧 ssh 通道与远端脚本目录尚未就绪，只有测试环境实测可用。
+    # 需要打红岛时显式 --env hongdao（会连 hd-linux + ns itpb）。
+    itp_env_init test || return 1
     local cmd="${1:-tail}"; shift || true
     case "$cmd" in
-        tail|"")   log_tail "$@" ;;
-        watch)     log_watch "$@" ;;
+        tail|"")   itp_env_banner "远端 ${REMOTE_HOST}:${REMOTE_SCRIPT}（ns=${WATCH_NS}）"; log_tail "$@" ;;
+        watch)     itp_env_banner "监控守护，命名空间 ${WATCH_NS}"; log_watch "$@" ;;
         help|-h|--help) log_usage; return 0 ;;
-        *)         echo "未知命令：${cmd}" >&2; log_usage; return 1 ;;
+        *)         itp_env_banner ""; echo "未知命令：${cmd}" >&2; log_usage; return 1 ;;
     esac
 }

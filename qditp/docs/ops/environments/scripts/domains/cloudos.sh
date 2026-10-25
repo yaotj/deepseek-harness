@@ -1004,6 +1004,9 @@ cloudos_main() {
         ""|-h|--help|help) cloudos_usage; return 0 ;;
     esac
 
+    # 默认 hongdao（红岛是主战场，且历史上就是默认值）。
+    # itp_env_init 会按 --env 设定 CLOUDOS_ENV 等，cloudos_env_init 再据此取凭据。
+    itp_env_init hongdao || return 1
     cloudos_env_init || return 1
     printf '== 环境：%s（%s / 账号 %s）==\n' \
         "${CLOUDOS_ENV:-hongdao}" "$CLOUDOS_BASE_URL" "$CLOUDOS_USERNAME" >&2

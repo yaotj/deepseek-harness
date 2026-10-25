@@ -46,7 +46,9 @@ else
 fi
 
 JAR_FILE="${JAR_PREFIX}-${VERSION}.jar"
-REGISTRY="os-harbor-svc.default.svc.cloudos:443/itp"
+# 2026-10-26：项目名参数化。红岛是 itpb（推送账号 itpadmin），测试是 itp。
+# 与 scripts/itp-ops.sh 的 HARBOR_PROJECT 对齐；在红岛执行时传 HARBOR_PROJECT=itpb。
+REGISTRY="os-harbor-svc.default.svc.cloudos:443/${HARBOR_PROJECT:-itp}"
 IMAGE_FULL="${REGISTRY}/${IMAGE_PREFIX}:${VERSION}"
 WORK_DIR="/home/java"
 

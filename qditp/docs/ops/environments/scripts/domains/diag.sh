@@ -223,8 +223,16 @@ diag_main() {
     local cmd="${1:-}"; shift || true
     case "$cmd" in
         ""|help|-h|--help) diag_usage; return 0 ;;
-        reach)  diag_reach "$@" ;;
-        routes) need_cmd python3; diag_routes "$@" ;;
+        reach)
+            # 纯红岛：探测目标全是 172.120.x 网段（见 diag_reach 内区段表）
+            itp_env_init hongdao || return 1
+            itp_env_banner "红岛分区可达性（K8s 控制区 / 业务网 / 出口区）"
+            diag_reach "$@" ;;
+        routes)
+            # 纯测试环境：抓的是 ns itp / itp-gateway 的 VS/Gateway（红岛是 itpb + ns istio-ingress）
+            itp_env_init test || return 1
+            itp_env_banner "入向路由导出（ns ${K8S_NS}，入口 ${INGRESS_ENTRY}）"
+            need_cmd python3; diag_routes "$@" ;;
         *)      echo "未知命令：${cmd}" >&2; diag_usage; return 1 ;;
     esac
 }

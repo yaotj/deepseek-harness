@@ -20,7 +20,12 @@ scripts/
 │   ├── diag.sh                 诊断：reach（红岛分区可达性）/ routes（48000 入向路由导出）
 │   └── analysis.sh             静态分析：endpoints
 ├── analysis/                 count-endpoints.py 本体（由 domains/analysis.sh 调度，勿直接跑）
+├── hosts/                    ★ 跑在远端机器上的脚本本体（按「跑在哪台机」分层，NEVER 在本机执行）
+│   └── k8s-master/             测试环境跳板机 /home/java 下的脚本（build-push / k8s-deploy / k8s-logview / Dockerfile）
+│       └── snapshots/            远端产物（k8s-deploy-audit.csv 部署台账）
 └── migration/                数据库迁移执行包（自带 README，红岛分域重建基线）
+    ├── ingress-config/          istio 快照原始版（clean-ingress-yaml.py 的输入）
+    └── ingress-config-cleaned/  清洗后基线（diag routes 的 diff 基线，硬依赖，NEVER 移走）
 ```
 
 ## 二、快速上手
@@ -147,8 +152,10 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
    不会再产出那些已删脚本里的 DDL**（AGM 2 表 + 2 序列 + 2 索引、COM_DEVICE_SYN_KEY、
    TBL_NOTICE_APP_FAILURE_RECORD、USER_ITP_REG_INFO_BAK20260909）——它们仍在生成基线里，
    **谁重跑谁负责手工补回**，详见 `migration/20261017_schema_manifest.md` 的「（已删）」注记。
-5. **别用文件名猜用途**：`migration/k8s-master-home-java/` 里是**跑在远端 k8s-master 上**的脚本快照；
-   `migration/ingress-config*/` 是 istio 抓取快照，与数据库无关。
+5. **别用文件名猜用途**：`hosts/k8s-master/` 里是**跑在远端 k8s-master 上**的脚本本体（NEVER 在本机执行，
+   会连远端集群）；`migration/ingress-config*/` 是 istio 抓取快照，与数据库无关；
+   集群实况快照在**上一层** `docs/ops/environments/snapshots/{test,hongdao}/`（按环境分层，
+   与 scripts 平级——它们不是脚本，是抓取产物）。
 6. **⚠️ 安全待办（原 legacy 存档已删，此条 MUST 保留）**：曾入库的 `_fix.ps1` / `_run_script.ps1`
    **含明文 root 口令**（目标 `172.20.211.21`），自提交 `93e608e` 起就在版本库、且已随 `origin/main`
    推送远端——**删文件只能防扩散，口令仍在 git 历史里**。若该口令至今有效，
@@ -200,10 +207,11 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
   `enable-tracing-20261014.sh`（已执行完）、`klog.cmd` / `klog.ps1`（已被 `itp-ops.sh log tail` 取代）、
   `cloudos-api.sh`（认证结论已证伪，内容已并入 `domains/cloudos.sh`）及该目录 README。
 - **第二轮 `generate-prod-migration-report.py` + 产物 `prod-migration-config-checklist.md` 删**：全仓零引用，
-  生成器唯一产出就是那份没人读的报告。⚠️ 连带影响：`k8s-current-config/` 失去唯一消费者，
-  现仅作**集群实况快照**独立参考价值（内容无害——`secrets.txt` 只是 Secret 名称清单，不含值）。
+  生成器唯一产出就是那份没人读的报告。⚠️ 连带影响：原 `k8s-current-config/` 失去唯一消费者，
+  现已按环境迁到 `../snapshots/test/`，作**集群实况快照**独立保留（内容无害——
+  `secrets.txt` 只是 Secret 名称清单，不含值）。
 - **保留且有理由**：`ingress-config/`（clean-ingress-yaml.py 输入，产出 diag routes 的 diff 基线）、
-  `k8s-master-home-java/`（`log tail` 远端侧 `/home/java/k8s-logview.sh` 本体参考）、
+  `hosts/k8s-master/`（`log tail` 远端侧 `/home/java/k8s-logview.sh` 本体参考）、
   migration 执行包与 20261023 域拆分工具链（全部有外部引用，且分域重建仍在进行）。
 - **原则**：保留 = 有独特内容且有人会用；删除 = 已被基线/文档/代码仓吸收的纯执行痕迹，或根本跑不起来。
   每个去留结论都记在被删/被迁文件的相关引用处，NEVER 静默删。
