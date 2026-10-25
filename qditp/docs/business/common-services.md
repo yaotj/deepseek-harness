@@ -125,7 +125,7 @@ RPC：`rpc/.../key/KeyClient.java`
 实现类：`key/service/impl/KeySyncServiceImpl.java`
 
 表：`METRO_CA_KEYSTORE`、`METRO_MEMBER_STATIC_KEY`、`METRO_AGM_KEY_POOL`、`METRO_AGM_KEY_VERSION`、`COM_DEVICE_SYN_KEY`
-AGM 密钥同步相关脚本：`scripts/20260807_agm_key_sync_schema.sql`、`scripts/20260807_agm_key_sync_initial_data.sql`
+AGM 密钥同步建表脚本 `20260807_agm_key_sync_schema.sql` 与初始数据脚本 `20260807_agm_key_sync_initial_data.sql` （脚本已于 2026-10-26 合理性审计删除）——DDL 现状见生成基线 `docs/ops/environments/scripts/migration/20261017_schema_plat.sql`（METRO_AGM_KEY_VERSION / METRO_AGM_KEY_POOL / COM_DEVICE_SYN_KEY 及 2 序列 2 索引）
 
 ⚠️ **安全**：`key-server/src/main/resources/application.properties` 明文写入 `appserver.3des.key` 与 `acc.3des.key`。
 触碰该文件 **MUST** 提示人工复核并建议外置到密钥管理，**NEVER** 把密钥值输出到对话或日志。
@@ -151,6 +151,8 @@ APP 侧 `para/controller/AppParaController.java`（前缀 `/ci/app`）：
 - `OrderRefundCycleController`（`/page/order-refund-cycle`，CRUD）
 - `SingleTicketPurchaseLimitController`（`/page/single-ticket-purchase-limit`，GET/PUT）
 - `ParaImportController`（`/para/import/directory`、`/para/import/file`、`/para/import/ftp`、`/para/import/ftp/quartz`）
+- `DeviceInfoController`（`/page/device/list` 分页查询、`/page/device/manage-mode` 批量设管理模式、`/page/device/sync` 手动同步）
+- `DeviceSyncInternalController`（`/para/device-sync/quartz`，供 web-server Quartz 调）
 
 RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 
@@ -170,6 +172,14 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 - **FTP 侧正则当前只认 `0001` / `0004`**，而 `ParaFileImportService` 的 `switch (paraType)` 支持 `0001`~`0004`。`0002`（日历）/`0003`（票卡）已实测能正常解析入库，是否放进正则**待业务确认**；扩展时两处都要改。
 - 配置前缀是 `para.ftp.*` / `PARA_FTP_*`，**NEVER 用 `ftp.*` / `FTP_*`**——那组键属于 acc-es-server 的另一台 FTP 服务器，同名会串。
 - 依赖新增 `commons-net 3.11.1`（与 acc-es-server 同版本）。**注意 acc-es-server 的 `util/FTP.java` 是死代码**，其真实调用点用的是 hutool `cn.hutool.extra.ftp.Ftp`；para-server 不引 hutool，直接用 commons-net。
+
+**ACC 设备台账同步与设备管理模式**（2026-10-22 新增，业主需求「自定义节能关机设备」）：`para/service/AccDeviceSyncService.java` + `para/config/ParaDeviceSyncProperties.java` + `para/mapper/device/DeviceInfoMapper.java`
+- 数据表 `TBL_DEVICE_INFO`：ACC 设备台账本地镜像 + 业主自定义管理模式。ACC 来源列（`LINE_ID`~`ACC_MANAGE_LEVEL`、`SYNC_TIME` 等）由同步维护；**`MANAGE_MODE` / `REMARK` 是业主页面维护列、`MERGE INTO` 更新列刻意不含它们，NEVER 加回**——加了下次同步就会把业主设置冲掉。
+- 同步源是 ACC HTTP 接口 `GET {base-url}/api/v1/Config/device?currentPage=&pageSize=&manageLevel=&withGlobal=true`（配置前缀 `para.device-sync.*` / K8s env `ACC_DEVICE_API_URL`、`ACC_DEVICE_MANAGE_LEVELS`）。**`manageLevel` 全量码值清单 ACC 尚未提供**，配置默认 `04`，拿到清单改 env 即可、NEVER 改代码。HTTP 用 JDK `java.net.http.HttpClient`，JSON 解析用 Fastjson2（`para/model/device/`）。
+- 幂等形态是 **MERGE INTO ON DEVICE_ID**（与 F2F 心跳同款），逐条提交、无整体事务，中途失败重跑补齐；同步**NEVER 物理删除**——ACC `isDeleted` 落 `ACC_IS_DELETED='1'` 软删标记。
+- 触发三条：`POST /para/device-sync/quartz`（web-server `sys_job` 405 种子 SQL `web-server/sql/device-info-sync-job.sql`，`paraQuartzTask.syncDevice()`，cron 每日 03:00，种子行**默认暂停**）、`POST /page/device/sync`（综管台「立即同步」按钮）、页面批量设模式 `PUT /page/device/manage-mode`（码值白名单 `01`/`02`，单批 ≤1000 台）。
+- 菜单种子 SQL `web-server/sql/device-info-menu.sql`（挂「参数管理」2003，perms `para:device:query/edit/sync`）；前端 `web/src/views/para/device/index.vue` + 码表 `web/src/utils/deviceManageMode.js`（**管理模式码值空间独立**，NEVER 并进 payChannel/cardType/f2fChannel）。设备**在线监控**不落本表：AGM 联查 `AGM_DEVICE_STATUS`、TVM/BOM 联查 `F2F_DEVICE_STATUS`，在线态一律以落库 `ONLINE_FLAG` 为准。
+- 待办：真实建库（测试库演练→生产审批）未执行（2026-10-22 本机未联网）；`AGM_DEVICE_STATUS`（IF1A-03）建表未落地，联查前 MUST 确认。
 
 ---
 

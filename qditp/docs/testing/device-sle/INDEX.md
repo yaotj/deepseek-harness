@@ -42,7 +42,7 @@
 
 1. **curl 骨架** —— `application/x-www-form-urlencoded`，公共参数 `sign`/`charset`/`format`/`timestamp`/`deviceId`/`signType` + `bizData`（JSON）。NodePort 一律写「**待现查 `kubectl get svc -n itp`**」。
 2. **DB 核对 SQL** —— 库 `AFCITPDB`，表名列名取自 mapper XML。注意 **`fep-dev-server` 自己不落库**，落库都在下游（`ticket-server` / `gate-txn-pay-server` / `key-server`）。
-3. **日志判据** —— 服务名 + 关键字，走 `scripts/klog.sh`。`fep-dev-server` **不在 tracing 名单**，`traceId` 列恒为空。
+3. **日志判据** —— 服务名 + 关键字，走 `docs/ops/environments/scripts/itp-ops.sh log tail`。`fep-dev-server` **不在 tracing 名单**，`traceId` 列恒为空。
 
 每条显式标注 **「模拟上送 ≠ 真机链路」** 并列出**真机才能覆盖的部分** —— 设备域这批用例里这部分占比尤其高：**闸门物理开合、码体本地解签验签、闸机本地黑名单表、密钥新旧过渡切换、心跳周期与掉线** 全都在闸机内，curl 一个也覆盖不到。
 

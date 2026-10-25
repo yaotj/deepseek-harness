@@ -10,11 +10,13 @@ TVM 单程票下单出票、TVM 充值、BOM 非现金收款、当面付订单�
 
 ## 模块定位
 
-**设备（TVM / BOM）与 APP 的当面付流量已于 2026-09-16 17:31 全部切到 `face-pay-server`**（端口 58101，Service `face-pay-server-svc:30025`，`F2F_*` 表；ADR-D117，旧库 TVM/BOM 的订单/支付/退款/票/上报已全量迁进 `F2F_*`，ADR-D116）。`collect-pay-server`（端口 58101，`spring.application.name=itpagm`，`application.yml` 而非 properties）**进程保留未停**，只承担三类残留职责：
+**设备（TVM / BOM）与 APP 的当面付流量已于 2026-09-16 17:31 全部切到 `face-pay-server`**（端口 58101，Service `face-pay-server-svc:30025`，`F2F_*` 表；ADR-D117，旧库 TVM/BOM 的订单/支付/退款/票/上报已全量迁进 `F2F_*`，ADR-D116）。`collect-pay-server`（端口 58101，`spring.application.name=itpagm`，`application.yml` 而非 properties）**2026-10-13 起已随模块下线（Deployment 0 pod）**：流量归属 **MUST 现查 VS + `fep-app` env + kubectl get pods -n itp | grep collect-pay**（NEVER 引用本行当现状）。
 
-- `/internal/recon/export` —— 日终对账源（`recon-server` 的 `sources[1]` 直连 `collect-pay-c23ku-svc:30024`）
-- `/internal/app-order/{register,close-unpaid,pay-result}` —— gate-txn-pay 补款链路（`SupplementCollectPayGateway`）
-- 旧单退款入口 `/itptvm/ci/tvm/requestRefund` 与运营后台 `/{orderNo}/refund`，外加 `NoticeAppTask` 那 4 个由 web-admin Quartz 驱动的旧表通知端点
+- **2026-09-16 ~ 2026-10-12 期间**：进程保留未停，承担三类残留职责：
+  - `/internal/recon/export` —— 日终对账旧表源（`recon-server` 的 `sources[1]` 直连 `collect-pay-c23ku-svc:30024`）
+  - `/internal/app-order/{register,close-unpaid,pay-result}` —— gate-txn-pay 补款链路（`SupplementCollectPayGateway`）
+  - 旧单退款入口 `/itptvm/ci/tvm/requestRefund` 与运营后台 `/{orderNo}/refund`，外加 `NoticeAppTask` 那 4 个由 web-admin Quartz 驱动的旧表通知端点
+- **2026-10-13 起**：recon 旧表源已移除、`NoticeAppTask` 4 个端点已迁移 face-pay 承接、`fep-app` env 与 web-admin 已切并验证（见 ADR-D117），本模块 **0 pod** 不接收任何入向流量，代码保留作为历史引用。
 
 ⚠️ **安全**：`collect-pay-server/src/main/resources/application.yml` 中明文内置支付中心商户私钥。触碰该文件 **MUST** 提示人工复核安全合规，**NEVER** 把私钥值输出到对话或日志。
 
@@ -124,7 +126,7 @@ IF2A-01 下单 → IF2A-11 扫码支付 → IF2A-03 查支付结果 → IF2A-04/
   - ⚠️ **`/itptvm/ci/tvm/payNotice` 没有任何验签**（`validateRequestOrder` 只判字段非空，`bizData` 是明文 JSON），任何网络可达方都能伪造支付成功回调把订单改成已支付。2026-09-11 端到端测试正是靠这一点模拟的回调。与 security-sensitivity.md（已删除） §三「状态变更型接口 MUST 有鉴权」冲突，**上线前 MUST 补齐**。
 - BOM：`TBL_BOM_ORDER_PAY`、`TBL_BOM_ORDER_REFUND`、`TBL_BOM_SALE_INFO`、`TBL_BOM_MAIN_TICKET`、`TBL_BOM_SUB_TICKET`、`TBL_BOM_BUS_RESULT`、`TBL_BOM_TOPUP_RESULT`、`TBL_BOM_TICKET_REFUND`
 - 通用：`TBL_TICKET_REFUND_RECORD`
-- 通知重试表：`tbl_notice_app_taketicket_record`、`tbl_notice_app_refund_record`、`TBL_NOTICE_APP_FAILURE_RECORD`（后者建表脚本 `scripts/create_tbl_notice_app_failure_record.sql`）
+- 通知重试表：`tbl_notice_app_taketicket_record`、`tbl_notice_app_refund_record`、`TBL_NOTICE_APP_FAILURE_RECORD`（建表脚本 `create_tbl_notice_app_failure_record.sql` （脚本已于 2026-10-26 合理性审计删除）；DDL 见生成基线 `docs/ops/environments/scripts/migration/20261017_schema_plat.sql`）
 - 订单号来源 `OrderSeqMapper`（Oracle `ORDER_NO_SEQ.NEXTVAL`），**MUST** 沿用序列，**NEVER** 自造订单号规则
 
 ### face-pay-server 侧表与订单号

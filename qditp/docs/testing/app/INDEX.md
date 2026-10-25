@@ -35,7 +35,7 @@
 
 1. **curl 骨架** —— `application/x-www-form-urlencoded`，公共参数 `sign` / `charset` / `format` / `timestamp` / `deviceId` / `signType` + `bizData`（JSON），目标 `http://172.20.211.23:<NodePort>/<路径>`。NodePort 无法从代码确定，一律写「**待现查 `kubectl get svc -n itp`**」；经网关的形态另注「**需现查 VS**」。
 2. **DB 核对 SQL** —— 库 `AFCITPDB`，表名列名取自 entity / mapper XML。
-3. **日志判据** —— 服务名 + 关键字，走 `scripts/klog.sh`。
+3. **日志判据** —— 服务名 + 关键字，走 `docs/ops/environments/scripts/itp-ops.sh log tail`。
 
 每条还显式标注 **「模拟上送 ≠ 真机链路」** 并列出**真机才能覆盖的部分**（NFC 写卡、闸机本地校验与开合、APP 界面展示、设备物理动作、第三方 App 内展示、真实时序）。
 

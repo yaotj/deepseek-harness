@@ -385,7 +385,7 @@ face-pay-server 早已用「整个类无事务 + `F2F_NOTIFY_TASK` 落库 + `F2f
   4. `controller/task/TaskController.java` — 新增 `POST /phoneSignSyncCompensate`（与既有 `/quartzDemo` 同类，无鉴权）
 - `rpc`：`AccountClient` 新增 `compensatePhoneSignSync()` + `(headers)` 重载（**版本号不动**，2.0.1）
 - `web-admin`：`AccountQuartzTask` 新增 `compensatePhoneSignSync()`，走 `QuartzTraceUtils.runWithTrace`，`retCode != "0000"` 即抛异常
-- `scripts/20260911_sys_job_phone_sign_sync_compensate.sql`：`sys_job` 种子（`accountQuartzTask.compensatePhoneSignSync()`，`0 0/5 * * * ?`，`misfire_policy='3'`，`concurrent='1'`）
+- `sys_job` 种子（`accountQuartzTask.compensatePhoneSignSync()`，`0 0/5 * * * ?`，`misfire_policy='3'`，`concurrent='1'`；2026-09-11 执行，job_id 108，2026-09-21 重编号为 290）
 
 **三个刻意的设计点**：
 
@@ -476,7 +476,7 @@ face-pay-server 早已用「整个类无事务 + `F2F_NOTIFY_TASK` 落库 + `F2f
 - **实测结果**：返 `9998`；`USER_ACC_EMPLOYEE_CARD.CARD_STATUS` **停在 3 未被改**（证明短事务整体回滚，不会留下「状态改了但没日志」的半成品）；`ACCOUNT_EXCEPTION_TICKET` 落一行 `EMPLOYEE_CARD_STATUS_UNSYNCED` / `BIZ_KEY='E2ECARD0003:1'` / `OPEN` / `RETRY_COUNT=0`，`DETAIL` 里带着 `ORA-02290` 原文。同批还验了 `9999`（env 指向不可达端口，返 `9999` 且本地零写入）与成功路径（3→1、1→2 各一次，状态与 `USER_ACC_EMPLOYEE_CARD_LOG` 都对）。
 **2026-09-11 真机调 ACC 又抓出一个错误码被吞的缺陷（2.0.55 已修并复测）**：ACC 的员工码激活/禁用接口用 **「HTTP 4xx + 业务错误体」** 表达参数被拒，实测 `400 Bad Request: {"retCode":"1002","retMsg":"参数校验失败：卡号不存在。"}`。原实现只有 `catch (RuntimeException)` 一条兜底，`HttpClientErrorException` 走进去后**整个响应体被丢弃**、统一返 `9999`（语义是「调 ACC 失败」），APP 侧因此看不到「卡号不存在」这类可自助修正的原因、还会当成网络故障去重试。已在 `catch (RuntimeException)` **之前**加 `catch (HttpClientErrorException)`：有响应体就按正常业务响应解析并把 ACC 的 `retCode` / `retMsg` **原样透出**，只有解析不出业务码时才降级成 `9999`。**排查这类「远端明明给了原因、我方只报通用错误码」MUST 看 RestTemplate 调用点有没有单独接 4xx**——`RestTemplate` 对 4xx/5xx 抛的是 `HttpClientErrorException` / `HttpServerErrorException`，业务体在 `getResponseBodyAsString()` 里，不接就等于扔掉。
 
-  取证方式一并记下：`scripts/klog.sh` 只回显命中关键字的行，**看不到异常头**（异常类名与 HTTP 状态在上一行），MUST 进容器 `grep -A2 '<关键字>' /home/javaapp/app/logs/<pod>/<service>.log` 才能看到 `HttpClientErrorException$BadRequest: 400 Bad Request: "{...}"`。同批复测确认 ACC 拒绝的调用**本地零写入**（卡状态未变、无日志行、无工单），符合「远端未生效则本地不动」的设计。
+  取证方式一并记下：`docs/ops/environments/scripts/itp-ops.sh log tail` 只回显命中关键字的行，**看不到异常头**（异常类名与 HTTP 状态在上一行），MUST 进容器 `grep -A2 '<关键字>' /home/javaapp/app/logs/<pod>/<service>.log` 才能看到 `HttpClientErrorException$BadRequest: 400 Bad Request: "{...}"`。同批复测确认 ACC 拒绝的调用**本地零写入**（卡状态未变、无日志行、无工单），符合「远端未生效则本地不动」的设计。
 
 - **顺带查出并修掉一个静默缺陷**：`UserAccEmployeeCardMapper.xml` 的 `update` **原本没有 `OPEN_TMS` 列**，于是 `applyActivationResult` 里那段「首次激活补 `OPEN_TMS`」是死代码——第一次成功路径实测 `CARD_STATUS` 变成 1 但 `OPEN_TMS` 仍为 `NULL`。已把 `OPEN_TMS = #{openTms,jdbcType=TIMESTAMP}` 加进该 `update`（两个调用点都是「先 `select` 出实体再改」，因此不会把已有值冲成空），2.0.52 复测 `OPEN_TMS` 正常写入。**这类「Java 侧 set 了但 mapper 没有该列」的缺陷编译与走查都发现不了，MUST 靠落库回查**。
 
@@ -1609,7 +1609,7 @@ reuse 维度曾报「`ItpPayChannelView.terminationReady` 全仓无赋值点、�
 - `itp/recon-server:1.0.14`（原 1.0.13）、`itp/gate-txn-pay-server:2.0.62`（原 **2.0.60**，注意仓库 pom 早已是 2.0.61 但那个 tag 从没推过，回滚要回 2.0.60）、`itp/daily-ticket-server:1.0.23`（原 1.0.22）、`itp/collect-pay-server:1.1.81`（原 1.1.80）、`itp/alipay-pay-sign:1.1.18`（原 1.1.17）。五个都是 `BUILD SUCCESS` + `Pushed`，`kubectl set image` 后五个 Deployment 全部 `successfully rolled out`、Pod `2/2 Running`、Deployment image tag 回查一致。
 - **`pay-sign-server` 仍停在 2.0.80、切面修复未上线**：工作区 `PaySignWorkflow.java`（未提交、`git status` 为 `M`）那次半成品重构仍未收口 —— 复测 6 个私有方法全是「有调用、零声明」（`validatePaySignInfo` / `updatePayRequestResult` 4 处 / `buildPayRefundDetail` / `resolveDebitRequestResult` / `resolvePaySignInfoFromAccount` / `syncGateTxnPayStatus`），整模块编译不过。**NEVER 为了推镜像去动那个文件**（属别人在做的支付主链路重构 + §5.2 安全红线），等重构收口后单独重建。
 - 顺带坐实了 AGENTS.md §6里两个「尚未逐个核实」的模块：**`collect-pay-server` 与 `alipay-pay-sign-server` 的 `build-image-remote` 都绑在 `package`**（该条「阶段逐模块不同」的待办已于 2026-10-20 闭合：全仓统一 `package`，且 `remote` profile 改为无 `activeByDefault`、推镜像 MUST `-Premote`），`local` 不会激活，`mvn clean package` 默认不推 Harbor、要推加 `-Premote`。另外 `daily-ticket-server` / `alipay-pay-sign` 的 push 日志走**短前缀**（`Pushed itp/...`）、其余三个走长前缀 —— 再次印证过滤只能用 `Pushed` / `digest:`。
-- **验证方式换了，且这条比日志更可靠**：这 4 个模块的**文件日志里根本没有 `Tomcat started`**（`scripts/klog.sh` 连查两次都是 0 条，而 `collect-pay` 有）。实测 `recon-server` 的日志文件首行就是 `10:54:56 Log4j2 configuration has been reloaded from classpath:log4j2-linux.xml`、下一行已是 `10:55:20` 的 `CustomMeterRegistry`，中间那句 Tomcat 启动**没进文件**。**因此 NEVER 把「klog 里搜不到 `Tomcat started`」当成启动失败**，改用 `curl` 探 `/actuator/health`：从 `k8s-master` 打 `172.20.211.23:{30034,30019,30027,30024,30022}/actuator/health`，五个全 **`http=200`**（NodePort 依次是 recon / gate-txn-pay / daily-ticket / collect-pay / alipay-pay-sign）。同批也确认无 `APPLICATION FAILED` / `Failed to parse mapping resource`。
+- **验证方式换了，且这条比日志更可靠**：这 4 个模块的**文件日志里根本没有 `Tomcat started`**（`docs/ops/environments/scripts/itp-ops.sh log tail` 连查两次都是 0 条，而 `collect-pay` 有）。实测 `recon-server` 的日志文件首行就是 `10:54:56 Log4j2 configuration has been reloaded from classpath:log4j2-linux.xml`、下一行已是 `10:55:20` 的 `CustomMeterRegistry`，中间那句 Tomcat 启动**没进文件**。**因此 NEVER 把「klog 里搜不到 `Tomcat started`」当成启动失败**，改用 `curl` 探 `/actuator/health`：从 `k8s-master` 打 `172.20.211.23:{30034,30019,30027,30024,30022}/actuator/health`，五个全 **`http=200`**（NodePort 依次是 recon / gate-txn-pay / daily-ticket / collect-pay / alipay-pay-sign）。同批也确认无 `APPLICATION FAILED` / `Failed to parse mapping resource`。
 
 
 **本轮验证到什么程度（MUST 照实读）**：
@@ -3030,7 +3030,7 @@ controller 把它翻成 `retMsg`、`retCode` **恒 `0000`** —— 本轮扫表�
 - **镜像已推并滚更**：`itp/gate-txn-pay-server:2.0.73`（digest `sha256:b2b50a77fe984906ec54a38a74318e9ff3d42ab5246cc05b56cac4a7ea28e005`，
   **回滚 tag 2.0.72**）、`itp/web-admin:1.1.20`（digest `sha256:6da4ba688cafdf56030af176df7eeb4f93fcd4e751a1ec8e6b631da08e5dd9f7`，
   **回滚 tag 1.1.19**）。gate-txn-pay 探活 `http=200`、body 里 `db` / `readinessState` 全 UP。
-- **`scripts/20260915_sys_job_gate_txn_pay_compensate.sql` 已在 `AFCITPDB` 执行**：
+- **gate-txn-pay 两条补偿 `sys_job`（120/121，2026-09-21 重编号为 295/300）已在 `AFCITPDB` 执行**：
   生成 **job_id=120「离线码金额补偿」/ job_id=121「公交换乘推送」**（**现分别为 295 / 300**，2026-09-21 重编号），回查确认
   `cron_expression='0 0/1 * * * ?'`、`concurrent='1'`、`misfire_policy='3'`、`status='0'`。
   回滚 `DELETE FROM sys_job WHERE job_id IN (295, 300);`（现号，**原 120 / 121，2026-09-21 已重编号**）。
@@ -4193,9 +4193,9 @@ ssh k8s-master "for p in \$(kubectl get pods -n itp -o name); do \
   kubectl exec -n itp \${p#pod/} -- sh -c 'grep -l \"No static resource\" /home/javaapp/app/logs/*/*.log 2>/dev/null'; done"
 ```
 
-**MUST 逐 Pod grep 容器内完整日志文件，NEVER 用 `scripts/klog.sh <svc> \"No static resource\"`**：
-klog 只看尾部窗口，且**Pod 一重启日志目录就消失** —— 本次修 face-pay 时 10:44 滚更过一次，
-09:54 那条命中就随旧 Pod 一起没了，klog 查出来是 0 条、看着像「已经没问题了」。
+**MUST 逐 Pod grep 容器内完整日志文件，NEVER 用 `docs/ops/environments/scripts/itp-ops.sh log tail <svc> \"No static resource\"`**：
+`itp-ops.sh log tail` 只看尾部窗口，且**Pod 一重启日志目录就消失** —— 本次修 face-pay 时 10:44 滚更过一次，
+09:54 那条命中就随旧 Pod 一起没了，`itp-ops.sh log tail` 查出来是 0 条、看着像「已经没问题了」。
 
 **本次结果（22 个业务 Pod）：只有 `account` 命中**，且**成因与 face-pay 那例完全不同** ——
 URL 在仓库代码里是**存在**的（`ItpUserPageController` 的 `/page/user/itp/reg-stats` 与 `/batch-search`），
@@ -8044,7 +8044,7 @@ kubectl set image deploy/alipay-pay-sign-server alipay-pay-sign-server=os-harbor
 
 ### 一、`ORDER_EXP_TYPE` 存在三套互不相同的编码（**映射待甲方澄清、NEVER 自行折算**）
 
-- **我方库注释（`0~5`）**：`0` 正常 / `1` 单边账(入) / `2` 单边账(出) / `3` 单边入站人工 / `4` 单边出站人工 / `5` 双段计费超时。证据：`scripts/20260818_if8a_schema_migration.sql` / `gate-txn-pay-schema.sql`。
+- **我方库注释（`0~5`）**：`0` 正常 / `1` 单边账(入) / `2` 单边账(出) / `3` 单边入站人工 / `4` 单边出站人工 / `5` 双段计费超时。证据：`gate-txn-pay-server/src/main/resources/sql/gate-txn-pay-schema.sql` 列注释。
 - **第二套（实体口径）**：`0` 正常 / `1` 单边 / `2` 补站，记在 `docs/business/gate-txn-pay.md`「矛盾与待裁决」#2~#6。**改代码前 MUST 先看该文档的 #2~#6，NEVER 指望从实体类源码注释读取值域。**
 - **第三套（甲方对账文档，`ITP.EXP` 第 11 段，从 1 开始、没有 `0`）**：`1 单边账(入站)` / `2 单边账(出站)` / `3 单边入站(人工处理单)` / `4 单边出站(人工处理单)` / `5 乘客自主补进站` / `6 乘客自主补出站` / `7 TVM补币找零不足` / `8 TVM卡票` / `9 TVM/BOM发售无效票` / `10 闸门无用` / `11 无票出闸` / `12 人为单程票无效` / `13 非人为单程票无效` / `14 储值票无效` / `15 其他情况`（源：《ACC与ITP之间的文件.docx》）。其中 **`5` 与我方 `5`「双段计费超时」撞号**；原文 `5`/`6`/`15` 编号粘连 / 缺空格，**解析时 NEVER 按「数字+空格+名称」硬切**。
 - ⇒ **甲方 `1~15` 与我方 `0~5` 的映射 MUST 待甲方澄清，NEVER 自行折算。**

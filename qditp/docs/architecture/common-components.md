@@ -152,7 +152,7 @@ route/URLDynamicRouter           （动态路由辅助类，不是 Client）
 写模块专属 log4j2 配置时另有两条实测坑（2026-09-11 在 `collect-pay-server` 踩过，两次构建才闭合）：
 
 - **`<Properties>` MUST 是 `<Configuration>` 的第一个子元素**。把配置级 `<Filters>` 写在它前面时，整份配置的 `${logPath}` / `${appName}` / `${webLoggerLevel}` **全部不做替换**：日志文件被建成字面量路径 `/home/javaapp/soft/${logPath}/${appName}.log`，Root 级别失效、INFO 全丢，只剩 WARN 进 console。`status="off"` 会吞掉 log4j2 自己的报错，**唯一可见线索是文件名里带着 `${}`**，判据 MUST 是 `find / -name '*.log'` 看真实落盘路径，**NEVER 只看 console 有没有输出**。
-- **容器内真实日志目录带 Pod 名一级子目录**：`/home/javaapp/app/logs/<POD_NAME>/<appName>.log`。模块自带 `logging.config` 时 `CustomLoggingConfiguration` 直接 return、`${sys:logPath}` 不会被赋值，因此默认值 MUST 写成 `${sys:logPath:-/home/javaapp/app/logs/${env:HOSTNAME:-local}}`（与 `log4j2-paysign.xml` 同口径）。少写 `${env:HOSTNAME}` 会让 `scripts/klog.sh` 什么都看不到——现象与「服务没日志」完全一样。
+- **容器内真实日志目录带 Pod 名一级子目录**：`/home/javaapp/app/logs/<POD_NAME>/<appName>.log`。模块自带 `logging.config` 时 `CustomLoggingConfiguration` 直接 return、`${sys:logPath}` 不会被赋值，因此默认值 MUST 写成 `${sys:logPath:-/home/javaapp/app/logs/${env:HOSTNAME:-local}}`（与 `log4j2-paysign.xml` 同口径）。少写 `${env:HOSTNAME}` 会让 `docs/ops/environments/scripts/itp-ops.sh log tail` 什么都看不到——现象与「服务没日志」完全一样。
 - 按 URL 静音高频接口用**配置级 `<Filters>`**：`<ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="NEUTRAL"/>` + `<RegexFilter regex="(?s).*<关键字>.*" onMatch="DENY" onMismatch="NEUTRAL"/>`。它先于所有 logger 求值，能一并干掉 `FirstFilter` / `MoreInterceptor` / `BodyCacheFilter` 三行框架日志；WARN 兜在前面保证该接口真出错时仍可见。**NEVER 改用 `logging.level` 压这三个类**——那是按类生效，会把所有接口的报文日志一起干掉，报文日志是重放与排障的唯一依据。已落地：`collect-pay-server` 用它静音 `notiDeviceHeard`（设备心跳原先占日志量 79%，实测 3000 行里 1992 行）。
 
 ### 3.1.2 开一个模块的 tracing：三行成组 + 名单 + 「MUST 查 Deployment env」判据

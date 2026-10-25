@@ -2,7 +2,7 @@
 
 > **本文件目的**：把「哪张业务表归哪个域 / 哪个模块」这件事收敛到一个可复核的来源。
 > **唯一真源**：`AFCITPDB`（schema `QDITP`）的数据字典（`ALL_TABLES` / `ALL_TAB_COMMENTS` / `ALL_INDEXES` / `ALL_TAB_PARTITIONS`）。
-> **回填状态**：下表「命名约定推导」列已据代码与既有文档核实；「实时归属」列 **待在集群内对 AFCITPDB 执行 `scripts/query-domain-tables.sql` 后回填**，当前 **NEVER 当作已核实的 DB 事实**。
+> **回填状态**：下表「命名约定推导」列已据代码与既有文档核实；「实时归属」列 **待在集群内对 AFCITPDB 执行域归属查询后回填**（原脚本 `migration/tools/query-domain-tables.sql`（脚本已于 2026-10-26 合理性审计删除），须按同一口径重建：全量表清单 + 分区表 + RANGE 分区上限 + GLOBAL 索引识别），当前 **NEVER 当作已核实的 DB 事实**。
 
 ---
 
@@ -10,7 +10,7 @@
 
 1. 连接：`jdbc:oracle:thin:@//172.20.222.3:1521/AFCITPDB`，schema `QDITP`，口令 `qditp`（取自 Deployment env `other.sql.password`）。
 2. **本机（办公网）TCP 被红岛防火墙拦截**，须在集群内可达网段或经堡垒机执行；真 DML 通道为 `oracledb` thin 直连，MCP `mcp_database_qd` 无只读保护、变更前 MUST 建 `BAK_<表>_<日期>` CTAS。
-3. 实时归属查询脚本：`scripts/query-domain-tables.sql`（含全量表清单、分区表、RANGE 分区上限、GLOBAL 索引识别）。
+3. 实时归属查询脚本：原 `docs/ops/environments/scripts/migration/tools/query-domain-tables.sql`（脚本已于 2026-10-26 合理性审计删除）（含全量表清单、分区表、RANGE 分区上限、GLOBAL 索引识别）——需要回填时 MUST 按此口径对库重建查询。
 
 ---
 
@@ -45,6 +45,6 @@
 
 ## 四、使用纪律
 
-- 任何「某域用哪张表」的断言，优先以本字典 + `scripts/query-domain-tables.sql` 实时结果为准；**NEVER 仅据前缀约定下结论**（前缀可能漂移、跨域共用表存在）。
+- 任何「某域用哪张表」的断言，优先以本字典 + 对 AFCITPDB 的实时查询结果为准（原 `query-domain-tables.sql`（脚本已于 2026-10-26 合理性审计删除））；**NEVER 仅据前缀约定下结论**（前缀可能漂移、跨域共用表存在）。
 - 码表（支付渠道 / 卡种 / F2F 渠道 / 发卡渠道）各码值空间 **MUST 独立**，互不合并。
 - 改表结构 / 索引前 MUST 先执行 SQL 确认真实归属与分区形态，再走变更流程。

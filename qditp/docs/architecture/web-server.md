@@ -88,7 +88,7 @@ web/src/
 
 2026-09-11 新增第五条：`ReconQuartzTask → ReconClient → recon-server`（日终对账，`reconQuartzTask.runDailyBatch()`，`sys_job` job_id 225（2026-09-21 由 109 改号），cron `0 0 2 * * ?` 每日一次（**2026-09-20 按业主要求由 `0 30 2` 改为 `0 0 2`，同批把 job 260 销卡挪到 `0 30 2` 错开**），`@EnableRpcRecon` + `service.recon.url`）。**它是目前唯一一条「一次调用要跑几分钟」的链路**：recon-server 端同步建批次、下发抽取、再轮询推进到批次收口才返回（`ReconOrchestrationService.runDailyBatch()`），因此 `ReconClient.getResponseTimeout()` 被覆写成 5 分钟、服务端 `recon.orchestration.run-timeout-millis` 是 240 秒，**改任一处 MUST 保证「服务端超时 < 客户端超时」**，否则会出现「web-admin 记失败、recon-server 还在跑」。recon-server 侧的**日终对账主链路一个模块内 `@Scheduled` 都没有**、频率完全由这条 cron 决定（注意：该模块另有 1 个第三方对账的 `@Scheduled`，**默认关闭**，见 §7.0.1），详见 [`../business/recon.md`](../business/recon.md)。
 
-2026-09-15 新增第六、七条：`GateTxnPayQuartzTask → GateTxnPayClient → gate-txn-pay-server`，两个方法各对应一条 `sys_job`（`gateTxnPayQuartzTask.recoverOfflineFare()` → `POST /internal/gate-txn-pay/offline-fare/recover`，`gateTxnPayQuartzTask.pushMetroTransfer()` → `POST /internal/gate-txn-pay/metro-transfer/push`；cron 均 `0 0/1 * * * ?`，`@EnableRpcGateTxnPay` + `service.gateTxnPay.url`）。**这两条是「模块内 `@Scheduled` 迁过来」的首例**（gate-txn-pay 2.0.73 起那两个 Processor 上已无 `@Scheduled`），因此有一条**别处没有的约束**：`fixedDelay` 语义在 cron 下无法表达，不重叠**只靠 `sys_job.concurrent='1'`（禁止并发）保证**，那一列改成 `'0'` 就是并发重复扣款；公交换乘推送的周期也因此由 10 秒变成 60 秒（用户 2026-09-15 裁决，属外部可感知变化）。两个端点**当前无鉴权**（同一裁决），上线前 MUST 恢复。建表 SQL 在 `scripts/20260915_sys_job_gate_txn_pay_compensate.sql`，详见 `docs/domain/decisions.md` ADR-D80。
+2026-09-15 新增第六、七条：`GateTxnPayQuartzTask → GateTxnPayClient → gate-txn-pay-server`，两个方法各对应一条 `sys_job`（`gateTxnPayQuartzTask.recoverOfflineFare()` → `POST /internal/gate-txn-pay/offline-fare/recover`，`gateTxnPayQuartzTask.pushMetroTransfer()` → `POST /internal/gate-txn-pay/metro-transfer/push`；cron 均 `0 0/1 * * * ?`，`@EnableRpcGateTxnPay` + `service.gateTxnPay.url`）。**这两条是「模块内 `@Scheduled` 迁过来」的首例**（gate-txn-pay 2.0.73 起那两个 Processor 上已无 `@Scheduled`），因此有一条**别处没有的约束**：`fixedDelay` 语义在 cron 下无法表达，不重叠**只靠 `sys_job.concurrent='1'`（禁止并发）保证**，那一列改成 `'0'` 就是并发重复扣款；公交换乘推送的周期也因此由 10 秒变成 60 秒（用户 2026-09-15 裁决，属外部可感知变化）。两个端点**当前无鉴权**（同一裁决），上线前 MUST 恢复。任务定义见本段与 `docs/domain/decisions.md` ADR-D80。
 
 > `AlipayPaySignClient` 的 Bean 由已有的 `@EnableRpcPaySign` 一并扫入（该注解的 `basePackages` 同时含 `com.chinasofti.huateng.rpc.paySign` 与 `com.chinasofti.huateng.rpc.alipay.paysign`），**无需**新增 `@EnableRpcXxx`；但地址键是独立的 `service.alipay-pay-sign.url`（注意是中划线，不是 `alipayPaySign`），漏配会落到默认服务名。
 
@@ -103,6 +103,8 @@ web/src/
 的实测结果，**以此为准**；`web-server/web-quartz/src/main/resources/sql/web-quartz-refund-compensate-job-migration.sql`
 头部注释里那份 16 条清单是 2026-09-15 的快照，**已缺 18 条、且多条名称与调用目标已变，NEVER 再拿它当现状**。
 业务任务编号现落 **200~400 区间、步长 5**；**现行最大 job_id 是 400**。
+
+> 2026-10-22 已备种子 SQL `web-server/sql/device-info-sync-job.sql`（`paraQuartzTask.syncDevice()`，job_id 405，cron `0 0 3 * * ?`，ACC 设备台账同步，**默认暂停、尚未执行入库**）：para-server 侧实现见 `docs/business/common-services.md` §3「ACC 设备台账同步」。该行落库后本清单 MUST 补上 405 并把「最大 job_id」更新为 405。
 
 | job_id | 名称 | invoke_target | cron | status |
 |---|---|---|---|---|
@@ -850,7 +852,7 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
   「LogsQL 里 traceId 是普通字段过滤（`_stream_fields` 只有 app / host），选择性足够；
   仍带上 start / end 是为了避免全量扫描。」；「按 `_time` 升序排列：VictoriaLogs 不保证返回顺序，前台要按时间读。」
 - 【陷阱】**日志系统里 web-admin 的 `app` 字段是 `web-server`**（`log4j2-web-admin.xml`）：
-  「…… web-server.log 完全一致。**NEVER 改成 web-admin** —— scripts/klog.sh 走远端 ……
+  「…… web-server.log 完全一致。**NEVER 改成 web-admin** —— docs/ops/environments/scripts/itp-ops.sh log tail 走远端 ……
   连带结论：**日志系统里 web-admin 的 app 字段是 `web-server`**，检索时 MUST 用 ……」
 - 【陷阱】**业务包 MUST 挂不带 `level` 的 AppenderRef**（`log4j2-web-admin.xml`）：
   「业务包（含 Quartz 任务包）**MUST** 显式声明并挂一个**不带 level 的** …… 原因（2026-09-08 实测踩坑，绕了一轮）：
@@ -1246,7 +1248,7 @@ grep 「cron 每打密一档那张表日增行数就翻一档」）。295 / 300 
 3. **本文件由 Boot 在启动早期加载**，此时 `CustomLoggingConfiguration` 还没设置
    `webLoggerLevel` / `logPath` / `appName` 等系统属性，因此**全部 lookup MUST 自带默认值**。
 4. **`appName` 保持 `web-server`（= `spring.application.name`），NEVER 改成 `web-admin`**：
-   `scripts/klog.sh` 走远端 `k8s-logview.sh` 按既有文件名 `web-server.log` 取日志。
+   `docs/ops/environments/scripts/itp-ops.sh log tail` 走远端 `k8s-logview.sh` 按既有文件名 `web-server.log` 取日志。
    连带结论：**日志系统里 web-admin 的 `app` 字段就是 `web-server`**，检索 MUST 用 `app:"web-server"`，
    用 `app:"web-admin"` 查出 0 条（2026-09-08 已踩过一次）。
 5. **VictoriaLogs appender**：`url` 为空即自动禁用（不起 `vlogs-sender` 线程、不影响业务），由 K8s

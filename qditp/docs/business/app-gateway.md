@@ -45,7 +45,7 @@
 - **有双别名**：`AppAccountController`、`AppParaController`、`AppTicketController`、`AppDailyTicketController`、`PhoneChangeController`、`GateTxnPayController`（IF8A-26 / IF8A-35 两条均为 `{"/ci/app/...", "/app/..."}`）
 - **只有 `/ci/app/` 单路径**：`CollectPayController`（8 个接口）、`IndustryDataController`（2 个）、`PaySignController`（除 `requestPay` 外）
 
-> ⚠️ 上述清单为 2026-09-16 按 `@PostMapping` 实测（fep-app-server 当时共 43 条映射 / 9 个 Controller；scripts/count-endpoints.py 复跑得 58 条方法级映射 / 9 个 Controller，此后接口有新增，数字随代码变动，改动前 MUST 以代码为准、或直接重跑脚本刷新）。**`GateTxnPayController` 此前未列入任何一类**，导致按「只有单路径」的旧认知去改它时会漏加 `/app/` 别名——**该 Controller 属双别名一类**。
+> ⚠️ 上述清单为 2026-09-16 按 `@PostMapping` 实测（fep-app-server 当时共 43 条映射 / 9 个 Controller；docs/ops/environments/scripts/itp-ops.sh analysis endpoints 复跑得 58 条方法级映射 / 9 个 Controller，此后接口有新增，数字随代码变动，改动前 MUST 以代码为准、或直接重跑脚本刷新）。**`GateTxnPayController` 此前未列入任何一类**，导致按「只有单路径」的旧认知去改它时会漏加 `/app/` 别名——**该 Controller 属双别名一类**。
 
 新增接口时 **MUST** 先看目标 Controller 属于哪一类并保持一致，**NEVER** 给单路径 Controller 硬加 `/app/` 别名。
 
@@ -205,7 +205,7 @@
 
 **第 1 层 — 网关侧 8 条前缀**（`fep-app-vr` 这条 VirtualService，ns `itp`，是本项目**唯一**的入向路由开关）：`/fep-app/`、`/fep-dev/`、`/fep-acc/`、`/fep-alipay/`、`/itptvm/`、`/itpbom/`、`/itpagm/`、`/para-server/`。链路 `58.56.166.170:48000` → 节点 `172.20.211.200`（`k8s02-gateway-866a2`）→ `itp-gateway`（ns `itp-gateway`，svc ）→ `fep-app-vr` → 各业务 Service。**只有 `/fep-app/` 那条落到本模块**；`/itptvm/` 与 `/itpbom/` 已于 2026-09-16 17:31 指向 `face-pay-server-svc:30025`。**判断某前缀现在归谁 MUST 现查 `kubectl get vs fep-app-vr -n itp -o yaml` 或 envoy `config_dump`，NEVER 用 `kubectl get vs -A` 的摘要表**（那张表不显示 path）。Runbook 是 `docs/ops/流量切换Runbook.md`。
 
-**第 2 层 — 本模块内部的 5 个路径族**（`@PostMapping` 实测，58 条方法级映射 / 9 个 Controller，不含抽象基类 BaseAppController；由 scripts/count-endpoints.py 复跑，接口新增后重跑刷新）：
+**第 2 层 — 本模块内部的 5 个路径族**（`@PostMapping` 实测，58 条方法级映射 / 9 个 Controller，不含抽象基类 BaseAppController；由 docs/ops/environments/scripts/itp-ops.sh analysis endpoints 复跑，接口新增后重跑刷新）：
 
 | 路径族 | 谁在用 | 约束 |
 |---|---|---|

@@ -132,9 +132,9 @@ SELECT ORDER_NO, DEVICE_ID, TRX_TYPE, IN_STATION, OUT_STATION,
 ③ 日志判据
 
 ```bash
-scripts/klog.sh fep-dev-server 'IF1A-01' 300
-scripts/klog.sh ticket-server  'IF1A-01' 300
-scripts/klog.sh gate-txn-pay-server 'requestPay' 300
+docs/ops/environments/scripts/itp-ops.sh log tail fep-dev-server 'IF1A-01' 300
+docs/ops/environments/scripts/itp-ops.sh log tail ticket-server  'IF1A-01' 300
+docs/ops/environments/scripts/itp-ops.sh log tail gate-txn-pay-server 'requestPay' 300
 ```
 
 只有 `gate-txn-pay-server` 在 tracing 名单内；`fep-dev-server` / `ticket-server` 的 `traceId` 列**恒为空**，**按 traceId 检索这两个服务恒 0 条 —— 不是日志丢了**。
@@ -217,8 +217,8 @@ SELECT * FROM BLACKLIST
 ③ 日志判据
 
 ```bash
-scripts/klog.sh fep-dev-server 'IF1A-04' 300
-scripts/klog.sh ticket-server  'queryQrCodeStatus' 300
+docs/ops/environments/scripts/itp-ops.sh log tail fep-dev-server 'IF1A-04' 300
+docs/ops/environments/scripts/itp-ops.sh log tail ticket-server  'queryQrCodeStatus' 300
 ```
 
 `fep-dev-server` 对每笔打 3 行：入口（`FepAgmController.java:95`）、带 `bizData` 的那行（`:105`）、响应 `retCode`（`:107`）；Handler 另打「调用 ticket-server 查询票卡状态, 入参=」（`QrCodeStatusHandler.java:47`）与「返回=」（`:56`）。响应为 `null` 时是 WARN「IF1A-04 ticket-server 无响应」（`:50`）。
@@ -307,8 +307,8 @@ SELECT COUNT(*) FROM METRO_AGM_KEY_POOL;
 ③ 日志判据
 
 ```bash
-scripts/klog.sh fep-dev-server 'IF1A-02' 300
-scripts/klog.sh key-server 'requestAgmSynKeyList' 300
+docs/ops/environments/scripts/itp-ops.sh log tail fep-dev-server 'IF1A-02' 300
+docs/ops/environments/scripts/itp-ops.sh log tail key-server 'requestAgmSynKeyList' 300
 ```
 
 `key-server` **不在 tracing 名单**，`traceId` 列恒为空。
@@ -409,12 +409,12 @@ SELECT TABLE_NAME FROM USER_TABLES
 ③ 日志判据
 
 ```bash
-scripts/klog.sh fep-dev-server 'IF1A-03 设备心跳' 500
+docs/ops/environments/scripts/itp-ops.sh log tail fep-dev-server 'IF1A-03 设备心跳' 500
 ```
 
 期望：每次 curl 恰好新增 1 行，内容只有 `deviceId=`。**上送的 IP / 状态 / 时间戳都不会出现在日志里。**
 
-⚠️ 排查「心跳到底有没有到」时注意：`scripts/klog.sh` **只看尾部窗口**，而**心跳是高频接口**、很容易把窗口刷满并把别的日志顶掉；同时 **Pod 一重启日志目录就消失**。要确认某个历史时刻的心跳，**MUST** `ssh k8s-master` 后进容器 grep 完整日志文件（`/home/javaapp/app/logs/*/*.log`）。
+⚠️ 排查「心跳到底有没有到」时注意：`docs/ops/environments/scripts/itp-ops.sh log tail` **只看尾部窗口**，而**心跳是高频接口**、很容易把窗口刷满并把别的日志顶掉；同时 **Pod 一重启日志目录就消失**。要确认某个历史时刻的心跳，**MUST** `ssh k8s-master` 后进容器 grep 完整日志文件（`/home/javaapp/app/logs/*/*.log`）。
 
 **真机才能覆盖的部分**：闸机的心跳发送周期与重试、设备真实的网络状态、以及**「设备掉线了谁会知道」** —— 按当前实现，ITP 完全不知道；如果现场有在线状态监控，那它**不是靠这个接口**实现的，MUST 另找来源。
 

@@ -21,16 +21,16 @@
 ## 4. STRICT RULES (严格开发准则 - AI 必读)
 
 ### 4.1 代码生成与修改 (Do's and Don'ts)
-- **MUST** 使用 `jakarta.*` 包，**NEVER** 新增 `javax.servlet` / `javax.validation` / `javax.persistence` / `javax.annotation` 等 Jakarta EE 旧包（Spring Boot 3.x 强制要求）；JDK 自带的 `javax.crypto` / `javax.net` / `javax.sql` 不在此列。
+- Jakarta EE 包名细则见 `docs/architecture/spring-boot-3-jakarta-traps.md`；JDK 自带 `javax.crypto` / `javax.net` / `javax.sql` 不在此列。
 - **NEVER** 直接写原生 JDBC 或标准 MyBatis 注解，**MUST** 统一走自研 `mybatis-adaptor` / `sql-datasource`；唯一遗留是 `collect-pay-server` 的 `OrderSeqMapper`（`@Select` 取序列），**NEVER** 再新增同类写法。
-- **NEVER** 主动创建新的工具类（如 DateUtils, StringUtils），**MUST** 优先在 `model`、`rpc`、`resource/micro`（`web` / `sql-datasource` / `mybatis-adaptor`）中查找并复用现有组件。
+- **NEVER** 主动创建新的工具类（如 DateUtils, StringUtils）；复用清单见 `docs/architecture/common-components.md` §一「model 构件」+ §三「resource/micro 构件」。
 - **MUST** 使用 Fastjson2 进行 JSON 序列化/反序列化，**NEVER** 引入 Jackson 或 Gson 处理核心业务报文。
 - **NEVER** 引入 Redis / RabbitMQ / Kafka 等中间件：本项目不使用缓存与消息队列。需要异步或重试时 **MUST** 采用「落库状态 + `@Scheduled` 扫表重试」；需要并发控制时 **MUST** 采用数据库唯一索引 + `DuplicateKeyException` 兜底。`resource/micro/rabbitmq-adaptor` 是历史遗留基础构件，**NEVER** 在业务模块中引用。
 
 ### 4.2 业务与架构约束
 - **幂等与一致性**: 涉及支付、订单、扣款的关键业务表，**MUST** 考虑 幂等设计（如唯一索引/防重表）及分布式事务一致性。
 - **状态机校验用白名单、不用黑名单**：只允许明确的前置状态继续处理，其余一律拒绝；**NEVER** 写成「非终态即可处理」，**NEVER** 散落 `if` 里比状态字符串。范式：枚举 + 迁移表 + `canTransitTo` / `isTerminal` + 配 `*WhitelistTest` / `*StatusMachineTest` 单测。
-- **服务间调用 MUST 通过 `rpc` 模块 + HTTP 直连**（读 `application.properties` 的 `service.*.url`），**NEVER** 引入 Feign / Dubbo；新增内部接口 DTO MUST 放 `model`、在对应 Client 补方法，**NEVER** 只在本模块定义。
+- **服务间调用 MUST 通过 `rpc` 模块 + HTTP 直连**（读 `application.properties` 的 `service.*.url`），**NEVER** 引入 Feign / Dubbo；新增内部接口 DTO MUST 放 `model`、在对应 Client 补方法。**细则（含 `ProxyWebClient` 装配约定、常见错配端口）见 `docs/architecture/common-components.md` §二「rpc 构件」**。
 - **安全红线**: 涉及支付、密钥、签名的代码改动，**NEVER** 擅自修改现有加密/签名逻辑，**MUST** 提示人工复核安全合规性。
 
 ## 5. AI Workflow (AI 执行工作流)
@@ -59,7 +59,7 @@
 | 写 / 改 MyBatis `mapper` XML、SQL、Oracle 持久层 | `docs/architecture/mybatis-oracle-runtime-traps.md` | `docs/architecture/common-components.md` |
 | 改支付 / 订单 / 扣款 / 签约 / 开户 / 卡池 / 对账链路；写 `@Transactional` / Spring 事件 / RPC 包装方法 | `docs/architecture/transaction-and-consistency.md` | `docs/business/<域>.md` + `docs/domain/decisions.md` |
 | 排查「同一份代码在 A 模块好、B 模块坏」、tracing 断链 / `%X{traceId}` 恒空、虚拟线程 pin / 慢 SQL 拖垮 JVM | `docs/architecture/runtime-observability-traps.md` | `docs/architecture/common-components.md` §3.1.2 |
-| 综管台 / 管理后台（web-server + web）功能开发 | `docs/architecture/web-admin-development-workflow.md` | `docs/architecture/web-server.md` §二/§三/§六；业务查询接口后端在对应模块 `/page/**`；红线与验证/打包/发版见工作流 §3 / §5 |
+| ★ 综管台 / 管理后台（web-server + web）功能开发 | `docs/architecture/web-admin-development-workflow.md` | `docs/architecture/web-server.md` §二/§三/§六 |
 
 **技能不在当前上下文时，读 `~/.workbuddy/skills/qditp-<名>/SKILL.md`。**
 
@@ -91,6 +91,8 @@
 > **范围**：所有模块的镜像构建 / 推送 / 滚动更新 / 版本切换。纯前端（综管台 `web/`）发版特殊点见 §5.E。
 
 **发布 / 滚更 / 版本切换**：读技能 `qditp-deploy-release`，按六步流程执行（bump → 出 jar → scp → build-push → 滚更 → digest 比对）。
+
+**镜像构建位置（MUST）**：**NEVER 在本机跑 `docker buildx` 构建 x86/amd64 镜像**——本机是 Apple Silicon，模拟构建慢、单层与缓存产物动辄数 GB，会迅速吃满本地磁盘；镜像 MUST 放到 k8s-master 上构建推送，本机职责到「出 jar + scp」为止。
 
 **生产红线（MUST，缺一不可）**：
 - **二次确认**：发布任务 MUST 显式确认是测试还是生产（前置判据第 2 步）；生产发布 MUST 二次确认 + 灰度 / 回滚预案（单副本模块按服务逐个滚更，不做金丝雀分流）。
@@ -133,7 +135,7 @@
 - **线上真实地址 / 版本 / 流量落点 MUST 查 K8s Deployment env 与 image tag**，NEVER 只看仓库 properties 或 pom（集群 env 会覆盖 jar 内配置；`deploy/k8s/` 的 manifest 只作模板）。
 - **设备域入向路由的仓库内唯一开关是 `fep-app-vr` 这条 VirtualService**：切流量 / 改前缀 / 判落点 MUST 先读 `docs/ops/流量切换Runbook.md`（唯一 Runbook，NEVER 只凭本行操作）。最致命一条常驻：**改端口只改 `targetPort`，NEVER 改 `port` / Service selector**；APP 域不走这条 VS，要切改 `fep-app` 的 `service.*.url` env。
 - **定时任务两条硬约束**：Quartz 用内存 JobStore ⇒ `QRTZ_*` 恒 0 行 ≠ 任务没跑（MUST 查 `SYS_JOB_LOG`）、运行期 INSERT/UPDATE `sys_job` 不生效（MUST 重启 web-admin）；recon-server / web-admin / face-pay-server / collect-pay-server / acc-security-server 的定时任务无分布式锁，**MUST 单副本**（名单与判据见 `docs/ops/environments/跨环境共性.md`）。
-- **本机访问集群**：从 `k8s-master` 压测 MUST 用 `172.20.211.23:<NodePort>`，看日志 MUST 走 `scripts/klog.sh`（本机 kubeconfig 无 ITP 集群凭据；klog 只看尾部窗口且 Pod 一重启日志就丢，全量检索须 `ssh k8s-master` 后逐 Pod grep 容器内日志文件）；**`172.20.211.23:300xx` 网段裁决为测试环境**，即便如此破坏性写库仍 MUST 先存原值并给还原 SQL。
+- **本机访问集群**：从 `k8s-master` 压测 MUST 用 `172.20.211.23:<NodePort>`，看日志 MUST 走 `docs/ops/environments/scripts/itp-ops.sh log tail`（本机 kubeconfig 无 ITP 集群凭据；`itp-ops.sh log tail` 只看尾部窗口且 Pod 一重启日志就丢，全量检索须 `ssh k8s-master` 后逐 Pod grep 容器内日志文件）；**`172.20.211.23:300xx` 网段裁决为测试环境**，即便如此破坏性写库仍 MUST 先存原值并给还原 SQL。
 
 > 完整条文（`service.*.url` 三类问题、404 伪装成 HTTP 200 + UUID retCode 的巡检手法、MCP 数据库工具参数名坑、`*-schema.sql` 与 `*-migration.sql` 分界、`testngbackV2` 残留清单、外部网关地址 MUST 实测等）见 [`docs/ops/README.md`](docs/ops/README.md) 的文档清单（含「何时读」列）。
 
