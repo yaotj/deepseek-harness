@@ -34,7 +34,9 @@
 import re
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+# 仓库根：本文件位于 <repo>/docs/ops/environments/scripts/migration/，需上溯 5 层。
+# 旧值 parents[2] 解析到 docs/ops/environments，其下没有 deploy/（实测 False），是 off-by-3。
+REPO = Path(__file__).resolve().parents[5]
 SRC = REPO / "deploy/sche/sche.sql"
 OUT = REPO / "deploy/sche/by-domain"
 OUT.mkdir(parents=True, exist_ok=True)

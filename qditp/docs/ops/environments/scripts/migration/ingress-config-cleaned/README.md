@@ -68,7 +68,17 @@
 仓库 `deploy/k8s/30-istio-ingress.yaml` + `31-itp-gateway-ns.yaml` 已包含相同的路由规则，但本目录是从当前集群导出的实际运行版本，用于核对和作为迁移基线。
 
 主要一致点：
-- 8 条前缀路由完全相同
 - Service 端口映射完全相同
+
+⚠️ **2026-10-26 审计修正（本目录快照已过期，NEVER 当现状引用）**：
+- 本目录与 `ingress-config/` 的 `fep-app-vr.yaml` 只有 **8 条 prefix**，但同集群实测真值
+  `docs/ops/environments/test-istio-ingress.yaml` 与仓库基线 `deploy/k8s/30-istio-ingress.yaml`
+  都是 **7 条 SCG exact + 8 条 prefix = 15 条**——两份快照的 uid/resourceVersion 与真值**完全相同**，
+  却少了那 7 条，属同一对象的**过期副本**（下文原写的「8 条前缀路由完全相同」因此是错的）。
+- **影响面**：`itp-ops.sh diag routes` 用本目录做 diff 基线（见 `domains/diag.sh`），
+  基线过期会把已上线的 7 条 SCG 路由误报成「漂移」。
+- **MUST 重抓**：`kubectl get gateway/virtualservice -n itp -o yaml` +
+  `kubectl get deploy,svc -n itp-gateway -o yaml` 覆盖 `ingress-config/`，再跑
+  `clean-ingress-yaml.py` 重新生成本目录。**本机无集群网络，本次审计未能重抓**，只做标注。
 
 生产迁移前 MUST 重新现查一次 `kubectl get gateway/virtualservice -n itp -o yaml`，确认路由无漂移。

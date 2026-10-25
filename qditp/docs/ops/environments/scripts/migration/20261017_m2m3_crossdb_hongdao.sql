@@ -44,7 +44,10 @@ PROMPT Phase 1：源库信息采集（决定 impdp 的 remap_tablespace 与序�
 PROMPT ============================================================================
 
 PROMPT === 1.1 源库字符集（目标 ZHS16GBK，impdp 自动转换，记下来备用）===
-SELECT * FROM nls_database_parameters WHERE parameter IN ('NLS_CHARACTERSETNAME','NLS_NCHAR_CHARACTERSETNAME');
+-- ⚠ 2026-10-26 修：原参数名 NLS_CHARACTERSETNAME / NLS_NCHAR_CHARACTERSETNAME 不存在
+--   （nls_database_parameters 里实际是 NLS_CHARACTERSET / NLS_NCHAR_CHARACTERSET），
+--   原查询恒返回 0 行，导致字符集核对形同虚设。
+SELECT * FROM nls_database_parameters WHERE parameter IN ('NLS_CHARACTERSET','NLS_NCHAR_CHARACTERSET');
 
 PROMPT === 1.2 源表空间清单（remap_tablespace 的源端，表+索引+LOB 都要覆盖）===
 SELECT DISTINCT tablespace_name FROM dba_tables  WHERE owner = 'QDITP' ORDER BY 1;

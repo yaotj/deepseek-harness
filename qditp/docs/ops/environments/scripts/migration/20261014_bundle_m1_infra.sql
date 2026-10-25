@@ -33,16 +33,22 @@ PROMPT =========================================================================
 -- Step 0：前置断言（失败即 EXIT，防止对象建到 CDB 根 / OMF 未开）
 -- =============================================================================
 WHENEVER SQLERROR EXIT SQL.SQLCODE
+-- ⚠ 2026-10-26 修：原写法 `IF (SELECT value FROM v$parameter ...) <> '+DATA'` 是非法 PL/SQL
+--   （IF 条件不接受子查询），整块无法编译；配合上面的 WHENEVER SQLERROR EXIT 会以
+--   **编译错误退出**，而不是执行预期断言 —— 防「建到 CDB 根」的守护实际是失效的。
+--   改为 SELECT INTO 取到变量再比较。
+DECLARE
+  v_cfd v$parameter.value%TYPE;
 BEGIN
   IF sys_context('USERENV','CON_NAME') <> 'HDTPDB' THEN
     raise_application_error(-20001,
       'MUST connect to hditpdb PDB via service name, NOT CDB root. Current container: '
       || sys_context('USERENV','CON_NAME'));
   END IF;
-  IF (SELECT value FROM v$parameter WHERE name = 'db_create_file_dest') <> '+DATA' THEN
+  SELECT value INTO v_cfd FROM v$parameter WHERE name = 'db_create_file_dest';
+  IF NVL(v_cfd, '#NONE#') <> '+DATA' THEN
     raise_application_error(-20001,
-      'OMF mode requires db_create_file_dest = +DATA. Current: '
-      || (SELECT value FROM v$parameter WHERE name = 'db_create_file_dest'));
+      'OMF mode requires db_create_file_dest = +DATA. Current: ' || v_cfd);
   END IF;
 END;
 /
@@ -109,26 +115,32 @@ CREATE TEMPORARY TABLESPACE ITP_PLAT_TEMP
 -- =============================================================================
 -- Step 2：创建 4 个 schema 用户（绑定独立默认表空间 + 独立临时表空间）
 -- =============================================================================
--- 口令为 2026-10-17 推荐值（风格同部署方案 itp!#951；本目录在 svn:ignore，不入 VCS）
--- 已内联进下方 CREATE USER（无变量定义；双引号定界，与最终执行版一致）
+-- ⚠ 口令 MUST 由调用方以 sqlplus 位置参数传入：
+--     sqlplus sys/<sys_pwd>@//<TGT_DSN> as sysdba @20261014_bundle_m1_infra.sql \
+--            <user_pwd> <txn_pwd> <ride_pwd> <plat_pwd> <ro_pwd>
+--   本文件不再含任何口令字面量（双引号定界，与最终执行版一致）。
+--   ⚠⚠ 安全：本文件曾内联 5 个明文口令，并随提交 a67ccc2 / ebf27098e0 进入 git
+--   历史、已推送远端（旧注释称「本目录 svn:ignore，不入 VCS」是错误陈述——
+--   文档层归 git 仓库 qd/）。字面量已移除，但**历史里的旧口令 MUST 视为已泄露**，
+--   根本处置是找 DBA 轮换，NEVER 把口令写回本仓库任何文件。
 -- DBA 替换时 MUST 避免两种字符：
 --   &  —— sqlplus 对任何语句都做替换变量展开，含 & 会弹「Enter value for」；
 --   "  —— 双引号是口令定界符，口令内含 " 会截断导致语法错误（含 ' 无害）
 -- 分发：K8s secret + 各模块 application.properties，NEVER 贴群/截图/邮件正文
 
-CREATE USER QDITP_USER  IDENTIFIED BY "itp!#usr4726"
+CREATE USER QDITP_USER  IDENTIFIED BY "&1"
   DEFAULT TABLESPACE ITP_USER_TS
   TEMPORARY TABLESPACE ITP_USER_TEMP
   ;
-CREATE USER QDITP_TXN   IDENTIFIED BY "itp!#txn8153"
+CREATE USER QDITP_TXN   IDENTIFIED BY "&2"
   DEFAULT TABLESPACE ITP_TXN_TS
   TEMPORARY TABLESPACE ITP_TXN_TEMP
   ;
-CREATE USER QDITP_RIDE  IDENTIFIED BY "itp!#rd2947"
+CREATE USER QDITP_RIDE  IDENTIFIED BY "&3"
   DEFAULT TABLESPACE ITP_RIDE_TS
   TEMPORARY TABLESPACE ITP_RIDE_TEMP
   ;
-CREATE USER QDITP_PLAT  IDENTIFIED BY "itp!#plt6308"
+CREATE USER QDITP_PLAT  IDENTIFIED BY "&4"
   DEFAULT TABLESPACE ITP_PLAT_TS
   TEMPORARY TABLESPACE ITP_PLAT_TEMP
   ;
@@ -142,7 +154,7 @@ GRANT CREATE SESSION, CREATE TABLE, CREATE VIEW, CREATE SYNONYM,
 -- =============================================================================
 -- Step 3：网关只读账号 itp_ro（共享 USERS + TEMP）
 -- =============================================================================
-CREATE USER itp_ro IDENTIFIED BY "itp!#ro1592"
+CREATE USER itp_ro IDENTIFIED BY "&5"
   ;
 GRANT CREATE SESSION, CREATE SYNONYM TO itp_ro
   ;

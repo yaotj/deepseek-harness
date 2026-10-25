@@ -49,13 +49,13 @@ cloudos_env_init() {
         hongdao)
             CLOUDOS_HOST="${CLOUDOS_HOST:-172.120.209.151}"
             CLOUDOS_USERNAME="${CLOUDOS_USERNAME:-itpbadmin}"
-            CLOUDOS_PASSWORD="${CLOUDOS_PASSWORD:-QDitp@123!@#}"
+            CLOUDOS_PASSWORD="${CLOUDOS_PASSWORD:-}"
             CLOUDOS_RSA_PUBKEY_B64="${CLOUDOS_RSA_PUBKEY_B64:-$HONGDAO_RSA_PUBKEY_B64}"
             ;;
         test)
             CLOUDOS_HOST="${CLOUDOS_HOST:-172.20.217.210}"
             CLOUDOS_USERNAME="${CLOUDOS_USERNAME:-admin}"
-            CLOUDOS_PASSWORD="${CLOUDOS_PASSWORD:-Qdmlc123!@#}"
+            CLOUDOS_PASSWORD="${CLOUDOS_PASSWORD:-}"
             CLOUDOS_RSA_PUBKEY_B64="${CLOUDOS_RSA_PUBKEY_B64:-}"
             if [[ -z "$CLOUDOS_RSA_PUBKEY_B64" ]]; then
                 printf '错误：测试环境 RSA 公钥未配置。\n' >&2
@@ -71,6 +71,18 @@ cloudos_env_init() {
             return 1
             ;;
     esac
+
+    # 口令 MUST 由环境变量提供——本文件不再保存任何凭据字面量。
+    # 背景：2026-10-26 审计发现红岛/测试两个口令曾以明文默认值写在本文件里，
+    # 并随 5356ae5 进入 git 历史、推到远端。字面量已移除，但**历史里的值 MUST 视为已泄露**，
+    # 根本处置是找运维轮换口令（见 scripts/README.md 安全待办）。
+    if [[ -z "$CLOUDOS_PASSWORD" ]]; then
+        printf '错误：未设置 CLOUDOS_PASSWORD（环境 %s）。\n' "$env" >&2
+        printf '  取法：找运维/DBA 取当前口令（旧值 MUST 视为已泄露并已轮换），然后\n' >&2
+        printf '        export CLOUDOS_PASSWORD=<口令>\n' >&2
+        printf '  可写入仅本用户可读的 env 文件（chmod 600）后 source，NEVER 写回本仓库。\n' >&2
+        return 1
+    fi
 
     CLOUDOS_BASE_URL="${CLOUDOS_SCHEME}://${CLOUDOS_HOST}"
     # token 缓存按环境分文件：彻底消除旧版「两个环境共用一个缓存文件」的串号风险

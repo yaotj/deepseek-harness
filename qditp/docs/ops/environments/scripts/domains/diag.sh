@@ -192,6 +192,11 @@ PY
     if [ ! -d "$BASE" ]; then
         log_warn "基线目录缺失：${BASE} —— 跳过 diff 段（NEVER 静默：没比过基线就是没比过）"
     else
+        # 2026-10-26 审计：基线快照本身已过期（fep-app-vr.yaml 只有 8 条 prefix，
+        # 真值是 7 条 SCG exact + 8 条 prefix）。用它 diff 会把已上线路由误报成漂移，
+        # 所以每次比对前都显式告警——NEVER 让「diff 有输出」被当成发现真问题。
+        log_warn "⚠️ 基线快照可能已过期：2026-10-26 审计发现 fep-app-vr.yaml 缺 7 条 SCG exact 路由（真值 15 条）。"
+        log_warn "   diff 报出的差异 MUST 先排除基线陈旧因素；重抓方法见 migration/ingress-config-cleaned/README.md"
         local f
         for f in fep-app-vr.yaml accountserver-gw.yaml; do
             if [ -f "$BASE/$f" ] && [ -f "$OUT/$f" ]; then

@@ -25,13 +25,22 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+# 仓库根：本文件位于 <repo>/docs/ops/environments/scripts/migration/，需上溯 5 层。
+# 旧值 parents[2] 解析到 docs/ops/environments，其下没有 deploy/（实测 False），是 off-by-3。
+REPO = Path(__file__).resolve().parents[5]
 IDX_FILE = REPO / "deploy/sche/by-domain/_补充索引_本地DDL_需与老库核对.sql"
 EXPORT_FILE = REPO / "deploy/sche/sche.sql"
 
 DSN = os.environ.get("ITP_DB_DSN", "172.20.222.3:1521/AFCITPDB")
 USER = os.environ.get("ITP_DB_USER", "qditp")
-PASSWORD = os.environ.get("ITP_DB_PASSWORD", "qditp")
+# 口令 MUST 由环境变量提供——不再内置明文默认值。
+# 背景：默认值 "qditp" 曾硬编码在此并进入 git 历史（已推送远端），
+# 字面量已移除，但**历史里的值 MUST 视为已泄露**，找 DBA 轮换。
+PASSWORD = os.environ.get("ITP_DB_PASSWORD", "")
+if not PASSWORD:
+    print("[FAIL] 未设置 ITP_DB_PASSWORD（口令不再有默认值）。", file=sys.stderr)
+    print("       export ITP_DB_PASSWORD=<口令> 后重跑；NEVER 写回本仓库。", file=sys.stderr)
+    sys.exit(2)
 
 
 def norm_cols(s: str) -> list:

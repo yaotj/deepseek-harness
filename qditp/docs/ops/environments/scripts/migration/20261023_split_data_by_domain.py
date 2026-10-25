@@ -24,7 +24,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from domain_map import DOMAIN, EXCLUDED, DOMAINS  # noqa: E402
 
-REPO = Path(__file__).resolve().parents[2]
+# 仓库根：本文件位于 <repo>/docs/ops/environments/scripts/migration/，需上溯 5 层。
+# 旧值 parents[2] 解析到 docs/ops/environments，其下没有 deploy/（实测 False），是 off-by-3。
+REPO = Path(__file__).resolve().parents[5]
 DATA = REPO / "deploy/data"
 SCHEME_DIR = REPO / "deploy/sche/by-domain"
 OUT = REPO / "deploy/data/by-domain"

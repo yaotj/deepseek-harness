@@ -11,11 +11,28 @@
 -- ----------------------------
 -- SYS_JOB_LOG
 -- ----------------------------
+-- ⚠ 2026-10-26 修：原写法是无条件 DROP TABLE SYS_JOB_LOG CASCADE CONSTRAINTS PURGE。
+--   跨库流程 Phase 6.7.2 要求「灌数后重跑本文件」，按原写法会先 DROP 掉刚导入的
+--   授权数据再建空表（L7 自称的「幂等 DROP 兜底」是错的）。改为安全闸：
+--     表不存在 → 跳过，由下方 CREATE 正常建表；
+--     表存在且为空 → DROP 后重建（等价原行为，但不会误删数据）；
+--     表存在且有数据 → 报错中止，MUST 人工备份后再手工决定。
+DECLARE
+  v_exists NUMBER;
+  v_rows   NUMBER;
 BEGIN
-  EXECUTE IMMEDIATE 'DROP TABLE SYS_JOB_LOG CASCADE CONSTRAINTS PURGE';
-EXCEPTION
-  WHEN OTHERS THEN
-    NULL;
+  SELECT COUNT(*) INTO v_exists FROM user_tables WHERE table_name = 'SYS_JOB_LOG';
+  IF v_exists = 0 THEN
+    DBMS_OUTPUT.PUT_LINE('CREATE SYS_JOB_LOG：表不存在，由下方 CREATE 建表');
+  ELSE
+    EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM SYS_JOB_LOG' INTO v_rows;
+    IF v_rows > 0 THEN
+      raise_application_error(-20001, 'ABORT：SYS_JOB_LOG 已存在且有 ' || v_rows ||
+        ' 行数据。本文件不再无条件 DROP —— 如需重建 MUST 先备份再手工 DROP。');
+    END IF;
+    EXECUTE IMMEDIATE 'DROP TABLE SYS_JOB_LOG CASCADE CONSTRAINTS PURGE';
+    DBMS_OUTPUT.PUT_LINE('DROP+CREATE SYS_JOB_LOG：原表为空，安全重建');
+  END IF;
 END;
 /
 CREATE TABLE sys_job_log (
@@ -42,11 +59,28 @@ COMMENT ON COLUMN sys_job_log.create_time IS '创建时间';
 -- ----------------------------
 -- SYS_ROLE_DEPT
 -- ----------------------------
+-- ⚠ 2026-10-26 修：原写法是无条件 DROP TABLE SYS_ROLE_DEPT CASCADE CONSTRAINTS PURGE。
+--   跨库流程 Phase 6.7.2 要求「灌数后重跑本文件」，按原写法会先 DROP 掉刚导入的
+--   授权数据再建空表（L7 自称的「幂等 DROP 兜底」是错的）。改为安全闸：
+--     表不存在 → 跳过，由下方 CREATE 正常建表；
+--     表存在且为空 → DROP 后重建（等价原行为，但不会误删数据）；
+--     表存在且有数据 → 报错中止，MUST 人工备份后再手工决定。
+DECLARE
+  v_exists NUMBER;
+  v_rows   NUMBER;
 BEGIN
-  EXECUTE IMMEDIATE 'DROP TABLE SYS_ROLE_DEPT CASCADE CONSTRAINTS PURGE';
-EXCEPTION
-  WHEN OTHERS THEN
-    NULL;
+  SELECT COUNT(*) INTO v_exists FROM user_tables WHERE table_name = 'SYS_ROLE_DEPT';
+  IF v_exists = 0 THEN
+    DBMS_OUTPUT.PUT_LINE('CREATE SYS_ROLE_DEPT：表不存在，由下方 CREATE 建表');
+  ELSE
+    EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM SYS_ROLE_DEPT' INTO v_rows;
+    IF v_rows > 0 THEN
+      raise_application_error(-20001, 'ABORT：SYS_ROLE_DEPT 已存在且有 ' || v_rows ||
+        ' 行数据。本文件不再无条件 DROP —— 如需重建 MUST 先备份再手工 DROP。');
+    END IF;
+    EXECUTE IMMEDIATE 'DROP TABLE SYS_ROLE_DEPT CASCADE CONSTRAINTS PURGE';
+    DBMS_OUTPUT.PUT_LINE('DROP+CREATE SYS_ROLE_DEPT：原表为空，安全重建');
+  END IF;
 END;
 /
 CREATE TABLE sys_role_dept (
@@ -61,11 +95,28 @@ COMMENT ON COLUMN sys_role_dept.dept_id IS '部门ID';
 -- ----------------------------
 -- SYS_ROLE_MENU
 -- ----------------------------
+-- ⚠ 2026-10-26 修：原写法是无条件 DROP TABLE SYS_ROLE_MENU CASCADE CONSTRAINTS PURGE。
+--   跨库流程 Phase 6.7.2 要求「灌数后重跑本文件」，按原写法会先 DROP 掉刚导入的
+--   授权数据再建空表（L7 自称的「幂等 DROP 兜底」是错的）。改为安全闸：
+--     表不存在 → 跳过，由下方 CREATE 正常建表；
+--     表存在且为空 → DROP 后重建（等价原行为，但不会误删数据）；
+--     表存在且有数据 → 报错中止，MUST 人工备份后再手工决定。
+DECLARE
+  v_exists NUMBER;
+  v_rows   NUMBER;
 BEGIN
-  EXECUTE IMMEDIATE 'DROP TABLE SYS_ROLE_MENU CASCADE CONSTRAINTS PURGE';
-EXCEPTION
-  WHEN OTHERS THEN
-    NULL;
+  SELECT COUNT(*) INTO v_exists FROM user_tables WHERE table_name = 'SYS_ROLE_MENU';
+  IF v_exists = 0 THEN
+    DBMS_OUTPUT.PUT_LINE('CREATE SYS_ROLE_MENU：表不存在，由下方 CREATE 建表');
+  ELSE
+    EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM SYS_ROLE_MENU' INTO v_rows;
+    IF v_rows > 0 THEN
+      raise_application_error(-20001, 'ABORT：SYS_ROLE_MENU 已存在且有 ' || v_rows ||
+        ' 行数据。本文件不再无条件 DROP —— 如需重建 MUST 先备份再手工 DROP。');
+    END IF;
+    EXECUTE IMMEDIATE 'DROP TABLE SYS_ROLE_MENU CASCADE CONSTRAINTS PURGE';
+    DBMS_OUTPUT.PUT_LINE('DROP+CREATE SYS_ROLE_MENU：原表为空，安全重建');
+  END IF;
 END;
 /
 CREATE TABLE sys_role_menu (
@@ -80,11 +131,28 @@ COMMENT ON COLUMN sys_role_menu.menu_id IS '菜单ID';
 -- ----------------------------
 -- SYS_USER_POST
 -- ----------------------------
+-- ⚠ 2026-10-26 修：原写法是无条件 DROP TABLE SYS_USER_POST CASCADE CONSTRAINTS PURGE。
+--   跨库流程 Phase 6.7.2 要求「灌数后重跑本文件」，按原写法会先 DROP 掉刚导入的
+--   授权数据再建空表（L7 自称的「幂等 DROP 兜底」是错的）。改为安全闸：
+--     表不存在 → 跳过，由下方 CREATE 正常建表；
+--     表存在且为空 → DROP 后重建（等价原行为，但不会误删数据）；
+--     表存在且有数据 → 报错中止，MUST 人工备份后再手工决定。
+DECLARE
+  v_exists NUMBER;
+  v_rows   NUMBER;
 BEGIN
-  EXECUTE IMMEDIATE 'DROP TABLE SYS_USER_POST CASCADE CONSTRAINTS PURGE';
-EXCEPTION
-  WHEN OTHERS THEN
-    NULL;
+  SELECT COUNT(*) INTO v_exists FROM user_tables WHERE table_name = 'SYS_USER_POST';
+  IF v_exists = 0 THEN
+    DBMS_OUTPUT.PUT_LINE('CREATE SYS_USER_POST：表不存在，由下方 CREATE 建表');
+  ELSE
+    EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM SYS_USER_POST' INTO v_rows;
+    IF v_rows > 0 THEN
+      raise_application_error(-20001, 'ABORT：SYS_USER_POST 已存在且有 ' || v_rows ||
+        ' 行数据。本文件不再无条件 DROP —— 如需重建 MUST 先备份再手工 DROP。');
+    END IF;
+    EXECUTE IMMEDIATE 'DROP TABLE SYS_USER_POST CASCADE CONSTRAINTS PURGE';
+    DBMS_OUTPUT.PUT_LINE('DROP+CREATE SYS_USER_POST：原表为空，安全重建');
+  END IF;
 END;
 /
 CREATE TABLE sys_user_post (
@@ -99,11 +167,28 @@ COMMENT ON COLUMN sys_user_post.post_id IS '岗位ID';
 -- ----------------------------
 -- SYS_USER_ROLE
 -- ----------------------------
+-- ⚠ 2026-10-26 修：原写法是无条件 DROP TABLE SYS_USER_ROLE CASCADE CONSTRAINTS PURGE。
+--   跨库流程 Phase 6.7.2 要求「灌数后重跑本文件」，按原写法会先 DROP 掉刚导入的
+--   授权数据再建空表（L7 自称的「幂等 DROP 兜底」是错的）。改为安全闸：
+--     表不存在 → 跳过，由下方 CREATE 正常建表；
+--     表存在且为空 → DROP 后重建（等价原行为，但不会误删数据）；
+--     表存在且有数据 → 报错中止，MUST 人工备份后再手工决定。
+DECLARE
+  v_exists NUMBER;
+  v_rows   NUMBER;
 BEGIN
-  EXECUTE IMMEDIATE 'DROP TABLE SYS_USER_ROLE CASCADE CONSTRAINTS PURGE';
-EXCEPTION
-  WHEN OTHERS THEN
-    NULL;
+  SELECT COUNT(*) INTO v_exists FROM user_tables WHERE table_name = 'SYS_USER_ROLE';
+  IF v_exists = 0 THEN
+    DBMS_OUTPUT.PUT_LINE('CREATE SYS_USER_ROLE：表不存在，由下方 CREATE 建表');
+  ELSE
+    EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM SYS_USER_ROLE' INTO v_rows;
+    IF v_rows > 0 THEN
+      raise_application_error(-20001, 'ABORT：SYS_USER_ROLE 已存在且有 ' || v_rows ||
+        ' 行数据。本文件不再无条件 DROP —— 如需重建 MUST 先备份再手工 DROP。');
+    END IF;
+    EXECUTE IMMEDIATE 'DROP TABLE SYS_USER_ROLE CASCADE CONSTRAINTS PURGE';
+    DBMS_OUTPUT.PUT_LINE('DROP+CREATE SYS_USER_ROLE：原表为空，安全重建');
+  END IF;
 END;
 /
 CREATE TABLE sys_user_role (
