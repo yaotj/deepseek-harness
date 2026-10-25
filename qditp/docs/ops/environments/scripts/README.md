@@ -20,8 +20,7 @@ scripts/
 │   ├── diag.sh                 诊断：reach（红岛分区可达性）/ routes（48000 入向路由导出）
 │   └── analysis.sh             静态分析：endpoints
 ├── analysis/                 count-endpoints.py 本体（由 domains/analysis.sh 调度，勿直接跑）
-├── migration/                数据库迁移执行包（自带 README，红岛分域重建基线）
-└── legacy/                   ⚠️ 历史/一次性脚本存档（含硬编码口令与已证伪结论），NEVER 复用
+└── migration/                数据库迁移执行包（自带 README，红岛分域重建基线）
 ```
 
 ## 二、快速上手
@@ -150,8 +149,12 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
    **谁重跑谁负责手工补回**，详见 `migration/20261017_schema_manifest.md` 的「（已删）」注记。
 5. **别用文件名猜用途**：`migration/k8s-master-home-java/` 里是**跑在远端 k8s-master 上**的脚本快照；
    `migration/ingress-config*/` 是 istio 抓取快照，与数据库无关。
-6. **`legacy/` 里的文件 NEVER 复用**：两个 `.ps1` 内含硬编码 root 口令、`cloudos-api.sh` 的认证结论已证伪、
-   `enable-tracing-20261014.sh` 早已执行完毕。
+6. **⚠️ 安全待办（原 legacy 存档已删，此条 MUST 保留）**：曾入库的 `_fix.ps1` / `_run_script.ps1`
+   **含明文 root 口令**（目标 `172.20.211.21`），自提交 `93e608e` 起就在版本库、且已随 `origin/main`
+   推送远端——**删文件只能防扩散，口令仍在 git 历史里**。若该口令至今有效，
+   **MUST 找运维轮换**（这是处置的根本手段，删文件只是顺带）。
+   另：`enable-tracing-20261014.sh` 已于 2026-10-14 执行完毕，后续接入链路跟踪 MUST 按
+   `docs/architecture/common-components.md` §3.1.2「三行成组」口径做，NEVER 照抄那个已删脚本的 env 注入方式。
 7. **分析脚本 MUST 走 `itp-ops.sh analysis`**：`count-endpoints.py` 按「从仓库根运行」设计，域入口负责 cd，
    从子目录直接 `python3` 调会静默找不到文件或把输出写错地方。
    （原 `extract_interfaces.py` / `extract_requirements.py` 于 2026-10-26 审计删除——
@@ -171,7 +174,8 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
   `klog.sh` + `klog-watcher.sh` → `domains/log.sh`；`dump-48000-routes.sh` + `red-island-reachability.sh` → `domains/diag.sh`。
 - 顺带修掉的旧缺陷：`KLOG_CONTAINER` 以前设了也不生效（ssh 不转发本地环境变量，现拼进远端命令前缀）；
   watcher 状态文件写入 `svc=key` 却按 `^svc|` 查找，永远匹配不到 ⇒ 每 30s 把全部监控杀一遍再起一遍（现按同格式查找 + PID 杀进程树，堵住 ssh 子进程泄漏）；`dump-48000-routes.sh` 基线目录路径失效被 `[ -f ]` 静默跳过（现显式定位 + 缺失告警）。
-- 历史/一次性脚本进 `legacy/`（详见该目录 README）；被取代的 9 个旧脚本 `git rm`，内容逐条并入新脚本。
+- 被取代的 9 个旧脚本 `git rm`，内容逐条并入新脚本；历史/一次性脚本一度进 `legacy/` 存档，
+  **2026-10-26 第二轮审计后该目录整体删除**（见下）。
 - 验证：`bash -n` 全量、各域 usage 冒烟、`--yes` 门拒真发、`analysis endpoints` 实跑、lint ERROR 0。
 
 **2026-10-26 合理性审计（「每一个脚本都要有合理性」）**：
@@ -191,7 +195,15 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
 - **`migration/` 三项删**：`face-pay-log-config.md`（2026-10-14 一次性调查笔记，全仓零引用，
   所引 VictoriaLogs 地址已是测试环境旧值）、`pull-and-save.sh` + `image-list.txt`
   （旧 Harbor 镜像归档工具，自包含无引用，迁移已完成不再复用）、空目录 `migration/images/`。
-- **保留且有理由**：`k8s-current-config/`（报告生成器输入）、`ingress-config/`（clean-ingress-yaml.py 输入，
-  产出 diag routes 的 diff 基线）、`k8s-master-home-java/`（`log tail` 远端侧 `/home/java/k8s-logview.sh` 本体参考）。
+- **第二轮（同日继续审计）`legacy/` 整体删**（7 文件）：`_fix.ps1` / `_run_script.ps1`
+  （**含明文 root 口令**——见纪律第 6 条的安全待办，口令已随 `93e608e` 入远端历史，**改密才是根本处置**）、
+  `enable-tracing-20261014.sh`（已执行完）、`klog.cmd` / `klog.ps1`（已被 `itp-ops.sh log tail` 取代）、
+  `cloudos-api.sh`（认证结论已证伪，内容已并入 `domains/cloudos.sh`）及该目录 README。
+- **第二轮 `generate-prod-migration-report.py` + 产物 `prod-migration-config-checklist.md` 删**：全仓零引用，
+  生成器唯一产出就是那份没人读的报告。⚠️ 连带影响：`k8s-current-config/` 失去唯一消费者，
+  现仅作**集群实况快照**独立参考价值（内容无害——`secrets.txt` 只是 Secret 名称清单，不含值）。
+- **保留且有理由**：`ingress-config/`（clean-ingress-yaml.py 输入，产出 diag routes 的 diff 基线）、
+  `k8s-master-home-java/`（`log tail` 远端侧 `/home/java/k8s-logview.sh` 本体参考）、
+  migration 执行包与 20261023 域拆分工具链（全部有外部引用，且分域重建仍在进行）。
 - **原则**：保留 = 有独特内容且有人会用；删除 = 已被基线/文档/代码仓吸收的纯执行痕迹，或根本跑不起来。
   每个去留结论都记在被删/被迁文件的相关引用处，NEVER 静默删。
