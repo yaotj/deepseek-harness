@@ -28,6 +28,12 @@ public class ParaQuartzTask
         QuartzTraceUtils.runWithTrace(this::invokeOnce);
     }
 
+    /** 前台调用目标填写 paraQuartzTask.syncDevice() 时执行：触发 para-server 同步 ACC 设备台账到 TBL_DEVICE_INFO。 */
+    public void syncDevice()
+    {
+        QuartzTraceUtils.runWithTrace(this::invokeSyncDevice);
+    }
+
     /** ⚠️ para-server 侧要真正把 traceparent 续成 MDC 的 {@code traceId}，需要该模块 */
     private void invokeOnce(String traceId)
     {
@@ -42,5 +48,20 @@ public class ParaQuartzTask
                     + ", retMsg=" + response.getRetMsg());
         }
         log.info("para-server FTP参数扫描调用成功, retMsg={}", response.getRetMsg());
+    }
+
+    private void invokeSyncDevice(String traceId)
+    {
+        CommonResult response = paraClient.quartzSyncDevice(QuartzTraceUtils.traceHeaders(traceId));
+        if (response == null)
+        {
+            throw new IllegalStateException("para-server 设备台账同步接口未返回响应");
+        }
+        if (!SUCCESS_CODE.equals(response.getRetCode()))
+        {
+            throw new IllegalStateException("para-server 设备台账同步失败: retCode=" + response.getRetCode()
+                    + ", retMsg=" + response.getRetMsg());
+        }
+        log.info("para-server 设备台账同步调用成功, retMsg={}", response.getRetMsg());
     }
 }

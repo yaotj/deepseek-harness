@@ -64,6 +64,27 @@ public class ParaClient extends ProxyWebClient {
     }
 
     /**
+     * 调用 para-server 设备台账同步接口（web-server Quartz 定时任务用）。
+     * @return retCode=0000 表示本次同步全部成功。
+     */
+    public CommonResult quartzSyncDevice() {
+        return quartzSyncDevice(Collections.emptyMap());
+    }
+
+    /**
+     * 带 trace 头的重载，供 web-admin Quartz 任务调用，口径与 {@link #quartzScanFtpPara(Map)} 一致。
+     */
+    public CommonResult quartzSyncDevice(Map<String, String> headers) {
+        String path = "/para/device-sync/quartz";
+        log.info("调用para-server设备台账同步接口 path={}", path);
+        String result = postJsonAndGetResponse(path, Collections.emptyMap(), headers);
+        CommonResult response = JSONUtil.toBean(result, new TypeReference<CommonResult>() {}, true);
+        log.info("调用para-server设备台账同步接口返回 path={}, retCode={}, retMsg={}", path,
+                response == null ? null : response.getRetCode(), response == null ? null : response.getRetMsg());
+        return response;
+    }
+
+    /**
      * IF8A-07 获取线路代码。
      */
     public RequestLineCodeListResult requestLineCodeList(RequestLineCodeListReqDTO request) {

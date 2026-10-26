@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.para.mapper.device.DeviceInfoMapper">
+    <!-- 设备信息参数表基础映射。时间字段中 CREATE_TIME / UPDATE_TIME / SYNC_TIME 由数据库 SYSDATE 维护。 -->
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.para.entity.device.DeviceInfo">
+        <id column="DEVICE_ID" property="deviceId"/>
+        <result column="LINE_ID" property="lineId"/>
+        <result column="LINE_NAME" property="lineName"/>
+        <result column="STATION_ID" property="stationId"/>
+        <result column="STATION_NAME" property="stationName"/>
+        <result column="DEVICE_TYPE" property="deviceType"/>
+        <result column="DEVICE_TYPE_NAME" property="deviceTypeName"/>
+        <result column="DEVICE_NAME" property="deviceName"/>
+        <result column="IP_ADDR" property="ipAddr"/>
+        <result column="PORT" property="port"/>
+        <result column="IS_VIRTUAL" property="isVirtual"/>
+        <result column="ACC_IS_DELETED" property="accIsDeleted"/>
+        <result column="ACC_UPDATE_TIME" property="accUpdateTime"/>
+        <result column="ACC_MANAGE_LEVEL" property="accManageLevel"/>
+        <result column="MANAGE_MODE" property="manageMode"/>
+        <result column="REMARK" property="remark"/>
+        <result column="CREATE_TIME" property="createTime"/>
+        <result column="UPDATE_TIME" property="updateTime"/>
+        <result column="SYNC_TIME" property="syncTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        DEVICE_ID, LINE_ID, LINE_NAME, STATION_ID, STATION_NAME, DEVICE_TYPE, DEVICE_TYPE_NAME,
+        DEVICE_NAME, IP_ADDR, PORT, IS_VIRTUAL, ACC_IS_DELETED, ACC_UPDATE_TIME, ACC_MANAGE_LEVEL,
+        MANAGE_MODE, REMARK, CREATE_TIME, UPDATE_TIME, SYNC_TIME
+    </sql>
+
+    <!-- ACC 同步幂等写入：MATCHED 分支只更新 ACC 来源列，刻意不含 MANAGE_MODE / REMARK / CREATE_TIME，
+         保证业主在页面设置的管理模式与备注不被同步覆盖。 -->
+    <update id="merge" parameterType="com.chinasofti.huateng.para.entity.device.DeviceInfo">
+        MERGE INTO TBL_DEVICE_INFO T
+        USING (SELECT #{deviceId,jdbcType=VARCHAR} AS DEVICE_ID FROM dual) S
+        ON (T.DEVICE_ID = S.DEVICE_ID)
+        WHEN MATCHED THEN UPDATE SET
+            T.LINE_ID = #{lineId,jdbcType=VARCHAR},
+            T.LINE_NAME = #{lineName,jdbcType=VARCHAR},
+            T.STATION_ID = #{stationId,jdbcType=VARCHAR},
+            T.STATION_NAME = #{stationName,jdbcType=VARCHAR},
+            T.DEVICE_TYPE = #{deviceType,jdbcType=VARCHAR},
+            T.DEVICE_TYPE_NAME = #{deviceTypeName,jdbcType=VARCHAR},
+            T.DEVICE_NAME = #{deviceName,jdbcType=VARCHAR},
+            T.IP_ADDR = #{ipAddr,jdbcType=VARCHAR},
+            T.PORT = #{port,jdbcType=NUMERIC},
+            T.IS_VIRTUAL = #{isVirtual,jdbcType=CHAR},
+            T.ACC_IS_DELETED = #{accIsDeleted,jdbcType=CHAR},
+            T.ACC_UPDATE_TIME = #{accUpdateTime,jdbcType=TIMESTAMP},
+            T.ACC_MANAGE_LEVEL = #{accManageLevel,jdbcType=VARCHAR},
+            T.UPDATE_TIME = SYSDATE,
+            T.SYNC_TIME = SYSDATE
+        WHEN NOT MATCHED THEN INSERT (
+            DEVICE_ID, LINE_ID, LINE_NAME, STATION_ID, STATION_NAME, DEVICE_TYPE, DEVICE_TYPE_NAME,
+            DEVICE_NAME, IP_ADDR, PORT, IS_VIRTUAL, ACC_IS_DELETED, ACC_UPDATE_TIME, ACC_MANAGE_LEVEL,
+            MANAGE_MODE, CREATE_TIME, UPDATE_TIME, SYNC_TIME
+        ) VALUES (
+            #{deviceId,jdbcType=VARCHAR}, #{lineId,jdbcType=VARCHAR}, #{lineName,jdbcType=VARCHAR},
+            #{stationId,jdbcType=VARCHAR}, #{stationName,jdbcType=VARCHAR}, #{deviceType,jdbcType=VARCHAR},
+            #{deviceTypeName,jdbcType=VARCHAR}, #{deviceName,jdbcType=VARCHAR}, #{ipAddr,jdbcType=VARCHAR},
+            #{port,jdbcType=NUMERIC}, #{isVirtual,jdbcType=CHAR}, #{accIsDeleted,jdbcType=CHAR},
+            #{accUpdateTime,jdbcType=TIMESTAMP}, #{accManageLevel,jdbcType=VARCHAR}, '01', SYSDATE, SYSDATE, SYSDATE
+        )
+    </update>
+
+    <!-- 管理页分页查询：条件全部可选，MUST 用 where 标签产出谓词，空条件时不带 WHERE（Druid WallFilter 禁恒真条件）。 -->
+    <select id="selectPage" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/> FROM TBL_DEVICE_INFO
+        <where>
+            <if test="lineId != null and lineId != ''">LINE_ID = #{lineId,jdbcType=VARCHAR}</if>
+            <if test="stationId != null and stationId != ''">AND STATION_ID = #{stationId,jdbcType=VARCHAR}</if>
+            <if test="deviceType != null and deviceType != ''">AND DEVICE_TYPE = #{deviceType,jdbcType=VARCHAR}</if>
+            <if test="manageMode != null and manageMode != ''">AND MANAGE_MODE = #{manageMode,jdbcType=VARCHAR}</if>
+            <if test="keyword != null and keyword != ''">
+                AND (DEVICE_ID LIKE '%' || #{keyword,jdbcType=VARCHAR} || '%' OR DEVICE_NAME LIKE '%' || #{keyword,jdbcType=VARCHAR} || '%')
+            </if>
+            <if test="!includeDeleted">AND ACC_IS_DELETED = '0'</if>
+        </where>
+        ORDER BY LINE_ID, STATION_ID, DEVICE_ID
+    </select>
+
+    <!-- 批量设置管理模式：只改 MANAGE_MODE 与 UPDATE_TIME，其余 ACC 来源列不动。 -->
+    <update id="updateManageMode">
+        UPDATE TBL_DEVICE_INFO SET MANAGE_MODE = #{manageMode,jdbcType=VARCHAR}, UPDATE_TIME = SYSDATE
+        WHERE DEVICE_ID IN
+        <foreach collection="deviceIds" item="id" open="(" separator="," close=")">#{id,jdbcType=VARCHAR}</foreach>
+    </update>
+
+    <select id="selectByDeviceIds" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/> FROM TBL_DEVICE_INFO
+        WHERE DEVICE_ID IN
+        <foreach collection="deviceIds" item="id" open="(" separator="," close=")">#{id,jdbcType=VARCHAR}</foreach>
+    </select>
+</mapper>
