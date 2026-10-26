@@ -22,8 +22,26 @@ spec:
       labels:
         app: web-admin
     spec:
+      automountServiceAccountToken: false
       containers:
       - env:
+        # JVM 堆 = max_memory - reserved_memory - max_direct_memory（基础镜像 startapp.sh，见 docs/tracking/IT-020）
+        - name: max_memory
+          value: '4000'
+        - name: reserved_memory
+          value: '1000'
+        - name: max_direct_memory
+          value: '100'
+        - name: MY_POD_UUID
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.uid
+        - name: MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
         - name: spring.datasource.druid.slave.enabled
           value: 'false'
         - name: spring.datasource.druid.statViewServlet.login-password

@@ -35,5 +35,7 @@
 - **不要直接把这套 apply 到新集群**：至少三类东西必须先改 —— 镜像仓库地址（`os-harbor-svc.default.svc.cloudos:443` 是旧集群内的 Service DNS）、Service 名里的 PaaS 随机后缀、env 里写死的旧节点 IP / 旧 Service DNS。逐类改法见 `docs/ops/K8S迁移清单.md` §2.2。
 - **这份基线不含探针**：现集群 24 个 Deployment 一个 liveness / readiness 都没有，导出时原样保留。新集群部署时建议补 `/actuator/health`。
 - **单副本约束照抄自现集群、NEVER 改大**：`recon-server` / `web-admin` / `face-pay-server` / `collect-pay` 的定时任务无分布式锁。
+- **JVM 堆参数必须与容器 memory limit 同步**：基础镜像 `/startapp.sh` 按 `堆 = max_memory - reserved_memory - max_direct_memory` 计算（缺省 800/200/100 → 堆恒 500m）。本基线 24 个 Java Deployment 已按各自 limit 写入：`max_memory` = limit 的 MB 千位取整、`reserved_memory` = 其 1/4、`max_direct_memory` = 100（2Gi → 2000/500/100，堆 1400m；4Gi → 4000/1000/100，堆 2900m），另有 `MY_POD_UUID` / `MY_POD_NAMESPACE` downward API。**改容器规格 MUST 同步重算这三个值**；跨环境套用本基线时 MUST 按目标 limit 重算（红岛 8Gi 服务的现值为 8000/2000/100，堆 5900m）。契约与负结论见 [`docs/tracking/IT-020-JVM参数被平台回滚.md`](../../docs/tracking/IT-020-JVM参数被平台回滚.md)。
+- **全部 Deployment 已关闭 SA token 自动挂载**（`automountServiceAccountToken: false`，Pod 级）；将来需要访问 K8s API 的负载 MUST 显式改回 `true` 并注明用途。
 - **按环境各有一份入向路由基线，NEVER 跨环境共用**：`30-istio-ingress*.yaml` 三份结构同构（15 条 7 SCG exact + 8 prefix），但 destination 的 Service 名 / 端口随环境不同。测试那份是「在用事实」可直接 apply；红岛 / 辽阳东两份是全占位，**MUST 上线前现查重录、apply 前逐条替换、且 NEVER 沿用测试/红岛值**（跨环境纪律见 `docs/ops/environments/环境总览.md`）。生产发布走 AGENTS.md §5.C + `docs/ops/流量切换Runbook.md`。
 - **本目录是快照、不是真相源**：现集群改过 env / 镜像后这里不会自动跟。判断线上实际值仍 **MUST** 现查 `kubectl get deploy <名> -n itp -o yaml`（AGENTS.md §7）。重新导出即重跑上面的清洗流程并覆盖本目录。

@@ -22,6 +22,7 @@ spec:
       labels:
         app: web
     spec:
+      automountServiceAccountToken: false
       containers:
       - env:
         - name: NGINX_VERSION

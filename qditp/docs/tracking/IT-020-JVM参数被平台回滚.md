@@ -28,7 +28,15 @@
 - 根因结论：
   - **基础镜像默认值面向小规格容器**，本项目未注入对应 env，堆参数停在 500m；
   - **平台是 Deployment 模板的真源**：应用 env 由平台的版本配置生成，kubectl 侧改动会被平台
-     reconcile 覆盖（`automountServiceAccountToken` 因平台不管理该字段而得以保留，可作反证）。
+    reconcile 覆盖（`automountServiceAccountToken` 因平台不管理该字段而得以保留，可作反证）。
+- `advanced-config` PATCH 的隐藏契约（2026-10-26 实测，文档未标注，MUST 记住）：
+  1. **`container_image` 是隐藏必填**——缺它一律返回 `application.5000010`（msg 为空，文档无此码），
+     补上即成功；排查时先补这个字段，不要怀疑 env / resources；
+  2. `version_id` 用 `upgrade_id`（32 位），不能用 `package_version_id`（镜像 URL，会 `value too long`）；
+  3. `version` 不能等于当前值 → 第 4 段递增；
+  4. `env` 是**全量替换**，必须回传原有全部 env 再追加；
+  5. `resources` 里存的是**陈旧模板**（`replicas=1`、`1C/2C`），平台会按它重渲染 Deployment，
+     照抄会把线上双实例 / 4C8G 一起回退——MUST 在同一次 PATCH 里一并修正。
 
 ## 3. 方案对比
 | 方案 | 思路 | 优点 | 缺点 | 风险 |
@@ -38,27 +46,40 @@
 | C 继续 `kubectl patch` | 每次平台回收后重打补丁 | 立即生效、零发版 | **已被证伪**：平台数分钟内回收，堆回落 500m | 静默回退，最危险 |
 
 ## 4. 决策与结论
-- 选定方案：**待裁决**（2026-10-26 用户先选「只改红岛线上 / kubectl patch」，实测被平台回收，
-  需重新选择 A 或 B；B 更稳且无需平台侧逐应用操作）。
-- 决策理由：C 已证伪；A 与 B 的取舍取决于「是否允许整体发版」与「平台是否支持 downward API env」。
-- 当前已生效且持久的部分：21 个 Java 服务的 `automountServiceAccountToken: false`（平台不覆盖）。
-- 影响范围 / 关联模块：红岛 `itpb` 全部 Java 业务服务；涉及发版流程（`qditp-deploy-release`）与部署模板
-  `deploy/k8s/10-deployments/`（模板目前同样缺这三个 env）。
+- 选定方案：**平台侧 `advanced-config` PATCH**（改平台模型，不碰 kubectl），并在同一次 PATCH 里把陈旧的
+  `resources` 模板一并修正为 2 实例 / 4C8G。
+- 决策理由：C（kubectl）已证伪；B（镜像 ENV）需要重新构建 21 个镜像并发版，与「当前不发版」的前提冲突；
+  A 变体立即生效、写入平台模型即持久，且顺手修掉模板里 `replicas=1` / `1C/2C` 的漂移。
+- 落地结果：红岛 `itpb` **21 个 Java 服务**全部配置
+  `max_memory=8000` / `reserved_memory=2000` / `max_direct_memory=100`（堆 5900m + direct 100m）。
+  范围由用户裁决：不含 `web-admin`（admin）、`web-frontend`（nginx 无 JVM）、`victoria`（VictoriaLogs，非 Java）。
+- 遗留（MUST 另行处理）：
+  1. `MY_POD_UUID` / `MY_POD_NAMESPACE` 未落地——平台 env 只能存静态 K/V，无法表达 downward API
+     （2026-10-26 用户裁决「尽力而为」）。`automountServiceAccountToken: false` 已单独生效并持久。
+  2. ~~仓库模板未同步~~（2026-10-26 已补）：`deploy/k8s/10-deployments/*.yaml` 24 个 Java Deployment
+     已按各自 memory limit 写入 3 个 env（口径：`max_memory` = limit 的 MB 千位取整、`reserved_memory` = 其 1/4、
+     `max_direct_memory` = 100 → 2Gi 为 2000/500/100、4Gi 为 4000/1000/100，堆分别 1400m / 2900m），
+     并补 `MY_POD_UUID` / `MY_POD_NAMESPACE` downward API 与 Pod 级 `automountServiceAccountToken: false`（含 web nginx）。
+     `docker/Dockerfile` 只加契约注释、**不写 ENV**——同一镜像跨 2G/4G/8G 容器，写死会与 limit 脱节。
+     红岛平台侧仍无法表达 downward API 两项，维持「尽力而为」裁决。
 
 ## 5. 验证与回滚
-- 验证方式 / 结果：
-  - 试点：`blacklist-server` patch 后 `/proc/<pid>/cmdline` 出现 `-Xmx5900m`，Pod 2/2 ready；
-  - 反向验证：平台回收后新 ReplicaSet 无该 env，Deployment env 列表恢复 27 项；
-  - 群集健康：回收后 `kubectl get pods -n itpb` 非 Running/未 ready 数 0。
-- 回滚预案：`kubectl rollout undo deploy/<app> -n itpb`；或删除 5 个 env 与 `automountServiceAccountToken`
-  字段（回到平台基线）。**注意平台会自行回到基线，手工回滚窗口很短。**
+- 验证方式 / 结果（2026-10-26 逐个现查）：
+  - 21 个应用 Deployment：`replicas=2`、`requests=limits=4C/8Gi`、`max_memory` 等 3 个 env 均在、每台 2 Pod ready；
+  - JVM 实参（`jcmd <pid> VM.flags`）：`MaxHeapSize=6186598400`（=5900m）、`MaxDirectMemorySize=104857600`（=100m），
+    抽查 `fep-app` / `recon-server` / `ticket-server` / `account-server` 四个一致；`blacklist-server` 另经
+    `/proc/<pid>/cmdline` 看到 `-Xmx5900m -Xms5900m`；
+  - `automountServiceAccountToken: false` 在 21 个上均保留（平台重渲染未冲掉该字段）；
+  - 试点反向验证：kubectl patch 的 env 在数分钟内被平台回收（ReplicaSet 历史可见），证明 MUST 走平台侧。
+- 回滚预案：对目标应用再发一次 `advanced-config` PATCH，`env` 去掉这 3 个键（`version` 继续第 4 段递增）；
+  或平台「版本回滚」选上一版本。回滚后 JVM 回到基础镜像默认 500m 堆。
 
 ## 6. 流程符合度自评
 - [x] 已在 `问题清单.md` 索引表加行（编号 `IT-020`）
 - [x] 已建本处理文档并记录处理过程与决策
 - [x] 处理后已回填索引「状态 / 下一步 / 更新」
 - [x] 索引行未复制本文档的叙述（索引只写「一句话现象 + 状态 + 下一步 + 关联文档」）
-- [x] 本文档内的版本号 / 端口 / 行号等数字已标注来源或「MUST 现查」（镜像 tag、副本数、env 值均标注
-      取证时间 2026-10-26，后续 MUST 现查）
-- 偏差说明：本次为用户指定「只改线上」，未同步 `deploy/k8s/10-deployments/` 模板；模板缺陷已记入
-  「影响范围」，待方案确定后一并回写。
+- [x] 本文档内的版本号 / 端口 / 行号等数字已标注来源或「MUST 现查」（env 值、堆参数、副本数均取
+      2026-10-26 现查值，后续 MUST 现查）
+- 偏差说明：①首次按用户指示走 kubectl patch，被平台回收（已记入本文档，作为负结论保留）；
+  ②`max_direct_memory` 用户原贴未给值，按默认 100 执行；③仓库模板与镜像层已于 2026-10-26 补齐（见 §4 遗留 2）。

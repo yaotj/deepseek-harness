@@ -25,4 +25,9 @@ FROM os-harbor-svc.default.svc.cloudos:443/itp/jdk:21
 # 虚拟线程栈 MUST 用 jcmd <pid> Thread.dump_to_file -format=json 抓，jstack 看不到。
 ENV JAVA_TOOL_OPTIONS="-Djdk.virtualThreadScheduler.parallelism=8 -Djdk.virtualThreadScheduler.maxPoolSize=256"
 
+# JVM 内存参数由基础镜像 /startapp.sh 读容器 env 计算：
+#   堆 = max_memory - reserved_memory - max_direct_memory（缺省 800/200/100 → 堆恒 500m）。
+# 容器规格随环境/服务不同，MUST 在 Deployment env 设（deploy/k8s/10-deployments），
+# NEVER 在本镜像用 ENV 写死——同一镜像会跑在 2G/4G/8G 容器里。
+# 契约与取值口径见 docs/tracking/IT-020-JVM参数被平台回滚.md。
 COPY app.jar /app.jar
