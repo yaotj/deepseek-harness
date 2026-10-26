@@ -66,6 +66,68 @@ spec:
         host: fep-alipay-rec8g-svc
         port:
           number: 30020
+  # --- SCG 分流透明网关（route-sentinel）承接的 7 个接口 ---
+  # 顺序要求：这 7 条 exact 必须排在下面前缀路由 /itptvm/ /itpbom/ 之前，istio 首条命中即止；
+  # 放到后面会被前缀规则先吃掉，SCG 永远收不到流量。
+  # SCG 的 GATEWAY_ROUTE_CONFIG 只配了这 7 条 Path 谓词，其余 TVM/BOM 端点进去会 404，
+  # 所以只把这 7 条交出去，剩余端点仍由下面两条前缀路由直连 face-pay-server-svc。
+  # SCG 内部：命中名单 → legacy-route → face-pay-server-svc:30025；不命中 → face-pay-split-route（D11 占位）。
+  - match:
+    - uri:
+        exact: /itpbom/ci/bom/notiTakeTicketResult
+    route:
+    - destination:
+        host: route-sentinel-svc
+        port:
+          number: 8080
+  - match:
+    - uri:
+        exact: /itpbom/ci/bom/notiTakeTicketFailResult
+    route:
+    - destination:
+        host: route-sentinel-svc
+        port:
+          number: 8080
+  - match:
+    - uri:
+        exact: /itpbom/ci/bom/requestTakeTicketAuth
+    route:
+    - destination:
+        host: route-sentinel-svc
+        port:
+          number: 8080
+  - match:
+    - uri:
+        exact: /itpbom/ci/bom/requestCardDataAnalyse
+    route:
+    - destination:
+        host: route-sentinel-svc
+        port:
+          number: 8080
+  - match:
+    - uri:
+        exact: /itpbom/ci/bom/requestUpdateCardData
+    route:
+    - destination:
+        host: route-sentinel-svc
+        port:
+          number: 8080
+  - match:
+    - uri:
+        exact: /itptvm/ci/tvm/requestTakeTicketAuth
+    route:
+    - destination:
+        host: route-sentinel-svc
+        port:
+          number: 8080
+  - match:
+    - uri:
+        exact: /itptvm/ci/tvm/requestCardDataAnalyse
+    route:
+    - destination:
+        host: route-sentinel-svc
+        port:
+          number: 8080
   - match:
     - uri:
         prefix: /itptvm/

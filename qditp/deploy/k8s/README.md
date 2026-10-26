@@ -22,7 +22,9 @@
 - `15-optional/database.yaml` — BYOK database MCP Server（研发辅助，**不是 Oracle**，生产可不部署）
 - `16-statefulsets/victoria-logs.yaml` — 日志服务，含 `volumeClaimTemplates`（15Gi RWO / sc `apigateway2`）
 - `20-services.yaml` — 26 个 Service（全 NodePort，30009~30035）
-- `30-istio-ingress.yaml` — ns `itp` 的 `accountserver-gw` + `fep-app-vr`（8 条前缀路由）
+- `30-istio-ingress.yaml` — **测试环境**入向路由基线：ns `itp` 的 `accountserver-gw` + `fep-app-vr`（**15 条：7 条 SCG exact + 8 条前缀**；`/itptvm/`、`/itpbom/` 两条保留前缀 rewrite，其余 rewrite `/`；7 条 exact 恒指 `route-sentinel-svc:8080`）
+- `30-istio-ingress-hongdao.yaml` — **红岛生产**入向路由基线：结构与测试同构（15 条 7+8），destination 全为 `<占位>`，**MUST 上线前现查重录、NEVER 沿用测试值**（占位填法与纪律见文件头注 + `docs/ops/environments/红岛.md`「入向路由分发」节）
+- `30-istio-ingress-liaoyang.yaml` — **辽阳东生产**入向路由基线：同上，destination 全为 `<占位>`，**MUST 上线前现查重录**（见 `docs/ops/environments/辽阳东.md`「入向路由分发」节）
 - `31-itp-gateway-ns.yaml` — ns `itp-gateway` 的 istio ingressgateway Deployment + 两个 Service
 - `40-configmap-web-nginx.yaml` — `web`（nginx）挂载的 `nginx.conf`
 
@@ -33,4 +35,5 @@
 - **不要直接把这套 apply 到新集群**：至少三类东西必须先改 —— 镜像仓库地址（`os-harbor-svc.default.svc.cloudos:443` 是旧集群内的 Service DNS）、Service 名里的 PaaS 随机后缀、env 里写死的旧节点 IP / 旧 Service DNS。逐类改法见 `docs/ops/K8S迁移清单.md` §2.2。
 - **这份基线不含探针**：现集群 24 个 Deployment 一个 liveness / readiness 都没有，导出时原样保留。新集群部署时建议补 `/actuator/health`。
 - **单副本约束照抄自现集群、NEVER 改大**：`recon-server` / `web-admin` / `face-pay-server` / `collect-pay` 的定时任务无分布式锁。
+- **按环境各有一份入向路由基线，NEVER 跨环境共用**：`30-istio-ingress*.yaml` 三份结构同构（15 条 7 SCG exact + 8 prefix），但 destination 的 Service 名 / 端口随环境不同。测试那份是「在用事实」可直接 apply；红岛 / 辽阳东两份是全占位，**MUST 上线前现查重录、apply 前逐条替换、且 NEVER 沿用测试/红岛值**（跨环境纪律见 `docs/ops/environments/环境总览.md`）。生产发布走 AGENTS.md §5.C + `docs/ops/流量切换Runbook.md`。
 - **本目录是快照、不是真相源**：现集群改过 env / 镜像后这里不会自动跟。判断线上实际值仍 **MUST** 现查 `kubectl get deploy <名> -n itp -o yaml`（AGENTS.md §7）。重新导出即重跑上面的清洗流程并覆盖本目录。

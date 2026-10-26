@@ -1,0 +1,179 @@
+# 红岛生产环境入向路由基线（fep-app-vr 15 条：7 SCG exact + 8 prefix）
+# 结构 / 顺序 / rewrite 与测试基线 30-istio-ingress.yaml 完全同构，仅 destination 差异。
+# 红岛尚未上线，destination 的 Service 名 / 端口 MUST 上线前现查重录；
+# 本文件里的 <占位> 是上线时的待填项，apply 前 MUST 全部替换、且 NEVER 沿用测试值。
+# 占位说明：
+#   <route-sentinel>  红岛 route-sentinel 的 Service:port（预期 8080，现查）
+#   <face-pay>        红岛 face-pay-server 的 Service:port（现查）
+#   <fep-app> <fep-dev> <fep-acc> <fep-alipay> <para-server>  同上
+# 跨环境纪律：MUST 现查、NEVER 跨环境抄值（docs/ops/environments/环境总览.md）。
+
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: accountserver-gw
+  namespace: itp
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - '*'
+    port:
+      name: http
+      number: 8080
+      protocol: HTTP
+    tls: {}
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: fep-app-vr
+  namespace: itp
+spec:
+  gateways:
+  - accountserver-gw
+  hosts:
+  - '*'
+  http:
+  # --- SCG 分流透明网关（route-sentinel）承接的 7 个接口 ---
+  # 顺序要求：这 7 条 exact 必须排在下面前缀路由 /itptvm/ /itpbom/ 之前，istio 首条命中即止。
+  # SCG 内部：命中名单 → legacy-route → face-pay；不命中 → face-pay-split-route（D11 占位）。
+  # 7 条恒指 route-sentinel，NEVER 指 face-pay（故障回滚时才是临时改回，属应急动作，非常态）。
+  - match:
+    - uri:
+        exact: /itpbom/ci/bom/notiTakeTicketResult
+    route:
+    - destination:
+        host: <route-sentinel>
+        port:
+          number: 8080
+  - match:
+    - uri:
+        exact: /itpbom/ci/bom/notiTakeTicketFailResult
+    route:
+    - destination:
+        host: <route-sentinel>
+        port:
+          number: 8080
+  - match:
+    - uri:
+        exact: /itpbom/ci/bom/requestTakeTicketAuth
+    route:
+    - destination:
+        host: <route-sentinel>
+        port:
+          number: 8080
+  - match:
+    - uri:
+        exact: /itpbom/ci/bom/requestCardDataAnalyse
+    route:
+    - destination:
+        host: <route-sentinel>
+        port:
+          number: 8080
+  - match:
+    - uri:
+        exact: /itpbom/ci/bom/requestUpdateCardData
+    route:
+    - destination:
+        host: <route-sentinel>
+        port:
+          number: 8080
+  - match:
+    - uri:
+        exact: /itptvm/ci/tvm/requestTakeTicketAuth
+    route:
+    - destination:
+        host: <route-sentinel>
+        port:
+          number: 8080
+  - match:
+    - uri:
+        exact: /itptvm/ci/tvm/requestCardDataAnalyse
+    route:
+    - destination:
+        host: <route-sentinel>
+        port:
+          number: 8080
+  # --- 8 条前缀路由 ---
+  - match:
+    - uri:
+        prefix: /fep-app/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: <fep-app>
+        port:
+          number: <fep-app-port>
+  - match:
+    - uri:
+        prefix: /fep-dev/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: <fep-dev>
+        port:
+          number: <fep-dev-port>
+  - match:
+    - uri:
+        prefix: /fep-acc/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: <fep-acc>
+        port:
+          number: <fep-acc-port>
+  - match:
+    - uri:
+        prefix: /fep-alipay/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: <fep-alipay>
+        port:
+          number: <fep-alipay-port>
+  - match:
+    - uri:
+        prefix: /itptvm/
+    rewrite:
+      uri: /itptvm/
+    route:
+    - destination:
+        host: <face-pay>
+        port:
+          number: <face-pay-port>
+  - match:
+    - uri:
+        prefix: /itpbom/
+    rewrite:
+      uri: /itpbom/
+    route:
+    - destination:
+        host: <face-pay>
+        port:
+          number: <face-pay-port>
+  - match:
+    - uri:
+        prefix: /itpagm/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: <fep-dev>
+        port:
+          number: <fep-dev-port>
+  - match:
+    - uri:
+        prefix: /para-server/
+    rewrite:
+      uri: /
+    route:
+    - destination:
+        host: <para-server>
+        port:
+          number: <para-server-port>
