@@ -16,9 +16,9 @@
 
 - **目标**：把前端 `web/` 发到 CloudOS 的 `web-frontend` 应用并升到 `<版本>`。
 - **一条命令**（生产写 MUST `--yes`；缺省 dry-run 不碰生产）：
-  `docs/ops/environments/scripts/web-frontend-release.sh <版本> --yes`
+  `python3 docs/ops/environments/scripts/web_frontend_release.py <版本> --yes`
 - **执行纪律**：带 `--yes` 前**先跑一遍 dry-run** 看将发的请求；升级会滚动重建、期间业务不可用，**低峰执行**。
-- **回滚**：脚本打印的 `ROLLBACK_POINT=<升级前版本>`；重跑 `web-frontend-release.sh <旧版本> --yes --skip-build`
+- **回滚**：脚本打印的 `ROLLBACK_POINT=<升级前版本>`；重跑 `python3 web_frontend_release.py <旧版本> --yes --skip-build`
   （旧版本已在软件中心，自动跳过上传）。
 - **完成判据**：上传回查命中 `<版本>` + `GET /api/cloud/app-mgmt/v1.0/apps/{uuid}` 的
   `version==目标` 且 `status=OK` 且实例 `ok==num`。
@@ -28,14 +28,14 @@
 
 ## 〇、脚本自动化（首选）
 
-`docs/ops/environments/scripts/web-frontend-release.sh <版本> [--yes]` 一条命令走完
+`python3 docs/ops/environments/scripts/web_frontend_release.py <版本> [--yes]` 一条命令走完
 「本地出 zip → 登录 → 上传 web 包 → 升级应用 → 核验」，复用 `lib/cloudos-*` 的鉴权与 HTTP 通道：
 
 ```bash
 # dry-run：本地出 zip + 打印将发的上传/升级请求（不碰生产）
-docs/ops/environments/scripts/web-frontend-release.sh 1.2.43.3
+python3 docs/ops/environments/scripts/web_frontend_release.py 1.2.43.3
 # 真发：上传 + 升级 + 轮询到满员；生产写 MUST 带 --yes
-docs/ops/environments/scripts/web-frontend-release.sh 1.2.43.3 --yes
+python3 docs/ops/environments/scripts/web_frontend_release.py 1.2.43.3 --yes
 # 变体：--skip-build（复用已出 zip）/ --skip-upgrade（只上传不升级）/ --app、--pkg、--app-uuid
 ```
 
