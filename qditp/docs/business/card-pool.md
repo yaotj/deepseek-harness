@@ -105,8 +105,8 @@
 - **card-pool-server 的 Deployment MUST 注入 `VLOGS_URL`，且值 MUST 带 `http://`**。
   该 env 为空 ⇒ appender 自动禁用、一条不推；写成 `victoria-logs-pbi6a-svc.itp.svc:30032`
   （缺 scheme）⇒ `vlogs-sender` 线程照样在跑但**推送全部静默失败**，现象与没注入一模一样
-  （`status="off"` 吞掉报错）。2026-09-09 两个坑都踩过。正确值与排查方法见
-  `docs/ops/environments/跨环境共性.md` §3.2「ConfigMap（非敏感，随环境变化）」的 `VLOGS_URL` 行。
+  （`status="off"` 吞掉报错）。2026-09-09 两个坑都踩过。正确值（红岛 `http://172.120.2.13:31920`）
+  与排查方法见 `docs/ops/environments/红岛.md`「已部署的组件」表的 VictoriaLogs 行。
 
 - **`REQUESTING` 状态无法自动续做**：表示已向 ACC 发出申请但未拿到文件名，进程中断后无法判断
   对端是否已生成批次。维护动作会把它置 `FAILED` 并写明原因，需人工核对 ACC 侧后重建批次。
