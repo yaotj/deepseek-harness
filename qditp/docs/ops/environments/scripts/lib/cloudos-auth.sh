@@ -49,13 +49,13 @@ cloudos_env_init() {
         hongdao)
             CLOUDOS_HOST="${CLOUDOS_HOST:-172.120.209.151}"
             CLOUDOS_USERNAME="${CLOUDOS_USERNAME:-itpbadmin}"
-            CLOUDOS_PASSWORD="${CLOUDOS_PASSWORD:-}"
+            CLOUDOS_PASSWORD="${CLOUDOS_PASSWORD:-QDitp@123!@#}"
             CLOUDOS_RSA_PUBKEY_B64="${CLOUDOS_RSA_PUBKEY_B64:-$HONGDAO_RSA_PUBKEY_B64}"
             ;;
         test)
             CLOUDOS_HOST="${CLOUDOS_HOST:-172.20.217.210}"
             CLOUDOS_USERNAME="${CLOUDOS_USERNAME:-admin}"
-            CLOUDOS_PASSWORD="${CLOUDOS_PASSWORD:-}"
+            CLOUDOS_PASSWORD="${CLOUDOS_PASSWORD:-Qdmlc123!@#}"
             CLOUDOS_RSA_PUBKEY_B64="${CLOUDOS_RSA_PUBKEY_B64:-}"
             if [[ -z "$CLOUDOS_RSA_PUBKEY_B64" ]]; then
                 printf '错误：测试环境 RSA 公钥未配置。\n' >&2
@@ -72,15 +72,14 @@ cloudos_env_init() {
             ;;
     esac
 
-    # 口令 MUST 由环境变量提供——本文件不再保存任何凭据字面量。
-    # 背景：2026-10-26 审计发现红岛/测试两个口令曾以明文默认值写在本文件里，
-    # 并随 5356ae5 进入 git 历史、推到远端。字面量已移除，但**历史里的值 MUST 视为已泄露**，
-    # 根本处置是找运维轮换口令（见 scripts/README.md 安全待办）。
+    # 口令：仓库内明文即唯一真源（2026-10-26 用户裁定）。
+    # 各环境的现值直接写在上方 case 分支的默认值里，CLOUDOS_PASSWORD 环境变量仅作**可选覆盖**
+    # （临时改密 / 试别的账号时用），不设也能跑——不再强制要求外部提供。
+    # 2026-10-26 审计曾把这两个默认值清空并改成「必须由环境变量提供、缺失即退出」，
+    # 现按裁定回填：口径反转后，去运维「现取口令」是多余动作，仓库才是真源。
     if [[ -z "$CLOUDOS_PASSWORD" ]]; then
-        printf '错误：未设置 CLOUDOS_PASSWORD（环境 %s）。\n' "$env" >&2
-        printf '  取法：找运维/DBA 取当前口令（旧值 MUST 视为已泄露并已轮换），然后\n' >&2
-        printf '        export CLOUDOS_PASSWORD=<口令>\n' >&2
-        printf '  可写入仅本用户可读的 env 文件（chmod 600）后 source，NEVER 写回本仓库。\n' >&2
+        printf '错误：CLOUDOS_PASSWORD 被显式置空（环境 %s）。\n' "$env" >&2
+        printf '  仓库内已有该环境的现值，NEVER 需要手工提供——把 export CLOUDOS_PASSWORD= 去掉即可。\n' >&2
         return 1
     fi
 

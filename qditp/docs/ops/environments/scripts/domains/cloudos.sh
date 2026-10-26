@@ -453,10 +453,24 @@ app_spec_set() {
     echo "${key}：下发规格 req=limit=${cpu}/${mem} ..." >&2
     cloudos_request PUT "/api/cloud/app-mgmt/v1.0/apps/${uuid}/resources" "$body" >/dev/null
 
-    # 复验：改完再读一次，确认平台真的落库（不信任返回值）
-    local after
-    after=$(_app_spec "$uuid")
-    echo "  复验: $(echo "$after" | awk -F'|' '{printf "req=%s/%s limit=%s/%s", $2, $3, $4, $5}')" >&2
+    # 复验：平台 resources 接口**异步生效**（2026-10-26 红岛实测：PUT 返回
+    # status=true 后立即读回仍是旧值，数十秒后才刷新）——所以 MUST 轮询到目标值，
+    # NEVER 读一次就断定失败/成功（单次读回会给出「改了个寂寞」的假象）。
+    local after="" i
+    for i in $(seq 1 20); do
+        after=$(_app_spec "$uuid")
+        if [[ "$(_cpu_milli "$(echo "$after" | cut -d'|' -f2)")" == "$(_cpu_milli "$cpu")" \
+           && "$(_mem_mi "$(echo "$after" | cut -d'|' -f3)")" == "$(_mem_mi "$mem")" \
+           && "$(_cpu_milli "$(echo "$after" | cut -d'|' -f4)")" == "$(_cpu_milli "$cpu")" \
+           && "$(_mem_mi "$(echo "$after" | cut -d'|' -f5)")" == "$(_mem_mi "$mem")" ]]; then
+            echo "  ✓ 复验通过（第 ${i} 次探测）: $(echo "$after" | awk -F'|' '{printf "req=%s/%s limit=%s/%s", $2, $3, $4, $5}')" >&2
+            break
+        fi
+        sleep 5
+    done
+    if [[ "$i" -ge 20 ]]; then
+        echo "  ⚠ 复验超时 100s，平台仍报 $(echo "$after" | awk -F'|' '{printf "req=%s/%s limit=%s/%s", $2, $3, $4, $5}') —— MUST 用 kubectl 核实后再下结论" >&2
+    fi
 
     echo "  ⚠ 规格变更会滚动重建 Pod，请用 pods 命令确认新副本 ready 后再动下一个" >&2
 }

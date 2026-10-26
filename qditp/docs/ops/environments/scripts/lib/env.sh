@@ -18,7 +18,9 @@
 #   --env 由入口全局解析后写入 ITP_ENV；未指定时用调用方传入的默认。
 #   ⚠ 各域默认环境刻意不统一（见下），NEVER 擅自改成一致——那会让原本能用的命令失效：
 #     cloudos → hongdao（红岛是主战场，且默认如此已久）
-#     k8s/log → test（红岛侧 ssh 通道与远端脚本目录尚未就绪，只有测试环境实测可用）
+#     k8s/log → test（k8s 域只对测试可用——红岛跳板 hd-linux 无 /home/java 构建目录，
+#               红岛发版走 cloudos image 由平台 x86 节点打镜像；log 域红岛可 watch，
+#               tail 依赖的远端脚本红岛尚未部署）
 #     diag    → 按子命令：reach=hongdao、routes=test
 #     analysis → 不调用（环境无关）
 #

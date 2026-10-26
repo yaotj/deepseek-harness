@@ -50,8 +50,23 @@ cd docs/ops/environments/scripts
 每个域的详细用法：`./itp-ops.sh <域> help`。
 
 **全局参数**（可出现在任意位置，入口负责剥离，域只收业务参数）：
-`--env hongdao|test`（仅 cloudos 域用，默认 hongdao=红岛生产）、`--yes`（确认写操作）、
-`-h/--help/--version`（仅域前有效）。
+`--env hongdao|test`（**全局生效**；各域默认刻意不统一：cloudos=hongdao、k8s/log=test、
+diag 按子命令）、`--yes`（确认写操作）、`-h/--help/--version`（仅域前有效）。
+
+**环境与跳板**（红岛 ssh/kubectl 通道 2026-10-26 实测已通；但红岛是**生产**，默认一律停在 test）：
+
+| `--env` | 跳板 `REMOTE_HOST` | K8s 命名空间 | Harbor 项目 | 该环境下可用的域 |
+|---|---|---|---|---|
+| `test`（k8s/log 默认） | `k8s-master` | `itp` | `itp` | 全部 |
+| `hongdao`（cloudos 默认） | `hd-linux`（172.120.2.13，主机名 `ITP01`） | `itpb` | `itpb`（推送账号 `itpadmin`） | `cloudos` / `log watch` / `diag reach` |
+
+> **两个实测缺口（2026-10-26，决定「哪个域能打红岛」）**：
+> 1. `k8s` 域只对测试可用——红岛跳板 `hd-linux` 上**没有** `/home/java`，也没有 `build-push.sh`，
+>    且远端只有 `podman` 没有 `docker`。红岛发版 MUST 走 `cloudos image build`
+>    （本机只传 jar + Dockerfile，镜像由平台 x86 构建节点产出）。
+> 2. `log tail` 只对测试可用——它依赖远端 `/home/java/k8s-logview.sh`，该脚本红岛尚未部署；
+>    红岛看日志用 `log watch`（走 kubectl）或 `ssh hd-linux kubectl logs`。
+> `hosts/k8s-master/` 因此只是**测试跳板**脚本的仓内镜像，红岛侧脚本未入仓。
 
 ## 三、CloudOS 知识沉淀（原 cloudos/README.md，重构后并入此处）
 
@@ -90,6 +105,7 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
 | `userOrPasswordError` | 先查账号拼写，再查是否真 RSA 加密，**最后**才怀疑密码 |
 | `admin` / `itpadmin` 登录失败 | `itpadmin` 是 Harbor 推送账号，不是云管台账号 |
 | 双实例判据 | 不是 `instance_num=2`，而是**两个副本落在不同节点**；同节点双副本等于没扩容。查法：`ssh hd-linux "kubectl get pods -n itpb -o custom-columns=APP:.metadata.labels.app,NODE:.spec.nodeName --no-headers \| sort"` |
+| `PUT /apps/{uuid}/resources` 返回 `status=true`，但 `GET` 读回仍是旧值 | **异步生效**（2026-10-26 实测）：立即读回是旧值，数十秒后才刷新（`kubectl` 先看到新 ReplicaSet）。复验 MUST 轮询到目标值，**单次读回会把成功的变更误判成失败**、进而重复下发。`spec-set` 已内置 100s 轮询 |
 | 跨模块 RPC 全失败 | 平台按 `application.properties` 生成的 env 保留测试默认值，不显式注入 `SERVICE_*_URL` 就指向 `itp` 命名空间（IT-016）。`cloudos env <app>` 一次打全 38 项 env 核对 |
 
 三个设计点（`scale` 族命令）：**幂等**（已是目标值不发请求）、**异步复验**（`status=true` 只代表已下发，
@@ -156,10 +172,16 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
    会连远端集群）；`migration/ingress-config*/` 是 istio 抓取快照，与数据库无关；
    集群实况快照在**上一层** `docs/ops/environments/snapshots/{test,hongdao}/`（按环境分层，
    与 scripts 平级——它们不是脚本，是抓取产物）。
-6. **⚠️ 安全待办（原 legacy 存档已删，此条 MUST 保留）**：曾入库的 `_fix.ps1` / `_run_script.ps1`
-   **含明文 root 口令**（目标 `172.20.211.21`），自提交 `93e608e` 起就在版本库、且已随 `origin/main`
-   推送远端——**删文件只能防扩散，口令仍在 git 历史里**。若该口令至今有效，
-   **MUST 找运维轮换**（这是处置的根本手段，删文件只是顺带）。
+6. **敏感值口径（2026-10-26 用户裁定，本项目唯一真源）**：**仓库内的明文口令与配置即唯一真源**，
+   脚本默认值直列不掩码——`lib/cloudos-auth.sh` 的 `CLOUDOS_PASSWORD`、迁移 SQL 的 `IDENTIFIED BY`、
+   校验脚本的 `ITP_DB_PASSWORD` 都有仓库内现值，**MUST NOT 改成「必须外部提供 / 缺失即退出」**；
+   环境变量只作**可选覆盖**（临时改密 / 试别的账号），不设也能跑。跨环境真源表见
+   `docs/ops/environments/跨环境共性.md` §三。
+   - **仍适用**：`NEVER 外传`、截图打码、群聊 / 邮件不贴口令（渠道纪律，与仓库内直列不冲突）。
+   - **已作废**：2026-10-26 审计曾把 `legacy/` 的两 `.ps1`（含明文 root 口令，目标 `172.20.211.21`）
+     连同「旧值视为已泄露 MUST 轮换」一并记为安全待办；按本次裁定，**仓库内明文不再视为待治理缺陷**，
+     `legacy/` 目录已删（见 §六），其内容不进版本库是「无用代码清理」理由，NEVER 再引申为安全理由。
+   - 口径反转**不新增暴露面**：这些值早已随 `c4ce75894a` 推送到 `origin/main`，git 历史里的明文一直存在。
    另：`enable-tracing-20261014.sh` 已于 2026-10-14 执行完毕，后续接入链路跟踪 MUST 按
    `docs/architecture/common-components.md` §3.1.2「三行成组」口径做，NEVER 照抄那个已删脚本的 env 注入方式。
 7. **分析脚本 MUST 走 `itp-ops.sh analysis`**：`count-endpoints.py` 按「从仓库根运行」设计，域入口负责 cd，
@@ -203,7 +225,8 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
   所引 VictoriaLogs 地址已是测试环境旧值）、`pull-and-save.sh` + `image-list.txt`
   （旧 Harbor 镜像归档工具，自包含无引用，迁移已完成不再复用）、空目录 `migration/images/`。
 - **第二轮（同日继续审计）`legacy/` 整体删**（7 文件）：`_fix.ps1` / `_run_script.ps1`
-  （**含明文 root 口令**——见纪律第 6 条的安全待办，口令已随 `93e608e` 入远端历史，**改密才是根本处置**）、
+  （含明文 root 口令，目标 `172.20.211.21`——按纪律第 6 条的现行口径，**仓库内明文本身不是删它的理由**，
+  这两个文件是「零引用的历史存档」被清理，与口令无关）、
   `enable-tracing-20261014.sh`（已执行完）、`klog.cmd` / `klog.ps1`（已被 `itp-ops.sh log tail` 取代）、
   `cloudos-api.sh`（认证结论已证伪，内容已并入 `domains/cloudos.sh`）及该目录 README。
 - **第二轮 `generate-prod-migration-report.py` + 产物 `prod-migration-config-checklist.md` 删**：全仓零引用，

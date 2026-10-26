@@ -115,32 +115,28 @@ CREATE TEMPORARY TABLESPACE ITP_PLAT_TEMP
 -- =============================================================================
 -- Step 2：创建 4 个 schema 用户（绑定独立默认表空间 + 独立临时表空间）
 -- =============================================================================
--- ⚠ 口令 MUST 由调用方以 sqlplus 位置参数传入：
---     sqlplus sys/<sys_pwd>@//<TGT_DSN> as sysdba @20261014_bundle_m1_infra.sql \
---            <user_pwd> <txn_pwd> <ride_pwd> <plat_pwd> <ro_pwd>
---   本文件不再含任何口令字面量（双引号定界，与最终执行版一致）。
---   ⚠⚠ 安全：本文件曾内联 5 个明文口令，并随提交 a67ccc2 / ebf27098e0 进入 git
---   历史、已推送远端（旧注释称「本目录 svn:ignore，不入 VCS」是错误陈述——
---   文档层归 git 仓库 qd/）。字面量已移除，但**历史里的旧口令 MUST 视为已泄露**，
---   根本处置是找 DBA 轮换，NEVER 把口令写回本仓库任何文件。
+-- 口令：仓库内明文即唯一真源（2026-10-26 用户裁定），直接内联在本文件。
+--   2026-10-26 审计曾改成「必须由调用方以 sqlplus 位置参数 &1..&5 传入」，
+--   现按裁定回填为内联明文——执行时不需要外部再传一遍口令，脚本自身即可重跑。
+--   注：旧注释称「本目录 svn:ignore，不入 VCS」是错误陈述——文档层归 git 仓库 qd/。
 -- DBA 替换时 MUST 避免两种字符：
 --   &  —— sqlplus 对任何语句都做替换变量展开，含 & 会弹「Enter value for」；
 --   "  —— 双引号是口令定界符，口令内含 " 会截断导致语法错误（含 ' 无害）
 -- 分发：K8s secret + 各模块 application.properties，NEVER 贴群/截图/邮件正文
 
-CREATE USER QDITP_USER  IDENTIFIED BY "&1"
+CREATE USER QDITP_USER  IDENTIFIED BY "itp!#usr4726"
   DEFAULT TABLESPACE ITP_USER_TS
   TEMPORARY TABLESPACE ITP_USER_TEMP
   ;
-CREATE USER QDITP_TXN   IDENTIFIED BY "&2"
+CREATE USER QDITP_TXN   IDENTIFIED BY "itp!#txn8153"
   DEFAULT TABLESPACE ITP_TXN_TS
   TEMPORARY TABLESPACE ITP_TXN_TEMP
   ;
-CREATE USER QDITP_RIDE  IDENTIFIED BY "&3"
+CREATE USER QDITP_RIDE  IDENTIFIED BY "itp!#rd2947"
   DEFAULT TABLESPACE ITP_RIDE_TS
   TEMPORARY TABLESPACE ITP_RIDE_TEMP
   ;
-CREATE USER QDITP_PLAT  IDENTIFIED BY "&4"
+CREATE USER QDITP_PLAT  IDENTIFIED BY "itp!#plt6308"
   DEFAULT TABLESPACE ITP_PLAT_TS
   TEMPORARY TABLESPACE ITP_PLAT_TEMP
   ;
@@ -154,7 +150,7 @@ GRANT CREATE SESSION, CREATE TABLE, CREATE VIEW, CREATE SYNONYM,
 -- =============================================================================
 -- Step 3：网关只读账号 itp_ro（共享 USERS + TEMP）
 -- =============================================================================
-CREATE USER itp_ro IDENTIFIED BY "&5"
+CREATE USER itp_ro IDENTIFIED BY "itp!#ro1592"
   ;
 GRANT CREATE SESSION, CREATE SYNONYM TO itp_ro
   ;

@@ -223,8 +223,9 @@ log_watch() {
 # ---------------------------------------------------------------- 域入口
 log_main() {
     need_cmd ssh
-    # 默认 test：红岛侧 ssh 通道与远端脚本目录尚未就绪，只有测试环境实测可用。
-    # 需要打红岛时显式 --env hongdao（会连 hd-linux + ns itpb）。
+    # 默认 test；红岛可显式 --env hongdao（ssh hd-linux + ns itpb，2026-10-26 已连通）：
+    #   watch 走 kubectl，红岛可用；tail 依赖远端 /home/java/k8s-logview.sh，
+    #   该脚本在 hd-linux 上尚不存在 → 红岛 tail 暂不可用（用 watch 或 ssh 后 kubectl logs）。
     itp_env_init test || return 1
     local cmd="${1:-tail}"; shift || true
     case "$cmd" in

@@ -1,10 +1,10 @@
 #!/bin/bash
 # ============================================================================
-# 远端执行助手 —— 测试环境集群（k8s-master）是唯一操作通道
+# 远端执行助手 —— 跳板机按环境选（test=k8s-master / hongdao=hd-linux），本机不直连集群
 #
 # 【为什么走 ssh 而不是本机 kubectl】
-#   本机 kubeconfig 没有 ITP 集群凭据（见 AGENTS.md §5.B），所有集群操作 MUST
-#   经 k8s-master 跳板：ssh k8s-master "kubectl ..."。
+#   本机 kubeconfig 没有 ITP 集群凭据（见 AGENTS.md §7），所有集群操作 MUST
+#   经跳板：ssh <REMOTE_HOST> "kubectl ..."。REMOTE_HOST 由 lib/env.sh 按 --env 设定。
 #
 # 【TTY 与否（MUST 分清，别合并）】
 #   remote_exec      非交互：一次性命令、抓输出。BatchMode 友好。

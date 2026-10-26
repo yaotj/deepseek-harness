@@ -153,8 +153,11 @@ k8s_deploy_service() {
     fi
 
     # 5. SSH 远程构建推送
-    log_info "🔨 正在远程执行: ./build-push.sh ${SERVICE_NAME} ${VERSION}"
-    if ! remote_exec "cd ${REMOTE_DIR} && ./build-push.sh ${SERVICE_NAME} ${VERSION}"; then
+    # ⚠ HARBOR_PROJECT MUST 随命令行显式传给远端：build-push.sh 写的是
+    #   ${HARBOR_PROJECT:-itp}，本机 export 的变量不会自动进远端 shell——
+    #   不传则 --env hongdao 会静默推到红岛 Harbor 的 itp 项目（应为 itpb）。
+    log_info "🔨 正在远程执行: HARBOR_PROJECT=${HARBOR_PROJECT} ./build-push.sh ${SERVICE_NAME} ${VERSION}"
+    if ! remote_exec "cd ${REMOTE_DIR} && HARBOR_PROJECT=${HARBOR_PROJECT} ./build-push.sh ${SERVICE_NAME} ${VERSION}"; then
         log_error "构建推送失败: ${SERVICE_NAME}:${VERSION}"
         return 1
     fi
@@ -270,8 +273,9 @@ k8s_deploy_all() {
 # ---------------------------------------------------------------- 域入口
 k8s_main() {
     need_cmd ssh scp
-    # 默认 test：远端 build-push.sh / 工作目录只在测试环境 k8s-master 上实测可用，
-    # 红岛侧通道与镜像项目（itpb）尚未就绪。需要打红岛时显式 --env hongdao。
+    # 默认 test，且本域实际只对测试可用：红岛跳板 hd-linux 上既无 /home/java 也无
+    # build-push.sh（2026-10-26 实测，远端只有 podman 没有 docker）——红岛发版走
+    # `itp-ops.sh cloudos image build`（平台 x86 节点打镜像），NEVER 用本域打红岛。
     itp_env_init test || return 1
     local cmd="${1:-}"; shift || true
     case "$cmd" in

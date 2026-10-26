@@ -6,7 +6,7 @@
 #
 #   itp-ops.sh                本文件：全局参数解析 + 域分发
 #   lib/core.sh               日志 / 写操作门(--yes) / 仓库根 / 依赖检查
-#   lib/remote.sh             ssh 跳板助手（k8s-master；TTY 纪律）
+#   lib/remote.sh             ssh 跳板助手（按 --env 选 k8s-master / hd-linux；TTY 纪律）
 #   lib/cloudos-*.sh          CloudOS 平台 API（auth/http/image/pkg）
 #   domains/cloudos.sh        云管台运维（apps/env/pods/scale/logs/image…）
 #   domains/k8s.sh            镜像构建推送（deploy / deploy-all）
@@ -15,8 +15,9 @@
 #   domains/analysis.sh       静态分析（endpoints / interfaces / requirements）
 #
 # 【全局参数（可出现在任意位置，入口负责剥离，域只收到业务参数）】
-#   --env hongdao|test        CloudOS 环境（默认 hongdao 红岛生产）；
-#                             只有 cloudos 域用它，其余域忽略
+#   --env hongdao|test        环境切换（全局，所有域生效）；各域默认值不统一
+#                             （cloudos=hongdao；k8s/log=test；diag 按子命令），
+#                             未指定时用域自身默认
 #   --yes                     确认写操作。缺它，写命令一律拒绝（与旧脚本对齐）
 #   -h / --help / --version   仅域前有效；域后的 -h 交给域自己解释
 #
@@ -77,7 +78,8 @@ itp-ops v${ITP_OPS_VERSION} —— 青岛地铁 ITP 平台运维单一入口
             itp-ops.sh cloudos apps Error        # 只列异常态应用
             itp-ops.sh cloudos env fep-app       # env 全量（排 RPC 地址错配首选）
             itp-ops.sh cloudos scale fep-app 2 --yes
-  k8s       镜像构建推送（本机 jar → k8s-master → Harbor）
+  k8s       镜像构建推送（本机 jar → k8s-master → Harbor；**只对测试环境可用**，
+            红岛发版走 cloudos image，见 domains/k8s.sh 头注）
             itp-ops.sh k8s deploy fep-dev-server --yes
             itp-ops.sh k8s deploy-all --yes      # 有序全量，失败即断
   log       日志查看 / 重启自动重挂监控
