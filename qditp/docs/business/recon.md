@@ -863,7 +863,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 - **B6 EXP / PAY / BUS 三节的「文件存放路径：」在原文里是空的**：`/itp/recon/` 只出现在 DETAIL 节末尾
   （「ITP 上传至固定路径：/itp/recon/」）。当前按**四类文件共用该路径**实现，需甲方确认。
 - **B7 「订单异常类型」取值冲突**：甲方定义 1~15，而我方 `GATE_TXN_PAY.ORDER_EXP_TYPE` 的列注释
-  （`scripts/20260818_if8a_schema_migration.sql`）是
+  （`gate-txn-pay-server/src/main/resources/sql/gate-txn-pay-schema.sql`）是
   「0 正常, 1 单边账(入), 2 单边账(出), 3 单边入站人工, 4 单边出站人工, **5 双段计费超时**」——
   1~4 能对上，**第 5 位含义完全不同**（甲方是「乘客自主补进站」），且我方多一个「0 正常」而甲方无 0。
   当前实现**原样输出 `ORDER_EXP_TYPE`、不做任何映射**（猜错会把超时行程报成自主补站，账目性质变了）。

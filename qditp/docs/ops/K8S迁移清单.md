@@ -69,7 +69,7 @@ Service 侧两个坑：
 ### 1.4 配置与密钥现状（**最大风险区**）
 
 - **没有任何业务 Secret**。ns `itp` 只有 1 个 secret：`default-dockercfg-f6af3`（镜像拉取用，且只有 7 个示例 Pod 在引用；24 个业务 Deployment 的 `imagePullSecrets` 为空 —— 靠节点级 containerd 凭据拉 Harbor）。
-- **全部配置以明文 env 内联在 Deployment 里**，其中包含这些敏感键（**只列键名与所在 Deployment，值不在本文出现**）：
+- **全部配置以明文 env 内联在 Deployment 里**，其中包含这些敏感键（**值见 `docs/ops/environments/跨环境共性.md` §三 敏感值真源表 / 各模块 `application.properties` 默认值——仓库内明文即唯一真源**，2026-10-26 用户裁定；本文只列键名与所在 Deployment，不重复抄值）：
   - DB 口令：`other.sql.password`（16 个服务）/ `DB_PASSWORD`（`card-pool` / `recon` / `face-pay`）/ `spring.datasource.password` + `spring.datasource.druid.master.password`（`web-admin`）
   - 报文密钥：`itp.signKey`（`account` / `alipay-account` / `security-server`）、`jhm.key`（`collect-pay` / `face-pay`）、`app.signKey`（`collect-pay`）
   - HSM / 3DES：`security.publicKey` / `security.privateKey`（`security-server`）、`acc.3des.key` / `appserver.3des.key`（`key-server`）
@@ -132,7 +132,7 @@ Service 侧两个坑：
 - `testngbackV2` 测试回调地址：`pay-sign`（sign-result / termination-result）、`collect-pay`（3 条 notice-app-*）、`daily-ticket`（2 条）、`face-pay`（4 条 NOTIFY_APP_*）、`ticket-server`（industry-data / counting-ticket-times）、`account`（employee-card.app-register-url）。**迁生产前 MUST 全换成甲方 APP 的正式地址**。
 - `knife4j.production=false`（15 个服务，接口文档对外可见）、`web-admin` 的 `spring.datasource.druid.statViewServlet.enabled=true` + `spring.devtools.restart.enabled=true` + `logging.level.com.chinasofti.huateng=debug`、`account` 的 `account.card-pool.debug-manual-allocate=true` + `debug-manual-card-id`（**开着会绕过真实卡池分配**）。这些都是测试期取向，**生产集群 MUST 逐条复核**。
 
-**⑤ 密钥治理**：把 §1.4 列的键从 env 明文改为 **K8s Secret + `envFrom`/`secretKeyRef`**，仓库侧对应配置保持 `${ENV:}` 空默认（security-sensitivity.md（已删除） §一「敏感配置规则」）。异网迁移是唯一「不改代码就能换掉全部凭据」的窗口——**新环境 MUST 换新口令，NEVER 照搬旧值**。
+**⑤ 密钥治理**：**仓库侧配置保持明文真值作为默认值**（`${ENV_VAR:<明文>}` 形态，如 `other.sql.password=${DB_PASSWORD:itp!#usr4726}`）——仓库是唯一真源（2026-10-26 用户裁定），MUST NOT 把默认值清成 `${ENV_VAR:}` 空串、也 MUST NOT 改成「运行时另找 DBA 现取」。集群侧怎么注入（K8s Secret + `envFrom`/`secretKeyRef` vs 明文 env 内联）是**运行时承载方式**的选择，与真源口径无关，两种都允许——真源永远在仓库。异网迁移是唯一「不改代码就能换掉全部凭据」的窗口——**新环境 MUST 换新口令，NEVER 照搬旧值；换完后 MUST 同步回写仓库**（各模块 `application.properties` 默认值 + `docs/ops/environments/跨环境共性.md` §三真源表 + `scripts/lib/cloudos-auth.sh` 默认值），否则仓库与集群会脱节。
 
 ### 2.3 入向路由与对外契约
 

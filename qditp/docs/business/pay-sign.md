@@ -278,7 +278,7 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
 - 硬限次 `MAX_PAY_CALLBACK_PUSH = 2`（首推 1 次 + 重推 1 次）。计数用 `PayCallbackLogMapper.countByMerchantOrderNo(merchantOrderNo, 'PAY')`，**计数点 MUST 在 `PAY_CALLBACK_LOG` 的 insert 之后**——方法无事务，insert 已自动提交，这个 COUNT 才等于支付中心实际推送次数（含本次）。
 - 达到上限后，无论本次处理成功与否都 `fillSuccess` 返回 `0000`，让支付中心停止重推。三条失败路径都走 `giveUpRetry`：`updatePayCallback` 命中 0 行、`syncGateTxnPayStatus` 失败、`catch (Exception)`。
 - **代价：真实失败不再被上游重试。** 因此 `giveUpRetry` **MUST** 同时做两件事——打 ERROR 日志、把该笔最后一条 `PAY_CALLBACK_LOG` 的 `HANDLE_STATUS` 置为 `MANUAL`（`markManualByMerchantOrderNo`，`HANDLE_MSG` 记原因，截断 300 字）。**运维 MUST 例行巡检 `HANDLE_STATUS='MANUAL'`**，否则失败会静默沉底。
-- ⚠️ **支付中心的重推次数 / 间隔 / 上限没有规格**：`docs/external/支付中心网关接口文档.md` §5（行 437~440）只写了「商户需返回通用响应表示接收成功 / 若未收到成功响应，系统会进行重试」，既无次数也无退避策略；生产实测间隔约 15~30s。**MUST 向供方索取重试规格**，拿到后再校准 `MAX_PAY_CALLBACK_PUSH`，**NEVER** 凭日志观察值当契约。
+- ⚠️ **支付中心的重推次数 / 间隔 / 上限没有规格**：`docs/external/支付中心网关接口文档.md` §五「回调通知」末节「回调处理要求」只写了「商户需返回通用响应表示接收成功 / 若未收到成功响应，系统会进行重试」，既无次数也无退避策略；生产实测间隔约 15~30s。**MUST 向供方索取重试规格**，拿到后再校准 `MAX_PAY_CALLBACK_PUSH`，**NEVER** 凭日志观察值当契约。
 
 ### 支付结果回调的优惠三字段（网关 V1.2，2026-09-18 新增，ADR-D136）
 - `discountInfo`（渠道优惠详情，JSON 数组原文）落 **`PAY_CALLBACK_LOG.DISCOUNT_INFO`**（`VARCHAR2(2000 CHAR)`，已在 `AFCITPDB` 执行 `pay-sign-callback-discount-info-migration.sql` 并回查 `USER_TAB_COLS`）。写入点是 `PayTxnRules.buildPayCallbackLog`。落这张表而不是主表，是因为它是**回调事实**、随每次重推各存一份。**NEVER 写进 `PAY_TXN_DETAIL.DISCOUNT_INFO`** —— 那一列是闸机侧自算优惠（`RequestPayReqDTO.discountInfo`），两个口径混一列后无法区分。
@@ -1919,17 +1919,19 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
   - 建议裁决：按「`ticket-server` 缺 `service.paySign.url` 已补齐」「`fep-dev-server` 缺
     `service.key.url` 已补齐」的既有格式，把 `pay-sign-server` 这条也标为已补齐、NEVER 再列。
     **但 MUST 先查集群 env 确认线上值有效**（仓库有键 ≠ 线上指对了，属该 §同一条的第①/③类问题）。
-- **M6 敏感项默认值：仓库里存在私钥真值默认值（安全红线，本轮只记位置）**
+- **M6 敏感项默认值：仓库里存在私钥真值默认值（✅ 已作废，2026-10-26 用户裁定）**
   - 注释说什么：security-sensitivity.md（已删除） §一「敏感配置」要求私钥等 **MUST 写成 `${ENV_VAR:}`（空默认值）**，
-    **NEVER 写默认真值**。
+    **NEVER 写默认真值**。⚠️ **该判据已作废**——本项目口径是「**仓库内明文即唯一真源**」，私钥默认真值是既定形态，
+    **MUST NOT** 改成空默认值、也 MUST NOT 改成「运行时另找 DBA 现取」。
   - 代码实际是什么：`pay-sign-server/src/main/resources/application.properties` 那组
     商户号 / 私钥键中，**私钥那一行带有非空默认值**；同一份密钥材料还出现在
     `util/RSASignUtils.java` 那段被注释掉的 `main()` 里。
   - 证据：`pay-sign-server/src/main/resources/application.properties`（键名见该行，
     **值不在本文档回显**）；`.../util/RSASignUtils.java`。
-  - 建议裁决：**P0**。MUST 改成 `${ENV:}` 空默认值 + K8s Secret 注入，并**连带删除**
-    `RSASignUtils` 那段注释掉的 `main()`（注释掉不等于删除，仓库、镜像、`javap` 里都还在）。
-    换钥同时 MUST 走人工安全复核（§5.2 安全红线）。本轮按约束**未改任何代码**。
+  - 现行裁决：**MUST NOT** 改成 `${ENV:}` 空默认值 + K8s Secret 注入（该动作已作废）。
+    `RSASignUtils` 那段注释掉的 `main()` **仍 SHOULD 删除**——理由是「注释掉不等于删除，仓库、镜像、`javap` 里都还在」，
+    与明文口径无关。改私钥时 MUST 走人工安全复核（§5.2 安全红线），并同步 `application.properties`
+    与 `docs/ops/environments/跨环境共性.md` §三.3 真源表。
 - **M7 解约链路已无事务，但两处注释仍宣称「触发事务回滚」**
   - 注释说什么：`exception/TerminationException.java`「由全局异常处理器统一转换为
     `resultCode=9999` 的 `BaseRespDTO`」并暗示回滚语义；`controller/PaySignExceptionHandler.java`

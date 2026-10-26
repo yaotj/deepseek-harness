@@ -881,7 +881,7 @@
 | signType | String | 签名类型（字段无注释） |
 | sign | String | 签名（字段无注释） |
 
-**压测备注**：链路 fep-app → ticket-server → industry-data-server → 签名服务（acc-security-server / HSM），**是本文件里出网层级最深的一条**/ **并发上限实际由加密机决定**/ 会读 ticket-server 票卡状态、可能写乘车码状态 / **只有 `/ci/app/` 一条路径**，压测脚本若按其他端点的双别名习惯打 `/app/requestIndustryData` 会得到 404 伪装成的 HTTP 200 + UUID `retCode`。
+**压测备注**：**甲方并发要求：APP 拉码接口须支撑 2000 并发**（2026-10-22 记录，压测目标口径）/ 链路 fep-app → ticket-server → industry-data-server → 签名服务（acc-security-server / HSM），**是本文件里出网层级最深的一条**/ **并发上限实际由加密机决定**（2000 并发目标能否达成 MUST 先实测加密机吞吐上限）/ 会读 ticket-server 票卡状态、可能写乘车码状态 / **只有 `/ci/app/` 一条路径**，压测脚本若按其他端点的双别名习惯打 `/app/requestIndustryData` 会得到 404 伪装成的 HTTP 200 + UUID `retCode`。
 
 ### 26. 请求离线码数据（IF8D-03）
 

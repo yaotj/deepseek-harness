@@ -845,9 +845,10 @@ SQL 1 个文件（`card-pool-schema.sql`，只有 3 条 `COMMENT ON TABLE`、**�
 4. **`sys_job` 240 与 cron `0 0/5 * * * ?` 在本模块代码里查不到**（阶段一 §六 已记）：`src/main` 只说
    「由外部调度 / web-admin Quartz 或运维触发」。本阶段把 job_id 与 cron 写进 §一，**出处是 `AGENTS.md` §4.2「业务与架构约束」
    与 `docs/architecture/web-server.md` §七「定时任务（Quartz）跨服务调用」，不是本模块代码** —— 引用时 MUST 现查 `sys_job`。
-5. **`AccSecureProperties` 的 `signKey` 有默认真值风险**：〔accProp〕 只说「MD5 签名 key，仅 signType=02 时使用」，
-   未标注 `${ENV:}` 约束。当前生产 `signType=00` 不用它，故未处理；**改成 `02` 前 MUST 先按
-   security-sensitivity.md（已删除） §一「敏感配置规则」把它收成空默认值 + K8s Secret 注入。**
+5. **`AccSecureProperties` 的 `signKey` 有默认真值**：〔accProp〕 只说「MD5 签名 key，仅 signType=02 时使用」，
+   未标注 `${ENV:}` 约束。当前生产 `signType=00` 不用它。**口径（2026-10-26 用户裁定，本项目唯一真源）**：
+   仓库内明文即真源，**MUST NOT** 收成空默认值 + K8s Secret 注入；真值查
+   `docs/ops/environments/跨环境共性.md` §三.3。
 
 ### 墓碑清单（本阶段从代码删除、只在文档留证）
 

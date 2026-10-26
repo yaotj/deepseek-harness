@@ -164,7 +164,7 @@ Controller（**均无接口编号标注**）：
 
 - **`acc-security-server/src/main/resources/application.properties` 里一条注释都没有**（全文 33 行，纯键值）。因此这一小节的「注释知识」为空，以下只按任务要求点出**键名与位置**，供后续补注释与整改用，**不回显任何值**：
   - HSM 连接类：`security.firstIp`、`security.firstPort`、`security.secondPort`、`security.connectOutTime`、`security.readOutTime`、`security.index`。**注释里没有任何一条说明「firstPort / secondPort 分别是什么」「connectOutTime 与 readOutTime 的单位」，与 §一 `Constant.OverTime` 那两个常量的关系也没有记录 —— 属缺口。**
-  - **密钥类（含疑似明文真值，值见源码该行，本处不回显）**：`security.publicKey`、**`security.privateKey`**、**`itp.signKey`**、`itp.tacKeyIdex`（，注意键名拼写是 `Idex` 而非 `Index`）。**这四行既无注释、也未写成 `${ENV_VAR:}` 形态，与 security-sensitivity.md（已删除） §一「敏感项 MUST 写成 `${ENV_VAR:}`（空默认值）并由 K8s Secret 注入，NEVER 写默认真值」直接冲突。**
+  - **密钥类（含明文真值，真源见 `docs/ops/environments/跨环境共性.md` §三.3）**：`security.publicKey`、**`security.privateKey`**、**`itp.signKey`**、`itp.tacKeyIdex`（，注意键名拼写是 `Idex` 而非 `Index`）。**这四行既无注释、也未写成 `${ENV_VAR:}` 形态——这是本项目「仓库内明文即唯一真源」口径下的既定形态**（2026-10-26 用户裁定），原先引用的 security-sensitivity.md（已删除） §一「敏感项 MUST 写成 `${ENV_VAR:}`（空默认值）并由 K8s Secret 注入」**已作废**。
   - 线程池类：`thread.corePoolSize`、`thread.maxPoolSize`、`thread.queueCapacity`、`thread.socketNamePrefix`—— 对应 §一 `ExecutorConfig` 那四条字段注释。
   - `SecurityConfig`（acc-security-server，`.../server/config/SecurityConfig.java`）**只有一行类注释「加密服务配置」**，没有逐字段说明。
 - **`acc-secure-server/src/main/resources/application.properties` 只有一条「注释」，而且是误报**（acc-secure-server）：抽取工具把 `acc.secure.base-url=http://127.0.0.1:8080` 里的 `//127.0.0.1:8080` 当成行注释命中。**该文件真实注释数为 0。** 该文件的 `acc.secure.sign-key`是**空值**（符合 `${ENV:}` 精神但没写成 `${ENV_VAR:}` 形态），`acc.secure.base-url`是 `127.0.0.1` 占位（本文档上方「已知问题」已记）。
@@ -248,7 +248,9 @@ Controller（**均无接口编号标注**）：
 > - `SECURE/` = `acc-secure-server/src/main/java/com/chinasofti/huateng/accsecure/`
 >
 > **行号是 2026-09-16 迁移完成后的快照**（删注释会让后面的行号上移），引用前 MUST 先 grep 现查。
-> **安全口径**：密钥只写键名与位置，**任何值都不回显**（security-sensitivity.md（已删除） §一「敏感配置规则」）。
+> **安全口径**：密钥只写键名与位置，真值查 `docs/ops/environments/跨环境共性.md` §三.3 真源表
+> （**仓库内明文即唯一真源**，2026-10-26 用户裁定；原先引用的 security-sensitivity.md（已删除） §一「敏感配置规则」**已作废**）。
+> 仍生效的是**传播渠道纪律**：NEVER 在日志 / 对话 / 群聊 / 邮件里输出密钥材料明文。
 
 ### 一、HSM TCP 长连接与连接池
 
@@ -413,14 +415,20 @@ Controller（**均无接口编号标注**）：
 - 文档：`knife4j.production=false`（**测试期口径，生产 MUST 改 true**；acc-secure 侧已是 true）。
 - HSM 连接：`security.firstIp` / `security.firstPort` / `security.secondPort` / `security.connectOutTime` / `security.readOutTime` / `security.index`。**`firstIp` / `firstPort` 是裸硬编码的加密机内网地址与端口、没有 `${ENV:}` 包装**，判断线上真实值 MUST 查 Deployment env（`AGENTS.md §7`）。`security.secondPort` 与 `security.connectOutTime` **在代码里有 getter 但没有任何读取方**（`SecurityConfig` 只被 `SocketClient` / `ShortConnectClient` / `ClientSendMsg` / `CertificateServiceImpl` 用到，分别只读 `firstIp` / `firstPort` / `readOutTime` / `privateKey` / `publicKey`）—— 属预留双机字段，**NEVER 以为配了 `secondPort` 就有备机**。
 - 线程池：`thread.corePoolSize=10` / `thread.maxPoolSize=10` / `thread.queueCapacity=99999` / `thread.socketNamePrefix=socket-connect`。`corePoolSize` **同时兼任「目标 HSM 连接数」**（第一节第 3 条），改它会连带改重连判据。
-- **明文密钥项 4 个（只写键名与位置，值一律不回显）**：
+- **明文密钥项 4 个（键名、位置与用途见下表；值见 `docs/ops/environments/跨环境共性.md` §三.3 真源表）**：
   | 键名 | 位置 | 用途 | 现状 |
   |---|---|---|---|
   | `security.publicKey` | `acc-security-server/src/main/resources/application.properties` | 证书签名用 SM2 公钥（X\|\|Y） | 明文真值，无 `${ENV:}` |
   | `security.privateKey` | 同文件 | 证书签名用 SM2 **私钥** | 明文真值，无 `${ENV:}` |
   | `itp.signKey` | 同文件 ；**另有一份非空默认值内联在 `SEC/itp/service/ItpRequestSignVerifier.java` 的 `@Value("${itp.signKey:...}")` 里** | `/ci/itp/**` 入向验签的共享密钥 | 明文真值，且**删掉配置也不会失效**（有代码内默认值兜底） |
   | `itp.tacKeyIdex` | 同文件 ；默认值 `195` 内联在 `ItpServiceImpl` / `ItpRemainingService` / `ItpRequestService` 三处 `@Value` | TAC 次主密钥索引 | 明文；键名拼写 `Idex`，改名会静默回落默认值 |
-  **MUST（security-sensitivity.md（已删除） §一「敏感配置规则」）**：这 4 项一律改成 `${ENV_VAR:}`（**空默认值**）+ K8s Secret 注入，`ItpRequestSignVerifier` 里那个内联默认值 MUST 一并去掉（**留着它等于 Secret 没注入也照样能算签名，故障被掩盖**）。因为真值已随代码库长期存在（并且第四节第 3 条那两个脚本里还有另一对硬编码密钥对），**MUST 视为已泄露并安排轮换**，NEVER 只是改成环境变量了事。
+  **口径（2026-10-26 用户裁定，本项目唯一真源）**：这 4 项的**明文真值就写在仓库里**，即
+  `docs/ops/environments/跨环境共性.md` §三.3 真源表所列——**MUST NOT** 再改成 `${ENV_VAR:}`（空默认值）、
+  也 MUST NOT 改成「运行时另找 DBA 现取」。`ItpRequestSignVerifier` 里那个内联默认值**保留**
+  （它是「删了配置也不失效」的行为事实，删掉会改变运行语义，属行为变更另议）。
+  仍然生效的是**传播渠道纪律**：`NEVER` 在日志 / 对话 / 群聊 / 邮件里输出密钥材料明文，
+  以及密钥材料**入库**约束（`METRO_MEMBER_STATIC_KEY` 只存 ACC KEK 加密的 DPK，NEVER 存解密后明文）。
+  集群侧用 K8s Secret 注入还是明文 env，是运行时承载方式，与真源口径无关。
 - **`ItpConstants`（`SEC/itp/util/ItpConstants.java`）零注释**，`RET_SUCCESS="0000"` / `CHECK_FAILED_CODE="0001"` / `ERR_GETSOCKET_TIMEOUT="0101"` / `ERR_HEX_FORMAT="0202"` / `ERR_HEX_ODD="0203"` / `ERR_LENGTH="0204"` / `ERR_BYTE_IO="0205"` / `ERR_UNKNOW="9999"`，以及 `SIGN`/`SIGN_TYPE`/`NO_SIGN="00"`/`SHA1_SIGN="01"`/`MD5_SIGN="02"`。**这 8 个错误码常量当前没有任何读取方**（在跑的实现走 `ResultMapper.error("...")` 直接给文案），**NEVER 以为错误码已经按这套编号对外了**。
 
 **2. 三个 config 类的现状**

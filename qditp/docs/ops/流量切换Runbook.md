@@ -29,7 +29,23 @@
   → 各业务 Service
 ```
 
-`fep-app-vr` 当前 8 条前缀与落点（2026-09-16 实测，**MUST 每次现查、NEVER 引用本表当现状**）：
+`fep-app-vr` 当前 15 条 route = **7 条 SCG 精确路由 + 8 条前缀**（2026-09-16 实测前缀，**MUST 每次现查、NEVER 引用本表当现状**）：
+
+SCG 分流网关（`route-sentinel-svc:8080`）承接的 7 条 `exact`，**必须排在前缀路由之前**（istio 首条命中即止）：
+
+- `/itpbom/ci/bom/notiTakeTicketResult`
+- `/itpbom/ci/bom/notiTakeTicketFailResult`
+- `/itpbom/ci/bom/requestTakeTicketAuth`
+- `/itpbom/ci/bom/requestCardDataAnalyse`
+- `/itpbom/ci/bom/requestUpdateCardData`
+- `/itptvm/ci/tvm/requestTakeTicketAuth`
+- `/itptvm/ci/tvm/requestCardDataAnalyse`
+
+> SCG 的 `GATEWAY_ROUTE_CONFIG` 只配了这 7 条 `Path=` 谓词，其余 TVM/BOM 端点进去会 404，
+> 所以只交这 7 条给 SCG，剩余端点由下面两条前缀路由直连 `face-pay-server-svc`。
+> 这 7 条不带 `rewrite`（or 为 `/itptvm/` 同路径），路径原样透传给 SCG。
+
+8 条前缀与落点：
 
 - `/fep-app/` → `fep-app-hr32k-svc:9101`（rewrite `/`）
 - `/fep-dev/` → `fep-dev-server-748lq-svc:30009`（rewrite `/`）
@@ -40,7 +56,8 @@
 - `/itpagm/` → `fep-dev-server-748lq-svc:30009`（rewrite `/`）
 - `/para-server/` → `para-server-pufrl-svc:30026`（rewrite `/`）
 
-数组下标（`spec.http[N]`，0-based）与上面顺序一一对应：**`/itptvm/` 是 4、`/itpbom/` 是 5**。
+数组下标（`spec.http[N]`，0-based）与上面顺序一一对应：**7 条 SCG 路由占 `[4]`~`[10]`，
+`/itptvm/` 是 11、`/itpbom/` 是 12**（仓库基线 2026-10-22 起；此前是 4 / 5，加了 7 条 SCG exact 后整体后移）。
 下标会随 VS 被编辑而漂移，**MUST 每次先查、NEVER 硬记**。
 
 ## 三、标准操作四步
@@ -50,11 +67,15 @@
 ### 第 1 步：查现状并记下原值（回滚依据）
 
 ```bash
-ssh k8s-master "kubectl get vs fep-app-vr -n itp -o jsonpath='{range .spec.http[*]}{.match[0].uri.prefix}{\" -> \"}{.route[0].destination.host}{\":\"}{.route[0].destination.port.number}{\"\n\"}{end}' | cat -n"
+# 输出「match -> svc:port rewrite」；exact 行会显示空 prefix，用 awk 取 match 块第一段补全
+ssh k8s-master "kubectl get vs fep-app-vr -n itp -o jsonpath='{range .spec.http[*]}{.match[0].uri.exact}{\" | \"}{.match[0].uri.prefix}{\" -> \"}{.route[0].destination.host}{\":\"}{.route[0].destination.port.number}{\"  rewrite=\"}{.rewrite.uri}{\"\n\"}{end}' | cat -n"
+
+# 查 fep-app 对 collect-pay 的直连地址，判断 APP 域是否也要同步切换
 ssh k8s-master "kubectl get deploy fep-app -n itp -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{\"\n\"}{end}' | grep -i collectPay"
 ```
 
-输出里的行号减 1 就是 `spec.http[N]` 的下标。
+输出里的行号减 1 就是 `spec.http[N]` 的下标。注意 7 条 `exact` 行没有 `rewrite`，前缀行才有；exact 行只用于核对 SCG 精确路由是否仍指 `route-sentinel-svc:8080`。
+
 
 ### 第 2 步：patch，**必须带 `test` op**
 
@@ -63,16 +84,21 @@ ssh k8s-master "kubectl get deploy fep-app -n itp -o jsonpath='{range .spec.temp
 
 ```bash
 ssh k8s-master "kubectl patch vs fep-app-vr -n itp --type=json -p '[
-{\"op\":\"test\",\"path\":\"/spec/http/4/match/0/uri/prefix\",\"value\":\"/itptvm/\"},
-{\"op\":\"test\",\"path\":\"/spec/http/4/route/0/destination/host\",\"value\":\"face-pay-server-svc\"},
-{\"op\":\"test\",\"path\":\"/spec/http/5/match/0/uri/prefix\",\"value\":\"/itpbom/\"},
-{\"op\":\"test\",\"path\":\"/spec/http/5/route/0/destination/host\",\"value\":\"face-pay-server-svc\"},
-{\"op\":\"replace\",\"path\":\"/spec/http/4/route/0/destination/host\",\"value\":\"collect-pay-c23ku-svc\"},
-{\"op\":\"replace\",\"path\":\"/spec/http/4/route/0/destination/port/number\",\"value\":30024},
-{\"op\":\"replace\",\"path\":\"/spec/http/5/route/0/destination/host\",\"value\":\"collect-pay-c23ku-svc\"},
-{\"op\":\"replace\",\"path\":\"/spec/http/5/route/0/destination/port/number\",\"value\":30024}
+{\"op\":\"test\",\"path\":\"/spec/http/11/match/0/uri/prefix\",\"value\":\"/itptvm/\"},
+{\"op\":\"test\",\"path\":\"/spec/http/11/route/0/destination/host\",\"value\":\"face-pay-server-svc\"},
+{\"op\":\"test\",\"path\":\"/spec/http/12/match/0/uri/prefix\",\"value\":\"/itpbom/\"},
+{\"op\":\"test\",\"path\":\"/spec/http/12/route/0/destination/host\",\"value\":\"face-pay-server-svc\"},
+{\"op\":\"replace\",\"path\":\"/spec/http/11/route/0/destination/host\",\"value\":\"collect-pay-c23ku-svc\"},
+{\"op\":\"replace\",\"path\":\"/spec/http/11/route/0/destination/port/number\",\"value\":30024},
+{\"op\":\"replace\",\"path\":\"/spec/http/12/route/0/destination/host\",\"value\":\"collect-pay-c23ku-svc\"},
+{\"op\":\"replace\",\"path\":\"/spec/http/12/route/0/destination/port/number\",\"value\":30024}
 ]'"
 ```
+
+> 下标 `11` / `12` 是**仓库基线（2026-10-22 起）**的值，集群若还没同步那 7 条 SCG 精确路由，
+> 现值仍是 `4` / `5`——所以 `test` op 里那份「原值」MUST 按第 1 步现查结果填，不能照抄本示例。
+> 换了服务名的 `replace` 只动前缀兜底那两条；**7 条 SCG exact 一行不动**（它们永远指 `route-sentinel-svc:8080`，
+> 切 face-pay / collect-pay 是 SCG 内部 `legacy-route` 的 URI 该管的事）。
 
 反向（切回 face-pay）把两个 `test` 的 value 换成 `collect-pay-c23ku-svc`、两个 `replace` 换成
 `face-pay-server-svc` + `30025` 即可。**`rewrite.uri` 一律不动**（`/itptvm/` 与 `/itpbom/` 两条的
@@ -81,10 +107,10 @@ rewrite 是带前缀的，不是 `/`，改掉会让下游收到错误路径）�
 ### 第 3 步：三重验证，缺一不可
 
 ```bash
-# ① VS 读回
-ssh k8s-master "kubectl get vs fep-app-vr -n itp -o jsonpath='...' | grep -E 'itptvm|itpbom'"
-# ② envoy 实际路由表（VS 写成了不等于 envoy 已下发）
-ssh k8s-master "kubectl exec -n itp-gateway <itp-gateway-pod> -- curl -s '127.0.0.1:15000/config_dump?resource=dynamic_route_configs' | grep -o '<目标svc>[^\"]*itptvm[^\"]*'"
+# ① VS 读回（确认 7 条 exact 仍指 route-sentinel-svc:8080，2 条前缀已改）
+ssh k8s-master "kubectl get vs fep-app-vr -n itp -o jsonpath='{range .spec.http[*]}{.match[0].uri.exact}{\" | \"}{.match[0].uri.prefix}{\" -> \"}{.route[0].destination.host}{\":\"}{.route[0].destination.port.number}{\"  rewrite=\"}{.rewrite.uri}{\"\n\"}{end}' | grep -E 'itptvm|itpbom'"
+# ② envoy 实际路由表（exact 会下发成 host+path 联合匹配；前缀会下发成带前缀的 cluster 路由）
+ssh k8s-master "kubectl exec -n itp-gateway <itp-gateway-pod> -- curl -s '127.0.0.1:15000/config_dump?resource=dynamic_route_configs' | grep -o '<目标svc>[^\"]*\(itptvm\|itpbom\)[^\"]*'"
 # ③ 目标服务探活（从 k8s-master 用 NodePort，NEVER 用 svc DNS）
 ssh k8s-master "curl -s -m 8 -w '\nhttp=%{http_code}\n' http://172.20.211.23:<NodePort>/actuator/health"
 ```
@@ -129,6 +155,13 @@ ssh k8s-master "kubectl logs -n itp-gateway <itp-gateway-pod> --since=5m | grep 
   Quartz 任务），改 selector 会连带打断它们，而改路由只影响入向流量、内部链路一行不动。
 - **NEVER 用 `kubectl get vs -A` 的摘要表判断某个前缀归谁** —— 那张表只显示 name / gateways / hosts、
   **不显示 path**，据它会得出「没有 VirtualService 定义 `/itptvm`」这种错结论（2026-09-15 因此推出两版错方案）。
+- **NEVER 拿 `kubectl.kubernetes.io/last-applied-configuration` 注解当回滚源**（2026-10-22 实测）。
+  `fep-app-vr` 上那条注解只有 **1 条 route、且没有 `match`**（全量 catch-all → `fep-app-hr32k-svc:9101`），
+  是 2026-06-03 最初 `apply` 的残影；之后 7 条前缀都是 `patch` / `edit` 加的，**这两种操作不刷新该注解**
+  （`generation: 20` 即 spec 改过 20 次）。照注解 `apply -f` / `replace` 会把 8 条打回 1 条 catch-all，
+  所有前缀（含 `/itptvm/` `/itpbom/`）流量全被塞进 `fep-app`。回滚源只认两个：仓库基线
+  `deploy/k8s/30-istio-ingress.yaml`，或本 Runbook §三 的 `patch --type=json` + `test` op。
+  该注解在导出清洗脚本 `docs/ops/environments/scripts/migration/clean-ingress-yaml.py` 里本就被当噪声剥掉，不是配置真源。
 - **NEVER 不带 `test` op 直接 `replace` 下标**（下标会漂移）。
 - **NEVER 只凭「patch 成功」就认为切完了** —— 必须过第 3 步②③与第 4 步。
 - **NEVER 为了「切干净」顺手改 `rewrite.uri`**。

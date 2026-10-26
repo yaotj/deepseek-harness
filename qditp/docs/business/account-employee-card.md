@@ -1119,8 +1119,14 @@
   「**⚠️ `signKey` 仍带明文默认值，这是本轮刻意保留的既有缺陷**（用户 2026-09-11 裁定『先收成对象、真值暂不动』）。
   它违反 security-sensitivity.md（已删除） §一『敏感项 MUST 写 `${ENV_VAR:}`（空默认值）』。**上线前 MUST 改成 `${ITP_SIGN_KEY:}` 并轮换该密钥**；
   改的时候连带把 `account-server/src/main/resources/application.properties` 里的同名真值一起清掉——
-  **两处都写了真值，只改一处等于没改**」「**NEVER 把这个前缀下的键搬到别的类里用 `@Value` 再读一遍**：
-  那会让『同一个 signKey 有两个读取点』，轮换密钥时必漏一处」。
+  **两处都写了真值，只改一处等于没改**」（以上为**源码注释原文**，保留不改写）。
+  ⚠️ **口径更新（2026-10-26 用户裁定）**：上述注释所依据的 security-sensitivity.md（已删除） §一**已作废**——
+  本项目口径是「**仓库内明文即唯一真源**」，`signKey` 的明文默认值是**既定形态而非缺陷**，
+  **MUST NOT** 再改成 `${ITP_SIGN_KEY:}` 空默认值。MUST 保留的只有一条：**改密时两处真值 MUST 一起改**
+  （`ItpSignProperties` 字段默认值 + `application.properties` 的 `itp.signKey=`），真源见
+  `docs/ops/environments/跨环境共性.md` §三.3。
+  「**NEVER 把这个前缀下的键搬到别的类里用 `@Value` 再读一遍**」：
+  那会让『同一个 signKey 有两个读取点』，改密时必漏一处」。
 - **验签器用的是 fastjson 1，换库即改签名字节** —— `AccountRequestVerifier`（`<J>/service/AccountRequestVerifier.java`）：
   「**⚠️ 本类当前没有任何调用点**（ADR-D35 / ADR-D37 复核：全模块 grep 只命中 `RequestApplicationController` 的构造器参数），
   因此账户域 27 个端点全部裸暴露」「**⚠️ 本类用的是 fastjson 1（`com.alibaba.fastjson`），而 AGENTS.md §4.1「MUST 使用 Fastjson2 进行 JSON 序列化/反序列化」要求统一 Fastjson2**。
@@ -1633,6 +1639,9 @@
   违反 security-sensitivity.md（已删除） §一「敏感项 MUST 写成 `${ENV_VAR:}`（空默认值）」。**上线前 MUST 改成 `${ITP_SIGN_KEY:}` 并轮换该密钥**；改的时候连带把
   `application.properties` 里的同名真值一起清掉——**两处都写了真值，只改一处等于没改**」；
   「**NEVER 把这个前缀下的键搬到别的类里用 `@Value` 再读一遍**：那会让『同一个 signKey 有两个读取点』，轮换密钥时必漏一处」。
+  ⚠️ **口径更新（2026-10-26 用户裁定）**：上引注释里的 security-sensitivity.md（已删除） §一**已作废**——
+  本项目「**仓库内明文即唯一真源**」，`signKey` 明文默认值是既定形态，MUST NOT 再改成空默认值；
+  保留的义务只有「**改密时两处真值一起改**」，真源见 `docs/ops/environments/跨环境共性.md` §三.3。
   两处真值的位置是 `<J>/model/ItpSignProperties.java`（字段默认值）与 `application.properties` 附近的 `itp.signKey=`，
   **本文件按 security-sensitivity.md（已删除） §一「NEVER 在对话、日志、提交信息或文档中回显密钥值」只记键名与位置、不回显值**。字段语义：`providerId`「入向报文的 `providerId` **必须与之相等**」、
   `charset`「**比较时忽略大小写**」、`format`「同上」、`signKey`「摘要式验签的**盐值，拼在签名源串末尾的 `&key=` 之后**」。
@@ -2056,8 +2065,8 @@ grep 短语：`UK_UIRI_ACTIVE_USER_CARDTYPE`、`ORA-14039`、`ORA-01452`、`EXEC
   —— 本例整文件 `iconv -f GB18030` 会把第 23/24/53/62 那 4 行真正的 UTF-8 中文**打成乱码**，
   等于用一次损毁去换另一次损毁。
 - **第 5 行是一行被注释掉的 `other.sql.host` 真值**（生效值在第 7 行，是 `${DB_HOST:}`）。
-  按 security-sensitivity.md（已删除） §一「敏感配置规则」，**本文档只记键名与位置、NEVER 回显该值**；
-  要看真值请直接读该文件第 5 行，要看线上实际值 **MUST 查 Deployment 的 `other.sql.host` env**。
+  按本项目口径（**仓库内明文即唯一真源**，2026-10-26 用户裁定；原先引用的 security-sensitivity.md（已删除） §一「敏感配置规则」**已作废**），
+  **本文档只记键名与位置**；要看真值请直接读该文件第 5 行，要看线上实际值 **MUST 查 Deployment 的 `other.sql.host` env**。
   阶段二已按「陷阱 + 事实」在 §七末条记过一次这一行，**本轮不重复**，只补它被两行乱码夹在中间这个位置事实
   —— 这也解释了那两行乱码原本大概是在说明这个地址的用途（写它的人显然是想给这行真值配一段中文说明）。
 - **本轮不改这三行**（属改配置文件正文，不在「删注释」范围内）。**建议裁决**：

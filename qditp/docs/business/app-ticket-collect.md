@@ -30,6 +30,8 @@ APP 端单程票购买张数限制、票价试算、下单、请求支付、取�
 
 ⚠️ IF8A-09/10 同时被 `para-server` 与 `fep-app-server/AppParaController` 实现，IF8A-11/20 同时被 `collect-pay-server/TvmAppOrderController` 实现。定位实现 **MUST** 确认调用方实际路由到哪个服务，**NEVER** 假设编号唯一对应一处代码。
 
+> ⚠️ **历史契约注记**：以下「与 collect-pay 的分工」段落是 2026-09-16 切流前形成的契约描述。**collect-pay-server 已于 2026-10-13 随模块下线（0 pod）**：入向流量在 2026-09-16 切 face-pay，对账旧表源当日已移除（recon 现三源），`NoticeAppTask` 4 个旧表通知端点由 face-pay 逐字复刻承接且 web-admin / `fep-app` 均已切并验证（见 ADR-D116 / D117 + `docs/business/tvm-bom-pay.md`）。**以下出向目标路径若以 `/collect-pay-server/` 为前缀，皆为历史契约描述，实际运行时 face-pay-server 已承接全部业务**。判断当前链路 **MUST 现查 `service.route.mapping` 配置 + kubectl 实况**，NEVER 引用本段当现状。
+
 ## 核心类与流程
 - `service/impl/TicketCollectServiceImpl.java`（下单→支付→取票主流程集中在此）
 - `client/CollectPayClient.java`（调支付）

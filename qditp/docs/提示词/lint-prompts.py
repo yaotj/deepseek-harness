@@ -133,10 +133,12 @@ def check_broken_links(txt, rel, base=None):
         ref = m.group(1)
         if ref in _DELETED_ON_PURPOSE: continue
         # 相对路径（`../`、`./` 开头）按文档所在目录解析；
-        # 绝对式（`docs/` / `scripts/` 等仓库根级别路径）直接按根解析，避免 base_dir 拼出 `docs/ops/docs/ops/...` 假断链。
+        # 绝对式（`docs/` / `deploy/` 等仓库根级别路径）直接按根解析，避免 base_dir 拼出 `docs/ops/docs/ops/...` 假断链。
+        # `scripts/` 已于 2026-10-25 迁入 `docs/ops/environments/scripts/`，根级不再存在，故从白名单移除；
+        # 遗留根级 `scripts/` 引用会因此判为断链（正是想要的效果）。
         if ref.startswith(("../","./")):
             cand = (base_dir / ref).resolve()
-        elif ref.startswith(("docs/","scripts/")):
+        elif ref.startswith(("docs/","deploy/")):
             cand = (ROOT / ref).resolve()
         else:
             cand = (base_dir / ref).resolve()

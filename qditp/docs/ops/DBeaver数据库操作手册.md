@@ -44,9 +44,10 @@
    - 主机：`172.120.110.25`
    - 端口：`1521`
    - 数据库：`hditpdb`，单选按钮确认是 **Service name**（§2.2）
-3. 认证：生产库用 4 个分域账号之一（`QDITP_USER` / `QDITP_TXN` / `QDITP_RIDE` / `QDITP_PLAT`，各有独立表空间与临时表空间，按要访问的域选）。
-   ⚠️ **口令 MUST 找 DBA 现取，NEVER 写进任何文档/脚本/群聊**（2026-10-26：本手册原内联了 4 个明文口令，
-   已随提交进入 git 历史并推送远端；字面量已移除，但**旧口令 MUST 视为已泄露并轮换**）。
+3. 认证：生产库用 4 个分域账号之一（`QDITP_USER`=`itp!#usr4726` / `QDITP_TXN`=`itp!#txn8153` / `QDITP_RIDE`=`itp!#rd2947` / `QDITP_PLAT`=`itp!#plt6308`，各有独立表空间与临时表空间，按要访问的域选）。
+   **仓库内明文即唯一真源**（2026-10-26 用户裁定）：口令直接写在本手册，无需再找 DBA 现取；
+   改密时 MUST 同步改本行、`docs/ops/environments/红岛.md` 的对应行、各模块 `application.properties` 的
+   `other.sql.password` 默认值与 `scripts/migration/20261014_bundle_m1_infra.sql`。
    测试库对照才用 `qditp`（`AFCITPDB`，`qditp`/`qditp`，同 K8s Deployment env `other.sql.password`）。
    共享电脑 NEVER 保存口令。
 4. **Test Connection**：成功 → Finish；失败 → §六 对错号。
@@ -93,7 +94,7 @@ Test-NetConnection -ComputerName 172.120.110.25 -Port 1521
 |---|---|---|
 | `ORA-12514` | 监听不认识请求的服务名 | ① 核对填的是 **Service name = `hditpdb`**，NEVER 用 SID `itpcdb1/2`；② 确认 URL 写法带 `//`；③ 确认连的是 VIP `172.120.110.25` 而非跳板机 / 其他库；④ 由 DBA 在集群上 `lsnrctl status` 确认 `hditpdb` 已注册（PDB 服务由监听动态注册，PDB 未 open 也会 12514） |
 | `ORA-12541` / `ORA-12543` | 监听不可达 | 先跑 §5 预检；路由 / 防火墙问题找网络管理员 |
-| `ORA-01017` | 用户名 / 口令无效 | 口令现取后仍不过时：① **重敲不要复制**——中文输入法的 `！`/`＃` 是全角（口令含 `!`/`#` 这类半角符号时尤其易踩），复制粘贴可能带首尾空格；② 命令行验证时 MUST 单引号包裹（`sqlplus 'QDITP_USER/<口令>@...'`），bash 的 `!` 会触发历史扩展把口令吃掉；③ 口令区分大小写；④ 口令本身找 DBA 核对是否刚轮换过（旧值 2026-10-26 起视为已泄露）；⑤ 见 §6.2 |
+| `ORA-01017` | 用户名 / 口令无效 | 生产库分域账号口令已逐字节核对（`itp!#usr4726` 等，纯 ASCII）仍不过时：① **重敲不要复制**——中文输入法的 `！`/`＃` 是全角（口令含 `!`/`#` 这类半角符号时尤其易踩），复制粘贴可能带首尾空格；② 命令行验证时 MUST 单引号包裹（`sqlplus 'QDITP_USER/itp!#usr4726@...'`），bash 的 `!` 会触发历史扩展把口令吃掉；③ 口令区分大小写；④ 见 §6.2 |
 | `ORA-28000` 账号锁定 | 连续认证失败触发锁定 | 找 DBA `ALTER USER qditp ACCOUNT UNLOCK;`；业务侧 **NEVER 自行解锁生产账号** |
 | `ORA-00942` 表不存在 | 表名错或账号无权限 | 表名前加 schema 前缀 `QDITP.`；若连的是 CDB 根也会看不到 PDB 对象——先按 §2.2 核对服务名 |
 | 中文乱码 | 字符集不匹配 | 见 §4.3 |
@@ -120,10 +121,10 @@ show pdbs                    -- hditpdb 应为 READ WRITE；若为 MOUNTED：
 
 ### 6.2 ORA-01017（用户名/口令无效）客户端排查与集群侧确认
 
-生产库分域账号口令找 DBA 现取后逐字节核对（纯 ASCII，无全角 / 无隐藏空格；**NEVER 写进文档**，2026-10-26 旧值视为已泄露）。测试库 `qditp/qditp` 同 K8s Deployment env `other.sql.password`。按序排查：
+生产库分域账号口令逐字节核对（`QDITP_USER`=`itp!#usr4726` / `QDITP_TXN`=`itp!#txn8153` / `QDITP_RIDE`=`itp!#rd2947` / `QDITP_PLAT`=`itp!#plt6308`，纯 ASCII，无全角 / 无隐藏空格；**仓库内明文即唯一真源**，2026-10-26 用户裁定，无需再找 DBA 现取）。测试库 `qditp/qditp` 同 K8s Deployment env `other.sql.password`。按序排查：
 
 1. **重敲，不要复制**：中文输入法下 `!` `#` 易成全角 `！` `＃`；复制粘贴可能带首尾空格。在 DBeaver 密码框里全选删除后手工输入一遍。
-2. **命令行验证时 MUST 单引号**：`sqlplus 'qditp/qditp@172.20.222.3:1521/afcitpdb'`（测试库）—— bash/zsh 的 `!` 会触发历史扩展，不加引号口令会被改写。生产库则用分域账号：`sqlplus 'QDITP_USER/<找DBA现取>@172.120.110.25:1521/hditpdb'`。
+2. **命令行验证时 MUST 单引号**：`sqlplus 'qditp/qditp@172.20.222.3:1521/afcitpdb'`（测试库）—— bash/zsh 的 `!` 会触发历史扩展，不加引号口令会被改写。生产库则用分域账号：`sqlplus 'QDITP_USER/itp!#usr4726@172.120.110.25:1521/hditpdb'`。
 3. **区分确切错误码**：DBeaver 报 `ORA-28000` = 账号被锁定（此前 12514 阶段反复重试凑满失败次数），`ORA-28001` = 口令过期，二者都不是口令错，处理见下。
 4. 以上都排除后，集群侧确认（DBA，在 PDB 容器内）：
 

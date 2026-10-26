@@ -20,7 +20,7 @@
 
 **现状（2026-10-15 核实）**
 - `AccountRegistrationServiceImpl.requestApplication` 的三处失败分支均只置 `allocation = null`、**不释放**；全仓 `releaseReservation` **零生产调用点**（只剩接口声明 + 实现 + 注释）。**该禁令已被遵守。**
-- 回收任务是 `sys_job` **240「卡池数据导入」**，cron `0 0/5 * * * ?`，触发目标 `cardPoolQuartzTask.runMaintenance()`；2026-09-21 由 107「卡池维护」改名改号，**NEVER 回退成 107**（`web-quartz-card-pool-job-rename-migration.sql` / `scripts/20260909_sys_job_card_pool_maintenance.sql` 均留痕）。
+- 回收任务是 `sys_job` **240「卡池数据导入」**，cron `0 0/5 * * * ?`，触发目标 `cardPoolQuartzTask.runMaintenance()`；2026-09-21 由 107「卡池维护」改名改号，**NEVER 回退成 107**（改名改号留痕：`web-server/web-quartz/src/main/resources/sql/web-quartz-card-pool-job-rename-migration.sql`）。
 - ⚠️ `businessId` 当前格式 MUST 现查 `AccountRegistrationServiceImpl.buildAccountOpenBusinessId`：`ticketLimit=2` 走 `MULTI:<UUID>`；否则走**长度前缀键** `UNIQUE:<用户长度>:<用户><所属方长度>:<所属方>:<票种>`（支付宝侧前缀 `ALIPAY_ACCOUNT_OPEN`，ADR-D143）。旧格式 `thirdUserId + ":" + 票种` 已下线——ADR-D52 里出现的 `BUSINESS_ID='99900916:0441'` 是当时缺陷现场的旧格式留样，**不是当前态**。
 - ⚠️ 已知文档缺口：`account-server-schema.sql` 的 `TICKET_TYPE` 列注释漏了 `CARD_POOL_CONFIRM_REJECTED`（代码已在两条开户链路真实开单）。
 

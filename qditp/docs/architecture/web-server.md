@@ -867,9 +867,10 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
    `statViewServlet.enabled`、 `statViewServlet.allow`、 `statViewServlet.url-pattern`、
    `statViewServlet.login-username`、 `statViewServlet.login-password`、
    `spring.datasource.druid.filter.wall.config.multi-statement-allow`、 `token.secret`。
-  ⚠️ **这些行本身没有任何注释**，「敏感项 MUST 写成 `${ENV_VAR:}` 空默认值并由 K8s Secret 注入、
-  NEVER 写默认真值」这条判据的真实出处是 security-sensitivity.md（已删除） §一「敏感配置规则」，不是源文件注释。
-  本节按要求只记键名与行号，**不回显值**。
+  ⚠️ **这些行本身没有任何注释**。「敏感项 MUST 写成 `${ENV_VAR:}` 空默认值并由 K8s Secret 注入、
+  NEVER 写默认真值」这条判据的原出处是 security-sensitivity.md（已删除） §一「敏感配置规则」，**该判据已作废**——
+  本项目口径是「**仓库内明文即唯一真源**」（2026-10-26 用户裁定），这些行是**既定形态而非缺陷**，MUST NOT 清空默认值。
+  值见 `docs/ops/environments/跨环境共性.md` §三.3 真源表；本节只记键名与位置。
 - 【契约】**主/从数据源与 Druid 连接池的分节位置**（`application.properties`「用户配置」、
   「主库数据源」、（一行乱码占位注释，原文为连续问号，疑似编码损坏，见文末无把握清单）、
   「从库数据源」、「Druid连接池配置」、「Druid监控配置」、「Swagger配置」、

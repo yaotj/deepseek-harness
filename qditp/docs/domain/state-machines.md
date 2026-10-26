@@ -5,13 +5,15 @@
 
 ## 一、在跑的状态机清单
 
-| # | 状态机 | 载体 | 状态取值 | CAS | 白名单 | 枚举 |
+| # | 状态机 | 载体 | CAS | 白名单 | 枚举 | detail 指针 |
 |---|---|---|---|---|---|---|
-| 1 | 解约请求 | `APP_TERMINATION_REQUEST.TERMINATION_STATUS` | `PENDING` / `SCANNING` / `SUCCESS` / `FAILED` | ✅ 7 条 | ✅ 枚举 + mapper XML 注释 | ✅ `model/domain/TerminationStatus`，经 `TerminationStatusTransition` 接线（ADR-D47） |
-| 2 | 解约通知 | 同表 `NOTIFY_STATUS` + `NOTIFY_RETRY_COUNT` | `PENDING` / `SUCCESS` / `FAILED` | 部分 | 部分 | ❌ |
-| 3 | 账户有效性 | `USER_ITP_REG_INFO.DEL_YN` | `1`=有效 / `0`=已注销（**极性反直觉**）；DDL 允许 NULL，**NULL 是幽灵态** | ✅ | ✅ | **刻意不加**（见已知缺口） |
-| 4 | 通道签约 | `APP_PAY_SIGN_INFO.SIGN_STATUS` | `NOT_SIGNED` / `SIGNED` / `UNSIGNED` / `FAILED` | ✅ 4 条 | ✅ 写在 mapper XML 注释里 | ✅ `model/domain/SignStatus`，经 `SignStatusTransition` 接线 |
-| 5 | 对账批次 | `RECON_BATCH.STATUS` 等 5 个枚举 | 8 态线性图 | ✅ | ✅ | ✅ **全仓唯一 0 字面量的模块** |
+| 1 | 解约请求 | `APP_TERMINATION_REQUEST.TERMINATION_STATUS` | ✅ 7 条 | ✅ 枚举 + mapper XML 注释 | ✅ `model/domain/TerminationStatus`，经 `TerminationStatusTransition` 接线（ADR-D47） | `docs/business/dictionary-detail.md` §5.6 |
+| 2 | 解约通知 | 同表 `NOTIFY_STATUS` + `NOTIFY_RETRY_COUNT` | 部分 | 部分 | ❌ | — |
+| 3 | 账户有效性 | `USER_ITP_REG_INFO.DEL_YN` | ✅ | ✅ | **刻意不加**（见已知缺口） | `docs/business/dictionary-detail.md` §5.9「员工卡状态」（本表 `DEL_YN` 逻辑极性与 detail 反向：`1`=有效、`0`=注销） |
+| 4 | 通道签约 | `APP_PAY_SIGN_INFO.SIGN_STATUS` | ✅ 4 条 | ✅ 写在 mapper XML 注释里 | ✅ `model/domain/SignStatus`，经 `SignStatusTransition` 接线 | `docs/business/dictionary-detail.md` §5.4 |
+| 5 | 对账批次 | `RECON_BATCH.STATUS` 等 5 个枚举 | ✅ | ✅ | ✅ **全仓唯一 0 字面量的模块** | `docs/business/dictionary-detail.md` §6.1 |
+
+> ⚠️ **状态取值明细是 detail 的事**：本表只记「载体 + CAS + 白名单 + 枚举 + 指向 detail 哪个 §」；每个状态机的具体码值 ↔ 中文映射 go to `dictionary-detail.md` §5.x（状态机类）或 §6.x（recon）。两处分叉是文档腐烂的高发区，**NEVER 在这里再列一遍取值**。
 
 **参考实现优先级：`recon-server/src/main/java/com/chinasofti/huateng/recon/model/ReconBatchStatus.java`（枚举写法）+ `pay-sign-server/src/main/resources/mapper/AppTerminationRequestMapper.xml`（CAS 写法与注释密度）。新写状态机 MUST 照抄这两处。**
 

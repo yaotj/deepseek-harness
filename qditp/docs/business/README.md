@@ -41,6 +41,8 @@
 | 公共能力（黑名单 / 密钥 / 参数） | [common-services.md](common-services.md) | blacklist-server, key-server, para-server |
 | 安全服务与加密机 | [security-hsm.md](security-hsm.md) | acc-security-server, acc-secure-server |
 | ACC 编码设备与文件传输 | [acc-es-file.md](acc-es-file.md) | acc-es-server |
+| 码值字典（全仓盘点 + 排查速查）| [dictionary-inventory.md](dictionary-inventory.md) / [dictionary-detail.md](dictionary-detail.md) | 跨模块（model / pay-sign / collect-pay / gate-txn / face-pay / account / recon / acc-es 等）——inventory 是索引（散点分布+痛点），detail 是全量码值↔中文↔落库列速查手册；**码值全集以枚举类 / SQL 为准，本文件是镜像，改码值后 MUST 同步** |
+| 第三方渠道对账（TXNDIFF，与 ACC 对账并列）| [recon-thirdparty.md](recon-thirdparty.md) | recon-server 消费面；源在 gate-txn-pay / daily-ticket / face-pay 三类第三方账单 |
 | 综合管理后台 | [admin-web.md](admin-web.md) | web-server, web |
 | **超时处理（超时费 / 超时扣次 / 超时补收）** | [overtime-handling.md](overtime-handling.md) ⚠️ **本篇是待实现契约、不是现状** | ticket-server, daily-ticket-server, gate-txn-pay-server, para-server, pay-sign-server |
 
@@ -50,6 +52,8 @@
 
 | 事实簇 | 唯一权威文档 |
 |---|---|
+| 码值/状态取值速查 | [dictionary-detail.md §十「排查速查索引」](dictionary-detail.md#十、排查速查索引-按载体列反查)（全量码值↔中文，wiki 内可直读） |
+| 码值/状态取值速查 | [dictionary-detail.md §十「排查速查索引」](dictionary-detail.md#十、排查速查索引-按载体列反查)（全量码值↔中文，wiki 内可直读） |
 | `sys_job` 清单 / cron / 任务编号、`gate-txn-pay` 7 个内部端点、模块内 `@Scheduled` 现状 | [`docs/architecture/web-server.md`](docs/architecture/web-server.md) §七（含 §7.0 端点表、§7.0.1 `@Scheduled` 实测表） |
 | tracing 开关「三行成组」、已打开的模块名单、「MUST 同时查 Deployment env」判据 | [`docs/architecture/common-components.md`](docs/architecture/common-components.md) §3.1.2 |
 | 用户报 bug 时如何用 traceId / VictoriaLogs 排查入口服务链路、管理范围边界、常见无 traceId 原因 | [`docs/ops/入口服务链路排查规范.md`](docs/ops/入口服务链路排查规范.md) |
@@ -67,15 +71,6 @@
 
 ## 尚未落地的需求（`docs/` 有规格、代码无实现）
 
-- **数字人民币硬钱包（IF1A-06 ~ IF1A-12，共 7 个；规格原文里没有 IF1A-05）**：仅 collect-pay-server 的支付方式枚举里有 e-CNY 字样，无业务实现、无表。已实现的 IF1A 只有 01/02/03/04（闸机检票、密钥同步、设备心跳、票卡状态查询），与硬钱包无关。这 7 个**不在同一个模块**，按 URL 前缀分两组，**估算工作量或设计扩展点前 MUST 先按这条分组**：
-  - **只有 2 个进 `fep-dev-server`**（AGM 前缀 `/itpagm/ci/agm/**`）：IF1A-06 `requestEncyWalletStatus`（钱包状态获取）、IF1A-07 `ecnyWalletTranUpload`（行程上传）。
-  - **其余 5 个是 BOM 前缀 `/itpbom/ci/bom/**`，真实归属 `face-pay-server`**（`controller/ci/bom/BomOrderController.java`）：IF1A-08 `requestEcnyArrears`、IF1A-09 `requestEcnyNoCashOrder`、IF1A-10 `requestPayment`、IF1A-11 `ecnyCashNotice`、IF1A-12 `requestEcnyRetry`。**NEVER 因为编号是 IF1A 就认为它们进闸机前置。**
-  - **IF1A-10 的 URL `requestPayment` 与已在跑的 IF8A-05 完全撞名**（同模块同前缀）。照规格直接实现会**抢占一个在跑的端点**，**MUST 先向甲方澄清**是复用还是另起 URL。
-  - 另有 IF2A-01 / IF2A-09 需加 `payType`（`0` 其他 / `1` 数字人民币 app），落 TVM 域，不在上面两组内。
-  - 规格原文 `docs/接口规范文档/数字人民币钱包无电无网乘车接口-V2.docx` 自身版本号不自洽（封面 V1.9、变更记录只到 1.8、文件名 V2），引用条款前 **MUST** 确认手上是最新版。详见 ADR-D75。
-- **ACC 对账文件**：`ITP.EXP` / `ITP.PAY` / `ITP.BUS` / `ITP.DETAIL` 四类文件的抽取、聚合与 FTP 投递链路**已落地**（recon-server + gate-txn-pay / daily-ticket / **face-pay 三个源服务**——collect-pay 旧表源 2026-10-13 移除，见 [recon.md](recon.md)），**行格式已按甲方规格原文 `docs/接口规范文档/ACC与ITP之间的文件.docx` §一 落地，2026-09-11 完成返工**（**「甲方规格缺失、格式是自定义 v1」是已被纠正的错误结论，NEVER 再这样写**）。未闭合项：**端到端已于 2026-09-11 在测试环境实跑通过**（recon-server 1.0.10 + web-admin 1.1.17：`sys_job` **225「给ACC上传扣费交易」** → `POST /internal/recon/daily/run` → 批次 `RECON20260909` 收口 `SUCCESS`，`RECON_BATCH_FILE` 四行全 `UPLOADED`），**但仍无单元测试**；四张 `RECON_*` 表与 `IDX_DAILY_TICKET_ORDER_RECON` **已在唯一目标库 `AFCITPDB` 建好并回查验证**（`IDX_TRAVEL_TICKET_ORDER_RECON` 已废弃、不再需要）——；共享存储（ReadWriteMany PVC）与单副本约束未落地；`X-Recon-Token` 鉴权已按 2026-09-11 要求整段删除，属**有意为之的临时降级，上线前 MUST 恢复**；甲方文档自身多处歧义待澄清、数据侧多处字段恒 0（**旅游票对账口径已于 2026-09-22 按主单修正**：`ReconExportMapper.selectTravelTicketPaySummary` 取主单 `TRAVEL_TICKET_ORDER`（`PAY_STATUS='PAID'` + `PAY_DATE` 窗口），张数 `SUM(TICKET_COUNT)`、金额 `SUM(NVL(PAY_AMOUNT, TOTAL_AMOUNT))`、支付方式段填 `PAY_CHANNEL_CODE`； —— 实测旅游票就是主单聚合支付一次（回调走 `TRAVEL_TICKET_ORDER` 分支）、主单 `PAY_STATUS` 是回写的，反倒是子单恒不回写；按子单那版查询恒返 0 行 ⇒ 旅游票在 `ITP.PAY` 里自上线起一直无数据，属当日修复的真缺陷）。**逻辑卡号文件对账仍无实现**；`acc-es-server` 的 FTP 只做编码设备任务与报告文件。
-- **技术规范第 4 部分 0x2001~0x9004 系统级报文**：无实现。仓库中唯一的二进制报文服务是 acc-es-server Netty 的 `7000~7005`。
-- **IF5A HCE 相关**：仅有 `requestCardDataAnalyse` / `requestUpdateCardData` / `notiUpdateHceData` 三个入口，票卡分析链路不完整。
-- **琴岛通对账（四方对账工作簿）**：琴岛通 2026-10-15 发起《对账.xls》四表对账需求（消费 / 充值 / 互联互通 / 互联网支付）。**代码零实现、未立项**，评估结论与待确认项见 [recon-qdt.md](recon-qdt.md)，跟踪见 `docs/tracking/IT-013`。接此需求 **MUST 先读评估文档，NEVER 声称可复用现有对账实现直接对齐**——现有 recon-server 只覆盖「ITP→ACC 四类文件」与「ITP↔第三方渠道账单」，无琴岛通上传通道、无结算 / 可疑 / 调整台账、无互联互通与 Apple Pay 产品数据。
+详见 [未落地需求.md](未落地需求.md)（数字人民币硬钱包 IF1A-06~12 / 0x2001~0x9004 系统级报文 / IF5A HCE 补全 / IF8B §3.64 / 超时处理 / ACC 对账文件 / 琴岛通对账）。**接这类需求 MUST 先读它，NEVER 声称可复用现有实现**。
 
 接到上述需求时 **MUST** 先向用户确认是否为新建功能，**NEVER** 假设已有代码可复用。

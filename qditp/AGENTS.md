@@ -92,7 +92,9 @@
 
 **发布 / 滚更 / 版本切换**：读技能 `qditp-deploy-release`，按六步流程执行（bump → 出 jar → scp → build-push → 滚更 → digest 比对）。
 
-**镜像构建位置（MUST）**：**NEVER 在本机跑 `docker buildx` 构建 x86/amd64 镜像**——本机是 Apple Silicon，模拟构建慢、单层与缓存产物动辄数 GB，会迅速吃满本地磁盘；镜像 MUST 放到 k8s-master 上构建推送，本机职责到「出 jar + scp」为止。
+**镜像构建位置（MUST）**：**NEVER 在本机跑 `docker buildx` 构建 x86/amd64 镜像**——本机是 Apple Silicon，模拟构建慢、单层与缓存产物动辄数 GB，会迅速吃满本地磁盘。本机只出 jar，镜像 MUST 由远端产出，入口统一 `docs/ops/environments/scripts/itp-ops.sh`：
+- **测试环境**：`k8s deploy <服务> --yes`——scp jar 到 `k8s-master:/home/java`，由远端 `build-push.sh` 构建推送（Harbor 项目 `itp`）。
+- **红岛生产**：`--env hongdao cloudos image build <模块> <版本> --yes`——本机只传 jar + Dockerfile，由平台 x86 构建节点打镜像（项目 `itpb`）；红岛跳板 `hd-linux` 无 `/home/java` 构建目录，**`k8s` 域 NEVER 用于红岛**。
 
 **生产红线（MUST，缺一不可）**：
 - **二次确认**：发布任务 MUST 显式确认是测试还是生产（前置判据第 2 步）；生产发布 MUST 二次确认 + 灰度 / 回滚预案（单副本模块按服务逐个滚更，不做金丝雀分流）。

@@ -113,6 +113,8 @@ com.chinasofti.huateng.ticket
 `08` 20 分钟内免费更新 / `09` 20 分钟内付费更新 / `10` 入站码更新 /
 `70` 异常 / `80` APP 自助补出站 / `81` APP 自助补进站 / `FF` 进站失败
 
+> **全集见** `docs/business/dictionary-detail.md` §5.1「QR 码车票状态机」。注意 `GATE_TXN_PAY.TICKET_STATUS`（04=进站失败 / 05=已进站）**与这份不同源**（见 `gate-txn-pay.md` §状态字典冲突），跨表联查 MUST 显式转换，NEVER 互换。
+
 辅助判定：`isClosedLoop()`（02/05/06/80）、`isOpenLoop()`（04/81）。
 
 ⚠️ **状态字典不同源**：`GATE_TXN_PAY.TICKET_STATUS` 的建表注释写"04 进站失败、05 已进站"

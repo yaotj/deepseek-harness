@@ -100,6 +100,9 @@
 
 ## 状态字典冲突
 `GATE_TXN_PAY.TICKET_STATUS` 注释为"04 进站失败、05 已进站"，与 `QRCodeStatusEnum`（04 已进站、FF 进站失败）**不同源**。
+
+> **QRCodeStatusEnum 权威清单见** `docs/business/dictionary-detail.md` §5.1「QR 码车票状态机」。
+
 跨表联查或迁移数据时 **MUST** 显式转换，**NEVER** 假设两处状态值可互换。
 
 ### `DEBIT_STATUS` 有三套并存口径，勿互相校验
@@ -184,7 +187,7 @@
 - **IF8A-26 目前没有身份认证**（2026-09-14 用户裁决：与 recon 的 `X-Recon-Token` 降级同款处理，本轮不接验签、记入本文件与上线核对清单）。`thirdUserId` 由客户端上送，`validateOrigOrders` 只做「列表内各单归属彼此一致」的自洽校验，**不是认证**：拿到别人的 `GATE_TXN_PAY.ORDER_NO` 即可给他人欠费建单，并经 `isCoveredByPendingSupplement` 阻断对方的免密扣款重试。这与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」冲突，**上线前 MUST 接入 `ItpRequestSignVerifier` 或同款验签，NEVER 自造签名逻辑**。
 - **两个配置开关按 2026-09-14 裁决保持现状，改前 MUST 复核风险**：`supplement.strict-amount-check` 置 false 会跳过「`price` 与原订单合计相等」的校验（落库与收银台收的是 `sumAmount`，两者不符时乘客付的钱与展示金额不一致）；`supplement.max-order-count` 默认 200，意味着 `settleOrigOrders` 最多在请求线程上串行跑 400 条 SQL，在虚拟线程 + ojdbc8 `synchronized` 下有 pin 风险，要缓解 **MUST** 调小它或把收敛整体交给扫表任务，**NEVER** 在 `settleOrigOrders` 里加事务
 - 涉及扣款金额与免密代扣的改动 **MUST** 提示人工复核资金安全
-- 相关迁移脚本参考 `scripts/20260821_pay_txn_detail_data_migration.sql`
+- 相关列（`PAYMENT_VENDOR` / `REQUEST_SIGN_SEQ`）定义见基线 `docs/ops/environments/scripts/migration/20261017_schema_txn.sql`（2026-08-21 一次性补录已执行完毕，NEVER 重跑）
 - **联机查询 MUST 带 `TXN_DATE` 下限**：不带就要扫全部月分区，而一条慢 SQL 会长时间阻塞请求线程（历史全服务 `spring.threads.virtual.enabled=true` 时更会 pin 住载体线程，2026-10-20 起已禁用，约束仍保留；见 `docs/architecture/runtime-observability-traps.md` §3「NEVER 在请求线程上做长时间阻塞的 DB / IO」）。`countUnsettledOrderByCardId` 是唯一例外，它是每天两次的批处理，**NEVER** 把它挪到联机链路
 - **只读统计接口的兜底方向**：查询未执行时（参数缺失、异常）`retCode` 返回非 `0000`、数量给 0，调用方 **MUST** 先判 `retCode`；这与 `hasFailedOrder` / `hasUnsettledOrderByCard` 的「查不到就返回 true」相反——那两个是放行判定（宁可拦住），IF8A-35 只用于 APP 展示，**NEVER** 拿它替代过闸或解约链路各自的欠费校验
 - **`GATE_TXN_PAY` 两个中文站名列的 owner 在本模块，谁改编码谁改名**（2026-09-15 / ADR-D83）。`ENTRY_STATION_NAME` / `EXIT_STATION_NAME` 由 `station/StationNameBackfiller.backfill(order)` 按**落库前最终的** `IN_STATION` / `OUT_STATION` 回填，取数走 `FareDataGateway.resolveStationNamesQuietly`（复用本模块已有的 `@EnableRpcPara` / `service.para.url`，没有新增接线）。**两个调用点 MUST 同批看齐**：`GateTxnPayServiceImpl.requestPay` 算价之后、`OfflineFareRecoveryServiceImpl` 重算之后且 `applyOfflineFareRecalculated` 之前；`updateOfflineFareRecalculated` 的 SET 里 **MUST** 含这两列。**NEVER 把回填挪到算价之前**——离线码的进站码是 `FareCalculator` 事后按 `cardId + ticketTransSeq` 重查覆盖的，早于它就是拿占位 `FFFF` 或上一趟行程的站码去查名。**NEVER 把查不到的站名写成空串或 null**（保留上游值即可，覆盖成空会让列表退回显示站点编码）。ticket-server 的 `GateTxnPayRequestAssembler.fillStationNames` **保留作兜底、NEVER 删**。
@@ -405,7 +408,7 @@
 
 **【陷阱】对账窗口横跨两个 `yyyyMMdd`，只传一个日期会丢掉窗口后半段**（`mapper/ReconExportMapper.java`；`resources/mapper/ReconExportMapper.xml`）：窗口是 T-2 02:00 到 T-1 02:00；`TXN_DATE` 区间两端闭负责分区裁剪、`OUT_TIME` 区间**左闭右开**保证相邻两天既不漏也不重。`OUT_TIME` 是 `VARCHAR2` 存 `yyyyMMddHHmmss`，直接做字符串比较，**NEVER 套 `TO_DATE` 之类的函数**，那会让索引的 `OUT_TIME` 前缀失效。
 
-**【陷阱】EXP 口径必须排除 `'0'`，否则汇总与明细对不平**（`resources/mapper/ReconExportMapper.xml`）：`ORDER_EXP_TYPE` 的 `'0'` 就是「正常」（`scripts/20260818_if8a_schema_migration.sql`），而甲方「订单异常类型」取值域是 1~15、不含 0。`'0'` 既不是 NULL 也不是空格，原来的 `IS NOT NULL AND <> ' '` 会把**全部正常订单**捞进单边账文件，同时让第 18/19 段与第 12/13 段「过闸笔数/金额」逐字重复，ACC 侧把同一笔既算过闸收入又算单边账、必然对不平 —— **2026-09-11 端到端实测确认（EXP 3 行全是误报）**，故新增 `'0'` 排除。空格判定也是必须的：Oracle 里长度为 0 的字符串等于 NULL，但历史数据可能写入单个空格表示「无异常」，只判 `IS NOT NULL` 会让 EXP 文件虚增。本查询 **NEVER 加 `DEBIT_STATUS` 条件**：单边账的本质就是扣费链路没走完，按 `SUCCESS` 过滤等于把要报的行全部滤掉。两处口径抽成公共片段 `Recon_Exp_Filter` 是为了让它们**无法漂移**。**我方列注释取值域（0 正常 … 5 双段计费超时）与甲方 1~15 并不一致，映射关系待甲方澄清，NEVER 自行折算**（`mapper` 侧同一约束见 `service/ReconExportService.java`：猜错会把超时行程报成自主补站、账目性质完全变了）。
+**【陷阱】EXP 口径必须排除 `'0'`，否则汇总与明细对不平**（`resources/mapper/ReconExportMapper.xml`）：`ORDER_EXP_TYPE` 的 `'0'` 就是「正常」（列注释见 `gate-txn-pay-server/src/main/resources/sql/gate-txn-pay-schema.sql`），而甲方「订单异常类型」取值域是 1~15、不含 0。`'0'` 既不是 NULL 也不是空格，原来的 `IS NOT NULL AND <> ' '` 会把**全部正常订单**捞进单边账文件，同时让第 18/19 段与第 12/13 段「过闸笔数/金额」逐字重复，ACC 侧把同一笔既算过闸收入又算单边账、必然对不平 —— **2026-09-11 端到端实测确认（EXP 3 行全是误报）**，故新增 `'0'` 排除。空格判定也是必须的：Oracle 里长度为 0 的字符串等于 NULL，但历史数据可能写入单个空格表示「无异常」，只判 `IS NOT NULL` 会让 EXP 文件虚增。本查询 **NEVER 加 `DEBIT_STATUS` 条件**：单边账的本质就是扣费链路没走完，按 `SUCCESS` 过滤等于把要报的行全部滤掉。两处口径抽成公共片段 `Recon_Exp_Filter` 是为了让它们**无法漂移**。**我方列注释取值域（0 正常 … 5 双段计费超时）与甲方 1~15 并不一致，映射关系待甲方澄清，NEVER 自行折算**（`mapper` 侧同一约束见 `service/ReconExportService.java`：猜错会把超时行程报成自主补站、账目性质完全变了）。
 
 **【陷阱】对账三处「本表无对应数据」按空值/0 输出，NEVER 拿别的列顶替**（`service/ReconExportService.exportExp`，`service/ReconExportService.java`）：**进站设备编码** —— 本表只有一个 `DEVICE_ID`、语义是出站设备，**NEVER 拿它同时填进站设备**，那会让 ACC 侧把出站闸机当成进站闸机对账；**出站处理设备类型** —— 本表无该列；**优惠金额** —— 固定 `0`，本表唯一形似优惠的列 `DISCOUNT_LEVEL_AMT` 语义是「命中的累计金额门槛」（`entity/GateTxnPay.java`）、不是优惠额本身，且生产数据大面积为 NULL，属不可靠列、取值口径待甲方确认（BUS 优惠段同理）。**实际扣款金额同样取 `TOTAL_AMOUNT`**：本表没有独立的实收列，「应扣」与「实扣」在库里是同一个值，**两段同值是有意的、不是复制粘贴错误**。
 
@@ -542,7 +545,7 @@
 
 **【契约】`InternalMicroHttp` 的日志级别被本模块单独压到 WARN，理由是令牌明文**（`application.properties`）：「`InternalMicroHttp` 会把整个请求头 Map 直接打进 INFO 日志，其中包含内部令牌 `X-Recon-Token` 的明文。公共构件 `resource/micro` 不改，改这里把该 logger 压到 WARN，避免令牌落进日志文件与日志采集。」**这行是「令牌鉴权恢复后仍然有效的防线」**，即便当前 `X-Recon-Token` 已删；**NEVER 因为「令牌都没了」把这行删掉**（恢复鉴权时会立刻又开始泄露）。
 
-**【契约】数据库连接与分页走 `other.sql.*`，本模块单数据源**（`application.properties`）：`other.sql.double-datasource=false`、`type=oracle`、`page.type=oracle`，`DB_HOST` 默认 `172.20.222.3:1521`、`DB_NAME` 默认 `AFCITPDB`，账号口令走 `${DB_USERNAME:}` / `${DB_PASSWORD:}` 形态（**默认值是真值、属 security-sensitivity.md（已删除） §一「敏感配置规则」的例外现状，本轮只记录不改**）。`mybatis.mapper-locations=classpath*:mapper/*.xml`—— 新增 mapper XML **MUST** 放 `resources/mapper/` 下，放别处静默不加载。
+**【契约】数据库连接与分页走 `other.sql.*`，本模块单数据源**（`application.properties`）：`other.sql.double-datasource=false`、`type=oracle`、`page.type=oracle`，`DB_HOST` 默认 `172.20.222.3:1521`、`DB_NAME` 默认 `AFCITPDB`，账号口令走 `${DB_USERNAME:}` / `${DB_PASSWORD:}` 形态（**默认值是真值——这正是本项目「仓库内明文即唯一真源」口径下的既定形态**，2026-10-26 用户裁定；原先引用的 security-sensitivity.md（已删除） §一「敏感配置规则」**已作废**）。`mybatis.mapper-locations=classpath*:mapper/*.xml`—— 新增 mapper XML **MUST** 放 `resources/mapper/` 下，放别处静默不加载。
 ### 十、sql 脚本与月分区表（7 个脚本，阶段一未涉及）
 
 **【陷阱】`DISCOUNT_CALC_STATUS` 列宽 16 → 32 那次是「最后防线 100% 失效」**（`sql/gate-txn-pay-discount-calc-status-widen-migration.sql`）：`saveOfflineFarePendingOrder` 写入的 `'OFFLINE_FARE_PENDING'` 是 **20 字符**，而列原为 `VARCHAR2(16 CHAR)` ⇒ 整条 INSERT 被 Oracle 拒（`ORA-12899 ... 实际值: 20, 最大值: 16`），后果是「落单留痕待补偿」这条最后防线全废：**本次出站在 `GATE_TXN_PAY` 零痕迹**，而补偿靠 `DEBIT_STATUS='INIT' AND DISCOUNT_CALC_STATUS='OFFLINE_FARE_PENDING'` 扫表，行都没落进去、**永远扫不到、无法自愈**。实测样本：卡号 …095 在 18:28:44 与 18:30:23 两笔离线码出站，闸机侧已放行（ticket-server 返 `0000`、`QRCODE_STATUS` 已推进 `81 → 05`），但 `GATE_TXN_PAY` 当日 0 行。**为什么改列宽而不改常量**：那个字面量在 `GateTxnPayMapper.xml` 有 3 处硬编码 WHERE（； 的 SET 是参数、不含字面量），改常量要同步 3 处 WHERE + Java 写入点，「漏一处即『重算捞不到』或『重算完状态对不上』」；加宽列**不改代码、不重建镜像、不重启、对已有数据无损**。回查实测 `CHAR_LENGTH=32 / DATA_LENGTH=64`。**回退语句仅在本列无超过 16 字符的数据时才能成功，NEVER 在已产生 `OFFLINE_FARE_PENDING` 后回退。**
@@ -581,7 +584,7 @@
 | 9 | properties：`wallet.metro-transfer-enabled` 默认 **true**（2026-09-17 / 2.0.90 起，ADR-D134；**此前是 `false`，NEVER 回退**） | 阶段一记「2.0.77 起该开关等于『本功能是否启用』，关闭期间连任务都不建」 | `application.properties`；`service/impl/MetroTransferPushTaskProcessor.java` | 两条合起来才是完整事实：**开启是常态、关闭需要显式注入 `WALLET_METRO_TRANSFER_ENABLED=false`**。之所以翻默认值：此前线上仅靠手工 `kubectl set env` 兜着（2026-09-17 现查 Deployment 里根本没这个 env、跑的是 jar 内 `false`），**一次 apply Deployment 就会静默回落、只留一行 INFO「本单不建推送任务」**。判断线上是否开启仍 **MUST 查 Deployment env**，但**默认值已站在「更容易被发现」那一侧** |
 | 10 | properties：钱包累计查询实测 `{"thirdUserId":"00522943"}` → `totalAmt=0` | 该用户我方有 8 笔扣费，**`0` 是不是真值未确认** | `application.properties` | 向接口方确认口径（是否只统计某类交易 / 是否按渠道隔离）。**未确认前 NEVER 把 `totalAmt` 当作对账依据**，它只喂折扣档位命中 |
 | 11 | properties：公交卡推送改对地址后仍返 `retCode=1002`「接收地铁交易数据失败null」 | 链路已通、**对端业务侧仍在拒**；三种报文形态回的完全一样 | `application.properties` | 属**外部依赖未闭合**，已请接口方查服务端异常栈。**NEVER 在我方改报文结构去试**（阶段一同款结论）；换乘推送上线判据 MUST 是对端返 `0000` |
-| 12 | `DB_USERNAME` / `DB_PASSWORD` 写了**默认真值** | security-sensitivity.md（已删除） §一「敏感配置规则」要求敏感项写 `${ENV:}` 空默认值由 Secret 注入 | `application.properties` | 上线前 MUST 清空默认值。本轮只记录（改配置属改运行时行为，且与本轮「只写 docs」约束冲突） |
+| 12 | `DB_USERNAME` / `DB_PASSWORD` 写了**默认真值** | security-sensitivity.md（已删除） §一「敏感配置规则」要求敏感项写 `${ENV:}` 空默认值由 Secret 注入 | `application.properties` | ✅ **已作废（2026-10-26 用户裁定）**——本项目口径是「**仓库内明文即唯一真源**」，默认真值是既定形态，**MUST NOT 清空**；该判据随之作废。仍生效的是**传播渠道纪律**（NEVER 在日志 / 对话 / 群聊 / 邮件里输出明文）。改密时 MUST 同步 `application.properties` 与 `docs/ops/environments/跨环境共性.md` §三.1 真源表 |
 ### 墓碑清单（阶段二新增，与阶段一那 25 条不重复）
 
 > 「墓碑」= 唯一作用是**禁止把某个已迁走 / 已废弃 / 已实测错误的东西加回来**，不承载正向知识。
