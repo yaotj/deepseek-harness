@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.qd</groupId>
   <artifactId>route-sentinel</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
   <name>route-sentinel</name>
   <description>青岛地铁 ITP 用户分流透明网关（SCG Web MVC 版）</description>
   <parent>
@@ -15,7 +15,7 @@
     <relativePath/>
   </parent>
   <properties>
-    <java.version>25</java.version>
+    <java.version>21</java.version>
     <spring-cloud.version>2025.1.2</spring-cloud.version>
     <ojdbc.version>21.23.0.0</ojdbc.version>
   </properties>
