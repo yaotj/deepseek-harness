@@ -21,7 +21,7 @@
         <java.version>21</java.version>
         <scope.compile>compile</scope.compile>
         <scope.test>test</scope.test>
-        <web.version>2.1</web.version>
+        <web.version>2.0</web.version>
         <sql-datasource.version>2.0</sql-datasource.version>
         <mybatis-adaptor.version>2.0</mybatis-adaptor.version>
         <rpc.version>2.0.1</rpc.version>
