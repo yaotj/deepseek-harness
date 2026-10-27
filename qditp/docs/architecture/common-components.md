@@ -125,7 +125,7 @@ route/URLDynamicRouter           （动态路由辅助类，不是 Client）
 
 ### 3.1.1 web 的日志构件（含 VictoriaLogs 推送）
 
-日志栈是 log4j2（`starter-log4j2` + `log4j-layout-template-json`，logback 已被排除；只有 `web-server/web-admin` 例外用 logback）。相关类与资源全在 `web` 子构件内：
+日志栈是 log4j2（`starter-log4j2` + `log4j-layout-template-json`，logback 已被排除；web-admin 目录里的 RuoYi `logback.xml` **不生效**——`micro.web` 带 starter-log4j2、Boot 检测到 log4j2-core 即选 Log4j2LoggingSystem，2026-09-08 经 `log4j2-web-admin.xml` 实测上报成功可证）。相关类与资源全在 `web` 子构件内：
 
 | 类 / 资源 | 作用 |
 |---|---|
@@ -137,9 +137,9 @@ route/URLDynamicRouter           （动态路由辅助类，不是 Client）
 
 `VictoriaLogsAppender` 的关键约束（改动前必读）：
 
-- **类存在 ≠ 启用**。log4j2 只在配置里出现 `<VictoriaLogs>` 元素时才实例化插件，未声明的模块不起线程、不发请求，零影响。**2026-09-08 起公共 `log4j2-linux.xml` 已声明它**，因此全部走公共配置的服务都具备上报能力，但**是否真的上报取决于有没有注入 `VLOGS_URL`**（未注入 = appender 自动禁用）。`pay-sign-server` 仍用自己的 `log4j2-paysign.xml`（`logging.config` 指向它 ⇒ `CustomLoggingConfiguration` 直接 return），两份配置互不影响、**不会重复上报**。
+- **类存在 ≠ 启用**。log4j2 只在配置里出现 `<VictoriaLogs>` 元素时才实例化插件，未声明的模块不起线程、不发请求，零影响。**2026-09-08 起公共 `log4j2-linux.xml` 已声明它**，因此全部走公共配置的服务都具备上报能力，但**是否真的上报取决于有没有注入 `VLOGS_URL`**（未注入 = appender 自动禁用）。**2026-10-27 起三个模块专属配置（`log4j2-collectpay.xml` / `log4j2-paysign.xml` / `log4j2-web-admin.xml`）与对应 `logging.config` 行已全部删除**，全部服务统一走公共配置路径，不存在双配置并存的重复上报问题。
 - **上报量由两级过滤控制，MUST 理解清楚再改**：Root 只把 **WARN 及以上**推给 VictoriaLogs；要拿到某条链路的 INFO 全量，靠 MDC 里的 `x-vlogs-capture=1` 命中 appender 上的 `ThreadContextMapFilter`。该键的两个来源是「入向请求头 `X-Vlogs-Capture` 经 `FirstFilter` 小写后放入」和「本端主动发起时由 `QuartzTraceUtils.runWithTrace` 放入」。**NEVER 把 Root 的级别放到 INFO** —— 那会把各服务的报文日志整体搬进日志后端，量与敏感面都不可控。
-- **想让 `x-vlogs-capture` 真正生效，该模块配置里 MUST 有一个业务包 logger 挂「不带 `level` 的」`<AppenderRef ref="VictoriaLogs" />`**（`<Logger name="com.chinasofti.huateng">`）。原因：log4j2 把 `AppenderRef` 的 `level` 属性编译成**引用层过滤器，先于 appender 自己的 `<Filters>` 求值**。若只有 Root 的 `<AppenderRef ref="VictoriaLogs" level="WARN"/>`，INFO 事件在引用层就被 DENY，**根本走不到** `ThreadContextMapFilter`，链路采集全程失效。2026-09-08 在 web-admin 实测踩过：「appender 已实例化（`vlogs-sender` 线程在跑）+ MDC 键确实写入 + Root 的 WARN 能正常上报 + 新代码已部署」四项全部成立，却查不到任何 INFO，现象极像「过滤器不匹配」，实际是引用层短路。**NEVER 只加 Root 的 ref 就认为链路采集已具备。** 三份配置（公共 `log4j2-linux.xml`、`log4j2-paysign.xml`、`log4j2-web-admin.xml`）**均已补齐**该 logger，新增模块专属配置时也 MUST 带上。
+- **想让 `x-vlogs-capture` 真正生效，该模块配置里 MUST 有一个业务包 logger 挂「不带 `level` 的」`<AppenderRef ref="VictoriaLogs" />`**（`<Logger name="com.chinasofti.huateng">`）。原因：log4j2 把 `AppenderRef` 的 `level` 属性编译成**引用层过滤器，先于 appender 自己的 `<Filters>` 求值**。若只有 Root 的 `<AppenderRef ref="VictoriaLogs" level="WARN"/>`，INFO 事件在引用层就被 DENY，**根本走不到** `ThreadContextMapFilter`，链路采集全程失效。2026-09-08 在 web-admin 实测踩过：「appender 已实例化（`vlogs-sender` 线程在跑）+ MDC 键确实写入 + Root 的 WARN 能正常上报 + 新代码已部署」四项全部成立，却查不到任何 INFO，现象极像「过滤器不匹配」，实际是引用层短路。**NEVER 只加 Root 的 ref 就认为链路采集已具备。** 公共 `log4j2-linux.xml` 已补齐该 logger（2026-10-27 起模块专属配置已全部删除、仅剩公共一份；若未来新增模块专属配置 MUST 仍带上）。
 - `url` 由环境变量 `VLOGS_URL` 注入，**为空则 appender 自动禁用**，文件与控制台日志不受影响。只给 `scheme://host:port` 时代码自动补 `/insert/jsonline?_stream_fields=app,host&_msg_field=_msg&_time_field=_time`；**NEVER** 让 `_stream_fields` 缺失，否则每种字段组合都变成一条 stream，直接打爆索引。
 - 序列化由内嵌 `JsonTemplateLayout` 承担，appender 只做「批量攒 + HTTP 发送」。**加字段改 template 即可，不必改 Java、不必重新构建本模块**。
 - `app` / `host` 用 `<EventTemplateAdditionalField>` 在各模块自己的 log4j2 配置里给出，template 保持通用。
@@ -148,13 +148,13 @@ route/URLDynamicRouter           （动态路由辅助类，不是 Client）
 - 内部异常只走 log4j2 StatusLogger 且按分钟限流。各模块配置多为 `status="off"`，因此**这些自述日志默认看不到**；判断是否启用要看 `vlogs-sender` 线程是否存在（`jcmd <pid> Thread.print | grep vlogs-sender`）。
 - template 里 `_msg` 的 pattern resolver **必须带 `"stackTraceEnabled": false`**。它默认 `alwaysWriteExceptions=true`，会在显式 `%ex` 之外再追加一份 `%xEx`，导致异常栈在 `_msg` 里出现两遍，且追加的那份不受 `%maxLen` 长度限制（2026-09-07 实测并修复）。
 
-哪些日志会被推送由各模块的 logger 配置决定，与 appender 无关。`pay-sign-server` 的口径是：Root 用 `<AppenderRef ref="VictoriaLogs" level="WARN"/>` 只推 WARN 及以上；另有 `VLOGS` logger（`additivity="false"`）全量推送，业务侧用 `LoggerFactory.getLogger("VLOGS")` 显式埋点。
+哪些日志会被推送由各模块的 logger 配置决定，与 appender 无关。**2026-10-27 起 pay-sign 也统一公共口径**（原专属配置的 Root WARN 阈值随文件删除）：Root 按 `<AppenderRef ref="VictoriaLogs" level="WARN"/>` 只推 WARN 及以上，但业务包 logger（`com.chinasofti.huateng`）生成为 DEBUG、公共 appender 阈值 DEBUG ⇒ **pay-sign 的 mapper SQL / 支付报文 DEBUG 明细会进入 VictoriaLogs（2026-10-27 用户裁决接受）**；另有 `VLOGS` logger（`additivity="false"`）全量推送，业务侧用 `LoggerFactory.getLogger("VLOGS")` 显式埋点。
 
 写模块专属 log4j2 配置时另有两条实测坑（2026-09-11 在 `collect-pay-server` 踩过，两次构建才闭合）：
 
 - **`<Properties>` MUST 是 `<Configuration>` 的第一个子元素**。把配置级 `<Filters>` 写在它前面时，整份配置的 `${logPath}` / `${appName}` / `${webLoggerLevel}` **全部不做替换**：日志文件被建成字面量路径 `/home/javaapp/soft/${logPath}/${appName}.log`，Root 级别失效、INFO 全丢，只剩 WARN 进 console。`status="off"` 会吞掉 log4j2 自己的报错，**唯一可见线索是文件名里带着 `${}`**，判据 MUST 是 `find / -name '*.log'` 看真实落盘路径，**NEVER 只看 console 有没有输出**。
-- **容器内真实日志目录带 Pod 名一级子目录**：`/home/javaapp/app/logs/<POD_NAME>/<appName>.log`。模块自带 `logging.config` 时 `CustomLoggingConfiguration` 直接 return、`${sys:logPath}` 不会被赋值，因此默认值 MUST 写成 `${sys:logPath:-/home/javaapp/app/logs/${env:HOSTNAME:-local}}`（与 `log4j2-paysign.xml` 同口径）。少写 `${env:HOSTNAME}` 会让 `docs/ops/environments/scripts/itp-ops.sh log tail` 什么都看不到——现象与「服务没日志」完全一样。
-- 按 URL 静音高频接口用**配置级 `<Filters>`**：`<ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="NEUTRAL"/>` + `<RegexFilter regex="(?s).*<关键字>.*" onMatch="DENY" onMismatch="NEUTRAL"/>`。它先于所有 logger 求值，能一并干掉 `FirstFilter` / `MoreInterceptor` / `BodyCacheFilter` 三行框架日志；WARN 兜在前面保证该接口真出错时仍可见。**NEVER 改用 `logging.level` 压这三个类**——那是按类生效，会把所有接口的报文日志一起干掉，报文日志是重放与排障的唯一依据。已落地：`collect-pay-server` 用它静音 `notiDeviceHeard`（设备心跳原先占日志量 79%，实测 3000 行里 1992 行）。
+- **容器内真实日志目录带 Pod 名一级子目录**：`/home/javaapp/app/logs/<POD_NAME>/<appName>.log`。模块自带 `logging.config` 时 `CustomLoggingConfiguration` 直接 return、`${sys:logPath}` 不会被赋值，因此模块专属配置的默认值 MUST 写成 `${sys:logPath:-/home/javaapp/app/logs/${env:HOSTNAME:-local}}`（**2026-10-27 起已无模块自带专属配置，本条仅在未来新增时适用**）。少写 `${env:HOSTNAME}` 会让 `docs/ops/environments/scripts/itp-ops.sh log tail` 什么都看不到——现象与「服务没日志」完全一样。
+- 按 URL 静音高频接口用**配置级 `<Filters>`**：`<ThresholdFilter level="WARN" onMatch="ACCEPT" onMismatch="NEUTRAL"/>` + `<RegexFilter regex="(?s).*<关键字>.*" onMatch="DENY" onMismatch="NEUTRAL"/>`。它先于所有 logger 求值，能一并干掉 `FirstFilter` / `MoreInterceptor` / `BodyCacheFilter` 三行框架日志；WARN 兜在前面保证该接口真出错时仍可见。**NEVER 改用 `logging.level` 压这三个类**——那是按类生效，会把所有接口的报文日志一起干掉，报文日志是重放与排障的唯一依据。曾落地：`collect-pay-server` 用它静音 `notiDeviceHeard`（设备心跳原先占日志量 79%，实测 3000 行里 1992 行）；**2026-10-27 随该模块专属配置删除而移除（collect-pay 已弃用，用户裁决接受），本条手法留作未来参考**。
 
 ### 3.1.2 开一个模块的 tracing：三行成组 + 名单 + 「MUST 查 Deployment env」判据
 
@@ -209,6 +209,18 @@ spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.otel.OtlpAut
 （`traceparent` + `X-Vlogs-Capture: 1`，九个任务类都在用，见 `web-server.md` §七）；
 服务间是 `ProxyWebClient` 用 Boot 托管的 `WebClient.Builder` 由观测自动带出。
 续接入向的 `traceparent` / `b3` / `b3_multi`（`propagation.type=W3C,B3,B3_MULTI`）。
+
+### 3.1.3 内建诊断端点（micro web 自带 controller）
+
+micro web 自带两个 `@RestController`（包 `com.chinasofti.huateng.micro.controller`），业务模块主类在 `com.chinasofti.huateng` 下即被默认扫描，**全部服务自动暴露、零业务侵入**：
+
+| 端点 | 方法 | 说明 |
+|---|---|---|
+| `/monitor/health` | GET | 存活探针，返回 `{"msg":"ok"}`（2026-10-27 从外部 micro 基线随 `MonitorController` / `JvmObjectTop` 纳入） |
+| `/monitor/getObjectCountTop` | POST | 入参 JSON `{"maxSize":"10"}`，经 DiagnosticCommand MBean 的 `gcClassHistogram` 取堆内实例数 TOP N（类名直方图，已滤数组与 `java.lang.ref.*`）；失败抛 `RuntimeException("获取类直方图失败")` |
+| `/config/show` / `/config/change/{key}/{value}` | GET | 运行时开关查看/热改（仅本机 IP 可调，敏感操作有 `allowLocalIp` 守卫） |
+
+约束：暴露面为集群内网，与 `/config/**` 先例同级；调用 `getObjectCountTop` 会触发 HotSpot 类直方图采集，有短暂 STW，**NEVER** 接进高频 health-check。
 
 ### 3.2 约束
 
