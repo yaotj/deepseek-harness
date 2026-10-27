@@ -91,6 +91,7 @@ route/URLDynamicRouter           （动态路由辅助类，不是 Client）
   - **它住在 `resource/micro/web` 的 `micro.web.client` 包、不在 `rpc` 模块**，因此「走 rpc 模块」与「继承 `ProxyWebClient`」是两件事。**对接外部系统的 client 照样该继承它，但 NEVER 搬进 `rpc`**（`rpc` 只放 ITP 内部服务 Client；外部系统 client 的位置见 pay-sign-server 的 `PayGatewayClient` 与 gate-txn-pay-server 那三个，ADR-D68）。
   - 提供：连接池（maxConnections 500 / pendingAcquire 1000 / maxIdleTime 20s / maxLifeTime 5min）、连接超时 3s、响应超时默认 10s、`openLogger` 控制的出入报文日志、`authorization` 的 MDC 透传、统一失败日志。
   - **要按配置定响应超时 MUST 用带 `responseTimeout` 参数的构造器**（2026-09-14 新增）。`getResponseTimeout()` 在**父类构造期**就被调用，**NEVER 覆写它去读子类 `@Value` 字段** —— 那时字段还是 0 / null，编译、单测、启动全都不报错，只会静默把超时改错。`rpc` 里既有 7 处覆写（`ReconClient` / `ReconExportClient` 5min、`PaySignClient` / `FepDevClient` 30s、`CardPoolClient` 15s、`TicketClient` / `TransQueryClient` 10s）**全部返回常量**，不受影响。
+  - **网络层错误自动重试（2026-10-27 接入 `WebClientRetryHelper`，MAX=1）**：仅对网络异常（连接被提前关闭/重置/refused 等）做退避重试；HTTP 4xx/5xx 不重试；非幂等请求只在请求未真正发出时重试。开关是 `protected isNetworkRetryEnabled()`（默认 true），**支付/资金类客户端 MUST 重写为 false**（重复扣款风险不可接受）：`GateTxnPayClient` / `CollectPayClient` / `FacePayClient` / `PaySignClient` / `AlipayPaySignClient`、gate-txn-pay 的三个钱包网关 client、`DailyTicketPayGatewayClient`。新增支付类 client **MUST** 同步重写为 false。
 - 目标地址来自各调用方 `application.properties` 的 `service.*.url`，**无服务发现、无负载均衡、无熔断**。
 - 各模块通过 `@EnableRpcXxx` 注解按需装配（如 `@EnableRpcAccount`、`@EnableRpcRoute`、`@EnableRpcPara`），启动类上声明。
 

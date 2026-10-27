@@ -5,6 +5,7 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.MultipartBodyBuilder;
@@ -36,6 +37,14 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
     private static final Duration MAX_LIFE_TIME = Duration.ofMinutes(5);
     private static final Duration EVICT_IN_BACKGROUND = Duration.ofSeconds(30);
     private static final Duration DEFAULT_RESPONSE_TIMEOUT = Duration.ofSeconds(10);
+
+    /**
+     * 网络层错误（连接被对端提前关闭/重置/refused 等）的最大重试次数。
+     * 仅对网络异常重试：HTTP 4xx/5xx 已被 retrieve().onStatus(createError) 转成
+     * WebClientResponseException，在 WebClientRetryHelper 中归为不可重试，不会重试。
+     * 非幂等请求（POST 等）只在请求未真正发出时重试（isBeforeRequestSent），避免重复提交。
+     */
+    private static final int MAX_NETWORK_RETRIES = 1;
 
     private Duration responseTimeoutOverride;
 
@@ -143,9 +152,27 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
         }
     }
 
-    private <T> T handleResponse(Mono<ResponseEntity<T>> result) {
+    /**
+     * 是否允许网络层错误自动重试。默认允许；支付/资金类客户端 MUST 重写为 false
+     * （重复提交风险不可接受），见 docs/architecture/common-components.md §二。
+     */
+    protected boolean isNetworkRetryEnabled() {
+        return true;
+    }
+
+    /**
+     * 按客户端开关包装网络层重试；支付客户端（isNetworkRetryEnabled()=false）原样返回不重试。
+     */
+    private <T> Mono<ResponseEntity<T>> applyNetworkRetry(Mono<ResponseEntity<T>> result, HttpMethod method) {
+        if (!isNetworkRetryEnabled()) {
+            return result;
+        }
+        return result.retryWhen(WebClientRetryHelper.createNetworkRetryStrategy(method, MAX_NETWORK_RETRIES));
+    }
+
+    private <T> T handleResponse(Mono<ResponseEntity<T>> result, HttpMethod method) {
         try {
-            ResponseEntity<T> res = result.block();
+            ResponseEntity<T> res = applyNetworkRetry(result, method).block();
             if (res == null) {
                 throw new IllegalStateException("webClient response is null");
             }
@@ -174,7 +201,7 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
                     logPostRequestJsonErr(err);
                 });
 
-        return handleResponse(monoResponseEntity);
+        return handleResponse(monoResponseEntity, HttpMethod.POST);
     }
 
     public ResponseEntity<String> postJsonAndGetResponseEntity(String url, Object requestBody, Map<String, String> headers) {
@@ -195,7 +222,7 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
 
         ResponseEntity<String> res;
         try {
-            res = monoResponseEntity.block();
+            res = applyNetworkRetry(monoResponseEntity, HttpMethod.POST).block();
             if (res != null) {
                 logResponse(res.getStatusCode().value(), res.toString());
             }
@@ -226,7 +253,7 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
             logPostRequestJsonErr(err);
         });
 
-        return handleResponse(monoResponseEntity);
+        return handleResponse(monoResponseEntity, HttpMethod.GET);
     }
 
     @Override
@@ -247,7 +274,7 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
         }).toEntity(String.class).doOnError(Exception.class, err -> {
             logPostRequestJsonErr(err);
         });
-        return handleResponse(result);
+        return handleResponse(result, HttpMethod.POST);
     }
 
     @Override
@@ -271,7 +298,7 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
                 }).toEntity(String.class).doOnError(Exception.class, err -> {
                     logPostRequestJsonErr(err);
                 });
-        return handleResponse(result);
+        return handleResponse(result, HttpMethod.POST);
     }
 
 }
