@@ -44,8 +44,8 @@ public class ResetMetersJob {
                     log.error("Failed to clear meter for {}", k, e);
                 }
             });
-            customMeterRegistry.close();
-            collectorRegistry.clear();
+//            customMeterRegistry.close();
+//            collectorRegistry.clear();
             log.info("Reset custom meters data successfully");
         } catch (Exception e) {
             log.error("Failed to reset custom meters data", e);

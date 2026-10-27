@@ -39,18 +39,30 @@ public class WebExport extends BaseExport {
     @Override
     public void publish() {
         long timeoutCnt = MoreInterceptor.timeoutCnt.get();
-        updateGaugeValue(TIMEOUT_CNT_GAUGE, timeoutCnt);
+        if (!updateGaugeValue(TIMEOUT_CNT_GAUGE, timeoutCnt)) {
+            initGauge(TIMEOUT_CNT_GAUGE, "web mvc timeout cnt", "total", "name", appName);
+            updateGaugeValue(TIMEOUT_CNT_GAUGE, timeoutCnt);
+        }
 
         long currentConnectionsCnt = MoreInterceptor.runningCnt.get();
-        updateGaugeValue(RUNNING_CNT_GAUGE, currentConnectionsCnt);
+        if (!updateGaugeValue(RUNNING_CNT_GAUGE, currentConnectionsCnt)) {
+            initGauge(RUNNING_CNT_GAUGE, "web running task cnt", "total", "name", appName);
+            updateGaugeValue(RUNNING_CNT_GAUGE, currentConnectionsCnt);
+        }
 
+        if (!contain(RUNNING_MAX_GAUGE)) {
+            webRunningMaxHolder = initGauge(RUNNING_MAX_GAUGE, "web running task max cnt", "cnt", "name", appName);
+        }
         long currentMax = webRunningMaxHolder.get();
         if (currentConnectionsCnt > currentMax) {
             webRunningMaxHolder.compareAndSet(currentMax, currentConnectionsCnt);
         }
 
         if (monitorConfig.isCheckLogWriter()) {
-            updateGaugeValue(LOGGING_TIME_GAUGE, checkLoggerHealth.loggerTakeTimes());
+            if (!updateGaugeValue(LOGGING_TIME_GAUGE, checkLoggerHealth.loggerTakeTimes())) {
+                initGauge(LOGGING_TIME_GAUGE, "logging take times of ms", "take", "name", appName);
+                updateGaugeValue(LOGGING_TIME_GAUGE, checkLoggerHealth.loggerTakeTimes());
+            }
         }
     }
 

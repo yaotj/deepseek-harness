@@ -1,5 +1,6 @@
 package com.chinasofti.huateng.micro.monitor.prometheus;
 
+import com.chinasofti.huateng.micro.web.utils.SpringContextUtils;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -41,7 +42,8 @@ public abstract class BaseExport {
 
     public void clear() {
         try {
-            log.info("开始清理,当前注册Meter总数: {}", registry.getMeters().size());
+            log.info("当前注册Meter总数: {}", registry.getMeters().size());
+            log.info("{}自定义Meter总数: {}", this.getClass().getSimpleName(), meters.size());
             if (meters.size() > 20) {
                 log.info("清理自定义Meter数:{}", meters.size());
                 meters.values().forEach(registry::remove);
@@ -52,18 +54,27 @@ public abstract class BaseExport {
             if (registry.getMeters().size() > MAX_METER_THRESHOLD) {
                 for (Meter m : registry.getMeters()) {
                     if (m.getId().getName().startsWith("custom")) {
+                        log.info("清理游离Meter:{}", m.getId().getName());
                         registry.remove(m);
                     }
                 }
             }
 
             if (registry.getMeters().size() > MAX_METER_THRESHOLD) {
+                log.info("自动创建的Meter数量过多,强制清理全部Meter");
                 registry.clear();
-                log.info("清理全部Meter");
+                Map<String, BaseExport> all = SpringContextUtils.getApplicationContext().getBeansOfType(BaseExport.class);
+                if (all.size() > 0) {
+                    for (Map.Entry<String, BaseExport> entry : all.entrySet()) {
+                        BaseExport export = entry.getValue();
+                        export.meters.clear();
+                        export.gaugeValueMap.clear();
+                    }
+                }
             }
 
             doClear();
-            log.info("已清理,剩余Meter数:{}", registry.getMeters().size());
+            log.info("剩余Meter数:{}", registry.getMeters().size());
         } catch (Exception e) {
             log.warn("清理Meter失败", e);
         }
@@ -83,9 +94,23 @@ public abstract class BaseExport {
         });
     }
 
-    protected void updateGaugeValue(String group, long value) {
+    protected boolean contain(String group) {
         AtomicLong v = gaugeValueMap.get(group);
-        if (v != null) v.set(value);
+        if (v != null) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    protected boolean updateGaugeValue(String group, long value) {
+        AtomicLong v = gaugeValueMap.get(group);
+        if (v != null) {
+            v.set(value);
+            return true;
+        } else {
+            return false;
+        }
     }
 
     private List<Tag> buildTags(String... tags) {

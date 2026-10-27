@@ -19,7 +19,10 @@ public class LoggerExport extends BaseExport {
     @Override
     public void publish() {
         long errorCnt = ErrorInterceptorFilter.errorCnt.get();
-        updateGaugeValue(ERROR_CNT_GAUGE, errorCnt);
+        if (!updateGaugeValue(ERROR_CNT_GAUGE, errorCnt)) {
+            initGauge(ERROR_CNT_GAUGE, "logger error cnt", "total", "name", appName);
+            updateGaugeValue(ERROR_CNT_GAUGE, errorCnt);
+        }
     }
 
     @Override

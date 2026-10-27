@@ -222,6 +222,16 @@ micro web 自带两个 `@RestController`（包 `com.chinasofti.huateng.micro.con
 
 约束：暴露面为集群内网，与 `/config/**` 先例同级；调用 `getObjectCountTop` 会触发 HotSpot 类直方图采集，有短暂 STW，**NEVER** 接进高频 health-check。
 
+### 3.1.4 prometheus 自定义指标（web.running / web.mvc.timeout.cnt / web.running.max / web.logging / log.error.cnt）
+
+`BaseExport`/`WebExport`/`LoggerExport` 五个 gauge 在构造器注册、每 30s（`pushOfSeconds`）publish。2026-10-27 起对齐外部基线的**自愈语义**（原实现有缺陷）：
+
+- `updateGaugeValue` 返回 boolean，publish 周期内 gauge 缺失时**懒重建**（`initGauge`），任何清理后下一周期自动恢复；
+- nightly `ResetMetersJob`（`resetAllMetersCron=0 0 2 * * ?`）**只重置计数（doClear），不再 `customMeterRegistry.close()`/`collectorRegistry.clear()`**——原实现每天 02:00 把 micrometer collector 从 simpleclient 注销且 `gaugeValueMap` 仍握死引用，导致全部自定义指标从 `/actuator/prometheus` **静默消失直到重启**；
+- 超限（>10240）强制清理时会经 `SpringContextUtils` 连各 Export 的内部 map 一并清，配合懒重建可完整自愈。
+
+当前无 Prometheus ScrapeConfig/告警消费这些指标；语义修复保证将来接入时指标可信。
+
 ### 3.2 约束
 
 - 数据访问 **MUST** 走 `mybatis-adaptor` + `resources/mapper/*.xml`，**NEVER** 写原生 JDBC 或 MyBatis 注解 SQL。
