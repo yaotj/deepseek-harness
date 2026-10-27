@@ -34,6 +34,12 @@ public class DailyTicketPayGatewayClient extends ProxyWebClient {
         this.properties = properties;
     }
 
+    /** 支付类客户端禁止网络层重试：重复提交/扣款风险不可接受。 */
+    @Override
+    protected boolean isNetworkRetryEnabled() {
+        return false;
+    }
+
     /** 发起日票支付。 */
     public DailyTicketPayGatewayResponse requestPay(Map<String, Object> bizData) {
         return requestGateway("日票支付", properties.getRequestPayPath(), bizData);

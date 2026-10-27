@@ -40,6 +40,12 @@ public class WalletAppGatewayClient extends ProxyWebClient {
         this.signType = signType;
     }
 
+    /** 钱包网关类客户端禁止网络层重试：重复请求资金接口风险不可接受。 */
+    @Override
+    protected boolean isNetworkRetryEnabled() {
+        return false;
+    }
+
     public QueryWalletTotalAmtResult queryTotalAmt(QueryWalletTotalAmtReqDTO bizData) {
         Map<String, String> form = new LinkedHashMap<>();
         form.put("providerId", providerId);

@@ -28,6 +28,12 @@ public class OfflineMetroTransferClient extends ProxyWebClient {
         this.url = url;
     }
 
+    /** 钱包网关类客户端禁止网络层重试：重复请求资金接口风险不可接受。 */
+    @Override
+    protected boolean isNetworkRetryEnabled() {
+        return false;
+    }
+
     public boolean isReduction(String thirdUserId, String handleDateTime, String cardId, String ticketTransSeq) {
         try {
             Map<String, Object> bizData = new LinkedHashMap<>();

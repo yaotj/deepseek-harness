@@ -32,6 +32,12 @@ public class MetroTransferPushClient extends ProxyWebClient {
         this.enabled = enabled;
     }
 
+    /** 支付/钱包网关类客户端禁止网络层重试：重复推送/扣款风险不可接受。 */
+    @Override
+    protected boolean isNetworkRetryEnabled() {
+        return false;
+    }
+
     /** 推送一笔换乘行程，返回三态结果而不是 void + 抛异常（docs/architecture/transaction-and-consistency.md §3 / ADR-D45）。 */
     public RpcOutcome push(MetroTransferPushTask task) {
         if (!enabled) {
