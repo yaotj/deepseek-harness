@@ -26,6 +26,12 @@ public class CollectPayClient extends ProxyWebClient {
         super(baseUrl, openLogger, webClientBuilder);
     }
 
+    /** 支付类客户端禁止网络层重试：重复提交/扣款风险不可接受。 */
+    @Override
+    protected boolean isNetworkRetryEnabled() {
+        return false;
+    }
+
     /**
      * Forwards the APP order form unchanged to collect-pay-server.
      */
