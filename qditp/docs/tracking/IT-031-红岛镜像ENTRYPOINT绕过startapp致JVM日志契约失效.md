@@ -51,13 +51,23 @@ Docker 语义下**子镜像的 `ENTRYPOINT` 直接覆盖基础镜像的 `ENTRYPO
 
 即这两个服务的可用堆只有契约值的 **约 1/3（2 GiB vs 5900 m）**，且：
 
-1. **无 GC 日志、无 OOM heapdump**——排障时拿不到 `gctrace.txt` / `java.dump`；
-2. **`/home/javaapp/app/logs` 下不再生成 `${HOSTNAME}` 目录**（`route-sentinel` Pod 内该目录
-   `total 0`）→ [pvc-logship/applogs.sh](../ops/environments/pvc-logship/applogs.sh) 的应用日志采集拿不到东西；
-3. **`max_memory` / `reserved_memory` / `max_direct_memory` 三个平台 env 变成死配置**——
+1. **无 GC 日志**——`fep-dev-server` 自己在 `/home/javaapp/app/logs/${HOSTNAME}/` 下**没有 `gctrace.txt`**，
+   而同集群 startapp.sh 形态的 `acc-es-server` 同位置有 3 个（`16.8 MB` + 两个 `20.9 MB` 滚动件）；
+   排障时拿不到 GC 轨迹。
+2. **无 OOM heapdump**——`-XX:+HeapDumpOnOutOfMemoryError` / `HeapDumpPath` 一并丢失，
+   OOM 时不留现场。
+3. **无 `-XX:MaxDirectMemorySize=100m`、无 `-Djava.io.tmpdir=/home/javaapp/app/logs`**
+   ——直接内存不受约、临时目录退回容器 `/tmp`（不在共享日志卷上）。
+4. **`max_memory` / `reserved_memory` / `max_direct_memory` 三个平台 env 变成死配置**——
    `fep-dev-server` Deployment 里这三个 env 存在但无人读取（`route-sentinel` 干脆没配）。
    这条同时解释了 [IT-020](IT-020-JVM参数被平台回滚.md) 时期「改了 env 却看不到效果」的另一半成因：
    即便 env 持久化成功，对自写 `ENTRYPOINT` 的镜像也一律无效。
+
+**必须分清的一件事（本单初稿曾写错，已更正）**：应用 `<app>.log` **不受影响**——
+`fep-dev.log`（171 MB）就在该 Pod 目录下正常落盘，目录是 log4j2 自己按 `${HOSTNAME}` 建的，
+`pvc-logship` 的 `applogs.sh` 照样采得到；旁路只打掉 **JVM 自己那三项**（GC 日志 / heapdump / 堆与直接内存约）。
+`route-sentinel` 目录下连 `.log` 都没有是**另一件事**：该模块用
+`logback-spring.xml`（不是 `log4j2-linux.xml`），本来就没有文件 appender，与 `ENTRYPOINT` 无关。
 
 ## 3. 方案对比
 
@@ -81,12 +91,14 @@ Docker 语义下**子镜像的 `ENTRYPOINT` 直接覆盖基础镜像的 `ENTRYPO
   3. `fep-dev-server/Dockerfile`、`route-sentinel/Dockerfile` **本轮刻意不改**：它们是
      IT-028 / IT-021 在跑版本的构建记录，改文件等于改动已交付事实，且 A 路线下构建入口
      已不再引用它们。
-- 影响范围 / 关联模块：`fep-dev-server`、`route-sentinel`（红岛镜像形态）；连带影响日志采集
-  （pvc-logship）与 IT-020 的 JVM 调优口径。
+- 影响范围 / 关联模块：`fep-dev-server`、`route-sentinel`（红岛镜像形态的运行期 JVM）；
+  连带影响 IT-020 的 JVM 调优口径。**不影响日志采集**（应用 `<app>.log` 照常落盘，见 §2 末更正块）。
 
 ## 5. 验证与回滚
 - 验证方式 / 结果：
-  - **已证**：两 Pod PID1 与 `-XX:MaxHeapSize` 实测差异（§2 表）；全仓 `Dockerfile` 枚举确认
+  - **已证**：两 Pod PID1 与 `-XX:MaxHeapSize` 实测差异（§2 表）；`acc-es` Pod 目录下有
+    `gctrace.txt`×3 而 `fep-dev` Pod 目录下没有（同路径同卷，GC 日志缺失的直接对照）；
+    `fep-dev.log` 仍在 → 应用日志采集不受影响（§2 末更正块）；全仓 `Dockerfile` 枚举确认
     只有这两个带 `ENTRYPOINT`；新镜像构建日志显示 `FROM itpb/jdk21:1.0.0@sha256:0e46cb35e5…`
     且层步骤为 `[1/2] FROM` + `[2/2]`（无 `ENTRYPOINT`/`CMD` 层）、
     `imgSize` 与平台在跑旧镜像同量级（`recon-server:1.0.28` 408.91 MiB vs `:1.0.26` 408.9 MiB）。
