@@ -37,6 +37,9 @@ public class UserRouteService {
 
     @PostConstruct
     public void preload() {
+        // 预热失败 MUST 降级而不是阻断启动（与 log 文案一致）：缓存留空，
+        // 首个用户查询走 loadLegacy 按需回源，回源失败再 fail-safe 走旧 ITP；
+        // reloadSplitPaths 自带 fail-safe（失败置空集合），两条路互不影响。
         try {
             List<String> ids = jdbc.queryForList(
                 "SELECT DISTINCT third_user_id FROM user_itp_reg_info", String.class);
@@ -44,11 +47,10 @@ public class UserRouteService {
                 legacyCache.put(id, Boolean.FALSE);
             }
             log.info("UserRouteService 缓存预热完成：{} 个用户", ids.size());
-            reloadSplitPaths();
         } catch (Exception e) {
-            log.error("用户路由缓存预热失败，网关将降级为全量 Oracle 查询: {}", e.getMessage(), e);
-            throw new IllegalStateException("UserRouteService 缓存预热失败", e);
+            log.error("用户路由缓存预热失败，降级为按用户按需查询（回源失败走旧 ITP）: {}", e.getMessage(), e);
         }
+        reloadSplitPaths();
     }
 
     /**

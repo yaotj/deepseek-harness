@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- route-sentinel 日志配置：stdout（kubectl logs 可读）+ VictoriaLogs 上报。
+     与 qd-itp 各服务的 vl logs 服务保持一致：VLOGS_URL 为空则 VictoriaLogs appender 自动禁用。
+     - VLOGS_URL 端口 MUST 是 30032，不是 VictoriaLogs 默认 9428；
+     - app 固定写 route-sentinel（NEVER 写死别的名字）；host 取 HOSTNAME 环境变量；
+     - stream 字段只放低基数的 app/host；traceId（MDC 白名单）只进正文，NEVER 全量 MDC 输出。 -->
+<configuration>
+
+    <appender name="Console" class="ch.qos.logback.core.ConsoleAppender">
+        <target>SYSTEM_OUT</target>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %X{traceId} [%t] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- url 为空即自动禁用（不起线程、不丢日志）；app 固定 route-sentinel。 -->
+    <appender name="VictoriaLogs" class="org.qd.scg.log.VictoriaLogsAppender">
+        <url>${env:VLOGS_URL:-}</url>
+        <app>route-sentinel</app>
+    </appender>
+
+    <!-- 关键链路埋点专用 logger：LoggerFactory.getLogger("VLOGS")，全量进 VictoriaLogs，
+         additivity=false 防重复推送；本地 stdout 仍保留 INFO 及以上。 -->
+    <logger name="VLOGS" level="INFO" additivity="false">
+        <appender-ref ref="Console" />
+        <appender-ref ref="VictoriaLogs" />
+    </logger>
+
+    <root level="INFO">
+        <appender-ref ref="Console" />
+        <!-- Root 只把 WARN 及以上推给 VictoriaLogs，NEVER 放到 INFO：网关报文日志的量与敏感面都不可控；
+             需要单条全量上报走 VLOGS logger 或 MDC x-vlogs-capture。 -->
+        <appender-ref ref="VictoriaLogs" level="WARN" />
+    </root>
+
+</configuration>

@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.qd</groupId>
   <artifactId>route-sentinel</artifactId>
-  <version>1.0.1</version>
+  <version>1.0.2</version>
   <name>route-sentinel</name>
   <description>青岛地铁 ITP 用户分流透明网关（SCG Web MVC 版）</description>
   <parent>

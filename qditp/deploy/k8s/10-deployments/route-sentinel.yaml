@@ -57,6 +57,11 @@ spec:
           value: gatewayroutes,health,info,metrics,routecache
         - name: management.endpoint.health.probes.enabled
           value: 'true'
+        # vl logs 服务（VictoriaLogs）端点，与 itp 命名空间其他服务一致。
+        # 由 route-sentinel 自带的 logback VictoriaLogsAppender（org.qd.scg.log，1.0.2 起）消费：
+        #   env 为空则 appender 自动禁用（不起线程、不丢日志）；1.0.1 无此 appender、此 env 不生效。
+        - name: VLOGS_URL
+          value: http://victoria-logs-pbi6a-svc.itp.svc:30032
         image: os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.1
         imagePullPolicy: IfNotPresent
         lifecycle: {}

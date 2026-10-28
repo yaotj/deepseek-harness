@@ -32,7 +32,7 @@
 | JDK 版本 | **21**（2026-10-26 由 Java 25 降级，与 qditp 主体基线一致）。降级已实测：字节码 major 65、22 个测试全过；依赖侧无需改动（spring-boot 4.0.7 / spring-core 7.0.8 / gateway-webmvc 5.0.2 全为 Java 17 字节码） |
 | 容器端口 | `8080`（Deployment `SERVER_PORT=8080`，Service `route-sentinel-svc:8080`） |
 | 基础镜像 | 测试 `itp/jdk:21`；红岛 `os-harbor-svc.default.svc.cloudos:443/itpb/jdk21:1.0.0`（itpb 项目**唯一**公共 JDK 镜像，2026-10-26 实测 itpb ns 内拉取成功，`java version 21.0.1`） |
-| 已部署镜像 | `os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.1`（`deploy/k8s/10-deployments/route-sentinel.yaml:42`）；**红岛 `itpb` 尚无 route-sentinel** |
+| 已部署镜像 | 测试 `os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.1`（`deploy/k8s/10-deployments/route-sentinel.yaml:42`）；**红岛 2026-10-26 已建 `itpb/route-sentinel:1.0.1`（Harbor digest `sha256:d4c6bd67…`，amd64）+ 平台 app 对象（uuid `16a91143…`）+ Deployment 已拉起，但容器 CrashLoopBackOff——根因见 [IT-021](../tracking/IT-021-红岛网关路由表缺失.md)「CrashLoop」节，非镜像问题** |
 | 上游入口 | `fep-app-vr` 把下面 **7 条精确路径**（`uri.exact`）打到 `route-sentinel-svc:8080`；**其余** `/itptvm/**`、`/itpbom/**` 端点仍由前缀路由直连 `face-pay-server-svc:30025`，不进 SCG |
 | 数据库 | 测试直连 `AFCITPDB`（schema `QDITP`）；红岛按域分库后 `USER_ITP_REG_INFO` → `QDITP_USER`（`itp_ro` 只读）、`GATEWAY_ROUTE_CONFIG` → `QDITP_PLAT`（**红岛两表尚未建，见 [IT-021](../tracking/IT-021-红岛网关路由表缺失.md)，是部署前置阻塞**） |
 
@@ -110,7 +110,9 @@ ORDER_NO    NUMBER        路由优先级
 ### 缓存与预热
 
 - `@PostConstruct preload()`：启动时全量 `SELECT DISTINCT third_user_id FROM user_itp_reg_info`，把所有新用户写入 Caffeine 作为**否定缓存**（值 = false）。
-- 这意味着：旧用户首次请求会触发 `loadLegacy`（DB 查询），后续命中缓存；新用户始终在缓存里命中 false。
+- **preload 失败 = 降级启动、不阻断（1.0.2 起，2026-10-27）**：catch 只 `log.error` 后继续启动——预热缓存留空，首个用户查询走 `loadLegacy` 按需回源（回源失败 fail-safe 走旧 ITP）；`reloadSplitPaths` 自带 fail-safe（失败置空集合），且无论预热成败都会执行。
+- 历史口径（**1.0.1**，红岛 2026-10-26 首发镜像）：preload 失败会 `throw new IllegalStateException` 中断启动 → CrashLoopBackOff。「DB 不通/表缺失 ⇒ 网关起不来」的当日实测结论只适用于 1.0.1；1.0.2 改降级后「先跑着、等 DBA」在启动层面成立——但 `GATEWAY_ROUTE_CONFIG` 缺失时路由仍为空（该表由 `GatewayRouteQueryService` 独立加载），7 条分流路径会 404，见 [IT-021](../tracking/IT-021-红岛网关路由表缺失.md)。
+- 运维注意：DB 短暂不可达的降级窗口里，每个缓存未命中用户的首个请求要等一次 JDBC 连接超时（Hikari 默认 30s）——网关数据源宜配更短的 connect-timeout，避免请求悬挂。
 - `@Scheduled(fixedRate = 30_000)` 打印 cache stats；Actuator `routecache` 端点可查看命中率。
 
 ## 路由标识策略（哪条路由算 legacy）
