@@ -117,3 +117,11 @@ GEMINI.md
 API.md
 qditp_api_summary.md
 fep_app_apifox_*.md
+
+# ========================
+# 5. 运维本地产物（敏感，NEVER 入库）
+# ========================
+# DB 导出 / 迁移备份数据（含用户口令哈希与支付流水等敏感表；2026-10-27 已从工作区删除，需留存时放库外）
+**/deploy/data/
+# Python 字节码缓存
+__pycache__/
