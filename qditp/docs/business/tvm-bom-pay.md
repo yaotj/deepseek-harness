@@ -1600,7 +1600,7 @@ DDL 见 `face-pay-server/src/main/resources/sql/f2f-schema.sql`。
 
 #### 二、架构门禁（`arch/F2fGuardTest.java`、`arch/F2fOrderStatusArchTest.java`）
 
-- **`F2fGuardTest` 把两条「只靠注释维持」的约束固化成会失败的构建**：①幂等兜底一律走 `F2fDuplicateKey.isConflict(Throwable)` 沿 cause 链判定（ADR-D84）—— 裸 `catch` 具体异常类型在**打开 tracing 的模块里会静默失效**，本模块尚未开 tracing，所以这条**现在不会在运行时暴露、一旦有人开了才炸**；②`@Scheduled` 的**数量与宿主类数被钉住**（当前 7 个分布在 6 个类，补款那个类里有两个），谁新增一个调度这个测试就红，提醒他一并复核单副本约束与文档口径。判定**在剥离注释后的代码上做**，因为那两处 NEVER 告示本身就写着被禁止的写法。`arch/F2fGuardTest.java`
+- **`F2fGuardTest` 把两条「只靠注释维持」的约束固化成会失败的构建**：①幂等兜底一律走 `F2fDuplicateKey.isConflict(Throwable)` 沿 cause 链判定（ADR-D84）—— 裸 `catch` 具体异常类型在**打开 tracing 的模块里会静默失效**，本模块已开 tracing（`application.yml` 三行齐全），这条**现在就会在运行时暴露**，所以由 `isConflict` 兜住；②`@Scheduled` 的**数量与宿主类数被钉住**（当前 7 个分布在 6 个类，补款那个类里有两个），谁新增一个调度这个测试就红，提醒他一并复核单副本约束与文档口径。判定**在剥离注释后的代码上做**，因为那两处 NEVER 告示本身就写着被禁止的写法。`arch/F2fGuardTest.java`
 - **`F2fOrderStatusArchTest` 的两条规则加进来时全绿**，目的是拦住「下一个人退回旧写法」；**规则失败时 NEVER 改规则去迁就代码**，先读 docs/domain/state-machines.md §二「三件套规范」确认是新写法有理由还是又踩同一个坑。`arch/F2fOrderStatusArchTest.java`
 - **四个取值域 NEVER 混谈**：该门禁只列**订单域** 11 个取值；票（`ISSUED` / `FAULT`）、支付（`INIT` / `SUCCESS` / `FAILED` / `PROCESSING`）、退款（另加 `MANUAL`）是**另外三个取值域**。允许保留裸字面量的**唯一形态**是常量名带取值域前缀（活样例 `F2fBomOrderService.TICKET_REFUNDING = "REFUNDING"`，它是 `F2F_TICKET.TICKET_STATUS`，与订单状态**拼写相同、取值域不同**）；**NEVER 靠加白名单文件名放行**，那等于把整个类豁免掉。
 - **三条 CAS 的返回行数不得被丢弃 —— 这是本组门禁里价值最高的一条**：2026-09-14 首次跑它时，**40 个调用点里有 12 个直接丢掉返回值**，其中 `F2fTvmOrderService` 查询到支付成功那处 `markPaid` 属于「钱已收、状态可能没落上」，是人工逐条 review 时漏掉的。CAS 的返回行数是它唯一的输出，丢掉等于把条件更新退化成无条件更新。认定「接住了」的四种形态：赋给变量，或交给三个解读入口之一（含 `F2fOrderStatusTransition.classify`）；唯一豁免形态是行内显式写 `// CAS-DISCARD: <理由>`，**NEVER 改成按文件名或方法名豁免、也 NEVER 只写标记不写理由**。

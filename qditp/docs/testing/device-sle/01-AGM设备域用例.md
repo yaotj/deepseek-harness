@@ -22,7 +22,7 @@
 | `bizData` 解析 | 私有 `parseBizData`，**Fastjson2 `JSON.parseObject`，解析失败只打 ERROR 并返回 `null` → 统一走 `INVALID_PARAM`** | `FepAgmController.java:126`~`:134` |
 | `deviceId` | **不在 `bizData` 里**，从公共参数取；IF1A-01 里再由 Controller 注入进 bizData | `FepAgmController.java:48` / `:61` |
 | 验签 | 该 Controller **没有验签代码** | 全文件通读（151 行）未见验签调用 |
-| tracing | `fep-dev-server` **不在 tracing 名单**（8 个模块里没有它），`%X{traceId}` 那一列**恒为空** | `docs/business/README.md` 全局事实 |
+| tracing | `fep-dev-server` 2026-10-28 复核已开 tracing（原「不在 8 个模块名单」作废），`%X{traceId}` 有值 | `docs/architecture/common-components.md` §3.1.2 ② |
 
 **⚠️ 最常踩的一条：类级前缀是 `/ci/agm`，不是 `/itpagm/ci/agm`。** `/itpagm/` 只在经网关时出现。直打 NodePort **MUST** 用 `/ci/agm/...`；经网关时 **MUST 先现查 VS 的 `rewrite.uri`** 再拼。
 
@@ -311,7 +311,7 @@ docs/ops/environments/scripts/itp-ops.sh log tail fep-dev-server 'IF1A-02' 300
 docs/ops/environments/scripts/itp-ops.sh log tail key-server 'requestAgmSynKeyList' 300
 ```
 
-`key-server` **不在 tracing 名单**，`traceId` 列恒为空。
+`key-server` 2026-10-28 起已开 tracing（原「不在名单」结论作废），`traceId` 列有值；仍 0 条时先确认 Pod 已滚更到新镜像。
 
 **真机才能覆盖的部分**：闸机接收密钥后的本地校验与写入、SAM/加密模块、**新旧密钥过渡期的实际无感切换**（这是原表预期 3 的核心，ITP 侧完全看不到）、以及「AGM 用新密钥验签成功」这件事。
 

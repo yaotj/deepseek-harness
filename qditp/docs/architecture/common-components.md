@@ -168,44 +168,55 @@ route/URLDynamicRouter           （动态路由辅助类，不是 Client）
 ```
 management.tracing.enabled=true
 management.tracing.sampling.probability=0
-spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.otel.OtlpAutoConfiguration
+spring.autoconfigure.exclude=org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration
 ```
 
-样板见 `card-pool-server/src/main/resources/application.properties`。
+样板见 `card-pool-server/src/main/resources/application.properties`。第三行**逐字**是 `org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration`（Boot 3.2 的包名；写成 `org.springframework.boot.autoconfigure.otel...` 类名根本不存在，`spring.autoconfigure.exclude` 会静默放过、第三行等于没写）。
 - 漏掉第三行时，Deployment 一旦注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` 就会起 OTLP exporter，
   导出线程每批抛 `UnknownHostException` 刷日志（见 §3.1.1 OTLP 六行为何注释掉）。
 - `sampling.probability=0` **不影响 MDC**，它只管 span 上不上报；设 0 是为了不往不存在的 collector 发。
 - `%X{traceId}` 有值的前提就是这三行；**日志 pattern 里有 `%X{traceId}` 不等于会显示** ——
   开关没开时那一列**恒为空、不报错、编译与单测都发现不了**。
 
-**② 已打开 tracing 的模块（数量 MUST 现查；2026-10-15 静态核实为 17 个）**
+**② 已打开 tracing 的模块（数量 MUST 现查；2026-10-28 静态核实为 24 个 = 全部「部署态且依赖 `resource/micro/web`」的服务，已无缺口）**
 
 | 来源 | 模块 |
 |---|---|
-| `application.properties` / `application.yml` 显式打开 | `pay-sign-server`、`card-pool-server`、`recon-server`、`gate-txn-pay-server`、`daily-ticket-server`、`blacklist-server`、`account-server`、`alipay-account-server`、`alipay-pay-sign-server`、`ticket-server`、`trans-query-server`、`fep-app-server`、`fep-acc-server`、`fep-alipay-server`、`fep-dev-server`、`collect-pay-server`（YAML 写法）、`face-pay-server`（YAML 写法，2026-09-22 补齐并滚更） |
-| **只靠 K8s Deployment 注入 env**（properties 里一个键都没有） | `para-server` |
+| `application.properties` 显式打开 | `pay-sign-server`、`card-pool-server`、`recon-server`、`gate-txn-pay-server`、`daily-ticket-server`、`blacklist-server`、`account-server`、`alipay-account-server`、`alipay-pay-sign-server`、`ticket-server`、`trans-query-server`（占位符 `${MANAGEMENT_TRACING_ENABLED:true}`，默认即开）、`fep-app-server`、`fep-acc-server`、`fep-alipay-server`、`fep-dev-server`、`para-server`、`acc-es-server`、`acc-secure-server`、`acc-security-server`、`collect-ticket-server`、`industry-data-server`、`key-server`（末 6 个 2026-10-28 补齐） |
+| `application.yml` 显式打开 | `collect-pay-server`、`face-pay-server`（2026-09-22 补齐并滚更） |
 
 `face-pay-server` 补齐的动因：对账链路按 traceId 追到第 4 个源就断，补后已实测续接通过。
 
-> ⚠️ **仍有模块缺这一环（2026-10-15 静态核实）**：以下模块 `pom.xml` 依赖 `resource/micro/web`（切面由它装配），但源码 `application.properties` 与 `deploy/k8s/10-deployments/*.yaml` **两层都没有** `management.tracing.*`，故 `%X{traceId}` 恒空：`industry-data-server`、`key-server`、`collect-ticket-server`、`acc-es-server` / `acc-secure-server` / `acc-security-server`。**MUST 至少把「依赖 micro-web starter」列为开 tracing 的前置判据。**（不依赖 micro-web starter、因切面根本不生效的 `es-server` / `route-sentinel` / `web-server` 不算缺口。）
+- **2026-10-28 补的六个模块只改了 properties，MUST 重新构建镜像并滚更才生效**（集群跑的还是旧 jar 内的配置）。
+- 空白样本：`es-server` / `route-sentinel` / `web-server` 不依赖 micro-web starter，切面根本不装配，不在名单内也不算缺口；`employee-card-acc-simulator` 只是测试模拟器、不部署，同样不计。**「依赖 micro-web starter」仍是开 tracing 的前置判据**（否则三行写了也没有切面）。
 
-**③ 🔴 判据修正（2026-09-23 实测）：判断某模块是否开了 tracing，MUST 同时查 K8s Deployment 的 env**
+**③ 🔴 判据（2026-09-23 实测）：判断某模块是否开了 tracing，MUST 同时查 K8s Deployment 的 env**
 
 **NEVER 只 grep 本模块的 `application.properties` / yml。** 活样例是 `para-server`：
-它的 properties 全文没有任何 `management.tracing` 键，但集群 Deployment 注入了
+2026-09-23 排障时它的 properties 全文没有任何 `management.tracing` 键，但集群 Deployment 注入了
 `management.tracing.enabled=true`（`sampling.probability=0`），实测日志里 traceId 有值、
 `MapperAspectToTrace` / `ServiceAspectToTrace` 也确实在跑。
 因此**「properties 里没配置项」不等于「切面没生效」**，据此得出的任何归因 MUST 作废重查。
+（该模块 `application.properties` 自 2026-10-14 起已补齐三行，历史结论按原样保留：
+env 优先于 jar 内配置的机制没有变，Deployment 上一条 `MANAGEMENT_TRACING_ENABLED=false`
+照样能反向关掉 properties 里的 `true`。）
 
 > 注意**不能拿仓库 `deploy/k8s/` 的 manifest 当依据** —— 按 `AGENTS.md §7`，集群 env 会覆盖 jar 内配置、
-> `deploy/k8s/` 只作模板；实测 `deploy/` 下 grep `MANAGEMENT_TRACING` **零命中**，
-> 而 `para-server` 线上确实开着。**MUST 查线上 Deployment**（`kubectl -n itp get deploy <d> -o yaml`）。
+> `deploy/k8s/` 只作模板（截至 2026-10-28，`10-deployments/` 里有 13 个清单带着
+> `management.tracing.enabled` env，但线上是否一致仍只能看 kubectl 结果）。
+> **MUST 查线上 Deployment**（`kubectl -n itp get deploy <d> -o yaml`）。
 
 **④ 这条判据为什么重要**：`MapperAspectToTrace` / `ServiceAspectToTrace` 的「换类型异常」陷阱
-**只在打开 tracing 的模块上出现**（`shouldSkipAopTraceLogic()` 会短路其余模块），
-于是**同一份代码在 A 模块好、在 B 模块坏**，单测里没有切面、更看不到。
-排查「按 traceId 检索日志 0 条」或「兜底 catch 写了却没生效」时，
-**MUST 先确认目标模块在不在上面这份名单里**，NEVER 先怀疑上游没发头。
+**只在打开 tracing 的模块上出现**（`shouldSkipAopTraceLogic()` 会短路其余模块）。
+2026-10-28 前它表现为**同一份代码在 A 模块好、在 B 模块坏**；六个模块补齐后，凡部署态服务都会走切面，
+这个陷阱变成**全局生效**，单测里没有切面、更看不到。排查「按 traceId 检索日志 0 条」或
+「兜底 catch 写了却没生效」时，**MUST 先查 AOP 切面是否命中（`SimpleObservationMonitor.shouldSkipAopTraceLogic()`）**，
+NEVER 先怀疑上游没发头。
+
+> 切面除了换异常类型，还**每个 mapper / service 调用开一个 `Observation`**（受
+> `management.tracing.otlp.tracing.batch.max-queue-size` 的 `maxInstanceCount` 上限约束），
+> 并把每次异常补一条 `log.error`——后者会经业务包 logger 进文件 / Console / VictoriaLogs，
+> 量级随异常次数走。六个新开模块第一次上线后 MUST 观察日志量与 GC，确认可接受。
 
 **⑤ 跨服务传递靠两条路**：Quartz 侧是显式的 `QuartzTraceUtils.traceHeaders`
 （`traceparent` + `X-Vlogs-Capture: 1`，九个任务类都在用，见 `web-server.md` §七）；

@@ -606,7 +606,7 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 | # | 矛盾点 | 两侧说法 | 现状裁决 |
 |---|---|---|---|
 | 1 | **para 那两处「唯一键冲突返 UUID retCode」的成因** | 源码注释归因于观测切面换异常类型 / 实测 contra：**para-server 的 tracing 由 Deployment env 打开（切面在跑，推翻「从未生效」的旧前提），但切面自 ADR-D53 起原样 `throw e`、不换类型**；2026-09-23 重复组名实测返 `code=500 + 风险组名称已存在`，UUID retCode 未复现 | **归因作废、成因未知，MUST 重查**。候选仍是 Druid WallFilter 的「SQL 正文注释」或「`where 1 = 1` + 全可选 `<if>`」两条（另有可能是 cause 链判定后补）。**NEVER 引用旧归因**，也 **NEVER 再用「para-server 没开 tracing」当论据**（详见 §1.6） |
-| 2 | **cause 链兜底是否还有必要** | 本模块未开 tracing ⇒ 当前无切面包装 / 将来开 tracing 后它是唯一防线 | **保留**。`NEVER` 简化回裸 `catch (DuplicateKeyException)` |
+| 2 | **cause 链兜底是否还有必要** | 本模块已开 tracing（properties 三行齐全，2026-10-28 复核）⇒ 切面在跑，cause 链是唯一防线 | **保留**。`NEVER` 简化回裸 `catch (DuplicateKeyException)` |
 | 3 | **para-server 该不该开 tracing** | docs/business/README.md 全局事实 名单里没有它 ⇒ 按 traceId 检索它的日志恒 0 条 / 开之前 MUST「三行成组」 | **未裁决**。要开 MUST 三行成组 + 重建镜像（`-Djkube.skip=true` 不能带） |
 | 4 | **阶段一文档的行号与措辞** | 阶段一 §墓碑注释清单给了 25 条精确行号 / 本次删注释后**行号全部失效** | 阶段一那张表**只保留「想禁止的事」与「能否写成断言测试」两列可用**，**行号 NEVER 引用** |
 | 5 | **key-server `service.security.url` 的旧措辞** | 阶段一 §六 引的是缺主语版本 / 源码已订正为带主语版本 | 以 §二·2.4 为准，**NEVER 回退** |

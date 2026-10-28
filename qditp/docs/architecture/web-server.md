@@ -335,10 +335,11 @@ QuartzTraceUtils.runWithTrace(traceId -> {
 - `runWithTrace(Consumer<String>)` — Quartz 路径直接复用 `AbstractQuartzJob.before()` 放进 MDC 的 traceId（也就是写进 `job_message` 的那个），非 Quartz 路径（本地手工调用 / 单测）自己生成并自己清理。**NEVER** 在任务里另生成 traceId，否则前台按 `job_message` 的值检索不到下游日志。
 - `traceHeaders(traceId)` — 生成 W3C `traceparent=00-<traceId>-<spanId>-00` + `X-Vlogs-Capture: 1`。末段采样标记固定 `00`（只为让对端 MDC 里有 traceId，不推 span 给 OTLP collector，该地址可达性未实测）；循环排空型任务 **MUST 每轮重新调一次**以拿到独立 spanId。**NEVER 传自定义 `traceId` 头**——`FirstFilter` 会让它与 Micrometer 写入的键相撞。
 - 当前 9 个任务类（`terminationQuartzTask` / `notifyCompensateQuartzTask` / `blacklistReleaseInspectQuartzTask` / `paraQuartzTask` / `alipayTerminationQuartzTask` / `accountQuartzTask` / `tbNoticeAppTask` / `reconQuartzTask` / `gateTxnPayQuartzTask`）**全部已接入**，此前分散在 4 个类里的重复 `traceHeaders()` 私有副本已删除。
-- ⚠️ **对端能否把 traceparent 续成自己 MDC 的 `traceId`，取决于该模块 `management.tracing.enabled`**（`resource/micro/web/src/main/resources/web.properties` 默认 `false`，目前只有 `pay-sign-server/src/main/resources/application.properties` 显式打开）。2026-09-08 实测两侧对照：
+- ⚠️ **对端能否把 traceparent 续成自己 MDC 的 `traceId`，取决于该模块 `management.tracing.enabled`**（`resource/micro/web/src/main/resources/web.properties` 默认 `false`）。**2026-10-28 起全部 24 个部署态服务都已打开**（六个后补模块 acc-es / acc-secure / acc-security / collect-ticket / industry-data / key，名单与来源见 `common-components.md` §3.1.2 ②）；生效前提是重新构建镜像并滚更，旧 Pod 跑的仍是旧配置。2026-09-08 实测两侧对照（历史样本，结论仍是「MUST 逐字对照」的依据）：
   - **pay-sign 续接成功**：web-admin 发 `traceparent=00-0974d055296d4ddfa0600ceb7223440f-…`，pay-sign 日志 MDC traceId **就是** `0974d055296d4ddfa0600ceb7223440f`，`sys_job_log` 里 job 246 的 `job_message` 也是同一个值 —— 前台「执行日志」按钮可直接检索到全链路。
-  - **para-server 续接失败**：同一次请求头里 `traceparent=00-aa11bb22cc33dd44ee55ff6677889900-…`，para-server 日志 MDC traceId 却是自己生成的 `5128bde4941342dc31ce43c40216e8e4`，两者无关。因此**按 `job_message` 的 traceId 检索不到 para-server 的日志**。修复方式是给 para-server 补上与 pay-sign 相同的两行（`management.tracing.enabled=true` + `management.tracing.sampling.probability=0`），属配置改动，需单独评审。
+  - **para-server 续接失败（补配置前的快照）**：同一次请求头里 `traceparent=00-aa11bb22cc33dd44ee55ff6677889900-…`，para-server 日志 MDC traceId 却是自己生成的 `5128bde4941342dc31ce43c40216e8e4`，两者无关。该模块随后补上了三行 tracing 配置（2026-10-28 已复核 properties 里三行齐全），此条只作为「头发出去了 ≠ 链路通了」的判据保留。
   - 结论：新接一个下游 **MUST 用「发出的 traceparent trace-id」与「对端日志 MDC traceId」逐字对照**，**NEVER** 只凭「头发出去了」就认为链路已通。
+  - 例外：**web-admin 自身没有开 tracing**（不依赖 micro-web starter），Quartz 侧的 traceId 由 `QuartzTraceUtils` 显式写入 MDC，不经过本条的续接机制。
 
 **检索时间窗怎么定的**（`sys_job_log` 只有 `create_time` 一个时间列，其余全靠反推）：
 
