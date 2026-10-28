@@ -103,8 +103,37 @@ Docker 语义下**子镜像的 `ENTRYPOINT` 直接覆盖基础镜像的 `ENTRYPO
     且层步骤为 `[1/2] FROM` + `[2/2]`（无 `ENTRYPOINT`/`CMD` 层）、
     `imgSize` 与平台在跑旧镜像同量级（`recon-server:1.0.28` 408.91 MiB vs `:1.0.26` 408.9 MiB）。
   - **未证（诚实标注）**：本轮只出镜像、**未做任何部署/upgrade**，故「用 `fep-dev-server:2.0.74`
-    重启后 PID1 回到 `sh /startapp.sh`、堆回到 5900m」这条运行期复验**尚未做**，
-    MUST 在该服务下次发版时按 §2 同一命令复核。
+    重启后 PID1 回到 `sh /startapp.sh`、堆回到 5900m」这条运行期复验**尚未做**。
+- **待复验清单（已列入计划，未排期；触发即执行）**
+  - 触发条件：`fep-dev-server` 或 `route-sentinel` **任一次发版改用共享模板出的新镜像**
+    （现成候选 tag：`itpb/fep-dev-server:2.0.74`、`itpb/route-sentinel:1.0.3`），
+    或这两个服务被平台重新部署到任一 buildx 出的新 tag。
+  - 前置：**动在跑应用 MUST 先经用户二次确认**（AGENTS.md §5.C 生产红线），本单不自带执行授权。
+  - 命令与判据（两条都是二值信号，不需要解读）：
+
+    ```bash
+    # ① 启动形态：期望输出 sh /startapp.sh；打出 java -jar /app.jar 即为仍被旁路
+    kubectl -n itpb exec <pod> -- tr '\0' ' ' < /proc/1/cmdline
+
+    # ② 堆上限：期望 -XX:MaxHeapSize=6186598400（5900m），仍是 2147483648 即未修复
+    #    （javaPid 在修复后是 startapp.sh 的子进程，故先按 comm 找，别写死 1）
+    kubectl -n itpb exec <pod> -- sh -c '
+      jp=$(for x in $(ls /proc | grep -E "^[0-9]+$"); do
+             grep -qa java /proc/$x/comm 2>/dev/null && echo $x; done | head -1)
+      /home/javaapp/soft/jdk-21.0.1/bin/jcmd $jp VM.flags | tr " " "\n" | grep MaxHeapSize'
+
+    # ③ 顺带核 GC 日志真的在写（hostname MUST 在 Pod 内取，别在本地 shell 展开）
+    kubectl -n itpb exec <pod> -- sh -c 'ls -l /home/javaapp/app/logs/$(hostname)/'
+    ```
+  - 三条全绿 → 本单置「已解决」；①/② 任一不符 → 说明落到的镜像仍带自写 `ENTRYPOINT`，
+    回 §4 检查构建时是否误用了 `fep-dev-server/Dockerfile` 或 `route-sentinel/Dockerfile`。
+  - **命令取证状态（别把没跑过的当已验）**：①②③ 的**单体形式都已在 2026-10-28 现查里跑过**
+    （§2 取证用的就是同一套 `/proc/1/cmdline` + 绝对路径 `jcmd` + `ls /home/javaapp/app/logs/$(hostname)/`），
+    上面写的是**合并版**（带 javaPid 自发现、`grep -c gctrace`），合并版尚未跑过 ⇒
+    首次复验 MUST 先拿一个健康服务当**正控**（现成选择：`acc-es-server`，预期
+    `sh /startapp.sh` / `6186598400` / gctrace 文件数 ≥ 1），再拿目标 Pod 当**负控**对照，
+    否则「命令本身写错」会被读成「镜像仍有问题」。
+    （本条写就时 USB 网卡 `en9` 掉 IP、`diag reach` 报未拿到 IP，故合并版没能当场跑一遍。）
 - 回滚预案：新 tag 与旧 tag 在 Harbor 并存、旧 tag 未删，应用对象一律未动 →
   回滚 = 把应用镜像指回原 tag（`fep-dev-server:2.0.72` / `route-sentinel:1.0.1`）；
   共享模板是新文件，不改任何既有构建记录。
