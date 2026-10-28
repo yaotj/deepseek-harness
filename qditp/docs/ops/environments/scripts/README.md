@@ -106,7 +106,11 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
 | `admin` / `itpadmin` 登录失败 | `itpadmin` 是 Harbor 推送账号，不是云管台账号 |
 | 双实例判据 | 不是 `instance_num=2`，而是**两个副本落在不同节点**；同节点双副本等于没扩容。查法：`ssh hd-linux "kubectl get pods -n itpb -o custom-columns=APP:.metadata.labels.app,NODE:.spec.nodeName --no-headers \| sort"` |
 | `PUT /apps/{uuid}/resources` 返回 `status=true`，但 `GET` 读回仍是旧值 | **异步生效**（2026-10-26 实测）：立即读回是旧值，数十秒后才刷新（`kubectl` 先看到新 ReplicaSet）。复验 MUST 轮询到目标值，**单次读回会把成功的变更误判成失败**、进而重复下发。`spec-set` 已内置 100s 轮询 |
+| `PATCH /apps/{uuid}/advanced-config` 返回 `application.5000010`（msg 为空，文档无此码） | **缺 `container_image`**——文档未标必填，image 类应用缺它必失败，补上即通。改应用 env MUST 走这条接口（`kubectl set env`/patch 会被平台数分钟内回收），契约与实测见 `docs/tracking/IT-020-JVM参数被平台回滚.md` |
 | 跨模块 RPC 全失败 | 平台按 `application.properties` 生成的 env 保留测试默认值，不显式注入 `SERVICE_*_URL` 就指向 `itp` 命名空间（IT-016）。`cloudos env <app>` 一次打全 38 项 env 核对 |
+| `image plan/build` 误报「不是 spring-boot fat jar」 | **已修**（2026-10-26）。入口的 `set -uo pipefail` + `unzip -l \| grep -q` 组合必假：grep 命中即退出 → unzip 收 SIGPIPE（rc=9）→ pipefail 判整条管道失败。**该 bug 会拦住所有模块的 image plan/build**，现已改为先取全量清单再匹配 |
+| Harbor 443 端口证书不合法 | podman 直连 `os-harbor-svc...:443` 报 `x509: certificate is not valid for any names`。**login/pull 用 `:11443`**；K8s 侧 kubelet 拉 `:443` 正常（itpb ns 内实测 `itpb/jdk21:1.0.0` 拉取成功） |
+| `itpadmin` 无 catalog 权限 | Harbor `_catalog` 报 `unauthorized to list catalog`。查项目镜像清单改用 Harbor API `/api/v2.0/projects/<proj>/repositories`；查单仓 tag 用 `/v2/<proj>/<repo>/tags/list`（需 `--path-as-is`，否则 `%2F` 被解码） |
 
 三个设计点（`scale` 族命令）：**幂等**（已是目标值不发请求）、**异步复验**（`status=true` 只代表已下发，
 轮询 `instance_ok_num` 每 3s 一次最多 180s，未达标退出非 0——看 HTTP 200 就走人 = 假成功）、

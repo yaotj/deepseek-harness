@@ -696,7 +696,17 @@ image_prepare() {
     [[ -f "$DOCKERFILE" ]] || die "找不到 Dockerfile：${DOCKERFILE}"
 
     # fat jar 校验：平台用 java -jar 拉起，必须是 spring-boot repackage 产物
-    if ! unzip -l "$jar" 2>/dev/null | grep -q "BOOT-INF/classes"; then
+    #
+    # 【为什么要绕开管道（2026-10-26 修）】
+    #   原写法 `unzip -l "$jar" | grep -q "BOOT-INF/classes"` 在本仓必假：
+    #   入口设了 `set -uo pipefail`，而 grep -q 命中后立刻退出 → unzip 收到 SIGPIPE
+    #   → unzip 退出码 9 → pipefail 把整条管道判为失败 → 误报「不是 fat jar」。
+    #   实测：route-sentinel 1.0.1 确有 49 条 BOOT-INF/classes，手工同命令判真，
+    #   放进带 pipefail 的脚本里就判假。**这会拦住所有模块的 image plan/build**。
+    #   修法：先取全量清单到变量再匹配，不用管道（顺带避免 unzip 提前 SIGPIPE）。
+    local manifest
+    manifest=$(unzip -l "$jar" 2>/dev/null) || die "${jar} 不是合法的 zip（unzip 读取失败）"
+    if ! printf '%s' "$manifest" | grep -q "BOOT-INF/classes"; then
         die "${jar} 不是 spring-boot fat jar（无 BOOT-INF/classes），平台无法 java -jar 启动"
     fi
 

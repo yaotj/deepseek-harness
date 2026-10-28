@@ -1,0 +1,43 @@
+# 应用日志共享盘 v2 —— 静态绑定，落地目录 /ITP-PV/home/java/itpb-app-logs
+#
+# 为什么是静态 PV 而不是靠 StorageClass 动态供给：
+#   动态供给的目录名由 provisioner 模板生成（<ns>-<pvc>-<pv>，带 PV uid），
+#   且 PV 的 spec.persistentvolumesource 创建后不可变，无法事后改 nfs.path。
+#   只有手工建 PV 才能把落地目录定成想要的路径。
+#
+# storageClassName 必须为空串（不能写 itpb-yw），否则会被 SC 接管/拒绝绑定。
+# mountOptions 刻意留空：与现有 PV 保持一致（已验证可在全部节点挂载）。
+#   若将来某节点 NFS 客户端默认走 4.x 导致挂载失败，加 mountOptions: [vers=3]。
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: app-logs-v2-pv
+  labels:
+    purpose: app-logs
+spec:
+  capacity:
+    storage: 400Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  nfs:
+    server: 172.120.0.1
+    path: /ITP-PV/home/java/itpb-app-logs
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-logs-v2
+  namespace: itpb
+  labels:
+    purpose: app-logs
+spec:
+  storageClassName: ""
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 400Gi
+  volumeName: app-logs-v2-pv

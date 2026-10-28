@@ -1,0 +1,17 @@
+# 应用共享日志盘 —— 挂到各服务 /home/javaapp/app/logs
+# 后端：172.120.0.1:/ITP-PV（itpb-yw，1.1T 卷）；RWX 供多 Pod 共享；容量 400Gi
+# 跳板机只读访问：mount -t nfs -o ro,vers=3 172.120.0.1:/ITP-PV /mnt/itp-pv
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-logs
+  namespace: itpb
+  labels:
+    purpose: app-logs
+spec:
+  storageClassName: itpb-yw
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 400Gi
