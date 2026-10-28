@@ -1,6 +1,5 @@
 package com.chinasofti.huateng;
 
-import com.chinasofti.huateng.micro.mybatis.adaptor.EnableDefaultMybatisAutoConfig;
 import com.chinasofti.huateng.rpc.EnableRpcKey;
 import com.chinasofti.huateng.rpc.EnableRpcRoute;
 import com.chinasofti.huateng.rpc.EnableRpcTicket;
