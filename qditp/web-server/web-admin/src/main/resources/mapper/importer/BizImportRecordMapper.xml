@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.web.mapper.importer.BizImportRecordMapper">
+
+    <resultMap type="BizImportRecord" id="BizImportRecordResult">
+        <id     property="importId"         column="import_id"        />
+        <result property="bizCode"          column="biz_code"         />
+        <result property="bizName"          column="biz_name"         />
+        <result property="fileName"         column="file_name"        />
+        <result property="fileSize"         column="file_size"        />
+        <result property="fileUrl"          column="file_url"         />
+        <result property="importBy"         column="import_by"        />
+        <result property="deptId"           column="dept_id"          />
+        <result property="clientIp"         column="client_ip"        />
+        <result property="batchNo"          column="batch_no"         />
+        <result property="totalRows"        column="total_rows"       />
+        <result property="successRows"      column="success_rows"     />
+        <result property="failRows"         column="fail_rows"        />
+        <result property="updateSupport"    column="update_support"   />
+        <result property="status"           column="status"           />
+        <result property="finishTime"       column="finish_time"      />
+        <result property="errorMsg"         column="error_msg"        />
+        <result property="createBy"         column="create_by"        />
+        <result property="createTime"       column="create_time"      />
+        <result property="updateBy"         column="update_by"        />
+        <result property="updateTime"       column="update_time"      />
+        <result property="remark"           column="remark"           />
+    </resultMap>
+
+    <sql id="selectBizImportRecordVo">
+        select import_id, biz_code, biz_name, file_name, file_size, file_url,
+               import_by, dept_id, client_ip, batch_no, total_rows, success_rows, fail_rows,
+               update_support, status, finish_time, error_msg,
+               create_by, create_time, update_by, update_time, remark
+        from biz_import_record
+    </sql>
+
+    <select id="selectBizImportRecordList" parameterType="BizImportRecord" resultMap="BizImportRecordResult">
+        <include refid="selectBizImportRecordVo"/>
+        <where>
+            <if test="bizCode != null and bizCode != ''">and biz_code = #{bizCode}</if>
+            <if test="batchNo != null and batchNo != ''">and batch_no = #{batchNo}</if>
+            <if test="importBy != null and importBy != ''">and import_by = #{importBy}</if>
+            <if test="status != null and status != ''">and status = #{status}</if>
+            <if test="params.beginTime != null and params.beginTime != ''">
+                and create_time &gt;= #{params.beginTime}
+            </if>
+            <if test="params.endTime != null and params.endTime != ''">
+                and create_time &lt;= #{params.endTime}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <select id="selectBizImportRecordById" parameterType="Long" resultMap="BizImportRecordResult">
+        <include refid="selectBizImportRecordVo"/>
+        where import_id = #{importId}
+    </select>
+
+    <select id="selectBizImportRecordByBatchNo" parameterType="String" resultMap="BizImportRecordResult">
+        <include refid="selectBizImportRecordVo"/>
+        where batch_no = #{batchNo}
+    </select>
+
+    <insert id="insertBizImportRecord" parameterType="BizImportRecord" useGeneratedKeys="true" keyProperty="importId">
+        insert into biz_import_record
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="importId != null">import_id,</if>
+            <if test="bizCode != null and bizCode != ''">biz_code,</if>
+            <if test="bizName != null and bizName != ''">biz_name,</if>
+            <if test="fileName != null and fileName != ''">file_name,</if>
+            <if test="fileSize != null">file_size,</if>
+            <if test="fileUrl != null and fileUrl != ''">file_url,</if>
+            <if test="importBy != null and importBy != ''">import_by,</if>
+            <if test="deptId != null">dept_id,</if>
+            <if test="clientIp != null and clientIp != ''">client_ip,</if>
+            <if test="batchNo != null and batchNo != ''">batch_no,</if>
+            <if test="totalRows != null">total_rows,</if>
+            <if test="successRows != null">success_rows,</if>
+            <if test="failRows != null">fail_rows,</if>
+            <if test="updateSupport != null">update_support,</if>
+            <if test="status != null">status,</if>
+            <if test="finishTime != null">finish_time,</if>
+            <if test="errorMsg != null">error_msg,</if>
+            <if test="createBy != null and createBy != ''">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null and updateBy != ''">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="importId != null">#{importId},</if>
+            <if test="bizCode != null and bizCode != ''">#{bizCode},</if>
+            <if test="bizName != null and bizName != ''">#{bizName},</if>
+            <if test="fileName != null and fileName != ''">#{fileName},</if>
+            <if test="fileSize != null">#{fileSize},</if>
+            <if test="fileUrl != null and fileUrl != ''">#{fileUrl},</if>
+            <if test="importBy != null and importBy != ''">#{importBy},</if>
+            <if test="deptId != null">#{deptId},</if>
+            <if test="clientIp != null and clientIp != ''">#{clientIp},</if>
+            <if test="batchNo != null and batchNo != ''">#{batchNo},</if>
+            <if test="totalRows != null">#{totalRows},</if>
+            <if test="successRows != null">#{successRows},</if>
+            <if test="failRows != null">#{failRows},</if>
+            <if test="updateSupport != null">#{updateSupport},</if>
+            <if test="status != null">#{status},</if>
+            <if test="finishTime != null">#{finishTime},</if>
+            <if test="errorMsg != null">#{errorMsg},</if>
+            <if test="createBy != null and createBy != ''">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null and updateBy != ''">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+        </trim>
+    </insert>
+
+    <update id="updateBizImportRecord" parameterType="BizImportRecord">
+        update biz_import_record
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="bizCode != null and bizCode != ''">biz_code = #{bizCode},</if>
+            <if test="bizName != null and bizName != ''">biz_name = #{bizName},</if>
+            <if test="fileName != null and fileName != ''">file_name = #{fileName},</if>
+            <if test="fileSize != null">file_size = #{fileSize},</if>
+            <if test="fileUrl != null and fileUrl != ''">file_url = #{fileUrl},</if>
+            <if test="importBy != null and importBy != ''">import_by = #{importBy},</if>
+            <if test="deptId != null">dept_id = #{deptId},</if>
+            <if test="clientIp != null and clientIp != ''">client_ip = #{clientIp},</if>
+            <if test="batchNo != null and batchNo != ''">batch_no = #{batchNo},</if>
+            <if test="totalRows != null">total_rows = #{totalRows},</if>
+            <if test="successRows != null">success_rows = #{successRows},</if>
+            <if test="failRows != null">fail_rows = #{failRows},</if>
+            <if test="updateSupport != null">update_support = #{updateSupport},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="finishTime != null">finish_time = #{finishTime},</if>
+            <if test="errorMsg != null">error_msg = #{errorMsg},</if>
+            <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where import_id = #{importId}
+    </update>
+
+</mapper>
