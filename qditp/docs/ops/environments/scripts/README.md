@@ -9,6 +9,9 @@
 ```
 scripts/
 ├── itp-ops.sh                ★ 唯一入口：全局参数（--env/--yes）解析 + 域分发
+├── hongdao-buildx.sh           红岛镜像构建唯一可用入口（hcr file/upload + buildx，平台 x86 节点出镜像）
+├── hongdao-buildx.Dockerfile   与之配套的共享构建模板（NEVER 写 ENTRYPOINT/CMD，理由见文件头与 IT-031）
+├── web_frontend_release.py     前端发版脚本（见 web-frontend-release.README.md）
 ├── lib/                      公共库（NEVER 设 shell 选项；失败返回非 0 + 调用方显式判）
 │   ├── core.sh                 日志 / 写操作门(--yes) / 仓库根推导 / 依赖检查
 │   ├── remote.sh               ssh 跳板助手（k8s-master；TTY 纪律 + printf %q 转义）

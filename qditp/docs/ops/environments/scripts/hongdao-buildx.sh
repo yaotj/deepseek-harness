@@ -148,9 +148,15 @@ try:
     d=json.load(sys.stdin)
 except Exception:
     print(""); sys.exit(0)
-for r in (d.get("data") or []):
-    if r.get("imgName")==sys.argv[1] and r.get("version")==sys.argv[2]:
-        print("%s|%s|%s"%(r.get("imgUrl"),r.get("osAndArch"),r.get("digest")))
+# 响应形态（2026-10-28 现查）：data 是 dict，镜像列表在 data.images[]，
+# 每条记录的版本字段叫 versions（多 tag 时以逗号串在一起），NEVER 按 data[] + version 解析。
+data = d.get("data") or {}
+for grp in (data.get("images") if isinstance(data, dict) else data) or []:
+    if grp.get("imgName") != sys.argv[1]:
+        continue
+    tags = [t.strip() for t in str(grp.get("versions") or "").split(",")]
+    if sys.argv[2] in tags:
+        print("%s|%s|%s" % (grp.get("imgUrl"), grp.get("osAndArch"), grp.get("digest")))
         sys.exit(0)
 print("")
 ' "$MOD" "$VER" 2>/dev/null)
