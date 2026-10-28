@@ -7,21 +7,27 @@
 # JSON 用 json，zip 校验用 zipfile。取代原 web-frontend-release.sh。
 #
 # 依赖（本机）：python3 + cryptography（RSA）；构建步还要 node/npm。
-# 端点 2026-10-26 实测：
+# 端点 2026-10-26 实测；上传字段集 2026-10-28 对齐平台「上传应用包」向导
+# （抓 upload.*.js + GET /packages /tags 实测）：
 #   登录  POST /api/sys/oapi/v1/double_factor/login   （口令 RSA-1024 PKCS#1 v1.5 加密）
-#   上传  POST /api/cloud/deploy/v1.0/packages        （multipart，pkgType=web）
+#   上传  POST /api/cloud/deploy/v1.0/packages        （multipart，pkgType=web 不是 jar；
+#         表单字段 id/pkgType/name/version/visible/label/description/feature/tagId + 分片
+#         totalChunks/chunkNumber；分片参数＝平台控件 chunkSize 204800000 / maxChunkRetries 3；
+#         tagId=GET /tags 按分类名解析的 uuid，包已存在时 prefill 包详情现值）
 #   升级  PATCH /api/cloud/app-mgmt/v1.0/apps/{uuid}/advanced-config
 #         body 由 GET /apps/{uuid} 的 metadata 读现状后只改 version_id / version
 #
 # 用法：
 #   python3 web_frontend_release.py <版本> [--yes] [--skip-build] [--skip-upgrade]
 #                          [--app web-frontend] [--pkg web-frontend] [--app-uuid <u>]
+#                          [--tag itpb] [--description <包描述>] [--feature <版本特性>]
 #   不带 --yes = dry-run（本地出 zip + 打印将发的请求，不碰生产）
 # ============================================================================
 
 import argparse
 import base64
 import json
+import math
 import os
 import random
 import re
@@ -30,6 +36,7 @@ import string
 import subprocess
 import sys
 import textwrap
+import time
 import urllib.error
 import urllib.request
 import zipfile
@@ -43,6 +50,10 @@ except ImportError:
     sys.exit("缺 cryptography（RSA 登录要用）。装：pip3 install cryptography")
 
 # --------------------------------------------------------------------------- 配置
+# 分片上传参数（对齐平台上传控件 vue 配置，2026-10-28 抓 upload.*.js 实测）
+CHUNK_SIZE = 204_800_000   # 控件 chunkSize（204800000 字节 ≈ 195 MiB/片；小于此值仍是单请求，行为与旧版一致）
+CHUNK_RETRIES = 3         # 控件 maxChunkRetries
+
 # 环境 profile（与 lib/cloudos-auth.sh 同源；口令默认值即仓库真源，2026-10-26 裁定，可用环境变量覆盖）
 HONGDAO_PUBKEY_B64 = (
     "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCbPqaFZ0lgebihxCw5wzjkahPKr6ZI2JNTHbHDnNbOn3Cif6Ggn"
@@ -128,15 +139,17 @@ def gen_id() -> str:
     return "".join(random.choice(alphabet) for _ in range(10))
 
 
-def multipart(fields: dict, file_field: str, file_path: Path) -> tuple[bytes, dict]:
-    """组 multipart body（字段 + 一个文件）。每个 part：--boundary\r\n 头\r\n\r\n 值\r\n；末条 --boundary--。"""
+def multipart_range(fields: dict, file_field: str, file_path: Path, start: int, end: int) -> tuple[bytes, dict]:
+    """组 multipart body（表单字段 + 文件 part 只含 file[start:end]）。
+    每片独立一个 part：--boundary\\r\\n 头\\r\\n\\r\\n 值\\r\\n；末条 --boundary--。
+    单片时 start=0/end=size（旧行为）；分片时由 upload() 按 CHUNK_SIZE 切。"""
     boundary = "----qditp" + gen_id()
     parts = []
     for k, v in fields.items():
         parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n")
     parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{file_field}\"; "
                  f"filename=\"{file_path.name}\"\r\nContent-Type: application/octet-stream\r\n\r\n")
-    body = "".join(parts).encode("utf-8") + file_path.read_bytes() + f"\r\n--{boundary}--\r\n".encode()
+    body = "".join(parts).encode("utf-8") + file_path.read_bytes()[start:end] + f"\r\n--{boundary}--\r\n".encode()
     return body, {"Content-Type": f"multipart/form-data; boundary={boundary}"}
 
 
@@ -191,32 +204,82 @@ def login(profile: dict) -> str:
     return token
 
 
-def get_version_id(token, base, pkg_name, version) -> str | None:
-    code, d = http_json("GET", f"{base}/api/cloud/deploy/v1.0/packages?page=1&size=50&name={pkg_name}", token=token)
+def get_pkg_detail(token, base, pkg_name) -> dict:
+    """UI「包详情」同款查询（selectOwn + 私有 visible=false）：返回包 dict（含 versions / tag_id / label / description / pkg_type）；不存在或取不到 → {}。"""
+    code, d = http_json("GET", f"{base}/api/cloud/deploy/v1.0/packages?selectOwn=true&visible=false&name={pkg_name}",
+                        token=token)
     if code != 200:
-        return None
-    for p in d.get("data") or []:
-        for v in p.get("versions") or []:
-            if v.get("version") == version:
-                return v.get("id")
+        return {}
+    rows = d.get("data") or []
+    return rows[0] if rows else {}
+
+
+def get_version_id(token, base, pkg_name, version) -> str | None:
+    for v in (get_pkg_detail(token, base, pkg_name).get("versions") or []):
+        if v.get("version") == version:
+            return v.get("id")
     return None
 
 
-def upload(token, base, pkg_name, version, zip_path) -> None:
+def resolve_tag_id(token, base, tag_name) -> str | None:
+    """分类名 → tagId(uuid)，走 GET /tags（与包详情 tag_id 同域）。查不到返回 None（上传不附带 tagId，兼容旧行为）。"""
+    if not tag_name:
+        return None
+    code, d = http_json("GET", f"{base}/api/cloud/deploy/v1.0/tags", token=token)
+    if code != 200:
+        return None
+    for t in d.get("data") or []:
+        if t.get("tag") == tag_name:
+            return t.get("id")
+    return None
+
+
+def upload(token, base, pkg_name, version, zip_path, *, pkg_type="web", label="", description=None,
+           feature=None, tag_id=None) -> None:
+    """上传字段集对齐平台上传向导（2026-10-28 抓 upload.*.js）：
+    id / pkgType / name / version / visible / label / description / feature / tagId + 分片 totalChunks / chunkNumber。
+    包已存在时 prefill 语义＝向导 getDetail：label / description / tagId / pkgType 取包详情现值。"""
     if get_version_id(token, base, pkg_name, version):
-        print(f"3/4 该版本已存在（{pkg_name}:{version}），跳过上传")
+        print(f"3/4 {pkg_name}:{version} 已存在（平台禁重复版本号，重传会被拒），跳过上传")
         return
+    detail = get_pkg_detail(token, base, pkg_name)
+    label = label or detail.get("label") or pkg_name
+    if description is None:
+        description = detail.get("description") or ""
+    if feature is None:
+        feature = ""
+    if tag_id is None:
+        tag_id = detail.get("tag_id") or ""
+    pkg_type = detail.get("pkg_type") or pkg_type
     vid = gen_id()
-    body, hdr = multipart(
-        {"totalChunks": "1", "chunkNumber": "1", "id": vid, "pkgType": "web",
-         "name": pkg_name, "version": version, "visible": "false", "label": pkg_name},
-        "file", zip_path)
-    code, raw = http("POST", f"{base}/api/cloud/deploy/v1.0/packages", headers=hdr,
-                     body=body, token=token, timeout=300)
-    d = json.loads(raw.decode() or "{}")
-    if code != 200 or d.get("status") is not True:
-        sys.exit(f"上传失败 HTTP {code}：{str(raw)[:400]}")
-    print(f"3/4 ✓ 已上传 {pkg_name}:{version}（vid={vid}）")
+    size = zip_path.stat().st_size
+    total = max(1, math.ceil(size / CHUNK_SIZE))
+    print(f"3/4 上传 {pkg_name}:{version}（pkgType={pkg_type}，tagId={tag_id or '<未附带>'}，"
+          f"{size // 1024 // 1024} MiB / {total} 片）")
+    for i in range(1, total + 1):
+        start, end = (i - 1) * CHUNK_SIZE, min(i * CHUNK_SIZE, size)
+        fields = {"totalChunks": str(total), "chunkNumber": str(i), "id": vid,
+                  "pkgType": pkg_type, "name": pkg_name, "version": version,
+                  "visible": "false", "label": label, "description": description,
+                  "feature": feature, "tagId": tag_id}
+        body, hdr = multipart_range(fields, "file", zip_path, start, end)
+        err = None
+        for attempt in range(1, CHUNK_RETRIES + 1):
+            code, raw = http("POST", f"{base}/api/cloud/deploy/v1.0/packages", headers=hdr,
+                            body=body, token=token, timeout=300)
+            try:
+                d = json.loads(raw.decode() or "{}")
+            except ValueError:
+                d = {}
+            if code == 200 and d.get("status") is True:
+                err = None
+                break
+            err = f"HTTP {code}: {str(raw)[:400]}"
+            print(f"   第 {attempt}/{CHUNK_RETRIES} 次失败（{err}），2s 后重试")
+            time.sleep(2)
+        if err:
+            sys.exit(f"上传失败（{pkg_name}:{version} 第 {i}/{total} 片，重试 {CHUNK_RETRIES} 次）：{err}")
+        print(f"   … 第 {i}/{total} 片已传（{(end - start) // 1024 // 1024} MiB）")
     if get_version_id(token, base, pkg_name, version):
         print(f"   ✓ 回查确认 {pkg_name}:{version} 已落盘")
 
@@ -294,6 +357,12 @@ def main():
     ap.add_argument("--app", default=os.environ.get("WEB_APP_NAME", "web-frontend"))
     ap.add_argument("--pkg", default=os.environ.get("WEB_PKG_NAME", "web-frontend"))
     ap.add_argument("--app-uuid", default=os.environ.get("WEB_APP_UUID", ""))
+    ap.add_argument("--tag", default=os.environ.get("WEB_PKG_TAG", "itpb"),
+                    help="软件中心分类名（默认 itpb）；经 GET /tags 解析为 tagId(uuid)，解析不到则上传不附带")
+    ap.add_argument("--description", default=os.environ.get("WEB_PKG_DESC"),
+                    help="包描述；缺省 prefill（包已存在取详情现值、新建取空），传字符串则显式覆盖")
+    ap.add_argument("--feature", default=os.environ.get("WEB_PKG_FEATURE"),
+                    help="版本特性；缺省不填")
     args = ap.parse_args()
 
     env = os.environ.get("CLOUDOS_ENV", "hongdao")
@@ -313,11 +382,19 @@ def main():
     token = login(profile)
 
     # 3 上传
+    tag_uuid = resolve_tag_id(token, base, args.tag)
     if args.yes:
-        print(f"3/4 上传 web 包 {args.pkg}:{args.version}（pkgType=web）")
-        upload(token, base, args.pkg, args.version, zip_path)
+        print(f"3/4 上传 web 包 {args.pkg}:{args.version}")
+        upload(token, base, args.pkg, args.version, zip_path,
+               description=args.description, feature=args.feature, tag_id=tag_uuid)
     else:
-        print(f"3/4 dry-run：将 POST {base}/api/cloud/deploy/v1.0/packages（本地上传 {zip_path.name}）")
+        desc = "<prefill 包详情现值>" if args.description is None else args.description
+        feat = "<不填>" if args.feature is None else args.feature
+        print(f"3/4 dry-run：将 POST {base}/api/cloud/deploy/v1.0/packages（本地 {zip_path.name}）")
+        print(f"   表单字段：id=<10位预生成> pkgType=web name={args.pkg} version={args.version} "
+              f"visible=false label={args.pkg} description={desc} feature={feat} "
+              f"tagId={tag_uuid or f'<{args.tag} 未解析，不附带>'}"
+              f" + 分片 totalChunks/chunkNumber（文件 >{CHUNK_SIZE // 1024 // 1024}MiB 时按 {CHUNK_SIZE} 字节切）")
 
     # 4 升级
     if args.skip_upgrade:

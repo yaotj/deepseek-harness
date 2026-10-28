@@ -90,11 +90,11 @@
 ### 5.C 发布工作流（测试/生产环境 + 上线任务）
 > **范围**：所有模块的镜像构建 / 推送 / 滚动更新 / 版本切换。纯前端（综管台 `web/`）发版特殊点见 §5.E。
 
-**发布 / 滚更 / 版本切换**：读技能 `qditp-deploy-release`，按六步流程执行（bump → 出 jar → scp → build-push → 滚更 → digest 比对）。
+**发布 / 滚更 / 版本切换**：读技能 `qditp-deploy-release`，按六步流程执行（bump → 出 jar → scp → build-push → 滚更 → digest 比对）；完整方法手册（三条路径总览、命令行为边界、红岛 / 前端路径、回滚）见 `docs/ops/构建与发布.md`。
 
 **镜像构建位置（MUST）**：**NEVER 在本机跑 `docker buildx` 构建 x86/amd64 镜像**——本机是 Apple Silicon，模拟构建慢、单层与缓存产物动辄数 GB，会迅速吃满本地磁盘。本机只出 jar，镜像 MUST 由远端产出，入口统一 `docs/ops/environments/scripts/itp-ops.sh`：
 - **测试环境**：`k8s deploy <服务> --yes`——scp jar 到 `k8s-master:/home/java`，由远端 `build-push.sh` 构建推送（Harbor 项目 `itp`）。
-- **红岛生产**：`--env hongdao cloudos image build <模块> <版本> --yes`——本机只传 jar + Dockerfile，由平台 x86 构建节点打镜像（项目 `itpb`）；红岛跳板 `hd-linux` 无 `/home/java` 构建目录，**`k8s` 域 NEVER 用于红岛**。
+- **红岛生产**：本机只传 jar + Dockerfile，镜像由平台 x86 构建节点 buildx 产出（项目 `itpb`；`cloudos image plan` 可作 dry-run，**脚本化 `cloudos image build` 走旧端点 `/images/build` 红岛实测不可用**，当前可用路径与端点见 `docs/tracking/IT-024-红岛流水线构建缺口.md` 与手册 §三）；红岛跳板 `hd-linux` 无 `/home/java` 构建目录，**`k8s` 域 NEVER 用于红岛**。
 
 **生产红线（MUST，缺一不可）**：
 - **二次确认**：发布任务 MUST 显式确认是测试还是生产（前置判据第 2 步）；生产发布 MUST 二次确认 + 灰度 / 回滚预案（单副本模块按服务逐个滚更，不做金丝雀分流）。
@@ -121,11 +121,13 @@
 
 ## 6. Build (构建)
 
+> 完整构建 / 发布方法（三条发布路径、命令行为边界、验证与回滚）见 `docs/ops/构建与发布.md`；本节只留高频红线。
+
 **本机两条硬约束**：SVN 服务器不可达 ⇒ 源码提交换有公司网络的环境；JDK/Maven 由 mise 管（`qd/mise.toml` 指定 Maven 3.8.7 / JDK 21）⇒ **MUST** `mise exec -- mvn ...`（裸 `mvn` 落 mise 全局默认 3.9.10、裸 `java` 落 25.0.1，均非项目指定版本）。
 
 **构建顺序 NEVER 颠倒**：①`resource/micro`（改了自研持久层或 `micro/web` 公共构件才需要，不在根 pom 聚合列表）→ ②`model` + `rpc` → ③目标模块。
 - `model` / `rpc` **版本号恒定、NEVER 升级**，只 `mvn install`——没先 install 会拿到 `~/.m2` 里的旧 jar，**后果是编译通过但打进镜像的是旧 class**、新增字段被 Fastjson2 静默丢弃；给 `model` 的 DTO 加字段后 **MUST 重建链路上每一个经手该 DTO 的模块镜像**，NEVER 只重建终点服务。
-- 验证改动 **MUST** `mise exec -- mvn -o clean test-compile -pl <module>`（增量被 target 缓存骗过；`-pl` 限定本模块，NEVER 从根跑——会带进 `employee-card-acc-simulator` 直接假失败；**NEVER 靠全量 `mvn compile` 判断**；跑依赖已改 model/rpc 的模块测试（如 `ticket-server`）MUST 带 `-am`——`model` 新字段在旧 jar 里不可见；`-am` 仅测试/验证步加，`出 jar/推镜像` 那步 NEVER 加）。
+- 验证改动 **MUST** `mise exec -- mvn -o clean test-compile -pl <module>`（增量被 target 缓存骗过；`-pl` 限定本模块，NEVER 从根跑——会带进 `employee-card-acc-simulator` 直接假失败；**NEVER 靠全量 `mvn compile` 判断**；跑依赖已改 model/rpc 的模块测试（如 `ticket-server`）MUST 带 `-am`——`model` 新字段在旧 jar 里不可见）。
 - **出 jar**：`mise exec -- mvn -o -pl <module> -am package -Dmaven.test.skip=true`（默认只出 jar、不推镜像；`-am` 把依赖的 model/rpc 一起重新编进 jar；用 `maven.test.skip` 而非 `skipTests`——后者仍跑 test-compile、删过 target 会报「主类找不到」假错）。
 
 ## 7. Ops & Deployment
