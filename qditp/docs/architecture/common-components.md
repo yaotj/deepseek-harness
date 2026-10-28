@@ -125,7 +125,7 @@ route/URLDynamicRouter           （动态路由辅助类，不是 Client）
 
 ### 3.1.1 web 的日志构件（含 VictoriaLogs 推送）
 
-日志栈是 log4j2（`starter-log4j2` + `log4j-layout-template-json`，logback 已被排除；web-admin 目录里的 RuoYi `logback.xml` **不生效**——`micro.web` 带 starter-log4j2、Boot 检测到 log4j2-core 即选 Log4j2LoggingSystem，2026-09-08 经 `log4j2-web-admin.xml` 实测上报成功可证）。相关类与资源全在 `web` 子构件内：
+日志栈是 log4j2（`starter-log4j2` + `log4j-layout-template-json`，logback 已被排除；web-admin 目录里的 RuoYi `logback.xml` **不生效**——`micro.web` 带 starter-log4j2、Boot 检测到 log4j2-core 即选 Log4j2LoggingSystem，2026-09-08 经 web-admin 实测上报成功可证——当时用的是本模块自带的 `log4j2-web-admin.xml`，该文件已于 2026-10-27 删除，证据结论不受影响）。相关类与资源全在 `web` 子构件内：
 
 | 类 / 资源 | 作用 |
 |---|---|
@@ -137,6 +137,8 @@ route/URLDynamicRouter           （动态路由辅助类，不是 Client）
 
 `VictoriaLogsAppender` 的关键约束（改动前必读）：
 
+- **启动期不走本文件**：Boot 早期按标准位置先命中 `log4j2-test.xml`（同级目录，只有 Console、无文件与 VL appender），`log4j2-linux.xml` 要到 `ApplicationReadyEvent` 才重载 ⇒ **ready 之前的日志不落盘、不进 VictoriaLogs**，启动失败时连日志文件都不会产生。运维判据（启动问题只看 `kubectl logs` / `log watch`）与后续方案见 [`docs/tracking/IT-027-启动期日志不进VictoriaLogs与滚动文件.md`](../tracking/IT-027-启动期日志不进VictoriaLogs与滚动文件.md)。
+- **`logging.level.*` 只作用于启动期**：Boot 启动时把它们应用到当时的 LoggerContext（即 `log4j2-test.xml`），`ApplicationReadyEvent` 重载 `log4j2-linux.xml` 会整体替换配置、这些级别随之丢失。因此 web-admin 残留的 `logging.level.org.springframework=warn` / `logging.level.com.chinasofti.huateng=debug` 只影响 ready 之前的 console 输出，**运行期级别一律以 `log4j2-linux.xml` 为准**。
 - **类存在 ≠ 启用**。log4j2 只在配置里出现 `<VictoriaLogs>` 元素时才实例化插件，未声明的模块不起线程、不发请求，零影响。**2026-09-08 起公共 `log4j2-linux.xml` 已声明它**，因此全部走公共配置的服务都具备上报能力，但**是否真的上报取决于有没有注入 `VLOGS_URL`**（未注入 = appender 自动禁用）。**2026-10-27 起三个模块专属配置（`log4j2-collectpay.xml` / `log4j2-paysign.xml` / `log4j2-web-admin.xml`）与对应 `logging.config` 行已全部删除**，全部服务统一走公共配置路径，不存在双配置并存的重复上报问题。
 - **上报量由两级过滤控制，MUST 理解清楚再改**：Root 只把 **WARN 及以上**推给 VictoriaLogs；要拿到某条链路的 INFO 全量，靠 MDC 里的 `x-vlogs-capture=1` 命中 appender 上的 `ThreadContextMapFilter`。该键的两个来源是「入向请求头 `X-Vlogs-Capture` 经 `FirstFilter` 小写后放入」和「本端主动发起时由 `QuartzTraceUtils.runWithTrace` 放入」。**NEVER 把 Root 的级别放到 INFO** —— 那会把各服务的报文日志整体搬进日志后端，量与敏感面都不可控。
 - **想让 `x-vlogs-capture` 真正生效，该模块配置里 MUST 有一个业务包 logger 挂「不带 `level` 的」`<AppenderRef ref="VictoriaLogs" />`**（`<Logger name="com.chinasofti.huateng">`）。原因：log4j2 把 `AppenderRef` 的 `level` 属性编译成**引用层过滤器，先于 appender 自己的 `<Filters>` 求值**。若只有 Root 的 `<AppenderRef ref="VictoriaLogs" level="WARN"/>`，INFO 事件在引用层就被 DENY，**根本走不到** `ThreadContextMapFilter`，链路采集全程失效。2026-09-08 在 web-admin 实测踩过：「appender 已实例化（`vlogs-sender` 线程在跑）+ MDC 键确实写入 + Root 的 WARN 能正常上报 + 新代码已部署」四项全部成立，却查不到任何 INFO，现象极像「过滤器不匹配」，实际是引用层短路。**NEVER 只加 Root 的 ref 就认为链路采集已具备。** 公共 `log4j2-linux.xml` 已补齐该 logger（2026-10-27 起模块专属配置已全部删除、仅剩公共一份；若未来新增模块专属配置 MUST 仍带上）。

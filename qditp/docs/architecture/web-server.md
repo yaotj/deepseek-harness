@@ -354,7 +354,7 @@ end   = create_time + query-window-after-millis
 - **`VLOGS_QUERY_URL` 为空即功能禁用**，接口返回明确文案而非静默空列表。只填 `scheme://host:port` 时代码自动补 `/select/logsql/query`。与各模块**推送**用的 `VLOGS_URL` 是同一个 VictoriaLogs、不同路径（推送 `/insert/jsonline`），**NEVER** 把两个键混用。
 - **放宽时间窗 MUST 同步跟上 `vlogs.query-limit`**。VictoriaLogs 的 `limit` **不保证返回顺序**，按 `_time` 排序是本端拿到结果后才做的，因此截断是**随机丢弃**而非「保留最早的 N 条」。前台 `truncated=true` 时的提示语只能说「仅展示部分内容」，**NEVER** 让用户以为看到的是开头那一段。
 - **`job_message` 文案改了，耗时就解析不到**（正则 `耗时：(\d+)毫秒`），此时按 0 处理，开始点退化成 `create_time − query-window-before-millis`，长耗时任务会漏掉开头。改 `AbstractQuartzJob.after()` 的拼串 **MUST** 同步改这里的正则。
-- **web-admin 自己的日志已进 VictoriaLogs（1.1.14 起，2026-09-08 实测通）**，配置在 `web-admin/src/main/resources/log4j2-web-admin.xml`，由 `application.properties` 的 `logging.config` 指向（**不能只靠 micro 的公共 `log4j2-linux.xml`**，那条路径下自定义 appender 在 fat jar 里解析不出来，见 `docs/architecture/common-components.md` §3.1.1）。两处易踩的坑：
+- **web-admin 自己的日志已进 VictoriaLogs（1.1.14 起，2026-09-08 实测通）**。**2026-10-27 起配置回落公共 `log4j2-linux.xml`**：原 `web-admin/src/main/resources/log4j2-web-admin.xml` 与 `application.properties` 的 `logging.config` 行已删除——当年「不能只靠公共配置」的理由（`Configurator.initialize` 不传 ClassLoader、fat jar 下解析不到自定义 appender）已于 2026-09-08 修复（见 `docs/architecture/common-components.md` §3.1.1），专属配置失去存在必要。两处仍成立的坑：
   - **日志系统里 web-admin 的 `app` 字段是 `web-server`**（`other.logging.appName=${spring.application.name}`），检索 **MUST** 用 `app:"web-server"`，用 `web-admin` 查出 0 条。
   - 配置里 **MUST** 有 `<Logger name="com.chinasofti.huateng">` 挂**不带 `level` 的** `<AppenderRef ref="VictoriaLogs" />`。只有 Root 的 `level="WARN"` 引用时，任务的 INFO 会在 AppenderRef 层被 DENY，`x-vlogs-capture` 链路采集完全不生效（1.1.13 的实际故障）。
   实测数据（1.1.14，`NotifyCompensateQuartzTask`）：traceId `b9593382190f4b6fbbb9c75fb63ebda8` 一次调度产出 3 条 web-server 记录（出向请求头、对端响应体、任务完成行），同一 traceId 下 pay-sign 8 条，跨服务串起来了。
@@ -799,12 +799,13 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
 
 路径统一省略前缀 `web-server/web-admin/src/main/resources/`。
 
-- 【决策】**`logging.config` 指向本模块自带配置的理由**（`application.properties`）：
+- 【决策·已反转】**`logging.config` 指向本模块自带配置**（`application.properties`，**2026-10-27 起该行与 `log4j2-web-admin.xml` 均已删除，走公共配置**）。历史理由存档：
   「指向本模块自带的 log4j2 配置。指定后 micro 的 CustomLoggingConfiguration 直接 return，
   公共 log4j2-linux.xml 不再参与。这么做是为了让 VictoriaLogs appender 走 Spring Boot 原生加载路径
   ——公共配置由 Configurator.initialize(name, configLocation) 重载，该 API 不传 ClassLoader，
   2026-09-08 实测在 fat jar 下解析不到 micro 嵌套 jar 里的自定义 appender（配置重载成功、
   RollingFile pattern 生效，但 VictoriaLogs 零上报）。详见 log4j2-web-admin.xml 头部注释。」
+  反转依据：该 ClassLoader 缺陷已于 2026-09-08 修复（`Configurator.initialize(ctx.getName(), CustomLoggingConfiguration.class.getClassLoader(), linuxFile)`，同日实测 para-server 上报恢复），专属配置的必要性随之消失。
 - 【契约/陷阱】**下游地址默认值与 env 命名风格**（`application.properties`）：
   「服务间调用地址（Quartz 定时任务的下游）：默认值一律用集群内网 Service 名（`kubectl get svc -n itp` 实测，2026-09-11）。
   NEVER 写 127.0.0.1（在 K8s 里等于打到 web-admin 自己），也 NEVER 写 `http://<模块名>:8080` 裸名
@@ -851,10 +852,10 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
   排序是本端拿到结果后再做的，所以截断是随机丢弃。放宽时间窗时这个值要同步跟上。」；
   「LogsQL 里 traceId 是普通字段过滤（`_stream_fields` 只有 app / host），选择性足够；
   仍带上 start / end 是为了避免全量扫描。」；「按 `_time` 升序排列：VictoriaLogs 不保证返回顺序，前台要按时间读。」
-- 【陷阱】**日志系统里 web-admin 的 `app` 字段是 `web-server`**（`log4j2-web-admin.xml`）：
+- 【陷阱】**日志系统里 web-admin 的 `app` 字段是 `web-server`**（原 `log4j2-web-admin.xml`；该文件 2026-10-27 已删，规则现由公共 `log4j2-linux.xml` 的 `${sys:appName}` 承载）：
   「…… web-server.log 完全一致。**NEVER 改成 web-admin** —— docs/ops/environments/scripts/itp-ops.sh log tail 走远端 ……
   连带结论：**日志系统里 web-admin 的 app 字段是 `web-server`**，检索时 MUST 用 ……」
-- 【陷阱】**业务包 MUST 挂不带 `level` 的 AppenderRef**（`log4j2-web-admin.xml`）：
+- 【陷阱】**业务包 MUST 挂不带 `level` 的 AppenderRef**（原 `log4j2-web-admin.xml`；该文件 2026-10-27 已删，规则现由公共 `log4j2-linux.xml` 的 `com.chinasofti.huateng` logger 承载）：
   「业务包（含 Quartz 任务包）**MUST** 显式声明并挂一个**不带 level 的** …… 原因（2026-09-08 实测踩坑，绕了一轮）：
   log4j2 把 AppenderRef 的 level 属性编译成 …… **NEVER** 只加 Root 的 ref 就以为够了。」
 - 【契约】**同文件另三条**：「…… ClassLoader**，2026-09-08 实测在 Spring Boot fat jar 下 micro 嵌套 jar 里的自定义
@@ -1004,10 +1005,10 @@ Quartz 仅调用本 Bean；跨服务调用由 AccountClient 完成。」；`Para
 40. `web-admin/src/main/resources/application.properties` — 禁止把下游地址写成 `127.0.0.1`
     或裸 Service 名；禁止把 env 命名与业务模块的 `SERVICE_<X>_URL` 混用 — **可断言**
     （配置断言测试：加载 properties，断言所有 `service.*.url` 默认值不含 `127.0.0.1`、不匹配 `http://[a-z-]+:\d+$`）。
-41. `web-admin/src/main/resources/log4j2-web-admin.xml` — 分别禁止：
-    把 `status` 改回 `off`、写不带默认值的 lookup、把 `appName` 改成 `web-admin`、把采集标记键写成驼峰、
-    只在 Root 上挂 VictoriaLogs 的 AppenderRef — **可断言**
-    （XML 断言测试：解析该文件逐条检查；其中「不带默认值的 lookup」可用正则断言所有 `${...}` 都含 `:-`）。
+41. `web-admin/src/main/resources/log4j2-web-admin.xml`（**2026-10-27 已删，整条断言对象不存在**）——原禁止项里只有
+    「只在 Root 上挂 VictoriaLogs 的 AppenderRef」对新配置仍然成立，落点改为公共 `log4j2-linux.xml`：断言
+    `com.chinasofti.huateng` logger 存在且其 `VictoriaLogs` 引用不带 `level`；`status` / lookup 默认值 / `appName`
+    三条随文件删除一并作废（公共配置的 `status="off"`、`${sys:...}` 无默认值都是既定形态）。
 42. `web-quartz/.../config/ScheduleConfig.java`（整文件注释掉）— 禁止启用数据库 JobStore / 集群模式 — **可断言（弱）**
     （断言运行时 `Scheduler.getMetaData().getJobStoreClass()` 是 `RAMJobStore`；比读注释可靠得多，
     也顺带把「`QRTZ_*` 恒 0 行」这条运维判据钉死）。
@@ -1232,6 +1233,8 @@ grep 「cron 每打密一档那张表日增行数就翻一档」）。295 / 300 
    **这一点部署后 MUST 用日志实测确认**。
 
 ### 附F、web-admin 的日志配置：为什么不用公共 `log4j2-linux.xml`
+
+> 【2026-10-27 已反转，本节按抽取时快照保留】`log4j2-web-admin.xml` 与 `application.properties` 的 `logging.config` 行已删除，web-admin 回落公共配置。第 1 条的根因（`Configurator.initialize` 不传 ClassLoader）已于 2026-09-08 修复，不再是「不用公共配置」的理由；第 2–7 条中仍在生效的约束（`VLOGS_URL` 端口 30032、stream 字段低基数、两级过滤、业务包 logger 挂不带 level 的 AppenderRef、RollingFile 侧 INFO 兜底）已迁入公共 `log4j2-linux.xml` 的注释（同口径说明见 `docs/architecture/common-components.md` §3.1.1），阅读时以那两处为准。
 
 依据 `web-admin/src/main/resources/log4j2-web-admin.xml` 头部与各 appender 注释、
 以及 `application.properties`（grep 「指向本模块自带的 log4j2 配置」）。

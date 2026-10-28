@@ -101,6 +101,3 @@ recon:
     temp-dir: ${RECON_EXPORT_TEMP_DIR:/home/javaapp/app/recon-export}
     page-size: ${RECON_EXPORT_PAGE_SIZE:5000}
     worker: ${RECON_EXPORT_WORKER:1}
-## 日志走本模块自带配置 log4j2-collectpay.xml，公共 log4j2-linux.xml 不再参与
-logging:
-  config: classpath:log4j2-collectpay.xml

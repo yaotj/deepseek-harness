@@ -1388,6 +1388,8 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
 > 纯 `@param` / `@return` / getter-setter 样板不抽，只统计行数（见「本轮覆盖率自评」）。
 > 涉及密钥的条目**只记键名与位置、NEVER 回显值**（AGENTS.md §4.2）。
 
+> 【2026-10-27 状态更新】本节引用的 `log4j2-paysign.xml` 与 `application.properties` 的 `logging.config=classpath:log4j2-paysign.xml` **已删除**：pay-sign 回落公共 `log4j2-linux.xml`（经 `CustomLoggingConfiguration` 重载，2026-09-08 起该路径已带 ClassLoader、fat jar 下自定义 appender 可解析）。随之 **VictoriaLogs 上报阈值从 WARN 放宽到 DEBUG**（公共配置口径：业务包 DEBUG 事件生成、appender 阈值 DEBUG，mapper SQL / 支付报文 DEBUG 明细会进入 VictoriaLogs）——**2026-10-27 用户裁决接受**；`VLOGS` 专用 logger 与 `x-vlogs-capture=1` 链路采集用法不变。本节 156–161 条引用的注释按抽取时快照保留，作历史依据。
+
 ### 一、controller 层（对外入口 / 内部补偿端点 / 全局异常）
 
 #### 契约与判据

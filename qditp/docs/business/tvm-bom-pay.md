@@ -810,7 +810,7 @@ DDL 见 `face-pay-server/src/main/resources/sql/f2f-schema.sql`。
 
 #### 附.1.8 配置（yml）
 
-- **该模块的 `spring.application.name` 是 `itpagm`（不是 `collect-pay`）**，`log4j2-collectpay.xml` 的 `appName` 属性同为 `itpagm`，因此日志文件名与检索键都是 `itpagm`。`collect-pay-server` — `application.yml`；`log4j2-collectpay.xml`
+- **该模块的 `spring.application.name` 是 `itpagm`（不是 `collect-pay`）**，因此日志文件名与检索键都是 `itpagm`——2026-10-27 起模块自带 log4j2 配置已删，appName 由公共 `log4j2-linux.xml` 的 `${sys:appName}` 解析（`CustomLoggingConfiguration` 赋值为 `${spring.application.name}`），仍为 `itpagm`，检索键不变。`collect-pay-server` — `application.yml`
 - **tracing 三行成组已在本模块落地**：`management.tracing.enabled=true` + `management.tracing.sampling.probability=0` + `spring.autoconfigure.exclude=...OtlpAutoConfiguration`。注释逐条给了理由：`probability=0` 只让本服务发起的 trace 不采样（采样器是 `parentBased(traceIdRatioBased(0))`，上游带 `sampled=1` 的 `traceparent` / `b3` 进来时 span 仍会被采样并进导出队列）；`micro/web` 的 `web.properties` 已把 `management.otlp.tracing.endpoint` 整行注释掉，那条 `exclude` 是**第二道保险**——K8s Deployment 只要注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` env 就会重新激活 exporter；Boot 3.2.6 **没有** `management.tracing.export.enabled` 这个开关，把 endpoint 置空也不行（`OtlpAutoConfiguration` 只判断键是否存在），只能排掉整个自动配置。**NEVER 删除那行 exclude。** `collect-pay-server` — `application.yml`
 - **打开 tracing 后能对上的两条链路**：① recon-server 下发 `/internal/recon/export` 带来的 W3C `traceparent`（源头是 `sys_job` 225「给ACC上传扣费交易」）；② APP / TVM / BOM 入向请求自身的 `traceparent`。只需要 MDC 里的 `traceId` / `spanId` 供 VictoriaLogs 检索，**span 上报一律不要**。`collect-pay-server` — `application.yml`
 - **`service.recon.url` 是 2026-09-11 按 `kubectl get svc -n itp` 实测回填的真实 Service 名**，注释同时点明「Service 端口等于 NodePort 号（30034），不等于容器 `server.port`（9112）」。`collect-pay-server` — `application.yml`
@@ -819,7 +819,7 @@ DDL 见 `face-pay-server/src/main/resources/sql/f2f-schema.sql`。
 - **兜底回查间隔 NEVER 小于 500ms**（JDBC 阻塞会 pin 载体线程）。`collect-pay-server` `TvmTakeTicketServiceImpl` — `service/impl/TvmTakeTicketServiceImpl.java`
 - **BOM 支付轮询窗口**：`bom.payTimeOut: 180`、`bom.payTimeInterval: 3`。`collect-pay-server` — `application.yml`
 - **APP 公共报文字段的固定值**：`app.providerId=06`、`charset=UTF-8`、`format=json`、`signType=00`（即免签）。`collect-pay-server` — `application.yml`
-- **日志走本模块自带的 `log4j2-collectpay.xml`，公共 `log4j2-linux.xml` 不再参与**（`CustomLoggingConfiguration` 见到 `logging.config` 非空即直接 return）。目的：用配置级 `RegexFilter` 丢掉设备心跳 `notiDeviceHeard` 的 INFO 日志——它占了日志量的 **79%**、把业务链路埋掉；`InternalMicroHttp` 的令牌明文压制也已搬进该文件的 Logger 段。`collect-pay-server` — `application.yml`；`log4j2-collectpay.xml`
+- **【2026-10-27 更新】模块自带 `log4j2-collectpay.xml` 与 `application.yml` 的 `logging.config` 行已删除**，日志回落公共 `log4j2-linux.xml`（`CustomLoggingConfiguration` 在 ApplicationReadyEvent 重载）。回落**有意接受两项损失**（用户裁决：collect-pay 服务已弃用，不再补回）：① 设备心跳 `notiDeviceHeard` 的 INFO 降噪（原配置级 RegexFilter，曾占日志量 79%）不再生效，心跳日志回流文件 / Console / VictoriaLogs；② `InternalMicroHttp` 的令牌明文压制（原压到 WARN）不再生效。历史设计与理由见附.2 / 附.3 保留的条目。`collect-pay-server` — `application.yml`（已删行）；`log4j2-collectpay.xml`（已删文件）
 
 ### 附.2 决策理由
 
@@ -856,10 +856,10 @@ DDL 见 `face-pay-server/src/main/resources/sql/f2f-schema.sql`。
 - **推送与解析 MUST 兜住异常**：`noticeAppRefundResult` 在 `tvmexecutor` 线程里跑，抛出去没人接，通知记录会卡在 `status=0` 且 `retryTimes` 不递增，`NoticeAppTask` 会反复扫到同一条。`collect-pay-server` `AppOrderServiceImpl` — `service/impl/AppOrderServiceImpl.java`
 - **不先查后插也不重复报错，靠主键兜底**：`selectByOrderNo` + INSERT 是 check-then-act，并发重放会在主键上撞出来；撞了说明另一条并发请求已登记成功，按幂等返成功而不是让对方进补偿队列重推。判定 **MUST 沿 cause 链**——本模块开了 tracing，观测切面会把异常换类型。`collect-pay-server` `AppPayOrderInternalServiceImpl` — `service/impl/AppPayOrderInternalServiceImpl.java`
 - **入口就拒绝空 `RSV2`、NEVER 给个默认值放行**——默认值等于替调用方定资损口径。`collect-pay-server` `AppPayOrderInternalServiceImpl` — `service/impl/AppPayOrderInternalServiceImpl.java`
-- **日志改用本模块自带配置而不是改公共配置的三条理由**：一次心跳产生 4 行、其中 3 行来自公共构件（`FirstFilter` / `MoreInterceptor` / `BodyCacheFilter`），只删 Controller 里那句 `log.info` 只能去掉 1/4；`resource/micro/web` 的 `log4j2-linux.xml` 被 **21 个模块共用**，改一次全量生效；用 `logging.level` 压 `FirstFilter` / `BodyCacheFilter` 也不行——那三个 logger 是按类命名的（会连带压掉非心跳链路的同类日志）。`collect-pay-server` — `log4j2-collectpay.xml`
-- **配置级过滤器两级短路**：① WARN 及以上一律 ACCEPT——心跳链路真出错时（异常、超时）仍然看得到，不会被正则吞掉；② 其余事件命中 `notiDeviceHeard` 即 DENY，覆盖公共构件那 3 行与任何后续新增的心跳日志。`RegexFilter` 默认 `useRawMsg=false`，匹配的是**格式化后的整条消息**（URL 就在消息里）；`matches()` 是全串匹配，所以必须写 `.*`，`(?s)` 让 `.` 也匹配换行。`collect-pay-server` — `log4j2-collectpay.xml`
-- **VictoriaLogs appender 段与公共配置完全同口径、MUST 保留**：url 为空时自动禁用、不起 `vlogs-sender` 线程；collect-pay 已注入 `VLOGS_URL`，删掉这段本服务的日志上报就会消失。两级过滤：带 `x-vlogs-capture=1` 的链路全量上报，其余只上报 WARN 及以上。`collect-pay-server` — `log4j2-collectpay.xml`
-- **业务包 logger 的 level 与 appender 引用刻意与 Root 一致**，只为让 `x-vlogs-capture` 链路采集生效；**NEVER 给这里的 `VictoriaLogs` 引用加 `level` 属性**——`AppenderRef` 的 level 是引用层过滤器、先于 appender 自己的 `ThreadContextMapFilter` 求值，加了就会把 INFO 短路掉。`collect-pay-server` — `log4j2-collectpay.xml`
+- **【2026-10-27 已随配置删除而失效：collect-pay 已弃用，回落公共配置】日志改用本模块自带配置而不是改公共配置的三条理由**（历史记录）：一次心跳产生 4 行、其中 3 行来自公共构件（`FirstFilter` / `MoreInterceptor` / `BodyCacheFilter`），只删 Controller 里那句 `log.info` 只能去掉 1/4；`resource/micro/web` 的 `log4j2-linux.xml` 被 **21 个模块共用**，改一次全量生效；用 `logging.level` 压 `FirstFilter` / `BodyCacheFilter` 也不行——那三个 logger 是按类命名的（会连带压掉非心跳链路的同类日志）。`collect-pay-server` — `log4j2-collectpay.xml`
+- **【2026-10-27 已失效：文件已删】配置级过滤器两级短路**（历史记录）：① WARN 及以上一律 ACCEPT——心跳链路真出错时（异常、超时）仍然看得到，不会被正则吞掉；② 其余事件命中 `notiDeviceHeard` 即 DENY，覆盖公共构件那 3 行与任何后续新增的心跳日志。`RegexFilter` 默认 `useRawMsg=false`，匹配的是**格式化后的整条消息**（URL 就在消息里）；`matches()` 是全串匹配，所以必须写 `.*`，`(?s)` 让 `.` 也匹配换行。`collect-pay-server` — `log4j2-collectpay.xml`
+- **【2026-10-27 已失效：文件已删】VictoriaLogs appender 段与公共配置完全同口径、MUST 保留**（历史记录）：url 为空时自动禁用、不起 `vlogs-sender` 线程；collect-pay 已注入 `VLOGS_URL`，删掉这段本服务的日志上报就会消失。两级过滤：带 `x-vlogs-capture=1` 的链路全量上报，其余只上报 WARN 及以上。`collect-pay-server` — `log4j2-collectpay.xml`
+- **【2026-10-27 已失效：文件已删】业务包 logger 的 level 与 appender 引用刻意与 Root 一致**（历史记录），只为让 `x-vlogs-capture` 链路采集生效；**NEVER 给这里的 `VictoriaLogs` 引用加 `level` 属性**——`AppenderRef` 的 level 是引用层过滤器、先于 appender 自己的 `ThreadContextMapFilter` 求值，加了就会把 INFO 短路掉。`collect-pay-server` — `log4j2-collectpay.xml`
 
 ### 附.3 陷阱
 
@@ -882,9 +882,9 @@ DDL 见 `face-pay-server/src/main/resources/sql/f2f-schema.sql`。
 - **`server.port` 在仓库里是 `58101`，线上被 Deployment env 顶成 `8080`**，而 `collect-pay-c23ku-svc` 的 `targetPort` 就是 **8080**。判断本模块实际监听端口 MUST 查 Deployment env，NEVER 只看 yml。`collect-pay-server` — `application.yml`（该覆盖关系的实测记录在 `AGENTS.md §7`「为什么不能改 Service selector」一条与 `docs/ops/流量切换Runbook.md`）
 - **`service.recon.url` 是本模块唯一带 `${ENV:}` 包装的服务地址**（`${SERVICE_RECON_URL:...}`），另外两条 `service.ticket.url` / `service.account.url` 是**裸的 `http://127.0.0.1:9103` / `http://127.0.0.1:9098`**——在 K8s 里等于打到自己，线上只能靠 Deployment env 覆盖。`collect-pay-server` — `application.yml`
 - **`recon.export.*` 三个键都带 `${ENV:}`**（`RECON_EXPORT_TEMP_DIR` 默认 `/home/javaapp/app/recon-export`、`RECON_EXPORT_PAGE_SIZE` 默认 5000、`RECON_EXPORT_WORKER` 默认 1）。`collect-pay-server` — `application.yml`
-- **`Properties` 段的位置在 log4j2 里是硬约束**：**NEVER 把 `Properties` 之后的任何元素挪到它前面**。2026-09-11 实测把 `<Filters>` 写在 `<Properties>` 之前，整份配置的 `${logPath}` / `${appName}` / `${webLoggerLevel}` **全部不做替换**，日志文件被建成字面量路径 `/home/javaapp/soft/${logPath}/${appName}.log`，Root 级别失效、INFO 全丢（`status="off"` 时 log4j2 自身的报错也被吞掉，只能靠「文件名里带 `${}`」反推）。`collect-pay-server` — `log4j2-collectpay.xml`
-- **`%X{traceId}` 那一列在本模块有值的前提是上面那三行 tracing 配置生效**；`logPattern` 一直写着 `%X{traceId}`。`collect-pay-server` — `log4j2-collectpay.xml`；`application.yml`
-- **`InternalMicroHttp` 会把整个请求头 Map 打进 INFO 日志（含内部令牌明文）**，因此被压到 WARN；该压制原先写在 `application.yml` 的 `logging.level` 里，改用本文件后一并搬进 Logger 段——**排查这条时 NEVER 只看 yml**。`collect-pay-server` — `log4j2-collectpay.xml`
+- **`Properties` 段的位置在 log4j2 里是硬约束**：**NEVER 把 `Properties` 之后的任何元素挪到它前面**。2026-09-11 实测把 `<Filters>` 写在 `<Properties>` 之前，整份配置的 `${logPath}` / `${appName}` / `${webLoggerLevel}` **全部不做替换**，日志文件被建成字面量路径 `/home/javaapp/soft/${logPath}/${appName}.log`，Root 级别失效、INFO 全丢（`status="off"` 时 log4j2 自身的报错也被吞掉，只能靠「文件名里带 `${}`」反推）。`collect-pay-server` — `log4j2-collectpay.xml`（文件已于 2026-10-27 删除；该教训对任何未来新增的模块自带 log4j2 配置仍适用，同条见 `docs/architecture/common-components.md` §3.1.1）
+- **`%X{traceId}` 那一列在本模块有值的前提是上面那三行 tracing 配置生效**；pattern 一直写着 `%X{traceId}`（原写于 `log4j2-collectpay.xml`，2026-10-27 起该文件已删、由公共配置同口径承载）。`collect-pay-server` — `application.yml`
+- **`InternalMicroHttp` 会把整个请求头 Map 打进 INFO 日志（含内部令牌明文）**。历史形态：压到 WARN（先在 `application.yml` 的 `logging.level`、后搬进 `log4j2-collectpay.xml` Logger 段）。**2026-10-27 起压制随配置删除而不复存在**（公共配置无此 logger，INFO 令牌明文会进日志与 VictoriaLogs）——用户裁决接受（服务已弃用）；**若服务复活 MUST 先恢复该压制**。`collect-pay-server` — `log4j2-collectpay.xml`（已删文件）
 
 #### 附.3.4 `testngbackV2` 测试地址残留（三条）与 `localhost` 回调、占位域名
 
@@ -946,9 +946,9 @@ DDL 见 `face-pay-server/src/main/resources/sql/f2f-schema.sql`。
 35. `controller/ci/tvm/TvmOrderController.java` —— IF2A-11 的两条入参校验（`orderNo` / `paymentVendor` 为空返 `8999`）被注释；禁止以「补齐校验」为理由加回来（会改变设备侧可见的失败码与形态）。**可断言**：缺这两个字段时不返 `8999`。
 36. `constant/AppCodeEnum.java` / `constant/TvmPayCodeEnum.java` —— 两个枚举各有一行被注释的取值：`AppCodeEnum` 注释掉 `FAIL("2999","失败")`、**现行 `FAIL` 是 `9999`**；`TvmPayCodeEnum` 注释掉一个同值 `FAIL("2999")` 副本、现行仍是 `2999`。改错误码前 MUST 先确认现行行是哪一行。**可断言**：`AppCodeEnum.FAIL.getCode()` 为 `9999`、`TvmPayCodeEnum.FAIL.getCode()` 为 `2999`。（`DevicePayCodeEnum` 的 `ORDERED` / `SUCCESS` / `FAILED` 三项之间只有一个**空行**、没有注释掉的取值，2026-09-16 复核；**NEVER 据「行号不连续」推断那里有墓碑**。）
 37. `service/impl/AppOrderServiceImpl.java` —— 三处被注释的实现残留（`updateParams.put("payDate", ...)`、一个 `@Override`、`order.setMerchantOrderNo("")`）。禁止据它们推断当前行为。**难以断言**（建议清理而非断言）。
-38. `log4j2-collectpay.xml` —— 禁止把 `Properties` 之后的任何元素挪到它前面（2026-09-11 实测会让全部 `${}` 不做替换、INFO 全丢且报错被吞）。**可断言**：配置内 `Properties` 是首个子元素；启动后日志文件名不含 `${`。
-39. `log4j2-collectpay.xml` —— 禁止给业务包 logger 的 `VictoriaLogs` 引用加 `level` 属性（会把 INFO 短路掉）。**可断言**：该 `AppenderRef` 无 `level`。
-40. `log4j2-collectpay.xml` —— 禁止删除 VictoriaLogs appender 段（collect-pay 已注入 `VLOGS_URL`，删掉日志上报会消失）。**可断言**：配置内存在该 appender 且 url 取自 `VLOGS_URL`。
+38. `log4j2-collectpay.xml`（**2026-10-27 已删，断言对象不存在，留作未来新增模块 log4j2 配置时的模板**）—— 禁止把 `Properties` 之后的任何元素挪到它前面（2026-09-11 实测会让全部 `${}` 不做替换、INFO 全丢且报错被吞）。**可断言**：配置内 `Properties` 是首个子元素；启动后日志文件名不含 `${`。
+39. `log4j2-collectpay.xml`（**2026-10-27 已删**）—— 禁止给业务包 logger 的 `VictoriaLogs` 引用加 `level` 属性（会把 INFO 短路掉）。**可断言**：该 `AppenderRef` 无 `level`。
+40. `log4j2-collectpay.xml`（**2026-10-27 已删，VLogs 上报由公共配置承载**）—— 禁止删除 VictoriaLogs appender 段（collect-pay 已注入 `VLOGS_URL`，删掉日志上报会消失）。**可断言**：配置内存在该 appender 且 url 取自 `VLOGS_URL`。
 41. `application.yml` —— 禁止删除 `spring.autoconfigure.exclude` 那行 `OtlpAutoConfiguration`（Boot 3.2.6 没有 `management.tracing.export.enabled`，置空 endpoint 也无效）。**可断言**：注入 `MANAGEMENT_OTLP_TRACING_ENDPOINT` 后仍不起 OTLP exporter。
 42. `ReconExportMapper.xml` / `mapper/ReconExportMapper.java` —— 禁止把 `TRANS_AOUNT` 改成 `TRANS_AMOUNT`（DDL 原文少一个 M，改了即 `ORA-00904`）。**可断言**：SQL 文本包含 `TRANS_AOUNT`。
 43. `ReconExportMapper.xml` / `AppRefundOrderMapper.xml` / `TvmAppOrderMapper.xml` —— 禁止在 SQL 正文写行注释或块注释；禁止在 XML 注释里出现连续两个半角减号。**可断言**：`xmllint --noout` 通过 + SQL 正文无注释符。
@@ -1569,6 +1569,8 @@ DDL 见 `face-pay-server/src/main/resources/sql/f2f-schema.sql`。
 
 #### 四、配置（application.yml）
 
+> 【2026-10-27 状态更新】本节引用的 `log4j2-collectpay.xml` 与 `application.yml` 的 `logging.config` 行**已删除**（collect-pay 服务已弃用，心跳降噪与令牌压制的损失经用户裁决接受）；本节条目按抽取时快照保留作历史依据，凡涉该文件「当前形态」的结论一律以 附.1.8 的 2026-10-27 更新为准。
+
 - **TVM 取票授权的挂起等待 `waitMillis` MUST 小于 15000**：istio `fep-app-vr` 的 `/itptvm/` 路由没配 timeout、走 Envoy 默认 15 秒，超过就变成网关 504 而不是我方响应。挂起的成因是 TVM 每轮只发一次 `requestTakeTicketAuth`、且比 APP 扫码激活早 4 至 8 秒，厂商不改轮询逻辑，因此查不到订单时把这次请求挂住等激活事件。`collect-pay-server/src/main/resources/application.yml`
 - **本模块打开了 tracing（`management.tracing.enabled=true`）**，目的只是让 MDC 里的 `traceId` / `spanId` 供 VictoriaLogs 检索、span 上报一律不要；打开后两条链路能对上：recon-server 下发 `/internal/recon/export` 带来的 W3C `traceparent`（源头是 `sys_job` 225「给ACC上传扣费交易」），以及 APP / TVM / BOM 入向请求自身的 `traceparent`。`application.yml`
 - **`log4j2-collectpay.xml` 的 pattern 一直写着 `%X{traceId}`（该文件第 34 行），开关没打开前那一列恒为空**。`application.yml`
@@ -2108,9 +2110,9 @@ DDL 见 `face-pay-server/src/main/resources/sql/f2f-schema.sql`。
 - **两条 `LEFT JOIN STATION_INFO S ON S.STATION_CODE = T.IN_STATION_CODE` 及 SELECT / GROUP BY / ORDER BY 里的 `S.LINE_CODE` 已全部删除，NEVER 加回**。理由：2026-09-16 起线路段改由 recon-server 在聚合完成、写文件之前按车站码统一补齐（`ReconStationMapper` 与 `recon.line-backfill.*`）；recon-server 侧是**无条件覆盖**，加回来不改变产出、只让「线路怎么取」重新分叉成四份副本，且 `STATION_INFO` 属车站与参数域、owner 不是本模块。坐标 `collect-pay-server/src/main/resources/mapper/ReconExportMapper.xml` 第 7 条。
 - **BOM 订单专用的单程票退款方法已弃用**。理由：注释原文「单程票退款 弃用 这个方法只限制了 bom 订单，改为全类型」，即退款入口已收口为全类型、不再按 BOM 订单收窄。坐标 `collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/mapper/BomNoCashOrderMapper.java`。
 - **`RefundOrderMapper` 的 `updateRefundStatus(RefundOrder record)` 声明已整行注释掉**（注释形态即墓碑，方法不再存在）。理由：DDL 与注释未写明，仅可确认该签名已停用；同文件 仍留着「更新退款状态」的 javadoc，对应的是保留下来的那个方法。坐标 `collect-pay-server/src/main/java/com/chinasofti/huateng/collectpay/mapper/RefundOrderMapper.java`。
-- **公共 `log4j2-linux.xml` 对本模块不再参与**。理由：本模块设了 `logging.config` 指向自带的 `log4j2-collectpay.xml`，而 `CustomLoggingConfiguration` 见到 `logging.config` 非空即在第 38 行直接 return；因此本模块的日志行为一律以自带文件为准，改公共文件对 collect-pay 无效。坐标 `collect-pay-server/src/main/resources/application.yml`、`collect-pay-server/src/main/resources/log4j2-collectpay.xml`。
-- **`application.yml` 里对 `InternalMicroHttp` 的 `logging.level` 压制已移除、搬进 `log4j2-collectpay.xml` 的 Logger 段**。理由：注释原文「原先写在 application.yml 的 logging.level 里，改用本文件后一并搬到这里」；该压制的目的是它会把整个请求头 Map（含内部令牌明文）打进 INFO。坐标 `collect-pay-server/src/main/resources/log4j2-collectpay.xml`、`application.yml`。
-- **「只删 Controller 里那句 `log.info` 来降心跳日志量」这条路已被否决**。理由：一次心跳产生 4 行、其中 3 行来自公共构件（`FirstFilter` / `MoreInterceptor` / `BodyCacheFilter`），只删 Controller 那句只能去掉四分之一；改公共 `log4j2-linux.xml` 会对 21 个模块全量生效；用 `logging.level` 压那三个 logger 会连业务报文日志一起干掉，而报文日志是重放与排障的唯一依据。最终形态是「模块自带 `logging.config` + 配置级 `RegexFilter` 按 URL 丢弃」。坐标 `collect-pay-server/src/main/resources/log4j2-collectpay.xml`。
+- **【2026-10-27 已反转】公共 `log4j2-linux.xml` 对本模块不再参与**（历史记录）：本模块曾设 `logging.config` 指向自带的 `log4j2-collectpay.xml`，`CustomLoggingConfiguration` 见到 `logging.config` 非空即在第 38 行直接 return。2026-10-27 起 `logging.config` 行与自带文件已删除，公共配置重新参与本模块。坐标（已删）：`collect-pay-server/src/main/resources/application.yml`、`collect-pay-server/src/main/resources/log4j2-collectpay.xml`。
+- **【2026-10-27 已失效：压制不复存在】`application.yml` 里对 `InternalMicroHttp` 的 `logging.level` 压制曾移除、搬进 `log4j2-collectpay.xml` 的 Logger 段**（历史记录）；2026-10-27 起该文件删除，压制彻底不存在（见 附.3.3 的 2026-10-27 更新）。坐标（已删）：`collect-pay-server/src/main/resources/log4j2-collectpay.xml`、`application.yml`。
+- **【2026-10-27 该「最终形态」已终止：配置删除、服务弃用】「只删 Controller 里那句 `log.info` 来降心跳日志量」这条路已被否决**（历史记录）。理由：一次心跳产生 4 行、其中 3 行来自公共构件（`FirstFilter` / `MoreInterceptor` / `BodyCacheFilter`），只删 Controller 那句只能去掉四分之一；改公共 `log4j2-linux.xml` 会对 21 个模块全量生效；用 `logging.level` 压那三个 logger 会连业务报文日志一起干掉，而报文日志是重放与排障的唯一依据。最终形态曾是「模块自带 `logging.config` + 配置级 `RegexFilter` 按 URL 丢弃」。坐标（已删）：`collect-pay-server/src/main/resources/log4j2-collectpay.xml`。
 - **`<Filters>` 写在 `<Properties>` 之前的写法已被实测否决，NEVER 回退**。理由：2026-09-11 实测该顺序下 `${logPath}` / `${appName}` / `${webLoggerLevel}` 全部不做替换，日志文件被建成字面量路径、Root 级别失效、INFO 全丢，且 `status="off"` 时 log4j2 自身报错也被吞掉。坐标 `collect-pay-server/src/main/resources/log4j2-collectpay.xml`。
 - **BUS 优惠金额「拿票价与实付之差推算」这条做法已被否决**。理由：已逐表核对 `TBL_TVM_ORDER_PAY` / `TBL_TVM_ORDER_TOPUP` / `TBL_TVM_APP_ORDER` / `TBL_BOM_ORDER_PAY` 四张表 DDL，均无任何优惠或折扣金额列，因此优惠段由 Java 侧写字面 0。坐标 `collect-pay-server/src/main/resources/mapper/ReconExportMapper.xml`。
 - **「按 `TRANS_TYPE` 把 `TBL_BOM_ORDER_PAY` 拆成购票组与充值组」当前不做**（不是永久废弃，是待甲方判据）。理由与三处矛盾证据见 `/tmp/cpmig/frag_g3_contra.md` 第 2 条；现状为整表归「BOM/TVM 发售」组并标注，`ITP.PAY` 的 BOM 行政处理（`idx 15/16`）与 BOM 处理（`idx 19/20`）两组恒 0。坐标 `mapper/ReconExportMapper.java`、`mapper/ReconExportMapper.xml`、`mapper/ReconExportMapper.xml`。
