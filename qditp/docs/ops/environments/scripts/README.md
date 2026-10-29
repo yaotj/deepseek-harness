@@ -41,6 +41,7 @@ cd docs/ops/environments/scripts
 ./itp-ops.sh cloudos apps Error        # 只列异常态应用
 ./itp-ops.sh cloudos env fep-app       # env 全量（排 RPC 地址错配首选）
 ./itp-ops.sh cloudos scale fep-app 2 --yes    # 副本伸缩（生产写操作，缺 --yes 拒绝）
+./itp-ops.sh cloudos deploy recon-server 1.0.28          # 切镜像升级：不带 --yes 是只读预演（校 tag/arch + 打 body）
 ./itp-ops.sh k8s deploy fep-dev-server --yes  # 单服务镜像构建推送
 ./itp-ops.sh k8s deploy-all --yes      # 有序全量，失败即断
 ./itp-ops.sh log tail fep-app -f       # 实时跟踪日志（Ctrl+C 退出）
@@ -65,8 +66,9 @@ diag 按子命令）、`--yes`（确认写操作）、`-h/--help/--version`（�
 
 > **两个实测缺口（2026-10-26，决定「哪个域能打红岛」）**：
 > 1. `k8s` 域只对测试可用——红岛跳板 `hd-linux` 上**没有** `/home/java`，也没有 `build-push.sh`，
->    且远端只有 `podman` 没有 `docker`。红岛发版 MUST 走 `cloudos image build`
->    （本机只传 jar + Dockerfile，镜像由平台 x86 构建节点产出）。
+>    且远端只有 `podman` 没有 `docker`。红岛发版 MUST 走平台侧构建
+>    （本机只传 jar + Dockerfile，镜像由平台 x86 构建节点产出）。⚠ 但入口**不是** `cloudos image build`——它走旧端点
+>    `/images/build`，红岛实测 404 / `img.5`；实测可用的是 `hongdao-buildx.sh`（见 `构建与发布.md` §三第 5 步、IT-024）。
 > 2. `log tail` 只对测试可用——它依赖远端 `/home/java/k8s-logview.sh`，该脚本红岛尚未部署；
 >    红岛看日志用 `log watch`（走 kubectl）或 `ssh hd-linux kubectl logs`。
 > `hosts/k8s-master/` 因此只是**测试跳板**脚本的仓内镜像，红岛侧脚本未入仓。
@@ -160,7 +162,7 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
 
 1. **路径推导**：脚本 MUST 由自身位置推导仓库根（`BASH_SOURCE`/`__file__`），NEVER 硬编码绝对路径。
    入口 `lib/core.sh` 用 `account-server` 目录存在性断言——深度再错会直接报错而不是静默找错目录。
-2. **写操作默认拒绝**：`k8s deploy/deploy-all`、`cloudos act/scale/scale-all/spec-set/image build`
+2. **写操作默认拒绝**：`k8s deploy/deploy-all`、`cloudos act/scale/scale-all/spec-set/deploy/image build`
    必须显式 `--yes`（入口全局解析，位置任意）。
 3. **ALL_SERVICES 是单一真源**（`domains/k8s.sh`）：24 个服务，语义是**可构建推送的模块全集**
    （根 pom 里有 kubernetes-maven-plugin 的模块目录），**不是生产部署清单**——两者 historically

@@ -668,6 +668,265 @@ for a in todo:
 }
 
 # ============================================================================
+# 应用升级（镜像应用切 tag）—— PATCH /api/cloud/app-mgmt/v1.0/apps/{uuid}/advanced-config
+#
+# 【body 的真源是控制台前端，不是 API 文档】（2026-10-29 反解 SPA 产物所得）
+#   厂商文档《CloudOS 5.0 PaaS API》E7501 §应用升级 把 version_id 标成必选，但红岛
+#   控制台「升级」页对**镜像应用**（package_type=image 且 metadata.container_image 非空）
+#   走的分支压根不带 version_id —— enterprise-apps/static/js/apply/app/detail/upgrade.*.js
+#   的 createParams()：
+#       t = {version, strategy, container_name, container_image: <选中行 imgUrl>, env}
+#   version_id 只在「包类型应用」分支里取 selectedPackage.selectedVersion.uuid，来源是
+#   **软件包仓库** GET /cloud/deploy/v1.0/packages/version/<app.package_version_id>；
+#   镜像仓库的 GET /cloud/hcr/v1.0/image/versions 每行**没有 uuid 字段**（实测，且
+#   data.uuid 恒为空串）—— 所以「到 images/versions 里取 version_id」这条路在红岛
+#   不存在，手册旧版与 红岛.md 的该说法已据此更正（另见 IT-020 §2 隐藏契约）。
+#
+#   本命令仍回传 metadata.version_id 现值：两次生产实测过的 image 型 PATCH
+#   （mount-applogs.py、IT-028 的 fep-dev 2.0.71.7→2.0.71.8）都带它且成功，
+#   比省略更稳；MUST 传现值而非镜像引用（varchar(36) 溢出 → 500）。
+#
+# 【env 全量替换】平台按 body 的 env 整份覆盖，漏一条就等于删一条（IT-020）。
+#     所以这里 MUST 从 GET /apps/{uuid} 的 metadata.env 原样读出再回填，
+#     NEVER 在命令行上手拼 env 子集。
+# ============================================================================
+
+# 读现状，产出 plan JSON（不含 body）+ body 写入 $2 指定的临时文件
+_deploy_plan() {
+    local key="$1" image_arg="$2" version_override="$3" bodyfile="$4"
+    local uuid app_json
+    uuid=$(resolve_app_uuid "$key") || return 1
+    app_json=$(cloudos_request GET "/api/cloud/app-mgmt/v1.0/apps/${uuid}") || return 1
+    printf '%s' "$app_json" | python3 -c '
+import sys, json
+
+image_arg = sys.argv[1]
+version_override = sys.argv[2]
+bodyfile = sys.argv[3]
+app = json.load(sys.stdin).get("data") or {}
+m = app.get("metadata") or {}
+
+cur_img = m.get("container_image") or ""
+ptype = app.get("package_type") or m.get("package_type") or ""
+if not cur_img:
+    sys.stderr.write("该应用 metadata.container_image 为空 —— 不是镜像应用，本命令不适用；"
+                     "包类型应用请先向应用仓库上传新包再走控制台升级\n")
+    sys.exit(1)
+
+# 镜像引用拆成 三段：<registry>:<port>/<project>/<name>:<tag>
+repo, _, cur_tag = cur_img.rpartition(":")
+parts = repo.split("/")
+if len(parts) != 3:
+    sys.stderr.write("当前 container_image 不是 <registry>/<project>/<name>:<tag> 形态，"
+                     "无法安全推导项目名：%s\n" % cur_img)
+    sys.exit(1)
+registry, project, img_name = parts
+
+# 第二个参数三选一：裸 tag / <name>:<tag> / 完整引用
+if "/" in image_arg:
+    new_img = image_arg
+elif ":" in image_arg:
+    nm, tg = image_arg.split(":", 1)
+    if nm != img_name:
+        sys.stderr.write("镜像名 %s 与该应用当前镜像 %s 不一致。要换镜像名 MUST 传完整引用 "
+                         "<registry>/<project>/<name>:<tag>，否则会把包体打到别的镜像上\n"
+                         % (nm, img_name))
+        sys.exit(1)
+    new_img = "%s:%s" % (repo, tg)
+else:
+    new_img = "%s:%s" % (repo, image_arg)
+
+new_repo, _, new_tag = new_img.rpartition(":")
+new_parts = new_repo.split("/")
+if len(new_parts) != 3:
+    sys.stderr.write("目标镜像引用形态不对（应含 registry/project/name）：%s\n" % new_img)
+    sys.exit(1)
+new_registry, new_project, name = new_parts
+if (new_registry, new_project) != (registry, project):
+    sys.stderr.write("目标镜像的 registry/项目（%s/%s）与线上（%s/%s）不同 —— "
+                     "跨仓库/跨项目切换请人工核对后手填完整引用\n"
+                     % (new_registry, new_project, registry, project))
+    sys.exit(1)
+
+if new_tag == cur_tag:
+    sys.stderr.write("NEVER 同 tag 覆盖：目标 tag %s 与线上当前 tag 相同。"
+                     "请先 bump 版本号重新构建镜像\n" % cur_tag)
+    sys.exit(1)
+
+cur_ver = app.get("version") or ""
+if version_override:
+    new_ver = version_override
+else:
+    segs = cur_ver.split(".")
+    if segs and segs[-1].isdigit():
+        segs[-1] = str(int(segs[-1]) + 1)
+        new_ver = ".".join(segs)
+    elif cur_ver:
+        new_ver = cur_ver + ".1"
+    else:
+        sys.stderr.write("读不到当前应用版本，请用 --app-version 显式指定\n")
+        sys.exit(1)
+if new_ver == cur_ver:
+    sys.stderr.write("目标应用版本不能等于当前值 %s（平台校验）\n" % cur_ver)
+    sys.exit(1)
+
+env = m.get("env") or {}
+body = {
+    "version_id": m.get("version_id") or app.get("package_version_id") or "",
+    "version": new_ver,
+    "strategy": m.get("strategy") or "rolling",
+    "container_name": m.get("container_name"),
+    "container_image": new_img,
+    "env": env,
+    "is_skywalking": bool(m.get("is_skywalking") or False),
+}
+if m.get("service_name"):
+    body["service_name"] = m["service_name"]
+open(bodyfile, "w").write(json.dumps(body, ensure_ascii=False))
+
+print(json.dumps({
+    "uuid": app.get("uuid"), "app_name": app.get("name"), "package_type": ptype,
+    "cur_img": cur_img, "cur_tag": cur_tag, "new_img": new_img, "new_tag": new_tag,
+    "image_name": name, "project": project, "registry": registry,
+    "container_name": m.get("container_name") or "",
+    "cur_ver": cur_ver, "new_ver": new_ver,
+    "env_n": len(env), "strategy": body["strategy"],
+    "replicas": app.get("instance_num"),
+}, ensure_ascii=False))
+' "$image_arg" "$version_override" "$bodyfile"
+}
+
+# 目标 tag 在 Harbor 里是否真的存在、架构对不对
+_deploy_check_image() {
+    local name="$1" tag="$2" new_img="$3" project="$4"
+    cloudos_request GET "/api/cloud/hcr/v1.0/image/versions?name=${name}&harborProjectName=${project}" \
+        | python3 -c '
+import sys, json
+
+name, tag, new_img, project = sys.argv[1:5]
+rows = ((json.load(sys.stdin).get("data") or {}).get("images")) or []
+hit = [r for r in rows if r.get("imgUrl") == new_img]
+if not hit:
+    sys.stderr.write("Harbor 项目 %s 里没有 %s:%s —— 镜像还没构建（或名字/项目写错）。"
+                     "MUST 先用 hongdao-buildx.sh 产出该 tag，NEVER 升级不存在的 tag\n"
+                     % (project, name, tag))
+    sys.exit(1)
+r = hit[0]
+if (r.get("osAndArch") or "") != "linux/amd64":
+    sys.stderr.write("⚠ %s:%s 的 osAndArch=%s，不是 linux/amd64 —— 节点是 x86，"
+                     "拉了也起不来\n" % (name, tag, r.get("osAndArch")))
+    sys.exit(1)
+print("%s\t%s" % (r.get("digest"), r.get("createTime") or ""))
+' "$name" "$tag" "$new_img" "$project"
+}
+
+# 升级后轮询：每个 pod 的业务容器都换到新 tag 且 ready
+_deploy_wait() {
+    local uuid="$1" new_img="$2" container="$3" replicas="${4:-1}"
+    local i
+    for ((i = 1; i <= 20; i++)); do
+        local stat
+        stat=$(cloudos_request GET "/api/cloud/app-mgmt/v1.0/apps/${uuid}/instances" | python3 -c '
+import sys, json
+
+new_img, container = sys.argv[1], sys.argv[2]
+rows = json.load(sys.stdin).get("data") or []
+tot = len(rows)
+on_new = ready = 0
+for p in rows:
+    for c in (p.get("containers") or []):
+        if c.get("name") != container:
+            continue
+        if c.get("image") == new_img:
+            on_new += 1
+            if c.get("ready"):
+                ready += 1
+print("%d %d %d" % (tot, on_new, ready))
+' "$new_img" "$container") || true
+        read -r tot on_new ready <<<"${stat:-0 0 0}"
+        echo "  [$i/20] pod=${tot} 新镜像=${on_new} ready=${ready}（目标 ${replicas}）" >&2
+        if [[ "$on_new" == "$replicas" && "$ready" == "$replicas" ]]; then
+            echo "已收敛：${replicas} 个实例全部运行在 ${new_img}"
+            return 0
+        fi
+        sleep 15
+    done
+    echo "⚠ 300s 内未收敛（pod=${tot:-?} 新镜像=${on_new:-?} ready=${ready:-?}）。" >&2
+    echo "  下一步：cloudos pods <app> 看重启次数；平台侧镜像拉取失败会停在旧 ReplicaSet" >&2
+    return 1
+}
+
+app_deploy() {
+    local key="${1:-}" image_arg="${2:-}"
+    [[ -n "$key" && -n "$image_arg" ]] \
+        || die "用法：cloudos deploy <名字|uuid> <镜像名:tag 或完整引用> [--app-version <v>] [--yes]"
+
+    local version_override=""
+    shift 2
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --app-version) version_override="${2:-}"; shift 2 ;;
+            --yes)         OPT_YES=1; shift ;;
+            *)             die "未知参数 $1" ;;
+        esac
+    done
+
+    # 两个临时文件用全局名 —— die 走 exit 时 RETURN trap 不触发，靠 EXIT 兜底清理
+    DEPLOY_BODY_FILE=$(mktemp -t cloudos-deploy-body.XXXXXX)
+    DEPLOY_PLAN_FILE=$(mktemp -t cloudos-deploy-plan.XXXXXX)
+    trap 'rm -f "${DEPLOY_BODY_FILE:-}" "${DEPLOY_PLAN_FILE:-}"' RETURN EXIT
+
+    local UUID APP_NAME CUR_IMG CUR_TAG NEW_IMG NEW_TAG IMAGE_NAME PROJECT REGISTRY
+    local CONTAINER_NAME CUR_VER NEW_VER ENV_N STRATEGY REPLICAS
+    if ! _deploy_plan "$key" "$image_arg" "$version_override" "$DEPLOY_BODY_FILE" > "$DEPLOY_PLAN_FILE"; then
+        die "生成升级参数失败（${key} → ${image_arg}）"
+    fi
+    # 一次性把 plan JSON 摊成 shell 变量（shlex.quote 防注入）
+    eval "$(python3 -c '
+import json, shlex, sys
+for k, v in json.load(open(sys.argv[1])).items():
+    print("%s=%s" % (k.upper(), shlex.quote("" if v is None else str(v))))
+' "$DEPLOY_PLAN_FILE")"
+
+    local ck digest build_time
+    ck=$(_deploy_check_image "$IMAGE_NAME" "$NEW_TAG" "$NEW_IMG" "$PROJECT") \
+        || die "目标镜像校验未通过，已停止（未发起任何写操作）"
+    IFS=$'\t' read -r digest build_time <<< "$ck"
+
+    echo "===== 镜像应用升级预演（生产：${CLOUDOS_ENV} / ns ${PROJECT}）====="
+    echo "  应用        ${APP_NAME}（${UUID}）"
+    echo "  当前镜像    ${CUR_IMG}"
+    echo "  目标镜像    ${NEW_IMG}"
+    echo "  镜像校验    存在 ✅  linux/amd64 ✅  构建于 ${build_time}"
+    echo "  镜像 digest ${digest}"
+    echo "  应用版本    ${CUR_VER} → ${NEW_VER}（平台要求不能等于当前值）"
+    echo "  策略/副本   ${STRATEGY} / ${REPLICAS}   容器 ${CONTAINER_NAME:-未设置}"
+    echo "  env         ${ENV_N} 项全量原样回传（平台是整份覆盖，漏一条=删一条）"
+    echo ""
+    echo "  将提交的 body："
+    python3 -c 'import json,sys;print(json.dumps(json.load(open(sys.argv[1])),ensure_ascii=False,indent=2)[:1200],"...")' "$DEPLOY_BODY_FILE"
+
+    if [[ "${OPT_YES:-0}" != "1" ]]; then
+        echo ""
+        echo "以上为预演（dry-run），未发起任何写操作。生产红线：二次确认 + 低峰 + 回滚预案。"
+        echo "确认执行请追加 --yes；回滚 = 再跑一次本命令指回 ${CUR_IMG}"
+        return 0
+    fi
+
+    echo "" >&2
+    echo "已下发 PATCH /apps/${UUID}/advanced-config ..." >&2
+    cloudos_request PATCH "/api/cloud/app-mgmt/v1.0/apps/${UUID}/advanced-config" \
+        "$(cat "$DEPLOY_BODY_FILE")" >/dev/null
+
+    _deploy_wait "$UUID" "$NEW_IMG" "${CONTAINER_NAME:-$IMAGE_NAME}" "$REPLICAS" || true
+    echo ""
+    echo "下一步（缺一不可）："
+    echo "  1) 探活 + 业务核验（NodePort 见 cloudos svc ${APP_NAME}）"
+    echo "  2) 比对实例容器镜像里的 digest 与上面推送的 ${digest}（IT-031 涉及的服务 MUST 复验 PID1=/startapp.sh 与 -Xmx5900m）"
+    echo "  回滚：cloudos deploy ${APP_NAME} ${CUR_IMG} --app-version ${CUR_VER} --yes"
+}
+
+# ============================================================================
 # 镜像构建（自 image-build.sh 迁移）—— 本地 jar + 自有 Dockerfile → 平台侧打镜像
 #
 # 【为什么不在本机打镜像】
@@ -988,6 +1247,14 @@ itp-ops.sh cloudos —— CloudOS 平台运维（当前环境：${CLOUDOS_ENV:-h
   spec-set  <名字|uuid> [cpu] [mem] [--yes]       默认 4000m / 8192Mi（= 4C/8G）
   spec-all  [cpu] [mem] [--yes] [--exclude a,b]   批量对齐；不带 --yes 是预演
 
+应用升级（镜像应用切 tag；不带 --yes = 只读预演，含目标 tag 存在性/arch 校验）
+  deploy    <名字|uuid> <裸 tag | 镜像名:tag | 完整引用> [--app-version <v>] [--yes]
+        读现状 → 校 Harbor tag（不存在/arch 不对即停，不发写请求）→ 拼 advanced-config
+        body（env 全量原样回传）→ PATCH → 轮询实例切到新镜像。
+        应用版本默认把当前值末段 +1（平台校验不能等于当前值），要别的用 --app-version。
+        回滚 = 同一命令指回旧 tag。NEVER 同 tag 覆盖（脚本会拒）。
+        包类型应用（metadata.container_image 为空）不适用，走控制台升级。
+
 镜像构建（本地 jar → 平台 x86 节点打镜像；只传 jar，代码不出内网）
   image probe                    只读探测（首次必跑：基址/镜像分类/已有 tag）
   image plan  <模块> <版本>       dry-run，打印将提交的全部参数
@@ -1009,6 +1276,7 @@ itp-ops.sh cloudos —— CloudOS 平台运维（当前环境：${CLOUDOS_ENV:-h
   itp-ops.sh cloudos apps
   itp-ops.sh cloudos env fep-app
   itp-ops.sh cloudos scale web-admin 1 --yes
+  itp-ops.sh cloudos deploy recon-server 1.0.28          # 只读预演
   itp-ops.sh cloudos image probe
 
 环境变量覆盖
@@ -1048,6 +1316,7 @@ cloudos_main() {
         act|action)          app_action "${1:?需要应用名或 uuid}" "${2:?需要 start|stop|restart}" ;;
         scale)               app_scale "${1:?需要应用名或 uuid}" "${2:?需要副本数}" ;;
         scale-all)           scale_all "$@" ;;
+        deploy|upgrade)      app_deploy "$@" ;;
         spec)                app_spec "${1:-all}" ;;
         spec-set)            app_spec_set "${1:?需要应用名或 uuid}" "${2:-4000m}" "${3:-8192Mi}" ;;
         spec-all)            spec_all "$@" ;;

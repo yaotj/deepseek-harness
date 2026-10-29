@@ -33,6 +33,14 @@
   1. **`container_image` 是隐藏必填**——缺它一律返回 `application.5000010`（msg 为空，文档无此码），
      补上即成功；排查时先补这个字段，不要怀疑 env / resources；
   2. `version_id` 用 `upgrade_id`（32 位），不能用 `package_version_id`（镜像 URL，会 `value too long`）；
+     - **2026-10-29 补充（反解控制台 + 现网实测）**：这条只对**包类型应用**成立。镜像应用（`package_type=image`
+       且 `metadata.container_image` 非空）在控制台 `createParams()` 的分支里**不发 `version_id`**，只发
+       `{version, strategy, container_name, container_image, env}`；包类型分支的 `version_id` =
+       `selectedPackage.selectedVersion.uuid`，来源是**软件包仓库** `GET /api/cloud/deploy/v1.0/packages/version/<app.package_version_id>`
+       的 `data.versions[].uuid`（8 位短 id 形态）。**镜像仓库 `GET /api/cloud/hcr/v1.0/image/versions` 每行没有 `uuid` 字段**
+       （`data.uuid` 恒空串），所以「从 hcr 镜像记录取 `version_id`」在红岛不存在——此前 `构建与发布.md` §三 与
+       `红岛.md` 的该说法已据此更正。脚本 `cloudos deploy` 取「回传 `metadata.version_id` 现值」这一档：
+       与两次生产实测过的 image 型 PATCH（`mount-applogs.py`、IT-028 的 `2.0.71.7→2.0.71.8`）一致，比省略更稳。
   3. `version` 不能等于当前值 → 第 4 段递增；
   4. `env` 是**全量替换**，必须回传原有全部 env 再追加；
   5. `resources` 里存的是**陈旧模板**（`replicas=1`、`1C/2C`），平台会按它重渲染 Deployment，
