@@ -36,7 +36,7 @@ spec:
         - name: JAR_PARM
         - name: JAR_NAME
           value: web-frontend-1.2.29.zip
-        image: os-harbor-svc.default.svc.cloudos:443/user/1df71957d770436493a84f24d9344853/web-nginx1.20:1.2.29-1790045565782
+        image: os-harbor-svc.default.svc.cloudos:443/user/1df71957d770436493a84f24d9344853/web-frontend-nginx1.20:1.2.44.6-1793602053882
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: web

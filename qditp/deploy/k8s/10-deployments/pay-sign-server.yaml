@@ -165,7 +165,7 @@ spec:
           value: itp
         - name: PAY_SIGN_REQUEST_REFUND_NOTIFY_URL
           value: http://58.56.166.170:48000/fep-app/ci/app/paySign/payment/receiveRefundResult
-        image: os-harbor-svc.default.svc.cloudos:443/itp/pay-sign-server:2.1.10
+        image: os-harbor-svc.default.svc.cloudos:443/itp/pay-sign-server:2.1.19
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: pay-sign-server

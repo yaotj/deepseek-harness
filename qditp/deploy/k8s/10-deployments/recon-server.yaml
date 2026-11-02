@@ -78,7 +78,7 @@ spec:
           value: recon-server
         - name: NAMESPACE
           value: itp
-        image: os-harbor-svc.default.svc.cloudos:443/itp/recon-server:1.0.17
+        image: os-harbor-svc.default.svc.cloudos:443/itp/recon-server:1.0.30
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: recon-server

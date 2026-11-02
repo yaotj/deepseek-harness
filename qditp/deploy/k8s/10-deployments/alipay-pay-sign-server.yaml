@@ -157,7 +157,7 @@ spec:
           value: itp
         - name: pay.center.refund-notify-url
           value: http://58.56.166.170:48000/fep-alipay/api/payment/refundNotify
-        image: os-harbor-svc.default.svc.cloudos:443/itp/alipay-pay-sign:1.1.59
+        image: os-harbor-svc.default.svc.cloudos:443/itp/alipay-pay-sign:1.1.65
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: alipay-pay-sign-server

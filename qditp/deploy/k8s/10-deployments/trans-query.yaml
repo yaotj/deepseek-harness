@@ -101,7 +101,7 @@ spec:
           value: trans-query
         - name: NAMESPACE
           value: itp
-        image: os-harbor-svc.default.svc.cloudos:443/itp/trans-query:1.0.18
+        image: os-harbor-svc.default.svc.cloudos:443/itp/trans-query:1.0.23
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: trans-query

@@ -133,7 +133,7 @@ spec:
           value: http://trans-query-57wpd-svc.itp.svc:30035
         - name: SERVICE_TRANS_QUERY_OPEN_LOGGER
           value: 'true'
-        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-app:2.0.105
+        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-app:2.1.5
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: fep-app

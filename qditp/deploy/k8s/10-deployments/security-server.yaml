@@ -121,7 +121,7 @@ spec:
           value: itp
         - name: VLOGS_URL
           value: http://victoria-logs-pbi6a-svc.itp.svc:30032
-        image: os-harbor-svc.default.svc.cloudos:443/itp/acc-security-server:2.0.15
+        image: os-harbor-svc.default.svc.cloudos:443/itp/acc-security-server:2.0.20
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: security-server

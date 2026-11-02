@@ -85,7 +85,7 @@ spec:
           value: itp
         - name: VLOGS_URL
           value: http://victoria-logs-pbi6a-svc.itp.svc:30032
-        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-acc:1.0.10
+        image: os-harbor-svc.default.svc.cloudos:443/itp/fep-acc:1.0.15
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: fep-acc

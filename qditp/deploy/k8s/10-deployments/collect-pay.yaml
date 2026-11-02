@@ -155,7 +155,7 @@ spec:
           value: e72bc1ece71af5ae9db420944a3b24ab8de5056681c58106488c635c43328306
         - name: SERVICE_RECON_URL
           value: http://recon-server-bjzdy-svc.itp.svc:30034
-        image: os-harbor-svc.default.svc.cloudos:443/itp/collect-pay-server:1.1.88
+        image: os-harbor-svc.default.svc.cloudos:443/itp/collect-pay-server:1.1.92
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: collect-pay

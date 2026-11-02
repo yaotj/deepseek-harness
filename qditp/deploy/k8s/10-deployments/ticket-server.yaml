@@ -161,7 +161,7 @@ spec:
           value: ticket-server
         - name: NAMESPACE
           value: itp
-        image: os-harbor-svc.default.svc.cloudos:443/itp/ticket-server:2.1.111
+        image: os-harbor-svc.default.svc.cloudos:443/itp/ticket-server:2.2.5
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: ticket-server

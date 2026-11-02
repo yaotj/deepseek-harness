@@ -121,7 +121,7 @@ spec:
           value: itp
         - name: VLOGS_URL
           value: http://victoria-logs-pbi6a-svc.itp.svc:30032
-        image: os-harbor-svc.default.svc.cloudos:443/itp/alipay-account:1.0.24
+        image: os-harbor-svc.default.svc.cloudos:443/itp/alipay-account:1.0.29
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: alipay-account-server

@@ -129,7 +129,7 @@ spec:
           value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receivePaymentResult
         - name: DAILY_TICKET_PAY_REFUND_NOTIFY_URL
           value: http://58.56.166.170:48000/fep-app/app/payment/receiveRefundResult
-        image: os-harbor-svc.default.svc.cloudos:443/itp/daily-ticket-server:1.0.63
+        image: os-harbor-svc.default.svc.cloudos:443/itp/daily-ticket-server:1.0.73
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: daily-ticket-server
