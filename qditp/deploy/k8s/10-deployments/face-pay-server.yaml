@@ -56,20 +56,19 @@ spec:
           value: 172.20.222.3:1521
         - name: DB_DATABASE
           value: AFCITPDB
+        # DB_NAME MUST 与 DB_DATABASE 同值同注：application.yml 读的是 ${DB_NAME:hditpdb}（默认红岛），
+        # 不注则连红岛 ORA-12514（2026-11-02 现场实证）。2026-11-02 IT-036 对齐双通道模式。
+        - name: DB_NAME
+          value: AFCITPDB
         - name: DB_USERNAME
           value: qditp
+        # 明文即真源（docs/ops/environments/跨环境共性.md §三）；itp-secrets 不存在，secretKeyRef 致 CreateContainerConfigError
         - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: DB_PASSWORD
+          value: qditp
         - name: PAY_CENTER_MERCHANT_NO
           value: JOPJ490HLK9Z
         - name: JHM_KEY
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: JHM_KEY
+          value: fedf5g#@$(*&d390y3hcn
         - name: PAY_CENTER_PAY_URL
           value: http://dtcustomer.bestonepay.com/ngpayment-gateway/api/v1/payment/requestPay
         - name: PAY_CENTER_QUERY_URL
@@ -102,7 +101,7 @@ spec:
           value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receivePaymentResult
         - name: PAY_CENTER_REFUND_NOTICE_URL
           value: http://58.56.166.170:48000/itpbom/ci/bom/receiveRefundResult
-        image: os-harbor-svc.default.svc.cloudos:443/itp/face-pay-server:1.0.77
+        image: os-harbor-svc.default.svc.cloudos:443/itp/face-pay-server:1.0.89
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: face-pay-server
