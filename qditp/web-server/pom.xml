@@ -11,8 +11,8 @@
     <name>web-server</name>
     <description>综合管理系统</description>
     
-    <properties>
-        <project.version>1.1.48</project.version>
+	<properties>
+		<project.version>1.1.49</project.version>
         <web.version>${project.version}</web.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
