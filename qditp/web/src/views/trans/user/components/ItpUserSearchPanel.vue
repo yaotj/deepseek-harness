@@ -16,6 +16,7 @@
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+        <el-button type="warning" icon="Download" :disabled="users.length === 0" @click="handleExport">导出 Excel</el-button>
       </el-form-item>
     </el-form>
 
@@ -61,6 +62,7 @@ import { searchItpUsers, searchItpCanceledUsers } from '@/api/trans/userSearch'
 import { formatCodeLabel } from '@/utils/codeLabel'
 import { cardTypeLabel } from '@/utils/cardType'
 import { payChannelLabel } from '@/utils/payChannel'
+import { exportToExcel } from '@/utils/excelExport'
 
 const props = defineProps({
   fixedStatus: { type: String, required: true, validator: (value) => ['ACTIVE', 'CANCELED'].includes(value) },
@@ -152,6 +154,79 @@ function resetQuery() {
   proxy.resetForm('queryRef')
   queryParams.queryType = 'MSISDN'
   users.value = []
+}
+
+/**
+ * 导出当前查询结果（前端直接生成 .xlsx，无需后端）。
+ * 导出列与页面表格一一对应，并复用卡片类型/发卡机构/渠道/二维码/时间等展示口径。
+ */
+function handleExport() {
+  if (!users.value.length) {
+    proxy.$modal.msgWarning('暂无可导出的数据，请先查询')
+    return
+  }
+
+  const rows = users.value.map((row) => {
+    if (isActive.value) {
+      return {
+        thirdUserId: row.thirdUserId,
+        cardId: row.cardId,
+        cardTypeLabel: cardTypeLabel(row.cardType),
+        itpCardTypeLabel: cardTypeLabel(row.itpCardType),
+        msisdn: row.msisdn,
+        userName: row.userName,
+        issueOrgLabel: issueOrgLabel(row.issueOrgCode),
+        channelLabel: payChannelLabel(row.channel),
+        qrCodeTypeLabel: qrCodeTypeLabel(row.companionFlag),
+        status: row.status,
+        regTmsFmt: formatRegistrationTime(row.regTms),
+        terminationRequestTimeFmt: formatRegistrationTime(row.terminationRequestTime),
+        terminationCompleteTimeFmt: formatRegistrationTime(row.terminationCompleteTime)
+      }
+    }
+    return {
+      thirdUserId: row.thirdUserId,
+      cardId: row.cardId,
+      cardTypeLabel: cardTypeLabel(row.cardType),
+      msisdn: row.msisdn,
+      cancelTimeFmt: formatRegistrationTime(row.cancelTime),
+      operTypeLabel: operTypeLabel(row.operType)
+    }
+  })
+
+  const headers = isActive.value
+    ? [
+        { header: '第三方用户ID', key: 'thirdUserId' },
+        { header: '逻辑卡号', key: 'cardId' },
+        { header: '真实卡类型', key: 'cardTypeLabel' },
+        { header: '申请卡类型', key: 'itpCardTypeLabel' },
+        { header: '手机号', key: 'msisdn' },
+        { header: '姓名', key: 'userName' },
+        { header: '发卡机构', key: 'issueOrgLabel' },
+        { header: '默认渠道', key: 'channelLabel' },
+        { header: '二维码类型', key: 'qrCodeTypeLabel' },
+        { header: '注册状态', key: 'status' },
+        { header: '申卡时间', key: 'regTmsFmt' },
+        { header: '申请解绑日期', key: 'terminationRequestTimeFmt' },
+        { header: '解绑成功日期', key: 'terminationCompleteTimeFmt' }
+      ]
+    : [
+        { header: '第三方用户ID', key: 'thirdUserId' },
+        { header: '逻辑卡号', key: 'cardId' },
+        { header: '卡类型', key: 'cardTypeLabel' },
+        { header: '手机号', key: 'msisdn' },
+        { header: '销户时间', key: 'cancelTimeFmt' },
+        { header: '日志类型', key: 'operTypeLabel' }
+      ]
+
+  const dateStr = new Date().toISOString().slice(0, 10)
+  const prefix = isActive.value ? 'itp有效用户' : 'itp已注销用户'
+  try {
+    exportToExcel(rows, headers, `${prefix}查询_${dateStr}`)
+    proxy.$modal.msgSuccess(`已导出 ${rows.length} 条记录`)
+  } catch (e) {
+    proxy.$modal.msgError(e.message || '导出失败')
+  }
 }
 
 function openPayChannels(row) {
