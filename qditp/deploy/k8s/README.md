@@ -21,7 +21,7 @@
 - `10-deployments/` — 24 个业务 Deployment，逐个一文件
 - `15-optional/database.yaml` — BYOK database MCP Server（研发辅助，**不是 Oracle**，生产可不部署）
 - `16-statefulsets/victoria-logs.yaml` — 日志服务，含 `volumeClaimTemplates`（15Gi RWO / sc `apigateway2`）
-- `20-services.yaml` — 26 个 Service（全 NodePort，30009~30035）
+- `20-services.yaml` — `route-sentinel-svc`（ClusterIP）+ **23 个 `<app>-internal` 内网 Service**（ClusterIP，`port`/`targetPort` 统一 8080，服务间调用专用，2026-11-02 新增，背景见 `docs/tracking/IT-035-平台端口变量与应用监听口径错配致批量503.md`）；其余服务的 NodePort Service 由 PaaS 控制台生成、名字带 5 位随机后缀，**不在本目录**（本文件不是它们的真源）
 - `30-istio-ingress.yaml` — **测试环境**入向路由基线：ns `itp` 的 `accountserver-gw` + `fep-app-vr`（**15 条：7 条 SCG exact + 8 条前缀**；`/itptvm/`、`/itpbom/` 两条保留前缀 rewrite，其余 rewrite `/`；7 条 exact 恒指 `route-sentinel-svc:8080`）
 - `30-istio-ingress-hongdao.yaml` — **红岛生产**入向路由基线：结构与测试同构（15 条 7+8），destination 全为 `<占位>`，**MUST 上线前现查重录、NEVER 沿用测试值**（占位填法与纪律见文件头注 + `docs/ops/environments/红岛.md`「入向路由分发」节）
 - `30-istio-ingress-liaoyang.yaml` — **辽阳东生产**入向路由基线：同上，destination 全为 `<占位>`，**MUST 上线前现查重录**（见 `docs/ops/environments/辽阳东.md`「入向路由分发」节）
