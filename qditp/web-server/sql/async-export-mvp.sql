@@ -64,28 +64,29 @@ where not exists (select 1 from sys_job where invoke_target = 'asyncExportQuartz
 
 -- ================== 3. 菜单 ==================
 -- 挂在「系统监控」(menu_id=2) 下，与「卡池管理」等同级。
+-- 注意：menu_id 2090-2092 在测试库已被占用，故使用 2094-2096。
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
-SELECT 2090, '异步导出任务', 2,
+SELECT 2094, '异步导出任务', 2,
        (select nvl(max(order_num), 0) + 1 from sys_menu where parent_id = 2),
        'async-export', 'monitor/async-export/index', '', 'AsyncExportTask', 1, 0, 'C', '0', '0', 'monitor:async-export:query', 'download', 'admin', SYSDATE, '', NULL, '查看后台异步导出任务状态并下载生成的文件'
-FROM dual WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = 2090);
+FROM dual WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = 2094);
 
 -- 导出提交按钮权限
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
-SELECT 2091, '提交异步导出', 2090, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'monitor:async-export:submit', '#', 'admin', SYSDATE, '', NULL, ''
-FROM dual WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = 2091);
+SELECT 2095, '提交异步导出', 2094, 1, '', '', '', '', 1, 0, 'F', '0', '0', 'monitor:async-export:submit', '#', 'admin', SYSDATE, '', NULL, ''
+FROM dual WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = 2095);
 
 -- 下载按钮权限
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
-SELECT 2092, '下载导出文件', 2090, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'monitor:async-export:download', '#', 'admin', SYSDATE, '', NULL, ''
-FROM dual WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = 2092);
+SELECT 2096, '下载导出文件', 2094, 2, '', '', '', '', 1, 0, 'F', '0', '0', 'monitor:async-export:download', '#', 'admin', SYSDATE, '', NULL, ''
+FROM dual WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = 2096);
 
 -- 默认把菜单分配给超管角色（role_id=2）
 INSERT INTO sys_role_menu (role_id, menu_id)
 SELECT 2, menu_id FROM (
-    SELECT 2090 AS menu_id FROM dual
-    UNION ALL SELECT 2091 FROM dual
-    UNION ALL SELECT 2092 FROM dual
+    SELECT 2094 AS menu_id FROM dual
+    UNION ALL SELECT 2095 FROM dual
+    UNION ALL SELECT 2096 FROM dual
 ) source
 WHERE NOT EXISTS (SELECT 1 FROM sys_role_menu target WHERE target.role_id = 2 AND target.menu_id = source.menu_id);
 
