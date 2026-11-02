@@ -28,7 +28,7 @@ public class KeyVersionExportExecutor implements IAsyncExportExecutor
     private static final Logger log = LoggerFactory.getLogger(KeyVersionExportExecutor.class);
 
     private static final String[] HEADERS = { "密钥域编码", "接入方编码", "当前版本", "状态", "生效日期", "更新时间" };
-    private static final String[] FIELDS = { "keyDomain", "providerId", "currentVersion", "statusDesc", "effectiveDate", "updateTime" };
+    private static final int[] COLUMN_WIDTHS = { 16 * 256, 16 * 256, 16 * 256, 14 * 256, 18 * 256, 18 * 256 };
     private static final int STREAM_WINDOW = 1000;
 
     @Autowired
@@ -84,7 +84,7 @@ public class KeyVersionExportExecutor implements IAsyncExportExecutor
 
             for (int i = 0; i < HEADERS.length; i++)
             {
-                sheet.autoSizeColumn(i);
+                sheet.setColumnWidth(i, COLUMN_WIDTHS[i]);
             }
 
             wb.write(out);

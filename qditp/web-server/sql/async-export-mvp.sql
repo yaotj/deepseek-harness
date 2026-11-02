@@ -9,22 +9,23 @@
 
 -- ================== 1. 任务表 ==================
 CREATE TABLE ASYNC_EXPORT_TASK (
-    id              NUMBER(19)      NOT NULL                    COMMENT '任务ID',
-    task_code       VARCHAR2(64)    NOT NULL                    COMMENT '任务编码：KEY_VERSION / CARD_POOL / FACE_PAY_ORDER / ...',
-    task_name       VARCHAR2(128)   NOT NULL                    COMMENT '任务中文名',
-    status          VARCHAR2(20)    NOT NULL                    COMMENT '状态：PENDING / RUNNING / SUCCESS / FAILED',
-    param_json      CLOB                                        COMMENT '前端查询条件 JSON',
-    file_path       VARCHAR2(512)                               COMMENT '生成文件绝对路径',
-    file_size       NUMBER(19)                                  COMMENT '文件字节数',
-    row_count       NUMBER(19)                                  COMMENT '导出行数',
-    error_msg       VARCHAR2(2000)                              COMMENT '失败原因',
-    execute_time    DATE                                        COMMENT '实际执行开始时间',
-    finish_time     DATE                                        COMMENT '完成时间',
-    retry_count     NUMBER(3)       DEFAULT 0                   COMMENT '重试次数',
-    create_by       VARCHAR2(64)                                COMMENT '提交用户',
-    create_time     DATE            DEFAULT SYSDATE             COMMENT '创建时间',
-    update_time     DATE            DEFAULT SYSDATE             COMMENT '更新时间',
-    remark          VARCHAR2(500)                               COMMENT '备注',
+    id              NUMBER(19)      NOT NULL,
+    task_code       VARCHAR2(64)    NOT NULL,
+    task_name       VARCHAR2(128)   NOT NULL,
+    status          VARCHAR2(20)    NOT NULL,
+    param_json      CLOB,
+    file_path       VARCHAR2(512),
+    file_size       NUMBER(19),
+    row_count       NUMBER(19),
+    error_msg       VARCHAR2(2000),
+    execute_time    DATE,
+    finish_time     DATE,
+    retry_count     NUMBER(3)       DEFAULT 0,
+    create_by       VARCHAR2(64),
+    create_time     DATE            DEFAULT SYSDATE,
+    update_by       VARCHAR2(64),
+    update_time     DATE            DEFAULT SYSDATE,
+    remark          VARCHAR2(500),
     CONSTRAINT pk_async_export_task PRIMARY KEY (id)
 );
 
@@ -40,12 +41,15 @@ COMMENT ON COLUMN ASYNC_EXPORT_TASK.row_count IS '导出行数';
 COMMENT ON COLUMN ASYNC_EXPORT_TASK.error_msg IS '失败原因';
 COMMENT ON COLUMN ASYNC_EXPORT_TASK.retry_count IS '重试次数';
 
+ALTER TABLE ASYNC_EXPORT_TASK ADD (update_by VARCHAR2(64));
+
 CREATE INDEX idx_async_export_status ON ASYNC_EXPORT_TASK(status, create_time);
 CREATE INDEX idx_async_export_create_by ON ASYNC_EXPORT_TASK(create_by, create_time DESC);
 
 -- 幂等由应用层控制：同一用户同一 task_code 同一 param_json 的 PENDING 任务只插入一条。
--- Oracle 不支持带 WHERE 的部分唯一索引，此处仅保留普通索引加速查询。
-CREATE INDEX idx_async_export_pending_lookup ON ASYNC_EXPORT_TASK(create_by, task_code, param_json, status);
+-- Oracle 不支持带 WHERE 的部分唯一索引，也不支持在 LOB 列上建索引；param_json 比对走 dbms_lob.compare。
+DROP INDEX idx_async_export_pending_lookup;
+CREATE INDEX idx_async_export_pending_lookup ON ASYNC_EXPORT_TASK(create_by, task_code, status);
 
 -- 主键序列
 CREATE SEQUENCE seq_async_export_task START WITH 1 INCREMENT BY 1 NOCACHE;
