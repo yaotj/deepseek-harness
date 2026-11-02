@@ -24,7 +24,11 @@
   `version==目标` 且 `status=OK` 且实例 `ok==num`。
 - **NEVER**：照文档抄线上版本号（MUST 现查）；用包仓库「部署」按钮升级已存在应用；`$VAR` 后紧跟中文不加 `{}`。
 - **排障用 API**：登录 `POST /api/sys/oapi/v1/double_factor/login`（RSA）；上传 `POST /api/cloud/deploy/v1.0/packages`
-  （`pkgType=web`）；升级 `PATCH /api/cloud/app-mgmt/v1.0/apps/{uuid}/advanced-config`（body=应用详情 `metadata` 读现状改 `version_id`/`version`）。
+  （multipart `pkgType=web`，字段集 `id/pkgType/name/version/visible/label/description/feature/tagId` +
+  `totalChunks/chunkNumber`；`tagId` 经 `GET /api/cloud/deploy/v1.0/tags` 按分类名解析）；
+  查包详情/已有版本 `GET /api/cloud/deploy/v1.0/packages?selectOwn=true&visible=false&name=<pkg>`（＝向导
+  getDetail 同款查询）；升级 `PATCH /api/cloud/app-mgmt/v1.0/apps/{uuid}/advanced-config`（body=应用详情
+  `metadata` 读现状改 `version_id`/`version`）。
 
 ## 〇、脚本自动化（首选）
 
@@ -37,6 +41,8 @@ python3 docs/ops/environments/scripts/web_frontend_release.py 1.2.43.3
 # 真发：上传 + 升级 + 轮询到满员；生产写 MUST 带 --yes
 python3 docs/ops/environments/scripts/web_frontend_release.py 1.2.43.3 --yes
 # 变体：--skip-build（复用已出 zip）/ --skip-upgrade（只上传不升级）/ --app、--pkg、--app-uuid
+# 上传细节：--tag（分类，默认 itpb，解析成 tagId）、--description（包描述）、--feature（版本特性）；
+# 包已存在时自动 prefill 详情现值，文件 >195MiB 自动分片（chunkSize 204800000，与平台上传控件一致）
 ```
 
 **升级的真实 API**（脚本与手工都照此）：`PATCH /api/cloud/app-mgmt/v1.0/apps/{uuid}/advanced-config`，
@@ -58,11 +64,14 @@ body 由 `GET /apps/{uuid}` 的 `metadata` 读现状后**只改 `version_id` / `
 
 ### 第 1 步：应用包仓库「添加版本」
 
-`软件中心 → 应用包仓库 → <应用包，如 web-frontend> → 版本管理 → 添加版本`：
+`软件中心 → 应用仓库 → 私有仓库 → 上传应用包`（两步向导：① 基础配置：包名 / 显示名称 / 版本 /
+**分类**（红岛唯一选项 `itpb`）/ 图标 / 描述 / 版本特性；② 选择文件上传；**2026-10-28 实测**）：
 
-- **版本号**：填新版本号（示例 `1.2.43`，现查实际目标）
+- **版本号**：填新版本号（示例 `1.2.43`，现查实际目标）；包名已存在时向导 prefill 包详情
+  （`GET /packages?selectOwn=true&visible=false&name=<pkg>`），**重复版本号会被拒**
 - **上传方式**（二选一）：
-  - `本地上传`：拖 zip 文件。**自动化 / 内嵌浏览器不支持文件上传，MUST 人工拖**
+  - `本地上传`：拖 zip 文件。**自动化 / 内嵌浏览器不支持文件上传，MUST 人工拖**；
+    脚本 `web_frontend_release.py` 走 multipart API 直传（字段集已对齐向导，含分片），无需人工
   - `远端地址`：填可访问的包 URL；免认证则取消「是否需要认证」勾选（要认证则补用户名/密码）
 - `确定` → 版本列表新增一行，状态「**未使用**」
 
@@ -94,7 +103,12 @@ NEVER 照本文抄版本号**（同 [web-admin-development-workflow.md](../archi
   两个都要选/填到新版本。
 - 下拉 `软件包版本` 的可访问名会在「请选择 / 当前值」间跳动，**自动化按固定名字定位易踩空**；
   本次靠「点开下拉 → 点可见的 `1.2.43` 选项」才选中。**NEVER 把某次看到的可访问名当稳定选择器**。
-- 添加版本「本地上传」要拖 zip，**自动化浏览器传不了本地文件**，只能人工拖。
+- 添加版本「本地上传」要拖 zip，**自动化浏览器传不了本地文件**，只能人工拖；**脚本 API 直传不受此限**
+  （multipart 分片已对齐平台控件 `chunkSize 204800000`）。
+- **重复版本号会被平台拒**（向导 prefill 后校验版本不可重复）：同包同名同版本重传必失败；
+  脚本据此「已存在即跳过」，**回滚＝重传旧版本号永远成立**（旧版本必在软件中心）。
+- **上传字段 tagId（分类）与 UI 一致**（2026-10-28 抓 `upload.*.js` 实测）：向导把分类（红岛唯一
+  `itpb`，经 `GET /tags` 解析 uuid）写进 multipart 表单；脚本 `--tag` 已对齐，解析不到则不附带（兼容旧行为）。
 - 升级提交有「业务不可用」二次确认，**MUST 低峰执行 + 留回滚**
   （同 [AGENTS.md](../AGENTS.md) §5.C「生产红线（MUST，缺一不可）」的灰度/回滚预案判据）。
 - 用初始密码登录会弹「请及时修改密码」，**MUST 尽快改掉初始口令**。

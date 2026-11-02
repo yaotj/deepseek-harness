@@ -19,14 +19,19 @@
 #   平台行为已变，与 Web 端 el-upload 直传文件的形态对齐后恢复。
 #
 # 【用法】
-#   hongdao-buildx.sh <module> <version> [--jar <jar>] [--dockerfile <df>] \
-#       [--project itpb] [--img-type <uuid>] [--check]
-#   --check  只读：只查现有镜像（确认 tag 占用 / 回滚点 / 响应形态），不发写请求
+#   hongdao-buildx.sh <module> <version> [--env hongdao|test] [--jar <jar>] \
+#       [--dockerfile <df>] [--project <name>] [--img-type <uuid>] [--check]
+#   --env     环境（默认 hongdao）。test 时 Harbor 项目自动取 itp、账号 admin；
+#             文件名保留红岛首发时的历史名（改名会让 8+ 处 IT/手册引用失真），
+#             脚本本身已按环境参数化，两个环境共用同一份实现。
+#   --check   只读：只查现有镜像（确认 tag 占用 / 回滚点 / 响应形态），不发写请求
 #
 # 【纪律】
 #   · 版本末位 MUST +0.0.1，NEVER 同 tag 覆盖（否则无法回滚）。
-#   · 只出 x86(amd64) 镜像（红岛业务节点是 x86）。
-#   · 构建产物 MUST 核对 osAndArch=linux/amd64（IT-024 §5）。
+#   · 镜像 MUST 是 x86(amd64)：红岛业务节点是 x86；测试节点同为 x86，buildx 显式
+#     带 platform=linux/amd64，构建后核 osAndArch（IT-024 §5）。
+#   · 测试环境 buildx 路由同样存在（2026-11-02 实测：POST /images/buildx 空体回
+#     img.5 参数错而非 404），与红岛是同一套端点，无需另写实现。
 # ============================================================================
 
 set -uo pipefail
@@ -37,29 +42,53 @@ source "${ITP_OPS_DIR}/lib/env.sh"
 source "${ITP_OPS_DIR}/lib/cloudos-auth.sh"
 source "${ITP_OPS_DIR}/lib/cloudos-http.sh"
 
-# 默认 imgType：红岛 hcr 「Default」(2026-10-28 现查 uuid)
+# 默认 imgType：hcr 内置「Default」（2026-11-02 现查：红岛与测试该 uuid **恰好相同**）。
+# 测试环境另有 ITP=21d45c2e-6b58-4179-bff8-c340b25a、ticket=c1c0a454-… 等分类，
+# 要打别的分类用 --img-type 显式指定，NEVER 靠猜。
 IMG_TYPE_DEFAULT="20e68cab-c634-468d-8d0c-56cb6096"
 
-MOD="${1:?用法: $0 <module> <version> [--jar <jar>] [--dockerfile <df>] [--project itpb] [--img-type <uuid>] [--check]}"
+# 基础镜像按环境取（**环境事实，不是模块事实**）。Dockerfile 里写的是红岛值，
+# 下面会在读取后用 awk 替换首行 FROM，所以共享模板仍然只有一份。
+#   红岛：itpb/jdk21:1.0.0（2026-10-28 起全量 23 个镜像用它）
+#   测试：itp/jdk:25     （2026-11-02 从 k8s-master:/home/java/Dockerfile 现查，
+#                        当前测试全量镜像都基于它；itp/jdk21:1.0.0 在测试 Harbor **不存在**）
+# 两套基础镜像的入口契约相同：ENTRYPOINT=`/bin/sh -c "sh /startapp.sh"`，
+# 容器内均有 /startapp.sh 与 /home/javaapp/app/logs —— 故「NEVER 写 ENTRYPOINT」纪律通用。
+BASE_IMAGE_HONGDAO="os-harbor-svc.default.svc.cloudos:443/itpb/jdk21:1.0.0"
+BASE_IMAGE_TEST="os-harbor-svc.default.svc.cloudos:443/itp/jdk:25"
+
+MOD="${1:?用法: $0 <module> <version> [--env hongdao|test] [--jar <jar>] [--dockerfile <df>] [--project <name>] [--img-type <uuid>] [--base-image <ref>] [--check]}"
 VER="${2:?用法: $0 <module> <version> ...}"
 shift 2
 
-JAR=""; DOCKERFILE=""; PROJECT="itpb"; IMG_TYPE="$IMG_TYPE_DEFAULT"; CHECK_ONLY=0
+ENV_NAME="hongdao"
+JAR=""; DOCKERFILE=""; PROJECT_ARG=""; IMG_TYPE="$IMG_TYPE_DEFAULT"
+BASE_IMAGE_ARG=""; CHECK_ONLY=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --env)        ENV_NAME="${2:?--env 需要值（hongdao|test）}"; shift 2 ;;
         --jar)        JAR="$2"; shift 2 ;;
         --dockerfile) DOCKERFILE="$2"; shift 2 ;;
-        --project)    PROJECT="$2"; shift 2 ;;
+        --project)    PROJECT_ARG="$2"; shift 2 ;;
         --img-type)   IMG_TYPE="$2"; shift 2 ;;
+        --base-image) BASE_IMAGE_ARG="$2"; shift 2 ;;
         --check)      CHECK_ONLY=1; shift ;;
         *) die "未知参数：$1" ;;
     esac
 done
 
-itp_env_init hongdao || exit 1
+# 环境 profile 先应用，Harbor 项目 / 账号 / VIP 全部由它决定（--project 仅作覆盖）
+ITP_ENV="$ENV_NAME"; ITP_ENV_EXPLICIT=1
+itp_env_init "$ENV_NAME" || exit 1
+PROJECT="${PROJECT_ARG:-$HARBOR_PROJECT}"
+case "$ITP_ENV" in
+    test) BASE_IMAGE="${BASE_IMAGE_ARG:-$BASE_IMAGE_TEST}" ;;
+    *)    BASE_IMAGE="${BASE_IMAGE_ARG:-$BASE_IMAGE_HONGDAO}" ;;
+esac
 cloudos_env_init || exit 1
-printf '[环境] %s（%s / %s）  Harbor项目=%s  imgType=%s\n' \
-    "$ITP_ENV_LABEL" "$CLOUDOS_ENV" "$CLOUDOS_HOST" "$PROJECT" "$IMG_TYPE" >&2
+printf '[环境] %s（%s / %s / 账号 %s）  Harbor项目=%s  imgType=%s\n' \
+    "$ITP_ENV_LABEL" "$CLOUDOS_ENV" "$CLOUDOS_HOST" "$CLOUDOS_USERNAME" "$PROJECT" "$IMG_TYPE" >&2
+printf '       基础镜像=%s\n' "$BASE_IMAGE" >&2
 
 TOKEN=$(cloudos_get_token) || die "登录失败"
 BASE="${CLOUDOS_BASE_URL}"
@@ -78,6 +107,17 @@ fi
 [[ -f "$JAR" ]] || die "找不到 jar：${JAR}"
 [[ -n "$DOCKERFILE" ]] || DOCKERFILE="${ITP_OPS_ROOT:-$ITP_OPS_DIR/../..}/${MOD}/Dockerfile"
 [[ -f "$DOCKERFILE" ]] || die "找不到 Dockerfile：${DOCKERFILE}"
+
+# 首行 FROM 换成环境对应的基础镜像（共享模板只写红岛值，替换在此处做，见文件头）
+DOCKERFILE_RAW=$(cat "$DOCKERFILE")
+DOCKERFILE_TEXT=$(printf '%s\n' "$DOCKERFILE_RAW" | awk -v img="$BASE_IMAGE" '
+    !done && /^[[:space:]]*FROM[[:space:]]/ { print "FROM " img; done=1; next }
+    { print }
+')
+FROM_IN_FILE=$(printf '%s\n' "$DOCKERFILE_RAW" | awk '/^[[:space:]]*FROM[[:space:]]/ {print $2; exit}')
+[[ -n "$FROM_IN_FILE" ]] || die "${DOCKERFILE} 里没有 FROM 行，无法确定基础镜像"
+[[ "$FROM_IN_FILE" == "$BASE_IMAGE" ]] \
+    || echo "   基础镜像替换：${FROM_IN_FILE} → ${BASE_IMAGE}" >&2
 
 # fat jar 校验
 manifest=$(unzip -l "$JAR" 2>/dev/null) || die "${JAR} 不是合法 zip"
@@ -114,7 +154,6 @@ DATA_ID="$FILEFLAG"
 echo "   ✓ 用客户端 fileFlag=${DATA_ID} 作为 buildx 引用" >&2
 
 # ---------------------------------------------------------------- 2) buildx
-DOCKERFILE_TEXT=$(cat "$DOCKERFILE")
 BODY=$(python3 -c '
 import json,sys
 print(json.dumps({
@@ -126,8 +165,8 @@ print(json.dumps({
   "fileFlag": sys.argv[5],
   "project": sys.argv[6],
   "platform": "linux/amd64",
-  "description": sys.argv[2] + " " + sys.argv[3] + " via hongdao-buildx"
-}, ensure_ascii=False))' "$DOCKERFILE_TEXT" "$MOD" "$VER" "$IMG_TYPE" "$DATA_ID" "$PROJECT")
+  "description": sys.argv[2] + " " + sys.argv[3] + " via cloudos buildx (" + sys.argv[7] + ")"
+}, ensure_ascii=False))' "$DOCKERFILE_TEXT" "$MOD" "$VER" "$IMG_TYPE" "$DATA_ID" "$PROJECT" "$CLOUDOS_ENV")
 
 echo "[3/4] buildx 提交构建（platform=linux/amd64）" >&2
 BX=$(curl -sSk --max-time 120 -H "X-Auth-Token: ${TOKEN}" \

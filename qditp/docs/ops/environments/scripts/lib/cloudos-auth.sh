@@ -10,9 +10,12 @@
 #   `itp-ops.sh`，认证统一走本文件；token 缓存按环境分文件，彻底消除串环境。
 #
 # 【环境 profile（cloudos_env_init 时应用）】
-#   hongdao（默认，红岛生产）：172.120.209.151 / itpbadmin / 公钥已固化
-#   test（测试）：172.20.217.210 / admin / 公钥 MUST 从测试登录页抓后填入
-#   两者 VIP、账号、RSA 公钥全不同 —— 混用就是把生产命令打到测试或反之。
+#   hongdao（默认，红岛生产）：172.120.209.151 / itpbadmin
+#   test（测试）：172.20.217.210 / admin
+#   两者 VIP、账号不同 —— 混用就是把生产命令打到测试或反之。
+#   **RSA 公钥两套环境是同一把**（2026-11-02 实测：测试平台登录页
+#   /platform/static/js/login/login.<hash>.js 的 encryptRSA 常量与红岛逐字符一致，
+#   216 字符、1024 bit；这不是巧合而是同一套平台密钥，换平台版本时才需重抓）。
 #
 # 【调用约定】
 #   入口 MUST 先调 cloudos_env_init（按 CLOUDOS_ENV 应用 profile），再发请求。
@@ -21,13 +24,13 @@
 #   TOKEN_CACHE。入口 SHOULD `trap cloudos_auth_cleanup EXIT`（清公钥临时文件）。
 #   lib 本身 NEVER 设置 shell 选项（set -euo），由入口决定。
 #
-# 【认证模型（红岛 2026-10-23 实测）】
+# 【认证模型（红岛 2026-10-23 实测；测试 2026-11-02 验证同构）】
 #   POST /api/sys/oapi/v1/double_factor/login
 #   Body: {"username","rsa":true,"password":"<RSA-1024 密文 base64>","domain":"default"}
 #   业务请求头：X-Auth-Token: <res.token>
 #   ⚠ 密码 MUST 真 RSA 加密（密文恒 128 字节 / 172 字符）。base64 明文会返回
 #     usrmgt.userOrPasswordError —— 看着像密码错，实际是没解密。
-#   ⚠ 账号真值 itpbadmin（不是 itpbdmin / itpadmin；后者是 Harbor 推送账号）。
+#   ⚠ 平台账号：红岛 itpbadmin、测试 admin（itpadmin 是 Harbor 推送账号，不是平台账号）。
 #   ⚠ RSA 公钥来源与抓法见 scripts 根 README.md「CloudOS 认证模型」。
 # ============================================================================
 
@@ -37,12 +40,17 @@ CLOUDOS_DOMAIN="${CLOUDOS_DOMAIN:-default}"
 CLOUDOS_TIMEOUT="${CLOUDOS_TIMEOUT:-30}"
 TOKEN_TTL="${CLOUDOS_TOKEN_TTL:-600}"   # 秒；平台侧实际更长，这里保守取 10 分钟
 
-# 红岛 RSA 公钥（1024 bit，来自红岛登录页 encryptRSA()，PKCS#8 SubjectPublicKeyInfo base64）
-HONGDAO_RSA_PUBKEY_B64="MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCbPqaFZ0lgebihxCw5wzjkahPKr6ZI2JNTHbHDnNbOn3Cif6GgnMBr44MhQCRPQTF2FgcxBbn3u7eGcEPMT6OZqcLzcmiMCUQRJ2MUbFI+E1vI1f+iuCQ2w8XZhRoRrmb7wBA0L63gnSwXRkJD0baL5zqlQhpSKfSH0t3opAoahwIDAQAB"
+# CloudOS 登录公钥（1024 bit，PKCS#8 SubjectPublicKeyInfo base64，216 字符）
+# 来源：登录页 encryptRSA() 内联常量（红岛与测试两个平台逐字符相同，2026-11-02 复核）。
+CLOUDOS_RSA_PUBKEY_SHARED="MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCbPqaFZ0lgebihxCw5wzjkahPKr6ZI2JNTHbHDnNbOn3Cif6GgnMBr44MhQCRPQTF2FgcxBbn3u7eGcEPMT6OZqcLzcmiMCUQRJ2MUbFI+E1vI1f+iuCQ2w8XZhRoRrmb7wBA0L63gnSwXRkJD0baL5zqlQhpSKfSH0t3opAoahwIDAQAB"
+
+# 历史常量名（红岛单环境时代），保留给外部引用；值即上面那把共享公钥
+HONGDAO_RSA_PUBKEY_B64="$CLOUDOS_RSA_PUBKEY_SHARED"
 
 # 应用环境 profile。MUST 在发任何请求前调用；重复调用安全（幂等）。
-# 测试环境公钥未抓到（本机长期不可达 172.20.217.210），留空即拒跑并提示抓法——
-# 绝不静默退回 base64 明文（2026-10-22 的错判：看着能跑，实际从未通）。
+# 公钥留空即拒跑并提示抓法——绝不静默退回 base64 明文
+# （2026-10-22 的错判：看着能跑，实际从未通）。两套环境默认都指向同一把共享公钥，
+# 只有平台升级换钥时才需要按提示重抓并 export 覆盖。
 cloudos_env_init() {
     local env="${CLOUDOS_ENV:-hongdao}"
     case "$env" in
@@ -50,27 +58,28 @@ cloudos_env_init() {
             CLOUDOS_HOST="${CLOUDOS_HOST:-172.120.209.151}"
             CLOUDOS_USERNAME="${CLOUDOS_USERNAME:-itpbadmin}"
             CLOUDOS_PASSWORD="${CLOUDOS_PASSWORD:-QDitp@123!@#}"
-            CLOUDOS_RSA_PUBKEY_B64="${CLOUDOS_RSA_PUBKEY_B64:-$HONGDAO_RSA_PUBKEY_B64}"
+            CLOUDOS_RSA_PUBKEY_B64="${CLOUDOS_RSA_PUBKEY_B64:-$CLOUDOS_RSA_PUBKEY_SHARED}"
             ;;
         test)
             CLOUDOS_HOST="${CLOUDOS_HOST:-172.20.217.210}"
             CLOUDOS_USERNAME="${CLOUDOS_USERNAME:-admin}"
             CLOUDOS_PASSWORD="${CLOUDOS_PASSWORD:-Qdmlc123!@#}"
-            CLOUDOS_RSA_PUBKEY_B64="${CLOUDOS_RSA_PUBKEY_B64:-}"
-            if [[ -z "$CLOUDOS_RSA_PUBKEY_B64" ]]; then
-                printf '错误：测试环境 RSA 公钥未配置。\n' >&2
-                printf '  本机到 172.20.217.210 长期不可达，公钥一直没抓到。\n' >&2
-                printf '  拿到能通测试网的机器后：登录页 F12 → Network → double_factor/login\n' >&2
-                printf '  → 前端 JS 搜 encryptRSA / setPublicKey，取 1024-bit PKCS#8 base64，\n' >&2
-                printf '   export CLOUDOS_RSA_PUBKEY_B64=<值> 后重试。NEVER 改回 base64 明文。\n' >&2
-                return 1
-            fi
+            CLOUDOS_RSA_PUBKEY_B64="${CLOUDOS_RSA_PUBKEY_B64:-$CLOUDOS_RSA_PUBKEY_SHARED}"
             ;;
         *)
             printf '错误：未知 CLOUDOS_ENV=%s（仅 hongdao / test）\n' "$env" >&2
             return 1
             ;;
     esac
+
+    if [[ -z "$CLOUDOS_RSA_PUBKEY_B64" ]]; then
+        printf '错误：环境 %s 的 RSA 公钥为空（被显式置空？）。\n' "$env" >&2
+        printf '  两套环境默认共用同一把公钥，NEVER 需要手工提供——把 CLOUDOS_RSA_PUBKEY_B64= 去掉即可。\n' >&2
+        printf '  平台升级换钥后重抓：登录页 F12 → Network → double_factor/login\n' >&2
+        printf '  → 前端 JS 搜 encryptRSA，取 1024-bit PKCS#8 base64（216 字符），\n' >&2
+        printf '   export CLOUDOS_RSA_PUBKEY_B64=<值> 后重试。\n' >&2
+        return 1
+    fi
 
     # 口令：仓库内明文即唯一真源（2026-10-26 用户裁定）。
     # 各环境的现值直接写在上方 case 分支的默认值里，CLOUDOS_PASSWORD 环境变量仅作**可选覆盖**
@@ -146,8 +155,12 @@ _cloudos_login_once() {
     http_code=$(printf '%s' "$resp" | tail -n1)
     rbody=$(printf '%s' "$resp" | sed '$d')
 
-    [[ -n "$http_code" && "$http_code" != "000" ]] \
-        || __cloudos_die "连不上 ${CLOUDOS_HOST} —— 查网卡（红岛需插 K8s 控制区 172.120.2.x）"
+    if [[ -z "$http_code" || "$http_code" == "000" ]]; then
+        if [[ "${CLOUDOS_ENV:-}" == "test" ]]; then
+            __cloudos_die "连不上 ${CLOUDOS_HOST} —— 测试网需能路由 172.20.x（办公网 en0 或公司内网）"
+        fi
+        __cloudos_die "连不上 ${CLOUDOS_HOST} —— 查网卡（红岛需插 K8s 控制区 172.120.2.x）"
+    fi
     [[ "$http_code" == "200" ]] || __cloudos_die "登录 HTTP ${http_code}：${rbody:0:400}"
 
     token=$(printf '%s' "$rbody" | python3 -c '
@@ -157,7 +170,8 @@ if d.get("status") is not True:
     sys.stderr.write("登录业务失败：code=%s msg=%s\n" % (d.get("code"), d.get("msg")))
     if d.get("code") == "usrmgt.userOrPasswordError":
         sys.stderr.write(
-            "  排查顺序：① 账号是否 itpbadmin（不是 itpbdmin / itpadmin）\n"
+            "  排查顺序：① 账号是否为该环境的正确账号（红岛 itpbadmin / 测试 admin；\n"
+            "             itpadmin 是 Harbor 推送账号，不是平台账号）\n"
             "           ② 密码是否正确\n"
             "           ③ 密码是否真的 RSA 加密（密文应 172 字符；base64 明文会走到这条错）\n"
             "           ④ domain 是否为 default（传空返回 svcmgt.internalServerError）\n")

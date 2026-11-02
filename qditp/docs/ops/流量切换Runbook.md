@@ -45,6 +45,10 @@ SCG 分流网关（`route-sentinel-svc:8080`）承接的 7 条 `exact`，**必�
 > 所以只交这 7 条给 SCG，剩余端点由下面两条前缀路由直连 `face-pay-server-svc`。
 > 这 7 条不带 `rewrite`（or 为 `/itptvm/` 同路径），路径原样透传给 SCG。
 
+> ⚠️ **红岛 `ns itpb` 例外（防呆）**：红岛 `route-sentinel-svc` 仅暴露 **NodePort 31944**、**无 ClusterIP 8080**（与测试 `ns itp` 不同）。
+> 因此红岛 7 条 exact 的 `destination` **MUST 用 `route-sentinel-internal-svc:8080`**（ClusterIP），
+> 照搬本 Runbook 的 `route-sentinel-svc:8080` 会让 Envoy 找不到上游端口 → 7 exact 全 503（已发生，见 `docs/tracking/IT-030`）。
+
 8 条前缀与落点：
 
 - `/fep-app/` → `fep-app-hr32k-svc:9101`（rewrite `/`）

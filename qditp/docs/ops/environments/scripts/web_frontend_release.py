@@ -21,7 +21,10 @@
 #   python3 web_frontend_release.py <版本> [--yes] [--skip-build] [--skip-upgrade]
 #                          [--app web-frontend] [--pkg web-frontend] [--app-uuid <u>]
 #                          [--tag itpb] [--description <包描述>] [--feature <版本特性>]
+#   python3 web_frontend_release.py --bump [--yes] ...   # 从 CloudOS 已部署版本按规则算下一版
+#   python3 web_frontend_release.py --debug [--yes] ...  # 调试升级，版本固定哨兵 0.0.0.1
 #   不带 --yes = dry-run（本地出 zip + 打印将发的请求，不碰生产）
+# 版本号规则（2026-11-02 裁定）：本地构建只升末位 +0.0.1，超 99 进位；调试包用 0.0.0.1。
 # ============================================================================
 
 import argparse
@@ -41,6 +44,9 @@ import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
+
+# --------------------------------------------------------------------------- 模块级状态
+_TOKEN = None   # 登录 token 缓存（login() 幂等复用，避免 --bump 提前登录后重复登录）
 
 # --------------------------------------------------------------------------- 依赖检查
 try:
@@ -81,6 +87,28 @@ def _profile(env: str) -> dict:
             "pubkey": pub,
         }
     sys.exit(f"未知 CLOUDOS_ENV={env}（仅 hongdao / test）")
+
+
+# --------------------------------------------------------------------------- 版本号规则（前端/后端统一，2026-11-02 裁定）
+DEBUG_VERSION = "0.0.0.1"   # CloudOS 仅为调试升级时的哨兵版本（不占用发布序列）
+
+def next_version(v: str) -> str:
+    """末位 +1；任一分段超过 99 向高位进位（该段归零、前一分段 +1）。例 1.2.99 → 1.3.0。"""
+    if not re.match(r"^\d+(\.\d+)*$", v):
+        sys.exit(f"非法版本号: {v}")
+    parts = [int(x) for x in v.split(".")]
+    carry, i = 1, len(parts) - 1
+    while i >= 0:
+        s = parts[i] + carry
+        if s > 99:
+            parts[i], carry = 0, 1
+        else:
+            parts[i], carry = s, 0
+            break
+        i -= 1
+    if carry == 1:                       # 最高段也溢出：最高段 +1、其余归零（99.99 → 100.0）
+        parts = [1] + [0] * len(parts)
+    return ".".join(str(x) for x in parts)
 
 
 # --------------------------------------------------------------------------- 基础设施（纯 stdlib + cryptography）
@@ -184,6 +212,9 @@ def stage_build(version: str, web_dir: Path, skip: bool) -> Path:
 
 
 def login(profile: dict) -> str:
+    global _TOKEN
+    if _TOKEN:
+        return _TOKEN
     host = profile["host"]
     enc = rsa_encrypt(profile["pubkey"], profile["password"].encode())
     base = f"https://{host}"
@@ -201,6 +232,7 @@ def login(profile: dict) -> str:
     if not token:
         sys.exit(f"登录未返回 token：{str(d)[:300]}")
     print(f"2/4 ✓ 登录成功（{host} / {profile['username']}，token {len(token)} 字符）")
+    _TOKEN = token
     return token
 
 
@@ -350,8 +382,12 @@ def upgrade(token, base, app_uuid, version, version_id) -> str:
 # --------------------------------------------------------------------------- 入口
 def main():
     ap = argparse.ArgumentParser(description="web 前端（CloudOS）一键发版")
-    ap.add_argument("version", help="目标版本，如 1.2.44")
+    ap.add_argument("version", nargs="?", help="目标版本，如 1.2.44；与 --bump/--debug 互斥")
     ap.add_argument("--yes", action="store_true", help="执行生产写（上传+升级）；缺省 dry-run")
+    ap.add_argument("--debug", action="store_true",
+                    help="调试升级：版本固定哨兵 0.0.0.1（不占用发布序列）")
+    ap.add_argument("--bump", action="store_true",
+                    help="从 CloudOS 已部署版本按规则算下一版（末位+1，超99进位）；忽略位置版本号")
     ap.add_argument("--skip-build", action="store_true", help="复用已有 zip，跳过本地构建")
     ap.add_argument("--skip-upgrade", action="store_true", help="只上传不升级")
     ap.add_argument("--app", default=os.environ.get("WEB_APP_NAME", "web-frontend"))
@@ -370,6 +406,20 @@ def main():
     base = f"https://{profile['host']}"
     web_dir = Path(__file__).resolve().parents[4] / "web"
     app_uuid = args.app_uuid
+
+    # 解析目标版本：--debug 哨兵 / --bump 从已部署版本算下一版 / 否则用位置参数
+    if args.debug:
+        args.version = DEBUG_VERSION
+    elif args.bump:
+        tok = login(profile)   # --bump 需先登录查已部署版本（login 幂等复用）
+        app_uuid = app_uuid or resolve_app_uuid(tok, base, args.app)
+        cur = (app_state(tok, base, app_uuid) or {}).get("version")
+        if not cur:
+            sys.exit(f"--bump 无法取得 {args.app} 当前已部署版本（应用不存在或无权限）")
+        args.version = next_version(cur)
+        print(f"--bump：{args.app} 当前已部署 {cur} → 下一版本 {args.version}")
+    elif not args.version:
+        sys.exit("需提供版本号，或用 --bump（从已部署版本算下一版）/ --debug（哨兵 0.0.0.1）")
 
     print(f"\n== web 前端发版 {args.version}（env={env} / app={args.app} / pkg={args.pkg}）==")
     if not args.yes:

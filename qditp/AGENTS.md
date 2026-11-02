@@ -90,15 +90,15 @@
 ### 5.C 发布工作流（测试/生产环境 + 上线任务）
 > **范围**：所有模块的镜像构建 / 推送 / 滚动更新 / 版本切换。纯前端（综管台 `web/`）发版特殊点见 §5.E。
 
-**发布 / 滚更 / 版本切换**：读技能 `qditp-deploy-release`，按六步流程执行（bump → 出 jar → scp → build-push → 滚更 → digest 比对）；完整方法手册（三条路径总览、命令行为边界、红岛 / 前端路径、回滚）见 `docs/ops/构建与发布.md`。
+**发布 / 滚更 / 版本切换**：读技能 `qditp-deploy-release`，按六步流程执行（bump → 出 jar → scp → build-push → 滚更 → digest 比对）；完整方法手册（四条路径总览、命令行为边界、红岛 / 前端路径、回滚）见 `docs/ops/构建与发布.md`。
 
 **镜像构建位置（MUST）**：**NEVER 在本机跑 `docker buildx` 构建 x86/amd64 镜像**——本机是 Apple Silicon，模拟构建慢、单层与缓存产物动辄数 GB，会迅速吃满本地磁盘。本机只出 jar，镜像 MUST 由远端产出，入口统一 `docs/ops/environments/scripts/itp-ops.sh`：
-- **测试环境**：`k8s deploy <服务> --yes`——scp jar 到 `k8s-master:/home/java`，由远端 `build-push.sh` 构建推送（Harbor 项目 `itp`）。
+- **测试环境**：两条链并存——① **云管台链（首选）**：`hongdao-buildx.sh <镜像名> <版本> --env test` 出镜像 + `cloudos deploy <应用> <tag> --env test` 切镜像（与红岛同一套动作，镜像/版本/env 在平台侧留痕）；② **k8s 链（兜底）**：`k8s deploy <服务> --yes`——scp jar 到 `k8s-master:/home/java`，由远端 `build-push.sh` 构建推送（Harbor 项目 `itp`），滚更仍需手工 `kubectl set image`。两条链的镜像同在一个 Harbor 项目，方法见 `docs/ops/构建与发布.md` §二 / §二·1。
 - **红岛生产**：本机只传 jar + Dockerfile，镜像由平台 x86 构建节点 buildx 产出（项目 `itpb`；`cloudos image plan` 可作 dry-run，**脚本化 `cloudos image build` 走旧端点 `/images/build` 红岛实测不可用**，当前可用路径与端点见 `docs/tracking/IT-024-红岛流水线构建缺口.md` 与手册 §三）；红岛跳板 `hd-linux` 无 `/home/java` 构建目录，**`k8s` 域 NEVER 用于红岛**。
 
 **生产红线（MUST，缺一不可）**：
 - **二次确认**：发布任务 MUST 显式确认是测试还是生产（前置判据第 2 步）；生产发布 MUST 二次确认 + 灰度 / 回滚预案（单副本模块按服务逐个滚更，不做金丝雀分流）。
-- **升版本末位 +0.0.1，NEVER 同 tag 覆盖**；推镜像看 `digest:` / `Pushed` 不看退出码；rollout 后 MUST 比对 Pod imageID 与推送 digest 一致（判据见技能 `qditp-deploy-release`）。
+- **升级版本号规则（前端/后端统一，2026-11-02 裁定，算法真源 `itp-ops.sh version` 与 `docs/ops/environments/scripts/lib/version.sh`）**：① 本地构建只升末位 `+0.0.1`（最后一分段 +1）；② 任一分段超过 99 则向高位进位（该段归零、前一分段 +1，即"超过 99 则升 `0.1.0`"：`1.2.99 → 1.3.0`、`1.99.99 → 2.0.0`）；③ CloudOS 中仅为调试而升级的包版本固定哨兵 `0.0.0.1`（不占用发布序列）。`NEVER` 同 tag 覆盖；起始版本 MUST 取**线上实际**版本（K8s Deployment / CloudOS 应用详情），`NEVER` 照仓库 properties/pom 或凭记忆。`itp-ops.sh version next <当前>` 求下一版、`version debug` 求哨兵；前端 `--bump` 自动从已部署版本算下一版。推镜像看 `digest:` / `Pushed` 不看退出码；rollout 后 MUST 比对 Pod imageID 与推送 digest 一致（判据见技能 `qditp-deploy-release`）。
 - **前端**：本仓只出 zip，发版 MUST 走云平台（§5.E）；回滚点＝线上当前版本，NEVER 照文档抄版本号。
 
 ### 5.D 专项工作流（兜底：联调 / 测试 / 纯文档 / 脚本 / 数据迁移）

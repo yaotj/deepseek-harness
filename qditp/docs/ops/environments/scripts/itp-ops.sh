@@ -47,6 +47,8 @@ for _lib in cloudos-auth cloudos-http cloudos-image cloudos-pkg; do
     # shellcheck source=/dev/null
     source "${ITP_OPS_DIR}/lib/${_lib}.sh"
 done
+# shellcheck source=/dev/null
+source "${ITP_OPS_DIR}/lib/version.sh"
 for _domain in "${ITP_OPS_DIR}"/domains/*.sh; do
     [ -e "$_domain" ] || continue
     # shellcheck source=/dev/null
@@ -90,10 +92,35 @@ itp-ops v${ITP_OPS_VERSION} —— 青岛地铁 ITP 平台运维单一入口
             itp-ops.sh diag routes               # 48000 入向路由全链路导出
   analysis  静态分析（端点计数 / 接口清单 / 需求提取）
             itp-ops.sh analysis endpoints account-server/src/main/java
+  version   升级版本号计算（前端/后端统一规则）：next <当前版本> 求下一版、debug 求调试哨兵
+            itp-ops.sh version next 1.2.42   # → 1.2.43
+            itp-ops.sh version debug         # → 0.0.0.1
 
 每个域的详细用法：itp-ops.sh <域> help
 仓库根：${ITP_OPS_ROOT}
 EOF
+}
+
+# ---------------------------------------------------------------- 版本域（本地计算，不依赖环境/远端）
+version_main() {
+    local sub="${1:-}"; shift || true
+    case "$sub" in
+        next)
+            itp_next_version "${1:?需要当前版本号}" ;;
+        debug)
+            itp_debug_version ;;
+        ""|-h|--help|help)
+            cat <<EOF
+itp-ops version —— 升级版本号规则（前端/后端统一，2026-11-02 裁定）
+用法:
+  itp-ops.sh version next <当前版本>   # 末位 +1；任一分段 >99 向高位进位（1.2.99 → 1.3.0）
+  itp-ops.sh version debug            # 打印 CloudOS 调试包哨兵版本 0.0.0.1
+EOF
+            return 0 ;;
+        *)
+            echo "未知子命令：${sub}（支持 next <version> / debug）" >&2
+            return 1 ;;
+    esac
 }
 
 # ---------------------------------------------------------------- 全局参数扫描
@@ -154,6 +181,8 @@ case "$DOMAIN" in
         diag_main ${DOMAIN_ARGS[@]+"${DOMAIN_ARGS[@]}"} ;;
     analysis)
         analysis_main ${DOMAIN_ARGS[@]+"${DOMAIN_ARGS[@]}"} ;;
+    version)
+        version_main ${DOMAIN_ARGS[@]+"${DOMAIN_ARGS[@]}"} ;;
     *)
         echo "未知域：${DOMAIN}" >&2
         itp_usage

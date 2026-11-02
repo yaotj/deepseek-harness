@@ -9,7 +9,8 @@
 ```
 scripts/
 ├── itp-ops.sh                ★ 唯一入口：全局参数（--env/--yes）解析 + 域分发
-├── hongdao-buildx.sh           红岛镜像构建唯一可用入口（hcr file/upload + buildx，平台 x86 节点出镜像）
+├── hongdao-buildx.sh           镜像构建唯一可用入口（hcr file/upload + buildx，平台 x86 节点出镜像）；
+│                               按 --env 打红岛(itpb) 或 测试(itp)，基础镜像随环境替换
 ├── hongdao-buildx.Dockerfile   与之配套的共享构建模板（NEVER 写 ENTRYPOINT/CMD，理由见文件头与 IT-031）
 ├── web_frontend_release.py     前端发版脚本（见 web-frontend-release.README.md）
 ├── lib/                      公共库（NEVER 设 shell 选项；失败返回非 0 + 调用方显式判）
@@ -90,7 +91,10 @@ diag 按子命令）、`--yes`（确认写操作）、`-h/--help/--version`（�
 - ⚠️ **历史错判**：2026-10-22 曾把认证写成「base64 明文 + rsa:true」，依据是「测试环境跑通过」。
   实际是浏览器抓包证明前端走 JSEncrypt，平台按 `rsa` 字段决定是否解密。base64 明文在红岛一律返回
   `usrmgt.userOrPasswordError`——**看着像密码错，其实是没解密**，极易引向反复试密码。
-  测试环境至今没抓到公钥，相关命令拒绝执行并给抓取指引；**NEVER 为「能跑」改回 base64 明文**。
+  **NEVER 为「能跑」改回 base64 明文**。
+- **测试环境 2026-11-02 已打通**：登录页 JS 里的 RSA 公钥与红岛**逐字符相同**（216 字符、1024 bit），
+  已固化为 `lib/cloudos-auth.sh` 的 `CLOUDOS_RSA_PUBKEY_SHARED`，两套 profile 共用；
+  `--env test` 登录（admin）、应用列表、镜像仓库、deploy 预演均实测通过。
 
 RSA 公钥抓法（平台升级后需重抓）：
 
@@ -99,6 +103,24 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
 ```
 
 `<hash>` 从 `/platform/static/js/app.<hash>.js` 的 chunk 映射表里取（本项目实测 `login/login → 9d53907c`）。
+只换平台版本才需重抓；两套环境共用同一把，抓到一次即够。
+
+### 3.1.1 两套环境 Δ 速查（2026-11-02 实测）
+
+| 项 | 红岛生产 `--env hongdao` | 测试 `--env test` |
+|---|---|---|
+| 平台 VIP | 172.120.209.151 | 172.20.217.210 |
+| 平台账号 | itpbadmin | admin |
+| RSA 公钥 | 共享（`CLOUDOS_RSA_PUBKEY_SHARED`） | **同一把**（逐字符相同） |
+| K8s 命名空间 | itpb | itp |
+| Harbor 项目 / registry | itpb / `os-harbor-svc.default.svc.cloudos:443` | itp / **同一 registry** |
+| 构建基础镜像 | `itpb/jdk21:1.0.0` | `itp/jdk:25`（`itp/jdk21:1.0.0` 在测试 Harbor 不存在） |
+| 基础镜像入口 | `sh /startapp.sh` | 同（`itp/jdk:25` 同样带 `/startapp.sh`） |
+| imgType 默认 | Default `20e68cab-…` | 同一 uuid；另有 ITP `21d45c2e-…` |
+| 平台版本 | — | E7501-V500R001B03D019-RC31 |
+| 应用记录 vs 实跑镜像 | 一致（滚更走 `cloudos deploy`） | **大面积不一致**（27 个里 25 个，滚更走 `kubectl set image`，见 IT-034） |
+
+镜像构建入口两个环境同一份实现：`hongdao-buildx.sh --env {hongdao|test}`（文件名是红岛首发时的历史名，脚本已按环境参数化）。
 
 ### 3.2 平台实测怪癖（都是坑）
 

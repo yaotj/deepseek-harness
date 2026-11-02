@@ -14,14 +14,20 @@
 #     3. 测试环境原始 HTTP dump 输出改为美化 JSON（信息不变，可读性提升）
 #
 # 【环境】
-#   --env hongdao（默认，红岛生产 172.120.209.151 / itpbadmin）
-#   --env test   （测试 172.20.217.210 / admin；RSA 公钥未抓到，见 env_init 报错）
+#   --env hongdao（默认，红岛生产 172.120.209.151 / itpbadmin / ns itpb / Harbor itpb）
+#   --env test   （测试 172.20.217.210 / admin / ns itp / Harbor itp；2026-11-02 已打通，
+#                 与红岛同一套命令，差异只剩 VIP、账号、命名空间与项目名）
 #   每个命令执行前都会打印当前环境横幅，NEVER 猜自己在打哪个环境。
 #
 # 【红岛环境事实】
 #   命名空间 itpb；Service port = NodePort = 319xx；targetPort 统一 8080；
 #   平台按 application.properties 生成的 env 保留测试默认值，不显式注入
 #   SERVICE_*_URL 就会指向 itp 命名空间 → 跨模块 RPC 全失败（env 命令可核）。
+#
+# 【测试环境事实（2026-11-02 现查）】
+#   命名空间 itp；27 个应用，其中 25 个的 metadata.container_image **落后于实跑镜像**
+#   （滚更一直用 k8s-master 的 kubectl set image 绕开云管台）—— 故 deploy 的
+#   「当前镜像」以实例实跑为准，详见 app_deploy 段头注与 IT-034。
 #
 # 依赖：lib/core.sh、lib/cloudos-auth.sh、lib/cloudos-http.sh、lib/cloudos-image.sh、lib/cloudos-pkg.sh
 # ============================================================================
@@ -85,25 +91,33 @@ health() {
     echo "===== CloudOS 连通性自检（${CLOUDOS_HOST}）====="
     echo ""
 
-    # 1) 本机网卡（en9 是红岛 USB 网卡；测试环境可能走别的网卡，不存在只提示不判错）
-    if ifconfig en9 >/dev/null 2>&1; then
-        if ifconfig en9 2>/dev/null | grep -q "status: active"; then
-            local ip
-            ip=$(ifconfig en9 2>/dev/null | awk '/inet /{print $2; exit}')
-            echo "  [1/3] en9: active  (${ip:-无IP})"
+    # 1) 本机网卡（en9 是红岛 USB 网卡；测试环境走办公网/内网，不看它）
+    if [[ "${ITP_ENV:-}" == "hongdao" ]]; then
+        if ifconfig en9 >/dev/null 2>&1; then
+            if ifconfig en9 2>/dev/null | grep -q "status: active"; then
+                local ip
+                ip=$(ifconfig en9 2>/dev/null | awk '/inet /{print $2; exit}')
+                echo "  [1/3] en9: active  (${ip:-无IP})"
+            else
+                echo "  [1/3] en9: **inactive** —— USB 网卡未插好/网线断，这就是根因"
+                bad=1
+            fi
         else
-            echo "  [1/3] en9: **inactive** —— USB 网卡未插好/网线断，这就是根因"
-            bad=1
+            echo "  [1/3] en9: 不存在（可能走别的网卡，继续测）"
         fi
     else
-        echo "  [1/3] en9: 不存在（可能走别的网卡，继续测）"
+        echo "  [1/3] en9: 跳过（非红岛，测试环境走办公网/内网）"
     fi
 
     # 2) TCP 443
     if nc -z -G 5 "$CLOUDOS_HOST" 443 2>/dev/null; then
         echo "  [2/3] TCP ${CLOUDOS_HOST}:443 通"
     else
-        echo "  [2/3] TCP ${CLOUDOS_HOST}:443 **不通**（172.120 段路由是否还指向可用接口？）"
+        if [[ "${ITP_ENV:-}" == "hongdao" ]]; then
+            echo "  [2/3] TCP ${CLOUDOS_HOST}:443 **不通**（172.120 段路由是否还指向可用接口？）"
+        else
+            echo "  [2/3] TCP ${CLOUDOS_HOST}:443 **不通**（测试网 172.20 段是否可达？）"
+        fi
         bad=1
     fi
 
@@ -670,6 +684,22 @@ for a in todo:
 # ============================================================================
 # 应用升级（镜像应用切 tag）—— PATCH /api/cloud/app-mgmt/v1.0/apps/{uuid}/advanced-config
 #
+# 【「当前镜像」的真源 = 实例实际运行的容器镜像，不是 metadata.container_image】
+#   2026-11-02 测试环境实测：`fep-app` 平台记录 `version=2.0.66` /
+#   `metadata.container_image=…:2.0.66`，而 Pod 实跑 `…:2.0.105`（Harbor 早有 2.0.105）。
+#   根因是测试环境的滚更一直是 k8s-master 上 `kubectl set image` 绕开云管台，
+#   平台的 app 记录停在被绕开那天。若仍拿 metadata 当基线，三个判断会全部错：
+#     ① 「当前镜像」显示错 → 回滚点给错；
+#     ② 「NEVER 同 tag 覆盖」拦的是旧 tag，真正在跑的 tag 反而放行；
+#     ③ 版本号从旧值 +1，永远追不上镜像 tag。
+#   所以这里先查实例列表取**出现次数最多的业务容器镜像**（排除 istio-* sidecar），
+#   metadata 仅在查不到实例时兜底，并把来源打进预演输出。
+#
+# 【应用版本口径 = 目标镜像 tag（2026-11-02 用户裁定）】
+#   平台 `version` 只是发布计数，与镜像 tag 本是两套号；两套号分叉后无法用版本号
+#   反推线上镜像。现在默认取 **目标 tag** 作为新 version，需要的用 --app-version 覆盖。
+#   平台校验「新 version 不能等于当前 version」，相等时下面会直接报错提示 bump tag。
+#
 # 【body 的真源是控制台前端，不是 API 文档】（2026-10-29 反解 SPA 产物所得）
 #   厂商文档《CloudOS 5.0 PaaS API》E7501 §应用升级 把 version_id 标成必选，但红岛
 #   控制台「升级」页对**镜像应用**（package_type=image 且 metadata.container_image 非空）
@@ -682,36 +712,73 @@ for a in todo:
 #   data.uuid 恒为空串）—— 所以「到 images/versions 里取 version_id」这条路在红岛
 #   不存在，手册旧版与 红岛.md 的该说法已据此更正（另见 IT-020 §2 隐藏契约）。
 #
-#   本命令仍回传 metadata.version_id 现值：两次生产实测过的 image 型 PATCH
-#   （mount-applogs.py、IT-028 的 fep-dev 2.0.71.7→2.0.71.8）都带它且成功，
-#   比省略更稳；MUST 传现值而非镜像引用（varchar(36) 溢出 → 500）。
+#   红岛 image 型 PATCH 都带 metadata.version_id 且成功（mount-applogs.py、IT-028 的
+#   fep-dev 2.0.71.7→2.0.71.8），比省略更稳；MUST 传现值而非镜像引用（varchar(36) 溢出 → 500）。
+#   **测试环境的 metadata 里没有 version_id 字段**（2026-11-02 现查为 null），此时
+#   绝不塞空串——按控制台形态省略该键。
 #
 # 【env 全量替换】平台按 body 的 env 整份覆盖，漏一条就等于删一条（IT-020）。
 #     所以这里 MUST 从 GET /apps/{uuid} 的 metadata.env 原样读出再回填，
 #     NEVER 在命令行上手拼 env 子集。
 # ============================================================================
 
+# 读「实例实际运行镜像」。输出 `镜像<TAB>出现次数<TAB>业务容器总数`；无实例输出空。
+# 多镜像并存（滚动中/灰度）时取出现次数最多的那条，并向 stderr 告警——
+# 此时基线本身不稳定，调用方 MUST 先确认收敛再发版。
+_app_running_image() {
+    cloudos_request GET "/api/cloud/app-mgmt/v1.0/apps/$1/instances" | python3 -c '
+import sys, json
+rows = json.load(sys.stdin).get("data") or []
+counts, total = {}, 0
+for p in rows:
+    for c in (p.get("containers") or []):
+        n = c.get("name") or ""
+        if not n or n.startswith("istio-"):
+            continue
+        img = c.get("image") or ""
+        if not img:
+            continue
+        counts[img] = counts.get(img, 0) + 1
+        total += 1
+if not counts:
+    print("")
+    sys.exit(0)
+img = max(counts, key=lambda k: (counts[k], k))
+if len(counts) > 1:
+    sys.stderr.write("  ⚠ 实例镜像不唯一（%d 种）：%s\n"
+                     % (len(counts), ", ".join("%s×%d" % (k.rsplit(":", 1)[-1], v)
+                                               for k, v in sorted(counts.items()))))
+print("%s\t%d\t%d" % (img, counts[img], total))
+'
+}
+
 # 读现状，产出 plan JSON（不含 body）+ body 写入 $2 指定的临时文件
+#   $4 = 实例实际运行镜像（可空，空则退回 metadata）
 _deploy_plan() {
-    local key="$1" image_arg="$2" version_override="$3" bodyfile="$4"
+    local key="$1" image_arg="$2" version_override="$3" bodyfile="$4" running_img="${5:-}"
     local uuid app_json
     uuid=$(resolve_app_uuid "$key") || return 1
     app_json=$(cloudos_request GET "/api/cloud/app-mgmt/v1.0/apps/${uuid}") || return 1
     printf '%s' "$app_json" | python3 -c '
-import sys, json
+import sys, json, re
 
 image_arg = sys.argv[1]
 version_override = sys.argv[2]
 bodyfile = sys.argv[3]
+running_img = sys.argv[4]
 app = json.load(sys.stdin).get("data") or {}
 m = app.get("metadata") or {}
 
-cur_img = m.get("container_image") or ""
-ptype = app.get("package_type") or m.get("package_type") or ""
-if not cur_img:
+meta_img = m.get("container_image") or ""
+if not meta_img:
     sys.stderr.write("该应用 metadata.container_image 为空 —— 不是镜像应用，本命令不适用；"
                      "包类型应用请先向应用仓库上传新包再走控制台升级\n")
     sys.exit(1)
+
+# 基线：实例实际运行为准（见本段头注），查不到才退回平台记录
+cur_img = running_img or meta_img
+cur_src = "实例实际运行" if running_img else "平台记录 metadata"
+ptype = app.get("package_type") or m.get("package_type") or ""
 
 # 镜像引用拆成 三段：<registry>:<port>/<project>/<name>:<tag>
 repo, _, cur_tag = cur_img.rpartition(":")
@@ -749,30 +816,23 @@ if (new_registry, new_project) != (registry, project):
     sys.exit(1)
 
 if new_tag == cur_tag:
-    sys.stderr.write("NEVER 同 tag 覆盖：目标 tag %s 与线上当前 tag 相同。"
-                     "请先 bump 版本号重新构建镜像\n" % cur_tag)
+    sys.stderr.write("NEVER 同 tag 覆盖：目标 tag %s 与**当前实际运行**的 tag 相同（依据：%s）。"
+                     "请先 bump 版本号重新构建镜像\n" % (cur_tag, cur_src))
     sys.exit(1)
 
 cur_ver = app.get("version") or ""
+# 版本口径 = 目标镜像 tag（用户 2026-11-02 裁定）；--app-version 可覆盖
 if version_override:
     new_ver = version_override
 else:
-    segs = cur_ver.split(".")
-    if segs and segs[-1].isdigit():
-        segs[-1] = str(int(segs[-1]) + 1)
-        new_ver = ".".join(segs)
-    elif cur_ver:
-        new_ver = cur_ver + ".1"
-    else:
-        sys.stderr.write("读不到当前应用版本，请用 --app-version 显式指定\n")
-        sys.exit(1)
+    new_ver = new_tag
 if new_ver == cur_ver:
-    sys.stderr.write("目标应用版本不能等于当前值 %s（平台校验）\n" % cur_ver)
+    sys.stderr.write("目标应用版本 %s 等于平台当前 version（平台校验要求不等）。"
+                     "改 tag 后重试，或用 --app-version 显式指定\n" % cur_ver)
     sys.exit(1)
 
 env = m.get("env") or {}
 body = {
-    "version_id": m.get("version_id") or app.get("package_version_id") or "",
     "version": new_ver,
     "strategy": m.get("strategy") or "rolling",
     "container_name": m.get("container_name"),
@@ -780,20 +840,32 @@ body = {
     "env": env,
     "is_skywalking": bool(m.get("is_skywalking") or False),
 }
+# version_id 只在平台确实有、且形态是 uuid 时才带。
+# 【测试环境坑】该环境 metadata.version_id 为 null，而顶层 package_version_id 存的是
+# **镜像引用字符串**（`os-harbor-svc.default.svc.cloudos:443/itp/fep-app:2.0.66`）而不是
+# uuid —— 照旧代码 fallback 会把镜像引用塞进 varchar(36) 字段，直接 500。故 MUST 做
+# 形态校验：不是 32/36 位 hex/uuid 一律省略（控制台的镜像应用分支本就不发这个键）。
+vid = (m.get("version_id") or "").strip()
+if vid and not re.fullmatch(r"[0-9a-fA-F]{32}|[0-9a-fA-F-]{36}", vid):
+    sys.stderr.write("  ⚠ metadata.version_id=%r 不是 uuid 形态，已省略该键\n" % vid[:60])
+    vid = ""
+if vid:
+    body["version_id"] = vid
 if m.get("service_name"):
     body["service_name"] = m["service_name"]
 open(bodyfile, "w").write(json.dumps(body, ensure_ascii=False))
 
 print(json.dumps({
     "uuid": app.get("uuid"), "app_name": app.get("name"), "package_type": ptype,
-    "cur_img": cur_img, "cur_tag": cur_tag, "new_img": new_img, "new_tag": new_tag,
+    "cur_img": cur_img, "cur_meta_img": meta_img, "cur_src": cur_src,
+    "cur_tag": cur_tag, "new_img": new_img, "new_tag": new_tag,
     "image_name": name, "project": project, "registry": registry,
     "container_name": m.get("container_name") or "",
-    "cur_ver": cur_ver, "new_ver": new_ver,
+    "cur_ver": cur_ver, "new_ver": new_ver, "version_id": vid,
     "env_n": len(env), "strategy": body["strategy"],
     "replicas": app.get("instance_num"),
 }, ensure_ascii=False))
-' "$image_arg" "$version_override" "$bodyfile"
+' "$image_arg" "$version_override" "$bodyfile" "$running_img"
 }
 
 # 目标 tag 在 Harbor 里是否真的存在、架构对不对
@@ -808,8 +880,8 @@ rows = ((json.load(sys.stdin).get("data") or {}).get("images")) or []
 hit = [r for r in rows if r.get("imgUrl") == new_img]
 if not hit:
     sys.stderr.write("Harbor 项目 %s 里没有 %s:%s —— 镜像还没构建（或名字/项目写错）。"
-                     "MUST 先用 hongdao-buildx.sh 产出该 tag，NEVER 升级不存在的 tag\n"
-                     % (project, name, tag))
+                     "MUST 先用 hongdao-buildx.sh --env %s 产出该 tag，NEVER 升级不存在的 tag\n"
+                     % (project, name, tag, sys.argv[5]))
     sys.exit(1)
 r = hit[0]
 if (r.get("osAndArch") or "") != "linux/amd64":
@@ -817,7 +889,7 @@ if (r.get("osAndArch") or "") != "linux/amd64":
                      "拉了也起不来\n" % (name, tag, r.get("osAndArch")))
     sys.exit(1)
 print("%s\t%s" % (r.get("digest"), r.get("createTime") or ""))
-' "$name" "$tag" "$new_img" "$project"
+' "$name" "$tag" "$new_img" "$project" "${ITP_ENV:-hongdao}"
 }
 
 # 升级后轮询：每个 pod 的业务容器都换到新 tag 且 ready
@@ -876,9 +948,15 @@ app_deploy() {
     DEPLOY_PLAN_FILE=$(mktemp -t cloudos-deploy-plan.XXXXXX)
     trap 'rm -f "${DEPLOY_BODY_FILE:-}" "${DEPLOY_PLAN_FILE:-}"' RETURN EXIT
 
-    local UUID APP_NAME CUR_IMG CUR_TAG NEW_IMG NEW_TAG IMAGE_NAME PROJECT REGISTRY
-    local CONTAINER_NAME CUR_VER NEW_VER ENV_N STRATEGY REPLICAS
-    if ! _deploy_plan "$key" "$image_arg" "$version_override" "$DEPLOY_BODY_FILE" > "$DEPLOY_PLAN_FILE"; then
+    local UUID APP_NAME CUR_IMG CUR_META_IMG CUR_SRC CUR_TAG NEW_IMG NEW_TAG IMAGE_NAME PROJECT REGISTRY
+    local CONTAINER_NAME CUR_VER NEW_VER ENV_N STRATEGY REPLICAS VERSION_ID
+
+    # 先解析 uuid 再取「实例实际运行镜像」——它是基线真源（见本段头注）
+    local app_uuid running
+    app_uuid=$(resolve_app_uuid "$key") || die "解析应用失败：${key}"
+    running=$(_app_running_image "$app_uuid" | cut -f1) || running=""
+
+    if ! _deploy_plan "$app_uuid" "$image_arg" "$version_override" "$DEPLOY_BODY_FILE" "$running" > "$DEPLOY_PLAN_FILE"; then
         die "生成升级参数失败（${key} → ${image_arg}）"
     fi
     # 一次性把 plan JSON 摊成 shell 变量（shlex.quote 防注入）
@@ -893,13 +971,19 @@ for k, v in json.load(open(sys.argv[1])).items():
         || die "目标镜像校验未通过，已停止（未发起任何写操作）"
     IFS=$'\t' read -r digest build_time <<< "$ck"
 
-    echo "===== 镜像应用升级预演（生产：${CLOUDOS_ENV} / ns ${PROJECT}）====="
+    echo "===== 镜像应用升级预演（${ITP_ENV_LABEL} / ns ${PROJECT}）====="
     echo "  应用        ${APP_NAME}（${UUID}）"
     echo "  当前镜像    ${CUR_IMG}"
+    echo "  镜像来源    ${CUR_SRC}"
+    if [[ -n "${CUR_META_IMG:-}" && "${CUR_META_IMG}" != "${CUR_IMG}" ]]; then
+        echo "  ⚠ 平台记录 ${CUR_META_IMG} 与实例实跑不一致（滚更曾绕开云管台）"
+        echo "    本次以实跑为基线：回滚点是 ${CUR_TAG}，不是平台记录的那个 tag"
+    fi
     echo "  目标镜像    ${NEW_IMG}"
     echo "  镜像校验    存在 ✅  linux/amd64 ✅  构建于 ${build_time}"
     echo "  镜像 digest ${digest}"
-    echo "  应用版本    ${CUR_VER} → ${NEW_VER}（平台要求不能等于当前值）"
+    echo "  应用版本    ${CUR_VER:-<空>} → ${NEW_VER}（口径：对齐镜像 tag）"
+    echo "  version_id  ${VERSION_ID:-<平台无此字段，body 省略>}"
     echo "  策略/副本   ${STRATEGY} / ${REPLICAS}   容器 ${CONTAINER_NAME:-未设置}"
     echo "  env         ${ENV_N} 项全量原样回传（平台是整份覆盖，漏一条=删一条）"
     echo ""
@@ -908,7 +992,11 @@ for k, v in json.load(open(sys.argv[1])).items():
 
     if [[ "${OPT_YES:-0}" != "1" ]]; then
         echo ""
-        echo "以上为预演（dry-run），未发起任何写操作。生产红线：二次确认 + 低峰 + 回滚预案。"
+        if [[ "${ITP_ENV:-}" == "hongdao" ]]; then
+            echo "以上为预演（dry-run），未发起任何写操作。生产红线：二次确认 + 低峰 + 回滚预案。"
+        else
+            echo "以上为预演（dry-run），未发起任何写操作。"
+        fi
         echo "确认执行请追加 --yes；回滚 = 再跑一次本命令指回 ${CUR_IMG}"
         return 0
     fi
@@ -1086,6 +1174,8 @@ cmd_plan() {
 
 cmd_build() {
     local mod="$1" ver="$2"
+    log_warn "本命令走旧端点 /api/cloud/hcr/v1.0/images/build —— 红岛实测 404/img.5（IT-024），"
+    log_warn "测试同样无该路由。要出镜像请用 hongdao-buildx.sh（buildx 端点，两环境通用）。"
     image_prepare "$mod" "$ver"
 
     [[ "${OPT_YES:-0}" == "1" ]] \
@@ -1228,7 +1318,7 @@ itp-ops.sh cloudos —— CloudOS 平台运维（当前环境：${CLOUDOS_ENV:-h
   auth-debug                     登录诊断（密文长度、公钥指纹、token）
   logout                         清本环境 token 缓存
 
-企业应用（红岛 itpb；对应控制台 /enterprise-apps/#/apply/app/appDetail/<uuid>）
+企业应用（红岛 ns itpb / 测试 ns itp；对应控制台 /enterprise-apps/#/apply/app/appDetail/<uuid>）
   apps [status]                  应用列表；status 可选 OK/Error/Stopped...
   app       <名字|uuid>          应用详情（含 env 全量）
   env       <名字|uuid>          只打 env（排查 SERVICE_*_URL 是否指向 itp）
@@ -1251,15 +1341,23 @@ itp-ops.sh cloudos —— CloudOS 平台运维（当前环境：${CLOUDOS_ENV:-h
   deploy    <名字|uuid> <裸 tag | 镜像名:tag | 完整引用> [--app-version <v>] [--yes]
         读现状 → 校 Harbor tag（不存在/arch 不对即停，不发写请求）→ 拼 advanced-config
         body（env 全量原样回传）→ PATCH → 轮询实例切到新镜像。
-        应用版本默认把当前值末段 +1（平台校验不能等于当前值），要别的用 --app-version。
+        「当前镜像」以**实例实跑**为准（平台 metadata 可能是旧值，见 IT-034）；
+        应用版本默认取目标 tag（两套号从此对齐，要别的用 --app-version 覆盖）。
         回滚 = 同一命令指回旧 tag。NEVER 同 tag 覆盖（脚本会拒）。
         包类型应用（metadata.container_image 为空）不适用，走控制台升级。
 
-镜像构建（本地 jar → 平台 x86 节点打镜像；只传 jar，代码不出内网）
-  image probe                    只读探测（首次必跑：基址/镜像分类/已有 tag）
+镜像构建（⚠ 旧端点路线，红岛/测试均实测走不通，见 IT-024）
+  image probe                    只读探测（基址/镜像分类/已有 tag，仍可用于取 imgType）
   image plan  <模块> <版本>       dry-run，打印将提交的全部参数
-  image build <模块> <版本> --yes 真执行（写生产）
+  image build <模块> <版本> --yes 走 POST /images/build（历史端点；两套环境都应改用
+                                 hongdao-buildx.sh —— buildx 端点才是通的）
         附加选项：--jar <p> --project <name> --img-type <uuid> --dockerfile <p>
+
+镜像构建（实际可用，两个环境同一套）
+  bash docs/ops/environments/scripts/hongdao-buildx.sh <镜像名> <版本> [--env hongdao|test]
+       [--jar <绝对路径>] [--dockerfile <共享模板>] [--check]
+       平台 x86 节点 buildx 出镜像并推 Harbor；Harbor 项目与基础镜像按 --env 自动取
+       （红岛 itpb/jdk21:1.0.0、测试 itp/jdk:25）。--check 为只读模式。
 
 测试环境附加（--env test；前缀未经实测，见域头注）
   appgroups                      应用组列表
@@ -1361,6 +1459,9 @@ cloudos_main() {
 #   4. 镜像服务的网关基址未定位（2026-10-23 网络中断）。probe 就是为此写的。
 #   5. 构建日志走 data.build[]（docker 原始输出），平台无错误码表，失败只能读这里。
 #   6. 镜像架构不可指定（见 plan 的「架构」段），构建后 MUST 核对 amd64。
-#   7. 测试环境（--env test）RSA 公钥未抓到，所有命令会停在 env_init 报错；
-#      容器云 pod_* 前缀 /api/cloud/container/v1.0 亦未经实测。
+#   7. 测试环境已打通（2026-11-02）：认证、应用列表、镜像仓库、deploy 预演均实测通过；
+#      build 走 buildx（hongdao-buildx.sh --env test）。仍需注意：
+#      · 测试平台 metadata.container_image 大面积落后于实跑镜像（27 个应用里 25 个），
+#        deploy 已改为以实跑为基线，但仍 MUST 在发版前跑一次预演核回滚点；
+#      · 容器云 pod_* 前缀 /api/cloud/container/v1.0 仍未经实测。
 # ============================================================================
