@@ -32,7 +32,7 @@
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
-        <el-button type="warning" icon="Download" :disabled="exporting || !hasSearchScope()" :loading="exporting" @click="handleExport">导出 Excel</el-button>
+        <el-button type="warning" icon="Download" :disabled="exporting || orders.length === 0" :loading="exporting" @click="handleExport">导出 Excel</el-button>
         <el-button icon="Back" @click="router.back()">返回</el-button>
       </el-form-item>
     </el-form>
@@ -201,23 +201,17 @@ function hasSearchScope() {
   return Boolean(queryParams.orderNo?.trim() || queryParams.cardId?.trim() || queryParams.thirdUserId?.trim() || (queryParams.dateRange?.[0] && queryParams.dateRange?.[1]))
 }
 
-/** 导出当前查询条件下的全部扣费信息（前端生成 .xlsx，无需后端）。
- *  分页列表，导出时以大 pageSize 拉取全部匹配记录，避免只导当前页。 */
+/** 导出「当前页」已加载的扣费信息（前端生成 .xlsx，无需后端）。
+ *  仅导出当前在表格里展示的这一页（orders），不做全量翻页拉取。
+ *  大数据量（如全日期范围命中百万级）应走后台导出；前端只保证「所见即所导」，绝不静默截断。 */
 function handleExport() {
-  if (!hasSearchScope()) {
-    proxy.$modal.msgWarning('请先填写扣费订单号、逻辑卡号、第三方用户 ID，或完整的交易日期范围再导出')
+  if (!orders.value.length) {
+    proxy.$modal.msgWarning('当前页没有可导出的扣费信息')
     return
   }
   exporting.value = true
-  const query = { ...buildQuery(), cardId: queryParams.cardId.trim(), pageNum: 1, pageSize: 100000 }
-  listGateTxnPays(query).then((response) => {
-    const page = response.data || {}
-    const list = page.list || []
-    if (!list.length) {
-      proxy.$modal.msgWarning('没有可导出的扣费信息')
-      return
-    }
-    const rows = list.map((row) => ({
+  try {
+    const data = orders.value.map((row) => ({
       orderNo: row.orderNo,
       debitStatus: row.debitStatus,
       cardId: row.cardId,
@@ -242,11 +236,13 @@ function handleExport() {
       { key: 'signChannel', header: '签约渠道' }
     ]
     const dateStr = new Date().toISOString().slice(0, 10)
-    exportToExcel(rows, headers, `扣费信息_${dateStr}`)
-    proxy.$modal.msgSuccess(`已导出 ${rows.length} 条扣费信息`)
-  }).catch((e) => {
+    exportToExcel(data, headers, `扣费信息_${dateStr}`)
+    proxy.$modal.msgSuccess(`已导出当前页 ${data.length} 条扣费信息`)
+  } catch (e) {
     proxy.$modal.msgError((e && e.message) || '导出失败')
-  }).finally(() => { exporting.value = false })
+  } finally {
+    exporting.value = false
+  }
 }
 
 if (queryParams.cardId) getList()
