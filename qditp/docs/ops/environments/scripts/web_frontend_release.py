@@ -76,10 +76,9 @@ def _profile(env: str) -> dict:
             "pubkey": os.environ.get("CLOUDOS_RSA_PUBKEY_B64", HONGDAO_PUBKEY_B64),
         }
     if env == "test":
-        # 测试环境公钥未固化（本机长期不可达）；MUST 从测试登录页抓后 export CLOUDOS_RSA_PUBKEY_B64
-        pub = os.environ.get("CLOUDOS_RSA_PUBKEY_B64", "")
-        if not pub:
-            sys.exit("测试环境 RSA 公钥未配置：export CLOUDOS_RSA_PUBKEY_B64=<1024-bit base64> 后重试")
+        # 与 cloudos-auth.sh:67 同源：两平台（红岛/测试）登录公钥逐字符一致（2026-11-02 复核），
+        # 默认复用同一把共享公钥 HONGDAO_PUBKEY_B64；仅平台升级换钥后 export CLOUDOS_RSA_PUBKEY_B64 覆盖。
+        pub = os.environ.get("CLOUDOS_RSA_PUBKEY_B64", HONGDAO_PUBKEY_B64)
         return {
             "host": os.environ.get("CLOUDOS_HOST", "172.20.217.210"),
             "username": os.environ.get("CLOUDOS_USERNAME", "admin"),
