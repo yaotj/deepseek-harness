@@ -22,7 +22,7 @@
       <el-form-item label="来源"><el-select v-model="query.source" clearable style="width: 110px"><el-option label="自动" value="AUTO" /><el-option label="人工" value="MANUAL" /></el-select></el-form-item>
       <el-form-item label="状态"><el-select v-model="query.status" clearable style="width: 150px"><el-option v-for="item in statuses" :key="item" :label="item" :value="item" /></el-select></el-form-item>
       <el-form-item label="创建时间"><el-date-picker v-model="query.dateRange" type="datetimerange" value-format="YYYY-MM-DD HH:mm:ss" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" style="width: 340px" /></el-form-item>
-      <el-form-item><el-button type="primary" icon="Search" @click="handleQuery">查询</el-button><el-button icon="Refresh" @click="reset">重置</el-button></el-form-item>
+      <el-form-item><el-button type="primary" icon="Search" @click="handleQuery">查询</el-button><el-button icon="Refresh" @click="reset">重置</el-button><el-button type="warning" icon="Download" :disabled="!batches.length" @click="handleExport">导出 Excel</el-button></el-form-item>
     </el-form>
     <el-table v-loading="batchLoading" :data="batches" border>
       <el-table-column label="批次号" prop="batchNo" width="100" align="center"><template #default="{ row }"><el-button link type="primary" @click="showDetail(row)">{{ row.batchNo }}</el-button></template></el-table-column>
@@ -68,6 +68,7 @@
 import { getCardPoolSummary, listCardPoolBatches, requestCardPoolBatch, retryCardPoolBatch } from '@/api/trans/cardPool'
 import { defaultTodayRange } from '@/utils/dateRange'
 import { formatCodeLabel } from '@/utils/codeLabel'
+import { exportToExcel } from '@/utils/excelExport'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
@@ -95,5 +96,48 @@ function createBatch(row) { proxy.$modal.confirm(`将为 ${ticketTypeLabel(row.c
 function retry(row) { retryCardPoolBatch(row.batchNo).then(() => { proxy.$modal.msgSuccess('已重试下载和导入'); loadSummary(); loadBatches() }) }
 function showDetail(row) { currentBatch.value = row; detailOpen.value = true }
 function tagType(status) { return status === 'SUCCESS' ? 'success' : status === 'FAILED' ? 'danger' : 'warning' }
+
+/** 导出卡池批次「当前页」已加载的数据。 */
+function handleExport() {
+  if (!batches.value.length) { proxy.$modal.msgWarning('当前页没有可导出的卡池批次'); return }
+  try {
+    const data = batches.value.map((r) => ({
+      batchNo: r.batchNo,
+      cardType: ticketTypeLabel(r.cardType),
+      accTicketType: r.accTicketType,
+      source: r.source,
+      fileName: r.fileName,
+      requestNum: r.requestNum,
+      validCount: r.validCount ?? 0,
+      duplicateCount: r.duplicateCount ?? 0,
+      invalidCount: r.invalidCount ?? 0,
+      status: r.status,
+      errorMsg: r.errorMsg,
+      createTime: r.createTime,
+      finishTime: r.finishTime
+    }))
+    const headers = [
+      { key: 'batchNo', header: '批次号' },
+      { key: 'cardType', header: '票种' },
+      { key: 'accTicketType', header: 'ACC 子类型' },
+      { key: 'source', header: '来源' },
+      { key: 'fileName', header: '文件名' },
+      { key: 'requestNum', header: '申请数' },
+      { key: 'validCount', header: '有效数' },
+      { key: 'duplicateCount', header: '重复数' },
+      { key: 'invalidCount', header: '非法数' },
+      { key: 'status', header: '状态' },
+      { key: 'errorMsg', header: '失败原因' },
+      { key: 'createTime', header: '创建时间' },
+      { key: 'finishTime', header: '完成时间' }
+    ]
+    const dateStr = new Date().toISOString().slice(0, 10)
+    exportToExcel(data, headers, `卡池批次_${dateStr}`)
+    proxy.$modal.msgSuccess(`已导出当前页 ${data.length} 条卡池批次`)
+  } catch (e) {
+    proxy.$modal.msgError(e.message || '导出失败')
+  }
+}
+
 loadSummary(); loadBatches()
 </script>

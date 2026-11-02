@@ -47,6 +47,7 @@
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+        <el-button type="warning" icon="Download" :disabled="!orders.length" @click="handleExport">导出 Excel</el-button>
       </el-form-item>
     </el-form>
 
@@ -100,6 +101,7 @@ import { listFacePayOrders, requestFacePayRefund } from '@/api/trans/facePayOrde
 import { defaultTodayRange } from '@/utils/dateRange'
 import { formatCodeLabel } from '@/utils/codeLabel'
 import { f2fChannelLabel } from '@/utils/f2fChannel'
+import { exportToExcel } from '@/utils/excelExport'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
@@ -195,5 +197,57 @@ function submitRefund() {
       getList()
     }).finally(() => { refunding.value = false })
   })
+}
+
+/** 导出「当前页」已加载的当面付订单。 */
+function handleExport() {
+  if (!orders.value.length) { proxy.$modal.msgWarning('当前页没有可导出的当面付订单'); return }
+  try {
+    const data = orders.value.map((row) => ({
+      orderNo: row.orderNo,
+      orderStatus: formatOrderStatus(row.orderStatus),
+      channel: f2fChannelLabel(row.channel),
+      bizType: formatBizType(row.bizType),
+      payChannelCode: row.payChannelCode,
+      payCenterOrderNo: row.payCenterOrderNo,
+      payCenterChannelOrderNo: row.payCenterChannelOrderNo,
+      inStation: row.inStationName || row.inStationCode || '-',
+      outStation: row.outStationName || row.outStationCode || '-',
+      ticketPrice: formatAmount(row.ticketPrice),
+      ticketNum: row.ticketNum,
+      orderAmount: formatAmount(row.orderAmount),
+      ticketType: formatTicketType(row.singleTicketType),
+      deviceId: row.deviceId,
+      refundStatus: formatRefundStatus(row.refundStatus),
+      refundAmount: (row.refundAmount ?? 0) > 0 ? formatAmount(row.refundAmount) : '-',
+      lastRefundTime: row.lastRefundTime,
+      createTime: row.createTime
+    }))
+    const headers = [
+      { key: 'orderNo', header: '业务订单号' },
+      { key: 'orderStatus', header: '订单状态' },
+      { key: 'channel', header: '受理渠道' },
+      { key: 'bizType', header: '业务类型' },
+      { key: 'payChannelCode', header: '支付渠道编码' },
+      { key: 'payCenterOrderNo', header: '支付中心订单号' },
+      { key: 'payCenterChannelOrderNo', header: '渠道订单号' },
+      { key: 'inStation', header: '起点站' },
+      { key: 'outStation', header: '终点站' },
+      { key: 'ticketPrice', header: '票价' },
+      { key: 'ticketNum', header: '数量' },
+      { key: 'orderAmount', header: '订单总额' },
+      { key: 'ticketType', header: '购票类型' },
+      { key: 'deviceId', header: '设备编号' },
+      { key: 'refundStatus', header: '退款状态' },
+      { key: 'refundAmount', header: '已退金额' },
+      { key: 'lastRefundTime', header: '最后退款时间' },
+      { key: 'createTime', header: '下单时间' }
+    ]
+    const dateStr = new Date().toISOString().slice(0, 10)
+    exportToExcel(data, headers, `当面付订单_${dateStr}`)
+    proxy.$modal.msgSuccess(`已导出当前页 ${data.length} 条当面付订单`)
+  } catch (e) {
+    proxy.$modal.msgError(e.message || '导出失败')
+  }
 }
 </script>

@@ -15,6 +15,7 @@
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+        <el-button type="warning" icon="Download" :disabled="statsList.length === 0" @click="handleExport">导出 Excel</el-button>
       </el-form-item>
     </el-form>
 
@@ -60,6 +61,7 @@ import * as echarts from 'echarts'
 import { listOfflineCodeStats } from '@/api/trans/offlineCodeStats'
 import { ElMessage } from 'element-plus'
 import { defaultTodayRange } from '@/utils/dateRange'
+import { exportToExcel } from '@/utils/excelExport'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYY-MM-DD'
@@ -118,6 +120,27 @@ function resetQuery() {
   dateRange.value = defaultTodayRange(DATE_FORMAT)
   statsList.value = []
   summary.value = {}
+}
+
+function handleExport() {
+  const rows = statsList.value.map((row, index) => ({
+    seq: index + 1,
+    stationCode: row.stationCode,
+    stationName: row.stationName || row.stationCode,
+    txnCount: row.txnCount,
+    cardCount: row.cardCount,
+    ratio: ratio(row.txnCount)
+  }))
+  const headers = [
+    { key: 'seq', header: '序号' },
+    { key: 'stationCode', header: '车站编码' },
+    { key: 'stationName', header: '车站名称' },
+    { key: 'txnCount', header: '交易笔数' },
+    { key: 'cardCount', header: '独立卡数' },
+    { key: 'ratio', header: '占比' }
+  ]
+  const dateStr = new Date().toISOString().slice(0, 10)
+  exportToExcel(rows, headers, `离线码统计_${dateStr}`)
 }
 
 onBeforeUnmount(() => { barChart && barChart.dispose() })

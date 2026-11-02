@@ -27,6 +27,7 @@
       <el-button type="warning" icon="Edit" :disabled="selected.length !== 1" :loading="sendingUpdate"
                  @click="openUpdateNotify">发送资料变更</el-button>
       <el-button icon="Delete" type="danger" plain @click="clearCards">清空测试数据</el-button>
+      <el-button type="warning" icon="Download" :disabled="!cards.length" @click="handleExport">导出 Excel</el-button>
     </el-row>
 
     <!-- 员工卡列表 -->
@@ -255,6 +256,7 @@ import {
   sendEmployeeCardNotify,
   sendEmployeeCardUpdateNotify
 } from '@/api/trans/employeeCardAccSimulator'
+import { exportToExcel } from '@/utils/excelExport'
 
 const { proxy } = getCurrentInstance()
 
@@ -495,6 +497,40 @@ function clearHistory() {
   proxy.$modal.confirm('确认清空所有调用记录？').then(() => clearAccSimulatorHistory())
     .then(() => { proxy.$modal.msgSuccess('已清空'); loadHistory() })
     .catch(() => {})
+}
+
+/** 导出员工卡「当前页」已加载的数据。 */
+function handleExport() {
+  if (!cards.value.length) { proxy.$modal.msgWarning('当前页没有可导出的员工卡'); return }
+  try {
+    const data = cards.value.map((row) => ({
+      cardNo: row.cardNo,
+      employeeName: row.employeeName,
+      phone: row.phone,
+      status: statusLabel(row.cardStatus),
+      company: row.company,
+      center: row.center,
+      department: row.department,
+      position: row.position,
+      updateTms: row.updateTms
+    }))
+    const headers = [
+      { key: 'cardNo', header: '员工号' },
+      { key: 'employeeName', header: '姓名' },
+      { key: 'phone', header: '手机号' },
+      { key: 'status', header: '状态' },
+      { key: 'company', header: '公司' },
+      { key: 'center', header: '中心' },
+      { key: 'department', header: '部门' },
+      { key: 'position', header: '岗位' },
+      { key: 'updateTms', header: '更新时间' }
+    ]
+    const dateStr = new Date().toISOString().slice(0, 10)
+    exportToExcel(data, headers, `员工卡模拟_${dateStr}`)
+    proxy.$modal.msgSuccess(`已导出当前页 ${data.length} 条员工卡`)
+  } catch (e) {
+    proxy.$modal.msgError(e.message || '导出失败')
+  }
 }
 
 onMounted(() => { loadCards(); loadHistory() })

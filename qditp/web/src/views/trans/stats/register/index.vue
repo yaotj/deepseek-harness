@@ -15,6 +15,7 @@
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+        <el-button type="warning" icon="Download" :disabled="statsList.length === 0" @click="handleExport">导出 Excel</el-button>
       </el-form-item>
     </el-form>
 
@@ -41,6 +42,7 @@
 import * as echarts from 'echarts'
 import { listRegStats } from '@/api/trans/regStats'
 import { defaultTodayRange } from '@/utils/dateRange'
+import { exportToExcel } from '@/utils/excelExport'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYY-MM-DD'
@@ -98,6 +100,25 @@ function handleQuery() {
 function resetQuery() {
   dateRange.value = defaultTodayRange(DATE_FORMAT)
   getList()
+}
+
+function handleExport() {
+  const rows = statsList.value.map((row, index) => ({
+    seq: index + 1,
+    cardType: row.cardType,
+    cardTypeName: row.cardTypeName,
+    regCount: row.regCount,
+    ratio: ratio(row.regCount)
+  }))
+  const headers = [
+    { key: 'seq', header: '序号' },
+    { key: 'cardType', header: '票种编码' },
+    { key: 'cardTypeName', header: '票种名称' },
+    { key: 'regCount', header: '注册量' },
+    { key: 'ratio', header: '占比' }
+  ]
+  const dateStr = new Date().toISOString().slice(0, 10)
+  exportToExcel(rows, headers, `注册统计_${dateStr}`)
 }
 
 onMounted(getList)

@@ -14,6 +14,7 @@
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+        <el-button type="warning" icon="Download" :disabled="users.length === 0" @click="handleExport">导出 Excel</el-button>
       </el-form-item>
     </el-form>
 
@@ -47,6 +48,7 @@
 import { searchAlipayUsers } from '@/api/trans/userSearch'
 import { formatCodeLabel } from '@/utils/codeLabel'
 import { cardTypeLabel } from '@/utils/cardType'
+import { exportToExcel } from '@/utils/excelExport'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
@@ -109,5 +111,31 @@ function openDebitDetail(row) {
 
 function openRideStatus(row) {
   router.push({ path: '/trans/user-detail/ride-status', query: { cardId: row.cardId, thirdUserId: row.thirdUserId } })
+}
+
+function handleExport() {
+  const rows = users.value.map((row) => ({
+    thirdUserId: row.thirdUserId,
+    cardId: row.cardId,
+    cardType: cardTypeLabel(row.cardType),
+    msisdn: row.msisdn,
+    issueChannel: issueChannelLabel(row.channel),
+    thirdPayId: row.thirdPayId,
+    status: row.status || '-',
+    createTime: parseTime(row.createTime) || '-'
+  }))
+  const headers = [
+    { key: 'thirdUserId', header: '第三方用户 ID' },
+    { key: 'cardId', header: '逻辑卡号' },
+    { key: 'cardType', header: '卡类型' },
+    { key: 'msisdn', header: '手机号' },
+    { key: 'issueChannel', header: '开户渠道' },
+    { key: 'thirdPayId', header: '支付用户标识' },
+    { key: 'status', header: '用户状态' },
+    { key: 'createTime', header: '注册时间' }
+  ]
+  const dateStr = new Date().toISOString().slice(0, 10)
+  exportToExcel(rows, headers, `支付宝用户_${dateStr}`)
+  proxy.$modal.msgSuccess(`已导出当前页 ${rows.length} 条支付宝用户`)
 }
 </script>

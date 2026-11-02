@@ -22,6 +22,7 @@
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
         <el-button icon="Document" @click="toRefundRecords">退款记录</el-button>
+        <el-button type="warning" icon="Download" :disabled="!orderList.length" @click="handleExport">导出 Excel</el-button>
       </el-form-item>
     </el-form>
 
@@ -109,6 +110,7 @@
 <script setup name="DailyTicketRefund">
 import { listDailyTicketRefundOrders, listTravelTicketSubOrders, queryDailyTicketPay, queryDailyTicketRefund, requestDailyTicketRefund, requestTravelTicketSubRefund, retryDailyTicketRefund } from '@/api/trans/dailyTicketRefund'
 import { defaultTodayRange } from '@/utils/dateRange'
+import { exportToExcel } from '@/utils/excelExport'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
@@ -250,6 +252,40 @@ function formatTicketStatus(value) { return ({ ACTIVATED: '已激活', USED: '�
 function formatRefundStatus(value) { return ({ REFUNDING: '退款处理中', REFUNDED: '退款完成', FAILED: '退款失败', WAIT_VERIFY: '待核验' })[value] || value || '-' }
 function orderStatusType(value) { return ({ PAID: 'success', REFUNDING: 'warning', REFUNDED: 'info', CANCELED: 'info' })[value] || '' }
 function refundStatusType(value) { return ({ REFUNDED: 'success', FAILED: 'danger', WAIT_VERIFY: 'warning', REFUNDING: 'warning' })[value] || 'info' }
+
+/** 导出日票/旅游票退款订单「当前页」。 */
+function handleExport() {
+  if (!orderList.value.length) { proxy.$modal.msgWarning('当前页没有可导出的退款订单'); return }
+  try {
+    const data = orderList.value.map((row) => ({
+      orderType: row.orderType === '2' ? '旅游票' : '日票',
+      orderNo: row.orderNo,
+      paymentOrderNo: row.paymentOrderNo,
+      orderAmount: formatAmount(orderAmount(row)),
+      orderStatus: formatOrderStatus(row.orderStatus),
+      payStatus: row.payStatus,
+      ticketStatus: formatTicketStatus(row.ticketStatus),
+      refundStatus: row.refundStatus ? formatRefundStatus(row.refundStatus) : '-',
+      createTime: parseTime(row.createTime)
+    }))
+    const headers = [
+      { key: 'orderType', header: '订单类型' },
+      { key: 'orderNo', header: '订单号' },
+      { key: 'paymentOrderNo', header: '支付平台订单号' },
+      { key: 'orderAmount', header: '订单金额' },
+      { key: 'orderStatus', header: '订单状态' },
+      { key: 'payStatus', header: '支付状态' },
+      { key: 'ticketStatus', header: '车票状态' },
+      { key: 'refundStatus', header: '退款状态' },
+      { key: 'createTime', header: '下单时间' }
+    ]
+    const dateStr = new Date().toISOString().slice(0, 10)
+    exportToExcel(data, headers, `日票退款订单_${dateStr}`)
+    proxy.$modal.msgSuccess(`已导出当前页 ${data.length} 条退款订单`)
+  } catch (e) {
+    proxy.$modal.msgError(e.message || '导出失败')
+  }
+}
 
 getList()
 </script>

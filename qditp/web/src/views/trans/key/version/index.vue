@@ -25,12 +25,14 @@
 
     <div class="mt8">
       <el-button icon="Refresh" @click="getList">刷新</el-button>
+      <el-button type="warning" icon="Download" :disabled="!versionList.length" @click="handleExport">导出 Excel</el-button>
     </div>
   </div>
 </template>
 
 <script setup name="KeyVersion">
 import { listKeyVersions } from '@/api/trans/keyVersion'
+import { exportToExcel } from '@/utils/excelExport'
 
 const loading = ref(false)
 const versionList = ref([])
@@ -50,6 +52,34 @@ function getList() {
   listKeyVersions()
     .then((response) => { versionList.value = response.data || [] })
     .finally(() => { loading.value = false })
+}
+
+/** 导出密钥域版本「当前页」（全量，无分页）。 */
+function handleExport() {
+  if (!versionList.value.length) { proxy.$modal.msgWarning('当前页没有可导出的密钥域版本'); return }
+  try {
+    const data = versionList.value.map((r) => ({
+      keyDomain: domainName(r.keyDomain),
+      providerId: r.providerId || '-',
+      currentVersion: r.currentVersion || '-',
+      statusDesc: r.statusDesc,
+      effectiveDate: r.effectiveDate || '-',
+      updateTime: r.updateTime || '-'
+    }))
+    const headers = [
+      { key: 'keyDomain', header: '密钥域' },
+      { key: 'providerId', header: '接入方' },
+      { key: 'currentVersion', header: '当前版本' },
+      { key: 'statusDesc', header: '状态' },
+      { key: 'effectiveDate', header: '生效日期' },
+      { key: 'updateTime', header: '更新时间' }
+    ]
+    const dateStr = new Date().toISOString().slice(0, 10)
+    exportToExcel(data, headers, `KEY版本_${dateStr}`)
+    proxy.$modal.msgSuccess(`已导出 ${data.length} 条密钥域版本`)
+  } catch (e) {
+    proxy.$modal.msgError(e.message || '导出失败')
+  }
 }
 
 onMounted(getList)

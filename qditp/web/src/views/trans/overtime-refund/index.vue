@@ -55,6 +55,7 @@
         </span>
       </div>
       <span class="total-tip">共圈出 {{ total }} 笔候选单</span>
+      <el-button type="warning" icon="Download" :disabled="!orderList.length" @click="handleExport">导出 Excel</el-button>
     </el-row>
 
     <el-table
@@ -124,6 +125,7 @@ import { listOvertimeRefundable, batchRefundOvertime } from '@/api/trans/overtim
 import { listStationInfo } from '@/api/para/station'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { defaultTodayRange } from '@/utils/dateRange'
+import { exportToExcel } from '@/utils/excelExport'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYY-MM-DD'
@@ -219,6 +221,36 @@ function handleBatchRefund() {
       getList()
     }).finally(() => { refunding.value = false })
   }).catch(() => {})
+}
+
+/** 导出超时罚金退款候选单「当前页」。 */
+function handleExport() {
+  if (!orderList.value.length) { proxy.$modal.msgWarning('当前页没有可导出的候选单'); return }
+  try {
+    const data = orderList.value.map((row) => ({
+      orderNo: row.orderNo,
+      cardId: row.cardId,
+      exitStation: row.exitStationName || row.outStation || '-',
+      overtimeAmount: fenToYuan(row.overtimeAmount),
+      totalAmount: fenToYuan(row.totalAmount),
+      debitStatus: row.debitStatus,
+      outTime: row.outTime
+    }))
+    const headers = [
+      { key: 'orderNo', header: '订单号' },
+      { key: 'cardId', header: '逻辑卡号' },
+      { key: 'exitStation', header: '出站车站' },
+      { key: 'overtimeAmount', header: '超时罚金(元)' },
+      { key: 'totalAmount', header: '实付(元)' },
+      { key: 'debitStatus', header: '扣费状态' },
+      { key: 'outTime', header: '出站时间' }
+    ]
+    const dateStr = new Date().toISOString().slice(0, 10)
+    exportToExcel(data, headers, `超时罚金候选单_${dateStr}`)
+    proxy.$modal.msgSuccess(`已导出当前页 ${data.length} 笔候选单`)
+  } catch (e) {
+    proxy.$modal.msgError(e.message || '导出失败')
+  }
 }
 
 onMounted(loadStations)

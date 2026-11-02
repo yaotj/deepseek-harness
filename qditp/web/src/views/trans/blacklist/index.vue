@@ -40,6 +40,9 @@
           <el-button v-hasPermi="['trans:blacklist:remove']" plain icon="Refresh" :loading="compensating" @click="handleCompensate('release')">补推解除通知</el-button>
         </el-tooltip>
       </el-col>
+      <el-col :span="1.5">
+        <el-button type="warning" plain icon="Download" :disabled="!blacklist.length" @click="handleExport">导出 Excel</el-button>
+      </el-col>
     </el-row>
 
     <el-alert type="info" :closable="false" show-icon class="mb8">
@@ -165,6 +168,7 @@ import {
   releaseBlacklist
 } from '@/api/trans/blacklist'
 import { defaultTodayRange } from '@/utils/dateRange'
+import { exportToExcel } from '@/utils/excelExport'
 import useUserStore from '@/store/modules/user'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
