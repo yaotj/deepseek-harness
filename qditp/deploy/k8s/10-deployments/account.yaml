@@ -73,7 +73,7 @@ spec:
         - name: service.ticket.url
           value: http://172.20.211.200:30014
         - name: SERVER_PORT
-          value: '9098'
+          value: '8080'
         - name: other.sql.username
           value: qditp
         - name: account.card-pool.threshold

@@ -1,5 +1,7 @@
 # 红岛生产环境入向路由基线（fep-app-vr 15 条：7 SCG exact + 8 prefix）
-# 结构 / 顺序 / rewrite 与测试基线 30-istio-ingress.yaml 完全同构，仅 destination 差异。
+# 结构 / 顺序 / rewrite 与测试基线 30-istio-ingress.yaml 同构；差异：destination 占位 + 每条路由带 retries.attempts=0。
+# retries=0 已于 2026-10-28 在红岛现网落地（fep-app-vr 15 条 + manage-vr 2 条，envoy 实证无 retry_policy），
+# 回滚 = 同手法 json patch remove /spec/http/N/retries（详见 docs/tracking/问题清单.md IT-026）。
 # 红岛尚未上线，destination 的 Service 名 / 端口 MUST 上线前现查重录；
 # 本文件里的 <占位> 是上线时的待填项，apply 前 MUST 全部替换、且 NEVER 沿用测试值。
 # 占位说明：
@@ -43,6 +45,8 @@ spec:
   - match:
     - uri:
         exact: /itpbom/ci/bom/notiTakeTicketResult
+    retries:
+      attempts: 0
     route:
     - destination:
         host: <route-sentinel>
@@ -51,6 +55,8 @@ spec:
   - match:
     - uri:
         exact: /itpbom/ci/bom/notiTakeTicketFailResult
+    retries:
+      attempts: 0
     route:
     - destination:
         host: <route-sentinel>
@@ -59,6 +65,8 @@ spec:
   - match:
     - uri:
         exact: /itpbom/ci/bom/requestTakeTicketAuth
+    retries:
+      attempts: 0
     route:
     - destination:
         host: <route-sentinel>
@@ -67,6 +75,8 @@ spec:
   - match:
     - uri:
         exact: /itpbom/ci/bom/requestCardDataAnalyse
+    retries:
+      attempts: 0
     route:
     - destination:
         host: <route-sentinel>
@@ -75,6 +85,8 @@ spec:
   - match:
     - uri:
         exact: /itpbom/ci/bom/requestUpdateCardData
+    retries:
+      attempts: 0
     route:
     - destination:
         host: <route-sentinel>
@@ -83,6 +95,8 @@ spec:
   - match:
     - uri:
         exact: /itptvm/ci/tvm/requestTakeTicketAuth
+    retries:
+      attempts: 0
     route:
     - destination:
         host: <route-sentinel>
@@ -91,6 +105,8 @@ spec:
   - match:
     - uri:
         exact: /itptvm/ci/tvm/requestCardDataAnalyse
+    retries:
+      attempts: 0
     route:
     - destination:
         host: <route-sentinel>
@@ -102,6 +118,8 @@ spec:
         prefix: /fep-app/
     rewrite:
       uri: /
+    retries:
+      attempts: 0
     route:
     - destination:
         host: <fep-app>
@@ -112,6 +130,8 @@ spec:
         prefix: /fep-dev/
     rewrite:
       uri: /
+    retries:
+      attempts: 0
     route:
     - destination:
         host: <fep-dev>
@@ -122,6 +142,8 @@ spec:
         prefix: /fep-acc/
     rewrite:
       uri: /
+    retries:
+      attempts: 0
     route:
     - destination:
         host: <fep-acc>
@@ -132,6 +154,8 @@ spec:
         prefix: /fep-alipay/
     rewrite:
       uri: /
+    retries:
+      attempts: 0
     route:
     - destination:
         host: <fep-alipay>
@@ -142,6 +166,8 @@ spec:
         prefix: /itptvm/
     rewrite:
       uri: /itptvm/
+    retries:
+      attempts: 0
     route:
     - destination:
         host: <face-pay>
@@ -152,6 +178,8 @@ spec:
         prefix: /itpbom/
     rewrite:
       uri: /itpbom/
+    retries:
+      attempts: 0
     route:
     - destination:
         host: <face-pay>
@@ -162,6 +190,8 @@ spec:
         prefix: /itpagm/
     rewrite:
       uri: /
+    retries:
+      attempts: 0
     route:
     - destination:
         host: <fep-dev>
@@ -172,6 +202,8 @@ spec:
         prefix: /para-server/
     rewrite:
       uri: /
+    retries:
+      attempts: 0
     route:
     - destination:
         host: <para-server>

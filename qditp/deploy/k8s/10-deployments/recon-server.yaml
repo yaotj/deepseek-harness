@@ -43,7 +43,7 @@ spec:
               apiVersion: v1
               fieldPath: metadata.namespace
         - name: SERVER_PORT
-          value: '9112'
+          value: '8080'
         - name: RECON_FTP_REMOTE_ROOT
           value: /itp/recon
         - name: RECON_FTP_HOST

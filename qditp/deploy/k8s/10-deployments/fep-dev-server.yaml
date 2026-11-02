@@ -110,7 +110,7 @@ spec:
         - name: mybatis.mapper-locations
           value: classpath*:mapper/*.xml
         - name: SERVER_PORT
-          value: '9104'
+          value: '8080'
         - name: service.security.openLogger
           value: 'true'
         - name: service.ticket.openLogger

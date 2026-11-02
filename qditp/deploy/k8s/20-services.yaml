@@ -15,3 +15,422 @@ spec:
   selector:
     app: route-sentinel
   type: ClusterIP
+
+# 集群内网 Service（<app>-internal）：服务间调用专用，port/targetPort 统一 8080
+# 与平台生成的 NodePort Service（<app>-<5位后缀>-svc，对外/联调在用）并存，互不影响
+# 背景：平台给各应用注入 server.port/SERVER_PORT/CARD_POOL_PORT=9xxx 导致与 targetPort 8080 错配，
+#       统一 8080 后服务间调用一律走 http://<app>-internal.itp.svc:8080（见 docs/tracking/IT-035-*.md）
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: account
+    itp-role: internal
+  name: account-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: account
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: alipay-account-server
+    itp-role: internal
+  name: alipay-account-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: alipay-account-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: alipay-pay-sign-server
+    itp-role: internal
+  name: alipay-pay-sign-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: alipay-pay-sign-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: blacklist-server
+    itp-role: internal
+  name: blacklist-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: blacklist-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: card-pool-server
+    itp-role: internal
+  name: card-pool-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: card-pool-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: collect-pay
+    itp-role: internal
+  name: collect-pay-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: collect-pay
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: daily-ticket-server
+    itp-role: internal
+  name: daily-ticket-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: daily-ticket-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: es-server
+    itp-role: internal
+  name: es-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: es-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: face-pay-server
+    itp-role: internal
+  name: face-pay-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: face-pay-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: fep-acc
+    itp-role: internal
+  name: fep-acc-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: fep-acc
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: fep-alipay
+    itp-role: internal
+  name: fep-alipay-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: fep-alipay
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: fep-app
+    itp-role: internal
+  name: fep-app-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: fep-app
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: fep-dev-server
+    itp-role: internal
+  name: fep-dev-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: fep-dev-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: gate-txn-pay-server
+    itp-role: internal
+  name: gate-txn-pay-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: gate-txn-pay-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: industry-data-server
+    itp-role: internal
+  name: industry-data-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: industry-data-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: key-server
+    itp-role: internal
+  name: key-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: key-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: para-server
+    itp-role: internal
+  name: para-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: para-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: pay-sign-server
+    itp-role: internal
+  name: pay-sign-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: pay-sign-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: recon-server
+    itp-role: internal
+  name: recon-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: recon-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: security-server
+    itp-role: internal
+  name: security-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: security-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: ticket-server
+    itp-role: internal
+  name: ticket-server-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: ticket-server
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: trans-query
+    itp-role: internal
+  name: trans-query-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: trans-query
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: web-admin
+    itp-role: internal
+  name: web-admin-internal
+  namespace: itp
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: web-admin
+  type: ClusterIP

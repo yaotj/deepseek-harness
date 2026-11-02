@@ -57,7 +57,7 @@ spec:
         - name: para.ftp.remote-dir
           value: ${PARA_FTP_REMOTE_DIR:/parameter/cur/}
         - name: SERVER_PORT
-          value: '9107'
+          value: '8080'
         - name: para.ftp.connect-timeout-millis
           value: '10000'
         - name: other.sql.username

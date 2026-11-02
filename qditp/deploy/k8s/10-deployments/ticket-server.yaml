@@ -25,6 +25,19 @@ spec:
       automountServiceAccountToken: false
       containers:
       - env:
+        # DB_* 下划线命名：Spring Boot relaxed binding 对 dot-name env var（如 other.sql.host）识别不稳定
+        # （2026-10-14 实测 + 2026-11-02 发版现场复验：web 2.0 jar 下点号 env 不生效、服务静默连默认红库）。
+        # other.sql.* 点号 env 保留仅作兼容性备份。2026-11-02 IT-033 对齐 para-server 双通道模式。
+        - name: DB_HOST
+          value: 172.20.222.3:1521
+        - name: DB_NAME
+          value: AFCITPDB
+        - name: DB_USERNAME
+          value: qditp
+
+        - name: DB_PASSWORD
+
+          value: qditp
         # JVM 堆 = max_memory - reserved_memory - max_direct_memory（基础镜像 startapp.sh，见 docs/tracking/IT-020）
         - name: max_memory
           value: '2000'
@@ -85,7 +98,7 @@ spec:
         - name: service.dailyTicket.url
           value: http://172.20.211.23:30027
         - name: SERVER_PORT
-          value: '9100'
+          value: '8080'
         - name: service.security.openLogger
           value: 'true'
         - name: industry.ticket-type
