@@ -28,7 +28,12 @@ other:
 pay:
   center:
     api-version: 1.0
-    callback-url: http://localhost:9098/ci/app/ticketCollectPayNotify
+    # 支付中心结果回调地址。MUST 为支付中心可达的公网入口（测试 env 58.56.166.170:48000/...，
+    # 见 docs/ops/environments/测试环境.md「回调 URL MUST 同步支付中心/支付宝」）。
+    # 旧值 http://localhost:9098/... 在任何 K8s 环境都是死地址（= 让支付中心回调 Pod 自己，2026-11-02 清除，IT-035 §5）。
+    # 留空 = 不下发 notifyUrl，改由调用方 request.notifyUrl 决定（CollectPayServiceImpl 双重判空）。
+    # 恢复 collect-pay 业务前须先部署受理方 collect-ticket-server（/ci/app/ticketCollectPayNotify 的实现方，两环境当前均未部署）再回填公网地址。
+    callback-url: ""
     charset: UTF-8
     gateway-url: https://pay-gateway.example.com/api
     merchant-no: JOPJ490HLK9Z
