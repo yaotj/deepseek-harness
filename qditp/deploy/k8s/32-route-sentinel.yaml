@@ -1,0 +1,63 @@
+# route-sentinel 测试环境基线（SCG 透明分流网关）
+# 端口 9999；VirtualService fep-app-vr 的 7 条 exact 路由指向本 Service。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: route-sentinel
+  namespace: itp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: route-sentinel
+  template:
+    metadata:
+      labels:
+        app: route-sentinel
+    spec:
+      containers:
+      - name: route-sentinel
+        image: os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.4
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9999
+          name: http
+          protocol: TCP
+        env:
+        - name: DB_PASSWORD
+          value: qditp
+        - name: TZ
+          value: Asia/Shanghai
+        resources:
+          limits:
+            cpu: "1"
+            memory: 2Gi
+          requests:
+            cpu: "1"
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 9999
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 9999
+          initialDelaySeconds: 30
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: route-sentinel-svc
+  namespace: itp
+spec:
+  selector:
+    app: route-sentinel
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 9999
+    protocol: TCP
