@@ -6,8 +6,22 @@
 #   只有手工建 PV 才能把落地目录定成想要的路径。
 #
 # storageClassName 必须为空串（不能写 itpb-yw），否则会被 SC 接管/拒绝绑定。
-# mountOptions 刻意留空：与现有 PV 保持一致（已验证可在全部节点挂载）。
-#   若将来某节点 NFS 客户端默认走 4.x 导致挂载失败，加 mountOptions: [vers=3]。
+#
+# mountOptions（2026-10-28 追加，实测生效）：默认 K8s 给的是 hard,timeo=600,retrans=2。
+#   hard = 无限重试、永不返回错误 → NFS 一旦无响应，写日志的线程会**永久卡住**。
+#   对日志这种旁路 IO 不可接受（日志不该有权力拖垮业务），故改 soft：
+#     nfsvers=3   与既有挂载一致（该后端不支持 4.1）
+#     soft        NFS 超时后返回 EIO，而不是无限重试
+#     timeo=30    单位是 0.1 秒 → 单次超时 3 秒
+#     retrans=2   重试 2 次 → 约 6 秒后放弃，log4j2 记一条写盘失败后继续
+#   注意：spec.mountOptions 是**可变字段**（不像 persistentvolumesource 不可变），
+#   直接 kubectl patch pv 即可；但挂载参数在 Pod 创建时定型，**必须重建 Pod 才生效**。
+#   已配合 log4j2 AsyncAppender 使用：业务线程只入队，写盘线程不卡死，两者互补。
+mountOptions:
+  - nfsvers=3
+  - soft
+  - timeo=30
+  - retrans=2
 ---
 apiVersion: v1
 kind: PersistentVolume
