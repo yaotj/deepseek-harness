@@ -137,6 +137,18 @@ spec:
         imagePullPolicy: Always
         lifecycle: {}
         name: fep-alipay
+        readinessProbe:
+          failureThreshold: 6
+          httpGet:
+            path: /monitor/health
+            port: 8080
+            scheme: HTTP
+          # P2-9（2026-11-02）：readiness 进基线，消除「Spring 卡 refresh / 8080 未监听 → Pod 假 Ready」观测盲区（IT-036）。
+          # 仅 readiness 不配 liveness（liveness 会重启 Pod，高危）；initialDelay 60s 覆盖慢启动，failureThreshold×period=60s 兜底。
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 3
         resources:
           limits:
             cpu: '2'
