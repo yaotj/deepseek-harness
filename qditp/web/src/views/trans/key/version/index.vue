@@ -26,12 +26,14 @@
     <div class="mt8">
       <el-button icon="Refresh" @click="getList">刷新</el-button>
       <el-button type="warning" icon="Download" :disabled="!versionList.length" @click="handleExport">导出 Excel</el-button>
+      <el-button type="primary" icon="Clock" @click="handleAsyncExport">后台全量导出</el-button>
     </div>
   </div>
 </template>
 
 <script setup name="KeyVersion">
 import { listKeyVersions } from '@/api/trans/keyVersion'
+import { submitAsyncExportTask } from '@/api/monitor/asyncExport'
 import { exportToExcel } from '@/utils/excelExport'
 
 const { proxy } = getCurrentInstance()
@@ -81,6 +83,20 @@ function handleExport() {
   } catch (e) {
     proxy.$modal.msgError(e.message || '导出失败')
   }
+}
+
+/** 提交后台异步全量导出任务（每日凌晨 2 点统一执行）。 */
+function handleAsyncExport() {
+  const data = {
+    taskCode: 'KEY_VERSION',
+    taskName: '密钥版本全量导出',
+    paramJson: JSON.stringify({})
+  }
+  submitAsyncExportTask(data).then((response) => {
+    proxy.$modal.msgSuccess(response.msg || '提交成功，请前往「系统监控-异步导出任务」查看')
+  }).catch((error) => {
+    proxy.$modal.msgError(error.message || '提交失败')
+  })
 }
 
 onMounted(getList)
