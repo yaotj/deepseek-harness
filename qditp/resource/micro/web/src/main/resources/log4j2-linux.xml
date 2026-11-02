@@ -49,6 +49,20 @@
             <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %X{traceId} [%t] %-5level %l [] %msg%n" />
         </Console>
 
+        <!-- 异步落盘（2026-10-28）：RollingFile 写的是 NFS 共享盘，同步写会让业务线程直接等网络 IO；
+             NFS 抖动时（hard 挂载）业务线程会被日志卡住。包一层 AsyncAppender 后业务线程只入队，写盘在后台线程。
+             四个属性都是有意的：
+               blocking="false"        队列满即丢弃新事件，NEVER 反压业务线程（默认 true 会阻塞调用方）
+               includeLocation="true"  pattern 里有 %l，异步后 location 只能靠入队时捕获；关掉会全变成 ?，
+                                       且这一步本来就在调用线程做（同步模式同样开销），不会额外变慢
+               shutdownTimeout="3000"  SIGTERM 优雅退出时最多等 3s 排空队列，防止滚动重启丢尾部日志
+               errorRef="Console"      异步内部异常/队列满时把事件打回 Console，不静默吞掉
+             NEVER 用它包 VictoriaLogs（该 appender 自带队列与刷新线程，再包一层等于双重缓冲）。 -->
+        <Async name="AsyncRollingFile" bufferSize="16384" blocking="false"
+               includeLocation="true" shutdownTimeout="3000" errorRef="Console">
+            <AppenderRef ref="RollingFile" />
+        </Async>
+
         <!-- VictoriaLogs 上报：url 为空即自动禁用（不起线程、不丢日志）；VLOGS_URL 端口 MUST 是 30032 而不是默认 9428；app 取 ${appName}，NEVER 写死服务名；stream 只放低基数字段、traceId 走正文；MDC 白名单只有 traceId/spanId，NEVER 改成全量输出（FirstFilter 会把 authorization 塞进 MDC）。详见 docs/architecture/common-components.md §3.1.1 -->
         <VictoriaLogs name="VictoriaLogs" url="${env:VLOGS_URL:-}"
             queueCapacity="8192" batchSize="512" flushIntervalMillis="2000"
@@ -72,17 +86,17 @@
 
     <Loggers>
         <Logger name="org.springframework.web.servlet.DispatcherServlet" level="${webLoggerLevel}" additivity="false">
-            <AppenderRef ref="RollingFile" />
+            <AppenderRef ref="AsyncRollingFile" />
         </Logger>
 
         <Logger name="org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping"
             level="${webLoggerLevel}" additivity="false">
-            <AppenderRef ref="RollingFile" />
+            <AppenderRef ref="AsyncRollingFile" />
         </Logger>
 
         <Logger name="org.springframework.web.servlet.mvc.method.annotation.RequestResponseBodyMethodProcessor"
             level="${webLoggerLevel}" additivity="false">
-            <AppenderRef ref="RollingFile" />
+            <AppenderRef ref="AsyncRollingFile" />
         </Logger>
 
         <Logger name="com.chinasofti.huateng.log4j2.CheckLoggerHealth" level="${webLoggerLevel}" additivity="false">
@@ -92,7 +106,7 @@
         <!-- 关键链路埋点专用 logger：LoggerFactory.getLogger("VLOGS")，全量进 VictoriaLogs 不受 Root 阈值限制，additivity=false 防重复推送。
              level 下调为 DEBUG， RollingFile/Console 通过 AppenderRef level="INFO" 兜底。 -->
         <Logger name="VLOGS" level="DEBUG" additivity="false">
-            <AppenderRef ref="RollingFile" level="INFO" />
+            <AppenderRef ref="AsyncRollingFile" level="INFO" />
             <AppenderRef ref="Console" level="INFO" />
             <AppenderRef ref="VictoriaLogs" />
         </Logger>
@@ -102,13 +116,13 @@
              注意：AppenderRef 的 level 先于 appender 的 Filters 求值，因此 INFO 以下在引用层即被 DENY，不会走到 VictoriaLogs 的 ThreadContextMapFilter。
              如需临时关闭 DEBUG，改 other.logging.level 或在启动参数加 -DwebLoggerLevel=INFO（RollingFile/Console 仍保持 INFO）。 -->
         <Logger name="com.chinasofti.huateng" level="DEBUG" additivity="false">
-            <AppenderRef ref="RollingFile" level="INFO" />
+            <AppenderRef ref="AsyncRollingFile" level="INFO" />
             <AppenderRef ref="Console" level="INFO" />
             <AppenderRef ref="VictoriaLogs" />
         </Logger>
 
         <Root level="${webLoggerLevel}">
-            <AppenderRef ref="RollingFile" />
+            <AppenderRef ref="AsyncRollingFile" />
             <AppenderRef ref="Console" />
             <!-- Root 只把 WARN 及以上推给 VictoriaLogs，NEVER 放到 INFO：各服务报文日志的量与敏感面都不可控 -->
             <AppenderRef ref="VictoriaLogs" level="WARN" />

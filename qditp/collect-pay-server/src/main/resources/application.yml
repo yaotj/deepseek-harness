@@ -1,7 +1,12 @@
 spring:
+  application:
+    name: itpagm
   threads:
     virtual:
       enabled: false
+  ## NEVER 删除下面这行排除（口径同 pay-sign-server / card-pool-server 的 application.properties）：
+  autoconfigure:
+    exclude: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration
 
 mybatis:
   mapper-locations: classpath:mapper/*Mapper.xml
@@ -58,7 +63,7 @@ jhm:
 sign:
   algorithm: SHA256WithRSA
 server:
-  port: 58101
+  port: 8080
   tomcat:
     basedir: ./logs
 
@@ -71,12 +76,6 @@ tvm:
     waitMillis: 10000
     pollIntervalMillis: 500
     maxWaiting: 500
-spring:
-  application:
-    name: itpagm
-  ## NEVER 删除下面这行排除（口径同 pay-sign-server / card-pool-server 的 application.properties）：
-  autoconfigure:
-    exclude: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration
 ## traceId 关联：micro/web 默认 management.tracing.enabled=false，此处为 collect-pay 打开。
 management:
   tracing:

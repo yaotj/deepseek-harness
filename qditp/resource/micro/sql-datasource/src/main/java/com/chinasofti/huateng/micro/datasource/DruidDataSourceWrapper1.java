@@ -3,6 +3,8 @@ package com.chinasofti.huateng.micro.datasource;
 import com.alibaba.druid.spring.boot3.autoconfigure.DruidDataSourceWrapper;
 import org.springframework.core.env.Environment;
 
+import java.sql.Connection;
+
 public class DruidDataSourceWrapper1 extends DruidDataSourceWrapper {
 
     Environment env;
@@ -19,7 +21,11 @@ public class DruidDataSourceWrapper1 extends DruidDataSourceWrapper {
         setDefaultIfNull();
         super.afterPropertiesSet();
         super.resolveDriver();
-        super.getConnection();
+        // 启动探活：验证连接可取后立刻归还。NEVER 裸调 getConnection() 不 close——
+        // 泄漏的连接会被 remove-abandoned 兜底强杀并打出误导性 ERROR 栈（owner thread: main）。
+        try (Connection probe = super.getConnection()) {
+            // 探活成功即关闭归还
+        }
     }
 
     private void setDefaultIfNull() {
