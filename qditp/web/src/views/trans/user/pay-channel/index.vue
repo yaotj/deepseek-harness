@@ -6,7 +6,10 @@
       <template #header>
         <div class="summary-header">
           <span>用户与票种信息</span>
-          <el-button link type="primary" icon="Refresh" :loading="loading" @click="loadChannels">刷新</el-button>
+          <span class="summary-actions">
+            <el-button link type="primary" icon="Refresh" :loading="loading" @click="loadChannels">刷新</el-button>
+            <el-button type="warning" icon="Download" :disabled="channels.length === 0" @click="handleExport">导出 Excel</el-button>
+          </span>
         </div>
       </template>
       <el-descriptions :column="4" border>
@@ -99,6 +102,7 @@
 import { executeTermination, getItpPayChannels } from '@/api/trans/userSearch'
 import { cardTypeLabel } from '@/utils/cardType'
 import { payChannelLabel } from '@/utils/payChannel'
+import { exportToExcel } from '@/utils/excelExport'
 
 const { proxy } = getCurrentInstance()
 const route = useRoute()
@@ -139,6 +143,41 @@ function loadChannels() {
     channels.value = normalizeChannels(response.data)
     if (!channels.value.length) proxy.$modal.msgInfo('该票种暂无关联支付渠道')
   }).finally(() => { loading.value = false })
+}
+
+/** 导出当前票种的全部签约渠道（前端直接生成 .xlsx，无需后端）。 */
+function handleExport() {
+  if (!channels.value.length) {
+    proxy.$modal.msgWarning('暂无可导出的签约渠道')
+    return
+  }
+  const rows = channels.value.map((c) => ({
+    channel: payChannelLabel(c.channel),
+    isDefault: c.defaultChannel ? '是' : '否',
+    status: c.displayStatus,
+    thirdPayId: c.thirdPayId || '',
+    payAccountId: c.payAccountId || '-',
+    reqContractNo: c.reqContractNo || '-',
+    channelRaw: c.channel || '-',
+    updateTime: formatTime(c.updateTms || c.createTms)
+  }))
+  const headers = [
+    { key: 'channel', header: '支付渠道' },
+    { key: 'isDefault', header: '是否默认' },
+    { key: 'status', header: '关联状态' },
+    { key: 'thirdPayId', header: '第三方支付账号' },
+    { key: 'payAccountId', header: '支付账号' },
+    { key: 'reqContractNo', header: '签约流水号' },
+    { key: 'channelRaw', header: '支付方式' },
+    { key: 'updateTime', header: '更新时间' }
+  ]
+  const dateStr = new Date().toISOString().slice(0, 10)
+  try {
+    exportToExcel(rows, headers, `签约渠道_${dateStr}`)
+    proxy.$modal.msgSuccess(`已导出 ${rows.length} 条签约渠道`)
+  } catch (e) {
+    proxy.$modal.msgError(e.message || '导出失败')
+  }
 }
 
 function confirmTermination(channel) {
@@ -184,6 +223,12 @@ loadChannels()
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.summary-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .channel-help,

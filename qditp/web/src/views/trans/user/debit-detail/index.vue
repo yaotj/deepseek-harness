@@ -32,6 +32,7 @@
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+        <el-button type="warning" icon="Download" :disabled="exporting || !hasSearchScope()" :loading="exporting" @click="handleExport">导出 Excel</el-button>
         <el-button icon="Back" @click="router.back()">返回</el-button>
       </el-form-item>
     </el-form>
@@ -84,6 +85,7 @@
 import { listGateTxnPays, requestGateTxnPayRefund } from '@/api/trans/userSearch'
 import { defaultTodayRange } from '@/utils/dateRange'
 import { signChannelLabel } from '@/utils/payChannel'
+import { exportToExcel } from '@/utils/excelExport'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYYMMDD'
@@ -93,6 +95,7 @@ const router = useRouter()
 const route = useRoute()
 const loading = ref(false)
 const refunding = ref(false)
+const exporting = ref(false)
 const total = ref(0)
 const orders = ref([])
 const refundOpen = ref(false)
@@ -196,6 +199,54 @@ function formatAmount(value) { return value == null ? '-' : `¥ ${(Number(value)
 function statusType(value) { return ({ SUCCESS: 'success', PROCESSING: 'warning', RETRY: 'danger', FAIL: 'danger', CLOSED: 'info' })[value] || 'info' }
 function hasSearchScope() {
   return Boolean(queryParams.orderNo?.trim() || queryParams.cardId?.trim() || queryParams.thirdUserId?.trim() || (queryParams.dateRange?.[0] && queryParams.dateRange?.[1]))
+}
+
+/** 导出当前查询条件下的全部扣费信息（前端生成 .xlsx，无需后端）。
+ *  分页列表，导出时以大 pageSize 拉取全部匹配记录，避免只导当前页。 */
+function handleExport() {
+  if (!hasSearchScope()) {
+    proxy.$modal.msgWarning('请先填写扣费订单号、逻辑卡号、第三方用户 ID，或完整的交易日期范围再导出')
+    return
+  }
+  exporting.value = true
+  const query = { ...buildQuery(), cardId: queryParams.cardId.trim(), pageNum: 1, pageSize: 100000 }
+  listGateTxnPays(query).then((response) => {
+    const page = response.data || {}
+    const list = page.list || []
+    if (!list.length) {
+      proxy.$modal.msgWarning('没有可导出的扣费信息')
+      return
+    }
+    const rows = list.map((row) => ({
+      orderNo: row.orderNo,
+      debitStatus: row.debitStatus,
+      cardId: row.cardId,
+      entryStation: row.entryStationName || row.inStation || '-',
+      exitStation: row.exitStationName || row.outStation || '-',
+      outTime: row.outTime,
+      trxAmount: formatAmount(row.trxAmount),
+      overtimeAmount: formatAmount(row.overtimeAmount),
+      totalAmount: formatAmount(row.totalAmount),
+      signChannel: signChannelLabel(row.signChannelCode)
+    }))
+    const headers = [
+      { key: 'orderNo', header: '扣费订单号' },
+      { key: 'debitStatus', header: '扣费状态' },
+      { key: 'cardId', header: '逻辑卡号' },
+      { key: 'entryStation', header: '进站站点' },
+      { key: 'exitStation', header: '出站站点' },
+      { key: 'outTime', header: '出站时间' },
+      { key: 'trxAmount', header: '基础金额' },
+      { key: 'overtimeAmount', header: '超时金额' },
+      { key: 'totalAmount', header: '扣费总额' },
+      { key: 'signChannel', header: '签约渠道' }
+    ]
+    const dateStr = new Date().toISOString().slice(0, 10)
+    exportToExcel(rows, headers, `扣费信息_${dateStr}`)
+    proxy.$modal.msgSuccess(`已导出 ${rows.length} 条扣费信息`)
+  }).catch((e) => {
+    proxy.$modal.msgError((e && e.message) || '导出失败')
+  }).finally(() => { exporting.value = false })
 }
 
 if (queryParams.cardId) getList()

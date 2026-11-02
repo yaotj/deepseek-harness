@@ -19,6 +19,7 @@
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+        <el-button type="warning" icon="Download" :disabled="exporting || !hasSearchScope()" :loading="exporting" @click="handleExport">导出 Excel</el-button>
         <el-button v-if="route.query.cardId" icon="Back" @click="router.back()">返回</el-button>
       </el-form-item>
     </el-form>
@@ -46,6 +47,7 @@
 import { listQRCodeTxnDetails } from '@/api/trans/userSearch'
 import { defaultTodayRange } from '@/utils/dateRange'
 import { formatCodeLabel, formatCodeName } from '@/utils/codeLabel'
+import { exportToExcel } from '@/utils/excelExport'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYYMMDD'
@@ -54,6 +56,7 @@ const { proxy } = getCurrentInstance()
 const router = useRouter()
 const route = useRoute()
 const loading = ref(false)
+const exporting = ref(false)
 const total = ref(0)
 const records = ref([])
 /**
@@ -158,6 +161,58 @@ function normalizeCode(value) {
 
 function hasSearchScope() {
   return Boolean(queryParams.cardId?.trim() || queryParams.thirdUserId?.trim() || (queryParams.dateRange?.[0] && queryParams.dateRange?.[1]))
+}
+
+/** 导出当前查询条件下的全部交易明细（前端生成 .xlsx，无需后端）。
+ *  分页列表，导出时以大 pageSize 拉取全部匹配记录，避免只导当前页。 */
+function handleExport() {
+  if (!hasSearchScope()) {
+    proxy.$modal.msgWarning('请先填写逻辑卡号、第三方用户 ID，或完整的交易日期范围再导出')
+    return
+  }
+  exporting.value = true
+  const query = { ...buildQuery(), cardId: queryParams.cardId.trim(), pageNum: 1, pageSize: 100000 }
+  listQRCodeTxnDetails(query).then((response) => {
+    const page = response.data || {}
+    const list = page.list || []
+    if (!list.length) {
+      proxy.$modal.msgWarning('没有可导出的交易明细')
+      return
+    }
+    const rows = list.map((row) => ({
+      handleDateTime: formatTransactionTime(row.handleDateTime),
+      trxType: formatTransactionType(row.trxType),
+      cardId: row.cardId,
+      txnStation: formatStation(row.lastHandleStationCode, row.lastHandleStationName),
+      lastHandleDateTime: formatTransactionTime(row.lastHandleDateTime),
+      exitStation: formatStation(row.handleStationCode, row.handleStationName),
+      exitTime: formatTransactionTime(row.handleDateTime),
+      trxAmount: formatAmount(row.trxAmount),
+      overtimeAmount: formatAmount(row.overtimeAmount),
+      handleResult: formatHandleResult(row.handleResultCode),
+      ticketTransSeq: row.ticketTransSeq,
+      deviceId: row.deviceId
+    }))
+    const headers = [
+      { key: 'handleDateTime', header: '交易时间' },
+      { key: 'trxType', header: '交易类型' },
+      { key: 'cardId', header: '逻辑卡号' },
+      { key: 'txnStation', header: '交易站点' },
+      { key: 'lastHandleDateTime', header: '最近处理时间' },
+      { key: 'exitStation', header: '出站站点' },
+      { key: 'exitTime', header: '出站时间' },
+      { key: 'trxAmount', header: '交易金额' },
+      { key: 'overtimeAmount', header: '超时金额' },
+      { key: 'handleResult', header: '处理结果' },
+      { key: 'ticketTransSeq', header: '交易流水号' },
+      { key: 'deviceId', header: '设备编号' }
+    ]
+    const dateStr = new Date().toISOString().slice(0, 10)
+    exportToExcel(rows, headers, `交易明细_${dateStr}`)
+    proxy.$modal.msgSuccess(`已导出 ${rows.length} 条交易明细`)
+  }).catch((e) => {
+    proxy.$modal.msgError((e && e.message) || '导出失败')
+  }).finally(() => { exporting.value = false })
 }
 
 if (queryParams.cardId) getList()
