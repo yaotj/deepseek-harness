@@ -39,10 +39,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="status != null and status != ''">and status = #{status}</if>
             <if test="createBy != null and createBy != ''">and create_by = #{createBy}</if>
             <if test="params.beginTime != null and params.beginTime != ''">
-                and create_time &gt;= #{params.beginTime}
+                and create_time &gt;= to_date(#{params.beginTime}, 'yyyy-mm-dd hh24:mi:ss')
             </if>
             <if test="params.endTime != null and params.endTime != ''">
-                and create_time &lt;= #{params.endTime}
+                and create_time &lt;= to_date(#{params.endTime}, 'yyyy-mm-dd hh24:mi:ss')
             </if>
         </where>
         order by create_time desc
