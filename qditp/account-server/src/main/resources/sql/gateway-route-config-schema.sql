@@ -48,20 +48,22 @@ PARTITION BY RANGE (OPERATE_TMS) INTERVAL (INTERVAL '1' MONTH) (
 -- （PK 已隐含唯一索引）
 
 -- 4) 初始化两条默认路由（灰度前 legacy-url 可空）
+-- ⚠ 真源是 DB 现存行；本 MERGE 的默认值 MUST 与 DB 保持一致（2026-11-02 起 internal 形态，IT-038）。
+--   不一致时以 DB 为准回填本文件，NEVER 反向用本文件覆盖 DB（MERGE WHEN MATCHED 会 UPDATE）。
 MERGE INTO QDITP.GATEWAY_ROUTE_CONFIG t
 USING (SELECT 'legacy-route' AS route_id FROM DUAL) s
 ON (t.ROUTE_ID = s.ROUTE_ID)
 WHEN MATCHED THEN
-  UPDATE SET URI='http://', PREDICATES='["Path=/itptvm/**","Path=/itpbom/**"]', ORDER_NO=0, UPDATED_TMS=SYSTIMESTAMP, CREATED_BY='init'
+  UPDATE SET URI='http://collect-pay-internal:8080', PREDICATES='["Path=/itptvm/**","Path=/itpbom/**"]', ORDER_NO=0, UPDATED_TMS=SYSTIMESTAMP, CREATED_BY='init'
 WHEN NOT MATCHED THEN
   INSERT (ROUTE_ID, URI, PREDICATES, FILTERS, ORDER_NO, CREATED_TMS, UPDATED_TMS, CREATED_BY)
-  VALUES ('legacy-route', 'http://', '["Path=/itptvm/**","Path=/itpbom/**"]', '[]', 0, SYSTIMESTAMP, SYSTIMESTAMP, 'init');
+  VALUES ('legacy-route', 'http://collect-pay-internal:8080', '["Path=/itptvm/**","Path=/itpbom/**"]', '[]', 0, SYSTIMESTAMP, SYSTIMESTAMP, 'init');
 
 MERGE INTO QDITP.GATEWAY_ROUTE_CONFIG t
 USING (SELECT 'new-route' AS route_id FROM DUAL) s
 ON (t.ROUTE_ID = s.ROUTE_ID)
 WHEN MATCHED THEN
-  UPDATE SET URI='http://fep-app-svc:9101', PREDICATES='["Path=/itptvm/**","Path=/itpbom/**"]', ORDER_NO=1, UPDATED_TMS=SYSTIMESTAMP, CREATED_BY='init'
+  UPDATE SET URI='http://fep-app-internal:8080', PREDICATES='["Path=/itptvm/**","Path=/itpbom/**"]', ORDER_NO=1, UPDATED_TMS=SYSTIMESTAMP, CREATED_BY='init'
 WHEN NOT MATCHED THEN
   INSERT (ROUTE_ID, URI, PREDICATES, FILTERS, ORDER_NO, CREATED_TMS, UPDATED_TMS, CREATED_BY)
-  VALUES ('new-route', 'http://fep-app-svc:9101', '["Path=/itptvm/**","Path=/itpbom/**"]', '[]', 1, SYSTIMESTAMP, SYSTIMESTAMP, 'init');
+  VALUES ('new-route', 'http://fep-app-internal:8080', '["Path=/itptvm/**","Path=/itpbom/**"]', '[]', 1, SYSTIMESTAMP, SYSTIMESTAMP, 'init');
