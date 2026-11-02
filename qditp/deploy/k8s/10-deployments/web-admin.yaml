@@ -45,10 +45,7 @@ spec:
         - name: spring.datasource.druid.slave.enabled
           value: 'false'
         - name: spring.datasource.druid.statViewServlet.login-password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: spring.datasource.druid.statViewServlet.login-password
+          value: 123456
         - name: spring.datasource.druid.validationQuery
           value: SELECT
         - name: spring.datasource.druid.statViewServlet.url-pattern
@@ -104,22 +101,13 @@ spec:
         - name: points.copyrightYear
           value: '2025'
         - name: spring.datasource.password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: spring.datasource.password
+          value: qditp
         - name: spring.datasource.druid.master.password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: spring.datasource.druid.master.password
+          value: qditp
         - name: server.tomcat.threads.max
           value: '800'
         - name: token.secret
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: token.secret
+          value: abcdefghijklmnopqrstuvwxyz
         - name: spring.datasource.druid.maxActive
           value: '20'
         - name: service.blacklist.url

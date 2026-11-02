@@ -74,10 +74,7 @@ spec:
         - name: other.web.enableBodyCacheFilter
           value: 'true'
         - name: pay.center.merchant-private-key
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: pay.center.merchant-private-key
+          value: 0000
         - name: pay.center.gateway-url
           value: https://dtcustomer.bestonepay.com/ngopenplatform/api/payment/requestRefund
         - name: pay.center.merchant-no
@@ -145,10 +142,7 @@ spec:
         - name: other.web.unSafeUrlChars
           value: 'null'
         - name: other.sql.password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: other.sql.password
+          value: qditp
         - name: other.sql.database
           value: AFCITPDB
         - name: service.account.openLogger
@@ -156,10 +150,7 @@ spec:
         - name: other.sql.type
           value: oracle
         - name: pay.center.paycenter-public-key
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: pay.center.paycenter-public-key
+          value: 0000
         - name: SERVICE_NAME
           value: alipay-pay-sign-server
         - name: NAMESPACE

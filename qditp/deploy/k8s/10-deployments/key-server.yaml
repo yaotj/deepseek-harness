@@ -43,10 +43,7 @@ spec:
               apiVersion: v1
               fieldPath: metadata.namespace
         - name: appserver.3des.key
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: appserver.3des.key
+          value: 505152535455565758595A5B5C5D5E5F
         - name: spring.application.name
           value: key
         - name: other.web.enableLogRequestInFilter
@@ -66,10 +63,7 @@ spec:
         - name: knife4j.production
           value: 'false'
         - name: other.sql.password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: other.sql.password
+          value: qditp
         - name: other.sql.database
           value: AFCITPDB
         - name: SERVER_PORT
@@ -100,10 +94,7 @@ spec:
         - name: service.security.url
           value: http://172.20.211.200:30012
         - name: acc.3des.key
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: acc.3des.key
+          value: 404142434445464748494A4B4C4D4E4F4041424344454647
         - name: key.sync.days
           value: '7'
         - name: SERVICE_NAME

@@ -98,15 +98,7 @@ spec:
         - name: service.gateTxnPay.openLogger
           value: 'true'
         - name: other.sql.password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: other.sql.password
-        - name: pay.sign.merchant-private-key
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: pay.sign.merchant-private-key
+          value: qditp
         - name: itp.providerId
           value: '06'
         - name: other.sql.database
@@ -156,10 +148,7 @@ spec:
         - name: app.notify.executor.core-pool-size
           value: '4'
         - name: itp.signKey
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: itp.signKey
+          value: 11111
         - name: pay.sign.contract-advisory-path
           value: https://dtcustomer.bestonepay.com/testngbackV2//api/v1/contract/creditQuery
         - name: pay.sign.contract-result-path

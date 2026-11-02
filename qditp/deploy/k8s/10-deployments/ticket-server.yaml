@@ -144,10 +144,7 @@ spec:
         - name: service.gateTxnPay.openLogger
           value: 'true'
         - name: other.sql.password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: other.sql.password
+          value: qditp
         - name: app.notify.industry-data-url
           value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receiveCardDataFromItp
         - name: other.sql.database

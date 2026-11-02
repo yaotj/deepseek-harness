@@ -106,10 +106,7 @@ spec:
         - name: other.sql.page.type
           value: oracle
         - name: other.sql.password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: other.sql.password
+          value: qditp
         - name: other.sql.database
           value: AFCITPDB
         - name: gate.pay.body
@@ -127,10 +124,7 @@ spec:
         - name: service.account.url
           value: http://account-n4ba6-svc.itp.svc:9098
         - name: RECON_INTERNAL_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: RECON_INTERNAL_TOKEN
+          value: e72bc1ece71af5ae9db420944a3b24ab8de5056681c58106488c635c43328306
         - name: SERVICE_RECON_URL
           value: http://recon-server-bjzdy-svc.itp.svc:30034
         image: os-harbor-svc.default.svc.cloudos:443/itp/gate-txn-pay-server:2.0.99

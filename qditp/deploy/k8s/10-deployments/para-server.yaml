@@ -83,10 +83,7 @@ spec:
         - name: other.sql.page.type
           value: oracle
         - name: other.sql.password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: other.sql.password
+          value: qditp
         - name: other.sql.database
           value: AFCITPDB
         # DB_* 下划线命名：Spring Boot _relaxed binding_ 对 dot-name env var（如 other.sql.host）识别不稳定，
@@ -98,15 +95,9 @@ spec:
         - name: DB_USERNAME
           value: qditp
         - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: other.sql.password
+          value: qditp
         - name: para.ftp.password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: para.ftp.password
+          value: ${PARA_FTP_PASSWORD:ftpuser}
         - name: other.sql.type
           value: oracle
         - name: management.tracing.sampling.probability

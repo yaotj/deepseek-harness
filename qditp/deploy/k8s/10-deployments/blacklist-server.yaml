@@ -71,10 +71,7 @@ spec:
         - name: knife4j.production
           value: 'false'
         - name: other.sql.password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: other.sql.password
+          value: qditp
         # DB_* 下划线命名：Spring Boot _relaxed binding_ 对 dot-name env var（如 other.sql.host）识别不稳定，
         # 2026-10-14 实测 blacklist-server 因此落到 localhost/orcl 导致启动失败。保留 other.sql.* 仅作兼容性备份。
         - name: DB_HOST
@@ -84,10 +81,7 @@ spec:
         - name: DB_USERNAME
           value: qditp
         - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: other.sql.password
+          value: qditp
         - name: other.sql.database
           value: AFCITPDB
         - name: SERVER_PORT

@@ -63,26 +63,17 @@ spec:
         - name: RECON_SRC_GATE_TXN_PAY_URL
           value: http://gate-txn-pay-server-jomf4-svc.itp.svc:30019
         - name: RECON_FTP_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: RECON_FTP_PASSWORD
+          value: ftp@ITP
         - name: RECON_FTP_PORT
           value: '21'
         - name: VLOGS_URL
           value: http://victoria-logs-pbi6a-svc.itp.svc:30032
         - name: RECON_INTERNAL_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: RECON_INTERNAL_TOKEN
+          value: <from-secret>
         - name: RECON_FTP_USERNAME
           value: ftpuser
         - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: DB_PASSWORD
+          value: qditp
         - name: SERVICE_NAME
           value: recon-server
         - name: NAMESPACE

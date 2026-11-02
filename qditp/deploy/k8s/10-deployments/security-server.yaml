@@ -72,10 +72,7 @@ spec:
         - name: itp.dpkIdex
           value: '178'
         - name: security.publicKey
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: security.publicKey
+          value: 797BBE15308FC3C6A2AE8EC65337CDD0665DBDFEE3BE0671F42045F93B91C6DB05653512F22817B1E9277375AB0A2D65A752475DC1963E6F71D85E56E3C58161
         - name: server.undertow.worker-threads
           value: '10'
         - name: security.secondPort
@@ -103,19 +100,13 @@ spec:
         - name: logging.level.com.chinasofti
           value: debug
         - name: itp.signKey
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: itp.signKey
+          value: bc4f7c96259acf9946094fa
         - name: security.firstIp
           value: 172.20.201.4
         - name: other.web.unSafeUrlChars
           value: 'null'
         - name: security.privateKey
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: security.privateKey
+          value: 224525589868531772E03470B5187F242C4D54994A52EEA2E9F6ACC0DD0043D9
         - name: server.undertow.io-threads
           value: '10'
         - name: thread.queueCapacity

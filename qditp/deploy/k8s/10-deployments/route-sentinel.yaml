@@ -49,10 +49,7 @@ spec:
         - name: spring.datasource.username
           value: qditp
         - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              key: DB_PASSWORD
-              name: itp-secrets
+          value: qditp
         - name: management.endpoints.web.exposure.include
           value: gatewayroutes,health,info,metrics,routecache
         - name: management.endpoint.health.probes.enabled

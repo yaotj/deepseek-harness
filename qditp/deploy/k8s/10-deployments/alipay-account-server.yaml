@@ -94,10 +94,7 @@ spec:
         - name: alipay.card-pool.debug-manual-card-id
           value: '00000000'
         - name: itp.signKey
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: itp.signKey
+          value: bc4f7c96259acf9946094fa
         - name: alipay.card-pool.debug-manual-allocate
           value: 'false'
         - name: alipay.card-pool.batch-size
@@ -109,10 +106,7 @@ spec:
         - name: other.web.unSafeUrlChars
           value: 'null'
         - name: other.sql.password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: other.sql.password
+          value: qditp
         - name: itp.providerId
           value: '01'
         - name: other.sql.database

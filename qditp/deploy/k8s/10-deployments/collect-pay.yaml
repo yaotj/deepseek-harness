@@ -64,10 +64,7 @@ spec:
         - name: app.charset
           value: UTF-8
         - name: jhm.key
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: jhm.key
+          value: fedf5g#@$(*&d390y3hcn
         - name: pay.center.notice-app-taketicketresult-url
           value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/receiveTakeTicketResult
         - name: other.sql.double-datasource
@@ -135,17 +132,11 @@ spec:
         - name: other.sql.page.type
           value: oracle
         - name: app.signKey
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: app.signKey
+          value: null
         - name: other.web.unSafeUrlChars
           value: 'null'
         - name: other.sql.password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: other.sql.password
+          value: qditp
         - name: other.sql.database
           value: AFCITPDB
         - name: other.sql.type
@@ -161,10 +152,7 @@ spec:
         - name: NAMESPACE
           value: itp
         - name: RECON_INTERNAL_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: RECON_INTERNAL_TOKEN
+          value: e72bc1ece71af5ae9db420944a3b24ab8de5056681c58106488c635c43328306
         - name: SERVICE_RECON_URL
           value: http://recon-server-bjzdy-svc.itp.svc:30034
         image: os-harbor-svc.default.svc.cloudos:443/itp/collect-pay-server:1.1.88

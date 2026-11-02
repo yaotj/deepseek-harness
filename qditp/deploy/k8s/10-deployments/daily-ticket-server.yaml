@@ -98,15 +98,7 @@ spec:
         - name: other.sql.page.type
           value: oracle
         - name: other.sql.password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: other.sql.password
-        - name: daily-ticket.pay.merchant-private-key
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: daily-ticket.pay.merchant-private-key
+          value: ${DB_PASSWORD:qditp}
         - name: daily-ticket.pay.request-pay-path
           value: ${DAILY_TICKET_PAY_REQUEST_PAY_PATH:/api/v1/payment/requestPay}
         - name: other.sql.database
@@ -128,10 +120,7 @@ spec:
         - name: NAMESPACE
           value: itp
         - name: RECON_INTERNAL_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: RECON_INTERNAL_TOKEN
+          value: e72bc1ece71af5ae9db420944a3b24ab8de5056681c58106488c635c43328306
         - name: SERVICE_RECON_URL
           value: http://recon-server-bjzdy-svc.itp.svc:30034
         - name: DAILY_TICKET_NOTIFY_APP_REFUND_RESULT_URL

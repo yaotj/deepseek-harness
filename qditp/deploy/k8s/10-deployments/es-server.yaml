@@ -68,10 +68,7 @@ spec:
         - name: other.web.enableBodyCacheFilter
           value: 'true'
         - name: ftp.password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: ftp.password
+          value: ftpuser
         - name: excel-path
           value: excels/
         - name: logging.level.com.chinasofti.huateng.acc.es.manage.server.mapper
@@ -115,10 +112,7 @@ spec:
         - name: other.web.unSafeUrlChars
           value: 'null'
         - name: other.sql.password
-          valueFrom:
-            secretKeyRef:
-              name: itp-secrets
-              key: other.sql.password
+          value: qditp
         - name: other.sql.database
           value: AFCITPDB
         - name: other.sql.type
