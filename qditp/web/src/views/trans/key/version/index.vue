@@ -34,6 +34,7 @@
 import { listKeyVersions } from '@/api/trans/keyVersion'
 import { exportToExcel } from '@/utils/excelExport'
 
+const { proxy } = getCurrentInstance()
 const loading = ref(false)
 const versionList = ref([])
 

@@ -49,6 +49,7 @@ import { searchAlipayUsers } from '@/api/trans/userSearch'
 import { formatCodeLabel } from '@/utils/codeLabel'
 import { cardTypeLabel } from '@/utils/cardType'
 import { exportToExcel } from '@/utils/excelExport'
+import { parseTime } from '@/utils/points'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()

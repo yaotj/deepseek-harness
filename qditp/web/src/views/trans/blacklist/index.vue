@@ -169,6 +169,7 @@ import {
 } from '@/api/trans/blacklist'
 import { defaultTodayRange } from '@/utils/dateRange'
 import { exportToExcel } from '@/utils/excelExport'
+import { parseTime } from '@/utils/points'
 import useUserStore from '@/store/modules/user'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
@@ -367,6 +368,40 @@ function handleCompensate(direction) {
 
 function showFailReason(row) {
   proxy.$modal.msgError(`卡ID ${row.cardId} 最近一次通知失败原因：${row.channelSyncFailReason}`)
+}
+
+/** 导出黑名单「当前页」已加载的数据。 */
+function handleExport() {
+  if (!blacklist.value.length) { proxy.$modal.msgWarning('当前页没有可导出的黑名单'); return }
+  try {
+    const data = blacklist.value.map((row, index) => ({
+      seq: (queryParams.pageNum - 1) * queryParams.pageSize + index + 1,
+      cardId: row.cardId,
+      thirdUserId: row.thirdUserId || '-',
+      status: statusLabel(row.status),
+      channelSyncStatus: syncLabel(row.channelSyncStatus),
+      channelSyncFailReason: row.channelSyncFailReason || '-',
+      reason: row.reason || '-',
+      releaseReason: row.releaseReason || '-',
+      createTime: parseTime(row.createTime) || '-'
+    }))
+    const headers = [
+      { key: 'seq', header: '序号' },
+      { key: 'cardId', header: '卡ID' },
+      { key: 'thirdUserId', header: '三方用户ID' },
+      { key: 'status', header: '状态' },
+      { key: 'channelSyncStatus', header: '渠道同步' },
+      { key: 'channelSyncFailReason', header: '同步失败原因' },
+      { key: 'reason', header: '拉黑原因' },
+      { key: 'releaseReason', header: '解除原因' },
+      { key: 'createTime', header: '创建时间' }
+    ]
+    const dateStr = new Date().toISOString().slice(0, 10)
+    exportToExcel(data, headers, `黑名单_${dateStr}`)
+    proxy.$modal.msgSuccess(`已导出当前页 ${data.length} 条黑名单`)
+  } catch (e) {
+    proxy.$modal.msgError(e.message || '导出失败')
+  }
 }
 
 onMounted(getList)
