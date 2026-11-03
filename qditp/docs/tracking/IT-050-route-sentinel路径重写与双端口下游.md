@@ -50,6 +50,9 @@
     - `deploy/k8s/30-istio-ingress.yaml` 已 server-side apply，`fep-app-vr` 现 13 条路由（5 exact + 8 prefix）。
     - 数据库 migration 已执行：`GATEWAY_ROUTE_CONFIG` 现 6 条路由（4 条分流 + 2 条兜底），`GATEWAY_ROUTE_CONFIG_AUDIT` 已加 `BEFORE_FILTERS`/`AFTER_FILTERS`。
     - `curl /actuator/gatewayroutes` 确认 6 条路由；`curl` 打 5 条 URL 均到达旧 ITP（返回 Tomcat 404，属旧 ITP 业务层响应，RewritePath 已生效）。
+    - 上游网关（istio ingressgateway `10.100.192.240:50908`）全场景流量模拟（5 条 URL × 3 场景 = 15 次请求）：
+      - **legacy 用户 / 无 bizData**：`X-Route-Id` 均为 `legacy-route-tvm` / `legacy-route-bom`，HTTP 200/404/405 均属旧 ITP 业务层响应，且 BOM 请求返回 `{"retCode":"2001","retMsg":"非法设备"}`，证明已转发到 `172.20.202.10:8580` 且路径改写成 `.../bomDispatch/...`。
+      - **split 用户（thirdUserId 在 `USER_ITP_REG_INFO`）**：命中 `face-pay-split-route-tvm` / `face-pay-split-route-bom`，因下游现配为 `http://UNKNOWN-NEWSYSTEM:8080` 返回 HTTP 500；日志证实转发路径为 `/itptvm/ci/tvmDispatch/xxx` 与 `/itpbom/ci/bomDispatch/xxx`，RewritePath 生效。
 - 回滚预案：
   1. 数据库：执行 migration SQL 的逆操作——删除 4 条新路由，重新插入原 `legacy-route` / `face-pay-split-route`（如需要）。
   2. Ingress：`kubectl apply -f deploy/k8s/30-istio-ingress.yaml` 回退到上一版本（git）。
@@ -59,7 +62,7 @@
 
 - [x] 已在 `问题清单.md` 索引表加行（编号 `IT-050`）
 - [x] 已建本处理文档并记录处理过程与决策
-- [x] 处理后已回填索引「状态 / 下一步 / 更新」（`问题清单.md` 已更新为「代码/文档已就绪，待测试环境发版验证」）
+- [x] 处理后已回填索引「状态 / 下一步 / 更新」（`问题清单.md` 已更新为「测试环境已发版验证」）
 - [x] 索引行未复制本文档的叙述（索引只写「一句话现象 + 状态 + 下一步 + 关联文档」）
 - [x] 本文档内的版本号 / 端口 / 行号等数字已标注来源或「MUST 现查」
 - 偏差说明（如有）：无
