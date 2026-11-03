@@ -54,6 +54,14 @@
     - 上游网关（istio ingressgateway `10.100.192.240:50908`）全场景流量模拟（5 条 URL × 3 场景 = 15 次请求）：
       - **legacy 用户 / 无 bizData**：`X-Route-Id` 均为 `legacy-route-tvm` / `legacy-route-bom`，命中旧 ITP；BOM 请求返回 `{"retCode":"2001","retMsg":"非法设备"}`，证明已转发到 `172.20.202.10:8580` 且路径改写成 `.../bomDispatch/...`。
       - **split 用户（thirdUserId 在 `USER_ITP_REG_INFO`）**：命中 `face-pay-split-route-tvm` / `face-pay-split-route-bom`，转发到 `face-pay-server-internal:8080`，路径保持 `/itptvm/ci/tvm/xxx` / `/itpbom/ci/bom/xxx` 不变；TVM 返回 `2002 orderNo 不能为空`，BOM 返回 `8003 cardId 不能为空`，均为 `face-pay-server` 业务层校验，证明分流与透传正确。
+    - **第二轮端到端复测（2026-11-03 15:51）**：从 k8s-master 对 `itp-gateway:50908` 重新执行 5 条 URL × 3 场景（无 bizData / legacy 用户 / split 用户），并补充同 URL 的 POST 探测：
+      - 全部 15 次请求 `X-Route-Id` 与预期完全一致；TVM 3 条命中 `legacy-route-tvm` 或 `face-pay-split-route-tvm`，BOM 2 条命中 `legacy-route-bom` 或 `face-pay-split-route-bom`。
+      - **GET 探测**：legacy TVM 404 / legacy BOM 405（旧 ITP 方法/路径层响应）；split TVM/BOM 200，body 为 `face-pay-server` 业务包装。
+      - **POST 探测（验证 RewritePath 是否生效）**：
+        - legacy BOM `requestCardDataAnalyse` → `{"retCode":"2001","retMsg":"非法设备"}`；`requestUpdateCardData` → `{"retCode":"9999","retMsg":"失败"}` → 确认已改写成 `/itpbom/ci/bomDispatch/...` 并到达旧 ITP。
+        - split BOM 两条 → 均返回 `{"retCode":"8003","retMsg":"cardId不能为空"}` → 确认原路径不变到达 `face-pay-server`。
+        - legacy TVM 三条 POST 仍 404（旧 ITP 该路径/方法未部署），但 `X-Route-Id: legacy-route-tvm` 且响应来自旧 ITP Tomcat，RewritePath 仍生效。
+        - split TVM `notiTakeTicketResult` / `notiTakeTicketFailResult` → `{"retCode":"2002","retMsg":"orderNo不能为空"}`；`requestTakeTicketAuth` → `{"retCode":"2002","retMsg":"非法参数"}` → 确认原路径不变到达 `face-pay-server`。
 - 回滚预案：
   1. 数据库：执行 migration SQL 的逆操作——删除 4 条新路由，重新插入原 `legacy-route` / `face-pay-split-route`（如需要）。
   2. Ingress：`kubectl apply -f deploy/k8s/30-istio-ingress.yaml` 回退到上一版本（git）。
