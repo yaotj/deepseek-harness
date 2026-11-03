@@ -90,7 +90,8 @@ public class TransListQueryHandler {
             response.setRetCode(TransQueryErrorCodeEnum.INVALID_PARAM.getCode());
             response.setRetMsg(e.getMessage());
         } catch (Exception e) {
-            log.error("IF8A-05 查询交易记录异常, request={}", request, e);
+            log.error("IF8A-05 查询交易记录异常, request={}, thirdUserId={}, cardId={}",
+                    request, request.getThirdUserId(), request.getCardId(), e);
             response.setRetCode(TransQueryErrorCodeEnum.SYSTEM_ERROR.getCode());
             response.setRetMsg(TransQueryErrorCodeEnum.SYSTEM_ERROR.getMsg());
         }
