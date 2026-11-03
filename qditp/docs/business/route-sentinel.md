@@ -33,7 +33,7 @@
 | 容器端口 | `8080`（Deployment `SERVER_PORT=8080`，Service `route-sentinel-svc:8080`） |
 | 基础镜像 | 测试 `itp/jdk:21`；红岛 `os-harbor-svc.default.svc.cloudos:443/itpb/jdk21:1.0.0`（itpb 项目**唯一**公共 JDK 镜像，2026-10-26 实测 itpb ns 内拉取成功，`java version 21.0.1`） |
 | 已部署镜像 | 测试 `os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.1`（`deploy/k8s/10-deployments/route-sentinel.yaml:42`）；**红岛 2026-10-26 已建 `itpb/route-sentinel:1.0.1`（Harbor digest `sha256:d4c6bd67…`，amd64）+ 平台 app 对象（uuid `16a91143…`）+ Deployment 已拉起，但容器 CrashLoopBackOff——根因见 [IT-021](../tracking/IT-021-红岛网关路由表缺失.md)「CrashLoop」节，非镜像问题** |
-| 上游入口 | `fep-app-vr` 把下面 **7 条精确路径**（`uri.exact`）打到 `route-sentinel-svc:8080`；**其余** `/itptvm/**`、`/itpbom/**` 端点仍由前缀路由直连 `face-pay-server-svc:30025`，不进 SCG |
+| 上游入口 | `fep-app-vr` 把下面 **5 条精确路径**（`uri.exact`）打到 `route-sentinel-svc:8080`；**其余** `/itptvm/**`、`/itpbom/**` 端点仍由前缀路由直连 `face-pay-server-svc:30025`，不进 SCG |
 | 数据库 | 测试直连 `AFCITPDB`（schema `QDITP`）；红岛按域分库后 `USER_ITP_REG_INFO` → `QDITP_USER`（`itp_ro` 只读）、`GATEWAY_ROUTE_CONFIG` → `QDITP_PLAT`（**红岛两表尚未建，见 [IT-021](../tracking/IT-021-红岛网关路由表缺失.md)，是部署前置阻塞**） |
 
 ## 数据表
@@ -53,33 +53,43 @@
 ```text
 ROUTE_ID    VARCHAR2(64)  PK
 URI         VARCHAR2(512) 下游 base URL
-PREDICATES  CLOB          JSON 数组，如 ["Path=/itptvm/ci/tvm/**"]
-FILTERS     CLOB          默认 '[]'，当前未启用
+PREDICATES  CLOB          JSON 数组，如 ["Path=/itptvm/ci/tvm/notiTakeTicketResult"]
+FILTERS     CLOB          JSON 数组，默认 '[]'，当前支持 RewritePath
 ORDER_NO    NUMBER        路由优先级
 ```
 
-### 当前两条核心路由（schema-local-h2.sql / 已同步到 DB）
+### 当前四条核心路由（schema-local-h2.sql / 已同步到 DB）
 
-> ⚠️ 下表是**种子基线**（来自 `schema-local-h2.sql` 初始入库值）。运行期路由 URI 以 `GATEWAY_ROUTE_CONFIG` 库表 + Actuator `gatewayroutes` 的**实时值**为准，**NEVER 把这里的 `face-pay-server-svc:30025` 当永久事实**；改路由或排障前 MUST 现查运行态（`curl -X GET <route-sentinel>/actuator/gatewayroutes`）。
+> ⚠️ 下表是**种子基线**（来自 `schema-local-h2.sql` 初始入库值）。运行期路由 URI 以 `GATEWAY_ROUTE_CONFIG` 库表 + Actuator `gatewayroutes` 的**实时值**为准，**NEVER 把这里的下游地址当永久事实**；改路由或排障前 MUST 现查运行态（`curl -X GET <route-sentinel>/actuator/gatewayroutes`）。
 
-| route_id | 说明 | uri | predicates |
-|---|---|---|---|
-| `legacy-route` | 旧用户全部走 face-pay | `http://face-pay-server-svc:30025` | 7 条设备域 + APP 域订单 URL |
-| `face-pay-split-route` | 新用户走新系统（D11 占位） | `http://UNKNOWN-NEWSYSTEM:8080` | 同上的 7 条 URL |
+因 TVM、BOM 下游端口不同（`8180` / `8580`），legacy 与 split 各拆为 TVM/BOM 两条：
 
-7 条 URL 覆盖（BOM 7 处 / TVM 5 处）：
+| route_id | 说明 | uri | predicates | filters |
+|---|---|---|---|---|
+| `legacy-route-tvm` | 旧用户 TVM 请求走旧 ITP | `http://172.20.202.10:8180` | TVM 3 条 URL | `RewritePath=/itptvm/ci/tvm/(?<segment>.*),/itptvm/ci/tvmDispatch/${segment}` |
+| `legacy-route-bom` | 旧用户 BOM 请求走旧 ITP | `http://172.20.202.10:8580` | BOM 2 条 URL | `RewritePath=/itpbom/ci/bom/(?<segment>.*),/itpbom/ci/bomDispatch/${segment}` |
+| `face-pay-split-route-tvm` | 新用户 TVM 请求走新系统（D11 占位） | `http://UNKNOWN-NEWSYSTEM:8080` | TVM 3 条 URL | 同 legacy-route-tvm |
+| `face-pay-split-route-bom` | 新用户 BOM 请求走新系统（D11 占位） | `http://UNKNOWN-NEWSYSTEM:8080` | BOM 2 条 URL | 同 legacy-route-bom |
+
+5 条 URL 覆盖（TVM 3 处 / BOM 2 处）：
 
 ```text
-/itpbom/ci/bom/notiTakeTicketResult
-/itpbom/ci/bom/notiTakeTicketFailResult
-/itpbom/ci/bom/requestTakeTicketAuth
+/itptvm/ci/tvm/notiTakeTicketResult
+/itptvm/ci/tvm/notiTakeTicketFailResult
+/itptvm/ci/tvm/requestTakeTicketAuth
 /itpbom/ci/bom/requestCardDataAnalyse
 /itpbom/ci/bom/requestUpdateCardData
-/itptvm/ci/tvm/requestTakeTicketAuth
-/itptvm/ci/tvm/requestCardDataAnalyse
 ```
 
-> 旧稿里「5 端点 vs 7 URL」的争议已拍板：**7 条 URL**（D14 已定）。
+转发给旧 ITP 时的路径重写：
+
+| 原始 path | 转发后 path |
+|---|---|
+| `/itptvm/ci/tvm/notiTakeTicketResult` | `/itptvm/ci/tvmDispatch/notiTakeTicketResult` |
+| `/itptvm/ci/tvm/notiTakeTicketFailResult` | `/itptvm/ci/tvmDispatch/notiTakeTicketFailResult` |
+| `/itptvm/ci/tvm/requestTakeTicketAuth` | `/itptvm/ci/tvmDispatch/requestTakeTicketAuth` |
+| `/itpbom/ci/bom/requestCardDataAnalyse` | `/itpbom/ci/bomDispatch/requestCardDataAnalyse` |
+| `/itpbom/ci/bom/requestUpdateCardData` | `/itpbom/ci/bomDispatch/requestUpdateCardData` |
 
 ## 分流判定逻辑
 
@@ -124,15 +134,15 @@ ORDER_NO    NUMBER        路由优先级
 | `LegacyRouteIdStrategy` | `routeId == "legacy-route"` |
 | `LegacyPredicateStrategy` | `predicates` JSON（转小写后）包含 `"legacy"` 字符串 |
 
-因此新增 legacy 路由时，要么 routeId 叫 `legacy-*`，要么在 predicates 里显式塞 `"legacy"` 字样。
+因此新增 legacy 路由时，要么 routeId 叫 `legacy-*`（推荐），要么在 predicates 里显式塞 `"legacy"` 字样。
 
 ## Actuator 管理端点
 
 | 端点 | 方法 | 用途 | 代码位置 |
 |---|---|---|---|
 | `/actuator/gatewayroutes` | GET | 列出当前生效路由（routeId / uri / legacy） | `sync/GatewayRoutesAdminEndpoint.java` |
-| `/actuator/gatewayroutes/{id}` | POST | 新增/更新路由并落库 + 触发内存热重载 | `sync/GatewayRouteAdminController.java` |
-| `/actuator/gatewayroutes/{id}` | DELETE | 标记删除（`uri=''`，`predicates='[]'`） | `sync/GatewayRouteAdminController.java` |
+| `/actuator/gatewayroutes/{id}` | POST | 新增/更新路由并落库 + 触发内存热重载；body 支持 `uri` / `predicates` / `filters` / `operator` / `remark` | `sync/GatewayRouteAdminController.java` |
+| `/actuator/gatewayroutes/{id}` | DELETE | 标记删除（`uri=''`，`predicates='[]'`，`filters='[]'`） | `sync/GatewayRouteAdminController.java` |
 | `/actuator/routecache` | GET | Caffeine 缓存统计 | `sync/RouteCacheAdminEndpoint.java` |
 
 > `management.endpoints.web.exposure.include=gatewayroutes,health,info,metrics,routecache`。
@@ -167,7 +177,7 @@ DB_PASSWORD: <secret:itp-secrets/DB_PASSWORD>
 
 | 场景 | 操作 |
 |---|---|
-| route-sentinel 自身故障 | 把 `fep-app-vr` 那 7 条 `uri.exact` 的 destination 改回 `face-pay-server-svc:30025`（或直接删掉这 7 条，让 `/itptvm/`、`/itpbom/` 前缀兜底接住），7 个接口回旧 ITP；**其余端点本来就没走 SCG，不受影响** |
+| route-sentinel 自身故障 | 把 `fep-app-vr` 那 5 条 `uri.exact` 的 destination 改回 `face-pay-server-svc:30025`（或直接删掉这 5 条，让 `/itptvm/`、`/itpbom/` 前缀兜底接住），5 个接口回旧 ITP；**其余端点本来就没走 SCG，不受影响** |
 | 名单查询失败 | `UserRouteService.loadLegacy` catch 所有异常，返回 `true`（fail-safe 走旧 ITP） |
 | 路由表为空 | `GatewayRouteQueryService.loadRoutes` 返回空列表，`UserRouteConfig` 降级为空路由，请求 404 |
 | 需要全量切旧 / 切新 | 通过 Actuator 改 `legacy-route` 或 `face-pay-split-route` 的 URI，同步落库并热重载 |
@@ -176,10 +186,10 @@ DB_PASSWORD: <secret:itp-secrets/DB_PASSWORD>
 
 1. **不要动 `BizDataExtractor.fastExtract` 的字符串扫描逻辑**，除非 `bizData` 里 `thirdUserId` 的 JSON 形态变了。当前它特意避开 JSON 解析以保性能。
 2. **新增分流 URL 必须同时满足**：
-   - 在 `GATEWAY_ROUTE_CONFIG` 的 `legacy-route` 与 `face-pay-split-route` 两条记录的 predicates 里补齐；
+   - 在 `GATEWAY_ROUTE_CONFIG` 的对应 `legacy-route-*` 与 `face-pay-split-route-*` 记录的 predicates 里补齐；
    - 若 face-pay 端也新增了对应 Controller，需同步核对接口契约。
 3. **改 `UserRouteService` 缓存 TTL / 大小时 MUST 评估**：旧用户首次请求会穿透 DB，QPS 高时可能打挂连接池（Hikari max=30）。
-4. **D11 新系统地址未填前，face-pay-split-route 的 URI 是占位符**——目前所有命中 split 的流量会打到无效地址，D11 拍板前不能让 `face-pay-split-route` 生效。
+4. **D11 新系统地址未填前，face-pay-split-route-* 的 URI 是占位符**——目前所有命中 split 的流量会打到无效地址，D11 拍板前不能让 `face-pay-split-route-*` 生效。
 5. **route-sentinel 不验签、不改报文**；`sign` 原样透传（见 `docs/business/app-gateway.md` §报文契约）。
 6. **TraceId**：`TraceIdFilter` 给无 `X-Request-Id` 头的请求生成 UUID 并放入 MDC，向下游传递。排查链路时以该 header 为准。
 

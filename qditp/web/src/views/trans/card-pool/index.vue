@@ -22,7 +22,7 @@
       <el-form-item label="来源"><el-select v-model="query.source" clearable style="width: 110px"><el-option label="自动" value="AUTO" /><el-option label="人工" value="MANUAL" /></el-select></el-form-item>
       <el-form-item label="状态"><el-select v-model="query.status" clearable style="width: 150px"><el-option v-for="item in statuses" :key="item" :label="item" :value="item" /></el-select></el-form-item>
       <el-form-item label="创建时间"><el-date-picker v-model="query.dateRange" type="datetimerange" value-format="YYYY-MM-DD HH:mm:ss" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" style="width: 340px" /></el-form-item>
-      <el-form-item><el-button type="primary" icon="Search" @click="handleQuery">查询</el-button><el-button icon="Refresh" @click="reset">重置</el-button><el-button type="warning" icon="Download" :disabled="!batches.length" @click="handleExport">导出 Excel</el-button></el-form-item>
+      <el-form-item><el-button type="primary" icon="Search" @click="handleQuery">查询</el-button><el-button icon="Refresh" @click="reset">重置</el-button><el-button type="warning" icon="Download" :disabled="!batches.length" @click="handleExport">导出 Excel</el-button><el-button type="primary" icon="Clock" @click="handleAsyncExport">后台全量导出</el-button></el-form-item>
     </el-form>
     <el-table v-loading="batchLoading" :data="batches" border>
       <el-table-column label="批次号" prop="batchNo" width="100" align="center"><template #default="{ row }"><el-button link type="primary" @click="showDetail(row)">{{ row.batchNo }}</el-button></template></el-table-column>
@@ -69,6 +69,7 @@ import { getCardPoolSummary, listCardPoolBatches, requestCardPoolBatch, retryCar
 import { defaultTodayRange } from '@/utils/dateRange'
 import { formatCodeLabel } from '@/utils/codeLabel'
 import { exportToExcel } from '@/utils/excelExport'
+import { submitAsyncExportTask } from '@/api/monitor/asyncExport'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
@@ -96,6 +97,25 @@ function createBatch(row) { proxy.$modal.confirm(`将为 ${ticketTypeLabel(row.c
 function retry(row) { retryCardPoolBatch(row.batchNo).then(() => { proxy.$modal.msgSuccess('已重试下载和导入'); loadSummary(); loadBatches() }) }
 function showDetail(row) { currentBatch.value = row; detailOpen.value = true }
 function tagType(status) { return status === 'SUCCESS' ? 'success' : status === 'FAILED' ? 'danger' : 'warning' }
+
+/** 提交后台异步全量导出任务（每日凌晨 2 点统一执行）。 */
+function handleAsyncExport() {
+  const { dateRange, pageNum, pageSize, ...rest } = query
+  const data = {
+    taskCode: 'CARD_POOL_BATCH',
+    taskName: '卡池批次全量导出',
+    paramJson: JSON.stringify({
+      ...rest,
+      createTimeBegin: dateRange?.[0],
+      createTimeEnd: dateRange?.[1]
+    })
+  }
+  submitAsyncExportTask(data).then((response) => {
+    proxy.$modal.msgSuccess(response.msg || '提交成功，请前往「系统监控-异步导出任务」查看')
+  }).catch((error) => {
+    proxy.$modal.msgError(error.message || '提交失败')
+  })
+}
 
 /** 导出卡池批次「当前页」已加载的数据。 */
 function handleExport() {

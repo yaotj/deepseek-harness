@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.web.mapper.recon.ReconUploadFileMapper">
+
+    <resultMap type="ReconUploadFile" id="ReconUploadFileResult">
+        <id     property="id"           column="id"             />
+        <result property="fileName"     column="file_name"      />
+        <result property="filePath"     column="file_path"      />
+        <result property="fileSize"     column="file_size"      />
+        <result property="fileType"     column="file_type"      />
+        <result property="reconDate"    column="recon_date"     />
+        <result property="status"       column="status"         />
+        <result property="createBy"     column="create_by"      />
+        <result property="createTime"   column="create_time"    />
+        <result property="updateBy"     column="update_by"      />
+        <result property="updateTime"   column="update_time"    />
+        <result property="remark"       column="remark"         />
+    </resultMap>
+
+    <sql id="selectReconUploadFileVo">
+        select id, file_name, file_path, file_size, file_type, recon_date, status,
+               create_by, create_time, update_by, update_time, remark
+        from recon_upload_file
+    </sql>
+
+    <select id="selectReconUploadFileById" parameterType="Long" resultMap="ReconUploadFileResult">
+        <include refid="selectReconUploadFileVo"/>
+        where id = #{id}
+    </select>
+
+    <select id="selectReconUploadFileList" parameterType="ReconUploadFile" resultMap="ReconUploadFileResult">
+        <include refid="selectReconUploadFileVo"/>
+        <where>
+            <if test="fileName != null and fileName != ''">and file_name like concat('%', #{fileName}, '%')</if>
+            <if test="fileType != null and fileType != ''">and file_type = #{fileType}</if>
+            <if test="status != null and status != ''">and status = #{status}</if>
+            <if test="reconDate != null and reconDate != ''">and recon_date = #{reconDate}</if>
+            <if test="params.beginTime != null and params.beginTime != ''">
+                and create_time &gt;= to_date(#{params.beginTime}, 'yyyy-mm-dd hh24:mi:ss')
+            </if>
+            <if test="params.endTime != null and params.endTime != ''">
+                and create_time &lt;= to_date(#{params.endTime}, 'yyyy-mm-dd hh24:mi:ss')
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <insert id="insertReconUploadFile" parameterType="ReconUploadFile">
+        <selectKey keyProperty="id" resultType="java.lang.Long" order="BEFORE">
+            SELECT seq_recon_upload_file.NEXTVAL FROM DUAL
+        </selectKey>
+        insert into recon_upload_file
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            id,
+            <if test="fileName != null and fileName != ''">file_name,</if>
+            <if test="filePath != null and filePath != ''">file_path,</if>
+            <if test="fileSize != null">file_size,</if>
+            <if test="fileType != null and fileType != ''">file_type,</if>
+            <if test="reconDate != null and reconDate != ''">recon_date,</if>
+            <if test="status != null and status != ''">status,</if>
+            <if test="createBy != null and createBy != ''">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null and updateBy != ''">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            #{id},
+            <if test="fileName != null and fileName != ''">#{fileName},</if>
+            <if test="filePath != null and filePath != ''">#{filePath},</if>
+            <if test="fileSize != null">#{fileSize},</if>
+            <if test="fileType != null and fileType != ''">#{fileType},</if>
+            <if test="reconDate != null and reconDate != ''">#{reconDate},</if>
+            <if test="status != null and status != ''">#{status},</if>
+            <if test="createBy != null and createBy != ''">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null and updateBy != ''">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+        </trim>
+    </insert>
+
+    <delete id="deleteReconUploadFileById" parameterType="Long">
+        delete from recon_upload_file where id = #{id}
+    </delete>
+
+</mapper>

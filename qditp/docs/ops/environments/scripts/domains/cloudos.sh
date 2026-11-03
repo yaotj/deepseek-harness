@@ -281,6 +281,79 @@ for s in d.get("services") or []:
 '
 }
 
+# 新建访问方式（POST /apps/{uuid}/service）—— 写操作，必须显式 --yes
+#
+# 【为什么 MUST 走平台接口而不是 kubectl apply】
+#   平台是 Service 的真源：手工 kubectl 建出的 Service，`cloudos svc` 虽然能读到，
+#   但平台并不认领——应用重装 / 迁移到新集群时不会随应用重建，对象会静默消失
+#   （2026-11-02 internal Service 首建踩过，见 docs/tracking/IT-035-*.md）。
+#   所以新增内网 / 外网访问一律走本命令。
+#
+# 默认建集群内网 ClusterIP：port = container_port = 8080，与「所有 Java 服务监听 8080」
+# 的统一口径一致；要 NodePort 必须显式给 --node-port（节点端口 30000-32767）。
+app_service_create() {
+    local key="${1:-}" name="${2:-}"
+    [[ -n "$key" && -n "$name" ]] \
+        || die "用法：cloudos svc create <应用名|uuid> <service_name> [--type ClusterIP|NodePort] [--port 8080] [--container-port 8080] [--node-port N] [--session-keep] [--yes]"
+    shift 2
+
+    local type="ClusterIP" sport="8080" cport="8080" nport="" keep="false"
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --type)           type="${2:?--type 缺值}"; shift 2 ;;
+            --port)           sport="${2:?--port 缺值}"; shift 2 ;;
+            --container-port) cport="${2:?--container-port 缺值}"; shift 2 ;;
+            --node-port)      nport="${2:?--node-port 缺值}"; shift 2 ;;
+            --session-keep)   keep="true"; shift ;;
+            *)                die "未知参数 $1" ;;
+        esac
+    done
+
+    case "$type" in
+        ClusterIP|NodePort) ;;
+        *) die "type 只能是 ClusterIP | NodePort（收到 ${type}）" ;;
+    esac
+    if [[ "$type" == "NodePort" && -z "$nport" ]]; then
+        die "NodePort 类型必须给 --node-port（节点端口 30000-32767）"
+    fi
+
+    require_yes "在应用 ${key} 上创建服务 ${name}（${type} ${sport} → ${cport}）"
+
+    local uuid
+    uuid=$(resolve_app_uuid "$key")
+
+    # 同名已存在就停：POST 会建出第二个同名对象，平台列表里两条同名后极难分辨
+    local dup
+    dup=$(cloudos_request GET "/api/cloud/app-mgmt/v1.0/apps/${uuid}/service" | python3 -c '
+import sys, json
+name = sys.argv[1]
+d = json.load(sys.stdin).get("data") or {}
+hit = [s.get("type") for s in (d.get("services") or []) if s.get("service_name") == name]
+print(hit[0] if hit else "")
+' "$name")
+    if [[ -n "$dup" ]]; then
+        die "服务 ${name} 已存在（type=${dup}），未发起创建；改配置请走平台控制台"
+    fi
+
+    local body
+    body=$(python3 -c '
+import json, sys
+name, typ, sport, cport, nport, keep = sys.argv[1:7]
+pm = {"name": "http", "protocol": "TCP", "port": sport,
+      "cluster_port": sport, "container_port": cport}
+if nport:
+    pm["node_port"] = nport
+print(json.dumps({"type": typ, "service_name": name,
+                  "session_keep": keep == "true", "port_map_list": [pm]},
+                 ensure_ascii=False))
+' "$name" "$type" "$sport" "$cport" "$nport" "$keep")
+
+    echo "即将在 ${key}（${uuid}）上创建：" >&2
+    echo "  ${body}" >&2
+    cloudos_request POST "/api/cloud/app-mgmt/v1.0/apps/${uuid}/service" "$body" >/dev/null
+    echo "已提交。核对：itp-ops.sh cloudos svc ${key} 应出现 ${name}（type=${type}）"
+}
+
 # 实例（pod）列表
 app_pods() {
     local key="$1"
@@ -1323,6 +1396,10 @@ itp-ops.sh cloudos —— CloudOS 平台运维（当前环境：${CLOUDOS_ENV:-h
   app       <名字|uuid>          应用详情（含 env 全量）
   env       <名字|uuid>          只打 env（排查 SERVICE_*_URL 是否指向 itp）
   svc       <名字|uuid>          访问方式与 NodePort 映射
+  svc create <名字|uuid> <服务名> 新建访问方式（默认集群内网 ClusterIP 8080→8080）
+                                  可选 --type NodePort --node-port N、--port、--container-port、
+                                  --session-keep。**平台是 Service 真源**：手工 kubectl apply
+                                  的同类对象重装即丢，新增访问方式 MUST 走本命令
   pods      <名字|uuid>          实例列表（podIP / ready / 重启次数）
   logs      <名字|uuid> [行数]   平台侧运行日志（默认 200 行；红岛该接口恒空，
                                  主力手段是 itp-ops.sh log tail <svc>）
@@ -1408,7 +1485,12 @@ cloudos_main() {
         apps)                apps "${1:-}" ;;
         app)                 app_detail "${1:?需要应用名或 uuid}" ;;
         env)                 app_env "${1:?需要应用名或 uuid}" ;;
-        svc|service)         app_service "${1:?需要应用名或 uuid}" ;;
+        svc|service)
+            case "${1:-}" in
+                create) shift; app_service_create "$@" ;;
+                list)   app_service "${2:?需要应用名或 uuid}" ;;
+                *)      app_service "${1:?需要应用名或 uuid}" ;;
+            esac ;;
         pods|instances)      app_pods "${1:?需要应用名或 uuid}" ;;
         logs)                app_logs "${1:?需要应用名或 uuid}" "${2:-200}" ;;
         act|action)          app_action "${1:?需要应用名或 uuid}" "${2:?需要 start|stop|restart}" ;;

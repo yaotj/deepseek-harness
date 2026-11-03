@@ -131,13 +131,12 @@ public class EmployeeCardPersistenceServiceImpl implements EmployeeCardPersisten
     @Transactional(rollbackFor = Exception.class)
     public void refreshProfileFromAcc(UserAccEmployeeCard target, EmployeeCardInfoDTO source) {
         String originalCardNo = target.getCardNo();
-        Integer originalCardStatus = target.getCardStatus();
-        applyAccInfo(target, source);
+        // 资料补全只回填资料字段：CARD_STATUS 的状态真源只有两条显式链路
+        // （ACC notify 的 saveFromStatusNotify、APP 激活/禁用的 applyActivationResult），
+        // 查询触发的补全 NEVER 改状态 —— 否则会把 ACC 侧陈旧状态回灌本地（IT-043）
+        applyProfileInfo(target, source);
         if (!StringUtils.hasText(target.getCardNo())) {
             target.setCardNo(originalCardNo);
-        }
-        if (target.getCardStatus() == null) {
-            target.setCardStatus(originalCardStatus);
         }
         target.setUpdateTms(LocalDateTime.now());
         if (employeeCardMapper.update(target) == 0) {
@@ -145,7 +144,18 @@ public class EmployeeCardPersistenceServiceImpl implements EmployeeCardPersisten
         }
     }
 
+    /**
+     * 状态通知落库用：资料字段 + 状态字段一并取 ACC 值（notify 是状态真源之一）。
+     */
     private void applyAccInfo(UserAccEmployeeCard target, EmployeeCardInfoDTO source) {
+        applyProfileInfo(target, source);
+        target.setCardStatus(source.getCardStatus());
+    }
+
+    /**
+     * 只回填资料字段，<b>不碰 {@code CARD_STATUS}</b>。
+     */
+    private void applyProfileInfo(UserAccEmployeeCard target, EmployeeCardInfoDTO source) {
         target.setCardNo(source.getCardNo());
         target.setEmployeeName(source.getEmployeeName());
         target.setIdCardNo(source.getIdCardNo());
@@ -154,7 +164,6 @@ public class EmployeeCardPersistenceServiceImpl implements EmployeeCardPersisten
         target.setDepartment(source.getDepartment());
         target.setPosition(source.getPosition());
         target.setPhotoUrl(source.getPhotoUrl());
-        target.setCardStatus(source.getCardStatus());
     }
 
     @Override

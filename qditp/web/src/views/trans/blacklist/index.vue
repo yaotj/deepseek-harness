@@ -43,6 +43,9 @@
       <el-col :span="1.5">
         <el-button type="warning" plain icon="Download" :disabled="!blacklist.length" @click="handleExport">导出 Excel</el-button>
       </el-col>
+      <el-col :span="1.5">
+        <el-button type="primary" icon="Clock" @click="handleAsyncExport">后台全量导出</el-button>
+      </el-col>
     </el-row>
 
     <el-alert type="info" :closable="false" show-icon class="mb8">
@@ -170,6 +173,7 @@ import {
 import { defaultTodayRange } from '@/utils/dateRange'
 import { exportToExcel } from '@/utils/excelExport'
 import { parseTime } from '@/utils/points'
+import { submitAsyncExportTask } from '@/api/monitor/asyncExport'
 import useUserStore from '@/store/modules/user'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
@@ -368,6 +372,25 @@ function handleCompensate(direction) {
 
 function showFailReason(row) {
   proxy.$modal.msgError(`卡ID ${row.cardId} 最近一次通知失败原因：${row.channelSyncFailReason}`)
+}
+
+/** 提交后台异步全量导出任务（每日凌晨 2 点统一执行）。 */
+function handleAsyncExport() {
+  const { dateRange, pageNum, pageSize, ...rest } = queryParams
+  const data = {
+    taskCode: 'BLACKLIST',
+    taskName: '黑名单全量导出',
+    paramJson: JSON.stringify({
+      ...rest,
+      createTimeBegin: dateRange?.[0],
+      createTimeEnd: dateRange?.[1]
+    })
+  }
+  submitAsyncExportTask(data).then((response) => {
+    proxy.$modal.msgSuccess(response.msg || '提交成功，请前往「系统监控-异步导出任务」查看')
+  }).catch((error) => {
+    proxy.$modal.msgError(error.message || '提交失败')
+  })
 }
 
 /** 导出黑名单「当前页」已加载的数据。 */

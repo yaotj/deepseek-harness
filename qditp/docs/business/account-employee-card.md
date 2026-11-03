@@ -283,6 +283,7 @@
 - `docs/接口规范文档/青岛地铁电子员工卡接口技术规格说明书22.docx`
 - `docs/接口规范文档/青岛地铁电子员工卡接口描述.docx`
 - `docs/接口规范文档/青岛地铁-ITP与APP接口规范R6.docx`（IF8A-01/23/24/25/77、if8a_76 表117/118）
+- **电子员工卡接口规格（需求说明书 V2.0 Markdown 归档）**：`docs/business/employee-card-interface-spec.md`
 - 领域决策与实测记录：`docs/domain/decisions.md` ADR-D2 / D3 / D4 / D8 / D12 / **D13**（异常工单）/ **D14**（员工码挂接）/ **D15**（支付宝两套实现收口）
 - 支付宝渠道全貌：`docs/business/alipay-channel.md`
 

@@ -15,6 +15,7 @@
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
         <el-button type="warning" icon="Download" :disabled="users.length === 0" @click="handleExport">导出 Excel</el-button>
+        <el-button type="primary" icon="Clock" @click="handleAsyncExport">后台全量导出</el-button>
       </el-form-item>
     </el-form>
 
@@ -50,6 +51,7 @@ import { formatCodeLabel } from '@/utils/codeLabel'
 import { cardTypeLabel } from '@/utils/cardType'
 import { exportToExcel } from '@/utils/excelExport'
 import { parseTime } from '@/utils/points'
+import { submitAsyncExportTask } from '@/api/monitor/asyncExport'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
@@ -112,6 +114,21 @@ function openDebitDetail(row) {
 
 function openRideStatus(row) {
   router.push({ path: '/trans/user-detail/ride-status', query: { cardId: row.cardId, thirdUserId: row.thirdUserId } })
+}
+
+/** 提交后台异步全量导出任务（每日凌晨 2 点统一执行）。 */
+function handleAsyncExport() {
+  const { pageNum, pageSize, ...rest } = queryParams
+  const data = {
+    taskCode: 'ALIPAY_USER',
+    taskName: '支付宝用户全量导出',
+    paramJson: JSON.stringify(rest)
+  }
+  submitAsyncExportTask(data).then((response) => {
+    proxy.$modal.msgSuccess(response.msg || '提交成功，请前往「系统监控-异步导出任务」查看')
+  }).catch((error) => {
+    proxy.$modal.msgError(error.message || '提交失败')
+  })
 }
 
 function handleExport() {

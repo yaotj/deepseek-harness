@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-logs-v2
+  namespace: itp
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: apigateway2
+  resources:
+    requests:
+      storage: 5Gi

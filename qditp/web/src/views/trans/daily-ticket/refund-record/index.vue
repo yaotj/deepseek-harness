@@ -34,6 +34,7 @@
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
         <el-button icon="Back" @click="backToOrders">退款处理</el-button>
         <el-button type="warning" icon="Download" :disabled="!refundList.length" @click="handleExport">导出 Excel</el-button>
+        <el-button type="primary" icon="Clock" @click="handleAsyncExport">后台全量导出</el-button>
       </el-form-item>
     </el-form>
 
@@ -71,6 +72,7 @@ import { listDailyTicketRefundRecords, queryDailyTicketRefund, retryDailyTicketR
 import { defaultTodayRange } from '@/utils/dateRange'
 import { exportToExcel } from '@/utils/excelExport'
 import { parseTime } from '@/utils/points'
+import { submitAsyncExportTask } from '@/api/monitor/asyncExport'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
@@ -145,6 +147,25 @@ function backToOrders() { router.push('/trans/daily-ticket/refund') }
 function formatAmount(value) { return value == null ? '-' : `¥ ${(Number(value) / 100).toFixed(2)}` }
 function formatRefundStatus(value) { return ({ REFUNDING: '退款处理中', REFUNDED: '退款完成', FAILED: '退款失败', WAIT_VERIFY: '待核验' })[value] || value || '-' }
 function refundStatusType(value) { return ({ REFUNDED: 'success', FAILED: 'danger', WAIT_VERIFY: 'warning', REFUNDING: 'warning' })[value] || 'info' }
+
+/** 提交后台异步全量导出任务（每日凌晨 2 点统一执行）。 */
+function handleAsyncExport() {
+  const { dateRange, pageNum, pageSize, ...rest } = queryParams
+  const data = {
+    taskCode: 'DAILY_TICKET_REFUND_RECORD',
+    taskName: '日票退款记录全量导出',
+    paramJson: JSON.stringify({
+      ...rest,
+      beginTime: dateRange?.[0],
+      endTime: dateRange?.[1]
+    })
+  }
+  submitAsyncExportTask(data).then((response) => {
+    proxy.$modal.msgSuccess(response.msg || '提交成功，请前往「系统监控-异步导出任务」查看')
+  }).catch((error) => {
+    proxy.$modal.msgError(error.message || '提交失败')
+  })
+}
 
 /** 导出日票退款记录「当前页」。 */
 function handleExport() {

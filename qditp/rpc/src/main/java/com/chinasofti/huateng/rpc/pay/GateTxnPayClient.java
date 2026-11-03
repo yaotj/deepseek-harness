@@ -1,6 +1,7 @@
 package com.chinasofti.huateng.rpc.pay;
 
 import cn.hutool.core.lang.TypeReference;
+import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.chinasofti.huateng.common.response.CommonResult;
 import com.chinasofti.huateng.micro.web.client.ProxyWebClient;
@@ -21,13 +22,17 @@ import com.chinasofti.huateng.model.pay.GateTxnPayListDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayReqDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayRespDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPaySyncStatusReqDTO;
+import com.chinasofti.huateng.model.pay.OfflineCodeStatExportDTO;
+import com.chinasofti.huateng.model.pay.OvertimeRefundableExportDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.util.List;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -259,5 +264,53 @@ public class GateTxnPayClient extends ProxyWebClient {
                 Collections.emptyMap(), headers);
         return JSONUtil.toBean(result, new TypeReference<CommonResult>() {
         }, true);
+    }
+
+    /**
+     * 分页查询超时罚金可退款订单（供异步导出使用）。
+     */
+    public List<OvertimeRefundableExportDTO> listOvertimeRefundable(String stationCode,
+            String startDate, String endDate) {
+        Map<String, String> params = new HashMap<>();
+        putIfNotEmpty(params, "stationCode", stationCode);
+        putIfNotEmpty(params, "startDate", startDate);
+        putIfNotEmpty(params, "endDate", endDate);
+        int pageSize = 1000;
+        int pageNum = 1;
+        List<OvertimeRefundableExportDTO> all = new ArrayList<>();
+        while (true) {
+            params.put("pageNum", String.valueOf(pageNum));
+            params.put("pageSize", String.valueOf(pageSize));
+            String result = getAndGetResponse("/page/gate-txn-pay/overtime-refundable", params, new HashMap<>());
+            JSONObject data = JSONUtil.parseObj(result).getJSONObject("data");
+            List<OvertimeRefundableExportDTO> page = data.getBeanList("list", OvertimeRefundableExportDTO.class);
+            if (page == null || page.isEmpty()) {
+                break;
+            }
+            all.addAll(page);
+            if (page.size() < pageSize) {
+                break;
+            }
+            pageNum++;
+        }
+        return all;
+    }
+
+    /**
+     * 查询离线码交易统计（供异步导出使用）。
+     */
+    public List<OfflineCodeStatExportDTO> listOfflineCodeStats(String startDate, String endDate) {
+        Map<String, String> params = new HashMap<>();
+        putIfNotEmpty(params, "startDate", startDate);
+        putIfNotEmpty(params, "endDate", endDate);
+        String result = getAndGetResponse("/page/gate-txn-pay/offline-stats", params, new HashMap<>());
+        JSONObject data = JSONUtil.parseObj(result).getJSONObject("data");
+        return data.getBeanList("list", OfflineCodeStatExportDTO.class);
+    }
+
+    private void putIfNotEmpty(Map<String, String> params, String key, String value) {
+        if (value != null && !value.isEmpty()) {
+            params.put(key, value);
+        }
     }
 }

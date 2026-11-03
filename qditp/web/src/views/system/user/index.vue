@@ -28,12 +28,6 @@
                   <el-option v-for="dict in sys_normal_disable" :key="dict.value" :label="dict.label" :value="dict.value" />
                 </el-select>
               </el-form-item>
-              <el-form-item label="卡号状态" prop="cardStatus">
-                <el-select v-model="queryParams.cardStatus" placeholder="卡号状态" clearable style="width: 240px">
-                  <el-option label="有效" value="0" />
-                  <el-option label="失效" value="1" />
-                </el-select>
-              </el-form-item>
               <el-form-item label="创建时间" style="width: 308px">
                 <el-date-picker v-model="dateRange" value-format="YYYY-MM-DD" type="daterange" range-separator="-" start-placeholder="开始日期" end-placeholder="结束日期"></el-date-picker>
               </el-form-item>
@@ -77,27 +71,6 @@
                     inactive-value="1"
                     @change="handleStatusChange(scope.row)"
                   ></el-switch>
-                </template>
-              </el-table-column>
-              <el-table-column label="卡号状态" align="center" key="cardStatus" v-if="columns.cardStatus.visible">
-                <template #default="scope">
-                  <el-tag :type="scope.row.cardStatus === '0' ? 'success' : 'danger'">
-                    {{ scope.row.cardStatus === '0' ? '有效' : '失效' }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="待扣费订单" align="center" key="unpaidCount" v-if="columns.unpaidCount.visible" width="120">
-                <template #default="scope">
-                  <el-tag :type="scope.row.unpaidCount > 0 ? 'warning' : 'info'" size="small">
-                    {{ scope.row.unpaidCount || 0 }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="扣费失败订单" align="center" key="failCount" v-if="columns.failCount.visible" width="140">
-                <template #default="scope">
-                  <el-tag :type="scope.row.failCount > 0 ? 'danger' : 'info'" size="small">
-                    {{ scope.row.failCount || 0 }}
-                  </el-tag>
                 </template>
               </el-table-column>
               <el-table-column label="创建时间" align="center" prop="createTime" v-if="columns.createTime.visible" width="160">
@@ -265,7 +238,6 @@ import { getToken } from "@/utils/auth"
 import useAppStore from '@/store/modules/app'
 import { changeUserStatus, listUser, resetUserPwd, delUser, getUser, updateUser, addUser, deptTreeSelect } from "@/api/system/user"
 import { Splitpanes, Pane } from "splitpanes"
-import { requestUserAccInfo } from "@/api/system/user"
 import "splitpanes/dist/splitpanes.css"
 import { defaultTodayRange } from '@/utils/dateRange'
 import PasswordStrength from '@/components/PasswordStrength'
@@ -318,9 +290,6 @@ const columns = ref({
   deptName: { label: '部门', visible: true },
   phonenumber: { label: '手机号码', visible: true },
   status: { label: '状态', visible: true },
-  cardStatus: { label: '卡号状态', visible: true },
-  unpaidCount: { label: '待扣费订单', visible: true },
-  failCount: { label: '扣费失败订单', visible: true },
   createTime: { label: '创建时间', visible: true }
 })
 
@@ -332,7 +301,6 @@ const data = reactive({
     userName: undefined,
     phonenumber: undefined,
     status: undefined,
-    cardStatus: undefined,
     deptId: undefined
   },
   rules: {
@@ -358,30 +326,12 @@ watch(deptName, val => {
 })
 
 /** 查询用户列表 */
-/** 加载用户扣费信息 */
-function loadUserAccInfo(userId) {
-  if (!userId) return Promise.resolve({ unpaidCount: 0, failCount: 0 })
-  return requestUserAccInfo({ thirdUserId: userId, startDate: formatDate(new Date(), 'yyyyMMdd') })
-    .then(res => ({
-      unpaidCount: res.unpaidCount || 0,
-      failCount: res.failCount || 0
-    }))
-    .catch(() => ({ unpaidCount: 0, failCount: 0 }))
-}
-
 function getList() {
   loading.value = true
   listUser(proxy.addDateRange(queryParams.value, dateRange.value)).then(res => {
     loading.value = false
     userList.value = res.rows
     total.value = res.total
-    // 批量加载用户扣费信息
-    const promises = userList.value.map(user => 
-      loadUserAccInfo(user.userId).then(info => {
-        Object.assign(user, info)
-      })
-    )
-    Promise.all(promises)
   })
 }
 
@@ -415,16 +365,6 @@ function handleNodeClick(data) {
 /** 搜索按钮操作 */
 function handleQuery() {
   queryParams.value.pageNum = 1
- 
-  getList().then(() => {
-    // 批量加载用户扣费信息
-    const promises = userList.value.map(user => 
-      loadUserAccInfo(user.userId).then(info => {
-        Object.assign(user, info)
-      })
-    )
-    Promise.all(promises)
-  })
   getList()
 }
 
@@ -443,17 +383,7 @@ function handleDelete(row) {
   proxy.$modal.confirm('是否确认删除用户编号为"' + userIds + '"的数据项？').then(function () {
     return delUser(userIds)
   }).then(() => {
-   
-  getList().then(() => {
-    // 批量加载用户扣费信息
-    const promises = userList.value.map(user => 
-      loadUserAccInfo(user.userId).then(info => {
-        Object.assign(user, info)
-      })
-    )
-    Promise.all(promises)
-  })
-  getList()
+    getList()
     proxy.$modal.msgSuccess("删除成功")
   }).catch(() => {})
 }
@@ -579,16 +509,6 @@ const handleFileSuccess = (response, file, fileList) => {
   upload.isUploading = false
   proxy.$refs["uploadRef"].handleRemove(file)
   proxy.$alert("<div style='overflow: auto;overflow-x: hidden;max-height: 70vh;padding: 10px 20px 0;'>" + response.msg + "</div>", "导入结果", { dangerouslyUseHTMLString: true })
- 
-  getList().then(() => {
-    // 批量加载用户扣费信息
-    const promises = userList.value.map(user => 
-      loadUserAccInfo(user.userId).then(info => {
-        Object.assign(user, info)
-      })
-    )
-    Promise.all(promises)
-  })
   getList()
 }
 
@@ -663,33 +583,13 @@ function submitForm() {
         updateUser(form.value).then(response => {
           proxy.$modal.msgSuccess("修改成功")
           open.value = false
-         
-  getList().then(() => {
-    // 批量加载用户扣费信息
-    const promises = userList.value.map(user => 
-      loadUserAccInfo(user.userId).then(info => {
-        Object.assign(user, info)
-      })
-    )
-    Promise.all(promises)
-  })
-  getList()
+          getList()
         })
       } else {
         addUser(form.value).then(response => {
           proxy.$modal.msgSuccess("新增成功")
           open.value = false
-         
-  getList().then(() => {
-    // 批量加载用户扣费信息
-    const promises = userList.value.map(user => 
-      loadUserAccInfo(user.userId).then(info => {
-        Object.assign(user, info)
-      })
-    )
-    Promise.all(promises)
-  })
-  getList()
+          getList()
         })
       }
     }
@@ -698,16 +598,6 @@ function submitForm() {
 
 onMounted(() => {
   getDeptTree()
- 
-  getList().then(() => {
-    // 批量加载用户扣费信息
-    const promises = userList.value.map(user => 
-      loadUserAccInfo(user.userId).then(info => {
-        Object.assign(user, info)
-      })
-    )
-    Promise.all(promises)
-  })
   getList()
   proxy.getConfigKey("sys.user.initPassword").then(response => {
     initPassword.value = response.msg

@@ -48,11 +48,11 @@ spec:
           value: '0'
         - name: spring.autoconfigure.exclude
           value: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration
-        - name: employee-card.format
+        - name: EMPLOYEE_CARD_FORMAT
           value: json
         - name: itp.format
           value: json
-        - name: employee-card.read-timeout-ms
+        - name: EMPLOYEE_CARD_READ_TIMEOUT_MS
           value: '10000'
         - name: other.sql.double-datasource
           value: 'false'
@@ -80,9 +80,9 @@ spec:
           value: '10'
         - name: service.ticket.openLogger
           value: 'true'
-        - name: employee-card.acc-query-url
+        - name: EMPLOYEE_CARD_ACC_QUERY_URL
           value: http://172.20.211.11:32605/api/v1/employee_card/query
-        - name: employee-card.provider-id
+        - name: EMPLOYEE_CARD_PROVIDER_ID
           value: '06'
         - name: other.web.enableLogTakeTimesInInterceptor
           value: 'true'
@@ -102,15 +102,15 @@ spec:
           value: account
         - name: itp.signKey
           value: bc4f7c96259acf9946094fa
-        - name: employee-card.device-id
+        - name: EMPLOYEE_CARD_DEVICE_ID
           value: ITP
         - name: service.gateTxnPay.url
           value: http://gate-txn-pay-server-jomf4-svc.itp.svc:30019
         - name: account.card-pool.batch-size
           value: '20'
-        - name: employee-card.app-register-url
+        - name: EMPLOYEE_CARD_APP_REGISTER_URL
           value: https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/employeeCardSync
-        - name: employee-card.connect-timeout-ms
+        - name: EMPLOYEE_CARD_CONNECT_TIMEOUT_MS
           value: '3000'
         - name: service.cardPool.url
           value: ${CARD_POOL_URL:http://card-pool-server-86mc1-svc.itp.svc:30033}
@@ -118,7 +118,7 @@ spec:
           value: oracle
         - name: other.web.unSafeUrlChars
           value: 'null'
-        - name: employee-card.sign-type
+        - name: EMPLOYEE_CARD_SIGN_TYPE
           value: '00'
         - name: other.sql.password
           value: qditp
@@ -138,11 +138,11 @@ spec:
           value: AFCITPDB
         - name: other.sql.type
           value: oracle
-        - name: employee-card.charset
+        - name: EMPLOYEE_CARD_CHARSET
           value: UTF-8
         - name: service.paySign.openLogger
           value: 'true'
-        - name: employee-card.app-batch-size
+        - name: EMPLOYEE_CARD_APP_BATCH_SIZE
           value: '200'
         - name: SERVICE_NAME
           value: account

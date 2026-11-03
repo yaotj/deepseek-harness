@@ -15,6 +15,7 @@ import com.chinasofti.huateng.model.app.RequestApplicationReqDTO;
 import com.chinasofti.huateng.model.app.RequestApplicationResult;
 import com.chinasofti.huateng.model.app.RequestRemovePayChannelReqDTO;
 import com.chinasofti.huateng.model.app.RequestRemovePayChannelResult;
+import com.chinasofti.huateng.model.app.RegStatExportDTO;
 import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelReqDTO;
 import com.chinasofti.huateng.model.app.RequestSetDefaultPayChannelResult;
 import com.chinasofti.huateng.model.app.RequestUpdateChannelDefaultContractReqDTO;
@@ -41,6 +42,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.reactive.function.client.WebClient;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * @date 2026/5/13 11:01。
@@ -232,4 +237,18 @@ public class AccountClient extends ProxyWebClient {
         return response;
     }
 
+    /**
+     * 查询注册量统计（供异步导出使用）。
+     */
+    public List<RegStatExportDTO> listRegStats(String startDate, String endDate) {
+        Map<String, String> params = new HashMap<>();
+        if (startDate != null && !startDate.isEmpty()) {
+            params.put("startDate", startDate);
+        }
+        if (endDate != null && !endDate.isEmpty()) {
+            params.put("endDate", endDate);
+        }
+        String result = getAndGetResponse("/page/user/itp/reg-stats", params, new HashMap<>());
+        return JSONUtil.parseObj(result).getBeanList("data", RegStatExportDTO.class);
+    }
 }

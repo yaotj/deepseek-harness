@@ -80,6 +80,10 @@ spec:
           value: 'true'
         - name: service.account.url
           value: http://account-n4ba6-svc.itp.svc:9098
+        - name: service.alipayAccount.url
+          value: http://alipay-account-server-internal.itp.svc:8080
+        - name: service.accSimulator.url
+          value: http://employee-card-acc-simulator-internal.itp.svc:8080
         - name: points.profile
           value: /points/uploadPath
         - name: spring.datasource.druid.connectTimeout
@@ -218,7 +222,7 @@ spec:
           value: http://recon-server-bjzdy-svc.itp.svc:30034
         - name: F2F_SERVICE_URL
           value: http://face-pay-server-svc.itp.svc:30025
-        image: os-harbor-svc.default.svc.cloudos:443/itp/web-admin:1.1.52
+        image: os-harbor-svc.default.svc.cloudos:443/itp/web-admin:1.1.55
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: web-admin

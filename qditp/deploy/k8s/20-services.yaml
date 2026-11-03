@@ -16,17 +16,21 @@ spec:
     app: route-sentinel
   type: ClusterIP
 
+# ============================================================================
 # 集群内网 Service（<app>-internal）：服务间调用专用，port/targetPort 统一 8080
-# 与平台生成的 NodePort Service（<app>-<5位后缀>-svc，对外/联调在用）并存，互不影响
-# 背景：平台给各应用注入 server.port/SERVER_PORT/CARD_POOL_PORT=9xxx 导致与 targetPort 8080 错配，
-#       统一 8080 后服务间调用一律走 http://<app>-internal.itp.svc:8080（见 docs/tracking/IT-035-*.md）
+#   - 与平台生成的 NodePort Service（<app>-<5位后缀>-svc，对外/联调在用）并存，互不影响
+#   - 这 23 个对象已由云管台纳管（POST /api/cloud/app-mgmt/v1.0/apps/{uuid}/service），
+#     平台是它们运行态的真源；本文件仅作基线快照 / 应急重建用，手工 apply 出的对象
+#     不会被平台认领（重装应用时会丢），MUST 走平台接口创建
+#   - 背景：平台给各应用注入 server.port/SERVER_PORT/CARD_POOL_PORT=9xxx 导致与 targetPort
+#     8080 错配 → 详见 docs/tracking/IT-035-平台端口变量与应用监听口径错配致批量503.md
+# ============================================================================
 ---
 apiVersion: v1
 kind: Service
 metadata:
   labels:
     app: account
-    itp-role: internal
   name: account-internal
   namespace: itp
 spec:
@@ -44,7 +48,6 @@ kind: Service
 metadata:
   labels:
     app: alipay-account-server
-    itp-role: internal
   name: alipay-account-server-internal
   namespace: itp
 spec:
@@ -62,7 +65,6 @@ kind: Service
 metadata:
   labels:
     app: alipay-pay-sign-server
-    itp-role: internal
   name: alipay-pay-sign-server-internal
   namespace: itp
 spec:
@@ -80,7 +82,6 @@ kind: Service
 metadata:
   labels:
     app: blacklist-server
-    itp-role: internal
   name: blacklist-server-internal
   namespace: itp
 spec:
@@ -98,7 +99,6 @@ kind: Service
 metadata:
   labels:
     app: card-pool-server
-    itp-role: internal
   name: card-pool-server-internal
   namespace: itp
 spec:
@@ -116,7 +116,6 @@ kind: Service
 metadata:
   labels:
     app: collect-pay
-    itp-role: internal
   name: collect-pay-internal
   namespace: itp
 spec:
@@ -134,7 +133,6 @@ kind: Service
 metadata:
   labels:
     app: daily-ticket-server
-    itp-role: internal
   name: daily-ticket-server-internal
   namespace: itp
 spec:
@@ -152,7 +150,6 @@ kind: Service
 metadata:
   labels:
     app: es-server
-    itp-role: internal
   name: es-server-internal
   namespace: itp
 spec:
@@ -170,7 +167,6 @@ kind: Service
 metadata:
   labels:
     app: face-pay-server
-    itp-role: internal
   name: face-pay-server-internal
   namespace: itp
 spec:
@@ -188,7 +184,6 @@ kind: Service
 metadata:
   labels:
     app: fep-acc
-    itp-role: internal
   name: fep-acc-internal
   namespace: itp
 spec:
@@ -206,7 +201,6 @@ kind: Service
 metadata:
   labels:
     app: fep-alipay
-    itp-role: internal
   name: fep-alipay-internal
   namespace: itp
 spec:
@@ -224,7 +218,6 @@ kind: Service
 metadata:
   labels:
     app: fep-app
-    itp-role: internal
   name: fep-app-internal
   namespace: itp
 spec:
@@ -242,7 +235,6 @@ kind: Service
 metadata:
   labels:
     app: fep-dev-server
-    itp-role: internal
   name: fep-dev-server-internal
   namespace: itp
 spec:
@@ -260,7 +252,6 @@ kind: Service
 metadata:
   labels:
     app: gate-txn-pay-server
-    itp-role: internal
   name: gate-txn-pay-server-internal
   namespace: itp
 spec:
@@ -278,7 +269,6 @@ kind: Service
 metadata:
   labels:
     app: industry-data-server
-    itp-role: internal
   name: industry-data-server-internal
   namespace: itp
 spec:
@@ -296,7 +286,6 @@ kind: Service
 metadata:
   labels:
     app: key-server
-    itp-role: internal
   name: key-server-internal
   namespace: itp
 spec:
@@ -314,7 +303,6 @@ kind: Service
 metadata:
   labels:
     app: para-server
-    itp-role: internal
   name: para-server-internal
   namespace: itp
 spec:
@@ -332,7 +320,6 @@ kind: Service
 metadata:
   labels:
     app: pay-sign-server
-    itp-role: internal
   name: pay-sign-server-internal
   namespace: itp
 spec:
@@ -350,7 +337,6 @@ kind: Service
 metadata:
   labels:
     app: recon-server
-    itp-role: internal
   name: recon-server-internal
   namespace: itp
 spec:
@@ -368,7 +354,6 @@ kind: Service
 metadata:
   labels:
     app: security-server
-    itp-role: internal
   name: security-server-internal
   namespace: itp
 spec:
@@ -386,7 +371,6 @@ kind: Service
 metadata:
   labels:
     app: ticket-server
-    itp-role: internal
   name: ticket-server-internal
   namespace: itp
 spec:
@@ -404,7 +388,6 @@ kind: Service
 metadata:
   labels:
     app: trans-query
-    itp-role: internal
   name: trans-query-internal
   namespace: itp
 spec:
@@ -422,7 +405,6 @@ kind: Service
 metadata:
   labels:
     app: web-admin
-    itp-role: internal
   name: web-admin-internal
   namespace: itp
 spec:

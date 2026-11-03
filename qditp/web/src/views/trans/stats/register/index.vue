@@ -16,6 +16,7 @@
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
         <el-button type="warning" icon="Download" :disabled="statsList.length === 0" @click="handleExport">导出 Excel</el-button>
+        <el-button type="primary" icon="Clock" @click="handleAsyncExport">后台全量导出</el-button>
       </el-form-item>
     </el-form>
 
@@ -40,9 +41,11 @@
 
 <script setup name="RegStats">
 import * as echarts from 'echarts'
+import { ElMessage } from 'element-plus'
 import { listRegStats } from '@/api/trans/regStats'
 import { defaultTodayRange } from '@/utils/dateRange'
 import { exportToExcel } from '@/utils/excelExport'
+import { submitAsyncExportTask } from '@/api/monitor/asyncExport'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYY-MM-DD'
@@ -100,6 +103,23 @@ function handleQuery() {
 function resetQuery() {
   dateRange.value = defaultTodayRange(DATE_FORMAT)
   getList()
+}
+
+/** 提交后台异步全量导出任务（每日凌晨 2 点统一执行）。 */
+function handleAsyncExport() {
+  const data = {
+    taskCode: 'REG_STAT',
+    taskName: '注册量统计全量导出',
+    paramJson: JSON.stringify({
+      startDate: dateRange.value?.[0],
+      endDate: dateRange.value?.[1]
+    })
+  }
+  submitAsyncExportTask(data).then((response) => {
+    ElMessage.success(response.msg || '提交成功，请前往「系统监控-异步导出任务」查看')
+  }).catch((error) => {
+    ElMessage.error(error.message || '提交失败')
+  })
 }
 
 function handleExport() {

@@ -149,7 +149,7 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
             return result;
         }
 
-        if (!StringUtils.hasText(card.getEmployeeName())) {
+        if (!StringUtils.hasText(card.getEmployeeName()) && !EmployeeCardStatus.CANCELED.is(card.getCardStatus())) {
             EmployeeCardInfoDTO accCard = employeeCardOutboundService.queryFromAcc(request.getCardNo());
             if (accCard != null) {
                 employeeCardPersistenceService.refreshProfileFromAcc(card, accCard);
@@ -193,7 +193,7 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
         if (employeeCard == null) {
             return failure(result, AccountErrorCodeEnum.NO_ACCOUNT_CARD.getCode(), "员工码信息不存在");
         }
-        if (request.getActionFlag() == 1 && !EmployeeCardStatus.NOT_ENABLED.is(employeeCard.getCardStatus())) {
+        if (request.getActionFlag() == 1 && !EmployeeCardStatus.activatableFrom(employeeCard.getCardStatus())) {
             return failure(result, AccountErrorCodeEnum.EMPLOYEE_CARD_STATUS_NOT_ALLOWED.getCode(), "电子卡当前状态不允许激活操作");
         }
         if (request.getActionFlag() == 0 && !EmployeeCardStatus.NORMAL.is(employeeCard.getCardStatus())) {

@@ -45,8 +45,10 @@
   - 直打 `POST https://dtcustomer.bestonepay.com/testngbackV2/ci/app/v2/employeeCardSync` 拿到原始应答：`retCode=0001` + `failList[{cardNo, phone, reason}]`，HTTP 200、约 0.46s；
   - 三发对照：① phone `12345678901` + cardNo `3299990001` → `数据操作失败`；② **新手机号 `13900001111`** + cardNo `3299990002` → **`手机号未注册`**（证明 APP 侧有「手机号必须已注册 APP」的前置校验）；③ phone `12345678901` + **新 cardNo `3299990003`** → 仍 `数据操作失败`——**失败归属手机号维度**：该号在 APP 侧已注册但数据处理失败（疑似已绑定过员工卡或账号状态异常），与 cardNo 是否重复无关。
   - 结论：联调阻塞转化为一个明确的造数要求——**需要 APP 测试环境「已注册且未绑定员工卡」的测试手机号**；`12345678901` 需 APP 侧查其账号/绑卡状态。
+- **2026-11-02 16:35 ACC 改正后全通（真实链路，闭环）**：ACC 把 `cardStatus` 由 `1` 改为 `3` 重推——① 16:35 notify（cardNo `13045027231`）→ `0000`，主表 insert 1 行 + 日志 `OPEN`/`3`（traceId `96495f9286aa89f57d7fb1295d182a4b`）；② 16:35 update_notify 同卡（资料为空串）→ `0000`，主表 UPDATE 1 行 + 日志 `CHANGE`/`3`（traceId `1b318a1a291aa85a34873cece374d15d`）；③ 16:36 notify（cardNo `13111111111`、`cardStatus=3`）→ `0000` + 落库（traceId `5600040b27d6e489c76baf63d12cd2b1`）。**「开卡首推 MUST 为 `cardStatus=3`」经真实 ACC 数据证实**，推 `1` 会被 APP 以「未发放电子员工卡」拒绝（16:20 样本）。
 - 回滚预案：env 回退原值即可（原值本就不通，回滚无劣化）。
 - **2026-11-02 14:45 闭环验证（通过）**：手机号换成 APP 已注册的 `19037529560` 后——直打 APP 接口返 `{"retCode":"0000","retMsg":"成功"}`；再模拟 ACC 经 Kong 全链路推 notify（cardNo `3299990011`、cardStatus=3、全资料），account 侧 traceId `450bd3c16a54c156de0f0ca9037e547c` 证据链完整：select 主表 0 行 → `insert into USER_ACC_EMPLOYEE_CARD` fetchRowCount=1 → `insert into USER_ACC_EMPLOYEE_CARD_LOG`（`OPEN` / `'3'` / `员工码开通成功`）→ 应答 `{"retCode":"0000","retMsg":"员工码状态通知处理成功","failList":[]}`。**Test_010 前半段（ACC 推送开卡 → ITP 落库）通过**；后半段（APP 激活 → 展码过闸）待续。
+- **2026-11-02 16:20 新增样本（第三方原因待对齐）**：ACC 再推 notify（cardNo=`phone`=`13045027231`、`cardStatus=1`、仅三字段，traceId `df90c827f367d4a38eb89f5b2c983830`）→ `9999`，reason=**`未发放电子员工卡`**（APP 侧新语义，全仓库零命中）。对照探测结论：该手机号在 APP 已注册（否则报 `手机号未注册`），但 APP 侧无该员工的电子卡发放记录——**印证「开卡应先推 `cardStatus=3` 发放/待激活，推 `1`（启用）会被拒」**；ITP 侧按 fail-fast 写 `USER_ACC_EMPLOYEE_CARD_LOG`（`OPEN`/`1`/未发放电子员工卡）后返回，行为正确。
 
 ## 6. 流程符合度自评
 

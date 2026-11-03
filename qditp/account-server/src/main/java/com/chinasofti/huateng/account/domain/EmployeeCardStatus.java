@@ -42,6 +42,17 @@ public enum EmployeeCardStatus {
     }
 
     /**
+     * 是否允许作为「激活 / 启用」（APP {@code actionFlag=1}）的前置状态。
+     *
+     * <p>白名单只有两条边：{@code 3 未激活 → 1 启用}（首次激活）、
+     * {@code 2 禁用 → 1 启用}（停用后重新启用，见 IT-044）。
+     * {@code 1}（已启用）与 {@code 4}（注销终态）一律拒绝。**NEVER 改成「非终态即可」**。</p>
+     */
+    public static boolean activatableFrom(Integer status) {
+        return NOT_ENABLED.is(status) || DISABLED.is(status);
+    }
+
+    /**
      * 编码是否在四个已知取值内。
      */
     public static boolean isKnownCode(Integer status) {

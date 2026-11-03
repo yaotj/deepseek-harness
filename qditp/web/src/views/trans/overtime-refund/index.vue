@@ -56,6 +56,7 @@
       </div>
       <span class="total-tip">共圈出 {{ total }} 笔候选单</span>
       <el-button type="warning" icon="Download" :disabled="!orderList.length" @click="handleExport">导出 Excel</el-button>
+      <el-button type="primary" icon="Clock" @click="handleAsyncExport">后台全量导出</el-button>
     </el-row>
 
     <el-table
@@ -123,6 +124,7 @@
 <script setup name="OvertimeRefund">
 import { listOvertimeRefundable, batchRefundOvertime } from '@/api/trans/overtimeRefund'
 import { listStationInfo } from '@/api/para/station'
+import { submitAsyncExportTask } from '@/api/monitor/asyncExport'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { defaultTodayRange } from '@/utils/dateRange'
 import { exportToExcel } from '@/utils/excelExport'
@@ -221,6 +223,28 @@ function handleBatchRefund() {
       getList()
     }).finally(() => { refunding.value = false })
   }).catch(() => {})
+}
+
+/** 提交后台异步全量导出任务（每日凌晨 2 点统一执行）。 */
+function handleAsyncExport() {
+  if (!dateRange.value || dateRange.value.length !== 2) {
+    ElMessage.warning('请先选择交易日期范围')
+    return
+  }
+  const data = {
+    taskCode: 'OVERTIME_REFUNDABLE',
+    taskName: '超时罚金可退款订单全量导出',
+    paramJson: JSON.stringify({
+      stationCode: queryParams.stationCode,
+      startDate: dateRange.value[0],
+      endDate: dateRange.value[1]
+    })
+  }
+  submitAsyncExportTask(data).then((response) => {
+    proxy.$modal.msgSuccess(response.msg || '提交成功，请前往「系统监控-异步导出任务」查看')
+  }).catch((error) => {
+    proxy.$modal.msgError(error.message || '提交失败')
+  })
 }
 
 /** 导出超时罚金退款候选单「当前页」。 */

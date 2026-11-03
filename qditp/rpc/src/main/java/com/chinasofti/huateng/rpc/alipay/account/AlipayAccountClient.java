@@ -1,8 +1,10 @@
 package com.chinasofti.huateng.rpc.alipay.account;
 
 import cn.hutool.core.lang.TypeReference;
+import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.chinasofti.huateng.micro.web.client.ProxyWebClient;
+import com.chinasofti.huateng.model.alipay.AlipayUserExportDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestApplicationReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestApplicationRespDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayUserInfoDTO;
@@ -13,7 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -24,7 +28,7 @@ public class AlipayAccountClient extends ProxyWebClient {
 
     public static Logger log = LoggerFactory.getLogger(AlipayAccountClient.class);
 
-    public AlipayAccountClient(@Value("${service.alipayAccount.url:${service.account.url:http://127.0.0.1:9106}}") String baseUrl,
+    public AlipayAccountClient(@Value("${service.alipayAccount.url:http://alipay-account-server-internal.itp.svc:8080}") String baseUrl,
                                @Value("${service.alipayAccount.openLogger:${service.account.openLogger:true}}") boolean openLogger,
                                WebClient.Builder webClientBuilder) {
         super(baseUrl, openLogger, webClientBuilder);
@@ -117,5 +121,41 @@ public class AlipayAccountClient extends ProxyWebClient {
             return data != null && Boolean.parseBoolean(data.toString());
         }
         return Boolean.parseBoolean(result);
+    }
+
+    /**
+     * 分页查询支付宝用户（供异步导出使用）。
+     */
+    public List<AlipayUserExportDTO> searchAlipayUsers(String queryType, String keyword) {
+        Map<String, String> params = new HashMap<>();
+        if (queryType != null && !queryType.isEmpty()) {
+            params.put("queryType", queryType);
+        }
+        if (keyword != null && !keyword.isEmpty()) {
+            params.put("keyword", keyword);
+        }
+        int pageSize = 1000;
+        int pageNum = 1;
+        List<AlipayUserExportDTO> all = new ArrayList<>();
+        while (true) {
+            params.put("pageNum", String.valueOf(pageNum));
+            params.put("pageSize", String.valueOf(pageSize));
+            String result = getAndGetResponse("/page/user/alipay/search", params, new HashMap<>());
+            JSONObject data = JSONUtil.parseObj(result).getJSONObject("data");
+            if (data == null) {
+                log.warn("alipay-account /page/user/alipay/search 返回 data 为空，params={}", params);
+                break;
+            }
+            List<AlipayUserExportDTO> page = data.getBeanList("list", AlipayUserExportDTO.class);
+            if (page == null || page.isEmpty()) {
+                break;
+            }
+            all.addAll(page);
+            if (page.size() < pageSize) {
+                break;
+            }
+            pageNum++;
+        }
+        return all;
     }
 }

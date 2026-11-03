@@ -1,6 +1,7 @@
 package com.chinasofti.huateng.rpc.dailyticket;
 
 import cn.hutool.core.lang.TypeReference;
+import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.micro.web.client.ProxyWebClient;
@@ -8,6 +9,8 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketActivateReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketBaseResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketFreeOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketFreeOrderResult;
+import com.chinasofti.huateng.model.dailyticket.DailyTicketRefundOrderExportDTO;
+import com.chinasofti.huateng.model.dailyticket.DailyTicketRefundRecordExportDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderNoReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketOrderResult;
@@ -33,6 +36,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -415,5 +423,86 @@ public class DailyTicketClient extends ProxyWebClient {
         }, true);
         log.info("调用daily-ticket-server查询扣次明细接口解析返回 path={}, response={}", path, JSON.toJSONString(response));
         return response;
+    }
+
+    /**
+     * 分页查询日票 / 旅游票可退款订单（供异步导出使用）。
+     */
+    public List<DailyTicketRefundOrderExportDTO> listDailyTicketRefundOrders(
+            Date beginTime, Date endTime, String orderNo, String paymentOrderNo) {
+        Map<String, String> params = new HashMap<>();
+        putIfNotEmpty(params, "orderNo", orderNo);
+        putIfNotEmpty(params, "paymentOrderNo", paymentOrderNo);
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        if (beginTime != null) {
+            params.put("beginTime", sdf.format(beginTime));
+        }
+        if (endTime != null) {
+            params.put("endTime", sdf.format(endTime));
+        }
+        int pageSize = 1000;
+        int pageNum = 1;
+        List<DailyTicketRefundOrderExportDTO> all = new ArrayList<>();
+        while (true) {
+            params.put("pageNum", String.valueOf(pageNum));
+            params.put("pageSize", String.valueOf(pageSize));
+            String result = getAndGetResponse("/page/daily-ticket/refund/orders", params, new HashMap<>());
+            JSONObject data = JSONUtil.parseObj(result).getJSONObject("data");
+            List<DailyTicketRefundOrderExportDTO> page = data.getBeanList("list", DailyTicketRefundOrderExportDTO.class);
+            if (page == null || page.isEmpty()) {
+                break;
+            }
+            all.addAll(page);
+            if (page.size() < pageSize) {
+                break;
+            }
+            pageNum++;
+        }
+        return all;
+    }
+
+    /**
+     * 分页查询日票退款记录（供异步导出使用）。
+     */
+    public List<DailyTicketRefundRecordExportDTO> listDailyTicketRefundRecords(
+            Date beginTime, Date endTime, String orderNo, String paymentOrderNo,
+            String refundOrderNo, String refundStatus) {
+        Map<String, String> params = new HashMap<>();
+        putIfNotEmpty(params, "orderNo", orderNo);
+        putIfNotEmpty(params, "paymentOrderNo", paymentOrderNo);
+        putIfNotEmpty(params, "refundOrderNo", refundOrderNo);
+        putIfNotEmpty(params, "refundStatus", refundStatus);
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        if (beginTime != null) {
+            params.put("beginTime", sdf.format(beginTime));
+        }
+        if (endTime != null) {
+            params.put("endTime", sdf.format(endTime));
+        }
+        int pageSize = 1000;
+        int pageNum = 1;
+        List<DailyTicketRefundRecordExportDTO> all = new ArrayList<>();
+        while (true) {
+            params.put("pageNum", String.valueOf(pageNum));
+            params.put("pageSize", String.valueOf(pageSize));
+            String result = getAndGetResponse("/page/daily-ticket/refund/records", params, new HashMap<>());
+            JSONObject data = JSONUtil.parseObj(result).getJSONObject("data");
+            List<DailyTicketRefundRecordExportDTO> page = data.getBeanList("list", DailyTicketRefundRecordExportDTO.class);
+            if (page == null || page.isEmpty()) {
+                break;
+            }
+            all.addAll(page);
+            if (page.size() < pageSize) {
+                break;
+            }
+            pageNum++;
+        }
+        return all;
+    }
+
+    private void putIfNotEmpty(Map<String, String> params, String key, String value) {
+        if (value != null && !value.isEmpty()) {
+            params.put(key, value);
+        }
     }
 }

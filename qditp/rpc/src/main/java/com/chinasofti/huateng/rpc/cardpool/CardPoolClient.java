@@ -4,6 +4,7 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.chinasofti.huateng.micro.web.client.ProxyWebClient;
 import com.chinasofti.huateng.model.cardpool.CardPoolActionResult;
+import com.chinasofti.huateng.model.cardpool.CardPoolBatchExportDTO;
 import com.chinasofti.huateng.model.cardpool.CardPoolOutcome;
 import com.chinasofti.huateng.model.cardpool.CardPoolReservationActionReqDTO;
 import com.chinasofti.huateng.model.cardpool.CardPoolReservationReqDTO;
@@ -16,7 +17,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -170,5 +175,54 @@ public class CardPoolClient extends ProxyWebClient {
             return CardPoolActionResult.success();
         }
         return CardPoolActionResult.failure(CardPoolOutcome.REJECTED, json.getStr("msg"));
+    }
+
+    /**
+     * 分页查询卡池批次（供异步导出使用）。
+     */
+    public List<CardPoolBatchExportDTO> listCardPoolBatches(Long batchNo, String cardType,
+            String accTicketType, String source, String status,
+            LocalDateTime createTimeBegin, LocalDateTime createTimeEnd) {
+        Map<String, String> params = new HashMap<>();
+        if (batchNo != null) {
+            params.put("batchNo", String.valueOf(batchNo));
+        }
+        if (cardType != null && !cardType.isEmpty()) {
+            params.put("cardType", cardType);
+        }
+        if (accTicketType != null && !accTicketType.isEmpty()) {
+            params.put("accTicketType", accTicketType);
+        }
+        if (source != null && !source.isEmpty()) {
+            params.put("source", source);
+        }
+        if (status != null && !status.isEmpty()) {
+            params.put("status", status);
+        }
+        if (createTimeBegin != null) {
+            params.put("createTimeBegin", createTimeBegin.toString().replace('T', ' '));
+        }
+        if (createTimeEnd != null) {
+            params.put("createTimeEnd", createTimeEnd.toString().replace('T', ' '));
+        }
+        int pageSize = 1000;
+        int pageNum = 1;
+        List<CardPoolBatchExportDTO> all = new ArrayList<>();
+        while (true) {
+            params.put("pageNum", String.valueOf(pageNum));
+            params.put("pageSize", String.valueOf(pageSize));
+            String result = getAndGetResponse("/page/card-pools/batches", params, new HashMap<>());
+            JSONObject json = JSONUtil.parseObj(result);
+            List<CardPoolBatchExportDTO> page = json.getJSONObject("data").getBeanList("list", CardPoolBatchExportDTO.class);
+            if (page == null || page.isEmpty()) {
+                break;
+            }
+            all.addAll(page);
+            if (page.size() < pageSize) {
+                break;
+            }
+            pageNum++;
+        }
+        return all;
     }
 }

@@ -456,10 +456,33 @@ function getMenuAllCheckedKeys() {
   return checkedKeys
 }
 
+/**
+ * IT-001 把「权限字符 / 角色顺序」从新增角色界面移除，但后端 SysRole.roleKey(@NotBlank)
+ * 与 roleSort(@NotNull) 仍是必填：新增角色时 form 不含这两项会导致后端校验失败
+ * （"权限字符不能为空" / "显示顺序不能为空"）。此处于提交前按规则自动补齐，
+ * 不破坏 IT-001「界面不展示该字段」的意图。修改角色时 form 由后端回显已含这两项，自动跳过。
+ * 派生规则：roleKey 由角色名转小写 ASCII 串 + 时间戳后缀（保证唯一、通过 checkRoleKeyUnique）；
+ * roleSort 取当前列表长度 + 1（仅作展示顺序，后端无唯一约束）。
+ */
+function ensureHiddenRequiredFields() {
+  if (!form.value.roleKey) {
+    const slug = (form.value.roleName || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+    form.value.roleKey = (slug || "role") + "_" + Date.now().toString(36)
+  }
+  if (form.value.roleSort == null) {
+    form.value.roleSort = (roleList.value?.length || 0) + 1
+  }
+}
+
 /** 提交按钮 */
 function submitForm() {
   proxy.$refs["roleRef"].validate(valid => {
     if (valid) {
+      ensureHiddenRequiredFields()
       if (form.value.roleId != undefined) {
         form.value.menuIds = getMenuAllCheckedKeys()
         updateRole(form.value).then(response => {
