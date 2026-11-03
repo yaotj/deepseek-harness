@@ -49,10 +49,11 @@
     - 因 CloudOS `advanced-config` 对 route-sentinel  initially 返回 `application.5000010`，补全 `service_name/affinity/pvcResource/resources` 后 PATCH 成功；Pod imageID 与推送 digest 一致。
     - `deploy/k8s/30-istio-ingress.yaml` 已 server-side apply，`fep-app-vr` 现 13 条路由（5 exact + 8 prefix）。
     - 数据库 migration 已执行：`GATEWAY_ROUTE_CONFIG` 现 6 条路由（4 条分流 + 2 条兜底），`GATEWAY_ROUTE_CONFIG_AUDIT` 已加 `BEFORE_FILTERS`/`AFTER_FILTERS`。
-    - `curl /actuator/gatewayroutes` 确认 6 条路由；`curl` 打 5 条 URL 均到达旧 ITP（返回 Tomcat 404，属旧 ITP 业务层响应，RewritePath 已生效）。
+    - `curl /actuator/gatewayroutes` 确认 6 条路由；legacy 5 条 URL 均到达旧 ITP（BOM 返回真实业务码 `2001 非法设备`），RewritePath 已生效。
+    - 按用户最终反馈调整运行态路由：把 `face-pay-split-route-tvm` / `face-pay-split-route-bom` 的 URI 从占位地址改为 `http://face-pay-server-internal:8080`，filters 从 `RewritePath` 改为 `[]`（有用户走 `face-pay-server`，原路径不变）。
     - 上游网关（istio ingressgateway `10.100.192.240:50908`）全场景流量模拟（5 条 URL × 3 场景 = 15 次请求）：
-      - **legacy 用户 / 无 bizData**：`X-Route-Id` 均为 `legacy-route-tvm` / `legacy-route-bom`，HTTP 200/404/405 均属旧 ITP 业务层响应，且 BOM 请求返回 `{"retCode":"2001","retMsg":"非法设备"}`，证明已转发到 `172.20.202.10:8580` 且路径改写成 `.../bomDispatch/...`。
-      - **split 用户（thirdUserId 在 `USER_ITP_REG_INFO`）**：命中 `face-pay-split-route-tvm` / `face-pay-split-route-bom`，因下游现配为 `http://UNKNOWN-NEWSYSTEM:8080` 返回 HTTP 500；日志证实转发路径为 `/itptvm/ci/tvmDispatch/xxx` 与 `/itpbom/ci/bomDispatch/xxx`，RewritePath 生效。
+      - **legacy 用户 / 无 bizData**：`X-Route-Id` 均为 `legacy-route-tvm` / `legacy-route-bom`，命中旧 ITP；BOM 请求返回 `{"retCode":"2001","retMsg":"非法设备"}`，证明已转发到 `172.20.202.10:8580` 且路径改写成 `.../bomDispatch/...`。
+      - **split 用户（thirdUserId 在 `USER_ITP_REG_INFO`）**：命中 `face-pay-split-route-tvm` / `face-pay-split-route-bom`，转发到 `face-pay-server-internal:8080`，路径保持 `/itptvm/ci/tvm/xxx` / `/itpbom/ci/bom/xxx` 不变；TVM 返回 `2002 orderNo 不能为空`，BOM 返回 `8003 cardId 不能为空`，均为 `face-pay-server` 业务层校验，证明分流与透传正确。
 - 回滚预案：
   1. 数据库：执行 migration SQL 的逆操作——删除 4 条新路由，重新插入原 `legacy-route` / `face-pay-split-route`（如需要）。
   2. Ingress：`kubectl apply -f deploy/k8s/30-istio-ingress.yaml` 回退到上一版本（git）。

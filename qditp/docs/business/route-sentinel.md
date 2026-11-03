@@ -15,7 +15,7 @@
 
 1. 接收 `fep-app-vr`（Nginx 虚拟路由）转发的设备域 / APP 域订单支付请求；
 2. 按 `bizData.thirdUserId` 查 `USER_ITP_REG_INFO` 判定用户属性；
-3. 命中分流路径时，把**旧用户**继续路由到 `face-pay-server`（`legacy-route`），把**新用户**路由到新系统（`face-pay-split-route`，目标地址 D11 占位未填）。
+3. 命中分流路径时，把**旧用户（无记录）**路由到旧 ITP（`legacy-route-*`），把**新用户（有记录）**路由到 `face-pay-server`（`face-pay-split-route-*`）。
 
 **NEVER** 在本模块写业务规则、签名、事务或状态机；本模块无业务 Service，只有路由策略。
 
@@ -68,8 +68,8 @@ ORDER_NO    NUMBER        路由优先级
 |---|---|---|---|---|
 | `legacy-route-tvm` | 旧用户 TVM 请求走旧 ITP | `http://172.20.202.10:8180` | TVM 3 条 URL | `RewritePath=/itptvm/ci/tvm/(?<segment>.*),/itptvm/ci/tvmDispatch/${segment}` |
 | `legacy-route-bom` | 旧用户 BOM 请求走旧 ITP | `http://172.20.202.10:8580` | BOM 2 条 URL | `RewritePath=/itpbom/ci/bom/(?<segment>.*),/itpbom/ci/bomDispatch/${segment}` |
-| `face-pay-split-route-tvm` | 新用户 TVM 请求走新系统（D11 占位） | `http://UNKNOWN-NEWSYSTEM:8080` | TVM 3 条 URL | 同 legacy-route-tvm |
-| `face-pay-split-route-bom` | 新用户 BOM 请求走新系统（D11 占位） | `http://UNKNOWN-NEWSYSTEM:8080` | BOM 2 条 URL | 同 legacy-route-bom |
+| `face-pay-split-route-tvm` | 新用户 TVM 请求走 `face-pay-server` | `http://face-pay-server-internal:8080` | TVM 3 条 URL | `[]`（原路径不变） |
+| `face-pay-split-route-bom` | 新用户 BOM 请求走 `face-pay-server` | `http://face-pay-server-internal:8080` | BOM 2 条 URL | `[]`（原路径不变） |
 
 5 条 URL 覆盖（TVM 3 处 / BOM 2 处）：
 
@@ -81,7 +81,7 @@ ORDER_NO    NUMBER        路由优先级
 /itpbom/ci/bom/requestUpdateCardData
 ```
 
-转发给旧 ITP 时的路径重写：
+转发给旧 ITP 时的路径重写（split 路由原路径不变，不做重写）：
 
 | 原始 path | 转发后 path |
 |---|---|
@@ -189,7 +189,7 @@ DB_PASSWORD: <secret:itp-secrets/DB_PASSWORD>
    - 在 `GATEWAY_ROUTE_CONFIG` 的对应 `legacy-route-*` 与 `face-pay-split-route-*` 记录的 predicates 里补齐；
    - 若 face-pay 端也新增了对应 Controller，需同步核对接口契约。
 3. **改 `UserRouteService` 缓存 TTL / 大小时 MUST 评估**：旧用户首次请求会穿透 DB，QPS 高时可能打挂连接池（Hikari max=30）。
-4. **D11 新系统地址未填前，face-pay-split-route-* 的 URI 是占位符**——目前所有命中 split 的流量会打到无效地址，D11 拍板前不能让 `face-pay-split-route-*` 生效。
+4. **split 路由已指向 `face-pay-server-internal:8080` 并生效**；若后续需要切到其它新系统地址，通过 Actuator 改 `face-pay-split-route-*` 的 URI 并热重载。
 5. **route-sentinel 不验签、不改报文**；`sign` 原样透传（见 `docs/business/app-gateway.md` §报文契约）。
 6. **TraceId**：`TraceIdFilter` 给无 `X-Request-Id` 头的请求生成 UUID 并放入 MDC，向下游传递。排查链路时以该 header 为准。
 

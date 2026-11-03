@@ -21,9 +21,9 @@ INSERT INTO gateway_route_config (route_id, uri, predicates, filters, order_no) 
 INSERT INTO gateway_route_config (route_id, uri, predicates, filters, order_no) VALUES
     ('legacy-route-bom', 'http://127.0.0.1:9101', '["Path=/itpbom/ci/bom/requestCardDataAnalyse","Path=/itpbom/ci/bom/requestUpdateCardData"]', '["RewritePath=/itpbom/ci/bom/(?<segment>.*),/itpbom/ci/bomDispatch/${segment}"]', 1);
 INSERT INTO gateway_route_config (route_id, uri, predicates, filters, order_no) VALUES
-    ('face-pay-split-route-tvm', 'http://127.0.0.1:9102', '["Path=/itptvm/ci/tvm/notiTakeTicketResult","Path=/itptvm/ci/tvm/notiTakeTicketFailResult","Path=/itptvm/ci/tvm/requestTakeTicketAuth"]', '["RewritePath=/itptvm/ci/tvm/(?<segment>.*),/itptvm/ci/tvmDispatch/${segment}"]', 2);
+    ('face-pay-split-route-tvm', 'http://127.0.0.1:9102', '["Path=/itptvm/ci/tvm/notiTakeTicketResult","Path=/itptvm/ci/tvm/notiTakeTicketFailResult","Path=/itptvm/ci/tvm/requestTakeTicketAuth"]', '[]', 2);
 INSERT INTO gateway_route_config (route_id, uri, predicates, filters, order_no) VALUES
-    ('face-pay-split-route-bom', 'http://127.0.0.1:9102', '["Path=/itpbom/ci/bom/requestCardDataAnalyse","Path=/itpbom/ci/bom/requestUpdateCardData"]', '["RewritePath=/itpbom/ci/bom/(?<segment>.*),/itpbom/ci/bomDispatch/${segment}"]', 3);
+    ('face-pay-split-route-bom', 'http://127.0.0.1:9102', '["Path=/itpbom/ci/bom/requestCardDataAnalyse","Path=/itpbom/ci/bom/requestUpdateCardData"]', '[]', 3);
 INSERT INTO gateway_route_config (route_id, uri, predicates, filters, order_no) VALUES
     ('fep-app-route', 'http://127.0.0.1:9103', '["Path=/fep-app/**"]', '[]', 4);
 INSERT INTO gateway_route_config (route_id, uri, predicates, filters, order_no) VALUES

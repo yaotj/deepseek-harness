@@ -13,8 +13,9 @@
 --   1. 删除旧路由 legacy-route / face-pay-split-route（route_id 主键冲突）
 --   2. 新增 4 条分流路由：TVM/BOM 各分 legacy / face-pay-split 两条，因 TVM/BOM
 --      下游端口不同（8180 / 8580）无法共用同一 base URI
---   3. 对 TVM 路径 /itptvm/ci/tvm/xxx 重写为 /itptvm/ci/tvmDispatch/xxx
---   4. 对 BOM 路径 /itpbom/ci/bom/xxx 重写为 /itpbom/ci/bomDispatch/xxx
+--   3. legacy 路由（无用户）：对 TVM 路径 /itptvm/ci/tvm/xxx 重写为 /itptvm/ci/tvmDispatch/xxx
+--      对 BOM 路径 /itpbom/ci/bom/xxx 重写为 /itpbom/ci/bomDispatch/xxx
+--   4. face-pay-split 路由（有用户）：原路径不变，转发到 face-pay-server-internal:8080
 --
 -- 注意：
 --   - 红岛 QDITP_PLAT.GATEWAY_ROUTE_CONFIG 有 LIST 分区 DEFAULT，新 route_id 落入默认分区
@@ -38,14 +39,14 @@ INSERT INTO QDITP.GATEWAY_ROUTE_CONFIG (route_id, uri, predicates, filters, orde
      '["RewritePath=/itpbom/ci/bom/(?<segment>.*),/itpbom/ci/bomDispatch/${segment}"]',
      1, 'migration-20261103');
 INSERT INTO QDITP.GATEWAY_ROUTE_CONFIG (route_id, uri, predicates, filters, order_no, created_by) VALUES
-    ('face-pay-split-route-tvm', 'http://UNKNOWN-NEWSYSTEM:8080',
+    ('face-pay-split-route-tvm', 'http://face-pay-server-internal:8080',
      '["Path=/itptvm/ci/tvm/notiTakeTicketResult","Path=/itptvm/ci/tvm/notiTakeTicketFailResult","Path=/itptvm/ci/tvm/requestTakeTicketAuth"]',
-     '["RewritePath=/itptvm/ci/tvm/(?<segment>.*),/itptvm/ci/tvmDispatch/${segment}"]',
+     '[]',
      2, 'migration-20261103');
 INSERT INTO QDITP.GATEWAY_ROUTE_CONFIG (route_id, uri, predicates, filters, order_no, created_by) VALUES
-    ('face-pay-split-route-bom', 'http://UNKNOWN-NEWSYSTEM:8080',
+    ('face-pay-split-route-bom', 'http://face-pay-server-internal:8080',
      '["Path=/itpbom/ci/bom/requestCardDataAnalyse","Path=/itpbom/ci/bom/requestUpdateCardData"]',
-     '["RewritePath=/itpbom/ci/bom/(?<segment>.*),/itpbom/ci/bomDispatch/${segment}"]',
+     '[]',
      3, 'migration-20261103');
 
 -- 确保 fep-app-route / face-pay-default-route 的 order_no 与新路由不冲突
@@ -71,14 +72,14 @@ INSERT INTO QDITP_PLAT.GATEWAY_ROUTE_CONFIG (route_id, uri, predicates, filters,
      '["RewritePath=/itpbom/ci/bom/(?<segment>.*),/itpbom/ci/bomDispatch/${segment}"]',
      1, 'migration-20261103');
 INSERT INTO QDITP_PLAT.GATEWAY_ROUTE_CONFIG (route_id, uri, predicates, filters, order_no, created_by) VALUES
-    ('face-pay-split-route-tvm', 'http://UNKNOWN-NEWSYSTEM:8080',
+    ('face-pay-split-route-tvm', 'http://face-pay-server-internal:8080',
      '["Path=/itptvm/ci/tvm/notiTakeTicketResult","Path=/itptvm/ci/tvm/notiTakeTicketFailResult","Path=/itptvm/ci/tvm/requestTakeTicketAuth"]',
-     '["RewritePath=/itptvm/ci/tvm/(?<segment>.*),/itptvm/ci/tvmDispatch/${segment}"]',
+     '[]',
      2, 'migration-20261103');
 INSERT INTO QDITP_PLAT.GATEWAY_ROUTE_CONFIG (route_id, uri, predicates, filters, order_no, created_by) VALUES
-    ('face-pay-split-route-bom', 'http://UNKNOWN-NEWSYSTEM:8080',
+    ('face-pay-split-route-bom', 'http://face-pay-server-internal:8080',
      '["Path=/itpbom/ci/bom/requestCardDataAnalyse","Path=/itpbom/ci/bom/requestUpdateCardData"]',
-     '["RewritePath=/itpbom/ci/bom/(?<segment>.*),/itpbom/ci/bomDispatch/${segment}"]',
+     '[]',
      3, 'migration-20261103');
 
 UPDATE QDITP_PLAT.GATEWAY_ROUTE_CONFIG SET order_no = 4 WHERE route_id = 'fep-app-route' AND order_no < 4;
