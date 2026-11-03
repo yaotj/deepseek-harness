@@ -66,8 +66,8 @@ ORDER_NO    NUMBER        路由优先级
 
 | route_id | 说明 | uri | predicates | filters |
 |---|---|---|---|---|
-| `legacy-route-tvm` | 旧用户 TVM 请求走旧 ITP | `http://172.20.202.10:8180` | TVM 3 条 URL | `RewritePath=/itptvm/ci/tvm/(?<segment>.*),/itptvm/ci/tvmDispatch/${segment}` |
-| `legacy-route-bom` | 旧用户 BOM 请求走旧 ITP | `http://172.20.202.10:8580` | BOM 2 条 URL | `RewritePath=/itpbom/ci/bom/(?<segment>.*),/itpbom/ci/bomDispatch/${segment}` |
+| `legacy-route-tvm` | 旧用户 TVM 请求走旧 ITP（原路径转发） | `http://172.20.202.10:8180` | TVM 3 条 URL | `[]`（旧 ITP 实测无 `tvmDispatch` 端点） |
+| `legacy-route-bom` | 旧用户 BOM 请求走旧 ITP（路径重写） | `http://172.20.202.10:8580` | BOM 2 条 URL | `RewritePath=/itpbom/ci/bom/(?<segment>.*),/itpbom/ci/bomDispatch/${segment}` |
 | `face-pay-split-route-tvm` | 新用户 TVM 请求走 `face-pay-server` | `http://face-pay-server-internal:8080` | TVM 3 条 URL | `[]`（原路径不变） |
 | `face-pay-split-route-bom` | 新用户 BOM 请求走 `face-pay-server` | `http://face-pay-server-internal:8080` | BOM 2 条 URL | `[]`（原路径不变） |
 
@@ -81,13 +81,10 @@ ORDER_NO    NUMBER        路由优先级
 /itpbom/ci/bom/requestUpdateCardData
 ```
 
-转发给旧 ITP 时的路径重写（split 路由原路径不变，不做重写）：
+转发给旧 ITP 时的路径重写（仅 BOM legacy 路由生效；TVM legacy 原路径转发；split 路由均原路径不变）：
 
 | 原始 path | 转发后 path |
 |---|---|
-| `/itptvm/ci/tvm/notiTakeTicketResult` | `/itptvm/ci/tvmDispatch/notiTakeTicketResult` |
-| `/itptvm/ci/tvm/notiTakeTicketFailResult` | `/itptvm/ci/tvmDispatch/notiTakeTicketFailResult` |
-| `/itptvm/ci/tvm/requestTakeTicketAuth` | `/itptvm/ci/tvmDispatch/requestTakeTicketAuth` |
 | `/itpbom/ci/bom/requestCardDataAnalyse` | `/itpbom/ci/bomDispatch/requestCardDataAnalyse` |
 | `/itpbom/ci/bom/requestUpdateCardData` | `/itpbom/ci/bomDispatch/requestUpdateCardData` |
 

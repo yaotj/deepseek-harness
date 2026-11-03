@@ -13,8 +13,9 @@
 --   1. 删除旧路由 legacy-route / face-pay-split-route（route_id 主键冲突）
 --   2. 新增 4 条分流路由：TVM/BOM 各分 legacy / face-pay-split 两条，因 TVM/BOM
 --      下游端口不同（8180 / 8580）无法共用同一 base URI
---   3. legacy 路由（无用户）：对 TVM 路径 /itptvm/ci/tvm/xxx 重写为 /itptvm/ci/tvmDispatch/xxx
---      对 BOM 路径 /itpbom/ci/bom/xxx 重写为 /itpbom/ci/bomDispatch/xxx
+--   3. legacy 路由（无用户）：
+--      - BOM 路径 /itpbom/ci/bom/xxx 重写为 /itpbom/ci/bomDispatch/xxx
+--      - TVM 路径 /itptvm/ci/tvm/xxx 原路径转发（旧 ITP 172.20.202.10:8180 实测无 tvmDispatch 端点）
 --   4. face-pay-split 路由（有用户）：原路径不变，转发到 face-pay-server-internal:8080
 --
 -- 注意：
@@ -31,7 +32,7 @@ DELETE FROM QDITP.GATEWAY_ROUTE_CONFIG WHERE route_id IN ('legacy-route', 'face-
 INSERT INTO QDITP.GATEWAY_ROUTE_CONFIG (route_id, uri, predicates, filters, order_no, created_by) VALUES
     ('legacy-route-tvm', 'http://172.20.202.10:8180',
      '["Path=/itptvm/ci/tvm/notiTakeTicketResult","Path=/itptvm/ci/tvm/notiTakeTicketFailResult","Path=/itptvm/ci/tvm/requestTakeTicketAuth"]',
-     '["RewritePath=/itptvm/ci/tvm/(?<segment>.*),/itptvm/ci/tvmDispatch/${segment}"]',
+     '[]',
      0, 'migration-20261103');
 INSERT INTO QDITP.GATEWAY_ROUTE_CONFIG (route_id, uri, predicates, filters, order_no, created_by) VALUES
     ('legacy-route-bom', 'http://172.20.202.10:8580',
@@ -64,7 +65,7 @@ DELETE FROM QDITP_PLAT.GATEWAY_ROUTE_CONFIG WHERE route_id IN ('legacy-route', '
 INSERT INTO QDITP_PLAT.GATEWAY_ROUTE_CONFIG (route_id, uri, predicates, filters, order_no, created_by) VALUES
     ('legacy-route-tvm', 'http://172.20.202.10:8180',
      '["Path=/itptvm/ci/tvm/notiTakeTicketResult","Path=/itptvm/ci/tvm/notiTakeTicketFailResult","Path=/itptvm/ci/tvm/requestTakeTicketAuth"]',
-     '["RewritePath=/itptvm/ci/tvm/(?<segment>.*),/itptvm/ci/tvmDispatch/${segment}"]',
+     '[]',
      0, 'migration-20261103');
 INSERT INTO QDITP_PLAT.GATEWAY_ROUTE_CONFIG (route_id, uri, predicates, filters, order_no, created_by) VALUES
     ('legacy-route-bom', 'http://172.20.202.10:8580',

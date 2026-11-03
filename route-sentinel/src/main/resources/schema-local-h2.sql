@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS gateway_route_config_audit (
 DELETE FROM gateway_route_config WHERE route_id IN ('legacy-route', 'face-pay-split-route');
 
 MERGE INTO gateway_route_config (route_id, uri, predicates, filters, order_no) KEY(route_id) VALUES
-    ('legacy-route-tvm', 'http://127.0.0.1:9101', '["Path=/itptvm/ci/tvm/notiTakeTicketResult","Path=/itptvm/ci/tvm/notiTakeTicketFailResult","Path=/itptvm/ci/tvm/requestTakeTicketAuth"]', '["RewritePath=/itptvm/ci/tvm/(?<segment>.*),/itptvm/ci/tvmDispatch/${segment}"]', 0);
+    ('legacy-route-tvm', 'http://127.0.0.1:9101', '["Path=/itptvm/ci/tvm/notiTakeTicketResult","Path=/itptvm/ci/tvm/notiTakeTicketFailResult","Path=/itptvm/ci/tvm/requestTakeTicketAuth"]', '[]', 0);
 MERGE INTO gateway_route_config (route_id, uri, predicates, filters, order_no) KEY(route_id) VALUES
     ('legacy-route-bom', 'http://127.0.0.1:9101', '["Path=/itpbom/ci/bom/requestCardDataAnalyse","Path=/itpbom/ci/bom/requestUpdateCardData"]', '["RewritePath=/itpbom/ci/bom/(?<segment>.*),/itpbom/ci/bomDispatch/${segment}"]', 1);
 MERGE INTO gateway_route_config (route_id, uri, predicates, filters, order_no) KEY(route_id) VALUES

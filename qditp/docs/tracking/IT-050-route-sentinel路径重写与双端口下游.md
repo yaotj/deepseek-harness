@@ -33,6 +33,7 @@
 
 - 选定方案：方案A
 - 决策理由：业务方明确要求 route-sentinel 转发时直接带 `tvmDispatch` / `bomDispatch`；网关集中处理更清晰，也符合「透明网关只负责路由」的定位。
+- 决策修正（2026-11-03 16:00）：实测旧 ITP `172.20.202.10:8180` 不存在 `/itptvm/ci/tvmDispatch/*` 端点，真实 TVM 接口仍在 `/itptvm/ci/tvm/*`；因此 `legacy-route-tvm` 去掉 `RewritePath`，仅 `legacy-route-bom` 保留 `RewritePath`。
 - 影响范围 / 关联模块：
   - `route-sentinel`：新增 `RouteFilterFactory`、扩展 `RouteDef` / `RouteSnapshot`、改 `UserRouteConfig` / `GatewayRouteRepository` / `GatewayRouteCommandService` / `GatewayRouteAuditService` / `LegacyRouteIdStrategy`。
   - `deploy/k8s/30-istio-ingress*.yaml`：7 条 exact 改为 5 条。
@@ -60,8 +61,14 @@
       - **POST 探测（验证 RewritePath 是否生效）**：
         - legacy BOM `requestCardDataAnalyse` → `{"retCode":"2001","retMsg":"非法设备"}`；`requestUpdateCardData` → `{"retCode":"9999","retMsg":"失败"}` → 确认已改写成 `/itpbom/ci/bomDispatch/...` 并到达旧 ITP。
         - split BOM 两条 → 均返回 `{"retCode":"8003","retMsg":"cardId不能为空"}` → 确认原路径不变到达 `face-pay-server`。
-        - legacy TVM 三条 POST 仍 404（旧 ITP 该路径/方法未部署），但 `X-Route-Id: legacy-route-tvm` 且响应来自旧 ITP Tomcat，RewritePath 仍生效。
+        - legacy TVM 三条 POST 仍 404（旧 ITP 上 `/itptvm/ci/tvmDispatch/*` 不存在），但 `X-Route-Id: legacy-route-tvm` 且响应来自旧 ITP Tomcat，RewritePath 确实生效。
         - split TVM `notiTakeTicketResult` / `notiTakeTicketFailResult` → `{"retCode":"2002","retMsg":"orderNo不能为空"}`；`requestTakeTicketAuth` → `{"retCode":"2002","retMsg":"非法参数"}` → 确认原路径不变到达 `face-pay-server`。
+    - **第三轮修复验证（2026-11-03 16:08）**：通过 Actuator 把 `legacy-route-tvm` 的 `filters` 从 `RewritePath` 改为 `[]`，移除 TVM 路径重写：
+      - 运行态 `legacy-route-tvm` 已热重载，`/actuator/gatewayroutes` 确认 filters 为空。
+      - TVM 3 条 URL × 3 场景 POST 复测：
+        - 无 bizData / legacy 用户 → `X-Route-Id: legacy-route-tvm`，返回 `{"retCode":"2001","retMsg":"非法设备"}`（旧 ITP 真实业务响应）。
+        - split 用户 → `X-Route-Id: face-pay-split-route-tvm`，返回 `2002 orderNo不能为空` / `非法参数`。
+      - 结论：TVM legacy 原路径转发后，5 条 URL 的所有 legacy/split 场景均拿到下游真实业务响应，RewritePath 仅对 BOM 生效。
 - 回滚预案：
   1. 数据库：执行 migration SQL 的逆操作——删除 4 条新路由，重新插入原 `legacy-route` / `face-pay-split-route`（如需要）。
   2. Ingress：`kubectl apply -f deploy/k8s/30-istio-ingress.yaml` 回退到上一版本（git）。

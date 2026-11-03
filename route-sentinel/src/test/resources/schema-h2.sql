@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS gateway_route_config (
     created_by  VARCHAR(64) DEFAULT 'system'
 );
 INSERT INTO gateway_route_config (route_id, uri, predicates, filters, order_no) VALUES
-    ('legacy-route-tvm', 'http://127.0.0.1:9101', '["Path=/itptvm/ci/tvm/notiTakeTicketResult","Path=/itptvm/ci/tvm/notiTakeTicketFailResult","Path=/itptvm/ci/tvm/requestTakeTicketAuth"]', '["RewritePath=/itptvm/ci/tvm/(?<segment>.*),/itptvm/ci/tvmDispatch/${segment}"]', 0);
+    ('legacy-route-tvm', 'http://127.0.0.1:9101', '["Path=/itptvm/ci/tvm/notiTakeTicketResult","Path=/itptvm/ci/tvm/notiTakeTicketFailResult","Path=/itptvm/ci/tvm/requestTakeTicketAuth"]', '[]', 0);
 INSERT INTO gateway_route_config (route_id, uri, predicates, filters, order_no) VALUES
     ('legacy-route-bom', 'http://127.0.0.1:9101', '["Path=/itpbom/ci/bom/requestCardDataAnalyse","Path=/itpbom/ci/bom/requestUpdateCardData"]', '["RewritePath=/itpbom/ci/bom/(?<segment>.*),/itpbom/ci/bomDispatch/${segment}"]', 1);
 INSERT INTO gateway_route_config (route_id, uri, predicates, filters, order_no) VALUES
