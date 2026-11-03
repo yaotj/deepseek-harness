@@ -98,7 +98,7 @@
 
 **生产红线（MUST，缺一不可）**：
 - **二次确认**：发布任务 MUST 显式确认是测试还是生产（前置判据第 2 步）；生产发布 MUST 二次确认 + 灰度 / 回滚预案（单副本模块按服务逐个滚更，不做金丝雀分流）。
-- **升级版本号规则（前端/后端统一，2026-11-02 裁定，算法真源 `itp-ops.sh version` 与 `docs/ops/environments/scripts/lib/version.sh`）**：① 本地构建只升末位 `+0.0.1`（最后一分段 +1）；② 任一分段超过 99 则向高位进位（该段归零、前一分段 +1，即"超过 99 则升 `0.1.0`"：`1.2.99 → 1.3.0`、`1.99.99 → 2.0.0`）；③ CloudOS 中仅为调试而升级的包版本固定哨兵 `0.0.0.1`（不占用发布序列）。`NEVER` 同 tag 覆盖；起始版本 MUST 取**线上实际**版本（K8s Deployment / CloudOS 应用详情），`NEVER` 照仓库 properties/pom 或凭记忆。`itp-ops.sh version next <当前>` 求下一版、`version debug` 求哨兵；前端 `--bump` 自动从已部署版本算下一版。推镜像看 `digest:` / `Pushed` 不看退出码；rollout 后 MUST 比对 Pod imageID 与推送 digest 一致（判据见技能 `qditp-deploy-release`）。
+- **升级版本号规则（前端/后端统一，2026-11-02 裁定，算法真源 `itp-ops.sh version` 与 `docs/ops/environments/scripts/itpops/core/version.py`）**：① 本地构建只升末位 `+0.0.1`（最后一分段 +1）；② 任一分段超过 99 则向高位进位（该段归零、前一分段 +1，即"超过 99 则升 `0.1.0`"：`1.2.99 → 1.3.0`、`1.99.99 → 2.0.0`）；③ CloudOS 中仅为调试而升级的包版本固定哨兵 `0.0.0.1`（不占用发布序列）。`NEVER` 同 tag 覆盖；起始版本 MUST 取**线上实际**版本（K8s Deployment / CloudOS 应用详情），`NEVER` 照仓库 properties/pom 或凭记忆。`itp-ops.sh version next <当前>` 求下一版、`version debug` 求哨兵；前端 `--bump` 自动从已部署版本算下一版。推镜像看 `digest:` / `Pushed` 不看退出码；rollout 后 MUST 比对 Pod imageID 与推送 digest 一致（判据见技能 `qditp-deploy-release`）。
 - **前端**：本仓只出 zip，发版 MUST 走云平台（§5.E）；回滚点＝线上当前版本，NEVER 照文档抄版本号。
 
 ### 5.D 专项工作流（兜底：联调 / 测试 / 纯文档 / 脚本 / 数据迁移）
