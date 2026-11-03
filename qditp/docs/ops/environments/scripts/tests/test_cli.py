@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import unittest
 
-from support import run_cli, run_json
+from support import run_cli, run_json, run_module
 
 from itpops.errors import EXIT_OK, EXIT_USAGE
 
@@ -72,6 +72,24 @@ class ParsingTest(unittest.TestCase):
         r = run_cli("--dry-run", "k8s", "deploy", "fep-dev-server")
         self.assertEqual(r.returncode, EXIT_USAGE)
         self.assertIn("--dry-run 不可用", r.stderr)
+
+
+class DirectPythonEntryTest(unittest.TestCase):
+    """「其他直接用 python」：特性包自身也能 -m 直调（不经 itp-ops.sh）。"""
+
+    def test_buildx_module_entry(self):
+        r = run_module("itpops.buildx", "-h")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("itp-ops.sh buildx", r.stderr)
+
+    def test_sentinel_module_entry(self):
+        r = run_module("itpops.sentinel", "-h")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("itp-ops.sh sentinel", r.stderr)
+
+    def test_web_release_module_entry(self):
+        r = run_module("itpops.web.frontend_release", "--help")
+        self.assertIn("--skip-build", r.stdout)
 
 
 if __name__ == "__main__":

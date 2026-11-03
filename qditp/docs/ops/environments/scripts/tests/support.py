@@ -14,13 +14,18 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 
 
 def run_cli(*args: str) -> subprocess.CompletedProcess:
+    return run_module("itpops", *args)
+
+
+def run_module(module: str, *args: str) -> subprocess.CompletedProcess:
+    """跑任意 `python3 -m <module>`（PYTHONPATH 指向 scripts/）。"""
     env = dict(os.environ)
     env["PYTHONPATH"] = str(SCRIPTS_DIR) + (
         os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else ""
     )
     env.pop("ITP_OPS_ENV", None)
     return subprocess.run(
-        [sys.executable, "-m", "itpops", *args],
+        [sys.executable, "-m", module, *args],
         capture_output=True, text=True, env=env, cwd=str(SCRIPTS_DIR),
     )
 

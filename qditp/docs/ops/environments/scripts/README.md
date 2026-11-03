@@ -42,10 +42,10 @@ scripts/
 │   │   ├── remote.py              ssh 跳板助手（TTY 纪律 / 参数转义）
 │   │   └── runtime.py             本机执行 / 写门 require_yes / 依赖检查 / 仓库根断言
 │   ├── cloudos/                 CloudOS API 客户端（auth / http / image / pkg）
-│   ├── buildx/                  镜像构建实现（core.py）
-│   ├── sentinel/                路由哨兵部署实现（core.py）
+│   ├── buildx/                  镜像构建实现（core.py + __main__.py，可 python -m 直调）
+│   ├── sentinel/                路由哨兵部署实现（core.py + __main__.py）
 │   └── web/                     前端发版 / 挂载实现
-├── tests/                      stdlib unittest（27 例：版本算法 / 环境 / CLI 契约 / 注册表）
+├── tests/                      stdlib unittest（30 例：版本算法 / 环境 / CLI 契约 / 注册表 / 直调）
 ├── buildx.Dockerfile          共享构建模板（NEVER 写 ENTRYPOINT/CMD，理由见文件头与 IT-031）
 ├── analysis/                  count-endpoints.py 本体（由 commands/analysis.py 调度，勿直接跑）
 ├── hosts/                     ★ 跑在远端机器上的脚本本体（NEVER 在本机执行）
@@ -241,7 +241,7 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
    `_DOMAIN_MODULES` 登记。
 7. **token 缓存**按环境分文件（`/tmp/.cloudos-<env>.token`，格式 `<时间戳> <token>`，与旧 bash 互读兼容）。
 8. **改包 MUST 跑单测**：`cd docs/ops/environments/scripts && python3 -m unittest discover -s tests`
-   （27 例覆盖版本算法 / 环境 profile / CLI 契约 / 注册表；纯 stdlib，无需装依赖）。
+   （30 例覆盖版本算法 / 环境 profile / CLI 契约 / 注册表 / python -m 直调；纯 stdlib，无需装依赖）。
    `pyproject.toml` 另有 `[tool.pytest.ini_options]`，装了 pytest 也能直接 `pytest`。
 
 ## 五、使用纪律
