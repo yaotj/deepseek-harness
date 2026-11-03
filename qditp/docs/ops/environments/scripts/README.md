@@ -12,10 +12,12 @@
 ```
 scripts/
 ├── itp-ops.sh                ★ 唯一入口（薄壳：exec python3 -m itpops）：全局参数（--env/--yes/--json）解析 + 域分发
-├── itpops/                   Python 包（底层实现）
-│   ├── cli.py                  全局参数解析 + 域分发（--json 信封 {ok,command,data,error}）
-│   ├── catalog.py              自描述命令注册表（大模型入口：itp-ops.sh catalog --json）
-│   ├── errors.py               退出码契约：0 成功 / 2 用法 / 3 前置 / 4 传输 / 5 执行 / 6 缺 --yes
+├── itpops/                   Python 包（底层实现，v2.1）
+│   ├── cli.py                  全局参数解析 + 域分发（-e/-y/-n/-o/-q/-v/--no-color/--trace/--）
+│   ├── help.py                 分层帮助渲染（命令级由 CATALOG 生成）
+│   ├── completion.py           bash/zsh 补全生成（从 CATALOG 派生）
+│   ├── catalog.py              自描述命令注册表（大模型入口：itp-ops.sh catalog -o json）
+│   ├── errors.py               退出码契约：0 成功 / 2 用法 / 3 前置 / 4 传输 / 5 执行 / 6 缺 --yes / 130 中断
 │   ├── core/                   ui（日志/上下文）/ version（版本算法真源）/ envx（环境 profile）/ remote（ssh 跳板）/ execx（写门/依赖）
 │   ├── cloudos/                CloudOS API 四模块（auth/http/image/pkg）
 │   ├── domains/                按域分组的命令实现（每个域 main(args)+CATALOG）
@@ -68,9 +70,31 @@ cd docs/ops/environments/scripts
 每个域的详细用法：`./itp-ops.sh <域> help`。
 
 **全局参数**（可出现在任意位置，入口负责剥离，域只收业务参数）：
-`--env hongdao|test`（**全局生效**；各域默认刻意不统一：cloudos=hongdao、k8s/log=test、
-diag 按子命令）、`--yes`（确认写操作）、`--json`（stdout 单条 JSON 信封，大模型用）、
-`-h/--help/--version`（仅域前有效）。`./itp-ops.sh catalog --json` 输出全量自描述命令注册表。
+`-e/--env hongdao|test`（**全局生效**；各域默认刻意不统一：cloudos=hongdao、k8s/log=test、
+diag 按子命令）、`-y/--yes`（确认写操作）、`-n/--dry-run`（强制预演）、
+`-o/--output text|json`（`--json` 为简写）、`-q/--quiet`、`-v/--verbose`、`--no-color`、
+`--trace`、`-h/--help`、`-V/--version`、`--`（终止选项解析）。
+`./itp-ops.sh catalog -o json` 输出全量自描述命令注册表。
+
+**CLI 用法约定**（2026-11-03 对齐 kubectl / gh / git 的成熟做法）：
+
+| 约定 | 做法 |
+|---|---|
+| 分层帮助 | `-h` 任意层级有效：根 → 总览；`<域> help`/`<域> -h` → 域内富文本；`<域> <命令> -h` → 由 CATALOG 生成（含参数/示例/输出契约） |
+| 输出格式 | 默认 text；`-o json`（或 `--json`）→ stdout 单条信封 `{ok, command, data, error, duration_ms}`，可接 `jq` |
+| 写操作门 | 写命令必须 `-y/--yes`；`-n/--dry-run` 强制预演（优先于 --yes），无预演分支的命令直接报用法错，绝不静默写 |
+| 质量开关 | `-q` 抑制 INFO/STEP、`-v` 出 DEBUG（远端 ssh 命令行）、`--trace` 打全栈 |
+| 颜色 | 仅 TTY 上色；`NO_COLOR` 关、`CLICOLOR_FORCE=1` 强制、`--no-color` 最高优先 |
+| 退出码 | 0 成功 / 2 用法 / 3 前置 / 4 传输 / 5 执行 / 6 缺 --yes / 130 中断 |
+| 补全 | `./itp-ops.sh completion bash|zsh` 生成脚本，源或放入补全目录 |
+| 环境变量 | `ITP_OPS_ENV` 等价 `--env`（显式 --env 优先） |
+
+```bash
+./itp-ops.sh -h                       # 总览（含退出码/环境变量约定）
+./itp-ops.sh cloudos scale -h         # 单命令帮助（不会把 -h 当参数执行）
+./itp-ops.sh completion zsh > "${fpath[1]}/_itp-ops"
+./itp-ops.sh -o json cloudos apps Error | jq '.data.apps[].name'
+```
 
 **环境与跳板**（红岛 ssh/kubectl 通道 2026-10-26 实测已通；但红岛是**生产**，默认一律停在 test）：
 
@@ -308,3 +332,17 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
   零差异原则其余保留：HARBOR_PROJECT 历史错位、spec-set 第 20 次探测怪癖、diag 多端口行恒 FAIL 等照搬。
 - 旧 bash（`lib/`、`domains/`）与迁移期对照基线 `*.legacy.*` 在 parity 验证全绿后删除；
   机制注释沉淀于本 README §四 与各模块 docstring。
+
+**2026-11-03 CLI 用法现代化（v2.1.0，参照 kubectl/gh/git 惯例）**：
+
+- 全局参数按成熟 CLI 补齐：`-e/--env`、`-y/--yes`、`-n/--dry-run`（预演优先，无预演分支
+  直接报用法错）、`-o/--output text|json`（`--json` 保留为简写）、`-q/--quiet`、`-v/--verbose`
+  （出远端命令行）、`--no-color`（+`NO_COLOR`/`CLICOLOR_FORCE`）、`--trace`、`--` 终止符、
+  `-V/--version`（含 python/git commit）。
+- 分层帮助：`<域> <命令> -h` 由 `itpops/help.py` 从 CATALOG 生成，**修掉旧行为**
+  （`cloudos scale -h` 会把 `-h` 当应用名执行、`k8s deploy -h` 直接报缺 --yes）；
+  域级 `help` 仍是各域富文本，基线逐字节未变（6 域实测 diff 全空）。
+- 新增 `itp-ops.sh completion bash|zsh`（从 CATALOG 派生，域/子命令增删自动同步），
+  以及 `itp-ops.sh help <域> [命令]` 别名。
+- `-o json` 信封增加 `duration_ms`；`catalog` 契约补充 output_formats / env_vars / help / completion。
+- 回归：6 域 help 与改造前逐字节一致；`version next` 算法 parity 不变；`catalog -o json` 全 ok。

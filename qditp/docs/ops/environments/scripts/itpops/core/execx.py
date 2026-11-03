@@ -10,7 +10,14 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from ..errors import EXIT_NEED_YES, EXIT_PRECONDITION, EXIT_TRANSPORT, OpsError
+from ..errors import (
+    EXIT_EXEC,
+    EXIT_NEED_YES,
+    EXIT_PRECONDITION,
+    EXIT_TRANSPORT,
+    EXIT_USAGE,
+    OpsError,
+)
 from .ui import context
 
 # 仓库根推导：本文件在 <repo>/docs/ops/environments/scripts/itpops/core/；
@@ -34,8 +41,18 @@ def scripts_dir() -> Path:
 
 
 def require_yes(action: str) -> None:
-    """写操作门：缺 --yes 即拒（生产脚本的既有行为，逐条保留）。"""
-    if not context().yes:
+    """写操作门：缺 --yes 即拒（生产脚本的既有行为，逐条保留）。
+
+    --dry-run 语义（对齐 kubectl/terraform 的预演约定）：强制不写。若命令本身
+    没有预演分支（走到这里说明它只会无条件写），直接报用法错而不是静默写。
+    """
+    ctx = context()
+    if ctx.dry_run:
+        raise OpsError(
+            f"--dry-run 不可用：{action} 没有预演分支（去掉 --dry-run；确认执行请加 --yes）",
+            EXIT_USAGE,
+        )
+    if not ctx.yes:
         raise OpsError(f"这是写操作：{action}。确认无误请加 --yes", EXIT_NEED_YES)
 
 

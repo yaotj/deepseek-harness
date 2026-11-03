@@ -19,7 +19,7 @@ import shlex
 import subprocess
 
 from ..errors import EXIT_EXEC, EXIT_TRANSPORT, OpsError
-from . import envx
+from . import envx, ui
 
 SSH_TRANSPORT_EXIT = 255  # ssh 自身失败（连不上/认证失败）；远端命令非 0 是别的码
 
@@ -31,6 +31,7 @@ def remote_host() -> str:
 def remote_exec(remote_cmd: str) -> subprocess.CompletedProcess:
     """非交互执行；remote_cmd 为完整远端命令串。返回 CompletedProcess（不替调用方判成败）。"""
     host = remote_host()
+    ui.debug(f"ssh {host} {remote_cmd}")
     return subprocess.run(
         ["ssh", "-o", "ConnectTimeout=8", host, remote_cmd],
         capture_output=True, text=True,
@@ -40,6 +41,7 @@ def remote_exec(remote_cmd: str) -> subprocess.CompletedProcess:
 def remote_exec_tty(remote_cmd: str) -> subprocess.CompletedProcess:
     """强制 TTY 执行（跟踪/交互场景）。stdio 继承给当前终端，实时刷新。"""
     host = remote_host()
+    ui.debug(f"ssh -t {host} {remote_cmd}")
     return subprocess.run(
         ["ssh", "-t", "-o", "ConnectTimeout=8", host, remote_cmd],
     )

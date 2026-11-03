@@ -41,14 +41,21 @@ EXIT_CODE_DOC = {
     "4": "远端/传输失败（ssh 不可达、HTTP 连不上）",
     "5": "命令执行失败（远端命令非 0、业务拒绝、解析失败）",
     "6": "写操作缺 --yes 被拒",
+    "130": "中断（Ctrl+C）",
 }
 
 GLOBAL_FLAGS_DOC = [
-    {"flag": "--env hongdao|test", "desc": "环境切换（全局，所有域生效）。未指定时用各域自己的默认（cloudos=hongdao、k8s/log=test、diag 按子命令）"},
-    {"flag": "--yes", "desc": "确认写操作；缺它写命令一律拒绝"},
-    {"flag": "--json", "desc": "stdout 输出单条 JSON 信封 {ok, command, data, error}；人机日志仍走 stderr"},
-    {"flag": "-h | --help", "desc": "总帮助（仅域前；域后的 -h 交给域）"},
-    {"flag": "--version", "desc": "版本号（仅域前）"},
+    {"flag": "-e, --env hongdao|test", "desc": "环境切换（全局，所有域生效）。未指定时用各域自己的默认（cloudos=hongdao、k8s/log=test、diag 按子命令）"},
+    {"flag": "-y, --yes", "desc": "确认写操作；缺它写命令一律拒绝"},
+    {"flag": "-n, --dry-run", "desc": "强制预演（等价不带 --yes，优先于 --yes）；命令无预演分支时报用法错"},
+    {"flag": "-o, --output text|json", "desc": "输出格式；--json 为 -o json 的简写"},
+    {"flag": "-q, --quiet", "desc": "抑制 INFO/STEP 日志（WARN/ERROR 保留）"},
+    {"flag": "-v, --verbose", "desc": "DEBUG 输出（远端命令行等），可叠加 -vv"},
+    {"flag": "--no-color", "desc": "关闭颜色（亦可用 NO_COLOR 环境变量）"},
+    {"flag": "--trace", "desc": "出错时打印完整堆栈"},
+    {"flag": "-h, --help", "desc": "帮助（任意层级有效：域级富文本，命令级由 CATALOG 生成）"},
+    {"flag": "-V, --version", "desc": "版本信息（含 python / git commit）"},
+    {"flag": "--", "desc": "终止选项解析，其后的参数按位置参数处理"},
 ]
 
 
@@ -98,11 +105,15 @@ def build_catalog() -> dict:
         "tool": "itp-ops",
         "version": ITP_OPS_VERSION,
         "contract": {
-            "stdout": "人类结果文本；--json 时仅一条 JSON 信封",
-            "stderr": "人机日志（INFO/WARN/ERROR/STEP/环境横幅），TTY 才着色",
-            "json_envelope": {"ok": "bool", "command": "list[str]", "data": "object|null", "error": "{code,message,exit}|null"},
+            "stdout": "人类结果文本；-o json 时仅一条 JSON 信封",
+            "stderr": "人机日志（INFO/WARN/ERROR/STEP/DEBUG/环境横幅），TTY 才着色",
+            "output_formats": ["text", "json"],
+            "json_envelope": {"ok": "bool", "command": "list[str]", "data": "object|null", "error": "{code,message,exit}|null", "duration_ms": "int"},
             "exit_codes": EXIT_CODE_DOC,
             "code_names": {str(k): v for k, v in CODE_BY_EXIT.items()},
+            "env_vars": {"NO_COLOR": "关闭颜色", "CLICOLOR_FORCE": "强制颜色", "ITP_OPS_ENV": "默认环境（等价 --env，显式 --env 优先）"},
+            "help": {"root": "itp-ops.sh -h", "domain": "itp-ops.sh <域> help", "command": "itp-ops.sh <域> <命令> -h"},
+            "completion": "itp-ops.sh completion bash|zsh",
         },
         "global_flags": GLOBAL_FLAGS_DOC,
         "domains": _load_domains(),
@@ -112,7 +123,7 @@ def build_catalog() -> dict:
 
 def _render_human(cat: dict) -> str:
     lines = [
-        f"itp-ops catalog v{cat['version']} —— 全量命令注册表（机器可读：加 --json）",
+        f"itp-ops catalog v{cat['version']} —— 全量命令注册表（机器可读：加 -o json）",
         "",
         "全局参数:",
     ]
@@ -142,7 +153,7 @@ def _render_human(cat: dict) -> str:
 
 def main(args: list[str]) -> int:
     if args and args[0] in ("-h", "--help", "help"):
-        ui.out("用法: itp-ops.sh catalog [--json]   # 自描述命令注册表（大模型入口）")
+        ui.out("用法: itp-ops.sh catalog [-o json|--json]   # 自描述命令注册表（大模型入口）")
         return 0
     cat = build_catalog()
     ui.result(cat)
