@@ -1,4 +1,4 @@
-# 红岛 CloudOS「镜像构建」（hongdao-buildx.sh）统一构建用 Dockerfile。
+# CloudOS「镜像构建」（itp-ops.sh buildx）统一构建用 Dockerfile —— 红岛/测试共用，FROM 按环境替换。
 #
 # 【为什么只有一份、NEVER 给每个模块复制一份】
 #   上下文里 jar 恒为 app.jar、基础镜像恒为 itpb/jdk21:1.0.0，模块之间没有差异；

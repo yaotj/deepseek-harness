@@ -5,4 +5,4 @@
 + `itpops catalog`；全局参数与分层帮助对齐 kubectl/gh 的用法约定。
 """
 
-ITP_OPS_VERSION = "2.1.0"
+ITP_OPS_VERSION = "2.2.0"

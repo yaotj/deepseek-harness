@@ -7,7 +7,7 @@
 - 发现时间：2026-10-28（本轮「用应用仓库的 jar 在镜像仓库批量出镜像」动手前，
   先核红岛运行期 JVM 契约时暴露）。
 - 发现渠道：自查——为新增的共享构建模板
-  [hongdao-buildx.Dockerfile](../ops/environments/scripts/hongdao-buildx.Dockerfile)
+  [buildx.Dockerfile](../ops/environments/scripts/buildx.Dockerfile)
   定「写不写 `ENTRYPOINT`」这条，需要先在集群里证伪/证实基础镜像 `/startapp.sh` 的作用。
 - 影响范围：红岛 itpb 在跑的 **4 个镜像 / 2 个应用**——
   `itpb/fep-dev-server:2.0.71`、`:2.0.72`（现跑 `2.0.72`，见
@@ -83,7 +83,7 @@ Docker 语义下**子镜像的 `ENTRYPOINT` 直接覆盖基础镜像的 `ENTRYPO
   红岛 JVM 契约的**唯一真源是基础镜像 `/startapp.sh` + 平台 env**；任何在模块 `Dockerfile` 里
   重写启动命令的做法都是把契约复制成第二份，正是 IT-020 反复踩的形态。
 - 落地动作（本轮已完成）：
-  1. 新增共享构建模板 [docs/ops/environments/scripts/hongdao-buildx.Dockerfile](../ops/environments/scripts/hongdao-buildx.Dockerfile)
+  1. 新增共享构建模板 [docs/ops/environments/scripts/buildx.Dockerfile](../ops/environments/scripts/buildx.Dockerfile)
      （`FROM itpb/jdk21:1.0.0` + `ENV JAVA_TOOL_OPTIONS` + `COPY app.jar /app.jar`，
      **刻意不写 `ENTRYPOINT`/`CMD`**，文件内注释写明理由）；
   2. 本轮 23 个新镜像**全部**用该模板构建（见 [IT-024](IT-024-红岛流水线构建缺口.md) §10 结果表），

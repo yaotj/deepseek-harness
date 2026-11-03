@@ -16,9 +16,9 @@
 
 - **目标**：把前端 `web/` 发到 CloudOS 的 `web-frontend` 应用并升到 `<版本>`。
 - **一条命令**（生产写 MUST `--yes`；缺省 dry-run 不碰生产）：
-  `python3 docs/ops/environments/scripts/web_frontend_release.py <版本> --yes`
+  `itp-ops.sh web release <版本> --yes`
 - **执行纪律**：带 `--yes` 前**先跑一遍 dry-run** 看将发的请求；升级会滚动重建、期间业务不可用，**低峰执行**。
-- **回滚**：脚本打印的 `ROLLBACK_POINT=<升级前版本>`；重跑 `python3 web_frontend_release.py <旧版本> --yes --skip-build`
+- **回滚**：脚本打印的 `ROLLBACK_POINT=<升级前版本>`；重跑 `itp-ops.sh web release <旧版本> --yes --skip-build`
   （旧版本已在软件中心，自动跳过上传）。
 - **完成判据**：上传回查命中 `<版本>` + `GET /api/cloud/app-mgmt/v1.0/apps/{uuid}` 的
   `version==目标` 且 `status=OK` 且实例 `ok==num`。
@@ -32,14 +32,14 @@
 
 ## 〇、脚本自动化（首选）
 
-`python3 docs/ops/environments/scripts/web_frontend_release.py <版本> [--yes]` 一条命令走完
-「本地出 zip → 登录 → 上传 web 包 → 升级应用 → 核验」，复用 `lib/cloudos-*` 的鉴权与 HTTP 通道：
+`itp-ops.sh web release <版本> [--yes]` 一条命令走完
+「本地出 zip → 登录 → 上传 web 包 → 升级应用 → 核验」，复用 `itpops/cloudos/` 的鉴权与 HTTP 通道：
 
 ```bash
 # dry-run：本地出 zip + 打印将发的上传/升级请求（不碰生产）
-python3 docs/ops/environments/scripts/web_frontend_release.py 1.2.43.3
+itp-ops.sh web release 1.2.43.3
 # 真发：上传 + 升级 + 轮询到满员；生产写 MUST 带 --yes
-python3 docs/ops/environments/scripts/web_frontend_release.py 1.2.43.3 --yes
+itp-ops.sh web release 1.2.43.3 --yes
 # 变体：--skip-build（复用已出 zip）/ --skip-upgrade（只上传不升级）/ --app、--pkg、--app-uuid
 # 上传细节：--tag（分类，默认 itpb，解析成 tagId）、--description（包描述）、--feature（版本特性）；
 # 包已存在时自动 prefill 详情现值，文件 >195MiB 自动分片（chunkSize 204800000，与平台上传控件一致）
@@ -50,6 +50,30 @@ body 由 `GET /apps/{uuid}` 的 `metadata` 读现状后**只改 `version_id` / `
 `nginx_version` / `resources` / `affinity` 等照抄）；`version_id` 取 `GET /packages?name=web-frontend`
 里目标版本的 `id`。上传端点 `POST /api/cloud/deploy/v1.0/packages`（multipart，`pkgType=web`，
 **不是 jar**）。
+
+### 脚本四段流程（内部）
+
+1. **本地出 zip**：写 `web/package.json` 的 `version` → `npm run build:zip` →
+   `web/web-frontend-<版本>.zip`（`zipfile` 自检**根级 `index.html`**；带 `dist/` 前缀会 404）。
+2. **登录**：纯标准库 RSA-1024 PKCS#1 v1.5 加密口令 → `POST /api/sys/oapi/v1/double_factor/login`
+   拿 token（进程内持有；`X-Auth-Token` 头走后续请求）。
+3. **上传 web 包**：`POST /api/cloud/deploy/v1.0/packages`（`urllib` 手拼 multipart，**`pkgType=web`**，
+   `id` 客户端预生成），表单字段集对齐平台「上传应用包」向导（2026-10-28 抓 `upload.*.js` 实测）：
+   `id / pkgType / name / version / visible / label / description / feature / tagId`；包已存在（加版本）时
+   prefill 包详情现值（`GET /packages?selectOwn=true&visible=false&name=<pkg>`）；**分片**＝控件
+   `chunkSize 204800000`（>195MiB 时按片顺序传，每片重试 3 次；web 包实际 3~5MiB 恒单请求）；
+   回查确认落盘；该版本已存在则跳过（平台禁重复版本号，回滚依赖这条）。
+4. **升级应用**：`GET /apps/{uuid}` 的 `metadata` 读现状 → 组 `advanced-config` body（只改
+   `version_id` / `version`）→ `PATCH /api/cloud/app-mgmt/v1.0/apps/{uuid}/advanced-config` → 轮询到
+   「目标版本 + status=OK + 实例满员」。
+
+**回滚点**：升级前脚本打印 `ROLLBACK_POINT=<升级前线上版本>`；回滚＝重跑旧版本（`--yes --skip-build`）。
+
+### 完成判据（全部满足才算发版成功）
+
+- 上传回查命中 `<版本>`；
+- 升级后 `GET /apps/{uuid}` 的 `version == 目标`、`status == OK`、实例 `ok == num`；
+- 已记下 `ROLLBACK_POINT`（旧版本）。
 
 ## 一、前置：本地出 zip
 
@@ -71,7 +95,7 @@ body 由 `GET /apps/{uuid}` 的 `metadata` 读现状后**只改 `version_id` / `
   （`GET /packages?selectOwn=true&visible=false&name=<pkg>`），**重复版本号会被拒**
 - **上传方式**（二选一）：
   - `本地上传`：拖 zip 文件。**自动化 / 内嵌浏览器不支持文件上传，MUST 人工拖**；
-    脚本 `web_frontend_release.py` 走 multipart API 直传（字段集已对齐向导，含分片），无需人工
+    脚本 `itp-ops.sh web release` 走 multipart API 直传（字段集已对齐向导，含分片），无需人工
   - `远端地址`：填可访问的包 URL；免认证则取消「是否需要认证」勾选（要认证则补用户名/密码）
 - `确定` → 版本列表新增一行，状态「**未使用**」
 

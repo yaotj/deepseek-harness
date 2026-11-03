@@ -2,11 +2,11 @@
 
 走 CloudOS PATCH /apps/{uuid}/advanced-config，与 mount-applogs.py 同原理，
 只是环境为 test、挂载路径为 export 目录。
-对应旧脚本 mount-web-admin-export.py（原文见 mount-web-admin-export.legacy.py）。
+原独立脚本 mount-web-admin-export.py 已收敛为 `itp-ops.sh web mount-export`（原文见 git 历史）。
 
 用法（与旧脚本兼容）：
-  python3 mount-web-admin-export.py          # 预演：只打印将下发的 PATCH
-  python3 mount-web-admin-export.py --yes    # 真正下发（平台滚动重建 30-60s）
+  itp-ops.sh web mount-export          # 预演：只打印将下发的 PATCH
+  itp-ops.sh web mount-export --yes    # 真正下发（平台滚动重建 30-60s）
 
 【与旧版的差异（收编对齐契约）】
   1. 失败统一抛 OpsError（退出码细分：前置 3 / 传输 4 / 执行 5），错误行带统一
@@ -162,13 +162,12 @@ def build_body(app_state, deploy_obj):
 
 
 CATALOG = {
-    "name": "mount-web-admin-export",
+    "name": "mount-export",
     "summary": "测试环境 web-admin 挂 app-logs-v2 PVC 到 /home/javaapp/app/export（CloudOS advanced-config）",
-    "standalone": True,
-    "usage": "python3 mount-web-admin-export.py [--yes]",
+    "usage": "web mount-export [--yes]",
     "args": [{"name": "--yes", "desc": "真正下发 PATCH；缺省预演"}],
     "writes": True,
-    "example": "python3 mount-web-admin-export.py --yes",
+    "example": "itp-ops.sh web mount-export --yes",
     "env_note": "固定测试环境（ns itp、跳板 k8s-master、CloudOS test）",
 }
 

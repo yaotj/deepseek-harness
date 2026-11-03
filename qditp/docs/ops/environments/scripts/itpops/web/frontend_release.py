@@ -1,7 +1,7 @@
 """web 前端（CloudOS 应用包 web-frontend）一键发版 —— itpops 收编版。
 
 本地出 zip → 登录 CloudOS → 上传 web 包 → 升级应用 → 核验 / 回滚。
-对应旧脚本 web_frontend_release.py（原文见 web_frontend_release.legacy.py）。
+原独立脚本 web_frontend_release.py 已收敛为 `itp-ops.sh web release`（原文见 git 历史）。
 
 端点 2026-10-26 实测；上传字段集 2026-10-28 对齐平台「上传应用包」向导：
   登录  POST /api/sys/oapi/v1/double_factor/login   （口令 RSA-1024 PKCS#1 v1.5 加密）
@@ -10,11 +10,11 @@
         body 由 GET /apps/{uuid} 的 metadata 读现状后只改 version_id / version
 
 用法（与旧脚本逐字兼容）：
-  python3 web_frontend_release.py <版本> [--yes] [--skip-build] [--skip-upgrade]
+  itp-ops.sh web release <版本> [--yes] [--skip-build] [--skip-upgrade]
                          [--app web-frontend] [--pkg web-frontend] [--app-uuid <u>]
                          [--tag itpb] [--description <包描述>] [--feature <版本特性>]
-  python3 web_frontend_release.py --bump [--yes] ...   # 从 CloudOS 已部署版本按规则算下一版
-  python3 web_frontend_release.py --debug [--yes] ...  # 调试升级，版本固定哨兵 0.0.0.1
+  itp-ops.sh web release --bump [--yes] ...   # 从 CloudOS 已部署版本按规则算下一版
+  itp-ops.sh web release --debug [--yes] ...  # 调试升级，版本固定哨兵 0.0.0.1
   不带 --yes = dry-run（本地出 zip + 打印将发的请求，不碰生产）
 
 【与旧版的差异（收编对齐契约，均有理由）】
@@ -416,10 +416,9 @@ def upgrade(token, base, app_uuid, version, version_id) -> str:
 
 # --------------------------------------------------------------------------- 入口
 CATALOG = {
-    "name": "web-frontend-release",
+    "name": "release",
     "summary": "web 前端（CloudOS 应用包 web-frontend）一键发版：出 zip → 上传 → 升级 → 核验",
-    "standalone": True,
-    "usage": "python3 web_frontend_release.py <版本|--bump|--debug> [--yes] [--skip-build] [--skip-upgrade] [--app …] [--pkg …] [--app-uuid …] [--tag …] [--description …] [--feature …] [--env hongdao|test]",
+    "usage": "web release <版本|--bump|--debug> [--yes] [--skip-build] [--skip-upgrade] [--app …] [--pkg …] [--app-uuid …] [--tag …] [--description …] [--feature …] [--env hongdao|test]",
     "args": [
         {"name": "版本", "required": False},
         {"name": "--yes", "desc": "执行生产写（上传+升级）；缺省 dry-run"},
@@ -428,7 +427,7 @@ CATALOG = {
         {"name": "--skip-build / --skip-upgrade", "desc": "跳过本地构建 / 只上传不升级"},
     ],
     "writes": True,
-    "example": "python3 web_frontend_release.py 1.2.44 --yes",
+    "example": "itp-ops.sh web release 1.2.44 --yes",
     "env_note": "CloudOS 红岛/测试双平台（--env 或 CLOUDOS_ENV，默认 hongdao）",
 }
 
@@ -442,7 +441,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="web_frontend_release.py", description="web 前端（CloudOS）一键发版")
+    ap = argparse.ArgumentParser(prog="itp-ops.sh web release", description="web 前端（CloudOS）一键发版")
     ap.add_argument("version", nargs="?", help="目标版本，如 1.2.44；与 --bump/--debug 互斥")
     ap.add_argument("--yes", action="store_true", help="执行生产写（上传+升级）；缺省 dry-run")
     ap.add_argument("--debug", action="store_true",

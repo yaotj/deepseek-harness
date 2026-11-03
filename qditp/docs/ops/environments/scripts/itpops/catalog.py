@@ -15,23 +15,21 @@ from . import ITP_OPS_VERSION
 from .core import ui
 from .errors import CODE_BY_EXIT
 
-# 域名 → itpops.domains 下的模块名（与 itp-ops.sh v1 命令面一致）
+# 域名 → itpops.domains 下的模块名（与 itp-ops.sh 命令面一致）
 _DOMAIN_MODULES: dict[str, str] = {
-    "version": "version_cmd",
+    "version": "version",
     "cloudos": "cloudos",
     "k8s": "k8s",
     "log": "log",
     "diag": "diag",
     "analysis": "analysis",
+    "buildx": "buildx",
+    "sentinel": "sentinel",
+    "web": "web",
 }
 
-# 独立入口（不经 itp-ops 域分发，原名直接调用；CATALOG 含 standalone: True）
-_STANDALONE_MODULES: tuple[str, ...] = (
-    "buildx",
-    "route_sentinel",
-    "web.frontend_release",
-    "web.mount_export",
-)
+# 独立入口（2026-11-03 全部收敛为域子命令，此处留空仅为兼容旧字段）
+_STANDALONE_MODULES: tuple[str, ...] = ()
 
 EXIT_CODE_DOC = {
     "0": "成功",

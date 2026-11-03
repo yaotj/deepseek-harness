@@ -1,7 +1,7 @@
 r"""itpops · route-sentinel —— route-sentinel 1.0.1 红岛 itpb 首次部署。
 
-移植自 hongdao-deploy-route-sentinel.sh（bash）。独立入口（不经 itpops cli
-分发）：`python3 -m itpops.route_sentinel …`；薄壳 hongdao-deploy-route-sentinel.sh
+移植自 itp-ops.sh sentinel（bash）。独立入口（不经 itpops cli
+分发）：`itp-ops.sh sentinel …`；薄壳 itp-ops.sh sentinel
 转调本模块。流程（沿自 bash 头注，2026-10-26 用户授权执行）：
   1/4 清理软件中心残留（上一轮失败的 upload）
   2/4 上传 jar 到软件中心（fileFlag 机制）
@@ -66,7 +66,6 @@ from .buildx import (
 from .core import envx, ui
 from .core.execx import require_yes
 from .core.remote import remote_exec, remote_quote_args
-from .core.ui import Ctx, set_context
 from .errors import (
     EXIT_EXEC,
     EXIT_OK,
@@ -76,7 +75,7 @@ from .errors import (
     OpsError,
 )
 
-_CMD_NAME = "hongdao-deploy-route-sentinel.sh"
+_CMD_NAME = "itp-ops.sh sentinel"
 
 MOD = "route-sentinel"
 VER = "1.0.1"
@@ -91,19 +90,20 @@ BASE_IMAGE_TEST = "os-harbor-svc.default.svc.cloudos:443/itp/jdk:25"
 _USAGE = f"用法: {_CMD_NAME} <jar-path> <dockerfile-path> [--env hongdao|test] [--yes]"
 
 CATALOG = {
-    "name": "route-sentinel",
-    "summary": "route-sentinel 1.0.1 红岛 itpb 首次部署（清理软件中心残留→上传 jar→镜像构建→部署 Deployment/Service）",
-    "standalone": True,
-    "usage": f"python3 -m itpops.route_sentinel <jar-path> <dockerfile-path> [--env hongdao|test] [--yes]",
+    "name": "sentinel",
+    "summary": "route-sentinel 1.0.1 首次部署（清理软件中心残留→上传 jar→镜像构建→部署 Deployment/Service）",
+    "default_env": "hongdao",
+    "subcommands": [],
+    "usage": "sentinel <jar-path> <dockerfile-path> [--env hongdao|test] [--yes]",
     "args": [
         {"name": "jar-path", "required": True, "summary": "route-sentinel fat jar 路径"},
         {"name": "dockerfile-path", "required": True, "summary": "Dockerfile 路径（原样上传，不替换 FROM）"},
-        {"name": "--env", "required": False, "summary": "hongdao|test，默认 hongdao（bash 硬编码红岛，此为新增）"},
+        {"name": "--env", "required": False, "summary": "hongdao|test，默认 hongdao（原脚本硬编码红岛，此为新增）"},
         {"name": "--yes", "required": False, "summary": "确认写操作（生产部署红线口径，缺它本地即拒）"},
     ],
     "writes": True,
-    "example": "python3 -m itpops.route_sentinel target/route-sentinel-1.0.1.jar Dockerfile --yes",
-    "env_note": "默认 hongdao（红岛 hd-linux / itpb）；--env 为新增能力，会连带切换跳板与 Harbor 项目",
+    "example": "itp-ops.sh sentinel route-sentinel/target/route-sentinel-1.0.1.jar route-sentinel/Dockerfile --yes",
+    "env_note": "默认 hongdao（红岛 hd-linux / itpb）；--env 会连带切换跳板与 Harbor 项目",
 }
 
 
@@ -415,8 +415,9 @@ def _build_digest(body: str) -> tuple[bool, str]:
 # ---------------------------------------------------------------- 主流程
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    ctx = Ctx(command=argv)
-    set_context(ctx)
+    # 复用入口的全局上下文（quiet/verbose/no-color/--json 不丢失）；独立运行时为默认 Ctx
+    ctx = ui.context()
+    ctx.command = argv
     try:
         return _run(argv, ctx)
     except OpsError as exc:

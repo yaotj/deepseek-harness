@@ -20,7 +20,7 @@
   · 「平台 Service 真源」：新增访问方式 MUST 走 svc create，手工 kubectl apply
     的对象重装即丢（IT-035）。
   · image build 走旧端点 /images/build（红岛/测试实测 404/img.5，IT-024），
-    输出里的 WARN 原样保留，指引改用 hongdao-buildx.sh。
+    输出里的 WARN 原样保留，指引改用 itp-ops.sh buildx。
 
 【与 bash 版的差异】（原则上零差异，以下均有理由）
   1. 失败退出码细分：bash 一律 exit 1（或 health/logs 的 return 1/2）；
@@ -190,11 +190,11 @@ _HELP_BODY = """\
   image probe                    只读探测（基址/镜像分类/已有 tag，仍可用于取 imgType）
   image plan  <模块> <版本>       dry-run，打印将提交的全部参数
   image build <模块> <版本> --yes 走 POST /images/build（历史端点；两套环境都应改用
-                                 hongdao-buildx.sh —— buildx 端点才是通的）
+                                 itp-ops.sh buildx —— buildx 端点才是通的）
         附加选项：--jar <p> --project <name> --img-type <uuid> --dockerfile <p>
 
 镜像构建（实际可用，两个环境同一套）
-  bash docs/ops/environments/scripts/hongdao-buildx.sh <镜像名> <版本> [--env hongdao|test]
+  itp-ops.sh buildx <镜像名> <版本> [--env hongdao|test]
        [--jar <绝对路径>] [--dockerfile <共享模板>] [--check]
        平台 x86 节点 buildx 出镜像并推 Harbor；Harbor 项目与基础镜像按 --env 自动取
        （红岛 itpb/jdk21:1.0.0、测试 itp/jdk:25）。--check 为只读模式。
@@ -980,7 +980,7 @@ def _deploy_check_image(name: str, tag: str, new_img: str, project: str) -> tupl
     hit = [r for r in rows if r.get("imgUrl") == new_img]
     if not hit:
         _err("Harbor 项目 %s 里没有 %s:%s —— 镜像还没构建（或名字/项目写错）。"
-             "MUST 先用 hongdao-buildx.sh --env %s 产出该 tag，NEVER 升级不存在的 tag"
+             "MUST 先用 itp-ops.sh buildx --env %s 产出该 tag，NEVER 升级不存在的 tag"
              % (project, name, tag, envx.current().name))
         raise OpsError("目标镜像校验未通过，已停止（未发起任何写操作）", EXIT_PRECONDITION)
     r = hit[0]
@@ -1308,7 +1308,7 @@ def _cmd_plan(mod: str, ver: str, state: dict, harbor_project: str) -> int:
 
 def _cmd_build(mod: str, ver: str, state: dict, harbor_project: str) -> int:
     ui.log_warn("本命令走旧端点 /api/cloud/hcr/v1.0/images/build —— 红岛实测 404/img.5（IT-024），")
-    ui.log_warn("测试同样无该路由。要出镜像请用 hongdao-buildx.sh（buildx 端点，两环境通用）。")
+    ui.log_warn("测试同样无该路由。要出镜像请用 itp-ops.sh buildx（buildx 端点，两环境通用）。")
     # 差异 §4：门提到 image_prepare 之前，缺 --yes 本地即拒
     require_yes("build 会向生产平台发写请求（先跑 image plan 看清单）")
 
@@ -1521,7 +1521,7 @@ CATALOG = {
          "stdout_human": "================ 将要执行（dry-run，未发任何写请求）================ …",
          "json_data": {"module": "fep-app", "version": "1.0.0", "dry_run": True}},
         {"name": "image build", "usage": "cloudos image build <模块> <版本> [--jar <p>] [--project <name>] [--img-type <uuid>] [--dockerfile <p>]",
-         "summary": "走 POST /images/build（历史端点；两套环境都应改用 hongdao-buildx.sh）",
+         "summary": "走 POST /images/build（历史端点；两套环境都应改用 itp-ops.sh buildx）",
          "args": [{"name": "模块", "required": True}, {"name": "版本", "required": True}],
          "writes": True, "example": "itp-ops.sh cloudos image build fep-app 1.0.0 --yes",
          "stdout_human": "[INFO] == 1/4 上传 jar（fileFlag=…） …",

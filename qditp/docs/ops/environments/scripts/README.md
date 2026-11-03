@@ -6,38 +6,36 @@
 
 ## 一、结构
 
-> 2026-11-03 起底层为 **Python 包 `itpops/`**（纯标准库，双受众：人 + 大模型），
-> `itp-ops.sh` 及各独立脚本保留原名薄壳，命令面与 bash 时代逐字兼容。
+> 2026-11-03 起底层为 **Python 包 `itpops/`**（纯标准库，双受众：人 + 大模型）。
+> **唯一入口是 `itp-ops.sh`**；镜像构建 / 路由哨兵 / 前端发版等原独立脚本已全部收敛为
+> 它的子命令（`buildx` / `sentinel` / `web release` / `web mount-export`），
+> 不再有第二个 `.sh` 入口。
 
 ```
 scripts/
-├── itp-ops.sh                ★ 唯一入口（薄壳：exec python3 -m itpops）：全局参数（--env/--yes/--json）解析 + 域分发
+├── itp-ops.sh                ★ 唯一入口（薄壳：exec python3 -m itpops）
 ├── itpops/                   Python 包（底层实现，v2.1）
 │   ├── cli.py                  全局参数解析 + 域分发（-e/-y/-n/-o/-q/-v/--no-color/--trace/--）
 │   ├── help.py                 分层帮助渲染（命令级由 CATALOG 生成）
 │   ├── completion.py           bash/zsh 补全生成（从 CATALOG 派生）
 │   ├── catalog.py              自描述命令注册表（大模型入口：itp-ops.sh catalog -o json）
 │   ├── errors.py               退出码契约：0 成功 / 2 用法 / 3 前置 / 4 传输 / 5 执行 / 6 缺 --yes / 130 中断
-│   ├── core/                   ui（日志/上下文）/ version（版本算法真源）/ envx（环境 profile）/ remote（ssh 跳板）/ execx（写门/依赖）
+│   ├── core/                   ui / version（版本算法真源）/ envx（环境 profile）/ remote（ssh 跳板）/ execx（写门/依赖）
 │   ├── cloudos/                CloudOS API 四模块（auth/http/image/pkg）
 │   ├── domains/                按域分组的命令实现（每个域 main(args)+CATALOG）
-│   │   ├── cloudos.py            云管台运维：apps/env/pods/logs/scale/act/spec/image…
-│   │   ├── k8s.py                镜像构建推送：deploy（失败继续）/ deploy-all（失败即断）/ services
-│   │   ├── log.py                日志：tail（查看）/ watch（Pod 重启自动重挂监控）
-│   │   ├── diag.py               诊断：reach（红岛分区可达性）/ routes（48000 入向路由导出）
+│   │   ├── cloudos.py            云管台运维：apps/env/pods/scale/act/spec/deploy/image…
+│   │   ├── buildx.py             镜像构建（itp-ops.sh buildx，平台 x86 出 amd64）
+│   │   ├── k8s.py                镜像构建推送兜底链：deploy / deploy-all / services
+│   │   ├── log.py                日志：tail / watch
+│   │   ├── diag.py               诊断：reach / routes
+│   │   ├── web.py                前端发版与挂载：release / mount-export
+│   │   ├── sentinel.py           route-sentinel 首次部署
 │   │   ├── analysis.py           静态分析：endpoints
-│   │   └── version_cmd.py        版本号计算：next / debug
-│   ├── buildx.py               hongdao-buildx.sh 的实现（独立入口）
-│   ├── route_sentinel.py       hongdao-deploy-route-sentinel.sh 的实现（独立入口）
-│   └── web/                    前端发版与导出挂载（独立入口）
-│       ├── frontend_release.py   web_frontend_release.py 的实现
-│       └── mount_export.py       mount-web-admin-export.py 的实现
-├── hongdao-buildx.sh           镜像构建唯一可用入口（薄壳 → itpops.buildx；hcr file/upload + buildx，平台 x86 节点出镜像）；
-│                               按 --env 打红岛(itpb) 或 测试(itp)，基础镜像随环境替换
-├── hongdao-deploy-route-sentinel.sh   入向路由哨兵部署（薄壳 → itpops.route_sentinel）
-├── hongdao-buildx.Dockerfile   与之配套的共享构建模板（NEVER 写 ENTRYPOINT/CMD，理由见文件头与 IT-031）
-├── web_frontend_release.py     前端发版脚本（薄壳 → itpops.web.frontend_release；见 web-frontend-release.README.md）
-├── mount-web-admin-export.py   web-admin 挂 export 目录（薄壳 → itpops.web.mount_export）
+│   │   └── version.py            版本号计算：next / debug
+│   ├── buildx.py               buildx 域实现（hcr file/upload + buildx 端点）
+│   ├── route_sentinel.py       sentinel 域实现（清理→上传→构建→部署）
+│   └── web/                    release（前端发版）/ mount_export（导出挂载）实现
+├── buildx.Dockerfile         共享构建模板（NEVER 写 ENTRYPOINT/CMD，理由见文件头与 IT-031）
 ├── analysis/                 count-endpoints.py 本体（由 domains/analysis.py 调度，勿直接跑）
 ├── hosts/                    ★ 跑在远端机器上的脚本本体（按「跑在哪台机」分层，NEVER 在本机执行）
 │   └── k8s-master/             测试环境跳板机 /home/java 下的脚本（build-push / k8s-deploy / k8s-logview / Dockerfile）
@@ -58,12 +56,16 @@ cd docs/ops/environments/scripts
 ./itp-ops.sh cloudos env fep-app       # env 全量（排 RPC 地址错配首选）
 ./itp-ops.sh cloudos scale fep-app 2 --yes    # 副本伸缩（生产写操作，缺 --yes 拒绝）
 ./itp-ops.sh cloudos deploy recon-server 1.0.28          # 切镜像升级：不带 --yes 是只读预演（校 tag/arch + 打 body）
-./itp-ops.sh k8s deploy fep-dev-server --yes  # 单服务镜像构建推送
+./itp-ops.sh buildx fep-dev-server 1.2.44 --env test    # 出镜像（平台 x86；红岛/测试同一命令）
+./itp-ops.sh k8s deploy fep-dev-server --yes  # 单服务镜像构建推送（兜底链）
 ./itp-ops.sh k8s deploy-all --yes      # 有序全量，失败即断
 ./itp-ops.sh log tail fep-app -f       # 实时跟踪日志（Ctrl+C 退出）
 ./itp-ops.sh log watch                 # 监控守护（Pod 重启自动重挂 tail -f）
 ./itp-ops.sh diag reach                # 红岛分区可达性自检
 ./itp-ops.sh diag routes               # 48000 入向路由全链路导出 + 基线 diff
+./itp-ops.sh web release --bump        # 前端发版预演（--yes 才上传+升级）
+./itp-ops.sh web mount-export          # web-admin 挂导出目录（预演；--yes 下发）
+./itp-ops.sh sentinel route-sentinel/target/route-sentinel-1.0.1.jar route-sentinel/Dockerfile --yes
 ./itp-ops.sh analysis endpoints account-server/src/main/java   # 端点计数
 ```
 
@@ -107,7 +109,7 @@ diag 按子命令）、`-y/--yes`（确认写操作）、`-n/--dry-run`（强制
 > 1. `k8s` 域只对测试可用——红岛跳板 `hd-linux` 上**没有** `/home/java`，也没有 `build-push.sh`，
 >    且远端只有 `podman` 没有 `docker`。红岛发版 MUST 走平台侧构建
 >    （本机只传 jar + Dockerfile，镜像由平台 x86 构建节点产出）。⚠ 但入口**不是** `cloudos image build`——它走旧端点
->    `/images/build`，红岛实测 404 / `img.5`；实测可用的是 `hongdao-buildx.sh`（见 `构建与发布.md` §三第 5 步、IT-024）。
+>    `/images/build`，红岛实测 404 / `img.5`；实测可用的是 `itp-ops.sh buildx`（见 `构建与发布.md` §三第 5 步、IT-024）。
 > 2. `log tail` 只对测试可用——它依赖远端 `/home/java/k8s-logview.sh`，该脚本红岛尚未部署；
 >    红岛看日志用 `log watch`（走 kubectl）或 `ssh hd-linux kubectl logs`。
 > `hosts/k8s-master/` 因此只是**测试跳板**脚本的仓内镜像，红岛侧脚本未入仓。
@@ -158,7 +160,7 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
 | 平台版本 | — | E7501-V500R001B03D019-RC31 |
 | 应用记录 vs 实跑镜像 | 一致（滚更走 `cloudos deploy`） | **大面积不一致**（27 个里 25 个，滚更走 `kubectl set image`，见 IT-034） |
 
-镜像构建入口两个环境同一份实现：`hongdao-buildx.sh --env {hongdao|test}`（文件名是红岛首发时的历史名，脚本已按环境参数化）。
+镜像构建入口两个环境同一份实现：`itp-ops.sh buildx --env {hongdao|test}`（文件名是红岛首发时的历史名，脚本已按环境参数化）。
 
 ### 3.2 平台实测怪癖（都是坑）
 
@@ -316,15 +318,15 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
 **2026-11-03 Python 化重构**（「重新组织脚本，底层用 python，分模块，给大模型也给人用」）：
 
 - 底层 bash → Python 包 `itpops/`（纯标准库，`from __future__ import annotations`）；
-  `itp-ops.sh` 与 `hongdao-buildx.sh` / `hongdao-deploy-route-sentinel.sh` /
-  `web_frontend_release.py` / `mount-web-admin-export.py` 保留原名为薄壳，**命令面逐字兼容**
+  `itp-ops.sh` 与 `itp-ops.sh buildx` / `itp-ops.sh sentinel` /
+  `itp-ops.sh web release` / `itp-ops.sh web mount-export` 保留原名为薄壳，**命令面逐字兼容**
   （help/结果文本与旧版 stdout diff 为空，逐域实测）。
 - 双受众契约：人——结果 stdout、日志/横幅 stderr、TTY 才着色；大模型——`--json` 单条信封
   `{ok, command, data, error}` + `catalog --json` 自描述命令注册表 + 稳定退出码
   （0/2/3/4/5/6，见 `itpops/errors.py`）。
 - 版本算法真源收敛到 `itpops/core/version.py`（与 `lib/version.sh` 逐字节 parity 实测：
   1.2.42→1.2.43、1.2.99→1.3.0、1.99.99→2.0.0、99.99→1.0.0）；顺带修正
-  `web_frontend_release.py` 旧自带 `next_version` 的多重进位 bug（1.99.99 曾错算 1.0.0.0），
+  `itp-ops.sh web release` 旧自带 `next_version` 的多重进位 bug（1.99.99 曾错算 1.0.0.0），
   前端发版统一走真源。
 - 移植期修复的 bash 历史缺陷（均已实测证实并就地记录在对应模块 docstring「与 bash 版的差异」）：
   `log watch` 漏 tail 子命令致从未工作、`WATCH_NS` source 时求值吃不到 `--env hongdao`、
@@ -346,3 +348,21 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
   以及 `itp-ops.sh help <域> [命令]` 别名。
 - `-o json` 信封增加 `duration_ms`；`catalog` 契约补充 output_formats / env_vars / help / completion。
 - 回归：6 域 help 与改造前逐字节一致；`version next` 算法 parity 不变；`catalog -o json` 全 ok。
+
+**2026-11-03 入口与命名收敛（「只有一个入口」）**：
+
+- 删除 4 个独立入口，全部收敛为 `itp-ops.sh` 子命令（实现仍在 `itpops/`，可 `python3 -m` 直调）：
+
+  | 旧文件 | 新命令 | 改名理由 |
+  |---|---|---|
+  | `hongdao-buildx.sh` | `itp-ops.sh buildx` | 名字暗示「红岛专用」，实际 `--env` 双环境 |
+  | `hongdao-buildx.Dockerfile` | `buildx.Dockerfile` | 同上；共享模板，FROM 按环境替换 |
+  | `hongdao-deploy-route-sentinel.sh` | `itp-ops.sh sentinel` | 名长且带 hongdao，实为一次性部署工具 |
+  | `web_frontend_release.py` | `itp-ops.sh web release` | 收敛入口；参数/示例见 `web release -h` |
+  | `mount-web-admin-export.py` | `itp-ops.sh web mount-export` | 同上 |
+  | `web-frontend-release.README.md` | 并入 `docs/ops/web前端云平台发版流程.md` | 脚本没了，README 不再独立存在 |
+
+- 附带：`domains/version_cmd.py` → `domains/version.py`（去掉历史 `_cmd` 后缀）；`itpops/buildx.py` /
+  `route_sentinel.py` / `web/*` 的用法文本与 CATALOG 改指新命令；`buildx` / `route_sentinel` 入口改为
+  复用入口上下文（此前各自 `Ctx()` 会把 `-q/-v/-o json` 等全局态冲掉）。
+- 全仓引用（AGENTS.md、构建与发布、环境文档、tracking、skills、MEMORY）同步改写；`bash itp-ops.sh` 冗余前缀清理。

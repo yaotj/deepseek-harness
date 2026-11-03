@@ -358,7 +358,7 @@ def main() -> int:
     print("下一步 MUST 手动执行：")
     print("  后端  mise exec -- mvn -o clean package -pl <模块> -DskipTests")
     print("  前端  cd web && npm run build:zip")
-    print("  部署  bash docs/ops/environments/scripts/hongdao-buildx.sh <镜像名> <新tag> --env test --jar ...")
+    print("  部署  bash itp-ops.sh buildx <镜像名> <新tag> --env test --jar ...")
     print("      + ./itp-ops.sh --env test cloudos deploy <应用> <新tag> --yes")
     return 0
 

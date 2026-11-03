@@ -1,8 +1,8 @@
 r"""itpops · buildx —— 红岛 CloudOS 镜像构建（buildx 端点，platform=linux/amd64）。
 
-移植自 hongdao-buildx.sh（bash）+ lib/{core,env,cloudos-auth,cloudos-http}.sh。
-独立入口（不经 itpops cli 分发）：`python3 -m itpops.buildx …`；薄壳
-hongdao-buildx.sh 转调本模块，命令面与旧 bash 逐字兼容。
+移植自 itp-ops.sh buildx（bash）+ lib/{core,env,cloudos-auth,cloudos-http}.sh。
+独立入口（不经 itpops cli 分发）：`itp-ops.sh buildx …`；薄壳
+itp-ops.sh buildx 转调本模块，命令面与旧 bash 逐字兼容。
 
 【为什么不用 itp-ops.sh cloudos image build】（沿自 bash 头注，IT-024）
   旧命令走 /api/cloud/hcr/v1.0/images/build（红岛 404 / img.5）。红岛可用的构建
@@ -50,7 +50,7 @@ hongdao-buildx.sh 转调本模块，命令面与旧 bash 逐字兼容。
      与报错文案一致（grep 的子串语义 = 条目名含 "BOOT-INF/classes"）。
   6. --check 的网络失败：bash 里 curl 失败也 exit 0（管道末端 json.tool 对空
      输入报错被吞）；Python 按契约报传输 4。
-  7. 用法/错误文案里的 $0 固定为命令名 hongdao-buildx.sh（bash 是调用路径，
+  7. 用法/错误文案里的 $0 固定为命令名 itp-ops.sh buildx（bash 是调用路径，
      随调用方式漂移）；bash ${var:?} 的「bash: 1: 」shell 诊断前缀不复刻，
      保留其 msg 正文。mktemp -d 的随机路径文本天然不同。
 """
@@ -72,7 +72,6 @@ import zipfile
 from pathlib import Path
 
 from .core import envx, ui
-from .core.ui import Ctx, set_context
 from .errors import (
     EXIT_EXEC,
     EXIT_OK,
@@ -82,7 +81,7 @@ from .errors import (
     OpsError,
 )
 
-_CMD_NAME = "hongdao-buildx.sh"
+_CMD_NAME = "itp-ops.sh buildx"
 
 # 默认 imgType：hcr 内置「Default」（红岛与测试该 uuid 恰好相同）。
 IMG_TYPE_DEFAULT = "20e68cab-c634-468d-8d0c-56cb6096"
@@ -99,10 +98,11 @@ _USAGE = (
 
 CATALOG = {
     "name": "buildx",
-    "summary": "红岛 CloudOS 镜像构建（buildx 端点，platform=linux/amd64，jar 直传上下文）",
-    "standalone": True,
+    "summary": "镜像构建（CloudOS buildx 端点，platform=linux/amd64，jar 直传上下文；红岛/测试双环境，幂等、不设 --yes 门）",
+    "default_env": "hongdao",
+    "subcommands": [],
     "usage": (
-        "python3 -m itpops.buildx <module> <version> [--env hongdao|test] "
+        "buildx <module> <version> [--env hongdao|test] "
         "[--jar <jar>] [--dockerfile <df>] [--project <name>] "
         "[--img-type <uuid>] [--base-image <ref>] [--check]"
     ),
@@ -117,8 +117,8 @@ CATALOG = {
         {"name": "--base-image", "required": False, "summary": "基础镜像覆盖"},
         {"name": "--check", "required": False, "summary": "只读：只查现有镜像，不发写请求"},
     ],
-    "writes": True,
-    "example": "python3 -m itpops.buildx route-sentinel 1.0.2 --env hongdao",
+    "writes": False,
+    "example": "itp-ops.sh buildx route-sentinel 1.0.2 --env hongdao",
     "env_note": "默认 hongdao；打 CloudOS（登录/上传/构建/轮询），环境横幅含平台账号与基础镜像",
 }
 
@@ -694,8 +694,9 @@ def _repo_root() -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    ctx = Ctx(command=argv)
-    set_context(ctx)
+    # 复用入口的全局上下文（quiet/verbose/no-color/--json 不丢失）；独立运行时为默认 Ctx
+    ctx = ui.context()
+    ctx.command = argv
     try:
         opts = _parse_args(argv)
         if opts is None:

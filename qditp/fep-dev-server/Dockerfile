@@ -4,7 +4,7 @@ FROM os-harbor-svc.default.svc.cloudos:443/itpb/jdk21:1.0.0
 # 2026-10-26 实测 itpb ns 内拉取成功，java version 21.0.1，完整 JDK）。
 #
 # 【COPY 文件名约定】
-#   云管台镜像构建（hongdao-buildx.sh）上传的构建上下文中 jar 固定命名为 app.jar，
+#   云管台镜像构建（itp-ops.sh buildx）上传的构建上下文中 jar 固定命名为 app.jar，
 #   故此处 MUST 写 COPY app.jar，不能写 target/fep-dev-server-<版本>.jar —— 平台构建
 #   上下文中没有 target/ 目录，会 COPY 失败。
 

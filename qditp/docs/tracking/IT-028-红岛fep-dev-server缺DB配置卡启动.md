@@ -37,11 +37,11 @@
 ## 5. 验证与回滚
 - 验证方式 / 结果（**2026-10-28 已发布并验证通过**）：
   1. 仓库侧修复：pom 删除 sql-datasource/mybatis-adaptor/ojdbc8/orai18n 四个持久层依赖与版本属性、主类删残留 import；`mvn -o clean test-compile` BUILD SUCCESS；
-  2. bump 2.0.71→**2.0.72** 出 jar → `hongdao-buildx.sh` 平台 buildx → `itpb/fep-dev-server:2.0.72`（digest `sha256:74024e62eefe1e46ef59ad71755091e4811185aa7ef0b5c9d6ddbf6f887bb6f0`，linux/amd64 已核；镜像较 2.0.71 小 12MB，与删依赖相符）；
+  2. bump 2.0.71→**2.0.72** 出 jar → `itp-ops.sh buildx` 平台 buildx → `itpb/fep-dev-server:2.0.72`（digest `sha256:74024e62eefe1e46ef59ad71755091e4811185aa7ef0b5c9d6ddbf6f887bb6f0`，linux/amd64 已核；镜像较 2.0.71 小 12MB，与删依赖相符）；
   3. `advanced-config` PATCH 升级：version 2.0.71.7→2.0.71.8，version_id=hcr 镜像记录 uuid `zftnahc9`，env 19 项全量保留（含 VLOGS_URL），replicas=2 / 4C8G / app-logs PVC 挂载不变，release_id `3df005851cf44e29850b0af58d5306d0`；
   4. rollout 成功，新 Pod imageID = 推送 digest（硬证据一致）；两副本容器内 `curl 127.0.0.1:8080` 均应答（403=框架 FirstFilter 对根路径正常拦截）；日志 `Started FepDevServer in 5.436 seconds`（此前 47h 起不来）、log4j2-linux.xml 正常加载（日志盘 + VL 恢复）、**无 Druid 重试日志**；
   5. NodePort 31938 经 istio-envoy 探活：503 Connection refused → 403（`x-envoy-upstream-service-time` 有值=真实打到上游）；Kong `/fep-dev/`、`/itpagm/` 前缀同步恢复。
-- 踩坑沉淀：buildx 的 tar 构建上下文已失效（一律 img.5），`hongdao-buildx.sh` 已改为直传 jar 文件（2026-10-28，详见 IT-024 §7）。
+- 踩坑沉淀：buildx 的 tar 构建上下文已失效（一律 img.5），`itp-ops.sh buildx` 已改为直传 jar 文件（2026-10-28，详见 IT-024 §7）。
 - 回滚预案：Harbor 旧 tag `itpb/fep-dev-server:2.0.71`（digest `sha256:880efba2…`）未删——回滚=再发 `advanced-config` PATCH 把 `container_image` 指回 `:2.0.71`、`version` 第 4 段继续递增（NEVER 复用已用值）；注意回退即回到带 DB 能力的错误产物，会重新卡启动，仅作临时手段。
 - 已完成：`红岛-对外访问说明.md`「fep-dev 503 系后端应用自身返回」旧结论已修订为 envoy Connection refused（2026-10-28）。
 

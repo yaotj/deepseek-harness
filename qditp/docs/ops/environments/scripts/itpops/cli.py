@@ -44,6 +44,7 @@ from . import help as help_mod
 from .core import ui
 from .core.ui import Ctx, set_context
 from .errors import (
+    CODE_BY_EXIT,
     EXIT_GENERIC,
     EXIT_OK,
     EXIT_PRECONDITION,
@@ -51,14 +52,17 @@ from .errors import (
     OpsError,
 )
 
-# 域名 → itpops.domains 模块名（迁移期各域逐个就位）
+# 域名 → itpops.domains 模块名
 _DOMAIN_MODULES = {
-    "version": "version_cmd",
+    "version": "version",
     "cloudos": "cloudos",
     "k8s": "k8s",
     "log": "log",
     "diag": "diag",
     "analysis": "analysis",
+    "buildx": "buildx",
+    "sentinel": "sentinel",
+    "web": "web",
 }
 
 _OUTPUT_CHOICES = ("text", "json")
@@ -91,9 +95,12 @@ def _version_text() -> str:
 def _root_help() -> str:
     doms = [
         ("cloudos", "云管台运维：apps/env/pods/scale/deploy/image…", "默认 --env hongdao"),
-        ("k8s", "镜像构建推送（仅测试环境可用）", "默认 --env test"),
+        ("buildx", "镜像构建（平台 x86 出 amd64；红岛/测试双环境）", "默认 --env hongdao"),
+        ("k8s", "镜像构建推送（仅测试环境可用，scp+build-push 兜底链）", "默认 --env test"),
         ("log", "日志查看 / Pod 重启自动重挂监控", "默认 --env test"),
         ("diag", "网络可达性自检 / 48000 入向路由导出", "reach=hongdao、routes=test"),
+        ("web", "web 前端发版 / web-admin 导出目录挂载", "release=hongdao、mount-export=test"),
+        ("sentinel", "route-sentinel 首次部署（清理→上传→构建→部署）", "默认 --env hongdao"),
         ("analysis", "静态分析：端点计数", "环境无关"),
         ("version", "版本号计算：next / debug", "本地计算"),
         ("catalog", "自描述命令注册表（大模型入口）", "-o json 可读"),
@@ -131,7 +138,9 @@ itp-ops {ITP_OPS_VERSION} —— 青岛地铁 ITP 平台运维单一入口
 示例:
   itp-ops.sh cloudos health                        # 写操作前必跑的连通性自检
   itp-ops.sh cloudos apps Error                    # 只列异常态应用
+  itp-ops.sh buildx fep-dev-server 1.2.44 --env test   # 出镜像（平台 x86）
   itp-ops.sh --env test k8s deploy fep-dev-server --yes
+  itp-ops.sh web release --bump                    # 前端发版预演（--yes 才写）
   itp-ops.sh -o json cloudos apps Error            # 机器信封，可接 jq
   itp-ops.sh log tail fep-app -f                   # 实时跟踪
   itp-ops.sh version next 1.2.42                   # → 1.2.43
@@ -356,10 +365,18 @@ def main(argv: list[str] | None = None) -> int:
                 domain_args = ["help"]
 
         rc = _dispatch(domain, domain_args)
+        rc = rc if isinstance(rc, int) else EXIT_OK
         if ctx.json_mode:
-            _emit_json(True, argv, ui.get_result(), None,
-                       int((time.monotonic() - t0) * 1000))
-        return rc if isinstance(rc, int) else EXIT_OK
+            elapsed = int((time.monotonic() - t0) * 1000)
+            if rc == EXIT_OK:
+                _emit_json(True, argv, ui.get_result(), None, elapsed)
+            else:
+                # 域内部已打人机错误（OpsError 被域自己捕获），这里只补信封
+                _emit_json(False, argv, None,
+                           {"code": CODE_BY_EXIT.get(rc, "GENERIC"),
+                            "message": f"命令失败（exit {rc}，详见 stderr）",
+                            "exit": rc}, elapsed)
+        return rc
 
     except OpsError as exc:
         return _fail(ctx, argv, exc, t0)
