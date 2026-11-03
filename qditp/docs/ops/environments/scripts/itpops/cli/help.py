@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import sys
 
-from .catalog import _load_domains
+from .registry import load_domains
 
 
 def _arg_line(a) -> str:
@@ -25,7 +25,7 @@ def _arg_line(a) -> str:
 
 
 def find_domain(name: str) -> dict | None:
-    for d in _load_domains():
+    for d in load_domains():
         if d.get("name") == name:
             return d
     return None

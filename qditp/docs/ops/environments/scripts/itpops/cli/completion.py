@@ -9,7 +9,7 @@
 """
 from __future__ import annotations
 
-from .catalog import _load_domains
+from .registry import load_domains
 
 _GLOBAL_FLAGS = (
     "-e --env -y --yes -n --dry-run -o --output -q --quiet "
@@ -22,7 +22,7 @@ _BUILTINS = ("catalog", "completion", "help")
 def _domain_map() -> dict[str, list[str]]:
     """域/顶层命令 → 子命令词表（多词命令如 `image build` 拆成单词，便于补全）。"""
     m: dict[str, list[str]] = {}
-    for d in _load_domains():
+    for d in load_domains():
         words: list[str] = []
         for s in d.get("subcommands", []):
             for w in (s.get("name", "") or "").split():
@@ -35,7 +35,7 @@ def _domain_map() -> dict[str, list[str]]:
 
 
 def _top_level() -> list[str]:
-    names = [d.get("name", "") for d in _load_domains() if d.get("name")]
+    names = [d.get("name", "") for d in load_domains() if d.get("name")]
     for b in _BUILTINS:
         if b not in names:
             names.append(b)

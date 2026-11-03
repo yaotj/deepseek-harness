@@ -23,8 +23,8 @@ import os
 import subprocess
 import sys
 
-from ..core import envx, ui
-from ..core.execx import repo_root, scripts_dir
+from ..core import environments as envx, ui
+from ..core.runtime import repo_root, scripts_dir
 from ..core.remote import run_remote_ok
 from ..errors import EXIT_EXEC, EXIT_TRANSPORT, OpsError
 

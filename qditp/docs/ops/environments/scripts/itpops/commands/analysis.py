@@ -1,6 +1,6 @@
 """itpops · analysis 域 —— 代码/文档静态分析（可重跑刷新文档数字）。
 
-移植自 domains/analysis.sh（bash，59 行）。命令面与旧 bash 逐字兼容：子命令名、
+移植自 commands/analysis.sh（bash，59 行）。命令面与旧 bash 逐字兼容：子命令名、
 参数、stdout 结果文本一致；help 文案原样拷贝（与 legacy stdout diff 为空）。
 
 【旧 bash 的坑/巧思（原样保留原因）】
@@ -33,7 +33,7 @@ import subprocess
 import sys
 
 from ..core import ui
-from ..core.execx import need_cmd, repo_root, scripts_dir
+from ..core.runtime import need_cmd, repo_root, scripts_dir
 from ..errors import EXIT_EXEC, EXIT_USAGE, OpsError
 
 # ---------------------------------------------------------------- 帮助（逐字拷贝自 analysis_usage）

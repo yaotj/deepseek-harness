@@ -1,6 +1,6 @@
 """itpops · diag 域 —— 网络可达性自检 / 入向路由全链路导出。
 
-移植自 domains/diag.sh（bash，238 行）：reach（原 ops/red-island-reachability.sh）
+移植自 commands/diag.sh（bash，238 行）：reach（原 ops/red-island-reachability.sh）
 + routes（原 ops/dump-48000-routes.sh）二合一。命令面与旧 bash 逐字兼容：
 子命令名、参数、stdout 结果文本一致；help 文案原样拷贝（含 DIAG_IF / REMOTE_HOST
 两处插值，插值时机也照抄——见下「坑」3）。
@@ -55,8 +55,8 @@ import sys
 import time
 from pathlib import Path
 
-from ..core import envx, remote, ui
-from ..core.execx import need_cmd, scripts_dir
+from ..core import environments as envx, remote, ui
+from ..core.runtime import need_cmd, scripts_dir
 from ..errors import EXIT_PRECONDITION, EXIT_TRANSPORT, EXIT_USAGE, OpsError
 
 # ---------------------------------------------------------------- 帮助（逐字拷贝自 diag_usage，两处插值见「坑」3）
@@ -318,7 +318,7 @@ def _routes(out_arg: str) -> int:
     info["envoy_route_count"] = envoy_count
 
     ui.out("=== 4. 与仓库基线快照 diff（只比 VS/Gateway）===")
-    # 修复记录：旧版用 $(dirname $0)/migration/...，脚本迁进 domains/ 后失效，
+    # 修复记录：旧版用 $(dirname $0)/migration/...，脚本迁进 commands/ 后失效，
     # 被 [ -f ] 静默跳过（看着 diff 过、实际没比）。现在显式定位 + 缺失告警。
     # ⚠ 路径表达式原样复刻（含多打的 ../，真基线在 scripts/migration/…）——见「坑」5。
     base = scripts_dir().parent / "migration" / "ingress-config-cleaned"

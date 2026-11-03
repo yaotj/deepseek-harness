@@ -25,7 +25,7 @@
   大模型：-o json → stdout 单条信封 {ok, command, data, error, duration_ms}
           catalog -o json → 全量命令注册表；退出码 0/2/3/4/5/6/130 稳定
 
-【域契约】itpops.domains.<mod> 暴露 main(args) -> int 与 CATALOG。
+【域契约】itpops.commands.<mod> 暴露 main(args) -> int 与 CATALOG。
   成功：ui.out() 人看文本 + ui.result() 机器载荷 → 0；失败：raise OpsError。
 """
 from __future__ import annotations
@@ -38,12 +38,12 @@ import sys
 import time
 import traceback
 
-from . import ITP_OPS_VERSION
+from .. import __version__
 from . import completion as completion_mod
 from . import help as help_mod
-from .core import ui
-from .core.ui import Ctx, set_context
-from .errors import (
+from ..core import ui
+from ..core.ui import Ctx, set_context
+from ..errors import (
     CODE_BY_EXIT,
     EXIT_GENERIC,
     EXIT_OK,
@@ -60,6 +60,7 @@ _DOMAIN_MODULES = {
     "log": "log",
     "diag": "diag",
     "analysis": "analysis",
+    "catalog": "catalog",
     "buildx": "buildx",
     "sentinel": "sentinel",
     "web": "web",
@@ -72,7 +73,7 @@ _OUTPUT_CHOICES = ("text", "json")
 def _git_sha() -> str:
     """尽力取仓库短 sha（取不到就空，不阻断 --version）。"""
     try:
-        from .core.execx import repo_root
+        from ..core.runtime import repo_root
 
         r = subprocess.run(
             ["git", "-C", str(repo_root()), "rev-parse", "--short", "HEAD"],
@@ -85,7 +86,7 @@ def _git_sha() -> str:
 
 def _version_text() -> str:
     sha = _git_sha()
-    lines = [f"itp-ops version {ITP_OPS_VERSION}"]
+    lines = [f"itp-ops version {__version__}"]
     lines.append(f"  python {sys.version.split()[0]}  ({sys.executable})")
     if sha:
         lines.append(f"  commit {sha}")
@@ -110,7 +111,7 @@ def _root_help() -> str:
         f"  {n:<11} {s}" + (f"    （{e}）" if e else "") for n, s, e in doms
     ]
     return f"""\
-itp-ops {ITP_OPS_VERSION} —— 青岛地铁 ITP 平台运维单一入口
+itp-ops {__version__} —— 青岛地铁 ITP 平台运维单一入口
 
 用法:
   itp-ops.sh [全局参数] <域> <命令> [参数...]
@@ -185,15 +186,11 @@ def _dispatch(domain: str, args: list[str]) -> int:
         return _completion(args)
     if domain == "help":
         return _help_command(args)
-    if domain == "catalog":
-        from . import catalog as catalog_mod
-
-        return catalog_mod.main(args)
     module_name = _DOMAIN_MODULES.get(domain)
     if module_name is None:
         raise OpsError(f"未知域：{domain}", EXIT_USAGE)
     try:
-        mod = importlib.import_module(f".domains.{module_name}", package="itpops")
+        mod = importlib.import_module(f".commands.{module_name}", package="itpops")
     except ImportError as exc:
         raise OpsError(f"域尚未移植到 Python：{domain}（{exc}）", EXIT_PRECONDITION) from exc
     return mod.main(args)

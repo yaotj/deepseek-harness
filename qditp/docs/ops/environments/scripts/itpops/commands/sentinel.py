@@ -2,11 +2,11 @@
 
 【命名（2026-11-03 review）】
   旧入口 `itp-ops.sh sentinel` 名字长且带 hongdao；现收敛为
-  `itp-ops.sh sentinel`，实现在 `itpops/route_sentinel.py`。
+  `itp-ops.sh sentinel`，实现在 `itpops/sentinel/core.py`。
 """
 from __future__ import annotations
 
-from .. import route_sentinel as _impl
+from .. import sentinel as _impl
 from ..core import ui
 
 CATALOG = dict(_impl.CATALOG)

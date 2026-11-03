@@ -1,6 +1,6 @@
 """itpops · log 域 —— K8s 服务日志查看与监控。
 
-移植自 domains/log.sh（bash，237 行）：原 ops/klog.sh（日志查看代理）+
+移植自 commands/log.sh（bash，237 行）：原 ops/klog.sh（日志查看代理）+
 ops/klog-watcher.sh（Pod 重启自动重挂监控）二合一。命令面与旧 bash 逐字兼容；
 help 文案原样拷贝（`log` / `log help` / `log -h` 与 legacy stdout diff 为空）。
 
@@ -54,8 +54,8 @@ import subprocess
 import time
 from pathlib import Path
 
-from ..core import envx, remote, ui
-from ..core.execx import need_cmd, scripts_dir
+from ..core import environments as envx, remote, ui
+from ..core.runtime import need_cmd, scripts_dir
 from ..core.ui import context
 from ..errors import EXIT_EXEC, EXIT_TRANSPORT, EXIT_USAGE, OpsError
 

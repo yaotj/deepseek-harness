@@ -57,16 +57,16 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .buildx import (
+from ..buildx.core import (
     _CloudOS,
     _die_msg,
     _head_c,
     _http_token,
 )
-from .core import envx, ui
-from .core.execx import require_yes
-from .core.remote import remote_exec, remote_quote_args
-from .errors import (
+from ..core import environments as envx, ui
+from ..core.runtime import require_yes
+from ..core.remote import remote_exec, remote_quote_args
+from ..errors import (
     EXIT_EXEC,
     EXIT_OK,
     EXIT_PRECONDITION,

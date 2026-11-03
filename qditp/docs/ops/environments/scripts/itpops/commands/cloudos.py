@@ -1,6 +1,6 @@
 """itpops · cloudos 域 —— 新华三 CloudOS（E7501 PaaS）平台运维。
 
-移植自 domains/cloudos.sh（bash，1549 行）+ lib/cloudos-{auth,http,image,pkg}.sh。
+移植自 commands/cloudos.sh（bash，1549 行）+ lib/cloudos-{auth,http,image,pkg}.sh。
 命令面与旧 bash 逐字兼容：子命令名、参数形态、stdout 结果文本一致；help 文案
 原样拷贝（`cloudos` / `cloudos help` / `cloudos -h` 输出与 legacy 字节相同）。
 
@@ -55,8 +55,8 @@ from ..cloudos import auth
 from ..cloudos import http as http_mod
 from ..cloudos import image as image_mod
 from ..cloudos import pkg as pkg_mod
-from ..core import envx, ui
-from ..core.execx import require_yes, repo_root
+from ..core import environments as envx, ui
+from ..core.runtime import require_yes, repo_root
 from ..core.ui import context
 from ..errors import (
     EXIT_EXEC,

@@ -1,6 +1,6 @@
 """itpops · k8s 域 —— 镜像构建推送（本机 jar → 跳板 → Harbor）。
 
-移植自 domains/k8s.sh（bash，297 行）：deploy / deploy-all / services。
+移植自 commands/k8s.sh（bash，297 行）：deploy / deploy-all / services。
 命令面与旧 bash 逐字兼容：子命令名、参数形态、stdout 结果文本一致；help 文案
 原样拷贝（`k8s` / `k8s help` / `k8s -h` 与 legacy stdout diff 为空）。
 
@@ -50,8 +50,8 @@ import sys
 import time
 from pathlib import Path
 
-from ..core import envx, remote, ui
-from ..core.execx import need_cmd, repo_root, require_yes, run
+from ..core import environments as envx, remote, ui
+from ..core.runtime import need_cmd, repo_root, require_yes, run
 from ..core.ui import context
 from ..errors import EXIT_EXEC, EXIT_USAGE, OpsError
 

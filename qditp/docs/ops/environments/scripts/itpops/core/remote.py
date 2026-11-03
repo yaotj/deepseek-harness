@@ -19,7 +19,7 @@ import shlex
 import subprocess
 
 from ..errors import EXIT_EXEC, EXIT_TRANSPORT, OpsError
-from . import envx, ui
+from . import environments as envx, ui
 
 SSH_TRANSPORT_EXIT = 255  # ssh 自身失败（连不上/认证失败）；远端命令非 0 是别的码
 

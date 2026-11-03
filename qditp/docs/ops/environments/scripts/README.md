@@ -13,36 +13,47 @@
 
 ```
 scripts/
-├── itp-ops.sh                ★ 唯一入口（薄壳：exec python3 -m itpops）
-├── itpops/                   Python 包（底层实现，v2.1）
-│   ├── cli.py                  全局参数解析 + 域分发（-e/-y/-n/-o/-q/-v/--no-color/--trace/--）
-│   ├── help.py                 分层帮助渲染（命令级由 CATALOG 生成）
-│   ├── completion.py           bash/zsh 补全生成（从 CATALOG 派生）
-│   ├── catalog.py              自描述命令注册表（大模型入口：itp-ops.sh catalog -o json）
-│   ├── errors.py               退出码契约：0 成功 / 2 用法 / 3 前置 / 4 传输 / 5 执行 / 6 缺 --yes / 130 中断
-│   ├── core/                   ui / version（版本算法真源）/ envx（环境 profile）/ remote（ssh 跳板）/ execx（写门/依赖）
-│   ├── cloudos/                CloudOS API 四模块（auth/http/image/pkg）
-│   ├── domains/                按域分组的命令实现（每个域 main(args)+CATALOG）
-│   │   ├── cloudos.py            云管台运维：apps/env/pods/scale/act/spec/deploy/image…
-│   │   ├── buildx.py             镜像构建（itp-ops.sh buildx，平台 x86 出 amd64）
-│   │   ├── k8s.py                镜像构建推送兜底链：deploy / deploy-all / services
-│   │   ├── log.py                日志：tail / watch
-│   │   ├── diag.py               诊断：reach / routes
-│   │   ├── web.py                前端发版与挂载：release / mount-export
-│   │   ├── sentinel.py           route-sentinel 首次部署
-│   │   ├── analysis.py           静态分析：endpoints
-│   │   └── version.py            版本号计算：next / debug
-│   ├── buildx.py               buildx 域实现（hcr file/upload + buildx 端点）
-│   ├── route_sentinel.py       sentinel 域实现（清理→上传→构建→部署）
-│   └── web/                    release（前端发版）/ mount_export（导出挂载）实现
-├── buildx.Dockerfile         共享构建模板（NEVER 写 ENTRYPOINT/CMD，理由见文件头与 IT-031）
-├── analysis/                 count-endpoints.py 本体（由 domains/analysis.py 调度，勿直接跑）
-├── hosts/                    ★ 跑在远端机器上的脚本本体（按「跑在哪台机」分层，NEVER 在本机执行）
-│   └── k8s-master/             测试环境跳板机 /home/java 下的脚本（build-push / k8s-deploy / k8s-logview / Dockerfile）
-│       └── snapshots/            远端产物（k8s-deploy-audit.csv 部署台账）
-└── migration/                数据库迁移执行包（自带 README，红岛分域重建基线）
-    ├── ingress-config/          istio 快照原始版（clean-ingress-yaml.py 的输入）
-    └── ingress-config-cleaned/  清洗后基线（diag routes 的 diff 基线，硬依赖，NEVER 移走）
+├── itp-ops.sh                 ★ 唯一入口（薄壳：exec python3 -m itpops）
+├── pyproject.toml             包元数据 + `itp-ops` console script（可选 pipx 安装）+ ruff/pytest 配置
+├── itpops/                    纯标准库；分层对齐 pip / ansible 等 CLI 项目惯例
+│   ├── __init__.py              __version__（单版本源，pyproject 动态读取）
+│   ├── __main__.py              python -m itpops
+│   ├── errors.py                退出码契约：0/2/3/4/5/6/130 + OpsError
+│   ├── cli/                     表现层
+│   │   ├── main.py                全局参数解析 + 域分发 + JSON 信封 + 错误渲染
+│   │   ├── registry.py            域清单 + CATALOG 汇总（纯数据，不产文本）
+│   │   ├── help.py                分层帮助渲染（命令级由 CATALOG 生成）
+│   │   └── completion.py          bash/zsh 补全生成（从 CATALOG 派生）
+│   ├── commands/                一个文件 = 一个命令域（main(args) + CATALOG）
+│   │   ├── cloudos.py             云管台运维（30 子命令）
+│   │   ├── buildx.py              镜像构建（调 itpops/buildx/）
+│   │   ├── k8s.py                 镜像构建推送兜底链
+│   │   ├── log.py                 日志 tail / watch
+│   │   ├── diag.py                可达性 / 路由导出
+│   │   ├── web.py                 前端发版 / 挂载（release、mount-export）
+│   │   ├── sentinel.py            路由哨兵部署（调 itpops/sentinel/）
+│   │   ├── analysis.py            端点计数
+│   │   ├── version.py             版本号计算
+│   │   └── catalog.py             自描述注册表命令（渲染 cli/registry 的数据）
+│   ├── core/                    公共支撑（无业务语义）
+│   │   ├── ui.py                  输出原语 + 全局上下文 Ctx
+│   │   ├── version.py             版本算法真源（末位 +1 / >99 进位 / debug 哨兵）
+│   │   ├── environments.py        环境 profile 单一真源（hongdao / test）
+│   │   ├── remote.py              ssh 跳板助手（TTY 纪律 / 参数转义）
+│   │   └── runtime.py             本机执行 / 写门 require_yes / 依赖检查 / 仓库根断言
+│   ├── cloudos/                 CloudOS API 客户端（auth / http / image / pkg）
+│   ├── buildx/                  镜像构建实现（core.py）
+│   ├── sentinel/                路由哨兵部署实现（core.py）
+│   └── web/                     前端发版 / 挂载实现
+├── tests/                      stdlib unittest（27 例：版本算法 / 环境 / CLI 契约 / 注册表）
+├── buildx.Dockerfile          共享构建模板（NEVER 写 ENTRYPOINT/CMD，理由见文件头与 IT-031）
+├── analysis/                  count-endpoints.py 本体（由 commands/analysis.py 调度，勿直接跑）
+├── hosts/                     ★ 跑在远端机器上的脚本本体（NEVER 在本机执行）
+│   └── k8s-master/              测试环境跳板机 /home/java 下的脚本（build-push / k8s-deploy / k8s-logview / Dockerfile）
+│       └── snapshots/             远端产物（k8s-deploy-audit.csv 部署台账）
+└── migration/                 数据库迁移执行包（自带 README，红岛分域重建基线）
+    ├── ingress-config/           istio 快照原始版（clean-ingress-yaml.py 的输入）
+    └── ingress-config-cleaned/   清洗后基线（diag routes 的 diff 基线，硬依赖，NEVER 移走）
 ```
 
 ## 二、快速上手
@@ -211,7 +222,12 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
 ## 四、itpops 包纪律（改包前 MUST 读；2026-11-03 由 bash lib/ 迁移）
 
 > 原「lib 纪律」逐条迁移如下。bash 专属坑（set -euo / 命令替换 die / printf %q）
-> 已由 Python 语言特性消除；对应能力在 `itpops/core/`（ui / envx / remote / execx / version）。
+> 已由 Python 语言特性消除；对应能力在 `itpops/core/`（ui / remote / runtime / version / environments）。
+>
+> **分层纪律（对标 pip `_internal/cli/` + `_internal/commands/`）**：
+> `cli/` 只做表现（解析/帮助/补全/信封），`commands/` 只做编排（调特性包、输出、抛错），
+> `core/` 只放无业务语义的公共支撑，特性实现放各自包（`cloudos/` `buildx/` `sentinel/` `web/`）。
+> NEVER 让 `core/` 反向依赖 `commands/`，也 NEVER 在 `cli/` 里写业务。
 
 1. **失败抛 `OpsError(message, exit_code)`**，退出码契约见 `itpops/errors.py`：
    0 成功 / 2 用法 / 3 前置 / 4 传输 / 5 执行 / 6 缺 --yes。NEVER 静默继续。
@@ -220,20 +236,23 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
 3. **远端参数转义**用 `remote.quote_args`（shlex.quote），NEVER 直接拼裸参数。
 4. **跟踪类命令**（`log tail -f`）NEVER 合并进非 TTY 通道——`remote_exec_tty` 的伪终端是刷新/Ctrl+C/颜色的前提。
 5. **新增 API 模块**按域建 `itpops/cloudos/<域>.py`，只封装本仓用到的端点，docstring 写清前缀与易错点。
-6. **域契约**：`itpops/domains/<域>.py` 暴露 `main(args) -> int` + `CATALOG`（自描述注册表，
-   `itpops catalog` 汇总给大模型）；新增域还要在 `itpops/cli.py` / `itpops/catalog.py` 的
+6. **域契约**：`itpops/commands/<域>.py` 暴露 `main(args) -> int` + `CATALOG`（自描述注册表，
+   `itpops catalog` 汇总给大模型）；新增域还要在 `itpops/cli/registry.py` 的
    `_DOMAIN_MODULES` 登记。
 7. **token 缓存**按环境分文件（`/tmp/.cloudos-<env>.token`，格式 `<时间戳> <token>`，与旧 bash 互读兼容）。
+8. **改包 MUST 跑单测**：`cd docs/ops/environments/scripts && python3 -m unittest discover -s tests`
+   （27 例覆盖版本算法 / 环境 profile / CLI 契约 / 注册表；纯 stdlib，无需装依赖）。
+   `pyproject.toml` 另有 `[tool.pytest.ini_options]`，装了 pytest 也能直接 `pytest`。
 
 ## 五、使用纪律
 
 1. **路径推导**：脚本 MUST 由自身位置推导仓库根（`BASH_SOURCE`/`__file__`），NEVER 硬编码绝对路径。
-   入口 `itpops/core/execx.py` 用 `account-server` 目录存在性断言——深度再错会直接报错而不是静默找错目录。
+   入口 `itpops/core/runtime.py` 用 `account-server` 目录存在性断言——深度再错会直接报错而不是静默找错目录。
 2. **写操作默认拒绝**：`k8s deploy/deploy-all`、`cloudos act/scale/scale-all/spec-set/deploy/image build`
    必须显式 `--yes`（入口全局解析，位置任意）。
-3. **ALL_SERVICES 是单一真源**（`itpops/domains/k8s.py`）：24 个服务，语义是**可构建推送的模块全集**
+3. **ALL_SERVICES 是单一真源**（`itpops/commands/k8s.py`）：24 个服务，语义是**可构建推送的模块全集**
    （根 pom 里有 kubernetes-maven-plugin 的模块目录），**不是生产部署清单**——两者 historically
-   不相等（详见 `itpops/domains/k8s.py` 处注释：3 个死/下线模块在构建清单里、web-admin/前端不在构建清单里、
+   不相等（详见 `itpops/commands/k8s.py` 处注释：3 个死/下线模块在构建清单里、web-admin/前端不在构建清单里、
    跨环境共性.md §一 自身还缺 3 个在跑的服务）。NEVER 擅自「对齐」任何一边；服务名是仓库根模块目录名，
    **镜像名 ≠ 模块名**（`fep-app-server` 的镜像是 `itp/fep-app`，取自 pom `<image.prefix>`，
    NEVER 用目录名拼）。`web-admin` 不适用本脚本（前端走 zip + nginx Deployment）。
@@ -341,7 +360,7 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
   直接报用法错）、`-o/--output text|json`（`--json` 保留为简写）、`-q/--quiet`、`-v/--verbose`
   （出远端命令行）、`--no-color`（+`NO_COLOR`/`CLICOLOR_FORCE`）、`--trace`、`--` 终止符、
   `-V/--version`（含 python/git commit）。
-- 分层帮助：`<域> <命令> -h` 由 `itpops/help.py` 从 CATALOG 生成，**修掉旧行为**
+- 分层帮助：`<域> <命令> -h` 由 `itpops/cli/help.py` 从 CATALOG 生成，**修掉旧行为**
   （`cloudos scale -h` 会把 `-h` 当应用名执行、`k8s deploy -h` 直接报缺 --yes）；
   域级 `help` 仍是各域富文本，基线逐字节未变（6 域实测 diff 全空）。
 - 新增 `itp-ops.sh completion bash|zsh`（从 CATALOG 派生，域/子命令增删自动同步），
@@ -362,7 +381,22 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
   | `mount-web-admin-export.py` | `itp-ops.sh web mount-export` | 同上 |
   | `web-frontend-release.README.md` | 并入 `docs/ops/web前端云平台发版流程.md` | 脚本没了，README 不再独立存在 |
 
-- 附带：`domains/version_cmd.py` → `domains/version.py`（去掉历史 `_cmd` 后缀）；`itpops/buildx.py` /
+- 附带：`domains/version_cmd.py` → `domains/version.py`（去掉历史 `_cmd` 后缀）；`itpops/buildx/core.py` /
   `route_sentinel.py` / `web/*` 的用法文本与 CATALOG 改指新命令；`buildx` / `route_sentinel` 入口改为
   复用入口上下文（此前各自 `Ctx()` 会把 `-q/-v/-o json` 等全局态冲掉）。
 - 全仓引用（AGENTS.md、构建与发布、环境文档、tracking、skills、MEMORY）同步改写；`bash itp-ops.sh` 冗余前缀清理。
+
+**2026-11-03 文件组织对标开源实践（itpops 2.3.0）**：
+
+- 分层重排（对照 pip `_internal/cli/` + `_internal/commands/`、ansible `cli/`）：
+  `cli/{main,registry,help,completion}.py`（表现层）/ `commands/*.py`（命令层，原 `domains/`）/
+  `core/{ui,version,environments,remote,runtime}.py`（公共支撑）/ `cloudos|buildx|sentinel|web/`（特性实现）。
+- 命名修正：`envx.py` → `environments.py`、`execx.py` → `runtime.py`；`catalog` 从「数据+命令混合」
+  拆成 `cli/registry.py`（数据）+ `commands/catalog.py`（命令）；`buildx.py` / `route_sentinel.py`
+  收进特性包 `buildx/core.py` / `sentinel/core.py`。
+- 新增 `pyproject.toml`：版本单一源头（`itpops.__version__`，`__version__` 取代 `ITP_OPS_VERSION`）、
+  `itp-ops` console script（`pipx install .` 后可直接用）、ruff / pytest 配置、零第三方依赖。
+- 新增 `tests/`（stdlib unittest，27 例）：版本算法进位、环境 profile 覆盖规则、CLI 契约
+  （信封/退出码/分层帮助/补全/`--`/dry-run）、注册表完整性。
+- 验证：`python3 -m unittest discover -s tests` 27 passed；`itp-ops.sh -h` / `catalog -o json`（10 域）
+  正常；`compileall` 通过；lint ERROR 0。

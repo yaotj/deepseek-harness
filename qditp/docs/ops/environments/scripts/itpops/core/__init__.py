@@ -3,7 +3,7 @@
 与旧 lib/*.sh 一一对应：
   ui.py      ← lib/core.sh 的日志原语 + 全局上下文 Ctx
   version.py ← lib/version.sh（升级版本号规则，2026-11-02 裁定）
-  envx.py    ← lib/env.sh（环境 profile 单一真源）
+  environments.py    ← lib/env.sh（环境 profile 单一真源）
   remote.py  ← lib/remote.sh（ssh 跳板助手）
-  execx.py   ← lib/core.sh 的 require_yes / need_cmd / 仓库根断言
+  runtime.py   ← lib/core.sh 的 require_yes / need_cmd / 仓库根断言
 """

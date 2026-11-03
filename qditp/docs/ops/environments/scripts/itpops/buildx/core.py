@@ -71,8 +71,8 @@ import uuid
 import zipfile
 from pathlib import Path
 
-from .core import envx, ui
-from .errors import (
+from ..core import environments as envx, ui
+from ..errors import (
     EXIT_EXEC,
     EXIT_OK,
     EXIT_PRECONDITION,
@@ -687,7 +687,7 @@ def _do_build(cos: _CloudOS, opts: dict, env: envx.Env) -> int:
 
 def _repo_root() -> Path:
     """仓库根（<repo>/<module>/target 默认 jar 路径用）。"""
-    from .core.execx import repo_root
+    from ..core.runtime import repo_root
 
     return repo_root()
 

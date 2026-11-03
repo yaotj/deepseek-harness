@@ -3,7 +3,7 @@
 【命名（2026-11-03 review）】
   旧入口 `itp-ops.sh buildx` 只在红岛首发时叫这个名字，实际 `--env hongdao|test`
   两套环境都用，名字有误导；现收敛为唯一入口的子命令 `itp-ops.sh buildx`，
-  实现在 `itpops/buildx.py`（纯 Python，仍可 `itp-ops.sh buildx` 直调）。
+  实现在 `itpops/buildx/core.py`（纯 Python，仍可 `itp-ops.sh buildx` 直调）。
 """
 from __future__ import annotations
 

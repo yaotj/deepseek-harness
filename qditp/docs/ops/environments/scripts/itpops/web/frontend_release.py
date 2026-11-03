@@ -21,7 +21,7 @@
   1. 版本算法统一走 core/version.py 真源（2026-11-02 裁定：末位 +1、段上限 99、
      进位；最高段溢出补 1）。旧脚本自带 next_version 有多重进位 bug：
      1.99.99 → 1.0.0.0（错），真源 → 2.0.0；99.99 新旧一致 → 1.0.0。
-  2. RSA 加密从第三方 cryptography 换纯标准库 PKCS#1 v1.5（与 itpops/buildx.py
+  2. RSA 加密从第三方 cryptography 换纯标准库 PKCS#1 v1.5（与 itpops/buildx/core.py
      同实现，密文恒 128 字节 / base64 172 字符）——去掉 pip 依赖，密文同形。
   3. 失败统一抛 OpsError（退出码：用法 2 / 前置 3 / 传输 4 / 执行 5），stderr
      错误行带统一「错误：」前缀（旧为裸文本）。
@@ -52,7 +52,7 @@ import zipfile
 from pathlib import Path
 
 from ..core import ui
-from ..core.execx import repo_root
+from ..core.runtime import repo_root
 from ..core.version import DEBUG_VERSION, debug_version, next_version
 from ..errors import (
     EXIT_EXEC,
