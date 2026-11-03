@@ -61,13 +61,13 @@
                 WHERE NOT EXISTS (
                     SELECT 1 FROM GATE_RETRY_QUEUE q
                     WHERE q.ORDER_NO = #{item.orderNo,jdbcType=VARCHAR}
-                      AND q.TXX_DATE = #{item.txnDate,jdbcType=VARCHAR}
+                      AND q.TXN_DATE = #{item.txnDate,jdbcType=VARCHAR}
                 )
             </foreach>
         ) t
     </insert>
 
-    <!-- 扫描待消费队列：锁定行防并发 -->
+    <!-- 扫描待消费队列：按 CREATE_TIME 取优先处理项 -->
     <select id="selectPendingForConsume" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM GATE_RETRY_QUEUE
@@ -76,7 +76,6 @@
                OR (STATUS = 'FAILED' AND RETRY_COUNT &lt; MAX_RETRIES))
         ORDER BY CREATE_TIME
         FETCH FIRST #{limit,jdbcType=INTEGER} ROWS ONLY
-        FOR UPDATE SKIP LOCKED
     </select>
 
     <!-- 标记为消费中 -->
@@ -119,7 +118,7 @@
             CONSUME_TIME = NULL,
             UPDATE_TIME = SYSTIMESTAMP
         WHERE STATUS IN ('PENDING', 'PROCESSING')
-          AND UPDATE_TIME &lt; #{now,jdbcType=TIMESTAMP} - INTERVAL #{timeoutMinutes,jdbcType=INTEGER} MINUTE
+          AND UPDATE_TIME &lt; #{now,jdbcType=TIMESTAMP} - NUMTODSINTERVAL(#{timeoutMinutes,jdbcType=INTEGER}, 'MINUTE')
     </update>
 
     <!-- 统计队列状态 -->
