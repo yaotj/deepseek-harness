@@ -22,4 +22,6 @@ ENV JAVA_TOOL_OPTIONS="-Djdk.virtualThreadScheduler.parallelism=8 -Djdk.virtualT
 COPY app.jar /app.jar
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app.jar"]
+# 默认启动由基础镜像 /startapp.sh 负责（计算 JVM 堆/GC/日志参数）；
+# 自定义 ENTRYPOINT 会绕过 startapp，导致堆/GC 日志契约失效（IT-031）。
+# 如需覆盖，必须在 Deployment env 显式注入， NEVER 在镜像写死。

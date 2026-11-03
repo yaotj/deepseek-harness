@@ -44,7 +44,12 @@
 - 验证方式 / 结果：
   - 本地 `mvn -o clean test` 通过（22 tests，0 failures）。
   - 单元测试覆盖：新用户/旧用户在 TVM/BOM 5 条 URL 上分别命中 split/legacy；Actuator 热重载同时改 `legacy-route-tvm` 和 `legacy-route-bom` 后流量切换生效。
-  - 线上验证：待测试环境发版后，用 `curl` 打 5 条 URL，确认旧 ITP 收到重写后的路径；`curl /actuator/gatewayroutes` 确认 4 条核心路由 + 2 条兜底路由。
+  - 测试环境发版验证（2026-11-03）：
+    - `hongdao-buildx.sh --env test` 出 `itp/route-sentinel:1.0.5`（digest `sha256:92f1c5f5f5843c59aa8087828e9fa10ae48a79e2610aa2d3f5e4eacd4eead32b`，linux/amd64）。
+    - 因 CloudOS `advanced-config` 对 route-sentinel  initially 返回 `application.5000010`，补全 `service_name/affinity/pvcResource/resources` 后 PATCH 成功；Pod imageID 与推送 digest 一致。
+    - `deploy/k8s/30-istio-ingress.yaml` 已 server-side apply，`fep-app-vr` 现 13 条路由（5 exact + 8 prefix）。
+    - 数据库 migration 已执行：`GATEWAY_ROUTE_CONFIG` 现 6 条路由（4 条分流 + 2 条兜底），`GATEWAY_ROUTE_CONFIG_AUDIT` 已加 `BEFORE_FILTERS`/`AFTER_FILTERS`。
+    - `curl /actuator/gatewayroutes` 确认 6 条路由；`curl` 打 5 条 URL 均到达旧 ITP（返回 Tomcat 404，属旧 ITP 业务层响应，RewritePath 已生效）。
 - 回滚预案：
   1. 数据库：执行 migration SQL 的逆操作——删除 4 条新路由，重新插入原 `legacy-route` / `face-pay-split-route`（如需要）。
   2. Ingress：`kubectl apply -f deploy/k8s/30-istio-ingress.yaml` 回退到上一版本（git）。
