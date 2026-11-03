@@ -67,7 +67,29 @@ class GateTicketHandler {
             return;
         }
 
+        warnIfStaleNotify(request, currentStatus);
+
         handleGateTransaction(request, currentStatus, response);
+    }
+
+    /**
+     * 乱序/迟到通知观测告警（IT-054）：{@code handleDateTime} 早于库内 {@code lastTxnTime} 说明
+     * 这是送达序晚于业务序的旧通知（闸机离线补传 / 重发 / 跨设备乱序送达），照常推进状态会让
+     * {@code lastTxnTime} 倒退、覆盖更新的交易结果。
+     *
+     * <p>当前裁决（2026-11-03）：<b>只告警不改行为</b>——本仓闸机链路送达乱序在生产尚无实证，
+     * 先靠本 WARN 收集证据；若生产命中再评估受理口 stale 守卫（方案见 IT-054 §3）。
+     * 固定 14 位时间戳字符串可直接按字典序比较，NEVER 引入日期解析。
+     */
+    private void warnIfStaleNotify(NotifyVerifyResultReqDTO request, QRCodeStatus currentStatus) {
+        String handleDateTime = request.getHandleDateTime();
+        String lastTxnTime = currentStatus.getLastTxnTime();
+        if (StringUtils.hasText(handleDateTime) && StringUtils.hasText(lastTxnTime)
+                && handleDateTime.compareTo(lastTxnTime) < 0) {
+            log.warn("IF1A-01 通知乱序/迟到（仅观测、状态照常推进），cardId={}, trxType={}, deviceId={}, handleDateTime={} < 库内lastTxnTime={}, 当前codeStatus={}",
+                    request.getCardId(), request.getTrxType(), request.getDeviceId(),
+                    handleDateTime, lastTxnTime, currentStatus.getCodeStatus());
+        }
     }
 
     /**
