@@ -8,6 +8,6 @@ public class LegacyRouteIdStrategy implements LegacyRouteStrategy {
 
     @Override
     public boolean isLegacy(String routeId, String predicates) {
-        return RouteConstants.LEGACY_ROUTE_ID.equals(routeId);
+        return routeId != null && routeId.startsWith(RouteConstants.LEGACY_ROUTE_ID_PREFIX);
     }
 }

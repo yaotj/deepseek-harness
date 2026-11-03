@@ -31,7 +31,7 @@ kubectl get cm    -n itpb                                 # ConfigMap
 kubectl get sts   -n itpb -o wide                         # StatefulSet（VictoriaLogs）
 kubectl get deploy -n itpb -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{range .spec.template.spec.containers[*].env[*]}  {.name}{"\n"}{end}{end}'
 # ↑ env 键全集最有价值：红岛「SERVICE_*_URL 未注入 → 跨模块 RPC 全失败」那个坑要靠它核对
-kubectl get vs -n itpb -o yaml                            # 入向路由（红岛是 15 条：7 exact SCG + 8 prefix）
+kubectl get vs -n itpb -o yaml                            # 入向路由（红岛是 13 条：5 exact SCG + 8 prefix）
 kubectl get gateway -n itpb -o yaml
 ```
 

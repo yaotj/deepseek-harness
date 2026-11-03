@@ -3,7 +3,7 @@
 #
 # 背景：
 #   1. route-sentinel 在 itpb 无 Deployment、无 Service、无 Harbor 仓库（首次部署）
-#   2. fep-app-vr 7 条 exact 已指向 route-sentinel-svc:8080，但后端未部署
+#   2. fep-app-vr 5 条 exact 已指向 route-sentinel-svc:8080，但后端未部署
 #   3. CloudOS /images/build 端点因 IMG_TYPE_UUID 不对（Default 不是 hcr 镜像类型）
 #      构建失败，改用 Harbor v2 direct push（podman）
 #   4. DB 侧 IT-021 未解决：GATEWAY_ROUTE_CONFIG 在 QDITP_PLAT 不存在，
@@ -14,7 +14,7 @@
 #
 # 二次确认口径（AGENTS.md §5.C 生产红线）：
 #   本脚本已明确 --yes，且本次调用带 --yes，视为已获用户授权。
-#   回滚：删 Deployment + Service，或改 fep-app-vr 7 条 exact 指回 face-pay-server-svc:30025
+#   回滚：删 Deployment + Service，或改 fep-app-vr 5 条 exact 指回 face-pay-server-svc:30025
 
 set -uo pipefail
 
@@ -224,5 +224,5 @@ echo "  注意：DB 侧 IT-021（GATEWAY_ROUTE_CONFIG 缺失）未解决"
 echo "        网关启动会降级为空路由，Actuator 落库不可用"
 echo "  回滚命令："
 echo "    ssh hd-linux \"kubectl delete deploy ${DEPLOY} svc ${SVC} -n itpb\""
-echo "    ssh hd-linux \"kubectl edit vs fep-app-vr -n itpb\"  把 7 条 exact 改回 face-pay-server-svc:30025"
+echo "    ssh hd-linux \"kubectl edit vs fep-app-vr -n itpb\"  把 5 条 exact 改回 face-pay-server-svc:30025"
 echo "=========================================="

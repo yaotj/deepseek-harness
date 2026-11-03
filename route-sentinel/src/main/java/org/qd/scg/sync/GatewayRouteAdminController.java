@@ -37,10 +37,19 @@ public class GatewayRouteAdminController {
                 predicates = String.valueOf(predicatesObj);
             }
         }
+        Object filtersObj = body != null ? body.get("filters") : null;
+        String filters = "[]";
+        if (filtersObj != null) {
+            try {
+                filters = objectMapper.writeValueAsString(filtersObj);
+            } catch (Exception e) {
+                filters = String.valueOf(filtersObj);
+            }
+        }
         String operator = body != null ? String.valueOf(body.get("operator")) : null;
         String remark = body != null ? String.valueOf(body.get("remark")) : null;
 
-        commandService.syncRoute(id, uri, predicates, operator, remark);
+        commandService.syncRoute(id, uri, predicates, filters, operator, remark);
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("routeId", id);

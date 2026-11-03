@@ -29,25 +29,24 @@
   → 各业务 Service
 ```
 
-`fep-app-vr` 当前 15 条 route = **7 条 SCG 精确路由 + 8 条前缀**（2026-09-16 实测前缀，**MUST 每次现查、NEVER 引用本表当现状**）：
+`fep-app-vr` 当前 13 条 route = **5 条 SCG 精确路由 + 8 条前缀**（2026-11-03 随 route-sentinel 路径重写需求调整，**MUST 每次现查、NEVER 引用本表当现状**）：
 
-SCG 分流网关（`route-sentinel-svc:8080`）承接的 7 条 `exact`，**必须排在前缀路由之前**（istio 首条命中即止）：
+SCG 分流网关（`route-sentinel-svc:8080`）承接的 5 条 `exact`，**必须排在前缀路由之前**（istio 首条命中即止）：
 
-- `/itpbom/ci/bom/notiTakeTicketResult`
-- `/itpbom/ci/bom/notiTakeTicketFailResult`
-- `/itpbom/ci/bom/requestTakeTicketAuth`
+- `/itptvm/ci/tvm/notiTakeTicketResult`
+- `/itptvm/ci/tvm/notiTakeTicketFailResult`
+- `/itptvm/ci/tvm/requestTakeTicketAuth`
 - `/itpbom/ci/bom/requestCardDataAnalyse`
 - `/itpbom/ci/bom/requestUpdateCardData`
-- `/itptvm/ci/tvm/requestTakeTicketAuth`
-- `/itptvm/ci/tvm/requestCardDataAnalyse`
 
-> SCG 的 `GATEWAY_ROUTE_CONFIG` 只配了这 7 条 `Path=` 谓词，其余 TVM/BOM 端点进去会 404，
-> 所以只交这 7 条给 SCG，剩余端点由下面两条前缀路由直连 `face-pay-server-svc`。
-> 这 7 条不带 `rewrite`（or 为 `/itptvm/` 同路径），路径原样透传给 SCG。
+> SCG 的 `GATEWAY_ROUTE_CONFIG` 只配了这 5 条 `Path=` 谓词，其余 TVM/BOM 端点进去会 404，
+> 所以只交这 5 条给 SCG，剩余端点由下面两条前缀路由直连 `face-pay-server-svc`。
+> 这 5 条不带 `rewrite`，路径原样透传给 SCG；SCG 内部再通过 `RewritePath` filter 把 `/itptvm/ci/tvm/xxx`
+> 改写成 `/itptvm/ci/tvmDispatch/xxx`（BOM 同理 `bomDispatch`）后转发给旧 ITP。
 
 > ⚠️ **红岛 `ns itpb` 例外（防呆）**：红岛 `route-sentinel-svc` 仅暴露 **NodePort 31944**、**无 ClusterIP 8080**（与测试 `ns itp` 不同）。
-> 因此红岛 7 条 exact 的 `destination` **MUST 用 `route-sentinel-internal-svc:8080`**（ClusterIP），
-> 照搬本 Runbook 的 `route-sentinel-svc:8080` 会让 Envoy 找不到上游端口 → 7 exact 全 503（已发生，见 `docs/tracking/IT-030`）。
+> 因此红岛 5 条 exact 的 `destination` **MUST 用 `route-sentinel-internal-svc:8080`**（ClusterIP），
+> 照搬本 Runbook 的 `route-sentinel-svc:8080` 会让 Envoy 找不到上游端口 → 5 exact 全 503（已发生，见 `docs/tracking/IT-030`）。
 
 8 条前缀与落点：
 
@@ -60,8 +59,8 @@ SCG 分流网关（`route-sentinel-svc:8080`）承接的 7 条 `exact`，**必�
 - `/itpagm/` → `fep-dev-server-748lq-svc:30009`（rewrite `/`）
 - `/para-server/` → `para-server-pufrl-svc:30026`（rewrite `/`）
 
-数组下标（`spec.http[N]`，0-based）与上面顺序一一对应：**7 条 SCG 路由占 `[4]`~`[10]`，
-`/itptvm/` 是 11、`/itpbom/` 是 12**（仓库基线 2026-10-22 起；此前是 4 / 5，加了 7 条 SCG exact 后整体后移）。
+数组下标（`spec.http[N]`，0-based）与上面顺序一一对应：**5 条 SCG 路由占 `[4]`~`[8]`，
+`/itptvm/` 是 9、`/itpbom/` 是 10**（仓库基线 2026-11-03 起；此前是 11 / 12，改为 5 条 SCG exact 后整体前移）。
 下标会随 VS 被编辑而漂移，**MUST 每次先查、NEVER 硬记**。
 
 ## 三、标准操作四步
@@ -78,7 +77,7 @@ ssh k8s-master "kubectl get vs fep-app-vr -n itp -o jsonpath='{range .spec.http[
 ssh k8s-master "kubectl get deploy fep-app -n itp -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{\"\n\"}{end}' | grep -i collectPay"
 ```
 
-输出里的行号减 1 就是 `spec.http[N]` 的下标。注意 7 条 `exact` 行没有 `rewrite`，前缀行才有；exact 行只用于核对 SCG 精确路由是否仍指 `route-sentinel-svc:8080`。
+输出里的行号减 1 就是 `spec.http[N]` 的下标。注意 5 条 `exact` 行没有 `rewrite`，前缀行才有；exact 行只用于核对 SCG 精确路由是否仍指 `route-sentinel-svc:8080`。
 
 
 ### 第 2 步：patch，**必须带 `test` op**
@@ -88,21 +87,21 @@ ssh k8s-master "kubectl get deploy fep-app -n itp -o jsonpath='{range .spec.temp
 
 ```bash
 ssh k8s-master "kubectl patch vs fep-app-vr -n itp --type=json -p '[
-{\"op\":\"test\",\"path\":\"/spec/http/11/match/0/uri/prefix\",\"value\":\"/itptvm/\"},
-{\"op\":\"test\",\"path\":\"/spec/http/11/route/0/destination/host\",\"value\":\"face-pay-server-svc\"},
-{\"op\":\"test\",\"path\":\"/spec/http/12/match/0/uri/prefix\",\"value\":\"/itpbom/\"},
-{\"op\":\"test\",\"path\":\"/spec/http/12/route/0/destination/host\",\"value\":\"face-pay-server-svc\"},
-{\"op\":\"replace\",\"path\":\"/spec/http/11/route/0/destination/host\",\"value\":\"collect-pay-c23ku-svc\"},
-{\"op\":\"replace\",\"path\":\"/spec/http/11/route/0/destination/port/number\",\"value\":30024},
-{\"op\":\"replace\",\"path\":\"/spec/http/12/route/0/destination/host\",\"value\":\"collect-pay-c23ku-svc\"},
-{\"op\":\"replace\",\"path\":\"/spec/http/12/route/0/destination/port/number\",\"value\":30024}
+{\"op\":\"test\",\"path\":\"/spec/http/9/match/0/uri/prefix\",\"value\":\"/itptvm/\"},
+{\"op\":\"test\",\"path\":\"/spec/http/9/route/0/destination/host\",\"value\":\"face-pay-server-svc\"},
+{\"op\":\"test\",\"path\":\"/spec/http/10/match/0/uri/prefix\",\"value\":\"/itpbom/\"},
+{\"op\":\"test\",\"path\":\"/spec/http/10/route/0/destination/host\",\"value\":\"face-pay-server-svc\"},
+{\"op\":\"replace\",\"path\":\"/spec/http/9/route/0/destination/host\",\"value\":\"collect-pay-c23ku-svc\"},
+{\"op\":\"replace\",\"path\":\"/spec/http/9/route/0/destination/port/number\",\"value\":30024},
+{\"op\":\"replace\",\"path\":\"/spec/http/10/route/0/destination/host\",\"value\":\"collect-pay-c23ku-svc\"},
+{\"op\":\"replace\",\"path\":\"/spec/http/10/route/0/destination/port/number\",\"value\":30024}
 ]'"
 ```
 
-> 下标 `11` / `12` 是**仓库基线（2026-10-22 起）**的值，集群若还没同步那 7 条 SCG 精确路由，
+> 下标 `9` / `10` 是**仓库基线（2026-11-03 起）**的值，集群若还没同步那 5 条 SCG 精确路由，
 > 现值仍是 `4` / `5`——所以 `test` op 里那份「原值」MUST 按第 1 步现查结果填，不能照抄本示例。
-> 换了服务名的 `replace` 只动前缀兜底那两条；**7 条 SCG exact 一行不动**（它们永远指 `route-sentinel-svc:8080`，
-> 切 face-pay / collect-pay 是 SCG 内部 `legacy-route` 的 URI 该管的事）。
+> 换了服务名的 `replace` 只动前缀兜底那两条；**5 条 SCG exact 一行不动**（它们永远指 `route-sentinel-svc:8080`，
+> 切 face-pay / collect-pay 是 SCG 内部 `legacy-route-*` 的 URI 该管的事）。
 
 反向（切回 face-pay）把两个 `test` 的 value 换成 `collect-pay-c23ku-svc`、两个 `replace` 换成
 `face-pay-server-svc` + `30025` 即可。**`rewrite.uri` 一律不动**（`/itptvm/` 与 `/itpbom/` 两条的
@@ -111,7 +110,7 @@ rewrite 是带前缀的，不是 `/`，改掉会让下游收到错误路径）�
 ### 第 3 步：三重验证，缺一不可
 
 ```bash
-# ① VS 读回（确认 7 条 exact 仍指 route-sentinel-svc:8080，2 条前缀已改）
+# ① VS 读回（确认 5 条 exact 仍指 route-sentinel-svc:8080，2 条前缀已改）
 ssh k8s-master "kubectl get vs fep-app-vr -n itp -o jsonpath='{range .spec.http[*]}{.match[0].uri.exact}{\" | \"}{.match[0].uri.prefix}{\" -> \"}{.route[0].destination.host}{\":\"}{.route[0].destination.port.number}{\"  rewrite=\"}{.rewrite.uri}{\"\n\"}{end}' | grep -E 'itptvm|itpbom'"
 # ② envoy 实际路由表（exact 会下发成 host+path 联合匹配；前缀会下发成带前缀的 cluster 路由）
 ssh k8s-master "kubectl exec -n itp-gateway <itp-gateway-pod> -- curl -s '127.0.0.1:15000/config_dump?resource=dynamic_route_configs' | grep -o '<目标svc>[^\"]*\(itptvm\|itpbom\)[^\"]*'"

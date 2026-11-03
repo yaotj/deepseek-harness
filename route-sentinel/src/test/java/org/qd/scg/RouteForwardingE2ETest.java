@@ -38,6 +38,7 @@ class RouteForwardingE2ETest {
     private static Thread fepAppThread;
 
     private static final String SPLIT_DEVICE_URL = "/itptvm/ci/tvm/notiTakeTicketResult";
+    private static final String SPLIT_BOM_URL = "/itpbom/ci/bom/requestCardDataAnalyse";
     private static final String DEFAULT_DEVICE_URL = "/itptvm/ci/tvm/requestOrder";
     private static final String APP_URL = "/fep-app/ci/app/requestOrder";
 
@@ -170,8 +171,10 @@ class RouteForwardingE2ETest {
             .uri(URI.create("http://localhost:" + port + "/actuator/gatewayroutes")).GET().build();
         HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, resp.statusCode(), "GET /actuator/gatewayroutes 应返回 200");
-        assertTrue(resp.body().contains("legacy-route"), "列表应含 legacy-route");
-        assertTrue(resp.body().contains("face-pay-split-route"), "列表应含 face-pay-split-route");
+        assertTrue(resp.body().contains("legacy-route-tvm"), "列表应含 legacy-route-tvm");
+        assertTrue(resp.body().contains("legacy-route-bom"), "列表应含 legacy-route-bom");
+        assertTrue(resp.body().contains("face-pay-split-route-tvm"), "列表应含 face-pay-split-route-tvm");
+        assertTrue(resp.body().contains("face-pay-split-route-bom"), "列表应含 face-pay-split-route-bom");
         assertTrue(resp.body().contains("face-pay-default-route"), "列表应含 face-pay-default-route");
         assertTrue(resp.body().contains("fep-app-route"), "列表应含 fep-app-route");
     }
@@ -179,26 +182,49 @@ class RouteForwardingE2ETest {
     @Test
     void adminEndpointUpsertTriggersLiveReload() throws Exception {
         HttpClient client = HttpClient.newHttpClient();
-        String exact7Urls = "\"Path=/itptvm/ci/tvm/notiTakeTicketResult\",\"Path=/itptvm/ci/tvm/notiTakeTicketFailResult\",\"Path=/itptvm/ci/tvm/requestTakeTicketAuth\",\"Path=/itpbom/ci/bom/notiTakeTicketResult\",\"Path=/itpbom/ci/bom/notiTakeTicketFailResult\",\"Path=/itpbom/ci/bom/requestCardDataAnalyse\",\"Path=/itpbom/ci/bom/requestUpdateCardData\"";
-        String swapBody = "{\"uri\":\"http://127.0.0.1:9103\",\"predicates\":[" + exact7Urls + "],\"operator\":\"test\",\"remark\":\"swap\"}";
-        String restoreBody = "{\"uri\":\"http://127.0.0.1:9101\",\"predicates\":[" + exact7Urls + ",\"Path=/fep-app/**\"],\"operator\":\"test\",\"remark\":\"restore\"}";
+        String tvmUrls = "\"Path=/itptvm/ci/tvm/notiTakeTicketResult\",\"Path=/itptvm/ci/tvm/notiTakeTicketFailResult\",\"Path=/itptvm/ci/tvm/requestTakeTicketAuth\"";
+        String bomUrls = "\"Path=/itpbom/ci/bom/requestCardDataAnalyse\",\"Path=/itpbom/ci/bom/requestUpdateCardData\"";
+        String tvmFilter = "\"RewritePath=/itptvm/ci/tvm/(?<segment>.*),/itptvm/ci/tvmDispatch/${segment}\"";
+        String bomFilter = "\"RewritePath=/itpbom/ci/bom/(?<segment>.*),/itpbom/ci/bomDispatch/${segment}\"";
+        String swapTvmBody = "{\"uri\":\"http://127.0.0.1:9103\",\"predicates\":[" + tvmUrls + "],\"filters\":[" + tvmFilter + "],\"operator\":\"test\",\"remark\":\"swap\"}";
+        String swapBomBody = "{\"uri\":\"http://127.0.0.1:9103\",\"predicates\":[" + bomUrls + "],\"filters\":[" + bomFilter + "],\"operator\":\"test\",\"remark\":\"swap\"}";
+        String restoreTvmBody = "{\"uri\":\"http://127.0.0.1:9101\",\"predicates\":[" + tvmUrls + "],\"filters\":[" + tvmFilter + "],\"operator\":\"test\",\"remark\":\"restore\"}";
+        String restoreBomBody = "{\"uri\":\"http://127.0.0.1:9101\",\"predicates\":[" + bomUrls + "],\"filters\":[" + bomFilter + "],\"operator\":\"test\",\"remark\":\"restore\"}";
         try {
-            String before = hitGateway(SPLIT_DEVICE_URL, "{\"thirdUserId\":\"swap-user-xyz\"}");
-            assertEquals("LEGACY-DOWNSTREAM", before.trim(), "交换前未注册用户在 7 条 URL 上应走 legacy 下游 9101");
-            HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port + "/actuator/gatewayroutes/legacy-route"))
+            String beforeTvm = hitGateway(SPLIT_DEVICE_URL, "{\"thirdUserId\":\"swap-user-xyz\"}");
+            assertEquals("LEGACY-DOWNSTREAM", beforeTvm.trim(), "交换前未注册用户在 TVM URL 上应走 legacy 下游 9101");
+            String beforeBom = hitGateway(SPLIT_BOM_URL, "{\"thirdUserId\":\"swap-user-xyz\"}");
+            assertEquals("LEGACY-DOWNSTREAM", beforeBom.trim(), "交换前未注册用户在 BOM URL 上应走 legacy 下游 9101");
+
+            HttpRequest reqTvm = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/actuator/gatewayroutes/legacy-route-tvm"))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(swapBody)).build();
-            HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
-            assertEquals(200, resp.statusCode(), "POST /actuator/gatewayroutes/legacy-route 应返回 200");
-            String after = hitGateway(SPLIT_DEVICE_URL, "{\"thirdUserId\":\"swap-user-xyz\"}");
-            assertEquals("FEP-APP-DOWNSTREAM", after.trim(), "reload 后 legacy 车道在 7 条 URL 上应指向交换后的 9103");
+                .POST(HttpRequest.BodyPublishers.ofString(swapTvmBody)).build();
+            HttpResponse<String> respTvm = client.send(reqTvm, HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, respTvm.statusCode(), "POST /actuator/gatewayroutes/legacy-route-tvm 应返回 200");
+
+            HttpRequest reqBom = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/actuator/gatewayroutes/legacy-route-bom"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(swapBomBody)).build();
+            HttpResponse<String> respBom = client.send(reqBom, HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, respBom.statusCode(), "POST /actuator/gatewayroutes/legacy-route-bom 应返回 200");
+
+            String afterTvm = hitGateway(SPLIT_DEVICE_URL, "{\"thirdUserId\":\"swap-user-xyz\"}");
+            assertEquals("FEP-APP-DOWNSTREAM", afterTvm.trim(), "reload 后 legacy TVM 车道应指向交换后的 9103");
+            String afterBom = hitGateway(SPLIT_BOM_URL, "{\"thirdUserId\":\"swap-user-xyz\"}");
+            assertEquals("FEP-APP-DOWNSTREAM", afterBom.trim(), "reload 后 legacy BOM 车道应指向交换后的 9103");
         } finally {
-            HttpRequest restore = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:" + port + "/actuator/gatewayroutes/legacy-route"))
+            client.send(HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/actuator/gatewayroutes/legacy-route-tvm"))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(restoreBody)).build();
-            client.send(restore, HttpResponse.BodyHandlers.ofString());
+                .POST(HttpRequest.BodyPublishers.ofString(restoreTvmBody)).build(),
+                HttpResponse.BodyHandlers.ofString());
+            client.send(HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + port + "/actuator/gatewayroutes/legacy-route-bom"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(restoreBomBody)).build(),
+                HttpResponse.BodyHandlers.ofString());
         }
     }
 }

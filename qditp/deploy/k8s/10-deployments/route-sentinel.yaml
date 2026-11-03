@@ -59,7 +59,7 @@ spec:
         #   env 为空则 appender 自动禁用（不起线程、不丢日志）；1.0.1 无此 appender、此 env 不生效。
         - name: VLOGS_URL
           value: http://victoria-logs-pbi6a-svc.itp.svc:30032
-        image: os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.4
+        image: os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.5
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: route-sentinel

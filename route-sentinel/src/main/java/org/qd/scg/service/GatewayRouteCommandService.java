@@ -24,21 +24,22 @@ public class GatewayRouteCommandService {
         this.eventPublisher = eventPublisher;
     }
 
-    public void syncRoute(String routeId, String uri, String predicates, String operator, String remark) {
+    public void syncRoute(String routeId, String uri, String predicates, String filters, String operator, String remark) {
         RouteSnapshot before = repository.findById(routeId).orElse(null);
         String beforeUri = before != null ? before.uri() : null;
         String beforePreds = before != null ? before.predicates() : null;
+        String beforeFilters = before != null ? before.filters() : null;
 
         if (repository.existsById(routeId)) {
-            repository.update(routeId, uri, predicates, operator);
+            repository.update(routeId, uri, predicates, filters, operator);
         } else {
             int orderNo = repository.nextOrderNo();
-            repository.insert(routeId, uri, predicates, orderNo, operator);
+            repository.insert(routeId, uri, predicates, filters, orderNo, operator);
         }
 
         auditService.audit(routeId, before == null ? "CREATE" : "UPDATE",
-                           beforeUri, uri, beforePreds, predicates, operator, remark);
-        log.info("syncRoute OK: {} {}", routeId, uri);
+                           beforeUri, uri, beforePreds, predicates, beforeFilters, filters, operator, remark);
+        log.info("syncRoute OK: {} {} filters={}", routeId, uri, filters);
         publishChanged(routeId, before == null ? "CREATE" : "UPDATE");
     }
 
@@ -46,9 +47,10 @@ public class GatewayRouteCommandService {
         RouteSnapshot before = repository.findById(routeId).orElse(null);
         String beforeUri = before != null ? before.uri() : null;
         String beforePreds = before != null ? before.predicates() : null;
+        String beforeFilters = before != null ? before.filters() : null;
 
         repository.markDeleted(routeId);
-        auditService.audit(routeId, "DELETE", beforeUri, "", beforePreds, "[]", operator, remark);
+        auditService.audit(routeId, "DELETE", beforeUri, "", beforePreds, "[]", beforeFilters, "[]", operator, remark);
         log.info("deleteRoute OK: {}", routeId);
         publishChanged(routeId, "DELETE");
     }

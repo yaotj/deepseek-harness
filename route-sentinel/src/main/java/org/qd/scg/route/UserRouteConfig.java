@@ -2,9 +2,11 @@ package org.qd.scg.route;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 
 import org.qd.scg.event.RouteChangedEvent;
 import org.qd.scg.model.RouteDef;
+import org.qd.scg.filter.RouteFilterFactory;
 import org.qd.scg.predicate.RoutePredicateFactory;
 import org.qd.scg.predicate.RoutePredicateStrategy;
 import org.qd.scg.predicate.UserRouteService;
@@ -29,6 +31,7 @@ public class UserRouteConfig {
 
     private final RoutePredicateStrategy routePredicateStrategy;
     private final RoutePredicateFactory routePredicateFactory;
+    private final RouteFilterFactory routeFilterFactory;
     private final GatewayRouteQueryService queryService;
     private final UserRouteService userRouteService;
 
@@ -36,10 +39,12 @@ public class UserRouteConfig {
 
     public UserRouteConfig(RoutePredicateStrategy routePredicateStrategy,
                            RoutePredicateFactory routePredicateFactory,
+                           RouteFilterFactory routeFilterFactory,
                            GatewayRouteQueryService queryService,
                            UserRouteService userRouteService) {
         this.routePredicateStrategy = routePredicateStrategy;
         this.routePredicateFactory = routePredicateFactory;
+        this.routeFilterFactory = routeFilterFactory;
         this.queryService = queryService;
         this.userRouteService = userRouteService;
     }
@@ -72,9 +77,16 @@ public class UserRouteConfig {
                 ? routePredicateStrategy.legacyPredicate().and(pathOrTrue)
                 : pathOrTrue;
 
-            RouterFunction<ServerResponse> rf = route(r.id())
+            var routeBuilder = route(r.id())
                 .route(predicate, http())
-                .before(BeforeFilterFunctions.uri(r.uri()))
+                .before(BeforeFilterFunctions.uri(r.uri()));
+
+            List<Function<ServerRequest, ServerRequest>> filters = routeFilterFactory.parse(r.filters());
+            for (Function<ServerRequest, ServerRequest> filter : filters) {
+                routeBuilder.before(filter);
+            }
+
+            RouterFunction<ServerResponse> rf = routeBuilder
                 .after(AfterFilterFunctions.addResponseHeader("X-Route-Id", r.id()))
                 .build();
             result = result == null ? rf : result.and(rf);

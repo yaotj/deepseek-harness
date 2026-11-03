@@ -59,16 +59,22 @@ class EndToEndTest {
 
     @Test
     void legacyRouteShouldExist() {
-        Integer count = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM gateway_route_config WHERE route_id = ?", Integer.class, "legacy-route");
-        assertTrue(count != null && count > 0, "legacy-route not found in DB");
+        Integer tvmCount = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM gateway_route_config WHERE route_id = ?", Integer.class, "legacy-route-tvm");
+        Integer bomCount = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM gateway_route_config WHERE route_id = ?", Integer.class, "legacy-route-bom");
+        assertTrue(tvmCount != null && tvmCount > 0, "legacy-route-tvm not found in DB");
+        assertTrue(bomCount != null && bomCount > 0, "legacy-route-bom not found in DB");
     }
 
     @Test
     void facePaySplitRouteShouldExist() {
-        Integer count = jdbc.queryForObject(
-            "SELECT COUNT(*) FROM gateway_route_config WHERE route_id = ?", Integer.class, "face-pay-split-route");
-        assertTrue(count != null && count > 0, "face-pay-split-route not found in DB");
+        Integer tvmCount = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM gateway_route_config WHERE route_id = ?", Integer.class, "face-pay-split-route-tvm");
+        Integer bomCount = jdbc.queryForObject(
+            "SELECT COUNT(*) FROM gateway_route_config WHERE route_id = ?", Integer.class, "face-pay-split-route-bom");
+        assertTrue(tvmCount != null && tvmCount > 0, "face-pay-split-route-tvm not found in DB");
+        assertTrue(bomCount != null && bomCount > 0, "face-pay-split-route-bom not found in DB");
     }
 
     @Test

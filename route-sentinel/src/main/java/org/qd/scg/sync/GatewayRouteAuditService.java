@@ -13,10 +13,18 @@ public class GatewayRouteAuditService {
     }
 
     public void audit(String routeId, String action, String beforeUri, String afterUri,
-                      String beforePredicates, String afterPredicates, String operator, String remark) {
+                      String beforePredicates, String afterPredicates,
+                      String beforeFilters, String afterFilters,
+                      String operator, String remark) {
         jdbc.update(
-            "INSERT INTO gateway_route_config_audit (route_id, action, before_uri, after_uri, before_predicates, after_predicates, operator, operate_tms, remark) " +
-            "VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, 'actuator'), SYSTIMESTAMP, COALESCE(?, 'Actuator 动态维护路由'))",
-            routeId, action, beforeUri, afterUri, beforePredicates, afterPredicates, operator, remark);
+            "INSERT INTO gateway_route_config_audit (route_id, action, before_uri, after_uri, before_predicates, after_predicates, before_filters, after_filters, operator, operate_tms, remark) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 'actuator'), SYSTIMESTAMP, COALESCE(?, 'Actuator 动态维护路由'))",
+            routeId, action, beforeUri, afterUri, beforePredicates, afterPredicates,
+            beforeFilters, afterFilters, operator, remark);
+    }
+
+    public void audit(String routeId, String action, String beforeUri, String afterUri,
+                      String beforePredicates, String afterPredicates, String operator, String remark) {
+        audit(routeId, action, beforeUri, afterUri, beforePredicates, afterPredicates, null, null, operator, remark);
     }
 }

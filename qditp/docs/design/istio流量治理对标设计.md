@@ -1,7 +1,7 @@
 # Istio 流量治理对标设计（参考 mlc 配置模板）
 
 > 状态：**挂起**（2026-10-28 起草；同日用户裁决「现阶段没必要做」，留作底稿）。
-> 实施记录：2026-10-28 应用户要求**单点落地了红岛的 retries 清零**（fep-app-vr 15 条 + manage-vr 2 条，json patch + test op 原子提交，envoy 实证无 retry_policy；详见 `docs/ops/environments/红岛.md` §「入向路由分发」事实 5）。其余 P0 项（timeout / 响应头清理 / 命名路由）与 P1~P3 仍挂起。
+> 实施记录：2026-10-28 应用户要求**单点落地了红岛的 retries 清零**（fep-app-vr 15 条：2026-11-03 随 [IT-050](../../tracking/IT-050-route-sentinel路径重写与双端口下游.md) 调整为 13 条，5 SCG exact + 8 prefix；+ manage-vr 2 条，json patch + test op 原子提交，envoy 实证无 retry_policy；详见 `docs/ops/environments/红岛.md` §「入向路由分发」事实 5）。其余 P0 项（timeout / 响应头清理 / 命名路由）与 P1~P3 仍挂起。
 > 适用范围：ns `itp`（测试）/ ns `itpb`（红岛）/ 辽阳东三套集群的 ITP 全量应用。
 > 端口 / Service 名 / 副本数一律**现查**（`kubectl get svc,deploy -n <ns>`），本文出现的具体值只是撰写时快照，NEVER 当现状引用。
 
@@ -25,7 +25,7 @@ mlc 模板把流量治理分三层，层层职责单一：
   → 各业务 Service（NodePort 30009~30035）
 ```
 
-已有：Gateway `accountserver-gw`；VS `fep-app-vr` 15 条路由（7 条 SCG exact + 8 条前缀）；ns `itp` 已开 `istio-injection=enabled`。
+已有：Gateway `accountserver-gw`；VS `fep-app-vr` 13 条路由（5 条 SCG exact + 8 条前缀）；ns `itp` 已开 `istio-injection=enabled`。
 红岛入口是 **Kong 1.4.0 前置**（`fep-app-vr` 是否同链路未确认，见 `docs/ops/environments/红岛.md` §「入向路由分发（实测：Kong 1.4.0，非 fep-app-vr）」）。
 
 东西向：服务间调用走 `rpc` 模块 HTTP 直连 `service.*.url`，现值多为**节点 IP + NodePort**（如 `http://<节点IP>:30024`），流量不经过 sidecar，mesh 的遥测 / 策略 / mTLS 全部覆盖不到。
@@ -83,7 +83,7 @@ spec:
 
 注意事项：
 
-- 7 条 SCG exact 路由同样补 `retries: 0` / `timeout` / `name`，**顺序与 `rewrite` 一律不动**（Runbook §四「NEVER 清单」：exact 必须排在前缀之前、rewrite 不可顺手改）。
+- 5 条 SCG exact 路由同样补 `retries: 0` / `timeout` / `name`，**顺序与 `rewrite` 一律不动**（Runbook §四「NEVER 清单」：exact 必须排在前缀之前、rewrite 不可顺手改）。
 - 回滚源 = 仓库基线 `deploy/k8s/30-istio-ingress.yaml`，改完同步回写基线。
 - 验证门：envoy `config_dump` 读回 `retry_policy.num_retries=0` 与 `timeout`；NodePort 探活；设备 / APP 真实请求落点确认。
 
@@ -96,7 +96,7 @@ spec:
 | `/fep-app/`（APP 域聚合） | 15s | 下游含支付渠道外呼，留足余量 |
 | `/fep-alipay/`（支付宝回调） | 10s | 回调要求快速应答 |
 | `/itptvm/` `/itpbom/`（设备交易） | 10s | 设备侧有自身超时，网关不宜更宽松 |
-| SCG 7 条 exact | 10s | 同上 |
+| SCG 5 条 exact | 10s | 同上 |
 | `/para-server/` 参数发布类长任务 | 60s 或单独命名路由 | 参数发布 / 批量下发可能超过默认 |
 | recon 对账导出（内部） | 不限于入口，见 §八东西向 | 批处理链路 |
 
@@ -146,7 +146,7 @@ spec:
 - DR 增加 `subsets: [{name: v1, labels: {version: v1}}, {name: v2, labels: {version: v2}}]`。
 - 服务级 VS 按 header / URI 引流到 v2，默认兜 v1——形态直接照 mlc para 模板。
 - 价值场景：大版本发布先引流内部测试请求（带灰度 header）到 v2，验证后全量，替代「直接滚更全量」。
-- 与 route-sentinel 的分工见原则 5；7 条 SCG exact 链路 NEVER 挂 subset。
+- 与 route-sentinel 的分工见原则 5；5 条 SCG exact 链路 NEVER 挂 subset。
 
 ## 九、东西向入 mesh（P3，远期）
 

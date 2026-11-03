@@ -1,5 +1,5 @@
 # route-sentinel 测试环境基线（SCG 透明分流网关）
-# 端口 9999；VirtualService fep-app-vr 的 7 条 exact 路由指向本 Service。
+# 端口 9999；VirtualService fep-app-vr 的 5 条 exact 路由指向本 Service。
 # ⚠ 2026-11-02 起已由 CloudOS 平台接管（应用 uuid eab9c5cca7424fcab687ad489d25f7cd，应用组 ITP），
 # 本文件降级为基线快照/应急恢复用。改配置 MUST 走平台 advanced-config（kubectl 改动会被平台回收）；
 # 平台 YAML 模式仅收单文档 Deployment（无注释、多文档/Service 会被 checkYaml 拒）。
@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
       - name: route-sentinel
-        image: os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.4
+        image: os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.5
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9999

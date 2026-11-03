@@ -22,9 +22,9 @@
 - `15-optional/database.yaml` — BYOK database MCP Server（研发辅助，**不是 Oracle**，生产可不部署）
 - `16-statefulsets/victoria-logs.yaml` — 日志服务，含 `volumeClaimTemplates`（15Gi RWO / sc `apigateway2`）
 - `20-services.yaml` — `route-sentinel-svc`（ClusterIP）+ **23 个 `<app>-internal` 内网 Service**（ClusterIP，`port`/`targetPort` 统一 8080，服务间调用专用，2026-11-02 新增，背景见 `docs/tracking/IT-035-平台端口变量与应用监听口径错配致批量503.md`）。**这 23 个已由云管台纳管**（`POST /api/cloud/app-mgmt/v1.0/apps/{uuid}/service`），平台才是运行态真源，本文件仅作基线快照 / 应急重建——手工 `kubectl apply` 出的同类对象平台不认领，应用重装时会丢。其余服务的 NodePort Service 由 PaaS 控制台生成、名字带 5 位随机后缀，**不在本目录**（本文件不是它们的真源）
-- `30-istio-ingress.yaml` — **测试环境**入向路由基线：ns `itp` 的 `accountserver-gw` + `fep-app-vr`（**15 条：7 条 SCG exact + 8 条前缀**；`/itptvm/`、`/itpbom/` 两条保留前缀 rewrite，其余 rewrite `/`；7 条 exact 恒指 `route-sentinel-svc:8080`）
-- `30-istio-ingress-hongdao.yaml` — **红岛生产**入向路由基线：结构与测试同构（15 条 7+8），destination 全为 `<占位>`，**MUST 上线前现查重录、NEVER 沿用测试值**（占位填法与纪律见文件头注 + `docs/ops/environments/红岛.md`「入向路由分发」节）
-- `30-istio-ingress-liaoyang.yaml` — **辽阳东生产**入向路由基线：同上，destination 全为 `<占位>`，**MUST 上线前现查重录**（见 `docs/ops/environments/辽阳东.md`「入向路由分发」节）
+- `30-istio-ingress.yaml` — **测试环境**入向路由基线：ns `itp` 的 `accountserver-gw` + `fep-app-vr`（**13 条：5 条 SCG exact + 8 条前缀**；`/itptvm/`、`/itpbom/` 两条保留前缀 rewrite，其余 rewrite `/`；5 条 exact 恒指 `route-sentinel-svc:8080`）
+- `30-istio-ingress-hongdao.yaml` — **红岛生产**入向路由基线：结构与测试同构（13 条 5+8），destination 全为 `<占位>`，**MUST 上线前现查重录、NEVER 沿用测试值**（占位填法与纪律见文件头注 + `docs/ops/environments/红岛.md`「入向路由分发」节）
+- `30-istio-ingress-liaoyang.yaml` — **辽阳东生产**入向路由基线：同上（13 条 5+8），destination 全为 `<占位>`，**MUST 上线前现查重录**（见 `docs/ops/environments/辽阳东.md`「入向路由分发」节）
 - `31-itp-gateway-ns.yaml` — ns `itp-gateway` 的 istio ingressgateway Deployment + 两个 Service
 - `40-configmap-web-nginx.yaml` — `web`（nginx）挂载的 `nginx.conf`
 
@@ -37,5 +37,5 @@
 - **单副本约束照抄自现集群、NEVER 改大**：`recon-server` / `web-admin` / `face-pay-server` / `collect-pay` 的定时任务无分布式锁。
 - **JVM 堆参数必须与容器 memory limit 同步**：基础镜像 `/startapp.sh` 按 `堆 = max_memory - reserved_memory - max_direct_memory` 计算（缺省 800/200/100 → 堆恒 500m）。本基线 24 个 Java Deployment 已按各自 limit 写入：`max_memory` = limit 的 MB 千位取整、`reserved_memory` = 其 1/4、`max_direct_memory` = 100（2Gi → 2000/500/100，堆 1400m；4Gi → 4000/1000/100，堆 2900m），另有 `MY_POD_UUID` / `MY_POD_NAMESPACE` downward API。**改容器规格 MUST 同步重算这三个值**；跨环境套用本基线时 MUST 按目标 limit 重算（红岛 8Gi 服务的现值为 8000/2000/100，堆 5900m）。契约与负结论见 [`docs/tracking/IT-020-JVM参数被平台回滚.md`](../../docs/tracking/IT-020-JVM参数被平台回滚.md)。
 - **全部 Deployment 已关闭 SA token 自动挂载**（`automountServiceAccountToken: false`，Pod 级）；将来需要访问 K8s API 的负载 MUST 显式改回 `true` 并注明用途。
-- **按环境各有一份入向路由基线，NEVER 跨环境共用**：`30-istio-ingress*.yaml` 三份结构同构（15 条 7 SCG exact + 8 prefix），但 destination 的 Service 名 / 端口随环境不同。测试那份是「在用事实」可直接 apply；红岛 / 辽阳东两份是全占位，**MUST 上线前现查重录、apply 前逐条替换、且 NEVER 沿用测试/红岛值**（跨环境纪律见 `docs/ops/environments/环境总览.md`）。生产发布走 AGENTS.md §5.C + `docs/ops/流量切换Runbook.md`。
+- **按环境各有一份入向路由基线，NEVER 跨环境共用**：`30-istio-ingress*.yaml` 三份结构同构（13 条 5 SCG exact + 8 prefix），但 destination 的 Service 名 / 端口随环境不同。测试那份是「在用事实」可直接 apply；红岛 / 辽阳东两份是全占位，**MUST 上线前现查重录、apply 前逐条替换、且 NEVER 沿用测试/红岛值**（跨环境纪律见 `docs/ops/environments/环境总览.md`）。生产发布走 AGENTS.md §5.C + `docs/ops/流量切换Runbook.md`。
 - **本目录是快照、不是真相源**：现集群改过 env / 镜像后这里不会自动跟。判断线上实际值仍 **MUST** 现查 `kubectl get deploy <名> -n itp -o yaml`（AGENTS.md §7）。重新导出即重跑上面的清洗流程并覆盖本目录。

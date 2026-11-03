@@ -1,6 +1,7 @@
 # 测试环境 istio 入向路由基线（fep-app-vr）
 
 > **来源**：2026-10-22 实测 `kubectl get vs fep-app-vr -n itp -o yaml` 真值（8 条 prefix）。
+> **2026-11-03 调整**：SCG exact 由 7 条改为 5 条，与 route-sentinel 新路由表一致。
 
 ```yaml
 apiVersion: networking.istio.io/v1
@@ -23,7 +24,7 @@ spec:
   http:
     - match:
         - uri:
-            exact: /itpbom/ci/bom/notiTakeTicketResult
+            exact: /itptvm/ci/tvm/notiTakeTicketResult
       route:
         - destination:
             host: route-sentinel-svc
@@ -31,7 +32,7 @@ spec:
               number: 8080
     - match:
         - uri:
-            exact: /itpbom/ci/bom/notiTakeTicketFailResult
+            exact: /itptvm/ci/tvm/notiTakeTicketFailResult
       route:
         - destination:
             host: route-sentinel-svc
@@ -39,7 +40,7 @@ spec:
               number: 8080
     - match:
         - uri:
-            exact: /itpbom/ci/bom/requestTakeTicketAuth
+            exact: /itptvm/ci/tvm/requestTakeTicketAuth
       route:
         - destination:
             host: route-sentinel-svc
@@ -56,22 +57,6 @@ spec:
     - match:
         - uri:
             exact: /itpbom/ci/bom/requestUpdateCardData
-      route:
-        - destination:
-            host: route-sentinel-svc
-            port:
-              number: 8080
-    - match:
-        - uri:
-            exact: /itptvm/ci/tvm/requestTakeTicketAuth
-      route:
-        - destination:
-            host: route-sentinel-svc
-            port:
-              number: 8080
-    - match:
-        - uri:
-            exact: /itptvm/ci/tvm/requestCardDataAnalyse
       route:
         - destination:
             host: route-sentinel-svc

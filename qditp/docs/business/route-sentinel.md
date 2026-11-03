@@ -26,13 +26,13 @@
 
 | 项 | 现状 |
 |---|---|
-| artifactId | `org.qd:route-sentinel:1.0.1`（`route-sentinel/pom.xml`）；测试环境跑 `1.0.1`、红岛首发同为 `1.0.1`（**红岛首发不是升级，是首次部署**） |
+| artifactId | `org.qd:route-sentinel:1.0.5`（`route-sentinel/pom.xml`）；测试环境当前 `1.0.5`、红岛待升级 `1.0.5` |
 | Spring Cloud 版本 | `2025.1.2`，网关实现用 `spring-cloud-starter-gateway-server-mvc`（同步 Servlet 栈） |
 | 主类 | `org.qd.scg.UserRouteGatewayApplication` |
 | JDK 版本 | **21**（2026-10-26 由 Java 25 降级，与 qditp 主体基线一致）。降级已实测：字节码 major 65、22 个测试全过；依赖侧无需改动（spring-boot 4.0.7 / spring-core 7.0.8 / gateway-webmvc 5.0.2 全为 Java 17 字节码） |
 | 容器端口 | `8080`（Deployment `SERVER_PORT=8080`，Service `route-sentinel-svc:8080`） |
 | 基础镜像 | 测试 `itp/jdk:21`；红岛 `os-harbor-svc.default.svc.cloudos:443/itpb/jdk21:1.0.0`（itpb 项目**唯一**公共 JDK 镜像，2026-10-26 实测 itpb ns 内拉取成功，`java version 21.0.1`） |
-| 已部署镜像 | 测试 `os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.1`（`deploy/k8s/10-deployments/route-sentinel.yaml:42`）；**红岛 2026-10-26 已建 `itpb/route-sentinel:1.0.1`（Harbor digest `sha256:d4c6bd67…`，amd64）+ 平台 app 对象（uuid `16a91143…`）+ Deployment 已拉起，但容器 CrashLoopBackOff——根因见 [IT-021](../tracking/IT-021-红岛网关路由表缺失.md)「CrashLoop」节，非镜像问题** |
+| 已部署镜像 | 测试 `os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.5`（`deploy/k8s/10-deployments/route-sentinel.yaml`）；红岛待升级 `1.0.5` |
 | 上游入口 | `fep-app-vr` 把下面 **5 条精确路径**（`uri.exact`）打到 `route-sentinel-svc:8080`；**其余** `/itptvm/**`、`/itpbom/**` 端点仍由前缀路由直连 `face-pay-server-svc:30025`，不进 SCG |
 | 数据库 | 测试直连 `AFCITPDB`（schema `QDITP`）；红岛按域分库后 `USER_ITP_REG_INFO` → `QDITP_USER`（`itp_ro` 只读）、`GATEWAY_ROUTE_CONFIG` → `QDITP_PLAT`（**红岛两表尚未建，见 [IT-021](../tracking/IT-021-红岛网关路由表缺失.md)，是部署前置阻塞**） |
 
