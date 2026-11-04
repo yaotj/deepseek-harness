@@ -1,5 +1,6 @@
 package com.chinasofti.huateng.facepay.mapper;
 
+import com.chinasofti.huateng.facepay.api.page.F2fTopupSuspiciousPageVO;
 import com.chinasofti.huateng.facepay.entity.F2fResultReport;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -65,7 +66,31 @@ public interface F2fResultReportMapper {
      * @return 影响行数；0 表示该上报不存在（正常不该发生）
      */
     int updateOptResult(@Param("reportType") String reportType,
-                        @Param("orderNo") String orderNo,
-                        @Param("optResult") String optResult,
-                        @Param("optResultDesc") String optResultDesc);
+                       @Param("orderNo") String orderNo,
+                       @Param("optResult") String optResult,
+                       @Param("optResultDesc") String optResultDesc);
+
+    /**
+     * 运营端分页查询充值存疑回执（{@code F2F_RESULT_REPORT.TOPUP_STATUS}），按接收时间倒序。
+     *
+     * @return 当前页视图列表
+     */
+    List<F2fTopupSuspiciousPageVO> selectTopupSuspiciousPage(@Param("orderNo") String orderNo,
+                                                             @Param("channel") String channel,
+                                                             @Param("deviceId") String deviceId,
+                                                             @Param("topupStatus") String topupStatus,
+                                                             @Param("processed") String processed,
+                                                             @Param("beginTms") LocalDateTime beginTms,
+                                                             @Param("endTms") LocalDateTime endTms,
+                                                             @Param("offset") int offset,
+                                                             @Param("limit") int limit);
+
+    /** 统计 selectTopupSuspiciousPage 同口径总条数。 */
+    long countTopupSuspiciousPage(@Param("orderNo") String orderNo,
+                                  @Param("channel") String channel,
+                                  @Param("deviceId") String deviceId,
+                                  @Param("topupStatus") String topupStatus,
+                                  @Param("processed") String processed,
+                                  @Param("beginTms") LocalDateTime beginTms,
+                                  @Param("endTms") LocalDateTime endTms);
 }

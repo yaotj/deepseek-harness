@@ -23,4 +23,23 @@
         where rn = 1
         order by PROVIDER_ID
     </select>
+
+    <!-- 审批状态读取：只读元信息，NEVER 返回任何密钥材料列。 -->
+    <select id="selectApprovalStatus" resultType="java.lang.String">
+        select PUBLIC_KEY_VERSION_STATUS
+        from METRO_AGM_KEY_VERSION
+        where PROVIDER_ID = #{providerId,jdbcType=VARCHAR}
+          and KEY_BATH_NUMBER = #{batchNumber,jdbcType=NUMERIC}
+    </select>
+
+    <!-- 审批状态 CAS 迁移：WHERE 带当前状态 fromStatus，前置状态白名单在 SQL 里兜并发；只更新元信息列，NEVER 碰密钥材料。 -->
+    <update id="transitionApprovalStatus">
+        update METRO_AGM_KEY_VERSION
+        set PUBLIC_KEY_VERSION_STATUS = #{toStatus,jdbcType=VARCHAR},
+            MANAGER_ID = #{operator,jdbcType=VARCHAR},
+            UPDATE_DATE = SYSDATE
+        where PROVIDER_ID = #{providerId,jdbcType=VARCHAR}
+          and KEY_BATH_NUMBER = #{batchNumber,jdbcType=NUMERIC}
+          and PUBLIC_KEY_VERSION_STATUS = #{fromStatus,jdbcType=VARCHAR}
+    </update>
 </mapper>

@@ -170,6 +170,46 @@
           AND PAY_STATUS IN ('CLOSED', 'FAIL')
     </update>
 
+    <sql id="SupplementOrderPageWhere">
+        WHERE 1 = 1
+        <if test="orderNo != null and orderNo != ''">
+            AND ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+        </if>
+        <if test="cardId != null and cardId != ''">
+            AND CARD_ID = #{cardId,jdbcType=VARCHAR}
+        </if>
+        <if test="thirdUserId != null and thirdUserId != ''">
+            AND THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+        </if>
+        <if test="payStatus != null and payStatus != ''">
+            AND PAY_STATUS = #{payStatus,jdbcType=VARCHAR}
+        </if>
+        <if test="txnDateStart != null and txnDateStart != ''">
+            AND TXN_DATE &gt;= #{txnDateStart,jdbcType=VARCHAR}
+        </if>
+        <if test="txnDateEnd != null and txnDateEnd != ''">
+            AND TXN_DATE &lt;= #{txnDateEnd,jdbcType=VARCHAR}
+        </if>
+    </sql>
+
+    <select id="selectSupplementOrderPage" resultMap="SupplementOrderMap">
+        SELECT ID, ORDER_NO, PAY_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE,
+               GOODS_CODE, QUANTITY, TOTAL_AMOUNT, ORDER_COUNT,
+               PAYMENT_VENDOR, SIGN_CHANNEL_CODE, REQUEST_SIGN_SEQ,
+               TXN_DATE, PAY_TIME, REMARK, CREATE_TIME, UPDATE_TIME,
+               PAY_CHANNEL_CODE, MERCHANT_ORDER_NO, PAYMENT_INFO
+        FROM SUPPLEMENT_ORDER
+        <include refid="SupplementOrderPageWhere"/>
+        ORDER BY CREATE_TIME DESC, ID DESC
+        OFFSET #{offset,jdbcType=INTEGER} ROWS FETCH NEXT #{limit,jdbcType=INTEGER} ROWS ONLY
+    </select>
+
+    <select id="countSupplementOrderPage" resultType="java.lang.Long">
+        SELECT COUNT(1)
+        FROM SUPPLEMENT_ORDER
+        <include refid="SupplementOrderPageWhere"/>
+    </select>
+
     <select id="selectPendingOrders" resultMap="SupplementOrderMap">
         SELECT * FROM (
             SELECT ID, ORDER_NO, PAY_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE, GOODS_CODE,

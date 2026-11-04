@@ -84,4 +84,26 @@ public interface AlipayRefundTxnDetailMapper {
      */
     int delayNextRefundQuery(@Param("refundOrderNo") String refundOrderNo,
                              @Param("delaySeconds") int delaySeconds);
+
+    /**
+     * 综管台「渠道退款记录」运营页分页查询（ROW_NUMBER 窗口，本模块无 PageHelper）。
+     *
+     * <p>检索范围 MUST 由服务层保证：退款单号 / 原订单号 / 交易日期窗（yyyyMMdd）至少一项，
+     * 避免无条件全表扫。本表只有 18 列、无 THIRD_USER_ID / CARD_ID，用户维度按 ORDER_NO
+     * 回查 {@code GATE_TXN_PAY}，NEVER 在本表补列。</p>
+     */
+    List<AlipayRefundTxnDetail> selectPageForOps(@Param("refundOrderNo") String refundOrderNo,
+                                                 @Param("orderNo") String orderNo,
+                                                 @Param("refundStatus") String refundStatus,
+                                                 @Param("txnDateBegin") String txnDateBegin,
+                                                 @Param("txnDateEnd") String txnDateEnd,
+                                                 @Param("offset") int offset,
+                                                 @Param("limit") int limit);
+
+    /** 统计 selectPageForOps 同口径总条数。 */
+    int countPageForOps(@Param("refundOrderNo") String refundOrderNo,
+                        @Param("orderNo") String orderNo,
+                        @Param("refundStatus") String refundStatus,
+                        @Param("txnDateBegin") String txnDateBegin,
+                        @Param("txnDateEnd") String txnDateEnd);
 }

@@ -137,6 +137,102 @@
         )
     </insert>
 
+    <resultMap id="BomOrderPageResultMap" type="com.chinasofti.huateng.collectpay.model.page.BomOrderPageView">
+        <id column="ORDER_NO" property="orderNo"/>
+        <result column="DEVICE_ID" property="deviceId"/>
+        <result column="TRANS_TYPE" property="transType"/>
+        <result column="ADMIN_TRANS_TYPE" property="adminTransType"/>
+        <result column="OPERATER_ID" property="operaterId"/>
+        <result column="SHIFT_ID" property="shiftId"/>
+        <result column="CARD_ID" property="cardId"/>
+        <result column="TRANS_AOUNT" property="transAount"/>
+        <result column="STATUS" property="status"/>
+        <result column="MSG" property="msg"/>
+        <result column="PAYMENT_CODE" property="paymentCode"/>
+        <result column="PAYMENT_VENDOR" property="paymentVendor"/>
+        <result column="CHANNEL" property="channel"/>
+        <result column="PAYCENTER_ORDERNO" property="payCenterOrderNo"/>
+        <result column="PAYCENTER_CHANNELORDERNO" property="payCenterChannelOrderNo"/>
+        <result column="RSV2" property="refundNo"/>
+        <result column="CREATE_TIME" property="createTime"/>
+        <result column="UPDATE_TIME" property="updateTime"/>
+    </resultMap>
+
+    <sql id="BomOrderWhere">
+        WHERE 1 = 1
+        <if test="orderNo != null and orderNo != ''">
+            AND b.ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+        </if>
+        <if test="payCenterOrderNo != null and payCenterOrderNo != ''">
+            AND b.PAYCENTER_ORDERNO = #{payCenterOrderNo,jdbcType=VARCHAR}
+        </if>
+        <if test="deviceId != null and deviceId != ''">
+            AND b.DEVICE_ID = #{deviceId,jdbcType=VARCHAR}
+        </if>
+        <if test="cardId != null and cardId != ''">
+            AND b.CARD_ID = #{cardId,jdbcType=VARCHAR}
+        </if>
+        <if test="transType != null and transType != ''">
+            AND b.TRANS_TYPE = #{transType,jdbcType=VARCHAR}
+        </if>
+        <if test="status != null and status != ''">
+            AND b.STATUS = #{status,jdbcType=VARCHAR}
+        </if>
+        <if test="paymentVendor != null and paymentVendor != ''">
+            AND b.PAYMENT_VENDOR = #{paymentVendor,jdbcType=VARCHAR}
+        </if>
+        <if test="beginTime != null and beginTime != ''">
+            AND b.CREATE_TIME &gt;= #{beginTime,jdbcType=VARCHAR}
+        </if>
+        <if test="endTime != null and endTime != ''">
+            AND b.CREATE_TIME &lt;= #{endTime,jdbcType=VARCHAR}
+        </if>
+    </sql>
+
+    <select id="selectBomOrderPage" resultMap="BomOrderPageResultMap">
+        <bind name="offsetEnd" value="offset + limit" />
+        SELECT page.*
+        FROM (
+            SELECT
+                b.ORDER_NO, b.DEVICE_ID, b.TRANS_TYPE, b.ADMIN_TRANS_TYPE, b.OPERATER_ID, b.SHIFT_ID,
+                b.CARD_ID, b.TRANS_AOUNT, b.STATUS, b.MSG, b.PAYMENT_CODE, b.PAYMENT_VENDOR, b.CHANNEL,
+                b.PAYCENTER_ORDERNO, b.PAYCENTER_CHANNELORDERNO, b.RSV2, b.CREATE_TIME, b.UPDATE_TIME,
+                ROW_NUMBER() OVER (ORDER BY b.CREATE_TIME DESC, b.ORDER_NO DESC) AS rn
+            FROM TBL_BOM_ORDER_PAY b
+            <include refid="BomOrderWhere"/>
+        ) page
+        WHERE page.rn &gt; #{offset} AND page.rn &lt;= #{offsetEnd}
+    </select>
+
+    <select id="countBomOrderPage" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM TBL_BOM_ORDER_PAY b
+        <include refid="BomOrderWhere"/>
+    </select>
+
+    <resultMap id="DailyTopupStatResultMap" type="com.chinasofti.huateng.collectpay.model.page.DailyTopupStatView">
+        <result column="STAT_DATE" property="statDate"/>
+        <result column="ORDER_COUNT" property="orderCount"/>
+        <result column="PAID_COUNT" property="paidCount"/>
+        <result column="REFUND_COUNT" property="refundCount"/>
+        <result column="PAID_TRANS_AMOUNT_SUM" property="paidTransAmountSum"/>
+    </resultMap>
+
+    <!-- 非现金充值数据查询：只统计 TRANS_TYPE=22（BomBusinessCodeEnum.TOPUP 充值）订单。 -->
+    <select id="selectNocashTopupDaily" resultMap="DailyTopupStatResultMap">
+        SELECT SUBSTR(b.CREATE_TIME, 1, 10) AS STAT_DATE,
+               COUNT(1) AS ORDER_COUNT,
+               SUM(CASE WHEN b.STATUS = '1' THEN 1 ELSE 0 END) AS PAID_COUNT,
+               SUM(CASE WHEN b.RSV2 IS NOT NULL THEN 1 ELSE 0 END) AS REFUND_COUNT,
+               SUM(CASE WHEN b.STATUS = '1' THEN NVL(TO_NUMBER(b.TRANS_AOUNT), 0) ELSE 0 END) AS PAID_TRANS_AMOUNT_SUM
+        FROM TBL_BOM_ORDER_PAY b
+        WHERE b.TRANS_TYPE = '22'
+          AND b.CREATE_TIME &gt;= #{dateStart,jdbcType=VARCHAR}
+          AND b.CREATE_TIME &lt;= #{dateEnd,jdbcType=VARCHAR}
+        GROUP BY SUBSTR(b.CREATE_TIME, 1, 10)
+        ORDER BY STAT_DATE
+    </select>
+
     <select id="selectSaleOrdersByCondition" parameterType="map" resultMap="BaseResultMap">
         select bom.ORDER_NO,bom.TRANS_AOUNT from (
         (select <include refid="Base_Column_List"/>

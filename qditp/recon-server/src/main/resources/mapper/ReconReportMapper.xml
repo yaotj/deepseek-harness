@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.recon.mapper.ReconReportMapper">
+
+    <resultMap id="TxnDiffPageMap" type="com.chinasofti.huateng.recon.model.page.ReconTxnDiffPageView">
+        <result column="BILL_DATE" property="billDate"/>
+        <result column="TXN_TYPE" property="txnType"/>
+        <result column="LOGIC_CARD_NO" property="logicCardNo"/>
+        <result column="TXN_DATE" property="txnDateTime"/>
+        <result column="ORIGINAL_FARE" property="originalFare"/>
+        <result column="CUR_STATION_NAME" property="curStationName"/>
+        <result column="DEVICE_NO" property="deviceNo"/>
+        <result column="TICKET_TYPE" property="ticketType"/>
+        <result column="TICKET_SUB_TYPE" property="ticketSubType"/>
+        <result column="TIMES" property="times"/>
+        <result column="PAY_CHANNEL" property="payChannel"/>
+        <result column="ACTIVATE_TIME" property="activateTime"/>
+        <result column="QUANTITY" property="quantity"/>
+        <result column="TICKET_TRANS_SEQ" property="ticketTransSeq"/>
+        <result column="ORDER_NO" property="orderNo"/>
+        <result column="ORDER_AMOUNT" property="orderAmount"/>
+        <result column="ACTUAL_AMOUNT" property="actualAmount"/>
+        <result column="DISCOUNT_CUMULATIVE_AMOUNT" property="discountCumulativeAmount"/>
+        <result column="OVERTIME_AMOUNT" property="overtimeAmount"/>
+        <result column="DIFF_SIDE" property="diffSide"/>
+        <result column="FAIL_REASON" property="failReason"/>
+        <result column="BATCH_NO" property="batchNo"/>
+        <result column="CREATE_TIME" property="createTime"/>
+    </resultMap>
+
+    <sql id="TxnDiffWhere">
+        WHERE 1 = 1
+        AND BILL_DATE &gt;= #{billDateStart,jdbcType=VARCHAR}
+        AND BILL_DATE &lt;= #{billDateEnd,jdbcType=VARCHAR}
+        <if test="payChannel != null and payChannel != ''">
+            AND PAY_CHANNEL = #{payChannel,jdbcType=VARCHAR}
+        </if>
+        <if test="diffSide != null and diffSide != ''">
+            AND DIFF_SIDE = #{diffSide,jdbcType=VARCHAR}
+        </if>
+        <if test="orderNo != null and orderNo != ''">
+            AND ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+        </if>
+    </sql>
+
+    <select id="selectTxnDiffPage" resultMap="TxnDiffPageMap">
+        SELECT BILL_DATE, TXN_TYPE, LOGIC_CARD_NO, TXN_DATE, ORIGINAL_FARE, CUR_STATION_NAME,
+               DEVICE_NO, TICKET_TYPE, TICKET_SUB_TYPE, TIMES, PAY_CHANNEL, ACTIVATE_TIME, QUANTITY,
+               TICKET_TRANS_SEQ, ORDER_NO, ORDER_AMOUNT, ACTUAL_AMOUNT, DISCOUNT_CUMULATIVE_AMOUNT,
+               OVERTIME_AMOUNT, DIFF_SIDE, FAIL_REASON, BATCH_NO,
+               TO_CHAR(CREATE_TIME, 'YYYY-MM-DD HH24:MI:SS') AS CREATE_TIME
+        FROM RECON_TXN_DIFF
+        <include refid="TxnDiffWhere"/>
+        ORDER BY BILL_DATE DESC, ID DESC
+        OFFSET #{offset,jdbcType=INTEGER} ROWS FETCH NEXT #{limit,jdbcType=INTEGER} ROWS ONLY
+    </select>
+
+    <select id="countTxnDiffPage" resultType="java.lang.Long">
+        SELECT COUNT(1)
+        FROM RECON_TXN_DIFF
+        <include refid="TxnDiffWhere"/>
+    </select>
+
+    <resultMap id="ThirdBillPageMap" type="com.chinasofti.huateng.recon.model.page.ReconThirdBillPageView">
+        <result column="BILL_DATE" property="billDate"/>
+        <result column="PAYMENT_CHANNEL" property="paymentChannel"/>
+        <result column="PAYMENT_VENDOR" property="paymentVendor"/>
+        <result column="CHANNEL_NAME" property="channelName"/>
+        <result column="CHANNEL_MERCHANT_NO" property="channelMerchantNo"/>
+        <result column="TERMINAL_NO" property="terminalNo"/>
+        <result column="BUSINESS_TYPE" property="businessType"/>
+        <result column="TRADE_STATUS" property="tradeStatus"/>
+        <result column="TRADE_TIME" property="tradeTime"/>
+        <result column="CLEARING_DATE" property="clearingDate"/>
+        <result column="MERCHANT_ORDER_NO" property="merchantOrderNo"/>
+        <result column="CHANNEL_TRADE_NO" property="channelTradeNo"/>
+        <result column="MERCHANT_REFUND_NO" property="merchantRefundNo"/>
+        <result column="CHANNEL_REFUND_NO" property="channelRefundNo"/>
+        <result column="CURRENCY" property="currency"/>
+        <result column="ORDER_AMOUNT" property="orderAmount"/>
+        <result column="TRANSACTION_AMOUNT" property="transactionAmount"/>
+        <result column="FEE_AMOUNT" property="feeAmount"/>
+        <result column="SETTLEMENT_AMOUNT" property="settlementAmount"/>
+        <result column="DISCOUNT_AMOUNT" property="discountAmount"/>
+        <result column="PRODUCT_NAME" property="productName"/>
+        <result column="REMARK" property="remark"/>
+        <result column="BATCH_NO" property="batchNo"/>
+    </resultMap>
+
+    <sql id="ThirdBillWhere">
+        WHERE 1 = 1
+        AND BILL_DATE &gt;= #{billDateStart,jdbcType=VARCHAR}
+        AND BILL_DATE &lt;= #{billDateEnd,jdbcType=VARCHAR}
+        <if test="paymentChannel != null and paymentChannel != ''">
+            AND PAYMENT_CHANNEL = #{paymentChannel,jdbcType=VARCHAR}
+        </if>
+        <if test="paymentVendor != null and paymentVendor != ''">
+            AND PAYMENT_VENDOR = #{paymentVendor,jdbcType=VARCHAR}
+        </if>
+        <if test="merchantOrderNo != null and merchantOrderNo != ''">
+            AND MERCHANT_ORDER_NO = #{merchantOrderNo,jdbcType=VARCHAR}
+        </if>
+    </sql>
+
+    <select id="selectThirdBillPage" resultMap="ThirdBillPageMap">
+        SELECT BILL_DATE, PAYMENT_CHANNEL, PAYMENT_VENDOR, CHANNEL_NAME, CHANNEL_MERCHANT_NO,
+               TERMINAL_NO, BUSINESS_TYPE, TRADE_STATUS, TRADE_TIME, CLEARING_DATE,
+               MERCHANT_ORDER_NO, CHANNEL_TRADE_NO, MERCHANT_REFUND_NO, CHANNEL_REFUND_NO,
+               CURRENCY, ORDER_AMOUNT, TRANSACTION_AMOUNT, FEE_AMOUNT, SETTLEMENT_AMOUNT,
+               DISCOUNT_AMOUNT, PRODUCT_NAME, REMARK, BATCH_NO
+        FROM RECON_THIRD_BILL
+        <include refid="ThirdBillWhere"/>
+        ORDER BY BILL_DATE DESC, ID DESC
+        OFFSET #{offset,jdbcType=INTEGER} ROWS FETCH NEXT #{limit,jdbcType=INTEGER} ROWS ONLY
+    </select>
+
+    <select id="countThirdBillPage" resultType="java.lang.Long">
+        SELECT COUNT(1)
+        FROM RECON_THIRD_BILL
+        <include refid="ThirdBillWhere"/>
+    </select>
+
+    <resultMap id="DailyStatMap" type="com.chinasofti.huateng.recon.model.page.ReconDailyStatView">
+        <result column="GROUP_KEY" property="groupKey"/>
+        <result column="PAYMENT_VENDOR" property="paymentVendor"/>
+        <result column="TXN_COUNT" property="txnCount"/>
+        <result column="AMOUNT_SUM" property="amountSum"/>
+        <result column="CASH_AMOUNT_SUM" property="cashAmountSum"/>
+        <result column="COUPON_AMOUNT_SUM" property="couponAmountSum"/>
+        <result column="REFUND_AMOUNT_SUM" property="refundAmountSum"/>
+    </resultMap>
+
+    <select id="selectDailyStats" resultMap="DailyStatMap">
+        <choose>
+            <when test="groupBy != null and groupBy == 'HOUR'">
+                SELECT NVL(SUBSTR(PAY_TIME, 12, 2), '--') AS GROUP_KEY,
+                       NULL AS PAYMENT_VENDOR,
+                       COUNT(1) AS TXN_COUNT,
+                       SUM(NVL(AMOUNT, 0)) AS AMOUNT_SUM,
+                       SUM(NVL(CASH_AMOUNT, 0)) AS CASH_AMOUNT_SUM,
+                       SUM(NVL(COUPON_AMOUNT, 0)) AS COUPON_AMOUNT_SUM,
+                       SUM(NVL(REFUND_AMOUNT, 0)) AS REFUND_AMOUNT_SUM
+                FROM PAY_TXN_DETAIL
+                WHERE TXN_DATE = #{txnDateStart,jdbcType=VARCHAR}
+                GROUP BY NVL(SUBSTR(PAY_TIME, 12, 2), '--')
+                ORDER BY GROUP_KEY
+            </when>
+            <otherwise>
+                SELECT TXN_DATE AS GROUP_KEY,
+                       PAYMENT_VENDOR,
+                       COUNT(1) AS TXN_COUNT,
+                       SUM(NVL(AMOUNT, 0)) AS AMOUNT_SUM,
+                       SUM(NVL(CASH_AMOUNT, 0)) AS CASH_AMOUNT_SUM,
+                       SUM(NVL(COUPON_AMOUNT, 0)) AS COUPON_AMOUNT_SUM,
+                       SUM(NVL(REFUND_AMOUNT, 0)) AS REFUND_AMOUNT_SUM
+                FROM PAY_TXN_DETAIL
+                WHERE TXN_DATE &gt;= #{txnDateStart,jdbcType=VARCHAR}
+                  AND TXN_DATE &lt;= #{txnDateEnd,jdbcType=VARCHAR}
+                GROUP BY TXN_DATE, PAYMENT_VENDOR
+                ORDER BY TXN_DATE, PAYMENT_VENDOR
+            </otherwise>
+        </choose>
+    </select>
+
+    <resultMap id="ClearingRowMap" type="com.chinasofti.huateng.recon.model.page.ReconClearingRowView">
+        <result column="BILL_DATE" property="billDate"/>
+        <result column="PAYMENT_CHANNEL" property="paymentChannel"/>
+        <result column="PAYMENT_VENDOR" property="paymentVendor"/>
+        <result column="CHANNEL_NAME" property="channelName"/>
+        <result column="TXN_COUNT" property="txnCount"/>
+        <result column="ORDER_AMOUNT" property="orderAmount"/>
+        <result column="TRANSACTION_AMOUNT" property="transactionAmount"/>
+        <result column="FEE_AMOUNT" property="feeAmount"/>
+        <result column="SETTLEMENT_AMOUNT" property="settlementAmount"/>
+        <result column="DISCOUNT_AMOUNT" property="discountAmount"/>
+    </resultMap>
+
+    <select id="selectClearingRows" resultMap="ClearingRowMap">
+        SELECT BILL_DATE,
+               MAX(PAYMENT_CHANNEL) AS PAYMENT_CHANNEL,
+               PAYMENT_VENDOR,
+               MAX(CHANNEL_NAME) AS CHANNEL_NAME,
+               COUNT(1) AS TXN_COUNT,
+               SUM(NVL(ORDER_AMOUNT, 0)) AS ORDER_AMOUNT,
+               SUM(NVL(TRANSACTION_AMOUNT, 0)) AS TRANSACTION_AMOUNT,
+               SUM(NVL(FEE_AMOUNT, 0)) AS FEE_AMOUNT,
+               SUM(NVL(SETTLEMENT_AMOUNT, 0)) AS SETTLEMENT_AMOUNT,
+               SUM(NVL(DISCOUNT_AMOUNT, 0)) AS DISCOUNT_AMOUNT
+        FROM RECON_THIRD_BILL
+        WHERE BILL_DATE &gt;= #{billDateStart,jdbcType=VARCHAR}
+          AND BILL_DATE &lt;= #{billDateEnd,jdbcType=VARCHAR}
+        <if test="paymentChannel != null and paymentChannel != ''">
+            AND PAYMENT_CHANNEL = #{paymentChannel,jdbcType=VARCHAR}
+        </if>
+        <if test="paymentVendor != null and paymentVendor != ''">
+            AND PAYMENT_VENDOR = #{paymentVendor,jdbcType=VARCHAR}
+        </if>
+        GROUP BY BILL_DATE, PAYMENT_VENDOR
+        ORDER BY BILL_DATE, PAYMENT_VENDOR
+    </select>
+
+</mapper>

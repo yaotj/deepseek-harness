@@ -155,4 +155,52 @@
             UPDATE_TIME = #{syncTime,jdbcType=TIMESTAMP}
         WHERE AGREEMENT_CODE = #{agreementCode,jdbcType=VARCHAR} AND DELETE_FLAG = '0'
     </update>
+
+    <!-- 综管台「签约用户」运营页分页：本模块无 PageHelper，按既有先例（AlipayPayLogMapper）ROW_NUMBER 窗口分页。 -->
+    <!-- 口径与 selectByThirdUserIdAndChannel 一致：只看 DELETE_FLAG='0' 的在账行；signTime 窗口为日闭区间（end 含当天）。 -->
+    <select id="selectPageForOps" resultMap="AlipaySignInfoResultMap">
+        SELECT *
+        FROM (
+            SELECT t.*, ROW_NUMBER() OVER (ORDER BY t.CREATE_TIME DESC, t.THIRD_USER_ID) AS rn
+            FROM ALIPAY_SIGN_INFO t
+            WHERE t.DELETE_FLAG = '0'
+            <if test="thirdUserId != null and thirdUserId != ''">
+                AND t.THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+            </if>
+            <if test="cardId != null and cardId != ''">
+                AND t.CARD_ID = #{cardId,jdbcType=VARCHAR}
+            </if>
+            <if test="signStatus != null and signStatus != ''">
+                AND t.SIGN_STATUS = #{signStatus,jdbcType=VARCHAR}
+            </if>
+            <if test="signTimeBegin != null and signTimeBegin != ''">
+                AND t.SIGN_TIME &gt;= TO_DATE(#{signTimeBegin,jdbcType=VARCHAR}, 'YYYY-MM-DD')
+            </if>
+            <if test="signTimeEnd != null and signTimeEnd != ''">
+                AND t.SIGN_TIME &lt; TO_DATE(#{signTimeEnd,jdbcType=VARCHAR}, 'YYYY-MM-DD') + 1
+            </if>
+        )
+        WHERE rn &gt; #{offset} AND rn &lt;= #{offset} + #{limit}
+    </select>
+
+    <select id="countPageForOps" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM ALIPAY_SIGN_INFO t
+        WHERE t.DELETE_FLAG = '0'
+        <if test="thirdUserId != null and thirdUserId != ''">
+            AND t.THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+        </if>
+        <if test="cardId != null and cardId != ''">
+            AND t.CARD_ID = #{cardId,jdbcType=VARCHAR}
+        </if>
+        <if test="signStatus != null and signStatus != ''">
+            AND t.SIGN_STATUS = #{signStatus,jdbcType=VARCHAR}
+        </if>
+        <if test="signTimeBegin != null and signTimeBegin != ''">
+            AND t.SIGN_TIME &gt;= TO_DATE(#{signTimeBegin,jdbcType=VARCHAR}, 'YYYY-MM-DD')
+        </if>
+        <if test="signTimeEnd != null and signTimeEnd != ''">
+            AND t.SIGN_TIME &lt; TO_DATE(#{signTimeEnd,jdbcType=VARCHAR}, 'YYYY-MM-DD') + 1
+        </if>
+    </select>
 </mapper>

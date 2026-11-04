@@ -116,6 +116,116 @@
         )
     </insert>
 
+    <resultMap id="TopupOrderPageResultMap" type="com.chinasofti.huateng.collectpay.model.page.TvmTopupOrderPageView">
+        <id column="ORDER_NO" property="orderNo"/>
+        <result column="TICKET_LOGIC_NUM" property="ticketLogicNum"/>
+        <result column="TICKET_PHYSICS_NUM" property="ticketPhysicsNum"/>
+        <result column="BEFORE_AMOUNT" property="beforeAmount"/>
+        <result column="TRANS_AMOUNT" property="transAmount"/>
+        <result column="AFTER_AMOUNT" property="afterAmount"/>
+        <result column="STATUS" property="status"/>
+        <result column="MSG" property="msg"/>
+        <result column="CHANNEL" property="channel"/>
+        <result column="PAY_TYPE" property="payType"/>
+        <result column="PAYCENTER_ORDERNO" property="payCenterOrderNo"/>
+        <result column="PAYCENTER_CHANNELORDERNO" property="payCenterChannelOrderNo"/>
+        <result column="DEVICE_ID" property="deviceId"/>
+        <result column="NOTIY_STATUS" property="topupStatus"/>
+        <result column="RSV2" property="refundNo"/>
+        <result column="CREATE_TIME" property="createTime"/>
+        <result column="UPDATE_TIME" property="updateTime"/>
+    </resultMap>
+
+    <sql id="TopupOrderWhere">
+        WHERE 1 = 1
+        <if test="orderNo != null and orderNo != ''">
+            AND t.ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+        </if>
+        <if test="payCenterOrderNo != null and payCenterOrderNo != ''">
+            AND t.PAYCENTER_ORDERNO = #{payCenterOrderNo,jdbcType=VARCHAR}
+        </if>
+        <if test="deviceId != null and deviceId != ''">
+            AND t.DEVICE_ID = #{deviceId,jdbcType=VARCHAR}
+        </if>
+        <if test="ticketLogicNum != null and ticketLogicNum != ''">
+            AND t.TICKET_LOGIC_NUM = #{ticketLogicNum,jdbcType=VARCHAR}
+        </if>
+        <if test="status != null and status != ''">
+            AND t.STATUS = #{status,jdbcType=VARCHAR}
+        </if>
+        <if test="channel != null and channel != ''">
+            AND t.CHANNEL = #{channel,jdbcType=VARCHAR}
+        </if>
+        <if test="beginTime != null and beginTime != ''">
+            AND t.CREATE_TIME &gt;= #{beginTime,jdbcType=VARCHAR}
+        </if>
+        <if test="endTime != null and endTime != ''">
+            AND t.CREATE_TIME &lt;= #{endTime,jdbcType=VARCHAR}
+        </if>
+    </sql>
+
+    <select id="selectTopupOrderPage" resultMap="TopupOrderPageResultMap">
+        <bind name="offsetEnd" value="offset + limit" />
+        SELECT page.*
+        FROM (
+            SELECT
+                t.ORDER_NO, t.TICKET_LOGIC_NUM, t.TICKET_PHYSICS_NUM, t.BEFORE_AMOUNT, t.TRANS_AMOUNT,
+                t.AFTER_AMOUNT, t.STATUS, t.MSG, t.CHANNEL, t.PAY_TYPE, t.PAYCENTER_ORDERNO,
+                t.PAYCENTER_CHANNELORDERNO, t.DEVICE_ID, t.RSV2, t.CREATE_TIME, t.UPDATE_TIME,
+                n.TOPUP_STATUS AS NOTIY_STATUS,
+                ROW_NUMBER() OVER (ORDER BY t.CREATE_TIME DESC, t.ORDER_NO DESC) AS rn
+            FROM TBL_TVM_ORDER_TOPUP t
+            LEFT JOIN (
+                SELECT ORDER_NO, TOPUP_STATUS,
+                       ROW_NUMBER() OVER (PARTITION BY ORDER_NO ORDER BY CREATE_TIME DESC) AS rn
+                FROM TBL_TVM_Topup_Notiy
+            ) n ON n.ORDER_NO = t.ORDER_NO AND n.rn = 1
+            <include refid="TopupOrderWhere"/>
+        ) page
+        WHERE page.rn &gt; #{offset} AND page.rn &lt;= #{offsetEnd}
+        <if test="topupStatus != null and topupStatus != ''">
+            AND page.NOTIY_STATUS = #{topupStatus,jdbcType=VARCHAR}
+        </if>
+    </select>
+
+    <select id="countTopupOrderPage" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM (
+            SELECT t.ORDER_NO, n.TOPUP_STATUS AS NOTIY_STATUS
+            FROM TBL_TVM_ORDER_TOPUP t
+            LEFT JOIN (
+                SELECT ORDER_NO, TOPUP_STATUS,
+                       ROW_NUMBER() OVER (PARTITION BY ORDER_NO ORDER BY CREATE_TIME DESC) AS rn
+                FROM TBL_TVM_Topup_Notiy
+            ) n ON n.ORDER_NO = t.ORDER_NO AND n.rn = 1
+            <include refid="TopupOrderWhere"/>
+        ) c
+        <if test="topupStatus != null and topupStatus != ''">
+            WHERE c.NOTIY_STATUS = #{topupStatus,jdbcType=VARCHAR}
+        </if>
+    </select>
+
+    <resultMap id="DailyTopupStatResultMap" type="com.chinasofti.huateng.collectpay.model.page.DailyTopupStatView">
+        <result column="STAT_DATE" property="statDate"/>
+        <result column="ORDER_COUNT" property="orderCount"/>
+        <result column="PAID_COUNT" property="paidCount"/>
+        <result column="REFUND_COUNT" property="refundCount"/>
+        <result column="PAID_TRANS_AMOUNT_SUM" property="paidTransAmountSum"/>
+    </resultMap>
+
+    <select id="selectTvmTopupDaily" resultMap="DailyTopupStatResultMap">
+        SELECT SUBSTR(CREATE_TIME, 1, 10) AS STAT_DATE,
+               COUNT(1) AS ORDER_COUNT,
+               SUM(CASE WHEN STATUS = '1' THEN 1 ELSE 0 END) AS PAID_COUNT,
+               SUM(CASE WHEN RSV2 IS NOT NULL THEN 1 ELSE 0 END) AS REFUND_COUNT,
+               SUM(CASE WHEN STATUS = '1' THEN NVL(TO_NUMBER(TRANS_AMOUNT), 0) ELSE 0 END) AS PAID_TRANS_AMOUNT_SUM
+        FROM TBL_TVM_ORDER_TOPUP
+        WHERE CREATE_TIME &gt;= #{dateStart,jdbcType=VARCHAR}
+          AND CREATE_TIME &lt;= #{dateEnd,jdbcType=VARCHAR}
+        GROUP BY SUBSTR(CREATE_TIME, 1, 10)
+        ORDER BY STAT_DATE
+    </select>
+
     <select id="selectByCondition" parameterType="map" resultMap="BaseResultMap">
         select topup.ORDER_NO,topup.TRANS_AMOUNT from (
         (select <include refid="Base_Column_List"/>

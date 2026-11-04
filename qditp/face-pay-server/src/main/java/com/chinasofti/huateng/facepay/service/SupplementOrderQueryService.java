@@ -1,0 +1,92 @@
+package com.chinasofti.huateng.facepay.service;
+
+import com.chinasofti.huateng.facepay.entity.SupplementOrder;
+import com.chinasofti.huateng.facepay.mapper.SupplementOrderMapper;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.util.List;
+
+/** 运营端在线补款单（{@code SUPPLEMENT_ORDER}）的只读查询。 */
+@Service
+public class SupplementOrderQueryService {
+
+    private static final int DEFAULT_PAGE_SIZE = 10;
+
+    private static final int MAX_PAGE_SIZE = 100;
+
+    private final SupplementOrderMapper supplementOrderMapper;
+
+    public SupplementOrderQueryService(SupplementOrderMapper supplementOrderMapper) {
+        this.supplementOrderMapper = supplementOrderMapper;
+    }
+
+    /** 补款单分页查询入参。 */
+    public record SupplementOrderPageQuery(String orderNo,
+                                           String cardId,
+                                           String thirdUserId,
+                                           String payStatus,
+                                           String txnDateStart,
+                                           String txnDateEnd,
+                                           Integer pageNum,
+                                           Integer pageSize) {
+    }
+
+    /** 查询判定结果，调用方 MUST 穷尽分支后各自组响应壳。 */
+    public sealed interface PageOutcome {
+
+        record Ok(List<SupplementOrder> list, long total) implements PageOutcome {
+        }
+
+        record Rejected(String reason) implements PageOutcome {
+        }
+    }
+
+    /**
+     * 分页查询在线补款单。业务流水表，无条件全表扫会伤库，
+     * 故要求订单号 / 卡号 / 用户ID 之一或完整交易日期窗。
+     */
+    public PageOutcome page(SupplementOrderPageQuery query) {
+        String orderNo = trimToNull(query.orderNo());
+        String cardId = trimToNull(query.cardId());
+        String thirdUserId = trimToNull(query.thirdUserId());
+        String txnDateStart = normalizeTxnDate(query.txnDateStart());
+        String txnDateEnd = normalizeTxnDate(query.txnDateEnd());
+        if ((txnDateStart == null) != (txnDateEnd == null)) {
+            return new PageOutcome.Rejected("交易日期范围需同时填写开始与结束日期");
+        }
+        if (txnDateStart != null && txnDateEnd != null && txnDateStart.compareTo(txnDateEnd) > 0) {
+            return new PageOutcome.Rejected("交易开始日期不能晚于结束日期");
+        }
+        if (orderNo == null && cardId == null && thirdUserId == null
+                && (txnDateStart == null || txnDateEnd == null)) {
+            return new PageOutcome.Rejected("请填写补款单号、卡号、第三方用户ID，或完整的交易日期范围");
+        }
+
+        int currentPage = query.pageNum() == null || query.pageNum() < 1 ? 1 : query.pageNum();
+        int currentPageSize = query.pageSize() == null || query.pageSize() < 1
+                ? DEFAULT_PAGE_SIZE : Math.min(query.pageSize(), MAX_PAGE_SIZE);
+        int offset = (currentPage - 1) * currentPageSize;
+
+        String payStatus = trimToNull(query.payStatus());
+        List<SupplementOrder> list = supplementOrderMapper.selectSupplementOrderPage(
+                orderNo, cardId, thirdUserId, payStatus, txnDateStart, txnDateEnd, offset, currentPageSize);
+        long total = supplementOrderMapper.countSupplementOrderPage(
+                orderNo, cardId, thirdUserId, payStatus, txnDateStart, txnDateEnd);
+        return new PageOutcome.Ok(list, total);
+    }
+
+    private String trimToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    /** 页面日期（yyyy-MM-dd 或 yyyyMMdd）换算成 TXN_DATE 的存储格式 yyyyMMdd，空值返回 null，非法输入抛异常由调用方处理。 */
+    private String normalizeTxnDate(String value) {
+        String trimmed = trimToNull(value);
+        if (trimmed == null) {
+            return null;
+        }
+        String digits = trimmed.replace("-", "");
+        return digits.matches("\\d{8}") ? digits : null;
+    }
+}

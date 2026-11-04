@@ -117,4 +117,59 @@
           AND ORDER_NO = #{orderNo,jdbcType=VARCHAR}
     </update>
 
+    <resultMap id="TopupSuspiciousPageResultMap" type="com.chinasofti.huateng.facepay.api.page.F2fTopupSuspiciousPageVO">
+        <result column="ORDER_NO" property="orderNo"/>
+        <result column="CHANNEL" property="channel"/>
+        <result column="DEVICE_ID" property="deviceId"/>
+        <result column="OPERATOR_ID" property="operatorId"/>
+        <result column="TOPUP_STATUS" property="topupStatus"/>
+        <result column="OPT_RESULT" property="optResult"/>
+        <result column="OPT_RESULT_DESC" property="optResultDesc"/>
+        <result column="FAULT_SLIP_SEQ" property="faultSlipSeq"/>
+        <result column="ERROR_CODE" property="errorCode"/>
+        <result column="ERROR_MESSAGE" property="errorMessage"/>
+        <result column="PROCESSED" property="processed"/>
+        <result column="TRANS_AMOUNT" property="transAmount"/>
+        <result column="REPORT_TMS" property="reportTms"/>
+        <result column="RECEIVE_TMS" property="receiveTms"/>
+    </resultMap>
+
+    <sql id="TopupSuspiciousWhere">
+        WHERE 1 = 1
+        <if test="orderNo != null and orderNo != ''">
+            AND ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+        </if>
+        <if test="channel != null and channel != ''">
+            AND CHANNEL = #{channel,jdbcType=VARCHAR}
+        </if>
+        <if test="deviceId != null and deviceId != ''">
+            AND DEVICE_ID = #{deviceId,jdbcType=VARCHAR}
+        </if>
+        AND TOPUP_STATUS = #{topupStatus,jdbcType=VARCHAR}
+        <if test="processed != null and processed != ''">
+            AND PROCESSED = #{processed,jdbcType=VARCHAR}
+        </if>
+        <if test="beginTms != null">
+            AND RECEIVE_TMS &gt;= #{beginTms,jdbcType=TIMESTAMP}
+        </if>
+        <if test="endTms != null">
+            AND RECEIVE_TMS &lt;= #{endTms,jdbcType=TIMESTAMP}
+        </if>
+    </sql>
+
+    <select id="selectTopupSuspiciousPage" resultMap="TopupSuspiciousPageResultMap">
+        SELECT ORDER_NO, CHANNEL, DEVICE_ID, OPERATOR_ID, TOPUP_STATUS, OPT_RESULT, OPT_RESULT_DESC,
+               FAULT_SLIP_SEQ, ERROR_CODE, ERROR_MESSAGE, PROCESSED, TRANS_AMOUNT, REPORT_TMS, RECEIVE_TMS
+        FROM F2F_RESULT_REPORT
+        <include refid="TopupSuspiciousWhere"/>
+        ORDER BY RECEIVE_TMS DESC, ID DESC
+        OFFSET #{offset,jdbcType=INTEGER} ROWS FETCH NEXT #{limit,jdbcType=INTEGER} ROWS ONLY
+    </select>
+
+    <select id="countTopupSuspiciousPage" resultType="java.lang.Long">
+        SELECT COUNT(1)
+        FROM F2F_RESULT_REPORT
+        <include refid="TopupSuspiciousWhere"/>
+    </select>
+
 </mapper>

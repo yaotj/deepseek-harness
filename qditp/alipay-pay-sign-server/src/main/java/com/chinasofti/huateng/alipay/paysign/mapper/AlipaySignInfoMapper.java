@@ -82,4 +82,25 @@ public interface AlipaySignInfoMapper {
      */
     java.util.List<AlipaySignInfo> selectCompensableChannelSync(@Param("maxRetryCount") int maxRetryCount,
                                                                 @Param("batchSize") int batchSize);
+
+    /**
+     * 综管台「签约用户」运营页分页查询（ROW_NUMBER 窗口分页，本模块无 PageHelper）。
+     *
+     * <p>调用方 MUST 保证检索范围：thirdUserId / cardId / signTime 日窗 至少一项非空
+     * （服务层强校验），避免无条件全表扫。</p>
+     */
+    java.util.List<AlipaySignInfo> selectPageForOps(@Param("thirdUserId") String thirdUserId,
+                                                    @Param("cardId") String cardId,
+                                                    @Param("signStatus") String signStatus,
+                                                    @Param("signTimeBegin") String signTimeBegin,
+                                                    @Param("signTimeEnd") String signTimeEnd,
+                                                    @Param("offset") int offset,
+                                                    @Param("limit") int limit);
+
+    /** 统计 selectPageForOps 同口径总条数。 */
+    int countPageForOps(@Param("thirdUserId") String thirdUserId,
+                        @Param("cardId") String cardId,
+                        @Param("signStatus") String signStatus,
+                        @Param("signTimeBegin") String signTimeBegin,
+                        @Param("signTimeEnd") String signTimeEnd);
 }

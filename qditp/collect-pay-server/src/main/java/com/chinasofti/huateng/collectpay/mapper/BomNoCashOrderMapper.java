@@ -1,8 +1,11 @@
 package com.chinasofti.huateng.collectpay.mapper;
 
 import com.chinasofti.huateng.collectpay.entity.BomNoCashOrder;
+import com.chinasofti.huateng.collectpay.model.page.BomOrderPageView;
+import com.chinasofti.huateng.collectpay.model.page.DailyTopupStatView;
 import com.chinasofti.huateng.collectpay.model.request.bom.RequestTicketRefundReqDTO;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 import java.util.Map;
@@ -45,4 +48,32 @@ public interface BomNoCashOrderMapper {
 
     // 单程票退款
     int insertTicketRefundRecord(RequestTicketRefundReqDTO dto);
+
+    /** 运营端分页查询 BOM 非现金订单（transType 可选：01 购票发售 / 22 充值），按下单时间倒序。 */
+    List<BomOrderPageView> selectBomOrderPage(@Param("orderNo") String orderNo,
+                                              @Param("payCenterOrderNo") String payCenterOrderNo,
+                                              @Param("deviceId") String deviceId,
+                                              @Param("cardId") String cardId,
+                                              @Param("transType") String transType,
+                                              @Param("status") String status,
+                                              @Param("paymentVendor") String paymentVendor,
+                                              @Param("beginTime") String beginTime,
+                                              @Param("endTime") String endTime,
+                                              @Param("offset") int offset,
+                                              @Param("limit") int limit);
+
+    /** 统计 selectBomOrderPage 同口径总条数。 */
+    int countBomOrderPage(@Param("orderNo") String orderNo,
+                          @Param("payCenterOrderNo") String payCenterOrderNo,
+                          @Param("deviceId") String deviceId,
+                          @Param("cardId") String cardId,
+                          @Param("transType") String transType,
+                          @Param("status") String status,
+                          @Param("paymentVendor") String paymentVendor,
+                          @Param("beginTime") String beginTime,
+                          @Param("endTime") String endTime);
+
+    /** 非现金充值数据查询：BOM 侧 TRANS_TYPE=22（充值）订单按下单日期聚合。 */
+    List<DailyTopupStatView> selectNocashTopupDaily(@Param("dateStart") String dateStart,
+                                                    @Param("dateEnd") String dateEnd);
 }

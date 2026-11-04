@@ -94,6 +94,46 @@
           AND REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR}
     </select>
 
+    <!-- 综管台「渠道退款记录」运营页分页：本模块无 PageHelper，按 AlipayPayLogMapper 先例用 ROW_NUMBER 窗口。
+         检索范围由服务层强校验（退款单号 / 原订单号 / 交易日期窗 至少一项），避免无条件全表扫。
+         本表只有 18 列，无 THIRD_USER_ID / CARD_ID —— 用户维度去 GATE_TXN_PAY 按 ORDER_NO 回查，NEVER 在本表补列。 -->
+    <sql id="OpsPageWhere">
+        <where>
+            <if test="refundOrderNo != null and refundOrderNo != ''">
+                AND REFUND_ORDER_NO = #{refundOrderNo,jdbcType=VARCHAR}
+            </if>
+            <if test="orderNo != null and orderNo != ''">
+                AND ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+            </if>
+            <if test="refundStatus != null and refundStatus != ''">
+                AND REFUND_STATUS = #{refundStatus,jdbcType=VARCHAR}
+            </if>
+            <if test="txnDateBegin != null and txnDateBegin != ''">
+                AND TXN_DATE &gt;= #{txnDateBegin,jdbcType=VARCHAR}
+            </if>
+            <if test="txnDateEnd != null and txnDateEnd != ''">
+                AND TXN_DATE &lt;= #{txnDateEnd,jdbcType=VARCHAR}
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectPageForOps" resultMap="BaseResultMap">
+        SELECT *
+        FROM (
+            SELECT <include refid="Base_Column_List"/>,
+                   ROW_NUMBER() OVER (ORDER BY UPDATE_TIME DESC, ID DESC) AS rn
+            FROM ALIPAY_REFUND_TXN_DETAIL
+            <include refid="OpsPageWhere"/>
+        )
+        WHERE rn &gt; #{offset} AND rn &lt;= #{offset} + #{limit}
+    </select>
+
+    <select id="countPageForOps" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM ALIPAY_REFUND_TXN_DETAIL
+        <include refid="OpsPageWhere"/>
+    </select>
+
     <!--
       调支付中心前留痕：计数 +1、状态置 PROCESSING。
       本次请求报文不落这张表（本表没有 REQUEST_BODY 列），MUST 由调用方在出网前后写

@@ -57,4 +57,22 @@ public interface SupplementOrderMapper {
     /** 捞未终结的补款单（INIT / PROCESSING），供收敛任务回查 PayCenter 的支付结果。 */
     List<SupplementOrder> selectPendingOrders(@Param("limit") int limit,
                                              @Param("closedLookbackHours") int closedLookbackHours);
+
+    /** 运营端分页查询补款单（{@code SUPPLEMENT_ORDER}），按创建时间倒序。 */
+    List<SupplementOrder> selectSupplementOrderPage(@Param("orderNo") String orderNo,
+                                                    @Param("cardId") String cardId,
+                                                    @Param("thirdUserId") String thirdUserId,
+                                                    @Param("payStatus") String payStatus,
+                                                    @Param("txnDateStart") String txnDateStart,
+                                                    @Param("txnDateEnd") String txnDateEnd,
+                                                    @Param("offset") int offset,
+                                                    @Param("limit") int limit);
+
+    /** 统计 selectSupplementOrderPage 同口径总条数。 */
+    long countSupplementOrderPage(@Param("orderNo") String orderNo,
+                                  @Param("cardId") String cardId,
+                                  @Param("thirdUserId") String thirdUserId,
+                                  @Param("payStatus") String payStatus,
+                                  @Param("txnDateStart") String txnDateStart,
+                                  @Param("txnDateEnd") String txnDateEnd);
 }
