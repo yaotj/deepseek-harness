@@ -3,6 +3,27 @@
 > 2026-11-04 由 `README.md`「六、重构与迁移记录」拆出，历史条目按**新 → 旧**排列、内容逐字保留。
 > 版本号真源是 `itpops/__init__.py` 的 `__version__`（`pyproject.toml` 动态读取）。
 
+## 2.8.0 — 2026-11-04 新增 flow 工作流一键入口
+
+- 需求：把「后端一键式发布 / 前端一键发布 / 升级参数」等多步 SOP 固化成一条命令，代替分步操作。
+- 新增 `itpops/workflows/`（`runner.py` 执行器 + `definitions.py` 三条声明式流程）与
+  `commands/flow.py`，注册为第 13 个域 `flow`；`cli/registry.py` 与 `cli/main.py` 根帮助同步。
+- 命令：`flow list` / `flow backend <模块> [--app] [--image] [--version] [--yes]` /
+  `flow frontend [--bump|--debug|--version] [--skip-build] [--yes]` /
+  `flow jvm <应用> [--size 4Gi|8Gi] [--yes]`。
+- **安全默认**：缺 `--yes` 或带 `--dry-run` 只列步骤、一步不执行（离线可预演）；`--yes` 才逐步执行；
+  红岛生产 MUST 额外 `--allow-prod`；flow 默认环境 test，NEVER 默认打生产。
+- **执行器**：每步都走 `python -m itpops`（唯一入口，不直接调特性包内部函数）；步骤间用
+  `{version}` 变量（`capture` 正则从 bump 输出捕获）；每步有 `expect` 判据、失败即断，并把
+  已完成步骤与变量写进 `ui.result`。子步骤输出转发到 stderr，保证 `-o json` 时 stdout 只有本层信封。
+- backend 7 步（自检 → bump → fat jar → tag 占用检查 → 平台 x86 出镜像 → deploy 预演 → 切镜像收敛）；
+  frontend 2 步；jvm 3 步（含 `env-set` 的 k8s 快照安全门 + env 复验），预设 4Gi→2900m / 8Gi→5900m。
+- 预演里固化三条纪律提示：起始版本取自 pom 需核对线上实例实跑 tag（IT-034）、
+  镜像名 ≠ 模块名（`fep-app-server` → `itp/fep-app`）、`{version}` 来源与 `--version` 覆盖方式。
+- 单测 89 → 108（`tests/test_flows.py` 19 例：步骤声明 / 预演只读 / 写门 / 生产保护 /
+  变量捕获 / 失败即断 / 判据缺失 / JSON 信封）；注册表期望集加 `flow`。
+- **本轮仍是纯离线改动**：`172.20` 段不可达，`--yes` 执行路径只用 mock 验证，未触碰环境。
+
 ## 2.7.0 — 2026-11-04 env-set 命令与 IT-020 口径修正（离线，未触碰环境）
 
 - 背景：face-pay-server 1.0.91 发版后复验发现测试环境 JVM 堆仍是 `-Xmx500m`（IT-020 既存状态）。

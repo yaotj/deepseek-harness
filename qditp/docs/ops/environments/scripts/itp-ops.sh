@@ -8,13 +8,15 @@
 #   itpops/cli/        表现层：main / registry / help / completion
 #   itpops/commands/   命令层：一域一文件（CATALOG + main，只做注册与分发）
 #   itpops/core/       公共支撑：ui / version / environments / remote / runtime / crypto
+#   itpops/workflows/  工作流执行器 + backend / frontend / jvm 声明
 #   itpops/<特性>/     实现：cloudos(common/apps/scaling/deploy/images/impl) /
 #                      analysis / versioning / linting
-#   tests/             stdlib unittest（89 例，含 22 例 cloudos 业务级）
+#   tests/             stdlib unittest（108 例）
 #   hosts/ migration/ buildx.Dockerfile   仓内资产（远端脚本 / 迁移执行包 / 构建模板）
 #
 # 【命令面】--env/-e、--yes/-y、--dry-run/-n、-o json、-q、-v、--no-color、--trace、
 #   -h、-V、--、<域> help、<域> <命令> -h、catalog、completion bash|zsh、lint yaml
+#   flow list | flow backend <模块> --yes | flow frontend --yes | flow jvm <应用> --yes
 #
 # 【双受众契约】
 #   人：结果 → stdout，日志/横幅 → stderr，TTY 才着色

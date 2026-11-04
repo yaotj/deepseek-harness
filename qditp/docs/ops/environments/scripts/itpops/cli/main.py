@@ -93,6 +93,7 @@ def _root_help() -> str:
         ("analysis", "静态分析：端点计数", "环境无关"),
         ("version", "版本号计算：next / debug / bump", "本地计算/改文件"),
         ("lint", "仓库门禁：YAML 语法与重复键", "环境无关"),
+        ("flow", "工作流一键入口：backend / frontend / jvm（默认预演，--yes 执行）", "默认 --env test"),
         ("catalog", "自描述命令注册表（大模型入口）", "-o json 可读"),
         ("completion", "shell 补全脚本（bash / zsh）", ""),
     ]

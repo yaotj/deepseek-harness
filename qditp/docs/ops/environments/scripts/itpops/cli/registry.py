@@ -26,6 +26,7 @@ _DOMAIN_MODULES: dict[str, str] = {
     "web": "web",
     "catalog": "catalog",
     "lint": "lint",
+    "flow": "flow",
 }
 
 EXIT_CODE_DOC = {

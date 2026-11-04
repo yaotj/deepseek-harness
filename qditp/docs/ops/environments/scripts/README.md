@@ -32,8 +32,9 @@ scripts/                          ← 一个标准 Python CLI 项目根（工具
 │   ├── cloudos/                特性实现：auth / http / image / pkg + common / apps /
 │   │                          scaling / deploy / images / impl（按业务段拆分）
 │   ├── buildx/ sentinel/ web/  特性实现（core.py + __main__.py 调试别名，均转发统一入口）
-│   └── analysis/ versioning/ linting/   端点计数 / 版本 bump / YAML 门禁实现
-├── tests/                     stdlib unittest（89 例：CLI 契约 + 22 例 cloudos 业务级）
+│   ├── analysis/ versioning/ linting/   端点计数 / 版本 bump / YAML 门禁实现
+│   └── workflows/              工作流层：runner（执行器）+ definitions（backend/frontend/jvm）
+├── tests/                     stdlib unittest（108 例：CLI 契约 + 业务级 + 工作流）
 ├── buildx.Dockerfile          共享构建模板（NEVER 写 ENTRYPOINT/CMD，理由见文件头与 IT-031）
 ├── hosts/                     ★ 跑在远端机器上的脚本本体（NEVER 在本机执行）
 │   └── k8s-master/             测试跳板 /home/java 下的脚本 + snapshots/ 部署台账
@@ -66,6 +67,10 @@ cd docs/ops/environments/scripts
 ./itp-ops.sh analysis endpoints account-server/src/main/java   # 端点计数
 ./itp-ops.sh version bump --dir account-server --dry-run    # 版本 bump（预演；去 --dry-run 落盘）
 ./itp-ops.sh lint yaml                                      # YAML 门禁（语法 + 重复键）
+./itp-ops.sh flow list                                    # 三条一键工作流
+./itp-ops.sh flow backend face-pay-server --env test --yes # 后端一键发布（自检→jar→镜像→切镜像）
+./itp-ops.sh flow frontend --env test --yes              # 前端一键发布（出 zip→上传→升级→核验）
+./itp-ops.sh flow jvm face-pay-server --env test --yes   # JVM 三件套一键升级（IT-020）
 ```
 
 每个域的详细用法：`./itp-ops.sh <域> help`。
@@ -132,7 +137,7 @@ diag 按子命令）、`-y/--yes`（确认写操作）、`-n/--dry-run`（强制
 
 ## 六、重构与迁移记录
 
-逐版本变更见 [CHANGELOG.md](CHANGELOG.md)（按新 → 旧排列）。当前版本 **itpops 2.7.0**。
+逐版本变更见 [CHANGELOG.md](CHANGELOG.md)（按新 → 旧排列）。当前版本 **itpops 2.8.0**。
 
 ---
 

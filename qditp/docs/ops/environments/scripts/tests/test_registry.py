@@ -9,7 +9,7 @@ from itpops.cli.registry import build_catalog, load_domains
 
 EXPECTED_DOMAINS = {
     "version", "cloudos", "k8s", "log", "diag", "analysis",
-    "buildx", "sentinel", "web", "catalog", "lint",
+    "buildx", "sentinel", "web", "catalog", "lint", "flow",
 }
 
 
