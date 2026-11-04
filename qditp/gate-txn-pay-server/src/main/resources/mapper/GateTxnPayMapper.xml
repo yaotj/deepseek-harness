@@ -235,6 +235,9 @@
                 <if test="debitStatus != null and debitStatus != ''">
                     AND t.DEBIT_STATUS = #{debitStatus,jdbcType=VARCHAR}
                 </if>
+                <if test="issueChannelCode != null and issueChannelCode != ''">
+                    AND t.ISSUE_CHANNEL_CODE = #{issueChannelCode,jdbcType=VARCHAR}
+                </if>
                 <if test="startDate != null and startDate != ''">
                     AND t.TXN_DATE &gt;= #{startDate,jdbcType=VARCHAR}
                 </if>
@@ -277,12 +280,83 @@
             <if test="debitStatus != null and debitStatus != ''">
                 AND DEBIT_STATUS = #{debitStatus,jdbcType=VARCHAR}
             </if>
+            <if test="issueChannelCode != null and issueChannelCode != ''">
+                AND ISSUE_CHANNEL_CODE = #{issueChannelCode,jdbcType=VARCHAR}
+            </if>
             <if test="startDate != null and startDate != ''">
                 AND TXN_DATE &gt;= #{startDate,jdbcType=VARCHAR}
             </if>
             <if test="endDate != null and endDate != ''">
                 AND TXN_DATE &lt;= #{endDate,jdbcType=VARCHAR}
             </if>
+        </where>
+    </select>
+
+    <!-- 单边查询（对标旧 ITP「单边查询」）：默认口径 ORDER_EXP_TYPE IN (1 单边入, 2 单边出)，可传具体类型。 -->
+    <sql id="OneSide_Filter">
+        <if test="orderExpType != null and orderExpType != ''">
+            AND t.ORDER_EXP_TYPE = #{orderExpType,jdbcType=VARCHAR}
+        </if>
+        <if test="orderExpType == null or orderExpType == ''">
+            AND t.ORDER_EXP_TYPE IN ('1', '2')
+        </if>
+    </sql>
+
+    <select id="selectOneSidePage" resultMap="BaseResultMap">
+        <bind name="offsetEnd" value="offset + limit" />
+        SELECT *
+        FROM (
+            SELECT t.*, ROW_NUMBER() OVER (ORDER BY t.OUT_TIME DESC, t.ID DESC) AS rn
+            FROM GATE_TXN_PAY t
+            <where>
+                <if test="orderNo != null and orderNo != ''">
+                    AND t.ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+                </if>
+                <if test="cardId != null and cardId != ''">
+                    AND t.CARD_ID = #{cardId,jdbcType=VARCHAR}
+                </if>
+                <if test="thirdUserId != null and thirdUserId != ''">
+                    AND t.THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+                </if>
+                <if test="startDate != null and startDate != ''">
+                    AND t.TXN_DATE &gt;= #{startDate,jdbcType=VARCHAR}
+                </if>
+                <if test="endDate != null and endDate != ''">
+                    AND t.TXN_DATE &lt;= #{endDate,jdbcType=VARCHAR}
+                </if>
+                <include refid="OneSide_Filter"/>
+            </where>
+        )
+        WHERE rn &gt; #{offset} AND rn &lt;= #{offsetEnd}
+    </select>
+
+    <select id="countOneSidePage" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM GATE_TXN_PAY
+        <where>
+            <if test="orderNo != null and orderNo != ''">
+                AND ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+            </if>
+            <if test="cardId != null and cardId != ''">
+                AND CARD_ID = #{cardId,jdbcType=VARCHAR}
+            </if>
+            <if test="thirdUserId != null and thirdUserId != ''">
+                AND THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
+            </if>
+            <if test="startDate != null and startDate != ''">
+                AND TXN_DATE &gt;= #{startDate,jdbcType=VARCHAR}
+            </if>
+            <if test="endDate != null and endDate != ''">
+                AND TXN_DATE &lt;= #{endDate,jdbcType=VARCHAR}
+            </if>
+            <choose>
+                <when test="orderExpType != null and orderExpType != ''">
+                    AND ORDER_EXP_TYPE = #{orderExpType,jdbcType=VARCHAR}
+                </when>
+                <otherwise>
+                    AND ORDER_EXP_TYPE IN ('1', '2')
+                </otherwise>
+            </choose>
         </where>
     </select>
 
@@ -744,5 +818,31 @@
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
           AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
     </update>
+
+    <!-- 单边入订单候选：ORDER_EXP_TYPE='1'、DEBIT_STATUS 未终态、账期在窗口内。用于定时任务处理。 -->
+    <select id="selectOneSideInCandidates" resultMap="BaseResultMap">
+        SELECT &lt;include refid="Base_Column_List"/&gt;
+        FROM GATE_TXN_PAY
+        WHERE ORDER_EXP_TYPE = '1'
+          AND DEBIT_STATUS IN ('INIT', 'RETRY', 'FAIL')
+          AND TXN_DATE &gt;= #{startDate,jdbcType=VARCHAR}
+          AND TXN_DATE &lt;= #{endDate,jdbcType=VARCHAR}
+          AND (DISCOUNT_CALC_STATUS IS NULL OR DISCOUNT_CALC_STATUS &lt;&gt; 'OFFLINE_FARE_PENDING')
+        ORDER BY CREATE_TIME
+        FETCH FIRST #{limit,jdbcType=INTEGER} ROWS ONLY
+    </select>
+
+    <!-- 单边出订单候选：ORDER_EXP_TYPE='2'、DEBIT_STATUS 未终态、账期在窗口内。用于定时任务处理。 -->
+    <select id="selectOneSideOutCandidates" resultMap="BaseResultMap">
+        SELECT &lt;include refid="Base_Column_List"/&gt;
+        FROM GATE_TXN_PAY
+        WHERE ORDER_EXP_TYPE = '2'
+          AND DEBIT_STATUS IN ('INIT', 'RETRY', 'FAIL')
+          AND TXN_DATE &gt;= #{startDate,jdbcType=VARCHAR}
+          AND TXN_DATE &lt;= #{endDate,jdbcType=VARCHAR}
+          AND (DISCOUNT_CALC_STATUS IS NULL OR DISCOUNT_CALC_STATUS &lt;&gt; 'OFFLINE_FARE_PENDING')
+        ORDER BY CREATE_TIME
+        FETCH FIRST #{limit,jdbcType=INTEGER} ROWS ONLY
+    </select>
 
 </mapper>

@@ -34,7 +34,7 @@ class GateTxnPayQueryTest {
     @Test
     void pageWithoutSearchScopeIsRejectedBeforeTouchingDb() {
         ResultVO<Map<String, Object>> result =
-                service().page(null, null, null, "01", "04", "SUCCESS", null, null, 1, 10);
+                service().page(null, null, null, "01", "04", "SUCCESS", null, null, null, 1, 10);
         assertEquals(ResultVO.ILLEGAL_PARAMS_CODE, result.getCode());
         verifyNoInteractions(mapper);
     }
@@ -42,7 +42,7 @@ class GateTxnPayQueryTest {
     @Test
     void pageWithOnlyStartDateIsRejected() {
         ResultVO<Map<String, Object>> result =
-                service().page(null, null, null, null, null, null, "20260901", null, 1, 10);
+                service().page(null, null, null, null, null, null, null, "20260901", null, 1, 10);
         assertEquals(ResultVO.ILLEGAL_PARAMS_CODE, result.getCode());
         verifyNoInteractions(mapper);
     }
@@ -50,27 +50,27 @@ class GateTxnPayQueryTest {
     /** 分页参数钳制：{@code pageSize} 上限 100、非法值回落 10、{@code pageNum} 下限 1。 */
     @Test
     void pageClampsPageSizeAndPageNum() {
-        when(mapper.selectOperationPage(any(), any(), any(), any(), any(), any(), any(), any(),
+        when(mapper.selectOperationPage(any(), any(), any(), any(), any(), any(), any(), any(), any(),
                 anyInt(), anyInt())).thenReturn(List.of());
-        when(mapper.countOperationPage(any(), any(), any(), any(), any(), any(), any(), any()))
+        when(mapper.countOperationPage(any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(0);
 
         ArgumentCaptor<Integer> offset = ArgumentCaptor.forClass(Integer.class);
         ArgumentCaptor<Integer> limit = ArgumentCaptor.forClass(Integer.class);
 
-        service().page(null, "C1", null, null, null, null, null, null, 0, 100000);
-        verify(mapper).selectOperationPage(any(), any(), any(), any(), any(), any(), any(), any(),
+        service().page(null, "C1", null, null, null, null, null, null, null, 0, 100000);
+        verify(mapper).selectOperationPage(any(), any(), any(), any(), any(), any(), any(), any(), any(),
                 offset.capture(), limit.capture());
         assertEquals(100, limit.getValue(), "pageSize MUST 被钳到 100");
         assertEquals(0, offset.getValue(), "pageNum<1 MUST 归一到第 1 页，offset=0");
 
         GateTxnPayMapper second = mock(GateTxnPayMapper.class);
-        when(second.selectOperationPage(any(), any(), any(), any(), any(), any(), any(), any(),
+        when(second.selectOperationPage(any(), any(), any(), any(), any(), any(), any(), any(), any(),
                 anyInt(), anyInt())).thenReturn(List.of());
         ArgumentCaptor<Integer> offset2 = ArgumentCaptor.forClass(Integer.class);
         ArgumentCaptor<Integer> limit2 = ArgumentCaptor.forClass(Integer.class);
-        service(second).page(null, "C1", null, null, null, null, null, null, 3, null);
-        verify(second).selectOperationPage(any(), any(), any(), any(), any(), any(), any(), any(),
+        service(second).page(null, "C1", null, null, null, null, null, null, null, 3, null);
+        verify(second).selectOperationPage(any(), any(), any(), any(), any(), any(), any(), any(), any(),
                 offset2.capture(), limit2.capture());
         assertEquals(10, limit2.getValue(), "pageSize 为空 MUST 回落默认 10");
         assertEquals(20, offset2.getValue(), "第 3 页 * 每页 10 MUST 得 offset=20");

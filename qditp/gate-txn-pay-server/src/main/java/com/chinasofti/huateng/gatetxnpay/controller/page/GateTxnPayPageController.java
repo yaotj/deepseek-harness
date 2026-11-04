@@ -35,7 +35,7 @@ public class GateTxnPayPageController {
         this.originalFareBackfillService = originalFareBackfillService;
     }
 
-    /** 分页查询过闸扣费订单，服务层要求订单标识或完整日期范围防止全表扫描。 */
+    /** 分页查询过闸扣费订单，服务层要求订单标识或完整日期范围防止全表扫描。issueChannelCode 可选（07=支付宝出行，渠道统计页用）。 */
     @GetMapping
     public ResultVO<Map<String, Object>> page(@RequestParam(required = false) String orderNo,
                                               @RequestParam(required = false) String cardId,
@@ -43,12 +43,13 @@ public class GateTxnPayPageController {
                                               @RequestParam(required = false) String signChannelCode,
                                               @RequestParam(required = false) String cardType,
                                               @RequestParam(required = false) String debitStatus,
+                                              @RequestParam(required = false) String issueChannelCode,
                                               @RequestParam(required = false) String startDate,
                                               @RequestParam(required = false) String endDate,
                                               @RequestParam(required = false) Integer pageNum,
                                               @RequestParam(required = false) Integer pageSize) {
         return gateTxnPayQueryService.page(orderNo, cardId, thirdUserId, signChannelCode, cardType, debitStatus,
-                startDate, endDate, pageNum, pageSize);
+                issueChannelCode, startDate, endDate, pageNum, pageSize);
     }
 
     /** 离线码交易统计：按车站分组笔数与独立卡数，日期窗必填（yyyy-MM-dd，闭区间）。 */
@@ -66,6 +67,20 @@ public class GateTxnPayPageController {
                                                             @RequestParam(required = false) Integer pageNum,
                                                             @RequestParam(required = false) Integer pageSize) {
         return gateTxnPayQueryService.overtimeRefundablePage(stationCode, startDate, endDate, pageNum, pageSize);
+    }
+
+    /** 单边查询（对标旧 ITP「单边查询」）：默认圈 ORDER_EXP_TYPE 单边入(1)/单边出(2)，orderExpType 可指定 1~5。 */
+    @GetMapping("/one-side")
+    public ResultVO<Map<String, Object>> oneSide(@RequestParam(required = false) String orderNo,
+                                                 @RequestParam(required = false) String cardId,
+                                                 @RequestParam(required = false) String thirdUserId,
+                                                 @RequestParam(required = false) String orderExpType,
+                                                 @RequestParam(required = false) String startDate,
+                                                 @RequestParam(required = false) String endDate,
+                                                 @RequestParam(required = false) Integer pageNum,
+                                                 @RequestParam(required = false) Integer pageSize) {
+        return gateTxnPayQueryService.oneSidePage(orderNo, cardId, thirdUserId, orderExpType,
+                startDate, endDate, pageNum, pageSize);
     }
 
     /** 批量发起超时罚金退款：逐单走单笔退款链路，金额为各自 OVERTIME_AMOUNT，单批 ≤ 200 笔。 */

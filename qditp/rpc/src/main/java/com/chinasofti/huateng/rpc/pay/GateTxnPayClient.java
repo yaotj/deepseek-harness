@@ -267,6 +267,18 @@ public class GateTxnPayClient extends ProxyWebClient {
     }
 
     /**
+     * 跑一轮单边订单处理，供 web-admin 的 {@code gateTxnPayQuartzTask.processOneSideOrders()} 调用。
+     * <p>处理 ORDER_EXP_TYPE='1'（单边入）与 '2'（单边出）的未终态订单。
+     * @param headers 附加请求头，同上。
+     */
+    public CommonResult processOneSideOrders(Map<String, String> headers) {
+        String result = postJsonAndGetResponse("/internal/gate-txn-pay/oneside/process",
+                Collections.emptyMap(), headers);
+        return JSONUtil.toBean(result, new TypeReference<CommonResult>() {
+        }, true);
+    }
+
+    /**
      * 分页查询超时罚金可退款订单（供异步导出使用）。
      */
     public List<OvertimeRefundableExportDTO> listOvertimeRefundable(String stationCode,

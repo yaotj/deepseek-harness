@@ -87,6 +87,13 @@ public class GateTxnPayQuartzTask
         check(response, "用户主动重试扣费队列消费");
     }
 
+    /** 单边订单处理 */
+    private void processOneSideOrdersOnce(String traceId)
+    {
+        CommonResult response = gateTxnPayClient.processOneSideOrders(QuartzTraceUtils.traceHeaders(traceId));
+        check(response, "单边订单处理");
+    }
+
     private void check(CommonResult response, String action)
     {
         if (response == null)
@@ -105,5 +112,11 @@ public class GateTxnPayQuartzTask
     public void consumeRetryQueue()
     {
         QuartzTraceUtils.runWithTrace(this::consumeRetryQueueOnce);
+    }
+
+    /** 前台调用目标填写 gateTxnPayQuartzTask.processOneSideOrders() 时执行（单边订单处理，如 sys_job 405）。 */
+    public void processOneSideOrders()
+    {
+        QuartzTraceUtils.runWithTrace(this::processOneSideOrdersOnce);
     }
 }

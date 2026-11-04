@@ -61,7 +61,8 @@ public class GateTxnPayQueryServiceImpl implements GateTxnPayQueryService {
 
     @Override
     public ResultVO<Map<String, Object>> page(String orderNo, String cardId, String thirdUserId, String signChannelCode,
-                                               String cardType, String debitStatus, String startDate, String endDate,
+                                               String cardType, String debitStatus, String issueChannelCode,
+                                               String startDate, String endDate,
                                                Integer pageNum, Integer pageSize) {
         String normalizedOrderNo = trimToNull(orderNo);
         String normalizedCardId = trimToNull(cardId);
@@ -73,16 +74,18 @@ public class GateTxnPayQueryServiceImpl implements GateTxnPayQueryService {
         }
         int currentPage = pageNum == null || pageNum < 1 ? 1 : pageNum;
         int currentPageSize = pageSize == null || pageSize < 1 ? DEFAULT_PAGE_SIZE : Math.min(pageSize, MAX_PAGE_SIZE);
+        String normalizedIssueChannelCode = trimToNull(issueChannelCode);
         List<GateTxnPay> orders = gateTxnPayMapper.selectOperationPage(
                 normalizedOrderNo, normalizedCardId, normalizedThirdUserId, trimToNull(signChannelCode), trimToNull(cardType),
-                trimToNull(debitStatus), normalizedStartDate, normalizedEndDate, (currentPage - 1) * currentPageSize, currentPageSize);
+                trimToNull(debitStatus), normalizedIssueChannelCode, normalizedStartDate, normalizedEndDate,
+                (currentPage - 1) * currentPageSize, currentPageSize);
         fillMissingStationNames(orders);
 
         Map<String, Object> page = new LinkedHashMap<>();
         page.put("list", orders);
         page.put("total", gateTxnPayMapper.countOperationPage(
                 normalizedOrderNo, normalizedCardId, normalizedThirdUserId, trimToNull(signChannelCode), trimToNull(cardType),
-                trimToNull(debitStatus), normalizedStartDate, normalizedEndDate));
+                trimToNull(debitStatus), normalizedIssueChannelCode, normalizedStartDate, normalizedEndDate));
         return ResultMapper.ok(page);
     }
 
@@ -238,6 +241,34 @@ public class GateTxnPayQueryServiceImpl implements GateTxnPayQueryService {
         Map<String, Object> page = new LinkedHashMap<>();
         page.put("list", orders);
         page.put("total", gateTxnPayMapper.countOvertimeRefundable(station, start, end));
+        return ResultMapper.ok(page);
+    }
+
+    @Override
+    public ResultVO<Map<String, Object>> oneSidePage(String orderNo, String cardId, String thirdUserId,
+                                                      String orderExpType, String startDate, String endDate,
+                                                      Integer pageNum, Integer pageSize) {
+        String normalizedOrderNo = trimToNull(orderNo);
+        String normalizedCardId = trimToNull(cardId);
+        String normalizedThirdUserId = trimToNull(thirdUserId);
+        String normalizedOrderExpType = trimToNull(orderExpType);
+        String normalizedStartDate = normalizeTxnDate(startDate);
+        String normalizedEndDate = normalizeTxnDate(endDate);
+        if (!hasSearchScope(normalizedOrderNo, normalizedCardId, normalizedThirdUserId,
+                normalizedStartDate, normalizedEndDate)) {
+            return ResultMapper.illegalParams("请填写订单号、逻辑卡号、第三方用户ID，或同时填写开始日期和结束日期");
+        }
+        int currentPage = pageNum == null || pageNum < 1 ? 1 : pageNum;
+        int currentPageSize = pageSize == null || pageSize < 1 ? DEFAULT_PAGE_SIZE : Math.min(pageSize, MAX_PAGE_SIZE);
+        List<GateTxnPay> orders = gateTxnPayMapper.selectOneSidePage(
+                normalizedOrderNo, normalizedCardId, normalizedThirdUserId, normalizedOrderExpType,
+                normalizedStartDate, normalizedEndDate, (currentPage - 1) * currentPageSize, currentPageSize);
+        fillMissingStationNames(orders);
+        Map<String, Object> page = new LinkedHashMap<>();
+        page.put("list", orders);
+        page.put("total", gateTxnPayMapper.countOneSidePage(
+                normalizedOrderNo, normalizedCardId, normalizedThirdUserId, normalizedOrderExpType,
+                normalizedStartDate, normalizedEndDate));
         return ResultMapper.ok(page);
     }
 

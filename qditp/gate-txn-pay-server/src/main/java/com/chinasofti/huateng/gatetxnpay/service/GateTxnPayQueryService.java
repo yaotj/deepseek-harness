@@ -19,7 +19,8 @@ import java.util.Map;
 /** `GATE_TXN_PAY` 的只读查询侧：运营分页、APP 交易记录 / 账单统计 / 订单详情 / 账务信息、 以及解约与黑名单解除要用的未结清判定。 */
 public interface GateTxnPayQueryService {
     ResultVO<Map<String, Object>> page(String orderNo, String cardId, String thirdUserId, String signChannelCode,
-                                        String cardType, String debitStatus, String startDate, String endDate,
+                                        String cardType, String debitStatus, String issueChannelCode,
+                                        String startDate, String endDate,
                                         Integer pageNum, Integer pageSize);
 
     /** 按交易业务键查询 GT 订单号（供 ticket-server 关联查询）。 */
@@ -72,6 +73,14 @@ public interface GateTxnPayQueryService {
     /** 综管台批量退超时罚金的圈单查询：日期窗（yyyy-MM-dd，闭区间）必填，按车站分页圈出候选单。 */
     ResultVO<Map<String, Object>> overtimeRefundablePage(String stationCode, String startDate, String endDate,
                                                          Integer pageNum, Integer pageSize);
+
+    /**
+     * 综管台单边查询（对标旧 ITP「单边查询」）：按 {@code ORDER_EXP_TYPE} 圈单边入(1)/单边出(2)订单，
+     * orderExpType 为空时查 1、2 两类，传值时查指定类型；要求订单标识或完整日期范围。
+     */
+    ResultVO<Map<String, Object>> oneSidePage(String orderNo, String cardId, String thirdUserId,
+                                              String orderExpType, String startDate, String endDate,
+                                              Integer pageNum, Integer pageSize);
     /** IF8A-35 查询用户账务信息：返回未支付订单数与扣费失败订单数。 */
     RequestUserAccInfoResult requestUserAccInfo(RequestUserAccInfoReqDTO request);
 }

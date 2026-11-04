@@ -58,13 +58,14 @@ public interface GateTxnPayMapper {
                      @Param("debitStatus") String debitStatus,
                      @Param("remark") String remark);
 
-    /** 运营端分页查询扣费订单，参数需与 countOperationPage 保持一致。 */
+    /** 运营端分页查询扣费订单，参数需与 countOperationPage 保持一致。issueChannelCode 可选（07=支付宝出行，渠道页用）。 */
     List<GateTxnPay> selectOperationPage(@Param("orderNo") String orderNo,
                                          @Param("cardId") String cardId,
                                          @Param("thirdUserId") String thirdUserId,
                                          @Param("signChannelCode") String signChannelCode,
                                          @Param("cardType") String cardType,
                                          @Param("debitStatus") String debitStatus,
+                                         @Param("issueChannelCode") String issueChannelCode,
                                          @Param("startDate") String startDate,
                                          @Param("endDate") String endDate,
                                          @Param("offset") int offset,
@@ -77,8 +78,27 @@ public interface GateTxnPayMapper {
                            @Param("signChannelCode") String signChannelCode,
                            @Param("cardType") String cardType,
                            @Param("debitStatus") String debitStatus,
+                           @Param("issueChannelCode") String issueChannelCode,
                            @Param("startDate") String startDate,
                            @Param("endDate") String endDate);
+
+    /** 运营端单边查询（{@code ORDER_EXP_TYPE} 单边入/出），参数需与 countOneSidePage 保持一致。 */
+    List<GateTxnPay> selectOneSidePage(@Param("orderNo") String orderNo,
+                                       @Param("cardId") String cardId,
+                                       @Param("thirdUserId") String thirdUserId,
+                                       @Param("orderExpType") String orderExpType,
+                                       @Param("startDate") String startDate,
+                                       @Param("endDate") String endDate,
+                                       @Param("offset") int offset,
+                                       @Param("limit") int limit);
+
+    /** 统计运营端单边查询分页结果总数。 */
+    int countOneSidePage(@Param("orderNo") String orderNo,
+                         @Param("cardId") String cardId,
+                         @Param("thirdUserId") String thirdUserId,
+                         @Param("orderExpType") String orderExpType,
+                         @Param("startDate") String startDate,
+                         @Param("endDate") String endDate);
 
     /** 运营端分页展示用：按站点编码批量查询 STATION_INFO 中文站名，行映射键为 STATION_CODE / STATION_NAME。 */
     List<Map<String, Object>> selectStationNames(@Param("codes") List<String> codes);
@@ -303,4 +323,22 @@ public interface GateTxnPayMapper {
     int prepareUserRetry(@Param("orderNo") String orderNo,
                          @Param("txnDate") String txnDate,
                          @Param("failMsg") String failMsg);
+
+    /**
+     * 扫出单边入订单候选：{@code ORDER_EXP_TYPE='1'}、{@code DEBIT_STATUS} 未终态、账期在窗口内。
+     *
+     * <p>用于定时任务处理单边入订单（进站有记录、出站缺失）。
+     */
+    List<GateTxnPay> selectOneSideInCandidates(@Param("startDate") String startDate,
+                                               @Param("endDate") String endDate,
+                                               @Param("limit") int limit);
+
+    /**
+     * 扫出单边出订单候选：{@code ORDER_EXP_TYPE='2'}、{@code DEBIT_STATUS} 未终态、账期在窗口内。
+     *
+     * <p>用于定时任务处理单边出订单（出站有记录、进站缺失）。
+     */
+    List<GateTxnPay> selectOneSideOutCandidates(@Param("startDate") String startDate,
+                                                @Param("endDate") String endDate,
+                                                @Param("limit") int limit);
 }

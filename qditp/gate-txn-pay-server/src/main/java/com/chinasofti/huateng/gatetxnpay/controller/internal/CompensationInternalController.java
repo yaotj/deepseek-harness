@@ -4,6 +4,7 @@ import com.chinasofti.huateng.common.response.CommonResult;
 import com.chinasofti.huateng.gatetxnpay.service.GateTxnPayService;
 import com.chinasofti.huateng.gatetxnpay.service.impl.DebitRetryProcessor;
 import com.chinasofti.huateng.gatetxnpay.service.impl.MetroTransferPushTaskProcessor;
+import com.chinasofti.huateng.gatetxnpay.service.impl.OneSideOrderProcessor;
 import com.chinasofti.huateng.gatetxnpay.service.impl.OfflineFareRecoveryProcessor;
 import com.chinasofti.huateng.gatetxnpay.service.impl.RetryQueueConsumer;
 import com.chinasofti.huateng.model.pay.GateTxnPayDebitConvergeReqDTO;
@@ -13,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 本模块补偿链路的外部调度入口（2.0.73 新增，现有 6 个端点，全部由 web-admin 的 `sys_job` 触发）。 */
+    /** 本模块补偿链路的外部调度入口（2.0.73 新增，现有 7 个端点，全部由 web-admin 的 `sys_job` 触发）。 */
 @RestController
 @RequestMapping("/internal/gate-txn-pay")
 public class CompensationInternalController {
@@ -26,17 +27,21 @@ public class CompensationInternalController {
     private final GateTxnPayService gateTxnPayService;
     /** ADR-D169 方案 A：用户主动重试扣费队列消费。 */
     private final RetryQueueConsumer retryQueueConsumer;
+    /** 单边订单处理（新）。 */
+    private final OneSideOrderProcessor oneSideOrderProcessor;
 
     public CompensationInternalController(OfflineFareRecoveryProcessor offlineFareRecoveryProcessor,
                                           MetroTransferPushTaskProcessor metroTransferPushTaskProcessor,
                                           DebitRetryProcessor debitRetryProcessor,
                                           GateTxnPayService gateTxnPayService,
-                                          RetryQueueConsumer retryQueueConsumer) {
+                                          RetryQueueConsumer retryQueueConsumer,
+                                          OneSideOrderProcessor oneSideOrderProcessor) {
         this.offlineFareRecoveryProcessor = offlineFareRecoveryProcessor;
         this.metroTransferPushTaskProcessor = metroTransferPushTaskProcessor;
         this.debitRetryProcessor = debitRetryProcessor;
         this.gateTxnPayService = gateTxnPayService;
         this.retryQueueConsumer = retryQueueConsumer;
+        this.oneSideOrderProcessor = oneSideOrderProcessor;
     }
 
     /**
@@ -93,6 +98,18 @@ public class CompensationInternalController {
     public CommonResult consumeRetryQueue() {
         int consumed = retryQueueConsumer.consumeBatch();
         return describe("用户主动重试扣费队列消费", consumed);
+    }
+
+    /**
+     * 跑一轮单边订单处理。对应新 `sys_job`（如 job_id 405）。
+     *
+     * <p>处理 {@code ORDER_EXP_TYPE='1'}（单边入，进站有记录出站缺失）与 {@code '2'}（单边出，
+     * 出站有记录进站缺失）的未终态订单。当前仅标记日志，后续扩展为创建补款单/退款。
+     */
+    @PostMapping("/oneside/process")
+    public CommonResult processOneSideOrders() {
+        int processed = oneSideOrderProcessor.processOneSideOrders();
+        return describe("单边订单处理", processed);
     }
 
     /** 跑一轮公交换乘推送（原 `MetroTransferPushTaskProcessor` 的 `@Scheduled`，周期 10s → 60s）。 */
