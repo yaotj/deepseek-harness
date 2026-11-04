@@ -88,8 +88,11 @@ class DirectPythonEntryTest(unittest.TestCase):
         self.assertIn("itp-ops.sh sentinel", r.stderr)
 
     def test_web_release_module_entry(self):
+        # 2.6.0：模块级直调也转发统一入口；帮助由 CATALOG 渲染且参数明细不丢
         r = run_module("itpops.web.frontend_release", "--help")
+        self.assertEqual(r.returncode, 0)
         self.assertIn("--skip-build", r.stdout)
+        self.assertIn("itp-ops web release", r.stdout)
 
 
 if __name__ == "__main__":

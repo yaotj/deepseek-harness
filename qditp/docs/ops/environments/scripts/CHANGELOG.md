@@ -3,6 +3,28 @@
 > 2026-11-04 由 `README.md`「六、重构与迁移记录」拆出，历史条目按**新 → 旧**排列、内容逐字保留。
 > 版本号真源是 `itpops/__init__.py` 的 `__version__`（`pyproject.toml` 动态读取）。
 
+## 2.6.0 — 2026-11-04 模块级入口全量收口 + cloudos 按业务段拆分
+
+- **入口全量收口**：`python -m itpops.web.frontend_release` / `itpops.web.mount_export`
+  两个模块级直调改为转发 `itpops.cli.main`（此前各自直调实现，绕过全局参数 /
+  JSON 信封 / 退出码）；`buildx/core.py` / `sentinel/core.py` 多余的
+  `if __name__ == "__main__"` 直调块删除——包级 `__main__.py` 已是官方调试别名，
+  直调 core 还会因包 `__init__` 预导入触发 runpy RuntimeWarning。连同 2.5.0 的
+  两个包级 `__main__.py`，现在所有调用路径汇入同一解析点；`web release --help`
+  改由 CATALOG 渲染，参数明细（含 `--skip-build`）未丢。
+- **cloudos 按业务段拆分**：`cloudos/impl.py`（1781 行）用 AST 辅助拆成
+  `common`（公共层，依赖图叶子）/ `apps` / `scaling` / `deploy` / `images` /
+  `impl`（只留 CATALOG + main 分发）；函数体逐字未改，跨段依赖由静态分析自动生成，
+  依赖方向单向无环。`commands/cloudos.py` 薄壳不变。
+- **先补业务级单测**：新增 `tests/test_cloudos_units.py`（22 例）覆盖规格换算、
+  镜像引用安全判据、uuid 解析、参数解析、部署计划与 k8s 快照降级；
+  拆分前后同一组断言全绿，证明是纯搬移。
+- **顺带修潜伏 bug（AST 审计发现）**：`_k8s_deploy_for_cloudos` 的 3 个异常分支调用
+  未定义的 `_warn(...)`，本会抛 NameError、使 docstring 承诺的「仅返回 None、
+  不阻塞常规发布」失效；改为 `ui.log_warn(...)` 并补 2 个降级用例。
+- 验证：82 单测全绿、11 域 help stdout/stderr 逐字节一致、catalog 结构一致（仅版本
+  2.5.0→2.6.0）、root help 剔除版本后一致、compileall / bash -n / lint-prompts ERROR 0。
+
 ## 2.5.0 — 2026-11-04 按最佳实践重新组织项目层
 
 - **唯一入口语义收口**：`python -m itpops.buildx` / `python -m itpops.sentinel` 从「直接调特性实现」

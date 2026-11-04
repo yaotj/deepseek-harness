@@ -482,4 +482,9 @@ def _main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # 调试别名：转发唯一入口，不另起解析 / 输出契约。
+    # 正式入口是 `itp-ops.sh web release`；`python -m itpops.web.frontend_release`
+    # 与它共享全局参数、JSON 信封、退出码与分层帮助（--help 由 CATALOG 渲染）。
+    from ..cli.main import main as _cli_main
+
+    sys.exit(_cli_main(["web", "release", *sys.argv[1:]]))

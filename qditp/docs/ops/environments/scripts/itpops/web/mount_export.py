@@ -227,4 +227,7 @@ def _main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # 调试别名：转发唯一入口（正式入口 `itp-ops.sh web mount-export`）。
+    from ..cli.main import main as _cli_main
+
+    sys.exit(_cli_main(["web", "mount-export", *sys.argv[1:]]))

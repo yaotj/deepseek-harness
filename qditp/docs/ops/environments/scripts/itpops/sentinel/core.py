@@ -568,5 +568,6 @@ def _parse_args(argv: list[str]) -> tuple[str, str, str, bool] | None:
     return pos[0], pos[1], env_name, yes
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+# 本模块不提供 `python -m itpops.sentinel.core` 直调：包 __init__ 已预导入 core，
+# -m 会触发 runpy 的 RuntimeWarning。调试别名统一走 `python -m itpops.sentinel`
+# （见 ../__main__.py，已转发 itpops.cli.main）。

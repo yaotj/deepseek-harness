@@ -29,10 +29,11 @@ scripts/                          ← 一个标准 Python CLI 项目根（工具
 │   ├── cli/                    表现层：main / registry / help / completion
 │   ├── commands/               命令层：一域一文件，只做注册与分发（CATALOG + main）
 │   ├── core/                   公共支撑：ui / version / environments / remote / runtime / crypto
-│   ├── cloudos/                特性实现：auth / http / image / pkg + impl.py（30 子命令）
+│   ├── cloudos/                特性实现：auth / http / image / pkg + common / apps /
+│   │                          scaling / deploy / images / impl（按业务段拆分）
 │   ├── buildx/ sentinel/ web/  特性实现（core.py + __main__.py 调试别名，均转发统一入口）
 │   └── analysis/ versioning/ linting/   端点计数 / 版本 bump / YAML 门禁实现
-├── tests/                     stdlib unittest（59 例，含布局与入口委托回归）
+├── tests/                     stdlib unittest（82 例：CLI 契约 + 22 例 cloudos 业务级）
 ├── buildx.Dockerfile          共享构建模板（NEVER 写 ENTRYPOINT/CMD，理由见文件头与 IT-031）
 ├── hosts/                     ★ 跑在远端机器上的脚本本体（NEVER 在本机执行）
 │   └── k8s-master/             测试跳板 /home/java 下的脚本 + snapshots/ 部署台账
@@ -131,7 +132,7 @@ diag 按子命令）、`-y/--yes`（确认写操作）、`-n/--dry-run`（强制
 
 ## 六、重构与迁移记录
 
-逐版本变更见 [CHANGELOG.md](CHANGELOG.md)（按新 → 旧排列）。当前版本 **itpops 2.5.0**。
+逐版本变更见 [CHANGELOG.md](CHANGELOG.md)（按新 → 旧排列）。当前版本 **itpops 2.6.0**。
 
 ---
 

@@ -11,14 +11,15 @@
   cli/        表现层：参数解析 / 帮助 / 补全 / 注册表 / JSON 信封
   commands/   一域一文件（CATALOG + main）；只做注册与分发，实现下沉特性包
   core/       公共支撑：ui / version / environments / remote / runtime / crypto
-  <特性>/     实现：cloudos(auth/http/image/pkg/impl) buildx sentinel web
+  <特性>/     实现：cloudos(auth/http/image/pkg + 按业务段 common/apps/
+              scaling/deploy/images/impl) buildx sentinel web
               analysis versioning linting
 
 唯一入口是 `itp-ops.sh`（薄壳 → `python3 -m itpops`）；`python -m itpops.<特性>`
 只是调试别名，一律转发 `cli.main`，不另起一套解析/输出契约。
 `pyproject.toml` 另暴露 `itp-ops` console script 供 `pipx install` 后直接使用。
 """
-__version__ = "2.5.0"
+__version__ = "2.6.0"
 
 # 兼容旧引用（v2.0/2.1 时代用 ITP_OPS_VERSION）
 ITP_OPS_VERSION = __version__

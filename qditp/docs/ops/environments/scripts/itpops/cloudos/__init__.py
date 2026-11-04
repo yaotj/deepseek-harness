@@ -5,7 +5,12 @@
   http.py   HTTP 通道：JSON / multipart 上传 / 原始流（cloudos-http.sh）
   image.py  镜像仓库 API（cloudos-image.sh）
   pkg.py    软件中心应用包 API（cloudos-pkg.sh）
-  impl.py   cloudos 域 30 个子命令的实现（2026-11-04 从 commands/cloudos.py 下沉）
+  impl.py    编排层：CATALOG + main 分发（命令层从这里重导出）
+  common.py  公共层：常量 / 输出原语 / 请求封装 / uuid 解析 / 域帮助（依赖图叶子）
+  apps.py    应用段：自检 / 详情 / env / svc / pods / logs / 启停
+  scaling.py 规格与副本段：换算 / spec / scale / 异步复验
+  deploy.py  升级段：k8s 快照 / advanced-config 组装 / 切镜像校验
+  images.py  镜像段：旧 /images/build 端点 probe / plan / build + 软件中心上传
 
 【旧 bash 的坑/巧思（移植时保留的原因）】
   · token 缓存 `<时间戳> <token>` 按环境分文件（${TMPDIR:-/tmp}/.cloudos-<env>.token），

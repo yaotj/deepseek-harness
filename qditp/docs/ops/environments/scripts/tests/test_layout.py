@@ -17,11 +17,15 @@ class CommandLayerTest(unittest.TestCase):
         self.assertLess(len(src.splitlines()), 30, "命令层不该重新长出实现")
         self.assertIn("from ..cloudos.impl import CATALOG, main", src)
 
-    def test_cloudos_impl_holds_the_contract_source(self):
+    def test_cloudos_impl_is_orchestration_only(self):
         impl = (SCRIPTS_DIR / "itpops/cloudos/impl.py").read_text(encoding="utf-8")
         self.assertIn("CATALOG = {", impl)
         self.assertIn("def main(args: list[str]) -> int:", impl)
-        self.assertIn("from . import auth", impl)   # 同包引用，不绕 ..cloudos
+        for seg in ("common", "apps", "scaling", "deploy", "images"):
+            self.assertTrue((SCRIPTS_DIR / f"itpops/cloudos/{seg}.py").is_file(), seg)
+        common = (SCRIPTS_DIR / "itpops/cloudos/common.py").read_text(encoding="utf-8")
+        for seg in ("apps", "scaling", "deploy", "images"):
+            self.assertNotIn(f"from .{seg} import", common)   # common 是依赖图叶子
 
     def test_project_docs_and_metadata_exist(self):
         for p in ("README.md", "CONTRIBUTING.md", "CHANGELOG.md",
@@ -31,6 +35,22 @@ class CommandLayerTest(unittest.TestCase):
 
 
 class DelegatedEntryTest(unittest.TestCase):
+    def test_module_level_entries_all_delegate(self):
+        """2.6.0：web 两个模块级直调只转发 cli.main；core 两个多余直调块已删除。"""
+        delegates = {
+            "itpops/web/frontend_release.py": '["web", "release"',
+            "itpops/web/mount_export.py": '["web", "mount-export"',
+        }
+        for path, marker in delegates.items():
+            with self.subTest(path=path):
+                src = (SCRIPTS_DIR / path).read_text(encoding="utf-8")
+                self.assertIn("_cli_main(", src)
+                self.assertIn(marker, src)
+        for path in ("itpops/buildx/core.py", "itpops/sentinel/core.py"):
+            with self.subTest(path=path):
+                src = (SCRIPTS_DIR / path).read_text(encoding="utf-8")
+                self.assertNotIn('if __name__ == "__main__"', src)
+
     def test_debug_alias_matches_unified_entry(self):
         for domain in ("buildx", "sentinel"):
             with self.subTest(domain=domain):

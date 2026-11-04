@@ -8,9 +8,9 @@
 #   itpops/cli/        表现层：main / registry / help / completion
 #   itpops/commands/   命令层：一域一文件（CATALOG + main，只做注册与分发）
 #   itpops/core/       公共支撑：ui / version / environments / remote / runtime / crypto
-#   itpops/<特性>/     实现：cloudos(含 impl.py) / buildx / sentinel / web /
+#   itpops/<特性>/     实现：cloudos(common/apps/scaling/deploy/images/impl) /
 #                      analysis / versioning / linting
-#   tests/             stdlib unittest（59 例）
+#   tests/             stdlib unittest（82 例，含 22 例 cloudos 业务级）
 #   hosts/ migration/ buildx.Dockerfile   仓内资产（远端脚本 / 迁移执行包 / 构建模板）
 #
 # 【命令面】--env/-e、--yes/-y、--dry-run/-n、-o json、-q、-v、--no-color、--trace、

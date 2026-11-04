@@ -657,5 +657,6 @@ def main(argv: list[str] | None = None) -> int:
         return exc.exit_code
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+# 本模块不提供 `python -m itpops.buildx.core` 直调：包 __init__ 已预导入 core，
+# -m 会触发 runpy 的 RuntimeWarning。调试别名统一走 `python -m itpops.buildx`
+# （见 ../__main__.py，已转发 itpops.cli.main）。
