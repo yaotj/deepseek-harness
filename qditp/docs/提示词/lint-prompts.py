@@ -23,7 +23,8 @@
 
 **只查「约束层」文档**（能指挥后续改动）；
 `docs/testing/`、`docs/reviews/`、`docs/history/`、甲方规格原文是记录与归档，不在检查范围。
-唯一例外：源码侧 yml/yaml 由 `scripts/lint-yaml.py` 检查（语法 + 重复键，IT-032 门禁），
+唯一例外：源码侧 yml/yaml 由 `itp-ops.sh lint yaml` 检查（语法 + 重复键，IT-032 门禁；
+原 `scripts/lint-yaml.py` 已并入 itpops/linting/），
 在本脚本主流程末尾挂接，ERROR 计入本门禁退出码。
 
 新增检查项 MUST 在 CHECKS 里加一个函数，并在 docstring 写清判据。
@@ -588,12 +589,12 @@ def main():
 
     # ── YAML 健康检查（IT-032 门禁）──
     # yml 不参与 mvn test-compile，语法错/重复键曾潜伏 9 天（face-pay application.yml）。
-    # 由 scripts/lint-yaml.py 负责（自定义 loader 查语法 + 同 mapping 重复键），
+    # 由 `itp-ops.sh lint yaml` 负责（自定义 loader 查语法 + 同 mapping 重复键），
     # 这里只做挂接：任何 ERROR 计入本门禁的退出码。
-    yaml_lint = ROOT / "scripts" / "lint-yaml.py"
-    if yaml_lint.is_file():
+    itp_ops = ROOT / "docs" / "ops" / "environments" / "scripts" / "itp-ops.sh"
+    if itp_ops.is_file():
         proc = subprocess.run(
-            [sys.executable, str(yaml_lint), str(ROOT), "--json"],
+            [str(itp_ops), "lint", "yaml", "--jsonl", str(ROOT)],
             capture_output=True, text=True, timeout=180)
         for line in proc.stdout.splitlines():
             line = line.strip()
@@ -604,10 +605,10 @@ def main():
                 results["ERROR"].append(
                     f"{item['file']}:{item['line']}  YAML 不健康（语法错或重复键）—— {item['error']}")
             except json.JSONDecodeError:
-                results["ERROR"].append(f"lint-yaml 输出不可解析: {line[:120]}")
+                results["ERROR"].append(f"lint yaml 输出不可解析: {line[:120]}")
         if proc.returncode not in (0, 1):  # 0=干净 1=有ERROR（已逐条收录）；其余=脚本自身故障
             results["ERROR"].append(
-                f"lint-yaml 自身故障 exit={proc.returncode}: {proc.stderr.strip()[:200]}")
+                f"lint yaml 自身故障 exit={proc.returncode}: {proc.stderr.strip()[:200]}")
 
     verbose = "-v" in sys.argv or "--verbose" in sys.argv
     for msg in results["ERROR"]: print(f"{'ERROR':<6} {msg}")

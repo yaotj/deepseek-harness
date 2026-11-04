@@ -25,6 +25,7 @@ _DOMAIN_MODULES: dict[str, str] = {
     "sentinel": "sentinel",
     "web": "web",
     "catalog": "catalog",
+    "lint": "lint",
 }
 
 EXIT_CODE_DOC = {
@@ -51,6 +52,11 @@ GLOBAL_FLAGS_DOC = [
     {"flag": "-V, --version", "desc": "版本信息（含 python / git commit）"},
     {"flag": "--", "desc": "终止选项解析，其后的参数按位置参数处理"},
 ]
+
+
+def module_for(domain: str) -> str | None:
+    """域 → commands 模块名；未注册返回 None（分发用，唯一真源）。"""
+    return _DOMAIN_MODULES.get(domain)
 
 
 def load_domains() -> list[dict]:

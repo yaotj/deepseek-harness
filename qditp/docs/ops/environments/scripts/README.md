@@ -33,7 +33,8 @@ scripts/
 │   │   ├── web.py                 前端发版 / 挂载（release、mount-export）
 │   │   ├── sentinel.py            路由哨兵部署（调 itpops/sentinel/）
 │   │   ├── analysis.py            端点计数
-│   │   ├── version.py             版本号计算
+│   │   ├── version.py             版本号计算 + 载体 bump
+│   │   ├── lint.py                仓库门禁（lint yaml）
 │   │   └── catalog.py             自描述注册表命令（渲染 cli/registry 的数据）
 │   ├── core/                    公共支撑（无业务语义）
 │   │   ├── ui.py                  输出原语 + 全局上下文 Ctx
@@ -42,13 +43,15 @@ scripts/
 │   │   ├── remote.py              ssh 跳板助手（TTY 纪律 / 参数转义）
 │   │   ├── runtime.py             本机执行 / 写门 require_yes / 依赖检查 / 仓库根断言
 │   │   └── crypto.py              RSA PKCS#1 v1.5 唯一实现（CloudOS 登录口令）
+│   ├── analysis/                端点计数实现（原 analysis/count-endpoints.py）
+│   ├── versioning/              pom / package.json bump 实现（原 scripts/bump-version.py）
+│   ├── linting/                 YAML 门禁实现（原 scripts/lint-yaml.py，PyYAML 可选）
 │   ├── cloudos/                 CloudOS API 客户端（auth / http / image / pkg）
 │   ├── buildx/                  镜像构建实现（core.py + __main__.py，可 python -m 直调）
 │   ├── sentinel/                路由哨兵部署实现（core.py + __main__.py）
 │   └── web/                     前端发版 / 挂载实现
-├── tests/                      stdlib unittest（41 例：版本 / 环境 / CLI 契约 / 注册表 / 直调 / 隔离 / 加密）
+├── tests/                      stdlib unittest（54 例：版本/环境/CLI 契约/注册表/直调/隔离/加密/bump/端点/YAML）
 ├── buildx.Dockerfile          共享构建模板（NEVER 写 ENTRYPOINT/CMD，理由见文件头与 IT-031）
-├── analysis/                  count-endpoints.py 本体（由 commands/analysis.py 调度，勿直接跑）
 ├── hosts/                     ★ 跑在远端机器上的脚本本体（NEVER 在本机执行）
 │   └── k8s-master/              测试环境跳板机 /home/java 下的脚本（build-push / k8s-deploy / k8s-logview / Dockerfile）
 │       └── snapshots/             远端产物（k8s-deploy-audit.csv 部署台账）
@@ -79,6 +82,8 @@ cd docs/ops/environments/scripts
 ./itp-ops.sh web mount-export          # web-admin 挂导出目录（预演；--yes 下发）
 ./itp-ops.sh sentinel route-sentinel/target/route-sentinel-1.0.1.jar route-sentinel/Dockerfile --yes
 ./itp-ops.sh analysis endpoints account-server/src/main/java   # 端点计数
+./itp-ops.sh version bump --dir account-server --dry-run    # 版本 bump（预演；去 --dry-run 落盘）
+./itp-ops.sh lint yaml                                      # YAML 门禁（语法 + 重复键）
 ```
 
 每个域的详细用法：`./itp-ops.sh <域> help`。
@@ -284,8 +289,10 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
    - 口径反转**不新增暴露面**：这些值早已随 `c4ce75894a` 推送到 `origin/main`，git 历史里的明文一直存在。
    另：`enable-tracing-20261014.sh` 已于 2026-10-14 执行完毕，后续接入链路跟踪 MUST 按
    `docs/architecture/common-components.md` §3.1.2「三行成组」口径做，NEVER 照抄那个已删脚本的 env 注入方式。
-7. **分析脚本 MUST 走 `itp-ops.sh analysis`**：`count-endpoints.py` 按「从仓库根运行」设计，域入口负责 cd，
-   从子目录直接 `python3` 调会静默找不到文件或把输出写错地方。
+7. **分析/门禁/bump 一律走 `itp-ops.sh`**：端点计数在 `itpops/analysis/endpoints.py`、
+   YAML 门禁在 `itpops/linting/yaml_lint.py`、版本 bump 在 `itpops/versioning/bump.py`，
+   原 `analysis/count-endpoints.py`、`scripts/lint-yaml.py`、`scripts/bump-version.py` 已删除。
+   相对路径以仓库根为基准（不再需要先 cd）。
    （原 `extract_interfaces.py` / `extract_requirements.py` 于 2026-10-26 审计删除——
    依赖的 `API.md` 与 `docs/提取的需求` 从不存在，一个跑必崩、一个空转输出 0。）
 

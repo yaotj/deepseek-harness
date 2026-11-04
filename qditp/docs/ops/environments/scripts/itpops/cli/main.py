@@ -41,6 +41,7 @@ import traceback
 
 from .. import __version__
 from . import completion as completion_mod
+from . import registry
 from . import help as help_mod
 from ..core import ui
 from ..core.ui import Ctx, set_context
@@ -52,20 +53,6 @@ from ..errors import (
     EXIT_USAGE,
     OpsError,
 )
-
-# 域名 → itpops.domains 模块名
-_DOMAIN_MODULES = {
-    "version": "version",
-    "cloudos": "cloudos",
-    "k8s": "k8s",
-    "log": "log",
-    "diag": "diag",
-    "analysis": "analysis",
-    "catalog": "catalog",
-    "buildx": "buildx",
-    "sentinel": "sentinel",
-    "web": "web",
-}
 
 _OUTPUT_CHOICES = ("text", "json")
 
@@ -104,7 +91,8 @@ def _root_help() -> str:
         ("web", "web 前端发版 / web-admin 导出目录挂载", "release=hongdao、mount-export=test"),
         ("sentinel", "route-sentinel 首次部署（清理→上传→构建→部署）", "默认 --env hongdao"),
         ("analysis", "静态分析：端点计数", "环境无关"),
-        ("version", "版本号计算：next / debug", "本地计算"),
+        ("version", "版本号计算：next / debug / bump", "本地计算/改文件"),
+        ("lint", "仓库门禁：YAML 语法与重复键", "环境无关"),
         ("catalog", "自描述命令注册表（大模型入口）", "-o json 可读"),
         ("completion", "shell 补全脚本（bash / zsh）", ""),
     ]
@@ -187,7 +175,7 @@ def _dispatch(domain: str, args: list[str]) -> int:
         return _completion(args)
     if domain == "help":
         return _help_command(args)
-    module_name = _DOMAIN_MODULES.get(domain)
+    module_name = registry.module_for(domain)
     if module_name is None:
         raise OpsError(f"未知域：{domain}", EXIT_USAGE)
     try:

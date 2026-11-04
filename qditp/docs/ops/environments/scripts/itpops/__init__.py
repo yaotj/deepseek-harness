@@ -11,7 +11,7 @@
 唯一入口 `itp-ops.sh`（薄壳 → `python3 -m itpops`）；`pyproject.toml` 另暴露
 `itp-ops` console script，供 `pipx install` 后直接使用。
 """
-__version__ = "2.3.1"
+__version__ = "2.4.0"
 
 # 兼容旧引用（v2.0/2.1 时代用 ITP_OPS_VERSION）
 ITP_OPS_VERSION = __version__

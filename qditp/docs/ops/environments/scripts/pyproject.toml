@@ -9,6 +9,9 @@ requires-python = ">=3.10"
 dynamic = ["version"]
 dependencies = []          # 纯标准库；不引入第三方依赖
 
+[project.optional-dependencies]
+lint = ["pyyaml"]          # 仅 `itp-ops.sh lint yaml` 需要；缺了该命令报前置错
+
 [project.scripts]
 itp-ops = "itpops.cli.main:main"   # 可选：pipx install . 后可直接 `itp-ops <域> ...`
 
