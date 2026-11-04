@@ -206,6 +206,35 @@ class RouteForwardingE2ETest {
     }
 
     @Test
+    void cardIdPresentOnSplitDeviceUrlRoutesToFacePay() throws Exception {
+        String body = hitGateway(SPLIT_DEVICE_URL, "{\"cardId\":\"0426090949000001\"}");
+        assertEquals("FACE-PAY-DOWNSTREAM", body.trim(),
+            "有 cardId 的设备域精确 URL 请求应直接走新 ITP");
+    }
+
+    @Test
+    void cardIdPresentOnSplitBomUrlRoutesToFacePay() throws Exception {
+        String body = hitGateway(SPLIT_BOM_URL, "{\"cardId\":\"0426090949000001\"}");
+        assertEquals("FACE-PAY-DOWNSTREAM", body.trim(),
+            "有 cardId 的 BOM 精确 URL 请求应直接走新 ITP");
+    }
+
+    @Test
+    void cardIdPresentWithUnregisteredThirdUserIdRoutesToFacePay() throws Exception {
+        String body = hitGateway(SPLIT_DEVICE_URL,
+            "{\"thirdUserId\":\"ghost-user-xyz\",\"cardId\":\"0426090949000001\"}");
+        assertEquals("FACE-PAY-DOWNSTREAM", body.trim(),
+            "cardId 存在时即使 thirdUserId 未注册也应走新 ITP");
+    }
+
+    @Test
+    void cardIdPresentOnSplitBomUrlWithFormBodyRoutesToFacePay() throws Exception {
+        String body = hitGatewayWithForm(SPLIT_BOM_URL, "{\"cardId\":\"0426090949000001\"}");
+        assertEquals("FACE-PAY-DOWNSTREAM", body.trim(),
+            "POST form body 中有 cardId 的 BOM 精确 URL 请求应直接走新 ITP");
+    }
+
+    @Test
     void adminEndpointListsRoutes() throws Exception {
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest req = HttpRequest.newBuilder()

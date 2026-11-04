@@ -12,7 +12,8 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 public class BizDataExtractor {
 
-    private static final String KEY = "\"thirdUserId\"";
+    private static final String THIRD_USER_ID_KEY = "\"thirdUserId\"";
+    private static final String CARD_ID_KEY = "\"cardId\"";
 
     private final ObjectMapper objectMapper;
 
@@ -35,23 +36,46 @@ public class BizDataExtractor {
         if (cached instanceof String thirdUserId && !thirdUserId.isBlank()) {
             return thirdUserId;
         }
+        String bizData = extractBizData(request);
+        if (bizData == null || bizData.isBlank()) {
+            return null;
+        }
+        String value = fastExtract(bizData, THIRD_USER_ID_KEY);
+        return (value == null || value.isBlank()) ? null : value;
+    }
+
+    /**
+     * Fast path: direct字符串扫描 "cardId"。失败返回 null。
+     *
+     * <p>优先顺序与 {@link #extractThirdUserIdFast(ServerRequest)} 一致。
+     */
+    public String extractCardIdFast(ServerRequest request) {
+        Object cached = request.attribute(RequestConstants.CARD_ID_ATTR).orElse(null);
+        if (cached instanceof String cardId && !cardId.isBlank()) {
+            return cardId;
+        }
+        String bizData = extractBizData(request);
+        if (bizData == null || bizData.isBlank()) {
+            return null;
+        }
+        String value = fastExtract(bizData, CARD_ID_KEY);
+        return (value == null || value.isBlank()) ? null : value;
+    }
+
+    private String extractBizData(ServerRequest request) {
         String bizData = request.param("bizData").orElse(null);
         if (bizData == null || bizData.isBlank()) {
             bizData = request.servletRequest().getParameter("bizData");
         }
-        if (bizData == null || bizData.isBlank()) {
-            return null;
-        }
-        String value = fastExtract(bizData);
-        return (value == null || value.isBlank()) ? null : value;
+        return bizData;
     }
 
-    private String fastExtract(String bizData) {
-        int keyIdx = bizData.indexOf(KEY);
+    private String fastExtract(String bizData, String key) {
+        int keyIdx = bizData.indexOf(key);
         if (keyIdx < 0) {
             return null;
         }
-        int colonIdx = bizData.indexOf(':', keyIdx + KEY.length());
+        int colonIdx = bizData.indexOf(':', keyIdx + key.length());
         if (colonIdx < 0) {
             return null;
         }

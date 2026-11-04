@@ -38,12 +38,14 @@ public class FormDataCacheFilter extends OncePerRequestFilter {
         if (contentType != null && contentType.toLowerCase().startsWith(FORM_CONTENT_TYPE)) {
             CachedBodyHttpServletRequest wrapped = new CachedBodyHttpServletRequest(request);
             String bizData = wrapped.getParameter("bizData");
-            String thirdUserId = extractThirdUserId(bizData);
+            String thirdUserId = extractValue(bizData, "\"thirdUserId\"");
+            String cardId = extractValue(bizData, "\"cardId\"");
             wrapped.setAttribute(RequestConstants.BIZDATA_ATTR, bizData);
             wrapped.setAttribute(RequestConstants.THIRD_USER_ID_ATTR, thirdUserId);
+            wrapped.setAttribute(RequestConstants.CARD_ID_ATTR, cardId);
             if (log.isDebugEnabled()) {
-                log.debug("FormDataCacheFilter 命中 path={} contentLength={} bizData={} thirdUserId={}",
-                        uri, wrapped.getCachedBody().length, bizData, thirdUserId);
+                log.debug("FormDataCacheFilter 命中 path={} contentLength={} bizData={} thirdUserId={} cardId={}",
+                        uri, wrapped.getCachedBody().length, bizData, thirdUserId, cardId);
             }
             filterChain.doFilter(wrapped, response);
         } else {
@@ -55,13 +57,12 @@ public class FormDataCacheFilter extends OncePerRequestFilter {
     }
 
     /**
-     * 快速字符串扫描，从 {@code bizData} JSON 串中提取 {@code thirdUserId}，失败返回 null。
+     * 快速字符串扫描，从 {@code bizData} JSON 串中提取指定 key 的字符串值，失败返回 null。
      */
-    private String extractThirdUserId(String bizData) {
+    private String extractValue(String bizData, String key) {
         if (bizData == null || bizData.isBlank()) {
             return null;
         }
-        String key = "\"thirdUserId\"";
         int keyIdx = bizData.indexOf(key);
         if (keyIdx < 0) {
             return null;

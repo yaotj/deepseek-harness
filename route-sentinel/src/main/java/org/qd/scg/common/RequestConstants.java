@@ -13,4 +13,7 @@ public final class RequestConstants {
 
     /** 从 {@code bizData} 中解析出的 {@code thirdUserId}。 */
     public static final String THIRD_USER_ID_ATTR = "route-sentinel.thirdUserId";
+
+    /** 从 {@code bizData} 中解析出的 {@code cardId}。 */
+    public static final String CARD_ID_ATTR = "route-sentinel.cardId";
 }

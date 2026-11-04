@@ -36,15 +36,22 @@ public class RoutePredicateStrategy {
             if (bizData == null || bizData.isBlank()) {
                 bizData = request.servletRequest().getParameter("bizData");
             }
+            String cardId = bizDataExtractor.extractCardIdFast(request);
             String thirdUserId = bizDataExtractor.extractThirdUserIdFast(request);
             boolean legacy;
-            if (thirdUserId == null) {
-                // bizData 缺失：fail-safe 到旧 ITP（与历史行为一致）
+            if (cardId != null) {
+                // 有 cardId 即视为新 ITP 用户，直接走新系统
+                legacy = false;
+                log.info("分发决策 path={} cardId={} thirdUserId={} bizData={} -> NEW(cardId)",
+                        path, cardId, thirdUserId == null ? "缺失" : thirdUserId, bizData);
+            } else if (thirdUserId == null) {
+                // bizData 缺失 cardId 与 thirdUserId：fail-safe 到旧 ITP（与历史行为一致）
                 legacy = true;
-                log.info("分发决策 path={} bizData={} thirdUserId=缺失 -> LEGACY(兜底)", path, bizData);
+                log.info("分发决策 path={} cardId=缺失 thirdUserId=缺失 bizData={} -> LEGACY(兜底)",
+                        path, bizData);
             } else {
                 legacy = userRouteService.isLegacy(thirdUserId);
-                log.info("分发决策 path={} thirdUserId={} bizData={} -> {}",
+                log.info("分发决策 path={} cardId=缺失 thirdUserId={} bizData={} -> {}",
                         path, thirdUserId, bizData, legacy ? "LEGACY" : "NEW");
             }
             return legacy;
