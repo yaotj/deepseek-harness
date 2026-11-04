@@ -56,10 +56,8 @@ itp-ops.sh buildx 转调本模块，命令面与旧 bash 逐字兼容。
 """
 from __future__ import annotations
 
-import base64
 import json
 import os
-import secrets
 import shutil
 import ssl
 import sys
@@ -71,7 +69,7 @@ import uuid
 import zipfile
 from pathlib import Path
 
-from ..core import environments as envx, ui
+from ..core import crypto, environments as envx, ui
 from ..errors import (
     EXIT_EXEC,
     EXIT_OK,
@@ -206,67 +204,10 @@ class _CloudOS:
             "TOKEN_CACHE", f"{os.environ.get('TMPDIR', '/tmp')}/.cloudos-{env_name}.token"
         )
 
-    # ---- RSA（纯标准库：PKCS#1 v1.5，密文恒 128 字节 / base64 172 字符）----
-    @staticmethod
-    def _der_read_len(buf: bytes, i: int) -> tuple[int, int]:
-        n = buf[i]
-        i += 1
-        if n & 0x80:
-            count = n & 0x7F
-            n = int.from_bytes(buf[i:i + count], "big")
-            i += count
-        return n, i
-
-    def _rsa_parse_pubkey(self, pubkey_b64: str) -> tuple[int, int]:
-        """SPKI DER → (n, e)。结构：SEQ{ SEQ{OID}, BITSTRING{ SEQ{n,e} } }。"""
-        try:
-            der = base64.b64decode(pubkey_b64)
-            # 外层 SEQUENCE
-            assert der[0] == 0x30
-            _, i = self._der_read_len(der, 1)
-            # 算法 SEQUENCE（跳过）
-            assert der[i] == 0x30
-            ln, i = self._der_read_len(der, i + 1)
-            i += ln
-            # BIT STRING（0x03），首字节是 unused-bits 计数
-            assert der[i] == 0x03
-            ln, i = self._der_read_len(der, i + 1)
-            assert der[i] == 0x00
-            i += 1
-            # RSAPublicKey SEQUENCE{ n, e }
-            assert der[i] == 0x30
-            _, i = self._der_read_len(der, i + 1)
-            assert der[i] == 0x02
-            ln, i = self._der_read_len(der, i + 1)
-            n = int.from_bytes(der[i:i + ln], "big")
-            i += ln
-            assert der[i] == 0x02
-            ln, i = self._der_read_len(der, i + 1)
-            e = int.from_bytes(der[i:i + ln], "big")
-            return n, e
-        except Exception as exc:  # noqa: BLE001 —— 公钥坏值/换钥未抓，统一文案
-            raise OpsError("RSA 加密失败（openssl 不可用？）", EXIT_PRECONDITION) from exc
-
+    # ---- RSA ----（唯一实现：core/crypto.py；NEVER 在本文件再复制一份）
     def rsa_encrypt(self, plaintext: str) -> str:
-        """明文 → PKCS#1 v1.5 密文 base64（与 openssl pkeyutl -encrypt 同形）。"""
-        n, e = self._rsa_parse_pubkey(self.pubkey_b64)
-        k = (n.bit_length() + 7) // 8  # 1024-bit → 128
-        msg = plaintext.encode("utf-8")
-        ps_len = k - 3 - len(msg)
-        if ps_len < 8:
-            raise OpsError("RSA 加密失败（openssl 不可用？）", EXIT_PRECONDITION)
-        ps = bytearray()
-        while len(ps) < ps_len:
-            b = secrets.token_bytes(ps_len - len(ps))
-            ps.extend(x for x in b if x != 0)
-        em = b"\x00\x02" + bytes(ps) + b"\x00" + msg
-        enc = pow(int.from_bytes(em, "big"), e, n).to_bytes(k, "big")
-        out = base64.b64encode(enc).decode()
-        if len(out) != 172:
-            _err(
-                f"警告：RSA 密文长度 {len(out)}（预期 172），公钥可能是 2048 位或填充方式不符"
-            )
-        return out
+        """明文 → PKCS#1 v1.5 密文 base64（1024-bit 公钥恒 172 字符）。"""
+        return crypto.rsa_encrypt(self.pubkey_b64, plaintext.encode("utf-8"))
 
     # ---- 登录与 token ----
     def _login_once(self) -> str:

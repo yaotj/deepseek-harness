@@ -34,13 +34,11 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import math
 import os
 import random
 import re
-import secrets
 import ssl
 import string
 import subprocess
@@ -137,62 +135,6 @@ def http_json(method, url, *, body=None, token=None, ctype="application/json") -
         return code, {"_raw": raw.decode(errors="replace")[:400]}
 
 
-def _der_read_len(buf: bytes, i: int) -> tuple[int, int]:
-    n = buf[i]
-    i += 1
-    if n & 0x80:
-        count = n & 0x7F
-        n = int.from_bytes(buf[i:i + count], "big")
-        i += count
-    return n, i
-
-
-def _rsa_parse_pubkey(pubkey_b64: str) -> tuple[int, int]:
-    """SPKI DER → (n, e)。结构：SEQ{ SEQ{OID}, BITSTRING{ SEQ{n,e} } }。"""
-    try:
-        der = base64.b64decode(pubkey_b64)
-        assert der[0] == 0x30
-        _, i = _der_read_len(der, 1)
-        assert der[i] == 0x30
-        ln, i = _der_read_len(der, i + 1)
-        i += ln
-        assert der[i] == 0x03
-        ln, i = _der_read_len(der, i + 1)
-        assert der[i] == 0x00
-        i += 1
-        assert der[i] == 0x30
-        _, i = _der_read_len(der, i + 1)
-        assert der[i] == 0x02
-        ln, i = _der_read_len(der, i + 1)
-        n = int.from_bytes(der[i:i + ln], "big")
-        i += ln
-        assert der[i] == 0x02
-        ln, i = _der_read_len(der, i + 1)
-        e = int.from_bytes(der[i:i + ln], "big")
-        return n, e
-    except Exception as exc:  # noqa: BLE001 —— 公钥坏值/换钥未抓，统一文案
-        raise OpsError("RSA 加密失败（公钥解析不出 n/e）", EXIT_PRECONDITION) from exc
-
-
-def rsa_encrypt(pubkey_b64: str, plaintext: bytes) -> str:
-    """明文 → RSA PKCS#1 v1.5 → base64（128 字节 / 172 字符）。纯标准库实现。"""
-    n, e = _rsa_parse_pubkey(pubkey_b64)
-    k = (n.bit_length() + 7) // 8  # 1024-bit → 128
-    ps_len = k - 3 - len(plaintext)
-    if ps_len < 8:
-        raise OpsError("RSA 加密失败（明文过长）", EXIT_PRECONDITION)
-    ps = bytearray()
-    while len(ps) < ps_len:
-        b = secrets.token_bytes(ps_len - len(ps))
-        ps.extend(x for x in b if x != 0)
-    em = b"\x00\x02" + bytes(ps) + b"\x00" + plaintext
-    enc = pow(int.from_bytes(em, "big"), e, n).to_bytes(k, "big")
-    out = base64.b64encode(enc).decode()
-    if len(out) != 172:
-        print(f"警告：RSA 密文长度 {len(out)}（预期 172）——公钥可能非 1024 位", file=sys.stderr)
-    return out
-
-
 def gen_id() -> str:
     """客户端预生成 10 位短 ID（与应用包版本 ID 同格式）。"""
     alphabet = string.ascii_letters + string.digits
@@ -248,7 +190,7 @@ def login(profile: dict) -> str:
     if _TOKEN:
         return _TOKEN
     host = profile["host"]
-    enc = rsa_encrypt(profile["pubkey"], profile["password"].encode())
+    enc = crypto.rsa_encrypt(profile["pubkey"], profile["password"].encode())
     base = f"https://{host}"
     code, d = http_json("POST", f"{base}/api/sys/oapi/v1/double_factor/login",
                         body={"username": profile["username"], "rsa": True,

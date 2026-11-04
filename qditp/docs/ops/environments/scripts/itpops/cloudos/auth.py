@@ -25,12 +25,11 @@ from __future__ import annotations
 import base64
 import json
 import os
-import subprocess
 import sys
-import tempfile
 import time
 from dataclasses import dataclass
 
+from ..core import crypto
 from ..errors import EXIT_EXEC, EXIT_PRECONDITION, EXIT_TRANSPORT, OpsError
 
 # CloudOS 登录公钥（1024 bit，PKCS#8 SubjectPublicKeyInfo base64，216 字符）
@@ -144,38 +143,12 @@ def cfg() -> CloudosConfig:
     return _CFG
 
 
-def _write_pubkey_pem(path: str, pubkey_b64: str) -> None:
-    with open(path, "w", encoding="ascii") as f:
-        f.write(f"-----BEGIN PUBLIC KEY-----\n{pubkey_b64}\n-----END PUBLIC KEY-----\n")
-
-
 def rsa_encrypt(plaintext: str) -> str:
-    """明文 -> PKCS#1 v1.5 -> base64（密文恒 128 字节 / 172 字符）。"""
-    c = cfg()
-    # bash 用全局 PEM 文件 + trap 清理（子 shell trap 坑）；Python 用临时文件即用即删
-    fd, pem_path = tempfile.mkstemp(prefix="cloudos-pub-", suffix=".pem")
-    os.close(fd)
-    try:
-        _write_pubkey_pem(pem_path, c.pubkey_b64)
-        try:
-            p = subprocess.run(
-                [
-                    "openssl", "pkeyutl", "-encrypt", "-pubin", "-inkey", pem_path,
-                    "-pkeyopt", "rsa_padding_mode:pkcs1",
-                ],
-                input=plaintext.encode("utf-8"),
-                capture_output=True,
-            )
-        except OSError as exc:
-            raise OpsError(f"RSA 加密失败（openssl 不可用？）：{exc}", EXIT_PRECONDITION) from exc
-        if p.returncode != 0:
-            raise OpsError("RSA 加密失败（openssl 不可用？）", EXIT_PRECONDITION)
-        return base64.b64encode(p.stdout).decode("ascii")
-    finally:
-        try:
-            os.unlink(pem_path)
-        except OSError:
-            pass
+    """明文 -> PKCS#1 v1.5 -> base64（密文恒 128 字节 / 172 字符）。
+
+    唯一实现在 `core/crypto.py`（纯标准库）；本函数只负责取当前环境公钥。
+    """
+    return crypto.rsa_encrypt(cfg().pubkey_b64, plaintext.encode("utf-8"))
 
 
 def pubkey_fingerprint() -> str:

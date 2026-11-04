@@ -30,6 +30,7 @@
 """
 from __future__ import annotations
 
+import contextlib
 import importlib
 import json
 import os
@@ -361,8 +362,15 @@ def main(argv: list[str] | None = None) -> int:
             if not domain_args or all(a.startswith("-") for a in domain_args):
                 domain_args = ["help"]
 
-        rc = _dispatch(domain, domain_args)
+        if ctx.json_mode:
+            # 历史实现（web 发版 / buildx / sentinel 等）仍用 print 打进度：把 stdout
+            # 临时导向 stderr，保证 stdout 只有一条信封——契约由入口强制，不靠各域自觉。
+            with contextlib.redirect_stdout(sys.stderr):
+                rc = _dispatch(domain, domain_args)
+        else:
+            rc = _dispatch(domain, domain_args)
         rc = rc if isinstance(rc, int) else EXIT_OK
+
         if ctx.json_mode:
             elapsed = int((time.monotonic() - t0) * 1000)
             if rc == EXIT_OK:

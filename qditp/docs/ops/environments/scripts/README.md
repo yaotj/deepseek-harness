@@ -40,12 +40,13 @@ scripts/
 │   │   ├── version.py             版本算法真源（末位 +1 / >99 进位 / debug 哨兵）
 │   │   ├── environments.py        环境 profile 单一真源（hongdao / test）
 │   │   ├── remote.py              ssh 跳板助手（TTY 纪律 / 参数转义）
-│   │   └── runtime.py             本机执行 / 写门 require_yes / 依赖检查 / 仓库根断言
+│   │   ├── runtime.py             本机执行 / 写门 require_yes / 依赖检查 / 仓库根断言
+│   │   └── crypto.py              RSA PKCS#1 v1.5 唯一实现（CloudOS 登录口令）
 │   ├── cloudos/                 CloudOS API 客户端（auth / http / image / pkg）
 │   ├── buildx/                  镜像构建实现（core.py + __main__.py，可 python -m 直调）
 │   ├── sentinel/                路由哨兵部署实现（core.py + __main__.py）
 │   └── web/                     前端发版 / 挂载实现
-├── tests/                      stdlib unittest（30 例：版本算法 / 环境 / CLI 契约 / 注册表 / 直调）
+├── tests/                      stdlib unittest（41 例：版本 / 环境 / CLI 契约 / 注册表 / 直调 / 隔离 / 加密）
 ├── buildx.Dockerfile          共享构建模板（NEVER 写 ENTRYPOINT/CMD，理由见文件头与 IT-031）
 ├── analysis/                  count-endpoints.py 本体（由 commands/analysis.py 调度，勿直接跑）
 ├── hosts/                     ★ 跑在远端机器上的脚本本体（NEVER 在本机执行）
@@ -233,7 +234,9 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
    0 成功 / 2 用法 / 3 前置 / 4 传输 / 5 执行 / 6 缺 --yes。NEVER 静默继续。
 2. **人机输出分流**：人看的结果走 `ui.out()`（stdout）、日志/横幅走 `ui.log_*`（stderr，TTY 才着色）；
    `--json` 模式 stdout 只有 cli 打的一条信封（`{ok, command, data, error}`），机器载荷走 `ui.result()`。
-3. **远端参数转义**用 `remote.quote_args`（shlex.quote），NEVER 直接拼裸参数。
+   **兜底由入口强制**：`-o json` 分发期间 stdout 被临时导向 stderr（`contextlib.redirect_stdout`），
+   域里残留的 `print` 污染不了信封；新代码仍 MUST 用 `ui.*`，别依赖兜底。
+3. **远端参数转义**用 `remote_quote_args`（shlex.quote），NEVER 直接拼裸参数。
 4. **跟踪类命令**（`log tail -f`）NEVER 合并进非 TTY 通道——`remote_exec_tty` 的伪终端是刷新/Ctrl+C/颜色的前提。
 5. **新增 API 模块**按域建 `itpops/cloudos/<域>.py`，只封装本仓用到的端点，docstring 写清前缀与易错点。
 6. **域契约**：`itpops/commands/<域>.py` 暴露 `main(args) -> int` + `CATALOG`（自描述注册表，
@@ -241,7 +244,9 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
    `_DOMAIN_MODULES` 登记。
 7. **token 缓存**按环境分文件（`/tmp/.cloudos-<env>.token`，格式 `<时间戳> <token>`，与旧 bash 互读兼容）。
 8. **改包 MUST 跑单测**：`cd docs/ops/environments/scripts && python3 -m unittest discover -s tests`
-   （30 例覆盖版本算法 / 环境 profile / CLI 契约 / 注册表 / python -m 直调；纯 stdlib，无需装依赖）。
+   （41 例覆盖版本算法 / 环境 profile / CLI 契约 / 注册表 / 直调 / JSON 隔离 / 加密 / ui 开关；纯 stdlib）。
+9. **加密只有一处**：RSA PKCS#1 v1.5 唯一实现在 `itpops/core/crypto.py`，
+   `cloudos/auth`、`buildx`、`web` 一律调用它——NEVER 复制粘贴一份（2026-11-04 review 已清掉 3 份重复）。
    `pyproject.toml` 另有 `[tool.pytest.ini_options]`，装了 pytest 也能直接 `pytest`。
 
 ## 五、使用纪律
