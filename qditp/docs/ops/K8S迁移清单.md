@@ -132,7 +132,7 @@ Service 侧两个坑：
 - `testngbackV2` 测试回调地址：`pay-sign`（sign-result / termination-result）、`collect-pay`（3 条 notice-app-*）、`daily-ticket`（2 条）、`face-pay`（4 条 NOTIFY_APP_*）、`ticket-server`（industry-data / counting-ticket-times）、`account`（employee-card.app-register-url）。**迁生产前 MUST 全换成甲方 APP 的正式地址**。
 - `knife4j.production=false`（15 个服务，接口文档对外可见）、`web-admin` 的 `spring.datasource.druid.statViewServlet.enabled=true` + `spring.devtools.restart.enabled=true` + `logging.level.com.chinasofti.huateng=debug`、`account` 的 `account.card-pool.debug-manual-allocate=true` + `debug-manual-card-id`（**开着会绕过真实卡池分配**）。这些都是测试期取向，**生产集群 MUST 逐条复核**。
 
-**⑤ 密钥治理**：**仓库侧配置保持明文真值作为默认值**（`${ENV_VAR:<明文>}` 形态，如 `other.sql.password=${DB_PASSWORD:itp!#usr4726}`）——仓库是唯一真源（2026-10-26 用户裁定），MUST NOT 把默认值清成 `${ENV_VAR:}` 空串、也 MUST NOT 改成「运行时另找 DBA 现取」。集群侧怎么注入（K8s Secret + `envFrom`/`secretKeyRef` vs 明文 env 内联）是**运行时承载方式**的选择，与真源口径无关，两种都允许——真源永远在仓库。异网迁移是唯一「不改代码就能换掉全部凭据」的窗口——**新环境 MUST 换新口令，NEVER 照搬旧值；换完后 MUST 同步回写仓库**（各模块 `application.properties` 默认值 + `docs/ops/environments/跨环境共性.md` §三真源表 + `scripts/lib/cloudos-auth.sh` 默认值），否则仓库与集群会脱节。
+**⑤ 密钥治理**：**仓库侧配置保持明文真值作为默认值**（`${ENV_VAR:<明文>}` 形态，如 `other.sql.password=${DB_PASSWORD:itp!#usr4726}`）——仓库是唯一真源（2026-10-26 用户裁定），MUST NOT 把默认值清成 `${ENV_VAR:}` 空串、也 MUST NOT 改成「运行时另找 DBA 现取」。集群侧怎么注入（K8s Secret + `envFrom`/`secretKeyRef` vs 明文 env 内联）是**运行时承载方式**的选择，与真源口径无关，两种都允许——真源永远在仓库。异网迁移是唯一「不改代码就能换掉全部凭据」的窗口——**新环境 MUST 换新口令，NEVER 照搬旧值；换完后 MUST 同步回写仓库**（各模块 `application.properties` 默认值 + `docs/ops/environments/跨环境共性.md` §三真源表 + `docs/ops/environments/scripts/itpops/cloudos/auth.py` 的 `_PROFILES` 与 `docs/ops/environments/scripts/itpops/web/frontend_release.py` 的 `_profile()` 默认值），否则仓库与集群会脱节。
 
 ### 2.3 入向路由与对外契约
 

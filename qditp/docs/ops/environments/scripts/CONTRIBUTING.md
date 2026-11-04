@@ -43,7 +43,7 @@ cd ../../../../ && python3 docs/提示词/lint-prompts.py   # 在 qditp/ 仓根�
    `_DOMAIN_MODULES` 登记。
 7. **token 缓存**按环境分文件（`/tmp/.cloudos-<env>.token`，格式 `<时间戳> <token>`，与旧 bash 互读兼容）。
 8. **改包 MUST 跑单测**：`cd docs/ops/environments/scripts && python3 -m unittest discover -s tests`
-   （136 例覆盖版本算法 / 环境 profile / CLI 契约 / 注册表 / 直调 / JSON 隔离 / 加密 /
+   （139 例覆盖版本算法 / 环境 profile / CLI 契约 / 注册表 / 直调 / JSON 隔离 / 加密 /
    ui 开关 / bump / 端点 / YAML / 布局与委托 / cloudos 业务判据；纯 stdlib，无需 pytest）。
 9. **加密只有一处**：RSA PKCS#1 v1.5 唯一实现在 `itpops/core/crypto.py`，
    `cloudos/auth`、`buildx`、`web` 一律调用它——NEVER 复制粘贴一份（2026-11-04 review 已清掉 3 份重复）。
@@ -74,7 +74,8 @@ cd ../../../../ && python3 docs/提示词/lint-prompts.py   # 在 qditp/ 仓根�
    集群实况快照在**上一层** `docs/ops/environments/snapshots/{test,hongdao}/`（按环境分层，
    与 scripts 平级——它们不是脚本，是抓取产物）。
 6. **敏感值口径（2026-10-26 用户裁定，本项目唯一真源）**：**仓库内的明文口令与配置即唯一真源**，
-   脚本默认值直列不掩码——`lib/cloudos-auth.sh` 的 `CLOUDOS_PASSWORD`、迁移 SQL 的 `IDENTIFIED BY`、
+   脚本默认值直列不掩码——`itpops/cloudos/auth.py` 的 `_PROFILES` 与
+   `itpops/web/frontend_release.py` 的 `_profile()` 中 CloudOS 口令、迁移 SQL 的 `IDENTIFIED BY`、
    校验脚本的 `ITP_DB_PASSWORD` 都有仓库内现值，**MUST NOT 改成「必须外部提供 / 缺失即退出」**；
    环境变量只作**可选覆盖**（临时改密 / 试别的账号），不设也能跑。跨环境真源表见
    `docs/ops/environments/跨环境共性.md` §三。

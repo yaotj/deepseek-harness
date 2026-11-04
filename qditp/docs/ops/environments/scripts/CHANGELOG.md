@@ -3,6 +3,24 @@
 > 2026-11-04 由 `README.md`「六、重构与迁移记录」拆出，历史条目按**新 → 旧**排列、内容逐字保留。
 > 版本号真源是 `itpops/__init__.py` 的 `__version__`（`pyproject.toml` 动态读取）。
 
+## 2.9.3 — 2026-11-04 整体一致性 review：修现行文档改密同步点
+
+- 用户「继续」→ 做一轮整体收尾审查：版本真源（2.9.3）/ 单测数（139）三处一致、
+  CATALOG 与 registry 域清单一致、根帮助覆盖 12 域、`lib/` 目录确已删除。
+- **实质发现**：Python 化重构删掉 `scripts/lib/cloudos-auth.sh` 后，6 份**现行约束文档**的
+  「改密同步点」仍指向该文件：`跨环境共性.md` §三（真源表 + 口令说明）、`红岛.md`（CloudOS 账号行）、
+  `环境总览.md`、`K8S迁移清单.md` §2.2、`构建与发布.md` §三脚本落点标注、`CONTRIBUTING.md` 敏感值口径。
+  全部改指当前真源 `itpops/cloudos/auth.py` 的 `_PROFILES` 与
+  `itpops/web/frontend_release.py` 的 `_profile()`；迁移 SQL 路径同步为完整仓内路径。
+  历史叙述（reviews / reports / tracking / CHANGELOG）保留当时口径不动。
+- 同步项目长期记忆中「敏感值口径」一节的改密同步点。
+- 新增 `tests/test_docs.py`（2 例）：现行约束文档 MUST 不含已删路径且 MUST 指向当前真源；
+  README §一~§六 机检锚点 MUST 保留。`tests/test_registry.py` 新增 1 例：根帮助 MUST 列出
+  registry 全部域（防止新增域漏同步硬编码列表）。
+- 单测 136 → 139；11 域 help 逐字节一致、compileall / bash -n / 补全 bash -n / zsh -n、
+  lint-prompts ERROR 0（WARN 211 未增）。
+- 纯离线改动，未触碰环境。
+
 ## 2.9.2 — 2026-11-04 Tab 补全支持模块目录
 
 - 用户要「模块也要支持 tab 补全」：此前 `flow backend <Tab>` 只补 flag，补不出 `face-pay-server` 等模块名。

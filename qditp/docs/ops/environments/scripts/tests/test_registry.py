@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import unittest
 
-from support import run_json
+from support import run_cli, run_json
 
 from itpops.cli.registry import build_catalog, load_domains
 
@@ -20,6 +20,13 @@ class RegistryTest(unittest.TestCase):
         for d in load_domains():
             self.assertEqual(d["status"], "ok", d["name"])
             self.assertTrue(d.get("summary"), d["name"])
+
+    def test_root_help_lists_every_domain(self):
+        """防止新增域时忘了同步 cli/main.py 里硬编码的根帮助列表。"""
+        r = run_cli("-h")
+        self.assertEqual(r.returncode, 0)
+        for name in EXPECTED_DOMAINS:
+            self.assertIn(name, r.stdout, f"根帮助缺少域 {name}")
 
     def test_web_has_two_subcommands(self):
         web = next(d for d in load_domains() if d["name"] == "web")
