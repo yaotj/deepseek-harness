@@ -246,7 +246,10 @@ function load() {
       health.devices = { online: summary.onlineCount ?? '-', total: summary.total ?? '-' }
       return summary.total ?? null
     }),
-    track('jobTotal', listJob({ pageNum: 1, pageSize: 1 }), (r) => Number(r.total ?? 0)),
+    track('jobTotal', listJob({ pageNum: 1, pageSize: 1 }), (r) => {
+      health.jobs = { total: Number(r.total ?? 0) }
+      return Number(r.total ?? 0)
+    }),
     track('serviceTotal', listServiceStatus(), (r) => {
       health.services = { up: r.upCount ?? '-', total: r.total ?? '-' }
       return r.total ?? null
