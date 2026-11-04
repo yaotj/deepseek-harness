@@ -61,10 +61,18 @@ const NON_FILTER_KEYS = ['pageNum', 'pageSize', 'params', 'queryType', 'keyword'
 
 const rangeCaption = computed(() => describeRange(props.range, props.valueFormat))
 
+/**
+ * 数「真正生效的筛选条件」。
+ *
+ * 数组值一律不算——它是时间区间，已经在「当前范围」里单独回显了。
+ * 若把它计成筛选条件，凡是把区间放在同一个查询对象里的页面
+ * （control-log / blacklist / card-pool…）一进页面就走「无匹配结果」分支，
+ * 最该出现的「放宽到近 30 天」引导反而永远看不到（2026-11-04 线上实测踩到）。
+ */
 const activeFilterCount = computed(() =>
   Object.entries(props.filters || []).filter(([key, value]) => {
     if (NON_FILTER_KEYS.includes(key)) return false
-    if (Array.isArray(value)) return !isEmptyRange(value)
+    if (Array.isArray(value)) return false
     return value !== '' && value !== null && value !== undefined
   }).length
 )
