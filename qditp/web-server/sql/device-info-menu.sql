@@ -1,4 +1,5 @@
--- 「设备管理」页面菜单（挂「参数管理」目录 parent_id = 2003 下，如现场目录 ID 不同 MUST 调整）。
+-- 「设备管理」页面菜单（挂「参数管理」目录下；目录 ID 用名称动态取——2026-11-04 测试库实测
+-- 该目录 menu_id=2000，仓库内部分旧菜单 SQL 硬编码的 2003 在测试库并不存在，NEVER 照抄）。
 --
 -- 页面：web/src/views/para/device/index.vue，数据来源 para-server TBL_DEVICE_INFO
 -- （ACC 设备台账镜像 + 业主自定义管理模式：01 正常使用 / 02 节能关机）。
@@ -14,14 +15,18 @@
 -- F 型行的 parent_id 动态引用 C 行取号结果，保证三行落在同一父节点下。
 -- 数值列（MENU_ID / PARENT_ID / ORDER_NUM / IS_FRAME / IS_CACHE）写数字字面量而非字符串（库内是 NUMBER）。
 --
+-- 执行记录：2026-11-04 已在测试库 AFCITPDB 执行（qditp），三行均落库、C 行父目录取「参数管理」实际 2000。
+--
 -- 执行后回查：
 --   select menu_id, menu_name, parent_id, path, component, route_name, perms from sys_menu
 --   where perms like 'para:device:%' order by menu_id;
 -- 回滚（三行均由本文件新增，可安全删除；菜单无缓存、删后即时生效，无需重启）：
 --   delete from sys_menu where perms in ('para:device:query', 'para:device:edit', 'para:device:sync');
 insert into sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)
-select (select max(menu_id) + 1 from sys_menu), '设备管理', 2003,
-       (select nvl(max(order_num), 0) + 1 from sys_menu where parent_id = 2003),
+select (select max(menu_id) + 1 from sys_menu), '设备管理',
+       (select menu_id from sys_menu where menu_name = '参数管理' and menu_type = 'M' and rownum = 1),
+       (select nvl(max(order_num), 0) + 1 from sys_menu where parent_id =
+           (select menu_id from sys_menu where menu_name = '参数管理' and menu_type = 'M' and rownum = 1)),
        'device-info', 'para/device/index', '', 'DeviceInfo', 1, 0, 'C', '0', '0', 'para:device:query', 'monitor', 'admin', sysdate, '', null, 'ACC设备台账查询与业主自定义管理模式（正常使用/节能关机）维护'
 from dual
 where not exists (select 1 from sys_menu where perms = 'para:device:query');

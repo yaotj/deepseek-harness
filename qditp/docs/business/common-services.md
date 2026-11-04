@@ -179,7 +179,9 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 - 幂等形态是 **MERGE INTO ON DEVICE_ID**（与 F2F 心跳同款），逐条提交、无整体事务，中途失败重跑补齐；同步**NEVER 物理删除**——ACC `isDeleted` 落 `ACC_IS_DELETED='1'` 软删标记。
 - 触发三条：`POST /para/device-sync/quartz`（web-server `sys_job` 405 种子 SQL `web-server/sql/device-info-sync-job.sql`，`paraQuartzTask.syncDevice()`，cron 每日 03:00，种子行**默认暂停**）、`POST /page/device/sync`（综管台「立即同步」按钮）、页面批量设模式 `PUT /page/device/manage-mode`（码值白名单 `01`/`02`，单批 ≤1000 台）。
 - 菜单种子 SQL `web-server/sql/device-info-menu.sql`（挂「参数管理」2003，perms `para:device:query/edit/sync`）；前端 `web/src/views/para/device/index.vue` + 码表 `web/src/utils/deviceManageMode.js`（**管理模式码值空间独立**，NEVER 并进 payChannel/cardType/f2fChannel）。设备**在线监控**不落本表：AGM 联查 `AGM_DEVICE_STATUS`、TVM/BOM 联查 `F2F_DEVICE_STATUS`，在线态一律以落库 `ONLINE_FLAG` 为准。
-- 待办：真实建库（测试库演练→生产审批）未执行（2026-10-22 本机未联网）；`AGM_DEVICE_STATUS`（IF1A-03）建表未落地，联查前 MUST 确认。
+- 落库与发版进展（2026-11-04 测试库 AFCITPDB + 测试环境 K8s 实测，全链路已闭环）：`TBL_DEVICE_INFO`（表 + 3 索引 + 注释）已建；菜单三行落 menu_id 2102/2103/2104、父目录取「参数管理」**实际 2000**（旧菜单 SQL 硬编码的 2003 在测试库不存在，动态按名称取父 ID）；`sys_job` 动态取号落 **410**（405 已被「异步导出任务调度」占用，取号动态 max+5 自动避开）。para-server **2.0.36**（digest `55499b21`）与 web-admin **1.1.57**（digest `179e9603`）已上测试环境，para-server env 已注入 `ACC_DEVICE_API_URL` + `PARA_DEVICE_SYNC_PAGE_SIZE=10000`；同步链路实测 **5977 台全量入库**（8 类设备 / 143 站，唯一数 5977=5977），job 410 已启用（每日 03:00）。
+- ⚠ **ACC 小页分页缺陷（IT-060）**：pageSize=500 时接口每页实返约 1500 且页间重叠约 3000 条、漏 1477 台；**同步 MUST 用大页（≥10000）一次拉全，NEVER 依赖 ACC 小页分页**，`page-size` 由 env `PARA_DEVICE_SYNC_PAGE_SIZE` 控制；对接 ACC 其它分页接口前先做唯一数比对。
+- 待办：前端综管台 1.2.44.18 已上测试（设备管理页在「参数管理」目录）；`AGM_DEVICE_STATUS`（IF1A-03）建表未落地，联查前 MUST 确认；红岛/生产建库与发版走审批。
 
 ---
 

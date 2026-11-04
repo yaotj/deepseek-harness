@@ -24,8 +24,12 @@ public class ParaDeviceSyncProperties {
      */
     private List<String> manageLevels = new ArrayList<>(List.of("04"));
 
-    /** 每页拉取条数。 */
-    private int pageSize = 500;
+    /**
+     * 每页拉取条数。⚠ ACC 小页分页实测有缺陷（2026-11-04：pageSize=500 时每页实返 1500 且页间
+     * 重叠 3000 条、漏 1477 台，唯一 4500 < 实际 5977），MUST 用 ≥ 全量的大页一次拉完，
+     * 由 env PARA_DEVICE_SYNC_PAGE_SIZE 覆盖；循环分页逻辑仅作兜底保留。
+     */
+    private int pageSize = 10000;
 
     /** 连接超时（毫秒）。 */
     private int connectTimeoutMillis = 10000;

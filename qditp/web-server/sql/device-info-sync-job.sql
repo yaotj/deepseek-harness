@@ -1,17 +1,20 @@
 -- 设备台账同步定时任务种子 SQL（web-server Quartz -> ParaQuartzTask.syncDevice() -> para-server /para/device-sync/quartz）。
 --
--- 取号依据：docs/architecture/web-server.md §七 现行 sys_job 全量清单（2026-10-13 查库实测 33 条，
--- 现行最大 job_id = 400），业务任务编号 200~400 区间步长 5，本任务取 405。
--- 取号仍用 select max+1 + not exists 双保险，NEVER 只信注释里的号段。
+-- 取号依据：docs/architecture/web-server.md §七 sys_job 清单 + 测试库实测。业务任务编号 200~ 步长 5；
+-- 2026-11-04 测试库实测 405 已被「异步导出任务调度」占用（文档清单当时未收录），本任务动态 max+5 落 **410**
+-- ——这正是取号 NEVER 写死号段的实证，后续文档清单 MUST 以查库实测为准。
+-- 取号用 select max+5 + not exists 双保险，NEVER 只信注释里的号段。
 --
 -- cron 说明：每日 03:00，错开 225 对账（02:00）、260 销卡（02:30）、215 解约确认（04:00）。
 --
--- status 刻意写 '1'（暂停）：代码尚未部署时任务不应被调度；para-server 发版后先在
+-- status 刻意写 '1'（暂停）：para-server 侧代码尚未发版时任务不应被调度；发版后先在
 -- 「监控管理 -> 定时任务」对该任务「执行一次」，调度日志确认 retCode=0000 后再切「正常」。
 -- 注意 Quartz 是内存 JobStore：直接 INSERT 本行不重启 web-admin 不生效（见 web-server.md §7.0.1）。
 --
 -- 清单外的列取值一律照现有行抄：job_group='DEFAULT'、misfire_policy='3'（错过不补跑）、
 -- concurrent='1'（'0' 才是允许并发）、create_by='admin'。
+--
+-- 执行记录：2026-11-04 已在测试库 AFCITPDB 执行（qditp），动态取号落 job_id=410，status 暂停。
 --
 -- 执行后回查：
 --   select job_id, job_name, invoke_target, cron_expression, status from sys_job where invoke_target like 'paraQuartzTask.syncDevice%';
