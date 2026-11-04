@@ -878,6 +878,83 @@ class _PlanError(Exception):
     """_deploy_plan 的校验失败（stderr 已打具体原因）。"""
 
 
+def _k8s_deploy_for_cloudos(app_name: str) -> dict | None:
+    """从 k8s-master 取当前 Deployment 并按 CloudOS advanced-config 可接受形态清理。
+
+    某些通过 kubectl 直接创建、后被 CloudOS 发现的应用（如 route-sentinel），
+    PATCH advanced-config 必须携带 resources，否则平台内部校验报 5000010。
+    正常应用亦可接受该字段，故部署时统一带上当前 k8s Deployment 快照。
+    取失败仅返回 None，由调用方决定是否继续（不阻塞常规发布）。
+    """
+    try:
+        import subprocess
+        ns = envx.current().k8s_ns
+        cmd = ["ssh", "-o", "ConnectTimeout=15", "k8s-master",
+               f"kubectl -n {ns} get deploy {app_name} -o json"]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if r.returncode != 0:
+            _warn(f"取当前 Deployment 失败：{r.stderr.strip()[:200]}")
+            return None
+        dep = json.loads(r.stdout[r.stdout.find("{"):])
+    except Exception as exc:
+        _warn(f"取当前 Deployment 异常：{exc}")
+        return None
+
+    try:
+        ps = dep["spec"]["template"]["spec"]
+
+        def pick(d, keys, defaults=None):
+            out = {}
+            defaults = defaults or {}
+            for k in keys:
+                if k in d:
+                    out[k] = d[k]
+                elif k in defaults:
+                    out[k] = defaults[k]
+            return out
+
+        containers = []
+        for c in ps.get("containers") or []:
+            containers.append(pick(
+                c,
+                ["args", "command", "env", "image", "imagePullPolicy", "name", "ports",
+                 "resources", "securityContext", "volumeMounts", "lifecycle",
+                 "livenessProbe", "readinessProbe", "startupProbe"],
+                {"ports": [], "volumeMounts": [], "lifecycle": None},
+            ))
+        pod = pick(
+            ps,
+            ["containers", "dnsPolicy", "initContainers", "restartPolicy", "schedulerName",
+             "securityContext", "serviceAccount", "serviceAccountName",
+             "terminationGracePeriodSeconds", "volumes", "imagePullSecrets", "nodeSelector",
+             "affinity", "tolerations", "hostNetwork"],
+            {"initContainers": [], "volumes": [], "securityContext": {}, "dnsPolicy": "ClusterFirst",
+             "restartPolicy": "Always", "schedulerName": "default-scheduler"},
+        )
+        pod["containers"] = containers
+        return {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "labels": dep["metadata"].get("labels") or {"app": dep["metadata"]["name"]},
+                "name": dep["metadata"]["name"],
+                "namespace": dep["metadata"]["namespace"],
+            },
+            "spec": {
+                "replicas": dep["spec"]["replicas"],
+                "selector": dep["spec"]["selector"],
+                "template": {
+                    "metadata": {"labels": dep["spec"]["template"]["metadata"].get("labels")
+                                 or {"app": dep["metadata"]["name"]}},
+                    "spec": pod,
+                },
+            },
+        }
+    except Exception as exc:
+        _warn(f"清理 Deployment 失败：{exc}")
+        return None
+
+
 def _deploy_plan(key: str, image_arg: str, version_override: str, running_img: str) -> tuple[dict, dict]:
     """读现状，产出 (plan, body)。失败抛 _PlanError（具体原因已落 stderr）。"""
     uuid = resolve_app_uuid(key)
@@ -950,6 +1027,11 @@ def _deploy_plan(key: str, image_arg: str, version_override: str, running_img: s
         "env": env,
         "is_skywalking": bool(m.get("is_skywalking") or False),
     }
+    # 对 kubectl 直接创建、后被 CloudOS 发现的应用，advanced-config PATCH 必须带 resources，
+    # 否则平台内部校验会报 application.5000010（route-sentinel 实测）。
+    deploy_obj = _k8s_deploy_for_cloudos(app.get("name") or key)
+    if deploy_obj is not None:
+        body["resources"] = [None, deploy_obj]
     # version_id 只在平台确实有、且形态是 uuid 时才带（测试环境坑见 docstring）
     vid = (m.get("version_id") or "").strip()
     if vid and not re.fullmatch(r"[0-9a-fA-F]{32}|[0-9a-fA-F-]{36}", vid):
@@ -1068,6 +1150,7 @@ def _app_deploy(argv: list[str]) -> int:
     ui.out("  策略/副本   %s / %s   容器 %s" % (
         plan["strategy"], plan["replicas"], plan["container_name"] or "未设置"))
     ui.out("  env         %s 项全量原样回传（平台是整份覆盖，漏一条=删一条）" % plan["env_n"])
+    ui.out("  resources   %s" % ("携带当前 k8s Deployment 快照" if "resources" in body else "未携带（取 Deployment 失败）"))
     ui.out("")
     ui.out("  将提交的 body：")
     ui.out(json.dumps(body, ensure_ascii=False, indent=2)[:1200] + " ...")

@@ -26,13 +26,13 @@
 
 | 项 | 现状 |
 |---|---|
-| artifactId | `org.qd:route-sentinel:1.0.8`（`route-sentinel/pom.xml`）；测试环境当前 `1.0.8`、红岛待升级 `1.0.5` |
+| artifactId | `org.qd:route-sentinel:1.0.9`（`route-sentinel/pom.xml`）；测试环境当前 `1.0.9`、红岛待升级 `1.0.5` |
 | Spring Cloud 版本 | `2025.1.2`，网关实现用 `spring-cloud-starter-gateway-server-mvc`（同步 Servlet 栈） |
 | 主类 | `org.qd.scg.UserRouteGatewayApplication` |
 | JDK 版本 | **21**（2026-10-26 由 Java 25 降级，与 qditp 主体基线一致）。降级已实测：字节码 major 65、22 个测试全过；依赖侧无需改动（spring-boot 4.0.7 / spring-core 7.0.8 / gateway-webmvc 5.0.2 全为 Java 17 字节码） |
 | 容器端口 | `8080`（Deployment `SERVER_PORT=8080`，Service `route-sentinel-svc:8080`） |
 | 基础镜像 | 测试 `itp/jdk:21`；红岛 `os-harbor-svc.default.svc.cloudos:443/itpb/jdk21:1.0.0`（itpb 项目**唯一**公共 JDK 镜像，2026-10-26 实测 itpb ns 内拉取成功，`java version 21.0.1`） |
-| 已部署镜像 | 测试 `os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.8`（`deploy/k8s/10-deployments/route-sentinel.yaml`）；红岛待升级 `1.0.5` |
+| 已部署镜像 | 测试 `os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.9`（`deploy/k8s/10-deployments/route-sentinel.yaml`）；红岛待升级 `1.0.5` |
 | 上游入口 | `fep-app-vr` 把下面 **5 条精确路径**（`uri.exact`）打到 `route-sentinel-svc:8080`；**其余** `/itptvm/**`、`/itpbom/**` 端点仍由前缀路由直连 `face-pay-server-svc:30025`，不进 SCG |
 | 数据库 | 测试直连 `AFCITPDB`（schema `QDITP`）；红岛按域分库后 `USER_ITP_REG_INFO` → `QDITP_USER`（`itp_ro` 只读）、`GATEWAY_ROUTE_CONFIG` → `QDITP_PLAT`（**红岛两表尚未建，见 [IT-021](../tracking/IT-021-红岛网关路由表缺失.md)，是部署前置阻塞**） |
 
@@ -177,6 +177,16 @@ DB_PASSWORD: <secret:itp-secrets/DB_PASSWORD>
 ```
 
 > 注意：本地配置写 `server.port: 9999`，但 K8s 通过 `SERVER_PORT=8080` 覆盖；Service `targetPort=8080` 必须与之一致。
+
+### 测试环境发版
+
+推荐链：`itp-ops.sh buildx route-sentinel <version> --env test` 出镜像 → `itp-ops.sh cloudos deploy route-sentinel <version> --env test --yes` 切镜像。
+
+**历史坑点（2026-11-04 修复）**：route-sentinel 最初通过 `kubectl` 直接部署，CloudOS 发现后 `metadata.image_metadata` 不完整；`cloudos deploy` 下发的 `PATCH /apps/{uuid}/advanced-config` 因缺少 `resources` 字段报 `application.5000010`。修复方式：
+
+- `itpops/commands/cloudos.py` 的 `cloudos deploy` 现在会现查当前 k8s Deployment、清理后作为 `resources` 一并 PATCH；
+- 已用该链路把测试环境 route-sentinel 从 `1.0.8` 成功升级到 `1.0.9`；
+- 若仍失败，可回退到 `kubectl set image deployment/route-sentinel ... -n itp`。
 
 ## 回滚与降级
 
