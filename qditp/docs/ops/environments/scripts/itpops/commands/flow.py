@@ -23,9 +23,9 @@ CATALOG = {
          "stdout_human": "===== 可用工作流（flow）===== …",
          "json_data": {"flows": [{"name": "backend"}]}},
         {"name": "backend",
-         "usage": "flow backend <模块目录> [--app <应用>] [--image <镜像>] [--version <v>] [--jar <p>] [--dockerfile <p>] [--yes]",
+         "usage": "flow backend <模块目录|--module <目录>> [--app <CloudOS应用>] [--image <镜像名>] [--version <v>] [--jar <p>] [--dockerfile <p>] [--yes]",
          "summary": "后端一键发布：自检 → bump → 出 fat jar → tag 占用检查 → 平台 x86 出镜像 → deploy 预演 → 切镜像收敛",
-         "args": [{"name": "模块目录", "required": True},
+         "args": [{"name": "模块目录 / --module", "required": True},
                   {"name": "--app", "required": False}, {"name": "--image", "required": False},
                   {"name": "--version", "required": False}, {"name": "--jar", "required": False},
                   {"name": "--dockerfile", "required": False},
@@ -55,7 +55,7 @@ CATALOG = {
     ],
 }
 
-_VALUE_FLAGS = ("--app", "--image", "--version", "--size", "--jar", "--dockerfile")
+_VALUE_FLAGS = ("--module", "--app", "--image", "--version", "--size", "--jar", "--dockerfile")
 _BOOL_FLAGS = ("--bump", "--debug", "--skip-build", "--allow-prod")
 
 
@@ -93,6 +93,9 @@ def main(args: list[str]) -> int:
             ui.out("  %-10s %s" % (name, summary))
             ui.out("             %s" % usage)
         ui.out("")
+        ui.out("  backend 的位置参数 = 仓库根下的模块目录名（如 face-pay-server）；"
+               "CloudOS 应用名用 --app、Harbor 镜像名用 --image 单独指定，也可用 --module 代替位置参数。")
+        ui.out("")
         ui.out("不加 --yes 只列步骤（离线可预演）；确认执行加 --yes；"
                "红岛生产另需 --allow-prod。默认环境 test。")
         ui.result({"flows": [{"name": n, "summary": s, "usage": u} for n, s, u in rows],
@@ -102,13 +105,18 @@ def main(args: list[str]) -> int:
     positional, opts = _parse(args[1:])
     opts["env"] = env
     if sub == "backend":
-        if not positional:
-            raise OpsError("用法：flow backend <模块目录> [--env test] [--yes]", EXIT_USAGE)
-        opts["module"] = positional[0]
+        if len(positional) > 1:
+            raise OpsError(f"多余位置参数：{positional[1:]}", EXIT_USAGE)
+        opts["module"] = positional[0] if positional else opts.get("module")
+        if not opts["module"]:
+            raise OpsError("用法：flow backend <模块目录> 或 --module <目录>（如 face-pay-server）；"
+                           "CloudOS 应用名另用 --app 指定", EXIT_USAGE)
     elif sub == "jvm":
-        if not positional:
-            raise OpsError("用法：flow jvm <应用> [--size 4Gi|8Gi] [--yes]", EXIT_USAGE)
-        opts["app"] = positional[0]
+        if len(positional) > 1:
+            raise OpsError(f"多余位置参数：{positional[1:]}", EXIT_USAGE)
+        opts["app"] = positional[0] if positional else opts.get("app")
+        if not opts["app"]:
+            raise OpsError("用法：flow jvm <应用> 或 --app <应用> [--size 4Gi|8Gi] [--yes]", EXIT_USAGE)
     elif sub != "frontend":
         raise OpsError("未知工作流：%s（可用 flow list）" % sub, EXIT_USAGE)
 

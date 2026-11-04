@@ -61,6 +61,30 @@ class CliFlowTest(unittest.TestCase):
         self.assertEqual(r.returncode, EXIT_USAGE)
 
 
+    def test_app_name_as_module_is_rejected_early(self):
+        r = run_cli("flow", "backend", "face-pay", "--env", "test")
+        self.assertEqual(r.returncode, EXIT_PRECONDITION)
+        self.assertIn("模块目录不存在", r.stderr)
+        self.assertIn("--app", r.stderr)
+
+    def test_module_flag_can_replace_positional(self):
+        r = run_cli("flow", "backend", "--module", "face-pay-server",
+                    "--app", "face-pay", "--env", "test")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("应用=face-pay", r.stdout)
+
+    def test_jvm_app_flag_alias(self):
+        r = run_cli("flow", "jvm", "--app", "face-pay", "--env", "test")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("cloudos env-set face-pay", r.stdout)
+
+    def test_preview_shows_module_app_image(self):
+        r = run_cli("flow", "backend", "face-pay-server", "--env", "test")
+        self.assertIn("模块=face-pay-server", r.stdout)
+        self.assertIn("应用=face-pay-server", r.stdout)
+        self.assertIn("镜像=face-pay-server", r.stdout)
+
+
 class DefinitionTest(unittest.TestCase):
     def test_backend_has_seven_ordered_steps(self):
         flow = definitions.backend(_opts())

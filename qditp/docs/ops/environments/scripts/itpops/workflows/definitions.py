@@ -25,6 +25,12 @@ def _health(env: str) -> Step:
 
 def backend(o: dict) -> Flow:
     module = o["module"]
+    if not (repo_root() / module).is_dir():
+        raise OpsError(
+            "模块目录不存在：%s（位置参数 / --module 必须是仓库根下的模块目录名，"
+            "如 face-pay-server；CloudOS 应用名请用 --app 单独指定）" % module,
+            EXIT_PRECONDITION,
+        )
     app = o.get("app") or module
     image = o.get("image") or module
     env = o["env"]
@@ -59,7 +65,8 @@ def backend(o: dict) -> Flow:
     ]
     return Flow(
         "backend",
-        "后端一键发布：自检 → bump → 出 jar → 出镜像 → deploy 预演 → 切镜像（%s）" % module,
+        ("后端一键发布：自检 → bump → 出 jar → 出镜像 → deploy 预演 → 切镜像"
+         "（模块=%s 应用=%s 镜像=%s）" % (module, app, image)),
         tuple(steps),
         notes=(
             "{version} 由 bump 步骤产出后自动填入；--version <v> 可显式指定（此时跳过改 pom）。",
@@ -116,7 +123,7 @@ def summarize() -> list[tuple[str, str, str]]:
     """给 `flow list` 用：(名称, 用途, 用法)。"""
     return [
         ("backend", "后端一键发布（自检→bump→jar→镜像→切镜像）",
-         "flow backend <模块目录> [--app <应用>] [--image <镜像>] [--version <v>] [--yes]"),
+         "flow backend <模块目录|--module> [--app <CloudOS应用>] [--image <镜像名>] [--version <v>] [--yes]"),
         ("frontend", "前端一键发布（自检→web release --bump/--debug）",
          "flow frontend [--bump|--debug|--version <v>] [--skip-build] [--yes]"),
         ("jvm", "JVM 三件套一键升级（IT-020，默认 4Gi → 堆 2900m）",
