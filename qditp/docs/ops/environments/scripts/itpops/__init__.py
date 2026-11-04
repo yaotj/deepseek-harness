@@ -19,7 +19,7 @@
 只是调试别名，一律转发 `cli.main`，不另起一套解析/输出契约。
 `pyproject.toml` 另暴露 `itp-ops` console script 供 `pipx install` 后直接使用。
 """
-__version__ = "2.8.2"
+__version__ = "2.9.0"
 
 # 兼容旧引用（v2.0/2.1 时代用 ITP_OPS_VERSION）
 ITP_OPS_VERSION = __version__

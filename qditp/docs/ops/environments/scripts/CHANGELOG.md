@@ -3,6 +3,25 @@
 > 2026-11-04 由 `README.md`「六、重构与迁移记录」拆出，历史条目按**新 → 旧**排列、内容逐字保留。
 > 版本号真源是 `itpops/__init__.py` 的 `__version__`（`pyproject.toml` 动态读取）。
 
+## 2.9.0 — 2026-11-04 纠错提示（did-you-mean）与交互式发布向导
+
+- 承接「需要」：把上一条回复列出的两个缺口都补上。
+- **did-you-mean**：新增 `cli/suggest.py`（SequenceMatcher，先剥 `--` 前缀再比、共同前缀加成），
+  接入 5 处：未知域（`registry.domain_names()`）、未知全局参数、未知工作流、flow 未知参数、
+  cloudos 未知子命令。只增强报错文本、不改退出码；`-o json` 时建议进 `error.message`。
+  实测 `clouods→cloudos`、`apss→apps/app`、`backnd→backend`、`--szie→--size`、
+  `--evn→-e/--env`、`sclae→scale/scale-all`、`--mudule→--module`。
+- **交互式向导 `flow guide`**：问答式生成完整命令并展示该命令的步骤清单，NEVER 执行写操作
+  （生成结果默认不含 `--yes`，也不调用 `runner.run()`）。
+- **阻塞风险修复（实测踩到）**：工具环境里 `stdin.isatty()` 会返回 True，默认交互会让 `input()`
+  挂住并被 SIGTERM（exit 137）。改为**默认非交互**（输出可复制的命令模板），只有显式
+  `-i/--interactive` 且在真实 TTY 才问答；`_ask` 另加 SIGALRM 60s 超时与 EOF/取消兜底。
+  非 TTY / `-o json` 一律降级为命令模板 + 结构化 `data.commands`，管道与自动化都不会被挂住。
+- `flow list` 增补向导提示；CATALOG 新增 `guide` 子命令（帮助与补全自动同步）。
+- 单测 117 → 133（`tests/test_hints.py` 16 例：纠错纯函数与 5 类 CLI 场景、向导非交互/JSON/帮助、
+  TTY 下 backend/frontend/jvm 三条问答、向导不执行步骤、EOF 不挂住）。
+- 纯离线改动，未触碰环境。
+
 ## 2.8.2 — 2026-11-04 补全提示增强（启用说明 + 选项值）
 
 - 用户问「现在输入命令，有提示吗」：核查发现 Tab 补全**已自动同步 flow 域**（bash/zsh 都是 CATALOG 派生），

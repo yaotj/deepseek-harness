@@ -8,9 +8,10 @@
 """
 from __future__ import annotations
 
+from ..cli.suggest import append_hint
 from ..core import ui
 from ..errors import EXIT_USAGE, OpsError
-from ..workflows import definitions, runner
+from ..workflows import definitions, runner, wizard
 
 CATALOG = {
     "name": "flow",
@@ -18,6 +19,12 @@ CATALOG = {
     "default_env": "test",
     "env_note": "flow 默认 test；--env hongdao 生产必须额外 --allow-prod",
     "subcommands": [
+        {"name": "guide", "usage": "flow guide [-i|--interactive]",
+         "summary": "发布向导：默认输出可复制的命令模板；-i 进入交互问答（真实终端）。两者都只生成命令，NEVER 执行写操作",
+         "args": [{"name": "-i / --interactive", "required": False}],
+         "writes": False, "example": "itp-ops.sh flow guide -i",
+         "stdout_human": "===== 一键发布向导 ===== … 已生成命令 …",
+         "json_data": {"interactive": True, "command": "./itp-ops.sh flow backend …"}},
         {"name": "list", "usage": "flow list", "summary": "列出可用工作流与用法",
          "args": [], "writes": False, "example": "itp-ops.sh flow list",
          "stdout_human": "===== 可用工作流（flow）===== …",
@@ -56,7 +63,7 @@ CATALOG = {
 }
 
 _VALUE_FLAGS = ("--module", "--app", "--image", "--version", "--size", "--jar", "--dockerfile")
-_BOOL_FLAGS = ("--bump", "--debug", "--skip-build", "--allow-prod")
+_BOOL_FLAGS = ("--bump", "--debug", "--skip-build", "--allow-prod", "-i", "--interactive")
 
 
 def _parse(args: list[str]) -> tuple[list[str], dict]:
@@ -71,10 +78,13 @@ def _parse(args: list[str]) -> tuple[list[str], dict]:
             opts[a[2:]] = args[i + 1]
             i += 2
         elif a in _BOOL_FLAGS:
-            opts[a[2:].replace("-", "_")] = True
+            opts[a.lstrip("-").replace("-", "_")] = True
             i += 1
         elif a.startswith("-"):
-            raise OpsError(f"未知参数：{a}（flow -h 查看用法）", EXIT_USAGE)
+            raise OpsError(
+                append_hint(f"未知参数：{a}（flow -h 查看用法）", a,
+                            _VALUE_FLAGS + _BOOL_FLAGS + ("--env", "--yes", "--dry-run")),
+                EXIT_USAGE)
         else:
             positional.append(a)
             i += 1
@@ -93,6 +103,7 @@ def main(args: list[str]) -> int:
             ui.out("  %-10s %s" % (name, summary))
             ui.out("             %s" % usage)
         ui.out("")
+        ui.out("  不知道怎么拼命令？./itp-ops.sh flow guide 出命令模板，加 -i 进交互问答（都不执行）。")
         ui.out("  backend 的位置参数 = 仓库根下的模块目录名（如 face-pay-server）；"
                "CloudOS 应用名用 --app、Harbor 镜像名用 --image 单独指定，也可用 --module 代替位置参数。")
         ui.out("")
@@ -101,6 +112,10 @@ def main(args: list[str]) -> int:
         ui.result({"flows": [{"name": n, "summary": s, "usage": u} for n, s, u in rows],
                    "default_env": "test"})
         return 0
+
+    if sub == "guide":
+        _, guide_opts = _parse(args[1:])
+        return wizard.run(interactive=bool(guide_opts.get("interactive") or guide_opts.get("i")))
 
     positional, opts = _parse(args[1:])
     opts["env"] = env
@@ -118,6 +133,9 @@ def main(args: list[str]) -> int:
         if not opts["app"]:
             raise OpsError("用法：flow jvm <应用> 或 --app <应用> [--size 4Gi|8Gi] [--yes]", EXIT_USAGE)
     elif sub != "frontend":
-        raise OpsError("未知工作流：%s（可用 flow list）" % sub, EXIT_USAGE)
+        raise OpsError(
+            append_hint("未知工作流：%s（可用 flow list）" % sub, sub,
+                        [x[0] for x in definitions.summarize()] + ["guide"]),
+            EXIT_USAGE)
 
     return runner.run(definitions.build(sub, opts), opts)

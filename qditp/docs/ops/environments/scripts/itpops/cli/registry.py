@@ -60,6 +60,11 @@ def module_for(domain: str) -> str | None:
     return _DOMAIN_MODULES.get(domain)
 
 
+def domain_names() -> list[str]:
+    """所有顶层域名（含元命令），供补全与纠错建议消费。"""
+    return [*_DOMAIN_MODULES, "completion", "help"]
+
+
 def load_domains() -> list[dict]:
     """汇总各域 CATALOG；导入失败的域以占位项标注（不中断其它域）。"""
     domains: list[dict] = []

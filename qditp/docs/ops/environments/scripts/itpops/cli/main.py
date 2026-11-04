@@ -42,6 +42,7 @@ import traceback
 from .. import __version__
 from . import completion as completion_mod
 from . import registry
+from . import suggest
 from . import help as help_mod
 from ..core import ui
 from ..core.ui import Ctx, set_context
@@ -55,6 +56,11 @@ from ..errors import (
 )
 
 _OUTPUT_CHOICES = ("text", "json")
+_KNOWN_FLAGS = (
+    "-e", "--env", "-y", "--yes", "-n", "--dry-run", "-o", "--output", "--json",
+    "-q", "--quiet", "-v", "--verbose", "--no-color", "--trace",
+    "-h", "--help", "-V", "--version",
+)
 
 
 # ---------------------------------------------------------------- 版本与帮助
@@ -178,7 +184,9 @@ def _dispatch(domain: str, args: list[str]) -> int:
         return _help_command(args)
     module_name = registry.module_for(domain)
     if module_name is None:
-        raise OpsError(f"未知域：{domain}", EXIT_USAGE)
+        raise OpsError(
+            suggest.append_hint(f"未知域：{domain}", domain, registry.domain_names()),
+            EXIT_USAGE)
     try:
         mod = importlib.import_module(f".commands.{module_name}", package="itpops")
     except ImportError as exc:
@@ -323,7 +331,9 @@ def _parse_globals(argv: list[str], ctx: Ctx) -> tuple[str, list[str], bool, boo
         # 位置参数
         if not domain:
             if a.startswith("-") and a != "-":
-                raise OpsError(f"未知参数：{a}（itp-ops.sh -h 查看用法）", EXIT_USAGE)
+                raise OpsError(
+                    suggest.append_hint(f"未知参数：{a}（itp-ops.sh -h 查看用法）", a, _KNOWN_FLAGS),
+                    EXIT_USAGE)
             domain = a
         else:
             domain_args.append(a)

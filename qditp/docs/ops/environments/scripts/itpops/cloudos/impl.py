@@ -20,6 +20,7 @@ from ..errors import (
     OpsError,
 )
 
+from ..cli.suggest import append_hint
 from .apps import _app_action, _app_detail, _app_env, _app_logs, _app_pods, _app_service, _apps, _auth_debug, _health, _logout, _svc_create
 from .common import APP_API, CONTAINER_API_PREFIX, _help_text, _need, _req_json
 from .deploy import _app_deploy, env_set
@@ -316,4 +317,5 @@ def main(args: list[str]) -> int:
     # 未知命令：usage 照旧打到 stdout（bash 行为；bash 此时已完成 env init，
     # 首行显示真实 CLOUDOS_HOST），退出码按契约为 2
     ui.out(_help_text(cloudos_env, cfg.host))
-    raise OpsError(f"未知命令：{sub}", EXIT_USAGE)
+    names = [s["name"] for s in CATALOG["subcommands"]] + ["help"]
+    raise OpsError(append_hint(f"未知命令：{sub}", sub, names), EXIT_USAGE)
