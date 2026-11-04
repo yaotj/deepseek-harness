@@ -3,6 +3,19 @@
 > 2026-11-04 由 `README.md`「六、重构与迁移记录」拆出，历史条目按**新 → 旧**排列、内容逐字保留。
 > 版本号真源是 `itpops/__init__.py` 的 `__version__`（`pyproject.toml` 动态读取）。
 
+## 2.8.2 — 2026-11-04 补全提示增强（启用说明 + 选项值）
+
+- 用户问「现在输入命令，有提示吗」：核查发现 Tab 补全**已自动同步 flow 域**（bash/zsh 都是 CATALOG 派生），
+  但两个真实缺口：脚本里/帮助里没告诉用户**怎么启用**，且 bash 补全不提示**选项取值**。
+- `completion -h`（及无参调用）改为输出完整启用步骤：临时 `source <(./itp-ops.sh completion bash|zsh)`、
+  永久写入 bash_completion.d / fpath + compinit；补全脚本头部也加同样注释。README 新增「Tab 补全」小节。
+- 补全自动抽取域专有选项：`completion.py` 新增 `_domain_flags()`，从 CATALOG 的 usage / args 正则提取
+  `--选项`（flow 的 `--module/--app/--image`、cloudos 的 `--app-version` 等），新增命令不必手改补全脚本。
+- bash 补全新增取值提示：`-e/--env` → hongdao test、`-o/--output` → text json、`--size` → 4Gi 8Gi
+  （zsh 的 `_arguments` 原本就声明了全局选项取值）。
+- 单测 112 → 117（补全含 flow 与专有选项 / 取值片段 / bash -n 与 zsh -n 语法门禁 / completion -h 启用说明）。
+- 纯离线改动，未触碰环境。
+
 ## 2.8.1 — 2026-11-04 明确「模块目录 / 应用名 / 镜像名」三元组
 
 - 用户问「怎么指定具体的应用，比如部署 face-pay」暴露的歧义：`flow backend` 的位置参数是仓库根下的

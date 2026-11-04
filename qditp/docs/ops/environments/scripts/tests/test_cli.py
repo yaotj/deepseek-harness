@@ -1,6 +1,7 @@
 """CLI 契约：JSON 信封、退出码、分层帮助、补全、-- 终止符、dry-run 语义。"""
 from __future__ import annotations
 
+import subprocess
 import unittest
 
 from support import run_cli, run_json, run_module
@@ -61,6 +62,39 @@ class CompletionTest(unittest.TestCase):
     def test_unknown_shell(self):
         r = run_cli("completion", "fish")
         self.assertEqual(r.returncode, EXIT_USAGE)
+
+    def test_completion_help_shows_how_to_enable(self):
+        r = run_cli("completion", "-h")
+        self.assertEqual(r.returncode, EXIT_OK)
+        self.assertIn("source <(", r.stdout)
+        self.assertIn("bash_completion.d", r.stdout)
+        self.assertIn("compinit", r.stdout)
+
+    def test_bash_completion_includes_flow_and_domain_flags(self):
+        r = run_cli("completion", "bash")
+        self.assertIn("flow) COMPREPLY", r.stdout)
+        self.assertIn("list backend frontend jvm", r.stdout)
+        self.assertIn("--module", r.stdout)
+        self.assertIn("--app", r.stdout)
+        self.assertIn("--app-version", r.stdout)
+
+    def test_bash_completion_completes_option_values(self):
+        r = run_cli("completion", "bash")
+        for fragment in ('-e) COMPREPLY', 'hongdao test', 'text json', '4Gi 8Gi'):
+            self.assertIn(fragment, r.stdout)
+
+    def test_completion_scripts_pass_shell_syntax_check(self):
+        for shell in ("bash", "zsh"):
+            with self.subTest(shell=shell):
+                script = run_cli("completion", shell).stdout
+                r = subprocess.run([shell, "-n"], input=script,
+                                   capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_zsh_completion_includes_flow(self):
+        r = run_cli("completion", "zsh")
+        self.assertIn("flow) _values", r.stdout)
+        self.assertIn("list backend frontend jvm", r.stdout)
 
 
 class ParsingTest(unittest.TestCase):

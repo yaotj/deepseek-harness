@@ -1,13 +1,19 @@
-"""shell 补全生成 —— 从 CATALOG 派生，域/子命令增删后自动同步。
+"""shell 补全生成 —— 从 CATALOG 派生，域/子命令/选项增删后自动同步。
 
 用法（与 kubectl completion 同形）：
   itp-ops.sh completion bash      → 标准输出补全脚本
   itp-ops.sh completion zsh
 安装示例：
-  bash: itp-ops.sh completion bash > /usr/local/etc/bash_completion.d/itp-ops
-  zsh : itp-ops.sh completion zsh  > "${fpath[1]}/_itp-ops"
+  bash: source <(itp-ops.sh completion bash)                 # 当前 shell 临时
+        itp-ops.sh completion bash > /usr/local/etc/bash_completion.d/itp-ops
+  zsh : itp-ops.sh completion zsh > "${fpath[1]}/_itp-ops"   # 再 compinit
+
+补全范围：顶层域 / 各域子命令 / 从 CATALOG 自动抽取的域专有 --选项 / 全局参数；
+bash 另对 --env、-o/--output、--size 做取值补全（zsh 在 _arguments 里已声明全局取值）。
 """
 from __future__ import annotations
+
+import re
 
 from .registry import load_domains
 
@@ -17,6 +23,15 @@ _GLOBAL_FLAGS = (
 )
 
 _BUILTINS = ("catalog", "completion", "help")
+
+# bash：这些选项后面按 Tab 给取值，而不是再列一堆 flag
+_VALUE_FLAGS = {
+    "-e": "hongdao test",
+    "--env": "hongdao test",
+    "-o": "text json",
+    "--output": "text json",
+    "--size": "4Gi 8Gi",
+}
 
 
 def _domain_map() -> dict[str, list[str]]:
@@ -34,6 +49,27 @@ def _domain_map() -> dict[str, list[str]]:
     return m
 
 
+def _domain_flags() -> dict[str, list[str]]:
+    """从 CATALOG 的 usage / args 抽取域专有 --选项。
+
+    flow 的 --module / --app / --image、cloudos 的 --app-version 等都写在 CATALOG 里，
+    自动派生可避免「加了新命令却忘了补到补全脚本」的漂移。
+    """
+    out: dict[str, list[str]] = {}
+    for d in load_domains():
+        flags: list[str] = []
+        for s in d.get("subcommands", []):
+            texts = [str(s.get("usage") or "")]
+            for a in s.get("args") or []:
+                texts.append(str(a.get("name", "")) if isinstance(a, dict) else str(a))
+            for text in texts:
+                for f in re.findall(r"--[a-z][a-z0-9-]*", text):
+                    if f not in flags:
+                        flags.append(f)
+        out[d.get("name", "")] = flags
+    return out
+
+
 def _top_level() -> list[str]:
     names = [d.get("name", "") for d in load_domains() if d.get("name")]
     for b in _BUILTINS:
@@ -44,18 +80,30 @@ def _top_level() -> list[str]:
 
 def bash_script() -> str:
     m = _domain_map()
+    flags = _domain_flags()
     cases = "\n".join(
         '    {n}) COMPREPLY=( $(compgen -W "{w} $GLOBAL_FLAGS" -- "$cur") ) ;;'.format(
-            n=name, w=" ".join(subs)
+            n=name, w=" ".join(subs + flags.get(name, []))
         )
         for name, subs in m.items()
     )
+    values = "\n".join(
+        '    {f}) COMPREPLY=( $(compgen -W "{v}" -- "$cur") ); return ;;'.format(f=f, v=v)
+        for f, v in _VALUE_FLAGS.items()
+    )
     top = " ".join(_top_level())
     return f"""# bash completion for itp-ops.sh —— 由 `itp-ops.sh completion bash` 生成
+# 启用（当前 shell 临时）：source <(./itp-ops.sh completion bash)
+# 永久：./itp-ops.sh completion bash > /usr/local/etc/bash_completion.d/itp-ops
+# 词表来自 CATALOG，新增域 / 子命令 / --选项后重新生成即可，无需手改本文件。
 _itp_ops_complete() {{
-  local cur domain="" i w
+  local cur prev="" domain="" i w
   cur="${{COMP_WORDS[COMP_CWORD]}}"
+  [[ $COMP_CWORD -gt 0 ]] && prev="${{COMP_WORDS[COMP_CWORD-1]}}"
   local GLOBAL_FLAGS="{_GLOBAL_FLAGS}"
+  case "$prev" in
+{values}
+  esac
   for ((i=1; i<COMP_CWORD; i++)); do
     w="${{COMP_WORDS[i]}}"
     case "$w" in
@@ -86,6 +134,8 @@ def zsh_script() -> str:
     top = " ".join(_top_level())
     return f"""#compdef itp-ops.sh itp-ops
 # zsh completion —— 由 `itp-ops.sh completion zsh` 生成
+# 启用：./itp-ops.sh completion zsh > "${{fpath[1]}}/_itp-ops" && compinit
+# 词表来自 CATALOG，新增域 / 子命令后重新生成即可。
 _itp_ops() {{
   local -a domains
   domains=({top})

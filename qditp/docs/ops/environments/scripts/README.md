@@ -34,7 +34,7 @@ scripts/                          ← 一个标准 Python CLI 项目根（工具
 │   ├── buildx/ sentinel/ web/  特性实现（core.py + __main__.py 调试别名，均转发统一入口）
 │   ├── analysis/ versioning/ linting/   端点计数 / 版本 bump / YAML 门禁实现
 │   └── workflows/              工作流层：runner（执行器）+ definitions（backend/frontend/jvm）
-├── tests/                     stdlib unittest（112 例：CLI 契约 + 业务级 + 工作流）
+├── tests/                     stdlib unittest（117 例：CLI 契约 + 业务级 + 工作流）
 ├── buildx.Dockerfile          共享构建模板（NEVER 写 ENTRYPOINT/CMD，理由见文件头与 IT-031）
 ├── hosts/                     ★ 跑在远端机器上的脚本本体（NEVER 在本机执行）
 │   └── k8s-master/             测试跳板 /home/java 下的脚本 + snapshots/ 部署台账
@@ -103,6 +103,20 @@ diag 按子命令）、`-y/--yes`（确认写操作）、`-n/--dry-run`（强制
 ./itp-ops.sh -o json cloudos apps Error | jq '.data.apps[].name'
 ```
 
+**Tab 补全（需先启用一次）**：
+
+```bash
+source <(./itp-ops.sh completion bash)     # bash，当前 shell 临时生效
+source <(./itp-ops.sh completion zsh)      # zsh
+# 永久安装：
+./itp-ops.sh completion bash > /usr/local/etc/bash_completion.d/itp-ops
+./itp-ops.sh completion zsh > "${fpath[1]}/_itp-ops" && compinit
+```
+
+词表从 `CATALOG` 自动派生：域 / 子命令 / 域专有 `--选项`（如 `flow` 的 `--module`、`--app`）/ 全局参数；
+`--env`、`-o/--output`、`--size` 还会补取值。未启用补全时按 Tab 不会有反应，但 `-h`、
+`<域> help`、`<域> <命令> -h` 与写错参数时的报错提示始终可用（`completion -h` 有完整启用说明）。
+
 **环境与跳板**（红岛 ssh/kubectl 通道 2026-10-26 实测已通；但红岛是**生产**，默认一律停在 test）：
 
 | `--env` | 跳板 `REMOTE_HOST` | K8s 命名空间 | Harbor 项目 | 该环境下可用的域 |
@@ -138,7 +152,7 @@ diag 按子命令）、`-y/--yes`（确认写操作）、`-n/--dry-run`（强制
 
 ## 六、重构与迁移记录
 
-逐版本变更见 [CHANGELOG.md](CHANGELOG.md)（按新 → 旧排列）。当前版本 **itpops 2.8.1**。
+逐版本变更见 [CHANGELOG.md](CHANGELOG.md)（按新 → 旧排列）。当前版本 **itpops 2.8.2**。
 
 ---
 

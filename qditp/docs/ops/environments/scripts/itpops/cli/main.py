@@ -189,8 +189,18 @@ def _dispatch(domain: str, args: list[str]) -> int:
 def _completion(args: list[str]) -> int:
     shell = args[0] if args else ""
     if shell in ("-h", "--help", "help", ""):
-        ui.out("用法: itp-ops.sh completion <bash|zsh>    # 输出补全脚本（source 或放进补全目录）")
-        return 0 if shell in ("-h", "--help", "help", "") else EXIT_USAGE
+        ui.out("用法: itp-ops.sh completion <bash|zsh>    # 输出 Tab 补全脚本")
+        ui.out("")
+        ui.out("启用（当前 shell 临时，立即生效）：")
+        ui.out("  bash: source <(./itp-ops.sh completion bash)")
+        ui.out("  zsh : source <(./itp-ops.sh completion zsh)")
+        ui.out("永久安装：")
+        ui.out("  bash: ./itp-ops.sh completion bash > /usr/local/etc/bash_completion.d/itp-ops")
+        ui.out('  zsh : ./itp-ops.sh completion zsh > "${fpath[1]}/_itp-ops" && compinit')
+        ui.out("")
+        ui.out("补全词表从 CATALOG 自动派生：域 / 子命令 / 域专有 --选项 / 全局参数，"
+               "以及 --env、-o、--size 的取值。")
+        return 0
     if shell == "bash":
         ui.out(completion_mod.bash_script())
         return 0
