@@ -82,7 +82,11 @@ public class NettyServer {
             } else {
                 log.error("Netty Server failed");
             }
-            channelFuture.channel().closeFuture().sync();
+            // 严禁在此阻塞主线程（如 channelFuture.channel().closeFuture().sync()。
+            // 本类是 Spring Boot CommandLineRunner 调用，closeFuture().sync() 会永久阻塞
+            // SpringApplication.run()，导致 ApplicationReadyEvent 永不发布、统一 log4j2 配置
+            // (CustomLoggingConfiguration) 不加载，从而 VictoriaLogs appender 不生效。
+            // NioEventLoopGroup 为非守护线程，JVM 会自然保活；关停由 @PreDestroy close() 负责。
         } catch (InterruptedException e) {
             log.error("服务端异常");
             e.printStackTrace();
