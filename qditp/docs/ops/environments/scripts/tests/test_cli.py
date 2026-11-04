@@ -78,6 +78,12 @@ class CompletionTest(unittest.TestCase):
         self.assertIn("--app", r.stdout)
         self.assertIn("--app-version", r.stdout)
 
+    def test_bash_completion_includes_short_interactive_flag(self):
+        r = run_cli("completion", "bash")
+        line = next(l for l in r.stdout.splitlines() if l.strip().startswith("flow) COMPREPLY"))
+        self.assertIn("--interactive", line)
+        self.assertRegex(line, r"(?<![-\w])-i(?![-\w])")
+
     def test_bash_completion_completes_option_values(self):
         r = run_cli("completion", "bash")
         for fragment in ('-e) COMPREPLY', 'hongdao test', 'text json', '4Gi 8Gi'):

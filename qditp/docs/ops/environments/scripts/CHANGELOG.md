@@ -3,6 +3,17 @@
 > 2026-11-04 由 `README.md`「六、重构与迁移记录」拆出，历史条目按**新 → 旧**排列、内容逐字保留。
 > 版本号真源是 `itpops/__init__.py` 的 `__version__`（`pyproject.toml` 动态读取）。
 
+## 2.9.1 — 2026-11-04 补全自动抽取短选项（-i）
+
+- 用户再问「支持 Tab 补全吗」时做了**实证**：source 生成的 bash 补全函数后手动设置
+  `COMP_WORDS` / `COMP_CWORD` 调 `_itp_ops_complete`，实测 `fl<Tab>→flow`、
+  `flow <Tab>→guide list backend frontend jvm …`、`flow gui<Tab>→guide`、
+  `--env <Tab>→hongdao test`、`--size <Tab>→4Gi 8Gi`；bash -n / zsh -n 语法均通过。
+- 发现 `_domain_flags()` 的正则只抽 `--长选项`，2.9.0 新增的 `flow guide -i` 短选项没进词表。
+  改为 `(?<![\w-])--?[a-z][a-z0-9-]*` 同时抽长短选项，flow 词表现含 `-i --interactive`。
+- 单测 133 → 134（新增断言 flow 补全行同时含 `-i` 与 `--interactive`）。
+- 纯离线改动，未触碰环境。
+
 ## 2.9.0 — 2026-11-04 纠错提示（did-you-mean）与交互式发布向导
 
 - 承接「需要」：把上一条回复列出的两个缺口都补上。

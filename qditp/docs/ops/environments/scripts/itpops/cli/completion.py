@@ -63,7 +63,8 @@ def _domain_flags() -> dict[str, list[str]]:
             for a in s.get("args") or []:
                 texts.append(str(a.get("name", "")) if isinstance(a, dict) else str(a))
             for text in texts:
-                for f in re.findall(r"--[a-z][a-z0-9-]*", text):
+                # 长 --选项与短 -x 一起抽（如 guide 的 "-i / --interactive"）
+                for f in re.findall(r"(?<![\w-])--?[a-z][a-z0-9-]*", text):
                     if f not in flags:
                         flags.append(f)
         out[d.get("name", "")] = flags

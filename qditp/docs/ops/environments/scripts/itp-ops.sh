@@ -11,7 +11,7 @@
 #   itpops/workflows/  工作流执行器 + backend / frontend / jvm 声明
 #   itpops/<特性>/     实现：cloudos(common/apps/scaling/deploy/images/impl) /
 #                      analysis / versioning / linting
-#   tests/             stdlib unittest（133 例）
+#   tests/             stdlib unittest（134 例）
 #   hosts/ migration/ buildx.Dockerfile   仓内资产（远端脚本 / 迁移执行包 / 构建模板）
 #
 # 【命令面】--env/-e、--yes/-y、--dry-run/-n、-o json、-q、-v、--no-color、--trace、
