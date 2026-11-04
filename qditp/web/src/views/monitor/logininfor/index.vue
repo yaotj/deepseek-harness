@@ -34,16 +34,8 @@
                />
             </el-select>
          </el-form-item>
-         <el-form-item label="登录时间" style="width: 308px">
-            <el-date-picker
-               v-model="dateRange"
-               value-format="YYYY-MM-DD HH:mm:ss"
-               type="daterange"
-               range-separator="-"
-               start-placeholder="开始日期"
-               end-placeholder="结束日期"
-               :default-time="[new Date(2000, 1, 1, 0, 0, 0), new Date(2000, 1, 1, 23, 59, 59)]"
-            ></el-date-picker>
+         <el-form-item label="登录时间">
+            <query-time-range v-model="dateRange" :value-format="DATE_FORMAT" @change="handleQuery" />
          </el-form-item>
          <el-form-item>
             <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
@@ -94,6 +86,18 @@
       </el-row>
 
       <el-table ref="logininforRef" v-loading="loading" :data="logininforList" @selection-change="handleSelectionChange" :default-sort="defaultSort" @sort-change="handleSortChange">
+         <template #empty>
+            <empty-state
+               :error="queryError"
+               :filters="queryParams"
+               :range="dateRange"
+               :value-format="DATE_FORMAT"
+               @update:range="dateRange = $event"
+               @relax="handleQuery"
+               @clear="resetQuery"
+               @retry="getList"
+            />
+         </template>
          <el-table-column type="selection" width="55" align="center" />
          <el-table-column label="访问编号" align="center" prop="infoId" />
          <el-table-column label="用户名称" align="center" prop="userName" :show-overflow-tooltip="true" sortable="custom" :sort-orders="['descending', 'ascending']" />
@@ -143,6 +147,7 @@ const multiple = ref(true)
 const selectName = ref("")
 const total = ref(0)
 const dateRange = ref(defaultTodayRange(DATE_FORMAT))
+const queryError = ref("")
 const defaultSort = ref({ prop: "loginTime", order: "descending" })
 
 // 查询参数
@@ -159,9 +164,13 @@ const queryParams = ref({
 /** 查询登录日志列表 */
 function getList() {
   loading.value = true
+  queryError.value = ""
   list(proxy.addDateRange(queryParams.value, dateRange.value)).then(response => {
     logininforList.value = response.rows
     total.value = response.total
+  }).catch(error => {
+    queryError.value = error?.message || "查询失败"
+  }).finally(() => {
     loading.value = false
   })
 }

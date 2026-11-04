@@ -34,15 +34,8 @@
                />
             </el-select>
          </el-form-item>
-         <el-form-item label="创建时间" style="width: 308px">
-            <el-date-picker
-               v-model="dateRange"
-               value-format="YYYY-MM-DD"
-               type="daterange"
-               range-separator="-"
-               start-placeholder="开始日期"
-               end-placeholder="结束日期"
-            ></el-date-picker>
+         <el-form-item label="创建时间">
+            <query-time-range v-model="dateRange" :value-format="DATE_FORMAT" @change="handleQuery" />
          </el-form-item>
          <el-form-item>
             <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
@@ -102,6 +95,18 @@
       </el-row>
 
       <el-table v-loading="loading" :data="typeList" @selection-change="handleSelectionChange">
+         <template #empty>
+            <empty-state
+               :error="queryError"
+               :filters="queryParams"
+               :range="dateRange"
+               :value-format="DATE_FORMAT"
+               @update:range="dateRange = $event"
+               @relax="handleQuery"
+               @clear="resetQuery"
+               @retry="getList"
+            />
+         </template>
          <el-table-column type="selection" width="55" align="center" />
          <el-table-column label="字典编号" align="center" prop="dictId" />
          <el-table-column label="字典名称" align="center" prop="dictName" :show-overflow-tooltip="true"/>
@@ -192,6 +197,7 @@ const multiple = ref(true)
 const total = ref(0)
 const title = ref("")
 const dateRange = ref(defaultTodayRange(DATE_FORMAT))
+const queryError = ref("")
 
 const data = reactive({
   form: {},
@@ -213,9 +219,13 @@ const { queryParams, form, rules } = toRefs(data)
 /** 查询字典类型列表 */
 function getList() {
   loading.value = true
+  queryError.value = ""
   listType(proxy.addDateRange(queryParams.value, dateRange.value)).then(response => {
     typeList.value = response.rows
     total.value = response.total
+  }).catch(error => {
+    queryError.value = error?.message || "查询失败"
+  }).finally(() => {
     loading.value = false
   })
 }

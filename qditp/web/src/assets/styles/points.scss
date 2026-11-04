@@ -288,3 +288,11 @@
 .splitpanes.default-theme .splitpanes__pane {
   background-color: var(--splitpanes-default-bg) !important;
 }
+
+/*
+ * 数字列等宽对齐：卡号、金额、计数逐位对齐，避免运营读数时数字左右跳动。
+ * 全站共用一个类名，各页 NEVER 再各自复制一份 font-variant-numeric。
+ */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

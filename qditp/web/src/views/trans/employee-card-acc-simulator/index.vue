@@ -1,5 +1,10 @@
 <template>
   <div class="app-container">
+    <!-- 本页会向 ACC 前置真实发送卡状态/资料变更通知，属于联调工具而非运营功能，与业务菜单并列时极易被误用。 -->
+    <el-alert type="warning" :closable="false" class="mb8"
+      title="联调工具 · 勿在生产使用"
+      description="新增 / 发送状态通知 / 发送资料变更 / 清空测试数据都会直接作用到 ACC 前置与员工卡数据，生产环境禁止操作。" />
+
     <!-- 查询区域 -->
     <el-form :model="query" :inline="true">
       <el-form-item label="员工号">

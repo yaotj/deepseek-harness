@@ -1,12 +1,27 @@
 <template>
   <div class="app-container">
     <el-table v-loading="summaryLoading" :data="summary" border>
+      <template #empty>
+        <empty-state :error="summaryError" :filters="{}" plain hint="卡池概览来自 card-pool-server 的 /page/card-pools/summary" @retry="loadSummary" />
+      </template>
       <el-table-column label="完整票种" width="170" align="center"><template #default="{ row }">{{ ticketTypeLabel(row.cardType) }}</template></el-table-column>
       <el-table-column label="ACC 子类型" prop="accTicketType" width="110" align="center" />
       <el-table-column label="发卡模式" width="170" align="center"><template #default="{ row }"><el-tag :type="row.poolEnabled ? 'success' : 'info'">{{ row.poolEnabled ? '卡池发卡' : (row.issueMode === 'SECURITY_SERVICE' ? '安全服务实时发卡' : '外部实时发卡') }}</el-tag></template></el-table-column>
-      <el-table-column label="可用余量" prop="availableCount" width="120" align="right" />
-      <el-table-column label="预占数量" prop="reservedCount" width="120" align="right" />
-      <el-table-column label="已分配" prop="assignedCount" width="120" align="right" />
+      <el-table-column label="可用余量" width="220" align="right">
+        <template #default="{ row }">
+          <div class="pool-count tabular">{{ row.availableCount ?? 0 }}</div>
+          <!-- 水位分母用「该票种已发出的卡号总量」（可用+预占+已分配），不是任何容量配置；低于 10% 变红。 -->
+          <el-progress
+            v-if="row.poolEnabled"
+            :percentage="remainingRate(row)"
+            :status="remainingRate(row) < 10 ? 'exception' : remainingRate(row) < 30 ? 'warning' : 'success'"
+            :stroke-width="8"
+            :show-text="false"
+          />
+        </template>
+      </el-table-column>
+      <el-table-column label="预占数量" prop="reservedCount" width="120" align="right"><template #default="{ row }"><span class="tabular">{{ row.reservedCount ?? 0 }}</span></template></el-table-column>
+      <el-table-column label="已分配" prop="assignedCount" width="120" align="right"><template #default="{ row }"><span class="tabular">{{ row.assignedCount ?? 0 }}</span></template></el-table-column>
       <el-table-column label="低库存" width="100" align="center"><template #default="{ row }"><el-tag v-if="row.poolEnabled" :type="row.belowThreshold ? 'danger' : 'success'">{{ row.belowThreshold ? '低于 10000' : '正常' }}</el-tag><span v-else>-</span></template></el-table-column>
       <el-table-column label="最近批次号" prop="latestBatchNo" width="120" align="center" />
       <el-table-column label="最近文件" prop="latestFileName" min-width="180" show-overflow-tooltip />
@@ -21,18 +36,36 @@
       <el-form-item label="ACC 子类型"><el-select v-model="query.accTicketType" clearable style="width: 120px"><el-option v-for="item in accTicketTypes" :key="item" :label="item" :value="item" /></el-select></el-form-item>
       <el-form-item label="来源"><el-select v-model="query.source" clearable style="width: 110px"><el-option label="自动" value="AUTO" /><el-option label="人工" value="MANUAL" /></el-select></el-form-item>
       <el-form-item label="状态"><el-select v-model="query.status" clearable style="width: 150px"><el-option v-for="item in statuses" :key="item" :label="item" :value="item" /></el-select></el-form-item>
-      <el-form-item label="创建时间"><el-date-picker v-model="query.dateRange" type="datetimerange" value-format="YYYY-MM-DD HH:mm:ss" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" style="width: 340px" /></el-form-item>
+      <el-form-item label="创建时间"><query-time-range v-model="query.dateRange" :value-format="DATE_FORMAT" @change="handleQuery" /></el-form-item>
       <el-form-item><el-button type="primary" icon="Search" @click="handleQuery">查询</el-button><el-button icon="Refresh" @click="reset">重置</el-button><el-button type="warning" icon="Download" :disabled="!batches.length" @click="handleExport">导出 Excel</el-button><el-button type="primary" icon="Clock" @click="handleAsyncExport">后台全量导出</el-button></el-form-item>
     </el-form>
     <el-table v-loading="batchLoading" :data="batches" border>
-      <el-table-column label="批次号" prop="batchNo" width="100" align="center"><template #default="{ row }"><el-button link type="primary" @click="showDetail(row)">{{ row.batchNo }}</el-button></template></el-table-column>
+      <template #empty>
+        <empty-state
+          :error="batchError"
+          :filters="query"
+          :range="query.dateRange"
+          :value-format="DATE_FORMAT"
+          @update:range="query.dateRange = $event"
+          @relax="handleQuery"
+          @clear="reset"
+          @retry="loadBatches"
+        />
+      </template>
+      <el-table-column label="批次号" prop="batchNo" width="100" align="center"><template #default="{ row }"><el-button link type="primary" class="tabular" @click="showDetail(row)">{{ row.batchNo }}</el-button></template></el-table-column>
       <el-table-column label="票种" width="160" align="center"><template #default="{ row }">{{ ticketTypeLabel(row.cardType) }}</template></el-table-column>
       <el-table-column label="ACC 子类型" prop="accTicketType" width="105" align="center" />
       <el-table-column label="来源" prop="source" width="100" align="center" />
       <el-table-column label="文件名" prop="fileName" min-width="180" show-overflow-tooltip />
-      <el-table-column label="申请数" prop="requestNum" width="100" align="right" />
-      <el-table-column label="有效/重复/非法" min-width="150" align="center"><template #default="{ row }">{{ row.validCount || 0 }} / {{ row.duplicateCount || 0 }} / {{ row.invalidCount || 0 }}</template></el-table-column>
-      <el-table-column label="状态" prop="status" width="120" align="center"><template #default="{ row }"><el-tag :type="tagType(row.status)">{{ row.status }}</el-tag></template></el-table-column>
+      <el-table-column label="申请数" prop="requestNum" width="100" align="right"><template #default="{ row }"><span class="tabular">{{ row.requestNum ?? 0 }}</span></template></el-table-column>
+      <el-table-column label="有效/重复/非法" min-width="150" align="center"><template #default="{ row }"><span class="tabular">{{ row.validCount || 0 }} / {{ row.duplicateCount || 0 }} / {{ row.invalidCount || 0 }}</span></template></el-table-column>
+      <el-table-column label="状态" prop="status" width="120" align="center"><template #default="{ row }"><status-tag :value="row.status" /></template></el-table-column>
+      <el-table-column label="导入进度" width="140" align="center">
+        <template #default="{ row }">
+          <!-- 进度按状态机的阶段数换算，不是「已完成行数/申请数」——后端没有回写逐行进度，不能假装有。 -->
+          <el-progress :percentage="batchStageRate(row.status)" :status="row.status === 'FAILED' ? 'exception' : undefined" :stroke-width="8" />
+        </template>
+      </el-table-column>
       <el-table-column label="失败原因" prop="errorMsg" min-width="180" show-overflow-tooltip />
       <el-table-column label="操作" width="100" fixed="right" align="center"><template #default="{ row }"><el-button v-if="row.status === 'FAILED' && row.fileName" v-hasPermi="['trans:card-pool:retry']" link type="warning" icon="RefreshRight" @click="retry(row)">重试导入</el-button><span v-else>-</span></template></el-table-column>
     </el-table>
@@ -77,6 +110,8 @@ const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 const { proxy } = getCurrentInstance()
 const summaryLoading = ref(false)
 const batchLoading = ref(false)
+const summaryError = ref('')
+const batchError = ref('')
 const summary = ref([])
 const batches = ref([])
 const batchTotal = ref(0)
@@ -88,15 +123,46 @@ const ticketTypes = Object.keys(TICKET_TYPE_NAMES)
 const accTicketTypes = ['41', '42', '43', '44', '45', '46', '47', '48', '4A']
 const statuses = ['CREATED', 'REQUESTING', 'DOWNLOADING', 'IMPORTING', 'SUCCESS', 'FAILED']
 
+/** 卡池批次的状态机顺序，用于把「走到哪一步」画成进度；与后端 LOGIC_CARD_POOL_BATCH.STATUS 取值一致。 */
+const BATCH_STAGES = ['CREATED', 'REQUESTING', 'DOWNLOADING', 'IMPORTING', 'SUCCESS']
+
 function ticketTypeLabel(cardType) { return formatCodeLabel(cardType, TICKET_TYPE_NAMES) }
-function loadSummary() { summaryLoading.value = true; getCardPoolSummary().then(res => { summary.value = res.data || [] }).finally(() => { summaryLoading.value = false }) }
-function loadBatches() { batchLoading.value = true; const { dateRange, ...params } = query; listCardPoolBatches({ ...params, createTimeBegin: dateRange?.[0], createTimeEnd: dateRange?.[1] }).then(res => { const page = res.data || {}; batches.value = page.list || []; batchTotal.value = Number(page.total || 0) }).finally(() => { batchLoading.value = false }) }
+
+/** 剩余占比：分母是该票种已发出的卡号总量（可用+预占+已分配），不是容量配置。 */
+function remainingRate(row) {
+  const available = Number(row.availableCount || 0)
+  const total = available + Number(row.reservedCount || 0) + Number(row.assignedCount || 0)
+  if (!total) return 0
+  return Math.round((available / total) * 100)
+}
+
+function batchStageRate(status) {
+  const index = BATCH_STAGES.indexOf(status)
+  if (index < 0) return 100
+  return Math.round(((index + 1) / BATCH_STAGES.length) * 100)
+}
+
+function loadSummary() {
+  summaryLoading.value = true
+  summaryError.value = ''
+  getCardPoolSummary().then(res => { summary.value = res.data || [] })
+    .catch(e => { summaryError.value = e?.message || '查询失败' })
+    .finally(() => { summaryLoading.value = false })
+}
+function loadBatches() {
+  batchLoading.value = true
+  batchError.value = ''
+  const { dateRange, ...params } = query
+  listCardPoolBatches({ ...params, createTimeBegin: dateRange?.[0], createTimeEnd: dateRange?.[1] })
+    .then(res => { const page = res.data || {}; batches.value = page.list || []; batchTotal.value = Number(page.total || 0) })
+    .catch(e => { batchError.value = e?.message || '查询失败' })
+    .finally(() => { batchLoading.value = false })
+}
 function handleQuery() { query.pageNum = 1; loadBatches() }
 function reset() { proxy.resetForm('queryRef'); query.dateRange = defaultTodayRange(DATE_FORMAT); handleQuery() }
 function createBatch(row) { proxy.$modal.confirm(`将为 ${ticketTypeLabel(row.cardType)} 向 ACC 申请固定 100000 个逻辑卡号。`).then(() => requestCardPoolBatch(row.cardType)).then(() => { proxy.$modal.msgSuccess('批次申请已执行'); loadSummary(); handleQuery() }).catch(() => {}) }
 function retry(row) { retryCardPoolBatch(row.batchNo).then(() => { proxy.$modal.msgSuccess('已重试下载和导入'); loadSummary(); loadBatches() }) }
 function showDetail(row) { currentBatch.value = row; detailOpen.value = true }
-function tagType(status) { return status === 'SUCCESS' ? 'success' : status === 'FAILED' ? 'danger' : 'warning' }
 
 /** 提交后台异步全量导出任务（每日凌晨 2 点统一执行）。 */
 function handleAsyncExport() {
@@ -161,3 +227,10 @@ function handleExport() {
 
 loadSummary(); loadBatches()
 </script>
+
+<style scoped>
+.pool-count {
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+</style>

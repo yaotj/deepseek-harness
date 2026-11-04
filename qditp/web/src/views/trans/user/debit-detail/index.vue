@@ -27,7 +27,7 @@
         </el-select>
       </el-form-item>
       <el-form-item label="交易日期" prop="dateRange">
-        <el-date-picker v-model="queryParams.dateRange" type="daterange" value-format="YYYYMMDD" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" style="width: 260px" />
+        <query-time-range v-model="queryParams.dateRange" :value-format="DATE_FORMAT" :allow-all="false" @change="handleQuery" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
@@ -38,6 +38,19 @@
     </el-form>
 
     <el-table v-loading="loading" :data="orders" border>
+      <template #empty>
+        <empty-state
+          :error="queryError"
+          :notice="filterNotice"
+          :filters="queryParams"
+          :range="queryParams.dateRange"
+          :value-format="DATE_FORMAT"
+          @update:range="queryParams.dateRange = $event"
+          @relax="handleQuery"
+          @clear="resetQuery"
+          @retry="getList"
+        />
+      </template>
       <el-table-column label="扣费订单号" prop="orderNo" min-width="210" show-overflow-tooltip />
       <el-table-column label="扣费状态" prop="debitStatus" width="110" align="center"><template #default="{ row }"><el-tag :type="statusType(row.debitStatus)">{{ row.debitStatus }}</el-tag></template></el-table-column>
       <el-table-column label="逻辑卡号" prop="cardId" min-width="170" show-overflow-tooltip />
@@ -99,6 +112,8 @@ const exporting = ref(false)
 const total = ref(0)
 const orders = ref([])
 const refundOpen = ref(false)
+const queryError = ref('')
+const filterNotice = ref('')
 const currentOrder = ref({})
 const refundForm = reactive({ amountYuan: undefined, refundReason: '' })
 /**
@@ -130,9 +145,12 @@ function buildQuery() {
 }
 
 function getList() {
+  queryError.value = ''
+  filterNotice.value = ''
   if (!hasSearchScope()) {
     orders.value = []
     total.value = 0
+    filterNotice.value = '请填写扣费订单号、逻辑卡号、第三方用户 ID，或完整的交易日期范围'
     return
   }
   loading.value = true
@@ -140,6 +158,8 @@ function getList() {
     const page = response.data || {}
     orders.value = page.list || []
     total.value = Number(page.total || 0)
+  }).catch((error) => {
+    queryError.value = error?.message || '查询失败'
   }).finally(() => { loading.value = false })
 }
 

@@ -2,7 +2,7 @@
   <div class="app-container">
     <el-form ref="queryRef" :model="queryParams" :inline="true">
       <el-form-item label="下单时间" prop="dateRange">
-        <el-date-picker v-model="queryParams.dateRange" type="datetimerange" value-format="YYYY-MM-DD HH:mm:ss" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" style="width: 340px" />
+        <query-time-range v-model="queryParams.dateRange" :value-format="DATE_FORMAT" :allow-all="false" @change="handleQuery" />
       </el-form-item>
       <el-form-item label="业务订单号" prop="orderNo">
         <el-input v-model="queryParams.orderNo" placeholder="请输入业务订单号" clearable style="width: 220px" @keyup.enter="handleQuery" />
@@ -53,6 +53,19 @@
     </el-form>
 
     <el-table v-loading="loading" :data="orders" border>
+      <template #empty>
+        <empty-state
+          :error="queryError"
+          :notice="filterNotice"
+          :filters="queryParams"
+          :range="queryParams.dateRange"
+          :value-format="DATE_FORMAT"
+          @update:range="queryParams.dateRange = $event"
+          @relax="handleQuery"
+          @clear="resetQuery"
+          @retry="getList"
+        />
+      </template>
       <el-table-column label="业务订单号" prop="orderNo" min-width="200" show-overflow-tooltip />
       <el-table-column label="订单状态" width="100" align="center"><template #default="{ row }"><el-tag :type="orderStatusTagType(row.orderStatus)">{{ formatOrderStatus(row.orderStatus) }}</el-tag></template></el-table-column>
       <el-table-column label="受理渠道" width="90" align="center"><template #default="{ row }">{{ f2fChannelLabel(row.channel) }}</template></el-table-column>
@@ -115,6 +128,8 @@ const orders = ref([])
 const refundOpen = ref(false)
 const refunding = ref(false)
 const refundOrder = reactive({ orderNo: '', orderAmount: null })
+const queryError = ref('')
+const filterNotice = ref('')
 const refundForm = reactive({ refundReason: '' })
 const refundRules = { refundReason: [{ required: true, message: '请输入退款原因', trigger: 'blur' }] }
 const queryParams = reactive({
@@ -131,9 +146,12 @@ function hasSearchScope() {
 }
 
 function getList() {
+  queryError.value = ''
+  filterNotice.value = ''
   if (!hasSearchScope()) {
     orders.value = []
     total.value = 0
+    filterNotice.value = '请至少填写业务订单号 / 支付中心订单号 / 渠道订单号，或完整的下单时间范围'
     return
   }
   loading.value = true
@@ -141,6 +159,8 @@ function getList() {
     const page = response.data || {}
     orders.value = page.list || []
     total.value = Number(page.total || 0)
+  }).catch((error) => {
+    queryError.value = error?.message || '查询失败'
   }).finally(() => { loading.value = false })
 }
 

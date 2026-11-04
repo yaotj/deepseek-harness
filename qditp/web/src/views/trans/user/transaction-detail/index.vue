@@ -14,7 +14,7 @@
         <el-input v-model="queryParams.cardType" placeholder="请输入票种编码" clearable style="width: 160px" @keyup.enter="handleQuery" />
       </el-form-item>
       <el-form-item label="交易日期" prop="dateRange">
-        <el-date-picker v-model="queryParams.dateRange" type="daterange" value-format="YYYYMMDD" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" style="width: 260px" />
+        <query-time-range v-model="queryParams.dateRange" :value-format="DATE_FORMAT" :allow-all="false" @change="handleQuery" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
@@ -25,6 +25,19 @@
     </el-form>
 
     <el-table v-loading="loading" :data="records" border>
+      <template #empty>
+        <empty-state
+          :error="queryError"
+          :notice="filterNotice"
+          :filters="queryParams"
+          :range="queryParams.dateRange"
+          :value-format="DATE_FORMAT"
+          @update:range="queryParams.dateRange = $event"
+          @relax="handleQuery"
+          @clear="resetQuery"
+          @retry="getList"
+        />
+      </template>
       <el-table-column label="交易时间" width="180" align="center"><template #default="{ row }">{{ formatTransactionTime(row.handleDateTime) }}</template></el-table-column>
       <el-table-column label="交易类型" min-width="190" align="center"><template #default="{ row }">{{ formatTransactionType(row.trxType) }}</template></el-table-column>
       <el-table-column label="逻辑卡号" prop="cardId" min-width="180" show-overflow-tooltip />
@@ -59,6 +72,8 @@ const loading = ref(false)
 const exporting = ref(false)
 const total = ref(0)
 const records = ref([])
+const queryError = ref('')
+const filterNotice = ref('')
 /**
  * 带 cardId 跳进来时**不预设日期窗**。
  *
@@ -99,9 +114,12 @@ function buildQuery() {
 }
 
 function getList() {
+  queryError.value = ''
+  filterNotice.value = ''
   if (!hasSearchScope()) {
     records.value = []
     total.value = 0
+    filterNotice.value = '请填写逻辑卡号、第三方用户 ID，或完整的交易日期范围'
     return
   }
   loading.value = true
@@ -109,6 +127,8 @@ function getList() {
     const page = response.data || {}
     records.value = page.list || []
     total.value = Number(page.total || 0)
+  }).catch((error) => {
+    queryError.value = error?.message || '查询失败'
   }).finally(() => { loading.value = false })
 }
 

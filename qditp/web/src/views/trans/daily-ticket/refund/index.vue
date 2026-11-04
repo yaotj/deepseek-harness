@@ -2,15 +2,7 @@
   <div class="app-container">
     <el-form ref="queryRef" :model="queryParams" :inline="true">
       <el-form-item label="下单时间" prop="dateRange">
-        <el-date-picker
-          v-model="queryParams.dateRange"
-          type="datetimerange"
-          range-separator="至"
-          start-placeholder="开始时间"
-          end-placeholder="结束时间"
-          value-format="YYYY-MM-DD HH:mm:ss"
-          style="width: 340px"
-        />
+        <query-time-range v-model="queryParams.dateRange" :value-format="DATE_FORMAT" @change="handleQuery" />
       </el-form-item>
       <el-form-item label="订单号" prop="orderNo">
         <el-input v-model="queryParams.orderNo" placeholder="请输入日票/旅游票订单号" clearable style="width: 230px" @keyup.enter="handleQuery" />
@@ -36,6 +28,18 @@
     />
 
     <el-table v-loading="loading" :data="orderList" border>
+      <template #empty>
+        <empty-state
+          :error="queryError"
+          :filters="queryParams"
+          :range="queryParams.dateRange"
+          :value-format="DATE_FORMAT"
+          @update:range="queryParams.dateRange = $event"
+          @relax="handleQuery"
+          @clear="resetQuery"
+          @retry="getList"
+        />
+      </template>
       <el-table-column label="订单类型" width="90" align="center">
         <template #default="{ row }">{{ row.orderType === '2' ? '旅游票' : '日票' }}</template>
       </el-table-column>
@@ -126,6 +130,7 @@ const orderList = ref([])
 const detailOpen = ref(false)
 const currentOrder = ref({})
 const subOrders = ref([])
+const queryError = ref('')
 const queryParams = reactive({ pageNum: 1, pageSize: 10, dateRange: defaultTodayRange(DATE_FORMAT), orderNo: undefined, paymentOrderNo: undefined })
 
 function buildQuery() {
@@ -136,10 +141,13 @@ function buildQuery() {
 
 function getList() {
   loading.value = true
+  queryError.value = ''
   listDailyTicketRefundOrders(buildQuery()).then((response) => {
     const page = response.data || {}
     orderList.value = page.list || []
     total.value = Number(page.total || 0)
+  }).catch((error) => {
+    queryError.value = error?.message || '查询失败'
   }).finally(() => { loading.value = false })
 }
 
@@ -244,7 +252,9 @@ function confirmSubRefund(row) {
 
 function toRefundRecords() {
   // 带上当前订单条件，减少从订单处理页进入退款记录页后的二次输入。
-  router.push({ path: '/trans/daily-ticket/refund-record', query: { orderNo: queryParams.orderNo || undefined, paymentOrderNo: queryParams.paymentOrderNo || undefined } })
+  // 用路由名而不是路径：路径由库内 sys_menu 的 parent.path + path 拼出（现查为 /trans-operation/refund-record），
+  // 写死路径会在下一次菜单调整时静默 404。路由名取 sys_menu.ROUTE_NAME='DailyTicketRefundRecord'（menu_id=2006）。
+  router.push({ name: 'DailyTicketRefundRecord', query: { orderNo: queryParams.orderNo || undefined, paymentOrderNo: queryParams.paymentOrderNo || undefined } })
 }
 
 // 数据库存储金额单位为分，页面统一转换为元展示。

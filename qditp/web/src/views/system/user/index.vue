@@ -28,8 +28,8 @@
                   <el-option v-for="dict in sys_normal_disable" :key="dict.value" :label="dict.label" :value="dict.value" />
                 </el-select>
               </el-form-item>
-              <el-form-item label="创建时间" style="width: 308px">
-                <el-date-picker v-model="dateRange" value-format="YYYY-MM-DD" type="daterange" range-separator="-" start-placeholder="开始日期" end-placeholder="结束日期"></el-date-picker>
+              <el-form-item label="创建时间">
+                <query-time-range v-model="dateRange" :value-format="DATE_FORMAT" @change="handleQuery" />
               </el-form-item>
               <el-form-item>
                 <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
@@ -57,6 +57,18 @@
             </el-row>
 
             <el-table v-loading="loading" :data="userList" @selection-change="handleSelectionChange">
+              <template #empty>
+                <empty-state
+                  :error="queryError"
+                  :filters="queryParams"
+                  :range="dateRange"
+                  :value-format="DATE_FORMAT"
+                  @update:range="dateRange = $event"
+                  @relax="handleQuery"
+                  @clear="resetQuery"
+                  @retry="getList"
+                />
+              </template>
               <el-table-column type="selection" width="50" align="center" />
               <el-table-column label="用户编号" align="center" key="userId" prop="userId" v-if="columns.userId.visible" />
               <el-table-column label="用户名称" align="center" key="userName" prop="userName" v-if="columns.userName.visible" :show-overflow-tooltip="true" />
@@ -261,6 +273,7 @@ const multiple = ref(true)
 const total = ref(0)
 const title = ref("")
 const dateRange = ref(defaultTodayRange(DATE_FORMAT))
+const queryError = ref("")
 const deptName = ref("")
 const deptOptions = ref(undefined)
 const enabledDeptOptions = ref(undefined)
@@ -328,10 +341,14 @@ watch(deptName, val => {
 /** 查询用户列表 */
 function getList() {
   loading.value = true
+  queryError.value = ""
   listUser(proxy.addDateRange(queryParams.value, dateRange.value)).then(res => {
-    loading.value = false
     userList.value = res.rows
     total.value = res.total
+  }).catch(error => {
+    queryError.value = error?.message || "查询失败"
+  }).finally(() => {
+    loading.value = false
   })
 }
 

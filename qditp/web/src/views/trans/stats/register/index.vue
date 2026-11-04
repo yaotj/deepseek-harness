@@ -2,15 +2,7 @@
   <div class="app-container">
     <el-form :model="queryParams" ref="queryRef" :inline="true" label-width="90px">
       <el-form-item label="注册日期">
-        <el-date-picker
-          v-model="dateRange"
-          type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-          value-format="YYYY-MM-DD"
-          style="width: 260px"
-        />
+        <query-time-range v-model="dateRange" :value-format="DATE_FORMAT" @change="handleQuery" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
@@ -23,6 +15,18 @@
     <el-row :gutter="20">
       <el-col :span="14">
         <el-table v-loading="loading" :data="statsList" border>
+          <template #empty>
+            <empty-state
+              :error="queryError"
+              :filters="{}"
+              :range="dateRange"
+              :value-format="DATE_FORMAT"
+              @update:range="dateRange = $event"
+              @relax="handleQuery"
+              @clear="resetQuery"
+              @retry="getList"
+            />
+          </template>
           <el-table-column label="序号" type="index" width="70" align="center" />
           <el-table-column label="票种编码" prop="cardType" width="130" align="center" />
           <el-table-column label="票种名称" prop="cardTypeName" min-width="200" align="center" />
@@ -53,6 +57,7 @@ const DATE_FORMAT = 'YYYY-MM-DD'
 const loading = ref(false)
 const statsList = ref([])
 const dateRange = ref(defaultTodayRange(DATE_FORMAT))
+const queryError = ref('')
 const pieRef = ref(null)
 let pieChart = null
 
@@ -83,6 +88,7 @@ function renderPie() {
 
 function getList() {
   loading.value = true
+  queryError.value = ''
   const params = {}
   if (dateRange.value && dateRange.value.length === 2) {
     params.startDate = dateRange.value[0]
@@ -92,6 +98,9 @@ function getList() {
     .then((response) => {
       statsList.value = response.data || []
       nextTick(renderPie)
+    })
+    .catch((error) => {
+      queryError.value = error?.message || '查询失败'
     })
     .finally(() => { loading.value = false })
 }

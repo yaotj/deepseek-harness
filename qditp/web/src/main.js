@@ -43,6 +43,12 @@ import ImageUpload from "@/components/ImageUpload"
 import ImagePreview from "@/components/ImagePreview"
 // 字典标签组件
 import DictTag from '@/components/DictTag'
+// 查询区间 + 快捷预设组件
+import QueryTimeRange from '@/components/QueryTimeRange'
+// 列表空状态引导组件
+import EmptyState from '@/components/EmptyState'
+// 运行态语义色标签组件
+import StatusTag from '@/components/StatusTag'
 
 const app = createApp(App)
 
@@ -59,6 +65,9 @@ app.config.globalProperties.selectDictLabels = selectDictLabels
 
 // 全局组件挂载
 app.component('DictTag', DictTag)
+app.component('QueryTimeRange', QueryTimeRange)
+app.component('EmptyState', EmptyState)
+app.component('StatusTag', StatusTag)
 app.component('Pagination', Pagination)
 app.component('FileUpload', FileUpload)
 app.component('ImageUpload', ImageUpload)

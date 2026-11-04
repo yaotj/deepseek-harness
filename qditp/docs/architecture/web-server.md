@@ -1351,6 +1351,14 @@ grep 「cron 每打密一档那张表日增行数就翻一档」）。295 / 300 
    **`route_name` 必须与前端 `<script setup name="...">` 完全一致**
    （`RegStats` / `OfflineCodeStats` / `ItpUserBatchSearch` / `KeyVersion` / `ServiceStatus` / `OvertimeRefund`），
    否则 **keep-alive `include` 匹配不到 ⇒ 页面不缓存 ⇒ 切 tab 后查询条件丢失**。
+3. **`stats-menu-ia-reorg.sql`（2026-11-04，已执行到测试库）**：三条落点变更 + 两条授权补齐，判据与还原点见
+   [方案 §二·A / §五·3](../design/综管台UI-UE优化方案-2026-11-04.md)。要点三条，**下一条新菜单前 MUST 知道**：
+   - **`buildMenus` 从 `parent_id=0` 递归** ⇒ 父级行**不存在**（`2097`→`2035`）或父级**被禁用**（`107`→`2032`）都会让整枝从 `getRouters` 消失，
+     页面变成「只能 SPA 直访」——**新增菜单 MUST 同时确认父级行存在且 `status='0'`**，脚本自检 SQL 已附在该文件末尾。
+   - **改父级不改 `menu_id`** ⇒ 已有 `sys_role_menu` 授权继续有效；但**新父级必须在同一角色也被授权**，
+     否则该角色迁移后反而看不到（该脚本为此补了 role 2 → `2077`）。
+   - **号段**：2026-11-04 现查 `MAX(MENU_ID)=2100`，脚本用到 `2101`（统计分析目录）；**新增页从 2102 起**，且 MUST 先现查 `MAX(MENU_ID)`，NEVER 照本行写死。
+   - 菜单变更**只在重新登录后生效**（路由在登录时由 `getRouters` 生成），改完库不要以「刷新页面没变」判定失败。
 
 ### 附J、前端 `web/src`：只读页、路由名与 nginx 前缀
 
@@ -1385,6 +1393,23 @@ grep 「cron 每打密一档那张表日增行数就翻一档」）。295 / 300 
 5. **`dailyTicketRefund.js` 的四条一行式语义**：前三处「服务端固定订单类型为日票，
    页面只提交业务主键」，第四处「服务端先查询退款结果，再以同一退款单号重试，**防止形成重复退款**」——
    属**字段/契约级一行语义，按规则保留在源码**。
+6. **列表页四件套共用组件（2026-11-04 新增，`main.js` 全局注册，页面里用短横线名）**：
+   - `query-time-range`（`components/QueryTimeRange`）：区间选择器 + `今天/近7天/近30天/全部` 预设 + 「当前范围」说明行。
+     **`:allow-all="false"` 是给「缺时间范围就 `code=400`」的接口用的**（`face-pay/orders`、`gate-txn-pay`、
+     `gate-txn-pay/offline-stats`、`qrcode-txn-detail` 实测如此），别处默认放开；
+     内部对 `datetimerange` 补 `default-time=[00:00:00, 23:59:59]`——不补则「选今天」两端都取 `00:00:00`，永远查空。
+   - `empty-state`（`components/EmptyState`）：空表**五分支**（失败 / 需先填条件 / 有筛选无匹配 / 区间内无记录可放宽 / `plain` 暂无记录）。
+     「已生效筛选数」由组件从 `:filters` 里数（排除 `pageNum/pageSize/params/queryType/keyword`），页面不要再写 computed；
+     **前提是页面的 `getList` 有 `.catch` 写 `queryError`、`.finally` 收 `loading`**，否则失败时只会永久转圈（IT-057）。
+   - `status-tag`（`components/StatusTag`）：**只覆盖运行态**（UP/DOWN/PENDING/RUNNING/SUCCESS/FAILED/ONLINE/OFFLINE/ACTIVE/RELEASING/EXPIRED）。
+     业务码表（渠道 / 卡种 / 设备类型）**NEVER 在这里建第二套真源**——用各页自己的码表 util 取标签、显式传 `type`（§3「码表唯一真源」）。
+   - `download-center`（`components/DownloadCenter`，挂在 `layout/components/Navbar.vue`）：10 秒轮询**自己的**异步导出任务
+     （`createBy` 过滤），状态由 `PENDING/RUNNING` 迁移到 `SUCCESS` 时弹通知；无 `monitor:async-export:query` 权限则不渲染也不轮询。
+     **它是 `Navbar.vue` 里唯一需要显式 `import` 的（其余三个走 `main.js` 全局注册）**——漏 import 时页面不报错、只是顶栏少一个图标，
+     只能靠 §5.1③ 的产物锚点（`grep 下载中心 dist`）抓到，本轮就是这么抓到的。
+   - 数字列等宽统一用全局类 `.tabular`（`assets/styles/points.scss`），**NEVER 在各页 `<style scoped>` 里再复制一份 `font-variant-numeric`**。
+   - **首页 `views/index.vue` 的每个指标都必须指向一个已实测可用的 `/page/**` 或 `web-admin` 端点**（取 `total` 或后端 `summary`），
+     首页 NEVER 自建聚合口径；时间参数名各接口不统一（`beginTime/endTime` vs `startDate/endDate`），照各页现状传。
 6. **`web/src/views/monitor/job/log.vue`**： 状态列绑 `sys_common_status` 字典（缺 `2=进行中` 即渲染空白，
    见附B.2）； 有 UTC 时间串转本地 `YYYY-MM-DD HH:mm:ss.SSS` 的转换（VictoriaLogs 返回 UTC）。
 7. **`web/src/router/index.js:5~25` 是 RuoYi 原生的路由配置项说明**（`hidden` / `alwaysShow` / `redirect` /

@@ -18,7 +18,7 @@
         </el-select>
       </el-form-item>
       <el-form-item label="创建时间">
-        <el-date-picker v-model="queryParams.dateRange" type="datetimerange" value-format="YYYY-MM-DD HH:mm:ss" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间" style="width: 340px" />
+        <query-time-range v-model="queryParams.dateRange" :value-format="DATE_FORMAT" @change="handleQuery" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
@@ -55,16 +55,55 @@
     </el-alert>
 
     <el-table v-loading="loading" :data="blacklist" border>
+      <template #empty>
+        <empty-state
+          :error="queryError"
+          :filters="queryParams"
+          :range="queryParams.dateRange"
+          :value-format="DATE_FORMAT"
+          hint="解除完成的卡会移出本表，只留在黑名单历史里"
+          @update:range="queryParams.dateRange = $event"
+          @relax="handleQuery"
+          @clear="resetQuery"
+          @retry="getList"
+        />
+      </template>
       <el-table-column label="序号" width="60" align="center">
         <template #default="scope">{{ (queryParams.pageNum - 1) * queryParams.pageSize + scope.$index + 1 }}</template>
       </el-table-column>
-      <el-table-column label="卡ID" prop="cardId" min-width="180" show-overflow-tooltip />
+      <el-table-column label="卡ID" prop="cardId" min-width="180" show-overflow-tooltip>
+        <template #default="{ row }"><span class="tabular">{{ row.cardId }}</span></template>
+      </el-table-column>
       <el-table-column label="三方用户ID" prop="thirdUserId" min-width="140" show-overflow-tooltip>
         <template #default="{ row }">{{ row.thirdUserId || '-' }}</template>
       </el-table-column>
-      <el-table-column label="状态" width="100" align="center">
+      <el-table-column label="状态" width="120" align="center">
         <template #default="{ row }">
-          <el-tag :type="statusTagType(row.status)">{{ statusLabel(row.status) }}</el-tag>
+          <!-- 两阶段是本表最容易被误读的地方（点了解除但判黑仍命中），把进度做成可点的步骤条而不是纯文字。 -->
+          <el-popover placement="right" :width="330" trigger="click">
+            <template #reference>
+              <span class="status-trigger">
+                <status-tag :type="statusTagType(row.status)" :label="statusLabel(row.status)" />
+                <el-icon class="trigger-hint"><QuestionFilled /></el-icon>
+              </span>
+            </template>
+            <el-steps direction="vertical" :active="releaseStepActive(row)">
+              <el-step title="加入黑名单" status="success" :description="`拉黑：${row.reason || '-'}（${parseTime(row.createTime) || '-'}）`" />
+              <el-step
+                title="提交解除申请"
+                :status="row.status === STATUS_RELEASING ? 'process' : 'wait'"
+                :description="row.status === STATUS_RELEASING ? `解除原因：${row.releaseReason || '-'}` : '未提交解除'"
+              />
+              <el-step
+                title="渠道通知推达后放行"
+                :status="syncStepStatus(row)"
+                :description="`渠道同步：${syncLabel(row.channelSyncStatus)}${row.channelSyncFailReason ? ' · ' + row.channelSyncFailReason : ''}`"
+              />
+            </el-steps>
+            <div v-if="row.status === STATUS_RELEASING" class="step-foot">
+              放行前该卡<b>仍算黑名单</b>，判黑照样命中；通知推不动时点列表上方「补推解除通知」。
+            </div>
+          </el-popover>
         </template>
       </el-table-column>
       <el-table-column label="渠道同步" width="180" align="center">
@@ -218,6 +257,7 @@ const open = ref(false)
 const releaseOpen = ref(false)
 const blacklist = ref([])
 const total = ref(0)
+const queryError = ref('')
 const queryParams = reactive({
   cardId: '',
   thirdUserId: '',
@@ -256,6 +296,19 @@ function statusTagType(status) {
   return status === STATUS_RELEASING ? 'warning' : 'danger'
 }
 
+/** 步骤条高亮到第几步：0=只完成加黑，1=已提交解除，2=渠道已推达。 */
+function releaseStepActive(row) {
+  if (row.channelSyncStatus === 'SUCCESS' && row.status === STATUS_RELEASING) return 2
+  return row.status === STATUS_RELEASING ? 1 : 0
+}
+
+/** 渠道拒绝是终态（重推无用），用 error；失败/待推用 wait，避免把「还能补推」画成已断。 */
+function syncStepStatus(row) {
+  if (row.channelSyncStatus === 'SUCCESS') return 'success'
+  if (row.channelSyncStatus === 'REJECTED') return 'error'
+  return 'wait'
+}
+
 function syncLabel(status) {
   return SYNC_LABELS[status] || '未纳管'
 }
@@ -269,6 +322,7 @@ function syncTagType(status) {
 
 function getList() {
   loading.value = true
+  queryError.value = ''
   const [createTimeBegin, createTimeEnd] = queryParams.dateRange || []
   listBlacklists({
     cardId: queryParams.cardId,
@@ -283,6 +337,8 @@ function getList() {
     const page = response.data || {}
     blacklist.value = page.list || []
     total.value = Number(page.total || 0)
+  }).catch((error) => {
+    queryError.value = error?.message || '查询失败'
   }).finally(() => { loading.value = false })
 }
 
@@ -434,6 +490,22 @@ onMounted(getList)
 .retry-times {
   margin-left: 4px;
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
+}
+.status-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+}
+.trigger-hint {
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+}
+.step-foot {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-text-color-secondary);
 }
 </style>

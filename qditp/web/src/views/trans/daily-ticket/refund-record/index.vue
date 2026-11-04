@@ -2,15 +2,7 @@
   <div class="app-container">
     <el-form ref="queryRef" :model="queryParams" :inline="true">
       <el-form-item label="申请时间" prop="dateRange">
-        <el-date-picker
-          v-model="queryParams.dateRange"
-          type="datetimerange"
-          range-separator="至"
-          start-placeholder="开始时间"
-          end-placeholder="结束时间"
-          value-format="YYYY-MM-DD HH:mm:ss"
-          style="width: 340px"
-        />
+        <query-time-range v-model="queryParams.dateRange" :value-format="DATE_FORMAT" @change="handleQuery" />
       </el-form-item>
       <el-form-item label="日票订单号" prop="orderNo">
         <el-input v-model="queryParams.orderNo" placeholder="请输入日票订单号" clearable style="width: 220px" @keyup.enter="handleQuery" />
@@ -39,6 +31,18 @@
     </el-form>
 
     <el-table v-loading="loading" :data="refundList" border>
+      <template #empty>
+        <empty-state
+          :error="queryError"
+          :filters="queryParams"
+          :range="queryParams.dateRange"
+          :value-format="DATE_FORMAT"
+          @update:range="queryParams.dateRange = $event"
+          @relax="handleQuery"
+          @clear="resetQuery"
+          @retry="getList"
+        />
+      </template>
       <el-table-column label="商户退款单号" prop="refundOrderNo" min-width="210" show-overflow-tooltip />
       <el-table-column label="平台退款单号" prop="platformRefundNo" min-width="210" show-overflow-tooltip />
       <el-table-column label="日票订单号" prop="orderNo" min-width="190" show-overflow-tooltip />
@@ -83,6 +87,7 @@ const router = useRouter()
 const loading = ref(false)
 const total = ref(0)
 const refundList = ref([])
+const queryError = ref('')
 const queryParams = reactive({
   pageNum: 1,
   pageSize: 10,
@@ -101,10 +106,13 @@ function buildQuery() {
 
 function getList() {
   loading.value = true
+  queryError.value = ''
   listDailyTicketRefundRecords(buildQuery()).then((response) => {
     const page = response.data || {}
     refundList.value = page.list || []
     total.value = Number(page.total || 0)
+  }).catch((error) => {
+    queryError.value = error?.message || '查询失败'
   }).finally(() => { loading.value = false })
 }
 
@@ -142,7 +150,8 @@ function retryRefund(row) {
 }
 
 // 两个页面作为一个操作闭环，保留明确的返回入口。
-function backToOrders() { router.push('/trans/daily-ticket/refund') }
+// 路由名取 sys_menu.ROUTE_NAME='DailyTicketRefund'（menu_id=2029）；写死路径会随菜单调整静默 404。
+function backToOrders() { router.push({ name: 'DailyTicketRefund' }) }
 // 数据库存储金额单位为分，页面统一转换为元展示。
 function formatAmount(value) { return value == null ? '-' : `¥ ${(Number(value) / 100).toFixed(2)}` }
 function formatRefundStatus(value) { return ({ REFUNDING: '退款处理中', REFUNDED: '退款完成', FAILED: '退款失败', WAIT_VERIFY: '待核验' })[value] || value || '-' }

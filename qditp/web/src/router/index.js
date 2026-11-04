@@ -92,7 +92,7 @@ export const constantRoutes = [
         path: '',
         component: () => import('@/views/trans/employee-card-acc-simulator/index.vue'),
         name: 'EmployeeCardAccSimulator',
-        meta: { title: 'ACC员工码模拟', icon: 'monitor' }
+        meta: { title: 'ACC员工码模拟（联调）', icon: 'monitor' }
       }
     ]
   }

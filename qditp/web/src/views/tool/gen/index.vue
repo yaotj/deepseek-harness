@@ -19,15 +19,8 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="创建时间" style="width: 308px">
-        <el-date-picker
-          v-model="dateRange"
-          value-format="YYYY-MM-DD"
-          type="daterange"
-          range-separator="-"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-        ></el-date-picker>
+      <el-form-item label="创建时间">
+        <query-time-range v-model="dateRange" :value-format="DATE_FORMAT" @change="handleQuery" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
@@ -88,6 +81,18 @@
     </el-row>
 
     <el-table ref="genRef" v-loading="loading" :data="tableList" @selection-change="handleSelectionChange" :default-sort="defaultSort" @sort-change="handleSortChange">
+      <template #empty>
+        <empty-state
+          :error="queryError"
+          :filters="queryParams"
+          :range="dateRange"
+          :value-format="DATE_FORMAT"
+          @update:range="dateRange = $event"
+          @relax="handleQuery"
+          @clear="resetQuery"
+          @retry="getList"
+        />
+      </template>
       <el-table-column type="selection" align="center" width="55"></el-table-column>
       <el-table-column label="序号" type="index" width="50" align="center">
         <template #default="scope">
@@ -167,6 +172,7 @@ const multiple = ref(true)
 const total = ref(0)
 const tableNames = ref([])
 const dateRange = ref(defaultTodayRange(DATE_FORMAT))
+const queryError = ref("")
 const uniqueId = ref("")
 const defaultSort = ref({ prop: "createTime", order: "descending" })
 
@@ -203,9 +209,13 @@ onActivated(() => {
 /** 查询表集合 */
 function getList() {
   loading.value = true
+  queryError.value = ""
   listTable(proxy.addDateRange(queryParams.value, dateRange.value)).then(response => {
     tableList.value = response.rows
     total.value = response.total
+  }).catch(error => {
+    queryError.value = error?.message || "查询失败"
+  }).finally(() => {
     loading.value = false
   })
 }

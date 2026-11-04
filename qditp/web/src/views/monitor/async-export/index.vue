@@ -32,16 +32,8 @@
                <el-option label="失败" value="FAILED" />
             </el-select>
          </el-form-item>
-         <el-form-item label="创建时间" style="width: 320px">
-            <el-date-picker
-               v-model="dateRange"
-               value-format="YYYY-MM-DD HH:mm:ss"
-               type="daterange"
-               range-separator="-"
-               start-placeholder="开始日期"
-               end-placeholder="结束日期"
-               :default-time="[new Date(2000, 1, 1, 0, 0, 0), new Date(2000, 1, 1, 23, 59, 59)]"
-            ></el-date-picker>
+         <el-form-item label="创建时间">
+            <query-time-range v-model="dateRange" :value-format="DATE_FORMAT" @change="handleQuery" />
          </el-form-item>
          <el-form-item>
             <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
@@ -54,9 +46,23 @@
       </el-row>
 
       <el-table ref="tableRef" v-loading="loading" :data="taskList">
+         <template #empty>
+            <empty-state
+               :error="queryError"
+               :filters="queryParams"
+               :range="dateRange"
+               :value-format="DATE_FORMAT"
+               hint="任务由「系统监控-定时任务」中的 asyncExportQuartzTask 调度执行；长期停在待执行时先核该任务是否被暂停"
+               @update:range="dateRange = $event"
+               @relax="handleQuery"
+               @clear="resetQuery"
+               @retry="getList"
+            />
+         </template>
          <el-table-column label="任务ID" align="center" prop="id" width="80" />
          <el-table-column label="任务编码" align="center" prop="taskCode" width="150" :show-overflow-tooltip="true" />
          <el-table-column label="任务名称" align="center" prop="taskName" :show-overflow-tooltip="true" />
+         <el-table-column label="提交人" align="center" prop="createBy" width="110" />
          <el-table-column label="状态" align="center" prop="status" width="100">
             <template #default="scope">
                <el-tag v-if="scope.row.status === 'PENDING'" type="info">待执行</el-tag>
@@ -123,6 +129,7 @@ const loading = ref(true)
 const showSearch = ref(true)
 const total = ref(0)
 const dateRange = ref(defaultTodayRange(DATE_FORMAT))
+const queryError = ref("")
 
 const data = reactive({
   queryParams: {
@@ -139,9 +146,13 @@ const { queryParams } = toRefs(data)
 /** 查询任务列表 */
 function getList() {
   loading.value = true
+  queryError.value = ""
   listAsyncExportTask(proxy.addDateRange(queryParams.value, dateRange.value)).then(response => {
     taskList.value = response.rows
     total.value = response.total
+  }).catch(error => {
+    queryError.value = error?.message || "查询失败"
+  }).finally(() => {
     loading.value = false
   })
 }

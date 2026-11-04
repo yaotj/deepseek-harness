@@ -18,15 +18,7 @@
         </el-select>
       </el-form-item>
       <el-form-item label="交易日期" required>
-        <el-date-picker
-          v-model="dateRange"
-          type="daterange"
-          value-format="YYYY-MM-DD"
-          range-separator="-"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-          style="width: 260px"
-        />
+        <query-time-range v-model="dateRange" :value-format="DATE_FORMAT" :allow-all="false" @change="handleQuery" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">圈单查询</el-button>
@@ -65,6 +57,18 @@
       border
       @selection-change="handleSelectionChange"
     >
+      <template #empty>
+        <empty-state
+          :error="queryError"
+          :filters="queryParams"
+          :range="dateRange"
+          :value-format="DATE_FORMAT"
+          @update:range="dateRange = $event"
+          @relax="handleQuery"
+          @clear="resetQuery"
+          @retry="getList"
+        />
+      </template>
       <el-table-column type="selection" width="50" align="center" />
       <el-table-column label="序号" type="index" width="60" align="center">
         <template #default="scope">
@@ -139,6 +143,7 @@ const refunding = ref(false)
 const orderList = ref([])
 const total = ref(0)
 const dateRange = ref(defaultTodayRange(DATE_FORMAT))
+const queryError = ref('')
 const stationOptions = ref([])
 const multipleSelection = ref([])
 const resultVisible = ref(false)
@@ -166,6 +171,7 @@ function loadStations() {
 }
 
 function getList() {
+  queryError.value = ''
   if (!dateRange.value || dateRange.value.length !== 2) {
     ElMessage.warning('请先选择交易日期范围')
     return
@@ -181,6 +187,8 @@ function getList() {
     const page = response.data || {}
     orderList.value = page.list || []
     total.value = Number(page.total || 0)
+  }).catch((error) => {
+    queryError.value = error?.message || '查询失败'
   }).finally(() => { loading.value = false })
 }
 

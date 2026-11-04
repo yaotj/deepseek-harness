@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { parse as parseScript } from '@babel/parser'
-import { parse as parseSfc } from '@vue/compiler-sfc'
+import { parse as parseSfc, compileTemplate } from '@vue/compiler-sfc'
 
 const SRC_DIR = path.resolve('src')
 const EXTS = ['.vue', '.js']
@@ -21,6 +21,7 @@ function walk(dir, files = []) {
 
 let fileCount = 0
 let scriptBlockCount = 0
+let templateCount = 0
 let errorCount = 0
 
 for (const file of walk(SRC_DIR)) {
@@ -46,6 +47,19 @@ for (const file of walk(SRC_DIR)) {
         console.error(`[SCRIPT] ${file}: ${e.message}`)
       }
     }
+    // 模板单独编译一次：@babel/parser 只看 script 块，模板里写错的指令/插值它看不见。
+    if (descriptor.template) {
+      templateCount++
+      const { errors: templateErrors } = compileTemplate({
+        source: descriptor.template.content,
+        filename: file,
+        id: path.basename(file)
+      })
+      if (templateErrors.length) {
+        errorCount++
+        console.error(`[TEMPLATE] ${file}: ${templateErrors.map((e) => e.message || String(e)).join('; ')}`)
+      }
+    }
   } else {
     scriptBlockCount++
     try {
@@ -60,5 +74,5 @@ for (const file of walk(SRC_DIR)) {
   }
 }
 
-console.log(`扫描 ${fileCount} 文件 / ${scriptBlockCount} script 块 / ERROR ${errorCount}`)
+console.log(`扫描 ${fileCount} 文件 / ${scriptBlockCount} script 块 / ${templateCount} 模板 / ERROR ${errorCount}`)
 process.exit(errorCount > 0 ? 1 : 0)

@@ -2,15 +2,7 @@
   <div class="app-container">
     <el-form :inline="true" label-width="90px">
       <el-form-item label="交易日期">
-        <el-date-picker
-          v-model="dateRange"
-          type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-          value-format="YYYY-MM-DD"
-          style="width: 260px"
-        />
+        <query-time-range v-model="dateRange" :value-format="DATE_FORMAT" :allow-all="false" @change="handleQuery" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
@@ -38,6 +30,18 @@
     <el-row :gutter="20">
       <el-col :span="14">
         <el-table v-loading="loading" :data="statsList" border>
+          <template #empty>
+            <empty-state
+              :error="queryError"
+              :filters="{}"
+              :range="dateRange"
+              :value-format="DATE_FORMAT"
+              @update:range="dateRange = $event"
+              @relax="handleQuery"
+              @clear="resetQuery"
+              @retry="getList"
+            />
+          </template>
           <el-table-column label="序号" type="index" width="70" align="center" />
           <el-table-column label="车站编码" prop="stationCode" width="110" align="center" />
           <el-table-column label="车站名称" prop="stationName" min-width="160" align="center">
@@ -72,6 +76,7 @@ const loading = ref(false)
 const statsList = ref([])
 const summary = ref({})
 const dateRange = ref(defaultTodayRange(DATE_FORMAT))
+const queryError = ref('')
 const barRef = ref(null)
 let barChart = null
 
@@ -100,6 +105,7 @@ function renderBar() {
 }
 
 function getList() {
+  queryError.value = ''
   if (!dateRange.value || dateRange.value.length !== 2) {
     ElMessage.warning('请选择交易日期范围')
     return
@@ -110,6 +116,9 @@ function getList() {
       statsList.value = (response.data && response.data.list) || []
       summary.value = (response.data && response.data.summary) || {}
       nextTick(renderBar)
+    })
+    .catch((error) => {
+      queryError.value = error?.message || '查询失败'
     })
     .finally(() => { loading.value = false })
 }

@@ -40,15 +40,8 @@
                />
             </el-select>
          </el-form-item>
-         <el-form-item label="执行时间" style="width: 308px">
-            <el-date-picker
-               v-model="dateRange"
-               value-format="YYYY-MM-DD"
-               type="daterange"
-               range-separator="-"
-               start-placeholder="开始日期"
-               end-placeholder="结束日期"
-            ></el-date-picker>
+         <el-form-item label="执行时间">
+            <query-time-range v-model="dateRange" :value-format="DATE_FORMAT" @change="handleQuery" />
          </el-form-item>
          <el-form-item>
             <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
@@ -97,6 +90,18 @@
       </el-row>
 
       <el-table v-loading="loading" :data="jobLogList" @selection-change="handleSelectionChange">
+         <template #empty>
+            <empty-state
+               :error="queryError"
+               :filters="queryParams"
+               :range="dateRange"
+               :value-format="DATE_FORMAT"
+               @update:range="dateRange = $event"
+               @relax="handleQuery"
+               @clear="resetQuery"
+               @retry="getList"
+            />
+         </template>
          <el-table-column type="selection" width="55" align="center" />
          <el-table-column label="日志编号" width="80" align="center" prop="jobLogId" />
          <el-table-column label="任务名称" align="center" prop="jobName" :show-overflow-tooltip="true" />
@@ -231,6 +236,7 @@ const ids = ref([])
 const multiple = ref(true)
 const total = ref(0)
 const dateRange = ref(defaultTodayRange(DATE_FORMAT))
+const queryError = ref("")
 const route = useRoute()
 
 const data = reactive({
@@ -249,9 +255,13 @@ const { queryParams, form, rules } = toRefs(data)
 /** 查询调度日志列表 */
 function getList() {
   loading.value = true
+  queryError.value = ""
   listJobLog(proxy.addDateRange(queryParams.value, dateRange.value)).then(response => {
     jobLogList.value = response.rows
     total.value = response.total
+  }).catch(error => {
+    queryError.value = error?.message || "查询失败"
+  }).finally(() => {
     loading.value = false
   })
 }
