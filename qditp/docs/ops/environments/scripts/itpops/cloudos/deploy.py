@@ -348,9 +348,182 @@ def _app_deploy(argv: list[str]) -> int:
     ui.out("")
     ui.out("下一步（缺一不可）：")
     ui.out("  1) 探活 + 业务核验（NodePort 见 cloudos svc %s）" % plan["app_name"])
-    ui.out("  2) 比对实例容器镜像里的 digest 与上面推送的 %s"
-           "（IT-031 涉及的服务 MUST 复验 PID1=/startapp.sh 与 -Xmx5900m）" % digest)
+    ui.out("  2) 比对实例容器镜像里的 digest 与上面推送的 %s；"
+           "IT-031 涉及的服务 MUST 复验 PID1=/startapp.sh 与 JVM 堆口径" % digest)
+    ui.out("     堆 = max_memory - reserved_memory - max_direct_memory；"
+           "红岛 8Gi=5900m / 测试 4Gi=2900m，MUST 按本应用 env 现查，NEVER 全局套 5900m")
     ui.out("  回滚：cloudos deploy %s %s --app-version %s --yes"
            % (plan["app_name"], plan["cur_img"], plan["cur_ver"]))
     ui.result({"plan": plan, "body": body, "image_digest": digest, "done": True})
+    return 0
+# ---------------------------------------------------------------- env 变更
+def _bump_patch_version(v: str) -> str:
+    """advanced-config PATCH 要求 version != 当前值（IT-020 §2 契约 3）。
+
+    优先追加/递增第 4 段，不占用 3 段发布序列：1.0.91 → 1.0.91.1 → 1.0.91.2。
+    """
+    parts = str(v or "").split(".")
+    if len(parts) >= 4 and parts[-1].isdigit():
+        parts[-1] = str(int(parts[-1]) + 1)
+        return ".".join(parts)
+    if parts and parts[0]:
+        return ".".join(parts) + ".1"
+    return "0.0.1.1"
+
+
+def build_env_patch(app: dict, *, set_items: dict[str, str], del_keys: list[str],
+                    version_override: str = "") -> tuple[dict, dict]:
+    """组装 PATCH /apps/{uuid}/advanced-config 的 body，把 IT-020 隐藏契约固化在这里。
+
+    契约（2026-10-26 红岛实测，见 docs/tracking/IT-020-JVM参数被平台回滚.md §2）：
+      1. container_image 是隐藏必填，缺了报 application.5000010；
+      2. env 是整份覆盖，MUST 回传原有全部 env 再做增删改；
+      3. version 不能等于当前值 → 第 4 段递增（--app-version 可覆盖）；
+      4. version_id 只在 uuid 形态时带上；
+      5. resources 照抄平台陈旧模板会把副本数/规格一并回退，
+         MUST 用当前 k8s Deployment 实时快照；取不到就不要发这个 PATCH。
+    """
+    meta = app.get("metadata") or {}
+    cur_img = (meta.get("container_image") or "").strip()
+    if not cur_img:
+        raise OpsError(
+            "该应用 metadata.container_image 为空 —— 不是镜像应用，env-set 不适用",
+            EXIT_PRECONDITION,
+        )
+
+    env = dict(meta.get("env") or {})               # 全量基线，NEVER 只发增量
+    removed = [k for k in del_keys if k in env]
+    for k in removed:
+        env.pop(k, None)
+    added = {k: v for k, v in set_items.items() if env.get(k) != v}
+    env.update(set_items)
+
+    cur_ver = app.get("version") or ""
+    new_ver = version_override or _bump_patch_version(cur_ver)
+    if new_ver == cur_ver:
+        raise OpsError(
+            f"version 不能等于当前值（{cur_ver}），请用 --app-version 另指定", EXIT_USAGE
+        )
+
+    body: dict = {
+        "version": new_ver,
+        "strategy": meta.get("strategy") or "rolling",
+        "container_name": meta.get("container_name"),
+        "container_image": cur_img,
+        "env": env,
+        "is_skywalking": bool(meta.get("is_skywalking") or False),
+    }
+    vid = (meta.get("version_id") or "").strip()
+    if vid and re.fullmatch(r"[0-9a-fA-F]{32}|[0-9a-fA-F-]{36}", vid):
+        body["version_id"] = vid
+    if meta.get("service_name"):
+        body["service_name"] = meta["service_name"]
+
+    deploy_obj = _k8s_deploy_for_cloudos(app.get("name") or "")
+    if deploy_obj is not None:
+        body["resources"] = [None, deploy_obj]
+
+    plan = {
+        "uuid": app.get("uuid"), "app_name": app.get("name"),
+        "namespace": app.get("namespace"),
+        "cur_ver": cur_ver, "new_ver": new_ver,
+        "container_image": cur_img, "env_n": len(env),
+        "added": added, "removed": removed,
+        "resources_snapshot": "resources" in body,
+        "replicas": app.get("instance_num"),
+        "container_name": body["container_name"],
+    }
+    return body, plan
+
+
+def env_set(argv: list[str]) -> int:
+    """cloudos env-set <app> KEY=VALUE ... [--delete KEY] [--app-version <v>] [--yes]。
+
+    不带 --yes 是只读预演；--yes 才发 PATCH。取不到当前 k8s Deployment 快照时
+    **拒绝执行**（IT-020：平台陈旧 resources 模板会回退副本数与 4C/8G 规格）。
+    """
+    if not argv:
+        raise OpsError(
+            "用法：cloudos env-set <名字|uuid> KEY=VALUE [KEY=VALUE...] "
+            "[--delete KEY] [--app-version <v>] [--yes]", EXIT_USAGE
+        )
+    key = argv[0]
+    set_items: dict[str, str] = {}
+    del_keys: list[str] = []
+    version_override = ""
+    i = 1
+    while i < len(argv):
+        a = argv[i]
+        if a == "--delete":
+            del_keys.append(_need(argv, i + 1, "--delete 缺值"))
+            i += 2
+        elif a == "--app-version":
+            version_override = _need(argv, i + 1, "--app-version 缺值")
+            i += 2
+        elif "=" in a and not a.startswith("--"):
+            k, v = a.split("=", 1)
+            if not k:
+                raise OpsError("KEY=VALUE 的 KEY 不能为空", EXIT_USAGE)
+            set_items[k] = v
+            i += 1
+        else:
+            raise OpsError(
+                f"未知参数 {a}（env-set 只接受 KEY=VALUE / --delete / --app-version）", EXIT_USAGE)
+    if not set_items and not del_keys:
+        raise OpsError("至少指定一个 KEY=VALUE 或 --delete KEY", EXIT_USAGE)
+
+    uuid = resolve_app_uuid(key)
+    d = _req("GET", f"{APP_API}/apps/{uuid}")
+    app = (d.get("data") or {}) if isinstance(d, dict) else {}
+    body, plan = build_env_patch(app, set_items=set_items, del_keys=del_keys,
+                                 version_override=version_override)
+
+    ui.out("===== 应用 env 变更预演（%s / ns %s）=====" % (
+        envx.current().label, plan["namespace"]))
+    ui.out("  应用        %s（%s）" % (plan["app_name"], plan["uuid"]))
+    ui.out("  镜像        %s（保持不变）" % plan["container_image"])
+    ui.out("  应用版本    %s → %s（advanced-config 要求 ≠ 当前值，第 4 段递增）"
+           % (plan["cur_ver"] or "<空>", plan["new_ver"]))
+    ui.out("  env 变更    新增/修改 %d 项，删除 %d 项，共 %d 项全量回传"
+           % (len(plan["added"]), len(plan["removed"]), plan["env_n"]))
+    for k, v in sorted(plan["added"].items()):
+        ui.out("    + %s=%s" % (k, v))
+    for k in sorted(plan["removed"]):
+        ui.out("    - %s" % k)
+    ui.out("  resources   %s" % (
+        "携带当前 k8s Deployment 快照" if plan["resources_snapshot"] else "⚠ 未取到快照"))
+    ui.out("")
+    ui.out("  将提交的 body：")
+    ui.out(json.dumps(body, ensure_ascii=False, indent=2)[:1200] + " ...")
+
+    if not context().yes:
+        ui.out("")
+        ui.out("以上为预演（dry-run），未发起任何写操作。确认执行请追加 --yes。")
+        ui.out("IT-020 修复示例（测试环境 4Gi 容器）：cloudos env-set %s "
+               "max_memory=4000 reserved_memory=1000 max_direct_memory=100 --yes"
+               % plan["app_name"])
+        ui.out("回滚 = 用本命令把变更的键写回原值（version 会继续递增）。")
+        ui.result({"dry_run": True, "plan": plan, "body": body})
+        return 0
+
+    if not plan["resources_snapshot"]:
+        raise OpsError(
+            "当前 k8s Deployment 快照取不到（ssh / 网络不可达），body 未带 resources。"
+            "NEVER 在这种情况下 PATCH：平台会按陈旧模板重渲染，把副本数与容器规格一并回退"
+            "（IT-020 §2 契约 5）。网络恢复后重试，或先确认平台 resources 现状。",
+            EXIT_PRECONDITION,
+        )
+
+    _err("")
+    _err("已下发 PATCH /apps/%s/advanced-config ..." % plan["uuid"])
+    _req("PATCH", f"{APP_API}/apps/{plan['uuid']}/advanced-config",
+         json.dumps(body, ensure_ascii=False))
+    _deploy_wait(plan["uuid"], plan["container_image"],
+                 plan["container_name"] or plan["app_name"], str(plan["replicas"]))
+    ui.out("")
+    ui.out("下一步：复验 env 已生效（cloudos env %s / Pod /proc/<pid>/cmdline）。" % plan["app_name"])
+    ui.out("  JVM 堆 = max_memory - reserved_memory - max_direct_memory；"
+           "红岛 8Gi=5900m、测试 4Gi=2900m，MUST 按本应用容器规格现查。")
+    ui.out("  回滚：用本命令把变更的键写回原值（version 会继续递增）。")
+    ui.result({"plan": plan, "body": body, "done": True})
     return 0

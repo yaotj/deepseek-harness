@@ -12,13 +12,13 @@ from __future__ import annotations
 import io
 import os
 import unittest
-from contextlib import redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 from types import SimpleNamespace
 from unittest import mock
 
 from itpops.cloudos import common, deploy, images, impl, scaling
 from itpops.core.ui import Ctx, set_context
-from itpops.errors import EXIT_USAGE, OpsError
+from itpops.errors import EXIT_PRECONDITION, EXIT_USAGE, OpsError
 
 
 class SpecUnitsTest(unittest.TestCase):
@@ -188,12 +188,103 @@ class K8sSnapshotTest(unittest.TestCase):
         self.assertIn("取当前 Deployment 异常", err.getvalue())
 
 
+class EnvSetTest(unittest.TestCase):
+    """IT-020 隐藏契约：env 全量、container_image 必填、version 递增、resources 安全门。"""
+
+    IMG = "os-harbor-svc.default.svc.cloudos:443/itp/face-pay-server:1.0.91"
+
+    @classmethod
+    def _app(cls, meta_extra=None, version="1.0.91"):
+        meta = {
+            "container_image": cls.IMG,
+            "env": {"SERVER_PORT": "8080", "DB_HOST": "172.20.222.3:1521"},
+            "strategy": "rolling", "container_name": "face-pay-server",
+        }
+        meta.update(meta_extra or {})
+        return {"uuid": "U1", "name": "face-pay-server", "version": version,
+                "namespace": "itp", "instance_num": 1, "metadata": meta}
+
+    @staticmethod
+    def _profile():
+        return mock.patch.object(deploy.envx, "current",
+                                 return_value=SimpleNamespace(label="测试环境", name="test", k8s_ns="itp"))
+
+    def test_bump_patch_version(self):
+        self.assertEqual(deploy._bump_patch_version("1.0.91"), "1.0.91.1")
+        self.assertEqual(deploy._bump_patch_version("1.0.91.1"), "1.0.91.2")
+        self.assertEqual(deploy._bump_patch_version(""), "0.0.1.1")
+
+    def test_env_is_full_replacement_with_hidden_contract(self):
+        with mock.patch.object(deploy, "_k8s_deploy_for_cloudos", return_value={"kind": "Deployment"}):
+            body, plan = deploy.build_env_patch(
+                self._app(),
+                set_items={"max_memory": "4000", "reserved_memory": "1000",
+                           "max_direct_memory": "100"}, del_keys=[])
+        self.assertEqual(body["container_image"], self.IMG)     # 隐藏必填
+        self.assertEqual(body["version"], "1.0.91.1")           # version != 当前
+        self.assertEqual(body["env"]["SERVER_PORT"], "8080")    # 原有 env 不能丢
+        self.assertEqual(body["env"]["DB_HOST"], "172.20.222.3:1521")
+        self.assertEqual(body["env"]["max_memory"], "4000")
+        self.assertEqual(plan["env_n"], 5)
+        self.assertEqual(len(plan["added"]), 3)
+        self.assertTrue(plan["resources_snapshot"])
+        self.assertIn("resources", body)
+
+    def test_missing_container_image_is_rejected(self):
+        with self.assertRaises(OpsError) as cm:
+            deploy.build_env_patch(self._app({"container_image": ""}),
+                                   set_items={"a": "b"}, del_keys=[])
+        self.assertEqual(cm.exception.exit_code, EXIT_PRECONDITION)
+
+    def test_same_version_is_rejected(self):
+        with mock.patch.object(deploy, "_k8s_deploy_for_cloudos", return_value=None):
+            with self.assertRaises(OpsError) as cm:
+                deploy.build_env_patch(self._app(), set_items={"a": "b"}, del_keys=[],
+                                       version_override="1.0.91")
+        self.assertEqual(cm.exception.exit_code, EXIT_USAGE)
+
+    def test_delete_and_non_uuid_version_id_is_dropped(self):
+        with mock.patch.object(deploy, "_k8s_deploy_for_cloudos", return_value=None):
+            body, plan = deploy.build_env_patch(
+                self._app({"version_id": "not-a-uuid"}), set_items={}, del_keys=["DB_HOST"])
+        self.assertNotIn("DB_HOST", body["env"])
+        self.assertNotIn("version_id", body)
+        self.assertEqual(plan["removed"], ["DB_HOST"])
+        self.assertFalse(plan["resources_snapshot"])
+
+    def test_dry_run_never_patches(self):
+        set_context(Ctx())                                     # 不带 --yes
+        with mock.patch.object(deploy, "resolve_app_uuid", return_value="U1"), \
+                mock.patch.object(deploy, "_req", return_value={"data": self._app()}) as req, \
+                mock.patch.object(deploy, "_k8s_deploy_for_cloudos", return_value=None), \
+                self._profile(), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            rc = deploy.env_set(["face-pay-server", "max_memory=4000"])
+        self.assertEqual(rc, 0)
+        self.assertFalse(any(c.args[0] == "PATCH" for c in req.call_args_list))
+
+    def test_execution_refused_without_resources_snapshot(self):
+        """核心安全门：网络不通 / 拿不到 k8s 快照时，--yes 也 MUST 拒绝 PATCH。"""
+        set_context(Ctx(yes=True))
+        try:
+            with mock.patch.object(deploy, "resolve_app_uuid", return_value="U1"), \
+                    mock.patch.object(deploy, "_req", return_value={"data": self._app()}) as req, \
+                    mock.patch.object(deploy, "_k8s_deploy_for_cloudos", return_value=None), \
+                    self._profile(), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                with self.assertRaises(OpsError) as cm:
+                    deploy.env_set(["face-pay-server", "max_memory=4000"])
+            self.assertEqual(cm.exception.exit_code, EXIT_PRECONDITION)
+            self.assertIn("IT-020", str(cm.exception))
+            self.assertFalse(any(c.args[0] == "PATCH" for c in req.call_args_list))
+        finally:
+            set_context(Ctx())
+
+
 class CatalogShapeTest(unittest.TestCase):
     def test_catalog_is_complete(self):
         cat = impl.CATALOG
         self.assertEqual(cat["name"], "cloudos")
         names = [s["name"] for s in cat["subcommands"]]
-        self.assertEqual(len(names), 30)
+        self.assertEqual(len(names), 31)
         self.assertEqual(len(names), len(set(names)))
         for sub in cat["subcommands"]:
             self.assertIsInstance(sub["writes"], bool)

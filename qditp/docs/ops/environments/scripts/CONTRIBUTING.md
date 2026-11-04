@@ -43,7 +43,7 @@ cd ../../../../ && python3 docs/提示词/lint-prompts.py   # 在 qditp/ 仓根�
    `_DOMAIN_MODULES` 登记。
 7. **token 缓存**按环境分文件（`/tmp/.cloudos-<env>.token`，格式 `<时间戳> <token>`，与旧 bash 互读兼容）。
 8. **改包 MUST 跑单测**：`cd docs/ops/environments/scripts && python3 -m unittest discover -s tests`
-   （82 例覆盖版本算法 / 环境 profile / CLI 契约 / 注册表 / 直调 / JSON 隔离 / 加密 /
+   （89 例覆盖版本算法 / 环境 profile / CLI 契约 / 注册表 / 直调 / JSON 隔离 / 加密 /
    ui 开关 / bump / 端点 / YAML / 布局与委托 / cloudos 业务判据；纯 stdlib，无需 pytest）。
 9. **加密只有一处**：RSA PKCS#1 v1.5 唯一实现在 `itpops/core/crypto.py`，
    `cloudos/auth`、`buildx`、`web` 一律调用它——NEVER 复制粘贴一份（2026-11-04 review 已清掉 3 份重复）。

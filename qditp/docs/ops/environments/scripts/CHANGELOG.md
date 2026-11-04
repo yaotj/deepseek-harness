@@ -3,6 +3,25 @@
 > 2026-11-04 由 `README.md`「六、重构与迁移记录」拆出，历史条目按**新 → 旧**排列、内容逐字保留。
 > 版本号真源是 `itpops/__init__.py` 的 `__version__`（`pyproject.toml` 动态读取）。
 
+## 2.7.0 — 2026-11-04 env-set 命令与 IT-020 口径修正（离线，未触碰环境）
+
+- 背景：face-pay-server 1.0.91 发版后复验发现测试环境 JVM 堆仍是 `-Xmx500m`（IT-020 既存状态）。
+  排查定位到 `deploy.py` 收尾提示把红岛 8Gi 口径 `-Xmx5900m` 全局套用，而测试环境 4Gi 容器的
+  正确值来自 `deploy/k8s/10-deployments/face-pay-server.yaml`：
+  `max_memory=4000 / reserved_memory=1000 / max_direct_memory=100` → 堆 **2900m**。
+- **新增 `cloudos env-set`**（`itpops/cloudos/deploy.py`）：把 IT-020 §2 的 5 条隐藏契约固化进
+  脚本——`container_image` 必填、env 全量替换（原有键一个不丢）、`version` 第 4 段递增
+  （`1.0.91 → 1.0.91.1`）、`version_id` 仅 uuid 形态回传、`resources` 用当前 k8s Deployment
+  实时快照。不带 `--yes` 是只读预演；支持 `KEY=VALUE` / `--delete KEY` / `--app-version`。
+- **新增安全门**：取不到 k8s Deployment 快照（网络 / 跳板不可达）时，`--yes` 也拒绝发 PATCH
+  （`EXIT_PRECONDITION`），避免平台按陈旧 resources 模板把副本数与容器规格一并回退。
+- 修正 `deploy` 收尾提示：不再硬编码 `-Xmx5900m`，改为给出堆算法并标注红岛 8Gi=5900m /
+  测试 4Gi=2900m，MUST 按本应用 env 现查。
+- 单测 82 → 89（`EnvSetTest` 7 例覆盖全量 env / 隐藏必填 / version 递增 / version_id 形态 /
+  预演只读 / 无快照拒绝执行）；11 域 help 逐字节一致；catalog 30 → 31 子命令。
+- **本轮未触碰环境**：19:16 起 `172.20` 段整体不可达（en9 不存在，ping / ssh / 443 全断，
+  `cloudos health` 结论「不能操作」），env PATCH 待网络恢复后按 IT-020 补充记录执行。
+
 ## 2.6.0 — 2026-11-04 模块级入口全量收口 + cloudos 按业务段拆分
 
 - **入口全量收口**：`python -m itpops.web.frontend_release` / `itpops.web.mount_export`

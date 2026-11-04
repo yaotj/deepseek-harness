@@ -70,6 +70,15 @@
      并补 `MY_POD_UUID` / `MY_POD_NAMESPACE` downward API 与 Pod 级 `automountServiceAccountToken: false`（含 web nginx）。
      `docker/Dockerfile` 只加契约注释、**不写 ENV**——同一镜像跨 2G/4G/8G 容器，写死会与 limit 脱节。
      红岛平台侧仍无法表达 downward API 两项，维持「尽力而为」裁决。
+  3. **测试环境 `itp` 未做本单修复（2026-11-04 现查）**：`face-pay-server` 发版到 1.0.91 后
+     Pod 仍是 `-Xmx500m`，容器 env 只有 `JAVA_TOOL_OPTIONS` 虚拟线程参数、无三件套。
+     测试环境 4Gi 容器的正确口径见 `deploy/k8s/10-deployments/face-pay-server.yaml`：
+     `max_memory=4000 / reserved_memory=1000 / max_direct_memory=100` → 堆 **2900m**，
+     **NEVER** 套红岛 8Gi 的 8000/2000/100 → 5900m（脚本旧提示曾全局套用，2.7.0 已修）。
+     修复动作已工具化为 `itp-ops.sh cloudos env-set`（隐藏契约 + resources 快照安全门，
+     沿革见 `docs/ops/environments/scripts/CHANGELOG.md`）；2026-11-04 19:16 起测试环境
+     `172.20` 段整体不可达（en9 不存在、ping/ssh/443 全断），**PATCH 未执行**，
+     待网络恢复后执行并复验 `/proc/<pid>/cmdline`。
 
 ## 5. 验证与回滚
 - 验证方式 / 结果（2026-10-26 逐个现查）：
