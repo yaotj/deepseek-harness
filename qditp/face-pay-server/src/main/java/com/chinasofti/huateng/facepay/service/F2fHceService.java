@@ -94,31 +94,33 @@ public class F2fHceService {
         remote.setOptDate(request.getOptDate());
         remote.setTransAmount(request.getTransAmount());
 
+        String orderNo = auditOrderNo(FLOW_UPDATE, request.getCardId(), request.getOptDate());
         RequestCardDataUpdateRespDTO response;
         try {
             response = ticketClient.requestUpdateCardData(remote);
         } catch (RuntimeException e) {
             log.error("票卡更新 调 ticket-server 异常, cardId={}", request.getCardId(), e);
-            audit(request.getCardId(), request.getDeviceId(), "FAILED", "下游异常", request.toString());
+            audit(orderNo, request.getDeviceId(), "FAILED", "下游异常", request.toString());
             return BomResponses.cardDataUpdateFail(BomResponses.CODE_FAIL, "票卡更新失败:下游异常");
         }
         if (response == null) {
-            audit(request.getCardId(), request.getDeviceId(), "FAILED", "下游无应答", request.toString());
+            audit(orderNo, request.getDeviceId(), "FAILED", "下游无应答", request.toString());
             return BomResponses.cardDataUpdateFail(BomResponses.CODE_FAIL, "票卡更新失败");
         }
         if (!REMOTE_SUCCESS.equals(response.getRetCode())) {
             log.warn("票卡更新 下游返回失败, cardId={}, retCode={}", request.getCardId(), response.getRetCode());
-            audit(request.getCardId(), request.getDeviceId(), "FAILED",
+            audit(orderNo, request.getDeviceId(), "FAILED",
                     response.getRetCode() + ":" + response.getRetMsg(), request.toString());
             return BomResponses.cardDataUpdateFail(response.getRetCode(), response.getRetMsg());
         }
-        audit(request.getCardId(), request.getDeviceId(), "SUCCESS", "票卡更新成功", request.toString());
+        audit(orderNo, request.getDeviceId(), "SUCCESS", "票卡更新成功", request.toString());
         return BomResponses.cardDataUpdate(response.getCardData());
     }
 
     /** IF5A-09 HCE 票卡更新结果通知：先落审计，再把 HCE 数据回写 account-server。 */
     public JSONObject receiveHceUpdateResult(NotiUpdateHceDataReqDTO request) {
-        boolean firstReport = audit(request.getCardId(), request.getDeviceId(),
+        String orderNo = auditOrderNo(FLOW_HCE_NOTI, request.getCardId(), request.getTimestamp());
+        boolean firstReport = audit(orderNo, request.getDeviceId(),
                 "SUCCESS", "HCE更新通知已受理", request.getHceData());
         if (!firstReport) {
             log.info("HCE 更新通知重复到达，幂等返回成功, cardId={}", request.getCardId());
@@ -133,13 +135,13 @@ public class F2fHceService {
                 String reason = result == null ? "下游无应答"
                         : result.getRetCode() + ":" + result.getRetMsg();
                 log.warn("HCE 数据回写失败, cardId={}, reason={}", request.getCardId(), reason);
-                reportMapper.updateOptResult(REPORT_HCE, request.getCardId(), "FAILED", reason);
+                reportMapper.updateOptResult(REPORT_HCE, orderNo, "FAILED", reason);
             } else {
                 log.info("HCE 数据回写成功, cardId={}", request.getCardId());
             }
         } catch (RuntimeException e) {
             log.error("HCE 数据回写异常, cardId={}", request.getCardId(), e);
-            reportMapper.updateOptResult(REPORT_HCE, request.getCardId(), "FAILED", "回写异常");
+            reportMapper.updateOptResult(REPORT_HCE, orderNo, "FAILED", "回写异常");
         }
         return BomResponses.success();
     }
@@ -147,12 +149,13 @@ public class F2fHceService {
     /**
      * 落一条审计。
      *
-     * @return true 表示首次落库；false 表示撞唯一索引
+     * @param orderNo 幂等键，{@code cardId + ":" + 流前缀 + 事件键}（见 {@link #auditOrderNo}）
+     * @return true 表示首次落库；false 表示撞唯一索引（同一事件重复到达）
      */
-    private boolean audit(String cardId, String deviceId, String optResult, String desc, String rawBody) {
+    private boolean audit(String orderNo, String deviceId, String optResult, String desc, String rawBody) {
         F2fResultReport report = new F2fResultReport();
         report.setReportType(REPORT_HCE);
-        report.setOrderNo(cardId);
+        report.setOrderNo(orderNo);
         report.setChannel(F2fChannel.BOM);
         report.setDeviceId(deviceId);
         report.setOptResult(optResult);
@@ -170,6 +173,29 @@ public class F2fHceService {
             }
             return false;
         }
+    }
+
+    /** IF5A-03 票卡更新审计流前缀。 */
+    private static final String FLOW_UPDATE = "U";
+
+    /** IF5A-09 HCE 更新结果通知审计流前缀。 */
+    private static final String FLOW_HCE_NOTI = "N";
+
+    /**
+     * 审计幂等键 = {@code cardId + ":" + 流前缀 + 事件键}（ADR-D173）。
+     *
+     * <p>IF5A-03 事件键取 {@code optDate}（BOM 操作时间，控制器强制非空）、IF5A-09 取报文
+     * {@code timestamp}：同一事件重试（设备断网重传）键相同 → 撞 {@code UK_F2F_REPORT_IDEM}
+     * 走幂等；同卡不同事件键不同 → 各落各的行，NEVER 再退回「每卡一行」的老键（老键导致同卡
+     * 第二次更新的审计静默丢失、HCE 通知被误判重复而跳过回写）。流前缀隔离两条链路，防止
+     * 更新与紧随其后的通知在同一秒（事件键相同）互相挤占。
+     *
+     * <p>{@code eventKey} 缺失时退化为毫秒时间戳一次性键：保证审计行必落（留痕优先于幂等），
+     * 该情形下重试不再去重，调用方 MUST 保证事件键非空（IF5A-03 已由控制器强制）。
+     */
+    private static String auditOrderNo(String flow, String cardId, String eventKey) {
+        String key = eventKey == null || eventKey.isBlank() ? String.valueOf(System.currentTimeMillis()) : eventKey;
+        return cardId + ":" + flow + key;
     }
 
     /**

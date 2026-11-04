@@ -8383,3 +8383,30 @@ AND NVL(OUT_STATION, IN_STATION) = #{stationCode}   -- 可选
 - 本决策**部分回退 ADR-D19** 中「销户后由 IF8A-75 解绑通道」的流程假设；IF8A-75 仍承担 APP 主动解绑的职能，但销户接口不再接受「带通道销户」；
 - `PayChannelServiceImpl.doRemovePayChannel` 末尾的 `archiveIfLastChannelRemoved` 调用仍保留，用于兼容旧数据/并发场景，但正常新流程下注销前通道已清空；
 - 真库验证时 MUST 检查：有未结清订单用户返回 `8023`、有剩余通道用户返回 `8025`、二者都满足的用户才能注销成功。
+
+## ADR-D173：IF5A 审计幂等键从「每卡一行」改为「每事件一行」——`cardId:流前缀+事件键`，同卡二次更新不再静默丢审计 / HCE 通知不再误跳回写（2026-11-04，face-pay-server 1.0.90）
+
+**现象**：2026-11-04 测试环境，卡 `0426090949000058` 第二次走 IF5A-03 `requestUpdateCardData` 时，`F2fHceService.audit()` insert 撞 `UK_F2F_REPORT_IDEM`，VL 出现大段 `DuplicateKeyException` ERROR 栈。排查确认：老键 `(BOM_BIZ_RESULT, cardId)` 使**每张卡永远只能有一行审计**——该卡 2026-09-22 的初测成功行把此后所有更新/通知全部判成「重复」。
+
+**根因**：`audit()` 用纯 `cardId` 当 `ORDER_NO`，语义是「设备断网重传同一事件要幂等」，键粒度却按「卡」而不是「事件」。后果两级：
+1. `requestUpdateCardData` 的审计结果本就没人消费（返回值被忽略），重复时只是静默丢一行审计留痕；
+2. `receiveHceUpdateResult` 用同一 `firstReport` 判定是否回写 account-server——**老行一存在，同卡此后所有 HCE 通知都被判「重复到达」而跳过回写**（潜伏缺陷，真实 HCE 卡二次更新即丢数据）。
+
+**决策**：审计键改为 `cardId + ":" + 流前缀 + 事件键`（ADR-D173 起 `auditOrderNo()` 为唯一合成口）：
+- IF5A-03（票卡更新）流前缀 `U`，事件键取 `optDate`（BOM 操作时间，控制器强制非空）；
+- IF5A-09（HCE 通知）流前缀 `N`，事件键取报文 `timestamp`（`DeviceRequests.unwrap` 自 form 透传）；
+- 事件键缺失退化为毫秒时间戳一次性键：审计必落（留痕优先于幂等），该情形下重试不去重；
+- `receiveHceUpdateResult` 的回写失败 `updateOptResult` 改用同一个合成键，不再用纯 cardId。
+
+**理由**：
+- 同一事件重试（设备断网重传）携带相同 `optDate`/`timestamp` → 键相同 → 撞唯一索引走幂等，原有防重语义保留；
+- 同卡不同事件键不同 → 各落各的行，审计留痕完整；
+- 流前缀隔离两条链路：BOM 更新与紧随通知常发生在同一秒，若共用键空间会互相挤占（通知撞更新的行 → 误判重复 → 跳过回写）；
+- `F2fBomOrderService` 的 `BOM_BIZ_RESULT` 行键是订单号、不含 `:`，与新键空间天然不撞。
+
+**明确不做**：
+- 不改 `UK_F2F_REPORT_IDEM (REPORT_TYPE, ORDER_NO)` 索引本身——新键 32 字符，`ORDER_NO VARCHAR2(64 CHAR)` 容得下；
+- 不清理历史老格式行（如 09-22 那行纯 cardId 键）——它们只是不再被命中，留作历史；
+- 不动 `MapperAspectToTrace` 对撞键先打 ERROR 的行为——那是全局 mapper AOP，幂等撞键的噪音问题与本次键粒度问题分开，治理另立项。
+
+**验证**：`F2fHceServiceTest` 新增 5 例（9/9 绿）：更新键合成、撞键吞掉但下游 8001 照常返回、通知首报键合成+触发回写、通知重复跳过回写、更新与通知同秒不同键。face-pay-server 全量 133 测试 0 失败。
