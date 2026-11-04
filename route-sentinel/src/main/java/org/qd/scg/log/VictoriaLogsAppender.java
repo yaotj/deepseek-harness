@@ -70,6 +70,19 @@ public class VictoriaLogsAppender extends AppenderBase<ILoggingEvent> {
         this.host = host;
     }
 
+    /**
+     * 解析 VictoriaLogs URL：优先用配置值；若 logback 未解析（如 {@code env:} 前缀不被支持、
+     * 或回退默认值），则直接读 {@code VLOGS_URL} 环境变量兜底，与 HOSTNAME 取法保持一致。
+     * 仍为空 → 返回 null（调用方据此禁用 appender）。
+     */
+    private static String resolveUrl(String configured) {
+        if (configured != null && !configured.isBlank() && !configured.contains("${")) {
+            return configured;
+        }
+        String env = System.getenv("VLOGS_URL");
+        return (env != null && !env.isBlank()) ? env : null;
+    }
+
     private static String normalizeEndpoint(String url) {
         if (url == null || url.isBlank()) {
             return null;
@@ -92,7 +105,7 @@ public class VictoriaLogsAppender extends AppenderBase<ILoggingEvent> {
                 host = "unknown";
             }
         }
-        endpoint = normalizeEndpoint(url);
+        endpoint = normalizeEndpoint(resolveUrl(url));
         if (endpoint == null) {
             addWarn("VictoriaLogs appender '" + name + "' disabled: url is empty (set VLOGS_URL)");
             return;

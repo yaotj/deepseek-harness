@@ -15,7 +15,7 @@
 
     <!-- url 为空即自动禁用（不起线程、不丢日志）；app 固定 route-sentinel。 -->
     <appender name="VictoriaLogs" class="org.qd.scg.log.VictoriaLogsAppender">
-        <url>${env:VLOGS_URL:-}</url>
+        <url>${VLOGS_URL:-}</url>
         <app>route-sentinel</app>
     </appender>
 
