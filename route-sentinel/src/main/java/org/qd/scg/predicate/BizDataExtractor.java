@@ -2,6 +2,7 @@ package org.qd.scg.predicate;
 
 import java.util.Optional;
 
+import org.qd.scg.common.RequestConstants;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.function.ServerRequest;
 
@@ -20,11 +21,24 @@ public class BizDataExtractor {
     }
 
     /**
-     * Fast path: direct string scan for "thirdUserId". Returns null on failure.
-     * Zero allocation on the happy path (caller must handle null).
+     * Fast path: direct字符串扫描 "thirdUserId"。失败返回 null。
+     *
+     * <p>优先顺序：
+     * <ol>
+     *   <li>FormDataCacheFilter 写入的请求属性 {@code route-sentinel.thirdUserId}；</li>
+     *   <li>{@code ServerRequest.param("bizData")}（query string）；</li>
+     *   <li>{@code HttpServletRequest.getParameter("bizData")}（form body）。</li>
+     * </ol>
      */
     public String extractThirdUserIdFast(ServerRequest request) {
+        Object cached = request.attribute(RequestConstants.THIRD_USER_ID_ATTR).orElse(null);
+        if (cached instanceof String thirdUserId && !thirdUserId.isBlank()) {
+            return thirdUserId;
+        }
         String bizData = request.param("bizData").orElse(null);
+        if (bizData == null || bizData.isBlank()) {
+            bizData = request.servletRequest().getParameter("bizData");
+        }
         if (bizData == null || bizData.isBlank()) {
             return null;
         }

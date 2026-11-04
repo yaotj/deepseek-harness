@@ -26,13 +26,13 @@
 
 | 项 | 现状 |
 |---|---|
-| artifactId | `org.qd:route-sentinel:1.0.5`（`route-sentinel/pom.xml`）；测试环境当前 `1.0.5`、红岛待升级 `1.0.5` |
+| artifactId | `org.qd:route-sentinel:1.0.7`（`route-sentinel/pom.xml`）；测试环境当前 `1.0.7`、红岛待升级 `1.0.5` |
 | Spring Cloud 版本 | `2025.1.2`，网关实现用 `spring-cloud-starter-gateway-server-mvc`（同步 Servlet 栈） |
 | 主类 | `org.qd.scg.UserRouteGatewayApplication` |
 | JDK 版本 | **21**（2026-10-26 由 Java 25 降级，与 qditp 主体基线一致）。降级已实测：字节码 major 65、22 个测试全过；依赖侧无需改动（spring-boot 4.0.7 / spring-core 7.0.8 / gateway-webmvc 5.0.2 全为 Java 17 字节码） |
 | 容器端口 | `8080`（Deployment `SERVER_PORT=8080`，Service `route-sentinel-svc:8080`） |
 | 基础镜像 | 测试 `itp/jdk:21`；红岛 `os-harbor-svc.default.svc.cloudos:443/itpb/jdk21:1.0.0`（itpb 项目**唯一**公共 JDK 镜像，2026-10-26 实测 itpb ns 内拉取成功，`java version 21.0.1`） |
-| 已部署镜像 | 测试 `os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.5`（`deploy/k8s/10-deployments/route-sentinel.yaml`）；红岛待升级 `1.0.5` |
+| 已部署镜像 | 测试 `os-harbor-svc.default.svc.cloudos:443/itp/route-sentinel:1.0.7`（`deploy/k8s/10-deployments/route-sentinel.yaml`）；红岛待升级 `1.0.5` |
 | 上游入口 | `fep-app-vr` 把下面 **5 条精确路径**（`uri.exact`）打到 `route-sentinel-svc:8080`；**其余** `/itptvm/**`、`/itpbom/**` 端点仍由前缀路由直连 `face-pay-server-svc:30025`，不进 SCG |
 | 数据库 | 测试直连 `AFCITPDB`（schema `QDITP`）；红岛按域分库后 `USER_ITP_REG_INFO` → `QDITP_USER`（`itp_ro` 只读）、`GATEWAY_ROUTE_CONFIG` → `QDITP_PLAT`（**红岛两表尚未建，见 [IT-021](../tracking/IT-021-红岛网关路由表缺失.md)，是部署前置阻塞**） |
 
@@ -95,9 +95,13 @@ ORDER_NO    NUMBER        路由优先级
 ```text
 1. 取请求 path；
 2. 若 path 不在 `UserRouteService.splitPaths`（从 GATEWAY_ROUTE_CONFIG 的 Path= 谓语提取）→ 返回 false（不走 legacy）；
-3. 从 query param `bizData` 中 fast-extract `thirdUserId`；
-4. thirdUserId 为空 → 默认旧用户（返回 true）；
-5. 调 `UserRouteService.isLegacy(thirdUserId)`：
+3. 提取 `bizData`：
+   - 优先读 `FormDataCacheFilter` 解析后的请求属性（覆盖 POST + application/x-www-form-urlencoded 的 form body）；
+   - 其次读 query param `bizData`；
+   - 最后读 `HttpServletRequest.getParameter("bizData")`；
+4. 从 `bizData` 中 fast-extract `thirdUserId`；
+5. thirdUserId 为空 → 默认旧用户（返回 true）；
+6. 调 `UserRouteService.isLegacy(thirdUserId)`：
    - 缓存命中 → 直接返回；
    - 缓存未命中 → `SELECT 1 FROM user_itp_reg_info WHERE third_user_id = ? AND ROWNUM = 1`；
    - 查到有记录 → 新用户（返回 false）；
@@ -109,7 +113,9 @@ ORDER_NO    NUMBER        路由优先级
 | 类 | 文件 | 职责 |
 |---|---|---|
 | `UserRouteService` | `predicate/UserRouteService.java` | Caffeine 缓存（max 10k，TTL 5min）、DB 加载、splitPaths 维护 |
-| `BizDataExtractor` | `predicate/BizDataExtractor.java` | 从 `bizData` query param 里字符串扫描 `thirdUserId`，**零 JSON 反序列化** |
+| `FormDataCacheFilter` | `filter/FormDataCacheFilter.java` | 对 `application/x-www-form-urlencoded` 请求缓存 body 并重建 `getParameter`，使 form body 中的 `bizData` 对分发逻辑可见 |
+| `CachedBodyHttpServletRequest` | `filter/CachedBodyHttpServletRequest.java` | 请求体缓存包装器，供 `FormDataCacheFilter` 使用 |
+| `BizDataExtractor` | `predicate/BizDataExtractor.java` | 从 `bizData`（form body / query param）里字符串扫描 `thirdUserId`，**零 JSON 反序列化** |
 | `RoutePredicateStrategy` | `predicate/RoutePredicateStrategy.java` | 组装 legacy predicate |
 | `RoutePredicateFactory` | `predicate/RoutePredicateFactory.java` | 把 `GATEWAY_ROUTE_CONFIG.PREDICATES` JSON 解析成 `RequestPredicate` |
 | `UserRouteConfig` | `route/UserRouteConfig.java` | 启动从 DB 加载路由；监听 `RouteChangedEvent` 热重载 |

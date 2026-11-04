@@ -101,6 +101,26 @@ class RouteForwardingE2ETest {
         return response.body();
     }
 
+    private String hitGatewayWithForm(String path, String bizDataJson) throws Exception {
+        String url = "http://localhost:" + port + path;
+        HttpClient client = HttpClient.newHttpClient();
+        StringBuilder form = new StringBuilder();
+        form.append("providerId=03")
+            .append("&deviceId=02481101")
+            .append("&timestamp=20261104150000")
+            .append("&signType=00");
+        if (bizDataJson != null) {
+            form.append("&bizData=").append(URLEncoder.encode(bizDataJson, StandardCharsets.UTF_8));
+        }
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString(form.toString()))
+                .build();
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        return response.body();
+    }
+
     @Test
     void registeredUserOnSplitDeviceUrlRoutesToFacePay() throws Exception {
         String body = hitGateway(SPLIT_DEVICE_URL, "{\"thirdUserId\":\"test-in-registry\"}");
@@ -148,6 +168,27 @@ class RouteForwardingE2ETest {
         String body = hitGateway(SPLIT_DEVICE_URL, null);
         assertEquals("LEGACY-DOWNSTREAM", body.trim(),
             "缺少 bizData 的 7 条精确设备 URL 请求应 fail-safe 到旧 ITP");
+    }
+
+    @Test
+    void registeredUserOnSplitBomUrlWithFormBodyRoutesToFacePay() throws Exception {
+        String body = hitGatewayWithForm(SPLIT_BOM_URL, "{\"thirdUserId\":\"test-in-registry\"}");
+        assertEquals("FACE-PAY-DOWNSTREAM", body.trim(),
+            "已注册用户通过 POST form body 在 BOM 精确 URL 上应被路由到 face-pay-split");
+    }
+
+    @Test
+    void unregisteredUserOnSplitBomUrlWithFormBodyRoutesToLegacy() throws Exception {
+        String body = hitGatewayWithForm(SPLIT_BOM_URL, "{\"thirdUserId\":\"ghost-user-xyz\"}");
+        assertEquals("LEGACY-DOWNSTREAM", body.trim(),
+            "未注册用户通过 POST form body 在 BOM 精确 URL 上应 fail-safe 到旧 ITP");
+    }
+
+    @Test
+    void missingBizDataOnSplitBomUrlWithFormBodyRoutesToLegacy() throws Exception {
+        String body = hitGatewayWithForm(SPLIT_BOM_URL, null);
+        assertEquals("LEGACY-DOWNSTREAM", body.trim(),
+            "缺少 bizData 的 POST form 请求在 BOM 精确 URL 上应 fail-safe 到旧 ITP");
     }
 
     @Test

@@ -1,5 +1,6 @@
 package org.qd.scg.predicate;
 
+import org.qd.scg.common.RequestConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -27,7 +28,14 @@ public class RoutePredicateStrategy {
                 return false;
             }
             // bizData 原始串含 thirdUserId / 手机号 / 卡号等字段，原样打印便于核查分发。
-            String bizData = request.param("bizData").orElse(null);
+            // 优先使用 FormDataCacheFilter 解析后的属性，兼容 POST form body。
+            String bizData = request.attribute(RequestConstants.BIZDATA_ATTR)
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .orElseGet(() -> request.param("bizData").orElse(null));
+            if (bizData == null || bizData.isBlank()) {
+                bizData = request.servletRequest().getParameter("bizData");
+            }
             String thirdUserId = bizDataExtractor.extractThirdUserIdFast(request);
             boolean legacy;
             if (thirdUserId == null) {
