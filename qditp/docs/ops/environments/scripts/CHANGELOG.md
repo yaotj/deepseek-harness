@@ -3,6 +3,22 @@
 > 2026-11-04 由 `README.md`「六、重构与迁移记录」拆出，历史条目按**新 → 旧**排列、内容逐字保留。
 > 版本号真源是 `itpops/__init__.py` 的 `__version__`（`pyproject.toml` 动态读取）。
 
+## 2.9.2 — 2026-11-04 Tab 补全支持模块目录
+
+- 用户要「模块也要支持 tab 补全」：此前 `flow backend <Tab>` 只补 flag，补不出 `face-pay-server` 等模块名。
+- `completion.py` 新增 `module_names()`：从仓库根扫描含 `pom.xml` 的目录（30 个），生成补全脚本时
+  静态嵌入 `MODULES` 词表（不每次 Tab 起 Python 进程）；新增模块后重新 source 一次补全脚本即可。
+- bash：`flow backend|jvm` 的第一个位置参数补模块目录；已填模块名后 `--<Tab>` 只补该域专有 flag +
+  全局 flag；`--module/--app/--image` 按 Tab 补模块名（应用名 / 镜像名不同时可手改）；
+  `--jar/--dockerfile` 走 `compgen -f` 文件路径补全。
+- zsh：flow case 按 `$words[2]` 切换——`backend|jvm` 补模块目录，其余补子命令；`zsh -n` 通过。
+- 实测 `flow backend fa<Tab>→face-pay-server`、`flow backend <Tab>→30 个模块`、
+  `flow jvm face<Tab>→face-pay-server`、`flow backend face-pay-server --<Tab>→仅 flag`、
+  `--module fa<Tab>→face-pay-server`、`--env <Tab>→hongdao test`。
+- 单测 134 → 136（模块词表嵌入 + 用 source 补全函数、设置 `COMP_WORDS`/`COMP_CWORD` 模拟 Tab 的 5 个场景）；
+  136 全绿、bash -n / zsh -n OK、11 域 help 逐字节一致、lint ERROR 0。
+- 纯离线改动，未触碰环境。
+
 ## 2.9.1 — 2026-11-04 补全自动抽取短选项（-i）
 
 - 用户再问「支持 Tab 补全吗」时做了**实证**：source 生成的 bash 补全函数后手动设置

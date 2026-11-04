@@ -34,7 +34,7 @@ scripts/                          ← 一个标准 Python CLI 项目根（工具
 │   ├── buildx/ sentinel/ web/  特性实现（core.py + __main__.py 调试别名，均转发统一入口）
 │   ├── analysis/ versioning/ linting/   端点计数 / 版本 bump / YAML 门禁实现
 │   └── workflows/              工作流层：runner / definitions / wizard（交互向导）
-├── tests/                     stdlib unittest（134 例：CLI 契约 + 业务级 + 工作流）
+├── tests/                     stdlib unittest（136 例：CLI 契约 + 业务级 + 工作流）
 ├── buildx.Dockerfile          共享构建模板（NEVER 写 ENTRYPOINT/CMD，理由见文件头与 IT-031）
 ├── hosts/                     ★ 跑在远端机器上的脚本本体（NEVER 在本机执行）
 │   └── k8s-master/             测试跳板 /home/java 下的脚本 + snapshots/ 部署台账
@@ -116,6 +116,7 @@ source <(./itp-ops.sh completion zsh)      # zsh
 ```
 
 词表从 `CATALOG` 自动派生：域 / 子命令 / 域专有 `--选项`（如 `flow` 的 `--module`、`--app`）/ 全局参数；
+`flow backend|jvm` 的第一个位置参数会补出仓库根下的**模块目录名**（生成时静态嵌入 30 个）；`--module/--app/--image` 同样补模块名，`--jar/--dockerfile` 补文件路径。新增模块后重新 `source` 一次补全脚本。
 `--env`、`-o/--output`、`--size` 还会补取值。未启用补全时按 Tab 不会有反应，但 `-h`、
 `<域> help`、`<域> <命令> -h` 与写错参数时的报错提示始终可用（`completion -h` 有完整启用说明）。
 
@@ -154,7 +155,7 @@ source <(./itp-ops.sh completion zsh)      # zsh
 
 ## 六、重构与迁移记录
 
-逐版本变更见 [CHANGELOG.md](CHANGELOG.md)（按新 → 旧排列）。当前版本 **itpops 2.9.1**。
+逐版本变更见 [CHANGELOG.md](CHANGELOG.md)（按新 → 旧排列）。当前版本 **itpops 2.9.2**。
 
 ---
 

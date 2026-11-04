@@ -8,13 +8,16 @@
         itp-ops.sh completion bash > /usr/local/etc/bash_completion.d/itp-ops
   zsh : itp-ops.sh completion zsh > "${fpath[1]}/_itp-ops"   # 再 compinit
 
-补全范围：顶层域 / 各域子命令 / 从 CATALOG 自动抽取的域专有 --选项 / 全局参数；
-bash 另对 --env、-o/--output、--size 做取值补全（zsh 在 _arguments 里已声明全局取值）。
+补全范围：顶层域 / 各域子命令 / 从 CATALOG 自动抽取的域专有 --选项 / 全局参数 /
+仓库根下的模块目录（flow backend|jvm 的第一个位置参数、--module/--app/--image）；
+bash 另对 --env、-o/--output、--size 做取值补全，--jar/--dockerfile 走文件路径补全。
 """
 from __future__ import annotations
 
 import re
 
+from ..core.runtime import repo_root
+from ..errors import OpsError
 from .registry import load_domains
 
 _GLOBAL_FLAGS = (
@@ -79,6 +82,22 @@ def _top_level() -> list[str]:
     return names
 
 
+def module_names() -> list[str]:
+    """仓库根下含 pom.xml 的模块目录名 —— flow backend 的位置参数真源。
+
+    生成补全脚本时静态嵌入（不每次 Tab 起 Python 进程）；新增模块后重新
+    source 一次补全脚本即可，见 completion -h 的说明。
+    """
+    try:
+        root = repo_root()
+    except OpsError:
+        return []
+    return sorted(
+        p.name for p in root.iterdir()
+        if p.is_dir() and (p / "pom.xml").is_file()
+    )
+
+
 def bash_script() -> str:
     m = _domain_map()
     flags = _domain_flags()
@@ -92,6 +111,8 @@ def bash_script() -> str:
         '    {f}) COMPREPLY=( $(compgen -W "{v}" -- "$cur") ); return ;;'.format(f=f, v=v)
         for f, v in _VALUE_FLAGS.items()
     )
+    modules = " ".join(module_names())
+    flow_flags = " ".join(flags.get("flow", []))
     top = " ".join(_top_level())
     return f"""# bash completion for itp-ops.sh —— 由 `itp-ops.sh completion bash` 生成
 # 启用（当前 shell 临时）：source <(./itp-ops.sh completion bash)
@@ -99,10 +120,15 @@ def bash_script() -> str:
 # 词表来自 CATALOG，新增域 / 子命令 / --选项后重新生成即可，无需手改本文件。
 _itp_ops_complete() {{
   local cur prev="" domain="" i w
+  local -a pos=()
   cur="${{COMP_WORDS[COMP_CWORD]}}"
   [[ $COMP_CWORD -gt 0 ]] && prev="${{COMP_WORDS[COMP_CWORD-1]}}"
   local GLOBAL_FLAGS="{_GLOBAL_FLAGS}"
+  local FLOW_FLAGS="{flow_flags}"
+  local MODULES="{modules}"
   case "$prev" in
+    --module|--app|--image) COMPREPLY=( $(compgen -W "$MODULES" -- "$cur") ); return ;;
+    --jar|--dockerfile) COMPREPLY=( $(compgen -f -- "$cur") ); return ;;
 {values}
   esac
   for ((i=1; i<COMP_CWORD; i++)); do
@@ -110,9 +136,19 @@ _itp_ops_complete() {{
     case "$w" in
       -e|--env|-o|--output) ((i++)) ;;
       -*) ;;
-      *) domain="$w"; break ;;
+      *) pos+=("$w") ;;
     esac
   done
+  domain="${{pos[0]:-}}"
+  if [[ "$domain" == "flow" && ("${{pos[1]:-}}" == "backend" || "${{pos[1]:-}}" == "jvm") \\
+        && ${{#pos[@]}} -eq 2 && "$cur" != -* ]]; then
+    COMPREPLY=( $(compgen -W "$MODULES" -- "$cur") )
+    return
+  fi
+  if [[ "$domain" == "flow" && ${{#pos[@]}} -ge 3 ]]; then
+    COMPREPLY=( $(compgen -W "$FLOW_FLAGS $GLOBAL_FLAGS" -- "$cur") )
+    return
+  fi
   if [[ -z "$domain" ]]; then
     COMPREPLY=( $(compgen -W "{top} $GLOBAL_FLAGS" -- "$cur") )
     return
@@ -128,10 +164,21 @@ complete -F _itp_ops_complete itp-ops.sh itp-ops
 
 def zsh_script() -> str:
     m = _domain_map()
-    cases = "\n".join(
-        "      {n}) _values '{n} 命令' {w} ;;".format(n=name, w=" ".join(subs))
-        for name, subs in m.items()
-    )
+    modules = " ".join(module_names())
+    lines: list[str] = []
+    for name, subs in m.items():
+        if name == "flow":
+            # backend / jvm 的第一个位置参数补模块目录；其余仍补 flow 子命令
+            lines.append(
+                "      flow)\n"
+                "        case $words[2] in\n"
+                "          backend|jvm) _values '模块目录' " + modules + " ;;\n"
+                "          *) _values 'flow 命令' " + " ".join(subs) + " ;;\n"
+                "        esac ;;"
+            )
+        else:
+            lines.append("      {n}) _values '{n} 命令' {w} ;;".format(n=name, w=" ".join(subs)))
+    cases = "\n".join(lines)
     top = " ".join(_top_level())
     return f"""#compdef itp-ops.sh itp-ops
 # zsh completion —— 由 `itp-ops.sh completion zsh` 生成

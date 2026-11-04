@@ -1,12 +1,32 @@
 """CLI 契约：JSON 信封、退出码、分层帮助、补全、-- 终止符、dry-run 语义。"""
 from __future__ import annotations
 
+import os
 import subprocess
+import tempfile
 import unittest
 
 from support import run_cli, run_json, run_module
 
 from itpops.errors import EXIT_OK, EXIT_USAGE
+
+
+def _tab(*words: str) -> str:
+    """source 生成的 bash 补全函数，手动设置 COMP_WORDS/COMP_CWORD 模拟真实按 Tab。"""
+    script = run_cli("completion", "bash").stdout
+    with tempfile.NamedTemporaryFile("w", suffix=".bash", delete=False) as f:
+        f.write(script)
+        path = f.name
+    try:
+        arr = " ".join('"%s"' % w for w in words)
+        code = (
+            f'source {path}; COMP_WORDS=({arr}); '
+            'COMP_CWORD=$(( ${#COMP_WORDS[@]} - 1 )); COMPREPLY=(); '
+            '_itp_ops_complete; printf "%s\n" "${COMPREPLY[*]}"'
+        )
+        return subprocess.run(["bash", "-c", code], capture_output=True, text=True).stdout.strip()
+    finally:
+        os.unlink(path)
 
 
 class EnvelopeTest(unittest.TestCase):
@@ -97,10 +117,25 @@ class CompletionTest(unittest.TestCase):
                                    capture_output=True, text=True)
                 self.assertEqual(r.returncode, 0, r.stderr)
 
+    def test_module_wordlist_is_embedded(self):
+        r = run_cli("completion", "bash")
+        self.assertIn("local MODULES=", r.stdout)
+        self.assertIn("face-pay-server", r.stdout)
+        z = run_cli("completion", "zsh")
+        self.assertIn("_values '模块目录'", z.stdout)
+        self.assertIn("face-pay-server", z.stdout)
+
+    def test_tab_completes_module_names_and_flags(self):
+        self.assertIn("face-pay-server", _tab("itp-ops.sh", "flow", "backend", "fa"))
+        self.assertIn("account-server", _tab("itp-ops.sh", "flow", "backend", ""))
+        self.assertIn("face-pay-server", _tab("itp-ops.sh", "flow", "jvm", "face"))
+        self.assertIn("--app", _tab("itp-ops.sh", "flow", "backend", "face-pay-server", "--"))
+        self.assertIn("hongdao", _tab("itp-ops.sh", "--env", ""))
+
     def test_zsh_completion_includes_flow(self):
         r = run_cli("completion", "zsh")
-        self.assertIn("flow) _values", r.stdout)
-        self.assertIn("list backend frontend jvm", r.stdout)
+        self.assertIn("flow)", r.stdout)
+        self.assertIn("_values 'flow 命令' guide list backend frontend jvm help", r.stdout)
 
 
 class ParsingTest(unittest.TestCase):
