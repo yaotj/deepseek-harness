@@ -12,52 +12,33 @@
 > 不再有第二个 `.sh` 入口。
 
 ```
-scripts/
+scripts/                          ← 一个标准 Python CLI 项目根（工具代码 / 文档 / 资产分离）
 ├── itp-ops.sh                 ★ 唯一入口（薄壳：exec python3 -m itpops）
-├── pyproject.toml             包元数据 + `itp-ops` console script（可选 pipx 安装）+ ruff/pytest 配置
-├── itpops/                    纯标准库；分层对齐 pip / ansible 等 CLI 项目惯例
-│   ├── __init__.py              __version__（单版本源，pyproject 动态读取）
-│   ├── __main__.py              python -m itpops
-│   ├── errors.py                退出码契约：0/2/3/4/5/6/130 + OpsError
-│   ├── cli/                     表现层
-│   │   ├── main.py                全局参数解析 + 域分发 + JSON 信封 + 错误渲染
-│   │   ├── registry.py            域清单 + CATALOG 汇总（纯数据，不产文本）
-│   │   ├── help.py                分层帮助渲染（命令级由 CATALOG 生成）
-│   │   └── completion.py          bash/zsh 补全生成（从 CATALOG 派生）
-│   ├── commands/                一个文件 = 一个命令域（main(args) + CATALOG）
-│   │   ├── cloudos.py             云管台运维（30 子命令）
-│   │   ├── buildx.py              镜像构建（调 itpops/buildx/）
-│   │   ├── k8s.py                 镜像构建推送兜底链
-│   │   ├── log.py                 日志 tail / watch
-│   │   ├── diag.py                可达性 / 路由导出
-│   │   ├── web.py                 前端发版 / 挂载（release、mount-export）
-│   │   ├── sentinel.py            路由哨兵部署（调 itpops/sentinel/）
-│   │   ├── analysis.py            端点计数
-│   │   ├── version.py             版本号计算 + 载体 bump
-│   │   ├── lint.py                仓库门禁（lint yaml）
-│   │   └── catalog.py             自描述注册表命令（渲染 cli/registry 的数据）
-│   ├── core/                    公共支撑（无业务语义）
-│   │   ├── ui.py                  输出原语 + 全局上下文 Ctx
-│   │   ├── version.py             版本算法真源（末位 +1 / >99 进位 / debug 哨兵）
-│   │   ├── environments.py        环境 profile 单一真源（hongdao / test）
-│   │   ├── remote.py              ssh 跳板助手（TTY 纪律 / 参数转义）
-│   │   ├── runtime.py             本机执行 / 写门 require_yes / 依赖检查 / 仓库根断言
-│   │   └── crypto.py              RSA PKCS#1 v1.5 唯一实现（CloudOS 登录口令）
-│   ├── analysis/                端点计数实现（原 analysis/count-endpoints.py）
-│   ├── versioning/              pom / package.json bump 实现（原 scripts/bump-version.py）
-│   ├── linting/                 YAML 门禁实现（原 scripts/lint-yaml.py，PyYAML 可选）
-│   ├── cloudos/                 CloudOS API 客户端（auth / http / image / pkg）
-│   ├── buildx/                  镜像构建实现（core.py + __main__.py，可 python -m 直调）
-│   ├── sentinel/                路由哨兵部署实现（core.py + __main__.py）
-│   └── web/                     前端发版 / 挂载实现
-├── tests/                      stdlib unittest（54 例：版本/环境/CLI 契约/注册表/直调/隔离/加密/bump/端点/YAML）
+├── pyproject.toml             包元数据 + console script + ruff / pytest 配置
+├── README.md                  定位 / 结构 / 快速上手 / CLI 契约（本文件）
+├── CONTRIBUTING.md            分层纪律 / 包纪律 / 使用纪律（改包前 MUST 读）
+├── CHANGELOG.md               版本化重构与迁移记录（新 → 旧）
+├── .gitignore                 本项目自带的忽略规则
+├── docs/
+│   └── cloudos-notes.md       CloudOS 认证模型 / 环境 Δ / 平台怪癖 / API 分类 / 已知缺口
+├── itpops/                    纯标准库；cli / commands / core / 特性包四层
+│   ├── __init__.py             __version__（单一版本源，pyproject 动态读取）
+│   ├── __main__.py             python -m itpops（等价唯一入口）
+│   ├── errors.py               退出码契约 0/2/3/4/5/6/130 + OpsError
+│   ├── py.typed                PEP 561 类型标记
+│   ├── cli/                    表现层：main / registry / help / completion
+│   ├── commands/               命令层：一域一文件，只做注册与分发（CATALOG + main）
+│   ├── core/                   公共支撑：ui / version / environments / remote / runtime / crypto
+│   ├── cloudos/                特性实现：auth / http / image / pkg + impl.py（30 子命令）
+│   ├── buildx/ sentinel/ web/  特性实现（core.py + __main__.py 调试别名，均转发统一入口）
+│   └── analysis/ versioning/ linting/   端点计数 / 版本 bump / YAML 门禁实现
+├── tests/                     stdlib unittest（59 例，含布局与入口委托回归）
 ├── buildx.Dockerfile          共享构建模板（NEVER 写 ENTRYPOINT/CMD，理由见文件头与 IT-031）
 ├── hosts/                     ★ 跑在远端机器上的脚本本体（NEVER 在本机执行）
-│   └── k8s-master/              测试环境跳板机 /home/java 下的脚本（build-push / k8s-deploy / k8s-logview / Dockerfile）
-│       └── snapshots/             远端产物（k8s-deploy-audit.csv 部署台账）
+│   └── k8s-master/             测试跳板 /home/java 下的脚本 + snapshots/ 部署台账
 └── migration/                 数据库迁移执行包（自带 README，红岛分域重建基线）
-    ├── ingress-config/           istio 快照原始版（clean-ingress-yaml.py 的输入）
-    └── ingress-config-cleaned/   清洗后基线（diag routes 的 diff 基线，硬依赖，NEVER 移走）
+    ├── ingress-config/         istio 快照原始版（clean-ingress-yaml.py 的输入）
+    └── ingress-config-cleaned/ 清洗后基线（diag routes 的 diff 基线，硬依赖，NEVER 移走）
 ```
 
 ## 二、快速上手
@@ -131,284 +112,28 @@ diag 按子命令）、`-y/--yes`（确认写操作）、`-n/--dry-run`（强制
 >    红岛看日志用 `log watch`（走 kubectl）或 `ssh hd-linux kubectl logs`。
 > `hosts/k8s-master/` 因此只是**测试跳板**脚本的仓内镜像，红岛侧脚本未入仓。
 
-## 三、CloudOS 知识沉淀（原 cloudos/README.md，重构后并入此处）
+## 三、CloudOS 知识沉淀
 
-### 3.1 认证模型（红岛实测正确姿势）
+认证模型、两套环境 Δ、平台实测怪癖、API 分类与已知缺口已拆到
+[docs/cloudos-notes.md](docs/cloudos-notes.md)。改 `itpops/cloudos/` 或走发版链前 MUST 读，
+尤其是「密码 MUST 真 RSA 加密」「`domain` 必须为 `default`」「账号 `itpbadmin`」三条。
 
-```
-① POST /api/sys/oapi/v1/double_factor/login
-   Body: {"username":"itpbadmin","rsa":true,"password":"<RSA-1024 密文 base64>","domain":"default"}
-② 业务 API 请求头：X-Auth-Token: <res.token>
-```
+## 四、itpops 包纪律
 
-- **密码 MUST RSA 加密**（PKCS#1 v1.5 + base64），密文恒 **128 字节 / 172 字符**。
-  长度不对即公钥或填充不对，`cloudos auth-debug` 会直接报出来。
-- **`domain` MUST 为 `default`**。传空返回 `svcmgt.internalServerError`（不是密码错）。
-- **账号真值是 `itpbadmin`**，不是 `itpbdmin`（项目文档原笔误）、也不是 `itpadmin`（那是 Harbor 推送账号）。
-- ⚠️ **历史错判**：2026-10-22 曾把认证写成「base64 明文 + rsa:true」，依据是「测试环境跑通过」。
-  实际是浏览器抓包证明前端走 JSEncrypt，平台按 `rsa` 字段决定是否解密。base64 明文在红岛一律返回
-  `usrmgt.userOrPasswordError`——**看着像密码错，其实是没解密**，极易引向反复试密码。
-  **NEVER 为「能跑」改回 base64 明文**。
-- **测试环境 2026-11-02 已打通**：登录页 JS 里的 RSA 公钥与红岛**逐字符相同**（216 字符、1024 bit），
-  已固化为 `itpops/cloudos/auth.py` 的共享公钥常量（原 `lib/cloudos-auth.sh` 的 `CLOUDOS_RSA_PUBKEY_SHARED`），两套 profile 共用；
-  `--env test` 登录（admin）、应用列表、镜像仓库、deploy 预演均实测通过。
-
-RSA 公钥抓法（平台升级后需重抓）：
-
-```
-https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encryptRSA / setPublicKey
-```
-
-`<hash>` 从 `/platform/static/js/app.<hash>.js` 的 chunk 映射表里取（本项目实测 `login/login → 9d53907c`）。
-只换平台版本才需重抓；两套环境共用同一把，抓到一次即够。
-
-### 3.1.1 两套环境 Δ 速查（2026-11-02 实测）
-
-| 项 | 红岛生产 `--env hongdao` | 测试 `--env test` |
-|---|---|---|
-| 平台 VIP | 172.120.209.151 | 172.20.217.210 |
-| 平台账号 | itpbadmin | admin |
-| RSA 公钥 | 共享（`CLOUDOS_RSA_PUBKEY_SHARED`） | **同一把**（逐字符相同） |
-| K8s 命名空间 | itpb | itp |
-| Harbor 项目 / registry | itpb / `os-harbor-svc.default.svc.cloudos:443` | itp / **同一 registry** |
-| 构建基础镜像 | `itpb/jdk21:1.0.0` | `itp/jdk:25`（`itp/jdk21:1.0.0` 在测试 Harbor 不存在） |
-| 基础镜像入口 | `sh /startapp.sh` | 同（`itp/jdk:25` 同样带 `/startapp.sh`） |
-| imgType 默认 | Default `20e68cab-…` | 同一 uuid；另有 ITP `21d45c2e-…` |
-| 平台版本 | — | E7501-V500R001B03D019-RC31 |
-| 应用记录 vs 实跑镜像 | 一致（滚更走 `cloudos deploy`） | **大面积不一致**（27 个里 25 个，滚更走 `kubectl set image`，见 IT-034） |
-
-镜像构建入口两个环境同一份实现：`itp-ops.sh buildx --env {hongdao|test}`（文件名是红岛首发时的历史名，脚本已按环境参数化）。
-
-### 3.2 平台实测怪癖（都是坑）
-
-| 现象 | 结论 |
-|---|---|
-| `POST /apps/{uuid}/scale` 按官方文档发 `{"replicas":N}` → 500 `McpPlaintext` 反序列化错 | 实际报文是 **body `[]` + query `?replicas=N`**（2026-10-23 实测，三种写法只有它通）。报错完全不像参数位置问题，别转去用 kubectl——两者对平台是两套状态 |
-| `logs` 返回 200 + 空 body | 红岛该接口恒空（换 pod、换容器均空）。日志真源是 VictoriaLogs `172.120.2.13:31920` 或 `kubectl logs` |
-| `domain` 传空 → `svcmgt.internalServerError` | 不是服务故障，是缺 domain |
-| `userOrPasswordError` | 先查账号拼写，再查是否真 RSA 加密，**最后**才怀疑密码 |
-| `admin` / `itpadmin` 登录失败 | `itpadmin` 是 Harbor 推送账号，不是云管台账号 |
-| 双实例判据 | 不是 `instance_num=2`，而是**两个副本落在不同节点**；同节点双副本等于没扩容。查法：`ssh hd-linux "kubectl get pods -n itpb -o custom-columns=APP:.metadata.labels.app,NODE:.spec.nodeName --no-headers \| sort"` |
-| `PUT /apps/{uuid}/resources` 返回 `status=true`，但 `GET` 读回仍是旧值 | **异步生效**（2026-10-26 实测）：立即读回是旧值，数十秒后才刷新（`kubectl` 先看到新 ReplicaSet）。复验 MUST 轮询到目标值，**单次读回会把成功的变更误判成失败**、进而重复下发。`spec-set` 已内置 100s 轮询 |
-| `PATCH /apps/{uuid}/advanced-config` 返回 `application.5000010`（msg 为空，文档无此码） | **缺 `container_image`**——文档未标必填，image 类应用缺它必失败，补上即通。改应用 env MUST 走这条接口（`kubectl set env`/patch 会被平台数分钟内回收），契约与实测见 `docs/tracking/IT-020-JVM参数被平台回滚.md` |
-| 跨模块 RPC 全失败 | 平台按 `application.properties` 生成的 env 保留测试默认值，不显式注入 `SERVICE_*_URL` 就指向 `itp` 命名空间（IT-016）。`cloudos env <app>` 一次打全 38 项 env 核对 |
-| `image plan/build` 误报「不是 spring-boot fat jar」 | **已修**（2026-10-26）。入口的 `set -uo pipefail` + `unzip -l \| grep -q` 组合必假：grep 命中即退出 → unzip 收 SIGPIPE（rc=9）→ pipefail 判整条管道失败。**该 bug 会拦住所有模块的 image plan/build**，现已改为先取全量清单再匹配 |
-| Harbor 443 端口证书不合法 | podman 直连 `os-harbor-svc...:443` 报 `x509: certificate is not valid for any names`。**login/pull 用 `:11443`**；K8s 侧 kubelet 拉 `:443` 正常（itpb ns 内实测 `itpb/jdk21:1.0.0` 拉取成功） |
-| `itpadmin` 无 catalog 权限 | Harbor `_catalog` 报 `unauthorized to list catalog`。查项目镜像清单改用 Harbor API `/api/v2.0/projects/<proj>/repositories`；查单仓 tag 用 `/v2/<proj>/<repo>/tags/list`（需 `--path-as-is`，否则 `%2F` 被解码） |
-
-三个设计点（`scale` 族命令）：**幂等**（已是目标值不发请求）、**异步复验**（`status=true` 只代表已下发，
-轮询 `instance_ok_num` 每 3s 一次最多 180s，未达标退出非 0——看 HTTP 200 就走人 = 假成功）、
-**批量默认 dry-run**（`scale-all` 不带 `--yes` 只打印清单）。
-
-### 3.3 API 分类（5.0 PaaS 文档 232 端点，7.0 路径一致）
-
-| 分类 | 端点数 | 路径前缀 |
-|---|---|---|
-| 应用仓库 | 15 | `/api/cloud/deploy/v1.0/*` |
-| 应用管理 | 63 | `/api/cloud/app-mgmt/v1.0/*` |
-| 容器云（镜像服务） | - | **`/api/cloud/hcr/v1.0/*`**（文档基址 `http://{ip}:11000`，但红岛 app-mgmt 实测在 https 443——各服务挂哪个端口不统一，MUST 现探） |
-| 服务治理 | 27 | `/api/cloud/svcgw/v1.0/*` |
-| 持续交付 | - | **`/api/cicd/*`**（原文写 `/cicd/*`，实测缺 `/api` 一层会 404；不带 token 返回 401 才是路由存在的判据） |
-| 其他 | 127 | 各类接口 |
-
-文档真源：`docs/reference/cloudos/CloudOS 5.0_PaaS_API_E7501.md`（「企业应用API」章）。
-控制台页面 `/enterprise-apps/#/apply/app/appDetail/<uuid>` 对应的就是 `app <uuid>` 那组接口。
-
-### 3.4 已知缺口（首次实测前勿当结论）
-
-1. `fileFlag` 语义未验证（`image build` 全押在这里）。若平台要求它由上传接口返回而非客户端生成，
-   build 会报 file not found；判定看 `data.build[]` 的 COPY。不成立时的正路是软件中心 jar 类型部署。
-2. `totalChunks=1` 一次性上传；jar 超网关 body 限制（经验 ~100MB）需改分片，续传/去重行为未实测。
-3. 上传会在软件中心留 jar 应用包记录（`POST /packages` 副作用）；`pkg_delete_version` 可清，默认不删。
-4. 镜像服务网关基址未定位（2026-10-23 网络中断）。`cloudos image probe` 就是为此写的。
-5. 构建日志走 `data.build[]`（docker 原始输出），平台无错误码表，失败只能读这里。
-6. 镜像架构不可指定，构建后 MUST 核对 amd64。
-7. 测试环境（`--env test`）RSA 公钥未抓到，命令停在 `env_init` 报错；容器云 `pod_*` 前缀亦未经实测。
-
-## 四、itpops 包纪律（改包前 MUST 读；2026-11-03 由 bash lib/ 迁移）
-
-> 原「lib 纪律」逐条迁移如下。bash 专属坑（set -euo / 命令替换 die / printf %q）
-> 已由 Python 语言特性消除；对应能力在 `itpops/core/`（ui / remote / runtime / version / environments）。
->
-> **分层纪律（对标 pip `_internal/cli/` + `_internal/commands/`）**：
-> `cli/` 只做表现（解析/帮助/补全/信封），`commands/` 只做编排（调特性包、输出、抛错），
-> `core/` 只放无业务语义的公共支撑，特性实现放各自包（`cloudos/` `buildx/` `sentinel/` `web/`）。
-> NEVER 让 `core/` 反向依赖 `commands/`，也 NEVER 在 `cli/` 里写业务。
-
-1. **失败抛 `OpsError(message, exit_code)`**，退出码契约见 `itpops/errors.py`：
-   0 成功 / 2 用法 / 3 前置 / 4 传输 / 5 执行 / 6 缺 --yes。NEVER 静默继续。
-2. **人机输出分流**：人看的结果走 `ui.out()`（stdout）、日志/横幅走 `ui.log_*`（stderr，TTY 才着色）；
-   `--json` 模式 stdout 只有 cli 打的一条信封（`{ok, command, data, error}`），机器载荷走 `ui.result()`。
-   **兜底由入口强制**：`-o json` 分发期间 stdout 被临时导向 stderr（`contextlib.redirect_stdout`），
-   域里残留的 `print` 污染不了信封；新代码仍 MUST 用 `ui.*`，别依赖兜底。
-3. **远端参数转义**用 `remote_quote_args`（shlex.quote），NEVER 直接拼裸参数。
-4. **跟踪类命令**（`log tail -f`）NEVER 合并进非 TTY 通道——`remote_exec_tty` 的伪终端是刷新/Ctrl+C/颜色的前提。
-5. **新增 API 模块**按域建 `itpops/cloudos/<域>.py`，只封装本仓用到的端点，docstring 写清前缀与易错点。
-6. **域契约**：`itpops/commands/<域>.py` 暴露 `main(args) -> int` + `CATALOG`（自描述注册表，
-   `itpops catalog` 汇总给大模型）；新增域还要在 `itpops/cli/registry.py` 的
-   `_DOMAIN_MODULES` 登记。
-7. **token 缓存**按环境分文件（`/tmp/.cloudos-<env>.token`，格式 `<时间戳> <token>`，与旧 bash 互读兼容）。
-8. **改包 MUST 跑单测**：`cd docs/ops/environments/scripts && python3 -m unittest discover -s tests`
-   （41 例覆盖版本算法 / 环境 profile / CLI 契约 / 注册表 / 直调 / JSON 隔离 / 加密 / ui 开关；纯 stdlib）。
-9. **加密只有一处**：RSA PKCS#1 v1.5 唯一实现在 `itpops/core/crypto.py`，
-   `cloudos/auth`、`buildx`、`web` 一律调用它——NEVER 复制粘贴一份（2026-11-04 review 已清掉 3 份重复）。
-   `pyproject.toml` 另有 `[tool.pytest.ini_options]`，装了 pytest 也能直接 `pytest`。
+改包前 MUST 读 [CONTRIBUTING.md](CONTRIBUTING.md)：分层纪律、输出分流、退出码契约、
+远端参数转义、写操作门、token 缓存、RSA 唯一实现与验证命令。
 
 ## 五、使用纪律
 
-1. **路径推导**：脚本 MUST 由自身位置推导仓库根（`BASH_SOURCE`/`__file__`），NEVER 硬编码绝对路径。
-   入口 `itpops/core/runtime.py` 用 `account-server` 目录存在性断言——深度再错会直接报错而不是静默找错目录。
-2. **写操作默认拒绝**：`k8s deploy/deploy-all`、`cloudos act/scale/scale-all/spec-set/deploy/image build`
-   必须显式 `--yes`（入口全局解析，位置任意）。
-3. **ALL_SERVICES 是单一真源**（`itpops/commands/k8s.py`）：24 个服务，语义是**可构建推送的模块全集**
-   （根 pom 里有 kubernetes-maven-plugin 的模块目录），**不是生产部署清单**——两者 historically
-   不相等（详见 `itpops/commands/k8s.py` 处注释：3 个死/下线模块在构建清单里、web-admin/前端不在构建清单里、
-   跨环境共性.md §一 自身还缺 3 个在跑的服务）。NEVER 擅自「对齐」任何一边；服务名是仓库根模块目录名，
-   **镜像名 ≠ 模块名**（`fep-app-server` 的镜像是 `itp/fep-app`，取自 pom `<image.prefix>`，
-   NEVER 用目录名拼）。`web-admin` 不适用本脚本（前端走 zip + nginx Deployment）。
-4. **`migration/` 语义**：**执行包**（`2026101x_bundle_*.sql`：可重跑、有生成器、有断言、有回滚）+
-   `20261017_schema_*.sql`（分域建表基线，含来源标注）+ 20261023 域拆分工具链。
-   原 `db-history/`（11 个历史 SQL）已于 2026-10-26 全删（5 个纯执行历史 + 6 个一度迁入
-   `ddl-extra/`/`tools/`/`seed/` 后经用户二次裁决一并删除）。⚠️ **重跑 `20261017_schema_gen.py`
-   不会再产出那些已删脚本里的 DDL**（AGM 2 表 + 2 序列 + 2 索引、COM_DEVICE_SYN_KEY、
-   TBL_NOTICE_APP_FAILURE_RECORD、USER_ITP_REG_INFO_BAK20260909）——它们仍在生成基线里，
-   **谁重跑谁负责手工补回**，详见 `migration/20261017_schema_manifest.md` 的「（已删）」注记。
-5. **别用文件名猜用途**：`hosts/k8s-master/` 里是**跑在远端 k8s-master 上**的脚本本体（NEVER 在本机执行，
-   会连远端集群）；`migration/ingress-config*/` 是 istio 抓取快照，与数据库无关；
-   集群实况快照在**上一层** `docs/ops/environments/snapshots/{test,hongdao}/`（按环境分层，
-   与 scripts 平级——它们不是脚本，是抓取产物）。
-6. **敏感值口径（2026-10-26 用户裁定，本项目唯一真源）**：**仓库内的明文口令与配置即唯一真源**，
-   脚本默认值直列不掩码——`lib/cloudos-auth.sh` 的 `CLOUDOS_PASSWORD`、迁移 SQL 的 `IDENTIFIED BY`、
-   校验脚本的 `ITP_DB_PASSWORD` 都有仓库内现值，**MUST NOT 改成「必须外部提供 / 缺失即退出」**；
-   环境变量只作**可选覆盖**（临时改密 / 试别的账号），不设也能跑。跨环境真源表见
-   `docs/ops/environments/跨环境共性.md` §三。
-   - **仍适用**：`NEVER 外传`、截图打码、群聊 / 邮件不贴口令（渠道纪律，与仓库内直列不冲突）。
-   - **已作废**：2026-10-26 审计曾把 `legacy/` 的两 `.ps1`（含明文 root 口令，目标 `172.20.211.21`）
-     连同「旧值视为已泄露 MUST 轮换」一并记为安全待办；按本次裁定，**仓库内明文不再视为待治理缺陷**，
-     `legacy/` 目录已删（见 §六），其内容不进版本库是「无用代码清理」理由，NEVER 再引申为安全理由。
-   - 口径反转**不新增暴露面**：这些值早已随 `c4ce75894a` 推送到 `origin/main`，git 历史里的明文一直存在。
-   另：`enable-tracing-20261014.sh` 已于 2026-10-14 执行完毕，后续接入链路跟踪 MUST 按
-   `docs/architecture/common-components.md` §3.1.2「三行成组」口径做，NEVER 照抄那个已删脚本的 env 注入方式。
-7. **分析/门禁/bump 一律走 `itp-ops.sh`**：端点计数在 `itpops/analysis/endpoints.py`、
-   YAML 门禁在 `itpops/linting/yaml_lint.py`、版本 bump 在 `itpops/versioning/bump.py`，
-   原 `analysis/count-endpoints.py`、`scripts/lint-yaml.py`、`scripts/bump-version.py` 已删除。
-   相对路径以仓库根为基准（不再需要先 cd）。
-   （原 `extract_interfaces.py` / `extract_requirements.py` 于 2026-10-26 审计删除——
-   依赖的 `API.md` 与 `docs/提取的需求` 从不存在，一个跑必崩、一个空转输出 0。）
+路径推导、写操作默认拒绝、`ALL_SERVICES` 单一真源、`migration/` 语义、敏感值口径、
+「分析 / 门禁 / bump 一律走 `itp-ops.sh`」等约定见
+[CONTRIBUTING.md](CONTRIBUTING.md)「三、使用纪律」。
 
 ## 六、重构与迁移记录
 
-**2026-10-25 迁移**：根级 `scripts/`（98 文件）整体迁入 `docs/ops/environments/scripts/`；
-全仓 `docs/**`、`AGENTS.md`、`deploy/**` 引用（184 处）同步改写；`docs/提示词/lint-prompts.py`
-根级路径白名单校正（`scripts/` → `deploy/`）；运行时路径深度修复并实测。
+逐版本变更见 [CHANGELOG.md](CHANGELOG.md)（按新 → 旧排列）。当前版本 **itpops 2.5.0**。
 
-**2026-10-25 重构**（「重新组织结构，重新编写脚本」）：
+---
 
-- 单一入口 `itp-ops.sh` + 公共 `lib/` + 五个域（cloudos/k8s/log/diag/analysis）。
-- 三合一：`cloudos-hongdao.sh` + `image-build.sh` + `cloudos-api.sh` → `domains/cloudos.sh`；
-  `deploy-to-harbor.sh` + `batch-deploy.sh` → `domains/k8s.sh`（ALL_SERVICES 两份手抄清单并为单一真源）；
-  `klog.sh` + `klog-watcher.sh` → `domains/log.sh`；`dump-48000-routes.sh` + `red-island-reachability.sh` → `domains/diag.sh`。
-- 顺带修掉的旧缺陷：`KLOG_CONTAINER` 以前设了也不生效（ssh 不转发本地环境变量，现拼进远端命令前缀）；
-  watcher 状态文件写入 `svc=key` 却按 `^svc|` 查找，永远匹配不到 ⇒ 每 30s 把全部监控杀一遍再起一遍（现按同格式查找 + PID 杀进程树，堵住 ssh 子进程泄漏）；`dump-48000-routes.sh` 基线目录路径失效被 `[ -f ]` 静默跳过（现显式定位 + 缺失告警）。
-- 被取代的 9 个旧脚本 `git rm`，内容逐条并入新脚本；历史/一次性脚本一度进 `legacy/` 存档，
-  **2026-10-26 第二轮审计后该目录整体删除**（见下）。
-- 验证：`bash -n` 全量、各域 usage 冒烟、`--yes` 门拒真发、`analysis endpoints` 实跑、lint ERROR 0。
-
-**2026-10-26 合理性审计（「每一个脚本都要有合理性」）**：
-
-- **`db-history/` 全删**（11 个历史 SQL，HEAD 里本就未跟踪）：一度因「它是 schema 生成器的 DDL 补充源、
-  AGM 的 2 序列 + 2 索引只在这里」而保留 6 个（分入 `migration/ddl-extra/` `tools/` `seed/`），
-  **用户二次裁决「不需要保留」后 11 个全部删除**——理由：这些 DDL **已经烘进生成基线**
-  （`20261017_schema_plat.sql` 的 105/177/200/723/1319/1322 行、`schema_user.sql` 305 行），
-  源文件只影响「重跑生成器」。⚠️ **代价已就地记录**：`20261017_schema_gen.py` 的 ddl-extra 分支移除、
-  生成文件 7 处 `[来源]`/`[序列]` 改标「源文件已删…MUST 手工保留」、manifest 5 行标「（已删）」并附警示段，
-  `deploy/sche/by-domain/_补充索引_本地DDL_需与老库核对.sql` 与 5 篇 docs 的引用同步改写。
-  **重跑生成器前 MUST 先读 `migration/20261017_schema_manifest.md` 的「（已删）」注记。**
-- **`analysis/` 两个死脚本删**：`extract_interfaces.py` 依赖不存在的 `API.md` + `docs/提取的需求`
-  （实测一跑即崩）、`extract_requirements.py` 扫的 4 个源目录全不存在（实跑「共提取 0 个文档」）。
-  `domains/analysis.sh` 的 `interfaces` / `requirements` 两个子命令同步下线——**保留判据是「能跑 + 有人用」，
-  从来没有可跑源文档的脚本就是噪音**。
-- **`migration/` 三项删**：`face-pay-log-config.md`（2026-10-14 一次性调查笔记，全仓零引用，
-  所引 VictoriaLogs 地址已是测试环境旧值）、`pull-and-save.sh` + `image-list.txt`
-  （旧 Harbor 镜像归档工具，自包含无引用，迁移已完成不再复用）、空目录 `migration/images/`。
-- **第二轮（同日继续审计）`legacy/` 整体删**（7 文件）：`_fix.ps1` / `_run_script.ps1`
-  （含明文 root 口令，目标 `172.20.211.21`——按纪律第 6 条的现行口径，**仓库内明文本身不是删它的理由**，
-  这两个文件是「零引用的历史存档」被清理，与口令无关）、
-  `enable-tracing-20261014.sh`（已执行完）、`klog.cmd` / `klog.ps1`（已被 `itp-ops.sh log tail` 取代）、
-  `cloudos-api.sh`（认证结论已证伪，内容已并入 `domains/cloudos.sh`）及该目录 README。
-- **第二轮 `generate-prod-migration-report.py` + 产物 `prod-migration-config-checklist.md` 删**：全仓零引用，
-  生成器唯一产出就是那份没人读的报告。⚠️ 连带影响：原 `k8s-current-config/` 失去唯一消费者，
-  现已按环境迁到 `../snapshots/test/`，作**集群实况快照**独立保留（内容无害——
-  `secrets.txt` 只是 Secret 名称清单，不含值）。
-- **保留且有理由**：`ingress-config/`（clean-ingress-yaml.py 输入，产出 diag routes 的 diff 基线）、
-  `hosts/k8s-master/`（`log tail` 远端侧 `/home/java/k8s-logview.sh` 本体参考）、
-  migration 执行包与 20261023 域拆分工具链（全部有外部引用，且分域重建仍在进行）。
-- **原则**：保留 = 有独特内容且有人会用；删除 = 已被基线/文档/代码仓吸收的纯执行痕迹，或根本跑不起来。
-  每个去留结论都记在被删/被迁文件的相关引用处，NEVER 静默删。
-
-**2026-11-03 Python 化重构**（「重新组织脚本，底层用 python，分模块，给大模型也给人用」）：
-
-- 底层 bash → Python 包 `itpops/`（纯标准库，`from __future__ import annotations`）；
-  `itp-ops.sh` 与 `itp-ops.sh buildx` / `itp-ops.sh sentinel` /
-  `itp-ops.sh web release` / `itp-ops.sh web mount-export` 保留原名为薄壳，**命令面逐字兼容**
-  （help/结果文本与旧版 stdout diff 为空，逐域实测）。
-- 双受众契约：人——结果 stdout、日志/横幅 stderr、TTY 才着色；大模型——`--json` 单条信封
-  `{ok, command, data, error}` + `catalog --json` 自描述命令注册表 + 稳定退出码
-  （0/2/3/4/5/6，见 `itpops/errors.py`）。
-- 版本算法真源收敛到 `itpops/core/version.py`（与 `lib/version.sh` 逐字节 parity 实测：
-  1.2.42→1.2.43、1.2.99→1.3.0、1.99.99→2.0.0、99.99→1.0.0）；顺带修正
-  `itp-ops.sh web release` 旧自带 `next_version` 的多重进位 bug（1.99.99 曾错算 1.0.0.0），
-  前端发版统一走真源。
-- 移植期修复的 bash 历史缺陷（均已实测证实并就地记录在对应模块 docstring「与 bash 版的差异」）：
-  `log watch` 漏 tail 子命令致从未工作、`WATCH_NS` source 时求值吃不到 `--env hongdao`、
-  route-sentinel 清理循环分词错配 / heredoc 引号致 `${VER}` 空 / 部署段 `set -u` 未绑定等。
-  零差异原则其余保留：HARBOR_PROJECT 历史错位、spec-set 第 20 次探测怪癖、diag 多端口行恒 FAIL 等照搬。
-- 旧 bash（`lib/`、`domains/`）与迁移期对照基线 `*.legacy.*` 在 parity 验证全绿后删除；
-  机制注释沉淀于本 README §四 与各模块 docstring。
-
-**2026-11-03 CLI 用法现代化（v2.1.0，参照 kubectl/gh/git 惯例）**：
-
-- 全局参数按成熟 CLI 补齐：`-e/--env`、`-y/--yes`、`-n/--dry-run`（预演优先，无预演分支
-  直接报用法错）、`-o/--output text|json`（`--json` 保留为简写）、`-q/--quiet`、`-v/--verbose`
-  （出远端命令行）、`--no-color`（+`NO_COLOR`/`CLICOLOR_FORCE`）、`--trace`、`--` 终止符、
-  `-V/--version`（含 python/git commit）。
-- 分层帮助：`<域> <命令> -h` 由 `itpops/cli/help.py` 从 CATALOG 生成，**修掉旧行为**
-  （`cloudos scale -h` 会把 `-h` 当应用名执行、`k8s deploy -h` 直接报缺 --yes）；
-  域级 `help` 仍是各域富文本，基线逐字节未变（6 域实测 diff 全空）。
-- 新增 `itp-ops.sh completion bash|zsh`（从 CATALOG 派生，域/子命令增删自动同步），
-  以及 `itp-ops.sh help <域> [命令]` 别名。
-- `-o json` 信封增加 `duration_ms`；`catalog` 契约补充 output_formats / env_vars / help / completion。
-- 回归：6 域 help 与改造前逐字节一致；`version next` 算法 parity 不变；`catalog -o json` 全 ok。
-
-**2026-11-03 入口与命名收敛（「只有一个入口」）**：
-
-- 删除 4 个独立入口，全部收敛为 `itp-ops.sh` 子命令（实现仍在 `itpops/`，可 `python3 -m` 直调）：
-
-  | 旧文件 | 新命令 | 改名理由 |
-  |---|---|---|
-  | `hongdao-buildx.sh` | `itp-ops.sh buildx` | 名字暗示「红岛专用」，实际 `--env` 双环境 |
-  | `hongdao-buildx.Dockerfile` | `buildx.Dockerfile` | 同上；共享模板，FROM 按环境替换 |
-  | `hongdao-deploy-route-sentinel.sh` | `itp-ops.sh sentinel` | 名长且带 hongdao，实为一次性部署工具 |
-  | `web_frontend_release.py` | `itp-ops.sh web release` | 收敛入口；参数/示例见 `web release -h` |
-  | `mount-web-admin-export.py` | `itp-ops.sh web mount-export` | 同上 |
-  | `web-frontend-release.README.md` | 并入 `docs/ops/web前端云平台发版流程.md` | 脚本没了，README 不再独立存在 |
-
-- 附带：`domains/version_cmd.py` → `domains/version.py`（去掉历史 `_cmd` 后缀）；`itpops/buildx/core.py` /
-  `route_sentinel.py` / `web/*` 的用法文本与 CATALOG 改指新命令；`buildx` / `route_sentinel` 入口改为
-  复用入口上下文（此前各自 `Ctx()` 会把 `-q/-v/-o json` 等全局态冲掉）。
-- 全仓引用（AGENTS.md、构建与发布、环境文档、tracking、skills、MEMORY）同步改写；`bash itp-ops.sh` 冗余前缀清理。
-
-**2026-11-03 文件组织对标开源实践（itpops 2.3.0）**：
-
-- 分层重排（对照 pip `_internal/cli/` + `_internal/commands/`、ansible `cli/`）：
-  `cli/{main,registry,help,completion}.py`（表现层）/ `commands/*.py`（命令层，原 `domains/`）/
-  `core/{ui,version,environments,remote,runtime}.py`（公共支撑）/ `cloudos|buildx|sentinel|web/`（特性实现）。
-- 命名修正：`envx.py` → `environments.py`、`execx.py` → `runtime.py`；`catalog` 从「数据+命令混合」
-  拆成 `cli/registry.py`（数据）+ `commands/catalog.py`（命令）；`buildx.py` / `route_sentinel.py`
-  收进特性包 `buildx/core.py` / `sentinel/core.py`。
-- 新增 `pyproject.toml`：版本单一源头（`itpops.__version__`，`__version__` 取代 `ITP_OPS_VERSION`）、
-  `itp-ops` console script（`pipx install .` 后可直接用）、ruff / pytest 配置、零第三方依赖。
-- 新增 `tests/`（stdlib unittest，27 例）：版本算法进位、环境 profile 覆盖规则、CLI 契约
-  （信封/退出码/分层帮助/补全/`--`/dry-run）、注册表完整性。
-- 验证：`python3 -m unittest discover -s tests` 27 passed；`itp-ops.sh -h` / `catalog -o json`（10 域）
-  正常；`compileall` 通过；lint ERROR 0。
+**文档索引**：[README.md](README.md)（上手）· [CONTRIBUTING.md](CONTRIBUTING.md)（改包）·
+[CHANGELOG.md](CHANGELOG.md)（沿革）· [docs/cloudos-notes.md](docs/cloudos-notes.md)（平台知识）

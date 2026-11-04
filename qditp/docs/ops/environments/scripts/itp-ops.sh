@@ -2,21 +2,19 @@
 # ============================================================================
 # itp-ops —— 青岛地铁 ITP 平台运维单一入口（薄壳）
 #
-# 【结构】唯一入口 = 本文件；实现全在 Python 包 itpops/（纯标准库，分层对标 pip）
-#
-#   itp-ops.sh            本文件：薄壳，exec python3 -m itpops
-#   pyproject.toml        包元数据 + `itp-ops` console script（pipx 可装）+ ruff/pytest 配置
-#   itpops/
-#     cli/                main.py（参数解析 + 域分发 + JSON 信封）| registry.py（域清单）
-#                         help.py（分层帮助）| completion.py（bash/zsh 补全）
-#     commands/           一个文件 = 一个命令域：cloudos buildx k8s log diag web
-#                         sentinel analysis version catalog
-#     core/               ui | version | environments | remote | runtime
-#     cloudos/ buildx/ sentinel/ web/   特性实现（commands/ 只做编排）
-#   tests/                stdlib unittest（版本 / 环境 / CLI 契约 / 注册表）
+# 【结构】唯一入口 = 本文件；实现全在 Python 包 itpops/（纯标准库）
+#   README.md / CONTRIBUTING.md / CHANGELOG.md / docs/cloudos-notes.md   项目文档
+#   pyproject.toml / .gitignore / itpops/py.typed                         项目元数据
+#   itpops/cli/        表现层：main / registry / help / completion
+#   itpops/commands/   命令层：一域一文件（CATALOG + main，只做注册与分发）
+#   itpops/core/       公共支撑：ui / version / environments / remote / runtime / crypto
+#   itpops/<特性>/     实现：cloudos(含 impl.py) / buildx / sentinel / web /
+#                      analysis / versioning / linting
+#   tests/             stdlib unittest（59 例）
+#   hosts/ migration/ buildx.Dockerfile   仓内资产（远端脚本 / 迁移执行包 / 构建模板）
 #
 # 【命令面】--env/-e、--yes/-y、--dry-run/-n、-o json、-q、-v、--no-color、--trace、
-#   -h、-V、--、<域> help、<域> <命令> -h、catalog、completion bash|zsh
+#   -h、-V、--、<域> help、<域> <命令> -h、catalog、completion bash|zsh、lint yaml
 #
 # 【双受众契约】
 #   人：结果 → stdout，日志/横幅 → stderr，TTY 才着色

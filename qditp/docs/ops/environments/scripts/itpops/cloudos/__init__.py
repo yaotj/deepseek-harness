@@ -1,10 +1,11 @@
 """cloudos 子包 —— lib/cloudos-{auth,http,image,pkg}.sh 的 Python 移植。
 
 子模块（与旧 lib/*.sh 一一对应）：
-  auth.py   CloudOS 登录 / RSA 加密 / token 缓存（cloudos-auth.sh）
+  auth.py   CloudOS 登录 / token 缓存（cloudos-auth.sh；RSA 加密已统一到 core/crypto.py）
   http.py   HTTP 通道：JSON / multipart 上传 / 原始流（cloudos-http.sh）
   image.py  镜像仓库 API（cloudos-image.sh）
   pkg.py    软件中心应用包 API（cloudos-pkg.sh）
+  impl.py   cloudos 域 30 个子命令的实现（2026-11-04 从 commands/cloudos.py 下沉）
 
 【旧 bash 的坑/巧思（移植时保留的原因）】
   · token 缓存 `<时间戳> <token>` 按环境分文件（${TMPDIR:-/tmp}/.cloudos-<env>.token），
@@ -27,6 +28,7 @@
   2. bash 的 `die`/`log_info` 混用 stdout/stderr；Python 版严格按契约：
      结果文本 → ui.out（stdout，--json 时抑制），日志/横幅 → stderr。
      凡旧脚本打到 stdout 的结果行，移植后仍走 ui.out，stdout 字节兼容。
-  3. RSA/指纹用 openssl 子进程（与 bash 同一工具、同一填充），失败报
-     「RSA 加密失败（openssl 不可用？）」；无第三方 Python 依赖。
+  3. RSA 改用 `itpops/core/crypto.py` 的纯标准库 PKCS#1 v1.5 实现（2026-11-04
+     一致性 review 统一三份重复实现），不再 fork `openssl pkeyutl` 子进程；
+     密文形状仍为 128 字节 / 172 字符，与 bash 版互通。
 """

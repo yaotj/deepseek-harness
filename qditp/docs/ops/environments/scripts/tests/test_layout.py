@@ -1,0 +1,51 @@
+"""布局回归（2.5.0）：命令层薄壳、调试别名走统一入口、项目文档与元数据齐备。
+
+这些用例锁住「重新组织脚本」的结构结论，防止后续又有人把实现塞回 commands/
+或让 `python -m itpops.<特性>` 绕过全局参数解析。
+"""
+from __future__ import annotations
+
+import json
+import unittest
+
+from support import SCRIPTS_DIR, run_cli, run_module
+
+
+class CommandLayerTest(unittest.TestCase):
+    def test_cloudos_command_layer_is_thin(self):
+        src = (SCRIPTS_DIR / "itpops/commands/cloudos.py").read_text(encoding="utf-8")
+        self.assertLess(len(src.splitlines()), 30, "命令层不该重新长出实现")
+        self.assertIn("from ..cloudos.impl import CATALOG, main", src)
+
+    def test_cloudos_impl_holds_the_contract_source(self):
+        impl = (SCRIPTS_DIR / "itpops/cloudos/impl.py").read_text(encoding="utf-8")
+        self.assertIn("CATALOG = {", impl)
+        self.assertIn("def main(args: list[str]) -> int:", impl)
+        self.assertIn("from . import auth", impl)   # 同包引用，不绕 ..cloudos
+
+    def test_project_docs_and_metadata_exist(self):
+        for p in ("README.md", "CONTRIBUTING.md", "CHANGELOG.md",
+                  "docs/cloudos-notes.md", ".gitignore",
+                  "itpops/py.typed", "pyproject.toml"):
+            self.assertTrue((SCRIPTS_DIR / p).is_file(), f"缺少项目文件：{p}")
+
+
+class DelegatedEntryTest(unittest.TestCase):
+    def test_debug_alias_matches_unified_entry(self):
+        for domain in ("buildx", "sentinel"):
+            with self.subTest(domain=domain):
+                direct = run_module(f"itpops.{domain}", "help")
+                unified = run_cli(domain, "help")
+                self.assertEqual(direct.returncode, unified.returncode)
+                self.assertEqual(direct.stdout, unified.stdout)
+                self.assertEqual(direct.stderr, unified.stderr)
+
+    def test_debug_alias_honours_json_contract(self):
+        r = run_module("itpops.buildx", "-o", "json", "help")
+        payload = json.loads(r.stdout)   # 直调也能出单条信封 = 走了统一入口
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["command"], ["buildx", "-o", "json", "help"])
+
+
+if __name__ == "__main__":
+    unittest.main()

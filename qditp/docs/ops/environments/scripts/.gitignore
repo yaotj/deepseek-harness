@@ -1,0 +1,15 @@
+# itpops 项目自带忽略规则（仓根 .gitignore 之外再兜一层，便于单独 clone 本目录）
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# 打包 / 虚拟环境产物
+build/
+dist/
+*.egg-info/
+.venv/
+venv/

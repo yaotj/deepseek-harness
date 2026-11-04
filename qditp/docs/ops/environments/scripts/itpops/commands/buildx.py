@@ -1,9 +1,9 @@
 """buildx 域 —— 镜像构建（CloudOS buildx 端点，双环境）。
 
 【命名（2026-11-03 review）】
-  旧入口 `itp-ops.sh buildx` 只在红岛首发时叫这个名字，实际 `--env hongdao|test`
+  旧独立入口 `hongdao-buildx.sh` 只在红岛首发时叫这个名字，实际 `--env hongdao|test`
   两套环境都用，名字有误导；现收敛为唯一入口的子命令 `itp-ops.sh buildx`，
-  实现在 `itpops/buildx/core.py`（纯 Python，仍可 `itp-ops.sh buildx` 直调）。
+  实现在 `itpops/buildx/core.py`（调试别名 `python -m itpops.buildx` 亦转发统一入口）。
 """
 from __future__ import annotations
 

@@ -5,12 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "itpops"
 description = "青岛地铁 ITP 平台运维单一入口（itp-ops）：CloudOS / K8s / 日志 / 诊断 / 发布"
+readme = "README.md"
 requires-python = ">=3.10"
 dynamic = ["version"]
-dependencies = []          # 纯标准库；不引入第三方依赖
+dependencies = []          # 运行时零第三方依赖（纯标准库）
 
 [project.optional-dependencies]
 lint = ["pyyaml"]          # 仅 `itp-ops.sh lint yaml` 需要；缺了该命令报前置错
+dev = ["pytest", "ruff", "pyyaml"]   # 开发/贡献用，安装：pip install -e '.[dev]'
 
 [project.scripts]
 itp-ops = "itpops.cli.main:main"   # 可选：pipx install . 后可直接 `itp-ops <域> ...`
@@ -18,13 +20,20 @@ itp-ops = "itpops.cli.main:main"   # 可选：pipx install . 后可直接 `itp-o
 [tool.setuptools.packages.find]
 include = ["itpops*"]
 
+[tool.setuptools.package-data]
+itpops = ["py.typed"]      # PEP 561：随包发布类型标记
+
 [tool.setuptools.dynamic]
 version = { attr = "itpops.__version__" }
 
 [tool.ruff]
 line-length = 110
 target-version = "py310"
-extend-exclude = ["__pycache__"]
+extend-exclude = ["__pycache__", "migration", "hosts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]          # 中文说明与历史 stdout 文案较长，交给人判断
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

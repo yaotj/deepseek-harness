@@ -184,7 +184,7 @@ DB_PASSWORD: <secret:itp-secrets/DB_PASSWORD>
 
 **历史坑点（2026-11-04 修复）**：route-sentinel 最初通过 `kubectl` 直接部署，CloudOS 发现后 `metadata.image_metadata` 不完整；`cloudos deploy` 下发的 `PATCH /apps/{uuid}/advanced-config` 因缺少 `resources` 字段报 `application.5000010`。修复方式：
 
-- `itpops/commands/cloudos.py` 的 `cloudos deploy` 现在会现查当前 k8s Deployment、清理后作为 `resources` 一并 PATCH；
+- `itpops/cloudos/impl.py` 的 `cloudos deploy` 现在会现查当前 k8s Deployment、清理后作为 `resources` 一并 PATCH（实现于 2026-11-04 由 `commands/cloudos.py` 下沉至此）；
 - 已用该链路把测试环境 route-sentinel 从 `1.0.8` 成功升级到 `1.0.9`；
 - 若仍失败，可回退到 `kubectl set image deployment/route-sentinel ... -n itp`。
 
