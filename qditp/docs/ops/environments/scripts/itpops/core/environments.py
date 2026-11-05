@@ -3,6 +3,7 @@
 【用法】
   envx.init_env(default_env)   # hongdao | test；--env 由入口写入 Ctx.env
   envx.banner(what)            # 每个打到远端/集群的命令前打一次横幅
+  envx.get(env_name)           # 直接获取环境配置字典
 
 ⚠ 各域默认环境刻意不统一（NEVER 擅自改成一致——那会让原本能用的命令失效）：
     cloudos → hongdao（红岛是主战场）
@@ -16,13 +17,15 @@
   未显式 --env → 同名环境变量非空则用之，否则 profile 默认值。
   K8S_NS 例外：任何情况下都可被同名环境变量覆盖。
 
-【YAML 配置（2026-11-05 新增）】
-  environments/<env>.yaml 为声明式配置真源，environments.py 的 _PROFILES 字典
-  由 YAML 自动生成（启动时加载）。修改 YAML 后无需改 Python 代码。
-  环境变量 ITP_ENV_<FIELD> 仍可覆盖任一字段（YAML 优先于硬编码 fallback）。
+【YAML 配置（2026-11-05 实现）】
+  environments/<env>.yaml 为**运行时配置真源**，启动时自动加载。
+  修改 YAML 后重启 itp-ops 即可生效，无需改 Python 代码。
+  环境变量 ITP_ENV_<FIELD> 仍可覆盖任一字段。
+  _PROFILES_BASE 为 fallback（YAML 缺失时提供默认值）。
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 from dataclasses import dataclass, field
