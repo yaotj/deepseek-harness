@@ -1,0 +1,31 @@
+# 测试环境配置
+# 对应 itpops/core/environments.py _PROFILES["test"]
+
+label: 测试环境
+remote_host: k8s-master
+remote_dir: /home/java
+k8s_ns: itp
+harbor_project: itp
+cloudos_env: test
+src_db_dsn: 172.20.222.3:1521/AFCITPDB
+tgt_db_dsn: 172.20.222.3:1521/AFCITPDB
+tgt_db_pdb: AFCITPDB
+vl_url: http://172.20.211.23:30032
+ingress_entry: 58.56.166.170:48000
+
+# JVM 参数预设（IT-020）
+jvm_presets:
+  4Gi:
+    max_memory: "4000"
+    reserved_memory: "1000"
+    max_direct_memory: "100"
+    heap: "2900m"
+  8Gi:
+    max_memory: "8000"
+    reserved_memory: "2000"
+    max_direct_memory: "100"
+    heap: "5900m"
+
+# 默认容器规格
+default_memory: 4Gi
+default_jvm_heap_ratio: 0.5
