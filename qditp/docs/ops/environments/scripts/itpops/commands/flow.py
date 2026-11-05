@@ -1,17 +1,25 @@
-"""flow 域 —— 工作流一键入口（后端发布 / 前端发布 / JVM 参数升级）。
+"""flow 域 —— 工作流一键入口（后端发布 / 前端发布 / JVM 参数升级 / 扩展工作流）。
 
 设计目的：把「发一次版要连敲 7 条命令」变成一条，同时不牺牲安全性：
   · 不加 --yes 只列步骤（离线也能预演），加 --yes 才逐步执行；
   · 每步都走统一入口 python -m itpops，不绕过全局参数 / JSON 信封 / 退出码；
   · 每步有判据（expect），失败即断并留下已完成步骤与变量；
   · 红岛生产 MUST 额外 --allow-prod；flow 默认环境 test（NEVER 默认打生产）。
+
+扩展工作流（2026-11-05 新增）：
+  · integration：联调工作流（批量部署 + 联调验证）
+  · rollback-plan：回滚预案（查询当前版本 + 生成回滚方案）
+  · batch-jvm：批量 JVM 升级
+  · batch-bump：批量版本 bump
+  · cleanup：环境清理
+  · health-report：健康检查日报
 """
 from __future__ import annotations
 
 from ..cli.suggest import append_hint
 from ..core import ui
 from ..errors import EXIT_USAGE, OpsError
-from ..workflows import definitions, runner, wizard
+from ..workflows import definitions, extended, runner, wizard
 
 CATALOG = {
     "name": "flow",
@@ -72,7 +80,7 @@ CATALOG = {
     ],
 }
 
-_VALUE_FLAGS = ("--module", "--app", "--image", "--version", "--size", "--jar", "--dockerfile", "--to")
+_VALUE_FLAGS = ("--module", "--app", "--image", "--version", "--size", "--jar", "--dockerfile", "--to", "--apps", "--dirs", "--ns", "--output")
 _BOOL_FLAGS = ("--bump", "--debug", "--skip-build", "--allow-prod", "-i", "--interactive")
 
 
@@ -152,10 +160,39 @@ def main(args: list[str]) -> int:
         opts["last"] = opts.get("last")
         if not opts["app"]:
             raise OpsError("用法：flow rollback <应用> --to <version> 或 --last", EXIT_USAGE)
+    elif sub == "integration":
+        # 位置参数为模块列表
+        opts["modules"] = positional if positional else opts.get("modules", [])
+        if not opts["modules"]:
+            raise OpsError("用法：flow integration <模块1> <模块2> [...] 或 --modules <模块1> <模块2>", EXIT_USAGE)
+    elif sub == "rollback-plan":
+        opts["app"] = positional[0] if positional else opts.get("app")
+        if not opts["app"]:
+            raise OpsError("用法：flow rollback-plan <应用> 或 --app <应用>", EXIT_USAGE)
+    elif sub == "batch-jvm":
+        apps = positional if positional else opts.get("apps", [])
+        if not apps:
+            raise OpsError("用法：flow batch-jvm --apps <应用1> <应用2> [...] 或位置参数", EXIT_USAGE)
+        opts["apps"] = apps
+    elif sub == "batch-bump":
+        dirs = positional if positional else opts.get("dirs", [])
+        if not dirs:
+            raise OpsError("用法：flow batch-bump --dir <模块1> <模块2> [...] 或位置参数", EXIT_USAGE)
+        opts["dirs"] = dirs
+    elif sub == "cleanup":
+        opts["ns"] = opts.get("ns", "itp")
+    elif sub == "health-report":
+        opts["output"] = opts.get("output", "")
     elif sub != "frontend":
         raise OpsError(
             append_hint("未知工作流：%s（可用 flow list）" % sub, sub,
-                        [x[0] for x in definitions.summarize()] + ["guide"]),
+                        [x[0] for x in definitions.summarize()] +
+                        [x[0] for x in extended.summarize()] + ["guide"]),
             EXIT_USAGE)
 
-    return runner.run(definitions.build(sub, opts), opts)
+    # 优先尝试扩展工作流，找不到再委托核心工作流
+    try:
+        flow = extended.build(sub, opts)
+    except Exception:
+        flow = definitions.build(sub, opts)
+    return runner.run(flow, opts)
