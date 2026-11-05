@@ -15,12 +15,18 @@
   「说是红岛、跳板还连测试」错配）；
   未显式 --env → 同名环境变量非空则用之，否则 profile 默认值。
   K8S_NS 例外：任何情况下都可被同名环境变量覆盖。
+
+【YAML 配置（2026-11-05 新增）】
+  environments/<env>.yaml 为声明式配置真源，environments.py 的 _PROFILES 字典
+  由 YAML 自动生成（启动时加载）。修改 YAML 后无需改 Python 代码。
+  环境变量 ITP_ENV_<FIELD> 仍可覆盖任一字段（YAML 优先于硬编码 fallback）。
 """
 from __future__ import annotations
 
 import os
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 from ..errors import EXIT_PRECONDITION, OpsError
 from .ui import context
@@ -63,18 +69,50 @@ class Env:
         }
 
 
-_PROFILES: dict[str, dict[str, str]] = {
+# K8S_NS 任何情况下都可被环境变量覆盖（bash: K8S_NS="${K8S_NS:-<默认>}"）
+_ALWAYS_OVERRIDABLE = {"k8s_ns"}
+
+_CURRENT: Env | None = None
+
+
+def _load_yaml_profiles() -> dict[str, dict[str, str]]:
+    """从 environments/*.yaml 加载配置。失败时返回空字典（退回到硬编码）。"""
+    profiles: dict[str, dict[str, str]] = {}
+    try:
+        import yaml
+        scripts_dir = Path(__file__).resolve().parents[2]
+        yaml_dir = scripts_dir / "environments"
+        if yaml_dir.is_dir():
+            for yaml_file in yaml_dir.glob("*.yaml"):
+                env_name = yaml_file.stem
+                with open(yaml_file, "r", encoding="utf-8") as f:
+                    config = yaml.safe_load(f)
+                if isinstance(config, dict):
+                    # 过滤非字符串值（如 jvm_presets 等嵌套结构）
+                    profiles[env_name] = {
+                        k: str(v) for k, v in config.items()
+                        if isinstance(v, str) and not k.startswith("_")
+                    }
+    except ImportError:
+        pass  # PyYAML 未安装，使用硬编码
+    except Exception as exc:
+        print(f"[WARN] 加载 YAML 配置失败: {exc}", file=sys.stderr)
+    return profiles
+
+
+# 硬编码默认值（向后兼容 + YAML 加载失败时的 fallback）
+_PROFILES_BASE: dict[str, dict[str, str]] = {
     "hongdao": {
         "label": "红岛生产",
-        "remote_host": "hd-linux",        # 红岛 K8s 控制区（172.120.2.13）
+        "remote_host": "hd-linux",
         "remote_dir": "/home/java",
         "k8s_ns": "itpb",
-        "harbor_project": "itpb",         # 推送账号 itpadmin
+        "harbor_project": "itpb",
         "cloudos_env": "hongdao",
         "src_db_dsn": "172.20.222.3:1521/AFCITPDB",
         "tgt_db_dsn": "172.120.110.25:1521/hditpdb",
         "tgt_db_pdb": "HDTPDB",
-        "vl_url": "http://172.120.2.13:31920",   # NEVER 沿用测试值
+        "vl_url": "http://172.120.2.13:31920",
         "ingress_entry": "172.120.2.26:48000",
     },
     "test": {
@@ -92,10 +130,26 @@ _PROFILES: dict[str, dict[str, str]] = {
     },
 }
 
-# K8S_NS 任何情况下都可被环境变量覆盖（bash: K8S_NS="${K8S_NS:-<默认>}"）
-_ALWAYS_OVERRIDABLE = {"k8s_ns"}
+# 运行时配置（YAML 优先，环境变量覆盖）
+_PROFILES: dict[str, dict[str, str]] = {}
 
-_CURRENT: Env | None = None
+
+def _init_profiles() -> None:
+    """启动时加载 YAML 配置并合并到 _PROFILES。"""
+    global _PROFILES
+    _PROFILES = dict(_PROFILES_BASE)  # 先复制硬编码值
+
+    # 加载 YAML（YAML 值覆盖硬编码）
+    yaml_profiles = _load_yaml_profiles()
+    for env_name, yaml_config in yaml_profiles.items():
+        if env_name in _PROFILES:
+            _PROFILES[env_name].update(yaml_config)
+        else:
+            _PROFILES[env_name] = yaml_config
+
+
+# 模块加载时初始化
+_init_profiles()
 
 
 def _existing_env_var(field: str) -> str:
@@ -117,7 +171,7 @@ def init_env(default_env: str) -> Env:
     profile = _PROFILES.get(env_name)
     if profile is None:
         raise OpsError(
-            f"错误：未知环境 {env_name}（仅 hongdao / test）", EXIT_PRECONDITION
+            f"错误：未知环境 {env_name}（仅 {' / '.join(_PROFILES.keys())}）", EXIT_PRECONDITION
         )
 
     explicit = ctx.env_explicit

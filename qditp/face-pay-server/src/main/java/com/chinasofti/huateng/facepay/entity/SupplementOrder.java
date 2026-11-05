@@ -2,10 +2,8 @@ package com.chinasofti.huateng.facepay.entity;
 
 import java.time.LocalDateTime;
 
-/** IF8A-26 在线补款订单（SUPPLEMENT_ORDER），face-pay-server 为 owner。 */
 public class SupplementOrder {
     private Long id;
-    /** 补款单号：SP + yyyyMMddHHmmssSSS + 卡号后6位。 */
     private String orderNo;
     private String payStatus;
     private String thirdUserId;
@@ -13,9 +11,7 @@ public class SupplementOrder {
     private String cardType;
     private String goodsCode;
     private Integer quantity;
-    /** 补款总额，单位分。 */
     private Long totalAmount;
-    /** 本补款单覆盖的原过闸订单笔数。 */
     private Integer orderCount;
     private String paymentVendor;
     private String signChannelCode;
@@ -25,11 +21,8 @@ public class SupplementOrder {
     private String remark;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
-    /** 乘客在 APP 收银台选定的支付渠道，由 PayCenter 预下单时传入，下单时为空。 */
     private String payChannelCode;
-    /** 支付中心预下单返回的商户订单号（merchantOrderNo），退款与对账要用。 */
     private String merchantOrderNo;
-    /** 预下单返回的支付串，原样回给 APP 唤起收银台，本端不解析。 */
     private String paymentInfo;
 
     public Long getId() { return id; }

@@ -16,17 +16,13 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/** APP 网关通知客户端（出向）。 */
 @Component
 public class AppNotifyClient {
 
-    /** APP 侧成功码，与设备侧 {@code retCode} 同族。 */
     private static final String RET_CODE_SUCCESS = "0000";
 
-    /** 部分网关用 {@code code=0} 表示成功（支付中心那套口径）。 */
     private static final String CODE_SUCCESS = "0";
 
-    /** 信封 {@code timestamp} 格式，与设备链路一致。 */
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private static final Logger log = LoggerFactory.getLogger(AppNotifyClient.class);
@@ -42,12 +38,6 @@ public class AppNotifyClient {
                 .build();
     }
 
-    /**
-     * 投递一条通知。
-     *
-     * @param url         完整 URL；为空时直接返回失败（配置缺失也要留痕，NEVER 静默跳过）
-     * @param payloadJson 业务报文 JSON，作为信封的 {@code bizData} 字段值发送
-     */
     public AppNotifyResult post(String url, String payloadJson) {
         if (url == null || url.isBlank()) {
             return AppNotifyResult.failed("通知地址未配置，检查 f2f.notify.app.*-url");
@@ -72,7 +62,6 @@ public class AppNotifyClient {
         }
     }
 
-    /** 拼 ITP 信封表单体，{@code bizData} 放业务 JSON。 */
     private String formBody(String bizData) {
         StringBuilder body = new StringBuilder();
         append(body, "providerId", properties.getProviderId());
@@ -94,7 +83,6 @@ public class AppNotifyClient {
                 .append(URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8));
     }
 
-    /** 判定应答，口径见类注释。 */
     private AppNotifyResult evaluate(String url, int statusCode, String body) {
         if (statusCode < 200 || statusCode >= 300) {
             return AppNotifyResult.failed("HTTP " + statusCode + ", body=" + abbreviate(body));

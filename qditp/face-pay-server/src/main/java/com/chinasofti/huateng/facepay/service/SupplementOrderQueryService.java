@@ -7,7 +7,6 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
-/** 运营端在线补款单（{@code SUPPLEMENT_ORDER}）的只读查询。 */
 @Service
 public class SupplementOrderQueryService {
 
@@ -21,7 +20,6 @@ public class SupplementOrderQueryService {
         this.supplementOrderMapper = supplementOrderMapper;
     }
 
-    /** 补款单分页查询入参。 */
     public record SupplementOrderPageQuery(String orderNo,
                                            String cardId,
                                            String thirdUserId,
@@ -32,7 +30,6 @@ public class SupplementOrderQueryService {
                                            Integer pageSize) {
     }
 
-    /** 查询判定结果，调用方 MUST 穷尽分支后各自组响应壳。 */
     public sealed interface PageOutcome {
 
         record Ok(List<SupplementOrder> list, long total) implements PageOutcome {
@@ -42,10 +39,6 @@ public class SupplementOrderQueryService {
         }
     }
 
-    /**
-     * 分页查询在线补款单。业务流水表，无条件全表扫会伤库，
-     * 故要求订单号 / 卡号 / 用户ID 之一或完整交易日期窗。
-     */
     public PageOutcome page(SupplementOrderPageQuery query) {
         String orderNo = trimToNull(query.orderNo());
         String cardId = trimToNull(query.cardId());
@@ -80,7 +73,6 @@ public class SupplementOrderQueryService {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    /** 页面日期（yyyy-MM-dd 或 yyyyMMdd）换算成 TXN_DATE 的存储格式 yyyyMMdd，空值返回 null，非法输入抛异常由调用方处理。 */
     private String normalizeTxnDate(String value) {
         String trimmed = trimToNull(value);
         if (trimmed == null) {

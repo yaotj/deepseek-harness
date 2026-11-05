@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 日终对账抽取入口，由 recon-server 下发，不对外暴露。 */
 @RestController
 @RequestMapping("/internal/recon")
 public class ReconExportController {
@@ -19,12 +18,6 @@ public class ReconExportController {
         this.reconExportService = reconExportService;
     }
 
-    /**
-     * 接收一次抽取指令。
-     *
-     * @param request 批次号 / 账期 / 时间窗口 / 文件类型清单
-     * @return {@code accepted=true} 已受理；{@code accepted=false} 同批次上一轮仍在执行（限流，不是失败）
-     */
     @PostMapping("/export")
     public ReconExportRespDTO export(@RequestBody ReconExportReqDTO request) {
         boolean accepted = reconExportService.submit(request);

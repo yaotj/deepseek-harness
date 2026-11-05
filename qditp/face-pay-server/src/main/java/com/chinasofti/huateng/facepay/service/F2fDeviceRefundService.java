@@ -14,15 +14,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-/**
- * 设备侧主动退款（TVM {@code requestRefund}）。
- */
 @Service
 public class F2fDeviceRefundService {
 
-    /**
-     * 可退款的订单状态白名单：钱已收到、且业务已结束或已失败。
-     */
     private static final List<String> REFUNDABLE = F2fOrderStatus.REFUNDABLE;
 
     private static final Logger log = LoggerFactory.getLogger(F2fDeviceRefundService.class);
@@ -40,9 +34,6 @@ public class F2fDeviceRefundService {
         this.refundService = refundService;
     }
 
-    /**
-     * TVM 主动退款。
-     */
     public JSONObject requestRefund(RequestRefundReqDTO request) {
         Long amount = request.amountInFen();
         if (amount == null) {
@@ -101,9 +92,6 @@ public class F2fDeviceRefundService {
         return refundAccepted(outcome);
     }
 
-    /**
-     * 把退款单当前状态翻译成设备侧的 {@code refundResult}。
-     */
     private static JSONObject refundAccepted(RefundOutcome outcome) {
         boolean success = F2fRefundService.STATUS_SUCCESS.equals(outcome.refundStatus());
         return TvmResponses.refundSuccess(success ? "SUCCESS" : "PROCESSING",

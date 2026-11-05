@@ -22,19 +22,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** APP 侧退款：申请退款、退款结果查询、支付中心退款结果回调。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。 */
 @Service
 public class F2fAppRefundService {
 
     private static final Logger log = LoggerFactory.getLogger(F2fAppRefundService.class);
 
-    /** 允许发起退款的状态白名单。 */
     private static final List<String> REFUNDABLE = F2fOrderStatus.REFUNDABLE;
 
-    /** 退款相关响应里的 {@code refundDate} 格式：8 位日期。 */
     private static final DateTimeFormatter DAY_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
 
-    /** 契约 §5.2 退款回调的 {@code refundDate} 格式：14 位。 */
     private static final DateTimeFormatter REFUND_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -63,7 +59,6 @@ public class F2fAppRefundService {
         this.notifyService = notifyService;
         this.refundNotifyUrl = appNotifyProperties.getRefundNoticeUrl();
     }
-    /** 请求退款（整单）。 */
     public JSONObject requestRefund(RequestAppPayResultReqDTO request) {
         String orderNo = request.getOrderNo();
         F2fOrder order = orderMapper.selectByOrderNo(orderNo);
@@ -109,7 +104,6 @@ public class F2fAppRefundService {
         return AppResponses.refund(orderNo, LocalDateTime.now().format(DAY_FORMATTER),
                 order.getOrderAmount(), "PROCESSING", "退款进行中", refundNotifyUrl);
     }
-    /** 退款结果查询。 */
     public JSONObject queryRefundResult(RequestAppPayResultReqDTO request) {
         String key = request.getOrderNo();
         F2fRefund refund = refundMapper.selectByRefundNo(key);
@@ -140,17 +134,6 @@ public class F2fAppRefundService {
         return AppResponses.refund(key, refundDate, refund.getRefundAmount(),
                 refundResult, desc, null);
     }
-    /**
-     * 支付中心退款结果回调（契约 §5.2）。
-     *
-     * <p><b>两个退款单号 NEVER 再弄反</b>：契约里 {@code outRefundNo} 是「商户退款单号」= 我方
-     * {@code F2F_REFUND.REFUND_NO}（出向报文把它填在 §3.1 的 {@code refundOrderNo}、
-     * 退款查询填在 {@code merchantRefundNo}，见 {@code PayCenterMessageFactory}），
-     * 而 {@code refundNo} 是**支付中心侧**的退款单号、落 {@code PAY_CENTER_REFUND_NO}。
-     * 原实现拿 {@code refundNo} 去查本地 {@code REFUND_NO}、把 {@code outRefundNo} 写进
-     * {@code PAY_CENTER_REFUND_NO}，两处都反了（回调永远查不到单、返「订单号错误」）。
-     * 兼容起见按「我方号 → 支付中心号 → 我方号回落」三级定位。
-     */
     public JSONObject receiveRefundResult(AppRefundNotiResultReqDTO request) {
         F2fRefund refund = locateRefund(request);
         if (refund == null) {
@@ -189,7 +172,6 @@ public class F2fAppRefundService {
         return AppResponses.success();
     }
 
-    /** 按「商户退款单号（我方）→ 支付中心退款单号 → 我方号回落」三级定位本地退款单。 */
     private F2fRefund locateRefund(AppRefundNotiResultReqDTO request) {
         String outRefundNo = request.getOutRefundNo();
         if (outRefundNo != null && !outRefundNo.isBlank()) {
@@ -206,7 +188,6 @@ public class F2fAppRefundService {
         return byCenter != null ? byCenter : refundMapper.selectByRefundNo(payCenterRefundNo);
     }
 
-    /** 回调金额与本地退款金额不一致时只告警、不阻断收口（部分退款口径未定，NEVER 在这里拒绝回调）。 */
     private void warnIfAmountMismatch(F2fRefund refund, AppRefundNotiResultReqDTO request) {
         String amount = request.getRefundAmount();
         if (amount == null || amount.isBlank()) {
@@ -225,7 +206,6 @@ public class F2fAppRefundService {
         }
     }
 
-    /** 契约 §5.2 的 {@code refundDate} 是 {@code yyyyMMddHHmmss}；解析不了才回落本机时间。 */
     private LocalDateTime parseRefundTime(String refundDate) {
         if (refundDate == null || refundDate.isBlank()) {
             return LocalDateTime.now();
@@ -237,7 +217,6 @@ public class F2fAppRefundService {
             return LocalDateTime.now();
         }
     }
-    /** 入队一条退款结果通知。 */
     private void enqueueRefundNotify(F2fRefund refund, AppRefundNotiResultReqDTO request) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("orderNo", refund.getOrigOrderNo());
@@ -254,7 +233,6 @@ public class F2fAppRefundService {
         }
     }
 
-    /** 支付中心侧订单号，供退款报文的 {@code tradeNo} 使用；未支付时为 null。 */
     private String payCenterOrderNoOf(String orderNo) {
         F2fPayment last = paymentMapper.selectLastAttempt(orderNo);
         return last == null ? null : last.getPayCenterOrderNo();

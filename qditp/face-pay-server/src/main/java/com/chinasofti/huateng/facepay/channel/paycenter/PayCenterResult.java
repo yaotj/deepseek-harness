@@ -3,7 +3,6 @@ package com.chinasofti.huateng.facepay.channel.paycenter;
 import java.util.Collections;
 import java.util.Map;
 
-/** 支付中心一次交互的结果，供上层原样落 {@code F2F_PAYMENT}（含耗时与原始报文）。 */
 public final class PayCenterResult {
 
     private final String code;
@@ -40,17 +39,14 @@ public final class PayCenterResult {
         return new PayCenterResult(null, null, null, rawResponse, costMs, true, failureReason);
     }
 
-    /** 支付中心公共响应码 {@code 0} 才是受理成功，与旧 {@code PayCenterErrorCodeEnum.SUCCESS} 一致。 */
     public boolean isSuccessCode() {
         return "0".equals(code);
     }
 
-    /** {@code data.status}；缺失或不认识返回 {@code null}，按 UNKNOWN 处理。 */
     public PayCenterStatus status() {
         return PayCenterStatus.fromCode(string("status"));
     }
 
-    /** 取 {@code data} 里的字符串字段，如 {@code orderNo} / {@code channelOrderNo} / {@code paymentVendor} / {@code data}。 */
     public String string(String key) {
         Object value = data.get(key);
         return value == null ? null : String.valueOf(value);

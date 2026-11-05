@@ -27,20 +27,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 出票结果上报（IF2A-05 成功 / IF2A-06 失败）。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。
- */
 @Service
 public class F2fTicketIssueService {
 
-    /**
-     * 上报类型：出票成功。
-     */
     public static final String REPORT_TAKE_TICKET_OK = "TAKE_TICKET_OK";
 
-    /**
-     * 上报类型：出票失败。
-     */
     public static final String REPORT_TAKE_TICKET_FAIL = "TAKE_TICKET_FAIL";
 
     private static final String TICKET_ISSUED = "ISSUED";
@@ -53,9 +44,6 @@ public class F2fTicketIssueService {
 
     private static final String ORDER_FULFILL_FAILED = F2fOrderStatus.FULFILL_FAILED.name();
 
-    /**
-     * APP 扫码取票的交易类型，只有这类订单需要回推 APP。
-     */
     private static final String TRANS_TYPE_APP_TAKE_TICKET = "03";
 
     private static final Logger log = LoggerFactory.getLogger(F2fTicketIssueService.class);
@@ -83,9 +71,6 @@ public class F2fTicketIssueService {
         this.notifyService = notifyService;
     }
 
-    /**
-     * 出票成功上报。
-     */
     public JSONObject receiveTakeTicketResult(NotiTakeTicketResultReqDTO request, String channel) {
         Integer actualNum = request.actualNum();
         if (actualNum == null) {
@@ -123,9 +108,6 @@ public class F2fTicketIssueService {
         return TvmResponses.success();
     }
 
-    /**
-     * 出票失败上报，含差额退款。
-     */
     public JSONObject receiveTakeTicketFailResult(NotiTakeTicketFailResultReqDTO request, String channel) {
         Integer actualNum = request.actualNum();
         if (actualNum == null) {
@@ -168,11 +150,6 @@ public class F2fTicketIssueService {
         return TvmResponses.success();
     }
 
-    /**
-     * 未出票部分的差额退款。
-     *
-     * @return 退款单号；未发起退款时返回 null
-     */
     private String refundShortfall(F2fOrder order, int actualNum, String faultSlipSeq) {
         Integer orderNum = order.getTicketNum();
         Long price = order.getTicketPrice();
@@ -205,11 +182,6 @@ public class F2fTicketIssueService {
         return outcome.refundNo();
     }
 
-    /**
-     * 落上报记录，撞唯一索引即视为重传。
-     *
-     * @return true 表示本次是首报（可以继续做后续动作）；false 表示重传，调用方 MUST 直接回成功
-     */
     private boolean insertReport(F2fResultReport report) {
         try {
             resultReportMapper.insert(report);
@@ -224,9 +196,6 @@ public class F2fTicketIssueService {
         }
     }
 
-    /**
-     * 落票明细。
-     */
     private void saveTickets(F2fOrder order, List<TicketInfo> ticketList, String ticketStatus) {
         if (ticketList == null || ticketList.isEmpty()) {
             return;
@@ -274,9 +243,6 @@ public class F2fTicketIssueService {
         }
     }
 
-    /**
-     * APP 来源的订单才需要回推结果（{@code TRANS_TYPE=03}）。
-     */
     private void enqueueAppNotify(F2fOrder order, String notifyType, int actualNum,
                                   String reportTms, String refundNo) {
         log.info("开始进行通知内容落库判断");
@@ -301,9 +267,6 @@ public class F2fTicketIssueService {
         notifyService.enqueue(notifyType, order.getOrderNo(), refundNo, payload);
     }
 
-    /**
-     * 上报记录的公共字段。
-     */
     private F2fResultReport baseReport(String reportType, String orderNo, String channel, String deviceId,
                                        Integer orderTicketNum, Integer actualTicketNum, String reportTms) {
         F2fResultReport report = new F2fResultReport();
@@ -320,11 +283,6 @@ public class F2fTicketIssueService {
         return report;
     }
 
-    /**
-     * 补偿入口：按**已落库**的出票上报行重放「推进订单 → 差额退款 → 入队通知」三步。
-     *
-     * @return true 表示本行已收口、调用方可置 {@code PROCESSED='1'}；
-     */
     boolean resumeFromReport(F2fResultReport report) {
         String orderNo = report.getOrderNo();
         Integer actualNum = report.getActualTicketNum();
@@ -359,9 +317,6 @@ public class F2fTicketIssueService {
         return false;
     }
 
-    /**
-     * 供出票失败后按票标记故障状态使用（BOM 侧按票退款时会读这个状态）。
-     */
     void markTicketsFault(String ticketLogicNum, String transDate) {
         ticketMapper.updateStatus(F2fLogicCardNo.normalize(ticketLogicNum), transDate,
                 List.of(TICKET_ISSUED), TICKET_FAULT);

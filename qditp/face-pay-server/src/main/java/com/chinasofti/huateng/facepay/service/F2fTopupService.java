@@ -25,13 +25,11 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** TVM 票卡充值下单：IF2A-09。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。 */
 @Service
 public class F2fTopupService {
 
     private static final Logger log = LoggerFactory.getLogger(F2fTopupService.class);
 
-    /** 业务类型：充值，对应 {@code CK_F2F_ORDER_BIZ} 的 02。 */
     private static final String BIZ_TOPUP = "02";
 
     private static final String STATUS_CREATED = F2fOrderStatus.CREATED.name();
@@ -67,7 +65,6 @@ public class F2fTopupService {
         this.payCenterFlow = payCenterFlow;
         this.qrcodeExpireSeconds = qrcodeExpireSeconds;
     }
-    /** IF2A-09 充值下单。 */
     public JSONObject requestTopup(RequestTopupReqDTO request) {
         Long transAmount = request.transAmountInFen();
         Long beforeAmount = request.beforeAmountInFen();
@@ -97,7 +94,6 @@ public class F2fTopupService {
         return preOrderAtPayCenter(orderNo, transAmount, request.getPayType(), now);
     }
 
-    /** 必须在事务外：中间那次 {@code execute} 是网络调用。 */
     private JSONObject preOrderAtPayCenter(String orderNo, long amount, String payType, LocalDateTime now) {
         PayCenterRequest message = messageFactory.buildPayRequest(new PayCenterPayCommand(
                 orderNo, PayScene.QRCODE, null, payType, amount, PAY_SUBJECT, PAY_BODY, null));

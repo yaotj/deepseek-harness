@@ -2,30 +2,22 @@ package com.chinasofti.huateng.facepay.api.device.tvm;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/** IF2A-09 票卡充值下单请求报文。 */
 public class RequestTopupReqDTO extends BaseDeviceRequest {
 
-    /** 票卡逻辑卡号。 */
     private String ticketLogicNum;
 
-    /** 票卡物理卡号。 */
     private String ticketPhysicsNum;
 
-    /** 充值前卡内余额，单位分。 */
     private String beforeAmount;
 
-    /** 本次充值金额，单位分。 */
     private String transAmount;
 
-    /** 支付方式：{@code 0} 聚合码，其余走支付中心。 */
     private String payType;
 
-    /** 充值金额转 {@code Long}（分）；为空或非数字返回 null。 */
     public Long transAmountInFen() {
         return parse(transAmount);
     }
 
-    /** 充值前余额转 {@code Long}（分）；为空、非数字或负数返回 null。 */
     public Long beforeAmountInFen() {
         Long parsed = parse(beforeAmount);
         return parsed != null && parsed >= 0 ? parsed : null;

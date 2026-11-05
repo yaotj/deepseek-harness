@@ -10,13 +10,11 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-/** 二维码过期订单收口任务。无分布式锁，face-pay-server MUST 单副本；本类不带 {@code @Transactional}（每笔收口都要调支付中心）。 */
 @Component
 public class F2fOrderExpireJob {
 
     private static final Logger log = LoggerFactory.getLogger(F2fOrderExpireJob.class);
 
-    /** 收口逻辑的宿主。 */
     private final F2fOrderExpireService expireService;
 
     private final int batchLimit;
@@ -60,7 +58,6 @@ public class F2fOrderExpireJob {
         warnStaleOrders();
     }
 
-    /** 已过放弃窗口、不再自动收口的单只在这里告警一次。 */
     private void warnStaleOrders() {
         try {
             long stale = expireService.countStaleExpiredOrders();

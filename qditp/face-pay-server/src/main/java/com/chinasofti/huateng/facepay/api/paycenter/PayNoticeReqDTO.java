@@ -1,39 +1,27 @@
 package com.chinasofti.huateng.facepay.api.paycenter;
 
-/** 支付结果回调的业务报文（{@code bizData} 内容），字段与旧 {@code PayNoticeReqDTO} 逐字一致。 */
 public class PayNoticeReqDTO {
 
-    /** 支付中心订单号。 */
     private String orderNo;
 
-    /** 我方订单号，等于 F2F_ORDER.ORDER_NO。 */
     private String merchantOrderNo;
 
-    /** 渠道订单号（微信/支付宝侧）。 */
     private String channelOrderNo;
 
-    /** 支付状态：SUCCESS / FAILED / ORDERED / UNPAID。 */
     private String status;
 
-    /** 支付时间。 */
     private String payTime;
 
-    /** 订单总金额，单位分。 */
     private String totalAmount;
 
-    /** 现金支付金额，单位分。 */
     private String cashAmount;
 
-    /** 优惠金额，单位分。 */
     private String couponAmount;
 
-    /** 付款用户标识。 */
     private String payUserId;
 
-    /** 支付方式（渠道码），回填到 F2F_PAYMENT.PAY_CHANNEL_CODE。 */
     private String paymentVendor;
 
-    /** 扩展字段。 */
     private String options;
 
     public String getOrderNo() {

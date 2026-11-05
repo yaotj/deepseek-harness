@@ -2,7 +2,6 @@ package com.chinasofti.huateng.facepay.api.device.bom;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/** IF5A-01 票卡分析入参。 */
 public class RequestCardDataAnalyseReqDTO extends BaseDeviceRequest {
 
     private String msisdn;

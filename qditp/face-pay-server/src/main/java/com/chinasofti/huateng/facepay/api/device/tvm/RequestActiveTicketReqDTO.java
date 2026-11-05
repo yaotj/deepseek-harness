@@ -2,16 +2,12 @@ package com.chinasofti.huateng.facepay.api.device.tvm;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/** IF2A-07 取票订单激活请求报文。 */
 public class RequestActiveTicketReqDTO extends BaseDeviceRequest {
 
-    /** 订单号。 */
     private String orderNo;
 
-    /** 二维码生成日期，与 {@code randomFact} 一起构成取票凭证。 */
     private String qrcodeGenDate;
 
-    /** 二维码随机因子。 */
     private String randomFact;
 
     public String getOrderNo() {

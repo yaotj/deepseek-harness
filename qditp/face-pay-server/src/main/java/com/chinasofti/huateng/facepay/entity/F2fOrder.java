@@ -2,121 +2,82 @@ package com.chinasofti.huateng.facepay.entity;
 
 import java.time.LocalDateTime;
 
-/** 当面付收款单（表 F2F_ORDER）。 */
 public class F2fOrder {
 
-    /** 自增主键。 */
     private Long id;
 
-    /** ITP 订单号，含版本标识位 F2。 */
     private String orderNo;
 
-    /** 受理渠道：01-APP，02-TVM，03-BOM。 */
     private String channel;
 
-    /** 业务类型：01-购票，02-充值，03-取票，04-非现金收款。 */
     private String bizType;
 
-    /** BOM 交易类型，规格九个取值见 DDL 注释；代码只对 42 做校验。 */
     private String transType;
 
-    /** 行政交易类型，transType=42 时必填。 */
     private String adminTransType;
 
-    /** 内部状态机，取值见 CK_F2F_ORDER_STATUS。 */
     private String orderStatus;
 
-    /** 订单总金额，单位分。 */
     private Long orderAmount;
 
-    /** 退款汇总状态：{@code NONE} / {@code PARTIAL} / {@code SUCCESS}，取值见 CK_F2F_ORDER_REFUND_STATUS。 */
     private String refundStatus;
 
-    /** 已成功退款总额，单位分。 */
     private Long refundAmount;
 
-    /** 最后一次退款汇总重算时刻。 */
     private LocalDateTime lastRefundTms;
 
-    /** 受理设备号。 */
     private String deviceId;
 
-    /** 终端设备流水号。 */
     private String deviceSeq;
 
-    /** 车站编码。 */
     private String stationCode;
 
-    /** 操作员号，BOM 侧有值。 */
     private String operatorId;
 
-    /** 班次号，BOM 侧有值。 */
     private String shiftId;
 
-    /** 第三方用户标识，APP 侧有值。 */
     private String thirdUserId;
 
-    /** 逻辑卡号。 */
     private String cardId;
 
-    /** 物理卡号，设备上送后原样留证；与 {@link #cardId} 不同源。 */
     private String ticketPhysicsNum;
 
-    /** 购票张数。 */
     private Integer ticketNum;
 
-    /** 单张票价，单位分。 */
     private Long ticketPrice;
 
-    /** 0-按站点购票，1-按固定票价购票。 */
     private String singleTicketType;
 
-    /** 进站编码。 */
     private String entryStationCode;
 
-    /** 出站编码。 */
     private String exitStationCode;
 
-    /** 充值前卡内余额，单位分。 */
     private Long cardBeforeAmount;
 
-    /** 充值后卡内余额，单位分。 */
     private Long cardAfterAmount;
 
-    /** TVM 充值存疑时打印的故障单号，BOM 凭此号查询。 */
     private String suspectSlipNo;
 
-    /** 取票二维码生成时间 yyyyMMddHHmmss。 */
     private String qrcodeGenDate;
 
-    /** 取票二维码随机因子。 */
     private String randomFact;
 
-    /** 0-未激活，1-已激活。 */
     private String activateFlag;
 
-    /** 取票订单已被哪台设备激活。 */
     private String activateDeviceId;
 
-    /** 激活时间。 */
     private LocalDateTime activateTms;
 
-    /** 二维码失效时间，创建时间加 180 秒。 */
     private LocalDateTime expireTms;
 
-    /** 支付成功时间。 */
     private LocalDateTime paidTms;
 
-    /** 业务完成（出票 / 充值成功）时间。 */
     private LocalDateTime fulfillTms;
 
-    /** 创建时间，分区键。 */
     private LocalDateTime createTms;
 
-    /** 更新时间。 */
     private LocalDateTime updateTms;
 
-    /** 备注，承载旧表 MSG 列的内容。 */
     private String remark;
 
     public Long getId() {

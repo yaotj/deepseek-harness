@@ -17,13 +17,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 运营端人工退款。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。 */
 @Service
 public class F2fPageRefundService {
 
     private static final Logger log = LoggerFactory.getLogger(F2fPageRefundService.class);
 
-    /** 允许人工退款的状态白名单。 */
     private static final List<String> REFUNDABLE = F2fOrderStatus.REFUNDABLE;
 
     private final F2fOrderMapper orderMapper;
@@ -44,20 +42,10 @@ public class F2fPageRefundService {
         this.refundService = refundService;
     }
 
-    /**
-     * 整单人工退款。
-     *
-     * @param operatorId 操作员，可空；落到 {@code F2F_REFUND.OPERATOR_ID}
-     */
     public ResultVO<Map<String, Object>> refundWholeOrder(String orderNo, String reason, String operatorId) {
         return doRefund(orderNo, null, reason, operatorId);
     }
 
-    /**
-     * 按指定金额人工退款，对齐旧模块 {@code /page/app/orders/{orderNo}/refund} （{@code AppOrderService.refundByAmount}）。
-     *
-     * @param refundAmount 本次退款金额，单位分，MUST 大于 0 且不大于剩余可退金额
-     */
     public ResultVO<Map<String, Object>> refundByAmount(String orderNo, Long refundAmount,
                                                         String reason, String operatorId) {
         if (refundAmount == null || refundAmount <= 0) {
@@ -66,11 +54,6 @@ public class F2fPageRefundService {
         return doRefund(orderNo, refundAmount, reason, operatorId);
     }
 
-    /**
-     * 两个运营端退款入口的公共实现。
-     *
-     * @param requestedAmount 传 null 即「退剩余可退金额」（整单入口），
-     */
     private ResultVO<Map<String, Object>> doRefund(String orderNo, Long requestedAmount,
                                                    String reason, String operatorId) {
         log.info("service 开始发起app订单退款");
@@ -124,14 +107,12 @@ public class F2fPageRefundService {
                 orderNo, outcome.refundNo(), amount, order.getOrderAmount(), refunded,
                 outcome.refundStatus(), operatorId, outcome.alreadyExisted());
 
-        // todo 增加通知app退款
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("retCode", "0000");
         data.put("retMsg", "成功");
         return ResultMapper.ok(data);
     }
 
-    /** 找该订单已有的运营端退款单；其它来源（设备退款、批量退款）不算重复。 */
     private F2fRefund findPageRefund(String orderNo) {
         List<F2fRefund> refunds = refundMapper.selectByOrigOrderNo(orderNo);
         if (refunds == null) {

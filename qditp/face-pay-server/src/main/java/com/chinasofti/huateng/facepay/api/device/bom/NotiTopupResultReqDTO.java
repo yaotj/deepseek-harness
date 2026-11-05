@@ -2,13 +2,10 @@ package com.chinasofti.huateng.facepay.api.device.bom;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/** IF2A-09 BOM 充值结果通知入参。 */
 public class NotiTopupResultReqDTO extends BaseDeviceRequest {
 
-    /** 00 充值成功；01 充值失败，需退款。 */
     public static final String STATUS_OK = "00";
 
-    /** 见 {@link #STATUS_OK}。 */
     public static final String STATUS_FAILED = "01";
 
     private String orderNo;

@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** 退款收口任务。无分布式锁，face-pay-server MUST 单副本；本类不带 {@code @Transactional}（每笔都要调支付中心）。 */
 @Component
 public class F2fRefundReconcileJob {
 

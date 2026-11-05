@@ -22,7 +22,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** 充值结果侧：IF2A-06 成功通知、IF2A-07 失败通知（含全额退款）、BOM 的合体通知。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。 */
 @Service
 public class F2fTopupResultService {
 
@@ -33,19 +32,16 @@ public class F2fTopupResultService {
     private static final String STATUS_FULFILL_FAILED = F2fOrderStatus.FULFILL_FAILED.name();
     private static final String STATUS_REFUNDING = F2fOrderStatus.REFUNDING.name();
 
-    /** 充值结果上报只在已收款后才有意义，白名单。 */
     private static final List<String> REPORTABLE =
             List.of(STATUS_PAID, STATUS_FULFILLED, STATUS_FULFILL_FAILED);
 
     private static final String REPORT_TOPUP_OK = "TOPUP_OK";
     private static final String REPORT_TOPUP_FAIL = "TOPUP_FAIL";
 
-    /** {@code F2F_RESULT_REPORT.TOPUP_STATUS}：00 成功，01 失败。 */
     private static final String TOPUP_STATUS_OK = "00";
 
     private final F2fOrderMapper orderMapper;
 
-    /** 只用于 {@link #payCenterOrderNoOf}（退款报文要带支付中心侧订单号）。 */
     private final F2fPaymentMapper paymentMapper;
 
     private final F2fResultReportMapper reportMapper;
@@ -62,7 +58,6 @@ public class F2fTopupResultService {
         this.refundService = refundService;
     }
 
-    /** IF2A-06 充值成功通知。 */
     public JSONObject topupCardResultNoti(TopupCardResultNotiReqDTO request) {
         F2fOrder order = orderMapper.selectByOrderNo(request.getOrderNo());
         if (order == null) {
@@ -86,7 +81,6 @@ public class F2fTopupResultService {
         return TvmResponses.success();
     }
 
-    /** IF2A-07 充值失败通知。 */
     public JSONObject topupCardFailNoti(TopupCardFailNotiReqDTO request) {
         F2fOrder order = orderMapper.selectByOrderNo(request.getOrderNo());
         if (order == null) {
@@ -119,11 +113,6 @@ public class F2fTopupResultService {
         return TvmResponses.success();
     }
 
-    /**
-     * IF2A-09 BOM 充值结果通知。
-     *
-     * @param topupStatus {@code 00} 成功 / {@code 01} 失败并退款
-     */
     public JSONObject receiveBomTopupResult(String orderNo, String topupStatus,
                                             String deviceId, boolean needRefund, String rawBody) {
         F2fOrder order = orderMapper.selectByOrderNo(orderNo);
@@ -158,7 +147,6 @@ public class F2fTopupResultService {
         return BomResponses.success();
     }
 
-    /** 充值失败的全额退款。 */
     private void submitFullRefund(F2fOrder order, String deviceId) {
         if (order.getOrderAmount() == null || order.getOrderAmount() <= 0) {
             log.error("充值失败退款 订单金额非法，无法退款, orderNo={}, amount={}",
@@ -179,9 +167,6 @@ public class F2fTopupResultService {
                 order.getOrderNo(), outcome.refundNo(), outcome.alreadyExisted());
     }
 
-    /**
-     * @return true 表示本次是首报；false 表示撞唯一索引（重复上报），调用方按幂等处理
-     */
     private boolean insertReport(F2fResultReport report) {
         try {
             reportMapper.insert(report);
@@ -229,13 +214,11 @@ public class F2fTopupResultService {
         return report;
     }
 
-    /** 取支付中心侧原订单号供退款报文使用。 */
     private String payCenterOrderNoOf(String orderNo) {
         F2fPayment last = paymentMapper.selectLastAttempt(orderNo);
         return last == null ? null : last.getPayCenterOrderNo();
     }
 
-    /** 记「置失败态的 CAS 没命中」。 */
     private void warnIfConflict(String orderNo, int updatedRows, F2fOrderStatus target, String scene) {
         F2fOrderStatusTransition.Result transit = F2fOrderStatusTransition.classify(
                 updatedRows, target, () -> orderMapper.selectOrderStatus(orderNo));
@@ -245,12 +228,6 @@ public class F2fTopupResultService {
         }
     }
 
-    /**
-     * 记「设备本次上送的物理卡号与下单时留证的不一致」。
-     *
-     * <p>只告警不拒绝：物理卡号不参与状态推进与金额计算，拒绝会把「钱已收、卡已充」的单挡在门外。
-     * 下单时未留证的历史单（1.0.58 之前）一律跳过，那不是设备的问题。
-     */
     private void warnIfPhysicsNumMismatch(F2fOrder order, String reported, String scene) {
         String stored = order.getTicketPhysicsNum();
         if (stored == null || stored.isBlank() || reported == null || reported.isBlank()) {

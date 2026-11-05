@@ -1,48 +1,33 @@
 package com.chinasofti.huateng.facepay.api.page;
 
-/** 运营端 TVM 充值存疑回执（{@code F2F_RESULT_REPORT}）分页查询视图对象。 */
 public class F2fTopupSuspiciousPageVO {
 
-    /** ITP 订单号。 */
     private String orderNo;
 
-    /** 受理渠道：01-APP，02-TVM，03-BOM。 */
     private String channel;
 
-    /** 受理设备号。 */
     private String deviceId;
 
-    /** 操作员编号。 */
     private String operatorId;
 
-    /** 充值回执状态：00 成功，01 失败，02 存疑，03 取消。 */
     private String topupStatus;
 
-    /** 处理结论。 */
     private String optResult;
 
-    /** 处理结论说明。 */
     private String optResultDesc;
 
-    /** TVM 打印的故障单号。 */
     private String faultSlipSeq;
 
-    /** 错误码。 */
     private String errorCode;
 
-    /** 错误信息。 */
     private String errorMessage;
 
-    /** 是否已处理：0-否，1-是。 */
     private String processed;
 
-    /** 充值金额，单位分。 */
     private Long transAmount;
 
-    /** 设备上报时刻。 */
     private String reportTms;
 
-    /** 平台接收时刻，格式 {@code YYYY-MM-DD HH:MI:SS}。 */
     private String receiveTms;
 
     public String getOrderNo() { return orderNo; }

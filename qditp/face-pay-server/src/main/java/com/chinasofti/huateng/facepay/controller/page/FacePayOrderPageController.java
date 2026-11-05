@@ -22,14 +22,12 @@ import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** 运营端当面付订单查询与人工退款。 */
 @RestController
 @RequestMapping("/page/face-pay/orders")
 public class FacePayOrderPageController {
 
     private static final Logger log = LoggerFactory.getLogger(FacePayOrderPageController.class);
 
-    /** 前端传的时间形态，与旧实现一致。 */
     private static final DateTimeFormatter INPUT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final F2fOrderQueryService orderQueryService;
@@ -42,7 +40,6 @@ public class FacePayOrderPageController {
         this.pageRefundService = pageRefundService;
     }
 
-    /** 分页查询。 */
     @GetMapping
     public ResultVO<Map<String, Object>> page(@RequestParam(required = false) String orderNo,
                                               @RequestParam(required = false) String payCenterOrderNo,
@@ -78,7 +75,6 @@ public class FacePayOrderPageController {
         };
     }
 
-    /** 运营端发起全额退款。 */
     @PostMapping("/{orderNo}/refund")
     public ResultVO<Map<String, Object>> refund(@PathVariable String orderNo,
                                                 @RequestBody(required = false) FacePayRefundRequest request) {

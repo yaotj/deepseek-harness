@@ -29,16 +29,13 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** BOM 非现金收款：下单、业务操作结果通知、单程票交易查询、单程票退款。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。 */
 @Service
 public class F2fBomOrderService {
 
     private static final Logger log = LoggerFactory.getLogger(F2fBomOrderService.class);
 
-    /** 业务类型：非现金收款，对应 {@code CK_F2F_ORDER_BIZ} 的 04。 */
     private static final String BIZ_NO_CASH = "04";
 
-    /** {@code transType=42} 行政处理，此时 {@code adminTransType} 必填。 */
     private static final String TRANS_TYPE_ADMIN = "42";
 
     private static final String STATUS_CREATED = F2fOrderStatus.CREATED.name();
@@ -55,15 +52,12 @@ public class F2fBomOrderService {
 
     private static final List<String> PENDING = F2fOrderStatus.PENDING;
 
-    /** 业务结果上报只在已收款后才有意义；不在此列的一律 report-only，见 {@code receiveBusResult}。 */
     private static final List<String> REPORTABLE = List.of(STATUS_PAID, STATUS_FULFILLED, STATUS_FULFILL_FAILED);
 
     private static final String REPORT_BOM_BIZ_RESULT = "BOM_BIZ_RESULT";
 
-    /** 票状态：可退。 */
     private static final List<String> TICKET_REFUNDABLE = List.of("ISSUED", "FAULT");
 
-    /** 票状态：退款中。 */
     private static final String TICKET_REFUNDING = "REFUNDING";
 
     private final F2fOrderMapper orderMapper;
@@ -91,7 +85,6 @@ public class F2fBomOrderService {
         this.orderNoGenerator = orderNoGenerator;
         this.refundService = refundService;
     }
-    /** IF8A-04 非现金收款下单。 */
     public JSONObject createNoCashOrder(RequestGenNoCashOrderReqDTO request) {
         Long amount = request.amountInFen();
         if (amount == null) {
@@ -130,7 +123,6 @@ public class F2fBomOrderService {
         return BomResponses.successOrderNo(orderNo);
     }
 
-    /** IF2A-08 业务操作结果通知。 */
     public JSONObject receiveBusResult(NotiBusResultReqDTO request) {
         F2fOrder order = orderMapper.selectByOrderNo(request.getOrderNo());
         if (order == null) {
@@ -164,7 +156,6 @@ public class F2fBomOrderService {
         submitWholeRefund(order, request.getDeviceId());
         return BomResponses.success();
     }
-    /** 单程票交易查询。 */
     public JSONObject requestOrderResult(RequestOrderResultReqDTO request) {
         String logicNum = F2fLogicCardNo.normalize(request.getTicketLogicNum());
         F2fTicket ticket = ticketMapper.selectByLogicNumAndTransDate(logicNum, request.getTransDate());
@@ -190,7 +181,6 @@ public class F2fBomOrderService {
                         ? channelCodeOf(order.getOrderNo()) : ticket.getPayChannelCode());
     }
 
-    /** 单程票退款。 */
     public JSONObject requestTicketRefund(RequestTicketRefundReqDTO request) {
         String logicNum = F2fLogicCardNo.normalize(request.getTicketLogicNum());
         Long amount = request.amountInFen();
@@ -249,7 +239,6 @@ public class F2fBomOrderService {
         return BomResponses.refundSuccess(settled ? "SUCCESS" : "PROCESSING",
                 settled ? "退款成功" : "退款处理中", outcome.refundNo());
     }
-    /** 业务操作失败的原单全额退款。 */
     private void submitWholeRefund(F2fOrder order, String deviceId) {
         if (order.getOrderAmount() == null || order.getOrderAmount() <= 0) {
             log.error("BOM 业务失败退款 订单金额非法，无法退款, orderNo={}, amount={}",
@@ -270,9 +259,6 @@ public class F2fBomOrderService {
                 order.getOrderNo(), outcome.refundNo(), outcome.alreadyExisted());
     }
 
-    /**
-     * @return true 表示本次是首报；false 表示撞唯一索引（重复上报）
-     */
     private boolean insertReport(F2fResultReport report) {
         try {
             reportMapper.insert(report);
@@ -324,19 +310,16 @@ public class F2fBomOrderService {
         return order;
     }
 
-    /** 渠道码要等支付回调或查询结果才有值，可能为 null。 */
     private String channelCodeOf(String orderNo) {
         F2fPayment last = paymentMapper.selectLastAttempt(orderNo);
         return last == null ? null : last.getPayChannelCode();
     }
 
-    /** 取支付中心侧原订单号供退款报文使用。 */
     private String payCenterOrderNoOf(String orderNo) {
         F2fPayment last = paymentMapper.selectLastAttempt(orderNo);
         return last == null ? null : last.getPayCenterOrderNo();
     }
 
-    /** 记「CAS 没命中」。 */
     private void warnIfConflict(String orderNo, int updatedRows, F2fOrderStatus target, String scene) {
         F2fOrderStatusTransition.Result transit = F2fOrderStatusTransition.classify(
                 updatedRows, target, () -> orderMapper.selectOrderStatus(orderNo));

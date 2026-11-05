@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-/** 运营端设备心跳状态（{@code F2F_DEVICE_STATUS}）的只读查询。 */
 @Service
 public class F2fDeviceQueryService {
 
@@ -20,7 +19,6 @@ public class F2fDeviceQueryService {
 
     private static final int MAX_PAGE_SIZE = 100;
 
-    /** 在线标志取值，与 {@code F2F_DEVICE_STATUS.ONLINE_FLAG} 的注释口径一致。 */
     private static final String ONLINE = "1";
 
     private static final String OFFLINE = "0";
@@ -31,7 +29,6 @@ public class F2fDeviceQueryService {
         this.deviceStatusMapper = deviceStatusMapper;
     }
 
-    /** 设备心跳状态分页查询入参。 */
     public record DevicePageQuery(String channel,
                                   String onlineFlag,
                                   String deviceId,
@@ -39,31 +36,16 @@ public class F2fDeviceQueryService {
                                   Integer pageSize) {
     }
 
-    /** 查询判定结果，调用方 MUST 穷尽分支后各自组响应壳。 */
     public sealed interface PageOutcome {
 
-        /**
-         * 查询成功。
-         *
-         * @param list    当前页设备
-         * @param total   命中总数，受筛选条件影响
-         * @param summary 全表汇总，不受筛选条件影响
-         */
         record Ok(List<F2fDeviceStatusPageVO> list, long total, F2fDeviceStatusSummaryVO summary)
                 implements PageOutcome {
         }
 
-        /** 入参非法，没有查库。 */
         record Rejected(String reason) implements PageOutcome {
         }
     }
 
-    /**
-     * 分页查询设备最新心跳状态。
-     *
-     * <p>本表只有「最新状态」没有历史，且行数就是设备台数（当前 21 行），故不设「必须给检索范围」的限制，
-     * 与当面付订单页不同——那边是业务流水表，无条件全表扫会伤库。
-     */
     public PageOutcome page(DevicePageQuery query) {
         String channel = trimToNull(query.channel());
         if (channel != null && !F2fChannel.isSupported(channel)) {
@@ -89,13 +71,6 @@ public class F2fDeviceQueryService {
         return new PageOutcome.Ok(list, total, summary);
     }
 
-    /**
-     * 转义 LIKE 通配符，避免用户输入的 {@code %} / {@code _} 退化成通配符、悄悄放大命中集。
-     *
-     * <p>反斜杠 MUST 先处理，否则会把后面刚补上的转义符再转一次。
-     *
-     * @return 转义后的关键字，可直接拼进带 {@code ESCAPE '\'} 的 LIKE；入参为 null 时原样返回
-     */
     static String escapeLike(String keyword) {
         if (keyword == null) {
             return null;

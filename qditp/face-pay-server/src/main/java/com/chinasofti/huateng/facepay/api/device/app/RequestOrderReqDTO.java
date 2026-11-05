@@ -2,35 +2,24 @@ package com.chinasofti.huateng.facepay.api.device.app;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/** IF8A-20 APP 扫码取票下单入参。 */
 public class RequestOrderReqDTO extends BaseDeviceRequest {
 
-    /** APP 侧用户号，落到 {@code F2F_ORDER.THIRD_USER_ID}。 */
     private String userId;
 
     private String entryStationCode;
 
     private String exitStationCode;
 
-    /** 单张票价，单位分。 */
     private String ticketPrice;
 
-    /** 购票张数，拼写照搬。 */
     private String singelTicketNum;
 
-    /** 0 按站点购票，其余按里程/区间，取值口径同 TVM。 */
     private String singleTicketType;
 
-    /**
-     * @return null 表示不是合法数字
-     */
     public Long priceInFen() {
         return parse(ticketPrice);
     }
 
-    /**
-     * @return null 表示不是合法数字
-     */
     public Integer ticketCount() {
         Long value = parse(singelTicketNum);
         return value == null || value > Integer.MAX_VALUE ? null : value.intValue();

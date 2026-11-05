@@ -23,31 +23,19 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-/** 「与支付中心交互并收口本地状态」这条骨架的唯一实现（模板方法 + 结果策略）。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。 */
 @Service
 public class F2fPayCenterFlow {
 
     private static final Logger log = LoggerFactory.getLogger(F2fPayCenterFlow.class);
 
-    /** 支付流水的初始态，{@code markFinalStatus} 的 CAS 前置。 */
     private static final List<String> PAYMENT_INIT = List.of("INIT");
 
-    /** 受理成功后推 {@code PAYING} 的 CAS 前置，只认 {@code CREATED}。 */
     private static final List<String> PAYABLE_FROM_CREATED = List.of(F2fOrderStatus.CREATED.name());
 
-    /** 「已发起支付」的记账态。 */
     private static final String PAYING = F2fOrderStatus.PAYING.name();
 
-    /** IF8B-05 {@code payDate} 的格式。 */
     private static final DateTimeFormatter PAY_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    /**
-     * APP 渠道单在 {@code THIRD_USER_ID} 异常缺失时的重试上限：一次即终态。
-     *
-     * <p>正常 APP 单必带 {@code THIRD_USER_ID}；走到这条分支说明数据有问题（如对端开户未回写），
-     * 报文必然被 {@code userId} 校验拒掉，重推 5 次只是把同一条 ERROR 刷 5 遍。留 GIVEUP 让它可见，
-     * 便于人工核对是哪张单缺用户号。
-     */
     private static final int NO_USER_ID_NOTIFY_RETRY = 1;
 
     private final PayCenterClient payCenterClient;
@@ -71,16 +59,9 @@ public class F2fPayCenterFlow {
         this.orderMapper = orderMapper;
         this.notifyService = notifyService;
     }
-    /**
-     * 被支付中心拒绝时的订单侧推进策略。
-     *
-     * @param fromStatuses CAS 的前置状态白名单
-     * @param reasonPrefix 落到 {@code ORDER_STATUS} 变更原因里的前缀，后面拼支付中心 code
-     */
     public record RejectTransition(List<String> fromStatuses, String reasonPrefix) {
     }
 
-    /** 预下单/扣款的入参。 */
     public record SubmitSpec(String orderNo,
                              int attemptNo,
                              PayCenterRequest message,
@@ -89,32 +70,25 @@ public class F2fPayCenterFlow {
                              boolean inspectSyncStatus,
                              String scene) {
 
-        /** {@code dataAlias} 非空即要求应答里的 {@code data} 有值（二维码串 / 支付信息）。 */
         public boolean dataRequired() {
             return dataAlias != null;
         }
     }
 
-    /** 预下单/扣款的判定结果，调用方 MUST 穷尽分支。 */
     public sealed interface Submitted {
 
-        /** 已受理：支付流水置 {@code PROCESSING}、订单已尝试推 {@code PAYING}。 */
         record Accepted(PayCenterResult result) implements Submitted {
         }
 
-        /** 明确被拒：支付流水置 {@code FAILED}，订单按 {@link RejectTransition} 处理。 */
         record Rejected(PayCenterResult result) implements Submitted {
         }
 
-        /** 状态不明：支付流水置 {@code UNKNOWN}，订单一律不动，留给收口任务。 */
         record Unknown(PayCenterResult result, String reason) implements Submitted {
         }
 
-        /** 同步已收款（只有付款码会走到）。 */
         record SyncPaid(PayCenterResult result) implements Submitted {
         }
     }
-    /** 预下单 / 扣款：发往支付中心，按应答收口支付流水与订单状态。 */
     public Submitted submit(SubmitSpec spec) {
         String orderNo = spec.orderNo();
         PayCenterResult result = payCenterClient.execute(
@@ -156,8 +130,7 @@ public class F2fPayCenterFlow {
             }
         }
         markPayment(spec, "PROCESSING", result.getCode(), result.getMsg(), result);
-        orderMapper.updateStatus(orderNo, PAYABLE_FROM_CREATED, PAYING, null); // CAS-DISCARD: PAYING 是记账标记，写不上不改变任何后续判断
-        log.info("{} 支付中心已受理, orderNo={}, payCenterOrderNo={}",
+        orderMapper.updateStatus(orderNo, PAYABLE_FROM_CREATED, PAYING, null);         log.info("{} 支付中心已受理, orderNo={}, payCenterOrderNo={}",
                 spec.scene(), orderNo, result.string("orderNo"));
         return new Submitted.Accepted(result);
     }
@@ -178,31 +151,16 @@ public class F2fPayCenterFlow {
                         F2fOrderStatus.PAY_FAILED.name(), transition.reasonPrefix() + payCenterCode),
                 F2fOrderStatus.PAY_FAILED, spec.scene());
     }
-    /** 查询收口的判定结果。 */
     public enum Settlement {
-        /** 支付中心明确已收款，本地已尝试推 {@code PAID}。 */
         PAID,
-        /** 支付中心明确支付失败，本地已尝试推 {@code PAY_FAILED}。 */
         FAILED,
-        /** 支付中心明确未支付，本地已尝试推 {@code EXPIRED}。 */
         UNPAID,
-        /** 没问出结论（传输失败 / 业务码非 0 / 状态仍在处理中）。 */
         PENDING
     }
 
-    /**
-     * @param result 原始应答，供调用方取 {@code paymentVendor} / {@code channelOrderNo} 等渠道字段
-     */
     public record Settled(Settlement settlement, PayCenterResult result) {
     }
 
-    /**
-     * 查询收口的入参。
-     *
-     * @param onPaid 查到已收款时先执行的支付流水回写（各渠道列不同，故为策略回调）；
-     * @param expireOnUnpaid 「问不到就当没付过」策略，null 表示不启用（设备 / APP 查询链路的默认口径）。
-     * @param onPaidNotify 收款后的自定义收口，null 表示走本类的 {@link #markPaidAndReport(String)}。
-     */
     public record SettleSpec(String orderNo,
                              List<String> fromStatuses,
                              Consumer<PayCenterResult> onPaid,
@@ -210,23 +168,15 @@ public class F2fPayCenterFlow {
                              ExpireOnUnpaid expireOnUnpaid,
                              BiConsumer<PayCenterResult, LocalDateTime> onPaidNotify) {
 
-        /** 设备 / APP 查询链路用的短构造：不启用过期判定、收款后走 {@code markPaidAndReport}。 */
         public SettleSpec(String orderNo, List<String> fromStatuses,
                           Consumer<PayCenterResult> onPaid, String scene) {
             this(orderNo, fromStatuses, onPaid, scene, null, null);
         }
     }
 
-    /**
-     * 过期收口把「未支付」落库时用的两句变更原因。
-     *
-     * @param bizErrorReason 对端答上来但业务码非 0（实测 9999「未找到数据」）时写入的原因
-     * @param unpaidReason   对端明确报未支付 / 支付失败时写入的原因
-     */
     public record ExpireOnUnpaid(String bizErrorReason, String unpaidReason) {
     }
 
-    /** 向支付中心查实际结果并收口本地状态。 */
     public Settled settle(SettleSpec spec) {
         String orderNo = spec.orderNo();
         PayCenterResult result = payCenterClient.execute(
@@ -278,16 +228,10 @@ public class F2fPayCenterFlow {
                 F2fOrderStatus.EXPIRED, spec.scene() + " " + sceneSuffix);
     }
 
-    /** 推 {@code PAID} 并记「已收款但订单不在可支付状态」。 */
     public void markPaidAndReport(String orderNo) {
         markPaidAndReport(orderNo, null);
     }
 
-    /**
-     * 同上，并额外把支付中心订单号带进 IF8B-05 通知。
-     *
-     * @param tradeNo 支付中心订单号，拿不到时传 null（通知里上送空串）
-     */
     public void markPaidAndReport(String orderNo, String tradeNo) {
         LocalDateTime now = LocalDateTime.now();
         F2fOrderStatusTransition.Result transit = F2fOrderStatusTransition.classify(
@@ -300,18 +244,6 @@ public class F2fPayCenterFlow {
         enqueuePayResultNotify(orderNo, tradeNo, now);
     }
 
-    /**
-     * IF8B-05 支付结果通知（我方 → APP_SERVER）的生产者：只入队，不投递。
-     *
-     * <p><b>只推 APP 购票的单</b>（甲方 2026-10-13 裁决「单程票不是 APP 购票的不要发过来」）：
-     * TVM / BOM 现场匿名购票没有 {@code THIRD_USER_ID}，而对端 {@code receivePaymentResult} 的
-     * {@code userId} 是必填且**空串也拒**，这类报文发出去必然 {@code 7004} 且无补救字段可用；
-     * 而它们并非 APP 下单，对端库里也没有对应订单数据（实测退到 {@code 7001 找不到对应的数据}）。此前的处置是「仍全推、只把重试上限压到 1」（ADR-D112），
-     * 代价是每笔设备单都留一条 {@code GIVEUP}，现已按对方口径直接不入队。
-     *
-     * @param tradeNo 支付中心订单号；null 时上送空串
-     * @param paidTms 支付成功时刻，MUST 由调用方传入刚刚写进 {@code PAID_TMS} 的那个值。
-     */
     public void enqueuePayResultNotify(String orderNo, String tradeNo, LocalDateTime paidTms) {
         try {
             F2fOrder order = orderMapper.selectByOrderNo(orderNo);
@@ -346,7 +278,6 @@ public class F2fPayCenterFlow {
         }
     }
 
-    /** 记「置失败态的 CAS 没命中」。 */
     public void warnIfConflict(String orderNo, int updatedRows, F2fOrderStatus target, String scene) {
         F2fOrderStatusTransition.Result transit = F2fOrderStatusTransition.classify(
                 updatedRows, target, () -> orderMapper.selectOrderStatus(orderNo));

@@ -2,70 +2,48 @@ package com.chinasofti.huateng.facepay.entity;
 
 import java.time.LocalDateTime;
 
-/** 设备业务结果上报（表 F2F_RESULT_REPORT）。 */
 public class F2fResultReport {
 
-    /** 自增主键。 */
     private Long id;
 
-    /** 上报类型，取值见 CK_F2F_REPORT_TYPE 五个枚举，决定该行哪些业务列有值。 */
     private String reportType;
 
-    /** 一般为ITP订单号；ERROR_CODE=2101时规格要求填取票二维码的randomFact，故不建外键。 */
     private String orderNo;
 
-    /** 受理渠道：01-APP，02-TVM，03-BOM。 */
     private String channel;
 
-    /** 上报设备号。 */
     private String deviceId;
 
-    /** 操作员号，BOM 侧有值。 */
     private String operatorId;
 
-    /** 订单应出票张数。 */
     private Integer orderTicketNum;
 
-    /** 实际出票张数，与订单张数不等时需按差额退款。 */
     private Integer actualTicketNum;
 
-    /** 充值状态：00成功，01失败，02存疑，03取消。 */
     private String topupStatus;
 
-    /** BOM 业务操作结果标识。 */
     private String optResult;
 
-    /** BOM 业务操作结果描述。 */
     private String optResultDesc;
 
-    /** TVM 打印的故障单号，BOM 凭此号查询，命中 IDX_F2F_REPORT_SLIP。 */
     private String faultSlipSeq;
 
-    /** 2101表示取票二维码超时需解锁订单。 */
     private String errorCode;
 
-    /** 设备上报的错误描述。 */
     private String errorMessage;
 
-    /** 本次交易金额，单位分。 */
     private Long transAmount;
 
-    /** 交易后卡内余额，单位分。 */
     private Long afterAmount;
 
-    /** 设备侧发生时间YYYYMMDDHHMMSS；ERROR_CODE=2101时为二维码生成时间。 */
     private String reportTms;
 
-    /** ITP 接收上报的时间，与 PROCESSED 组成扫表索引。 */
     private LocalDateTime receiveTms;
 
-    /** 0未处理，1已处理；后续动作（退款、状态推进）由扫表驱动，与接收解耦。 */
     private String processed;
 
-    /** 原始报文留证，规格允许出现接口未声明的字段。 */
     private String rawBody;
 
-    /** 创建时间，分区键。 */
     private LocalDateTime createTms;
 
     public Long getId() {

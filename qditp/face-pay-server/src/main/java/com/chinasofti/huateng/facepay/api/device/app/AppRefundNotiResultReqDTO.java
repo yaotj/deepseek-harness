@@ -2,19 +2,14 @@ package com.chinasofti.huateng.facepay.api.device.app;
 
 import com.chinasofti.huateng.facepay.api.paycenter.PayCenterCallbackRequest;
 
-/** 支付中心退款结果回调入参（{@code /ci/app/receiveRefundResult}）。 */
 public class AppRefundNotiResultReqDTO {
 
-    /** 我方原支付订单号。 */
     private String orderNo;
 
-    /** 我方退款单号，幂等键。 */
     private String refundNo;
 
-    /** 支付中心侧退款单号。 */
     private String outRefundNo;
 
-    /** {@code SUCCESS} / {@code FAIL}。 */
     private String refundResult;
 
     private String refundResultDesc;

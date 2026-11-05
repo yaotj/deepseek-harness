@@ -1,30 +1,21 @@
 package com.chinasofti.huateng.facepay.api.device;
 
-/** 设备侧公共请求参数。 */
 public class BaseDeviceRequest {
 
-    /** 商户编码：01-APP，02-TVM，03-BOM，04-AGM，05-ACC，06-ITP，07-STT。 */
     private String providerId;
 
-    /** 入参字符集：UTF-8。 */
     private String charset;
 
-    /** 数据格式：json。 */
     private String format;
 
-    /** 请求时间，格式 YYYYMMDDHHMMSS。 */
     private String timestamp;
 
-    /** 设备编码。 */
     private String deviceId;
 
-    /** 签名类型：00-不签名，01-sha1withrsa，02-MD5。 */
     private String signType;
 
-    /** 签名值。 */
     private String sign;
 
-    /** 业务数据（JSON 字符串）。 */
     private String bizData;
 
     public String getProviderId() {

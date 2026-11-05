@@ -9,7 +9,6 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** 支付中心报文组装。 */
 public class PayCenterMessageFactory {
 
     private static final Logger log = LoggerFactory.getLogger(PayCenterMessageFactory.class);
@@ -23,12 +22,10 @@ public class PayCenterMessageFactory {
         this.signer = signer;
     }
 
-    /** 预下单。 */
     public PayCenterRequest buildPayRequest(PayCenterPayCommand command) {
         return buildPayRequest(command, properties.getPayNoticeUrl());
     }
 
-    /** 预下单，按笔指定支付结果回调地址（网关文档 §支付下单：{@code notifyUrl} 可选、不传取商户默认配置）。 */
     public PayCenterRequest buildPayRequest(PayCenterPayCommand command, String notifyUrl) {
         Map<String, Object> bizData = new LinkedHashMap<>();
         bizData.put("orderNo", command.orderNo());
@@ -49,20 +46,12 @@ public class PayCenterMessageFactory {
         return envelope(bizData);
     }
 
-    /** 支付结果查询。 */
     public PayCenterRequest buildQueryRequest(String orderNo) {
         Map<String, Object> bizData = new LinkedHashMap<>();
         bizData.put("merchantOrderNo", orderNo);
         return envelope(bizData);
     }
 
-    /**
-     * 退款。
-     *
-     * <p><b>{@code notifyUrl} 是契约 §3.1 的必填键</b>：支付中心只往「本次请求带的这个地址」推
-     * §5.2 退款回调，不送就永远收不到回调、只能靠 §3.2 退款回查兜。配置为空时不送该键并打 WARN，
-     * NEVER 静默省掉。
-     */
     public PayCenterRequest buildRefundRequest(String refundNo, String origOrderNo,
                                                String payCenterOrderNo, long refundAmount) {
         if (refundAmount <= 0) {
@@ -87,14 +76,12 @@ public class PayCenterMessageFactory {
         return envelope(bizData);
     }
 
-    /** 退款结果查询。 */
     public PayCenterRequest buildRefundQueryRequest(String refundNo) {
         Map<String, Object> bizData = new LinkedHashMap<>();
         bizData.put("merchantRefundNo", refundNo);
         return envelope(bizData);
     }
 
-    /** {@code payType=0} 的本地分支：不调支付中心，把聚合码收银台 URL 拼出来直接返给设备， 设备把整串显示成二维码、不解析内容。 */
     public String buildAggregateCodePayUrl(String orderNo) {
         String base = properties.getCheckoutCounterUrl();
         if (base == null || base.isBlank()) {
@@ -103,7 +90,6 @@ public class PayCenterMessageFactory {
         return base + "?orderNo=" + orderNo + "&sign=" + signer.aggregateCodeSign(orderNo);
     }
 
-    /** 组装信封并签名。 */
     private PayCenterRequest envelope(Map<String, Object> bizData) {
         PayCenterRequest request = new PayCenterRequest();
         request.setMerchantNo(properties.getMerchantNo());

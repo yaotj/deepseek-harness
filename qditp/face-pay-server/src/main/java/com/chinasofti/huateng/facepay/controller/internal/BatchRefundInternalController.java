@@ -11,22 +11,12 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * 每日批量退款入口，由 web-admin 的 Quartz 任务触发，不对外暴露。
- *
- * <p>三条业务各一个端点、各一条 {@code sys_job}，互不影响：某一类退款出问题时只停那一条，
- * NEVER 合成一个端点 —— 甲方给的执行时间本来就不同（购票 / 充值 20 点，非现金 9、15、21 点）。
- *
- * <p>每个端点各有自己的 {@link AtomicBoolean}：上一轮还没跑完时本轮直接返 {@code 9998} 拒绝，
- * 避免同一批订单被并发发起两次退款（幂等由 {@code UK_F2F_REFUND_IDEM} 兜底，但没必要靠它）。
- */
 @RestController
 @RequestMapping("/internal/f2f/batch-refund")
 public class BatchRefundInternalController {
 
     private static final String CODE_SUCCESS = "0000";
 
-    /** 上一轮仍在执行，属限流、不是失败。 */
     private static final String CODE_BUSY = "9998";
 
     private static final Logger log = LoggerFactory.getLogger(BatchRefundInternalController.class);
@@ -43,21 +33,18 @@ public class BatchRefundInternalController {
         this.batchRefundService = batchRefundService;
     }
 
-    /** 需求 1：app买单程票未取票批量退款。 */
     @PostMapping("/single-ticket")
     public CommonResult refundSingleTicket() {
         log.info("app购买单程票购票未取票批量退款 定时任务开始执行");
         return run("单程票退票", F2fBatchRefundService.BIZ_SINGLE_TICKET, singleTicketRunning);
     }
 
-    /** 需求 2：TVM 充值未到账批量退款。 */
     @PostMapping("/topup")
     public CommonResult refundTopup() {
         log.info("TVM 充值未到账批量退款 定时任务开始执行");
         return run("TVM充值退款", F2fBatchRefundService.BIZ_TOPUP, topupRunning);
     }
 
-    /** 需求 3：BOM 非现金收款未履约批量退款。 */
     @PostMapping("/no-cash")
     public CommonResult refundNoCash() {
         log.info("BOM 非现金收款未履约批量退款 定时任务开始执行");

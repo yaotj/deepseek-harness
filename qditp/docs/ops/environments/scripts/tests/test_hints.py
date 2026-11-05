@@ -123,6 +123,17 @@ class WizardInteractiveTest(unittest.TestCase):
                 wizard.run(interactive=True)
         self.assertEqual(cm.exception.exit_code, EXIT_USAGE)
 
+    def test_keyboardinterrupt_cancels_with_hint(self):
+        """用户按 Ctrl+C 后应打印 `(取消)` 提示并返回 EXIT_USAGE，而不是裸报错。"""
+        with mock.patch("sys.stdin", SimpleNamespace(isatty=lambda: True)), \
+                mock.patch("builtins.input", side_effect=KeyboardInterrupt), \
+                redirect_stdout(io.StringIO()) as out:
+            set_context(Ctx())
+            with self.assertRaises(OpsError) as cm:
+                wizard.run(interactive=True)
+        self.assertEqual(cm.exception.exit_code, EXIT_USAGE)
+        self.assertIn("(取消)", out.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

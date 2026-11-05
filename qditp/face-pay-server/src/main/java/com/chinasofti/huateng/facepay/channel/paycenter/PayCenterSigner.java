@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-/** 支付中心签名。 */
 public class PayCenterSigner {
 
     private final String privateKeyBase64;
@@ -28,11 +27,6 @@ public class PayCenterSigner {
         this.aggregateCodeKey = aggregateCodeKey;
     }
 
-    /**
-     * 对信封签名，写回 {@code sign} 字段。
-     *
-     * @param bizDataJson Base64 之前的原始 JSON。待签串取自它的内部字段，
-     */
     public void sign(PayCenterRequest request, String bizDataJson) {
         if (privateKeyBase64 == null || privateKeyBase64.isBlank()) {
             throw new IllegalStateException("pay.center.private-key 未配置，无法签名");
@@ -40,11 +34,6 @@ public class PayCenterSigner {
         request.setSign(rsaSign(buildSignSource(bizDataJson)));
     }
 
-    /**
-     * 待签串组装。
-     *
-     * @param bizDataJson Base64 之前的原始 JSON
-     */
     public static String buildSignSource(String bizDataJson) {
         if (bizDataJson == null || bizDataJson.isBlank()) {
             throw new IllegalArgumentException("bizDataJson 为空，无法组装待签串");
@@ -64,14 +53,12 @@ public class PayCenterSigner {
         return source.toString();
     }
 
-    /** 嵌套对象/数组按键排序后序列化，与 {@code PayGatewayClient.signValue} 一致。 */
     private static String signValue(Object value) {
         return value instanceof Map || value instanceof List
                 ? JSON.toJSONString(value, JSONWriter.Feature.MapSortField)
                 : String.valueOf(value);
     }
 
-    /** 聚合码 URL 的签名：{@code md5("orderNo=" + orderNo + "&key=" + jhmKey)}。 */
     public String aggregateCodeSign(String orderNo) {
         if (orderNo == null || orderNo.isBlank()) {
             throw new IllegalArgumentException("orderNo 为空，无法生成聚合码签名");

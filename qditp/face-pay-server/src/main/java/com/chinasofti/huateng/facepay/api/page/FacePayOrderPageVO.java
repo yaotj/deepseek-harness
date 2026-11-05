@@ -1,75 +1,51 @@
 package com.chinasofti.huateng.facepay.api.page;
 
-/** 运营端当面付订单分页查询视图对象。 */
 public class FacePayOrderPageVO {
 
-    /** ITP 订单号。 */
     private String orderNo;
 
-    /** 订单主状态，取 {@code F2F_ORDER.ORDER_STATUS} 原值。 */
     private String orderStatus;
 
-    /** 受理渠道：01-APP，02-TVM，03-BOM。 */
     private String channel;
 
-    /** 业务类型：01-购票，02-充值，03-取票，04-非现金收款。 */
     private String bizType;
 
-    /** 支付中心订单号，来自 {@code F2F_PAYMENT} 最后一次尝试。 */
     private String payCenterOrderNo;
 
-    /** 渠道订单号，来自 {@code F2F_PAYMENT} 最后一次尝试。 */
     private String payCenterChannelOrderNo;
 
-    /** 支付渠道编码，来自 {@code F2F_PAYMENT} 最后一次尝试。 */
     private String payChannelCode;
 
-    /** 支付方式，来自 {@code F2F_PAYMENT} 最后一次尝试。 */
     private String payType;
 
-    /** 进站编码。 */
     private String inStationCode;
 
-    /** 出站编码。 */
     private String outStationCode;
 
-    /** 起点站中文名，按 {@code ENTRY_STATION_CODE} 关联 {@code STATION_INFO}。 */
     private String inStationName;
 
-    /** 终点站中文名，按 {@code EXIT_STATION_CODE} 关联 {@code STATION_INFO}。 */
     private String outStationName;
 
-    /** 单张票价，单位分。 */
     private Long ticketPrice;
 
-    /** 购票张数。 */
     private Integer ticketNum;
 
-    /** 订单总额，单位分。 */
     private Long orderAmount;
 
-    /** 0-按站点购票，1-固定票价购票。 */
     private String singleTicketType;
 
-    /** 受理设备号。 */
     private String deviceId;
 
-    /** 最近一笔退款单号，来自 {@code F2F_REFUND}。 */
     private String refundNo;
 
-    /** 退款汇总状态。 */
     private String refundStatus;
 
-    /** 已成功退款总额，单位分。 */
     private Long refundAmount;
 
-    /** 最后一次退款汇总重算时刻。 */
     private String lastRefundTime;
 
-    /** 创建时间，格式 {@code YYYY-MM-DD HH24:MI:SS}。 */
     private String createTime;
 
-    /** 更新时间，格式 {@code YYYY-MM-DD HH24:MI:SS}。 */
     private String updateTime;
 
     public String getOrderNo() { return orderNo; }

@@ -2,43 +2,30 @@ package com.chinasofti.huateng.facepay.entity;
 
 import java.time.LocalDateTime;
 
-/** 单程票明细（表 F2F_TICKET）。 */
 public class F2fTicket {
 
-    /** 自增主键。 */
     private Long id;
 
-    /** 所属 ITP 订单号，对应 F2F_ORDER.ORDER_NO。 */
     private String orderNo;
 
-    /** 票卡逻辑号，下单时未知，出票上报才有。 */
     private String ticketLogicNum;
 
-    /** 交易日期 YYYYMMDDHHMMSS，BOM 退款按逻辑号加此字段定位。 */
     private String transDate;
 
-    /** 单张票价，单位分。 */
     private Long ticketPrice;
 
-    /** 票状态，取值见 CK_F2F_TICKET_STATUS：ISSUED / FAULT / REFUNDING / REFUNDED。 */
     private String ticketStatus;
 
-    /** 进站编码。 */
     private String entryStationCode;
 
-    /** 出站编码。 */
     private String exitStationCode;
 
-    /** 支付渠道编码。 */
     private String payChannelCode;
 
-    /** 已退款时回填退款单号。 */
     private String refundNo;
 
-    /** 创建时间。 */
     private LocalDateTime createTms;
 
-    /** 更新时间。 */
     private LocalDateTime updateTms;
 
     public Long getId() {

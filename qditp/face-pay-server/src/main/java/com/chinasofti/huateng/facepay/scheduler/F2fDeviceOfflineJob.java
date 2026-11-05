@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 
-/** 设备离线判定任务。无分布式锁，face-pay-server MUST 单副本。 */
 @Component
 public class F2fDeviceOfflineJob {
 

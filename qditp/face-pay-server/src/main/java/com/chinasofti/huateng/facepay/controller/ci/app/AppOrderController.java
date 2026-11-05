@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** APP 扫码取票接口。 */
 @RestController
 @RequestMapping("/ci/app")
 public class AppOrderController {
@@ -30,7 +29,6 @@ public class AppOrderController {
 
     private final F2fAppOrderService appOrderService;
 
-    /** 退款三条的宿主。 */
     private final F2fAppRefundService appRefundService;
 
     private final SupplementOrderService supplementOrderService;
@@ -43,7 +41,6 @@ public class AppOrderController {
         this.supplementOrderService = supplementOrderService;
     }
 
-    /** IF8A-20 下单。 */
     @PostMapping("/requestOrder")
     public JSONObject requestOrder(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到 APP 取票下单请求, form={}", form);
@@ -72,7 +69,6 @@ public class AppOrderController {
         return appOrderService.createOrder(request);
     }
 
-    /** IF8A-11 请求支付信息。 */
     @PostMapping("/requestPaymentInfo")
     public JSONObject requestPaymentInfo(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到 APP 请求支付信息, form={}", form);
@@ -89,7 +85,6 @@ public class AppOrderController {
         return appOrderService.requestPayInfo(request);
     }
 
-    /** IF8A-18 支付结果查询。 */
     @PostMapping("/requestPayResult")
     public JSONObject requestPayResult(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到 APP 支付结果查询, form={}", form);
@@ -103,7 +98,6 @@ public class AppOrderController {
         return appOrderService.queryPayResult(request);
     }
 
-    /** 获取已激活的取票订单列表。 */
     @PostMapping("/requestPreActiveOrderList")
     public JSONObject requestPreActiveOrderList(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到获取激活订单列表请求, form={}", form);
@@ -118,7 +112,6 @@ public class AppOrderController {
         return appOrderService.listActiveOrders(request);
     }
 
-    /** 请求退款（整单）。 */
     @PostMapping("/requestRefundTicket")
     public JSONObject requestRefundTicket(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到 APP 请求退款, form={}", form);
@@ -129,7 +122,6 @@ public class AppOrderController {
         return appRefundService.requestRefund(request);
     }
 
-    /** 退款结果查询。 */
     @PostMapping("/requestRefundTicketResult")
     public JSONObject requestRefundTicketResult(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到 APP 退款结果查询, form={}", form);
@@ -143,7 +135,6 @@ public class AppOrderController {
         return appRefundService.queryRefundResult(request);
     }
 
-    /** 支付中心退款结果回调。 */
     @PostMapping("/receiveRefundResult")
     public JSONObject receiveRefundResult(@ModelAttribute PayCenterCallbackRequest form) {
         log.info("接收到支付中心退款回调, form={}", form);

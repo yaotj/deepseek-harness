@@ -11,12 +11,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * 运营端设备心跳状态查询（只读）。
- *
- * <p>数据由设备心跳自动维护、离线翻转由 {@code F2fDeviceOfflineJob} 扫表完成，
- * 故这里刻意不提供任何写操作——多一条人工改状态的路径就多一个真相来源。
- */
 @RestController
 @RequestMapping("/page/face-pay/devices")
 public class F2fDeviceStatusPageController {
@@ -27,11 +21,6 @@ public class F2fDeviceStatusPageController {
         this.deviceQueryService = deviceQueryService;
     }
 
-    /**
-     * 分页查询设备最新心跳状态，排序为离线优先 + 最近心跳倒序。
-     *
-     * <p>{@code summary} 是全表口径（不受 channel/onlineFlag/deviceId 影响），供页面顶部统计卡使用。
-     */
     @GetMapping
     public ResultVO<Map<String, Object>> page(@RequestParam(required = false) String channel,
                                               @RequestParam(required = false) String onlineFlag,

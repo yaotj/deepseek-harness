@@ -2,47 +2,33 @@ package com.chinasofti.huateng.facepay.channel.app;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-/** APP 网关通知地址（IF8B-04/05/06/07 出向）。 */
 @ConfigurationProperties(prefix = "f2f.notify.app")
 public class AppNotifyProperties {
 
-    /** 出票成功通知，对应旧 {@code pay.center.notice-app-taketicketresult-url}。 */
     private String takeTicketOkUrl;
 
-    /** 出票失败通知，对应旧 {@code pay.center.notice-app-taketicketfailureresult-url}。 */
     private String takeTicketFailUrl;
 
-    /** 退款结果通知，对应旧 {@code pay.center.notice-app-refundresult-url}。 */
     private String refundResultUrl;
 
-    /** APP 退款受理响应里回吐给 APP 的 {@code notifyUrl}，对应旧 {@code pay.center.app-refund-notice-url}（集群 env 实测指向 fep-app 的 {@code /ci/app/receiveRefundResult}，仓库 yml 里那条 payNotice 是过期值）。 */
     private String refundNoticeUrl;
 
-    /** 支付结果通知。 */
     private String payResultUrl;
 
-    /** ITP 报文信封的 {@code providerId}，默认 {@code 06}。 */
     private String providerId = "06";
 
-    /** 信封 {@code charset}。 */
     private String charset = "UTF-8";
 
-    /** 信封 {@code format}。 */
     private String format = "json";
 
-    /** 信封 {@code signType}，默认 {@code 00}（免签）。 */
     private String signType = "00";
 
-    /** 信封 {@code sign}，免签时为空串。 */
     private String sign = "";
 
-    /** 信封 {@code deviceId}，出向通知无设备概念，旧实现固定空串。 */
     private String deviceId = "";
 
-    /** 连接超时，毫秒。 */
     private int connectTimeoutMs = 3000;
 
-    /** 读超时，毫秒。 */
     private int readTimeoutMs = 10000;
 
     public String getTakeTicketOkUrl() {

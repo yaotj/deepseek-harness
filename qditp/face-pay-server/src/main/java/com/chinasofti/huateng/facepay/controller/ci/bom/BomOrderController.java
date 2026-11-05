@@ -35,19 +35,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * BOM 侧接口。类级挂两个前缀：设备按 {@code /itpbom/} 或 {@code /itptvm/} 送同一批 URL 都能命中。
- *
- * <p>另注意本类的 {@code requestQrCodeStatus} 是 IF1A-04 的**前缀别名**，真实归属在
- * {@code fep-dev-server} 的 {@code /itpagm/ci/agm/requestQrCodeStatus}；两条落到同一个下游。
- */
 @RestController
 @RequestMapping({"/itpbom/ci/bom", "/itptvm/ci/bom"})
 public class BomOrderController {
 
     private static final Logger log = LoggerFactory.getLogger(BomOrderController.class);
 
-    /** 非法参数，BOM 族。 */
     private static final String CODE_INVALID_PARAM = "8003";
 
     private final F2fBomOrderService bomOrderService;
@@ -58,28 +51,14 @@ public class BomOrderController {
 
     private final F2fTopupService topupService;
 
-    /** 充值结果上报的宿主。 */
     private final F2fTopupResultService topupResultService;
 
     private final F2fHceService hceService;
 
     private final F2fTicketIssueService ticketIssueService;
 
-    /** IF1A-04 票卡状态查询（BOM / TVM 前缀别名）的宿主。 */
     private final F2fQrCodeStatusService qrCodeStatusService;
 
-    /**
-     * 构造注入 BOM 域的八个业务服务。
-     *
-     * @param bomOrderService     BOM 非现金订单（下单 / 支付结果 / 退款）
-     * @param heartbeatService    设备心跳落库
-     * @param scanPayService      扫码付
-     * @param topupService        储值卡充值下单
-     * @param topupResultService  储值卡充值结果通知（含失败即全额退款）
-     * @param hceService          HCE 票卡分析与补站（IF5A-01 / IF5A-03）
-     * @param ticketIssueService  出票结果上报，供本类两条 BOM 前缀别名复用
-     * @param qrCodeStatusService 票卡状态查询（IF1A-04）透传 ticket-server
-     */
     public BomOrderController(F2fBomOrderService bomOrderService,
                              F2fDeviceHeartbeatService heartbeatService,
                              F2fScanPayService scanPayService,
@@ -98,7 +77,6 @@ public class BomOrderController {
         this.qrCodeStatusService = qrCodeStatusService;
     }
 
-    /** 设备心跳。{@code deviceHeartbeat} 是别名，与 {@code fep-dev-server} 的 AGM 侧双别名对齐。 */
     @PostMapping({"/notiDeviceHeard", "/deviceHeartbeat"})
     public JSONObject notiDeviceHeard(@ModelAttribute BaseDeviceRequest form) {
         log.debug("接收到 BOM 设备心跳, deviceId={}", form == null ? null : form.getDeviceId());
@@ -108,7 +86,6 @@ public class BomOrderController {
         return BomResponses.success();
     }
 
-    /** IF8A-04 非现金收款下单。 */
     @PostMapping("/requestGenNoCashOrder")
     public JSONObject requestGenNoCashOrder(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到 BOM 非现金收款下单请求, form={}", form);
@@ -137,7 +114,6 @@ public class BomOrderController {
         return bomOrderService.createNoCashOrder(request);
     }
 
-    /** IF8A-05 扫码支付。 */
     @PostMapping("/requestPayment")
     public JSONObject requestPayment(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到 BOM 扫码支付请求, form={}", form);
@@ -151,14 +127,6 @@ public class BomOrderController {
         return scanPayService.requestPayment(request);
     }
 
-    /**
-     * IF8A-06 查询支付结果。
-     *
-     * <p>{@code requestPayResult} 是别名，与 TVM 侧
-     * {@code TvmOrderController.requestPayResult} 的双别名互为镜像：设备两种命名混用已有实证
-     * （那条注释记的是「部分 TVM 厂商按 BOM 侧命名上送」），本条补的是反方向。
-     * **响应族仍是 BOM 的 8xxx，NEVER 因为共用 URL 名就改成 TVM 的 2xxx。**
-     */
     @PostMapping({"/requestGetPayResult", "/requestPayResult"})
     public JSONObject requestGetPayResult(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到 BOM 查询支付结果请求, form={}", form);
@@ -169,7 +137,6 @@ public class BomOrderController {
         return scanPayService.queryPayResult(request.getOrderNo());
     }
 
-    /** IF2A-08 业务操作结果通知。 */
     @PostMapping("/notiBusResult")
     public JSONObject notiBusResult(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到 BOM 业务操作结果通知, form={}", form);
@@ -183,7 +150,6 @@ public class BomOrderController {
         return bomOrderService.receiveBusResult(request);
     }
 
-    /** IF2A-09 充值结果通知。 */
     @PostMapping("/notiTopupResult")
     public JSONObject notiTopupResult(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到 BOM 充值结果通知, form={}", form);
@@ -198,7 +164,6 @@ public class BomOrderController {
                 request.getDeviceId(), request.needRefund(), request.toString());
     }
 
-    /** 单程票交易查询。 */
     @PostMapping("/requestOrderResult")
     public JSONObject requestOrderResult(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到单程票交易查询请求, form={}", form);
@@ -212,7 +177,6 @@ public class BomOrderController {
         return bomOrderService.requestOrderResult(request);
     }
 
-    /** 单程票退款。 */
     @PostMapping("/requestTicketRefund")
     public JSONObject requestTicketRefund(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到单程票退款请求, form={}", form);
@@ -232,7 +196,6 @@ public class BomOrderController {
         return bomOrderService.requestTicketRefund(request);
     }
 
-    /** IF5A-01 票卡分析，透传 ticket-server。 */
     @PostMapping("/requestCardDataAnalyse")
     public JSONObject requestCardDataAnalyse(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到票卡分析请求, form={}", form);
@@ -246,7 +209,6 @@ public class BomOrderController {
         return hceService.requestCardDataAnalyse(request);
     }
 
-    /** IF5A-03 票卡更新，透传 ticket-server。 */
     @PostMapping("/requestUpdateCardData")
     public JSONObject requestUpdateCardData(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到票卡更新请求, form={}", form);
@@ -266,7 +228,6 @@ public class BomOrderController {
         return hceService.requestUpdateCardData(request);
     }
 
-    /** IF5A-09 HCE 票卡更新结果通知。 */
     @PostMapping("/notiUpdateHceData")
     public JSONObject notiUpdateHceData(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到 HCE 票卡更新结果通知, deviceId={}", form == null ? null : form.getDeviceId());
@@ -280,7 +241,6 @@ public class BomOrderController {
         return hceService.receiveHceUpdateResult(request);
     }
 
-    /** IF2A-05 出票成功结果上报的 BOM 前缀别名，与 {@code /itptvm/ci/tvm/notiTakeTicketResult} 同一实现、同一响应族（2xxx）。 */
     @PostMapping("/notiTakeTicketResult")
     public JSONObject notiTakeTicketResult(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到出票成功结果上报(BOM 前缀), form={}", form);
@@ -291,7 +251,6 @@ public class BomOrderController {
         return ticketIssueService.receiveTakeTicketResult(request, channelOf(request.getProviderId()));
     }
 
-    /** IF2A-06 出票失败结果上报的 BOM 前缀别名，成因与上一条相同（ADR-D97）。 */
     @PostMapping("/notiTakeTicketFailResult")
     public JSONObject notiTakeTicketFailResult(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到出票失败结果上报(BOM 前缀), form={}", form);
@@ -303,11 +262,6 @@ public class BomOrderController {
         return ticketIssueService.receiveTakeTicketFailResult(request, channelOf(request.getProviderId()));
     }
 
-    /**
-     * IF1A-04 查询票卡状态的设备前缀别名，透传 ticket-server；应答键与
-     * {@code /itpagm/ci/agm/requestQrCodeStatus} 逐字一致（2026-09-18 新增：BOM 设备把该报文
-     * 打到了 {@code /itpbom/ci/bom/}，服务端无 handler 时会静默退化成 200 + UUID retCode）。
-     */
     @PostMapping("/requestQrCodeStatus")
     public JSONObject requestQrCodeStatus(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到票卡状态查询请求, form={}", form);
@@ -318,7 +272,6 @@ public class BomOrderController {
         return qrCodeStatusService.requestQrCodeStatus(request);
     }
 
-    /** 本类两条上报别名的渠道归属：{@code providerId} 非法时兜底 BOM。 */
     private static String channelOf(String providerId) {
         String channel = F2fChannel.fromProviderId(providerId);
         return channel == null ? F2fChannel.BOM : channel;

@@ -5,21 +5,6 @@ import com.chinasofti.huateng.facepay.entity.F2fRefund;
 import java.time.LocalDateTime;
 import java.util.Set;
 
-/**
- * 一次退款请求的全部入参。
- *
- * @param origOrderNo      原订单号，幂等三要素之一，必填
- * @param ticketLogicNum   票逻辑卡号，幂等三要素之一；null 表示整单退，
- * @param refundSource     退款来源，幂等三要素之一，取值必须在 {@code CK_F2F_REFUND_SOURCE} 内
- * @param refundAmount     退款金额，单位分，必须为正（{@code CK_F2F_REFUND_AMOUNT} 也会挡）
- * @param refundNum        退票张数，整单退或充值退时可为 null
- * @param refundReason     退款原因，可空
- * @param deviceId         发起设备，可空（批量任务与运营端没有设备）
- * @param operatorId       操作员，可空
- * @param transType        原交易类型，用于对账归类
- * @param origTransDate    原交易日期，按票退款时用于定位原交易
- * @param payCenterOrderNo 支付中心侧原订单号，可空；旧实现这里硬编码空串
- */
 public record RefundCommand(String origOrderNo,
                             String ticketLogicNum,
                             String refundSource,
@@ -41,11 +26,6 @@ public record RefundCommand(String origOrderNo,
             F2fRefundService.SOURCE_PAGE_MANUAL,
             F2fRefundService.SOURCE_TVM_REQUEST);
 
-    /**
-     * 参数自检。
-     *
-     * @return null 表示合法；否则返回可直接回给调用方的中文原因
-     */
     public String validate() {
         if (origOrderNo == null || origOrderNo.isBlank()) {
             return "原订单号不能为空";
@@ -62,7 +42,6 @@ public record RefundCommand(String origOrderNo,
         return null;
     }
 
-    /** 组装待插入的退款单，初始状态 {@code INIT}、重试次数 0。 */
     public F2fRefund toEntity(String refundNo, LocalDateTime now) {
         F2fRefund refund = new F2fRefund();
         refund.setRefundNo(refundNo);

@@ -1,6 +1,5 @@
 package com.chinasofti.huateng.facepay.channel.paycenter;
 
-/** 支付中心请求公共报文（信封）。 */
 public class PayCenterRequest {
 
     private String merchantNo;
@@ -63,7 +62,6 @@ public class PayCenterRequest {
         this.sign = sign;
     }
 
-    /** 打日志只用这个方法：{@code bizData} 与 {@code sign} 只出长度，不出内容。 */
     @Override
     public String toString() {
         return "PayCenterRequest{merchantNo=" + merchantNo

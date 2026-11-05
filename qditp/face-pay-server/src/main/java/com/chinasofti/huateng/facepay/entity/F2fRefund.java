@@ -2,70 +2,48 @@ package com.chinasofti.huateng.facepay.entity;
 
 import java.time.LocalDateTime;
 
-/** 当面付退款单（表 F2F_REFUND）。 */
 public class F2fRefund {
 
-    /** 自增主键。 */
     private Long id;
 
-    /** 退款单号，唯一，受 UK_F2F_REFUND_NO 约束。 */
     private String refundNo;
 
-    /** 被退款的原 ITP 订单号。 */
     private String origOrderNo;
 
-    /** 按票退时填；整单退时为空，唯一索引用 NVL 占位避免多笔整单退绕过约束。 */
     private String ticketLogicNum;
 
-    /** TAKE_TICKET_FAIL 出票故障自动退，BOM_ORIGINAL 单程票原路退，APP_REQUEST 用户主动退， DAILY_BATCH 每日批量退未取票，TOPUP_FAIL 充值失败退，PAGE_MANUAL 运营端手工退， TVM_REQUEST 设备侧 requestRefund 发起。 */
     private String refundSource;
 
-    /** 退款状态，取值见 CK_F2F_REFUND_STATUS：INIT / PROCESSING / SUCCESS / FAILED。 */
     private String refundStatus;
 
-    /** 退款票数，按票退为 1，出票故障场景为未出票张数。 */
     private Integer refundNum;
 
-    /** 退款金额，单位分；出票故障场景等于（订单张数减实际张数）乘单张票价。 */
     private Long refundAmount;
 
-    /** 退款原因，来源于业务场景或运营端填写。 */
     private String refundReason;
 
-    /** 发起退款的操作员号，运营端手工退与 BOM 侧有值。 */
     private String operatorId;
 
-    /** 发起退款的设备号。 */
     private String deviceId;
 
-    /** 原交易类型，BOM 场景透传原订单的 TRANS_TYPE。 */
     private String transType;
 
-    /** 原交易日期 YYYYMMDDHHMMSS，BOM 按逻辑号加此字段定位原票。 */
     private String origTransDate;
 
-    /** 支付中心侧的退款单号，退款回调按此号反查本单。 */
     private String payCenterRefundNo;
 
-    /** 向支付中心发起退款的重试次数。 */
     private Integer retryTimes;
 
-    /** 最近一次失败原因，重试时覆盖。 */
     private String failReason;
 
-    /** 退款发起时间，收口放弃判定用它算已经悬了多久。 */
     private LocalDateTime requestTms;
 
-    /** 下次允许发起支付中心退款查询的时刻，扫表谓词就是它（IDX_F2F_REFUND_SCAN）。 */
     private LocalDateTime nextQueryTms;
 
-    /** 退款收口时间，进入 SUCCESS / FAILED / MANUAL 终态时回填。 */
     private LocalDateTime finishTms;
 
-    /** 创建时间。 */
     private LocalDateTime createTms;
 
-    /** 更新时间。 */
     private LocalDateTime updateTms;
 
     public Long getId() {

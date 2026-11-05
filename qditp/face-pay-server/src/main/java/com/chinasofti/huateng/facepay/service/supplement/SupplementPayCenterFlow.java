@@ -31,13 +31,11 @@ public class SupplementPayCenterFlow {
     private static final String ITEM_SETTLED = "SETTLED";
     private static final String ITEM_FAILED = "FAILED";
 
-    /** 原过闸订单的扣费终态取值，与 gate-txn-pay 侧的 `DEBIT_STATUS` 口径一致。 */
     private static final String DEBIT_SUCCESS = "SUCCESS";
 
     private final PayCenterClient payCenterClient;
     private final PayCenterMessageFactory messageFactory;
     private final SupplementOrderMapper supplementOrderMapper;
-    /** 收敛原过闸订单只能走这个 RPC。 */
     private final GateTxnPayClient gateTxnPayClient;
 
     public SupplementPayCenterFlow(PayCenterClient payCenterClient,
@@ -189,7 +187,6 @@ public class SupplementPayCenterFlow {
         log.info("补款支付成功收敛完成, orderNo={}, itemCount={}", order.getOrderNo(), items.size());
     }
 
-    /** 收敛一条补款明细对应的原过闸订单。 */
     private void settleOneItem(SupplementOrder order, SupplementOrderItem item) {
         GateTxnPayDebitConvergeReqDTO request = new GateTxnPayDebitConvergeReqDTO();
         request.setOrigOrderNo(item.getOrigOrderNo());

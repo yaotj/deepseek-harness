@@ -14,7 +14,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
 
-/** 支付中心 HTTP 通道。NEVER 在 {@code @Transactional} 方法里调本类。 */
 @Component
 public class PayCenterClient {
 
@@ -34,12 +33,6 @@ public class PayCenterClient {
                 .build();
     }
 
-    /**
-     * 发一次支付中心请求。
-     *
-     * @param url     完整 URL，取自 {@code pay.center.*-url}，NEVER 由 base+path 拼
-     * @param request 已签名的信封
-     */
     public PayCenterResult execute(String url, PayCenterRequest request) {
         if (url == null || url.isBlank()) {
             log.error("支付中心接口地址未配置, request={}", request);
@@ -94,8 +87,6 @@ public class PayCenterClient {
         Object code = json.get("code");
         String msg = json.getString("msg");
         Map<String, Object> data = json.getJSONObject("data");
-//        log.info("支付中心响应, url={}, code={}, msg={}, status={}, costMs={}",
-//                url, code, msg, data == null ? null : data.get("status"), costMs);
         log.info("支付中心响应 json is {}",json);
         log.info("支付中心响应 data is {}",data);
         return PayCenterResult.answered(code == null ? null : String.valueOf(code), msg, data, raw, costMs);
@@ -105,7 +96,6 @@ public class PayCenterClient {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
-    /** 供上层按业务场景取 URL，避免各处再 autowire 一份配置。 */
     public PayCenterProperties properties() {
         return properties;
     }

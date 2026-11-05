@@ -125,3 +125,11 @@ fep_app_apifox_*.md
 **/deploy/data/
 # Python 字节码缓存
 __pycache__/
+
+# ========================
+# 6. 与 SVN r1290 svn:ignore 对齐（qditp 工作副本根）
+# ========================
+# ZCode / 通义灵码等工具目录（2026-11-05 同步 SVN 忽略口径）
+.zcode/
+# GUI 自动化截图产物（2026-11-05 同步 SVN 忽略口径）
+gui-test-screenshots/

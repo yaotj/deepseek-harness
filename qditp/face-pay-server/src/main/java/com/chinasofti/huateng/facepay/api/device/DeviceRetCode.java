@@ -1,6 +1,5 @@
 package com.chinasofti.huateng.facepay.api.device;
 
-/** TVM 对外 {@code retCode} 取值，逐字照搬旧 {@code TvmPayCodeEnum}（甲方规格表 70）。 */
 public enum DeviceRetCode {
 
     SUCCESS("0000", "成功"),

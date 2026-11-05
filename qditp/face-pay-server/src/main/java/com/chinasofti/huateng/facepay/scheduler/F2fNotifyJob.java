@@ -5,7 +5,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/** 出向通知投递任务。无分布式锁，face-pay-server MUST 单副本。 */
 @Component
 public class F2fNotifyJob {
 

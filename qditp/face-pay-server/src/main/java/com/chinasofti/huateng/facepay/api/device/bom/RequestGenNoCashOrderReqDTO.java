@@ -2,31 +2,22 @@ package com.chinasofti.huateng.facepay.api.device.bom;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/** IF8A-04 非现金收款下单入参。 */
 public class RequestGenNoCashOrderReqDTO extends BaseDeviceRequest {
 
-    /** BOM 交易类型：02/03/04/05/06/22/2A/2B/42。 */
     private String transType;
 
-    /** {@code transType=42} 行政处理时必填，取值 01~0A。 */
     private String adminTransType;
 
-    /** 操作员号。 */
     private String operaterId;
 
     private String shiftId;
 
     private String cardId;
 
-    /** 交易金额，单位分。 */
     private String transAount;
 
-    /** BOM 侧操作流水，幂等键。 */
     private String bomOptSeq;
 
-    /**
-     * @return null 表示不是合法数字
-     */
     public Long amountInFen() {
         if (transAount == null || transAount.isBlank()) {
             return null;

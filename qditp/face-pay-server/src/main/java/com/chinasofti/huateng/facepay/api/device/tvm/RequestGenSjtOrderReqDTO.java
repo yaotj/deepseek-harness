@@ -2,25 +2,18 @@ package com.chinasofti.huateng.facepay.api.device.tvm;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/** IF2A-01 提交单程票订单（TVM 拉码下单）请求报文。 */
 public class RequestGenSjtOrderReqDTO extends BaseDeviceRequest {
 
-    /** 起点站点代码。 */
     private String entryStationCode;
 
-    /** 终点站点代码。 */
     private String exitStationCode;
 
-    /** 票价，单位分。 */
     private String ticketPrice;
 
-    /** 购买数量。 */
     private String singelTicketNum;
 
-    /** 购票类型：0-按站点购票，1-按固定票价购票。 */
     private String singleTicketType;
 
-    /** 0-其他支付方式，1-数字人民币 APP。 */
     private String payType;
 
     public String getEntryStationCode() {

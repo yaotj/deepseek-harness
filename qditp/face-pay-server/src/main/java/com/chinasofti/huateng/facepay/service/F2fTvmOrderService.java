@@ -23,34 +23,19 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * TVM 拉码下单与 BOM 柜台售票下单（同一条 URL，{@code providerId} 分流）。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。
- */
 @Service
 public class F2fTvmOrderService {
 
     private static final Logger log = LoggerFactory.getLogger(F2fTvmOrderService.class);
 
-    /**
-     * 受理渠道：TVM。
-     */
     private static final String CHANNEL_TVM = "02";
 
-    /**
-     * 受理渠道：BOM，与 {@code F2fChannel.BOM} 同值。
-     */
     private static final String CHANNEL_BOM = "03";
 
-    /**
-     * 业务类型：购票。
-     */
     private static final String BIZ_BUY_TICKET = "01";
 
     private static final String STATUS_CREATED = F2fOrderStatus.CREATED.name();
 
-    /**
-     * 预下单被拒时的 CAS 前置白名单。
-     */
     private static final List<String> PENDING = F2fOrderStatus.PENDING;
 
     private static final String PAY_SUBJECT = "单程票购票";
@@ -69,9 +54,6 @@ public class F2fTvmOrderService {
 
     private final int qrcodeExpireSeconds;
 
-    /**
-     * BOM 售票单的失效时长（秒）。
-     */
     private final int bomSaleExpireSeconds;
 
     public F2fTvmOrderService(F2fOrderMapper orderMapper,
@@ -90,9 +72,6 @@ public class F2fTvmOrderService {
         this.bomSaleExpireSeconds = bomSaleExpireSeconds;
     }
 
-    /**
-     * IF2A-01 拉码下单。
-     */
     public JSONObject createSingleTicketOrder(RequestGenSjtOrderReqDTO request) {
         TicketAmount parsed = parseTicketAmount(request);
         log.info("拉码下单 parsed is {}", parsed);
@@ -117,9 +96,6 @@ public class F2fTvmOrderService {
         return preOrderAtPayCenter(orderNo, amount, request.getPayType(), now);
     }
 
-    /**
-     * BOM 售票下单（同一条 URL，{@code providerId=03} 分流）。
-     */
     public JSONObject createBomSaleOrder(RequestGenSjtOrderReqDTO request) {
         TicketAmount parsed = parseTicketAmount(request);
         if (parsed.invalid() != null) {
@@ -135,9 +111,6 @@ public class F2fTvmOrderService {
         return BomResponses.successOrderNo(orderNo);
     }
 
-    /**
-     * 票价与张数的解析结果。
-     */
     private record TicketAmount(long ticketPrice, int ticketNum, long total, String invalid) {
     }
 
@@ -158,9 +131,6 @@ public class F2fTvmOrderService {
         return new TicketAmount(ticketPrice, ticketNum, ticketPrice * ticketNum, null);
     }
 
-    /**
-     * @param expireTms 失效时间：TVM 是二维码的 180 秒，BOM 是柜台窗口
-     */
     private F2fOrder buildOrder(String orderNo, RequestGenSjtOrderReqDTO request, String channel,
                                 TicketAmount parsed, LocalDateTime expireTms, LocalDateTime now) {
         F2fOrder order = new F2fOrder();
@@ -182,9 +152,6 @@ public class F2fTvmOrderService {
         return order;
     }
 
-    /**
-     * 预下单：本方法必须在事务外执行，中间那次 {@code execute} 是网络调用。
-     */
     private JSONObject preOrderAtPayCenter(String orderNo, long amount, String payType, LocalDateTime now) {
         PayCenterRequest message = messageFactory.buildPayRequest(new PayCenterPayCommand(
                 orderNo, PayScene.QRCODE, null, payType, amount, PAY_SUBJECT, PAY_BODY, null));
@@ -221,5 +188,4 @@ public class F2fTvmOrderService {
         return payment;
     }
 
-    /** 冲突上报统一走 {@link F2fPayCenterFlow#warnIfConflict}，本类不再自留副本。 */
 }

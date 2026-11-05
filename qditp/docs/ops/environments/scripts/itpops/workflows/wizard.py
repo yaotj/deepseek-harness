@@ -42,10 +42,14 @@ def _ask(prompt: str, default: str = "", *, timeout: int = 60) -> str:
         signal.alarm(timeout)
     try:
         answer = input(prompt + suffix).strip()
-    except (EOFError, KeyboardInterrupt, TimeoutError):
+    except (EOFError, TimeoutError):
         print()
-        raise OpsError("向导未收到输入（EOF / 取消 / %ds 超时），已退出" % timeout,
+        raise OpsError("向导未收到输入（EOF / %ds 超时），已退出" % timeout,
                        EXIT_USAGE) from None
+    except KeyboardInterrupt:
+        print()
+        print("(取消)")
+        raise OpsError("向导被取消（Ctrl+C）", EXIT_USAGE) from None
     finally:
         if has_alarm:
             signal.alarm(0)

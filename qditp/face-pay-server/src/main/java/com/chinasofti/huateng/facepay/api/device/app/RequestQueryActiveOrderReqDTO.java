@@ -2,10 +2,8 @@ package com.chinasofti.huateng.facepay.api.device.app;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/** 获取已激活取票订单列表入参。 */
 public class RequestQueryActiveOrderReqDTO extends BaseDeviceRequest {
 
-    /** 青岛地铁 APP。 */
     public static final String APP_TYPE_QD_METRO = "01";
 
     private String userId;

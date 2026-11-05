@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-/** {@code F2F_NOTIFY_TASK} 的投递执行体。本类刻意不带 {@code @Transactional}（每笔都要发 HTTP），NEVER 加。 */
 @Service
 public class F2fNotifyDeliverer {
 
@@ -25,20 +24,12 @@ public class F2fNotifyDeliverer {
         this.notifyClient = notifyClient;
     }
 
-    /**
-     * 一轮投递的计数。
-     *
-     * @param delivered 投递成功并已置 SUCCESS
-     * @param retried   投递失败已安排重试（或已达上限置 GIVEUP）
-     * @param errored   处理过程抛异常，状态未推进，下一轮仍会捞到
-     */
     public record DeliverStat(int due, int delivered, int retried, int errored) {
 
         static DeliverStat empty() {
             return new DeliverStat(0, 0, 0, 0);
         }
     }
-    /** 投递全部到期任务（含旧模块没有的 {@code PAY_RESULT}），供 {@code @Scheduled} 使用。 */
     public DeliverStat deliverDue(int limit) {
         List<F2fNotifyTask> tasks;
         try {
@@ -50,11 +41,6 @@ public class F2fNotifyDeliverer {
         return deliver(tasks, "全部类型");
     }
 
-    /**
-     * 只投递指定类型的到期任务，供 {@code /pay/noticeAppTask/**} 使用。
-     *
-     * @param notifyType 取值见 {@code F2fNotifyService.TYPE_*}；传未知值时扫不到任何行，
-     */
     public DeliverStat deliverDueByType(String notifyType, int limit) {
         List<F2fNotifyTask> tasks;
         try {
@@ -94,7 +80,6 @@ public class F2fNotifyDeliverer {
         return new DeliverStat(tasks.size(), delivered, retried, errored);
     }
 
-    /** 按通知类型取目标地址。 */
     private String urlOf(String notifyType) {
         AppNotifyProperties properties = notifyClient.properties();
         return switch (notifyType) {

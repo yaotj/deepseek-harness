@@ -9,11 +9,9 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** 出票上报的后续动作补偿。 */
 @Service
 public class F2fReportRecovery {
 
-    /** 本任务只重放出票上报两类。 */
     private static final List<String> RESUMABLE_TYPES = List.of(
             F2fTicketIssueService.REPORT_TAKE_TICKET_OK,
             F2fTicketIssueService.REPORT_TAKE_TICKET_FAIL);
@@ -29,13 +27,6 @@ public class F2fReportRecovery {
         this.ticketIssueService = ticketIssueService;
     }
 
-    /**
-     * 一轮补偿的计数。
-     *
-     * @param resumed 重放成功并已置 {@code PROCESSED='1'}
-     * @param skipped 订单查不到 / 张数缺失 / 类型不属本任务，仍保持 {@code '0'} 等人工
-     * @param errored 重放过程抛异常，状态未推进，下一轮仍会捞到
-     */
     public record RecoverStat(int due, int resumed, int skipped, int errored) {
 
         static RecoverStat empty() {
@@ -43,12 +34,6 @@ public class F2fReportRecovery {
         }
     }
 
-    /**
-     * 重放已过静默期的未处理出票上报。
-     *
-     * @param limit        单轮最大条数
-     * @param staleSeconds 静默期秒数，只捞 {@code RECEIVE_TMS} 早于「当前时刻 - 该值」的行；
-     */
     public RecoverStat resumeDue(int limit, long staleSeconds) {
         LocalDateTime staleBefore = LocalDateTime.now().minusSeconds(staleSeconds);
         List<F2fResultReport> reports;

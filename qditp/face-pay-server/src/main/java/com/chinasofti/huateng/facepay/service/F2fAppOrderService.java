@@ -31,17 +31,13 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-/** APP 扫码取票：下单、请求支付信息、支付结果查询、激活订单列表。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。 */
 @Service
 public class F2fAppOrderService {
 
     private static final Logger log = LoggerFactory.getLogger(F2fAppOrderService.class);
 
-    /** 业务类型：取票，对应 {@code CK_F2F_ORDER_BIZ} 的 03。 */
-//    private static final String BIZ_TAKE_TICKET = "03";
     private static final String BIZ_TAKE_TICKET = "01";
 
-    /** 交易类型：APP 扫码取票。 */
     private static final String TRANS_TYPE_APP_TAKE_TICKET = "03";
 
     private static final String STATUS_CREATED = F2fOrderStatus.CREATED.name();
@@ -59,7 +55,6 @@ public class F2fAppOrderService {
 
     private static final List<String> PENDING = F2fOrderStatus.PENDING;
 
-    /** {@code ACTIVATE_FLAG} 已激活。 */
     private static final String ACTIVATED = "1";
 
     private static final String PAY_SUBJECT = "APP单程票购票";
@@ -68,11 +63,9 @@ public class F2fAppOrderService {
 
     private static final DateTimeFormatter TMS_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    /** IF8A-18 本地已终态时回吐的支付时间格式。 */
     private static final DateTimeFormatter PAID_TMS_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    /** IF8A-18 本地终态分支的 {@code payDate}：有值按 {@code yyyy-MM-dd HH:mm:ss} 输出， 无值返回 null 而不是空串——旧实现原样吐 {@code PAY_TIME} 列值，失败单该列多为 null。 */
     private static String paidTimeOf(F2fOrder order) {
         return order.getPaidTms() == null ? null : order.getPaidTms().format(PAID_TMS_FORMATTER);
     }
@@ -98,7 +91,6 @@ public class F2fAppOrderService {
         this.messageFactory = messageFactory;
         this.payCenterFlow = payCenterFlow;
     }
-    /** IF8A-20 下单。 */
     public JSONObject createOrder(RequestOrderReqDTO request) {
         Long price = request.priceInFen();
         Integer count = request.ticketCount();
@@ -120,7 +112,6 @@ public class F2fAppOrderService {
         return AppResponses.orderNo(orderNo);
     }
 
-    /** IF8A-11 请求支付信息。 */
     public JSONObject requestPayInfo(RequestPayInfoReqDTO request) {
         String orderNo = request.getOrderNo();
         F2fOrder order = orderMapper.selectByOrderNo(orderNo);
@@ -159,7 +150,6 @@ public class F2fAppOrderService {
                     throw new IllegalStateException("APP 请求支付信息不应收到同步支付成功, orderNo=" + orderNo);
         };
     }
-    /** IF8A-18 支付结果查询。 */
     public JSONObject queryPayResult(RequestAppPayResultReqDTO request) {
         String orderNo = request.getOrderNo();
         F2fOrder order = orderMapper.selectByOrderNo(orderNo);
@@ -183,7 +173,6 @@ public class F2fAppOrderService {
         return resolvePayResult(order);
     }
 
-    /** 向支付中心查实际结果并收口本地状态。 */
     private JSONObject resolvePayResult(F2fOrder order) {
         String orderNo = order.getOrderNo();
         F2fPayCenterFlow.Settled settled = payCenterFlow.settle(new F2fPayCenterFlow.SettleSpec(
@@ -198,9 +187,6 @@ public class F2fAppOrderService {
         };
     }
 
-    /** 「已收款但订单没推到 PAID」的 ERROR 上报已收口到 {@link F2fPayCenterFlow#markPaidAndReport(String)}，本类不再自留副本。 */
-
-    /** 获取已激活的取票订单列表。 */
     public JSONObject listActiveOrders(RequestQueryActiveOrderReqDTO request) {
         if (!request.isQdMetro()) {
             log.info("获取激活订单 appType 不支持, appType={}", request.getAppType());
@@ -225,7 +211,6 @@ public class F2fAppOrderService {
         log.info("获取激活订单完成, userId={}, size={}", request.getUserId(), list.size());
         return AppResponses.orderList(list);
     }
-    /** 据支付中心查询结果把最近一次支付尝试收口为 SUCCESS。 */
     private void markPaymentSuccess(String orderNo, PayCenterResult result) {
         Integer attemptNo = paymentMapper.selectMaxAttemptNo(orderNo);
         try {
@@ -244,13 +229,11 @@ public class F2fAppOrderService {
         }
     }
 
-    /** 换支付信息可以重试（换支付渠道），因此 attemptNo 递增而不是固定 1。 */
     private int nextAttemptNo(String orderNo) {
         Integer max = paymentMapper.selectMaxAttemptNo(orderNo);
         return max == null ? 1 : max + 1;
     }
 
-    /** 支付中心侧订单号，供 {@code tradeNo} 回吐与退款报文使用；未支付时为 null。 */
     private String payCenterOrderNoOf(String orderNo) {
         F2fPayment last = paymentMapper.selectLastAttempt(orderNo);
         return last == null ? null : last.getPayCenterOrderNo();
@@ -261,7 +244,6 @@ public class F2fAppOrderService {
         F2fOrder order = new F2fOrder();
         order.setOrderNo(orderNo);
         order.setChannel(F2fChannel.APP);
-        // 20261015改为01-购票
         order.setBizType(BIZ_TAKE_TICKET);
         order.setTransType(TRANS_TYPE_APP_TAKE_TICKET);
         order.setOrderStatus(STATUS_CREATED);
@@ -294,7 +276,6 @@ public class F2fAppOrderService {
         return payment;
     }
 
-    /** {@code yyyyMMddHHmmss}，null 进空串出。 */
     private static String format(LocalDateTime tms) {
         return tms == null ? "" : tms.format(TMS_FORMATTER);
     }

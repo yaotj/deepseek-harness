@@ -40,19 +40,16 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** TVM 侧接口。类级挂两个前缀：设备按 {@code /itptvm/} 或 {@code /itpbom/} 送同一批 URL 都能命中。 */
 @RestController
 @RequestMapping({"/itptvm/ci/tvm", "/itpbom/ci/tvm"})
 public class TvmOrderController {
 
     private static final Logger log = LoggerFactory.getLogger(TvmOrderController.class);
 
-    /** 商户编码 03 = BOM。 */
     private static final String PROVIDER_BOM = "03";
 
     private final F2fTvmOrderService tvmOrderService;
 
-    /** 支付结果侧（查询 / 回调 / 收银台反查）的宿主。 */
     private final F2fTvmPayResultService payResultService;
 
     private final F2fDeviceHeartbeatService heartbeatService;
@@ -67,7 +64,6 @@ public class TvmOrderController {
 
     private final F2fTopupService topupService;
 
-    /** 充值结果上报（IF2A-06 / IF2A-07）的宿主。 */
     private final F2fTopupResultService topupResultService;
 
     public TvmOrderController(F2fTvmOrderService tvmOrderService,
@@ -90,7 +86,6 @@ public class TvmOrderController {
         this.topupResultService = topupResultService;
     }
 
-    /** IF2A-04 设备心跳。{@code deviceHeartbeat} 是别名，与 {@code fep-dev-server} 的 AGM 侧双别名对齐。 */
     @PostMapping({"/notiDeviceHeard", "/deviceHeartbeat"})
     public JSONObject notiDeviceHeard(@ModelAttribute BaseDeviceRequest form) {
         log.debug("接收到 TVM 设备心跳, deviceId={}", form == null ? null : form.getDeviceId());
@@ -100,7 +95,6 @@ public class TvmOrderController {
         return TvmResponses.success();
     }
 
-    /** IF2A-05 出票成功结果上报。 */
     @PostMapping("/notiTakeTicketResult")
     public JSONObject notiTakeTicketResult(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到出票成功结果上报, form={}", form);
@@ -112,7 +106,6 @@ public class TvmOrderController {
         return ticketIssueService.receiveTakeTicketResult(request, channelOf(request.getProviderId()));
     }
 
-    /** IF2A-06 出票失败结果上报，含未出票部分的差额退款。 */
     @PostMapping("/notiTakeTicketFailResult")
     public JSONObject notiTakeTicketFailResult(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到出票失败结果上报, form={}", form);
@@ -125,7 +118,6 @@ public class TvmOrderController {
         return ticketIssueService.receiveTakeTicketFailResult(request, channelOf(request.getProviderId()));
     }
 
-    /** 设备侧主动退款。 */
     @PostMapping("/requestRefund")
     public JSONObject requestRefund(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到设备退款请求, form={}", form);
@@ -137,7 +129,6 @@ public class TvmOrderController {
         return deviceRefundService.requestRefund(request);
     }
 
-    /** IF2A-01 提交单程票订单。 */
     @PostMapping("/requestGenSjtOrder")
     public JSONObject requestGenSjtOrder(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到提交单程票订单请求, form={}", form);
@@ -157,12 +148,6 @@ public class TvmOrderController {
         return tvmOrderService.createSingleTicketOrder(request);
     }
 
-    /**
-     * IF2A-03 查询支付结果。
-     *
-     * <p>{@code requestGetPayResult} 是别名：部分 TVM 厂商按 BOM 侧的命名上送，
-     * 打到本前缀会 404 并退化成 UUID retCode，设备因此拿不到支付结果、不会出票。
-     */
     @PostMapping({"/requestPayResult", "/requestGetPayResult"})
     public JSONObject requestPayResult(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到查询支付结果请求, form={}", form);
@@ -173,7 +158,6 @@ public class TvmOrderController {
         return payResultService.queryPayResult(request);
     }
 
-    /** IF2A-11 付款码支付。 */
     @PostMapping("/requestPayment")
     public JSONObject requestPayment(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到付款码支付请求, form={}", form);
@@ -190,7 +174,6 @@ public class TvmOrderController {
         return scanPayService.requestPayment(request);
     }
 
-    /** IF8A-15 激活取票订单。 */
     @PostMapping("/requestActiveTicket")
     public JSONObject requestActiveTicket(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到激活取票订单请求, form={}", form);
@@ -202,7 +185,6 @@ public class TvmOrderController {
         return takeTicketService.requestActiveTicket(request);
     }
 
-    /** IF2A-08 扫码取票订单查询。 */
     @PostMapping("/requestTakeTicketAuth")
     public JSONObject requestTakeTicketAuth(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到扫码取票订单查询, form={}", form);
@@ -215,7 +197,6 @@ public class TvmOrderController {
         return takeTicketService.requestTakeTicketAuth(request);
     }
 
-    /** IF2A-09 请求充值下单。 */
     @PostMapping("/requestTopup")
     public JSONObject requestTopup(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到充值下单请求, form={}", form);
@@ -230,7 +211,6 @@ public class TvmOrderController {
         return topupService.requestTopup(request);
     }
 
-    /** IF2A-06 充值成功通知。 */
     @PostMapping("/topupCardResultNoti")
     public JSONObject topupCardResultNoti(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到充值成功通知, form={}", form);
@@ -242,7 +222,6 @@ public class TvmOrderController {
         return topupResultService.topupCardResultNoti(request);
     }
 
-    /** IF2A-07 充值失败通知，{@code topupStatus=01} 触发全额退款。 */
     @PostMapping("/topupCardFailNoti")
     public JSONObject topupCardFailNoti(@ModelAttribute BaseDeviceRequest form) {
         log.info("接收到充值失败通知, form={}", form);
@@ -254,7 +233,6 @@ public class TvmOrderController {
         return topupResultService.topupCardFailNoti(request);
     }
 
-    /** 支付中心反查 ITP 订单详情。 */
     @PostMapping("/requestPayOrderDetail")
     public JSONObject requestPayOrderDetail(@ModelAttribute RequestPayResultReqDTO form) {
         log.info("接收到支付中心查询订单详情请求, orderNo={}", form == null ? null : form.getOrderNo());
@@ -264,19 +242,16 @@ public class TvmOrderController {
         return payResultService.requestPayOrderDetail(form);
     }
 
-    /** 支付结果回调（支付中心 → ITP），JSON body 形态。 */
     @PostMapping(value = "/payNotice", consumes = MediaType.APPLICATION_JSON_VALUE)
     public JSONObject payNoticeJson(@RequestBody(required = false) PayCenterCallbackRequest body) {
         return handlePayNotice(body);
     }
 
-    /** 支付结果回调的 form 兜底入口：{@code x-www-form-urlencoded} 与不带 {@code Content-Type} 的请求都落到这里。 */
     @PostMapping("/payNotice")
     public JSONObject payNotice(@ModelAttribute PayCenterCallbackRequest form) {
         return handlePayNotice(form);
     }
 
-    /** 两个入口共用的处理逻辑。 */
     private JSONObject handlePayNotice(PayCenterCallbackRequest request) {
         log.info("支付中心支付回调开始, request={}", request);
         if (request == null) {
@@ -299,7 +274,6 @@ public class TvmOrderController {
         return payResultService.receivePayNotice(notice);
     }
 
-    /** 校验顺序与文案逐字照搬旧实现，返回 null 表示通过。 */
     private String validateGenSjtOrder(RequestGenSjtOrderReqDTO request) {
         if (isBlank(request.getTicketPrice())) {
             return "ticketPrice不能为空";
@@ -324,7 +298,6 @@ public class TvmOrderController {
         return null;
     }
 
-    /** 上报类接口的渠道归属。 */
     private static String channelOf(String providerId) {
         String channel = F2fChannel.fromProviderId(providerId);
         return channel == null ? F2fChannel.TVM : channel;

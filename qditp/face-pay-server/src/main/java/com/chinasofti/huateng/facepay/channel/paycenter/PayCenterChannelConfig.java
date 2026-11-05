@@ -4,7 +4,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/** 支付中心通道装配。 */
 @Configuration
 @EnableConfigurationProperties(PayCenterProperties.class)
 public class PayCenterChannelConfig {

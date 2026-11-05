@@ -162,9 +162,28 @@ complete -F _itp_ops_complete itp-ops.sh itp-ops
 """
 
 
+def _zsh_module_flags() -> str:
+    """--module/--app/--image 后面的值 = 模块目录词表；--jar/--dockerfile 走文件路径。
+
+    zsh 无法在 `case` 块内直接写 `(flag) _values ...` 这样的子句 —— 需要
+    提前算出当前待补全的 token 再用普通 `if` 路由，否则语法检查会报 parse error。
+    """
+    modules = " ".join(module_names())
+    return (
+        "      local cur_flag=$words[$words[(r)--*]]\n"
+        "      if [[ $cur_flag == \"--module\" || $cur_flag == \"--app\" || "
+        "$cur_flag == \"--image\" ]]; then\n"
+        f"        _values '模块目录' {modules}\n"
+        "      elif [[ $cur_flag == \"--jar\" || $cur_flag == \"--dockerfile\" ]]; then\n"
+        "        _files\n"
+        "      fi\n"
+    )
+
+
 def zsh_script() -> str:
     m = _domain_map()
     modules = " ".join(module_names())
+    flag_routed = _zsh_module_flags()
     lines: list[str] = []
     for name, subs in m.items():
         if name == "flow":
@@ -174,7 +193,8 @@ def zsh_script() -> str:
                 "        case $words[2] in\n"
                 "          backend|jvm) _values '模块目录' " + modules + " ;;\n"
                 "          *) _values 'flow 命令' " + " ".join(subs) + " ;;\n"
-                "        esac ;;"
+                "        esac\n"
+                + flag_routed + ";;"
             )
         else:
             lines.append("      {n}) _values '{n} 命令' {w} ;;".format(n=name, w=" ".join(subs)))

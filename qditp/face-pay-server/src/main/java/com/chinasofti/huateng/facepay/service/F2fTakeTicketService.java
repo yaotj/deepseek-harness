@@ -16,16 +16,13 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
-/** 扫码取票：IF8A-15 激活取票订单 + IF2A-08 取票鉴权查询。本类刻意不带 {@code @Transactional}（每个方法只有一条写 SQL），NEVER 加。 */
 @Service
 public class F2fTakeTicketService {
 
     private static final Logger log = LoggerFactory.getLogger(F2fTakeTicketService.class);
 
-    /** 订单已支付、可激活的唯一前置状态。 */
     private static final String STATUS_PAID = F2fOrderStatus.PAID.name();
 
-    /** {@code ACTIVATE_FLAG} 已激活。 */
     private static final String ACTIVATED = "1";
 
     private final F2fOrderMapper orderMapper;
@@ -37,7 +34,6 @@ public class F2fTakeTicketService {
         this.paymentMapper = paymentMapper;
     }
 
-    /** IF8A-15 激活取票订单。 */
     public JSONObject requestActiveTicket(RequestActiveTicketReqDTO request) {
         String orderNo = request.getOrderNo();
         F2fOrder order = orderMapper.selectByOrderNo(orderNo);
@@ -60,7 +56,6 @@ public class F2fTakeTicketService {
         return TvmResponses.success();
     }
 
-    /** IF2A-08 取票鉴权查询。 */
     public JSONObject requestTakeTicketAuth(RequestTakeTicketAuthReqDTO request) {
         F2fOrder order = orderMapper.selectByQrcode(
                 request.getDeviceId(), request.getQrcodeGenDate(), request.getRandomFact());
@@ -80,7 +75,6 @@ public class F2fTakeTicketService {
                 order.getTicketNum(), order.getSingleTicketType(), channelCodeOf(order.getOrderNo()));
     }
 
-    /** 渠道码要等支付回调或查询结果才有值，可能为 null——旧实现同样回 null，不兜底。 */
     private String channelCodeOf(String orderNo) {
         F2fPayment last = paymentMapper.selectLastAttempt(orderNo);
         return last == null ? null : last.getPayChannelCode();

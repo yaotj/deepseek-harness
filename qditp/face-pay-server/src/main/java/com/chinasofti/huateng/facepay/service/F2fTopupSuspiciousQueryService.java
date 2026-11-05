@@ -12,7 +12,6 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Set;
 
-/** 运营端 TVM 充值存疑回执（{@code F2F_RESULT_REPORT}）的只读查询。 */
 @Service
 public class F2fTopupSuspiciousQueryService {
 
@@ -20,13 +19,10 @@ public class F2fTopupSuspiciousQueryService {
 
     private static final int MAX_PAGE_SIZE = 100;
 
-    /** 前端传的时间形态，与当面付订单页一致。 */
     private static final DateTimeFormatter INPUT_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    /** 充值回执状态字典：00 成功，01 失败，02 存疑，03 取消。 */
     private static final Set<String> TOPUP_STATUS_VALUES = Set.of("00", "01", "02", "03");
 
-    /** 本页默认口径：存疑（TOPUP_STATUS='02'）。 */
     private static final String DEFAULT_SUSPICIOUS_STATUS = "02";
 
     private final F2fResultReportMapper resultReportMapper;
@@ -35,7 +31,6 @@ public class F2fTopupSuspiciousQueryService {
         this.resultReportMapper = resultReportMapper;
     }
 
-    /** TVM 充值存疑回执分页查询入参。 */
     public record TopupSuspiciousPageQuery(String orderNo,
                                            String channel,
                                            String deviceId,
@@ -47,7 +42,6 @@ public class F2fTopupSuspiciousQueryService {
                                            Integer pageSize) {
     }
 
-    /** 查询判定结果，调用方 MUST 穷尽分支后各自组响应壳。 */
     public sealed interface PageOutcome {
 
         record Ok(List<F2fTopupSuspiciousPageVO> list, long total) implements PageOutcome {
@@ -57,9 +51,6 @@ public class F2fTopupSuspiciousQueryService {
         }
     }
 
-    /**
-     * 分页查询充值回执。业务流水表，无条件全表扫会伤库，故要求订单号或完整接收时间范围。
-     */
     public PageOutcome page(TopupSuspiciousPageQuery query) {
         String channel = trimToNull(query.channel());
         if (channel != null && !F2fChannel.isSupported(channel)) {

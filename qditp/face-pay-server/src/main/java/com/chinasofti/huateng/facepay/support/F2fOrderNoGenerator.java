@@ -5,7 +5,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 
-/** 订单号生成入口。 */
 @Component
 public class F2fOrderNoGenerator {
 
@@ -15,12 +14,10 @@ public class F2fOrderNoGenerator {
         this.sequenceMapper = sequenceMapper;
     }
 
-    /** 单程票订单号。 */
     public String nextSingleTicketOrderNo() {
         return next(F2fOrderNo.BIZ_SINGLE_TICKET);
     }
 
-    /** 按业务码取订单号。 */
     public String next(String bizCode) {
         Long seq = sequenceMapper.nextOrderNoSeq();
         if (seq == null) {

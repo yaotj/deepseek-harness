@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/** 补款单（{@code SP} 前缀）的支付中心结果回调。 */
 @RestController
 public class SupplementPayNoticeController {
 
@@ -39,12 +38,6 @@ public class SupplementPayNoticeController {
         return Map.of("code", "0", "msg", "success");
     }
 
-    /**
-     * 回调正文取值，只用于日志。
-     *
-     * <p>收口**刻意不看 {@code status}**：`handlePayNotice` 内部以支付中心查询结果为权威，
-     * 失败回调同样要收口成失败态。NEVER 改成「status 非 SUCCESS 就直接 return」——那会让失败单永久悬挂。
-     */
     private static String valueOf(Map<String, Object> body, String key) {
         Object value = body == null ? null : body.get(key);
         return value == null ? null : String.valueOf(value);

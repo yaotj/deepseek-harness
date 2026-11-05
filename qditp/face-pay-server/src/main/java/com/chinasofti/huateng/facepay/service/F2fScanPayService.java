@@ -24,7 +24,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** 付款码支付（IF2A-11 {@code requestPayment}）。本类刻意不带 {@code @Transactional}（链路里有支付中心调用），NEVER 加。 */
 @Service
 public class F2fScanPayService {
 
@@ -34,14 +33,12 @@ public class F2fScanPayService {
     private static final String STATUS_PAYING = F2fOrderStatus.PAYING.name();
     private static final String STATUS_PAY_FAILED = F2fOrderStatus.PAY_FAILED.name();
 
-    /** 对设备口径为「已收款」的内部状态白名单，与 {@link F2fTvmOrderService} 保持一致。 */
     private static final List<String> PAID_LIKE = List.of(
             F2fOrderStatus.PAID.name(), F2fOrderStatus.FULFILLED.name(), F2fOrderStatus.FULFILL_FAILED.name(),
             F2fOrderStatus.REFUNDING.name(), F2fOrderStatus.REFUNDED.name());
 
     private static final List<String> FAILED_LIKE = F2fOrderStatus.FAILED_LIKE;
 
-    /** 只有这两个状态才允许发起扣款，其余一律短路。 */
     private static final List<String> PAYABLE = F2fOrderStatus.PENDING;
 
     private static final String PAY_SUBJECT = "bom支付";
@@ -66,7 +63,6 @@ public class F2fScanPayService {
         this.payCenterFlow = payCenterFlow;
     }
 
-    /** 付款码支付。 */
     public JSONObject requestPayment(RequestPaymentReqDTO request) {
         String orderNo = request.getOrderNo();
         F2fOrder order = orderMapper.selectByOrderNo(orderNo);
@@ -95,7 +91,6 @@ public class F2fScanPayService {
         return payAtPayCenter(order, request);
     }
 
-    /** 必须在事务外：中间那次 {@code execute} 是网络调用。 */
     private JSONObject payAtPayCenter(F2fOrder order, RequestPaymentReqDTO request) {
         String orderNo = order.getOrderNo();
         long amount = order.getOrderAmount();
@@ -134,7 +129,6 @@ public class F2fScanPayService {
         };
     }
 
-    /** IF8A-06 BOM 轮询查询支付结果。 */
     public JSONObject queryPayResult(String orderNo) {
         F2fOrder order = orderMapper.selectByOrderNo(orderNo);
         if (order == null) {
@@ -156,7 +150,6 @@ public class F2fScanPayService {
         return resolve(orderNo);
     }
 
-    /** 向支付中心查实际结果并收口本地状态。 */
     private JSONObject resolve(String orderNo) {
         F2fPayCenterFlow.Settled settled = payCenterFlow.settle(new F2fPayCenterFlow.SettleSpec(
                 orderNo, PAYABLE,
@@ -170,13 +163,11 @@ public class F2fScanPayService {
         };
     }
 
-    /** 收口时要落在最近一次支付尝试上；查不到按 1 处理。 */
     private int lastAttemptNo(String orderNo) {
         Integer max = paymentMapper.selectMaxAttemptNo(orderNo);
         return max == null ? 1 : max;
     }
 
-    /** {@code markSuccess} 返回 0 或撞唯一键都属正常 （回调先到、或并发第二次扣款尝试），一律幂等吞掉。 */
     private void markSuccess(String orderNo, int attemptNo, PayCenterResult result) {
         try {
             int updated = paymentMapper.markSuccess(orderNo, attemptNo,
@@ -187,7 +178,6 @@ public class F2fScanPayService {
                 log.info("付款码支付 该尝试已是终态，无需再置成功, orderNo={}, attemptNo={}", orderNo, attemptNo);
             }
         } catch (RuntimeException e) {
-            // NEVER 退回 catch (DuplicateKeyException)，MUST 走 F2fDuplicateKey.isConflict(Throwable)。
             if (!F2fDuplicateKey.isConflict(e)) {
                 throw e;
             }
@@ -195,13 +185,11 @@ public class F2fScanPayService {
         }
     }
 
-    /** 付款码支付可以重试（第一次码过期、第二次换码），因此 attemptNo 递增而不是固定 1。 */
     private int nextAttemptNo(String orderNo) {
         Integer max = paymentMapper.selectMaxAttemptNo(orderNo);
         return max == null ? 1 : max + 1;
     }
 
-    /** 设备侧这两个字段的命名与实际语义是反的，落库与外发都 MUST 按语义放、NEVER 按名字放。 */
     private F2fPayment buildPayment(F2fOrder order, RequestPaymentReqDTO request, int attemptNo,
                                     String requestBody, LocalDateTime now) {
         F2fPayment payment = new F2fPayment();

@@ -3,7 +3,6 @@ package com.chinasofti.huateng.facepay.api.paycenter;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
-/** 支付中心回调的公共报文（信封），六个字段对齐网关文档「公共请求参数」 （{@code docs/external/支付中心网关接口文档.md} 第 34~41 行）。 */
 public class PayCenterCallbackRequest {
 
     private String merchantNo;
@@ -66,11 +65,6 @@ public class PayCenterCallbackRequest {
         this.bizData = bizData;
     }
 
-    /**
-     * 取业务报文的明文 JSON：先按 Base64 解，解不出再按裸 JSON 兜。
-     *
-     * @return 明文 JSON；{@code bizData} 为空时返回 null
-     */
     public String bizDataJson() {
         if (bizData == null || bizData.isBlank()) {
             return null;

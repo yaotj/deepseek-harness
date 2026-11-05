@@ -2,7 +2,6 @@ package com.chinasofti.huateng.facepay.entity;
 
 import java.time.LocalDateTime;
 
-/** IF8A-26 补款单明细（SUPPLEMENT_ORDER_ITEM）：记录一张补款单覆盖的原过闸订单。 */
 public class SupplementOrderItem {
     private Long id;
     private String orderNo;

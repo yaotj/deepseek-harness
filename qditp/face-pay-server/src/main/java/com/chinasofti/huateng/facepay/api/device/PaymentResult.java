@@ -1,6 +1,5 @@
 package com.chinasofti.huateng.facepay.api.device;
 
-/** 对外 {@code paymentResult} 取值，逐字照搬旧 {@code DevicePayCodeEnum}。 */
 public enum PaymentResult {
 
     ORDERED("ORDERED", "已下单"),

@@ -2,7 +2,6 @@ package com.chinasofti.huateng.facepay.api.device.bom;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/** IF5A-03 票卡更新入参。 */
 public class RequestCardDataUpdateReqDTO extends BaseDeviceRequest {
 
     private String cardId;
@@ -11,7 +10,6 @@ public class RequestCardDataUpdateReqDTO extends BaseDeviceRequest {
 
     private String adviceOpt;
 
-    /** 操作员号，拼写照搬（少一个 t）。 */
     private String operaterId;
 
     private String updateStationCode;

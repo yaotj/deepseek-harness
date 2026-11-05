@@ -14,24 +14,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
-/**
- * 支付中心退款结果回调（契约 §5.2）的**直达入口**。
- *
- * <p>为什么要单开这个类，而不是复用 {@code AppOrderController.receiveRefundResult}：
- * <ul>
- *   <li>那条端点是 {@code @ModelAttribute} 表单绑定，**支付中心发 JSON 时一个字段都取不到**，
- *       会静默变成空对象并回失败码，与日票退款回调 2026-09-20 踩的坑同型；它同时还被 APP 侧
- *       form 报文使用，因此保留原样、NEVER 改它的绑定方式。</li>
- *   <li>路径前缀受入向网关约束：`/ci/app/**` 在 `fep-app-vr` 里没有对应 route，公网打不进来；
- *       而 `/itpbom/`、`/itptvm/` 两条前缀直达 `face-pay-server-svc`，且 rewrite 保留前缀。
- *       因此这里挂的是带前缀的绝对路径别名，形态与 `PAY_CENTER_PAY_NOTICE_URL`
- *       （`/itptvm/ci/tvm/payNotice`）一致。</li>
- * </ul>
- *
- * <p>配套配置：`pay.center.refund-notice-url`（env `PAY_CENTER_REFUND_NOTICE_URL`）MUST 指向本端点，
- * 它会被 {@code PayCenterMessageFactory.buildRefundRequest} 作为 §3.1 必填键 `notifyUrl` 送给支付中心 ——
- * 不送就永远收不到退款回调。
- */
 @RestController
 public class RefundNoticeController {
 
@@ -61,12 +43,6 @@ public class RefundNoticeController {
         return result;
     }
 
-    /**
-     * 三种形态都收：{@code bizData} 是对象、{@code bizData} 是 base64 串、整个 body 就是业务体。
-     *
-     * <p>NEVER 在解析失败时回落成空对象 —— 日票那次就是「null 当成 {@code {}}」把故障静默化，
-     * 最后表现为对方不断重推、我方每次返「orderNo 不能为空」。
-     */
     private AppRefundNotiResultReqDTO parseCallbackBody(String requestBody) {
         if (requestBody == null || requestBody.isBlank()) {
             return null;

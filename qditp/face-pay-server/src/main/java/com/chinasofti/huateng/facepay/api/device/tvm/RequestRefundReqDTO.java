@@ -2,23 +2,14 @@ package com.chinasofti.huateng.facepay.api.device.tvm;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/** TVM 主动退款请求报文。 */
 public class RequestRefundReqDTO extends BaseDeviceRequest {
 
-    /** 原订单号。 */
     private String orderNo;
 
-    /** 退款原因，可空，原样落 {@code F2F_REFUND.REFUND_REASON}。 */
     private String refundReason;
 
-    /** 退款金额，单位分。 */
     private String refundAmt;
 
-    /**
-     * 退款金额转 {@code Long}（分）。
-     *
-     * @return 金额；为空、非数字或非正数时返回 null，调用方 MUST 据此拒绝
-     */
     public Long amountInFen() {
         if (refundAmt == null || refundAmt.isBlank()) {
             return null;

@@ -36,7 +36,6 @@ public class SupplementOrderLocalWriter {
         }
     }
 
-    /** 本地落单：插入主表 + 明细。 */
     @Transactional
     public PersistResult persist(SupplementOrder order,
                                  List<String> orderNos,

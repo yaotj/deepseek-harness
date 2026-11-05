@@ -2,7 +2,6 @@ package com.chinasofti.huateng.facepay.api.device.bom;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/** IF5A-09 HCE 票卡更新结果通知入参。 */
 public class NotiUpdateHceDataReqDTO extends BaseDeviceRequest {
 
     private String cardId;
@@ -35,7 +34,6 @@ public class NotiUpdateHceDataReqDTO extends BaseDeviceRequest {
         this.adviceOpt = adviceOpt;
     }
 
-    /** {@code hceData} 只输出长度，不输出内容。 */
     @Override
     public String toString() {
         return "NotiUpdateHceDataReqDTO{cardId=" + cardId

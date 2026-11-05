@@ -2,7 +2,6 @@ package com.chinasofti.huateng.facepay.api.device.app;
 
 import com.chinasofti.huateng.facepay.api.device.BaseDeviceRequest;
 
-/** IF8A-11 请求支付信息入参。 */
 public class RequestPayInfoReqDTO extends BaseDeviceRequest {
 
     private String orderNo;

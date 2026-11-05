@@ -1,6 +1,5 @@
 package com.chinasofti.huateng.facepay.channel.paycenter;
 
-/** 支付中心 {@code scene} 取值。 */
 public enum PayScene {
 
     QRCODE("qrcode"),

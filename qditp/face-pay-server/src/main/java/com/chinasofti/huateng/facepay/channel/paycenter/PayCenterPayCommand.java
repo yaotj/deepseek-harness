@@ -1,17 +1,5 @@
 package com.chinasofti.huateng.facepay.channel.paycenter;
 
-/**
- * 预下单入参。
- *
- * @param orderNo       ITP 订单号，同时作为支付中心的 merchantOrderNo 幂等键
- * @param scene         支付场景，决定报文形态，见 {@link PayScene}
- * @param paymentVendor 支付方式。{@link PayScene#QRCODE} 时旧实现固定 {@code 0C}，
- * @param payType       {@code 0}-其他支付方式，{@code 1}-数字人民币 APP。
- * @param amount        金额，单位分
- * @param subject       订单标题
- * @param body          订单描述
- * @param authCode      用户付款码，仅 {@link PayScene#SCAN} 必填
- */
 public record PayCenterPayCommand(
         String orderNo,
         PayScene scene,
@@ -22,7 +10,6 @@ public record PayCenterPayCommand(
         String body,
         String authCode) {
 
-    /** {@link PayScene#QRCODE} 的支付方式默认值，来源旧 {@code buildTvmPayRequest} 硬编码。 */
     public static final String DEFAULT_QRCODE_PAYMENT_VENDOR = "0C";
 
     public PayCenterPayCommand {
@@ -43,7 +30,6 @@ public record PayCenterPayCommand(
         }
     }
 
-    /** {@link PayScene#QRCODE} 未指定支付方式时回落到 {@code 0C}。 */
     public String effectivePaymentVendor() {
         return paymentVendor == null || paymentVendor.isBlank() ? DEFAULT_QRCODE_PAYMENT_VENDOR : paymentVendor;
     }

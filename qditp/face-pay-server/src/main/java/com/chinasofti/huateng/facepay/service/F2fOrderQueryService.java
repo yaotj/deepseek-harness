@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** 运营端当面付订单的只读查询。 */
 @Service
 public class F2fOrderQueryService {
 
@@ -24,7 +23,6 @@ public class F2fOrderQueryService {
     public F2fOrderQueryService(F2fOrderMapper orderMapper) {
         this.orderMapper = orderMapper;
     }
-    /** 分页查询入参。 */
     public record OrderPageQuery(String orderNo,
                                  String payCenterOrderNo,
                                  String payCenterChannelOrderNo,
@@ -37,7 +35,6 @@ public class F2fOrderQueryService {
                                  Integer pageNum,
                                  Integer pageSize) {
 
-        /** 三个订单标识任一有值，或下单时间范围完整，才算给了检索范围。 */
         private boolean hasSearchScope() {
             return trimToNull(orderNo) != null
                     || trimToNull(payCenterOrderNo) != null
@@ -46,23 +43,15 @@ public class F2fOrderQueryService {
         }
     }
 
-    /** 查询判定结果，调用方 MUST 穷尽分支后各自组响应壳。 */
     public sealed interface PageOutcome {
 
-        /** 查询成功。 */
         record Ok(List<FacePayOrderPageVO> list, long total) implements PageOutcome {
         }
 
-        /**
-         * 入参不满足检索范围要求，没有查库。
-         *
-         * @param reason 直接回给运营端的原因，措辞与旧服务逐字一致
-         */
         record Rejected(String reason) implements PageOutcome {
         }
     }
 
-    /** 分页查询。 */
     public PageOutcome page(OrderPageQuery query) {
         if (!query.hasSearchScope()) {
             return new PageOutcome.Rejected("请填写订单号、支付中心订单号、渠道订单号，或完整的下单时间范围");
