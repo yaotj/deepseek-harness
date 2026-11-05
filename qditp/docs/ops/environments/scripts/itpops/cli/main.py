@@ -59,7 +59,7 @@ _OUTPUT_CHOICES = ("text", "json")
 _KNOWN_FLAGS = (
     "-e", "--env", "-y", "--yes", "-n", "--dry-run", "-o", "--output", "--json",
     "-q", "--quiet", "-v", "--verbose", "--no-color", "--trace",
-    "-h", "--help", "-V", "--version",
+    "-h", "--help", "-V", "--version", "--explain",
 )
 
 
@@ -370,6 +370,12 @@ def main(argv: list[str] | None = None) -> int:
                 return EXIT_OK
             if not domain_args or all(a.startswith("-") for a in domain_args):
                 domain_args = ["help"]
+
+        # --explain：打印命令解释后退出，不执行实际命令
+        if "--explain" in domain_args:
+            from . import explainer
+            explain_args = [a for a in domain_args if a != "--explain"]
+            return explainer.handle_explain([domain] + explain_args)
 
         if ctx.json_mode:
             # 历史实现（web 发版 / buildx / sentinel 等）仍用 print 打进度：把 stdout
