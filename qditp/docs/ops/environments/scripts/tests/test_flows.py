@@ -37,8 +37,12 @@ class CliFlowTest(unittest.TestCase):
     def test_flow_list_json_envelope(self):
         payload, rc = run_json("flow", "list")
         self.assertEqual(rc, 0)
-        self.assertEqual(len(payload["data"]["flows"]), 3)
+        self.assertEqual(len(payload["data"]["flows"]), 5)
         self.assertEqual(payload["data"]["default_env"], "test")
+        flow_names = [f["name"] for f in payload["data"]["flows"]]
+        self.assertIn("health", flow_names)
+        self.assertIn("backend", flow_names)
+        self.assertIn("rollback", flow_names)
 
     def test_dry_run_lists_steps_without_yes(self):
         r = run_cli("flow", "backend", "face-pay-server", "--env", "test")

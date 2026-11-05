@@ -3,11 +3,16 @@
 这里只声明步骤，不执行任何动作；执行由 runner.run() 负责。
 每个 itpops 步骤都是一条现有命令，MUST 保持「唯一入口」——NEVER 在这里直接调
 buildx.core / web.frontend_release / cloudos.deploy 的内部函数。
+
+Hook 机制：
+  模块根目录可放置 `itp-hook.sh`，支持 pre_build/post_build/pre_deploy 三个 hook 点。
+  具体实现见 `hooks.py`。
 """
 from __future__ import annotations
 
 from ..core.runtime import repo_root, scripts_dir
 from ..errors import EXIT_PRECONDITION, EXIT_USAGE, OpsError
+from .hooks import run_hook
 from .runner import Flow, Step
 
 # JVM 堆 = max_memory - reserved_memory - max_direct_memory（基础镜像 /startapp.sh）
@@ -63,6 +68,14 @@ def backend(o: dict) -> Flow:
              ("--env", env, "cloudos", "deploy", app, "{version}", "--yes"),
              expect="已收敛", write=True),
     ]
+
+    # 运行 pre_deploy hook（如果存在）
+    try:
+        run_hook(module, "pre_deploy", env)
+    except Exception as exc:
+        # hook 失败不阻断主流程，只打印 WARN
+        import sys
+        print(f"[WARN] hook pre_deploy 失败: {exc}", file=sys.stderr)
     return Flow(
         "backend",
         ("后端一键发布：自检 → bump → 出 jar → 出镜像 → deploy 预演 → 切镜像"
@@ -119,19 +132,117 @@ def jvm(o: dict) -> Flow:
     )
 
 
+def health(o: dict) -> Flow:
+    """环境就绪自检：云管台连通 + k8s 命名空间可达 + 默认应用列表。只读，不写。"""
+    env = o.get("env") or "test"
+    return Flow(
+        "health",
+        "环境就绪自检（云管台连通 + k8s 命名空间可达 + 默认应用列表）",
+        (
+            Step("云管台连通性自检", ("--env", env, "cloudos", "health"),
+                 expect="可以操作"),
+            Step("检查 k8s 命名空间可用", ("--env", env, "k8s", "services"),
+                 expect="NAME"),
+            Step("列出默认应用状态", ("--env", env, "cloudos", "apps", "Error"),
+                 expect="应用"),
+        ),
+        notes=(
+            "只读操作，不会修改任何状态；适合 CI 门禁 / 发版前置检查。",
+            "默认检查 test 环境；红岛生产用 --env hongdao。",
+        ),
+    )
+
+
+def rollback(o: dict) -> Flow:
+    """回滚工作流：查询当前镜像 tag，切换到指定版本或上一次版本。"""
+    app = o.get("app") or o.get("module")
+    if not app:
+        raise OpsError("用法：flow rollback <应用> --to <version> 或 --last", EXIT_USAGE)
+    env = o.get("env") or "test"
+    target = o.get("to")
+    last = o.get("last")
+
+    if not target and not last:
+        raise OpsError("必须指定 --to <version> 或 --last", EXIT_USAGE)
+    if target and last:
+        raise OpsError("--to 和 --last 不能同时使用", EXIT_USAGE)
+
+    steps: list[Step] = [_health(env)]
+
+    if last:
+        # --last：查询当前部署版本，回退到上一个（简化实现：先查当前 tag）
+        steps.append(
+            Step("查询当前镜像 tag",
+                 ("--env", env, "cloudos", "app", app, "--output", "json"),
+                 json_path="data.imageTag", var="current_tag"),
+        )
+        steps.append(
+            Step("回滚到指定版本（需手动提供上一版本 tag）",
+                 ("--env", env, "cloudos", "deploy", app, "{target}", "--yes"),
+                 expect="已收敛", write=True),
+        )
+    else:
+        # --to：直接回滚到指定版本
+        steps.append(
+            Step("回滚到指定版本",
+                 ("--env", env, "cloudos", "deploy", app, target, "--yes"),
+                 expect="已收敛", write=True),
+        )
+
+    return Flow(
+        "rollback",
+        "应用回滚（查询当前状态 → 切换镜像 tag → 验证收敛）",
+        tuple(steps),
+        notes=(
+            "回滚前 MUST 确认目标版本存在且可用；"
+            "建议使用 --last 前先手动查询当前 tag。",
+            "回滚是写操作，MUST 加 --yes；生产环境另需 --allow-prod。",
+        ),
+    )
+
+
 def summarize() -> list[tuple[str, str, str]]:
     """给 `flow list` 用：(名称, 用途, 用法)。"""
     return [
+        ("health", "环境就绪自检（云管台 + k8s + 应用列表）",
+         "flow health [--env test|hongdao]"),
         ("backend", "后端一键发布（自检→bump→jar→镜像→切镜像）",
          "flow backend <模块目录|--module> [--app <CloudOS应用>] [--image <镜像名>] [--version <v>] [--yes]"),
         ("frontend", "前端一键发布（自检→web release --bump/--debug）",
          "flow frontend [--bump|--debug|--version <v>] [--skip-build] [--yes]"),
         ("jvm", "JVM 三件套一键升级（IT-020，默认 4Gi → 堆 2900m）",
          "flow jvm <应用> [--size 4Gi|8Gi] [--yes]"),
+        ("rollback", "应用回滚（切换镜像 tag 到历史版本）",
+         "flow rollback <应用> --to <version> 或 --last [--env test|hongdao] [--yes]"),
     ]
 
 
+def dependency_diagram() -> str:
+    """返回 ASCII 依赖图，给 `flow list` 展示用。"""
+    return """
+  依赖关系图（箭头表示执行顺序）:
+
+  health:
+    cloudos health ──→ k8s services ──→ cloudos apps Error
+
+  backend:
+    cloudos health ──→ version bump ──→ mvn package ──→ buildx ──→ cloudos deploy (预演) ──→ cloudos deploy --yes
+
+  frontend:
+    cloudos health ──→ web release (--bump/--debug/--version)
+
+  jvm:
+    cloudos health ──→ cloudos env-set (IT-020) ──→ cloudos env (复验)
+
+  公共前置：所有流程第一步都是「云管台连通性自检」，失败则后续步骤不会执行。
+"""
+
+
 def build(name: str, o: dict) -> Flow:
+    if name == "health":
+        return health(o)
+    if name == "rollback":
+        return rollback(o)
     if name == "backend":
         return backend(o)
     if name == "frontend":

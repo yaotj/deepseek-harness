@@ -25,10 +25,10 @@ CATALOG = {
          "writes": False, "example": "itp-ops.sh flow guide -i",
          "stdout_human": "===== 一键发布向导 ===== … 已生成命令 …",
          "json_data": {"interactive": True, "command": "./itp-ops.sh flow backend …"}},
-        {"name": "list", "usage": "flow list", "summary": "列出可用工作流与用法",
+        {"name": "list", "usage": "flow list", "summary": "列出可用工作流、依赖图与用法",
          "args": [], "writes": False, "example": "itp-ops.sh flow list",
-         "stdout_human": "===== 可用工作流（flow）===== …",
-         "json_data": {"flows": [{"name": "backend"}]}},
+         "stdout_human": "===== 可用工作流（flow）===== … ===== 依赖关系图 ===== …",
+         "json_data": {"flows": [{"name": "health"}, {"name": "backend"}]}},
         {"name": "backend",
          "usage": "flow backend <模块目录|--module <目录>> [--app <CloudOS应用>] [--image <镜像名>] [--version <v>] [--jar <p>] [--dockerfile <p>] [--yes]",
          "summary": "后端一键发布：自检 → bump → 出 fat jar → tag 占用检查 → 平台 x86 出镜像 → deploy 预演 → 切镜像收敛",
@@ -59,10 +59,20 @@ CATALOG = {
          "example": "itp-ops.sh flow jvm face-pay-server --env test --size 4Gi --yes",
          "stdout_human": "===== 工作流 jvm（test）===== … ✓ 工作流 jvm 完成（3 步）",
          "json_data": {"flow": "jvm", "done": True}},
+        {"name": "rollback",
+         "usage": "flow rollback <应用> --to <version> 或 --last [--env test|hongdao] [--yes]",
+         "summary": "应用回滚：查询当前镜像 tag → 切换到目标版本 → 验证收敛",
+         "args": [{"name": "应用", "required": True},
+                  {"name": "--to", "required": False},
+                  {"name": "--last", "required": False}],
+         "writes": True,
+         "example": "itp-ops.sh flow rollback face-pay-server --to 1.0.89 --env test --yes",
+         "stdout_human": "===== 工作流 rollback（test）===== … ✓ 工作流 rollback 完成（2 步）",
+         "json_data": {"flow": "rollback", "done": True}},
     ],
 }
 
-_VALUE_FLAGS = ("--module", "--app", "--image", "--version", "--size", "--jar", "--dockerfile")
+_VALUE_FLAGS = ("--module", "--app", "--image", "--version", "--size", "--jar", "--dockerfile", "--to")
 _BOOL_FLAGS = ("--bump", "--debug", "--skip-build", "--allow-prod", "-i", "--interactive")
 
 
@@ -107,10 +117,10 @@ def main(args: list[str]) -> int:
         ui.out("  backend 的位置参数 = 仓库根下的模块目录名（如 face-pay-server）；"
                "CloudOS 应用名用 --app、Harbor 镜像名用 --image 单独指定，也可用 --module 代替位置参数。")
         ui.out("")
-        ui.out("不加 --yes 只列步骤（离线可预演）；确认执行加 --yes；"
-               "红岛生产另需 --allow-prod。默认环境 test。")
+        ui.out(definitions.dependency_diagram())
         ui.result({"flows": [{"name": n, "summary": s, "usage": u} for n, s, u in rows],
-                   "default_env": "test"})
+                   "default_env": "test",
+                   "diagram": definitions.dependency_diagram()})
         return 0
 
     if sub == "guide":
@@ -119,6 +129,8 @@ def main(args: list[str]) -> int:
 
     positional, opts = _parse(args[1:])
     opts["env"] = env
+    if sub == "health":
+        return runner.run(definitions.build("health", opts), opts)
     if sub == "backend":
         if len(positional) > 1:
             raise OpsError(f"多余位置参数：{positional[1:]}", EXIT_USAGE)
@@ -132,6 +144,14 @@ def main(args: list[str]) -> int:
         opts["app"] = positional[0] if positional else opts.get("app")
         if not opts["app"]:
             raise OpsError("用法：flow jvm <应用> 或 --app <应用> [--size 4Gi|8Gi] [--yes]", EXIT_USAGE)
+    elif sub == "rollback":
+        if len(positional) > 1:
+            raise OpsError(f"多余位置参数：{positional[1:]}", EXIT_USAGE)
+        opts["app"] = positional[0] if positional else opts.get("app")
+        opts["to"] = opts.get("to")
+        opts["last"] = opts.get("last")
+        if not opts["app"]:
+            raise OpsError("用法：flow rollback <应用> --to <version> 或 --last", EXIT_USAGE)
     elif sub != "frontend":
         raise OpsError(
             append_hint("未知工作流：%s（可用 flow list）" % sub, sub,

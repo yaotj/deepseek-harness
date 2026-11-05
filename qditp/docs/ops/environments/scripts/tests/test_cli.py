@@ -135,7 +135,7 @@ class CompletionTest(unittest.TestCase):
     def test_zsh_completion_includes_flow(self):
         r = run_cli("completion", "zsh")
         self.assertIn("flow)", r.stdout)
-        self.assertIn("_values 'flow 命令' guide list backend frontend jvm help", r.stdout)
+        self.assertIn("_values 'flow 命令' guide list backend frontend jvm rollback help", r.stdout)
 
 
 class ParsingTest(unittest.TestCase):

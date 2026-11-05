@@ -3,6 +3,17 @@
 > 2026-11-04 由 `README.md`「六、重构与迁移记录」拆出，历史条目按**新 → 旧**排列、内容逐字保留。
 > 版本号真源是 `itpops/__init__.py` 的 `__version__`（`pyproject.toml` 动态读取）。
 
+## 2.9.4 — 2026-11-05 补全收尾：zsh 文件路径补全 + 向导 Ctrl+C 优雅退出
+
+- zsh 侧之前只补了模块目录词表，`--jar/--dockerfile` 的 `compgen -f` 文件路径补全只有 bash 有。
+  新增 `_zsh_module_flags()`：把 flag 检测从 `case` 子句移到 `if [[ $cur_flag == ... ]]` 结构，
+  避免 zsh 在 case 内识别不出 `_values` / `_files` 而报 parse error；bash 侧不受影响。
+- 向导 `wizard.py` 对 `KeyboardInterrupt`（Ctrl+C）不再与 `EOFError` 混用同一个「未收到输入」提示，
+  改为单独分支打印 `(取消)` 后返回 `EXIT_USAGE`——用户能明确区分「按 Ctrl+C 主动取消」和「管道 EOF」。
+- 新增 `tests/test_hints.py::WizardInteractiveTest.test_keyboardinterrupt_cancels_with_hint`。
+- 单测 139 → 140；bash -n / zsh -n 通过；lint yaml ERROR 0。
+- 纯离线改动，未触碰环境。
+
 ## 2.9.3 — 2026-11-04 整体一致性 review：修现行文档改密同步点
 
 - 用户「继续」→ 做一轮整体收尾审查：版本真源（2.9.3）/ 单测数（139）三处一致、

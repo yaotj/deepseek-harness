@@ -91,11 +91,17 @@ def run(flow: Flow, variables: dict[str, str]) -> int:
 
     ui.out("===== 工作流 %s（%s）=====" % (flow.name, env))
     ui.out("  %s" % flow.summary)
+    ui.out("")
+    ui.out("  步骤清单（%d 步）：" % len(flow.steps))
     for i, step in enumerate(flow.steps, 1):
         tag = "写" if step.write else "读"
-        ui.out("  %2d. [%s] %s" % (i, tag, step.title))
+        ui.out("    %2d. [%s] %s" % (i, tag, step.title))
         if step.argv:
-            ui.out("      " + " ".join(_preview(step, variables)))
+            ui.out("        %s" % " ".join(_preview(step, variables)))
+        if step.expect:
+            ui.out("        预期判据：%s" % step.expect)
+        if step.capture:
+            ui.out("        捕获变量：%s (正则 %r)" % (step.var, step.capture))
     for note in flow.notes:
         ui.out("  ⚠ " + note)
 
@@ -103,8 +109,11 @@ def run(flow: Flow, variables: dict[str, str]) -> int:
         ui.out("")
         ui.out("以上为一键流程预演，未执行任何步骤。确认执行请加 --yes"
                + ("；打红岛生产另需 --allow-prod" if env != "hongdao" else "") + "。")
+        write_count = sum(1 for s in flow.steps if s.write)
+        ui.out("写操作 %d 处，读操作 %d 处。" % (write_count, len(flow.steps) - write_count))
         ui.result({"flow": flow.name, "env": env, "dry_run": True,
-                   "steps": [s.title for s in flow.steps]})
+                   "steps": [s.title for s in flow.steps],
+                   "write_count": write_count, "read_count": len(flow.steps) - write_count})
         return 0
 
     variables = dict(variables)
