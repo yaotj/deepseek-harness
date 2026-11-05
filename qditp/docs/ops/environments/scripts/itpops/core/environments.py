@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..errors import EXIT_PRECONDITION, OpsError
@@ -51,6 +51,9 @@ class Env:
     tgt_db_pdb: str
     vl_url: str
     ingress_entry: str
+    default_memory: str = "4Gi"
+    default_jvm_heap_ratio: float = 0.5
+    jvm_presets: dict = field(default_factory=dict)
 
     def as_dict(self) -> dict:
         return {
@@ -89,9 +92,10 @@ def _load_yaml_profiles() -> dict[str, dict[str, str]]:
                     config = yaml.safe_load(f)
                 if isinstance(config, dict):
                     # 过滤非字符串值（如 jvm_presets 等嵌套结构）
+                    # default_memory 可能是 "4Gi"（str）或 4（int），统一转 str
                     profiles[env_name] = {
                         k: str(v) for k, v in config.items()
-                        if isinstance(v, str) and not k.startswith("_")
+                        if not k.startswith("_") and not isinstance(v, dict)
                     }
     except ImportError:
         pass  # PyYAML 未安装，使用硬编码
