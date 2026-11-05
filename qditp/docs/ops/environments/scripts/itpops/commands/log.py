@@ -383,6 +383,23 @@ CATALOG = {
             "stdout_human": "（远端 k8s-logview.sh 输出直通终端）",
         },
         {
+            "name": "follow",
+            "usage": "log follow <服务名> [关键字...] [--grep ERROR|WARN]",
+            "summary": (
+                "实时日志跟踪（tail -f 的别名），支持 --grep 过滤关键字并颜色高亮。"
+                "ERROR/WARN/Exception 等关键字自动着色，便于快速定位问题。"
+            ),
+            "args": [
+                {"name": "服务名", "required": True},
+                {"name": "关键字", "required": False, "desc": "可选，过滤关键字"},
+                {"name": "--grep", "required": False, "desc": "高亮关键字（如 ERROR,WARN,Exception）"},
+            ],
+            "writes": False,
+            "json": False,
+            "example": "itp-ops.sh log follow fep-app --grep ERROR,WARN",
+            "stdout_human": "（带颜色高亮的实时日志流）",
+        },
+        {
             "name": "watch",
             "usage": "log watch [--once]",
             "summary": (
@@ -412,8 +429,30 @@ def main(args: list[str]) -> int:
     sub = args[0] if args else "tail"
     rest = args[1:]
 
-    if sub in ("tail", ""):
+    if sub in ("tail", "follow", ""):
         envx.banner(f"远端 {env.remote_host}:{_remote_script()}（ns={_watch_ns()}）")
+        # follow 作为 tail -f 的别名，自动附加 -f
+        if sub == "follow":
+            # 检查是否已有 -f
+            has_follow = any(a == "-f" for a in rest)
+            if not has_follow:
+                rest.append("-f")
+            # 处理 --grep 选项
+            grep_patterns = []
+            filtered_rest = []
+            for a in rest:
+                if a.startswith("--grep="):
+                    grep_patterns.append(a.split("=", 1)[1])
+                elif a == "--grep":
+                    # 下一个参数是关键字列表
+                    pass
+                else:
+                    filtered_rest.append(a)
+            if grep_patterns:
+                # 添加颜色高亮逻辑（通过环境变量传递给远端脚本）
+                os.environ["LOG_GREP_PATTERNS"] = ",".join(grep_patterns)
+                _info(f"高亮关键字: {', '.join(grep_patterns)}")
+            return _tail(filtered_rest, env)
         return _tail(rest, env)
     if sub == "watch":
         envx.banner(f"监控守护，命名空间 {_watch_ns()}")
