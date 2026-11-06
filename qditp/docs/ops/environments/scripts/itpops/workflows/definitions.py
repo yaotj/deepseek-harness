@@ -142,7 +142,7 @@ def health(o: dict) -> Flow:
             Step("云管台连通性自检", ("--env", env, "cloudos", "health"),
                  expect="可以操作"),
             Step("检查 k8s 命名空间可用", ("--env", env, "k8s", "services"),
-                 expect="NAME"),
+                 expect="account-server"),
             Step("列出默认应用状态", ("--env", env, "cloudos", "apps", "Error"),
                  expect="应用"),
         ),
