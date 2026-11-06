@@ -1,5 +1,7 @@
-"""cloudos「升级」业务段 —— 现查 k8s Deployment、组装 advanced-config、切镜像前后校验。
+"""cloudos「升级」业务段 —— 纯 CloudOS REST 组装 advanced-config、切镜像前后校验。
 
+2026-11-06：resources 快照改为 `GET /apps/{uuid}` 的 image_metadata 骨架 +
+`GET /apps/{uuid}/resources` 实时校正，**NEVER 再 ssh/kubectl 取 k8s Deployment**。
 安全判据（NEVER 同 tag 覆盖 / 跨项目拒绝 / version_id uuid 形态）已有业务级单测锁定。"""
 
 from __future__ import annotations
@@ -50,81 +52,86 @@ class _PlanError(Exception):
     """_deploy_plan 的校验失败（stderr 已打具体原因）。"""
 
 
-def _k8s_deploy_for_cloudos(app_name: str) -> dict | None:
-    """从 k8s-master 取当前 Deployment 并按 CloudOS advanced-config 可接受形态清理。
+def cloudos_deploy_snapshot(app: dict, *, set_items: dict[str, str] | None = None,
+                            del_keys: list[str] | None = None) -> tuple[dict | None, dict]:
+    """纯 CloudOS 接口构造 advanced-config 的 `resources` 快照，NEVER 碰 kubectl/ssh。
 
-    某些通过 kubectl 直接创建、后被 CloudOS 发现的应用（如 route-sentinel），
-    PATCH advanced-config 必须携带 resources，否则平台内部校验报 5000010。
-    正常应用亦可接受该字段，故部署时统一带上当前 k8s Deployment 快照。
-    取失败仅返回 None，由调用方决定是否继续（不阻塞常规发布）。
+    2026-11-06 裁定（用户要求「只用 cloudos 的接口，不用 k8s 的底层能力」）：
+    旧实现 ssh k8s-master 跑 `kubectl get deploy -o json`；现改为读
+    `GET /apps/{uuid}` 的 `metadata.image_metadata.metadata.resources[1]`
+    —— 平台自己保存的、上一次 advanced-config 成功渲染的 Deployment。
+
+    【骨架会滞后，MUST 校正】2026-11-06 测试环境实测：20/25 应用骨架里的
+    container image 比 `metadata.container_image` 旧一版（刚切过镜像），
+    直接照抄会把刚发布的镜像回退。故用 CloudOS 实时字段覆盖易漂移项：
+      · spec.replicas / containers[].resources ← GET /apps/{uuid}/resources
+      · containers[].image                    ← metadata.container_image
+      · containers[].env                      ← 同步本次 set/del 键（保留平台注入变量）
+    取不到骨架返回 (None, info)，由调用方按 IT-020 安全门决定是否拒绝。
     """
-    try:
-        import subprocess
-        ns = envx.current().k8s_ns
-        cmd = ["ssh", "-o", "ConnectTimeout=15", "k8s-master",
-               f"kubectl -n {ns} get deploy {app_name} -o json"]
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if r.returncode != 0:
-            ui.log_warn(f"取当前 Deployment 失败：{r.stderr.strip()[:200]}")
-            return None
-        dep = json.loads(r.stdout[r.stdout.find("{"):])
-    except Exception as exc:
-        ui.log_warn(f"取当前 Deployment 异常：{exc}")
-        return None
+    import copy
 
-    try:
-        ps = dep["spec"]["template"]["spec"]
+    meta = app.get("metadata") or {}
+    info: dict = {"source": "cloudos:image_metadata", "corrected": [], "warnings": []}
+    res = ((meta.get("image_metadata") or {}).get("metadata") or {}).get("resources")
+    dep = res[1] if isinstance(res, list) and len(res) > 1 and isinstance(res[1], dict) else None
+    if not dep or dep.get("kind") != "Deployment":
+        info["source"] = "none"
+        info["warnings"].append("应用详情没有 image_metadata Deployment 骨架")
+        return None, info
 
-        def pick(d, keys, defaults=None):
-            out = {}
-            defaults = defaults or {}
-            for k in keys:
-                if k in d:
-                    out[k] = d[k]
-                elif k in defaults:
-                    out[k] = defaults[k]
-            return out
+    dep = copy.deepcopy(dep)
+    live: dict = {}
+    uuid = app.get("uuid") or ""
+    if uuid:
+        try:
+            d = _req("GET", f"{APP_API}/apps/{uuid}/resources")
+            rows = (d.get("data") or []) if isinstance(d, dict) else []
+            live = rows[0] if rows and isinstance(rows[0], dict) else {}
+        except Exception as exc:
+            info["warnings"].append("GET /apps/{uuid}/resources 失败，规格沿用骨架：%s" % exc)
 
-        containers = []
-        for c in ps.get("containers") or []:
-            containers.append(pick(
-                c,
-                ["args", "command", "env", "image", "imagePullPolicy", "name", "ports",
-                 "resources", "securityContext", "volumeMounts", "lifecycle",
-                 "livenessProbe", "readinessProbe", "startupProbe"],
-                {"ports": [], "volumeMounts": [], "lifecycle": None},
-            ))
-        pod = pick(
-            ps,
-            ["containers", "dnsPolicy", "initContainers", "restartPolicy", "schedulerName",
-             "securityContext", "serviceAccount", "serviceAccountName",
-             "terminationGracePeriodSeconds", "volumes", "imagePullSecrets", "nodeSelector",
-             "affinity", "tolerations", "hostNetwork"],
-            {"initContainers": [], "volumes": [], "securityContext": {}, "dnsPolicy": "ClusterFirst",
-             "restartPolicy": "Always", "schedulerName": "default-scheduler"},
-        )
-        pod["containers"] = containers
-        return {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "metadata": {
-                "labels": dep["metadata"].get("labels") or {"app": dep["metadata"]["name"]},
-                "name": dep["metadata"]["name"],
-                "namespace": dep["metadata"]["namespace"],
-            },
-            "spec": {
-                "replicas": dep["spec"]["replicas"],
-                "selector": dep["spec"]["selector"],
-                "template": {
-                    "metadata": {"labels": dep["spec"]["template"]["metadata"].get("labels")
-                                 or {"app": dep["metadata"]["name"]}},
-                    "spec": pod,
-                },
-            },
-        }
-    except Exception as exc:
-        ui.log_warn(f"清理 Deployment 失败：{exc}")
-        return None
+    spec = dep.get("spec") or {}
+    if isinstance(live.get("replicas"), int) and live["replicas"] != spec.get("replicas"):
+        spec["replicas"] = live["replicas"]
+        info["corrected"].append("replicas")
+    pod_spec = (spec.get("template") or {}).get("spec") or {}
+    containers = pod_spec.get("containers") or []
+    cur_img = (meta.get("container_image") or "").strip()
+    live_res = live.get("resources") or {}
+    set_items = set_items or {}
+    del_keys = del_keys or []
+
+    for c in containers:
+        if not isinstance(c, dict):
+            continue
+        if cur_img and c.get("image") != cur_img:
+            c["image"] = cur_img
+            if "image" not in info["corrected"]:
+                info["corrected"].append("image")
+        if live_res and (c.get("name") == live.get("name") or len(containers) == 1):
+            c["resources"] = live_res
+            if "resources" not in info["corrected"]:
+                info["corrected"].append("resources")
+        # env 保留骨架（含平台注入变量），只把本次变更键同步进去，避免平台重渲染时回退。
+        env = c.get("env")
+        if isinstance(env, list):
+            by_name = {e.get("name"): e for e in env if isinstance(e, dict)}
+            for k in del_keys:
+                if k in by_name:
+                    env.remove(by_name[k])
+            for k, v in set_items.items():
+                if k in by_name:
+                    by_name[k]["value"] = v
+                else:
+                    env.append({"name": k, "value": v})
+            if set_items or del_keys:
+                info["corrected"].append("env")
+        elif isinstance(env, dict):
+            for k in del_keys:
+                env.pop(k, None)
+            env.update(set_items)
+    return dep, info
 
 
 def _deploy_plan(key: str, image_arg: str, version_override: str, running_img: str) -> tuple[dict, dict]:
@@ -201,7 +208,8 @@ def _deploy_plan(key: str, image_arg: str, version_override: str, running_img: s
     }
     # 对 kubectl 直接创建、后被 CloudOS 发现的应用，advanced-config PATCH 必须带 resources，
     # 否则平台内部校验会报 application.5000010（route-sentinel 实测）。
-    deploy_obj = _k8s_deploy_for_cloudos(app.get("name") or key)
+    # 2026-11-06 起快照走纯 CloudOS 接口（应用详情骨架 + /resources 实时校正），NEVER 碰 kubectl。
+    deploy_obj, snap_info = cloudos_deploy_snapshot(app)
     if deploy_obj is not None:
         body["resources"] = [None, deploy_obj]
     # version_id 只在平台确实有、且形态是 uuid 时才带（测试环境坑见 docstring）
@@ -380,8 +388,9 @@ def build_env_patch(app: dict, *, set_items: dict[str, str], del_keys: list[str]
       2. env 是整份覆盖，MUST 回传原有全部 env 再做增删改；
       3. version 不能等于当前值 → 第 4 段递增（--app-version 可覆盖）；
       4. version_id 只在 uuid 形态时带上；
-      5. resources 照抄平台陈旧模板会把副本数/规格一并回退，
-         MUST 用当前 k8s Deployment 实时快照；取不到就不要发这个 PATCH。
+      5. resources 照抄平台陈旧模板会把副本数/规格/镜像一并回退，
+         MUST 用 CloudOS 应用详情骨架 + /resources 实时字段校正（纯 REST，NEVER kubectl）；
+         取不到骨架就不要发这个 PATCH。
     """
     meta = app.get("metadata") or {}
     cur_img = (meta.get("container_image") or "").strip()
@@ -419,7 +428,8 @@ def build_env_patch(app: dict, *, set_items: dict[str, str], del_keys: list[str]
     if meta.get("service_name"):
         body["service_name"] = meta["service_name"]
 
-    deploy_obj = _k8s_deploy_for_cloudos(app.get("name") or "")
+    deploy_obj, snap_info = cloudos_deploy_snapshot(
+        app, set_items=set_items, del_keys=del_keys)
     if deploy_obj is not None:
         body["resources"] = [None, deploy_obj]
 
@@ -430,31 +440,72 @@ def build_env_patch(app: dict, *, set_items: dict[str, str], del_keys: list[str]
         "container_image": cur_img, "env_n": len(env),
         "added": added, "removed": removed,
         "resources_snapshot": "resources" in body,
+        "snapshot_source": snap_info["source"],
+        "snapshot_corrected": snap_info["corrected"],
+        "snapshot_warnings": snap_info["warnings"],
         "replicas": app.get("instance_num"),
         "container_name": body["container_name"],
     }
     return body, plan
 
 
+def verify_env_patch(plan: dict, set_items: dict[str, str], del_keys: list[str]) -> dict:
+    """PATCH 后用 CloudOS GET 复验 env 是否真的生效，NEVER 依赖 k8s / Pod / ssh。
+
+    advanced-config 是异步收敛（_deploy_wait 只看镜像与 Pod Ready，不看 env），
+    故这里对本次 set/del 的键做短轮询比对；把「下一步请人工复验」变成流程内判据。
+    """
+    uuid = plan["uuid"]
+    last: dict = {"ok": False, "env_n": 0, "mismatched": {}, "still_present": [],
+                  "version": "", "container_image": ""}
+    for attempt in range(1, 6):
+        d = _req("GET", f"{APP_API}/apps/{uuid}")
+        app = (d.get("data") or {}) if isinstance(d, dict) else {}
+        meta = app.get("metadata") or {}
+        env = meta.get("env") or {}
+        mismatched = {k: {"want": v, "got": env.get(k)}
+                      for k, v in set_items.items() if env.get(k) != v}
+        still_present = [k for k in del_keys if k in env]
+        last = {"ok": not mismatched and not still_present,
+                "env_n": len(env), "mismatched": mismatched,
+                "still_present": still_present, "attempt": attempt,
+                "version": app.get("version") or "",
+                "container_image": meta.get("container_image") or ""}
+        if last["ok"]:
+            break
+        if attempt < 5:
+            time.sleep(2)
+    return last
+
+
 def env_set(argv: list[str]) -> int:
     """cloudos env-set <app> KEY=VALUE ... [--delete KEY] [--app-version <v>] [--yes]。
 
-    不带 --yes 是只读预演；--yes 才发 PATCH。取不到当前 k8s Deployment 快照时
-    **拒绝执行**（IT-020：平台陈旧 resources 模板会回退副本数与 4C/8G 规格）。
+    全流程只发 CloudOS REST：GET 应用详情 → 组装 body（resources 快照取自详情
+    image_metadata + /resources 实时校正）→ PATCH advanced-config → 轮询收敛。
+    **NEVER 依赖 k8s-master / kubectl / ssh**——红岛 USB 网卡不通时照样能改 env。
+
+    不带 --yes 是只读预演；--yes 才发 PATCH。应用详情里取不到 Deployment 骨架时
+    **默认拒绝执行**（IT-020：陈旧 resources 模板会回退副本数与规格）；确实要在
+    无骨架应用上试，须显式 --allow-no-snapshot（不带 resources 下发）。
     """
     if not argv:
         raise OpsError(
             "用法：cloudos env-set <名字|uuid> KEY=VALUE [KEY=VALUE...] "
-            "[--delete KEY] [--app-version <v>] [--yes]", EXIT_USAGE
+            "[--delete KEY] [--app-version <v>] [--allow-no-snapshot] [--yes]", EXIT_USAGE
         )
     key = argv[0]
     set_items: dict[str, str] = {}
     del_keys: list[str] = []
     version_override = ""
+    allow_no_snapshot = False
     i = 1
     while i < len(argv):
         a = argv[i]
-        if a == "--delete":
+        if a == "--allow-no-snapshot":
+            allow_no_snapshot = True
+            i += 1
+        elif a == "--delete":
             del_keys.append(_need(argv, i + 1, "--delete 缺值"))
             i += 2
         elif a == "--app-version":
@@ -490,8 +541,15 @@ def env_set(argv: list[str]) -> int:
         ui.out("    + %s=%s" % (k, v))
     for k in sorted(plan["removed"]):
         ui.out("    - %s" % k)
-    ui.out("  resources   %s" % (
-        "携带当前 k8s Deployment 快照" if plan["resources_snapshot"] else "⚠ 未取到快照"))
+    if plan["resources_snapshot"]:
+        ui.out("  resources   CloudOS 应用详情骨架（已实时校正：%s）"
+               % (", ".join(plan["snapshot_corrected"]) or "无需校正"))
+    else:
+        ui.out("  resources   ⚠ 无 CloudOS Deployment 骨架（%s）"
+               % "；".join(plan["snapshot_warnings"]))
+    for w in plan["snapshot_warnings"]:
+        if plan["resources_snapshot"]:
+            ui.out("    ⚠ %s" % w)
     ui.out("")
     ui.out("  将提交的 body：")
     ui.out(json.dumps(body, ensure_ascii=False, indent=2)[:1200] + " ...")
@@ -506,13 +564,17 @@ def env_set(argv: list[str]) -> int:
         ui.result({"dry_run": True, "plan": plan, "body": body})
         return 0
 
-    if not plan["resources_snapshot"]:
+    if not plan["resources_snapshot"] and not allow_no_snapshot:
         raise OpsError(
-            "当前 k8s Deployment 快照取不到（ssh / 网络不可达），body 未带 resources。"
-            "NEVER 在这种情况下 PATCH：平台会按陈旧模板重渲染，把副本数与容器规格一并回退"
-            "（IT-020 §2 契约 5）。网络恢复后重试，或先确认平台 resources 现状。",
+            "CloudOS 应用详情里取不到该应用的 Deployment 骨架（image_metadata），body 未带 "
+            "resources。NEVER 在这种情况下盲发 PATCH：平台可能按陈旧模板重渲染，把副本数与"
+            "容器规格一并回退（IT-020 §2 契约 5）。"
+            "确认该应用不需要 resources 后，可显式加 --allow-no-snapshot 重试；"
+            "若平台返回 application.5000010，说明该应用 MUST 带 resources，需人工核对后处理。",
             EXIT_PRECONDITION,
         )
+    if not plan["resources_snapshot"]:
+        _err("  ⚠ --allow-no-snapshot：不带 resources 下发；平台若报 5000010 需人工处理")
 
     _err("")
     _err("已下发 PATCH /apps/%s/advanced-config ..." % plan["uuid"])
@@ -520,10 +582,26 @@ def env_set(argv: list[str]) -> int:
          json.dumps(body, ensure_ascii=False))
     _deploy_wait(plan["uuid"], plan["container_image"],
                  plan["container_name"] or plan["app_name"], str(plan["replicas"]))
+
+    # 纯 CloudOS 复验：不再把「人工去查 env」留在流程外当口头步骤。
+    verify = verify_env_patch(plan, set_items, del_keys)
     ui.out("")
-    ui.out("下一步：复验 env 已生效（cloudos env %s / Pod /proc/<pid>/cmdline）。" % plan["app_name"])
+    if verify["ok"]:
+        ui.out("  ✓ env 复验通过（CloudOS GET，第 %d 次探测）：%d 项齐全，"
+               "镜像 %s" % (verify["attempt"], verify["env_n"],
+                          verify["container_image"].rsplit(":", 1)[-1]))
+    else:
+        ui.out("  ✗ env 复验未通过：不匹配 %s；仍存在 %s"
+               % (verify["mismatched"], verify["still_present"]))
+    ui.out("  下一步：如需人工抽查，cloudos env %s / cloudos app %s。"
+           % (plan["app_name"], plan["app_name"]))
     ui.out("  JVM 堆 = max_memory - reserved_memory - max_direct_memory；"
            "红岛 8Gi=5900m、测试 4Gi=2900m，MUST 按本应用容器规格现查。")
     ui.out("  回滚：用本命令把变更的键写回原值（version 会继续递增）。")
-    ui.result({"plan": plan, "body": body, "done": True})
+    ui.result({"plan": plan, "body": body, "done": verify["ok"], "verify": verify})
+    if not verify["ok"]:
+        raise OpsError(
+            "PATCH 已下发但 CloudOS 复验发现 env 未生效（%s / %s）；"
+            "NEVER 视为升级成功，请查平台 advanced-config 异步收敛状态"
+            % (verify["mismatched"], verify["still_present"]), EXIT_EXEC)
     return 0

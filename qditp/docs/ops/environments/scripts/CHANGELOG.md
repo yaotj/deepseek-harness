@@ -3,6 +3,33 @@
 > 2026-11-04 由 `README.md`「六、重构与迁移记录」拆出，历史条目按**新 → 旧**排列、内容逐字保留。
 > 版本号真源是 `itpops/__init__.py` 的 `__version__`（`pyproject.toml` 动态读取）。
 
+## 2.9.4+（未发版）— 2026-11-06 环境变量升级流程纯 CloudOS 化
+
+> 用户裁定：**改 env 只用 CloudOS 接口，不用 k8s 底层能力**。
+
+- `cloudos env-set` 的 `resources` 快照原本 ssh `k8s-master` 跑
+  `kubectl get deploy -o json`；改为读 `GET /apps/{uuid}` 的
+  `metadata.image_metadata.metadata.resources[1]`（平台自存 Deployment 骨架）。
+- **骨架会滞后**：2026-11-06 测试环境实测 20/25 应用骨架镜像比
+  `metadata.container_image` 旧一版（刚切过镜像）。新增 `cloudos_deploy_snapshot()`，
+  用 CloudOS 实时字段校正：`image` ← `container_image`，`replicas` / 容器规格 ←
+  `GET /apps/{uuid}/resources`，本次 env 变更同步进骨架（保留平台注入变量）。
+  另有 5 个应用无骨架，默认拒绝 PATCH（IT-020 安全门），显式 `--allow-no-snapshot`
+  才不带 `resources` 下发。
+- `cloudos deploy` 的 advanced-config 快照同源改造；`deploy.py` 已无
+  `kubectl` / `ssh` / `subprocess` 调用。
+- **PATCH 后自动复验**：新增 `verify_env_patch()`，用 CloudOS GET 短轮询比对本次
+  set/del 键，未生效直接报 `EXIT_EXEC`，不再把「请人工复验」留在流程外。
+- 新增只读命令 `cloudos env-check [应用...] [--all]`：巡检跨环境串线（ERROR）、
+  JVM 三件套缺项 / 无骨架（WARN）、骨架镜像滞后（INFO）。基础设施应用
+  `metadata.env` 为空降为 WARN，避免误报。
+- 单测 140 → 150：删 2 个旧 kubectl 降级用例，补 `CloudOsSnapshotTest`(4) /
+  `EnvVerifyTest`(3) / `EnvCheckTest`(4) / `--allow-no-snapshot` / env 空误报回归。
+- 真实测试环境验证：`env-set face-pay-server max_memory=4000 --yes` 两次均成功，
+  「已收敛：1 个实例全部运行在 1.0.93」镜像未回退、规格仍 1000m/2048Mi↔2000m/4096Mi、
+  env 25 项未丢、自动复验通过；全量 `env-check` ERROR 0。
+- 已触碰测试环境（face-pay-server version 递增至 1.0.93.2）。
+
 ## 2.9.4 — 2026-11-05 补全收尾：zsh 文件路径补全 + 向导 Ctrl+C 优雅退出
 
 - zsh 侧之前只补了模块目录词表，`--jar/--dockerfile` 的 `compgen -f` 文件路径补全只有 bash 有。

@@ -1,7 +1,7 @@
 """cloudos 业务级单测 —— 按业务段拆分 impl.py 的行为基线。
 
 2026-11-04：既有单测主要覆盖 CLI 契约，这里补的是**真实业务判据**
-（规格换算、镜像引用安全校验、uuid 解析、参数解析、部署计划、k8s 快照降级），
+（规格换算、镜像引用安全校验、uuid 解析、参数解析、部署计划、纯 CloudOS 快照校正），
 作为把 impl.py 拆成 common / apps / scaling / deploy / images 的前提。
 
 拆分前后跑的是同一组断言，只是导入与 mock 目标改指向各业务段模块；
@@ -16,9 +16,14 @@ from contextlib import redirect_stderr, redirect_stdout
 from types import SimpleNamespace
 from unittest import mock
 
-from itpops.cloudos import common, deploy, images, impl, scaling
+from itpops.cloudos import common, deploy, envcheck, images, impl, scaling
 from itpops.core.ui import Ctx, set_context
 from itpops.errors import EXIT_PRECONDITION, EXIT_USAGE, OpsError
+
+# 2026-11-06：resources 快照改为纯 CloudOS 接口后的 mock 返回值
+_NO_SNAP = (None, {"source": "none", "corrected": [], "warnings": ["测试：无骨架"]})
+_SNAP_OK = ({"kind": "Deployment"}, {"source": "cloudos:image_metadata",
+                                    "corrected": [], "warnings": []})
 
 
 class SpecUnitsTest(unittest.TestCase):
@@ -130,7 +135,7 @@ class DeployPlanTest(unittest.TestCase):
     def _plan(self, image_arg, meta_extra=None, version_override=""):
         with mock.patch.object(deploy, "resolve_app_uuid", return_value="U1"), \
                 mock.patch.object(deploy, "_req", return_value=self._app(meta_extra)), \
-                mock.patch.object(deploy, "_k8s_deploy_for_cloudos", return_value=None), \
+                mock.patch.object(deploy, "cloudos_deploy_snapshot", return_value=_NO_SNAP), \
                 redirect_stderr(io.StringIO()):
             return deploy._deploy_plan("app", image_arg, version_override, "reg/itp/app:1.0.0")
 
@@ -165,27 +170,75 @@ class DeployPlanTest(unittest.TestCase):
         self.assertEqual(body["version"], "9.9.9")
 
 
-class K8sSnapshotTest(unittest.TestCase):
-    """拆分 AST 审计发现的潜伏 bug：异常分支调用了未定义的 `_warn`，会抛 NameError
-    而不是按 docstring 承诺「仅返回 None、不阻塞常规发布」。修复后锁定该降级行为。"""
+class CloudOsSnapshotTest(unittest.TestCase):
+    """2026-11-06 裁定：env 升级 resources 快照只走 CloudOS REST，NEVER ssh/kubectl。
 
-    def _ctx(self):
-        return mock.patch.object(deploy.envx, "current",
-                                 return_value=SimpleNamespace(k8s_ns="itp"))
+    锁定三条业务判据：滞后镜像按 container_image 校正、replicas/规格按 /resources
+    实时值校正、本次 env 变更同步进快照；并断言全程零 subprocess 调用。
+    """
 
-    def test_ssh_failure_degrades_to_none(self):
-        r = SimpleNamespace(returncode=1, stderr="ssh: unreachable", stdout="")
-        err = io.StringIO()
-        with mock.patch("subprocess.run", return_value=r), self._ctx(), redirect_stderr(err):
-            self.assertIsNone(deploy._k8s_deploy_for_cloudos("app"))
-        self.assertIn("取当前 Deployment 失败", err.getvalue())
+    @staticmethod
+    def _app(*, image="reg/itp/app:1.0.93", snap_image="reg/itp/app:1.0.92"):
+        dep = {
+            "apiVersion": "apps/v1", "kind": "Deployment",
+            "metadata": {"name": "app", "namespace": "itp", "labels": {"app": "app"}},
+            "spec": {"replicas": 1, "selector": {"matchLabels": {"app": "app"}},
+                     "template": {"metadata": {"labels": {"app": "app"}},
+                                  "spec": {"containers": [{
+                                      "name": "app", "image": snap_image,
+                                      "resources": {"requests": {"cpu": "1", "memory": "2Gi"}},
+                                      "env": [{"name": "SERVER_PORT", "value": "8080"},
+                                              {"name": "max_memory", "value": "1000"}],
+                                  }]}}},
+        }
+        meta = {"container_image": image, "env": {"SERVER_PORT": "8080"},
+                "image_metadata": {"metadata": {"resources": [None, dep]}}}
+        return {"uuid": "U1", "name": "app", "metadata": meta, "instance_num": 2}
 
-    def test_ssh_exception_degrades_to_none(self):
-        err = io.StringIO()
-        with mock.patch("subprocess.run", side_effect=OSError("boom")), \
-                self._ctx(), redirect_stderr(err):
-            self.assertIsNone(deploy._k8s_deploy_for_cloudos("app"))
-        self.assertIn("取当前 Deployment 异常", err.getvalue())
+    @staticmethod
+    def _live(replicas=2):
+        return {"data": [{"name": "app", "replicas": replicas,
+                          "resources": {"requests": {"cpu": "4000m", "memory": "8192Mi"},
+                                        "limits": {"cpu": "4000m", "memory": "8192Mi"}}}]}
+
+    def test_no_image_metadata_returns_none(self):
+        app = self._app()
+        app["metadata"].pop("image_metadata")
+        dep, info = deploy.cloudos_deploy_snapshot(app)
+        self.assertIsNone(dep)
+        self.assertEqual(info["source"], "none")
+
+    def test_stale_image_and_specs_corrected_from_cloudos(self):
+        with mock.patch.object(deploy, "_req", return_value=self._live()) as req, \
+                mock.patch("subprocess.run", side_effect=AssertionError("NEVER 调 kubectl")):
+            dep, info = deploy.cloudos_deploy_snapshot(self._app())
+        c = dep["spec"]["template"]["spec"]["containers"][0]
+        self.assertEqual(c["image"], "reg/itp/app:1.0.93")     # 不是骨架里的 1.0.92
+        self.assertEqual(dep["spec"]["replicas"], 2)
+        self.assertEqual(c["resources"]["requests"]["cpu"], "4000m")
+        self.assertIn("image", info["corrected"])
+        self.assertEqual(req.call_args_list[0].args[0], "GET")
+        self.assertIn("/resources", req.call_args_list[0].args[1])
+
+    def test_env_change_is_synced_into_snapshot(self):
+        with mock.patch.object(deploy, "_req", return_value=self._live()):
+            dep, _ = deploy.cloudos_deploy_snapshot(
+                self._app(), set_items={"max_memory": "4000", "NEW_KEY": "v"},
+                del_keys=["SERVER_PORT"])
+        env = dep["spec"]["template"]["spec"]["containers"][0]["env"]
+        by = {e["name"]: e.get("value") for e in env}
+        self.assertEqual(by["max_memory"], "4000")
+        self.assertEqual(by["NEW_KEY"], "v")
+        self.assertNotIn("SERVER_PORT", by)
+
+    def test_resources_endpoint_failure_keeps_skeleton_but_fixes_image(self):
+        with mock.patch.object(deploy, "_req", side_effect=OSError("boom")):
+            dep, info = deploy.cloudos_deploy_snapshot(self._app())
+        self.assertIsNotNone(dep)
+        self.assertTrue(any("失败" in w for w in info["warnings"]))
+        c = dep["spec"]["template"]["spec"]["containers"][0]
+        self.assertEqual(c["image"], "reg/itp/app:1.0.93")     # 校正不依赖该接口
+        self.assertEqual(c["resources"]["requests"]["cpu"], "1")  # 规格沿用骨架
 
 
 class EnvSetTest(unittest.TestCase):
@@ -215,7 +268,7 @@ class EnvSetTest(unittest.TestCase):
         self.assertEqual(deploy._bump_patch_version(""), "0.0.1.1")
 
     def test_env_is_full_replacement_with_hidden_contract(self):
-        with mock.patch.object(deploy, "_k8s_deploy_for_cloudos", return_value={"kind": "Deployment"}):
+        with mock.patch.object(deploy, "cloudos_deploy_snapshot", return_value=_SNAP_OK):
             body, plan = deploy.build_env_patch(
                 self._app(),
                 set_items={"max_memory": "4000", "reserved_memory": "1000",
@@ -237,14 +290,14 @@ class EnvSetTest(unittest.TestCase):
         self.assertEqual(cm.exception.exit_code, EXIT_PRECONDITION)
 
     def test_same_version_is_rejected(self):
-        with mock.patch.object(deploy, "_k8s_deploy_for_cloudos", return_value=None):
+        with mock.patch.object(deploy, "cloudos_deploy_snapshot", return_value=_NO_SNAP):
             with self.assertRaises(OpsError) as cm:
                 deploy.build_env_patch(self._app(), set_items={"a": "b"}, del_keys=[],
                                        version_override="1.0.91")
         self.assertEqual(cm.exception.exit_code, EXIT_USAGE)
 
     def test_delete_and_non_uuid_version_id_is_dropped(self):
-        with mock.patch.object(deploy, "_k8s_deploy_for_cloudos", return_value=None):
+        with mock.patch.object(deploy, "cloudos_deploy_snapshot", return_value=_NO_SNAP):
             body, plan = deploy.build_env_patch(
                 self._app({"version_id": "not-a-uuid"}), set_items={}, del_keys=["DB_HOST"])
         self.assertNotIn("DB_HOST", body["env"])
@@ -256,7 +309,7 @@ class EnvSetTest(unittest.TestCase):
         set_context(Ctx())                                     # 不带 --yes
         with mock.patch.object(deploy, "resolve_app_uuid", return_value="U1"), \
                 mock.patch.object(deploy, "_req", return_value={"data": self._app()}) as req, \
-                mock.patch.object(deploy, "_k8s_deploy_for_cloudos", return_value=None), \
+                mock.patch.object(deploy, "cloudos_deploy_snapshot", return_value=_NO_SNAP), \
                 self._profile(), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             rc = deploy.env_set(["face-pay-server", "max_memory=4000"])
         self.assertEqual(rc, 0)
@@ -268,7 +321,7 @@ class EnvSetTest(unittest.TestCase):
         try:
             with mock.patch.object(deploy, "resolve_app_uuid", return_value="U1"), \
                     mock.patch.object(deploy, "_req", return_value={"data": self._app()}) as req, \
-                    mock.patch.object(deploy, "_k8s_deploy_for_cloudos", return_value=None), \
+                    mock.patch.object(deploy, "cloudos_deploy_snapshot", return_value=_NO_SNAP), \
                     self._profile(), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 with self.assertRaises(OpsError) as cm:
                     deploy.env_set(["face-pay-server", "max_memory=4000"])
@@ -278,13 +331,114 @@ class EnvSetTest(unittest.TestCase):
         finally:
             set_context(Ctx())
 
+    def test_allow_no_snapshot_performs_patch_without_resources(self):
+        """显式开关是唯一逃生通道：无骨架时不带 resources 下发，且 MUST 有 PATCH。"""
+        set_context(Ctx(yes=True))
+        try:
+            with mock.patch.object(deploy, "resolve_app_uuid", return_value="U1"), \
+                    mock.patch.object(deploy, "_req", return_value={"data": self._app()}) as req, \
+                    mock.patch.object(deploy, "cloudos_deploy_snapshot", return_value=_NO_SNAP), \
+                    mock.patch.object(deploy, "_deploy_wait", return_value=None), \
+                    mock.patch.object(deploy, "verify_env_patch",
+                                      return_value={"ok": True, "env_n": 3, "mismatched": {},
+                                                    "still_present": [], "attempt": 1,
+                                                    "version": "1.0.91.1",
+                                                    "container_image": "reg/itp/app:1.0.91"}), \
+                    self._profile(), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                rc = deploy.env_set(["face-pay-server", "max_memory=4000",
+                                     "--allow-no-snapshot"])
+            self.assertEqual(rc, 0)
+            self.assertTrue(any(c.args[0] == "PATCH" for c in req.call_args_list))
+        finally:
+            set_context(Ctx())
+
+
+class EnvVerifyTest(unittest.TestCase):
+    """2026-11-06：PATCH 后自动复验只走 CloudOS GET，NEVER 依赖 kubectl/Pod。"""
+
+    PLAN = {"uuid": "U1", "app_name": "app"}
+
+    @staticmethod
+    def _detail(env):
+        return {"data": {"uuid": "U1", "version": "1.0.0.1",
+                         "metadata": {"env": env,
+                                      "container_image": "reg/itp/app:1.0.0"}}}
+
+    def test_set_and_delete_verified_via_cloudos_get(self):
+        with mock.patch.object(deploy, "_req", return_value=self._detail(
+                {"A": "1", "NEW": "v"})) as req, \
+                mock.patch.object(deploy.time, "sleep") as sl:
+            r = deploy.verify_env_patch(self.PLAN, {"NEW": "v"}, ["OLD"])
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["env_n"], 2)
+        self.assertEqual(r["attempt"], 1)
+        self.assertFalse(sl.called)
+        self.assertEqual(req.call_args_list[0].args[0], "GET")
+
+    def test_missing_key_retries_then_reports_failure(self):
+        with mock.patch.object(deploy, "_req", return_value=self._detail({"A": "1"})), \
+                mock.patch.object(deploy.time, "sleep") as sl:
+            r = deploy.verify_env_patch(self.PLAN, {"NEW": "v"}, [])
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["mismatched"], {"NEW": {"want": "v", "got": None}})
+        self.assertEqual(r["attempt"], 5)
+        self.assertEqual(sl.call_count, 4)
+
+    def test_deleted_key_still_present_is_failure(self):
+        with mock.patch.object(deploy, "_req", return_value=self._detail({"OLD": "x"})), \
+                mock.patch.object(deploy.time, "sleep"):
+            r = deploy.verify_env_patch(self.PLAN, {}, ["OLD"])
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["still_present"], ["OLD"])
+
+
+class EnvCheckTest(unittest.TestCase):
+    """2026-11-06 新增的纯 CloudOS 只读巡检：跨环境串线 MUST 报 ERROR。"""
+
+    @staticmethod
+    def _app(env, *, snap="reg/itp/app:1.0.0", image="reg/itp/app:1.0.0"):
+        dep = {"spec": {"template": {"spec": {"containers": [
+            {"name": "app", "image": snap}]}}}}
+        return {"name": "app", "namespace": "itp", "version": "1.0.0",
+                "metadata": {"env": env, "container_image": image,
+                             "image_metadata": {"metadata": {"resources": [None, dep]}}}}
+
+    def test_cross_env_service_url_is_error(self):
+        r = envcheck.check_app(self._app({
+            "SERVICE_ACCOUNT_URL": "http://account.itpb.svc:8080",
+            "DB_HOST": "172.20.222.3:1521",
+            "max_memory": "4000", "reserved_memory": "1000", "max_direct_memory": "100"}))
+        self.assertEqual(r["errors"], 1)
+        self.assertIn("红岛", r["issues"][0]["msg"])
+
+    def test_stale_snapshot_is_info_not_error(self):
+        r = envcheck.check_app(self._app(
+            {"max_memory": "4000", "reserved_memory": "1000", "max_direct_memory": "100"},
+            snap="reg/itp/app:0.9.9", image="reg/itp/app:1.0.0"))
+        self.assertEqual(r["errors"], 0)
+        self.assertTrue(any(i["level"] == "INFO" for i in r["issues"]))
+
+    def test_empty_env_is_warn_not_error(self):
+        """基础设施应用（VL / httpbin）平台模型不记 env，NEVER 误报 ERROR。"""
+        r = envcheck.check_app(self._app({}))
+        self.assertEqual(r["errors"], 0)
+        self.assertEqual(sum(1 for i in r["issues"] if "JVM" in i["msg"]), 0)
+
+    def test_missing_snapshot_is_warn(self):
+        app = self._app({"max_memory": "4000", "reserved_memory": "1000",
+                         "max_direct_memory": "100"})
+        app["metadata"].pop("image_metadata")
+        r = envcheck.check_app(app)
+        self.assertEqual(r["errors"], 0)
+        self.assertTrue(any("allow-no-snapshot" in i["msg"] for i in r["issues"]))
+
 
 class CatalogShapeTest(unittest.TestCase):
     def test_catalog_is_complete(self):
         cat = impl.CATALOG
         self.assertEqual(cat["name"], "cloudos")
         names = [s["name"] for s in cat["subcommands"]]
-        self.assertEqual(len(names), 31)
+        self.assertEqual(len(names), 32)  # 2026-11-06 +env-check
         self.assertEqual(len(names), len(set(names)))
         for sub in cat["subcommands"]:
             self.assertIsInstance(sub["writes"], bool)

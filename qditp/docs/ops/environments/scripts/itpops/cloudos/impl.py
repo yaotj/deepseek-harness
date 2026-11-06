@@ -24,6 +24,7 @@ from ..cli.suggest import append_hint
 from .apps import _app_action, _app_detail, _app_env, _app_logs, _app_pods, _app_service, _apps, _auth_debug, _health, _logout, _svc_create
 from .common import APP_API, CONTAINER_API_PREFIX, _help_text, _need, _req_json
 from .deploy import _app_deploy, env_set
+from .envcheck import CATALOG as _ENVCHECK_CATALOG, env_check
 from .images import _cmd_build, _cmd_plan, _cmd_probe, _harbor_project_default, _image_parse_args, _pkg_upload_cmd
 from .scaling import _app_scale, _app_spec_set, _app_spec_show, _scale_all, _spec_all
 
@@ -176,13 +177,15 @@ CATALOG = {
          "writes": True, "example": "itp-ops.sh --env test cloudos pkg-upload /path/app.jar app 1.0.0 --yes",
          "stdout_human": "[INFO]    ✓ 已上传（id=…；回查：itp-ops.sh cloudos pkg-list，按 name+version 找）",
          "json_data": {"id": "cGjEhXIdOe", "name": "app", "version": "1.0.0"}},
+        _ENVCHECK_CATALOG,
         {"name": "env-set",
-         "usage": "cloudos env-set <名字|uuid> KEY=VALUE [KEY=VALUE...] [--delete KEY] [--app-version <v>]",
-         "summary": "改应用 env（advanced-config 全量替换）；内置 IT-020 隐藏契约：container_image 必填 / version 第 4 段递增 / 只回传 uuid 形态 version_id / 带当前 k8s Deployment 快照。不带 --yes 是预演，快照取不到时拒绝执行",
+         "usage": "cloudos env-set <名字|uuid> KEY=VALUE [KEY=VALUE...] [--delete KEY] [--app-version <v>] [--allow-no-snapshot]",
+         "summary": "改应用 env（advanced-config 全量替换）；纯 CloudOS REST，NEVER 依赖 kubectl/ssh；内置 IT-020 隐藏契约：container_image 必填 / version 第 4 段递增 / 只回传 uuid 形态 version_id / 带 CloudOS 应用详情 Deployment 快照（按 /resources 实时校正）。不带 --yes 是预演，无骨架时默认拒绝，可显式 --allow-no-snapshot",
          "args": [{"name": "名字|uuid", "required": True},
                   {"name": "KEY=VALUE", "required": True},
                   {"name": "--delete KEY", "required": False},
-                  {"name": "--app-version <v>", "required": False}],
+                  {"name": "--app-version <v>", "required": False},
+                  {"name": "--allow-no-snapshot", "required": False}],
          "writes": True,
          "example": "itp-ops.sh --env test cloudos env-set face-pay-server max_memory=4000 reserved_memory=1000 max_direct_memory=100 --yes",
          "stdout_human": "===== 应用 env 变更预演 … env 变更 新增/修改 3 项，删除 0 项，共 25 项全量回传 …",
@@ -245,6 +248,8 @@ def main(args: list[str]) -> int:
         return _scale_all(rest)
     if sub in ("deploy", "upgrade"):
         return _app_deploy(rest)
+    if sub == "env-check":
+        return env_check(rest)
     if sub == "env-set":
         return env_set(rest)
     if sub == "spec":
