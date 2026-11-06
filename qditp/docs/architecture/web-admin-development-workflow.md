@@ -46,7 +46,18 @@
 - `web-server` 端口 8080 与三个支付宝模块冲突，同机启动必冲突。
 - **API 路径前缀 MUST 与 nginx 反代一致**（`/web-server/`、`/para-server/`、`/face-pay-server/`…）。前缀写错**不报 404**，而是落进静态 catch-all：GET/HEAD 回退 `index.html` 返 200（**假成功**），PUT/POST/DELETE 判 405 ⇒ 前端只显示「系统接口NNN异常」且**后端零日志**。排查「接口异常但查不到后端日志」先核前缀。
 - **侧边栏菜单样式 MUST 写全局 `web/src/assets/styles/sidebar.scss`**：`Sidebar/index.vue` 的 `<style scoped>` 对菜单 DOM **一律无效**（scope 哈希不匹配）。改样式前先确认「编译出的选择器能否命中真实元素」，否则改完不生效还查不出原因。
-- **码表唯一真源、各码值空间 MUST 独立**：`utils/payChannel.js` / `utils/cardType.js` / `utils/f2fChannel.js` 与 alipay 页的发卡渠道分属**不同空间**，`02`/`03` 在各空间含义完全不同 —— **「同列出现」≠「同一码值空间」**，合并即把设备说成卡种。
+- **码表唯一真源、各码值空间 MUST 独立**：`utils/payChannel.js` / `utils/cardType.js` / `utils/f2fChannel.js` / `utils/orderStatusLabels.js` 与 alipay 页的发卡渠道分属**不同空间**，`02`/`03` 在各空间含义完全不同 —— **「同列出现」≠「同一码值空间」**，合并即把设备说成卡种。
+- **状态类显示 MUST 翻成「编码-中文」**（2026-11-06 业主裁决，口径就是 `utils/codeLabel.js` 的现行约定，**不是纯中文**）：
+  界面直接渲染 `ACTIVE` / `FAIL` / `SUCCESS` 这类原始码属缺陷。新增状态列 MUST 走 `formatCodeLabel` + 对应域码表，
+  NEVER 在页面里内联一份映射。`orderStatusLabels.js` 里四张表（扣费 / 退款 / 补款支付 / 补款收口）字面值大量重叠但语义互不相通，**NEVER 合并**。
+- **业务动作按钮一律「图标 + 文字」**（2026-11-06 裁决）：退款 / 解约 / 解除拉黑 / 重试这类动作按钮 MUST 带中文文字，
+  基准写法是 `link type="danger" icon="Money"` + 文字（见 `trans/daily-ticket/refund/index.vue`）。
+  纯图标 + tooltip 的写法**只对 RuoYi 原生 CRUD 页（`system/` `monitor/` `tool/` 与代码生成器产物）豁免**，
+  业务页不算豁免范围 —— 动作含义不该靠悬停才知道。⚠ 图标选错比没文字更误导：
+  「解除黑名单」曾经借用 `Delete` 红垃圾桶图标，运营读成「删记录」。
+- **页面改了显示口径 MUST 同步服务端异步导出**：`web-admin` 的 `service/export/executor/*` 是另一套渲染，
+  前端翻中文而导出仍吐裸码就是不一致（`OvertimeRefundableExportExecutor` 已配套 `debitStatusLabel`）。
+  跨运行时无法共享，改状态集合时 **MUST 两边一起改**。
 
 ## 4. 构建与运行
 

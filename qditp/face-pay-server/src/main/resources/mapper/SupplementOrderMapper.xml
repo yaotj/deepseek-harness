@@ -124,6 +124,39 @@
         ORDER BY ID
     </select>
 
+    <!-- 综管台扣费明细页回填「补款金额 / 补款支付渠道 / 补款订单号」用。
+         由 SUPPLEMENT_ORDER_ITEM 驱动（走 IDX_SUPPLEMENT_ITEM_ORIG），再回连主表取金额与渠道；
+         一个原扣费订单可能对应多条补款明细，故返回扁平列表、由调用方按 origOrderNo 分组。
+         调用方 MUST 限长（服务层上限 200），Oracle IN 列表硬顶 1000。 -->
+    <resultMap id="SupplementOrigRefMap" type="com.chinasofti.huateng.facepay.entity.SupplementOrigRef">
+        <result column="ORIG_ORDER_NO"       property="origOrderNo"/>
+        <result column="SUPPLEMENT_ORDER_NO" property="supplementOrderNo"/>
+        <result column="TOTAL_AMOUNT"        property="totalAmount"/>
+        <result column="PAY_STATUS"          property="payStatus"/>
+        <result column="SIGN_CHANNEL_CODE"   property="signChannelCode"/>
+        <result column="SETTLE_STATUS"       property="settleStatus"/>
+        <result column="TXN_DATE"            property="txnDate"/>
+        <result column="PAY_TIME"            property="payTime"/>
+    </resultMap>
+
+    <select id="selectRefsByOrigOrderNos" resultMap="SupplementOrigRefMap">
+        SELECT I.ORIG_ORDER_NO     AS ORIG_ORDER_NO,
+               O.ORDER_NO          AS SUPPLEMENT_ORDER_NO,
+               O.TOTAL_AMOUNT      AS TOTAL_AMOUNT,
+               O.PAY_STATUS        AS PAY_STATUS,
+               O.SIGN_CHANNEL_CODE AS SIGN_CHANNEL_CODE,
+               I.SETTLE_STATUS     AS SETTLE_STATUS,
+               O.TXN_DATE          AS TXN_DATE,
+               O.PAY_TIME          AS PAY_TIME
+        FROM SUPPLEMENT_ORDER_ITEM I
+        JOIN SUPPLEMENT_ORDER O ON O.ORDER_NO = I.ORDER_NO
+        WHERE I.ORIG_ORDER_NO IN
+        <foreach collection="origOrderNos" item="no" open="(" separator="," close=")">
+            #{no,jdbcType=VARCHAR}
+        </foreach>
+        ORDER BY I.ORIG_ORDER_NO, I.ID
+    </select>
+
     <update id="updateItemSettleStatus">
         UPDATE SUPPLEMENT_ORDER_ITEM
         SET SETTLE_STATUS = #{settleStatus,jdbcType=VARCHAR},

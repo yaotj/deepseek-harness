@@ -86,7 +86,7 @@
       <el-table-column label="实付(元)" width="110" align="center">
         <template #default="scope">{{ fenToYuan(scope.row.totalAmount) }}</template>
       </el-table-column>
-      <el-table-column label="扣费状态" prop="debitStatus" width="110" align="center" />
+      <el-table-column label="扣费状态" prop="debitStatus" width="150" align="center"><template #default="{ row }">{{ debitStatusLabel(row.debitStatus) }}</template></el-table-column>
       <el-table-column label="出站时间" prop="outTime" min-width="150" align="center" />
     </el-table>
 
@@ -132,6 +132,7 @@ import { submitAsyncExportTask } from '@/api/monitor/asyncExport'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { defaultTodayRange } from '@/utils/dateRange'
 import { exportToExcel } from '@/utils/excelExport'
+import { debitStatusLabel } from '@/utils/orderStatusLabels'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYY-MM-DD'
@@ -265,7 +266,7 @@ function handleExport() {
       exitStation: row.exitStationName || row.outStation || '-',
       overtimeAmount: fenToYuan(row.overtimeAmount),
       totalAmount: fenToYuan(row.totalAmount),
-      debitStatus: row.debitStatus,
+      debitStatus: debitStatusLabel(row.debitStatus),
       outTime: row.outTime
     }))
     const headers = [

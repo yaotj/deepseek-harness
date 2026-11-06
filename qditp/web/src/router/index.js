@@ -119,6 +119,13 @@ export const dynamicRoutes = [
         meta: { title: '扣费信息', noCache: true }
       },
       {
+        // 扣费订单为主表、展开行补闸机交易，并回填退款与补款；与上面两页并存，旧入口不下线。
+        path: 'order-detail',
+        component: () => import('@/views/trans/user/order-detail/index.vue'),
+        name: 'UserOrderDetail',
+        meta: { title: '扣费明细合并视图', noCache: true }
+      },
+      {
         path: 'ride-status',
         component: () => import('@/views/trans/user/ride-status/index.vue'),
         name: 'UserRideStatus',

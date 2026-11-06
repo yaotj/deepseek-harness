@@ -33,6 +33,7 @@
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
         <el-button type="warning" icon="Download" :disabled="exporting || orders.length === 0" :loading="exporting" @click="handleExport">导出 Excel</el-button>
+        <el-button icon="Connection" @click="goMergedView">合并视图</el-button>
         <el-button icon="Back" @click="router.back()">返回</el-button>
       </el-form-item>
     </el-form>
@@ -52,7 +53,7 @@
         />
       </template>
       <el-table-column label="扣费订单号" prop="orderNo" min-width="210" show-overflow-tooltip />
-      <el-table-column label="扣费状态" prop="debitStatus" width="110" align="center"><template #default="{ row }"><el-tag :type="statusType(row.debitStatus)">{{ row.debitStatus }}</el-tag></template></el-table-column>
+      <el-table-column label="扣费状态" prop="debitStatus" width="150" align="center"><template #default="{ row }"><el-tag :type="statusType(row.debitStatus)">{{ debitStatusLabel(row.debitStatus) }}</el-tag></template></el-table-column>
       <el-table-column label="逻辑卡号" prop="cardId" min-width="170" show-overflow-tooltip />
       <el-table-column label="进站站点" width="110" align="center"><template #default="{ row }">{{ row.entryStationName || row.inStation || '-' }}</template></el-table-column>
       <el-table-column label="出站站点" width="110" align="center"><template #default="{ row }">{{ row.exitStationName || row.outStation || '-' }}</template></el-table-column>
@@ -98,6 +99,7 @@
 import { listGateTxnPays, requestGateTxnPayRefund } from '@/api/trans/userSearch'
 import { defaultTodayRange } from '@/utils/dateRange'
 import { signChannelLabel } from '@/utils/payChannel'
+import { debitStatusLabel } from '@/utils/orderStatusLabels'
 import { exportToExcel } from '@/utils/excelExport'
 
 /** 必须与模板里 el-date-picker 的 value-format 保持一致。 */
@@ -188,6 +190,11 @@ function canRefund(row) {
   return ['SUCCESS', 'PROCESSING'].includes(row.debitStatus) && Number(row.totalAmount) > 0 && !['0445', '0446', '0447', '0448'].includes(row.cardType)
 }
 
+/** 跳到合并视图：同一批扣费订单，额外带退款/补款列与闸机交易展开行。 */
+function goMergedView() {
+  router.push({ path: '/trans/user-detail/order-detail', query: { cardId: queryParams.cardId.trim() } })
+}
+
 function openRefund(row) {
   currentOrder.value = row
   refundForm.amountYuan = Number(row.totalAmount) / 100
@@ -233,7 +240,7 @@ function handleExport() {
   try {
     const data = orders.value.map((row) => ({
       orderNo: row.orderNo,
-      debitStatus: row.debitStatus,
+      debitStatus: debitStatusLabel(row.debitStatus),
       cardId: row.cardId,
       entryStation: row.entryStationName || row.inStation || '-',
       exitStation: row.exitStationName || row.outStation || '-',

@@ -34,6 +34,17 @@
   - `reqContractNo` 即「渠道签约流水号」，两表都有该列（`USER_ITP_REG_INFO.REQ_CONTRACT_NO` / `ALIPAY_USER_INFO.REQ_CONTRACT_NO`，均**无索引**，靠「至少一个条件」兜住）。
   - 「已注销用户查询」的数据源 `USER_ITP_REG_LOG` **没有该列**，`/page/user/itp/canceled-log/search` 收到 `reqContractNo` 直接拒绝，前端也不给入口 —— 静默忽略会让运营把「查不了」读成「没有销户记录」。
   - `/page/user/alipay/search` 另有第二个调用方：`rpc` 的 `AlipayAccountClient.searchAlipayUsers` → web-admin `ALIPAY_USER` 异步导出，改该端点参数 **MUST 同步 model 的 `AlipayUserExportDTO` + rpc + web-admin**。
+- 扣费明细合并视图 → 主表复用 `gate-txn-pay-server` 的 `/page/gate-txn-pay`，另需两个**按订单号批量回填**端点（2026-11-06 新增）：
+  - `GET /pay-sign-server/page/pay-refund/by-orders?orderNos=…`（pay-sign-server 的**首个** `/page` 端点）读 `PAY_REFUND_DETAIL`。
+    **NEVER 改用它现成的 `POST /ci/app/queryPayTxnBatch`**：那个读 `PAY_TXN_DETAIL`，而 2026-11-06 实测闸机扣费成功的
+    287,906 行里只有 71 行在那张表有记录（它关联的是支付中心侧流水），拿它做「退款状态」列会对运营最关心的单永远显示空；
+    `PAY_REFUND_DETAIL.ORDER_NO` 才是与 `GATE_TXN_PAY.ORDER_NO` 同域的键（49 笔退款全挂在扣费成功的单上、挂扣费失败的是 0 笔）。
+  - `GET /face-pay-server/page/face-pay/supplement-orders/by-orig?origOrderNos=…` 按 `SUPPLEMENT_ORDER_ITEM.ORIG_ORDER_NO`
+    反查补款单 —— 此前该明细表**从未被任何 page 级查询 select 过**，前端拿不到可对账的字段。
+  - 两个端点上限都是 200 个订单号（一页 100 行留余量，远低于 Oracle IN 列表 1000 硬顶）。
+  - 展开行走 `ticket-server` 现有 `/page/qrcode-txn-detail`（按卡号 + 当日窗取回，前端用
+    `CARD_ID + TRX_TYPE + HANDLE_DATE_TIME + TICKET_TRANS_SEQ` 四条收窄，实测 166.97 万扣费行命中 1,669,712）⇒ **ticket-server 零改动**。
+  - 旧「交易明细」「扣费信息」两页与入口按裁决**原样保留**，新页从扣费信息页的「合并视图」按钮进入（`dynamicRoutes` 挂权限，不需要菜单 SQL）。
 
 **MUST** 沿用这一约定：新运营接口写进对应业务模块的 `/page/**`，**NEVER** 在 web-server 里新建业务 controller 直连业务表。
 

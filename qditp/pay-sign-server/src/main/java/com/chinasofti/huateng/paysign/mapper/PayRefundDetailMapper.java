@@ -1,6 +1,7 @@
 package com.chinasofti.huateng.paysign.mapper;
 
 import com.chinasofti.huateng.paysign.entity.PayRefundDetail;
+import com.chinasofti.huateng.paysign.page.PayRefundOrderView;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -108,4 +109,12 @@ public interface PayRefundDetailMapper {
      */
     List<String> selectOrphanRefundOrders(@Param("txnDateFrom") String txnDateFrom,
                                           @Param("limit") int limit);
+
+    /**
+     * 综管台扣费明细页回填用：按一批**原支付订单号**取退款明细（不含两个 CLOB 列）。
+     *
+     * <p>同一个原单可能有多行（历史上被重复提交过退款），返回扁平列表、由调用方分组。
+     * 调用方 MUST 保证列表非空且已限长（Oracle IN 列表硬顶 1000）。
+     */
+    List<PayRefundOrderView> selectViewsByOrderNos(@Param("orderNos") List<String> orderNos);
 }

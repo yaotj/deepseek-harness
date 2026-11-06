@@ -205,4 +205,30 @@
         )
         where ROWNUM &lt;= #{limit,jdbcType=INTEGER}
     </select>
+    <!-- 综管台扣费明细页回填：按一批原支付订单号取退款明细。
+         MUST NOT 取 REQUEST_BODY / RESPONSE_BODY 两个 CLOB —— 批量一次回上百行会把结果集撑爆。
+         本表按 TXN_DATE 分区，这里不带分区键（订单号是运营手里的唯一入口），
+         靠 ORDER_NO 上的检索路径 + IN 列表限长（服务层上限 200）兜住代价。 -->
+    <resultMap id="PayRefundOrderViewMap" type="com.chinasofti.huateng.paysign.page.PayRefundOrderView">
+        <result column="ORDER_NO"        jdbcType="VARCHAR"   property="orderNo"/>
+        <result column="REFUND_ORDER_NO" jdbcType="VARCHAR"   property="refundOrderNo"/>
+        <result column="REFUND_STATUS"   jdbcType="VARCHAR"   property="refundStatus"/>
+        <result column="REFUND_AMOUNT"   jdbcType="NUMERIC"   property="refundAmount"/>
+        <result column="REFUND_TIME"     jdbcType="VARCHAR"   property="refundTime"/>
+        <result column="TXN_DATE"        jdbcType="VARCHAR"   property="txnDate"/>
+        <result column="REQUEST_COUNT"   jdbcType="NUMERIC"   property="requestCount"/>
+        <result column="PAY_CENTER_CODE" jdbcType="VARCHAR"   property="payCenterCode"/>
+        <result column="PAY_CENTER_MSG"  jdbcType="VARCHAR"   property="payCenterMsg"/>
+    </resultMap>
+
+    <select id="selectViewsByOrderNos" resultMap="PayRefundOrderViewMap">
+        select ORDER_NO, REFUND_ORDER_NO, REFUND_STATUS, REFUND_AMOUNT, REFUND_TIME,
+               TXN_DATE, REQUEST_COUNT, PAY_CENTER_CODE, PAY_CENTER_MSG
+        from PAY_REFUND_DETAIL
+        where ORDER_NO in
+        <foreach collection="orderNos" item="no" open="(" separator="," close=")">
+            #{no,jdbcType=VARCHAR}
+        </foreach>
+        order by ORDER_NO, CREATE_TIME desc
+    </select>
 </mapper>

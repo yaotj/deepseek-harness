@@ -57,7 +57,7 @@ public class OvertimeRefundableExportExecutor extends AbstractExcelExportExecuto
                 setCell(row, 2, dto.getExitStationName() != null ? dto.getExitStationName() : dto.getOutStation());
                 setCell(row, 3, fenToYuan(dto.getOvertimeAmount()));
                 setCell(row, 4, fenToYuan(dto.getTotalAmount()));
-                setCell(row, 5, dto.getDebitStatus());
+                setCell(row, 5, debitStatusLabel(dto.getDebitStatus()));
                 setCell(row, 6, dto.getOutTime());
             }
         });
@@ -73,5 +73,32 @@ public class OvertimeRefundableExportExecutor extends AbstractExcelExportExecuto
             return "";
         }
         return String.format("%.2f", fen / 100.0);
+    }
+
+    /**
+     * 扣费状态翻成「编码-中文」，与页面同一口径（前端真源 {@code web/src/utils/orderStatusLabels.js}）。
+     *
+     * <p>取值真源是 {@code gate-txn-pay-server} 的 {@code constant/DebitStatus.java}（5 值），
+     * {@code CLOSED} 只存在于列注释与前端下拉、后端无写入点，保留是为防未来出现。
+     * 两边各写一份是跨运行时的必要重复，改状态集合时 MUST 同步这两处，
+     * NEVER 只改一边 —— 页面中文、导出英文就是没同步的结果。
+     */
+    private String debitStatusLabel(String status)
+    {
+        if (status == null || status.isBlank())
+        {
+            return "";
+        }
+        String name = switch (status)
+        {
+            case "INIT" -> "已落单待扣款";
+            case "PROCESSING" -> "扣款处理中";
+            case "RETRY" -> "待补扣";
+            case "SUCCESS" -> "扣款成功";
+            case "FAIL" -> "扣款失败";
+            case "CLOSED" -> "关闭";
+            default -> null;
+        };
+        return name == null ? status : status + "-" + name;
     }
 }

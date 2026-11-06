@@ -66,3 +66,31 @@ ALTER TABLE SUPPLEMENT_ORDER ADD (
 );
 
 CREATE INDEX IDX_SUPPLEMENT_ORDER_SALESYNC ON SUPPLEMENT_ORDER (SALE_SYNC_STATUS, CREATE_TIME);
+
+-- ============================================================
+-- 列注释（2026-11-06 补：本文件原先零条 COMMENT ON，语义只能从代码倒推）
+--
+-- 只注释**代码里能证实**的列；其余列保持无注释，NEVER 按列名猜一个中文填上去 ——
+-- 猜出来的注释比没有更误导。未注释的列：GOODS_CODE / QUANTITY / ORDER_COUNT /
+-- MERCHANT_ORDER_NO / PAYMENT_INFO / SALE_SYNC_*。
+-- 真源：face-pay-server 的 SupplementOrderServiceImpl / SupplementPayCenterFlow /
+--      SupplementOrderLocalWriter，以及 model 的 SupplementOrderRespDTO。
+-- ============================================================
+
+COMMENT ON TABLE SUPPLEMENT_ORDER IS '在线补款单（IF8A-26）；owner 是 face-pay-server，gate-txn-pay 侧只放建表脚本';
+COMMENT ON COLUMN SUPPLEMENT_ORDER.ORDER_NO IS '补款单号，SP 前缀，全局唯一（UK_SUPPLEMENT_ORDER_NO）';
+COMMENT ON COLUMN SUPPLEMENT_ORDER.PAY_STATUS IS '补款支付状态：INIT已下单 / PROCESSING支付中 / SUCCESS成功 / FAIL失败 / CLOSED超时关闭。RETRY 与 PARTIAL 不是本列合法取值';
+COMMENT ON COLUMN SUPPLEMENT_ORDER.TOTAL_AMOUNT IS '补款金额，单位分';
+COMMENT ON COLUMN SUPPLEMENT_ORDER.TXN_DATE IS '补款交易日期 yyyyMMdd';
+COMMENT ON COLUMN SUPPLEMENT_ORDER.PAY_TIME IS '支付完成时间；未成功时为 NULL';
+COMMENT ON COLUMN SUPPLEMENT_ORDER.SIGN_CHANNEL_CODE IS '签约渠道编码（支付渠道码值空间）。**运营口径以本列为准**（2026-11-06 业主裁决）';
+COMMENT ON COLUMN SUPPLEMENT_ORDER.PAYMENT_VENDOR IS '支付商户编码，与 SIGN_CHANNEL_CODE 是不同码值空间，NEVER 互换或合并解读';
+COMMENT ON COLUMN SUPPLEMENT_ORDER.PAY_CHANNEL_CODE IS '支付渠道编码（后加列）。⚠ 实体有该字段，但 2026-11-06 实测测试库补款两行此列均为 NULL，取值来源未闭合，展示侧不要依赖它';
+
+COMMENT ON TABLE SUPPLEMENT_ORDER_ITEM IS '补款明细：一条补款单覆盖若干原扣费订单，收口状态逐条落定';
+COMMENT ON COLUMN SUPPLEMENT_ORDER_ITEM.ORDER_NO IS '所属补款单号，等于 SUPPLEMENT_ORDER.ORDER_NO';
+COMMENT ON COLUMN SUPPLEMENT_ORDER_ITEM.ORIG_ORDER_NO IS '原扣费订单号，等于 GATE_TXN_PAY.ORDER_NO。综管台扣费明细页按本列反查补款信息（IDX_SUPPLEMENT_ITEM_ORIG）；2026-11-06 实测 51/51 能在 GATE_TXN_PAY 命中';
+COMMENT ON COLUMN SUPPLEMENT_ORDER_ITEM.ORIG_TXN_DATE IS '原扣费交易日期 yyyyMMdd';
+COMMENT ON COLUMN SUPPLEMENT_ORDER_ITEM.ORIG_AMOUNT IS '原扣费金额，单位分';
+COMMENT ON COLUMN SUPPLEMENT_ORDER_ITEM.SETTLE_STATUS IS '明细收口状态：PENDING待收口 / SETTLED已收口 / FAILED收口失败。SUCCESS 不是本列合法取值；只有走到 SupplementPayCenterFlow 收口路径才会离开 PENDING';
+COMMENT ON COLUMN SUPPLEMENT_ORDER_ITEM.ACTIVE_ORIG_ORDER_NO IS '⚠ 有唯一索引 UK_SUPPLEMENT_ITEM_ACTIVE，但全模块无任何写入点、insert 语句该位置直接写 NULL ⇒ 恒为 NULL 的空列（Oracle 跳过全 NULL 索引键，故唯一索引不报错）。用途未证实，NEVER 当业务键使用；清理与否待裁决';

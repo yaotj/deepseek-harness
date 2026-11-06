@@ -2,6 +2,7 @@ package com.chinasofti.huateng.facepay.mapper;
 
 import com.chinasofti.huateng.facepay.entity.SupplementOrder;
 import com.chinasofti.huateng.facepay.entity.SupplementOrderItem;
+import com.chinasofti.huateng.facepay.entity.SupplementOrigRef;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -61,4 +62,12 @@ public interface SupplementOrderMapper {
                                   @Param("payStatus") String payStatus,
                                   @Param("txnDateStart") String txnDateStart,
                                   @Param("txnDateEnd") String txnDateEnd);
+
+    /**
+     * 综管台扣费明细页回填用：按一批**原扣费订单号**反查补款单。
+     *
+     * <p>走 {@code IDX_SUPPLEMENT_ITEM_ORIG}（{@code SUPPLEMENT_ORDER_ITEM.ORIG_ORDER_NO}）驱动，
+     * 再回连补款单主表取金额/渠道/状态。调用方 MUST 保证列表非空且已限长。
+     */
+    List<SupplementOrigRef> selectRefsByOrigOrderNos(@Param("origOrderNos") List<String> origOrderNos);
 }
