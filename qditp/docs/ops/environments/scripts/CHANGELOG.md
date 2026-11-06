@@ -43,6 +43,25 @@
   `scale` / `spec-set` 走纯 CloudOS REST；`web release` 有升级后轮询复验。
 - 纯静态 + 只读 dry-run，**未触碰任何环境**（未再发应用包）。
 
+### 2026-11-06 16:23 审计建议全部落实：废弃命令直接删除
+
+用户裁定「全部修改，直接删除」，不加 deprecated 标记。
+
+- **删除 `cloudos image build`**：走旧端点 `/images/build`（红岛 404 / img.5，IT-024），
+  代码自己都在打印「请用 buildx」。连 CATALOG / 分发 / `_cmd_build` /
+  `image.py:image_build()` 一并移除；`image plan` 保留作契约记录、提示改指 buildx。
+- **删除 `cloudos pod-delete`**：容器云前缀从未校准（`CONTAINER_API_PREFIX` 待定）；
+  `pod-list` / `pod-get` 两个只读项保留。
+- **`web mount-export` 纯 CloudOS 化**：删 `core.remote` / `kubectl get deploy`，
+  Deployment 骨架改从 `GET /apps/{uuid}` 的 `image_metadata` 读取（与 env-set 同口径），
+  无骨架时明确报错、NEVER 回退 kubectl。预演实测通过（volume/mount 已存在）。
+- **`k8s` 域口径修正**：头注与 env_note 里过时的「红岛发版走 cloudos image build」
+  改为 `itp-ops.sh buildx --env hongdao`；明确本域**仅在云管台链不可达时兜底**。
+- 全量清理代码头注 / help / README / CONTRIBUTING / cloudos-notes / buildx 头注里的
+  旧命令引用；顺带把 CONTRIBUTING 的 ALL_SERVICES 数量 24 → 23 修正。
+- CATALOG cloudos 子命令 32 → 30；`test_quality` 多词命令断言改指 `svc create`。
+- 纯离线 + 只读预演，未触碰任何环境。
+
 ## 2.9.4 — 2026-11-05 补全收尾：zsh 文件路径补全 + 向导 Ctrl+C 优雅退出
 
 - zsh 侧之前只补了模块目录词表，`--jar/--dockerfile` 的 `compgen -f` 文件路径补全只有 bash 有。

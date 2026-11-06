@@ -102,7 +102,7 @@ class HelpRenderTest(unittest.TestCase):
         self.assertIn("--yes", text)
 
     def test_render_multi_word_command(self):
-        self.assertIsNotNone(help_mod.find_subcommand("cloudos", "image build"))
+        self.assertIsNotNone(help_mod.find_subcommand("cloudos", "svc create"))
         self.assertIsNotNone(help_mod.find_subcommand("web", "mount-export"))
 
 

@@ -29,20 +29,20 @@ itpops · cloudos 域「实现层」—— 新华三 CloudOS（E7501 PaaS）平�
     package_version_id 存的是镜像引用，塞进 varchar(36) 会 500）。
   · 「平台 Service 真源」：新增访问方式 MUST 走 svc create，手工 kubectl apply
     的对象重装即丢（IT-035）。
-  · image build 走旧端点 /images/build（红岛/测试实测 404/img.5，IT-024），
-    输出里的 WARN 原样保留，指引改用 itp-ops.sh buildx。
+  · 旧端点 /images/build 红岛/测试实测 404/img.5（IT-024）。`cloudos image build`
+    已于 2026-11-06 删除；出镜像统一走 itp-ops.sh buildx。
 
 【与 bash 版的差异】（原则上零差异，以下均有理由）
   1. 失败退出码细分：bash 一律 exit 1（或 health/logs 的 return 1/2）；
      Python 按契约抛 OpsError——用法错 2、前置 3（health 不通过、缺 jar/Dockerfile、
      缺 IMG_TYPE_UUID）、传输 4（ssh/HTTP 连不上）、执行/业务拒绝 5、缺 --yes 6。
   2. 缺 --yes 的文案走 execx.require_yes 统一格式「这是写操作：…。确认无误请加 --yes」
-     （svc create 与 bash 字节一致；act/scale/spec-set/image build 在 bash 用自定义
+     （svc create 与 bash 字节一致；act/scale/spec-set 在 bash 用自定义
      die 文案，措辞略有出入，动作信息一致）。
-  3. 写操作门新增：pod-delete / pkg-upload / raw 非 GET 在 bash 无 --yes 门，
+  3. 写操作门新增：pkg-upload / raw 非 GET 在 bash 无 --yes 门，
      按「写操作一律 require_yes」补上（缺 --yes 本地即 exit 6）。
-  4. image build 的 --yes 门提到 image_prepare 之前（bash 先查 jar 再看门）——
-     让「缺 --yes」在本地无 jar 时也能得到 exit 6，而不是被 jar 缺失掩盖。
+  4. （历史）旧 image build 曾把 --yes 门提到 image_prepare 之前；该命令已删除，
+     此差异随命令一并作废，保留编号以免打乱后续条目引用。
   5. app_logs 无实例时 bash 拿空 ns/pod 继续拼 URL、最终以「HTTP 失败」收场；
      Python 直接报「该应用没有实例」终止（少一次无意义请求）。
   6. 环境横幅按契约用 envx.banner（stderr，[环境] 行）；bash 的
@@ -187,12 +187,10 @@ _HELP_BODY = """\
         回滚 = 同一命令指回旧 tag。NEVER 同 tag 覆盖（脚本会拒）。
         包类型应用（metadata.container_image 为空）不适用，走控制台升级。
 
-镜像构建（⚠ 旧端点路线，红岛/测试均实测走不通，见 IT-024）
+镜像契约记录（旧端点 /images/build 已废弃，红岛/测试均不通，见 IT-024）
   image probe                    只读探测（基址/镜像分类/已有 tag，仍可用于取 imgType）
-  image plan  <模块> <版本>       dry-run，打印将提交的全部参数
-  image build <模块> <版本> --yes 走 POST /images/build（历史端点；两套环境都应改用
-                                 itp-ops.sh buildx —— buildx 端点才是通的）
-        附加选项：--jar <p> --project <name> --img-type <uuid> --dockerfile <p>
+  image plan  <模块> <版本>       dry-run，仅打印旧端点参数作契约记录
+        （`image build` 已于 2026-11-06 删除；实际出镜像见下方 buildx）
 
 镜像构建（实际可用，两个环境同一套）
   itp-ops.sh buildx <镜像名> <版本> [--env hongdao|test]
@@ -202,7 +200,7 @@ _HELP_BODY = """\
 
 测试环境附加（--env test；前缀未经实测，见域头注）
   appgroups                      应用组列表
-  pod-list [ns] / pod-get <pod> / pod-delete <pod>      容器云 pod（前缀待校准）
+  pod-list [ns] / pod-get <pod>                       容器云 pod（只读；前缀待校准）
   svc-clusters / svc-cluster-nodes <uuid>               服务治理
   pkg-list [page] [size] / pkg-get <id> / pkg-upload <file> [name] [version]
                                  软件中心 jar 包

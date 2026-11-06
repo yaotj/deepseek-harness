@@ -130,8 +130,9 @@ source <(./itp-ops.sh completion zsh)      # zsh
 > **两个实测缺口（2026-10-26，决定「哪个域能打红岛」）**：
 > 1. `k8s` 域只对测试可用——红岛跳板 `hd-linux` 上**没有** `/home/java`，也没有 `build-push.sh`，
 >    且远端只有 `podman` 没有 `docker`。红岛发版 MUST 走平台侧构建
->    （本机只传 jar + Dockerfile，镜像由平台 x86 构建节点产出）。⚠ 但入口**不是** `cloudos image build`——它走旧端点
->    `/images/build`，红岛实测 404 / `img.5`；实测可用的是 `itp-ops.sh buildx`（见 `构建与发布.md` §三第 5 步、IT-024）。
+>    （本机只传 jar + Dockerfile，镜像由平台 x86 构建节点产出）。入口是 `itp-ops.sh buildx`；
+>    `cloudos image build` 走旧端点 `/images/build`，红岛实测 404 / `img.5`，2026-11-06 已删除
+>    （见 `构建与发布.md` §三第 5 步、IT-024）。
 > 2. `log tail` 只对测试可用——它依赖远端 `/home/java/k8s-logview.sh`，该脚本红岛尚未部署；
 >    红岛看日志用 `log watch`（走 kubectl）或 `ssh hd-linux kubectl logs`。
 > `hosts/k8s-master/` 因此只是**测试跳板**脚本的仓内镜像，红岛侧脚本未入仓。

@@ -438,7 +438,7 @@ class CatalogShapeTest(unittest.TestCase):
         cat = impl.CATALOG
         self.assertEqual(cat["name"], "cloudos")
         names = [s["name"] for s in cat["subcommands"]]
-        self.assertEqual(len(names), 32)  # 2026-11-06 +env-check
+        self.assertEqual(len(names), 30)  # 2026-11-06 +env-check，删 image build / pod-delete
         self.assertEqual(len(names), len(set(names)))
         for sub in cat["subcommands"]:
             self.assertIsInstance(sub["writes"], bool)

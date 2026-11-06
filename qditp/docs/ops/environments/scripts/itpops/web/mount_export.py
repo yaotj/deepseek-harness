@@ -11,8 +11,9 @@
 【与旧版的差异（收编对齐契约）】
   1. 失败统一抛 OpsError（退出码细分：前置 3 / 传输 4 / 执行 5），错误行带统一
      「错误：」前缀（旧为 SystemExit 裸文本）。
-  2. kubectl 改走 core.remote（envx.init_env("test") + 环境横幅，跳板默认
-     k8s-master，可被环境变量覆盖）——旧脚本裸 ssh k8s-master 行为等价。
+  2. 2026-11-06 纯 CloudOS 化：删除 core.remote / kubectl 依赖，Deployment 骨架
+     改从 GET /apps/{uuid} 的 metadata.image_metadata.metadata.resources[1] 读取。
+     NEVER 再 ssh 跳板机取 k8s Deployment（与 env-set 同一口径）。
   3. CloudOS 调用仍经 itp-ops.sh cloudos raw（子进程），命令面不变。
   4. 仓库根/脚本目录由 execx 推导，被移动位置时报前置错而非算错路径。
 """
@@ -25,8 +26,7 @@ import sys
 
 from ..core import environments as envx, ui
 from ..core.runtime import repo_root, scripts_dir
-from ..core.remote import run_remote_ok
-from ..errors import EXIT_EXEC, EXIT_TRANSPORT, OpsError
+from ..errors import EXIT_EXEC, EXIT_PRECONDITION, EXIT_TRANSPORT, OpsError
 
 ITP_OPS = str(scripts_dir() / "itp-ops.sh")
 
@@ -58,16 +58,23 @@ def cloudos(method, uri, body=None):
         )
 
 
-def kubectl_deployment():
-    r = run_remote_ok(
-        f"kubectl -n {NS} get deploy {APP_NAME} -o json", what=f"kubectl get deploy {APP_NAME}"
-    )
-    out = r.stdout
-    out = out[out.find("{"): ] if "{" in out else out
-    try:
-        return json.loads(out)
-    except ValueError as exc:
-        raise OpsError(f"Deployment JSON 解析失败：{out[:400]}", EXIT_EXEC) from exc
+def cloudos_app_detail(uuid):
+    """纯 CloudOS 读应用详情（NEVER kubectl / ssh）。"""
+    d = cloudos("GET", f"/api/cloud/app-mgmt/v1.0/apps/{uuid}")
+    raw = d.get("data") or {}
+    return raw.get("data") or raw
+
+
+def deployment_from_cloudos(app):
+    """从应用详情 image_metadata 取当前 Deployment 骨架。"""
+    meta = app.get("metadata") or {}
+    res = ((meta.get("image_metadata") or {}).get("metadata") or {}).get("resources")
+    dep = res[1] if isinstance(res, list) and len(res) > 1 and isinstance(res[1], dict) else None
+    if not dep or dep.get("kind") != "Deployment":
+        raise OpsError(
+            "CloudOS 应用详情无 image_metadata Deployment 骨架 —— 无法安全构造 "
+            "advanced-config body（NEVER 回退 kubectl）", EXIT_PRECONDITION)
+    return dep
 
 
 def clean_deploy(dep):
@@ -168,7 +175,7 @@ CATALOG = {
     "args": [{"name": "--yes", "desc": "真正下发 PATCH；缺省预演"}],
     "writes": True,
     "example": "itp-ops.sh web mount-export --yes",
-    "env_note": "固定测试环境（ns itp、跳板 k8s-master、CloudOS test）",
+    "env_note": "固定测试环境（ns itp、纯 CloudOS REST，不依赖跳板机/kubectl）",
 }
 
 
@@ -200,13 +207,14 @@ def _main(argv: list[str] | None = None) -> int:
     uuid = app["uuid"]
     print(f"应用 UUID: {uuid}")
 
-    # 2. 获取当前 Deployment 并加挂载
-    dep = kubectl_deployment()
+    # 2. 从 CloudOS 应用详情取 Deployment 骨架并加挂载（NEVER kubectl）
+    detail = cloudos_app_detail(uuid)
+    dep = deployment_from_cloudos(detail)
     clean = clean_deploy(dep)
     ensure_mount(clean)
 
     # 3. 构造 body
-    body = build_body(app, clean)
+    body = build_body(detail, clean)
     print("\n将提交 advanced-config PATCH，新增挂载点：")
     print(f"  volume: {VOL_NAME} -> PVC {PVC}")
     print(f"  mount:  {VOL_NAME} -> {MOUNT_PATH}")

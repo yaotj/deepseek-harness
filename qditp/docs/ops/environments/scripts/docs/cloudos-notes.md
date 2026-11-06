@@ -86,8 +86,8 @@ https://<host>/platform/static/js/login/login.<hash>.js   ← 文件里搜 encry
 
 ## 3.4 已知缺口（首次实测前勿当结论）
 
-1. `fileFlag` 语义未验证（`image build` 全押在这里）。若平台要求它由上传接口返回而非客户端生成，
-   build 会报 file not found；判定看 `data.build[]` 的 COPY。不成立时的正路是软件中心 jar 类型部署。
+1. `fileFlag` 语义未验证（历史 `image build` 曾全押在这里；该命令已于 2026-11-06 删除，
+   出镜像改走 `itp-ops.sh buildx`）。此条仅留作契约记录，`data.build[]` 的 COPY 判据不再适用。
 2. `totalChunks=1` 一次性上传；jar 超网关 body 限制（经验 ~100MB）需改分片，续传/去重行为未实测。
 3. 上传会在软件中心留 jar 应用包记录（`POST /packages` 副作用）；`pkg_delete_version` 可清，默认不删。
 4. 镜像服务网关基址未定位（2026-10-23 网络中断）。`cloudos image probe` 就是为此写的。

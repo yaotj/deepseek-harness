@@ -7,7 +7,8 @@
 【环境限制（MUST，保留自 bash 头注）】
   本域只对测试环境可用：红岛跳板 hd-linux 既无 /home/java 构建目录也无
   build-push.sh（2026-10-26 实测，远端只有 podman 没有 docker）——红岛发版走
-  `itp-ops.sh cloudos image build`（平台 x86 节点打镜像），NEVER 用本域打红岛。
+  `itp-ops.sh buildx --env hongdao`（平台 x86 节点打镜像），NEVER 用本域打红岛。
+  本域只在云管台链不可达时兜底；测试环境发版首选 `itp-ops.sh buildx` + `cloudos deploy`。
 
 【ALL_SERVICES 纪律（MUST，逐条保留自 bash）】
   · 服务名 MUST 是仓库根目录下的模块目录名（不是镜像名、不是 Deployment 名）。
@@ -388,8 +389,8 @@ CATALOG = {
     "default_env": "test",
     "env_note": (
         "只对测试可用：红岛跳板 hd-linux 无 /home/java 构建目录与 build-push.sh"
-        "（2026-10-26 实测远端只有 podman 没有 docker）；红岛发版走 cloudos image build"
-        "（平台 x86 节点打镜像）。NEVER 用本域打红岛。"
+        "（2026-10-26 实测远端只有 podman 没有 docker）；红岛发版走 itp-ops.sh buildx --env hongdao"
+        "（平台 x86 节点打镜像）。本域仅在云管台链不可达时兜底，NEVER 用本域打红岛。"
     ),
     "subcommands": [
         {

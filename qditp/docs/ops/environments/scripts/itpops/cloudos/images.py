@@ -222,96 +222,12 @@ def _cmd_plan(mod: str, ver: str, state: dict, harbor_project: str) -> int:
     _info("     docker manifest inspect %s/%s:%s | grep architecture" % (harbor_project, mod, ver))
     _info("   期望 amd64。拿到 arm64 说明构建节点是 ARM，x86 业务节点拉不起来。")
     _info("")
-    _info("确认无误后：itp-ops.sh cloudos image build %s %s --yes" % (mod, ver))
+    _info("⚠ /images/build 是废弃端点（IT-024，红岛实测 404/img.5），本页仅作契约记录。")
+    _info("实际出镜像：itp-ops.sh buildx %s %s --env <hongdao|test> --jar <jar> --dockerfile <共享模板>"
+          % (mod, ver))
     ui.result({"module": mod, "version": ver, "jar": p["jar"], "jar_size": p["size"],
                "dockerfile": p["dockerfile"], "file_flag": p["file_flag"],
                "img_type": img_type, "harbor_project": harbor_project, "dry_run": True})
-    return 0
-
-
-def _cmd_build(mod: str, ver: str, state: dict, harbor_project: str) -> int:
-    ui.log_warn("本命令走旧端点 /api/cloud/hcr/v1.0/images/build —— 红岛实测 404/img.5（IT-024），")
-    ui.log_warn("测试同样无该路由。要出镜像请用 itp-ops.sh buildx（buildx 端点，两环境通用）。")
-    # 差异 §4：门提到 image_prepare 之前，缺 --yes 本地即拒
-    require_yes("build 会向生产平台发写请求（先跑 image plan 看清单）")
-
-    p = _image_prepare(mod, ver, state)
-    img_type = state["img_type"] or os.environ.get("IMG_TYPE_UUID") or ""
-    if not img_type:
-        raise OpsError(
-            "缺 IMG_TYPE_UUID —— 先跑 itp-ops.sh cloudos image probe 取镜像分类 UUID",
-            EXIT_PRECONDITION,
-        )
-
-    _info("== 1/4 上传 jar（fileFlag=%s）" % p["file_flag"])
-    if not pkg_mod.pkg_upload(p["jar"], mod, ver, p["file_flag"], "app.jar"):
-        raise OpsError("上传失败", EXIT_EXEC)
-    _info("   ✓ 上传接口不回 ID，fileFlag 用预生成值")
-
-    # 回查确认落盘（大小对得上是上传自检的唯一手段）
-    found = pkg_mod.pkg_find_version(mod, ver)
-    if found:
-        f = (found.split("\t") + ["", ""])[:2]
-        _info("   ✓ 回查版本 ID=%s  文件=%s" % (f[0], f[1]))
-    else:
-        _info("   ⚠ 回查不到该版本 —— 上传可能未落盘，继续构建大概率失败")
-
-    _info("== 2/4 提交镜像构建（平台 x86 节点 docker build & push）")
-    with open(p["dockerfile"], encoding="utf-8") as f:
-        dockerfile_text = f.read()
-    code, body = image_mod.image_build(
-        dockerfile_text, mod, ver, img_type, p["file_flag"], harbor_project,
-        "built from local jar via itp-ops.sh cloudos image",
-    )
-    if http_mod.is_net_fail(code):
-        raise OpsError("构建请求未发出（网络不可达）", EXIT_TRANSPORT)
-    if code != "200":
-        raise OpsError("构建 HTTP %s：%s" % (code, body[:600]), EXIT_EXEC)
-
-    try:
-        d = json.loads(body)
-    except ValueError:
-        raise OpsError("构建响应不是 JSON", EXIT_EXEC) from None
-    if d.get("status") is not True:
-        _err("构建失败：code=%s msg=%s" % (d.get("code"), d.get("msg")))
-        _info("   ⚠ 响应里没找到 digest —— 判据是 Harbor 里有该 tag，不是 HTTP 200")
-    else:
-        data = d.get("data") or {}
-        build, push = data.get("build") or [], data.get("push") or []
-        digest = None
-        for e in push:
-            digest = (e.get("aux") or {}).get("Digest") or digest
-            st = e.get("status") or ""
-            if "digest:" in st:
-                digest = st.split("digest:")[-1].strip().split()[0]
-        # build 日志里出现 COPY/ADD 才说明 fileFlag 是构建上下文文件
-        copy_seen = any(
-            ("COPY" in (e.get("stream") or "")) or ("ADD" in (e.get("stream") or ""))
-            for e in build
-        )
-        _info("   ✓ 构建+推送完成")
-        _info("   docker 日志里 COPY/ADD：%s" % (
-            "出现 ✓ ⇒ fileFlag 是上下文文件" if copy_seen else "未出现 ⚠ 见文件尾缺口 1"))
-        _info("   digest = %s" % (digest or "（未在响应里找到，去 Harbor 核对）"))
-        if not digest:
-            _info("   ⚠ 响应里没找到 digest —— 判据是 Harbor 里有该 tag，不是 HTTP 200")
-
-    _info("== 3/4 回查镜像版本")
-    detail = image_mod.image_detail(mod, harbor_project)
-    if detail and detail != "NETWORK_UNREACHABLE":
-        for line in detail.splitlines():
-            f = (line.split("\t") + ["", "", ""])[:3]
-            _info("   %-20s %-12s %s" % (f[0], f[1], f[2]))
-    else:
-        _info("   回查失败，去 Harbor 页面核对")
-
-    _info("== 4/4 滚更应用（本命令不做）")
-    _info("   只负责把镜像推到 Harbor；应用侧仍走既有发布流程：")
-    _info("   itp-ops.sh cloudos app %s  → 确认当前镜像 → 平台改 image tag 滚更" % mod)
-    _info("")
-    _info("回滚：把应用 image tag 指回上一个可用版本（Harbor 里旧 tag 未删除）")
-    ui.result({"module": mod, "version": ver, "harbor_project": harbor_project,
-               "file_flag": p["file_flag"], "done": True})
     return 0
 
 

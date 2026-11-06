@@ -4,8 +4,8 @@ r"""itpops · buildx —— 红岛 CloudOS 镜像构建（buildx 端点，platfo
 独立入口（不经 itpops cli 分发）：`itp-ops.sh buildx …`；薄壳
 itp-ops.sh buildx 转调本模块，命令面与旧 bash 逐字兼容。
 
-【为什么不用 itp-ops.sh cloudos image build】（沿自 bash 头注，IT-024）
-  旧命令走 /api/cloud/hcr/v1.0/images/build（红岛 404 / img.5）。红岛可用的构建
+【历史：旧 image build 命令已删除（2026-11-06），沿自 bash 头注，IT-024）】
+  旧命令走 /api/cloud/hcr/v1.0/images/build（红岛 404 / img.5），现已移除。红岛可用的构建
   通道是 Web 控制台「镜像构建」背后的 buildx 端点：
     POST /api/cloud/hcr/v1.0/images/file/upload   multipart 上传构建上下文
         fileFlag 走请求头（客户端自生成 uuid），响应 data.id

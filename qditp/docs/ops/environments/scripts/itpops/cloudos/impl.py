@@ -25,7 +25,7 @@ from .apps import _app_action, _app_detail, _app_env, _app_logs, _app_pods, _app
 from .common import APP_API, CONTAINER_API_PREFIX, _help_text, _need, _req_json
 from .deploy import _app_deploy, env_set
 from .envcheck import CATALOG as _ENVCHECK_CATALOG, env_check
-from .images import _cmd_build, _cmd_plan, _cmd_probe, _harbor_project_default, _image_parse_args, _pkg_upload_cmd
+from .images import _cmd_plan, _cmd_probe, _harbor_project_default, _image_parse_args, _pkg_upload_cmd
 from .scaling import _app_scale, _app_spec_set, _app_spec_show, _scale_all, _spec_all
 
 CATALOG = {
@@ -136,12 +136,6 @@ CATALOG = {
          "writes": False, "example": "itp-ops.sh cloudos image plan fep-app 1.0.0",
          "stdout_human": "================ 将要执行（dry-run，未发任何写请求）================ …",
          "json_data": {"module": "fep-app", "version": "1.0.0", "dry_run": True}},
-        {"name": "image build", "usage": "cloudos image build <模块> <版本> [--jar <p>] [--project <name>] [--img-type <uuid>] [--dockerfile <p>]",
-         "summary": "走 POST /images/build（历史端点；两套环境都应改用 itp-ops.sh buildx）",
-         "args": [{"name": "模块", "required": True}, {"name": "版本", "required": True}],
-         "writes": True, "example": "itp-ops.sh cloudos image build fep-app 1.0.0 --yes",
-         "stdout_human": "[INFO] == 1/4 上传 jar（fileFlag=…） …",
-         "json_data": {"module": "fep-app", "version": "1.0.0", "done": True}},
         {"name": "appgroups", "usage": "cloudos appgroups", "summary": "应用组列表（测试环境附加）",
          "args": [], "writes": False, "example": "itp-ops.sh --env test cloudos appgroups",
          "stdout_human": "{美化 JSON}", "json_data": {"status": True}},
@@ -152,10 +146,6 @@ CATALOG = {
         {"name": "pod-get", "usage": "cloudos pod-get <pod>", "summary": "容器云 pod 详情（前缀待校准）",
          "args": [{"name": "pod", "required": True}], "writes": False,
          "example": "itp-ops.sh --env test cloudos pod-get fep-app-xxx",
-         "stdout_human": "{美化 JSON}", "json_data": {"status": True}},
-        {"name": "pod-delete", "usage": "cloudos pod-delete <pod>", "summary": "删除容器云 pod（写操作；前缀待校准）",
-         "args": [{"name": "pod", "required": True}], "writes": True,
-         "example": "itp-ops.sh --env test cloudos pod-delete fep-app-xxx --yes",
          "stdout_human": "{美化 JSON}", "json_data": {"status": True}},
         {"name": "svc-clusters", "usage": "cloudos svc-clusters", "summary": "服务治理集群列表",
          "args": [], "writes": False, "example": "itp-ops.sh --env test cloudos svc-clusters",
@@ -282,11 +272,6 @@ def main(args: list[str]) -> int:
     if sub == "pod-get":
         _req_json("GET", f"{CONTAINER_API_PREFIX}/pods/{_need(rest, 0, '需要 pod 名')}")
         return 0
-    if sub == "pod-delete":
-        pod = _need(rest, 0, "需要 pod 名")
-        require_yes(f"删除 pod {pod}")
-        _req_json("DELETE", f"{CONTAINER_API_PREFIX}/pods/{pod}")
-        return 0
     if sub == "svc-clusters":
         _req_json("GET", "/api/cloud/svcgw/v1.0/kaas_clusters")
         return 0
@@ -308,16 +293,15 @@ def main(args: list[str]) -> int:
         img_rest = rest[1:]
         if img_sub == "probe":
             return _cmd_probe(harbor_project)
-        if img_sub in ("plan", "build"):
+        if img_sub == "plan":
             mod, ver, state = _image_parse_args(img_rest)
             if not mod or not ver:
-                raise OpsError(
-                    "用法：image %s <module> <version>" % img_sub, EXIT_USAGE)
+                raise OpsError("用法：image plan <module> <version>", EXIT_USAGE)
             project = state["project"] or harbor_project
-            if img_sub == "plan":
-                return _cmd_plan(mod, ver, state, project)
-            return _cmd_build(mod, ver, state, project)
-        raise OpsError("image 子命令只能是 probe / plan / build（收到 %s）" % img_sub, EXIT_USAGE)
+            return _cmd_plan(mod, ver, state, project)
+        raise OpsError(
+            "image 子命令只能是 probe / plan（收到 %s）；出镜像请用 itp-ops.sh buildx"
+            % img_sub, EXIT_USAGE)
 
     # 未知命令：usage 照旧打到 stdout（bash 行为；bash 此时已完成 env init，
     # 首行显示真实 CLOUDOS_HOST），退出码按契约为 2

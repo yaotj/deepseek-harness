@@ -125,28 +125,3 @@ def image_check_existed(name: str, ver: str, target_base: str = "") -> bool | No
     return d.get("data") is True
 
 
-def image_build(
-    dockerfile: str,
-    name: str,
-    ver: str,
-    imgtype: str,
-    fileflag: str,
-    project: str,
-    desc: str = "",
-    target_base: str = "",
-) -> tuple[str, str]:
-    """镜像构建。返回 (http_code, body)；body 里 data.build[]/data.push[] 是 docker 原始日志。"""
-    payload = json.dumps(
-        {
-            "dockerfile": dockerfile,
-            "imgName": name,
-            "version": ver,
-            "imgType": imgtype,
-            "description": desc,
-            "type": "private",
-            "fileFlag": fileflag,
-            "project": project,
-        },
-        ensure_ascii=False,
-    )
-    return _img_http("POST", f"{IMG_API_PREFIX}/images/build", payload, target_base=target_base)

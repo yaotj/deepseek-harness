@@ -54,9 +54,9 @@ cd ../../../../ && python3 docs/提示词/lint-prompts.py   # 在 qditp/ 仓根�
 
 1. **路径推导**：脚本 MUST 由自身位置推导仓库根（`BASH_SOURCE`/`__file__`），NEVER 硬编码绝对路径。
    入口 `itpops/core/runtime.py` 用 `account-server` 目录存在性断言——深度再错会直接报错而不是静默找错目录。
-2. **写操作默认拒绝**：`k8s deploy/deploy-all`、`cloudos act/scale/scale-all/spec-set/deploy/image build`
+2. **写操作默认拒绝**：`k8s deploy/deploy-all`、`cloudos act/scale/scale-all/spec-set/deploy`
    必须显式 `--yes`（入口全局解析，位置任意）。
-3. **ALL_SERVICES 是单一真源**（`itpops/commands/k8s.py`）：24 个服务，语义是**可构建推送的模块全集**
+3. **ALL_SERVICES 是单一真源**（`itpops/commands/k8s.py`）：23 个服务，语义是**可构建推送的模块全集**
    （根 pom 里有 kubernetes-maven-plugin 的模块目录），**不是生产部署清单**——两者 historically
    不相等（详见 `itpops/commands/k8s.py` 处注释：3 个死/下线模块在构建清单里、web-admin/前端不在构建清单里、
    跨环境共性.md §一 自身还缺 3 个在跑的服务）。NEVER 擅自「对齐」任何一边；服务名是仓库根模块目录名，
