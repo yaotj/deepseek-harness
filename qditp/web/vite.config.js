@@ -38,7 +38,8 @@ export default defineConfig(({ mode, command }) => {
     '/alipay-pay-sign-server': `${clusterNodePortHost}:30022`,
     '/web-server': `${clusterNodePortHost}:30028`,
     '/web-admin': `${clusterNodePortHost}:30028`,
-    '/card-pool-server': `${clusterNodePortHost}:30033`
+    '/card-pool-server': `${clusterNodePortHost}:30033`,
+    '/recon-server': `${clusterNodePortHost}:30034`
   }
   const serviceProxyConfig = Object.fromEntries(
     Object.entries(serviceProxies).map(([context, target]) => [context, {
