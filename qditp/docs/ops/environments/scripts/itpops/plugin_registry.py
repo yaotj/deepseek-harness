@@ -4,9 +4,10 @@
   · 注册所有 Plugin 实例到 CommandRegistry
   · 提供 get_plugin(domain) 查询接口
   · 提供 pre_flight_check(domain, ctx) 统一前置校验
+  · 支持自动发现所有 Plugin
 
 使用示例：
-  from itpops.plugin_registry import get_plugin, check_pre_flight
+  from itpops.plugin_registry import get_plugin, check_pre_flight, list_plugins
   
   plugin = get_plugin("cloudos")
   if not check_pre_flight("cloudos", ctx):
@@ -14,13 +15,13 @@
 """
 from __future__ import annotations
 
-from typing import dict
+from typing import TYPE_CHECKING, Dict, List
 
-from .plugin import CommandRegistry, PluginContext
-from .errors import OpsError, EXIT_PRECONDITION
+if TYPE_CHECKING:
+    from .plugin import Plugin, PluginContext
 
 # 插件注册表
-_plugins: dict[str, "Plugin"] = {}
+_plugins: Dict[str, "Plugin"] = {}
 
 
 def register(plugin: "Plugin") -> None:
@@ -33,12 +34,12 @@ def get_plugin(domain: str) -> "Plugin | None":
     return _plugins.get(domain)
 
 
-def list_plugins() -> list[str]:
+def list_plugins() -> List[str]:
     """列出所有已注册的插件名。"""
     return sorted(_plugins.keys())
 
 
-def check_pre_flight(domain: str, ctx: PluginContext) -> bool:
+def check_pre_flight(domain: str, ctx: "PluginContext") -> bool:
     """统一前置校验入口。"""
     plugin = _plugins.get(domain)
     if not plugin:
@@ -46,7 +47,7 @@ def check_pre_flight(domain: str, ctx: PluginContext) -> bool:
     return plugin.pre_flight_check(ctx)
 
 
-def post_flight(domain: str, ctx: PluginContext, result: dict) -> dict:
+def post_flight(domain: str, ctx: "PluginContext", result: dict) -> dict:
     """统一后置校验入口。"""
     plugin = _plugins.get(domain)
     if not plugin:
@@ -54,15 +55,21 @@ def post_flight(domain: str, ctx: PluginContext, result: dict) -> dict:
     return plugin.post_flight_check(ctx, result)
 
 
-# 自动注册所有插件
-def _auto_register() -> None:
-    """扫描 itpops 包下所有 plugin.py 并自动注册。"""
+def auto_register() -> None:
+    """自动发现并注册所有 Plugin。"""
     import pkgutil
     import importlib
+    import sys
     
-    # 扫描 itpops 子包
+    # 扫描 itpops 子包下的 plugin.py
+    base_module = sys.modules.get('itpops')
+    if not base_module:
+        return
+    
+    base_path = base_module.__path__
+    
     for importer, modname, ispkg in pkgutil.walk_packages(
-        path=__import__('itpops').__path__,
+        path=base_path,
         prefix='itpops.'
     ):
         # 查找 plugin.py
@@ -70,12 +77,24 @@ def _auto_register() -> None:
             try:
                 mod = importlib.import_module(modname)
                 # 尝试创建插件实例
-                if hasattr(mod, 'create_') or hasattr(mod, 'Plugin'):
-                    # 动态创建插件（简化处理）
-                    pass
-            except Exception:
-                pass  # 忽略导入失败的模块
+                if hasattr(mod, 'create_'):
+                    # 工厂函数模式
+                    factory_name = [m for m in dir(mod) if m.startswith('create_')]
+                    if factory_name:
+                        factory = getattr(mod, factory_name[0])
+                        if callable(factory):
+                            plugin = factory()
+                            register(plugin)
+                elif hasattr(mod, 'Plugin'):
+                    # 直接类模式（需要 name 属性）
+                    plugin_class = getattr(mod, 'Plugin')
+                    if hasattr(plugin_class, 'name'):
+                        plugin = plugin_class()
+                        register(plugin)
+            except Exception as exc:
+                # 静默忽略导入失败的模块
+                pass
 
 
 # 启动时自动注册
-_auto_register()
+auto_register()

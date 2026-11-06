@@ -19,7 +19,21 @@
 只是调试别名，一律转发 `cli.main`，不另起一套解析/输出契约。
 `pyproject.toml` 另暴露 `itp-ops` console script 供 `pipx install` 后直接使用。
 """
+from __future__ import annotations
+
 __version__ = "2.9.4"
 
 # 兼容旧引用（v2.0/2.1 时代用 ITP_OPS_VERSION）
 ITP_OPS_VERSION = __version__
+
+# 自动注册所有 Plugin（延迟导入，避免循环依赖）
+def _register_plugins() -> None:
+    """延迟注册所有 Plugin，避免循环导入。"""
+    try:
+        from .plugin_auto_register import auto_register_plugins
+        auto_register_plugins()
+    except Exception:
+        pass  # 静默忽略注册失败
+
+# 模块加载时不立即注册，等到首次导入时再注册
+_register_plugins()
