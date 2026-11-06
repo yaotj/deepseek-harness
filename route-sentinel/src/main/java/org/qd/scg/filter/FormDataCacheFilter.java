@@ -40,12 +40,16 @@ public class FormDataCacheFilter extends OncePerRequestFilter {
             String bizData = wrapped.getParameter("bizData");
             String thirdUserId = extractValue(bizData, "\"thirdUserId\"");
             String cardId = extractValue(bizData, "\"cardId\"");
+            String orderNo = extractValue(bizData, "\"orderNo\"");
+            String randomFact = extractValue(bizData, "\"randomFact\"");
             wrapped.setAttribute(RequestConstants.BIZDATA_ATTR, bizData);
             wrapped.setAttribute(RequestConstants.THIRD_USER_ID_ATTR, thirdUserId);
             wrapped.setAttribute(RequestConstants.CARD_ID_ATTR, cardId);
+            wrapped.setAttribute(RequestConstants.ORDER_NO_ATTR, orderNo);
+            wrapped.setAttribute(RequestConstants.RANDOM_FACT_ATTR, randomFact);
             if (log.isDebugEnabled()) {
-                log.debug("FormDataCacheFilter 命中 path={} contentLength={} bizData={} thirdUserId={} cardId={}",
-                        uri, wrapped.getCachedBody().length, bizData, thirdUserId, cardId);
+                log.debug("FormDataCacheFilter 命中 path={} contentLength={} bizData={} thirdUserId={} cardId={} orderNo={} randomFact={}",
+                        uri, wrapped.getCachedBody().length, bizData, thirdUserId, cardId, orderNo, randomFact);
             }
             filterChain.doFilter(wrapped, response);
         } else {

@@ -14,8 +14,9 @@
 `route-sentinel` 是 **Spring Cloud Gateway（SCG）server-mvc** 实现的透明网关，职责只有三件：
 
 1. 接收 `fep-app-vr`（Nginx 虚拟路由）转发的设备域 / APP 域订单支付请求；
-2. 优先按 `bizData.cardId` 判定：有 `cardId` 视为新系统用户；无 `cardId` 时按 `bizData.thirdUserId` 查 `USER_ITP_REG_INFO` 判定用户属性；
-3. 命中分流路径时，把**旧用户（无 cardId 且无记录）**路由到旧 ITP（`legacy-route-*`），把**新用户（有 cardId 或有记录）**路由到 `face-pay-server`（`face-pay-split-route-*`）。
+2. **TVM 取票授权 / 出票结果上报 3 条路径**（报文本就不带用户标识）优先按**订单归属**判定：用 `bizData.orderNo`（缺失则 `randomFact`）反查 `F2F_ORDER`，查到 → 新 ITP，查不到 → 旧 ITP；
+3. 其余路径优先按 `bizData.cardId` 判定：有 `cardId` 视为新系统用户；无 `cardId` 时按 `bizData.thirdUserId` 查 `USER_ITP_REG_INFO` 判定用户属性；
+4. 把**旧用户/旧订单**路由到旧 ITP（`legacy-route-*`），把**新用户/新订单**路由到 `face-pay-server`（`face-pay-split-route-*`）。
 
 **NEVER** 在本模块写业务规则、签名、事务或状态机；本模块无业务 Service，只有路由策略。
 
@@ -41,6 +42,7 @@
 | 表名 | 用途 | 说明 |
 |---|---|---|
 | `QDITP.USER_ITP_REG_INFO` | 用户注册判定名单 | 有记录 = 新 ITP 用户；无记录 = 旧用户。`UserRouteService` 启动预热 + Caffeine 缓存 |
+| `QDITP.F2F_ORDER` | 新 ITP 订单归属判定 | TVM 取票授权/出票上报按 `order_no` 或 `random_fact` 反查；查到 = 新 ITP 订单（走新系统） |
 | `QDITP.GATEWAY_ROUTE_CONFIG` | 路由配置主表 | 路由从 DB 加载；Actuator 变更后 `syncRoute` 落库并触发内存热重载 |
 | `QDITP.GATEWAY_ROUTE_CONFIG_AUDIT` | 路由变更审计 | 仅 INSERT，按 `OPERATE_TMS` 月分区 |
 
@@ -99,11 +101,19 @@ ORDER_NO    NUMBER        路由优先级
    - 优先读 `FormDataCacheFilter` 解析后的请求属性（覆盖 POST + application/x-www-form-urlencoded 的 form body）；
    - 其次读 query param `bizData`；
    - 最后读 `HttpServletRequest.getParameter("bizData")`；
-4. 从 `bizData` 中 fast-extract `cardId`；
-5. cardId 非空 → 视为新系统用户（返回 false）；
-6. cardId 为空时，从 `bizData` 中 fast-extract `thirdUserId`；
-7. thirdUserId 为空 → 默认旧用户（返回 true，fail-safe）；
-8. 调 `UserRouteService.isLegacy(thirdUserId)`：
+4. 【订单归属优先】path 以 `requestTakeTicketAuth` / `notiTakeTicketResult` / `notiTakeTicketFailResult` 结尾时
+   （TVM 取票授权 / 出票结果上报，报文本就不带用户标识）：
+   - 从 `bizData` 取 `orderNo`，缺失则取取票二维码 `randomFact`；
+   - 有键 → `UserRouteService.hasNewItpOrder(orderKey)`：
+     - `SELECT 1 FROM f2f_order WHERE (order_no = ? OR random_fact = ?) AND ROWNUM = 1`；
+     - 查到 → 新 ITP 订单（返回 false）；
+     - 查不到 / 查询失败 → 旧 ITP（返回 true，fail-safe）；
+   - 无键 → 继续走第 5 步（回落用户判定）；
+5. 从 `bizData` 中 fast-extract `cardId`；
+6. cardId 非空 → 视为新系统用户（返回 false）；
+7. cardId 为空时，从 `bizData` 中 fast-extract `thirdUserId`；
+8. thirdUserId 为空 → 默认旧用户（返回 true，fail-safe）；
+9. 调 `UserRouteService.isLegacy(thirdUserId)`：
    - 缓存命中 → 直接返回；
    - 缓存未命中 → `SELECT 1 FROM user_itp_reg_info WHERE third_user_id = ? AND ROWNUM = 1`；
    - 查到有记录 → 新用户（返回 false）；
@@ -117,7 +127,7 @@ ORDER_NO    NUMBER        路由优先级
 | `UserRouteService` | `predicate/UserRouteService.java` | Caffeine 缓存（max 10k，TTL 5min）、DB 加载、splitPaths 维护 |
 | `FormDataCacheFilter` | `filter/FormDataCacheFilter.java` | 对 `application/x-www-form-urlencoded` 请求缓存 body 并重建 `getParameter`，使 form body 中的 `bizData` 对分发逻辑可见 |
 | `CachedBodyHttpServletRequest` | `filter/CachedBodyHttpServletRequest.java` | 请求体缓存包装器，供 `FormDataCacheFilter` 使用 |
-| `BizDataExtractor` | `predicate/BizDataExtractor.java` | 从 `bizData`（form body / query param）里字符串扫描 `cardId` / `thirdUserId`，**零 JSON 反序列化** |
+| `BizDataExtractor` | `predicate/BizDataExtractor.java` | 从 `bizData`（form body / query param）里字符串扫描 `cardId` / `thirdUserId` / `orderNo` / `randomFact`，**零 JSON 反序列化** |
 | `RoutePredicateStrategy` | `predicate/RoutePredicateStrategy.java` | 组装 legacy predicate |
 | `RoutePredicateFactory` | `predicate/RoutePredicateFactory.java` | 把 `GATEWAY_ROUTE_CONFIG.PREDICATES` JSON 解析成 `RequestPredicate` |
 | `UserRouteConfig` | `route/UserRouteConfig.java` | 启动从 DB 加载路由；监听 `RouteChangedEvent` 热重载 |

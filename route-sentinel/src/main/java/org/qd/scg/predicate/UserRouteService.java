@@ -119,6 +119,31 @@ public class UserRouteService {
         return Boolean.TRUE.equals(legacyCache.get(thirdUserId));
     }
 
+    /**
+     * 判断取票/出票上报请求对应的订单是否属于新 ITP。
+     *
+     * <p>TVM 取票授权与出票结果上报的 {@code bizData} 不带 {@code cardId}/{@code thirdUserId}，
+     * 只能靠 {@code orderNo} 或取票二维码 {@code randomFact} 反查 {@code f2f_order}（新 ITP 订单表）。
+     * 查到 → 新 ITP 订单，走新系统；查不到（旧 ITP 订单或无效键）或查询异常 → fail-safe 旧 ITP。
+     *
+     * @param orderKey {@code orderNo} 或 {@code randomFact}
+     * @return true 表示新 ITP 订单
+     */
+    public boolean hasNewItpOrder(String orderKey) {
+        if (orderKey == null || orderKey.isBlank()) {
+            return false;
+        }
+        try {
+            List<Integer> rows = jdbc.queryForList(
+                "SELECT 1 FROM f2f_order WHERE (order_no = ? OR random_fact = ?) AND ROWNUM = 1",
+                Integer.class, orderKey, orderKey);
+            return !rows.isEmpty();
+        } catch (Exception e) {
+            log.warn("订单归属查询失败，默认走旧 ITP: {}", e.getMessage());
+            return false;
+        }
+    }
+
     public LoadingCache<String, Boolean> getCache() {
         return legacyCache;
     }

@@ -6,6 +6,14 @@ CREATE TABLE IF NOT EXISTS user_itp_reg_info (
 );
 INSERT INTO user_itp_reg_info (third_user_id, del_yn) VALUES ('test-in-registry', 1);
 INSERT INTO user_itp_reg_info (third_user_id, del_yn) VALUES ('test-cancelled-001', 0);
+-- 新 ITP 订单表：TVM 取票/出票上报按 orderNo / randomFact 反查此表判定订单归属
+CREATE TABLE IF NOT EXISTS f2f_order (
+    order_no     VARCHAR(64) NOT NULL PRIMARY KEY,
+    random_fact  VARCHAR(64),
+    channel      VARCHAR(8),
+    order_status VARCHAR(16)
+);
+INSERT INTO f2f_order (order_no, random_fact, channel, order_status) VALUES ('test-order-001', 'test-random-001', '01', 'PAID');
 CREATE TABLE IF NOT EXISTS gateway_route_config (
     route_id    VARCHAR(64) NOT NULL PRIMARY KEY,
     uri         VARCHAR(512) NOT NULL,

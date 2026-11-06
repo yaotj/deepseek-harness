@@ -38,6 +38,7 @@ class RouteForwardingE2ETest {
     private static Thread fepAppThread;
 
     private static final String SPLIT_DEVICE_URL = "/itptvm/ci/tvm/notiTakeTicketResult";
+    private static final String SPLIT_TAKE_TICKET_URL = "/itptvm/ci/tvm/requestTakeTicketAuth";
     private static final String SPLIT_BOM_URL = "/itpbom/ci/bom/requestCardDataAnalyse";
     private static final String DEFAULT_DEVICE_URL = "/itptvm/ci/tvm/requestOrder";
     private static final String APP_URL = "/fep-app/ci/app/requestOrder";
@@ -296,5 +297,40 @@ class RouteForwardingE2ETest {
                 .POST(HttpRequest.BodyPublishers.ofString(restoreBomBody)).build(),
                 HttpResponse.BodyHandlers.ofString());
         }
+    }
+
+    @Test
+    void newItpOrderOnTakeTicketAuthRoutesToFacePay() throws Exception {
+        String body = hitGateway(SPLIT_TAKE_TICKET_URL, "{\"randomFact\":\"test-random-001\"}");
+        assertEquals("FACE-PAY-DOWNSTREAM", body.trim(),
+            "取票授权 randomFact 命中新 ITP 订单应走新 ITP");
+    }
+
+    @Test
+    void legacyOrderOnTakeTicketAuthRoutesToLegacy() throws Exception {
+        String body = hitGateway(SPLIT_TAKE_TICKET_URL, "{\"randomFact\":\"ghost-random-xyz\"}");
+        assertEquals("LEGACY-DOWNSTREAM", body.trim(),
+            "取票授权 randomFact 未命中新 ITP 订单应走旧 ITP");
+    }
+
+    @Test
+    void newItpOrderOnNotiTakeTicketResultRoutesToFacePay() throws Exception {
+        String body = hitGateway(SPLIT_DEVICE_URL, "{\"orderNo\":\"test-order-001\"}");
+        assertEquals("FACE-PAY-DOWNSTREAM", body.trim(),
+            "出票成功上报 orderNo 命中新 ITP 订单应走新 ITP");
+    }
+
+    @Test
+    void legacyOrderOnNotiTakeTicketResultRoutesToLegacy() throws Exception {
+        String body = hitGateway(SPLIT_DEVICE_URL, "{\"orderNo\":\"ghost-order-xyz\"}");
+        assertEquals("LEGACY-DOWNSTREAM", body.trim(),
+            "出票成功上报 orderNo 未命中新 ITP 订单应走旧 ITP");
+    }
+
+    @Test
+    void newItpOrderOnTakeTicketAuthWithFormBodyRoutesToFacePay() throws Exception {
+        String body = hitGatewayWithForm(SPLIT_TAKE_TICKET_URL, "{\"randomFact\":\"test-random-001\"}");
+        assertEquals("FACE-PAY-DOWNSTREAM", body.trim(),
+            "POST form body 取票授权命中新 ITP 订单应走新 ITP");
     }
 }

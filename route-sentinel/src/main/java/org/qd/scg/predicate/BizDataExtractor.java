@@ -14,6 +14,8 @@ public class BizDataExtractor {
 
     private static final String THIRD_USER_ID_KEY = "\"thirdUserId\"";
     private static final String CARD_ID_KEY = "\"cardId\"";
+    private static final String ORDER_NO_KEY = "\"orderNo\"";
+    private static final String RANDOM_FACT_KEY = "\"randomFact\"";
 
     private final ObjectMapper objectMapper;
 
@@ -59,6 +61,42 @@ public class BizDataExtractor {
             return null;
         }
         String value = fastExtract(bizData, CARD_ID_KEY);
+        return (value == null || value.isBlank()) ? null : value;
+    }
+
+    /**
+     * Fast path: direct字符串扫描 "orderNo"（TVM 取票/出票上报）。失败返回 null。
+     *
+     * <p>优先顺序与 {@link #extractThirdUserIdFast(ServerRequest)} 一致。
+     */
+    public String extractOrderNoFast(ServerRequest request) {
+        Object cached = request.attribute(RequestConstants.ORDER_NO_ATTR).orElse(null);
+        if (cached instanceof String orderNo && !orderNo.isBlank()) {
+            return orderNo;
+        }
+        String bizData = extractBizData(request);
+        if (bizData == null || bizData.isBlank()) {
+            return null;
+        }
+        String value = fastExtract(bizData, ORDER_NO_KEY);
+        return (value == null || value.isBlank()) ? null : value;
+    }
+
+    /**
+     * Fast path: direct字符串扫描 "randomFact"（取票二维码随机因子）。失败返回 null。
+     *
+     * <p>优先顺序与 {@link #extractThirdUserIdFast(ServerRequest)} 一致。
+     */
+    public String extractRandomFactFast(ServerRequest request) {
+        Object cached = request.attribute(RequestConstants.RANDOM_FACT_ATTR).orElse(null);
+        if (cached instanceof String randomFact && !randomFact.isBlank()) {
+            return randomFact;
+        }
+        String bizData = extractBizData(request);
+        if (bizData == null || bizData.isBlank()) {
+            return null;
+        }
+        String value = fastExtract(bizData, RANDOM_FACT_KEY);
         return (value == null || value.isBlank()) ? null : value;
     }
 

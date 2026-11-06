@@ -16,4 +16,10 @@ public final class RequestConstants {
 
     /** 从 {@code bizData} 中解析出的 {@code cardId}。 */
     public static final String CARD_ID_ATTR = "route-sentinel.cardId";
+
+    /** 从 {@code bizData} 中解析出的 {@code orderNo}（TVM 取票/出票上报）。 */
+    public static final String ORDER_NO_ATTR = "route-sentinel.orderNo";
+
+    /** 从 {@code bizData} 中解析出的 {@code randomFact}（取票二维码随机因子）。 */
+    public static final String RANDOM_FACT_ATTR = "route-sentinel.randomFact";
 }

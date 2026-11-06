@@ -38,8 +38,19 @@ public class RoutePredicateStrategy {
             }
             String cardId = bizDataExtractor.extractCardIdFast(request);
             String thirdUserId = bizDataExtractor.extractThirdUserIdFast(request);
+            // TVM 取票授权 / 出票结果上报的报文不带用户标识，但带 orderNo 或取票二维码 randomFact，
+            // 可反查新 ITP 订单表按"订单归属"分流：有订单走新 ITP，无订单（旧 ITP 订单）走旧 ITP。
+            String orderKey = isTakeTicketOrderPath(path) ? resolveOrderKey(request) : null;
             boolean legacy;
-            if (cardId != null) {
+            if (orderKey != null) {
+                boolean newItpOrder = userRouteService.hasNewItpOrder(orderKey);
+                legacy = !newItpOrder;
+                log.info("分发决策 path={} orderKey={} cardId={} thirdUserId={} -> {}",
+                        path, orderKey,
+                        cardId == null ? "缺失" : cardId,
+                        thirdUserId == null ? "缺失" : thirdUserId,
+                        legacy ? "LEGACY(无新ITP订单)" : "NEW(有新ITP订单)");
+            } else if (cardId != null) {
                 // 有 cardId 即视为新 ITP 用户，直接走新系统
                 legacy = false;
                 log.info("分发决策 path={} cardId={} thirdUserId={} bizData={} -> NEW(cardId)",
@@ -56,5 +67,24 @@ public class RoutePredicateStrategy {
             }
             return legacy;
         };
+    }
+
+    /**
+     * 是否为"按订单归属分流"的 TVM 取票/出票上报路径。
+     *
+     * <p>这 3 条接口的 {@code bizData} 不带 {@code cardId}/{@code thirdUserId}，但带
+     * {@code orderNo} 或取票二维码 {@code randomFact}，可用于反查新 ITP 订单表。
+     * 用 {@code endsWith} 兼容 {@code /itptvm/ci/tvm} 与 {@code /itpbom/ci/tvm} 两种前缀。
+     */
+    private static boolean isTakeTicketOrderPath(String path) {
+        return path != null && (path.endsWith("/requestTakeTicketAuth")
+                || path.endsWith("/notiTakeTicketResult")
+                || path.endsWith("/notiTakeTicketFailResult"));
+    }
+
+    /** 优先取 {@code orderNo}，其次取 {@code randomFact}；都缺失返回 {@code null}。 */
+    private String resolveOrderKey(org.springframework.web.servlet.function.ServerRequest request) {
+        String orderNo = bizDataExtractor.extractOrderNoFast(request);
+        return orderNo != null ? orderNo : bizDataExtractor.extractRandomFactFast(request);
     }
 }
