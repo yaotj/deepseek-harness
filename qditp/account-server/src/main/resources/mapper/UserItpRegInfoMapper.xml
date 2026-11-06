@@ -189,11 +189,14 @@
     </select>
 
     <!-- MUST 用 <where>、NEVER 写 where 1 = 1 打头 + 全部可选 <if>：Druid 判 select alway true condition（2.0.73 修复）。 -->
+    <!-- B13（IT-063）：注册量统计 MUST 只计有效注册（DEL_YN=1）；已取消（DEL_YN=0）不计入，
+         与同文件其他查询方法（line 48-52）的 delYn 口径一致。 -->
     <select id="countGroupByCardType" resultType="com.chinasofti.huateng.account.page.RegStatView">
         select CARD_TYPE as cardType,
                COUNT(*) as regCount
         from USER_ITP_REG_INFO
 <where>
+            and DEL_YN = 1
             <if test="startDate != null and startDate != ''">
                 and REG_TMS &gt;= TO_DATE(#{startDate,jdbcType=VARCHAR}, 'YYYY-MM-DD')
             </if>

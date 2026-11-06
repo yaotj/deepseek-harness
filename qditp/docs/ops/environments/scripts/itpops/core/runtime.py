@@ -21,9 +21,9 @@ from ..errors import (
 from .ui import context
 
 # 仓库根推导：本文件在 <repo>/docs/ops/environments/scripts/itpops/core/；
-# scripts 目录 = parents[2]，再上 4 层到仓库根（与 bash 版 ITP_OPS_ROOT 同一口径）。
+# runtime.py 的 parents: [0]=core, [1]=itpops, [2]=scripts, [3]=environments, [4]=ops, [5]=docs, [6]=qditp(repo root)
 SCRIPTS_DIR = Path(__file__).resolve().parents[2]
-REPO_ROOT_CANDIDATE = SCRIPTS_DIR.parents[3]
+REPO_ROOT_CANDIDATE = SCRIPTS_DIR.parents[3]  # scripts → environments → ops → docs → repo
 
 
 def repo_root() -> Path:

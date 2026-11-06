@@ -19,7 +19,7 @@ import sys
 from dataclasses import dataclass
 
 from ..core import ui
-from ..core.runtime import scripts_dir
+from ..core.runtime import repo_root, scripts_dir
 from ..core.version import next_version
 from ..errors import EXIT_EXEC, EXIT_PRECONDITION, EXIT_USAGE, OpsError
 
@@ -132,7 +132,7 @@ def run(flow: Flow, variables: dict[str, str]) -> int:
 
         result = subprocess.run(
             _command(step, variables), capture_output=True, text=True,
-            cwd=step.cwd or str(scripts_dir()), env=envp,
+            cwd=step.cwd or str(repo_root()), env=envp,
         )
         # 子步骤输出一律转发到 stderr：-o json 时 stdout 只留本层信封
         for stream in (result.stdout, result.stderr):
