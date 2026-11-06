@@ -14,7 +14,7 @@
 `route-sentinel` 是 **Spring Cloud Gateway（SCG）server-mvc** 实现的透明网关，职责只有三件：
 
 1. 接收 `fep-app-vr`（Nginx 虚拟路由）转发的设备域 / APP 域订单支付请求；
-2. **TVM 取票授权 / 出票结果上报 3 条路径**（报文本就不带用户标识）优先按**订单归属**判定：用 `bizData.orderNo`（缺失则 `randomFact`）反查 `F2F_ORDER`，查到 → 新 ITP，查不到 → 旧 ITP；
+2. **TVM 取票授权 / 激活取票 / 出票结果上报 4 条路径**（报文本就不带用户标识）优先按**订单归属**判定：用 `bizData.orderNo`（缺失则 `randomFact`）反查 `F2F_ORDER`，查到 → 新 ITP，查不到 → 旧 ITP；
 3. 其余路径优先按 `bizData.cardId` 判定：有 `cardId` 视为新系统用户；无 `cardId` 时按 `bizData.thirdUserId` 查 `USER_ITP_REG_INFO` 判定用户属性；
 4. 把**旧用户/旧订单**路由到旧 ITP（`legacy-route-*`），把**新用户/新订单**路由到 `face-pay-server`（`face-pay-split-route-*`）。
 
@@ -101,8 +101,8 @@ ORDER_NO    NUMBER        路由优先级
    - 优先读 `FormDataCacheFilter` 解析后的请求属性（覆盖 POST + application/x-www-form-urlencoded 的 form body）；
    - 其次读 query param `bizData`；
    - 最后读 `HttpServletRequest.getParameter("bizData")`；
-4. 【订单归属优先】path 以 `requestTakeTicketAuth` / `notiTakeTicketResult` / `notiTakeTicketFailResult` 结尾时
-   （TVM 取票授权 / 出票结果上报，报文本就不带用户标识）：
+4. 【订单归属优先】path 以 `requestTakeTicketAuth` / `requestActiveTicket` / `notiTakeTicketResult` / `notiTakeTicketFailResult` 结尾时
+   （TVM 取票授权 / 激活取票 / 出票结果上报，报文本就不带用户标识）：
    - 从 `bizData` 取 `orderNo`，缺失则取取票二维码 `randomFact`；
    - 有键 → `UserRouteService.hasNewItpOrder(orderKey)`：
      - `SELECT 1 FROM f2f_order WHERE (order_no = ? OR random_fact = ?) AND ROWNUM = 1`；

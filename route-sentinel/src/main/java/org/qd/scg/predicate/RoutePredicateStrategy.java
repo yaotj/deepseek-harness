@@ -72,12 +72,14 @@ public class RoutePredicateStrategy {
     /**
      * 是否为"按订单归属分流"的 TVM 取票/出票上报路径。
      *
-     * <p>这 3 条接口的 {@code bizData} 不带 {@code cardId}/{@code thirdUserId}，但带
+     * <p>这 4 条接口的 {@code bizData} 不带 {@code cardId}/{@code thirdUserId}，但带
      * {@code orderNo} 或取票二维码 {@code randomFact}，可用于反查新 ITP 订单表。
+     * {@code requestActiveTicket} 自带 {@code orderNo}（激活取票），可与授权/出票上报一同判定。
      * 用 {@code endsWith} 兼容 {@code /itptvm/ci/tvm} 与 {@code /itpbom/ci/tvm} 两种前缀。
      */
     private static boolean isTakeTicketOrderPath(String path) {
         return path != null && (path.endsWith("/requestTakeTicketAuth")
+                || path.endsWith("/requestActiveTicket")
                 || path.endsWith("/notiTakeTicketResult")
                 || path.endsWith("/notiTakeTicketFailResult"));
     }

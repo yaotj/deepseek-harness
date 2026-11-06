@@ -134,10 +134,10 @@ public class UserRouteService {
             return false;
         }
         try {
-            List<Integer> rows = jdbc.queryForList(
-                "SELECT 1 FROM f2f_order WHERE (order_no = ? OR random_fact = ?) AND ROWNUM = 1",
+            Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM f2f_order WHERE order_no = ? OR random_fact = ?",
                 Integer.class, orderKey, orderKey);
-            return !rows.isEmpty();
+            return count != null && count > 0;
         } catch (Exception e) {
             log.warn("订单归属查询失败，默认走旧 ITP: {}", e.getMessage());
             return false;

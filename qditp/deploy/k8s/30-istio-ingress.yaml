@@ -96,6 +96,15 @@ spec:
         host: route-sentinel-svc
         port:
           number: 8080
+  # 激活取票（IF2A-07）：自带 orderNo，按订单归属分流（新 ITP 订单→新 ITP，旧 ITP 订单→旧 ITP）
+  - match:
+    - uri:
+        exact: /itptvm/ci/tvm/requestActiveTicket
+    route:
+    - destination:
+        host: route-sentinel-svc
+        port:
+          number: 8080
   - match:
     - uri:
         exact: /itpbom/ci/bom/requestCardDataAnalyse

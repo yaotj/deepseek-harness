@@ -39,6 +39,7 @@ class RouteForwardingE2ETest {
 
     private static final String SPLIT_DEVICE_URL = "/itptvm/ci/tvm/notiTakeTicketResult";
     private static final String SPLIT_TAKE_TICKET_URL = "/itptvm/ci/tvm/requestTakeTicketAuth";
+    private static final String SPLIT_ACTIVE_TICKET_URL = "/itptvm/ci/tvm/requestActiveTicket";
     private static final String SPLIT_BOM_URL = "/itpbom/ci/bom/requestCardDataAnalyse";
     private static final String DEFAULT_DEVICE_URL = "/itptvm/ci/tvm/requestOrder";
     private static final String APP_URL = "/fep-app/ci/app/requestOrder";
@@ -253,7 +254,7 @@ class RouteForwardingE2ETest {
     @Test
     void adminEndpointUpsertTriggersLiveReload() throws Exception {
         HttpClient client = HttpClient.newHttpClient();
-        String tvmUrls = "\"Path=/itptvm/ci/tvm/notiTakeTicketResult\",\"Path=/itptvm/ci/tvm/notiTakeTicketFailResult\",\"Path=/itptvm/ci/tvm/requestTakeTicketAuth\"";
+        String tvmUrls = "\"Path=/itptvm/ci/tvm/notiTakeTicketResult\",\"Path=/itptvm/ci/tvm/notiTakeTicketFailResult\",\"Path=/itptvm/ci/tvm/requestTakeTicketAuth\",\"Path=/itptvm/ci/tvm/requestActiveTicket\"";
         String bomUrls = "\"Path=/itpbom/ci/bom/requestCardDataAnalyse\",\"Path=/itpbom/ci/bom/requestUpdateCardData\"";
         String tvmFilter = "\"RewritePath=/itptvm/ci/tvm/(?<segment>.*),/itptvm/ci/tvmDispatch/${segment}\"";
         String bomFilter = "\"RewritePath=/itpbom/ci/bom/(?<segment>.*),/itpbom/ci/bomDispatch/${segment}\"";
@@ -332,5 +333,19 @@ class RouteForwardingE2ETest {
         String body = hitGatewayWithForm(SPLIT_TAKE_TICKET_URL, "{\"randomFact\":\"test-random-001\"}");
         assertEquals("FACE-PAY-DOWNSTREAM", body.trim(),
             "POST form body 取票授权命中新 ITP 订单应走新 ITP");
+    }
+
+    @Test
+    void newItpOrderOnRequestActiveTicketRoutesToFacePay() throws Exception {
+        String body = hitGateway(SPLIT_ACTIVE_TICKET_URL, "{\"orderNo\":\"test-order-001\"}");
+        assertEquals("FACE-PAY-DOWNSTREAM", body.trim(),
+            "激活取票 orderNo 命中新 ITP 订单应走新 ITP");
+    }
+
+    @Test
+    void legacyOrderOnRequestActiveTicketRoutesToLegacy() throws Exception {
+        String body = hitGateway(SPLIT_ACTIVE_TICKET_URL, "{\"orderNo\":\"ghost-order-xyz\"}");
+        assertEquals("LEGACY-DOWNSTREAM", body.trim(),
+            "激活取票 orderNo 未命中新 ITP 订单应走旧 ITP");
     }
 }
