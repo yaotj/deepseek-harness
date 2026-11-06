@@ -31,8 +31,8 @@
       <el-table-column label="开户渠道" width="140" align="center"><template #default="{ row }">{{ issueChannelLabel(row.channel) }}</template></el-table-column>
       <el-table-column label="支付用户标识" prop="thirdPayId" min-width="160" show-overflow-tooltip />
       <el-table-column label="渠道签约流水号" prop="reqContractNo" min-width="220" show-overflow-tooltip><template #default="{ row }">{{ row.reqContractNo || '-' }}</template></el-table-column>
-      <el-table-column label="用户状态" prop="status" width="110" align="center">
-        <template #default="{ row }"><el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{ row.status || '-' }}</el-tag></template>
+      <el-table-column label="用户状态" prop="status" width="150" align="center">
+        <template #default="{ row }"><el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{ userStatusLabel(row.status) }}</el-tag></template>
       </el-table-column>
       <el-table-column label="注册时间" width="170" align="center"><template #default="{ row }">{{ parseTime(row.createTime) || '-' }}</template></el-table-column>
       <el-table-column label="操作" width="300" fixed="right" align="center">
@@ -75,6 +75,22 @@ const issueChannelLabels = {
 
 function issueChannelLabel(value) {
   return formatCodeLabel(value, issueChannelLabels)
+}
+
+/**
+ * ALIPAY_USER_INFO.STATUS 的取值集合。
+ *
+ * <p>2026-11-06 全模块核查：代码里**只有 `ACTIVE` 一个写入字面量**（`AlipayRegistrationService`），
+ * 无枚举类、无常量类，DDL 只有 `DEFAULT 'ACTIVE'` 与「用户状态」四个字列注释。
+ * 所以这张表现在就是一项；将来出现第二个值时 MUST 先回到代码与库确认语义再补，
+ * NEVER 按别的系统的习惯猜一个 `INACTIVE` / `FROZEN` 填进来。
+ */
+const userStatusLabels = {
+  ACTIVE: '生效中'
+}
+
+function userStatusLabel(value) {
+  return formatCodeLabel(value, userStatusLabels)
 }
 
 /**
@@ -167,7 +183,7 @@ function handleExport() {
     issueChannel: issueChannelLabel(row.channel),
     thirdPayId: row.thirdPayId,
     reqContractNo: row.reqContractNo || '-',
-    status: row.status || '-',
+    status: userStatusLabel(row.status),
     createTime: parseTime(row.createTime) || '-'
   }))
   const headers = [

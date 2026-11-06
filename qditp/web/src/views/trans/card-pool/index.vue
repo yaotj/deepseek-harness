@@ -25,7 +25,7 @@
       <el-table-column label="低库存" width="100" align="center"><template #default="{ row }"><el-tag v-if="row.poolEnabled" :type="row.belowThreshold ? 'danger' : 'success'">{{ row.belowThreshold ? '低于 10000' : '正常' }}</el-tag><span v-else>-</span></template></el-table-column>
       <el-table-column label="最近批次号" prop="latestBatchNo" width="120" align="center" />
       <el-table-column label="最近文件" prop="latestFileName" min-width="180" show-overflow-tooltip />
-      <el-table-column label="最近状态" prop="latestStatus" width="120" align="center" />
+      <el-table-column label="最近状态" prop="latestStatus" width="170" align="center"><template #default="{ row }">{{ cardPoolStatusLabel(row.latestStatus) }}</template></el-table-column>
       <el-table-column label="操作" width="120" fixed="right" align="center"><template #default="{ row }"><el-button v-if="row.poolEnabled" v-hasPermi="['trans:card-pool:apply']" link type="primary" icon="Plus" @click="createBatch(row)">申请批次</el-button><span v-else>-</span></template></el-table-column>
     </el-table>
 
@@ -35,7 +35,7 @@
       <el-form-item label="票种"><el-select v-model="query.cardType" clearable style="width: 190px"><el-option v-for="item in ticketTypes" :key="item" :label="ticketTypeLabel(item)" :value="item" /></el-select></el-form-item>
       <el-form-item label="ACC 子类型"><el-select v-model="query.accTicketType" clearable style="width: 120px"><el-option v-for="item in accTicketTypes" :key="item" :label="item" :value="item" /></el-select></el-form-item>
       <el-form-item label="来源"><el-select v-model="query.source" clearable style="width: 110px"><el-option label="自动" value="AUTO" /><el-option label="人工" value="MANUAL" /></el-select></el-form-item>
-      <el-form-item label="状态"><el-select v-model="query.status" clearable style="width: 150px"><el-option v-for="item in statuses" :key="item" :label="item" :value="item" /></el-select></el-form-item>
+      <el-form-item label="状态"><el-select v-model="query.status" clearable style="width: 190px"><el-option v-for="item in statuses" :key="item" :label="cardPoolStatusLabel(item)" :value="item" /></el-select></el-form-item>
       <el-form-item label="创建时间"><query-time-range v-model="query.dateRange" :value-format="DATE_FORMAT" @change="handleQuery" /></el-form-item>
       <el-form-item><el-button type="primary" icon="Search" @click="handleQuery">查询</el-button><el-button icon="Refresh" @click="reset">重置</el-button><el-button type="warning" icon="Download" :disabled="!batches.length" @click="handleExport">导出 Excel</el-button><el-button type="primary" icon="Clock" @click="handleAsyncExport">后台全量导出</el-button></el-form-item>
     </el-form>
@@ -59,7 +59,7 @@
       <el-table-column label="文件名" prop="fileName" min-width="180" show-overflow-tooltip />
       <el-table-column label="申请数" prop="requestNum" width="100" align="right"><template #default="{ row }"><span class="tabular">{{ row.requestNum ?? 0 }}</span></template></el-table-column>
       <el-table-column label="有效/重复/非法" min-width="150" align="center"><template #default="{ row }"><span class="tabular">{{ row.validCount || 0 }} / {{ row.duplicateCount || 0 }} / {{ row.invalidCount || 0 }}</span></template></el-table-column>
-      <el-table-column label="状态" prop="status" width="120" align="center"><template #default="{ row }"><status-tag :value="row.status" /></template></el-table-column>
+      <el-table-column label="状态" prop="status" width="170" align="center"><template #default="{ row }"><status-tag :value="row.status" :label="cardPoolStatusLabel(row.status)" /></template></el-table-column>
       <el-table-column label="导入进度" width="140" align="center">
         <template #default="{ row }">
           <!-- 进度按状态机的阶段数换算，不是「已完成行数/申请数」——后端没有回写逐行进度，不能假装有。 -->
@@ -101,6 +101,7 @@
 import { getCardPoolSummary, listCardPoolBatches, requestCardPoolBatch, retryCardPoolBatch } from '@/api/trans/cardPool'
 import { defaultTodayRange } from '@/utils/dateRange'
 import { formatCodeLabel } from '@/utils/codeLabel'
+import { cardPoolStatusLabel } from '@/utils/cardPoolStatus'
 import { exportToExcel } from '@/utils/excelExport'
 import { submitAsyncExportTask } from '@/api/monitor/asyncExport'
 
@@ -197,7 +198,7 @@ function handleExport() {
       validCount: r.validCount ?? 0,
       duplicateCount: r.duplicateCount ?? 0,
       invalidCount: r.invalidCount ?? 0,
-      status: r.status,
+      status: cardPoolStatusLabel(r.status),
       errorMsg: r.errorMsg,
       createTime: r.createTime,
       finishTime: r.finishTime
