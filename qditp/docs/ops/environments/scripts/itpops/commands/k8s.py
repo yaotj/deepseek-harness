@@ -11,11 +11,15 @@
 
 【ALL_SERVICES 纪律（MUST，逐条保留自 bash）】
   · 服务名 MUST 是仓库根目录下的模块目录名（不是镜像名、不是 Deployment 名）。
-  · 语义 = 可构建推送的模块全集（根 pom 中有 kubernetes-maven-plugin 的模块目录），
+  · 语义 = 可构建推送的模块全集（根 pom <modules> 中有 kubernetes-maven-plugin 的模块目录），
     不是生产部署清单——NEVER 按生产清单裁剪（会改变 deploy/deploy-all 的全量语义）：
-    本清单有、生产不需要：acc-secure-server（死模块）、collect-pay-server（已下线）、
-    collect-ticket-server（未部署）；生产还有 web-server/web 前端——走 zip + nginx
-    Deployment，NEVER 加进本清单。
+    本清单有、生产不需要：collect-pay-server（已下线）、collect-ticket-server（未部署）；
+    生产还有 web-server/web 前端——走 zip + nginx Deployment，NEVER 加进本清单。
+  · 2026-11-06 裁定：acc-secure-server 已从清单移除。理由不是「生产不需要」，而是
+    **它不在根 pom <modules> 中**——`mvn -pl acc-secure-server -am` 必然报
+    "Could not find the selected project in the reactor"，根本构建不出 jar，留着就是
+    每轮 deploy-all 必失败的死项。本次移除不是「按生产清单裁剪」，是修正
+    「可构建推送」语义的事实错误。NEVER 把它加回来（要加 MUST 先进根 pom reactor）。
   · 镜像名 ≠ 模块名：fep-app-server 的镜像名是 itp/fep-app（<image.prefix>），
     核对推送结果 MUST 先 grep pom 的 <image.prefix>，NEVER 用目录名拼。
 
@@ -56,11 +60,11 @@ from ..core.ui import context
 from ..errors import EXIT_EXEC, EXIT_USAGE, OpsError
 
 # ---------------------------------------------------------------- 全量清单（单一真源）
-# 语义 = 仓库里可构建推送的模块全集，不是生产部署清单（见头注，NEVER 擅自「对齐」）。
+# 语义 = 仓库里可构建推送的模块全集（须在根 pom <modules> 中），不是生产部署清单。
+# 2026-11-06 移除 acc-secure-server（不在 reactor，构建必失败），见头注；NEVER 擅自「对齐」。
 ALL_SERVICES = [
     # ---- 原清单中经确认存在且可部署的（保持原有相对顺序，勿随意调换）----
     "account-server",
-    "acc-secure-server",
     "acc-security-server",
     "acc-es-server",
     "collect-ticket-server",
@@ -421,9 +425,9 @@ CATALOG = {
             "json_data": {
                 "deployed": ["account-server:1.2.43", "…"],
                 "failed": [],
-                "success": 24,
+                "success": 23,
                 "fail": 0,
-                "total": 24,
+                "total": 23,
                 "elapsed_seconds": 600,
             },
         },
@@ -434,8 +438,8 @@ CATALOG = {
             "args": [],
             "writes": False,
             "example": "itp-ops.sh k8s services",
-            "stdout_human": "account-server\\nacc-secure-server\\n…（每行一个，共 24 个）",
-            "json_data": {"services": ["account-server", "acc-secure-server", "…"]},
+            "stdout_human": "account-server\\nacc-security-server\\n…（每行一个，共 23 个）",
+            "json_data": {"services": ["account-server", "acc-security-server", "…"]},
         },
     ],
 }

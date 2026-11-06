@@ -15,6 +15,7 @@ bash 另对 --env、-o/--output、--size 做取值补全，--jar/--dockerfile �
 from __future__ import annotations
 
 import re
+import xml.etree.ElementTree as ET
 
 from ..core.runtime import repo_root
 from ..errors import OpsError
@@ -83,19 +84,30 @@ def _top_level() -> list[str]:
 
 
 def module_names() -> list[str]:
-    """仓库根下含 pom.xml 的模块目录名 —— flow backend 的位置参数真源。
+    """根 pom `<modules>` 中的模块目录名 —— flow backend 位置参数 / 发布清单的补全真源。
+
+    2026-11-06 起以 reactor 为准，NEVER 再按「目录下有没有 pom.xml」扫描：
+    acc-secure-server 有自己的 pom.xml 却不在根 pom <modules> 里，
+    `mvn -pl acc-secure-server -am` 必然报 "Could not find the selected project
+    in the reactor"，补全出来只会把人带进一条必失败的命令。详见
+    itpops/commands/k8s.py 的 ALL_SERVICES 头注（同日已从发布清单移除）。
 
     生成补全脚本时静态嵌入（不每次 Tab 起 Python 进程）；新增模块后重新
-    source 一次补全脚本即可，见 completion -h 的说明。
+    source 一次补全脚本即可，见 completion -h 的说明。解析失败时宁可返回空
+    词表，也不退回目录扫描给出可能不可构建的候选。
     """
     try:
         root = repo_root()
     except OpsError:
         return []
-    return sorted(
-        p.name for p in root.iterdir()
-        if p.is_dir() and (p / "pom.xml").is_file()
-    )
+    try:
+        tree = ET.parse(root / "pom.xml")
+        # `{*}` 通配 namespace：pom 带不带 xmlns 都能取到 <modules>/<module>。
+        found = tree.findall(".//{*}modules/{*}module") or tree.findall(".//modules/module")
+        names = sorted({e.text.strip() for e in found if e.text and e.text.strip()})
+        return names
+    except (OSError, ET.ParseError):
+        return []
 
 
 def bash_script() -> str:

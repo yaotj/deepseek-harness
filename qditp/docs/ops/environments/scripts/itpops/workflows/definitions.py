@@ -36,6 +36,17 @@ def backend(o: dict) -> Flow:
             "如 face-pay-server；CloudOS 应用名请用 --app 单独指定）" % module,
             EXIT_PRECONDITION,
         )
+    # 发布列车单一真源 = commands/k8s.py 的 ALL_SERVICES（可构建推送的模块全集）。
+    # 不在其中的目录（如 acc-secure-server：有自己的 pom.xml 却不在根 pom <modules>
+    # 中，2026-11-06 已从清单移除）构建必然失败，MUST 在这里就明确拒绝，NEVER 让
+    # 运维跑到第 3 步才看到 Maven 的 "Could not find the selected project in the reactor"。
+    from ..commands.k8s import ALL_SERVICES
+    if module not in ALL_SERVICES:
+        raise OpsError(
+            "模块不在发布列车 ALL_SERVICES 中：%s（该目录不可构建或未纳入根 pom "
+            "<modules>；新模块 MUST 先补进 commands/k8s.py 的 ALL_SERVICES）" % module,
+            EXIT_PRECONDITION,
+        )
     app = o.get("app") or module
     image = o.get("image") or module
     env = o["env"]
