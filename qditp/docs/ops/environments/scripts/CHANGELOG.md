@@ -62,6 +62,28 @@
 - CATALOG cloudos 子命令 32 → 30；`test_quality` 多词命令断言改指 `svc create`。
 - 纯离线 + 只读预演，未触碰任何环境。
 
+### 2026-11-06 16:41 新增 `log vl`（VictoriaLogs 查询），按用户裁定**不做脱敏**
+
+- 此前 VL 只能手拼 `ssh k8s-master curl .../select/logsql/query`；现封装为
+  `itp-ops.sh log vl`，读测试环境 VictoriaLogs（端点 `ITP_VL_URL` 可覆盖，
+  默认 `10.100.183.227:30032`）。
+- 两种用法：
+  - 快捷：`log vl [关键字...] [--app X] [--level L] [--last 30m] [--limit N]`
+    → 自动拼 LogsQL 并追加 `| sort by (_time desc) | limit N`；
+    用户自带管道（stats 等）时不追加，避免破坏管道语义。
+  - 完整表达式：`log vl --expr '_time:1h | stats by (app) count()'`（原样直传）。
+- **NEVER 脱敏**（用户明确裁定）：text 模式逐行原样输出 VL 返回的 JSONL，
+  `-o json` 模式给 `{"query","url","count","logs"}` 信封，字段一律不裁剪
+  （含 header / Admin-Token / Authorization 等），过滤与否由使用者决定。
+- query 经 `shlex.quote` 传给 `--data-urlencode`，NEVER 裸拼用户输入
+  （LogsQL 含空格/引号/管道）。ssh 不可达 → 退出码 4，远端失败 → 5。
+- 新增 `tests/test_log_vl.py` 13 例：拼装 / --expr 原样 / 管道不追加 /
+  shell 转义 / URL 覆盖 / 参数互斥 / **不脱敏回归** / JSON 信封 / 传输失败。
+  单测 155 → 168。
+- 真实测试环境验证：`--expr` 统计、`--app/--last/--limit` 快捷查询、
+  `-o json` 信封、以及含 `Admin-Token`/`Bearer` 的日志原样输出（3 行命中）。
+- 只读能力，未触碰任何环境配置。
+
 ## 2.9.4 — 2026-11-05 补全收尾：zsh 文件路径补全 + 向导 Ctrl+C 优雅退出
 
 - zsh 侧之前只补了模块目录词表，`--jar/--dockerfile` 的 `compgen -f` 文件路径补全只有 bash 有。
