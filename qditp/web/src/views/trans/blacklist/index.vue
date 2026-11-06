@@ -106,12 +106,17 @@
           </el-popover>
         </template>
       </el-table-column>
-      <el-table-column label="渠道同步" width="180" align="center">
+      <el-table-column label="渠道同步" width="230" align="center">
         <template #default="{ row }">
           <el-tag :type="syncTagType(row.channelSyncStatus)">{{ syncLabel(row.channelSyncStatus) }}</el-tag>
-          <el-tooltip v-if="row.channelSyncFailReason" :content="row.channelSyncFailReason" placement="top">
-            <el-button link type="danger" icon="WarningFilled" @click="showFailReason(row)" />
-          </el-tooltip>
+          <el-button
+            v-if="row.channelSyncFailReason"
+            link
+            type="danger"
+            icon="WarningFilled"
+            class="fail-reason-btn"
+            @click="showFailReason(row)"
+          >失败原因</el-button>
           <span v-if="row.channelSyncRetry > 0" class="retry-times">重试 {{ row.channelSyncRetry }} 次</span>
         </template>
       </el-table-column>
@@ -124,17 +129,17 @@
       <el-table-column label="创建时间" width="170" align="center">
         <template #default="{ row }">{{ parseTime(row.createTime) || '-' }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="90" align="center" fixed="right">
+      <el-table-column label="操作" width="110" align="center" fixed="right">
         <template #default="{ row }">
           <el-tooltip :content="row.status === STATUS_RELEASING ? '该卡已在解除中，等通知推达即自动放行' : '解除黑名单'" placement="top">
             <el-button
               v-hasPermi="['trans:blacklist:remove']"
               link
               type="danger"
-              icon="Delete"
+              icon="CircleClose"
               :disabled="row.status === STATUS_RELEASING"
               @click="handleRelease(row)"
-            />
+            >解除</el-button>
           </el-tooltip>
         </template>
       </el-table-column>
@@ -487,6 +492,9 @@ onMounted(getList)
 </script>
 
 <style scoped>
+.fail-reason-btn {
+  margin-left: 8px;
+}
 .retry-times {
   margin-left: 4px;
   font-size: 12px;

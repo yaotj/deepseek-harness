@@ -84,11 +84,9 @@
       <el-table-column label="已退金额" width="105" align="right"><template #default="{ row }">{{ (row.refundAmount ?? 0) > 0 ? formatAmount(row.refundAmount) : '-' }}</template></el-table-column>
       <el-table-column label="最后退款时间" prop="lastRefundTime" width="170" align="center" />
       <el-table-column label="下单时间" prop="createTime" width="170" align="center" />
-      <el-table-column label="操作" width="90" align="center" fixed="right">
+      <el-table-column label="操作" width="100" align="center" fixed="right">
         <template #default="{ row }">
-          <el-tooltip content="退款" placement="top">
-            <el-button v-hasPermi="['trans:face-pay:refund']" link type="danger" icon="RefreshLeft" :disabled="!canRefund(row)" @click="handleRefund(row)" />
-          </el-tooltip>
+          <el-button v-hasPermi="['trans:face-pay:refund']" link type="danger" icon="Money" :disabled="!canRefund(row)" @click="handleRefund(row)">退款</el-button>
         </template>
       </el-table-column>
     </el-table>
