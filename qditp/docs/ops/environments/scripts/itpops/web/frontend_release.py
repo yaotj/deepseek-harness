@@ -310,8 +310,14 @@ def app_state(token, base, app_uuid) -> dict:
 
 
 def build_upgrade_body(meta: dict, version_id: str, version: str) -> dict:
+    """web 应用包升级 body：读现状后**只换 version / version_id**，其余原样回传。
+
+    2026-11-06 审计补漏：`setting_file_id` / `crt_file_id` / `key_file_id` 此前漏传
+    （API 文档 web 包升级 body 示例含之）。应用包升级与配置升级是两条独立通道，
+    本函数 MUST 把配置/证书引用原样带回，NEVER 因此重置平台侧配置。
+    """
     img = (meta.get("image_metadata") or {}).get("metadata") or {}
-    return {
+    body = {
         "version_id": version_id,
         "version": version,
         "strategy": meta.get("strategy", "rolling"),
@@ -328,6 +334,11 @@ def build_upgrade_body(meta: dict, version_id: str, version: str) -> dict:
         "xjarVersionPaths": {},
         "resources": img.get("resources", []),
     }
+    # 只在平台确实有时回传，NEVER 传 null 触发平台校验。
+    for k in ("setting_file_id", "crt_file_id", "key_file_id"):
+        if meta.get(k):
+            body[k] = meta[k]
+    return body
 
 
 def upgrade(token, base, app_uuid, version, version_id) -> str:
@@ -359,7 +370,7 @@ def upgrade(token, base, app_uuid, version, version_id) -> str:
 # --------------------------------------------------------------------------- 入口
 CATALOG = {
     "name": "release",
-    "summary": "web 前端（CloudOS 应用包 web-frontend）一键发版：出 zip → 上传 → 升级 → 核验",
+    "summary": "web 前端【换应用包】一键发版：出 zip → 上传 → 升级 → 核验；只换 version/version_id，不改 nginx 配置（改配置走「配置升级」，NEVER 用本命令代替）",
     "usage": "web release <版本|--bump|--debug> [--yes] [--skip-build] [--skip-upgrade] [--app …] [--pkg …] [--app-uuid …] [--tag …] [--description …] [--feature …] [--env hongdao|test]",
     "args": [
         {"name": "版本", "required": False},

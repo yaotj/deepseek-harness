@@ -30,6 +30,19 @@
   env 25 项未丢、自动复验通过；全量 `env-check` ERROR 0。
 - 已触碰测试环境（face-pay-server version 递增至 1.0.93.2）。
 
+### 2026-11-06 16:15 升级行为全量审计（「升级配置 ≠ 升级应用包」裁定后）
+
+- `build_upgrade_body` 补回 `setting_file_id` / `crt_file_id` / `key_file_id`
+  （API 文档 web 包升级 body 示例含之，此前漏传；只在平台有值时回传，NEVER 传 null）。
+  应用包升级只换包、配置引用原样带回，落实两条通道互不影响。
+- `web release` CATALOG 与 `flow frontend` notes 明确写出
+  「只换应用包，**不是配置升级**；改 nginx.conf 走配置升级」，避免再拿发版当改配置。
+- 新增 `tests/test_web.py`（5 例）：配置引用回传 / 只改版本字段 / 无值省略 /
+  两处帮助文本边界回归。单测 150 → 155。
+- 只读核查结论：`cloudos deploy` / `env-set` 对 web（包类型）应用均有正确前置拒绝；
+  `scale` / `spec-set` 走纯 CloudOS REST；`web release` 有升级后轮询复验。
+- 纯静态 + 只读 dry-run，**未触碰任何环境**（未再发应用包）。
+
 ## 2.9.4 — 2026-11-05 补全收尾：zsh 文件路径补全 + 向导 Ctrl+C 优雅退出
 
 - zsh 侧之前只补了模块目录词表，`--jar/--dockerfile` 的 `compgen -f` 文件路径补全只有 bash 有。

@@ -116,9 +116,15 @@ def frontend(o: dict) -> Flow:
     rel += ["--env", env, "--yes"]
     return Flow(
         "frontend",
-        "前端一键发布：自检 → web release（出 zip → 上传软件中心 → 升级 → 核验）",
+        "前端【换应用包】一键发布：自检 → web release（出 zip → 上传软件中心 → 升级 → 核验）",
         (_health(env),
          Step("前端应用包一键发版", tuple(rel), expect="完成", write=True)),
+        notes=(
+            "本流程只换应用包（zip / version_id / version），**不是配置升级**："
+            "改 nginx.conf 走配置升级（ConfigMap），NEVER 用本流程代替；"
+            "见 docs/ops/web前端云平台发版流程.md §nginx 配置升级。",
+            "默认 --bump 从 CloudOS 已部署版本算下一版；只想复用现有包用 --version <v> 或 --skip-build。",
+        ),
     )
 
 
