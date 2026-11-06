@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""在测试环境执行 recon-upload-file-menu.sql。"""
+"""在测试环境执行对账文件上传相关的 Oracle 迁移脚本。
+
+缺省跑 recon-upload-file-menu.sql（建表 + 菜单）；传文件名可跑同目录下其它脚本，例如：
+    python3 apply_recon_upload_file.py recon-upload-file-naming.sql
+"""
 import os
 import re
 import sys
@@ -8,7 +12,8 @@ from pathlib import Path
 
 import oracledb
 
-SQL_FILE = Path(__file__).resolve().parent / "recon-upload-file-menu.sql"
+HERE = Path(__file__).resolve().parent
+SQL_FILE = HERE / (sys.argv[1] if len(sys.argv) > 1 else "recon-upload-file-menu.sql")
 DSN = "172.20.222.3:1521/AFCITPDB"
 USER = "QDITP"
 PWD = os.environ.get("QDITP_PWD", "qditp")

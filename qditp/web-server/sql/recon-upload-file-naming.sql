@@ -12,21 +12,20 @@
 --   重复上传是替换，旧磁盘文件改名 .replaced-<时间戳> 留存；
 --   命名规则上线前已存在的记录（FILE_CATEGORY 为 NULL）豁免只读、不参与唯一约束。
 --
--- 幂等：可重复执行。执行环境：测试 AFCITPDB / 红岛 hditpdb 各跑一次（两库同构不同实例）。
--- 执行方式：沿用 web-server/sql/apply_recon_upload_file.py 的连库跑法。
+-- 幂等：可重复执行（沿用本目录 recon-upload-file-menu.sql 的 BEGIN + SQLCODE 捕获写法，
+--   MUST NOT 用 DECLARE 开头 —— web-server/sql/apply_recon_upload_file.py 的拆分器只认
+--   行首 BEGIN，DECLARE 起头的块会被从第一个分号处切断）。
+-- 执行环境：测试 AFCITPDB / 红岛 hditpdb 各跑一次（两库同构不同实例）。
+-- 执行方式：python3 web-server/sql/apply_recon_upload_file.py web-server/sql/recon-upload-file-naming.sql
+-- MUST 先于 web-admin 发版执行：selectReconUploadFileVo 已把 file_category 写进列清单，缺列即整页查询报错。
 
 -- ============================================================
--- 1. 新增类别列
+-- 1. 新增类别列（ORA-01430 = 列已存在）
 -- ============================================================
-DECLARE
-    v_cnt NUMBER;
 BEGIN
-    SELECT COUNT(*) INTO v_cnt
-      FROM user_tab_cols
-     WHERE table_name = 'RECON_UPLOAD_FILE' AND column_name = 'FILE_CATEGORY';
-    IF v_cnt = 0 THEN
-        EXECUTE IMMEDIATE 'ALTER TABLE RECON_UPLOAD_FILE ADD (FILE_CATEGORY VARCHAR2(16))';
-    END IF;
+    EXECUTE IMMEDIATE 'ALTER TABLE RECON_UPLOAD_FILE ADD (FILE_CATEGORY VARCHAR2(16))';
+EXCEPTION WHEN OTHERS THEN
+    IF SQLCODE != -1430 THEN RAISE; END IF;
 END;
 /
 
@@ -40,40 +39,32 @@ COMMENT ON COLUMN RECON_UPLOAD_FILE.FILE_CATEGORY IS
 --    普通索引下历史行 (NULL, '20261104') 仍会入索引并互相冲突，两行同日期历史数据会直接建索引失败。
 --    这里把两个表达式都按 FILE_CATEGORY IS NULL 置 NULL ⇒ 历史行整条键为 NULL、自动豁免，
 --    正是「旧数据不参与唯一约束」这条裁决的实现方式。
+--    ORA-00955 = 同名对象已存在。
 -- ============================================================
-DECLARE
-    v_cnt NUMBER;
 BEGIN
-    SELECT COUNT(*) INTO v_cnt
-      FROM user_indexes
-     WHERE index_name = 'UK_RUF_CATEGORY_DATE';
-    IF v_cnt = 0 THEN
-        EXECUTE IMMEDIATE '
-            CREATE UNIQUE INDEX UK_RUF_CATEGORY_DATE ON RECON_UPLOAD_FILE (
-                CASE WHEN FILE_CATEGORY IS NULL THEN NULL ELSE FILE_CATEGORY END,
-                CASE WHEN FILE_CATEGORY IS NULL THEN NULL ELSE RECON_DATE    END
-            )';
-    END IF;
+    EXECUTE IMMEDIATE '
+        CREATE UNIQUE INDEX UK_RUF_CATEGORY_DATE ON RECON_UPLOAD_FILE (
+            CASE WHEN FILE_CATEGORY IS NULL THEN NULL ELSE FILE_CATEGORY END,
+            CASE WHEN FILE_CATEGORY IS NULL THEN NULL ELSE RECON_DATE    END
+        )';
+EXCEPTION WHEN OTHERS THEN
+    IF SQLCODE != -955 THEN RAISE; END IF;
 END;
 /
 
--- 列表按类别筛选走这个普通索引（函数式唯一索引只在两列等值时才可被利用）
-DECLARE
-    v_cnt NUMBER;
+-- 列表按类别筛选走这个普通索引（函数式唯一索引只在两列等值时才可被利用）。
+-- ORA-01408 = 该列清单已被索引；ORA-00955 = 同名对象已存在。
 BEGIN
-    SELECT COUNT(*) INTO v_cnt
-      FROM user_indexes
-     WHERE index_name = 'IDX_RUF_CATEGORY';
-    IF v_cnt = 0 THEN
-        EXECUTE IMMEDIATE 'CREATE INDEX IDX_RUF_CATEGORY ON RECON_UPLOAD_FILE (FILE_CATEGORY)';
-    END IF;
+    EXECUTE IMMEDIATE 'CREATE INDEX IDX_RUF_CATEGORY ON RECON_UPLOAD_FILE (FILE_CATEGORY)';
+EXCEPTION WHEN OTHERS THEN
+    IF SQLCODE NOT IN (-955, -1408) THEN RAISE; END IF;
 END;
 /
 
 -- ============================================================
 -- 3. 历史数据不回填
 --
---    刻意 NOT 给现有行补 FILE_CATEGORY：那 2 行原始文件名是「对账.xls」，
+--    刻意 NOT 给现有行补 FILE_CATEGORY：那批行的原始文件名是「对账.xls」，
 --    本身不符合任何一套命名约定，硬归类会造出一个「看起来合规、实际名字对不上」的假数据。
 --    保持 NULL ⇒ 列表仍可见、可下载、可删除，只是新规则不再产生同类行。
 -- ============================================================
