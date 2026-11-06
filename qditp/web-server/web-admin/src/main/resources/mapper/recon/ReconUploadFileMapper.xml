@@ -10,6 +10,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="filePath"     column="file_path"      />
         <result property="fileSize"     column="file_size"      />
         <result property="fileType"     column="file_type"      />
+        <result property="fileCategory" column="file_category"  />
         <result property="reconDate"    column="recon_date"     />
         <result property="status"       column="status"         />
         <result property="createBy"     column="create_by"      />
@@ -20,7 +21,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectReconUploadFileVo">
-        select id, file_name, file_path, file_size, file_type, recon_date, status,
+        select id, file_name, file_path, file_size, file_type, file_category, recon_date, status,
                create_by, create_time, update_by, update_time, remark
         from recon_upload_file
     </sql>
@@ -35,6 +36,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <where>
             <if test="fileName != null and fileName != ''">and file_name like concat('%', #{fileName}, '%')</if>
             <if test="fileType != null and fileType != ''">and file_type = #{fileType}</if>
+            <if test="fileCategory != null and fileCategory != ''">and file_category = #{fileCategory}</if>
             <if test="status != null and status != ''">and status = #{status}</if>
             <if test="reconDate != null and reconDate != ''">and recon_date = #{reconDate}</if>
             <if test="params.beginTime != null and params.beginTime != ''">
@@ -45,6 +47,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             </if>
         </where>
         order by create_time desc
+    </select>
+
+    <!-- 替换语义的入口：同一 (类别, 对账日期) 至多一行，由函数式唯一索引 UK_RUF_CATEGORY_DATE 兜底。
+         MUST 用 where 标签且两列恒参与谓词，避免筛选条件全空时只剩恒真谓词被 Druid 拦。 -->
+    <select id="selectByCategoryAndDate" resultMap="ReconUploadFileResult">
+        <include refid="selectReconUploadFileVo"/>
+        where file_category = #{fileCategory,jdbcType=VARCHAR}
+          and recon_date    = #{reconDate,jdbcType=VARCHAR}
     </select>
 
     <insert id="insertReconUploadFile" parameterType="ReconUploadFile">
@@ -58,6 +68,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="filePath != null and filePath != ''">file_path,</if>
             <if test="fileSize != null">file_size,</if>
             <if test="fileType != null and fileType != ''">file_type,</if>
+            <if test="fileCategory != null and fileCategory != ''">file_category,</if>
             <if test="reconDate != null and reconDate != ''">recon_date,</if>
             <if test="status != null and status != ''">status,</if>
             <if test="createBy != null and createBy != ''">create_by,</if>
@@ -72,6 +83,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="filePath != null and filePath != ''">#{filePath},</if>
             <if test="fileSize != null">#{fileSize},</if>
             <if test="fileType != null and fileType != ''">#{fileType},</if>
+            <if test="fileCategory != null and fileCategory != ''">#{fileCategory},</if>
             <if test="reconDate != null and reconDate != ''">#{reconDate},</if>
             <if test="status != null and status != ''">#{status},</if>
             <if test="createBy != null and createBy != ''">#{createBy},</if>
@@ -81,6 +93,24 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="remark != null">#{remark},</if>
         </trim>
     </insert>
+
+    <!-- 替换上传：id 不变，整行覆盖。每个可空参数 MUST 显式写 jdbcType，
+         否则 Java 侧传 null 时 MyBatis 按 OTHER(1111) 下发、ojdbc 报「无效的列类型」
+         （docs/architecture/mybatis-oracle-runtime-traps.md §5）。 -->
+    <update id="updateReconUploadFile" parameterType="ReconUploadFile">
+        update recon_upload_file
+        set file_name     = #{fileName,jdbcType=VARCHAR},
+            file_path     = #{filePath,jdbcType=VARCHAR},
+            file_size     = #{fileSize,jdbcType=NUMERIC},
+            file_type     = #{fileType,jdbcType=VARCHAR},
+            file_category = #{fileCategory,jdbcType=VARCHAR},
+            recon_date    = #{reconDate,jdbcType=VARCHAR},
+            status        = #{status,jdbcType=VARCHAR},
+            update_by     = #{updateBy,jdbcType=VARCHAR},
+            update_time   = #{updateTime,jdbcType=TIMESTAMP},
+            remark        = #{remark,jdbcType=VARCHAR}
+        where id = #{id,jdbcType=NUMERIC}
+    </update>
 
     <delete id="deleteReconUploadFileById" parameterType="Long">
         delete from recon_upload_file where id = #{id}

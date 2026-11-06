@@ -236,7 +236,8 @@ EXP 的唯一来源是 gate-txn-pay（见「各源抽取口径」里的结构性
 - 本地生成先写 `<fileName>.generating`，`verify` 通过后 `ATOMIC_MOVE` rename 成正式名（不支持原子移动时降级为普通 move）。
 - 分片落盘路径 `<recon.storage.root>/<batchId>/<source>/<filetype 小写>/part-%08d.dat`，临时名后缀 `.receiving`。
 - FTP 先传 `<remoteRoot>/<fileName>.uploading`，再远端 `rename` 成正式名；
-  `ReconFtpService` 对文件名做正则校验 `ITP\.(EXP|PAY|BUS|DETAIL)\.\d{8}`，不符即拒。
+  `ReconFtpService` 对文件名做正则校验 `ITP\.(EXP|PAY|BUS|DETAIL|TXNDIFF)\.\d{8}`（**五类**，
+  含 `TXNDIFF`；本文此前记作四类，2026-11-06 按代码原文更正），不符即拒。
 - **rename 之后 MUST 回查**（`recon.ftp.verify-after-upload` 默认 `true`）：先 `SIZE`，拿不到再 `LIST` 匹配文件名，
   字节数与本地一致才算投递成功并打「对账文件投递已回查通过 remotePath=..., bytes=...」，
   否则抛 `IOException` 让该文件落 `FAILED` 等下一轮。**226 / 250 只表示命令被接受，NEVER 当成投递成功的判据。**
@@ -249,6 +250,29 @@ EXP 的唯一来源是 gate-txn-pay（见「各源抽取口径」里的结构性
 - 甲方文档同节还给出了**测试环境 FTP 的 IP / 端口 / 账号口令**。
   **凭据一律只看甲方文档原文**，仓库内 `recon.ftp.*` 全部是 `${RECON_FTP_*:}` 空默认值 + K8s Secret 注入，
   **NEVER 把账号口令抄进任何 `.md`、日志或提交信息**。
+
+### 综管台「对账文件上传」的命名与替换约束（2026-11-06 起）
+
+落点在 **web-admin**（`controller/recon/ReconUploadFileController`，`/recon/upload-file/**`），
+是「运营接口放业务模块 `/page/**`」这条约定之外的**既存例外**——它只写自己的 `RECON_UPLOAD_FILE` 表与本机落盘目录
+`/home/javaapp/app/export/recon-upload/`，**不跨库、不调业务服务**。
+
+- **文件名 MUST 命中两套既有约定之一**，否则直接拒绝（不落盘、不写库）：
+  `ITP.(EXP|PAY|BUS|DETAIL|TXNDIFF).yyyyMMdd[.后缀]`（与上面投递正则同口径，额外允许可选后缀）
+  或 `reconciliation-bill-yyyyMMdd[.后缀]`（与 `recon.thirdparty.bill-file-pattern` 默认 glob 同口径）。
+- **账期取自文件名**，且 MUST 等于对话框里选的「对账日期」；八位数字但不是合法日期（如 `20261399`）
+  由后端 `LocalDate.parse` 拒掉——前端不重复这层校验，会表现为「账期不一致」提示。
+- **同一 (类别, 账期) 只有一份**：重复上传是**替换**，旧磁盘文件先改名 `.replaced-<时间戳>` 留存再覆盖，
+  记录按主键 update（id 不变）。并发由函数式唯一索引 `UK_RUF_CATEGORY_DATE` 兜底 + `DuplicateKeyException` 拒绝，
+  **NEVER 只靠前端提示挡并发**。
+- 落盘文件名 = 正则捕获组重新拼出的规范名，原始文件名一个字都不进路径 ⇒ 无 `../` 穿越面。
+- 迁移脚本 `web-server/sql/recon-upload-file-naming.sql`（幂等，含回滚段）。
+  **MUST 先于 web-admin 发版执行**——`selectReconUploadFileVo` 已把 `file_category` 写进列清单，
+  缺列会让该页所有查询直接失败。
+- 命名规则上线前已存在的记录 `FILE_CATEGORY` 保持 NULL（列表显示「历史命名」），
+  刻意**不回填**：那批原始文件名是「对账.xls」，硬归类只会造出「看着合规、名字对不上」的假数据。
+- 前端提示用正则与后端裁判正则的一致性由 `web/recon-name-probe.mjs` 机检
+  （从两份源码里读出模式再跑同一批用例，不在探针内重抄字面量）。
 
 ## 数据表
 

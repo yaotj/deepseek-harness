@@ -10,10 +10,25 @@
                @keyup.enter="handleQuery"
             />
          </el-form-item>
-         <el-form-item label="文件类型" prop="fileType">
+         <el-form-item label="文件类别" prop="fileCategory">
+            <el-select
+               v-model="queryParams.fileCategory"
+               placeholder="请选择文件类别"
+               clearable
+               style="width: 180px"
+            >
+               <el-option
+                  v-for="(label, code) in RECON_FILE_TYPE_LABELS"
+                  :key="code"
+                  :label="`${code}-${label}`"
+                  :value="code"
+               />
+            </el-select>
+         </el-form-item>
+         <el-form-item label="后缀" prop="fileType">
             <el-select
                v-model="queryParams.fileType"
-               placeholder="请选择文件类型"
+               placeholder="请选择后缀"
                clearable
                style="width: 160px"
             >
@@ -67,6 +82,20 @@
          :close-on-click-modal="false"
       >
          <el-form :model="uploadForm" ref="uploadFormRef" label-width="100px">
+            <el-alert
+               type="info"
+               :closable="false"
+               show-icon
+               class="mb8"
+               title="同一账期的同一类对账文件只保留一份：重复上传会替换现有文件，旧文件在服务器上改名 .replaced-<时间戳> 留存。"
+            />
+            <el-form-item label="已选文件">
+               <span>{{ pendingFile ? pendingFile.name : '' }}</span>
+            </el-form-item>
+            <el-form-item v-if="parsedName" label="文件类别">
+               <el-tag>{{ reconFileTypeLabel(parsedName.category) }}</el-tag>
+               <span class="name-hint">账期 {{ parsedName.reconDate }}{{ parsedName.extension ? ` · .${parsedName.extension}` : ' · 无后缀' }}</span>
+            </el-form-item>
             <el-form-item label="对账日期" prop="reconDate" required>
                <el-date-picker
                   v-model="uploadForm.reconDate"
@@ -75,9 +104,7 @@
                   placeholder="请选择对账日期"
                   style="width: 100%"
                />
-            </el-form-item>
-            <el-form-item label="已选文件">
-               <span>{{ pendingFile ? pendingFile.name : '' }}</span>
+               <span class="name-hint">必须与文件名里的账期一致</span>
             </el-form-item>
             <el-form-item label="备注" prop="remark">
                <el-input
@@ -111,7 +138,17 @@
          </template>
          <el-table-column label="文件ID" align="center" prop="id" width="80" />
          <el-table-column label="原始文件名" align="center" prop="fileName" :show-overflow-tooltip="true" />
-         <el-table-column label="文件类型" align="center" prop="fileType" width="100" />
+         <el-table-column label="文件类别" align="center" width="170">
+            <template #default="scope">
+               <el-tag v-if="scope.row.fileCategory" :type="scope.row.fileCategory === 'BILL' ? 'warning' : 'success'">
+                  {{ reconFileTypeLabel(scope.row.fileCategory) }}
+               </el-tag>
+               <el-tag v-else type="info">历史命名</el-tag>
+            </template>
+         </el-table-column>
+         <el-table-column label="后缀" align="center" prop="fileType" width="80">
+            <template #default="scope">{{ scope.row.fileType || '无' }}</template>
+         </el-table-column>
          <el-table-column label="文件大小" align="center" prop="fileSize" width="110">
             <template #default="scope">
                <span>{{ formatFileSize(scope.row.fileSize) }}</span>
@@ -207,6 +244,7 @@
 import { listReconUploadFile, uploadReconFile, downloadReconFile, delReconUploadFile, previewReconFile } from "@/api/recon/uploadFile"
 import { parseTime } from '@/utils/points'
 import { defaultTodayRange } from '@/utils/dateRange'
+import { parseReconFileName, reconFileTypeLabel, RECON_FILE_TYPE_LABELS, RECON_NAME_HINT } from '@/utils/reconFileType'
 import { saveAs } from 'file-saver'
 import VueOfficeExcel from '@vue-office/excel'
 import '@vue-office/excel/lib/index.css'
@@ -226,6 +264,8 @@ const queryError = ref('')
 // 上传对话框
 const uploadDialogVisible = ref(false)
 const pendingFile = ref(null)
+/** 已选文件解析出的 { category, reconDate, extension }，用于对话框回显与账期一致性校验。 */
+const parsedName = ref(null)
 const uploadFormRef = ref(null)
 const uploadForm = reactive({
   reconDate: undefined,
@@ -238,6 +278,7 @@ const data = reactive({
     pageSize: 10,
     fileName: undefined,
     fileType: undefined,
+    fileCategory: undefined,
     reconDate: undefined
   }
 })
@@ -297,12 +338,17 @@ function formatFileSize(size) {
   return (num / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
 }
 
-/** 上传前校验 */
+/** 上传前校验：先卡命名约定，再卡后缀与大小。 */
 function beforeUpload(file) {
+   const parsed = parseReconFileName(file.name)
+   if (!parsed) {
+      proxy.$modal.msgError(`文件名不符合对账命名约定：${file.name}。应为 ${RECON_NAME_HINT}`)
+      return false
+   }
    const validTypes = ['xlsx', 'xls', 'csv', 'txt']
-   const extension = file.name.substring(file.name.lastIndexOf('.') + 1).toLowerCase()
-   if (!validTypes.includes(extension)) {
-      proxy.$modal.msgError('仅支持上传 xlsx、xls、csv、txt 格式的文件')
+   // 后缀取自正则捕获组而不是按点切：ITP.PAY.20261105 最后一个点后是账期，不是扩展名。
+   if (parsed.extension && !validTypes.includes(parsed.extension)) {
+      proxy.$modal.msgError('对账文件后缀仅支持 xlsx、xls、csv、txt（也可不带后缀）')
       return false
    }
    if (file.size > 50 * 1024 * 1024) {
@@ -311,7 +357,8 @@ function beforeUpload(file) {
    }
    // 暂存文件并弹出对账日期/备注录入框
    pendingFile.value = file
-   uploadForm.reconDate = undefined
+   parsedName.value = parsed
+   uploadForm.reconDate = parsed.reconDate
    uploadForm.remark = undefined
    uploadDialogVisible.value = true
    return false
@@ -330,12 +377,13 @@ function customUpload(options) {
    proxy.$modal.loading("正在上传对账文件，请稍候...")
    uploadReconFile(formData).then(response => {
       proxy.$modal.closeLoading()
-      proxy.$modal.msgSuccess("上传成功")
+      // 服务端才区分得清「新增」与「替换」，前端别自己猜文案。
+      proxy.$modal.msgSuccess(response.msg || "上传成功")
       uploadDialogVisible.value = false
       getList()
    }).catch(error => {
       proxy.$modal.closeLoading()
-      proxy.$modal.msgError("上传失败")
+      proxy.$modal.msgError(error?.message || "上传失败")
       console.error(error)
    })
 }
@@ -348,6 +396,11 @@ function handleUploadSubmit() {
    }
    if (!uploadForm.reconDate) {
       proxy.$modal.msgError('请选择对账日期')
+      return
+   }
+   // 账期一致性在前端先挡一次：服务端同样会拒，这里省一次往返和一次落盘。
+   if (parsedName.value && uploadForm.reconDate !== parsedName.value.reconDate) {
+      proxy.$modal.msgError(`对账日期 ${uploadForm.reconDate} 与文件名账期 ${parsedName.value.reconDate} 不一致`)
       return
    }
    customUpload({
@@ -455,6 +508,11 @@ getList()
 </script>
 
 <style scoped>
+.name-hint {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
 .preview-container {
   min-height: 200px;
 }

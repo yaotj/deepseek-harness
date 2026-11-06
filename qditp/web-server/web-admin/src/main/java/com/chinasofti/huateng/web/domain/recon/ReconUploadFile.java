@@ -25,6 +25,12 @@ public class ReconUploadFile extends BaseEntity
     /** 文件类型（扩展名） */
     private String fileType;
 
+    /**
+     * 文件类别：EXP / PAY / BUS / DETAIL / TXNDIFF（ITP 侧五类）、BILL（渠道日账单）。
+     * 命名规则上线前的历史行为 null，不参与 (类别, 对账日期) 唯一约束。
+     */
+    private String fileCategory;
+
     /** 对账日期（yyyyMMdd，可选） */
     private String reconDate;
 
@@ -79,6 +85,16 @@ public class ReconUploadFile extends BaseEntity
     public void setFileType(String fileType)
     {
         this.fileType = fileType;
+    }
+
+    public String getFileCategory()
+    {
+        return fileCategory;
+    }
+
+    public void setFileCategory(String fileCategory)
+    {
+        this.fileCategory = fileCategory;
     }
 
     public String getReconDate()

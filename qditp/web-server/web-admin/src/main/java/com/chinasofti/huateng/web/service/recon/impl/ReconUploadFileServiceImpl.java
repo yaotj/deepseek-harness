@@ -29,9 +29,21 @@ public class ReconUploadFileServiceImpl implements IReconUploadFileService
     }
 
     @Override
+    public ReconUploadFile selectByCategoryAndDate(String fileCategory, String reconDate)
+    {
+        return reconUploadFileMapper.selectByCategoryAndDate(fileCategory, reconDate);
+    }
+
+    @Override
     public int insertReconUploadFile(ReconUploadFile file)
     {
         return reconUploadFileMapper.insertReconUploadFile(file);
+    }
+
+    @Override
+    public int updateReconUploadFile(ReconUploadFile file)
+    {
+        return reconUploadFileMapper.updateReconUploadFile(file);
     }
 
     @Override
