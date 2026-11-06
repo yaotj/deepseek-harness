@@ -69,20 +69,23 @@ body 由 `GET /apps/{uuid}` 的 `metadata` 读现状后**只改 `version_id` / `
 
 **回滚点**：升级前脚本打印 `ROLLBACK_POINT=<升级前线上版本>`；回滚＝重跑旧版本（`--yes --skip-build`）。
 
-### ⚠ nginx.conf 不随 zip 发布，且每次升级重建 ConfigMap（2026-11-06 实测）
+### nginx 配置升级（与应用包升级是两条独立通道，2026-11-06 厘清）
 
-- `build:zip` 只打 `web/dist/`，**`web/nginx.conf` / `web/hongdao/nginx.conf` 不在包内**。
-  web 类型应用的 nginx.conf 由平台 `setting_file_id` 指向的配置生成 ConfigMap
-  `websyspresetweb-version-<version>`，经 volumeMount 挂到容器
+**「升级配置」≠「升级应用包」**，两者互不影响，配置不随包版本变化是平台的正常设计，
+不是缺陷。改 nginx.conf 只需要升级配置，**不需要发新应用包**。
+
+| 通道 | 改什么 | 入口 |
+|---|---|---|
+| 应用包升级 | `web/dist/` → zip → `version_id` / `version` | `web release` / `flow frontend`（本文 §〇） |
+| 配置升级 | nginx.conf → ConfigMap `websyspresetweb-version-<version>` | 见下，`kubectl apply` + `rollout restart` |
+
+- `build:zip` 只打 `web/dist/`，`web/nginx.conf` / `web/hongdao/nginx.conf` 不在包内。
+  平台由 `setting_file_id` 指向的配置生成 ConfigMap，经 volumeMount 挂到容器
   `/usr/share/nginx/conf/nginx.conf`（见 `docs/reference/cloudos/CloudOS 5.0_PaaS_API_E7501.md`
   「升级应用」web 包 body 示例的 `configMap` / `volumeMounts`）。
-- **实测**：`web release` / `flow frontend` 升级 0.0.0.6 → 0.0.0.7 前后，
-  `GET /apps/{uuid}/file?upgradeId=<upgrade_id>&fileType=web_conf` 的 `file_text`
-  完全一致（12169 字符，仅 `/prod-api/` 有 20M）⇒ **升级不会带上仓库 nginx.conf 改动**。
-- 平台只有 `GET /apps/{uuid}/file`（查配置）**没有 web_conf 写端点**：
-  `PUT` / `POST` / `PATCH` 该路径均返回 `application.5000006 Request method not supported`。
-  当前让改动生效的唯一路径（已验证，见
-  `docs/testing/admin-web/10-执行记录-2026-11-06-对标补建发版.md` §三）：
+- 平台配置相关 API 只有 `GET /apps/{uuid}/file`（查询，`PUT` / `POST` / `PATCH` 该路径
+  均返回 `application.5000006`，即不提供写端点）。配置升级走 ConfigMap
+  （已验证，见 `docs/testing/admin-web/10-执行记录-2026-11-06-对标补建发版.md` §三）：
 
   ```bash
   scp web/nginx.conf k8s-master:/tmp/nginx-upload.conf
@@ -91,12 +94,10 @@ body 由 `GET /apps/{uuid}` 的 `metadata` 读现状后**只改 `version_id` / `
       && kubectl -n itp rollout restart deployment/web'
   ```
 
-- ⚠ **每次升级都会新建一个 ConfigMap**，改过的配置在下一次发版后丢失。
-  改 nginx.conf MUST 同步三处：① 仓库 `web/nginx.conf`（测试）② 仓库
-  `web/hongdao/nginx.conf`（红岛）③ 线上**当前版本** ConfigMap；
-  每次 `web release` 之后 MUST 重新同步并复验，NEVER 以为发版会带上配置。
-- 只读核对入口（`upgrade_id` 取 `GET /apps/<uuid>` 顶层 32 位字段，
-  **NEVER** 用 10 位 `version_id`）：
+- 应用包升级会生成对应新版本的 ConfigMap；之后若要再次改配置，作用于**当前挂载的
+  那一份** ConfigMap 即可。仓库两份配置（测试 `web/nginx.conf`、红岛
+  `web/hongdao/nginx.conf`）与线上配置保持一致即可，无需借此触发应用包发版。
+- 只读核对入口（`upgrade_id` 取 `GET /apps/<uuid>` 顶层 32 位字段，不是 10 位 `version_id`）：
 
   ```bash
   itp-ops.sh cloudos raw GET \
