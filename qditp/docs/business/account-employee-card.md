@@ -81,8 +81,8 @@
 - `POST /channel/requestApplication` — **保留但不在链路上**，权威实现在 alipay-account-server。**NEVER 把任何模块的 `service.account.url` 指过来处理支付宝开卡**，否则同一 `thirdUserId` 会在两套表里各开一次户且互不可见。见 ADR-D15。
 
 **account-server / `controller/page/ItpUserPageController`**（5 个，**唯一有类级 `@RequestMapping("/page/user/itp")`**）
-- `GET /page/user/itp/search` — 入参是 POJO 绑定 query（`queryType` + `keyword`）
-- `GET /page/user/itp/canceled-log/search` — 已注销用户查询（`USER_ITP_REG_LOG` 销户记录）
+- `GET /page/user/itp/search` — 入参是 POJO 绑定 query：`msisdn` / `cardId` / `thirdUserId` / `reqContractNo`（渠道签约流水号）四个并列字段 **AND 组合** + `status`；2026-11-06 起取代旧的 `queryType` + `keyword`，**全空一律 400**（防整表扫描）
+- `GET /page/user/itp/canceled-log/search` — 已注销用户查询（`USER_ITP_REG_LOG` 销户记录）；同样四个并列字段里**只有前三个可用**，该表不存签约流水号，带 `reqContractNo` 直接 400
 - `GET /page/user/itp/pay-channels` — `@RequestParam thirdUserId` + `cardId` + `cardType`，返回含 `terminationReady`
 - `GET /page/user/itp/reg-stats` — 注册量统计，按票种分组计数，可选 `startDate` / `endDate`
 - `POST /page/user/itp/batch-search` — `@RequestBody List<String> cardIds`，单批上限 500，综管台批量导入逻辑卡号查手机号

@@ -1,5 +1,6 @@
 package com.chinasofti.huateng.alipay.account.service;
 
+import com.chinasofti.huateng.alipay.account.page.AlipayUserSearchQuery;
 import com.chinasofti.huateng.alipay.account.page.AlipayUserSearchView;
 import com.github.pagehelper.PageInfo;
 
@@ -12,14 +13,11 @@ import com.github.pagehelper.PageInfo;
  */
 public interface AlipayUserPageQueryService {
     /**
-     * 按查询类型分页检索未逻辑删除（{@code DELETE_FLAG='0'}）的支付宝注册用户，返回**脱敏后**的视图。
+     * 按并列筛选条件（手机号 / 逻辑卡号 / 第三方用户 ID / 渠道签约流水号，条件之间是 AND）
+     * 分页检索未逻辑删除（{@code DELETE_FLAG='0'}）的支付宝注册用户，返回**脱敏后**的视图。
      *
-     * @param queryType 支持 {@code THIRD_USER_ID} / {@code CARD_ID} / {@code MSISDN}
-     * @param keyword   已由调用方保证非空；本方法内部会 trim
-     * @param pageNum   页码，非法值按 1 兜底
-     * @param pageSize  每页条数，非法值按 10 兜底、上限 100
-     * @return 分页结果；<b>{@code null} 表示查询类型不受支持</b>（调用方据此返回参数错误）。
-     * <b>NEVER 把 {@code null} 与「查不到」混为一谈</b> —— 查不到是 {@code total=0} 的空页。
+     * @param query 筛选条件；空白字段不参与谓词，调用方 MUST 保证至少一个非空
+     * @return 分页结果；查不到即 {@code total=0} 的空页
      */
-    PageInfo<AlipayUserSearchView> search(String queryType, String keyword, Integer pageNum, Integer pageSize);
+    PageInfo<AlipayUserSearchView> search(AlipayUserSearchQuery query);
 }

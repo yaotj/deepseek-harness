@@ -25,27 +25,18 @@
         )
     </insert>
 
-    <select id="selectCancelLogByThirdUserId" resultMap="BaseResultMap">
+    <!-- 综管台已注销用户查询：并列输入框 AND 组合。用 where 标签、OPER_TYPE 恒参与，
+         避免「筛选条件全空时只剩恒真谓词」被 Druid 判为 select alway true condition。
+         本表无签约流水号列，故没有 reqContractNo 谓词。 -->
+    <select id="selectCancelLogByFilters" resultMap="BaseResultMap">
         select ID, CARD_ID, CARD_TYPE, THIRD_USER_ID, MSISDN, OPER_DATE_TIME, OPER_TYPE
         from User_ITP_Reg_log
-        where THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
-          and OPER_TYPE = 2
-        order by OPER_DATE_TIME desc
-    </select>
-
-    <select id="selectCancelLogByMsisdn" resultMap="BaseResultMap">
-        select ID, CARD_ID, CARD_TYPE, THIRD_USER_ID, MSISDN, OPER_DATE_TIME, OPER_TYPE
-        from User_ITP_Reg_log
-        where MSISDN = #{msisdn,jdbcType=VARCHAR}
-          and OPER_TYPE = 2
-        order by OPER_DATE_TIME desc
-    </select>
-
-    <select id="selectCancelLogByCardId" resultMap="BaseResultMap">
-        select ID, CARD_ID, CARD_TYPE, THIRD_USER_ID, MSISDN, OPER_DATE_TIME, OPER_TYPE
-        from User_ITP_Reg_log
-        where CARD_ID = #{cardId,jdbcType=VARCHAR}
-          and OPER_TYPE = 2
+        <where>
+            <if test="msisdn != null">and MSISDN = #{msisdn,jdbcType=VARCHAR}</if>
+            <if test="cardId != null">and CARD_ID = #{cardId,jdbcType=VARCHAR}</if>
+            <if test="thirdUserId != null">and THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}</if>
+            and OPER_TYPE = 2
+        </where>
         order by OPER_DATE_TIME desc
     </select>
 </mapper>

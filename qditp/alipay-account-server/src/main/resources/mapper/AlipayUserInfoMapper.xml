@@ -42,12 +42,20 @@
           and DELETE_FLAG = '0'
     </select>
 
-    <select id="selectByMsisdn" resultMap="BaseResultMap">
+    <!-- 综管台用户查询：并列输入框的 AND 组合，空白条件由服务层归一成 null 后不参与谓词。
+         MUST 用 where 标签且 DELETE_FLAG 恒参与，避免「筛选条件全空时只剩恒真谓词」被 Druid
+         判为 select alway true condition。SQL 正文禁写注释：Druid WallFilter 判为注入、语句静默失效。 -->
+    <select id="selectByFilters" resultMap="BaseResultMap">
         select
         <include refid="Base_Column_List"/>
         from ALIPAY_USER_INFO
-        where MSISDN = #{msisdn,jdbcType=VARCHAR}
-          and DELETE_FLAG = '0'
+        <where>
+            <if test="msisdn != null">and MSISDN = #{msisdn,jdbcType=VARCHAR}</if>
+            <if test="cardId != null">and CARD_ID = #{cardId,jdbcType=VARCHAR}</if>
+            <if test="thirdUserId != null">and THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}</if>
+            <if test="reqContractNo != null">and REQ_CONTRACT_NO = #{reqContractNo,jdbcType=VARCHAR}</if>
+            and DELETE_FLAG = '0'
+        </where>
         order by CREATE_TIME desc
     </select>
 

@@ -36,24 +36,21 @@ public class ItpUserPageController {
     }
 
     /**
-     * 按三方用户ID、手机号或卡ID查询注册记录。
+     * 按手机号 / 逻辑卡号 / 三方用户ID / 渠道签约流水号的任意组合查询注册记录（条件之间是 AND）。
      * <p>{@code status=ACTIVE} 查有效（DEL_YN=1），{@code status=CANCELED} 查已注销（DEL_YN=0）；
      * 不传时默认 ACTIVE，与「有效用户查询」页保持一致。
      */
     @GetMapping("/search")
     public ResultVO<List<ItpUserSearchView>> search(ItpUserSearchQuery query) {
-        if (query == null || !StringUtils.hasText(query.getQueryType()) || !StringUtils.hasText(query.getKeyword())) {
-            return ResultMapper.illegalParams("查询类型和查询关键字不能为空");
+        if (query == null || !hasAnyFilter(query)) {
+            return ResultMapper.illegalParams("请至少填写一个查询条件");
         }
         String status = StringUtils.hasText(query.getStatus()) ? query.getStatus().trim() : "ACTIVE";
         if (!"ACTIVE".equalsIgnoreCase(status) && !"CANCELED".equalsIgnoreCase(status)) {
             return ResultMapper.illegalParams("状态只能是 ACTIVE（有效）或 CANCELED（已注销）");
         }
-        List<ItpUserSearchView> views = itpUserQueryService.search(query.getQueryType(), query.getKeyword(), status);
-        if (views == null) {
-            return ResultMapper.illegalParams("不支持的查询类型");
-        }
-        return ResultMapper.ok(views);
+        query.setStatus(status);
+        return ResultMapper.ok(itpUserQueryService.search(query));
     }
 
     /**
@@ -62,18 +59,22 @@ public class ItpUserPageController {
      * <p>由于 IF8A-42 销户后通道已清空，注销成功即触发归档物理删除，
      * {@code USER_ITP_REG_INFO} 中 {@code DEL_YN=0} 的记录窗口极短，
      * 因此「已注销用户」的持久真源是销户日志而非开户表。
+     *
+     * <p>该表<b>不存签约流水号</b>，带上 {@code reqContractNo} 一律拒绝而不是静默忽略后返回空集，
+     * 否则运营会把「查不了」误读成「这个流水号没有销户记录」。
      */
     @GetMapping("/canceled-log/search")
     public ResultVO<List<ItpUserCanceledSearchView>> searchCanceledLog(ItpUserSearchQuery query) {
-        if (query == null || !StringUtils.hasText(query.getQueryType()) || !StringUtils.hasText(query.getKeyword())) {
-            return ResultMapper.illegalParams("查询类型和查询关键字不能为空");
+        if (query == null) {
+            return ResultMapper.illegalParams("请至少填写一个查询条件");
         }
-        List<ItpUserCanceledSearchView> views = itpUserQueryService.searchCanceledLog(
-                query.getQueryType(), query.getKeyword().trim());
-        if (views == null) {
-            return ResultMapper.illegalParams("不支持的查询类型");
+        if (StringUtils.hasText(query.getReqContractNo())) {
+            return ResultMapper.illegalParams("已注销用户的数据源不含签约流水号，请按手机号 / 逻辑卡号 / 第三方用户 ID 查询");
         }
-        return ResultMapper.ok(views);
+        if (!hasAnyFilter(query)) {
+            return ResultMapper.illegalParams("请至少填写一个查询条件");
+        }
+        return ResultMapper.ok(itpUserQueryService.searchCanceledLog(query));
     }
 
     /**
@@ -115,5 +116,13 @@ public class ItpUserPageController {
             return ResultMapper.illegalParams("单批最多 " + BATCH_SEARCH_LIMIT + " 条逻辑卡号，请分批导入");
         }
         return ResultMapper.ok(itpUserQueryService.batchSearch(cardIds));
+    }
+
+    /** 四个并列筛选条件里是否至少填了一个；全空即整表扫描，必须在入口拦住。 */
+    private boolean hasAnyFilter(ItpUserSearchQuery query) {
+        return StringUtils.hasText(query.getMsisdn())
+                || StringUtils.hasText(query.getCardId())
+                || StringUtils.hasText(query.getThirdUserId())
+                || StringUtils.hasText(query.getReqContractNo());
     }
 }

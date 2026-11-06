@@ -16,6 +16,8 @@ public class AlipayUserExportDTO implements Serializable
     private String msisdn;
     private String channel;
     private String thirdPayId;
+    /** 渠道签约流水号（ALIPAY_USER_INFO.REQ_CONTRACT_NO）。 */
+    private String reqContractNo;
     private String status;
     private LocalDateTime createTime;
 
@@ -77,6 +79,16 @@ public class AlipayUserExportDTO implements Serializable
     public void setThirdPayId(String thirdPayId)
     {
         this.thirdPayId = thirdPayId;
+    }
+
+    public String getReqContractNo()
+    {
+        return reqContractNo;
+    }
+
+    public void setReqContractNo(String reqContractNo)
+    {
+        this.reqContractNo = reqContractNo;
     }
 
     public String getStatus()

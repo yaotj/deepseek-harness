@@ -3,7 +3,9 @@ import request from '@/utils/request'
 /**
  * 查询支付宝注册用户，仅对应 ALIPAY_USER_INFO。
  *
- * @param params { queryType, keyword, pageNum, pageSize }
+ * <p>四个筛选字段之间是 AND，空白字段不要下发（后端要求至少一个非空，全空会被判成整表扫描并拒绝）。
+ *
+ * @param params { msisdn, cardId, thirdUserId, reqContractNo, pageNum, pageSize }
  * @returns data 为 PageInfo，取 `list` 与 `total`
  */
 export function searchAlipayUsers(params) {
@@ -17,7 +19,9 @@ export function searchAlipayUsers(params) {
 /**
  * 查询其他渠道注册用户，仅对应 USER_ITP_REG_INFO。
  *
- * @param {object} params { queryType, keyword, status }，status=ACTIVE/CANCELED
+ * <p>四个筛选字段之间是 AND，空白字段不要下发（后端要求至少一个非空）。
+ *
+ * @param {object} params { msisdn, cardId, thirdUserId, reqContractNo, status }，status=ACTIVE/CANCELED
  */
 export function searchItpUsers(params) {
   return request({
@@ -30,7 +34,9 @@ export function searchItpUsers(params) {
 /**
  * 查询已注销用户，数据来源于 USER_ITP_REG_LOG（OPER_TYPE=2 销户记录）。
  *
- * @param {object} params { queryType, keyword }
+ * <p>该表不存签约流水号，传 reqContractNo 会被后端直接拒绝，前端也不给这个入口。
+ *
+ * @param {object} params { msisdn, cardId, thirdUserId }
  */
 export function searchItpCanceledUsers(params) {
   return request({

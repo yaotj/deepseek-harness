@@ -2,6 +2,7 @@ package com.chinasofti.huateng.alipay.account.service.impl;
 
 import com.chinasofti.huateng.alipay.account.entity.AlipayUserInfo;
 import com.chinasofti.huateng.alipay.account.mapper.AlipayUserInfoMapper;
+import com.chinasofti.huateng.alipay.account.page.AlipayUserSearchQuery;
 import com.chinasofti.huateng.alipay.account.page.AlipayUserSearchView;
 import com.chinasofti.huateng.alipay.account.service.AlipayUserPageQueryService;
 import com.github.pagehelper.PageInfo;
@@ -10,11 +11,11 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * 支付宝注册用户运营查询实现：三种查询类型的分派 + 展示脱敏 + 内存分页。
+ * 支付宝注册用户运营查询实现：并列筛选条件的 AND 组合查询 + 展示脱敏 + 内存分页。
  *
  * <p>只读 `ALIPAY_USER_INFO` 一张表、不出网、不带事务（都是单条 SELECT，自动提交即可）。
  *
- * <p><b>本类 NEVER 使用 PageHelper（`PageHelper.startPage` / `doSelectPageInfo`），三支统一在内存里切片。</b>
+ * <p><b>本类 NEVER 使用 PageHelper（`PageHelper.startPage` / `doSelectPageInfo`），命中结果统一在内存里切片。</b>
  * 原因是实测缺陷（2026-09-20 修复，1.0.20）：`alipay-account-server` 的启动类**没有**
  * {@code @EnableDefaultMybatisAutoConfig}（全仓 12 个模块有、只有本模块与其它支付宝模块没有），
  * 因此 {@code DefaultMybatisConfiguration} 不会被 `@Import`、`PageInterceptor` 这个 bean 压根不存在。
@@ -40,26 +41,23 @@ public class AlipayUserPageQueryServiceImpl implements AlipayUserPageQueryServic
     }
 
     @Override
-    public PageInfo<AlipayUserSearchView> search(String queryType, String keyword, Integer pageNum, Integer pageSize) {
-        String trimmed = keyword == null ? null : keyword.trim();
-        return switch (queryType) {
-            case "THIRD_USER_ID" -> singleRowPage(alipayUserInfoMapper.selectByThirdUserId(trimmed));
-            case "CARD_ID" -> singleRowPage(alipayUserInfoMapper.selectByCardId(trimmed));
-            case "MSISDN" -> slicePage(alipayUserInfoMapper.selectByMsisdn(trimmed), safePageNum(pageNum), safePageSize(pageSize));
-            default -> null;
-        };
+    public PageInfo<AlipayUserSearchView> search(AlipayUserSearchQuery query) {
+        List<AlipayUserInfo> users = alipayUserInfoMapper.selectByFilters(
+                trimToNull(query.getMsisdn()), trimToNull(query.getCardId()),
+                trimToNull(query.getThirdUserId()), trimToNull(query.getReqContractNo()));
+        return slicePage(users, safePageNum(query.getPageNum()), safePageSize(query.getPageSize()));
     }
 
-    /** 唯一键命中的单行结果包成一页，行数即 0 或 1。 */
-    private PageInfo<AlipayUserSearchView> singleRowPage(AlipayUserInfo user) {
-        return new PageInfo<>(user == null ? List.of() : List.of(toView(user)));
+    /** 空白输入不参与谓词，统一归一成 {@code null}，避免 {@code ''} 与 NULL 在 Oracle 里的差异。 */
+    private String trimToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /**
      * 把整表命中结果在内存里切成一页，并**手工补齐分页元数据**。
      *
      * <p><b>MUST 自己 set total / pageNum / pageSize / pages</b>：`new PageInfo<>(切片后的 list)` 会把
-     * total 写成当页条数，前台 `web/src/views/trans/user/alipay/index.vue:42` 的分页条据此判断有没有下一页，
+     * total 写成当页条数，前台 `web/src/views/trans/user/alipay/index.vue` 的 `<pagination>` 据此判断有没有下一页，
      * total 失真即翻不到第二页。
      */
     private PageInfo<AlipayUserSearchView> slicePage(List<AlipayUserInfo> users, int pageNum, int pageSize) {
@@ -84,6 +82,7 @@ public class AlipayUserPageQueryServiceImpl implements AlipayUserPageQueryServic
         view.setMsisdn(maskPhone(user.getMsisdn()));
         view.setChannel(user.getChannel());
         view.setThirdPayId(maskValue(user.getThirdPayId()));
+        view.setReqContractNo(user.getReqContractNo());
         view.setStatus(user.getStatus());
         view.setCreateTime(user.getCreateTime());
         view.setUpdateTime(user.getUpdateTime());

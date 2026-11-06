@@ -3,15 +3,18 @@
     <el-alert v-if="isActive" :title="alertTitle" :type="alertType" :closable="false" show-icon class="mb8" />
 
     <el-form ref="queryRef" :model="queryParams" :inline="true">
-      <el-form-item label="查询字段" prop="queryType">
-        <el-select v-model="queryParams.queryType" style="width: 150px">
-          <el-option label="手机号" value="MSISDN" />
-          <el-option label="逻辑卡号" value="CARD_ID" />
-          <el-option label="第三方用户 ID" value="THIRD_USER_ID" />
-        </el-select>
+      <el-form-item label="手机号" prop="msisdn">
+        <el-input v-model="queryParams.msisdn" placeholder="请输入手机号" clearable style="width: 180px" @keyup.enter="handleQuery" />
       </el-form-item>
-      <el-form-item label="查询关键字" prop="keyword">
-        <el-input v-model="queryParams.keyword" :placeholder="keywordPlaceholder" clearable style="width: 280px" @keyup.enter="handleQuery" />
+      <el-form-item label="逻辑卡号" prop="cardId">
+        <el-input v-model="queryParams.cardId" placeholder="请输入逻辑卡号" clearable style="width: 200px" @keyup.enter="handleQuery" />
+      </el-form-item>
+      <el-form-item label="第三方用户 ID" prop="thirdUserId">
+        <el-input v-model="queryParams.thirdUserId" placeholder="请输入第三方用户 ID" clearable style="width: 220px" @keyup.enter="handleQuery" />
+      </el-form-item>
+      <!-- 已注销页的数据源 USER_ITP_REG_LOG 不存签约流水号，后端会直接拒绝该条件，故不给入口。 -->
+      <el-form-item v-if="isActive" label="渠道签约流水号" prop="reqContractNo">
+        <el-input v-model="queryParams.reqContractNo" placeholder="请输入渠道签约流水号" clearable style="width: 240px" @keyup.enter="handleQuery" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
@@ -30,6 +33,7 @@
       <el-table-column label="姓名" prop="userName" width="100" align="center" />
       <el-table-column label="发卡机构" width="180" align="center"><template #default="{ row }">{{ issueOrgLabel(row.issueOrgCode) }}</template></el-table-column>
       <el-table-column label="默认渠道" width="150" align="center"><template #default="{ row }">{{ payChannelLabel(row.channel) }}</template></el-table-column>
+      <el-table-column label="渠道签约流水号" prop="reqContractNo" min-width="220" show-overflow-tooltip><template #default="{ row }">{{ row.reqContractNo || '-' }}</template></el-table-column>
       <el-table-column label="二维码类型" width="140" align="center"><template #default="{ row }"><el-tag :type="qrCodeTypeTag(row.companionFlag)">{{ qrCodeTypeLabel(row.companionFlag) }}</el-tag></template></el-table-column>
       <el-table-column label="注册状态" prop="status" width="100" align="center"><template #default="{ row }"><el-tag :type="row.status === '有效' ? 'success' : row.status === '已注销' ? 'info' : 'danger'">{{ row.status }}</el-tag></template></el-table-column>
       <el-table-column label="申卡时间" width="170" align="center"><template #default="{ row }">{{ formatRegistrationTime(row.regTms) }}</template></el-table-column>
@@ -74,8 +78,7 @@ const router = useRouter()
 const tableRef = ref()
 const loading = ref(false)
 const users = ref([])
-const queryParams = reactive({ queryType: 'MSISDN', keyword: '' })
-const keywordPlaceholder = computed(() => ({ MSISDN: '请输入手机号', CARD_ID: '请输入逻辑卡号', THIRD_USER_ID: '请输入第三方用户 ID' })[queryParams.queryType])
+const queryParams = reactive({ msisdn: '', cardId: '', thirdUserId: '', reqContractNo: '' })
 
 const isActive = computed(() => props.fixedStatus === 'ACTIVE')
 const alertType = computed(() => (isActive.value ? 'info' : 'warning'))
@@ -123,19 +126,28 @@ function formatRegistrationTime(value) {
   return proxy.parseTime(value) || '-'
 }
 
+/**
+ * 收集已填写的筛选条件：条件之间是 AND，空白框不下发。
+ *
+ * @returns 至少填了一个条件时返回参数对象；全空返回 null（后端会拒绝，避免整表扫描）
+ */
+function collectFilters() {
+  const fields = [['msisdn', queryParams.msisdn], ['cardId', queryParams.cardId], ['thirdUserId', queryParams.thirdUserId]]
+  if (isActive.value) fields.push(['reqContractNo', queryParams.reqContractNo])
+  const filled = fields.map(([key, value]) => [key, (value || '').trim()]).filter(([, value]) => value)
+  return filled.length ? Object.fromEntries(filled) : null
+}
+
 function handleQuery() {
-  if (!queryParams.keyword?.trim()) {
-    proxy.$modal.msgWarning('请输入查询关键字')
+  const filters = collectFilters()
+  if (!filters) {
+    proxy.$modal.msgWarning('请至少填写一个查询条件')
     return
   }
   loading.value = true
-  const params = {
-    queryType: queryParams.queryType,
-    keyword: queryParams.keyword.trim()
-  }
   const request = isActive.value
-    ? searchItpUsers({ ...params, status: props.fixedStatus })
-    : searchItpCanceledUsers(params)
+    ? searchItpUsers({ ...filters, status: props.fixedStatus })
+    : searchItpCanceledUsers(filters)
   request.then((response) => {
     users.value = normalizeRows(response)
     nextTick(() => tableRef.value?.doLayout())
@@ -152,7 +164,6 @@ function normalizeRows(response) {
 
 function resetQuery() {
   proxy.resetForm('queryRef')
-  queryParams.queryType = 'MSISDN'
   users.value = []
 }
 
@@ -177,6 +188,7 @@ function handleExport() {
         userName: row.userName,
         issueOrgLabel: issueOrgLabel(row.issueOrgCode),
         channelLabel: payChannelLabel(row.channel),
+        reqContractNo: row.reqContractNo || '-',
         qrCodeTypeLabel: qrCodeTypeLabel(row.companionFlag),
         status: row.status,
         regTmsFmt: formatRegistrationTime(row.regTms),
@@ -204,6 +216,7 @@ function handleExport() {
         { header: '姓名', key: 'userName' },
         { header: '发卡机构', key: 'issueOrgLabel' },
         { header: '默认渠道', key: 'channelLabel' },
+        { header: '渠道签约流水号', key: 'reqContractNo' },
         { header: '二维码类型', key: 'qrCodeTypeLabel' },
         { header: '注册状态', key: 'status' },
         { header: '申卡时间', key: 'regTmsFmt' },

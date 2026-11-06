@@ -1,15 +1,17 @@
 <template>
   <div class="app-container">
     <el-form ref="queryRef" :model="queryParams" :inline="true">
-      <el-form-item label="查询字段" prop="queryType">
-        <el-select v-model="queryParams.queryType" style="width: 150px">
-          <el-option label="手机号" value="MSISDN" />
-          <el-option label="逻辑卡号" value="CARD_ID" />
-          <el-option label="第三方用户 ID" value="THIRD_USER_ID" />
-        </el-select>
+      <el-form-item label="手机号" prop="msisdn">
+        <el-input v-model="queryParams.msisdn" placeholder="请输入手机号" clearable style="width: 180px" @keyup.enter="handleQuery" />
       </el-form-item>
-      <el-form-item label="查询关键字" prop="keyword">
-        <el-input v-model="queryParams.keyword" :placeholder="keywordPlaceholder" clearable style="width: 280px" @keyup.enter="handleQuery" />
+      <el-form-item label="逻辑卡号" prop="cardId">
+        <el-input v-model="queryParams.cardId" placeholder="请输入逻辑卡号" clearable style="width: 200px" @keyup.enter="handleQuery" />
+      </el-form-item>
+      <el-form-item label="第三方用户 ID" prop="thirdUserId">
+        <el-input v-model="queryParams.thirdUserId" placeholder="请输入第三方用户 ID" clearable style="width: 220px" @keyup.enter="handleQuery" />
+      </el-form-item>
+      <el-form-item label="渠道签约流水号" prop="reqContractNo">
+        <el-input v-model="queryParams.reqContractNo" placeholder="请输入渠道签约流水号" clearable style="width: 240px" @keyup.enter="handleQuery" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
@@ -28,6 +30,7 @@
       <el-table-column label="手机号" prop="msisdn" width="140" align="center" />
       <el-table-column label="开户渠道" width="140" align="center"><template #default="{ row }">{{ issueChannelLabel(row.channel) }}</template></el-table-column>
       <el-table-column label="支付用户标识" prop="thirdPayId" min-width="160" show-overflow-tooltip />
+      <el-table-column label="渠道签约流水号" prop="reqContractNo" min-width="220" show-overflow-tooltip><template #default="{ row }">{{ row.reqContractNo || '-' }}</template></el-table-column>
       <el-table-column label="用户状态" prop="status" width="110" align="center">
         <template #default="{ row }"><el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{ row.status || '-' }}</el-tag></template>
       </el-table-column>
@@ -58,8 +61,7 @@ const router = useRouter()
 const loading = ref(false)
 const total = ref(0)
 const users = ref([])
-const queryParams = reactive({ queryType: 'MSISDN', keyword: '', pageNum: 1, pageSize: 10 })
-const keywordPlaceholder = computed(() => ({ MSISDN: '请输入手机号', CARD_ID: '请输入逻辑卡号', THIRD_USER_ID: '请输入第三方用户 ID' })[queryParams.queryType])
+const queryParams = reactive({ msisdn: '', cardId: '', thirdUserId: '', reqContractNo: '', pageNum: 1, pageSize: 10 })
 
 /**
  * ALIPAY_USER_INFO.CHANNEL 是**发卡渠道**（`IssueChannelCodeEnum`，开户时固定写 ALIPAY），
@@ -75,10 +77,32 @@ function issueChannelLabel(value) {
   return formatCodeLabel(value, issueChannelLabels)
 }
 
-/** 翻页与查询共用；返回 promise 供调用方在拿到结果后判空。 */
+/**
+ * 收集已填写的筛选条件：条件之间是 AND，空白框不下发。
+ *
+ * @returns 至少填了一个条件时返回参数对象；全空返回 null（后端会拒绝，避免整表扫描）
+ */
+function collectFilters() {
+  const fields = [
+    ['msisdn', queryParams.msisdn],
+    ['cardId', queryParams.cardId],
+    ['thirdUserId', queryParams.thirdUserId],
+    ['reqContractNo', queryParams.reqContractNo]
+  ]
+  const filled = fields.map(([key, value]) => [key, (value || '').trim()]).filter(([, value]) => value)
+  return filled.length ? Object.fromEntries(filled) : null
+}
+
+/** 翻页与查询共用；返回 promise 供调用方在拿到结果后判空。无筛选条件时不发请求（后端会判成整表扫描）。 */
 function getList() {
+  const filters = collectFilters()
+  if (!filters) {
+    users.value = []
+    total.value = 0
+    return Promise.resolve()
+  }
   loading.value = true
-  return searchAlipayUsers({ ...queryParams, keyword: queryParams.keyword.trim() }).then((response) => {
+  return searchAlipayUsers({ ...filters, pageNum: queryParams.pageNum, pageSize: queryParams.pageSize }).then((response) => {
     const page = response.data || {}
     users.value = page.list || []
     total.value = Number(page.total || 0)
@@ -86,8 +110,8 @@ function getList() {
 }
 
 function handleQuery() {
-  if (!queryParams.keyword?.trim()) {
-    proxy.$modal.msgWarning('请输入查询关键字')
+  if (!collectFilters()) {
+    proxy.$modal.msgWarning('请至少填写一个查询条件')
     return
   }
   queryParams.pageNum = 1
@@ -98,7 +122,6 @@ function handleQuery() {
 
 function resetQuery() {
   proxy.resetForm('queryRef')
-  queryParams.queryType = 'MSISDN'
   queryParams.pageNum = 1
   users.value = []
   total.value = 0
@@ -116,13 +139,17 @@ function openRideStatus(row) {
   router.push({ path: '/trans/user-detail/ride-status', query: { cardId: row.cardId, thirdUserId: row.thirdUserId } })
 }
 
-/** 提交后台异步全量导出任务（每日凌晨 2 点统一执行）。 */
+/** 提交后台异步导出任务（按当前筛选条件全量取数，每日凌晨 2 点统一执行）。 */
 function handleAsyncExport() {
-  const { pageNum, pageSize, ...rest } = queryParams
+  const filters = collectFilters()
+  if (!filters) {
+    proxy.$modal.msgWarning('后台导出按当前筛选条件全量取数，请至少填写一个查询条件')
+    return
+  }
   const data = {
     taskCode: 'ALIPAY_USER',
     taskName: '支付宝用户全量导出',
-    paramJson: JSON.stringify(rest)
+    paramJson: JSON.stringify(filters)
   }
   submitAsyncExportTask(data).then((response) => {
     proxy.$modal.msgSuccess(response.msg || '提交成功，请前往「系统监控-异步导出任务」查看')
@@ -139,6 +166,7 @@ function handleExport() {
     msisdn: row.msisdn,
     issueChannel: issueChannelLabel(row.channel),
     thirdPayId: row.thirdPayId,
+    reqContractNo: row.reqContractNo || '-',
     status: row.status || '-',
     createTime: parseTime(row.createTime) || '-'
   }))
@@ -149,6 +177,7 @@ function handleExport() {
     { key: 'msisdn', header: '手机号' },
     { key: 'issueChannel', header: '开户渠道' },
     { key: 'thirdPayId', header: '支付用户标识' },
+    { key: 'reqContractNo', header: '渠道签约流水号' },
     { key: 'status', header: '用户状态' },
     { key: 'createTime', header: '注册时间' }
   ]

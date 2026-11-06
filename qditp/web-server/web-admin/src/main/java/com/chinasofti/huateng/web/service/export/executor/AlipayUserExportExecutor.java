@@ -25,10 +25,10 @@ public class AlipayUserExportExecutor extends AbstractExcelExportExecutor
     private static final Logger log = LoggerFactory.getLogger(AlipayUserExportExecutor.class);
 
     private static final String[] HEADERS = {
-            "第三方用户 ID", "逻辑卡号", "卡类型", "手机号", "开户渠道", "支付用户标识", "用户状态", "注册时间"
+            "第三方用户 ID", "逻辑卡号", "卡类型", "手机号", "开户渠道", "支付用户标识", "签约流水号", "用户状态", "注册时间"
     };
     private static final int[] COLUMN_WIDTHS = {
-            28 * 256, 24 * 256, 16 * 256, 14 * 256, 14 * 256, 24 * 256, 12 * 256, 18 * 256
+            28 * 256, 24 * 256, 16 * 256, 14 * 256, 14 * 256, 24 * 256, 28 * 256, 12 * 256, 18 * 256
     };
 
     @Autowired
@@ -41,10 +41,9 @@ public class AlipayUserExportExecutor extends AbstractExcelExportExecutor
         log.info("ALIPAY_USER 异步导出开始, taskId={}, filePath={}", task.getId(), filePath);
 
         JSONObject params = JSONUtil.parseObj(task.getParamJson());
-        String queryType = params.getStr("queryType");
-        String keyword = params.getStr("keyword");
-
-        List<AlipayUserExportDTO> list = alipayAccountClient.searchAlipayUsers(queryType, keyword);
+        List<AlipayUserExportDTO> list = alipayAccountClient.searchAlipayUsers(
+                params.getStr("msisdn"), params.getStr("cardId"),
+                params.getStr("thirdUserId"), params.getStr("reqContractNo"));
         final List<AlipayUserExportDTO> dataList = list == null ? List.of() : list;
 
         long rowCount = dataList.size();
@@ -59,8 +58,9 @@ public class AlipayUserExportExecutor extends AbstractExcelExportExecutor
                 setCell(row, 3, dto.getMsisdn());
                 setCell(row, 4, issueChannelLabel(dto.getChannel()));
                 setCell(row, 5, dto.getThirdPayId());
-                setCell(row, 6, dto.getStatus());
-                setCell(row, 7, formatDateTime(dto.getCreateTime()));
+                setCell(row, 6, dto.getReqContractNo());
+                setCell(row, 7, dto.getStatus());
+                setCell(row, 8, formatDateTime(dto.getCreateTime()));
             }
         });
 

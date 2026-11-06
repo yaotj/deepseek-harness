@@ -124,15 +124,24 @@ public class AlipayAccountClient extends ProxyWebClient {
     }
 
     /**
-     * 分页查询支付宝用户（供异步导出使用）。
+     * 按并列筛选条件分页拉取支付宝用户（供异步导出使用），条件之间是 AND。
+     *
+     * <p>空白条件不下发：下游 `/page/user/alipay/search` 要求至少一个非空，全空会被判成参数错误、
+     * 本方法随即拿到空 data 并返回空列表。
      */
-    public List<AlipayUserExportDTO> searchAlipayUsers(String queryType, String keyword) {
+    public List<AlipayUserExportDTO> searchAlipayUsers(String msisdn, String cardId, String thirdUserId, String reqContractNo) {
         Map<String, String> params = new HashMap<>();
-        if (queryType != null && !queryType.isEmpty()) {
-            params.put("queryType", queryType);
+        if (msisdn != null && !msisdn.isBlank()) {
+            params.put("msisdn", msisdn.trim());
         }
-        if (keyword != null && !keyword.isEmpty()) {
-            params.put("keyword", keyword);
+        if (cardId != null && !cardId.isBlank()) {
+            params.put("cardId", cardId.trim());
+        }
+        if (thirdUserId != null && !thirdUserId.isBlank()) {
+            params.put("thirdUserId", thirdUserId.trim());
+        }
+        if (reqContractNo != null && !reqContractNo.isBlank()) {
+            params.put("reqContractNo", reqContractNo.trim());
         }
         int pageSize = 1000;
         int pageNum = 1;

@@ -26,17 +26,22 @@ public class AlipayUserPageController {
         this.alipayUserPageQueryService = alipayUserPageQueryService;
     }
 
-    /** 按三方用户ID、手机号或卡ID分页查询支付宝注册用户。 */
+    /**
+     * 按手机号 / 逻辑卡号 / 三方用户ID / 渠道签约流水号的任意组合分页查询支付宝注册用户（条件之间是 AND）。
+     */
     @GetMapping("/search")
     public ResultVO<PageInfo<AlipayUserSearchView>> search(AlipayUserSearchQuery query) {
-        if (query == null || !StringUtils.hasText(query.getQueryType()) || !StringUtils.hasText(query.getKeyword())) {
-            return ResultMapper.illegalParams("查询类型和查询关键字不能为空");
+        if (query == null || !hasAnyFilter(query)) {
+            return ResultMapper.illegalParams("请至少填写一个查询条件");
         }
-        PageInfo<AlipayUserSearchView> page = alipayUserPageQueryService.search(
-                query.getQueryType(), query.getKeyword(), query.getPageNum(), query.getPageSize());
-        if (page == null) {
-            return ResultMapper.illegalParams("不支持的查询类型");
-        }
-        return ResultMapper.ok(page);
+        return ResultMapper.ok(alipayUserPageQueryService.search(query));
+    }
+
+    /** 四个并列筛选条件里是否至少填了一个；全空即整表扫描，必须在入口拦住。 */
+    private boolean hasAnyFilter(AlipayUserSearchQuery query) {
+        return StringUtils.hasText(query.getMsisdn())
+                || StringUtils.hasText(query.getCardId())
+                || StringUtils.hasText(query.getThirdUserId())
+                || StringUtils.hasText(query.getReqContractNo());
     }
 }

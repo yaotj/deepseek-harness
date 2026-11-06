@@ -164,27 +164,19 @@
         order by REG_TMS desc
     </select>
 
-    <select id="selectListByThirdUserIdAndDelYn" resultMap="BaseResultMap">
+    <!-- 综管台用户查询：并列输入框的 AND 组合，空白条件由服务层归一成 null 后不参与谓词。
+         MUST 用 where 标签且 DEL_YN 恒参与，避免「筛选条件全空时只剩恒真谓词」被 Druid
+         判为 select alway true condition（同文件 countGroupByCardType 在 2.0.73 踩过的坑）。 -->
+    <select id="selectListByFiltersAndDelYn" resultMap="BaseResultMap">
         select <include refid="Base_Column_List"/>
         from USER_ITP_REG_INFO
-        where THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
-          and DEL_YN = #{delYn,jdbcType=INTEGER}
-        order by REG_TMS desc
-    </select>
-
-    <select id="selectListByMsisdnAndDelYn" resultMap="BaseResultMap">
-        select <include refid="Base_Column_List"/>
-        from USER_ITP_REG_INFO
-        where MSISDN = #{msisdn,jdbcType=VARCHAR}
-          and DEL_YN = #{delYn,jdbcType=INTEGER}
-        order by REG_TMS desc
-    </select>
-
-    <select id="selectListByCardIdAndDelYn" resultMap="BaseResultMap">
-        select <include refid="Base_Column_List"/>
-        from USER_ITP_REG_INFO
-        where CARD_ID = #{cardId,jdbcType=VARCHAR}
-          and DEL_YN = #{delYn,jdbcType=INTEGER}
+        <where>
+            <if test="msisdn != null">and MSISDN = #{msisdn,jdbcType=VARCHAR}</if>
+            <if test="cardId != null">and CARD_ID = #{cardId,jdbcType=VARCHAR}</if>
+            <if test="thirdUserId != null">and THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}</if>
+            <if test="reqContractNo != null">and REQ_CONTRACT_NO = #{reqContractNo,jdbcType=VARCHAR}</if>
+            and DEL_YN = #{delYn,jdbcType=INTEGER}
+        </where>
         order by REG_TMS desc
     </select>
 

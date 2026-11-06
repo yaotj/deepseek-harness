@@ -29,6 +29,11 @@
 - 黑名单 → `blacklist-server` 的 `/page/blacklist`
 - 参数/风控 → `para-server` 的 `/page/**`
 - 用户查询 → `account-server` `/page/user/itp`、`alipay-account-server` `/page/user/alipay`
+  - 两个 `/search` 端点的筛选条件自 2026-11-06 起是**并列字段 + AND 组合**（`msisdn` / `cardId` / `thirdUserId` / `reqContractNo`），
+    旧的 `queryType` + `keyword` 二选一形态已删除、**NEVER 再按「查询类型」拼参数**。空白字段不下发；**全空一律 `illegalParams`**（防整表扫描）。
+  - `reqContractNo` 即「渠道签约流水号」，两表都有该列（`USER_ITP_REG_INFO.REQ_CONTRACT_NO` / `ALIPAY_USER_INFO.REQ_CONTRACT_NO`，均**无索引**，靠「至少一个条件」兜住）。
+  - 「已注销用户查询」的数据源 `USER_ITP_REG_LOG` **没有该列**，`/page/user/itp/canceled-log/search` 收到 `reqContractNo` 直接拒绝，前端也不给入口 —— 静默忽略会让运营把「查不了」读成「没有销户记录」。
+  - `/page/user/alipay/search` 另有第二个调用方：`rpc` 的 `AlipayAccountClient.searchAlipayUsers` → web-admin `ALIPAY_USER` 异步导出，改该端点参数 **MUST 同步 model 的 `AlipayUserExportDTO` + rpc + web-admin**。
 
 **MUST** 沿用这一约定：新运营接口写进对应业务模块的 `/page/**`，**NEVER** 在 web-server 里新建业务 controller 直连业务表。
 

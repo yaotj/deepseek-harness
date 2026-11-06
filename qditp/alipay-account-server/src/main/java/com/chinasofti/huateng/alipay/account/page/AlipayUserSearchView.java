@@ -2,7 +2,10 @@ package com.chinasofti.huateng.alipay.account.page;
 
 import java.time.LocalDateTime;
 
-/** 支付宝注册用户后台展示对象，不包含签约请求号等敏感字段。 */
+/**
+ * 支付宝注册用户后台展示对象：手机号与支付用户标识脱敏，签约流水号按原值返回
+ * （它不是账号类信息，运营需要拿它与渠道侧对单，「签约渠道」页同样按原值展示）。
+ */
 public class AlipayUserSearchView {
     private String thirdUserId;
     private String cardId;
@@ -10,6 +13,8 @@ public class AlipayUserSearchView {
     private String msisdn;
     private String channel;
     private String thirdPayId;
+    /** 渠道签约流水号（{@code REQ_CONTRACT_NO}）。 */
+    private String reqContractNo;
     private String status;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
@@ -26,6 +31,8 @@ public class AlipayUserSearchView {
     public void setChannel(String channel) { this.channel = channel; }
     public String getThirdPayId() { return thirdPayId; }
     public void setThirdPayId(String thirdPayId) { this.thirdPayId = thirdPayId; }
+    public String getReqContractNo() { return reqContractNo; }
+    public void setReqContractNo(String reqContractNo) { this.reqContractNo = reqContractNo; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public LocalDateTime getCreateTime() { return createTime; }

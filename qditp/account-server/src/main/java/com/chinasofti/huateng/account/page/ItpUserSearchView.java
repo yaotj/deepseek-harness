@@ -18,6 +18,8 @@ public class ItpUserSearchView {
      */
     private String issueOrgCode;
     private String channel;
+    /** 渠道签约流水号（{@code REQ_CONTRACT_NO}），运营据它与渠道侧对单。 */
+    private String reqContractNo;
     private String companionFlag;
     private String status;
     /**
@@ -51,6 +53,8 @@ public class ItpUserSearchView {
     public void setIssueOrgCode(String issueOrgCode) { this.issueOrgCode = issueOrgCode; }
     public String getChannel() { return channel; }
     public void setChannel(String channel) { this.channel = channel; }
+    public String getReqContractNo() { return reqContractNo; }
+    public void setReqContractNo(String reqContractNo) { this.reqContractNo = reqContractNo; }
     public String getCompanionFlag() { return companionFlag; }
     public void setCompanionFlag(String companionFlag) { this.companionFlag = companionFlag; }
     public String getStatus() { return status; }

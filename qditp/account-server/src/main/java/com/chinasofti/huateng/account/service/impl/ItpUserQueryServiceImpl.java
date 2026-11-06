@@ -9,6 +9,7 @@ import com.chinasofti.huateng.account.mapper.UserItpRegLogMapper;
 import com.chinasofti.huateng.account.mapper.UserPayChannelMapper;
 import com.chinasofti.huateng.account.page.ItpPayChannelView;
 import com.chinasofti.huateng.account.page.ItpUserCanceledSearchView;
+import com.chinasofti.huateng.account.page.ItpUserSearchQuery;
 import com.chinasofti.huateng.account.page.ItpUserSearchView;
 import com.chinasofti.huateng.account.page.RegStatView;
 import com.chinasofti.huateng.account.page.TerminationTimeSummary;
@@ -43,35 +44,25 @@ public class ItpUserQueryServiceImpl implements ItpUserQueryService {
     }
 
     @Override
-    public List<ItpUserSearchView> search(String queryType, String keyword, String status) {
-        String trimmed = keyword.trim();
-        int delYn = "CANCELED".equalsIgnoreCase(status) ? 0 : 1;
-        List<UserItpRegInfo> users = switch (queryType) {
-            case "THIRD_USER_ID" -> userItpRegInfoMapper.selectListByThirdUserIdAndDelYn(trimmed, delYn);
-            case "MSISDN" -> userItpRegInfoMapper.selectListByMsisdnAndDelYn(trimmed, delYn);
-            case "CARD_ID" -> userItpRegInfoMapper.selectListByCardIdAndDelYn(trimmed, delYn);
-            default -> null;
-        };
-        if (users == null) {
-            return null;
-        }
+    public List<ItpUserSearchView> search(ItpUserSearchQuery query) {
+        int delYn = "CANCELED".equalsIgnoreCase(query.getStatus()) ? 0 : 1;
+        List<UserItpRegInfo> users = userItpRegInfoMapper.selectListByFiltersAndDelYn(
+                trimToNull(query.getMsisdn()), trimToNull(query.getCardId()),
+                trimToNull(query.getThirdUserId()), trimToNull(query.getReqContractNo()), delYn);
         Map<String, TerminationTimeSummary> terminations = loadTerminationTimes(users);
         return users.stream().map(user -> toView(user, terminations)).toList();
     }
 
     @Override
-    public List<ItpUserCanceledSearchView> searchCanceledLog(String queryType, String keyword) {
-        String trimmed = keyword.trim();
-        List<UserItpRegLog> logs = switch (queryType) {
-            case "THIRD_USER_ID" -> userItpRegLogMapper.selectCancelLogByThirdUserId(trimmed);
-            case "MSISDN" -> userItpRegLogMapper.selectCancelLogByMsisdn(trimmed);
-            case "CARD_ID" -> userItpRegLogMapper.selectCancelLogByCardId(trimmed);
-            default -> null;
-        };
-        if (logs == null) {
-            return null;
-        }
+    public List<ItpUserCanceledSearchView> searchCanceledLog(ItpUserSearchQuery query) {
+        List<UserItpRegLog> logs = userItpRegLogMapper.selectCancelLogByFilters(
+                trimToNull(query.getMsisdn()), trimToNull(query.getCardId()), trimToNull(query.getThirdUserId()));
         return logs.stream().map(this::toCanceledView).toList();
+    }
+
+    /** 空白输入不参与谓词，统一归一成 {@code null}，避免 {@code ''} 与 NULL 在 Oracle 里的差异。 */
+    private String trimToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private ItpUserCanceledSearchView toCanceledView(UserItpRegLog log) {
@@ -166,6 +157,7 @@ public class ItpUserQueryServiceImpl implements ItpUserQueryService {
         view.setCardIssueCode(user.getCardIssueCode());
         view.setIssueOrgCode(user.getIssueOrgCode());
         view.setChannel(user.getChannel());
+        view.setReqContractNo(user.getReqContractNo());
         view.setCompanionFlag(user.getCompanionFlag());
         view.setStatus(user.isActive() ? "有效" : user.isCanceled() ? "已注销" : "未知");
         view.setRegTms(user.getRegTms());

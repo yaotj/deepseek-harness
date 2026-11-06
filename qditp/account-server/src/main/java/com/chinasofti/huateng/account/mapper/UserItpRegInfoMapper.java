@@ -62,21 +62,16 @@ public interface UserItpRegInfoMapper {
     List<UserItpRegInfo> selectListByCardId(@Param("cardId") String cardId);
 
     /**
-     * 运营查询专用：按第三方用户 ID + {@code DEL_YN} 查开户记录。
+     * 运营查询专用：综管台并列输入框的 AND 组合查询。
+     *
+     * <p>四个筛选参数之间是 AND，{@code null} 表示该条件未填、不参与谓词；
+     * {@code DEL_YN} 恒参与谓词，因此 {@code WHERE} 永不为空（Druid WallFilter 禁「恒真条件」）。
+     * <b>MUST 由调用方保证至少一个筛选参数非空</b>，否则退化成整表扫描。
      */
-    List<UserItpRegInfo> selectListByThirdUserIdAndDelYn(@Param("thirdUserId") String thirdUserId,
-                                                          @Param("delYn") Integer delYn);
-
-    /**
-     * 运营查询专用：按手机号 + {@code DEL_YN} 查开户记录。
-     */
-    List<UserItpRegInfo> selectListByMsisdnAndDelYn(@Param("msisdn") String msisdn,
-                                                     @Param("delYn") Integer delYn);
-
-    /**
-     * 运营查询专用：按逻辑卡号 + {@code DEL_YN} 查开户记录。
-     */
-    List<UserItpRegInfo> selectListByCardIdAndDelYn(@Param("cardId") String cardId,
+    List<UserItpRegInfo> selectListByFiltersAndDelYn(@Param("msisdn") String msisdn,
+                                                     @Param("cardId") String cardId,
+                                                     @Param("thirdUserId") String thirdUserId,
+                                                     @Param("reqContractNo") String reqContractNo,
                                                      @Param("delYn") Integer delYn);
 
     /**
