@@ -1,77 +1,85 @@
 """CloudOS 插件实现 —— 将 cloudos 域迁移到 Plugin 模式。
 
 设计目标：
-  · 继承 Plugin ABC，实现 register() / pre_flight_check()
-  · CATALOG 保持不变，确保向后兼容
-  · 作为插件架构的参考实现
+  · 继承 BasePlugin，实现 execute() 方法
+  · 委托给 impl.main() 保持向后兼容
+  · 提供 pre_flight_check 做环境连通性自检
+  · CATALOG 保持不变
 
-注意：
-  · 当前 cloudos 域仍通过 commands/cloudos.py 直接调用 impl.main()
-  · Plugin 模式为未来迁移做准备，不影响现有功能
+迁移策略：
+  · 双轨运行：新 Plugin 入口 + 旧 commands/cloudos.py 兼容
+  · 通过环境变量 ITPOPS_PLUGIN_MODE 切换模式
 """
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..plugin import CommandRegistry, PluginContext
+    from ..plugin_base import PluginContext
+
+from ..plugin_base import BasePlugin
 
 
-class CloudOSPlugin:
-    """CloudOS 云管台运维插件。
-
-    职责：
-      · 注册 cloudos 域的所有命令到 CommandRegistry
-      · 提供 pre_flight_check 做环境连通性自检
-      · 提供 post_flight_check 做结果验证
-    """
+class CloudOSPlugin(BasePlugin):
+    """CloudOS 云管台运维插件。"""
 
     name = "cloudos"
 
-    def __init__(self) -> None:
-        # 延迟导入 CATALOG（避免循环依赖）
-        self._catalog = None
+    def execute(self, args: list[str], ctx: "PluginContext") -> int:
+        """执行 cloudos 命令。
 
-    def register(self, registry: "CommandRegistry") -> None:
-        """注册 cloudos 域到命令注册表。"""
-        from .impl import CATALOG
-        registry.add_domain(CATALOG)
+        委托给 impl.main() 保持向后兼容。
+        """
+        # 检查是否启用 Plugin 模式
+        if os.environ.get("ITPOPS_PLUGIN_MODE") != "1":
+            # 兼容模式：直接调用 impl.main
+            from .impl import main
+            return main(args)
+
+        # Plugin 模式：实现具体逻辑
+        from ..core import environments as envx, ui
+        from ..errors import EXIT_USAGE, OpsError
+
+        env = envx.init_env("hongdao")
+        sub = args[0] if args else ""
+
+        if sub in ("", "help", "-h", "--help"):
+            from .impl import _help_text
+            ui.out(_help_text())
+            return 0
+
+        # 其他命令委托给 impl
+        from .impl import main as _main
+        return _main(args)
 
     def pre_flight_check(self, ctx: "PluginContext") -> bool:
         """前置校验：检查云管台连通性。
 
-        参数:
-          ctx: 插件执行上下文
-
-        返回:
-          True: 校验通过
-          False: 校验失败（拒绝执行写操作）
+        当前仅检查环境配置，未来可扩展：
+        - 检查 token 是否过期
+        - 检查网络连通性
+        - 检查权限是否足够
         """
-        # TODO: 未来可在此处添加更严格的前置检查
-        # 例如：检查 token 是否过期、检查网络连通性等
-        return True
+        from ..core import environments as envx
 
-    def post_flight_check(self, ctx: "PluginContext", result: dict) -> dict:
-        """后置校验：验证命令执行结果。
-
-        参数:
-          ctx: 插件执行上下文
-          result: 命令执行结果
-
-        返回:
-          清洗后的结果字典
-        """
-        # TODO: 未来可在此处添加结果验证逻辑
-        # 例如：检查应用状态、检查 Pod 就绪等
-        return result
+        try:
+            env = envx.init_env(ctx.env or "hongdao")
+            # 基础校验：检查必要配置
+            if not env.remote_host:
+                return False
+            if not env.cloudos_env:
+                return False
+            return True
+        except Exception:
+            return False
 
     def get_catalog(self) -> dict:
-        """获取域的 CATALOG（供老代码兼容使用）。"""
+        """获取域的 CATALOG。"""
         from .impl import CATALOG
         return CATALOG
 
 
-# 工厂函数：便于扩展其他插件
 def create_cloudos_plugin() -> CloudOSPlugin:
-    """创建 CloudOS 插件实例。"""
+    """创建 CloudOS Plugin 实例。"""
     return CloudOSPlugin()

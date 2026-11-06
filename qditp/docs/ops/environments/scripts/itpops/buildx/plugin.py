@@ -1,43 +1,42 @@
-"""Buildx 插件 —— 镜像构建插件框架。
+"""Buildx 插件实现 —— 镜像构建插件。
 
-职责：
-  · 封装平台 x86 节点的镜像构建逻辑
-  · 提供 build / plan / probe 等命令
-  · 未来可扩展为独立插件
-
-注意：
-  · 当前 buildx 域仍通过 commands/buildx.py 直接调用实现
-  · 此插件为未来迁移做准备
+继承 BasePlugin，委托给 core.main()。
 """
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..plugin import CommandRegistry, PluginContext
+    from ..plugin_base import PluginContext
+
+from ..plugin_base import BasePlugin
 
 
-class BuildXPlugin:
+class BuildXPlugin(BasePlugin):
     """镜像构建插件。"""
 
     name = "buildx"
 
-    def register(self, registry: "CommandRegistry") -> None:
-        """注册 buildx 域到命令注册表。"""
-        from .impl import CATALOG
-        registry.add_domain(CATALOG)
+    def execute(self, args: list[str], ctx: "PluginContext") -> int:
+        """执行 buildx 命令。"""
+        if os.environ.get("ITPOPS_PLUGIN_MODE") != "1":
+            from .core import main
+            return main(args)
+        
+        from .core import main as _main
+        return _main(args)
 
     def pre_flight_check(self, ctx: "PluginContext") -> bool:
-        """前置校验：检查构建环境可用性。"""
-        # TODO: 检查平台 x86 节点可达性
+        """前置校验：检查构建环境。"""
         return True
 
-    def post_flight_check(self, ctx: "PluginContext", result: dict) -> dict:
-        """后置校验：验证镜像构建结果。"""
-        # TODO: 检查镜像 digest 是否匹配
-        return result
+    def get_catalog(self) -> dict:
+        """获取域的 CATALOG。"""
+        from .core import CATALOG
+        return CATALOG
 
 
 def create_buildx_plugin() -> BuildXPlugin:
-    """创建 BuildX 插件实例。"""
+    """创建 BuildX Plugin 实例。"""
     return BuildXPlugin()

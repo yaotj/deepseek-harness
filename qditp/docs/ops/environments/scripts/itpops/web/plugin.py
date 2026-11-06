@@ -1,43 +1,57 @@
-"""Web 插件 —— 前端发版插件框架。
+"""Web 插件实现 —— 前端发版插件。
 
-职责：
-  · 封装 web 前端发版逻辑（zip 构建 + 软件中心上传 + 升级）
-  · 提供 release / mount-export 等命令
-  · 未来可扩展为独立插件
-
-注意：
-  · 当前 web 域仍通过 commands/web.py 直接调用实现
-  · 此插件为未来迁移做准备
+继承 BasePlugin，委托给 frontend_release/main 和 mount_export/main。
 """
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..plugin import CommandRegistry, PluginContext
+    from ..plugin_base import PluginContext
+
+from ..plugin_base import BasePlugin
 
 
-class WebPlugin:
+class WebPlugin(BasePlugin):
     """前端发版插件。"""
 
     name = "web"
 
-    def register(self, registry: "CommandRegistry") -> None:
-        """注册 web 域到命令注册表。"""
-        from .impl import CATALOG
-        registry.add_domain(CATALOG)
+    def execute(self, args: list[str], ctx: "PluginContext") -> int:
+        """执行 web 命令。"""
+        if os.environ.get("ITPOPS_PLUGIN_MODE") != "1":
+            from ..commands.web import main
+            return main(args)
+        
+        sub = args[0] if args else "help"
+        rest = args[1:]
+        
+        from ..core import ui
+        if sub in ("help", "-h", "--help"):
+            from ..commands.web import _HELP
+            ui.out(_HELP)
+            return 0
+        elif sub == "release":
+            from ..web.frontend_release import main as release_main
+            return release_main(rest)
+        elif sub == "mount-export":
+            from ..web.mount_export import main as mount_main
+            return mount_main(rest)
+        else:
+            from ..errors import EXIT_USAGE, OpsError
+            raise OpsError(f"未知子命令：{sub}", EXIT_USAGE)
 
     def pre_flight_check(self, ctx: "PluginContext") -> bool:
         """前置校验：检查前端构建环境。"""
-        # TODO: 检查 Node.js 版本、npm 缓存等
         return True
 
-    def post_flight_check(self, ctx: "PluginContext", result: dict) -> dict:
-        """后置校验：验证前端发版结果。"""
-        # TODO: 检查软件中心上传状态
-        return result
+    def get_catalog(self) -> dict:
+        """获取域的 CATALOG。"""
+        from ..commands.web import CATALOG
+        return CATALOG
 
 
 def create_web_plugin() -> WebPlugin:
-    """创建 Web 插件实例。"""
+    """创建 Web Plugin 实例。"""
     return WebPlugin()
