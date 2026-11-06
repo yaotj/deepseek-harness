@@ -69,6 +69,54 @@ body 由 `GET /apps/{uuid}` 的 `metadata` 读现状后**只改 `version_id` / `
 
 **回滚点**：升级前脚本打印 `ROLLBACK_POINT=<升级前线上版本>`；回滚＝重跑旧版本（`--yes --skip-build`）。
 
+### ⚠ nginx.conf 不随 zip 发布，且每次升级重建 ConfigMap（2026-11-06 实测）
+
+- `build:zip` 只打 `web/dist/`，**`web/nginx.conf` / `web/hongdao/nginx.conf` 不在包内**。
+  web 类型应用的 nginx.conf 由平台 `setting_file_id` 指向的配置生成 ConfigMap
+  `websyspresetweb-version-<version>`，经 volumeMount 挂到容器
+  `/usr/share/nginx/conf/nginx.conf`（见 `docs/reference/cloudos/CloudOS 5.0_PaaS_API_E7501.md`
+  「升级应用」web 包 body 示例的 `configMap` / `volumeMounts`）。
+- **实测**：`web release` / `flow frontend` 升级 0.0.0.6 → 0.0.0.7 前后，
+  `GET /apps/{uuid}/file?upgradeId=<upgrade_id>&fileType=web_conf` 的 `file_text`
+  完全一致（12169 字符，仅 `/prod-api/` 有 20M）⇒ **升级不会带上仓库 nginx.conf 改动**。
+- 平台只有 `GET /apps/{uuid}/file`（查配置）**没有 web_conf 写端点**：
+  `PUT` / `POST` / `PATCH` 该路径均返回 `application.5000006 Request method not supported`。
+  当前让改动生效的唯一路径（已验证，见
+  `docs/testing/admin-web/10-执行记录-2026-11-06-对标补建发版.md` §三）：
+
+  ```bash
+  scp web/nginx.conf k8s-master:/tmp/nginx-upload.conf
+  ssh k8s-master 'kubectl -n itp create configmap websyspresetweb-version-<当前版本> \
+      --from-file=nginx.conf=/tmp/nginx-upload.conf --dry-run=client -o yaml | kubectl -n itp apply -f - \
+      && kubectl -n itp rollout restart deployment/web'
+  ```
+
+- ⚠ **每次升级都会新建一个 ConfigMap**，改过的配置在下一次发版后丢失。
+  改 nginx.conf MUST 同步三处：① 仓库 `web/nginx.conf`（测试）② 仓库
+  `web/hongdao/nginx.conf`（红岛）③ 线上**当前版本** ConfigMap；
+  每次 `web release` 之后 MUST 重新同步并复验，NEVER 以为发版会带上配置。
+- 只读核对入口（`upgrade_id` 取 `GET /apps/<uuid>` 顶层 32 位字段，
+  **NEVER** 用 10 位 `version_id`）：
+
+  ```bash
+  itp-ops.sh cloudos raw GET \
+    "/api/cloud/app-mgmt/v1.0/apps/<uuid>/file?upgradeId=<upgrade_id>&fileType=web_conf" --env test
+  ```
+
+### 上传支持（2026-11-06）
+
+- 根因：综管台 multipart 走 `/web-server/recon/upload-file/upload` 与
+  `/web-server/system/user/profile/avatar`，而这两段**没有** `client_max_body_size`
+  （回落 nginx 默认 1m）⇒ 上传必返 413；原先 20M 只设在 `/prod-api/` 段。
+- 改法：`server` 级 `client_max_body_size 100M;` 覆盖所有 location；
+  `/web-server` 段加 `proxy_request_buffering off`（E7501 适配版注释了 user/pid，
+  容器未必有可写 `client_body_temp`）＋ `proxy_read/send_timeout 300s`。
+- 后端 `web-server/web-admin/src/main/resources/application.properties` 是
+  `max-file-size=50MB` / `max-request-size=60MB` ⇒ **实际可传上限 50MB**，
+  nginx 100M 只留余量，NEVER 把 100M 当业务可用上限。
+- 验证：重启后 `GET /health` 200、`GET /` 200、
+  `POST 2MB multipart /web-server/recon/upload-file/upload` 返回 200（旧配置必 413）。
+
 ### 完成判据（全部满足才算发版成功）
 
 - 上传回查命中 `<版本>`；
