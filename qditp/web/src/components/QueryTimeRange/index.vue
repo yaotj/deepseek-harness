@@ -23,12 +23,11 @@
         >{{ preset.label }}</el-button>
       </span>
     </div>
-    <div class="range-caption">当前范围：{{ caption }}</div>
   </div>
 </template>
 
 <script setup name="QueryTimeRange">
-import { defaultTodayRange, lastDaysRange, isEmptyRange, describeRange } from '@/utils/dateRange'
+import { defaultTodayRange, lastDaysRange, isEmptyRange } from '@/utils/dateRange'
 
 const props = defineProps({
   /** [开始, 结束]，与页面 el-date-picker 的 value-format 同为字符串数组；空数组表示不限时间。 */
@@ -37,8 +36,8 @@ const props = defineProps({
   valueFormat: { type: String, default: 'YYYY-MM-DD' },
   /** 后端是否接受不带时间的查询。face-pay / gate-txn-pay / offline-stats 这类接口缺时间范围会直接 400，那些页面必须关掉。 */
   allowAll: { type: Boolean, default: true },
-  /** 选择器宽度（px），沿用各页面原本写死的 340。 */
-  width: { type: Number, default: 340 }
+  /** 选择器宽度（px）。datetimerange 下 340 会遮住末尾秒数，统一放宽到 420 保证 HH:mm:ss 完整可见。 */
+  width: { type: Number, default: 420 }
 })
 
 const emit = defineEmits(['update:modelValue', 'change'])
@@ -61,7 +60,6 @@ const pickerType = computed(() => (/HH|mm|ss/.test(props.valueFormat) ? 'datetim
  */
 const defaultTime = [new Date(2000, 1, 1, 0, 0, 0), new Date(2000, 1, 1, 23, 59, 59)]
 const visiblePresets = computed(() => (props.allowAll ? PRESETS : PRESETS.filter((p) => p.key !== 'all')))
-const caption = computed(() => describeRange(inner.value, props.valueFormat))
 
 watch(() => props.modelValue, (value) => {
   inner.value = normalize(value)
@@ -113,11 +111,5 @@ function onPickChange(value) {
 .preset-chip.is-active {
   font-weight: 700;
   text-decoration: underline;
-}
-.range-caption {
-  margin-top: 2px;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--el-text-color-secondary);
 }
 </style>

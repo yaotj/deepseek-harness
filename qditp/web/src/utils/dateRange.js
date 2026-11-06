@@ -72,7 +72,11 @@ export function describeRange(value, valueFormat = 'YYYY-MM-DD') {
   const withTime = /HH|mm|ss/.test(valueFormat)
   const label = (text) => {
     const [datePart = '', timePart = ''] = String(text).split(/[ T]/)
-    const day = datePart.slice(5)
+    // 兼容 yyyyMMdd 紧凑格式（one-side-query / supplement-order 等 TXN_DATE 口径页面）：
+    // 直接 slice(5) 会截出 "106" 这种残片，先补分隔符再取月日。
+    const normalized = datePart.includes('-') ? datePart
+      : (datePart.length === 8 ? `${datePart.slice(0, 4)}-${datePart.slice(4, 6)}-${datePart.slice(6, 8)}` : datePart)
+    const day = normalized.slice(5)
     return withTime && timePart ? `${day} ${timePart.slice(0, 5)}` : day
   }
   return `${label(value[0])} ~ ${label(value[1])}`
