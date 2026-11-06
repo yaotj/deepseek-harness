@@ -49,7 +49,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from ..core import ui
+from ..core import crypto, ui
 from ..core.runtime import repo_root
 from ..core.version import DEBUG_VERSION, debug_version, next_version
 from ..errors import (
@@ -392,7 +392,7 @@ def _main(argv: list[str] | None = None) -> int:
                     help="从 CloudOS 已部署版本按规则算下一版（末位+1，超99进位）；忽略位置版本号")
     ap.add_argument("--skip-build", action="store_true", help="复用已有 zip，跳过本地构建")
     ap.add_argument("--skip-upgrade", action="store_true", help="只上传不升级")
-    ap.add_argument("--app", default=os.environ.get("WEB_APP_NAME", "web-frontend"))
+    ap.add_argument("--app", default=os.environ.get("WEB_APP_NAME", "web"))
     ap.add_argument("--pkg", default=os.environ.get("WEB_PKG_NAME", "web-frontend"))
     ap.add_argument("--app-uuid", default=os.environ.get("WEB_APP_UUID", ""))
     ap.add_argument("--tag", default=os.environ.get("WEB_PKG_TAG", "itpb"),
