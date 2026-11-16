@@ -23,7 +23,7 @@
         <scope.test>test</scope.test>
         <web.version>2.0</web.version>
         <rpc.version>2.0.1</rpc.version>
-        <model.version>2.0.1</model.version>
+        <model.version>2.0.0</model.version>
         <fastjson.version>2.0.57</fastjson.version>
         <image.prefix>fep-app</image.prefix>
         <docker.namespace>itp</docker.namespace>
