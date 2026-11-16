@@ -64,7 +64,7 @@ public class F2fAppOrderService {
     private static final DateTimeFormatter TMS_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private static final DateTimeFormatter PAID_TMS_FORMATTER =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private static String paidTimeOf(F2fOrder order) {
         return order.getPaidTms() == null ? null : order.getPaidTms().format(PAID_TMS_FORMATTER);
