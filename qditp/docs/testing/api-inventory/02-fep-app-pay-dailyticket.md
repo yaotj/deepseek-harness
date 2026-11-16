@@ -716,7 +716,7 @@
 | tradeNo | String | 交易号 |
 | payResult | String | success 表示成功 |
 | payAmount | Integer | 支付金额（分） |
-| payDate | Date | 支付日期 |
+| payDate | String | 支付时间，格式 `yyyyMMddHHmmss`（`null` 原样回吐、NEVER 兜成空串） |
 | discountInfo | String | 优惠信息 |
 | payChannel | String | 支付渠道 |
 | channelDiscount | Integer | 渠道优惠 |
