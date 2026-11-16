@@ -1,5 +1,6 @@
 package com.chinasofti.huateng.model.app.dailyticket;
 
+import java.text.SimpleDateFormat;
 import java.util.Date;
 
 /**
@@ -22,9 +23,9 @@ public class DailyTicketPayQueryResult extends DailyTicketBaseResult {
     private Integer payAmount;
 
     /**
-     * 支付完成时间。
+     * 支付完成时间，格式 yyyyMMddHHmmss。
      */
-    private Date payDate;
+    private String payDate;
 
     /**
      * 优惠信息。
@@ -70,12 +71,12 @@ public class DailyTicketPayQueryResult extends DailyTicketBaseResult {
         this.payAmount = payAmount;
     }
 
-    public Date getPayDate() {
+    public String getPayDate() {
         return payDate;
     }
 
     public void setPayDate(Date payDate) {
-        this.payDate = payDate;
+        this.payDate = payDate == null ? null : new SimpleDateFormat("yyyyMMddHHmmss").format(payDate);
     }
 
     public String getDiscountInfo() {
