@@ -116,7 +116,10 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         QRCodeTxnDetail latestDetail = qrCodeTxnDetailMapper.selectLatestByCardId(request.getCardNum());
         MemberItineraryDTO itinerary = memberItineraryAssembler.assemble(currentStatus, latestDetail);
         response.setMemberItinerary(itinerary);
-        if (isLastItineraryEmpty(itinerary)) {
+        // 8911 仅表示「进出都没有」——该卡没有任何过闸明细。有交易（刚进站 / 刚出站）一律 0000，
+        // 即便上次站点是建行哨兵 FFFF（首次进站场景）也不算 8911：哨兵已由装配器归一为空串。
+        // 2026-11-16 业主裁决收窄口径，推翻 D166 时代「lastStation 哨兵即 8911」的判据。
+        if (latestDetail == null) {
             response.setRetCode(TicketErrorCodeEnum.LAST_ITINERARY_EMPTY.getCode());
             response.setRetMsg(TicketErrorCodeEnum.LAST_ITINERARY_EMPTY.getMsg());
             return response;
@@ -124,23 +127,5 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         response.setRetCode(TicketErrorCodeEnum.SUCCESS.getCode());
         response.setRetMsg(TicketErrorCodeEnum.SUCCESS.getMsg());
         return response;
-    }
-
-    /**
-     * 判定「上次行程为空」。
-     *
-     * <p>两种形态都算空：①`lastStationCode` 压根没被装配（该卡尚无任何过闸明细）；②它等于建行哨兵
-     * {@code ticket.default-last-txn-station}（默认 `FFFF`）—— 新卡首次进站时 `QRCODE_STATUS.LAST_TXN_STATION`
-     * 仍是哨兵，`StationNameResolver.resolveNameOrCode` 查不到站名就原样返回站码，于是 `FFFF` 会被当成站名
-     * 吐给 APP（2026-09-22 日票卡 `0426090951000084` 实测，APP 页面报「查询失败」）。
-     *
-     * <p>**NEVER 在这里把 `lastStationName` / `lastStationCode` 改写成空串** —— 业主裁决是「用状态码表达」，
-     * 即 `retCode=8911`，报文字段保持原样，APP 据 `retCode` 判断而不是据字段值猜。
-     * 哨兵值 **MUST 取构造器注入的 {@code defaultLastTxnStation}**，NEVER 在本类里再硬编码一份 `FFFF`
-     * —— 那个默认值同时被 {@code registerRideStatus} 用来写库，两处漂移就会一边写 A 一边判 B。
-     */
-    private boolean isLastItineraryEmpty(MemberItineraryDTO itinerary) {
-        String lastStationCode = itinerary.getLastStationCode();
-        return !StringUtils.hasText(lastStationCode) || lastStationCode.equals(defaultLastTxnStation);
     }
 }

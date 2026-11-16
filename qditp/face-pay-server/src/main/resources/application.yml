@@ -6,10 +6,10 @@ other:
     double-datasource: false
     page:
       type: oracle
-    host: ${DB_HOST:172.120.110.25:1521}
-    database: ${DB_NAME:hditpdb}
-    username: ${DB_USERNAME:QDITP_TXN}
-    password: ${DB_PASSWORD:itp!#txn8153}
+    host: ${DB_HOST:172.110.110.21:1521}
+    database: ${DB_NAME:pdbtxndb}
+    username: ${DB_USERNAME:txndb}
+    password: ${DB_PASSWORD:txndb}
     audit:
       heartbeat:
         skip: true
@@ -131,9 +131,6 @@ recon:
     temp-dir: ${RECON_EXPORT_TEMP_DIR:/home/javaapp/app/recon-export}
     worker: ${RECON_EXPORT_WORKER:1}
 
-## traceId 关联（2026-09-22 补，「三行成组」之一、之二；之三是上面 spring.autoconfigure.exclude）。
-## micro/web 默认 management.tracing.enabled=false，本模块此前没开，导致对账链路按 traceId 追到第 4 个源（face-pay）就断。
-## sampling.probability=0 只管 span 上不上报、NEVER 以为它会关掉 MDC。三行 NEVER 拆开加。详见 AGENTS.md §2.2.1
 management:
   tracing:
     enabled: true

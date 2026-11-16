@@ -137,6 +137,16 @@ public interface BlacklistMapper {
                       @Param("releaseBy") String releaseBy);
 
     /**
+     * 全量查询 HCE 票种（0442/0443）的黑名单记录，供生成 ACC 黑名单文件使用。
+     *
+     * <p>与判黑口径一致、刻意不带 STATUS 谓词：RELEASING 的行解除通知尚未推达渠道，
+     * 仍算黑名单，NEVER 加 STATUS='ACTIVE' 过滤 —— 那等于把解除中的卡提前从文件里放掉。
+     *
+     * @return HCE 黑名单记录，按卡号升序
+     */
+    List<Blacklist> selectHceBlacklist();
+
+    /**
      * 解除阶段二：删除已确认推达渠道的那一行，WHERE 带 STATUS='RELEASING' 做 CAS。
      *
      * <p><b>NEVER 换成按 CARD_ID 裸删</b> —— 那样通知没成功也会删掉行，等于退回乐观解除。</p>

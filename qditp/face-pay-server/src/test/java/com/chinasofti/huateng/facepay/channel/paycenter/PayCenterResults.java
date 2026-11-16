@@ -28,4 +28,16 @@ public final class PayCenterResults {
     public static PayCenterResult transportFailed(String failureReason) {
         return PayCenterResult.unknown(failureReason, null, 5000L);
     }
+
+    /** 对端答上来了，但状态是枚举外的原始字符串（模拟枚举漏配）。 */
+    public static PayCenterResult answeredRaw(String code, String rawStatus, String data) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (rawStatus != null) {
+            body.put("status", rawStatus);
+        }
+        if (data != null) {
+            body.put("data", data);
+        }
+        return PayCenterResult.answered(code, "mock", body, "{\"code\":\"" + code + "\"}", 12L);
+    }
 }

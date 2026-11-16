@@ -36,6 +36,7 @@
 
 ### sys_job 注册
 - job_id: 405
+  - **2026-11-09 校准**：测试库 405 已归异步导出（IT-056），本任务尚未取号；迁移脚本已改为动态 `MAX(job_id)+5` + `NOT EXISTS`，不再写死 405（见 `问题清单.md` IT-066）。
 - cron: `0 0 3 * * ?`（每日 3:00）
 - invoke_target: `gateTxnPayQuartzTask.processOneSideOrders()`
 - 触发端点: `POST /internal/gate-txn-pay/oneside/process`
@@ -44,6 +45,7 @@
 
 - **状态**：已实施
 - **日期**：2026-11-04
+- **2026-11-09 校准**：代码已实现（`OneSideOrderProcessor` + 内部端点），但 `sys_job` 405 在测试库已归异步导出（IT-056），迁移脚本已改为动态取号、尚未执行注册；见 `问题清单.md` IT-066。
 - **相关文档**：
   - `docs/business/gate-txn-pay.md`
   - `docs/domain/decisions.md` ADR-D162

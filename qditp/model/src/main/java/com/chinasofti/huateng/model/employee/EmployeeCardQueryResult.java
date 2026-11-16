@@ -7,6 +7,11 @@ import com.chinasofti.huateng.common.response.CommonResult;
  */
 public class EmployeeCardQueryResult extends CommonResult {
     private String cardNo;
+    /**
+     * 员工编号。规格书 §3.1 响应字段（差异 D2）；实现侧无独立员工编号，
+     * 恒映射为 {@link #cardNo}（cardNo 即员工号）。
+     */
+    private String employeeNo;
     private String phone;
     private String employeeName;
     private String idCardNo;
@@ -19,6 +24,8 @@ public class EmployeeCardQueryResult extends CommonResult {
 
     public String getCardNo() { return cardNo; }
     public void setCardNo(String cardNo) { this.cardNo = cardNo; }
+    public String getEmployeeNo() { return employeeNo; }
+    public void setEmployeeNo(String employeeNo) { this.employeeNo = employeeNo; }
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
     public String getEmployeeName() { return employeeName; }

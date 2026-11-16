@@ -5,6 +5,8 @@ import cn.hutool.json.JSONUtil;
 import com.chinasofti.huateng.micro.web.client.ProxyWebClient;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestApplicationReqDTO;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestApplicationRespDTO;
+import com.chinasofti.huateng.model.app.QueryActiveCardsReqDTO;
+import com.chinasofti.huateng.model.app.QueryActiveCardsResult;
 import com.chinasofti.huateng.model.app.QueryPayChannelByContractReqDTO;
 import com.chinasofti.huateng.model.app.QueryPayChannelByContractResult;
 import com.chinasofti.huateng.model.app.QueryUserInfoReqDTO;
@@ -105,6 +107,17 @@ public class AccountClient extends ProxyWebClient {
     public QueryUserInfoResult queryUserInfo(@RequestBody QueryUserInfoReqDTO request) {
         String result = postJsonAndGetResponse("/queryUserInfo", request);
         return JSONUtil.toBean(result, new TypeReference<QueryUserInfoResult>() {
+        }, true);
+    }
+
+    /**
+     * 查第三方用户号名下有效票卡列表，供 IF8A-35 聚合「已进站未出站」数（ADR-D175）。
+     *
+     * <p>返回 {@code retCode != "0000"} 时调用方 MUST 走 fail-closed，NEVER 当成空卡列表放行。
+     */
+    public QueryActiveCardsResult queryActiveCards(@RequestBody QueryActiveCardsReqDTO request) {
+        String result = postJsonAndGetResponse("/queryActiveCards", request);
+        return JSONUtil.toBean(result, new TypeReference<QueryActiveCardsResult>() {
         }, true);
     }
 

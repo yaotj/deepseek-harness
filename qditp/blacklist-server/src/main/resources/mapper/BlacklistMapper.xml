@@ -186,6 +186,17 @@
           and STATUS = 'ACTIVE'
     </update>
 
+    <!-- HCE 黑名单全量取数，供生成 ACC 黑名单文件（PRM.0013.9700.<版本>）。 -->
+    <!-- 与判黑口径一致、刻意不带 STATUS 谓词：RELEASING 仍算黑名单，NEVER 加 STATUS='ACTIVE' 过滤。 -->
+    <!-- 票种白名单写死 0442/0443（CardTypeCodeEnum.isHceCard），新增 HCE 票种时 MUST 同步这里。 -->
+    <select id="selectHceBlacklist" resultMap="BaseResultMap">
+        select
+        <include refid="BaseColumnList"/>
+        from BLACKLIST
+        where CARD_TYPE in ('0442', '0443')
+        order by CARD_ID asc
+    </select>
+
     <!-- 阶段二只删「解除中且本次通知已收口成功」的那一行，WHERE 带双条件做 CAS。 -->
     <!-- NEVER 退回按 CARD_ID 裸删：那样在「通知还没成功」时也会把行删掉，等于回到乐观解除。 -->
     <delete id="deleteReleasedById">

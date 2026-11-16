@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.blacklist.mapper.HceBlacklistFileStateMapper">
+    <!-- 单行状态表：承载 HCE 黑名单文件版本号，只进不退。 -->
+    <!-- 分配版本号 MUST 走 selectForUpdate + updateVersion（或首行 insert），且包在事务里， -->
+    <!-- 否则两轮并发调度会分配到同一版本，ACC 侧同名文件互相覆盖。 -->
+    <resultMap id="BaseResultMap" type="com.chinasofti.huateng.blacklist.entity.HceBlacklistFileState">
+        <id column="PARAM_TYPE" jdbcType="VARCHAR" property="paramType"/>
+        <result column="CURRENT_VERSION" jdbcType="NUMERIC" property="currentVersion"/>
+        <result column="UPDATE_TIME" jdbcType="TIMESTAMP" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectForUpdate" resultMap="BaseResultMap">
+        select PARAM_TYPE, CURRENT_VERSION, UPDATE_TIME
+        from HCE_BLACKLIST_FILE_STATE
+        where PARAM_TYPE = #{paramType,jdbcType=VARCHAR}
+        for update
+    </select>
+
+    <insert id="insert">
+        insert into HCE_BLACKLIST_FILE_STATE (PARAM_TYPE, CURRENT_VERSION, UPDATE_TIME)
+        values (#{paramType,jdbcType=VARCHAR}, #{currentVersion,jdbcType=NUMERIC}, SYSTIMESTAMP)
+    </insert>
+
+    <update id="updateVersion">
+        update HCE_BLACKLIST_FILE_STATE
+        set CURRENT_VERSION = #{currentVersion,jdbcType=NUMERIC},
+            UPDATE_TIME = SYSTIMESTAMP
+        where PARAM_TYPE = #{paramType,jdbcType=VARCHAR}
+    </update>
+</mapper>

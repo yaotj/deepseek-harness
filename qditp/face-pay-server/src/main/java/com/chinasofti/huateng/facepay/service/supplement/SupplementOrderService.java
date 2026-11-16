@@ -18,4 +18,7 @@ public interface SupplementOrderService {
     int convergePendingOrders(int limit);
 
     int closeTimeoutOrders(int timeoutMinutes, int limit);
+
+    /** PROCESSING 超时关单（本地兜底，不依赖支付中心可达）。 */
+    int closeStaleProcessingOrders(int timeoutMinutes, int limit);
 }

@@ -6,7 +6,7 @@
 
     <groupId>com.chinasofti.huateng</groupId>
     <artifactId>recon-server</artifactId>
-    <version>1.0.32</version>
+    <version>1.0.33</version>
     <packaging>jar</packaging>
 
     <parent>

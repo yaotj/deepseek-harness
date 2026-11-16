@@ -350,8 +350,14 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
         if (CardTypeMapping.isAiShanDong(request.getCardType())) {
             return ALIPAY_PAYMENT_CHANNEL;
         }
-        return CardTypeCodeEnum.isDailyTicket(CardTypeMapping.toIssueCardType(request.getCardType()))
-                ? request.getCardType().trim() : request.getChannel();
+        String issueCardType = CardTypeMapping.toIssueCardType(request.getCardType());
+        // 日票族与员工码（0444）都是「无签约支付渠道」的免费票种，APP 开户不会上送 channel。
+        // 渠道落 APP 票种码（与日票既有口径一致，如 0445 落 "12"、员工码落 "11"）——
+        // 否则 IF8A-03 拉码在 IndustryDataOrchestrator 因签约渠道为空回 8001「用户签约渠道不能为空」。
+        if (CardTypeCodeEnum.isDailyTicket(issueCardType) || CardTypeCodeEnum.isEmployeeCard(issueCardType)) {
+            return request.getCardType().trim();
+        }
+        return request.getChannel();
     }
 
 }

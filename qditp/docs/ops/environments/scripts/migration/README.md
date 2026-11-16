@@ -311,6 +311,7 @@ DROP TABLE QDITP.BAK_GATE_TXN_PAY_20261014 CASCADE CONSTRAINTS;
 | 子目录/文件 | 性质 | 说明 |
 |---|---|---|
 | `20261023_*.py` / `domain_map.py` | 域拆分工具 | 按域切分导出文件与 schema 的生成器链（apply/split_data/split_sche + 域映射表） |
+| `20261112_split_qditp_by_domain.py` | 11-12 新导出拆分器 | 输入 `docs/sql/01_qditp_ddl.sql` + `02_qditp_data.sql`（187 表 / 105845 条 INSERT），输出 `docs/sql/by-domain/` 的 `00_create_users.sql`（M1 建用户 / 表空间，口令从 §三真源动态解析、ASM 磁盘组与 PDB 名留现查占位） + 四域建表 / 数据导入 / 灌数后校准脚本 + README。**与 10-23 版独立**：源导出已去 schema 前缀且含全部独立索引；新增 6 张业务表的增量域映射记在生成器里，**NEVER 直接改 `domain_map.py`**（10-23 两脚本断言 175 对象全覆盖，改了会重跑失败）。口径与执行纪律见输出目录 README |
 | `20261017_schema_manifest.md` | 基线清单 | 生成基线的来源标注与统计（含「（已删）」注记，重跑生成器前 MUST 看） |
 | `20261017_schema_{plat,user,txn,ride}.sql` | 分域建表基线 | 生成产物，含每段 DDL 的 `[来源]` 标注 |
 

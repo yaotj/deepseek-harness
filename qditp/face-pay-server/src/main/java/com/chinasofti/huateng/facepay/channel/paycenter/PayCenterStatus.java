@@ -3,6 +3,7 @@ package com.chinasofti.huateng.facepay.channel.paycenter;
 public enum PayCenterStatus {
 
     ORDERED("ORDERED"),
+    PROCESSING("PROCESSING"),
     SUCCESS("SUCCESS"),
     FAIL("FAIL"),
     FAILED("FAILED"),
@@ -20,6 +21,11 @@ public enum PayCenterStatus {
 
     public boolean isFailed() {
         return this == FAIL || this == FAILED;
+    }
+
+    /** 非终态：支付中心已受理但用户尚未完成支付，订单仍可能继续推进。 */
+    public boolean isNonTerminal() {
+        return this == ORDERED || this == PROCESSING;
     }
 
     public static PayCenterStatus fromCode(String code) {

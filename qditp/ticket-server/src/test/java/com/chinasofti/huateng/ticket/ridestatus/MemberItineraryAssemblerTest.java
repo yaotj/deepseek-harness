@@ -33,7 +33,7 @@ class MemberItineraryAssemblerTest {
     void setUp() {
         stationNameResolver = mock(StationNameResolver.class);
         when(stationNameResolver.resolveNameOrCode(any(), any())).thenCallRealMethod();
-        assembler = new MemberItineraryAssembler(stationNameResolver);
+        assembler = new MemberItineraryAssembler(stationNameResolver, "FFFF");
     }
 
     @Test
@@ -75,23 +75,24 @@ class MemberItineraryAssemblerTest {
     }
 
     @Test
-    void 出站交易的上一站等于本站() {
+    void 出站交易的上一站取明细自带的真实进站站() {
         QRCodeTxnDetail detail = detail(TRX_EXIT);
-        when(stationNameResolver.resolveStationNames(anySet())).thenReturn(Map.of("0201", "李村"));
+        when(stationNameResolver.resolveStationNames(anySet()))
+                .thenReturn(Map.of("0201", "李村", "0301", "青岛站"));
 
         MemberItineraryDTO view = assembler.assemble(status("FFFF", "0", "0"), detail);
 
         assertEquals("0201", view.getThisStationCode());
-        assertEquals("0201", view.getLastStationCode());
-        assertEquals("李村", view.getLastStationName());
-        assertEquals("20260914080000", view.getLastTransTime());
+        assertEquals("0301", view.getLastStationCode());
+        assertEquals("青岛站", view.getLastStationName());
+        assertEquals("20260913220000", view.getLastTransTime());
     }
 
     @Test
-    void 出站交易只收集本站编码() {
+    void 出站交易同时收集本站与进站编码() {
         assembler.assemble(status("FFFF", "0", "0"), detail(TRX_EXIT));
 
-        assertEquals(Set.of("0201"), capturedStationCodes());
+        assertEquals(Set.of("0201", "0301"), capturedStationCodes());
     }
 
     @Test
@@ -101,8 +102,60 @@ class MemberItineraryAssemblerTest {
 
         MemberItineraryDTO view = assembler.assemble(status("FFFF", "0", "0"), detail);
 
-        assertEquals("0201", view.getLastStationCode());
-        assertEquals(Set.of("0201"), capturedStationCodes());
+        assertEquals("0301", view.getLastStationCode());
+        assertEquals(Set.of("0201", "0301"), capturedStationCodes());
+    }
+
+    @Test
+    void 进站交易的末次站点为哨兵FFFF时上一站归一为空串() {
+        QRCodeTxnDetail detail = detail(TRX_ENTRY);
+        detail.setLastHandleStationCode("FFFF");
+        when(stationNameResolver.resolveStationNames(anySet())).thenReturn(Map.of());
+
+        MemberItineraryDTO view = assembler.assemble(status("FFFF", "0", "0"), detail);
+
+        assertEquals("", view.getLastStationCode());
+        assertEquals("", view.getLastStationName());
+        assertEquals("0201", view.getThisStationCode());
+    }
+
+    @Test
+    void 出站交易的站点为哨兵FFFF时本站与上一站均归一为空串() {
+        QRCodeTxnDetail detail = detail(TRX_EXIT);
+        detail.setHandleStationCode("FFFF");
+        detail.setLastHandleStationCode("FFFF");
+        when(stationNameResolver.resolveStationNames(anySet())).thenReturn(Map.of());
+
+        MemberItineraryDTO view = assembler.assemble(status("FFFF", "0", "0"), detail);
+
+        assertEquals("", view.getThisStationCode());
+        assertEquals("", view.getThisStationName());
+        assertEquals("", view.getLastStationCode());
+        assertEquals("", view.getLastStationName());
+    }
+
+    @Test
+    void 无过闸记录时状态表末次站为哨兵FFFF本站归一为空串() {
+        QRCodeStatus status = status("FFFF", "20260914010203", "7");
+        when(stationNameResolver.resolveStationNames(anySet())).thenReturn(Map.of());
+
+        MemberItineraryDTO view = assembler.assemble(status, null);
+
+        assertEquals("", view.getThisStationCode());
+        assertEquals("", view.getThisStationName());
+    }
+
+    @Test
+    void 自定义哨兵配置值同样归一为空串() {
+        MemberItineraryAssembler custom = new MemberItineraryAssembler(stationNameResolver, "XXXX");
+        QRCodeTxnDetail detail = detail(TRX_ENTRY);
+        detail.setLastHandleStationCode("XXXX");
+        when(stationNameResolver.resolveStationNames(anySet())).thenReturn(Map.of());
+
+        MemberItineraryDTO view = custom.assemble(status("XXXX", "0", "0"), detail);
+
+        assertEquals("", view.getLastStationCode());
+        assertEquals("", view.getLastStationName());
     }
 
     @Test

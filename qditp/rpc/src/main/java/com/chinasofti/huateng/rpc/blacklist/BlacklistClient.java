@@ -11,6 +11,7 @@ import com.chinasofti.huateng.model.app.BlackListOperateResult;
 import com.chinasofti.huateng.model.app.BlacklistAutoReleaseRespDTO;
 import com.chinasofti.huateng.model.app.BlacklistExportDTO;
 import com.chinasofti.huateng.model.app.BlacklistReleaseInspectRespDTO;
+import com.chinasofti.huateng.model.app.HceBlacklistFileGenRespDTO;
 import com.chinasofti.huateng.model.app.QueryBlackListReqDTO;
 import com.chinasofti.huateng.model.app.QueryBlackListResult;
 import com.chinasofti.huateng.model.domain.OutboxScan;
@@ -147,6 +148,21 @@ public class BlacklistClient extends ProxyWebClient {
         JSONObject json = JSONUtil.parseObj(result);
         return new OutboxScan.Result(json.getInt("scanned", 0), json.getInt("success", 0),
                 json.getInt("failed", 0));
+    }
+
+    /**
+     * 触发 HCE 卡黑名单文件生成并上传 ACC FTP（供 web-server 的 Quartz 任务调用）。
+     *
+     * <p>服务端流程：查 BLACKLIST 里 CARD_TYPE 为 HCE 票种（0442/0443）的生效行 → 分配文件版本号
+     * → 生成 PRM.0013.9700.&lt;版本&gt; 二进制文件 → 上传 ACC FTP。FTP 推不动时文件已落本地目录，
+     * 版本号已消耗，下一轮是新版本新文件。</p>
+     *
+     * @param headers 透传的请求头，用于把调度侧 traceId 带到下游日志。
+     */
+    public HceBlacklistFileGenRespDTO generateHceBlacklistFile(Map<String, String> headers) {
+        String result = postJsonAndGetResponse("/internal/blacklist/hce-file/generate", new HashMap<>(), headers);
+        return JSONUtil.toBean(result, new TypeReference<HceBlacklistFileGenRespDTO>() {
+        }, true);
     }
 
     /**

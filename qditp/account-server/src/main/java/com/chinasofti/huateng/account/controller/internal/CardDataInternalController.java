@@ -1,6 +1,8 @@
 package com.chinasofti.huateng.account.controller.internal;
 
 import com.chinasofti.huateng.account.service.AccountProfileService;
+import com.chinasofti.huateng.model.app.QueryActiveCardsReqDTO;
+import com.chinasofti.huateng.model.app.QueryActiveCardsResult;
 import com.chinasofti.huateng.model.app.QueryUserInfoResult;
 import com.chinasofti.huateng.model.app.UpdateHceDataReqDTO;
 import com.chinasofti.huateng.model.app.UpdateHceDataResult;
@@ -38,6 +40,18 @@ public class CardDataInternalController {
     public QueryUserInfoResult queryCardTypeByCardId(@RequestParam String cardId) {
         log.info("接收到按逻辑卡号查询真实ITP卡类型接口报文: cardId={}", cardId);
         return accountProfileService.queryCardTypeByCardId(cardId);
+    }
+
+    /**
+     * 按第三方用户号查有效票卡列表，供 IF8A-35 聚合「已进站未出站」数（ADR-D175）。
+     *
+     * <p>internal 契约面，不经 fep-app；返回空列表表示无有效卡，调用方按 0 处理。
+     */
+    @PostMapping("/queryActiveCards")
+    public QueryActiveCardsResult queryActiveCards(@RequestBody QueryActiveCardsReqDTO request) {
+        log.info("接收到查询有效票卡列表请求, thirdUserId={}",
+                request == null ? null : request.getThirdUserId());
+        return accountProfileService.queryActiveCards(request);
     }
 
     /**

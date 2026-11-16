@@ -33,6 +33,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -309,7 +310,7 @@ class SupplementPayCenterFlowTest {
             item.setOrigOrderNo(ORIG_ORDER);
             item.setOrigTxnDate(ORIG_TXN_DATE);
 
-            when(supplementOrderMapper.selectPendingOrders(100, 24)).thenReturn(List.of(po));
+            when(supplementOrderMapper.selectPendingOrders(100, 24, 168)).thenReturn(List.of(po));
             when(messageFactory.buildQueryRequest(SUP_ORDER)).thenReturn(queryRequest);
             when(payCenterClient.execute(any(), eq(queryRequest))).thenReturn(PayCenterResults.answered("0", PayCenterStatus.SUCCESS, null));
             when(supplementOrderMapper.updatePayStatusFromPending(anyString(), eq("SUCCESS"), anyString())).thenReturn(1);
@@ -329,7 +330,7 @@ class SupplementPayCenterFlowTest {
             po.setOrderNo(SUP_ORDER);
             po.setPayStatus("INIT");
 
-            when(supplementOrderMapper.selectPendingOrders(100, 24)).thenReturn(List.of(po));
+            when(supplementOrderMapper.selectPendingOrders(100, 24, 168)).thenReturn(List.of(po));
             when(messageFactory.buildQueryRequest(SUP_ORDER)).thenReturn(queryRequest);
             when(payCenterClient.execute(any(), eq(queryRequest))).thenReturn(PayCenterResults.answered("0", PayCenterStatus.UNPAID, null));
             when(supplementOrderMapper.updatePayStatusFromPending(anyString(), eq("CLOSED"), anyString())).thenReturn(1);
@@ -342,12 +343,72 @@ class SupplementPayCenterFlowTest {
         /** 扫描空 → 收敛 0 条。 */
         @Test
         void emptyScanReturnsZero() {
-            when(supplementOrderMapper.selectPendingOrders(100, 24)).thenReturn(List.of());
+            when(supplementOrderMapper.selectPendingOrders(100, 24, 168)).thenReturn(List.of());
 
             int converged = flow.convergePending(100);
 
             assertEquals(0, converged);
             verifyNoInteractions(payCenterClient);
+        }
+
+        /** 支付中心返回 PROCESSING 且单仍新鲜（24h 内有活动）→ 不关单，下轮再查。 */
+        @Test
+        void processingFreshOrderIsLeftAlone() {
+            SupplementOrder po = new SupplementOrder();
+            po.setOrderNo(SUP_ORDER);
+            po.setPayStatus("PROCESSING");
+            po.setUpdateTime(java.time.LocalDateTime.now());
+
+            when(supplementOrderMapper.selectPendingOrders(100, 24, 168)).thenReturn(List.of(po));
+            when(messageFactory.buildQueryRequest(SUP_ORDER)).thenReturn(queryRequest);
+            when(payCenterClient.execute(any(), eq(queryRequest)))
+                    .thenReturn(PayCenterResults.answered("0", PayCenterStatus.PROCESSING, null));
+
+            int converged = flow.convergePending(100);
+
+            assertEquals(0, converged);
+            verify(supplementOrderMapper, never()).updatePayStatusFromPending(anyString(), anyString(), anyString());
+        }
+
+        /** 支付中心返回 PROCESSING 且单已超龄（最后活动 25h 前）→ 主动关单，打破无限轮询。 */
+        @Test
+        void processingStaleOrderIsClosed() {
+            SupplementOrder po = new SupplementOrder();
+            po.setOrderNo(SUP_ORDER);
+            po.setPayStatus("PROCESSING");
+            po.setUpdateTime(java.time.LocalDateTime.now().minusHours(25));
+
+            when(supplementOrderMapper.selectPendingOrders(100, 24, 168)).thenReturn(List.of(po));
+            when(messageFactory.buildQueryRequest(SUP_ORDER)).thenReturn(queryRequest);
+            when(payCenterClient.execute(any(), eq(queryRequest)))
+                    .thenReturn(PayCenterResults.answered("0", PayCenterStatus.PROCESSING, null));
+            when(supplementOrderMapper.updatePayStatusFromPending(eq(SUP_ORDER), eq("CLOSED"), anyString()))
+                    .thenReturn(1);
+
+            int converged = flow.convergePending(100);
+
+            assertEquals(1, converged);
+            verify(supplementOrderMapper).updatePayStatusFromPending(
+                    eq(SUP_ORDER), eq("CLOSED"), contains("PROCESSING"));
+        }
+
+        /** 枚举未覆盖的状态 → 告警不动状态（关单交给 PROCESSING 超时兜底），NEVER 推进。 */
+        @Test
+        void unrecognizedStatusIsLeftToTimeoutBackstop() {
+            SupplementOrder po = new SupplementOrder();
+            po.setOrderNo(SUP_ORDER);
+            po.setPayStatus("PROCESSING");
+            po.setUpdateTime(java.time.LocalDateTime.now().minusHours(25));
+
+            when(supplementOrderMapper.selectPendingOrders(100, 24, 168)).thenReturn(List.of(po));
+            when(messageFactory.buildQueryRequest(SUP_ORDER)).thenReturn(queryRequest);
+            when(payCenterClient.execute(any(), eq(queryRequest)))
+                    .thenReturn(PayCenterResults.answeredRaw("0", "SOME_NEW_STATUS", null));
+
+            int converged = flow.convergePending(100);
+
+            assertEquals(0, converged);
+            verify(supplementOrderMapper, never()).updatePayStatusFromPending(anyString(), anyString(), anyString());
         }
     }
 }

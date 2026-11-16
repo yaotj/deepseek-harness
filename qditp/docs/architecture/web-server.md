@@ -104,7 +104,7 @@ web/src/
 头部注释里那份 16 条清单是 2026-09-15 的快照，**已缺 18 条、且多条名称与调用目标已变，NEVER 再拿它当现状**。
 业务任务编号现落 **200~ 区间、步长 5**；**现行最大 job_id 是 410**（2026-11-04 查库实测）。
 
-> 2026-11-04 已补录 405（异步导出，status 暂停，启用待业主裁决见 IT-056）与 410（ACC设备台账同步，`paraQuartzTask.syncDevice()`，种子 SQL `web-server/sql/device-info-sync-job.sql`，**para-server 2.0.36 发版后已启用**，同步链路实测 5977 台全量入库，见 `docs/business/common-services.md` §3）。405 被 10-23 后的会话占用、且 IT-052 曾记载 405 归属有歧义——**取号 MUST 动态 max+5 + not exists、NEVER 照文档抄号段**。
+> 2026-11-06 已按 IT-056 方案 B 启用 405（异步导出，cron `0 */5 * * * ?`，`SYS_JOB_LOG` 11:55 首次调度成功）；410 为 ACC设备台账同步（`paraQuartzTask.syncDevice()`，种子 SQL `web-server/sql/device-info-sync-job.sql`，**para-server 2.0.36 发版后已启用**，同步链路实测 5977 台全量入库，见 `docs/business/common-services.md` §3）。**取号 MUST 动态 max+5 + not exists、NEVER 照文档抄号段**；单边订单任务与 405 的迁移脚本冲突见 IT-066。
 
 | job_id | 名称 | invoke_target | cron | status |
 |---|---|---|---|---|
@@ -141,9 +141,10 @@ web/src/
 | 345 | 补站扣费周期查询更新 | `gateTxnPayQuartzTask.retryRecentUnpaidDebits()` | `0 0/1 * * ?` | 正常 |
 | 350 | 日票过期状态收敛 | `dailyTicketQuartzTask.convergeExpiredTickets()` | `0 5 * * ?` | 暂停 |
 | 400 | 用户主动重试扣费队列消费 | `gateTxnPayQuartzTask.consumeRetryQueue()` | `0 0/5 * * * ?` | 正常 |
-| 405 | 异步导出任务调度 | `asyncExportQuartzTask.execute()` | `0 0 2 * * ?` | 暂停 |
+| 405 | 异步导出任务调度 | `asyncExportQuartzTask.execute()` | `0 */5 * * * ?` | 正常 |
 | 410 | ACC设备台账同步 | `paraQuartzTask.syncDevice()` | `0 0 3 * * ?` | 正常 |
-| 405 | 单边订单处理 | `gateTxnPayQuartzTask.processOneSideOrders()` | `0 0 3 * * ?` | 正常 |
+
+> 单边订单处理（`gateTxnPayQuartzTask.processOneSideOrders()`，cron `0 0 3 * * ?`）**尚未取号**：`web-quartz-oneside-job-migration.sql` 已改为动态 `MAX(job_id)+5` + `NOT EXISTS`（IT-066，2026-11-09 修），取号执行后 MUST 补入本表；执行后须重启 web-admin。
 
 **清单外的列取值一律照现有行抄**：`job_group='DEFAULT'`、`misfire_policy='3'`（错过不补跑）、
 `concurrent='1'`（**注意 `'0'` 才是允许并发**）、`create_by='admin'`。
@@ -168,7 +169,7 @@ web/src/
 | `/debit/retry/alipay` | 255 支付宝出行重试扣费 | 支付宝出行渠道 |
 | `/debit/retry/recent` | 345 补站扣费周期查询更新 | 甲方需求「补站扣费周期查询更新」，ADR-D154 |
 | `/retry-queue/consume` | 400 用户主动重试扣费队列消费 | APP 主动发起重试的队列消费，ADR-D169 |
-| `/oneside/process` | 405 单边订单处理 | 处理单边入(1)/单边出(2)订单，每日3点执行 |
+| `/oneside/process` | 单边订单处理（未取号，见 IT-066） | 处理单边入(1)/单边出(2)订单，每日3点执行 |
 
 **220 / 255 / 345 三条并行且不可相互替代、NEVER 合并**（cron 均 `0 0 1 * * ?`，ADR-D149）。
 其中 **345 有两条 MUST 保留的设计约束**（ADR-D80）：

@@ -1,5 +1,6 @@
 package com.chinasofti.huateng.micro.web.client;
 
+import com.chinasofti.huateng.micro.web.utils.LogContentMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,8 +25,9 @@ public interface InternalMicroHttp<A> extends MicroHttp {
 
     default void logRequest(String url, Object requestBody, Map<String, String> headers, String httpMethod) {
         if (isOpenLogger()) {
+            Object body = requestBody instanceof String ? LogContentMasker.maskBase64Fields((String) requestBody) : requestBody;
             log.info("proxy http request method={},url={},requestBody={},headers={}",
-                    httpMethod, joinUrl(getBaseUrl(), url), requestBody, headers);
+                    httpMethod, joinUrl(getBaseUrl(), url), body, headers);
         }
     }
 
@@ -47,7 +49,7 @@ public interface InternalMicroHttp<A> extends MicroHttp {
 
     default void logResponse(int httpStatus, String msg) {
         if (isOpenLogger()) {
-            log.info("proxy http response status={},body={}", httpStatus, msg);
+            log.info("proxy http response status={},body={}", httpStatus, LogContentMasker.maskBase64Fields(msg));
         }
     }
 

@@ -38,6 +38,12 @@ public interface SupplementOrderMapper {
 
     int closeTimeoutOrder(@Param("orderNo") String orderNo, @Param("remark") String remark);
 
+    /** 按最后活动时间（UPDATE_TIME）超龄的 PROCESSING 单——支付中心侧挂死的兜底关单来源。 */
+    List<SupplementOrder> selectTimeoutProcessing(@Param("timeoutMinutes") int timeoutMinutes,
+                                                  @Param("limit") int limit);
+
+    int closeStaleProcessingOrder(@Param("orderNo") String orderNo, @Param("remark") String remark);
+
     int forceSuccessFromClosedOrFail(@Param("orderNo") String orderNo,
                                      @Param("remark") String remark,
                                      @Param("payChannelCode") String payChannelCode,
@@ -45,7 +51,8 @@ public interface SupplementOrderMapper {
                                      @Param("paymentInfo") String paymentInfo);
 
     List<SupplementOrder> selectPendingOrders(@Param("limit") int limit,
-                                             @Param("closedLookbackHours") int closedLookbackHours);
+                                              @Param("closedLookbackHours") int closedLookbackHours,
+                                              @Param("pendingLookbackHours") int pendingLookbackHours);
 
     List<SupplementOrder> selectSupplementOrderPage(@Param("orderNo") String orderNo,
                                                     @Param("cardId") String cardId,

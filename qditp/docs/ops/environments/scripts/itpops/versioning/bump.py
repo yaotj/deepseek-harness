@@ -31,7 +31,6 @@ MODULE_DIRS = [
     "alipay-pay-sign-server",
     "blacklist-server",
     "card-pool-server",
-    "collect-pay-server",
     "daily-ticket-server",
     "face-pay-server",
     "fep-acc-server",

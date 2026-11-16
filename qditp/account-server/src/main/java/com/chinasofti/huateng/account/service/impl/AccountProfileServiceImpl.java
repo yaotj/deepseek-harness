@@ -6,6 +6,8 @@ import com.chinasofti.huateng.account.entity.UserItpRegInfo;
 import com.chinasofti.huateng.account.mapper.UserItpRegInfoMapper;
 import com.chinasofti.huateng.account.service.AccountProfileService;
 import com.chinasofti.huateng.model.app.CardTypeMapping;
+import com.chinasofti.huateng.model.app.QueryActiveCardsReqDTO;
+import com.chinasofti.huateng.model.app.QueryActiveCardsResult;
 import com.chinasofti.huateng.model.app.QueryUserInfoReqDTO;
 import com.chinasofti.huateng.model.app.QueryUserInfoResult;
 import com.chinasofti.huateng.model.app.UpdateHceDataReqDTO;
@@ -16,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 账户资料的读取与 HCE 数据维护实现，见 {@link AccountProfileService}。
@@ -172,6 +176,31 @@ public class AccountProfileServiceImpl implements AccountProfileService {
             response.setRetMsg(AccountErrorCodeEnum.SYSTEM_ERROR.getMsg());
             return response;
         }
+    }
+
+    @Override
+    public QueryActiveCardsResult queryActiveCards(QueryActiveCardsReqDTO request) {
+        QueryActiveCardsResult response = new QueryActiveCardsResult();
+        if (request == null || !StringUtils.hasText(request.getThirdUserId())) {
+            response.setRetCode(AccountErrorCodeEnum.INVALID_PARAM.getCode());
+            response.setRetMsg("thirdUserId不能为空");
+            return response;
+        }
+        String thirdUserId = request.getThirdUserId().trim();
+        List<UserItpRegInfo> cards = userItpRegInfoMapper.selectActiveListByThirdUserId(thirdUserId);
+        List<String> cardIds = new ArrayList<>();
+        if (cards != null) {
+            for (UserItpRegInfo card : cards) {
+                if (card != null && StringUtils.hasText(card.getCardId())) {
+                    cardIds.add(card.getCardId());
+                }
+            }
+        }
+        response.setRetCode(AccountErrorCodeEnum.SUCCESS.getCode());
+        response.setRetMsg(AccountErrorCodeEnum.SUCCESS.getMsg());
+        response.setCardIds(cardIds);
+        log.info("查有效票卡列表完成, thirdUserId={}, cardCount={}", thirdUserId, cardIds.size());
+        return response;
     }
 
     private String validateQueryUserInfoRequest(QueryUserInfoReqDTO request) {

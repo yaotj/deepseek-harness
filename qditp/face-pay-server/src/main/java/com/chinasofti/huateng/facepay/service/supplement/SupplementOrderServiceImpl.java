@@ -268,6 +268,21 @@ public class SupplementOrderServiceImpl implements SupplementOrderService {
         return closed;
     }
 
+    @Override
+    public int closeStaleProcessingOrders(int timeoutMinutes, int limit) {
+        List<SupplementOrder> orders = supplementOrderMapper.selectTimeoutProcessing(timeoutMinutes, limit);
+        int closed = 0;
+        for (SupplementOrder order : orders) {
+            int updated = supplementOrderMapper.closeStaleProcessingOrder(order.getOrderNo(),
+                    "PROCESSING 超时未支付关单, timeoutMinutes=" + timeoutMinutes);
+            if (updated > 0) {
+                closed++;
+                log.info("补款 PROCESSING 超时关单, orderNo={}", order.getOrderNo());
+            }
+        }
+        return closed;
+    }
+
     private List<String> deduplicate(List<String> orderNos) {
         if (orderNos == null || orderNos.isEmpty()) {
             return List.of();

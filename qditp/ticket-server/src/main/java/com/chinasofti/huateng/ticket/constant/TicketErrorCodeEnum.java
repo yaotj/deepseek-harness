@@ -21,13 +21,16 @@ public enum TicketErrorCodeEnum {
     SYSTEM_ERROR("9001", "系统内部错误"),
     NO_DATA("8002", "无数据"),
     /**
-     * IF8A-29 查询用户行程时「上次行程为空」（2026-09-22 业主裁决新增）。
+     * IF8A-29 查询用户行程时「上次行程为空」（2026-09-22 业主裁决新增；2026-11-16 口径收窄）。
      *
-     * <p>用于「本次行程有、上次行程没有」这一形态，典型是**新卡首次进站**：`QRCODE_STATUS.LAST_TXN_STATION`
-     * 还是建行时的哨兵 `FFFF`（`ticket.default-last-txn-station`），于是 `lastStationName` 会把 `FFFF`
-     * 当站名吐给 APP，APP 拿它渲染就报「查询失败」（2026-09-22 日票卡 `0426090951000084` 实测）。
+     * <p><b>唯一触发条件：该卡没有任何过闸明细</b>（进出都没有，`selectLatestByCardId` 返回 null）。
+     * 有交易一律返 {@code 0000}——刚进站返进站这笔，刚出站返出站这笔；首次进站时上次站点虽是建行哨兵
+     * `FFFF`，但由装配器归一为空串，<b>不再</b>据「上次站点是哨兵」判 8911。
      *
-     * <p><b>NEVER 把它当异常码处理</b> —— 这是正常业务态，`memberItinerary` 里的本次行程字段仍然有效、仍会返回。
+     * <p><b>NEVER 把它当异常码处理</b> —— 这是正常业务态，`memberItinerary` 仍照常返回。
+     *
+     * <p>历史：D166 曾用「lastStation 是哨兵」判 8911 以规避 APP 渲染 `FFFF` 报「查询失败」，代价是
+     * 新卡首次进站明明有进站交易也被误判；2026-11-16 改为哨兵归一空串 + 8911 仅零交易，见 ADR-D174。
      */
     LAST_ITINERARY_EMPTY("8911", "上次行程为空"),
     ENTRY_TXN_NOT_FOUND("8004", "未找到同序列号进站交易");

@@ -8,8 +8,10 @@ import com.chinasofti.huateng.account.domain.EmployeeCardEvent;
 import com.chinasofti.huateng.account.domain.EmployeeCardStatus;
 import com.chinasofti.huateng.account.entity.AccountExceptionTicket;
 import com.chinasofti.huateng.account.entity.UserAccEmployeeCard;
+import com.chinasofti.huateng.account.entity.UserItpRegInfo;
 import com.chinasofti.huateng.account.mapper.AccountExceptionTicketMapper;
 import com.chinasofti.huateng.account.mapper.UserAccEmployeeCardMapper;
+import com.chinasofti.huateng.account.mapper.UserItpRegInfoMapper;
 import com.chinasofti.huateng.account.service.EmployeeCardOutboundService;
 import com.chinasofti.huateng.account.service.EmployeeCardPersistenceService;
 import com.chinasofti.huateng.account.service.EmployeeCardService;
@@ -45,6 +47,7 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
     private final AccountExceptionTicketMapper accountExceptionTicketMapper;
     private final EmployeeCardPersistenceService employeeCardPersistenceService;
     private final EmployeeCardOutboundService employeeCardOutboundService;
+    private final UserItpRegInfoMapper userItpRegInfoMapper;
 
     /**
      * APP 注册的单批条数。
@@ -55,11 +58,13 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
     public EmployeeCardServiceImpl(UserAccEmployeeCardMapper employeeCardMapper,
                                    AccountExceptionTicketMapper accountExceptionTicketMapper,
                                    EmployeeCardPersistenceService employeeCardPersistenceService,
-                                   EmployeeCardOutboundService employeeCardOutboundService) {
+                                   EmployeeCardOutboundService employeeCardOutboundService,
+                                   UserItpRegInfoMapper userItpRegInfoMapper) {
         this.employeeCardMapper = employeeCardMapper;
         this.accountExceptionTicketMapper = accountExceptionTicketMapper;
         this.employeeCardPersistenceService = employeeCardPersistenceService;
         this.employeeCardOutboundService = employeeCardOutboundService;
+        this.userItpRegInfoMapper = userItpRegInfoMapper;
     }
 
     @Override
@@ -144,17 +149,20 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
 
         UserAccEmployeeCard card = employeeCardMapper.selectByCardNo(request.getCardNo());
         if (card == null) {
+            card = resolveByRideCardId(request.getCardNo());
+        }
+        if (card == null) {
             result.setRetCode(AccountErrorCodeEnum.NO_ACCOUNT_CARD.getCode());
             result.setRetMsg("员工码信息不存在");
             return result;
         }
 
         if (!StringUtils.hasText(card.getEmployeeName()) && !EmployeeCardStatus.CANCELED.is(card.getCardStatus())) {
-            EmployeeCardInfoDTO accCard = employeeCardOutboundService.queryFromAcc(request.getCardNo());
+            EmployeeCardInfoDTO accCard = employeeCardOutboundService.queryFromAcc(card.getCardNo());
             if (accCard != null) {
                 employeeCardPersistenceService.refreshProfileFromAcc(card, accCard);
             } else {
-                log.warn("员工码资料未补全或ACC查询失败, cardNo={}", request.getCardNo());
+                log.warn("员工码资料未补全或ACC查询失败, cardNo={}", card.getCardNo());
             }
         }
 
@@ -162,6 +170,42 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
         result.setRetCode(AccountErrorCodeEnum.SUCCESS.getCode());
         result.setRetMsg("成功");
         return result;
+    }
+
+    /**
+     * 按乘车卡逻辑卡号兜底解析员工码。
+     *
+     * <p>APP 员工码二维码页实测以「乘车卡 cardId」而非员工号调查询接口
+     * （发卡 requestApplication cardType=11 返回 cardId 后，APP 拿它当 cardNo），
+     * 直接按 cardNo 查必回 8004，导致 APP 显示「获取二维码失败」。
+     * 兜底链：cardId → USER_ITP_REG_INFO 拿手机号 → 按手机号找已激活员工码。</p>
+     *
+     * @param cardIdOrCardNo APP 传入的卡号（可能是乘车卡 cardId）
+     * @return 命中的已激活员工码，未命中返回 null
+     */
+    private UserAccEmployeeCard resolveByRideCardId(String cardIdOrCardNo) {
+        UserItpRegInfo regInfo;
+        try {
+            regInfo = userItpRegInfoMapper.selectActiveByCardId(cardIdOrCardNo);
+        } catch (RuntimeException ex) {
+            log.warn("员工码查询乘车卡号兜底异常, cardId={}", cardIdOrCardNo, ex);
+            return null;
+        }
+        if (regInfo == null || !StringUtils.hasText(regInfo.getMsisdn())) {
+            return null;
+        }
+        List<UserAccEmployeeCard> byPhone = employeeCardMapper.selectActiveByPhone(regInfo.getMsisdn());
+        if (byPhone == null || byPhone.isEmpty()) {
+            return null;
+        }
+        // selectActiveByPhone 走 LeanColumnList 不含 PHOTO_URL（CLOB），
+        // 而二维码页要展示员工照片，须按员工号回表取全量行。
+        UserAccEmployeeCard card = employeeCardMapper.selectByCardNo(byPhone.get(0).getCardNo());
+        if (card == null) {
+            return null;
+        }
+        log.info("员工码查询按乘车卡号兜底命中, cardId={}, cardNo={}", cardIdOrCardNo, card.getCardNo());
+        return card;
     }
 
     /**
@@ -368,6 +412,8 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
 
     private void copyToResult(UserAccEmployeeCard source, EmployeeCardQueryResult target) {
         target.setCardNo(source.getCardNo());
+        // 规格书 D2：employeeNo 无独立存储，恒映射 cardNo（cardNo 即员工号）
+        target.setEmployeeNo(source.getCardNo());
         target.setPhone(source.getPhone());
         target.setEmployeeName(source.getEmployeeName());
         target.setIdCardNo(source.getIdCardNo());

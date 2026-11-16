@@ -8,12 +8,19 @@ import com.chinasofti.huateng.gatetxnpay.mapper.GateTxnPayMapper;
 import com.chinasofti.huateng.gatetxnpay.model.page.OfflineCodeStatView;
 import com.chinasofti.huateng.gatetxnpay.service.GateTxnPayQueryService;
 import com.chinasofti.huateng.model.app.CardUnsettledQueryRespDTO;
+import com.chinasofti.huateng.model.app.QueryActiveCardsReqDTO;
+import com.chinasofti.huateng.model.app.QueryActiveCardsResult;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
 import com.chinasofti.huateng.model.app.RequestUserAccInfoReqDTO;
 import com.chinasofti.huateng.model.app.RequestUserAccInfoResult;
 import com.chinasofti.huateng.model.app.TripDataDTO;
+import com.chinasofti.huateng.model.ticket.QueryStatusReqDTO;
+import com.chinasofti.huateng.model.ticket.QueryStatusRespDTO;
+import com.chinasofti.huateng.model.ticket.enums.QRCodeStatusEnum;
 import com.chinasofti.huateng.model.pay.GateTxnPayFailedOrderRespDTO;
+import com.chinasofti.huateng.rpc.account.AccountClient;
+import com.chinasofti.huateng.rpc.ticket.TicketClient;
 import com.chinasofti.huateng.model.pay.GateTxnPayListDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayReqDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayRespDTO;
@@ -48,15 +55,23 @@ public class GateTxnPayQueryServiceImpl implements GateTxnPayQueryService {
     private static final int DEFAULT_ACC_INFO_QUERY_MONTHS = 3;
     /** IF8A-35 时间下限格式。 */
     private static final DateTimeFormatter ACC_INFO_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
+    /** ticket-server「未注册用户」码：卡无 QRCODE_STATUS，视为不在行程中（非查询失败）。 */
+    private static final String TICKET_QR_CODE_NOT_FOUND = "8004";
 
     /** IF8A-35 统计窗口月数。 */
     @Value("${app.acc-info.query-months:3}")
     private int accInfoQueryMonths;
 
     private final GateTxnPayMapper gateTxnPayMapper;
+    private final AccountClient accountClient;
+    private final TicketClient ticketClient;
 
-    public GateTxnPayQueryServiceImpl(GateTxnPayMapper gateTxnPayMapper) {
+    public GateTxnPayQueryServiceImpl(GateTxnPayMapper gateTxnPayMapper,
+                                      AccountClient accountClient,
+                                      TicketClient ticketClient) {
         this.gateTxnPayMapper = gateTxnPayMapper;
+        this.accountClient = accountClient;
+        this.ticketClient = ticketClient;
     }
 
     @Override
@@ -418,13 +433,90 @@ public class GateTxnPayQueryServiceImpl implements GateTxnPayQueryService {
             return response;
         }
 
+        int inProgressCount = countInProgressTrips(thirdUserId);
+        if (inProgressCount < 0) {
+            log.error("IF8A-35 聚合进行中行程失败，fail-closed, thirdUserId={}", thirdUserId);
+            response.setRetCode(RESULT_CODE_INVALID_PARAM);
+            response.setRetMsg("查询用户账务信息失败");
+            return response;
+        }
+
+        int unpaidCount = counted.getUnpaidCount() + inProgressCount;
         response.setRetCode(RESULT_CODE_SUCCESS);
         response.setRetMsg("成功");
-        response.setUnpaidCount(counted.getUnpaidCount());
+        response.setUnpaidCount(unpaidCount);
         response.setFailureCount(counted.getFailureCount());
-        log.info("IF8A-35 查询用户账务信息完成, thirdUserId={}, startDate={}, unpaidCount={}, failureCount={}",
-                thirdUserId, startDate, counted.getUnpaidCount(), counted.getFailureCount());
+        log.info("IF8A-35 查询用户账务信息完成, thirdUserId={}, startDate={}, orderUnpaid={}, inProgress={}, unpaidCount={}, failureCount={}",
+                thirdUserId, startDate, counted.getUnpaidCount(), inProgressCount, unpaidCount, counted.getFailureCount());
         return response;
+    }
+
+    /**
+     * 统计该用户「已进站未出站」的票卡数，叠加到 IF8A-35 的 unpaidCount（ADR-D175）。
+     *
+     * <p>两个域都不能跨库 JOIN：账户域持有 thirdUserId → CARD_ID，行程域持有 CARD_ID → CODE_STATUS。
+     * 编排两次只读 RPC：account-server 查有效卡列表 → ticket-server 逐卡查状态。
+     *
+     * @return {@code >=0} 进行中行程数；{@code -1} 表示查询未执行（fail-closed，调用方 MUST 拒绝）
+     */
+    private int countInProgressTrips(String thirdUserId) {
+        QueryActiveCardsReqDTO cardsRequest = new QueryActiveCardsReqDTO();
+        cardsRequest.setThirdUserId(thirdUserId);
+        QueryActiveCardsResult cardsResult;
+        try {
+            cardsResult = accountClient.queryActiveCards(cardsRequest);
+        } catch (RuntimeException e) {
+            log.error("IF8A-35 查有效票卡列表异常, thirdUserId={}", thirdUserId, e);
+            return -1;
+        }
+        if (cardsResult == null || !RESULT_CODE_SUCCESS.equals(cardsResult.getRetCode())) {
+            log.error("IF8A-35 查有效票卡列表未成功, thirdUserId={}, retCode={}, retMsg={}",
+                    thirdUserId, cardsResult == null ? null : cardsResult.getRetCode(),
+                    cardsResult == null ? null : cardsResult.getRetMsg());
+            return -1;
+        }
+
+        int inProgress = 0;
+        for (String cardId : cardsResult.getCardIds()) {
+            QueryStatusReqDTO statusRequest = new QueryStatusReqDTO();
+            statusRequest.setThirdUserId(thirdUserId);
+            statusRequest.setCardId(cardId);
+            QueryStatusRespDTO statusResult;
+            try {
+                statusResult = ticketClient.queryQrCodeStatus(statusRequest);
+            } catch (RuntimeException e) {
+                log.error("IF8A-35 查乘车状态异常, thirdUserId={}, cardId={}", thirdUserId, cardId, e);
+                return -1;
+            }
+            if (statusResult == null) {
+                log.error("IF8A-35 查乘车状态返回空, thirdUserId={}, cardId={}", thirdUserId, cardId);
+                return -1;
+            }
+            String statusCode = statusResult.getRetCode();
+            if (TICKET_QR_CODE_NOT_FOUND.equals(statusCode)) {
+                continue;
+            }
+            if (!RESULT_CODE_SUCCESS.equals(statusCode)) {
+                log.error("IF8A-35 查乘车状态未成功, thirdUserId={}, cardId={}, retCode={}",
+                        thirdUserId, cardId, statusCode);
+                return -1;
+            }
+            QRCodeStatusEnum status = QRCodeStatusEnum.parseOrNull(statusResult.getStatus());
+            if (status != null && isEnteredWithoutExit(status)) {
+                inProgress++;
+                log.info("IF8A-35 计入进行中行程, thirdUserId={}, cardId={}, status={}, gateInStation={}, gateInTime={}",
+                        thirdUserId, cardId, status.getCode(), statusResult.getGateInStation(), statusResult.getGateInTime());
+            }
+        }
+        return inProgress;
+    }
+
+    /**
+     * 「已进站未出站」白名单，与 ticket-server 的 {@code SupplementStateRules.hasEnteredWithoutExit} 同源：
+     * 开环 04 / 81（{@code isOpenLoop()}）+ 入站码更新 10。NEVER 写成「非闭环即可」的黑名单。
+     */
+    private boolean isEnteredWithoutExit(QRCodeStatusEnum status) {
+        return status.isOpenLoop() || status == QRCodeStatusEnum.UPDATE_ENTRY;
     }
 
     private String trimToNull(String value) {

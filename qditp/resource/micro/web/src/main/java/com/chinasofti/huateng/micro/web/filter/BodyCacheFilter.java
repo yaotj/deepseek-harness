@@ -4,6 +4,7 @@ import com.chinasofti.huateng.micro.web.Webconfig;
 import com.chinasofti.huateng.micro.web.utils.HeartbeatUrlUtil;
 import com.chinasofti.huateng.micro.web.utils.HttpRequestWrapper;
 import com.chinasofti.huateng.micro.web.utils.HttpResponseWrapper;
+import com.chinasofti.huateng.micro.web.utils.LogContentMasker;
 import com.chinasofti.huateng.micro.web.utils.PathMatcher;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -84,6 +85,8 @@ public class BodyCacheFilter implements Filter {
                             status,
                             HttpResponseWrapper.getResponseBody(response, webconfig.getLogResponseMaxSize()));
                     content = content.replaceAll("\r\n", "").replaceAll("\n", "");
+                    // 员工码照片等 base64 大字段不整段进日志（2026-11-09：photoUrl 上万字符冲刷日志）
+                    content = LogContentMasker.maskBase64Fields(content);
                     if (!(skipHeartbeat && HeartbeatUrlUtil.isHeartbeat(request_url))) {
                         log.info(content);
                     }

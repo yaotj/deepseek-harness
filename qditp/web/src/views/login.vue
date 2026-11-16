@@ -145,6 +145,11 @@ function getCode() {
       codeUrl.value = "data:image/svg+xml;base64," + res.img
       loginForm.value.uuid = res.uuid
     }
+  }).catch(() => {
+    // 验证码接口不可达（如前端 nginx 反代段丢失返回 404）时隐藏验证码框：
+    // 框内只会是裂图且 captchaEnabled 默认 true 会造成「后端开了验证码」的假象误导排查。
+    // 后端真不可达时登录请求本身会失败，request.js 拦截器已统一弹错误提示。
+    captchaEnabled.value = false
   })
 }
 

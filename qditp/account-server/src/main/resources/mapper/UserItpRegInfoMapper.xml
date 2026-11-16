@@ -199,15 +199,14 @@
         order by regCount desc
     </select>
 
-    <!-- IF8A-77 定位第三方渠道用户：谓词 MUST 用 ISSUE_ORG_CODE（APP 上送的发卡机构码原值）。
-         NEVER 换回 CARD_ISSUE_CODE：那一列存的是 CardIssueOrgEnum.toIssueChannelCode4 归一后的
-         4 位发行渠道码（上送 0008 落库 0001），拿上送值去比恒 0 行，CHANNEL 永远补不上、
-         拉码 IF8A-03 一直返 8001。2026-09-17 实测修复。 -->
-    <select id="selectByThirdUserIdAndIssueOrgCodeAndCompanionFlag" resultMap="BaseResultMap">
+    <!-- IF8A-77 定位第三方渠道用户：只按 THIRD_USER_ID + COMPANION_FLAG 定位，不对 ISSUE_ORG_CODE 做严格校验。
+         支持互联互通卡（如 0009）等不在 CardIssueOrgEnum 中的发卡机构码。
+         取最新一条（ORDER BY REG_TMS DESC），与旧的 selectByThirdUserIdAndIssueOrgCodeAndCompanionFlag
+         的区别是放弃机构码匹配，避免未知发卡机构恒 0 行。 -->
+    <select id="selectByThirdUserIdAndCompanionFlag" resultMap="BaseResultMap">
         select <include refid="Base_Column_List"/>
         from USER_ITP_REG_INFO
         where THIRD_USER_ID = #{thirdUserId,jdbcType=VARCHAR}
-          and ISSUE_ORG_CODE = #{issueOrgCode,jdbcType=VARCHAR}
           and COMPANION_FLAG = #{companionFlag,jdbcType=VARCHAR}
           <include refid="Del_Yn_Active_Filter"/>
         order by REG_TMS desc

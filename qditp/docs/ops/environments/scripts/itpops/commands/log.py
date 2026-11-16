@@ -85,8 +85,6 @@ WATCH_SERVICES = [
     "daily-ticket-server",
     "gate-txn-pay-server",
     "key-server",
-    "collect-pay",
-    "collect-pay-server",
     "account",
     "security-server",
     "es-server",

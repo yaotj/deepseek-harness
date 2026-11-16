@@ -42,7 +42,6 @@
         <module>acc-es-server</module>
         <module>collect-ticket-server</module>
         <module>daily-ticket-server</module>
-        <module>collect-pay-server</module>
         <module>face-pay-server</module>
         <module>pay-sign-server</module>
         <module>ticket-server</module>

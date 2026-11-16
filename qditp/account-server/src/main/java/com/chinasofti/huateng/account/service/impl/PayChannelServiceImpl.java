@@ -275,12 +275,13 @@ public class PayChannelServiceImpl implements PayChannelService {
             String cardIssueCode = request.getCardIssueCode().trim();
             String regSignSeq = request.getRegSignSeq().trim();
 
-            UserItpRegInfo regInfo = userItpRegInfoMapper.selectByThirdUserIdAndIssueOrgCodeAndCompanionFlag(
-                    thirdUserId, cardIssueCode, "C");
+            // IF8A-77 定位第三方渠道用户：只按 thirdUserId + companionFlag='C' 定位，不对 cardIssueCode 做严格校验。
+            // 支持互联互通卡（如 0009）等不在 CardIssueOrgEnum 中的发卡机构码。
+            UserItpRegInfo regInfo = userItpRegInfoMapper.selectByThirdUserIdAndCompanionFlag(thirdUserId, "C");
             if (regInfo == null || !regInfo.isActive()) {
                 response.setRetCode(AccountErrorCodeEnum.NO_ACCOUNT_CARD.getCode());
                 response.setRetMsg(AccountErrorCodeEnum.NO_ACCOUNT_CARD.getMsg());
-                log.warn("IF8A-77未找到有效第三方渠道用户, thirdUserId={}, cardIssueCode={}", thirdUserId, cardIssueCode);
+                log.warn("IF8A-77未找到有效第三方渠道用户, thirdUserId={}", thirdUserId);
                 return response;
             }
 

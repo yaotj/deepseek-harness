@@ -8410,3 +8410,54 @@ AND NVL(OUT_STATION, IN_STATION) = #{stationCode}   -- 可选
 - 不动 `MapperAspectToTrace` 对撞键先打 ERROR 的行为——那是全局 mapper AOP，幂等撞键的噪音问题与本次键粒度问题分开，治理另立项。
 
 **验证**：`F2fHceServiceTest` 新增 5 例（9/9 绿）：更新键合成、撞键吞掉但下游 8001 照常返回、通知首报键合成+触发回写、通知重复跳过回写、更新与通知同秒不同键。face-pay-server 全量 133 测试 0 失败。
+
+## ADR-D174：IF8A-29 `8911` 口径收窄为「无任何过闸明细」+ 站点哨兵 `FFFF` 归一为空串 —— 推翻 D166「NEVER 改空串」（2026-11-16，ticket-server 2.2.8 **已发测试环境并端到端验证**）
+
+**现象**：2026-11-16 13:38 测试环境，卡 `0426090949000508` 刚在灵山卫（1325）进站，`queryUserItinerary` 返回 `retCode=8911`、`lastStationName=FFFF`，但 `thisStationName=灵山卫` 本次行程明明有效。业务方报「有行程却返 8911」。
+
+**根因**：D166（2026-09-22）为规避「新卡首次进站时 `lastStationName=FFFF` 被 APP 当站名渲染报查询失败」，把「上次站点是哨兵 `FFFF`」判成 8911。这个判据把两件事混为一谈——**「上次站点未知」≠「没有任何交易」**。首次进站有真实进站交易，却被归到 8911。业主 2026-11-16 明确口径：「查上次行程 = 查这个号上一次产生的交易，进出站各算一笔；刚进完查的是进站，刚出完查的是出站；**只有进出都没有才算 8911**」。
+
+**决策**（三点联动，缺一不可）：
+1. **8911 收窄为唯一条件 `latestDetail == null`**：该卡在 `QRCODE_TXN_DETAIL` 里没有任何过闸明细才返 8911；有交易（刚进站 / 刚出站）一律返 0000。删掉原 `isLastItineraryEmpty()` 基于 `lastStationCode` 的判据。
+2. **站点哨兵归一为空串**：`MemberItineraryAssembler` 装配 `this`/`last` 的 code+name 四字段时，未知站哨兵（`SupplementCodec.isUnknownStation`，同时识别字面量 `FFFF` 与配置 `ticket.default-last-txn-station`）一律返回 `""`，APP 永不拿到 `FFFF`。这一步是第 1 步的前提——否则哨兵归一后 `lastStationCode` 变空，旧判据仍会误判 8911。
+3. **判据统一复用 `SupplementCodec.isUnknownStation`**：该类由包私有提升为 public，NEVER 在行程域再裸写 `"FFFF".equalsIgnoreCase(x)`（审查项 C004，避免配置改一半漏判）。
+
+**对 D166 的推翻点**：D166 Javadoc 的「**NEVER 把 lastStationName/lastStationCode 改写成空串**、用 8911 表达」作废；改为「哨兵归一空串 + 8911 仅表达零交易」。错误码 `8911` 的 code 与文案「上次行程为空」保留不变，APP 无需改映射。
+
+**验证**：`MemberItineraryAssemblerTest` 13 例（新增 4 例：进站哨兵上一站空串 / 出站哨兵本站与上一站空串 / 无交易哨兵本站空串 / 自定义哨兵配置值空串）、`TicketRideStatusServiceImplTest` 3 例（无明细 8911 / 刚进站 0000 / 刚出站 0000）全绿；`mvn -o clean test-compile` EXIT=0。
+
+**Exit 分支同批收口（2026-11-16 追加）**：出站时 `lastStation` 原取 `detail.handleStationCode`（出站站自身），业务口径应为「出站 + 本次进站」拼成一趟。改为取**出站明细自带的进站字段** `detail.lastHandleStationCode / lastHandleDateTime`（`GateTicketHandler` 出站时把 `currentStatus.LAST_TXN_STATION` 写入，测试库实测卡 `0426090949000384` 进站 `0132` → 出站明细 `LAST_HANDLE_STATION_CODE=0132`、`LAST_HANDLE_DATE_TIME`=进站时间，完全对齐），与 Entry 分支对称；`collectStationCodes` 的 Exit 分支同步收集进站码以批量翻译站名。
+
+- **NEVER 按 `TICKET_TRANS_SEQ` 相等配对进出站**：本仓 `QRCodeTxnDetailMapper` 有不可回退裁决——进站与出站是同卡两笔交易，闸机序列号天然不同（实测进站 `4` / 出站 `5`，早前样本 `0`/`1`），相等配对恒命中 0 行。出站明细既已自带进站站，无需查库、无需 seq 关联。
+
+**明确不做**：
+- 不改 `Itinerary` 三态分类与 `QRCODE_STATUS` 写库逻辑，`registerRideStatus` 建行哨兵仍写注入的 `defaultLastTxnStation`。
+- **发版与验证（2026-11-16，§5.C 云管台链）**：起始版本现查线上实跑 `2.2.7`（平台 metadata 记 2.2.6 属 IT-034 落后，回滚点取实跑），`itp-ops.sh version next` → `2.2.8`，bump 后本机出 jar、平台 x86 buildx 出镜像（`digest=sha256:1999cf4d00382f0ba51b24d07979e2dcfed72f10984c181a57fbbc5b613d025a`）、`cloudos deploy --yes` 切镜像。完成判据全过：desired=ready=updated=available=3、目标 RS `77cd569969` 3 Pod 全部 `ready=true/restarts=0`、Pod imageID digest 与推送一致、NodePort 30014 `/actuator/health` http=200 status=UP（Oracle UP）。**回滚**：`cloudos deploy ticket-server os-harbor-svc.default.svc.cloudos:443/itp/ticket-server:2.2.7 --app-version 2.2.7 --yes`。
+- 生产（红岛）落地另走 §5.C，MUST 二次确认，本次未涉及。
+
+---
+
+## ADR-D175：IF8A-35 `unpaidCount` 聚合「已进站未出站」行程 —— 补 D20/D172「IF8A-35 已覆盖未完成行程」的假设漏洞（2026-11-16，测试环境已发版验证）
+
+**现象**：测试环境 thirdUserId `00523018` 卡 `0426090949000508` 于 13:38 在灵山卫（1325）进站未出站，IF8A-35 返回 `unpaidCount=0`。库核对该卡 `QRCODE_STATUS.CODE_STATUS=04`、`GATE_TXN_PAY` 近 3 个月 0 条订单。业主口径：**已进站未出站算一次未支付**，应为 1（IT-072）。
+
+**根因**：IF8A-35 `countUserAccInfo` 的数据源只有 `GATE_TXN_PAY`，只数 `INIT`/`PROCESSING` 订单。而进站（IF1A-01）不落扣费订单、出站才落——「有行程、无订单」的状态在旧口径下必然是 0。这是口径缺数据源，不是 SQL 缺陷。
+
+**对既有裁决的关系（关键，NEVER 混淆）**：
+- D20（2026-09-11）记「销户不校验进行中行程，因为进站未出站通常已在 gate-txn-pay 侧留下未结清订单」——**这个「通常」在新卡首次进站场景不成立**（本卡实证：有进站明细、零订单）。
+- D172（2026-10-16）业主明确要求「未完成行程、欠费、签约渠道未解绑完成均不允许注销」，并写「口径 1/2 已由 IF8A-35 覆盖，只需保留」——**当时 IF8A-35 实际没覆盖未完成行程**，该句是假设漏洞。
+- 本次修复是**落实 D172 的本意**：让 IF8A-35 真正覆盖未完成行程，销户 8023 因此拦住已进站未出站用户，是业主明示的规则，NEVER 记为「意外回归」去回退。D20 的「不校验进行中行程」作为**独立前置校验**的结论仍成立（本方案没有加独立校验，而是让既有 8023 口径补齐）。
+
+**决策**：
+1. **服务端聚合**：`GateTxnPayQueryServiceImpl.requestUserAccInfo` 在订单计数之外叠加进行中行程数。**对外 DTO `RequestUserAccInfoResult` 不加字段**，fep-app / APP 报文零改动（判据：`parseBizData` 解析的 DTO 才是对外契约，见 `docs/domain/README.md` §四）。
+2. **两次只读 RPC 编排，NEVER 跨库 JOIN**：`GATE_TXN_PAY` 在 QDITP_TXN、`QRCODE_STATUS` 在 QDITP_RIDE、`USER_ITP_REG_INFO` 在 QDITP_USER（`docs/ops/数据库按域分库计划.md` §3）。新增 account-server internal 端点 `POST /queryActiveCards`（`CardDataInternalController`，只返回 `DEL_YN` 有效卡的 CARD_ID）→ ticket-server 现成 `/ci/app/queryQrCodeStatus` 逐卡查 `CODE_STATUS`。两个 Client 都已在本模块接线（FareDataGateway 已注入），MUST 只调只读方法。
+3. **白名单与 owner 同源**：计入条件是 `QRCodeStatusEnum.isOpenLoop()`（04 已进站 / 81 APP 自助补进站）+ `UPDATE_ENTRY`（10 入站码更新），与 ticket-server `SupplementStateRules.hasEnteredWithoutExit` 逐字一致。**NEVER 写成「非闭环即可」黑名单**——`01` / `03` / `05` / `06` / `80` 都不算行程中。
+4. **RPC 失败 fail-closed**：任一 RPC 异常或 `retCode != 0000` → IF8A-35 返 `9002`、两个计数归 0；唯一例外 ticket `8004`（未注册用户）视为「该卡无 QRCODE_STATUS、不在行程中」，按 0 计。理由：`unpaidCount` 是 primitive int，**失败分支两个计数照样是 0，唯一能让调用方区分「无欠费」与「查询失败」的是 retCode**——若把聚合失败当 0，销户会放行有进行中行程的用户，直接违反 D172。
+5. **否决的备选**：①进站预插 `GATE_TXN_PAY` 占位单（动闸机主链路，牵连扣费/重试/对账）；②gate-txn-pay 直连 `QRCODE_STATUS` JOIN（跨库，违反域边界）。
+
+**验证**：`GateTxnPayQueryTest` 14 例全绿（新增 6 例覆盖 +1 聚合、04/81/10 白名单、8004 非失败、account/ticket 两路 fail-closed、空卡列表正常放行）；`mvn -o clean test-compile` EXIT=0。**2026-11-16 测试环境已发版验证**（§5.C 云管台链）：account `2.0.96 → 2.0.97`（回滚点取实例实跑 2.0.96，平台 metadata 记 2.0.92 属 IT-034 落后）、gate-txn-pay-server `2.1.9 → 2.1.10`；实例镜像 digest 与推送一致、NodePort 30013/30019 health 200/UP（Oracle UP）；问题卡 `0426090949000508` 经内部与 APP 两条路径均返 `unpaidCount=1`（VL `orderUnpaid=0, inProgress=1`），对照组闭环用户 `00522987` 仍为 0。停依赖服务验 `9002` 未实测（避免影响其它联调），由单测覆盖。
+
+**后续影响与约束**：
+- 本接口成为 account-server 销户（8023）的上游依赖后，**ticket-server / account-server 不可用会使销户 fail-closed 返 8024**——这是有意的取舍（宁可拒绝销户，不可放行未完成行程），NEVER 把 fail-closed 改成「聚合失败按 0 计」。
+- `app.acc-info.query-months`（3 个月）窗口只约束 `GATE_TXN_PAY` 订单侧；进行中行程是 `QRCODE_STATUS` 的当前状态快照，**不套该窗口**（旧于 3 个月的进站未出站仍算欠费，符合 D172）。
+- 发版 MUST 同时带 `model`（新增两个 internal DTO 类，版本仍 2.0.0）、`account-server`、`rpc`、`gate-txn-pay-server` 四个模块；只发后者会在运行时因找不到新 DTO 类而失败。

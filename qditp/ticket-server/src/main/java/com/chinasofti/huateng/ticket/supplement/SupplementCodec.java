@@ -5,8 +5,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
-/** 补站域（IF5A-01 / IF5A-03 / IF8A-04）包内共享的字面量与编解码。 */
-final class SupplementCodec {
+/** 共享的字面量与编解码：补站域（IF5A-01 / IF5A-03 / IF8A-04）及行程装配域（IF8A-29）统一复用。 */
+public final class SupplementCodec {
 
     private static final Logger log = LoggerFactory.getLogger(SupplementCodec.class);
 
@@ -41,8 +41,11 @@ final class SupplementCodec {
         return StringUtils.hasText(value) ? value : defaultValue;
     }
 
-    /** 判断站点码是否为「未知站」。 */
-    static boolean isUnknownStation(String stationCode, String configuredUnknown) {
+    /**
+     * 判断站点码是否为「未知站」——同时容忍字面量 {@link #STATION_UNKNOWN} 与配置值，
+     * 供各域统一复用（审查项 C004：NEVER 退回裸 `"FFFF".equalsIgnoreCase(x)`）。
+     */
+    public static boolean isUnknownStation(String stationCode, String configuredUnknown) {
         if (!StringUtils.hasText(stationCode)) {
             return true;
         }

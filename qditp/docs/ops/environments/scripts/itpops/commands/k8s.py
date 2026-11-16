@@ -14,7 +14,7 @@
   · 服务名 MUST 是仓库根目录下的模块目录名（不是镜像名、不是 Deployment 名）。
   · 语义 = 可构建推送的模块全集（根 pom <modules> 中有 kubernetes-maven-plugin 的模块目录），
     不是生产部署清单——NEVER 按生产清单裁剪（会改变 deploy/deploy-all 的全量语义）：
-    本清单有、生产不需要：collect-pay-server（已下线）、collect-ticket-server（未部署）；
+    本清单有、生产不需要：collect-ticket-server（未部署）；
     生产还有 web-server/web 前端——走 zip + nginx Deployment，NEVER 加进本清单。
   · 2026-11-06 裁定：acc-secure-server 已从清单移除。理由不是「生产不需要」，而是
     **它不在根 pom <modules> 中**——`mvn -pl acc-secure-server -am` 必然报
@@ -69,7 +69,6 @@ ALL_SERVICES = [
     "acc-security-server",
     "acc-es-server",
     "collect-ticket-server",
-    "collect-pay-server",
     "pay-sign-server",
     "ticket-server",
     "industry-data-server",

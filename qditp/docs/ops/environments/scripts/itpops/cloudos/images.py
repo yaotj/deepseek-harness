@@ -100,8 +100,10 @@ def _cmd_probe(harbor_project: str) -> int:
     c = auth.cfg()
     _info("== CloudOS 镜像构建能力探测（只读，不发写请求）==")
     _info("")
-    _info("-- 0. 连通性预检（镜像服务可能在 11000，Web 网关在 443）")
-    if not http_mod.check_ports(c.host, ["443", "11000"]):
+    _info("-- 0. 连通性预检（镜像服务可能在 11000，Web 网关在 CLOUDOS_PORT 或 443）")
+    web_port = os.environ.get("CLOUDOS_PORT") or "443"
+    check_ports = [web_port, "11000"] if web_port != "11000" else ["11000"]
+    if not http_mod.check_ports(c.host, check_ports):
         raise OpsError(
             "两个端口都不通 —— en9 是否 active？\n"
             "\n"

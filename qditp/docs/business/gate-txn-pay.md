@@ -109,7 +109,8 @@
 取值 `INIT` / `PROCESSING` / `SUCCESS` / `FAIL` / `RETRY` / `CLOSED`（权威清单只有 DDL 注释 `gate-txn-pay-schema.sql`；无枚举类，全是字符串字面量；`CLOSED` 代码中无任何写入点）。
 
 - **解约校验 `countFailedOrder`、黑名单 `countUnsettledOrderByCardId`**：`DEBIT_STATUS IS NULL OR != 'SUCCESS'` 即未结清（黑名单口径**不带渠道也不带时间下限**，覆盖该卡全部历史，只能用于批处理，NEVER 放联机链路）
-- **IF8A-35 `countUserAccInfo`**：**白名单分档**——`unpaidCount` 只数 `INIT`/`PROCESSING`，`failureCount` 只数 `FAIL`/`RETRY`；`CLOSED` 与脏数据 `NULL` 两档都不落入，且只统计近 N 个月（`app.acc-info.query-months`，默认 3）
+- **IF8A-35 `countUserAccInfo`**：**白名单分档**——订单侧 `unpaidCount` 只数 `INIT`/`PROCESSING`，`failureCount` 只数 `FAIL`/`RETRY`；`CLOSED` 与脏数据 `NULL` 两档都不落入，且只统计近 N 个月（`app.acc-info.query-months`，默认 3）
+- **IF8A-35 最终 `unpaidCount` = 订单侧 `unpaidCount` + 进行中行程数**（2026-11-16 / ADR-D175）：进站未出站（`QRCODE_STATUS.CODE_STATUS` 开环 04/81 + 入站码更新 10）按 1 笔计，**因为进站不落 `GATE_TXN_PAY` 订单、出站才落**，旧口径下「有行程无订单」恒返 0。取数走两次只读 RPC（account-server `POST /queryActiveCards` 拿有效卡 → ticket-server `/ci/app/queryQrCodeStatus` 逐卡查状态），**NEVER 跨库 JOIN**（三张表分属 TXN / USER / RIDE 三库）。任一 RPC 异常或非成功码 → 整个 IF8A-35 返 `9002`、两个计数归 0（fail-closed，防销户放行）；ticket `8004` 未注册用户单独按「不在行程中」处理。状态白名单与 ticket-server `SupplementStateRules.hasEnteredWithoutExit` 同源，NEVER 写成「非闭环即可」。**这一路不套 `app.acc-info.query-months` 窗口**（它是当前状态快照，3 个月前的进站未出站仍算欠费）。
 
 因此 **`unpaidCount + failureCount` ≠ `countFailedOrder` 的结果**，两者口径与时间范围都不同，**NEVER 拿来互相校验或推断对方**。白名单写法顺带避开了 Oracle 三值逻辑：`NULL` 不满足任何 `IN`，自然排除，不需要像 `countFailedOrder` 那样显式补 `IS NULL` 分支。
 
@@ -638,13 +639,14 @@
 - ③**`OFFLINE_FARE_PENDING` 与 `DEBIT_STATUS='INIT'` 在三条语句里 MUST 成对**（捞单 / 抢占回写 / 失败留痕）：任一处掉了另一半，补偿要么捞不到、要么并发重复扣款。并且**剥离 XML 注释后该字面量只允许出现 3 次**（，注释里为讲清语义会引用状态字面量，故计数前 MUST 先剥）—— 多一次即说明有人又抄了一份判据，改口径时必然漏改。配套两条：两条 UPDATE NEVER 改 `DEBIT_STATUS`（，置 FAIL 补偿再也捞不到、置 SUCCESS 是资损）；抢占语义靠 WHERE 里的状态条件、返回 1 才代表抢到，去掉即退化成无条件覆盖。
 - ④三条全局形状：按主键定位的写语句 MUST 带分区键 `TXN_DATE`（，漏掉即扫全部分区且跨月重名时改错行）；渲染出 `WHERE AND` 只在运行时抛语法异常，故对**全部**语句扫一遍；**渲染后的 SQL 正文里 NEVER 出现注释**（，Druid `commentAllow=false` 判成注入后语句静默失效，且达梦环境关了 WallFilter，只在 Oracle 暴露）。另有一条**测试自身的坑**：IF8A-41 统计语句以 `request.*` 取值，**缺这个键会渲染成不带任何过滤的全表扫描**，断言前 MUST 先塞 `statisticsRequest()`。
 
-**【只读侧】`service/impl/GateTxnPayQueryTest`（204 行）钉三处「参数被静默改写」**（`service/impl/GateTxnPayQueryTest.java`，共同特征是**出错不报错**：分页钳制失效只是查得多或查得少、窗口算错只是统计口径变了、DTO 补齐漏掉只是前端显示 null）：
+**【只读侧】`service/impl/GateTxnPayQueryTest` 钉「参数被静默改写」+ IF8A-35 聚合口径**（`service/impl/GateTxnPayQueryTest.java`，共同特征是**出错不报错**：分页钳制失效只是查得多或查得少、窗口算错只是统计口径变了、DTO 补齐漏掉只是前端显示 null）：
 - 四个搜索维度全空 MUST 在碰库之前拒绝，NEVER 落成全表分页扫描；只给开始日期不给结束日期同样算「没有范围」，两者 MUST 成对。
 - 分页钳制：`pageSize` 上限 100、非法值回落 10、`pageNum` 下限 1 —— 「少了 `Math.min` 那一层，前台传 100000 就是一次百万行结果集」。
 - IF8A-35 缺 `thirdUserId` MUST 返 `9002` 且不查库；统计窗口下限 MUST 是 `yyyyMMdd` 字符串且等于「今天减 N 个月」，配置非法（`<=0`）时回落 3 个月，**NEVER 退化成不加下限**（那会扫全部月分区）。
 - **聚合查询返回 null 时 MUST 返 `9002`**：`unpaidCount` / `failureCount` 是 **primitive int**，报错分支里它们照样是 0 —— 「**唯一**能让 APP 区分『无欠费』与『查询失败』的就是 retCode」，改成返 `0000` 会让 APP 把查询失败当无欠费、放行欠费乘客，而两个计数字段看不出差别。
 - 列表 DTO 对历史行补齐 `COUNTING_TIMES=0` / `COUNTING_FLAG=N`（2026-09-10 之前落库的行这两列是 NULL，去掉补齐前台显示 null）；订单号为空直接返 null、不查库。
-- 另有一条**结构性断言**：构造器只收 `GateTxnPayMapper` 一个协作者，「一旦有人把写入、算价或 pay-sign 调用挪进查询实现构造器就得多收协作者、本方法立刻编译不过 —— 那正是要暴露的耦合」；`accInfoQueryMonths` 是 `@Value` 字段而非构造参数，单测只能反射注入。
+- IF8A-35 聚合六例（ADR-D175）：订单 2 笔 + 开环 1 笔 = 3；白名单只认 04/81/10（05/未知码不计）；ticket `8004` 视为不在行程中；account 非成功码与 ticket 非成功码**都 fail-closed 返 9002**（防销户放行）；account 返空卡列表按 0 正常放行。
+- 另有一条**结构性断言**：构造器只收 `GateTxnPayMapper` + `AccountClient` + `TicketClient` 三个**只读**协作者，「一旦有人把写入、算价或 pay-sign 调用挪进查询实现构造器就得多收协作者、本方法立刻编译不过 —— 那正是要暴露的耦合」；`accInfoQueryMonths` 是 `@Value` 字段而非构造参数，单测只能反射注入。
 
 **【换乘推送】`MetroTransferPushDecisionTest`（198 行）钉五个判定条件 + 一道功能开关**（`service/impl/MetroTransferPushDecisionTest.java`；建网的直接原因是这段逻辑同时被 `requestPay` 与离线码补偿调用而**此前一条测试都没有**，写反则「两条链路同时错」：少推乘客拿不到公交换乘优惠、多推给了不该给的，两边都不报错）：
 - 五条件缺一不可：出站交易（`trxType` 02/03）、钱包渠道（`PAYMENT_VENDOR=0B`）、非蓝牙（`CHANNEL_TYPE != 01`）、非同行票（`!= Y`）、非第三方票（`!= C`）。**后三个是排除语义，写成 `equals` 正好反掉。**

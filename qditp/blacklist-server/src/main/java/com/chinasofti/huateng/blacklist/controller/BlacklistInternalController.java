@@ -2,9 +2,11 @@ package com.chinasofti.huateng.blacklist.controller;
 
 import com.chinasofti.huateng.blacklist.service.BlacklistAutoReleaseService;
 import com.chinasofti.huateng.blacklist.service.BlacklistReleaseInspectService;
+import com.chinasofti.huateng.blacklist.service.HceBlacklistFileService;
 import com.chinasofti.huateng.blacklist.service.impl.BlacklistChannelSyncService;
 import com.chinasofti.huateng.model.app.BlacklistAutoReleaseRespDTO;
 import com.chinasofti.huateng.model.app.BlacklistReleaseInspectRespDTO;
+import com.chinasofti.huateng.model.app.HceBlacklistFileGenRespDTO;
 import com.chinasofti.huateng.model.domain.OutboxScan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,13 +36,16 @@ public class BlacklistInternalController {
     private final BlacklistReleaseInspectService blacklistReleaseInspectService;
     private final BlacklistChannelSyncService blacklistChannelSyncService;
     private final BlacklistAutoReleaseService blacklistAutoReleaseService;
+    private final HceBlacklistFileService hceBlacklistFileService;
 
     public BlacklistInternalController(BlacklistReleaseInspectService blacklistReleaseInspectService,
                                        BlacklistChannelSyncService blacklistChannelSyncService,
-                                       BlacklistAutoReleaseService blacklistAutoReleaseService) {
+                                       BlacklistAutoReleaseService blacklistAutoReleaseService,
+                                       HceBlacklistFileService hceBlacklistFileService) {
         this.blacklistReleaseInspectService = blacklistReleaseInspectService;
         this.blacklistChannelSyncService = blacklistChannelSyncService;
         this.blacklistAutoReleaseService = blacklistAutoReleaseService;
+        this.hceBlacklistFileService = hceBlacklistFileService;
     }
 
     /**
@@ -102,5 +107,23 @@ public class BlacklistInternalController {
         int effective = limit == null || limit <= 0 ? DEFAULT_LIMIT : limit;
         log.info("接收到解黑通知补偿请求, limit={}", effective);
         return blacklistChannelSyncService.compensateRelease(effective);
+    }
+
+    /**
+     * 生成 HCE 卡全量黑名单文件（PRM.0013.9700.&lt;版本&gt;）并上传 ACC FTP。
+     *
+     * <p>由 web-admin 的 {@code sys_job} 355「HCE黑名单文件生成上传」定时调用。
+     * 取数口径与判黑一致（RELEASING 仍算黑名单），票种限 0442/0443。
+     * 版本号只进不退：上传失败时文件留在本地目录（响应 message 带路径），可人工补传，
+     * 下一轮调度产出新版本的全量文件自然覆盖。</p>
+     */
+    @PostMapping("/hce-file/generate")
+    public HceBlacklistFileGenRespDTO generateHceFile() {
+        log.info("接收到HCE黑名单文件生成上传请求");
+        HceBlacklistFileGenRespDTO response = hceBlacklistFileService.generateAndUpload();
+        log.info("HCE黑名单文件生成上传响应, resultCode={}, fileName={}, version={}, cardCount={}, uploaded={}, message={}",
+                response.getResultCode(), response.getFileName(), response.getVersion(),
+                response.getCardCount(), response.isUploaded(), response.getMessage());
+        return response;
     }
 }

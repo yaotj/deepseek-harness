@@ -1,0 +1,20 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:user_route;MODE=Oracle;DB_CLOSE_DELAY=-1;INIT=RUNSCRIPT FROM 'classpath:schema-h2.sql'
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: gatewayroutes,health,info,metrics
+  endpoint:
+    gateway:
+      enabled: false
+
+# 默认关闭双发:RouteForwardingE2ETest 钉住的是「双发关闭时的归属路由回退行为」,
+# 双发开启时的行为由 DualQueryE2ETest(properties 覆盖 enabled=true)单独钉住。
+dualquery:
+  enabled: false

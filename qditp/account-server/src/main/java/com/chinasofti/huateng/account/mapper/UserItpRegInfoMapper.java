@@ -81,16 +81,17 @@ public interface UserItpRegInfoMapper {
     List<UserItpRegInfo> selectListByCardIds(@Param("cardIds") List<String> cardIds);
 
     /**
-     * IF8A-77 定位第三方渠道用户。
+     * IF8A-77 定位第三方渠道用户（支持互联互通卡等未知发卡机构）。
      *
-     * <p>按 {@code ISSUE_ORG_CODE}（APP 上送的发卡机构码原值）匹配，
-     * NEVER 改成 {@code CARD_ISSUE_CODE} —— 后者存的是
-     * {@code CardIssueOrgEnum.toIssueChannelCode4} 归一后的 4 位发行渠道码
-     * （如上送 {@code 0008} 落库为 {@code 0001}），拿上送值去比必然 0 行。
+     * <p>只按 {@code THIRD_USER_ID} + {@code COMPANION_FLAG='C'} 定位，
+     * 不对 {@code ISSUE_ORG_CODE} 做严格校验 —— 互联互通卡（如 {@code 0009}）可能不在
+     * {@code CardIssueOrgEnum} 中，但仍需支持更换默认支付渠道。
+     *
+     * <p>取最新一条（{@code ORDER BY REG_TMS DESC FETCH FIRST 1 ROWS ONLY}），
+     * 与 {@link #selectByThirdUserIdAndIssueOrgCodeAndCompanionFlag} 的区别是放弃机构码匹配。
      */
-    UserItpRegInfo selectByThirdUserIdAndIssueOrgCodeAndCompanionFlag(@Param("thirdUserId") String thirdUserId,
-                                                                       @Param("issueOrgCode") String issueOrgCode,
-                                                                       @Param("companionFlag") String companionFlag);
+    UserItpRegInfo selectByThirdUserIdAndCompanionFlag(@Param("thirdUserId") String thirdUserId,
+                                                        @Param("companionFlag") String companionFlag);
 
     int updateChannelDefaultContractById(UserItpRegInfo record);
 

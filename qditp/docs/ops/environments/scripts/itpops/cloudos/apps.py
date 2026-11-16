@@ -46,14 +46,15 @@ def _health() -> int:
     else:
         ui.out("  [1/3] en9: 跳过（非红岛，测试环境走办公网/内网）")
 
-    # 2) TCP 443
-    if http_mod.check_ports(c.host, ["443"]):
-        ui.out(f"  [2/3] TCP {c.host}:443 通")
+    # 2) TCP 443（或 CLOUDOS_PORT 指定的端口）
+    port = os.environ.get("CLOUDOS_PORT") or "443"
+    if http_mod.check_ports(c.host, [port]):
+        ui.out(f"  [2/3] TCP {c.host}:{port} 通")
     else:
         if env.name == "hongdao":
-            ui.out(f"  [2/3] TCP {c.host}:443 **不通**（172.120 段路由是否还指向可用接口？）")
+            ui.out(f"  [2/3] TCP {c.host}:{port} **不通**（172.120 段路由是否还指向可用接口？）")
         else:
-            ui.out(f"  [2/3] TCP {c.host}:443 **不通**（测试网 172.20 段是否可达？）")
+            ui.out(f"  [2/3] TCP {c.host}:{port} **不通**（测试网 172.20 段是否可达？）")
         bad = 1
 
     # 3) 登录 + 一次业务 GET

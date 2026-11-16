@@ -11,7 +11,12 @@ public class RequestUserAccInfoResult {
     /** 返回消息。 */
     private String retMsg;
 
-    /** 未支付订单数（DEBIT_STATUS 为 INIT / PROCESSING）。 */
+    /**
+     * 未支付数：{@code GATE_TXN_PAY} 中 {@code DEBIT_STATUS} 为 INIT / PROCESSING 的订单数，
+     * 加上已进站未出站的行程数（开环 04/81 + 入站码更新 10，ADR-D175；进站不落订单）。
+     *
+     * <p>查询失败时本字段为 0，调用方 MUST 先判 {@code retCode}，NEVER 把 0 当「无欠费」。
+     */
     private int unpaidCount;
 
     /** 扣费失败订单数（DEBIT_STATUS 为 FAIL / RETRY）。 */

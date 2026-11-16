@@ -190,6 +190,32 @@
           AND PAY_STATUS = 'INIT'
     </update>
 
+    <!-- PROCESSING 兜底关单：支付中心侧挂死（如长期 PROCESSING 无渠道流水）时，
+         不依赖对端可达，按最后活动时间（UPDATE_TIME）超龄本地关单。 -->
+    <select id="selectTimeoutProcessing" resultMap="SupplementOrderMap">
+        SELECT * FROM (
+            SELECT ID, ORDER_NO, PAY_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE,
+                   GOODS_CODE, QUANTITY, TOTAL_AMOUNT, ORDER_COUNT,
+                   PAYMENT_VENDOR, SIGN_CHANNEL_CODE, REQUEST_SIGN_SEQ,
+                   TXN_DATE, PAY_TIME, REMARK, CREATE_TIME, UPDATE_TIME,
+                   PAY_CHANNEL_CODE, MERCHANT_ORDER_NO, PAYMENT_INFO
+            FROM SUPPLEMENT_ORDER
+            WHERE PAY_STATUS = 'PROCESSING'
+              AND UPDATE_TIME &lt; SYSTIMESTAMP - NUMTODSINTERVAL(#{timeoutMinutes,jdbcType=NUMERIC}, 'MINUTE')
+            ORDER BY ID
+        )
+        WHERE ROWNUM &lt;= #{limit,jdbcType=NUMERIC}
+    </select>
+
+    <update id="closeStaleProcessingOrder">
+        UPDATE SUPPLEMENT_ORDER
+        SET PAY_STATUS = 'CLOSED',
+            REMARK = #{remark,jdbcType=VARCHAR},
+            UPDATE_TIME = SYSTIMESTAMP
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          AND PAY_STATUS = 'PROCESSING'
+    </update>
+
     <update id="forceSuccessFromClosedOrFail">
         UPDATE SUPPLEMENT_ORDER
         SET PAY_STATUS = 'SUCCESS',
@@ -243,6 +269,10 @@
         <include refid="SupplementOrderPageWhere"/>
     </select>
 
+    <!-- 收敛扫描集：INIT/PROCESSING 全量但有年龄硬顶（pendingLookbackHours，防御性兜底——
+         正常由 convergeOne 非终态超龄关单与 PROCESSING 超时关单在更短阈值内终结，
+         此处防止任何路径下老单被无限轮询）；CLOSED/FAIL 只回看 closedLookbackHours，
+         用于兜住"关单瞬间恰好支付成功"的竞态。 -->
     <select id="selectPendingOrders" resultMap="SupplementOrderMap">
         SELECT * FROM (
             SELECT ID, ORDER_NO, PAY_STATUS, THIRD_USER_ID, CARD_ID, CARD_TYPE, GOODS_CODE,
@@ -250,7 +280,8 @@
                    REQUEST_SIGN_SEQ, TXN_DATE, PAY_TIME, REMARK, CREATE_TIME, UPDATE_TIME,
                    PAY_CHANNEL_CODE, MERCHANT_ORDER_NO, PAYMENT_INFO
             FROM SUPPLEMENT_ORDER
-            WHERE PAY_STATUS IN ('INIT', 'PROCESSING')
+            WHERE (PAY_STATUS IN ('INIT', 'PROCESSING')
+                   AND CREATE_TIME &gt;= SYSTIMESTAMP - NUMTODSINTERVAL(#{pendingLookbackHours,jdbcType=NUMERIC}, 'HOUR'))
                OR (PAY_STATUS IN ('CLOSED', 'FAIL')
                    AND UPDATE_TIME &gt;= SYSTIMESTAMP - NUMTODSINTERVAL(#{closedLookbackHours,jdbcType=NUMERIC}, 'HOUR'))
             ORDER BY CASE WHEN PAY_STATUS IN ('INIT', 'PROCESSING') THEN 0 ELSE 1 END, CREATE_TIME

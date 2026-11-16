@@ -91,6 +91,7 @@ def env_init(env_name: str) -> CloudosConfig:
         )
 
     scheme = _env_or("CLOUDOS_SCHEME", "https")
+    port = _env_or("CLOUDOS_PORT", "443")
     domain = _env_or("CLOUDOS_DOMAIN", "default")
     timeout = int(_env_or("CLOUDOS_TIMEOUT", "30"))
     token_ttl = int(_env_or("CLOUDOS_TOKEN_TTL", "600"))
@@ -98,6 +99,13 @@ def env_init(env_name: str) -> CloudosConfig:
     username = _env_or("CLOUDOS_USERNAME", profile["username"])
     password = _env_or("CLOUDOS_PASSWORD", profile["password"])
     pubkey_b64 = _env_or("CLOUDOS_RSA_PUBKEY_B64", CLOUDOS_RSA_PUBKEY_SHARED)
+
+    # 支持 host:port 格式，也支持独立 CLOUDOS_PORT
+    if ":" in host and not host.startswith("["):
+        host_part, port_from_host = host.rsplit(":", 1)
+        if port_from_host.isdigit():
+            port = port_from_host
+            host = host_part
 
     # 以下两个防御检查在 `${VAR:-默认}` 语义下不可达（与 bash 同构保留）：
     if not pubkey_b64:
@@ -116,7 +124,7 @@ def env_init(env_name: str) -> CloudosConfig:
             EXIT_PRECONDITION,
         )
 
-    base_url = f"{scheme}://{host}"
+    base_url = f"{scheme}://{host}:{port}"
     token_cache = _env_or(
         "TOKEN_CACHE",
         os.path.join(os.environ.get("TMPDIR") or "/tmp", f".cloudos-{env_name}.token"),

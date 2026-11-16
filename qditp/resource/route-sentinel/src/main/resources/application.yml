@@ -1,0 +1,44 @@
+server:
+  port: 9999
+spring:
+  application:
+    name: route-sentinel
+  datasource:
+    url: "jdbc:oracle:thin:@//172.20.222.3:1521/AFCITPDB"
+    username: qditp
+    password: ${DB_PASSWORD:qditp}
+    driver-class-name: oracle.jdbc.OracleDriver
+    hikari:
+      minimum-idle: 2
+      maximum-pool-size: 30
+      connection-timeout: 3000
+      max-lifetime: 300000
+      idle-timeout: 600000
+      leak-detection-threshold: 60000
+      pool-name: gateway-readonly-pool
+management:
+  endpoints:
+    web:
+      exposure:
+        include: gatewayroutes,health,info,metrics,routecache
+  endpoint:
+    health:
+      probes:
+        enabled: true
+logging:
+  level:
+    org.qd.scg: INFO
+    org.qd.scg.predicate.UserRouteService: WARN
+    org.springframework.cloud.gateway: INFO
+
+# IF2A-08 双发择优：仅只读查询接口；enabled=false 可秒级回落到订单归属路由
+dualquery:
+  enabled: true
+  paths:
+    - /itptvm/ci/tvm/requestTakeTicketAuth
+  timeout-ms: 2500
+  connect-timeout-ms: 1000
+  breaker-failure-threshold: 3
+  breaker-open-millis: 60000
+  new-route-id: face-pay-split-route-tvm
+  legacy-route-id: legacy-route-tvm

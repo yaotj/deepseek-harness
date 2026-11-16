@@ -288,6 +288,21 @@ class SupplementOrderServiceImplTest {
             assertEquals(1, closed);
             verify(supplementOrderMapper).closeTimeoutOrder(eq("SP_TIMEOUT_001"), anyString());
         }
+
+        /** PROCESSING 超时关单（支付中心挂死的本地兜底）。 */
+        @Test
+        void closesStaleProcessing() {
+            SupplementOrder order = new SupplementOrder();
+            order.setOrderNo("SP_STALE_001");
+            order.setPayStatus("PROCESSING");
+            when(supplementOrderMapper.selectTimeoutProcessing(1440, 100)).thenReturn(List.of(order));
+            when(supplementOrderMapper.closeStaleProcessingOrder(eq("SP_STALE_001"), anyString())).thenReturn(1);
+
+            int closed = service.closeStaleProcessingOrders(1440, 100);
+
+            assertEquals(1, closed);
+            verify(supplementOrderMapper).closeStaleProcessingOrder(eq("SP_STALE_001"), anyString());
+        }
     }
 
     // ==================== helpers ====================

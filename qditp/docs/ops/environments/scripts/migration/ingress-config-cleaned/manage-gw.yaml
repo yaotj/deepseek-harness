@@ -1,0 +1,67 @@
+# manage-gw / manage-vr
+# 来源：跳板 /home/soft/work/manage-vr.yaml（2026-10-23 落地）+ 2026-10-26 内网化修正
+# 目标：ns itpb
+#
+# 流量路径：浏览器 → 节点 IP:8081（hostPort，Pod 换节点即失效）
+#         → manage-gw (port 8081) + manage-vr (gateways: [manage-gw])
+#         → /web-server/ rewrite / → web-admin-internal-svc:8080
+#         → /      (rewrite /)  → web-frontend-internal-svc:80
+#
+# 注：
+# - 8081 只绑在跑 ingressgateway Pod 的节点上，不走 Service/NodePort
+#   （Service 仅映射 80/443；istioctl analyze 报 IST0162 属正常）。
+# - manage-gw 与 accountserver-gw 同 selector、不同端口，Istio 内两个 listener 并存；
+#   istioctl analyze 会报 IST0145（hosts 均 *），实测无影响。
+# - destination 的 port.number 填 Service port（8080 / 80），不是 targetPort。
+# - 两条路由都已重试清零（2026-10-28 落地，IT-026）。
+
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: manage-gw
+  namespace: itpb
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - hosts: ['*']
+    port:
+      name: http
+      number: 8081
+      protocol: HTTP
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: manage-vr
+  namespace: itpb
+spec:
+  gateways:
+  - manage-gw
+  hosts:
+  - '*'
+  http:
+  - match:
+    - uri:
+        prefix: /web-server/
+    rewrite:
+      uri: /
+    retries:
+      attempts: 0
+    route:
+    - destination:
+        host: web-admin-internal-svc
+        port:
+          number: 8080
+  - match:
+    - uri:
+        prefix: /
+    rewrite:
+      uri: /
+    retries:
+      attempts: 0
+    route:
+    - destination:
+        host: web-frontend-internal-svc
+        port:
+          number: 80

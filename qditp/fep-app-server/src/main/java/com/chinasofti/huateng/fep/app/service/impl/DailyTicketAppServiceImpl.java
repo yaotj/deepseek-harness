@@ -3,6 +3,7 @@ package com.chinasofti.huateng.fep.app.service.impl;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.chinasofti.huateng.fep.app.service.DailyTicketAppService;
+import com.chinasofti.huateng.model.app.CardTypeMapping;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketActivateReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketBaseResult;
 import com.chinasofti.huateng.model.app.dailyticket.DailyTicketFreeOrderReqDTO;
@@ -110,6 +111,18 @@ public class DailyTicketAppServiceImpl implements DailyTicketAppService {
 
     @Override
     public DailyTicketBaseResult updateTicket(DailyTicketActivateReqDTO request) {
+        // 员工码（APP 票种 11 / 发卡 0444）没有日票订单与票实例概念，但 APP 激活序列复用
+        // 本接口做「票卡激活」：转发 daily-ticket 必回 9999 订单不存在，APP 后台出码状态被卡死
+        // （2026-11-09 实测：员工码激活后 APP 二维码页恒显示「获取二维码失败」）。
+        // 员工码的激活语义由 /ci/app/employeeCard/activate 承担，此处短路返回成功。
+        if (request != null && "0444".equals(CardTypeMapping.toIssueCardType(request.getTicketType()))) {
+            log.info("员工码票卡激活短路（不进日票域）, thirdUserId={}, cardNum={}, orderNo={}",
+                    request.getThirdUserId(), request.getCardNum(), request.getOrderNo());
+            DailyTicketBaseResult shortCircuit = new DailyTicketBaseResult();
+            shortCircuit.setRetCode("0000");
+            shortCircuit.setRetMsg("激活成功");
+            return shortCircuit;
+        }
         log.info("call daily-ticket updateTicket request={}", JSON.toJSONString(request));
         DailyTicketBaseResult result = dailyTicketClient.updateTicket(request);
         log.info("call daily-ticket updateTicket response={}", JSON.toJSONString(result));
