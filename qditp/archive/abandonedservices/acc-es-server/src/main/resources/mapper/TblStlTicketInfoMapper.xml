@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.acc.es.server.mapper.TblStlTicketInfoMapper">
+  <resultMap id="BaseResultMap" type="com.chinasofti.huateng.acc.es.server.model.TblStlTicketInfo">
+    <id column="TICKET_LOGIC_NO" jdbcType="CHAR" property="ticketLogicNo" />
+    <result column="TICKET_TYPE" jdbcType="DECIMAL" property="ticketType" />
+    <result column="TICKET_SUB_TYPE" jdbcType="DECIMAL" property="ticketSubType" />
+    <result column="TICKET_CSN" jdbcType="VARCHAR" property="ticketCsn" />
+    <result column="FACE_ID" jdbcType="VARCHAR" property="faceId" />
+    <result column="TICKET_KIND_FLAG" jdbcType="CHAR" property="ticketKindFlag" />
+    <result column="TICKET_VER" jdbcType="DECIMAL" property="ticketVer" />
+    <result column="PHY_TYPE" jdbcType="DECIMAL" property="phyType" />
+    <result column="PUB_DATE" jdbcType="CHAR" property="pubDate" />
+    <result column="PUB_BATCH_NO" jdbcType="DECIMAL" property="pubBatchNo" />
+    <result column="VALID_AREA" jdbcType="VARCHAR" property="validArea" />
+    <result column="MISC_CD" jdbcType="CHAR" property="miscCd" />
+    <result column="INIT_AMT" jdbcType="DECIMAL" property="initAmt" />
+    <result column="INIT_REW_AMT" jdbcType="DECIMAL" property="initRewAmt" />
+    <result column="EXPIRE_DATE" jdbcType="CHAR" property="expireDate" />
+    <result column="TICKET_STATUS" jdbcType="CHAR" property="ticketStatus" />
+    <result column="CHANGE_DATE" jdbcType="CHAR" property="changeDate" />
+    <result column="SALE_TIME" jdbcType="TIMESTAMP" property="saleTime" />
+    <result column="CONS_COUNTER" jdbcType="DECIMAL" property="consCounter" />
+    <result column="TICKET_BAL" jdbcType="DECIMAL" property="ticketBal" />
+    <result column="ACCT_BAL" jdbcType="DECIMAL" property="acctBal" />
+    <result column="LAST_TXN_TMS" jdbcType="TIMESTAMP" property="lastTxnTms" />
+    <result column="LAST_UPD_USER" jdbcType="VARCHAR" property="lastUpdUser" />
+    <result column="LAST_UPD_TMS" jdbcType="TIMESTAMP" property="lastUpdTms" />
+  </resultMap>
+  <sql id="Base_Column_List">
+    TICKET_LOGIC_NO, TICKET_TYPE, TICKET_SUB_TYPE, TICKET_CSN, FACE_ID, TICKET_KIND_FLAG, 
+    TICKET_VER, PHY_TYPE, PUB_DATE, PUB_BATCH_NO, VALID_AREA, MISC_CD, INIT_AMT, INIT_REW_AMT, 
+    EXPIRE_DATE, TICKET_STATUS, CHANGE_DATE, SALE_TIME, CONS_COUNTER, TICKET_BAL, ACCT_BAL, 
+    LAST_TXN_TMS, LAST_UPD_USER, LAST_UPD_TMS
+  </sql>
+  <select id="selectByPrimaryKey" parameterType="java.lang.String" resultMap="BaseResultMap">
+    select 
+    <include refid="Base_Column_List" />
+    from TBL_STL_TICKET_INFO
+    where TICKET_LOGIC_NO = #{ticketLogicNo,jdbcType=CHAR}
+  </select>
+  <delete id="deleteByPrimaryKey" parameterType="java.lang.String">
+    delete from TBL_STL_TICKET_INFO
+    where TICKET_LOGIC_NO = #{ticketLogicNo,jdbcType=CHAR}
+  </delete>
+  <update id="delTheOldStat" parameterType="com.chinasofti.huateng.acc.es.server.model.TblStlTicketInfo">
+    update TBL_STL_TICKET_INFO SET TICKET_STATUS = '04' where TICKET_LOGIC_NO = #{originalTicketNo}
+  </update>
+  <update id="deleteStat" parameterType="com.chinasofti.huateng.acc.es.server.model.TblStlTicketInfo">
+    update TBL_STL_TICKET_INFO SET TICKET_STATUS = '04' where TICKET_LOGIC_NO = #{ticketLogicNo}
+  </update>
+
+  <insert id="insert" keyColumn="TICKET_LOGIC_NO" keyProperty="ticketLogicNo" parameterType="com.chinasofti.huateng.acc.es.server.model.TblStlTicketInfo" useGeneratedKeys="true">
+    insert into TBL_STL_TICKET_INFO (TICKET_LOGIC_NO,TICKET_TYPE, TICKET_SUB_TYPE, TICKET_CSN,
+      FACE_ID, TICKET_KIND_FLAG, TICKET_VER, 
+      PHY_TYPE, PUB_DATE, PUB_BATCH_NO, 
+      VALID_AREA, MISC_CD, INIT_AMT, 
+      INIT_REW_AMT, EXPIRE_DATE, TICKET_STATUS, 
+      CHANGE_DATE, SALE_TIME, CONS_COUNTER, 
+      TICKET_BAL, ACCT_BAL, LAST_TXN_TMS, 
+      LAST_UPD_USER, LAST_UPD_TMS)
+    values (#{ticketLogicNo},#{ticketType,jdbcType=DECIMAL}, #{ticketSubType,jdbcType=DECIMAL}, #{ticketCsn,jdbcType=VARCHAR},
+      #{faceId,jdbcType=VARCHAR}, #{ticketKindFlag,jdbcType=CHAR}, #{ticketVer,jdbcType=DECIMAL}, 
+      #{phyType,jdbcType=DECIMAL}, #{pubDate,jdbcType=CHAR}, #{pubBatchNo,jdbcType=DECIMAL}, 
+      #{validArea,jdbcType=VARCHAR}, #{miscCd,jdbcType=CHAR}, #{initAmt,jdbcType=DECIMAL}, 
+      #{initRewAmt,jdbcType=DECIMAL}, #{expireDate,jdbcType=CHAR}, #{ticketStatus,jdbcType=CHAR}, 
+      #{changeDate,jdbcType=CHAR}, #{saleTime,jdbcType=TIMESTAMP}, #{consCounter,jdbcType=DECIMAL}, 
+      #{ticketBal,jdbcType=DECIMAL}, #{acctBal,jdbcType=DECIMAL}, #{lastTxnTms,jdbcType=TIMESTAMP}, 
+      #{lastUpdUser,jdbcType=VARCHAR}, #{lastUpdTms,jdbcType=TIMESTAMP})
+  </insert>
+  <insert id="insertSelective" keyColumn="TICKET_LOGIC_NO" keyProperty="ticketLogicNo" parameterType="com.chinasofti.huateng.acc.es.server.model.TblStlTicketInfo" useGeneratedKeys="true">
+    insert into TBL_STL_TICKET_INFO
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="ticketType != null">
+        TICKET_TYPE,
+      </if>
+      <if test="ticketSubType != null">
+        TICKET_SUB_TYPE,
+      </if>
+      <if test="ticketCsn != null">
+        TICKET_CSN,
+      </if>
+      <if test="faceId != null">
+        FACE_ID,
+      </if>
+      <if test="ticketKindFlag != null">
+        TICKET_KIND_FLAG,
+      </if>
+      <if test="ticketVer != null">
+        TICKET_VER,
+      </if>
+      <if test="phyType != null">
+        PHY_TYPE,
+      </if>
+      <if test="pubDate != null">
+        PUB_DATE,
+      </if>
+      <if test="pubBatchNo != null">
+        PUB_BATCH_NO,
+      </if>
+      <if test="validArea != null">
+        VALID_AREA,
+      </if>
+      <if test="miscCd != null">
+        MISC_CD,
+      </if>
+      <if test="initAmt != null">
+        INIT_AMT,
+      </if>
+      <if test="initRewAmt != null">
+        INIT_REW_AMT,
+      </if>
+      <if test="expireDate != null">
+        EXPIRE_DATE,
+      </if>
+      <if test="ticketStatus != null">
+        TICKET_STATUS,
+      </if>
+      <if test="changeDate != null">
+        CHANGE_DATE,
+      </if>
+      <if test="saleTime != null">
+        SALE_TIME,
+      </if>
+      <if test="consCounter != null">
+        CONS_COUNTER,
+      </if>
+      <if test="ticketBal != null">
+        TICKET_BAL,
+      </if>
+      <if test="acctBal != null">
+        ACCT_BAL,
+      </if>
+      <if test="lastTxnTms != null">
+        LAST_TXN_TMS,
+      </if>
+      <if test="lastUpdUser != null">
+        LAST_UPD_USER,
+      </if>
+      <if test="lastUpdTms != null">
+        LAST_UPD_TMS,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="ticketType != null">
+        #{ticketType,jdbcType=DECIMAL},
+      </if>
+      <if test="ticketSubType != null">
+        #{ticketSubType,jdbcType=DECIMAL},
+      </if>
+      <if test="ticketCsn != null">
+        #{ticketCsn,jdbcType=VARCHAR},
+      </if>
+      <if test="faceId != null">
+        #{faceId,jdbcType=VARCHAR},
+      </if>
+      <if test="ticketKindFlag != null">
+        #{ticketKindFlag,jdbcType=CHAR},
+      </if>
+      <if test="ticketVer != null">
+        #{ticketVer,jdbcType=DECIMAL},
+      </if>
+      <if test="phyType != null">
+        #{phyType,jdbcType=DECIMAL},
+      </if>
+      <if test="pubDate != null">
+        #{pubDate,jdbcType=CHAR},
+      </if>
+      <if test="pubBatchNo != null">
+        #{pubBatchNo,jdbcType=DECIMAL},
+      </if>
+      <if test="validArea != null">
+        #{validArea,jdbcType=VARCHAR},
+      </if>
+      <if test="miscCd != null">
+        #{miscCd,jdbcType=CHAR},
+      </if>
+      <if test="initAmt != null">
+        #{initAmt,jdbcType=DECIMAL},
+      </if>
+      <if test="initRewAmt != null">
+        #{initRewAmt,jdbcType=DECIMAL},
+      </if>
+      <if test="expireDate != null">
+        #{expireDate,jdbcType=CHAR},
+      </if>
+      <if test="ticketStatus != null">
+        #{ticketStatus,jdbcType=CHAR},
+      </if>
+      <if test="changeDate != null">
+        #{changeDate,jdbcType=CHAR},
+      </if>
+      <if test="saleTime != null">
+        #{saleTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="consCounter != null">
+        #{consCounter,jdbcType=DECIMAL},
+      </if>
+      <if test="ticketBal != null">
+        #{ticketBal,jdbcType=DECIMAL},
+      </if>
+      <if test="acctBal != null">
+        #{acctBal,jdbcType=DECIMAL},
+      </if>
+      <if test="lastTxnTms != null">
+        #{lastTxnTms,jdbcType=TIMESTAMP},
+      </if>
+      <if test="lastUpdUser != null">
+        #{lastUpdUser,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdTms != null">
+        #{lastUpdTms,jdbcType=TIMESTAMP},
+      </if>
+    </trim>
+  </insert>
+  <update id="updateByPrimaryKeySelective" parameterType="com.chinasofti.huateng.acc.es.server.model.TblStlTicketInfo">
+    update TBL_STL_TICKET_INFO
+    <set>
+      <if test="ticketType != null">
+        TICKET_TYPE = #{ticketType,jdbcType=DECIMAL},
+      </if>
+      <if test="ticketSubType != null">
+        TICKET_SUB_TYPE = #{ticketSubType,jdbcType=DECIMAL},
+      </if>
+      <if test="ticketCsn != null">
+        TICKET_CSN = #{ticketCsn,jdbcType=VARCHAR},
+      </if>
+      <if test="faceId != null">
+        FACE_ID = #{faceId,jdbcType=VARCHAR},
+      </if>
+      <if test="ticketKindFlag != null">
+        TICKET_KIND_FLAG = #{ticketKindFlag,jdbcType=CHAR},
+      </if>
+      <if test="ticketVer != null">
+        TICKET_VER = #{ticketVer,jdbcType=DECIMAL},
+      </if>
+      <if test="phyType != null">
+        PHY_TYPE = #{phyType,jdbcType=DECIMAL},
+      </if>
+      <if test="pubDate != null">
+        PUB_DATE = #{pubDate,jdbcType=CHAR},
+      </if>
+      <if test="pubBatchNo != null">
+        PUB_BATCH_NO = #{pubBatchNo,jdbcType=DECIMAL},
+      </if>
+      <if test="validArea != null">
+        VALID_AREA = #{validArea,jdbcType=VARCHAR},
+      </if>
+      <if test="miscCd != null">
+        MISC_CD = #{miscCd,jdbcType=CHAR},
+      </if>
+      <if test="initAmt != null">
+        INIT_AMT = #{initAmt,jdbcType=DECIMAL},
+      </if>
+      <if test="initRewAmt != null">
+        INIT_REW_AMT = #{initRewAmt,jdbcType=DECIMAL},
+      </if>
+      <if test="expireDate != null">
+        EXPIRE_DATE = #{expireDate,jdbcType=CHAR},
+      </if>
+      <if test="ticketStatus != null">
+        TICKET_STATUS = #{ticketStatus,jdbcType=CHAR},
+      </if>
+      <if test="changeDate != null">
+        CHANGE_DATE = #{changeDate,jdbcType=CHAR},
+      </if>
+      <if test="saleTime != null">
+        SALE_TIME = #{saleTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="consCounter != null">
+        CONS_COUNTER = #{consCounter,jdbcType=DECIMAL},
+      </if>
+      <if test="ticketBal != null">
+        TICKET_BAL = #{ticketBal,jdbcType=DECIMAL},
+      </if>
+      <if test="acctBal != null">
+        ACCT_BAL = #{acctBal,jdbcType=DECIMAL},
+      </if>
+      <if test="lastTxnTms != null">
+        LAST_TXN_TMS = #{lastTxnTms,jdbcType=TIMESTAMP},
+      </if>
+      <if test="lastUpdUser != null">
+        LAST_UPD_USER = #{lastUpdUser,jdbcType=VARCHAR},
+      </if>
+      <if test="lastUpdTms != null">
+        LAST_UPD_TMS = #{lastUpdTms,jdbcType=TIMESTAMP},
+      </if>
+    </set>
+    where TICKET_LOGIC_NO = #{ticketLogicNo,jdbcType=CHAR}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="com.chinasofti.huateng.acc.es.server.model.TblStlTicketInfo">
+    update TBL_STL_TICKET_INFO
+    set TICKET_TYPE = #{ticketType,jdbcType=DECIMAL},
+      TICKET_SUB_TYPE = #{ticketSubType,jdbcType=DECIMAL},
+      TICKET_CSN = #{ticketCsn,jdbcType=VARCHAR},
+      FACE_ID = #{faceId,jdbcType=VARCHAR},
+      TICKET_KIND_FLAG = #{ticketKindFlag,jdbcType=CHAR},
+      TICKET_VER = #{ticketVer,jdbcType=DECIMAL},
+      PHY_TYPE = #{phyType,jdbcType=DECIMAL},
+      PUB_DATE = #{pubDate,jdbcType=CHAR},
+      PUB_BATCH_NO = #{pubBatchNo,jdbcType=DECIMAL},
+      VALID_AREA = #{validArea,jdbcType=VARCHAR},
+      MISC_CD = #{miscCd,jdbcType=CHAR},
+      INIT_AMT = #{initAmt,jdbcType=DECIMAL},
+      INIT_REW_AMT = #{initRewAmt,jdbcType=DECIMAL},
+      EXPIRE_DATE = #{expireDate,jdbcType=CHAR},
+      TICKET_STATUS = #{ticketStatus,jdbcType=CHAR},
+      CHANGE_DATE = #{changeDate,jdbcType=CHAR},
+      SALE_TIME = #{saleTime,jdbcType=TIMESTAMP},
+      CONS_COUNTER = #{consCounter,jdbcType=DECIMAL},
+      TICKET_BAL = #{ticketBal,jdbcType=DECIMAL},
+      ACCT_BAL = #{acctBal,jdbcType=DECIMAL},
+      LAST_TXN_TMS = #{lastTxnTms,jdbcType=TIMESTAMP},
+      LAST_UPD_USER = #{lastUpdUser,jdbcType=VARCHAR},
+      LAST_UPD_TMS = #{lastUpdTms,jdbcType=TIMESTAMP}
+    where TICKET_LOGIC_NO = #{ticketLogicNo,jdbcType=CHAR}
+  </update>
+</mapper>
