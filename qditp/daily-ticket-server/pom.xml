@@ -25,7 +25,7 @@
         <sql-datasource.version>2.0</sql-datasource.version>
         <mybatis-adaptor.version>2.0</mybatis-adaptor.version>
         <ojdbc.version>19.18.0.0</ojdbc.version>
-        <model.version>2.0.0</model.version>
+        <model.version>2.0.1</model.version>
         <rpc.version>2.0.1</rpc.version>
         <image.prefix>daily-ticket-server</image.prefix>
         <docker.namespace>itp</docker.namespace>
