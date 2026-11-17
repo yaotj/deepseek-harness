@@ -158,7 +158,7 @@ public class PaySignInitiator {
     private String converge(GateTxnPay order, GateTxnPayReqDTO request, String scene, String payTriggerType) {
         boolean alipayChannel = IssueChannelCodeEnum.isAlipay(order.getIssueChannelCode());
         String channel = alipayChannel ? CHANNEL_ALIPAY : CHANNEL_PAY_SIGN;
-        RpcOutcome outcome = alipayChannel ? requestAlipayTripPay(order, payTriggerType) : requestPaySign(order, request);
+        RpcOutcome outcome = alipayChannel ? requestAlipayTripPay(order, payTriggerType) : requestPaySign(order, request, payTriggerType);
         Landing landing = land(order, scene, channel, outcome);
         gateTxnPayWriter.updateOrderStatusFromPending(order, landing.status(), landing.reason());
         return landing.status();
@@ -194,12 +194,13 @@ public class PaySignInitiator {
     }
 
     /** 调支付中心通道发起免密扣款。 */
-    private RpcOutcome requestPaySign(GateTxnPay order, GateTxnPayReqDTO request) {
-        GatePayRequestDTO payRequest = gatePayRequestFactory.build(order, request);
-        log.info("调用pay-sign请求支付, 入参 orderNo={}, cardId={}, amount={}, paymentVendor={}, requestSignSeq={}, txnDate={}, discountFee={}, discountInfo={}",
+    private RpcOutcome requestPaySign(GateTxnPay order, GateTxnPayReqDTO request, String payTriggerType) {
+        GatePayRequestDTO payRequest = gatePayRequestFactory.build(order, request, payTriggerType);
+        log.info("调用pay-sign请求支付, 入参 orderNo={}, cardId={}, amount={}, paymentVendor={}, requestSignSeq={}, txnDate={}, discountFee={}, discountInfo={}, payTriggerType={}, industryDetail={}",
                 order.getOrderNo(), order.getCardId(), order.getTotalAmount(),
                 payRequest.getPaymentVendor(), payRequest.getRequestSignSeq(),
-                payRequest.getTxnDate(), payRequest.getDiscountFee(), payRequest.getDiscountInfo());
+                payRequest.getTxnDate(), payRequest.getDiscountFee(), payRequest.getDiscountInfo(),
+                payTriggerType, payRequest.getIndustryDetail());
         return payInitiationRpcAdapter.requestPaySign(payRequest);
     }
 

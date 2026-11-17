@@ -57,6 +57,7 @@ class AlipayIndustryDetailAssemblerTest {
         request.setLastHandleStationCode("0110");
         request.setLastHandleDateTime("20261117090000");
         request.setDeviceId("AGM023001");
+        request.setIssueChannelCode("07");
         return request;
     }
 
@@ -71,8 +72,30 @@ class AlipayIndustryDetailAssemblerTest {
         assertEquals("T20261117000001", detail.getString("tikcetTransSeq"), "MUST 保留甲方规范样例拼写，双键同值");
         assertEquals("N", detail.getString("ticketFlag"), "companionFlag 为空 = 普通票 N");
         assertEquals("01", detail.getString("cumulativeType"), "trxType=02 普通出站 = 01");
-        assertEquals("0007", detail.getString("cardIssueCode"));
+        assertEquals("0007", detail.getString("cardIssueCode"), "支付宝渠道取 alipay.trip.card-issue-code 配置");
         assertEquals(0, detail.getIntValue("overTimeAmount"), "非超时出站的超时费为 0（数字类型，NEVER 带引号）");
+    }
+
+    @Test
+    @DisplayName("非支付宝发行渠道（APP/TVM/BOM）：cardIssueCode 取报文 issueChannelCode 左补零到 4 位，NEVER 恒写 0007")
+    void nonAlipayCardIssueCodeComesFromRequest() {
+        NotifyVerifyResultReqDTO request = normalExitRequest();
+        request.setIssueChannelCode("01");
+
+        JSONObject detail = JSON.parseObject(assembler.assemble(request));
+
+        assertEquals("0001", detail.getString("cardIssueCode"), "APP 渠道 01 → 0001（与支付宝 0007 同形）");
+    }
+
+    @Test
+    @DisplayName("发卡渠道代码缺报文：空串兜底（NEVER 留 null——fastjson2 丢 null 键对端看不到）")
+    void blankCardIssueCodeWhenIssueChannelMissing() {
+        NotifyVerifyResultReqDTO request = normalExitRequest();
+        request.setIssueChannelCode(null);
+
+        JSONObject detail = JSON.parseObject(assembler.assemble(request));
+
+        assertEquals("", detail.getString("cardIssueCode"));
     }
 
     @Test

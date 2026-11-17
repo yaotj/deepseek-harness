@@ -68,7 +68,10 @@ class GateFarePaymentOrchestrator {
         }
         boolean alipayTransaction = isAlipayTransaction(request);
         log.info("IF1A-01 出站交易调用扣费交易服务, cardId={}, alipay={}", request.getCardId(), alipayTransaction);
-        String industryDetail = alipayTransaction ? industryDetailAssembler.assemble(request) : null;
+        // 2026-11-17 裁定：快照对全渠道组装。非支付宝免密扣费走 pay-sign 直连支付中心，对端是同一个
+        // 支付中心、同一份 V1.2 industryDetail 契约；pay-sign 通道出网统一取 GATE_TXN_PAY.INDUSTRY_DETAIL
+        // 快照（见 gate-txn-pay 的 GatePayRequestFactory），NEVER 只对支付宝渠道组快照。
+        String industryDetail = industryDetailAssembler.assemble(request);
         sendGateTxnPay(request, ticketResponse, industryDetail);
     }
 

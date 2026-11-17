@@ -2,6 +2,7 @@ package com.chinasofti.huateng.ticket.gate;
 
 import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.model.app.RequestStationLineInfoResult;
+import com.chinasofti.huateng.model.enums.IssueChannelCodeEnum;
 import com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO;
 import com.chinasofti.huateng.ticket.entrytxn.EntryTxnQueryService;
 import com.chinasofti.huateng.ticket.station.StationLineResolver;
@@ -21,11 +22,16 @@ import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 /**
- * 支付宝出行 {@code industryDetail} 组装（按支付中心网关文档 V1.2「地铁免密 industryDetail」键集）。
+ * 支付中心网关文档 V1.2「地铁免密 industryDetail」组装（按 2026-11-17 裁定覆盖**全部免密扣费渠道**：
+ * 支付宝出行走 alipay-pay-sign、其余发行渠道（APP/TVM/BOM 等）走 pay-sign 直连支付中心，
+ * 两边对端是同一个支付中心、同一份 V1.2 键集契约，快照 MUST 全渠道组装）。
+ *
+ * <p>类名保留 {@code Alipay} 前缀是历史沿革（本类 2026-09 为支付宝出行而生），**NEVER 据类名
+ * 推断只服务支付宝渠道** —— 渠道差异只剩 {@code cardIssueCode} 一处（见 {@link #resolveCardIssueCode}）。
  *
  * <p><b>键集分两批</b>：本类落的是「行程/订单固有属性」快照（进出站、时间、票种、累计类型等），
  * 落库后由 gate-txn-pay 在<b>每次发起扣款时</b>按入口注入 {@code payTriggerType}
- * （01-首次支付 / 02-补偿支付，见 {@code AlipayTripPayRequestFactory}）——
+ * （01-首次支付 / 02-补偿支付，见 {@code AlipayTripPayRequestFactory} / {@code GatePayRequestFactory}）——
  * 补偿重推复用同一份快照，该键 NEVER 在本类写死。
  *
  * <p>{@code ticketTransSeq} 与 {@code tikcetTransSeq} <b>双键同值并存</b>：支付中心 V1.2 文档用前者，
@@ -40,9 +46,12 @@ class AlipayIndustryDetailAssembler {
     private static final String EXIT_ID_SUFFIX = "02";
     private static final DateTimeFormatter ORDER_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final int FORMATTED_DATE_LENGTH = 19;
+    /** {@code cardIssueCode} 与支付宝常量 {@code 0007} 对齐的定长位数（非支付宝渠道左补零）。 */
+    private static final int CARD_ISSUE_CODE_LENGTH = 4;
 
     private final EntryTxnQueryService entryTxnQueryService;
     private final StationLineResolver stationLineResolver;
+    /** 支付宝渠道的 {@code cardIssueCode}（默认 {@code 0007}）；非支付宝渠道由 {@link #resolveCardIssueCode} 从报文推导。 */
     private final String alipayCardIssueCode;
     private final Executor industryDetailExecutor;
 
@@ -56,7 +65,7 @@ class AlipayIndustryDetailAssembler {
         this.alipayCardIssueCode = alipayCardIssueCode;
         this.industryDetailExecutor = industryDetailExecutor;
     }
-    /** 组装支付宝出行的 {@code industryDetail}，整块交给 gate-txn-pay-server 落单存下。 */
+    /** 组装支付中心 V1.2 免密 industryDetail 快照，整块交给 gate-txn-pay-server 落单存下（全渠道）。 */
     public String assemble(NotifyVerifyResultReqDTO request) {
         try {
             String entryStationCode = request.getLastHandleStationCode();
@@ -78,19 +87,19 @@ class AlipayIndustryDetailAssembler {
             Map<String, Object> stationInfo = buildStationInfoMap(
                     request, entryStationFuture.join(), exitStationFuture.join());
             applyEntryDeviceCode(stationInfo, entryDeviceFuture.join(), request.getCardId());
-            stationInfo.put("cardIssueCode", alipayCardIssueCode);
+            stationInfo.put("cardIssueCode", resolveCardIssueCode(request));
 
             String industryDetail = JSON.toJSONString(stationInfo);
-            log.info("IF1A-01 支付宝出行行业明细已组装, cardId={}, industryDetail={}",
-                    request.getCardId(), industryDetail);
+            log.info("IF1A-01 免密行业明细已组装, cardId={}, issueChannelCode={}, industryDetail={}",
+                    request.getCardId(), request.getIssueChannelCode(), industryDetail);
             return industryDetail;
         } catch (Exception e) {
-            log.error("IF1A-01 支付宝出行行业明细组装异常，本笔仍落单但扣费会落 RETRY, cardId={}, trxType={}, handleDateTime={}",
+            log.error("IF1A-01 免密行业明细组装异常，本笔仍落单但出网 industryDetail 会缺 V1.2 键, cardId={}, trxType={}, handleDateTime={}",
                     request.getCardId(), request.getTrxType(), request.getHandleDateTime(), e);
             return null;
         }
     }
-    /** 把已查回的进出站线路信息合并为支付宝 industryDetail Map。 */
+    /** 把已查回的进出站线路信息合并为 industryDetail Map。 */
     private Map<String, Object> buildStationInfoMap(NotifyVerifyResultReqDTO request,
                                                     RequestStationLineInfoResult entryStationInfo,
                                                     RequestStationLineInfoResult exitStationInfo) {
@@ -137,6 +146,29 @@ class AlipayIndustryDetailAssembler {
      */
     private String resolveTicketFlag(NotifyVerifyResultReqDTO request) {
         return StringUtils.hasText(request.getCompanionFlag()) ? request.getCompanionFlag().trim() : "N";
+    }
+
+    /**
+     * 发卡渠道代码：支付宝渠道取 {@code alipay.trip.card-issue-code}（默认 {@code 0007}，与
+     * alipay-pay-sign-server 的 {@code PaymentQueryService} / {@code PaymentRefundService} 硬编码同值）；
+     * <b>其余渠道（APP/TVM/BOM 等）取报文 {@code issueChannelCode} 左补零到 4 位</b>（2026-11-17 起
+     * 非支付宝免密扣费也走支付中心 V1.2 industryDetail 契约，发卡渠道代码 MUST 是本票真实发行渠道，
+     * NEVER 对非支付宝票恒写 0007）。
+     */
+    private String resolveCardIssueCode(NotifyVerifyResultReqDTO request) {
+        if (IssueChannelCodeEnum.isAlipay(request.getIssueChannelCode())) {
+            return alipayCardIssueCode;
+        }
+        String code = request.getIssueChannelCode();
+        if (!StringUtils.hasText(code)) {
+            return "";
+        }
+        String trimmed = code.trim();
+        StringBuilder padded = new StringBuilder(trimmed);
+        while (padded.length() < CARD_ISSUE_CODE_LENGTH) {
+            padded.insert(0, '0');
+        }
+        return padded.toString();
     }
 
     /**

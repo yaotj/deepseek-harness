@@ -22,12 +22,13 @@ import static org.mockito.Mockito.when;
 class GateFarePaymentOrchestratorTest {
 
     private GateTxnPayClient gateTxnPayClient;
+    private AlipayIndustryDetailAssembler industryDetailAssembler;
     private GateFarePaymentOrchestrator orchestrator;
 
     @BeforeEach
     void setUp() {
         gateTxnPayClient = mock(GateTxnPayClient.class);
-        AlipayIndustryDetailAssembler industryDetailAssembler = mock(AlipayIndustryDetailAssembler.class);
+        industryDetailAssembler = mock(AlipayIndustryDetailAssembler.class);
         GateTxnPayRequestAssembler payRequestAssembler = mock(GateTxnPayRequestAssembler.class);
         when(payRequestAssembler.assemble(any(), any(), any())).thenReturn(new GateTxnPayReqDTO());
         orchestrator = new GateFarePaymentOrchestrator(gateTxnPayClient, industryDetailAssembler, payRequestAssembler);
@@ -51,6 +52,27 @@ class GateFarePaymentOrchestratorTest {
         request.setTrxType("01");
         orchestrator.settleIfNeeded(request, new NotifyVerifyResultRespDTO());
         verifyNoInteractions(gateTxnPayClient);
+    }
+
+    /**
+     * 2026-11-17 裁定：industryDetail 快照对**全渠道**组装（此前只组支付宝渠道）。
+     * 非支付宝发行渠道（APP/TVM/BOM）的免密扣费走 pay-sign 直连支付中心，
+     * 对端是同一个支付中心、同一份 V1.2 industryDetail 契约 —— 不组快照 = 出网缺必填键。
+     */
+    @Test
+    void nonAlipayExitAlsoAssemblesIndustryDetail() {
+        NotifyVerifyResultReqDTO request = exitRequest(null);
+        request.setIssueChannelCode("01");
+        orchestrator.settleIfNeeded(request, new NotifyVerifyResultRespDTO());
+        verify(industryDetailAssembler).assemble(any());
+    }
+
+    @Test
+    void alipayExitAssemblesIndustryDetail() {
+        NotifyVerifyResultReqDTO request = exitRequest(null);
+        request.setIssueChannelCode("07");
+        orchestrator.settleIfNeeded(request, new NotifyVerifyResultRespDTO());
+        verify(industryDetailAssembler).assemble(any());
     }
 
     /** adviceOpt 必须随报文搬到扣费入参里——gate-txn-pay 就是靠它判断「落单但不扣款」。 */

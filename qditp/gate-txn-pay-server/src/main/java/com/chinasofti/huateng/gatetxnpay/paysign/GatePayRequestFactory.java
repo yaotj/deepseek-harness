@@ -8,7 +8,19 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/** pay-sign（支付中心）免密扣款报文的唯一组装处，含 {@code gate.pay.*} 五个配置项。 */
+/**
+ * pay-sign（支付中心直连）免密扣款报文的唯一组装处，含 {@code gate.pay.*} 五个配置项。
+ *
+ * <p><b>{@code industryDetail} 优先取 {@code GATE_TXN_PAY.INDUSTRY_DETAIL} 快照</b>
+ * （ticket-server 的 {@code AlipayIndustryDetailAssembler} 按支付中心 V1.2 键集组装，全渠道），
+ * 与支付宝出行通道（{@link AlipayTripPayRequestFactory}）同源；快照缺失（历史行 / 组装失败）
+ * 时回落旧行为——整个 {@link GateTxnPay} 实体 JSON 落明细，保证本字段 NEVER 为空、
+ * 支付中心侧排查交易来源的能力不丢。
+ *
+ * <p>{@code payTriggerType}（V1.2 必填：01-首次支付 / 02-补偿支付）由调用方按发起入口显式传入、
+ * 在快照上注入（复用 {@link AlipayTripPayRequestFactory#applyPayTriggerType}），
+ * 补偿重推复用同一份快照，NEVER 写死。
+ */
 @Component
 public class GatePayRequestFactory {
 
@@ -35,9 +47,11 @@ public class GatePayRequestFactory {
     /**
      * 组装免密扣款报文。
      *
-     * @param request 入向报文，运营重试与离线码补偿两条链路为 {@code null}，此时支付相关。
+     * @param request 入向报文，运营重试与离线码补偿两条链路为 {@code null}，此时支付相关取订单行
+     * @param payTriggerType {@link AlipayTripPayRequestFactory#PAY_TRIGGER_FIRST} 或
+     *                       {@link AlipayTripPayRequestFactory#PAY_TRIGGER_COMPENSATION}，调用方按发起入口传
      */
-    public GatePayRequestDTO build(GateTxnPay order, GateTxnPayReqDTO request) {
+    public GatePayRequestDTO build(GateTxnPay order, GateTxnPayReqDTO request, String payTriggerType) {
         GatePayRequestDTO payRequest = new GatePayRequestDTO();
         payRequest.setOrderNo(order.getOrderNo());
         payRequest.setScene(payScene);
@@ -49,7 +63,8 @@ public class GatePayRequestFactory {
         payRequest.setCardId(order.getCardId());
         payRequest.setCardType(order.getCardType());
         payRequest.setOrderTimeOut(orderTimeoutSeconds);
-        payRequest.setIndustryDetail(buildIndustryDetail(order));
+        payRequest.setIndustryDetail(AlipayTripPayRequestFactory.applyPayTriggerType(
+                buildIndustryDetail(order), payTriggerType, order.getOrderNo()));
         payRequest.setPaymentVendor(order.getPaymentVendor());
         payRequest.setPayUserId(order.getPayUserId());
         payRequest.setTxnDate(order.getTxnDate());
@@ -67,8 +82,13 @@ public class GatePayRequestFactory {
         return payRequest;
     }
 
-    /** 行业明细先存完整订单快照，便于支付中心侧排查交易来源。 */
+    /**
+     * 行业明细：优先取 ticket-server 组好的 V1.2 快照（{@code GATE_TXN_PAY.INDUSTRY_DETAIL}）；
+     * 快照缺失（历史行 / 组装异常落了 null）时回落整个订单实体 JSON，保留「排查交易来源」能力。
+     */
     private String buildIndustryDetail(GateTxnPay order) {
-        return JSON.toJSONString(order);
+        return StringUtils.hasText(order.getIndustryDetail())
+                ? order.getIndustryDetail()
+                : JSON.toJSONString(order);
     }
 }

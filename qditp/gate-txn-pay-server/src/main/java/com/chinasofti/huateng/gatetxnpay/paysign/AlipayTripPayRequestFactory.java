@@ -82,8 +82,11 @@ public class AlipayTripPayRequestFactory {
     /**
      * 把 {@code payTriggerType} 写进 industryDetail JSON（V1.2 文档必填键）。
      * 快照为空或非法 JSON 时原样透传 + WARN —— 不阻断扣款（资损方向）。
+     *
+     * <p><b>包级静态、双工厂共用</b>：{@link GatePayRequestFactory}（pay-sign 支付中心直连通道）
+     * 与支付宝出行通道共用同一份注入语义，NEVER 允许两处行为分叉。
      */
-    private String applyPayTriggerType(String industryDetail, String payTriggerType, String orderNo) {
+    static String applyPayTriggerType(String industryDetail, String payTriggerType, String orderNo) {
         if (!StringUtils.hasText(industryDetail)) {
             return industryDetail;
         }

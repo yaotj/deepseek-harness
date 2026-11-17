@@ -228,6 +228,41 @@ class PaySignInitiationTest {
         verifyNoInteractions(alipayPaySignClient);
     }
 
+    /**
+     * pay-sign 通道（2026-11-17 起）同样取 V1.2 快照出网：非支付宝发行渠道的免密扣款直连支付中心，
+     * 对端是同一个支付中心、同一份 industryDetail 契约；快照键原样透传、payTriggerType 注入
+     * （retryPay 是重试入口 → 02-补偿支付）。
+     */
+    @Test
+    void paySignChannelPassesSnapshotThroughWithTriggerInjected() {
+        GateTxnPay order = order("GT24", 400, 0);
+        order.setIndustryDetail(INDUSTRY_DETAIL);
+        stubRetryable(order);
+        when(paySignClient.requestPay(any())).thenReturn(payResult("0000"));
+
+        service().retryPay("GT24");
+
+        JSONObject detail = JSON.parseObject(capturedRequest().getIndustryDetail());
+        assertEquals("L1", detail.getString("entryLineCode"), "快照键 MUST 原样透传，NEVER 重算");
+        assertEquals("E1", detail.getString("entryId"));
+        assertEquals("0007", detail.getString("cardIssueCode"));
+        assertEquals(AlipayTripPayRequestFactory.PAY_TRIGGER_COMPENSATION, detail.getString("payTriggerType"),
+                "retryPay 是补偿重推，MUST 标 02-补偿支付");
+    }
+
+    /** pay-sign 通道快照缺失（历史行）：回落订单实体 JSON，payTriggerType 照常注入。 */
+    @Test
+    void paySignChannelFallsBackToEntityDumpWhenSnapshotMissing() {
+        stubRetryable(order("GT25", 400, 0));
+        when(paySignClient.requestPay(any())).thenReturn(payResult("0000"));
+
+        service().retryPay("GT25");
+
+        JSONObject detail = JSON.parseObject(capturedRequest().getIndustryDetail());
+        assertEquals("GT25", detail.getString("orderNo"), "实体兜底保留排查能力");
+        assertEquals(AlipayTripPayRequestFactory.PAY_TRIGGER_COMPENSATION, detail.getString("payTriggerType"));
+    }
+
     private AlipayTripRequestPayRespDTO alipayPayResult(String retCode) {
         AlipayTripRequestPayRespDTO result = new AlipayTripRequestPayRespDTO();
         result.setRetCode(retCode);
