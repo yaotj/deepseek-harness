@@ -47,17 +47,27 @@ class GateTxnPayMapperSqlTest {
     private static final Pattern OFFLINE_PENDING_LITERAL =
             Pattern.compile("'OFFLINE_FARE_PENDING'");
 
-    /** 近 N 分钟未扣费那条任务的两条语句：MUST 把离线码待重算态**排除**在外（金额还没算准）。 */
+    /**
+     * 所有「发起扣款 / 处理未终态单」的语句 MUST 把离线码待重算态排除在外（金额未算准，扣下去就是扣错钱）。
+     * 日跑批量重试两条（{@code selectBatchRetryCandidates} / {@code prepareBatchRetry}）刻意不在此列：
+     * {@code applyOfflineFareRecalculated} 推进 PENDING 态<b>先于</b> {@code initiateAsync} 发起扣款，
+     * 状态机保证捞 RETRY / FAIL 的单子 NEVER 是 OFFLINE_FARE_PENDING（2026-11-17 复核结论）。
+     */
     private static final String[] OFFLINE_PENDING_EXCLUSIONS = {
             "selectRecentUnpaidCandidates",
-            "prepareRecentRetry"};
+            "prepareRecentRetry",
+            "selectUserRetryCandidates",
+            "prepareUserRetry",
+            "selectOneSideInCandidates",
+            "selectOneSideOutCandidates"};
 
     /**
-     * 剥离注释后，{@code 'OFFLINE_FARE_PENDING'} 字面量只允许出现 5 次：
+     * 剥离注释后，{@code 'OFFLINE_FARE_PENDING'} 字面量只允许出现 9 次：
      * {@link #OFFLINE_PENDING_STATEMENTS} 三条各 1 次（捞单、抢占回写、失败留痕，都是 {@code =} 包含），
-     * 外加 {@link #OFFLINE_PENDING_EXCLUSIONS} 两条各 1 次（都是 {@code <>} 排除）。
+     * 外加 {@link #OFFLINE_PENDING_EXCLUSIONS} 六条各 1 次（都是 {@code <>} 排除）。
+     * 新增语句带上该谓词时 MUST 同步更新这两个清单与计数 —— 计数不符即有人加了字面量却忘了登记。
      */
-    private static final int ALLOWED_OFFLINE_PENDING_LITERALS = 5;
+    private static final int ALLOWED_OFFLINE_PENDING_LITERALS = 9;
 
     private final Configuration configuration = parseMapper();
 
@@ -170,9 +180,9 @@ class GateTxnPayMapperSqlTest {
                         + "以及近 N 分钟未扣费那条任务的扫表与抢占两条语句（排除）里");
     }
 
-    /** 离线码金额没算准就发起扣费等于扣错钱，这两条语句的排除谓词 NEVER 删。 */
+    /** 离线码金额没算准就发起扣费等于扣错钱：所有排除语句的排除谓词 NEVER 删。 */
     @Test
-    void recentRetryStatementsExcludeOfflinePending() {
+    void offlinePendingExcludedFromAllDebitEntrypoints() {
         for (String id : OFFLINE_PENDING_EXCLUSIONS) {
             String sql = sqlOf(id);
             assertTrue(sql.contains("DISCOUNT_CALC_STATUS IS NULL")
