@@ -90,7 +90,7 @@
 ### 5.C 发布工作流（测试/生产环境 + 上线任务）
 > **范围**：所有模块的镜像构建 / 推送 / 滚动更新 / 版本切换。纯前端（综管台 `web/`）发版特殊点见 §5.E。
 
-**发布 / 滚更 / 版本切换**：读技能 `qditp-deploy-release`，按流程执行（bump → 出 jar → **云管台链首选**：`itp-ops.sh buildx --env test` 出镜像 + `cloudos deploy` 切镜像；云管台不可达时走 k8s 兜底链 scp + build-push + 手工滚更 → 探活 + digest/镜像比对）；完整方法手册（四条路径总览、命令行为边界、红岛 / 前端路径、回滚）见 `docs/ops/构建与发布.md`。
+**发布 / 滚更 / 版本切换**：读技能 `qditp-deploy-release`，按流程执行（bump → 出 jar → **云管台链首选**：`itp-ops.sh buildx --env test` 出镜像 + `cloudos deploy` 切镜像；云管台不可达时走 k8s 兜底链 scp + build-push + 手工滚更 → 探活 + digest/镜像比对）；完整方法手册（四条路径总览、命令行为边界、红岛 / 前端路径、回滚）见 `docs/ops/构建与发布.md`。**优先用脚本，不手工拼链路（2026-11-17 裁定）**：发版 = `version bump` + `buildx` + `cloudos deploy` 三条命令，隐藏契约（tag 预演/env 全量回传 IT-020/实例实跑为准 IT-034）脚本自带；手工逐步拼 CloudOS REST / kubectl 既易漏契约，在 AI 会话里也是**空耗 token**——脚本做不到的先修脚本（`docs/ops/environments/scripts/itpops/`），NOT 绕过脚本直达平台。
 
 **镜像构建位置（MUST）**：**NEVER 在本机跑 `docker buildx` 构建 x86/amd64 镜像**——本机是 Apple Silicon，模拟构建慢、单层与缓存产物动辄数 GB，会迅速吃满本地磁盘。本机只出 jar，镜像 MUST 由远端产出，入口统一 `docs/ops/environments/scripts/itp-ops.sh`：
 - **测试环境**：两条链并存——① **云管台链（首选）**：`itp-ops.sh buildx <镜像名> <版本> --env test` 出镜像 + `cloudos deploy <应用> <tag> --env test` 切镜像（与红岛同一套动作，镜像/版本/env 在平台侧留痕）；② **k8s 链（兜底）**：`k8s deploy <服务> --yes`——scp jar 到 `k8s-master:/home/java`，由远端 `build-push.sh` 构建推送（Harbor 项目 `itp`），滚更仍需手工 `kubectl set image`。两条链的镜像同在一个 Harbor 项目，方法见 `docs/ops/构建与发布.md` §二·1「云管台链」/ §二·2「k8s 链」。
