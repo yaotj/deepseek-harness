@@ -11,7 +11,23 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class TransRecordAssemblerTest {
 
     @Test
-    void 金额一律按分输出且原价取originalFare() {
+    void 有回调金额时payAmount取实付现金且totalAmount取订单总额() {
+        GateTxnPayListDTO gate = gate();
+        gate.setTotalAmount(200);
+        gate.setOriginalFare(300);
+        PayTxnDetailDTO pay = pay();
+        pay.setCashAmount(180);
+        pay.setTotalAmount(200);
+
+        TransRecordDTO dto = TransRecordAssembler.assemble(gate, pay);
+
+        assertEquals("180", dto.getPayAmount());
+        assertEquals(Integer.valueOf(300), dto.getOriginalFare());
+        assertEquals(Integer.valueOf(200), dto.getTotalAmount());
+    }
+
+    @Test
+    void 支付明细缺回调金额时payAmount回落应扣总额且totalAmount回落原始票价() {
         GateTxnPayListDTO gate = gate();
         gate.setTotalAmount(200);
         gate.setOriginalFare(300);

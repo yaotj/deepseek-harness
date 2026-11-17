@@ -13,7 +13,7 @@ public class TransRecordAssembler {
         }
         TransRecordDTO dto = new TransRecordDTO();
         dto.setCardNum(nullSafe(gate.getCardId()));
-        dto.setPayAmount(toFen(gate.getTotalAmount()));
+        dto.setPayAmount(resolvePayAmount(gate, pay));
         dto.setOrderExpType(nullSafe(gate.getOrderExpType()));
         dto.setTradeOrderNo(nullSafe(gate.getOrderNo()));
         dto.setPayTradeOrderNo(nullSafe(pay != null ? pay.getChannelOrderNo() : null));
@@ -28,7 +28,7 @@ public class TransRecordAssembler {
         dto.setTransferFlag(gate.getTransferFlag());
         dto.setCumulativeType(gate.getCumulativeType());
         dto.setOriginalFare(gate.getOriginalFare());
-        dto.setTotalAmount(gate.getOriginalFare());
+        dto.setTotalAmount(resolveTotalAmount(gate, pay));
         dto.setWalletTotalAmt(gate.getWalletTotalAmt());
         dto.setDiscountLevelAmt(gate.getDiscountLevelAmt());
         dto.setDiscountRate(gate.getDiscountRate());
@@ -49,6 +49,20 @@ public class TransRecordAssembler {
         return value != null ? value : "";
     }
 
+
+    static String resolvePayAmount(GateTxnPayListDTO gate, PayTxnDetailDTO pay) {
+        if (pay != null && pay.getCashAmount() != null) {
+            return String.valueOf(pay.getCashAmount());
+        }
+        return toFen(gate.getTotalAmount());
+    }
+
+    static Integer resolveTotalAmount(GateTxnPayListDTO gate, PayTxnDetailDTO pay) {
+        if (pay != null && pay.getTotalAmount() != null) {
+            return pay.getTotalAmount();
+        }
+        return gate.getOriginalFare();
+    }
 
     private static Integer resolveDiscountFee(PayTxnDetailDTO pay) {
         if (pay == null) {
