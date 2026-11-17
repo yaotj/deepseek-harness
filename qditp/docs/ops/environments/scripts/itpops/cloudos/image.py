@@ -26,6 +26,7 @@ import os
 
 from . import auth
 from .http import http_call, is_net_fail
+from ..errors import EXIT_EXEC, EXIT_TRANSPORT, OpsError
 
 IMG_API_PREFIX = "/api/cloud/hcr/v1.0"
 
@@ -123,5 +124,28 @@ def image_check_existed(name: str, ver: str, target_base: str = "") -> bool | No
     except ValueError:
         return None
     return d.get("data") is True
+
+
+def delete_one_image(img_url: str, tentant_id: str, user_id: str, target_base: str = "") -> dict:
+    """删除单一镜像版本（POST /images/deleteOneImage，成功码 img.0）。
+
+    请求体字段见 CloudOS 5.0 API 文档「镜像仓库管理」：`id` 在 image/versions
+    响应里恒缺省，传空串即可定位；`imgUrl`/`tentantID`/`userID` 从版本记录原样取。
+    返回解析后的响应 dict（resources 回显被删引用）。HTTP 非 200 或业务失败抛 OpsError。
+    """
+    payload = json.dumps({"id": "", "imgUrl": img_url, "tentantID": tentant_id, "userID": user_id})
+    code, body = _img_http("POST", f"{IMG_API_PREFIX}/images/deleteOneImage", payload, target_base=target_base)
+    if is_net_fail(code):
+        raise OpsError("删除镜像：网络不可达", EXIT_TRANSPORT)
+    if code != "200":
+        raise OpsError("删除镜像：HTTP %s（%s）" % (code, body[:200]), EXIT_EXEC)
+    try:
+        d = json.loads(body)
+    except ValueError:
+        raise OpsError("删除镜像：响应非 JSON（%s）" % body[:200], EXIT_EXEC) from None
+    if not (isinstance(d, dict) and d.get("status") is True and d.get("code") == "img.0"):
+        raise OpsError("删除镜像：平台拒绝 status=%s code=%s msg=%s"
+                       % (d.get("status"), d.get("code"), d.get("msg")), EXIT_EXEC)
+    return d
 
 

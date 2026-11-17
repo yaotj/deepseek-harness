@@ -105,7 +105,11 @@ def _req_json(method: str, uri: str, body: str = "") -> None:
 
 
 def resolve_app_uuid(key: str) -> str:
-    """uuid 或应用名 → uuid（32 位 hex 直接过；名字精确匹配唯一，否则模糊唯一）。"""
+    """uuid 或应用名 → uuid（32 位 hex 直接过；名字精确匹配唯一，否则模糊唯一）。
+
+    未命中时在 stderr 列相近应用名（应用名≠模块名高发：trans-query-server 模块
+    对应 trans-query 应用，2026-11-17 IT-073）；成功路径 stdout/stderr 与旧版逐字兼容。
+    """
     if re.fullmatch(r"[0-9a-f]{32}", key):
         return key
     try:
@@ -118,6 +122,11 @@ def resolve_app_uuid(key: str) -> str:
             return hits[0]["uuid"]
         if not hits:
             _err("未找到应用：%s" % key)
+            names = [a.get("name") or "" for a in rows]
+            from ..cli.suggest import closest
+            near = closest(key, names)
+            if near:
+                _err("  你是不是想找：" + "、".join(near) + "（应用名≠模块名，如 trans-query-server 模块 → trans-query 应用）")
         else:
             _err("应用名不唯一，请用 uuid：%s" % ", ".join(h["name"] for h in hits))
     except OpsError:
@@ -191,6 +200,9 @@ _HELP_BODY = """\
   image probe                    只读探测（基址/镜像分类/已有 tag，仍可用于取 imgType）
   image plan  <模块> <版本>       dry-run，仅打印旧端点参数作契约记录
         （`image build` 已于 2026-11-06 删除；实际出镜像见下方 buildx）
+  image rm    <仓库名> <tag> [--project <名>] [--yes]   删除 Harbor 单一镜像版本
+        三道护栏：tag 存在性核验 / 任一应用 container_image 引用即拒 / --yes 门；
+        删后自动复核版本列表。模块名≠仓库名踩坑后清孤儿镜像用（2026-11-17 IT-073）
 
 镜像构建（实际可用，两个环境同一套）
   itp-ops.sh buildx <模块名> <版本> [--env hongdao|test]

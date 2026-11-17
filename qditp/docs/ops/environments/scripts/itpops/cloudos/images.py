@@ -23,7 +23,7 @@ from ..errors import (
     OpsError,
 )
 
-from .common import _err, _info
+from .common import APP_API, _err, _info
 
 def _harbor_project_default() -> str:
     """bash 历史错位的 HARBOR_PROJECT 解析（见模块 docstring）：
@@ -248,4 +248,88 @@ def _pkg_upload_cmd(argv: list[str]) -> int:
         raise OpsError("上传失败", EXIT_EXEC)
     _info("   ✓ 已上传（id=%s；回查：itp-ops.sh cloudos pkg-list，按 name+version 找）" % id_)
     ui.result({"id": id_, "name": name, "version": ver, "file": file})
+    return 0
+
+
+def _image_versions_raw(repo: str, project: str) -> list[dict]:
+    """image/versions 原始行列表（_cmd_rm 需要 tentantID/userID 等全字段）。"""
+    d = http_mod.request_json(
+        "GET", f"{image_mod.IMG_API_PREFIX}/image/versions?name={repo}&harborProjectName={project}")
+    return (((d.get("data") or {}) if isinstance(d, dict) else {}).get("images")) or []
+
+
+def _image_in_use(repo: str, tag: str) -> list[str]:
+    """返回正在引用 <repo>:<tag> 的应用名列表（container_image 尾匹配）。空列表=未被占用。"""
+    d = http_mod.request_json("GET", f"{APP_API}/apps?page=1&pageSize=200")
+    rows = (d.get("data") or []) if isinstance(d, dict) else []
+    needle = "/%s:%s" % (repo, tag)
+    users = []
+    for a in rows:
+        img = ((a.get("metadata") or {}).get("container_image")) or ""
+        if img.endswith(needle) or img == "%s:%s" % (repo, tag):
+            users.append(str(a.get("name") or a.get("uuid") or "?"))
+    return users
+
+
+def _cmd_rm(argv: list[str]) -> int:
+    """image rm <仓库名> <tag> [--project <名>] [--yes] —— 删除 Harbor 单一镜像版本。
+
+    三道护栏（2026-11-17 发版实测教训：模块名≠仓库名会推成孤儿镜像，手工清理
+    只能翻 API 文档调 deleteOneImage）：
+      1. tag 必须存在（打错名/项目直接拒，绝不盲发删除）；
+      2. 任一应用 container_image 正在引用该 tag 即拒（防删生产中镜像）；
+      3. 写操作 --yes 门。
+    删除后自动复核版本列表。端点见 CloudOS 5.0 API「镜像仓库管理」。
+    """
+    project = None
+    positional: list[str] = []
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--project":
+            if i + 1 >= len(argv):
+                raise OpsError("--project 缺值", EXIT_USAGE)
+            project = argv[i + 1]
+            i += 2
+        elif a.startswith("--"):
+            raise OpsError(f"未知选项 {a}", EXIT_USAGE)
+        else:
+            positional.append(a)
+            i += 1
+    if len(positional) != 2 or not positional[0] or not positional[1]:
+        raise OpsError("用法：image rm <仓库名> <tag> [--project <名>] [--yes]", EXIT_USAGE)
+    repo, tag = positional[0], positional[1]
+    project = project or _harbor_project_default()
+
+    rows = _image_versions_raw(repo, project)
+    hit = [r for r in rows if (r.get("versions") or "") == tag]
+    if not hit:
+        existing = ", ".join((r.get("versions") or "") for r in rows[:10]) or "（无）"
+        raise OpsError(
+            "Harbor 项目 %s 的仓库 %s 没有 tag %s（现存：%s）——名字/项目打错即拒删，请核对"
+            % (project, repo, tag, existing), EXIT_PRECONDITION)
+    rec = hit[0]
+    img_url = str(rec.get("imgUrl") or "")
+    if not img_url:
+        raise OpsError("版本记录缺 imgUrl，无法安全定位删除对象", EXIT_EXEC)
+
+    users = _image_in_use(repo, tag)
+    if users:
+        raise OpsError(
+            "拒绝删除：%s:%s 仍被应用引用（%s）——先 deploy 把应用切走别的 tag 再删"
+            % (repo, tag, ", ".join(users)), EXIT_PRECONDITION)
+
+    require_yes("image rm %s:%s（Harbor 项目 %s，digest=%s）"
+                % (repo, tag, project, rec.get("digest") or "?"))
+    resp = image_mod.delete_one_image(
+        img_url, str(rec.get("tentantID") or ""), str(rec.get("userID") or ""))
+    deleted = resp.get("resources") or [img_url]
+    ui.out("已删除：%s" % ", ".join(str(x) for x in deleted))
+
+    left = [r for r in _image_versions_raw(repo, project) if (r.get("versions") or "") == tag]
+    if left:
+        _err("⚠ 复核：tag %s 仍在版本列表中（平台删除异步？稍后重查 image probe）" % tag)
+        return 1
+    ui.out("复核：tag %s 已不在 %s/%s 版本列表" % (tag, project, repo))
+    ui.result({"deleted": deleted, "repo": repo, "tag": tag, "project": project})
     return 0

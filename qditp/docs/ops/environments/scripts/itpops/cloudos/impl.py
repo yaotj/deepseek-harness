@@ -25,7 +25,7 @@ from .apps import _app_action, _app_detail, _app_env, _app_logs, _app_pods, _app
 from .common import APP_API, CONTAINER_API_PREFIX, _help_text, _need, _req_json
 from .deploy import _app_deploy, env_set
 from .envcheck import CATALOG as _ENVCHECK_CATALOG, env_check
-from .images import _cmd_plan, _cmd_probe, _harbor_project_default, _image_parse_args, _pkg_upload_cmd
+from .images import _cmd_plan, _cmd_probe, _cmd_rm, _harbor_project_default, _image_parse_args, _pkg_upload_cmd
 from .scaling import _app_scale, _app_spec_set, _app_spec_show, _scale_all, _spec_all
 
 CATALOG = {
@@ -136,6 +136,12 @@ CATALOG = {
          "writes": False, "example": "itp-ops.sh cloudos image plan fep-app 1.0.0",
          "stdout_human": "================ 将要执行（dry-run，未发任何写请求）================ …",
          "json_data": {"module": "fep-app", "version": "1.0.0", "dry_run": True}},
+        {"name": "image rm", "usage": "cloudos image rm <仓库名> <tag> [--project <名>] [--yes]",
+         "summary": "删除 Harbor 单一镜像版本（三道护栏：tag 存在性 / 应用占用即拒 / --yes 门；删后自动复核）",
+         "args": [{"name": "仓库名", "required": True}, {"name": "tag", "required": True}],
+         "writes": True, "example": "itp-ops.sh --env test cloudos image rm trans-query-server 1.0.28",
+         "stdout_human": "已删除：…\n复核：tag … 已不在 … 版本列表",
+         "json_data": {"deleted": ["…"], "repo": "trans-query-server", "tag": "1.0.28", "project": "itp"}},
         {"name": "appgroups", "usage": "cloudos appgroups", "summary": "应用组列表（测试环境附加）",
          "args": [], "writes": False, "example": "itp-ops.sh --env test cloudos appgroups",
          "stdout_human": "{美化 JSON}", "json_data": {"status": True}},
@@ -299,8 +305,10 @@ def main(args: list[str]) -> int:
                 raise OpsError("用法：image plan <module> <version>", EXIT_USAGE)
             project = state["project"] or harbor_project
             return _cmd_plan(mod, ver, state, project)
+        if img_sub == "rm":
+            return _cmd_rm(img_rest)
         raise OpsError(
-            "image 子命令只能是 probe / plan（收到 %s）；出镜像请用 itp-ops.sh buildx"
+            "image 子命令只能是 probe / plan / rm（收到 %s）；出镜像请用 itp-ops.sh buildx"
             % img_sub, EXIT_USAGE)
 
     # 未知命令：usage 照旧打到 stdout（bash 行为；bash 此时已完成 env init，

@@ -3,6 +3,24 @@
 > 2026-11-04 由 `README.md`「六、重构与迁移记录」拆出，历史条目按**新 → 旧**排列、内容逐字保留。
 > 版本号真源是 `itpops/__init__.py` 的 `__version__`（`pyproject.toml` 动态读取）。
 
+## 2.9.4+（未发版）— 2026-11-17 镜像名/应用名解析收口（IT-073）
+
+> 2026-11-17 发版实测踩坑：模块名 `trans-query-server` ≠ 应用/仓库名 `trans-query`，
+> buildx 按模块名推孤儿镜像、deploy 报「未找到应用」、清理只能翻 API 文档 raw 调
+> deleteOneImage。三处收口（详见 `docs/tracking/IT-073-*.md`）。
+
+- `buildx` 构建前（含 `--check`）列全部应用 `container_image` 的仓库名集合，`itp/<模块名>`
+  与任一仓库都不匹配即 stderr WARNING（相近仓库名提示 + IT-073 指引，非阻断——独立镜像
+  如 jdk 基础镜像可忽略）；列应用失败静默降级，NEVER 阻断构建。
+- `resolve_app_uuid` 未命中时按 `cli/suggest.closest` 列相近应用名（如
+  trans-query-server → trans-query），附「应用名≠模块名」提示；成功路径输出逐字兼容。
+- 新增 `cloudos image rm <仓库名> <tag> [--project <名>] [--yes]`：三道护栏（tag 存在性
+  核验列出现存 tag / 任一应用 container_image 尾匹配即拒 / --yes 门）+ 删后自动复核
+  （仍在列表则告警返回 1）。端点 `POST /api/cloud/hcr/v1.0/images/deleteOneImage`；
+  实测 `id` 传空串即可定位（文档未写明，响应无 id 字段）。
+- `cloudos --help` / `catalog` 同步登记；单测 184 例全绿（新增 16 例，
+  `test_catalog_is_complete` 基线 30→31）；真实测试环境验证三条新输出。
+
 ## 2.9.4+（未发版）— 2026-11-17 发版链路透出修正
 
 > 2026-11-17 ticket-server 2.2.9 / gate-txn-pay-server 2.1.11 发版实测暴露的脚本缺陷，

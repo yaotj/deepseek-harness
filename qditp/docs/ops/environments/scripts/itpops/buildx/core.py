@@ -477,6 +477,56 @@ def _parse_args(argv: list[str]) -> dict | None:
 
 
 # ---------------------------------------------------------------- 主流程
+def _app_image_repos(cos: _CloudOS) -> set[str]:
+    """列全部应用 container_image 的仓库名集合（`…:443/itp/<repo>:<tag>` → `<repo>`）。
+
+    HTTP 失败/无权限时返回空集——警告面降级为静默，NEVER 阻断构建（IT-073）。
+    """
+    import re as _re
+    try:
+        code, body = _http_token(
+            cos, "GET", "/api/cloud/app-mgmt/v1.0/apps?page=1&pageSize=200", timeout=30)
+    except OpsError:
+        return set()
+    if code != "200":
+        return set()
+    try:
+        d = json.loads(body)
+    except ValueError:
+        return set()
+    rows = (d.get("data") or []) if isinstance(d, dict) else []
+    repos: set[str] = set()
+    for a in rows:
+        img = ((a.get("metadata") or {}).get("container_image")) or ""
+        m = _re.search(r"/([^/:]+):[^/:]+$", img)
+        if m:
+            repos.add(m.group(1))
+    return repos
+
+
+def _repo_warning(mod: str, repos: set[str]) -> str | None:
+    """模块名与所有应用镜像仓库名都不匹配时给 WARNING 文案（纯函数，便于单测）。
+
+    imgName 直接吃模块名（见 _do_build 的 imgName=mod）：模块名≠仓库名时会推成
+    孤儿镜像（2026-11-17 实测：trans-query-server 模块误推 itp/trans-query-server:1.0.28，
+    应用实际用 itp/trans-query，IT-073）。仓库名集合为空（列应用失败）时不警告。
+    """
+    if not repos or mod in repos:
+        return None
+    from difflib import SequenceMatcher
+    scored = sorted(
+        ((SequenceMatcher(None, mod, r).ratio(), r) for r in repos),
+        key=lambda x: (-x[0], x[1]))
+    near = [r for ratio, r in scored[:3] if ratio >= 0.55]
+    hint = ("；相近仓库：" + "、".join(near)) if near else ""
+    return (
+        f"⚠ 警告：itp/{mod} 与全部 {len(repos)} 个应用镜像仓库名都不匹配{hint}\n"
+        f"  imgName 直接取模块名——若仓库名≠模块名（如 trans-query-server 模块 → trans-query 仓库）"
+        f"会推成孤儿镜像（IT-073）。\n"
+        f"  确认目标仓库名；确属无应用引用的独立镜像（如基础镜像/工具镜像）可忽略本警告。"
+    )
+
+
 def _do_check(cos: _CloudOS, mod: str, project: str) -> int:
     """--check 只读分支：查询现有镜像，美化 JSON 到 stdout。"""
     _err(f"[check] {mod} 现有镜像（project={project}）")
@@ -506,6 +556,10 @@ def _do_build(cos: _CloudOS, opts: dict, env: envx.Env) -> int:
     token = cos.get_token()
     if token is None:
         raise OpsError("登录失败", cos.login_exit_code)
+
+    warn = _repo_warning(mod, _app_image_repos(cos))
+    if warn:
+        _err(warn)
 
     if opts["check"]:
         return _do_check(cos, mod, project)
