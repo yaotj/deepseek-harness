@@ -165,7 +165,8 @@ public class DebitRetryProcessor {
                     taskDesc, recentMinAgeSeconds, maxTimes);
             return 0;
         }
-        int retried = runRound(taskDesc, candidates, this::prepareRecent);
+        int retried = runRound(taskDesc, candidates, this::prepareRecent,
+                com.chinasofti.huateng.gatetxnpay.paysign.AlipayTripPayRequestFactory.PAY_TRIGGER_FIRST);
         log.info("{}重试本轮完成, 候选={}, 已重发={}, 窗口={}分钟, 最小年龄={}秒, 单批={}",
                 taskDesc, candidates.size(), retried, recentWindowMinutes, recentMinAgeSeconds, recentBatchSize);
         return retried;
@@ -194,15 +195,22 @@ public class DebitRetryProcessor {
             return 0;
         }
 
-        int retried = runRound(channelDesc, candidates, this::prepare);
+        int retried = runRound(channelDesc, candidates, this::prepare,
+                com.chinasofti.huateng.gatetxnpay.paysign.AlipayTripPayRequestFactory.PAY_TRIGGER_COMPENSATION);
         log.info("扣费批量重试本轮完成, 渠道={}, 候选={}, 已重发={}, 窗口={}~{}, 上限={}次, 退避={}分钟, 单批={}",
                 channelDesc, candidates.size(), retried, startDate, endDate,
                 maxTimes, backoffMinutes, batchSize);
         return retried;
     }
 
-    /** 逐笔「抢占 → 重新发起 → 记落点」，返回真正重新发起的笔数。三条任务共用，抢占策略由 {@code claim} 决定。 */
-    private int runRound(String taskDesc, List<GateTxnPay> candidates, Predicate<GateTxnPay> claim) {
+    /**
+     * 逐笔「抢占 → 重新发起 → 记落点」，返回真正重新发起的笔数。三条任务共用，抢占策略由 {@code claim} 决定。
+     *
+     * @param payTriggerType {@code 01}=渠道首次见到这笔（INIT 近窗补偿），{@code 02}=重推补偿，
+     *                       透传给 {@link PaySignInitiator#retryAndConverge(GateTxnPay, String)}
+     */
+    private int runRound(String taskDesc, List<GateTxnPay> candidates, Predicate<GateTxnPay> claim,
+                         String payTriggerType) {
         int retried = 0;
         int skipped = 0;
         int failed = 0;
@@ -212,7 +220,7 @@ public class DebitRetryProcessor {
                     skipped++;
                     continue;
                 }
-                String landed = paySignInitiator.retryAndConverge(order);
+                String landed = paySignInitiator.retryAndConverge(order, payTriggerType);
                 retried++;
                 recordLanding(order, landed);
             } catch (RuntimeException e) {

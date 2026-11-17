@@ -113,6 +113,11 @@ class GateCardTypeEnricher {
             if (StringUtils.hasText(result.getCompanionFlag())) {
                 request.setCompanionFlag(result.getCompanionFlag().trim());
             }
+            if (StringUtils.hasText(result.getMsisdn())) {
+                // 手机号只在此一处回填（account 域权威），供出站 industryDetail 的 phone 键使用；
+                // 空值 MUST NOT 覆盖，回落支付宝账户域时由 applyAlipayUserInfo 再补。
+                request.setPhone(result.getMsisdn().trim());
+            }
             applySignInfo(new SignInfo(result.getChannel(), result.getReqContractNo(), result.getThirdPayId()),
                     request, response, cardId, "用户信息", Set.of());
             log.info("IF1A-01 回传签约信息给 fep-dev-server, cardId={}, paymentVendor={}, requestSignSeq={}",
@@ -143,6 +148,12 @@ class GateCardTypeEnricher {
                         alipayUser.getThirdPayId()),
                 request, response, cardId, "支付宝用户信息", Set.of(FIELD_REQUEST_SIGN_SEQ));
         if (StringUtils.hasText(alipayUser.getThirdUserId())) {            request.setItpUserId(alipayUser.getThirdUserId().trim());
+        }
+        if (StringUtils.hasText(alipayUser.getPhone())) {
+            // account 域完全未命中才走到本方法，此时 phone 必为空 —— 直接兜底（同 CardDataAnalyseHandler 两级口径）。
+            // 注意本 enricher 与 CardDataAnalyseHandler 不同：account 域「命中卡但缺 msisdn」不会回落到这里，
+            // 那种情况 phone 留空、由 industryDetail 组装器置空串。
+            request.setPhone(alipayUser.getPhone().trim());
         }
         log.info("IF1A-01 已按支付宝账户域补齐, cardId={}, cardType={}, paymentVendor={}, requestSignSeq={}",
                 cardId, request.getCardType(), request.getPaymentVendor(), response.getRequestSignSeq());

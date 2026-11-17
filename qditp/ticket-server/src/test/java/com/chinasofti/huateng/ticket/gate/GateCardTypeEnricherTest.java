@@ -70,6 +70,7 @@ class GateCardTypeEnricherTest {
         result.setChannel("01");
         result.setReqContractNo("SIGN20260914001");
         result.setThirdPayId("PAY20260914001");
+        result.setMsisdn("13800138000");
         return result;
     }
 
@@ -80,6 +81,7 @@ class GateCardTypeEnricherTest {
         user.setReqContractNo("ALI20260914001");
         user.setThirdPayId("ALIPAY20260914001");
         user.setThirdUserId("2088ALIPAYUSER");
+        user.setPhone("13900139000");
         return user;
     }
 
@@ -94,6 +96,7 @@ class GateCardTypeEnricherTest {
 
         assertEquals("044A", request.getCardType(), "以开户记录为准，鲁通码 MUST 从 0441 恢复成 044A");
         assertEquals("Y", request.getCompanionFlag());
+        assertEquals("13800138000", request.getPhone(), "account 域 msisdn 回填，供出站 industryDetail 的 phone 键使用");
         assertEquals("01", request.getPaymentVendor(), "来自 USER_ITP_REG_INFO.CHANNEL");
         assertEquals("SIGN20260914001", request.getRequestSignSeq());
         assertEquals("SIGN20260914001", response.getRequestSignSeq(),
@@ -192,6 +195,35 @@ class GateCardTypeEnricherTest {
         assertEquals("ALI20260914001", response.getRequestSignSeq());
         assertEquals("ALIPAY20260914001", response.getPayUserId());
         assertEquals("2088ALIPAYUSER", request.getItpUserId(), "支付宝链路独有：itpUserId 由 thirdUserId 回填");
+        assertEquals("13900139000", request.getPhone(), "支付宝账户域 phone 兜底回填");
+    }
+
+    @Test
+    @DisplayName("account 域命中但无 msisdn：phone 留空、NEVER 回落支付宝（本 enricher 只在 account 域完全未命中时回落）")
+    void account域无手机号时不回落() {
+        QueryUserInfoResult noMsisdn = accountHit("0441");
+        noMsisdn.setMsisdn(" ");
+        when(accountClient.queryCardTypeByCardId(anyString())).thenReturn(noMsisdn);
+        NotifyVerifyResultReqDTO request = gateRequest();
+
+        enricher.applyActualCardType(request, new NotifyVerifyResultRespDTO());
+
+        assertNull(request.getPhone(), "phone 留空由组装器置空串；支付宝 enricher 的回落口径 NEVER 借到这里");
+        verifyNoInteractions(alipayAccountClient);
+    }
+
+    @Test
+    @DisplayName("account 域未命中、支付宝侧也无 phone：phone 保持 null，组装器置空串")
+    void 支付宝侧无手机号时保持null() {
+        when(accountClient.queryCardTypeByCardId(anyString())).thenReturn(null);
+        AlipayUserInfoDTO noPhone = alipayHit("02");
+        noPhone.setPhone(null);
+        when(alipayAccountClient.selectByCardId(anyString())).thenReturn(noPhone);
+        NotifyVerifyResultReqDTO request = gateRequest();
+
+        enricher.applyActualCardType(request, new NotifyVerifyResultRespDTO());
+
+        assertNull(request.getPhone(), "NEVER 写空串进 request（空串会挡住后续兜底判断）");
     }
 
     @Test

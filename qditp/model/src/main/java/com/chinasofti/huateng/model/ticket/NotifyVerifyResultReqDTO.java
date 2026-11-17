@@ -44,6 +44,12 @@ public class NotifyVerifyResultReqDTO {
     private String requestSignSeq;
     /** 交易渠道类型：00闸机、01蓝牙、02BOM、03自助补站。 */
     private String channelType;
+    /**
+     * 用户手机号：闸机报文不上送，由 ticket-server 的 {@code GateCardTypeEnricher}
+     * 用账户侧查询结果（account 域 msisdn 优先、支付宝账户域 phone 兜底）回填，
+     * 供支付宝出行 industryDetail 的 phone 键使用。
+     */
+    private String phone;
 
     public String getDeviceId() {
         return deviceId;
@@ -225,6 +231,8 @@ public class NotifyVerifyResultReqDTO {
     public void setRequestSignSeq(String requestSignSeq) { this.requestSignSeq = requestSignSeq; }
     public String getChannelType() { return channelType; }
     public void setChannelType(String channelType) { this.channelType = channelType; }
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
 
     @Override
     public String toString() {

@@ -14,6 +14,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.chinasofti.huateng.gatetxnpay.entity.GateTxnPay;
 import com.chinasofti.huateng.gatetxnpay.fare.FareCalculator;
 import com.chinasofti.huateng.gatetxnpay.fare.FareDataGateway;
@@ -149,6 +151,11 @@ class PaySignInitiationTest {
         verify(writer).updateOrderStatusFromPending(any(), eq("PROCESSING"), anyString());
     }
 
+    /**
+     * 快照键 MUST 原样透传（NEVER 在 gate-txn-pay 侧重算站名等），唯一的例外是
+     * {@code payTriggerType}：V1.2 文档必填、且「首次/补偿」只有发起入口知道，
+     * 由 {@link AlipayTripPayRequestFactory} 在快照上注入（retryPay 是重试入口 → 02）。
+     */
     @Test
     void alipayIndustryDetailIsPassedThroughNeverRebuilt() {
         GateTxnPay order = alipayOrder("GT21");
@@ -160,10 +167,43 @@ class PaySignInitiationTest {
         ArgumentCaptor<AlipayTripRequestPayReqDTO> sent =
                 ArgumentCaptor.forClass(AlipayTripRequestPayReqDTO.class);
         verify(alipayPaySignClient).alipayTripRequestPay(sent.capture());
-        assertEquals(INDUSTRY_DETAIL, sent.getValue().getIndustryDetail(), "industryDetail MUST 原样透传，NEVER 重算");
+        JSONObject detail = JSON.parseObject(sent.getValue().getIndustryDetail());
+        assertEquals("L1", detail.getString("entryLineCode"), "快照键 MUST 原样透传，NEVER 重算");
+        assertEquals("E1", detail.getString("entryId"));
+        assertEquals("0007", detail.getString("cardIssueCode"));
+        assertEquals(AlipayTripPayRequestFactory.PAY_TRIGGER_COMPENSATION, detail.getString("payTriggerType"),
+                "retryPay 是补偿重推，MUST 标 02-补偿支付");
         assertEquals("GT21", sent.getValue().getOrderNo(), "订单号 MUST 取 GATE_TXN_PAY.ORDER_NO");
         assertEquals("T21", sent.getValue().getRequestSignSeq(), "requestSignSeq MUST 取 TICKET_TRANS_SEQ");
         assertEquals(700, sent.getValue().getAmount(), "金额 MUST 是 TOTAL_AMOUNT（实扣 + 超时费）");
+    }
+
+    /** 出站首次扣款（initiateAsync）是渠道第一次见到这笔订单，payTriggerType MUST 标 01。 */
+    @Test
+    void firstInitiationMarksPayTriggerType01() {
+        when(alipayPaySignClient.alipayTripRequestPay(any())).thenReturn(alipayPayResult("0000"));
+
+        initiator().initiateAsync(alipayOrder("GT30"), null);
+
+        ArgumentCaptor<AlipayTripRequestPayReqDTO> sent =
+                ArgumentCaptor.forClass(AlipayTripRequestPayReqDTO.class);
+        verify(alipayPaySignClient).alipayTripRequestPay(sent.capture());
+        assertEquals(AlipayTripPayRequestFactory.PAY_TRIGGER_FIRST,
+                JSON.parseObject(sent.getValue().getIndustryDetail()).getString("payTriggerType"));
+    }
+
+    /** sys_job 345 捞起的 INIT 单（落单后首次扣款没发起过）走重试入口但 MUST 标 01：对渠道仍是首次支付。 */
+    @Test
+    void explicitFirstRetryMarksPayTriggerType01() {
+        when(alipayPaySignClient.alipayTripRequestPay(any())).thenReturn(alipayPayResult("0000"));
+
+        initiator().retryAndConverge(alipayOrder("GT31"), AlipayTripPayRequestFactory.PAY_TRIGGER_FIRST);
+
+        ArgumentCaptor<AlipayTripRequestPayReqDTO> sent =
+                ArgumentCaptor.forClass(AlipayTripRequestPayReqDTO.class);
+        verify(alipayPaySignClient).alipayTripRequestPay(sent.capture());
+        assertEquals(AlipayTripPayRequestFactory.PAY_TRIGGER_FIRST,
+                JSON.parseObject(sent.getValue().getIndustryDetail()).getString("payTriggerType"));
     }
 
     /** 支付宝渠道被业务拒绝同样落 FAIL，且 REMARK MUST 写 alipay-pay-sign 而不是 pay-sign。 */

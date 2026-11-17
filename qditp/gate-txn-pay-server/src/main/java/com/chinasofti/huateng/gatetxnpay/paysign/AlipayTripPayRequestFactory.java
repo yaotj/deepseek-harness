@@ -1,12 +1,22 @@
 package com.chinasofti.huateng.gatetxnpay.paysign;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.chinasofti.huateng.gatetxnpay.entity.GateTxnPay;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestPayReqDTO;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 /**
  * 支付宝出行免密扣费报文的唯一组装处，含 {@code alipay.trip.*} 六个配置项。
+ *
+ * <p><b>{@code payTriggerType}（支付触发方式：01-首次支付，02-补偿支付，V1.2 文档必填）由调用方
+ * 按发起入口显式传入</b>：industryDetail 快照是出站时组好的、补偿重推复用同一份，只有发起方知道
+ * 本次是首次出账还是补偿重推，NEVER 在 ticket-server 组装时写死。注入失败（快照为空 / 非法 JSON）
+ * 只 WARN、原样透传 —— 缺一个对端字段的危害远小于扣款不发。
  *
  * <p><b>本类 NEVER 设 {@code notifyUrl}</b>（2026-09-18 移除）：回调地址收口到 alipay-pay-sign-server
  * 一处的 {@code pay.center.callback-url}，由它的 {@code BizDataBuilder} 在「调用方没传 notifyUrl」时兜底填入。
@@ -18,6 +28,13 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class AlipayTripPayRequestFactory {
+
+    private static final Logger log = LoggerFactory.getLogger(AlipayTripPayRequestFactory.class);
+
+    /** 支付触发方式：首次支付（V1.2 文档 01）。出站扣款与离线码 fare 恢复都是渠道第一次见到这笔订单。 */
+    public static final String PAY_TRIGGER_FIRST = "01";
+    /** 支付触发方式：补偿支付（V1.2 文档 02）。重试队列 / RETRY 扫表 / 运营手动重试等重推入口。 */
+    public static final String PAY_TRIGGER_COMPENSATION = "02";
 
     private final String scene;
     private final String paymentVendor;
@@ -41,8 +58,12 @@ public class AlipayTripPayRequestFactory {
         this.orderTimeoutMinutes = orderTimeoutMinutes;
     }
 
-    /** 组装支付宝出行免密扣费报文。 */
-    public AlipayTripRequestPayReqDTO build(GateTxnPay order) {
+    /**
+     * 组装支付宝出行免密扣费报文，并把 {@code payTriggerType} 注入 industryDetail。
+     *
+     * @param payTriggerType {@link #PAY_TRIGGER_FIRST} 或 {@link #PAY_TRIGGER_COMPENSATION}，调用方按发起入口传
+     */
+    public AlipayTripRequestPayReqDTO build(GateTxnPay order, String payTriggerType) {
         AlipayTripRequestPayReqDTO payRequest = new AlipayTripRequestPayReqDTO();
         payRequest.setOrderNo(order.getOrderNo());
         payRequest.setScene(scene);
@@ -54,7 +75,26 @@ public class AlipayTripPayRequestFactory {
         payRequest.setRequestSignSeq(order.getTicketTransSeq());
         payRequest.setThirdUserId(order.getThirdUserId());
         payRequest.setOrderTimeOut(orderTimeoutMinutes);
-        payRequest.setIndustryDetail(order.getIndustryDetail());
+        payRequest.setIndustryDetail(applyPayTriggerType(order.getIndustryDetail(), payTriggerType, order.getOrderNo()));
         return payRequest;
+    }
+
+    /**
+     * 把 {@code payTriggerType} 写进 industryDetail JSON（V1.2 文档必填键）。
+     * 快照为空或非法 JSON 时原样透传 + WARN —— 不阻断扣款（资损方向）。
+     */
+    private String applyPayTriggerType(String industryDetail, String payTriggerType, String orderNo) {
+        if (!StringUtils.hasText(industryDetail)) {
+            return industryDetail;
+        }
+        try {
+            JSONObject detailJson = JSON.parseObject(industryDetail);
+            detailJson.put("payTriggerType", payTriggerType);
+            return detailJson.toJSONString();
+        } catch (Exception e) {
+            log.warn("industryDetail 解析失败，payTriggerType 未能注入、原样透传, orderNo={}, payTriggerType={}",
+                    orderNo, payTriggerType, e);
+            return industryDetail;
+        }
     }
 }

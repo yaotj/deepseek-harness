@@ -20,7 +20,18 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
 
-/** 支付宝出行 21 键 {@code industryDetail} 组装。 */
+/**
+ * 支付宝出行 {@code industryDetail} 组装（按支付中心网关文档 V1.2「地铁免密 industryDetail」键集）。
+ *
+ * <p><b>键集分两批</b>：本类落的是「行程/订单固有属性」快照（进出站、时间、票种、累计类型等），
+ * 落库后由 gate-txn-pay 在<b>每次发起扣款时</b>按入口注入 {@code payTriggerType}
+ * （01-首次支付 / 02-补偿支付，见 {@code AlipayTripPayRequestFactory}）——
+ * 补偿重推复用同一份快照，该键 NEVER 在本类写死。
+ *
+ * <p>{@code ticketTransSeq} 与 {@code tikcetTransSeq} <b>双键同值并存</b>：支付中心 V1.2 文档用前者，
+ * 甲方 IF1A-01 规范样例用后者（{@code NotifyVerifyResultReqDTO#setTikcetTransSeq} 的兼容注释可证），
+ * 对端按哪个拼写解析都能拿到。NEVER 删 {@code tikcetTransSeq}。
+ */
 @Component
 class AlipayIndustryDetailAssembler {
     private static final Logger log = LoggerFactory.getLogger(AlipayIndustryDetailAssembler.class);
@@ -45,7 +56,7 @@ class AlipayIndustryDetailAssembler {
         this.alipayCardIssueCode = alipayCardIssueCode;
         this.industryDetailExecutor = industryDetailExecutor;
     }
-    /** 组装支付宝出行的 21 键 {@code industryDetail}，整块交给 gate-txn-pay-server 落单存下。 */
+    /** 组装支付宝出行的 {@code industryDetail}，整块交给 gate-txn-pay-server 落单存下。 */
     public String assemble(NotifyVerifyResultReqDTO request) {
         try {
             String entryStationCode = request.getLastHandleStationCode();
@@ -89,8 +100,14 @@ class AlipayIndustryDetailAssembler {
         Map<String, Object> detail = new LinkedHashMap<>();
         detail.put("orderDate", resolveOrderDate(request));
         detail.put("cardNum", blankIfNull(request.getCardId()));
+        detail.put("cardType", blankIfNull(request.getCardType()));
+        detail.put("phone", blankIfNull(request.getPhone()));
         detail.put("channelAgreementNo", "");
+        // 双键同值：V1.2 文档键名 + 甲方规范样例拼写，对端按哪个解析都能拿到。
+        detail.put("ticketTransSeq", blankIfNull(request.getTicketTransSeq()));
         detail.put("tikcetTransSeq", blankIfNull(request.getTicketTransSeq()));
+        detail.put("ticketFlag", resolveTicketFlag(request));
+        detail.put("cumulativeType", resolveCumulativeType(request));
 
         detail.put("entryLineCode", blankIfNull(getOrFallback(entryStationInfo, RequestStationLineInfoResult::getLineCode, entryStationCode)));
         detail.put("entryLineName", blankIfNull(getOrFallback(entryStationInfo, RequestStationLineInfoResult::getLineName, entryStationCode)));
@@ -109,8 +126,45 @@ class AlipayIndustryDetailAssembler {
         detail.put("exitDate", blankIfNull(convertHandleDateTime(request.getHandleDateTime())));
 
         detail.put("orderExpType", "03".equals(request.getTrxType()) ? "5" : "0");
-        detail.put("fineAmount", blankIfNull(request.getOvertimeAmount()));
+        putOverTimeAmount(detail, request);
         return detail;
+    }
+
+    /**
+     * 票据标志：普通 N，同行票 Y，其他合作方票 C（V1.2 文档）。
+     * 直接映射 {@code companionFlag}（空=普通票），组装前已由 {@code GateCardTypeEnricher}
+     * 用账户侧数据规范化。
+     */
+    private String resolveTicketFlag(NotifyVerifyResultReqDTO request) {
+        return StringUtils.hasText(request.getCompanionFlag()) ? request.getCompanionFlag().trim() : "N";
+    }
+
+    /**
+     * 累计类型：01-普通闸机出站，02-闸机超时出站，03-其他不参与累计的票（NFC、同行票等）（V1.2 文档）。
+     * 票种属性优先：同行票/第三方票不参与累计（03）；其余按是否超时出站分流（trxType=03 → 02）。
+     */
+    private String resolveCumulativeType(NotifyVerifyResultReqDTO request) {
+        if (StringUtils.hasText(request.getCompanionFlag())) {
+            return "03";
+        }
+        return "03".equals(request.getTrxType()) ? "02" : "01";
+    }
+
+    /**
+     * 超时补收金额（单位：分），V1.2 文档类型为 int——MUST 以数字出网，NEVER 带引号。
+     * 解析失败则缺键 + WARN：对端该键非必填，收到错误值的危害大于缺失。
+     */
+    private void putOverTimeAmount(Map<String, Object> detail, NotifyVerifyResultReqDTO request) {
+        String amount = request.getOvertimeAmount();
+        if (!StringUtils.hasText(amount)) {
+            return;
+        }
+        try {
+            detail.put("overTimeAmount", Integer.valueOf(amount.trim()));
+        } catch (NumberFormatException e) {
+            log.warn("IF1A-01 超时金额非数字，overTimeAmount 缺省, cardId={}, overtimeAmount={}",
+                    request.getCardId(), amount);
+        }
     }
     /**
      * {@code orderDate} 取本次出站时刻（与 {@code exitDate} 同源同值）。

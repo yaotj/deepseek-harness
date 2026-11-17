@@ -82,12 +82,22 @@ public class PaySignInitiator {
 
     /** 同步入口（出站首次与离线码补偿共用），返回收敛后的 {@code DEBIT_STATUS}。 */
     public String initiateAndConverge(GateTxnPay order, GateTxnPayReqDTO request) {
-        return converge(order, request, "扣费");
+        return converge(order, request, "扣费", AlipayTripPayRequestFactory.PAY_TRIGGER_FIRST);
     }
 
-    /** 运营重试入口：无入向 request，支付相关字段只能取订单快照。 */
+    /**
+     * 运营重试入口：无入向 request，支付相关字段只能取订单快照。
+     * 默认按补偿支付打标（{@link AlipayTripPayRequestFactory#PAY_TRIGGER_COMPENSATION}）；
+     * 「落单后首次扣款没发起过」的 INIT 单例外，调用方 MUST 用
+     * {@link #retryAndConverge(GateTxnPay, String)} 显式传 {@link AlipayTripPayRequestFactory#PAY_TRIGGER_FIRST}。
+     */
     public String retryAndConverge(GateTxnPay order) {
-        return converge(order, null, "重试扣费");
+        return retryAndConverge(order, AlipayTripPayRequestFactory.PAY_TRIGGER_COMPENSATION);
+    }
+
+    /** 同 {@link #retryAndConverge(GateTxnPay)}，但允许调用方按「渠道是否首次见到这笔订单」显式指定 payTriggerType。 */
+    public String retryAndConverge(GateTxnPay order, String payTriggerType) {
+        return converge(order, null, "重试扣费", payTriggerType);
     }
 
     /**
@@ -145,10 +155,10 @@ public class PaySignInitiator {
         };
     }
 
-    private String converge(GateTxnPay order, GateTxnPayReqDTO request, String scene) {
+    private String converge(GateTxnPay order, GateTxnPayReqDTO request, String scene, String payTriggerType) {
         boolean alipayChannel = IssueChannelCodeEnum.isAlipay(order.getIssueChannelCode());
         String channel = alipayChannel ? CHANNEL_ALIPAY : CHANNEL_PAY_SIGN;
-        RpcOutcome outcome = alipayChannel ? requestAlipayTripPay(order) : requestPaySign(order, request);
+        RpcOutcome outcome = alipayChannel ? requestAlipayTripPay(order, payTriggerType) : requestPaySign(order, request);
         Landing landing = land(order, scene, channel, outcome);
         gateTxnPayWriter.updateOrderStatusFromPending(order, landing.status(), landing.reason());
         return landing.status();
@@ -194,11 +204,11 @@ public class PaySignInitiator {
     }
 
     /** 支付宝出行免密扣费。 */
-    private RpcOutcome requestAlipayTripPay(GateTxnPay order) {
-        AlipayTripRequestPayReqDTO payRequest = alipayTripPayRequestFactory.build(order);
-        log.info("调用alipay-pay-sign请求支付, 入参 orderNo={}, cardId={}, amount={}, requestSignSeq={}, txnDate={}, industryDetail={}",
+    private RpcOutcome requestAlipayTripPay(GateTxnPay order, String payTriggerType) {
+        AlipayTripRequestPayReqDTO payRequest = alipayTripPayRequestFactory.build(order, payTriggerType);
+        log.info("调用alipay-pay-sign请求支付, 入参 orderNo={}, cardId={}, amount={}, requestSignSeq={}, txnDate={}, payTriggerType={}, industryDetail={}",
                 order.getOrderNo(), order.getCardId(), order.getTotalAmount(),
-                payRequest.getRequestSignSeq(), order.getTxnDate(), payRequest.getIndustryDetail());
+                payRequest.getRequestSignSeq(), order.getTxnDate(), payTriggerType, payRequest.getIndustryDetail());
         return payInitiationRpcAdapter.requestAlipayTripPay(payRequest);
     }
 
