@@ -193,7 +193,7 @@ _HELP_BODY = """\
         （`image build` 已于 2026-11-06 删除；实际出镜像见下方 buildx）
 
 镜像构建（实际可用，两个环境同一套）
-  itp-ops.sh buildx <镜像名> <版本> [--env hongdao|test]
+  itp-ops.sh buildx <模块名> <版本> [--env hongdao|test]
        [--jar <绝对路径>] [--dockerfile <共享模板>] [--check]
        平台 x86 节点 buildx 出镜像并推 Harbor；Harbor 项目与基础镜像按 --env 自动取
        （红岛 itpb/jdk21:1.0.0、测试 itp/jdk:25）。--check 为只读模式。

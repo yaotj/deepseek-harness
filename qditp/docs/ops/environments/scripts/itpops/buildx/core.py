@@ -517,7 +517,11 @@ def _do_build(cos: _CloudOS, opts: dict, env: envx.Env) -> int:
         raise OpsError(f"找不到 jar：{jar}", EXIT_PRECONDITION)
     dockerfile = opts["dockerfile"] or str(root / mod / "Dockerfile")
     if not Path(dockerfile).is_file():
-        raise OpsError(f"找不到 Dockerfile：{dockerfile}", EXIT_PRECONDITION)
+        raise OpsError(
+            f"找不到 Dockerfile：{dockerfile}"
+            f"（本仓模块大多无独立 Dockerfile，共享模板 {root / 'docs/ops/environments/scripts/buildx.Dockerfile'}，用 --dockerfile 指定）",
+            EXIT_PRECONDITION,
+        )
 
     raw = Path(dockerfile).read_text()
     dockerfile_text, from_in_file = _replace_from(raw, base_image)

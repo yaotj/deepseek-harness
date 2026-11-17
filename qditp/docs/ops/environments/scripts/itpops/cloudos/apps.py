@@ -175,9 +175,11 @@ def _app_detail(key: str) -> int:
     _line("service_name :", meta.get("service_name"))
     _line("cluster      :", app.get("cluster_name") or app.get("cluster_id"))
     _line("replicas     :", app.get("instance_num"), "ok=", app.get("instance_ok_num"))
+    _line("container_image:", meta.get("container_image"))
     _line("created_at   :", app.get("created_at"))
     _line("description  :", app.get("description"))
     ui.out("")
+    ui.out("# 实跑镜像以 cloudos pods <应用> 的 IMAGE 列为准（本字段是平台记录值，可能滞后，见 IT-034）")
     if env:
         ui.out("--- env（%d 项，按 key 排序）---" % len(env))
         ui.out("\n".join("%s=%s" % (k, env[k]) for k in sorted(env)))
@@ -290,14 +292,16 @@ def _app_pods(key: str) -> int:
     uuid = resolve_app_uuid(key)
     d = _req("GET", f"{APP_API}/apps/{uuid}/instances")
     rows = (d.get("data") or []) if isinstance(d, dict) else []
-    ui.out("%-42s %-6s %-16s %-6s %s" % ("POD", "READY", "POD_IP", "RESTART", "CONTAINERS"))
+    ui.out("%-40s %-6s %-16s %-8s %s" % ("POD", "READY", "POD_IP", "RESTART", "IMAGE"))
     ui.out("-" * 110)
     lines = []
     for p in rows:
-        cs = ",".join(c.get("name") or "" for c in (p.get("containers") or []))
-        lines.append("%-42s %-6s %-16s %-6s %s" % (
+        # 业务容器镜像（剔除 istio proxyv2 sidecar）；deploy 后核验 image tag 用
+        imgs = [c.get("image") or "" for c in (p.get("containers") or [])
+                if isinstance(c, dict) and "proxyv2" not in (c.get("image") or "")]
+        lines.append("%-40s %-6s %-16s %-8s %s" % (
             p.get("name"), p.get("ready"), p.get("podIP"),
-            p.get("restartTime"), cs))
+            p.get("restartTime"), ",".join(i for i in imgs if i) or "-"))
     if lines:
         ui.out("\n".join(lines))
     ui.result({"count": len(rows), "instances": rows})

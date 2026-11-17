@@ -195,7 +195,8 @@ def render_summary(new_versions: dict[str, str], dry_run: bool) -> list[str]:
         "下一步 MUST 手动执行：",
         "  后端  mise exec -- mvn -o clean package -pl <模块> -DskipTests",
         "  前端  cd web && npm run build:zip",
-        "  部署  itp-ops.sh buildx <镜像名> <新tag> --env test --jar ...",
+        "  部署  itp-ops.sh buildx <模块名> <新tag> --env test（模块无自有 Dockerfile 时加",
+        "        --dockerfile docs/ops/environments/scripts/buildx.Dockerfile）",
         "      + itp-ops.sh --env test cloudos deploy <应用> <新tag> --yes",
     ]
     return lines

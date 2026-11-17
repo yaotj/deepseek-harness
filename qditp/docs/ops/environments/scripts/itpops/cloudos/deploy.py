@@ -356,8 +356,9 @@ def _app_deploy(argv: list[str]) -> int:
     ui.out("")
     ui.out("下一步（缺一不可）：")
     ui.out("  1) 探活 + 业务核验（NodePort 见 cloudos svc %s）" % plan["app_name"])
-    ui.out("  2) 比对实例容器镜像里的 digest 与上面推送的 %s；"
-           "IT-031 涉及的服务 MUST 复验 PID1=/startapp.sh 与 JVM 堆口径" % digest)
+    ui.out("  2) cloudos pods %s 比对 IMAGE 列 tag == 目标 tag（实例 API 无 digest 字段，"
+           "digest 走 Harbor 镜像页核对）；" % plan["app_name"])
+    ui.out("     IT-031 涉及的服务 MUST 复验 PID1=/startapp.sh 与 JVM 堆口径" )
     ui.out("     堆 = max_memory - reserved_memory - max_direct_memory；"
            "红岛 8Gi=5900m / 测试 4Gi=2900m，MUST 按本应用 env 现查，NEVER 全局套 5900m")
     ui.out("  回滚：cloudos deploy %s %s --app-version %s --yes"

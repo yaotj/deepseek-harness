@@ -3,6 +3,25 @@
 > 2026-11-04 由 `README.md`「六、重构与迁移记录」拆出，历史条目按**新 → 旧**排列、内容逐字保留。
 > 版本号真源是 `itpops/__init__.py` 的 `__version__`（`pyproject.toml` 动态读取）。
 
+## 2.9.4+（未发版）— 2026-11-17 发版链路透出修正
+
+> 2026-11-17 ticket-server 2.2.9 / gate-txn-pay-server 2.1.11 发版实测暴露的脚本缺陷，
+> 全部只读面/提示面修正，无行为变更。
+
+- `cloudos app` 人类可读输出补 `container_image:` 行（此前查镜像名必须 `--json` 且知道
+  内部键路径 `data.app.metadata.container_image`，与《构建与发布.md》「镜像名 MUST 现查
+  cloudos app 的 container_image」口径脱节），并附 IT-034 滞后提示。
+- `cloudos pods` 表头 `CONTAINERS` 列换成 `IMAGE` 列（取实例 API 业务容器镜像、剔除
+  istio proxyv2 sidecar）——deploy 输出的「下一步 MUST 比对实例容器镜像」此前在命令面
+  无法执行；实例 API 无 digest 字段，digest 核对仍走 Harbor 镜像页。
+- `version bump` 摘要提示 `buildx <镜像名>` 改为 `<模块名>`（buildx 实参是短模块名，
+  传完整镜像引用会挂在 jar 路径解析），并补共享 Dockerfile 提示
+  `--dockerfile docs/ops/environments/scripts/buildx.Dockerfile`；`cloudos --help` 的
+  buildx 用法行同步改口径。
+- `buildx` 缺 Dockerfile 错误信息指向共享模板绝对路径（此前只报默认路径，不告知替代）。
+- `cloudos deploy` 收尾提示第 2 条改为可执行口径（`cloudos pods` 比对 IMAGE tag）。
+- 单测 168 例全过；真实测试环境验证 `cloudos app` / `cloudos pods` 新输出。
+
 ## 2.9.4+（未发版）— 2026-11-06 环境变量升级流程纯 CloudOS 化
 
 > 用户裁定：**改 env 只用 CloudOS 接口，不用 k8s 底层能力**。
