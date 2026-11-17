@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-/** {@link TransRecordAssembler} 单测。 */
 class TransRecordAssemblerTest {
 
     @Test
@@ -60,6 +59,49 @@ class TransRecordAssemblerTest {
         assertEquals("CH20260914001", dto.getPayTradeOrderNo());
         assertEquals(Integer.valueOf(2), dto.getDiscountFee());
         assertEquals("满减", dto.getDiscountInfo());
+    }
+
+    @Test
+    void 优惠金额自算优先于渠道couponAmount() {
+        PayTxnDetailDTO pay = pay();
+        pay.setCouponAmount(1800);
+
+        TransRecordDTO dto = TransRecordAssembler.assemble(gate(), pay);
+
+        assertEquals(Integer.valueOf(2), dto.getDiscountFee());
+    }
+
+    @Test
+    void 优惠金额自算缺失时回落渠道couponAmount() {
+        PayTxnDetailDTO pay = pay();
+        pay.setDiscountFee(null);
+        pay.setCouponAmount(1800);
+
+        TransRecordDTO dto = TransRecordAssembler.assemble(gate(), pay);
+
+        assertEquals(Integer.valueOf(1800), dto.getDiscountFee());
+    }
+
+    @Test
+    void 优惠明细自算优先于渠道明细() {
+        PayTxnDetailDTO pay = pay();
+        pay.setChannelDiscountInfo("[{\"amount\":1800,\"type\":\"COUPON\"}]");
+
+        TransRecordDTO dto = TransRecordAssembler.assemble(gate(), pay);
+
+        assertEquals("满减", dto.getDiscountInfo());
+    }
+
+    @Test
+    void 优惠明细自算缺失时回落渠道明细原文() {
+        PayTxnDetailDTO pay = pay();
+        pay.setDiscountInfo(null);
+        pay.setChannelDiscountInfo("[{\"amount\":1800,\"name\":\"聚合优惠-活动储值券-定额20\",\"type\":\"COUPON\"}]");
+
+        TransRecordDTO dto = TransRecordAssembler.assemble(gate(), pay);
+
+        assertEquals("[{\"amount\":1800,\"name\":\"聚合优惠-活动储值券-定额20\",\"type\":\"COUPON\"}]",
+                dto.getDiscountInfo());
     }
 
     @Test

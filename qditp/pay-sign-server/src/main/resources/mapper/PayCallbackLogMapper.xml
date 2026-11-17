@@ -56,4 +56,28 @@
               AND CALLBACK_TYPE = #{callbackType,jdbcType=VARCHAR}
         )
     </update>
+
+    <!-- 每单取 CREATE_TIME 最新一条带渠道优惠明细的回调；窗口函数行号过滤，主查询只回两列轻量映射 -->
+    <resultMap id="DiscountInfoOnlyResultMap" type="com.chinasofti.huateng.paysign.entity.PayCallbackLog">
+        <result column="MERCHANT_ORDER_NO" property="merchantOrderNo"/>
+        <result column="DISCOUNT_INFO" property="discountInfo"/>
+    </resultMap>
+    <select id="selectLatestPayDiscountInfoByOrderNos" resultMap="DiscountInfoOnlyResultMap">
+        SELECT MERCHANT_ORDER_NO, DISCOUNT_INFO
+        FROM (
+            SELECT MERCHANT_ORDER_NO, DISCOUNT_INFO,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY MERCHANT_ORDER_NO
+                       ORDER BY CREATE_TIME DESC, ID DESC
+                   ) AS RN
+            FROM PAY_CALLBACK_LOG
+            WHERE CALLBACK_TYPE = #{callbackType,jdbcType=VARCHAR}
+              AND DISCOUNT_INFO IS NOT NULL
+              AND MERCHANT_ORDER_NO IN
+            <foreach collection="orderNos" item="orderNo" open="(" separator="," close=")">
+                #{orderNo,jdbcType=VARCHAR}
+            </foreach>
+        )
+        WHERE RN = 1
+    </select>
 </mapper>

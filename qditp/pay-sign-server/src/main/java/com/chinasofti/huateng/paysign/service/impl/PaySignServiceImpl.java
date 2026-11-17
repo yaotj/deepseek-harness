@@ -18,6 +18,8 @@ import com.chinasofti.huateng.model.app.QueryPayTxnBatchReqDTO;
 import com.chinasofti.huateng.model.paysign.PaySignInfoDTO;
 import com.chinasofti.huateng.paysign.entity.PaySignInfo;
 import com.chinasofti.huateng.paysign.entity.PayTxnDetail;
+import com.chinasofti.huateng.paysign.entity.PayCallbackLog;
+import com.chinasofti.huateng.paysign.mapper.PayCallbackLogMapper;
 import com.chinasofti.huateng.paysign.mapper.PaySignInfoMapper;
 import com.chinasofti.huateng.paysign.mapper.PayTxnDetailMapper;
 import com.chinasofti.huateng.model.app.ReceiveTerminationResultReqDTO;
@@ -40,7 +42,6 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 支付签约应用服务门面。 */
 @Service
 public class PaySignServiceImpl implements PaySignService {
     private static final Logger log = LoggerFactory.getLogger(PaySignServiceImpl.class);
@@ -51,19 +52,22 @@ public class PaySignServiceImpl implements PaySignService {
     private final CallbackDomainService callbackDomainService;
     private final PaySignInfoMapper paySignInfoMapper;
     private final PayTxnDetailMapper payTxnDetailMapper;
+    private final PayCallbackLogMapper payCallbackLogMapper;
 
     public PaySignServiceImpl(ContractDomainService contractDomainService,
                               PaymentDomainService paymentDomainService,
                               RefundDomainService refundDomainService,
                               CallbackDomainService callbackDomainService,
                               PaySignInfoMapper paySignInfoMapper,
-                              PayTxnDetailMapper payTxnDetailMapper) {
+                              PayTxnDetailMapper payTxnDetailMapper,
+                              PayCallbackLogMapper payCallbackLogMapper) {
         this.contractDomainService = contractDomainService;
         this.paymentDomainService = paymentDomainService;
         this.refundDomainService = refundDomainService;
         this.callbackDomainService = callbackDomainService;
         this.paySignInfoMapper = paySignInfoMapper;
         this.payTxnDetailMapper = payTxnDetailMapper;
+        this.payCallbackLogMapper = payCallbackLogMapper;
     }
 
     @Override
@@ -156,6 +160,7 @@ public class PaySignServiceImpl implements PaySignService {
             List<PayTxnDetail> list = payTxnDetailMapper.selectByOrderNos(orderNos);
             List<com.chinasofti.huateng.model.paysign.PayTxnDetailDTO> dtoList =
                     com.chinasofti.huateng.paysign.support.PayTxnViews.toDtoList(list);
+            fillChannelDiscountInfo(dtoList, orderNos);
             result.setRetCode("0000");
             result.setRetMsg("成功");
             result.setPayTxnDetailList(dtoList);
@@ -165,5 +170,30 @@ public class PaySignServiceImpl implements PaySignService {
             result.setRetMsg("批量查询支付明细异常");
         }
         return result;
+    }
+
+
+    private void fillChannelDiscountInfo(
+            List<com.chinasofti.huateng.model.paysign.PayTxnDetailDTO> dtoList, List<String> orderNos) {
+        if (dtoList == null || dtoList.isEmpty()) {
+            return;
+        }
+        List<PayCallbackLog> discountLogs =
+                payCallbackLogMapper.selectLatestPayDiscountInfoByOrderNos(orderNos, "PAY");
+        if (discountLogs == null || discountLogs.isEmpty()) {
+            return;
+        }
+        java.util.Map<String, String> discountInfoByOrderNo = new java.util.HashMap<>();
+        for (PayCallbackLog discountLog : discountLogs) {
+            if (discountLog.getMerchantOrderNo() != null && discountLog.getDiscountInfo() != null) {
+                discountInfoByOrderNo.putIfAbsent(discountLog.getMerchantOrderNo(), discountLog.getDiscountInfo());
+            }
+        }
+        for (com.chinasofti.huateng.model.paysign.PayTxnDetailDTO dto : dtoList) {
+            String channelDiscountInfo = discountInfoByOrderNo.get(dto.getOrderNo());
+            if (channelDiscountInfo != null) {
+                dto.setChannelDiscountInfo(channelDiscountInfo);
+            }
+        }
     }
 }

@@ -2,9 +2,7 @@ package com.chinasofti.huateng.model.paysign;
 
 import java.time.LocalDateTime;
 
-/**
- * pay-sign-server 支付明细 RPC 透出 DTO。
- */
+
 public class PayTxnDetailDTO {
     private Long id;
     private String orderNo;
@@ -37,6 +35,8 @@ public class PayTxnDetailDTO {
     private String discountInfo;
     private String debitRequestResult;
     private Integer discountFee;
+
+    private String channelDiscountInfo;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -100,4 +100,6 @@ public class PayTxnDetailDTO {
     public void setDebitRequestResult(String debitRequestResult) { this.debitRequestResult = debitRequestResult; }
     public Integer getDiscountFee() { return discountFee; }
     public void setDiscountFee(Integer discountFee) { this.discountFee = discountFee; }
+    public String getChannelDiscountInfo() { return channelDiscountInfo; }
+    public void setChannelDiscountInfo(String channelDiscountInfo) { this.channelDiscountInfo = channelDiscountInfo; }
 }
