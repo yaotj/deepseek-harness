@@ -2,11 +2,7 @@ package com.chinasofti.huateng.gatetxnpay.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * 用户主动重试扣费队列表实体（GATE_RETRY_QUEUE）。
- *
- * <p>用于解耦 APP 请求与支付中心调用，避免瞬时 TPS 冲击正常扣费流程（ADR-D169 方案 A）。
- */
+
 public class GateRetryQueue {
 
     private Long id;

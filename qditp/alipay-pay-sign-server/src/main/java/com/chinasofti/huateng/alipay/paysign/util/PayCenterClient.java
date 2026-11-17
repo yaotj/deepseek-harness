@@ -32,12 +32,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-/**
- * 支付中心 HTTP 调用客户端。
- *
- * <p>职责：封装与支付中心的所有交互，包括支付、退款、查询、通知等。
- * 当前签名采用测试占位，生产环境应替换为真实 RSA 签名流程。
- */
+
 @Component
 public class PayCenterClient {
     private static final Logger log = LoggerFactory.getLogger(PayCenterClient.class);
@@ -58,75 +53,52 @@ public class PayCenterClient {
                 .build();
     }
 
-    /**
-     * 调用支付中心支付接口。
-     */
+
     public PayCenterResponse requestPay(Map<String, Object> bizDataMap) {
         return callPayCenter(payCenterProperties.getRequestPayUrl(), buildEncryptedRequest(bizDataMap));
     }
 
-    /**
-     * 调用支付宝退款接口。
-     */
+
     public PayCenterResponse requestRefund(Map<String, Object> bizDataMap) {
         return callPayCenter(payCenterProperties.getRequestRefundUrl(), buildEncryptedRequest(bizDataMap));
     }
 
-    /**
-     * 调用支付中心支付查询接口。
-     */
+
     public PayCenterResponse payQuery(Map<String, Object> bizDataMap) {
         return callPayCenter(payCenterProperties.getPayQueryUrl(), buildEncryptedRequest(bizDataMap));
     }
 
-    /**
-     * 调用支付中心退款查询接口。
-     */
+
     public PayCenterResponse refundQuery(Map<String, Object> bizDataMap) {
         return callPayCenter(payCenterProperties.getRefundQueryUrl(), buildEncryptedRequest(bizDataMap));
     }
 
-    /**
-     * 调用支付中心业务关闭结果通知接口。
-     */
+
     public PayCenterResponse closeResultNotify(Map<String, Object> bizDataMap) {
         return callPayCenter(payCenterProperties.getCloseResultNotifyUrl(), buildPlainRequest(bizDataMap));
     }
 
-    /**
-     * 调用支付中心黑名单变更通知接口。
-     */
+
     public PayCenterResponse blacklistNotify(Map<String, Object> bizDataMap) {
         return callPayCenter(payCenterProperties.getBlacklistNotifyUrl(), buildPlainRequest(bizDataMap), true);
     }
 
-    /**
-     * 构建支付中心请求，bizData 采用 Base64 编码。
-     */
+
     private PayCenterRequest buildEncryptedRequest(Map<String, Object> bizDataMap) {
         return buildRequest(bizDataMap, true);
     }
 
-    /**
-     * 构建支付中心请求，bizData 采用 Base64 编码，并指定接口路径。
-     */
+
     private PayCenterRequest buildEncryptedRequest(String path, Map<String, Object> bizDataMap) {
         return buildRequest(path, bizDataMap, true);
     }
 
-    /**
-     * 构建支付中心请求，bizData 保持明文。
-     */
+
     private PayCenterRequest buildPlainRequest(Map<String, Object> bizDataMap) {
         return buildRequest(bizDataMap, false);
     }
 
-    /**
-     * 统一构建支付中心请求。
-     *
-     * @param bizDataMap 业务数据
-     * @param encrypted  是否对 bizData 做 Base64 编码
-     */
+
     private PayCenterRequest buildRequest(Map<String, Object> bizDataMap, boolean encrypted) {
         PayCenterRequest payCenterRequest = new PayCenterRequest();
         payCenterRequest.setMerchantNo(payCenterProperties.getMerchantNo());
@@ -142,27 +114,17 @@ public class PayCenterClient {
         return payCenterRequest;
     }
 
-    /**
-     * 统一构建支付中心请求，并指定接口路径。
-     */
+
     private PayCenterRequest buildRequest(String path, Map<String, Object> bizDataMap, boolean encrypted) {
         return buildRequest(bizDataMap, encrypted);
     }
 
-    /**
-     * 统一调用支付中心 HTTP 接口。
-     */
+
     private PayCenterResponse callPayCenter(String url, PayCenterRequest request) {
         return callPayCenter(url, request, false);
     }
 
-    /**
-     * 统一调用支付中心 HTTP 接口。
-     *
-     * @param url      目标地址
-     * @param request  请求体
-     * @param formMode 是否以 form-data 发送
-     */
+
     private PayCenterResponse callPayCenter(String url, PayCenterRequest request, boolean formMode) {
         if (url == null || url.trim().isEmpty()) {
             log.error("支付中心接口地址未配置");
@@ -222,17 +184,13 @@ public class PayCenterClient {
         }
     }
 
-    /**
-     * 出向报文签名。当前是占位实现（{@code sign="test"}），上线前 MUST 替换为真实签名。
-     */
+
     private void signRequest(PayCenterRequest request) {
         log.warn("测试阶段使用测试签名");
         request.setSign("test");
     }
 
-    /**
-     * 构建签名源数据。
-     */
+
     private String buildSignData(PayCenterRequest request) {
         Map<String, String> params = new java.util.LinkedHashMap<>();
         params.put("merchantNo", request.getMerchantNo());
@@ -251,9 +209,7 @@ public class PayCenterClient {
         return sb.toString();
     }
 
-    /**
-     * RSA签名。
-     */
+
     private String signWithRsa(String data, String privateKey) throws Exception {
         byte[] keyBytes = Base64.getDecoder().decode(privateKey);
         PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
@@ -266,23 +222,12 @@ public class PayCenterClient {
         return Base64.getEncoder().encodeToString(signature.sign());
     }
 
-    /**
-     * 生成商户订单号。
-     */
+
     public String generateMerchantOrderNo() {
         return "M" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0, 8);
     }
 
-    /**
-     * 把响应的 data 解开成 map，**整个响应只解一次**。
-     *
-     * <p>{@link #getStringFromData} 与 {@link #getIntFromData} 每调一次都重新 Base64 + JSON 解析一遍，
-     * 一次支付查询要取 6 个字段就解 6 遍。{@code PayCenterRpcAdapter} 用本方法一次解开、装进
-     * {@code PayCenterReply.Accepted.data}（ADR-D131），<b>NEVER 在调用点回退成逐键 getStringFromData</b>。
-     * 那两个逐键方法保留是因为仍有其它调用点，本批次不动它们。</p>
-     *
-     * @return 解不开或 data 为空时返回**空 map、不是 null**（调用点是 record 字段，不该再判空）
-     */
+
     public Map<String, Object> decodeDataMap(PayCenterResponse response) {
         if (response == null || response.getData() == null) {
             return Collections.emptyMap();
@@ -291,9 +236,7 @@ public class PayCenterClient {
         return dataMap == null ? Collections.emptyMap() : dataMap;
     }
 
-    /**
-     * 从响应数据中获取字符串值。
-     */
+
     public String getStringFromData(PayCenterResponse response, String key) {
         if (response == null || response.getData() == null) {
             return null;
@@ -306,9 +249,7 @@ public class PayCenterClient {
         return value != null ? value.toString() : null;
     }
 
-    /**
-     * 从响应数据中获取整数值。
-     */
+
     public Integer getIntFromData(PayCenterResponse response, String key) {
         if (response == null || response.getData() == null) {
             return null;
@@ -331,9 +272,7 @@ public class PayCenterClient {
         }
     }
 
-    /**
-     * Base64解码响应数据。
-     */
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> decodeData(String base64Data) {
         try {

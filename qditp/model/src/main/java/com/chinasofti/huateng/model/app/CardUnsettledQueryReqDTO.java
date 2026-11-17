@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * 按卡号查询「是否仍有未结清扣费订单」的通用请求。
- */
+
 public class CardUnsettledQueryReqDTO {
 
     private String cardId;

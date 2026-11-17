@@ -4,11 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.springframework.lang.Nullable;
 
-/**
- * 请求方式
- *
- * @author zmzhang
- */
+
 public enum HttpMethod
 {
     GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS, TRACE;

@@ -2,19 +2,14 @@ package com.chinasofti.huateng.ticket.entity;
 
 import java.time.LocalDateTime;
 
-/** IF5A-03 补站请求台账（{@code QRCODE_SUPPLEMENT_REQUEST}）。 */
 public class SupplementRequest {
 
-    /** 处理中，已声明但闸机结果尚未回来。 */
     public static final String STATUS_PENDING = "PENDING";
 
-    /** 闸机返回 0000。 */
     public static final String STATUS_SUCCESS = "SUCCESS";
 
-    /** 闸机明确拒绝（非 0000），结果确定，可由 BOM 重新发起。 */
     public static final String STATUS_REJECTED = "REJECTED";
 
-    /** 结果未知（超时 / 连不上 / 无响应体）， */
     public static final String STATUS_UNKNOWN = "UNKNOWN";
 
     private String cardId;

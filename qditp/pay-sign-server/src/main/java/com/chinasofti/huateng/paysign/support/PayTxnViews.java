@@ -5,13 +5,11 @@ import com.chinasofti.huateng.paysign.entity.PayTxnDetail;
 import java.util.ArrayList;
 import java.util.List;
 
-/** `PAY_TXN_DETAIL` 实体到对内查询 DTO 的装配（2026-09-16 由 {@code PaySignServiceImpl} 外提，ADR-D98 判据）。 */
 public final class PayTxnViews {
 
     private PayTxnViews() {
     }
 
-    /** 批量装配，顺序与入参一致。{@code null} 入参返回空列表（NEVER 返回 {@code null}）。 */
     public static List<PayTxnDetailDTO> toDtoList(List<PayTxnDetail> entities) {
         if (entities == null || entities.isEmpty()) {
             return new ArrayList<>();
@@ -23,7 +21,6 @@ public final class PayTxnViews {
         return dtoList;
     }
 
-    /** 单条装配。**26 个字段逐一对应，新增字段 MUST 同步加到这里**（有测试守）。 */
     public static PayTxnDetailDTO toDto(PayTxnDetail entity) {
         PayTxnDetailDTO dto = new PayTxnDetailDTO();
         dto.setId(entity.getId());

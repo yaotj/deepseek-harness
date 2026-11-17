@@ -15,10 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * 运营端设备信息参数接口（综管台「设备管理」页）。
- * <p>台账数据来自 ACC 同步，页面可维护业主自定义管理模式；手动同步供「立即同步」按钮使用。</p>
- */
+
 @RestController
 @RequestMapping("/page/device")
 public class DeviceInfoController {
@@ -29,7 +26,6 @@ public class DeviceInfoController {
         this.deviceInfoService = deviceInfoService;
     }
 
-    /** 分页查询设备台账，条件全部可选；keyword 同时模糊匹配设备编号与设备名称。 */
     @GetMapping("/list")
     public ResultVO<PageInfo<DeviceInfo>> list(@RequestParam(required = false) String lineId,
                                                @RequestParam(required = false) String stationId,
@@ -43,19 +39,16 @@ public class DeviceInfoController {
                 includeDeleted, pageNum, pageSize);
     }
 
-    /** 批量设置业主自定义管理模式，请求体 deviceIds + manageMode（01 正常使用 / 02 节能关机）。 */
     @PutMapping("/manage-mode")
     public ResultVO<Integer> updateManageMode(@RequestBody ManageModeRequest request) {
         return deviceInfoService.updateManageMode(request.getDeviceIds(), request.getManageMode());
     }
 
-    /** 手动触发一次 ACC 设备台账全量同步，同步可能耗时数十秒，前端按钮需延长超时。 */
     @PostMapping("/sync")
     public ResultVO<DeviceSyncResult> sync() {
         return deviceInfoService.syncFromAcc();
     }
 
-    /** 批量设置管理模式请求体。 */
     public static class ManageModeRequest {
         private List<String> deviceIds;
         private String manageMode;

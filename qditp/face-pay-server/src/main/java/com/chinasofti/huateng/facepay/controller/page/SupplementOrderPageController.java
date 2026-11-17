@@ -49,12 +49,7 @@ public class SupplementOrderPageController {
         };
     }
 
-    /**
-     * 综管台扣费明细页回填用：按一批原扣费订单号反查补款单。
-     *
-     * <p>返回扁平列表（不是分页页）——调用方是「拿当页扣费订单号换补款信息」，
-     * 分页在这里没有语义，硬造一个 total 反而误导。
-     */
+
     @GetMapping("/by-orig")
     public ResultVO<List<SupplementOrigRef>> byOrig(@RequestParam(required = false) List<String> origOrderNos) {
         try {

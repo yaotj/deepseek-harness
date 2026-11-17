@@ -18,10 +18,7 @@ import com.chinasofti.huateng.model.key.KeyVersionExportDTO;
 import com.chinasofti.huateng.rpc.key.KeyClient;
 import com.chinasofti.huateng.web.domain.export.AsyncExportTask;
 
-/**
- * KEY_VERSION 异步导出执行器。
- * Bean 名称为 KEY_VERSION，与 ASYNC_EXPORT_TASK.task_code 对应。
- */
+
 @Component("KEY_VERSION")
 public class KeyVersionExportExecutor implements IAsyncExportExecutor
 {

@@ -11,12 +11,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * BOM 补站单（{@code adviceOpt} 005 / 006 / 020）MUST 落单、MUST NOT 扣款：钱是 BOM 现场收的。
- *
- * <p>钉住两件事：①`adviceOpt` 从报文搬进订单并绑进 insert；②`isBomSupplement` 认这三个码 ——
- * 少了它，006 的 `trxAmount > 0` 会走真实免密扣款分支，乘客重复付费。
- */
+
 class GateBomSupplementPersistenceTest {
 
     @ParameterizedTest
@@ -46,7 +41,6 @@ class GateBomSupplementPersistenceTest {
         assertEquals(adviceOpt, cfg.newMetaObject(sql.getParameterObject()).getValue("adviceOpt"));
     }
 
-    /** 真实闸机检票与 APP 自助补站不带 adviceOpt，MUST 照常走后付费扣款。 */
     @ParameterizedTest
     @ValueSource(strings = {"", "018", "999"})
     void nonBomSupplementStillDebits(String adviceOpt) {

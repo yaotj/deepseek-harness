@@ -12,21 +12,13 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class TaskApply extends DataHead{
 
-    /**
-     * 编码机标识
-     */
+
     private String esNodeId;
 
-    /**
-     * 请求任务的日期
-     */
+
     private String date;
 
-    /**
-     * 把信息转化未TaskApply对象
-     * @param messageBean
-     * @return
-     */
+
     public static TaskApply message2TaskApply(MessageBean messageBean) {
         TaskApply apply = new TaskApply();
         apply.setTxnType(messageBean.getTxnType());

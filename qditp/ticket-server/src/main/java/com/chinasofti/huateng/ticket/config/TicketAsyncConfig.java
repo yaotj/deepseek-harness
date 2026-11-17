@@ -11,7 +11,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-/** ticket-server 异步任务线程池与出向 HTTP 客户端配置。 */
 @Configuration
 public class TicketAsyncConfig {
 
@@ -38,7 +37,6 @@ public class TicketAsyncConfig {
         return executor;
     }
 
-    /** 支付宝出行 21 键 {@code industryDetail} 组装用的专属线程池。 */
     @Bean("industryDetailExecutor")
     public Executor industryDetailExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
@@ -53,7 +51,6 @@ public class TicketAsyncConfig {
         return executor;
     }
 
-    /** 出向通知用的 OkHttp 客户端。 */
     @Bean("appNotifyHttpClient")
     public OkHttpClient appNotifyHttpClient() {
         return new OkHttpClient.Builder()

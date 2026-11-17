@@ -13,26 +13,18 @@ import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 
-/**
- * OpenAPI接口配置
- * 
- * @author zmzhang
- */
+
 @Configuration
 @ConditionalOnProperty(name = "swagger.enabled", havingValue = "true", matchIfMissing = true)
 public class SwaggerConfig
 {
-    /** 系统基础配置 */
     @Autowired
     private PointsConfig pointsConfig;
 
-    /** 设置请求的统一前缀 */
     @Value("${swagger.pathMapping}")
     private String pathMapping;
 
-    /**
-     * 创建API
-     */
+
     @Bean
     public OpenAPI createRestApi()
     {
@@ -46,9 +38,7 @@ public class SwaggerConfig
                 .addSecurityItem(new SecurityRequirement().addList("Authorization"));
     }
 
-    /**
-     * 添加摘要信息
-     */
+
     private Info apiInfo()
     {
         return new Info()

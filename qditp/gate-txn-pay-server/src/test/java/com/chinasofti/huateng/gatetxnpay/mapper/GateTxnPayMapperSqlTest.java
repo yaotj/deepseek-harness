@@ -19,7 +19,6 @@ import org.apache.ibatis.mapping.MappedStatement;
 import org.apache.ibatis.session.Configuration;
 import org.junit.jupiter.api.Test;
 
-/** 钉住 {@code GateTxnPayMapper.xml} 里三类最容易被重构改坏、且改坏后编译与启动都不报错的口径。 */
 class GateTxnPayMapperSqlTest {
 
     private static final String RESOURCE = "mapper/GateTxnPayMapper.xml";
@@ -41,18 +40,12 @@ class GateTxnPayMapperSqlTest {
             "updateOfflineFareRecalculated",
             "updateOfflineFarePendingMsg"};
 
-    /** 剥离 XML 注释用：注释里为讲清语义会引用状态字面量。 */
     private static final Pattern XML_COMMENT = Pattern.compile("<!--.*?-->", Pattern.DOTALL);
 
     private static final Pattern OFFLINE_PENDING_LITERAL =
             Pattern.compile("'OFFLINE_FARE_PENDING'");
 
-    /**
-     * 所有「发起扣款 / 处理未终态单」的语句 MUST 把离线码待重算态排除在外（金额未算准，扣下去就是扣错钱）。
-     * 日跑批量重试两条（{@code selectBatchRetryCandidates} / {@code prepareBatchRetry}）刻意不在此列：
-     * {@code applyOfflineFareRecalculated} 推进 PENDING 态<b>先于</b> {@code initiateAsync} 发起扣款，
-     * 状态机保证捞 RETRY / FAIL 的单子 NEVER 是 OFFLINE_FARE_PENDING（2026-11-17 复核结论）。
-     */
+
     private static final String[] OFFLINE_PENDING_EXCLUSIONS = {
             "selectRecentUnpaidCandidates",
             "prepareRecentRetry",
@@ -61,17 +54,11 @@ class GateTxnPayMapperSqlTest {
             "selectOneSideInCandidates",
             "selectOneSideOutCandidates"};
 
-    /**
-     * 剥离注释后，{@code 'OFFLINE_FARE_PENDING'} 字面量只允许出现 9 次：
-     * {@link #OFFLINE_PENDING_STATEMENTS} 三条各 1 次（捞单、抢占回写、失败留痕，都是 {@code =} 包含），
-     * 外加 {@link #OFFLINE_PENDING_EXCLUSIONS} 六条各 1 次（都是 {@code <>} 排除）。
-     * 新增语句带上该谓词时 MUST 同步更新这两个清单与计数 —— 计数不符即有人加了字面量却忘了登记。
-     */
+
     private static final int ALLOWED_OFFLINE_PENDING_LITERALS = 9;
 
     private final Configuration configuration = parseMapper();
 
-    /** 解约校验与黑名单解除共用黑名单口径，否则同一笔订单两处结论相反。 */
     @Test
     void unsettledQueriesUseBlacklistWithExplicitNull() {
         String expected = "(DEBIT_STATUS IS NULL OR DEBIT_STATUS != 'SUCCESS')";
@@ -81,7 +68,6 @@ class GateTxnPayMapperSqlTest {
                 "黑名单解除判定 MUST 与 countFailedOrder 同口径，否则欠费乘客会被放行");
     }
 
-    /** IF8A-35 分档是白名单，且两档互斥、都不含 SUCCESS 与 CLOSED。 */
     @Test
     void userAccInfoUsesWhitelistBuckets() {
         String sql = sqlOf("countUserAccInfo");
@@ -93,7 +79,6 @@ class GateTxnPayMapperSqlTest {
                 "联机查询 MUST 带 TXN_DATE 下限做分区裁剪，绑定值形如 '20260608' 的字符串");
     }
 
-    /** IF8A-05 的 debitRequestResult 过滤：0 走 SUCCESS，1 走带 NULL 的黑名单。 */
     @Test
     void debitResultFilterRendersBothBranches() {
         assertTrue(sqlWith("selectTransList", "debitRequestResult", "0")
@@ -104,7 +89,6 @@ class GateTxnPayMapperSqlTest {
                 "debitRequestResult=1 MUST 与解约口径一致，否则同一笔在 APP 页签里凭空消失");
     }
 
-    /** OGNL 里 {@code '0'} 是 char 字面量、与 String 比较恒为 false。 */
     @Test
     void debitResultFilterIsNotSilentlyDisabled() {
         String unfiltered = sqlOf("countTransList");
@@ -114,12 +98,7 @@ class GateTxnPayMapperSqlTest {
                 "传 0 却没拼出条件，说明 test 里的字符串被当成 char 比较了");
     }
 
-    /**
-     * 渠道过滤是可选谓词：不传即全渠道，传了才收窄。
-     *
-     * <p>断言写成 {@code ISSUE_CHANNEL_CODE = ?} 而不是列名本身 —— {@code selectTransList} 的
-     * {@code All_Column_List} 里本来就有这一列，只判列名会恒为真。
-     */
+
     @Test
     void issueChannelFilterIsOptionalAndNarrowsWhenPassed() {
         for (String id : new String[] {"selectTransList", "countTransList"}) {
@@ -130,7 +109,6 @@ class GateTxnPayMapperSqlTest {
         }
     }
 
-    /** 状态推进的前置状态是显式白名单。 */
     @Test
     void statusTransitionsKeepExplicitWhitelist() {
         String pending = sqlOf("updateStatusFromPending");
@@ -157,7 +135,6 @@ class GateTxnPayMapperSqlTest {
         }
     }
 
-    /** 置 SUCCESS 是资损。 */
     @Test
     void offlinePendingUpdatesNeverTouchDebitStatus() {
         for (String id : new String[] {"updateOfflineFareRecalculated", "updateOfflineFarePendingMsg"}) {
@@ -180,7 +157,6 @@ class GateTxnPayMapperSqlTest {
                         + "以及近 N 分钟未扣费那条任务的扫表与抢占两条语句（排除）里");
     }
 
-    /** 离线码金额没算准就发起扣费等于扣错钱：所有排除语句的排除谓词 NEVER 删。 */
     @Test
     void offlinePendingExcludedFromAllDebitEntrypoints() {
         for (String id : OFFLINE_PENDING_EXCLUSIONS) {
@@ -193,7 +169,6 @@ class GateTxnPayMapperSqlTest {
         }
     }
 
-    /** 近 N 分钟那条任务刻意不记账，否则 10 分钟内会烧光日跑任务的次数预算。 */
     @Test
     void recentRetryClaimNeverTouchesRetryAccounting() {
         String setClause = sqlOf("prepareRecentRetry").replaceAll("(?i)\\s+WHERE\\s+.*$", "");
@@ -213,7 +188,6 @@ class GateTxnPayMapperSqlTest {
         }
     }
 
-    /** 抢占语义靠 WHERE 里的状态条件，返回 1 才代表抢到，去掉即退化成无条件覆盖。 */
     @Test
     void recalculatedUpdateKeepsCasPrecondition() {
         String sql = sqlOf("updateOfflineFareRecalculated");
@@ -223,7 +197,6 @@ class GateTxnPayMapperSqlTest {
                 "原价回填 MUST 保留 IS NULL：它既是幂等条件也防止篡改历史账单快照");
     }
 
-    /** 渲染出 {@code WHERE AND} 只在运行时抛语法异常，因此对全部语句扫一遍。 */
     @Test
     void noStatementRendersDanglingWhereAnd() {
         Pattern danglingAnd = Pattern.compile("where\\s+and\\b", Pattern.CASE_INSENSITIVE);
@@ -233,7 +206,6 @@ class GateTxnPayMapperSqlTest {
         }
     }
 
-    /** 该语句静默失效，只在 Oracle 环境暴露（达梦环境关了 WallFilter）。 */
     @Test
     void renderedSqlCarriesNoInlineComment() {
         for (String id : distinctStatementIds()) {
@@ -299,7 +271,6 @@ class GateTxnPayMapperSqlTest {
         return params;
     }
 
-    /** IF8A-41 的统计语句以 {@code request.*} 取值，缺这个键会渲染成不带任何过滤的全表扫描。 */
     private static Map<String, Object> statisticsRequest() {
         Map<String, Object> request = new HashMap<>();
         request.put("thirdUserId", "U1");

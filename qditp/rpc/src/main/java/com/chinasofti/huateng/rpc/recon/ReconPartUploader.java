@@ -6,9 +6,7 @@ import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
 
-/**
- * 分片写出通道的工厂，四个源服务共用。
- */
+
 @Service
 public class ReconPartUploader {
 
@@ -20,13 +18,7 @@ public class ReconPartUploader {
 
     private final long maxPartBytes;
 
-    /**
-     * 构造分片上传工厂。
-     * @param client recon-server 客户端。
-     * @param tempDir 分片临时目录，取自配置 {@code recon.export.temp-dir}
-     * @param maxPartRecords 单片最大记录数，取自配置 {@code recon.export.max-part-records}
-     * @param maxPartBytes 单片最大未压缩字节数，取自配置 {@code recon.export.max-part-bytes}
-     */
+
     public ReconPartUploader(ReconClient client,
                              @Value("${recon.export.temp-dir:/home/javaapp/app/recon-export}") String tempDir,
                              @Value("${recon.export.max-part-records:200000}") long maxPartRecords,
@@ -37,13 +29,7 @@ public class ReconPartUploader {
         this.maxPartBytes = maxPartBytes;
     }
 
-    /**
-     * 打开一个分片写出通道。
-     * @param batchId 批次标识。
-     * @param source 来源标识。
-     * @param fileType 文件类型。
-     * @return 分片写出通道。
-     */
+
     public ReconPartSink open(String batchId, String source, ReconFileTypeEnum fileType) {
         if (batchId == null || !batchId.matches("[A-Za-z0-9_-]{1,64}")) {
             throw new IllegalArgumentException("非法批次标识: " + batchId);

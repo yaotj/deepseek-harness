@@ -2,11 +2,7 @@ package com.chinasofti.huateng.para.model.device;
 
 import java.util.List;
 
-/**
- * ACC 设备配置接口分页响应（{@code GET /api/v1/Config/device}）。
- * <p>结构：{@code {"body":{"totalCount":..,"currentPage":..,"pageSize":..,"data":[..]},
- * "success":true,"error":null}}，用 Fastjson2 反序列化。</p>
- */
+
 public class AccDevicePageResult {
     private Body body;
     private Boolean success;
@@ -19,7 +15,6 @@ public class AccDevicePageResult {
     public String getError() { return error; }
     public void setError(String error) { this.error = error; }
 
-    /** ACC 分页 body 段。 */
     public static class Body {
         private Integer totalCount;
         private Integer currentPage;

@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** 钉住运营补数 {@code backfillOriginalFare} 的四类「出错不报错」行为：入参护栏、dryRun 默认值、 limit 钳制、可疑差额与幂等/失败分流。 */
 class OriginalFareBackfillTest {
 
     private static final String START = "20260901";
@@ -30,7 +29,6 @@ class OriginalFareBackfillTest {
     private final GateTxnPayMapper mapper = mock(GateTxnPayMapper.class);
     private final FareCalculator fareCalculator = mock(FareCalculator.class);
 
-    /** 入参护栏：请求体为空、日期非 yyyyMMdd、start 晚于 end。 */
     @Test
     void illegalRequestNeverTouchesDb() {
         assertEquals(ResultVO.ILLEGAL_PARAMS_CODE, service().backfillOriginalFare(null).getCode());
@@ -52,7 +50,6 @@ class OriginalFareBackfillTest {
         verify(mapper, never()).updateOriginalFareIfNull(anyString(), anyString(), anyInt());
     }
 
-    /** limit：null 落 500、超上限收到 5000、小于 1 抬到 1。 */
     @Test
     void limitIsClampedIntoOneToFiveThousand() {
         assertEquals(500, capturedLimit(null));
@@ -61,7 +58,6 @@ class OriginalFareBackfillTest {
         assertEquals(1, capturedLimit(-10));
     }
 
-    /** 可疑差额：实付 &gt。 */
     @Test
     void suspiciousDiffIsParkedInsteadOfWritten() {
         stub(row("GT2", 4), 400);
@@ -75,7 +71,6 @@ class OriginalFareBackfillTest {
         verify(mapper, never()).updateOriginalFareIfNull(anyString(), anyString(), anyInt());
     }
 
-    /** 「差额等于原价」是正常形态，不是脏数据。 */
     @Test
     void zeroPaidRowIsNotSuspicious() {
         stub(row("GT3", 0), 400);
@@ -89,7 +84,6 @@ class OriginalFareBackfillTest {
         assertEquals(1, data.get("updatedCount"));
     }
 
-    /** {@code force=true} 明确越过阈值：运营确认过差额属实时用，落库仍走同一条带 IS NULL 的 UPDATE。 */
     @Test
     void forceBypassesSuspectThreshold() {
         stub(row("GT4", 4), 400);
@@ -104,7 +98,6 @@ class OriginalFareBackfillTest {
         assertEquals(1, data.get("updatedCount"));
     }
 
-    /** UPDATE 影响 0 行是幂等结果不是失败：并发下已被别的调用填过。 */
     @Test
     void zeroAffectedRowCountsAsNeitherUpdatedNorFailed() {
         stub(row("GT5", 400), 500);
@@ -118,7 +111,6 @@ class OriginalFareBackfillTest {
         assertEquals(0, data.get("failedCount"));
     }
 
-    /** 不中断后续行： 本方法不带事务、逐笔自动提交，中途 return 会让剩下的行白扫一遍 para-server。 */
     @Test
     void oneRowFailureNeitherAbortsNorSwallowsTheRest() {
         GateTxnPay boom = row("GT6", 400);
@@ -188,7 +180,6 @@ class OriginalFareBackfillTest {
         return service(mapper);
     }
 
-    /** 补数只需要 {@code gateTxnPayMapper} 与 {@link FareCalculator} 两个协作者，构造器也只收这两个。 */
     private OriginalFareBackfillServiceImpl service(GateTxnPayMapper gateTxnPayMapper) {
         return new OriginalFareBackfillServiceImpl(gateTxnPayMapper, fareCalculator);
     }

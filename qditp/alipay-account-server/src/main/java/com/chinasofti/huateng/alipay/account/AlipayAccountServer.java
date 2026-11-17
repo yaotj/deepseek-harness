@@ -9,9 +9,7 @@ import com.chinasofti.huateng.rpc.EnableRpcCardPool;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.ComponentScan;
 
-/**
- * 支付宝账户服务启动类。
- */
+
 @SpringBootApplication
 @EnableRpcCardPool
 @ConfigurationPropertiesScan
@@ -23,18 +21,12 @@ import org.springframework.context.annotation.ComponentScan;
 @EnableRpcTicket
 public class AlipayAccountServer implements CommandLineRunner {
 
-    /**
-     * 支付宝账户服务启动入口。
-     * @param args 启动参数
-     */
+
     public static void main(String[] args) {
         SpringApplication.run(AlipayAccountServer.class, args);
     }
 
-    /**
-     * 服务启动后执行的初始化逻辑。
-     * @param args 启动参数
-     */
+
     @Override
     public void run(String... args) {
     }

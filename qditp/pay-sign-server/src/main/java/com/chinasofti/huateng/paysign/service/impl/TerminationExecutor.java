@@ -31,7 +31,6 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 
-/** 解约域的**执行**能力：内部执行解约（`/internal/termination/execute`）与 IF8A-75 直接解绑。 */
 @Service
 public class TerminationExecutor {
 
@@ -42,22 +41,17 @@ public class TerminationExecutor {
     private static final String STATUS_SUCCESS = TerminationStatus.SUCCESS.name();
     private static final String STATUS_FAILED = TerminationStatus.FAILED.name();
 
-    /** 本类**不再持有** WALLET_PAYMENT_VENDOR 常量（2026-09-16，ADR-D108）。 */
 
     private final AppTerminationRequestMapper terminationRequestMapper;
 
     private final PaySignInfoMapper paySignInfoMapper;
 
-    /** 支付中心签约/解约方向的出向端口（2026-09-16，ADR-D115）。 */
     private final ContractGatewayPort contractGatewayPort;
 
-    /** 审计流水的唯一写入点。 */
     private final PaySignAuditLogger auditLogger;
 
-    /** 账户域出向调用的唯一出口（ADR-D94 续）。 */
     private final AccountDomainPort accountDomainPort;
 
-    /** 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备。 */
     public TerminationExecutor(
             AppTerminationRequestMapper terminationRequestMapper,
             PaySignInfoMapper paySignInfoMapper,
@@ -71,7 +65,6 @@ public class TerminationExecutor {
         this.accountDomainPort = accountDomainPort;
     }
 
-    /** 本方法 NEVER 加 @Transactional：方法体内要调支付中心（contractGatewayPort.requestDismissal）。 */
     public BaseRespDTO executeTermination(ExecuteTerminationReqDTO request) {
         BaseRespDTO response = new BaseRespDTO();
         if (request == null || !StringUtils.hasText(request.getRequestSignSeq())) {
@@ -132,7 +125,6 @@ public class TerminationExecutor {
         return response;
     }
 
-    /** IF8A-75 直接解绑支付方式。 */
     public UnbindAgreementResult unbindAgreement(UnbindAgreementReqDTO request) {
         UnbindAgreementResult response = new UnbindAgreementResult();
         String requestSignSeq = request == null ? null : request.getRequestSignSeq();
@@ -174,7 +166,6 @@ public class TerminationExecutor {
         return response;
     }
 
-    /** 从 account-server 反查该签约流水对应的 CARD_ID / CARD_TYPE 并写入执行解约入参。 */
     private void fillCardInfoFromAccount(ExecuteTerminationReqDTO executeRequest, String requestSignSeq) {
         try {
             switch (accountDomainPort.queryPayChannelByContract(requestSignSeq)) {
@@ -198,11 +189,7 @@ public class TerminationExecutor {
         }
     }
 
-    /**
-     * 解约申请缺失时按 requestTermination 的口径补建一条 PENDING 申请，再交回主流程执行。
-     *
-     * @return 补建（或并发下由他人插入）的解约申请；签约记录不存在时返回 null
-     */
+
     private AppTerminationRequest createTerminationRequest(ExecuteTerminationReqDTO request) {
         PaySignInfo signInfo = paySignInfoMapper.selectBySeq(
                 request.getRequestSignSeq(), request.getPaymentVendor());

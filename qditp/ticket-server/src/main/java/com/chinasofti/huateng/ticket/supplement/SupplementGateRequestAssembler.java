@@ -5,11 +5,9 @@ import com.chinasofti.huateng.model.ticket.enums.QRCodeStatusEnum;
 import com.chinasofti.huateng.ticket.entity.QRCodeStatus;
 import org.springframework.stereotype.Component;
 
-/** 闸机检票报文（{@code NotifyVerifyResultReqDTO}）的公共骨架组装。 */
 @Component
 class SupplementGateRequestAssembler {
 
-    /** 组装两条补站链路共有的报文字段。 */
     NotifyVerifyResultReqDTO newBaseRequest(QRCodeStatus currentStatus, String cardId, String decimalItpUserId,
                                             String trxType, String handleDateTime, String handleStationCode,
                                             String cardType, String signChannelCode) {

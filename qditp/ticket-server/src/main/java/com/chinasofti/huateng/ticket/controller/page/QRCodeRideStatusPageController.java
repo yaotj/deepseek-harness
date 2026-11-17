@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 用户运营端二维码乘车状态查询与人工调整。 */
 @RestController
 @RequestMapping("/page/ride-status")
 public class QRCodeRideStatusPageController {
@@ -25,7 +24,6 @@ public class QRCodeRideStatusPageController {
         this.rideStatusService = rideStatusService;
     }
 
-    /** 根据逻辑卡号查询二维码乘车状态。 */
     @GetMapping
     public ResultVO<QRCodeStatus> query(@RequestParam String cardId) {
         if (!StringUtils.hasText(cardId)) {
@@ -35,7 +33,6 @@ public class QRCodeRideStatusPageController {
         return status == null ? ResultMapper.error("未查询到该逻辑卡号的乘车状态") : ResultMapper.ok(status);
     }
 
-    /** 人工修改状态时必须填写原因，且只能写入运营确认的状态码集合。 */
     @PutMapping("/{cardId}")
     public ResultVO<QRCodeStatus> update(@PathVariable String cardId, @RequestBody RideStatusUpdateRequest request) {
         if (!StringUtils.hasText(cardId)) {

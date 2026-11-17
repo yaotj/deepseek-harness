@@ -1,6 +1,5 @@
 package com.chinasofti.huateng.dailyticket.client;
 
-/** 日票支付网关公共请求报文。 */
 public class DailyTicketPayGatewayRequest {
     private String merchantNo;
     private String apiVersion;

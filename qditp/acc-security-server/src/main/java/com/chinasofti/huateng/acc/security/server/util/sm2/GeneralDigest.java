@@ -2,9 +2,7 @@ package com.chinasofti.huateng.acc.security.server.util.sm2;
 
 import org.bouncycastle.crypto.Digest;
 
-/**
- * @author GuoYouCheng
- */
+
 public abstract class GeneralDigest implements Digest {
     private static int BYTE_LENGTH = 64;
 
@@ -34,18 +32,12 @@ public abstract class GeneralDigest implements Digest {
     }
 
     public void update(byte[] input, int inOff, int length) {
-        //
-        // fill the current word
-        //
         while ((xBufOff != 0) && (length > 0)) {
             update(input[inOff]);
             inOff++;
             length--;
         }
 
-        //
-        // process whole words.
-        //
         while (length > xBuf.length) {
             ProcessWord(input, inOff);
             inOff += xBuf.length;
@@ -53,9 +45,6 @@ public abstract class GeneralDigest implements Digest {
             byteCount += xBuf.length;
         }
 
-        //
-        // load in the remainder.
-        //
         while (length > 0) {
             update(input[inOff]);
             inOff++;
@@ -66,9 +55,6 @@ public abstract class GeneralDigest implements Digest {
     public void Finish() {
         long bitLength = (byteCount << 3);
 
-        //
-        // add the pad bytes.
-        //
         update((byte) 128);
 
         while (xBufOff != 0)

@@ -1,17 +1,11 @@
 package com.chinasofti.huateng.model.app.dailyticket;
 
-/**
- * IF8A-70 请求旅游票下单响应参数。
- */
+
 public class TravelTicketOrderResult extends DailyTicketBaseResult {
-    /**
-     * 旅游票单号，即聚合主单号。
-     */
+
     private String orderNo;
 
-    /**
-     * 内含的日票子单号 JSON 字符串，形如 ["0E...","0E..."]。
-     */
+
     private String subOrders;
 
     public String getOrderNo() {

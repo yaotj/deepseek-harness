@@ -14,7 +14,6 @@ import org.springframework.http.client.MultipartBodyBuilder;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** 按 ITP-App 网关协议调用钱包累计金额接口，不是内部 RPC 调用。 */
 @Service
 public class WalletAppGatewayClient extends ProxyWebClient {
     private final String queryTotalAmtPath;
@@ -40,7 +39,6 @@ public class WalletAppGatewayClient extends ProxyWebClient {
         this.signType = signType;
     }
 
-    /** 钱包网关类客户端禁止网络层重试：重复请求资金接口风险不可接受。 */
     @Override
     protected boolean isNetworkRetryEnabled() {
         return false;

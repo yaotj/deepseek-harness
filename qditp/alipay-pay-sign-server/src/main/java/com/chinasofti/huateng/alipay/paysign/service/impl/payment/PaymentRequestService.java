@@ -49,7 +49,6 @@ public class PaymentRequestService {
     @Autowired
     private BlacklistPort blacklistPort;
 
-    /** 支付宝出行扣费申请。 */
     public AlipayTripRequestPayRespDTO requestPay(AlipayTripRequestPayReqDTO request) {
         AlipayTripRequestPayRespDTO response = new AlipayTripRequestPayRespDTO();
         log.info("接收到支付宝支付申请报文: {}", JSON.toJSONString(request));
@@ -58,7 +57,6 @@ public class PaymentRequestService {
             throw new BusinessException(FepAppErrorCodeEnum.INVALID_PARAM.getCode(), "订单号/支付金额/行业类型/订单标题/订单描述/行业详情不能为空");
         }
 
-//        if (request.getRequestSignSeq() == null || request.getRequestSignSeq().trim().isEmpty()) {
 
         AlipaySignInfo signInfo = alipaySignInfoMapper.selectByThirdUserIdAndChannel(request.getThirdUserId(), CHANNEL_ALIPAY);
         if (signInfo == null) {
@@ -124,13 +122,7 @@ public class PaymentRequestService {
                 && request.getIndustryDetail() != null && !request.getIndustryDetail().trim().isEmpty();
     }
 
-    /**
-     * 扣款失败后把该卡加入黑名单。
-     *
-     * <p>三态判读收口在 {@link BlacklistPort} 的 adapter（ADR-D131）。本方法的处置**逐字保留现状**：
-     * 三种结果都只打日志、不落库、不重试 —— 这意味着**加黑失败即永久丢失，该卡仍可过闸**。
-     * 要补偿得先有载体表（本模块目前没有），列进批次 5 的待办，NEVER 在这里加静默重试。</p>
-     */
+
     private void addBlackListIfNeeded(AlipaySignInfo signInfo, String reason) {
         if (signInfo == null || !StringUtils.hasText(signInfo.getCardId()) || !StringUtils.hasText(signInfo.getThirdUserId())) {
             return;

@@ -16,11 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-/**
- * 综管台密钥版本查看实现。三个域各自独立查询，单域失败只降级成一条「查询失败」行。
- *
- * <p>状态码映射按域分表，NEVER 合并（AGM 与 CA/HCE 是两套口径）。</p>
- */
+
 @Service
 public class KeyVersionQueryServiceImpl implements KeyVersionQueryService {
     private static final Logger log = LoggerFactory.getLogger(KeyVersionQueryServiceImpl.class);
@@ -29,7 +25,6 @@ public class KeyVersionQueryServiceImpl implements KeyVersionQueryService {
     private static final String DOMAIN_CA = "CA_KEYSTORE";
     private static final String DOMAIN_HCE = "HCE_STATIC_KEY";
 
-    /** 域 → (状态码 → 中文)。AGM 与另两域是两套独立口径，键冲突属预期，故按域分表。 */
     private static final Map<String, Map<String, String>> STATUS_DESC = Map.of(
             DOMAIN_AGM, Map.of("20010", "初始化", "20020", "审批通过", "20030", "拒绝"),
             DOMAIN_CA, Map.of("0", "初始化", "1", "使用中", "2", "已暂停"),
@@ -56,7 +51,6 @@ public class KeyVersionQueryServiceImpl implements KeyVersionQueryService {
         return ResultMapper.ok(views);
     }
 
-    /** 单域查询 + 域标记 + 状态翻译；失败降级成一条错误行。 */
     private void collect(List<KeyVersionView> sink, String domain, Supplier<List<KeyVersionView>> query) {
         List<KeyVersionView> rows;
         try {

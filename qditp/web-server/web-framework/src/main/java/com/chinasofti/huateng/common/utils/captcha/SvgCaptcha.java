@@ -2,14 +2,7 @@ package com.chinasofti.huateng.common.utils.captcha;
 
 import java.util.Random;
 
-/**
- * 自研 SVG 验证码生成器（零 AWT 依赖）
- * 
- * <p>纯字符串拼接生成 SVG，不依赖 java.awt / Graphics2D / ImageIO，
- * 适合无头容器和精简镜像环境。</p>
- *
- * @author zmzhang
- */
+
 public class SvgCaptcha
 {
     private static final String CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
@@ -52,10 +45,8 @@ public class SvgCaptcha
            .append(height)
            .append("'>");
 
-        // 背景
         svg.append("<rect width='100%' height='100%' fill='#f7f9fa'/>");
 
-        // 干扰线
         for (int i = 0; i < 4; i++)
         {
             String color = String.format("#%06x", RANDOM.nextInt(0xFFFFFF));
@@ -65,7 +56,6 @@ public class SvgCaptcha
                     RANDOM.nextInt(width), RANDOM.nextInt(height), color));
         }
 
-        // 字符
         for (int i = 0; i < code.length(); i++)
         {
             char c = code.charAt(i);

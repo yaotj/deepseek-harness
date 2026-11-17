@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * IF8A-05 请求查询交易记录请求参数。
- */
+
 public class RequestTransListReqDTO {
     private String thirdUserId;
     private String cardId;
@@ -10,13 +8,9 @@ public class RequestTransListReqDTO {
     private Integer pageNumber;
     private Integer pageSize;
     private Integer totalPage;
-    /** 开始日期 yyyy-MM-dd（非必填） */
     private String startDate;
-    /** 结束日期 yyyy-MM-dd（非必填） */
     private String endDate;
-    /** 扣款结果 空=全部，0=成功，1=失败。 */
     private String debitRequestResult;
-    /** 日票票号。 */
     private String ticketCode;
 
     public String getThirdUserId() { return thirdUserId; }

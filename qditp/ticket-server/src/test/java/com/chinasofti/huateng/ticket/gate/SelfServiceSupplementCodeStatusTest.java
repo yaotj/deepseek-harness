@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** IF8A-04 APP 自助补站落 80 / 81 的判据。 */
 class SelfServiceSupplementCodeStatusTest {
 
     private final GateCodeStatusResolver handler = new GateCodeStatusResolver();

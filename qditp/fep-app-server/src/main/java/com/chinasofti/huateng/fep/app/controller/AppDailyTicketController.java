@@ -26,9 +26,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * APP 日票接口入口。
- */
+
 @RestController
 public class AppDailyTicketController extends BaseAppController {
     private static final Logger log = LoggerFactory.getLogger(AppDailyTicketController.class);
@@ -46,9 +44,7 @@ public class AppDailyTicketController extends BaseAppController {
         return dailyTicketAppService.requestCountingOrder(parseBizData(request, DailyTicketOrderReqDTO.class));
     }
 
-    /**
-     * IF8A-70 旅游票下单。
-     */
+
     @PostMapping({"/ci/app/dailyTicket/requestTravelOrder", "/app/dailyTicket/requestTravelOrder",
             "/app/ticket/requestTravelOrder"})
     public TravelTicketOrderResult requestTravelOrder(@ModelAttribute ItpCommonFormRequest request) {
@@ -56,9 +52,7 @@ public class AppDailyTicketController extends BaseAppController {
         return dailyTicketAppService.requestTravelOrder(parseBizData(request, TravelTicketOrderReqDTO.class));
     }
 
-    /**
-     * IF8A-73 免费票请求下单。
-     */
+
     @PostMapping({"/app/ticket/requestOrderFree", "/ci/app/dailyTicket/requestOrderFree",
             "/app/dailyTicket/requestOrderFree"})
     public DailyTicketFreeOrderResult requestOrderFree(@ModelAttribute ItpCommonFormRequest request) {
@@ -66,18 +60,14 @@ public class AppDailyTicketController extends BaseAppController {
         return dailyTicketAppService.requestOrderFree(parseBizData(request, DailyTicketFreeOrderReqDTO.class));
     }
 
-    /**
-     * IF8A-72 小程序票状态同步。
-     */
+
     @PostMapping({"/app/ticket/syncOrder", "/ci/app/dailyTicket/syncOrder", "/app/dailyTicket/syncOrder"})
     public DailyTicketBaseResult syncOrder(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-72 小程序票状态同步, request={}", request);
         return dailyTicketAppService.syncOrder(parseBizData(request, DailyTicketSyncOrderReqDTO.class));
     }
 
-    /**
-     * if8a_61 日票支付。
-     */
+
     @PostMapping({"/ci/app/dailyTicket/payment/requestPay", "/app/dailyTicket/payment/requestPay",
             "/app/payment/requestPay", "/app/ticket/payment/requestPay"})
     public DailyTicketPayResult pay(@ModelAttribute ItpCommonFormRequest request) {
@@ -85,22 +75,7 @@ public class AppDailyTicketController extends BaseAppController {
         return dailyTicketAppService.requestPay(parseBizData(request, DailyTicketPayReqDTO.class));
     }
 
-    /**
-     * if8a_62 日票支付结果查询。
-     *
-     * <p>第 5 个别名 {@code /payment/requestPayResult}（**不带 {@code /app} 前缀**）是 2026-09-22 按线上实证补的：
-     * APP 打的是 {@code /fep-app/payment/requestPayResult}，网关 rewrite 掉 {@code /fep-app} 后落到
-     * 本服务的 {@code /payment/requestPayResult}，而当时只有带 {@code /app} 的四个别名 ⇒ 无 handler ⇒
-     * 日志 {@code No static resource payment/requestPayResult} ⇒ 被全局异常处理器包成
-     * HTTP 200 + UUID {@code retCode}，APP 页面只显示「查询失败」（订单 {@code 0E202609221650330001}，
-     * 16:53:05 实测）。
-     *
-     * <p><b>NEVER 因为「看着像笔误」就删掉这个裸别名</b> —— 它对应的是 APP 侧真实在用的 URL。
-     * 反过来也 <b>NEVER 给本类其余方法批量补裸别名</b>：同族的 {@code requestPay} /
-     * {@code requestRefundTicket} / {@code cancelOrder} 在日志里从未出现过裸路径形态，
-     * 无实证就加等于继续放大 URL 别名蔓延。再遇到同类 404 时 MUST 先去 fep-app 日志取
-     * {@code No static resource} 那行原文，按实际 path 补。
-     */
+
     @PostMapping({"/ci/app/dailyTicket/payment/requestPayResult", "/app/dailyTicket/payment/requestPayResult",
             "/app/payment/requestPayResult", "/app/ticket/payment/requestPayResult",
             "/payment/requestPayResult"})
@@ -109,9 +84,7 @@ public class AppDailyTicketController extends BaseAppController {
         return dailyTicketAppService.requestPayResult(parseBizData(request, DailyTicketOrderNoReqDTO.class));
     }
 
-    /**
-     * IF8A-64 日票退款。
-     */
+
     @PostMapping({"/ci/app/dailyTicket/payment/requestRefundTicket", "/app/dailyTicket/payment/requestRefundTicket",
             "/app/payment/requestRefundTicket", "/app/ticket/payment/requestRefundTicket"})
     public DailyTicketRefundResult requestRefund(@ModelAttribute ItpCommonFormRequest request) {
@@ -138,9 +111,7 @@ public class AppDailyTicketController extends BaseAppController {
         return dailyTicketAppService.updateAndNotice(parseBizData(request, DailyTicketUsedNoticeReqDTO.class));
     }
 
-    /**
-     * 日票支付回调（支付网关 -> fep-app -> daily-ticket-server）。
-     */
+
     @PostMapping({"/ci/app/dailyTicket/payment/receivePayResult", "/app/dailyTicket/payment/receivePayResult",
             "/app/payment/receivePayResult", "/app/ticket/payment/receivePayResult"})
     public DailyTicketBaseResult receivePayNotify(@RequestBody String requestBody) {
@@ -150,9 +121,7 @@ public class AppDailyTicketController extends BaseAppController {
         return result;
     }
 
-    /**
-     * 日票退款结果回调（支付中心 -> fep-app -> daily-ticket-server）。
-     */
+
     @PostMapping({"/ci/app/dailyTicket/payment/receiveRefundResult", "/app/dailyTicket/payment/receiveRefundResult",
             "/app/payment/receiveRefundResult", "/app/ticket/payment/receiveRefundResult"})
     public DailyTicketBaseResult receiveRefundNotify(@RequestBody String requestBody) {

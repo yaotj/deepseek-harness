@@ -14,9 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 支付宝出行-开卡申请接口（供 fep-alipay-server 调用）。
- */
+
 @RestController
 @RequestMapping("/channel")
 public class FepAlipayTripRequestApplicationController {
@@ -26,9 +24,7 @@ public class FepAlipayTripRequestApplicationController {
     @Autowired
     private AlipayAccountService alipayAccountService;
 
-    /**
-     * 开卡申请。
-     */
+
     @PostMapping("/requestApplication")
     public AlipayTripRequestApplicationRespDTO requestApplication(@RequestBody AlipayTripRequestApplicationReqDTO request) {
         log.info("接收到开卡申请请求: {}", request);
@@ -38,9 +34,7 @@ public class FepAlipayTripRequestApplicationController {
         return response;
     }
 
-    /**
-     * 查询支付宝用户信息。
-     */
+
     @GetMapping("/queryUserInfo")
     public AlipayUserInfoDTO queryUserInfo(@RequestParam String thirdUserId) {
         log.info("接收到查询用户信息请求: thirdUserId={}", thirdUserId);
@@ -54,7 +48,6 @@ public class FepAlipayTripRequestApplicationController {
         return userInfo;
     }
 
-    /** 按逻辑卡号查询支付宝用户信息（供 ticket-server 过闸链路回落调用）。 */
     @GetMapping("/queryUserInfoByCardId")
     public AlipayUserInfoDTO queryUserInfoByCardId(@RequestParam String cardId) {
         log.info("接收到按卡号查询用户信息请求: cardId={}", cardId);
@@ -68,9 +61,7 @@ public class FepAlipayTripRequestApplicationController {
         return userInfo;
     }
 
-    /**
-     * 更新用户支付通道信息。
-     */
+
     @GetMapping("/updatePaymentChannel")
     public Boolean updatePaymentChannel(@RequestParam String thirdUserId,
                                         @RequestParam String thirdPayId,
@@ -82,9 +73,7 @@ public class FepAlipayTripRequestApplicationController {
         return result;
     }
 
-    /**
-     * 更换手机号。
-     */
+
     @PostMapping("/updatePhone")
     public Boolean updatePhone(@RequestParam String thirdUserId, @RequestParam String newMsisdn) {
         log.info("接收到更换手机号请求: thirdUserId={}, newMsisdn={}", thirdUserId, newMsisdn);

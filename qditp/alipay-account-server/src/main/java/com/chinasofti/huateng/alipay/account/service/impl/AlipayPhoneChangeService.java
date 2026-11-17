@@ -11,15 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
-/**
- * 支付宝渠道换号：改 `ALIPAY_USER_INFO` 并落一条 `ALIPAY_PHONE_CHANGE_LOG`（ADR-D143）。
- *
- * <p>`alipayPhoneChangeLogMapper` **只被本类用**，这是它能从原 349 行大类里干净切出来的原因。
- * 两条写都在同一个 `@Transactional` 内、且**方法内没有任何 RPC**，符合「事务内 NEVER 发 RPC」。
- *
- * <p>新旧号相同时直接返 true、不落日志行：换号日志是「真的换过」的证据，
- * NEVER 为了「有记录」而给无变更的请求也插一行。
- */
+
 @Service
 public class AlipayPhoneChangeService {
     private static final Logger log = LoggerFactory.getLogger(AlipayPhoneChangeService.class);

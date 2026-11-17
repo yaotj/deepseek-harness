@@ -16,11 +16,7 @@ import com.chinasofti.huateng.web.domain.export.AsyncExportTask;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 
-/**
- * 员工卡 ACC 模拟器卡片异步导出执行器。
- */
-// 该服务不在测试/生产部署清单中，禁用此导出执行器；如需启用，取消注释并部署 employee-card-acc-simulator 服务。
-// @Component("ACC_SIMULATOR_CARD")
+
 public class AccSimulatorCardExportExecutor extends AbstractExcelExportExecutor
 {
     private static final Logger log = LoggerFactory.getLogger(AccSimulatorCardExportExecutor.class);

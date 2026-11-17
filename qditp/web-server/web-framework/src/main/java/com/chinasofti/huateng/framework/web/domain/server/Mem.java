@@ -2,26 +2,16 @@ package com.chinasofti.huateng.framework.web.domain.server;
 
 import com.chinasofti.huateng.common.utils.Arith;
 
-/**
- * 內存相关信息
- * 
- * @author zmzhang
- */
+
 public class Mem
 {
-    /**
-     * 内存总量
-     */
+
     private double total;
 
-    /**
-     * 已用内存
-     */
+
     private double used;
 
-    /**
-     * 剩余内存
-     */
+
     private double free;
 
     public double getTotal()

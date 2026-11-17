@@ -12,9 +12,7 @@ import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/**
- * 开户收口实现，见 {@link RegistrationCommitService}。
- */
+
 @Service
 public class RegistrationCommitServiceImpl implements RegistrationCommitService {
 
@@ -24,14 +22,10 @@ public class RegistrationCommitServiceImpl implements RegistrationCommitService 
 
     private final TicketClient ticketClient;
 
-    /**
-     * {@link #persistRegistration} 的两行写用它开短事务。
-     */
+
     private final TransactionTemplate transactionTemplate;
 
-    /**
-     * 构造器注入（ADR-D37）。
-     */
+
     public RegistrationCommitServiceImpl(UserItpRegInfoMapper userItpRegInfoMapper,
                                         UserItpRegLogMapper userItpRegLogMapper,
                                         TicketClient ticketClient,
@@ -55,9 +49,7 @@ public class RegistrationCommitServiceImpl implements RegistrationCommitService 
         });
     }
 
-    /**
-     * 组装 ticket-server 的注册乘车状态请求。
-     */
+
     private RegisterRideStatusReqDTO buildTicketRequest(UserItpRegInfo regInfo) {
         RegisterRideStatusReqDTO request = new RegisterRideStatusReqDTO();
         request.setThirdUserId(regInfo.getThirdUserId());
@@ -70,9 +62,7 @@ public class RegistrationCommitServiceImpl implements RegistrationCommitService 
         return request;
     }
 
-    /**
-     * 开户流水行。
-     */
+
     private UserItpRegLog buildRegLog(UserItpRegInfo regInfo) {
         UserItpRegLog regLog = new UserItpRegLog();
         regLog.setCardId(regInfo.getCardId());

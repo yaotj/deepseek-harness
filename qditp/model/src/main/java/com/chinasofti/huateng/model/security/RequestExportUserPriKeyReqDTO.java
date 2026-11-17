@@ -1,22 +1,14 @@
 package com.chinasofti.huateng.model.security;
 
-/**
- * 请求导出用户私钥参数。
- */
+
 public class RequestExportUserPriKeyReqDTO {
-    /**
-     * LMK加密的用户SM2私钥。
-     */
+
     private String privateKey;
 
-    /**
-     * 用户SM2公钥XY。
-     */
+
     private String publicKey;
 
-    /**
-     * KEK密钥索引，配置项 key.sync.kek-idx。
-     */
+
     private String kekIdx;
 
     public String getPrivateKey() {

@@ -7,7 +7,6 @@ public class RegisterRequestData {
     private String createDatetime;
     private Object registerData;
 
-    // Getters and Setters
 
     public String getRegisterDataType() {
         return registerDataType;

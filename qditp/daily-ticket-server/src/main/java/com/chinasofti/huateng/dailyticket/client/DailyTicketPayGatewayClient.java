@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-/** 日票专用支付网关客户端。 */
 @Service
 public class DailyTicketPayGatewayClient extends ProxyWebClient {
     private static final Logger log = LoggerFactory.getLogger(DailyTicketPayGatewayClient.class);
@@ -34,28 +33,23 @@ public class DailyTicketPayGatewayClient extends ProxyWebClient {
         this.properties = properties;
     }
 
-    /** 支付类客户端禁止网络层重试：重复提交/扣款风险不可接受。 */
     @Override
     protected boolean isNetworkRetryEnabled() {
         return false;
     }
 
-    /** 发起日票支付。 */
     public DailyTicketPayGatewayResponse requestPay(Map<String, Object> bizData) {
         return requestGateway("日票支付", properties.getRequestPayPath(), bizData);
     }
 
-    /** 发起日票退款。 */
     public DailyTicketPayGatewayResponse requestRefund(Map<String, Object> bizData) {
         return requestGateway("日票退款", properties.getRequestRefundPath(), bizData);
     }
 
-    /** 查询日票退款结果。 */
     public DailyTicketPayGatewayResponse requestRefundQuery(Map<String, Object> bizData) {
         return requestGateway("日票退款查询", properties.getRefundQueryPath(), bizData);
     }
 
-    /** 查询日票支付结果。 */
     public DailyTicketPayGatewayResponse requestPayQuery(Map<String, Object> bizData) {
         return requestGateway("日票支付查询", properties.getPayQueryPath(), bizData);
     }

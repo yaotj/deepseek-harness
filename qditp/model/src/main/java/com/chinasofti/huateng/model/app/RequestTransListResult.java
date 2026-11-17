@@ -2,9 +2,7 @@ package com.chinasofti.huateng.model.app;
 
 import java.util.List;
 
-/**
- * IF8A-05 请求查询交易记录应答。
- */
+
 public class RequestTransListResult {
     private String retCode;
     private String retMsg;
@@ -12,9 +10,7 @@ public class RequestTransListResult {
     private String pageSize;
     private String totalPage;
     private List<TransRecordDTO> ticketTransRecord;
-    /** 签名类型 00:不签名 01:sha1withrsa 02:MD5。 */
     private String signType;
-    /** 私钥签名。 */
     private String sign;
 
     public String getRetCode() { return retCode; }

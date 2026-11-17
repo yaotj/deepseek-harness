@@ -13,16 +13,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Random;
 
-/**
- * @author: houkepan
- * @Date: 2018/6/15 11:11
- * @Description: MD5生成
- */
+
 public class Md5Util {
 
-    /***
-     * MD5加码 生成32位md5码
-     */
+
     public static String string2MD5(String inStr){
         MessageDigest md5 = null;
         try{
@@ -49,9 +43,7 @@ public class Md5Util {
 
     }
 
-    /**
-     * 加密解密算法 执行一次加密，两次解密
-     */
+
     public static String convertMD5(String inStr){
 
         char[] a = inStr.toCharArray();

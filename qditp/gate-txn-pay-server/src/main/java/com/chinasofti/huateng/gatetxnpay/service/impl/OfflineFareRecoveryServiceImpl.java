@@ -19,7 +19,6 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-/** 离线码金额补偿：扫待重算行 → 重算 → 抢占 → 委托扣款。 */
 @Service
 public class OfflineFareRecoveryServiceImpl implements OfflineFareRecoveryService {
     private static final Logger log = LoggerFactory.getLogger(OfflineFareRecoveryServiceImpl.class);
@@ -29,7 +28,6 @@ public class OfflineFareRecoveryServiceImpl implements OfflineFareRecoveryServic
     private final FareCalculator fareCalculator;
     private final PaySignInitiator paySignInitiator;
     private final MetroTransferPushTaskProcessor metroTransferPushTaskProcessor;
-    /** 站名回填：本类的 {@code calculateOfflineFare} 会把 {@code IN_STATION} 从 NULL / 占位值 改成重查到的真实进站码。 */
     private final StationNameBackfiller stationNameBackfiller;
 
     public OfflineFareRecoveryServiceImpl(GateTxnPayMapper gateTxnPayMapper,
@@ -67,7 +65,6 @@ public class OfflineFareRecoveryServiceImpl implements OfflineFareRecoveryServic
         return scan.success();
     }
 
-    /** 单笔补偿：重算 → 抢占式回写 → 发起扣款。 */
     private boolean recoverSingleOfflineFareOrder(GateTxnPay order) {
         GateTxnPayReqDTO request = rebuildOfflineRequest(order);
         try {
@@ -107,7 +104,6 @@ public class OfflineFareRecoveryServiceImpl implements OfflineFareRecoveryServic
         return true;
     }
 
-    /** 从订单行重建离线码算价所需的请求上下文。 */
     private GateTxnPayReqDTO rebuildOfflineRequest(GateTxnPay order) {
         GateTxnPayReqDTO request = new GateTxnPayReqDTO();
         request.setItpUserId(order.getThirdUserId());

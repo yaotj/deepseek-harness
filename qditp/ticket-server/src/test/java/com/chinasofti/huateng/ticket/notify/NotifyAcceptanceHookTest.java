@@ -7,10 +7,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 两条外发链路应答判定口径的特征测试。 */
 class NotifyAcceptanceHookTest {
 
-    /** 钩子是纯函数，不碰这三个依赖，因此可以全传 null。 */
     private final AlipayTripNotifier alipayTripNotifier = new AlipayTripNotifier(null, null, null);
     private final IndustryDataNotifier industryDataNotifier = new IndustryDataNotifier(null, null, null);
 
@@ -43,7 +41,6 @@ class NotifyAcceptanceHookTest {
         assertEqualsAccepted(expected, industryDataNotifier.isAccepted(httpSuccessful, responseBody));
     }
 
-    /** 两侧的分歧点单独钉一条：同一份「HTTP 200 + 7004」应答，两条链路结论必须相反。 */
     @Test
     void 同一份7004应答两条链路结论必须相反() {
         String body = "{\"retCode\":\"7004\",\"retMsg\":\"处理过程出现错误!\"}";

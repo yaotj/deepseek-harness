@@ -13,11 +13,7 @@ import com.chinasofti.huateng.common.core.domain.model.LoginUser;
 import com.chinasofti.huateng.common.enums.DesensitizedType;
 import com.chinasofti.huateng.common.utils.SecurityUtils;
 
-/**
- * 数据脱敏序列化过滤
- *
- * @author zmzhang
- */
+
 public class SensitiveJsonSerializer extends JsonSerializer<String> implements ContextualSerializer
 {
     private DesensitizedType desensitizedType;
@@ -48,15 +44,12 @@ public class SensitiveJsonSerializer extends JsonSerializer<String> implements C
         return prov.findValueSerializer(property.getType(), property);
     }
 
-    /**
-     * 是否需要脱敏处理
-     */
+
     private boolean desensitization()
     {
         try
         {
             LoginUser securityUser = SecurityUtils.getLoginUser();
-            // 管理员不脱敏
             return !securityUser.getUser().isAdmin();
         }
         catch (Exception e)

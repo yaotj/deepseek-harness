@@ -10,7 +10,6 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
-/** 综管台支付宝渠道只读查询实现：直接走两张表的运营分页语句，检索范围在控制器层强校验。 */
 @Service
 public class AlipayChannelPageServiceImpl implements AlipayChannelPageService {
 

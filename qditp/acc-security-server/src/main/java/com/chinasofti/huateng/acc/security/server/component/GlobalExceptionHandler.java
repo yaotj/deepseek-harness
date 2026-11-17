@@ -19,9 +19,7 @@ public class GlobalExceptionHandler {
 
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    /**
-     * 处理Controller层所有异常
-     */
+
     public ResultVO<Object> handle(ConstraintViolationException exception) {
         StringBuilder message = new StringBuilder();
         if (exception instanceof ValidationException) {

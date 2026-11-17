@@ -3,9 +3,7 @@ package com.chinasofti.huateng.model.pay;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**
- * IF8A-05 交易记录列表 RPC 传输对象。
- */
+
 public class GateTxnPayListDTO {
     private Long id;
     private String orderNo;
@@ -48,9 +46,7 @@ public class GateTxnPayListDTO {
     private Integer expectedGateAmount;
     private String discountCalcStatus;
     private String discountCalcMsg;
-    /**
-     * 支付宝出行行业明细 JSON（21 键），仅 {@code issueChannelCode=07} 有值。
-     */
+
     private String industryDetail;
     private String remark;
     private LocalDateTime createTime;

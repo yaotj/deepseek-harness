@@ -2,15 +2,10 @@ package com.chinasofti.huateng.acc.security.feign.domain;
 
 import java.io.Serializable;
 
-/**
- * Class description goes here.
- *
- * @version：2018/5/30 10:02
- * @author：ruan
- */
+
 public class BaseResult implements Serializable {
 
-    public static final int CODE_SUCCESS = 0;//成功
+    public static final int CODE_SUCCESS = 0;
     private static final long serialVersionUID = 8954699762398960351L;
     private int ErrorCode;
     private String ErrorMessage;

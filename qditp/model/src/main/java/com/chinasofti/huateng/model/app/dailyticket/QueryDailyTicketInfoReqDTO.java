@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.app.dailyticket;
 
-/**
- * 查询日票信息请求（按订单号或卡号查询ticketCode和actualTimes）。
- */
+
 public class QueryDailyTicketInfoReqDTO {
     private String orderNo;
     private String cardId;

@@ -7,7 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-/** recon-server 的 Quartz 调用桥接任务：日终对账。 */
 @Component("reconQuartzTask")
 public class ReconQuartzTask
 {
@@ -20,7 +19,6 @@ public class ReconQuartzTask
         this.reconClient = reconClient;
     }
 
-    /** 前台调用目标填写 reconQuartzTask.runDailyBatch() 时执行。 */
     public void runDailyBatch()
     {
         QuartzTraceUtils.runWithTrace(this::runDailyBatchOnce);

@@ -18,11 +18,7 @@ import com.chinasofti.huateng.system.mapper.SysDictDataMapper;
 import com.chinasofti.huateng.system.mapper.SysDictTypeMapper;
 import com.chinasofti.huateng.system.service.ISysDictTypeService;
 
-/**
- * 字典 业务层处理
- * 
- * @author zmzhang
- */
+
 @Service
 public class SysDictTypeServiceImpl implements ISysDictTypeService
 {
@@ -32,44 +28,28 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService
     @Autowired
     private SysDictDataMapper dictDataMapper;
 
-    /**
-     * 项目启动时，初始化字典到缓存
-     */
+
     @PostConstruct
     public void init()
     {
         loadingDictCache();
     }
 
-    /**
-     * 根据条件分页查询字典类型
-     * 
-     * @param dictType 字典类型信息
-     * @return 字典类型集合信息
-     */
+
     @Override
     public List<SysDictType> selectDictTypeList(SysDictType dictType)
     {
         return dictTypeMapper.selectDictTypeList(dictType);
     }
 
-    /**
-     * 根据所有字典类型
-     * 
-     * @return 字典类型集合信息
-     */
+
     @Override
     public List<SysDictType> selectDictTypeAll()
     {
         return dictTypeMapper.selectDictTypeAll();
     }
 
-    /**
-     * 根据字典类型查询字典数据
-     * 
-     * @param dictType 字典类型
-     * @return 字典数据集合信息
-     */
+
     @Override
     public List<SysDictData> selectDictDataByType(String dictType)
     {
@@ -87,35 +67,21 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService
         return null;
     }
 
-    /**
-     * 根据字典类型ID查询信息
-     * 
-     * @param dictId 字典类型ID
-     * @return 字典类型
-     */
+
     @Override
     public SysDictType selectDictTypeById(Long dictId)
     {
         return dictTypeMapper.selectDictTypeById(dictId);
     }
 
-    /**
-     * 根据字典类型查询信息
-     * 
-     * @param dictType 字典类型
-     * @return 字典类型
-     */
+
     @Override
     public SysDictType selectDictTypeByType(String dictType)
     {
         return dictTypeMapper.selectDictTypeByType(dictType);
     }
 
-    /**
-     * 批量删除字典类型信息
-     * 
-     * @param dictIds 需要删除的字典ID
-     */
+
     @Override
     public void deleteDictTypeByIds(Long[] dictIds)
     {
@@ -131,9 +97,7 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService
         }
     }
 
-    /**
-     * 加载字典缓存数据
-     */
+
     @Override
     public void loadingDictCache()
     {
@@ -146,18 +110,14 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService
         }
     }
 
-    /**
-     * 清空字典缓存数据
-     */
+
     @Override
     public void clearDictCache()
     {
         DictUtils.clearDictCache();
     }
 
-    /**
-     * 重置字典缓存数据
-     */
+
     @Override
     public void resetDictCache()
     {
@@ -165,12 +125,7 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService
         loadingDictCache();
     }
 
-    /**
-     * 新增保存字典类型信息
-     * 
-     * @param dict 字典类型信息
-     * @return 结果
-     */
+
     @Override
     public int insertDictType(SysDictType dict)
     {
@@ -182,12 +137,7 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService
         return row;
     }
 
-    /**
-     * 修改保存字典类型信息
-     * 
-     * @param dict 字典类型信息
-     * @return 结果
-     */
+
     @Override
     @Transactional
     public int updateDictType(SysDictType dict)
@@ -203,12 +153,7 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService
         return row;
     }
 
-    /**
-     * 校验字典类型称是否唯一
-     * 
-     * @param dict 字典类型
-     * @return 结果
-     */
+
     @Override
     public boolean checkDictTypeUnique(SysDictType dict)
     {

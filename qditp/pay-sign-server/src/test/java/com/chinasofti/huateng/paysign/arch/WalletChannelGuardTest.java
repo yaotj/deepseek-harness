@@ -13,12 +13,10 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 护栏：渠道码常量单点持有（ADR-D108），入口只准 classify + 穷尽 switch（ADR-D109）。 */
 class WalletChannelGuardTest {
 
     private static final Path MAIN = Path.of("src", "main", "java");
 
-    /** ADR-D108：渠道码常量单点持有。收口前 5 份副本，现在只允许这一处。 */
     @Test
     void walletCodeConstantIsDeclaredOnlyInPaymentChannels() throws IOException {
         List<String> hits = scanCodeLines("private static final String WALLET");
@@ -28,7 +26,6 @@ class WalletChannelGuardTest {
                 "唯一声明必须在 PaymentChannels，实际在: " + hits.get(0));
     }
 
-    /** ADR-D109：入口不得用布尔谓词分派，那个 else 会静默兜住新增渠道。 */
     @Test
     void noBooleanPredicateDispatchInCode() throws IOException {
         List<String> hits = new ArrayList<>();
@@ -38,7 +35,6 @@ class WalletChannelGuardTest {
                 "入口级分派 MUST 用 classify + 穷尽 switch，不得退回布尔谓词，命中: " + hits);
     }
 
-    /** ADR-D109：每个 classify 调用点都必须就地进入 switch，且数量不得减少。 */
     @Test
     void everyClassifyCallSiteFeedsASwitch() throws IOException {
         List<String> hits = scanCodeLines("PaymentChannels.classify(");
@@ -49,7 +45,6 @@ class WalletChannelGuardTest {
                 "classify 的返回值只能交给穷尽 switch，以下调用点没有: " + notSwitch);
     }
 
-    /** 返回剥离注释后仍命中 needle 的行，形如 {@code 文件名:行号 | 代码}。 */
     private static List<String> scanCodeLines(String needle) throws IOException {
         List<String> hits = new ArrayList<>();
         try (Stream<Path> files = Files.walk(MAIN)) {

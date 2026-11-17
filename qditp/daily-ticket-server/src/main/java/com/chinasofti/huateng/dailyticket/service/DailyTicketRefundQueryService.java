@@ -15,16 +15,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
-/**
- * 日票退款运营页的只读查询（读模型）。
- *
- * <p>从 {@code DailyTicketServiceImpl} 拆出，只依赖两个 mapper：**只读、不碰任何状态机、不出网**。
- * 与退款写链路正交，运营页查询出问题（如 Oracle 别名 / WallFilter 那类只在运行时炸的 SQL 缺陷）
- * 不会牵动交易链路。
- *
- * <p><b>NEVER 在本类里加任何写操作</b>——退款的发起 / 重试 / 重提交仍归
- * {@code DailyTicketService}，本类只做分页与列表查询。
- */
+
 @Service
 public class DailyTicketRefundQueryService {
 
@@ -37,7 +28,6 @@ public class DailyTicketRefundQueryService {
         this.refundMapper = refundMapper;
     }
 
-    /** 可退款订单分页（日票单 + 旅游票主单，强制 {@code orderType=1} 由 Controller 侧保证）。 */
     public ResultVO<PageInfo<DailyTicketRefundOrderView>> pageRefundOrders(DailyTicketRefundOrderQuery query) {
         DailyTicketRefundOrderQuery safeQuery = query == null ? new DailyTicketRefundOrderQuery() : query;
         PageInfo<DailyTicketRefundOrderView> pageInfo = PageHelper
@@ -46,7 +36,6 @@ public class DailyTicketRefundQueryService {
         return ResultMapper.ok(pageInfo);
     }
 
-    /** 旅游票主单下的日票子单列表（子单退款页用）。 */
     public ResultVO<List<DailyTicketRefundOrderView>> listTravelSubRefundOrders(String parentOrderNo) {
         if (!StringUtils.hasText(parentOrderNo)) {
             return ResultMapper.illegalParams("旅游票主单号不能为空");
@@ -54,7 +43,6 @@ public class DailyTicketRefundQueryService {
         return ResultMapper.ok(orderMapper.selectTravelSubRefundOrders(parentOrderNo));
     }
 
-    /** 退款记录分页。 */
     public ResultVO<PageInfo<DailyTicketRefundView>> pageRefundRecords(DailyTicketRefundQuery query) {
         DailyTicketRefundQuery safeQuery = query == null ? new DailyTicketRefundQuery() : query;
         PageInfo<DailyTicketRefundView> pageInfo = PageHelper

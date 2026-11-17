@@ -61,12 +61,10 @@ public class Cipher {
 
         byte[] p;
 
-//		p = p2.getX().toBigInteger().toByteArray();
         p = BigIntegers.asUnsignedByteArray(p2.getX().toBigInteger());
         sm3keybase.update(p, 0, p.length);
         sm3c3.update(p, 0, p.length);
 
-//		p = p2.getY().toBigInteger().toByteArray();
         p = BigIntegers.asUnsignedByteArray(p2.getY().toBigInteger());
         sm3keybase.update(p, 0, p.length);
 

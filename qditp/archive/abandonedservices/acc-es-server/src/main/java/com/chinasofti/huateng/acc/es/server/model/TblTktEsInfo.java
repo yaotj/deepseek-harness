@@ -4,14 +4,7 @@ package com.chinasofti.huateng.acc.es.server.model;
 import java.time.LocalDateTime;
 import java.io.Serializable;
 
-/**
- * <p>
- * ES设备信息
- * </p>
- *
- * @author fc
- * @since 2020-09-02
- */
+
 
 public class TblTktEsInfo  implements Serializable {
 

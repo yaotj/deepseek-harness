@@ -37,9 +37,7 @@ public class SimpleResultVo<T> implements Serializable {
         return simpleResultVo;
     }
 
-    /**
-     * 当作为 WebClient 调用的返回对象时，判断参数是否映射了值。
-     */
+
     public boolean checkNotMapping() {
         return code == null && data == null && msg == null;
     }

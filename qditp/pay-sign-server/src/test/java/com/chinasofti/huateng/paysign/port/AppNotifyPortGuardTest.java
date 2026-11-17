@@ -19,12 +19,7 @@ import com.chinasofti.huateng.paysign.client.AppNotificationClient;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/**
- * 护栏：APP 出向通知的**地址选择**与**报文骨架装配**只在 adapter 里发生一次。
- *
- * <p>此前这两件事散在 {@code AppNotifyServiceImpl} 的三个 {@code doNotify*} 里，
- * 「签约结果推到了解约地址」这类错在单测里完全看不出来。
- */
+
 class AppNotifyPortGuardTest {
 
     private static final String SIGN_URL = "http://app.example/ci/app/receiveSignResult";
@@ -62,7 +57,6 @@ class AppNotifyPortGuardTest {
         verify(client).notify(eq(TERMINATION_URL), any());
     }
 
-    /** 报文骨架六个字段全部来自配置，NEVER 由调用方传入。 */
     @Test
     void envelopeFieldsComeFromConfiguration() {
         when(client.notify(any(), any())).thenReturn(AppNotificationClient.NotificationResult.succeeded());
@@ -78,7 +72,6 @@ class AppNotifyPortGuardTest {
         assertEquals(14, request.timestamp().length(), "timestamp MUST 是 yyyyMMddHHmmss");
     }
 
-    /** bizData 以 JSON 字符串出网，字段名即对外契约。 */
     @Test
     void bizDataIsSerializedAsJsonString() {
         when(client.notify(any(), any())).thenReturn(AppNotificationClient.NotificationResult.succeeded());
@@ -91,7 +84,6 @@ class AppNotifyPortGuardTest {
         assertEquals("SUCCESS", bizData.getString("signResult"));
     }
 
-    /** {@code signType=00} 是免签，sign MUST 为空；这条与下一条一起钉住 signKey 的唯一使用点。 */
     @Test
     void signTypeZeroZeroMeansNoSignature() {
         when(client.notify(any(), any())).thenReturn(AppNotificationClient.NotificationResult.succeeded());
@@ -120,7 +112,6 @@ class AppNotifyPortGuardTest {
         assertEquals("通知成功", delivery.message());
     }
 
-    /** 失败原因 MUST 原样带回，调用方要拿它落 NOTIFY_RESULT。 */
     @Test
     void failureMessageIsPassedThrough() {
         when(client.notify(any(), any()))

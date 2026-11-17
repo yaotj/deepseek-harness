@@ -2,9 +2,7 @@ package com.chinasofti.huateng.model.alipaytrip;
 
 import java.time.LocalDateTime;
 
-/**
- * 支付宝解约登记表实体。
- */
+
 public class AlipayTerminationRequest {
     private String terminationSeq;
     private String agreementCode;

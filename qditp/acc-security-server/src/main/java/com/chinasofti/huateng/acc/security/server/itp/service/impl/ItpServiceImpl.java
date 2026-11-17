@@ -26,9 +26,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-/**
- * ITP接口统一实现。
- */
+
 @Service
 public class ItpServiceImpl implements ItpService {
     private static final Logger log = LoggerFactory.getLogger(ItpServiceImpl.class);

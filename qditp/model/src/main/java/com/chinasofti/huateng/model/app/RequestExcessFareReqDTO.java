@@ -1,17 +1,13 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * IF8A-04 请求自助补站请求参数。
- */
+
 public class RequestExcessFareReqDTO {
     private String thirdUserId;
     private String cardId;
     private String cardType;
-    /** 01：补进站 02：补出站。 */
     private String upgradeAreaType;
     private String upgradeStationCode;
     private String upgradeReason;
-    /** YYYYMMDDHHmmss。 */
     private String upgradeDateTime;
 
     public String getThirdUserId() { return thirdUserId; }

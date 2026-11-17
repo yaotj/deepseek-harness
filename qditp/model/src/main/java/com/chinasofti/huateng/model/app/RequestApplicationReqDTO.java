@@ -1,70 +1,45 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * @date 2026/5/25 11:44。
- * @author zzm。
- */
+
 public class RequestApplicationReqDTO {
 
-    /**
-     * 第三方用户ID。
-     */
+
     private String thirdUserId;
 
-    /**
-     * 支付账户ID  （签约回调）  默认空。
-     */
+
     private String thirdPayId;
 
-    /**
-     * 支付通道编码（默认空）
-     */
+
     private String channel;
 
-    /**
-     * 第三方签约流水号。
-     */
+
     private String reqContractNo;
 
-    /**
-     * 卡类型编码。
-     */
+
     private String cardType;
 
-    /**
-     * 手机号。
-     */
+
     private String msisdn;
 
     private String userName;
 
-    /**
-     * 用户身份证号。
-     */
+
     private String userId;
 
     private String extend1;
 
     private String extend2;
 
-    /**
-     * NFC开卡使用字段 01 非钱包 02 钱包NFC卡  非必填。
-     */
+
     private String ticketCard;
 
-    /**
-     * 0441 卡用途：N 主卡、Y 同行码、C 第三方平台卡；保留用于订单，不决定开卡数量。
-     */
+
     private String companionFlag;
 
-    /**
-     * 必填：1 按用户、所属方、映射后卡类型限制唯一卡；2 每次请求开新卡。
-     */
+
     private String ticketLimit;
 
-    /**
-     * 必填：票卡所属方原值，非空且不超过16字符，不校验机构字典；入库 ISSUE_ORG_CODE。
-     */
+
     private String cardIssueCode;
 
     public String getThirdUserId() {

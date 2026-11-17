@@ -14,11 +14,7 @@ import com.chinasofti.huateng.common.filter.RepeatableFilter;
 import com.chinasofti.huateng.common.filter.XssFilter;
 import com.chinasofti.huateng.common.utils.StringUtils;
 
-/**
- * Filter配置
- *
- * @author zmzhang
- */
+
 @Configuration
 public class FilterConfig
 {

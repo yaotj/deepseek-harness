@@ -23,9 +23,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * 运营后台非支付宝用户查询的实现，见 {@link ItpUserQueryService}。
- */
+
 @Service
 public class ItpUserQueryServiceImpl implements ItpUserQueryService {
     private final UserItpRegInfoMapper userItpRegInfoMapper;
@@ -60,7 +58,6 @@ public class ItpUserQueryServiceImpl implements ItpUserQueryService {
         return logs.stream().map(this::toCanceledView).toList();
     }
 
-    /** 空白输入不参与谓词，统一归一成 {@code null}，避免 {@code ''} 与 NULL 在 Oracle 里的差异。 */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
@@ -77,9 +74,7 @@ public class ItpUserQueryServiceImpl implements ItpUserQueryService {
         return view;
     }
 
-    /**
-     * 对命中的全部票卡做一次聚合查询取回解约时间，按 {@code thirdUserId + cardId} 建索引。
-     */
+
     private Map<String, TerminationTimeSummary> loadTerminationTimes(List<UserItpRegInfo> users) {
         List<String> cardIds = users.stream()
                 .map(UserItpRegInfo::getCardId)

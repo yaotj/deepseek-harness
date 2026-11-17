@@ -1,16 +1,10 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * 删除用户支付通道请求参数。
- */
+
 public class RequestRemovePayChannelReqDTO {
-    /** 三方用户 ID。 */
     private String thirdUserId;
-    /** 卡 ID。 */
     private String cardId;
-    /** 卡类型。 */
     private String cardType;
-    /** 支付通道编码。 */
     private String channel;
 
     public String getThirdUserId() {

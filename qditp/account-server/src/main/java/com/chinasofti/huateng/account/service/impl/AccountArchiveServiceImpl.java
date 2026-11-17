@@ -17,16 +17,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * 销户归档实现。
- */
+
 @Service
 public class AccountArchiveServiceImpl implements AccountArchiveService {
     private static final Logger log = LoggerFactory.getLogger(AccountArchiveServiceImpl.class);
 
-    /**
-     * {@code USER_ITP_REG_LOG.OPER_TYPE} = 销户归档。
-     */
+
     private static final int OPER_TYPE_USER_INFO_ARCHIVE = 3;
 
     private final UserItpRegInfoMapper userItpRegInfoMapper;
@@ -34,9 +30,7 @@ public class AccountArchiveServiceImpl implements AccountArchiveService {
     private final UserPayChannelMapper userPayChannelMapper;
     private final TransactionTemplate transactionTemplate;
 
-    /**
-     * 构造器注入（ADR-D37）。
-     */
+
     public AccountArchiveServiceImpl(UserItpRegInfoMapper userItpRegInfoMapper,
                                      UserItpRegLogMapper userItpRegLogMapper,
                                      UserPayChannelMapper userPayChannelMapper,
@@ -47,9 +41,7 @@ public class AccountArchiveServiceImpl implements AccountArchiveService {
         this.transactionTemplate = transactionTemplate;
     }
 
-    /**
-     * <b>三步的顺序不可调换。</b>
-     */
+
     @Override
     @Transactional(propagation = Propagation.MANDATORY, rollbackFor = Exception.class)
     public void archiveIfLastChannelRemoved(String thirdUserId) {
@@ -88,9 +80,7 @@ public class AccountArchiveServiceImpl implements AccountArchiveService {
                 thirdUserId, allRegInfos.size(), deleted);
     }
 
-    /**
-     * 不归档时把原因记清楚。
-     */
+
     private void logSkipped(String thirdUserId, int regInfoCount, int remainingChannels,
                             ArchiveDecision.Result decision) {
         switch (decision.outcome()) {
@@ -109,9 +99,7 @@ public class AccountArchiveServiceImpl implements AccountArchiveService {
         }
     }
 
-    /**
-     * IF8A-42 销户后顺带尝试归档；失败只记 WARN，不影响销户结果。
-     */
+
     @Override
     public void tryArchiveAfterCancel(String thirdUserId) {
         try {

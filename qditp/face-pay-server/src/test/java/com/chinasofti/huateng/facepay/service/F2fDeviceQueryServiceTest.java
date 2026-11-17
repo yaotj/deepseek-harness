@@ -24,7 +24,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** 锁死 {@link F2fDeviceQueryService} 的入参校验、分页归一与 LIKE 转义语义。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class F2fDeviceQueryServiceTest {
@@ -107,7 +106,6 @@ class F2fDeviceQueryServiceTest {
                 service.page(query(null, null, null, 0, -5)));
     }
 
-    /** 用户输入的 LIKE 元字符 MUST 被转义，否则 % 会退化成通配符、悄悄放大命中集。 */
     @Test
     void escapesLikeMetacharactersBeforeReachingMapper() {
         when(deviceStatusMapper.selectDevicePage(isNull(), isNull(), eq("06\\%2\\_07\\\\01"), anyInt(), anyInt()))
@@ -142,7 +140,6 @@ class F2fDeviceQueryServiceTest {
         assertEquals("\\\\\\%", F2fDeviceQueryService.escapeLike("\\%"));
     }
 
-    /** summary 是全表口径，MUST 原样透传、不被筛选条件改写。 */
     @Test
     void summaryIsPassedThroughUntouched() {
         F2fDeviceStatusSummaryVO summary = summary(21, 16, 5);

@@ -1,47 +1,29 @@
 package com.chinasofti.huateng.collectticket.model.request;
 
-/**
- * IF2A-04 取票结果通知（ITP通知APP）。
- */
+
 public class TicketCollectResultNotifyReqDTO {
-    /**
-     * 订单号。
-     */
+
     private String orderNo;
 
-    /**
-     * 用户ID。
-     */
+
     private String userId;
 
-    /**
-     * 取票状态：100-取票成功，1-99-取票失败。
-     */
+
     private Integer collectStatus;
 
-    /**
-     * 实际出票数量。
-     */
+
     private Integer actualTakeTicketNum;
 
-    /**
-     * 故障凭证号。
-     */
+
     private String faultSlipSeq;
 
-    /**
-     * 错误代码：2101-取票二维码超时等。
-     */
+
     private String errorCode;
 
-    /**
-     * 错误详细信息。
-     */
+
     private String errorMessage;
 
-    /**
-     * 通知时间。
-     */
+
     private String notifyTime;
 
     public String getOrderNo() {

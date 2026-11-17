@@ -22,14 +22,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** 日终对账分片导出（来源标识 {@code daily-ticket}，负责 DETAIL 与 PAY 两类文件）。 */
 @Service
 public class ReconExportService {
 
-    /** 本源在对账体系里的来源标识，与 recon-server 注册的源名一致，NEVER 改。 */
     public static final String SOURCE = "daily-ticket";
 
-    /** DETAIL 第 2 段「交易类型」在车票购买场景下的固定取值，甲方原文即中文「发售」。 */
     private static final String TXN_TYPE_SALE = "发售";
 
     private static final Logger log = LoggerFactory.getLogger(ReconExportService.class);
@@ -44,14 +41,7 @@ public class ReconExportService {
 
     private final Set<String> inFlight = ConcurrentHashMap.newKeySet();
 
-    /**
-     *
-     *
-     * @param reconExportMapper 抽取用只读 Mapper
-     * @param uploader          分片上送通道工厂（rpc 模块提供）
-     * @param pageSize          Keyset 单页行数，取自 {@code recon.export.page-size}
-     * @param worker            抽取线程数，取自 {@code recon.export.worker}，默认 1 即串行
-     */
+
     public ReconExportService(ReconExportMapper reconExportMapper,
                               ReconPartUploader uploader,
                               @Value("${recon.export.page-size:5000}") int pageSize,
@@ -66,18 +56,12 @@ public class ReconExportService {
         });
     }
 
-    /** 关闭抽取线程池，避免容器停机时留下悬挂线程。 */
     @PreDestroy
     public void shutdown() {
         executor.shutdownNow();
     }
 
-    /**
-     * 受理抽取指令：校验后排入抽取线程池，**立即返回**。
-     *
-     * @param request recon-server 下发的抽取指令
-     * @return true 已受理；false 同批次仍在途，本次丢弃（限流语义）
-     */
+
     public boolean submit(ReconExportReqDTO request) {
         request.validate();
         String batchId = request.getBatchId();
@@ -100,11 +84,7 @@ public class ReconExportService {
         return true;
     }
 
-    /**
-     * 执行抽取：按 {@code fileTypes} 分派，每类文件独立 try-with-resources + {@code commit()}。
-     *
-     * @param req 抽取指令
-     */
+
     public void runExport(ReconExportReqDTO req) {
         for (String fileType : req.getFileTypes()) {
             ReconFileTypeEnum type = ReconFileTypeEnum.of(fileType);
@@ -122,7 +102,6 @@ public class ReconExportService {
         }
     }
 
-    /** DETAIL：虚拟电子多日计次票的「车票购买（发售）」明细，对齐需求 21 段行格式，Keyset 游标翻页逐行写出。 */
     private void exportDetail(ReconExportReqDTO req) {
         Timestamp windowStart = req.getWindowStartTimestamp();
         Timestamp windowEnd = req.getWindowEndTimestamp();
@@ -137,34 +116,31 @@ public class ReconExportService {
                 }
                 for (Map<String, Object> row : rows) {
                     long payAmount = toLong(pick(row, "PAY_AMOUNT"));
-                    // 21 段顺序严格对齐需求表头；本源仅持有「发售」域字段，跨域字段留空并待甲方确认：
-                    // 第8段票卡类型源为APP侧码(需经CardTypeMapping归一为044X)、第9/14/18段本表无对应列、第19段发售恒空。
-                    // 金额未澄清前一律按分。订单状态由ORDER_STATUS派生(含REFUND->退款订单，否则正常订单)。
                     String orderStatus = toStr(pick(row, "ORDER_STATUS"));
                     String orderStatusLabel = (orderStatus != null && orderStatus.contains("REFUND"))
                             ? "退款订单" : "正常订单";
                     sink.write(ReconRecord.line(
-                            toStr(pick(row, "OPERATE_DATE")),           // 1 运营日期
-                            TXN_TYPE_SALE,                              // 2 交易类型=发售
-                            toStr(pick(row, "CARD_NUM")),              // 3 逻辑卡号
-                            toStr(pick(row, "TXN_DATE_TIME")),         // 4 交易日期
-                            toLong(pick(row, "TICKET_PRICE")),         // 5 交易原价(分)
-                            "",                                        // 6 当前车站名称(线上购买无车站)
-                            "",                                        // 7 设备编码(线上购买无设备)
-                            "",                                        // 8 票卡类型(需归一044X，待确认)
-                            "",                                        // 9 票卡子类型(无对应列，待确认)
-                            toLong(pick(row, "ACTUAL_TIMES")),         // 10 次数
-                            toStr(pick(row, "PAY_CHANNEL_CODE")),      // 11 支付渠道
-                            toStr(pick(row, "ACTIVATE_TIME")),         // 12 激活时间
-                            "1",                                       // 13 数量(固定1)
-                            "",                                        // 14 交易流水号(购票无闸机里程序列号，待确认)
-                            toStr(pick(row, "ORDER_NO")),             // 15 交易订单号
-                            toLong(pick(row, "TICKET_PRICE")),         // 16 订单金额(分)
-                            payAmount,                                 // 17 实际扣款金额(分)
-                            "",                                        // 18 优惠累计消费金额(无对应列，待确认)
-                            "",                                        // 19 超时金额(发售恒空)
-                            orderStatusLabel,                          // 20 订单状态(正常/退款，派生，待确认映射)
-                            toLong(pick(row, "REFUND_AMOUNT"))),       // 21 退款金额(分，LEFT JOIN DAILY_TICKET_REFUND)
+                            toStr(pick(row, "OPERATE_DATE")),
+                            TXN_TYPE_SALE,
+                            toStr(pick(row, "CARD_NUM")),
+                            toStr(pick(row, "TXN_DATE_TIME")),
+                            toLong(pick(row, "TICKET_PRICE")),
+                            "",
+                            "",
+                            "",
+                            "",
+                            toLong(pick(row, "ACTUAL_TIMES")),
+                            toStr(pick(row, "PAY_CHANNEL_CODE")),
+                            toStr(pick(row, "ACTIVATE_TIME")),
+                            "1",
+                            "",
+                            toStr(pick(row, "ORDER_NO")),
+                            toLong(pick(row, "TICKET_PRICE")),
+                            payAmount,
+                            "",
+                            "",
+                            orderStatusLabel,
+                            toLong(pick(row, "REFUND_AMOUNT"))),
                             payAmount);
                 }
                 Map<String, Object> last = rows.get(rows.size() - 1);
@@ -182,7 +158,6 @@ public class ReconExportService {
         }
     }
 
-    /** PAY：统计汇总，库内 GROUP BY 后一次查完逐行写出。 */
     private void exportPaySummary(ReconExportReqDTO req) {
         List<Map<String, Object>> rows = reconExportMapper.selectTravelTicketPaySummary(
                 req.getWindowStartTimestamp(), req.getWindowEndTimestamp());
@@ -211,7 +186,6 @@ public class ReconExportService {
         }
     }
 
-    /** 从结果 Map 里取列值。 */
     private Object pick(Map<String, Object> row, String column) {
         Object value = row.get(column);
         if (value != null) {
@@ -220,7 +194,6 @@ public class ReconExportService {
         return row.get(camel(column));
     }
 
-    /** 把 {@code PAY_CHANNEL_CODE} 这类列名转成 {@code payChannelCode}。 */
     private String camel(String column) {
         StringBuilder builder = new StringBuilder(column.length());
         boolean upperNext = false;
@@ -236,15 +209,11 @@ public class ReconExportService {
         return builder.toString();
     }
 
-    /** null 安全的字符串化，null 转空串（分片行里空字段就是空串，不是字面量 null）。 */
     private String toStr(Object value) {
         return value == null ? "" : String.valueOf(value);
     }
 
-    /**
-     * 金额与笔数一律按 long 取。Oracle 的 {@code NUMBER} 经 ojdbc8 回来通常是 {@link BigDecimal}，
-     * 少数聚合列可能是 {@link Long} / {@link Integer}，都在这里收口。
-     */
+
     private long toLong(Object value) {
         if (value == null) {
             return 0L;
@@ -262,7 +231,6 @@ public class ReconExportService {
         return new BigDecimal(text).longValue();
     }
 
-    /** 把结果 Map 里的时间列转成 {@link Timestamp}，供 Keyset 游标回填。 */
     private Timestamp toTimestamp(Object value) {
         if (value == null) {
             return null;

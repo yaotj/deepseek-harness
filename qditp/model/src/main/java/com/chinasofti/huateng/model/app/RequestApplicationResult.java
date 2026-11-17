@@ -2,30 +2,19 @@ package com.chinasofti.huateng.model.app;
 
 import com.chinasofti.huateng.common.response.CommonResult;
 
-/**
- * @date 2026/5/25 11:38。
- * @author zzm。
- */
+
 public class RequestApplicationResult extends CommonResult {
 
-    /**
-     * 地铁会员卡号。
-     */
+
     private String cardId;
 
-    /**
-     * 卡类型编码。
-     */
+
     private String cardType;
 
-    /**
-     * 01 sha1withrsa。
-     */
+
     private String signType;
 
-    /**
-     * 私钥签名 sha1withrsa。
-     */
+
     private String sign;
 
     public String getCardId() {

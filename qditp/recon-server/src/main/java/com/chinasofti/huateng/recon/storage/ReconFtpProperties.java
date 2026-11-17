@@ -10,9 +10,7 @@ public class ReconFtpProperties {
     private String username;
     private String password;
     private String remoteRoot = "/itp/recon";
-    /** 每个文件投递完成后，回查远端确认文件真实存在且字节数一致（RNTO 后发 SIZE，失败退回 LIST）。 */
     private boolean verifyAfterUpload = true;
-    /** 相邻两个文件投递之间的间隔毫秒数，置 0 表示不等待。 */
     private long uploadIntervalMillis = 800L;
 
     public boolean isEnabled() { return enabled; }

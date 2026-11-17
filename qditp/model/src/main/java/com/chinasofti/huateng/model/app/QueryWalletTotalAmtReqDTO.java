@@ -1,6 +1,5 @@
 package com.chinasofti.huateng.model.app;
 
-/** 钱包累计金额查询请求，对应 ITP-App /app/queryTotalAmt。金额单位为分。 */
 public class QueryWalletTotalAmtReqDTO {
     private String thirdUserId;
     private String cardType;

@@ -3,16 +3,12 @@ package com.chinasofti.huateng.alipay.paysign.exception;
 import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
 import com.chinasofti.huateng.common.response.AlipayCommonResponse;
 
-/**
- * 业务异常，用于在 Service 层抛出，由 {@link GlobalExceptionHandler} 统一转换为响应。
- */
+
 public class BusinessException extends RuntimeException {
     private static final long serialVersionUID = 1L;
 
-    /** 响应码 */
     private final String code;
 
-    /** 响应信息 */
     private final String msg;
 
     public BusinessException(String code, String msg) {
@@ -43,9 +39,7 @@ public class BusinessException extends RuntimeException {
         return msg;
     }
 
-    /**
-     * 转换为统一响应对象。
-     */
+
     public AlipayCommonResponse toResponse() {
         AlipayCommonResponse response = new AlipayCommonResponse();
         response.setRetCode(code);

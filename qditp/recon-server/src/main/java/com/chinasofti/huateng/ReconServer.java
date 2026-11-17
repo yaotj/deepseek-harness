@@ -11,13 +11,7 @@ import com.chinasofti.huateng.recon.storage.ReconFtpProperties;
 import com.chinasofti.huateng.recon.storage.ReconOrchestrationProperties;
 import com.chinasofti.huateng.recon.storage.ThirdPartyReconProperties;
 
-/**
- * recon-server 启动类。
- *
- * <p>护栏：不显式声明 {@code @EnableScheduling} 不等于调度未启用 —— micro web 的
- * {@code WebAutoConfig} 已全局启用调度；NEVER 把「本模块调度未启用」写成可断言项。
- * 触发方与频率见 {@code docs/business/recon.md}。</p>
- */
+
 @SpringBootApplication
 @EnableDefaultMybatisAutoConfig
 @EnableRpcRecon

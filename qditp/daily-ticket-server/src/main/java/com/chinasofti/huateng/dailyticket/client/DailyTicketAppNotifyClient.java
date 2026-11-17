@@ -18,17 +18,13 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
-/** APP 网关通知客户端（出向）。 */
 @Component
 public class DailyTicketAppNotifyClient {
 
-    /** APP 侧成功码。 */
     private static final String RET_CODE_SUCCESS = "0000";
 
-    /** 部分网关用 {@code code=0} 表示成功（支付中心那套口径）。 */
     private static final String CODE_SUCCESS = "0";
 
-    /** 信封 {@code timestamp} 格式。 */
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private static final int BODY_LOG_LIMIT = 200;
@@ -46,12 +42,7 @@ public class DailyTicketAppNotifyClient {
                 .build();
     }
 
-    /**
-     * 投递一条通知。
-     *
-     * @param url         完整 URL；为空时直接返回失败（配置缺失也要留痕，NEVER 静默跳过）
-     * @param payloadJson 业务报文 JSON，作为信封的 {@code bizData} 字段值发送
-     */
+
     public DailyTicketAppNotifyResult post(String url, String payloadJson) {
         if (url == null || url.isBlank()) {
             return DailyTicketAppNotifyResult.failed("通知地址未配置");
@@ -76,12 +67,7 @@ public class DailyTicketAppNotifyClient {
         }
     }
 
-    /**
-     * 按 APP 接口协议投递 multipart/form-data 通知。
-     *
-     * <p>IF8B-05 支付结果通知要求外层为 ITP 表单信封，{@code bizData} 是原始 JSON 字符串：
-     * 不做 Base64，不把业务字段平铺到外层表单。</p>
-     */
+
     public DailyTicketAppNotifyResult postMultipart(String url, String payloadJson) {
         if (url == null || url.isBlank()) {
             return DailyTicketAppNotifyResult.failed("通知地址未配置");
@@ -107,7 +93,6 @@ public class DailyTicketAppNotifyClient {
         }
     }
 
-    /** 拼 ITP 信封表单体，{@code bizData} 放业务 JSON。 */
     private String formBody(String bizData) {
         StringBuilder body = new StringBuilder();
         append(body, "providerId", properties.getProviderId());
@@ -149,7 +134,6 @@ public class DailyTicketAppNotifyClient {
         body.append(value == null ? "" : value).append("\r\n");
     }
 
-    /** 判定应答，口径见类注释。 */
     private DailyTicketAppNotifyResult evaluate(String url, int statusCode, String body) {
         if (statusCode < 200 || statusCode >= 300) {
             return DailyTicketAppNotifyResult.failed("HTTP " + statusCode + ", body=" + abbreviate(body));

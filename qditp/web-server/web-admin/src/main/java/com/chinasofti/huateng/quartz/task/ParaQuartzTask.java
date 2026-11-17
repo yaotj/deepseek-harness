@@ -7,7 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-/** para-server 的 Quartz 调用桥接任务。 */
 @Component("paraQuartzTask")
 public class ParaQuartzTask
 {
@@ -22,19 +21,16 @@ public class ParaQuartzTask
         this.paraClient = paraClient;
     }
 
-    /** 前台调用目标填写 paraQuartzTask.scanFtpPara() 时执行。 */
     public void scanFtpPara()
     {
         QuartzTraceUtils.runWithTrace(this::invokeOnce);
     }
 
-    /** 前台调用目标填写 paraQuartzTask.syncDevice() 时执行：触发 para-server 同步 ACC 设备台账到 TBL_DEVICE_INFO。 */
     public void syncDevice()
     {
         QuartzTraceUtils.runWithTrace(this::invokeSyncDevice);
     }
 
-    /** ⚠️ para-server 侧要真正把 traceparent 续成 MDC 的 {@code traceId}，需要该模块 */
     private void invokeOnce(String traceId)
     {
         CommonResult response = paraClient.quartzScanFtpPara(QuartzTraceUtils.traceHeaders(traceId));

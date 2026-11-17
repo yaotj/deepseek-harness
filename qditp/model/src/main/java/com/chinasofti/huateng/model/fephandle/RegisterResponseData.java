@@ -7,7 +7,6 @@ public class RegisterResponseData {
     private String createDatetime;
     private String status;
 
-    // Getters and Setters
 
     public String getRegisterDataType() {
         return registerDataType;

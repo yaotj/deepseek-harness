@@ -30,9 +30,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * 日终对账的编排：建批次、下发抽取、推进收齐、生成与投递。
- */
+
 @Service
 public class ReconOrchestrationService {
 
@@ -73,15 +71,7 @@ public class ReconOrchestrationService {
         this.fileTransferService = fileTransferService;
         this.exportClient = exportClient;
     }
-    /**
-     * 跑完一次完整的日终对账：建批次 → 下发抽取 → 轮询推进到终态 → 生成 → 投递。
-     *
-     * <p>护栏：并发只靠进程内 {@link AtomicBoolean}、没有数据库锁，因此 recon-server 与
-     * web-admin 都 MUST 单副本。</p>
-     *
-     * @return 收口后的批次视图
-     * @throws IllegalStateException 上一次运行未结束、总开关关闭、批次未在超时内到达终态，或推进过程中失败
-     */
+
     public BatchView runDailyBatch() {
         if (!properties.isEnabled()) {
             throw new IllegalStateException("对账编排总开关已关闭: recon.orchestration.enabled=false");
@@ -120,7 +110,6 @@ public class ReconOrchestrationService {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
-    /** 轮询间隔的等待。 */
     private void sleep(long millis) {
         try {
             Thread.sleep(millis);
@@ -130,12 +119,7 @@ public class ReconOrchestrationService {
         }
     }
 
-    /**
-     * 建当日账期批次、登记期望清单并逐个下发抽取指令。
-     *
-     * @return 本次账期的批次号，形如 {@code RECON20260910}
-     * @throws IllegalStateException 建批次或登记期望失败
-     */
+
     public String dispatchDailyBatch() {
         LocalDate businessDate = LocalDate.now().minusDays(properties.getWindowOffsetDays());
         String businessDateText = businessDate.format(DATE);
@@ -166,12 +150,7 @@ public class ReconOrchestrationService {
         return batchId;
     }
 
-    /**
-     * 向一个源下发抽取指令。按各文件类型独立的账期偏移（{@code windowOffsetDaysByType}，缺省回退全局）分组，
-     * 每组单独推算窗口后下发——使 DETAIL 等可按运营日口径抽取，而 EXP/PAY/BUS 维持 T-2~T-1。
-     *
-     * @param onlyType 非空时只重下发该文件类型（补偿单个 {@code (来源, 文件类型)}），为空时下发该源的全部类型
-     */
+
     private void dispatchSource(String batchId, SourceExpectation expectation, ReconFileType onlyType) {
         List<ReconFileType> targets = new ArrayList<>();
         for (String name : expectation.getFileTypes()) {
@@ -222,7 +201,6 @@ public class ReconOrchestrationService {
         }
     }
 
-    /** 扫描非终态批次并逐个推进，供人工干预接口调用。 */
     public void advance() {
         if (!properties.isEnabled()) return;
         if (!advancing.compareAndSet(false, true)) {
@@ -238,12 +216,7 @@ public class ReconOrchestrationService {
         }
     }
 
-    /**
-     * 推进单个批次，供人工干预接口与整批运行共用。
-     *
-     * @param batchId 批次标识
-     * @return 推进后的批次视图
-     */
+
     public BatchView advanceBatch(String batchId) {
         BatchView batch = batchService.get(batchId);
         if (batch == null) throw new IllegalArgumentException("对账批次不存在: " + batchId);
@@ -272,7 +245,6 @@ public class ReconOrchestrationService {
         }
     }
 
-    /** 对 FAILED 且未超过 maxRetry 的来源重新下发抽取指令；本方法内含 RPC，MUST 在事务外执行。 */
     private void retryFailedSources(BatchView batch) {
         boolean retried = false;
         for (SourceProgress progress : sourceService.list(batch.batchId())) {
@@ -304,7 +276,6 @@ public class ReconOrchestrationService {
         return null;
     }
 
-    /** 逐个生成最终文件；任一失败即抛异常，由上层置批次 FAILED。 */
     private void generateAll(String batchId, List<SourceProgress> progresses) throws Exception {
         for (ReconFileType fileType : requiredFileTypes(progresses)) {
             ReconFileView view = fileGenerationService.generate(batchId, fileType);
@@ -313,7 +284,6 @@ public class ReconOrchestrationService {
         }
     }
 
-    /** 先把批次推到 UPLOADING，再逐个投递；全部 UPLOADED 才算通过。 */
     private void uploadAll(String batchId, List<SourceProgress> progresses) throws Exception {
         batchService.transitionIfNeeded(batchId, ReconBatchStatus.UPLOADING);
         for (ReconFileType fileType : requiredFileTypes(progresses)) {
@@ -325,7 +295,6 @@ public class ReconOrchestrationService {
         }
     }
 
-    /** 需要产出的文件类型 = 期望清单里所有 fileTypes 的并集，按 {@link ReconFileTypeEnum} 声明顺序输出。 */
     private Set<ReconFileType> requiredFileTypes(List<SourceProgress> progresses) {
         Set<ReconFileType> types = new LinkedHashSet<>();
         for (ReconFileTypeEnum candidate : ReconFileTypeEnum.values()) {

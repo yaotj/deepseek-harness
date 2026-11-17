@@ -8,11 +8,8 @@ public class OrderRequestData implements Serializable {
     @Serial
     private static final long serialVersionUID = -1423708039822294309L;
 
-    // 订单记录ID
     private String orderId;
-    // 订单记录类型
     private String orderType;
-    // 数据体
     private Object orderData;
 
     public String getOrderId() {

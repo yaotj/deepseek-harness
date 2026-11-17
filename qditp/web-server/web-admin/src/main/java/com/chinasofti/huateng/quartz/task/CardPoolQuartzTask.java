@@ -7,7 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-/** card-pool-server 的 Quartz 调用桥接任务。 */
 @Component("cardPoolQuartzTask")
 public class CardPoolQuartzTask
 {
@@ -20,13 +19,11 @@ public class CardPoolQuartzTask
         this.cardPoolClient = cardPoolClient;
     }
 
-    /** 前台调用目标填写 cardPoolQuartzTask.runMaintenance() 时执行。 */
     public void runMaintenance()
     {
         QuartzTraceUtils.runWithTrace(this::invokeOnce);
     }
 
-    /** 下游是**受理式**接口：提交给单线程维护池后立刻返回，ACC 申请、FTP 下载、十万行入库都在 */
     private void invokeOnce(String traceId)
     {
         CardPoolActionResult result = cardPoolClient.runMaintenance(QuartzTraceUtils.traceHeaders(traceId));

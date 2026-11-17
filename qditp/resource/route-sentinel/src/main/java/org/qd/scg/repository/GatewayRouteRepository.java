@@ -74,19 +74,7 @@ public class GatewayRouteRepository {
             routeId, uri, predicates, filters, orderNo, operator);
     }
 
-    /**
-     * 硬删除路由行（2026-11-13 修复，辽阳东 Oracle 实证）。
-     *
-     * <p>原实现是软删 {@code SET uri='', predicates='[]', filters='[]'}，有两个致命问题：
-     * <ol>
-     *   <li>Oracle 空串=NULL，撞 URI 的 NOT NULL 约束（ORA-01407），删除恒 500
-     *       （H2/MySQL 空串非 NULL，测试环境不暴露）；</li>
-     *   <li>软删行仍留在表里，{@code predicates='[]'} 经 RoutePredicateFactory.parse
-     *       解析为 null → UserRouteConfig.reload 降级为 {@code req->true} 匹配一切，
-     *       空 URI 路由会劫持全部流量。</li>
-     * </ol>
-     * 历史已由 gateway_route_config_audit 审计表完整记录，NEVER 恢复软删。
-     */
+
     public void deleteById(String routeId) {
         jdbc.update("DELETE FROM gateway_route_config WHERE route_id = ?", routeId);
     }

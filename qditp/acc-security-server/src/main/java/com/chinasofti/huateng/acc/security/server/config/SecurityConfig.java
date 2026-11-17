@@ -3,11 +3,7 @@ package com.chinasofti.huateng.acc.security.server.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-/**
- * 加密服务配置
- *
- * @author 49935
- */
+
 @Component
 @ConfigurationProperties(prefix = "security")
 public class SecurityConfig {

@@ -11,21 +11,15 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * 异常工单运营查询与人工关单的实现，见 {@link AccountExceptionTicketService}。
- */
+
 @Service
 public class AccountExceptionTicketServiceImpl implements AccountExceptionTicketService {
     private static final Logger log = LoggerFactory.getLogger(AccountExceptionTicketServiceImpl.class);
 
-    /**
-     * 缺省查询条数。
-     */
+
     private static final int DEFAULT_QUERY_LIMIT = 50;
 
-    /**
-     * 单次查询条数上限。
-     */
+
     private static final int MAX_QUERY_LIMIT = 200;
 
     private final AccountExceptionTicketMapper accountExceptionTicketMapper;

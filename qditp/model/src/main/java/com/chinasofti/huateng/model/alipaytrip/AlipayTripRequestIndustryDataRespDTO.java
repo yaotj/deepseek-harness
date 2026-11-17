@@ -2,18 +2,12 @@ package com.chinasofti.huateng.model.alipaytrip;
 
 import com.chinasofti.huateng.common.response.CommonResult;
 
-/**
- * 支付宝出行-获取行业数据响应参数。
- */
+
 public class AlipayTripRequestIndustryDataRespDTO extends CommonResult {
-    /**
-     * 卡数据HexString。
-     */
+
     private String cardData;
 
-    /**
-     * 签名类型。
-     */
+
     private String signType;
 
     private String sign;

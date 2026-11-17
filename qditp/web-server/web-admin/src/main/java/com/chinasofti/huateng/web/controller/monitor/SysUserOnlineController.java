@@ -23,11 +23,7 @@ import com.chinasofti.huateng.common.utils.StringUtils;
 import com.chinasofti.huateng.system.domain.SysUserOnline;
 import com.chinasofti.huateng.system.service.ISysUserOnlineService;
 
-/**
- * 在线用户监控
- * 
- * @author zmzhang
- */
+
 @RestController
 @RequestMapping("/monitor/online")
 public class SysUserOnlineController extends BaseController
@@ -69,9 +65,7 @@ public class SysUserOnlineController extends BaseController
         return getDataTable(userOnlineList);
     }
 
-    /**
-     * 强退用户
-     */
+
     @PreAuthorize("@ss.hasPermi('monitor:online:forceLogout')")
     @Log(title = "在线用户", businessType = BusinessType.FORCE)
     @DeleteMapping("/{tokenId}")

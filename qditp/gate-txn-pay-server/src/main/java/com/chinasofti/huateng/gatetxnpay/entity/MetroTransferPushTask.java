@@ -2,7 +2,6 @@ package com.chinasofti.huateng.gatetxnpay.entity;
 
 import java.time.LocalDateTime;
 
-/** 公交换乘行程推送 outbox 任务。 */
 public class MetroTransferPushTask {
     private Long id;
     private String orderNo;

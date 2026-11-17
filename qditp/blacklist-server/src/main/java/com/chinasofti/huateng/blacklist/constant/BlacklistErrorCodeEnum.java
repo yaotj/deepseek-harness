@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.blacklist.constant;
 
-/**
- * blacklist-server 错误码枚举。
- */
+
 public enum BlacklistErrorCodeEnum {
     SUCCESS("0000", "成功"),
     FAIL("9999", "失败"),

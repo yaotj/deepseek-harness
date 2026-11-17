@@ -259,17 +259,7 @@ public class DailyTicketPaymentService {
         return result;
     }
 
-    /**
-     * 支付中心支付结果回调。
-     *
-     * <p><b>已取消订单收到支付成功通知时不能走普通成功分支</b>：{@code markPaySuccess} 的 CAS
-     * 要求 {@code PAYING + PAYING}，对 {@code CANCELED} 的单一律 0 行、只留一行「重复处理被忽略」日志，
-     * 结果是**钱收了、票已取消、没有人退款**。因此这里按订单状态分两支，取消态走
-     * 「补支付事实 + 自动退款」（{@code CanceledOrderRefundService}），**NEVER 合并回一支**。
-     *
-     * <p>支付失败分支不需要特判：{@code markPayFailed} 的 CAS 同样只认 {@code PAYING}，
-     * 对取消单落 0 行即可 —— 钱没收到，本来就无事可做。
-     */
+
     public DailyTicketBaseResult receivePayResult(DailyTicketPayCallbackReqDTO request) {
         DailyTicketBaseResult result = new DailyTicketBaseResult();
         if (request == null || !StringUtils.hasText(request.getOrderNo())) {
@@ -322,13 +312,7 @@ public class DailyTicketPaymentService {
         return success(result);
     }
 
-    /**
-     * 已取消的日票订单收到支付成功通知：只补支付事实（{@code ORDER_STATUS} 保持 {@code CANCELED}），
-     * 随后转自动退款。
-     *
-     * <p>CAS 落 0 行（重复回调）时**仍要调一次退款**，NEVER 直接 return：首次回调可能已经落了
-     * 支付事实但退款那一步炸了，靠上游重推补偿是唯一出口；退款服务自身对「已有退款单」幂等短路。
-     */
+
     private void markPaySuccessOnCanceled(DailyTicketOrder order, String tradeNo, String paymentOrderNo,
                                           Date payDate, Integer payAmount, Integer cashAmount, Integer couponAmount) {
         order.setTradeNo(tradeNo);
@@ -344,7 +328,6 @@ public class DailyTicketPaymentService {
         canceledOrderRefundService.refundCanceledDailyOrder(order.getOrderNo());
     }
 
-    /** 已取消的旅游票主单收到支付成功通知，口径与 {@link #markPaySuccessOnCanceled} 一致。 */
     private void markTravelPaySuccessOnCanceled(TravelTicketOrder order, String tradeNo, String paymentOrderNo,
                                                 Date payDate, Integer payAmount, Integer cashAmount,
                                                 Integer couponAmount) {
@@ -361,7 +344,6 @@ public class DailyTicketPaymentService {
         canceledOrderRefundService.refundCanceledTravelOrder(order.getOrderNo());
     }
 
-    /** 按票号查日票的购票支付信息，供 IF8A-34 / IF8A-05 交易详情填充三个支付字段。 */
     public QueryDailyTicketPayInfoResult queryDailyTicketPayInfo(QueryDailyTicketPayInfoReqDTO request) {
         QueryDailyTicketPayInfoResult result = new QueryDailyTicketPayInfoResult();
         if (request == null || !StringUtils.hasText(request.getTicketCode())) {

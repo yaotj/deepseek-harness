@@ -25,11 +25,7 @@ import com.chinasofti.huateng.system.mapper.SysRoleMapper;
 import com.chinasofti.huateng.system.mapper.SysUserMapper;
 import com.chinasofti.huateng.system.service.ISysDeptService;
 
-/**
- * 部门管理 服务实现
- * 
- * @author zmzhang
- */
+
 @Service
 public class SysDeptServiceImpl implements ISysDeptService
 {
@@ -42,12 +38,7 @@ public class SysDeptServiceImpl implements ISysDeptService
     @Autowired
     private SysUserMapper userMapper;
 
-    /**
-     * 查询部门管理数据
-     * 
-     * @param dept 部门信息
-     * @return 部门信息集合
-     */
+
     @Override
     @DataScope(deptAlias = "d")
     public List<SysDept> selectDeptList(SysDept dept)
@@ -55,12 +46,7 @@ public class SysDeptServiceImpl implements ISysDeptService
         return deptMapper.selectDeptList(dept);
     }
 
-    /**
-     * 查询部门树结构信息
-     * 
-     * @param dept 部门信息
-     * @return 部门树信息集合
-     */
+
     @Override
     public List<TreeSelect> selectDeptTreeList(SysDept dept)
     {
@@ -68,22 +54,15 @@ public class SysDeptServiceImpl implements ISysDeptService
         return buildDeptTreeSelect(depts);
     }
 
-    /**
-     * 构建前端所需要树结构
-     * 
-     * @param depts 部门列表
-     * @return 树结构列表
-     */
+
     @Override
     public List<SysDept> buildDeptTree(List<SysDept> depts)
     {
         List<SysDept> returnList = new ArrayList<SysDept>();
         Set<Long> deptIds = depts.stream().map(SysDept::getDeptId).collect(Collectors.toSet());
-        // 按父节点ID预分组，递归时 O(1) 取子节点，替代每节点全表扫描，整树构建 O(n)
         Map<Long, List<SysDept>> childMap = groupByParentId(depts);
         for (SysDept dept : depts)
         {
-            // 如果是顶级节点, 遍历该父节点的所有子节点
             if (!deptIds.contains(dept.getParentId()))
             {
                 recursionFn(childMap, dept);
@@ -97,12 +76,7 @@ public class SysDeptServiceImpl implements ISysDeptService
         return returnList;
     }
 
-    /**
-     * 构建前端所需要下拉树结构
-     * 
-     * @param depts 部门列表
-     * @return 下拉树结构列表
-     */
+
     @Override
     public List<TreeSelect> buildDeptTreeSelect(List<SysDept> depts)
     {
@@ -110,12 +84,7 @@ public class SysDeptServiceImpl implements ISysDeptService
         return deptTrees.stream().map(TreeSelect::new).collect(Collectors.toList());
     }
 
-    /**
-     * 根据角色ID查询部门树信息
-     * 
-     * @param roleId 角色ID
-     * @return 选中部门列表
-     */
+
     @Override
     public List<Long> selectDeptListByRoleId(Long roleId)
     {
@@ -123,36 +92,21 @@ public class SysDeptServiceImpl implements ISysDeptService
         return deptMapper.selectDeptListByRoleId(roleId, role.isDeptCheckStrictly());
     }
 
-    /**
-     * 根据部门ID查询信息
-     * 
-     * @param deptId 部门ID
-     * @return 部门信息
-     */
+
     @Override
     public SysDept selectDeptById(Long deptId)
     {
         return deptMapper.selectDeptById(deptId);
     }
 
-    /**
-     * 根据ID查询所有子部门（正常状态）
-     * 
-     * @param deptId 部门ID
-     * @return 子部门数
-     */
+
     @Override
     public int selectNormalChildrenDeptById(Long deptId)
     {
         return deptMapper.selectNormalChildrenDeptById(deptId);
     }
 
-    /**
-     * 是否存在子节点
-     * 
-     * @param deptId 部门ID
-     * @return 结果
-     */
+
     @Override
     public boolean hasChildByDeptId(Long deptId)
     {
@@ -160,12 +114,7 @@ public class SysDeptServiceImpl implements ISysDeptService
         return result > 0;
     }
 
-    /**
-     * 查询部门是否存在用户
-     * 
-     * @param deptId 部门ID
-     * @return 结果 true 存在 false 不存在
-     */
+
     @Override
     public boolean checkDeptExistUser(Long deptId)
     {
@@ -173,12 +122,7 @@ public class SysDeptServiceImpl implements ISysDeptService
         return result > 0;
     }
 
-    /**
-     * 校验部门名称是否唯一
-     * 
-     * @param dept 部门信息
-     * @return 结果
-     */
+
     @Override
     public boolean checkDeptNameUnique(SysDept dept)
     {
@@ -191,11 +135,7 @@ public class SysDeptServiceImpl implements ISysDeptService
         return UserConstants.UNIQUE;
     }
 
-    /**
-     * 校验部门是否有数据权限
-     * 
-     * @param deptId 部门id
-     */
+
     @Override
     public void checkDeptDataScope(Long deptId)
     {
@@ -211,17 +151,11 @@ public class SysDeptServiceImpl implements ISysDeptService
         }
     }
 
-    /**
-     * 新增保存部门信息
-     * 
-     * @param dept 部门信息
-     * @return 结果
-     */
+
     @Override
     public int insertDept(SysDept dept)
     {
         SysDept info = deptMapper.selectDeptById(dept.getParentId());
-        // 如果父节点不为正常状态,则不允许新增子节点
         if (!UserConstants.DEPT_NORMAL.equals(info.getStatus()))
         {
             throw new ServiceException("部门停用，不允许新增");
@@ -230,12 +164,7 @@ public class SysDeptServiceImpl implements ISysDeptService
         return deptMapper.insertDept(dept);
     }
 
-    /**
-     * 修改保存部门信息
-     * 
-     * @param dept 部门信息
-     * @return 结果
-     */
+
     @Override
     public int updateDept(SysDept dept)
     {
@@ -252,17 +181,12 @@ public class SysDeptServiceImpl implements ISysDeptService
         if (UserConstants.DEPT_NORMAL.equals(dept.getStatus()) && StringUtils.isNotEmpty(dept.getAncestors())
                 && !StringUtils.equals("0", dept.getAncestors()))
         {
-            // 如果该部门是启用状态，则启用该部门的所有上级部门
             updateParentDeptStatusNormal(dept);
         }
         return result;
     }
 
-    /**
-     * 修改该部门的父级部门状态
-     * 
-     * @param dept 当前部门
-     */
+
     private void updateParentDeptStatusNormal(SysDept dept)
     {
         String ancestors = dept.getAncestors();
@@ -270,13 +194,7 @@ public class SysDeptServiceImpl implements ISysDeptService
         deptMapper.updateDeptStatusNormal(deptIds);
     }
 
-    /**
-     * 修改子元素关系
-     * 
-     * @param deptId 被修改的部门ID
-     * @param newAncestors 新的父ID集合
-     * @param oldAncestors 旧的父ID集合
-     */
+
     public void updateDeptChildren(Long deptId, String newAncestors, String oldAncestors)
     {
         List<SysDept> children = deptMapper.selectChildrenDeptById(deptId);
@@ -290,31 +208,14 @@ public class SysDeptServiceImpl implements ISysDeptService
         }
     }
 
-    /**
-     * 删除部门管理信息
-     * 
-     * @param deptId 部门ID
-     * @return 结果
-     */
+
     @Override
     public int deleteDeptById(Long deptId)
     {
         return deptMapper.deleteDeptById(deptId);
     }
 
-    /**
-     * 级联删除部门及其全部下级部门，并把受影响用户的部门归属置空
-     *
-     * 2026-10-15 业主要求：级别为 0 的公司也要能删除。原先 SysDeptController 在删除前有两道拦截
-     * （存在下级部门 / 部门存在用户即拒绝），现放开并由本方法承担收口：
-     * ① 按祖先串取出子树（含自身）—— 祖先串判定与 selectChildrenDeptById 同一写法；
-     * ② 把子树内所有用户的 dept_id 置空（不是删用户）—— dept_id 为 NULL 是本系统既有合法状态；
-     * ③ 子树整体逻辑删除（del_flag='2'），与 deleteDeptById 同一语义，回滚只需把 del_flag 改回 '0'。
-     * 两步写在同一事务内，任一失败整体回滚，NEVER 出现「部门删了但用户还挂在上面」的中间态。
-     *
-     * @param deptId 部门ID
-     * @return 结果
-     */
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int deleteDeptCascade(Long deptId)
@@ -328,12 +229,7 @@ public class SysDeptServiceImpl implements ISysDeptService
         return deptMapper.deleteDeptByIds(deptIds);
     }
 
-    /**
-     * 按父节点ID分组，供树构建时 O(1) 查询子节点
-     *
-     * @param depts 部门列表
-     * @return 父节点ID -> 子节点列表
-     */
+
     private Map<Long, List<SysDept>> groupByParentId(List<SysDept> depts)
     {
         Map<Long, List<SysDept>> childMap = new HashMap<>();
@@ -347,12 +243,9 @@ public class SysDeptServiceImpl implements ISysDeptService
         return childMap;
     }
 
-    /**
-     * 递归列表
-     */
+
     private void recursionFn(Map<Long, List<SysDept>> childMap, SysDept t)
     {
-        // 得到子节点列表
         List<SysDept> childList = getChildList(childMap, t);
         t.setChildren(childList);
         for (SysDept tChild : childList)
@@ -364,18 +257,14 @@ public class SysDeptServiceImpl implements ISysDeptService
         }
     }
 
-    /**
-     * 得到子节点列表
-     */
+
     private List<SysDept> getChildList(Map<Long, List<SysDept>> childMap, SysDept t)
     {
         List<SysDept> childList = childMap.get(t.getDeptId());
         return childList != null ? childList : new ArrayList<SysDept>();
     }
 
-    /**
-     * 判断是否有子节点
-     */
+
     private boolean hasChild(Map<Long, List<SysDept>> childMap, SysDept t)
     {
         return childMap.containsKey(t.getDeptId());

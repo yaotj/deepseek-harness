@@ -13,7 +13,6 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
-/** IF8A-41 账单统计查询。 */
 @Component
 public class TransStatisticsQueryHandler {
 
@@ -26,7 +25,6 @@ public class TransStatisticsQueryHandler {
     @Autowired
     private TransQueryParamNormalizer paramNormalizer;
 
-    /** 查询账单统计 (IF8A-41)。 */
     public RequestTransStatisticsResult requestTransStatistics(RequestTransStatisticsReqDTO request) {
         RequestTransStatisticsResult response = new RequestTransStatisticsResult();
         try {
@@ -80,7 +78,6 @@ public class TransStatisticsQueryHandler {
         return response;
     }
 
-    /** 零值统计对象，参数非法 / 异常 / 无数据时统一用它，避免给 APP 返回 null 金额。 */
     private TripDataDTO zeroTripData() {
         TripDataDTO tripData = new TripDataDTO();
         tripData.setTotalPrice(ZERO_AMOUNT);
@@ -91,7 +88,6 @@ public class TransStatisticsQueryHandler {
         return tripData;
     }
 
-    /** 逐字段兜底金额。 */
     private void fillZeroAmounts(TripDataDTO tripData) {
         if (tripData == null) {
             return;

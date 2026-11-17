@@ -3,26 +3,18 @@ package com.chinasofti.huateng.alipay.paysign.model.response;
 import java.io.Serializable;
 import java.util.List;
 
-/**
- * 分页响应结果。
- * @param <T> 数据项类型
- */
+
 public class PageResult<T> implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    /** 数据列表 */
     private List<T> list;
 
-    /** 总记录数 */
     private long total;
 
-    /** 当前页码 */
     private int pageNum;
 
-    /** 每页数量 */
     private int pageSize;
 
-    /** 总页数 */
     private long totalPage;
 
     public PageResult() {

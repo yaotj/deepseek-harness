@@ -7,9 +7,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
-/**
- * {@code RECON_BATCH_PART} 的数据访问。
- */
+
 @Mapper
 public interface ReconPartMapper {
 
@@ -39,7 +37,6 @@ public interface ReconPartMapper {
                                           @Param("source") String source,
                                           @Param("fileType") String fileType);
 
-    /** 汇总已接收分片的片数、记录数与金额；零行时返回 {@code (0,0,0)}。 */
     PartTotals selectTotals(@Param("batchId") String batchId,
                             @Param("source") String source,
                             @Param("fileType") String fileType);

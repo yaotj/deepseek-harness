@@ -2,43 +2,27 @@ package com.chinasofti.huateng.collectticket.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * Ticket_Collect_Log_Detail 取票明细记录表实体。
- */
+
 public class TicketCollectLogDetail {
-    /**
-     * 订单号。
-     */
+
     private String orderNo;
 
-    /**
-     * 实际出票数量。
-     */
+
     private Integer actualTakeTicketNum;
 
-    /**
-     * 实际出票的第几张。
-     */
+
     private Integer inOrderNo;
 
-    /**
-     * 取票时间（格式：YYYYMMDDHHMMSS）。
-     */
+
     private LocalDateTime takeTickeDate;
 
-    /**
-     * 票卡逻辑号。
-     */
+
     private String ticketLogicNum;
 
-    /**
-     * 交易时间（格式：YYYYMMDDHHMMSS）。
-     */
+
     private LocalDateTime transDate;
 
-    /**
-     * 交易金额。
-     */
+
     private String transAmount;
 
     public String getOrderNo() {

@@ -29,7 +29,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 下单写路径的落库验证。 */
 @SpringBootTest(classes = FacePayServer.class)
 @EnabledIfEnvironmentVariable(named = "DB_HOST", matches = ".+")
 class F2fTvmOrderServiceWriteTest {
@@ -54,7 +53,6 @@ class F2fTvmOrderServiceWriteTest {
     @Autowired
     private F2fTvmOrderService service;
 
-    /** 支付结果侧三条（{@code queryPayResult} / {@code receivePayNotice}）的宿主。 */
     @Autowired
     private F2fTvmPayResultService payResultService;
 
@@ -233,7 +231,6 @@ class F2fTvmOrderServiceWriteTest {
         return dto;
     }
 
-    /** 第二个用例拿不到返回体里的 orderNo，用「本设备最近一笔」定位并登记待清理。 */
     private F2fOrder latestCreatedOrder() {
         JdbcTemplate jdbc = new JdbcTemplate(dataSource);
         String orderNo = jdbc.queryForObject(
@@ -255,7 +252,6 @@ class F2fTvmOrderServiceWriteTest {
         return dto;
     }
 
-    /** BOM 柜台售票，{@code payType} 与 TVM 同为 0，但下单阶段完全不看它。 */
     private RequestGenSjtOrderReqDTO bomRequest() {
         RequestGenSjtOrderReqDTO dto = request("0");
         dto.setDeviceId("BOM_WRITE_TEST");

@@ -5,9 +5,7 @@ import com.chinasofti.huateng.common.response.CommonResult;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 员工码状态通知处理结果。
- */
+
 public class EmployeeCardNotifyResult extends CommonResult {
     private List<FailureItem> failList = new ArrayList<>();
 

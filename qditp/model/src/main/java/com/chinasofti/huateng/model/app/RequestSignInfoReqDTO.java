@@ -1,79 +1,48 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * @date 2026/5/26 7:37。
- * @author zzm。
- */
+
 public class RequestSignInfoReqDTO {
 
-    /**
-     * 用户ID。
-     */
+
     private String thirdUserId;
 
-    /**
-     * 证件号。
-     */
+
     private String certNo;
 
-    /**
-     * 回调地址。
-     */
+
     private String notifyUrl;
 
-    /**
-     * 跳转前端页面地址。
-     */
+
     private String returnUrl;
 
-    /**
-     * 附加参数。
-     */
+
     private String options;
 
-    /**
-     * 授权码。
-     */
+
     private String authCode;
 
-    /**
-     * 手机号。
-     */
+
     private String mobilePhone;
 
-    /**
-     * 支付渠道号。
-     */
+
     private String payChannelCode;
 
-    /**
-     * 签约流水号。
-     */
+
     private String requestSignSeq;
 
-    /**
-     * 展示账户。
-     */
+
     private String displayAccount;
 
-    /**
-     * 钱包推送token。
-     */
+
     private String token;
 
-    /**
-     * 支付用户ID。
-     */
+
     private String payUserId;
 
-    /**
-     * 银行卡号。
-     */
+
     private String bankCardNo;
 
-    /**
-     * 客户姓名。
-     */
+
     private String custName;
 
     private String other;

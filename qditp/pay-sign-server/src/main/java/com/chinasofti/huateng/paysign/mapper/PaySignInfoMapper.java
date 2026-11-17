@@ -27,7 +27,6 @@ public interface PaySignInfoMapper {
     int updateDisplayAccountByThirdUserId(@Param("thirdUserId") String thirdUserId,
                                          @Param("displayAccount") String displayAccount);
 
-    /** SIGN_STATUS 状态机的 CAS UPDATE，前置状态写在 WHERE 里。 */
     int markSigned(@Param("requestSignSeq") String requestSignSeq,
                    @Param("payAccountId") String payAccountId,
                    @Param("payAgreementNo") String payAgreementNo,
@@ -38,10 +37,8 @@ public interface PaySignInfoMapper {
     int markUnsigned(@Param("requestSignSeq") String requestSignSeq,
                      @Param("terminationTime") LocalDateTime terminationTime);
 
-    /** 复位重签：UNSIGNED / FAILED -> NOT_SIGNED，并清空上一轮的签约结果字段。 */
     int reactivateForResign(@Param("requestSignSeq") String requestSignSeq);
 
-    /** CAS 返回 0 行后回查当前状态用，记录不存在时返回 null。 */
     String selectSignStatusBySeq(@Param("requestSignSeq") String requestSignSeq);
 
 }

@@ -13,7 +13,6 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-/** 出站扣费入参 {@link GateTxnPayReqDTO} 的组装：设备报文字段映射 + ticket-server 响应透传 + 中文站名回填。 */
 @Component
 class GateTxnPayRequestAssembler {
     private static final Logger log = LoggerFactory.getLogger(GateTxnPayRequestAssembler.class);
@@ -23,11 +22,7 @@ class GateTxnPayRequestAssembler {
     public GateTxnPayRequestAssembler(StationNameResolver stationNameResolver) {
         this.stationNameResolver = stationNameResolver;
     }
-    /**
-     * 按设备报文 + ticket-server 响应组装扣费入参，并回填进出站中文站名。
-     *
-     * @param industryDetail 支付宝出行的 21 键行业明细，仅 issueChannelCode=07 有值；
-     */
+
     public GateTxnPayReqDTO assemble(NotifyVerifyResultReqDTO request, NotifyVerifyResultRespDTO ticketResponse,
                                     String industryDetail) {
         GateTxnPayReqDTO payRequest = GateTxnPayReqDTO.fromVerifyResult(request);
@@ -39,7 +34,6 @@ class GateTxnPayRequestAssembler {
                 payRequest.getOfflineFlag(), payRequest.getEntryStationName(), payRequest.getExitStationName());
         return payRequest;
     }
-    /** 透传 ticket-server 返回的票卡状态、订单异常类型、离线码标识、日票相关字段与签约信息。 */
     private void applyTicketResponse(GateTxnPayReqDTO payRequest, NotifyVerifyResultReqDTO request,
                                     NotifyVerifyResultRespDTO ticketResponse) {
         if (ticketResponse == null) {
@@ -79,7 +73,6 @@ class GateTxnPayRequestAssembler {
                 ticketResponse.getPayChannelCode(),
                 ticketResponse.getRequestSignSeq());
     }
-    /** 根据进出站编码查询中文站名并写入扣费请求。 */
     private void fillStationNames(GateTxnPayReqDTO payRequest, String entryStationCode, String exitStationCode) {
         Set<String> stationCodes = new LinkedHashSet<>();
         if (StringUtils.hasText(entryStationCode)) {

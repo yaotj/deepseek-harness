@@ -25,12 +25,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 员工卡激活 / 禁用的前置状态白名单测试（IT-044：补上 {@code 2 → 1} 重新启用）。
- *
- * <p>白名单只有两条激活边：{@code 3 → 1}（首次激活）、{@code 2 → 1}（停用后重新启用）；
- * {@code 1}（已启用）与 {@code 4}（注销终态）MUST 拒绝。禁用只允许 {@code 1 → 2}。</p>
- */
+
 class EmployeeCardActivateWhitelistTest {
 
     private static final String CARD_NO = "13045027231";

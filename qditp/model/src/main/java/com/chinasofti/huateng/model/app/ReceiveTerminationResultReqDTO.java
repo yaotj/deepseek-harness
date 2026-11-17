@@ -1,26 +1,15 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * 支付 API 5.3 解约回调业务参数。
- */
+
 public class ReceiveTerminationResultReqDTO {
-    /** 三方用户 ID，内部透传字段。 */
     private String thirdUserId;
-    /** 卡 ID，内部透传字段。 */
     private String cardId;
-    /** 卡类型，内部透传字段。 */
     private String cardType;
-    /** 商户端签约流水号。 */
     private String requestSignSeq;
-    /** 支付平台协议号。 */
     private String agreementNo;
-    /** 支付渠道协议号。 */
     private String payAgreementNo;
-    /** 支付方式。 */
     private String paymentVendor;
-    /** 解约状态，SUCCESS 表示解约成功。 */
     private String status;
-    /** 解约时间，格式 yyyyMMddHHmmss。 */
     private String dismissalTime;
 
     public String getThirdUserId() {

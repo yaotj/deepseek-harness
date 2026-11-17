@@ -22,12 +22,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 员工码信息查询测试。
- *
- * <p>重点覆盖：注销（{@code CARD_STATUS=4}）后资料字段被清空，查询时 MUST NOT
- * 再调 ACC 补全，否则会把已注销员工的敏感资料重新写回本地表。</p>
- */
+
 class EmployeeCardQueryTest {
 
     private static final String CARD_NO = "13111111111";

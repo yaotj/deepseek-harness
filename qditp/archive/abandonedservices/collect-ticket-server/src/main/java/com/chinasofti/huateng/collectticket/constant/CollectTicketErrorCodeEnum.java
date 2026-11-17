@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.collectticket.constant;
 
-/**
- * 取票服务错误码定义。
- */
+
 public enum CollectTicketErrorCodeEnum {
     SUCCESS("0000", "成功"),
     FAIL("9999", "失败"),

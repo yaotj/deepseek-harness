@@ -1,6 +1,5 @@
 package com.chinasofti.huateng.fep.dev.model;
 
-/** IF1A-01 闸机检票通知的设备侧入向契约（AGM 上送的 bizData 形状）。 */
 public class NotifyVerifyResultDeviceReqDTO {
 
     private String deviceId;
@@ -19,18 +18,13 @@ public class NotifyVerifyResultDeviceReqDTO {
     private String lastHandleStationCode;
     private String lastHandleDateTime;
     private String ticketTransSeq;
-    /** 补站类型：空=真实检票，01=补进站，02=补出站 */
     private String excessFareType;
-    /** BOM 操作类型：默认（空）=真实闸机检票/补站，018=补进站，005=免费更新，006=付费更新 */
     private String adviceOpt;
-    /** 预留字段1； */
     private String reserve1;
     private String reserve2;
-    /** 同行票标识：Y=同行票，C=第三方票，为空表示普通票 */
     private String companionFlag;
     private String paymentVendor;
     private String requestSignSeq;
-    /** 交易渠道类型：00闸机、01蓝牙、02BOM、03自助补站 */
     private String channelType;
 
     public String getDeviceId() { return deviceId; }
@@ -66,7 +60,6 @@ public class NotifyVerifyResultDeviceReqDTO {
     public String getTicketTransSeq() { return ticketTransSeq; }
     public void setTicketTransSeq(String ticketTransSeq) { this.ticketTransSeq = ticketTransSeq; }
 
-    /** 兼容甲方规范样例里的错误拼写 {@code tikcetTransSeq}。 */
     public void setTikcetTransSeq(String tikcetTransSeq) { this.ticketTransSeq = tikcetTransSeq; }
 
     public String getExcessFareType() { return excessFareType; }

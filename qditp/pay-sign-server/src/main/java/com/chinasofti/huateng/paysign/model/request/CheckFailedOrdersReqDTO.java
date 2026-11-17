@@ -2,7 +2,6 @@ package com.chinasofti.huateng.paysign.model.request;
 
 import java.time.LocalDateTime;
 
-/** 查询扣费失败订单内部接口请求。 */
 public class CheckFailedOrdersReqDTO {
 
     private String thirdUserId;

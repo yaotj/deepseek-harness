@@ -1,10 +1,6 @@
 package com.chinasofti.huateng.common.exception.job;
 
-/**
- * 计划策略异常
- * 
- * @author zmzhang
- */
+
 public class TaskException extends Exception
 {
     private static final long serialVersionUID = 1L;

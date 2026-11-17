@@ -15,11 +15,7 @@ import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PreDestroy;
 
-/**
- * 服务端基本配置，通过一个静态单例类，保证启动时候只被加载一次
- *
- * @author fanchi
- */
+
 @Slf4j
 @Component
 public class NettyServer {
@@ -31,18 +27,11 @@ public class NettyServer {
     @Autowired
     private NettyServerHandler serverHandler;
 
-    /**
-     * 用于处理服务器端接收客户端连接
-     *
-     */
+
     private EventLoopGroup bossGroup;
-    /**
-     * 进行网络通信（读写）
-     */
+
     private EventLoopGroup workerGroup;
-    /**
-     * 辅助工具类，用于服务器通道的一系列配置
-     */
+
     private ServerBootstrap serverBootstrap;
 
     private  ChannelFuture channelFuture;
@@ -82,19 +71,12 @@ public class NettyServer {
             } else {
                 log.error("Netty Server failed");
             }
-            // 严禁在此阻塞主线程（如 channelFuture.channel().closeFuture().sync()。
-            // 本类是 Spring Boot CommandLineRunner 调用，closeFuture().sync() 会永久阻塞
-            // SpringApplication.run()，导致 ApplicationReadyEvent 永不发布、统一 log4j2 配置
-            // (CustomLoggingConfiguration) 不加载，从而 VictoriaLogs appender 不生效。
-            // NioEventLoopGroup 为非守护线程，JVM 会自然保活；关停由 @PreDestroy close() 负责。
         } catch (InterruptedException e) {
             log.error("服务端异常");
             e.printStackTrace();
         }
     }
-    /**
-     * 关闭服务器方法
-     */
+
     @PreDestroy
     public void close() {
         log.info("程序关闭，关闭服务端....");

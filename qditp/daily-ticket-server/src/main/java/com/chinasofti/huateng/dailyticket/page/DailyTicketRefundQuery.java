@@ -3,7 +3,6 @@ package com.chinasofti.huateng.dailyticket.page;
 import java.util.Date;
 import org.springframework.format.annotation.DateTimeFormat;
 
-/** 日票退款记录页查询条件。 */
 public class DailyTicketRefundQuery {
     private Integer pageNum;
     private Integer pageSize;

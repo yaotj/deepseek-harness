@@ -19,19 +19,13 @@ import com.chinasofti.huateng.common.exception.ServiceException;
 import com.chinasofti.huateng.common.utils.StringUtils;
 import com.chinasofti.huateng.common.utils.html.EscapeUtil;
 
-/**
- * 全局异常处理器
- * 
- * @author zmzhang
- */
+
 @RestControllerAdvice
 public class GlobalExceptionHandler
 {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    /**
-     * 权限校验异常
-     */
+
     @ExceptionHandler(AccessDeniedException.class)
     public AjaxResult handleAccessDeniedException(AccessDeniedException e, HttpServletRequest request)
     {
@@ -40,9 +34,7 @@ public class GlobalExceptionHandler
         return AjaxResult.error(HttpStatus.FORBIDDEN, "没有权限，请联系管理员授权");
     }
 
-    /**
-     * 请求方式不支持
-     */
+
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public AjaxResult handleHttpRequestMethodNotSupported(HttpRequestMethodNotSupportedException e,
             HttpServletRequest request)
@@ -52,9 +44,7 @@ public class GlobalExceptionHandler
         return AjaxResult.error(e.getMessage());
     }
 
-    /**
-     * 业务异常
-     */
+
     @ExceptionHandler(ServiceException.class)
     public AjaxResult handleServiceException(ServiceException e, HttpServletRequest request)
     {
@@ -63,9 +53,7 @@ public class GlobalExceptionHandler
         return StringUtils.isNotNull(code) ? AjaxResult.error(code, e.getMessage()) : AjaxResult.error(e.getMessage());
     }
 
-    /**
-     * 请求路径中缺少必需的路径变量
-     */
+
     @ExceptionHandler(MissingPathVariableException.class)
     public AjaxResult handleMissingPathVariableException(MissingPathVariableException e, HttpServletRequest request)
     {
@@ -74,9 +62,7 @@ public class GlobalExceptionHandler
         return AjaxResult.error(String.format("请求路径中缺少必需的路径变量[%s]", e.getVariableName()));
     }
 
-    /**
-     * 请求参数类型不匹配
-     */
+
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public AjaxResult handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException e, HttpServletRequest request)
     {
@@ -90,9 +76,7 @@ public class GlobalExceptionHandler
         return AjaxResult.error(String.format("请求参数类型不匹配，参数[%s]要求类型为：'%s'，但输入值为：'%s'", e.getName(), e.getRequiredType().getName(), value));
     }
 
-    /**
-     * 拦截未知的运行时异常
-     */
+
     @ExceptionHandler(RuntimeException.class)
     public AjaxResult handleRuntimeException(RuntimeException e, HttpServletRequest request)
     {
@@ -101,9 +85,7 @@ public class GlobalExceptionHandler
         return AjaxResult.error(e.getMessage());
     }
 
-    /**
-     * 系统异常
-     */
+
     @ExceptionHandler(Exception.class)
     public AjaxResult handleException(Exception e, HttpServletRequest request)
     {
@@ -112,9 +94,7 @@ public class GlobalExceptionHandler
         return AjaxResult.error(e.getMessage());
     }
 
-    /**
-     * 自定义验证异常
-     */
+
     @ExceptionHandler(BindException.class)
     public AjaxResult handleBindException(BindException e)
     {
@@ -123,9 +103,7 @@ public class GlobalExceptionHandler
         return AjaxResult.error(message);
     }
 
-    /**
-     * 自定义验证异常
-     */
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public Object handleMethodArgumentNotValidException(MethodArgumentNotValidException e)
     {
@@ -134,9 +112,7 @@ public class GlobalExceptionHandler
         return AjaxResult.error(message);
     }
 
-    /**
-     * 演示模式异常
-     */
+
     @ExceptionHandler(DemoModeException.class)
     public AjaxResult handleDemoModeException(DemoModeException e)
     {

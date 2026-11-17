@@ -13,19 +13,12 @@ public class OperationMacUtil {
 
     private static final Logger log = LoggerFactory.getLogger(OperationMacUtil.class);
 
-    /**
-     * 通过类中属性的Order的值进行排序，并将所有属性值拼接成字符串返回
-     *
-     * @param t
-     * @return
-     * @date：2018年10月30日 下午5:15:32 @author：49935
-     */
+
     public static final <T> String getFieldOrderStr(T t) {
         StringBuffer result = new StringBuffer();
 
         Class<?> clazz = t.getClass();
         Field[] fields = clazz.getDeclaredFields();
-        // 对属性数组通过order注解进行排序
         fields = sort(fields);
 
         String getMethodName = null;
@@ -43,7 +36,6 @@ public class OperationMacUtil {
                     if (fieldValue != null)
                         result.append(fieldValue);
                 } catch (Exception e) {
-                    // log.error("通过Order注解进行报文拼接出错：{}", e.getMessage());
                 }
             }
         }

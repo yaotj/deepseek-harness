@@ -14,20 +14,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * 架构门禁：把本模块两条只靠注释维持的约束固化成会失败的构建。
- *
- * <p>防的是「加回来既不编译失败也不告警」的两类改动；判定在剥离注释后的文本上做。
- * 本类只管 {@code @Scheduled}，NEVER 扩成连 {@code @EnableScheduling} 一起禁
- * （{@code resource/micro} 里有 3 个 {@code @Scheduled} 靠那个开关）。
- */
+
 class GateTxnPayGuardTest {
 
     private static final Path MAIN_JAVA = Path.of("src", "main", "java");
     private static final Path MAPPER_XML =
             Path.of("src", "main", "resources", "mapper", "GateTxnPayMapper.xml");
 
-    /** 防本模块加回模块内定时任务（调度已外移到 face-pay 与 web-admin sys_job 295/300，2026-09-21 由 120/121 改号）。 */
     @Test
     void moduleHasNoScheduledAnnotation() throws IOException {
         List<String> hits = new ArrayList<>();
@@ -49,7 +42,6 @@ class GateTxnPayGuardTest {
                         + "NEVER 加回模块内定时任务；命中: " + hits);
     }
 
-    /** 防两条 converge 语句被合并：补款侧白名单含 FAIL、回调侧不含，改一侧会打挂另一侧。 */
     @Test
     void supplementConvergeWhitelistKeepsFailWhileCallbackOneDoesNot() throws IOException {
         String xml = stripXmlComments(Files.readString(MAPPER_XML, StandardCharsets.UTF_8));
@@ -67,7 +59,6 @@ class GateTxnPayGuardTest {
                 "补款收敛的目标状态写死 SUCCESS、不做入参，少一个入参就少一处传错状态的可能");
     }
 
-    /** 取出指定 id 的语句体，id 必须精确匹配，避免前缀包含关系误取。 */
     private static String statementBody(String xml, String id) {
         String marker = "id=\"" + id + "\"";
         int start = xml.indexOf(marker);
@@ -77,7 +68,6 @@ class GateTxnPayGuardTest {
         return xml.substring(start, end);
     }
 
-    /** 从 {@code SET DEBIT_STATUS = 'X'} 里取出目标状态。 */
     private static String targetStatus(String body) {
         int idx = body.indexOf("DEBIT_STATUS");
         assertTrue(idx >= 0, "收敛语句里必须显式写 DEBIT_STATUS");

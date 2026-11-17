@@ -7,16 +7,10 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 
 import java.nio.charset.Charset;
 
-/**
- * 处理客户端返回的数据
- *
- * @author Administrator
- */
+
 public class SimpleServerHandler extends ChannelInboundHandlerAdapter {
 
-    /**
-     * 读取客户端通道的数据
-     */
+
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof ByteBuf) {

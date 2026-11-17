@@ -2,24 +2,15 @@ package com.chinasofti.huateng.model.key;
 
 import java.io.Serializable;
 
-/**
- * 密钥版本异步导出行（综管台「密钥管理」页全量导出用）。
- * 只读展示元信息，NEVER 携带密钥材料。
- */
+
 public class KeyVersionExportDTO implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    /** 密钥域编码。 */
     private String keyDomain;
-    /** 接入方编码。 */
     private String providerId;
-    /** 当前版本。 */
     private String currentVersion;
-    /** 状态描述。 */
     private String statusDesc;
-    /** 生效日期。 */
     private String effectiveDate;
-    /** 更新时间。 */
     private String updateTime;
 
     public String getKeyDomain() {

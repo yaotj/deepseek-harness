@@ -21,12 +21,7 @@ public class SignLogRecorder {
     @Autowired
     private AlipaySignLogMapper alipaySignLogMapper;
 
-    /**
-     * 记一条签约成功流水。
-     *
-     * <p>协议号与 thirdUserId 都从 {@code signInfo} 取，**NEVER 再从调用点额外传一遍**（ADR-D135）：
-     * 那两个入参此前与 signInfo 内的值恒等，多传一份只是给「两处不一致」留了口子。</p>
-     */
+
     public void recordSignSuccess(AlipaySignInfo signInfo, Object request, Object response) {
         String agreementCode = signInfo.getAgreementCode();
         String thirdUserId = signInfo.getThirdUserId();

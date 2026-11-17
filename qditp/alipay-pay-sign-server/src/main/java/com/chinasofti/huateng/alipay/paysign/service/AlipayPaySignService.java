@@ -19,8 +19,6 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayTripFindTravelDetailRespDTO
 
 import java.util.List;
 
-/**
- * 支付宝签约与支付服务接口。
- */
+
 public interface AlipayPaySignService extends AlipayContractService, AlipayTripPaymentService, AlipayPayLogQueryService {
 }

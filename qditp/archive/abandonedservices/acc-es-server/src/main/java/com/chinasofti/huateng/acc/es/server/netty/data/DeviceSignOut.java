@@ -9,16 +9,12 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class DeviceSignOut extends DataHead{
-    //编码分拣机 8
     private String nodeId;
-    //操作员编号 10
     private String operator;
-    //操作员密码 32
     private String passWard;
 
     public static DeviceSignOut message2DeviceSignOut(MessageBean messageBean) {
         DeviceSignOut deviceSignout = new DeviceSignOut();
-        // 报文头
         deviceSignout.setTxnType(messageBean.getTxnType());
         deviceSignout.setNodeId(messageBean.getNodeId());
         deviceSignout.setSequence(messageBean.getSequence());

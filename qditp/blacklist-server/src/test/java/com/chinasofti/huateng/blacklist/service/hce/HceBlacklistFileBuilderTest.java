@@ -10,12 +10,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 本地生成 HCE 黑名单样例文件，供 ACC 侧验证解析。
- *
- * <p>运行：mvn -o test -pl blacklist-server -Dtest=HceBlacklistFileBuilderTest -DskipTests=false
- * 产物：项目根 output/PRM.0013.9700.000001</p>
- */
+
 public class HceBlacklistFileBuilderTest {
 
     @Test

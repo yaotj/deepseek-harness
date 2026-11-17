@@ -50,7 +50,6 @@ public class GatewayRouteCommandService {
         String beforeFilters = before != null ? before.filters() : null;
 
         repository.deleteById(routeId);
-        // after 侧传 null（审计列均可空）；NEVER 传 ""/"[]" —— Oracle 空串=NULL，且空值语义即「已删除」
         auditService.audit(routeId, "DELETE", beforeUri, null, beforePreds, null, beforeFilters, null, operator, remark);
         log.info("deleteRoute OK: {}", routeId);
         publishChanged(routeId, "DELETE");

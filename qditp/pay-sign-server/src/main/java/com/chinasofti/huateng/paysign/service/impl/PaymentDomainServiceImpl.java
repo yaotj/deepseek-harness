@@ -50,35 +50,22 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
-/** 支付领域服务：免密扣款（支付 API 1.1）与支付结果回调（5.1）的真实现。 */
 @Service
 public class PaymentDomainServiceImpl implements PaymentDomainService {
     private static final Logger log = LoggerFactory.getLogger(PaymentDomainServiceImpl.class);
 
-    /** 钱包渠道号常量已收口到 support/PaymentChannels，本类只 import static isWallet(...)。 */
 
-    /**
-     * 支付中心网关 §1.1 的 {@code scene} 合法取值（{@code docs/external/支付中心网关接口文档.md:123} 逐字）。
-     *
-     * <p>本集合只用于打 WARN，NEVER 升级成校验白名单直接拒绝：上游 {@code fep-app-server} 在
-     * {@code scene} 为空时会把 {@code channelType} 透传进来，{@code gate-txn-pay-server} 的仓库默认值
-     * 长期是非法的 {@code AGM_GATE}（线上靠 env 覆盖成 {@code withholding}），硬拒绝会打挂在跑的免密扣款。
-     */
+
     private static final Set<String> GATEWAY_PAY_SCENES = Set.of("scan", "app", "withholding", "wap", "qrcode");
 
     private final PaySignProperties paySignProperties;
     private final PayTxnDetailMapper payTxnDetailMapper;
     private final PayCallbackLogMapper payCallbackLogMapper;
-    /** 账户域出向调用的唯一出口（ADR-D94 续）。 */
     private final AccountDomainPort accountDomainPort;
     private final BlacklistClient blacklistClient;
-    /** 闸机域**扣费状态收敛方向**出向调用的唯一出口（2026-09-17，ADR-D119）。 */
     private final DebitSyncPort debitSyncPort;
-    /** 支付中心网关的调用与应答判读收口点。 */
-    /** 支付中心**扣款方向**出向调用的唯一出口（2026-09-16，ADR-D113 续）。 */
     private final PaymentGatewayPort paymentGatewayPort;
 
-    /** 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备。 */
     public PaymentDomainServiceImpl(
             PaySignProperties paySignProperties,
             PayTxnDetailMapper payTxnDetailMapper,
@@ -96,8 +83,6 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         this.paymentGatewayPort = paymentGatewayPort;
     }
 
-    /** 支付 API 1.1 请求支付。 */
-    /** 本方法 NEVER 加 @Transactional，理由有两条，第二条比锁竞争严重得多。 */
     @Override
     public RequestPayResult requestPay(RequestPayReqDTO request) {
         RequestPayResult response = new RequestPayResult();
@@ -156,16 +141,6 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
                 String transIn = reply.data() != null ? stringValue(reply.data().get("transIn"), null) : null;
                 updatePayRequestResult(request.getOrderNo(), "RETRY", response, transIn);
 
-                // 自动拉黑只对支付宝系两个通道开（03 支付宝 / 05 支付宝出行，见 PaymentVendorEnum）。
-                // 这个白名单是 2026-08-26 生产事故的止血手段、NEVER 当成「漏写了其他通道」随手补全 ——
-                // 那次测试卡 0178606904586419 被误拉黑，直接后果是乘客过不了闸。
-                // 地铁 APP 自有钱包是 0B（PaymentVendorEnum.WALLET），刻意落在白名单之外：
-                // 2026-09-10 用户明确裁决「钱包渠道扣款失败不进黑名单」，欠款走人工追收，
-                // 见 docs/ops/生产环境清单.md 的「P2 — 钱包渠道扣款失败不进黑名单」。
-                // 2026-09-20 再次评估后用户维持原判，**NEVER 把 0B 加进来、也 NEVER 改成「非空即拉黑」**。
-                // 真要恢复自动拉黑，MUST 先复核 8-26 那次的误判条件（该条件目前只有上面那份 ops 文档记着、
-                // 代码注释在 ADR-D87 拆分时已丢失），并保留下面 addBlacklistForPaymentFailure 里的
-                // queryGatewayPayStatus 二次确认。
                 String paymentVendor = request.getPaymentVendor();
                 if (StringUtils.hasText(paymentVendor)
                         && ("03".equals(paymentVendor) || "05".equals(paymentVendor))) {
@@ -206,15 +181,11 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         }
     }
 
-    /** 支付 API 5.1 支付回调。 */
-    /** 本方法 NEVER 加 @Transactional。 */
     private static final String CALLBACK_TYPE_PAY = "PAY";
 
-    /** 支付结果回调允许支付中心推送的总次数（首推 1 次 + 重推 1 次）。 */
     private static final int MAX_PAY_CALLBACK_PUSH = 2;
 
     @Override
-    // 无 @Transactional 是刻意的、NEVER 加回（2026-08-26 生产事故：事务内调 syncDebitStatus，单请求 287 秒、行锁 45 秒、PAY_CALLBACK_LOG 零条落库）。
     public PaySignCallbackResult receivePayResult(ReceivePayResultReqDTO request, String rawBody) {
         PaySignCallbackResult response = new PaySignCallbackResult();
         int pushCount = 0;
@@ -291,7 +262,6 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         }
     }
 
-    /** 读取 PAY_TXN_DETAIL 当前的 PAY_STATUS，仅用于「updatePayCallback 命中 0 行」时判别是重推还是真没落地。 */
     private String queryPayStatus(String orderNo) {
         try {
             PayTxnDetail existing = payTxnDetailMapper.selectByOrderNo(orderNo);
@@ -302,12 +272,10 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         }
     }
 
-    /** 是否已达重推上限、不再请求支付中心重推。 */
     private boolean shouldStopRetry(int pushCount) {
         return pushCount >= MAX_PAY_CALLBACK_PUSH;
     }
 
-    /** 达到重推上限仍未处理成功：返回 0000 让支付中心停止重推，同时把这一笔标成需人工。 */
     private void giveUpRetry(PaySignCallbackResult response, String merchantOrderNo, int pushCount, String reason) {
         log.error("支付结果回调已推送{}次仍未处理成功，达到上限{}，放弃重推并返回0000，MUST 人工处理, merchantOrderNo={}, 原因={}",
                 pushCount, MAX_PAY_CALLBACK_PUSH, merchantOrderNo, reason);
@@ -320,13 +288,7 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         fillSuccess(response);
     }
 
-    /**
-     * {@code scene} 不在网关枚举内时只打 WARN、照常放行。
-     *
-     * <p>NEVER 改成拒绝：{@code gate-txn-pay-server} 的仓库默认值是非法的 {@code AGM_GATE}、
-     * {@code fep-app-server} 在 {@code scene} 缺失时会把 {@code channelType} 透传进来，
-     * 拒绝等于把在跑的免密扣款打挂。这里的 WARN 只用于让「上游送了网关不认的场景值」在日志里可检索。
-     */
+
     private void warnIfSceneOutsideGatewayEnum(RequestPayReqDTO request) {
         String scene = request.getScene();
         if (!GATEWAY_PAY_SCENES.contains(scene)) {
@@ -335,11 +297,7 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         }
     }
 
-    /**
-     * 创建支付订单当前态记录。
-     *
-     * @param existingTxn 调用方已查到的现存记录，null 表示不存在、需要插入
-     */
+
     private void ensurePayTxn(RequestPayReqDTO request, PayTxnDetail existingTxn) {
         if (existingTxn != null) {
             log.info("ensurePayTxn 订单已存在，跳过插入, orderNo={}", request.getOrderNo());
@@ -372,22 +330,7 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         }
     }
 
-    /**
-     * 登记一条「已完成、不经支付中心」的支付流水。
-     *
-     * <p><b>与 {@link #requestPay} 的唯一区别、也是本方法存在的全部理由：不出网。</b>
-     * {@code requestPay} 在建行后无条件 {@code markRequesting} + 调支付中心，
-     * 拿它来处理「BOM 现场已收款」的单子等于对乘客重复收费（ADR-D136）。
-     *
-     * <p>落库口径（**NEVER 改**，改一处就要同步看齐 {@code RegisterCompletedPayTxnReqDTO} 的类注释）：
-     * {@code PAY_STATUS='SUCCESS'} + {@code DEBIT_REQUEST_RESULT='SUCCESS'}（与 {@code GATE_TXN_PAY.DEBIT_STATUS} 同源）、
-     * {@code AMOUNT} = ITP 实收（BOM 代收单为 0）、{@code MERCHANT_ORDER_NO} = 我方订单号、
-     * {@code PAY_CENTER_ORDER_NO} / {@code CHANNEL_ORDER_NO} **留空**（确实没有渠道流水，
-     * 编不出来的号 NEVER 造假，退款侧 {@code PayRefundRules} 正靠它为空来拦这类单）。
-     *
-     * <p>幂等：先查后插 + {@code UK_PAY_TXN_DETAIL_ORDER} 唯一键兜底（cause 链判定，见 docs/architecture/runtime-observability-traps.md §1），
-     * 重复登记一律返成功，调用方可安全重试。
-     */
+
     @Override
     public BaseRespDTO registerCompletedTxn(RegisterCompletedPayTxnReqDTO request) {
         BaseRespDTO response = new BaseRespDTO();
@@ -443,15 +386,7 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         return response;
     }
 
-    /**
-     * 校验「已完成流水」登记入参。
-     *
-     * <p>**NEVER 复用 {@code validateRequestPay}**：那套要求 {@code scene} / {@code subject} / {@code body}
-     * 等只对支付中心有意义的字段，对「现场已收款」的单子没有语义。
-     *
-     * <p>{@code amount} 允许为 0（BOM 代收单的常态），但 **NEVER 允许负数**；
-     * {@code txnDate} 不强制（缺失时按当天补），但 {@code orderNo} 缺了就没有幂等键、一律拒。
-     */
+
     private String validateRegisterCompletedTxn(RegisterCompletedPayTxnReqDTO request) {
         if (request == null) {
             return "请求体不能为空";
@@ -468,7 +403,6 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         return null;
     }
 
-    /** 兜底逻辑：当 PAY_TXN_DETAIL 不存在且 request 中签约信息缺失时。 */
     private void resolvePaySignInfoFromAccount(RequestPayReqDTO request) {
         if (!StringUtils.hasText(request.getCardId()) || !StringUtils.hasText(request.getThirdUserId())) {
             log.warn("resolvePaySignInfoFromAccount: cardId或thirdUserId为空，跳过, orderNo={}", request.getOrderNo());
@@ -494,7 +428,6 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         }
     }
 
-    /** 把账户域窄视图落到支付入参上。 */
     private void applyAccountUserView(RequestPayReqDTO request, AccountUserView view) {
         if (view.channel() != null) {
             request.setPaymentVendor(view.channel());
@@ -534,11 +467,7 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         payTxnDetailMapper.updateRequestResult(record);
     }
 
-    /**
-     * 通知 gate-txn-pay-server 把 GATE_TXN_PAY.DEBIT_STATUS 收敛到终态。
-     *
-     * @return true 表示远端已确认收敛（含幂等命中），false 表示需要支付中心重推
-     */
+
     private boolean syncGateTxnPayStatus(String orderNo, String payStatus) {
         return switch (debitSyncPort.syncDebitStatus(orderNo, payStatus, "支付结果回调")) {
             case RpcOutcome.Ok ignored -> {
@@ -558,7 +487,6 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         };
     }
 
-    /** 回填应答里来自网关的四个字段。 */
     private void fillGatewayFields(RequestPayResult response, PaymentReply reply) {
         PaySignGatewayResponse gatewayResponse = reply == null ? null : reply.raw();
         if (gatewayResponse == null) {
@@ -570,7 +498,6 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         response.setData(gatewayResponse.getData());
     }
 
-    /** 支付失败且为支付宝渠道时，添加黑名单。 */
     private void addBlacklistForPaymentFailure(RequestPayReqDTO request, PaySignGatewayResponse gatewayResponse) {
         try {
             String confirmedStatus = queryGatewayPayStatus(request.getOrderNo());
@@ -586,8 +513,6 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
             blacklistRequest.setCardId(request.getCardId());
             blacklistRequest.setCardType(request.getCardType());
             blacklistRequest.setThirdUserId(request.getThirdUserId());
-            // 渠道填 99 未知：本链路只知道支付通道（paymentVendor），拿不到卡的业务渠道，
-            // NEVER 拿 paymentVendor 当 channelCode —— 那是支付通道、不是渠道。
             blacklistRequest.setChannelCode("99");
             blacklistRequest.setBlackSource("01");
             blacklistRequest.setBlackCause("01");
@@ -615,7 +540,6 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         }
     }
 
-    /** 用支付中心只读接口 §1.2 payQuery 查这笔的真实状态，返回归一化后的状态。 */
     private String queryGatewayPayStatus(String orderNo) {
         if (!StringUtils.hasText(orderNo)) {
             return null;

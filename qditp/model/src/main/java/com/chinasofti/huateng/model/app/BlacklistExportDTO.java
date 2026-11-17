@@ -3,9 +3,7 @@ package com.chinasofti.huateng.model.app;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-/**
- * 黑名单异步导出 DTO。
- */
+
 public class BlacklistExportDTO implements Serializable
 {
     private static final long serialVersionUID = 1L;

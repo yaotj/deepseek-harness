@@ -17,28 +17,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** IF8B-04 退款结果通知 APP 的投递服务（出向）。 */
 @Service
 public class DailyTicketRefundNotifyService {
 
     private static final Logger log = LoggerFactory.getLogger(DailyTicketRefundNotifyService.class);
 
-    /** 单批默认条数上限，调用方传 0 或负数时生效。 */
     private static final int DEFAULT_LIMIT = 100;
 
-    /** 通知投递状态。 */
     private static final String NOTIFY_PENDING = "PENDING";
     private static final String NOTIFY_SUCCESS = "SUCCESS";
     private static final String NOTIFY_GIVEUP = "GIVEUP";
 
-    /** 退款单状态。 */
     private static final String REFUND_STATUS_REFUNDED = "REFUNDED";
     private static final String REFUND_STATUS_FAILED = "FAILED";
 
-    /** IF8B-04 默认 {@code orderType}：历史日票退款记录没有 ORDER_TYPE 时按 1 兼容。 */
     private static final String ORDER_TYPE_DAILY_TICKET = "1";
 
-    /** {@code NOTIFY_MSG} 列长 500，超长会直接 ORA-12899，落库前 MUST 截断。 */
     private static final int NOTIFY_MSG_MAX_LENGTH = 500;
 
     private static final String DATE_PATTERN = "yyyyMMddHHmmss";
@@ -55,12 +49,7 @@ public class DailyTicketRefundNotifyService {
         this.properties = properties;
     }
 
-    /**
-     * 扫表补偿：把待发的退款通知逐条投递给 APP。
-     *
-     * @param limit 单批条数上限，非正数按 {@value #DEFAULT_LIMIT}
-     * @return 本批投递成功条数
-     */
+
     public int deliverPending(int limit) {
         int max = limit <= 0 ? DEFAULT_LIMIT : limit;
         List<DailyTicketRefund> pending =
@@ -82,7 +71,6 @@ public class DailyTicketRefundNotifyService {
         return delivered;
     }
 
-    /** 快速路径：回调收口后立刻投递一条。 */
     public void deliverOne(String orderNo) {
         try {
             DailyTicketRefund refund = refundMapper.selectByOrderNo(orderNo);
@@ -101,11 +89,7 @@ public class DailyTicketRefundNotifyService {
         }
     }
 
-    /**
-     * 投递单条并回写状态。
-     *
-     * @return 是否已被对端受理
-     */
+
     private boolean deliverInternal(DailyTicketRefund refund) {
         String payload = JSON.toJSONString(buildBizData(refund));
         log.info("日票退款结果通知准备投递 orderNo={}, url={}, bizData={}",
@@ -126,7 +110,6 @@ public class DailyTicketRefundNotifyService {
         return false;
     }
 
-    /** 组 IF8B-04 的 bizData。 */
     private Map<String, Object> buildBizData(DailyTicketRefund refund) {
         Map<String, Object> bizData = new LinkedHashMap<>();
         bizData.put("orderNo", refund.getOrderNo());

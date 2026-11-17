@@ -52,18 +52,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住支付宝出行三条支付链路（{@code requestPay} / {@code payQuery} / {@code requestRefund}）的**现存对外行为**。
- *
- * <p>本文件是批次 0 的等价性判据，零生产改动：拆分与状态机改造过程中这些断言 MUST 全绿。
- * 与之配套的另两个特征断言文件是 {@code AlipayContractCharacterizationTest}（签约 / 解约）与
- * {@code TerminationSweepCharacterizationTest}（销卡通知 + 批处理）；
- * {@code payNotify} 与 {@code findTravelDetail} 两组已由 {@code PayNotifyDebitStatusSyncTest} /
- * {@code TravelDetailDebitResultTest} 覆盖，本文件**不重复**。</p>
- *
- * <p>其中带 {@code _currentDefect} 后缀的断言钉住的是**缺陷现状、不是契约**，后续批次改代码时
- * MUST 连同对应 ADR 一起改，NEVER 只把断言改绿。</p>
- */
+
 class AlipayPaymentCharacterizationTest {
 
     private static final String ORDER_NO = "GT20260917021300000000001";
@@ -90,9 +79,6 @@ class AlipayPaymentCharacterizationTest {
         payLogMapper = mock(AlipayPayLogMapper.class);
         refundLogMapper = mock(AlipayRefundLogMapper.class);
         payCenterPort = mock(PayCenterPort.class);
-        // 默认桩必须有：mock 默认返 null，而 `PayCenterReply` 是 sealed 类型、调用点直接解引用，
-        // 不 stub 的用例会 NPE。这是**测试前提没建全**、不是生产缺陷 ——
-        // adapter 的三个分支都返实例，**NEVER 为此在生产代码里加 null 判断**。
         when(payCenterPort.requestPay(any())).thenReturn(new PayCenterReply.NoAnswer());
         when(payCenterPort.payQuery(any())).thenReturn(new PayCenterReply.NoAnswer());
         when(payCenterPort.requestRefund(any())).thenReturn(new PayCenterReply.NoAnswer());
@@ -124,7 +110,6 @@ class AlipayPaymentCharacterizationTest {
         inject(refundService, "payCenterPort", payCenterPort);
     }
 
-    // ---------------------------------------------------------------- requestPay
 
     @Test
     void unsignedUserIsRejectedBeforeAnyGatewayCall() {
@@ -215,7 +200,6 @@ class AlipayPaymentCharacterizationTest {
                         + "补落库那一批 MUST 连同本断言与对应 ADR 一起改，NEVER 只把断言删掉");
     }
 
-    // ------------------------------------------------------------------ payQuery
 
     @Test
     void payQueryMissingOrderIsRejectedBeforeGatewayCall() {
@@ -273,7 +257,6 @@ class AlipayPaymentCharacterizationTest {
                 .updatePayQueryResultIfNotSuccess(any(), any(), any(), any(), any(), any(), any());
     }
 
-    // -------------------------------------------------------------- requestRefund
 
     @Test
     void processingRefundShortCircuitsBeforeInsertAndGateway() {
@@ -368,7 +351,6 @@ class AlipayPaymentCharacterizationTest {
         verify(refundLogMapper, never()).insert(any());
     }
 
-    // -------------------------------------------------------------------- fixture
 
     private void givenRefundPreconditions() {
         when(payLogMapper.selectByOrderNo(ORDER_NO)).thenReturn(payLog("SUCCESS"));
@@ -427,19 +409,12 @@ class AlipayPaymentCharacterizationTest {
         return request;
     }
 
-    /**
-     * 支付中心「传输层通了」的应答；业务 {@code retCode} 与 data 字段由各用例通过 map 给出。
-     *
-     * <p>这里的 `retCode -> returnCode` 兜底与 data 解包都已经在 `PayCenterRpcAdapter` 里做过了，
-     * 本 helper 只是把同一形状拼出来。<b>NEVER 在本文件里再断言 `returnCode` 兜底</b> ——
-     * 那是 adapter 的职责，属另一层的测试。</p>
-     */
+
     private PayCenterReply accepted(Map<String, Object> data) {
         return new PayCenterReply.Accepted(200, Boolean.TRUE, null, "{\"code\":200}",
                 (String) data.get("retCode"), (String) data.get("retMsg"), data);
     }
 
-    /** 拿到响应但传输层判据不成立（`code != 200` 且 `success != TRUE`）。 */
     private PayCenterReply rejected(Integer code, String msg) {
         return new PayCenterReply.Rejected(code, null, msg, "{\"code\":" + code + "}");
     }

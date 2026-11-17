@@ -27,7 +27,6 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/** 护栏：签约 / 咨询 / 解约申请三个入口的对外行为等价；解约申请落 PENDING 三件套且不碰支付平台。 */
 class ContractDomainCharacterizationTest {
 
     private static final String WALLET_VENDOR = "0B";
@@ -35,7 +34,6 @@ class ContractDomainCharacterizationTest {
     private static final String SEQ = "0052290701523999";
     private static final String USER = "U-TEST-0001";
 
-    /** 钱包（{@code 0B}）的 {@code requestSignInfo} 必须能走到支付中心并拿回 SDK 参数。 */
     @Test
     void walletRequestSignInfoReachesGatewayLikeOtherVendors() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -63,7 +61,6 @@ class ContractDomainCharacterizationTest {
         verify(fixture.payGatewayClient, never()).request(anyString(), anyMap());
     }
 
-    /** 网关成功且 {@code data.data} 有值时，原样作为 SDK 参数回给 APP。 */
     @Test
     void requestSignInfoReturnsSdkInfoFromGatewayData() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -79,7 +76,6 @@ class ContractDomainCharacterizationTest {
         assertEquals("alipays://platformapi/startapp?fake=1", result.getRequestStartSdkInfo());
     }
 
-    /** 网关未成功时**不返 SDK 参数**，统一收成 9001，NEVER 退化成「成功但参数为空」。 */
     @Test
     void requestSignInfoMapsGatewayFailureToSystemError() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -90,7 +86,6 @@ class ContractDomainCharacterizationTest {
         assertEquals(PaySignErrorCodeEnum.SYSTEM_ERROR.getCode(), result.getRetCode());
     }
 
-    /** 签约侧流水的 {@code OPERATION_TYPE} 恒为 {@code SIGN}（批次 1 抽 writeLog 时 MUST 不变）。 */
     @Test
     void signSideAuditLogOperationTypeIsAlwaysSign() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -113,7 +108,6 @@ class ContractDomainCharacterizationTest {
         verify(fixture.payGatewayClient, never()).request(anyString(), anyMap());
     }
 
-    /** 咨询打的是 {@code pay.sign.contract-advisory-url}。 */
     @Test
     void contractAdvisoryUsesConfiguredAdvisoryUrl() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -136,7 +130,6 @@ class ContractDomainCharacterizationTest {
         assertEquals(PaySignErrorCodeEnum.SYSTEM_ERROR.getCode(), result.getRetCode());
     }
 
-    /** 无签约记录时回 8011，且解约侧流水的 {@code OPERATION_TYPE} 归并为 {@code UNSIGN}。 */
     @Test
     void requestTerminationRejectsUnsignedUserAndLogsUnsignOperation() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -149,7 +142,6 @@ class ContractDomainCharacterizationTest {
         assertEquals("UNSIGN", logs.get(logs.size() - 1).getOperationType());
     }
 
-    /** 首次申请落 {@code PENDING} 三件套，且**不碰支付平台**。 */
     @Test
     void requestTerminationInsertsPendingRequestAndSkipsPayPlatform() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -173,7 +165,6 @@ class ContractDomainCharacterizationTest {
         verify(fixture.payGatewayClient, never()).request(anyString(), anyMap());
     }
 
-    /** 同一流水已有**非 FAILED** 解约申请时拒绝（8009）。 */
     @Test
     void requestTerminationRejectsWhenSeqAlreadyHasNonFailedRequest() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();

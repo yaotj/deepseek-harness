@@ -15,18 +15,15 @@ import com.chinasofti.huateng.paysign.mapper.PayTxnDetailMapper;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/** 护栏：汇总补偿按影响行数判成败，B 类坏账一行都不改，且全程不出网。 */
 class PaymentRefundSummaryCompensationTest {
 
     private static final String DRIFTED_ORDER_NO = "GT20260915000000001";
 
-    /** 取自目标库实测的 B 类 6 条之一（2026-08-26 那次生产事故当晚留下的）。 */
     private static final String ORPHAN_ORDER_NO = "GT20260826192157073586419";
 
     private final PayRefundDetailMapper payRefundDetailMapper = mock(PayRefundDetailMapper.class);
     private final PayTxnDetailMapper payTxnDetailMapper = mock(PayTxnDetailMapper.class);
 
-    /** 出向端口 刻意传 {@code null}（2026-09-16 起只剩这一个位置，此前是。 */
     private RefundDomainServiceImpl newService() {
         return new RefundDomainServiceImpl(
                 payTxnDetailMapper,
@@ -39,7 +36,6 @@ class PaymentRefundSummaryCompensationTest {
         when(payRefundDetailMapper.selectOrphanRefundOrders(anyString(), anyInt())).thenReturn(orphans);
     }
 
-    /** A 类命中且重算真的动了行：计入 submitted。 */
     @Test
     void driftedOrderWithAffectedRowCountsAsSubmitted() {
         RefundDomainServiceImpl service = newService();
@@ -54,7 +50,6 @@ class PaymentRefundSummaryCompensationTest {
         verify(payTxnDetailMapper, times(1)).updateRefundSummary(DRIFTED_ORDER_NO);
     }
 
-    /** A 类命中但重算影响 0 行：MUST 计 skipped，NEVER 计 submitted。 */
     @Test
     void driftedOrderWithZeroAffectedRowIsSkippedNotSubmitted() {
         RefundDomainServiceImpl service = newService();
@@ -69,7 +64,6 @@ class PaymentRefundSummaryCompensationTest {
         assertEquals(1, response.getSkipped(), "MUST 计入本轮未收口，留给下一轮重扫");
     }
 
-    /** B 类命中：MUST 一行都不改，全部计 skipped。 */
     @Test
     void orphanOrderIsNeverTouchedAndAlwaysSkipped() {
         RefundDomainServiceImpl service = newService();
@@ -83,7 +77,6 @@ class PaymentRefundSummaryCompensationTest {
         verify(payTxnDetailMapper, never()).updateRefundSummary(anyString());
     }
 
-    /** 两类都空：scanned=0，调用方据此停止重复调用。 */
     @Test
     void bothScansEmptyReportsNothingScanned() {
         RefundDomainServiceImpl service = newService();

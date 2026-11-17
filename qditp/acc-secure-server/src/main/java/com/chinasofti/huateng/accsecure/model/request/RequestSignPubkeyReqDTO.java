@@ -1,37 +1,23 @@
 package com.chinasofti.huateng.accsecure.model.request;
 
-/**
- * IF7B-04 请求签名用户公钥请求报文。
- */
+
 public class RequestSignPubkeyReqDTO {
-    /**
-     * 用户公钥X。
-     */
+
     private String publicKeyX;
 
-    /**
-     * 用户账户标识。
-     */
+
     private String userId;
 
-    /**
-     * 公钥有效期。
-     */
+
     private String publicKeyEffectiveDate;
 
-    /**
-     * LMK加密的CA私钥d。
-     */
+
     private String caPrivateKey;
 
-    /**
-     * CA公钥XY。
-     */
+
     private String caPublicKey;
 
-    /**
-     * SM2密钥密文对。
-     */
+
     private String caSm2KeyPair;
 
     public String getPublicKeyX() {

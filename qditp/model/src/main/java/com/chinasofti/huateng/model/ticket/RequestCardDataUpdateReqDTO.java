@@ -1,43 +1,27 @@
 package com.chinasofti.huateng.model.ticket;
 
-/**
- * 请求票卡更新请求DTO。
- */
+
 public class RequestCardDataUpdateReqDTO {
 
-    /**
-     * 逻辑卡号。
-     */
+
     private String cardId;
 
-    /**
-     * 更新区域类型。
-     */
+
     private String updateType;
 
-    /**
-     * 建议本次操作类型。
-     */
+
     private String adviceOpt;
 
-    /**
-     * 操作员编码。
-     */
+
     private String operaterId;
 
-    /**
-     * 补站站点。
-     */
+
     private String updateStationCode;
 
-    /**
-     * 更新时间。
-     */
+
     private String optDate;
 
-    /**
-     * 交易金额。
-     */
+
     private String transAmount;
 
     public String getCardId() {

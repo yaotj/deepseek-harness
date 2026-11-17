@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
-/** 护栏：补偿重试预算每轮只 +1、单条失败不中断整批、人工重放同步投递且不占预算。 */
 class AppNotifyCompensationCharacterizationTest {
 
     private static final String SEQ = "0052290701523995";
@@ -41,7 +40,6 @@ class AppNotifyCompensationCharacterizationTest {
     private final PaySignInfoMapper paySignInfoMapper = mock(PaySignInfoMapper.class);
     private final AppNotificationClient appNotificationClient = mock(AppNotificationClient.class);
 
-    /** 同线程执行，且计数被提交了几次 —— 「人工重放 NEVER 走线程池」这条要靠它断言。 */
     private final AtomicInteger executorSubmissions = new AtomicInteger();
     private final Executor sameThreadExecutor = task -> {
         executorSubmissions.incrementAndGet();
@@ -67,7 +65,6 @@ class AppNotifyCompensationCharacterizationTest {
         verify(paySignRequestMapper, never()).increaseRetryCount(anyLong());
     }
 
-    /** 每行恰好 +1，且 MUST 在提交重发之前。 */
     @Test
     void everyRowIncrementsRetryBudgetExactlyOnceBeforeNotifying() {
         when(paySignRequestMapper.selectCompensableNotify(anyInt(), anyInt(), anyInt()))
@@ -87,7 +84,6 @@ class AppNotifyCompensationCharacterizationTest {
         order.verify(appNotificationClient).notify(any(), any());
     }
 
-    /** 通知失败时预算仍只涨 1 —— 「一轮涨 2」是这条链路上最隐蔽的缺陷形态。 */
     @Test
     void failedNotifyStillConsumesExactlyOneRetryBudget() {
         when(paySignRequestMapper.selectCompensableNotify(anyInt(), anyInt(), anyInt()))
@@ -100,7 +96,6 @@ class AppNotifyCompensationCharacterizationTest {
         verify(paySignRequestMapper, times(1)).increaseRetryCount(1L);
     }
 
-    /** 单条异常不中断整批：其余两条照样提交，异常那条计入 skipped 等下轮。 */
     @Test
     void singleRowFailureNeverAbortsTheBatch() {
         when(paySignRequestMapper.selectCompensableNotify(anyInt(), anyInt(), anyInt()))
@@ -125,7 +120,6 @@ class AppNotifyCompensationCharacterizationTest {
         verify(appNotificationClient, never()).notify(any(), any());
     }
 
-    /** 白名单一：没有签约记录 —— 放行等于凭流水号造假通知。 */
     @Test
     void resendRejectsWhenSignInfoMissing() {
         when(paySignInfoMapper.selectBySeq(SEQ, null)).thenReturn(null);
@@ -137,7 +131,6 @@ class AppNotifyCompensationCharacterizationTest {
         verify(appNotificationClient, never()).notify(any(), any());
     }
 
-    /** 白名单一续：状态非 SIGNED 一律拒，只允许重发「签约成功」这个既成事实。 */
     @Test
     void resendRejectsWhenSignStatusIsNotSigned() {
         when(paySignInfoMapper.selectBySeq(SEQ, null)).thenReturn(signInfo("UNSIGNED"));
@@ -148,7 +141,6 @@ class AppNotifyCompensationCharacterizationTest {
         verify(appNotificationClient, never()).notify(any(), any());
     }
 
-    /** 白名单二：没有签约结果流水就没有可重发的通知，也无处记录本次投递结果。 */
     @Test
     void resendRejectsWhenSignResultLogMissing() {
         when(paySignInfoMapper.selectBySeq(SEQ, null)).thenReturn(signInfo("SIGNED"));
@@ -160,7 +152,6 @@ class AppNotifyCompensationCharacterizationTest {
         verify(appNotificationClient, never()).notify(any(), any());
     }
 
-    /** 双白名单都过：同步投递（不进线程池）、把回执带回给调用方、且 NEVER 占用重试预算。 */
     @Test
     void resendNotifiesSynchronouslyAndNeverConsumesRetryBudget() {
         when(paySignInfoMapper.selectBySeq(SEQ, null)).thenReturn(signInfo("SIGNED"));
@@ -177,7 +168,6 @@ class AppNotifyCompensationCharacterizationTest {
         assertEquals(0, executorSubmissions.get(), "人工重放 NEVER 走 notifyExecutor");
     }
 
-    /** 失败回执照样如实带回，NEVER 报「已通知」。 */
     @Test
     void resendReportsFailureHonestly() {
         when(paySignInfoMapper.selectBySeq(SEQ, null)).thenReturn(signInfo("SIGNED"));

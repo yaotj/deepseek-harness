@@ -26,7 +26,6 @@ import com.chinasofti.huateng.paysign.model.response.RequestTerminationRespDTO;
 public interface PaySignService {
     RequestSignInfoResult requestSignInfo(RequestSignInfoReqDTO request, String signChannel);
 
-    /** 支付宝出行-添加签约信息。 */
     RequestSignInfoResult alipayTripRequestSignInfo(AlipayTripAddContractReqDTO request);
 
     RequestContractAdvisoryRespDTO requestContractAdvisory(RequestContractAdvisoryReqDTO request, String signChannel);
@@ -35,7 +34,6 @@ public interface PaySignService {
 
     RequestTerminationRespDTO requestTermination(RequestTerminationReqDTO request, String signChannel);
 
-    /** IF8A-36 请求移除签约信息。 */
     RequestAgreeReleaseResult removeSignAgreement(RequestAgreeReleaseReqDTO request, String signChannel);
 
     RequestPayResult requestPay(RequestPayReqDTO request);
@@ -46,27 +44,15 @@ public interface PaySignService {
 
     PaySignCallbackResult receivePayResult(ReceivePayResultReqDTO request, String rawBody);
 
-    /** 支付中心网关 §5.2 退款回调（2026-09-22 新增，P1-3）。 */
     PaySignCallbackResult receiveRefundResult(ReceiveRefundResultReqDTO request);
 
     BaseRespDTO receiveTerminationResult(ReceiveTerminationResultReqDTO request, String signChannel);
 
     PaySignInfoDTO querySignInfoBySeq(String requestSignSeq);
 
-    /**
-     * 更新用户签约展示账号（如更换手机号时同步更新）。
-     *
-     * @param thirdUserId 第三方用户ID
-     * @param displayAccount 新的展示账号
-     * @return 是否更新成功
-     */
+
     boolean updateDisplayAccountByThirdUserId(String thirdUserId, String displayAccount);
 
-    /**
-     * IF8A-05 批量查询支付明细（供 ticket-server 双源合并）。
-     *
-     * @param request 订单号列表请求
-     * @return 支付明细结果包装
-     */
+
     com.chinasofti.huateng.model.app.RequestPayTxnBatchResult queryPayTxnBatch(com.chinasofti.huateng.model.app.QueryPayTxnBatchReqDTO request);
 }

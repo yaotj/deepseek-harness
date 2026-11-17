@@ -10,24 +10,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * 日票有效期过期收敛入口，由 web-admin 的 Quartz 任务（{@code sys_job} 350「日票过期状态收敛」）触发，不对外暴露。
- *
- * <p>{@link AtomicBoolean} 拒绝并发重入：上一轮没跑完时本轮直接返 {@code 9998}。
- * {@code 9998} 属**限流、不是失败**，上游 Quartz 任务 MUST 只记 WARN 不抛异常，
- * 否则前台调度日志每轮都记红。
- *
- * <p>本类**无鉴权**：与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权」冲突，
- * 属沿用本模块现有 {@code /internal/daily-ticket/**} 端点的现状（全部裸暴露、只靠网络可达性隔离），
- * 上线前 MUST 随那批端点统一补齐。
- */
+
 @RestController
 @RequestMapping("/internal/daily-ticket/expire")
 public class ExpireInternalController {
 
     private static final String CODE_SUCCESS = "0000";
 
-    /** 上一轮仍在执行，属限流、不是失败。 */
     private static final String CODE_BUSY = "9998";
 
     private static final Logger log = LoggerFactory.getLogger(ExpireInternalController.class);

@@ -24,9 +24,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 支付宝出行 Trip Controller。
- */
+
 @RestController
 @RequestMapping("/channel")
 public class FepAlipayTripController {
@@ -39,9 +37,7 @@ public class FepAlipayTripController {
         this.alipayTripService = alipayTripService;
     }
 
-    /**
-     * 添加签约信息。
-     */
+
     @PostMapping("/addContract")
     public AlipayTripAddContractRespDTO addContract(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-添加签约信息,请求参数：{}", request);
@@ -58,9 +54,7 @@ public class FepAlipayTripController {
         return resp;
     }
 
-    /**
-     * 解约登记。
-     */
+
     @PostMapping("/terminateContract")
     public AlipayTripTerminateContractRespDTO terminateContract(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-解约登记,请求参数：{}", request);
@@ -77,9 +71,7 @@ public class FepAlipayTripController {
         return resp;
     }
 
-    /**
-     * 开卡申请。
-     */
+
     @PostMapping("/requestApplication")
     public AlipayTripRequestApplicationRespDTO requestApplication(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-开卡申请,请求参数：{}", request);
@@ -96,9 +88,7 @@ public class FepAlipayTripController {
         return resp;
     }
 
-    /**
-     * 获取行业数据。
-     */
+
     @PostMapping("/requestIndustryData")
     public AlipayTripRequestIndustryDataRespDTO requestIndustryData(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-获取行业数据,请求参数：{}", request);
@@ -115,9 +105,7 @@ public class FepAlipayTripController {
         return resp;
     }
 
-    /**
-     * 查询乘车记录列表。
-     */
+
     @PostMapping("/findTravelList")
     public AlipayTripFindTravelListRespDTO findTravelList(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-查询乘车记录列表,请求参数：{}", request);
@@ -134,9 +122,7 @@ public class FepAlipayTripController {
         return resp;
     }
 
-    /**
-     * 查询乘车记录详情。
-     */
+
     @PostMapping("/findTravelDetail")
     public AlipayTripFindTravelDetailRespDTO findTravelDetail(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-查询乘车记录详情,请求参数：{}", request);

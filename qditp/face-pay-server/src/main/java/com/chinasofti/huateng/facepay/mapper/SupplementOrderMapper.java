@@ -38,7 +38,6 @@ public interface SupplementOrderMapper {
 
     int closeTimeoutOrder(@Param("orderNo") String orderNo, @Param("remark") String remark);
 
-    /** 按最后活动时间（UPDATE_TIME）超龄的 PROCESSING 单——支付中心侧挂死的兜底关单来源。 */
     List<SupplementOrder> selectTimeoutProcessing(@Param("timeoutMinutes") int timeoutMinutes,
                                                   @Param("limit") int limit);
 
@@ -70,11 +69,6 @@ public interface SupplementOrderMapper {
                                   @Param("txnDateStart") String txnDateStart,
                                   @Param("txnDateEnd") String txnDateEnd);
 
-    /**
-     * 综管台扣费明细页回填用：按一批**原扣费订单号**反查补款单。
-     *
-     * <p>走 {@code IDX_SUPPLEMENT_ITEM_ORIG}（{@code SUPPLEMENT_ORDER_ITEM.ORIG_ORDER_NO}）驱动，
-     * 再回连补款单主表取金额/渠道/状态。调用方 MUST 保证列表非空且已限长。
-     */
+
     List<SupplementOrigRef> selectRefsByOrigOrderNos(@Param("origOrderNos") List<String> origOrderNos);
 }

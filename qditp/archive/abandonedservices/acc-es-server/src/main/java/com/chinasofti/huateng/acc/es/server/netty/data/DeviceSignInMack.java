@@ -5,18 +5,11 @@ import com.chinasofti.huateng.acc.es.server.util.ByteConvertUtil;
 import lombok.Builder;
 import lombok.Data;
 
-/**
- * @program: cloud-acc-server
- * @description: 消息签到应答
- * @author: fc
- * @create: 2020-09-18 14:07
- */
+
 @Data
 @Builder(toBuilder=true)
 public class DeviceSignInMack {
-    /**
-     * 单位(秒),数值为0时不需要状态报告，长度为6
-     */
+
    private String deviceStateInterval;
 
    private String operatorRank;

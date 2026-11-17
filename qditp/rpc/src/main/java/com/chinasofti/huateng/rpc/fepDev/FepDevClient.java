@@ -15,9 +15,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.util.Map;
 import java.time.Duration;
 
-/**
- * fep-dev-server RPC Client。
- */
+
 @Service
 public class FepDevClient extends ProxyWebClient {
 
@@ -34,11 +32,7 @@ public class FepDevClient extends ProxyWebClient {
         return Duration.ofSeconds(30);
     }
 
-    /**
-     * IF1A-01 闸机检票通知（FormData 调用 fep-dev-server）。
-     * @param bizData 业务参数。
-     * @return 闸机检票通知处理结果。
-     */
+
     public NotifyVerifyResultRespDTO notifyVerifyResult(@RequestBody NotifyVerifyResultReqDTO bizData) {
         Map<String, String> formData = new java.util.HashMap<>();
         formData.put("providerId", "01");

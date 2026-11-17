@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 钉住双发归并矩阵与正向判定：改动实现时 MUST 先过这组用例。 */
 class DualQueryMergeTest {
 
     private static final String NEW_POS = "{\"orderNo\":\"00202611100000000001\",\"retCode\":\"0000\",\"retMsg\":\"成功\"}";

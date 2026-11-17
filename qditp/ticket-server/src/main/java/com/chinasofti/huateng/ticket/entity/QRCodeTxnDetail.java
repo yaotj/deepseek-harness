@@ -2,7 +2,6 @@ package com.chinasofti.huateng.ticket.entity;
 
 import java.time.LocalDateTime;
 
-/** 对应 QRCODE_TXN_DETAIL 表。 */
 public class QRCodeTxnDetail {
     private Long id;
     private String deviceId;

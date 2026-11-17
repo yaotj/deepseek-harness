@@ -24,11 +24,7 @@ import org.springframework.core.type.classreading.MetadataReaderFactory;
 import org.springframework.util.ClassUtils;
 import com.chinasofti.huateng.common.utils.StringUtils;
 
-/**
- * Mybatis支持*匹配扫描包
- * 
- * @author zmzhang
- */
+
 @Configuration
 public class MyBatisConfig
 {
@@ -106,7 +102,6 @@ public class MyBatisConfig
                 }
                 catch (IOException e)
                 {
-                    // ignore
                 }
             }
         }

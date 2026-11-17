@@ -24,11 +24,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-/**
- * ITP剩余接口业务处理。
- * 这里保留了 secret-web 中对应接口的报文组装和响应解析逻辑，
- * controller 只负责验签、解析 bizData 和转发调用。
- */
+
 @Service
 public class ItpRemainingService {
     private static final Logger log = LoggerFactory.getLogger(ItpRemainingService.class);
@@ -52,10 +48,7 @@ public class ItpRemainingService {
         this.logicNumberService = logicNumberService;
     }
 
-    /**
-     * 请求生成地铁 CA 密钥。
-     * 对应原项目 HSMService.getCaKey。
-     */
+
     public ResultVO requestCaKey(Map<String, String> param) {
         try {
             String keyIdx = param.get("keyIdx");
@@ -87,10 +80,7 @@ public class ItpRemainingService {
         }
     }
 
-    /**
-     * 请求生成用户 SM2 密钥对。
-     * 对应原项目 HSMService.requestUserSm2Key。
-     */
+
     public ResultVO requestUserSm2Key(Map<String, String> param) {
         try {
             RawSocketResponse response = clientSendMsg.sendRawMsg(
@@ -118,10 +108,7 @@ public class ItpRemainingService {
         }
     }
 
-    /**
-     * 按 ITP 与 ACC 约定的 KEK 导出用户私钥。
-     * 对应原项目 HSMService.requestExportPriKey。
-     */
+
     public ResultVO requestExportUserPriKey(Map<String, String> param) {
         try {
             String privateKey = param.get("privateKey");
@@ -162,10 +149,7 @@ public class ItpRemainingService {
         }
     }
 
-    /**
-     * 导出应用子密钥 DPK。
-     * 先通过 B061 获取分散密钥，再通过 72 指令按 KEK 加密返回。
-     */
+
     public ResultVO requestDPK(Map<String, String> param) {
         try {
             String logicNum = param.get("logicNum");
@@ -205,10 +189,7 @@ public class ItpRemainingService {
         }
     }
 
-    /**
-     * 请求发售 HCE 卡数据。
-     * 包含 MAC1、分散密钥、MAC2、MAC3 计算以及逻辑卡号生成。
-     */
+
     public ResultVO requestHceCardData(Map<String, String> param) {
         try {
             String iptUserId = param.get("iptUserId");
@@ -273,9 +254,7 @@ public class ItpRemainingService {
         }
     }
 
-    /**
-     * 组装 HCE 卡基础票卡数据，不包含后续 MAC1、MAC2、MAC3 填充结果。
-     */
+
     private byte[] buildBaseCardData(byte[] csnId, String ticketCard) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write(csnId, 0, 3);
@@ -295,9 +274,7 @@ public class ItpRemainingService {
         return out.toByteArray();
     }
 
-    /**
-     * 组装 MAC1 请求报文。
-     */
+
     private byte[] buildMac1Request(byte[] singleData, byte[] csnId) {
         byte[] request = new byte[]{
                 (byte) 0xB0, 0x11, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -308,9 +285,7 @@ public class ItpRemainingService {
         return request;
     }
 
-    /**
-     * 组装分散密钥请求报文。
-     */
+
     private byte[] buildDisRequest(byte[] singleData, byte[] csnId) {
         byte[] request = new byte[]{
                 (byte) 0xB0, (byte) 0x91, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -321,9 +296,7 @@ public class ItpRemainingService {
         return request;
     }
 
-    /**
-     * 按大端格式将 int 转为 4 字节数组。
-     */
+
     private byte[] intToBytes(int value) {
         return new byte[]{
                 (byte) ((value >> 24) & 0xFF),
@@ -333,16 +306,12 @@ public class ItpRemainingService {
         };
     }
 
-    /**
-     * 将原始字段按十六进制字符串输出。
-     */
+
     private String hexField(RawSocketResponse response, int index) {
         return TransformUtils.bytesToHex(response.fields().get(index));
     }
 
-    /**
-     * 加密机返回非 A 应答时，按原项目逻辑透传 errcode。
-     */
+
     private ResultVO errorResponse(RawSocketResponse response) {
         String err = response.errCode() == null ? "" : TransformUtils.bytesToHex(response.errCode());
         return ResultMapper.error("errcode = " + err);

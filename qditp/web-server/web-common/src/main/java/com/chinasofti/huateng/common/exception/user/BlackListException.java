@@ -1,10 +1,6 @@
 package com.chinasofti.huateng.common.exception.user;
 
-/**
- * 黑名单IP异常类
- * 
- * @author zmzhang
- */
+
 public class BlackListException extends UserException
 {
     private static final long serialVersionUID = 1L;

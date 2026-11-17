@@ -23,7 +23,6 @@ public enum PayCenterStatus {
         return this == FAIL || this == FAILED;
     }
 
-    /** 非终态：支付中心已受理但用户尚未完成支付，订单仍可能继续推进。 */
     public boolean isNonTerminal() {
         return this == ORDERED || this == PROCESSING;
     }

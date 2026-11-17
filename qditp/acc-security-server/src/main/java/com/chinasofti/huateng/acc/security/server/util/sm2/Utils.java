@@ -1,19 +1,7 @@
-//$Id: Utils.java,v 1.1.1.1 2007/10/06 13:47:03 benmoez Exp $
-
-/**
- * Author : Moez Ben MBarka Moez
- * <p>
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 3 of the License, or
- * (at your option) any later version.
- * <p>
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
 
 
-// $Id: Utils.java,v 1.1.1.1 2007/10/06 13:47:03 benmoez Exp $
+
+
 
 package com.chinasofti.huateng.acc.security.server.util.sm2;
 
@@ -24,12 +12,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.Random;
 
-/**
- * Some util methods.
- *
- * @author Moez Ben MBarka
- * @version $Revision: 1.1.1.1 $
- */
+
 public class Utils {
 
     private static final char[] HEX_DIGITS =
@@ -47,12 +30,7 @@ public class Utils {
         throw new IllegalArgumentException("invalid hex digit '" + ch + "'");
     }
 
-    /**
-     * Returns a hex string representing the byte array.
-     *
-     * @param ba The byte array to hexify.
-     * @return The hex string.
-     */
+
     public static String toHexString(byte[] ba) {
         int length = ba.length;
         char[] buf = new char[length * 3];

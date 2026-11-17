@@ -15,11 +15,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * IF8A-29 查询行程 8911 判定基线。
- *
- * <p>2026-11-16 口径：8911 仅表示「进出都没有」（无过闸明细）；首次进站等有交易场景一律 0000。
- */
+
 class TicketRideStatusServiceImplTest {
 
     private QRCodeStatusStore statusStore;

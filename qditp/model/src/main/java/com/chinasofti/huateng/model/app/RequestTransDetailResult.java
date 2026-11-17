@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * IF8A-34 获取订单详情应答。
- */
+
 public class RequestTransDetailResult {
     private String retCode;
     private String retMsg;

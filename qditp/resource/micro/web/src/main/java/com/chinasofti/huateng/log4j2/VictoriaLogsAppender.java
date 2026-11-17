@@ -26,13 +26,10 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * 把日志以 JSON Lines 推送到 VictoriaLogs 的 log4j2 Appender。
- */
+
 @Plugin(name = "VictoriaLogs", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE, printObject = true)
 public final class VictoriaLogsAppender extends AbstractAppender {
 
-    /** 未显式给出 /insert/ 路径时补全的默认路径。stream 字段必须低基数，traceId 只能进正文。 */
     private static final String DEFAULT_INSERT_PATH =
             "/insert/jsonline?_stream_fields=app,host&_msg_field=_msg&_time_field=_time";
 
@@ -90,9 +87,7 @@ public final class VictoriaLogsAppender extends AbstractAppender {
                 Math.max(200L, flushIntervalMillis), connectTimeoutMillis, requestTimeoutMillis);
     }
 
-    /**
-     * 只给出 {@code scheme://host:port} 时补全 jsonline 路径与查询参数。
-     */
+
     private static String normalizeEndpoint(String url) {
         if (url == null || url.isBlank()) {
             return null;
@@ -145,9 +140,7 @@ public final class VictoriaLogsAppender extends AbstractAppender {
         if (!running) {
             return;
         }
-        // 序列化必须在调用线程完成：LogEvent 可能被复用，异步持有会读到串改后的内容。
         String line = new String(getLayout().toByteArray(event), StandardCharsets.UTF_8);
-        // JsonTemplateLayout 默认在每条事件后追加换行，这里剥掉，由 post() 统一按 jsonline 规则拼接。
         line = line.stripTrailing();
         if (line.isEmpty()) {
             return;
@@ -221,7 +214,6 @@ public final class VictoriaLogsAppender extends AbstractAppender {
         }
     }
 
-    /** 失败只写 StatusLogger 且按分钟限流：VictoriaLogs 不可达时不能反过来刷爆本地日志。 */
     private void reportError(String reason) {
         long now = System.currentTimeMillis();
         long last = lastErrorLogAt.get();

@@ -18,14 +18,7 @@ public class RSASignUtils {
     private final static String CHARACTER_ENCODING_UTF_8 = "UTF-8";
     private static final Logger log = LoggerFactory.getLogger(RSASignUtils.class);
 
-    /**
-     * RSA私钥加签。
-     *
-     * @param
-     * @param
-     * @return 十六进制的签名字符串
-     * @throws Exception
-     */
+
     public static String sign(String priKeyOri, String plainText) throws Exception {
         byte[] priKeyText = priKeyOri.getBytes(CHARACTER_ENCODING_UTF_8);
         PKCS8EncodedKeySpec priPKCS8 = new PKCS8EncodedKeySpec(Base64.decodeBase64(priKeyText));
@@ -41,14 +34,7 @@ public class RSASignUtils {
         }
     }
 
-    /**
-     * 公钥验签。
-     *
-     * @param
-     * @param
-     * @param
-     * @return 验签结果 true验证一致 false验证不一致
-     */
+
     public static boolean verify(String pubKeyOri, String plainText, String signText) {
         try {
             byte[] pubKeyText = pubKeyOri.getBytes(CHARACTER_ENCODING_UTF_8);

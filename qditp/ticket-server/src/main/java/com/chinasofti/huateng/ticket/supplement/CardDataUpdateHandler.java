@@ -21,26 +21,21 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 
-/** IF5A-03 票卡更新：按 BOM 上送的 {@code adviceOpt} 执行补进站 / 补出站。 */
 @Component
 class CardDataUpdateHandler {
 
     private static final Logger log = LoggerFactory.getLogger(CardDataUpdateHandler.class);
 
-    /** {@code optDate} / {@code handleDateTime} 的固定长度 {@code yyyyMMddHHmmss}。 */
     private static final int OPT_DATE_LENGTH = 14;
 
-    /** 车站码固定 4 位。 */
     private static final int STATION_CODE_LENGTH = 4;
 
-    /** QRCODE_STATUS 只读访问。 */
     @Autowired
     private QRCodeStatusStore qrCodeStatusStore;
 
     @Autowired
     private SupplementUserLookup userLookup;
 
-    /** IF1A-01 检票编排门面，进程内直调。 */
     @Autowired
     private AgmRideStatusService agmRideStatusService;
 
@@ -133,11 +128,7 @@ class CardDataUpdateHandler {
                 requestTransAmount, rawCodeStatus, response);
     }
 
-    /**
-     * 必填与格式校验。
-     *
-     * @return null 表示通过，否则为可直接回给 BOM 的原因
-     */
+
     private String validateRequired(String cardId, String adviceOpt, String updateStationCode, String optDate) {
         if (!StringUtils.hasText(cardId) || !StringUtils.hasText(adviceOpt)
                 || !StringUtils.hasText(updateStationCode) || !StringUtils.hasText(optDate)) {
@@ -170,11 +161,7 @@ class CardDataUpdateHandler {
         return true;
     }
 
-    /**
-     * 建议操作 → 闸机交易方向。
-     *
-     * @return null 表示不支持的操作类型（含 {@code 000} 无需操作与未登记取值），由调用方拒绝整笔
-     */
+
     private String resolveTrxType(String adviceOpt) {
         AdviceOptEnum opt = AdviceOptEnum.fromCode(adviceOpt);
         if (opt == null) {
@@ -189,18 +176,7 @@ class CardDataUpdateHandler {
         return null;
     }
 
-    /**
-     * 006 付费更新的入账金额。
-     *
-     * <p><b>口径：以 BOM 上送的 {@code transAmount} 为准</b>（用户 2026-09-18 裁决，ADR-D136）。
-     * 钱是 BOM 现场收的（`GateFarePaymentOrchestrator.shouldPay` 刻意把 005/006/020 排除在扣费之外），
-     * 而应答 DTO 没有金额字段回传不了 BOM，所以 ITP **NEVER 用重算值覆盖上送值** ——
-     * 那样只会让「BOM 收 200、ITP 记 400」两边各自都认为自己对，且差额无人可见。
-     * ITP 侧的票价重算降级为**对账**：不一致只告警，票价服务查不到或不可达也只告警、不拒绝整笔
-     * （票价已不在关键路径上，NEVER 因为报不出价就挡住乘客出站）。
-     *
-     * @return null 表示成功（金额已写进 {@code gateRequest}），否则为可直接返回的失败响应
-     */
+
     private RequestCardDataUpdateRespDTO fillPaidUpdateAmount(
             RequestCardDataUpdateReqDTO request, RequestCardDataUpdateRespDTO response,
             NotifyVerifyResultReqDTO gateRequest, QRCodeStatus currentStatus,
@@ -228,7 +204,6 @@ class CardDataUpdateHandler {
         return null;
     }
 
-    /** 票价重算只用于对账告警：查不到、不可达、不一致三种情况都只记日志，NEVER 据此拒绝整笔。 */
     private void logFareReconcile(String entryStation, String exitStation,
                                   String requestTransAmount, String cardId) {
         SupplementFareQuery.FareResult fare = fareQuery.query(entryStation, exitStation, "IF5A-03");
@@ -260,7 +235,6 @@ class CardDataUpdateHandler {
         }
     }
 
-    /** 声明幂等 → 下发闸机 → 按结果收口。 */
     private RequestCardDataUpdateRespDTO dispatchToGate(
             NotifyVerifyResultReqDTO gateRequest, QRCodeStatus currentStatus, String adviceOpt,
             String updateType, String cardId, String requestTransAmount, String rawCodeStatus,
@@ -306,12 +280,7 @@ class CardDataUpdateHandler {
         return response;
     }
 
-    /**
-     * 执行侧拒绝原因 → 回给 BOM 的错误码与文案。
-     *
-     * <p>顺序由 {@link SupplementStateRules#checkUpdate} 保证：**状态与区域在前、时间窗在后**，
-     * 因此「状态本来就不允许」NEVER 再被误报成 8305 时间窗类原因（2026-09-18 实测修，ADR-D136）。
-     */
+
     private RequestCardDataUpdateRespDTO fillUpdateRejection(RequestCardDataUpdateRespDTO response,
                                                             SupplementStateRules.UpdateRejection rejection,
                                                             String cardId, String rawCodeStatus,

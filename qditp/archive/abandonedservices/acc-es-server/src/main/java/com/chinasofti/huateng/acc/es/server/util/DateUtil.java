@@ -3,9 +3,7 @@ package com.chinasofti.huateng.acc.es.server.util;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-/**
- * @author rxwnc
- */
+
 public class DateUtil {
 
     public static String date2String8(Date date) {

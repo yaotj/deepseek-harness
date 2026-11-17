@@ -21,21 +21,7 @@ import ch.qos.logback.classic.spi.IThrowableProxy;
 import ch.qos.logback.classic.spi.ThrowableProxyUtil;
 import ch.qos.logback.core.AppenderBase;
 
-/**
- * 把日志以 JSON Lines 推送到 VictoriaLogs 的 logback Appender。
- *
- * <p>与 qd-itp 的 log4j2 {@code VictoriaLogsAppender} 保持一致的契约：
- * <ul>
- *   <li>{@code url} 为空（VLOGS_URL 未配）则自动禁用：不起线程、不丢日志；</li>
- *   <li>{@code url} 只给 {@code scheme://host:port} 时自动补全
- *       {@code /insert/jsonline?_stream_fields=app,host&_msg_field=_msg&_time_field=_time}；</li>
- *   <li>stream 字段只放低基数的 {@code app}/{@code host}；traceId 只进正文（MDC 白名单仅 traceId）；</li>
- *   <li>VLOGS_URL 端口 MUST 是 30032，不是 VictoriaLogs 默认 9428。</li>
- * </ul>
- *
- * <p>用 JDK 内置 HttpClient，无额外依赖；后台单线程批量发送，队列满则丢弃并限流告警，
- * 绝不让日志后端不可达反过来刷爆本地日志。
- */
+
 public class VictoriaLogsAppender extends AppenderBase<ILoggingEvent> {
 
     private static final String DEFAULT_INSERT_PATH =
@@ -70,11 +56,7 @@ public class VictoriaLogsAppender extends AppenderBase<ILoggingEvent> {
         this.host = host;
     }
 
-    /**
-     * 解析 VictoriaLogs URL：优先用配置值；若 logback 未解析（如 {@code env:} 前缀不被支持、
-     * 或回退默认值），则直接读 {@code VLOGS_URL} 环境变量兜底，与 HOSTNAME 取法保持一致。
-     * 仍为空 → 返回 null（调用方据此禁用 appender）。
-     */
+
     private static String resolveUrl(String configured) {
         if (configured != null && !configured.isBlank() && !configured.contains("${")) {
             return configured;
@@ -141,7 +123,6 @@ public class VictoriaLogsAppender extends AppenderBase<ILoggingEvent> {
         if (!running) {
             return;
         }
-        // 序列化在调用线程完成：logback 的 LoggingEvent 同样可能被复用/异步持有。
         String line = toJsonLine(event);
         if (line == null) {
             return;
@@ -269,7 +250,6 @@ public class VictoriaLogsAppender extends AppenderBase<ILoggingEvent> {
         }
     }
 
-    /** 失败只写 StatusLogger 且按分钟限流：VictoriaLogs 不可达时不能反过来刷爆本地日志。 */
     private void reportError(String reason) {
         long now = System.currentTimeMillis();
         long last = lastErrorLogAt.get();

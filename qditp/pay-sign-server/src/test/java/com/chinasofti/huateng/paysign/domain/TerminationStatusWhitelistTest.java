@@ -8,10 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 护栏：解约状态白名单与 6 条 CAS 对齐，FAILED 只能复活成 PENDING、NEVER 直接转 SUCCESS。 */
 class TerminationStatusWhitelistTest {
 
-    /** PENDING 只能进 SCANNING（抢占）或 FAILED（有未结清欠费被拒）。 */
     @Test
     void pendingAllowsScanningAndFailedOnly() {
         assertTrue(TerminationStatus.PENDING.canTransitTo(TerminationStatus.SCANNING));
@@ -21,7 +19,6 @@ class TerminationStatusWhitelistTest {
         assertFalse(TerminationStatus.PENDING.canTransitTo(TerminationStatus.PENDING));
     }
 
-    /** SCANNING 三个出口：回调收口 SUCCESS、答复失败或超时 FAILED、明确失败后交还执行权 PENDING。 */
     @Test
     void scanningAllowsSuccessFailedAndRevert() {
         assertTrue(TerminationStatus.SCANNING.canTransitTo(TerminationStatus.SUCCESS));
@@ -30,7 +27,6 @@ class TerminationStatusWhitelistTest {
                 "revertScanningToPending 是在跑的语句，白名单 MUST 容纳它");
     }
 
-    /** 本轮的核心裁决（用户 2026-09-12）：{@code FAILED} 只能复活成 {@code PENDING}。 */
     @Test
     void failedNeverTransitsToSuccess() {
         assertTrue(TerminationStatus.FAILED.canTransitTo(TerminationStatus.PENDING));
@@ -40,7 +36,6 @@ class TerminationStatusWhitelistTest {
                 "重新申请 MUST 经 PENDING 走完整扫表流程，NEVER 跳过欠费校验直接进 SCANNING");
     }
 
-    /** SUCCESS 是唯一终态：签约记录已删、账户域通道已清，回退只会引来重复投递。 */
     @Test
     void successIsTheOnlyTerminalState() {
         assertTrue(TerminationStatus.SUCCESS.isTerminal());
@@ -49,7 +44,6 @@ class TerminationStatusWhitelistTest {
         assertFalse(TerminationStatus.FAILED.isTerminal(), "FAILED 可复活成 PENDING，不是终态");
     }
 
-    /** {@code isNotifiable} MUST 与 {@code selectCompensableNotify} 的。 */
     @Test
     void onlyTerminalStatusesAreNotifiable() {
         assertTrue(TerminationStatus.SUCCESS.isNotifiable());
@@ -58,7 +52,6 @@ class TerminationStatusWhitelistTest {
         assertFalse(TerminationStatus.SCANNING.isNotifiable());
     }
 
-    /** 宽松解析：认得的原样返回，认不得的一律 null，NEVER 兜底成具体状态。 */
     @Test
     void parseOrNullNeverGuesses() {
         assertSame(TerminationStatus.SCANNING, TerminationStatus.parseOrNull("SCANNING"));

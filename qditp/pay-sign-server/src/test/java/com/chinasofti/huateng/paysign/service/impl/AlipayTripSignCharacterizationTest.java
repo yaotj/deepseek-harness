@@ -19,14 +19,12 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/** 护栏：支付宝出行签约同步落 SIGNED、不出网、已签约即拒，成功只写一行审计流水。 */
 class AlipayTripSignCharacterizationTest {
 
     private static final String USER = "U-TEST-0007";
     private static final String AGREEMENT_CODE = "2088ALIPAYTRIP0001";
     private static final String ALIPAY_TRIP_VENDOR = "05";
 
-    /** 同步确认：直接落 SIGNED，且 NEVER 调支付中心。 */
     @Test
     void writesSignedRecordLocallyWithoutCallingPayCenter() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -46,7 +44,6 @@ class AlipayTripSignCharacterizationTest {
         verify(fixture.payGatewayClient, never()).request(anyString(), anyMap());
     }
 
-    /** 本接口不返回 SDK 参数：渠道侧已签好，APP 无需再唤起。 */
     @Test
     void neverReturnsSdkInfo() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -57,7 +54,6 @@ class AlipayTripSignCharacterizationTest {
         assertNull(result.getRequestStartSdkInfo());
     }
 
-    /** 已签约即拒：放宽会出现同一用户同渠道两行签约记录。 */
     @Test
     void alreadySignedIsRejectedWithoutWriting() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -71,7 +67,6 @@ class AlipayTripSignCharacterizationTest {
         verify(fixture.paySignInfoMapper, never()).insert(any());
     }
 
-    /** 成功只写**一行**流水（2026-09-16 合并，ADR-D115 续（二））。 */
     @Test
     void successWritesOneMergedAuditRow() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -89,7 +84,6 @@ class AlipayTripSignCharacterizationTest {
         assertEquals("0000", audited.getResultCode(), "成功分支的审计行 MUST 带 retCode");
     }
 
-    /** 失败分支同样留痕（只有审计那一行）。 */
     @Test
     void rejectedRequestStillLeavesAuditRow() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();

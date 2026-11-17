@@ -7,9 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-/**
- * 手机号更换服务实现。
- */
+
 @Service
 public class PhoneChangeAppServiceImpl implements PhoneChangeAppService {
 
@@ -41,7 +39,6 @@ public class PhoneChangeAppServiceImpl implements PhoneChangeAppService {
             log.info("ITP侧未处理成功, 尝试支付宝渠道, thirdUserId={}, itpRetCode={}",
                     thirdUserId, itpResult == null ? null : itpResult.getRetCode());
 
-            // 判断是否为支付宝用户
             if (alipayAccountClient.selectByThirdUserId(thirdUserId.trim()) != null) {
                 log.info("识别为支付宝用户, thirdUserId={}", thirdUserId);
                 return alipayAccountClient.updatePhone(thirdUserId.trim(), newMsisdn.trim());

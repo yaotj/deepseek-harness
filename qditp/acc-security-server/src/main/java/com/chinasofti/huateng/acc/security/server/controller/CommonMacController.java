@@ -12,9 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 
-/**
- * 公共TAC计算Controller
- */
+
 @Validated
 @RestController
 public class CommonMacController {
@@ -22,17 +20,13 @@ public class CommonMacController {
     @Autowired
     private CommonMacService commonMacService;
 
-    /**
-     * @Description: (充值mac1验证方法)
-     */
+
     @PostMapping("/verify/mac1")
     public ResultVO<Boolean> verifyMac1(@RequestBody @Valid InvestMac1Param param) throws InterruptedException {
         return commonMacService.verifyMac1(param);
     }
 
-    /**
-     * 充值mac2计算
-     */
+
     @PostMapping("/get/mac2")
     public ResultVO<String> getMac2(@RequestBody @Valid InvestMac2Param param) throws InterruptedException {
         return commonMacService.getMac2(param);

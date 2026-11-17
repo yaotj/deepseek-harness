@@ -71,7 +71,6 @@ public class UserRouteConfig {
             log.info("路由表为空，降级为空路由");
             return;
         }
-        // 刷新分流路径集合
         userRouteService.reloadSplitPaths();
         RouterFunction<ServerResponse> result = null;
         for (RouteDef r : routes) {
@@ -102,7 +101,6 @@ public class UserRouteConfig {
     @org.springframework.context.annotation.Bean
     public RouterFunction<ServerResponse> userRoute() {
         return (ServerRequest request) -> {
-            // 双发择优优先于订单归属路由：仅命中 dualquery.paths 的只读查询接口被接管
             if (dualQueryService.matches(request.path())) {
                 return Optional.of(dualQueryService::handle);
             }

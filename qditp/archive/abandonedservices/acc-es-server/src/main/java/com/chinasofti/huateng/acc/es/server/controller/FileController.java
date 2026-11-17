@@ -14,9 +14,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
 
-/**
- * @author rxwnc
- */
+
 @RestController
 @RequestMapping(value = "/file")
 @AllArgsConstructor
@@ -27,22 +25,13 @@ public class FileController {
 
     private final FtpComponent ftpComponent;
 
-    /**
-     * 个性化任务execl表格导入
-     * @param uploadFile
-     * @return
-     */
+
     @PostMapping("/upload")
     public ResultVO<?> upLoad(@RequestParam("file") MultipartFile uploadFile) {
         return fileService.upload(uploadFile);
     }
 
-    /**
-     * 个性化文件下载
-     * @param file
-     * @param request
-     * @param response
-     */
+
     @GetMapping("/download")
     public void downLoad(@RequestParam("file") String file, HttpServletRequest request, HttpServletResponse response) {
         response.setCharacterEncoding("utf-8");

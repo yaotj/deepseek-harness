@@ -4,9 +4,7 @@ import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-/**
- * 参数文件读取工具。
- */
+
 public final class ParaFileReadUtils {
 
     private static final Charset GB2312 = Charset.forName("GB2312");
@@ -96,14 +94,7 @@ public final class ParaFileReadUtils {
         return String.valueOf(padChar).repeat(length - value.length()) + value;
     }
 
-    /**
-     * 计算指定区间的 MD5 十六进制串（小写）。
-     *
-     * @param bytes 源字节
-     * @param offset 起始下标
-     * @param length 长度
-     * @return 小写十六进制 MD5
-     */
+
     public static String md5Hex(byte[] bytes, int offset, int length) {
         try {
             MessageDigest md5 = MessageDigest.getInstance("MD5");

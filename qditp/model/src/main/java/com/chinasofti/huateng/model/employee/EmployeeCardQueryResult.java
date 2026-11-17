@@ -2,15 +2,10 @@ package com.chinasofti.huateng.model.employee;
 
 import com.chinasofti.huateng.common.response.CommonResult;
 
-/**
- * APP 员工码信息查询结果。
- */
+
 public class EmployeeCardQueryResult extends CommonResult {
     private String cardNo;
-    /**
-     * 员工编号。规格书 §3.1 响应字段（差异 D2）；实现侧无独立员工编号，
-     * 恒映射为 {@link #cardNo}（cardNo 即员工号）。
-     */
+
     private String employeeNo;
     private String phone;
     private String employeeName;

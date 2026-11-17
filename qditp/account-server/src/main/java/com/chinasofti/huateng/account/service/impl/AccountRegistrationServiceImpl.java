@@ -26,51 +26,33 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-/**
- * IF8A-01 APP 开户发号实现，见 {@link AccountRegistrationService}。
- */
+
 @Service
 public class AccountRegistrationServiceImpl implements AccountRegistrationService {
     private static final Logger log = LoggerFactory.getLogger(AccountRegistrationServiceImpl.class);
 
-    /**
-     * 支付宝<b>渠道</b>码。
-     */
+
     private static final String ALIPAY_PAYMENT_CHANNEL = "03";
 
-    /**
-     * IF8A-01 开户走卡池发号时的业务类型，与 {@code LOGIC_CARD_POOL_CARD.BUSINESS_TYPE} 对应。
-     */
+
     private static final String CARD_POOL_BUSINESS_TYPE_ACCOUNT_OPEN = "ACCOUNT_OPEN";
 
-    /**
-     * 开户发号（卡池预占 / 确认 / 释放、HCE 取卡）的出网协作者。
-     */
+
     private final CardPoolAllocationService cardPoolAllocationService;
 
-    /**
-     * 只用于开户前的重复开户查重；两行落库在 {@link RegistrationCommitService} 里。
-     */
+
     private final UserItpRegInfoMapper userItpRegInfoMapper;
 
-    /**
-     * 渠道无关的开户收口：注册乘车状态、两行落库、字段归一。
-     */
+
     private final RegistrationCommitService registrationCommitService;
 
-    /**
-     * 开户成功后按手机号挂接员工码（ADR-D33 从 {@link RegistrationCommitService} 迁来）。
-     */
+
     private final EmployeeCardPersistenceService employeeCardPersistenceService;
 
-    /**
-     * 卡池确认被拒时开异常工单（ADR-D52）。
-     */
+
     private final AccountExceptionTicketMapper accountExceptionTicketMapper;
 
-    /**
-     * 构造器注入（ADR-D37）。
-     */
+
     public AccountRegistrationServiceImpl(CardPoolAllocationService cardPoolAllocationService,
                                           UserItpRegInfoMapper userItpRegInfoMapper,
                                           RegistrationCommitService registrationCommitService,
@@ -83,9 +65,7 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
         this.accountExceptionTicketMapper = accountExceptionTicketMapper;
     }
 
-    /**
-     * IF8A-01 请求开户。
-     */
+
     @Override
     public RequestApplicationResult requestApplication(RequestApplicationReqDTO request) {
         RequestApplicationResult response = new RequestApplicationResult();
@@ -131,7 +111,6 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
             UserItpRegInfo regInfo = buildRegInfo(request, allocation.cardId(), allocation.hceData());
             RegisterRideStatusRespDTO ticketResponse = registrationCommitService.registerRideStatus(regInfo);
             if (ticketResponse == null || !AccountErrorCodeEnum.SUCCESS.getCode().equals(ticketResponse.getRetCode())) {
-                // NEVER 在失败分支 releaseReservation：预占按 businessId 幂等、是并发请求共享的，超时回收交 sys_job 240（2026-09-21 由 107 改号为 240，ADR-D52）。
                 allocation = null;
                 response.setRetCode(AccountErrorCodeEnum.SERVICE_PROVIDER_UNAVAILABLE.getCode());
                 response.setRetMsg(ticketResponse == null ? "ticket-server不可用" : ticketResponse.getRetMsg());
@@ -146,7 +125,6 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
                 if (!uniqueTicket || !isDuplicateKeyViolation(e)) {
                     throw e;
                 }
-                // NEVER 在失败分支 releaseReservation：预占按 businessId 幂等、是并发请求共享的，超时回收交 sys_job 240（ADR-D52）。
                 RequestApplicationResult duplicated = handleDuplicateRegistration(thirdUserId, issueOrgCode, cardType, e);
                 allocation = null;
                 return duplicated;
@@ -157,7 +135,6 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
             allocation = null;
 
             if (!confirmed) {
-                // 最后一步 confirm 失败 MUST NOT 返成功、MUST 落 ACCOUNT_EXCEPTION_TICKET 的 CARD_POOL_CONFIRM_REJECTED。
                 openCardPoolConfirmTicketQuietly(confirmedAllocation, regInfo);
                 response.setRetCode(AccountErrorCodeEnum.SERVICE_PROVIDER_UNAVAILABLE.getCode());
                 response.setRetMsg("卡号确认失败，请稍后重试");
@@ -185,9 +162,7 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
         }
     }
 
-    /**
-     * 卡池确认被拒时开工单转人工。
-     */
+
     private void openCardPoolConfirmTicketQuietly(CardAllocation allocation, UserItpRegInfo regInfo) {
         try {
             AccountExceptionTicket ticket = new AccountExceptionTicket();
@@ -206,9 +181,7 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
         }
     }
 
-    /**
-     * 落库冲突后只回查同平台的唯一卡；查不到有效卡时返回系统错误，且不释放共享预占。
-     */
+
     private RequestApplicationResult handleDuplicateRegistration(String thirdUserId, String issueOrgCode, String cardType,
                                                                  Exception cause) {
         RequestApplicationResult response = new RequestApplicationResult();
@@ -231,9 +204,7 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
         return response;
     }
 
-    /**
-     * 判断异常链上是否存在 {@link DuplicateKeyException}，即唯一约束冲突。
-     */
+
     private boolean isDuplicateKeyViolation(Throwable e) {
         for (Throwable cause = e; cause != null && cause != cause.getCause(); cause = cause.getCause()) {
             if (cause instanceof DuplicateKeyException) {
@@ -243,14 +214,7 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
         return false;
     }
 
-    /**
-     * 按 APP 卡类型获取开户使用的逻辑卡号。
-     *
-     * @param request      APP 开户请求
-     * @param thirdUserId  第三方用户标识
-     * @param issueCardType 转换后的票种码（044X）
-     * @return 开户逻辑卡号；无法获取时返回 {@code null}
-     */
+
     private CardAllocation allocateCard(RequestApplicationReqDTO request, String thirdUserId, String issueCardType) {
         if (cardPoolAllocationService.isHceCard(request.getCardType())) {
             HceCardAllocation hce = cardPoolAllocationService.requestHceCardData(thirdUserId, request.getTicketCard());
@@ -260,21 +224,13 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
                 buildAccountOpenBusinessId(request, thirdUserId, issueCardType), thirdUserId);
     }
 
-    /**
-     * 组装开户预占的业务流水号，决定卡池发号的幂等边界。
-     *
-     * @param request       APP 开户请求
-     * @param thirdUserId   第三方用户标识
-     * @param issueCardType 票种码
-     * @return 业务流水号
-     */
+
     private String buildAccountOpenBusinessId(RequestApplicationReqDTO request, String thirdUserId,
                                               String issueCardType) {
         if ("2".equals(request.getTicketLimit().trim())) {
             return "MULTI:" + UUID.randomUUID();
         }
         String issueOrgCode = request.getCardIssueCode().trim();
-        // 长度前缀避免任意所属方/用户标识含分隔符时串键，且不复用旧的两字段预占键。
         return "UNIQUE:" + thirdUserId.length() + ":" + thirdUserId
                 + issueOrgCode.length() + ":" + issueOrgCode + ":" + issueCardType;
     }
@@ -321,9 +277,7 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
         return null;
     }
 
-    /**
-     * IF8A-01 的 {@code USER_ITP_REG_INFO} 行。
-     */
+
     private UserItpRegInfo buildRegInfo(RequestApplicationReqDTO request, String cardId, String hceData) {
         UserItpRegInfo regInfo = new UserItpRegInfo();
         regInfo.setCardId(cardId);
@@ -351,9 +305,6 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
             return ALIPAY_PAYMENT_CHANNEL;
         }
         String issueCardType = CardTypeMapping.toIssueCardType(request.getCardType());
-        // 日票族与员工码（0444）都是「无签约支付渠道」的免费票种，APP 开户不会上送 channel。
-        // 渠道落 APP 票种码（与日票既有口径一致，如 0445 落 "12"、员工码落 "11"）——
-        // 否则 IF8A-03 拉码在 IndustryDataOrchestrator 因签约渠道为空回 8001「用户签约渠道不能为空」。
         if (CardTypeCodeEnum.isDailyTicket(issueCardType) || CardTypeCodeEnum.isEmployeeCard(issueCardType)) {
             return request.getCardType().trim();
         }

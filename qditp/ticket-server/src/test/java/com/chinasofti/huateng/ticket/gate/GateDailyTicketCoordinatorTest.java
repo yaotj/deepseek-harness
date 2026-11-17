@@ -27,7 +27,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** IF1A-01 日票协同器特征测试。 */
 class GateDailyTicketCoordinatorTest {
 
     private static final String DAILY_TICKET_CARD_TYPE = "0445";

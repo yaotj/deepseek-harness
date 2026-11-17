@@ -13,12 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/**
- * HCE 黑名单文件的 ACC FTP 上传器。
- *
- * <p>连接与超时口径对齐 para-server 的 {@code ParaFtpScanService}：被动模式、二进制传输、
- * 控制通道 UTF-8、文件名转 ISO-8859-1。
- */
+
 @Component
 public class HceBlacklistFtpUploader {
 
@@ -30,13 +25,7 @@ public class HceBlacklistFtpUploader {
         this.properties = properties;
     }
 
-    /**
-     * 把本地文件上传到 ACC FTP 的远端目录。
-     *
-     * @param localFile 本地文件
-     * @param remoteFileName 远端文件名
-     * @throws IllegalStateException 连接、登录或传输失败
-     */
+
     public void upload(Path localFile, String remoteFileName) {
         FTPClient ftp = connect();
         try {

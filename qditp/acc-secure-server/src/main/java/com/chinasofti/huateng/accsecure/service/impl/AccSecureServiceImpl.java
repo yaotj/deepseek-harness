@@ -43,9 +43,7 @@ public class AccSecureServiceImpl implements AccSecureService {
     private final OkHttpClient okHttpClient;
     private final AccSecureProperties properties;
 
-    /**
-     * 初始化 HTTP 客户端和 ACC 配置。
-     */
+
     public AccSecureServiceImpl(AccSecureProperties properties) {
         this.properties = properties;
         this.okHttpClient = new OkHttpClient.Builder()
@@ -55,73 +53,55 @@ public class AccSecureServiceImpl implements AccSecureService {
                 .build();
     }
 
-    /**
-     * 调用 IF7B-01，请求逻辑卡号列表。
-     */
+
     @Override
     public RequestQrLogicNumListRespDTO requestQrLogicNumList(RequestQrLogicNumListReqDTO request) {
         return post(properties.getPaths().getRequestQrLogicNumList(), request, RequestQrLogicNumListRespDTO.class);
     }
 
-    /**
-     * 调用 IF7B-02，请求生成地铁 CA 密钥。
-     */
+
     @Override
     public RequestCaKeyRespDTO requestCaKey(RequestCaKeyReqDTO request) {
         return post(properties.getPaths().getRequestCaKey(), request, RequestCaKeyRespDTO.class);
     }
 
-    /**
-     * 调用 IF7B-03，请求生成用户 SM2 密钥。
-     */
+
     @Override
     public RequestUserSm2KeyRespDTO requestUserSm2Key(RequestUserSm2KeyReqDTO request) {
         return post(properties.getPaths().getRequestUserSm2Key(), request, RequestUserSm2KeyRespDTO.class);
     }
 
-    /**
-     * 调用 IF7B-04，请求签名用户公钥。
-     */
+
     @Override
     public RequestSignPubkeyRespDTO requestSignPubkey(RequestSignPubkeyReqDTO request) {
         return post(properties.getPaths().getRequestSignPubkey(), request, RequestSignPubkeyRespDTO.class);
     }
 
-    /**
-     * 调用 IF7B-05，请求导出用户私钥。
-     */
+
     @Override
     public RequestExportUserPriKeyRespDTO requestExportUserPriKey(RequestExportUserPriKeyReqDTO request) {
         return post(properties.getPaths().getRequestExportUserPriKey(), request, RequestExportUserPriKeyRespDTO.class);
     }
 
-    /**
-     * 调用 IF7B-06，请求签名行业数据。
-     */
+
     @Override
     public RequestSignInsDataRespDTO requestSignInsData(RequestSignInsDataReqDTO request) {
         return post(properties.getPaths().getRequestSignInsData(), request, RequestSignInsDataRespDTO.class);
     }
 
-    /**
-     * 调用 IF7B-07，请求 HCE 卡片消费密钥。
-     */
+
     @Override
     public RequestDpkRespDTO requestDpk(RequestDpkReqDTO request) {
         return post(properties.getPaths().getRequestDpk(), request, RequestDpkRespDTO.class);
     }
 
-    /**
-     * 调用 IF7B-08，请求发售 HCE 单程票数据。
-     */
+
     @Override
     public RequestHecCardDateRespDTO requestHecCardDate(RequestHecCardDateReqDTO request) {
         return post(properties.getPaths().getRequestHecCardDate(), request, RequestHecCardDateRespDTO.class);
     }
 
-    /**
-     * 封装 ACC 公共报文后，通过 HTTP POST 调用指定 ACC 接口，并解析返回的业务报文。
-     */
+
     private <TReq, TResp extends AccBizBaseResponse> TResp post(String path, TReq bizData, Class<TResp> responseClass) {
         try {
             String url = buildUrl(path);
@@ -146,9 +126,7 @@ public class AccSecureServiceImpl implements AccSecureService {
         }
     }
 
-    /**
-     * 按文档要求组装 ACC 请求公共参数和签名值。
-     */
+
     private <TReq> ItpCommonRequest<TReq> buildAccRequest(TReq bizData) {
         ItpCommonRequest<TReq> request = new ItpCommonRequest<>();
         request.setProviderId(properties.getProviderId());
@@ -170,9 +148,7 @@ public class AccSecureServiceImpl implements AccSecureService {
         return request;
     }
 
-    /**
-     * 把配置中的 ACC 根地址和接口路径拼成最终调用 URL。
-     */
+
     private String buildUrl(String path) {
         if (!StringUtils.hasText(properties.getBaseUrl())) {
             throw new IllegalArgumentException("acc.secure.base-url未配置");
@@ -184,9 +160,7 @@ public class AccSecureServiceImpl implements AccSecureService {
         return baseUrl + route;
     }
 
-    /**
-     * 解析 ACC 返回报文，兼容“外层直接返回业务字段”和“bizData 包裹业务字段”两种结构。
-     */
+
     private <TResp extends AccBizBaseResponse> TResp parseResponse(String responseJson, Class<TResp> responseClass) {
         JSONObject root = JSON.parseObject(responseJson);
         if (root == null) {
@@ -201,9 +175,7 @@ public class AccSecureServiceImpl implements AccSecureService {
         return normalizeBaseFields(response, root, root);
     }
 
-    /**
-     * 兜底补齐业务响应中的 retCode 和 retMsg，避免字段位于不同层级时丢失。
-     */
+
     private <TResp extends AccBizBaseResponse> TResp normalizeBaseFields(TResp response, JSONObject bizRoot, JSONObject fullRoot) {
         if (response == null) {
             throw new IllegalStateException("ACC响应解析失败");
@@ -225,9 +197,7 @@ public class AccSecureServiceImpl implements AccSecureService {
         return response;
     }
 
-    /**
-     * 在调用失败或解析异常时，构造统一的错误响应对象返回给上层。
-     */
+
     private <TResp extends AccBizBaseResponse> TResp buildErrorResponse(Class<TResp> responseClass,
                                                                         AccSecureErrorCodeEnum errorCode,
                                                                         String message) {

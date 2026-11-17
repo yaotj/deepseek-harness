@@ -2,75 +2,51 @@ package com.chinasofti.huateng.dailyticket.model;
 
 import java.util.Date;
 
-/** 旅游票聚合主单内部模型。 */
 public class TravelTicketOrder {
-    /** 主键ID。 */
     private String id;
 
-    /** 旅游票单号。 */
     private String orderNo;
 
-    /** APP用户编号。 */
     private String userId;
 
-    /** APP侧卡类型。 */
     private String cardType;
 
-    /** 展示类型。 */
     private String showType;
 
-    /** 单张票价，单位分。 */
     private Integer ticketPrice;
 
-    /** 购买数量，即内含日票张数。 */
     private Integer ticketCount;
 
-    /** 总金额，单位分。由 ticketPrice * ticketCount 服务端重算得到。 */
     private Integer totalAmount;
 
-    /** 订单来源。 */
     private String orderSource;
 
-    /** 第三方用户编号。 */
     private String thirdUserId;
 
-    /** 实付金额，单位分。 */
     private Integer payAmount;
 
-    /** 支付中心回传的实付现金金额，单位分。原样落库，不做与总额的匹配校验。 */
     private Integer cashAmount;
 
-    /** 支付中心回传的优惠金额，单位分。原样落库，不做与总额的匹配校验。 */
     private Integer couponAmount;
 
-    /** 支付渠道编码。 */
     private String payChannelCode;
 
-    /** 支付渠道。 */
     private String channelType;
 
-    /** 支付服务场景。 */
     private String payScene;
 
-    /** 订单状态，取值与日票一致：CREATED/PAYING/PAID/PAY_FAILED/CANCELED/REFUNDING/REFUNDED。 */
     private String orderStatus;
 
-    /** 支付状态，取值与日票一致：INIT/PAYING/PAID/FAIL。 */
     private String payStatus;
 
-    /** 第三方支付交易号。 */
     private String tradeNo;
 
-    /** 支付系统订单号。 */
     private String paymentOrderNo;
 
-    /** 支付完成时间。 */
     private Date payDate;
 
-    /** 创建时间。 */
     private Date createTime;
 
-    /** 更新时间。 */
     private Date updateTime;
 
     public String getId() {

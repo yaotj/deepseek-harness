@@ -33,15 +33,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住支付宝开卡四步链路除 confirm 之外的口径（ADR-D143）。
- *
- * <p>与 {@link AlipayAccountCardPoolConfirmTest} 正交：那个类只管第 4 步 confirm，
- * 这个类管顺序、幂等短路、三种预占失败分流、注册失败处置与 `businessId` 键格式。
- * 键格式那条**尤其 NEVER 删**：它是发号的幂等边界，退回旧式 `前缀:用户:票种` 拼接后，
- * 含冒号的 `thirdUserId` 会与另一组入参撞出同一个键 —— 两个用户抢同一张卡，
- * 而这在真实环境里既造不出也看不见。
- */
+
 class AlipayRegistrationCharacterizationTest {
 
     private static final String THIRD_USER_ID = "0700009999";
@@ -103,10 +95,7 @@ class AlipayRegistrationCharacterizationTest {
         return request;
     }
 
-    /**
-     * 四步顺序 NEVER 变：预占 → 注册乘车状态 → 落两表 → confirm。
-     * 顺序一乱就会出现「卡号还没确认就发给用户」或「乘车状态先建、开户失败」的不一致。
-     */
+
     @Test
     void shouldRunFourStepsInFixedOrder() {
         AlipayTripRequestApplicationRespDTO response = service.requestApplication(request());
@@ -120,10 +109,7 @@ class AlipayRegistrationCharacterizationTest {
         order.verify(cardPoolClient).confirm(anyString(), anyString());
     }
 
-    /**
-     * 已开户即幂等短路：返 0000 带库里那张卡，四步一步都不走。
-     * 重试因此 NEVER 补 confirm —— 首次 confirm 失败留下的预占只能等 sys_job 240 回收（2026-09-21 由 107 改号为 240）。
-     */
+
     @Test
     void existingUserShouldShortCircuitBeforeAnyStep() {
         AlipayUserInfo existed = new AlipayUserInfo();
@@ -144,10 +130,7 @@ class AlipayRegistrationCharacterizationTest {
         verify(cardPoolClient, never()).confirm(anyString(), anyString());
     }
 
-    /**
-     * 卡池空是「稍后重试有用」，返 9999；票种被拒是「重试无用」，返 8001；调不通返 9001。
-     * 三者压成同一个错误码会让上游把不可恢复的配置错误一直重推。
-     */
+
     @Test
     void reserveFailureShouldMapToDistinctCodes() {
         when(cardPoolClient.reserve(any()))
@@ -166,9 +149,7 @@ class AlipayRegistrationCharacterizationTest {
         verify(cardPoolClient, never()).release(anyString(), anyString());
     }
 
-    /**
-     * 注册乘车状态失败：两表 NEVER 落、confirm NEVER 发、预占 NEVER release。
-     */
+
     @Test
     void registerRideStatusFailureShouldNotPersistOrConfirm() {
         when(ticketClient.registerRideStatus(any())).thenReturn(registerResp("9999"));
@@ -182,10 +163,7 @@ class AlipayRegistrationCharacterizationTest {
         verify(cardPoolClient, never()).release(anyString(), anyString());
     }
 
-    /**
-     * `businessId` 是长度前缀键，且 reserve 与 confirm 必须用同一个值 ——
-     * 两处不一致时 confirm 会被卡池按「预占不存在」拒掉。
-     */
+
     @Test
     void reservationBusinessIdShouldBeLengthPrefixedAndReusedOnConfirm() {
         service.requestApplication(request());
@@ -202,9 +180,7 @@ class AlipayRegistrationCharacterizationTest {
         verify(cardPoolClient).confirm(eq(RESERVATION_ID), eq(expectedKey));
     }
 
-    /**
-     * HCE 卡与员工票在入参校验就被挡掉：两者都不走卡池发号。
-     */
+
     @Test
     void hceAndEmployeeCardShouldBeRejectedBeforeReserve() {
         AlipayTripRequestApplicationRespDTO hce = service.requestApplication(request("03"));

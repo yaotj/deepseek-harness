@@ -21,7 +21,6 @@ import java.util.TreeSet;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 护栏：冻结「带 @Transactional 的方法」与「事务内出网」两份清单；后者为空集即达标，断言红了 MUST 改代码、NEVER 改期望值。 */
 class PaySignTransactionBoundaryArchTest {
 
     private static final String BASE_PACKAGE = "com.chinasofti.huateng.paysign";
@@ -30,14 +29,7 @@ class PaySignTransactionBoundaryArchTest {
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
             .importPackages(BASE_PACKAGE);
 
-    /**
-     * 出网出口：owner 前缀 → 人类可读标签。顺序无关，命中一个即记。
-     *
-     * <p>2026-09-17（ADR-D127）由 {@code Map.of} 改为 {@code Map.ofEntries}：
-     * {@code AppNotifyService} 按聚合拆成 {@code SignNotifyService} + {@code TerminationNotifyService}
-     * 后条目变成 11 个，而 {@code Map.of} 最多只接受 10 对。**NEVER 为了凑回 10 对而删条目**——
-     * 少一条即少一个出网出口，护栏会把「事务包住出网」漏判成空集。
-     */
+
     private static final Map<String, String> OUTBOUND_SINKS = Map.ofEntries(
             Map.entry("com.chinasofti.huateng.rpc.", "RPC"),
             Map.entry(BASE_PACKAGE + ".client.PayGatewayClient", "支付中心网关"),
@@ -51,13 +43,7 @@ class PaySignTransactionBoundaryArchTest {
             Map.entry(BASE_PACKAGE + ".port.AccountDomainRpcAdapter", "账户域端口"),
             Map.entry(BASE_PACKAGE + ".service.impl.ChannelSyncDeliverer", "通道清理投递"));
 
-    /**
-     * 当前带 {@code @Transactional} 的方法全集（**批次 5C 后实测 3 个**，2026-09-15）。
-     *
-     * <p>2026-09-17（ADR-D120）只改了**宿主类名**：签约回调由 {@code CallbackDomainServiceImpl}
-     * 搬到拆分后的 {@code SignResultCallbackHandler}，方法名、注解、事务范围一字未变，
-     * 集合大小仍是 3。<b>这不是「改事务边界」</b>；真要增减事务方法 MUST 先立 ADR 再动本集合。
-     */
+
     private static final Set<String> EXPECTED_TRANSACTIONAL_METHODS = new TreeSet<>(List.of(
             "SignResultCallbackHandler#receiveSignResult",
             "ContractDomainServiceImpl#alipayTripRequestSignInfo",
@@ -78,7 +64,6 @@ class PaySignTransactionBoundaryArchTest {
                         + "确为有意修改事务边界时，MUST 先在 docs/domain/decisions.md 立 ADR，再同步本期望值");
     }
 
-    /** 现存的「事务包住出网调用」清单 —— 批次 5C 起为空集（2026-09-15，ADR-D90）。 */
     private static final Set<String> KNOWN_TRANSACTIONAL_OUTBOUND = new TreeSet<>();
 
     @Test
@@ -103,7 +88,6 @@ class PaySignTransactionBoundaryArchTest {
                         + "修边界的批次 MUST 让它变短并在 ADR 里逐条记明");
     }
 
-    /** 从 {@code owner#methodName} 出发做调用图 BFS，返回命中的出网出口标签集合。 */
     private Set<String> reachableSinks(Map<String, JavaClass> byName, String ownerName, String methodName) {
         Set<String> sinks = new LinkedHashSet<>();
         Set<String> visited = new HashSet<>();

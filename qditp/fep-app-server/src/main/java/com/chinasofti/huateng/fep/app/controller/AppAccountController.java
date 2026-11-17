@@ -28,9 +28,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * APP 账户及支付相关接口入口。
- */
+
 @RestController
 public class AppAccountController extends BaseAppController {
     private static final Logger log = LoggerFactory.getLogger(AppAccountController.class);
@@ -98,9 +96,7 @@ public class AppAccountController extends BaseAppController {
         return accountAppService.requestRemovePayChannel(parseBizData(request, RequestRemovePayChannelReqDTO.class));
     }
 
-    /**
-     * IF8A-42 用户销户。
-     */
+
     @PostMapping("/app/cancelAccount")
     public UserCancelResult userCancel(@ModelAttribute ItpCommonFormRequest request) {
         UserCancelReqDTO bizData = parseBizData(request, UserCancelReqDTO.class);

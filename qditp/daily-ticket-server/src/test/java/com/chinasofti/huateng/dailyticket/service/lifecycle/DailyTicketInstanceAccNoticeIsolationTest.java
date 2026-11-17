@@ -21,18 +21,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住「票状态推进不碰 ACC 发售通知状态」这条边界。
- *
- * <p>背景：出站扣次与 APP 首次使用通知曾无条件把 {@code ACC_NOTICE_STATUS} 写成 SUCCESS，
- * 于是一条 ACC 上报失败（HTTP 400）的实例被出站洗成「已受理」，而补偿扫表只捞
- * PENDING / FAIL / INIT，该笔上报从此永远补不回来、账面上也看不出异常。
- * 2026-09-22 在联名票 {@code 0426090954000021} 上实测到该现象
- * （{@code ACC_NOTICE_STATUS=SUCCESS} 与 {@code ACC_NOTICE_MSG} 里的 400 报文自相矛盾）。
- *
- * <p>这两个用例断言的是「传给 mapper 的实体上那两列保持入库前的原值」，
- * 因此即便有人把 setter 加回来也会立刻红灯。
- */
+
 class DailyTicketInstanceAccNoticeIsolationTest {
 
     private DailyTicketInstanceMapper instanceMapper;
@@ -53,7 +42,6 @@ class DailyTicketInstanceAccNoticeIsolationTest {
                 instanceMapper, usageLogMapper, accActiveNotifyService, travelParentSummaryWriter);
     }
 
-    /** 出站扣次：ACC 上报此前是 FAIL，扣完次数后仍须是 FAIL，补偿才捞得到。 */
     @Test
     void markUsed_keepsFailedAccNoticeStatus() {
         DailyTicketInstance instance = activatedInstance("FAIL");
@@ -71,7 +59,6 @@ class DailyTicketInstanceAccNoticeIsolationTest {
         assertNull(written.getAccNoticeTime());
     }
 
-    /** APP 首次使用通知：同样不代表 ACC 已受理，PENDING 须原样留着。 */
     @Test
     void updateAndNotice_keepsPendingAccNoticeStatus() {
         DailyTicketInstance instance = activatedInstance("PENDING");

@@ -17,7 +17,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 运营补数实现。 */
 @Service
 public class OriginalFareBackfillServiceImpl implements OriginalFareBackfillService {
     private static final Logger log = LoggerFactory.getLogger(OriginalFareBackfillServiceImpl.class);
@@ -30,7 +29,6 @@ public class OriginalFareBackfillServiceImpl implements OriginalFareBackfillServ
         this.fareCalculator = fareCalculator;
     }
 
-    /** 历史订单 ORIGINAL_FARE 补数。 */
     @Override
     public ResultVO<Map<String, Object>> backfillOriginalFare(OriginalFareBackfillRequest request) {
         if (request == null) {
@@ -99,7 +97,6 @@ public class OriginalFareBackfillServiceImpl implements OriginalFareBackfillServ
         return ResultMapper.ok(result);
     }
 
-    /** 补数结果行：只回显定位与金额字段。 */
     private Map<String, Object> describeBackfillRow(GateTxnPay row, Integer originalFare) {
         Map<String, Object> item = new LinkedHashMap<>();
         item.put("orderNo", row.getOrderNo());
@@ -111,7 +108,6 @@ public class OriginalFareBackfillServiceImpl implements OriginalFareBackfillServ
         return item;
     }
 
-    /** TXN_DATE 是 VARCHAR2 存 yyyyMMdd，这里只做长度与数字校验。 */
     private boolean isTxnDate(String value) {
         if (value == null || value.length() != 8) {
             return false;
@@ -124,7 +120,6 @@ public class OriginalFareBackfillServiceImpl implements OriginalFareBackfillServ
         return true;
     }
 
-    /** 与 {@code GateTxnPayServiceImpl} 各留一份的三行副本：项目规则禁止为此新建工具类。 */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }

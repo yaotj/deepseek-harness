@@ -1,33 +1,21 @@
 package com.chinasofti.huateng.model.alipaytrip;
 
-/**
- * 支付宝出行-签约信息查询响应参数。
- */
+
 public class AlipaySignInfoDTO {
 
-    /**
-     * 第三方用户ID。
-     */
+
     private String thirdUserId;
 
-    /**
-     * 渠道协议号。
-     */
+
     private String channelAgreementCode;
 
-    /**
-     * 签约请求号。
-     */
+
     private String reqContractNo;
 
-    /**
-     * 逻辑卡号。
-     */
+
     private String cardId;
 
-    /**
-     * 卡类型编码。
-     */
+
     private String cardType;
 
     public String getThirdUserId() {

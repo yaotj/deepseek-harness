@@ -4,12 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 
-/**
- * Description:
- *
- * @author houkepan
- * @date 2019/2/18 15:03
- */
+
 public class ClientEncoder extends MessageToByteEncoder<byte[]> {
 
     @Override

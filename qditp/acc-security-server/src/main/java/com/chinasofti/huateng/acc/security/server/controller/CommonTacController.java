@@ -12,9 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 
-/**
- * 公共TAC计算Controller
- */
+
 @Validated
 @RestController
 public class CommonTacController {
@@ -22,17 +20,13 @@ public class CommonTacController {
     @Autowired
     private CommonTacService commonTacService;
 
-    /**
-     * @Description: (单程票tac验证方法)
-     */
+
     @PostMapping("/singleticket/check")
     public ResultVO<Boolean> verifyUlTac(@RequestBody @Valid SingleTicketTacParam param) throws InterruptedException {
         return commonTacService.ulTacVerify(param);
     }
 
-    /**
-     * @Description: (CPU tac验证方法)
-     */
+
     @PostMapping("/cpu/check")
     public ResultVO<Boolean> verifyCpuTac(@RequestBody @Valid CpuTacParam param) throws InterruptedException {
         return commonTacService.cpuTacVerify(param);

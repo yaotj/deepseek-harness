@@ -22,11 +22,7 @@ import com.chinasofti.huateng.common.enums.BusinessType;
 import com.chinasofti.huateng.common.utils.poi.ExcelUtil;
 import com.chinasofti.huateng.system.service.ISysDictTypeService;
 
-/**
- * 数据字典信息
- * 
- * @author zmzhang
- */
+
 @RestController
 @RequestMapping("/system/dict/type")
 public class SysDictTypeController extends BaseController
@@ -53,9 +49,7 @@ public class SysDictTypeController extends BaseController
         util.exportExcel(response, list, "字典类型");
     }
 
-    /**
-     * 查询字典类型详细
-     */
+
     @PreAuthorize("@ss.hasPermi('system:dict:query')")
     @GetMapping(value = "/{dictId}")
     public AjaxResult getInfo(@PathVariable Long dictId)
@@ -63,9 +57,7 @@ public class SysDictTypeController extends BaseController
         return success(dictTypeService.selectDictTypeById(dictId));
     }
 
-    /**
-     * 新增字典类型
-     */
+
     @PreAuthorize("@ss.hasPermi('system:dict:add')")
     @Log(title = "字典类型", businessType = BusinessType.INSERT)
     @PostMapping
@@ -79,9 +71,7 @@ public class SysDictTypeController extends BaseController
         return toAjax(dictTypeService.insertDictType(dict));
     }
 
-    /**
-     * 修改字典类型
-     */
+
     @PreAuthorize("@ss.hasPermi('system:dict:edit')")
     @Log(title = "字典类型", businessType = BusinessType.UPDATE)
     @PutMapping
@@ -95,9 +85,7 @@ public class SysDictTypeController extends BaseController
         return toAjax(dictTypeService.updateDictType(dict));
     }
 
-    /**
-     * 删除字典类型
-     */
+
     @PreAuthorize("@ss.hasPermi('system:dict:remove')")
     @Log(title = "字典类型", businessType = BusinessType.DELETE)
     @DeleteMapping("/{dictIds}")
@@ -107,9 +95,7 @@ public class SysDictTypeController extends BaseController
         return success();
     }
 
-    /**
-     * 刷新字典缓存
-     */
+
     @PreAuthorize("@ss.hasPermi('system:dict:remove')")
     @Log(title = "字典类型", businessType = BusinessType.CLEAN)
     @DeleteMapping("/refreshCache")
@@ -119,9 +105,7 @@ public class SysDictTypeController extends BaseController
         return success();
     }
 
-    /**
-     * 获取字典选择框列表
-     */
+
     @GetMapping("/optionselect")
     public AjaxResult optionselect()
     {

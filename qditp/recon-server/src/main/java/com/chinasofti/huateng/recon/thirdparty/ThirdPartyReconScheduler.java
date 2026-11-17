@@ -16,12 +16,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * 第三方支付对账编排：取渠道账单 → 入库 → 抽 ITP 台账 → 比对 → 生成 TXNDIFF 并投递。
- *
- * <p>调度归属（recon-thirdparty.md §五 项9 默认假设）：独立流程，不并入现有四类文件日终批(sys_job 225)。
- * 通过内部端点 /internal/recon/thirdparty/run 由 web-admin sys_job 触发；也可由本类 @Scheduled 触发（默认关闭，避免双跑）。</p>
- */
+
 @Service
 public class ThirdPartyReconScheduler {
 
@@ -48,7 +43,6 @@ public class ThirdPartyReconScheduler {
         this.fileGenerator = fileGenerator;
     }
 
-    /** 定时触发入口（默认关闭，由 sys_job 调内部端点为主）。 */
     @Scheduled(cron = "${recon.thirdparty.scheduler.cron:0 30 3 * * ?}")
     public void scheduledRun() {
         if (!properties.isEnabled() || !properties.isSchedulerEnabled()) {
@@ -62,7 +56,6 @@ public class ThirdPartyReconScheduler {
         }
     }
 
-    /** 处理本地目录中所有匹配模式的账单文件（生产主入口之一）。 */
     public List<String> runMatchedFiles() throws IOException {
         if (!properties.isEnabled()) throw new IllegalStateException("第三方对账未启用");
         Path dir = Path.of(properties.getBillLocalDir());
@@ -88,7 +81,6 @@ public class ThirdPartyReconScheduler {
         return produced;
     }
 
-    /** 处理单个账单文件。 */
     public List<String> runFile(Path csvFile) throws IOException {
         List<ThirdPartyBill> parsed = ingestService.parseOnly(csvFile);
         Set<String> billDates = new LinkedHashSet<>();
@@ -103,7 +95,6 @@ public class ThirdPartyReconScheduler {
         return produced;
     }
 
-    /** 对已入库的某自然日账单执行比对并生成 TXNDIFF。 */
     public String runForDate(String billDate) throws IOException {
         if (!properties.isEnabled()) throw new IllegalStateException("第三方对账未启用");
         if (billDate == null || billDate.isBlank()) throw new IllegalArgumentException("账单日不能为空");

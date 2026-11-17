@@ -14,9 +14,7 @@ import org.springframework.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * 支付宝出行通知服务实现。
- */
+
 @Service
 public class AlipayNotifyServiceImpl implements AlipayNotifyService {
     private static final Logger log = LoggerFactory.getLogger(AlipayNotifyServiceImpl.class);

@@ -14,11 +14,7 @@ import com.chinasofti.huateng.rpc.EnableRpcPara;
 import com.chinasofti.huateng.rpc.EnableRpcPaySign;
 import com.chinasofti.huateng.rpc.EnableRpcRecon;
 
-/**
- * 启动程序
- * 
- * @author zmzhang
- */
+
 @SpringBootApplication(exclude = { DataSourceAutoConfiguration.class, DruidDataSourceAutoConfigure.class })
 @EnableRpcAccount
 @EnableRpcBlacklist
@@ -33,7 +29,6 @@ public class ServerApplication
 {
     public static void main(String[] args)
     {
-        // System.setProperty("spring.devtools.restart.enabled", "false");
         SpringApplication.run(ServerApplication.class, args);
         System.out.println("(♥◠‿◠)ﾉﾞ  启动成功   ლ(´ڡ`ლ)ﾞ ");
     }

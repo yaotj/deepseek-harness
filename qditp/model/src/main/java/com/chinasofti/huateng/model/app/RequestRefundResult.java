@@ -2,9 +2,7 @@ package com.chinasofti.huateng.model.app;
 
 import java.util.Map;
 
-/**
- * 支付 API 3.1 请求退款响应。
- */
+
 public class RequestRefundResult {
     private String retCode;
     private String retMsg;

@@ -13,11 +13,7 @@ import com.chinasofti.huateng.common.config.PointsConfig;
 import com.chinasofti.huateng.common.constant.Constants;
 import com.chinasofti.huateng.common.utils.StringUtils;
 
-/**
- * 图片处理工具类
- *
- * @author zmzhang
- */
+
 public class ImageUtils
 {
     private static final Logger log = LoggerFactory.getLogger(ImageUtils.class);
@@ -55,12 +51,7 @@ public class ImageUtils
         return null;
     }
 
-    /**
-     * 读取文件为字节数据
-     * 
-     * @param url 地址
-     * @return 字节数据
-     */
+
     public static byte[] readFile(String url)
     {
         InputStream in = null;
@@ -68,7 +59,6 @@ public class ImageUtils
         {
             if (url.startsWith("http"))
             {
-                // 网络地址
                 URL urlObj = new URL(url);
                 URLConnection urlConnection = urlObj.openConnection();
                 urlConnection.setConnectTimeout(30 * 1000);
@@ -78,7 +68,6 @@ public class ImageUtils
             }
             else
             {
-                // 本机地址
                 String localPath = PointsConfig.getProfile();
                 String downloadPath = localPath + StringUtils.substringAfter(url, Constants.RESOURCE_PREFIX);
                 in = new FileInputStream(downloadPath);

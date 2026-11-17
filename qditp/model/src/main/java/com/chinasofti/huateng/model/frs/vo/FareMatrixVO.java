@@ -1,11 +1,8 @@
 package com.chinasofti.huateng.model.frs.vo;
 
 public class FareMatrixVO {
-    //开始站
     private String beginStatCode;
-    //终点站
     private String endStatCode;
-    //费率等级
     private String fareTier;
 
     public String getBeginStatCode() {

@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** 护栏：退款回查收口 CAS 命中 0 行不当成功、真收口必重算汇总、非终态只推退避。 */
 class PaymentRefundQueryCompensationTest {
 
     private static final String REFUND_QUERY_URL = "http://pay-gateway.test/api/v1/refund/refundQuery";
@@ -70,7 +69,6 @@ class PaymentRefundQueryCompensationTest {
         when(payGatewayClient.request(anyString(), anyMap())).thenReturn(response);
     }
 
-    /** 收口 CAS 命中 0 行：NEVER 当成功，且 NEVER 去重算汇总。 */
     @Test
     void casMissNeverCountsAsSettledAndNeverTouchesSummary() {
         RefundDomainServiceImpl service = newService();
@@ -88,7 +86,6 @@ class PaymentRefundQueryCompensationTest {
         verify(payTxnDetailMapper, never()).updateRefundSummary(anyString());
     }
 
-    /** 收口 CAS 命中 1 行：MUST 无条件重算一次汇总（这是摘事务后唯一的补偿出口）。 */
     @Test
     void settledRowAlwaysRecomputesRefundSummary() {
         RefundDomainServiceImpl service = newService();
@@ -105,7 +102,6 @@ class PaymentRefundQueryCompensationTest {
         verify(payTxnDetailMapper, times(1)).updateRefundSummary("GT20260915000000001");
     }
 
-    /** 支付中心仍答处理中：MUST 只推退避时间，NEVER 落终态。 */
     @Test
     void nonTerminalQueryOnlyDelaysNextAttempt() {
         RefundDomainServiceImpl service = newService();
@@ -123,7 +119,6 @@ class PaymentRefundQueryCompensationTest {
         verify(payTxnDetailMapper, never()).updateRefundSummary(anyString());
     }
 
-    /** 退避 CAS 也命中 0 行：仍计入 skipped，且 NEVER 落终态（2026-09-16，ADR-D115 续）。 */
     @Test
     void delayCasMissStillCountsAsSkippedAndWritesNothing() {
         RefundDomainServiceImpl service = newService();
@@ -140,7 +135,6 @@ class PaymentRefundQueryCompensationTest {
         verify(payTxnDetailMapper, never()).updateRefundSummary(anyString());
     }
 
-    /** 单条抛异常 NEVER 中断整批：另一条照样收口，异常那条计入 failed。 */
     @Test
     void singleRowFailureNeverAbortsTheWholeBatch() {
         RefundDomainServiceImpl service = newService();
@@ -165,7 +159,6 @@ class PaymentRefundQueryCompensationTest {
         verify(payTxnDetailMapper, never()).updateRefundSummary("GT20260915000000001");
     }
 
-    /** 未配置退款查询地址：MUST 直接返错并且一条都不扫，NEVER 打到一个空地址上。 */
 
     @Test
     void missingRefundQueryUrlStopsBeforeScanning() {
@@ -179,12 +172,7 @@ class PaymentRefundQueryCompensationTest {
         verify(payRefundDetailMapper, never()).selectCompensableRefundQuery(anyString(), anyInt(), anyInt());
     }
 
-    /**
-     * 超过放弃龄期仍拿不到终态：MUST 落 CLOSED 停止轮询，NEVER 再推一次退避。
-     *
-     * <p>这条钉住的是 P1「退款单永久空转」的出口：在它之前唯一的退出条件是 TXN_DATE 掉出 7 天窗口 ——
-     * 那不是收敛而是静默消失（行永久停 PROCESSING，端点每轮照返 0000）。
-     */
+
     @Test
     void rowBeyondGiveUpAgeIsClosedInsteadOfDelayedForever() {
         RefundDomainServiceImpl service = newService();
@@ -206,7 +194,6 @@ class PaymentRefundQueryCompensationTest {
         verify(payTxnDetailMapper, never()).updateRefundSummary(anyString());
     }
 
-    /** 龄期未到：MUST 照常退避，NEVER 提前放弃 —— 那会把正常收敛中的单误判成需人工。 */
     @Test
     void rowWithinGiveUpAgeStillDelaysWithoutClosing() {
         RefundDomainServiceImpl service = newService();

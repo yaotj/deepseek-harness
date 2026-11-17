@@ -2,44 +2,28 @@ package com.chinasofti.huateng.model.alipaytrip;
 
 import com.chinasofti.huateng.common.response.CommonResult;
 
-/**
- * 支付宝出行-行业数据推送请求参数。
- */
+
 public class AlipayTripReceiveCardDataReqDTO {
 
-    /**
-     * 第三方用户ID。
-     */
+
     private String thirdUserId;
 
-    /**
-     * 卡片ID/逻辑卡号。
-     */
+
     private String cardId;
 
-    /**
-     * 卡片类型。
-     */
+
     private String cardType;
 
-    /**
-     * 卡数据HexString。
-     */
+
     private String cardData;
 
-    /**
-     * 同行票标识。
-     */
+
     private String companionFlag;
 
-    /**
-     * 进站设备码。
-     */
+
     private String entryDeviceCode;
 
-    /**
-     * 出站设备码。
-     */
+
     private String exitDeviceCode;
 
     public String getThirdUserId() {

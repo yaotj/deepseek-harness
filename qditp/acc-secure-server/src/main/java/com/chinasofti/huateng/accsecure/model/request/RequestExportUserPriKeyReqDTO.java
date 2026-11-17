@@ -1,17 +1,11 @@
 package com.chinasofti.huateng.accsecure.model.request;
 
-/**
- * IF7B-05 请求导出用户私钥请求报文。
- */
+
 public class RequestExportUserPriKeyReqDTO {
-    /**
-     * LMK加密的私钥d。
-     */
+
     private String privatePrivateKey;
 
-    /**
-     * KEK密钥索引。
-     */
+
     private String kekIdx;
 
     public String getPrivatePrivateKey() {

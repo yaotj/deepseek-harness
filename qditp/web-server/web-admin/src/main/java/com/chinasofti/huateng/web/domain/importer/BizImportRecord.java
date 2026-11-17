@@ -3,64 +3,43 @@ package com.chinasofti.huateng.web.domain.importer;
 import java.util.Date;
 import com.chinasofti.huateng.common.core.domain.BaseEntity;
 
-/**
- * 批量导入记录实体
- *
- * @author tuanjie
- */
+
 public class BizImportRecord extends BaseEntity
 {
     private static final long serialVersionUID = 1L;
 
-    /** 导入记录ID */
     private Long importId;
 
-    /** 业务标识（对应 BizRouter 注册的 key） */
     private String bizCode;
 
-    /** 业务名称（冗余展示） */
     private String bizName;
 
-    /** 原始文件名 */
     private String fileName;
 
-    /** 文件大小（字节） */
     private Long fileSize;
 
-    /** 文件存储路径 */
     private String fileUrl;
 
-    /** 操作人 */
     private String importBy;
 
-    /** 操作人部门ID */
     private Long deptId;
 
-    /** 操作人IP */
     private String clientIp;
 
-    /** 导入批次号（UUID，幂等键） */
     private String batchNo;
 
-    /** 总行数（不含表头） */
     private Integer totalRows;
 
-    /** 成功条数 */
     private Integer successRows;
 
-    /** 失败条数 */
     private Integer failRows;
 
-    /** 是否允许更新（0否 1是） */
     private String updateSupport;
 
-    /** 导入状态（0处理中 1成功 2失败） */
     private String status;
 
-    /** 完成时间 */
     private Date finishTime;
 
-    /** 错误摘要 */
     private String errorMsg;
 
     public Long getImportId()

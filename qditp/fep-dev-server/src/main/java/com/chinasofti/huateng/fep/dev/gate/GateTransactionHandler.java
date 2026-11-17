@@ -13,12 +13,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/** IF1A-01 闸机检票通知的接入层转发：报文规范化 → 转 ticket-server → 原样透传响应。 */
 @Component
 public class GateTransactionHandler {
     private static final Logger log = LoggerFactory.getLogger(GateTransactionHandler.class);
 
-    /** 闸机读写器处理成功的 {@code handleResultCode} 取值。 */
     private static final String DEVICE_HANDLE_SUCCESS = "000";
 
     private final TicketClient ticketClient;
@@ -29,7 +27,6 @@ public class GateTransactionHandler {
         this.deviceUserIdCodec = deviceUserIdCodec;
     }
 
-    /** IF1A-01 闸机检票通知：规范化报文后转 ticket-server，响应原样透传。 */
     public NotifyVerifyResultRespDTO notifyVerifyResult(NotifyVerifyResultDeviceReqDTO request) {
         NotifyVerifyResultRespDTO response = new NotifyVerifyResultRespDTO();
         if (request != null && !DEVICE_HANDLE_SUCCESS.equals(request.getHandleResultCode())) {
@@ -66,7 +63,6 @@ public class GateTransactionHandler {
         return ticketResponse;
     }
 
-    /** 设备侧入向契约 → ticket-server 对内契约的逐字段搬运。 */
     private NotifyVerifyResultReqDTO toTicketRequest(NotifyVerifyResultDeviceReqDTO device) {
         NotifyVerifyResultReqDTO ticket = new NotifyVerifyResultReqDTO();
         ticket.setDeviceId(device.getDeviceId());

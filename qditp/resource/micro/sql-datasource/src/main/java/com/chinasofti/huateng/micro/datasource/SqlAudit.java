@@ -93,8 +93,6 @@ public class SqlAudit extends FilterEventAdapter {
             long take = System.currentTimeMillis() - startTime;
         String cnt_str = String.valueOf(fetchRowCount);
 
-        // 心跳相关 SQL（F2F_DEVICE_HEARTBEAT / F2F_DEVICE_STATUS）刷屏时，默认关闭 INFO 审计；
-        // 慢 SQL / 大结果集仍走 error，不丢。
         if (skipHeartbeat && isHeartbeatSql(runSqlF)
                 && !(getSlowSqlMillis() <= take || Long.parseLong(cnt_str) >= getRowsWarn())) {
             return;

@@ -33,7 +33,6 @@ import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderResult;
 import org.springframework.stereotype.Service;
 
-/** 日票业务服务默认实现。 */
 @Service
 public class DailyTicketServiceImpl implements DailyTicketService {
 
@@ -64,7 +63,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         this.orderCreationService = orderCreationService;
     }
 
-    /** IF8A-70 旅游票下单。 */
     @Override
     public TravelTicketOrderResult requestTravelOrder(TravelTicketOrderReqDTO request) {
         return orderCreationService.requestTravelOrder(request);
@@ -75,13 +73,11 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return orderCreationService.requestCountingOrder(request);
     }
 
-    /** IF8A-73 免费票请求下单。 */
     @Override
     public DailyTicketFreeOrderResult requestOrderFree(DailyTicketFreeOrderReqDTO request) {
         return orderCreationService.requestOrderFree(request);
     }
 
-    /** IF8A-72 小程序票状态同步。 */
     @Override
     public DailyTicketBaseResult syncOrder(DailyTicketSyncOrderReqDTO request) {
         return orderSyncService.syncOrder(request);
@@ -132,13 +128,11 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return orderCreationService.cancelOrder(request);
     }
 
-    /** 激活日票（IF8A-32）。 */
     @Override
     public DailyTicketBaseResult updateTicket(DailyTicketActivateReqDTO request) {
         return lifecycleService.updateTicket(request);
     }
 
-    /** APP 首次使用通知（IF8A-33）：写入有效期截止时间并置「已开始使用」。 */
     @Override
     public DailyTicketBaseResult updateAndNotice(DailyTicketUsedNoticeReqDTO request) {
         return lifecycleService.updateAndNotice(request);
@@ -149,7 +143,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return paymentService.receivePayResult(request);
     }
 
-    /** 支付中心退款结果回调收口（网关文档 §5.2），实现已迁至 {@link DailyTicketRefundCallbackService}。 */
     @Override
     public DailyTicketBaseResult receiveRefundResult(DailyTicketRefundCallbackReqDTO request) {
         return refundCallbackService.receiveRefundResult(request);
@@ -160,7 +153,6 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return lifecycleService.queryDailyTicketInfo(request);
     }
 
-    /** 按票号查日票的购票支付信息，供 IF8A-34 / IF8A-05 交易详情填充三个支付字段。 */
     @Override
     public QueryDailyTicketPayInfoResult queryDailyTicketPayInfo(QueryDailyTicketPayInfoReqDTO request) {
         return paymentService.queryDailyTicketPayInfo(request);
@@ -171,17 +163,12 @@ public class DailyTicketServiceImpl implements DailyTicketService {
         return lifecycleService.validateEntryCheck(cardNum);
     }
 
-    /**
-     * 拉码（IF8A-03）前置的只读可用性判定。
-     * 判据与 {@link #validateEntryCheck} 同源（有效期 / 次数 / 退款占用），但只读、不推进状态，
-     * 且异常一律吞掉转成 retCode，因为调用方按「不可达即降级放行」处置。
-     */
+
     @Override
     public DailyTicketBaseResult checkRideAvailability(String cardNum) {
         return lifecycleService.checkRideAvailability(cardNum);
     }
 
-    /** 出站处理：计次票扣次、写入出站时间。 */
     @Override
     public DailyTicketBaseResult markUsed(String cardNum, Long countingEnd) {
         return lifecycleService.markUsed(cardNum, countingEnd);

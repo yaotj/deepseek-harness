@@ -32,12 +32,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
-/**
- * ACC 模拟器服务实现。
- *
- * <p>负责组装 multipart/form-data 表单向 FEP/ACC 发送模拟通知，
- * 同时维护本地模拟员工卡数据与调用历史记录。</p>
- */
+
 @Service
 public class AccSimulatorServiceImpl implements AccSimulatorService {
 
@@ -48,14 +43,7 @@ public class AccSimulatorServiceImpl implements AccSimulatorService {
     private final AccEmployeeCardMapper cardMapper;
     private final AccSimulationHistoryMapper historyMapper;
 
-    /**
-     * 构造 ACC 模拟器服务。
-     *
-     * @param restTemplateBuilder REST 客户端构建器
-     * @param properties          ACC 模拟器配置
-     * @param cardMapper          员工卡数据访问
-     * @param historyMapper       调用历史数据访问
-     */
+
     public AccSimulatorServiceImpl(RestTemplateBuilder restTemplateBuilder, AccSimulatorProperties properties,
                                    AccEmployeeCardMapper cardMapper,
                                    AccSimulationHistoryMapper historyMapper) {
@@ -65,7 +53,6 @@ public class AccSimulatorServiceImpl implements AccSimulatorService {
         this.historyMapper = historyMapper;
     }
 
-    /** {@inheritDoc} */
     @Override
     public SimulationExchange sendNotify(AccNotifySimulationRequest request) {
         String targetUrl = resolveTarget(request.getTargetUrl(), "/employee_card/notify");
@@ -75,7 +62,6 @@ public class AccSimulatorServiceImpl implements AccSimulatorService {
                 request.getFormat(), request.getDeviceId(), request.getSignType(), request.getSign()), "cardList");
     }
 
-    /** {@inheritDoc} */
     @Override
     public SimulationExchange sendUpdateNotify(AccUpdateSimulationRequest request) {
         String targetUrl = resolveTarget(request.getTargetUrl(), "/employee_card/update_notify");
@@ -84,7 +70,6 @@ public class AccSimulatorServiceImpl implements AccSimulatorService {
                 request.getCharset(), request.getFormat(), request.getDeviceId(), request.getSignType(), request.getSign()), null);
     }
 
-    /** {@inheritDoc} */
     @Override
     public PageInfo<AccSimulationHistory> history(int pageNum, int pageSize, String operation) {
         PageHelper.startPage(pageNum, pageSize);
@@ -92,13 +77,11 @@ public class AccSimulatorServiceImpl implements AccSimulatorService {
         return new PageInfo<>(list);
     }
 
-    /** {@inheritDoc} */
     @Override
     public void clearHistory() {
         historyMapper.deleteAll();
     }
 
-    /** {@inheritDoc} */
     @Override
     public PageInfo<AccEmployeeCard> cards(int pageNum, int pageSize, String cardNo, String employeeName, Integer cardStatus) {
         PageHelper.startPage(pageNum, pageSize);
@@ -106,7 +89,6 @@ public class AccSimulatorServiceImpl implements AccSimulatorService {
         return new PageInfo<>(list);
     }
 
-    /** {@inheritDoc} */
     @Override
     public void saveCard(AccEmployeeCardSaveRequest request) {
         if (request == null || request.getCardNo() == null || request.getCardNo().isBlank()) {
@@ -129,23 +111,17 @@ public class AccSimulatorServiceImpl implements AccSimulatorService {
         cardMapper.merge(card);
     }
 
-    /** {@inheritDoc} */
     @Override
     public void clearCards() {
         cardMapper.deleteAll();
     }
 
-    /** {@inheritDoc} */
     @Override
     public AccEmployeeCard findCard(String cardNo) {
         return cardMapper.selectByCardNo(cardNo);
     }
 
-    /**
-     * 将状态通知中的员工卡信息同步到本地模拟库。
-     *
-     * @param source 员工卡信息 DTO
-     */
+
     private void saveCard(EmployeeCardInfoDTO source) {
         if (source == null || source.getCardNo() == null || source.getCardNo().isBlank()) {
             return;
@@ -164,11 +140,7 @@ public class AccSimulatorServiceImpl implements AccSimulatorService {
         cardMapper.merge(target);
     }
 
-    /**
-     * 将资料变更通知中的员工信息同步到本地模拟库；卡号不存在时自动创建。
-     *
-     * @param source 员工资料变更通知 DTO
-     */
+
     private void saveUpdate(EmployeeInfoUpdateNotifyReqDTO source) {
         if (source == null || source.getCardNo() == null || source.getCardNo().isBlank()) {
             return;
@@ -190,16 +162,7 @@ public class AccSimulatorServiceImpl implements AccSimulatorService {
         cardMapper.merge(target);
     }
 
-    /**
-     * 以 multipart/form-data 形式向目标地址发送模拟通知，并记录交互结果。
-     *
-     * @param operation 操作类型名称
-     * @param targetUrl 目标地址
-     * @param bizData   业务数据 JSON 串
-     * @param common    公共表单参数
-     * @param ignored   保留参数，未使用
-     * @return 模拟调用的完整交互记录
-     */
+
     private SimulationExchange send(String operation, String targetUrl, String bizData, MultiValueMap<String, Object> common,
                                     String ignored) {
         long started = System.nanoTime();
@@ -226,17 +189,7 @@ public class AccSimulatorServiceImpl implements AccSimulatorService {
         }
     }
 
-    /**
-     * 组装公共表单参数，空值使用配置中的默认值。
-     *
-     * @param providerId 服务提供方标识
-     * @param charset    请求字符集
-     * @param format     数据格式
-     * @param deviceId   设备标识
-     * @param signType   签名类型
-     * @param sign       签名值
-     * @return 公共表单参数
-     */
+
     private MultiValueMap<String, Object> commonForm(String providerId, String charset, String format, String deviceId,
                                                       String signType, String sign) {
         MultiValueMap<String, Object> form = new LinkedMultiValueMap<>();
@@ -250,13 +203,7 @@ public class AccSimulatorServiceImpl implements AccSimulatorService {
         return form;
     }
 
-    /**
-     * 解析目标地址，未指定时使用配置中的基础地址拼接默认路径。
-     *
-     * @param targetUrl 用户指定的目标地址
-     * @param path      默认接口路径
-     * @return 最终目标地址
-     */
+
     private String resolveTarget(String targetUrl, String path) {
         if (targetUrl != null && !targetUrl.isBlank()) {
             return targetUrl;
@@ -264,41 +211,19 @@ public class AccSimulatorServiceImpl implements AccSimulatorService {
         return properties.getFepAccBaseUrl().replaceAll("/$", "") + path;
     }
 
-    /**
-     * 空值兜底，返回默认值。
-     *
-     * @param value    原始值
-     * @param fallback 默认值
-     * @return 原始值或默认值
-     */
+
     private String valueOrDefault(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
     }
 
-    /**
-     * 构建一次模拟调用的交互记录。
-     *
-     * @param operation    操作类型
-     * @param targetUrl    目标地址
-     * @param success      传输是否成功
-     * @param status       HTTP 状态码
-     * @param requestBody  请求体
-     * @param responseBody 响应体
-     * @param error        错误信息
-     * @param started      起始纳秒时间戳
-     * @return 交互记录
-     */
+
     private SimulationExchange exchange(String operation, String targetUrl, boolean success, Integer status,
                                         String requestBody, String responseBody, String error, long started) {
         return new SimulationExchange(operation, targetUrl, success, status, requestBody, responseBody, error,
                 LocalDateTime.now().toString(), (System.nanoTime() - started) / 1_000_000);
     }
 
-    /**
-     * 将交互记录持久化到历史记录表。
-     *
-     * @param exchange 交互记录
-     */
+
     private void remember(SimulationExchange exchange) {
         AccSimulationHistory history = new AccSimulationHistory();
         history.setOperation(exchange.operation());

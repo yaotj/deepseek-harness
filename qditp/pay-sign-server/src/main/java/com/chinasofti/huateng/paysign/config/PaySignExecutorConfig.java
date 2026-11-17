@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
-/** pay-sign 异步任务线程池配置。 */
 @Configuration
 @EnableAsync
 public class PaySignExecutorConfig {
@@ -50,7 +49,6 @@ public class PaySignExecutorConfig {
         return executor;
     }
 
-    /** 把提交线程的 MDC（含 traceId / spanId）透传到异步线程。 */
     private TaskDecorator mdcTaskDecorator() {
         return runnable -> {
             Map<String, String> parentContext = MDC.getCopyOfContextMap();

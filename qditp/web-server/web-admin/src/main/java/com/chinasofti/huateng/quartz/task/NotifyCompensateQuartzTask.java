@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 import java.util.function.Function;
 
-/** APP 通知补偿任务：把签约结果通知与解约结果通知里「没通知成功」的记录重新推给 APP。 */
 @Component("notifyCompensateQuartzTask")
 public class NotifyCompensateQuartzTask {
 
@@ -24,26 +23,20 @@ public class NotifyCompensateQuartzTask {
         this.paySignClient = paySignClient;
     }
 
-    /**
-     * 签约结果通知补偿。前台调用目标：notifyCompensateQuartzTask.compensateSignNotify()。
-     */
+
     public void compensateSignNotify() {
         invoke("签约结果通知补偿", paySignClient::compensateSignNotify);
     }
 
-    /**
-     * 解约结果通知补偿。前台调用目标：notifyCompensateQuartzTask.compensateTerminationNotify()。
-     */
+
     public void compensateTerminationNotify() {
         invoke("解约结果通知补偿", paySignClient::compensateTerminationNotify);
     }
 
-    /** 统一的 traceId 包装：Quartz 进来时 traceId 已由 AbstractQuartzJob.before() 放入 MDC */
     private void invoke(String bizName, Function<Map<String, String>, CompensateNotifyRespDTO> action) {
         QuartzTraceUtils.runWithTrace(traceId -> invokeOnce(bizName, action, traceId));
     }
 
-    /** 静默返回会让调度日志记成成功。 */
     private void invokeOnce(String bizName,
                             Function<Map<String, String>, CompensateNotifyRespDTO> action,
                             String traceId) {

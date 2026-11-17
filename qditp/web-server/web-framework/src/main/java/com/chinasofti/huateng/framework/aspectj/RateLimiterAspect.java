@@ -17,11 +17,7 @@ import com.chinasofti.huateng.common.exception.ServiceException;
 import com.chinasofti.huateng.common.utils.StringUtils;
 import com.chinasofti.huateng.common.utils.ip.IpUtils;
 
-/**
- * 限流处理
- *
- * @author zmzhang
- */
+
 @Aspect
 @Component
 public class RateLimiterAspect

@@ -30,31 +30,16 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.Executor;
 
-/**
- * {@link SignNotifyService} 的唯一实现，**只碰签约聚合的两张表**。
- *
- * <p>2026-09-17（ADR-D127）由 {@code AppNotifyServiceImpl} 按聚合拆出。原类 381 行、注了 3 个 mapper、
- * 同时承担签约与解约两条通知链，解约那半已迁到 {@code TerminationNotifyServiceImpl}。
- * 两半没有共享的私有方法：{@code submitNotifyTask} 与 {@code updateNotifyStatus} 本来就按实体类型重载分家，
- * {@code parseRequestBody} 只有签约侧用。**NEVER 合回一个类。**
- */
+
 @Service("paySignSignNotifyServiceImpl")
 public class SignNotifyServiceImpl implements SignNotifyService {
     private static final Logger log = LoggerFactory.getLogger(SignNotifyServiceImpl.class);
 
-    /**
-     * {@code APP_PAY_SIGN_INFO.SIGN_STATUS} 的已签约取值，**从 {@link SignStatus} 取**。
-     *
-     * <p>2026-09-17（ADR-D127）由裸字面量 {@code "SIGNED"} 改为枚举派生。此前的注释写着
-     * 「与 {@code PaySignWorkflow.STATUS_SIGNED} 同值」，而那个类已于 ADR-D87 删除，
-     * 等于把一致性挂在一个不存在的锚点上。**NEVER 退回裸字面量或引用已删除的类。**
-     */
+
     private static final String SIGN_STATUS_SIGNED = SignStatus.SIGNED.name();
 
-    /** PENDING 滞留多久（分钟）视为「状态回写丢了」，纳入补偿。 */
     private static final int PENDING_STALE_MINUTES = 10;
 
-    /** 单次补偿取多少条，与 TerminationCompensationService 保持一致。 */
     private static final int BATCH_SIZE = 200;
 
     private final PaySignRequestMapper paySignRequestMapper;
@@ -65,11 +50,9 @@ public class SignNotifyServiceImpl implements SignNotifyService {
 
     private final Executor notifyExecutor;
 
-    /** 通知重试上限，超过后该记录不再被补偿扫到，只能人工介入。 */
     @Value("${app.notify.max-retry-count:10}")
     private int maxNotifyRetryCount;
 
-    /** 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备。 */
     public SignNotifyServiceImpl(
             PaySignRequestMapper paySignRequestMapper,
             PaySignInfoMapper paySignInfoMapper,
@@ -94,7 +77,6 @@ public class SignNotifyServiceImpl implements SignNotifyService {
         });
     }
 
-    /** 组装并投递签约结果通知，返回本次投递结果。 */
     private NotifyDelivery doNotifySignResult(PaySignRequest request, PaySignInfo signInfo, ReceiveSignResultReqDTO receiveRequest) {
         try {
             AppSignResultNotifyReqDTO bizData = new AppSignResultNotifyReqDTO();
@@ -225,7 +207,6 @@ public class SignNotifyServiceImpl implements SignNotifyService {
         paySignRequestMapper.updateNotifyStatus(update);
     }
 
-    /** 统一落库本次投递的成功状态或失败原因。 */
     private void updateNotifyStatus(PaySignRequest request, NotifyDelivery delivery) {
         updateNotifyStatus(request, delivery.delivered(), delivery.message());
     }

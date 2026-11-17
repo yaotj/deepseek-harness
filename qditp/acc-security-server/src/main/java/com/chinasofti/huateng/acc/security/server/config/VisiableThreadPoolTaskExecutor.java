@@ -9,9 +9,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 
-/**
- * 显示线程执行情况信息
- */
+
 public class VisiableThreadPoolTaskExecutor extends ThreadPoolTaskExecutor {
 
     private final static Logger logger = LoggerFactory.getLogger(VisiableThreadPoolTaskExecutor.class);

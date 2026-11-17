@@ -63,7 +63,6 @@ public class RouteFilterFactory {
     }
 
     private Function<ServerRequest, ServerRequest> parseRewritePath(String args, String definition) {
-        // Format: RewritePath=regex,replacement
         int commaIdx = args.indexOf(',');
         if (commaIdx < 0) {
             log.warn("RewritePath filter 参数格式错误（缺少 ','）: {}", definition);

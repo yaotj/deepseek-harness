@@ -2,7 +2,6 @@ package com.chinasofti.huateng.dailyticket.page;
 
 import java.util.Date;
 
-/** 退款记录页展示模型。金额单位为分。 */
 public class DailyTicketRefundView {
     private String orderNo;
     private String paymentOrderNo;

@@ -14,9 +14,7 @@ import com.chinasofti.huateng.web.domain.export.AsyncExportTask;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 
-/**
- * 离线码交易统计异步导出执行器。
- */
+
 @Component("OFFLINE_CODE_STAT")
 public class OfflineCodeStatExportExecutor extends AbstractExcelExportExecutor
 {

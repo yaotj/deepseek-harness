@@ -7,7 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-/** account-server 的 Quartz 调用桥接任务。 */
 @Component("accountQuartzTask")
 public class AccountQuartzTask
 {
@@ -20,7 +19,6 @@ public class AccountQuartzTask
         this.accountClient = accountClient;
     }
 
-    /** 前台调用目标填写 accountQuartzTask.invokeDemo() 时执行。 */
     public void invokeDemo()
     {
         QuartzTraceUtils.runWithTrace(this::invokeOnce);
@@ -41,7 +39,6 @@ public class AccountQuartzTask
         log.info("account-server Quartz 联调调用成功, retMsg={}", response.getRetMsg());
     }
 
-    /** 前台调用目标填写 accountQuartzTask.compensatePhoneSignSync() 时执行。 */
     public void compensatePhoneSignSync()
     {
         QuartzTraceUtils.runWithTrace(this::compensatePhoneSignSyncOnce);

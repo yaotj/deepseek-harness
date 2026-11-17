@@ -13,9 +13,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * desc: url动态路由。
- */
+
 @Service
 public class URLDynamicRouter extends ProxyWebClient {
 
@@ -29,18 +27,12 @@ public class URLDynamicRouter extends ProxyWebClient {
         log.info("init URLDynamicRouter openLogger={}", openLogger);
     }
 
-    /**
-     * desc:从配置文件中 service.服务名.url。
-     */
+
     private String getServiceUrl(String service) {
         return env.getProperty("service." + service + ".url", service + "-service");
     }
 
-    /**
-     * 替换路径中的代理服务名为实际地址。
-     * @param path 原始路径，格式如 "/服务名/资源路径"。
-     * @return 替换后的完整URL。
-     */
+
     private String replaceService(String path) {
         String[] segments = Optional.ofNullable(path).orElse("").split("/+");
         if (segments.length < 2) {
@@ -51,9 +43,7 @@ public class URLDynamicRouter extends ProxyWebClient {
         return getServiceUrl(serviceName) + (remainingPath.isEmpty() ? "" : "/" + remainingPath);
     }
 
-    /**
-     * desc: 本服务(该方法的位置）->代理服务->被代理的服务。
-     */
+
     public String postProxy(String url, Object requestBody, Map<String, String> headers) {
         Map<String, String> routeHeaders = createJsonHeaders();
         if (headers != null) {
@@ -62,9 +52,7 @@ public class URLDynamicRouter extends ProxyWebClient {
         return postJsonAndGetResponse(url, requestBody, routeHeaders);
     }
 
-    /**
-     * desc: 客户端->代理服务(该方法的位置)->被代理的服务。
-     */
+
     public ResponseEntity<String> handlePostProxy(String url, Object requestBody, Map<String, String> headers) {
         Map<String, String> routeHeaders = createJsonHeaders();
         if (headers != null) {

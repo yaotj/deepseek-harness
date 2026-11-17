@@ -21,12 +21,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * 支付宝出行 industryDetail 组装特征测试（按支付中心网关文档 V1.2「地铁免密 industryDetail」键集）。
- *
- * <p>{@code cardType} / {@code companionFlag} / {@code phone} 在本组装器<b>之前</b>已由
- * {@code GateCardTypeEnricher} 用账户侧数据规范化，这里直接验证映射规则与键名修正。
- */
+
 class AlipayIndustryDetailAssemblerTest {
 
     private EntryTxnQueryService entryTxnQueryService;
@@ -43,7 +38,6 @@ class AlipayIndustryDetailAssemblerTest {
         when(stationLineResolver.resolveLineInfo(anyString())).thenReturn(null);
     }
 
-    /** 正常出站（trxType=02）报文：已 enrich 卡种/手机号，无同行票。 */
     private NotifyVerifyResultReqDTO normalExitRequest() {
         NotifyVerifyResultReqDTO request = new NotifyVerifyResultReqDTO();
         request.setCardId("0426091000000013");

@@ -18,13 +18,11 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-/** 支付宝出行销卡批处理。 */
 @Service
 public class AlipayTerminationInternalServiceImpl implements AlipayTerminationInternalService {
 
     private static final Logger log = LoggerFactory.getLogger(AlipayTerminationInternalServiceImpl.class);
 
-    /** 单批上限。排空靠调用方多轮调用，不在这里循环。 */
     private static final int BATCH_SIZE = 200;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
@@ -76,7 +74,6 @@ public class AlipayTerminationInternalServiceImpl implements AlipayTerminationIn
             AlipayTerminationRequest record = records.get(i);
             String thirdUserId = record.getThirdUserId();
             if (thirdUserId == null || thirdUserId.trim().isEmpty()) {
-                // 历史脏数据：登记时未回填 thirdUserId，做不了用户维度校验，跳过并留日志等人工处理。
                 log.error("销卡登记缺少 thirdUserId，跳过, agreementCode={}, terminationSeq={}",
                         record.getAgreementCode(), record.getTerminationSeq());
                 skipped++;
@@ -101,10 +98,7 @@ public class AlipayTerminationInternalServiceImpl implements AlipayTerminationIn
         return response;
     }
 
-    /**
-     * 解析基准时间。
-     * @return 解析失败返回 null，由调用方转成 INVALID_PARAM，NEVER 静默退化成全表扫描
-     */
+
     private LocalDateTime parseReferenceTime(String referenceTime) {
         try {
             if (referenceTime.length() == 8) {

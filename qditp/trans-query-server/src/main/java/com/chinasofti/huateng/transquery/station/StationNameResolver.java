@@ -17,24 +17,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** 站点名称解析器 —— 批量把站点编码翻译成中文名。 */
 @Component
 public class StationNameResolver {
 
     private static final Logger log = LoggerFactory.getLogger(StationNameResolver.class);
 
-    /** para-server 成功码。 */
     private static final String RET_SUCCESS = "0000";
 
     @Autowired
     private ParaClient paraClient;
 
-    /**
-     * 批量查询站点编码对应的中文名。
-     *
-     * @param stationCodes 站点编码集合
-     * @return 站点编码 -> 中文站名的映射；
-     */
+
     public Map<String, String> resolveStationNames(Set<String> stationCodes) {
         Map<String, String> stationNameMap = new HashMap<>();
         if (stationCodes == null || stationCodes.isEmpty()) {
@@ -63,13 +56,7 @@ public class StationNameResolver {
         return stationNameMap;
     }
 
-    /**
-     * 站名降级解析：查得到用中文名，查不到回落站点编码。
-     *
-     * @param stationCode 站点编码，可为空
-     * @param stationNames {@link #resolveStationNames} 的返回值
-     * @return 中文站名，查不到时返回原编码；
-     */
+
     public String resolveNameOrCode(String stationCode, Map<String, String> stationNames) {
         if (!StringUtils.hasText(stationCode)) {
             return null;
@@ -80,13 +67,7 @@ public class StationNameResolver {
         return stationNames.getOrDefault(stationCode, stationCode);
     }
 
-    /**
-     * 合并进站与出站两组编码，去重后一次查询。
-     *
-     * @param entries 进站站点编码集合
-     * @param exits 出站站点编码集合
-     * @return 去重后的站点编码集合
-     */
+
     public Set<String> collectStationCodes(Set<String> entries, Set<String> exits) {
         Set<String> codes = new LinkedHashSet<>();
         if (entries != null) {

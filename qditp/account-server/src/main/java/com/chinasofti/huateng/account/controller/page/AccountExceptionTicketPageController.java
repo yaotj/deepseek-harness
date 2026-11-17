@@ -13,9 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * 账户域异常工单的运营查询与人工关单。
- */
+
 @RestController
 @RequestMapping("/page/exception-ticket")
 public class AccountExceptionTicketPageController {
@@ -25,11 +23,7 @@ public class AccountExceptionTicketPageController {
         this.accountExceptionTicketService = accountExceptionTicketService;
     }
 
-    /**
-     * 工单列表。
-     *
-     * @param limit 条数上限，缺省 50、上限 200，收敛规则在 service 层
-     */
+
     @GetMapping("/list")
     public ResultVO<List<AccountExceptionTicket>> list(
             @RequestParam(required = false) String ticketStatus,
@@ -41,12 +35,7 @@ public class AccountExceptionTicketPageController {
         return ResultMapper.ok(tickets);
     }
 
-    /**
-     * 人工关单。
-     *
-     * @param id       工单 ID
-     * @param closedBy 操作人。当前无鉴权，这个值完全由调用方自述，MUST 只当线索
-     */
+
     @PostMapping("/close")
     public ResultVO<Void> close(@RequestParam Long id, @RequestParam String closedBy) {
         if (id == null || !StringUtils.hasText(closedBy)) {

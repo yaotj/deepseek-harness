@@ -36,9 +36,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * 员工码状态通知与资料查询实现。
- */
+
 @Service
 public class EmployeeCardServiceImpl implements EmployeeCardService {
     private static final Logger log = LoggerFactory.getLogger(EmployeeCardServiceImpl.class);
@@ -49,9 +47,7 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
     private final EmployeeCardOutboundService employeeCardOutboundService;
     private final UserItpRegInfoMapper userItpRegInfoMapper;
 
-    /**
-     * APP 注册的单批条数。
-     */
+
     @Value("${employee-card.app-batch-size:200}")
     private int appBatchSize;
 
@@ -107,9 +103,7 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
         return result;
     }
 
-    /**
-     * ACC 的 cardNo 是员工号、不是逻辑卡号；后续静默开户由 APP 侧完成。
-     */
+
     private void processAppBatch(List<EmployeeCardInfoDTO> batch, EmployeeCardNotifyResult result) {
         EmployeeCardOutboundService.AppRegisterResult appResult =
                 employeeCardOutboundService.registerToApp(batch);
@@ -172,17 +166,7 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
         return result;
     }
 
-    /**
-     * 按乘车卡逻辑卡号兜底解析员工码。
-     *
-     * <p>APP 员工码二维码页实测以「乘车卡 cardId」而非员工号调查询接口
-     * （发卡 requestApplication cardType=11 返回 cardId 后，APP 拿它当 cardNo），
-     * 直接按 cardNo 查必回 8004，导致 APP 显示「获取二维码失败」。
-     * 兜底链：cardId → USER_ITP_REG_INFO 拿手机号 → 按手机号找已激活员工码。</p>
-     *
-     * @param cardIdOrCardNo APP 传入的卡号（可能是乘车卡 cardId）
-     * @return 命中的已激活员工码，未命中返回 null
-     */
+
     private UserAccEmployeeCard resolveByRideCardId(String cardIdOrCardNo) {
         UserItpRegInfo regInfo;
         try {
@@ -198,8 +182,6 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
         if (byPhone == null || byPhone.isEmpty()) {
             return null;
         }
-        // selectActiveByPhone 走 LeanColumnList 不含 PHOTO_URL（CLOB），
-        // 而二维码页要展示员工照片，须按员工号回表取全量行。
         UserAccEmployeeCard card = employeeCardMapper.selectByCardNo(byPhone.get(0).getCardNo());
         if (card == null) {
             return null;
@@ -208,17 +190,7 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
         return card;
     }
 
-    /**
-     * APP 请求激活 / 禁用电子员工卡（IF3A）。
-     *
-     * @param request {@code actionFlag=1} 激活（仅允许 {@code CARD_STATUS=3} 未激活）、
-     * {@code 0} 禁用（仅允许 {@code CARD_STATUS=1} 正常）
-     * @return {@code 0000} 成功；{@code 8001} 参数非法；{@code 8004} 员工码不存在；
-     * {@code 2002} 当前状态不允许；{@code 9998} ACC 已受理但本地回写失败；
-     * {@code 9999} 调用 ACC 失败（连不上 / 超时 / 5xx，可重试）；
-     * <b>其余码为 ACC 原样透传</b>——ACC 用「HTTP 4xx + 业务错误体」表达参数被拒
-     * （实测 {@code 1002 参数校验失败：卡号不存在。}），这类码不可重试
-     */
+
     @Override
     public CommonResult activateEmployeeCard(EmployeeCardActivateReqDTO request) {
         CommonResult result = new CommonResult();
@@ -289,15 +261,7 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
         }
     }
 
-    /**
-     * 为「ACC 已受理、本地未落库」开一张异常工单。
-     *
-     * @param thirdUserId 该员工码归属的 ITP 用户，用于运维按用户维度捞工单。
-     * <b>真实数据下当前恒为 {@code null}</b>：`USER_ACC_EMPLOYEE_CARD.THIRD_USER_ID`
-     * 全表为空（能写它的 {@code updateThirdUserId} 在本模块没有任何调用点），
-     * 只有手工造的数据才会有值（2026-09-11 用合成卡实测确认这条链路本身是通的）。
-     * 照样传是为了等挂接链路补齐后自动生效，**NEVER 因为「反正是空」就删掉这个参数**。
-     */
+
     private void openActivationTicketQuietly(String cardNo, String thirdUserId, int targetStatus, String detail) {
         try {
             AccountExceptionTicket ticket = new AccountExceptionTicket();
@@ -412,7 +376,6 @@ public class EmployeeCardServiceImpl implements EmployeeCardService {
 
     private void copyToResult(UserAccEmployeeCard source, EmployeeCardQueryResult target) {
         target.setCardNo(source.getCardNo());
-        // 规格书 D2：employeeNo 无独立存储，恒映射 cardNo（cardNo 即员工号）
         target.setEmployeeNo(source.getCardNo());
         target.setPhone(source.getPhone());
         target.setEmployeeName(source.getEmployeeName());

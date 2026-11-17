@@ -18,75 +18,44 @@ import com.chinasofti.huateng.model.app.dailyticket.DailyTicketUsedNoticeReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderReqDTO;
 import com.chinasofti.huateng.model.app.dailyticket.TravelTicketOrderResult;
 
-/**
- * APP日票业务前置服务。
- */
+
 public interface DailyTicketAppService {
-    /**
-     * IF8A-60 日票下单。
-     */
+
     DailyTicketOrderResult requestCountingOrder(DailyTicketOrderReqDTO request);
 
-    /**
-     * IF8A-70 旅游票下单。
-     */
+
     TravelTicketOrderResult requestTravelOrder(TravelTicketOrderReqDTO request);
 
-    /**
-     * IF8A-73 免费票请求下单。
-     */
+
     DailyTicketFreeOrderResult requestOrderFree(DailyTicketFreeOrderReqDTO request);
 
-    /**
-     * IF8A-72 小程序票状态同步。
-     */
+
     DailyTicketBaseResult syncOrder(DailyTicketSyncOrderReqDTO request);
 
-    /**
-     * IF8A-61 日票支付。
-     */
+
     DailyTicketPayResult requestPay(DailyTicketPayReqDTO request);
 
-    /**
-     * IF8A-62 日票支付结果查询。
-     */
+
     DailyTicketPayQueryResult requestPayResult(DailyTicketOrderNoReqDTO request);
 
-    /**
-     * IF8A-64 日票退款。
-     */
+
     DailyTicketRefundResult requestRefundTicket(DailyTicketOrderNoReqDTO request);
 
-    /**
-     * IF8A-65 日票取消订单。
-     */
+
     DailyTicketBaseResult cancelOrder(DailyTicketOrderNoReqDTO request);
 
-    /**
-     * IF8A-67 日票激活。
-     */
+
     DailyTicketBaseResult updateTicket(DailyTicketActivateReqDTO request);
 
-    /**
-     * IF8A-71 通知ACC车票已使用。
-     */
+
     DailyTicketBaseResult updateAndNotice(DailyTicketUsedNoticeReqDTO request);
 
-    /**
-     * 转发支付网关的日票支付结果通知。
-     */
+
     DailyTicketBaseResult receivePayResult(DailyTicketPayCallbackReqDTO request);
 
-    /**
-     * 转发支付中心的日票退款结果通知（网关文档 §5.2）。
-     */
+
     DailyTicketBaseResult receiveRefundResult(DailyTicketRefundCallbackReqDTO request);
 
-    /**
-     * 解析并处理支付网关的日票支付结果原始回调报文。
-     *
-     * @param requestBody 支付网关原始回调报文
-     * @return 日票支付结果处理结果
-     */
+
     DailyTicketBaseResult handlePayResultCallback(String requestBody);
 }

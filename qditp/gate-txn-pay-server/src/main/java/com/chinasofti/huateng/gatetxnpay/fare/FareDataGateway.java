@@ -31,7 +31,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-/** 算价所需的取数收口：票价、进站交易、账户、钱包累计、折扣档位、换乘减免。 */
 @Component
 public class FareDataGateway {
 
@@ -60,7 +59,6 @@ public class FareDataGateway {
         this.offlineMetroTransferClient = offlineMetroTransferClient;
     }
 
-    /** 查地铁票价（分），非 {@code 0000} 或 {@code <= 0} 返 {@code null}，异常照原样抛出。 */
     public Integer queryTicketPrice(String inStation, String outStation) {
         RequestTicketPriceByStationReqDTO fareRequest = new RequestTicketPriceByStationReqDTO();
         fareRequest.setEntryStationCode(inStation);
@@ -73,7 +71,6 @@ public class FareDataGateway {
         return originalFare;
     }
 
-    /** 同上，但吞掉所有异常只记日志。 */
     public Integer queryTicketPriceQuietly(String inStation, String outStation) {
         if (!StringUtils.hasText(inStation) || !StringUtils.hasText(outStation)) {
             return null;
@@ -90,7 +87,6 @@ public class FareDataGateway {
         }
     }
 
-    /** 查同序列号首笔进站交易，返回原始应答（含 retCode / retMsg），判定留给调用方。 */
     public QueryFirstEntryTxnResult queryFirstEntryTxn(String cardId, String ticketTransSeq) {
         QueryFirstEntryTxnReqDTO entryRequest = new QueryFirstEntryTxnReqDTO();
         entryRequest.setCardId(cardId);
@@ -98,16 +94,7 @@ public class FareDataGateway {
         return ticketClient.queryFirstEntryTxn(entryRequest);
     }
 
-    /**
-     * 查「同卡 + 早于或等于本次出站时间的最近一笔进站交易」，返回原始应答，判定留给调用方。
-     *
-     * <p>离线码出站算价的现行取数口径。<b>NEVER 退回上面那条按 {@code ticketTransSeq} 相等配对的方法</b> ——
-     * 进站与出站是同一张卡的两笔不同交易，闸机上送的序列号天然不同（2026-09-22 实测进站 0 / 出站 1），
-     * 相等配对恒命中 0 行，订单永久卡在 {@code OFFLINE_FARE_PENDING}。
-     * <b>也 NEVER 改用 {@code QRCODE_STATUS.GATE_IN_STATION} / {@code GATE_IN_TIME}</b>：
-     * 那是会被下一趟行程覆盖的状态快照，而补偿是延迟执行的，延迟期间该卡再进站就会算错钱。
-     * 上面那条方法保留未删（可能仍有别的调用方），两者并存、只增不改。
-     */
+
     public QueryLatestEntryTxnResult queryLatestEntryTxnBeforeExit(String cardId, String exitHandleDateTime) {
         QueryLatestEntryTxnReqDTO entryRequest = new QueryLatestEntryTxnReqDTO();
         entryRequest.setCardId(cardId);
@@ -115,7 +102,6 @@ public class FareDataGateway {
         return ticketClient.queryLatestEntryTxnBeforeExit(entryRequest);
     }
 
-    /** 查账户信息，返回原始应答，判定留给调用方（两条路径的失败措辞不同）。 */
     public QueryUserInfoResult queryUserInfo(String thirdUserId, String cardId, String cardType) {
         QueryUserInfoReqDTO userRequest = new QueryUserInfoReqDTO();
         userRequest.setThirdUserId(thirdUserId);
@@ -124,11 +110,7 @@ public class FareDataGateway {
         return accountClient.queryUserInfo(userRequest);
     }
 
-    /**
-     * 查钱包累计金额。
-     *
-     * @param fillEmptyExtend 在线钱包路径会额外把 {@code extend1} / {@code extend2} 置空串。
-     */
+
     public QueryWalletTotalAmtResult queryWalletTotalAmt(String thirdUserId, String cardType,
                                                         String msisdn, String cardIssueCode,
                                                         boolean fillEmptyExtend) {
@@ -144,7 +126,6 @@ public class FareDataGateway {
         return walletAppGatewayClient.queryTotalAmt(totalRequest);
     }
 
-    /** 批量查站点编码对应的中文站名，吞掉所有异常与非 {@code 0000}，只返回查到的那些。 */
     public Map<String, String> resolveStationNamesQuietly(Set<String> stationCodes) {
         Map<String, String> stationNames = new HashMap<>();
         if (stationCodes == null || stationCodes.isEmpty()) {
@@ -172,18 +153,15 @@ public class FareDataGateway {
         return stationNames;
     }
 
-    /** 按累计金额取折扣档位，取不到返 {@code null}。 */
     public DiscountLevel selectDiscountLevel(String discountType, int totalAmt) {
         return discountLevelMapper.selectApplicable(discountType, totalAmt);
     }
 
-    /** 离线码钱包订单查公交换乘减免资格。 */
     public boolean isTransferReduction(String thirdUserId, String handleDateTime,
                                        String cardId, String ticketTransSeq) {
         return offlineMetroTransferClient.isReduction(thirdUserId, handleDateTime, cardId, ticketTransSeq);
     }
 
-    /** 金额字段按分保存，空值按 0 处理。 */
     private int parseAmount(String value) {
         if (!StringUtils.hasText(value)) {
             return 0;

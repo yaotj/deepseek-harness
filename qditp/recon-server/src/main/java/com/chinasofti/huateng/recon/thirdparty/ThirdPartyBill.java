@@ -2,12 +2,7 @@ package com.chinasofti.huateng.recon.thirdparty;
 
 import java.math.BigDecimal;
 
-/**
- * 第三方/渠道侧日账单落地对象（对应 reconciliation-bill-date.csv 的 22 字段 + 入账批次）。
- *
- * <p>金额字段按渠道账单原样保留为「元」(decimal)，比对层 MUST 显式换算成「分」后再与 ITP 侧比对，
- * NEVER 在入库时隐式 ÷100 或 ×100。详见 docs/business/recon-thirdparty.md §六。</p>
- */
+
 public class ThirdPartyBill {
 
     private Long id;
@@ -84,7 +79,6 @@ public class ThirdPartyBill {
     public String getBatchNo() { return batchNo; }
     public void setBatchNo(String batchNo) { this.batchNo = batchNo; }
 
-    /** 关联键：(商户订单号, 渠道交易流水号)。 */
     public String joinKey() {
         return (merchantOrderNo == null ? "" : merchantOrderNo) + "\u0001" + (channelTradeNo == null ? "" : channelTradeNo);
     }

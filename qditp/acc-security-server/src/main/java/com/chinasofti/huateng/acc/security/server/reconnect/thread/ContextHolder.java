@@ -1,12 +1,6 @@
 package com.chinasofti.huateng.acc.security.server.reconnect.thread;
 
-/**
- * Function: Something about of client runtime sign.
- *
- * @author crossoverJie
- * Date: 2020-04-13 02:10
- * @since JDK 1.8
- */
+
 public class ContextHolder {
     private static final ThreadLocal<Boolean> IS_RECONNECT = new ThreadLocal<>();
 

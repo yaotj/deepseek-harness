@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.key.entity;
 
-/**
- * The latest AGM key-version report received from a device.
- */
+
 public class ComDeviceSynKey {
     private String deviceId;
     private String agmKeyCurverList;

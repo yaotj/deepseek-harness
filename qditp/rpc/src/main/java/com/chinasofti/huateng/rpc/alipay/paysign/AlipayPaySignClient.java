@@ -33,13 +33,10 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Map;
 
-/**
- * 支付宝出行-签约服务 RPC 客户端。
- */
+
 @Service
 public class AlipayPaySignClient extends ProxyWebClient {
 
-    /** {@link #queryPayTxnBrief} 单次可传的订单号上限，等于 Oracle IN 列表上限。 */
     private static final int PAY_TXN_BRIEF_MAX_SIZE = 1000;
 
     public AlipayPaySignClient(@Value("${service.alipay-pay-sign.url:http://alipay-pay-sign-server:8080}") String baseUrl,
@@ -48,88 +45,54 @@ public class AlipayPaySignClient extends ProxyWebClient {
         super(baseUrl, openLogger, webClientBuilder);
     }
 
-    /** 支付类客户端禁止网络层重试：重复提交/扣款风险不可接受。 */
     @Override
     protected boolean isNetworkRetryEnabled() {
         return false;
     }
 
-    /**
-     * 添加签约信息。
-     */
+
     public AlipayTripAddContractRespDTO alipayTripAddContract(@RequestBody AlipayTripAddContractReqDTO request) {
         String result = postJsonAndGetResponse("/channel/addContract", request);
         return JSONUtil.toBean(result, new TypeReference<AlipayTripAddContractRespDTO>() {
         }, true);
     }
 
-    /**
-     * 支付宝出行-解约登记。
-     */
+
     public AlipayTripTerminateContractRespDTO alipayTripTerminateContract(@RequestBody AlipayTripTerminateContractReqDTO request) {
         String result = postJsonAndGetResponse("/channel/terminateContract", request);
         return JSONUtil.toBean(result, new TypeReference<AlipayTripTerminateContractRespDTO>() {
         }, true);
     }
 
-    /**
-     * 支付宝出行-支付申请。
-     */
+
     public AlipayTripRequestPayRespDTO alipayTripRequestPay(@RequestBody AlipayTripRequestPayReqDTO request) {
         String result = postJsonAndGetResponse("/api/payment/requestPay", request);
         return JSONUtil.toBean(result, new TypeReference<AlipayTripRequestPayRespDTO>() {
         }, true);
     }
 
-    /**
-     * 支付宝出行-支付结果查询。
-     *
-     * <p>2026-09-18：路径由 {@code /api/payment/payQuery} 迁至 {@code /internal/alipay/payment/payQuery}
-     * （该端点只有本方法一个调用方、属内部接口）。<b>旧路径已在服务端删除、没有别名</b>，
-     * 因此本文件所在的 {@code fep-alipay} 与 {@code alipay-pay-sign-server} 两个镜像 MUST 同批滚更。
-     */
+
     public AlipayTripPayQueryRespDTO alipayTripPayQuery(@RequestBody AlipayTripPayQueryReqDTO request) {
         String result = postJsonAndGetResponse("/internal/alipay/payment/payQuery", request);
         return JSONUtil.toBean(result, new TypeReference<AlipayTripPayQueryRespDTO>() {
         }, true);
     }
 
-    /**
-     * 支付宝出行-退款申请。
-     *
-     * <p>2026-09-18：路径由 {@code /api/payment/requestRefund} 迁至
-     * {@code /internal/alipay/payment/requestRefund}（该端点只有本方法一个调用方、真实入口是运维侧人工退款）。
-     * <b>旧路径已在服务端删除、没有别名</b>，因此 {@code fep-alipay} 与 {@code alipay-pay-sign-server}
-     * 两个镜像 MUST 同批滚更。
-     */
+
     public AlipayTripRequestRefundRespDTO alipayTripRequestRefund(@RequestBody AlipayTripRequestRefundReqDTO request) {
         String result = postJsonAndGetResponse("/internal/alipay/payment/requestRefund", request);
         return JSONUtil.toBean(result, new TypeReference<AlipayTripRequestRefundRespDTO>() {
         }, true);
     }
 
-    /**
-     * 支付宝出行-退款申请（**读新表 {@code ALIPAY_PAY_TXN_DETAIL}、落 {@code ALIPAY_REFUND_TXN_DETAIL}**）。
-     *
-     * <p>与上面那个 {@link #alipayTripRequestRefund} <b>是两条并存的链路，NEVER 二选一地删掉任何一个</b>：
-     * 旧方法打的端点读 {@code ALIPAY_PAY_LOG}，而那张表自「落单收口到 gate-txn-pay」后**已无写入方**，
-     * 按它退款必然返 {@code 9999 原支付记录不存在}；本方法打的新端点读的是真正有数据的新表。
-     * 旧方法保留作回滚位（把 {@code gate-txn-pay-server} 那一处调用换回去即可）。
-     *
-     * <p>唯一调用方是 {@code gate-txn-pay-server} 的
-     * {@code GateTxnPayManualOpsService.requestAlipayTripRefund}（运营后台扣费信息页按渠道分流的支付宝那一支）。
-     * <b>因此 {@code gate-txn-pay-server} 与 {@code alipay-pay-sign-server} 两个镜像 MUST 同批滚更</b> ——
-     * 新端点在旧的 alipay 镜像上不存在，会被全局异常处理器包成 HTTP 200 + UUID retCode。
-     */
+
     public AlipayTripTxnRefundRespDTO alipayTripTxnRefund(@RequestBody AlipayTripTxnRefundReqDTO request) {
         String result = postJsonAndGetResponse("/internal/alipay/payment/requestTxnRefund", request);
         return JSONUtil.toBean(result, new TypeReference<AlipayTripTxnRefundRespDTO>() {
         }, true);
     }
 
-    /**
-     * 查询用户签约信息。
-     */
+
     public AlipaySignInfoDTO selectSignInfo(String thirdUserId) {
         String url = "/channel/selectSignInfo?thirdUserId=" + thirdUserId;
         String result = getAndGetResponse(url, new java.util.HashMap<>());
@@ -142,9 +105,7 @@ public class AlipayPaySignClient extends ProxyWebClient {
         return JSONUtil.toBean(parseTarget, AlipaySignInfoDTO.class);
     }
 
-    /**
-     * 支付宝出行-支付结果回调。
-     */
+
     public com.chinasofti.huateng.common.response.AlipayCommonResponse handlePayNotify(AlipayTripPayNotifyReqDTO request) {
         String result = postJsonAndGetResponse("/api/payment/payNotify", request);
         if (result == null || result.isEmpty()) {
@@ -156,9 +117,7 @@ public class AlipayPaySignClient extends ProxyWebClient {
         return JSONUtil.toBean(parseTarget, com.chinasofti.huateng.common.response.AlipayCommonResponse.class);
     }
 
-    /**
-     * 支付宝出行-查询订单列表。
-     */
+
     public java.util.Map<String, Object> selectAlipayPayLogList(java.util.Map<String, Object> params) {
         String result = postJsonAndGetResponse("/api/payment/payLog/list", params);
         if (result == null || result.isEmpty()) {
@@ -171,9 +130,7 @@ public class AlipayPaySignClient extends ProxyWebClient {
         }, true);
     }
 
-    /**
-     * 支付宝出行-业务关闭结果通知。
-     */
+
     public com.chinasofti.huateng.common.response.AlipayCommonResponse notifyCloseResult(String agreementCode, boolean result) {
         AlipayTripCloseResultReqDTO request = new AlipayTripCloseResultReqDTO();
         request.setAgreementNo(agreementCode);
@@ -188,16 +145,12 @@ public class AlipayPaySignClient extends ProxyWebClient {
         return JSONUtil.toBean(parseTarget, com.chinasofti.huateng.common.response.AlipayCommonResponse.class);
     }
 
-    /**
-     * 支付宝出行-销卡批处理。
-     */
+
     public AlipayProcessTerminationRespDTO processAlipayTermination(@RequestBody AlipayProcessTerminationReqDTO request) {
         return processAlipayTermination(request, java.util.Collections.emptyMap());
     }
 
-    /**
-     * 支付宝出行-销卡批处理（带 trace 头）。
-     */
+
     public AlipayProcessTerminationRespDTO processAlipayTermination(@RequestBody AlipayProcessTerminationReqDTO request,
                                                                    Map<String, String> headers) {
         String result = postJsonAndGetResponse("/internal/alipay/termination/process", request, headers);
@@ -205,17 +158,7 @@ public class AlipayPaySignClient extends ProxyWebClient {
         }, true);
     }
 
-    /**
-     * 执行解约。
-     *
-     * <p>2026-09-18：路径由 {@code /channel/executeTermination} 迁至
-     * {@code /internal/alipay/termination/execute}（该端点只有本方法一个调用方、属内部接口，
-     * 且与同前缀的 {@code /process} 走同一套销卡语义）。<b>旧路径已在服务端删除、没有别名</b>，
-     * 因此 {@code fep-alipay} 与 {@code alipay-pay-sign-server} 两个镜像 MUST 同批滚更。
-     *
-     * <p><b>HTTP 形态刻意保持 GET + query 串拼接不变</b>：改成 POST 属另一件事，
-     * 不与「迁 internal」混做。
-     */
+
     public com.chinasofti.huateng.common.response.AlipayCommonResponse executeTermination(String agreementCode) {
         String response = getAndGetResponse("/internal/alipay/termination/execute?agreementCode=" + agreementCode, new java.util.HashMap<>());
         if (response == null || response.isEmpty()) {
@@ -227,9 +170,7 @@ public class AlipayPaySignClient extends ProxyWebClient {
         return JSONUtil.toBean(parseTarget, com.chinasofti.huateng.common.response.AlipayCommonResponse.class);
     }
 
-    /**
-     * 支付宝出行-按订单号查询支付日志。
-     */
+
     public AlipayPayLogDTO selectByOrderNo(String orderNo) {
         String result = getAndGetResponse("/api/payment/payLog/detail?orderNo=" + orderNo, new java.util.HashMap<>());
         if (result == null || result.isEmpty()) {
@@ -241,9 +182,7 @@ public class AlipayPaySignClient extends ProxyWebClient {
         return JSONUtil.toBean(parseTarget, AlipayPayLogDTO.class);
     }
 
-    /**
-     * 支付宝出行-按进站交易ID查询支付流水。
-     */
+
     public AlipayPayLogDTO selectByEntryId(String entryId) {
         String result = getAndGetResponse("/api/payment/payLog/entryId?entryId=" + entryId, new java.util.HashMap<>());
         if (result == null || result.isEmpty()) {
@@ -255,9 +194,7 @@ public class AlipayPaySignClient extends ProxyWebClient {
         return JSONUtil.toBean(parseTarget, AlipayPayLogDTO.class);
     }
 
-    /**
-     * 按出站交易ID查询支付流水。
-     */
+
     public AlipayPayLogDTO selectByExitId(String exitId) {
         String result = getAndGetResponse("/api/payment/payLog/exitId?exitId=" + exitId, new java.util.HashMap<>());
         if (result == null || result.isEmpty()) {
@@ -269,9 +206,7 @@ public class AlipayPaySignClient extends ProxyWebClient {
         return JSONUtil.toBean(parseTarget, AlipayPayLogDTO.class);
     }
 
-    /**
-     * 支付宝出行-按乘车记录查询支付流水。
-     */
+
     public AlipayPayLogDTO queryByTravelRecord(@RequestBody Map<String, String> params) {
         String result = postJsonAndGetResponse("/api/payment/payLog/queryByTravelRecord", params);
         if (result == null || result.isEmpty()) {
@@ -283,9 +218,7 @@ public class AlipayPaySignClient extends ProxyWebClient {
         return JSONUtil.toBean(parseTarget, AlipayPayLogDTO.class);
     }
 
-    /**
-     * 支付宝出行-查询乘车记录支付流水列表。
-     */
+
     public Map<String, Object> selectAlipayPayLogListForTravel(String thirdUserId, String startDate, String endDate, int pageNum, int pageSize,
                                                                String debitRequestResult, String invoice) {
         Map<String, Object> params = new java.util.LinkedHashMap<>();
@@ -307,9 +240,7 @@ public class AlipayPaySignClient extends ProxyWebClient {
         }, true);
     }
 
-    /**
-     * 通知支付宝黑名单变更。
-     */
+
     public com.chinasofti.huateng.common.response.AlipayCommonResponse notifyBlackListChange(com.chinasofti.huateng.model.alipaytrip.AlipayBlackListNotifyReqDTO request) {
         String result = postJsonAndGetResponse("/channel/notify/blackListChange", request);
         if (result == null || result.isEmpty()) {
@@ -321,16 +252,7 @@ public class AlipayPaySignClient extends ProxyWebClient {
         return JSONUtil.toBean(parseTarget, com.chinasofti.huateng.common.response.AlipayCommonResponse.class);
     }
 
-    /**
-     * 支付宝出行-支付通道同步补偿（ADR-D132）。
-     *
-     * <p>无入参：批量大小与重试上限都是 alipay-pay-sign-server 侧的配置项。
-     * 这里传空 body 只为满足 POST 形态，**NEVER 改成让调用方传批量大小** ——
-     * 那等于把「一次扫多少」交给 Quartz 配置页面。</p>
-     *
-     * <p>由 web-admin 的 `alipayChannelSyncQuartzTask` 带 trace 头打进来；
-     * 该端点是本模块补偿的**唯一驱动源**，判断它有没有在跑 MUST 查 `SYS_JOB_LOG`。</p>
-     */
+
     public com.chinasofti.huateng.common.response.AlipayCommonResponse compensateChannelSync(Map<String, String> headers) {
         String response = postJsonAndGetResponse("/internal/alipay/channelSync/compensate",
                 java.util.Collections.emptyMap(), headers);
@@ -343,19 +265,7 @@ public class AlipayPaySignClient extends ProxyWebClient {
         return JSONUtil.toBean(parseTarget, com.chinasofti.huateng.common.response.AlipayCommonResponse.class);
     }
 
-    /**
-     * 支付宝出行-退款回查补偿。
-     *
-     * <p>配套 {@code POST /internal/alipay/refund/compensateQuery}：扫 {@code ALIPAY_REFUND_LOG} 里停在
-     * {@code PROCESSING} 的退款明细，逐条问支付中心 §3.2 退款查询并按终态 CAS 收口。
-     *
-     * <p>无入参，理由同 {@link #compensateChannelSync(Map)}：窗口 / 静默期 / 批量都在服务侧，
-     * <b>NEVER 改成让调用方传</b>。
-     *
-     * <p>由 web-admin 的 `alipayRefundQueryQuartzTask` 带 trace 头打进来，是该补偿的**唯一驱动源**；
-     * 判断它有没有在跑 MUST 查 `SYS_JOB_LOG`。<b>该端点恒返 `0000`</b>（本轮收口 0 条也算成功，
-     * 条数写在 `retMsg` 里），因此调用方 <b>NEVER 把「收口 0 条」当失败</b>。
-     */
+
     public com.chinasofti.huateng.common.response.AlipayCommonResponse compensateRefundQuery(Map<String, String> headers) {
         String response = postJsonAndGetResponse("/internal/alipay/refund/compensateQuery",
                 java.util.Collections.emptyMap(), headers);
@@ -368,22 +278,7 @@ public class AlipayPaySignClient extends ProxyWebClient {
         return JSONUtil.toBean(parseTarget, com.chinasofti.huateng.common.response.AlipayCommonResponse.class);
     }
 
-    /**
-     * 支付宝出行-按订单号列表批量取支付侧字段（乘车记录列表的**第二次请求**）。
-     *
-     * <p>配套 {@code POST /internal/alipay/payment/payTxnBrief}。请求体是**裸 JSON 数组**、
-     * 响应体是**裸 JSON 数组**（该端点直接返回 {@code List}，本项目没有全局响应包装，
-     * 因此 <b>NEVER 照抄本类里那些 {@code wrapper.get("data")} 的写法</b>）。
-     *
-     * <p><b>上限 {@value #PAY_TXN_BRIEF_MAX_SIZE} 在这里硬拒、不截断</b>：服务端最终走
-     * {@code SELECT ... WHERE ORDER_NO IN (...)}，Oracle 的 IN 列表上限是 1000，超了会在 SQL 层
-     * 报 {@code ORA-01795}、表现成一条看不懂的 UUID retCode。这里抛出是为了让调用方**立刻知道自己
-     * 分页页长设得过大**；<b>NEVER 改成静默 subList</b> —— 那会让列表里后面若干行没有支付信息，
-     * 而调用方毫不知情（本方法是「补齐」语义，缺行不会报错）。
-     *
-     * <p>命中不到的 {@code orderNo} 不在返回列表里，合并 MUST 按 {@code orderNo} 做 map 查找、
-     * <b>NEVER 按下标与入参列表对齐</b>。
-     */
+
     public java.util.List<AlipayTripPayTxnBriefDTO> queryPayTxnBrief(@RequestBody java.util.List<String> orderNos) {
         if (orderNos == null || orderNos.isEmpty()) {
             return java.util.List.of();
@@ -399,9 +294,7 @@ public class AlipayPaySignClient extends ProxyWebClient {
         return JSONUtil.toList(JSONUtil.parseArray(result), AlipayTripPayTxnBriefDTO.class);
     }
 
-    /**
-     * 按卡号查询支付宝出行链路是否仍有未结清订单（供 blacklist-server 盘点黑名单可解除性调用）。
-     */
+
     public CardUnsettledQueryRespDTO hasUnsettledOrderByCard(@RequestBody CardUnsettledQueryReqDTO request) {
         String result = postJsonAndGetResponse("/internal/alipayPay/hasUnsettledOrderByCard", request);
         return JSONUtil.toBean(result, new TypeReference<CardUnsettledQueryRespDTO>() {

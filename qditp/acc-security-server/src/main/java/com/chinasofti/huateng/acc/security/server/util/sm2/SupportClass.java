@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.acc.security.server.util.sm2;
 
-/**
- * @author GuoYouCheng
- */
+
 public class SupportClass {
     public static int URShift(int number, int bits) {
         if (number >= 0)

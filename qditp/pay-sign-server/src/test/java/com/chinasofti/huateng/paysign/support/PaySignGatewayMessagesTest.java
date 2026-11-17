@@ -16,7 +16,6 @@ import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** 护栏：出网报文的键集、键序与「空值不进报文」（键序参与加签）。 */
 class PaySignGatewayMessagesTest {
 
     @Test

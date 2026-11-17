@@ -2,32 +2,22 @@ package com.chinasofti.huateng.model.app.dailyticket;
 
 import java.util.Date;
 
-/**
- * IF8A-72 小程序票状态同步请求参数。
- */
+
 public class DailyTicketSyncOrderReqDTO {
-    /** 订单号。 */
     private String orderNo;
 
-    /** 订单类型：1-日票，2-旅游票。 */
     private String orderType;
 
-    /** 事件：1-支付成功，2-退款成功。 */
     private String event;
 
-    /** 事件发生时间。 */
     private Date eventTime;
 
-    /** 支付渠道。 */
     private String payChannel;
 
-    /** 优惠信息。 */
     private String discountInfo;
 
-    /** 支付金额，单位分。 */
     private Integer payAmount;
 
-    /** 优惠金额，单位分。 */
     private Integer discountAmount;
 
     public String getOrderNo() {

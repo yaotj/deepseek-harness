@@ -1,32 +1,23 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * 黑名单「可解除性」盘点结果的单条明细。
- */
+
 public class BlacklistReleaseCandidateDTO {
 
     private String cardId;
 
-    /** 三方用户 ID，可能为空（拉黑入口不强制上送）。 */
     private String thirdUserId;
 
     private String reason;
 
-    /** 拉黑时间，格式 yyyy-MM-dd HH:mm:ss。 */
     private String createTime;
 
-    /** 闸机出站扣费（GATE_TXN_PAY）是否仍有未结清订单。查询失败时为 null。 */
     private Boolean gateUnsettled;
 
-    /** 支付宝出行（ALIPAY_PAY_LOG）是否仍有未结清订单。查询失败时为 null。 */
     private Boolean alipayUnsettled;
 
-    /**
-     * 盘点结论。
-     */
+
     private String settleStatus;
 
-    /** 查询失败时的。 */
     private String failReason;
 
     public String getCardId() {

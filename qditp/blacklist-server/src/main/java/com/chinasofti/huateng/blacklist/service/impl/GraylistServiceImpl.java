@@ -14,11 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-/** 灰名单服务实现：当前在灰表 + 操作流水，写操作均以唯一索引 + DuplicateKeyException 兜底。 */
 @Service
 public class GraylistServiceImpl implements GraylistService {
 
-    /** 发起方：01 系统自动，09 运维手工。运营页发起方在服务端定死 09，NEVER 让前台传值覆盖。 */
     private static final String SOURCE_OPS = "09";
 
     private final GraylistMapper graylistMapper;
@@ -59,7 +57,6 @@ public class GraylistServiceImpl implements GraylistService {
         try {
             graylistMapper.insert(record);
         } catch (DuplicateKeyException duplicate) {
-            // 已在灰名单：幂等成功，不覆盖原记录（重灰以原进灰信息为准）。
             return ResultMapper.ok();
         }
         graylistOperateLogMapper.insert(buildLog(normalizedCardId, trimToNull(thirdUserId),
@@ -80,7 +77,6 @@ public class GraylistServiceImpl implements GraylistService {
         }
         int deleted = graylistMapper.deleteByCardId(normalizedCardId);
         if (deleted == 0) {
-            // 并发移出已被处理：幂等成功。
             return ResultMapper.ok();
         }
         graylistOperateLogMapper.insert(buildLog(normalizedCardId, record.getThirdUserId(),

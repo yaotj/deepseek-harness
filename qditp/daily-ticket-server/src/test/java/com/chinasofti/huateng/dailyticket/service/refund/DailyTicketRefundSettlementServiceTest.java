@@ -30,12 +30,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住退款收口的四条终态链路。
- *
- * <p>最重要的一条是**每个终态入口都必须调 {@code deliverOne}** —— 2026-09-20 实测漏掉它时
- * 四笔退款的 `NOTIFY_STATUS` 全停在 PENDING、APP 一次都没收到退款结果，而日志一片正常。
- */
+
 class DailyTicketRefundSettlementServiceTest {
 
     private DailyTicketOrderMapper orderMapper;

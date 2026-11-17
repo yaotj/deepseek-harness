@@ -10,9 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/**
- * 取票服务调用支付服务的客户端。
- */
+
 @Component
 public class CollectPayClient {
     private static final Logger log = LoggerFactory.getLogger(CollectPayClient.class);

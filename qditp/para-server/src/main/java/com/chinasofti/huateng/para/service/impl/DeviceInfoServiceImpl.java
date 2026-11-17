@@ -16,14 +16,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-/** 设备信息参数实现：页面输入统一在此裁剪校验，管理模式码值用白名单校验。 */
 @Service
 public class DeviceInfoServiceImpl implements DeviceInfoService {
 
-    /** 业主自定义管理模式白名单：与 CK_TBL_DEVICE_INFO_MODE 约束一致。 */
     private static final Set<String> MANAGE_MODE_WHITELIST = Set.of("01", "02");
 
-    /** 单次批量设置管理模式的最大设备数，防止误操作整表刷写。 */
     private static final int MAX_BATCH_SIZE = 1000;
 
     private final DeviceInfoMapper deviceInfoMapper;

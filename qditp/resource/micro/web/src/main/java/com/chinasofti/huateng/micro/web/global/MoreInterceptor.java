@@ -76,8 +76,6 @@ public class MoreInterceptor implements HandlerInterceptor {
                     if (timeOut) {
                         timeoutCnt.getAndIncrement();
                     }
-                    // 心跳请求（URL 含 Heartbeat）刷屏时，默认关闭 INFO 请求日志；
-                    // 超时 / 5xx 仍走 error，不丢。
                     boolean isNormalHeartbeat = skipHeartbeat && isHeartbeatUrl(request)
                             && !timeOut && response.getStatus() <= 300;
                     if (!isNormalHeartbeat) {

@@ -38,12 +38,7 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
     private static final Duration EVICT_IN_BACKGROUND = Duration.ofSeconds(30);
     private static final Duration DEFAULT_RESPONSE_TIMEOUT = Duration.ofSeconds(10);
 
-    /**
-     * 网络层错误（连接被对端提前关闭/重置/refused 等）的最大重试次数。
-     * 仅对网络异常重试：HTTP 4xx/5xx 已被 retrieve().onStatus(createError) 转成
-     * WebClientResponseException，在 WebClientRetryHelper 中归为不可重试，不会重试。
-     * 非幂等请求（POST 等）只在请求未真正发出时重试（isBeforeRequestSent），避免重复提交。
-     */
+
     private static final int MAX_NETWORK_RETRIES = 1;
 
     private Duration responseTimeoutOverride;
@@ -87,20 +82,14 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
         return webClient;
     }
 
-    /**
-     * @apiNote The simple of use。
-     * @param baseUrl value is like http://localhost:8080。
-     */
+
     public ProxyWebClient(String baseUrl, boolean openLogger, WebClient.Builder webClientBuilder) {
         setOpenLogger(openLogger);
         setBaseUrl(baseUrl);
         setProxyHttpClient(getInitOkHttpClient(webClientBuilder));
     }
 
-    /**
-     * 与上一个构造器的唯一差别是显式指定响应超时。
-     * @param responseTimeout 为 null 时退回默认 10 秒。
-     */
+
     public ProxyWebClient(String baseUrl, boolean openLogger, WebClient.Builder webClientBuilder, Duration responseTimeout) {
         setOpenLogger(openLogger);
         setBaseUrl(baseUrl);
@@ -108,9 +97,7 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
         setProxyHttpClient(getInitOkHttpClient(webClientBuilder));
     }
 
-    /**
-     * 子类可重写此方法自定义响应超时时间。
-     */
+
     protected Duration getResponseTimeout() {
         return responseTimeoutOverride != null ? responseTimeoutOverride : DEFAULT_RESPONSE_TIMEOUT;
     }
@@ -152,17 +139,12 @@ public class ProxyWebClient extends AbstractMicroHttp<WebClient> {
         }
     }
 
-    /**
-     * 是否允许网络层错误自动重试。默认允许；支付/资金类客户端 MUST 重写为 false
-     * （重复提交风险不可接受），见 docs/architecture/common-components.md §二。
-     */
+
     protected boolean isNetworkRetryEnabled() {
         return true;
     }
 
-    /**
-     * 按客户端开关包装网络层重试；支付客户端（isNetworkRetryEnabled()=false）原样返回不重试。
-     */
+
     private <T> Mono<ResponseEntity<T>> applyNetworkRetry(Mono<ResponseEntity<T>> result, HttpMethod method) {
         if (!isNetworkRetryEnabled()) {
             return result;

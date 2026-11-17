@@ -12,11 +12,7 @@ import io.netty.handler.codec.Delimiters;
 import io.netty.handler.codec.string.StringEncoder;
 import io.netty.util.AttributeKey;
 
-/**
- * Netty客户端编写
- *
- * @author Administrator
- */
+
 public class NettyClient {
 
     public static void main(String[] args) throws InterruptedException {
@@ -27,7 +23,7 @@ public class NettyClient {
 
         client.channel(NioSocketChannel.class);
 
-        client.handler(new ChannelInitializer<NioSocketChannel>() {  //通道是NioSocketChannel
+        client.handler(new ChannelInitializer<NioSocketChannel>() {
             @Override
             protected void initChannel(NioSocketChannel ch) throws Exception {
                 ch.pipeline().addLast(new StringEncoder());

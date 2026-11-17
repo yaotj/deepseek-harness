@@ -25,7 +25,6 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/** IF8A-05 交易记录列表查询。 */
 @Component
 public class TransListQueryHandler {
 
@@ -42,7 +41,6 @@ public class TransListQueryHandler {
     @Autowired
     private TransQueryParamNormalizer paramNormalizer;
 
-    /** 查询交易记录列表 (IF8A-05)。 */
     public RequestTransListResult requestTransList(QueryTransListReqDTO request) {
         RequestTransListResult response = new RequestTransListResult();
         try {
@@ -116,7 +114,6 @@ public class TransListQueryHandler {
         response.setSign("");
     }
 
-    /** 双源合并 → {@link TransRecordDTO}：先按 {@code orderNo} 批量拉支付明细，再逐行拼装。 */
     private List<TransRecordDTO> assembleRecords(List<GateTxnPayListDTO> gateRecords) {
         Map<String, PayTxnDetailDTO> payDetailMap = queryPayDetails(gateRecords);
         List<TransRecordDTO> records = new ArrayList<>(gateRecords.size());

@@ -28,12 +28,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * 日票实例生命周期服务：激活、首次使用通知、进站校验、可用性判定、出站扣次、扣次明细。
- *
- * <p>零 {@code @Transactional}：所有方法只做本地 DB 读写（每条 SQL 自动提交），
- * 不调支付中心网关，不需要也不允许事务包住。
- */
+
 @Service
 public class DailyTicketInstanceLifecycleService {
     private static final Logger log = LoggerFactory.getLogger(DailyTicketInstanceLifecycleService.class);
@@ -66,7 +61,6 @@ public class DailyTicketInstanceLifecycleService {
         this.travelParentSummaryWriter = travelParentSummaryWriter;
     }
 
-    /** 激活日票（IF8A-32）。 */
     public DailyTicketBaseResult updateTicket(DailyTicketActivateReqDTO request) {
         DailyTicketBaseResult result = new DailyTicketBaseResult();
         if (request == null || !StringUtils.hasText(request.getOrderNo())) {
@@ -130,14 +124,7 @@ public class DailyTicketInstanceLifecycleService {
         return success(result);
     }
 
-    /**
-     * 激活支付口径：
-     * <ul>
-     *     <li>独立日票沿用原规则：子单自身 ORDER_STATUS=PAID 且 PAY_STATUS=PAID；</li>
-     *     <li>旅游票子单不写独立支付流水，子单保持 CREATED/INIT，回看 PARENT_ORDER_NO
-     *         对应主单，主单两个支付字段都为 PAID 才允许激活。</li>
-     * </ul>
-     */
+
     private boolean canActivate(DailyTicketOrder order) {
         if (order == null) {
             return false;
@@ -152,11 +139,7 @@ public class DailyTicketInstanceLifecycleService {
                 && "PAID".equals(order.getPayStatus());
     }
 
-    /**
-     * APP 首次使用通知（IF8A-33）：写入有效期截止时间并置「已开始使用」。
-     * <p>
-     * 同 {@link #markUsed}：<b>NEVER 在这里写 ACC_NOTICE_*</b>，APP 说「开始用了」不等于 ACC 已受理发售。
-     */
+
     public DailyTicketBaseResult updateAndNotice(DailyTicketUsedNoticeReqDTO request) {
         DailyTicketBaseResult result = new DailyTicketBaseResult();
         if (request == null || !StringUtils.hasText(request.getCardNum())) {
@@ -214,11 +197,7 @@ public class DailyTicketInstanceLifecycleService {
         return success(result);
     }
 
-    /**
-     * 拉码（IF8A-03）前置的只读可用性判定。
-     * 判据与 {@link #validateEntryCheck} 同源（有效期 / 次数 / 退款占用），但只读、不推进状态，
-     * 且异常一律吞掉转成 retCode，因为调用方按「不可达即降级放行」处置。
-     */
+
     public DailyTicketBaseResult checkRideAvailability(String cardNum) {
         DailyTicketBaseResult result = new DailyTicketBaseResult();
         try {
@@ -259,12 +238,7 @@ public class DailyTicketInstanceLifecycleService {
         }
     }
 
-    /**
-     * 出站处理：计次票扣次、写入出站时间。
-     * <p>
-     * 只推进票状态与有效期，<b>NEVER 在这里写 ACC_NOTICE_*</b>：出站与 ACC 发售通知是两件事，
-     * 把它置成 SUCCESS 会让一条从未成功的上报再也进不了补偿扫表（只捞 PENDING / FAIL / INIT）。
-     */
+
     public DailyTicketBaseResult markUsed(String cardNum, Long countingEnd) {
         return markUsed(cardNum, countingEnd, null, null, null);
     }
@@ -311,11 +285,7 @@ public class DailyTicketInstanceLifecycleService {
         return success(result);
     }
 
-    /**
-     * INSERT 扣次明细，UK_DTUL_ORDER 做幂等。
-     * daily-ticket-server 已开 tracing，切面可能把异常包一层，所以沿 cause 链判定。
-     * 明细落库失败不中断出站流程，只记 ERROR 留证据。
-     */
+
     private void insertUsageLog(String cardNum, String orderNo, String inStation,
                                 String outStation, Integer timesBefore, int timesAfter,
                                 String ticketStatus) {
@@ -341,7 +311,6 @@ public class DailyTicketInstanceLifecycleService {
         }
     }
 
-    /** 沿 cause 链判定是否为唯一索引冲突（兼容 tracing 切面包装）。 */
     private static boolean isIntegrityViolation(Throwable t) {
         for (Throwable cur = t; cur != null; cur = cur.getCause()) {
             if (cur instanceof org.springframework.dao.DuplicateKeyException
@@ -385,7 +354,6 @@ public class DailyTicketInstanceLifecycleService {
         return result;
     }
 
-    /** 票是否处于退款占用态：{@code REFUND_LOCKED} 观察期内或 {@code REFUNDED} 已放款。 */
     boolean isTicketLockedForRefund(String ticketStatus) {
         return DailyTicketInstanceStatus.isLockedForRefund(ticketStatus);
     }

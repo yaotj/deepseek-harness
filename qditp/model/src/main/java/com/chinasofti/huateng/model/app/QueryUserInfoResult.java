@@ -11,24 +11,16 @@ public class QueryUserInfoResult extends CommonResult {
     private String cardIssueCode;
     private String thirdPayId;
     private String reqContractNo;
-    /**
-     * HCE 卡当前卡数据。仅 HCE 卡类型 {@code 0442}/{@code 0443} 有值。
-     */
+
     private String hceData;
 
-    /**
-     * 手机号。
-     */
+
     private String msisdn;
 
-    /**
-     * 注册时间。
-     */
+
     private String regTms;
 
-    /**
-     * 同行票或第三方票标识。
-     */
+
     private String companionFlag;
 
     public String getThirdUserId() {

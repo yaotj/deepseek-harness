@@ -5,9 +5,7 @@ import java.util.List;
 
 public class SyncTaskResponse1 {
 
-    /**
-     * desc:任务目标节点。
-     */
+
     private String toDevNodeId;
     private List<SyncTaskResponse2> toNodetaskList = new ArrayList<>();
 

@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 日票退款运营页面接口。 */
 @RestController
 @RequestMapping("/page/daily-ticket/refund")
 public class DailyTicketRefundController {
@@ -75,7 +74,6 @@ public class DailyTicketRefundController {
         return operateRefund(request, true);
     }
 
-    /** 重提交：支付平台从未受理过的退款单（{@code PLATFORM_REFUND_NO IS NULL}）重新发起退款。 */
     @PostMapping("/resubmit")
     public ResultVO<DailyTicketRefundResult> resubmitRefund(@RequestBody DailyTicketOrderNoReqDTO request) {
         if (request == null || !StringUtils.hasText(request.getOrderNo())) {
@@ -109,7 +107,6 @@ public class DailyTicketRefundController {
         return beginTime == null || endTime == null || !beginTime.after(endTime);
     }
 
-    /** 页面操作统一校验订单号，未传订单类型时兼容旧页面按日票处理。 */
     private ResultVO<DailyTicketRefundResult> operateRefund(DailyTicketOrderNoReqDTO request, boolean retry) {
         if (request == null || !StringUtils.hasText(request.getOrderNo())) {
             return ResultMapper.illegalParams("日票订单号不能为空");

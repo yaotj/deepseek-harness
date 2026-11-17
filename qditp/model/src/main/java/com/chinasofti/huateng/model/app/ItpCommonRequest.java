@@ -1,9 +1,6 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * ITP / APP / ACC 公共请求报文骨架，全项目唯一实现。
- * @param <T> 业务参数类型，出向为具体 DTO、入向 form-data 为 String。
- */
+
 public class ItpCommonRequest<T> {
     private String providerId;
     private String charset;
@@ -78,9 +75,7 @@ public class ItpCommonRequest<T> {
         this.bizData = bizData;
     }
 
-    /**
-     * 日志友好输出。
-     */
+
     @Override
     public String toString() {
         return "ItpCommonRequest{" +

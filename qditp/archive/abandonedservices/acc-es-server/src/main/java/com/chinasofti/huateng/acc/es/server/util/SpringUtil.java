@@ -5,12 +5,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.stereotype.Component;
 
-/**
- * @program: cloud-acc-server
- * @description:spring工具类获取bean(netty中需要用到)
- * @author: fc
- * @create: 2020-09-23 15:43
- */
+
 @Component
 public class SpringUtil  implements ApplicationContextAware {
     private static ApplicationContext applicationContext;

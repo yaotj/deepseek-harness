@@ -19,28 +19,7 @@ import org.springframework.util.StringUtils;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * 支付中心退款结果回调收口（网关文档 §5.2）。
- *
- * <p>本类只做三件事：**按键定位退款单 → 按 `refundResult` 分支决定是否推进 → 留证据**。
- * 真正的状态推进全部委托 {@link DailyTicketRefundSettlementService}，因此同一套终态逻辑
- * 与「发起侧同步应答」「回查 / 重试」共用一份实现，NEVER 在这里另写一遍。
- *
- * <p>三条不可放宽的判据：
- * <ol>
- *   <li><b>受理白名单</b>：成功结果只接受 {@code REFUNDING} / {@code WAIT_VERIFY} / {@code FAILED}
- *       三个前置态（{@code FAILED} 属「按支付中心结论纠正」，会打 WARN）。其余状态一律拒收，
- *       符合 AGENTS.md §4.2「状态机校验用白名单」。</li>
- *   <li><b>重复到达一律幂等返成功</b>：已 {@code REFUNDED} 再收成功 → 只补平台退款单号并重推通知；
- *       已 {@code FAILED} 再收失败 → 直接返成功。<b>NEVER 改成报错</b>，否则支付中心会一直重推。</li>
- *   <li><b>已 REFUNDED 却收到失败结果时保持已退款</b>，只打 WARN 转人工 ——
- *       钱已经退了，把状态改回 FAILED 会让对账与 APP 两头都错。</li>
- * </ol>
- *
- * <p>另有一条易被当成缺陷的分支：回调带的 {@code orderNo}（支付订单号）与本单
- * {@code PAYMENT_ORDER_NO} 不一致时**只记日志、不改任何业务单**并返成功 ——
- * 那通常是同一笔业务的重复支付里另一笔的退款回调，改本单会退错账。
- */
+
 @Service
 public class DailyTicketRefundCallbackService {
     private static final Logger log = LoggerFactory.getLogger(DailyTicketRefundCallbackService.class);
@@ -184,12 +163,7 @@ public class DailyTicketRefundCallbackService {
         return result;
     }
 
-    /**
-     * 契约 §5.2 退款回调带 {@code refundAmount}（单位分、字符串形态），与本地 {@code DAILY_TICKET_REFUND.REFUND_AMOUNT} 比对。
-     *
-     * <p>不一致只打 WARN，**NEVER 因此拒绝回调或改状态** —— 部分退款口径未定，拒绝会让退款单永久空转；
-     * 解析失败同样只打 WARN。
-     */
+
     void warnIfRefundAmountMismatch(String orderNo, DailyTicketRefund refund, String callbackAmount) {
         if (refund == null || !StringUtils.hasText(callbackAmount)) {
             return;
@@ -210,7 +184,6 @@ public class DailyTicketRefundCallbackService {
         }
     }
 
-    /** 把回调字段翻译成 {@code markRefunded} / {@code markRefundFailed} 认的 refundData 形状。 */
     Map<String, Object> toRefundCallbackData(DailyTicketRefundCallbackReqDTO request) {
         Map<String, Object> refundData = new LinkedHashMap<>();
         DailyTicketOrderSupport.putIfText(refundData, "refundNo", request.getRefundNo());

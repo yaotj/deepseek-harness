@@ -341,13 +341,7 @@ public class EsReportServiceImpl implements IEsReportService {
     @Autowired
     private SqlSessionFactory sqlSessionFactory;
 
-    /**
-     * 批量记录文件处理结果
-     * @param addList
-     * @param updateList
-     * @param deleteList
-     * @param procLog
-     */
+
     public void record(List<Object> addList,List<Object> updateList,List<Object> deleteList,TblTktEsFileProcLog procLog) {
 
         SqlSession sqlSession = null;

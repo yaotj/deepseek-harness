@@ -18,9 +18,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住票实例三条 CAS 的前置态与目标态：写反一个方向就是「票被锁死」或「退款后还能过闸」。
- */
+
 class DailyTicketTicketLockWriterTest {
 
     private DailyTicketInstanceMapper instanceMapper;

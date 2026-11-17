@@ -2,10 +2,7 @@ package com.chinasofti.huateng.acc.security.server.util.sm2;
 
 import com.chinasofti.huateng.acc.security.server.util.TransformUtils;
 
-/**
- * @author houkepan
- * @date 2021/3/22 19:08
- */
+
 public class Main {
     public static void main(String[] args) {
         getSign("1111");
@@ -14,23 +11,17 @@ public class Main {
     private static void test1() {
         SM2 sm2 = new SM2();
 
-        //生成SM2密钥对，前32字节是私钥，后64字节是公钥。
 
         String privatekey = "224525589868531772E03470B5187F242C4D54994A52EEA2E9F6ACC0DD0043D9";
         String publickey = "797BBE15308FC3C6A2AE8EC65337CDD0665DBDFEE3BE0671F42045F93B91C6DB05653512F22817B1E9277375AB0A2D65A752475DC1963E6F71D85E56E3C58161";
         String str = "6d65737361676520646967657374";
-        //截取私钥
         byte[] byteArraySm2PrivateKey = TransformUtils.HexStringToByteArr(privatekey);
-        //截取公钥
         byte[] byteArraySm2PublicKey = TransformUtils.HexStringToByteArr(publickey);
 
-        //用户ID，使用固定值1234567812345678。
         String strUserID = "1234567812345678";
         byte[] byteArrayUserID = strUserID.getBytes();
 
-        //原文
         byte[] byteArrayOriginData = TransformUtils.HexStringToByteArr(str);
-        //计算哈希值
         byte[] byteArrayPublicKeyX = new byte[32];
         byte[] byteArrayPublicKeyY = new byte[32];
         System.arraycopy(byteArraySm2PublicKey, 0, byteArrayPublicKeyX, 0, 32);
@@ -38,10 +29,8 @@ public class Main {
         byte[] byteArrayHash = sm2
                 .getHash(byteArrayOriginData, byteArrayUserID, byteArrayPublicKeyX, byteArrayPublicKeyY);
 
-        //签名
         byte[] byteArraySignData = sm2.sm2Sign(byteArrayHash, byteArraySm2PrivateKey);
         System.out.println("签名HexString=========>" + TransformUtils.bytesToHex(byteArraySignData));
-        //验签
         byte[] byteArraySignDataR = new byte[32];
         byte[] byteArraySignDataS = new byte[32];
         System.arraycopy(byteArraySignData, 0, byteArraySignDataR, 0, 32);
@@ -61,11 +50,9 @@ public class Main {
         byte[] byteArrayPublicKey = TransformUtils.HexStringToByteArr(strPublicKey);
         byte[] byteArraySignData = TransformUtils.HexStringToByteArr(strSignData);
         byte[] byteArrayOriginData = TransformUtils.HexStringToByteArr(strOriginData);
-        //用户ID，使用固定值1234567812345678。
         String strUserID = "1234567812345678";
         byte[] byteArrayUserID = strUserID.getBytes();
 
-        //计算哈希值
         byte[] byteArrayPublicKeyX = new byte[32];
         byte[] byteArrayPublicKeyY = new byte[32];
         System.arraycopy(byteArrayPublicKey, 0, byteArrayPublicKeyX, 0, 32);
@@ -73,7 +60,6 @@ public class Main {
         byte[] byteArrayHash = sm2
                 .getHash(byteArrayOriginData, byteArrayUserID, byteArrayPublicKeyX, byteArrayPublicKeyY);
 
-        //验签
         byte[] byteArraySignDataR = new byte[32];
         byte[] byteArraySignDataS = new byte[32];
         System.arraycopy(byteArraySignData, 0, byteArraySignDataR, 0, 32);
@@ -89,18 +75,13 @@ public class Main {
 
         String privatekey = "224525589868531772E03470B5187F242C4D54994A52EEA2E9F6ACC0DD0043D9";
         String publickey = "797BBE15308FC3C6A2AE8EC65337CDD0665DBDFEE3BE0671F42045F93B91C6DB05653512F22817B1E9277375AB0A2D65A752475DC1963E6F71D85E56E3C58161";
-        //截取私钥
         byte[] byteArraySm2PrivateKey = TransformUtils.HexStringToByteArr(privatekey);
-        //截取公钥
         byte[] byteArraySm2PublicKey = TransformUtils.HexStringToByteArr(publickey);
 
-        //用户ID，使用固定值1234567812345678。
         String strUserID = "1234567812345678";
         byte[] byteArrayUserID = strUserID.getBytes();
 
-        //原文
         byte[] byteArrayOriginData = TransformUtils.HexStringToByteArr(str);
-        //计算哈希值
         byte[] byteArrayPublicKeyX = new byte[32];
         byte[] byteArrayPublicKeyY = new byte[32];
         System.arraycopy(byteArraySm2PublicKey, 0, byteArrayPublicKeyX, 0, 32);
@@ -108,9 +89,7 @@ public class Main {
         byte[] byteArrayHash = sm2
                 .getHash(byteArrayOriginData, byteArrayUserID, byteArrayPublicKeyX, byteArrayPublicKeyY);
 
-        //签名
         byte[] byteArraySignData = sm2.sm2Sign(byteArrayHash, byteArraySm2PrivateKey);
-//        log.info("签名HexString=========>" + TransformUtils.bytesToHex(byteArraySignData));
 
         return TransformUtils.bytesToHex(byteArraySignData);
     }

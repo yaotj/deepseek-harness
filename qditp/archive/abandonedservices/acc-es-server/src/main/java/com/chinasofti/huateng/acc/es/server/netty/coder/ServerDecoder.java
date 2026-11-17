@@ -8,22 +8,11 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import lombok.extern.slf4j.Slf4j;
 
 
-/**
- * 解码器
- */
+
 @Slf4j
 public class ServerDecoder extends LengthFieldBasedFrameDecoder {
 
-    /**
-     * @param byteOrder           大小端  ByteOrder.LITTLE_ENDIAN
-     * @param maxFrameLength      帧的最大长度
-     * @param lengthFieldOffset   定义长度域位于发送的字节数组中的下标。换句话说：发送的字节数组中下标为${lengthFieldOffset}的地方是长度域的开始地方
-     * @param lengthFieldLength   length字段所占的字节长（如数组的length=12,那么lengthFieldLength的长度就为2）
-     * @param lengthAdjustment    修改帧数据长度字段中定义的值，可以为负数 因为有时候我们习惯把头部记入长度,若为负数,则说明要推后多少个字段
-     *                            lengthAdjustment  = 数据包长度 - lengthFieldOffset - lengthFieldLength  - 长度域的值(满足发送条件)
-     * @param initialBytesToStrip 解析时候跳过多少个长度
-     * @param failFast            默认为true，当frame长度超过maxFrameLength时立即报TooLongFrameException异常，为false，读取完整个帧再报异
-     */
+
 
     public ServerDecoder(int maxFrameLength, int lengthFieldOffset, int lengthFieldLength, int lengthAdjustment, int initialBytesToStrip, boolean failFast) {
         super(maxFrameLength, lengthFieldOffset, lengthFieldLength, lengthAdjustment, initialBytesToStrip, failFast);

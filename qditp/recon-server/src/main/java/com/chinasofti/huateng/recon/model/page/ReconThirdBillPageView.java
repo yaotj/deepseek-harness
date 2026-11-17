@@ -4,7 +4,6 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 
-/** 渠道账单行（{@code RECON_THIRD_BILL}）运营查询视图。 */
 @Data
 public class ReconThirdBillPageView {
     private String billDate;

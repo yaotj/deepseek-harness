@@ -4,14 +4,10 @@ import com.chinasofti.huateng.common.response.CommonResult;
 
 import java.util.List;
 
-/**
- * 支付宝出行-黑名单结果通知请求参数。
- */
+
 public class AlipayTripBlackListNotifyReqDTO extends CommonResult {
 
-    /**
-     * 黑名单列表，最多25笔。
-     */
+
     private List<BlackListItem> blackList;
 
     public List<BlackListItem> getBlackList() {
@@ -22,38 +18,24 @@ public class AlipayTripBlackListNotifyReqDTO extends CommonResult {
         this.blackList = blackList;
     }
 
-    /**
-     * 黑名单单条记录。
-     */
+
     public static class BlackListItem {
-        /**
-         * 第三方用户ID。
-         */
+
         private String thirdUserId;
 
-        /**
-         * 地铁会员卡号。
-         */
+
         private String cardId;
 
-        /**
-         * 卡类型编码。
-         */
+
         private String cardType;
 
-        /**
-         * 黑名单类型。
-         */
+
         private String blackListType;
 
-        /**
-         * 操作时间，格式：YYYYMMDDHH24mmss。
-         */
+
         private String optionDate;
 
-        /**
-         * 黑名单有效期，格式：YYYYMMDDHH24mmss。
-         */
+
         private String expireTime;
 
         public String getThirdUserId() {

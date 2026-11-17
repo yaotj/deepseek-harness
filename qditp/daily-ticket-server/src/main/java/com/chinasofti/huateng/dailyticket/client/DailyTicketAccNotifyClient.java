@@ -17,7 +17,6 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/** 日票激活后通知 ACC 发售的 HTTP 客户端。 */
 @Component
 public class DailyTicketAccNotifyClient {
 
@@ -60,9 +59,7 @@ public class DailyTicketAccNotifyClient {
         }
     }
 
-    /**
-     * 按 ACC/ITP 公共协议组装表单报文，bizData 保持为 JSON 字符串。
-     */
+
     private String formBody(String bizData) {
         StringBuilder body = new StringBuilder();
         append(body, "providerId", properties.getProviderId());

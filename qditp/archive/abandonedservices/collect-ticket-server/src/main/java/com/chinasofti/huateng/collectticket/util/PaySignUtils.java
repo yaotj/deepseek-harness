@@ -17,9 +17,7 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.TreeMap;
 
-/**
- * Pay center signature utility.
- */
+
 @Component
 public class PaySignUtils {
     private static final Logger log = LoggerFactory.getLogger(PaySignUtils.class);
@@ -32,12 +30,7 @@ public class PaySignUtils {
 
     private static final String SIGN_ALGORITHM = "SHA256WithRSA";
 
-    /**
-     * Sign request parameters.
-     *
-     * @param params parameters to sign
-     * @return signature string
-     */
+
     public String sign(Map<String, String> params) {
         if (params == null || params.isEmpty()) {
             return "";
@@ -51,13 +44,7 @@ public class PaySignUtils {
         }
     }
 
-    /**
-     * Verify pay center callback notification.
-     *
-     * @param params parameters to verify
-     * @param sign   signature
-     * @return whether verification passed
-     */
+
     public boolean verify(Map<String, String> params, String sign) {
         if (params == null || params.isEmpty() || !StringUtils.hasText(sign)) {
             return false;
@@ -75,10 +62,7 @@ public class PaySignUtils {
         }
     }
 
-    /**
-     * Build signature data.
-     * Sort by parameter name alphabetically, concatenate as key=value&key=value.
-     */
+
     private String buildSignData(Map<String, String> params) {
         TreeMap<String, String> sortedParams = new TreeMap<>(params);
         StringBuilder sb = new StringBuilder();
@@ -91,9 +75,7 @@ public class PaySignUtils {
         return sb.toString();
     }
 
-    /**
-     * Sign with RSA private key.
-     */
+
     private String signWithRsa(String data, String privateKey) {
         try {
             if (!StringUtils.hasText(privateKey)) {
@@ -115,9 +97,7 @@ public class PaySignUtils {
         }
     }
 
-    /**
-     * Verify with RSA public key.
-     */
+
     private boolean verifyWithRsa(String data, String sign, String publicKey) {
         try {
             byte[] keyBytes = Base64.getDecoder().decode(publicKey);

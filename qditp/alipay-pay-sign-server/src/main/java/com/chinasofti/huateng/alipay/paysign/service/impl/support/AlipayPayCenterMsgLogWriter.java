@@ -11,28 +11,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-/**
- * 我方 → 支付中心的出网报文留痕，一次调用一行，写进 {@code ALIPAY_PAY_CENTER_MSG_LOG}。
- *
- * <p><b>为什么单独一个类</b>：{@code requestPay} / {@code payQuery} / {@code requestRefund} /
- * {@code refundQuery} 四个出网接口都要写同一张表、同一套字段，抄四份必然长歪。
- *
- * <p><b>写入时机 MUST 是「拿到应答（或异常）之后写一行」</b>，NEVER 拆成出网前后各写一次 ——
- * 那样一次调用会变两行，破坏本表「一次调用一行」的语义。调用抛异常拿不到应答时，
- * {@code retCode} 留空、成因记进 {@code remark}，报文照样落。
- *
- * <p><b>落库失败只记 WARN、NEVER 打断业务链路</b>：留痕失败不该让一笔本可成功的支付失败。
- *
- * <p><b>为什么是 public</b>：扣费申请的新落点在 {@code service.impl.pay} 包，跨包注不进包私有类。
- * 放开可见性是刻意的、也是最小改法 —— 另一个选项是把留痕逻辑再抄一份，那必然长歪。
- * <b>本类仍只做留痕、NEVER 在里面判成没成</b>（业务判定属于调用点）。
- *
- * <p><b>2026-09-21 从 {@code service.impl.payment} 迁到 {@code service.impl.support}</b>：本类被
- * {@code pay}（扣费申请）/ {@code refund}（退款）/ 旧 {@code payment} 三个包共用，留在旧包里
- * 等于新实现反过来依赖旧包。<b>{@code support} 包的判据是「被两个以上聚合共用、且不含任何聚合自己的业务判定」</b>，
- * 同批迁入的还有 {@link BizDataBuilder} / {@link IndustryDetailEnricher} / {@link RefundAmountCalculator}。
- * <b>NEVER 往本包塞带聚合语义的类，也 NEVER 把这四个挪回 {@code payment}</b>。
- */
+
 @Component
 public class AlipayPayCenterMsgLogWriter {
 
@@ -47,14 +26,7 @@ public class AlipayPayCenterMsgLogWriter {
         this.alipayPayCenterMsgLogMapper = alipayPayCenterMsgLogMapper;
     }
 
-    /**
-     * 记一次出网调用。
-     *
-     * @param apiName   requestPay / payQuery / requestRefund / refundQuery
-     * @param requestNo 退款类接口填退款单号，支付类传 null
-     * @param reply     支付中心应答；调用本身抛异常时传 null
-     * @param remark    异常摘要或人工说明，无则传 null
-     */
+
     public void record(String orderNo, String txnDate, String apiName, String requestNo,
                        Map<String, Object> bizData, PayCenterReply reply, long elapsedMs, String remark) {
         try {
@@ -82,10 +54,7 @@ public class AlipayPayCenterMsgLogWriter {
         }
     }
 
-    /**
-     * 三个分支都只取「对方说了什么」，NEVER 在这里判成没成 —— 业务判定属于调用点，
-     * 混进留痕会让同一份事实出现两套解释。
-     */
+
     private void fillReply(AlipayPayCenterMsgLog record, PayCenterReply reply) {
         if (reply == null) {
             return;

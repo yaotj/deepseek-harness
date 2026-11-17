@@ -10,10 +10,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-/**
- * 支付宝出行免密扣费报文组装特征测试，聚焦 {@code payTriggerType} 注入
- * （V1.2 文档必填：01-首次支付，02-补偿支付）。
- */
+
 class AlipayTripPayRequestFactoryTest {
 
     private final AlipayTripPayRequestFactory factory =

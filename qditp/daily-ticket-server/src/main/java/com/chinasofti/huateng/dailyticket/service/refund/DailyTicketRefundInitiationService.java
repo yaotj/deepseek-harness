@@ -333,13 +333,7 @@ public class DailyTicketRefundInitiationService {
         return success(result);
     }
 
-    /**
-     * 判定异常是否为 {@code UK_DAILY_TICKET_REFUND_ORDER} 唯一索引冲突（同一订单已有退款单）。
-     *
-     * <p>实现已收口到 {@link DailyTicketRefundMessages#isDuplicateRefund(Throwable)} —— 取消单自动退款
-     * 也要用同一份 cause 链判定，**NEVER 在这里复制一份**（本模块开了 tracing，观测切面会把异常重新包一层，
-     * 两份实现一旦漂移就会有一处静默落空）。
-     */
+
     private static boolean isDuplicateRefund(Throwable e) {
         return DailyTicketRefundMessages.isDuplicateRefund(e);
     }

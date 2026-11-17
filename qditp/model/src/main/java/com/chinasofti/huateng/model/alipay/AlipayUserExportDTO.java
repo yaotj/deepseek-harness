@@ -3,9 +3,7 @@ package com.chinasofti.huateng.model.alipay;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-/**
- * 支付宝用户异步导出 DTO。
- */
+
 public class AlipayUserExportDTO implements Serializable
 {
     private static final long serialVersionUID = 1L;
@@ -16,7 +14,6 @@ public class AlipayUserExportDTO implements Serializable
     private String msisdn;
     private String channel;
     private String thirdPayId;
-    /** 渠道签约流水号（ALIPAY_USER_INFO.REQ_CONTRACT_NO）。 */
     private String reqContractNo;
     private String status;
     private LocalDateTime createTime;

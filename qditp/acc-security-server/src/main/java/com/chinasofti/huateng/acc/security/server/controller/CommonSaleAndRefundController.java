@@ -11,9 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 
-/**
- * 公共发售、退款key计算Controller
- */
+
 @Validated
 @RestController
 public class CommonSaleAndRefundController {
@@ -21,9 +19,7 @@ public class CommonSaleAndRefundController {
     @Autowired
     private CommonSaleAndRefundService commonSaleAndRefundService;
 
-    /**
-     * 公共发售、退款key计算
-     */
+
     @PostMapping("/get/saleAndRefund/key")
     public ResultVO<String> getSaleKey(@RequestBody @Valid SaleAndRefundParam param) throws InterruptedException {
         return commonSaleAndRefundService.getSaleAndRefundKey(param);

@@ -2,7 +2,6 @@ package com.chinasofti.huateng.gatetxnpay.entity;
 
 import java.math.BigDecimal;
 
-/** DISCOUNT_LEVEL 折扣档位。 */
 public class DiscountLevel {
     private Integer levelAmt;
     private BigDecimal levelDiscount;

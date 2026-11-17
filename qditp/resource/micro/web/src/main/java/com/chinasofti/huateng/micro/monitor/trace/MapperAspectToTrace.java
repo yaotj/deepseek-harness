@@ -29,10 +29,7 @@ public class MapperAspectToTrace {
     private static final String TAG_KEY_METHOD = "method";
     private static final String TAG_KEY_STATUS = "status";
 
-    /**
-     * 观测 mapper 调用耗时，并原样抛出业务异常。
-     */
-    // NEVER 回退成 observation.observe(Supplier)：异常会被包一层，幂等兜底 catch 全部落空（ADR-D53）
+
     @Around("mapper()")
     public Object around(ProceedingJoinPoint pjp) throws Throwable {
         if (simpleObservationMonitor.shouldSkipAopTraceLogic()) {

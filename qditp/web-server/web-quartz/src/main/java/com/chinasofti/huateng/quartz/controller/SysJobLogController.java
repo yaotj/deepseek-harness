@@ -20,11 +20,7 @@ import com.chinasofti.huateng.quartz.domain.SysJobLog;
 import com.chinasofti.huateng.quartz.service.IJobTraceLogService;
 import com.chinasofti.huateng.quartz.service.ISysJobLogService;
 
-/**
- * 调度日志操作处理
- * 
- * @author zmzhang
- */
+
 @RestController
 @RequestMapping("/monitor/jobLog")
 public class SysJobLogController extends BaseController
@@ -36,9 +32,7 @@ public class SysJobLogController extends BaseController
     private IJobTraceLogService jobTraceLogService;
 
 
-    /**
-     * 查询定时任务调度日志列表
-     */
+
     @PreAuthorize("@ss.hasPermi('monitor:job:list')")
     @GetMapping("/list")
     public TableDataInfo list(SysJobLog sysJobLog)
@@ -48,9 +42,7 @@ public class SysJobLogController extends BaseController
         return getDataTable(list);
     }
 
-    /**
-     * 导出定时任务调度日志列表
-     */
+
     @PreAuthorize("@ss.hasPermi('monitor:job:export')")
     @Log(title = "任务调度日志", businessType = BusinessType.EXPORT)
     @PostMapping("/export")
@@ -61,9 +53,7 @@ public class SysJobLogController extends BaseController
         util.exportExcel(response, list, "调度日志");
     }
     
-    /**
-     * 根据调度编号获取详细信息
-     */
+
     @PreAuthorize("@ss.hasPermi('monitor:job:query')")
     @GetMapping(value = "/{jobLogId}")
     public AjaxResult getInfo(@PathVariable Long jobLogId)
@@ -72,11 +62,7 @@ public class SysJobLogController extends BaseController
     }
 
 
-    /**
-     * 根据调度编号检索本次执行的全链路日志（按 job_message 里的 traceId 去 VictoriaLogs 反查）。
-     *
-     * <p>与 `/{jobLogId}` 的区别：那个只回 sys_job_log 这一行，本接口回下游服务的日志明细。</p>
-     */
+
     @PreAuthorize("@ss.hasPermi('monitor:job:query')")
     @GetMapping(value = "/trace/{jobLogId}")
     public AjaxResult getTraceLog(@PathVariable Long jobLogId)
@@ -84,9 +70,7 @@ public class SysJobLogController extends BaseController
         return success(jobTraceLogService.selectTraceLogByJobLogId(jobLogId));
     }
 
-    /**
-     * 删除定时任务调度日志
-     */
+
     @PreAuthorize("@ss.hasPermi('monitor:job:remove')")
     @Log(title = "定时任务调度日志", businessType = BusinessType.DELETE)
     @DeleteMapping("/{jobLogIds}")
@@ -95,9 +79,7 @@ public class SysJobLogController extends BaseController
         return toAjax(jobLogService.deleteJobLogByIds(jobLogIds));
     }
 
-    /**
-     * 清空定时任务调度日志
-     */
+
     @PreAuthorize("@ss.hasPermi('monitor:job:remove')")
     @Log(title = "调度日志", businessType = BusinessType.CLEAN)
     @DeleteMapping("/clean")

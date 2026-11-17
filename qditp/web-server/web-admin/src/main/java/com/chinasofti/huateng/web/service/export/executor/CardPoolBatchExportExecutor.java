@@ -15,9 +15,7 @@ import com.chinasofti.huateng.web.domain.export.AsyncExportTask;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 
-/**
- * 卡池批次异步导出执行器。
- */
+
 @Component("CARD_POOL_BATCH")
 public class CardPoolBatchExportExecutor extends AbstractExcelExportExecutor
 {

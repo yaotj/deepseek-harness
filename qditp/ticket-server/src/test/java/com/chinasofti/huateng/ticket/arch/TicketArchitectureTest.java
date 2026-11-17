@@ -10,7 +10,6 @@ import org.junit.jupiter.api.Test;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
-/** ticket-server 的架构门禁。 */
 class TicketArchitectureTest {
 
     private static final String TICKET_ROOT = "com.chinasofti.huateng.ticket";
@@ -24,7 +23,6 @@ class TicketArchitectureTest {
                 .importPackages(TICKET_ROOT);
     }
 
-    /** 业务包之间无循环依赖。 */
     @Test
     void 业务包之间不得存在循环依赖() {
         ArchRule rule = slices()
@@ -33,7 +31,6 @@ class TicketArchitectureTest {
         rule.check(ticketClasses);
     }
 
-    /** {@code QRCODE_STATUS} 的 owner 是 {@code gate}：只有 {@code gate/QRCodeStatusStore} 能持有 {@code QRCodeStatusMapper}，其余包一律经它访问。 */
     @Test
     void QRCodeStatusMapper只允许gate包引用() {
         ArchRule rule = noClasses()
@@ -43,7 +40,6 @@ class TicketArchitectureTest {
         rule.check(ticketClasses);
     }
 
-    /** controller 不得直连 mapper（AGENTS.md §3.1）。 */
     @Test
     void controller不得直接依赖mapper() {
         ArchRule rule = noClasses()
@@ -53,7 +49,6 @@ class TicketArchitectureTest {
         rule.check(ticketClasses);
     }
 
-    /** mapper 层不得反向依赖任何业务包。 */
     @Test
     void mapper层不得依赖业务包() {
         ArchRule rule = noClasses()

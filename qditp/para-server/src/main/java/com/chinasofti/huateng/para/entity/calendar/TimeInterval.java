@@ -2,9 +2,7 @@ package com.chinasofti.huateng.para.entity.calendar;
 
 import java.time.LocalDateTime;
 
-/**
- * 时间段参数表 TBL_TIME_INTERVAL。
- */
+
 public class TimeInterval {
     private Long paraVerNo;
     private Integer intervalNo;

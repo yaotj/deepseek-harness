@@ -12,16 +12,7 @@ import java.time.format.DateTimeFormatter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-/**
- * {@link AppNotifyPort} 的唯一实现：APP 出向通知的地址、报文骨架、时间戳与加签都只在这里出现一次。
- *
- * <p>把这三样从通知服务里搬进来的理由是它们与「通知状态机 + 落库重试」
- * 是**不相交的依赖簇**（ADR-D95）：前者只依赖配置与 HTTP 客户端，后者只依赖 mapper 与线程池。
- * 当时的宿主 {@code AppNotifyServiceImpl} 已于 ADR-D127 按聚合拆成
- * {@code SignNotifyServiceImpl} + {@code TerminationNotifyServiceImpl}，本类不受影响。
- *
- * <p>{@code itp.signKey} 只在本类内传给 {@code buildItpSign}，**NEVER 打进日志**。
- */
+
 @Component
 public class AppNotifyHttpAdapter implements AppNotifyPort {
 
@@ -45,7 +36,6 @@ public class AppNotifyHttpAdapter implements AppNotifyPort {
 
     private final String signKey;
 
-    /** 协作者与配置一律构造注入（ADR-D96）：对象一建成即完备，测试里也能逐项指定。 */
     public AppNotifyHttpAdapter(
             AppNotificationClient appNotificationClient,
             @Value("${app.notify.sign-result-url:}") String signResultUrl,
@@ -92,7 +82,6 @@ public class AppNotifyHttpAdapter implements AppNotifyPort {
         return new NotifyDelivery(result.success(), result.message());
     }
 
-    /** 把领域通知模型转换为客户端只关心的 ITP 表单参数。 */
     private AppNotificationClient.NotificationRequest toClientRequest(ItpCommonRequest<?> request) {
         return new AppNotificationClient.NotificationRequest(
                 request.getProviderId(), request.getCharset(), request.getFormat(), request.getTimestamp(),

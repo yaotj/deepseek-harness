@@ -20,9 +20,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
-/**
- * 对账分片写出与上送的收口对象，源服务抽取时**逐行写入**、按阈值自动滚片、每片即时上送。
- */
+
 public final class ReconPartSink implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(ReconPartSink.class);
@@ -74,11 +72,7 @@ public final class ReconPartSink implements AutoCloseable {
         this.maxPartBytes = maxPartBytes;
     }
 
-    /**
-     * 写一行记录。
-     * @param line 管道分隔的一行，不含行尾换行符。
-     * @param amountCents 该行参与对账的金额，单位分；汇总行传该行的金额合计。
-     */
+
     public void write(String line, long amountCents) {
         if (committed || closed) {
             throw new IllegalStateException("分片写出通道已关闭 batchId=" + batchId + ", source=" + source);
@@ -100,9 +94,7 @@ public final class ReconPartSink implements AutoCloseable {
         }
     }
 
-    /**
-     * 收口：把最后一片写出并上送，然后向 recon-server 声明本源本文件类型已完成。
-     */
+
     public void commit() {
         if (committed) {
             return;
@@ -118,24 +110,19 @@ public final class ReconPartSink implements AutoCloseable {
                 batchId, source, fileType, partNo, totalRecords, totalAmount);
     }
 
-    /** 已写出并上送成功的分片数。 */
     public int getUploadedParts() {
         return partNo;
     }
 
-    /** 已写出的记录总数。 */
     public long getTotalRecords() {
         return totalRecords;
     }
 
-    /** 已写出的金额合计，单位分。 */
     public long getTotalAmount() {
         return totalAmount;
     }
 
-    /**
-     * 关闭通道：清理本地临时文件；若未 {@link #commit()} 则向 recon-server 声明失败。
-     */
+
     @Override
     public void close() {
         if (closed) {

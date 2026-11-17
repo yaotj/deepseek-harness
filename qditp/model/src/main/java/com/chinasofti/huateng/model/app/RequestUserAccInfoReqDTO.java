@@ -1,11 +1,8 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * IF8A-35 查询用户账务信息请求。
- */
+
 public class RequestUserAccInfoReqDTO {
 
-    /** 第三方用户 id。 */
     private String thirdUserId;
 
     public String getThirdUserId() {

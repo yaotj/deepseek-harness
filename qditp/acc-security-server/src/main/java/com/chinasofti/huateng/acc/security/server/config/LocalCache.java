@@ -6,29 +6,19 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * @author houkepan
- * @date 2020/4/26 16:01
- */
+
 public class LocalCache {
 
-    /**
-     * 缓存默认失效时间(毫秒)
-     */
+
     private static final long DEFAULT_TIMEOUT = 3 * 1000;
 
-    /**
-     * 缓存清除动作执行间隔(秒)
-     */
+
     private static final long TASK_TIME = 1;
-    /**
-     * 缓存存储的map
-     */
+
     private static final ConcurrentHashMap<String, CacheEntity> cacheMap = new ConcurrentHashMap<>();
     private static AtomicLong sequence = new AtomicLong();
     private static volatile LocalCache instance = new LocalCache();
 
-    // TODO: 2020/6/20
     private LocalCache() {
         new Thread(new TimeoutTimer()).start();
     }
@@ -77,7 +67,6 @@ public class LocalCache {
         cacheMap.remove(key);
     }
 
-    //定时器线程-用于检查缓存过期
     static class TimeoutTimer implements Runnable {
 
         @Override
@@ -99,24 +88,16 @@ public class LocalCache {
         }
     }
 
-    /**
-     * 存储单元
-     */
+
     static class CacheEntity {
 
-        /**
-         * 值
-         */
+
         private Object value;
 
-        /**
-         * 过期时间(毫秒)
-         */
+
         private long expire;
 
-        /**
-         * 创建时的时间戳
-         */
+
         private long timeStamp;
 
         public Object getValue() {

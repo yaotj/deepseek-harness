@@ -1,22 +1,13 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * IF8B-02 APP 解约结果通知业务参数。
- */
+
 public class AppTerminationResultNotifyReqDTO {
-    /** 三方用户 ID。 */
     private String thirdUserId;
-    /** 卡 ID。 */
     private String cardId;
-    /** 卡类型。 */
     private String cardType;
-    /** 商户端签约流水号。 */
     private String requestSignSeq;
-    /** 解约结果，SUCCESS 表示解约成功，FAIL 表示解约失败。 */
     private String terminationResult;
-    /** 解约结果说明。 */
     private String terminationResultMsg;
-    /** 解约时间，格式 yyyyMMddHHmmss。 */
     private String terminationTime;
 
     public String getThirdUserId() {

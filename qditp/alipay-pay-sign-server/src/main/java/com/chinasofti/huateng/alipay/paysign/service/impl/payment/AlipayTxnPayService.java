@@ -28,37 +28,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-/**
- * 支付宝出行（小程序）扣费申请 —— <b>落新表 {@code ALIPAY_PAY_TXN_DETAIL} 的实现</b>。
- *
- * <p><b>2026-09-18 起本类已是零调用方、只作回滚位</b>：{@code POST /api/payment/requestPay} 已切到
- * {@code service.AlipayPayRequestService}（实现 {@code service.impl.pay.AlipayPayRequestServiceImpl}）。
- * 本类行为一行未改，<b>NEVER 在这里新增能力</b> —— 新的扣款能力一律加在新落点；
- * 回滚只需把 {@code AlipayTxnPayController.requestPay} 改回注本类。
- * 新实现<b>唯一的行为差异</b>是把「已 SUCCESS 短路」挪到取 {@code txnDate} 的 RPC 之前
- * （本类的顺序会让一笔已成功的单子在 gate-txn-pay 不可达时被报成失败）。
- *
- * <p>与同包的旧 {@link PaymentRequestService} <b>并存</b>：旧类逐字保留、零改动，只是没有 HTTP 入口了。
- * <b>NEVER 在旧类上改任何东西</b>。
- *
- * <p><b>与旧实现的四处实质差异</b>（不是重构，是修缺陷）：
- * <ol>
- *   <li><b>落库</b>。旧实现全程不写任何表（单测 {@code AlipayPaymentCharacterizationTest} 有一条断言
- *       专门钉住这个缺陷），于是扣款申请没有任何本地痕迹、失败无法补偿、对账无源。本实现按
- *       「先落库 → 再出网 → 后回写」三步走。</li>
- *   <li><b>报文留痕</b>。每次出网的请求与应答原文进 {@code ALIPAY_PAY_CENTER_MSG_LOG}，一次调用一行，
- *       重试链路每一步都可举证。</li>
- *   <li><b>幂等</b>。旧实现对同一 {@code orderNo} 重推会无条件再打一次支付中心；本实现先查本地，
- *       已 {@code SUCCESS} 直接短路返成功，并靠 {@code UK_APTD_ORDER} 兜住并发。</li>
- *   <li><b>{@code thirdUserId} 必填校验</b>。旧实现的六项校验里没有它，null 时会一路走到查签约、
- *       被当成「用户未签约」返回，掩盖了参数问题。</li>
- * </ol>
- *
- * <p><b>NEVER 加 {@code @Transactional}</b>：本方法内有支付中心 HTTP 调用与一次 RPC，事务包住它们会
- * 让行锁持有时长等于对端响应时长，上游重推全部堆在同一行上串行等待 —— pay-sign 侧 2026-08-26 已因此
- * 出过循环重推 8 分钟、单请求 287 秒、连「留证据」的 INSERT 都被一起回滚的事故。每条 SQL 自动提交
- * 才是这里要的语义：**出网前那次落库必须已经提交**，否则出网后进程挂掉就什么都不剩。
- */
+
 @Service
 public class AlipayTxnPayService {
 
@@ -105,7 +75,6 @@ public class AlipayTxnPayService {
         this.blacklistPort = blacklistPort;
     }
 
-    /** 扣费申请。 */
     public AlipayTripRequestPayRespDTO requestPay(AlipayTripRequestPayReqDTO request) {
         log.info("接收到支付宝支付申请报文（新链路）: {}", JSON.toJSONString(request));
         validate(request);
@@ -151,23 +120,7 @@ public class AlipayTxnPayService {
         return applyReply(reply, signInfo, orderNo);
     }
 
-    /**
-     * 按支付中心应答回写状态并组装响应。
-     *
-     * <p>三分支的处置刻意不同，MUST 逐条读懂：
-     * <ul>
-     *   <li>{@code Accepted} + {@code SUCCESS}：只是<b>受理</b>，最终结果等回调或回查，
-     *       因此写 {@code PROCESSING} 而<b>不是</b> {@code SUCCESS}。
-     *       <b>NEVER 在这里写 SUCCESS</b> —— 那等于拿「受理成功」冒充「扣款成功」。</li>
-     *   <li>{@code Accepted} + 非 {@code SUCCESS}：拿到了业务拒绝，一次即终态 {@code FAIL}，并加黑名单
-     *       （沿用旧实现口径：只有这一支加黑）。</li>
-     *   <li>{@code Rejected}：拿到响应但传输层判据不成立，同样写 {@code FAIL}，但 <b>NEVER 加黑名单</b> ——
-     *       拿不到业务应答不等于扣款被拒。</li>
-     *   <li>{@code NoAnswer}：<b>一个字都不回写</b>，状态保持 {@code markRequesting} 置好的
-     *       {@code PROCESSING}。钱可能已经扣了，写 {@code FAIL} 会让这笔单子被当成失败、既不回查也不补偿，
-     *       是实打实的资损路径。<b>NEVER 在这一支置 FAIL。</b></li>
-     * </ul>
-     */
+
     private AlipayTripRequestPayRespDTO applyReply(PayCenterReply reply, AlipaySignInfo signInfo, String orderNo) {
         switch (reply) {
             case PayCenterReply.Accepted accepted -> {
@@ -198,19 +151,7 @@ public class AlipayTxnPayService {
         }
     }
 
-    /**
-     * 从订单主表取 {@code TXN_DATE}。
-     *
-     * <p>本表的 {@code TXN_DATE} 是分区键 + 唯一键第二列，值 MUST 与 {@code GATE_TXN_PAY} 那行一致 ——
-     * <b>NEVER 用本地当天日期兜底</b>：跨零点时会把行写进错误的月分区，而且与主表的账期口径分叉，
-     * 对账时两边永远对不上，且这种错**建表时和运行时都不会报错**。
-     *
-     * <p>入向报文里没有这个字段（{@code AlipayTripRequestPayReqDTO} 的 16 个字段里没有它，上游
-     * {@code AlipayTripPayRequestFactory} 也没送），所以只能回查主表。这个依赖是自洽的：请求本来就来自
-     * gate-txn-pay，它不可达的话这个请求根本进不来，因此不构成新增失败点。
-     *
-     * <p>取不到就抛错、让上游重推，<b>NEVER 编一个日期继续落库</b>。
-     */
+
     private String resolveTxnDate(String orderNo) {
         GateTxnPayListDTO order = gateTxnPayClient.queryByOrderNo(orderNo);
         if (order == null || !StringUtils.hasText(order.getTxnDate())) {
@@ -220,15 +161,7 @@ public class AlipayTxnPayService {
         return order.getTxnDate();
     }
 
-    /**
-     * 出网前落一行支付明细，状态 {@code INIT}。
-     *
-     * <p>并发下两条请求可能都查不到已存在的行，第二条 INSERT 会撞 {@code UK_APTD_ORDER}。
-     * 那不是错误、是幂等生效：本方法把它当「已有别人落好了」处理。
-     * <b>判定 MUST 沿 {@code getCause()} 链走</b>，NEVER 只 catch 最外层的
-     * {@code DuplicateKeyException} —— 本模块开了 tracing，观测切面会把异常重新包一层，
-     * 只认最外层类名的写法会静默失效（ADR-D53 已在卡池上真实发生过）。
-     */
+
     private void insertDetail(AlipayTripRequestPayReqDTO request, AlipaySignInfo signInfo, String orderNo, String txnDate) {
         AlipayPayTxnDetail record = new AlipayPayTxnDetail();
         record.setOrderNo(orderNo);
@@ -265,12 +198,7 @@ public class AlipayTxnPayService {
         }
     }
 
-    /**
-     * 扣款被业务拒绝后把该卡加入黑名单。
-     *
-     * <p>处置逐字沿用旧实现：三种结果都只打日志、不落库、不重试 —— 这意味着<b>加黑失败即永久丢失、
-     * 该卡仍可过闸</b>。要补偿得先有载体表（本模块目前没有），<b>NEVER 在这里加静默重试</b>。
-     */
+
     private void addBlackListIfNeeded(AlipaySignInfo signInfo, String reason) {
         if (signInfo == null || !StringUtils.hasText(signInfo.getCardId()) || !StringUtils.hasText(signInfo.getThirdUserId())) {
             return;
@@ -290,10 +218,7 @@ public class AlipayTxnPayService {
         }
     }
 
-    /**
-     * 必填校验。比旧实现多一个 {@code thirdUserId}：旧实现漏了它，null 时会一路走到查签约、
-     * 被当成「用户未签约」返回，把参数问题伪装成业务问题。
-     */
+
     private void validate(AlipayTripRequestPayReqDTO request) {
         boolean valid = request != null
                 && StringUtils.hasText(request.getOrderNo())
@@ -322,7 +247,6 @@ public class AlipayTxnPayService {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
-    /** 沿 cause 链判完整性冲突，理由见 {@link #insertDetail} 的注释。 */
     private boolean isIntegrityViolation(Throwable throwable) {
         Throwable current = throwable;
         while (current != null) {

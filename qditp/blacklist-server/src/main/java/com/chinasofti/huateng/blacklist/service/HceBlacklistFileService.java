@@ -22,16 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 
-/**
- * HCE 卡黑名单文件生成并上传 ACC FTP。
- *
- * <p>流程：查 BLACKLIST 里 HCE 票种（0442/0443）的生效行（与判黑同口径，RELEASING 仍算黑名单）
- * → 分配文件版本号 → 生成 PRM.0013.9700.&lt;版本&gt; 二进制文件落本地目录 → 上传 ACC FTP。
- *
- * <p>版本号在独立事务里先分配先提交：即便后续写文件或上传失败，版本也已消耗、只进不退，
- * ACC 侧永远按更大的版本号识别新文件。上传失败的文件留在本地目录可人工补传，
- * 不做自动重传（下一轮调度会产出覆盖性的新版本全量文件）。
- */
+
 @Service
 public class HceBlacklistFileService {
 
@@ -52,11 +43,7 @@ public class HceBlacklistFileService {
         this.ftpUploader = ftpUploader;
     }
 
-    /**
-     * 生成 HCE 黑名单文件并上传 ACC FTP。
-     *
-     * @return 执行结果；FTP 未配置或上传失败时 resultCode 非 0000
-     */
+
     public HceBlacklistFileGenRespDTO generateAndUpload() {
         HceBlacklistFileGenRespDTO response = new HceBlacklistFileGenRespDTO();
 
@@ -79,7 +66,6 @@ public class HceBlacklistFileService {
                 fileName, version, rows.size(), localFile);
 
         if (!StringUtils.hasText(properties.getFtpHost())) {
-            // FTP 未配置视为环境未就绪：文件已落本地，不判失败也不判成功，人工核对后补传。
             log.error("HCE黑名单文件已生成但未上传: FTP 未配置(blacklist.hce-file.ftp-host), fileName={}", fileName);
             return fail(response, "FTP 未配置，文件仅落本地: " + localFile);
         }
@@ -96,12 +82,7 @@ public class HceBlacklistFileService {
         return response;
     }
 
-    /**
-     * 分配文件版本号：独立事务 + 行锁，只进不退。
-     *
-     * <p>REQUIRES_NEW 刻意为之：版本号先提交，即便外层后续步骤失败也不回滚——
-     * 同名同版本文件被两轮内容不同的生成覆盖，比「跳号」更难排查。
-     */
+
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public long allocateVersion() {
         String paramType = properties.getParamType();

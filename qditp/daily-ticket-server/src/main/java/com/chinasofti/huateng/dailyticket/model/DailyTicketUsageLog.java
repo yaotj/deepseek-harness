@@ -2,7 +2,6 @@ package com.chinasofti.huateng.dailyticket.model;
 
 import java.util.Date;
 
-/** 日票/计次票扣次使用明细。 */
 public class DailyTicketUsageLog {
     private Long id;
     private String cardNum;

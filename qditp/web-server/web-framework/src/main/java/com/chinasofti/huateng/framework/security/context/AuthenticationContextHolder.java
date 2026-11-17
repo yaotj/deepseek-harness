@@ -2,11 +2,7 @@ package com.chinasofti.huateng.framework.security.context;
 
 import org.springframework.security.core.Authentication;
 
-/**
- * 身份验证信息
- * 
- * @author zmzhang
- */
+
 public class AuthenticationContextHolder
 {
     private static final ThreadLocal<Authentication> contextHolder = new ThreadLocal<>();

@@ -17,7 +17,6 @@ import org.springframework.util.StringUtils;
 
 import java.util.concurrent.TimeUnit;
 
-/** ACC 逻辑卡号接口（IF7B-01）适配器。 */
 @Component
 public class AccLogicNumClient {
 
@@ -26,11 +25,7 @@ public class AccLogicNumClient {
     private final AccSecureProperties properties;
     private final OkHttpClient httpClient;
 
-    /**
-     * 构造 ACC 客户端。
-     *
-     * @param properties ACC 调用配置
-     */
+
     public AccLogicNumClient(AccSecureProperties properties) {
         this.properties = properties;
         this.httpClient = new OkHttpClient.Builder()
@@ -40,13 +35,7 @@ public class AccLogicNumClient {
                 .build();
     }
 
-    /**
-     * 调用 IF7B-01 请求逻辑卡号文件。
-     *
-     * @param request 请求数量、请求流水号与 ACC 票种
-     * @return ACC 返回码与逻辑卡号文件名
-     * @throws IllegalStateException 地址未配置、HTTP 失败或响应不可解析
-     */
+
     public RequestQrLogicNumListRespDTO requestQrLogicNumList(RequestQrLogicNumListReqDTO request) {
         String url = buildUrl(properties.getRequestQrLogicNumListPath());
         log.info("调用ACC逻辑卡号接口, url={}, requestSeq={}, ticketType={}, requestNum={}",
@@ -70,12 +59,7 @@ public class AccLogicNumClient {
         return parseResponse(responseJson, url);
     }
 
-    /**
-     * 组装 ACC 表单报文：公共参数平铺，{@code bizData} 为 JSON 字符串。
-     *
-     * @param bizData 业务参数
-     * @return 表单请求体
-     */
+
     private FormBody buildFormBody(RequestQrLogicNumListReqDTO bizData) {
         String timestamp = AccSignUtils.buildTimestamp();
         String signType = properties.getSignType();
@@ -100,22 +84,12 @@ public class AccLogicNumClient {
                 .build();
     }
 
-    /**
-     * {@link FormBody.Builder#add} 不接受 null，统一兜成空串。
-     *
-     * @param value 原值
-     * @return 非 null 值
-     */
+
     private String nullToEmpty(String value) {
         return value == null ? "" : value;
     }
 
-    /**
-     * 拼接 ACC 调用地址。
-     *
-     * @param path 接口路径
-     * @return 完整 URL
-     */
+
     private String buildUrl(String path) {
         if (!StringUtils.hasText(properties.getBaseUrl())) {
             throw new IllegalStateException("acc.secure.base-url未配置");
@@ -127,13 +101,7 @@ public class AccLogicNumClient {
         return baseUrl + route;
     }
 
-    /**
-     * 解析 ACC 返回报文，兼容业务字段直接在外层与被 {@code bizData} 包一层两种结构。
-     *
-     * @param responseJson 原始响应体
-     * @param url          调用地址，仅用于异常信息
-     * @return 业务响应
-     */
+
     private RequestQrLogicNumListRespDTO parseResponse(String responseJson, String url) {
         if (!StringUtils.hasText(responseJson)) {
             throw new IllegalStateException("ACC返回报文为空, url=" + url);
@@ -159,13 +127,7 @@ public class AccLogicNumClient {
         return response;
     }
 
-    /**
-     * 兜底补齐 {@code retCode} / {@code retMsg}，字段可能出现在外层而不在 bizData 内。
-     *
-     * @param response 业务响应
-     * @param bizRoot  业务字段所在节点
-     * @param fullRoot 报文根节点
-     */
+
     private void normalizeBaseFields(RequestQrLogicNumListRespDTO response, JSONObject bizRoot, JSONObject fullRoot) {
         if (!StringUtils.hasText(response.getRetCode())) {
             response.setRetCode(firstText(bizRoot, fullRoot, "retCode"));
@@ -179,14 +141,7 @@ public class AccLogicNumClient {
         }
     }
 
-    /**
-     * 先取业务节点、再取根节点的字符串字段。
-     *
-     * @param bizRoot  业务节点
-     * @param fullRoot 根节点
-     * @param key      字段名
-     * @return 字段值，都没有时返回 {@code null}
-     */
+
     private String firstText(JSONObject bizRoot, JSONObject fullRoot, String key) {
         String value = bizRoot.getString(key);
         if (StringUtils.hasText(value)) {

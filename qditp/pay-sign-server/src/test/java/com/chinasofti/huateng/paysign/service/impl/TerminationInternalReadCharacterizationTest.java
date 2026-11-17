@@ -20,7 +20,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/** 护栏：CARD_ID / CARD_TYPE 取自账户域（丢了补建必 ORA-01400），取不到不中断、端口异常不外溢。 */
 class TerminationInternalReadCharacterizationTest {
 
     private static final String SEQ = "0052290701523999";
@@ -30,7 +29,6 @@ class TerminationInternalReadCharacterizationTest {
     private static final String ACCOUNT_CARD_TYPE = "0441";
     private static final String BIZ_REJECT_CODE = "8004";
 
-    /** 账户域答成功时，{@code CARD_ID} / {@code CARD_TYPE} 取自账户域并落进补建的解约申请。 */
     @Test
     @DisplayName("IF8A-75 直接解绑：账户域答成功时用它的 CARD_ID/CARD_TYPE 补建解约申请")
     void unbindAgreementFillsCardInfoFromAccount() {
@@ -47,7 +45,6 @@ class TerminationInternalReadCharacterizationTest {
         assertEquals("PENDING", inserted.getTerminationStatus());
     }
 
-    /** 账户域**业务拒绝**时不中断：入参维持为空，补建时两列回落到签约记录（实测即 NULL）。 */
     @Test
     @DisplayName("IF8A-75 直接解绑：账户域业务拒绝时不中断、不采信，两列回落签约记录")
     void unbindAgreementDoesNotFillCardInfoOnAccountBizRejection() {
@@ -62,7 +59,6 @@ class TerminationInternalReadCharacterizationTest {
         assertNull(inserted.getCardType());
     }
 
-    /** 账户域**不可达**同样不中断。 */
     @Test
     @DisplayName("IF8A-75 直接解绑：账户域不可达时不中断")
     void unbindAgreementSurvivesAccountUnreachable() {
@@ -75,7 +71,6 @@ class TerminationInternalReadCharacterizationTest {
         assertNull(captureInserted(fixture).getCardId());
     }
 
-    /** 端口实现万一抛了（适配器有 bug、Mockito 配错），异常 **NEVER** 逃出本方法。 */
     @Test
     @DisplayName("IF8A-75 直接解绑：端口抛异常时不中断，异常不外溢")
     void unbindAgreementSurvivesPortThrowing() {
@@ -89,7 +84,6 @@ class TerminationInternalReadCharacterizationTest {
         assertNull(captureInserted(fixture).getCardId());
     }
 
-    /** 钱包渠道在本接口上直接短路成 8001，**绝不**触及账户域与支付网关。 */
     @Test
     @DisplayName("IF8A-75 直接解绑：钱包渠道短路成 8001，不查账户域")
     void unbindAgreementShortCircuitsWalletVendor() {
@@ -103,7 +97,6 @@ class TerminationInternalReadCharacterizationTest {
         verify(fixture.accountDomainPort, org.mockito.Mockito.never()).queryPayChannelByContract(anyString());
     }
 
-    /** 把「解约申请尚不存在、签约记录存在且两列为 NULL、CAS 抢到 PENDING、网关答成功」这条。 */
     private TerminationInternalFixture givenUnbindReady() {
         TerminationInternalFixture fixture = TerminationInternalFixture.create();
         when(fixture.terminationRequestMapper.selectByRequestSignSeq(SEQ)).thenReturn(null);
@@ -125,17 +118,14 @@ class TerminationInternalReadCharacterizationTest {
         return captor.getValue();
     }
 
-    /** 账户域答了成功 —— 端口已判过 retCode，落到 {@code Found} 即可采信。 */
     private AccountQuery<AccountPayChannelView> found(String cardId, String cardType) {
         return new AccountQuery.Found<>(new AccountPayChannelView(cardId, cardType, USER));
     }
 
-    /** 账户域业务拒绝（如 {@code 8004}）或响应为空 —— **NEVER 让它带上 cardId**，见 ADR-D94。 */
     private AccountQuery<AccountPayChannelView> notFound() {
         return new AccountQuery.NotFound<>(BIZ_REJECT_CODE, "该用户无此支付通道");
     }
 
-    /** 账户域不可达 —— 与业务拒绝必须是两个分支。 */
     private AccountQuery<AccountPayChannelView> unreachable() {
         return new AccountQuery.Unreachable<>(new RuntimeException("connect timed out"));
     }

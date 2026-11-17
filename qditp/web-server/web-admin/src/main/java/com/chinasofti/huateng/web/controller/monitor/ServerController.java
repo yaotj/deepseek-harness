@@ -7,11 +7,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.chinasofti.huateng.common.core.domain.AjaxResult;
 import com.chinasofti.huateng.framework.web.domain.Server;
 
-/**
- * 服务器监控
- * 
- * @author zmzhang
- */
+
 @RestController
 @RequestMapping("/monitor/server")
 public class ServerController

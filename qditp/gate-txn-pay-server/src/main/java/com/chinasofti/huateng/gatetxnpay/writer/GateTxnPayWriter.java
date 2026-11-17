@@ -10,7 +10,6 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 过闸扣费订单的落库与状态更新 writer，保证事务生效。 */
 @Component
 public class GateTxnPayWriter {
 
@@ -24,7 +23,6 @@ public class GateTxnPayWriter {
         this.metroTransferPushTaskMapper = metroTransferPushTaskMapper;
     }
 
-    /** 插入订单，通过唯一索引保证幂等。 */
     @Transactional(rollbackFor = Exception.class)
     public GateTxnPay insertOrder(GateTxnPay order) {
         try {
@@ -45,7 +43,6 @@ public class GateTxnPayWriter {
         return order;
     }
 
-    /** 订单与公交 outbox 在同一事务中写入，避免订单成功但漏建推送任务。 */
     @Transactional(rollbackFor = Exception.class)
     public GateTxnPay insertOrderWithMetroTransferPushTask(GateTxnPay order, MetroTransferPushTask task) {
         GateTxnPay saved = insertOrder(order);
@@ -56,7 +53,6 @@ public class GateTxnPayWriter {
         return saved;
     }
 
-    /** 推进待支付订单状态：INIT / RETRY -> PROCESSING / RETRY。 */
     @Transactional(rollbackFor = Exception.class)
     public void updateOrderStatusFromPending(GateTxnPay order, String status, String reason) {
         int updated = gateTxnPayMapper.updateStatusFromPending(
@@ -74,13 +70,11 @@ public class GateTxnPayWriter {
         return saved;
     }
 
-    /** 支付结果回调驱动的终态收敛，返回实际影响行数。 */
     @Transactional(rollbackFor = Exception.class)
     public int convergeDebitStatus(String orderNo, String txnDate, String debitStatus, String remark) {
         return gateTxnPayMapper.convergeDebitStatus(orderNo, txnDate, debitStatus, remark);
     }
 
-    /** 在线补款支付成功后把原订单收敛为 SUCCESS，返回实际影响行数。 */
     @Transactional(rollbackFor = Exception.class)
     public int convergeDebitStatusForSupplement(String orderNo, String txnDate, String remark) {
         return gateTxnPayMapper.convergeDebitStatusForSupplement(orderNo, txnDate, remark);
@@ -98,7 +92,6 @@ public class GateTxnPayWriter {
         return saved;
     }
 
-    /** 以订单号唯一约束保证同一笔过闸交易只产生一个公交推送任务。 */
     @Transactional(rollbackFor = Exception.class)
     public void createMetroTransferPushTask(MetroTransferPushTask task) {
         try {
@@ -109,7 +102,6 @@ public class GateTxnPayWriter {
         }
     }
 
-    /** 离线码金额重算成功后回写金额与优惠快照，返回实际影响行数。 */
     @Transactional(rollbackFor = Exception.class)
     public int applyOfflineFareRecalculated(GateTxnPay order) {
         int updated = gateTxnPayMapper.updateOfflineFareRecalculated(order);
@@ -119,7 +111,6 @@ public class GateTxnPayWriter {
         return updated;
     }
 
-    /** 离线码金额重算再次失败：只记原因，保持待重算态等下一轮补偿，返回实际影响行数。 */
     @Transactional(rollbackFor = Exception.class)
     public int markOfflineFarePending(String orderNo, String txnDate, String reason) {
         int updated = gateTxnPayMapper.updateOfflineFarePendingMsg(orderNo, txnDate, reason);
@@ -129,7 +120,6 @@ public class GateTxnPayWriter {
         return updated;
     }
 
-    /** 判断异常链上是否存在 {@link DuplicateKeyException}，即唯一约束冲突。 */
     private boolean isDuplicateKeyViolation(Throwable exception) {
         for (Throwable cause = exception; cause != null && cause != cause.getCause(); cause = cause.getCause()) {
             if (cause instanceof DuplicateKeyException) {

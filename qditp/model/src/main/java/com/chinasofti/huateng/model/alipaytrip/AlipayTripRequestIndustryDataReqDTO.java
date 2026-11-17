@@ -1,23 +1,15 @@
 package com.chinasofti.huateng.model.alipaytrip;
 
-/**
- * 支付宝出行-获取行业数据请求参数。
- */
+
 public class AlipayTripRequestIndustryDataReqDTO {
 
-    /**
-     * 第三方用户ID。
-     */
+
     private String thirdUserId;
 
-    /**
-     * 卡片ID/逻辑卡号。
-     */
+
     private String cardId;
 
-    /**
-     * 卡片类型。
-     */
+
     private String cardType;
 
     public String getThirdUserId() {

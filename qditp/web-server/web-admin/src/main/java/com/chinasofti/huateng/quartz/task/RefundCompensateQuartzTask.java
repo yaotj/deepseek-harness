@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 import java.util.function.Function;
 
-/** 退款补偿任务：驱动 pay-sign-server 的两个退款相关内部端点。 */
 @Component("refundCompensateQuartzTask")
 public class RefundCompensateQuartzTask {
 
@@ -24,24 +23,20 @@ public class RefundCompensateQuartzTask {
         this.paySignClient = paySignClient;
     }
 
-    /** 退款回查补偿。前台调用目标：refundCompensateQuartzTask.compensateRefundQuery()。 */
     public void compensateRefundQuery() {
         invoke("退款回查补偿", paySignClient::compensateRefundQuery, false);
     }
 
-    /** 退款汇总跨表对账补偿。前台调用目标：refundCompensateQuartzTask.compensateRefundSummary()。 */
     public void compensateRefundSummary() {
         invoke("退款汇总跨表对账补偿", paySignClient::compensateRefundSummary, true);
     }
 
-    /** 统一的 traceId 包装：Quartz 进来时 traceId 已由 AbstractQuartzJob.before() 放入 MDC */
     private void invoke(String bizName,
                         Function<Map<String, String>, CompensateNotifyRespDTO> action,
                         boolean skippedExpected) {
         QuartzTraceUtils.runWithTrace(traceId -> invokeOnce(bizName, action, skippedExpected, traceId));
     }
 
-    /** 单条结果看 {@code PAY_REFUND_DETAIL.REFUND_STATUS}。 */
     private void invokeOnce(String bizName,
                             Function<Map<String, String>, CompensateNotifyRespDTO> action,
                             boolean skippedExpected,

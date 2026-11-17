@@ -37,9 +37,6 @@ public class UserRouteService {
 
     @PostConstruct
     public void preload() {
-        // 预热失败 MUST 降级而不是阻断启动（与 log 文案一致）：缓存留空，
-        // 首个用户查询走 loadLegacy 按需回源，回源失败再 fail-safe 走旧 ITP；
-        // reloadSplitPaths 自带 fail-safe（失败置空集合），两条路互不影响。
         try {
             List<String> ids = jdbc.queryForList(
                 "SELECT DISTINCT third_user_id FROM user_itp_reg_info", String.class);
@@ -53,16 +50,13 @@ public class UserRouteService {
         reloadSplitPaths();
     }
 
-    /**
-     * 从数据库重新加载可分流的路径集合（由 Actuator 路由变更触发）
-     */
+
     public void reloadSplitPaths() {
         try {
             List<?> rows = jdbc.queryForList(
                 "SELECT predicates FROM gateway_route_config WHERE predicates IS NOT NULL AND LENGTH(predicates) > 0");
             Set<String> paths = new HashSet<>();
             for (Object row : rows) {
-                // queryForList 返回的是 Map，需要从 PREDICATES 列取值
                 if (row instanceof Map) {
                     Object v = ((Map<?, ?>) row).get("PREDICATES");
                     if (v instanceof String s) {
@@ -80,17 +74,14 @@ public class UserRouteService {
         }
     }
 
-    /**
-     * 从 predicates JSON 中提取 Path= 定义的路径
-     */
+
     private void extractPathPredicates(String predicatesJson, Set<String> paths) {
         if (predicatesJson == null || predicatesJson.isBlank()) return;
-        // 简单解析：提取 "Path=/xxx" 或 "Path=/xxx/**"
         int i = 0;
         while (i < predicatesJson.length()) {
             int pathIdx = predicatesJson.indexOf("\"Path=", i);
             if (pathIdx < 0) break;
-            int start = pathIdx + 6; // skip "Path=
+            int start = pathIdx + 6;
             int end = predicatesJson.indexOf("\"", start);
             if (end < 0) break;
             String path = predicatesJson.substring(start, end);
@@ -99,9 +90,7 @@ public class UserRouteService {
         }
     }
 
-    /**
-     * 检查路径是否在分流范围内
-     */
+
     public boolean isSplitPath(String path) {
         if (splitPaths.isEmpty()) return false;
         for (String splitPath : splitPaths) {
@@ -119,16 +108,7 @@ public class UserRouteService {
         return Boolean.TRUE.equals(legacyCache.get(thirdUserId));
     }
 
-    /**
-     * 判断取票/出票上报请求对应的订单是否属于新 ITP。
-     *
-     * <p>TVM 取票授权与出票结果上报的 {@code bizData} 不带 {@code cardId}/{@code thirdUserId}，
-     * 只能靠 {@code orderNo} 或取票二维码 {@code randomFact} 反查 {@code f2f_order}（新 ITP 订单表）。
-     * 查到 → 新 ITP 订单，走新系统；查不到（旧 ITP 订单或无效键）或查询异常 → fail-safe 旧 ITP。
-     *
-     * @param orderKey {@code orderNo} 或 {@code randomFact}
-     * @return true 表示新 ITP 订单
-     */
+
     public boolean hasNewItpOrder(String orderKey) {
         if (orderKey == null || orderKey.isBlank()) {
             return false;

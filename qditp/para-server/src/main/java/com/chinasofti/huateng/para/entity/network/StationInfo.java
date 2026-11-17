@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.para.entity.network;
 
-/**
- * 车站信息参数表 TBL_STATION_INFO。
- */
+
 public class StationInfo {
     private Long paraVerNo;
     private String stationCode;

@@ -19,11 +19,7 @@ import com.chinasofti.huateng.framework.manager.factory.AsyncFactory;
 import com.chinasofti.huateng.system.service.ISysConfigService;
 import com.chinasofti.huateng.system.service.ISysUserService;
 
-/**
- * 注册校验方法
- * 
- * @author zmzhang
- */
+
 @Component
 public class SysRegisterService
 {
@@ -36,16 +32,13 @@ public class SysRegisterService
     @Autowired
     private LocalCache localCache;
 
-    /**
-     * 注册
-     */
+
     public String register(RegisterBody registerBody)
     {
         String msg = "", username = registerBody.getUsername(), password = registerBody.getPassword();
         SysUser sysUser = new SysUser();
         sysUser.setUserName(username);
 
-        // 验证码开关
         boolean captchaEnabled = configService.selectCaptchaEnabled();
         if (captchaEnabled)
         {
@@ -92,14 +85,7 @@ public class SysRegisterService
         return msg;
     }
 
-    /**
-     * 校验验证码
-     * 
-     * @param username 用户名
-     * @param code 验证码
-     * @param uuid 唯一标识
-     * @return 结果
-     */
+
     public void validateCaptcha(String username, String code, String uuid)
     {
         String verifyKey = CacheConstants.CAPTCHA_CODE_KEY + StringUtils.nvl(uuid, "");

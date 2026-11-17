@@ -1,20 +1,12 @@
 package com.chinasofti.huateng.key.page;
 
-/** 综管台密钥版本查看的展示对象（只读）。NEVER 携带任何密钥材料明文。 */
 public class KeyVersionView {
-    /** 密钥域：AGM_KEY（闸机密钥）/ CA_KEYSTORE（CA 密钥仓库）/ HCE_STATIC_KEY（HCE 静态密钥）。 */
     private String keyDomain;
-    /** 接入方编码（仅 AGM 密钥按接入方分组，其余域为 null）。 */
     private String providerId;
-    /** 当前版本标识：AGM 为批次号，CA 为 KEY_IDX，HCE 为卡数汇总。 */
     private String currentVersion;
-    /** 状态码（域内各自口径，页面原样展示）。 */
     private String status;
-    /** 状态中文描述。 */
     private String statusDesc;
-    /** 生效日期（源列原样，yyyyMMdd）。 */
     private String effectiveDate;
-    /** 最近更新时间。 */
     private String updateTime;
 
     public String getKeyDomain() {

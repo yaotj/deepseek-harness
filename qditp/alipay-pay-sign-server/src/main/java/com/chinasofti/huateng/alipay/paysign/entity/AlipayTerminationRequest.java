@@ -3,9 +3,7 @@ package com.chinasofti.huateng.alipay.paysign.entity;
 import lombok.Data;
 import java.time.LocalDateTime;
 
-/**
- * 支付宝解约登记表实体。
- */
+
 @Data
 public class AlipayTerminationRequest {
     private String terminationSeq;

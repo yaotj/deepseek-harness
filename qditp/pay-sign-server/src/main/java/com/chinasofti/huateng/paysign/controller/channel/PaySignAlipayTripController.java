@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 支付宝出行-渠道接口。 */
 @RestController
 @RequestMapping("/channel")
 public class PaySignAlipayTripController {
@@ -25,7 +24,6 @@ public class PaySignAlipayTripController {
 
     private final PaySignService paySignService;
 
-    /** 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备。 */
     public PaySignAlipayTripController(PaySignService paySignService) {
         this.paySignService = paySignService;
     }
@@ -48,7 +46,6 @@ public class PaySignAlipayTripController {
         return paySignService.requestTermination(request, SignChannelEnum.ALIPAY.getCode());
     }
 
-    /** 支付宝出行-添加签约信息。 */
     @PostMapping("/addContract")
     public RequestSignInfoResult addContract(@RequestBody AlipayTripAddContractReqDTO request) {
         log.info("接收到支付宝添加签约信息报文: {}", request);

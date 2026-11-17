@@ -1,22 +1,14 @@
 package com.chinasofti.huateng.collectticket.model.request;
 
-/**
- * IF2A-05 取消取票订单请求报文。
- */
+
 public class CancelTicketCollectOrderReqDTO {
-    /**
-     * 订单号。
-     */
+
     private String orderNo;
 
-    /**
-     * 用户ID。
-     */
+
     private String userId;
 
-    /**
-     * 取消原因。
-     */
+
     private String cancelReason;
 
     public String getOrderNo() {

@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.employee;
 
-/**
- * ACC 员工码信息。
- */
+
 public class EmployeeCardInfoDTO {
     private String phone;
     private String cardNo;

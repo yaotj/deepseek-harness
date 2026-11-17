@@ -61,7 +61,6 @@ public class DynamicMybatisConfiguration implements EnvironmentAware, BeanDefini
             throw new RuntimeException(e);
         }
 
-        // PageInterceptor
         PageInterceptor interceptor = new PageInterceptor();
         Properties props = new Properties();
         props.setProperty("helperDialect", env.getProperty("spring.datasource.druid." + dsName + ".page-type", "mysql"));

@@ -12,9 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * APP 订单支付接口入口。
- */
+
 @RestController
 public class CollectPayController extends BaseAppController {
     private static final Logger log = LoggerFactory.getLogger(CollectPayController.class);

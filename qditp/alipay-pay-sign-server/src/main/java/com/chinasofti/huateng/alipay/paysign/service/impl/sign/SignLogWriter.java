@@ -12,18 +12,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 
-/**
- * 新签约服务的签约流水写入器（{@code ALIPAY_SIGN_LOG}）。
- *
- * <p><b>为什么不叫 {@code SignLogRecorder}</b>：旧实现 {@code impl/contract/SignLogRecorder} 在迁移期
- * 仍在跑，两个 {@code @Component} 的**默认 bean 名会撞**（都是 {@code signLogRecorder}），
- * 启动即 {@code ConflictingBeanDefinitionException}。新旧并存期间**同名类 NEVER 放两个包**，
- * 要么改类名、要么显式指定 bean 名 —— 这里选改类名，因为读代码时能一眼看出是新链路那份。
- *
- * <p>行为与旧实现逐字一致（含整体 {@code catch} 只记 ERROR：流水记不上不该让已成立的签约报错）。
- * 待旧实现删除后，可考虑把两者合回一个类；<b>在那之前 NEVER 让旧实现改注本类</b> ——
- * 迁移期两侧各用自己那份，才能在切流量时逐条对比行为。
- */
+
 @Component
 public class SignLogWriter {
 
@@ -33,12 +22,7 @@ public class SignLogWriter {
     @Autowired
     private AlipaySignLogMapper alipaySignLogMapper;
 
-    /**
-     * 记一条签约成功流水。
-     *
-     * <p>协议号与 thirdUserId 都从 {@code signInfo} 取，**NEVER 再从调用点额外传一遍**（ADR-D135）：
-     * 那两个入参此前与 signInfo 内的值恒等，多传一份只是给「两处不一致」留了口子。
-     */
+
     public void recordSignSuccess(AlipaySignInfo signInfo, Object request, AlipayTripAddContractRespDTO response) {
         String agreementCode = signInfo.getAgreementCode();
         String thirdUserId = signInfo.getThirdUserId();

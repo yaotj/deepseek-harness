@@ -2,68 +2,42 @@ package com.chinasofti.huateng.key.entity;
 
 import java.util.Date;
 
-/**
- * 地铁CA密钥仓库实体。
- */
+
 public class MetroCaKeystore {
-    /**
-     * 主键。
-     */
+
     private Long id;
 
-    /**
-     * ITP密钥索引。
-     */
+
     private String keyIdx;
 
-    /**
-     * ITP私钥。
-     */
+
     private String keyPrivate;
 
-    /**
-     * ITP公钥。
-     */
+
     private String keyPublic;
 
-    /**
-     * 有效期。
-     */
+
     private String keyEffectiveDate;
 
-    /**
-     * 状态：0初始化，1使用，2暂停。
-     */
+
     private Integer keyStatus;
 
-    /**
-     * 管理员编码。
-     */
+
     private String managerId;
 
-    /**
-     * 预留字段。
-     */
+
     private String reserve;
 
-    /**
-     * 备注。
-     */
+
     private String remark;
 
-    /**
-     * 修改日期。
-     */
+
     private Date updateDate;
 
-    /**
-     * 注册日期。
-     */
+
     private Date regDate;
 
-    /**
-     * SM2密钥对。
-     */
+
     private String keyPair;
 
     public Long getId() {

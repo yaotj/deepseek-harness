@@ -1,37 +1,23 @@
 package com.chinasofti.huateng.account.model.application;
 
-/**
- * IF8A-01 请求开户响应报文。
- */
+
 public class RequestApplicationRespDTO {
-    /**
-     * 返回码。
-     */
+
     private String retCode;
 
-    /**
-     * 返回消息。
-     */
+
     private String retMsg;
 
-    /**
-     * 开户成功后返回的逻辑卡号。
-     */
+
     private String cardId;
 
-    /**
-     * 开户成功后的卡类型。
-     */
+
     private String cardType;
 
-    /**
-     * 签名类型。
-     */
+
     private String signType;
 
-    /**
-     * 响应签名值。
-     */
+
     private String sign;
 
     public String getRetCode() {

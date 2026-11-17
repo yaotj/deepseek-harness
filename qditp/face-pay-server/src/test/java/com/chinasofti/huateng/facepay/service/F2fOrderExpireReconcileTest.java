@@ -30,7 +30,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 过期订单收口验证。 */
 @SpringBootTest(classes = FacePayServer.class)
 @EnabledIfEnvironmentVariable(named = "DB_HOST", matches = ".+")
 class F2fOrderExpireReconcileTest {
@@ -64,11 +63,9 @@ class F2fOrderExpireReconcileTest {
         registry.add("pay.center.pay-url", () -> base);
     }
 
-    /** 只用来造单（{@code payType=0} 不碰支付中心）。 */
     @Autowired
     private F2fTvmOrderService service;
 
-    /** 被测对象：收口三个方法 2026-09-16 从 {@code F2fTvmOrderService} 拆到这里（P2）。 */
     @Autowired
     private F2fOrderExpireService expireService;
 
@@ -145,7 +142,6 @@ class F2fOrderExpireReconcileTest {
         STUB_BODY.set(body.toJSONString());
     }
 
-    /** 造一笔已过期的 CREATED 订单：先正常下单（payType=0 不碰支付中心），再把过期时间改到过去。 */
     private F2fOrder anExpiredOrder() {
         RequestGenSjtOrderReqDTO dto = new RequestGenSjtOrderReqDTO();
         dto.setDeviceId("TVM_EXPIRE_TEST");

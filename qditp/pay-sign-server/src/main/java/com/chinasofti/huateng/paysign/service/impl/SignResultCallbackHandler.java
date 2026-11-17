@@ -24,29 +24,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-/**
- * IPD02 签约结果回调的真实现（2026-09-17 由 {@code CallbackDomainServiceImpl} 按依赖簇拆出，ADR-D120）。
- *
- * <p>协作者 4 个：签约主表、流水表、审计流水、事件发布器。<b>方法体一字未改</b>，
- * 只把共享的 {@code resolveThirdUserId} 换成 {@link CallbackLookups} 的静态调用。
- *
- * <p><b>NEVER 把解约回调搬进本类</b>：那条链路要 {@code AppTerminationRequestMapper}、
- * {@code AppNotifyService}、{@code TransactionTemplate}、{@code ChannelSyncDeliverer} 四个本类用不到的协作者，
- * 合在一起就是拆分前那个 8 协作者的类。
- *
- * <p>{@code @Transactional} 保留：本方法两次 INSERT（签约主表 + 流水表）MUST 原子，
- * 且事件发布靠它落到 {@code AFTER_COMMIT}（ADR-D48）。
- */
+
 @Service
 public class SignResultCallbackHandler {
     private static final Logger log = LoggerFactory.getLogger(SignResultCallbackHandler.class);
 
-    /**
-     * 签约状态字面量**一律从 {@link SignStatus} 取**，NEVER 写裸字符串（2026-09-17，ADR-D127）。
-     *
-     * <p>库内 {@code APP_PAY_SIGN_INFO.SIGN_STATUS} 与 {@code APP_PAY_SIGN_REQUEST.SIGN_STATUS}
-     * 存的就是枚举名，改枚举即改全部比较点；写裸字面量则会漏改。
-     */
+
     private static final String STATUS_SIGNED = SignStatus.SIGNED.name();
     private static final String SIGN_LOG_STATUS_FAILED = SignStatus.FAILED.name();
 
@@ -66,7 +49,6 @@ public class SignResultCallbackHandler {
         this.eventPublisher = eventPublisher;
     }
 
-    /** IPD02 签约结果回调。 */
     @Transactional(rollbackFor = Exception.class)
     public PaySignCallbackResult receiveSignResult(ReceiveSignResultReqDTO request, String signChannel) {
         PaySignCallbackResult response = new PaySignCallbackResult();
@@ -135,16 +117,7 @@ public class SignResultCallbackHandler {
             return response;
         }
     }
-    /**
-     * 同一 {@code requestSignSeq} 的签约成功回调重放（2026-09-17，ADR-D123）。
-     *
-     * <p>撞 {@code UK_APPSI_REQUEST_SIGN_SEQ} 说明上一次已经落库并已发过 APP 通知，
-     * 因此这里 <b>只留一条审计痕迹、NEVER 再发 {@code SignResultCommittedEvent}</b>
-     * （否则 APP 会收到重复通知），也 NEVER 再插带 {@code NOTIFY_STATUS='PENDING'} 的流水
-     * （否则 {@code /internal/paySign/compensateNotify} 会把它当待补偿任务再推一遍）。
-     *
-     * <p>返回 {@code 0000}：渠道与支付中心的回调普遍会重推，返失败码只会引来更多重推。
-     */
+
     private PaySignCallbackResult replaySignResult(ReceiveSignResultReqDTO request, String signChannel,
                                                    PaySignCallbackResult response) {
         String observedStatus = paySignInfoMapper.selectSignStatusBySeq(request.getRequestSignSeq());
@@ -161,7 +134,6 @@ public class SignResultCallbackHandler {
         return response;
     }
 
-    /** 支付平台回调可能不带 displayAccount，尝试从流水表补充。 */
     private String resolveDisplayAccount(String requestSignSeq, String displayAccount) {
         if (StringUtils.hasText(displayAccount)) {
             return displayAccount;

@@ -15,9 +15,7 @@ import java.util.regex.Pattern;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/**
- * JVM local cache for single-instance deployments.
- */
+
 @SuppressWarnings(value = { "unchecked", "rawtypes" })
 @Component
 public class LocalCache

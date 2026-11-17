@@ -22,43 +22,29 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-/**
- * 支付宝出行开卡实现，见 {@link AlipayTripRegistrationService}（**保留但不在链路上**，ADR-D15）。
- */
+
 @Service
 public class AlipayTripRegistrationServiceImpl implements AlipayTripRegistrationService {
     private static final Logger log = LoggerFactory.getLogger(AlipayTripRegistrationServiceImpl.class);
 
-    /**
-     * 支付宝出行开卡走卡池发号时的业务类型，与 {@code LOGIC_CARD_POOL_CARD.BUSINESS_TYPE} 对应。
-     */
+
     private static final String CARD_POOL_BUSINESS_TYPE_ALIPAY_TRIP_OPEN = "ALIPAY_TRIP_OPEN";
 
-    /**
-     * 卡池预占 / 确认 / 释放的出网协作者。
-     */
+
     private final CardPoolAllocationService cardPoolAllocationService;
 
     private final UserItpRegInfoMapper userItpRegInfoMapper;
 
-    /**
-     * 渠道无关的开户收口：注册乘车状态、两行落库、字段归一。
-     */
+
     private final RegistrationCommitService registrationCommitService;
 
-    /**
-     * 开户成功后按手机号挂接员工码（ADR-D33 从 {@link RegistrationCommitService} 迁来）。
-     */
+
     private final EmployeeCardPersistenceService employeeCardPersistenceService;
 
-    /**
-     * 卡池确认被拒时开人工工单（ADR-D52），与 {@code AccountRegistrationServiceImpl} 同口径。
-     */
+
     private final AccountExceptionTicketMapper accountExceptionTicketMapper;
 
-    /**
-     * 构造器注入（ADR-D37）。
-     */
+
     public AlipayTripRegistrationServiceImpl(CardPoolAllocationService cardPoolAllocationService,
                                              UserItpRegInfoMapper userItpRegInfoMapper,
                                              RegistrationCommitService registrationCommitService,
@@ -114,7 +100,6 @@ public class AlipayTripRegistrationServiceImpl implements AlipayTripRegistration
             UserItpRegInfo regInfo = buildRegInfo(request, allocation.cardId());
             RegisterRideStatusRespDTO ticketResponse = registrationCommitService.registerRideStatus(regInfo);
             if (ticketResponse == null || !AccountErrorCodeEnum.SUCCESS.getCode().equals(ticketResponse.getRetCode())) {
-                // NEVER 在失败分支 releaseReservation：预占按 businessId 幂等、是并发请求共享的，超时回收交 sys_job 240（2026-09-21 由 107 改号为 240，ADR-D52）。
                 allocation = null;
                 response.setRetCode(AccountErrorCodeEnum.SERVICE_PROVIDER_UNAVAILABLE.getCode());
                 response.setRetMsg(ticketResponse == null ? "ticket-server不可用" : ticketResponse.getRetMsg());
@@ -130,7 +115,6 @@ public class AlipayTripRegistrationServiceImpl implements AlipayTripRegistration
             allocation = null;
 
             if (!confirmed) {
-                // 最后一步 confirm 失败 MUST NOT 返成功、MUST 落 ACCOUNT_EXCEPTION_TICKET 的 CARD_POOL_CONFIRM_REJECTED。
                 openCardPoolConfirmTicketQuietly(confirmedAllocation, regInfo);
                 response.setRetCode(AccountErrorCodeEnum.SERVICE_PROVIDER_UNAVAILABLE.getCode());
                 response.setRetMsg("卡号确认失败，请稍后重试");
@@ -156,9 +140,7 @@ public class AlipayTripRegistrationServiceImpl implements AlipayTripRegistration
         }
     }
 
-    /**
-     * 卡池确认被拒时开一条 {@code CARD_POOL_CONFIRM_REJECTED} 工单转人工。
-     */
+
     private void openCardPoolConfirmTicketQuietly(CardAllocation allocation, UserItpRegInfo regInfo) {
         try {
             AccountExceptionTicket ticket = new AccountExceptionTicket();
@@ -199,9 +181,7 @@ public class AlipayTripRegistrationServiceImpl implements AlipayTripRegistration
         return null;
     }
 
-    /**
-     * 支付宝出行开卡的 {@code USER_ITP_REG_INFO} 行。
-     */
+
     private UserItpRegInfo buildRegInfo(AlipayTripRequestApplicationReqDTO request, String cardId) {
         UserItpRegInfo regInfo = new UserItpRegInfo();
         regInfo.setCardId(cardId);

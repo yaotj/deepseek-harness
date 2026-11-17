@@ -8,9 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 日历参数文件解析结果。
- */
+
 public class CalendarParseResult {
     private String filePath;
     private String fileName;

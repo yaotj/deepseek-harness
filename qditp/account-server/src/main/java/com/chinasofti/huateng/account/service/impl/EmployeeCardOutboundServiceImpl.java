@@ -29,9 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 员工码出网实现。
- */
+
 @Service
 public class EmployeeCardOutboundServiceImpl implements EmployeeCardOutboundService {
     private static final Logger log = LoggerFactory.getLogger(EmployeeCardOutboundServiceImpl.class);
@@ -39,9 +37,7 @@ public class EmployeeCardOutboundServiceImpl implements EmployeeCardOutboundServ
 
     private final RestTemplate restTemplate;
 
-    /**
-     * 出网地址与报文常量。
-     */
+
     private final EmployeeCardOutboundProperties properties;
 
     public EmployeeCardOutboundServiceImpl(RestTemplateBuilder restTemplateBuilder,

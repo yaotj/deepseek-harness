@@ -14,7 +14,6 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
-/** {@code SupplementStateRules} 的特征测试（characterization test）：把 IF5A-01 建议侧与 IF5A-03 执行侧的整张规则表逐格钉死，为后续把两串 if 链改成表驱动做防护网。 */
 class SupplementStateRulesMatrixTest {
 
     private static final String PAID_AREA = "01";
@@ -33,7 +32,6 @@ class SupplementStateRulesMatrixTest {
         rules.validateConfiguredDefaults();
     }
 
-    /** {@code FRESH} 在 20 分钟窗内，{@code STALE} 已超窗，{@code NONE} 表示未上送。 */
     private String gateInTime(String mode) {
         return switch (mode) {
             case "FRESH" -> LocalDateTime.now().minusMinutes(5).format(FORMATTER);
@@ -43,7 +41,6 @@ class SupplementStateRulesMatrixTest {
         };
     }
 
-    /** IF5A-01 建议侧全量矩阵。多个候选码用 {@code |} 分隔。 */
     @ParameterizedTest(name = "{0} + updateType={1} + gateIn={2}/{3} -> {4}")
     @CsvSource({
             "EXIT,                PAID, 0101, NONE,  018",
@@ -80,7 +77,6 @@ class SupplementStateRulesMatrixTest {
         assertEquals(List.of(expectedAdviceOpt.split("\\|")), actual);
     }
 
-    /** IF5A-03 执行侧白名单全量矩阵。 */
     @ParameterizedTest(name = "{0} + adviceOpt={1} + updateType={2} + gateIn={3} -> {4}")
     @CsvSource({
             "EXIT,               018, PAID, NONE,  true",
@@ -126,7 +122,6 @@ class SupplementStateRulesMatrixTest {
         assertEquals(expected, actual);
     }
 
-    /** 两侧对称性：建议侧不给 {@code 018} 的组合，执行侧 */
     @ParameterizedTest(name = "{0} + updateType={1}")
     @CsvSource({
             "SJT_ISSUE,          FREE",

@@ -26,31 +26,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-/**
- * 支付宝出行开卡申请（规范 3.69）—— 本模块**唯一**的开户实现（ADR-D143）。
- *
- * <p>2026-09-18 从 `AlipayAccountServiceImpl` 按聚合拆出：那个类原先 349 行、把
- * 开户 / 换号 / 只读查询三种职责混在一起，而依赖簇实际上是可分的 ——
- * `alipayRegLogMapper` / `ticketClient` / `cardPoolClient` / `transactionTemplate`
- * **只被开户用**，`alipayPhoneChangeLogMapper` 只被换号用，唯一相交的 `alipayUserInfoMapper`
- * 在两边一个写一个读。拆分判据的两条（依赖簇不相交 + 规模造成真实成本）同时成立。
- *
- * <p><b>四步顺序 NEVER 改</b>：查重 → 卡池预占 → 注册乘车状态 → 短事务落两表 → 卡池 confirm。
- * 三条口径同样 NEVER 改：
- * <ol>
- *   <li><b>本方法 NEVER 加 `@Transactional`</b> —— 链路里有三次 RPC，事务包住就是
- *       2026-08-26 那起生产事故的同型（行锁持有时长 = 对端响应时长），
- *       落库那两条 INSERT 只能收进 {@link TransactionTemplate}（同类自调用绕不过 Spring 代理）。</li>
- *   <li><b>失败 NEVER release 预占</b> —— 预占按 `businessId` 幂等、是共享资源而非本请求私有，
- *       抽回会打掉兄弟请求已发给用户的卡号；到期由 `sys_job` 240 回收（2026-09-21 由 107 改号为 240）。</li>
- *   <li><b>confirm 失败 NEVER 返成功</b> —— 卡号已写进 `ALIPAY_USER_INFO`，对上游必须报失败。</li>
- * </ol>
- */
+
 @Service
 public class AlipayRegistrationService {
     private static final Logger log = LoggerFactory.getLogger(AlipayRegistrationService.class);
 
-    /** 卡池预占的业务类型，与 ITP 侧的 `ACCOUNT_OPEN` 刻意不同名：两条链路的键空间必须分开。 */
     private static final String CARD_POOL_BUSINESS_TYPE = "ALIPAY_ACCOUNT_OPEN";
 
     private final AlipayUserInfoMapper alipayUserInfoMapper;
@@ -126,7 +106,6 @@ public class AlipayRegistrationService {
 
             CardPoolActionResult confirmResult = cardPoolClient.confirm(cardPool.getData().getReservationId(),
                     reservationBusinessId(thirdUserId, request.getCardType()));
-            /* confirm 失败 NEVER 返成功、NEVER release 预占：卡号已写进 ALIPAY_USER_INFO；重试会命中幂等短路而不补 confirm，预占到期由 sys_job 240 回收，MUST 人工核对该卡号。 */
             if (!confirmResult.isSuccess()) {
                 log.error("确认逻辑卡号预占失败，卡号已发给用户、开户数据 NEVER 回滚，对上游返失败等人工核对, thirdUserId={}, cardId={}, reservationId={}, outcome={}, msg={}",
                         thirdUserId, cardId, cardPool.getData().getReservationId(),
@@ -151,13 +130,7 @@ public class AlipayRegistrationService {
         }
     }
 
-    /**
-     * 向逻辑卡号池预占一个卡号。
-     *
-     * @param thirdUserId 支付宝用户标识，作为预占归属方
-     * @param appCardType APP 侧票种码，内部转换为发卡票种码
-     * @return 预占结果，非 SUCCESS 时 data 为空，由调用方按 outcome 分流
-     */
+
     private CardPoolReserveResult reserveCard(String thirdUserId, String appCardType) {
         String cardType = CardTypeMapping.toIssueCardType(appCardType);
         CardPoolReservationReqDTO request = new CardPoolReservationReqDTO();
@@ -168,14 +141,7 @@ public class AlipayRegistrationService {
         return cardPoolClient.reserve(request);
     }
 
-    /**
-     * 按预占失败分类填充对外响应并落日志。
-     *
-     * @param response    待填充的对外响应
-     * @param result      预占结果，outcome 必为非 SUCCESS
-     * @param thirdUserId 支付宝用户标识，仅用于日志定位
-     * @param cardType    APP 侧票种码，仅用于日志定位
-     */
+
     private void fillReserveFailure(AlipayTripRequestApplicationRespDTO response, CardPoolReserveResult result,
                                     String thirdUserId, String cardType) {
         switch (result.getOutcome()) {
@@ -200,14 +166,7 @@ public class AlipayRegistrationService {
         }
     }
 
-    /**
-     * 卡池预占的业务流水号，决定发号的幂等边界（ADR-D143）。
-     *
-     * <p><b>长度前缀是必需的</b>：`thirdUserId` 由支付宝侧给定、可能含冒号，
-     * 旧式 `前缀:用户:票种` 拼接在那种取值下会与另一组入参产出同一个键（串键 ⇒ 两个用户抢同一张卡）。
-     * 格式与 ITP 侧 `AccountRegistrationServiceImpl.buildAccountOpenBusinessId`（ADR-D122）一致，
-     * 但**保留 `ALIPAY_ACCOUNT_OPEN` 前缀把两条链路的键空间分开**，NEVER 与 ITP 侧合并。
-     */
+
     private String reservationBusinessId(String thirdUserId, String appCardType) {
         String issueCardType = CardTypeMapping.toIssueCardType(appCardType);
         return CARD_POOL_BUSINESS_TYPE + ":" + thirdUserId.length() + ":" + thirdUserId + ":" + issueCardType;

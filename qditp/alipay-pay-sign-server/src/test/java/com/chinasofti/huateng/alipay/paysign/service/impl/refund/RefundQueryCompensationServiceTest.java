@@ -24,21 +24,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住 {@link RefundQueryCompensationService} 的五条口径。
- *
- * <p>①<b>出网 bizData MUST 同时带 {@code refundOrderNo} 与 {@code merchantRefundNo}</b>（ADR-D92 实测：
- * 只送前者时网关返 9999，表现为退款单永久空转而端点每轮返 0000）。
- *
- * <p>②<b>回查到 SUCCESS：先 CAS 收口明细、再刷汇总</b>，顺序反了汇总算的是旧值。
- *
- * <p>③<b>回查到 FAIL：收口明细但 NEVER 刷汇总</b>（钱没退出去）。
- *
- * <p>④<b>业务 {@code retCode} 非成功 / {@code Rejected} / {@code NoAnswer} / {@code status} 判不出终态：
- * 一律不回写、保持 PROCESSING</b> —— 钱可能已经退了，落 FAIL 会让这笔被当成没退成、随后被人再退一次。
- *
- * <p>⑤<b>CAS 命中 0 行不算收口</b>（已被回调抢先收口），且那一轮 NEVER 刷汇总。
- */
+
 class RefundQueryCompensationServiceTest {
 
     private static final String ORDER_NO = "GT20260920021300000000001";
@@ -158,7 +144,6 @@ class RefundQueryCompensationServiceTest {
         assertEquals(new OutboxScan.Result(1, 0, 1), scan);
     }
 
-    /** 单条回查抛异常时整批不中断，该行计入 failed。 */
     @Test
     void singleRowFailureDoesNotBreakTheBatch() {
         when(payCenterPort.refundQuery(any())).thenThrow(new IllegalStateException("网关连接被重置"));

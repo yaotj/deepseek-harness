@@ -9,13 +9,11 @@ import org.springframework.util.StringUtils;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** 发往**支付中心网关**的 6 组 {@code bizData} 组装（2026-09-15 拆分批次 3）。 */
 public final class PaySignGatewayMessages {
 
     private PaySignGatewayMessages() {
     }
 
-    /** IF8A-16 正式签约（contract）。{@code notifyUrl} 由调用方按「请求值 → 配置默认 → returnUrl」解析后传入。 */
     public static Map<String, Object> buildContractBizData(RequestSignInfoReqDTO request,
                                                            String paymentVendor,
                                                            String notifyUrl) {
@@ -37,7 +35,6 @@ public final class PaySignGatewayMessages {
         return bizData;
     }
 
-    /** IF8A-21 授信查询（creditQuery）。 */
     public static Map<String, Object> buildCreditQueryBizData(String thirdUserId, String requestSignSeq, String paymentVendor) {
         Map<String, Object> bizData = new LinkedHashMap<>();
         bizData.put("thirdUserId", thirdUserId);
@@ -46,21 +43,18 @@ public final class PaySignGatewayMessages {
         return bizData;
     }
 
-    /** IF8A-22 签约结果查询（queryResult）。 */
     public static Map<String, Object> buildQueryResultBizData(String requestSignSeq) {
         Map<String, Object> bizData = new LinkedHashMap<>();
         bizData.put("requestSignSeq", requestSignSeq);
         return bizData;
     }
 
-    /** IF8A-06 请求解约（dismissal）。 */
     public static Map<String, Object> buildDismissalBizData(String requestSignSeq) {
         Map<String, Object> bizData = new LinkedHashMap<>();
         bizData.put("requestSignSeq", requestSignSeq);
         return bizData;
     }
 
-    /** IF8A-19 免密扣款（requestPay）。{@code notifyUrl} 由调用方按「请求值 → 支付专用配置」解析后传入。 */
     public static Map<String, Object> buildRequestPayBizData(RequestPayReqDTO request, String notifyUrl) {
         Map<String, Object> bizData = new LinkedHashMap<>();
         bizData.put("orderNo", request.getOrderNo());
@@ -84,14 +78,7 @@ public final class PaySignGatewayMessages {
         return bizData;
     }
 
-    /**
-     * 请求退款（requestRefund）。{@code orderNo} 取原支付的 {@code PAY_CENTER_ORDER_NO}，见类注释。
-     *
-     * <p>{@code notifyUrl} 是网关 §3.1 的**必填键**（`docs/external/支付中心网关接口文档.md:329`），
-     * 而 2026-09-22 之前这里根本没送 —— 于是退款回调结构上永远到不了我方，收敛只能靠 §3.2 回查
-     * （P1-3）。**空值时刻意不进报文**（`putIfHasText`）：宁可维持「只靠回查」的现状，
-     * 也 NEVER 送一个我方没有端点的地址 —— 那会让支付中心每笔退款都打到 404。
-     */
+
     public static Map<String, Object> buildRequestRefundBizData(PayRefundDetail refundDetail, PayTxnDetail payTxn,
                                                                String notifyUrl) {
         Map<String, Object> bizData = new LinkedHashMap<>();
@@ -104,7 +91,6 @@ public final class PaySignGatewayMessages {
         return bizData;
     }
 
-    /** 空值字段一律**不进报文**，而不是进报文后取值为 null。 */
     private static void putIfHasText(Map<String, Object> params, String key, String value) {
         if (StringUtils.hasText(value)) {
             params.put(key, value);

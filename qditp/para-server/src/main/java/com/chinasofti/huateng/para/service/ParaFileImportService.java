@@ -43,14 +43,7 @@ public class ParaFileImportService {
         this.paraVersionMapper = paraVersionMapper;
     }
 
-    /**
-     * 解析并导入本地参数文件。
-     *
-     * <p>入库判据是「版本号 + MD5」。</p>
-     *
-     * @param filePath 本地参数文件路径
-     * @return 导入结果
-     */
+
     @Transactional(rollbackFor = Exception.class)
     public ParaImportResult importLocalFile(String filePath) {
         Path path = Path.of(filePath);

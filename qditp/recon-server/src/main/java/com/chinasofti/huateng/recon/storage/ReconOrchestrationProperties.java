@@ -7,46 +7,26 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 日终对账编排配置：一次整批运行的节奏、账期窗口推算规则与各源的期望清单。
- */
+
 @ConfigurationProperties(prefix = "recon.orchestration")
 public class ReconOrchestrationProperties {
 
-    /** 编排总开关。关掉后 {@code runDailyBatch} 与 {@code advance} 都直接返回，单批次人工接口仍可用。 */
     private boolean enabled = true;
 
-    /** 一次整批运行内，两轮推进之间的等待毫秒数。 */
     private long advanceDelayMillis = 60000L;
 
-    /**
-     * 一次整批运行的总超时毫秒数，默认 4 分钟。
-     *
-     * <p>护栏：MUST 小于 {@code ReconClient} 的响应超时（5 分钟），否则会变成
-     * 「客户端先超时报错、服务端还在跑」，两处要放宽 MUST 一起改。</p>
-     */
+
     private long runTimeoutMillis = 240000L;
 
-    /** 账期偏移天数：{@code businessDate = 今天 - windowOffsetDays}，默认 2 即 T-2 日。 */
     private int windowOffsetDays = 2;
 
-    /**
-     * 各文件类型独立的账期偏移天数；未列出的类型回退到 {@link #windowOffsetDays}。
-     *
-     * <p>用途：DETAIL 按「运营日」口径（需求 §一(4) 运营日期 T日 = T日2点~T+1日2点），
-     * 与 EXP/PAY/BUS 的 T-2~T-1 窗口不同。配置示例 {@code recon.orchestration.window-offset-days-by-type.DETAIL=1}。
-     * 注意：仅改变下发给源的数据抽取窗口；最终文件名后缀仍跟随批次的全局 businessDate，
-     * DETAIL 文件名是否应同步为运营日(如 T-1)属待甲方确认项，NEVER 自行决定。</p>
-     */
+
     private Map<String, Integer> windowOffsetDaysByType = new HashMap<>();
 
-    /** 窗口的日切时刻 {@code HHmmss}，默认 02:00:00，窗口为 [businessDate 日切, +1 天 日切)。 */
     private String windowStartTime = "020000";
 
-    /** 同一 {@code (来源, 文件类型)} 允许的最大重下发次数。 */
     private int maxRetry = 3;
 
-    /** 期望清单。为空时 dispatch 无事可做，属配置缺失，MUST 在部署清单里核对。 */
     private List<SourceExpectation> sources = new ArrayList<>();
 
     public boolean isEnabled() { return enabled; }
@@ -85,18 +65,13 @@ public class ReconOrchestrationProperties {
         this.sources = sources == null ? new ArrayList<>() : new ArrayList<>(sources);
     }
 
-    /**
-     * 单个源服务的期望：名称、基础地址与需要它产出的文件类型清单。
-     */
+
     public static class SourceExpectation {
 
-        /** 来源标识，落库到 {@code RECON_BATCH_SOURCE.SOURCE_NAME}，MUST 匹配 {@code [A-Za-z0-9_-]{1,32}}。 */
         private String name;
 
-        /** 源服务基础地址，形如 {@code http://gate-txn-pay-server-jomf4-svc.itp.svc:30019}（Service 端口）。 */
         private String url;
 
-        /** 该源需要产出的文件类型名，如 {@code [DETAIL, PAY]}。 */
         private List<String> fileTypes = new ArrayList<>();
 
         public String getName() { return name; }

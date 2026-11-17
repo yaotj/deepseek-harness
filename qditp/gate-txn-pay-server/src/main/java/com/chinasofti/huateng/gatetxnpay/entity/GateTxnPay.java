@@ -3,7 +3,6 @@ package com.chinasofti.huateng.gatetxnpay.entity;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/** GATE_TXN_PAY 过闸扣费业务订单实体。 */
 public class GateTxnPay {
     private Long id;
     private String orderNo;
@@ -32,11 +31,7 @@ public class GateTxnPay {
     private String entryStationName;
     private String exitStationName;
     private String orderExpType;
-    /**
-     * BOM 补站操作类型：空 = 闸机真实检票或 APP 自助补站，{@code 005} / {@code 006} / {@code 020} = BOM 补站。
-     *
-     * <p>非空即「BOM 现场已收款」，落单时直接置 {@code SUCCESS} 且 **NEVER 调 pay-sign 再扣一次**。
-     */
+
     private String adviceOpt;
     private String companionFlag;
     private String offlineFlag;

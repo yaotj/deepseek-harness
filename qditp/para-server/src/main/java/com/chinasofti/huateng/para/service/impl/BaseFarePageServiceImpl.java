@@ -15,7 +15,6 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 
 @Service
-/** 基础票价页面服务，只读取参数当前版本而不暴露历史版本。 */
 public class BaseFarePageServiceImpl implements BaseFarePageService {
     private final BaseFarePageMapper baseFarePageMapper;
 
@@ -23,7 +22,6 @@ public class BaseFarePageServiceImpl implements BaseFarePageService {
         this.baseFarePageMapper = baseFarePageMapper;
     }
 
-    /** 查询费率矩阵与 FARE_TYPE=0 基础票价关联后的当前有效票价。 */
     @Override
     public ResultVO<PageInfo<BaseFarePageView>> pageCurrentBaseFare(String entryStationCode, String exitStationCode,
                                                                      String entryLineCode, String exitLineCode,
@@ -33,13 +31,11 @@ public class BaseFarePageServiceImpl implements BaseFarePageService {
         return ResultMapper.ok(page);
     }
 
-    /** 查询当前路网版本的车站选项，可按线路过滤。 */
     @Override
     public ResultVO<List<BaseFareStationOption>> listCurrentStations(String lineCode) {
         return ResultMapper.ok(baseFarePageMapper.selectCurrentStations(trimToNull(lineCode)));
     }
 
-    /** 查询当前路网版本的线路选项。 */
     @Override
     public ResultVO<List<BaseFareLineOption>> listCurrentLines() {
         return ResultMapper.ok(baseFarePageMapper.selectCurrentLines());

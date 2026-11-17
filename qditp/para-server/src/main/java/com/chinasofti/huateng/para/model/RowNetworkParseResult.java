@@ -11,9 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 路网拓扑参数文件解析结果。
- */
+
 public class RowNetworkParseResult {
     private String filePath;
     private String fileName;

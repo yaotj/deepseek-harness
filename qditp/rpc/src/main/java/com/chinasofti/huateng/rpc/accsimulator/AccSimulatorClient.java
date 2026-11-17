@@ -12,9 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 员工卡 ACC 模拟器 RPC 客户端。
- */
+
 @Service
 public class AccSimulatorClient extends ProxyWebClient
 {
@@ -25,9 +23,7 @@ public class AccSimulatorClient extends ProxyWebClient
         super(baseUrl, openLogger, webClientBuilder);
     }
 
-    /**
-     * 分页查询模拟员工卡（供异步导出使用）。
-     */
+
     public List<AccEmployeeCardExportDTO> listAccSimulatorCards(String cardNo, String employeeName, Integer cardStatus)
     {
         Map<String, String> params = new HashMap<>();

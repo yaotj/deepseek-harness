@@ -7,11 +7,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 供 web-server Quartz 定时任务调用的设备台账同步端点（仅集群内可达，无鉴权）。
- * <p>口径与 {@code ParaImportController} 的 FTP 扫描 Quartz 端点一致：
- * retCode 0000 全部成功、9999 同步失败，retMsg 带执行摘要。</p>
- */
+
 @RestController
 @RequestMapping("/para/device-sync")
 public class DeviceSyncInternalController {
@@ -22,7 +18,6 @@ public class DeviceSyncInternalController {
         this.accDeviceSyncService = accDeviceSyncService;
     }
 
-    /** 全量同步 ACC 设备台账，同步幂等可重跑。 */
     @PostMapping("/quartz")
     public CommonResult syncForQuartz() {
         CommonResult result = new CommonResult();

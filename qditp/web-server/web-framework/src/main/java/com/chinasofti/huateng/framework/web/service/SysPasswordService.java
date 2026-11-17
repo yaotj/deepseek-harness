@@ -13,11 +13,7 @@ import com.chinasofti.huateng.common.exception.user.UserPasswordRetryLimitExceed
 import com.chinasofti.huateng.common.utils.SecurityUtils;
 import com.chinasofti.huateng.framework.security.context.AuthenticationContextHolder;
 
-/**
- * 登录密码方法
- * 
- * @author zmzhang
- */
+
 @Component
 public class SysPasswordService
 {
@@ -30,12 +26,7 @@ public class SysPasswordService
     @Value(value = "${user.password.lockTime}")
     private int lockTime;
 
-    /**
-     * 登录账户密码错误次数缓存键名
-     * 
-     * @param username 用户名
-     * @return 缓存键key
-     */
+
     private String getCacheKey(String username)
     {
         return CacheConstants.PWD_ERR_CNT_KEY + username;

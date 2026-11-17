@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * 支付 API 1.1 请求支付业务参数。
- */
+
 public class RequestPayReqDTO {
     private String orderNo;
     private String scene;
@@ -12,7 +10,6 @@ public class RequestPayReqDTO {
     private String subject;
     private String body;
     private String requestSignSeq;
-    /** 钱包支付账户标识。钱包渠道不使用 requestSignSeq，改用该字段透传扣款主体。 */
     private String payUserId;
     private String thirdUserId;
     private String cardId;
@@ -25,24 +22,16 @@ public class RequestPayReqDTO {
     private String ipAddress;
     private String remark;
 
-    /**
-     * 支付通道编码（signChannelCode），由 gate-txn-pay-server 透传。
-     */
+
     private String payChannelCode;
 
-    /**
-     * 优惠金额（分），由 gate-txn-pay-server 透传。
-     */
+
     private Integer discountFee;
 
-    /**
-     * 优惠详情 JSON 数组，由 gate-txn-pay-server 透传。
-     */
+
     private String discountInfo;
 
-    /**
-     * 交易日期 YYYYMMDD，由发起方（gate-txn-pay-server 取 GATE_TXN_PAY.TXN_DATE）透传。
-     */
+
     private String txnDate;
 
     public String getOrderNo() {

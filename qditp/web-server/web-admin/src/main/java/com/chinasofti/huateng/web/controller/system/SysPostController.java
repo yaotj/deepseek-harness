@@ -22,11 +22,7 @@ import com.chinasofti.huateng.common.utils.poi.ExcelUtil;
 import com.chinasofti.huateng.system.domain.SysPost;
 import com.chinasofti.huateng.system.service.ISysPostService;
 
-/**
- * 岗位信息操作处理
- * 
- * @author zmzhang
- */
+
 @RestController
 @RequestMapping("/system/post")
 public class SysPostController extends BaseController
@@ -34,9 +30,7 @@ public class SysPostController extends BaseController
     @Autowired
     private ISysPostService postService;
 
-    /**
-     * 获取岗位列表
-     */
+
     @PreAuthorize("@ss.hasPermi('system:post:list')")
     @GetMapping("/list")
     public TableDataInfo list(SysPost post)
@@ -56,9 +50,7 @@ public class SysPostController extends BaseController
         util.exportExcel(response, list, "岗位数据");
     }
 
-    /**
-     * 根据岗位编号获取详细信息
-     */
+
     @PreAuthorize("@ss.hasPermi('system:post:query')")
     @GetMapping(value = "/{postId}")
     public AjaxResult getInfo(@PathVariable Long postId)
@@ -66,9 +58,7 @@ public class SysPostController extends BaseController
         return success(postService.selectPostById(postId));
     }
 
-    /**
-     * 新增岗位
-     */
+
     @PreAuthorize("@ss.hasPermi('system:post:add')")
     @Log(title = "岗位管理", businessType = BusinessType.INSERT)
     @PostMapping
@@ -86,9 +76,7 @@ public class SysPostController extends BaseController
         return toAjax(postService.insertPost(post));
     }
 
-    /**
-     * 修改岗位
-     */
+
     @PreAuthorize("@ss.hasPermi('system:post:edit')")
     @Log(title = "岗位管理", businessType = BusinessType.UPDATE)
     @PutMapping
@@ -106,9 +94,7 @@ public class SysPostController extends BaseController
         return toAjax(postService.updatePost(post));
     }
 
-    /**
-     * 删除岗位
-     */
+
     @PreAuthorize("@ss.hasPermi('system:post:remove')")
     @Log(title = "岗位管理", businessType = BusinessType.DELETE)
     @DeleteMapping("/{postIds}")
@@ -117,9 +103,7 @@ public class SysPostController extends BaseController
         return toAjax(postService.deletePostByIds(postIds));
     }
 
-    /**
-     * 获取岗位选择框列表
-     */
+
     @GetMapping("/optionselect")
     public AjaxResult optionselect()
     {

@@ -14,7 +14,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 用户运营端二维码票卡交易明细查询。 */
 @RestController
 @RequestMapping("/page/qrcode-txn-detail")
 public class QRCodeTxnDetailPageController {
@@ -27,7 +26,6 @@ public class QRCodeTxnDetailPageController {
         this.txnDetailQueryService = txnDetailQueryService;
     }
 
-    /** 分页查询二维码票卡交易；必须指定用户标识或完整日期范围以控制查询范围。 */
     @GetMapping
     public ResultVO<Map<String, Object>> page(@RequestParam(required = false) String cardId,
                                               @RequestParam(required = false) String thirdUserId,

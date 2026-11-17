@@ -2,17 +2,11 @@ package com.chinasofti.huateng.model.pay;
 
 import java.util.List;
 
-/**
- * IF8A-26 请求补款下单（{@code /app/requestPayOrder}）请求报文。
- */
+
 public class SupplementOrderReqDTO {
-    /** 商品编码，规格固定 001。 */
     private String goodsCode;
-    /** 补款总金额，单位分，规格为 string。 */
     private String price;
-    /** 数量，规格固定 1。 */
     private String quantity;
-    /** 待补款的原过闸订单号数组（GATE_TXN_PAY.ORDER_NO）。 */
     private List<String> orderNoList;
     private String thirdUserId;
     private String cardId;

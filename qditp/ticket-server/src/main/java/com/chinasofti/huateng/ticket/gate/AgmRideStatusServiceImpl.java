@@ -11,21 +11,18 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-/** AGM 乘车状态服务实现。 */
 @Service
 public class AgmRideStatusServiceImpl implements AgmRideStatusService {
 
     private static final Logger log = LoggerFactory.getLogger(AgmRideStatusServiceImpl.class);
     private static final String RET_SUCCESS = "0000";
 
-    /** QRCODE_STATUS 的唯一访问口。 */
     @Autowired
     private QRCodeStatusStore qrCodeStatusStore;
 
     @Autowired
     private GateTicketHandler gateTicketHandler;
 
-    /** IF1A-01 闸机检票通知。 */
     @Override
     public NotifyVerifyResultRespDTO notifyVerifyResult(NotifyVerifyResultReqDTO request) {
         NotifyVerifyResultRespDTO response = new NotifyVerifyResultRespDTO();
@@ -33,7 +30,6 @@ public class AgmRideStatusServiceImpl implements AgmRideStatusService {
         return response;
     }
 
-    /** 查询票卡当前状态。 */
     @Override
     public QueryStatusRespDTO queryQrCodeStatus(QueryStatusReqDTO request) {
         QueryStatusRespDTO response = new QueryStatusRespDTO();

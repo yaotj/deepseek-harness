@@ -1,37 +1,23 @@
 package com.chinasofti.huateng.model.security;
 
-/**
- * 请求签名用户公钥参数。
- */
+
 public class RequestSignPubkeyReqDTO {
-    /**
-     * 用户SM2公钥X分量，64位HEX。
-     */
+
     private String publicKeyX;
 
-    /**
-     * 用户ID，四字节HEX。
-     */
+
     private String userId;
 
-    /**
-     * 用户公钥有效期，四字节HEX。
-     */
+
     private String publicKeyEffectiveDate;
 
-    /**
-     * LMK加密的CA私钥，来自 METRO_CA_KEYSTORE.KEY_PRIVATE。
-     */
+
     private String caPrivateKey;
 
-    /**
-     * CA公钥XY，来自 METRO_CA_KEYSTORE.KEY_PUBLIC。
-     */
+
     private String caPublicKey;
 
-    /**
-     * CA SM2密钥密文对，来自 METRO_CA_KEYSTORE.KEY_PAIR。
-     */
+
     private String caSm2KeyPair;
 
     public String getPublicKeyX() {

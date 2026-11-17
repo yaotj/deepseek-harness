@@ -15,18 +15,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-/**
- * 支付通道对内契约面的实现，见 {@link PayChannelInternalService}。
- */
+
 @Service
 public class PayChannelInternalServiceImpl implements PayChannelInternalService {
     private static final Logger log = LoggerFactory.getLogger(PayChannelInternalServiceImpl.class);
 
     private final UserPayChannelMapper userPayChannelMapper;
 
-    /**
-     * 构造器注入（ADR-D37）。
-     */
+
     public PayChannelInternalServiceImpl(UserPayChannelMapper userPayChannelMapper) {
         this.userPayChannelMapper = userPayChannelMapper;
     }
@@ -66,9 +62,7 @@ public class PayChannelInternalServiceImpl implements PayChannelInternalService 
         }
     }
 
-    /**
-     * 接收支付域推来的支付账号并回写（ADR-D32）。
-     */
+
     @Override
     public CommonResult syncPayAccountId(SyncPayAccountIdReqDTO request) {
         CommonResult response = new CommonResult();

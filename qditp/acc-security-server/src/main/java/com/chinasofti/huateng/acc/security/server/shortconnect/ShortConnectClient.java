@@ -18,12 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-/**
- * Description:
- *
- * @author houkepan
- * @date 2019/2/18 15:01
- */
+
 @Component
 public class ShortConnectClient {
     private static final Logger logger = LoggerFactory.getLogger(ShortConnectClient.class);
@@ -48,20 +43,16 @@ public class ShortConnectClient {
                     });
 
             ChannelFuture future = bootstrap.connect(securityConfig.getFirstIp(), securityConfig.getFirstPort()).sync();
-            // 判断是否连接成功
             if (future.isSuccess()) {
                 logger.info("客户端连接成功...");
             } else {
                 logger.error("客户端连接失败...");
             }
 
-            // 发送数据
             future.channel().writeAndFlush(param);
 
-            // 等待客户端链路关闭，就是由于这里会将线程阻塞，导致无法发送信息，所以我这里开了线程
             future.channel().closeFuture().sync();
 
-            //接收服务端返回的数据
             AttributeKey<String> key = AttributeKey.valueOf(userReatin.toUpperCase());
             String resultData = future.channel().attr(key).get();
             logger.info(future.channel().id() + "加密机验证结果【" + resultData + "】" + TransformUtils.bytesToHex(param));

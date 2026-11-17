@@ -2,65 +2,40 @@ package com.chinasofti.huateng.acc.security.server.param;
 
 import java.util.Arrays;
 
-/**
- * @author houkepan
- * @date 2021/1/27 20:28
- */
+
 public class TacBean {
 
-    /**
-     * 命令类型
-     */
+
     private byte[] orderType = {(byte) 0xB0};
 
-    /**
-     * 命令
-     */
+
     private byte[] order = {(byte) 0x84};
 
-    /**
-     * 用户保留字
-     */
+
     private byte[] userRetain;
 
-    /**
-     * TAC类型
-     */
+
     private byte[] tacType = {(byte) 0x00};
 
-    /**
-     * 次主密钥索引
-     */
+
     private byte[] index;
 
-    /**
-     * 分散次数
-     */
+
     private byte[] disperseNum;
 
-    /**
-     * 分散数据
-     */
+
     private byte[] disperseData;
 
-    /**
-     * TAC初始数据
-     */
+
     private byte[] initial = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-    /**
-     * TAC
-     */
+
     private byte[] tac;
 
-    /**
-     * TAC数据长度
-     */
+
     private byte[] bytesLength;
 
-    /**
-     * TAC数据
-     */
+
     private byte[] bytes;
 
 

@@ -22,13 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * 锁死心跳落库的语义。
- *
- * <p>重点在「车站码按设备号补算」：该字段是运营端按车站定位设备的唯一来源，
- * 一旦退化回传 null，{@code STATION_CODE} 会重新全表为空，而页面不会报错、只会安静地少一列。
- * 解析规则本身的边界见 {@link com.chinasofti.huateng.facepay.support.F2fDeviceIdTest}。
- */
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class F2fDeviceHeartbeatServiceTest {
@@ -48,7 +42,6 @@ class F2fDeviceHeartbeatServiceTest {
         assertEquals("0622", capturedStationCode());
     }
 
-    /** 调用方显式给了车站就以显式值为准，推导只作兜底。 */
     @Test
     void explicitStationCodeWinsOverDerivedOne() {
         when(deviceStatusMapper.mergeHeartbeat(any(), any(), any(), any(LocalDateTime.class))).thenReturn(1);
@@ -58,7 +51,6 @@ class F2fDeviceHeartbeatServiceTest {
         assertEquals("0352", capturedStationCode());
     }
 
-    /** 设备号不足 4 位时站码留空，SQL 侧 NVL 会保留原值、不会把已有站码抹掉。 */
     @Test
     void leavesStationCodeNullWhenDeviceIdCannotDeriveIt() {
         when(deviceStatusMapper.mergeHeartbeat(any(), any(), any(), any(LocalDateTime.class))).thenReturn(1);
@@ -68,7 +60,6 @@ class F2fDeviceHeartbeatServiceTest {
         assertEquals(null, capturedStationCode());
     }
 
-    /** 设备号缺失时整条心跳都不落库，也不该去推车站码。 */
     @Test
     void skipsPersistenceWhenDeviceIdMissing() {
         assertFalse(service.recordHeartbeat(F2fChannel.TVM, null, null));

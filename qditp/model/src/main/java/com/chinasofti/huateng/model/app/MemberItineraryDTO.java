@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * IF8A-29 用户行程信息对象。
- */
+
 public class MemberItineraryDTO {
     private String payStatus;
     private String thisStationName;

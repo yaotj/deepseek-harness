@@ -2,41 +2,29 @@ package com.chinasofti.huateng.dailyticket.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-/** 日票激活后通知 ACC 发售的出向配置。 */
 @ConfigurationProperties(prefix = "daily-ticket.acc.active-notify")
 public class DailyTicketAccNotifyProperties {
 
-    /** ACC 发售通知完整地址。 */
     private String url;
 
-    /** ITP 公共请求 providerId。 */
     private String providerId = "06";
 
-    /** ITP 公共请求 charset。 */
     private String charset = "UTF-8";
 
-    /** ITP 公共请求 format。 */
     private String format = "json";
 
-    /** ITP 公共请求 deviceId。 */
     private String deviceId = "ITP-DAILY-TICKET";
 
-    /** ITP 公共请求 signType。 */
     private String signType = "00";
 
-    /** ITP 公共请求 sign。 */
     private String sign = "";
 
-    /** 最大通知次数，达到即置 GIVEUP。 */
     private int maxNotifyTimes = 5;
 
-    /** 单批默认补偿条数。 */
     private int defaultLimit = 100;
 
-    /** 连接超时，毫秒。 */
     private int connectTimeoutMs = 5000;
 
-    /** 读超时，毫秒。 */
     private int readTimeoutMs = 10000;
 
     public String getUrl() {

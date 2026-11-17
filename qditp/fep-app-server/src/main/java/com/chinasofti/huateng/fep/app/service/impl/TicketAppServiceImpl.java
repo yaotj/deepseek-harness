@@ -29,7 +29,6 @@ public class TicketAppServiceImpl implements TicketAppService {
 
     private final BlacklistClient blacklistClient;
     private final TicketClient ticketClient;
-    /** 仅 IF8A-05 / IF8A-41 / IF8A-34 三个交易查询走本 Client，其余走 ticketClient。 */
     private final TransQueryClient transQueryClient;
 
     public TicketAppServiceImpl(BlacklistClient blacklistClient, TicketClient ticketClient,

@@ -12,11 +12,6 @@ public interface LineInfoMapper {
 
     int insertBatch(@Param("list") List<LineInfo> list);
 
-    /**
-     * 查询指定路网参数版本下的线路信息。
-     *
-     * @param paraVerNo 路网参数版本号
-     * @return 线路信息列表
-     */
+
     List<LineInfo> selectByParaVerNo(@Param("paraVerNo") Long paraVerNo);
 }

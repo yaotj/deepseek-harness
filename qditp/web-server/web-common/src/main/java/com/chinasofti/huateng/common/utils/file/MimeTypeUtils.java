@@ -1,10 +1,6 @@
 package com.chinasofti.huateng.common.utils.file;
 
-/**
- * 媒体类型工具类
- * 
- * @author zmzhang
- */
+
 public class MimeTypeUtils
 {
     public static final String IMAGE_PNG = "image/png";
@@ -27,15 +23,10 @@ public class MimeTypeUtils
     public static final String[] VIDEO_EXTENSION = { "mp4", "avi", "rmvb" };
 
     public static final String[] DEFAULT_ALLOWED_EXTENSION = {
-            // 图片
             "bmp", "gif", "jpg", "jpeg", "png",
-            // word excel powerpoint
             "doc", "docx", "xls", "xlsx", "ppt", "pptx", "html", "htm", "txt",
-            // 压缩文件
             "rar", "zip", "gz", "bz2",
-            // 视频格式
             "mp4", "avi", "rmvb",
-            // pdf
             "pdf" };
 
     public static String getExtension(String prefix)

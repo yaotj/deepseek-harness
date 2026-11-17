@@ -10,18 +10,10 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 import java.util.function.Function;
 
-/**
- * daily-ticket-server 的 Quartz 调用桥接任务：多日票批量退款（甲方需求 16 当日 / 17 月度）。
- *
- * <p>两个方法对应两条 {@code sys_job}（245 / 250，2026-09-21 由 135 / 136 改号），触发时机不同（每天 20 点 / 每月最后一天 20 点），
- * 停用其中一条不影响另一条。
- *
- * <p>下游端点自带 {@code AtomicBoolean} 限流，返 {@code 9998} 时**不当失败**（否则前台每轮都记红）。
- */
+
 @Component("dailyTicketBatchRefundQuartzTask")
 public class DailyTicketBatchRefundQuartzTask {
 
-    /** 上一轮仍在执行，属限流、不是失败。 */
     private static final String CODE_BUSY = "9998";
 
     private static final String SUCCESS_CODE = "0000";
@@ -34,13 +26,11 @@ public class DailyTicketBatchRefundQuartzTask {
         this.dailyTicketClient = dailyTicketClient;
     }
 
-    /** 前台调用目标填写 dailyTicketBatchRefundQuartzTask.refundDaily() 时执行。 */
     public void refundDaily() {
         QuartzTraceUtils.runWithTrace(traceId -> invoke("多日票批量退款(当日)",
                 dailyTicketClient::batchRefundDaily, traceId));
     }
 
-    /** 前台调用目标填写 dailyTicketBatchRefundQuartzTask.refundMonthly() 时执行。 */
     public void refundMonthly() {
         QuartzTraceUtils.runWithTrace(traceId -> invoke("多日票批量退款(月度)",
                 dailyTicketClient::batchRefundMonthly, traceId));

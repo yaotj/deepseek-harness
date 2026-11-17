@@ -24,7 +24,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DuplicateKeyException;
 
-/** 护栏：签约成功回调只发事件不直接通知；解约回调只接受 SCANNING，终态幂等短路。 */
 class CallbackDomainCharacterizationTest {
 
     private static final String WALLET_VENDOR = "0B";
@@ -57,7 +56,6 @@ class CallbackDomainCharacterizationTest {
         assertEquals("SIGNED", inserted.getContractStatus());
     }
 
-    /** 失败分支：不落签约主表、不发事件，流水的 SIGN_STATUS 落 FAILED。 */
     @Test
     void signResultFailureOnlyWritesFailedAuditLog() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -71,7 +69,6 @@ class CallbackDomainCharacterizationTest {
         assertEquals("FAILED", logs.get(logs.size() - 1).getSignStatus());
     }
 
-    /** 钱包（{@code 0B}）签约成功回调必须被接受并落 {@code APP_PAY_SIGN_INFO}。 */
     @Test
     void walletSignResultCallbackIsAcceptedAndPersisted() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -88,13 +85,7 @@ class CallbackDomainCharacterizationTest {
         verify(fixture.eventPublisher).publishEvent(any(SignResultCommittedEvent.class));
     }
 
-    /**
-     * 渠道重推同一笔已成功的签约回调：撞唯一键即幂等返 {@code 0000}，
-     * 且 <b>NEVER 再发事件、NEVER 再插 {@code NOTIFY_STATUS='PENDING'} 流水</b>（2026-09-17，ADR-D123）。
-     *
-     * <p>异常故意包一层 {@code RuntimeException} —— 本模块开了 tracing，观测切面会换类型（ADR-D53），
-     * 裸 {@code catch (DuplicateKeyException)} 在线上根本进不去。
-     */
+
     @Test
     void duplicateSignResultCallbackIsIdempotentAndNeverRenotifies() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -111,7 +102,6 @@ class CallbackDomainCharacterizationTest {
         }
     }
 
-    /** 非唯一键冲突的异常 MUST 继续按系统异常处置，NEVER 被幂等分支吞成成功。 */
     @Test
     void nonConflictInsertFailureIsNotSwallowedAsReplay() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -156,7 +146,6 @@ class CallbackDomainCharacterizationTest {
         verify(fixture.paySignInfoMapper, never()).deleteByUserAndVendor(anyString(), anyString());
     }
 
-    /** 钱包解绑走 {@code requestAgreeRelease} 同步完成，解约回调只记审计并返幂等成功。 */
     @Test
     void walletTerminationCallbackIsIgnoredButAnsweredSuccessfully() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();

@@ -14,16 +14,13 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 架构门禁：把本模块几条只靠注释维持的约束固化成会失败的构建。 */
 class F2fGuardTest {
 
     private static final Path MAIN = Path.of("src", "main", "java");
 
-    /** 当前实测：7 个 {@code @Scheduled} 分布在 6 个类（补款那个类里有两个）。 */
     private static final int EXPECTED_SCHEDULED = 7;
     private static final int EXPECTED_SCHEDULED_CLASSES = 6;
 
-    /** 当前实测：5 处逻辑卡号归一，分布在 3 个类（出票落库 / 按票故障 / 交易查询 / 按票退款 / 充值下单）。 */
     private static final int EXPECTED_NORMALIZE = 5;
     private static final int EXPECTED_NORMALIZE_CLASSES = 3;
 
@@ -80,7 +77,6 @@ class F2fGuardTest {
                         + "后者是判断上游送的是哪种大小写的唯一线索）；命中: " + hits);
     }
 
-    /** 返回剥离注释后仍命中 needle 的行，形如 {@code 文件名:行号 | 代码}。 */
     private static List<String> scanCodeLines(String needle) throws IOException {
         List<String> hits = new ArrayList<>();
         try (Stream<Path> files = Files.walk(MAIN)) {

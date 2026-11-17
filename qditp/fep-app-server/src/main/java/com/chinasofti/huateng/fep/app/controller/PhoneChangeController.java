@@ -11,9 +11,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 更换手机号接口入口（if8a_76）。
- */
+
 @RestController
 public class PhoneChangeController extends BaseAppController {
     private static final Logger log = LoggerFactory.getLogger(PhoneChangeController.class);

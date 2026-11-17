@@ -2,7 +2,6 @@ package com.chinasofti.huateng.model.ticket;
 
 import com.chinasofti.huateng.common.response.CommonResult;
 
-/** 同序列号首笔进站交易的计费所需字段。 */
 public class QueryFirstEntryTxnResult extends CommonResult {
     private String cardId;
     private String ticketTransSeq;

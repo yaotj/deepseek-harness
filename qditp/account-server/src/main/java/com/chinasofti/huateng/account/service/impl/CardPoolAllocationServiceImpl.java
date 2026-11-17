@@ -18,38 +18,28 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-/**
- * 开户发号协作者的实现，2026-09-11 从 {@code AccountApplicationServiceImpl} 原样搬出，行为未变。
- */
+
 @Service
 public class CardPoolAllocationServiceImpl implements CardPoolAllocationService {
     private static final Logger log = LoggerFactory.getLogger(CardPoolAllocationServiceImpl.class);
 
-    /**
-     * APP 上送的 HCE 票种码（旧 NFC 卡），发行侧对应 {@code 0442}。
-     */
+
     private static final String APP_CARD_TYPE_HCE = "03";
 
-    /**
-     * APP 上送的新版 HCE 票种码（新 NFC 卡），发行侧对应 {@code 0443}。
-     */
+
     private static final String APP_CARD_TYPE_NEW_HCE = "04";
 
     private final CardPoolClient cardPoolClient;
 
     private final SecurityClient securityClient;
 
-    /**
-     * 构造器注入（ADR-D37）。
-     */
+
     public CardPoolAllocationServiceImpl(CardPoolClient cardPoolClient, SecurityClient securityClient) {
         this.cardPoolClient = cardPoolClient;
         this.securityClient = securityClient;
     }
 
-    /**
-     * 向 card-pool-server 预占一个逻辑卡号。
-     */
+
     @Override
     public CardAllocation reserveFromPool(String cardType, String businessType, String businessId, String ownerId) {
         if (!CardPoolTicketType.POOL_ENABLED_TYPES.contains(cardType)) {
@@ -81,9 +71,7 @@ public class CardPoolAllocationServiceImpl implements CardPoolAllocationService 
         return new CardAllocation(data.getCardNo(), null, data.getReservationId(), businessId);
     }
 
-    /**
-     * 确认预占。
-     */
+
     @Override
     public boolean confirmReservation(CardAllocation allocation, String scene) {
         if (allocation == null || !StringUtils.hasText(allocation.reservationId())) {
@@ -108,9 +96,7 @@ public class CardPoolAllocationServiceImpl implements CardPoolAllocationService 
         return false;
     }
 
-    /**
-     * 释放预占。
-     */
+
     @Override
     public void releaseReservation(CardAllocation allocation, String scene) {
         if (allocation == null || !StringUtils.hasText(allocation.reservationId())) {
@@ -140,9 +126,7 @@ public class CardPoolAllocationServiceImpl implements CardPoolAllocationService 
         return APP_CARD_TYPE_HCE.equals(normalized) || APP_CARD_TYPE_NEW_HCE.equals(normalized);
     }
 
-    /**
-     * 请求安全服务发售 HCE 卡数据并取得逻辑卡号。
-     */
+
     @Override
     public HceCardAllocation requestHceCardData(String thirdUserId, String ticketCard) {
         String encodedUserId = toFourByteHex(thirdUserId);
@@ -162,15 +146,7 @@ public class CardPoolAllocationServiceImpl implements CardPoolAllocationService 
         return new HceCardAllocation(response.getLogicNum(), response.getHceData());
     }
 
-    /**
-     * 将十进制第三方用户标识编码为四字节大写十六进制字符串。
-     *
-     * @param thirdUserId 十进制第三方用户标识
-     * @return 八位大写十六进制字符串；<b>非十进制数字时返回 {@code null}</b>，由调用方按
-     * 「HCE 发号失败」处理。IF8A-01 入口只校验了 {@code hasText}，不保证是数字，
-     * 直接 {@code parseLong} 会抛 NumberFormatException 被上层统一 catch 成 9999，
-     * 日志里看不出真实原因。
-     */
+
     private String toFourByteHex(String thirdUserId) {
         if (thirdUserId == null || !thirdUserId.matches("\\d{1,19}")) {
             log.error("thirdUserId不是十进制数字，无法编码为HCE的iptUserId, thirdUserId={}", thirdUserId);

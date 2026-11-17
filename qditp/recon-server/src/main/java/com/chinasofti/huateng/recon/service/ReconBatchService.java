@@ -7,9 +7,7 @@ import com.chinasofti.huateng.recon.model.ReconBatchStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 对账批次的创建与状态流转。
- */
+
 @Service
 public class ReconBatchService {
     private final ReconBatchMapper batchMapper;
@@ -26,13 +24,7 @@ public class ReconBatchService {
 
     public BatchView get(String batchId) { return batchMapper.selectById(batchId); }
 
-    /**
-     * 幂等的状态推进：目标状态与当前状态相同则原样返回，不抛异常。
-     *
-     * @param batchId 批次标识
-     * @param target  目标状态
-     * @return 推进后的批次视图
-     */
+
     @Transactional
     public BatchView transitionIfNeeded(String batchId, ReconBatchStatus target) {
         BatchView current = get(batchId);
@@ -52,11 +44,7 @@ public class ReconBatchService {
         return get(batchId);
     }
 
-    /**
-     * 状态流转白名单。SUCCESS 是终态，一律拒绝流出；FAILED 是补偿重试的入口。
-     *
-     * <p>护栏：{@code PARTIAL -&gt; EXPORTING} MUST 在白名单里，缺它那个账期再也补不回来。</p>
-     */
+
     private boolean allowed(ReconBatchStatus from, ReconBatchStatus to) {
         return switch (from) {
             case CREATED -> to == ReconBatchStatus.EXPORTING || to == ReconBatchStatus.FAILED;

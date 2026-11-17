@@ -7,14 +7,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.web.multipart.MultipartFile;
 
-/**
- * <p>
- * ES任务拆分
- * </p>
- *
- * @author fc
- * @since 2020-09-02
- */
+
 @Data
 public class TblTktEsTask  implements Serializable {
 
@@ -40,9 +33,7 @@ public class TblTktEsTask  implements Serializable {
 
     private String testFlg;
 
-    /**
-     * 版本
-     */
+
     private String verNo;
 
     private String batchNo;

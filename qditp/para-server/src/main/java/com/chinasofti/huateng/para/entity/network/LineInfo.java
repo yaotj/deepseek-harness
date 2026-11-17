@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.para.entity.network;
 
-/**
- * 线路信息参数表 TBL_LINE_INFO。
- */
+
 public class LineInfo {
     private Long paraVerNo;
     private String lineCode;

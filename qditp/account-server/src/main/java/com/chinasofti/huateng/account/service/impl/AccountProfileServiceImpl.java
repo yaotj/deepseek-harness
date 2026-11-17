@@ -21,18 +21,14 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 账户资料的读取与 HCE 数据维护实现，见 {@link AccountProfileService}。
- */
+
 @Service
 public class AccountProfileServiceImpl implements AccountProfileService {
     private static final Logger log = LoggerFactory.getLogger(AccountProfileServiceImpl.class);
 
     private final UserItpRegInfoMapper userItpRegInfoMapper;
 
-    /**
-     * 构造器注入（ADR-D37）。
-     */
+
     public AccountProfileServiceImpl(UserItpRegInfoMapper userItpRegInfoMapper) {
         this.userItpRegInfoMapper = userItpRegInfoMapper;
     }
@@ -137,9 +133,7 @@ public class AccountProfileServiceImpl implements AccountProfileService {
         }
     }
 
-    /**
-     * 保存 IF1A-01 reserve1 中携带的闸机处理后 HCE 卡数据。
-     */
+
     @Override
     public UpdateHceDataResult updateHceData(UpdateHceDataReqDTO request) {
         UpdateHceDataResult response = new UpdateHceDataResult();

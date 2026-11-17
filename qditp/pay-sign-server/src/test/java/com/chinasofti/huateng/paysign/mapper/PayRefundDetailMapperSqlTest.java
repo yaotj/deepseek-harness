@@ -11,7 +11,6 @@ import java.util.HashMap;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 护栏：退款回查与跨表对账的扫表条件、CAS 主键两列（含 TXN_DATE）、以及 EXISTS 与 NOT EXISTS 的方向。 */
 class PayRefundDetailMapperSqlTest {
 
     private static final String RESOURCE = "mapper/PayRefundDetailMapper.xml";
@@ -19,7 +18,6 @@ class PayRefundDetailMapperSqlTest {
     private static final String NAMESPACE =
             "com.chinasofti.huateng.paysign.mapper.PayRefundDetailMapper.";
 
-    /** 回查扫表 SQL MUST 同时满足四条不变量（{@code docs/domain/outbox.md} §二那几个坑的退款版）。 */
     @Test
     void refundQueryCompensationScanKeepsAllFourInvariants() {
         String sql = boundSql(parseMapper(), "selectCompensableRefundQuery").replaceAll("\\s+", " ");
@@ -47,7 +45,6 @@ class PayRefundDetailMapperSqlTest {
                 "ROWNUM MUST 套在已排序子查询的外层，否则先截断再排序；实际渲染：" + sql);
     }
 
-    /** 三条写回状态的语句 MUST 都是 CAS：WHERE 同时带主键（{@code REFUND_ORDER_NO} + {@code TXN_DATE}） */
     @Test
     void everyRefundQueryWriteIsCasOnProcessing() {
         Configuration configuration = parseMapper();
@@ -66,7 +63,6 @@ class PayRefundDetailMapperSqlTest {
         }
     }
 
-    /** 放弃收口语句 MUST 落 {@code CLOSED} 并清空 {@code NEXT_REQUEST_TIME}，且 NEVER 落 FAIL / SUCCESS。 */
     @Test
     void exhaustStatementClosesWithoutGuessingOutcome() {
         String sql = boundSql(parseMapper(), "exhaustFromQuery").replaceAll("\\s+", " ");
@@ -82,7 +78,6 @@ class PayRefundDetailMapperSqlTest {
                 "MUST 清空 NEXT_REQUEST_TIME，否则这一行在状态白名单外还留着一个到点时间、语义自相矛盾；实际 SET：" + setClause);
     }
 
-    /** 退避语句 NEVER 动 {@code REQUEST_COUNT} 与 {@code REFUND_STATUS}。 */
     @Test
     void delayStatementOnlyPushesNextRequestTime() {
         String sql = boundSql(parseMapper(), "delayNextRefundQuery").replaceAll("\\s+", " ");
@@ -97,7 +92,6 @@ class PayRefundDetailMapperSqlTest {
                 "delayNextRefundQuery NEVER 改状态：退避不等于订正；实际 SET：" + setClause);
     }
 
-    /** 在途拦截 MUST 按原单号统计三个非终态，缺任一个都会放过一次重复提交。 */
     @Test
     void inFlightGuardCountsAllThreeNonTerminalStates() {
         String sql = boundSql(parseMapper(), "countInFlightByOrderNo").replaceAll("\\s+", " ");
@@ -111,7 +105,6 @@ class PayRefundDetailMapperSqlTest {
                         + "实际渲染：" + sql);
     }
 
-    /** 收口语句 MUST 用 {@code NVL} 兜住三个单号与退款时间，NEVER 直接覆盖。 */
     @Test
     void finishStatementNeverErasesExistingChannelNumbers() {
         String sql = boundSql(parseMapper(), "finishFromQuery").replaceAll("\\s+", " ");
@@ -122,7 +115,6 @@ class PayRefundDetailMapperSqlTest {
         }
     }
 
-    /** 跨表对账两条扫表 SQL MUST 同时满足三条不变量。 */
     @Test
     void refundSummaryReconScansKeepAllThreeInvariants() {
         Configuration configuration = parseMapper();
@@ -146,7 +138,6 @@ class PayRefundDetailMapperSqlTest {
         }
     }
 
-    /** 两条扫表 SQL 的差别 MUST 恰好是 {@code EXISTS} 与 {@code NOT EXISTS}，因为处置完全相反。 */
     @Test
     void orphanScanUsesNotExistsWhileDriftScanUsesExists() {
         Configuration configuration = parseMapper();
@@ -180,7 +171,6 @@ class PayRefundDetailMapperSqlTest {
                 .getSql();
     }
 
-    /** 取 WHERE 之后的片段；断言前置条件时只看 WHERE，避免把 SET 里的同名列误当成前置条件。 */
     private String whereClauseOf(String sql, String statementId) {
         String normalized = sql.replaceAll("\\s+", " ");
         int idx = normalized.toLowerCase().lastIndexOf("where ");

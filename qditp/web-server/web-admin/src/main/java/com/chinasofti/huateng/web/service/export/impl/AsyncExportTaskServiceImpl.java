@@ -7,9 +7,7 @@ import com.chinasofti.huateng.web.mapper.export.AsyncExportTaskMapper;
 import com.chinasofti.huateng.web.domain.export.AsyncExportTask;
 import com.chinasofti.huateng.web.service.export.IAsyncExportTaskService;
 
-/**
- * 异步导出任务 Service 实现
- */
+
 @Service
 public class AsyncExportTaskServiceImpl implements IAsyncExportTaskService
 {

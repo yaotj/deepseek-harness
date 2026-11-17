@@ -6,17 +6,11 @@ public class TransResponseData implements Serializable {
 
     private static final long serialVersionUID = -3719143895386880848L;
 
-    // 交易数据类型，长度4
     private String transDataType;
-    // 设备ID，长度8
     private String devNodeId;
-    // 流水号类型，长度4
     private String txnSnType;
-    // 交易时间，长度14
     private String txnTime;
-    // 终端设备流水号，长度10
     private String devTxnSn;
-    // 处理状态 长度2
     private String status;
 
     public String getTransDataType() {

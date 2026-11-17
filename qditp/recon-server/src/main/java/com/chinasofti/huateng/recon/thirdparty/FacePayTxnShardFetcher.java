@@ -31,15 +31,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 按账期向 face-pay-server 拉取 F2F 侧 TXNDIFF 数据源分片。
- *
- * <p>为什么是「按账期拉取」而不是 recon-server 直接查 {@code F2F_ORDER/F2F_PAYMENT}：face-pay 库即将拆库、
- * recon-server 的单数据源账号没有这两张表的 SELECT 授权（recon-thirdparty.md §八）；沿用既有对账分片机制——
- * recon-server 下发抽取指令，face-pay-server 现场抽数、经 {@code ReconPartSink} 上送落盘，本类再读回。
- * 渠道账单日天然随账单变化，故每次比对都按 {@code txnDate} 起一个独立小批次（{@code RECON_F2F_{txnDate}}），
- * 不复用固定窗口的日终四大类批。</p>
- */
+
 @Service
 public class FacePayTxnShardFetcher {
 
@@ -74,7 +66,6 @@ public class FacePayTxnShardFetcher {
         this.thirdPartyProperties = thirdPartyProperties;
     }
 
-    /** 拉取指定自然日(txnDate=YYYYMMDD)的 face-pay F2F 流水，转成 {@link ItpTxnRecord} 列表。 */
     public List<ItpTxnRecord> fetch(String txnDate) {
         String batchId = "RECON_F2F_" + txnDate;
         LocalDateTime date = LocalDate.parse(txnDate, DATE).atStartOfDay();

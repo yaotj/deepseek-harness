@@ -3,55 +3,37 @@ package com.chinasofti.huateng.model.para;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-/**
- * 操作员信息参数表。
- */
+
 public class TblStlOperatorInfoDO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     private Long globalId;
 
-    /**
-     * 参数版本号。
-     */
+
     private Long paraVerNo;
 
-    /**
-     * 操作员编号。
-     */
+
     private String operatorId;
 
-    /**
-     * 操作员姓名。
-     */
+
     private String operatorName;
 
     private Long operatorGroup;
 
-    /**
-     * 可操作区域编号。
-     */
+
     private Long operatingArea;
 
-    /**
-     * 操作员卡号。
-     */
+
     private String operatorCardId;
 
-    /**
-     * 操作员密码。
-     */
+
     private String pwd;
 
-    /**
-     * 有效开始日期。
-     */
+
     private String validBeginTms;
 
-    /**
-     * 有效结束日期。
-     */
+
     private String validEndTms;
 
     private String lastUpdUser;

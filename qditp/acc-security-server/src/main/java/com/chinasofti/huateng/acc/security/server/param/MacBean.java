@@ -1,74 +1,45 @@
 package com.chinasofti.huateng.acc.security.server.param;
 
-/**
- * @author houkepan
- * @date 2021/1/27 20:28
- */
+
 public class MacBean {
 
-    /**
-     * 命令类型
-     */
+
     private byte[] orderType = {(byte) 0xB0};
 
-    /**
-     * 命令
-     */
+
     private byte[] order;
 
-    /**
-     * 用户保留字
-     */
+
     private byte[] userRetain;
 
-    /**
-     * MAC类型
-     */
+
     private byte[] macType = {(byte) 0x00};
 
-    /**
-     * 次主密钥索引
-     */
+
     private byte[] index;
 
-    /**
-     * 分散次数
-     */
+
     private byte[] disperseNum = {0x01};
 
-    /**
-     * 分散数据
-     */
+
     private byte[] disperseData;
 
-    /**
-     * 临时秘钥计算算法
-     */
+
     private byte[] temporaryAlgorithm = {0x00};
 
-    /**
-     * SESSIONKEY数据
-     */
+
     private byte[] sessionKey;
 
-    /**
-     * MAC初始数据
-     */
+
     private byte[] initial = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-    /**
-     * MAC
-     */
+
     private byte[] mac;
 
-    /**
-     * MAC数据长度
-     */
+
     private byte[] bytesLength;
 
-    /**
-     * MAC数据
-     */
+
     private byte[] bytes;
 
 

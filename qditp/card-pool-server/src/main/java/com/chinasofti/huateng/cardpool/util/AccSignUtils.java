@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** ACC 安全接口签名工具。 */
 public final class AccSignUtils {
 
     private static final DateTimeFormatter TS_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
@@ -21,28 +20,12 @@ public final class AccSignUtils {
     private AccSignUtils() {
     }
 
-    /**
-     * 生成 ACC 要求的请求时间戳。
-     *
-     * @return yyyyMMddHHmmss 形式的当前时间
-     */
+
     public static String buildTimestamp() {
         return LocalDateTime.now().format(TS_FORMATTER);
     }
 
-    /**
-     * 按 ACC 规格计算签名值。
-     *
-     * @param providerId 商户编码
-     * @param charset    字符集
-     * @param format     数据格式
-     * @param timestamp  请求时间
-     * @param deviceId   设备编码
-     * @param signType   签名类型，00-不签名，02-MD5
-     * @param bizData    业务参数
-     * @param properties ACC 配置，取 signKey
-     * @return 签名值；{@code signType=00} 时为空串
-     */
+
     public static String buildSign(String providerId,
                                    String charset,
                                    String format,
@@ -75,13 +58,7 @@ public final class AccSignUtils {
         throw new IllegalArgumentException("暂不支持的signType: " + signType);
     }
 
-    /**
-     * 值非空时才参与签名拼接。
-     *
-     * @param keyValuePairs 拼接结果
-     * @param key           参数名
-     * @param value         参数值
-     */
+
     private static void appendIfPresent(List<String> keyValuePairs, String key, String value) {
         if (StringUtils.hasText(value)) {
             keyValuePairs.add(key + "=" + value);

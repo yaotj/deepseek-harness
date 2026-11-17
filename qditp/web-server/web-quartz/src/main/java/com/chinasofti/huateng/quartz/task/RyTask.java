@@ -3,11 +3,7 @@ package com.chinasofti.huateng.quartz.task;
 import org.springframework.stereotype.Component;
 import com.chinasofti.huateng.common.utils.StringUtils;
 
-/**
- * 定时任务调度测试
- * 
- * @author zmzhang
- */
+
 @Component("ryTask")
 public class RyTask
 {

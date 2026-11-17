@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.key.entity;
 
-/**
- * A key item in an AGM key batch.
- */
+
 public class MetroAgmKeyPool {
     private String providerId;
     private Long keyBathNumber;

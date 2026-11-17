@@ -37,10 +37,7 @@ public class DailyTicketOrderCreationService {
     private static final String ORDER_TYPE_TRAVEL_TICKET = DailyTicketOrderSupport.ORDER_TYPE_TRAVEL_TICKET;
     private static final String SEA_BUS_PAY_CHANNEL = "SEA_BUS";
 
-    /**
-     * 旅游票单次购买张数上限。旅游票下单按张数循环 INSERT，不设上限等于把 for 循环次数交给外部输入。
-     * 上限值待业务确认，暂按 20 张。
-     */
+
     private static final int MAX_TRAVEL_TICKET_COUNT = 20;
 
     private static final String ORDER_STATUS_CANCELED = "CANCELED";
@@ -68,7 +65,6 @@ public class DailyTicketOrderCreationService {
         this.canceledOrderRefundService = canceledOrderRefundService;
     }
 
-    /** IF8A-70 旅游票下单。 */
     public TravelTicketOrderResult requestTravelOrder(TravelTicketOrderReqDTO request) {
         TravelTicketOrderResult result = new TravelTicketOrderResult();
         String validMsg = validateTravelOrderRequest(request);
@@ -139,7 +135,6 @@ public class DailyTicketOrderCreationService {
         return result;
     }
 
-    /** IF8A-73 免费票请求下单。 */
     public DailyTicketFreeOrderResult requestOrderFree(DailyTicketFreeOrderReqDTO request) {
         DailyTicketFreeOrderResult result = new DailyTicketFreeOrderResult();
         String validMsg = validateFreeOrderRequest(request);
@@ -153,28 +148,7 @@ public class DailyTicketOrderCreationService {
         return requestFreeDailyOrder(request, result);
     }
 
-    /**
-     * IF8A-65 取消订单：日票与旅游票在**未激活**之前都可取消。
-     *
-     * <p>前置白名单（**MUST 用白名单，NEVER 写成「非终态即可取消」**）：
-     * {@code CREATED} / {@code PAYING} / {@code PAY_FAILED} / {@code PAID}；
-     * {@code CANCELED} 幂等返成功、{@code REFUNDING} / {@code REFUNDED} 一律拒。
-     * 「已激活」的判据是 {@code DAILY_TICKET_INSTANCE} 有同 {@code ORDER_NO} 的行（旅游票是任一子单有行），
-     * 与退款侧 {@code refundType} 的判据同源，**NEVER 换成看订单上的字段** —— 订单表没有激活标记。
-     *
-     * <p>三条易踩的口径：
-     * <ul>
-     *   <li>{@code PAYING} 先 {@code queryAndRefreshPayResult} 主动查一次再决策 —— 钱可能已经到账，
-     *       直接按未付取消会漏掉退款；</li>
-     *   <li>取消已支付单后**当场发起退款**（{@code CanceledOrderRefundService}），订单随退款链路走
-     *       {@code CANCELED → REFUNDING → REFUNDED}；</li>
-     *   <li>海之巴士（{@code ORDER_SOURCE=4}）单下单即已收款且不走我方支付网关，**一律拒绝取消**，
-     *       退款只能由该渠道自己发起。小程序单（{@code ORDER_SOURCE=6}）允许取消，
-     *       退款落库后等对方同步结果，与手工退款同一口径。</li>
-     * </ul>
-     *
-     * <p>免费票（{@code FREE-} 前缀）允许取消，退款服务内部会识别并跳过出网 —— 无款可退。
-     */
+
     public DailyTicketBaseResult cancelOrder(DailyTicketOrderNoReqDTO request) {
         DailyTicketBaseResult result = new DailyTicketBaseResult();
         String validMsg = validateOrderNo(request == null ? null : request.getOrderNo(), request == null ? null : request.getOrderType());
@@ -223,12 +197,7 @@ public class DailyTicketOrderCreationService {
         return success(result);
     }
 
-    /**
-     * 旅游票取消：主单 {@code 0T} 与其下全部未激活子单 {@code 0E} 一并置 {@code CANCELED}。
-     *
-     * <p>子单取消 **MUST 在主单 CAS 成功之后**做 —— 反过来写时主单 CAS 失败（状态已被别的请求改掉）
-     * 会留下「主单还在、子单全没了」的半截数据。幂等分支也再扫一次子单，补上上一次可能漏掉的。
-     */
+
     private DailyTicketBaseResult cancelTravelOrder(String parentOrderNo, DailyTicketBaseResult result) {
         TravelTicketOrder parent = travelOrderMapper.selectByOrderNo(parentOrderNo);
         if (parent == null) {
@@ -269,7 +238,6 @@ public class DailyTicketOrderCreationService {
         return success(result);
     }
 
-    /** 旅游票是否已有任一子单激活；无子单时按「未激活」处理，子单缺失由退款侧再判。 */
     private boolean hasActivatedSubTicket(String parentOrderNo) {
         List<DailyTicketOrder> children = orderMapper.selectByParentOrderNo(parentOrderNo);
         if (children == null) {
@@ -374,7 +342,6 @@ public class DailyTicketOrderCreationService {
                 + String.format("%04d", orderSequence.getAndIncrement() % 10000);
     }
 
-    /** 旅游票主单号，前缀 0T 与日票子单的 0E 区分，便于日志与运营侧一眼分辨聚合单。 */
     private String nextTravelOrderNo() {
         return "0T" + new SimpleDateFormat("yyyyMMddHHmmss").format(new Date())
                 + String.format("%04d", orderSequence.getAndIncrement() % 10000);

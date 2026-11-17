@@ -16,9 +16,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Objects;
 
-/**
- * {@code RECON_BATCH_SOURCE} 的进度维护与收齐校验：分片数 / 记录数 / 金额三项全等才算收齐。
- */
+
 @Service
 public class ReconSourceService {
 
@@ -38,12 +36,7 @@ public class ReconSourceService {
         this.orchestration = orchestration;
     }
 
-    /**
-     * 按期望清单登记本批次需要收齐的每个 {@code (来源, 文件类型)}，按主键幂等。
-     *
-     * @param batchId 批次标识
-     * @param sources 期望清单
-     */
+
     public void registerExpectations(String batchId, List<SourceExpectation> sources) {
         if (sources == null || sources.isEmpty()) {
             log.warn("对账期望清单为空，批次 {} 无源可登记", batchId);
@@ -58,25 +51,19 @@ public class ReconSourceService {
         }
     }
 
-    /**
-     * 为单个 {@code (来源, 文件类型)} 登记期望，按主键幂等。供 TXNDIFF 的 face-pay F2F_TXN 小批次等
-     * 不走全量期望清单的下发场景使用。
-     */
+
     public void registerSingle(String batchId, String source, ReconFileType fileType) {
         sourceMapper.insertIfAbsent(batchId, source, fileType.name(), ReconSourceStatus.PENDING.name());
     }
-    /** 指令已被源受理，置 EXPORTING 并清空上一轮的失败原因（走条件更新，不覆盖终态）。 */
     public void markExporting(String batchId, String source, ReconFileType fileType) {
         sourceMapper.updateStatusIfNotTerminal(batchId, source, fileType.name(),
                 ReconSourceStatus.EXPORTING.name(), null);
     }
 
-    /** 指令被回绝或源声明失败，置 FAILED 并记原因，等待下一轮重下发。 */
     public void markFailed(String batchId, String source, ReconFileType fileType, String reason) {
         sourceMapper.updateStatus(batchId, source, fileType.name(), ReconSourceStatus.FAILED.name(), truncate(reason));
     }
 
-    /** 重下发前把重试次数 +1，超过 maxRetry 后编排器不再自动重试。 */
     public void increaseRetry(String batchId, String source, ReconFileType fileType) {
         sourceMapper.increaseRetry(batchId, source, fileType.name());
     }
@@ -85,18 +72,7 @@ public class ReconSourceService {
         return sourceMapper.selectByBatch(batchId);
     }
 
-    /**
-     * 处理源服务的完成声明，做三项总账比对后落终态。
-     *
-     * <p>比对项：分片数 / 记录数 / 金额合计。三项全等才置 COMPLETED；任一不等置 MISMATCH，
-     * 把差异写进 {@code FAIL_REASON} 并 {@code log.error} 告警。</p>
-     *
-     * @param batchId  批次标识
-     * @param source   来源标识
-     * @param fileType 文件类型
-     * @param request  源声明
-     * @return 处理后的进度
-     */
+
     public SourceProgress declare(String batchId, String source, ReconFileType fileType,
                                   ReconSourceCompleteReqDTO request) {
         SourceProgress current = sourceMapper.selectByKey(batchId, source, fileType.name());
@@ -134,7 +110,6 @@ public class ReconSourceService {
         return sourceMapper.selectByKey(batchId, source, fileType.name());
     }
 
-    /** 是否全部来源都已 COMPLETED；同时要求行数等于期望条数。 */
     public boolean allCompleted(String batchId) {
         List<SourceProgress> progresses = sourceMapper.selectByBatch(batchId);
         int expected = expectedCount();
@@ -142,13 +117,11 @@ public class ReconSourceService {
         return progresses.stream().allMatch(p -> p.status() == ReconSourceStatus.COMPLETED);
     }
 
-    /** 是否已有来源收口，用于把批次从 EXPORTING 推到 PARTIAL。 */
     public boolean anyCompleted(String batchId) {
         return sourceMapper.selectByBatch(batchId).stream()
                 .anyMatch(p -> p.status() == ReconSourceStatus.COMPLETED);
     }
 
-    /** 期望条数 = 期望清单里所有 {@code (来源, 文件类型)} 组合数。 */
     private int expectedCount() {
         int count = 0;
         for (SourceExpectation expectation : orchestration.getSources()) {
@@ -157,7 +130,6 @@ public class ReconSourceService {
         return count;
     }
 
-    /** 三项逐一比对，全等返回 null，否则返回可读的差异说明。 */
     private String diff(PartTotals totals, ReconSourceCompleteReqDTO request) {
         StringBuilder builder = new StringBuilder(96);
         int parts = Objects.requireNonNullElse(totals.parts(), 0);
@@ -177,7 +149,6 @@ public class ReconSourceService {
         return builder.length() == 0 ? null : builder.toString();
     }
 
-    /** FAIL_REASON 列长 1024，超长截断，避免 ORA-12899 让整条声明失败。 */
     private String truncate(String reason) {
         if (reason == null) return null;
         return reason.length() <= 1024 ? reason : reason.substring(0, 1024);

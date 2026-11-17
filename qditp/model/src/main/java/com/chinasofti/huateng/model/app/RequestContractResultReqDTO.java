@@ -4,7 +4,6 @@ public class RequestContractResultReqDTO {
     private String thirdUserId;
     private String requestSignSeq;
     private String paymentVendor;
-    /** 钱包绑定状态查询所需卡信息；传统签约查询可不传。 */
     private String cardId;
     private String cardType;
 

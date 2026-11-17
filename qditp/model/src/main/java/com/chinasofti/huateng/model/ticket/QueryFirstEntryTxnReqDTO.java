@@ -1,6 +1,5 @@
 package com.chinasofti.huateng.model.ticket;
 
-/** 查询同二维码交易序列号对应的首笔进站交易。 */
 public class QueryFirstEntryTxnReqDTO {
     private String cardId;
     private String ticketTransSeq;

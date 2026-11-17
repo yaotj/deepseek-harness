@@ -19,25 +19,19 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** 日终对账分片导出，本源标识 {@code gate-txn-pay} */
 @Service
 public class ReconExportService {
 
     private static final Logger log = LoggerFactory.getLogger(ReconExportService.class);
 
-    /** 本源标识，跨服务契约字段值。 */
     private static final String SOURCE = "gate-txn-pay";
 
-    /** PAY 行总段数：5 段键 + 16 段度量，甲方 §一(2) 明确列出。 */
     private static final int PAY_FIELD_COUNT = 21;
 
-    /** PAY 行「过闸笔数」下标（甲方第 12 段，0 基下标 11），紧邻的下一段是「过闸金额」。 */
     private static final int PAY_IDX_GATE_COUNT = 11;
 
-    /** PAY 行「单边交易笔数」下标（甲方第 18 段，0 基下标 17），紧邻的下一段是「单边交易金额」。 */
     private static final int PAY_IDX_EXP_COUNT = 17;
 
-    /** DETAIL 行「交易类型」的固定取值。 */
     private static final String DETAIL_TXN_TYPE_EXIT = "出站";
 
     private final ReconExportMapper reconExportMapper;
@@ -48,13 +42,9 @@ public class ReconExportService {
 
     private final ExecutorService executor;
 
-    /** 在途批次标记，key 为 batchId。 */
     private final ConcurrentHashMap<String, Boolean> running = new ConcurrentHashMap<>();
 
-    /**
-     * @param pageSize 明细类（EXP / DETAIL）每批查询行数，取自配置 {@code recon.export.page-size}
-     * @param workerCount 抽取线程数，取自配置 {@code recon.export.worker}，默认 1 即串行。
-     */
+
     public ReconExportService(ReconExportMapper reconExportMapper,
                               ReconPartUploader uploader,
                               @Value("${recon.export.page-size:5000}") int pageSize,
@@ -69,12 +59,7 @@ public class ReconExportService {
         });
     }
 
-    /**
-     * 受理一次抽取指令：校验、去重、派给抽取线程池，立即返回。
-     *
-     * @param request recon-server 下发的抽取指令。
-     * @return true 已受理，false 同批次上一轮抽取仍在执行（限流，不是失败）。
-     */
+
     public boolean submit(ReconExportReqDTO request) {
         request.validate();
         String batchId = request.getBatchId();
@@ -100,7 +85,6 @@ public class ReconExportService {
         return true;
     }
 
-    /** 在抽取线程上按 fileTypes 逐类导出。 */
     private void runExport(ReconExportReqDTO request) {
         List<String> failures = new ArrayList<>();
         for (String fileType : request.getFileTypes()) {
@@ -124,7 +108,6 @@ public class ReconExportService {
         }
     }
 
-    /** EXP 单边交易明细导出：keyset 游标逐批查询、逐行写入分片通道。 */
     private void exportExp(ReconExportReqDTO request) {
         try (ReconPartSink sink = uploader.open(request.getBatchId(), SOURCE, ReconFileTypeEnum.EXP)) {
             String lastOutTime = null;
@@ -168,7 +151,6 @@ public class ReconExportService {
         }
     }
 
-    /** PAY 统计汇总导出：两条库内 GROUP BY，各自输出一行。 */
     private void exportPay(ReconExportReqDTO request) {
         try (ReconPartSink sink = uploader.open(request.getBatchId(), SOURCE, ReconFileTypeEnum.PAY)) {
             List<Map<String, Object>> gateRows = reconExportMapper.selectPayGateSummary(
@@ -192,14 +174,7 @@ public class ReconExportService {
         }
     }
 
-    /**
-     * 拼一条 PAY 行：5 段键照抄，16 段度量默认字面 {@code 0}，只把指定的一组笔数/金额填进去。
-     *
-     * @param row 聚合结果行，含 TXN_DATE / OUT_STATION / DEVICE_ID / SIGN_CHANNEL_CODE。
-     * @param countIndex 笔数所在的 0 基下标。
-     * @param count 笔数。
-     * @param amount 金额，单位分。
-     */
+
     private String payLine(Map<String, Object> row, int countIndex, long count, long amount) {
         Object[] fields = new Object[PAY_FIELD_COUNT];
         fields[0] = toStr(row.get("TXN_DATE"));
@@ -215,7 +190,6 @@ public class ReconExportService {
         return ReconRecord.line(fields);
     }
 
-    /** BUS 商业优惠汇总导出：一条库内 GROUP BY，逐行写入。 */
     private void exportBus(ReconExportReqDTO request) {
         try (ReconPartSink sink = uploader.open(request.getBatchId(), SOURCE, ReconFileTypeEnum.BUS)) {
             List<Map<String, Object>> rows = reconExportMapper.selectBusSummary(
@@ -237,7 +211,6 @@ public class ReconExportService {
         }
     }
 
-    /** DETAIL 虚拟电子多日计次票明细导出（出站/超时费域）：对齐需求 21 段行格式，keyset 游标逐批写出。 */
     private void exportDetail(ReconExportReqDTO request) {
         try (ReconPartSink sink = uploader.open(request.getBatchId(), SOURCE, ReconFileTypeEnum.DETAIL)) {
             String lastOutTime = null;
@@ -252,31 +225,28 @@ public class ReconExportService {
                 }
                 for (Map<String, Object> row : rows) {
                     long overtimeAmount = toLong(row.get("OVERTIME_AMOUNT"));
-                    // 21 段顺序严格对齐需求表头；本源仅持有「出站/超时费」域字段，跨域字段留空并待甲方确认。
-                    // 金额未澄清前一律按分；第 17 段"实际扣款金额"在 GATE_TXN_PAY 无应扣/实扣拆分，暂用 TOTAL_AMOUNT。
                     String line = ReconRecord.line(
-                            toStr(row.get("TXN_DATE")),                 // 1 运营日期
-                            DETAIL_TXN_TYPE_EXIT,                       // 2 交易类型=出站
-                            toStr(row.get("CARD_ID")),                  // 3 逻辑卡号
-                            toStr(row.get("OUT_TIME")),                 // 4 交易日期
-                            toLong(row.get("ORIGINAL_FARE")),           // 5 交易原价(分)
-                            toStr(row.get("EXIT_STATION_NAME")),        // 6 当前车站名称
-                            toStr(row.get("DEVICE_ID")),                // 7 设备编码
-                            toStr(row.get("CARD_TYPE")),               // 8 票卡类型(044X 直接可用)
-                            "",                                        // 9 票卡子类型(本表无，待确认)
-                            toLong(row.get("COUNTING_TIMES")),          // 10 次数
-                            toStr(row.get("SIGN_CHANNEL_CODE")),        // 11 支付渠道
-                            "",                                        // 12 激活时间(过闸无此概念)
-                            "1",                                       // 13 数量(固定1)
-                            toStr(row.get("TICKET_TRANS_SEQ")),        // 14 交易流水号(二维码里程序列号)
-                            toStr(row.get("ORDER_NO")),                // 15 交易订单号
-                            toLong(row.get("TOTAL_AMOUNT")),           // 16 订单金额(分)
-                            toLong(row.get("TOTAL_AMOUNT")),           // 17 实际扣款金额(分)=TOTAL_AMOUNT(无拆分，待确认)
-                            "",                                        // 18 优惠累计消费金额(无对应列，待确认)
-                            overtimeAmount,                            // 19 超时金额(分)
-                            "超时订单",                                  // 20 订单状态(本源只出超时费行，待确认是否含正常出站)
-                            "");                                       // 21 退款金额(本表无退款列，待确认是否跨库JOIN PAY_TXN_DETAIL)
-                    // amount 仅用于 recon-server 明细校验和，沿用历史口径(超时费)保持不变
+                            toStr(row.get("TXN_DATE")),
+                            DETAIL_TXN_TYPE_EXIT,
+                            toStr(row.get("CARD_ID")),
+                            toStr(row.get("OUT_TIME")),
+                            toLong(row.get("ORIGINAL_FARE")),
+                            toStr(row.get("EXIT_STATION_NAME")),
+                            toStr(row.get("DEVICE_ID")),
+                            toStr(row.get("CARD_TYPE")),
+                            "",
+                            toLong(row.get("COUNTING_TIMES")),
+                            toStr(row.get("SIGN_CHANNEL_CODE")),
+                            "",
+                            "1",
+                            toStr(row.get("TICKET_TRANS_SEQ")),
+                            toStr(row.get("ORDER_NO")),
+                            toLong(row.get("TOTAL_AMOUNT")),
+                            toLong(row.get("TOTAL_AMOUNT")),
+                            "",
+                            overtimeAmount,
+                            "超时订单",
+                            "");
                     sink.write(line, overtimeAmount);
                 }
                 Map<String, Object> last = rows.get(rows.size() - 1);
@@ -292,7 +262,6 @@ public class ReconExportService {
         }
     }
 
-    /** Oracle 数字列转 long。 */
     private long toLong(Object value) {
         if (value == null) {
             return 0L;
@@ -310,7 +279,6 @@ public class ReconExportService {
         return new BigDecimal(text).longValue();
     }
 
-    /** Map 取字符串，null 保持 null 交由 {@link ReconRecord#line(Object...)} 统一转空串。 */
     private String toStr(Object value) {
         return value == null ? null : String.valueOf(value);
     }

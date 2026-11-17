@@ -14,19 +14,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
-/**
- * 旅游票主单汇总状态的唯一收口：按子单的票状态与退款状态重算主单 {@code ORDER_STATUS}。
- *
- * <p>抽出它的判据不是「代码长」，而是**它被两个域同时调用**：
- * 退款域（{@code markTravelRefunded} / {@code markTravelRefundFailed}）与
- * 票实例域（出站扣次 {@code markUsed}、票状态推进）。
- * 按 `docs/domain/README.md` 判据 3「热路径写入定 owner」，主单汇总的写入方只能有一个，
- * 否则退款域与票实例域会各自推一版汇总状态、互相覆盖。
- *
- * <p>主单 {@code TRAVEL_TICKET_ORDER} 是聚合壳，{@code PAY_STATUS} 永不回写（属当前设计非缺陷，
- * 见 `docs/business/未落地需求.md` 对账那条）；因此这里**只在主单已 `PAID` 时才重算**，
- * 未支付主单一律不碰 —— NEVER 去掉这道前置判断。
- */
+
 @Component
 public class TravelParentSummaryWriter {
 
@@ -45,7 +33,6 @@ public class TravelParentSummaryWriter {
         this.refundMapper = refundMapper;
     }
 
-    /** 由子单号反查主单后重算；子单没有主单（普通日票）时直接返回。 */
     public void refreshBySubOrder(String subOrderNo) {
         DailyTicketOrder subOrder = orderMapper.selectByOrderNo(subOrderNo);
         if (subOrder == null || !StringUtils.hasText(subOrder.getParentOrderNo())) {
@@ -54,11 +41,7 @@ public class TravelParentSummaryWriter {
         refresh(subOrder.getParentOrderNo());
     }
 
-    /**
-     * 重算主单汇总状态。判定优先级 <b>NEVER 调换</b>：
-     * 全退 &gt; 部分退 &gt; 全用 &gt; 部分用 &gt; PAID ——
-     * 退款语义优先于使用语义，否则「用了一张又全退」会被算成 `PARTIAL_USED`、对账取不到退款。
-     */
+
     public void refresh(String parentOrderNo) {
         TravelTicketOrder parent = travelOrderMapper.selectByOrderNo(parentOrderNo);
         if (parent == null || !"PAID".equals(parent.getPayStatus())) {

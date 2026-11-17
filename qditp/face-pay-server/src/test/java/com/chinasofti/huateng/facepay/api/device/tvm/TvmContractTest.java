@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 对外契约测试：报文字段名与响应 key 一律断言字面量。 */
 class TvmContractTest {
 
     @Test
@@ -101,7 +100,6 @@ class TvmContractTest {
         assertEquals(10, DeviceRetCode.values().length);
     }
 
-    /** 取票鉴权「无激活的订单」：码是 2003，但业务键 MUST 与成功响应一模一样、值为 null。 */
     @Test
     void takeTicketAuthNoActiveOrderKeepsSuccessShapeWithNullValues() {
         JSONObject success = TvmResponses.takeTicketAuthSuccess("F20020260916", "TVM001",
@@ -119,7 +117,6 @@ class TvmContractTest {
         }
     }
 
-    /** 上一个用例只证明了 Map 里有 null，本用例证明 序列化后 null 键不会被吞掉。 */
     @Test
     void nullBusinessKeysSurviveJsonSerialization() throws Exception {
         String json = new ObjectMapper().writeValueAsString(TvmResponses.takeTicketAuthNoActiveOrder());
@@ -129,7 +126,6 @@ class TvmContractTest {
         assertTrue(json.contains("\"retCode\":\"2003\""), json);
     }
 
-    /** 「失败也要有全量字段」的推广结果：每个带业务字段的接口，失败响应的键集与键序 MUST 等于成功响应。 */
     @Test
     void everyFailShapeMatchesItsSuccessShape() {
         assertEquals(TvmResponses.genSjtOrderSuccess("F1", "http://pay").keySet(),
@@ -165,7 +161,6 @@ class TvmContractTest {
                 "BOM 单程票退款（9999 订单不存在分支）");
     }
 
-    /** 失败响应的业务值 MUST 是 JSON null，NEVER 填成 {@code FAILED} / {@code 0} / 空串。 */
     @Test
     void failShapesCarryNullBusinessValuesNotPlaceholders() {
         JSONObject tvmPayResult = TvmResponses.payResultFail(DeviceRetCode.INVALID_PARAM, "orderNo不能为空");
@@ -202,7 +197,6 @@ class TvmContractTest {
                 .getString("retCode"), "BOM 族的失败码是 8999，NEVER 改成 TVM 的 2999");
     }
 
-    /** 失败响应里那些 null 键同样 MUST 熬过 Jackson 序列化，理由见 {@link #nullBusinessKeysSurviveJsonSerialization}。 */
     @Test
     void failShapeNullKeysSurviveJsonSerialization() throws Exception {
         ObjectMapper mapper = new ObjectMapper();

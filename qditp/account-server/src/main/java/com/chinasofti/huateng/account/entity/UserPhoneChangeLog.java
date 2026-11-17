@@ -2,78 +2,48 @@ package com.chinasofti.huateng.account.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * USER_PHONE_CHANGE_LOG 用户手机号更换历史记录表实体。
- */
+
 public class UserPhoneChangeLog {
-    /**
-     * 主键。
-     */
+
     private Long id;
 
-    /**
-     * 第三方用户标识。
-     */
+
     private String thirdUserId;
 
-    /**
-     * 用户类型：ITP-地铁APP用户，ALIPAY-支付宝用户。
-     */
+
     private String userType;
 
-    /**
-     * 旧手机号。
-     */
+
     private String oldMsisdn;
 
-    /**
-     * 新手机号。
-     */
+
     private String newMsisdn;
 
-    /**
-     * 操作类型：CHANGE_PHONE-更换手机号。
-     */
+
     private String operType;
 
-    /**
-     * 操作时间。
-     */
+
     private LocalDateTime operTime;
 
-    /**
-     * 操作人/系统。
-     */
+
     private String operator;
 
-    /**
-     * 备注。
-     */
+
     private String remark;
 
-    /**
-     * 创建时间。
-     */
+
     private LocalDateTime createTms;
 
-    /**
-     * 向支付域同步显示账号的投递状态：PENDING-待投递，SUCCESS-已送达，FAILED-投递失败待重试。
-     */
+
     private String signSyncStatus;
 
-    /**
-     * 投递重试次数，达配置上限后不再扫描、转人工。
-     */
+
     private Integer signSyncRetryCount;
 
-    /**
-     * 最近一次投递时间。
-     */
+
     private LocalDateTime signSyncTime;
 
-    /**
-     * 最近一次投递的返回码与消息。
-     */
+
     private String signSyncResult;
 
     public Long getId() {

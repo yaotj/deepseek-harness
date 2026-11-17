@@ -9,9 +9,7 @@ import io.netty.util.ReferenceCountUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * 处理服务端返回的数据
- */
+
 public class ShortConnectClientHandler extends ChannelInboundHandlerAdapter {
     private static final Logger logger = LoggerFactory.getLogger(ShortConnectClientHandler.class);
 
@@ -34,12 +32,10 @@ public class ShortConnectClientHandler extends ChannelInboundHandlerAdapter {
             } catch (Exception e) {
                 logger.error(e.getMessage());
             } finally {
-                //手动释放
                 ReferenceCountUtil.release(buff);
             }
         }
 
-        //把客户端的通道关闭
         ctx.close();
     }
 

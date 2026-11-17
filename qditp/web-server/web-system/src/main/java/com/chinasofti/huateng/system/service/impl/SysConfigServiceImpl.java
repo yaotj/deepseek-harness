@@ -17,11 +17,7 @@ import com.chinasofti.huateng.system.domain.SysConfig;
 import com.chinasofti.huateng.system.mapper.SysConfigMapper;
 import com.chinasofti.huateng.system.service.ISysConfigService;
 
-/**
- * 参数配置 服务层实现
- * 
- * @author zmzhang
- */
+
 @Service
 public class SysConfigServiceImpl implements ISysConfigService
 {
@@ -31,21 +27,14 @@ public class SysConfigServiceImpl implements ISysConfigService
     @Autowired
     private LocalCache localCache;
 
-    /**
-     * 项目启动时，初始化参数到缓存
-     */
+
     @PostConstruct
     public void init()
     {
         loadingConfigCache();
     }
 
-    /**
-     * 查询参数配置信息
-     * 
-     * @param configId 参数配置ID
-     * @return 参数配置信息
-     */
+
     @Override
     @DataSource(DataSourceType.MASTER)
     public SysConfig selectConfigById(Long configId)
@@ -55,12 +44,7 @@ public class SysConfigServiceImpl implements ISysConfigService
         return configMapper.selectConfig(config);
     }
 
-    /**
-     * 根据键名查询参数配置信息
-     * 
-     * @param configKey 参数key
-     * @return 参数键值
-     */
+
     @Override
     public String selectConfigByKey(String configKey)
     {
@@ -80,11 +64,7 @@ public class SysConfigServiceImpl implements ISysConfigService
         return StringUtils.EMPTY;
     }
 
-    /**
-     * 获取验证码开关
-     * 
-     * @return true开启，false关闭
-     */
+
     @Override
     public boolean selectCaptchaEnabled()
     {
@@ -96,24 +76,14 @@ public class SysConfigServiceImpl implements ISysConfigService
         return Convert.toBool(captchaEnabled);
     }
 
-    /**
-     * 查询参数配置列表
-     * 
-     * @param config 参数配置信息
-     * @return 参数配置集合
-     */
+
     @Override
     public List<SysConfig> selectConfigList(SysConfig config)
     {
         return configMapper.selectConfigList(config);
     }
 
-    /**
-     * 新增参数配置
-     * 
-     * @param config 参数配置信息
-     * @return 结果
-     */
+
     @Override
     public int insertConfig(SysConfig config)
     {
@@ -125,12 +95,7 @@ public class SysConfigServiceImpl implements ISysConfigService
         return row;
     }
 
-    /**
-     * 修改参数配置
-     * 
-     * @param config 参数配置信息
-     * @return 结果
-     */
+
     @Override
     public int updateConfig(SysConfig config)
     {
@@ -148,11 +113,7 @@ public class SysConfigServiceImpl implements ISysConfigService
         return row;
     }
 
-    /**
-     * 批量删除参数信息
-     * 
-     * @param configIds 需要删除的参数ID
-     */
+
     @Override
     public void deleteConfigByIds(Long[] configIds)
     {
@@ -168,9 +129,7 @@ public class SysConfigServiceImpl implements ISysConfigService
         }
     }
 
-    /**
-     * 加载参数缓存数据
-     */
+
     @Override
     public void loadingConfigCache()
     {
@@ -181,9 +140,7 @@ public class SysConfigServiceImpl implements ISysConfigService
         }
     }
 
-    /**
-     * 清空参数缓存数据
-     */
+
     @Override
     public void clearConfigCache()
     {
@@ -191,9 +148,7 @@ public class SysConfigServiceImpl implements ISysConfigService
         localCache.deleteObject(keys);
     }
 
-    /**
-     * 重置参数缓存数据
-     */
+
     @Override
     public void resetConfigCache()
     {
@@ -201,12 +156,7 @@ public class SysConfigServiceImpl implements ISysConfigService
         loadingConfigCache();
     }
 
-    /**
-     * 校验参数键名是否唯一
-     * 
-     * @param config 参数配置信息
-     * @return 结果
-     */
+
     @Override
     public boolean checkConfigKeyUnique(SysConfig config)
     {
@@ -219,12 +169,7 @@ public class SysConfigServiceImpl implements ISysConfigService
         return UserConstants.UNIQUE;
     }
 
-    /**
-     * 设置cache key
-     * 
-     * @param configKey 参数键
-     * @return 缓存键key
-     */
+
     private String getCacheKey(String configKey)
     {
         return CacheConstants.SYS_CONFIG_KEY + configKey;

@@ -1,18 +1,12 @@
 package com.chinasofti.huateng.account.constant;
 
-/**
- * 账户域返回码。
- */
+
 public enum AccountErrorCodeEnum {
     SUCCESS("0000", "成功"),
-    /**
-     * 批量处理里「部分成功、部分失败」。
-     */
+
     PARTIAL_SUCCESS("0001", "部分处理失败"),
     FAIL("9999", "失败"),
-    /**
-     * ACC 已受理、但本地状态回写失败。
-     */
+
     LOCAL_WRITE_BACK_FAILED("9998", "ACC已受理但本地状态回写失败"),
     SYSTEM_ERROR("9001", "系统内部错误"),
     INVALID_PARAM("8001", "无效的参数"),
@@ -36,9 +30,7 @@ public enum AccountErrorCodeEnum {
     PAY_CHANNEL_REMAINING("8025", "存在未解绑的支付渠道，请先解绑后再销户"),
     ACC_COMM_ERROR("8501", "ACC通讯异常"),
     ACC_RETURN_STATUS_ABNORMAL("8502", "ACC返回值状态异常"),
-    /**
-     * 员工码前置状态不满足（激活要求「未启用」、禁用要求「正常」）。
-     */
+
     EMPLOYEE_CARD_STATUS_NOT_ALLOWED("2002", "电子卡当前状态不允许该操作");
 
     private final String code;

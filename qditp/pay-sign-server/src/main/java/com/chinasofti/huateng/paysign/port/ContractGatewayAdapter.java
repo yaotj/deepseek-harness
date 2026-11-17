@@ -16,7 +16,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/** {@link ContractGatewayPort} 的唯一实现：**签约/解约方向所有出向 URL 与应答判读的收口点**。 */
 @Component
 public class ContractGatewayAdapter implements ContractGatewayPort {
 
@@ -59,14 +58,12 @@ public class ContractGatewayAdapter implements ContractGatewayPort {
                 buildDismissalBizData(requestSignSeq)));
     }
 
-    /** 成功码判定的**唯一入口**。 */
     private GatewayReply judge(PaySignGatewayResponse response) {
         return paySignGateway.isSuccess(response)
                 ? new GatewayReply.Accepted(response)
                 : new GatewayReply.Rejected(response);
     }
 
-    /** 签约回调地址：报文 {@code notifyUrl} → 配置默认值 → {@code returnUrl}。 */
     private String resolveNotifyUrl(RequestSignInfoReqDTO request) {
         if (StringUtils.hasText(request.getNotifyUrl())) {
             return request.getNotifyUrl();

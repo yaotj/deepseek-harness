@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** ACC 日票发售通知补偿入口。 */
 @RestController
 @RequestMapping("/internal/daily-ticket/acc")
 public class AccActiveNotifyInternalController {
@@ -22,12 +21,7 @@ public class AccActiveNotifyInternalController {
         this.accActiveNotifyService = accActiveNotifyService;
     }
 
-    /**
-     * 扫表补投日票激活后的 ACC 发售通知。
-     *
-     * @param limit 单批条数上限，不传按服务侧默认值
-     * @return {@code retCode=0000} + {@code data} 为本批投递成功条数
-     */
+
     @PostMapping("/active-notify")
     public DailyTicketBaseResult notifyPending(@RequestParam(value = "limit", required = false) Integer limit) {
         int delivered = accActiveNotifyService.deliverPending(limit == null ? 0 : limit);

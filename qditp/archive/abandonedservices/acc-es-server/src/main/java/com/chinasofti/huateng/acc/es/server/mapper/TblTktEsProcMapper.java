@@ -6,14 +6,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
-/**
- * <p>
- *  Mapper 接口
- * </p>
- *
- * @author fc
- * @since 2020-09-02
- */
+
 @Mapper
 public interface TblTktEsProcMapper {
 

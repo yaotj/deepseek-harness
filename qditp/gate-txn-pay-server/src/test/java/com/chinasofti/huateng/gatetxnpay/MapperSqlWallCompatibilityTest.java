@@ -16,10 +16,8 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 守住「Oracle 合法、Druid WallFilter 却判成注入」这一类静默失效。 */
 class MapperSqlWallCompatibilityTest {
 
-    /** 单数 ROW ONLY：Oracle 接受、druid 1.2.23 的 Oracle 解析器不接受。 */
     private static final Pattern SINGULAR_FETCH =
             Pattern.compile("FETCH\\s+(FIRST|NEXT)\\s+\\S+\\s+ROW\\s+ONLY", Pattern.CASE_INSENSITIVE);
 

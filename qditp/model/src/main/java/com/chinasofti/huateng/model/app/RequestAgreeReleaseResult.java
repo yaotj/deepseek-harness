@@ -1,20 +1,12 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * IF8A-36 请求移除签约信息响应。
- */
+
 public class RequestAgreeReleaseResult {
-    /** ITP 侧返回码，0000 表示请求移除签约已成功处理。 */
     private String retCode;
-    /** ITP 侧返回信息。 */
     private String retMsg;
-    /** 支付平台通用返回码，0 表示成功。 */
     private Integer code;
-    /** 支付平台通用返回信息。 */
     private String msg;
-    /** 支付平台通用成功标识。 */
     private Boolean success;
-    /** 支付平台返回的业务数据。 */
     private Object data;
 
     public String getRetCode() {

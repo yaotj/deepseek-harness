@@ -43,9 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * daily-ticket-server RPC客户端。
- */
+
 @Service
 public class DailyTicketClient extends ProxyWebClient {
     private static final Logger log = LoggerFactory.getLogger(DailyTicketClient.class);
@@ -56,9 +54,7 @@ public class DailyTicketClient extends ProxyWebClient {
         super(baseUrl, openLogger, webClientBuilder);
     }
 
-    /**
-     * 调用日票下单接口。
-     */
+
     public DailyTicketOrderResult requestCountingOrder(@RequestBody DailyTicketOrderReqDTO request) {
         String path = "/ci/daily-ticket/requestCountingOrder";
         log.info("调用daily-ticket-server日票下单接口入参 path={}, request={}", path, JSON.toJSONString(request));
@@ -70,9 +66,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 调用旅游票下单接口（IF8A-70）。
-     */
+
     public TravelTicketOrderResult requestTravelOrder(@RequestBody TravelTicketOrderReqDTO request) {
         String path = "/ci/daily-ticket/requestTravelOrder";
         log.info("调用daily-ticket-server旅游票下单接口入参 path={}, request={}", path, JSON.toJSONString(request));
@@ -84,9 +78,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 调用免费票下单接口（IF8A-73）。
-     */
+
     public DailyTicketFreeOrderResult requestOrderFree(@RequestBody DailyTicketFreeOrderReqDTO request) {
         String path = "/ci/daily-ticket/requestOrderFree";
         log.info("调用daily-ticket-server免费票下单接口入参 path={}, request={}", path, JSON.toJSONString(request));
@@ -98,9 +90,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 调用小程序订单状态同步接口（IF8A-72）。
-     */
+
     public DailyTicketBaseResult syncOrder(@RequestBody DailyTicketSyncOrderReqDTO request) {
         String path = "/ci/daily-ticket/syncOrder";
         log.info("调用daily-ticket-server小程序订单状态同步接口入参 path={}, request={}", path, JSON.toJSONString(request));
@@ -112,9 +102,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 调用日票支付接口。
-     */
+
     public DailyTicketPayResult requestPay(@RequestBody DailyTicketPayReqDTO request) {
         String path = "/ci/daily-ticket/payment/requestPay";
         log.info("调用daily-ticket-server日票支付接口入参 path={}, request={}", path, JSON.toJSONString(request));
@@ -126,9 +114,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 调用日票支付结果查询接口。
-     */
+
     public DailyTicketPayQueryResult requestPayResult(@RequestBody DailyTicketOrderNoReqDTO request) {
         String path = "/ci/daily-ticket/payment/requestPayResult";
         log.info("调用daily-ticket-server日票支付结果查询接口入参 path={}, request={}", path, JSON.toJSONString(request));
@@ -140,9 +126,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 调用日票退款接口。
-     */
+
     public DailyTicketRefundResult requestRefundTicket(@RequestBody DailyTicketOrderNoReqDTO request) {
         String path = "/ci/daily-ticket/payment/requestRefundTicket";
         log.info("调用daily-ticket-server日票退款接口入参 path={}, request={}", path, JSON.toJSONString(request));
@@ -154,9 +138,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 调用日票取消订单接口。
-     */
+
     public DailyTicketBaseResult cancelOrder(@RequestBody DailyTicketOrderNoReqDTO request) {
         String path = "/ci/daily-ticket/ticket/cancelOrder";
         log.info("调用daily-ticket-server日票取消订单接口入参 path={}, request={}", path, JSON.toJSONString(request));
@@ -168,9 +150,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 调用日票激活接口。
-     */
+
     public DailyTicketBaseResult updateTicket(@RequestBody DailyTicketActivateReqDTO request) {
         String path = "/ci/daily-ticket/ticket/updateTicket";
         log.info("调用daily-ticket-server日票激活接口入参 path={}, request={}", path, JSON.toJSONString(request));
@@ -182,9 +162,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 调用通知ACC车票已使用接口。
-     */
+
     public DailyTicketBaseResult updateAndNotice(@RequestBody DailyTicketUsedNoticeReqDTO request) {
         String path = "/ci/daily-ticket/ticket/updateAndNotice";
         log.info("调用daily-ticket-server通知ACC车票已使用接口入参 path={}, request={}", path, JSON.toJSONString(request));
@@ -196,9 +174,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 转发支付结果回调到日票服务。
-     */
+
     public DailyTicketBaseResult receivePayResult(@RequestBody DailyTicketPayCallbackReqDTO request) {
         String path = "/ci/daily-ticket/payment/receivePayResult";
         log.info("调用daily-ticket-server支付结果回调接口入参 path={}, request={}", path, JSON.toJSONString(request));
@@ -210,12 +186,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 调用日票支付结果通知 APP 的补偿接口。
-     *
-     * <p>该接口由 web-admin 的 Quartz 任务通过 RPC 调用，daily-ticket-server
-     * 内部扫描待重试的 IF8B-05 通知任务并负责实际请求 APP。</p>
-     */
+
     public DailyTicketBaseResult compensatePayNotify(Map<String, String> headers) {
         String path = "/internal/daily-ticket/pay/notify";
         log.info("调用daily-ticket-server支付结果通知补偿接口 path={}, headers={}", path, headers);
@@ -227,12 +198,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 调用日票激活后通知 ACC 发售的补偿接口。
-     *
-     * <p>该接口由 web-admin 的 Quartz 任务通过 RPC 调用，daily-ticket-server
-     * 内部扫描待重试的 ACC 发售通知任务并负责实际请求 ACC。</p>
-     */
+
     public DailyTicketBaseResult compensateAccActiveNotify(Map<String, String> headers) {
         String path = "/internal/daily-ticket/acc/active-notify";
         log.info("调用daily-ticket-server ACC发售通知补偿接口 path={}, headers={}", path, headers);
@@ -244,12 +210,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 调用多日票批量退款（当日）内部端点（甲方需求 16）。
-     *
-     * <p>由 web-admin 的 Quartz 任务通过 RPC 调用，daily-ticket-server 内部扫「已支付未激活且过等待期」
-     * 的日票 / 旅游票主单并逐笔发起退款。{@code retCode=9998} 表示上一轮仍在执行，属限流不是失败。</p>
-     */
+
     public DailyTicketBaseResult batchRefundDaily(Map<String, String> headers) {
         String path = "/internal/daily-ticket/batch-refund/daily";
         log.info("调用daily-ticket-server多日票批量退款(当日)接口 path={}, headers={}", path, headers);
@@ -261,11 +222,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 调用多日票批量退款（月度）内部端点（甲方需求 17）。
-     *
-     * <p>与当日那条只差回溯窗口（默认 60 天 vs 7 天），谓词有重叠、靠退款单唯一索引幂等兼容。</p>
-     */
+
     public DailyTicketBaseResult batchRefundMonthly(Map<String, String> headers) {
         String path = "/internal/daily-ticket/batch-refund/monthly";
         log.info("调用daily-ticket-server多日票批量退款(月度)接口 path={}, headers={}", path, headers);
@@ -277,13 +234,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 调用日票有效期过期收敛内部端点。
-     *
-     * <p>由 web-admin 的 Quartz 任务通过 RPC 调用，daily-ticket-server 内部把「有效期已过、
-     * 状态还停在 ACTIVATED / USED」的票逐条 CAS 推进成 EXPIRED。
-     * {@code retCode=9998} 表示上一轮仍在执行，属限流不是失败。</p>
-     */
+
     public DailyTicketBaseResult convergeExpiredTickets(Map<String, String> headers) {
         String path = "/internal/daily-ticket/expire/converge";
         log.info("调用daily-ticket-server日票过期收敛接口 path={}, headers={}", path, headers);
@@ -295,9 +246,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 转发退款结果回调到日票服务（支付中心网关 §5.2）。
-     */
+
     public DailyTicketBaseResult receiveRefundResult(@RequestBody DailyTicketRefundCallbackReqDTO request) {
         String path = "/ci/daily-ticket/payment/receiveRefundResult";
         log.info("调用daily-ticket-server退款结果回调接口入参 path={}, request={}", path, JSON.toJSONString(request));
@@ -309,9 +258,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 查询日票票实例信息（ticketCode、actualTimes）。
-     */
+
     public QueryDailyTicketInfoResult queryDailyTicketInfo(QueryDailyTicketInfoReqDTO request) {
         String path = "/ci/daily-ticket/queryDailyTicketInfo";
         log.info("调用daily-ticket-server查询日票信息接口入参 path={}, request={}", path, JSON.toJSONString(request));
@@ -323,9 +270,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 按票号查日票购票支付信息（payTradeOrderNo、payOrderNoDate、payChannelCode）。
-     */
+
     public QueryDailyTicketPayInfoResult queryDailyTicketPayInfo(QueryDailyTicketPayInfoReqDTO request) {
         String path = "/ci/daily-ticket/queryDailyTicketPayInfo";
         log.info("调用daily-ticket-server查询日票支付信息接口入参 path={}, request={}", path, JSON.toJSONString(request));
@@ -337,9 +282,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 日票进站校验（有效期、未完成出站、计次票次数检查）。
-     */
+
     public DailyTicketBaseResult entryCheck(String cardNum) {
         String path = "/ci/daily-ticket/entry/check";
         Map<String, String> body = new java.util.HashMap<>();
@@ -353,13 +296,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 日票乘车可用性查询（拉码 IF8A-03 前置，只读，不推进任何状态）。
-     *
-     * <p>返回 {@code Ok} 可发码；{@code BizRejected} 即对端明确判定不可用、调用方 MUST 拒发；
-     * {@code Unreachable} 由调用方降级放行 —— 闸机侧还有一道权威校验。
-     * <b>本方法绝不抛异常</b>，任何异常都归到 {@code Unreachable}。
-     */
+
     public RpcOutcome checkRideAvailability(String cardNum) {
         String path = "/ci/daily-ticket/ticket/rideAvailability";
         try {
@@ -380,16 +317,12 @@ public class DailyTicketClient extends ProxyWebClient {
         }
     }
 
-    /**
-     * 日票出站处理（扣减计次票次数，标记已使用）。
-     */
+
     public DailyTicketBaseResult markUsed(String cardNum, Long countingEnd) {
         return markUsed(cardNum, countingEnd, null, null, null);
     }
 
-    /**
-     * 日票出站处理（扩展版，携带行程关联信息用于扣次明细记录）。
-     */
+
     public DailyTicketBaseResult markUsed(String cardNum, Long countingEnd,
                                           String orderNo, String inStation, String outStation) {
         String path = "/ci/daily-ticket/ticket/markUsed";
@@ -409,9 +342,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 查询日票扣次使用明细。
-     */
+
     public DailyTicketBaseResult queryUsageLog(String cardNum) {
         String path = "/ci/daily-ticket/ticket/usageLog";
         Map<String, String> body = new java.util.HashMap<>();
@@ -425,9 +356,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 分页查询日票 / 旅游票可退款订单（供异步导出使用）。
-     */
+
     public List<DailyTicketRefundOrderExportDTO> listDailyTicketRefundOrders(
             Date beginTime, Date endTime, String orderNo, String paymentOrderNo) {
         Map<String, String> params = new HashMap<>();
@@ -461,9 +390,7 @@ public class DailyTicketClient extends ProxyWebClient {
         return all;
     }
 
-    /**
-     * 分页查询日票退款记录（供异步导出使用）。
-     */
+
     public List<DailyTicketRefundRecordExportDTO> listDailyTicketRefundRecords(
             Date beginTime, Date endTime, String orderNo, String paymentOrderNo,
             String refundOrderNo, String refundStatus) {

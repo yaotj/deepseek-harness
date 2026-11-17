@@ -18,10 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-/**
- * @author houkepan
- * @date 2020/5/6 11:56
- */
+
 @Service
 public class CommonMacServiceImpl implements CommonMacService {
     private static final Logger log = LoggerFactory.getLogger(CommonMacServiceImpl.class);
@@ -33,24 +30,19 @@ public class CommonMacServiceImpl implements CommonMacService {
     public ResultVO<Boolean> verifyMac1(InvestMac1Param param) throws InterruptedException {
         MacBean macBean = new MacBean();
         macBean.setOrder(new byte[]{(byte) 0x81});
-        // MAC1 分散秘钥00B6
         byte[] bytes1 = {0x00, (byte) 0xB6};
         macBean.setIndex(bytes1);
-        // 分散数据 卡号
         byte[] disperseData = new byte[8];
         System.arraycopy(TransformUtils.HexStringToByteArr(param.getCardNo()), 0, disperseData, 0, 8);
         macBean.setDisperseData(disperseData);
-        // sessionKey 随机数4字节+2字节票卡计数器+0x8000
         byte[] sessionKey = new byte[8];
         System.arraycopy(TransformUtils.HexStringToByteArr(param.getRandomNum()), 0, sessionKey, 0, 4);
         System.arraycopy(NumberUtil.unsignedShortToByte2(param.getTicketCount()), 0, sessionKey, 4, 2);
         sessionKey[6] = (byte) 0x80;
         sessionKey[7] = (byte) 0x00;
         macBean.setSessionKey(sessionKey);
-        // mac
         macBean.setMac(TransformUtils.HexStringToByteArr(param.getMac()));
 
-        // mac数据拼接
         byte[] macData = new byte[15];
         System.arraycopy(NumberUtil.intToByte4(param.getBeforeAmt()), 0, macData, 0, 4);
         System.arraycopy(NumberUtil.intToByte4(param.getTxnAmt()), 0, macData, 4, 4);
@@ -58,9 +50,7 @@ public class CommonMacServiceImpl implements CommonMacService {
         System.arraycopy(TransformUtils.HexStringToByteArr("4500"), 0, macData, 9, 2);
         System.arraycopy(TransformUtils.HexStringToByteArr(param.getDevNodeId()), 0, macData, 11, 4);
 
-        // mac数据长度
         macBean.setBytesLength(NumberUtil.unsignedShortToByte2(macData.length));
-        // mac数据
         macBean.setBytes(macData);
 
         String userReation = Constant.ORDER_TYPE.BYTE0 + LocalCache.getSequence();
@@ -118,14 +108,11 @@ public class CommonMacServiceImpl implements CommonMacService {
     public ResultVO<String> getMac2(InvestMac2Param param) throws InterruptedException {
         MacBean macBean = new MacBean();
         macBean.setOrder(new byte[]{(byte) 0x80});
-        // MAC1 分散秘钥00B6
         byte[] bytes1 = {0x00, (byte) 0xB6};
         macBean.setIndex(bytes1);
-        // 分散数据 卡号
         byte[] disperseData = new byte[8];
         System.arraycopy(TransformUtils.HexStringToByteArr(param.getCardNo()), 0, disperseData, 0, 8);
         macBean.setDisperseData(disperseData);
-        // sessionKey 随机数4字节+2字节票卡计数器+0x8000
         byte[] sessionKey = new byte[8];
         System.arraycopy(TransformUtils.HexStringToByteArr(param.getRandomNum()), 0, sessionKey, 0, 4);
         System.arraycopy(NumberUtil.unsignedShortToByte2(param.getTicketCount()), 0, sessionKey, 4, 2);
@@ -133,7 +120,6 @@ public class CommonMacServiceImpl implements CommonMacService {
         sessionKey[7] = (byte) 0x00;
         macBean.setSessionKey(sessionKey);
 
-        // mac数据拼接
         byte[] macData = new byte[18];
         System.arraycopy(NumberUtil.intToByte4(param.getTxnAmt()), 0, macData, 0, 4);
         macData[4] = 0x02;
@@ -141,9 +127,7 @@ public class CommonMacServiceImpl implements CommonMacService {
         System.arraycopy(TransformUtils.HexStringToByteArr(param.getDevNodeId()), 0, macData, 7, 4);
         System.arraycopy(TransformUtils.HexStringToByteArr(param.getCenterTime()), 0, macData, 11, 7);
 
-        // mac数据长度
         macBean.setBytesLength(NumberUtil.unsignedShortToByte2(macData.length));
-        // mac数据
         macBean.setBytes(macData);
         String userReation = Constant.ORDER_TYPE.BYTE8 + LocalCache.getSequence();
         macBean.setUserRetain(TransformUtils.HexStringToByteArr(userReation));

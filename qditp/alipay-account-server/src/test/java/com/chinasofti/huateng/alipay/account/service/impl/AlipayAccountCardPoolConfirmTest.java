@@ -30,13 +30,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住支付宝开卡四步链路里「第 4 步 confirm」的两条口径。
- *
- * <p>这两条都无法用真实环境构造：卡池的 confirm 对已 ASSIGNED 行是幂等返成功、对 RESERVED 行必然成功，
- * 而 reserve 的幂等命中白名单又只放 RESERVED / ASSIGNED，所以线上造不出「reserve 成功但 confirm 失败」，
- * 只能靠本类。**NEVER 因为「线上跑通了」就删掉它。**</p>
- */
+
 class AlipayAccountCardPoolConfirmTest {
 
     private static final String THIRD_USER_ID = "0700009999";
@@ -62,11 +56,7 @@ class AlipayAccountCardPoolConfirmTest {
             return null;
         }).when(transactionTemplate).executeWithoutResult(any());
 
-        /*
-         * 拆分后开户实现是 AlipayRegistrationService、依赖走构造注入（ADR-D143），
-         * 因此这里不再需要反射注字段。NEVER 改回 new AlipayAccountServiceImpl() ——
-         * 那个类现在只是委派门面、自身不持有任何 mapper 与 client。
-         */
+
         service = new AlipayRegistrationService(userInfoMapper, regLogMapper, ticketClient,
                 cardPoolClient, transactionTemplate);
 
@@ -89,9 +79,7 @@ class AlipayAccountCardPoolConfirmTest {
         return request;
     }
 
-    /**
-     * confirm 被卡池拒绝时：对上游返失败（NEVER 返 0000），已落库的两行 NEVER 回滚，预占 NEVER release。
-     */
+
     @Test
     void confirmRejectedShouldReturnFailureAndKeepRowsAndNotRelease() {
         when(cardPoolClient.confirm(anyString(), anyString()))
@@ -106,9 +94,7 @@ class AlipayAccountCardPoolConfirmTest {
         verify(cardPoolClient, never()).release(anyString(), anyString());
     }
 
-    /**
-     * confirm 成功时返 0000 并带回卡号；同时钉住第 2 步一定带渠道 07（缺它会让 QRCODE_STATUS.CHANNEL 落成默认的 01）。
-     */
+
     @Test
     void confirmSuccessShouldReturnCardIdAndRegisterWithAlipayChannel() {
         when(cardPoolClient.confirm(anyString(), anyString())).thenReturn(CardPoolActionResult.success());

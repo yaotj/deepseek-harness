@@ -1,11 +1,6 @@
 package com.chinasofti.huateng.acc.es.server.enumns;
 
-/**
- * Description:设备状态
- *
- * @author
- * @date 2020/7/17 16:02
- */
+
 public enum EsStat {
 
     NORMAL("0","工作"),

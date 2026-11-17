@@ -6,7 +6,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-/** 支付中心网关的**调用与应答判读**收口点：签约 / 支付 / 回调三条链路共用。 */
 @Component
 public class PaySignGateway {
 
@@ -16,7 +15,6 @@ public class PaySignGateway {
         this.payGatewayClient = payGatewayClient;
     }
 
-    /** 调用支付平台通用网关。 */
     public PaySignGatewayResponse request(String url, Map<String, Object> bizData) {
         return payGatewayClient.request(url, bizData);
     }
@@ -29,7 +27,6 @@ public class PaySignGateway {
         return payGatewayClient.errorMessage(response, defaultMsg);
     }
 
-    /** 判断是否为"订单已支付成功"幂等场景（网关返回 code=9999 但业务上已成功） */
     public boolean isAlreadyPaidSuccess(PaySignGatewayResponse response) {
         if (response == null) {
             return false;

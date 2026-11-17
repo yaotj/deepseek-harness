@@ -23,8 +23,6 @@ import com.chinasofti.huateng.model.alipaytrip.AlipayTripCloseResultRespDTO;
 import com.chinasofti.huateng.model.app.AddBlackListReqDTO;
 import com.chinasofti.huateng.model.app.BlackListOperateResult;
 
-/**
- * 支付宝出行 Trip 服务接口。
- */
+
 public interface AlipayTripService extends AlipayContractService, AlipayApplicationService, AlipayQueryService, AlipayPaymentService, AlipayNotifyService {
 }

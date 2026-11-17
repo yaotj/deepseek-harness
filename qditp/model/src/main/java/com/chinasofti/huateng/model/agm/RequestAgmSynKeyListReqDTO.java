@@ -2,9 +2,7 @@ package com.chinasofti.huateng.model.agm;
 
 import java.util.List;
 
-/**
- * Internal request for AGM key synchronization.
- */
+
 public class RequestAgmSynKeyListReqDTO {
     private String deviceId;
     private String requestBizData;

@@ -17,9 +17,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * APP 基础参数查询接口入口。
- */
+
 @RestController
 public class AppParaController extends BaseAppController {
     private static final Logger log = LoggerFactory.getLogger(AppParaController.class);

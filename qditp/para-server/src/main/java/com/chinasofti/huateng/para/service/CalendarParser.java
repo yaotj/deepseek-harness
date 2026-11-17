@@ -16,9 +16,7 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * 日历参数文件解析。
- */
+
 @Service
 public class CalendarParser {
 

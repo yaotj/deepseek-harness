@@ -2,54 +2,34 @@ package com.chinasofti.huateng.alipay.account.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * ALIPAY_CARD_POOL 支付宝卡号池表实体。
- */
+
 public class AlipayCardPool {
 
-    /**
-     * 逻辑卡号（主键）。
-     */
+
     private String cardId;
 
-    /**
-     * 支付宝用户ID。
-     */
+
     private String thirdUserId;
 
-    /**
-     * 卡号状态（UNALLOCATED:未分配/ALLOCATED:已分配/USED:已使用）。
-     */
+
     private String status;
 
-    /**
-     * 插入时间。
-     */
+
     private LocalDateTime insertTms;
 
-    /**
-     * 注册时间。
-     */
+
     private LocalDateTime regTms;
 
-    /**
-     * 删除标记（0:正常 1:删除）。
-     */
+
     private String deleteFlag;
 
-    /**
-     * 乐观锁版本号。
-     */
+
     private String version;
 
-    /**
-     * 创建时间。
-     */
+
     private LocalDateTime createTime;
 
-    /**
-     * 更新时间。
-     */
+
     private LocalDateTime updateTime;
 
     public String getCardId() {

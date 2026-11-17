@@ -2,106 +2,65 @@ package com.chinasofti.huateng.account.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * User_ITP_Reg_Info 用户注册表实体。
- */
+
 public class UserItpRegInfo {
-    /**
-     * 主键。
-     */
+
     private Integer id;
 
-    /**
-     * 逻辑卡号。
-     */
+
     private String cardId;
 
-    /**
-     * 转换后的卡类型。
-     */
+
     private String cardType;
 
-    /**
-     * APP 入参卡类型。
-     */
+
     private String itpCardType;
 
-    /**
-     * 第三方用户编码。
-     */
+
     private String thirdUserId;
 
-    /**
-     * 手机号。
-     */
+
     private String msisdn;
 
-    /**
-     * 注册时间。
-     */
+
     private LocalDateTime regTms;
 
-    /**
-     * 删除标志。
-     */
+
     private Integer delYn;
 
-    /**
-     * 删除操作对应的第三方用户编码。
-     */
+
     private String delThirdUserId;
 
-    /**
-     * 注销时间。
-     */
+
     private LocalDateTime unRegTms;
 
-    /**
-     * 用户姓名。
-     */
+
     private String userName;
 
-    /**
-     * 证件号。
-     */
+
     private String userId;
 
-    /**
-     * 发行渠道编码，仅 {@code 0001}(正常渠道) / {@code 0007}(支付宝出行)。
-     */
+
     private String cardIssueCode;
 
-    /**
-     * 发卡机构编码，APP 开户上送的 4 位原值（{@code 5412} 青岛地铁 / {@code 0007} 支付宝出行 等）。
-     */
+
     private String issueOrgCode;
 
-    /**
-     * 第三方支付渠道用户标识。
-     */
+
     private String thirdPayId;
 
-    /**
-     * 渠道编码。
-     */
+
     private String channel;
 
-    /**
-     * 签约请求号。
-     */
+
     private String reqContractNo;
 
-    /**
-     * HCE 卡数据。
-     */
+
     private String hceData;
 
-    /**
-     * 同行票或第三方票标识。
-     */
+
     private String companionFlag;
 
-    /** 开卡数量限制：1 唯一卡，2 多卡；null 为保留旧规则的历史/渠道记录。 */
     private String ticketLimit;
 
     public String getTicketLimit() {
@@ -176,16 +135,12 @@ public class UserItpRegInfo {
         this.delYn = delYn;
     }
 
-    /**
-     * 该开户记录是否有效（{@code DEL_YN = 1}）。
-     */
+
     public boolean isActive() {
         return delYn != null && delYn == 1;
     }
 
-    /**
-     * 该开户记录是否已注销（{@code DEL_YN = 0}）。
-     */
+
     public boolean isCanceled() {
         return delYn != null && delYn == 0;
     }

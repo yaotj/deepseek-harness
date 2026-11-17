@@ -11,12 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 支付宝注册用户运营查询，仅查询 ALIPAY_USER_INFO。
- *
- * <p>本类只做入参非空校验与路由，查询分派、分页与脱敏都在 {@link AlipayUserPageQueryService}
- * （形态对齐 account-server 的 {@code controller/page/ItpUserPageController}）。
- */
+
 @RestController
 @RequestMapping("/page/user/alipay")
 public class AlipayUserPageController {
@@ -26,9 +21,7 @@ public class AlipayUserPageController {
         this.alipayUserPageQueryService = alipayUserPageQueryService;
     }
 
-    /**
-     * 按手机号 / 逻辑卡号 / 三方用户ID / 渠道签约流水号的任意组合分页查询支付宝注册用户（条件之间是 AND）。
-     */
+
     @GetMapping("/search")
     public ResultVO<PageInfo<AlipayUserSearchView>> search(AlipayUserSearchQuery query) {
         if (query == null || !hasAnyFilter(query)) {
@@ -37,7 +30,6 @@ public class AlipayUserPageController {
         return ResultMapper.ok(alipayUserPageQueryService.search(query));
     }
 
-    /** 四个并列筛选条件里是否至少填了一个；全空即整表扫描，必须在入口拦住。 */
     private boolean hasAnyFilter(AlipayUserSearchQuery query) {
         return StringUtils.hasText(query.getMsisdn())
                 || StringUtils.hasText(query.getCardId())

@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.collectpay;
 
-/**
- * {@code /internal/app-order/**} 写操作（登记 / 关单）的应答。
- */
+
 public class AppPayOrderRespDTO {
 
     private String retCode;

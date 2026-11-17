@@ -34,39 +34,25 @@ import org.springframework.web.bind.annotation.RestController;
 public class RequestApplicationController {
     private static final Logger log = LoggerFactory.getLogger(RequestApplicationController.class);
 
-    /**
-     * IF8A-42 销户。
-     */
+
     private final AccountCancelService accountCancelService;
 
-    /**
-     * 账户资料查询。
-     */
+
     private final AccountProfileService accountProfileService;
 
-    /**
-     * 换号（IF8A-76）。
-     */
+
     private final PhoneChangeService phoneChangeService;
 
-    /**
-     * 支付通道的 <b>APP 契约面</b>五个入口，2026-09-11 第四轮拆分从 accountApplicationService 搬出。
-     */
+
     private final PayChannelService payChannelService;
 
-    /**
-     * 开户发号，2026-09-11 第五轮拆分从 accountApplicationService 搬出。
-     */
+
     private final AccountRegistrationService accountRegistrationService;
 
-    /**
-     * 入向验签器。
-     */
+
     private final AccountRequestVerifier accountRequestVerifier;
 
-    /**
-     * 构造器注入（ADR-D37）。
-     */
+
     public RequestApplicationController(AccountCancelService accountCancelService,
                                         AccountProfileService accountProfileService,
                                         PhoneChangeService phoneChangeService,
@@ -105,18 +91,14 @@ public class RequestApplicationController {
         return payChannelService.requestRemovePayChannel(request);
     }
 
-    /**
-     * 钱包协议约定的解绑入口。
-     */
+
     @PostMapping("/requestAgreeRelease")
     public RequestRemovePayChannelResult requestAgreeRelease(@RequestBody RequestRemovePayChannelReqDTO request) {
         log.info("接收到钱包解绑接口报文: {}", request);
         return payChannelService.requestAgreeRelease(request);
     }
 
-    /**
-     * IF8A-42 用户销户。
-     */
+
     @PostMapping("/userCancel")
     public UserCancelResult userCancel(@RequestBody UserCancelReqDTO request) {
         log.info("接收到IF8A-42用户销户接口报文: {}", request);

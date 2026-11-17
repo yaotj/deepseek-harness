@@ -13,21 +13,7 @@ import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 
-/**
- * ITP 侧台账 vs 渠道账单 的 FULL OUTER 比对，产出差异明细并落 RECON_TXN_DIFF。
- *
- * <p>差异方取值（recon-thirdparty.md §五 项6 默认假设）：
- * ITP_ONLY=ITP 有渠道无；THIRD_ONLY=渠道有 ITP 无；AMOUNT_MISMATCH=双方都有但金额不符；STATUS_MISMATCH=双方都有但状态不符。
- * 仅「有差异」的记录进入 TXNDIFF（符合「差异明细文件」语义）。</p>
- *
- * <p>比对口径（P1 整改，2026-10-12）：
- * <ul>
- *   <li>状态比对仅在「双方都到终态」时进行，给定显式映射：渠道 SUCCESS↔ITP SUCCESS、渠道 FAIL/CLOSED↔ITP FAIL/CLOSED；
- *       任一边处于 PROCESSING/RETRY/UNKNOWN/null 等非终态时跳过状态比对，避免误报。</li>
- *   <li>金额比对采用「双金额对」：订单金额(order_amount ↔ orderAmount) 与 实付金额(transaction_amount ↔ actualAmount) 任一不符即记 AMOUNT_MISMATCH。</li>
- * </ul>
- * ITP 侧源为 PAY_TXN_DETAIL(pay-sign) 与 F2F_*(face-pay) 的 Union，见 {@link ItpTxnExtractor} 与 §八 设计评估。</p>
- */
+
 @Service
 public class TxnDiffReconService {
 
@@ -36,9 +22,7 @@ public class TxnDiffReconService {
     public static final String AMOUNT_MISMATCH = "AMOUNT_MISMATCH";
     public static final String STATUS_MISMATCH = "STATUS_MISMATCH";
 
-    /** 终态成功。 */
     private static final String ST_SUCCESS = "SUCCESS";
-    /** 终态失败。 */
     private static final String ST_FAIL = "FAIL";
 
     private static final Logger log = LoggerFactory.getLogger(TxnDiffReconService.class);
@@ -52,20 +36,13 @@ public class TxnDiffReconService {
         this.channelMapping = mapping == null ? new HashMap<>() : mapping;
     }
 
-    /**
-     * @param billDate  yyyy-MM-dd 账单日（自然日）
-     * @param txnDate   YYYYMMDD ITP 侧取数日（自然日，与 billDate 同一天）
-     * @param bills     渠道账单
-     * @param itpRecords ITP 侧台账（pay-sign + face-pay Union）
-     * @return 差异记录（已落库）
-     */
+
     public List<TxnDiffRecord> reconcile(String billDate, String txnDate,
                                         List<ThirdPartyBill> bills, List<ItpTxnRecord> itpRecords) {
         Map<String, ThirdPartyBill> channelMap = new HashMap<>();
         for (ThirdPartyBill b : bills) {
             channelMap.putIfAbsent(b.joinKey(), b);
         }
-        // ITP 侧同关联键多行（重试/多次请求）取「支付成功优先」的一行；非成功则取最后一条。
         Map<String, ItpTxnRecord> itpMap = new HashMap<>();
         for (ItpTxnRecord r : itpRecords) {
             itpMap.merge(r.joinKey(), r,
@@ -73,7 +50,6 @@ public class TxnDiffReconService {
         }
 
         List<TxnDiffRecord> diffs = new ArrayList<>();
-        // 以渠道账单为主遍历，处理 BOTH / THIRD_ONLY
         for (ThirdPartyBill bill : bills) {
             ItpTxnRecord itp = itpMap.get(bill.joinKey());
             if (itp == null) {
@@ -98,7 +74,6 @@ public class TxnDiffReconService {
                 diffs.add(fromItp(itp, billDate, diffSide, failReason));
             }
         }
-        // 遍历 ITP 侧，处理 ITP_ONLY
         for (ItpTxnRecord itp : itpRecords) {
             if (!channelMap.containsKey(itp.joinKey())) {
                 diffs.add(fromItp(itp, billDate, ITP_ONLY, failReasonForItpOnly(itp)));
@@ -113,18 +88,12 @@ public class TxnDiffReconService {
         return diffs;
     }
 
-    /**
-     * ITP 侧有效状态：直接取抽取层已归并的 {@code itpPayStatus}（SUCCESS / FAIL / null 非终态）。
-     * pay-sign 流由 SQL CASE 归并 PAY_STATUS/DEBIT_REQUEST_RESULT；face-pay 流取 F2F_PAYMENT.PAY_STATUS。
-     */
+
     private String effectiveItpStatus(ItpTxnRecord itp) {
         return itp.getItpPayStatus();
     }
 
-    /**
-     * 状态比对：仅当渠道与 ITP 双方都到达终态且结论相反（成功 vs 失败）时才判为不符。
-     * 任一边处于非终态（PROCESSING/RETRY/UNKNOWN/null）即跳过，避免终态前误报。
-     */
+
     private boolean statusMismatch(String channelTradeStatus, ItpTxnRecord itp) {
         String itpStatus = effectiveItpStatus(itp);
         if (!isTerminal(channelTradeStatus) || itpStatus == null) {
@@ -162,7 +131,6 @@ public class TxnDiffReconService {
         return "渠道账单无对应记录";
     }
 
-    /** 由 ITP 侧记录直接映射 TXNDIFF 第 1~19 段（与 DETAIL 同义字段）；缺失字段由本层兜底为空串/0。 */
     private TxnDiffRecord fromItp(ItpTxnRecord itp, String billDate, String diffSide, String failReason) {
         TxnDiffRecord r = new TxnDiffRecord();
         r.setBillDate(billDate);
@@ -190,7 +158,6 @@ public class TxnDiffReconService {
         return r;
     }
 
-    /** 渠道侧有记录、ITP 缺失时的 1~19 段映射（乘车域字段渠道账单不持有，留空或尽力填充）。 */
     private TxnDiffRecord fromChannel(ThirdPartyBill bill, String billDate, String diffSide, String failReason) {
         TxnDiffRecord r = new TxnDiffRecord();
         r.setBillDate(billDate);
@@ -218,7 +185,6 @@ public class TxnDiffReconService {
         return r;
     }
 
-    /** 元→分，四舍五入；null 按 0。 */
     private long yuanToCents(BigDecimal yuan) {
         if (yuan == null) return 0L;
         return yuan.multiply(BigDecimal.valueOf(100)).setScale(0, RoundingMode.HALF_UP).longValue();

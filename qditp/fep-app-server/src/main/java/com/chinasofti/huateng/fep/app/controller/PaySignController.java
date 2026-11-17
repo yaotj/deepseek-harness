@@ -28,9 +28,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * APP 支付签约相关接口入口。
- */
+
 @RestController
 public class PaySignController extends BaseAppController {
     private static final Logger log = LoggerFactory.getLogger(PaySignController.class);
@@ -41,9 +39,7 @@ public class PaySignController extends BaseAppController {
         this.paySignAppService = paySignAppService;
     }
 
-    /**
-     * IF8A-19 请求支付（通用）。
-     */
+
     @PostMapping({"/ci/app/requestPay"})
     public RequestPayResult requestPay(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-19 请求支付, 请求参数: {}", request);
@@ -67,10 +63,7 @@ public class PaySignController extends BaseAppController {
         return paySignAppService.requestSignInfo(dto);
     }
 
-    /**
-     * IF8A-05 支付成功回调（外部支付平台 -> fep-app -> pay-sign-server）。
-     * 兼容 form 和 JSON 两种请求体格式。
-     */
+
     @PostMapping("/ci/app/receivePayResult")
     public PaySignCallbackResult receivePayResult(@RequestBody String requestBody) {
         log.info("IF8A-05 支付回调, 请求参数: {}", requestBody);
@@ -81,19 +74,7 @@ public class PaySignController extends BaseAppController {
         return paySignAppService.receivePayResult(dto);
     }
 
-    /**
-     * 支付中心网关 §5.2 退款回调（支付中心 -> fep-app -> pay-sign-server），2026-09-22 新增（P1-3）。
-     *
-     * <p>**URL 里为什么带 {@code paySign/payment} 这段业务域中缀**：裸的 {@code /ci/app/receiveRefundResult}
-     * 已被 {@code CollectPayController} 占用（转发给 collect-pay / face-pay 的 TVM/BOM 退款通知），
-     * 两者报文与下游完全不同、**NEVER 复用同一条 URL**；这里沿用日票域
-     * {@code /ci/app/dailyTicket/payment/receiveRefundResult} 已有的避让写法。
-     *
-     * <p>**本端点没有验签**（2026-09-22 用户裁决「不补验签」）：与兄弟端点 {@code receivePayResult} 现状一致，
-     * 属已知待补的安全缺口、不是本项目约定，**NEVER 当成新增端点可以免签的先例**。
-     *
-     * <p>兼容 form 与 JSON 两种请求体，理由同 {@code receivePayResult}：支付中心两种都发过。
-     */
+
     @PostMapping({"/ci/app/paySign/payment/receiveRefundResult", "/app/paySign/payment/receiveRefundResult"})
     public PaySignCallbackResult receiveRefundResult(@RequestBody String requestBody) {
         log.info("支付中心 §5.2 退款回调, 请求参数: {}", requestBody);
@@ -104,37 +85,28 @@ public class PaySignController extends BaseAppController {
         return paySignAppService.receiveRefundResult(dto);
     }
 
-    /**
-     * IF8A-06 请求解约。
-     */
+
     @PostMapping({"/ci/app/requestTermination"})
     public RequestTerminationResult requestTermination(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-06 请求解约, 请求参数: {}", request);
         return paySignAppService.requestTermination(parseBizData(request, RequestTerminationReqDTO.class));
     }
 
-    /**
-     * IF8A-75 直接解绑支付方式。
-     */
+
     @PostMapping({"/userData/unbindAgreement", "/ci/app/unbindAgreement", "/app/unbindAgreement"})
     public UnbindAgreementResult unbindAgreement(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-75 直接解绑支付方式, 请求参数: {}", request);
         return paySignAppService.unbindAgreement(parseBizData(request, UnbindAgreementReqDTO.class));
     }
 
-    /**
-     * IF8A-22 签约结果查询。
-     */
+
     @PostMapping({"/ci/app/requestContractResult"})
     public RequestContractResultResult requestContractResult(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-22 签约结果查询, 请求参数: {}", request);
         return paySignAppService.requestContractResult(parseBizData(request, RequestContractResultReqDTO.class));
     }
 
-    /**
-     * 内部签约结果通知（pay-sign-server -> fep-app -> 外部支付平台）。
-     * 兼容 form 和 JSON 两种请求体格式。
-     */
+
     @PostMapping("/ci/app/receiveSignResult")
     public PaySignCallbackResult receiveSignResult(@RequestBody String requestBody) {
         log.info("IF8A-07 内部签约结果通知, 请求参数: {}", requestBody);
@@ -145,10 +117,7 @@ public class PaySignController extends BaseAppController {
         return paySignAppService.receiveSignResult(dto);
     }
 
-    /**
-     * 内部解约结果通知（pay-sign-server -> fep-app -> 外部支付平台）。
-     * 兼容 form 和 JSON 两种请求体格式。
-     */
+
     @PostMapping({"/ci/app/receiveTerminationResult", "/ci/app/receiveUnsignResult"})
     public PaySignCallbackResult receiveTerminationResult(@RequestBody String requestBody) {
         log.info("IF8A-10 内部解约结果通知, 请求参数: {}", requestBody);
@@ -159,9 +128,7 @@ public class PaySignController extends BaseAppController {
         return paySignAppService.receiveTerminationResult(dto);
     }
 
-    /**
-     * IF8A-05 批量查询支付明细（供 ticket-server 双源合并）。
-     */
+
     @PostMapping("/ci/app/queryPayTxnBatch")
     public RequestPayTxnBatchResult queryPayTxnBatch(@ModelAttribute ItpCommonFormRequest request) {
         log.info("IF8A-05 批量查询支付明细, 请求参数: {}", request);

@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
-/** IF8A-67 激活成功后通知 ACC 日票发售。 */
 @Service
 public class DailyTicketAccActiveNotifyService {
 
@@ -50,9 +49,7 @@ public class DailyTicketAccActiveNotifyService {
         this.executor = executor;
     }
 
-    /**
-     * 准备 ACC 发售通知任务字段。调用方在激活事务内随票实例一起落库。
-     */
+
     public void preparePending(DailyTicketInstance ticket, DailyTicketActivateReqDTO request, Date activateTime) {
         ticket.setAccNoticeStatus(NOTICE_PENDING);
         ticket.setAccNoticeTimes(0);
@@ -61,9 +58,7 @@ public class DailyTicketAccActiveNotifyService {
         ticket.setAccNoticePayload(JSON.toJSONString(buildBizData(ticket, request, activateTime)));
     }
 
-    /**
-     * 激活成功后快速异步投递。失败不影响 APP 激活结果，后续由补偿接口重试。
-     */
+
     public void deliverAsync(String orderNo) {
         if (!StringUtils.hasText(orderNo)) {
             return;
@@ -86,12 +81,7 @@ public class DailyTicketAccActiveNotifyService {
         });
     }
 
-    /**
-     * 扫表补偿：把未成功且次数未达上限的发售通知逐条投递给 ACC。
-     *
-     * @param limit 单批条数上限，非正数按配置默认值
-     * @return 本批投递成功条数
-     */
+
     public int deliverPending(int limit) {
         int max = limit <= 0 ? properties.getDefaultLimit() : limit;
         List<DailyTicketInstance> pending =

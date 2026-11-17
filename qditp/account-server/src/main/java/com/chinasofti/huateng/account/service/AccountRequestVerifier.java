@@ -14,21 +14,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
-/**
- * 公共报文参数校验与验签。
- */
+
 @Component
 public class AccountRequestVerifier {
     private static final Pattern TIMESTAMP_PATTERN = Pattern.compile("\\d{14}");
 
-    /**
-     * 校验与验签配置（ADR-D37 由 4 个 {@code @Value} 收成一个对象，配置键与默认值未变）。
-     */
+
     private final ItpSignProperties signProperties;
 
-    /**
-     * 构造器注入（ADR-D37）。
-     */
+
     public AccountRequestVerifier(ItpSignProperties signProperties) {
         this.signProperties = signProperties;
     }

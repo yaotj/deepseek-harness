@@ -7,15 +7,10 @@ public class IncomeResponseData implements Serializable {
     @Serial
     private static final long serialVersionUID = 5401277793960612087L;
 
-    // 设备ID，长度8
     private String devNodeId;
-    // 收益事件码，长度2
     private String eventCode;
-    // 收益事件时间，长度14
     private String devTxnTime;
-    // 事务数据流水号，长度10
     private String devTxnSn;
-    // 处理状态 长度2
     private String status;
 
     public String getDevNodeId() {

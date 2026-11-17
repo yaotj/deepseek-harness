@@ -2,33 +2,21 @@ package com.chinasofti.huateng.account.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * 账户域异常工单。
- */
+
 public class AccountExceptionTicket {
-    /**
-     * 签约展示账号同步重试达上限。
-     */
+
     public static final String TYPE_SIGN_SYNC_RETRY_EXHAUSTED = "SIGN_SYNC_RETRY_EXHAUSTED";
 
-    /**
-     * ACC 已受理员工码激活 / 禁用，但本地 {@code USER_ACC_EMPLOYEE_CARD} 状态回写失败。
-     */
+
     public static final String TYPE_EMPLOYEE_CARD_STATUS_UNSYNCED = "EMPLOYEE_CARD_STATUS_UNSYNCED";
 
-    /**
-     * 开户已落库、但卡池确认（{@code confirm}）被拒或抛异常，卡号在池子里不是 {@code ASSIGNED}。
-     */
+
     public static final String TYPE_CARD_POOL_CONFIRM_REJECTED = "CARD_POOL_CONFIRM_REJECTED";
 
-    /**
-     * 待人工处理。
-     */
+
     public static final String STATUS_OPEN = "OPEN";
 
-    /**
-     * 已处理。
-     */
+
     public static final String STATUS_CLOSED = "CLOSED";
 
     private Long id;

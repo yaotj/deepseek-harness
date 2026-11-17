@@ -28,12 +28,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-/**
- * @program: cloud-acc-server
- * @description: 业务处理
- * @author: fc
- * @create: 2020-09-18 12:09
- */
+
 
 @Slf4j
 @Component
@@ -55,11 +50,7 @@ public class BusinessHandler {
     private IEsAssignService esAssignService;
 
 
-    /**
-     * 设备签到
-     * @param messageBean
-     * @return
-     */
+
     @Transactional(rollbackFor = Exception.class)
     public Messagehead deviceSignIn(MessageBean messageBean){
         DeviceSignIn deviceSignIn=DeviceSignIn.toDeviceSignInStr(messageBean);
@@ -110,11 +101,7 @@ public class BusinessHandler {
         return messagehead;
     }
 
-    /**
-     * 设备工作任务报告
-     * @param messageBean
-     * @return
-     */
+
     @Transactional(rollbackFor = Exception.class)
     public Messagehead taskStatReport(MessageBean messageBean) {
         byte[] dataBody = messageBean.getDataBody();
@@ -123,9 +110,7 @@ public class BusinessHandler {
         String taskNo = new String(taskNoByte);
         String actionType = esTaskService.getTaskType(Integer.parseInt(taskNo));
         EsTaskReport report = EsTaskReport.message2TaskReport(messageBean,actionType);
-        /**
-         * 打印机执行任务后，给出报告，根据报告去修改相应的信息
-         */
+
         log.info("进入report方法之前");
         boolean flag = esTaskService.report(report);
         Messagehead messagehead = new Messagehead();
@@ -144,11 +129,7 @@ public class BusinessHandler {
         return messagehead;
     }
 
-    /**
-     * 设备签退
-     * @param messageBean
-     * @return
-     */
+
     public Messagehead deviceSignOut(MessageBean messageBean) {
         DeviceSignOut deviceSignOut = DeviceSignOut.message2DeviceSignOut(messageBean);
         boolean signOut = esInfoService.esSignOut(deviceSignOut);

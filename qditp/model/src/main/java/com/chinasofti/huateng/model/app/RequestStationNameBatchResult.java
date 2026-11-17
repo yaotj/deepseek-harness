@@ -2,15 +2,10 @@ package com.chinasofti.huateng.model.app;
 
 import java.util.List;
 
-/**
- * 批量查询车站名称响应参数。
- */
+
 public class RequestStationNameBatchResult {
-    /** 接口处理状态码，0000 表示成功。 */
     private String retCode;
-    /** 返回信息。 */
     private String retMsg;
-    /** 车站名称列表。 */
     private List<RequestStationNameResult> stationNameList;
 
     public String getRetCode() {

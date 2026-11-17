@@ -13,11 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/**
- * IF5A-03 票卡更新所需的用户信息查询：account 域两跳 → 支付宝出行账户域回落。
- * 与 IF5A-01 的 {@code CardDataAnalyseHandler.queryUserInfo} 同一判据：
- * 看卡在哪个域里查得到，NEVER 按报文 {@code providerId} 分流。
- */
+
 @Component
 class SupplementUserLookup {
 
@@ -29,18 +25,7 @@ class SupplementUserLookup {
     @Autowired
     private AlipayAccountClient alipayAccountClient;
 
-    /**
-     * 查询用户信息。
-     *
-     * <p>第一跳 {@code queryCardTypeByCardId} 的失败判据 MUST 与 IF5A-01 逐字一致：
-     * 无响应体、{@code retCode} 非 {@code 0000}、{@code thirdUserId} 为空**三者都只说明
-     * 「这张卡不在 account 域」**，一律回落支付宝出行账户域。
-     * NEVER 把 {@code retCode} 非 {@code 0000} 直接当 {@code BizRejected} 返回 ——
-     * 支付宝出行卡在 account 域恒返 {@code 8004 没有账号卡片数据}，那样写等于永远走不到
-     * {@link #fallbackToAlipay}，IF5A-01 明明给出了 {@code adviceOpt}，IF5A-03 却必返
-     * {@code 8004 未注册用户}（2026-09-18 实测：卡 2607031119542741 走 018 补进站被拒）。
-     * 只有真正的网络不可达（抛异常）才是 {@code Unreachable}。
-     */
+
     Result query(String cardId) {
         QueryUserInfoResult cardTypeResult;
         try {
@@ -78,12 +63,7 @@ class SupplementUserLookup {
         return new Result(userInfo, new RpcOutcome.Ok());
     }
 
-    /**
-     * account 域查不到该卡时，回落支付宝出行账户域（{@code ALIPAY_USER_INFO}）按 cardId 补齐
-     * {@code thirdUserId} / {@code cardType} / {@code channel}，与 IF1A-01 的
-     * {@link com.chinasofti.huateng.ticket.gate.GateCardTypeEnricher} 同一判据。
-     * NEVER 改回按报文 {@code providerId} 分流。
-     */
+
     private Result fallbackToAlipay(String cardId) {
         AlipayUserInfoDTO alipayUser;
         try {
@@ -109,7 +89,6 @@ class SupplementUserLookup {
         return new Result(userInfo, new RpcOutcome.Ok());
     }
 
-    /** 用户信息查询结果，{@code userInfo} 仅在 {@code outcome} 为 {@code Ok} 时非空。 */
     record Result(QueryUserInfoResult userInfo, RpcOutcome outcome) {
     }
 }

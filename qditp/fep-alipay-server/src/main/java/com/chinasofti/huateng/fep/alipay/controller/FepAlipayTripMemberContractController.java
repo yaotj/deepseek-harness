@@ -13,9 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 支付宝出行 MemberContract Controller。
- */
+
 @RestController
 @RequestMapping("/memberContract/channel")
 public class FepAlipayTripMemberContractController {
@@ -28,9 +26,7 @@ public class FepAlipayTripMemberContractController {
         this.alipayTripService = alipayTripService;
     }
 
-    /**
-     * 获取行业数据。
-     */
+
     @PostMapping("/requestIndustryData")
     public AlipayTripRequestIndustryDataRespDTO requestIndustryData(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-获取行业数据(MemberContract),请求参数：{}", request);

@@ -22,12 +22,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住退款回调的白名单与幂等分支。
- *
- * <p>这些分支写错的后果都不会报错、只会静默错账：放宽白名单会让未受理的单被收口，
- * 重复到达返失败会让支付中心无限重推，「已 REFUNDED 收到失败」改状态会把已退的钱记成没退。
- */
+
 class DailyTicketRefundCallbackServiceTest {
 
     private DailyTicketOrderMapper orderMapper;
@@ -60,7 +55,6 @@ class DailyTicketRefundCallbackServiceTest {
         return request;
     }
 
-    /** 造一笔「日票 + 指定退款单状态 + 支付订单号匹配」的现场。 */
     private DailyTicketRefund givenDailyRefund(String refundStatus) {
         DailyTicketRefund refund = new DailyTicketRefund();
         refund.setOrderNo("0E01");

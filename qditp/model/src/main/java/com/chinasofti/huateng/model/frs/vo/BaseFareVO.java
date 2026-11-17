@@ -1,11 +1,8 @@
 package com.chinasofti.huateng.model.frs.vo;
 
 public class BaseFareVO {
-    //票价
     private Integer ticketPrice;
-    //费率类型
     private String fareType;
-    //费率等级
     private String fareTier;
 
     public Integer getTicketPrice() {

@@ -1,16 +1,12 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * APP 3.26 行业数据推送业务参数。
- */
+
 public class AppIndustryDataNotifyReqDTO {
     private String thirdUserId;
     private String cardId;
     private String cardType;
     private String cardData;
-    /**
-     * 同行票标识（规格表 55 必带）。取值同 {@code USER_ITP_REG_INFO.COMPANION_FLAG}
-     */
+
     private String companionFlag;
     private String signType;
     private String sign;

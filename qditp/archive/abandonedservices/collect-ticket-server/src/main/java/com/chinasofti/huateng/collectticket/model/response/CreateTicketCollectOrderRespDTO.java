@@ -1,47 +1,29 @@
 package com.chinasofti.huateng.collectticket.model.response;
 
-/**
- * IF8A-20 请求下单响应报文。
- */
+
 public class CreateTicketCollectOrderRespDTO {
-    /**
-     * 返回码。
-     */
+
     private String retCode;
 
-    /**
-     * 返回消息。
-     */
+
     private String retMsg;
 
-    /**
-     * 订单号。
-     */
+
     private String orderNo;
 
-    /**
-     * 订单状态。
-     */
+
     private Integer orderStatus;
 
-    /**
-     * 票价，单位分。
-     */
+
     private Integer ticketPrice;
 
-    /**
-     * 设备取票二维码生成时间。
-     */
+
     private String qrcodeGenDate;
 
-    /**
-     * 设备随机因子。
-     */
+
     private String randomFact;
 
-    /**
-     * 单程票类型。
-     */
+
     private Integer singleTicketType;
 
     public String getRetCode() {

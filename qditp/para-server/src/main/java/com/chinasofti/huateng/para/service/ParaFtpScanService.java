@@ -23,18 +23,13 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * 扫描FTP目录中的路网拓扑(0001)、费率(0004)参数文件，
- * 按「版本号 + MD5」判断有无变更，有变更时下载并解析入库。
- */
+
 @Service
 public class ParaFtpScanService {
 
     private static final Logger log = LoggerFactory.getLogger(ParaFtpScanService.class);
 
-    /**
-     * 参数文件名规则：PRM. + 参数类型(4位) + . + 节点编码(4位) + . + 版本号(6位) + [. + 尾段]
-     */
+
     private static final Pattern PARA_FILE_PATTERN = Pattern.compile("^PRM\\.(0001|0004)\\.(\\d{4})\\.(\\d{6})(?:\\.\\d+)?$");
 
     private final ParaFtpProperties ftpProperties;
@@ -118,11 +113,7 @@ public class ParaFtpScanService {
         }
     }
 
-    /**
-     * 列出FTP目录中符合命名规则、且需要进一步判断的文件，按参数类型分组、组内版本号升序返回。
-     *
-     * <p>本方法只按版本号粗筛，导入与否由 ParaFileImportService 单点裁决。</p>
-     */
+
     private List<FtpParaFile> findCandidates(FTPClient ftp) throws IOException {
         Map<String, Long> currentVersions = new HashMap<>();
         List<FtpParaFile> candidates = new ArrayList<>();
@@ -167,7 +158,6 @@ public class ParaFtpScanService {
 
         Path localFile = tempDirectory.resolve(candidate.getFileName());
         try {
-            // 下载FTP文件到本地临时目录
             try (OutputStream out = Files.newOutputStream(localFile)) {
                 String ftpFileName = new String(candidate.getFileName().getBytes("UTF-8"), "ISO-8859-1");
                 if (!ftp.retrieveFile(ftpFileName, out)) {
@@ -178,7 +168,6 @@ public class ParaFtpScanService {
             }
             result.setDownloaded(true);
 
-            // 解析入库（内部按文件头版本号 + 全文MD5做权威复核，无变更会跳过）
             ParaImportResult importResult = paraFileImportService.importLocalFile(localFile.toString());
             result.setSuccess(true);
             result.setImported(importResult.getImported());
@@ -237,7 +226,6 @@ public class ParaFtpScanService {
         return message.toString();
     }
 
-    /** FTP上匹配到的候选参数文件 */
     private static class FtpParaFile {
         private final String fileName;
         private final String paraType;

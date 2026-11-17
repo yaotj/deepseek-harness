@@ -2,7 +2,6 @@ package com.chinasofti.huateng.dailyticket.model;
 
 import java.util.Date;
 
-/** IF8B-05 支付结果通知 APP 的补偿任务。 */
 public class DailyTicketPayNotifyTask {
     private String id;
     private String orderNo;

@@ -14,9 +14,7 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * recon-server 向各源服务下发抽取指令的客户端。
- */
+
 @Service
 public class ReconExportClient extends ProxyWebClient {
 
@@ -24,35 +22,22 @@ public class ReconExportClient extends ProxyWebClient {
 
     private static final String EXPORT_PATH = "/internal/recon/export";
 
-    /**
-     * 让源服务侧的 INFO 日志进 VictoriaLogs 的开关头，取值固定 {@code 1}。
-     */
+
     private static final String VLOGS_CAPTURE_HEADER = "X-Vlogs-Capture";
 
-    /**
-     * 构造抽取指令下发客户端。
-     * @param openLogger 是否打印报文日志，指令报文很小，默认开启。
-     * @param webClientBuilder Spring 注入的 WebClient 构造器。
-     */
+
     public ReconExportClient(@Value("${service.recon.openLogger:true}") boolean openLogger,
                              WebClient.Builder webClientBuilder) {
         super("", openLogger, webClientBuilder);
     }
 
-    /**
-     * 源服务收到指令后要现场起 Oracle 抽取，握手与首次响应可能被慢 SQL 拖住。
-     */
+
     @Override
     protected Duration getResponseTimeout() {
         return Duration.ofMinutes(5);
     }
 
-    /**
-     * 向一个源服务下发抽取指令。
-     * @param sourceBaseUrl 源服务基础地址。
-     * @param request 抽取指令。
-     * @return 受理结果；地址非法、远端不可达或响应无法解析时返回 {@code accepted=false} 并带。
-     */
+
     public ReconExportRespDTO dispatch(String sourceBaseUrl, ReconExportReqDTO request) {
         String url;
         try {
@@ -82,9 +67,7 @@ public class ReconExportClient extends ProxyWebClient {
         }
     }
 
-    /**
-     * 归一化源服务基础地址：去掉尾部 {@code /} 并强制要求带 {@code http://} / {@code https://} 前缀。
-     */
+
     private String normalize(String baseUrl) {
         if (baseUrl == null || baseUrl.isBlank()) {
             throw new IllegalArgumentException("源服务地址未配置");

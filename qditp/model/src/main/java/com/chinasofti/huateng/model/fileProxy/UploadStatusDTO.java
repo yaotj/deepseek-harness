@@ -2,24 +2,16 @@ package com.chinasofti.huateng.model.fileProxy;
 
 import java.io.Serializable;
 
-/**
- * @description: http协议-文件上传的响应体。
- */
+
 public class UploadStatusDTO implements Serializable {
 
-    /**
-     * desc: 文件上传成功。
-     */
+
     private boolean success;
 
-    /**
-     * desc:错误消息。
-     */
+
     private String errMsg;
 
-    /**
-     * desc:下载路径。
-     */
+
     private String httpUrl;
 
     public UploadStatusDTO() {

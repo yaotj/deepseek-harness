@@ -9,34 +9,28 @@ import org.springframework.util.StringUtils;
 
 import java.util.regex.Pattern;
 
-/** 商户号（归属方 / 收款方）解析器 —— 按乘车日期决定用城交旧商户还是新商户。 */
 @Component
 public class MerchantPartyResolver {
 
     private static final Logger log = LoggerFactory.getLogger(MerchantPartyResolver.class);
 
-    /** 变更日期只接受 8 位 {@code yyyyMMdd}。 */
     private static final Pattern CHANGE_DATE_PATTERN = Pattern.compile("\\d{8}");
 
-    /** 商户号变更日期，格式 yyyyMMdd */
     @Value("${app.trans.merchant-change-date:}")
     private String merchantChangeDate;
 
-    /** 城交商户号（变更日期前使用） */
     @Value("${app.trans.old-attributable-party:}")
     private String oldAttributableParty;
 
     @Value("${app.trans.old-receiving-party:}")
     private String oldReceivingParty;
 
-    /** 新商户号（变更日期后使用） */
     @Value("${app.trans.new-attributable-party:}")
     private String newAttributableParty;
 
     @Value("${app.trans.new-receiving-party:}")
     private String newReceivingParty;
 
-    /** 启动期校验 + 把生效配置打成一行指纹。 */
     @PostConstruct
     void validateAndLogEffectiveRule() {
         if (StringUtils.hasText(merchantChangeDate)
@@ -55,7 +49,6 @@ public class MerchantPartyResolver {
         log.info("商户号规则生效配置 MERCHANT_RULE_FINGERPRINT={}", merchantRuleFingerprint());
     }
 
-    /** 生效配置指纹，字段顺序固定为 {@code changeDate|oldAttributable|oldReceiving|newAttributable|newReceiving}。 */
     public String merchantRuleFingerprint() {
         return String.join("|",
                 blankIfNull(merchantChangeDate),
@@ -69,31 +62,20 @@ public class MerchantPartyResolver {
         return value == null ? "" : value;
     }
 
-    /**
-     * 按乘车日期选出该记录应使用的商户号一对。
-     *
-     * @param rideDateStr 乘车日期，{@code yyyyMMdd} 或 {@code yyyyMMddHHmmss}，可为空（按新商户处理）
-     */
+
     public MerchantParty resolveFor(String rideDateStr) {
         return shouldUseOldMerchant(rideDateStr) ? oldParty() : newParty();
     }
 
-    /** 强制取变更日期之前的老商户号（城交）一对。 */
     public MerchantParty oldParty() {
         return new MerchantParty(oldAttributableParty, oldReceivingParty, true);
     }
 
-    /** 强制取变更日期之后的新商户号一对，约束同 {@link #oldParty()}。 */
     public MerchantParty newParty() {
         return new MerchantParty(newAttributableParty, newReceivingParty, false);
     }
 
-    /**
-     * 判断是否应使用旧商户（城交）。
-     *
-     * @param rideDateStr 乘车日期，{@code yyyyMMdd} 或 {@code yyyyMMddHHmmss}，可为空
-     * @return true=使用城交商户，false=使用新商户
-     */
+
     private boolean shouldUseOldMerchant(String rideDateStr) {
         if (!StringUtils.hasText(merchantChangeDate)) {
             return false;

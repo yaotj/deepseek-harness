@@ -11,14 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * pay-sign（支付中心直连）通道免密扣费报文组装特征测试。
- *
- * <p>2026-11-17 裁定：industryDetail 与支付宝出行通道同源——优先取 ticket-server 组好的
- * V1.2 快照（{@code GATE_TXN_PAY.INDUSTRY_DETAIL}），快照缺失才回落订单实体 JSON；
- * {@code payTriggerType} 由调用方按发起入口传入、复用
- * {@link AlipayTripPayRequestFactory#applyPayTriggerType} 注入。
- */
+
 class GatePayRequestFactoryTest {
 
     private final GatePayRequestFactory factory =

@@ -20,7 +20,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
-/** 综管台服务监控：对静态清单中的各微服务逐个探活 {@code /actuator/health} 并聚合。 */
 @Service
 public class ServiceStatusService {
     private static final Logger log = LoggerFactory.getLogger(ServiceStatusService.class);
@@ -28,7 +27,6 @@ public class ServiceStatusService {
     private static final Duration PROBE_TIMEOUT = Duration.ofSeconds(3);
     private static final DateTimeFormatter CHECKED_AT_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    /** 探活并发用平台线程池：禁用虚拟线程后改用 cached 线程池处理纯 IO 等待。 */
     private final Executor probeExecutor = Executors.newCachedThreadPool();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(PROBE_TIMEOUT)
@@ -61,7 +59,6 @@ public class ServiceStatusService {
             @Value("${service.accSecurity.url:}") String accSecurityUrl,
             @Value("${service.accEs.url:}") String accEsUrl) {
         List<ServiceTarget> list = new ArrayList<>();
-        // 业务核心层
         addTarget(list, "account", "账户服务", accountUrl);
         addTarget(list, "ticket", "票卡服务", ticketUrl);
         addTarget(list, "paySign", "签约服务", paySignUrl);
@@ -70,22 +67,18 @@ public class ServiceStatusService {
         addTarget(list, "f2f", "面对面收款服务", f2fUrl);
         addTarget(list, "facePay", "当面付服务", facePayUrl);
         addTarget(list, "recon", "对账服务", reconUrl);
-        // 公共能力层
         addTarget(list, "para", "参数服务", paraUrl);
         addTarget(list, "key", "密钥服务", keyUrl);
         addTarget(list, "blacklist", "黑名单服务", blacklistUrl);
         addTarget(list, "cardPool", "卡池服务", cardPoolUrl);
         addTarget(list, "industryData", "行业数据服务", industryDataUrl);
         addTarget(list, "transQuery", "交易查询服务", transQueryUrl);
-        // 接入层（FEP）
         addTarget(list, "fepApp", "APP接入服务", fepAppUrl);
         addTarget(list, "fepDev", "闸机接入服务", fepDevUrl);
         addTarget(list, "fepAcc", "ACC前置服务", fepAccUrl);
         addTarget(list, "fepAlipay", "支付宝接入服务", fepAlipayUrl);
-        // 支付宝域
         addTarget(list, "alipayAccount", "支付宝账户服务", alipayAccountUrl);
         addTarget(list, "alipay-pay-sign", "支付宝签约服务", alipayPaySignUrl);
-        // ACC / 安全层
         addTarget(list, "accSecurity", "加密机服务", accSecurityUrl);
         addTarget(list, "accEs", "ES编码服务", accEsUrl);
         this.targets = List.copyOf(list);
@@ -95,7 +88,6 @@ public class ServiceStatusService {
         list.add(new ServiceTarget(name, displayName, baseUrl));
     }
 
-    /** 并发探活全部目标并聚合返回（list + 汇总计数）。 */
     public AjaxResult list() {
         String checkedAt = LocalDateTime.now().format(CHECKED_AT_FORMAT);
         List<CompletableFuture<ServiceStatusView>> futures = targets.stream()

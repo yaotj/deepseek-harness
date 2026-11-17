@@ -24,7 +24,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** IF1A-01 卡种与签约信息富化器特征测试。 */
 class GateCardTypeEnricherTest {
 
     @org.junit.jupiter.params.ParameterizedTest
@@ -52,7 +51,6 @@ class GateCardTypeEnricherTest {
         ReflectionTestUtils.setField(enricher, "alipayAccountClient", alipayAccountClient);
     }
 
-    /** 闸机上送的原始报文：卡种是二维码行业卡类型 0441，金额非零。 */
     private NotifyVerifyResultReqDTO gateRequest() {
         NotifyVerifyResultReqDTO request = new NotifyVerifyResultReqDTO();
         request.setCardId("0426091000000013");

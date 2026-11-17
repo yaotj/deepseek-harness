@@ -22,16 +22,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
 
-/**
- * 双发择优端到端：IF2A-08 同时打新(9102)/老(9101)两侧 mock,按归并矩阵断言网关应答。
- *
- * <p>与 {@link RouteForwardingE2ETest} 互补:那边钉住 dualquery.enabled=false 的归属路由回退,
- * 本类钉住 enabled=true 的双发归并。两侧 mock 应答由 AtomicReference 控制,按用例切换。
- */
+
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"dualquery.enabled=true", "dualquery.timeout-ms=1500",
-                // 独立 H2 实例:与 RouteForwardingE2ETest 共用同名内存库时,
-                // 第二个上下文的 INIT 脚本会因主键冲突初始化失败,路由表查空全 404
                 "spring.datasource.url=jdbc:h2:mem:dual_query_route;MODE=Oracle;DB_CLOSE_DELAY=-1;INIT=RUNSCRIPT FROM 'classpath:schema-h2.sql'"})
 @ActiveProfiles("test")
 class DualQueryE2ETest {
@@ -70,7 +63,6 @@ class DualQueryE2ETest {
     private static HttpServer startMock(int listenPort, AtomicReference<String> bodyRef,
                                         AtomicInteger statusRef) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", listenPort), 0);
-        // 原路径应答由 bodyRef 控制;dispatch 路径回固定标记体,证明改写后的请求确实落在该路径上
         server.createContext(AUTH_PATH, exchange -> {
             byte[] resp = bodyRef.get().getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json;charset=UTF-8");
@@ -153,7 +145,6 @@ class DualQueryE2ETest {
     void legacyRewriteFilter_appliesToDualLegacyLeg() throws Exception {
         resetMocks();
         legacyBody.set(OLD_POS);
-        // 通过 Actuator 给 legacy-route-tvm 加 RewritePath(模拟生产改路由,不改代码)
         String body = "{\"uri\":\"http://127.0.0.1:9101\",\"predicates\":[\"Path=" + AUTH_PATH + "\"],"
                 + "\"filters\":[\"RewritePath=/itptvm/ci/tvm/(?!requestActiveTicket$)(?<segment>.*),/itptvm/ci/tvmDispatch/${segment}\"],"
                 + "\"operator\":\"test\",\"remark\":\"tvmDispatch\"}";
@@ -164,10 +155,8 @@ class DualQueryE2ETest {
         HttpResponse<String> resp = HttpClient.newHttpClient().send(req, HttpResponse.BodyHandlers.ofString());
         assertEquals(200, resp.statusCode(), "路由更新应成功");
         try {
-            // 改写生效后,双发 legacy 支路落在 dispatch 路径上,应答为 dispatch 标记体
             assertEquals(OLD_POS_DISPATCH, hitAuth(), "双发 legacy 支路必须应用路由 RewritePath 改写");
         } finally {
-            // 还原:去掉 filter,避免影响同上下文其他用例
             String restore = "{\"uri\":\"http://127.0.0.1:9101\",\"predicates\":[\"Path=" + AUTH_PATH + "\"],"
                     + "\"filters\":[],\"operator\":\"test\",\"remark\":\"restore\"}";
             HttpClient.newHttpClient().send(HttpRequest.newBuilder()
@@ -179,8 +168,6 @@ class DualQueryE2ETest {
 
     @Test
     void writePathStillUsesAttributionRouting() throws Exception {
-        // requestActiveTicket 是写接口,NEVER 双发:orderNo 命中 H2 f2f_order 应只走归属路由。
-        // 归属路由的下游是 RouteForwardingE2ETest 的纯文本 mock 语义,这里只断言「应答不含双发兜底负向」。
         String qs = "?bizData=" + URLEncoder.encode("{\"orderNo\":\"test-order-001\"}", StandardCharsets.UTF_8);
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + port + "/itptvm/ci/tvm/requestActiveTicket" + qs))

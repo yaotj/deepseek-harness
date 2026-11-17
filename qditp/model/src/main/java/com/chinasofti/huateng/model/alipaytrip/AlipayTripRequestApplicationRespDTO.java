@@ -2,24 +2,16 @@ package com.chinasofti.huateng.model.alipaytrip;
 
 import com.chinasofti.huateng.common.response.CommonResult;
 
-/**
- * 支付宝出行-开卡申请响应参数。
- */
+
 public class AlipayTripRequestApplicationRespDTO extends CommonResult {
 
-    /**
-     * 卡片ID/逻辑卡号，开卡成功后返回。
-     */
+
     private String cardId;
 
-    /**
-     * 卡片类型。
-     */
+
     private String cardType;
 
-    /**
-     * 用户状态，如 ACTIVE。
-     */
+
     private String status;
 
     public String getCardId() {

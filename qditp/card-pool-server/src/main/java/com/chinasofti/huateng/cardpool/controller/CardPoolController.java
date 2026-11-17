@@ -21,27 +21,17 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-/** 逻辑卡号池接口。 */
 @RestController
 public class CardPoolController {
 
     private final CardPoolService cardPoolService;
 
-    /**
-     * 构造控制器。
-     *
-     * @param cardPoolService 卡号池服务
-     */
+
     public CardPoolController(CardPoolService cardPoolService) {
         this.cardPoolService = cardPoolService;
     }
 
-    /**
-     * 预占一个逻辑卡号。
-     *
-     * @param request 票种与业务归属
-     * @return 预占结果
-     */
+
     @PostMapping("/internal/card-pools/reservations")
     public ResultVO<CardPoolReservationRespDTO> reserve(@RequestBody CardPoolReservationReqDTO request) {
         try {
@@ -51,13 +41,7 @@ public class CardPoolController {
         }
     }
 
-    /**
-     * 确认预占。
-     *
-     * @param reservationId 预占标识
-     * @param request       业务流水号
-     * @return 确认结果
-     */
+
     @PostMapping("/internal/card-pools/reservations/{reservationId}/confirm")
     public ResultVO<Void> confirm(@PathVariable String reservationId,
                                   @RequestBody CardPoolReservationActionReqDTO request) {
@@ -68,13 +52,7 @@ public class CardPoolController {
         return ResultMapper.error("预占记录不存在或状态不允许确认");
     }
 
-    /**
-     * 释放预占。
-     *
-     * @param reservationId 预占标识
-     * @param request       业务流水号
-     * @return 释放结果
-     */
+
     @PostMapping("/internal/card-pools/reservations/{reservationId}/release")
     public ResultVO<Void> release(@PathVariable String reservationId,
                                   @RequestBody CardPoolReservationActionReqDTO request) {
@@ -85,30 +63,13 @@ public class CardPoolController {
         return ResultMapper.error("预占记录不存在或状态不允许释放");
     }
 
-    /**
-     * 各票种卡池水位概览。
-     *
-     * @return 概览列表
-     */
+
     @GetMapping({"/internal/card-pools/summary", "/page/card-pools/summary"})
     public ResultVO<List<Map<String, Object>>> summary() {
         return ResultMapper.ok(cardPoolService.summary());
     }
 
-    /**
-     * 按条件分页查询批次。
-     *
-     * @param batchNo         批次号
-     * @param cardType        票种
-     * @param accTicketType   ACC 票种
-     * @param source          来源
-     * @param status          状态
-     * @param createTimeBegin 创建时间起
-     * @param createTimeEnd   创建时间止
-     * @param pageNum         页码，从 1 开始
-     * @param pageSize        每页条数，上限 100
-     * @return 批次分页结果
-     */
+
     @GetMapping({"/internal/card-pools/batches", "/page/card-pools/batches"})
     public ResultVO<PageInfo<LogicCardPoolBatch>> batches(
             @RequestParam(required = false) Long batchNo,
@@ -126,12 +87,7 @@ public class CardPoolController {
                 createTimeBegin, createTimeEnd, pageNum, pageSize));
     }
 
-    /**
-     * 创建卡号申请批次，立即返回 CREATED 批次，不在本次请求内下载导入。
-     *
-     * @param request 含 cardType 与可选 operator
-     * @return 已创建批次
-     */
+
     @PostMapping({"/internal/card-pools/batches", "/page/card-pools/batches"})
     public ResultVO<LogicCardPoolBatch> createBatch(@RequestBody Map<String, String> request) {
         String cardType = request == null ? null : request.get("cardType");
@@ -146,12 +102,7 @@ public class CardPoolController {
         }
     }
 
-    /**
-     * 重试失败批次。
-     *
-     * @param batchNo 批次号
-     * @return 重试后的批次
-     */
+
     @PostMapping({"/internal/card-pools/batches/{batchNo}/retry", "/page/card-pools/batches/{batchNo}/retry"})
     public ResultVO<LogicCardPoolBatch> retry(@PathVariable Long batchNo) {
         try {
@@ -161,11 +112,7 @@ public class CardPoolController {
         }
     }
 
-    /**
-     * 受理一轮卡池维护：回收超时预占、按阈值补货、推进待处理与可重试批次。
-     *
-     * @return {@code accepted} 与 {@code message} 两项受理结果
-     */
+
     @PostMapping({"/internal/card-pools/maintenance", "/page/card-pools/maintenance"})
     public ResultVO<Map<String, Object>> maintenance() {
         return ResultMapper.ok(cardPoolService.runMaintenance());

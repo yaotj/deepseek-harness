@@ -29,7 +29,6 @@ public class SM2SMUtil {
             fis.read(buf);
             fis.close();
             String strBuf = new String(buf);
-            // Base64解码、加码用于判断是否为base64格式
             String strCertSub = strBuf.substring(27, strBuf.length() - 27);
             byte[] byteCert = Base64.getMimeDecoder().decode(strCertSub);
             String strCert = Base64.getMimeEncoder().encodeToString(byteCert);
@@ -56,9 +55,7 @@ public class SM2SMUtil {
         return null;
     }
 
-    /**
-     * 生成公私钥对
-     */
+
     public static Map genKeyPair() {
         String keypair = Utils.toHexStringNoBlank(sm2.genSM2KeyPair());
         String d = keypair.substring(0, 64);
@@ -70,14 +67,7 @@ public class SM2SMUtil {
         return map;
     }
 
-    /**
-     * 根据用户ID签名 Str
-     *
-     * @param userid  用户di
-     * @param pubkey  公钥
-     * @param prvKey  byte  私钥
-     * @param content 明文
-     */
+
     public static String sign(String userid, String pubkey, byte[] prvKey, String content)
             throws SM2Exception {
 
@@ -93,15 +83,7 @@ public class SM2SMUtil {
         return Utils.toHexStringNoBlank(sign(userid.getBytes(), x, y, prvKey, content.getBytes()));
     }
 
-    /**
-     * 根据用户ID签名 都为byte
-     *
-     * @param userid  用户id
-     * @param x       公钥x
-     * @param y       公钥y
-     * @param prvKey  私钥
-     * @param content 明文
-     */
+
     public static byte[] sign(byte[] userid, byte[] x, byte[] y, byte[] prvKey, byte[] content) {
 
         SM2 sm2 = SM2.getInstance();
@@ -109,9 +91,7 @@ public class SM2SMUtil {
         return sm2.sm2Sign(hash, prvKey);
     }
 
-    /**
-     * SM2私钥签名，带用户ID。
-     */
+
     public static byte[] testSM2SignWithID_byte(byte[] ID, byte[] priKeybytes, byte[] sourcebytes,
                                                 byte[] x, byte[] y) {
         byte[] userZa = SM2.getZ(ID, x, y);
@@ -125,9 +105,7 @@ public class SM2SMUtil {
         return signature;
     }
 
-    /**
-     * 验签Str
-     */
+
     public static boolean verify(String userid, String pubkey, String sign, String content)
             throws SM2Exception {
 
@@ -146,9 +124,7 @@ public class SM2SMUtil {
         return verify(userid.getBytes(), x, y, sign, content.getBytes());
     }
 
-    /**
-     * 验签Byte
-     */
+
     public static boolean verify(byte[] userid, byte[] x, byte[] y, String sign, byte[] content)
             throws SM2Exception {
 
@@ -164,9 +140,7 @@ public class SM2SMUtil {
         return sm2.sm2Verify(hash, x, y, _r, _s);
     }
 
-    /**
-     * 加密Str
-     */
+
     public static String encryptBySM2(String pubKey, String plaintext) throws SM2Exception {
         if (plaintext == null) {
             throw new SM2Exception("待加密信息不能为空");
@@ -178,9 +152,7 @@ public class SM2SMUtil {
         return Base64.getEncoder().encodeToString(ciphertext);
     }
 
-    /**
-     * 加密byte
-     */
+
     public static byte[] encryptBySM2(byte[] x, byte[] y, byte[] data) {
         SM2 sm2 = SM2.getInstance();
         Cipher cipher = new Cipher();
@@ -198,9 +170,7 @@ public class SM2SMUtil {
         return ciphertext;
     }
 
-    /**
-     * 解密
-     */
+
     public static String decryptBySm2(byte[] prikey, String ciphertext) throws SM2Exception {
         if (ciphertext == null) {
             throw new SM2Exception("加密信息不能为空");

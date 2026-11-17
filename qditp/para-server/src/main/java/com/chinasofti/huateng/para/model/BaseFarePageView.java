@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.para.model;
 
-/**
- * 当前费率参数版本下的站点对基础票价查询结果。
- */
+
 public class BaseFarePageView {
     private String entryStationCode;
     private String entryStationName;

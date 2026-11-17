@@ -1,48 +1,32 @@
 package com.chinasofti.huateng.recon.thirdparty;
 
-/**
- * ITP 侧对账源记录（融合 PAY_TXN_DETAIL 与 F2F_* 两流），承载 TXNDIFF 第 1~19 段 + 关联键 + ITP 侧终态。
- *
- * <p>单位：{@code originalFare/orderAmount/actualAmount/discountCumulativeAmount/overtimeAmount} 均为「分」。</p>
- *
- * <p>来源标记 {@code source} ∈ {pay-sign, face-pay}：
- * <ul>
- *   <li>pay-sign：取自 {@code PAY_TXN_DETAIL}，覆盖 QR 后付费 / 日票（face-pay 不落此表，见 recon-thirdparty.md §八）。</li>
- *   <li>face-pay：取自 {@code F2F_ORDER JOIN F2F_PAYMENT(SUCCESS)}，覆盖当面付(BOM/TVM)；关联键
- *       {@code merchantOrderNo=F2F_ORDER.ORDER_NO}（即支付中心 merchantOrderNo）、{@code channelTradeNo=F2F_PAYMENT.CHANNEL_ORDER_NO}。</li>
- * </ul>
- * 第 1~19 段为 DETAIL 同义字段；某来源不持有的乘车域字段（车站/设备/次数/激活时间/超时等）取 null，由生成层兜底为空串/0。</p>
- */
+
 public class ItpTxnRecord {
 
-    // ---- 第 1~19 段（与 DETAIL / TXNDIFF 同义；null 表示来源不持有，生成层兜底为空串/0） ----
-    private String txnType;                     // 2 交易类型
-    private String logicCardNo;                 // 3 逻辑卡号
-    private String txnDateTime;                 // 4 交易日期(yyyyMMddHHmmss)
-    private Long originalFare;                  // 5 交易原价
-    private String curStationName;              // 6 当前车站名称
-    private String deviceNo;                    // 7 设备编码
-    private String ticketType;                  // 8 票卡类型
-    private String ticketSubType;               // 9 票卡子类型
-    private String times;                       // 10 次数
-    private String payChannel;                  // 11 支付渠道
-    private String activateTime;                // 12 激活时间
-    private String quantity;                    // 13 数量
-    private String ticketTransSeq;              // 14 交易流水号
-    private String orderNo;                     // 15 交易订单号
-    private Long orderAmount;                   // 16 订单金额
-    private Long actualAmount;                  // 17 实际扣款金额
-    private Long discountCumulativeAmount;      // 18 优惠累计消费金额
-    private Long overtimeAmount;                // 19 超时金额
+    private String txnType;
+    private String logicCardNo;
+    private String txnDateTime;
+    private Long originalFare;
+    private String curStationName;
+    private String deviceNo;
+    private String ticketType;
+    private String ticketSubType;
+    private String times;
+    private String payChannel;
+    private String activateTime;
+    private String quantity;
+    private String ticketTransSeq;
+    private String orderNo;
+    private Long orderAmount;
+    private Long actualAmount;
+    private Long discountCumulativeAmount;
+    private Long overtimeAmount;
 
-    // ---- 关联键（与渠道账单 merchant_order_no / channel_trade_no 对齐） ----
     private String merchantOrderNo;
     private String channelTradeNo;
 
-    // ---- 比对用 ITP 侧终态：SUCCESS / FAIL / null（非终态或未知） ----
     private String itpPayStatus;
 
-    // ---- 来源标记，便于排障与后续按域拆分 ----
     private String source;
 
     public String getTxnType() { return txnType; }
@@ -90,7 +74,6 @@ public class ItpTxnRecord {
     public String getSource() { return source; }
     public void setSource(String source) { this.source = source; }
 
-    /** 关联键：(商户订单号, 渠道交易流水号)，与 {@link ThirdPartyBill#joinKey()} 同构。 */
     public String joinKey() {
         return (merchantOrderNo == null ? "" : merchantOrderNo) + "\u0001" + (channelTradeNo == null ? "" : channelTradeNo);
     }

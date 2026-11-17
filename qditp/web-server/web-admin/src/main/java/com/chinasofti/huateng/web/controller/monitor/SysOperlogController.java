@@ -19,11 +19,7 @@ import com.chinasofti.huateng.common.utils.poi.ExcelUtil;
 import com.chinasofti.huateng.system.domain.SysOperLog;
 import com.chinasofti.huateng.system.service.ISysOperLogService;
 
-/**
- * 操作日志记录
- * 
- * @author zmzhang
- */
+
 @RestController
 @RequestMapping("/monitor/operlog")
 public class SysOperlogController extends BaseController

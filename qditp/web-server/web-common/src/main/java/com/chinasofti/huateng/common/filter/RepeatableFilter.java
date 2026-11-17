@@ -11,11 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 import com.chinasofti.huateng.common.utils.StringUtils;
 
-/**
- * Repeatable 过滤器
- * 
- * @author zmzhang
- */
+
 public class RepeatableFilter implements Filter
 {
     @Override

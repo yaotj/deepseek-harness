@@ -13,11 +13,7 @@ import com.chinasofti.huateng.common.core.domain.AjaxResult;
 import com.chinasofti.huateng.common.utils.ServletUtils;
 import com.chinasofti.huateng.common.utils.StringUtils;
 
-/**
- * 认证失败处理类 返回未授权
- * 
- * @author zmzhang
- */
+
 @Component
 public class AuthenticationEntryPointImpl implements AuthenticationEntryPoint, Serializable
 {

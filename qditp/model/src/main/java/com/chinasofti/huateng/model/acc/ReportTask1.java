@@ -2,29 +2,19 @@ package com.chinasofti.huateng.model.acc;
 
 public class ReportTask1 {
 
-    /**
-     * desc:任务ID。
-     */
+
     String taskId;
 
-    /**
-     * desc:任务源节点。
-     */
+
     String srcDevNodeId;
 
-    /**
-     * desc:执行任务节点。
-     */
+
     String exeDevNodeId;
 
-    /**
-     * desc:任务上报时间。
-     */
+
     String taskReportTime;
 
-    /**
-     * desc:任务状态。
-     */
+
     String taskStatus;
 
     public String getTaskId() {

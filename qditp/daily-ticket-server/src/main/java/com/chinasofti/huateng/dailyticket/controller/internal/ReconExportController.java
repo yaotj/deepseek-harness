@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** recon-server 下发抽取指令的内部入口（IF-RECON-01 的 daily-ticket 侧）。 */
 @RestController
 @RequestMapping("/internal/recon")
 public class ReconExportController {
@@ -23,12 +22,7 @@ public class ReconExportController {
         this.reconExportService = reconExportService;
     }
 
-    /**
-     * 受理抽取指令。
-     *
-     * @param request 抽取指令
-     * @return 受理或回绝
-     */
+
     @PostMapping("/export")
     public ReconExportRespDTO export(@RequestBody ReconExportReqDTO request) {
         boolean accepted = reconExportService.submit(request);

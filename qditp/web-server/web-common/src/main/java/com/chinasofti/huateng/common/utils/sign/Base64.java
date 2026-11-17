@@ -1,10 +1,6 @@
 package com.chinasofti.huateng.common.utils.sign;
 
-/**
- * Base64工具类
- * 
- * @author zmzhang
- */
+
 public final class Base64
 {
     static private final int     BASELENGTH           = 128;
@@ -74,12 +70,7 @@ public final class Base64
         return (octect < BASELENGTH && base64Alphabet[octect] != -1);
     }
 
-    /**
-     * Encodes hex octects into Base64
-     *
-     * @param binaryData Array containing binaryData
-     * @return Encoded Base64 array
-     */
+
     public static String encode(byte[] binaryData)
     {
         if (binaryData == null)
@@ -124,7 +115,6 @@ public final class Base64
             encodedData[encodedIndex++] = lookUpBase64Alphabet[b3 & 0x3f];
         }
 
-        // form integral number of 6-bit groups
         if (fewerThan24bits == EIGHTBIT)
         {
             b1 = binaryData[dataIndex];
@@ -153,12 +143,7 @@ public final class Base64
         return new String(encodedData);
     }
 
-    /**
-     * Decodes Base64 data into octects
-     *
-     * @param encoded string containing Base64 data
-     * @return Array containind decoded data.
-     */
+
     public static byte[] decode(String encoded)
     {
         if (encoded == null)
@@ -167,12 +152,11 @@ public final class Base64
         }
 
         char[] base64Data = encoded.toCharArray();
-        // remove white spaces
         int len = removeWhiteSpace(base64Data);
 
         if (len % FOURBYTE != 0)
         {
-            return null;// should be divisible by four
+            return null;
         }
 
         int numberQuadruple = (len / FOURBYTE);
@@ -198,7 +182,7 @@ public final class Base64
                     || !isData((d3 = base64Data[dataIndex++])) || !isData((d4 = base64Data[dataIndex++])))
             {
                 return null;
-            } // if found "no data" just return null
+            }
 
             b1 = base64Alphabet[d1];
             b2 = base64Alphabet[d2];
@@ -212,7 +196,7 @@ public final class Base64
 
         if (!isData((d1 = base64Data[dataIndex++])) || !isData((d2 = base64Data[dataIndex++])))
         {
-            return null;// if found "no data" just return null
+            return null;
         }
 
         b1 = base64Alphabet[d1];
@@ -221,10 +205,10 @@ public final class Base64
         d3 = base64Data[dataIndex++];
         d4 = base64Data[dataIndex++];
         if (!isData((d3)) || !isData((d4)))
-        {// Check if they are PAD characters
+        {
             if (isPad(d3) && isPad(d4))
             {
-                if ((b2 & 0xf) != 0)// last 4 bits should be zero
+                if ((b2 & 0xf) != 0)
                 {
                     return null;
                 }
@@ -236,7 +220,7 @@ public final class Base64
             else if (!isPad(d3) && isPad(d4))
             {
                 b3 = base64Alphabet[d3];
-                if ((b3 & 0x3) != 0)// last 2 bits should be zero
+                if ((b3 & 0x3) != 0)
                 {
                     return null;
                 }
@@ -252,7 +236,7 @@ public final class Base64
             }
         }
         else
-        { // No PAD e.g 3cQl
+        {
             b3 = base64Alphabet[d3];
             b4 = base64Alphabet[d4];
             decodedData[encodedIndex++] = (byte) (b1 << 2 | b2 >> 4);
@@ -263,12 +247,7 @@ public final class Base64
         return decodedData;
     }
 
-    /**
-     * remove WhiteSpace from MIME containing encoded Base64 data.
-     *
-     * @param data the byte array of base64 data (with WS)
-     * @return the new length
-     */
+
     private static int removeWhiteSpace(char[] data)
     {
         if (data == null)
@@ -276,7 +255,6 @@ public final class Base64
             return 0;
         }
 
-        // count characters that's not whitespace
         int newSize = 0;
         int len = data.length;
         for (int i = 0; i < len; i++)

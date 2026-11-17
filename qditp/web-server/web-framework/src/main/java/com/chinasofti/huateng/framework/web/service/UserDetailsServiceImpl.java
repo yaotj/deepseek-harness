@@ -15,11 +15,7 @@ import com.chinasofti.huateng.common.utils.MessageUtils;
 import com.chinasofti.huateng.common.utils.StringUtils;
 import com.chinasofti.huateng.system.service.ISysUserService;
 
-/**
- * 用户验证处理
- *
- * @author zmzhang
- */
+
 @Service
 public class UserDetailsServiceImpl implements UserDetailsService
 {

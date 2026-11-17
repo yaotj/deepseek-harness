@@ -6,13 +6,7 @@ public class TransformUtils {
 
     private static char[] hexChar = new char[]{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
 
-    /**
-     * 十六进制的字符串转化为字符串  例如 ：“3642464437323641463333363636333334323134373944414242334543463736”--> “6BFD726AF3366633421479DABB3ECF76”
-     *
-     * @param hex 十六进制字符串
-     * @return
-     * @throws UnsupportedEncodingException
-     */
+
     public static String HexStringToString(String hex) {
         return new String(HexStringToByteArr(hex));
     }
@@ -26,30 +20,18 @@ public class TransformUtils {
         return bytes;
     }
 
-    /**
-     * 字符串转为十六进制字符串
-     *
-     * @param str
-     * @return
-     */
+
     public static String StringToHexString(String str) {
         String data = bytesToHexString(str.getBytes(), 32);
         return data;
     }
 
-    /**
-     * 字节数组转化为十六进制字符串 并按照len的倍数进行补"0"
-     *
-     * @param bytes 字节数据
-     * @param len   部位原则  不够len倍数补"0"
-     * @return
-     */
+
     public static String bytesToHexString(byte[] bytes, int len) {
         StringBuffer hexStr = new StringBuffer();
         for (byte b : bytes) {
             hexStr.append(String.format("%02x", b & 0xff));
         }
-        //长度不满32的整数倍 在后边添加 "0"
         while (hexStr.length() % len != 0) {
             hexStr.append("0");
         }
@@ -57,13 +39,7 @@ public class TransformUtils {
         return hexStr.toString();
     }
 
-    /**
-     * 将字符串str 按照长度len 进行分组
-     *
-     * @param str 字符串
-     * @param len 每组字符长度
-     * @return
-     */
+
     public static String[] dataGrouping(String str, int len) {
         int lenth = str.length() % len == 0 ? str.length() / len : str.length() / len + 1;
         String[] data = new String[lenth];
@@ -73,12 +49,7 @@ public class TransformUtils {
         return data;
     }
 
-    /**
-     * 将字符串数组进行异或运算
-     *
-     * @param strs
-     * @return
-     */
+
     public static String handleXOrStringArr(String[] strs) {
         String result = "";
         for (int i = 1; i < strs.length; i++) {
@@ -91,13 +62,7 @@ public class TransformUtils {
         return result;
     }
 
-    /**
-     * 异或运算
-     *
-     * @param s1
-     * @param s2
-     * @return
-     */
+
     public static String xOr(String s1, String s2) {
         String data = IntArr2String(xOr(String2IntArr(s1), String2IntArr(s2)));
         return data;
@@ -174,13 +139,7 @@ public class TransformUtils {
 
     final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
 
-    /**
-     * 将十进制数字字符串转换为BCD码
-     *
-     * @param str
-     * @param length
-     * @return
-     */
+
     public static byte[] stringToBcd(String str) {
         int length = str.length();
         byte[] ascii = str.getBytes();
@@ -223,14 +182,7 @@ public class TransformUtils {
         return (char) b;
     }
 
-    /**
-     * BCD转String
-     *
-     * @param data
-     * @param offset
-     * @param length
-     * @return
-     */
+
     public static String getBcdString(byte[] data, int offset, int length) {
         StringBuilder sb = new StringBuilder();
         try {
@@ -243,8 +195,6 @@ public class TransformUtils {
         return sb.toString();
     }
 
-    // when transform one byte for example (byte)0x98,run this method to get
-    // "98";
     private static String byteToBcd(byte b) {
         int i = 0;
         if (b < 0) {

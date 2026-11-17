@@ -18,14 +18,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/** 行业数据反向推码链路 —— 调 {@code industry-data-server} 生码，再推给 APP 网关。 */
 @Component
 class IndustryDataNotifier extends FormDataNotifyTemplate {
 
     private static final Logger log = LoggerFactory.getLogger(IndustryDataNotifier.class);
-    /** APP 网关受理成功的 retCode。 */
     private static final String APP_GATEWAY_SUCCESS_RET_CODE = "0000";
-    /** industry-data-server 生码成功的 retCode。 */
     private static final String INDUSTRY_BUILD_SUCCESS_RET_CODE = "0000";
 
     private final IndustryDataClient industryDataClient;
@@ -46,7 +43,6 @@ class IndustryDataNotifier extends FormDataNotifyTemplate {
         this.industryDataClient = industryDataClient;
     }
 
-    /** 生码 + 推送整条链路。 */
     void notifyVerifyResult(NotifyVerifyResultReqDTO request, QRCodeStatus qrCodeStatus, String gateCardType) {
         if (!industryDataNotifyEnabled) {
             log.info("APP行业数据推送已关闭, cardId={}, ticketTransSeq={}",
@@ -78,7 +74,6 @@ class IndustryDataNotifier extends FormDataNotifyTemplate {
         }
     }
 
-    /** 组装生码入参，口径 */
     private IndustryCardDataBuildReqDTO buildCardDataRequest(NotifyVerifyResultReqDTO request, QRCodeStatus qrCodeStatus,
                                                             String gateCardType) {
         IndustryCardDataBuildReqDTO cardDataRequest = new IndustryCardDataBuildReqDTO();
@@ -97,7 +92,6 @@ class IndustryDataNotifier extends FormDataNotifyTemplate {
         return cardDataRequest;
     }
 
-    /** 解析码体签约渠道位。 */
     private String resolveSignChannelCode(NotifyVerifyResultReqDTO request) {
         String accountChannel = SignChannelUtils.resolve(request.getPaymentVendor());
         if (StringUtils.hasText(accountChannel)) {
@@ -113,19 +107,16 @@ class IndustryDataNotifier extends FormDataNotifyTemplate {
         return SignChannelUtils.resolve(request.getSignChannelCode());
     }
 
-    /** 爱山东（044A）的发行渠道强制为 01。 */
     private String resolveIssueChannelCode(NotifyVerifyResultReqDTO request) {
         return CardTypeMapping.isAiShanDong(request.getCardType()) ? "01" : request.getIssueChannelCode();
     }
 
-    /** 支付宝出行渠道（且非爱山东）时，行业数据推的是支付宝那个 URL、不是 APP 网关。 */
     private boolean isAlipayTripChannel(NotifyVerifyResultReqDTO request) {
         return request != null
                 && IssueChannelCodeEnum.isAlipay(request.getIssueChannelCode())
                 && !CardTypeMapping.isAiShanDong(request.getCardType());
     }
 
-    /** 组装推给 APP 的业务参数，字段以甲方规范表 55「行业数据推送请求参数信息」为准。 */
     private AppIndustryDataNotifyReqDTO buildNotifyRequest(NotifyVerifyResultReqDTO request, String cardData) {
         AppIndustryDataNotifyReqDTO notifyRequest = new AppIndustryDataNotifyReqDTO();
         notifyRequest.setThirdUserId(request.getItpUserId());
@@ -138,22 +129,16 @@ class IndustryDataNotifier extends FormDataNotifyTemplate {
         return notifyRequest;
     }
 
-    /**
-     * 推送码体给 APP 网关。
-     *
-     * @return true 仅当对方明确返回 {@code 0000}，判定口径见 {@link #isAccepted}
-     */
+
     private boolean doNotifyIndustryData(AppIndustryDataNotifyReqDTO notifyRequest, String targetUrl, String deviceId) {
         return post(targetUrl, JSON.toJSONString(notifyRequest), deviceId, "行业数据推送");
     }
 
-    /** 应答判定钩子 —— 本链路 */
     @Override
     protected boolean isAccepted(boolean httpSuccessful, String responseBody) {
         return httpSuccessful && APP_GATEWAY_SUCCESS_RET_CODE.equals(parseRetCode(responseBody));
     }
 
-    /** 从应答报文中取 {@code retCode}。 */
     private String parseRetCode(String responseBody) {
         if (!StringUtils.hasText(responseBody)) {
             return null;

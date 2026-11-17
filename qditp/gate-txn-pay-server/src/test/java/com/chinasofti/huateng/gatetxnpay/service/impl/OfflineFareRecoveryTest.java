@@ -33,7 +33,6 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/** 钉住离线码金额补偿（{@code recoverOfflineFarePendingOrders}）的资损防线。 */
 class OfflineFareRecoveryTest {
 
     private final GateTxnPayMapper mapper = mock(GateTxnPayMapper.class);
@@ -52,7 +51,6 @@ class OfflineFareRecoveryTest {
         verifyNoInteractions(paySignClient);
     }
 
-    /** 单轮上限钳制：`limit<=0` 落 50、超 200 收到 200，回溯天数 `<=0` 落 7 天。 */
     @Test
     void batchSizeAndLookbackAreClamped() {
         assertEquals(50, capturedBatchSize(0, 7));
@@ -63,7 +61,6 @@ class OfflineFareRecoveryTest {
         assertEquals(3, capturedLookbackDays(3));
     }
 
-    /** 重算仍失败 → 只调 {@code markOfflineFarePending} 保持待重算态。 */
     @Test
     void recalculationFailureKeepsPendingAndNeverPays() {
         stubPending(order("GT1"));
@@ -76,7 +73,6 @@ class OfflineFareRecoveryTest {
         verifyNoInteractions(paySignClient);
     }
 
-    /** 重算出 0 元 → 保持待重算等人工核查。 */
     @Test
     void zeroRecalculatedAmountNeverSettlesAsSuccess() {
         stubPending(order("GT2"));
@@ -88,7 +84,6 @@ class OfflineFareRecoveryTest {
         verifyNoInteractions(paySignClient);
     }
 
-    /** CAS 抢占失败（{@code applyOfflineFareRecalculated ! */
     @Test
     void losingTheCasRaceNeverTriggersPayment() {
         stubPending(order("GT3"));
@@ -99,7 +94,6 @@ class OfflineFareRecoveryTest {
         verifyNoInteractions(paySignClient);
     }
 
-    /** 抢占成功才扣款。 */
     @Test
     void winningTheCasRacePaysWithTrxPlusOvertime() {
         GateTxnPay pending = order("GT4");
@@ -138,7 +132,6 @@ class OfflineFareRecoveryTest {
         return size.getValue();
     }
 
-    /** 回溯天数只能从「起止日期相差几天」反推——它不是参数，而是被算进扫描区间的。 */
     private long capturedLookbackDays(int lookbackDays) {
         GateTxnPayMapper fresh = mock(GateTxnPayMapper.class);
         when(fresh.selectOfflineFarePending(anyString(), anyString(), anyInt())).thenReturn(List.of());
@@ -155,7 +148,6 @@ class OfflineFareRecoveryTest {
         when(mapper.selectOfflineFarePending(anyString(), anyString(), anyInt())).thenReturn(List.of(pending));
     }
 
-    /** 让算价 mock 按真实实现那样写回订单对象：`calculateOfflineFare` 是 void，金额靠副作用落在 `order` 上。 */
     private void stubCalculated(int trxAmount, int overtimeAmount) {
         doAnswer(invocation -> {
             GateTxnPay order = invocation.getArgument(0);
@@ -165,7 +157,6 @@ class OfflineFareRecoveryTest {
         }).when(fareCalculator).calculateOfflineFare(any(), any());
     }
 
-    /** 待重算行的形态：`DEBIT_STATUS='INIT'` + 金额全 0，但不是免扣费交易。 */
     private GateTxnPay order(String orderNo) {
         GateTxnPay order = new GateTxnPay();
         order.setOrderNo(orderNo);
@@ -189,7 +180,6 @@ class OfflineFareRecoveryTest {
         return service(mapper);
     }
 
-    /** 补偿链路的五个协作者：mapper（扫表）、writer（抢占与标记）、算价、扣款、换乘推送任务构建。 */
     private OfflineFareRecoveryServiceImpl service(GateTxnPayMapper gateTxnPayMapper) {
         return new OfflineFareRecoveryServiceImpl(
                 gateTxnPayMapper, writer, fareCalculator,
@@ -201,9 +191,7 @@ class OfflineFareRecoveryTest {
                 noopStationNameBackfiller());
     }
 
-    /**
-     * 站名回填在本文件里不能传 null：{@code recoverSingleOfflineFareOrder} 重算成功后会调它，传 null 直接 NPE、被单笔 catch 吞掉。
-     */
+
     private StationNameBackfiller noopStationNameBackfiller() {
         return new StationNameBackfiller(new FareDataGateway(null, null, null, null, null, null) {
             @Override

@@ -41,17 +41,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.dao.DuplicateKeyException;
 
-/**
- * 特征断言：钉住支付宝渠道**签约 / 解约登记 / 解约执行**三条链路的现有对外行为。
- *
- * <p>手法照 {@code pay-sign-server} 的 ADR-D87：**断言挂在对外门面上、不挂被拆的类**，
- * 于是后续批次无论怎么搬迁内部结构，只要这里全绿就证明对外行为等价。</p>
- *
- * <p><b>本文件已按批次 1（ADR-D129）改过三处</b>：原先带 {@code _currentDefect} 后缀的
- * 三条断言钉的是「事务内 RPC」「异常被吞掉导致事务回滚不了」「先改本地后调远端」，
- * 缺陷修掉后它们已改写成新契约（通道同步走 outbox / 异常穿透 / 委派 `TerminationNotifier`）。
- * 后续批次是纯搬迁，这些断言 MUST 保持全绿；要改动 MUST 先确认是有意的对外行为变更。</p>
- */
+
 class AlipayContractCharacterizationTest {
 
     private static final String THIRD_USER_ID = "2088000000000001";
@@ -99,7 +89,6 @@ class AlipayContractCharacterizationTest {
         inject(contractService, "signLogRecorder", signLogRecorder);
     }
 
-    // ---------- 签约 addContract ----------
 
     @Test
     void blankMandatoryFieldIsRejectedWithInvalidParam() {
@@ -113,9 +102,7 @@ class AlipayContractCharacterizationTest {
         verify(signInfoMapper, never()).insert(any());
     }
 
-    /**
-     * ADR-D135：**同一个协议号**重复上送才是幂等重复请求，原样返成功、不再落库、不再出网。
-     */
+
     @Test
     void sameAgreementCodeResubmitIsIdempotent() {
         when(signInfoMapper.selectByThirdUserIdAndChannel(THIRD_USER_ID, "ALIPAY")).thenReturn(signInfo());
@@ -128,13 +115,7 @@ class AlipayContractCharacterizationTest {
         verify(accountChannelPort, never()).updatePaymentChannel(anyString(), anyString(), anyString());
     }
 
-    /**
-     * ADR-D135：已有生效签约却换了协议号，**MUST 拒绝**、NEVER 静默返旧号。
-     *
-     * <p>原实现不比对协议号就返成功 + 库内旧号：新号不落库、上游却以为签成功了，
-     * 后续按新号发起的扣款与解约在我方全部查不到。覆盖更新同样不行 ——
-     * {@code CHANNEL_AGREEMENT_CODE} 是销卡通知发给支付中心的号，覆盖后旧协议再也解不了约。</p>
-     */
+
     @Test
     void differentAgreementCodeOnActiveSignIsRejected() {
         AlipaySignInfo existing = signInfo();
@@ -150,12 +131,7 @@ class AlipayContractCharacterizationTest {
         verify(accountChannelPort, never()).updatePaymentChannel(anyString(), anyString(), anyString());
     }
 
-    /**
-     * ADR-D135：撞主键说明并发请求刚把同一用户签上，结果与幂等重复请求等价 ⇒ 返成功。
-     *
-     * <p>MUST 沿 cause 链判定：这里刻意把 {@code DuplicateKeyException} 包进一层
-     * {@code RuntimeException}，模拟本模块 tracing 切面换类型的形态（docs/architecture/runtime-observability-traps.md §1）。</p>
-     */
+
     @Test
     void primaryKeyConflictDegradesToIdempotentSuccess() {
         givenAccountOpened();
@@ -172,12 +148,7 @@ class AlipayContractCharacterizationTest {
         verify(accountChannelPort, never()).updatePaymentChannel(anyString(), anyString(), anyString());
     }
 
-    /**
-     * ADR-D135：已解约用户重签 MUST 就地把那一行改回 SIGNED，NEVER 再 INSERT 一行。
-     *
-     * <p>本表主键是 {@code THIRD_USER_ID} 单列、解约只改状态不删行，因此 INSERT 必撞主键 ——
-     * 原实现在这条路上直接报错，已解约用户永远签不回来。</p>
-     */
+
     @Test
     void terminatedUserIsReSignedInPlace() {
         givenAccountOpened();
@@ -199,7 +170,6 @@ class AlipayContractCharacterizationTest {
         verify(accountChannelPort).updatePaymentChannel(THIRD_USER_ID, CHANNEL_USER_ACCOUNT, AGREEMENT_CODE);
     }
 
-    /** ADR-D135：重签 CAS 影响 0 行说明状态已被别人改动，MUST 回查后按幂等处理、NEVER 当成成功放过去。 */
     @Test
     void reactivateCasMissDegradesToIdempotentSuccess() {
         givenAccountOpened();
@@ -216,7 +186,6 @@ class AlipayContractCharacterizationTest {
         verify(accountChannelPort, never()).updatePaymentChannel(anyString(), anyString(), anyString());
     }
 
-    /** 非唯一约束的落库异常 MUST 原样穿透，NEVER 被兜底分支吞成成功。 */
     @Test
     void nonConflictInsertFailurePropagates() {
         givenAccountOpened();
@@ -270,11 +239,7 @@ class AlipayContractCharacterizationTest {
         verify(signLogRecorder).recordSignSuccess(any(), any(), any());
     }
 
-    /**
-     * ADR-D131：账户域**明确拒绝**（对端答了 false）落 {@code FAILED} 且结果文案带 {@code BIZ_REJECTED:} 前缀。
-     *
-     * <p>前缀不是装饰：批次 5 的补偿扫描据它判断值不值得重推 —— 业务拒绝重推一万次也不会成功。</p>
-     */
+
     @Test
     void channelSyncBizRejectionStillReturnsSuccessAndMarksOutboxFailed() {
         givenAccountOpened();
@@ -291,12 +256,7 @@ class AlipayContractCharacterizationTest {
         verify(signLogRecorder).recordSignSuccess(any(), any(), any());
     }
 
-    /**
-     * ADR-D131：**不可达**同样落 {@code FAILED}，但前缀是 {@code UNREACHABLE:} —— 这一支才该进补偿队列。
-     *
-     * <p>注意异常已在 {@code AccountChannelRpcAdapter} 里收成 {@code Unreachable}，
-     * 端口 <b>NEVER 抛异常</b>，因此这里 stub 的是返回值、不是 {@code thenThrow}。</p>
-     */
+
     @Test
     void channelSyncUnreachableIsMarkedFailedWithRetryablePrefix() {
         givenAccountOpened();
@@ -311,13 +271,7 @@ class AlipayContractCharacterizationTest {
                 eq("UNREACHABLE: IllegalStateException"), any());
     }
 
-    /**
-     * ADR-D129 后的正序：本地 INSERT → 出网同步通道 → 回写 outbox。
-     *
-     * <p>本顺序与 {@code TerminationNotifier} 那条「先远端后本地」**刻意相反**，不是笔误：
-     * 签约的本地行是「本次业务已成立」的唯一证据，先落库才有东西可补偿；而销卡是把一个
-     * 已存在的协议在两侧都关掉，远端没关成功时本地 NEVER 能先置 TERMINATED。</p>
-     */
+
     @Test
     void signRowLandsFirstThenChannelSyncThenOutboxWriteBack() {
         givenAccountOpened();
@@ -332,7 +286,6 @@ class AlipayContractCharacterizationTest {
         order.verify(signInfoMapper).updateChannelSync(eq(AGREEMENT_CODE), eq("SUCCESS"), anyString(), any());
     }
 
-    // ---------- 解约登记 terminateContract ----------
 
     @Test
     void terminationRegistrationRejectsBlankAgreementCode() {
@@ -387,12 +340,7 @@ class AlipayContractCharacterizationTest {
         assertEquals(FepAppErrorCodeEnum.SUCCESS.getCode(), response.getRetCode());
     }
 
-    /**
-     * ADR-D129：落库异常 MUST 穿透出来，{@code @Transactional} 才真的会回滚。
-     *
-     * <p>原实现把整段包在 catch-all 里转成 {@code 9001}，异常不穿透 ⇒ 事务永不回滚，
-     * 而上游只看到一个含义模糊的系统错误。<b>NEVER 把 catch-all 加回去。</b></p>
-     */
+
     @Test
     void terminationRegistrationLetsPersistenceFailurePropagate() {
         when(terminationRequestMapper.countByAgreementCode(AGREEMENT_CODE)).thenReturn(0);
@@ -403,7 +351,6 @@ class AlipayContractCharacterizationTest {
                 "异常 MUST 穿透，否则 @Transactional 形同虚设");
     }
 
-    // ---------- 解约执行 executeTermination ----------
 
     @Test
     void executeTerminationRejectsBlankAgreementCode() {
@@ -439,13 +386,7 @@ class AlipayContractCharacterizationTest {
         verify(terminationNotifier, never()).execute(any());
     }
 
-    /**
-     * ADR-D129：{@code executeTermination} 已收口成委派 {@link TerminationNotifier}，
-     * 因此「先远端后本地」与 CAS 收口只有一份实现。
-     *
-     * <p>原实现自带一份「先把签约置 TERMINATED、再通知支付中心」，顺序与批处理链路相反，
-     * 远端失败会留下「我方已解约、支付中心仍在签约」。<b>NEVER 在本方法里重新实现通知与状态收口。</b></p>
-     */
+
     @Test
     void executeTerminationDelegatesAndNeverTouchesSignStatusItself() {
         when(terminationRequestMapper.countByAgreementCode(AGREEMENT_CODE)).thenReturn(1);
@@ -483,16 +424,8 @@ class AlipayContractCharacterizationTest {
         verify(terminationNotifier, never()).execute(any());
     }
 
-    // ---------- fixtures ----------
 
-    /**
-     * 「已开户、通道同步会成功」这个默认前提。
-     *
-     * <p>ADR-D131 起 <b>MUST 给 {@code accountChannelPort} 一个默认返回值</b>：
-     * {@code syncPaymentChannel} 里是穷尽 {@code switch}，mock 默认返 {@code null} 会直接 NPE
-     * —— 那是测试前提没建全，不是生产缺陷（adapter 的三个分支都返实例）。
-     * 要测别的分支就在用例里重新 stub 覆盖。</p>
-     */
+
     private void givenAccountOpened() {
         when(signInfoMapper.selectByThirdUserIdAndChannel(THIRD_USER_ID, "ALIPAY")).thenReturn(null);
         AlipayUserInfoDTO userInfo = new AlipayUserInfoDTO();

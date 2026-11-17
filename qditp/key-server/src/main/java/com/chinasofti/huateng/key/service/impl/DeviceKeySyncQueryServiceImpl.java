@@ -12,9 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-/**
- * 综管台「设备密钥同步」查询实现。
- */
+
 @Service
 public class DeviceKeySyncQueryServiceImpl implements DeviceKeySyncQueryService {
 

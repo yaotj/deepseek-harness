@@ -4,11 +4,7 @@ import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import com.chinasofti.huateng.common.core.text.Convert;
 
-/**
- * 权限信息
- * 
- * @author zmzhang
- */
+
 public class PermissionContextHolder
 {
     private static final String PERMISSION_CONTEXT_ATTRIBUTES = "PERMISSION_CONTEXT";

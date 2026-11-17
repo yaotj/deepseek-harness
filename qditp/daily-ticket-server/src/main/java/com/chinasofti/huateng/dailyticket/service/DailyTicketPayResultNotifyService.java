@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** IF8B-05 支付结果通知 APP 的投递服务。 */
 @Service
 public class DailyTicketPayResultNotifyService {
 
@@ -61,7 +60,6 @@ public class DailyTicketPayResultNotifyService {
         this.travelOrderMapper = travelOrderMapper;
     }
 
-    /** 日票支付回调首次进入终态后入队并快速投递。 */
     public void enqueueAndDeliver(DailyTicketOrder order, String payResult) {
         if (order == null || !StringUtils.hasText(order.getOrderNo())) {
             return;
@@ -71,7 +69,6 @@ public class DailyTicketPayResultNotifyService {
                 order.getPayChannelCode()));
     }
 
-    /** 旅游票主单支付回调首次进入终态后入队并快速投递。 */
     public void enqueueAndDeliver(TravelTicketOrder order, String payResult) {
         if (order == null || !StringUtils.hasText(order.getOrderNo())) {
             return;
@@ -81,12 +78,7 @@ public class DailyTicketPayResultNotifyService {
                 order.getPayChannelCode()));
     }
 
-    /**
-     * 扫表补偿：把待发的支付结果通知逐条投递给 APP。
-     *
-     * @param limit 单批条数上限，非正数按 {@value #DEFAULT_LIMIT}
-     * @return 本批投递成功条数
-     */
+
     public int deliverPending(int limit) {
         int max = limit <= 0 ? DEFAULT_LIMIT : limit;
         List<DailyTicketPayNotifyTask> pending =
@@ -146,8 +138,6 @@ public class DailyTicketPayResultNotifyService {
         bizData.put("orderNo", orderNo);
         putIfText(bizData, "tradeNo", tradeNo);
         bizData.put("payResult", payResult);
-        // 2026-09-29：APP 侧（bestonepay）确认缺少支付方式会返 7004 未受理，
-        // 支付渠道码取自订单 PAY_CHANNEL_CODE（requestPay 时落库）。
         putIfText(bizData, "payChannel", payChannel);
         if (payAmount != null) {
             bizData.put("payAmount", String.valueOf(payAmount));
@@ -155,10 +145,6 @@ public class DailyTicketPayResultNotifyService {
         if (payDate != null) {
             bizData.put("payDate", new SimpleDateFormat(DATE_PATTERN).format(payDate));
         }
-        // voucher 是 R6 §3.30 表63 的「取票凭证」，规格标注为预留字段。日票 / 旅游票没有取票动作、
-        // 无真实凭证可填，因此恒送空串——与 face-pay 的 F2fPayCenterFlow 保持一致。
-        // NEVER 据此认为它能解决 APP 返 7001：2026-09-20 / 1.0.36 实测，报文带上 voucher 后 APP 仍返 7001，
-        // 「缺 voucher 导致 7001」那条因果已作废。
         bizData.put("voucher", "");
         bizData.put("orderType", orderType);
         return bizData;
@@ -184,10 +170,7 @@ public class DailyTicketPayResultNotifyService {
         return false;
     }
 
-    /**
-     * 存量 PENDING 任务的 payload 是加 payChannel 之前落库的（2026-09-29 前的任务），
-     * 投递时懒补支付方式，避免存量任务永远 7004。解析/查询失败一律原样投递，不阻断补偿。
-     */
+
     private String enrichPayChannelIfAbsent(DailyTicketPayNotifyTask task) {
         String payload = task.getPayload();
         try {
@@ -207,7 +190,6 @@ public class DailyTicketPayResultNotifyService {
         }
     }
 
-    /** 按订单类型回查订单表取支付渠道码：1-日票子单，2-旅游票主单。 */
     private String lookupPayChannel(String orderNo, String orderType) {
         if (ORDER_TYPE_TRAVEL_TICKET.equals(orderType)) {
             TravelTicketOrder order = travelOrderMapper.selectByOrderNo(orderNo);

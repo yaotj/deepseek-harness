@@ -7,12 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * AGM 密钥版本审批状态机白名单测试（AGENTS.md §4.2 范式）。
- *
- * <p>审批是安全红线动作，白名单必须逐条锁定：只放行 20010 初始化的两个出边，终态零出边，
- * 任何「非终态即可处理」的写法都会被本测试拦下。</p>
- */
+
 class AgmKeyApprovalStatusWhitelistTest {
 
     @Test
@@ -37,7 +32,6 @@ class AgmKeyApprovalStatusWhitelistTest {
 
     @Test
     void noUnlistedTransitionAllowed() {
-        // 白名单之外的迁移（如 APPROVED->REJECTED、REJECTED->APPROVED、INIT->INIT）一律拒绝。
         assertFalse(AgmKeyApprovalStatus.APPROVED.canTransitTo(AgmKeyApprovalStatus.REJECTED));
         assertFalse(AgmKeyApprovalStatus.REJECTED.canTransitTo(AgmKeyApprovalStatus.APPROVED));
         assertFalse(AgmKeyApprovalStatus.APPROVED.canTransitTo(AgmKeyApprovalStatus.INIT));

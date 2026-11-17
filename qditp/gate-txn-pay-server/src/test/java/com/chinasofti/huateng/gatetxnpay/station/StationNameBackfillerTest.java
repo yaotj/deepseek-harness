@@ -11,10 +11,8 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-/** 钉住 {@link StationNameBackfiller} 的三条语义，它们改坏后编译与启动都不报错、 只在「列表站名显示成编码」或「站名被擦成空」时才被发现。 */
 class StationNameBackfillerTest {
 
-    /** 两个码都查得到：两列都按查到的中文名覆盖。 */
     @Test
     void backfillBothStationNames() {
         Map<String, String> resolved = new HashMap<>();
@@ -28,7 +26,6 @@ class StationNameBackfillerTest {
         assertEquals("合川路", order.getExitStationName());
     }
 
-    /** 进站码查不到（占位 {@code FFFF} 不在 {@code TBL_STATION_INFO}）时。 */
     @Test
     void keepEntryNameWhenEntryCodeUnresolvable() {
         Map<String, String> resolved = new HashMap<>();
@@ -41,7 +38,6 @@ class StationNameBackfillerTest {
         assertEquals("合川路", order.getExitStationName());
     }
 
-    /** 一个都查不到（para 不可达 / 返非 0000）时。 */
     @Test
     void neverOverwriteExistingNamesWhenNothingResolved() {
         GateTxnPay order = order("0622", "0245", "辛屯", "合川路");
@@ -52,7 +48,6 @@ class StationNameBackfillerTest {
         assertEquals("合川路", order.getExitStationName());
     }
 
-    /** 进出站编码都为空时直接短路，不发 RPC（用抛异常的桩证明没被调用）。 */
     @Test
     void skipWhenBothStationCodesBlank() {
         FareDataGateway exploding = new FareDataGateway(null, null, null, null, null, null) {
@@ -69,7 +64,6 @@ class StationNameBackfillerTest {
         assertNull(order.getExitStationName());
     }
 
-    /** 且去重后只查一个码。 */
     @Test
     void backfillSameEntryAndExitStation() {
         Map<String, String> resolved = new HashMap<>();

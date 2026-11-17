@@ -1,23 +1,15 @@
 package com.chinasofti.huateng.model.alipaytrip;
 
-/**
- * 支付宝出行-支付申请响应参数。
- */
+
 public class AlipayTripRequestPayRespDTO {
 
-    /**
-     * 返回码。
-     */
+
     private String retCode;
 
-    /**
-     * 返回消息。
-     */
+
     private String retMsg;
 
-    /**
-     * 订单号。
-     */
+
     private String orderNo;
 
     public String getRetCode() {

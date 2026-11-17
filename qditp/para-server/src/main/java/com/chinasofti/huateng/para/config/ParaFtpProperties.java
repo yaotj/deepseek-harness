@@ -11,7 +11,6 @@ public class ParaFtpProperties {
     private int port = 21;
     private String username;
     private String password;
-    /** ACC 放置参数文件的远端目录。 */
     private String remoteDir = "/parameter/cur/";
     private int connectTimeoutMillis = 10000;
     private int dataTimeoutMillis = 60000;

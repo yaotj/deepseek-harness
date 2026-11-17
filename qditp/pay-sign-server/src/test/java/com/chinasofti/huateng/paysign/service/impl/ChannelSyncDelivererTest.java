@@ -21,7 +21,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
-/** 护栏：通道清理三分支处置，BizRejected MUST 先 +1 再转人工，落库异常 NEVER 上抛。 */
 class ChannelSyncDelivererTest {
 
     private static final String SEQ = "0052290701523994";
@@ -48,7 +47,6 @@ class ChannelSyncDelivererTest {
         verify(terminationRequestMapper, never()).markChannelSyncManual(anyString(), any(), anyString());
     }
 
-    /** 业务拒绝：两句 CAS 的顺序就是不变量本身 —— 写反了不报错，只会永久留在补偿队列。 */
     @Test
     void bizRejectedIncrementsRetryCountBeforeMarkingManual() {
         when(accountDomainPort.removeChannel(anyString(), anyString(), anyString(), anyString()))
@@ -61,7 +59,6 @@ class ChannelSyncDelivererTest {
         order.verify(terminationRequestMapper).markChannelSyncManual(eq(SEQ), any(LocalDateTime.class), anyString());
     }
 
-    /** 转人工的原因里 MUST 带上对端的 retCode / retMsg，否则运维拿不到可操作信息。 */
     @Test
     void bizRejectedRecordsRemoteCodeAndMessage() {
         when(accountDomainPort.removeChannel(anyString(), anyString(), anyString(), anyString()))
@@ -75,7 +72,6 @@ class ChannelSyncDelivererTest {
         assertTrue(reason.getValue().contains("该通道不存在"), reason.getValue());
     }
 
-    /** 不可达：只 +1 并落 FAILED 留给下一轮，NEVER 转人工。 */
     @Test
     void unreachableStaysRetryableAndNeverGoesManual() {
         when(accountDomainPort.removeChannel(anyString(), anyString(), anyString(), anyString()))
@@ -89,7 +85,6 @@ class ChannelSyncDelivererTest {
         verify(terminationRequestMapper, never()).markChannelSyncManual(anyString(), any(), anyString());
     }
 
-    /** CHANNEL_SYNC_RESULT 是 VARCHAR2(1024)：超长原因 MUST 截断，否则 ORA-12899。 */
     @Test
     void resultTextIsTruncatedToColumnWidth() {
         when(accountDomainPort.removeChannel(anyString(), anyString(), anyString(), anyString()))
@@ -103,7 +98,6 @@ class ChannelSyncDelivererTest {
         assertTrue(reason.getValue().length() <= 1024, "长度=" + reason.getValue().length());
     }
 
-    /** 落库自身抛异常时 NEVER 上抛：调用方都在本地已提交之后调它。 */
     @Test
     void persistenceFailureIsSwallowedAndReportedAsNotDelivered() {
         when(accountDomainPort.removeChannel(anyString(), anyString(), anyString(), anyString()))
@@ -114,7 +108,6 @@ class ChannelSyncDelivererTest {
         assertFalse(deliverer.deliver(SEQ, USER, ALIPAY_VENDOR, CARD_ID, CARD_TYPE));
     }
 
-    /** 远端调用本身抛异常同样被兜住，NEVER 穿到调用方。 */
     @Test
     void remoteExceptionIsSwallowed() {
         when(accountDomainPort.removeChannel(anyString(), anyString(), anyString(), anyString()))
@@ -123,7 +116,6 @@ class ChannelSyncDelivererTest {
         assertFalse(deliverer.deliver(SEQ, USER, ALIPAY_VENDOR, CARD_ID, CARD_TYPE));
     }
 
-    /** 补偿侧重载：四要素直接取自扫表快照行，MUST 与五参重载走同一段处置。 */
     @Test
     void rowOverloadDelegatesWithFourFieldsFromSnapshot() {
         when(accountDomainPort.removeChannel(USER, ALIPAY_VENDOR, CARD_ID, CARD_TYPE))

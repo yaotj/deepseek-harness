@@ -6,11 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-/**
- * 离线码出站时金额重算失败订单的补偿入口。
- *
- * <p>NEVER 加回 {@code @Scheduled}，已改由 web-admin {@code sys_job} 295 触发（2026-09-21 由 120 改号为 295，ADR-D80）。
- */
+
 @Service
 public class OfflineFareRecoveryProcessor {
 
@@ -31,7 +27,6 @@ public class OfflineFareRecoveryProcessor {
         this.lookbackDays = lookbackDays;
     }
 
-    /** 跑一轮补偿，返回本轮已推进的笔数。 */
     public int recoverOfflineFarePendingOrders() {
         if (!enabled) {
             log.info("离线码金额补偿开关未开启（gate.pay.offline-fare-recovery-enabled=false），本轮跳过");

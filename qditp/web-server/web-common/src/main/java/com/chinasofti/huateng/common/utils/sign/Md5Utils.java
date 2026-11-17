@@ -5,11 +5,7 @@ import java.security.MessageDigest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Md5加密方法
- * 
- * @author zmzhang
- */
+
 public class Md5Utils
 {
     private static final Logger log = LoggerFactory.getLogger(Md5Utils.class);

@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.ticket;
 
-/**
- * 开户后注册用户乘车状态请求。
- */
+
 public class RegisterRideStatusReqDTO {
     private String thirdUserId;
     private String cardId;

@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.para.model;
 
-/**
- * 基础票价查询页面的车站选项。
- */
+
 public class BaseFareStationOption {
     private String stationCode;
     private String stationName;

@@ -10,12 +10,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableAsync;
 
-/**
- * @program: spring-cloud-acc
- * @description:
- * @author: fc
- * @create: 2020-09-10 16:16
- */
+
 @SpringBootApplication
 @EnableDefaultMybatisAutoConfig
 @MapperScan("com.chinasofti.huateng.acc.es.server.mapper")

@@ -23,57 +23,39 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * 换号与显示账号同步补偿的实现，2026-09-11 从 {@code AccountApplicationServiceImpl} 原样搬出。
- */
+
 @Service
 public class PhoneChangeServiceImpl implements PhoneChangeService {
     private static final Logger log = LoggerFactory.getLogger(PhoneChangeServiceImpl.class);
 
-    /**
-     * USER_PHONE_CHANGE_LOG.SIGN_SYNC_STATUS 的初始态：显示账号变更事实待投递给支付域。
-     */
+
     private static final String SIGN_SYNC_PENDING = SyncStatus.PENDING.name();
 
-    /**
-     * USER_PHONE_CHANGE_LOG.SIGN_SYNC_RESULT 是 VARCHAR2(1024 CHAR)。
-     */
+
     private static final int SIGN_SYNC_RESULT_MAX_LENGTH = 1024;
 
-    /**
-     * 补偿重推的次数上限（不含）。
-     */
+
     private static final int SIGN_SYNC_MAX_RETRY = 10;
 
-    /**
-     * 单批扫表条数上限。
-     */
+
     private static final int SIGN_SYNC_SCAN_LIMIT = 200;
 
     private final UserItpRegInfoMapper userItpRegInfoMapper;
 
     private final UserPhoneChangeLogMapper userPhoneChangeLogMapper;
 
-    /**
-     * 员工码表，本类只用于「换号时同步员工码手机号」。
-     */
+
     private final UserAccEmployeeCardMapper userAccEmployeeCardMapper;
 
-    /**
-     * 异常工单。
-     */
+
     private final AccountExceptionTicketMapper accountExceptionTicketMapper;
 
     private final PaySignClient paySignClient;
 
-    /**
-     * 换号的落库部分用它显式开短事务。
-     */
+
     private final TransactionTemplate transactionTemplate;
 
-    /**
-     * 构造器注入（ADR-D37）。
-     */
+
     public PhoneChangeServiceImpl(UserItpRegInfoMapper userItpRegInfoMapper,
                                   UserPhoneChangeLogMapper userPhoneChangeLogMapper,
                                   UserAccEmployeeCardMapper userAccEmployeeCardMapper,
@@ -88,21 +70,13 @@ public class PhoneChangeServiceImpl implements PhoneChangeService {
         this.transactionTemplate = transactionTemplate;
     }
 
-    /**
-     * 本地事务的产出，决定事务外是否要向支付域投递、投递哪一行。
-     */
+
     private enum PhoneChangeOutcome {
-        /**
-         * 手机号已更新，需要投递。
-         */
+
         UPDATED,
-        /**
-         * 新旧号相同，无需更新也无需投递。
-         */
+
         UNCHANGED,
-        /**
-         * 未找到有效用户或更新影响 0 行。
-         */
+
         FAILED
     }
 
@@ -116,9 +90,7 @@ public class PhoneChangeServiceImpl implements PhoneChangeService {
         }
     }
 
-    /**
-     * 更换手机号。
-     */
+
     @Override
     public boolean updatePhone(String thirdUserId, String newMsisdn) {
         if (!PhoneChangeRule.hasRequiredFields(thirdUserId, newMsisdn)) {
@@ -148,10 +120,7 @@ public class PhoneChangeServiceImpl implements PhoneChangeService {
         return true;
     }
 
-    /**
-     * 本地事务部分：改 {@code USER_ITP_REG_INFO.MSISDN} + 落一条 {@code USER_PHONE_CHANGE_LOG}
-     * （{@code SIGN_SYNC_STATUS = 'PENDING'}）。
-     */
+
     private PhoneChangeLocal updatePhoneLocally(String thirdUserId, String newMsisdn) {
         UserItpRegInfo regInfo = userItpRegInfoMapper.selectActiveByThirdUserId(thirdUserId);
         PhoneChangeRule.Precondition precondition = PhoneChangeRule.decide(regInfo, newMsisdn);
@@ -189,10 +158,7 @@ public class PhoneChangeServiceImpl implements PhoneChangeService {
         return new PhoneChangeLocal(PhoneChangeOutcome.UPDATED, changeLog.getId());
     }
 
-    /**
-     * 事务外向支付域投递「显示账号已变更」，成败一律落到 {@code SIGN_SYNC_*}。
-     */
-    // MUST 穷尽 switch RpcOutcome、NEVER 丢弃返回值（ADR-D13）。
+
     private boolean syncDisplayAccountToPayDomain(Long changeLogId, String thirdUserId, String displayAccount) {
         LocalDateTime now = LocalDateTime.now();
         RpcOutcome outcome = paySignClient.updateDisplayAccountOutcome(thirdUserId, displayAccount);
@@ -239,9 +205,7 @@ public class PhoneChangeServiceImpl implements PhoneChangeService {
         }
     }
 
-    /**
-     * 把失败状态落库，<b>本方法自身 NEVER 向外抛异常</b>。
-     */
+
     private void markSignSyncFailedQuietly(Long changeLogId, LocalDateTime now, String reason) {
         try {
             int affected = userPhoneChangeLogMapper.markSignSyncFailed(changeLogId, now, reason);
@@ -253,9 +217,7 @@ public class PhoneChangeServiceImpl implements PhoneChangeService {
         }
     }
 
-    /**
-     * 补偿扫表重推，由 web-admin 的 Quartz 任务经 {@code POST /phoneSignSyncCompensate} 触发。
-     */
+
     @Override
     public SignSyncCompensateResult compensateSignSync() {
         List<UserPhoneChangeLog> pending =
@@ -274,9 +236,7 @@ public class PhoneChangeServiceImpl implements PhoneChangeService {
         return new SignSyncCompensateResult(scan.scanned(), scan.success(), scan.failed());
     }
 
-    /**
-     * 本次重推也失败后，若重试次数已达上限就开一张异常工单。
-     */
+
     private void openTicketIfRetryExhausted(UserPhoneChangeLog row) {
         int retriedAfterThisRound = (row.getSignSyncRetryCount() == null ? 0 : row.getSignSyncRetryCount()) + 1;
         if (retriedAfterThisRound < SIGN_SYNC_MAX_RETRY) {
@@ -288,9 +248,7 @@ public class PhoneChangeServiceImpl implements PhoneChangeService {
                         + "，请人工核对支付域签约展示账号后手工订正并关单");
     }
 
-    /**
-     * 开一张「签约展示账号未同步」工单，<b>本方法自身 NEVER 向外抛异常</b>。
-     */
+
     private void openSignSyncTicketQuietly(Long changeLogId, String thirdUserId, int retryCount, String detail) {
         try {
             AccountExceptionTicket ticket = new AccountExceptionTicket();
@@ -315,9 +273,7 @@ public class PhoneChangeServiceImpl implements PhoneChangeService {
         }
     }
 
-    /**
-     * SIGN_SYNC_RESULT 为 VARCHAR2(1024 CHAR)，超长在此截断，NEVER 让落状态因超长而失败。
-     */
+
     private String truncateSyncResult(String message) {
         if (message == null) {
             return null;
@@ -327,9 +283,7 @@ public class PhoneChangeServiceImpl implements PhoneChangeService {
                 : message.substring(0, SIGN_SYNC_RESULT_MAX_LENGTH);
     }
 
-    /**
-     * 判断异常链上是否存在 {@link DuplicateKeyException}，即唯一约束冲突。
-     */
+
     private boolean isDuplicateKeyViolation(Throwable e) {
         for (Throwable cause = e; cause != null && cause != cause.getCause(); cause = cause.getCause()) {
             if (cause instanceof DuplicateKeyException) {

@@ -43,10 +43,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
-/**
- * @date 2026/5/13 11:01。
- * @author zzm。
- */
+
 
 @Service
 public class PaySignClient extends ProxyWebClient {
@@ -57,7 +54,6 @@ public class PaySignClient extends ProxyWebClient {
         super(baseUrl, openLogger, webClientBuilder);
     }
 
-    /** 支付类客户端禁止网络层重试：重复提交/扣款风险不可接受。 */
     @Override
     protected boolean isNetworkRetryEnabled() {
         return false;
@@ -68,10 +64,7 @@ public class PaySignClient extends ProxyWebClient {
         return Duration.ofSeconds(30);
     }
 
-    /**
-     * 请求签约信息。
-     * @return
-     */
+
 
     public RequestSignInfoResult requestSignInfo(@RequestBody RequestSignInfoReqDTO request) {
         String result = postJsonAndGetResponse("/requestSignInfo", request);
@@ -85,82 +78,55 @@ public class PaySignClient extends ProxyWebClient {
         }, true);
     }
 
-    /**
-     * 支付 API 5.1 支付回调内部转发。
-     */
+
     public PaySignCallbackResult receivePayResult(@RequestBody ReceivePayResultReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/receivePayResult", request);
         return JSONUtil.toBean(result, new TypeReference<PaySignCallbackResult>() {
         }, true);
     }
 
-    /**
-     * 支付 API §5.2 退款回调内部转发（2026-09-22 新增，P1-3）。
-     *
-     * <p>与 {@link #receivePayResult} 是**两条独立回调**，NEVER 合并：§5.1 送的是支付结果，
-     * §5.2 送的是退款结果，报文字段与落库表都不同。
-     */
+
     public PaySignCallbackResult receiveRefundResult(@RequestBody ReceiveRefundResultReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/receiveRefundResult", request);
         return JSONUtil.toBean(result, new TypeReference<PaySignCallbackResult>() {
         }, true);
     }
 
-    /**
-     * IF8A-06 请求解约。
-     * @param request 请求解约业务参数。
-     * @return 请求解约受理结果。
-     */    public RequestTerminationResult requestTermination(@RequestBody RequestTerminationReqDTO request) {
+    public RequestTerminationResult requestTermination(@RequestBody RequestTerminationReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/requestTermination", request);
         return JSONUtil.toBean(result, new TypeReference<RequestTerminationResult>() {
         }, true);
     }
 
-    /**
-     * IF8A-75 直接解绑支付方式。
-     * @param request 直接解绑业务参数。
-     * @return 发起结果。
-     */
+
     public UnbindAgreementResult unbindAgreement(@RequestBody UnbindAgreementReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/unbindAgreement", request);
         return JSONUtil.toBean(result, new TypeReference<UnbindAgreementResult>() {
         }, true);
     }
 
-    /**
-     * 支付 API 1.1 请求支付。
-     * @param request 请求支付业务参数。
-     * @return 请求支付结果。
-     */
+
     public RequestPayResult requestPay(@RequestBody RequestPayReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/requestPay", request);
         return JSONUtil.toBean(result, new TypeReference<RequestPayResult>() {
         }, true);
     }
 
-    /**
-     * 支付 API 3.1 请求退款。
-     */
+
     public RequestRefundResult requestRefund(@RequestBody RequestRefundReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/requestRefund", request);
         return JSONUtil.toBean(result, new TypeReference<RequestRefundResult>() {
         }, true);
     }
 
-    /**
-     * 支付 API 5.3 解约回调内部转发。
-     * @param request 解约回调业务参数。
-     * @return 回调处理结果。
-     */
+
     public PaySignCallbackResult receiveTerminationResult(@RequestBody ReceiveTerminationResultReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/receiveTerminationResult", request);
         return JSONUtil.toBean(result, new TypeReference<PaySignCallbackResult>() {
         }, true);
     }
 
-    /**
-     * 支付宝出行-添加签约信息。
-     */
+
     public AlipayTripAddContractRespDTO alipayTripAddContract(@RequestBody AlipayTripAddContractReqDTO request) {
         String result = postJsonAndGetResponse("/channel/addContract", request);
         RequestSignInfoResult appResult = JSONUtil.toBean(result, new TypeReference<RequestSignInfoResult>() {
@@ -171,9 +137,7 @@ public class PaySignClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 支付宝出行-解约登记。
-     */
+
     public AlipayTripTerminateContractRespDTO alipayTripTerminateContract(@RequestBody AlipayTripTerminateContractReqDTO request) {
         RequestTerminationReqDTO appRequest = new RequestTerminationReqDTO();
         appRequest.setRequestSignSeq(request.getAgreementCode());
@@ -184,25 +148,19 @@ public class PaySignClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 根据签约流水号查询签约信息。
-     */
+
     public PaySignInfoDTO querySignInfoBySeq(String requestSignSeq) {
         String result = getAndGetResponse("/querySignInfoBySeq?requestSignSeq=" + requestSignSeq, new java.util.HashMap<>());
         return JSONUtil.toBean(result, PaySignInfoDTO.class, true);
     }
 
-    /**
-     * IF8A-22 签约结果查询。
-     */
+
     public RequestContractResultResult requestContractResult(RequestContractResultReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/requestContractResult", request);
         return JSONUtil.toBean(result, RequestContractResultResult.class, true);
     }
 
-    /**
-     * IF8A-05 批量查询支付明细（供 ticket-server 双源合并）。
-     */
+
     public RequestPayTxnBatchResult queryPayTxnBatch(@RequestBody com.chinasofti.huateng.model.app.QueryPayTxnBatchReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/queryPayTxnBatch", request);
         RequestPayTxnBatchResult batchResult = JSONUtil.toBean(result, new TypeReference<RequestPayTxnBatchResult>() {
@@ -213,7 +171,6 @@ public class PaySignClient extends ProxyWebClient {
             errorResult.setRetMsg("批量查询支付明细响应为空");
             return errorResult;
         }
-        // 如果 retCode 不是 0000，统一返回 9999，并将原始 retCode 追加到 retMsg 中便于排查
         if (!"0000".equals(batchResult.getRetCode())) {
             String originalRetCode = batchResult.getRetCode();
             batchResult.setRetCode("9999");
@@ -227,73 +184,47 @@ public class PaySignClient extends ProxyWebClient {
         return batchResult;
     }
 
-    /**
-     * 解约申请批处理（内部接口 /internal/termination/process）。
-     */
+
     public ProcessTerminationRespDTO processTermination(@RequestBody ProcessTerminationReqDTO request) {
         return processTermination(request, null);
     }
 
-    /**
-     * 带自定义请求头的重载，用于把链路追踪上下文传给 pay-sign。
-     */
+
     public ProcessTerminationRespDTO processTermination(ProcessTerminationReqDTO request, Map<String, String> headers) {
         String result = postJsonAndGetResponse("/internal/termination/process", request, headers);
         return JSONUtil.toBean(result, new TypeReference<ProcessTerminationRespDTO>() {
         }, true);
     }
 
-    /**
-     * 签约结果通知补偿（内部接口 /internal/paySign/compensateNotify）。
-     */
+
     public CompensateNotifyRespDTO compensateSignNotify(Map<String, String> headers) {
-        // bodyValue(requestBody)，Spring 的 BodyInserters.fromValue 断言非 null，传 null 会抛
-        // IllegalArgumentException: 'body' must not be null，请求根本发不出去。传空 Map 序列化成 {}。
         String result = postJsonAndGetResponse("/internal/paySign/compensateNotify", new java.util.HashMap<>(), headers);
         return JSONUtil.toBean(result, new TypeReference<CompensateNotifyRespDTO>() {
         }, true);
     }
 
-    /**
-     * 解约结果通知补偿（内部接口 /internal/termination/compensateNotify）。
-     */
+
     public CompensateNotifyRespDTO compensateTerminationNotify(Map<String, String> headers) {
         String result = postJsonAndGetResponse("/internal/termination/compensateNotify", new java.util.HashMap<>(), headers);
         return JSONUtil.toBean(result, new TypeReference<CompensateNotifyRespDTO>() {
         }, true);
     }
 
-    /**
-     * 退款回查补偿（内部接口 /internal/payment/compensateRefundQuery）。
-     */
+
     public CompensateNotifyRespDTO compensateRefundQuery(Map<String, String> headers) {
         String result = postJsonAndGetResponse("/internal/payment/compensateRefundQuery", new java.util.HashMap<>(), headers);
         return JSONUtil.toBean(result, new TypeReference<CompensateNotifyRespDTO>() {
         }, true);
     }
 
-    /**
-     * 退款汇总跨表对账补偿（内部接口 /internal/payment/compensateRefundSummary）。
-     */
+
     public CompensateNotifyRespDTO compensateRefundSummary(Map<String, String> headers) {
         String result = postJsonAndGetResponse("/internal/payment/compensateRefundSummary", new java.util.HashMap<>(), headers);
         return JSONUtil.toBean(result, new TypeReference<CompensateNotifyRespDTO>() {
         }, true);
     }
 
-    /**
-     * 登记一条「已完成、不经支付中心」的支付流水（内部接口 /internal/payment/registerCompletedTxn）。
-     *
-     * <p>用于 BOM 补站（{@code adviceOpt} 005 / 006 / 020）这类「现场已收款、ITP 不扣款」的订单：
-     * 它们走不到 {@code requestPay}，但用户 2026-09-22 裁决「没有 {@code PAY_TXN_DETAIL} 行就不是完整订单」。
-     *
-     * <p><b>调用方 MUST 在落单之前调本方法、失败即整笔失败</b>（用户 2026-09-22 选定强一致口径）：
-     * 顺序颠倒会留下「订单已 SUCCESS、流水缺行」，而这正是本次要消灭的状态；
-     * 本方法按 {@code UK_PAY_TXN_DETAIL_ORDER} 幂等，重试安全。
-     *
-     * @return {@code Ok} 已登记（含「本来就有」）；{@code BizRejected} 参数或口径被拒、重推无用；
-     *         {@code Unreachable} 未获业务答复、可重试。
-     */
+
     public RpcOutcome registerCompletedTxn(@RequestBody RegisterCompletedPayTxnReqDTO request) {
         String result;
         try {
@@ -315,18 +246,13 @@ public class PaySignClient extends ProxyWebClient {
         }
     }
 
-    /**
-     * 更新用户签约展示账号（如更换手机号时同步更新）。
-     * @deprecated 请改用 {@link #updateDisplayAccountOutcome(String, String)}。boolean 把「支付域业务拒绝」。
-     */
+
     @Deprecated
     public boolean updatePaySignDisplayAccount(String thirdUserId, String displayAccount) {
         return updateDisplayAccountOutcome(thirdUserId, displayAccount).isOk();
     }
 
-    /**
-     * 更新用户签约展示账号，返回可区分「业务拒绝 / 不可达」的三态结果。
-     */
+
     public RpcOutcome updateDisplayAccountOutcome(String thirdUserId, String displayAccount) {
         String url = "/ci/app/updateDisplayAccount?thirdUserId=" + thirdUserId + "&displayAccount=" + displayAccount;
         String result;
@@ -339,7 +265,6 @@ public class PaySignClient extends ProxyWebClient {
         if (result == null || result.isEmpty()) {
             return new RpcOutcome.BizRejected(null, "支付域响应体为空");
         }
-        // 同步链路会退化成全局异常处理器的 UUID retCode，补偿链路则因状态与重试次数都不落库而永远没有出口。
         try {
             cn.hutool.json.JSONObject wrapper = JSONUtil.parseObj(result);
             return RpcOutcome.ofRetCode(wrapper.getStr("retCode"), wrapper.getStr("retMsg"));

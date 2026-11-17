@@ -5,29 +5,20 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Component;
 
-/**
- * 读取代码生成相关配置
- * 
- * @author zmzhang
- */
+
 @Component
 @ConfigurationProperties(prefix = "gen")
 @PropertySource(value = { "classpath:generator.yml" })
 public class GenConfig
 {
-    /** 作者 */
     public static String author;
 
-    /** 生成包路径 */
     public static String packageName;
 
-    /** 自动去除表前缀 */
     public static boolean autoRemovePre;
 
-    /** 表前缀 */
     public static String tablePrefix;
 
-    /** 是否允许生成文件覆盖到本地（自定义路径） */
     public static boolean allowOverwrite;
 
     public static String getAuthor()

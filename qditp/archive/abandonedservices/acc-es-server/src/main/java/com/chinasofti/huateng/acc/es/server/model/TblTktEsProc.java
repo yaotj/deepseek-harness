@@ -5,14 +5,7 @@ import java.io.Serializable;
 
 import lombok.*;
 
-/**
- * <p>
- * ES报告结果处理
- * </p>
- *
- * @author fc
- * @since 2020-09-02
- */
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor

@@ -10,7 +10,6 @@ import com.chinasofti.huateng.rpc.EnableRpcGateTxnPay;
 import com.chinasofti.huateng.rpc.EnableRpcPara;
 import com.chinasofti.huateng.rpc.EnableRpcTicket;
 
-/** 支付宝签约与支付服务启动类。 */
 @SpringBootApplication
 @ConfigurationPropertiesScan
 @EnableRpcAlipayAccount

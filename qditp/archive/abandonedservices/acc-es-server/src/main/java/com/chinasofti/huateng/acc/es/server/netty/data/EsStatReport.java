@@ -19,9 +19,7 @@ public class EsStatReport extends DataHead{
 
     private String taskNo;
 
-    /**
-     * 0:正常 1，暂停 3，故障
-     */
+
     private String stat;
 
     private String taskNum;

@@ -25,7 +25,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.function.Supplier;
 
-/** AGM 设备接口前置入口。 */
 @RestController
 @RequestMapping("/ci/agm")
 public class FepAgmController {
@@ -42,7 +41,6 @@ public class FepAgmController {
         this.keySyncHandler = keySyncHandler;
         this.qrCodeStatusHandler = qrCodeStatusHandler;
     }
-    /** IF1A-01 闸机检票通知。 */
     @PostMapping("/notiVerifyResult")
     public NotifyVerifyResultAckDTO notifyVerifyResult(@ModelAttribute ItpCommonFormRequest request) {
         String deviceId = request == null ? null : request.getDeviceId();
@@ -66,7 +64,6 @@ public class FepAgmController {
         return notifyAck(response.getRetCode(), response.getRetMsg());
     }
 
-    /** IF1A-02 密钥同步。 */
     @PostMapping("/requestSynKeyList")
     public RequestSynKeyListRespDTO requestSynKeyList(@ModelAttribute ItpCommonFormRequest request) {
         String deviceId = request == null ? null : request.getDeviceId();
@@ -88,7 +85,6 @@ public class FepAgmController {
                 response.getKeyCurVerList() == null ? 0 : response.getKeyCurVerList().size());
         return response;
     }
-    /** IF1A-04 查询票卡状态。 */
     @PostMapping("/requestQrCodeStatus")
     public RequestQrCodeStatusRespDTO requestQrCodeStatus(@ModelAttribute ItpCommonFormRequest request) {
         String deviceId = request == null ? null : request.getDeviceId();
@@ -108,12 +104,10 @@ public class FepAgmController {
         return response;
     }
 
-    /** IF1A-03 设备心跳。 */
     @PostMapping({"/deviceHeartbeat", "/notiDeviceHeard"})
     public DeviceHeartbeatRespDTO deviceHeartbeat(@ModelAttribute ItpCommonFormRequest request) {
         String deviceId = request == null ? null : request.getDeviceId();
         log.info("IF1A-03 设备心跳, deviceId={}", deviceId);
-        // 异步落库：失败不得影响接口返回成功
         DeviceHeartbeatRespDTO response = new DeviceHeartbeatRespDTO();
         response.setRetCode(FepDevErrorCodeEnum.SUCCESS.getCode());
         response.setRetMsg(FepDevErrorCodeEnum.SUCCESS.getMessage());
@@ -124,7 +118,6 @@ public class FepAgmController {
         return request != null && StringUtils.hasText(request.getBizData());
     }
 
-    /** 解析设备上送的 bizData。 */
     private <T> T parseBizData(ItpCommonFormRequest request, Class<T> clazz, String apiTag) {
         try {
             return JSON.parseObject(request.getBizData(), clazz);
@@ -135,7 +128,6 @@ public class FepAgmController {
         }
     }
 
-    /** 构造 INVALID_PARAM 响应。 */
     private <T extends CommonResult> T invalidParam(Supplier<T> factory, String retMsg) {
         T response = factory.get();
         response.setRetCode(FepDevErrorCodeEnum.INVALID_PARAM.getCode());

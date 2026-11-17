@@ -14,7 +14,6 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.util.StringUtils;
 
-/** {@link SignResultCommittedEvent} 的唯一监听方：签约结果落库提交后做两件派生动作。 */
 @Component
 public class SignResultCommittedListener {
 
@@ -26,7 +25,6 @@ public class SignResultCommittedListener {
 
     private final SignNotifyService signNotifyService;
 
-    /** ADR-D32：把 {@code PAY_ACCOUNT_ID} 推给账户域。**允许失败**，见 {@link #syncPayAccountIdQuietly}。 */
     private final AccountDomainPort accountDomainPort;
 
     public SignResultCommittedListener(PaySignRequestMapper paySignRequestMapper,
@@ -39,7 +37,6 @@ public class SignResultCommittedListener {
         this.accountDomainPort = accountDomainPort;
     }
 
-    // AFTER_COMMIT + fallbackExecution=false；NEVER 加 @Async，内部 MUST catch 全部异常只记日志。
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)
     public void onSignResultCommitted(SignResultCommittedEvent event) {
         String requestSignSeq = event.requestSignSeq();
@@ -63,7 +60,6 @@ public class SignResultCommittedListener {
         }
     }
 
-    /** 把支付账号推给账户域，让 {@code APP_USER_PAY_CHANNEL.PAY_ACCOUNT_ID} 在签约这一刻就完整（ADR-D32）。 */
     private void syncPayAccountIdQuietly(String requestSignSeq, String payAccountId) {
         if (!StringUtils.hasText(payAccountId)) {
             log.info("签约信息未带支付账号，跳过向账户域回写, requestSignSeq={}", requestSignSeq);

@@ -25,35 +25,14 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigInteger;
 
-/**
- * 行业数据（IF8A-03 在线码 / IF8D-03 离线码）的**编排宿主**（ADR-D142）。
- *
- * <p><b>为什么在 ticket-server</b>：这条链路要「查账户 → 查乘车码状态 → 日票前置 → 生码」，
- * 其中**乘车码状态就是本模块自己的聚合**（{@link AgmRideStatusService}，本地调用），
- * 其余三个都是单向出网（account / daily-ticket / industry-data，三个 `service.*.url` 与
- * `@EnableRpc*` 本模块**早就有**）。放在这里**零双向 RPC**；
- * 反过来若把编排放 industry-data-server，它就得回头查 ticket-server 的码状态，
- * 而 ticket-server 的 {@code IndustryDataNotifier} 又要调它生码 —— 形成 A→B→A，
- * 违反 `docs/domain` 那条「双向 RPC 即边界画错」判据。<b>NEVER 迁到 industry-data-server。</b>
- *
- * <p><b>为什么不留在 fep-app-server</b>：那是报文接入层，同模块另外 6 个 Service 都是单行转发
- * （中位数 89 行、`if` 数 0~5），而这条编排 425 行 / 4 个下游 Client / 31 个 `if`、
- * 还按卡种与渠道分流，属分层越位。现在 `fep-app-server` 侧只剩一行转发。
- *
- * <p><b>本类刻意只做编排</b>：入参翻译在 {@link IndustryDataQuery}、码体组装在
- * {@link IndustryCardDataAssembler}。两个 public 方法共用同一套私有方法，
- * <b>NEVER 再按链路复制成对重载</b>（原实现有 4 组逐字副本，这是本次重构的主要动因）。
- */
+
 @Service
 public class IndustryDataOrchestrator {
     private static final Logger log = LoggerFactory.getLogger(IndustryDataOrchestrator.class);
 
     private static final String RET_SUCCESS = "0000";
-    /** 码状态「站内」：已进站未出站。 */
     private static final String STATUS_IN_STATION = "04";
-    /** 进站码在码状态缺失时的兜底票卡状态。 */
     private static final String DEFAULT_ENTRY_STATUS = "03";
-    /** 离线码的签约渠道位固定 17，与账户 `CHANNEL` 无关。 */
     private static final String NO_SIGNAL_SIGN_CHANNEL = "17";
 
     private final AccountClient accountClient;
@@ -71,7 +50,6 @@ public class IndustryDataOrchestrator {
         this.cardDataAssembler = cardDataAssembler;
     }
 
-    /** IF8A-03 请求行业数据（在线码）。 */
     public RequestIndustryDataResult requestIndustryData(RequestIndustryDataReqDTO request) {
         RequestIndustryDataResult response = new RequestIndustryDataResult();
         response.setSignType("00");
@@ -102,9 +80,7 @@ public class IndustryDataOrchestrator {
                 return response;
             }
 
-            /*
-             * HCE 卡数据由开户与闸机交易维护，不参与码体生成与签名，直接返缓存值、短路整条生码。
-             */
+
         if (CardTypeCodeEnum.isHceCard(userInfo.getCardType())) {
             String hce = userInfo.getHceData();
             if (!StringUtils.hasText(hce) || hce.trim().length() < 64 || !hce.trim().matches("[0-9A-Fa-f]+")) {
@@ -176,7 +152,6 @@ public class IndustryDataOrchestrator {
         }
     }
 
-    /** IF8D-03 获取离线码数据。 */
     public RequestNoSignalDataResult requestNoSignalData(RequestNoSignalDataReqDTO request) {
         RequestNoSignalDataResult response = new RequestNoSignalDataResult();
         try {
@@ -225,9 +200,7 @@ public class IndustryDataOrchestrator {
             response.setChannel(userInfo.getChannel());
             String cardIssueCode = userInfo.getCardIssueCode();
             if (STATUS_IN_STATION.equals(qrStatus.getStatus())) {
-                /*
-                 * 已在站内：只需要出站码，交易序列号沿用当前值（出站与进站是同一笔交易）。
-                 */
+
                 IndustryCardDataBuildRespDTO exitDataResp = cardDataAssembler.buildAndSign(
                         query, qrStatus, NO_SIGNAL_SIGN_CHANNEL, cardIssueCode,
                         STATUS_IN_STATION, qrStatus.getTxnSeq());
@@ -236,10 +209,7 @@ public class IndustryDataOrchestrator {
                 }
                 response.setExitData(exitDataResp.getCardData());
             } else {
-                /*
-                 * 站外：进站码与出站码一次发两张，**两张共用同一个 +1 后的序列号** ——
-                 * 它们属于「即将发生的同一笔行程」，NEVER 给出站码再 +1。
-                 */
+
                 String nextTxnSeq = nextTxnSeq(qrStatus.getTxnSeq());
                 IndustryCardDataBuildRespDTO entryDataResp = cardDataAssembler.buildAndSign(
                         query, qrStatus, NO_SIGNAL_SIGN_CHANNEL, cardIssueCode,
@@ -287,9 +257,7 @@ public class IndustryDataOrchestrator {
         return userInfo;
     }
 
-    /**
-     * 乘车码状态**本地查**（迁进 ticket-server 的直接收益：这一跳从 RPC 变成进程内调用）。
-     */
+
     private QueryStatusRespDTO queryTicketStatus(IndustryDataQuery query) {
         QueryStatusReqDTO qrReq = new QueryStatusReqDTO();
         qrReq.setThirdUserId(query.thirdUserId());
@@ -300,16 +268,7 @@ public class IndustryDataOrchestrator {
         return qrStatus;
     }
 
-    /**
-     * 日票族拉码前置校验（提前反馈，不是护栏）。三条口径 NEVER 改：
-     * ① 只对日票族卡种生效，后付费链路一行不动；
-     * ② {@code Unreachable} 降级放行 —— 闸机侧 {@code GateDailyTicketCoordinator.checkEntryAllowed}
-     *    还有一道权威校验；
-     * ③ 这是提前反馈、不是护栏，NEVER 据此撤掉闸机那道校验。
-     *
-     * @return 需要拒发时返回那条 {@code BizRejected}（<b>NEVER 改成返回 retMsg 字符串</b>——
-     *         对端不带文案时会退化成 null，与「放行」撞语义），放行返回 null
-     */
+
     private RpcOutcome.BizRejected checkDailyTicketAvailability(IndustryDataQuery query, String accountCardType) {
         String issueCardType = CardTypeMapping.toIssueCardType(accountCardType);
         if (!CardTypeCodeEnum.isDailyTicket(issueCardType)) {

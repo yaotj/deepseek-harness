@@ -19,22 +19,14 @@ import com.chinasofti.huateng.framework.manager.AsyncManager;
 import com.chinasofti.huateng.framework.manager.factory.AsyncFactory;
 import com.chinasofti.huateng.framework.web.service.TokenService;
 
-/**
- * 自定义退出处理类 返回成功
- * 
- * @author zmzhang
- */
+
 @Configuration
 public class LogoutSuccessHandlerImpl implements LogoutSuccessHandler
 {
     @Autowired
     private TokenService tokenService;
 
-    /**
-     * 退出处理
-     * 
-     * @return
-     */
+
     @Override
     public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication)
             throws IOException, ServletException
@@ -43,9 +35,7 @@ public class LogoutSuccessHandlerImpl implements LogoutSuccessHandler
         if (StringUtils.isNotNull(loginUser))
         {
             String userName = loginUser.getUsername();
-            // 删除用户缓存记录
             tokenService.delLoginUser(loginUser.getToken());
-            // 记录用户退出日志
             AsyncManager.me().execute(AsyncFactory.recordLogininfor(userName, Constants.LOGOUT, MessageUtils.message("user.logout.success")));
         }
         ServletUtils.renderString(response, JSON.toJSONString(AjaxResult.success(MessageUtils.message("user.logout.success"))));

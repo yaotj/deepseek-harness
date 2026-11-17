@@ -11,11 +11,7 @@ import com.chinasofti.huateng.common.utils.StringUtils;
 import com.chinasofti.huateng.framework.web.service.SysRegisterService;
 import com.chinasofti.huateng.system.service.ISysConfigService;
 
-/**
- * 注册验证
- * 
- * @author zmzhang
- */
+
 @RestController
 public class SysRegisterController extends BaseController
 {

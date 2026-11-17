@@ -13,12 +13,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/** 支付宝行程推送链路 —— 查线路代码，再把行程推给支付宝。 */
 @Component
 class AlipayTripNotifier extends FormDataNotifyTemplate {
 
     private static final Logger log = LoggerFactory.getLogger(AlipayTripNotifier.class);
-    /** {@code handleDateTime} 的规定长度 yyyyMMddHHmmss。 */
     private static final int HANDLE_DATE_TIME_LENGTH = 14;
 
     private final StationLineResolver stationLineResolver;
@@ -33,7 +31,6 @@ class AlipayTripNotifier extends FormDataNotifyTemplate {
         this.stationLineResolver = stationLineResolver;
     }
 
-    /** 组装 + 推送整条链路。 */
     void pushTripData(NotifyVerifyResultReqDTO request) {
         AlipayPushTransDataReqDTO pushRequest = buildAlipayTripPushRequest(request);
         doNotifyAlipayTripData(JSON.toJSONString(pushRequest));
@@ -83,7 +80,6 @@ class AlipayTripNotifier extends FormDataNotifyTemplate {
                handleDateTime.substring(12, 14);
     }
 
-    /** 按车站代码取所属线路代码，供支付宝报文的 {@code transLine} 使用。 */
     private String resolveLineCode(String stationCode) {
         if (!StringUtils.hasText(stationCode)) {
             return null;
@@ -100,13 +96,11 @@ class AlipayTripNotifier extends FormDataNotifyTemplate {
         return stationCode;
     }
 
-    /** 应答判定钩子 —— 本链路只判 HTTP 2xx，{@code responseBody} 只进日志、不参与判定。 */
     @Override
     protected boolean isAccepted(boolean httpSuccessful, String responseBody) {
         return httpSuccessful;
     }
 
-    /** 推送行程给支付宝。 */
     private boolean doNotifyAlipayTripData(String bizData) {
         return post(alipayPushTransDataUrl, bizData, "", "支付宝行程数据推送");
     }

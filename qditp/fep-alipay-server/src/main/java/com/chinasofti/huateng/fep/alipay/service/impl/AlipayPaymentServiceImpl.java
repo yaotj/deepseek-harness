@@ -16,9 +16,7 @@ import org.springframework.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * 支付宝出行支付/黑名单/解约执行服务实现。
- */
+
 @Service
 public class AlipayPaymentServiceImpl implements AlipayPaymentService {
     private static final Logger log = LoggerFactory.getLogger(AlipayPaymentServiceImpl.class);
@@ -79,8 +77,6 @@ public class AlipayPaymentServiceImpl implements AlipayPaymentService {
         }
 
         try {
-            // 入向来自支付宝渠道，分类字段渠道侧不会送：本接入层补默认值，调用方已送的值优先。
-            // 渠道通知的拉黑发起方是 02，与 pay-sign 那条系统自动（01）不是一回事。
             if (!StringUtils.hasText(request.getChannelCode())) {
                 request.setChannelCode("02");
             }

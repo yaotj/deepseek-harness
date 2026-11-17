@@ -16,9 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Objects;
 
-/**
- * @author rxwnc
- */
+
 @Service
 @Slf4j
 public class EsAccountServiceImpl implements IEsAccountService {

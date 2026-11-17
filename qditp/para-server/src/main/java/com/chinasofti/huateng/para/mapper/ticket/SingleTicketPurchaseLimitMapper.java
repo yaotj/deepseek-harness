@@ -7,6 +7,5 @@ import org.apache.ibatis.annotations.Mapper;
 public interface SingleTicketPurchaseLimitMapper {
     SingleTicketPurchaseLimit selectCurrent();
 
-    /** 使用版本号更新，防止两个运营人员的修改相互覆盖。 */
     int update(SingleTicketPurchaseLimit record);
 }

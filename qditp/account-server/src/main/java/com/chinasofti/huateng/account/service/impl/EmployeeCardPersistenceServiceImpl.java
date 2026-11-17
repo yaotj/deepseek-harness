@@ -16,20 +16,14 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 
-/**
- * 员工码状态通知的单条事务落库实现。
- */
+
 @Service
 public class EmployeeCardPersistenceServiceImpl implements EmployeeCardPersistenceService {
     private static final Logger log = LoggerFactory.getLogger(EmployeeCardPersistenceServiceImpl.class);
 
-    /**
-     * {@code CARD_STATUS=4} 注销，业务上是终态。
-     */
+
     private static final EmployeeCardStatus CANCELED = EmployeeCardStatus.CANCELED;
-    /**
-     * {@code CARD_STATUS=3} 未启用，业务上是起始态。
-     */
+
     private static final EmployeeCardStatus NOT_ENABLED = EmployeeCardStatus.NOT_ENABLED;
 
     private final UserAccEmployeeCardMapper employeeCardMapper;
@@ -90,9 +84,7 @@ public class EmployeeCardPersistenceServiceImpl implements EmployeeCardPersisten
                 existing.getCardStatus(), remark);
     }
 
-    /**
-     * 判断 ACC 下发的状态是否属于「逆向跃迁」，是则返回形如 {@code 4->1} 的标记、否则返回 {@code null}。
-     */
+
     private String backwardTransitionMark(Integer previousStatus, Integer newStatus) {
         if (previousStatus == null || newStatus == null || previousStatus.equals(newStatus)) {
             return null;
@@ -131,9 +123,6 @@ public class EmployeeCardPersistenceServiceImpl implements EmployeeCardPersisten
     @Transactional(rollbackFor = Exception.class)
     public void refreshProfileFromAcc(UserAccEmployeeCard target, EmployeeCardInfoDTO source) {
         String originalCardNo = target.getCardNo();
-        // 资料补全只回填资料字段：CARD_STATUS 的状态真源只有两条显式链路
-        // （ACC notify 的 saveFromStatusNotify、APP 激活/禁用的 applyActivationResult），
-        // 查询触发的补全 NEVER 改状态 —— 否则会把 ACC 侧陈旧状态回灌本地（IT-043）
         applyProfileInfo(target, source);
         if (!StringUtils.hasText(target.getCardNo())) {
             target.setCardNo(originalCardNo);
@@ -144,17 +133,13 @@ public class EmployeeCardPersistenceServiceImpl implements EmployeeCardPersisten
         }
     }
 
-    /**
-     * 状态通知落库用：资料字段 + 状态字段一并取 ACC 值（notify 是状态真源之一）。
-     */
+
     private void applyAccInfo(UserAccEmployeeCard target, EmployeeCardInfoDTO source) {
         applyProfileInfo(target, source);
         target.setCardStatus(source.getCardStatus());
     }
 
-    /**
-     * 只回填资料字段，<b>不碰 {@code CARD_STATUS}</b>。
-     */
+
     private void applyProfileInfo(UserAccEmployeeCard target, EmployeeCardInfoDTO source) {
         target.setCardNo(source.getCardNo());
         target.setEmployeeName(source.getEmployeeName());
@@ -171,9 +156,7 @@ public class EmployeeCardPersistenceServiceImpl implements EmployeeCardPersisten
         insertLog(cardNo, eventType, cardStatus, remark);
     }
 
-    /**
-     * 见 {@link EmployeeCardPersistenceService#attachEmployeeCardsQuietly}；NEVER 加 {@code @Transactional}。
-     */
+
     @Override
     public void attachEmployeeCardsQuietly(String thirdUserId, String msisdn) {
         if (!StringUtils.hasText(thirdUserId) || !StringUtils.hasText(msisdn)) {

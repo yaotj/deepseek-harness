@@ -11,15 +11,12 @@ import java.time.LocalDateTime;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
-/** 护栏：三条无 CAS 的解约状态写语句 MUST 零调用方，改状态只准走 6 条 CAS。 */
 class TerminationStatusArchTest {
 
-    /** 只扫本模块主代码，`DoNotIncludeTests` 避免把门禁自身算进依赖图。 */
     private static final JavaClasses PAY_SIGN_CLASSES = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
             .importPackages("com.chinasofti.huateng.paysign");
 
-    /** {@code updateStatus} 与 {@code updateFailReason} 的 WHERE 只有 {@code REQUEST_SIGN_SEQ}。 */
     @Test
     void nonCasStatusWritersHaveNoCallers() {
         ArchRule rule = noClasses()
@@ -32,7 +29,6 @@ class TerminationStatusArchTest {
         rule.check(PAY_SIGN_CLASSES);
     }
 
-    /** {@code updateCompleteTime} 同样无 CAS。它现在只应出现在**已被 CAS 合并掉**之外的场景。 */
     @Test
     void completeTimeIsWrittenInsideCasOnly() {
         ArchRule rule = noClasses()
@@ -42,7 +38,6 @@ class TerminationStatusArchTest {
         rule.check(PAY_SIGN_CLASSES);
     }
 
-    /** CAS 是状态机的唯一并发保证，调用它必须紧跟「返 0 行则回查当前状态再分流」的处理。 */
     @Test
     void casMethodsOnlyCallableFromServiceImpl() {
         ArchRule rule = noClasses()

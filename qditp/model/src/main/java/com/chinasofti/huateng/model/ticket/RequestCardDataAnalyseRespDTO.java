@@ -2,84 +2,52 @@ package com.chinasofti.huateng.model.ticket;
 
 import java.util.List;
 
-/**
- * 请求票卡分析响应DTO。
- */
+
 public class RequestCardDataAnalyseRespDTO {
 
-    /**
-     * 返回码。
-     */
+
     private String retCode;
 
-    /**
-     * 返回消息。
-     */
+
     private String retMsg;
 
-    /**
-     * 发行方代码。
-     */
+
     private String providerId;
 
-    /**
-     * 发票日期。
-     */
+
     private String cardIssueDate;
 
-    /**
-     * 手机号。
-     */
+
     private String msisdn;
 
-    /**
-     * 逻辑卡号。
-     */
+
     private String cardId;
 
-    /**
-     * 票卡状态。
-     */
+
     private String cardStatus;
 
-    /**
-     * 上一次线路代码。
-     */
+
     private String lastLineCode;
 
-    /**
-     * 上一次车站代码。
-     */
+
     private String lastStationCode;
 
-    /**
-     * 上一次交易时间。
-     */
+
     private String lastUpdateDate;
 
-    /**
-     * 上次交易金额。
-     */
+
     private String lastTransAmout;
 
-    /**
-     * 上次里程序列号。
-     */
+
     private String lastTicketTransSeq;
 
-    /**
-     * 建议本次操作类型。
-     */
+
     private List<String> adviceOpt;
 
-    /**
-     * 操作员编码。
-     */
+
     private String managerCode;
 
-    /**
-     * 20分付费更新 金额。
-     */
+
     private String transAmount;
 
     public String getRetCode() {

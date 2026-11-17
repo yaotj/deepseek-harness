@@ -6,21 +6,14 @@ import org.springframework.web.bind.annotation.RestController;
 import com.chinasofti.huateng.common.config.PointsConfig;
 import com.chinasofti.huateng.common.utils.StringUtils;
 
-/**
- * 首页
- *
- * @author zmzhang
- */
+
 @RestController
 public class SysIndexController
 {
-    /** 系统基础配置 */
     @Autowired
     private PointsConfig pointsConfig;
 
-    /**
-     * 访问首页，提示语
-     */
+
     @RequestMapping("/")
     public String index()
     {

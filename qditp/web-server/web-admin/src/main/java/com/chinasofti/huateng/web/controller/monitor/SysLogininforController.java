@@ -20,11 +20,7 @@ import com.chinasofti.huateng.framework.web.service.SysPasswordService;
 import com.chinasofti.huateng.system.domain.SysLogininfor;
 import com.chinasofti.huateng.system.service.ISysLogininforService;
 
-/**
- * 系统访问记录
- * 
- * @author zmzhang
- */
+
 @RestController
 @RequestMapping("/monitor/logininfor")
 public class SysLogininforController extends BaseController

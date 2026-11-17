@@ -1,47 +1,29 @@
 package com.chinasofti.huateng.accsecure.model.common;
 
-/**
- * ACC 通用响应报文。
- */
+
 public class AccCommonResponse<T> {
-    /**
-     * 商户编码。
-     */
+
     private String providerId;
 
-    /**
-     * 字符集。
-     */
+
     private String charset;
 
-    /**
-     * 数据格式。
-     */
+
     private String format;
 
-    /**
-     * 响应时间。
-     */
+
     private String timestamp;
 
-    /**
-     * 设备编码。
-     */
+
     private String deviceId;
 
-    /**
-     * 签名类型。
-     */
+
     private String signType;
 
-    /**
-     * 签名值。
-     */
+
     private String sign;
 
-    /**
-     * 业务数据。
-     */
+
     private T bizData;
 
     public String getProviderId() {

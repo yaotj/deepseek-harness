@@ -5,14 +5,7 @@ import java.time.LocalDateTime;
 import java.io.Serializable;
 
 
-/**
- * <p>
- * ES任务分配
- * </p>
- *
- * @author fc
- * @since 2020-09-02
- */
+
 public class TblTktEsAssign implements Serializable {
 
     private static final long serialVersionUID=1L;

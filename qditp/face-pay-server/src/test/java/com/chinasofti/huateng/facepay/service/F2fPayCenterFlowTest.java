@@ -36,7 +36,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** 锁死 {@link F2fPayCenterFlow} 的收口语义。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class F2fPayCenterFlowTest {
@@ -73,7 +72,6 @@ class F2fPayCenterFlowTest {
         flow = new F2fPayCenterFlow(payCenterClient, messageFactory, paymentMapper, orderMapper, notifyService);
         when(payCenterClient.properties()).thenReturn(payCenterProperties);
     }
-    /** 受理成功：支付流水置 PROCESSING，订单尝试推 PAYING。 */
     @Test
     void acceptedMarksProcessingAndPushesPaying() {
         PayCenterResult result = answered("0", "https://qr.example/abc");
@@ -88,7 +86,6 @@ class F2fPayCenterFlowTest {
                 F2fOrderStatus.PAYING.name(), null);
     }
 
-    /** 传输失败：订单一个字段都不许动。 */
     @Test
     void transportFailureNeverTouchesOrder() {
         when(payCenterClient.execute(any(), eq(message))).thenReturn(transportFailed("read timeout"));
@@ -101,7 +98,6 @@ class F2fPayCenterFlowTest {
         verifyNoInteractions(orderMapper);
     }
 
-    /** {@code code=0} 但 {@code data} 是空的：按 UNKNOWN 收口，不许推 PAYING。 */
     @Test
     void blankDataIsUnknownNotAccepted() {
         when(payCenterClient.execute(any(), eq(message))).thenReturn(answered("0", "  "));
@@ -114,7 +110,6 @@ class F2fPayCenterFlowTest {
         verifyNoInteractions(orderMapper);
     }
 
-    /** 被拒且给了 RejectTransition：订单推 PAY_FAILED。 */
     @Test
     void rejectedPushesPayFailedWhenTransitionGiven() {
         when(payCenterClient.execute(any(), eq(message))).thenReturn(answered("9999", null));
@@ -127,7 +122,6 @@ class F2fPayCenterFlowTest {
                 "支付中心预下单失败:9999");
     }
 
-    /** 被拒但 {@code rejectTransition == null}：订单必须留在 CREATED。 */
     @Test
     void rejectedKeepsOrderWhenTransitionAbsent() {
         when(payCenterClient.execute(any(), eq(message))).thenReturn(answered("9999", null));
@@ -137,7 +131,6 @@ class F2fPayCenterFlowTest {
         assertInstanceOf(F2fPayCenterFlow.Submitted.Rejected.class, submitted);
         verify(orderMapper, never()).updateStatus(anyString(), any(), anyString(), any());
     }
-    /** 付款码链路开了同步状态判定、且支付中心当场答 SUCCESS： */
     @Test
     void syncPaidWritesNothingAndLetsCallerPersist() {
         PayCenterResult result = answeredWith(PayCenterStatus.SUCCESS);
@@ -151,7 +144,6 @@ class F2fPayCenterFlowTest {
         verifyNoInteractions(orderMapper);
     }
 
-    /** 查到已收款：先跑调用方的支付流水回写，再 {@code markPaid}。 */
     @Test
     void settlePaidRunsCallbackBeforeMarkPaid() {
         PayCenterResult result = answeredWith(PayCenterStatus.SUCCESS);
@@ -168,7 +160,6 @@ class F2fPayCenterFlowTest {
         inOrder.verify(orderMapper).markPaid(eq(ORDER_NO), any(LocalDateTime.class));
     }
 
-    /** 查询没问出结论：本地一律不动状态，也不许调 onPaid 回调。 */
     @Test
     void settlePendingNeverTouchesOrderNorCallback() {
         when(payCenterClient.execute(any(), any())).thenReturn(transportFailed("connect refused"));
@@ -183,7 +174,6 @@ class F2fPayCenterFlowTest {
         verifyNoInteractions(paymentMapper);
     }
 
-    /** 查到未支付：推 EXPIRED（不是 PAY_FAILED），两者是不同的终态。 */
     @Test
     void settleUnpaidPushesExpired() {
         PayCenterResult result = answeredWith(PayCenterStatus.UNPAID);
@@ -198,7 +188,6 @@ class F2fPayCenterFlowTest {
         verify(orderMapper, never()).markPaid(anyString(), any());
     }
 
-    /** CAS 返 0 行时才回查当前状态；命中就不回查（三件套规范的一部分）。 */
     @Test
     void markPaidQueriesCurrentStatusOnlyOnConflict() {
         when(orderMapper.markPaid(eq(ORDER_NO), any(LocalDateTime.class))).thenReturn(1);
@@ -211,10 +200,7 @@ class F2fPayCenterFlowTest {
         verify(orderMapper, times(1)).selectOrderStatus(ORDER_NO);
     }
 
-    /**
-     * IF8B-05 只推 APP 渠道单（甲方 2026-10-13 裁决）：TVM / BOM 单必须完全不落 {@code F2F_NOTIFY_TASK}。
-     * 判据取 {@code CHANNEL} 而不是 {@code THIRD_USER_ID} —— 甲方口径是「是不是 APP 购票」。
-     */
+
     @Test
     void payResultNotifySkipsNonAppChannel() {
         givenOrderWithChannel(F2fChannel.TVM);
@@ -228,7 +214,6 @@ class F2fPayCenterFlowTest {
         verify(notifyService, never()).enqueue(anyString(), anyString(), any(), any(), anyInt());
     }
 
-    /** APP 渠道单照旧入队。 */
     @Test
     void payResultNotifyEnqueuesAppChannel() {
         when(notifyService.enqueue(eq(F2fNotifyService.TYPE_PAY_RESULT), eq(ORDER_NO), any(), any()))
@@ -240,7 +225,6 @@ class F2fPayCenterFlowTest {
         verify(notifyService).enqueue(eq(F2fNotifyService.TYPE_PAY_RESULT), eq(ORDER_NO), any(), any());
     }
 
-    /** APP 渠道单若异常地缺 {@code THIRD_USER_ID}，仍入队但重试上限压到 1（数据缺陷要可见）。 */
     @Test
     void payResultNotifyFallsBackToOneRetryWhenAppOrderMissesUserId() {
         F2fOrder appOrderWithoutUserId = new F2fOrder();
@@ -269,12 +253,10 @@ class F2fPayCenterFlowTest {
         return new F2fPayCenterFlow.RejectTransition(PENDING, "支付中心预下单失败:");
     }
 
-    /** 对端答上来了、不带 {@code status}（拉码 / APP 预下单的形态）。 */
     private PayCenterResult answered(String code, String data) {
         return PayCenterResults.answered(code, null, data);
     }
 
-    /** 对端答 {@code code=0} 且带明确支付状态（付款码同步结果、查询收口的形态）。 */
     private PayCenterResult answeredWith(PayCenterStatus status) {
         return PayCenterResults.answered("0", status, null);
     }

@@ -23,10 +23,10 @@ public class ZipkinOptimizeConfig {
             return null;
         }
 
-        return BatchSpanProcessor.builder(zipkinSpanExporter).setMaxQueueSize(10000)        // 内存队列上限，超过丢弃
-                .setMaxExportBatchSize(512)    // 单次批量发送大小
-                .setScheduleDelay(Duration.ofMillis(5000)) // 定时导出间隔
-                .setExporterTimeout(Duration.ofSeconds(10)) // 导出超时
+        return BatchSpanProcessor.builder(zipkinSpanExporter).setMaxQueueSize(10000)
+                .setMaxExportBatchSize(512)
+                .setScheduleDelay(Duration.ofMillis(5000))
+                .setExporterTimeout(Duration.ofSeconds(10))
                 .build();
     }
 }

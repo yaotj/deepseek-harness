@@ -3,19 +3,13 @@ package com.chinasofti.huateng.common.core.domain;
 import java.io.Serializable;
 import com.chinasofti.huateng.common.constant.HttpStatus;
 
-/**
- * 响应信息主体
- *
- * @author zmzhang
- */
+
 public class R<T> implements Serializable
 {
     private static final long serialVersionUID = 1L;
 
-    /** 成功 */
     public static final int SUCCESS = HttpStatus.SUCCESS;
 
-    /** 失败 */
     public static final int FAIL = HttpStatus.ERROR;
 
     private int code;

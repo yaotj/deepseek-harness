@@ -17,14 +17,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** 护栏：IF8A-22 非钱包主干六条口径，含归属校验与孤儿协议 NEVER insert。 */
 class ContractResultCharacterizationTest {
 
     private static final String ALIPAY_VENDOR = "03";
     private static final String SEQ = "0052290701523999";
     private static final String USER = "U-TEST-0001";
 
-    /** 口径 1：本地已签约且 payAccountId / payAgreementNo 齐全，直接返回、不出网。 */
     @Test
     void localSignedRecordShortCircuitsWithoutGateway() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -40,7 +38,6 @@ class ContractResultCharacterizationTest {
         verify(fixture.payGatewayClient, never()).request(anyString(), anyMap());
     }
 
-    /** 口径 2：归属校验失败 ⇒ 按「记录不存在」回绝，且不出网、不泄露真实归属。 */
     @Test
     void ownershipMismatchIsAnsweredAsRecordNotExistAndNeverReachesGateway() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -54,7 +51,6 @@ class ContractResultCharacterizationTest {
         verify(fixture.payGatewayClient, never()).request(anyString(), anyMap());
     }
 
-    /** 口径 3：网关业务失败 ⇒ SYSTEM_ERROR，且不落库。 */
     @Test
     void gatewayBusinessFailureMapsToSystemErrorWithoutPersisting() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -68,7 +64,6 @@ class ContractResultCharacterizationTest {
         verify(fixture.paySignInfoMapper, never()).markSigned(anyString(), anyString(), anyString(), any());
     }
 
-    /** 口径 4：本地有记录 + 平台返 SIGNED ⇒ 走 markSigned 落库。 */
     @Test
     void existingRecordRefreshedToSignedGoesThroughMarkSigned() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -87,7 +82,6 @@ class ContractResultCharacterizationTest {
         verify(fixture.paySignInfoMapper).markSigned(anyString(), anyString(), anyString(), any());
     }
 
-    /** 口径 5：**孤儿协议** —— 平台说已签约、本地没有签约记录。 */
     @Test
     void orphanSignedContractIsReturnedButNeverPersisted() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -103,7 +97,6 @@ class ContractResultCharacterizationTest {
         verify(fixture.paySignInfoMapper, never()).markSigned(anyString(), anyString(), anyString(), any());
     }
 
-    /** 口径 6：网关 data 为空 + 本地无记录 ⇒ 归一成 NOT_SIGNED，仍返 0000。 */
     @Test
     void emptyGatewayDataWithoutLocalRecordFallsBackToNotSigned() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();

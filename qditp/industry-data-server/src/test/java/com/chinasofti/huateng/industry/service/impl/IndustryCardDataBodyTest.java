@@ -15,7 +15,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 行业卡码体特征测试（characterization test）。 */
 class IndustryCardDataBodyTest {
 
     private SecurityClient securityClient;
@@ -30,7 +29,6 @@ class IndustryCardDataBodyTest {
         ReflectionTestUtils.setField(service, "timestampExpireHours", 4);
     }
 
-    /** 基准请求：所有段都给确定值，单个用例只改自己关心的那一个字段。 */
     private IndustryCardDataBuildReqDTO baseRequest() {
         IndustryCardDataBuildReqDTO request = new IndustryCardDataBuildReqDTO();
         request.setThirdUserId("12345");
@@ -286,7 +284,6 @@ class IndustryCardDataBodyTest {
         assertEquals("加密机无可用连接", response.getRetMsg());
     }
 
-    /** 已知地雷：签名段为空时走的是「签名失败」分支，而该分支把下游的 {@code retCode} 原样回填， 于是 {@code retCode=0000} 与 {@code cardData=null} 同时出现——上游按 retCode 判成功就会拿到 null。 */
     @Test
     @DisplayName("签名段为空时 retCode 仍是 0000 但 cardData 为 null（已知地雷）")
     void 签名段为空时retCode仍是0000但无码体_属已知地雷() {

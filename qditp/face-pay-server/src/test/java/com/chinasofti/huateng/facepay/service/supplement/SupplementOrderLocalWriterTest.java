@@ -26,7 +26,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 锁死 {@link SupplementOrderLocalWriter} 的本地事务语义。 */
 @ExtendWith(MockitoExtension.class)
 class SupplementOrderLocalWriterTest {
 
@@ -43,9 +42,7 @@ class SupplementOrderLocalWriterTest {
         writer = new SupplementOrderLocalWriter(mapper);
     }
 
-    // ==================== persist ====================
 
-    /** 正常落单 → ok + insert 两条明细，明细的 ACTIVE_ORIG_ORDER_NO 必须为 NULL（无独占）。 */
     @Test
     void normalPersistOk() {
         SupplementOrder order = buildOrder();
@@ -60,13 +57,11 @@ class SupplementOrderLocalWriterTest {
         verify(mapper, times(2)).insertItem(any(SupplementOrderItem.class));
     }
 
-    /** 主表撞唯一索引 → rejected，NEVER 抛异常。 */
     @Test
     void mainTableDuplicateKeyReturnsRejected() {
         SupplementOrder order = buildOrder();
         Map<String, GateTxnPay> index = buildIndex(ORIG_1);
 
-        // insert 撞 UK_SUPPLEMENT_ORDER_NO
         doThrow(new DuplicateKeyException("ORA-00001 unique constraint SUPPLEMENT_ORDER_UK"))
                 .when(mapper).insert(order);
 
@@ -78,7 +73,6 @@ class SupplementOrderLocalWriterTest {
         verify(mapper, org.mockito.Mockito.never()).insertItem(any());
     }
 
-    /** 完全不相关的 RuntimeException（不是唯一索引冲突）→ 向上抛，NEVER 吞没。 */
     @Test
     void unrelatedRuntimeExceptionPropagates() {
         SupplementOrder order = buildOrder();
@@ -91,21 +85,17 @@ class SupplementOrderLocalWriterTest {
                 () -> writer.persist(order, List.of(ORIG_1), index));
     }
 
-    /** persist 时明细找不到对应的原订单 → 明细字段留 null，不应 NPE。 */
     @Test
     void itemWithoutMatchingOrigOrderDoesNotNpe() {
         SupplementOrder order = buildOrder();
-        // ORIG_1 有，ORIG_2 在 index 里没有（原订单查不到了）
         Map<String, GateTxnPay> index = buildIndex(ORIG_1);
 
         SupplementOrderLocalWriter.PersistResult result = writer.persist(order, List.of(ORIG_1, ORIG_2), index);
 
         assertTrue(result.persisted());
-        // 第二条明细的 origTxnDate 和 origAmount 应该为 null，但 insertItem 应该正常调
         verify(mapper, org.mockito.Mockito.times(2)).insertItem(any(SupplementOrderItem.class));
     }
 
-    // ==================== helpers ====================
 
     private SupplementOrder buildOrder() {
         SupplementOrder order = new SupplementOrder();

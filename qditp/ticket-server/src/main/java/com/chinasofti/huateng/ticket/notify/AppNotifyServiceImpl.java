@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.concurrent.Executor;
 
-/** APP 通知服务默认实现 —— 只做异步提交与分派，不含任何报文组装或 HTTP 细节。 */
 @Service
 public class AppNotifyServiceImpl implements AppNotifyService {
 

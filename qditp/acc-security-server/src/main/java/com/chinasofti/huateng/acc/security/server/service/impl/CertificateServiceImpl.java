@@ -19,10 +19,7 @@ import org.springframework.stereotype.Service;
 import java.util.Base64;
 import java.util.StringJoiner;
 
-/**
- * @author houkepan
- * @date 2020/5/6 11:56
- */
+
 @Service
 public class CertificateServiceImpl implements CertificateService {
     private static final Logger log = LoggerFactory.getLogger(CertificateServiceImpl.class);
@@ -68,19 +65,13 @@ public class CertificateServiceImpl implements CertificateService {
 
         String privatekey = securityConfig.getPrivateKey();
         String publickey = securityConfig.getPublicKey();
-        //截取私钥
         byte[] byteArraySm2PrivateKey = TransformUtils.HexStringToByteArr(privatekey);
-        //截取公钥
         byte[] byteArraySm2PublicKey = TransformUtils.HexStringToByteArr(publickey);
 
-        //用户ID，使用固定值1234567812345678。
         String strUserID = "1234567812345678";
         byte[] byteArrayUserID = strUserID.getBytes();
 
-        //原文
         byte[] byteArrayOriginData = TransformUtils.HexStringToByteArr(str);
-//        byte[] byteArrayOriginData = str.getBytes();
-        //计算哈希值
         byte[] byteArrayPublicKeyX = new byte[32];
         byte[] byteArrayPublicKeyY = new byte[32];
         System.arraycopy(byteArraySm2PublicKey, 0, byteArrayPublicKeyX, 0, 32);
@@ -88,7 +79,6 @@ public class CertificateServiceImpl implements CertificateService {
         byte[] byteArrayHash = sm2
                 .getHash(byteArrayOriginData, byteArrayUserID, byteArrayPublicKeyX, byteArrayPublicKeyY);
 
-        //签名
         byte[] byteArraySignData = sm2.sm2Sign(byteArrayHash, byteArraySm2PrivateKey);
         log.info("签名数据：" + str + " \n签名HexString=========>" + TransformUtils.bytesToHex(byteArraySignData));
 

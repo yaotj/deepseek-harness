@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 补站类接口控制器（APP 自助补站 + BOM 单边处理）。 */
 @RestController
 @RequestMapping("/ci/app")
 public class TicketSupplementController {
@@ -27,21 +26,18 @@ public class TicketSupplementController {
         this.supplementService = supplementService;
     }
 
-    /** IF8A-04 请求自助补站。 */
     @PostMapping("/requestExcessFare")
     public RequestExcessFareResult requestExcessFare(@RequestBody RequestExcessFareReqDTO request) {
         log.info("IF8A-04 请求自助补站，请求参数：{}", JSON.toJSONString(request));
         return supplementService.requestExcessFare(request);
     }
 
-    /** IF5A-01 请求票卡分析。 */
     @PostMapping("/requestCardDataAnalyse")
     public RequestCardDataAnalyseRespDTO requestCardDataAnalyse(@RequestBody RequestCardDataAnalyseReqDTO request) {
         log.info("IF5A-01 请求票卡分析，请求参数：{}", JSON.toJSONString(request));
         return supplementService.requestCardDataAnalyse(request);
     }
 
-    /** IF5A-03 请求票卡更新。 */
     @PostMapping("/requestUpdateCardData")
     public RequestCardDataUpdateRespDTO requestUpdateCardData(@RequestBody RequestCardDataUpdateReqDTO request) {
         log.info("IF5A-03 请求票卡更新，请求参数：{}", JSON.toJSONString(request));

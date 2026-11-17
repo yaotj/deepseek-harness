@@ -14,7 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 护栏：离线渲染 XML，钉住 6 条 CAS 的前置状态、通知轮次归零、两条留痕语句与通道清理扫表的四个坑。 */
 class AppTerminationRequestMapperSqlTest {
 
     private static final String RESOURCE = "mapper/AppTerminationRequestMapper.xml";
@@ -22,7 +21,6 @@ class AppTerminationRequestMapperSqlTest {
     private static final String NAMESPACE =
             "com.chinasofti.huateng.paysign.mapper.AppTerminationRequestMapper.";
 
-    /** 语句名 -> 该语句 WHERE 里 MUST 出现的前置状态。删任一条即等于去掉并发保证。 */
     private static final String[][] CAS_PRECONDITIONS = {
             {"markScanning", "PENDING"},
             {"rejectPending", "PENDING"},
@@ -33,7 +31,6 @@ class AppTerminationRequestMapperSqlTest {
             {"reactivateFailed", "FAILED"},
             {"initChannelSyncPending", "SUCCESS"}};
 
-    /** 每条 CAS 的 WHERE MUST 同时带主键与前置状态。 */
     @Test
     void everyCasStatementKeepsBothKeyAndPreconditionInWhere() {
         Configuration configuration = parseMapper();
@@ -52,7 +49,6 @@ class AppTerminationRequestMapperSqlTest {
         }
     }
 
-    /** 三条「产生新通知」的语句 MUST 把通知轮次归零。 */
     @Test
     void statementsProducingNewNotificationResetRetryBudget() {
         Configuration configuration = parseMapper();
@@ -66,7 +62,6 @@ class AppTerminationRequestMapperSqlTest {
         }
     }
 
-    /** {@code markSuccess} 与 {@code rejectScanning} MUST 落完成时间。 */
     @Test
     void scanningClosureWritesCompleteTimeInTheSameStatement() {
         Configuration configuration = parseMapper();
@@ -79,7 +74,6 @@ class AppTerminationRequestMapperSqlTest {
                 "rejectScanning MUST 记失败原因，否则运维无法区分「对方答复失败」与「我方超时」");
     }
 
-    /** 通知补偿的终态白名单 NEVER 去掉：PENDING / SCANNING 还没有可发的通知。 */
     @Test
     void compensableNotifyKeepsTerminalWhitelist() {
         String sql = boundSql(parseMapper(), "selectCompensableNotify");
@@ -88,7 +82,6 @@ class AppTerminationRequestMapperSqlTest {
                 "NEVER 去掉终态白名单，否则滞留的 PENDING 会被当成「成功通知丢了」发出假解约成功通知");
     }
 
-    /** 防止 include / 条件标签改动后渲染出 `where and` 这种语法错误。 */
     @Test
     void noStatementRendersWhereAnd() {
         Configuration configuration = parseMapper();
@@ -103,7 +96,6 @@ class AppTerminationRequestMapperSqlTest {
         }
     }
 
-    /** 整份 XML 里 {@code TERMINATION_STATUS} 的**赋值**次数固定为 7 处，防止有人悄悄新增。 */
     @Test
     void terminationStatusAssignmentCountIsPinned() {
         String xml = readResourceStrippingComments();
@@ -118,7 +110,6 @@ class AppTerminationRequestMapperSqlTest {
                 "TERMINATION_STATUS 的字面量赋值语句数变了，MUST 先确认新语句的 WHERE 带前置状态");
     }
 
-    /** 两条留痕语句是「解约结果矛盾」的唯一落库手段，三条不变量都 MUST 在，且 CAS 前置状态 MUST 相反。 */
     @Test
     void manualReviewMarksAreAppendOnlyIdempotentAndStatusScoped() {
         Configuration configuration = parseMapper();
@@ -148,7 +139,6 @@ class AppTerminationRequestMapperSqlTest {
         }
     }
 
-    /** 通道清理补偿的扫表 SQL MUST 同时满足四条不变量（{@code docs/domain/outbox.md} §二的四个坑）。 */
     @Test
     void channelSyncCompensationScanKeepsAllFourInvariants() {
         String sql = boundSql(parseMapper(), "selectCompensableChannelSync").replaceAll("\\s+", " ");
@@ -170,7 +160,6 @@ class AppTerminationRequestMapperSqlTest {
                         + "PENDING 行该列为 NULL，直接比较结果 UNKNOWN、排序也会被甩到最后；实际渲染：" + sql);
     }
 
-    /** 三条会写 {@code CHANNEL_SYNC_STATUS} 的 update MUST 带 MANUAL 闸门，否则人工处理完又被补偿改回去。 */
     @Test
     void channelSyncWritesNeverOverwriteManualOutcome() {
         Configuration configuration = parseMapper();
@@ -186,7 +175,6 @@ class AppTerminationRequestMapperSqlTest {
                 "markChannelSyncManual MUST 只从 FAILED 转 MANUAL，否则会把刚成功的行标成需人工；实际渲染：" + manualWhere);
     }
 
-    /** 两条通知回写 MUST 带轮次闸门，否则上一轮迟到的回写会污染 reactivateFailed 开出的新一轮。 */
     @Test
     void notifyWritebacksAreScopedToTheirOwnRound() {
         Configuration configuration = parseMapper();
@@ -217,7 +205,6 @@ class AppTerminationRequestMapperSqlTest {
                 .getSql();
     }
 
-    /** 取 WHERE 之后的片段；断言前置条件时只看 WHERE，避免把 SET 里的同名列误当成前置条件。 */
     private String whereClauseOf(String sql, String statementId) {
         String normalized = sql.replaceAll("\\s+", " ");
         int idx = normalized.toLowerCase().lastIndexOf("where ");

@@ -36,15 +36,12 @@ public class PaymentRefundService {
     private static final Logger log = LoggerFactory.getLogger(PaymentRefundService.class);
     private static final String CHANNEL_ALIPAY = "ALIPAY";
 
-    /** 退款明细状态：调支付中心之前落 PROCESSING，业务应答到达后收口成 SUCCESS / FAIL。 */
     private static final String REFUND_STATUS_PROCESSING = "PROCESSING";
     private static final String REFUND_STATUS_SUCCESS = "SUCCESS";
     private static final String REFUND_STATUS_FAIL = "FAIL";
     private static final String RESULT_CODE_INIT = "INIT";
 
-    /** 回调凭据类型：与 PaymentQueryService 的 'PAY' 同列不同值，用于把两个方向的回调分开计数。 */
     private static final String CALLBACK_TYPE_REFUND = "REFUND";
-    /** 凭据处置状态：本轮只落证据、不回写业务，故恒为 PENDING，收口逻辑接线时再推进。 */
     private static final String HANDLE_STATUS_PENDING = "PENDING";
 
     @Autowired
@@ -65,19 +62,7 @@ public class PaymentRefundService {
     @Autowired
     private PayCenterPort payCenterPort;
 
-    /**
-     * 支付宝出行退款申请。
-     *
-     * <p><b>2026-09-18 起本方法已是零调用方、只作回滚位</b>（迁移第 9 条）：
-     * {@code POST /internal/alipay/payment/requestRefund} 已切到
-     * {@code service.AlipayPayRefundService}（实现 {@code service.impl.refund.AlipayPayRefundServiceImpl}）。
-     * 新实现搬的就是本方法的行为 —— 表、状态取值、响应文案、出网 bizData 键名逐条对齐，
-     * <b>NEVER 在这里新增能力，也 NEVER 只改一侧</b>：两份并存期间任何行为调整都会让「线上跑的是哪一侧」
-     * 无从判断。回滚只需把 {@code AlipayPaymentInternalController} 改回注 {@code AlipayTripPaymentService}。
-     *
-     * <p>NEVER 给本方法加 {@code @Transactional}（2026-09-14 移除，事务内出网会把行锁持有时长
-     * 拉成对端响应时长）；链路约束与三分支收口见 {@code docs/business/alipay-channel.md}。</p>
-     */
+
     public AlipayTripRequestRefundRespDTO requestRefund(AlipayTripRequestRefundReqDTO request) {
         AlipayTripRequestRefundRespDTO response = new AlipayTripRequestRefundRespDTO();
         log.info("接收到支付宝退款申请报文: {}", JSON.toJSONString(request));
@@ -100,7 +85,6 @@ public class PaymentRefundService {
             throw new BusinessException(FepAppErrorCodeEnum.FAIL.getCode(), "原支付记录缺少逻辑卡号");
         }
 
-        // 幂等短路：同一原订单存在未收口（PROCESSING）的退款明细即拒绝新申请。
         int processingCount = alipayRefundLogMapper.countByOrderNoAndStatus(request.getOrderNo(), REFUND_STATUS_PROCESSING);
         if (processingCount > 0) {
             log.error("该订单存在未收口的退款明细，拒绝重复退款，MUST 人工到支付中心核对上一笔结果, orderNo={}, processingCount={}",
@@ -140,7 +124,6 @@ public class PaymentRefundService {
         try {
             alipayRefundLogMapper.insert(refundLog);
         } catch (Exception e) {
-            // UK_ARL_REFUND_ORDER_NO 竞态兜底，沿 getCause 链判定完整性冲突。
             if (!isIntegrityViolation(e)) {
                 throw e;
             }
@@ -162,9 +145,6 @@ public class PaymentRefundService {
                 reply.code(), reply.success(), reply.msg());
 
         if (!(reply instanceof PayCenterReply.Accepted accepted)) {
-            // 拿不到业务应答：明细保持 PROCESSING，只回写响应体留证。
-            // Rejected 与 NoAnswer 在本方向的处置相同 —— 但那是**本方向的**结论，
-            // requestPay 对两者的处置不同，NEVER 因为这里能合并就去合并那处。
             log.error("支付宝退款申请未拿到支付中心业务应答，退款结果未知、明细保持 PROCESSING，MUST 人工核对, orderNo={}, refundOrderNo={}, code={}, msg={}",
                     request.getOrderNo(), refundOrderNo, reply.code(), reply.msg());
             alipayRefundLogMapper.updateRefundStatus(
@@ -180,7 +160,6 @@ public class PaymentRefundService {
             return response;
         }
 
-        // 与 requestPay / payQuery 同一套判定：HTTP 与网关层通了之后，还要解开 data 看业务 retCode。
         log.info("支付宝退款申请,支付中心解密后数据: retCode={}, retMsg={}", accepted.retCode(), accepted.retMsg());
 
         boolean refundSuccess = "SUCCESS".equals(accepted.retCode());
@@ -203,7 +182,6 @@ public class PaymentRefundService {
         );
 
         if (refundSuccess) {
-            // 汇总 MUST 在明细置为 SUCCESS 之后执行：SQL 是按 ALIPAY_REFUND_LOG 重算的。
             int summaryAffected = alipayPayLogMapper.updateRefundSummary(request.getOrderNo());
             if (summaryAffected == 0) {
                 log.error("退款汇总回写未命中原支付订单，MUST 人工核对 ALIPAY_PAY_LOG 与 ALIPAY_REFUND_LOG, orderNo={}, refundOrderNo={}",
@@ -218,22 +196,7 @@ public class PaymentRefundService {
         return response;
     }
 
-    /**
-     * 契约 §5.2 退款结果回调 —— 当前只落回调凭据，退款明细与汇总的回写尚未接线。
-     *
-     * <p><b>2026-09-18 起本方法已是零调用方、只作回滚位</b>：{@code POST /api/payment/refundNotify} 已切到
-     * {@code service.AlipayPayCallbackService}（实现 {@code service.impl.callback.AlipayPayCallbackServiceImpl}）。
-     * 本方法行为一行未改，<b>NEVER 在这里新增能力</b>；回滚只需把 {@code PayCenterCallbackController}
-     * 改回注 {@code AlipayTripPaymentService}。</p>
-     *
-     * <p>刻意做成这个形态：契约要求「返回通用响应表示接收成功，否则重试」，而退款收口现在走的是
-     * {@code compensateRefundQuery} 主动回查那条路（见 pay-sign 域同名链路）。若这里返非 0000，
-     * 支付中心会一直重推一笔我方本就不打算按回调收口的退款；若这里就地回写，又会与回查那条形成
-     * 两个写入方、彼此覆盖。因此先只留证据 + 收下，回写在接线回查/回调优先级之后再补。</p>
-     *
-     * <p>NEVER 给本方法加 {@code @Transactional}：与 {@code requestRefund} 同理，且回滚会把
-     * 唯一的证据行一起丢掉。</p>
-     */
+
     public AlipayCommonResponse handleRefundNotify(AlipayTripRefundNotifyReqDTO request) {
         log.info("接收到支付宝退款结果回调, 原始报文: {}", JSON.toJSONString(request));
         AlipayCommonResponse response = new AlipayCommonResponse();
@@ -253,17 +216,7 @@ public class PaymentRefundService {
         return response;
     }
 
-    /**
-     * 退款回调即入库。落库自身失败只记日志、不打断处理：留痕失败不该让一笔回调收不了口。
-     *
-     * <p>三个退款列的取值口径 NEVER 改：{@code REFUND_ORDER_NO} 取 {@code outRefundNo}（商户退款流水号，
-     * 与 {@code ALIPAY_REFUND_LOG.REFUND_ORDER_NO} 同源），<b>不是 {@code refundNo}</b> —— 后者是支付中心侧
-     * 自己的号，拿它关联会串单，它只在 {@code RAW_BODY} 里留证。缺这三列时一笔订单的多次退款在本表分不清彼此。</p>
-     *
-     * <p>不对两个字符串列做截断：{@code REFUND_ORDER_NO} 是我方生成的号（64 字符）、{@code REFUND_STATUS}
-     * 是枚举值（16 字符），都在列长内；万一对端送超长值，Oracle 报 {@code ORA-12899} 会被本方法的 catch 兜住，
-     * 代价只是丢这一行证据 + 一条 ERROR 日志，不影响回调收口。</p>
-     */
+
     private void recordRefundCallback(AlipayTripRefundNotifyReqDTO request) {
         try {
             AlipayPayCallbackLog callbackLog = new AlipayPayCallbackLog();
@@ -284,12 +237,7 @@ public class PaymentRefundService {
         }
     }
 
-    /**
-     * 把回调里的退款金额字符串解析成分。
-     *
-     * <p>契约 §5.2 的 {@code refundAmount} 是字符串、单位分。解析不出时返回 null 让该列留空，
-     * <b>NEVER 抛异常</b> —— 一个金额解析失败不该把整行证据连带丢掉，原文在 {@code RAW_BODY} 里可复核。</p>
-     */
+
     private Integer parseRefundAmount(String refundAmount, String orderNo) {
         if (!StringUtils.hasText(refundAmount)) {
             return null;
@@ -303,9 +251,7 @@ public class PaymentRefundService {
         }
     }
 
-    /**
-     * 沿 {@code getCause()} 链判断是否为唯一约束冲突。
-     */
+
     private boolean isIntegrityViolation(Throwable e) {
         Throwable current = e;
         while (current != null) {

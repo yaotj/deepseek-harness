@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.ticket;
 
-/**
- * IF1A-01 闸机检票通知请求业务参数。
- */
+
 public class NotifyVerifyResultReqDTO {
 
     private String deviceId;
@@ -21,34 +19,19 @@ public class NotifyVerifyResultReqDTO {
     private String lastHandleStationCode;
     private String lastHandleDateTime;
     private String ticketTransSeq;
-    /**
-     * 补站类型：空=真实检票，01=补进站，02=补出站。
-     */
+
     private String excessFareType;
-    /**
-     * BOM 操作类型：默认（空）= 真实闸机检票/补站，018=补进站，005=免费更新，006=付费更新。
-     */
+
     private String adviceOpt;
-    /**
-     * 预留字段1；HCE 卡交易时为闸机处理后的 64 字节 HCE 卡数据。
-     */
+
     private String reserve1;
     private String reserve2;
-    /**
-     * 同行票标识：Y=同行票，C=第三方票（目前均对应卡类型 0441），为空表示普通票。
-     */
+
     private String companionFlag;
-    /** 支付渠道编码（如 ALIPAY、WECHAT），来自 USER_ITP_REG_INFO.CHANNEL。 */
     private String paymentVendor;
-    /** 签约流水号，来自 USER_ITP_REG_INFO.REQ_CONTRACT_NO。 */
     private String requestSignSeq;
-    /** 交易渠道类型：00闸机、01蓝牙、02BOM、03自助补站。 */
     private String channelType;
-    /**
-     * 用户手机号：闸机报文不上送，由 ticket-server 的 {@code GateCardTypeEnricher}
-     * 用账户侧查询结果（account 域 msisdn 优先、支付宝账户域 phone 兜底）回填，
-     * 供支付宝出行 industryDetail 的 phone 键使用。
-     */
+
     private String phone;
 
     public String getDeviceId() {
@@ -179,9 +162,7 @@ public class NotifyVerifyResultReqDTO {
         this.ticketTransSeq = ticketTransSeq;
     }
 
-    /**
-     * 兼容规范样例中的字段拼写 tikcetTransSeq。
-     */
+
     public void setTikcetTransSeq(String tikcetTransSeq) {
         this.ticketTransSeq = tikcetTransSeq;
     }

@@ -7,7 +7,6 @@ import com.chinasofti.huateng.para.mapper.ticket.SingleTicketPurchaseLimitMapper
 import com.chinasofti.huateng.para.service.SingleTicketPurchaseLimitService;
 import org.springframework.stereotype.Service;
 
-/** 单程票购买上限参数管理实现。 */
 @Service
 public class SingleTicketPurchaseLimitServiceImpl implements SingleTicketPurchaseLimitService {
     private static final int MIN_PURCHASE_QUANTITY = 1;

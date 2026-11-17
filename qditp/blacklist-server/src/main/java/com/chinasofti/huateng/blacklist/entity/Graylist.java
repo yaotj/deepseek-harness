@@ -2,34 +2,24 @@ package com.chinasofti.huateng.blacklist.entity;
 
 import java.time.LocalDateTime;
 
-/** 灰名单表实体（观察/预警名单，不拦截、不渠道同步），流水见 {@link GraylistOperateLog}。 */
 public class Graylist {
 
-    /** 主键ID。 */
     private Long id;
 
-    /** 卡ID，唯一业务键。 */
     private String cardId;
 
-    /** 三方用户ID，审计冗余。 */
     private String thirdUserId;
 
-    /** 卡类型编码（票种，如 0441）。 */
     private String cardType;
 
-    /** 发起方：01 系统自动，09 运维手工。 */
     private String graySource;
 
-    /** 关联业务单号，可空。 */
     private String bizNo;
 
-    /** 进灰备注，自由文本。 */
     private String reason;
 
-    /** 操作者。 */
     private String createBy;
 
-    /** 进灰时间。 */
     private LocalDateTime createTime;
 
     public Long getId() { return id; }

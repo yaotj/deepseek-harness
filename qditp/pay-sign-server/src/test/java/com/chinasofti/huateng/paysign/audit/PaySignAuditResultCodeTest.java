@@ -18,7 +18,6 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/** 护栏：审计流水的 RESULT_CODE / RESULT_MSG 对每种应答形状都要有值，含「取不到」与「超长」两个边界。 */
 class PaySignAuditResultCodeTest {
 
     private static final String SEQ = "0052290701523999";

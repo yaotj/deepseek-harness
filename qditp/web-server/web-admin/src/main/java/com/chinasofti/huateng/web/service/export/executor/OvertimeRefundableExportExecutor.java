@@ -14,9 +14,7 @@ import com.chinasofti.huateng.web.domain.export.AsyncExportTask;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 
-/**
- * 超时罚金可退款订单异步导出执行器。
- */
+
 @Component("OVERTIME_REFUNDABLE")
 public class OvertimeRefundableExportExecutor extends AbstractExcelExportExecutor
 {
@@ -75,14 +73,7 @@ public class OvertimeRefundableExportExecutor extends AbstractExcelExportExecuto
         return String.format("%.2f", fen / 100.0);
     }
 
-    /**
-     * 扣费状态翻成「编码-中文」，与页面同一口径（前端真源 {@code web/src/utils/orderStatusLabels.js}）。
-     *
-     * <p>取值真源是 {@code gate-txn-pay-server} 的 {@code constant/DebitStatus.java}（5 值），
-     * {@code CLOSED} 只存在于列注释与前端下拉、后端无写入点，保留是为防未来出现。
-     * 两边各写一份是跨运行时的必要重复，改状态集合时 MUST 同步这两处，
-     * NEVER 只改一边 —— 页面中文、导出英文就是没同步的结果。
-     */
+
     private String debitStatusLabel(String status)
     {
         if (status == null || status.isBlank())

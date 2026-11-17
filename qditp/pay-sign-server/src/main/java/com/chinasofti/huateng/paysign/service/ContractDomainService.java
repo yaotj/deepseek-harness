@@ -12,7 +12,6 @@ import com.chinasofti.huateng.paysign.model.response.RequestContractAdvisoryResp
 import com.chinasofti.huateng.paysign.model.response.RequestContractResultRespDTO;
 import com.chinasofti.huateng.paysign.model.response.RequestTerminationRespDTO;
 
-/** 签约领域入口。 */
 public interface ContractDomainService {
     RequestSignInfoResult requestSignInfo(RequestSignInfoReqDTO request, String signChannel);
 
@@ -24,8 +23,6 @@ public interface ContractDomainService {
 
     RequestTerminationRespDTO requestTermination(RequestTerminationReqDTO request, String signChannel);
 
-    /** IF8A-36 请求移除签约信息。 */
     RequestAgreeReleaseResult removeSignAgreement(RequestAgreeReleaseReqDTO request, String signChannel);
 
-    /** requestPayPlatformTermination / queryPayPlatformContractStatus 两个方法已于 2026-09-16 删除。 */
 }

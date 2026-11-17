@@ -1,9 +1,6 @@
 package com.chinasofti.huateng.para.model.device;
 
-/**
- * ACC 设备配置接口的单条设备记录（{@code GET /api/v1/Config/device} 返回的 data 元素）。
- * <p>字段名与 ACC 返回 JSON 一致，用 Fastjson2 反序列化；时间字符串由同步服务自行解析。</p>
- */
+
 public class AccDeviceDTO {
     private String lineId;
     private String lineName;
@@ -16,9 +13,7 @@ public class AccDeviceDTO {
     private String ip;
     private Integer port;
     private Boolean isDeleted;
-    /** ACC 侧更新时间，格式 yyyy-MM-dd HH:mm:ss，保留原文由服务层解析。 */
     private String updateTime;
-    /** 坐标与角度，当前仅透传不落库。 */
     private Integer coorX;
     private Integer coorY;
     private Integer angle;

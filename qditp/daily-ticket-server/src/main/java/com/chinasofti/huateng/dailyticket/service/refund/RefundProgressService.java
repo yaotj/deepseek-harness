@@ -24,26 +24,7 @@ import org.springframework.util.StringUtils;
 import java.util.Date;
 import java.util.Map;
 
-/**
- * 退款**进度推进**：回查（IF8A-73）、重试、重提交，日票与旅游票各一套。
- *
- * <p>与「发起」「收口」两段的分工：发起负责建退款单并首次出网，收口（{@link DailyTicketRefundSettlementService}）
- * 负责把结论落到退款单 / 订单 / 票实例并推 APP，**本类只负责「已有退款单，去问支付中心现在怎么样了 / 再推一次」**，
- * 状态推进一律委托收口服务，**NEVER 在本类里直接改退款单终态**（否则票锁释放、IF8B-04 投递会被绕过）。
- *
- * <p><b>零 {@code @Transactional}、NEVER 加</b>：五个入口都要调支付中心网关，且收口服务会出网推 APP。
- *
- * <p>三条口径 **NEVER 改**：
- * <ul>
- *   <li><b>受理白名单只有 {@code REFUNDING} / {@code FAILED}</b>（重提交额外放行 {@code WAIT_VERIFY}）；
- *       已 {@code REFUNDED} 的单一律走 {@code buildExistingRefundResult} 幂等返当前进度，
- *       **NEVER 放宽成「非终态即可推进」**。</li>
- *   <li><b>只有平台明确的终态才回写</b>：{@code isRefundSuccessStatus} / {@code isRefundFailedStatus}
- *       都不命中时保持处理中 —— 未知状态当失败会把在途退款错判成失败并允许重复发起。</li>
- *   <li><b>重试前先回查</b>：`retry*` 一定先调对应的 `query*`，只有回查结论是 `PROCESSING` / `FAILED` 才继续推，
- *       否则直接把回查结果返上游。**NEVER 跳过这一步直接重发** —— 支付中心那边可能已经成功了。</li>
- * </ul>
- */
+
 @Service
 public class RefundProgressService {
     private static final Logger log = LoggerFactory.getLogger(RefundProgressService.class);
@@ -134,7 +115,6 @@ public class RefundProgressService {
         return DailyTicketOrderSupport.success(result);
     }
 
-    /** 旅游票回查：退款单可能挂在主单（整单退）或子单（子单退），主单一律按 `PARENT_ORDER_NO` 回查。 */
     public DailyTicketRefundResult queryTravelRefundTicket(String orderNo) {
         DailyTicketRefundResult result = new DailyTicketRefundResult();
         DailyTicketRefund refund = refundMapper.selectByOrderNo(orderNo);
@@ -283,15 +263,7 @@ public class RefundProgressService {
         return DailyTicketOrderSupport.success(result);
     }
 
-    /**
-     * 重提交：用于「退款单已建、但支付中心那边从未受理」的单（{@code PLATFORM_REFUND_NO} 仍为空）。
-     *
-     * <p>两道闸 **NEVER 删**：①{@code WAIT_VERIFY} 的单在观察期未满时拒绝；
-     * ②核验退款（{@code REFUND_TYPE='01'}）MUST 确认票仍在 {@code REFUND_LOCKED} 才放款 ——
-     * 票已被别的链路推走还放款，就是「钱退了、票还能用」。
-     * 另有一道：一旦回查出平台退款单号已存在，本入口**拒绝并引导去走回查 / 重试**，
-     * 否则同一笔会在支付中心侧变成两条退款。
-     */
+
     public DailyTicketRefundResult resubmitRefundTicket(DailyTicketOrderNoReqDTO request) {
         DailyTicketRefundResult result = new DailyTicketRefundResult();
         String validMsg = DailyTicketOrderSupport.validateOrderNo(request == null ? null : request.getOrderNo(),
@@ -359,13 +331,11 @@ public class RefundProgressService {
         return DailyTicketOrderSupport.success(result);
     }
 
-    /** 支付平台退款查询的成功状态兼容不同渠道返回值。 */
     private boolean isRefundSuccessStatus(String status) {
         return "SUCCESS".equalsIgnoreCase(status) || "REFUNDED".equalsIgnoreCase(status)
                 || "REFUND_SUCCESS".equalsIgnoreCase(status) || "1".equals(status);
     }
 
-    /** 仅将平台明确的失败终态回写为 FAILED；未知状态继续保持处理中。 */
     private boolean isRefundFailedStatus(String status) {
         return "FAIL".equalsIgnoreCase(status) || "FAILED".equalsIgnoreCase(status)
                 || "REFUND_FAILED".equalsIgnoreCase(status) || "CLOSED".equalsIgnoreCase(status)

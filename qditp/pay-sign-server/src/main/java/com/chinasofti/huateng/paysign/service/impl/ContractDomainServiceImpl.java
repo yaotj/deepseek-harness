@@ -55,7 +55,6 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-/** 签约 + 解约领域的真实现。 */
 @Service
 public class ContractDomainServiceImpl implements ContractDomainService {
 
@@ -63,42 +62,28 @@ public class ContractDomainServiceImpl implements ContractDomainService {
     private static final String STATUS_NOT_SIGNED = SignStatus.NOT_SIGNED.name();
     private static final String STATUS_SIGNED = SignStatus.SIGNED.name();
     private static final String STATUS_UNSIGNED = SignStatus.UNSIGNED.name();
-    /** 解约申请状态，取值来自 {@link TerminationStatus}。 */
     private static final String STATUS_FAILED = TerminationStatus.FAILED.name();
 
     private static final String STATUS_PENDING = TerminationStatus.PENDING.name();
 
-    /** 本类**不再持有** WALLET_PAYMENT_VENDOR 常量（2026-09-16，ADR-D108）。 */
 
     private final PaySignInfoMapper paySignInfoMapper;
 
-    /** 本类**不再持有** PaySignRequestMapper（2026-09-16，ADR-D115 续（二））：协作者 6 -> 5。 */
     private final AppTerminationRequestMapper terminationRequestMapper;
-    /** 接口流水（{@code APP_PAY_SIGN_REQUEST}）的唯一写入点，2026-09-14 由本类的 {@code writeLog} 抽出。 */
     private final PaySignAuditLogger auditLogger;
 
-    /** 账户域出向调用的**唯一**出口（ADR-D46 写侧 / ADR-D94 续读侧）。 */
     private final AccountDomainPort accountDomainPort;
 
-    /** 支付中心**签约/解约方向**出向调用的唯一出口（2026-09-16，ADR-D112）。 */
     private final ContractGatewayPort contractGatewayPort;
 
-    /**
-     * 支付平台签约状态 → 本地落库动作。**表里没有的取值即「未知状态」，一律只告警不落库。**
-     *
-     * <p>2026-09-17 由 {@code applyGatewayStatus} 的 if-else 链改成表驱动（ADR-D122）：
-     * 新增一个状态取值时**只能**往这张表里加一行，NEVER 再在方法体里插分支 ——
-     * 那种写法把「状态集合」与「每个状态怎么落库」两件事糅在一处，漏一个分支只表现为静默不落库。
-     */
+
     private final Map<String, GatewayStatusMigrator> gatewayStatusMigrators;
 
-    /** 一次状态落库动作，返回受影响行数（0 即交给 {@link SignStatusTransition} 判幂等还是冲突）。 */
     @FunctionalInterface
     private interface GatewayStatusMigrator {
         int migrate(String requestSignSeq, PaySignInfo signInfo);
     }
 
-    /** 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备。 */
     public ContractDomainServiceImpl(
             PaySignInfoMapper paySignInfoMapper,
             AppTerminationRequestMapper terminationRequestMapper,
@@ -118,7 +103,6 @@ public class ContractDomainServiceImpl implements ContractDomainService {
                 STATUS_NOT_SIGNED, (seq, info) -> paySignInfoMapper.reactivateForResign(seq));
     }
 
-    /** IF8A-16 请求签约信息。 */
     @Override
     public RequestSignInfoResult requestSignInfo(RequestSignInfoReqDTO request, String signChannel) {
         RequestSignInfoResult response = new RequestSignInfoResult();
@@ -160,7 +144,6 @@ public class ContractDomainServiceImpl implements ContractDomainService {
         }
     }
 
-    /** 支付宝出行-添加签约信息。 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RequestSignInfoResult alipayTripRequestSignInfo(AlipayTripAddContractReqDTO request) {
@@ -206,7 +189,6 @@ public class ContractDomainServiceImpl implements ContractDomainService {
         }
     }
 
-    /** IF8A-21 信用能力咨询。 */
     @Override
     public RequestContractAdvisoryRespDTO requestContractAdvisory(RequestContractAdvisoryReqDTO request, String signChannel) {
         RequestContractAdvisoryRespDTO response = new RequestContractAdvisoryRespDTO();
@@ -257,7 +239,6 @@ public class ContractDomainServiceImpl implements ContractDomainService {
         }
     }
 
-    /** IF8A-22 签约结果查询。 */
     @Override
     public RequestContractResultRespDTO requestContractResult(RequestContractResultReqDTO request, String signChannel) {
         RequestContractResultRespDTO response = new RequestContractResultRespDTO();
@@ -338,7 +319,6 @@ public class ContractDomainServiceImpl implements ContractDomainService {
         }
     }
 
-    /** IF8A-06 请求解约。 */
     @Override
     public RequestTerminationRespDTO requestTermination(RequestTerminationReqDTO request, String signChannel) {
         RequestTerminationRespDTO response = new RequestTerminationRespDTO();
@@ -468,9 +448,7 @@ public class ContractDomainServiceImpl implements ContractDomainService {
         return result;
     }
 
-    /** requestPayPlatformTermination / queryPayPlatformContractStatus 两个转发壳已于 2026-09-16 删除。 */
 
-    /** 把支付平台返回的签约状态落到 APP_PAY_SIGN_INFO。 */
     private void applyGatewayStatus(String requestSignSeq, String previousStatus, PaySignInfo signInfo) {
         String targetStatus = signInfo.getContractStatus();
         if (targetStatus == null || targetStatus.equals(previousStatus)) {
@@ -502,7 +480,6 @@ public class ContractDomainServiceImpl implements ContractDomainService {
         }
     }
 
-    /** 钱包没有签约主表，签约结果查询兼容为支付通道绑定状态查询。 */
     private RequestContractResultRespDTO queryWalletBindingResult(RequestContractResultReqDTO request,
                                                                   String signChannel,
                                                                   RequestContractResultRespDTO response) {
@@ -550,7 +527,6 @@ public class ContractDomainServiceImpl implements ContractDomainService {
         }
     }
 
-    /** 兼容旧客户端误用 requestTermination 的场景，钱包只执行本地支付通道移除。 */
     private RequestTerminationRespDTO releaseWalletBinding(RequestTerminationReqDTO request,
                                                            RequestTerminationRespDTO response) {
         if (!StringUtils.hasText(request.getThirdUserId())
@@ -574,7 +550,6 @@ public class ContractDomainServiceImpl implements ContractDomainService {
         return response;
     }
 
-    /** 调用支付平台 contract 接口发起正式签约，取出 SDK 参数。 */
     private String requestGatewaySignInfo(RequestSignInfoReqDTO request, String paymentVendor) {
         GatewayReply reply = contractGatewayPort.requestContract(request, paymentVendor);
         if (!(reply instanceof GatewayReply.Accepted accepted)) {
@@ -589,7 +564,6 @@ public class ContractDomainServiceImpl implements ContractDomainService {
         return stringValue(accepted.data().get("data"), JSON.toJSONString(accepted.data()));
     }
 
-    /** ===== 审计流水的按接口收口（2026-09-16，ADR-D107）=====。 */
 
     private void auditSignInfo(RequestSignInfoReqDTO request, RequestSignInfoResult response, String signChannel) {
         auditLogger.write("REQUEST_SIGN_INFO",
@@ -599,12 +573,7 @@ public class ContractDomainServiceImpl implements ContractDomainService {
                 signChannel, request, response);
     }
 
-    /** 支付宝出行签约的流水。 */
-    /**
-     * 支付宝出行签约的流水行。
-     *
-     * @param signStatus 成功分支传 {@code STATUS_SIGNED}，其余分支传 {@code null} ——
-     */
+
     private void auditAlipayTripSignInfo(AlipayTripAddContractReqDTO request, RequestSignInfoResult response,
                                          String paymentVendor, String signStatus) {
         auditLogger.write("ALIPAY_TRIP_REQUEST_SIGN_INFO",
@@ -640,7 +609,6 @@ public class ContractDomainServiceImpl implements ContractDomainService {
                 signChannel, request, response);
     }
 
-    /** 钱包绑定状态查询的流水。 */
     private void auditWalletBindingResult(RequestContractResultReqDTO request, RequestContractResultRespDTO response,
                                           String signChannel) {
         auditLogger.write("REQUEST_WALLET_BINDING_RESULT",

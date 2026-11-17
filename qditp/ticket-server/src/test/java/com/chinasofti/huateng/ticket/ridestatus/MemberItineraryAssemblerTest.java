@@ -19,7 +19,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** IF8A-29 行程装配的三态行为基线。 */
 class MemberItineraryAssemblerTest {
 
     private static final String TRX_ENTRY = "01";

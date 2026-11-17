@@ -20,12 +20,7 @@ public class NettyServerHandler  extends ChannelInboundHandlerAdapter {
     private final BusinessHandler businessHandler;
 
 
-    /**
-     * 当前channel从远端读取到数据
-     * @param ctx
-     * @param msg
-     * @throws Exception
-     */
+
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         MessageBean messageBean= (MessageBean) msg;
@@ -56,22 +51,13 @@ public class NettyServerHandler  extends ChannelInboundHandlerAdapter {
         ctx.writeAndFlush(result);
     }
 
-    /**
-     * 当前channel不活跃的时候，也就是当前channel到了它生命周期末
-     * @param ctx
-     * @throws Exception
-     */
+
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
 
         super.channelInactive(ctx);
     }
-    /**
-     * 异常发生的事件
-     * @param ctx
-     * @param cause
-     * @throws Exception
-     */
+
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         log.error("服务异常，关闭连接",cause);

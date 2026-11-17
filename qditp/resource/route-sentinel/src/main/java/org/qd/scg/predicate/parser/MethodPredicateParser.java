@@ -15,12 +15,10 @@ public class MethodPredicateParser implements PredicateParser {
     @Override
     public RequestPredicate parse(String definition) {
         String methods = definition.substring("Method=".length());
-        // 支持多个方法，逗号分隔
         String[] parts = methods.split(",");
         if (parts.length == 1) {
             return RequestPredicates.method(org.springframework.http.HttpMethod.valueOf(parts[0].trim().toUpperCase()));
         }
-        // 多个方法：OR 逻辑
         RequestPredicate result = null;
         for (String part : parts) {
             RequestPredicate p = RequestPredicates.method(

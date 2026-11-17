@@ -14,16 +14,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import com.chinasofti.huateng.common.utils.StringUtils;
 import com.chinasofti.huateng.common.enums.HttpMethod;
 
-/**
- * 防止XSS攻击的过滤器
- * 
- * @author zmzhang
- */
+
 public class XssFilter implements Filter
 {
-    /**
-     * 排除链接
-     */
+
     public List<String> excludes = new ArrayList<>();
 
     @Override
@@ -59,7 +53,6 @@ public class XssFilter implements Filter
     {
         String url = request.getServletPath();
         String method = request.getMethod();
-        // GET DELETE 不过滤
         if (method == null || HttpMethod.GET.matches(method) || HttpMethod.DELETE.matches(method))
         {
             return true;

@@ -12,9 +12,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * APP 行业数据接口入口。
- */
+
 @RestController
 public class IndustryDataController extends BaseAppController {
     private static final Logger log = LoggerFactory.getLogger(IndustryDataController.class);

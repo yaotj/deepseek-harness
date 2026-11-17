@@ -2,18 +2,12 @@ package com.chinasofti.huateng.model.alipaytrip;
 
 import java.time.LocalDateTime;
 
-/**
- * 支付宝签约信息表实体。
- */
+
 public class AlipaySignInfo {
-    /**
-     * 签约协议号（主键）。
-     */
+
     private String agreementCode;
 
-    /**
-     * 支付宝用户ID。
-     */
+
     private String thirdUserId;
 
     private String cardId;

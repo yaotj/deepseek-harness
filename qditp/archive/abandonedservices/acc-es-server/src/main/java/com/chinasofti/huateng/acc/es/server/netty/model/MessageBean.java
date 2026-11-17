@@ -2,9 +2,7 @@ package com.chinasofti.huateng.acc.es.server.netty.model;
 
 
 public class MessageBean extends Messagehead {
-    /**
-     * 报文
-     */
+
     private byte[] dataBody;
 
 

@@ -7,9 +7,7 @@ import com.chinasofti.huateng.web.domain.recon.ReconUploadFile;
 import com.chinasofti.huateng.web.mapper.recon.ReconUploadFileMapper;
 import com.chinasofti.huateng.web.service.recon.IReconUploadFileService;
 
-/**
- * 对账文件上传 Service 实现
- */
+
 @Service
 public class ReconUploadFileServiceImpl implements IReconUploadFileService
 {

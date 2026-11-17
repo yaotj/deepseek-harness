@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-/** 锁定 ACC 逻辑卡号文件的行解析结果。 */
 class CardPoolCardNoParseTest {
 
     @Test

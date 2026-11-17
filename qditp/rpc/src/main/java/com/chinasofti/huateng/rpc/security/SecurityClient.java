@@ -22,9 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.reactive.function.client.WebClient;
 
-/**
- * 安全服务RPC客户端。
- */
+
 @Service
 public class SecurityClient extends ProxyWebClient {
     public SecurityClient(@Value("${service.security.url:security-service}") String baseUrl,
@@ -50,11 +48,7 @@ public class SecurityClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 请求生成用户SM2密钥对。
-     * @param request 请求参数。
-     * @return 用户SM2密钥对。
-     */
+
     public RequestUserSm2KeyRespDTO requestUserSm2Key(@RequestBody RequestUserSm2KeyReqDTO request) {
         String result = postJsonAndGetResponse("/ci/itp/requestUserSm2Key", request);
         JSONObject dataObj = parseDataObject(result);
@@ -67,11 +61,7 @@ public class SecurityClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 请求签名用户公钥。
-     * @param request 请求参数。
-     * @return 签名用户公钥结果。
-     */
+
     public RequestSignPubkeyRespDTO requestSignPubkey(@RequestBody RequestSignPubkeyReqDTO request) {
         String result = postJsonAndGetResponse("/ci/itp/requestSignPubkey", request);
         JSONObject dataObj = parseDataObject(result);
@@ -82,11 +72,7 @@ public class SecurityClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 请求导出用户私钥。
-     * @param request 请求参数。
-     * @return 导出用户私钥结果。
-     */
+
     public RequestExportUserPriKeyRespDTO requestExportUserPriKey(@RequestBody RequestExportUserPriKeyReqDTO request) {
         String result = postJsonAndGetResponse("/ci/itp/requestExportUserPriKey", request);
         JSONObject dataObj = parseDataObject(result);
@@ -97,11 +83,7 @@ public class SecurityClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 请求导出 HCE 应用子密钥（DPK）。
-     * @param request HCE 逻辑卡号。
-     * @return ACC KEK 加密的 DPK。
-     */
+
     public RequestDpkRespDTO requestDpk(@RequestBody RequestDpkReqDTO request) {
         String result = postJsonAndGetResponse("/ci/itp/requestDPK", request);
         JSONObject dataObj = parseDataObject(result);
@@ -112,11 +94,7 @@ public class SecurityClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 调用安全服务发售 HCE 卡数据。
-     * @param request HCE 卡数据请求参数。
-     * @return 包含安全服务返回码、HCE 卡数据和逻辑卡号的响应。
-     */
+
     public RequestHceCardDataRespDTO requestHceCardData(@RequestBody RequestHceCardDataReqDTO request) {
         String result = postJsonAndGetResponse("/ci/itp/requestHceCardData", request);
         JSONObject dataObj = parseDataObject(result);

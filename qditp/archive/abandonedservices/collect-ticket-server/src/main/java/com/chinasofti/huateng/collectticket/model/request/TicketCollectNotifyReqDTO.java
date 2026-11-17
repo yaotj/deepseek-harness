@@ -2,53 +2,33 @@ package com.chinasofti.huateng.collectticket.model.request;
 
 import java.util.List;
 
-/**
- * IF2A-03 取票订单通知请求报文。
- */
+
 public class TicketCollectNotifyReqDTO {
-    /**
-     * 订单号。
-     */
+
     private String orderNo;
 
-    /**
-     * 用户ID。
-     */
+
     private String userId;
 
-    /**
-     * 取票状态：100-取票成功，1-99-取票失败。
-     */
+
     private Integer collectStatus;
 
-    /**
-     * 取票设备编号。
-     */
+
     private String deviceId;
 
-    /**
-     * 实际出票数量。
-     */
+
     private Integer actualTakeTicketNum;
 
-    /**
-     * 故障凭证号。
-     */
+
     private String faultSlipSeq;
 
-    /**
-     * 错误代码。
-     */
+
     private String errorCode;
 
-    /**
-     * 错误详细信息。
-     */
+
     private String errorMessage;
 
-    /**
-     * 取票明细列表。
-     */
+
     private List<TicketDetail> ticketDetails;
 
     public String getOrderNo() {
@@ -135,33 +115,21 @@ public class TicketCollectNotifyReqDTO {
                 '}';
     }
 
-    /**
-     * 取票明细。
-     */
+
     public static class TicketDetail {
-        /**
-         * 实际出票的第几张。
-         */
+
         private Integer inOrderNo;
 
-        /**
-         * 取票时间。
-         */
+
         private String takeTicketDate;
 
-        /**
-         * 票卡逻辑号。
-         */
+
         private String ticketLogicNum;
 
-        /**
-         * 交易时间。
-         */
+
         private String transDate;
 
-        /**
-         * 交易金额。
-         */
+
         private String transAmount;
 
         public Integer getInOrderNo() {

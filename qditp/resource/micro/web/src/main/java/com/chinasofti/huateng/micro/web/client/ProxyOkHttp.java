@@ -22,13 +22,7 @@ public class ProxyOkHttp extends AbstractMicroHttp<OkHttpClient> {
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
     ConnectionPool connectionPool;
 
-    /**
-     * @apiNote The simple of use。
-     * @param baseUrl value is like http://localhost:8080。
-     * @param openLogger print log。
-     * @param maxIdleConnections http connectionPool of maxIdleConnections。
-     * @param keepAliveDuration http connectionPool of keepAliveDuration, TimeUnit is MILLISECONDS。
-     */
+
     public ProxyOkHttp(String baseUrl, boolean openLogger, int maxIdleConnections, long keepAliveDuration) {
         this.baseUrl = baseUrl;
         setOpenLogger(openLogger);
@@ -37,11 +31,7 @@ public class ProxyOkHttp extends AbstractMicroHttp<OkHttpClient> {
         proxyHttpClient = baseBuilder(secure).connectionPool(connectionPool).build();
     }
 
-    /**
-     * @apiNote The simple of use。
-     * @param baseUrl value is like http://localhost:8080。
-     * @param openLogger print log。
-     */
+
     public ProxyOkHttp(String baseUrl, boolean openLogger) {
         this.baseUrl = baseUrl;
         setOpenLogger(openLogger);

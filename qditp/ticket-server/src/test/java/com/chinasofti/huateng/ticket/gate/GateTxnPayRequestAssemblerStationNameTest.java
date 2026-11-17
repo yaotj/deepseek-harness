@@ -15,12 +15,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 钉住 ADR-D83 续那条行为变更：进出站站名各自独立回填。 */
 class GateTxnPayRequestAssemblerStationNameTest {
 
     private final Set<String> askedCodes = new LinkedHashSet<>();
 
-    /** 只认 0245 / 0622 两个码，其余（含 FFFF）一律查不到 —— 与 v41 参数表的真实行为一致。 */
     private GateTxnPayRequestAssembler assembler() {
         StationNameResolver resolver = new StationNameResolver() {
             @Override

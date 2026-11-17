@@ -14,7 +14,6 @@ import com.chinasofti.huateng.paysign.model.response.RequestTerminationRespDTO;
 import com.chinasofti.huateng.rpc.outcome.RpcOutcome;
 import org.junit.jupiter.api.Test;
 
-/** 护栏：钱包解绑不建解约申请、不出网，渠道号取归一值，业务拒绝与不可达分两支。 */
 class WalletTerminationCharacterizationTest {
 
     private static final String WALLET_VENDOR = "0B";
@@ -35,7 +34,6 @@ class WalletTerminationCharacterizationTest {
         verify(fixture.accountDomainPort).agreeRelease(USER, WALLET_VENDOR, CARD_ID, CARD_TYPE);
     }
 
-    /** 钱包解绑与解约申请链路无关：既不落 APP_TERMINATION_REQUEST，也不调支付中心。 */
     @Test
     void walletReleaseNeverCreatesTerminationRequestNorCallsGateway() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -48,7 +46,6 @@ class WalletTerminationCharacterizationTest {
         verify(fixture.payGatewayClient, never()).request(anyString(), anyMap());
     }
 
-    /** 业务拒绝：把对端文案带给上游，NEVER 吞成通用错误、更 NEVER 报成功。 */
     @Test
     void walletReleaseBizRejectedPassesRemoteMessageThrough() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -61,7 +58,6 @@ class WalletTerminationCharacterizationTest {
         assertEquals("该卡不存在钱包绑定", result.getRetMsg());
     }
 
-    /** 对端文案缺失时退化成通用文案，NEVER 把 null 透给上游。 */
     @Test
     void walletReleaseBizRejectedWithoutMessageFallsBackToGenericText() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -74,7 +70,6 @@ class WalletTerminationCharacterizationTest {
         assertEquals("钱包解绑失败", result.getRetMsg());
     }
 
-    /** 不可达：与业务拒绝走不同分支（日志带栈），对上游同样是失败。 */
     @Test
     void walletReleaseUnreachableIsReportedAsFailureNotSuccess() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -87,7 +82,6 @@ class WalletTerminationCharacterizationTest {
         assertEquals("钱包解绑失败", result.getRetMsg());
     }
 
-    /** 缺 cardType：本地就该拒掉，NEVER 让一次必然失败的出网发生。 */
     @Test
     void walletReleaseWithoutCardTypeIsRejectedLocally() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();

@@ -22,11 +22,7 @@ import com.chinasofti.huateng.common.utils.poi.ExcelUtil;
 import com.chinasofti.huateng.system.domain.SysConfig;
 import com.chinasofti.huateng.system.service.ISysConfigService;
 
-/**
- * 参数配置 信息操作处理
- * 
- * @author zmzhang
- */
+
 @RestController
 @RequestMapping("/system/config")
 public class SysConfigController extends BaseController
@@ -34,9 +30,7 @@ public class SysConfigController extends BaseController
     @Autowired
     private ISysConfigService configService;
 
-    /**
-     * 获取参数配置列表
-     */
+
     @PreAuthorize("@ss.hasPermi('system:config:list')")
     @GetMapping("/list")
     public TableDataInfo list(SysConfig config)
@@ -56,9 +50,7 @@ public class SysConfigController extends BaseController
         util.exportExcel(response, list, "参数数据");
     }
 
-    /**
-     * 根据参数编号获取详细信息
-     */
+
     @PreAuthorize("@ss.hasPermi('system:config:query')")
     @GetMapping(value = "/{configId}")
     public AjaxResult getInfo(@PathVariable Long configId)
@@ -66,18 +58,14 @@ public class SysConfigController extends BaseController
         return success(configService.selectConfigById(configId));
     }
 
-    /**
-     * 根据参数键名查询参数值
-     */
+
     @GetMapping(value = "/configKey/{configKey}")
     public AjaxResult getConfigKey(@PathVariable String configKey)
     {
         return success(configService.selectConfigByKey(configKey));
     }
 
-    /**
-     * 新增参数配置
-     */
+
     @PreAuthorize("@ss.hasPermi('system:config:add')")
     @Log(title = "参数管理", businessType = BusinessType.INSERT)
     @PostMapping
@@ -91,9 +79,7 @@ public class SysConfigController extends BaseController
         return toAjax(configService.insertConfig(config));
     }
 
-    /**
-     * 修改参数配置
-     */
+
     @PreAuthorize("@ss.hasPermi('system:config:edit')")
     @Log(title = "参数管理", businessType = BusinessType.UPDATE)
     @PutMapping
@@ -107,9 +93,7 @@ public class SysConfigController extends BaseController
         return toAjax(configService.updateConfig(config));
     }
 
-    /**
-     * 删除参数配置
-     */
+
     @PreAuthorize("@ss.hasPermi('system:config:remove')")
     @Log(title = "参数管理", businessType = BusinessType.DELETE)
     @DeleteMapping("/{configIds}")
@@ -119,9 +103,7 @@ public class SysConfigController extends BaseController
         return success();
     }
 
-    /**
-     * 刷新参数缓存
-     */
+
     @PreAuthorize("@ss.hasPermi('system:config:remove')")
     @Log(title = "参数管理", businessType = BusinessType.CLEAN)
     @DeleteMapping("/refreshCache")

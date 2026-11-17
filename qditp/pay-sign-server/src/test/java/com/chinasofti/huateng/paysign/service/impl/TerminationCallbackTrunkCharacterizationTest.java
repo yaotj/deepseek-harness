@@ -20,7 +20,6 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
-/** 护栏：解约回调主干的顺序（APP 通知先于通道清理）与 CAS 三分支的通知、留痕差异。 */
 class TerminationCallbackTrunkCharacterizationTest {
 
     private static final String ALIPAY_VENDOR = "03";
@@ -29,7 +28,6 @@ class TerminationCallbackTrunkCharacterizationTest {
     private static final String CARD_ID = "CARD-3";
     private static final String CARD_TYPE = "0441";
 
-    /** 成功主干：删签约 → 落 UNSIGNED 流水 → CAS 收口 → 置通道待投递 → 通知 APP → 投递通道清理。 */
     @Test
     void successTrunkClosesLocallyThenNotifiesBeforeDeliveringChannelSync() {
         PaySignFacadeFixture fixture = scanningFixture();
@@ -47,7 +45,6 @@ class TerminationCallbackTrunkCharacterizationTest {
                 .deliver(SEQ, USER, ALIPAY_VENDOR, CARD_ID, CARD_TYPE);
     }
 
-    /** 主干写的签约流水：SIGN_STATUS 是解约口径的 UNSIGNED，不是 SignStatus.FAILED 那个同名字面量。 */
     @Test
     void successTrunkWritesUnsignedSignLog() {
         PaySignFacadeFixture fixture = scanningFixture();
@@ -68,7 +65,6 @@ class TerminationCallbackTrunkCharacterizationTest {
         assertEquals("PENDING", trunkLog.getNotifyStatus());
     }
 
-    /** CAS 未命中且回查是 FAILED（expireScanning 抢先）：NEVER 补发成功通知、NEVER 置通道待投递。 */
     @Test
     void successConflictOnFailedSkipsNotifyAndMarksManualReview() {
         PaySignFacadeFixture fixture = scanningFixture();
@@ -86,7 +82,6 @@ class TerminationCallbackTrunkCharacterizationTest {
                 .markConflictForManualReview(anyString(), anyString(), anyString());
     }
 
-    /** CAS 未命中但回查已是 SUCCESS（另一路先收口）：同样不通知、不投递。 */
     @Test
     void successIdempotentSkipsNotifyWithoutManualReview() {
         PaySignFacadeFixture fixture = scanningFixture();
@@ -104,7 +99,6 @@ class TerminationCallbackTrunkCharacterizationTest {
                 .markConflictForManualReview(anyString(), anyString(), anyString());
     }
 
-    /** 失败主干：通知 APP 解约失败、NEVER 删签约记录、流水落 FAILED。 */
     @Test
     void failureTrunkNotifiesFailedAndKeepsSignInfo() {
         PaySignFacadeFixture fixture = scanningFixture();
@@ -125,7 +119,6 @@ class TerminationCallbackTrunkCharacterizationTest {
         assertEquals("FAILED", logs.get(logs.size() - 1).getSignStatus());
     }
 
-    /** 本次答复失败、库内已 SUCCESS：NEVER 发失败通知（会把「已解约」说成「解约失败」），MUST 留痕。 */
     @Test
     void failureConflictOnSuccessSkipsNotifyAndMarksManualReview() {
         PaySignFacadeFixture fixture = scanningFixture();
@@ -140,7 +133,6 @@ class TerminationCallbackTrunkCharacterizationTest {
                 .markFailureConflictForManualReview(anyString(), anyString(), anyString());
     }
 
-    /** 申请处于 SCANNING —— 这是进主干的唯一前置状态（白名单，不是「非终态即可」）。 */
     private PaySignFacadeFixture scanningFixture() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
         when(fixture.terminationRequestMapper.selectByRequestSignSeq(SEQ)).thenReturn(termination());
@@ -156,7 +148,6 @@ class TerminationCallbackTrunkCharacterizationTest {
         return request;
     }
 
-    /** cardId / cardType 刻意不塞进回调报文：主干 MUST 从解约申请表补齐（2026-09-09 事故）。 */
     private AppTerminationRequest termination() {
         AppTerminationRequest record = new AppTerminationRequest();
         record.setRequestSignSeq(SEQ);

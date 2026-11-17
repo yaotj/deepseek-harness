@@ -27,27 +27,18 @@ import com.chinasofti.huateng.quartz.domain.SysJobLog;
 import com.chinasofti.huateng.quartz.service.IJobTraceLogService;
 import com.chinasofti.huateng.quartz.service.ISysJobLogService;
 
-/**
- * 按 traceId 从 VictoriaLogs 反查一次调度执行的全链路日志。
- *
- * @author zmzhang
- */
+
 @Service
 public class JobTraceLogServiceImpl implements IJobTraceLogService
 {
     private static final Logger log = LoggerFactory.getLogger(JobTraceLogServiceImpl.class);
-    /** `AbstractQuartzJob.after()` 写进 job_message 的形态是 `，traceId=<32位hex>`。 */
     private static final Pattern TRACE_ID_PATTERN = Pattern.compile("traceId=([0-9a-fA-F]{32})");
 
-    /** 同一处写入的 `总共耗时：<n>毫秒`，用于把检索时间窗收窄到本次执行区间。 */
     private static final Pattern COST_PATTERN = Pattern.compile("耗时：(\\d+)毫秒");
 
-    /** 只给出 scheme://host:port 时补全的查询路径。 */
     private static final String DEFAULT_QUERY_PATH = "/select/logsql/query";
 
-    /**
-     * 复用单例：HttpClient 每 new 一个都会带起 selector 线程，按请求新建会在管理后台被反复点击时堆积。
-     */
+
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(3))
@@ -62,18 +53,13 @@ public class JobTraceLogServiceImpl implements IJobTraceLogService
     @Value("${vlogs.query-timeout-millis:8000}")
     private long queryTimeoutMillis;
 
-    /**
-     * 执行开始点**之前**再往前取多久。开始点本身已由「耗时」反推出来，这里只是覆盖时钟偏差，
-     * 所以不需要很大。
-     */
+
     @Value("${vlogs.query-window-before-millis:300000}")
     private long windowBeforeMillis;
 
-    /** 执行结束点**之后**再往后取多久。批处理型任务常在自己返回后下游仍在跑 */
     @Value("${vlogs.query-window-after-millis:1800000}")
     private long windowAfterMillis;
 
-    /** 不保证顺序，排序是本端拿到结果后再做的，所以截断是随机丢弃。放宽时间窗时这个值要同步跟上。 */
     @Value("${vlogs.query-limit:2000}")
     private int lineLimit;
 
@@ -113,7 +99,6 @@ public class JobTraceLogServiceImpl implements IJobTraceLogService
         return result;
     }
 
-    /** 调 VictoriaLogs `/select/logsql/query`。响应是 JSON Lines，每行一条日志事件。 */
     private List<JSONObject> query(String endpoint, String traceId, long startMillis, long endMillis)
     {
         String body = "query=" + URLEncoder.encode("traceId:\"" + traceId + "\"", StandardCharsets.UTF_8)
@@ -147,7 +132,6 @@ public class JobTraceLogServiceImpl implements IJobTraceLogService
         return parseLines(response.body());
     }
 
-    /** 按 `_time` 升序排列：VictoriaLogs 不保证返回顺序，前台要按时间读。 */
     private List<JSONObject> parseLines(String responseBody)
     {
         List<JSONObject> lines = new ArrayList<>();
@@ -175,7 +159,6 @@ public class JobTraceLogServiceImpl implements IJobTraceLogService
         return lines;
     }
 
-    /** 只给出 scheme://host:port 时补全查询路径，已带 `/select/` 的原样使用。 */
     private String normalizeEndpoint(String url)
     {
         if (StringUtils.isEmpty(url))

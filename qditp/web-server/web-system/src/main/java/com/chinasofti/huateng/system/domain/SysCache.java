@@ -2,23 +2,15 @@ package com.chinasofti.huateng.system.domain;
 
 import com.chinasofti.huateng.common.utils.StringUtils;
 
-/**
- * 缓存信息
- * 
- * @author zmzhang
- */
+
 public class SysCache
 {
-    /** 缓存名称 */
     private String cacheName = "";
 
-    /** 缓存键名 */
     private String cacheKey = "";
 
-    /** 缓存内容 */
     private String cacheValue = "";
 
-    /** 备注 */
     private String remark = "";
 
     public SysCache()

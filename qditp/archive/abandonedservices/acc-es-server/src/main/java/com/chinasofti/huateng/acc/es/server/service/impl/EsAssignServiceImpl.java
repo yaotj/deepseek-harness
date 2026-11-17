@@ -26,11 +26,7 @@ public class EsAssignServiceImpl implements IEsAssignService {
     @Value("${spring.application.name}")
     private String serverName;
 
-    /**
-     * 任务分配
-     * @param esAssign
-     * @return
-     */
+
     @Transactional(rollbackFor = Exception.class)
     @Override
     public ResultVO<?> save(TblTktEsAssign esAssign) {
@@ -42,23 +38,13 @@ public class EsAssignServiceImpl implements IEsAssignService {
         return ResultMapper.ok();
     }
 
-    /**
-     * 查询单个任务分配
-     * @param taskId
-     * @param esId
-     * @return
-     */
+
     @Override
     public ResultVO<?> assign(Integer taskId, String esId) {
         return ResultMapper.ok(esAssignMapper.queryById(taskId,esId));
     }
 
-    /**
-     * 根据taskNo和EsCode修改任务分配
-     * @param taskNo
-     * @param esNo
-     * @return
-     */
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ResultVO<?> updateByTaskNoAndEsCode(Integer taskNo, String esNo,TblTktEsAssign assign) {

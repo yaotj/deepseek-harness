@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** MyBatis 绑定与 SQL 可执行性验证。 */
 @SpringBootTest(classes = FacePayServer.class)
 @EnabledIfEnvironmentVariable(named = "DB_HOST", matches = ".+")
 class F2fMapperSmokeTest {
@@ -115,12 +114,7 @@ class F2fMapperSmokeTest {
         assertTrue(deviceStatusMapper.selectByChannel("02", "1").isEmpty());
     }
 
-    /**
-     * 运营端「设备心跳状态」页的三个查询。
-     *
-     * <p>与上面那条不同，这里只断言「在空库和有数据的库上都成立」的事实（不可能命中的关键字返回空、
-     * 汇总恒非空且自洽、取到的行字段都能映射上），因此可以在任何环境执行，不会因为库里恰好有设备而失败。
-     */
+
     @Test
     void devicePageQueriesExecute() {
         F2fDeviceStatusSummaryVO summary = deviceStatusMapper.selectDeviceSummary();

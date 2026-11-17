@@ -1,22 +1,14 @@
 package com.chinasofti.huateng.model.app.dailyticket;
 
-/**
- * 日票接口通用响应。
- */
+
 public class DailyTicketBaseResult {
-    /**
-     * 返回码，0000表示成功。
-     */
+
     private String retCode;
 
-    /**
-     * 返回信息。
-     */
+
     private String retMsg;
 
-    /**
-     * 扩展数据（扣次明细查询等场景使用）。
-     */
+
     private Object data;
 
     public String getRetCode() {

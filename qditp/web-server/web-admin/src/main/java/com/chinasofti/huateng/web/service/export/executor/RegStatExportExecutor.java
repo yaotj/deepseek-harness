@@ -14,9 +14,7 @@ import com.chinasofti.huateng.web.domain.export.AsyncExportTask;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 
-/**
- * 注册量统计异步导出执行器。
- */
+
 @Component("REG_STAT")
 public class RegStatExportExecutor extends AbstractExcelExportExecutor
 {

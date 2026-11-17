@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.para.entity.network;
 
-/**
- * 区域车站参数表 TBL_ZONE_DTL。
- */
+
 public class ZoneDtl {
     private Long paraVerNo;
     private Integer zoneNo;

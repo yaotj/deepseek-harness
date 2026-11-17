@@ -23,16 +23,7 @@ public class BizDataExtractor {
         this.objectMapper = objectMapper;
     }
 
-    /**
-     * Fast path: direct字符串扫描 "thirdUserId"。失败返回 null。
-     *
-     * <p>优先顺序：
-     * <ol>
-     *   <li>FormDataCacheFilter 写入的请求属性 {@code route-sentinel.thirdUserId}；</li>
-     *   <li>{@code ServerRequest.param("bizData")}（query string）；</li>
-     *   <li>{@code HttpServletRequest.getParameter("bizData")}（form body）。</li>
-     * </ol>
-     */
+
     public String extractThirdUserIdFast(ServerRequest request) {
         Object cached = request.attribute(RequestConstants.THIRD_USER_ID_ATTR).orElse(null);
         if (cached instanceof String thirdUserId && !thirdUserId.isBlank()) {
@@ -46,11 +37,7 @@ public class BizDataExtractor {
         return (value == null || value.isBlank()) ? null : value;
     }
 
-    /**
-     * Fast path: direct字符串扫描 "cardId"。失败返回 null。
-     *
-     * <p>优先顺序与 {@link #extractThirdUserIdFast(ServerRequest)} 一致。
-     */
+
     public String extractCardIdFast(ServerRequest request) {
         Object cached = request.attribute(RequestConstants.CARD_ID_ATTR).orElse(null);
         if (cached instanceof String cardId && !cardId.isBlank()) {
@@ -64,11 +51,7 @@ public class BizDataExtractor {
         return (value == null || value.isBlank()) ? null : value;
     }
 
-    /**
-     * Fast path: direct字符串扫描 "orderNo"（TVM 取票/出票上报）。失败返回 null。
-     *
-     * <p>优先顺序与 {@link #extractThirdUserIdFast(ServerRequest)} 一致。
-     */
+
     public String extractOrderNoFast(ServerRequest request) {
         Object cached = request.attribute(RequestConstants.ORDER_NO_ATTR).orElse(null);
         if (cached instanceof String orderNo && !orderNo.isBlank()) {
@@ -82,11 +65,7 @@ public class BizDataExtractor {
         return (value == null || value.isBlank()) ? null : value;
     }
 
-    /**
-     * Fast path: direct字符串扫描 "randomFact"（取票二维码随机因子）。失败返回 null。
-     *
-     * <p>优先顺序与 {@link #extractThirdUserIdFast(ServerRequest)} 一致。
-     */
+
     public String extractRandomFactFast(ServerRequest request) {
         Object cached = request.attribute(RequestConstants.RANDOM_FACT_ATTR).orElse(null);
         if (cached instanceof String randomFact && !randomFact.isBlank()) {

@@ -2,89 +2,55 @@ package com.chinasofti.huateng.alipay.account.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * ALIPAY_USER_INFO 支付宝用户信息表实体。
- */
+
 public class AlipayUserInfo {
 
-    /**
-     * 支付宝用户ID（主键）。
-     */
+
     private String thirdUserId;
 
-    /**
-     * 逻辑卡号。
-     */
+
     private String cardId;
 
-    /**
-     * 卡类型编码。
-     */
+
     private String cardType;
 
-    /**
-     * 发卡渠道代码，固定 0007。
-     */
+
     private String cardIssueCode;
 
-    /**
-     * 手机号。
-     */
+
     private String msisdn;
 
-    /**
-     * 扩展字段1。
-     */
+
     private String extend1;
 
-    /**
-     * 扩展字段2。
-     */
+
     private String extend2;
 
-    /**
-     * 开户渠道编码。
-     */
+
     private String channel;
 
-    /**
-     * 第三方支付ID。
-     */
+
     private String thirdPayId;
 
-    /**
-     * 签约请求号。
-     */
+
     private String reqContractNo;
 
-    /**
-     * 用户状态。
-     */
+
     private String status;
 
-    /**
-     * 删除标记（0:正常 1:删除）。
-     */
+
     private String deleteFlag;
 
-    /**
-     * 乐观锁版本号。
-     */
+
     private String version;
 
-    /**
-     * 创建时间。
-     */
+
     private LocalDateTime createTime;
 
-    /**
-     * 更新时间。
-     */
+
     private LocalDateTime updateTime;
 
-    /**
-     * 创建人。
-     */
+
     private String createBy;
 
     public String getThirdUserId() {

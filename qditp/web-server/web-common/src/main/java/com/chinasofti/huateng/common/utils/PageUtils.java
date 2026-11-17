@@ -5,16 +5,10 @@ import com.chinasofti.huateng.common.core.page.PageDomain;
 import com.chinasofti.huateng.common.core.page.TableSupport;
 import com.chinasofti.huateng.common.utils.sql.SqlUtil;
 
-/**
- * 分页工具类
- * 
- * @author zmzhang
- */
+
 public class PageUtils extends PageHelper
 {
-    /**
-     * 设置请求分页数据
-     */
+
     public static void startPage()
     {
         PageDomain pageDomain = TableSupport.buildPageRequest();
@@ -25,9 +19,7 @@ public class PageUtils extends PageHelper
         PageHelper.startPage(pageNum, pageSize, orderBy).setReasonable(reasonable);
     }
 
-    /**
-     * 清理分页的线程变量
-     */
+
     public static void clearPage()
     {
         PageHelper.clearPage();

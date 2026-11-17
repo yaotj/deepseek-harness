@@ -11,11 +11,7 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.DelimiterBasedFrameDecoder;
 import io.netty.handler.codec.Delimiters;
 
-/**
- * Netty服务端编写
- *
- * @author Administrator
- */
+
 public class NettyServer {
 
     public static void main(String[] args) throws InterruptedException {

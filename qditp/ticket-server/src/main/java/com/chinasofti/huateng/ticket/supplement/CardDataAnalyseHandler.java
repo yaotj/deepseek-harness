@@ -21,13 +21,11 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
-/** IF5A-01 票卡分析：按票卡状态给 BOM 返回建议操作与付费更新的预估金额。 */
 @Component
 class CardDataAnalyseHandler {
 
     private static final Logger log = LoggerFactory.getLogger(CardDataAnalyseHandler.class);
 
-    /** QRCODE_STATUS 只读访问。 */
     @Autowired
     private QRCodeStatusStore qrCodeStatusStore;
 
@@ -80,7 +78,6 @@ class CardDataAnalyseHandler {
 
         String transAmount = SupplementCodec.AMOUNT_ZERO;
         if (adviceOpt.contains(AdviceOptEnum.PAID_UPDATE.getCode())) {
-            // 付费更新报价基线：进站站 → BOM 所属站（本次更新站），而非 lastTxnStation（开环态恒等于进站站）
             transAmount = estimatePayAmount(gateInStation, bomStationCode, cardId);
         }
         response.setTransAmount(transAmount);
@@ -111,7 +108,6 @@ class CardDataAnalyseHandler {
         return response;
     }
 
-    /** 查询车站所属线路号，查不到返回空串。 */
     private String queryLineCode(String stationCode, String cardId) {
         if (stateRules.isUnknownStation(stationCode)) {
             return "";
@@ -125,7 +121,6 @@ class CardDataAnalyseHandler {
         return SupplementCodec.defaultString(lineResult.getLineCode(), "");
     }
 
-    /** 付费更新（{@code 006}）的预估报价，报价基线为「进站站 → 本次更新站（BOM 所属站）」。 */
     private String estimatePayAmount(String gateInStation, String exitStation, String cardId) {
         if (stateRules.isUnknownStation(exitStation)) {
             log.warn("IF5A-01 更新站未知，付费更新预估按 0 元返回，实扣以 IF5A-03 重算为准, cardId={}", cardId);
@@ -134,7 +129,6 @@ class CardDataAnalyseHandler {
         return fareQuery.query(gateInStation, exitStation, "IF5A-01").priceOrZero();
     }
 
-    /** 查询用户信息，把 msisdn / cardIssueDate 写进 response。 */
     private void queryUserInfo(String cardId, RequestCardDataAnalyseRespDTO response) {
         if (applyAccountUserInfo(cardId, response)) {
             return;
@@ -142,10 +136,7 @@ class CardDataAnalyseHandler {
         applyAlipayPhone(cardId, response);
     }
 
-    /**
-     * account 域（{@code USER_ITP_REG_INFO}）补 msisdn 与 cardIssueDate，返回是否拿到手机号。
-     * cardIssueDate 只有这一个数据源，支付宝出行账户域没有对应字段。
-     */
+
     private boolean applyAccountUserInfo(String cardId, RequestCardDataAnalyseRespDTO response) {
         QueryUserInfoResult cardTypeResult = accountClient.queryCardTypeByCardId(cardId);
         if (cardTypeResult == null || !SupplementCodec.RET_SUCCESS.equals(cardTypeResult.getRetCode())
@@ -164,13 +155,7 @@ class CardDataAnalyseHandler {
         return true;
     }
 
-    /**
-     * account 域拿不到手机号时，回落支付宝出行账户域（{@code ALIPAY_USER_INFO}）按卡号补 msisdn，
-     * 与 IF1A-01 的 {@code GateCardTypeEnricher} 同一判据：看卡在哪个域里查得到。
-     * NEVER 改回按报文 {@code providerId} 分流 —— 那个字段是设备编码
-     * （{@code 01} APP / {@code 02} TVM / {@code 03} BOM / {@code 04} AGM / {@code 05} ACC
-     * / {@code 06} ITP / {@code 07} STT），不是发卡渠道，BOM 恒送 {@code 03}，支付宝分支永不触发。
-     */
+
     private void applyAlipayPhone(String cardId, RequestCardDataAnalyseRespDTO response) {
         AlipayUserInfoDTO alipayUser = alipayAccountClient.selectByCardId(cardId);
         if (alipayUser == null || !StringUtils.hasText(alipayUser.getPhone())) {

@@ -2,33 +2,19 @@ package com.chinasofti.huateng.alipay.paysign.model.request;
 
 import java.util.Map;
 
-/**
- * 支付中心网关请求封装。
- */
+
 public class PayCenterRequest {
-    /**
-     * 商户号。
-     */
+
     private String merchantNo;
-    /**
-     * API版本。
-     */
+
     private String apiVersion;
-    /**
-     * 签名类型。
-     */
+
     private String signType;
-    /**
-     * 字符集。
-     */
+
     private String charset;
-    /**
-     * 业务数据（JSON字符串）。
-     */
+
     private String bizData;
-    /**
-     * 签名。
-     */
+
     private String sign;
 
     public String getMerchantNo() {

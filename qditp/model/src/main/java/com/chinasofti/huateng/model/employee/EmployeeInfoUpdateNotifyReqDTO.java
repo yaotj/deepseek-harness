@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.employee;
 
-/**
- * ACC 员工信息变更通知。
- */
+
 public class EmployeeInfoUpdateNotifyReqDTO {
     private String company;
     private String center;

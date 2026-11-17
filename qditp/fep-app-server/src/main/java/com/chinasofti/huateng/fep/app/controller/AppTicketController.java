@@ -21,9 +21,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * APP 票务域接口入口。
- */
+
 @RestController
 public class AppTicketController extends BaseAppController {
     private static final Logger log = LoggerFactory.getLogger(AppTicketController.class);
@@ -70,9 +68,7 @@ public class AppTicketController extends BaseAppController {
         return ticketAppService.requestTransStatistics(parseBizData(request, RequestTransStatisticsReqDTO.class));
     }
 
-    /**
-     * 实名查询 Mock 桩，契约待确认。
-     */
+
     @PostMapping("/app/ticket/realName")
     public CommonResult realName(@ModelAttribute ItpCommonFormRequest request) {
         log.info("实名查询(Mock 桩, 契约待确认), 请求参数: {}", request);

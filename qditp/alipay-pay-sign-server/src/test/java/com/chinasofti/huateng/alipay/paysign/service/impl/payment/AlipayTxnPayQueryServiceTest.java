@@ -23,15 +23,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住 {@link AlipayTxnPayQueryService} 的回写口径。
- *
- * <p>核心断言只有一条：<b>什么情况下允许动 {@code PAY_STATUS}</b>。
- * 只有「查询成立（{@code retCode == SUCCESS}）且交易状态可判定」才回写，其余五种形态
- * （网关业务拒绝 / 交易状态是中间态 / 交易状态缺失 / {@code Rejected} / {@code NoAnswer}）
- * <b>一律不回写</b> —— 把它们当失败会让单子被误判成扣款失败、既不回查也不补偿，是资损路径。
- * <b>NEVER 为了「让状态尽快收敛」把其中任何一支改成落 FAIL。</b>
- */
+
 class AlipayTxnPayQueryServiceTest {
 
     private static final String ORDER_NO = "GT20260918021300000000001";

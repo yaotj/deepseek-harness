@@ -17,14 +17,12 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 
-/** APP 侧乘车码状态服务实现。 */
 @Service
 public class TicketRideStatusServiceImpl implements TicketRideStatusService {
 
     private static final String INITIAL_TIME = "00000000000000";
     private static final String INITIAL_TXN_SEQ = "0";
 
-    /** 复位时的交易金额。 */
     private static final Long INITIAL_TRX_AMOUNT = 0L;
 
     private final String defaultChannel;
@@ -33,12 +31,10 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
     private final String defaultLastTxnStation;
     private final String defaultGateInStation;
 
-    /** QRCODE_STATUS 的唯一访问口。 */
     private final QRCodeStatusStore qrCodeStatusStore;
     private final QRCodeTxnDetailMapper qrCodeTxnDetailMapper;
     private final MemberItineraryAssembler memberItineraryAssembler;
 
-    /** 五个默认值走构造器注入而非字段注入，使本类可脱离 Spring 直接单测。 */
     public TicketRideStatusServiceImpl(QRCodeStatusStore qrCodeStatusStore,
                                        QRCodeTxnDetailMapper qrCodeTxnDetailMapper,
                                        MemberItineraryAssembler memberItineraryAssembler,
@@ -116,9 +112,6 @@ public class TicketRideStatusServiceImpl implements TicketRideStatusService {
         QRCodeTxnDetail latestDetail = qrCodeTxnDetailMapper.selectLatestByCardId(request.getCardNum());
         MemberItineraryDTO itinerary = memberItineraryAssembler.assemble(currentStatus, latestDetail);
         response.setMemberItinerary(itinerary);
-        // 8911 仅表示「进出都没有」——该卡没有任何过闸明细。有交易（刚进站 / 刚出站）一律 0000，
-        // 即便上次站点是建行哨兵 FFFF（首次进站场景）也不算 8911：哨兵已由装配器归一为空串。
-        // 2026-11-16 业主裁决收窄口径，推翻 D166 时代「lastStation 哨兵即 8911」的判据。
         if (latestDetail == null) {
             response.setRetCode(TicketErrorCodeEnum.LAST_ITINERARY_EMPTY.getCode());
             response.setRetMsg(TicketErrorCodeEnum.LAST_ITINERARY_EMPTY.getMsg());

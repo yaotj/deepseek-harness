@@ -8,12 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-/**
- * {@link DebitSyncPort} 的唯一实现：rpc DTO 装配 + {@code retCode} → {@link RpcOutcome} 翻译（ADR-D131）。
- *
- * <p>映射规则：{@code retCode == "0000"} → {@code Ok}；对端答了别的码 → {@code BizRejected}；
- * 响应为 {@code null} 或抛异常 → {@code Unreachable}。</p>
- */
+
 @Component
 public class DebitSyncRpcAdapter implements DebitSyncPort {
 
@@ -34,7 +29,6 @@ public class DebitSyncRpcAdapter implements DebitSyncPort {
         try {
             GateTxnPayRespDTO response = gateTxnPayClient.syncDebitStatus(request);
             if (response == null) {
-                // 空响应体等于「没答上」，与业务拒绝不同：可重试。
                 log.error("扣费订单状态同步无响应体（可重试）, orderNo={}, payStatus={}", orderNo, payStatus);
                 return new RpcOutcome.Unreachable(new IllegalStateException("gate-txn-pay 响应为空"));
             }

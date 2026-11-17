@@ -8,12 +8,10 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigInteger;
 
-/** 设备上送 {@code itpUserId} 的编码转换：十六进制转十进制并按渠道补齐零位。 */
 @Component
 public class DeviceUserIdCodec {
     private static final Logger log = LoggerFactory.getLogger(DeviceUserIdCodec.class);
 
-    /** 将十六进制 itpUserId 转换为十进制字符串，并补齐到该渠道要求的位数。 */
     public String normalize(String itpUserId, String issueChannelCode) {
         if (!StringUtils.hasText(itpUserId)) {
             return itpUserId;
@@ -28,7 +26,6 @@ public class DeviceUserIdCodec {
         return leftPad(decimal, IssueChannelCodeEnum.thirdUserIdLength(issueChannelCode));
     }
 
-    /** 左侧补零至指定长度，已满足长度或为空时原值返回。 */
     private String leftPad(String value, int length) {
         if (!StringUtils.hasText(value) || value.length() >= length) {
             return value;

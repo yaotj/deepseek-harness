@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
-/** 支付网关适配器。 */
 @Component
 public class PayGatewayClient {
     private static final Logger log = LoggerFactory.getLogger(PayGatewayClient.class);
@@ -44,11 +43,7 @@ public class PayGatewayClient {
                 .build();
     }
 
-    /**
-     * 调用支付网关。传输或协议异常以 {@code PayGatewayException} 抛出，由调用方处理。
-     *
-     * @param url 支付中心接口的完整 URL，取自 {@code pay.sign.*-url} 配置
-     */
+
     public PaySignGatewayResponse request(String url, Map<String, Object> bizData) {
         if (!StringUtils.hasText(url)) {
             throw new PayGatewayException("支付网关接口地址未配置");
@@ -74,12 +69,10 @@ public class PayGatewayClient {
         }
     }
 
-    /** 判断支付网关标准成功码。 */
     public boolean isSuccess(PaySignGatewayResponse response) {
         return response != null && (Integer.valueOf(0).equals(response.getCode()) || SUCCESS_CODE.equals(response.getCode()));
     }
 
-    /** 返回网关错误信息；网关无可用错误时使用调用方提供的语义化默认文案。 */
     public String errorMessage(PaySignGatewayResponse response, String defaultMessage) {
         return response == null || !StringUtils.hasText(response.getMsg()) ? defaultMessage : response.getMsg();
     }

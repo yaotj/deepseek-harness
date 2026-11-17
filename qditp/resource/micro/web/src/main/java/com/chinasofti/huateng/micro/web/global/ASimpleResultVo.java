@@ -13,9 +13,7 @@ public class ASimpleResultVo<T> implements Serializable {
     public ASimpleResultVo() {
     }
 
-    /**
-     * 当作为 WebClient 调用的返回对象时，判断是否获取了下游目标服务的返回报文。
-     */
+
     public boolean checkNetWorkErr() {
         if (retCode != null && retCode.equals(NET_WORK_ERR)) {
             return true;
@@ -23,9 +21,7 @@ public class ASimpleResultVo<T> implements Serializable {
         return false;
     }
 
-    /**
-     * 当作为 WebClient 调用的返回对象时，判断参数是否映射了值。
-     */
+
     public boolean checkNotMapping() {
         if (retCode == null && data == null && retMsg == null) {
             return true;

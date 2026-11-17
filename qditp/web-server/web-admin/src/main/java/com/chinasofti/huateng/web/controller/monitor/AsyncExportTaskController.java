@@ -29,24 +29,19 @@ import com.chinasofti.huateng.common.utils.file.FileUtils;
 import com.chinasofti.huateng.web.domain.export.AsyncExportTask;
 import com.chinasofti.huateng.web.service.export.IAsyncExportTaskService;
 
-/**
- * 异步导出任务管理
- */
+
 @RestController
 @RequestMapping("/monitor/async-export")
 public class AsyncExportTaskController extends BaseController
 {
     private static final Logger log = LoggerFactory.getLogger(AsyncExportTaskController.class);
 
-    /** 异步导出文件落盘目录，须与 web-admin.yaml 中 app-logs-v2 PVC 挂载点一致 */
     public static final String EXPORT_DIR = "/home/javaapp/app/export/";
 
     @Autowired
     private IAsyncExportTaskService asyncExportTaskService;
 
-    /**
-     * 查询异步导出任务列表
-     */
+
     @PreAuthorize("@ss.hasPermi('monitor:async-export:query')")
     @GetMapping("/list")
     public TableDataInfo list(AsyncExportTask task)
@@ -56,9 +51,7 @@ public class AsyncExportTaskController extends BaseController
         return getDataTable(list);
     }
 
-    /**
-     * 提交异步导出任务（幂等：同用户同条件同编码的 PENDING 任务只保留一条）
-     */
+
     @PreAuthorize("@ss.hasPermi('monitor:async-export:submit')")
     @Log(title = "异步导出任务", businessType = BusinessType.INSERT)
     @PostMapping("/submit")
@@ -98,9 +91,7 @@ public class AsyncExportTaskController extends BaseController
         return ajax;
     }
 
-    /**
-     * 下载生成的导出文件
-     */
+
     @PreAuthorize("@ss.hasPermi('monitor:async-export:download')")
     @GetMapping("/download/{taskId}")
     public void download(@PathVariable Long taskId, HttpServletResponse response)

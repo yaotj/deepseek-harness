@@ -40,17 +40,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 退款领域服务：退款发起（支付 API 3.1）与两套退款补偿的真实现。 */
 @Service
 public class RefundDomainServiceImpl implements RefundDomainService {
     private static final Logger log = LoggerFactory.getLogger(RefundDomainServiceImpl.class);
 
     private final PayTxnDetailMapper payTxnDetailMapper;
     private final PayRefundDetailMapper payRefundDetailMapper;
-    /** 支付中心**退款方向**出向调用的唯一出口（2026-09-16，ADR-D113 续）。 */
     private final RefundGatewayPort refundGatewayPort;
 
-    /** 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备。 */
     public RefundDomainServiceImpl(
             PayTxnDetailMapper payTxnDetailMapper,
             PayRefundDetailMapper payRefundDetailMapper,
@@ -60,8 +57,6 @@ public class RefundDomainServiceImpl implements RefundDomainService {
         this.refundGatewayPort = refundGatewayPort;
     }
 
-    /** 支付 API 3.1 请求退款。 */
-    /** 本方法 NEVER 加回 @Transactional（批次 5B / 2026-09-15 摘除，ADR-D8 三件套同批完成）。 */
     @Override
     public RequestRefundResult requestRefund(RequestRefundReqDTO request) {
         RequestRefundResult response = new RequestRefundResult();
@@ -134,23 +129,7 @@ public class RefundDomainServiceImpl implements RefundDomainService {
         }
     }
 
-    /**
-     * 请求退款被支付中心拒（活样例 {@code code=600「操作失败」}）时的收口：
-     * **MUST 调 §3.2 退款查询回查真实结果，NEVER 直接按失败落账**。
-     *
-     * <p>2026-09-22 实测事实：同一笔 {@code code=600} 的退款，隔日回查支付中心返「该订单已全部退款」
-     * —— 即**同步应答的失败码不代表退款没成功**。此前这里写的是 {@code updateRefundRequestResult(..., "RETRY", ...)}，
-     * 于是每一笔 600 都在 {@code PAY_REFUND_DETAIL} 留下一条**假失败**，而 {@code RETRY} 当时
-     * **谁都不扫**（{@code selectCompensableRefundQuery} 只取 {@code PROCESSING}、
-     * {@code selectDriftedRefundSummary} 只取 {@code SUCCESS}）⇒ 永久悬挂、不自愈。</p>
-     *
-     * <p>因此未得终态时一律落 {@code PROCESSING} 交给 {@code sys_job} 305「退款回查补偿」，
-     * **NEVER 回退成 {@code RETRY}**。回查本身抛异常也只降级成 {@code PROCESSING}、NEVER 打断调用方。</p>
-     *
-     * <p>注：{@code RETRY} 已于 2026-09-22 纳入 {@code selectCompensableRefundQuery} 的状态白名单
-     * （为了捞回那 17 行历史遗留），但**那只是给旧数据补的收口通道，不是让新代码可以再写它** ——
-     * 新写入仍 MUST 是 {@code PROCESSING}。</p>
-     */
+
     private void settleRejectedRequestByQuery(PayRefundDetail refundDetail, PayTxnDetail payTxn,
                                               RequestRefundResult response, PaySignGatewayResponse gatewayResponse) {
         if (!refundGatewayPort.refundQueryConfigured()) {
@@ -203,13 +182,7 @@ public class RefundDomainServiceImpl implements RefundDomainService {
                 refundDetail.getOrderNo(), refundDetail.getRefundOrderNo(), summaryAffected);
     }
 
-    /**
-     * 只读回查支付中心 §3.2，把网关原始应答原样带回，用于给「我方账不平」的退款单逐笔定性。
-     *
-     * <p>**本方法 NEVER 写库**：它存在的意义就是在不动账本的前提下拿到支付中心的真实口径
-     * （2026-09-22 那 4 笔持续返「该订单已全部退款」就是靠它定性的）。要推进状态走
-     * {@code POST /internal/payment/compensateRefundQuery}。</p>
-     */
+
     @Override
     public BaseRespDTO queryRefundResult(String refundOrderNo) {
         BaseRespDTO response = new BaseRespDTO();
@@ -242,22 +215,7 @@ public class RefundDomainServiceImpl implements RefundDomainService {
         }
     }
 
-    /**
-     * 支付中心网关 §5.2 退款回调（2026-09-22 新增，P1-3）。
-     *
-     * <p>与 {@link #compensateRefundQuery()} 是**同一个收口口径的两条路**：回调是快速路径、回查是兜底，
-     * 两者复用同一条 {@code finishFromQuery} CAS，**NEVER 给回调另写一条 UPDATE**。</p>
-     *
-     * <p>三条易错口径：①定位本地行只能靠 {@code outRefundNo}（我方 {@code REFUND_ORDER_NO}），
-     * {@code refundNo} 是支付中心自己的号、{@code orderNo} 是支付中心的 {@code PAY_CENTER_ORDER_NO}；
-     * ②回调报文**不带 {@code txnDate}**，而表键是 {@code REFUND_ORDER_NO + TXN_DATE}，
-     * 所以 MUST 先 {@code selectByRefundOrderNo} 取回 {@code TXN_DATE} 再做 CAS；
-     * ③非终态（处理中）**一律只应答成功、不写库**，交 {@code sys_job} 305 收口 ——
-     * 把处理中写进状态列会毁掉 CAS 的前置状态白名单。</p>
-     *
-     * <p>CAS 命中 0 行时**仍应答成功**：那说明这一行已被回查收口，属正常竞态；
-     * 返错只会引来支付中心重推。本方法 NEVER 加 {@code @Transactional}（ADR-D48 / ADR-D8）。</p>
-     */
+
     @Override
     public PaySignCallbackResult receiveRefundResult(ReceiveRefundResultReqDTO request) {
         PaySignCallbackResult response = new PaySignCallbackResult();
@@ -321,39 +279,17 @@ public class RefundDomainServiceImpl implements RefundDomainService {
         }
     }
 
-    /** 退款回查的扫描窗口（天）：只回查最近 N 天的 TXN_DATE，同时用于分区裁剪。 */    private static final int REFUND_QUERY_SCAN_DAYS = 7;
+        private static final int REFUND_QUERY_SCAN_DAYS = 7;
 
-    /** 距最近一次发起退款至少多少分钟才回查，避开正常同步应答的时间窗。 */
     private static final int REFUND_QUERY_STALE_MINUTES = 5;
 
-    /** 未得终态时的退避间隔（秒），写进 NEXT_REQUEST_TIME。 */
     private static final int REFUND_QUERY_RETRY_DELAY_SECONDS = 300;
 
-    /**
-     * 回查放弃龄期（小时）：退款单创建超过该时长仍拿不到终态，即落 {@code CLOSED} 转人工。
-     *
-     * <p>**为什么必须有这道闸**：在它之前，唯一的退出条件是 {@code TXN_DATE} 掉出
-     * {@link #REFUND_QUERY_SCAN_DAYS} 天窗口 —— 那不是状态收敛、是**静默消失**：
-     * 行永久停在 {@code PROCESSING}，而端点每轮照返 {@code 0000}、调度日志一片绿，既不报警也不自愈
-     * （2026-09-22 实测样例 {@code RF2026092211305514180000104}：支付中心 §3.1 返「该订单已全部退款」、
-     * §3.2 回查却返「未找到数据」，两个应答互斥，回查再跑一万次也拿不到终态）。
-     *
-     * <p>**为什么按龄期而不是按次数**：{@code REQUEST_COUNT} 计的是「发起退款次数」
-     * （{@code markRequesting} 在发起时 +1，全库 89 行恒为 1），把回查轮次也累加进去会毁掉那一列的语义 ——
-     * 而「这笔退款请求发了几次」正是排查重复退款时要看的信息。
-     * 龄期还有一个好处：**与调度频率解耦**，`sys_job` 305 停过一段时间再恢复，超龄行会立刻被判定，
-     * 而次数上限在停摆期间不会推进。
-     *
-     * <p>取 6 小时：远大于退避间隔 300 秒 × 调度周期 10 分钟所能覆盖的正常收敛窗口，
-     * 又能在当班时间内暴露出来。**NEVER 调到大于 {@link #REFUND_QUERY_SCAN_DAYS} 天** ——
-     * 那样行会先掉出扫描窗口，这道闸就永远不触发。
-     */
+
     private static final int REFUND_QUERY_GIVE_UP_HOURS = 6;
 
-    /** 单轮扫描上限，与解约侧的 BATCH_SIZE 口径一致。 */
     private static final int REFUND_QUERY_BATCH_SIZE = 200;
 
-    /** 退款回查补偿（批次 5B 新增，与 requestRefund 摘事务同批 —— ADR-D8 要求「移出事务 + 落状态 + 补偿」一起做完）。 */
     @Override
     public CompensateNotifyRespDTO compensateRefundQuery() {
         CompensateNotifyRespDTO response = new CompensateNotifyRespDTO();
@@ -391,14 +327,9 @@ public class RefundDomainServiceImpl implements RefundDomainService {
         }
     }
 
-    /**
-     * 回查一笔停在 {@code PROCESSING} 的退款并尝试收口。
-     *
-     * @return {@code true} 仅当「支付中心给出终态」且「CAS 真的推进了这一行」
-     */
+
     private boolean settleRefundByQuery(PayRefundDetail row) {
         Map<String, Object> bizData = new LinkedHashMap<>();
-        // MUST 同时送 merchantRefundNo 与 refundOrderNo（ADR-D92 实测：只送 refundOrderNo 返 9999）。
         bizData.put("refundOrderNo", row.getRefundOrderNo());
         bizData.put("merchantRefundNo", row.getRefundOrderNo());
         GatewayReply queryReply = refundGatewayPort.queryRefund(bizData);
@@ -453,12 +384,7 @@ public class RefundDomainServiceImpl implements RefundDomainService {
         return true;
     }
 
-    /**
-     * 这一行是否已超过 {@link #REFUND_QUERY_GIVE_UP_HOURS}、该放弃自动定性。
-     *
-     * <p>{@code CREATE_TIME} 为空时**返回 false**（继续回查）：宁可多查几轮，
-     * 也 NEVER 因为缺一个时间戳就把一笔可能已退成功的单判成需人工。
-     */
+
     private boolean exceededGiveUpAge(PayRefundDetail row) {
         LocalDateTime createTime = row.getCreateTime();
         if (createTime == null) {
@@ -467,13 +393,7 @@ public class RefundDomainServiceImpl implements RefundDomainService {
         return createTime.isBefore(LocalDateTime.now().minusHours(REFUND_QUERY_GIVE_UP_HOURS));
     }
 
-    /**
-     * 超过放弃龄期：落 {@code CLOSED} 并打 ERROR 要求人工到支付中心侧核账。
-     *
-     * <p>**NEVER 改成落 {@code FAIL} 或 {@code SUCCESS}** —— 放弃的语义是「我方无法自动定性」，
-     * 猜任一端都会让对账按错的方向走（猜 {@code FAIL} 会引来重复退款，猜 {@code SUCCESS} 会虚增已退金额）。
-     * CAS 命中 0 行说明已被别的路径收口，属正常竞态、只记日志。
-     */
+
     private void settleExhausted(PayRefundDetail row, GatewayReply queryReply) {
         PaySignGatewayResponse gatewayResponse = queryReply == null ? null : queryReply.raw();
         String payCenterCode = gatewayResponse == null || gatewayResponse.getCode() == null
@@ -493,12 +413,7 @@ public class RefundDomainServiceImpl implements RefundDomainService {
                 row.getRefundAmount(), row.getCreateTime(), payCenterCode, payCenterMsg);
     }
 
-    /**
-     * §3.2 退款查询应答的 {@code refundAmount}（Integer、单位分）与本地 {@code PAY_REFUND_DETAIL.REFUND_AMOUNT} 比对。
-     *
-     * <p>不一致只打 WARN、**NEVER 阻断收口** —— 部分退款口径未定，拒绝收口会让退款单永久停在 {@code PROCESSING}；
-     * 解析不出数字同样只打 WARN。</p>
-     */
+
     private void warnIfRefundAmountMismatch(PayRefundDetail row, Object queriedAmount) {
         if (queriedAmount == null) {
             return;
@@ -521,7 +436,6 @@ public class RefundDomainServiceImpl implements RefundDomainService {
         }
     }
 
-    /** 把 §3.2 退款查询应答里的 {@code status} 归一成本地终态，无法判定时返回 {@code null}。 */
     private String resolveRefundQueryStatus(GatewayReply reply) {
         if (!(reply instanceof GatewayReply.Accepted accepted) || accepted.data() == null) {
             return null;
@@ -537,13 +451,10 @@ public class RefundDomainServiceImpl implements RefundDomainService {
         return null;
     }
 
-    /** 退款汇总跨表对账的扫描窗口（天）：只对最近 N 天的 TXN_DATE，同时用于分区裁剪。 */
     private static final int REFUND_SUMMARY_SCAN_DAYS = 7;
 
-    /** 单轮扫描上限，与退款回查侧的 BATCH_SIZE 口径一致。 */
     private static final int REFUND_SUMMARY_BATCH_SIZE = 200;
 
-    /** 退款汇总跨表对账补偿：把 {@code PAY_TXN_DETAIL} 的两列汇总重算回与。 */
     @Override
     public CompensateNotifyRespDTO compensateRefundSummary() {
         CompensateNotifyRespDTO response = new CompensateNotifyRespDTO();
@@ -600,7 +511,6 @@ public class RefundDomainServiceImpl implements RefundDomainService {
         update.setResponseBody(JSON.toJSONString(gatewayResponse));
         payRefundDetailMapper.updateRequestResult(update);
     }
-    /** 入参由应答体换成 {@link GatewayReply}（ADR-D113 续）：成功码判定已收进端口。 */
     private void fillGatewayFields(RequestRefundResult response, GatewayReply reply) {
         PaySignGatewayResponse gatewayResponse = reply == null ? null : reply.raw();
         if (gatewayResponse == null) {

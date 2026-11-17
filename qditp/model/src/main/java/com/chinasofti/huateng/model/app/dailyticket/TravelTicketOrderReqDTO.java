@@ -1,42 +1,26 @@
 package com.chinasofti.huateng.model.app.dailyticket;
 
-/**
- * IF8A-70 请求旅游票下单请求参数。
- */
+
 public class TravelTicketOrderReqDTO {
-    /**
-     * 票卡类型，APP侧取值。
-     */
+
     private String cardType;
 
-    /**
-     * APP用户编号。
-     */
+
     private String userId;
 
-    /**
-     * 单张票价，单位分。
-     */
+
     private Integer ticketPrice;
 
-    /**
-     * 购买数量，即内含日票张数。
-     */
+
     private Integer ticketCount;
 
-    /**
-     * 总金额，单位分。服务端以 ticketPrice * ticketCount 重算后校验，不采信本字段落库。
-     */
+
     private Integer totalAmount;
 
-    /**
-     * 订单来源。
-     */
+
     private String orderSource;
 
-    /**
-     * 展示类型。
-     */
+
     private String showType;
 
     public String getCardType() {

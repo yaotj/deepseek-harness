@@ -24,20 +24,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 旅游票**子单**退款发起：运营后台按单张子票退款的唯一实现。
- *
- * <p>与「整单退款」（仍在 {@code DailyTicketServiceImpl.requestTravelRefund}）是两条链路、**NEVER 合并**：
- * 整单退一次性覆盖全部子单并把主单置 {@code REFUNDED}，子单退只动一张票、主单状态交给
- * {@code TravelParentSummaryWriter} 按剩余子单重算。
- *
- * <p><b>零 {@code @Transactional}、NEVER 加</b>：本方法中段要调支付中心网关，
- * 加事务即同时踩 docs/architecture/transaction-and-consistency.md §6 / §4（事务内 NEVER 发 RPC / 发通知）
- * （收口服务的终态入口会 {@code deliverOne} 推 APP）。
- *
- * <p>六道前置校验的顺序**逐字保留**、NEVER 重排：主子关系 → 免费单 → 子单已有退款（幂等返成功）
- * → 主单已有整单退款且非 {@code FAILED} → 主单支付态白名单 → 原支付订单号 → 票状态 → 抢票锁。
- */
+
 @Service
 public class TravelSubRefundService {
 
@@ -169,11 +156,7 @@ public class TravelSubRefundService {
         return DailyTicketOrderSupport.success(result);
     }
 
-    /**
-     * 子单退款单：{@code ORDER_NO} 记**子单号**、{@code PARENT_ORDER_NO} 记主单号、
-     * {@code REFUND_SCOPE='TRAVEL_SUB'}，金额取子单票价。
-     * 收口服务靠 {@code REFUND_SCOPE} 区分整单 / 子单两套推进逻辑，**这三项 NEVER 改**。
-     */
+
     private DailyTicketRefund buildTravelSubRefund(TravelTicketOrder parent, DailyTicketOrder child,
                                                    TravelTicketSubRefundRequest request) {
         Date now = new Date();
@@ -195,10 +178,7 @@ public class TravelSubRefundService {
         return refund;
     }
 
-    /**
-     * 送支付中心的子单退款报文，组装收口在 {@link RefundGatewayRequests#buildTravelSubRefund}
-     * （同一份报文「发起」与「重试」两处共用，**NEVER 在本类里再写一份**）。
-     */
+
     public Map<String, Object> buildTravelSubRefundRequest(TravelTicketOrder parent, DailyTicketRefund refund) {
         return refundGatewayRequests.buildTravelSubRefund(parent, refund);
     }

@@ -12,16 +12,10 @@ import org.springframework.http.MediaType;
 import com.chinasofti.huateng.common.utils.StringUtils;
 import com.chinasofti.huateng.common.utils.html.EscapeUtil;
 
-/**
- * XSS过滤处理
- * 
- * @author zmzhang
- */
+
 public class XssHttpServletRequestWrapper extends HttpServletRequestWrapper
 {
-    /**
-     * @param request
-     */
+
     public XssHttpServletRequestWrapper(HttpServletRequest request)
     {
         super(request);
@@ -37,7 +31,6 @@ public class XssHttpServletRequestWrapper extends HttpServletRequestWrapper
             String[] escapesValues = new String[length];
             for (int i = 0; i < length; i++)
             {
-                // 防xss攻击和过滤前后空格
                 escapesValues[i] = EscapeUtil.clean(values[i]).trim();
             }
             return escapesValues;
@@ -48,20 +41,17 @@ public class XssHttpServletRequestWrapper extends HttpServletRequestWrapper
     @Override
     public ServletInputStream getInputStream() throws IOException
     {
-        // 非json类型，直接返回
         if (!isJsonRequest())
         {
             return super.getInputStream();
         }
 
-        // 为空，直接返回
         String json = IOUtils.toString(super.getInputStream(), "utf-8");
         if (StringUtils.isEmpty(json))
         {
             return super.getInputStream();
         }
 
-        // xss过滤
         json = EscapeUtil.clean(json).trim();
         byte[] jsonBytes = json.getBytes("utf-8");
         final ByteArrayInputStream bis = new ByteArrayInputStream(jsonBytes);
@@ -98,11 +88,7 @@ public class XssHttpServletRequestWrapper extends HttpServletRequestWrapper
         };
     }
 
-    /**
-     * 是否是Json请求
-     * 
-     * @param request
-     */
+
     public boolean isJsonRequest()
     {
         String header = super.getHeader(HttpHeaders.CONTENT_TYPE);

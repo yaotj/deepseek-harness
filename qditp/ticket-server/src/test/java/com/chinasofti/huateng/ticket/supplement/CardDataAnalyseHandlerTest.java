@@ -24,7 +24,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** IF5A-01 票卡分析里用户信息补齐的特征测试：msisdn 两域回落、cardIssueDate 单一数据源。 */
 class CardDataAnalyseHandlerTest {
 
     private static final String CARD_ID = "0426091000000013";
@@ -60,7 +59,6 @@ class CardDataAnalyseHandlerTest {
         ReflectionTestUtils.setField(handler, "fareQuery", mock(SupplementFareQuery.class));
     }
 
-    /** BOM 上送的 providerId 恒为设备编码 03，与发卡渠道无关。 */
     private RequestCardDataAnalyseReqDTO bomRequest() {
         RequestCardDataAnalyseReqDTO request = new RequestCardDataAnalyseReqDTO();
         request.setCardId(CARD_ID);

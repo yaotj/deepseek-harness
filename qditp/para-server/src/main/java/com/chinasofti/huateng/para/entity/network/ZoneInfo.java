@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.para.entity.network;
 
-/**
- * 区域信息参数表 TBL_ZONE_INFO。
- */
+
 public class ZoneInfo {
     private Long paraVerNo;
     private Integer zoneNo;

@@ -3,9 +3,7 @@ package com.chinasofti.huateng.model.dailyticket;
 import java.io.Serializable;
 import java.util.Date;
 
-/**
- * 日票退款记录异步导出 DTO。
- */
+
 public class DailyTicketRefundRecordExportDTO implements Serializable
 {
     private static final long serialVersionUID = 1L;

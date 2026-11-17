@@ -1,6 +1,5 @@
 package com.chinasofti.huateng.transquery.constant;
 
-/** 交易查询服务错误码。 */
 public enum TransQueryErrorCodeEnum {
     SUCCESS("0000", "成功"),
     INVALID_PARAM("8001", "请求参数验证失败"),

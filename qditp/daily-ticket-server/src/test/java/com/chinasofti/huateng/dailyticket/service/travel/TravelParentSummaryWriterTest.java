@@ -22,11 +22,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住旅游票主单汇总的五个状态分支与三处短路。
- *
- * <p>判定优先级（退款语义优先于使用语义）写反不会报错，只会让对账取不到退款，因此逐条断言。
- */
+
 class TravelParentSummaryWriterTest {
 
     private static final String PARENT = "0T-PARENT-1";

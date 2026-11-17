@@ -10,24 +10,16 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 
-/**
- * 线程池配置
- *
- * @author zmzhang
- **/
+
 @Configuration
 public class ThreadPoolConfig
 {
-    // 核心线程池大小
     private int corePoolSize = 50;
 
-    // 最大可创建的线程数
     private int maxPoolSize = 200;
 
-    // 队列最大长度
     private int queueCapacity = 1000;
 
-    // 线程池维护线程所允许的空闲时间
     private int keepAliveSeconds = 300;
 
     @Bean(name = "threadPoolTaskExecutor")
@@ -38,14 +30,11 @@ public class ThreadPoolConfig
         executor.setCorePoolSize(corePoolSize);
         executor.setQueueCapacity(queueCapacity);
         executor.setKeepAliveSeconds(keepAliveSeconds);
-        // 线程池对拒绝任务(无线程可用)的处理策略
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
         return executor;
     }
 
-    /**
-     * Spring 的 @Async("taskScheduler") 和 @Scheduled 共用的任务调度线程池。
-     */
+
     @Bean(name = "taskScheduler")
     public ThreadPoolTaskScheduler taskScheduler()
     {
@@ -58,9 +47,7 @@ public class ThreadPoolConfig
         return scheduler;
     }
 
-    /**
-     * 执行周期性或定时任务
-     */
+
     @Bean(name = "scheduledExecutorService")
     protected ScheduledExecutorService scheduledExecutorService()
     {

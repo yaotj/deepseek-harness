@@ -14,9 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * 支付宝出行支付 Controller。
- */
+
 @RestController
 @RequestMapping("/admin/payment")
 public class FepAlipayTripPaymentController {
@@ -29,9 +27,7 @@ public class FepAlipayTripPaymentController {
         this.alipayTripService = alipayTripService;
     }
 
-    /**
-     * 支付结果查询。
-     */
+
     @PostMapping("/payQuery")
     public AlipayTripPayQueryRespDTO payQuery(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-支付结果查询,请求参数：{}", request);
@@ -48,9 +44,7 @@ public class FepAlipayTripPaymentController {
         return resp;
     }
 
-    /**
-     * 退款申请。
-     */
+
     @PostMapping("/requestRefund")
     public AlipayTripRequestRefundRespDTO requestRefund(@ModelAttribute ItpCommonFormRequest request) {
         log.info("支付宝出行-退款申请,请求参数：{}", request);
@@ -67,9 +61,7 @@ public class FepAlipayTripPaymentController {
         return resp;
     }
 
-    /**
-     * 支付宝出行-添加黑名单。
-     */
+
     @PostMapping("/addBlackList")
     public BlackListOperateResult addBlackList(@RequestBody AddBlackListReqDTO request) {
         log.info("接收到支付宝出行-添加黑名单: {}", request);
@@ -78,7 +70,6 @@ public class FepAlipayTripPaymentController {
         return response;
     }
 
-    /** 支付宝出行-执行解约。 */
     @PostMapping("/executeTermination")
     public com.chinasofti.huateng.model.alipaytrip.TerminationExecuteResult executeTermination(@RequestParam(required = false) String agreementCode) {
         log.info("接收到支付宝出行-执行解约, agreementCode={}", agreementCode);

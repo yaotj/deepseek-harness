@@ -3,14 +3,7 @@ package com.chinasofti.huateng.acc.es.server.model;
 import java.time.LocalDateTime;
 import java.io.Serializable;
 
-/**
- * <p>
- * 票卡生命周期历史表
- * </p>
- *
- * @author fc
- * @since 2020-09-02
- */
+
 
 public class TblTktCycleHistroy implements Serializable {
 

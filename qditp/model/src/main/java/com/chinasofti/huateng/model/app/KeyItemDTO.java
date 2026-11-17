@@ -1,67 +1,41 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * IF8A-02 单条密钥信息。
- */
+
 public class KeyItemDTO {
-    /**
-     * 密钥编码，01表示用户非对称密钥对，00表示 HCE DPK。
-     */
+
     private String keyId;
 
-    /**
-     * 密钥类型，1表示用户非对称密钥，0表示 HCE DPK。
-     */
+
     private String keyType;
 
-    /**
-     * 密钥用户ID，由 thirdUserId 转为四字节HEX得到，例如 00000018 转为 00000012。
-     */
+
     private String keyUserId;
 
-    /**
-     * APP侧加密后的用户私钥或 HCE DPK。
-     */
+
     private String keyPrivate;
 
-    /**
-     * 用户公钥XY，固定为128位HEX字符串，前64位为X分量，后64位为Y分量。
-     */
+
     private String keyPublic;
 
-    /**
-     * 用户公钥有效期，四字节HEX，按 2000-01-01 00:00:00 起算的秒数生成。
-     */
+
     private String keyPublicEffectiveDate;
 
-    /**
-     * CA签名用户公钥数据，由 acc-security-server 使用 CA 密钥对用户公钥X分量签名生成。
-     */
+
     private String signData;
 
-    /**
-     * CA密钥索引，来自 METRO_CA_KEYSTORE.KEY_IDX。
-     */
+
     private String caIdx;
 
-    /**
-     * 密钥包装值，当前接口样例为空，预留字段。
-     */
+
     private String keyWrapValue;
 
-    /**
-     * 密钥有效期，当前接口样例为空，预留字段。
-     */
+
     private String keyEffectiveDate;
 
-    /**
-     * 密钥校验值，当前接口样例为空，预留字段。
-     */
+
     private String kvc;
 
-    /**
-     * 预留字段，当前接口样例为空。
-     */
+
     private String reserve;
 
     public String getKeyId() {

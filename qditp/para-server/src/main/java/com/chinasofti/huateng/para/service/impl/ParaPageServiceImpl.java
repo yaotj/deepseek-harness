@@ -19,7 +19,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-/** 参数管理页面查询服务实现。 */
 @Service
 public class ParaPageServiceImpl implements ParaPageService {
     private static final String NETWORK_PARA_TYPE = "0001";
@@ -62,14 +61,11 @@ public class ParaPageServiceImpl implements ParaPageService {
     public ResultVO<PageInfo<LineStationVersion>> pageLineStationVersion(Integer pageNum, Integer pageSize) {
         int safePageNum = safePageNum(pageNum);
         int safePageSize = safePageSize(pageSize);
-        // 每种参数类型独立成行：版本号、文件名、更新/生效时间均取自各自的 PARA_VERSION 记录。
         List<LineStationVersion> versions = new ArrayList<>();
         versions.add(buildVersionRow("路网拓扑", paraVersionMapper.selectByParaType(NETWORK_PARA_TYPE)));
         versions.add(buildVersionRow("费率", paraVersionMapper.selectByParaType(RATE_PARA_TYPE)));
         versions.removeIf(Objects::isNull);
 
-        // 本方法的数据是按参数类型手工构造的、不查 SQL 列表，因此刻意不走 PageHelper.startPage()：
-        // 那样会留下一个用不上的分页拦截器上下文，可能被同线程后续查询误用。分页元数据在此手工回填。
         List<LineStationVersion> pageRows = safePageNum > 1 ? Collections.emptyList() : versions;
         int total = versions.size();
         PageInfo<LineStationVersion> pageInfo = new PageInfo<>();
@@ -78,7 +74,6 @@ public class ParaPageServiceImpl implements ParaPageService {
         pageInfo.setList(pageRows);
         pageInfo.setTotal(total);
         pageInfo.setSize(pageRows.size());
-        // 页数按 total 与 pageSize 向上取整，NEVER 写死成 1：参数类型变多后行数会超过一页。
         pageInfo.setPages(total == 0 ? 0 : (total + safePageSize - 1) / safePageSize);
         pageInfo.setStartRow(pageRows.isEmpty() ? 0 : (safePageNum - 1) * safePageSize + 1);
         pageInfo.setEndRow(pageRows.isEmpty() ? 0 : (safePageNum - 1) * safePageSize + pageRows.size());

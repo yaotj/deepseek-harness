@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 报文组装与签名的口径测试。 */
 class PayCenterMessageFactoryTest {
 
     private PayCenterProperties properties;
@@ -102,7 +101,6 @@ class PayCenterMessageFactoryTest {
                 decodeBizData(factory.buildRefundQueryRequest("RF20260908001")));
     }
 
-    /** 待签串取自 bizData 的内部字段（对齐 pay-sign-server，用户 2026-09-09 裁决）。 */
     @Test
     void signSourceComesFromBizDataFieldsAndIsVerifiableByPublicKey() throws Exception {
         PayCenterRequest request = factory.buildQueryRequest("F2F20260908001");
@@ -117,7 +115,6 @@ class PayCenterMessageFactoryTest {
         assertTrue(verifier.verify(Base64.getDecoder().decode(request.getSign())));
     }
 
-    /** 键名按字典序排、空白值剔掉——与 {@code PayGatewayClient.buildSignSource} 同规则。 */
     @Test
     void signSourceSortsKeysAndSkipsBlankValues() {
         String source = PayCenterSigner.buildSignSource(

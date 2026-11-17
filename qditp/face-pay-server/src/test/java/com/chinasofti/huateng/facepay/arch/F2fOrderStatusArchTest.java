@@ -20,10 +20,8 @@ import java.util.stream.Stream;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 架构门禁：把 {@code F2F_ORDER.ORDER_STATUS} 状态机的边界固化成会失败的构建。 */
 class F2fOrderStatusArchTest {
 
-    /** 只扫本模块主代码，`DoNotIncludeTests` 避免把门禁自身算进依赖图。 */
     private static final JavaClasses FACE_PAY_CLASSES = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
             .importPackages("com.chinasofti.huateng.facepay");
@@ -33,27 +31,21 @@ class F2fOrderStatusArchTest {
     private static final Path SERVICE_SOURCE_DIR =
             Path.of("src", "main", "java", "com", "chinasofti", "huateng", "facepay", "service");
 
-    /** {@code F2F_ORDER.ORDER_STATUS} 的 11 个取值。 */
     private static final List<String> ORDER_STATUS_LITERALS = List.of(
             "CREATED", "PAYING", "PAID", "PAY_FAILED", "EXPIRED", "FULFILLED",
             "FULFILL_FAILED", "REFUNDING", "REFUNDED", "CANCELED", "TOPUP_SUSPECT");
 
-    /** 允许保留裸字面量的**唯一形态**：常量名带取值域前缀。 */
     private static final Pattern DOMAIN_TAGGED_CONSTANT =
             Pattern.compile("\\b(TICKET|PAYMENT|REFUND|NOTIFY|REPORT|TOPUP)_[A-Z0-9_]+\\s*=");
 
-    /** 三条 CAS 的调用点。 */
     private static final Pattern CAS_CALL =
             Pattern.compile("orderMapper\\.(updateStatus|markPaid|activateForDevice)\\s*\\(");
 
-    /** 认定「返回值被接住了」的四种形态：赋给变量、或交给三个解读入口之一。 */
     private static final List<String> CAS_RESULT_CONSUMERS =
             List.of("=", "warnIfConflict(", "reportPaidConflict(", "classify(");
 
-    /** 唯一的豁免形态：行内显式写 {@code // CAS-DISCARD: <理由>}。 */
     private static final String CAS_DISCARD_MARKER = "// CAS-DISCARD:";
 
-    /** 三条 CAS 是 {@code F2F_ORDER.ORDER_STATUS} 的唯一并发保证，调用它们必须紧跟 */
     @Test
     void casMethodsOnlyCallableFromServicePackage() {
         ArchRule rule = noClasses()
@@ -68,7 +60,6 @@ class F2fOrderStatusArchTest {
         rule.check(FACE_PAY_CLASSES);
     }
 
-    /** 订单状态字面量不得再出现在 service 包里，MUST 走 {@code F2fOrderStatus.X.name()}。 */
     @Test
     void orderStatusLiteralsAbsentFromServiceSources() throws IOException {
         assertTrue(Files.isDirectory(SERVICE_SOURCE_DIR),
@@ -102,7 +93,6 @@ class F2fOrderStatusArchTest {
         }
     }
 
-    /** 去掉注释，避免 Javadoc 里引用状态名被误判。 */
     private static String stripComment(String line) {
         String trimmed = line.trim();
         if (trimmed.startsWith("*") || trimmed.startsWith("//") || trimmed.startsWith("/*")) {
@@ -112,7 +102,6 @@ class F2fOrderStatusArchTest {
         return lineComment >= 0 ? trimmed.substring(0, lineComment) : trimmed;
     }
 
-    /** 三条 CAS 的返回行数不得被丢弃。 */
     @Test
     void casReturnValueNeverDropped() throws IOException {
         assertTrue(Files.isDirectory(SERVICE_SOURCE_DIR),

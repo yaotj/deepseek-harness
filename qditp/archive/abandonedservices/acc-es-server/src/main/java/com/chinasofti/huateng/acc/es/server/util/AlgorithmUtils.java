@@ -6,14 +6,7 @@ import java.util.List;
 
 public class AlgorithmUtils {
 
-    /**
-     * 数据库行转列List操作
-     *
-     * @param list
-     * @param <T>
-     * @return
-     * @throws IllegalAccessException
-     */
+
     public static <T> List<List<String>> convert(List<T> list) throws IllegalAccessException {
 
         Field[] declaredFields = list.get(1).getClass().getDeclaredFields();
@@ -52,12 +45,7 @@ public class AlgorithmUtils {
         return str;
     }
 
-    /**
-     * int转换为小端byte[]（高位放在高地址中）
-     *
-     * @param iValue
-     * @return
-     */
+
     public static byte[] Int2Bytes_LE(int iValue) {
         byte[] rst = new byte[4];
         rst[0] = (byte) (iValue & 0xFF);
@@ -67,12 +55,7 @@ public class AlgorithmUtils {
         return rst;
     }
 
-    /**
-     * int转换为大端byte[]（低放在高地址中）
-     *
-     * @param iValue
-     * @return
-     */
+
     public static byte[] Int2Bytes_BE(int iValue) {
         byte[] rst = new byte[4];
         rst[3] = (byte) (iValue & 0xFF);
@@ -82,12 +65,7 @@ public class AlgorithmUtils {
         return rst;
     }
 
-    /**
-     * 转换byte数组为int（小端）
-     *
-     * @return
-     * @note 数组长度至少为4，按小端方式转换,即传入的bytes是小端的，按这个规律组织成int
-     */
+
     public static int Bytes2Int_LE(byte[] bytes) {
         if (bytes.length < 4)
             return -1;
@@ -99,12 +77,7 @@ public class AlgorithmUtils {
         return iRst;
     }
 
-    /**
-     * 转换byte数组为int（大端）
-     *
-     * @return
-     * @note 数组长度至少为4，按小端方式转换，即传入的bytes是大端的，按这个规律组织成int
-     */
+
     public static int Bytes2Int_BE(byte[] bytes) {
         if (bytes.length < 4)
             return -1;
@@ -116,12 +89,7 @@ public class AlgorithmUtils {
         return iRst;
     }
 
-    /**
-     * 转换byte数组为Char（小端）
-     *
-     * @return
-     * @note 数组长度至少为2，按小端方式转换
-     */
+
     public static char Bytes2Char_LE(byte[] bytes) {
         if (bytes.length < 2)
             return (char) -1;
@@ -131,12 +99,7 @@ public class AlgorithmUtils {
         return (char) iRst;
     }
 
-    /**
-     * 转换byte数组为char（大端）
-     *
-     * @return
-     * @note 数组长度至少为2，按小端方式转换
-     */
+
     public static char Bytes2Char_BE(byte[] bytes) {
         if (bytes.length < 2)
             return (char) -1;
@@ -146,12 +109,7 @@ public class AlgorithmUtils {
         return (char) iRst;
     }
 
-    /**
-     * 转换String为byte[]
-     *
-     * @param str
-     * @return
-     */
+
     public static byte[] String2Bytes_LE(String str) {
         if (str == null) {
             return null;
@@ -163,12 +121,7 @@ public class AlgorithmUtils {
         return rst;
     }
 
-    /**
-     * 转换字符数组为定长byte[]
-     *
-     * @param chars 字符数组
-     * @return 若指定的定长不足返回null, 否则返回byte数组
-     */
+
     public static byte[] Chars2Bytes_LE(char[] chars) {
         if (chars == null)
             return null;
@@ -184,14 +137,7 @@ public class AlgorithmUtils {
         return rst;
     }
 
-    /**
-     * byte转HexString
-     *
-     * @param
-     * @param
-     * @param
-     * @return
-     */
+
     public static String bytesToHexString(byte[] src) {
         StringBuilder stringBuilder = new StringBuilder("");
         if (src == null || src.length <= 0) {
@@ -208,12 +154,7 @@ public class AlgorithmUtils {
         return stringBuilder.toString();
     }
 
-    /**
-     * short转换为小端byte[]（高位放在高地址中）
-     *
-     * @param iValue
-     * @return
-     */
+
     public static byte[] Short2Bytes_LE(short iValue) {
         byte[] rst = new byte[2];
         rst[0] = (byte) (iValue & 0xFF);
@@ -221,12 +162,7 @@ public class AlgorithmUtils {
         return rst;
     }
 
-    /**
-     * short转换为大端byte[]（低位放在高地址中）
-     *
-     * @param iValue
-     * @return
-     */
+
     public static byte[] Short2Bytes_BE(short iValue) {
         byte[] rst = new byte[2];
         rst[1] = (byte) (iValue & 0xFF);
@@ -234,14 +170,7 @@ public class AlgorithmUtils {
         return rst;
     }
 
-    /**
-     * 从一个byte[]数组中截取一部分
-     *
-     * @param src
-     * @param begin
-     * @param count
-     * @return
-     */
+
     public static byte[] subBytes(byte[] src, int begin, int count) {
         byte[] bs = new byte[count];
         for (int i = begin; i < begin + count; i++) bs[i - begin] = src[i];

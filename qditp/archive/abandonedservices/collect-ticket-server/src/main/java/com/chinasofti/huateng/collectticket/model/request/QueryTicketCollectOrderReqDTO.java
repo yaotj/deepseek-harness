@@ -1,22 +1,14 @@
 package com.chinasofti.huateng.collectticket.model.request;
 
-/**
- * IF2A-02 查询取票订单状态请求报文。
- */
+
 public class QueryTicketCollectOrderReqDTO {
-    /**
-     * 订单号。
-     */
+
     private String orderNo;
 
-    /**
-     * 用户ID。
-     */
+
     private String userId;
 
-    /**
-     * 设备取票二维码生成时间。
-     */
+
     private String qrcodeGenDate;
 
     public String getOrderNo() {

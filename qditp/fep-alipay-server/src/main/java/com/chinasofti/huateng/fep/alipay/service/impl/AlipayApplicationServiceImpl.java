@@ -24,9 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import java.math.BigInteger;
 
-/**
- * 支付宝出行开卡/行业数据服务实现。
- */
+
 @Service
 public class AlipayApplicationServiceImpl implements AlipayApplicationService {
     private static final Logger log = LoggerFactory.getLogger(AlipayApplicationServiceImpl.class);

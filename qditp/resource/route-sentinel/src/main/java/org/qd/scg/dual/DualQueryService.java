@@ -28,19 +28,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.function.ServerRequest;
 import org.springframework.web.servlet.function.ServerResponse;
 
-/**
- * IF2A-08 双发择优（scatter-gather）：同一报文并行发往新、老 ITP，按归并矩阵择优应答。
- *
- * <p>只读查询才允许双发；写接口（激活/出票上报）仍走订单归属路由，NEVER 进本类。
- * 归并原则：任一为正取正（双正取新并告警）；双负取新侧负向；单侧故障用另一侧；
- * 双侧故障回「无激活订单」让设备继续轮询（NEVER 回 5xx 终止设备取票流程）。
- */
+
 @Component
 public class DualQueryService {
 
     private static final Logger log = LoggerFactory.getLogger(DualQueryService.class);
 
-    /** 双侧均不可用时的兜底负向应答（与 face-pay takeTicketAuthNoActiveOrder 同形）。 */
     static final String FALLBACK_BODY =
             "{\"orderNo\":null,\"retCode\":\"2003\",\"retMsg\":\"无激活的订单\"}";
 
@@ -48,21 +41,15 @@ public class DualQueryService {
     private final GatewayRouteQueryService routeQueryService;
     private final HttpClient httpClient;
 
-    /** 双发支路执行器：守护线程，阻塞 send 有单侧超时兜底，不占公共 ForkJoinPool。 */
     private final ExecutorService executor;
 
     private final SideCircuitBreaker newSideBreaker;
     private final SideCircuitBreaker legacySideBreaker;
 
-    /** 目标 URI（去尾斜杠），由路由表按 routeId 解析，路由变更时刷新。 */
     private volatile String newBaseUri;
     private volatile String legacyBaseUri;
 
-    /**
-     * 各侧的 RewritePath 改写规则（可空），与路由表 filters 保持同一真源。
-     * 老 ITP 约定网关转发流量走 *Dispatch 端点（BOM 侧已是 bomDispatch），
-     * 双发支路绕过路由 filter，MUST 在此自行应用同样的改写，否则两侧路径不一致。
-     */
+
     private volatile RewriteRule newRewrite;
     private volatile RewriteRule legacyRewrite;
 
@@ -91,7 +78,6 @@ public class DualQueryService {
         refreshTargets();
     }
 
-    /** 从路由表解析新/老 ITP 目标地址与改写规则；解析失败保留旧值，不阻断运行。 */
     public void refreshTargets() {
         try {
             List<RouteDef> routes = routeQueryService.loadRoutes();
@@ -110,10 +96,7 @@ public class DualQueryService {
         }
     }
 
-    /**
-     * 从路由 filters JSON 中提取 RewritePath 规则（与 RouteFilterFactory 同语法：
-     * {@code RewritePath=正则,替换模板}，模板支持 ${命名组}）。无该 filter 返回 null。
-     */
+
     static RewriteRule parseRewrite(String filtersJson) {
         if (filtersJson == null || filtersJson.isBlank()) {
             return null;
@@ -144,7 +127,6 @@ public class DualQueryService {
         }
     }
 
-    /** 应用该侧的改写规则；无规则或不匹配则返回原路径。 */
     String resolvePath(Side side, String path) {
         RewriteRule rule = side == Side.NEW ? newRewrite : legacyRewrite;
         if (rule == null || path == null) {
@@ -161,7 +143,6 @@ public class DualQueryService {
         return uri != null && uri.endsWith("/") ? uri.substring(0, uri.length() - 1) : uri;
     }
 
-    /** 命中双发且两侧目标均已解析才接管，否则回落到归属路由。 */
     public boolean matches(String path) {
         return props.isEnabled()
                 && path != null && props.getPaths().contains(path)
@@ -199,7 +180,6 @@ public class DualQueryService {
                 .body(outcome.body());
     }
 
-    /** 归并矩阵（静态便于单测）。 */
     static MergeOutcome merge(SideResult newRes, SideResult legacyRes) {
         boolean newPos = newRes.kind() == SideResult.Kind.POSITIVE;
         boolean legacyPos = legacyRes.kind() == SideResult.Kind.POSITIVE;
@@ -218,7 +198,6 @@ public class DualQueryService {
         return new MergeOutcome("FALLBACK", FALLBACK_BODY);
     }
 
-    /** 单侧调用：HTTP 200 且 retCode=0000 且 orderNo 非空为正向；200 其余为负向；其余为故障。 */
     SideResult fetchSide(Side side, String baseUri, ForwardRequest fwd) {
         long start = System.currentTimeMillis();
         SideCircuitBreaker breaker = side == Side.NEW ? newSideBreaker : legacySideBreaker;
@@ -282,7 +261,6 @@ public class DualQueryService {
                 sr.getContentType(), body, sr.getHeader(RouteConstants.TRACE_ID_HEADER));
     }
 
-    /** 正向判定：retCode=0000 且 orderNo 为非空字符串（负向应答里 orderNo 为 null，扫不到引号值）。 */
     static boolean isPositive(String body) {
         if (body == null || body.isBlank()) {
             return false;
@@ -294,7 +272,6 @@ public class DualQueryService {
         return orderNo != null && !orderNo.isBlank();
     }
 
-    /** 与 BizDataExtractor 同款的轻量字符串扫描，避免为判定引入整树 JSON 解析。 */
     static String fastExtract(String json, String key) {
         int keyIdx = json.indexOf(key);
         if (keyIdx < 0) {
@@ -329,12 +306,10 @@ public class DualQueryService {
 
     enum Side { NEW, LEGACY }
 
-    /** 转发所需的原始报文要素。 */
     record ForwardRequest(String method, String path, String queryString,
                           String contentType, String body, String traceId) {
     }
 
-    /** 单侧结果。 */
     record SideResult(Side side, Kind kind, String body, long elapsedMs, String error) {
 
         enum Kind { POSITIVE, NEGATIVE, ERROR, SKIPPED_OPEN }
@@ -365,11 +340,9 @@ public class DualQueryService {
         }
     }
 
-    /** 归并结果：winner 仅用于日志（NEW / LEGACY / FALLBACK）。 */
     record MergeOutcome(String winner, String body) {
     }
 
-    /** RewritePath 改写规则：正则 + 替换模板（${命名组} 语法）。 */
     record RewriteRule(Pattern pattern, String replacement) {
     }
 }

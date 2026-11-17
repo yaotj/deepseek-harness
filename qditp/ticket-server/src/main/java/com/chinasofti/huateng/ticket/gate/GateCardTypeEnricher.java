@@ -21,7 +21,6 @@ import java.util.function.Function;
 
 import static com.chinasofti.huateng.model.enums.CardTypeCodeEnum.isHceCard;
 
-/** IF1A-01 卡种与签约信息富化器 —— 用账户侧的真实数据覆盖闸机上送值，并回写 HCE 卡数据。 */
 @Component
 class GateCardTypeEnricher {
 
@@ -31,14 +30,11 @@ class GateCardTypeEnricher {
     @Autowired
     private AccountClient accountClient;
 
-    /** 支付宝出行账户域。 */
     @Autowired
     private AlipayAccountClient alipayAccountClient;
 
-    /** 两个账户域共同提供的签约信息。 */
     private record SignInfo(String channel, String reqContractNo, String thirdPayId) { }
 
-    /** 一个字段的落值动作。 */
     private interface SignFieldBinding {
         void apply(NotifyVerifyResultReqDTO request, NotifyVerifyResultRespDTO response, String value);
     }
@@ -49,7 +45,6 @@ class GateCardTypeEnricher {
     private static final String FIELD_REQUEST_SIGN_SEQ = "签约流水号";
     private static final String FIELD_PAY_USER_ID = "第三方支付账户标识";
 
-    /** 签约信息字段表。 */
     private static final List<SignField> SIGN_FIELDS = List.of(
             new SignField(FIELD_PAYMENT_VENDOR, SignInfo::channel,
                     (request, response, value) -> request.setPaymentVendor(value)),
@@ -61,11 +56,7 @@ class GateCardTypeEnricher {
             new SignField(FIELD_PAY_USER_ID, SignInfo::thirdPayId,
                     (request, response, value) -> response.setPayUserId(value)));
 
-    /**
-     * 按 {@link #SIGN_FIELDS} 落值：有值即 trim 后写入，为空则保留闸机上送值并留痕。
-     *
-     * @param silentWhenBlank 本来源允许缺失的字段名，缺失时不打 WARN。
-     */
+
     private void applySignInfo(SignInfo info, NotifyVerifyResultReqDTO request,
                                NotifyVerifyResultRespDTO response, String cardId,
                                String sourceTag, Set<String> silentWhenBlank) {
@@ -79,7 +70,6 @@ class GateCardTypeEnricher {
         }
     }
 
-    /** HCE 卡闸机交易完成后，将 reserve1 的 64 字节卡数据回写到账户服务。 */
     public void updateHceDataFromGateTransaction(NotifyVerifyResultReqDTO request) {
         if (!isHceCard(request.getCardType()) || !StringUtils.hasText(request.getReserve1())) {
             return;
@@ -95,7 +85,6 @@ class GateCardTypeEnricher {
         }
     }
 
-    /** 查询并应用真实卡类型。 */
     public void applyActualCardType(NotifyVerifyResultReqDTO request, NotifyVerifyResultRespDTO response) {
         String cardId = request.getCardId();
         try {
@@ -114,8 +103,6 @@ class GateCardTypeEnricher {
                 request.setCompanionFlag(result.getCompanionFlag().trim());
             }
             if (StringUtils.hasText(result.getMsisdn())) {
-                // 手机号只在此一处回填（account 域权威），供出站 industryDetail 的 phone 键使用；
-                // 空值 MUST NOT 覆盖，回落支付宝账户域时由 applyAlipayUserInfo 再补。
                 request.setPhone(result.getMsisdn().trim());
             }
             applySignInfo(new SignInfo(result.getChannel(), result.getReqContractNo(), result.getThirdPayId()),
@@ -128,7 +115,6 @@ class GateCardTypeEnricher {
         }
     }
 
-    /** account 域查不到该卡时，回落支付宝出行账户域（{@code ALIPAY_USER_INFO}）补齐卡种与签约渠道。 */
     private void applyAlipayUserInfo(NotifyVerifyResultReqDTO request, NotifyVerifyResultRespDTO response, String cardId) {
         AlipayUserInfoDTO alipayUser = alipayAccountClient.selectByCardId(cardId);
         if (alipayUser == null) {
@@ -150,9 +136,6 @@ class GateCardTypeEnricher {
         if (StringUtils.hasText(alipayUser.getThirdUserId())) {            request.setItpUserId(alipayUser.getThirdUserId().trim());
         }
         if (StringUtils.hasText(alipayUser.getPhone())) {
-            // account 域完全未命中才走到本方法，此时 phone 必为空 —— 直接兜底（同 CardDataAnalyseHandler 两级口径）。
-            // 注意本 enricher 与 CardDataAnalyseHandler 不同：account 域「命中卡但缺 msisdn」不会回落到这里，
-            // 那种情况 phone 留空、由 industryDetail 组装器置空串。
             request.setPhone(alipayUser.getPhone().trim());
         }
         log.info("IF1A-01 已按支付宝账户域补齐, cardId={}, cardType={}, paymentVendor={}, requestSignSeq={}",
@@ -161,7 +144,6 @@ class GateCardTypeEnricher {
         applyFreeRideAmountReset(request, cardId, actualCardType, "(支付宝渠道)");
     }
 
-    /** 员工票（0444）与日票（0445~0448）免费乘车，金额字段 */
     private void applyFreeRideAmountReset(NotifyVerifyResultReqDTO request, String cardId,
                                           String actualCardType, String channelTag) {
         if (CardTypeCodeEnum.isEmployeeCard(actualCardType) || CardTypeCodeEnum.isDailyTicket(actualCardType)) {

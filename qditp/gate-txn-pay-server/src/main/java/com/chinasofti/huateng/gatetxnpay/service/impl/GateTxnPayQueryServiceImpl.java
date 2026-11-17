@@ -41,24 +41,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** `GATE_TXN_PAY` 只读查询侧实现。 */
 @Service
 public class GateTxnPayQueryServiceImpl implements GateTxnPayQueryService {
     private static final Logger log = LoggerFactory.getLogger(GateTxnPayQueryServiceImpl.class);
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
-    /** 未结清扣费订单查询：查询已成功执行。 */
     private static final String RESULT_CODE_SUCCESS = GateTxnPayRetCode.SUCCESS;
-    /** 未结清扣费订单查询：参数缺失，查询未执行。 */
     private static final String RESULT_CODE_INVALID_PARAM = GateTxnPayRetCode.QUERY_FAILED;
-    /** IF8A-35 统计窗口默认月数，配置非法时回退到该值。 */
     private static final int DEFAULT_ACC_INFO_QUERY_MONTHS = 3;
-    /** IF8A-35 时间下限格式。 */
     private static final DateTimeFormatter ACC_INFO_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
-    /** ticket-server「未注册用户」码：卡无 QRCODE_STATUS，视为不在行程中（非查询失败）。 */
     private static final String TICKET_QR_CODE_NOT_FOUND = "8004";
 
-    /** IF8A-35 统计窗口月数。 */
     @Value("${app.acc-info.query-months:3}")
     private int accInfoQueryMonths;
 
@@ -140,9 +133,7 @@ public class GateTxnPayQueryServiceImpl implements GateTxnPayQueryService {
                 ticketCode, debitRequestResult, issueChannelCode);
     }
 
-    /**
-     * 统计口径全部落在 SQL 里（见 {@code GateTxnPayMapper.xml#selectTransStatistics}），本方法只做零行兜底：{@code COUNT(1)} 恒有一行。
-     */
+
     @Override
     public RequestTransStatisticsResult requestTransStatistics(RequestTransStatisticsReqDTO request) {
         RequestTransStatisticsResult result = new RequestTransStatisticsResult();
@@ -287,7 +278,6 @@ public class GateTxnPayQueryServiceImpl implements GateTxnPayQueryService {
         return ResultMapper.ok(page);
     }
 
-    /** 页面日期窗（yyyy-MM-dd 或 yyyyMMdd）换算成 TXN_DATE 的存储格式 yyyyMMdd，非法输入返回 null。 */
     private String normalizeTxnDate(String value) {
         String trimmed = trimToNull(value);
         if (trimmed == null) {
@@ -297,7 +287,6 @@ public class GateTxnPayQueryServiceImpl implements GateTxnPayQueryService {
         return digits.matches("\\d{8}") ? digits : null;
     }
 
-    /** 统计行只带车站编码，中文名经 STATION_INFO 批量回填，查不到的编码原样展示。 */
     private void fillStationNames(List<OfflineCodeStatView> stations) {
         Set<String> codes = new HashSet<>();
         for (OfflineCodeStatView row : stations) {
@@ -376,9 +365,7 @@ public class GateTxnPayQueryServiceImpl implements GateTxnPayQueryService {
         return orderNo != null || cardId != null || thirdUserId != null || (startDate != null && endDate != null);
     }
 
-    /**
-     * 运营端分页展示用：历史行的 ENTRY_STATION_NAME / EXIT_STATION_NAME 可能为 null，按进出站编码批量查 STATION_INFO 补齐，查不到的保持 null，由前端回退显示编码。
-     */
+
     private void fillMissingStationNames(List<GateTxnPay> orders) {
         Set<String> codes = new HashSet<>();
         for (GateTxnPay order : orders) {
@@ -451,14 +438,7 @@ public class GateTxnPayQueryServiceImpl implements GateTxnPayQueryService {
         return response;
     }
 
-    /**
-     * 统计该用户「已进站未出站」的票卡数，叠加到 IF8A-35 的 unpaidCount（ADR-D175）。
-     *
-     * <p>两个域都不能跨库 JOIN：账户域持有 thirdUserId → CARD_ID，行程域持有 CARD_ID → CODE_STATUS。
-     * 编排两次只读 RPC：account-server 查有效卡列表 → ticket-server 逐卡查状态。
-     *
-     * @return {@code >=0} 进行中行程数；{@code -1} 表示查询未执行（fail-closed，调用方 MUST 拒绝）
-     */
+
     private int countInProgressTrips(String thirdUserId) {
         QueryActiveCardsReqDTO cardsRequest = new QueryActiveCardsReqDTO();
         cardsRequest.setThirdUserId(thirdUserId);
@@ -511,10 +491,7 @@ public class GateTxnPayQueryServiceImpl implements GateTxnPayQueryService {
         return inProgress;
     }
 
-    /**
-     * 「已进站未出站」白名单，与 ticket-server 的 {@code SupplementStateRules.hasEnteredWithoutExit} 同源：
-     * 开环 04 / 81（{@code isOpenLoop()}）+ 入站码更新 10。NEVER 写成「非闭环即可」的黑名单。
-     */
+
     private boolean isEnteredWithoutExit(QRCodeStatusEnum status) {
         return status.isOpenLoop() || status == QRCodeStatusEnum.UPDATE_ENTRY;
     }

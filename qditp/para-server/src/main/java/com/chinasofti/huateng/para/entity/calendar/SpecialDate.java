@@ -2,9 +2,7 @@ package com.chinasofti.huateng.para.entity.calendar;
 
 import java.time.LocalDateTime;
 
-/**
- * 特殊日期参数表 TBL_SPECIAL_DATE。
- */
+
 public class SpecialDate {
     private Long paraVerNo;
     private Integer seqNo;

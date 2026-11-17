@@ -30,20 +30,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住 {@link AlipayPayRefundServiceImpl} 的四条口径。
- *
- * <p>①<b>存在未收口（PROCESSING）的退款明细时 MUST 在落库与出网之前就拒绝</b> —— 放行第二笔等于对同一笔
- * 原支付退两次款，而金额校验读的是汇总列、拦不住未收口那笔。
- *
- * <p>②<b>原支付非 SUCCESS 一律拒绝</b>，且拒绝发生在幂等计数与落库之前。
- *
- * <p>③<b>退款成功 MUST 先把明细置 SUCCESS、再刷汇总</b>：汇总 SQL 是按 {@code ALIPAY_REFUND_LOG} 重算的，
- * 顺序反了算出来的是旧值。业务拒绝那一支落 FAIL 且 <b>NEVER 刷汇总</b>（钱没退出去）。
- *
- * <p>④<b>{@code Rejected} / {@code NoAnswer} 都保持 PROCESSING、NEVER 置 FAIL、NEVER 刷汇总</b> ——
- * 钱可能已经退了，落 FAIL 会让这笔被当成没退成、随后被人再退一次。
- */
+
 class AlipayPayRefundServiceImplTest {
 
     private static final String ORDER_NO = "GT20260918021300000000001";
@@ -196,10 +183,7 @@ class AlipayPayRefundServiceImplTest {
         verify(payCenterPort, never()).requestRefund(any());
     }
 
-    /**
-     * 出网 bizData MUST 带上 {@code notifyUrl}（契约 §3.1 必填）——
-     * 不送这个键时支付中心无处回推退款结果，`/api/payment/refundNotify` 永远收不到回调。
-     */
+
     @Test
     void outboundBizDataCarriesRefundNotifyUrl() {
         when(payCenterPort.requestRefund(any())).thenReturn(accepted("SUCCESS", "退款成功"));
@@ -223,7 +207,6 @@ class AlipayPayRefundServiceImplTest {
         return request;
     }
 
-    /** 原支付 400 分、已退 100 分，因此可退余额是 300 分。 */
     private AlipayPayLog payLog(String payStatus) {
         AlipayPayLog payLog = new AlipayPayLog();
         payLog.setOrderNo(ORDER_NO);

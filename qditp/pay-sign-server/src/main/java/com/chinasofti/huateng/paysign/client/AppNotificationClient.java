@@ -19,12 +19,10 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-/** APP 回调 HTTP 客户端。 */
 @Component
 public class AppNotificationClient {
     private static final Logger log = LoggerFactory.getLogger(AppNotificationClient.class);
 
-    /** 视为通知成功的业务码，逗号分隔。默认只有 {@code 0000}。 */
     private final Set<String> successRetCodes;
 
     private final OkHttpClient httpClient = new OkHttpClient.Builder()
@@ -41,7 +39,6 @@ public class AppNotificationClient {
         log.info("APP 通知成功码集合={}", successRetCodes);
     }
 
-    /** 发送 ITP 标准表单。仅当 HTTP 2xx 且业务回执码命中 {@link #successRetCodes} 时视为成功。 */
     public NotificationResult notify(String url, NotificationRequest request) {
         try {
             RequestBody requestBody = new MultipartBody.Builder()
@@ -88,12 +85,10 @@ public class AppNotificationClient {
         return value == null ? "" : value;
     }
 
-    /** ITP 表单请求的传输模型，避免业务服务直接依赖 OkHttp。 */
     public record NotificationRequest(String providerId, String charset, String format, String timestamp,
                                       String deviceId, String signType, String sign, String bizDataJson) {
     }
 
-    /** 通知处理结果，供调用方统一持久化通知状态与失败原因。 */
     public record NotificationResult(boolean success, String message) {
         public static NotificationResult succeeded() {
             return new NotificationResult(true, "通知成功");

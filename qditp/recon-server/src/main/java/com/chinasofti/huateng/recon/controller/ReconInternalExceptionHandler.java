@@ -12,9 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 
-/**
- * 对账内部接口专用异常处理：把公共兜底 advice 的 HTTP 200 还原成真实状态码。
- */
+
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice(assignableTypes = ReconInternalController.class)
 public class ReconInternalExceptionHandler {

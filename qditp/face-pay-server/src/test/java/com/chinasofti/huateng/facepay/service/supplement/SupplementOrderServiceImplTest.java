@@ -35,7 +35,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** 锁死 {@link SupplementOrderServiceImpl} 的编排语义。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SupplementOrderServiceImplTest {
@@ -44,7 +43,7 @@ class SupplementOrderServiceImplTest {
     private static final String ORIG_2 = "GTP202609150002";
     private static final String USER_ID = "U1234567890";
     private static final String CARD_ID = "0000000000CARD01";
-    private static final String CARD_ID_SHORT = "CARD01"; // 后6位，用于补款单号后缀
+    private static final String CARD_ID_SHORT = "CARD01";
     private static final String VENDOR = "WECHAT";
     private static final String SIGN_CHANNEL = "WECHAT_FACE";
     private static final String TXN_DATE = "20260915";
@@ -61,12 +60,10 @@ class SupplementOrderServiceImplTest {
         service = new SupplementOrderServiceImpl(supplementOrderMapper, gateTxnPayMapper, payCenterFlow, localWriter);
     }
 
-    // ==================== requestPayOrder 校验分支 ====================
 
     @Nested
     class ValidateOnly {
 
-        /** orderNoList 空 → 直接返回 8001。 */
         @Test
         void emptyListRejected() {
             SupplementOrderReqDTO req = new SupplementOrderReqDTO();
@@ -80,13 +77,11 @@ class SupplementOrderServiceImplTest {
             verifyNoInteractions(payCenterFlow);
         }
 
-        /** orderNoList 超过 500 → 直接返回 8001。 */
         @Test
         void overLimitRejected() {
             SupplementOrderReqDTO req = new SupplementOrderReqDTO();
-            req.setOrderNoList(List.of()); // 实际要构造 501 个，简化
+            req.setOrderNoList(List.of());
 
-            // 构造 501 个
             java.util.ArrayList<String> big = new java.util.ArrayList<>();
             for (int i = 0; i < 501; i++) {
                 big.add("ORDER" + i);
@@ -99,7 +94,6 @@ class SupplementOrderServiceImplTest {
             verify(gateTxnPayMapper, never()).selectByOrderNos(anyList());
         }
 
-        /** 部分原订单不存在 → 8001。 */
         @Test
         void missingOrigOrdersRejected() {
             SupplementOrderReqDTO req = validReq();
@@ -113,7 +107,6 @@ class SupplementOrderServiceImplTest {
             assertEquals("存在无效的原订单号", resp.getRetMsg());
         }
 
-        /** 原订单已结清（SUCCESS）→ 8003。 */
         @Test
         void settledOrigOrdersRejected() {
             SupplementOrderReqDTO req = validReq();
@@ -128,7 +121,6 @@ class SupplementOrderServiceImplTest {
             assertEquals("部分订单已结清或状态不可补款", resp.getRetMsg());
         }
 
-        /** 原订单归属不一致（不同 cardId）→ 8001。 */
         @Test
         void ownerMismatchRejected() {
             SupplementOrderReqDTO req = validReq();
@@ -143,7 +135,6 @@ class SupplementOrderServiceImplTest {
             assertEquals("订单归属不一致", resp.getRetMsg());
         }
 
-        /** thirdUserId 与原订单不一致 → 8001。 */
         @Test
         void thirdUserIdMismatchRejected() {
             SupplementOrderReqDTO req = validReq();
@@ -159,19 +150,15 @@ class SupplementOrderServiceImplTest {
         }
     }
 
-    // ==================== requestPayOrder 成功链路 ====================
 
     @Nested
     class HappyPath {
 
-        /** PayCenter 受理成功 → 补款单 PROCESSING。 */
         @Test
         void acceptedReturnsProcessing() {
             SupplementOrderReqDTO req = validReq();
             setupOrigOrders();
-            // 本地落单成功
             when(localWriter.persist(any(), anyList(), any())).thenReturn(SupplementOrderLocalWriter.PersistResult.ok("SP202609150001"));
-            // PayCenter 受理成功
             when(payCenterFlow.preOrder(any())).thenReturn(new com.chinasofti.huateng.rpc.outcome.RpcOutcome.Ok());
 
             SupplementOrderRespDTO resp = service.requestPayOrder(req);
@@ -182,7 +169,6 @@ class SupplementOrderServiceImplTest {
             assertEquals("SP", resp.getOrderNo().substring(0, 2));
         }
 
-        /** PayCenter 不可达 → 补款单 INIT（先落单再预下单，不可达不回滚本地）。 */
         @Test
         void unreachableReturnsInit() {
             SupplementOrderReqDTO req = validReq();
@@ -192,20 +178,17 @@ class SupplementOrderServiceImplTest {
 
             SupplementOrderRespDTO resp = service.requestPayOrder(req);
 
-            // 不可达视为"补款单已生成，待支付中心受理"
             assertEquals("0000", resp.getRetCode());
             assertEquals("INIT", resp.getPayStatus());
             assertNotNull(resp.getOrderNo());
         }
 
-        /** PayCenter BizRejected → 补款单回 INIT + 8003。 */
         @Test
         void bizRejectedReturnsInit() {
             SupplementOrderReqDTO req = validReq();
             setupOrigOrders();
             when(localWriter.persist(any(), anyList(), any())).thenReturn(SupplementOrderLocalWriter.PersistResult.ok("SP202609150001"));
             when(payCenterFlow.preOrder(any())).thenReturn(new com.chinasofti.huateng.rpc.outcome.RpcOutcome.BizRejected("9999", "商户号异常"));
-            // BizRejected 会回写 INIT
             when(supplementOrderMapper.updatePayStatusFromPending(anyString(), eq("INIT"), anyString())).thenReturn(1);
 
             SupplementOrderRespDTO resp = service.requestPayOrder(req);
@@ -214,12 +197,10 @@ class SupplementOrderServiceImplTest {
             assertEquals("INIT", resp.getPayStatus());
         }
 
-        /** 本地落单撞主表唯一索引（重复下单）→ PersistResult.rejected → 8003。 */
         @Test
         void persistRejectedReturns8003() {
             SupplementOrderReqDTO req = validReq();
             setupOrigOrders();
-            // 撞唯一索引，视为被拒绝
             when(localWriter.persist(any(), anyList(), any())).thenReturn(SupplementOrderLocalWriter.PersistResult.rejected("SP202609150001"));
 
             SupplementOrderRespDTO resp = service.requestPayOrder(req);
@@ -229,7 +210,6 @@ class SupplementOrderServiceImplTest {
             verify(payCenterFlow, never()).preOrder(any());
         }
 
-        /** 预下单抛异常 → 回 INIT + 8001。 */
         @Test
         void preOrderExceptionReturnsInit() {
             SupplementOrderReqDTO req = validReq();
@@ -245,12 +225,10 @@ class SupplementOrderServiceImplTest {
         }
     }
 
-    // ==================== isSupplementOrder ====================
 
     @Nested
     class Guards {
 
-        /** 补款单表里能查到 → true。 */
         @Test
         void identifiesSupplementOrder() {
             when(supplementOrderMapper.selectByOrderNo("SP202609150001")).thenReturn(new SupplementOrder());
@@ -260,7 +238,6 @@ class SupplementOrderServiceImplTest {
             assertEquals(false, service.isSupplementOrder("GTP202609150001"));
         }
 
-        /** isSupplementOrder DB 异常 → 降级 false（保守：不要把非补款单误判成补款单）。 */
         @Test
         void isSupplementOrderDbExceptionDegradesFalse() {
             when(supplementOrderMapper.selectByOrderNo(anyString())).thenThrow(new RuntimeException("DB down"));
@@ -269,12 +246,10 @@ class SupplementOrderServiceImplTest {
         }
     }
 
-    // ==================== closeTimeoutOrders ====================
 
     @Nested
     class CloseTimeout {
 
-        /** 超时关单。 */
         @Test
         void closesTimeoutAndReleases() {
             SupplementOrder order = new SupplementOrder();
@@ -289,7 +264,6 @@ class SupplementOrderServiceImplTest {
             verify(supplementOrderMapper).closeTimeoutOrder(eq("SP_TIMEOUT_001"), anyString());
         }
 
-        /** PROCESSING 超时关单（支付中心挂死的本地兜底）。 */
         @Test
         void closesStaleProcessing() {
             SupplementOrder order = new SupplementOrder();
@@ -305,7 +279,6 @@ class SupplementOrderServiceImplTest {
         }
     }
 
-    // ==================== helpers ====================
 
     private SupplementOrderReqDTO validReq() {
         SupplementOrderReqDTO req = new SupplementOrderReqDTO();
@@ -319,7 +292,7 @@ class SupplementOrderServiceImplTest {
     private void setupOrigOrders() {
         when(gateTxnPayMapper.selectByOrderNos(List.of(ORIG_1, ORIG_2))).thenReturn(List.of(
                 gateTxnPay(ORIG_1, "INIT"),
-                gateTxnPay(ORIG_2, "RETRY") // RETRY 也在待补款白名单里
+                gateTxnPay(ORIG_2, "RETRY")
         ));
     }
 

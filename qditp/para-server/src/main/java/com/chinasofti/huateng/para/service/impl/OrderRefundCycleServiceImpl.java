@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 @Service
-/** 退款周期参数校验与维护实现，周期范围由服务层和表约束双重保证。 */
 public class OrderRefundCycleServiceImpl implements OrderRefundCycleService {
     private static final int MAX_REFUND_PERIOD_DAYS = 3650;
     private final OrderRefundCycleMapper orderRefundCycleMapper;
@@ -21,7 +20,6 @@ public class OrderRefundCycleServiceImpl implements OrderRefundCycleService {
         this.orderRefundCycleMapper = orderRefundCycleMapper;
     }
 
-    /** 票卡类型为唯一配置键，查询使用精确匹配。 */
     @Override
     public ResultVO<PageInfo<OrderRefundCycle>> page(String ticketType, Integer pageNum, Integer pageSize) {
         PageInfo<OrderRefundCycle> page = PageHelper.startPage(safePageNum(pageNum), safePageSize(pageSize))
@@ -29,7 +27,6 @@ public class OrderRefundCycleServiceImpl implements OrderRefundCycleService {
         return ResultMapper.ok(page);
     }
 
-    /** 先规范化输入，再将唯一键冲突转为明确提示。 */
     @Override
     public ResultVO<Void> create(OrderRefundCycle request) {
         String validationMessage = validate(request, true);
@@ -47,13 +44,7 @@ public class OrderRefundCycleServiceImpl implements OrderRefundCycleService {
         }
     }
 
-    /**
-     * 判断异常链上是否存在 {@link DuplicateKeyException}，即唯一约束冲突。
-     *
-     * <p>MUST 逐层遍历 cause，NEVER 直接 catch 具体异常类型。</p>
-     *
-     * <p>归因存疑：本方法相关的 UUID retCode 实测结论已作废，MUST 重查，NEVER 照旧结论排查（详见 docs/business/common-services.md）。</p>
-     */
+
     private boolean isDuplicateKeyViolation(Throwable exception) {
         for (Throwable cause = exception; cause != null && cause != cause.getCause(); cause = cause.getCause()) {
             if (cause instanceof DuplicateKeyException) {
@@ -63,7 +54,6 @@ public class OrderRefundCycleServiceImpl implements OrderRefundCycleService {
         return false;
     }
 
-    /** 更新以路径票卡类型为准，防止请求体修改配置键。 */
     @Override
     public ResultVO<Void> update(String ticketType, OrderRefundCycle request) {
         if (!StringUtils.hasText(ticketType)) {
@@ -78,7 +68,6 @@ public class OrderRefundCycleServiceImpl implements OrderRefundCycleService {
         return orderRefundCycleMapper.update(request) > 0 ? ResultMapper.ok() : ResultMapper.error("未找到待修改的退款周期配置");
     }
 
-    /** 删除不存在的配置时返回业务错误，避免误以为删除成功。 */
     @Override
     public ResultVO<Void> delete(String ticketType) {
         if (!StringUtils.hasText(ticketType)) {
@@ -88,7 +77,6 @@ public class OrderRefundCycleServiceImpl implements OrderRefundCycleService {
     }
 
     private String validate(OrderRefundCycle request, boolean requireTicketType) {
-        // 该范围与 TBL_ORDER_REFUND_CYCLE 的 CHECK 约束保持一致。
         if (request == null) {
             return "请求参数不能为空";
         }

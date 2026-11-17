@@ -29,15 +29,7 @@ public class TerminationRegistrationService {
     @Autowired
     private AlipaySignInfoMapper alipaySignInfoMapper;
 
-    /**
-     * 解约登记。
-     *
-     * <p><b>NEVER 在本方法外面再套一层 catch-all</b>（ADR-D129）：原实现把整段包在
-     * {@code try { ... } catch (Exception e) { 返回 9001 }} 里，异常一律不穿透 ——
-     * 于是 {@code @Transactional} 形同虚设（Spring 只在异常抛出时回滚），落库失败那一刻
-     * 事务照样提交，而上游只看到一个含义模糊的 9001。现在异常原样抛出：事务真回滚，
-     * 由全局异常处理器对上游作答。三个业务分支仍是显式返回码，不走异常。</p>
-     */
+
     @Transactional(rollbackFor = Exception.class)
     public AlipayTripTerminateContractRespDTO terminateContract(AlipayTripTerminateContractReqDTO request) {
         AlipayTripTerminateContractRespDTO response = new AlipayTripTerminateContractRespDTO();
@@ -49,7 +41,6 @@ public class TerminationRegistrationService {
             return response;
         }
 
-        // 存在性判断用 COUNT：该表无唯一约束，历史脏数据会让 selectByAgreementCode 抛 TooManyResultsException
         if (alipayTerminationRequestMapper.countByAgreementCode(request.getAgreementCode()) > 0) {
             log.info("支付宝解约登记已存在，幂等返回成功, agreementCode={}", request.getAgreementCode());
             response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
@@ -58,7 +49,6 @@ public class TerminationRegistrationService {
             return response;
         }
 
-        // 销卡批处理按 THIRD_USER_ID 做用户维度校验，回填不到就 NEVER 登记：
         AlipaySignInfo signInfo = alipaySignInfoMapper.selectByAgreementCode(request.getAgreementCode());
         if (signInfo == null || signInfo.getThirdUserId() == null || signInfo.getThirdUserId().trim().isEmpty()) {
             log.warn("支付宝解约登记被拒绝：查不到签约信息或签约记录缺少 thirdUserId, agreementCode={}",

@@ -2,9 +2,7 @@ package com.chinasofti.huateng.model.agm;
 
 import java.util.List;
 
-/**
- * AGM-reported key version and the corresponding synchronization decision.
- */
+
 public class AgmKeyCurVerDTO {
     private String issueChannelCode;
     private String keyId;

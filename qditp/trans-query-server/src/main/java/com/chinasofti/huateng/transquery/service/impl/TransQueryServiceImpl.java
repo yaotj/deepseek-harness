@@ -18,7 +18,6 @@ import com.chinasofti.huateng.transquery.service.TransQueryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-/** 交易查询编排壳 —— 每个入口各自委托给独立 Handler，本类不写任何业务逻辑。 */
 @Service
 public class TransQueryServiceImpl implements TransQueryService {
 

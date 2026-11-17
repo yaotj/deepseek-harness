@@ -10,13 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-/**
- * Function:
- *
- * @author crossoverJie
- * Date: 2019-01-20 17:16
- * @since JDK 1.8
- */
+
 @Service
 public class ClientHeartBeatHandlerImpl implements HeartBeatHandler {
 
@@ -36,7 +30,6 @@ public class ClientHeartBeatHandlerImpl implements HeartBeatHandler {
 
         LOGGER.info("重连接线程--");
         if (ChannelCache.getSize() < corePoolSize) {
-            //重连
             LOGGER.info("当前连接数{}，重连接", ChannelCache.getSize());
             ContextHolder.setReconnect(true);
             client.start();

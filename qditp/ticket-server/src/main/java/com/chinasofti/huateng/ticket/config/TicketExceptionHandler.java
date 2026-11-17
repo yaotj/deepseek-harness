@@ -8,13 +8,11 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-/** ticket-server 全局异常处理器。 */
 @RestControllerAdvice
 public class TicketExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(TicketExceptionHandler.class);
 
-    /** 参数类型不匹配（如字符串传入整数字段）。 */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public CommonResult handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         log.warn("参数类型不匹配, name={}, value={}, requiredType={}",
@@ -22,14 +20,12 @@ public class TicketExceptionHandler {
         return errorResult(TicketErrorCodeEnum.INVALID_PARAM, "参数格式错误: " + ex.getName());
     }
 
-    /** 通用运行时异常兜底。 */
     @ExceptionHandler(RuntimeException.class)
     public CommonResult handleRuntimeException(RuntimeException ex) {
         log.error("运行时异常", ex);
         return errorResult(TicketErrorCodeEnum.SYSTEM_ERROR, "系统内部错误");
     }
 
-    /** 其他异常兜底。 */
     @ExceptionHandler(Exception.class)
     public CommonResult handleException(Exception ex) {
         log.error("未处理异常", ex);

@@ -6,7 +6,6 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
 
-/** 日票 ACC 发售通知异步线程池。 */
 @Configuration
 public class DailyTicketAccNotifyExecutorConfig {
 

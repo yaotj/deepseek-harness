@@ -28,16 +28,9 @@ public class ItpSignPubkeyController {
         this.itpRequestSignVerifier = itpRequestSignVerifier;
     }
 
-    /**
-     * 请求签名公钥
-     * @param param
-     * @return
-     */
+
     @PostMapping("/requestSignPubkey")
     public ResultVO requestSignPubkey(@RequestBody RequestSignPubkeyParam param) {
-//        if (!itpRequestSignVerifier.checkSign(request)) {
-//            return ResultMapper.error( "签名校验未通过");
-//        }
 
         Map<String, String> map =new HashMap<>();
         map.put("publicKeyX",param.getPublicKeyX());
@@ -50,17 +43,9 @@ public class ItpSignPubkeyController {
         return itpService.requestSignPubkey(map);
     }
 
-    /**
-     * 请求签名行业数据
-     * @param param
-     * @return
-     */
+
     @PostMapping("/requestSignInsData")
-//    public ResultVO requestSignInsData(HttpServletRequest request) {
     public ResultVO requestSignInsData(@RequestBody RequestSignInsDataParam param) {
-//        if (!itpRequestSignVerifier.checkSign(request)) {
-//            return ResultMapper.error("签名校验未通过");
-//        }
 
         Map<String, String> map =new HashMap<>();
         map.put("industryData",param.getIndustryData());

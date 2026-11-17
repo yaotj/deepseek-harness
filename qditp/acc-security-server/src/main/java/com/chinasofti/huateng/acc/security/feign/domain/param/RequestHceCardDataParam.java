@@ -1,21 +1,12 @@
 package com.chinasofti.huateng.acc.security.feign.domain.param;
 
-/**
- * {@code /ci/itp/requestHceCardData} 的 HCE 卡数据发售参数。
- *
- * @author zzm
- * @date 2026/5/14 17:04
- */
+
 public class RequestHceCardDataParam {
 
-    /**
-     * 票卡类型，开户场景固定为 {@code 02}，表示后付费。
-     */
+
     private String ticketCard;
 
-    /**
-     * 物理卡号，格式为 {@code 000000} + 四字节 ITP 用户编码的十六进制字符串。
-     */
+
     private String iptUserId;
 
     public String getTicketCard() {

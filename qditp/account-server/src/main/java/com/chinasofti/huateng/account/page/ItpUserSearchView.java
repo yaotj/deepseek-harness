@@ -2,9 +2,7 @@ package com.chinasofti.huateng.account.page;
 
 import java.time.LocalDateTime;
 
-/**
- * USER_ITP_REG_INFO 的运营展示对象，不返回证件号和 HCE 卡数据。
- */
+
 public class ItpUserSearchView {
     private String thirdUserId;
     private String cardId;
@@ -13,26 +11,17 @@ public class ItpUserSearchView {
     private String msisdn;
     private String userName;
     private String cardIssueCode;
-    /**
-     * 发卡机构编码，APP 开户上送的 4 位原值（5412 青岛地铁 / 0007 支付宝出行 等）。
-     */
+
     private String issueOrgCode;
     private String channel;
-    /** 渠道签约流水号（{@code REQ_CONTRACT_NO}），运营据它与渠道侧对单。 */
     private String reqContractNo;
     private String companionFlag;
     private String status;
-    /**
-     * 申卡时间（开户注册时间）。
-     */
+
     private LocalDateTime regTms;
-    /**
-     * 申请解绑日期：该卡最近一次解约请求时间（APP_TERMINATION_REQUEST.REQUEST_TIME）。
-     */
+
     private LocalDateTime terminationRequestTime;
-    /**
-     * 解绑成功日期：该卡最近一次解约成功时间（仅 SUCCESS 的 COMPLETE_TIME）。
-     */
+
     private LocalDateTime terminationCompleteTime;
 
     public String getThirdUserId() { return thirdUserId; }

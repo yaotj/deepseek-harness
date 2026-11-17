@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 单程票最大购买张数后台参数接口。 */
 @RestController
 @RequestMapping("/page/single-ticket-purchase-limit")
 public class SingleTicketPurchaseLimitController {

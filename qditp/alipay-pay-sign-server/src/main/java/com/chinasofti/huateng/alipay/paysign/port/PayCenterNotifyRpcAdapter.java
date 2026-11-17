@@ -6,13 +6,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-/**
- * {@link PayCenterNotifyPort} 的唯一实现：直连 {@code util.PayCenterClient} 的两条通知接口。
- *
- * <p>本类刻意**不吞异常、不做判定**：{@code PayCenterClient.callPayCenter} 已经把
- * {@code IOException} 与非 2xx 吞成 {@code null}，端口层再吞一层等于两处沉默
- * （与 {@link PayCenterRpcAdapter} 同口径）；成功判定在 {@code notify.PaymentNotifyAdapter} 内。
- */
+
 @Component
 public class PayCenterNotifyRpcAdapter implements PayCenterNotifyPort {
 

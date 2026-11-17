@@ -40,11 +40,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-/**
- * 把各源上送的分片合并成最终对账文件：明细类走流式字节拼接，汇总类走流式逐行读 + 二次聚合。
- *
- * <p>段数一律取自 {@link ReconFileTypeEnum}，本类内不硬编码下标。</p>
- */
+
 @Service
 public class ReconFileGenerationService {
 
@@ -73,13 +69,7 @@ public class ReconFileGenerationService {
         this.properties = properties;
         this.lineBackfill = lineBackfill;
     }
-    /**
-     * 生成某一类型的最终对账文件。
-     *
-     * @param batchId  批次标识
-     * @param fileType 文件类型
-     * @return 落库后的文件视图
-     */
+
     public ReconFileView generate(String batchId, ReconFileType fileType) throws IOException {
         validateBatchId(batchId);
         BatchView batch = batchService.get(batchId);
@@ -120,7 +110,6 @@ public class ReconFileGenerationService {
         return fileMapper.select(batchId, fileType.name());
     }
 
-    /** 明细路径（EXP / DETAIL）：1MB 缓冲流式字节拼接，不解析行内容。 */
     private MergeStats mergeDetail(String batchId, ReconFileType fileType, Path root, Path target,
                                    List<SourceProgress> sources) throws IOException {
         MessageDigest digest = sha256();
@@ -152,7 +141,6 @@ public class ReconFileGenerationService {
         return new MergeStats(bytes, records, amount, HexFormat.of().formatHex(digest.digest()));
     }
 
-    /** 汇总路径（PAY / BUS）：流式逐行读各分片，按前 keyFieldCount 段键二次聚合后按键升序写出。 */
     private MergeStats mergeAggregated(String batchId, ReconFileType fileType, ReconFileTypeEnum meta,
                                        Path root, Path target, List<SourceProgress> sources) throws IOException {
         int keyFields = meta.getKeyFieldCount();
@@ -188,7 +176,6 @@ public class ReconFileGenerationService {
         }
     }
 
-    /** 按车站码重算并覆盖「线路」那一段，然后按新键重排、对撞上的键逐列累加度量。 */
     private Map<String, long[]> backfillLineSegment(ReconFileType fileType, int keyFields,
                                                     Map<String, long[]> aggregated) {
         if (!lineBackfill.appliesTo(fileType.name()) || aggregated.isEmpty()) {
@@ -232,7 +219,6 @@ public class ReconFileGenerationService {
         return rekeyed;
     }
 
-    /** 取车站到线路的映射；维表查询失败时抛异常。 */
     private Map<String, String> loadStationLines() {
         List<Map<String, Object>> rows = stationMapper.selectStationLineCodes();
         Map<String, String> mapping = new HashMap<>(Math.max(16, rows.size() * 2));
@@ -248,7 +234,6 @@ public class ReconFileGenerationService {
         return mapping;
     }
 
-    /** 按键升序写出 {@code key|m0|m1|...|m(n-1)}，返回输出行数。 */
     private MergeStats writeAggregated(Path target, Map<String, long[]> aggregated) throws IOException {
         MessageDigest digest = sha256();
         long bytes = 0;
@@ -282,7 +267,6 @@ public class ReconFileGenerationService {
         return builder.toString();
     }
 
-    /** 用各 COMPLETED 来源声明的总账校验实际写出的文件：明细严格比对，汇总只做健全性检查。 */
     private void verify(ReconFileType fileType, ReconFileTypeEnum meta, List<SourceProgress> sources,
                         MergeStats stats, Path temporary) throws IOException {
         long declaredRecords = sources.stream()
@@ -323,7 +307,6 @@ public class ReconFileGenerationService {
                 fileType, stats.records(), stats.amount(), declaredAmount);
     }
 
-    /** 取某来源该文件类型的已接收分片，并校验分片号从 0 起连续。 */
     private List<PartReceipt> orderedParts(String batchId, SourceProgress source, ReconFileType fileType) {
         List<PartReceipt> parts = partMapper.selectReceivedParts(batchId, source.source(), fileType.name());
         int expectedPartNo = 0;

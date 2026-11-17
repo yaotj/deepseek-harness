@@ -18,7 +18,6 @@ import com.chinasofti.huateng.model.app.RequestTerminationReqDTO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** 护栏：入参校验的文案与判断顺序（文案原样进 retMsg，属对外契约）。 */
 class PaySignValidatorsTest {
 
     private static RequestSignInfoReqDTO fullSignInfo() {

@@ -2,58 +2,36 @@ package com.chinasofti.huateng.model.app.dailyticket;
 
 import java.util.Date;
 
-/**
- * 日票支付结果回调内部转发参数。
- */
+
 public class DailyTicketPayCallbackReqDTO {
-    /**
-     * 日票订单号。
-     */
+
     private String orderNo;
 
-    /**
-     * 第三方支付交易号。
-     */
+
     private String tradeNo;
 
-    /**
-     * 支付平台原支付订单号，用于后续退款关联。
-     */
+
     private String paymentOrderNo;
 
-    /**
-     * 支付结果，success/SUCCESS表示成功。
-     */
+
     private String payResult;
 
-    /**
-     * 支付金额，单位分。
-     */
+
     private Integer payAmount;
 
-    /**
-     * 支付完成时间。
-     */
+
     private Date payDate;
 
-    /**
-     * 支付渠道。
-     */
+
     private String payChannel;
 
-    /**
-     * 支付中心回传的实付现金金额，单位分。原样透传落库，不做与总额的匹配校验。
-     */
+
     private Integer cashAmount;
 
-    /**
-     * 支付中心回传的优惠金额，单位分。原样透传落库，不做与总额的匹配校验。
-     */
+
     private Integer couponAmount;
 
-    /**
-     * 原始回调报文，便于审计和排障。
-     */
+
     private String rawBody;
 
     public String getOrderNo() {

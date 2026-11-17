@@ -13,12 +13,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 解析渠道日账单 reconciliation-bill-date.csv（22 字段，逗号分隔，首行为表头）。
- *
- * <p>手写解析以支持带双引号的字段（渠道账单可能含逗号/换行），不引入额外依赖。
- * 字段顺序严格遵循需求文档，索引与 docs/business/recon-thirdparty.md §二 一致。</p>
- */
+
 @Component
 public class ThirdPartyBillCsvParser {
 
@@ -49,7 +44,6 @@ public class ThirdPartyBillCsvParser {
         return result;
     }
 
-    /** 拆解一行 CSV，支持双引号包裹与转义（"" → "）。 */
     private List<String> splitCsvLine(String line) {
         List<String> fields = new ArrayList<>();
         StringBuilder current = new StringBuilder();

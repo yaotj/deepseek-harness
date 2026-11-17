@@ -24,51 +24,35 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * IF8A-42 用户销户实现，见 {@link AccountCancelService}。
- */
+
 @Service
 public class AccountCancelServiceImpl implements AccountCancelService {
     private static final Logger log = LoggerFactory.getLogger(AccountCancelServiceImpl.class);
 
-    /**
-     * {@code USER_ITP_REG_LOG.OPER_TYPE} 取值。
-     */
+
     private static final int OPER_TYPE_USER_CANCEL = 2;
 
     private final UserItpRegInfoMapper userItpRegInfoMapper;
 
     private final UserItpRegLogMapper userItpRegLogMapper;
 
-    /**
-     * 销户前校验支付通道是否已清空用。
-     */
+
     private final UserPayChannelMapper userPayChannelMapper;
 
-    /**
-     * 销户归档的协作者。
-     */
+
     private final AccountArchiveService accountArchiveService;
 
-    /**
-     * 销户前查 IF8A-35 未结清订单用。
-     */
+
     private final GateTxnPayClient gateTxnPayClient;
 
-    /**
-     * {@code userCancel} 不带 `@Transactional`（内部先发 RPC），落库部分用它显式开短事务。
-     */
+
     private final TransactionTemplate transactionTemplate;
 
-    /**
-     * 销户前是否调 IF8A-35 校验未结清订单。
-     */
+
     @Value("${app.user-cancel.check-unsettled:true}")
     private boolean checkUnsettledBeforeCancel;
 
-    /**
-     * 构造器注入（ADR-D37）。
-     */
+
     public AccountCancelServiceImpl(UserItpRegInfoMapper userItpRegInfoMapper,
                                     UserItpRegLogMapper userItpRegLogMapper,
                                     UserPayChannelMapper userPayChannelMapper,
@@ -83,9 +67,7 @@ public class AccountCancelServiceImpl implements AccountCancelService {
         this.transactionTemplate = transactionTemplate;
     }
 
-    /**
-     * IF8A-42 用户销户。
-     */
+
     @Override
     public UserCancelResult userCancel(UserCancelReqDTO request) {
         UserCancelResult response = new UserCancelResult();
@@ -144,11 +126,7 @@ public class AccountCancelServiceImpl implements AccountCancelService {
         }
     }
 
-    /**
-     * 销户前调 IF8A-35 查未支付 / 扣费失败订单数。
-     *
-     * @return {@code null} 表示允许销户；否则返回应拒绝的错误码
-     */
+
     private String checkUnsettledOrder(String thirdUserId) {
         RequestUserAccInfoResult accInfo;
         try {
@@ -173,11 +151,7 @@ public class AccountCancelServiceImpl implements AccountCancelService {
         return null;
     }
 
-    /**
-     * 销户前校验该用户的签约支付通道是否已全部解绑。
-     *
-     * @return {@code null} 表示允许销户；否则返回应拒绝的错误码
-     */
+
     private String checkPayChannelCleared(String thirdUserId) {
         int remainingChannels = userPayChannelMapper.countByThirdUserId(thirdUserId);
         if (remainingChannels > 0) {
@@ -189,9 +163,7 @@ public class AccountCancelServiceImpl implements AccountCancelService {
         return null;
     }
 
-    /**
-     * 销户落库：注销开户记录 + 每张卡写一条操作日志。
-     */
+
     private int doCancelUserCards(String thirdUserId, List<UserItpRegInfo> activeCards) {
         LocalDateTime now = LocalDateTime.now();
         int canceled = userItpRegInfoMapper.updateCancelByThirdUserId(thirdUserId, now);

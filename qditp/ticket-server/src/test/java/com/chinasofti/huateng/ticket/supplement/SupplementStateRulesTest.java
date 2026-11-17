@@ -18,7 +18,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 钉住 2026-09-14 CardDataHandler 审查里五条会静默回退的修复。 */
 class SupplementStateRulesTest {
 
     private static final String PAID_AREA = "01";
@@ -232,27 +231,22 @@ class SupplementStateRulesTest {
         String withinWindow = LocalDateTime.now().minusMinutes(5).format(formatter);
         String overWindow = LocalDateTime.now().minusMinutes(90).format(formatter);
 
-        // 同站 + 窗内 ⇒ 免费更新 005
         assertEquals(AdviceOptEnum.FREE_UPDATE.asSingletonList(),
                 rules.resolveAdviceOpt(QRCodeStatusEnum.ENTRY, "0101", "0101", FREE_AREA, withinWindow, "C1", "0101"),
                 "进站站与 BOM 站码相同且窗内 ⇒ 必须 005 免费");
 
-        // 同站 + 超窗 ⇒ [006, 020]（原口径）
         assertEquals(List.of(AdviceOptEnum.PAID_UPDATE.getCode(), AdviceOptEnum.FREE_UPDATE_020.getCode()),
                 rules.resolveAdviceOpt(QRCodeStatusEnum.ENTRY, "0101", "0101", FREE_AREA, overWindow, "C1", "0101"),
                 "同站超窗 ⇒ 付费更新在前");
 
-        // 跨站 + 窗内 ⇒ 必须 006 付费（推翻 ADR-D136「窗内免费」）
         assertEquals(List.of(AdviceOptEnum.PAID_UPDATE.getCode(), AdviceOptEnum.FREE_UPDATE_020.getCode()),
                 rules.resolveAdviceOpt(QRCodeStatusEnum.ENTRY, "0101", "0101", FREE_AREA, withinWindow, "C1", "0202"),
                 "跨站窗内也收费 ⇒ 006 必须排在首位");
 
-        // 跨站 + 超窗 ⇒ 仍 006 付费
         assertEquals(List.of(AdviceOptEnum.PAID_UPDATE.getCode(), AdviceOptEnum.FREE_UPDATE_020.getCode()),
                 rules.resolveAdviceOpt(QRCodeStatusEnum.ENTRY, "0101", "0101", FREE_AREA, overWindow, "C1", "0202"),
                 "跨站超窗同样 006 付费");
 
-        // 站码未知（旧调用路径）⇒ 旧口径，窗内 005、超窗 [006,020]
         assertEquals(AdviceOptEnum.FREE_UPDATE.asSingletonList(),
                 rules.resolveAdviceOpt(QRCodeStatusEnum.ENTRY, "0101", "0101", FREE_AREA, withinWindow, "C1", null),
                 "站码未知时回退旧口径：窗内 005");
@@ -269,43 +263,36 @@ class SupplementStateRulesTest {
         String withinWindow = LocalDateTime.now().minusMinutes(5).format(formatter);
         String overWindow = LocalDateTime.now().minusMinutes(90).format(formatter);
 
-        // 跨站 ⇒ 005 免费更新 MUST 拒绝
         assertEquals(SupplementStateRules.UpdateRejection.CROSS_STATION_NOT_FREE,
                 rules.checkUpdate(QRCodeStatusEnum.ENTRY, AdviceOptEnum.FREE_UPDATE.getCode(),
                         FREE_AREA, withinWindow, "0101", "0202"),
                 "跨站不可走免费更新，应让 BOM 重新分析拿到 006");
 
-        // 同站 + 窗内 ⇒ 005 放行
         assertEquals(SupplementStateRules.UpdateRejection.NONE,
                 rules.checkUpdate(QRCodeStatusEnum.ENTRY, AdviceOptEnum.FREE_UPDATE.getCode(),
                         FREE_AREA, withinWindow, "0101", "0101"),
                 "同站窗内 ⇒ 免费更新放行");
 
-        // 跨站 + 窗内 ⇒ 006 放行（即便在时间窗内也收费）
         assertEquals(SupplementStateRules.UpdateRejection.NONE,
                 rules.checkUpdate(QRCodeStatusEnum.ENTRY, AdviceOptEnum.PAID_UPDATE.getCode(),
                         FREE_AREA, withinWindow, "0101", "0202"),
                 "跨站窗内也放行付费更新（用户裁决）");
 
-        // 同站 + 窗内 ⇒ 006 MUST 拒绝（应走免费的 005）
         assertEquals(SupplementStateRules.UpdateRejection.FREE_WINDOW_NOT_EXPIRED,
                 rules.checkUpdate(QRCodeStatusEnum.ENTRY, AdviceOptEnum.PAID_UPDATE.getCode(),
                         FREE_AREA, withinWindow, "0101", "0101"),
                 "同站窗内不该收费，拒绝 006");
 
-        // 同站 + 超窗 ⇒ 006 放行
         assertEquals(SupplementStateRules.UpdateRejection.NONE,
                 rules.checkUpdate(QRCodeStatusEnum.ENTRY, AdviceOptEnum.PAID_UPDATE.getCode(),
                         FREE_AREA, overWindow, "0101", "0101"),
                 "同站超窗 ⇒ 付费更新放行");
 
-        // 站码未知 + 窗内 ⇒ 沿用 ADR-D136：不收费（拒绝 006）
         assertEquals(SupplementStateRules.UpdateRejection.FREE_WINDOW_NOT_EXPIRED,
                 rules.checkUpdate(QRCodeStatusEnum.ENTRY, AdviceOptEnum.PAID_UPDATE.getCode(),
                         FREE_AREA, withinWindow, "0101", null),
                 "站码未知且窗内 ⇒ 证明不了超窗，NEVER 收费");
 
-        // 站码未知 + 超窗 ⇒ 放行 006（旧口径）
         assertEquals(SupplementStateRules.UpdateRejection.NONE,
                 rules.checkUpdate(QRCodeStatusEnum.ENTRY, AdviceOptEnum.PAID_UPDATE.getCode(),
                         FREE_AREA, overWindow, "0101", null),

@@ -19,11 +19,7 @@ import com.chinasofti.huateng.common.core.cache.LocalCache;
 import com.chinasofti.huateng.common.core.domain.AjaxResult;
 import com.chinasofti.huateng.system.domain.SysCache;
 
-/**
- * 缓存监控
- * 
- * @author zmzhang
- */
+
 @RestController
 @RequestMapping("/monitor/cache")
 public class CacheController

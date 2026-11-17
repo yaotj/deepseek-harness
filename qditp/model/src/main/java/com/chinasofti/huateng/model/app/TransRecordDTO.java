@@ -2,9 +2,7 @@ package com.chinasofti.huateng.model.app;
 
 import java.math.BigDecimal;
 
-/**
- * IF8A-05 单条交易记录。
- */
+
 public class TransRecordDTO {
     private String entryStationName;
     private String entryDate;
@@ -26,14 +24,11 @@ public class TransRecordDTO {
     private String offlineFlag;
     private String attributableParty;
     private String receivingParty;
-    /** 支付渠道编码（如 03=支付宝、05=微信），映射自 PAY_TXN_DETAIL.PAYMENT_VENDOR。 */
     private String payChannelCode;
     private String transferFlag;
     private String cumulativeType;
     private Integer originalFare;
-    /**
-     * 原始票价（分），值与 {@link #originalFare} 完全相同，供 APP 按 totalAmount 取用。
-     */
+
     private Integer totalAmount;
     private Integer walletTotalAmt;
     private Integer discountLevelAmt;

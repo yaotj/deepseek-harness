@@ -11,10 +11,8 @@ public class SupplementOrderCloseProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(SupplementOrderCloseProcessor.class);
 
-    /** INIT 单超时（分钟）：预下单未完成（用户未拉起收银台）即关。 */
     private static final int INIT_TIMEOUT_MINUTES = 30;
 
-    /** PROCESSING 单超时（分钟）：支付中心侧 24h 仍非终态，本地兜底关单。 */
     private static final int PROCESSING_TIMEOUT_MINUTES = 24 * 60;
 
     private static final int BATCH_LIMIT = 100;

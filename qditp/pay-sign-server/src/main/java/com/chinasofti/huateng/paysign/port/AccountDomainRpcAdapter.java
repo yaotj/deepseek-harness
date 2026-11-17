@@ -16,13 +16,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-/** {@link AccountDomainPort} 的唯一实现：rpc DTO 装配 + {@code retCode} → {@link RpcOutcome} 翻译。 */
 @Component
 public class AccountDomainRpcAdapter implements AccountDomainPort {
 
     private static final Logger log = LoggerFactory.getLogger(AccountDomainRpcAdapter.class);
 
-    /** 账户域的成功码，与本模块对外应答复用同一个枚举值，NEVER 写成裸字面量 {@code "0000"}。 */
     private static final String SUCCESS_CODE = PaySignErrorCodeEnum.SUCCESS.getCode();
 
     private final AccountClient accountClient;
@@ -76,7 +74,6 @@ public class AccountDomainRpcAdapter implements AccountDomainPort {
         }
     }
 
-    /** 两个移除端点共用同一个入向 DTO，装配也只写一遍。 */
     private RequestRemovePayChannelReqDTO buildRemoveRequest(String thirdUserId, String paymentVendor,
                                                             String cardId, String cardType) {
         RequestRemovePayChannelReqDTO request = new RequestRemovePayChannelReqDTO();
@@ -143,7 +140,6 @@ public class AccountDomainRpcAdapter implements AccountDomainPort {
         }
     }
 
-    /** 空白串一律收成 {@code null}，让调用点只需判 {@code null}。 */
     private String trimToNull(String value) {
         if (value == null) {
             return null;

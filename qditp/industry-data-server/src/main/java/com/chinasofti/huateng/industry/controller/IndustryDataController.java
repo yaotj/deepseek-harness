@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 行业数据接口。 */
 @RestController
 @RequestMapping("/ci/industry")
 public class IndustryDataController {
@@ -23,12 +22,7 @@ public class IndustryDataController {
         this.industryCardDataService = industryCardDataService;
     }
 
-    /**
-     * 生成完整行业卡数据。
-     *
-     * @param request 卡数据生成请求
-     * @return 卡数据生成结果
-     */
+
     @PostMapping("/buildCardData")
     public IndustryCardDataBuildRespDTO buildCardData(@RequestBody IndustryCardDataBuildReqDTO request) {
         log.info("生成行业卡数据, request={}", JSON.toJSONString(request));

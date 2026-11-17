@@ -32,11 +32,7 @@ import com.chinasofti.huateng.system.service.ISysPostService;
 import com.chinasofti.huateng.system.service.ISysRoleService;
 import com.chinasofti.huateng.system.service.ISysUserService;
 
-/**
- * 用户信息
- * 
- * @author zmzhang
- */
+
 @RestController
 @RequestMapping("/system/user")
 public class SysUserController extends BaseController
@@ -53,9 +49,7 @@ public class SysUserController extends BaseController
     @Autowired
     private ISysPostService postService;
 
-    /**
-     * 获取用户列表
-     */
+
     @PreAuthorize("@ss.hasPermi('system:user:list')")
     @GetMapping("/list")
     public TableDataInfo list(SysUser user)
@@ -94,9 +88,7 @@ public class SysUserController extends BaseController
         util.importTemplateExcel(response, "用户数据");
     }
 
-    /**
-     * 根据用户编号获取详细信息
-     */
+
     @PreAuthorize("@ss.hasPermi('system:user:query')")
     @GetMapping(value = { "/", "/{userId}" })
     public AjaxResult getInfo(@PathVariable(value = "userId", required = false) Long userId)
@@ -116,9 +108,7 @@ public class SysUserController extends BaseController
         return ajax;
     }
 
-    /**
-     * 新增用户
-     */
+
     @PreAuthorize("@ss.hasPermi('system:user:add')")
     @Log(title = "用户管理", businessType = BusinessType.INSERT)
     @PostMapping
@@ -143,9 +133,7 @@ public class SysUserController extends BaseController
         return toAjax(userService.insertUser(user));
     }
 
-    /**
-     * 修改用户
-     */
+
     @PreAuthorize("@ss.hasPermi('system:user:edit')")
     @Log(title = "用户管理", businessType = BusinessType.UPDATE)
     @PutMapping
@@ -171,9 +159,7 @@ public class SysUserController extends BaseController
         return toAjax(userService.updateUser(user));
     }
 
-    /**
-     * 删除用户
-     */
+
     @PreAuthorize("@ss.hasPermi('system:user:remove')")
     @Log(title = "用户管理", businessType = BusinessType.DELETE)
     @DeleteMapping("/{userIds}")
@@ -186,9 +172,7 @@ public class SysUserController extends BaseController
         return toAjax(userService.deleteUserByIds(userIds));
     }
 
-    /**
-     * 重置密码
-     */
+
     @PreAuthorize("@ss.hasPermi('system:user:resetPwd')")
     @Log(title = "用户管理", businessType = BusinessType.UPDATE)
     @PutMapping("/resetPwd")
@@ -201,9 +185,7 @@ public class SysUserController extends BaseController
         return toAjax(userService.resetPwd(user));
     }
 
-    /**
-     * 状态修改
-     */
+
     @PreAuthorize("@ss.hasPermi('system:user:edit')")
     @Log(title = "用户管理", businessType = BusinessType.UPDATE)
     @PutMapping("/changeStatus")
@@ -215,9 +197,7 @@ public class SysUserController extends BaseController
         return toAjax(userService.updateUserStatus(user));
     }
 
-    /**
-     * 根据用户编号获取授权角色
-     */
+
     @PreAuthorize("@ss.hasPermi('system:user:query')")
     @GetMapping("/authRole/{userId}")
     public AjaxResult authRole(@PathVariable("userId") Long userId)
@@ -230,9 +210,7 @@ public class SysUserController extends BaseController
         return ajax;
     }
 
-    /**
-     * 用户授权角色
-     */
+
     @PreAuthorize("@ss.hasPermi('system:user:edit')")
     @Log(title = "用户管理", businessType = BusinessType.GRANT)
     @PutMapping("/authRole")
@@ -244,9 +222,7 @@ public class SysUserController extends BaseController
         return success();
     }
 
-    /**
-     * 获取部门树列表
-     */
+
     @PreAuthorize("@ss.hasPermi('system:user:list')")
     @GetMapping("/deptTree")
     public AjaxResult deptTree(SysDept dept)

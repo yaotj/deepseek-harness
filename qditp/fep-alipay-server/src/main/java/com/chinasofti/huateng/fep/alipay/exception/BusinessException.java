@@ -2,16 +2,12 @@ package com.chinasofti.huateng.fep.alipay.exception;
 
 import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
 
-/**
- * 业务异常，用于在 Service 层抛出。
- */
+
 public class BusinessException extends RuntimeException {
     private static final long serialVersionUID = 1L;
 
-    /** 响应码 */
     private final String code;
 
-    /** 响应信息 */
     private final String msg;
 
     public BusinessException(String code, String msg) {

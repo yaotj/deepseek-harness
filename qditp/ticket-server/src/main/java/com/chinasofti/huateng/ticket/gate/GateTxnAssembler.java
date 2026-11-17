@@ -14,7 +14,6 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/** IF1A-01 落库对象组装器 —— 把闸机报文翻译成 {@link QRCodeTxnDetail}（交易明细）与 {@link QRCodeStatus}（下一票卡状态）两个待写实体。 */
 @Component
 class GateTxnAssembler {
 
@@ -24,7 +23,6 @@ class GateTxnAssembler {
     @Autowired
     private GateCodeStatusResolver codeStatusResolver;
 
-    /** 构建交易明细。 */
     public QRCodeTxnDetail buildTxnDetail(NotifyVerifyResultReqDTO request) {
         QRCodeTxnDetail detail = new QRCodeTxnDetail();
         detail.setDeviceId(request.getDeviceId());
@@ -50,7 +48,6 @@ class GateTxnAssembler {
         return detail;
     }
 
-    /** 从 {@code handleDateTime}（yyyyMMddHHmmss）取交易日期。 */
     private String resolveTxnDate(String handleDateTime) {
         if (handleDateTime != null && handleDateTime.length() >= 8) {
             String candidate = handleDateTime.substring(0, 8);
@@ -73,7 +70,6 @@ class GateTxnAssembler {
         return true;
     }
 
-    /** 解析金额（分）。 */
     private Long parseAmount(String amount) {
         if (!StringUtils.hasText(amount)) {
             return null;
@@ -86,7 +82,6 @@ class GateTxnAssembler {
         }
     }
 
-    /** 构建下一票卡状态。 */
     public QRCodeStatus buildNextStatus(NotifyVerifyResultReqDTO request, QRCodeStatus currentStatus) {
         QRCodeStatus nextStatus = new QRCodeStatus();
         nextStatus.setCardId(request.getCardId());
@@ -122,7 +117,6 @@ class GateTxnAssembler {
         return nextStatus;
     }
 
-    /** 迁移白名单观察日志：只告警、 */
     private void warnIfTransitionUnexpected(QRCodeStatus currentStatus, QRCodeStatus nextStatus,
                                             NotifyVerifyResultReqDTO request) {
         QRCodeStatusEnum from = QRCodeStatusEnum.parseOrNull(currentStatus.getCodeStatus());
@@ -149,7 +143,6 @@ class GateTxnAssembler {
         }
     }
 
-    /** 交易序号 +1。 */
     private String incrementTxnSeq(String txnSeq) {
         if (!StringUtils.hasText(txnSeq)) {
             return "1";

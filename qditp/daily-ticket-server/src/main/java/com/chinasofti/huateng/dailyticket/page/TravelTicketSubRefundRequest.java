@@ -1,6 +1,5 @@
 package com.chinasofti.huateng.dailyticket.page;
 
-/** 运营端旅游票子单部分退款请求。 */
 public class TravelTicketSubRefundRequest {
     private String parentOrderNo;
     private String subOrderNo;

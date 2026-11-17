@@ -12,6 +12,5 @@ public interface StationInfoMapper {
 
     int insertBatch(@Param("list") List<StationInfo> list);
 
-    /** 查询指定路网参数版本下的车站信息。 */
     List<StationInfo> selectByParaVerNo(@Param("paraVerNo") Long paraVerNo);
 }

@@ -1,27 +1,17 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * 查询黑名单应答参数。
- */
+
 public class QueryBlackListResult {
-    /**
-     * 返回码。
-     */
+
     private String retCode;
 
-    /**
-     * 返回消息。
-     */
+
     private String retMsg;
 
-    /**
-     * 是否在黑名单，0否，1是。
-     */
+
     private String inBlack;
 
-    /**
-     * 失败次数。
-     */
+
     private Integer failedCount;
 
     public String getRetCode() {

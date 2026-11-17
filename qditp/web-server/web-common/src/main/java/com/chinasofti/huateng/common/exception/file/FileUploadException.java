@@ -3,11 +3,7 @@ package com.chinasofti.huateng.common.exception.file;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 
-/**
- * 文件上传异常类
- * 
- * @author zmzhang
- */
+
 public class FileUploadException extends Exception
 {
 

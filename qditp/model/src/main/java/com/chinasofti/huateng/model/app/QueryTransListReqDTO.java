@@ -2,45 +2,24 @@ package com.chinasofti.huateng.model.app;
 
 import java.util.List;
 
-/**
- * IF8A-05 查询交易记录列表请求参数（重构版）。
- */
+
 public class QueryTransListReqDTO {
 
-    /** 第三方用户ID（必填） */
     private String thirdUserId;
-    /** 卡号，支持逗号分隔多卡号。 */
     private String cardId;
-    /** 解析后的卡号列表（内部使用） */
     private List<String> cardIdList;
-    /** APP 卡类型，经 CardTypeMapping 映射后查询发卡卡类型。 */
     private String cardType;
-    /**
-     * 映射后的发卡卡类型列表（内部使用，由 CardTypeMapping#toIssueCardTypes 生成）。
-     */
+
     private List<String> cardTypeList;
-    /** 页码，从 1 开始，默认 1。 */
     private Integer pageNumber;
-    /** 每页条数，默认 10，最大 MAX_PAGE_SIZE。 */
     private Integer pageSize;
-    /** 开始日期 yyyy-MM-dd（非必填） */
     private String startDate;
-    /** 结束日期 yyyy-MM-dd（非必填） */
     private String endDate;
-    /** 扣款结果：空=全部，"0"=成功，"1"=失败（非必填） */
     private String debitRequestResult;
-    /** 日票票号（非必填） */
     private String ticketCode;
-    /**
-     * 发行渠道过滤（非必填，非 APP 传入）：空=全部渠道，{@code 07}=支付宝出行。
-     *
-     * <p>调用方按渠道收窄结果集时用，例如支付宝出行记录查询只要 {@code ISSUE_CHANNEL_CODE='07'} 的单。
-     * 不传即维持原有「全渠道」口径，IF8A-05 的 APP 入向契约不带该字段。
-     */
+
     private String issueChannelCode;
-    /** 服务端计算的分页偏移量（非 APP 传入） */
     private Integer offset;
-    /** 服务端计算的分页限制（非 APP 传入） */
     private Integer limit;
 
     public static final int MAX_PAGE_SIZE = 100;

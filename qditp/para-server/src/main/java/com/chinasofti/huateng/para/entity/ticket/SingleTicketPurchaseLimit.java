@@ -2,7 +2,6 @@ package com.chinasofti.huateng.para.entity.ticket;
 
 import java.time.LocalDateTime;
 
-/** 单程票最大购买张数全局参数。 */
 public class SingleTicketPurchaseLimit {
     private String configKey;
     private Integer maxPurchaseQuantity;

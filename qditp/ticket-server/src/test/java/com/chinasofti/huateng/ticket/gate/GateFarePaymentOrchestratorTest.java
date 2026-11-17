@@ -14,11 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住「落单」与「扣款」分离这条裁决（2026-09-22）：出站方向一律落单，BOM 补站只是不扣款。
- *
- * <p>回归风险：把 `adviceOpt` 重新塞回落单判断，会让补站行程在乘车记录（IF8A-05，唯一源 GATE_TXN_PAY）里彻底消失。
- */
+
 class GateFarePaymentOrchestratorTest {
 
     private GateTxnPayClient gateTxnPayClient;
@@ -54,11 +50,7 @@ class GateFarePaymentOrchestratorTest {
         verifyNoInteractions(gateTxnPayClient);
     }
 
-    /**
-     * 2026-11-17 裁定：industryDetail 快照对**全渠道**组装（此前只组支付宝渠道）。
-     * 非支付宝发行渠道（APP/TVM/BOM）的免密扣费走 pay-sign 直连支付中心，
-     * 对端是同一个支付中心、同一份 V1.2 industryDetail 契约 —— 不组快照 = 出网缺必填键。
-     */
+
     @Test
     void nonAlipayExitAlsoAssemblesIndustryDetail() {
         NotifyVerifyResultReqDTO request = exitRequest(null);
@@ -75,7 +67,6 @@ class GateFarePaymentOrchestratorTest {
         verify(industryDetailAssembler).assemble(any());
     }
 
-    /** adviceOpt 必须随报文搬到扣费入参里——gate-txn-pay 就是靠它判断「落单但不扣款」。 */
     @Test
     void adviceOptIsCarriedIntoPayRequest() {
         assertEquals("006", GateTxnPayReqDTO.fromVerifyResult(exitRequest("006")).getAdviceOpt());

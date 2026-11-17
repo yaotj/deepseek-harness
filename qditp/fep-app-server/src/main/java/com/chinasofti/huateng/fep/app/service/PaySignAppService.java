@@ -23,7 +23,6 @@ public interface PaySignAppService {
 
     RequestTerminationResult requestTermination(RequestTerminationReqDTO request);
 
-    /** IF8A-75 直接解绑支付方式。 */
     UnbindAgreementResult unbindAgreement(UnbindAgreementReqDTO request);
 
     RequestContractResultResult requestContractResult(RequestContractResultReqDTO request);
@@ -34,7 +33,6 @@ public interface PaySignAppService {
 
     PaySignCallbackResult receivePayResult(ReceivePayResultReqDTO request);
 
-    /** 支付中心网关 §5.2 退款回调转发（2026-09-22 新增，P1-3）。 */
     PaySignCallbackResult receiveRefundResult(ReceiveRefundResultReqDTO request);
 
     PaySignCallbackResult receiveTerminationResult(ReceiveTerminationResultReqDTO request);

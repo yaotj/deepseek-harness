@@ -2,9 +2,7 @@ package com.chinasofti.huateng.model.app;
 
 import java.io.Serializable;
 
-/**
- * 注册量统计异步导出 DTO。
- */
+
 public class RegStatExportDTO implements Serializable
 {
     private static final long serialVersionUID = 1L;

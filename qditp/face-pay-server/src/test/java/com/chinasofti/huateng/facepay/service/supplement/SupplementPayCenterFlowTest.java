@@ -41,7 +41,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** 锁死 {@link SupplementPayCenterFlow} 的收口语义。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class SupplementPayCenterFlowTest {
@@ -68,7 +67,6 @@ class SupplementPayCenterFlowTest {
         when(payCenterProperties.getQueryUrl()).thenReturn("http://paycenter/query");
     }
 
-    /** 造一条收敛响应。 */
     private static GateTxnPayDebitConvergeRespDTO convergeResp(String retCode, Boolean converged,
                                                                String debitStatus) {
         GateTxnPayDebitConvergeRespDTO resp = new GateTxnPayDebitConvergeRespDTO();
@@ -79,7 +77,6 @@ class SupplementPayCenterFlowTest {
         return resp;
     }
 
-    // ==================== preOrder ====================
 
     @Nested
     class PreOrder {
@@ -96,7 +93,6 @@ class SupplementPayCenterFlowTest {
             order.setPaymentVendor("WECHAT");
         }
 
-        /** PayCenter 受理成功 → UPDATE 推 PROCESSING + 渠道凭据。 */
         @Test
         void acceptedUpdatesPrepayResult() {
             PayCenterResult result = PayCenterResults.answered("0", null, "PAY_INFO_XXX");
@@ -107,17 +103,14 @@ class SupplementPayCenterFlowTest {
             var outcome = flow.preOrder(order);
 
             assertInstanceOf(com.chinasofti.huateng.rpc.outcome.RpcOutcome.Ok.class, outcome);
-            // PayCenterResults.answered 的 body 没有 "payChannelCode" key → 生产 PayCenter 会返回，测试里为 null
             verify(supplementOrderMapper).updatePrepayResult(eq(SUP_ORDER), org.mockito.ArgumentMatchers.isNull(), eq("PC20260914001"), eq("PAY_INFO_XXX"));
         }
 
-        /** UPDATE 返回 0 行时视为幂等（已 PROCESSING），NEVER 报错。 */
         @Test
         void updatePrepayResultZeroRowsIsIdempotent() {
             PayCenterResult result = PayCenterResults.answered("0", null, "PAY_INFO_XXX");
             when(messageFactory.buildPayRequest(any(), any())).thenReturn(payRequest);
             when(payCenterClient.execute(eq("http://paycenter/pay"), eq(payRequest))).thenReturn(result);
-            // 第二次 update 自然返回 0（已经 PROCESSING 了）
             when(supplementOrderMapper.updatePrepayResult(anyString(), anyString(), anyString(), anyString())).thenReturn(0);
 
             var outcome = flow.preOrder(order);
@@ -125,7 +118,6 @@ class SupplementPayCenterFlowTest {
             assertInstanceOf(com.chinasofti.huateng.rpc.outcome.RpcOutcome.Ok.class, outcome);
         }
 
-        /** 对端传输失败 → Unreachable。 */
         @Test
         void transportFailureNeverTouchesDb() {
             when(messageFactory.buildPayRequest(any(), any())).thenReturn(payRequest);
@@ -137,7 +129,6 @@ class SupplementPayCenterFlowTest {
             verify(supplementOrderMapper, never()).updatePrepayResult(anyString(), anyString(), anyString(), anyString());
         }
 
-        /** 对端返回 code!=0 → BizRejected。 */
         @Test
         void bizRejectedNeverUpdates() {
             PayCenterResult result = PayCenterResults.answered("9999", null, null);
@@ -151,7 +142,6 @@ class SupplementPayCenterFlowTest {
         }
     }
 
-    // ==================== handlePayNotice ====================
 
     @Nested
     class HandlePayNotice {
@@ -172,7 +162,6 @@ class SupplementPayCenterFlowTest {
             item.setSettleStatus("PENDING");
         }
 
-        /** 补款单不存在 → 静默返回，NEVER 报错。 */
         @Test
         void missingOrderIsSilentlyIgnored() {
             when(supplementOrderMapper.selectByOrderNo(SUP_ORDER)).thenReturn(null);
@@ -183,7 +172,6 @@ class SupplementPayCenterFlowTest {
             verifyNoInteractions(gateTxnPayClient);
         }
 
-        /** 回调 SUCCESS → 收敛链完整：推补款单 SUCCESS → RPC 收敛原订单 → 更新明细 SETTLED。 */
         @Test
         void successConvergesFullChain() {
             when(supplementOrderMapper.selectByOrderNo(SUP_ORDER)).thenReturn(order);
@@ -202,16 +190,14 @@ class SupplementPayCenterFlowTest {
             inOrder.verify(supplementOrderMapper).updateItemSettleStatus(eq(SUP_ORDER), eq(ORIG_ORDER), eq("SETTLED"), any());
         }
 
-        /** 回查时补款单已是 SUCCESS → 幂等跳过收敛链。 */
         @Test
         void alreadySuccessIsIdempotent() {
             order.setPayStatus("SUCCESS");
             when(supplementOrderMapper.selectByOrderNo(SUP_ORDER))
-                    .thenReturn(order)         // 第一次 updatePayStatusFromPending 返回 0 后回查
-                    .thenReturn(order);        // 第二次 selectByOrderNo（看最新状态）
+                    .thenReturn(order)
+                    .thenReturn(order);
             when(messageFactory.buildQueryRequest(SUP_ORDER)).thenReturn(queryRequest);
             when(payCenterClient.execute(any(), eq(queryRequest))).thenReturn(PayCenterResults.answered("0", PayCenterStatus.SUCCESS, null));
-            // updatePayStatusFromPending 白名单只放 INIT/PROCESSING，已 SUCCESS 返回 0
             when(supplementOrderMapper.updatePayStatusFromPending(eq(SUP_ORDER), eq("SUCCESS"), anyString())).thenReturn(0);
 
             flow.handlePayNotice(SUP_ORDER);
@@ -219,7 +205,6 @@ class SupplementPayCenterFlowTest {
             verify(gateTxnPayClient, never()).convergeDebitStatusForSupplement(any());
         }
 
-        /** 收敛返回 {@code converged=false} 但原订单已是 SUCCESS → 无独占下系后到补款单重复支付， */
         @Test
         void convergeZeroRowsButAlreadySuccessMarksDuplicateRefund() {
             when(supplementOrderMapper.selectByOrderNo(SUP_ORDER)).thenReturn(order);
@@ -227,7 +212,6 @@ class SupplementPayCenterFlowTest {
             when(payCenterClient.execute(any(), eq(queryRequest))).thenReturn(PayCenterResults.answered("0", PayCenterStatus.SUCCESS, null));
             when(supplementOrderMapper.updatePayStatusFromPending(anyString(), eq("SUCCESS"), anyString())).thenReturn(1);
             when(supplementOrderMapper.selectItemsByOrderNo(SUP_ORDER)).thenReturn(List.of(item));
-            // 原订单已在 SUCCESS（converge 白名单外）——被先到补款单抢先结清
             when(gateTxnPayClient.convergeDebitStatusForSupplement(any(GateTxnPayDebitConvergeReqDTO.class)))
                     .thenReturn(convergeResp("0000", false, "SUCCESS"));
 
@@ -237,7 +221,6 @@ class SupplementPayCenterFlowTest {
                     eq(SUP_ORDER), eq(ORIG_ORDER), eq("FAILED"), eq("重复支付待退款"));
         }
 
-        /** 收敛返回 {@code converged=false} 且原订单仍非 SUCCESS → 明细标 FAILED 需人工核对。 */
         @Test
         void convergeZeroRowsAndNotSuccessMarksFailed() {
             when(supplementOrderMapper.selectByOrderNo(SUP_ORDER)).thenReturn(order);
@@ -253,7 +236,6 @@ class SupplementPayCenterFlowTest {
             verify(supplementOrderMapper).updateItemSettleStatus(eq(SUP_ORDER), eq(ORIG_ORDER), eq("FAILED"), eq("原订单收敛失败"));
         }
 
-        /** 回查 PayCenter 传输失败 → NEVER 推状态，也 NEVER 收敛原订单。 */
         @Test
         void queryTransportFailureNeverTouchesStatus() {
             when(supplementOrderMapper.selectByOrderNo(SUP_ORDER)).thenReturn(order);
@@ -266,7 +248,6 @@ class SupplementPayCenterFlowTest {
             verifyNoInteractions(gateTxnPayClient);
         }
 
-        /** PayCenter 返回失败（非 transport 错误）→ 补款单推 FAIL + 释放独占。 */
         @Test
         void payCenterFailedMarksFailAndReleases() {
             when(supplementOrderMapper.selectByOrderNo(SUP_ORDER)).thenReturn(order);
@@ -276,11 +257,9 @@ class SupplementPayCenterFlowTest {
 
             flow.handlePayNotice(SUP_ORDER);
 
-            // PayCenterResults.answered 的 msg 参数是 "mock"（第 2 个参数），不是传入的 "用户取消"（那是 data）
             verify(supplementOrderMapper).updatePayStatusFromPending(eq(SUP_ORDER), eq("FAIL"), eq("支付中心返回失败: mock"));
         }
 
-        /** PayCenter 返回非终态（ORDERED 已下单待支付）→ 不动状态。 */
         @Test
         void nonTerminalStatusNeverUpdates() {
             when(supplementOrderMapper.selectByOrderNo(SUP_ORDER)).thenReturn(order);
@@ -294,12 +273,10 @@ class SupplementPayCenterFlowTest {
         }
     }
 
-    // ==================== convergePending ====================
 
     @Nested
     class ConvergePending {
 
-        /** 定时收敛扫描 → 逐条回查 PayCenter SUCCESS → 完整收敛链。 */
         @Test
         void convergesSuccessOrders() {
             SupplementOrder po = new SupplementOrder();
@@ -323,7 +300,6 @@ class SupplementPayCenterFlowTest {
             assertEquals(1, converged);
         }
 
-        /** 回查 UNPAID → 关单。 */
         @Test
         void unpaidClosesAndReleases() {
             SupplementOrder po = new SupplementOrder();
@@ -340,7 +316,6 @@ class SupplementPayCenterFlowTest {
             assertEquals(1, converged);
         }
 
-        /** 扫描空 → 收敛 0 条。 */
         @Test
         void emptyScanReturnsZero() {
             when(supplementOrderMapper.selectPendingOrders(100, 24, 168)).thenReturn(List.of());
@@ -351,7 +326,6 @@ class SupplementPayCenterFlowTest {
             verifyNoInteractions(payCenterClient);
         }
 
-        /** 支付中心返回 PROCESSING 且单仍新鲜（24h 内有活动）→ 不关单，下轮再查。 */
         @Test
         void processingFreshOrderIsLeftAlone() {
             SupplementOrder po = new SupplementOrder();
@@ -370,7 +344,6 @@ class SupplementPayCenterFlowTest {
             verify(supplementOrderMapper, never()).updatePayStatusFromPending(anyString(), anyString(), anyString());
         }
 
-        /** 支付中心返回 PROCESSING 且单已超龄（最后活动 25h 前）→ 主动关单，打破无限轮询。 */
         @Test
         void processingStaleOrderIsClosed() {
             SupplementOrder po = new SupplementOrder();
@@ -392,7 +365,6 @@ class SupplementPayCenterFlowTest {
                     eq(SUP_ORDER), eq("CLOSED"), contains("PROCESSING"));
         }
 
-        /** 枚举未覆盖的状态 → 告警不动状态（关单交给 PROCESSING 超时兜底），NEVER 推进。 */
         @Test
         void unrecognizedStatusIsLeftToTimeoutBackstop() {
             SupplementOrder po = new SupplementOrder();

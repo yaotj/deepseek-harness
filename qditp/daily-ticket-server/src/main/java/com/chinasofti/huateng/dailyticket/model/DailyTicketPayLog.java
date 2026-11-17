@@ -2,25 +2,15 @@ package com.chinasofti.huateng.dailyticket.model;
 
 import java.util.Date;
 
-/** 日票支付交互日志。 */
 public class DailyTicketPayLog {
-    /** 主键ID。 */
     private String id;
-    /** 日票订单号。 */
     private String orderNo;
-    /** 业务类型，如PAY/QUERY/REFUND/CALLBACK。 */
     private String bizType;
-    /** 支付渠道编码。 */
     private String payChannelCode;
-    /** 请求报文。 */
     private String requestBody;
-    /** 响应报文。 */
     private String responseBody;
-    /** 处理结果码。 */
     private String resultCode;
-    /** 处理结果信息。 */
     private String resultMsg;
-    /** 创建时间。 */
     private Date createTime;
 
     public String getId() { return id; }

@@ -20,11 +20,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-/**
- * swagger 用户测试方法
- * 
- * @author zmzhang
- */
+
 @Tag(name = "用户信息管理")
 @RestController
 @RequestMapping("/test/user")

@@ -21,18 +21,7 @@ import java.util.TreeSet;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * 护栏：冻结「带 {@code @Transactional} 的方法」与「事务内出网」两份清单，形态照
- * {@code pay-sign-server} 的 {@code PaySignTransactionBoundaryArchTest}（ADR-D90）。
- *
- * <p><b>与 pay-sign 那份的关系</b>：pay-sign 的 {@code KNOWN_TRANSACTIONAL_OUTBOUND} 是
- * **空集 = 已达标**；本模块这份起点非空（`addContract` 事务内两次 RPC），批次 1（ADR-D129）
- * 收口后**已同为空集**。该集合<b>只允许为空、NEVER 再加行</b>：新增一条就等于把
- * 「事务内出网」这个已修掉的缺陷放回来。</p>
- *
- * <p>两个断言红了都 MUST 先改代码；确为有意调整事务边界时 MUST 先在
- * {@code docs/domain/decisions.md} 立 ADR，再同步这里的期望值。</p>
- */
+
 class AlipayPaySignTransactionBoundaryArchTest {
 
     private static final String BASE_PACKAGE = "com.chinasofti.huateng.alipay.paysign";
@@ -41,21 +30,13 @@ class AlipayPaySignTransactionBoundaryArchTest {
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
             .importPackages(BASE_PACKAGE);
 
-    /** 出网出口：owner 前缀 → 人类可读标签。顺序无关，命中一个即记。 */
     private static final Map<String, String> OUTBOUND_SINKS = Map.of(
             "com.chinasofti.huateng.rpc.", "RPC",
             BASE_PACKAGE + ".util.PayCenterClient", "支付中心网关",
             BASE_PACKAGE + ".service.impl.notify.PaymentNotifyAdapter", "支付中心通知",
             BASE_PACKAGE + ".service.impl.termination.TerminationNotifier", "销卡通知投递");
 
-    /**
-     * 当前带 {@code @Transactional} 的方法全集（批次 1 / ADR-D129 收口后只剩 1 个）。
-     *
-     * <p>批次 1 摘掉了两处：{@code AlipayContractServiceImpl#addContract}（链路里有两次出网，
-     * 事务包不住，改为「本地 INSERT 自动提交 + `CHANNEL_SYNC_*` outbox」）与
-     * {@code AlipayContractServiceImpl#terminateContract}（纯转发壳，事务在被委派的那层，
-     * 外面再套一层什么都不做、只会掩盖真正的边界）。<b>两者都 NEVER 加回。</b></p>
-     */
+
     private static final Set<String> EXPECTED_TRANSACTIONAL_METHODS = new TreeSet<>(List.of(
             "TerminationRegistrationService#terminateContract"));
 
@@ -74,16 +55,7 @@ class AlipayPaySignTransactionBoundaryArchTest {
                         + "确为有意修改事务边界时，MUST 先在 docs/domain/decisions.md 立 ADR，再同步本期望值");
     }
 
-    /**
-     * 现存的「事务包住出网调用」清单 —— <b>批次 1（ADR-D129）起为空集，NEVER 加行</b>。
-     *
-     * <p>原先唯一一条是 {@code AlipayContractServiceImpl.addContract}：它在
-     * {@code @Transactional(rollbackFor = Exception.class)} 内先调
-     * {@code alipayAccountClient.selectByThirdUserId} 查开户、再在本地 INSERT 之后调
-     * {@code updatePaymentChannel} 回填支付通道。两条都是 RPC，行锁持有时长因此等于
-     * 对端响应时长（成因与 2026-08-26 那次 pay-sign 生产事故同源）。现已摘掉事务注解、
-     * 通道同步改走 {@code CHANNEL_SYNC_*} outbox，本集合收成空集。</p>
-     */
+
     private static final Set<String> KNOWN_TRANSACTIONAL_OUTBOUND = new TreeSet<>();
 
     @Test
@@ -108,7 +80,6 @@ class AlipayPaySignTransactionBoundaryArchTest {
                         + "变长说明新引入了「事务包住网络调用」，MUST 改代码而不是改期望值");
     }
 
-    /** 从 {@code owner#methodName} 出发做调用图 BFS，返回命中的出网出口标签集合。 */
     private Set<String> reachableSinks(Map<String, JavaClass> byName, String ownerName, String methodName) {
         Set<String> sinks = new LinkedHashSet<>();
         Set<String> visited = new HashSet<>();

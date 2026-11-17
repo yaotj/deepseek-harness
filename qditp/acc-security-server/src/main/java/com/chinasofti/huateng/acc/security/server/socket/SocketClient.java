@@ -16,12 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
-/**
- * Description:
- *
- * @author houkepan
- * @date 2019/2/18 15:01
- */
+
 @Component
 public class SocketClient {
     private static final Logger logger = LoggerFactory.getLogger(SocketClient.class);
@@ -50,11 +45,9 @@ public class SocketClient {
                     });
 
             future = bootstrap.connect(securityConfig.getFirstIp(), securityConfig.getFirstPort()).sync();
-            // 判断是否连接成功
             if (future.isSuccess()) {
                 logger.info("客户端连接成功...");
                 ChannelCache.set(future.channel());
-                // 等待客户端链路关闭，就是由于这里会将线程阻塞，导致无法发送信息，这里开了线程
                 future.channel().closeFuture().sync();
             } else {
                 logger.error("客户端连接失败...");

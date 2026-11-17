@@ -25,12 +25,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 已取消订单收到支付成功通知时的处置。
- *
- * <p>钉住三条：只走 {@code updatePayResultIfCanceled}（不碰要求 PAYING 的那条 CAS）、必须触发自动退款、
- * 支付失败通知不触发退款。
- */
+
 class DailyTicketPaymentCanceledCallbackTest {
 
     private DailyTicketOrderMapper orderMapper;

@@ -1,20 +1,15 @@
 package com.chinasofti.huateng.model.paysign;
 
-/**
- * 通知补偿批处理内部接口响应（签约 /internal/paySign/compensateNotify。
- */
+
 public class CompensateNotifyRespDTO {
 
     private String resultCode;
     private String resultMsg;
 
-    /** 本次扫描到的待补偿通知条数。 */
     private int scanned;
 
-    /** 已提交重发的条数。 */
     private int submitted;
 
-    /** 提交重发时即失败、状态原样保留的条数。 */
     private int skipped;
 
     public String getResultCode() {

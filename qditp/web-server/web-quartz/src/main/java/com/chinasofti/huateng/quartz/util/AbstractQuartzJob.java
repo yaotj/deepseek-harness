@@ -16,24 +16,16 @@ import com.chinasofti.huateng.quartz.domain.SysJob;
 import com.chinasofti.huateng.quartz.domain.SysJobLog;
 import com.chinasofti.huateng.quartz.service.ISysJobLogService;
 
-/**
- * 抽象quartz调用
- *
- * @author zmzhang
- */
+
 public abstract class AbstractQuartzJob implements Job
 {
     private static final Logger log = LoggerFactory.getLogger(AbstractQuartzJob.class);
 
-    /**
-     * 线程本地变量
-     */
+
     private static ThreadLocal<Date> threadLocal = new ThreadLocal<>();
 
-    /** 本次执行在 sys_job_log 里那一行的主键。 */
     private static final ThreadLocal<Long> JOB_LOG_ID = new ThreadLocal<>();
 
-    /** MDC 中链路追踪标识的键名，与 {@link QuartzTraceUtils#TRACE_ID_KEY} 同源。 */
     private static final String TRACE_ID_KEY = QuartzTraceUtils.TRACE_ID_KEY;
 
     @Override
@@ -57,12 +49,7 @@ public abstract class AbstractQuartzJob implements Job
         }
     }
 
-    /**
-     * 执行前
-     *
-     * @param context 工作执行上下文对象
-     * @param sysJob 系统计划任务
-     */
+
     protected void before(JobExecutionContext context, SysJob sysJob)
     {
         threadLocal.set(new Date());
@@ -71,7 +58,6 @@ public abstract class AbstractQuartzJob implements Job
         insertRunningLog(sysJob);
     }
 
-    /** 落一行「进行中」，让长任务在执行期间就能在前台被看到并按 traceId 检索。 */
     private void insertRunningLog(SysJob sysJob)
     {
         if (sysJob == null)
@@ -95,11 +81,7 @@ public abstract class AbstractQuartzJob implements Job
         }
     }
 
-    /**
-     * 拼接 job_message：带上 traceId，运维在前台「调度日志」看到后可直接去日志系统按该值检索本次执行的全链路日志。
-     *
-     * <p>job_message 是 varchar(500)，原文本很短，追加 32 位 traceId 不会截断。</p>
-     */
+
     private String buildJobMessage(String text, String traceId)
     {
         if (StringUtils.isNotEmpty(traceId))
@@ -109,12 +91,7 @@ public abstract class AbstractQuartzJob implements Job
         return text;
     }
 
-    /**
-     * 执行后
-     *
-     * @param context 工作执行上下文对象
-     * @param sysJob 系统计划任务
-     */
+
     protected void after(JobExecutionContext context, SysJob sysJob, Exception e)
     {
         Date startTime = threadLocal.get();
@@ -146,7 +123,6 @@ public abstract class AbstractQuartzJob implements Job
                 sysJobLog.setStatus(Constants.SUCCESS);
             }
 
-            // 写入数据库当中：before() 已落「进行中」时按主键回写，否则退化成新增
             ISysJobLogService jobLogService = SpringUtils.getBean(ISysJobLogService.class);
             if (jobLogId != null)
             {
@@ -167,12 +143,6 @@ public abstract class AbstractQuartzJob implements Job
         }
     }
 
-    /**
-     * 执行方法，由子类重载
-     *
-     * @param context 工作执行上下文对象
-     * @param sysJob 系统计划任务
-     * @throws Exception 执行过程中的异常
-     */
+
     protected abstract void doExecute(JobExecutionContext context, SysJob sysJob) throws Exception;
 }

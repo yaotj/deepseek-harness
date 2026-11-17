@@ -3,47 +3,33 @@ package com.chinasofti.huateng.web.domain.export;
 import java.util.Date;
 import com.chinasofti.huateng.common.core.domain.BaseEntity;
 
-/**
- * 异步导出任务实体。
- */
+
 public class AsyncExportTask extends BaseEntity
 {
     private static final long serialVersionUID = 1L;
 
-    /** 任务ID */
     private Long id;
 
-    /** 任务编码：KEY_VERSION / CARD_POOL / ... */
     private String taskCode;
 
-    /** 任务中文名 */
     private String taskName;
 
-    /** 状态：PENDING / RUNNING / SUCCESS / FAILED */
     private String status;
 
-    /** 查询条件 JSON */
     private String paramJson;
 
-    /** 生成文件绝对路径 */
     private String filePath;
 
-    /** 文件字节数 */
     private Long fileSize;
 
-    /** 导出行数 */
     private Long rowCount;
 
-    /** 失败原因 */
     private String errorMsg;
 
-    /** 实际执行开始时间 */
     private Date executeTime;
 
-    /** 完成时间 */
     private Date finishTime;
 
-    /** 重试次数 */
     private Integer retryCount;
 
     public Long getId() {

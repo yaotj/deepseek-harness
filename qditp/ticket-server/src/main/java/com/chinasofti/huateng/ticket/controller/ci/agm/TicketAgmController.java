@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** ticket-server AGM 闸机接口控制器。 */
 @RestController
 @RequestMapping("/ci/agm")
 public class TicketAgmController {
@@ -27,7 +26,6 @@ public class TicketAgmController {
     private static final Logger log = LoggerFactory.getLogger(TicketAgmController.class);
 
     private final AgmRideStatusService agmRideStatusService;
-    /** IF5A-01/03 直连补站域门面。 */
     private final SupplementService supplementService;
 
     public TicketAgmController(AgmRideStatusService agmRideStatusService,
@@ -36,7 +34,6 @@ public class TicketAgmController {
         this.supplementService = supplementService;
     }
 
-    /** IF1A-01 闸机检票通知。 */
     @PostMapping("/notiVerifyResult")
     public NotifyVerifyResultRespDTO notifyVerifyResult(@RequestBody NotifyVerifyResultReqDTO request) {
         String traceId = request == null ? null : request.getDeviceId();
@@ -65,7 +62,6 @@ public class TicketAgmController {
         return response;
     }
 
-    /** 查询票卡当前状态。 */
     @PostMapping("/queryCardStatus")
     public QueryStatusRespDTO queryCardStatus(@RequestBody QueryStatusReqDTO request) {
         log.info("查询票卡状态 入参, cardId={}", request == null ? null : request.getCardId());
@@ -80,7 +76,6 @@ public class TicketAgmController {
         return response;
     }
 
-    /** IF5A-01 请求票卡分析。 */
     @PostMapping("/requestCardDataAnalyse")
     public RequestCardDataAnalyseRespDTO requestCardDataAnalyse(@RequestBody RequestCardDataAnalyseReqDTO request) {
         log.info("IF5A-01 票卡分析 入参, cardId={}, updateType={}",
@@ -96,7 +91,6 @@ public class TicketAgmController {
         return response;
     }
 
-    /** IF5A-03 请求票卡更新。 */
     @PostMapping("/requestCardDataUpdate")
     public RequestCardDataUpdateRespDTO requestCardDataUpdate(@RequestBody RequestCardDataUpdateReqDTO request) {
         log.info("IF5A-03 票卡更新 入参, cardId={}, adviceOpt={}, updateStationCode={}",

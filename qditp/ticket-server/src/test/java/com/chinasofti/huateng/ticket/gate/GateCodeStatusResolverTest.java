@@ -9,7 +9,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/** {@code GateCodeStatusResolver} 的特征测试（characterization test）： 在把三段 if 链改成表驱动之前，先把当前的输入 → 输出逐条钉死，改错立刻变红。 */
 class GateCodeStatusResolverTest {
 
     private GateCodeStatusResolver resolver;
@@ -20,7 +19,6 @@ class GateCodeStatusResolverTest {
         ReflectionTestUtils.setField(resolver, "defaultCodeStatus", "03");
     }
 
-    /** 全量映射表。 */
     @ParameterizedTest(name = "trxType={0}, excessFareType={1}, adviceOpt={2} -> {3}")
     @CsvSource(nullValues = "NULL", value = {
             "NULL, NULL, 018, 04",
@@ -69,7 +67,6 @@ class GateCodeStatusResolverTest {
         assertEquals("03", resolver.resolveCodeStatus(null, null, null));
     }
 
-    /** 钉住一处已知地雷：兜底分支写的是 {@code fromCode(defaultCodeStatus).getCode()}， 而 {@code fromCode} 对未登记码返回 null，于是配错 {@code ticket.default-code-status} 会在过闸热路径上抛 NPE，而不是退化成某个安全默认值。 */
     @Test
     void 兜底值配错时热路径抛NPE_属已知地雷(){
         ReflectionTestUtils.setField(resolver, "defaultCodeStatus", "ZZ");

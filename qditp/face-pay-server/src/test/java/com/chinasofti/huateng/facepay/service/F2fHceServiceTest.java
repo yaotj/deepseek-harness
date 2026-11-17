@@ -31,15 +31,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 锁死 IF5A-01 往下游透传的 {@code bomStationCode}。
- *
- * <p>该字段是 ticket-server 判「同站免费更新 / 跨站付费更新」的唯一输入（ADR-D157）：
- * 传错站会把跨站误判成同站而少收费，传空会把已确认的跨站降级成未知站。故这里从公开入口
- * 断言实际发出去的报文，而不是断言某个私有方法的返回值——后者照不到「忘了调」这类改动。
- *
- * <p>每个用例只调用一次被测方法：{@code verify} 默认只认一次调用，写两遍会因调用次数不符而失败。
- */
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class F2fHceServiceTest {
@@ -66,7 +58,6 @@ class F2fHceServiceTest {
         return request;
     }
 
-    /** 走一次公开入口，返回实际发给下游的 {@code bomStationCode}。 */
     private String bomStationCodeSentFor(String deviceId) {
         RequestCardDataAnalyseRespDTO response = new RequestCardDataAnalyseRespDTO();
         response.setRetCode("0000");
@@ -90,7 +81,6 @@ class F2fHceServiceTest {
         assertEquals("0352", bomStationCodeSentFor("03520801"));
     }
 
-    /** 推不出站码时保留本字段约定的空串语义（下游按未知站处理），NEVER 变成 null 或臆造的站。 */
     @Test
     void sendsEmptyStringWhenDeviceIdIsTooShort() {
         assertEquals("", bomStationCodeSentFor("062"));
@@ -136,7 +126,6 @@ class F2fHceServiceTest {
                         "ORA-00001: unique constraint (QDITP.UK_F2F_REPORT_IDEM) violated"));
     }
 
-    /** IF5A-03 审计键 = {@code cardId:U+optDate}（ADR-D173），同卡不同 optDate 各落一行。 */
     @Test
     void updateAuditOrderNoComposedWithCardIdAndOptDate() {
         when(ticketClient.requestUpdateCardData(any())).thenReturn(updateResp("0000", "成功"));
@@ -149,7 +138,6 @@ class F2fHceServiceTest {
         assertEquals("BOM_BIZ_RESULT", captor.getValue().getReportType());
     }
 
-    /** 同一 {@code (cardId, optDate)} 重试撞唯一索引被幂等吞掉，下游真实结果（8001）照常返回。 */
     @Test
     void updateAuditDuplicateSwallowedAndDownstreamResultPreserved() {
         when(ticketClient.requestUpdateCardData(any())).thenReturn(updateResp("8001", "票卡状态不允许此操作"));
@@ -161,7 +149,6 @@ class F2fHceServiceTest {
         assertEquals("8001", body.getString("retCode"));
     }
 
-    /** IF5A-09 首报：审计键 = {@code cardId:N+timestamp} 且触发 account-server 回写。 */
     @Test
     void hceNotiFirstReportWritesBackWithTimestampKeyedAudit() {
         UpdateHceDataResult result = new UpdateHceDataResult();
@@ -176,7 +163,6 @@ class F2fHceServiceTest {
         verify(accountClient).updateHceData(any());
     }
 
-    /** IF5A-09 重复通知：撞唯一索引 → 幂等返回成功，NEVER 再调回写。 */
     @Test
     void hceNotiDuplicateSkipsWriteBack() {
         doThrow(duplicateKey()).when(reportMapper).insert(any());
@@ -188,7 +174,6 @@ class F2fHceServiceTest {
         verify(accountClient, never()).updateHceData(any());
     }
 
-    /** 更新与紧随通知同秒（事件键相同）时，流前缀 {@code U}/{@code N} 保证两条链路审计键互不挤占。 */
     @Test
     void updateAndNotiShareEventKeyButNotIdemKey() {
         when(ticketClient.requestUpdateCardData(any())).thenReturn(updateResp("0000", "成功"));

@@ -33,13 +33,10 @@ public class SupplementPayCenterFlow {
 
     private static final String DEBIT_SUCCESS = "SUCCESS";
 
-    /** 非终态（ORDERED/PROCESSING）允许存活的时长上限：超过即认为用户不会再支付，主动关单。 */
     static final long NON_TERMINAL_CLOSE_HOURS = 24L;
 
-    /** CLOSED/FAIL 单回看窗口：兜住"关单瞬间恰好支付成功"的竞态。 */
     static final int CLOSED_LOOKBACK_HOURS = 24;
 
-    /** INIT/PROCESSING 单扫描年龄硬顶（防御性兜底，须远大于关单阈值）。 */
     static final int PENDING_LOOKBACK_HOURS = 7 * 24;
 
     private final PayCenterClient payCenterClient;
@@ -175,7 +172,6 @@ public class SupplementPayCenterFlow {
             }
         }
         if (status == null) {
-            // 枚举未覆盖的状态（历史上 PROCESSING 即因此漏配导致无限轮询）——告警暴露，关单交给超时兜底
             log.warn("补款收敛回查返回未识别状态，请检查 PayCenterStatus 枚举是否漏配, orderNo={}, rawStatus={}",
                     order.getOrderNo(), result.string("status"));
             return false;
@@ -192,10 +188,7 @@ public class SupplementPayCenterFlow {
         return false;
     }
 
-    /**
-     * 按最后活动时间（UPDATE_TIME，预下单/重新获取支付信息会刷新）判断补款单是否超龄。
-     * 时间为空时无法判断，保守视为未超龄。
-     */
+
     private boolean isStale(SupplementOrder order) {
         java.time.LocalDateTime lastActivity = order.getUpdateTime() != null
                 ? order.getUpdateTime() : order.getCreateTime();

@@ -8,22 +8,11 @@ import org.apache.ibatis.annotations.Mapper;
 
 import java.util.List;
 
-/**
- * <p>
- *  Mapper 接口
- * </p>
- *
- * @author fc
- * @since 2020-09-02
- */
+
 @Mapper
 public interface TblTktEsInfoMapper{
 
-    /**
-     * 编码机签退
-     * @param deviceSignOut
-     * @return
-     */
+
     boolean signOut(DeviceSignOut deviceSignOut);
 
     int updateStat(DeviceStatReport stat);

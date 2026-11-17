@@ -7,14 +7,7 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 import java.io.Serializable;
 
-/**
- * <p>
- * ES任务计划
- * </p>
- *
- * @author fc
- * @since 2020-09-02
- */
+
 @Data
 @EqualsAndHashCode(callSuper = false)
 public class TblTktTaskPlan implements Serializable {

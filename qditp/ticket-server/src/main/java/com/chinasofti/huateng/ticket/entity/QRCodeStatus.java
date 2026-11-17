@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 
 import com.chinasofti.huateng.model.ticket.enums.QRCodeStatusEnum;
 
-/** 对应 QRCODE_STATUS 表。 */
 public class QRCodeStatus {
     private String cardId;
     private Integer useCount;
@@ -19,9 +18,7 @@ public class QRCodeStatus {
     private LocalDateTime updateTime;
     private String gateStatus;
     private Long trxAmount;
-    /** 非持久化展示字段：进站车站中文名，由运营端查询时按 gateInStation 查 STATION_INFO 回填。 */
     private String gateInStationName;
-    /** 非持久化展示字段：末次交易车站中文名，由运营端查询时按 lastTxnStation 查 STATION_INFO 回填。 */
     private String lastTxnStationName;
 
     public String getCardId() {

@@ -38,21 +38,15 @@ import com.chinasofti.huateng.account.mapper.UserPayChannelMapper;
 import com.chinasofti.huateng.account.service.AccountArchiveService;
 import com.chinasofti.huateng.account.service.PayChannelService;
 
-/**
- * 支付通道的增删改查实现，见 {@link PayChannelService}。
- */
+
 @Service
 public class PayChannelServiceImpl implements PayChannelService {
     private static final Logger log = LoggerFactory.getLogger(PayChannelServiceImpl.class);
 
-    /**
-     * {@code USER_ITP_REG_LOG.OPER_TYPE} 的解约取值。
-     */
+
     private static final int OPER_TYPE_REMOVE_PAY_CHANNEL = 1;
 
-    /**
-     * IF8A-77 反查签约信息取 PAY_ACCOUNT_ID 用；本类唯一的跨服务调用。
-     */
+
     private final PaySignClient paySignClient;
 
     private final UserItpRegInfoMapper userItpRegInfoMapper;
@@ -61,14 +55,10 @@ public class PayChannelServiceImpl implements PayChannelService {
 
     private final UserPayChannelMapper userPayChannelMapper;
 
-    /**
-     * 销户归档的协作者。
-     */
+
     private final AccountArchiveService accountArchiveService;
 
-    /**
-     * 构造器注入（ADR-D37）。
-     */
+
     public PayChannelServiceImpl(PaySignClient paySignClient,
                                  UserItpRegInfoMapper userItpRegInfoMapper,
                                  UserItpRegLogMapper userItpRegLogMapper,
@@ -173,9 +163,7 @@ public class PayChannelServiceImpl implements PayChannelService {
         }
     }
 
-    /**
-     * 判断异常链上是否存在 {@link DuplicateKeyException}，即唯一约束冲突。
-     */
+
     private boolean isDuplicateKeyViolation(Throwable e) {
         for (Throwable cause = e; cause != null && cause != cause.getCause(); cause = cause.getCause()) {
             if (cause instanceof DuplicateKeyException) {
@@ -253,9 +241,7 @@ public class PayChannelServiceImpl implements PayChannelService {
         }
     }
 
-    /**
-     * IF8A-77。
-     */
+
     @Override
     public RequestUpdateChannelDefaultContractResult requestUpdateChannelDefaultContract(RequestUpdateChannelDefaultContractReqDTO request) {
         RequestUpdateChannelDefaultContractResult response = new RequestUpdateChannelDefaultContractResult();
@@ -275,8 +261,6 @@ public class PayChannelServiceImpl implements PayChannelService {
             String cardIssueCode = request.getCardIssueCode().trim();
             String regSignSeq = request.getRegSignSeq().trim();
 
-            // IF8A-77 定位第三方渠道用户：只按 thirdUserId + companionFlag='C' 定位，不对 cardIssueCode 做严格校验。
-            // 支持互联互通卡（如 0009）等不在 CardIssueOrgEnum 中的发卡机构码。
             UserItpRegInfo regInfo = userItpRegInfoMapper.selectByThirdUserIdAndCompanionFlag(thirdUserId, "C");
             if (regInfo == null || !regInfo.isActive()) {
                 response.setRetCode(AccountErrorCodeEnum.NO_ACCOUNT_CARD.getCode());
@@ -319,27 +303,21 @@ public class PayChannelServiceImpl implements PayChannelService {
         }
     }
 
-    /**
-     * IF8A-75 删除支付通道。
-     */
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RequestRemovePayChannelResult requestRemovePayChannel(RequestRemovePayChannelReqDTO request) {
         return doRemovePayChannel(request);
     }
 
-    /**
-     * 钱包协议 requestAgreeRelease：解绑语义与 IF8A-75 删除支付通道完全一致，共用同一段实现。
-     */
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RequestRemovePayChannelResult requestAgreeRelease(RequestRemovePayChannelReqDTO request) {
         return doRemovePayChannel(request);
     }
 
-    /**
-     * 删除支付通道的唯一实现（ADR-D39 由 {@code requestRemovePayChannel} 原地抽出，逻辑一字未改）。
-     */
+
     private RequestRemovePayChannelResult doRemovePayChannel(RequestRemovePayChannelReqDTO request) {
         RequestRemovePayChannelResult response = new RequestRemovePayChannelResult();
         try {
@@ -430,9 +408,7 @@ public class PayChannelServiceImpl implements PayChannelService {
         }
     }
 
-    /**
-     * catch 内显式标记事务回滚；不在事务上下文里时静默跳过。
-     */
+
     private void markRollbackOnly() {
         try {
             TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
@@ -440,9 +416,7 @@ public class PayChannelServiceImpl implements PayChannelService {
         }
     }
 
-    /**
-     * 把支付域返回的 {@code PAY_ACCOUNT_ID} 回写到 {@code APP_USER_PAY_CHANNEL}（ADR-D30）。
-     */
+
     private void syncPayAccountIdToChannelQuietly(String reqContractNo, String payAccountId) {
         try {
             int updated = userPayChannelMapper.updatePayAccountIdByReqContractNo(
@@ -457,9 +431,7 @@ public class PayChannelServiceImpl implements PayChannelService {
         }
     }
 
-    /**
-     * IF8A-23 建出通道行后，安排一次「向支付域反查 {@code PAY_ACCOUNT_ID} 并回写」。
-     */
+
     private void scheduleBackfillPayAccountId(String reqContractNo) {
         if (!StringUtils.hasText(reqContractNo)) {
             return;
@@ -477,9 +449,7 @@ public class PayChannelServiceImpl implements PayChannelService {
         });
     }
 
-    /**
-     * IF8A-23 钱包渠道建出通道行后，安排一次「向支付中心发起代扣签约」。
-     */
+
     private void scheduleWalletContractSignup(UserPayChannel record) {
         if (record == null || !ChannelBindingRule.isWallet(record.getChannel())) {
             return;
@@ -497,9 +467,7 @@ public class PayChannelServiceImpl implements PayChannelService {
         });
     }
 
-    /**
-     * 向支付域发起钱包代扣签约（IF8A-16 → 支付中心 §2.2 contract）。
-     */
+
     private void signWalletContractAtPayCenter(UserPayChannel record) {
         try {
             RequestSignInfoReqDTO request = new RequestSignInfoReqDTO();
@@ -523,9 +491,7 @@ public class PayChannelServiceImpl implements PayChannelService {
         }
     }
 
-    /**
-     * 钱包支付账户标识脱敏：保留前 4 后 4，中间固定 4 个星号；长度不足 8 位时整串打星。
-     */
+
     private String maskPayId(String payId) {
         if (!StringUtils.hasText(payId)) {
             return null;
@@ -537,9 +503,7 @@ public class PayChannelServiceImpl implements PayChannelService {
         return trimmed.substring(0, 4) + "****" + trimmed.substring(trimmed.length() - 4);
     }
 
-    /**
-     * 向支付域按签约流水反查 {@code PAY_ACCOUNT_ID} 并回写本地通道行。
-     */
+
     private void backfillPayAccountIdFromPayDomain(String reqContractNo) {
         try {
             PaySignInfoDTO signInfo = paySignClient.querySignInfoBySeq(reqContractNo);
@@ -554,9 +518,7 @@ public class PayChannelServiceImpl implements PayChannelService {
         }
     }
 
-    /**
-     * IF8A-23 添加通道的入参校验。
-     */
+
     private String validateAddPayChannelRequest(RequestAddPayChannelReqDTO request) {
         if (request == null) {
             return ChannelBindingRule.REQUEST_BODY_REQUIRED;
@@ -573,10 +535,7 @@ public class PayChannelServiceImpl implements PayChannelService {
                 request.getCardType(), request.getChannel());
     }
 
-    /**
-     * IF8A-77 的字段集合是 {@code cardIssueCode} / {@code regSignSeq}，与四要素不是同一组，
-     * <b>刻意不走 {@link ChannelBindingRule}</b>——硬凑会得到一个带开关的四不像。
-     */
+
     private String validateUpdateChannelDefaultContractRequest(RequestUpdateChannelDefaultContractReqDTO request) {
         if (request == null) {
             return ChannelBindingRule.REQUEST_BODY_REQUIRED;
@@ -604,9 +563,7 @@ public class PayChannelServiceImpl implements PayChannelService {
                 request.getCardType(), request.getChannel());
     }
 
-    /**
-     * 组装 {@code APP_USER_PAY_CHANNEL} 行。
-     */
+
     private UserPayChannel buildUserPayChannel(RequestAddPayChannelReqDTO request) {
         UserPayChannel record = new UserPayChannel();
         record.setThirdUserId(request.getThirdUserId().trim());

@@ -1,107 +1,65 @@
 package com.chinasofti.huateng.collectticket.model.response;
 
-/**
- * IF2A-02 查询取票订单状态响应报文。
- */
+
 public class QueryTicketCollectOrderRespDTO {
-    /**
-     * 返回码。
-     */
+
     private String retCode;
 
-    /**
-     * 返回消息。
-     */
+
     private String retMsg;
 
-    /**
-     * 订单号。
-     */
+
     private String orderNo;
 
-    /**
-     * 用户ID。
-     */
+
     private String userId;
 
-    /**
-     * 进站站点编码。
-     */
+
     private String entryStationCode;
 
-    /**
-     * 目的站点编码。
-     */
+
     private String exitStationCode;
 
-    /**
-     * 票价（单位：分）。
-     */
+
     private Integer ticketPrice;
 
-    /**
-     * 单程票数量。
-     */
+
     private Integer singelTicketNum;
 
-    /**
-     * 渠道编码。
-     */
+
     private String channelCode;
 
-    /**
-     * 订单状态：0-未支付，100-支付成功，1-99-支付失败或异常。
-     */
+
     private Integer orderStatus;
 
-    /**
-     * 取票状态：0-未取票，100-取票成功，1-99-取票失败，110-重复取票成功。
-     */
+
     private Integer collectStatus;
 
-    /**
-     * 取票设备编号。
-     */
+
     private String deviceId;
 
-    /**
-     * 设备取票二维码生成时间。
-     */
+
     private String qrcodeGenDate;
 
-    /**
-     * 设备随机因子。
-     */
+
     private String randomFact;
 
-    /**
-     * 支付状态：0-未支付，1-支付中，100-SUCCESS，1-99-FAIL。
-     */
+
     private Integer payResult;
 
-    /**
-     * 支付金额。
-     */
+
     private Integer payAmount;
 
-    /**
-     * 支付时间。
-     */
+
     private String payDate;
 
-    /**
-     * 实际出票数量。
-     */
+
     private Integer actualTakeTicketNum;
 
-    /**
-     * 错误代码。
-     */
+
     private String errorCode;
 
-    /**
-     * 错误详细信息。
-     */
+
     private String errorMessage;
 
     public String getRetCode() {

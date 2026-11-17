@@ -15,7 +15,6 @@ import org.qd.scg.dual.DualQueryService.SideResult;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-/** 用 JDK 内置 HttpServer 验证支路调用的真实 HTTP 行为（正/负/非200/不可达）。 */
 class DualQueryFetchTest {
 
     private HttpServer server;

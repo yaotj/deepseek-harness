@@ -16,20 +16,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * 支付中心**通知方向**的出向门面：黑名单状态变更、业务关闭（销卡）结果。
- *
- * <p>本类是这两条通知的**唯一**发起处，三个调用方（支付申请加黑后通知、解约执行器、
- * {@code controller/legacy/AlipayNotifyController} 的两条入向 handler）都经它出网。
- * 最后那个调用方 2026-09-21 起**直连本类**，此前是经 {@code AlipayTripPaymentService} 那个
- * 跨聚合门面转一跳（拆门面第 1 步），<b>NEVER 回退成经门面</b>。
- *
- * <p><b>两条的成功判据刻意不同、也刻意留在本类内</b>（ADR-D131）：黑名单变更认
- * {@code retCode=0000} / {@code success=true} / {@code code=200} 三者任一（支付中心对通知类接口
- * 与支付类接口的应答形态不一样，2026-09-11 曾因只认 {@code success} 打出假告警）；
- * 销卡结果只认 {@code code=200}。**NEVER 把这两套判据合并、也 NEVER 挪进
- * {@link PayCenterNotifyPort}** —— 端口只负责传输。
- */
+
 @Service
 public class PaymentNotifyAdapter {
     private static final Logger log = LoggerFactory.getLogger(PaymentNotifyAdapter.class);
@@ -87,7 +74,6 @@ public class PaymentNotifyAdapter {
         }
     }
 
-    /** 判定支付中心通知类接口是否成功。 */
     private boolean isPayCenterNotifySuccess(PayCenterResponse payCenterResponse) {
         if (Boolean.TRUE.equals(payCenterResponse.getSuccess())) {
             return true;
@@ -98,9 +84,7 @@ public class PaymentNotifyAdapter {
         return Integer.valueOf(200).equals(payCenterResponse.getCode());
     }
 
-    /**
-     * 组装支付中心失败原因，优先取通知类接口的 retMsg。
-     */
+
     private String payCenterFailMsg(PayCenterResponse payCenterResponse) {
         if (org.springframework.util.StringUtils.hasText(payCenterResponse.getRetMsg())) {
             return payCenterResponse.getRetMsg();

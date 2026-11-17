@@ -14,13 +14,11 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/** 退款的**业务规则与本地实体装配**（2026-09-16 由 {@code RefundDomainServiceImpl} 逐字搬出，ADR-D98）。 */
 public final class PayRefundRules {
 
     private PayRefundRules() {
     }
 
-    /** 校验原支付订单是否允许退款。 */
     public static String validateRefundPayTxn(PayTxnDetail payTxn, Integer refundAmount) {
         if (payTxn == null) {
             return "原支付订单不存在";
@@ -42,7 +40,6 @@ public final class PayRefundRules {
         return null;
     }
 
-    /** 已付金额：{@code TOTAL_AMOUNT} 优先，缺失或非正时退回 {@code AMOUNT}。 */
     public static int resolvePaidAmount(PayTxnDetail payTxn) {
         if (payTxn.getTotalAmount() != null && payTxn.getTotalAmount() > 0) {
             return payTxn.getTotalAmount();
@@ -50,7 +47,6 @@ public final class PayRefundRules {
         return payTxn.getAmount() == null ? 0 : payTxn.getAmount();
     }
 
-    /** 创建本地退款明细。 */
     public static PayRefundDetail buildPayRefundDetail(RequestRefundReqDTO request, PayTxnDetail payTxn) {
         PayRefundDetail record = new PayRefundDetail();
         record.setRefundOrderNo(buildRefundOrderNo(request.getOrderNo()));
@@ -65,7 +61,6 @@ public final class PayRefundRules {
         return record;
     }
 
-    /** 回填退款应答里来自网关 {@code data} 的四个号码字段。 */
     public static void fillRefundResponseFields(RequestRefundResult response, PayRefundDetail refundDetail,
                                                 PaySignGatewayResponse gatewayResponse) {
         response.setOrderNo(refundDetail.getOrderNo());

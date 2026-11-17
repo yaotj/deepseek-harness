@@ -3,75 +3,39 @@ package com.chinasofti.huateng.alipay.paysign.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-/**
- * 支付中心配置属性。
- */
+
 @Component
 @ConfigurationProperties(prefix = "pay.center")
 public class PayCenterProperties {
-    /**
-     * 商户号。
-     */
+
     private String merchantNo;
-    /**
-     * API版本。
-     */
+
     private String apiVersion;
-    /**
-     * 签名类型。
-     */
+
     private String signType;
-    /**
-     * 字符集。
-     */
+
     private String charset;
-    /**
-     * 支付网关地址。
-     */
+
     private String gatewayUrl;
-    /**
-     * 商户私钥。
-     */
+
     private String merchantPrivateKey;
-    /**
-     * 支付中心公钥。
-     */
+
     private String paycenterPublicKey;
-    /**
-     * 支付回调地址。
-     */
+
     private String callbackUrl;
-    /**
-     * 退款结果回调地址，对应契约 §3.1 请求退款 bizData 的必填键 {@code notifyUrl}。
-     *
-     * <p>空值时 {@code notifyUrl} 不送、并打 WARN：支付中心只往「本次请求带的 notifyUrl」推退款结果，
-     * 这个键不配等于**永远收不到退款回调**，退款明细只能靠退款回查补偿收口。
-     * 值 MUST 是支付中心侧网络可达的我方地址，形态参照 {@code callbackUrl}。
-     */
+
     private String refundNotifyUrl;
-    /**
-     * 支付接口固定地址。
-     */
+
     private String requestPayUrl;
-    /**
-     * 退款接口固定地址。
-     */
+
     private String requestRefundUrl;
-    /**
-     * 支付查询接口固定地址。
-     */
+
     private String payQueryUrl;
-    /**
-     * 退款查询接口固定地址。
-     */
+
     private String refundQueryUrl;
-    /**
-     * 业务关闭结果通知固定地址。
-     */
+
     private String closeResultNotifyUrl;
-    /**
-     * 黑名单变更通知固定地址。
-     */
+
     private String blacklistNotifyUrl;
 
     public String getMerchantNo() {

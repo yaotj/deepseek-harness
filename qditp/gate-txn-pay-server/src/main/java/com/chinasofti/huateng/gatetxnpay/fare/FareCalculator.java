@@ -20,7 +20,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/** 出站扣费的金额计算。 */
 @Component
 public class FareCalculator {
 
@@ -42,7 +41,6 @@ public class FareCalculator {
         this.offlineTimeoutFeeCents = offlineTimeoutFeeCents;
         this.transferReductionCents = transferReductionCents;
     }
-    /** 查询本次行程的地铁原价并写入 {@code ORIGINAL_FARE}。 */
     public void fillOriginalFare(GateTxnPay order) {
         if (order.getOriginalFare() != null && order.getOriginalFare() > 0) {
             return;
@@ -56,11 +54,9 @@ public class FareCalculator {
                 order.getCardId(), order.getInStation(), order.getOutStation(), originalFare);
     }
 
-    /** 按进出站查询地铁原价（分），查不到返回 {@code null}。 */
     public Integer queryOriginalFare(String inStation, String outStation) {
         return gateway.queryTicketPriceQuietly(inStation, outStation);
     }
-    /** 钱包订单在首次落库前生成并固定优惠快照，支付重试不会重新计算。 */
     public void calculateWalletDiscount(GateTxnPay order, GateTxnPayReqDTO request) {
         if (!GateTxnPayFieldCode.isWalletVendor(request.getPaymentVendor())) {
             return;
@@ -122,7 +118,6 @@ public class FareCalculator {
             log.warn("钱包优惠计算失败，继续原始金额扣款, orderNo={}", order.getOrderNo(), e);
         }
     }
-    /** 离线码出站金额由服务端重算：出站前最近一笔进站、超时费、换乘减免、钱包折扣。 */
     public void calculateOfflineFare(GateTxnPay order, GateTxnPayReqDTO request) {
         if (!StringUtils.hasText(request.getTicketTransSeq())) {
             throw new IllegalStateException("离线码交易缺少ticketTransSeq");
@@ -130,11 +125,6 @@ public class FareCalculator {
         if (!StringUtils.hasText(order.getOutTime())) {
             throw new IllegalStateException("离线码交易缺少出站时间");
         }
-        // 进站取数口径（2026-09-22 修 C9）：按「同卡 + 进站 + HANDLE_DATE_TIME <= 本次出站时间」取最近一笔。
-        // NEVER 退回按 ticketTransSeq 相等配对（gateway.queryFirstEntryTxn）：进站与出站是两笔不同交易，
-        // 闸机上送的序列号天然不同（实测进站 0 / 出站 1），相等配对恒命中 0 行、订单永久卡 OFFLINE_FARE_PENDING。
-        // NEVER 用 QRCODE_STATUS.GATE_IN_STATION / GATE_IN_TIME：那是会被后续行程覆盖的状态快照，
-        // 而本方法也被延迟执行的补偿链路调用，延迟期间该卡再进站一次就会算错钱（比算不出更坏）。
         QueryLatestEntryTxnResult entry = gateway.queryLatestEntryTxnBeforeExit(
                 request.getCardId(), order.getOutTime());
         if (entry == null || !RET_SUCCESS.equals(entry.getRetCode())

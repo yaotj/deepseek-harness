@@ -1,29 +1,18 @@
 package com.chinasofti.huateng.acc.security.feign.domain.cardCertificate;
 
-/**
- * @author houkepan
- * @date 2020/12/9 15:31
- */
+
 public class CardCertificateResult extends CardCertificate {
 
-    /**
-     * 记录头
-     */
+
     private String begin_Identifier;
 
-    /**
-     * 服务标识
-     */
+
     private String service_id;
 
-    /**
-     * ACC密管中心公钥索引
-     */
+
     private String cert_index;
 
-    /**
-     * 证书数字签名
-     */
+
     private String cert_sign;
 
     public String getBegin_Identifier() {

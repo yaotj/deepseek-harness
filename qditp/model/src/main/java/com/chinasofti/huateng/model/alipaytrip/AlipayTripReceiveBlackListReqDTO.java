@@ -2,24 +2,16 @@ package com.chinasofti.huateng.model.alipaytrip;
 
 import com.chinasofti.huateng.common.response.CommonResult;
 
-/**
- * 支付宝出行-黑名单状态变更通知请求参数。
- */
+
 public class AlipayTripReceiveBlackListReqDTO {
 
-    /**
-     * 第三方用户ID。
-     */
+
     private String thirdUserId;
 
-    /**
-     * 卡片ID/逻辑卡号。
-     */
+
     private String cardId;
 
-    /**
-     * 黑名单状态。
-     */
+
     private String blacklistStatus;
 
     private String reason;

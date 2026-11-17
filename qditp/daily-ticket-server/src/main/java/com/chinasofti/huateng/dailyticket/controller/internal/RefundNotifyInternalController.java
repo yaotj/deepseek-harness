@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** IF8B-04 退款结果通知的补偿入口。 */
 @RestController
 @RequestMapping("/internal/daily-ticket/refund")
 public class RefundNotifyInternalController {
@@ -22,12 +21,7 @@ public class RefundNotifyInternalController {
         this.refundNotifyService = refundNotifyService;
     }
 
-    /**
-     * 扫表补投退款结果通知。
-     *
-     * @param limit 单批条数上限，不传按服务侧默认值
-     * @return {@code retCode=0000} + {@code data} 为本批投递成功条数
-     */
+
     @PostMapping("/notify")
     public DailyTicketBaseResult notifyPending(@RequestParam(value = "limit", required = false) Integer limit) {
         int delivered = refundNotifyService.deliverPending(limit == null ? 0 : limit);

@@ -1,9 +1,7 @@
 package com.chinasofti.huateng.acc.security.server.util.sm2;
 
 
-/**
- * @author GuoYouCheng
- */
+
 public class SM3Digest extends GeneralDigest {
 
     private final static int[] v0 = new int[]{(int) 0x7380166f,
@@ -105,7 +103,6 @@ public class SM3Digest extends GeneralDigest {
             vv[i] ^= vv_[i];
         }
 
-        // Reset
         xOff = 0;
         System.arraycopy(X0, 0, X, 0, X0.length);
 
@@ -152,7 +149,6 @@ public class SM3Digest extends GeneralDigest {
         return DIGEST_LENGTH;
     }
 
-    // ////////////////////////////////////////////
     private int ROTATE(int x, int n) {
         return (x << n) | (SupportClass.URShift(x, (32 - n)));
     }

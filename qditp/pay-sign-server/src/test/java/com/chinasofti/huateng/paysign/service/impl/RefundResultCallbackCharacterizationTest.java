@@ -19,16 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/**
- * 护栏：支付中心网关 §5.2 退款回调（2026-09-22 新增，P1-3）。
- *
- * <p>三条不可回退的口径：①定位本地行只认 {@code outRefundNo}（我方 {@code REFUND_ORDER_NO}）；
- * ②非终态一律只应答成功、不写库，交 {@code sys_job} 305 收口；
- * ③CAS 命中 0 行仍应答成功（已被回查收口，返错只会引来重推）。</p>
- *
- * <p>外加一条发起侧的：§3.1 的 {@code notifyUrl} 是必填键，配了地址就 MUST 出现在出向 bizData 里 ——
- * 缺它时退款回调**结构上永远到不了**，退款单只能靠回查收敛。</p>
- */
+
 class RefundResultCallbackCharacterizationTest {
 
     private static final String MERCHANT_ORDER_NO = "GT20260916100000001586419";
@@ -37,7 +28,6 @@ class RefundResultCallbackCharacterizationTest {
     private static final String NOTIFY_URL =
             "http://127.0.0.1:48000/fep-app/ci/app/paySign/payment/receiveRefundResult";
 
-    /** 回调报 SUCCESS：复用 finishFromQuery 这条 CAS 收口，并重算原单汇总。 */
     @Test
     void successCallbackSettlesThroughFinishFromQueryAndSummarizes() {
         PaySignFacadeFixture fixture = fixtureWithRefundRow();
@@ -53,7 +43,6 @@ class RefundResultCallbackCharacterizationTest {
         verify(fixture.payTxnDetailMapper).updateRefundSummary(MERCHANT_ORDER_NO);
     }
 
-    /** 回调报非终态（处理中）：一行都不写，只应答成功。 */
     @Test
     @DisplayName("非终态回调 NEVER 写库：把处理中写进状态列会毁掉 CAS 的前置白名单")
     void nonTerminalCallbackWritesNothing() {
@@ -66,7 +55,6 @@ class RefundResultCallbackCharacterizationTest {
         verify(fixture.payTxnDetailMapper, never()).updateRefundSummary(anyString());
     }
 
-    /** CAS 命中 0 行（已被退款回查收口）：仍答 0000，且 NEVER 重算汇总。 */
     @Test
     void casMissStillAnswersSuccessAndSkipsSummary() {
         PaySignFacadeFixture fixture = fixtureWithRefundRow();
@@ -78,7 +66,6 @@ class RefundResultCallbackCharacterizationTest {
         verify(fixture.payTxnDetailMapper, never()).updateRefundSummary(anyString());
     }
 
-    /** outRefundNo 在本地查不到：拒绝并转人工，NEVER 盲写。 */
     @Test
     void unknownRefundOrderNoIsRejected() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -90,7 +77,6 @@ class RefundResultCallbackCharacterizationTest {
         verify(fixture.payRefundDetailMapper, never()).finishFromQuery(any());
     }
 
-    /** 缺 outRefundNo：连查都不查，直接拒。 */
     @Test
     void missingOutRefundNoIsRejectedBeforeLookup() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -103,7 +89,6 @@ class RefundResultCallbackCharacterizationTest {
         verify(fixture.payRefundDetailMapper, never()).selectByRefundOrderNo(anyString());
     }
 
-    /** 配了退款回调地址时，§3.1 出向 bizData MUST 带 notifyUrl。 */
     @Test
     void requestRefundSendsConfiguredNotifyUrl() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -119,7 +104,6 @@ class RefundResultCallbackCharacterizationTest {
         assertEquals(NOTIFY_URL, captor.getValue().get("notifyUrl"));
     }
 
-    /** 未配地址时不送该键：退化成今天的「只靠回查收敛」，NEVER 送一个我方没有端点的地址。 */
     @Test
     void requestRefundOmitsNotifyUrlWhenUnconfigured() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
@@ -150,7 +134,6 @@ class RefundResultCallbackCharacterizationTest {
         return row;
     }
 
-    /** §5.2 回调报文：{@code outRefundNo} 才是我方退款流水号。 */
     private ReceiveRefundResultReqDTO callback(String refundResult) {
         ReceiveRefundResultReqDTO request = new ReceiveRefundResultReqDTO();
         request.setOrderNo("286275496309587968");

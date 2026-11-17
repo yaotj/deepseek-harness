@@ -2,109 +2,67 @@ package com.chinasofti.huateng.alipay.account.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * ALIPAY_REG_LOG 支付宝开户流水表实体。
- */
+
 public class AlipayRegLog {
 
-    /**
-     * 请求流水号（主键）。
-     */
+
     private String requestSeq;
 
-    /**
-     * 响应流水号。
-     */
+
     private String responseSeq;
 
-    /**
-     * 支付宝用户ID。
-     */
+
     private String thirdUserId;
 
-    /**
-     * 逻辑卡号。
-     */
+
     private String cardId;
 
-    /**
-     * 卡类型编码。
-     */
+
     private String cardType;
 
-    /**
-     * 发卡渠道代码。
-     */
+
     private String cardIssueCode;
 
-    /**
-     * 开户渠道编码。
-     */
+
     private String channel;
 
-    /**
-     * 手机号。
-     */
+
     private String msisdn;
 
-    /**
-     * 扩展字段1。
-     */
+
     private String extend1;
 
-    /**
-     * 扩展字段2。
-     */
+
     private String extend2;
 
-    /**
-     * 原始请求报文。
-     */
+
     private String requestBody;
 
-    /**
-     * 原始响应报文。
-     */
+
     private String responseBody;
 
-    /**
-     * 响应码。
-     */
+
     private String resultCode;
 
-    /**
-     * 响应信息。
-     */
+
     private String resultMsg;
 
-    /**
-     * 操作人。
-     */
+
     private String operator;
 
-    /**
-     * 请求IP。
-     */
+
     private String ip;
 
-    /**
-     * 备注。
-     */
+
     private String remark;
 
-    /**
-     * 乐观锁版本号。
-     */
+
     private String version;
 
-    /**
-     * 创建时间。
-     */
+
     private LocalDateTime createTime;
 
-    /**
-     * 创建人。
-     */
+
     private String createBy;
 
     public String getRequestSeq() {
@@ -267,9 +225,7 @@ public class AlipayRegLog {
         this.createBy = createBy;
     }
 
-    /**
-     * 更新时间。
-     */
+
     private LocalDateTime updateTime;
 
     public LocalDateTime getUpdateTime() {
@@ -280,9 +236,7 @@ public class AlipayRegLog {
         this.updateTime = updateTime;
     }
 
-    /**
-     * 删除标记（0:正常 1:删除）。
-     */
+
     private String deleteFlag;
 
     public String getDeleteFlag() {

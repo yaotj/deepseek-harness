@@ -7,7 +7,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
-/** 日票服务启动类。 */
 @SpringBootApplication
 @ConfigurationPropertiesScan
 @EnableConfigurationProperties

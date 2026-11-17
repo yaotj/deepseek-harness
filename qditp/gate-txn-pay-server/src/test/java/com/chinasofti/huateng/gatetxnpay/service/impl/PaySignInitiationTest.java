@@ -41,13 +41,10 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/** 钉住「发起扣款」这一段的报文与状态收敛口径。 */
 class PaySignInitiationTest {
 
-    /** 出站日：故意取一个远离「今天」的值，`now()` 一旦混进报文立刻被 {@link #txnDateComesFromOrderNeverToday} 抓到。 */
     private static final String OUT_TXN_DATE = "20260101";
 
-    /** 落单时由 fep-dev-server 透传存进 `INDUSTRY_DETAIL` 的那份 JSON。 */
     private static final String INDUSTRY_DETAIL =
             "{\"entryLineCode\":\"L1\",\"entryId\":\"E1\",\"cardIssueCode\":\"0007\"}";
 
@@ -69,7 +66,6 @@ class PaySignInitiationTest {
                 capturedRequest().getTxnDate(), "TXN_DATE NEVER 取当日");
     }
 
-    /** 漏掉超时费就是少收钱。 */
     @Test
     void amountIsTotalAmountIncludingOvertimeFee() {
         stubRetryable(order("GT11", 400, 300));
@@ -80,7 +76,6 @@ class PaySignInitiationTest {
         assertEquals(700, capturedRequest().getAmount(), "MUST = 实扣 400 + 超时费 300");
     }
 
-    /** 场景 / 行业类型 / 商品标题 / 订单超时全部来自配置项，报文里一个都不能少。 */
     @Test
     void configuredSceneAndTimeoutAreCarriedIntoTheRequest() {
         stubRetryable(order("GT12", 400, 0));
@@ -97,7 +92,6 @@ class PaySignInitiationTest {
         assertEquals("GT12", sent.getOrderNo());
     }
 
-    /** {@code retCode=0000} 才推进 PROCESSING。 */
     @Test
     void successRetCodeAdvancesToProcessing() {
         stubRetryable(order("GT13", 400, 0));
@@ -107,7 +101,6 @@ class PaySignInitiationTest {
         verify(writer).updateOrderStatusFromPending(any(), eq("PROCESSING"), any());
     }
 
-    /** 对端明确拒绝（非 0000）落 FAIL 终态，**NEVER 回退成 RETRY** —— 那会把它和「未获答复」混成一类。 */
     @Test
     void bizRejectedRetCodeLandsOnFailNeverRetry() {
         stubRetryable(order("GT14", 400, 0));
@@ -117,7 +110,6 @@ class PaySignInitiationTest {
         verify(writer).updateOrderStatusFromPending(any(), eq("FAIL"), contains("业务拒绝"));
     }
 
-    /** 返回 null：HTTP 已通、只是应答体空，属契约问题 ⇒ 与非 0000 同归 FAIL，重试解决不了。 */
     @Test
     void nullResponseLandsOnFailWithChannelInReason() {
         stubRetryable(order("GT15", 400, 0));
@@ -127,7 +119,6 @@ class PaySignInitiationTest {
         verify(writer).updateOrderStatusFromPending(any(), eq("FAIL"), contains("pay-sign"));
     }
 
-    /** 补偿链路（异步入口）上 pay-sign 抛异常 = 未获答复 → 落 RETRY 且异常信息进备注。 */
     @Test
     void paySignExceptionIsRecordedAsRetry() {
         stubPending(pendingOrder("GT16"));
@@ -151,11 +142,7 @@ class PaySignInitiationTest {
         verify(writer).updateOrderStatusFromPending(any(), eq("PROCESSING"), anyString());
     }
 
-    /**
-     * 快照键 MUST 原样透传（NEVER 在 gate-txn-pay 侧重算站名等），唯一的例外是
-     * {@code payTriggerType}：V1.2 文档必填、且「首次/补偿」只有发起入口知道，
-     * 由 {@link AlipayTripPayRequestFactory} 在快照上注入（retryPay 是重试入口 → 02）。
-     */
+
     @Test
     void alipayIndustryDetailIsPassedThroughNeverRebuilt() {
         GateTxnPay order = alipayOrder("GT21");
@@ -178,7 +165,6 @@ class PaySignInitiationTest {
         assertEquals(700, sent.getValue().getAmount(), "金额 MUST 是 TOTAL_AMOUNT（实扣 + 超时费）");
     }
 
-    /** 出站首次扣款（initiateAsync）是渠道第一次见到这笔订单，payTriggerType MUST 标 01。 */
     @Test
     void firstInitiationMarksPayTriggerType01() {
         when(alipayPaySignClient.alipayTripRequestPay(any())).thenReturn(alipayPayResult("0000"));
@@ -192,7 +178,6 @@ class PaySignInitiationTest {
                 JSON.parseObject(sent.getValue().getIndustryDetail()).getString("payTriggerType"));
     }
 
-    /** sys_job 345 捞起的 INIT 单（落单后首次扣款没发起过）走重试入口但 MUST 标 01：对渠道仍是首次支付。 */
     @Test
     void explicitFirstRetryMarksPayTriggerType01() {
         when(alipayPaySignClient.alipayTripRequestPay(any())).thenReturn(alipayPayResult("0000"));
@@ -206,7 +191,6 @@ class PaySignInitiationTest {
                 JSON.parseObject(sent.getValue().getIndustryDetail()).getString("payTriggerType"));
     }
 
-    /** 支付宝渠道被业务拒绝同样落 FAIL，且 REMARK MUST 写 alipay-pay-sign 而不是 pay-sign。 */
     @Test
     void alipayBizRejectedLandsOnFailWithAlipayChannelInReason() {
         stubRetryable(alipayOrder("GT22"));
@@ -217,7 +201,6 @@ class PaySignInitiationTest {
         verify(writer).updateOrderStatusFromPending(any(), eq("FAIL"), contains("alipay-pay-sign"));
     }
 
-    /** 反向错了同样打不通。 */
     @Test
     void nonAlipayChannelNeverTouchesAlipay() {
         stubRetryable(order("GT23", 400, 0));
@@ -228,11 +211,7 @@ class PaySignInitiationTest {
         verifyNoInteractions(alipayPaySignClient);
     }
 
-    /**
-     * pay-sign 通道（2026-11-17 起）同样取 V1.2 快照出网：非支付宝发行渠道的免密扣款直连支付中心，
-     * 对端是同一个支付中心、同一份 industryDetail 契约；快照键原样透传、payTriggerType 注入
-     * （retryPay 是重试入口 → 02-补偿支付）。
-     */
+
     @Test
     void paySignChannelPassesSnapshotThroughWithTriggerInjected() {
         GateTxnPay order = order("GT24", 400, 0);
@@ -250,7 +229,6 @@ class PaySignInitiationTest {
                 "retryPay 是补偿重推，MUST 标 02-补偿支付");
     }
 
-    /** pay-sign 通道快照缺失（历史行）：回落订单实体 JSON，payTriggerType 照常注入。 */
     @Test
     void paySignChannelFallsBackToEntityDumpWhenSnapshotMissing() {
         stubRetryable(order("GT25", 400, 0));
@@ -270,7 +248,6 @@ class PaySignInitiationTest {
         return result;
     }
 
-    /** 支付宝出行的可重试订单：`ISSUE_CHANNEL_CODE=07` + 落单时透传存下的 industryDetail。 */
     private GateTxnPay alipayOrder(String orderNo) {
         GateTxnPay order = order(orderNo, 400, 300);
         order.setIssueChannelCode("07");
@@ -292,7 +269,6 @@ class PaySignInitiationTest {
         return result;
     }
 
-    /** `retryPay` 的前置：订单存在、状态在白名单内。 */
     private void stubRetryable(GateTxnPay order) {
         when(mapper.selectByOrderNo(order.getOrderNo())).thenReturn(order);
     }
@@ -301,7 +277,6 @@ class PaySignInitiationTest {
         when(mapper.selectOfflineFarePending(anyString(), anyString(), anyInt())).thenReturn(List.of(pending));
     }
 
-    /** 算价是 void，金额靠副作用写回订单对象。 */
     private void stubCalculated(int trxAmount, int overtimeAmount) {
         doAnswer(invocation -> {
             GateTxnPay order = invocation.getArgument(0);
@@ -311,7 +286,6 @@ class PaySignInitiationTest {
         }).when(fareCalculator).calculateOfflineFare(any(), any());
     }
 
-    /** 可重试的失败订单：`DEBIT_STATUS='RETRY'`，金额已算出。 */
     private GateTxnPay order(String orderNo, int trxAmount, int overtimeAmount) {
         GateTxnPay order = base(orderNo);
         order.setDebitStatus("RETRY");
@@ -321,7 +295,6 @@ class PaySignInitiationTest {
         return order;
     }
 
-    /** 待重算行：`INIT` + 金额全 0，但不是免扣费交易。 */
     private GateTxnPay pendingOrder(String orderNo) {
         GateTxnPay order = base(orderNo);
         order.setDebitStatus("INIT");
@@ -347,7 +320,6 @@ class PaySignInitiationTest {
         return order;
     }
 
-    /** 扣款链路用到的协作者：mapper（回查订单）、writer（状态收敛）、算价、pay-sign、补款单前置。 */
     private GateTxnPayServiceImpl service() {
         return new GateTxnPayServiceImpl(
                 mapper, writer, fareCalculator, initiator(),
@@ -357,9 +329,7 @@ class PaySignInitiationTest {
                 null);
     }
 
-    /**
-     * null 直接 NPE （补偿侧还会被单笔 catch 吞掉，表现成断言值对不上而不是 NPE，与第 5 位 {@code metroTransferPushTaskProcessor} 同款陷阱）。
-     */
+
     private StationNameBackfiller noopStationNameBackfiller() {
         return new StationNameBackfiller(new FareDataGateway(null, null, null, null, null, null) {
             @Override
@@ -369,7 +339,6 @@ class PaySignInitiationTest {
         });
     }
 
-    /** 两个渠道的报文工厂传真实实例：本文件断言的正是它们组出来的报文字段，mock 掉就什么都没测到。 */
     private PaySignInitiator initiator() {
         return new PaySignInitiator(writer,
                 new PayInitiationRpcAdapter(paySignClient, alipayPaySignClient),
@@ -377,7 +346,6 @@ class PaySignInitiationTest {
                 new AlipayTripPayRequestFactory("TRIP", "05", "1", "地铁乘车扣费", "地铁乘车费用", 60));
     }
 
-    /** 补偿入口已搬到 {@link OfflineFareRecoveryServiceImpl} */
     private OfflineFareRecoveryServiceImpl recoveryService() {
         return new OfflineFareRecoveryServiceImpl(
                 mapper, writer, fareCalculator, initiator(),

@@ -15,9 +15,7 @@ import com.alibaba.fastjson2.JSON;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * 支付宝出行合约服务实现。
- */
+
 @Service
 public class AlipayContractServiceImpl implements AlipayContractService {
     private static final Logger log = LoggerFactory.getLogger(AlipayContractServiceImpl.class);

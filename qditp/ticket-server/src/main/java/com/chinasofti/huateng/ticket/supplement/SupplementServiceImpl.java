@@ -10,7 +10,6 @@ import com.chinasofti.huateng.ticket.constant.TicketErrorCodeEnum;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-/** 补站域门面实现。 */
 @Service
 public class SupplementServiceImpl implements SupplementService {
 

@@ -17,19 +17,7 @@ import org.springframework.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * 支付宝出行查询服务实现（薄转发）。
- *
- * <p>{@code findTravelList} / {@code findTravelDetail} 的编排实现已迁入
- * {@code trans-query-server} 的 {@code AlipayTravelQueryHandler}（1.0.5 起），本类只做一次 RPC 转发：
- * 进出站明细拼装、{@code entryId} / {@code exitId} 切片、扣款结果映射全在那边，
- * **NEVER 在本类重新实现一份** —— 那等于两处并存、改一处漏一处。
- *
- * <p>详情应答是 <b>`retCode` / `retMsg` + `data` 三层结构</b>（2026-09-20 按支付宝侧实测要求改回，ADR-D150）：
- * 业务字段在 {@code AlipayTripFindTravelDetailRespDTO.data} 里，本类只把 trans-query 的应答**原样转发**，
- * <b>NEVER 在这里拆平或重新组装字段</b>（那等于把编排搬回接入层）。同日 ADR-D148 的「扁平、NEVER 包 data」
- * 口径**已作废**。
- */
+
 @Service
 public class AlipayQueryServiceImpl implements AlipayQueryService {
     private static final Logger log = LoggerFactory.getLogger(AlipayQueryServiceImpl.class);

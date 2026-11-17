@@ -3,48 +3,30 @@ package com.chinasofti.huateng.model.app.dailyticket;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-/**
- * IF8A-62 日票支付结果查询响应参数。
- */
+
 public class DailyTicketPayQueryResult extends DailyTicketBaseResult {
-    /**
-     * 第三方支付交易号。
-     */
+
     private String tradeNo;
 
-    /**
-     * 支付结果，success表示成功。
-     */
+
     private String payResult;
 
-    /**
-     * 支付金额，单位分。
-     */
+
     private Integer payAmount;
 
-    /**
-     * 支付完成时间，格式 yyyyMMddHHmmss。
-     */
+
     private String payDate;
 
-    /**
-     * 优惠信息。
-     */
+
     private String discountInfo;
 
-    /**
-     * 支付渠道。
-     */
+
     private String payChannel;
 
-    /**
-     * 渠道优惠金额，单位分。
-     */
+
     private Integer channelDiscount;
 
-    /**
-     * 优惠券优惠金额，单位分。
-     */
+
     private Integer couponDiscount;
 
     public String getTradeNo() {

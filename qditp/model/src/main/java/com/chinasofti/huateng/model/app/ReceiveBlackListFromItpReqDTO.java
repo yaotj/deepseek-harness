@@ -1,43 +1,27 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * IF8B-03 接收黑名单结果通知请求参数。
- */
+
 public class ReceiveBlackListFromItpReqDTO {
 
-    /**
-     * 第三方用户ID。
-     */
+
     private String thirdUserId;
 
-    /**
-     * 地铁会员卡号。
-     */
+
     private String cardId;
 
-    /**
-     * 卡类型编码。
-     */
+
     private String cardType;
 
-    /**
-     * 黑名单类型。
-     */
+
     private String blackListType;
 
-    /**
-     * 操作时间，格式：YYYYMMDDHH24mmss。
-     */
+
     private String optionDate;
 
-    /**
-     * 黑名单有效期，格式：YYYYMMDDHH24mmss。
-     */
+
     private String expireTime;
 
-    /**
-     * 签名类型。
-     */
+
     private String signType;
 
     private String sign;

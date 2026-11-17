@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.agm;
 
-/**
- * AGM key material returned to a device during key synchronization.
- */
+
 public class AgmKeyItemDTO {
     private String keyBathNumber;
     private String keyIdx;

@@ -21,7 +21,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** IF5A-03 用户信息查询的特征测试：account 域两跳 + 支付宝出行账户域回落。 */
 class SupplementUserLookupTest {
 
     private static final String CARD_ID = "0426090949000069";

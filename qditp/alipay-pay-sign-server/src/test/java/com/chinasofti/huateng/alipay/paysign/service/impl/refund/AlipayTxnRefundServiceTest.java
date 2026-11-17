@@ -34,18 +34,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * {@link AlipayTxnRefundService} 的单测，钉住六条不能回退的口径：
- * <ol>
- *   <li>原支付未命中 / 非 {@code SUCCESS} 一律拒绝，且**在落库之前**拒绝；</li>
- *   <li>同一原订单存在 {@code PROCESSING} 明细时拒绝，且 NEVER 落库、NEVER 出网；</li>
- *   <li>金额超可退余额拒绝（可退 = {@code AMOUNT} - {@code REFUND_AMOUNT}）；</li>
- *   <li>按渠道协议号查不到签约即拒绝，NEVER 送空卡号出网；</li>
- *   <li>顺序是 {@code insert} → {@code markRequesting} → 出网（先留痕再出网）；</li>
- *   <li>三分支处置：业务成功才刷汇总；业务拒绝置 {@code FAIL} 且不刷汇总；
- *       拿不到业务应答保持 {@code PROCESSING} 且不刷汇总。</li>
- * </ol>
- */
+
 class AlipayTxnRefundServiceTest {
 
     private static final String ORDER_NO = "GT20260920000000001";
@@ -132,13 +121,7 @@ class AlipayTxnRefundServiceTest {
         verify(payCenterPort, never()).requestRefund(any());
     }
 
-    /**
-     * 受理即成功、明细留 {@code PROCESSING}、<b>不刷汇总</b>。
-     *
-     * <p>用的是 2026-09-20 实测那份应答：{@code {"code":200,"msg":"操作成功"}}，**没有 data、没有 retCode**。
-     * 这条用例就是钉死「NEVER 再用 {@code "SUCCESS".equals(retCode)} 判退款」——那样判会把每一笔已受理的
-     * 退款写成 {@code FAIL}。
-     */
+
     @Test
     void acceptedKeepsProcessingAndNeverRefreshesSummary() {
         when(payCenterPort.requestRefund(any())).thenReturn(acceptedWithoutData());
@@ -165,7 +148,6 @@ class AlipayTxnRefundServiceTest {
         assertEquals(settled.getValue().getRefundOrderNo(), settled.getValue().getMerchantRefundNo());
     }
 
-    /** 应答 data 里带三个单号时回填；键名出自契约 §3.1 应答参数表。 */
     @Test
     void acceptedWithDataBackfillsRefundNumbers() {
         Map<String, Object> data = new HashMap<>();
@@ -230,7 +212,6 @@ class AlipayTxnRefundServiceTest {
         return signInfo;
     }
 
-    /** 2026-09-20 实测应答：顶层 code 成功、**连 data 都没有**，因此 {@code retCode} 恒为 null。 */
     private PayCenterReply.Accepted acceptedWithoutData() {
         return new PayCenterReply.Accepted(200, Boolean.TRUE, "操作成功", "{\"code\":200,\"msg\":\"操作成功\"}",
                 null, null, new HashMap<>());

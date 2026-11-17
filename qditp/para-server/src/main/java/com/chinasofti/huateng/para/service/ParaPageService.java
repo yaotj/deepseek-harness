@@ -6,7 +6,6 @@ import com.chinasofti.huateng.para.entity.network.StationInfo;
 import com.chinasofti.huateng.para.model.LineStationVersion;
 import com.github.pagehelper.PageInfo;
 
-/** 参数管理页面查询服务。 */
 public interface ParaPageService {
     ResultVO<PageInfo<LineInfo>> pageLineInfo(Integer pageNum, Integer pageSize);
 

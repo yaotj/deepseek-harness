@@ -16,10 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-/**
- * @author houkepan
- * @date 2020/5/6 11:56
- */
+
 @Service
 public class CommonSaleAndRefundServiceImpl implements CommonSaleAndRefundService {
     private static final Logger log = LoggerFactory.getLogger(CommonSaleAndRefundServiceImpl.class);
@@ -36,20 +33,16 @@ public class CommonSaleAndRefundServiceImpl implements CommonSaleAndRefundServic
         String userReation = Constant.ORDER_TYPE.BYTE10 + LocalCache.getSequence();
         bean.setUserRetain(TransformUtils.HexStringToByteArr(userReation));
 
-        // MAC1 分散秘钥00B0
         byte[] bytes1 = {0x00, (byte) 0xB0};
         bean.setIndex(bytes1);
-        // 分散数据 卡号
         byte[] disperseData = new byte[16];
         System.arraycopy(TransformUtils.HexStringToByteArr("4500FF0000000000"), 0, disperseData, 0, 8);
         System.arraycopy(TransformUtils.HexStringToByteArr(param.getCardNo()), 0, disperseData, 8, 8);
         bean.setDisperseData(disperseData);
 
-        // mac数据拼接
         byte[] macData = new byte[8];
         System.arraycopy(TransformUtils.HexStringToByteArr(param.getRandomNum()), 0, macData, 0, 8);
 
-        // mac数据
         bean.setBytes(macData);
 
         byte[] bytes = ByteConvertUtil.byteMergerAll(

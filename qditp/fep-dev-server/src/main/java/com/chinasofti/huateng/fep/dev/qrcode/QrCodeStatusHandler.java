@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/** IF1A-04 票卡状态查询处理。 */
 @Component
 public class QrCodeStatusHandler {
     private static final Logger log = LoggerFactory.getLogger(QrCodeStatusHandler.class);
@@ -26,12 +25,7 @@ public class QrCodeStatusHandler {
         this.deviceUserIdCodec = deviceUserIdCodec;
     }
 
-    /**
-     * IF1A-04 查询票卡状态。
-     *
-     * @param request 查询票卡状态业务参数
-     * @return 查询票卡状态响应
-     */
+
     public RequestQrCodeStatusRespDTO requestQrCodeStatus(RequestQrCodeStatusReqDTO request) {
         RequestQrCodeStatusRespDTO response = new RequestQrCodeStatusRespDTO();
         if (request == null || !StringUtils.hasText(request.getCardId())) {

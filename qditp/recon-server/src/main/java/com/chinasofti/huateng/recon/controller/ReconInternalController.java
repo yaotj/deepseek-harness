@@ -32,11 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * 对账内部接口：仅供源服务与运维调用。
- *
- * <p>护栏：本组接口当前【无鉴权】，是有意为之的临时降级，上线前 MUST 恢复。</p>
- */
+
 @RestController
 @RequestMapping("/internal/recon")
 public class ReconInternalController {
@@ -73,14 +69,12 @@ public class ReconInternalController {
         return view == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(view);
     }
 
-    /** 直接改批次状态，仅供人工干预（会绕过收齐校验）。 */
     @PutMapping("/batches/{batchId}/status")
     public BatchView updateStatus(@PathVariable String batchId,
                                   @RequestParam ReconBatchStatus status) {
         return batchService.transition(batchId, status);
     }
 
-    /** 跑完一次完整的日终对账，供 web-admin 的 Quartz 每日调用。 */
     @PostMapping("/daily/run")
     public CommonResult runDailyBatch() {
         CommonResult result = new CommonResult();
@@ -110,9 +104,7 @@ public class ReconInternalController {
                 request.getInputStream());
     }
 
-    /**
-     * 源服务声明某个 {@code (来源, 文件类型)} 的分片已全部上送，触发三项总账收齐校验。
-     */
+
     @PostMapping("/batches/{batchId}/sources/{source}/files/{fileType}/complete")
     public SourceProgress completeSource(@PathVariable String batchId,
                                          @PathVariable String source,
@@ -121,13 +113,11 @@ public class ReconInternalController {
         return sourceService.declare(batchId, source, fileType, request);
     }
 
-    /** 查看某批次各来源的收齐进度。 */
     @GetMapping("/batches/{batchId}/sources")
     public List<SourceProgress> listSources(@PathVariable String batchId) {
         return sourceService.list(batchId);
     }
 
-    /** 人工推进单个批次，等价于编排器的一轮推进。 */
     @PostMapping("/batches/{batchId}/advance")
     public BatchView advance(@PathVariable String batchId) {
         return orchestrationService.advanceBatch(batchId);

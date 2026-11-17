@@ -3,36 +3,21 @@ import com.chinasofti.huateng.acc.es.server.netty.model.Constant;
 import com.chinasofti.huateng.acc.es.server.netty.model.MessageBean;
 import lombok.*;
 
-/**
- * @program: spring-cloud-acc
- * @description: 设备签到
- * @author: fc
- * @create: 2020-09-09 10:52
- */
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = false)
 public class DeviceSignIn extends DataHead{
-    /**
-     * 节点标识码
-     */
+
     private String esNodeId;
-    /**
-     * 操作员编码5位后补空格
-     */
+
     private String operatorCode;
-    /**
-     * 操作员密码
-     */
+
     private String operatorPassword;
 
 
-    /**
-     * 7000 string转byte
-     * @param deviceSignIn
-     * @return
-     */
+
     public byte[] toBytesArray(DeviceSignIn deviceSignIn){
         byte[] dataBody = new byte[Constant.DataLength.DATA_BODY_7000_SIGN_BYTES];
         System.arraycopy(deviceSignIn.getEsNodeId().getBytes(), 0, dataBody,0, 8);
@@ -41,14 +26,9 @@ public class DeviceSignIn extends DataHead{
         return dataBody;
     }
 
-    /**
-     * 7000 byte转string
-     * @param messageBean
-     * @return
-     */
+
     public static  DeviceSignIn toDeviceSignInStr(MessageBean messageBean){
         DeviceSignIn deviceSignIn=new DeviceSignIn();
-        // 报文头
         deviceSignIn.setTxnType(messageBean.getTxnType());
         deviceSignIn.setNodeId(messageBean.getNodeId());
         deviceSignIn.setSequence(messageBean.getSequence());

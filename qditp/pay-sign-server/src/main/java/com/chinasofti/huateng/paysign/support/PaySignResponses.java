@@ -15,7 +15,6 @@ import com.chinasofti.huateng.paysign.model.response.CheckFailedOrdersRespDTO;
 import com.chinasofti.huateng.model.paysign.CompensateNotifyRespDTO;
 import com.chinasofti.huateng.model.paysign.ResendSignNotifyRespDTO;
 
-/** 支付签约域**应答装配的唯一实现点**（2026-09-15 拆分批次 2）。 */
 public final class PaySignResponses {
 
     private PaySignResponses() {
@@ -69,7 +68,6 @@ public final class PaySignResponses {
         response.setRetMsg(PaySignErrorCodeEnum.SUCCESS.getMsg());
     }
 
-    /** B 类：{@code requestSignInfo} 的应答模型只有 retCode / retMsg。 */
     public static void fillError(RequestSignInfoResult response, PaySignErrorCodeEnum errorCode, String msg) {
         response.setRetCode(errorCode.getCode());
         response.setRetMsg(msg);
@@ -90,13 +88,11 @@ public final class PaySignResponses {
         response.setRetMsg(PaySignErrorCodeEnum.SUCCESS.getMsg());
     }
 
-    /** B 类：IF8A-75 直接解绑只有失败装配，成功分支由调用方按业务字段自行填。 */
     public static void fillError(UnbindAgreementResult response, PaySignErrorCodeEnum errorCode, String msg) {
         response.setRetCode(errorCode.getCode());
         response.setRetMsg(msg);
     }
 
-    /** C 类：内部批处理应答用 resultCode / resultMsg，与 retCode 不是同一个字段。 */
     public static void fillError(CompensateNotifyRespDTO response, PaySignErrorCodeEnum errorCode, String msg) {
         response.setResultCode(errorCode.getCode());
         response.setResultMsg(msg);
@@ -126,14 +122,12 @@ public final class PaySignResponses {
         response.setResultCode(PaySignErrorCodeEnum.SUCCESS.getCode());
         response.setResultMsg(PaySignErrorCodeEnum.SUCCESS.getMsg());
     }
-    /** IF8B 签约通知重发（{@code /internal/paySign/resendSignNotify}）。 */
     public static ResendSignNotifyRespDTO fillSuccess(ResendSignNotifyRespDTO response) {
         response.setResultCode(PaySignErrorCodeEnum.SUCCESS.getCode());
         response.setResultMsg(PaySignErrorCodeEnum.SUCCESS.getMsg());
         return response;
     }
 
-    /** 同上；{@code notified} 恒置 false —— 失败分支 NEVER 报「已通知」。 */
     public static ResendSignNotifyRespDTO fillError(ResendSignNotifyRespDTO response,
                                                     PaySignErrorCodeEnum error, String msg) {
         response.setResultCode(error.getCode());
@@ -141,7 +135,6 @@ public final class PaySignResponses {
         response.setNotified(false);
         return response;
     }
-    /** IF8A-22 签约结果查询的成功应答：一次把 {@code 0000} 与 4 个签约字段填齐。 */
     public static void fillContractResult(RequestContractResultRespDTO response, PaySignInfo signInfo,
                                           String defaultStatus) {
         fillSuccess(response);

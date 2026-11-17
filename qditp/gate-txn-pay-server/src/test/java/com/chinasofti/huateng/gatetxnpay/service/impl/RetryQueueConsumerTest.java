@@ -22,11 +22,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * RetryQueueConsumer 单元测试（简化版，跳过 @Transactional 复杂场景）。
- *
- * <p>主要验证：空队列直接返回、扫描到订单后调支付中心。
- */
+
 @ExtendWith(MockitoExtension.class)
 class RetryQueueConsumerTest {
 
@@ -61,7 +57,6 @@ class RetryQueueConsumerTest {
         int result = consumer.consumeBatch();
         assertEquals(0, result);
 
-        // 不应调支付中心
         verify(paySignInitiator, never()).retryAndConverge(any());
     }
 

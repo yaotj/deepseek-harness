@@ -8,14 +8,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
-/**
- * <p>
- * ES任务报告
- * </p>
- *
- * @author fc
- * @since 2020-09-02
- */
+
 @AllArgsConstructor
 @NoArgsConstructor
 @Data

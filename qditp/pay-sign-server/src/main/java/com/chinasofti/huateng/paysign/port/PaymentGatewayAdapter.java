@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/** {@link PaymentGatewayPort} 的唯一实现：扣款方向出向 URL 与应答判读的收口点。 */
 @Component
 public class PaymentGatewayAdapter implements PaymentGatewayPort {
 
@@ -63,7 +62,6 @@ public class PaymentGatewayAdapter implements PaymentGatewayPort {
                 : new GatewayReply.Rejected(response);
     }
 
-    /** 支付回调地址：报文透传值优先，其次支付专用配置。 */
     private String resolvePayNotifyUrl(RequestPayReqDTO request) {
         if (StringUtils.hasText(request.getNotifyUrl())) {
             return request.getNotifyUrl();

@@ -18,9 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-/**
- * 钉住支付日志的应答码抽取分支：三种 response 形态各走一支，写错会让对账与排查取不到 retCode。
- */
+
 class DailyTicketPayLogWriterTest {
 
     private DailyTicketPayLogMapper payLogMapper;

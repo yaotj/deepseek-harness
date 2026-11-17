@@ -27,7 +27,6 @@ public class JvmObjectTop {
                     signature
             );
 
-            // 解析输出（格式：num #instances #bytes class name）
             Map<String, Long> countMap = new HashMap<>();
             Scanner scanner = new Scanner(histoOutput);
 
@@ -47,7 +46,6 @@ public class JvmObjectTop {
                     long count = Long.parseLong(parts[1]);
                     String className = parts[3];
 
-                    // 过滤数组、内部类（可选）
                     if (className.startsWith("[") || className.startsWith("java.lang.ref")) {
                         continue;
                     }
@@ -56,7 +54,6 @@ public class JvmObjectTop {
                 }
             }
 
-            // 排序取 TOP
             return countMap.entrySet().stream()
                     .sorted(Collections.reverseOrder(Map.Entry.comparingByValue()))
                     .limit(maxSize)

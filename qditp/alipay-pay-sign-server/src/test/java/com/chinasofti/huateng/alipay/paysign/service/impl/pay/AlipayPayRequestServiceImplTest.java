@@ -33,21 +33,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住 {@link AlipayPayRequestServiceImpl} 的四条口径。
- *
- * <p>①<b>已 SUCCESS 的单子重推时，MUST 在取 {@code txnDate} 的 RPC 之前就短路</b> ——
- * 这是本实现与旧 {@code AlipayTxnPayService} 的唯一行为差异，也是本类最重要的一条：
- * 顺序反了会让一笔已成功的扣款在 gate-txn-pay 不可达时被报成失败。
- *
- * <p>②<b>受理成功只能写 PROCESSING</b>，NEVER 写 SUCCESS（那是拿受理冒充扣款成功）。
- *
- * <p>③<b>只有「拿到业务拒绝 + payQuery 回查确认 FAIL」才加黑名单</b>：{@code Rejected} /
- * {@code NoAnswer} 都不加；业务拒绝那一支若回查是 SUCCESS（幂等拒答）或压根确认不了，也不加。
- *
- * <p>④<b>{@code NoAnswer} 与出网抛异常一个字都不回写</b>，状态留 {@code PROCESSING} 等回查 ——
- * 钱可能已经扣了，落 FAIL 是资损路径。
- */
+
 class AlipayPayRequestServiceImplTest {
 
     private static final String ORDER_NO = "GT20260918021300000000001";
@@ -125,10 +111,7 @@ class AlipayPayRequestServiceImplTest {
         assertEquals("9999", response.getRetCode());
     }
 
-    /**
-     * 幂等拒答（同一笔已支付成功）落在第二支，但回查确认这笔是 SUCCESS ——
-     * MUST 只写 FAIL、NEVER 加黑名单，否则已付款乘客被拉黑过不了闸。
-     */
+
     @Test
     void idempotentRejectionConfirmedSuccessIsNeverBlacklisted() {
         when(payCenterPort.requestPay(any())).thenReturn(accepted("9999", Map.of("channelOrderNo", "2026091822001")));
@@ -140,7 +123,6 @@ class AlipayPayRequestServiceImplTest {
         verify(blacklistPort, never()).addBlackList(anyString(), anyString(), any(), anyString());
     }
 
-    /** 回查拿不到应答时确认不了真实失败，按保守口径不加黑（漏加黑优于误加黑）。 */
     @Test
     void unconfirmableFailureIsNeverBlacklisted() {
         when(payCenterPort.requestPay(any())).thenReturn(accepted("9999", Map.of()));

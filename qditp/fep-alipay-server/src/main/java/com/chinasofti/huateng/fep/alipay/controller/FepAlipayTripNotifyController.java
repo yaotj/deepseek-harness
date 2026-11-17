@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/** 支付宝出行通知回调控制器。 */
 @RestController
 @RequestMapping("/notify")
 public class FepAlipayTripNotifyController {
@@ -30,7 +29,6 @@ public class FepAlipayTripNotifyController {
         this.alipayTripService = alipayTripService;
     }
 
-    /** 支付中心-支付结果回调。 */
     @PostMapping("/payment/payNotify")
     public AlipayTripPayNotifyRespDTO paymentPayNotify(@RequestParam Map<String, String> params) {
         log.info("接收到支付中心支付结果回调, params={}", params);
@@ -42,7 +40,6 @@ public class FepAlipayTripNotifyController {
         return response;
     }
 
-    /** 支付宝出行-业务关闭结果通知。 */
     @PostMapping("/closeResultForAlipay")
     public AlipayTripCloseResultRespDTO closeResultForAlipay(@RequestBody AlipayTripCloseResultReqDTO request) {
         log.info("接收到支付宝出行-业务关闭结果通知, 请求参数：{}", JSON.toJSONString(request));

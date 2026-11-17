@@ -10,11 +10,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * 通用http工具封装
- * 
- * @author zmzhang
- */
+
 public class HttpHelper
 {
     private static final Logger LOGGER = LoggerFactory.getLogger(HttpHelper.class);

@@ -19,9 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/**
- * 过闸扣费交易入口——服务间 RPC 调用方向（fep-dev-server / pay-sign-server / blacklist-server / ticket-server 等）。
- */
+
 @RestController
 @RequestMapping("/ci/gateTxnPay")
 public class GateTxnPayController {
@@ -30,7 +28,6 @@ public class GateTxnPayController {
     @Autowired
     private GateTxnPayService gateTxnPayService;
 
-    /** 只读查询侧。 */
     @Autowired
     private GateTxnPayQueryService gateTxnPayQueryService;
 
@@ -70,7 +67,6 @@ public class GateTxnPayController {
         return response;
     }
 
-    /** 按卡号查询是否仍有未结清扣费订单（供 blacklist-server 盘点黑名单可解除性调用）。 */
     @PostMapping("/hasUnsettledOrderByCard")
     public CardUnsettledQueryRespDTO hasUnsettledOrderByCard(@RequestBody CardUnsettledQueryReqDTO request) {
         log.info("按卡查询未结清扣费订单, cardId={}", request != null ? request.getCardId() : null);
@@ -80,7 +76,6 @@ public class GateTxnPayController {
         return response;
     }
 
-    /** pay-sign-server 收到支付中心回调、本地 PAY_TXN_DETAIL 落地成功后调用，把 GATE_TXN_PAY.DEBIT_STATUS 收敛到终态。 */
     @PostMapping("/syncDebitStatus")
     public GateTxnPayRespDTO syncDebitStatus(@RequestBody GateTxnPaySyncStatusReqDTO request) {
         log.info("接收支付结果同步, 入参={}", request);

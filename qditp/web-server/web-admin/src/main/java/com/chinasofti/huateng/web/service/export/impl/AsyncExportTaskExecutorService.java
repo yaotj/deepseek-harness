@@ -14,9 +14,7 @@ import com.chinasofti.huateng.web.domain.export.AsyncExportTask;
 import com.chinasofti.huateng.web.service.export.IAsyncExportTaskService;
 import com.chinasofti.huateng.web.service.export.executor.IAsyncExportExecutor;
 
-/**
- * 异步导出任务单条执行器（独立 Bean，确保 @Transactional 代理生效）。
- */
+
 @Service
 public class AsyncExportTaskExecutorService
 {

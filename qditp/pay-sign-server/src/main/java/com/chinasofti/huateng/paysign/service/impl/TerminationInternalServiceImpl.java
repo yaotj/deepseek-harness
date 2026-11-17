@@ -38,20 +38,16 @@ public class TerminationInternalServiceImpl implements TerminationInternalServic
     private static final String STATUS_PENDING = TerminationStatus.PENDING.name();
     private static final String STATUS_FAILED = TerminationStatus.FAILED.name();
 
-    /** 扫表补偿三兄弟（解约申请批处理 / 解约通知补发 / 通道清理补发）的实现所在，2026-09-16 拆出。 */
     private final TerminationCompensationService terminationCompensationService;
 
-    /** 内部执行解约与 IF8A-75 直接解绑的实现所在，2026-09-16 拆出（接着补偿那一刀）。 */
     private final TerminationExecutor terminationExecutor;
 
     private final AppTerminationRequestMapper terminationRequestMapper;
 
-    /** 闸机域**未结清欠费查询方向**的出向端口（2026-09-17，ADR-D119），与 TerminationProcessor 共用同一个。 */
     private final UnsettledOrderPort unsettledOrderPort;
 
     private final TerminationNotifyService terminationNotifyService;
 
-    /** 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备。 */
     public TerminationInternalServiceImpl(
             TerminationCompensationService terminationCompensationService,
             TerminationExecutor terminationExecutor,
@@ -91,10 +87,6 @@ public class TerminationInternalServiceImpl implements TerminationInternalServic
                 return response;
             }
 
-            // 三分支穷尽（2026-09-17，ADR-D119）。**本处此前有一个静默缺陷**：只判了 result == null，
-            // 于是「闸机域答了但 resultCode 不是 0000」会把 hasFailedOrder 的默认值 false 当成答案透传，
-            // 调用方据此放行解约 —— 用户欠着钱把签约解掉，且接口返 0000、日志一片绿。
-            // 现在「问不出来」一律 9001，NEVER 退化成「无欠费」。
             UnsettledOrderAnswer answer = unsettledOrderPort.hasUnsettledOrder(
                     request.getThirdUserId(), request.getPaymentVendor(), request.getRequestTime());
             switch (answer) {
@@ -125,7 +117,6 @@ public class TerminationInternalServiceImpl implements TerminationInternalServic
         return terminationExecutor.unbindAgreement(request);
     }
 
-    /** 拒绝解约并通知 APP。刻意不带 {@code @Transactional}，NEVER 加回（批次 5C，ADR-D90）。 */
     @Override
     public BaseRespDTO notifyTerminationFailed(NotifyTerminationFailedReqDTO request) {
         BaseRespDTO response = new BaseRespDTO();

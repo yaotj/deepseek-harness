@@ -25,9 +25,7 @@ public class ReconFileTransferService {
         this.ftpService = ftpService;
     }
 
-    /**
-     * 把已生成的最终文件投递到 FTP；批次是否收口由编排器在全部文件都 UPLOADED 后统一决定。
-     */
+
     public ReconFileView upload(String batchId, ReconFileType fileType) throws IOException {
         BatchView batch = batchService.get(batchId);
         if (batch == null) throw new IllegalArgumentException("对账批次不存在: " + batchId);

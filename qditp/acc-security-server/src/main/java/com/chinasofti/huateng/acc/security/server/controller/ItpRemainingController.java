@@ -15,10 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * ITP剩余接口控制器。
- * 这里承接 secret-web 中除签名公钥、签名行业数据以外的其他 ITP 接口。
- */
+
 @RestController
 @RequestMapping("/ci/itp")
 public class ItpRemainingController {
@@ -31,9 +28,7 @@ public class ItpRemainingController {
         this.itpRequestSignVerifier = itpRequestSignVerifier;
     }
 
-    /**
-     * 请求生成地铁 CA 密钥。
-     */
+
     @PostMapping("/requestCaKey")
     public ResultVO requestCaKey(@RequestBody RequestCaKeyParam param) {
         Map<String, String> map =new HashMap<>();
@@ -41,9 +36,7 @@ public class ItpRemainingController {
         return itpService.requestCaKey(map);
     }
 
-    /**
-     * 请求生成用户 SM2 密钥对。
-     */
+
     @PostMapping("/requestUserSm2Key")
     public ResultVO requestUserSm2Key(@RequestBody RequestUserSm2KeyParam param) {
 
@@ -53,9 +46,7 @@ public class ItpRemainingController {
         return itpService.requestUserSm2Key(map);
     }
 
-    /**
-     * 按 ITP 与 ACC 约定的 KEK 导出用户私钥。
-     */
+
     @PostMapping("/requestExportUserPriKey")
     public ResultVO requestExportUserPriKey(@RequestBody RequestExportUserPriKeyParam param) {
 
@@ -67,9 +58,7 @@ public class ItpRemainingController {
         return itpService.requestExportUserPriKey(map);
     }
 
-    /**
-     * 导出应用子密钥 DPK。  请求HCE卡片消费密钥
-     */
+
     @PostMapping("/requestDPK")
     public ResultVO requestDPK(@RequestBody RequestDPKParam param) {
 
@@ -79,16 +68,7 @@ public class ItpRemainingController {
         return itpService.requestDPK(map);
     }
 
-    /**
-     * 请求发售 HCE 卡数据。
-     *
-     * <p>调用方传入 NFC 票卡类型 {@code ticketCard} 及物理卡号 {@code iptUserId}。
-     * {@code iptUserId} 的格式为 {@code 000000} 加四字节 ITP 用户编码的十六进制字符串；
-     * 成功响应 data 中的 {@code logicNum} 为生成的 HCE 逻辑卡号。</p>
-     *
-     * @param param HCE 卡数据发售参数
-     * @return 包含 HCE 卡数据和逻辑卡号的安全服务响应
-     */
+
     @PostMapping("/requestHceCardData")
     public ResultVO requestHceCardData(@RequestBody RequestHceCardDataParam param) {
 

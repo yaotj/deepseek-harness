@@ -14,11 +14,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * 公交推送 outbox 的消费入口，任务抢占依赖条件更新，支持多实例并发运行。
- *
- * <p>NEVER 加回 {@code @Scheduled}，已改由 web-admin {@code sys_job} 300 触发（2026-09-21 由 121 改号为 300，ADR-D80）。
- */
+
 @Service
 public class MetroTransferPushTaskProcessor {
     private static final Logger log = LoggerFactory.getLogger(MetroTransferPushTaskProcessor.class);
@@ -43,7 +39,6 @@ public class MetroTransferPushTaskProcessor {
         this.processingLeaseSeconds = processingLeaseSeconds;
     }
 
-    /** 跑一轮投递，返回本轮捞到并逐条处理过的任务数（不等于成功数，成败由 {@link #processOne} 各自落库）。 */
     public int processReadyTasks() {
         if (!enabled) {
             log.info("公交换乘推送开关未开启（wallet.metro-transfer-enabled=false），本轮跳过");
@@ -66,7 +61,6 @@ public class MetroTransferPushTaskProcessor {
         return tasks.size();
     }
 
-    /** 处理单条任务。 */
     private void processOne(MetroTransferPushTask task) {
         try {
             if (taskMapper.claim(task.getId()) != 1) {
@@ -90,7 +84,6 @@ public class MetroTransferPushTaskProcessor {
         }
     }
 
-    /** 按三分支落状态。 */
     private void landOutcome(MetroTransferPushTask task, RpcOutcome outcome) {
         int retry = (task.getRetryCount() == null ? 0 : task.getRetryCount()) + 1;
         switch (outcome) {
@@ -133,7 +126,6 @@ public class MetroTransferPushTaskProcessor {
         return cause.getMessage() == null ? cause.getClass().getSimpleName() : cause.getMessage();
     }
 
-    /** LAST_ERROR 列长上限，超长直接抛 ORA-12899。 */
     private String truncate(String text) {
         if (text == null) {
             return null;
@@ -141,7 +133,6 @@ public class MetroTransferPushTaskProcessor {
         return text.length() > LAST_ERROR_MAX_LENGTH ? text.substring(0, LAST_ERROR_MAX_LENGTH) : text;
     }
 
-    /** 按出站订单判定要不要给公交侧推换乘，要推就构建任务，不满足条件返回 {@code null}。 */
     public MetroTransferPushTask buildMetroTransferPushTask(GateTxnPay order) {
         if (order == null || !shouldPushMetroTransfer(order)) {
             return null;

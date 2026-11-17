@@ -18,7 +18,6 @@ public class AppTerminationRequest {
     private Integer notifyRetryCount;
     private LocalDateTime notifyTime;
     private String notifyResult;
-    /** 「解约成功后清理账户域支付通道」这一动作的投递状态。 */
     private String channelSyncStatus;
     private Integer channelSyncRetryCount;
     private LocalDateTime channelSyncTime;

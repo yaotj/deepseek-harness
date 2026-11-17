@@ -3,48 +3,31 @@ package com.chinasofti.huateng.acc.security.feign.domain.commonmac;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-/**
- * @author houkepan
- * @date 2020/5/6 10:57
- */
+
 public class InvestMac1Param {
 
-    /**
-     * 交易前金额
-     */
+
     private int beforeAmt;
 
-    /**
-     * 交易金额
-     */
+
     private int txnAmt;
 
     @NotBlank(message = "充值设备节点不能为空")
     @Size(min = 8, max = 8, message = "充值设备节点长度为8位")
     private String devNodeId;
 
-    /**
-     * 随机数
-     *
-     * @return
-     */
+
     private String randomNum;
 
-    /**
-     * 票卡计数器
-     */
+
     private int ticketCount;
 
-    /**
-     * 卡号
-     */
+
     @NotBlank(message = "卡号不能为空")
     @Size(min = 16, max = 16, message = "卡号节点长度为16位")
     private String cardNo;
 
-    /**
-     * mac
-     */
+
     @NotBlank(message = "MAC不能为空")
     @Size(min = 8, max = 8, message = "MAC长度为8位")
     private String mac;

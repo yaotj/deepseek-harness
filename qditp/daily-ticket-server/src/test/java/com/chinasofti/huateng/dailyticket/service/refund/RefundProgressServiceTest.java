@@ -30,12 +30,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住退款进度推进（回查 / 重试 / 重提交）的三条不可回退口径。
- *
- * <p>最值钉的是**「平台返未知状态时保持处理中」**与**「重试前先回查」**：前者写错会把在途退款错判成失败并
- * 允许再发一笔，后者跳过会在支付中心已成功的单上重复出网 —— 两者都只在真发起退款时才走到，只读回归测不出来。
- */
+
 class RefundProgressServiceTest {
 
     private DailyTicketOrderMapper orderMapper;

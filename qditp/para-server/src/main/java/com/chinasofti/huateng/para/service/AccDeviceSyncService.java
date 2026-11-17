@@ -22,17 +22,12 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * ACC 设备台账同步服务：分页拉取 ACC 设备配置接口，MERGE INTO 幂等写入 TBL_DEVICE_INFO。
- * <p>同步只更新 ACC 来源列，业主在页面维护的 MANAGE_MODE / REMARK 刻意不在 MERGE 更新列内。</p>
- * <p>逐条提交、无整体事务：同步幂等可重跑，中途失败重跑即可补齐，避免长事务锁表。</p>
- */
+
 @Service
 public class AccDeviceSyncService {
 
     private static final Logger log = LoggerFactory.getLogger(AccDeviceSyncService.class);
 
-    /** ACC updateTime 字段格式，实测样例 2025-07-10 00:00:00。 */
     private static final DateTimeFormatter ACC_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private static final String FLAG_NO = "0";
@@ -50,7 +45,6 @@ public class AccDeviceSyncService {
                 .build();
     }
 
-    /** 全量同步所有配置的 manageLevel，任一级失败即抛异常终止，调用方据此记失败。 */
     public DeviceSyncResult syncAll() {
         long start = System.currentTimeMillis();
         DeviceSyncResult result = new DeviceSyncResult();
@@ -73,7 +67,6 @@ public class AccDeviceSyncService {
         return result;
     }
 
-    /** 同步单个 manageLevel，返回 [页数, 拉取数, 落库数]。 */
     private int[] syncOneLevel(String manageLevel) {
         int pages = 0;
         int fetched = 0;
@@ -105,7 +98,6 @@ public class AccDeviceSyncService {
         return new int[]{pages, fetched, merged};
     }
 
-    /** 请求 ACC 单页设备数据，success=false 或非 200 一律抛异常。 */
     private AccDevicePageResult fetchPage(String manageLevel, int currentPage) {
         String withGlobal = properties.isWithGlobal() ? "true" : "false";
         String url = String.format("%s/api/v1/Config/device?currentPage=%d&pageSize=%d&manageLevel=%s&withGlobal=%s",
@@ -133,7 +125,6 @@ public class AccDeviceSyncService {
         return result;
     }
 
-    /** ACC 记录转实体；manageLevel 来自本次请求参数（接口返回体不带该字段）。 */
     private DeviceInfo toEntity(AccDeviceDTO dto, String manageLevel) {
         DeviceInfo entity = new DeviceInfo();
         entity.setDeviceId(dto.getDeviceId());
@@ -153,7 +144,6 @@ public class AccDeviceSyncService {
         return entity;
     }
 
-    /** ACC 时间字符串转 LocalDateTime，解析失败置 null 并告警，不让单条脏时间中断整次同步。 */
     private LocalDateTime parseAccTime(String value) {
         if (value == null || value.isBlank()) {
             return null;

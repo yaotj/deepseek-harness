@@ -10,18 +10,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-/**
- * {@link UnsettledOrderPort} 的唯一实现。
- *
- * <p>注意闸机域这个端点用的是**形状 C**（{@code resultCode} / {@code resultMsg}），
- * 不是本项目多数内部接口的 {@code retCode} —— 所以这里 NEVER 复用 {@code RpcOutcome.ofRetCode}。
- */
+
 @Component
 public class UnsettledOrderRpcAdapter implements UnsettledOrderPort {
 
     private static final Logger log = LoggerFactory.getLogger(UnsettledOrderRpcAdapter.class);
 
-    /** 闸机域成功码，与本模块对外应答复用同一个枚举值，NEVER 写成裸字面量。 */
     private static final String SUCCESS_CODE = PaySignErrorCodeEnum.SUCCESS.getCode();
 
     private final GateTxnPayClient gateTxnPayClient;

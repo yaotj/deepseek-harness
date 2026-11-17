@@ -31,30 +31,17 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 行业数据编排的特征测试：钉住 2026-09-17 从 `fep-app-server` 迁进来之前的对外行为（ADR-D142）。
- *
- * <p>迁移是**纯重构**，因此这些断言同时是「迁移正确」的判据：任何一条变红都 MUST 先确认
- * 是不是有意的契约变更，NEVER 直接改断言迁就实现。
- */
+
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class IndustryDataOrchestratorTest {
 
     private static final String THIRD_USER_ID = "0700009918";
     private static final String CARD_ID = "0426090949000384";
-    /** 二维码后付费，走完整生码链路。 */
     private static final String CARD_TYPE_QR = "0441";
-    /** HCE 后付费，短路整条生码。 */
     private static final String CARD_TYPE_HCE = "0442";
-    /** 一日票，触发日票族前置校验。 */
     private static final String CARD_TYPE_ONE_DAY = "0445";
-    /**
-     * 合法的 HCE 缓存卡数据：MUST 是 64 位以上的十六进制串。
-     *
-     * <p>实现侧对它有长度 + 字符集校验（不只判非空），因此这里 NEVER 用「HCEDATA0001」这类
-     * 看着像数据的假串 —— 那会被判成格式非法、走到错误分支上。
-     */
+
     private static final String HCE_CARD_DATA =
             "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF";
 
@@ -75,7 +62,6 @@ class IndustryDataOrchestratorTest {
                 accountClient, dailyTicketClient, agmRideStatusService, cardDataAssembler);
     }
 
-    /** HCE 卡直接返缓存卡数据，NEVER 出网生码。 */
     @Test
     void hce卡短路生码直接返缓存卡数据() {
         givenUserInfo(CARD_TYPE_HCE, "07", HCE_CARD_DATA);
@@ -88,7 +74,6 @@ class IndustryDataOrchestratorTest {
         verify(agmRideStatusService, never()).queryQrCodeStatus(any());
     }
 
-    /** HCE 卡但库里没存卡数据时 MUST 报错，NEVER 返空 cardData 的成功。 */
     @Test
     void hce卡缺卡数据时报错() {
         givenUserInfo(CARD_TYPE_HCE, "07", null);
@@ -99,10 +84,7 @@ class IndustryDataOrchestratorTest {
         assertNull(response.getCardData());
     }
 
-    /**
-     * HCE 卡数据长度或字符集不合法时同样拒绝：它是直接发给闸机的码体，
-     * MUST NOT 把一段短串或含非十六进制字符的值当成卡数据返出去。
-     */
+
     @Test
     void hce卡数据格式非法时报错() {
         givenUserInfo(CARD_TYPE_HCE, "07", "HCEDATA0001");
@@ -113,7 +95,6 @@ class IndustryDataOrchestratorTest {
         assertNull(response.getCardData());
     }
 
-    /** 签约渠道为空是 8001，且 NEVER 继续生码（码体的签约渠道位无从填）。 */
     @Test
     void 签约渠道为空返8001() {
         givenUserInfo(CARD_TYPE_QR, null, null);
@@ -125,7 +106,6 @@ class IndustryDataOrchestratorTest {
         verify(cardDataAssembler, never()).buildAndSign(any(), any(), anyString(), any(), any(), any());
     }
 
-    /** 日票不可用时拒发乘车码，返 8004 + 原样带回日票域的文案。 */
     @Test
     void 日票不可用返8004并带回对端文案() {
         givenUserInfo(CARD_TYPE_ONE_DAY, "07", null);
@@ -139,10 +119,7 @@ class IndustryDataOrchestratorTest {
         verify(cardDataAssembler, never()).buildAndSign(any(), any(), anyString(), any(), any(), any());
     }
 
-    /**
-     * 日票域不可达 MUST 降级放行（闸机侧 {@code GateDailyTicketCoordinator} 还有一道权威校验），
-     * NEVER 因为一次网络抖动就拒发乘车码。
-     */
+
     @Test
     void 日票域不可达时降级放行() {
         givenUserInfo(CARD_TYPE_ONE_DAY, "07", null);
@@ -157,7 +134,6 @@ class IndustryDataOrchestratorTest {
         assertEquals("CARDDATA_OK", response.getCardData());
     }
 
-    /** 在线码的票卡状态与交易序列号 MUST 取码状态表当前值，NEVER 自行推进。 */
     @Test
     void 在线码取码状态当前值生码() {
         givenUserInfo(CARD_TYPE_QR, "07", null);
@@ -176,7 +152,6 @@ class IndustryDataOrchestratorTest {
         assertEquals("9", txnSeq.getValue());
     }
 
-    /** 三项必填缺一即 INVALID_PARAM，NEVER 打到下游。 */
     @Test
     void 缺卡号返参数错误() {
         RequestIndustryDataReqDTO request = onlineRequest();
@@ -188,10 +163,7 @@ class IndustryDataOrchestratorTest {
         verify(accountClient, never()).queryUserInfo(any());
     }
 
-    /**
-     * 站外离线码一次发两张，**两张共用同一个 +1 后的序列号**：它们属于即将发生的同一笔行程，
-     * NEVER 给出站码再 +1。
-     */
+
     @Test
     void 站外离线码进出两张共用同一个递增序列号() {
         givenUserInfo(CARD_TYPE_QR, "07", null);
@@ -215,7 +187,6 @@ class IndustryDataOrchestratorTest {
         assertEquals("10", txnSeq.getAllValues().get(1), "两张共用同一个序列号");
     }
 
-    /** 已在站内时只需要出站码，序列号沿用当前值（出站与进站是同一笔交易）。 */
     @Test
     void 站内离线码只发出站码且不推进序列号() {
         givenUserInfo(CARD_TYPE_QR, "07", null);
@@ -233,7 +204,6 @@ class IndustryDataOrchestratorTest {
         assertEquals("9", txnSeq.getValue());
     }
 
-    /** 生码失败 MUST 原样带回下游的码与文案，NEVER 兜成成功。 */
     @Test
     void 生码失败时透传下游错误() {
         givenUserInfo(CARD_TYPE_QR, "07", null);

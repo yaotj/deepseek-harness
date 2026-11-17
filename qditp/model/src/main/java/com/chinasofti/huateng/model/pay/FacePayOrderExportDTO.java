@@ -2,9 +2,7 @@ package com.chinasofti.huateng.model.pay;
 
 import java.io.Serializable;
 
-/**
- * 当面付订单异步导出 DTO。
- */
+
 public class FacePayOrderExportDTO implements Serializable
 {
     private static final long serialVersionUID = 1L;

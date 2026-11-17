@@ -19,7 +19,6 @@ import org.springframework.util.StringUtils;
 
 import java.util.*;
 
-/** 支付宝出行-行程查询处理。 */
 @Component
 public class AlipayTripHandler {
 
@@ -31,7 +30,6 @@ public class AlipayTripHandler {
     @Autowired
     private StationNameResolver stationNameResolver;
 
-    /** 查询支付宝出行乘车记录列表。 */
     public AlipayTripFindTravelListRespDTO alipayTripFindTravelList(AlipayTripFindTravelListReqDTO request) {
         AlipayTripFindTravelListRespDTO response = new AlipayTripFindTravelListRespDTO();
         try {
@@ -80,7 +78,6 @@ public class AlipayTripHandler {
         return response;
     }
 
-    /** 查询支付宝出行乘车记录详情。 */
     public AlipayTripFindTravelDetailRespDTO alipayTripFindTravelDetail(AlipayTripFindTravelDetailReqDTO request) {
         AlipayTripFindTravelDetailRespDTO response = new AlipayTripFindTravelDetailRespDTO();
         try {
@@ -138,13 +135,7 @@ public class AlipayTripHandler {
         return size;
     }
 
-    /**
-     * 按 orderNo 查明细。
-     *
-     * <p>原先还有一支「按 thirdUserId + handleDateTime + trxType 查」，随 R6 表147 把请求契约收窄成
-     * thirdUserId + orderNo 后已无入参来源，整支删除。NEVER 加回 —— 那三个字段在
-     * {@code AlipayTripFindTravelDetailReqDTO} 里已不存在。
-     */
+
     private AlipayTripTravelRecordDTO queryRecord(AlipayTripFindTravelDetailReqDTO request) {
         if (!StringUtils.hasText(request.getOrderNo())) {
             log.warn("支付宝出行-无有效查询条件: thirdUserId={}, orderNo 为空", request.getThirdUserId());
@@ -223,11 +214,6 @@ public class AlipayTripHandler {
         dto.setPayTradeOrderNo(record.getPayTradeOrderNo());
         dto.setPayOrderNoDate(record.getPayOrderNoDate());
         dto.setDebitRequestResult(record.getDebitRequestResult());
-        // companionFlag / countingTimes / countingFlag 在本链路**恒为空**，且 NEVER 改成透传 record：
-        // 本类的数据源是 QRCODE_TXN_DETAIL，`alipayTripTravelRecordResultMap` 里 companionFlag 映射的是
-        // TRX_TYPE、ticketCode 映射的是 CARD_TYPE（错映射），countingTimes / countingFlag 压根没映射。
-        // 透传等于把「交易类型」当成同行标志答给 APP。这三个字段的正确来源是 GATE_TXN_PAY，
-        // 已在 trans-query-server 的 AlipayTravelQueryHandler 按那条口径实现（2026-09-18）。
         dto.setCompanionFlag("");
         dto.setCardNum(record.getCardNum());
         dto.setTicketCode(record.getTicketCode());
@@ -239,7 +225,6 @@ public class AlipayTripHandler {
     private void fillResponse(AlipayTripFindTravelDetailRespDTO response, AlipayTripTravelRecordDTO dto) {
         response.setRetCode(TicketErrorCodeEnum.SUCCESS.getCode());
         response.setRetMsg(TicketErrorCodeEnum.SUCCESS.getMsg());
-        // 业务字段 MUST 包在 data 里（ADR-D150：支付宝侧按 data 解析），NEVER 平铺回顶层。
         AlipayTripTravelDetailDTO detail = new AlipayTripTravelDetailDTO();
         detail.setEntryStationName(dto.getEntryStationName());
         detail.setEntryDate(dto.getEntryDate());

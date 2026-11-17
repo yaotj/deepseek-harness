@@ -28,13 +28,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住从 {@code DailyTicketServiceImpl} 拆出来的三个只读查询的行为：
- * 分页参数钳制（1 / 10 兜底、上限 100）、null 入参兜底、空主单号拒绝、mapper 结果原样透传。
- *
- * <p>钳制值在 mapper 的 answer 里经 {@link PageHelper#getLocalPage()} 读取真实生效的 Page，
- * 而不是断言私有方法，因此拆分前后的等价性是按「实际下发给分页插件的参数」比对的。
- */
+
 class DailyTicketRefundQueryServiceTest {
 
     private DailyTicketOrderMapper orderMapper;

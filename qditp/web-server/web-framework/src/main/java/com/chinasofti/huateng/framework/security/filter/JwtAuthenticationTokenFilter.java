@@ -16,11 +16,7 @@ import com.chinasofti.huateng.common.utils.SecurityUtils;
 import com.chinasofti.huateng.common.utils.StringUtils;
 import com.chinasofti.huateng.framework.web.service.TokenService;
 
-/**
- * token过滤器 验证token有效性
- * 
- * @author zmzhang
- */
+
 @Component
 public class JwtAuthenticationTokenFilter extends OncePerRequestFilter
 {

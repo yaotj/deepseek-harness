@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/** 解约申请确认任务：调 pay-sign-server 的 /internal/termination/process。 */
 @Component("terminationQuartzTask")
 public class TerminationQuartzTask {
 
@@ -21,7 +20,6 @@ public class TerminationQuartzTask {
 
     private static final DateTimeFormatter REFERENCE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    /** 单次调度内最多调下游多少轮。 */
     private static final int MAX_ROUNDS = 20;
 
     private final PaySignClient paySignClient;
@@ -30,22 +28,14 @@ public class TerminationQuartzTask {
         this.paySignClient = paySignClient;
     }
 
-    /**
-     * 前台调用目标填写 terminationQuartzTask.confirmTermination() 时执行。
-     * 基准时间取当前时间，延迟天数用 pay-sign-server 的配置默认值。
-     */
+
     public void confirmTermination() {
         ProcessTerminationReqDTO request = new ProcessTerminationReqDTO();
         request.setReferenceTime(LocalDateTime.now().format(REFERENCE_TIME_FORMATTER));
         invoke(request);
     }
 
-    /**
-     * 指定基准时间与延迟天数的补跑入口。
-     *
-     * @param referenceTime 基准时间，yyyyMMdd 或 yyyyMMddHHmmss
-     * @param delayDays     规定天数，截止点 = 基准时间 - 该天数
-     */
+
     public void confirmTermination(String referenceTime, Integer delayDays) {
         ProcessTerminationReqDTO request = new ProcessTerminationReqDTO();
         request.setReferenceTime(referenceTime);
@@ -53,7 +43,6 @@ public class TerminationQuartzTask {
         invoke(request);
     }
 
-    /** 循环调下游直到本次 cutoff 之前没有待处理记录，并显式判定每一轮的结果。 */
     private void invoke(ProcessTerminationReqDTO request) {
         QuartzTraceUtils.runWithTrace(traceId -> invokeInTrace(request, traceId));
     }

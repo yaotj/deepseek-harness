@@ -1,14 +1,11 @@
 package com.chinasofti.huateng.model.collectpay;
 
-/**
- * {@code TBL_TVM_APP_ORDER} 的支付结果回查应答（{@code POST /internal/app-order/pay-result}）。
- */
+
 public class AppPayOrderResultRespDTO {
 
     private String retCode;
     private String retMsg;
 
-    /** APP 订单表里是否存在该订单号对应的行。 */
     private boolean found;
 
     private String orderNo;

@@ -37,33 +37,20 @@ import java.util.concurrent.Executor;
 public class GateTxnPayServiceImpl implements GateTxnPayService {
     private static final Logger log = LoggerFactory.getLogger(GateTxnPayServiceImpl.class);
     private static final DateTimeFormatter ORDER_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
-    /**
-     * BOM 补站的三个 {@code adviceOpt}：{@code 005} 免费更新 / {@code 006} 付费更新 / {@code 020} 免费更新（无时间窗）。
-     *
-     * <p>这三种的钱都由 BOM 现场收取（006 收的是补票款，005/020 本身不收钱），ITP 只负责落单让乘车记录可查，
-     * **NEVER 由 ITP 再发起一次免密扣款** —— 006 的 {@code trxAmount} 是正数，仅靠「总额 ≤ 0」判不住它。
-     */
+
     private static final Set<String> BOM_SUPPLEMENT_ADVICE_OPTS = Set.of("005", "006", "020");
 
     private final GateTxnPayMapper gateTxnPayMapper;
     private final GateTxnPayWriter gateTxnPayWriter;
-    /**
-     * 算价整段已搬到 {@link FareCalculator}：本类不再直接持有票价 / 账户 / 钱包 / 折扣档位 / 换乘减免 这五个协作者，也不再读 {@code offline.billing.*} 三个配置项。
-     */
+
     private final FareCalculator fareCalculator;
-    /**
-     * 「发起扣款」整段已搬到 {@link PaySignInitiator}：两个渠道的报文组装（各自一个工厂）、 {@code gate.pay.*} / {@code alipay.trip.*} 两组配置与「0000 。
-     */
+
     private final PaySignInitiator paySignInitiator;
-    /**
-     * 公交换乘推送任务的判定与构建已搬到 {@link MetroTransferPushTaskProcessor}： 那五个条件（出站 / 钱包渠道 / 非蓝牙 / 非同行 / 非第三方）与该任务的推送、重试同处一类。
-     */
+
     private final MetroTransferPushTaskProcessor metroTransferPushTaskProcessor;
     private final Executor paySignAsyncExecutor;
-    /** 运营人工干预（重试 / 退款）整段已搬到 {@link GateTxnPayManualOpsService}。 */
     private final GateTxnPayManualOpsService manualOpsService;
 
-    /** 中文站名回填：本模块是 {@code IN_STATION} 的最终写入方。 */
     private final StationNameBackfiller stationNameBackfiller;
 
     public GateTxnPayServiceImpl(
@@ -179,12 +166,9 @@ public class GateTxnPayServiceImpl implements GateTxnPayService {
         return response;
     }
 
-    /** 离线码金额待重算的标记，落在 {@code DISCOUNT_CALC_STATUS} 上。 */
     private static final String OFFLINE_FARE_PENDING = DiscountCalcStatus.OFFLINE_FARE_PENDING.code();
 
-    /**
-     * 离线码算价失败时落单留痕，交由 {@link com.chinasofti.huateng.gatetxnpay.service.OfflineFareRecoveryService} 补偿。
-     */
+
     private GateTxnPayRespDTO saveOfflineFarePendingOrder(GateTxnPay order, String reason) {
         GateTxnPayRespDTO response = new GateTxnPayRespDTO();
         response.setRetCode(GateTxnPayRetCode.ORDER_PERSIST_FAILED);
@@ -223,7 +207,6 @@ public class GateTxnPayServiceImpl implements GateTxnPayService {
         return manualOpsService.batchRefundOvertime(request);
     }
 
-    /** 只处理出站类交易扣费，进站交易只更新票卡状态，不进入扣款链路。 */
     private String validate(GateTxnPayReqDTO request) {
         if (request == null) {
             return "请求报文不能为空";
@@ -240,7 +223,6 @@ public class GateTxnPayServiceImpl implements GateTxnPayService {
         return null;
     }
 
-    /** 根据闸机交易报文生成本地过闸扣费订单。 */
     private GateTxnPay buildOrder(GateTxnPayReqDTO request) {
         GateTxnPay order = new GateTxnPay();
         order.setOrderNo(buildOrderNo(request));
@@ -342,7 +324,6 @@ public class GateTxnPayServiceImpl implements GateTxnPayService {
         return response;
     }
 
-    /** 补款专用收敛：白名单含 {@code FAIL}，且把「本次是否真改了行」与「订单当前权威状态」 一起回给调用方，让它一次调用就能分出三支。 */
     @Override
     public GateTxnPayDebitConvergeRespDTO convergeDebitStatusForSupplement(GateTxnPayDebitConvergeReqDTO request) {
         GateTxnPayDebitConvergeRespDTO response = new GateTxnPayDebitConvergeRespDTO();
@@ -408,12 +389,7 @@ public class GateTxnPayServiceImpl implements GateTxnPayService {
         return CardTypeCodeEnum.isDailyTicket(order.getCardType());
     }
 
-    /**
-     * BOM 补站单：{@code ADVICE_OPT} 落在 {@link #BOM_SUPPLEMENT_ADVICE_OPTS} 内。
-     *
-     * <p>这类单 MUST 落单让乘车记录可查，但 **NEVER 走 pay-sign 扣款** —— 钱已由 BOM 现场收取，
-     * 再扣一次就是让乘客重复付费。**NEVER 退化成只按金额判断**：006 付费更新的 {@code trxAmount} 是正数。
-     */
+
     private boolean isBomSupplement(GateTxnPay order) {
         if (order == null) {
             return false;
@@ -435,7 +411,6 @@ public class GateTxnPayServiceImpl implements GateTxnPayService {
         return "GT" + time + (suffix == null ? "" : suffix);
     }
 
-    /** 金额字段按分保存，空值按 0 处理。 */
     private int parseAmount(String value) {
         if (!StringUtils.hasText(value)) {
             return 0;

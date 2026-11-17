@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * IF8A-75 直接解绑支付方式应答（接口规范 §3.59）。
- */
+
 public class UnbindAgreementResult {
 
     private String retCode;

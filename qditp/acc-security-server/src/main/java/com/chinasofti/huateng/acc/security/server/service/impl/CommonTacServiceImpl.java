@@ -18,10 +18,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-/**
- * @author houkepan
- * @date 2020/5/6 11:56
- */
+
 @Service
 public class CommonTacServiceImpl implements CommonTacService {
     private static final Logger log = LoggerFactory.getLogger(CommonTacServiceImpl.class);
@@ -32,12 +29,10 @@ public class CommonTacServiceImpl implements CommonTacService {
     @Override
     public ResultVO<Boolean> ulTacVerify(SingleTicketTacParam param) throws InterruptedException {
         TacBean tacBean = new TacBean();
-        // ul卡 分散秘钥00C3
         byte[] bytes1 = {0x00, (byte) 0xC3};
         tacBean.setIndex(bytes1);
         tacBean.setTac(TransformUtils.HexStringToByteArr(param.getTac()));
         tacBean.setDisperseNum(new byte[]{(byte) 01});
-        // ul 分散数据 = 逻辑卡号
         tacBean.setDisperseData(TransformUtils.HexStringToByteArr(param.getCardNo()));
         byte[] bytes = TransformUtils.HexStringToByteArr(param.getCommonTacStr());
         tacBean.setBytesLength(NumberUtil.unsignedShortToByte2(bytes.length));
@@ -93,12 +88,10 @@ public class CommonTacServiceImpl implements CommonTacService {
     @Override
     public ResultVO<Boolean> cpuTacVerify(CpuTacParam param) throws InterruptedException {
         TacBean tacBean = new TacBean();
-        // ul卡 分散秘钥00C1
         byte[] bytes1 = {0x00, (byte) 0xC1};
         tacBean.setIndex(bytes1);
         tacBean.setTac(TransformUtils.HexStringToByteArr(param.getTac()));
         tacBean.setDisperseNum(new byte[]{(byte) 02});
-        // 分散数据= 0532FF0000000000 + 逻辑卡号   青岛 0532
         tacBean.setDisperseData(TransformUtils.HexStringToByteArr("0532FF0000000000" + param.getCardNo()));
         byte[] bytes = TransformUtils.HexStringToByteArr(param.getCommonTacStr());
         tacBean.setBytesLength(NumberUtil.unsignedShortToByte2(bytes.length));

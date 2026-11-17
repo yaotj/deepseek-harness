@@ -3,60 +3,38 @@ package com.chinasofti.huateng.account.model;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-/**
- * 员工码出网配置（前缀 {@code employee-card}），供 {@code EmployeeCardOutboundServiceImpl} 使用。
- */
+
 @Component
 @ConfigurationProperties(prefix = "employee-card")
 public class EmployeeCardOutboundProperties {
-    /**
-     * APP 员工码批量注册地址。
-     */
+
     private String appRegisterUrl = "";
 
-    /**
-     * ACC 员工码资料查询地址。
-     */
+
     private String accQueryUrl = "";
 
-    /**
-     * ACC 员工码激活 / 禁用地址。
-     */
+
     private String accActivateUrl = "";
 
-    /**
-     * 出网报文的服务提供方标识。
-     */
+
     private String providerId = "06";
 
-    /**
-     * 出网报文字符集。
-     */
+
     private String charset = "UTF-8";
 
-    /**
-     * 出网报文格式。
-     */
+
     private String format = "json";
 
-    /**
-     * 出网报文设备标识。
-     */
+
     private String deviceId = "ITP";
 
-    /**
-     * 出网报文签名类型；{@code 00} 表示免签。
-     */
+
     private String signType = "00";
 
-    /**
-     * 连接超时毫秒数。
-     */
+
     private int connectTimeoutMs = 3000;
 
-    /**
-     * 读超时毫秒数。
-     */
+
     private int readTimeoutMs = 10000;
 
     public String getAppRegisterUrl() {

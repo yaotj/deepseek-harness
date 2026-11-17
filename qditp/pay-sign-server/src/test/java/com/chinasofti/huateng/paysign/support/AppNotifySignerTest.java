@@ -8,15 +8,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** 护栏：出向加签的源串口径与摘要，期望值独立计算、NEVER 拿实现输出回填。 */
 class AppNotifySignerTest {
 
     private static final String KEY = "TESTKEY";
 
-    /** signType=01 ⇒ SHA-1，期望值由外部独立计算（源串见下）。 */
     private static final String EXPECTED_SHA1 = "4abecf5345e6841c3f426529ab14ac84b2f67922";
 
-    /** signType=02 ⇒ MD5，同一源串（signType 段换成 02）。 */
     private static final String EXPECTED_MD5 = "23fb02f1e9dd671c589cd768e61f5b56";
 
     private ItpCommonRequest<Map<String, String>> request(String signType) {
@@ -44,25 +41,21 @@ class AppNotifySignerTest {
         assertEquals(EXPECTED_MD5, AppNotifySigner.buildItpSign(request("02"), KEY));
     }
 
-    /** {@code signType=00} 是「免签」，MUST 返回 null 而不是空串或某个摘要。 */
     @Test
     void signTypeZeroZeroMeansNoSignature() {
         assertNull(AppNotifySigner.buildItpSign(request("00"), KEY));
     }
 
-    /** 未约定的 signType MUST 返回 null，NEVER 退化成默认用某个算法。 */
     @Test
     void unknownSignTypeReturnsNull() {
         assertNull(AppNotifySigner.buildItpSign(request("99"), KEY));
     }
 
-    /** 空 signType 同样不签；这条守的是「没配 signType 时不要凭空造一个 sign」。 */
     @Test
     void blankSignTypeMeansNoSignature() {
         assertNull(AppNotifySigner.buildItpSign(request(null), KEY));
     }
 
-    /** 密钥为空时**仍然出签**（源串末尾是 {@code &key=}），这是搬迁前的原样行为。 */
     @Test
     void blankKeyStillProducesSignature() {
         String sign = AppNotifySigner.buildItpSign(request("01"), "");

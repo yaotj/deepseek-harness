@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.para.entity.network;
 
-/**
- * 区段信息参数 TBL_SECT_INFO。
- */
+
 public class SectInfo {
     private Long paraVerNo;
     private Integer sectNo;

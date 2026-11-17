@@ -3,33 +3,21 @@ package com.chinasofti.huateng.common.exception.base;
 import com.chinasofti.huateng.common.utils.MessageUtils;
 import com.chinasofti.huateng.common.utils.StringUtils;
 
-/**
- * 基础异常
- * 
- * @author zmzhang
- */
+
 public class BaseException extends RuntimeException
 {
     private static final long serialVersionUID = 1L;
 
-    /**
-     * 所属模块
-     */
+
     private String module;
 
-    /**
-     * 错误码
-     */
+
     private String code;
 
-    /**
-     * 错误码对应的参数
-     */
+
     private Object[] args;
 
-    /**
-     * 错误消息
-     */
+
     private String defaultMessage;
 
     public BaseException(String module, String code, Object[] args, String defaultMessage)

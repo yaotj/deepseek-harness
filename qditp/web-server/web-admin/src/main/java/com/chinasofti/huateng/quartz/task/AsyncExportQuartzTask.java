@@ -13,10 +13,7 @@ import com.chinasofti.huateng.web.domain.export.AsyncExportTask;
 import com.chinasofti.huateng.web.service.export.IAsyncExportTaskService;
 import com.chinasofti.huateng.web.service.export.impl.AsyncExportTaskExecutorService;
 
-/**
- * 异步导出任务调度入口。
- * 每日凌晨 2 点扫描 ASYNC_EXPORT_TASK 的 PENDING 任务，按 task_code 串行执行。
- */
+
 @Component("asyncExportQuartzTask")
 public class AsyncExportQuartzTask
 {
@@ -30,9 +27,7 @@ public class AsyncExportQuartzTask
     @Autowired
     private AsyncExportTaskExecutorService executorService;
 
-    /**
-     * Quartz 调用入口，sys_job.invoke_target = asyncExportQuartzTask.execute()
-     */
+
     public void execute()
     {
         QuartzTraceUtils.runWithTrace(this::runPendingTasks);

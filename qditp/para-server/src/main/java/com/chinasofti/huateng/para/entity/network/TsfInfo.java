@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.para.entity.network;
 
-/**
- * 换乘站信息表 TBL_TSF_INFO。
- */
+
 public class TsfInfo {
     private Long paraVerNo;
     private String fromStatCode;

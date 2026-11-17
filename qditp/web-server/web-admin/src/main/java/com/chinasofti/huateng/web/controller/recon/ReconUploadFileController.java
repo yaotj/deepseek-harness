@@ -38,39 +38,28 @@ import com.chinasofti.huateng.common.utils.file.FileUtils;
 import com.chinasofti.huateng.web.domain.recon.ReconUploadFile;
 import com.chinasofti.huateng.web.service.recon.IReconUploadFileService;
 
-/**
- * 对账文件上传管理
- */
+
 @RestController
 @RequestMapping("/recon/upload-file")
 public class ReconUploadFileController extends BaseController
 {
     private static final Logger log = LoggerFactory.getLogger(ReconUploadFileController.class);
 
-    /** 对账文件落盘目录，复用 web-admin.yaml 中 app-logs-v2 PVC 挂载点 /home/javaapp/app/export */
     public static final String UPLOAD_DIR = "/home/javaapp/app/export/recon-upload/";
 
-    /**
-     * ITP 侧五类对账文件名，与 recon-server 的 ReconFtpService 投递校验同一口径
-     * （那边是 {@code ITP\.(EXP|PAY|BUS|DETAIL|TXNDIFF)\.\d{8}}、无扩展名）；
-     * 本处按业主裁决额外允许可选后缀，但基名与账期段的判定完全一致。
-     */
+
     private static final Pattern ITP_NAME =
             Pattern.compile("^(ITP\\.(EXP|PAY|BUS|DETAIL|TXNDIFF)\\.(\\d{8}))(?:\\.([A-Za-z0-9]{1,10}))?$");
 
-    /** 渠道日账单文件名，对应 recon.thirdparty.bill-file-pattern 默认 glob {@code reconciliation-bill-*.csv}。 */
     private static final Pattern BILL_NAME =
             Pattern.compile("^(reconciliation-bill-(\\d{8}))(?:\\.([A-Za-z0-9]{1,10}))?$");
 
-    /** 渠道账单的类别码（ITP 五类的类别码直接取文件名里的类型段）。 */
     private static final String CATEGORY_BILL = "BILL";
 
     @Autowired
     private IReconUploadFileService reconUploadFileService;
 
-    /**
-     * 查询对账文件上传列表（按创建时间倒序）
-     */
+
     @PreAuthorize("@ss.hasPermi('recon:upload-file:query')")
     @GetMapping("/list")
     public TableDataInfo list(ReconUploadFile file)
@@ -80,9 +69,7 @@ public class ReconUploadFileController extends BaseController
         return getDataTable(list);
     }
 
-    /**
-     * 上传对账文件
-     */
+
     @PreAuthorize("@ss.hasPermi('recon:upload-file:upload')")
     @Log(title = "对账文件上传", businessType = BusinessType.INSERT)
     @PostMapping("/upload")
@@ -123,7 +110,6 @@ public class ReconUploadFileController extends BaseController
             destDir.mkdirs();
         }
 
-        // 落盘名只由白名单正则的捕获组重新拼出，原始文件名一个字都不进路径 ⇒ 不存在 ../ 穿越面。
         File target = new File(UPLOAD_DIR + parsed.canonicalName());
         File staging = new File(UPLOAD_DIR + parsed.canonicalName() + ".uploading");
         try
@@ -149,7 +135,6 @@ public class ReconUploadFileController extends BaseController
                         + new SimpleDateFormat("yyyyMMddHHmmss").format(new Date()));
                 if (!old.renameTo(kept))
                 {
-                    // 旧文件没能留存就中止：覆盖不可逆，宁可让运营重试，也不能悄悄丢掉上一版账单。
                     deleteQuietly(staging);
                     log.error("对账旧文件留存改名失败, oldPath={}", old.getAbsolutePath());
                     return AjaxResult.error("旧对账文件留存失败，本次上传已中止，请重试");
@@ -191,8 +176,6 @@ public class ReconUploadFileController extends BaseController
         }
         catch (DuplicateKeyException e)
         {
-            // 并发下两人都通过了 select-then-write：唯一索引 UK_RUF_CATEGORY_DATE 才是最终裁判。
-            // 落盘文件保留（写的就是规范名，后到者覆盖），只拒绝这条记录。
             log.warn("对账文件并发替换被唯一索引拦下, category={}, reconDate={}", parsed.category(), parsed.reconDate());
             return AjaxResult.error("该账期的同类对账文件刚刚已被上传，本次记录未写入，请刷新列表后确认");
         }
@@ -205,9 +188,7 @@ public class ReconUploadFileController extends BaseController
         return ajax;
     }
 
-    /**
-     * 下载对账文件
-     */
+
     @PreAuthorize("@ss.hasPermi('recon:upload-file:download')")
     @GetMapping("/download/{id}")
     public void download(@PathVariable Long id, HttpServletResponse response)
@@ -244,9 +225,7 @@ public class ReconUploadFileController extends BaseController
         }
     }
 
-    /**
-     * 删除对账文件记录及磁盘文件
-     */
+
     @PreAuthorize("@ss.hasPermi('recon:upload-file:remove')")
     @Log(title = "对账文件上传", businessType = BusinessType.DELETE)
     @DeleteMapping("/{id}")
@@ -265,11 +244,7 @@ public class ReconUploadFileController extends BaseController
         return toAjax(reconUploadFileService.deleteReconUploadFileById(id));
     }
 
-    /**
-     * 按两套既有约定解析文件名，得到「类别 + 账期 + 落盘规范名 + 后缀」。
-     *
-     * @return 不匹配任何一套时返回 {@code null}（调用方据此拒绝上传、不落盘、不写库）
-     */
+
     private ReconFileName parseReconFileName(String originalFilename)
     {
         Matcher itp = ITP_NAME.matcher(originalFilename);
@@ -293,8 +268,6 @@ public class ReconUploadFileController extends BaseController
         }
         catch (DateTimeParseException e)
         {
-            // 「八位数字但不是合法日期」（如 20261399）必须拒掉，
-            // 否则会生成一条按账期永远查不到、也无法与 FTP 投递对齐的记录。
             return null;
         }
         String ext = StringUtils.lowerCase(StringUtils.defaultString(extension));
@@ -310,6 +283,5 @@ public class ReconUploadFileController extends BaseController
         }
     }
 
-    /** 文件名解析结果；四个字段全部来自白名单正则的捕获组，可安全用于拼路径。 */
     private record ReconFileName(String category, String reconDate, String canonicalName, String extension) { }
 }

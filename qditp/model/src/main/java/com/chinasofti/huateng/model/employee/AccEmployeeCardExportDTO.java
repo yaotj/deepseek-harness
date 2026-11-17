@@ -3,9 +3,7 @@ package com.chinasofti.huateng.model.employee;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-/**
- * 员工卡 ACC 模拟器卡片异步导出 DTO。
- */
+
 public class AccEmployeeCardExportDTO implements Serializable
 {
     private static final long serialVersionUID = 1L;

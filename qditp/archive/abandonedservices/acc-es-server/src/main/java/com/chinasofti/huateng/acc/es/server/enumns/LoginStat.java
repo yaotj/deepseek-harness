@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.acc.es.server.enumns;
 
-/**
- * 签到
- */
+
 public enum LoginStat {
 
     SIGN_IN("1","已签到"),

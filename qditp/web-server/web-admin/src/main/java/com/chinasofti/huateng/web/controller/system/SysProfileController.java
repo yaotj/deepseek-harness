@@ -26,11 +26,7 @@ import com.chinasofti.huateng.common.utils.file.MimeTypeUtils;
 import com.chinasofti.huateng.framework.web.service.TokenService;
 import com.chinasofti.huateng.system.service.ISysUserService;
 
-/**
- * 个人信息 业务处理
- * 
- * @author zmzhang
- */
+
 @RestController
 @RequestMapping("/system/user/profile")
 public class SysProfileController extends BaseController
@@ -41,9 +37,7 @@ public class SysProfileController extends BaseController
     @Autowired
     private TokenService tokenService;
 
-    /**
-     * 个人信息
-     */
+
     @GetMapping
     public AjaxResult profile()
     {
@@ -55,9 +49,7 @@ public class SysProfileController extends BaseController
         return ajax;
     }
 
-    /**
-     * 修改用户
-     */
+
     @Log(title = "个人信息", businessType = BusinessType.UPDATE)
     @PutMapping
     public AjaxResult updateProfile(@RequestBody SysUser user)
@@ -78,16 +70,13 @@ public class SysProfileController extends BaseController
         }
         if (userService.updateUserProfile(currentUser) > 0)
         {
-            // 更新缓存用户信息
             tokenService.setLoginUser(loginUser);
             return success();
         }
         return error("修改个人信息异常，请联系管理员");
     }
 
-    /**
-     * 重置密码
-     */
+
     @Log(title = "个人信息", businessType = BusinessType.UPDATE)
     @PutMapping("/updatePwd")
     public AjaxResult updatePwd(@RequestBody Map<String, String> params)
@@ -108,7 +97,6 @@ public class SysProfileController extends BaseController
         newPassword = SecurityUtils.encryptPassword(newPassword);
         if (userService.resetUserPwd(userId, newPassword) > 0)
         {
-            // 更新缓存用户密码&密码最后更新时间
             loginUser.getUser().setPwdUpdateDate(DateUtils.getNowDate());
             loginUser.getUser().setPassword(newPassword);
             tokenService.setLoginUser(loginUser);
@@ -117,9 +105,7 @@ public class SysProfileController extends BaseController
         return error("修改密码异常，请联系管理员");
     }
 
-    /**
-     * 头像上传
-     */
+
     @Log(title = "用户头像", businessType = BusinessType.UPDATE)
     @PostMapping("/avatar")
     public AjaxResult avatar(@RequestParam("avatarfile") MultipartFile file) throws Exception
@@ -137,7 +123,6 @@ public class SysProfileController extends BaseController
                 }
                 AjaxResult ajax = AjaxResult.success();
                 ajax.put("imgUrl", avatar);
-                // 更新缓存用户头像
                 loginUser.getUser().setAvatar(avatar);
                 tokenService.setLoginUser(loginUser);
                 return ajax;

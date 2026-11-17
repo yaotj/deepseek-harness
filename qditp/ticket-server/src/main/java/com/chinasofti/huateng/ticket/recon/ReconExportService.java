@@ -19,13 +19,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/** 日终对账分片导出，本源标识 {@code ticket}，负责 EXP（进出站交易明细）与 BUS（业务汇总）两类文件。 */
 @Service
 public class ReconExportService {
 
     private static final Logger log = LoggerFactory.getLogger(ReconExportService.class);
 
-    /** 本源标识，EXP 行首 sourceType 段的取值，跨服务契约， */
     private static final String SOURCE = "ticket";
 
     private final ReconExportMapper reconExportMapper;
@@ -36,13 +34,9 @@ public class ReconExportService {
 
     private final ExecutorService executor;
 
-    /** 在途批次标记，元素为 batchId。 */
     private final Set<String> running = ConcurrentHashMap.newKeySet();
 
-    /**
-     * @param pageSize EXP 每批查询行数，取自配置 {@code recon.export.page-size}
-     * @param workerCount 抽取线程数，取自配置 {@code recon.export.worker}；
-     */
+
     public ReconExportService(ReconExportMapper reconExportMapper,
                               ReconPartUploader uploader,
                               @Value("${recon.export.page-size:5000}") int pageSize,
@@ -56,12 +50,7 @@ public class ReconExportService {
             return t;
         });
     }
-    /**
-     * 受理一次抽取指令：校验、去重、派给抽取线程池，立即返回。
-     *
-     * @param request recon-server 下发的抽取指令
-     * @return true 已受理；
-     */
+
     public boolean submit(ReconExportReqDTO request) {
         request.validate();
         String batchId = request.getBatchId();
@@ -87,7 +76,6 @@ public class ReconExportService {
         return true;
     }
 
-    /** 在抽取线程上按 fileTypes 逐类导出。 */
     void runExport(ReconExportReqDTO request) {
         List<String> failures = new ArrayList<>();
         for (String fileType : request.getFileTypes()) {
@@ -110,7 +98,6 @@ public class ReconExportService {
                     request.getBatchId(), SOURCE, failures);
         }
     }
-    /** EXP 明细导出：keyset 游标逐批查询、逐行写入分片通道。 */
     private void exportExp(ReconExportReqDTO request) {
         try (ReconPartSink sink = uploader.open(request.getBatchId(), SOURCE, ReconFileTypeEnum.EXP)) {
             String lastHandleTime = null;
@@ -152,7 +139,6 @@ public class ReconExportService {
                     request.getBatchId(), sink.getUploadedParts(), sink.getTotalRecords(), sink.getTotalAmount());
         }
     }
-    /** BUS 汇总导出：数据库内 GROUP BY 后一次查回，逐行写入。 */
     private void exportBus(ReconExportReqDTO request) {
         try (ReconPartSink sink = uploader.open(request.getBatchId(), SOURCE, ReconFileTypeEnum.BUS)) {
             List<Map<String, Object>> rows = reconExportMapper.selectBusSummary(
@@ -176,7 +162,6 @@ public class ReconExportService {
         }
     }
 
-    /** Oracle 数字列转 long。 */
     private long toLong(Object value) {
         if (value == null) {
             return 0L;
@@ -194,7 +179,6 @@ public class ReconExportService {
         return new BigDecimal(text).longValue();
     }
 
-    /** Map 取字符串，null 保持 null 交由 {@link ReconRecord#line(Object...)} 统一转空串。 */
     private String toStr(Object value) {
         return value == null ? null : String.valueOf(value);
     }

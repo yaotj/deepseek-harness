@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
-/** APP 场景入口（IF8A-*）。 */
 @RestController
 @RequestMapping("/ci/gateTxnPay/app")
 public class GateTxnPayAppController {
@@ -69,7 +68,6 @@ public class GateTxnPayAppController {
         return count;
     }
 
-    /** IF8A-41 账单统计：返回原价 / 实付 / 优惠 / 超时费四个合计与订单数。 */
     @PostMapping("/requestTransStatistics")
     public RequestTransStatisticsResult requestTransStatistics(@RequestBody RequestTransStatisticsReqDTO request) {
         log.info("IF8A-41 APP查询账单统计, 入参={}", request);
@@ -87,7 +85,6 @@ public class GateTxnPayAppController {
         return dto;
     }
 
-    /** IF8A-35 查询用户账务信息：返回未支付订单数与扣费失败订单数，供 APP 做欠费提醒。 */
     @PostMapping("/requestUserAccInfo")
     public RequestUserAccInfoResult requestUserAccInfo(@RequestBody RequestUserAccInfoReqDTO request) {
         log.info("IF8A-35 查询用户账务信息, 入参={}", request);
@@ -96,11 +93,7 @@ public class GateTxnPayAppController {
         return response;
     }
 
-    /**
-     * 用户主动发起免密失败订单重试扣费（requestPayFailOrder）。
-     * 同步对指定 thirdUserId（可选按 cardNums 收窄）下 INIT / RETRY / FAIL 的过闸扣费单重新发起免密扣款，
-     * 终态由支付中心回调后续收敛。详见 {@link UserDebitRetryService}。
-     */
+
     @PostMapping("/requestPayFailOrder")
     public RequestPayFailOrderResult requestPayFailOrder(@RequestBody RequestPayFailOrderReqDTO request) {
         log.info("用户主动发起免密失败订单重试扣费, 入参={}", request);

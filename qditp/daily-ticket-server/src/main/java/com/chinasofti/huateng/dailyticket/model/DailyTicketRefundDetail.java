@@ -2,7 +2,6 @@ package com.chinasofti.huateng.dailyticket.model;
 
 import java.util.Date;
 
-/** 旅游票退款子单明细。 */
 public class DailyTicketRefundDetail {
     private String id;
     private String refundOrderNo;

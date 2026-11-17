@@ -25,20 +25,15 @@ import com.chinasofti.huateng.rpc.ticket.TicketClient;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
-/** 钉住在线路径（非离线码）钱包折扣里 {@code TRANSFER_FLAG} 的反推判定。 */
 class WalletTransferFlagInferenceTest {
 
-    /** 与线下路径同一个配置值，用来证明在线路径根本不读它。 */
     private static final int TRANSFER_REDUCTION_CENTS = 100;
 
     private static final int ORIGINAL_FARE = 400;
     private static final int WALLET_TOTAL_AMT = 5000;
 
-    /** {@code round((400 - 1) * 0.8) = round(319.2) = 319}，闸机报这个数才会被判成有换乘。 */
     private static final int EXPECTED_WITH_ONE_CENT_OFF = 319;
-    /** {@code round(400 * 0.8) = 320}，一分不减的折后价。 */
     private static final int DISCOUNTED_FULL_FARE = 320;
-    /** {@code round((400 - 100) * 0.8) = 240}，线下路径命中换乘时会算出的价。 */
     private static final int OFFLINE_TRANSFER_FARE = 240;
 
     private final TicketClient ticketClient = mock(TicketClient.class);
@@ -49,7 +44,6 @@ class WalletTransferFlagInferenceTest {
             mock(OfflineMetroTransferClient.class);
     private final DiscountLevelMapper discountLevelMapper = mock(DiscountLevelMapper.class);
 
-    /** 闸机上报值与自算期望值相等 —— 这是唯一能得出 02 的情形。 */
     @Test
     void gateAmountEqualToComputedExpectedIsInferredAsTransfer() {
         stubWalletAccount();
@@ -66,7 +60,6 @@ class WalletTransferFlagInferenceTest {
         assertEquals(new BigDecimal("0.8"), order.getDiscountRate());
     }
 
-    /** 差一分就翻转成 01：一分不减的折后价 320 被判成无换乘。 */
     @Test
     void gateAmountOneCentAwayFallsBackToNoTransfer() {
         stubWalletAccount();
@@ -80,7 +73,6 @@ class WalletTransferFlagInferenceTest {
         assertEquals("01", order.getTransferFlag(), "差一分即判定无换乘");
     }
 
-    /** 决定性用例：一笔真按线下换乘规则定价的行程（减 100 分再打折 = 240） 在在线路径上被判成「无换乘」。 */
     @Test
     void offlinePricedTransferTripIsClassifiedAsNoTransfer() {
         stubWalletAccount();
@@ -94,9 +86,7 @@ class WalletTransferFlagInferenceTest {
         assertEquals(EXPECTED_WITH_ONE_CENT_OFF, order.getExpectedGateAmount());
     }
 
-    /**
-     * {@code TRANSFER_FLAG} 是「这位乘客有没有从公交换乘过来」这一事实，权威来源是 {@link OfflineMetroTransferClient#isReduction}，且该协作者就在本类字段里。
-     */
+
     @Test
     void authoritativeTransferSourceIsNeverConsultedOnline() {
         stubWalletAccount();
@@ -107,9 +97,7 @@ class WalletTransferFlagInferenceTest {
         verifyNoInteractions(offlineMetroTransferClient);
     }
 
-    /**
-     * 在线路径算出的折后价不改扣款金额：{@code TRX_AMOUNT} 与 {@code TOTAL_AMOUNT} 在 {@code buildOrder} 里就按闸机上报值定好了。
-     */
+
     @Test
     void computedExpectedNeverChangesTheChargedAmount() {
         stubWalletAccount();
@@ -124,7 +112,6 @@ class WalletTransferFlagInferenceTest {
         assertEquals(EXPECTED_WITH_ONE_CENT_OFF, order.getExpectedGateAmount(), "折后价只当观测值");
     }
 
-    /** 概率取整是 HALF_UP：{@code 200 * 0.9225 = 184.5} 进位到 185，截断或 HALF_DOWN 会得 184。 */
     @Test
     void probeValueRoundsHalfUp() {
         stubWalletAccount();
@@ -138,7 +125,6 @@ class WalletTransferFlagInferenceTest {
         assertEquals("02", order.getTransferFlag());
     }
 
-    /** 钱包累计查询失败即整段降级：{@code FALLBACK} + 01，折扣率与期望值全留空。 */
     @Test
     void walletQueryFailureFallsBackToNoTransfer() {
         stubWalletAccount();
@@ -156,7 +142,6 @@ class WalletTransferFlagInferenceTest {
         verifyNoInteractions(discountLevelMapper);
     }
 
-    /** 非钱包渠道整段跳过，连 01 都不写 —— transferFlag 保持入库前的空值。 */
     @Test
     void nonWalletVendorLeavesTransferFlagUntouched() {
         GateTxnPay order = order(DISCOUNTED_FULL_FARE);
@@ -191,11 +176,7 @@ class WalletTransferFlagInferenceTest {
         when(discountLevelMapper.selectApplicable(anyString(), eq(WALLET_TOTAL_AMT))).thenReturn(level);
     }
 
-    /**
-     * {@code ORIGINAL_FARE} 直接写在订单上，对应生产链路里 {@code requestPay} 先调 {@code fillOriginalFare} 的既有顺序，因此本测试不需要 stub para。
-     *
-     * @param gateReportedAmount 闸机上报的 {@code TRX_AMOUNT}，即反推判定的比较对象。
-     */
+
     private GateTxnPay order(int gateReportedAmount) {
         GateTxnPay order = new GateTxnPay();
         order.setOrderNo("GT20260913100000000123456");

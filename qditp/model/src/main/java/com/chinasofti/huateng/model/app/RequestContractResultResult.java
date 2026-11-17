@@ -4,7 +4,6 @@ import com.chinasofti.huateng.common.response.CommonResult;
 
 public class RequestContractResultResult extends CommonResult {
     private String status;
-    /** 钱包用户/账户标识；传统签约渠道通常为空。 */
     private String payUserId;
     private String payAccountId;
     private String payAgreementNo;

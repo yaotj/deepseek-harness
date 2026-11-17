@@ -35,7 +35,6 @@ import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
-/** 钉住离线码出站金额重算的四步顺序与超时费的隔离性。 */
 class OfflineFareCalculationTest {
 
     private static final long TIMEOUT_SECONDS = 1200L;
@@ -45,9 +44,7 @@ class OfflineFareCalculationTest {
     private static final String IN_STATION = "0101";
     private static final String OUT_STATION = "0205";
     private static final String ENTRY_TIME = "20260913100000";
-    /** 与进站相距 600 秒，小于 1200 秒的超时阈值。 */
     private static final String EXIT_TIME_IN_TIME = "20260913101000";
-    /** 与进站相距 3600 秒，超过阈值。 */
     private static final String EXIT_TIME_OVERTIME = "20260913110000";
 
     private static final int TICKET_PRICE = 400;
@@ -85,7 +82,6 @@ class OfflineFareCalculationTest {
         verify(discountLevelMapper).selectApplicable("01", WALLET_TOTAL_AMT);
     }
 
-    /** 超时费的隔离性：只进 {@code OVERTIME_AMOUNT}，既不参与折扣基数也不并入 {@code TRX_AMOUNT}。 */
     @Test
     void overtimeFeeStaysOutOfDiscountBase() {
         stubEntry();
@@ -103,7 +99,6 @@ class OfflineFareCalculationTest {
                 "超时时 MUST 在计算说明里留痕，对账与客诉都靠它");
     }
 
-    /** 非钱包渠道整段跳过换乘与折扣，金额就是票价原值。 */
     @Test
     void nonWalletOrderSkipsTransferAndDiscount() {
         stubEntry();
@@ -122,7 +117,6 @@ class OfflineFareCalculationTest {
                 discountLevelMapper);
     }
 
-    /** 同行票不参与钱包累计折扣，但换乘减免仍然生效 —— 两件事共用一个 wallet 分支，容易被一起跳过。 */
     @Test
     void companionOrderKeepsTransferReductionButSkipsDiscount() {
         stubEntry();
@@ -142,7 +136,6 @@ class OfflineFareCalculationTest {
         verify(discountLevelMapper, never()).selectApplicable(anyString(), any());
     }
 
-    /** 未命中换乘减免时 transferFlag 保持 01，金额不减。 */
     @Test
     void walletOrderWithoutReductionKeepsFullFareAsDiscountBase() {
         stubEntry();
@@ -158,7 +151,6 @@ class OfflineFareCalculationTest {
         assertEquals(320, order.getTrxAmount(), "未减免时基数是全额票价：400*0.8=320");
     }
 
-    /** 出站早于进站是脏数据。 */
     @Test
     void reversedRideTimeIsRejected() {
         stubEntry();
@@ -170,7 +162,6 @@ class OfflineFareCalculationTest {
         assertTrue(e.getMessage().contains("离线码进出站时间顺序无效"), e.getMessage());
     }
 
-    /** 缺 ticketTransSeq 时无法定位首笔进站。 */
     @Test
     void missingTicketTransSeqIsRejected() {
         GateTxnPay order = order(EXIT_TIME_IN_TIME);
@@ -180,7 +171,6 @@ class OfflineFareCalculationTest {
         verifyNoInteractions(ticketClient);
     }
 
-    /** 订单号规则：{@code GT} + 17 位时间戳 + 卡号后 6 位。 */
     @Test
     void orderNoKeepsPrefixTimestampAndCardSuffix() {
         GateTxnPayReqDTO request = walletRequest();
@@ -266,7 +256,6 @@ class OfflineFareCalculationTest {
         calculator().calculateOfflineFare(order, request);
     }
 
-    /** 只装配算价用得到的六个协作者。 */
     private FareCalculator calculator() {
         return new FareCalculator(
                 new FareDataGateway(ticketClient, paraClient, accountClient, walletAppGatewayClient,
@@ -274,7 +263,6 @@ class OfflineFareCalculationTest {
                 TIMEOUT_SECONDS, TIMEOUT_FEE_CENTS, TRANSFER_REDUCTION_CENTS);
     }
 
-    /** {@code buildOrderNo} 仍留在 {@code GateTxnPayServiceImpl}（订单号是订单聚合的身份，不属算价），因此这里仍需反射。 */
     @SuppressWarnings("unchecked")
     private <T> T invokeOnService(String name, Class<?>[] signature, Object... args) {
         try {

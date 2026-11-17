@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** {@link AdviceOptEnum} 的契约钉子。 */
 class AdviceOptEnumTest {
 
     @Test
@@ -23,7 +22,6 @@ class AdviceOptEnumTest {
         assertEquals(5, AdviceOptEnum.values().length, "新增取值 MUST 同时确认 isSupplementExit 的归属");
     }
 
-    /** 厂家字典 {@code CardAdviceOpt} 的 {@code FREE_UPDATE} 是 020、{@code FREE_IN_20} 是 005， 与本枚举的 Java 常量名正好错位。 */
     @Test
     void vendorNameCollisionNeverSilentlySwapsCodes() {
         assertEquals("005", AdviceOptEnum.FREE_UPDATE.getCode(), "005 是厂家的 FREE_IN_20，NEVER 让它指向 020");
@@ -32,7 +30,6 @@ class AdviceOptEnumTest {
         assertFalse(AdviceOptEnum.FREE_UPDATE_020.matches("005"));
     }
 
-    /** 方向两组互斥且不重叠：进站组 {@code 018}、出站组 {@code 005 / 006 / 020}。 */
     @Test
     void entryAndExitDirectionsAreDisjoint() {
         assertTrue(AdviceOptEnum.SUPPLEMENT_ENTRY.isSupplementEntry(), "018 是补进站");

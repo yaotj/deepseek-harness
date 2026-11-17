@@ -1,10 +1,6 @@
 package com.chinasofti.huateng.recon.thirdparty;
 
-/**
- * 对账差异明细落地对象（对应 RECON_TXN_DIFF 与 ITP.TXNDIFF.YYYYMMDD 第 1~21 段）。
- *
- * <p>第 1~19 段与 DETAIL 完全一致；第 20 段差异方、第 21 段扣款失败原因由比对层填入。</p>
- */
+
 public class TxnDiffRecord {
 
     private Long id;

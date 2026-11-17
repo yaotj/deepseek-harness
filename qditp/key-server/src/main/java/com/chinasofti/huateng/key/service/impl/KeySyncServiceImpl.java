@@ -43,13 +43,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * IF8A-02 请求同步密钥业务实现。
- *
- * <p>处理步骤与旧系统保持一致：查询可用 CA 密钥，随机选择一条 CA，
- * 调用 acc-security-server 生成用户 SM2 密钥对，使用 CA 签名用户公钥，
- * 导出用户私钥后进行 3DES 转加密，最后组装 keyList 返回 APP。</p>
- */
+
 @Service
 public class KeySyncServiceImpl implements KeySyncService {
     private static final Logger log = LoggerFactory.getLogger(KeySyncServiceImpl.class);
@@ -90,12 +84,7 @@ public class KeySyncServiceImpl implements KeySyncService {
         this.securityClient = securityClient;
     }
 
-    /**
-     * 生成用户同步密钥列表。
-     *
-     * @param request 请求同步密钥业务参数
-     * @return 请求同步密钥应答
-     */
+
     @Override
     public RequestKeyListResult requestKeyList(RequestKeyListReqDTO request) {
         RequestKeyListResult result = new RequestKeyListResult();
@@ -288,15 +277,7 @@ public class KeySyncServiceImpl implements KeySyncService {
         return keyItems;
     }
 
-    /**
-     * 请求 HCE 卡消费密钥。
-     *
-     * <p>安全服务返回的是 ACC KEK 加密的 DPK。key-server 在内存中使用 ACC 3DES
-     * 密钥解密，并立即按 APP_SERVER 3DES 密钥转加密，最终只向 APP 返回转加密结果。</p>
-     *
-     * @param request HCE 同步密钥请求
-     * @return keyId=00、keyType=0 的 DPK 密钥列表
-     */
+
     @Override
     public RequestKeyListResult requestHceKeyList(RequestKeyListReqDTO request) {
         RequestKeyListResult result = new RequestKeyListResult();
@@ -354,12 +335,7 @@ public class KeySyncServiceImpl implements KeySyncService {
         return dpkResponse.getDpkByKek();
     }
 
-    /**
-     * 校验请求同步密钥的必填业务参数。
-     *
-     * @param request 请求同步密钥业务参数
-     * @return 校验失败原因，返回null表示校验通过
-     */
+
     private String validateBaseRequest(RequestKeyListReqDTO request) {
         if (request == null) {
             return "请求报文不能为空";
@@ -377,11 +353,7 @@ public class KeySyncServiceImpl implements KeySyncService {
         return HCE_CARD_TYPE.equals(cardType) || NEW_HCE_CARD_TYPE.equals(cardType);
     }
 
-    /**
-     * 从 CA 密钥仓库中随机选择一条启用状态的 CA 密钥。
-     *
-     * @return 可用CA密钥
-     */
+
     private MetroCaKeystore selectRandomCaKeystore() {
         List<MetroCaKeystore> caKeystores = metroCaKeystoreMapper.selectActiveList();
         if (caKeystores == null || caKeystores.isEmpty()) {
@@ -391,12 +363,7 @@ public class KeySyncServiceImpl implements KeySyncService {
         return caKeystores.get(ThreadLocalRandom.current().nextInt(caKeystores.size()));
     }
 
-    /**
-     * 调用 acc-security-server 生成用户 SM2 密钥对。
-     *
-     * @param cardId 地铁会员卡号
-     * @return 用户SM2密钥对
-     */
+
     private RequestUserSm2KeyRespDTO requestUserSm2Key(String cardId) {
         RequestUserSm2KeyReqDTO request = new RequestUserSm2KeyReqDTO();
         request.setLogicNum(cardId + cardId);
@@ -408,15 +375,7 @@ public class KeySyncServiceImpl implements KeySyncService {
         return response;
     }
 
-    /**
-     * 调用 acc-security-server 使用 CA 签名用户公钥。
-     *
-     * @param caKeystore CA密钥
-     * @param hexEffectiveDate 公钥有效期HEX
-     * @param hexUserId 用户ID HEX
-     * @param publicKeyX 用户公钥X分量
-     * @return 用户公钥签名结果
-     */
+
     private RequestSignPubkeyRespDTO requestSignPubkey(MetroCaKeystore caKeystore,
                                                        String hexEffectiveDate,
                                                        String hexUserId,
@@ -435,13 +394,7 @@ public class KeySyncServiceImpl implements KeySyncService {
         return response;
     }
 
-    /**
-     * 调用 acc-security-server 导出 KEK 加密的用户私钥。
-     *
-     * @param smPrivateKey LMK加密的用户私钥
-     * @param smPublicKey 用户公钥
-     * @return 导出的用户私钥
-     */
+
     private RequestExportUserPriKeyRespDTO requestExportUserPriKey(String smPrivateKey, String smPublicKey) {
         RequestExportUserPriKeyReqDTO request = new RequestExportUserPriKeyReqDTO();
         request.setKekIdx(kekIdx);
@@ -454,12 +407,7 @@ public class KeySyncServiceImpl implements KeySyncService {
         return response;
     }
 
-    /**
-     * 将 ACC 3DES 密钥加密的用户私钥转为 APP_SERVER 3DES 密钥加密。
-     *
-     * @param accEncryptedPrivateKey ACC侧3DES加密的用户私钥
-     * @return APP_SERVER侧3DES加密的用户私钥
-     */
+
     private String transferPrivateKeyForApp(String accEncryptedPrivateKey) {
         byte[] privateKey = TripleDesEcbUtils.decryptHex(accEncryptedPrivateKey, acc3DesKey);
         return TripleDesEcbUtils.encryptTextToBase64(bytesToHex(privateKey), appserver3DesKey);
@@ -470,17 +418,7 @@ public class KeySyncServiceImpl implements KeySyncService {
         return TripleDesEcbUtils.encryptTextToBase64(bytesToHex(dpk), appserver3DesKey);
     }
 
-    /**
-     * 组装 IF8A-02 返回的单条用户非对称密钥。
-     *
-     * @param hexUserId 用户ID HEX
-     * @param keyPrivate APP侧加密用户私钥
-     * @param keyPublic 用户公钥XY
-     * @param hexEffectiveDate 用户公钥有效期HEX
-     * @param signData CA签名用户公钥数据
-     * @param caIdx CA密钥索引
-     * @return 单条密钥信息
-     */
+
     private KeyItemDTO buildKeyItem(String hexUserId,
                                     String keyPrivate,
                                     String keyPublic,
@@ -507,23 +445,12 @@ public class KeySyncServiceImpl implements KeySyncService {
         return keyItem;
     }
 
-    /**
-     * 判断 acc-security-server 是否返回成功。
-     *
-     * @param response acc-security-server应答
-     * @return true表示成功
-     */
+
     private boolean isSecuritySuccess(com.chinasofti.huateng.model.security.SecurityBaseRespDTO response) {
         return response != null && ("200".equals(response.getRetCode()) || "0000".equals(response.getRetCode()));
     }
 
-    /**
-     * 生成用户公钥有效期HEX。
-     *
-     * <p>旧系统按当前时间加 key.sync.days 后转成 2000-01-01 以来秒数的四字节HEX。</p>
-     *
-     * @return 公钥有效期HEX
-     */
+
     private String buildHexEffectiveDate() {
         LocalDateTime effectiveDate = LocalDateTime.now().plusDays(keySyncDays);
         long seconds = effectiveDate.toEpochSecond(ZoneOffset.ofHours(8))
@@ -531,34 +458,19 @@ public class KeySyncServiceImpl implements KeySyncService {
         return String.format("%08X", seconds & 0xFFFFFFFFL);
     }
 
-    /**
-     * 将第三方用户ID转为四字节HEX字符串。
-     *
-     * @param thirdUserId 第三方用户ID
-     * @return 四字节HEX字符串
-     */
+
     private String toEightHex(String thirdUserId) {
         long userId = Long.parseLong(thirdUserId);
         return String.format("%08X", userId & 0xFFFFFFFFL);
     }
 
-    /**
-     * 从用户公钥中提取X分量。
-     *
-     * @param smPublicKey 用户公钥
-     * @return 用户公钥X分量
-     */
+
     private String extractPublicKeyX(String smPublicKey) {
         String publicKey = normalizePublicKey(smPublicKey);
         return publicKey.substring(0, 64);
     }
 
-    /**
-     * 标准化用户公钥为X+Y共128位HEX。
-     *
-     * @param smPublicKey acc-security-server返回的用户公钥
-     * @return X+Y用户公钥
-     */
+
     private String normalizePublicKey(String smPublicKey) {
         if (!StringUtils.hasText(smPublicKey) || smPublicKey.trim().length() < 128) {
             log.error("用户公钥格式错误, smPublicKey={}", smPublicKey);
@@ -568,12 +480,7 @@ public class KeySyncServiceImpl implements KeySyncService {
         return publicKey.substring(publicKey.length() - 128);
     }
 
-    /**
-     * 将字节数组转为大写HEX字符串。
-     *
-     * @param bytes 字节数组
-     * @return HEX字符串
-     */
+
     private String bytesToHex(byte[] bytes) {
         StringBuilder builder = new StringBuilder(bytes.length * 2);
         for (byte value : bytes) {

@@ -11,7 +11,6 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-/** 按落库前的最终 {@code IN_STATION} / {@code OUT_STATION} 回填两个中文站名列。 */
 @Component
 public class StationNameBackfiller {
 
@@ -23,7 +22,6 @@ public class StationNameBackfiller {
         this.fareDataGateway = fareDataGateway;
     }
 
-    /** 按订单当前的进出站编码回填站名，查不到的那一列保持原值。 */
     public void backfill(GateTxnPay order) {
         if (order == null) {
             return;

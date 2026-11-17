@@ -14,7 +14,6 @@ import com.chinasofti.huateng.ticket.alipay.AlipayTripHandler;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-/** 交易记录查询服务实现（薄壳编排层）。 */
 @Service
 public class TicketTransServiceImpl implements TicketTransService {
 

@@ -5,9 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
-/**
- * 缴销任务报告
- */
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor

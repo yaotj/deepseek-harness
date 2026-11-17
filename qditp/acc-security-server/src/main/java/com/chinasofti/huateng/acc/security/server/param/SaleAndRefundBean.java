@@ -1,49 +1,30 @@
 package com.chinasofti.huateng.acc.security.server.param;
 
-/**
- * @author houkepan
- * @date 2021/3/10 11:05
- */
+
 public class SaleAndRefundBean {
 
-    /**
-     * 命令类型
-     */
+
     private byte[] orderType = {(byte) 0xB0};
 
-    /**
-     * 命令
-     */
+
     private byte[] order;
 
-    /**
-     * 用户保留字
-     */
+
     private byte[] userRetain;
 
-    /**
-     * 次主密钥索引
-     */
+
     private byte[] index;
 
-    /**
-     * 分散次数
-     */
+
     private byte[] disperseNum = {0x02};
 
-    /**
-     * 分散数据
-     */
+
     private byte[] disperseData;
 
-    /**
-     * 数据长度
-     */
+
     private byte[] bytesLength = {0x00, 0x08};
 
-    /**
-     * 数据
-     */
+
     private byte[] bytes;
 
     public byte[] getOrderType() {

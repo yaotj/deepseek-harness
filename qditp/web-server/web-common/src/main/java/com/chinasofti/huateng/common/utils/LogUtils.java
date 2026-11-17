@@ -1,10 +1,6 @@
 package com.chinasofti.huateng.common.utils;
 
-/**
- * 处理并记录日志文件
- * 
- * @author zmzhang
- */
+
 public class LogUtils
 {
     public static String getBlock(Object msg)

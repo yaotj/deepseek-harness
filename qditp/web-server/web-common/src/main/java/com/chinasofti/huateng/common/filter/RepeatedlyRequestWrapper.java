@@ -12,11 +12,7 @@ import jakarta.servlet.http.HttpServletRequestWrapper;
 import com.chinasofti.huateng.common.utils.http.HttpHelper;
 import com.chinasofti.huateng.common.constant.Constants;
 
-/**
- * 构建可重复读取inputStream的request
- * 
- * @author zmzhang
- */
+
 public class RepeatedlyRequestWrapper extends HttpServletRequestWrapper
 {
     private final byte[] body;

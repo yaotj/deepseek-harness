@@ -3,9 +3,7 @@ package com.chinasofti.huateng.model.cardpool;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-/**
- * 卡池批次异步导出 DTO。
- */
+
 public class CardPoolBatchExportDTO implements Serializable
 {
     private static final long serialVersionUID = 1L;

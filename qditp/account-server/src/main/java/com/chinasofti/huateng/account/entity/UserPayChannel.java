@@ -13,9 +13,7 @@ public class UserPayChannel {
     private LocalDateTime createTms;
     private LocalDateTime updateTms;
 
-    /**
-     * 支付中心侧的付款账号标识（{@code PAY_ACCOUNT_ID}），2.0.63 新增。
-     */
+
     private String payAccountId;
 
     public String getThirdUserId() {

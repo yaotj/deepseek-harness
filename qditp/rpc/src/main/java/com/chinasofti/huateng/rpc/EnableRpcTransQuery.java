@@ -4,9 +4,7 @@ import org.springframework.context.annotation.ComponentScan;
 
 import java.lang.annotation.*;
 
-/**
- * 启用 trans-query-server（交易查询，9113）客户端。
- */
+
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @Documented

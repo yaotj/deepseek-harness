@@ -19,10 +19,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 @Service
-/**
- * 风险管理实现。
- * <p>页面输入统一在此处做裁剪和边界校验，避免风险参数直接依赖数据库异常提示。</p>
- */
+
 public class RiskManagementServiceImpl implements RiskManagementService {
     private final RiskGroupMapper riskGroupMapper;
     private final RiskRuleMapper riskRuleMapper;
@@ -35,7 +32,6 @@ public class RiskManagementServiceImpl implements RiskManagementService {
         this.riskControlLogMapper = riskControlLogMapper;
     }
 
-    /** 分页查询风险组，名称条件为模糊匹配。 */
     @Override
     public ResultVO<PageInfo<RiskGroup>> pageGroups(String groupName, Integer pageNum, Integer pageSize) {
         PageInfo<RiskGroup> page = PageHelper.startPage(safePageNum(pageNum), safePageSize(pageSize))
@@ -43,13 +39,11 @@ public class RiskManagementServiceImpl implements RiskManagementService {
         return ResultMapper.ok(page);
     }
 
-    /** 查询供规则维护页使用的完整风险组列表。 */
     @Override
     public ResultVO<List<RiskGroup>> listGroupOptions() {
         return ResultMapper.ok(riskGroupMapper.selectOptions());
     }
 
-    /** 风险组名称唯一，重复时转为可读的业务错误。 */
     @Override
     public ResultVO<Void> createGroup(RiskGroup request) {
         String message = validateGroup(request);
@@ -64,7 +58,6 @@ public class RiskManagementServiceImpl implements RiskManagementService {
         }
     }
 
-    /** 修改风险组，重复名称同样转为业务错误。 */
     @Override
     public ResultVO<Void> updateGroup(Long groupId, RiskGroup request) {
         if (groupId == null) return ResultMapper.illegalParams("风险组ID不能为空");
@@ -80,7 +73,6 @@ public class RiskManagementServiceImpl implements RiskManagementService {
         }
     }
 
-    /** 删除前先判断规则引用，防止丢失规则归属关系。 */
     @Override
     public ResultVO<Void> deleteGroup(Long groupId) {
         if (groupId == null) return ResultMapper.illegalParams("风险组ID不能为空");
@@ -88,7 +80,6 @@ public class RiskManagementServiceImpl implements RiskManagementService {
         return riskGroupMapper.deleteById(groupId) > 0 ? ResultMapper.ok() : ResultMapper.error("未找到待删除的风险组");
     }
 
-    /** 分页返回规则以及通过左关联取得的风险组名称。 */
     @Override
     public ResultVO<PageInfo<RiskRule>> pageRules(String ruleId, String ruleName, Long groupId, Integer pageNum, Integer pageSize) {
         PageInfo<RiskRule> page = PageHelper.startPage(safePageNum(pageNum), safePageSize(pageSize))
@@ -96,7 +87,6 @@ public class RiskManagementServiceImpl implements RiskManagementService {
         return ResultMapper.ok(page);
     }
 
-    /** 新建规则时校验编号、等级与非负阈值。 */
     @Override
     public ResultVO<Void> createRule(RiskRule request) {
         String message = validateRule(request, true);
@@ -111,7 +101,6 @@ public class RiskManagementServiceImpl implements RiskManagementService {
         }
     }
 
-    /** 规则编号取路径参数，防止请求体篡改主键。 */
     @Override
     public ResultVO<Void> updateRule(String ruleId, RiskRule request) {
         if (!StringUtils.hasText(ruleId)) return ResultMapper.illegalParams("风险规则编号不能为空");
@@ -127,13 +116,7 @@ public class RiskManagementServiceImpl implements RiskManagementService {
         }
     }
 
-    /**
-     * 判断异常链上是否存在 {@link DuplicateKeyException}，即唯一约束冲突。
-     *
-     * <p>MUST 逐层遍历 cause，NEVER 直接 catch 具体异常类型。</p>
-     *
-     * <p>归因存疑：本方法相关的 UUID retCode 实测结论已作废，MUST 重查，NEVER 照旧结论排查（详见 docs/business/common-services.md）。</p>
-     */
+
     private boolean isDuplicateKeyViolation(Throwable exception) {
         for (Throwable cause = exception; cause != null && cause != cause.getCause(); cause = cause.getCause()) {
             if (cause instanceof DuplicateKeyException) {
@@ -143,14 +126,12 @@ public class RiskManagementServiceImpl implements RiskManagementService {
         return false;
     }
 
-    /** 删除规则配置；风险控制历史日志不会级联删除。 */
     @Override
     public ResultVO<Void> deleteRule(String ruleId) {
         if (!StringUtils.hasText(ruleId)) return ResultMapper.illegalParams("风险规则编号不能为空");
         return riskRuleMapper.deleteById(ruleId.trim()) > 0 ? ResultMapper.ok() : ResultMapper.error("未找到待删除的风险规则");
     }
 
-    /** 风险命中记录是审计数据，因此只提供查询。 */
     @Override
     public ResultVO<PageInfo<RiskControlLog>> pageControlLogs(String cardId, String userOrderNo, String ruleId,
                                                                String riskHitTimeBegin, String riskHitTimeEnd,

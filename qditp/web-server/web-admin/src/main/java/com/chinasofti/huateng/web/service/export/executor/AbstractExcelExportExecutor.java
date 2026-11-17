@@ -11,16 +11,12 @@ import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 
 import com.chinasofti.huateng.web.domain.export.AsyncExportTask;
 
-/**
- * 异步 Excel 导出执行器公共骨架。
- */
+
 public abstract class AbstractExcelExportExecutor implements IAsyncExportExecutor
 {
     protected static final int STREAM_WINDOW = 1000;
 
-    /**
-     * 准备导出目录。
-     */
+
     protected File prepareDirectory(AsyncExportTask task)
     {
         String filePath = task.getFilePath();
@@ -36,9 +32,7 @@ public abstract class AbstractExcelExportExecutor implements IAsyncExportExecuto
         return dir;
     }
 
-    /**
-     * 创建单元格并写入字符串值（null 时置空）。
-     */
+
     protected void setCell(Row row, int col, String value)
     {
         Cell cell = row.createCell(col);
@@ -52,9 +46,7 @@ public abstract class AbstractExcelExportExecutor implements IAsyncExportExecuto
         }
     }
 
-    /**
-     * 创建一行表头。
-     */
+
     protected void createHeader(Sheet sheet, String[] headers)
     {
         Row headerRow = sheet.createRow(0);
@@ -65,9 +57,7 @@ public abstract class AbstractExcelExportExecutor implements IAsyncExportExecuto
         }
     }
 
-    /**
-     * 统一设置列宽。
-     */
+
     protected void setColumnWidths(Sheet sheet, int[] widths)
     {
         for (int i = 0; i < widths.length; i++)
@@ -76,16 +66,7 @@ public abstract class AbstractExcelExportExecutor implements IAsyncExportExecuto
         }
     }
 
-    /**
-     * 使用 SXSSF 写 Excel 并更新 task 的 rowCount / fileSize。
-     *
-     * @param sheetName 工作表名
-     * @param headers 表头
-     * @param widths 列宽（单位：1/256 字符）
-     * @param rowCount 数据行数
-     * @param writer 按行写数据的回调，接收起始行号（从 1 开始）
-     * @return 文件大小
-     */
+
     protected long writeExcel(AsyncExportTask task, String sheetName, String[] headers,
             int[] widths, long rowCount, ExcelRowWriter writer) throws Exception
     {

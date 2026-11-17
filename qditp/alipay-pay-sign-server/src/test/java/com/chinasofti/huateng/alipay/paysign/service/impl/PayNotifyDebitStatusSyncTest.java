@@ -25,16 +25,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住支付宝出行扣费回调的收敛口。
- *
- * <p>批次 3（ADR-D131）起，出网点是 {@link DebitSyncPort}，retCode 判读已挪进 adapter，
- * 本类只钉住「三态怎么折回 boolean」：{@code Ok} 放行、{@code BizRejected} 与 {@code Unreachable}
- * 都让支付中心重推。**NEVER 在这里再断言 retCode 字面量**，那是 adapter 的职责。</p>
- *
- * <p>另钉住「先 INSERT 再计数」这一顺序：方法无事务，只有 INSERT 先自动提交，COUNT 才含本次、
- * 限次才按真实推送次数触发。**NEVER 把 {@code insert} 挪到 {@code countByOrderNo} 之后。**</p>
- */
+
 class PayNotifyDebitStatusSyncTest {
 
     private static final String ORDER_NO = "GT20260914021300000000001";

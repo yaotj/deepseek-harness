@@ -22,12 +22,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * IF8A-65 取消订单的状态白名单与自动退款触发。
- *
- * <p>钉住四条不可回退的口径：未激活即可取消（含已支付）、已激活一律拒、已支付单取消后必须触发退款、
- * 旅游票主单取消必须连带取消子单。
- */
+
 class DailyTicketCancelOrderTest {
 
     private DailyTicketOrderMapper orderMapper;

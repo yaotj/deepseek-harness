@@ -33,18 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
-/**
- * 特征断言：钉住销卡链路 —— {@code TerminationNotifier} 的三个 {@code Outcome} 与
- * {@code AlipayTerminationInternalServiceImpl} 的单批计数。
- *
- * <p>这条链路是**批次 1 的目标形态**：`AlipayContractServiceImpl.executeTermination` 已收口成
- * 委派本类，因为只有本类满足「先调远端、后改本地」。</p>
- *
- * <p>批次 2（ADR-D130）唯一的语义变化：签约行的状态写入由无条件覆盖的 {@code updateStatus}
- * 换成带前置状态断言的 CAS {@code markTerminated}（{@code SIGNED -> TERMINATED}）。
- * 因此本文件里凡是「远端成功」的用例都 MUST stub {@code markTerminated} 返 1，
- * <b>不 stub 就等于库里状态既不是 SIGNED 也不是 TERMINATED</b>，走的是 CONFLICT 分支。</p>
- */
+
 class TerminationSweepCharacterizationTest {
 
     private static final String AGREEMENT_CODE = "AL20260917000000000000001";
@@ -69,7 +58,6 @@ class TerminationSweepCharacterizationTest {
         inject(notifier, "paymentNotifyAdapter", paymentNotifyAdapter);
     }
 
-    // ---------- TerminationNotifier ----------
 
     @Test
     void remoteIsCalledBeforeLocalWriteAndCasClosesTheRegistration() {
@@ -90,10 +78,7 @@ class TerminationSweepCharacterizationTest {
         verify(signInfoMapper, never()).selectSignStatusByAgreementCode(anyString());
     }
 
-    /**
-     * ADR-D130：CAS 命中就不回查，这是「枚举 + 白名单 + CAS」三件套规则的一部分。
-     * 上一条用例末尾的 {@code never()} 已钉住，本条从反面钉住「返 0 才回查」。
-     */
+
     @Test
     void signCasMissOnAlreadyTerminatedRowIsIdempotentAndStillClosesRegistration() {
         when(signInfoMapper.selectByAgreementCode(AGREEMENT_CODE)).thenReturn(signInfo());
@@ -107,12 +92,7 @@ class TerminationSweepCharacterizationTest {
                 "签约行已是 TERMINATED 属重复执行，MUST 继续把登记收口成 COMPLETED，否则这条会永远重推");
     }
 
-    /**
-     * ADR-D130：CAS 返 0 且库里既不是 SIGNED 也不是 TERMINATED = CONFLICT。
-     *
-     * <p><b>NEVER 静默放行</b>：放行就会留下「签约状态不明、登记已 COMPLETED」这条谁也看不见的不一致。
-     * 本轮返 {@code RETRY_LATER}、登记留在 PENDING，同时打 ERROR 交人工。</p>
-     */
+
     @Test
     void signCasConflictKeepsRegistrationPendingForManualReview() {
         when(signInfoMapper.selectByAgreementCode(AGREEMENT_CODE)).thenReturn(signInfo());
@@ -214,7 +194,6 @@ class TerminationSweepCharacterizationTest {
                 "CAS 未命中说明已被别的执行流收口，本轮 MUST NOT 重复计数");
     }
 
-    // ---------- 批处理 processTermination ----------
 
     @Test
     void batchCountsOutcomesAndSkipsRowsWithoutThirdUserId() throws ReflectiveOperationException {
@@ -275,7 +254,6 @@ class TerminationSweepCharacterizationTest {
         assertEquals(FepAppErrorCodeEnum.SYSTEM_ERROR.getCode(), response.getResultCode());
     }
 
-    // ---------- fixtures ----------
 
     private AlipayTerminationInternalServiceImpl batchService(TerminationNotifier stubNotifier)
             throws ReflectiveOperationException {

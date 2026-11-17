@@ -15,9 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.locks.ReentrantLock;
 
-/**
- * 对账文件的 FTP 投递。投递是否成功以 RNTO 之后的远端回查为判据，不看应答码。
- */
+
 @Service
 public class ReconFtpService {
     private static final Logger log = LoggerFactory.getLogger(ReconFtpService.class);
@@ -58,7 +56,6 @@ public class ReconFtpService {
         }
     }
 
-    /** 串行化并拉开相邻投递的间隔。 */
     private void awaitUploadInterval() throws IOException {
         long interval = properties.getUploadIntervalMillis();
         if (interval <= 0 || lastUploadFinishedNanos == 0L) return;
@@ -101,7 +98,6 @@ public class ReconFtpService {
         }
     }
 
-    /** 回查远端文件确实存在且字节数与本地一致；不一致或问不出结果即抛异常。 */
     private void verifyRemote(FTPClient ftp, String remoteRoot, String fileName, String remotePath, long expectedBytes)
             throws IOException {
         Long actual = remoteSizeBySizeCommand(ftp, remotePath);

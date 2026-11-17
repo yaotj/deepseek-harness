@@ -2,9 +2,7 @@ package com.chinasofti.huateng.model.app;
 
 import java.util.Map;
 
-/**
- * 支付 API 1.1 请求支付响应。
- */
+
 public class RequestPayResult {
     private String retCode;
     private String retMsg;

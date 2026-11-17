@@ -3,14 +3,10 @@ package com.chinasofti.huateng.alipay.paysign.entity;
 import lombok.Data;
 import java.time.LocalDateTime;
 
-/**
- * 支付宝签约流水表实体。
- */
+
 @Data
 public class AlipaySignLog {
-    /**
-     * 主键ID。
-     */
+
     private Long id;
 
     private String requestSeq;

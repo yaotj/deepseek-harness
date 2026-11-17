@@ -18,16 +18,7 @@ import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletRequestWrapper;
 
-/**
- * 缓存请求体的 HttpServletRequest 包装器。
- *
- * <p>针对 {@code application/x-www-form-urlencoded} 请求：
- * <ul>
- *   <li>在构造时读取原始 body 并缓存，供后续过滤器 / handler 复用；</li>
- *   <li>手动解析 query string + form body，重建 {@code getParameter} 族方法；</li>
- *   <li>避免调用原 request 的 {@code getParameter} 导致 input stream 被容器提前消费。</li>
- * </ul>
- */
+
 public class CachedBodyHttpServletRequest extends HttpServletRequestWrapper {
 
     private static final String FORM_CONTENT_TYPE = "application/x-www-form-urlencoded";
@@ -39,12 +30,9 @@ public class CachedBodyHttpServletRequest extends HttpServletRequestWrapper {
     public CachedBodyHttpServletRequest(HttpServletRequest request) throws IOException {
         super(request);
         this.encoding = resolveEncoding(request);
-        // 1. 先保存 query string 中的参数（此时原 request body 还未被读取）
         this.parameterMap = new HashMap<>();
         parseQueryString(request.getQueryString());
-        // 2. 读取并缓存 body
         this.cachedBody = readBody(request);
-        // 3. 如果是 form-urlencoded，再解析 body 中的参数
         if (isFormUrlEncoded(request) && cachedBody.length > 0) {
             parseFormBody(new String(cachedBody, encoding));
         }
@@ -105,7 +93,6 @@ public class CachedBodyHttpServletRequest extends HttpServletRequestWrapper {
             if (key.isEmpty()) {
                 continue;
             }
-            // body 里的参数优先级高于 query string（后 put 覆盖）
             parameterMap.merge(key, new String[]{value}, (old, add) -> {
                 String[] merged = new String[old.length + add.length];
                 System.arraycopy(old, 0, merged, 0, old.length);
@@ -154,9 +141,7 @@ public class CachedBodyHttpServletRequest extends HttpServletRequestWrapper {
         return parameterMap.get(name);
     }
 
-    /**
-     * 返回缓存的原始 body 字节，便于调试或扩展。
-     */
+
     public byte[] getCachedBody() {
         return cachedBody;
     }

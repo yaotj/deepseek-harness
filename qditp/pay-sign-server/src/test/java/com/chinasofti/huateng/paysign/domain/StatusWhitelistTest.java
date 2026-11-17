@@ -9,10 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 护栏：签约状态迁移白名单与 4 条 CAS 对齐，UNSIGNED -> SIGNED NEVER 放开。 */
 class StatusWhitelistTest {
 
-    /** 2026-09-11 已在库上用合成数据实跑过同一组断言（见 decisions.md ADR-D12），此处是它的代码化留存。 */
     @Test
     void signStatusWhitelistMatchesCasStatements() {
         assertTrue(SignStatus.NOT_SIGNED.canTransitTo(SignStatus.SIGNED));
@@ -23,7 +21,6 @@ class StatusWhitelistTest {
         assertTrue(SignStatus.UNSIGNED.canTransitTo(SignStatus.NOT_SIGNED));
     }
 
-    /** 本条是整个改造要挡住的那一个迁移：迟到的签约回调把已解约通道改回已签约。 */
     @Test
     void unsignedCanNeverGoBackToSigned() {
         assertFalse(SignStatus.UNSIGNED.canTransitTo(SignStatus.SIGNED));
@@ -40,7 +37,6 @@ class StatusWhitelistTest {
         assertSame(SignStatus.SIGNED, SignStatus.parseOrNull("SIGNED"));
     }
 
-    /** 与扫表 SQL 的 {@code SIGN_SYNC_STATUS IN ('PENDING','FAILED')} 对齐。 */
     @Test
     void onlyPendingAndFailedAreCompensable() {
         assertTrue(SyncStatus.PENDING.isCompensable());
@@ -48,7 +44,6 @@ class StatusWhitelistTest {
         assertFalse(SyncStatus.SUCCESS.isCompensable());
     }
 
-    /** {@code SUCCESS} 是唯一终态；回退会导致对已送达的记录重复推送。 */
     @Test
     void syncSuccessIsTerminal() {
         assertTrue(SyncStatus.SUCCESS.isTerminal());
@@ -59,7 +54,6 @@ class StatusWhitelistTest {
         assertTrue(SyncStatus.FAILED.canTransitTo(SyncStatus.SUCCESS));
     }
 
-    /** 历史行该列为 NULL，语义是「不参与补偿」，NEVER 被解析成 PENDING。 */
     @Test
     void syncNullIsNotPending() {
         assertNull(SyncStatus.parseOrNull(null));

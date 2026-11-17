@@ -40,16 +40,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-/**
- * IPD03 解约结果回调的真实现（2026-09-17 由 {@code CallbackDomainServiceImpl} 按依赖簇拆出，ADR-D120）。
- *
- * <p>协作者 7 个。与 {@link SignResultCallbackHandler} 重复注入 3 个
- * （签约主表、流水表、审计流水）—— 这是拆分的**已知代价**，经人裁决接受：
- * 两个簇的交集就是这 3 个，NEVER 因为「看起来重复」把两条回调链路再合回一个类。
- *
- * <p>本方法 <b>NEVER 加 {@code @Transactional}</b>（2026-09-12 / ADR-D48 摘掉）：
- * 本地写入用 {@code transactionTemplate} 显式开短事务，出网清理留到提交之后。
- */
+
 @Service
 public class TerminationResultCallbackHandler {
     private static final Logger log = LoggerFactory.getLogger(TerminationResultCallbackHandler.class);
@@ -86,8 +77,6 @@ public class TerminationResultCallbackHandler {
         this.channelSyncDeliverer = channelSyncDeliverer;
     }
 
-    /** IPD03 解约结果回调。 */
-    /** 本方法 NEVER 加 @Transactional（2026-09-12 / ADR-D48 摘掉，此前一直带着）。 */
     public BaseRespDTO receiveTerminationResult(ReceiveTerminationResultReqDTO request, String signChannel) {
         BaseRespDTO response = new BaseRespDTO();
         try {
@@ -237,7 +226,6 @@ public class TerminationResultCallbackHandler {
             return response;
         }
     }
-    /** 支付平台回调可能不带 cardId/cardType，尝试从签约主表补充。 */
     private void resolveCardInfoFromSignInfo(ReceiveTerminationResultReqDTO request) {
         if (StringUtils.hasText(request.getCardId()) && StringUtils.hasText(request.getCardType())) {
             return;
@@ -261,7 +249,6 @@ public class TerminationResultCallbackHandler {
             log.warn("查询签约主表补充 cardId/cardType 异常, requestSignSeq={}", request.getRequestSignSeq(), e);
         }
     }
-    /** 从解约申请记录补齐 cardId/cardType。 */
     private void resolveCardInfoFromTerminationRequest(ReceiveTerminationResultReqDTO request,
                                                        AppTerminationRequest terminationRequest) {
         if (terminationRequest == null) {
@@ -279,5 +266,4 @@ public class TerminationResultCallbackHandler {
         }
     }
 
-    /** 通道清理的**唯一发起点**已内联到 `receiveTerminationResult` 的本地事务提交之后（ADR-D48 / D122 续）。 */
 }

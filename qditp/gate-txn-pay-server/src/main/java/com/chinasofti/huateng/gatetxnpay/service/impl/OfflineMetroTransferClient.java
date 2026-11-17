@@ -13,7 +13,6 @@ import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** 离线码钱包订单的公交换乘资格查询。 */
 @Service
 public class OfflineMetroTransferClient extends ProxyWebClient {
     private static final Logger log = LoggerFactory.getLogger(OfflineMetroTransferClient.class);
@@ -28,7 +27,6 @@ public class OfflineMetroTransferClient extends ProxyWebClient {
         this.url = url;
     }
 
-    /** 钱包网关类客户端禁止网络层重试：重复请求资金接口风险不可接受。 */
     @Override
     protected boolean isNetworkRetryEnabled() {
         return false;

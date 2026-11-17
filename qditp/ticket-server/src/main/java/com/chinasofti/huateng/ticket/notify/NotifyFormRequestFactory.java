@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-/** 出向 form-data 报文骨架工厂 —— {@code notify} 包内两条外发链路共用的 8 个公共字段。 */
 @Component
 class NotifyFormRequestFactory {
 
@@ -29,12 +28,7 @@ class NotifyFormRequestFactory {
     @Value("${app.notify.sign:}")
     private String sign;
 
-    /**
-     * 组装 form-data 请求体。
-     *
-     * @param bizData 业务参数 JSON 串
-     * @param deviceId 设备号，可为 null（支付宝行程链路恒传空串）
-     */
+
     RequestBody buildFormDataRequestBody(String bizData, String deviceId) {
         return new MultipartBody.Builder()
                 .setType(MultipartBody.FORM)

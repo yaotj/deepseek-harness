@@ -32,12 +32,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住旅游票子单退款发起的分支：六道前置校验、小程序渠道不调网关、网关三态（成功 / 明确失败 / 抛异常）。
- *
- * <p>最需要钉住的是**网关明确失败时必须 `releaseLock`** —— 不释放票锁那张票就永久停在
- * {@code REFUND_LOCKED}，既不能乘也不能再退，且只在真发起一笔退款时才走到这条分支、只读回归测不出来。
- */
+
 class TravelSubRefundServiceTest {
 
     private TravelTicketOrderMapper travelOrderMapper;

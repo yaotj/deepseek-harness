@@ -7,10 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * TBL_STL_ACCT_INFO
- * @author 
- */
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor

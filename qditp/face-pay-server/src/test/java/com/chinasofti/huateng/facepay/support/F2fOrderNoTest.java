@@ -7,7 +7,6 @@ import java.time.LocalDateTime;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/** 订单号格式测试。 */
 class F2fOrderNoTest {
 
     private static final LocalDateTime AT = LocalDateTime.of(2026, 9, 8, 14, 30, 5);

@@ -25,9 +25,7 @@ public class ParaImportResult {
         return result;
     }
 
-    /**
-     * 版本号与库中一致、且文件内容 MD5 也一致 —— 真正的「无变更」，跳过。
-     */
+
     public static ParaImportResult skippedSameContent(Map<String, Object> header, Long currentVerNo, String md5) {
         ParaImportResult result = new ParaImportResult();
         result.setImported(false);

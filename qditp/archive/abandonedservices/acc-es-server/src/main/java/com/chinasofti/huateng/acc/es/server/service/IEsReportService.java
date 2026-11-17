@@ -5,11 +5,7 @@ import com.chinasofti.huateng.acc.es.server.model.TblTktEsTask;
 import com.chinasofti.huateng.common.response.ResultVO;
 
 public interface IEsReportService {
-    /**
-     * 分页查询任务报告
-     * @param esReport
-     * @return
-     */
+
     ResultVO<?> selectPage(Integer pageNum,Integer pageSize,TblTktEsReport esReport);
 
     ResultVO<?> saveReports(TblTktEsReport reports);

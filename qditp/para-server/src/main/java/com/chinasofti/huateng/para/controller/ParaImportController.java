@@ -42,22 +42,13 @@ public class ParaImportController {
         this.paraFtpScanService = paraFtpScanService;
     }
 
-    /**
-     * 扫描FTP目录中的路网拓扑(0001)、费率(0004)参数文件，
-     * 按「版本号 + 全文 MD5」决定是否入库。
-     *
-     * @return 本次扫描结果
-     */
+
     @PostMapping("/ftp")
     public ParaFtpScanService.FtpScanResponse importFromFtp() {
         return paraFtpScanService.scanAndImport();
     }
 
-    /**
-     * 供 web-server Quartz 定时任务调用：扫描FTP参数文件并入库。
-     *
-     * @return 扫描结果，retCode 0000 全部成功、9999 存在失败文件
-     */
+
     @PostMapping("/ftp/quartz")
     public CommonResult importFromFtpForQuartz() {
         ParaFtpScanService.FtpScanResponse response = paraFtpScanService.scanAndImport();
@@ -157,7 +148,6 @@ public class ParaImportController {
             Files.deleteIfExists(tempFile);
             Files.deleteIfExists(tempDirectory);
         } catch (IOException ignored) {
-            // Temporary files are not part of the import result and can be cleaned up by the OS if needed.
         }
     }
 

@@ -14,17 +14,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/** IF1A-01 应答装配器 —— 把返回给 fep-dev-server / 闸机的全部字段填齐。 */
 @Component
 class GateResponseAssembler {
 
     private static final Logger log = LoggerFactory.getLogger(GateResponseAssembler.class);
     private static final String RET_SUCCESS = "0000";
-    /** 订单异常类型：正常。 */
     private static final String ORDER_EXP_TYPE_NORMAL = "0";
-    /** 订单异常类型：双段计费正常订单_行程超时。 */
     private static final String ORDER_EXP_TYPE_OVERTIME = "5";
-    /** 离线码的签约渠道代码（0x17）。 */
     private static final String SIGN_CHANNEL_OFFLINE = "17";
 
     @Autowired
@@ -33,17 +29,7 @@ class GateResponseAssembler {
     @Autowired
     private MerchantPartyResolver merchantResolver;
 
-    /**
-     * 填齐成功应答。
-     *
-     * @param request 闸机检票请求（已被 {@code GateCardTypeEnricher} 富化过）
-     * @param response 待填充的应答
-     * @param effectiveStatus 已持久化的票卡状态，来自 {@link GateTicketWriter.WriteResult#status()}
-     * @param resolvedCardType 账户侧富化后的真实卡种（{@code CardTypeMapping.toIssueCardType(request.getCardType())}），
-     *        <b>NEVER 传 {@code signChannelCode} 推导出来的值</b> —— 本参数决定 {@code countingFlag} /
-     *        {@code countingTimes} / {@code ticketCode} 三个字段，传错会让日票应答整组失真，
-     *        成因见 {@code GateTicketHandler.handleGateTransaction} 的注释。
-     */
+
     public void fillSuccessResponse(NotifyVerifyResultReqDTO request, NotifyVerifyResultRespDTO response,
                                     QRCodeStatus effectiveStatus, String resolvedCardType) {
         response.setRetCode(RET_SUCCESS);
@@ -67,7 +53,6 @@ class GateResponseAssembler {
                 response.getPayChannelCode(), request.getSignChannelCode());
     }
 
-    /** 商户号分账解析： */
     private void resolveMerchantParties(NotifyVerifyResultReqDTO request, NotifyVerifyResultRespDTO response) {
         try {
             String txnDate = StringUtils.hasText(request.getHandleDateTime())
@@ -92,13 +77,11 @@ class GateResponseAssembler {
         }
     }
 
-    /** 把一对商户号整体写进应答。 */
     private void applyMerchantParty(NotifyVerifyResultRespDTO response, MerchantParty party) {
         response.setAttributableParty(party.attributableParty());
         response.setReceivingParty(party.receivingParty());
     }
 
-    /** 根据出站交易类型解析订单异常类型。 */
     private String resolveOrderExpType(String trxType) {
         if (TrxTypeCodeEnum.EXIT_OVERTIME.getCode().equals(trxType)) {
             return ORDER_EXP_TYPE_OVERTIME;
@@ -106,7 +89,6 @@ class GateResponseAssembler {
         return ORDER_EXP_TYPE_NORMAL;
     }
 
-    /** 根据签约渠道代码判断离线码标识。 */
     private String resolveOfflineFlag(String signChannelCode) {
         String resolved = SignChannelUtils.resolve(signChannelCode);
         return SIGN_CHANNEL_OFFLINE.equals(resolved) ? "Y" : null;

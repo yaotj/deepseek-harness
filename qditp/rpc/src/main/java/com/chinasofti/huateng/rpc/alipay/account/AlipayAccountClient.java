@@ -20,9 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 支付宝出行-账户服务 RPC 客户端。
- */
+
 @Service
 public class AlipayAccountClient extends ProxyWebClient {
 
@@ -34,18 +32,14 @@ public class AlipayAccountClient extends ProxyWebClient {
         super(baseUrl, openLogger, webClientBuilder);
     }
 
-    /**
-     * 支付宝出行-开卡申请。
-     */
+
     public AlipayTripRequestApplicationRespDTO alipayTripRequestApplication(@RequestBody AlipayTripRequestApplicationReqDTO request) {
         String result = postJsonAndGetResponse("/channel/requestApplication", request);
         return JSONUtil.toBean(result, new TypeReference<AlipayTripRequestApplicationRespDTO>() {
         }, true);
     }
 
-    /**
-     * 根据 thirdUserId 查询支付宝用户信息。
-     */
+
     public AlipayUserInfoDTO selectByThirdUserId(String thirdUserId) {
         String url = "/channel/queryUserInfo?thirdUserId=" + thirdUserId;
         Map<String, String> params = new HashMap<>();
@@ -53,9 +47,7 @@ public class AlipayAccountClient extends ProxyWebClient {
         return parseUserInfo(result);
     }
 
-    /**
-     * 根据逻辑卡号查询支付宝用户信息。
-     */
+
     public AlipayUserInfoDTO selectByCardId(String cardId) {
         String url = "/channel/queryUserInfoByCardId?cardId=" + cardId;
         Map<String, String> params = new HashMap<>();
@@ -63,9 +55,7 @@ public class AlipayAccountClient extends ProxyWebClient {
         return parseUserInfo(result);
     }
 
-    /**
-     * 解析用户信息应答。兼容两种返回格式：裸对象 或 {@code {"code":"...","msg":null,"data":{...}}}。
-     */
+
     private AlipayUserInfoDTO parseUserInfo(String result) {
         if (result == null || result.isEmpty()) {
             return null;
@@ -80,9 +70,7 @@ public class AlipayAccountClient extends ProxyWebClient {
         return null;
     }
 
-    /**
-     * 更新用户支付通道信息。
-     */
+
     public boolean updatePaymentChannel(String thirdUserId, String thirdPayId, String reqContractNo) {
         String url = "/channel/updatePaymentChannel?thirdUserId=" + thirdUserId
                 + "&thirdPayId=" + thirdPayId
@@ -92,7 +80,6 @@ public class AlipayAccountClient extends ProxyWebClient {
         if (result == null || result.isEmpty()) {
             return false;
         }
-        // 兼容两种返回格式：裸 true/false 或 {"data":true/false}
         result = result.trim();
         if (result.startsWith("{")) {
             cn.hutool.json.JSONObject wrapper = JSONUtil.parseObj(result);
@@ -102,9 +89,7 @@ public class AlipayAccountClient extends ProxyWebClient {
         return Boolean.parseBoolean(result);
     }
 
-    /**
-     * 更换手机号。
-     */
+
     public boolean updatePhone(String thirdUserId, String newMsisdn) {
         String url = "/channel/updatePhone?thirdUserId=" + thirdUserId
                 + "&newMsisdn=" + newMsisdn;
@@ -113,7 +98,6 @@ public class AlipayAccountClient extends ProxyWebClient {
         if (result == null || result.isEmpty()) {
             return false;
         }
-        // 兼容两种返回格式：裸 true/false 或 {"data":true/false}
         result = result.trim();
         if (result.startsWith("{")) {
             cn.hutool.json.JSONObject wrapper = JSONUtil.parseObj(result);
@@ -123,12 +107,7 @@ public class AlipayAccountClient extends ProxyWebClient {
         return Boolean.parseBoolean(result);
     }
 
-    /**
-     * 按并列筛选条件分页拉取支付宝用户（供异步导出使用），条件之间是 AND。
-     *
-     * <p>空白条件不下发：下游 `/page/user/alipay/search` 要求至少一个非空，全空会被判成参数错误、
-     * 本方法随即拿到空 data 并返回空列表。
-     */
+
     public List<AlipayUserExportDTO> searchAlipayUsers(String msisdn, String cardId, String thirdUserId, String reqContractNo) {
         Map<String, String> params = new HashMap<>();
         if (msisdn != null && !msisdn.isBlank()) {

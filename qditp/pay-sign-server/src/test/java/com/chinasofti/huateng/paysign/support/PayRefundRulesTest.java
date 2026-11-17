@@ -11,7 +11,6 @@ import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** 护栏：可退金额上界、ORDER_NO 必须存我方商户订单号、以及校验的判断顺序。 */
 class PayRefundRulesTest {
 
     private static final String MERCHANT_ORDER_NO = "GT20260916100000001586419";
@@ -28,7 +27,6 @@ class PayRefundRulesTest {
                 PayRefundRules.validateRefundPayTxn(payTxn("PROCESSING", 300, 0), 100));
     }
 
-    /** 缺支付中心订单号无法发起退款：那是出向报文的必填键。 */
     @Test
     void missingPayCenterOrderNoIsRejected() {
         PayTxnDetail payTxn = payTxn("SUCCESS", 300, 0);
@@ -37,7 +35,6 @@ class PayRefundRulesTest {
                 PayRefundRules.validateRefundPayTxn(payTxn, 100));
     }
 
-    /** 可退金额上界：已付 300、已退 100 时，退 201 拒、退 200 放行（边界 MUST 是可退）。 */
     @Test
     void refundAmountUpperBoundIsPaidMinusRefunded() {
         assertEquals("退款金额超出可退金额",
@@ -45,14 +42,12 @@ class PayRefundRulesTest {
         assertNull(PayRefundRules.validateRefundPayTxn(payTxn("SUCCESS", 300, 100), 200));
     }
 
-    /** REFUND_AMOUNT 为 null 视作已退 0，NEVER 因为 null 就拒掉整笔退款。 */
     @Test
     void nullRefundedAmountCountsAsZero() {
         PayTxnDetail payTxn = payTxn("SUCCESS", 300, null);
         assertNull(PayRefundRules.validateRefundPayTxn(payTxn, 300));
     }
 
-    /** BOM 补站代收单（ITP 实收 0 元）MUST 拒退，NEVER 放宽成「只看有没有支付中心号」。 */
     @Test
     void zeroPaidAmountIsRejected() {
         PayTxnDetail payTxn = payTxn("SUCCESS", 0, 0);
@@ -61,7 +56,6 @@ class PayRefundRulesTest {
                 PayRefundRules.validateRefundPayTxn(payTxn, 100));
     }
 
-    /** 顺序不可调：未支付成功**且**缺支付中心号时，报的是前者。 */
     @Test
     void validationOrderIsPinned() {
         PayTxnDetail payTxn = payTxn("PROCESSING", 300, 0);
@@ -69,7 +63,6 @@ class PayRefundRulesTest {
         assertEquals("原支付订单未支付成功", PayRefundRules.validateRefundPayTxn(payTxn, 100));
     }
 
-    /** 已付金额：TOTAL_AMOUNT 优先；缺失或非正时退回 AMOUNT；两者都空按 0。 */
     @Test
     void paidAmountPrefersTotalAmountThenFallsBack() {
         PayTxnDetail withTotal = payTxn("SUCCESS", 300, 0);
@@ -88,7 +81,6 @@ class PayRefundRulesTest {
         assertEquals(0, PayRefundRules.resolvePaidAmount(bothNull));
     }
 
-    /** 本地退款明细：{@code ORDER_NO} MUST 是我方商户订单号。 */
     @Test
     void refundDetailKeepsMerchantOrderNoNotPayCenterOrderNo() {
         PayRefundDetail detail = PayRefundRules.buildPayRefundDetail(refundRequest(100), payTxn("SUCCESS", 300, 0));
@@ -101,7 +93,6 @@ class PayRefundRulesTest {
         assertNotNull(detail.getTxnDate());
     }
 
-    /** 退款单号形状：RF + 17 位时间戳 + 商户订单号后 8 位。 */
     @Test
     void refundOrderNoIsPrefixedAndSuffixedByOrderNoTail() {
         PayRefundDetail detail = PayRefundRules.buildPayRefundDetail(refundRequest(100), payTxn("SUCCESS", 300, 0));
@@ -112,7 +103,6 @@ class PayRefundRulesTest {
         assertEquals(2 + 17 + 8, refundOrderNo.length(), refundOrderNo);
     }
 
-    /** 网关无 data 时不抛，且两个本地号照样回填 —— 上游要靠它们对账。 */
     @Test
     void responseFieldsSurviveMissingGatewayData() {
         RequestRefundResult response = new RequestRefundResult();

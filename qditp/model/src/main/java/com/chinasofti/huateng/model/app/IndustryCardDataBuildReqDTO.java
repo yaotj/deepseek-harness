@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * 行业卡数据生成请求。
- */
+
 public class IndustryCardDataBuildReqDTO {
     private String thirdUserId;
     private String cardId;

@@ -31,7 +31,6 @@ import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
-/** 护栏：扫表两支的状态归属 —— 查不通走超时判定，欠费未查明 NEVER 继续解约。 */
 class TerminationProcessorGuardTest {
 
     private static final String SEQ = "0052290701523992";
@@ -50,7 +49,6 @@ class TerminationProcessorGuardTest {
             terminationRequestMapper, contractGatewayPort,
             callbackDomainService, auditLogger, new UnsettledOrderRpcAdapter(gateTxnPayClient), appNotifyService);
 
-    /** 查协议状态抛异常：保持 SCANNING（未超时 → SKIPPED），NEVER 收口。 */
     @Test
     void queryExceptionKeepsScanning() {
         when(contractGatewayPort.queryContractResult(SEQ))
@@ -61,7 +59,6 @@ class TerminationProcessorGuardTest {
         verify(callbackDomainService, never()).receiveTerminationResult(any(), anyString());
     }
 
-    /** 查协议状态返回非成功码：同样保持 SCANNING，NEVER 当成「未解约」去打 FAILED。 */
     @Test
     void queryBusinessFailureKeepsScanning() {
         when(contractGatewayPort.queryContractResult(SEQ))
@@ -72,7 +69,6 @@ class TerminationProcessorGuardTest {
         verify(callbackDomainService, never()).receiveTerminationResult(any(), anyString());
     }
 
-    /** 协议仍是 SIGNED：支付平台尚未解约，保持 SCANNING。 */
     @Test
     void stillSignedKeepsScanning() {
         when(contractGatewayPort.queryContractResult(SEQ))
@@ -83,7 +79,6 @@ class TerminationProcessorGuardTest {
         verify(callbackDomainService, never()).receiveTerminationResult(any(), anyString());
     }
 
-    /** 确认 UNSIGNED：复用回调收口，返回 CONFIRMED。 */
     @Test
     void unsignedConfirmsThroughCallbackPath() {
         when(contractGatewayPort.queryContractResult(SEQ))
@@ -96,7 +91,6 @@ class TerminationProcessorGuardTest {
         verify(callbackDomainService).receiveTerminationResult(any(ReceiveTerminationResultReqDTO.class), anyString());
     }
 
-    /** 收口未成功：抛异常交批处理入口记账，状态原样留 SCANNING 等下一轮（收口本身幂等，重试安全）。 */
     @Test
     void confirmFailureThrowsAndLeavesStateUntouched() {
         when(contractGatewayPort.queryContractResult(SEQ))
@@ -108,7 +102,6 @@ class TerminationProcessorGuardTest {
         assertThrows(TerminationException.class, () -> processor.processOne(row));
     }
 
-    /** 欠费查询未成功：NEVER 继续解约（放行等于在用户可能仍欠费时解约），也不改状态。 */
     @Test
     void unsettledQueryFailureBlocksTermination() {
         when(gateTxnPayClient.hasFailedOrder(any(GateTxnPayFailedOrderReqDTO.class)))
@@ -120,7 +113,6 @@ class TerminationProcessorGuardTest {
         verify(contractGatewayPort, never()).requestDismissal(anyString());
     }
 
-    /** 欠费查询返回 null（异常被兜住）：同样阻断。 */
     @Test
     void unsettledQueryNullBlocksTermination() {
         when(gateTxnPayClient.hasFailedOrder(any(GateTxnPayFailedOrderReqDTO.class))).thenReturn(null);
@@ -130,7 +122,6 @@ class TerminationProcessorGuardTest {
         verify(contractGatewayPort, never()).requestDismissal(anyString());
     }
 
-    /** 有未结清欠费：拒绝解约（REJECTED）、通知 APP 解约失败，且 NEVER 调支付中心。 */
     @Test
     void unsettledOrderRejectsWithoutCallingPayCenter() {
         when(gateTxnPayClient.hasFailedOrder(any(GateTxnPayFailedOrderReqDTO.class)))
@@ -143,7 +134,6 @@ class TerminationProcessorGuardTest {
         verify(appNotifyService).asyncNotifyTerminationFailed(any(), any(NotifyTerminationFailedReqDTO.class));
     }
 
-    /** 欠费拒绝路径上 CAS 未抢到 PENDING：MUST 什么都不做。 */
     @Test
     void unsettledRejectLosingCasSendsNoNotify() {
         when(gateTxnPayClient.hasFailedOrder(any(GateTxnPayFailedOrderReqDTO.class)))
@@ -156,7 +146,6 @@ class TerminationProcessorGuardTest {
         verify(contractGatewayPort, never()).requestDismissal(anyString());
     }
 
-    /** CAS 未抢到 PENDING（已被 /internal/termination/execute 或另一轮抢走）：MUST 放弃，NEVER 出网。 */
     @Test
     void losingTheCasSkipsGatewayCall() {
         when(gateTxnPayClient.hasFailedOrder(any(GateTxnPayFailedOrderReqDTO.class)))
@@ -168,7 +157,6 @@ class TerminationProcessorGuardTest {
         verify(contractGatewayPort, never()).requestDismissal(anyString());
     }
 
-    /** 无欠费 + 抢到 CAS + 网关成功：已发起解约，等回调（TERMINATED）。 */
     @Test
     void noUnsettledOrderStartsTermination() {
         when(gateTxnPayClient.hasFailedOrder(any(GateTxnPayFailedOrderReqDTO.class)))
@@ -181,7 +169,6 @@ class TerminationProcessorGuardTest {
         verify(terminationRequestMapper, never()).revertScanningToPending(anyString());
     }
 
-    /** 网关明确失败：MUST 回退 PENDING 并抛异常。 */
     @Test
     void gatewayFailureRevertsToPendingAndThrows() {
         when(gateTxnPayClient.hasFailedOrder(any(GateTxnPayFailedOrderReqDTO.class)))
@@ -195,7 +182,6 @@ class TerminationProcessorGuardTest {
         verify(terminationRequestMapper).revertScanningToPending(SEQ);
     }
 
-    /** 发起解约抛异常：保持 SCANNING（NEVER 退回 PENDING），抛异常交上层。 */
     @Test
     void gatewayExceptionKeepsScanningNotPending() {
         when(gateTxnPayClient.hasFailedOrder(any(GateTxnPayFailedOrderReqDTO.class)))
@@ -210,7 +196,6 @@ class TerminationProcessorGuardTest {
         verify(terminationRequestMapper, never()).revertScanningToPending(anyString());
     }
 
-    /** 白名单之外（已终态）一律不动。 */
     @Test
     void terminalStatesAreSkipped() {
         for (String status : new String[] {"SUCCESS", "FAILED"}) {
@@ -223,7 +208,6 @@ class TerminationProcessorGuardTest {
         verify(contractGatewayPort, never()).requestDismissal(anyString());
     }
 
-    /** SCAN_TIME 取当下 —— 保证 expireIfTimedOut 判定为「未超时」，这样断言才落在 SKIPPED 上。 */
     private AppTerminationRequest scanning() {
         AppTerminationRequest row = baseRow();
         row.setTerminationStatus("SCANNING");

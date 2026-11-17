@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/** 补站域的区段票价查询，IF5A-01 预估 / IF5A-03 实扣 / IF8A-04 补出站三处共用同一实现。 */
 @Component
 class SupplementFareQuery {
 
@@ -19,29 +18,19 @@ class SupplementFareQuery {
     @Autowired
     private ParaClient paraClient;
 
-    /**
-     * 票价查询结果。
-     *
-     * @param ticketPrice 票价字符串，仅 {@code outcome} 为 {@code Ok} 时非空
-     * @param outcome
-     */
+
     record FareResult(String ticketPrice, RpcOutcome outcome) {
 
         boolean isOk() {
             return outcome.isOk();
         }
 
-        /** 供「查不到就兜底 0 元」的 IF5A-01 预估路径使用； */
         String priceOrZero() {
             return isOk() ? ticketPrice : SupplementCodec.AMOUNT_ZERO;
         }
     }
 
-    /**
-     * 查询进站站到出站站的区段票价。
-     *
-     * @param logTag 日志前缀，取值如 {@code IF5A-01} / {@code IF5A-03} / {@code IF8A-04}，
-     */
+
     FareResult query(String entryStationCode, String exitStationCode, String logTag) {
         if (!StringUtils.hasText(entryStationCode) || !StringUtils.hasText(exitStationCode)) {
             log.warn("{} 票价查询入参缺失, entry={}, exit={}", logTag, entryStationCode, exitStationCode);

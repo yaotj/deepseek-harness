@@ -49,10 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * @date 2026/5/13 11:01。
- * @author zzm。
- */
+
 
 @Service
 public class AccountClient extends ProxyWebClient {
@@ -63,10 +60,7 @@ public class AccountClient extends ProxyWebClient {
         super(baseUrl, openLogger, webClientBuilder);
     }
 
-    /**
-     * account 注册。
-     * @return
-     */
+
 
     public RequestApplicationResult requestApplication(@RequestBody RequestApplicationReqDTO request) {
         String result = postJsonAndGetResponse("/requestApplication", request);
@@ -110,29 +104,21 @@ public class AccountClient extends ProxyWebClient {
         }, true);
     }
 
-    /**
-     * 查第三方用户号名下有效票卡列表，供 IF8A-35 聚合「已进站未出站」数（ADR-D175）。
-     *
-     * <p>返回 {@code retCode != "0000"} 时调用方 MUST 走 fail-closed，NEVER 当成空卡列表放行。
-     */
+
     public QueryActiveCardsResult queryActiveCards(@RequestBody QueryActiveCardsReqDTO request) {
         String result = postJsonAndGetResponse("/queryActiveCards", request);
         return JSONUtil.toBean(result, new TypeReference<QueryActiveCardsResult>() {
         }, true);
     }
 
-    /**
-     * IF8A-42 用户销户：把 {@code USER_ITP_REG_INFO} 该用户全部有效票卡置为已注销。
-     */
+
     public UserCancelResult userCancel(@RequestBody UserCancelReqDTO request) {
         String result = postJsonAndGetResponse("/userCancel", request);
         return JSONUtil.toBean(result, new TypeReference<UserCancelResult>() {
         }, true);
     }
 
-    /**
-     * 按签约流水号查询支付通道（只读）。
-     */
+
     public QueryPayChannelByContractResult queryPayChannelByContractNo(
             @RequestBody QueryPayChannelByContractReqDTO request) {
         String result = postJsonAndGetResponse("/queryPayChannelByContractNo", request);
@@ -146,27 +132,21 @@ public class AccountClient extends ProxyWebClient {
         }, true);
     }
 
-    /**
-     * 支付域签约成功后，把 {@code PAY_ACCOUNT_ID} 推给账户域（ADR-D32）。
-     */
+
     public CommonResult syncPayAccountId(@RequestBody SyncPayAccountIdReqDTO request) {
         String result = postJsonAndGetResponse("/internal/payChannel/syncPayAccountId", request);
         return JSONUtil.toBean(result, new TypeReference<CommonResult>() {
         }, true);
     }
 
-    /**
-     * 回写 IF1A-01 reserve1 中的 HCE 卡数据。
-     */
+
     public UpdateHceDataResult updateHceData(@RequestBody UpdateHceDataReqDTO request) {
         String result = postJsonAndGetResponse("/updateHceData", request);
         return JSONUtil.toBean(result, new TypeReference<UpdateHceDataResult>() {
         }, true);
     }
 
-    /**
-     * 支付宝出行-开卡申请。
-     */
+
     public AlipayTripRequestApplicationRespDTO alipayTripRequestApplication(@RequestBody AlipayTripRequestApplicationReqDTO request) {
         String result = postJsonAndGetResponse("/channel/requestApplication", request);
         return JSONUtil.toBean(result, new TypeReference<AlipayTripRequestApplicationRespDTO>() {
@@ -197,9 +177,7 @@ public class AccountClient extends ProxyWebClient {
         }, true);
     }
 
-    /**
-     * 更换手机号。
-     */
+
     public CommonResult updatePhone(String thirdUserId, String newMsisdn) {
         String url = "/updatePhone?thirdUserId=" + thirdUserId + "&newMsisdn=" + newMsisdn;
         String result = getAndGetResponse(url, new java.util.HashMap<>());
@@ -207,17 +185,12 @@ public class AccountClient extends ProxyWebClient {
         }, true);
     }
 
-    /**
-     * 调用 account-server 的 Quartz 联调接口。
-     * @return account-server 的处理结果。
-     */
+
     public CommonResult quartzDemo() {
         return quartzDemo(java.util.Collections.emptyMap());
     }
 
-    /**
-     * 带 trace 头的重载，供 web-admin 的 Quartz 任务调用。
-     */
+
     public CommonResult quartzDemo(java.util.Map<String, String> headers) {
         String path = "/quartzDemo";
         log.info("调用account-server Quartz联调接口 path={}", path);
@@ -229,16 +202,12 @@ public class AccountClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 触发 account-server 的「手机号变更后显示账号同步到支付域」补偿扫表重推。
-     */
+
     public CommonResult compensatePhoneSignSync() {
         return compensatePhoneSignSync(java.util.Collections.emptyMap());
     }
 
-    /**
-     * 带 trace 头的重载，供 web-admin 的 Quartz 任务调用。
-     */
+
     public CommonResult compensatePhoneSignSync(java.util.Map<String, String> headers) {
         String path = "/phoneSignSyncCompensate";
         log.info("调用account-server签约展示账号补偿接口 path={}", path);
@@ -250,9 +219,7 @@ public class AccountClient extends ProxyWebClient {
         return response;
     }
 
-    /**
-     * 查询注册量统计（供异步导出使用）。
-     */
+
     public List<RegStatExportDTO> listRegStats(String startDate, String endDate) {
         Map<String, String> params = new HashMap<>();
         if (startDate != null && !startDate.isEmpty()) {

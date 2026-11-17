@@ -15,11 +15,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 
-/**
- * 把差异明细生成为 ITP.TXNDIFF.YYYYMMDD（管道分隔、UTF-8、无表头），并复用 ReconFtpService 投递到 /itp/recon/。
- *
- * <p>文件名后缀取自然日（YYYYMMDD），与 DETAIL 的运营日口径不同，见 recon-thirdparty.md §五 项8。</p>
- */
+
 @Service
 public class TxnDiffFileGenerator {
 
@@ -33,7 +29,6 @@ public class TxnDiffFileGenerator {
         this.outputDir = properties.getOutputDir();
     }
 
-    /** @return 本地文件名（投递成功与否均返回文件名，便于审计） */
     public String generate(String billDate, List<TxnDiffRecord> diffs) throws IOException {
         String yyyyMMdd = billDate == null ? "" : billDate.replace("-", "");
         String fileName = "ITP.TXNDIFF." + yyyyMMdd;
@@ -65,27 +60,27 @@ public class TxnDiffFileGenerator {
 
     private static String line(TxnDiffRecord r) {
         return ReconRecord.line(
-                r.getBillDate(),            // 1 运营日期
-                r.getTxnType(),             // 2 交易类型
-                r.getLogicCardNo(),         // 3 逻辑卡号
-                r.getTxnDateTime(),         // 4 交易日期
-                r.getOriginalFare(),        // 5 交易原价(分)
-                r.getCurStationName(),      // 6 当前车站名称
-                r.getDeviceNo(),            // 7 设备编码
-                r.getTicketType(),          // 8 票卡类型
-                r.getTicketSubType(),       // 9 票卡子类型
-                r.getTimes(),               // 10 次数
-                r.getPayChannel(),          // 11 支付渠道
-                r.getActivateTime(),        // 12 激活时间
-                r.getQuantity(),            // 13 数量
-                r.getTicketTransSeq(),      // 14 交易流水号
-                r.getOrderNo(),             // 15 交易订单号
-                r.getOrderAmount(),         // 16 订单金额(分)
-                r.getActualAmount(),        // 17 实际扣款金额(分)
-                r.getDiscountCumulativeAmount(), // 18 优惠累计消费金额(分)
-                r.getOvertimeAmount(),      // 19 超时金额(分)
-                r.getDiffSide(),            // 20 差异方
-                r.getFailReason()           // 21 扣款失败原因
+                r.getBillDate(),
+                r.getTxnType(),
+                r.getLogicCardNo(),
+                r.getTxnDateTime(),
+                r.getOriginalFare(),
+                r.getCurStationName(),
+                r.getDeviceNo(),
+                r.getTicketType(),
+                r.getTicketSubType(),
+                r.getTimes(),
+                r.getPayChannel(),
+                r.getActivateTime(),
+                r.getQuantity(),
+                r.getTicketTransSeq(),
+                r.getOrderNo(),
+                r.getOrderAmount(),
+                r.getActualAmount(),
+                r.getDiscountCumulativeAmount(),
+                r.getOvertimeAmount(),
+                r.getDiffSide(),
+                r.getFailReason()
         );
     }
 }

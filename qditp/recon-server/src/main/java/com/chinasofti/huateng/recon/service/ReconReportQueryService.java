@@ -14,12 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 综管台「统计分析」报表页的只读查询（对标旧 ITP 报表管理组）。
- *
- * <p>口径：对账差异 / 渠道账单 / 清分直接查 recon 落地表（{@code RECON_TXN_DIFF} / {@code RECON_THIRD_BILL}），
- * 日统计对 {@code PAY_TXN_DETAIL} 做纯查询聚合——不建聚合表、不建定时任务，数据量增长后再评估。
- */
+
 @Service
 public class ReconReportQueryService {
 
@@ -33,7 +28,6 @@ public class ReconReportQueryService {
         this.reconReportMapper = reconReportMapper;
     }
 
-    /** 对账差异明细分页查询：账单日窗必填。 */
     public ResultVO<Map<String, Object>> txnDiffPage(String billDateStart, String billDateEnd,
                                                       String payChannel, String diffSide, String orderNo,
                                                       Integer pageNum, Integer pageSize) {
@@ -55,7 +49,6 @@ public class ReconReportQueryService {
         return ResultMapper.ok(page);
     }
 
-    /** 渠道账单行分页查询：账单日窗必填。 */
     public ResultVO<Map<String, Object>> thirdBillPage(String billDateStart, String billDateEnd,
                                                        String paymentChannel, String paymentVendor, String merchantOrderNo,
                                                        Integer pageNum, Integer pageSize) {
@@ -77,7 +70,6 @@ public class ReconReportQueryService {
         return ResultMapper.ok(page);
     }
 
-    /** 日统计：groupBy=VENDOR 按「支付账户 + 交易日期」，groupBy=HOUR 按当天小时（要求单日窗）。 */
     public ResultVO<Map<String, Object>> dailyStats(String groupBy, String dateStart, String dateEnd) {
         String start = normalizeDate(dateStart);
         String end = normalizeDate(dateEnd);
@@ -96,7 +88,6 @@ public class ReconReportQueryService {
         return ResultMapper.ok(Map.of("list", rows));
     }
 
-    /** 业务清分明细：渠道账单按「账单日 + 支付商户」聚合，账单日窗必填。 */
     public ResultVO<Map<String, Object>> clearing(String billDateStart, String billDateEnd,
                                                    String paymentChannel, String paymentVendor) {
         String start = normalizeDate(billDateStart);
@@ -109,7 +100,6 @@ public class ReconReportQueryService {
         return ResultMapper.ok(Map.of("list", rows));
     }
 
-    /** 账单日 / 交易日（yyyy-MM-dd 或 yyyyMMdd）统一为落地表的 yyyyMMdd 口径。 */
     private String normalizeDate(String value) {
         String trimmed = trimToNull(value);
         if (trimmed == null) {

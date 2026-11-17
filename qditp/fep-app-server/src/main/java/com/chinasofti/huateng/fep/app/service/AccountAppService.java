@@ -40,6 +40,5 @@ public interface AccountAppService {
 
     RequestRemovePayChannelResult requestRemovePayChannel(RequestRemovePayChannelReqDTO request);
 
-    /** IF8A-42 用户销户，透传到 account-server。 */
     UserCancelResult userCancel(UserCancelReqDTO request);
 }

@@ -78,14 +78,7 @@ public class TicketClient extends ProxyWebClient {
         return JSONUtil.toBean(result, new TypeReference<QueryFirstEntryTxnResult>() {}, true);
     }
 
-    /**
-     * 查「同卡 + 早于本次出站时间的最近一笔进站明细」（离线码出站重算票价用）。
-     *
-     * <p>取代上面那条按 {@code ticketTransSeq} 相等配对的口径：<b>NEVER 退回按序列号相等配对</b> ——
-     * 进站与出站是同一张卡的两笔不同交易，闸机上送的 {@code ticketTransSeq} 天然不同
-     * （2026-09-22 实测进站 0 / 出站 1），按相等配对恒命中 0 行、订单永久卡 {@code OFFLINE_FARE_PENDING}。
-     * 上面那条方法保留未删（可能仍有别的调用方），本方法只增不改。
-     */
+
     public QueryLatestEntryTxnResult queryLatestEntryTxnBeforeExit(QueryLatestEntryTxnReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/queryLatestEntryTxnBeforeExit", request);
         return JSONUtil.toBean(result, new TypeReference<QueryLatestEntryTxnResult>() {}, true);
@@ -115,27 +108,21 @@ public class TicketClient extends ProxyWebClient {
         }, true);
     }
 
-    /**
-     * 支付宝出行-查询乘车记录。
-     */
+
     public AlipayTripFindTravelListRespDTO alipayTripFindTravelList(@RequestBody AlipayTripFindTravelListReqDTO request) {
         String result = postJsonAndGetResponse("/ci/channel/findTravelList", request);
         return JSONUtil.toBean(result, new TypeReference<AlipayTripFindTravelListRespDTO>() {
         }, true);
     }
 
-    /**
-     * 支付宝出行-查询乘车记录详情。
-     */
+
     public AlipayTripFindTravelDetailRespDTO alipayTripFindTravelDetail(@RequestBody AlipayTripFindTravelDetailReqDTO request) {
         String result = postJsonAndGetResponse("/ci/channel/findTravelDetail", request);
         return JSONUtil.toBean(result, new TypeReference<AlipayTripFindTravelDetailRespDTO>() {
         }, true);
     }
 
-    /**
-     * 查询最近一次进站设备编号。
-     */
+
     public String queryEntryDevice(String cardId) {
         String url = "/ci/app/queryEntryDevice?cardId=" + cardId;
         String result = getAndGetResponse(url, new java.util.HashMap<>());
@@ -157,37 +144,28 @@ public class TicketClient extends ProxyWebClient {
         return trimmed;
     }
 
-    /**
-     * IF8A-03 请求行业数据（在线码）。编排宿主在 ticket-server（ADR-D142），
-     * `fep-app-server` 只做转发。
-     */
+
     public RequestIndustryDataResult requestIndustryData(@RequestBody RequestIndustryDataReqDTO request) {
         String result = postJsonAndGetResponse("/internal/ticket/industry/online", request);
         return JSONUtil.toBean(result, new TypeReference<RequestIndustryDataResult>() {
         }, true);
     }
 
-    /**
-     * IF8D-03 获取离线码数据。编排宿主同上。
-     */
+
     public RequestNoSignalDataResult requestNoSignalData(@RequestBody RequestNoSignalDataReqDTO request) {
         String result = postJsonAndGetResponse("/internal/ticket/industry/offline", request);
         return JSONUtil.toBean(result, new TypeReference<RequestNoSignalDataResult>() {
         }, true);
     }
 
-    /**
-     * IF5A-01 请求票卡分析。
-     */
+
     public RequestCardDataAnalyseRespDTO requestCardDataAnalyse(RequestCardDataAnalyseReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/requestCardDataAnalyse", request);
         return JSONUtil.toBean(result, new TypeReference<RequestCardDataAnalyseRespDTO>() {
         }, true);
     }
 
-    /**
-     * IF5A-03 请求票卡更新。
-     */
+
     public RequestCardDataUpdateRespDTO requestUpdateCardData(RequestCardDataUpdateReqDTO request) {
         String result = postJsonAndGetResponse("/ci/app/requestUpdateCardData", request);
         return JSONUtil.toBean(result, new TypeReference<RequestCardDataUpdateRespDTO>() {

@@ -10,16 +10,10 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * HTML过滤器，用于去除XSS漏洞隐患。
- *
- * @author zmzhang
- */
+
 public final class HTMLFilter
 {
-    /**
-     * regex flag union representing /si modifiers in php
-     **/
+
     private static final int REGEX_FLAGS_SI = Pattern.CASE_INSENSITIVE | Pattern.DOTALL;
     private static final Pattern P_COMMENTS = Pattern.compile("<!--(.*?)-->", Pattern.DOTALL);
     private static final Pattern P_COMMENT = Pattern.compile("^!--(.*)--$", REGEX_FLAGS_SI);
@@ -45,61 +39,35 @@ public final class HTMLFilter
     private static final Pattern P_RIGHT_ARROW = Pattern.compile(">");
     private static final Pattern P_BOTH_ARROWS = Pattern.compile("<>");
 
-    // @xxx could grow large... maybe use sesat's ReferenceMap
     private static final ConcurrentMap<String, Pattern> P_REMOVE_PAIR_BLANKS = new ConcurrentHashMap<>();
     private static final ConcurrentMap<String, Pattern> P_REMOVE_SELF_BLANKS = new ConcurrentHashMap<>();
 
-    /**
-     * set of allowed html elements, along with allowed attributes for each element
-     **/
+
     private final Map<String, List<String>> vAllowed;
-    /**
-     * counts of open tags for each (allowable) html element
-     **/
+
     private final Map<String, Integer> vTagCounts = new HashMap<>();
 
-    /**
-     * html elements which must always be self-closing (e.g. "<img />")
-     **/
+
     private final String[] vSelfClosingTags;
-    /**
-     * html elements which must always have separate opening and closing tags (e.g. "<b></b>")
-     **/
+
     private final String[] vNeedClosingTags;
-    /**
-     * set of disallowed html elements
-     **/
+
     private final String[] vDisallowed;
-    /**
-     * attributes which should be checked for valid protocols
-     **/
+
     private final String[] vProtocolAtts;
-    /**
-     * allowed protocols
-     **/
+
     private final String[] vAllowedProtocols;
-    /**
-     * tags which should be removed if they contain no content (e.g. "<b></b>" or "<b />")
-     **/
+
     private final String[] vRemoveBlanks;
-    /**
-     * entities allowed within html markup
-     **/
+
     private final String[] vAllowedEntities;
-    /**
-     * flag determining whether comments are allowed in input String.
-     */
+
     private final boolean stripComment;
     private final boolean encodeQuotes;
-    /**
-     * flag determining whether to try to make tags when presented with "unbalanced" angle brackets (e.g. "<b text </b>"
-     * becomes "<b> text </b>"). If set to false, unbalanced angle brackets will be html escaped.
-     */
+
     private final boolean alwaysMakeTags;
 
-    /**
-     * Default constructor.
-     */
+
     public HTMLFilter()
     {
         vAllowed = new HashMap<>();
@@ -125,7 +93,7 @@ public final class HTMLFilter
         vSelfClosingTags = new String[] { "img" };
         vNeedClosingTags = new String[] { "a", "b", "strong", "i", "em" };
         vDisallowed = new String[] {};
-        vAllowedProtocols = new String[] { "http", "mailto", "https" }; // no ftp.
+        vAllowedProtocols = new String[] { "http", "mailto", "https" };
         vProtocolAtts = new String[] { "src", "href" };
         vRemoveBlanks = new String[] { "a", "b", "strong", "i", "em" };
         vAllowedEntities = new String[] { "amp", "gt", "lt", "quot" };
@@ -134,11 +102,7 @@ public final class HTMLFilter
         alwaysMakeTags = false;
     }
 
-    /**
-     * Map-parameter configurable constructor.
-     *
-     * @param conf map containing configuration. keys match field names.
-     */
+
     @SuppressWarnings("unchecked")
     public HTMLFilter(final Map<String, Object> conf)
     {
@@ -170,8 +134,6 @@ public final class HTMLFilter
         vTagCounts.clear();
     }
 
-    // ---------------------------------------------------------------
-    // my versions of some PHP library functions
     public static String chr(final int decimal)
     {
         return String.valueOf((char) decimal);
@@ -187,14 +149,8 @@ public final class HTMLFilter
         return result;
     }
 
-    // ---------------------------------------------------------------
 
-    /**
-     * given a user submitted input String, filter out any invalid or restricted html.
-     *
-     * @param input text (i.e. submitted by a user) than may contain html
-     * @return "clean" version of input, with only valid, whitelisted html elements allowed
-     */
+
     public String filter(final String input)
     {
         reset();
@@ -208,7 +164,6 @@ public final class HTMLFilter
 
         s = processRemoveBlanks(s);
 
-        // s = validateEntities(s);
 
         return s;
     }
@@ -229,7 +184,7 @@ public final class HTMLFilter
         final StringBuffer buf = new StringBuffer();
         if (m.find())
         {
-            final String match = m.group(1); // (.*?)
+            final String match = m.group(1);
             m.appendReplacement(buf, Matcher.quoteReplacement("<!--" + htmlSpecialChars(match) + "-->"));
         }
         m.appendTail(buf);
@@ -241,28 +196,16 @@ public final class HTMLFilter
     {
         if (alwaysMakeTags)
         {
-            //
-            // try and form html
-            //
             s = regexReplace(P_END_ARROW, "", s);
-            // 不追加结束标签
             s = regexReplace(P_BODY_TO_END, "<$1>", s);
             s = regexReplace(P_XML_CONTENT, "$1<$2", s);
 
         }
         else
         {
-            //
-            // escape stray brackets
-            //
             s = regexReplace(P_STRAY_LEFT_ARROW, "&lt;$1", s);
             s = regexReplace(P_STRAY_RIGHT_ARROW, "$1$2&gt;<", s);
 
-            //
-            // the last regexp causes '<>' entities to appear
-            // (we need to do a lookahead assertion so that the last bracket can
-            // be used in the next pass of the regexp)
-            //
             s = regexReplace(P_BOTH_ARROWS, "", s);
         }
 
@@ -282,8 +225,6 @@ public final class HTMLFilter
         }
         m.appendTail(buf);
 
-        // these get tallied in processTag
-        // (remember to reset before subsequent calls to filter method)
         final StringBuilder sBuilder = new StringBuilder(buf.toString());
         for (String key : vTagCounts.keySet())
         {
@@ -325,7 +266,6 @@ public final class HTMLFilter
 
     private String processTag(final String s)
     {
-        // ending tags
         Matcher m = P_END_TAG.matcher(s);
         if (m.find())
         {
@@ -343,7 +283,6 @@ public final class HTMLFilter
             }
         }
 
-        // starting tags
         m = P_START_TAG.matcher(s);
         if (m.find())
         {
@@ -351,7 +290,6 @@ public final class HTMLFilter
             final String body = m.group(2);
             String ending = m.group(3);
 
-            // debug( "in a starting tag, name='" + name + "'; body='" + body + "'; ending='" + ending + "'" );
             if (allowed(name))
             {
                 final StringBuilder params = new StringBuilder();
@@ -362,13 +300,13 @@ public final class HTMLFilter
                 final List<String> paramValues = new ArrayList<>();
                 while (m2.find())
                 {
-                    paramNames.add(m2.group(1)); // ([a-z0-9]+)
-                    paramValues.add(m2.group(3)); // (.*?)
+                    paramNames.add(m2.group(1));
+                    paramValues.add(m2.group(3));
                 }
                 while (m3.find())
                 {
-                    paramNames.add(m3.group(1)); // ([a-z0-9]+)
-                    paramValues.add(m3.group(3)); // ([^\"\\s']+)
+                    paramNames.add(m3.group(1));
+                    paramValues.add(m3.group(3));
                 }
 
                 String paramName, paramValue;
@@ -377,9 +315,6 @@ public final class HTMLFilter
                     paramName = paramNames.get(ii).toLowerCase();
                     paramValue = paramValues.get(ii);
 
-                    // debug( "paramName='" + paramName + "'" );
-                    // debug( "paramValue='" + paramValue + "'" );
-                    // debug( "allowed? " + vAllowed.get( name ).contains( paramName ) );
 
                     if (allowedAttribute(name, paramName))
                     {
@@ -424,7 +359,6 @@ public final class HTMLFilter
             }
         }
 
-        // comments
         m = P_COMMENT.matcher(s);
         if (!stripComment && m.find())
         {
@@ -443,7 +377,6 @@ public final class HTMLFilter
             final String protocol = m.group(1);
             if (!inArray(protocol, vAllowedProtocols))
             {
-                // bad protocol, turn into local anchor link instead
                 s = "#" + s.substring(protocol.length() + 1);
                 if (s.startsWith("#//"))
                 {
@@ -499,12 +432,11 @@ public final class HTMLFilter
     {
         StringBuffer buf = new StringBuffer();
 
-        // validate entities throughout the string
         Matcher m = P_VALID_ENTITIES.matcher(s);
         while (m.find())
         {
-            final String one = m.group(1); // ([^&;]*)
-            final String two = m.group(2); // (?=(;|&|$))
+            final String one = m.group(1);
+            final String two = m.group(2);
             m.appendReplacement(buf, Matcher.quoteReplacement(checkEntity(one, two)));
         }
         m.appendTail(buf);
@@ -520,10 +452,9 @@ public final class HTMLFilter
             Matcher m = P_VALID_QUOTES.matcher(s);
             while (m.find())
             {
-                final String one = m.group(1); // (>|^)
-                final String two = m.group(2); // ([^<]+?)
-                final String three = m.group(3); // (<|$)
-                // 不替换双引号为&quot;，防止json格式无效 regexReplace(P_QUOTE, "&quot;", two)
+                final String one = m.group(1);
+                final String two = m.group(2);
+                final String three = m.group(3);
                 m.appendReplacement(buf, Matcher.quoteReplacement(one + two + three));
             }
             m.appendTail(buf);

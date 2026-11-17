@@ -6,14 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-/**
- * <p>
- * ES报告文件处理日志
- * </p>
- *
- * @author fc
- * @since 2020-09-02
- */
+
 @AllArgsConstructor
 @NoArgsConstructor
 @Data

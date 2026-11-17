@@ -7,11 +7,7 @@ import com.chinasofti.huateng.web.mapper.importer.BizImportRecordMapper;
 import com.chinasofti.huateng.web.domain.importer.BizImportRecord;
 import com.chinasofti.huateng.web.service.importer.IBizImportRecordService;
 
-/**
- * 批量导入记录 Service 实现
- *
- * @author tuanjie
- */
+
 @Service
 public class BizImportRecordServiceImpl implements IBizImportRecordService
 {

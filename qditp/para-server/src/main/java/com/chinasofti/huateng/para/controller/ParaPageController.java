@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 参数管理页面查询接口。 */
 @RestController
 @RequestMapping("/page")
 public class ParaPageController {

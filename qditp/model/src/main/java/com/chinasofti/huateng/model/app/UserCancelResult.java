@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * IF8A-42 用户销户应答（接口规范 §3.46）。
- */
+
 public class UserCancelResult {
 
     private String retCode;

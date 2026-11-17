@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * IF8A-04 请求自助补站应答。
- */
+
 public class RequestExcessFareResult {
     private String retCode;
     private String retMsg;

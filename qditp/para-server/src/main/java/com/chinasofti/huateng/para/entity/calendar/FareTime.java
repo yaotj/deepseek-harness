@@ -2,9 +2,7 @@ package com.chinasofti.huateng.para.entity.calendar;
 
 import java.time.LocalDateTime;
 
-/**
- * 超时时间参数表 TBL_FARE_TIME。
- */
+
 public class FareTime {
     private Long paraVerNo;
     private Integer fareTier;

@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-/** 用户运营端过闸扣费信息与退款入口。 */
 @RestController
 @RequestMapping("/page/gate-txn-pay")
 public class GateTxnPayPageController {
@@ -35,7 +34,6 @@ public class GateTxnPayPageController {
         this.originalFareBackfillService = originalFareBackfillService;
     }
 
-    /** 分页查询过闸扣费订单，服务层要求订单标识或完整日期范围防止全表扫描。issueChannelCode 可选（07=支付宝出行，渠道统计页用）。 */
     @GetMapping
     public ResultVO<Map<String, Object>> page(@RequestParam(required = false) String orderNo,
                                               @RequestParam(required = false) String cardId,
@@ -52,14 +50,12 @@ public class GateTxnPayPageController {
                 issueChannelCode, startDate, endDate, pageNum, pageSize);
     }
 
-    /** 离线码交易统计：按车站分组笔数与独立卡数，日期窗必填（yyyy-MM-dd，闭区间）。 */
     @GetMapping("/offline-stats")
     public ResultVO<Map<String, Object>> offlineStats(@RequestParam(required = false) String startDate,
                                                       @RequestParam(required = false) String endDate) {
         return gateTxnPayQueryService.offlineStats(startDate, endDate);
     }
 
-    /** 批量退超时罚金的圈单查询：日期窗必填（yyyy-MM-dd，闭区间），按车站分页圈出候选单。 */
     @GetMapping("/overtime-refundable")
     public ResultVO<Map<String, Object>> overtimeRefundable(@RequestParam(required = false) String stationCode,
                                                             @RequestParam(required = false) String startDate,
@@ -69,7 +65,6 @@ public class GateTxnPayPageController {
         return gateTxnPayQueryService.overtimeRefundablePage(stationCode, startDate, endDate, pageNum, pageSize);
     }
 
-    /** 单边查询（对标旧 ITP「单边查询」）：默认圈 ORDER_EXP_TYPE 单边入(1)/单边出(2)，orderExpType 可指定 1~5。 */
     @GetMapping("/one-side")
     public ResultVO<Map<String, Object>> oneSide(@RequestParam(required = false) String orderNo,
                                                  @RequestParam(required = false) String cardId,
@@ -83,20 +78,17 @@ public class GateTxnPayPageController {
                 startDate, endDate, pageNum, pageSize);
     }
 
-    /** 批量发起超时罚金退款：逐单走单笔退款链路，金额为各自 OVERTIME_AMOUNT，单批 ≤ 200 笔。 */
     @PostMapping("/batch-refund-overtime")
     public ResultVO<BatchRefundResult> batchRefundOvertime(@RequestBody BatchRefundOvertimeRequest request) {
         return gateTxnPayService.batchRefundOvertime(request);
     }
 
-    /** 根据扣费订单发起支付退款申请，由 pay-sign 对接实际支付渠道。 */
     @PostMapping("/{orderNo}/refund")
     public ResultVO<RequestRefundResult> requestRefund(@PathVariable String orderNo,
                                                         @RequestBody GateTxnPayRefundRequest request) {
         return gateTxnPayService.requestRefund(orderNo, request);
     }
 
-    /** 历史订单地铁原价（{@code ORIGINAL_FARE}）补数，按进出站重查票价后回填空值行。 */
     @PostMapping("/backfill-original-fare")
     public ResultVO<Map<String, Object>> backfillOriginalFare(@RequestBody OriginalFareBackfillRequest request) {
         return originalFareBackfillService.backfillOriginalFare(request);

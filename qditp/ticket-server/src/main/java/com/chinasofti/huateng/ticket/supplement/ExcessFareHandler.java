@@ -17,20 +17,16 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.Set;
 
-/** IF8A-04 自助补站处理。 */
 @Component
 class ExcessFareHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ExcessFareHandler.class);
 
-    /** 补出站，需要算票价。 */
     private static final String UPGRADE_TYPE_EXIT = "02";
 
-    /** QRCODE_STATUS 只读访问。 */
     @Autowired
     private QRCodeStatusStore qrCodeStatusStore;
 
-    /** IF1A-01 检票编排门面，进程内直调。 */
     @Autowired
     private AgmRideStatusService agmRideStatusService;
 
@@ -43,12 +39,7 @@ class ExcessFareHandler {
     @Autowired
     private SupplementGateRequestAssembler gateRequestAssembler;
 
-    /**
-     * 处理自助补站请求。
-     *
-     * @param request 补站请求
-     * @param response 响应对象
-     */
+
     void handleExcessFare(RequestExcessFareReqDTO request, RequestExcessFareResult response) {
         String cardId = request.getCardId();
         String upgradeAreaType = request.getUpgradeAreaType();
@@ -121,7 +112,6 @@ class ExcessFareHandler {
         response.setRetMsg(TicketErrorCodeEnum.SUCCESS.getMsg());
     }
 
-    /** 根据票卡状态解析允许的补站类型。 */
     private AllowedTypesResult resolveAllowedTypes(QRCodeStatusEnum statusEnum, String codeStatus) {
         switch (statusEnum) {
             case END_TRIP:
@@ -142,7 +132,6 @@ class ExcessFareHandler {
         }
     }
 
-    /** 允许的补站类型结果。 */
     private record AllowedTypesResult(Set<String> allowedTypes, String friendlyMsg) {
     }
 }

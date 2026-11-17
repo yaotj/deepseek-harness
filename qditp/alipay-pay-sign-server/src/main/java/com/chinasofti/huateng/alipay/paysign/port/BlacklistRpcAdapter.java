@@ -8,12 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-/**
- * {@link BlacklistPort} 的唯一实现：DTO 装配 + {@code retCode} → {@link RpcOutcome} 翻译（ADR-D131）。
- *
- * <p>映射规则与 {@link DebitSyncRpcAdapter} 同构：{@code retCode == "0000"} → {@code Ok}；
- * 对端答了别的码 → {@code BizRejected}；响应为 {@code null} 或抛异常 → {@code Unreachable}。</p>
- */
+
 @Component
 public class BlacklistRpcAdapter implements BlacklistPort {
 
@@ -32,8 +27,6 @@ public class BlacklistRpcAdapter implements BlacklistPort {
         request.setThirdUserId(thirdUserId);
         request.setCardType(cardType);
         request.setReason(reason);
-        // 本模块的加黑一律是「支付宝渠道 + 系统自动 + 未付费欠费」，三个分类字段在此定死。
-        // bizNo 暂不上送：端口签名是四个标量，补订单号要连带改三个调用点与其单测，列为待办。
         request.setChannelCode("02");
         request.setBlackSource("01");
         request.setBlackCause("01");

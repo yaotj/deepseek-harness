@@ -5,11 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import jakarta.annotation.PreDestroy;
 
-/**
- * 确保应用退出时能关闭后台线程
- *
- * @author zmzhang
- */
+
 @Component
 public class ShutdownManager
 {
@@ -21,9 +17,7 @@ public class ShutdownManager
         shutdownAsyncManager();
     }
 
-    /**
-     * 停止异步执行任务
-     */
+
     private void shutdownAsyncManager()
     {
         try

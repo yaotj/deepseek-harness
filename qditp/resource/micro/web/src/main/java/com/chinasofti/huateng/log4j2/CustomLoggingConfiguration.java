@@ -50,9 +50,6 @@ public class CustomLoggingConfiguration implements ApplicationListener<Applicati
                 String log4j2Params = MessageFormat.format("Log4j2 configuration has been reloaded from {0},level={1},logPath={2},logBakDays={3},filename={4}.log", linuxFile, level, moreLogPath, logBakDays, appName);
                 log.info(log4j2Params);
                 LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
-                // ClassLoader，在 Spring Boot fat jar 下**解析不到 micro 嵌套 jar 里的自定义 appender**
-                // （@Plugin(name="VictoriaLogs") 等）：配置本身能重载成功、RollingFile 也生效，但自定义
-                // "Unable to locate plugin" 会被吞掉，退回后只能靠「上报为 0」反推，极难定位。
                 Configurator.initialize(ctx.getName(), CustomLoggingConfiguration.class.getClassLoader(), linuxFile);
                 ctx.updateLoggers();
                 log.info(log4j2Params);

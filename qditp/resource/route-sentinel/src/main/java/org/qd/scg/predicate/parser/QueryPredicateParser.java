@@ -20,13 +20,11 @@ public class QueryPredicateParser implements PredicateParser {
         String param = definition.substring("Query=".length());
         int commaIdx = param.indexOf(',');
         if (commaIdx < 0) {
-            // 只检查参数存在
             String key = param.trim();
             return request -> request.params().containsKey(key);
         }
         String key = param.substring(0, commaIdx).trim();
         String value = param.substring(commaIdx + 1).trim();
-        // 检查参数值匹配
         return request -> {
             String actual = request.params().getFirst(key);
             return value.equals(actual);

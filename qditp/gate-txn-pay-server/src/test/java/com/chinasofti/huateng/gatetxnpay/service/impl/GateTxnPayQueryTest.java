@@ -31,7 +31,6 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/** 钉住只读查询侧三处「参数被静默改写」的逻辑：分页钳制、IF8A-35 统计窗口、列表 DTO 的空值补齐。 */
 class GateTxnPayQueryTest {
 
     private static final DateTimeFormatter YYYYMMDD = DateTimeFormatter.ofPattern("yyyyMMdd");
@@ -56,7 +55,6 @@ class GateTxnPayQueryTest {
         verifyNoInteractions(mapper);
     }
 
-    /** 分页参数钳制：{@code pageSize} 上限 100、非法值回落 10、{@code pageNum} 下限 1。 */
     @Test
     void pageClampsPageSizeAndPageNum() {
         when(mapper.selectOperationPage(any(), any(), any(), any(), any(), any(), any(), any(), any(),
@@ -92,7 +90,6 @@ class GateTxnPayQueryTest {
         verifyNoInteractions(mapper);
     }
 
-    /** 配置非法（<=0）时回落 3 个月。 */
     @Test
     void userAccInfoBuildsStartDateFromConfiguredMonths() {
         RequestUserAccInfoResult counted = new RequestUserAccInfoResult();
@@ -133,7 +130,6 @@ class GateTxnPayQueryTest {
         assertEquals("查询用户账务信息失败", result.getRetMsg());
     }
 
-    /** 列表 DTO 对历史行的空值补齐：{@code COUNTING_TIMES} 补 0、{@code COUNTING_FLAG} 补 N。 */
     @Test
     void listDtoFillsLegacyCountingColumns() {
         GateTxnPay record = new GateTxnPay();
@@ -153,14 +149,12 @@ class GateTxnPayQueryTest {
         assertEquals(400, dto.getTotalAmount());
     }
 
-    /** 订单号为空直接返 null，不查库。 */
     @Test
     void selectByOrderNoShortCircuitsOnBlank() {
         assertNull(service().selectByOrderNo("   "));
         verifyNoInteractions(mapper);
     }
 
-    /** 进行中行程 +1：04（已进站）叠加到订单 unpaidCount（ADR-D175）。 */
     @Test
     void userAccInfoAddsInProgressTrip() {
         RequestUserAccInfoResult counted = new RequestUserAccInfoResult();
@@ -187,7 +181,6 @@ class GateTxnPayQueryTest {
         verify(accountClient).queryActiveCards(any(QueryActiveCardsReqDTO.class));
     }
 
-    /** 白名单判据：04/81/10 计入，闭环 05 与未知码不计入（NEVER 用「非闭环即可」黑名单）。 */
     @Test
     void userAccInfoCountsOnlyEnteredWithoutExitWhitelist() {
         RequestUserAccInfoResult counted = new RequestUserAccInfoResult();
@@ -217,7 +210,6 @@ class GateTxnPayQueryTest {
         assertEquals(3, result.getUnpaidCount(), "04 / 81 / 10 各 1 笔，05 / 99 不计");
     }
 
-    /** 票卡无 QRCODE_STATUS（8004 未注册用户）视为不在行程中，不是查询失败。 */
     @Test
     void userAccInfoTreatsQrCodeNotFoundAsNotInProgress() {
         RequestUserAccInfoResult counted = new RequestUserAccInfoResult();
@@ -234,7 +226,6 @@ class GateTxnPayQueryTest {
         assertEquals(0, result.getUnpaidCount());
     }
 
-    /** 账户域 RPC 失败 MUST fail-closed（9002），NEVER 把聚合失败当「无欠费」放行销户。 */
     @Test
     void userAccInfoFailsClosedWhenAccountRpcFails() {
         RequestUserAccInfoResult counted = new RequestUserAccInfoResult();
@@ -252,7 +243,6 @@ class GateTxnPayQueryTest {
         assertEquals(0, result.getUnpaidCount(), "失败分支两个计数 MUST 为 0（primitive int 特性）");
     }
 
-    /** 行程域 RPC 非成功码同样 fail-closed。 */
     @Test
     void userAccInfoFailsClosedWhenTicketRpcFails() {
         RequestUserAccInfoResult counted = new RequestUserAccInfoResult();
@@ -268,7 +258,6 @@ class GateTxnPayQueryTest {
         assertEquals("9002", result.getRetCode());
     }
 
-    /** 无有效卡：account 返 0000 + 空列表，正常返回订单口径，不 fail-closed。 */
     @Test
     void userAccInfoAllowsEmptyCardList() {
         RequestUserAccInfoResult counted = new RequestUserAccInfoResult();
@@ -308,12 +297,10 @@ class GateTxnPayQueryTest {
         return service(mapper);
     }
 
-    /** 查询侧只用到 {@link GateTxnPayMapper} + 两个只读 RPC Client，构造器也只收这三个参数。 */
     private GateTxnPayQueryServiceImpl service(GateTxnPayMapper gateTxnPayMapper) {
         return new GateTxnPayQueryServiceImpl(gateTxnPayMapper, accountClient, ticketClient);
     }
 
-    /** {@code accInfoQueryMonths} 是 {@code @Value} 字段而非构造参数，单测只能反射注入。 */
     private void setMonths(GateTxnPayQueryServiceImpl service, int months) {
         try {
             Field field = GateTxnPayQueryServiceImpl.class.getDeclaredField("accInfoQueryMonths");

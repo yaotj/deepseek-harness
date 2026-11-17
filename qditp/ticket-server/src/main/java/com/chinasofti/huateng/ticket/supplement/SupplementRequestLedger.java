@@ -10,23 +10,17 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-/** IF5A-03 补站请求台账的读写收口。 */
 @Component
 class SupplementRequestLedger {
 
     private static final Logger log = LoggerFactory.getLogger(SupplementRequestLedger.class);
 
-    /** {@code TXN_SEQ} 为空时的兜底值。 */
     private static final String TXN_SEQ_FALLBACK = "0";
 
     @Autowired
     private SupplementRequestMapper supplementRequestMapper;
 
-    /**
-     * 声明结果。
-     *
-     * @param acquired true 表示本请求取得下发权；
-     */
+
     record Claim(String cardId, String txnSeq, String adviceOpt, boolean acquired) {
     }
 
@@ -100,7 +94,6 @@ class SupplementRequestLedger {
         return reason.length() <= 256 ? reason : reason.substring(0, 256);
     }
 
-    /** 沿 {@code getCause()} 链判定唯一索引冲突。 */
     private boolean isIntegrityViolation(Throwable throwable) {
         Throwable current = throwable;
         while (current != null) {

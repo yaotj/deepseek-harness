@@ -27,58 +27,42 @@ public class F2FClient extends ProxyWebClient {
         return testtbNoticeAppTask(Collections.emptyMap());
     }
 
-    /**
-     * 扫码取票接口 通知app出票结果。
-     */
+
     public RequestApplicationResult noticeTakeTicketTask() {
         return noticeTakeTicketTask(Collections.emptyMap());
     }
 
-    /**
-     * 扫码取票接口 通知app出票故障结果。
-     */
+
     public RequestApplicationResult noticeTakeTicketFailureTask() {
         return noticeTakeTicketFailureTask(Collections.emptyMap());
     }
 
-    /**
-     * 扫码取票接口 通知app退款结果。
-     */
+
     public RequestApplicationResult noticeRefundTask() {
         return noticeRefundTask(Collections.emptyMap());
     }
 
-    /**
-     * 测试（带 trace 头）。
-     */
+
     public RequestApplicationResult testtbNoticeAppTask(Map<String, String> headers) {
         return post("pay/noticeAppTask/testtbNoticeAppTask", headers);
     }
 
-    /**
-     * 扫码取票接口 通知app出票结果（带 trace 头）。
-     */
+
     public RequestApplicationResult noticeTakeTicketTask(Map<String, String> headers) {
         return post("pay/noticeAppTask/noticeTakeTicketTask", headers);
     }
 
-    /**
-     * 扫码取票接口 通知app出票故障结果（带 trace 头）。
-     */
+
     public RequestApplicationResult noticeTakeTicketFailureTask(Map<String, String> headers) {
         return post("pay/noticeAppTask/noticeTakeTicketFailureTask", headers);
     }
 
-    /**
-     * 扫码取票接口 通知app退款结果（带 trace 头）。
-     */
+
     public RequestApplicationResult noticeRefundTask(Map<String, String> headers) {
         return post("pay/noticeAppTask/noticeRefundTask", headers);
     }
 
-    /**
-     * 四个通知接口的请求体都是空，只有路径不同，统一在此发出。
-     */
+
     private RequestApplicationResult post(String path, Map<String, String> headers) {
         String result = postJsonAndGetResponse(path, null, headers);
         return JSONUtil.toBean(result, new TypeReference<RequestApplicationResult>() {

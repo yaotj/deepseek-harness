@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.model.app;
 
-/**
- * 按签约流水号查询支付通道应答（account-server 内部只读接口）。
- */
+
 public class QueryPayChannelByContractResult {
 
     private String retCode;
@@ -13,7 +11,6 @@ public class QueryPayChannelByContractResult {
 
     private String cardId;
 
-    /** 支付通道表里的卡类型，取值口径与 {@code USER_ITP_REG_INFO.CARD_TYPE} 一致（如 0441）。 */
     private String cardType;
 
     private String channel;

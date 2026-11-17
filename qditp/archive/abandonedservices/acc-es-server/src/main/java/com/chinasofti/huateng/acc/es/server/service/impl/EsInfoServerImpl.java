@@ -17,12 +17,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * @program: cloud-acc-server
- * @description: ES设备信息管理
- * @author: fc
- * @create: 2020-09-18 10:47
- */
+
 @Service
 public class EsInfoServerImpl implements IEsInfoService {
 

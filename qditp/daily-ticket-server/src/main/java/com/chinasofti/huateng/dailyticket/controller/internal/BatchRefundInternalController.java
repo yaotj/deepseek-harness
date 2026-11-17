@@ -10,26 +10,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * 多日票批量退款入口（甲方需求 16 当日 / 17 月度），由 web-admin 的 Quartz 任务触发，不对外暴露。
- *
- * <p>两条业务各一个端点、各一条 {@code sys_job}，互不影响：某一条出问题时只停那一条，
- * NEVER 合成一个端点 —— 当日与月度的触发时机本来就不同（每天 20 点 / 每月最后一天 20 点）。
- *
- * <p>每个端点各有自己的 {@link AtomicBoolean}：上一轮还没跑完时本轮直接返 {@code 9998} 拒绝，
- * 避免同一批订单被并发发起两次退款（幂等由 {@code UK_DAILY_TICKET_REFUND_ORDER} 兜底，但没必要靠它）。
- * {@code 9998} 属**限流、不是失败**，上游 Quartz 任务 MUST 只记 WARN 不抛异常。
- *
- * <p>本类**无鉴权**：与 docs/architecture/security-sensitivity.md §三「新增状态变更型接口 MUST 有鉴权」冲突，属沿用本模块
- * 现有 {@code /internal/daily-ticket/**} 端点的现状（全部裸暴露、只靠网络可达性隔离），上线前 MUST 统一补齐。
- */
+
 @RestController
 @RequestMapping("/internal/daily-ticket/batch-refund")
 public class BatchRefundInternalController {
 
     private static final String CODE_SUCCESS = "0000";
 
-    /** 上一轮仍在执行，属限流、不是失败。 */
     private static final String CODE_BUSY = "9998";
 
     private static final Logger log = LoggerFactory.getLogger(BatchRefundInternalController.class);
@@ -44,13 +31,11 @@ public class BatchRefundInternalController {
         this.batchRefundService = batchRefundService;
     }
 
-    /** 甲方需求 16：当日批量退款，每天 20 点触发。 */
     @PostMapping("/daily")
     public DailyTicketBaseResult refundDaily() {
         return run("多日票批量退款(当日)", dailyRunning, true);
     }
 
-    /** 甲方需求 17：月度批量退款，每月最后一天 20 点触发。 */
     @PostMapping("/monthly")
     public DailyTicketBaseResult refundMonthly() {
         return run("多日票批量退款(月度)", monthlyRunning, false);

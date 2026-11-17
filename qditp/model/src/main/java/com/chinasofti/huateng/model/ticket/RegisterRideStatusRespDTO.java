@@ -2,9 +2,7 @@ package com.chinasofti.huateng.model.ticket;
 
 import com.chinasofti.huateng.common.response.CommonResult;
 
-/**
- * 注册用户乘车状态响应。
- */
+
 public class RegisterRideStatusRespDTO extends CommonResult {
 
     private String cardId;

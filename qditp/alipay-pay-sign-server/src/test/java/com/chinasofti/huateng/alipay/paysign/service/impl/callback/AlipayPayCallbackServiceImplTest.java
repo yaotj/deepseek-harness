@@ -24,23 +24,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 钉住 {@link AlipayPayCallbackServiceImpl} 的五条口径。
- *
- * <p>① {@code orderNo} 空时**连证据都不落**，{@code transStatus} 非法时**MUST 落一行 MANUAL 证据** ——
- * 两种非法形态处置不同，这正是 {@link PayNotifyCommand} 做成 sealed 三支的理由。
- *
- * <p>② {@code transStatus} 白名单只认 {@code 1}/{@code 2}，映射成 {@code SUCCESS}/{@code FAIL} 后才出网。
- *
- * <p>③ <b>先落证据、再计数</b>（{@code InOrder} 断言）。反序会让 COUNT 每次少一、限次永远差一轮才触发，
- * 而单次联调完全看不出来。
- *
- * <p>④ 同步失败时**未达上限返 9999 让对端重推、已达上限返 0000 让对端停推 + 标 MANUAL**。
- * 后者与「真成功」对外都是 {@code 0000}，只能靠 {@code HANDLE_STATUS} 区分。
- *
- * <p>⑤ 退款回调**恒返 0000**：先落 {@code PROCESSING} 证据、再按 {@code refundResult} 收口退款明细，
- * 最后按收口归宿回写处置状态；{@code REFUND_ORDER_NO} 取 {@code outRefundNo}。
- */
+
 class AlipayPayCallbackServiceImplTest {
 
     private static final String ORDER_NO = "GT20260918021300000000001";
@@ -116,12 +100,7 @@ class AlipayPayCallbackServiceImplTest {
         ordered.verify(callbackLogRepository).countPayPush(ORDER_NO);
     }
 
-    /**
-     * 回写支付明细 MUST 在同步扣费订单**之前**，且 MUST 把报文的 {@code transTime} 一起带下去 ——
-     * 支付宝出行记录应答的 {@code payOrderNoDate} 取的就是它落进 {@code ALIPAY_PAY_TXN_DETAIL.TRANS_TIME}
-     * 的值；这里断言的 {@code 20260918021500} 是报文原文，**NEVER 改成格式化后的样子**（列是 VARCHAR2、
-     * 全链路不解析）。
-     */
+
     @Test
     void payStatusIsWrittenToTxnDetailBeforeSyncingGateTxnPay() {
         service.handlePayNotify(payNotify(ORDER_NO, "1"));
@@ -186,10 +165,7 @@ class AlipayPayCallbackServiceImplTest {
         assertEquals("成功", response.getRetMsg());
     }
 
-    /**
-     * 留证据 MUST 在收口明细**之前** —— 收口过程中抛异常那一轮，若反序写就什么痕迹都不留。
-     * 同时钉住收口的入参：{@code refundOrderNo} 取 {@code outRefundNo}、描述取 {@code refundResultDesc}。
-     */
+
     @Test
     void refundEvidenceIsRecordedBeforeSettlingDetail() {
         service.handleRefundNotify(refundNotify(ORDER_NO, "400"));
@@ -200,7 +176,6 @@ class AlipayPayCallbackServiceImplTest {
         verify(callbackLogRepository).updateHandleResult(CALLBACK_SEQ, "SUCCESS", "退款明细已收口为 SUCCESS，汇总已重算");
     }
 
-    /** {@code PROCESSING} 不是失败：处置状态留在 {@code PROCESSING} 等终态回调，仍返 {@code 0000}。 */
     @Test
     void refundStillProcessingKeepsHandleStatusProcessing() {
         when(refundCallbackSettler.settle(anyString(), anyString(), anyString(), any()))
@@ -212,7 +187,6 @@ class AlipayPayCallbackServiceImplTest {
         assertEquals("0000", response.getRetCode());
     }
 
-    /** {@code refundResult} 取值不在契约内时转人工，但**仍返 0000** —— 让对端重推不会带来新信息。 */
     @Test
     void refundUnknownResultIsMarkedManualButStillStopsRepush() {
         when(refundCallbackSettler.settle(anyString(), anyString(), anyString(), any()))

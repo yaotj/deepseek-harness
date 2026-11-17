@@ -20,11 +20,9 @@ class SideCircuitBreakerTest {
         assertFalse(breaker.allowRequest());
         assertTrue(breaker.isOpen());
 
-        // 到期后半开试探放行
         Thread.sleep(60);
         assertTrue(breaker.allowRequest());
 
-        // 成功即复位
         breaker.onSuccess();
         assertTrue(breaker.allowRequest());
         assertFalse(breaker.isOpen());

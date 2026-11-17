@@ -15,11 +15,7 @@ import com.chinasofti.huateng.common.annotation.DataSource;
 import com.chinasofti.huateng.common.utils.StringUtils;
 import com.chinasofti.huateng.framework.datasource.DynamicDataSourceContextHolder;
 
-/**
- * 多数据源处理
- * 
- * @author zmzhang
- */
+
 @Aspect
 @Order(1)
 @Component
@@ -50,14 +46,11 @@ public class DataSourceAspect
         }
         finally
         {
-            // 销毁数据源 在执行方法之后
             DynamicDataSourceContextHolder.clearDataSourceType();
         }
     }
 
-    /**
-     * 获取需要切换的数据源
-     */
+
     public DataSource getDataSource(ProceedingJoinPoint point)
     {
         MethodSignature signature = (MethodSignature) point.getSignature();

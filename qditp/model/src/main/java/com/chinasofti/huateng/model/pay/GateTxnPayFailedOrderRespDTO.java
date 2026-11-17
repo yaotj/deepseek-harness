@@ -1,17 +1,12 @@
 package com.chinasofti.huateng.model.pay;
 
-/**
- * 未结清扣费订单查询响应。
- */
+
 public class GateTxnPayFailedOrderRespDTO {
 
-    /** 查询结果码，"0000" 表示查询成功执行。 */
     private String resultCode;
 
-    /** 查询结果描述。 */
     private String resultMsg;
 
-    /** 是否存在未结清扣费订单（DEBIT_STATUS != 'SUCCESS'）。 */
     private boolean hasFailedOrder;
 
     public String getResultCode() {

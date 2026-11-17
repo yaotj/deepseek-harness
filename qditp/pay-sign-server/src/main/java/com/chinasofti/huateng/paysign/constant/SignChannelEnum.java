@@ -4,7 +4,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/** 签约渠道枚举。 */
 public enum SignChannelEnum {
 
     METRO_APP("METRO_APP", "地铁APP"),

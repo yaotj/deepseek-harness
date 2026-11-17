@@ -1,68 +1,41 @@
 package com.chinasofti.huateng.collectticket.model.request;
 
-/**
- * 支付中心回调取票订单支付结果请求报文。
- * 注意：这里不是 IF8A-11 请求支付报文。
- */
+
 public class TicketCollectPayNotifyReqDTO {
-    /**
-     * 订单号。
-     */
+
     private String orderNo;
 
-    /**
-     * 商户订单号。
-     */
+
     private String merchantOrderNo;
 
-    /**
-     * 渠道订单号。
-     */
+
     private String channelOrderNo;
 
-    /**
-     * 交易状态。
-     */
+
     private String status;
 
-    /**
-     * 支付时间，格式 yyyyMMddHHmmss。
-     */
+
     private String payTime;
 
-    /**
-     * 订单总金额，单位分。
-     */
+
     private Integer totalAmount;
 
-    /**
-     * 实付金额，单位分。
-     */
+
     private Integer cashAmount;
 
-    /**
-     * 优惠金额，单位分。
-     */
+
     private Integer couponAmount;
 
-    /**
-     * 支付渠道账户。
-     */
+
     private String payUserId;
 
-    /**
-     * 支付方式。
-     */
+
     private String paymentVendor;
 
-    /**
-     * 附加参数。
-     */
+
     private String options;
 
-    /**
-     * 签名。
-     */
+
     private String sign;
 
     public String getOrderNo() {

@@ -35,7 +35,6 @@ public class PaymentQueryService {
 
     private static final String CALLBACK_TYPE_PAY = "PAY";
 
-    /** 支付结果回调允许支付中心推送的总次数（首推 1 次 + 重推 1 次），与 pay-sign-server 同口径。 */
     private static final int MAX_PAY_CALLBACK_PUSH = 2;
 
     private static final String TRANS_STATUS_SUCCESS = "1";
@@ -155,7 +154,6 @@ public class PaymentQueryService {
         return response;
     }
 
-    /** 把支付中心给出的终态回写本地支付流水，带非终态白名单。 */
     private void applyQueryResult(String orderNo, String payStatus, String tradeNo,
                                   String transTime, String payAmount, String resultMsg) {
         int affected = alipayPayLogMapper.updatePayQueryResultIfNotSuccess(
@@ -176,18 +174,7 @@ public class PaymentQueryService {
                 orderNo, currentStatus, payStatus, resultMsg);
     }
 
-    /**
-     * 支付宝出行扣费结果回调。
-     *
-     * <p><b>2026-09-18 起本方法已是零调用方、只作回滚位</b>：{@code POST /api/payment/payNotify} 已切到
-     * {@code service.AlipayPayCallbackService}（实现 {@code service.impl.callback.AlipayPayCallbackServiceImpl}）。
-     * 本方法行为一行未改、新实现逐字沿用同一套口径（白名单映射 / 先落证据再计数 / 上限 2 返 0000），
-     * <b>NEVER 在这里新增能力</b>；回滚只需把 {@code PayCenterCallbackController} 改回注
-     * {@code AlipayTripPaymentService}。
-     *
-     * <p>本方法 NEVER 加 {@code @Transactional}：链路内有出网（{@link DebitSyncPort}），事务会把行锁
-     * 持有时长拉成对端响应时长；更要紧的是回滚会把「留证据」的那条 INSERT 一起丢掉，限次判定随之失效。</p>
-     */
+
     public AlipayCommonResponse handlePayNotify(AlipayTripPayNotifyReqDTO request) {
         log.info("接收到支付宝支付结果回调, 原始报文: {}", JSON.toJSONString(request));
         AlipayCommonResponse response = new AlipayCommonResponse();
@@ -208,8 +195,6 @@ public class PaymentQueryService {
             return response;
         }
 
-        // 先 INSERT 再计数，NEVER 反序（与 pay-sign-server 同口径）：本方法无事务、INSERT 已自动提交，
-        // COUNT 才等于支付中心的实际推送次数（含本次）。反过来写每次都少一，限次永远差一轮才触发。
         String callbackSeq = recordCallback(request, HANDLE_STATUS_PROCESSING, null);
         int pushCount = countPush(request.getOrderNo());
 
@@ -237,7 +222,6 @@ public class PaymentQueryService {
         return response;
     }
 
-    /** {@code transStatus} 白名单映射：只认契约里的 {@code 1} 成功 / {@code 2} 失败，其余返回 null。 */
     private String mapTransStatus(String transStatus) {
         if (TRANS_STATUS_SUCCESS.equals(transStatus)) {
             return "SUCCESS";
@@ -248,14 +232,7 @@ public class PaymentQueryService {
         return null;
     }
 
-    /**
-     * 回调即入库，返回主键。落库自身失败只记日志、不打断处理：留痕失败不该让一笔已扣款的回调收不了口。
-     *
-     * <p>只落 6 个报文字段 + 处置结果 + 整包原文，<b>刻意不落映射后的支付状态与卡号</b>：
-     * 前者是 {@code transStatus} 的派生值（流水表存原文即可，用时再映射），后者主体
-     * {@code GATE_TXN_PAY.CARD_ID} 已有；两列已于 2026-09-18 从表里删除，NEVER 加回。
-     * {@code RAW_BODY} 已是 CLOB，因此不再截断 —— 截断后的报文不再是可举证的原文。
-     */
+
     private String recordCallback(AlipayTripPayNotifyReqDTO request, String handleStatus, String handleMsg) {
         String callbackSeq = UUID.randomUUID().toString().replaceAll("-", "");
         try {
@@ -280,7 +257,6 @@ public class PaymentQueryService {
         }
     }
 
-    /** 统计该订单 PAY 回调的累计推送次数（含本次）。 */
     private int countPush(String orderNo) {
         try {
             return alipayPayCallbackLogMapper.countByOrderNo(orderNo, CALLBACK_TYPE_PAY);
@@ -301,7 +277,6 @@ public class PaymentQueryService {
         }
     }
 
-    /** 达到重推上限仍未处理成功：回 0000 让支付中心停推，同时把最后一条回调标成 MANUAL。 */
     private void giveUpRetry(String orderNo, int pushCount, String reason) {
         log.error("支付宝支付回调已推送{}次仍未处理成功，达到上限{}，放弃重推并返回0000，MUST 人工处理, orderNo={}, 原因={}",
                 pushCount, MAX_PAY_CALLBACK_PUSH, orderNo, reason);
@@ -319,16 +294,7 @@ public class PaymentQueryService {
         return value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
 
-    /**
-     * 通知 gate-txn-pay-server 把 {@code GATE_TXN_PAY.DEBIT_STATUS} 收敛到终态。
-     *
-     * <p>三态判读收口在 {@link DebitSyncPort} 的 adapter 里（ADR-D131），本方法只把它折回
-     * 「要不要让支付中心重推」这一个 boolean。{@code BizRejected} 理论上可以直接 {@code giveUpRetry}
-     * 标 MANUAL —— 业务拒绝重推一万次也不会成功；但那是**行为变更**且涉及支付回调，
-     * MUST 先与 gate-txn-pay 的 retCode 语义对齐后再改，本批次只做类型收口、对上层语义逐字不变。</p>
-     *
-     * @return true 表示远端已确认收敛（含幂等命中），false 表示需要支付中心重推
-     */
+
     private boolean syncGateTxnPayStatus(String orderNo, String payStatus) {
         RpcOutcome outcome = debitSyncPort.syncDebitStatus(orderNo, payStatus, "支付宝出行扣费结果回调");
         switch (outcome) {
@@ -363,7 +329,6 @@ public class PaymentQueryService {
 
         response.setRetCode(FepAppErrorCodeEnum.SUCCESS.getCode());
         response.setRetMsg("查询成功");
-        // 业务字段 MUST 包在 data 里（ADR-D150：支付宝侧按 data 解析），NEVER 平铺回顶层。
         AlipayTripTravelDetailDTO detail = new AlipayTripTravelDetailDTO();
         detail.setPayOrderNoDate(payLog.getTransTime());
         detail.setPayChannelCode("ALIPAY");
@@ -375,7 +340,6 @@ public class PaymentQueryService {
         return response;
     }
 
-    /** debitRequestResult 是对外契约字段，值域只有 "0"（扣费成功）与 "1"（未成功）。 */
     private String mapPayStatusToDebitResult(String payStatus) {
         return "SUCCESS".equalsIgnoreCase(payStatus) ? "0" : "1";
     }

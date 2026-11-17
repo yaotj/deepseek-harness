@@ -2,68 +2,42 @@ package com.chinasofti.huateng.account.page;
 
 import java.time.LocalDateTime;
 
-/**
- * ITP 用户当前票种的支付渠道运营展示对象。
- */
+
 public class ItpPayChannelView {
-    /**
-     * 第三方用户标识。
-     */
+
     private String thirdUserId;
 
-    /**
-     * 逻辑卡号。
-     */
+
     private String cardId;
 
-    /**
-     * 票种（本域口径的 CARD_TYPE）。
-     */
+
     private String cardType;
 
-    /**
-     * 支付渠道代码。
-     */
+
     private String channel;
 
-    /**
-     * 渠道侧支付账号标识。
-     */
+
     private String thirdPayId;
 
-    /**
-     * 签约流水号，跨域定位签约记录用。
-     */
+
     private String reqContractNo;
 
-    /**
-     * 支付账户标识。
-     */
+
     private String payAccountId;
 
-    /**
-     * 支付域返回的签约状态，取不到时为空。
-     */
+
     private String status;
 
-    /**
-     * 是否本用户本票种的默认渠道。
-     */
+
     private boolean defaultChannel;
 
-    /**
-     * 支付域判定当前是否可发起解约，仅供页面按钮置灰。
-     */
+
     private boolean terminationReady;
 
-    /**
-     * 记录创建时间。
-     */
+
     private LocalDateTime createTms;
 
-    /**
-     * 记录更新时间。
-     */
+
     private LocalDateTime updateTms;
 
     public String getThirdUserId() { return thirdUserId; }

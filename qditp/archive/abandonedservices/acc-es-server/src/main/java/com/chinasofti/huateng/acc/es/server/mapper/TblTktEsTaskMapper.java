@@ -7,14 +7,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
-/**
- * <p>
- *  Mapper 接口
- * </p>
- *
- * @author fc
- * @since 2020-09-02
- */
+
 @Mapper
 public interface TblTktEsTaskMapper {
 
@@ -56,31 +49,15 @@ public interface TblTktEsTaskMapper {
 
     List<TblTktEsTask> selectThePlanNoTasks(Integer planNo);
 
-    /**
-     * 批量把任务修改为执行中
-     * @param tasks
-     * @return
-     */
+
     int updateToExecuting(TblTktEsTask tasks);
 
-    /**
-     * 查询个性化任务
-     * @param task
-     * @return
-     */
+
     List<TblTktEsTask> allCustomTask(TblTktEsTask task);
 
-    /**
-     * 设置任务的状态为失败
-     * @param taskNo
-     * @return
-     */
+
     int updateTaskToFail(@Param("taskNo") int taskNo);
 
-    /**
-     * 根据个性化任务更新
-     * @param customTaskReport
-     * @return
-     */
+
     int reportCustomTaskReport(CustomTaskReport customTaskReport);
 }

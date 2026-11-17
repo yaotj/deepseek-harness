@@ -5,9 +5,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
-/**
- * ACC 前置服务启动类。
- */
+
 @SpringBootApplication
 @ConfigurationPropertiesScan
 @EnableRpcAccount

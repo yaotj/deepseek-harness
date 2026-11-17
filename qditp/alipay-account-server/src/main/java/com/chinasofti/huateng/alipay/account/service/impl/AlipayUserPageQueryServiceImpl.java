@@ -10,28 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-/**
- * 支付宝注册用户运营查询实现：并列筛选条件的 AND 组合查询 + 展示脱敏 + 内存分页。
- *
- * <p>只读 `ALIPAY_USER_INFO` 一张表、不出网、不带事务（都是单条 SELECT，自动提交即可）。
- *
- * <p><b>本类 NEVER 使用 PageHelper（`PageHelper.startPage` / `doSelectPageInfo`），命中结果统一在内存里切片。</b>
- * 原因是实测缺陷（2026-09-20 修复，1.0.20）：`alipay-account-server` 的启动类**没有**
- * {@code @EnableDefaultMybatisAutoConfig}（全仓 12 个模块有、只有本模块与其它支付宝模块没有），
- * 因此 {@code DefaultMybatisConfiguration} 不会被 `@Import`、`PageInterceptor` 这个 bean 压根不存在。
- * 没有拦截器时 {@code PageHelper.startPage(...)} 只往 ThreadLocal 放了一个空 `Page`，
- * {@code doSelectPageInfo} 读回来的就是那个空对象 ⇒ **DB 明明返回了行（日志 `fetchRowCount:1`），
- * 接口却返 `total=0, list=[]`**，且不报错、不打日志、单测也发现不了。综管台「支付宝注册用户」页
- * 按手机号查因此从上线起 100% 空，而按逻辑卡号 / 第三方用户 ID 查正常（那两支本就没走 PageHelper）。
- *
- * <p><b>NEVER 改用「给启动类加 `@EnableDefaultMybatisAutoConfig`」来修</b>：那个注解同时 `@Import`
- * {@code DynamicMybatisConfiguration} 与 {@code @EnableTransactionManagement(proxyTargetClass = true)}，
- * 会改变本模块的 SqlSessionFactory 装配与事务代理方式，为一个只读查询页承担这个风险不值当。
- *
- * <p>内存分页在本表可接受：手机号无唯一约束但同号命中量是个位数，`THIRD_USER_ID`（主键
- * `PK_ALIPAY_USER_INFO`）与 `CARD_ID`（唯一索引 `IDX_ALIPAY_USER_INFO_CARD_ID`，2026-09-20 实测）
- * 更是恒 ≤1 行。**若将来该表量级变大，MUST 改成 mapper 侧 `ROWNUM` 分页 + 独立 count，NEVER 回退到 PageHelper。**
- */
+
 @Service
 public class AlipayUserPageQueryServiceImpl implements AlipayUserPageQueryService {
     private final AlipayUserInfoMapper alipayUserInfoMapper;
@@ -48,18 +27,11 @@ public class AlipayUserPageQueryServiceImpl implements AlipayUserPageQueryServic
         return slicePage(users, safePageNum(query.getPageNum()), safePageSize(query.getPageSize()));
     }
 
-    /** 空白输入不参与谓词，统一归一成 {@code null}，避免 {@code ''} 与 NULL 在 Oracle 里的差异。 */
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    /**
-     * 把整表命中结果在内存里切成一页，并**手工补齐分页元数据**。
-     *
-     * <p><b>MUST 自己 set total / pageNum / pageSize / pages</b>：`new PageInfo<>(切片后的 list)` 会把
-     * total 写成当页条数，前台 `web/src/views/trans/user/alipay/index.vue` 的 `<pagination>` 据此判断有没有下一页，
-     * total 失真即翻不到第二页。
-     */
+
     private PageInfo<AlipayUserSearchView> slicePage(List<AlipayUserInfo> users, int pageNum, int pageSize) {
         List<AlipayUserSearchView> views = users == null ? List.of() : users.stream().map(this::toView).toList();
         int total = views.size();
@@ -74,7 +46,6 @@ public class AlipayUserPageQueryServiceImpl implements AlipayUserPageQueryServic
     }
 
     private AlipayUserSearchView toView(AlipayUserInfo user) {
-        // 手机号和第三方支付标识均按运营展示要求脱敏。
         AlipayUserSearchView view = new AlipayUserSearchView();
         view.setThirdUserId(user.getThirdUserId());
         view.setCardId(user.getCardId());

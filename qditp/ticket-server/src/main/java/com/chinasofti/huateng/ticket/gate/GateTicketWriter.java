@@ -9,7 +9,6 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/** IF1A-01 闸机检票的落库组件，只承载「交易明细入库 + 票卡状态推进」这一个事务边界。 */
 @Component
 class GateTicketWriter {
 
@@ -24,14 +23,7 @@ class GateTicketWriter {
         this.qrCodeStatusStore = qrCodeStatusStore;
     }
 
-    /**
-     * 交易明细入库 + 票卡状态推进（CAS 版），两条 SQL 在同一事务内完成。
-     *
-     * @param detail 交易明细
-     * @param nextStatus 目标状态（USE_COUNT / TXN_SEQ 是「当前值 + 1」的相对增量）
-     * @param expectedTxnSeq CAS 条件：调用方读到的当前 TXN_SEQ；
-     * @return 落库结果；
-     */
+
     @Transactional(rollbackFor = Exception.class)
     public WriteResult saveTxnAndAdvanceStatus(QRCodeTxnDetail detail, QRCodeStatus nextStatus,
                                                 String expectedTxnSeq) {
@@ -68,7 +60,6 @@ class GateTicketWriter {
         return new WriteResult(duplicate, updateCount, nextStatus);
     }
 
-    /** 判断异常链上是否存在 {@link DuplicateKeyException}，即唯一约束冲突。 */
     private boolean isDuplicateKeyViolation(Throwable exception) {
         for (Throwable cause = exception; cause != null && cause != cause.getCause(); cause = cause.getCause()) {
             if (cause instanceof DuplicateKeyException) {
@@ -78,11 +69,7 @@ class GateTicketWriter {
         return false;
     }
 
-    /**
-     * @param duplicate 明细是否因唯一索引冲突而未插入（重复上送）
-     * @param updateCount 票卡状态 upsert 影响行数；
-     * @param status 本次落库后生效的票卡状态：首次上送是传入的 nextStatus，
-     */
+
     public record WriteResult(boolean duplicate, int updateCount, QRCodeStatus status) {
     }
 }

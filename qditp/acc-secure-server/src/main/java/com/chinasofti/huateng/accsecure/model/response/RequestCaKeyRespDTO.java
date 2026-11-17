@@ -2,23 +2,15 @@ package com.chinasofti.huateng.accsecure.model.response;
 
 import com.chinasofti.huateng.accsecure.model.common.AccBizBaseResponse;
 
-/**
- * IF7B-02 请求生成地铁CA密钥响应报文。
- */
+
 public class RequestCaKeyRespDTO extends AccBizBaseResponse {
-    /**
-     * LMK加密的私钥d。
-     */
+
     private String privateKey;
 
-    /**
-     * 公钥XY。
-     */
+
     private String publicKey;
 
-    /**
-     * SM2密钥密文对。
-     */
+
     private String sm2KeyPair;
 
     public String getPrivateKey() {

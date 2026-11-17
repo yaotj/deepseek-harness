@@ -4,7 +4,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/** 支付渠道枚举。 */
 public enum PaymentVendorEnum {
 
     ALIPAY("03", "支付宝"),
@@ -39,17 +38,14 @@ public enum PaymentVendorEnum {
     private static final Map<String, PaymentVendorEnum> CODE_MAP = Arrays.stream(values())
             .collect(Collectors.toMap(PaymentVendorEnum::getCode, e -> e));
 
-    /** 根据编码获取枚举。 */
     public static PaymentVendorEnum fromCode(String code) {
         return code == null ? null : CODE_MAP.get(code.trim());
     }
 
-    /** 判断编码是否有效。 */
     public static boolean isValid(String code) {
         return code != null && CODE_MAP.containsKey(code.trim());
     }
 
-    /** 获取所有编码字符串，用于日志或配置。 */
     public static String allCodes() {
         return CODE_MAP.keySet().toString();
     }

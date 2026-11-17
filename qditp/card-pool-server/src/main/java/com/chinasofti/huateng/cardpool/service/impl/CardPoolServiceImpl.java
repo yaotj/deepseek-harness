@@ -53,67 +53,46 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** 逻辑卡号池服务实现。 */
 @Service
 public class CardPoolServiceImpl implements CardPoolService {
 
     private static final Logger log = LoggerFactory.getLogger(CardPoolServiceImpl.class);
 
-    /** 可作为「已有预占」复用返回的状态白名单。 */
     private static final Set<String> REUSABLE_STATUSES = Set.of("RESERVED", "ASSIGNED");
 
-    /** 可由维护动作继续推进的批次状态白名单。 */
     private static final Set<String> RESUMABLE_STATUSES = Set.of("CREATED", "DOWNLOADING", "IMPORTING");
 
-    /** ACC 成功返回码，两种形态都在生产上出现过。 */
     private static final Set<String> ACC_SUCCESS_CODES = Set.of("0000", "200");
 
     private static final int SHA256_BUFFER_SIZE = 8192;
     private static final int ERROR_MSG_MAX_LENGTH = 1900;
 
-    /**
-     * `ERROR_MSG` 的字节上限。列声明是 `VARCHAR2(2000 CHAR)`，但 Oracle 在
-     * `MAX_STRING_SIZE=STANDARD` 下物理上限是 4000 字节，这里留足余量。
-     */
+
     private static final int ERROR_MSG_MAX_BYTES = 1900;
 
-    /** 按字节裁剪时每轮回退的字符数，取小步长以免把多字节字符切得过多。 */
     private static final int TRUNCATE_STEP = 16;
 
     private static final int CARD_NO_MAX_LENGTH = 64;
     private static final int RESERVE_MAX_ATTEMPTS = 5;
 
-    /** 单次预占从库里取回的候选卡号条数，用于分散并发请求、避免全部撞在同一行上。 */
     private static final int RESERVE_CANDIDATE_SIZE = 20;
 
-    /** 容器关闭时等待在跑导入收尾的秒数。 */
     private static final int EXECUTOR_SHUTDOWN_SECONDS = 30;
 
-    /** 日志全量采集标记在 MDC 中的键名。 */
     private static final String VLOGS_CAPTURE_KEY = "x-vlogs-capture";
 
     private final LogicCardPoolMapper mapper;
     private final AccLogicNumClient accLogicNumClient;
     private final CardPoolProperties properties;
 
-    /** 链路追踪器，用于把提交线程的 trace 带进维护线程。 */
     private final ObjectProvider<Tracer> tracerProvider;
 
-    /** 承载 ACC 申请、FTP 下载与批量入库的**平台线程**执行器（单线程）。 */
     private final ExecutorService maintenanceExecutor =
             Executors.newSingleThreadExecutor(Thread.ofPlatform().name("card-pool-maintenance").factory());
 
-    /** 维护任务在跑标记，避免重复提交把任务堆在单线程队列里。 */
     private final AtomicBoolean maintenanceRunning = new AtomicBoolean(false);
 
-    /**
-     * 构造卡号池服务。
-     *
-     * @param mapper            数据访问
-     * @param accLogicNumClient ACC 逻辑卡号接口（IF7B-01）适配器
-     * @param properties        卡号池配置
-     * @param tracerProvider    链路追踪器提供者，tracing 关闭时为空
-     */
+
     public CardPoolServiceImpl(LogicCardPoolMapper mapper,
                                AccLogicNumClient accLogicNumClient,
                                CardPoolProperties properties,
@@ -124,13 +103,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         this.tracerProvider = tracerProvider;
     }
 
-    /**
-     * 把维护任务包成「挂在调用方 trace 上的子 span」再交给维护线程执行。
-     *
-     * @param spanName span 名，出现在 trace 拓扑里
-     * @param task     真正的维护逻辑
-     * @return 已包好 trace 上下文的任务
-     */
+
     private Runnable withTraceContext(String spanName, Runnable task) {
         String capture = MDC.get(VLOGS_CAPTURE_KEY);
         Tracer tracer = tracerProvider.getIfAvailable();
@@ -158,7 +131,6 @@ public class CardPoolServiceImpl implements CardPoolService {
         };
     }
 
-    /** 容器关闭时停掉维护执行器，给在跑的导入留出收尾时间。 */
     @PreDestroy
     public void shutdown() {
         maintenanceExecutor.shutdown();
@@ -172,7 +144,6 @@ public class CardPoolServiceImpl implements CardPoolService {
         }
     }
 
-    /** {@inheritDoc} */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CardPoolReservationRespDTO reserve(CardPoolReservationReqDTO request) {
@@ -226,12 +197,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         return null;
     }
 
-    /**
-     * 异常链上是否有唯一键 / 完整性冲突。
-     *
-     * @param ex 捕获到的异常
-     * @return 链上出现过完整性冲突即 true
-     */
+
     private static boolean isIntegrityViolation(Throwable ex) {
         Throwable cursor = ex;
         while (cursor != null) {
@@ -247,12 +213,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         return false;
     }
 
-    /**
-     * 从候选卡号中随机挑一条。
-     *
-     * @param candidates 候选卡号，调用方保证非空
-     * @return 本次尝试的目标卡号
-     */
+
     private LogicCardPoolCard pickCandidate(List<LogicCardPoolCard> candidates) {
         if (candidates.size() == 1) {
             return candidates.get(0);
@@ -260,7 +221,6 @@ public class CardPoolServiceImpl implements CardPoolService {
         return candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
     }
 
-    /** {@inheritDoc} */
     @Override
     public boolean confirm(String reservationId, String businessId) {
         if (!StringUtils.hasText(reservationId) || !StringUtils.hasText(businessId)) {
@@ -273,7 +233,6 @@ public class CardPoolServiceImpl implements CardPoolService {
         return card != null && "ASSIGNED".equals(card.getStatus()) && businessId.equals(card.getBusinessId());
     }
 
-    /** {@inheritDoc} NEVER 在失败分支调用：预占为并发请求共享，超时回收交 sys_job 240（2026-09-21 由 107 改号为 240，ADR-D52）。 */
     @Override
     public boolean release(String reservationId, String businessId) {
         if (!StringUtils.hasText(reservationId) || !StringUtils.hasText(businessId)) {
@@ -286,7 +245,6 @@ public class CardPoolServiceImpl implements CardPoolService {
         return card != null && "AVAILABLE".equals(card.getStatus());
     }
 
-    /** {@inheritDoc} */
     @Override
     public LogicCardPoolBatch requestBatch(String requestedType, String source, String operator) {
         String cardType = CardPoolTicketType.normalize(requestedType);
@@ -305,7 +263,6 @@ public class CardPoolServiceImpl implements CardPoolService {
         }
     }
 
-    /** {@inheritDoc} */
     @Override
     public LogicCardPoolBatch retry(Long batchNo) {
         LogicCardPoolBatch batch = batchNo == null ? null : mapper.selectBatch(batchNo);
@@ -335,12 +292,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         }
     }
 
-    /**
-     * 在维护线程上续做重试批次；无论成败都要释放票种锁并留下失败原因。
-     *
-     * @param batch     已推进到 DOWNLOADING 的批次
-     * @param lockOwner 调用方已持有的锁标识
-     */
+
     private void runRetryAsync(LogicCardPoolBatch batch, String lockOwner) {
         try {
             importFromFtp(batch, lockOwner);
@@ -351,7 +303,6 @@ public class CardPoolServiceImpl implements CardPoolService {
         }
     }
 
-    /** {@inheritDoc} */
     @Override
     public PageInfo<LogicCardPoolBatch> batches(Long batchNo,
                                                 String cardType,
@@ -375,7 +326,6 @@ public class CardPoolServiceImpl implements CardPoolService {
         return pageSize == null || pageSize < 1 ? 10 : Math.min(pageSize, 100);
     }
 
-    /** {@inheritDoc} */
     @Override
     public List<Map<String, Object>> summary() {
         List<Map<String, Object>> result = new ArrayList<>(CardPoolTicketType.ORDERED_TYPES.size());
@@ -385,7 +335,6 @@ public class CardPoolServiceImpl implements CardPoolService {
         return result;
     }
 
-    /** {@inheritDoc} */
     @Override
     public Map<String, Object> runMaintenance() {
         Map<String, Object> accepted = new LinkedHashMap<>();
@@ -408,7 +357,6 @@ public class CardPoolServiceImpl implements CardPoolService {
         return accepted;
     }
 
-    /** 在维护线程上执行一轮维护，并在结束后释放并发标记。 */
     private void runMaintenanceAsync() {
         try {
             Map<String, Object> stats = executeMaintenance();
@@ -420,11 +368,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         }
     }
 
-    /**
-     * 执行一轮卡池维护：回收超时预占、按票种补货并推进待处理批次。
-     *
-     * @return 本轮统计
-     */
+
     private Map<String, Object> executeMaintenance() {
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("releasedExpired", releaseExpiredQuietly());
@@ -461,12 +405,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         return stats;
     }
 
-    /**
-     * 组装单个票种的水位概览。
-     *
-     * @param type 票种
-     * @return 概览
-     */
+
     private Map<String, Object> summaryOf(String type) {
         Map<String, Object> item = new LinkedHashMap<>();
         boolean poolEnabled = CardPoolTicketType.POOL_ENABLED_TYPES.contains(type);
@@ -490,13 +429,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         return item;
     }
 
-    /**
-     * 判断票种的发卡方式。
-     *
-     * @param type        票种
-     * @param poolEnabled 是否启用卡池
-     * @return POOL / SECURITY_SERVICE / EXTERNAL_ISSUED
-     */
+
     private String issueModeOf(String type, boolean poolEnabled) {
         if (poolEnabled) {
             return "POOL";
@@ -504,11 +437,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         return CardPoolTicketType.SECURITY_SERVICE_TYPES.contains(type) ? "SECURITY_SERVICE" : "EXTERNAL_ISSUED";
     }
 
-    /**
-     * 回收超时预占，失败只记日志不阻断后续维护动作。
-     *
-     * @return 回收数量，失败返回 -1
-     */
+
     private int releaseExpiredQuietly() {
         try {
             return mapper.releaseExpired();
@@ -518,12 +447,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         }
     }
 
-    /**
-     * 水位低于阈值且无进行中批次时创建一个补货批次。
-     *
-     * @param cardType 票种
-     * @return 创建的批次数，0 或 1
-     */
+
     private int replenish(String cardType) {
         long availableCount = mapper.countByTypeAndStatus(cardType, "AVAILABLE");
         if (availableCount >= properties.getThreshold() || mapper.countInProgress(cardType) > 0) {
@@ -535,14 +459,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         return 1;
     }
 
-    /**
-     * 在已持有票种锁的前提下落一条 CREATED 批次。
-     *
-     * @param cardType 票种
-     * @param source   来源
-     * @param operator 操作人
-     * @return 已落库批次
-     */
+
     private LogicCardPoolBatch createBatch(String cardType, String source, String operator) {
         if (mapper.countInProgress(cardType) > 0) {
             throw new IllegalStateException("该票种已有进行中的卡池批次");
@@ -570,13 +487,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         return mapper.selectBatch(batchNo);
     }
 
-    /**
-     * 推进一个待处理批次。
-     *
-     * @param batch     批次
-     * @param lockOwner 当前持有的锁标识
-     * @return 推进到 SUCCESS 返回 true
-     */
+
     private boolean advanceBatch(LogicCardPoolBatch batch, String lockOwner) {
         if ("REQUESTING".equals(batch.getStatus())) {
             fail(batch, "ACC 申请结果未知（进程在申请过程中中断），需人工核对 ACC 侧是否已生成该批次后重建");
@@ -598,11 +509,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         return "SUCCESS".equals(batch.getStatus());
     }
 
-    /**
-     * 向 ACC 申请逻辑卡号文件，成功后把文件名落库并推进到 DOWNLOADING。
-     *
-     * @param batch 批次
-     */
+
     private void requestFromAcc(LogicCardPoolBatch batch) {
         batch.setStatus("REQUESTING");
         mapper.updateBatch(batch);
@@ -622,12 +529,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         mapper.updateBatch(batch);
     }
 
-    /**
-     * 下载 ACC 文件并导入卡号；临时文件在任何异常路径下都会被清理。
-     *
-     * @param batch     批次
-     * @param lockOwner 当前持有的锁标识，用于导入过程中续期
-     */
+
     private void importFromFtp(LogicCardPoolBatch batch, String lockOwner) {
         Path tempFile = null;
         try {
@@ -662,15 +564,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         }
     }
 
-    /**
-     * 逐行解析并分片入库。
-     *
-     * @param batch     批次
-     * @param file      本地临时文件
-     * @param lockOwner 当前持有的锁标识
-     * @return 导入统计
-     * @throws IOException 读文件失败
-     */
+
     private ImportStats importText(LogicCardPoolBatch batch, Path file, String lockOwner) throws IOException {
         ImportStats stats = new ImportStats();
         int chunkSize = properties.getImportChunkSize();
@@ -709,24 +603,14 @@ public class CardPoolServiceImpl implements CardPoolService {
         return stats;
     }
 
-    /**
-     * 续期票种级批次锁，续不上即中止本次导入。
-     *
-     * @param cardType  票种
-     * @param lockOwner 当前持有的锁标识
-     */
+
     private void renewLockOrFail(String cardType, String lockOwner) {
         if (mapper.renewBatchLock(cardType, lockOwner) != 1) {
             throw new IllegalStateException("票种卡池锁已失效（可能已超时被其它执行体接管），中止本次导入, cardType=" + cardType);
         }
     }
 
-    /**
-     * 分片入库；批量失败后逐条重试，只有确定是唯一键冲突才按重复处理，其余异常一律上抛。
-     *
-     * @param cards 待入库分片
-     * @param stats 导入统计
-     */
+
     private void flushCards(List<LogicCardPoolCard> cards, ImportStats stats) {
         if (cards.isEmpty()) {
             return;
@@ -745,12 +629,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         cards.clear();
     }
 
-    /**
-     * 单条入库并识别冲突原因。
-     *
-     * @param card  卡号
-     * @param stats 导入统计
-     */
+
     private void insertSingleCard(LogicCardPoolCard card, ImportStats stats) {
         try {
             mapper.insertCards(List.of(card));
@@ -775,13 +654,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         }
     }
 
-    /**
-     * 从 FTP 下载指定文件到本地临时文件。
-     *
-     * @param fileName ACC 返回的文件名
-     * @return 本地临时文件路径
-     * @throws IOException FTP 配置非法、文件不存在、超限或传输失败
-     */
+
     private Path download(String fileName) throws IOException {
         CardPoolProperties.Ftp ftpConfig = properties.getFtp();
         if (!isSafeFileName(fileName) || !StringUtils.hasText(ftpConfig.getHost())) {
@@ -813,13 +686,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         }
     }
 
-    /**
-     * 建立 FTP 连接、登录并切换到目标目录，同时设置数据连接超时。
-     *
-     * @param ftp        FTP 客户端
-     * @param ftpConfig  FTP 配置
-     * @throws IOException 连接、登录或切目录失败
-     */
+
     private void connectAndLogin(FTPClient ftp, CardPoolProperties.Ftp ftpConfig) throws IOException {
         ftp.connect(ftpConfig.getHost(), ftpConfig.getPort());
         ftp.setSoTimeout(ftpConfig.getSoTimeoutMillis());
@@ -834,11 +701,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         }
     }
 
-    /**
-     * 关闭 FTP 连接，失败只记日志。
-     *
-     * @param ftp FTP 客户端
-     */
+
     private void disconnectQuietly(FTPClient ftp) {
         if (!ftp.isConnected()) {
             return;
@@ -855,11 +718,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         }
     }
 
-    /**
-     * 删除临时文件，失败只记日志。
-     *
-     * @param file 临时文件，可为 null
-     */
+
     private void deleteQuietly(Path file) {
         if (file == null) {
             return;
@@ -871,23 +730,12 @@ public class CardPoolServiceImpl implements CardPoolService {
         }
     }
 
-    /**
-     * 抢占票种锁。
-     *
-     * @param cardType  票种
-     * @param lockOwner 锁标识
-     * @return 抢到返回 true
-     */
+
     private boolean acquireLock(String cardType, String lockOwner) {
         return mapper.acquireBatchLock(cardType, lockOwner, properties.getLockStaleSeconds()) == 1;
     }
 
-    /**
-     * 释放票种锁，失败只记日志，不覆盖业务异常。
-     *
-     * @param cardType  票种
-     * @param lockOwner 锁标识
-     */
+
     private void releaseLock(String cardType, String lockOwner) {
         try {
             mapper.releaseBatchLock(cardType, lockOwner);
@@ -896,23 +744,13 @@ public class CardPoolServiceImpl implements CardPoolService {
         }
     }
 
-    /**
-     * 记录批次失败，异常本身与落库失败都不会互相掩盖。
-     *
-     * @param batch 批次
-     * @param cause 失败异常
-     */
+
     private void fail(LogicCardPoolBatch batch, Exception cause) {
         log.error("卡池批次失败, batchNo={}, cardType={}", batch.getBatchNo(), batch.getCardType(), cause);
         fail(batch, cause.getMessage());
     }
 
-    /**
-     * 记录批次失败原因；`updateBatch` 失败时降级为最小 UPDATE，确保批次一定离开中间态。
-     *
-     * @param batch  批次
-     * @param reason 失败原因
-     */
+
     private void fail(LogicCardPoolBatch batch, String reason) {
         batch.setStatus("FAILED");
         batch.setErrorMsg(truncate(reason));
@@ -927,25 +765,14 @@ public class CardPoolServiceImpl implements CardPoolService {
         mapper.markBatchFailed(batch.getBatchNo(), batch.getErrorMsg());
     }
 
-    /**
-     * 判断请求是否带齐业务归属键。
-     *
-     * @param request 预占请求
-     * @return 带齐返回 true
-     */
+
     private boolean hasBusinessKey(CardPoolReservationReqDTO request) {
         return request != null
                 && StringUtils.hasText(request.getBusinessType())
                 && StringUtils.hasText(request.getBusinessId());
     }
 
-    /**
-     * 按状态白名单决定已有记录能否作为预占复用返回。
-     *
-     * @param existing 已有记录
-     * @param cardType 本次请求票种
-     * @return 可复用的预占，否则返回 null
-     */
+
     private CardPoolReservationRespDTO reusableReservation(LogicCardPoolCard existing, String cardType) {
         if (!cardType.equals(existing.getCardType())) {
             log.warn("业务归属已占用其它票种卡号, businessType={}, businessId={}, existingType={}, requestType={}",
@@ -961,12 +788,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         return toReservation(existing);
     }
 
-    /**
-     * 转换为预占响应。
-     *
-     * @param card 卡号记录
-     * @return 预占响应
-     */
+
     private CardPoolReservationRespDTO toReservation(LogicCardPoolCard card) {
         CardPoolReservationRespDTO dto = new CardPoolReservationRespDTO();
         dto.setReservationId(card.getReservationId());
@@ -978,25 +800,14 @@ public class CardPoolServiceImpl implements CardPoolService {
         return dto;
     }
 
-    /**
-     * 校验 ACC 返回的文件名，拒绝路径穿越与非 txt。
-     *
-     * @param value 文件名
-     * @return 合法返回 true
-     */
+
     private boolean isSafeFileName(String value) {
         return StringUtils.hasText(value)
                 && value.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,240}\\.txt")
                 && !value.contains("..");
     }
 
-    /**
-     * 解析 ACC 逻辑卡号文件的一行，取第一列作卡号并校验第二列票种。
-     *
-     * @param line                 原始行
-     * @param expectedAccTicketType 批次的 ACC 票种，为空则不校验第二列
-     * @return 合法时返回卡号，否则返回 {@code null}
-     */
+
     static String parseCardNo(String line, String expectedAccTicketType) {
         if (line == null) {
             return null;
@@ -1013,24 +824,14 @@ public class CardPoolServiceImpl implements CardPoolService {
         return cardNo;
     }
 
-    /**
-     * 校验逻辑卡号格式，仅允许字母数字且不超过列长。
-     *
-     * @param value 卡号
-     * @return 合法返回 true
-     */
+
     private static boolean isValidCardNo(String value) {
         return StringUtils.hasText(value)
                 && value.length() <= CARD_NO_MAX_LENGTH
                 && value.matches("[A-Za-z0-9]+");
     }
 
-    /**
-     * 计算文件 SHA-256 摘要。
-     *
-     * @param file 文件
-     * @return 十六进制摘要
-     */
+
     private String sha256(Path file) {
         try (InputStream input = Files.newInputStream(file)) {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -1044,13 +845,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         }
     }
 
-    /**
-     * 判断已有记录是否来自同一批次同一票种，用于中断后重跑保留原有计数。
-     *
-     * @param existing 已有记录
-     * @param card     本次待入库记录
-     * @return 同批次同票种返回 true
-     */
+
     private boolean sameBatchAndType(LogicCardPoolCard existing, LogicCardPoolCard card) {
         return card.getBatchNo().equals(existing.getBatchNo())
                 && card.getCardType().equals(existing.getCardType());
@@ -1060,12 +855,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         return value == null ? null : value.trim();
     }
 
-    /**
-     * 把失败原因裁剪到 `ERROR_MSG` 列能容纳的范围。
-     *
-     * @param value 原始失败原因
-     * @return 裁剪后的原因，入参为空时返回占位串
-     */
+
     private String truncate(String value) {
         if (value == null) {
             return "未知错误";
@@ -1079,12 +869,7 @@ public class CardPoolServiceImpl implements CardPoolService {
         return limited.isEmpty() ? "未知错误" : limited;
     }
 
-    /**
-     * 归一化申请来源。
-     *
-     * @param source 来源
-     * @return AUTO 或 MANUAL
-     */
+
     private String normalizeSource(String source) {
         if ("AUTO".equalsIgnoreCase(source)) {
             return "AUTO";
@@ -1095,7 +880,6 @@ public class CardPoolServiceImpl implements CardPoolService {
         throw new IllegalArgumentException("不支持的卡池申请来源: " + source);
     }
 
-    /** 单批次导入统计。 */
     private static final class ImportStats {
         private int total;
         private int valid;
@@ -1103,7 +887,6 @@ public class CardPoolServiceImpl implements CardPoolService {
         private int invalid;
     }
 
-    /** 带字节上限的输出流。 */
     private static final class SizeLimitedOutputStream extends OutputStream {
 
         private final OutputStream delegate;
@@ -1139,12 +922,7 @@ public class CardPoolServiceImpl implements CardPoolService {
             delegate.close();
         }
 
-        /**
-         * 累计已写字节并在超限时中止传输。
-         *
-         * @param increment 本次将写入的字节数
-         * @throws IOException 超出配置上限
-         */
+
         private void ensureCapacity(int increment) throws IOException {
             written += increment;
             if (written > maxBytes) {

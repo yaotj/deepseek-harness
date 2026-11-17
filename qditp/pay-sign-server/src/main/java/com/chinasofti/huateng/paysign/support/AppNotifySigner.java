@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** ITP **出向通知**（IF8B）的加签（2026-09-16 由当时的 {@code AppNotifyServiceImpl} 逐字搬出，ADR-D99；该类已于 ADR-D127 按聚合拆分）。 */
 public final class AppNotifySigner {
 
     private static final Logger log = LoggerFactory.getLogger(AppNotifySigner.class);
@@ -23,11 +22,7 @@ public final class AppNotifySigner {
     private AppNotifySigner() {
     }
 
-    /**
-     * 按 {@code signType} 生成 {@code sign}；不需要签名时返回 {@code null}。
-     *
-     * @param signKey ITP 与 APP 约定的签名密钥（{@code itp.signKey}）。<b>NEVER 把它写进日志。</b>
-     */
+
     public static String buildItpSign(ItpCommonRequest<?> request, String signKey) {
         if (!StringUtils.hasText(request.getSignType()) || "00".equals(request.getSignType())) {
             return null;

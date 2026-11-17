@@ -4,14 +4,7 @@ import com.chinasofti.huateng.acc.es.server.model.TblTktEsFileProcLog;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
-/**
- * <p>
- *  Mapper 接口
- * </p>
- *
- * @author fc
- * @since 2020-09-02
- */
+
 @Mapper
 public interface TblTktEsFileProcLogMapper {
 

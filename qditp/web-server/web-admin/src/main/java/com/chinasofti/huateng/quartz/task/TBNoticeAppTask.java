@@ -24,43 +24,30 @@ public class TBNoticeAppTask {
         this.f2FClient = f2FClient;
     }
 
-    /**
-     * 测试
-     * 前台调用目标填写 tbNoticeAppTask.testtbNoticeAppTask() 时执行。
-     */
+
     public void testtbNoticeAppTask()
     {
         invoke("测试", f2FClient::testtbNoticeAppTask);
     }
 
-    /**
-     * 扫码取票接口 通知app出票结果
-     * 前台调用目标填写 tbNoticeAppTask.noticeTakeTicketTask() 时执行。
-     */
+
     public void noticeTakeTicketTask()
     {
         invoke("扫码取票接口 通知app出票结果", f2FClient::noticeTakeTicketTask);
     }
 
-    /**
-     * 扫码取票接口 通知app出票故障结果
-     * 前台调用目标填写 tbNoticeAppTask.noticeTakeTicketFailureTask() 时执行。
-     */
+
     public void noticeTakeTicketFailureTask()
     {
         invoke("扫码取票接口 通知app出票故障结果", f2FClient::noticeTakeTicketFailureTask);
     }
 
-    /**
-     * 扫码取票接口 通知app退款结果
-     * 前台调用目标填写 tbNoticeAppTask.noticeRefundTask() 时执行。
-     */
+
     public void noticeRefundTask()
     {
         invoke("扫码取票接口 通知app退款结果", f2FClient::noticeRefundTask);
     }
 
-    /** Quartz 只以异常判定失败，静默返回会让调度日志记成成功。 */
     private void invoke(String bizName, Function<Map<String, String>, ? extends CommonResult> action)
     {
         QuartzTraceUtils.runWithTrace(traceId -> {

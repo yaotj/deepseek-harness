@@ -5,9 +5,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
-/**
- * 车票个性化
- */
+
 @Data
 @EqualsAndHashCode(callSuper = false)
 @AllArgsConstructor

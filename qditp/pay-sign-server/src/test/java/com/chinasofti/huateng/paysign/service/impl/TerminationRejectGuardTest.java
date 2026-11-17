@@ -24,7 +24,6 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** 护栏：解约拒绝的幂等与冲突分支 NEVER 误发通知；闸机域答 null NEVER 当成「没有失败订单」。 */
 class TerminationRejectGuardTest {
 
     private static final String SEQ = "0052290701523999";
@@ -32,7 +31,6 @@ class TerminationRejectGuardTest {
     private static final String ALIPAY_VENDOR = "03";
     private static final String DEFAULT_FAIL_REASON = "存在扣费失败订单";
 
-    /** 入参缺 `requestSignSeq` 直接 8001，**不碰库**。 */
     @Test
     @DisplayName("拒绝解约：入参缺流水号返 8001，不读库不发通知")
     void notifyFailedRejectsBlankSeq() {
@@ -46,7 +44,6 @@ class TerminationRejectGuardTest {
                 .asyncNotifyTerminationFailed(any(), any(NotifyTerminationFailedReqDTO.class));
     }
 
-    /** 解约申请不存在 ⇒ 8010，NEVER 兜底成成功。 */
     @Test
     @DisplayName("拒绝解约：解约申请不存在返 8010")
     void notifyFailedRejectsMissingRequest() {
@@ -59,7 +56,6 @@ class TerminationRejectGuardTest {
         verify(fixture.terminationRequestMapper, never()).rejectPending(anyString(), anyString(), any());
     }
 
-    /** 已是 `FAILED` ⇒ **幂等成功**，且 NEVER 再发一条通知。 */
     @Test
     @DisplayName("拒绝解约：已是 FAILED 时幂等返 0000，不重发通知也不再 CAS")
     void notifyFailedIsIdempotentOnFailedStatus() {
@@ -74,7 +70,6 @@ class TerminationRejectGuardTest {
                 .asyncNotifyTerminationFailed(any(), any(NotifyTerminationFailedReqDTO.class));
     }
 
-    /** 非 PENDING 非 FAILED（如 `SCANNING` 在途）⇒ 8010 拒绝，NEVER 抢着改状态。 */
     @Test
     @DisplayName("拒绝解约：SCANNING 在途时返 8010，不做 CAS")
     void notifyFailedRejectsScanningStatus() {
@@ -87,7 +82,6 @@ class TerminationRejectGuardTest {
         verify(fixture.terminationRequestMapper, never()).rejectPending(anyString(), anyString(), any());
     }
 
-    /** CAS 命中：返 `0000`、发通知，且 `failReason` 空缺时**写进库的是回落值**。 */
     @Test
     @DisplayName("拒绝解约：CAS 命中时返 0000 + 发通知，空 failReason 回落成默认文案")
     void notifyFailedRejectsPendingAndNotifies() {
@@ -105,7 +99,6 @@ class TerminationRejectGuardTest {
         verify(fixture.terminationNotifyService).asyncNotifyTerminationFailed(pending, request);
     }
 
-    /** CAS 落空 ⇒ CONFLICT ⇒ 返错且 NEVER 发通知。 */
     @Test
     @DisplayName("拒绝解约：CAS 落空且库里已 SUCCESS 时返 8010，绝不发失败通知")
     void notifyFailedLosingCasSendsNoNotify() {
@@ -121,7 +114,6 @@ class TerminationRejectGuardTest {
                 .asyncNotifyTerminationFailed(any(), any(NotifyTerminationFailedReqDTO.class));
     }
 
-    /** 库层抛异常时**包成 {@link TerminationException} 往外抛**，不是吞掉返错。 */
     @Test
     @DisplayName("拒绝解约：写库异常时抛 TerminationException，不吞成错误码")
     void notifyFailedPropagatesMapperFailure() {
@@ -133,7 +125,6 @@ class TerminationRejectGuardTest {
                 () -> fixture.service.notifyTerminationFailed(notifyRequest(null)));
     }
 
-    /** 三个必填字段任缺一个即 8001，**不打闸机域**。 */
     @Test
     @DisplayName("失败订单核对：缺 requestTime 返 8001，不调 gate-txn-pay")
     void checkFailedOrdersRejectsIncompleteRequest() {
@@ -149,7 +140,6 @@ class TerminationRejectGuardTest {
         verify(fixture.gateTxnPayClient, never()).hasFailedOrder(any(GateTxnPayFailedOrderReqDTO.class));
     }
 
-    /** 闸机域答 `null` ⇒ 9001，**NEVER 当成「没有失败订单」**。 */
     @Test
     @DisplayName("失败订单核对：闸机域答 null 时返 9001，NEVER 退化成「无失败订单」")
     void checkFailedOrdersRejectsNullGateResponse() {
@@ -162,7 +152,6 @@ class TerminationRejectGuardTest {
         assertFalse(response.isHasFailedOrder());
     }
 
-    /** 闸机域答「有失败订单」⇒ 原样透传 `true` + `0000`。 */
     @Test
     @DisplayName("失败订单核对：闸机域答有失败订单时原样透传 true")
     void checkFailedOrdersPassesThroughPositiveAnswer() {
@@ -178,7 +167,6 @@ class TerminationRejectGuardTest {
         assertTrue(response.isHasFailedOrder());
     }
 
-    /** 闸机域不可达（抛异常）⇒ 9001，异常不外溢。 */
     @Test
     @DisplayName("失败订单核对：闸机域抛异常时返 9001，异常不外溢")
     void checkFailedOrdersSurvivesGateThrowing() {

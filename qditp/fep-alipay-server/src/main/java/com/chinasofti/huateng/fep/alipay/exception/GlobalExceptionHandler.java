@@ -4,9 +4,7 @@ import com.chinasofti.huateng.common.response.AlipayCommonResponse;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/**
- * 全局异常处理器，统一处理 BusinessException。
- */
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 

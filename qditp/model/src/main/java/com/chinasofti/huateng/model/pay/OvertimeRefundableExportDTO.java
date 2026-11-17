@@ -2,9 +2,7 @@ package com.chinasofti.huateng.model.pay;
 
 import java.io.Serializable;
 
-/**
- * 超时罚金可退款订单异步导出 DTO。
- */
+
 public class OvertimeRefundableExportDTO implements Serializable
 {
     private static final long serialVersionUID = 1L;

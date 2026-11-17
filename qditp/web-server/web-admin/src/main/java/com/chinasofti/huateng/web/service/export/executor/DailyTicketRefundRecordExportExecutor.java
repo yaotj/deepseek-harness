@@ -16,9 +16,7 @@ import com.chinasofti.huateng.web.domain.export.AsyncExportTask;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 
-/**
- * 日票退款记录异步导出执行器。
- */
+
 @Component("DAILY_TICKET_REFUND_RECORD")
 public class DailyTicketRefundRecordExportExecutor extends AbstractExcelExportExecutor
 {

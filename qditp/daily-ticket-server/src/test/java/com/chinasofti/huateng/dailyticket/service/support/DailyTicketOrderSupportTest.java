@@ -11,9 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**
- * 钉住从 {@code DailyTicketServiceImpl} 收口进来的判定逻辑，确保拆分前后逐字一致。
- */
+
 class DailyTicketOrderSupportTest {
 
     @Test

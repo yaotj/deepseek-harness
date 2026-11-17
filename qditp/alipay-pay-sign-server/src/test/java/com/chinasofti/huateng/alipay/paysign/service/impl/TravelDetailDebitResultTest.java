@@ -16,7 +16,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 钉住 IF8A 支付宝出行「查询乘车记录详情」的 debitRequestResult 值域。 */
 class TravelDetailDebitResultTest {
 
     private static final String ORDER_NO = "AL20260914000000000000001";
@@ -59,7 +58,6 @@ class TravelDetailDebitResultTest {
 
     @Test
     void resultMsgNeverLeaksIntoTheContractField() {
-        // 上线前该字段填的就是 RESULT_MSG，支付宝按 0/1 解析时成功单也显示扣费未成功。
         assertEquals("0", debitResultOf("SUCCESS", "交易成功"),
                 "RESULT_MSG 的文案 MUST NOT 出现在 debitRequestResult 里");
     }
@@ -81,7 +79,6 @@ class TravelDetailDebitResultTest {
         AlipayTripFindTravelDetailReqDTO request = new AlipayTripFindTravelDetailReqDTO();
         request.setOrderNo(ORDER_NO);
         AlipayTripFindTravelDetailRespDTO response = service.findTravelDetail(request);
-        // 业务字段在 data 里（ADR-D150），NEVER 改回从顶层取。
         return response.getData().getDebitRequestResult();
     }
 }

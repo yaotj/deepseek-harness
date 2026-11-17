@@ -2,7 +2,6 @@ package com.chinasofti.huateng.paysign.entity;
 
 import java.time.LocalDateTime;
 
-/** 支付/退款回调流水。 */
 public class PayCallbackLog {
     private Long id;
     private String orderNo;
@@ -24,10 +23,7 @@ public class PayCallbackLog {
     private String paymentVendor;
     private String txnDate;
     private String rawBody;
-    /**
-     * 渠道优惠详情原文（网关 V1.2）。归属本表而非 {@code PAY_TXN_DETAIL}：它是**回调事实**、随重推各存一份。
-     * NEVER 写进 {@code PAY_TXN_DETAIL.DISCOUNT_INFO} —— 那一列是闸机侧自算优惠，两个口径混一列后无法区分。
-     */
+
     private String discountInfo;
     private String handleStatus;
     private String handleMsg;

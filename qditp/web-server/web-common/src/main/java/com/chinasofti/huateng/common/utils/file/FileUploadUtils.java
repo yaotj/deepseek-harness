@@ -16,26 +16,16 @@ import com.chinasofti.huateng.common.utils.StringUtils;
 import com.chinasofti.huateng.common.utils.uuid.IdUtils;
 import com.chinasofti.huateng.common.utils.uuid.Seq;
 
-/**
- * 文件上传工具类
- * 
- * @author zmzhang
- */
+
 public class FileUploadUtils
 {
-    /**
-     * 默认大小 50M
-     */
+
     public static final long DEFAULT_MAX_SIZE = 50 * 1024 * 1024L;
 
-    /**
-     * 默认的文件名最大长度 100
-     */
+
     public static final int DEFAULT_FILE_NAME_LENGTH = 100;
 
-    /**
-     * 默认上传的地址
-     */
+
     private static String defaultBaseDir = PointsConfig.getProfile();
 
     public static void setDefaultBaseDir(String defaultBaseDir)
@@ -48,13 +38,7 @@ public class FileUploadUtils
         return defaultBaseDir;
     }
 
-    /**
-     * 以默认配置进行文件上传
-     *
-     * @param file 上传的文件
-     * @return 文件名称
-     * @throws Exception
-     */
+
     public static final String upload(MultipartFile file) throws IOException
     {
         try
@@ -67,14 +51,7 @@ public class FileUploadUtils
         }
     }
 
-    /**
-     * 根据文件路径上传
-     *
-     * @param baseDir 相对应用的基目录
-     * @param file 上传的文件
-     * @return 文件名称
-     * @throws IOException
-     */
+
     public static final String upload(String baseDir, MultipartFile file) throws IOException
     {
         try
@@ -87,18 +64,7 @@ public class FileUploadUtils
         }
     }
 
-    /**
-     * 文件上传
-     *
-     * @param baseDir 相对应用的基目录
-     * @param file 上传的文件
-     * @param allowedExtension 上传文件类型
-     * @return 返回上传成功的文件名
-     * @throws FileSizeLimitExceededException 如果超出最大大小
-     * @throws FileNameLengthLimitExceededException 文件名太长
-     * @throws IOException 比如读写文件出错时
-     * @throws InvalidExtensionException 文件校验异常
-     */
+
     public static final String upload(String baseDir, MultipartFile file, String[] allowedExtension)
             throws FileSizeLimitExceededException, IOException, FileNameLengthLimitExceededException,
             InvalidExtensionException
@@ -106,19 +72,7 @@ public class FileUploadUtils
         return upload(baseDir, file, allowedExtension, false);
     }
     
-    /**
-     * 文件上传
-     *
-     * @param baseDir 相对应用的基目录
-     * @param file 上传的文件
-     * @param useCustomNaming 系统自定义文件名
-     * @param allowedExtension 上传文件类型
-     * @return 返回上传成功的文件名
-     * @throws FileSizeLimitExceededException 如果超出最大大小
-     * @throws FileNameLengthLimitExceededException 文件名太长
-     * @throws IOException 比如读写文件出错时
-     * @throws InvalidExtensionException 文件校验异常
-     */
+
     public static final String upload(String baseDir, MultipartFile file, String[] allowedExtension, boolean useCustomNaming)
             throws FileSizeLimitExceededException, IOException, FileNameLengthLimitExceededException,
             InvalidExtensionException
@@ -138,17 +92,13 @@ public class FileUploadUtils
         return getPathFileName(baseDir, fileName);
     }
 
-    /**
-     * 编码文件名(日期格式目录 + 原文件名 + 序列值 + 后缀)
-     */
+
     public static final String extractFilename(MultipartFile file)
     {
         return StringUtils.format("{}/{}_{}.{}", DateUtils.datePath(), FilenameUtils.getBaseName(file.getOriginalFilename()), Seq.getId(Seq.uploadSeqType), getExtension(file));
     }
 
-    /**
-     * 编编码文件名(日期格式目录 + UUID + 后缀)
-     */
+
     public static final String uuidFilename(MultipartFile file)
     {
         return StringUtils.format("{}/{}.{}", DateUtils.datePath(), IdUtils.fastSimpleUUID(), getExtension(file));
@@ -175,14 +125,7 @@ public class FileUploadUtils
         return Constants.RESOURCE_PREFIX + "/" + currentDir + "/" + fileName;
     }
 
-    /**
-     * 文件大小校验
-     *
-     * @param file 上传的文件
-     * @return
-     * @throws FileSizeLimitExceededException 如果超出最大大小
-     * @throws InvalidExtensionException
-     */
+
     public static final void assertAllowed(MultipartFile file, String[] allowedExtension)
             throws FileSizeLimitExceededException, InvalidExtensionException
     {
@@ -223,13 +166,7 @@ public class FileUploadUtils
         }
     }
 
-    /**
-     * 判断MIME类型是否是允许的MIME类型
-     *
-     * @param extension
-     * @param allowedExtension
-     * @return
-     */
+
     public static final boolean isAllowedExtension(String extension, String[] allowedExtension)
     {
         for (String str : allowedExtension)
@@ -242,12 +179,7 @@ public class FileUploadUtils
         return false;
     }
 
-    /**
-     * 获取文件名的后缀
-     * 
-     * @param file 表单文件
-     * @return 后缀名
-     */
+
     public static final String getExtension(MultipartFile file)
     {
         String extension = FilenameUtils.getExtension(file.getOriginalFilename());

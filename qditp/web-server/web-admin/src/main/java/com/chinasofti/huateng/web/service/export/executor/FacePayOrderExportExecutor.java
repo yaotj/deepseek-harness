@@ -14,9 +14,7 @@ import com.chinasofti.huateng.web.domain.export.AsyncExportTask;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 
-/**
- * 当面付订单异步导出执行器。
- */
+
 @Component("FACE_PAY_ORDER")
 public class FacePayOrderExportExecutor extends AbstractExcelExportExecutor
 {

@@ -15,7 +15,6 @@ public class SupplementOrderQueryService {
 
     private static final int MAX_PAGE_SIZE = 100;
 
-    /** 反查补款的单号上限：一页最多 100 行留足余量，同时远低于 Oracle IN 列表 1000 的硬顶。 */
     private static final int MAX_ORIG_ORDER_NOS = 200;
 
     private final SupplementOrderMapper supplementOrderMapper;
@@ -73,15 +72,7 @@ public class SupplementOrderQueryService {
         return new PageOutcome.Ok(list, total);
     }
 
-    /**
-     * 综管台扣费明细页回填用：按一批原扣费订单号反查补款单。
-     *
-     * <p>入参先 trim + 去重再判长度：一页最多 100 行，重复单号不该占用配额，
-     * 也不该让调用方靠「恰好没重复」躲过上限。
-     *
-     * @return 扁平投影列表；查不到即空列表
-     * @throws IllegalArgumentException 列表为空或去重后仍超过 {@value #MAX_ORIG_ORDER_NOS}
-     */
+
     public List<SupplementOrigRef> byOrigOrderNos(List<String> origOrderNos) {
         if (origOrderNos == null || origOrderNos.isEmpty()) {
             throw new IllegalArgumentException("原扣费订单号列表不能为空");

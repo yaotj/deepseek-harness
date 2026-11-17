@@ -1,17 +1,11 @@
 package com.chinasofti.huateng.collectticket.model.response;
 
-/**
- * IF2A-04 取票结果通知响应报文。
- */
+
 public class TicketCollectResultNotifyRespDTO {
-    /**
-     * 返回码。
-     */
+
     private String retCode;
 
-    /**
-     * 返回消息。
-     */
+
     private String retMsg;
 
     public String getRetCode() {

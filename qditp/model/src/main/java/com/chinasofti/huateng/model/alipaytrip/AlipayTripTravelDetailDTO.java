@@ -1,114 +1,65 @@
 package com.chinasofti.huateng.model.alipaytrip;
 
-/**
- * 支付宝出行-查询乘车记录详情的业务体（应答里 {@code data} 的内容）。
- *
- * <p><b>这个类的存在本身就是「详情应答包一层 data」这个契约的载体</b>（2026-09-20 按支付宝侧实测要求确立，
- * ADR-D150）：{@link AlipayTripFindTravelDetailRespDTO} 顶层只留 {@code retCode} / {@code retMsg}，
- * 20 个业务字段全部落在本类里。<b>NEVER 把这些字段挪回顶层</b> —— 那是 ADR-D148 的扁平口径，已被支付宝侧
- * 实测要求取代。
- *
- * <p><b>NEVER 让本类与 {@link AlipayTripTravelRecordDTO}（列表子表 表146）互相复用或共享父类</b>：
- * 两者字段名高度重合但属于**两份独立的对外契约**，任何一边加字段都不该牵动另一边
- * （判据见 `docs/domain/README.md` 对外契约那条）。
- */
+
 public class AlipayTripTravelDetailDTO {
 
-    /**
-     * 进站站点名称。
-     */
+
     private String entryStationName;
 
-    /**
-     * 进站时间。
-     */
+
     private String entryDate;
 
-    /**
-     * 出站站点名称。
-     */
+
     private String exitStationName;
 
-    /**
-     * 出站时间。
-     */
+
     private String exitDate;
 
-    /**
-     * 实付金额（单位：分）
-     */
+
     private String payAmount;
 
-    /**
-     * 总金额（单位：分）
-     */
+
     private String totalAmount;
 
-    /**
-     * 订单扩展类型。
-     */
+
     private String orderExpType;
 
-    /**
-     * 交易订单号。
-     */
+
     private String tradeOrderNo;
 
-    /**
-     * 支付交易订单号。
-     */
+
     private String payTradeOrderNo;
 
-    /**
-     * 支付订单日期。
-     */
+
     private String payOrderNoDate;
 
-    /**
-     * 扣款请求结果，值域只有 {@code "0"}（成功）与 {@code "1"}（未成功）。
-     */
+
     private String debitRequestResult;
 
-    /**
-     * 支付渠道代码。
-     */
+
     private String payChannelCode;
 
-    /**
-     * 同行票标识。
-     */
+
     private String companionFlag;
 
     private String cardNum;
 
-    /**
-     * 日票票号。
-     */
+
     private String ticketCode;
 
-    /**
-     * 计次次数（预留）
-     */
+
     private String countingTimes;
 
-    /**
-     * 计次标识（预留）
-     */
+
     private String countingFlag;
 
-    /**
-     * 发票状态（可选）
-     */
+
     private String invoice;
 
-    /**
-     * 优惠金额（单位：分）
-     */
+
     private String discountFee;
 
-    /**
-     * 优惠信息。
-     */
+
     private String discountInfo;
 
     public String getEntryStationName() {

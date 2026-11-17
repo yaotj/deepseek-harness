@@ -32,12 +32,7 @@ public class ReconPartService {
         this.properties = properties;
     }
 
-    /**
-     * 接收一个分片：边收边算 SHA-256，校验通过后落盘并落库。
-     *
-     * @param declaredRecords 源声明的行数
-     * @param declaredAmount  源声明的金额合计（单位分），写入 {@code AMOUNT_TOTAL} 供收齐校验比对
-     */
+
     public PartReceipt receive(String batchId, String source, ReconFileType fileType, int partNo,
                                long declaredRecords, long declaredAmount, String declaredSha256,
                                InputStream input) throws IOException {
@@ -119,12 +114,7 @@ public class ReconPartService {
         catch (NoSuchAlgorithmException e) { throw new IllegalStateException("JDK 不支持 SHA-256", e); }
     }
 
-    /**
-     * 异常链上是否有唯一键冲突。
-     *
-     * @param ex 捕获到的异常
-     * @return 链上出现过唯一键冲突即 true
-     */
+
     private static boolean isDuplicateKeyViolation(Throwable ex) {
         for (Throwable cursor = ex; cursor != null && cursor != cursor.getCause(); cursor = cursor.getCause()) {
             if (cursor instanceof DuplicateKeyException) return true;

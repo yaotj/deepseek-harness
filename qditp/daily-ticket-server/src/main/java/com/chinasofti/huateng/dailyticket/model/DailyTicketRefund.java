@@ -2,47 +2,26 @@ package com.chinasofti.huateng.dailyticket.model;
 
 import java.util.Date;
 
-/** 日票退款记录。 */
 public class DailyTicketRefund {
-    /** 主键ID。 */
     private String id;
-    /** 原日票订单号。 */
     private String orderNo;
-    /** 订单类型：1日票，2旅游票。 */
     private String orderType;
-    /** 退款范围：DAILY日票，TRAVEL_FULL旅游票整单，TRAVEL_SUB旅游票子单。 */
     private String refundScope;
-    /** 旅游票主单号。 */
     private String parentOrderNo;
-    /** 退款原因。 */
     private String refundReason;
-    /** 操作员。 */
     private String operator;
-    /** 商户退款单号；发起退款时传给支付平台的 refundOrderNo，查询时对应 merchantRefundNo。 */
     private String refundOrderNo;
-    /** 支付平台退款单号；退款查询时对应 refundOrderNo。 */
     private String platformRefundNo;
-    /** 退款金额，单位分。 */
     private Integer refundAmount;
-    /** 退款状态。 */
     private String refundStatus;
-    /** 退款类型，00直接退款，01激活后核验退款。 */
     private String refundType;
-    /** 退款完成时间。 */
     private Date refundDate;
-    /** 激活后退款核验时间。 */
     private Date verifyAfterTime;
-    /** 创建时间。 */
     private Date createTime;
-    /** 更新时间。 */
     private Date updateTime;
-    /** IF8B-04 退款结果通知 APP 的投递状态：PENDING 待发 / SUCCESS 已受理 / GIVEUP 放弃重投；为空表示无需通知。 */
     private String notifyStatus;
-    /** 通知已投递次数，达到 daily-ticket.notify.app.max-notify-times 即置 GIVEUP。 */
     private Integer notifyTimes;
-    /** 最近一次通知投递时刻。 */
     private Date notifyTime;
-    /** 最近一次通知失败原因，成功时清空。 */
     private String notifyMsg;
 
     public String getId() { return id; }

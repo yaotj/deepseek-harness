@@ -25,7 +25,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
-/** 单条解约申请的处理器。 */
 @Service
 public class TerminationProcessor {
 
@@ -34,57 +33,35 @@ public class TerminationProcessor {
     private static final String STATUS_PENDING = TerminationStatus.PENDING.name();
     private static final String STATUS_SCANNING = TerminationStatus.SCANNING.name();
 
-    /**
-     * 支付平台协议状态：已解约。
-     *
-     * <p><b>这是外部契约值、不是本地状态，NEVER 改成 {@code SignStatus.UNSIGNED.name()}</b>（ADR-D127）：
-     * 它与本地 {@code SIGN_STATUS} 恰好同名同值纯属巧合，语义是「支付中心侧协议已解」。
-     * 一旦支付中心换了取值，这里要跟着换而本地枚举**不能**动；反过来也一样。
-     */
+
     private static final String GATEWAY_STATUS_UNSIGNED = "UNSIGNED";
-    /**
-     * 解约回调报文的成功状态值，见 {@code TerminationResultCallbackHandler}。
-     *
-     * <p>同上属**入向报文契约**，与 {@code TerminationStatus.SUCCESS} 同名不同源，NEVER 合并。
-     */
+
     private static final String CALLBACK_STATUS_SUCCESS = "SUCCESS";
 
     private static final DateTimeFormatter DISMISSAL_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    /** SCANNING 多久（分钟）没能确认解约就判为收口超时，置 FAILED 并通知 APP。 */
     private static final int SCANNING_TIMEOUT_MINUTES = 1440;
 
-    /** 处理结论。 */
     public enum Outcome {
-        /** 已发起支付平台解约，等下一轮扫表或回调收口。 */
         TERMINATED,
-        /** 主动查询确认支付平台已解约，已收口为 SUCCESS。 */
         CONFIRMED,
-        /** 存在未结清扣费订单，拒绝解约并已置 FAILED。 */
         REJECTED,
-        /** SCANNING 超过 SCANNING_TIMEOUT_MINUTES 仍未确认解约，已置 FAILED 并通知 APP。 */
         EXPIRED,
-        /** 未能定论，状态原样保留，下次扫表重试。 */
         SKIPPED
     }
 
     private final AppTerminationRequestMapper terminationRequestMapper;
 
-    /** 支付中心签约/解约方向的出向端口（2026-09-16，ADR-D115）。 */
     private final ContractGatewayPort contractGatewayPort;
 
-    /** 解约回调的收口实现，2026-09-15 随回调组由 {@code PaySignWorkflow} 搬到。 */
     private final CallbackDomainService callbackDomainService;
 
-    /** 审计流水的唯一写入点（2026-09-14 抽出）；此前是 {@code paySignWorkflow.writeLog}，属反向依赖。 */
     private final PaySignAuditLogger auditLogger;
 
-    /** 闸机域**未结清欠费查询方向**的出向端口（2026-09-17，ADR-D119）。 */
     private final UnsettledOrderPort unsettledOrderPort;
 
     private final TerminationNotifyService terminationNotifyService;
 
-    /** 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备。 */
     public TerminationProcessor(
             AppTerminationRequestMapper terminationRequestMapper,
             ContractGatewayPort contractGatewayPort,
@@ -113,11 +90,8 @@ public class TerminationProcessor {
         return Outcome.SKIPPED;
     }
 
-    /** PENDING：确认无未结清欠费后发起支付平台解约。 */
     private Outcome processPending(AppTerminationRequest record) {
         String requestSignSeq = record.getRequestSignSeq();
-        // 三分支穷尽：「问不出来」MUST 阻断本轮，NEVER 当成「无欠费」放行（ADR-D119）。
-        // 少写一个分支这里直接编译失败 —— 这正是把 boolean 换成三态答复的目的。
         return switch (unsettledOrderPort.hasUnsettledOrder(
                 record.getThirdUserId(), record.getPaymentVendor(), null)) {
             case UnsettledOrderAnswer.Answered answered -> answered.hasUnsettledOrder()
@@ -135,7 +109,6 @@ public class TerminationProcessor {
         };
     }
 
-    /** SCANNING：主动向支付平台查协议状态收口。 */
     private Outcome confirmTermination(AppTerminationRequest record) {
         String requestSignSeq = record.getRequestSignSeq();
         GatewayReply reply;
@@ -178,7 +151,6 @@ public class TerminationProcessor {
         return Outcome.CONFIRMED;
     }
 
-    /** 从网关成功应答的 data 中读取协议状态。 */
     private String readGatewayStatus(GatewayReply.Accepted accepted) {
         Map<String, Object> data = accepted.data();
         if (data == null) {
@@ -188,7 +160,6 @@ public class TerminationProcessor {
         return status == null ? null : String.valueOf(status);
     }
 
-    /** 存在未结清欠费：不调支付平台，置 FAILED 并通知 APP 解约失败。 */
     private Outcome rejectByUnsettledOrder(AppTerminationRequest record, String requestSignSeq) {
         String failReason = "存在未结清扣费订单";
         int rejected = terminationRequestMapper.rejectPending(requestSignSeq, failReason, LocalDateTime.now());
@@ -203,11 +174,7 @@ public class TerminationProcessor {
         return Outcome.REJECTED;
     }
 
-    /**
-     * SCANNING 收口超时判定：滞留未超阈值就原样保留，超了则置 FAILED 并通知 APP。
-     *
-     * @param detail 本轮没能确认的原因，进 FAIL_REASON 供人工核查（列长 1024，够用）
-     */
+
     private Outcome expireIfTimedOut(AppTerminationRequest record, String detail) {
         String requestSignSeq = record.getRequestSignSeq();
         LocalDateTime since = record.getScanTime() != null ? record.getScanTime() : record.getRequestTime();
@@ -235,7 +202,6 @@ public class TerminationProcessor {
         return Outcome.EXPIRED;
     }
 
-    /** 提交「解约失败」通知。 */
     private void notifyTerminationFailed(AppTerminationRequest record, String failReason) {
         NotifyTerminationFailedReqDTO notifyRequest = new NotifyTerminationFailedReqDTO();
         notifyRequest.setThirdUserId(record.getThirdUserId());
@@ -247,7 +213,6 @@ public class TerminationProcessor {
         terminationNotifyService.asyncNotifyTerminationFailed(record, notifyRequest);
     }
 
-    /** 无未结清欠费：CAS 抢执行权置 SCANNING，再调支付平台解约。 */
     private Outcome requestTermination(AppTerminationRequest record, String requestSignSeq) {
         if (terminationRequestMapper.markScanning(requestSignSeq, LocalDateTime.now()) == 0) {
             log.info("解约申请已被并发接手（未命中 PENDING），本次不再发起, requestSignSeq={}", requestSignSeq);

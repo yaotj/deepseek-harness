@@ -24,17 +24,11 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.Executor;
 
-/**
- * {@link TerminationNotifyService} 的唯一实现，**只碰 {@code APP_TERMINATION_REQUEST}**。
- *
- * <p>2026-09-17（ADR-D127）由 {@code AppNotifyServiceImpl} 按聚合拆出，签约侧见 {@link SignNotifyServiceImpl}。
- * 拆分动机是原类横跨两条聚合、注了 3 个 mapper，而 4 个注入方只用本类这 3 个方法。
- */
+
 @Service("paySignTerminationNotifyServiceImpl")
 public class TerminationNotifyServiceImpl implements TerminationNotifyService {
     private static final Logger log = LoggerFactory.getLogger(TerminationNotifyServiceImpl.class);
     private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-    /** APP_TERMINATION_REQUEST.TERMINATION_STATUS 终态取值，取值来自 TerminationStatus。 */
     private static final String TERMINATION_STATUS_SUCCESS = TerminationStatus.SUCCESS.name();
     private static final String TERMINATION_STATUS_FAILED = TerminationStatus.FAILED.name();
 
@@ -44,7 +38,6 @@ public class TerminationNotifyServiceImpl implements TerminationNotifyService {
 
     private final Executor notifyExecutor;
 
-    /** 协作者一律构造注入（2026-09-16，ADR-D96）：字段 {@code final} ⇒ 对象一建成即完备。 */
     public TerminationNotifyServiceImpl(
             AppTerminationRequestMapper terminationRequestMapper,
             AppNotifyPort appNotifyPort,
@@ -80,7 +73,6 @@ public class TerminationNotifyServiceImpl implements TerminationNotifyService {
         });
     }
 
-    /** 重发一条解约结果通知：按解约申请的终态决定重发成功通知还是失败通知。 */
     @Override
     public void asyncRetryTerminationNotify(AppTerminationRequest terminationRequest) {
         String expectedStatus = TERMINATION_STATUS_FAILED.equals(terminationRequest.getTerminationStatus())
@@ -117,7 +109,6 @@ public class TerminationNotifyServiceImpl implements TerminationNotifyService {
         });
     }
 
-    /** 解约成功通知：以 APP_TERMINATION_REQUEST 为主记录更新通知状态。 */
     private void doNotifyTerminationResult(AppTerminationRequest terminationRequest, PaySignInfo signInfo, ReceiveTerminationResultReqDTO receiveRequest) {
         try {
             AppTerminationResultNotifyReqDTO bizData = new AppTerminationResultNotifyReqDTO();
@@ -169,15 +160,7 @@ public class TerminationNotifyServiceImpl implements TerminationNotifyService {
         }
     }
 
-    /**
-     * 回写解约通知结果，带**轮次闸门**（2026-09-17，ADR-D125）。
-     *
-     * <p>{@code expectedTerminationStatus} 是本次通知所描述的终态。异步投递可能比
-     * {@code requestTermination} 里的 {@code reactivateFailed} 晚返回，那时库内已是新一轮 PENDING、
-     * {@code NOTIFY_*} 已清零；无闸门地落 SUCCESS 会让新一轮带着上一轮的成功标记，
-     * {@code compensateTerminationNotify} 永远扫不到它，这轮通知就此永久丢失。
-     * 影响 0 行只打 WARN、NEVER 抛异常：本轮已被取代不是错误。
-     */
+
     private void updateNotifyStatus(AppTerminationRequest request, String expectedTerminationStatus,
                                     boolean success, String result) {
         int affected = terminationRequestMapper.updateNotifyStatus(request.getRequestSignSeq(),

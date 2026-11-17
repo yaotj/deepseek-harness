@@ -1,8 +1,6 @@
 package com.chinasofti.huateng.common.constant;
 
-/**
- * fep-app-server 错误码枚举。
- */
+
 public enum FepAppErrorCodeEnum {
     SUCCESS("0000", "成功"),
     FAIL("9999", "失败"),

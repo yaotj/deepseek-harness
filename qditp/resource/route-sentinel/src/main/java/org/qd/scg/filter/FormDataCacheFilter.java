@@ -15,14 +15,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-/**
- * 缓存 {@code application/x-www-form-urlencoded} 请求体，并使其参数对后续链路可见。
- *
- * <p>route-sentinel 的分发谓语需要从 {@code bizData} 中解析 {@code thirdUserId}。
- * BOM/TVM 等设备域请求使用 POST + form-urlencoded，参数位于 body 而非 query string，
- * 导致 {@code ServerRequest.param("bizData")} 读不到。本过滤器在请求入口处缓存 body 并
- * 重建 {@code getParameter} 族方法，既不影响下游转发，又能让分发逻辑正确读取 form 参数。
- */
+
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class FormDataCacheFilter extends OncePerRequestFilter {
@@ -60,9 +53,7 @@ public class FormDataCacheFilter extends OncePerRequestFilter {
         }
     }
 
-    /**
-     * 快速字符串扫描，从 {@code bizData} JSON 串中提取指定 key 的字符串值，失败返回 null。
-     */
+
     private String extractValue(String bizData, String key) {
         if (bizData == null || bizData.isBlank()) {
             return null;

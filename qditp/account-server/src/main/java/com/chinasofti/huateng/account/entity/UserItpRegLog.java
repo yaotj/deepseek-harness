@@ -2,43 +2,27 @@ package com.chinasofti.huateng.account.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * User_ITP_Reg_log 用户注册日志表实体。
- */
+
 public class UserItpRegLog {
-    /**
-     * 主键。
-     */
+
     private Integer id;
 
-    /**
-     * 逻辑卡号。
-     */
+
     private String cardId;
 
-    /**
-     * 卡类型。
-     */
+
     private String cardType;
 
-    /**
-     * 第三方用户编码。
-     */
+
     private String thirdUserId;
 
-    /**
-     * 手机号。
-     */
+
     private String msisdn;
 
-    /**
-     * 操作时间。
-     */
+
     private LocalDateTime operDateTime;
 
-    /**
-     * 操作类型。
-     */
+
     private Integer operType;
 
     public Integer getId() {

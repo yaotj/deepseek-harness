@@ -2,9 +2,7 @@ package com.chinasofti.huateng.account.entity;
 
 import java.time.LocalDateTime;
 
-/**
- * ACC 员工码操作日志表实体。
- */
+
 public class UserAccEmployeeCardLog {
     private Long id;
     private String cardNo;

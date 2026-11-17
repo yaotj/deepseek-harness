@@ -1,27 +1,17 @@
 package com.chinasofti.huateng.collectticket.model.response;
 
-/**
- * IF2A-05 取消取票订单响应报文。
- */
+
 public class CancelTicketCollectOrderRespDTO {
-    /**
-     * 返回码。
-     */
+
     private String retCode;
 
-    /**
-     * 返回消息。
-     */
+
     private String retMsg;
 
-    /**
-     * 订单号。
-     */
+
     private String orderNo;
 
-    /**
-     * 订单状态。
-     */
+
     private Integer orderStatus;
 
     public String getRetCode() {

@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** IF8A-34 订单详情查询。 */
 @Component
 public class TransDetailQueryHandler {
 
@@ -50,7 +49,6 @@ public class TransDetailQueryHandler {
     @Autowired
     private DailyTicketClient dailyTicketClient;
 
-    /** 获取订单详情 (IF8A-34)。 */
     public RequestTransDetailResult requestTransDetail(RequestTransDetailReqDTO request) {
         RequestTransDetailResult response = new RequestTransDetailResult();
         try {
@@ -108,7 +106,6 @@ public class TransDetailQueryHandler {
         return null;
     }
 
-    /** 站名解析（详情场景，只有进出站两个编码）。 */
     private void enrichSingleStationNames(TransRecordDTO record) {
         if (StringUtils.hasText(record.getEntryStationName())) {
             Set<String> codes = new LinkedHashSet<>(Collections.singletonList(record.getEntryStationName()));
@@ -124,7 +121,6 @@ public class TransDetailQueryHandler {
         }
     }
 
-    /** 补齐商户号：仅当 {@code GATE_TXN_PAY} 未落库时才按变更日期兜底。 */
     private void resolveMerchantParties(TransRecordDTO record) {
         boolean attributableMissing = !StringUtils.hasText(record.getAttributableParty());
         boolean receivingMissing = !StringUtils.hasText(record.getReceivingParty());
@@ -152,7 +148,6 @@ public class TransDetailQueryHandler {
                 record.getAttributableParty(), record.getReceivingParty());
     }
 
-    /** 日票免扣费单补三个支付字段：{@code payTradeOrderNo} / {@code payOrderNoDate} / {@code payChannelCode}。 */
     private void enrichDailyTicketPayInfo(TransRecordDTO record) {
         if (!StringUtils.hasText(record.getTicketCode())) {
             return;
