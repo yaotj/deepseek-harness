@@ -14,7 +14,7 @@ public class TransRecordDTO {
     private String payTradeOrderNo;
     private String payOrderNoDate;
     private String debitRequestResult;
-    private Integer discountFee;
+    private String discountFee;
     private String discountInfo;
     private String companionFlag;
     private String cardNum;
@@ -29,7 +29,7 @@ public class TransRecordDTO {
     private String cumulativeType;
     private Integer originalFare;
 
-    private Integer totalAmount;
+    private String totalAmount;
     private Integer walletTotalAmt;
     private Integer discountLevelAmt;
     private BigDecimal discountRate;
@@ -55,8 +55,8 @@ public class TransRecordDTO {
     public void setPayOrderNoDate(String payOrderNoDate) { this.payOrderNoDate = payOrderNoDate; }
     public String getDebitRequestResult() { return debitRequestResult; }
     public void setDebitRequestResult(String debitRequestResult) { this.debitRequestResult = debitRequestResult; }
-    public Integer getDiscountFee() { return discountFee; }
-    public void setDiscountFee(Integer discountFee) { this.discountFee = discountFee; }
+    public String getDiscountFee() { return discountFee; }
+    public void setDiscountFee(String discountFee) { this.discountFee = discountFee; }
     public String getDiscountInfo() { return discountInfo; }
     public void setDiscountInfo(String discountInfo) { this.discountInfo = discountInfo; }
     public String getCompanionFlag() { return companionFlag; }
@@ -83,8 +83,8 @@ public class TransRecordDTO {
     public void setCumulativeType(String cumulativeType) { this.cumulativeType = cumulativeType; }
     public Integer getOriginalFare() { return originalFare; }
     public void setOriginalFare(Integer originalFare) { this.originalFare = originalFare; }
-    public Integer getTotalAmount() { return totalAmount; }
-    public void setTotalAmount(Integer totalAmount) { this.totalAmount = totalAmount; }
+    public String getTotalAmount() { return totalAmount; }
+    public void setTotalAmount(String totalAmount) { this.totalAmount = totalAmount; }
     public Integer getWalletTotalAmt() { return walletTotalAmt; }
     public void setWalletTotalAmt(Integer walletTotalAmt) { this.walletTotalAmt = walletTotalAmt; }
     public Integer getDiscountLevelAmt() { return discountLevelAmt; }

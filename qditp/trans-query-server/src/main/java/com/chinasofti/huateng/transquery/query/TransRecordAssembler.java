@@ -57,18 +57,16 @@ public class TransRecordAssembler {
         return toFen(gate.getTotalAmount());
     }
 
-    static Integer resolveTotalAmount(GateTxnPayListDTO gate, PayTxnDetailDTO pay) {
-        if (pay != null && pay.getTotalAmount() != null) {
-            return pay.getTotalAmount();
-        }
-        return gate.getOriginalFare();
+    static String resolveTotalAmount(GateTxnPayListDTO gate, PayTxnDetailDTO pay) {
+        Integer fen = pay != null && pay.getTotalAmount() != null ? pay.getTotalAmount() : gate.getOriginalFare();
+        return toFen(fen);
     }
 
-    private static Integer resolveDiscountFee(PayTxnDetailDTO pay) {
+    private static String resolveDiscountFee(PayTxnDetailDTO pay) {
         if (pay == null) {
             return null;
         }
-        return pay.getDiscountFee() != null ? pay.getDiscountFee() : pay.getCouponAmount();
+        return toFen(pay.getDiscountFee() != null ? pay.getDiscountFee() : pay.getCouponAmount());
     }
 
 

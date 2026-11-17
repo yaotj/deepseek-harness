@@ -23,7 +23,7 @@ class TransRecordAssemblerTest {
 
         assertEquals("180", dto.getPayAmount());
         assertEquals(Integer.valueOf(300), dto.getOriginalFare());
-        assertEquals(Integer.valueOf(200), dto.getTotalAmount());
+        assertEquals("200", dto.getTotalAmount());
     }
 
     @Test
@@ -36,7 +36,7 @@ class TransRecordAssemblerTest {
 
         assertEquals("200", dto.getPayAmount());
         assertEquals(Integer.valueOf(300), dto.getOriginalFare());
-        assertEquals(Integer.valueOf(300), dto.getTotalAmount());
+        assertEquals("300", dto.getTotalAmount());
     }
 
     @Test
@@ -73,7 +73,7 @@ class TransRecordAssemblerTest {
         assertEquals("ALIPAY", dto.getPayChannelCode());
         assertEquals("20260914153638", dto.getPayOrderNoDate());
         assertEquals("CH20260914001", dto.getPayTradeOrderNo());
-        assertEquals(Integer.valueOf(2), dto.getDiscountFee());
+        assertEquals("2", dto.getDiscountFee());
         assertEquals("满减", dto.getDiscountInfo());
     }
 
@@ -84,7 +84,7 @@ class TransRecordAssemblerTest {
 
         TransRecordDTO dto = TransRecordAssembler.assemble(gate(), pay);
 
-        assertEquals(Integer.valueOf(2), dto.getDiscountFee());
+        assertEquals("2", dto.getDiscountFee());
     }
 
     @Test
@@ -95,7 +95,7 @@ class TransRecordAssemblerTest {
 
         TransRecordDTO dto = TransRecordAssembler.assemble(gate(), pay);
 
-        assertEquals(Integer.valueOf(1800), dto.getDiscountFee());
+        assertEquals("1800", dto.getDiscountFee());
     }
 
     @Test
