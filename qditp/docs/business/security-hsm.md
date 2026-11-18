@@ -29,8 +29,9 @@
 
 ## acc-security-server（9012）
 启动类 `acc-security-server/.../SecurityServerApplication.java`
-启动时按 `thread.corePoolSize` 拉起 N 条到加密机的 TCP 长连（`SocketClient`），业务经 `ClientSendMsg.sendRawMsg` 发原始报文（`B0xx` 指令）。
+启动时按 `security.channelPoolSize`（当前 48）拉起到加密机的 TCP 长连（`SocketClient`），业务经 `ClientSendMsg.sendRawMsg` 发原始报文（`B0xx` 指令）。**连接数与 socket 线程池已解耦**：`thread.corePoolSize` 只管 `socketAsyncExecutor`，不再决定连接数（2026-11-18 r1319 前二者共用 `thread.corePoolSize=10`，实测只有 9 条可用连接）。
 加密机地址是**两个独立配置键**：`security.firstIp`（IP）与 `security.firstPort`（端口），另有 `security.secondPort`；勿写成 `firstIp:port` 单键形式。
+取连接带超时排队：`security.acquireTimeoutMs`（当前 800），超时才抛 `HsmUnavailableException`（对上游表现为 hsm unavailable）；空闲连接保活由 `HsmHeartbeatScheduler` 用 `0x00` 系统信息指令完成（`security.heartbeatEnabled` / `heartbeatIdleSeconds` / `heartbeatPeriodMs`）。
 
 Controller（**均无接口编号标注**）：
 - `ItpRemainingController`（`/ci/itp`）：`/requestCaKey`、`/requestUserSm2Key`、`/requestExportUserPriKey`、`/requestDPK`、`/requestHceCardData`
@@ -254,27 +255,31 @@ Controller（**均无接口编号标注**）：
 
 ### 一、HSM TCP 长连接与连接池
 
-**1. 连接建立与「一条连接占一个线程」**（`SEC/socket/SocketClient.java`，【保留】grep `客户端连接成功`）
-`start()` 带 `@Async("socketAsyncExecutor")`，内部 `Bootstrap` + `NioSocketChannel` + `TCP_NODELAY=true`，pipeline 顺序**固定为 `ClientDecoder` → `ClientEncoder` → `clientHandler`**（`clientHandler` 是 `@ChannelHandler.Sharable` 的单例 Bean，另两个每连接新建）。连到 `securityConfig.getFirstIp()` / `getFirstPort()`（配置 `security.firstIp` / `security.firstPort`），成功即 `ChannelCache.set(future.channel())`，随后**在该线程上 `closeFuture().sync()` 阻塞到连接断开** —— 因此**连接数上限等于 `socketAsyncExecutor` 的线程数**（`thread.corePoolSize` / `thread.maxPoolSize`，当前都是 10）。`finally` 里 `group.shutdownGracefully()` + `ChannelCache.clear(...)`。**【已删除】** 该行原有一行注释「等待客户端链路关闭，就是由于这里会将线程阻塞，导致无法发送信息，这里开了线程」—— 判据已写在本条，**NEVER 把 `closeFuture` 等待挪回调用线程**。
+**1. 连接建立已全非阻塞，一条连接不再占一个线程**（`SEC/socket/SocketClient.java`，【保留】grep `客户端连接成功`）
+`start()` 内部 `Bootstrap` + `NioSocketChannel` + `TCP_NODELAY=true`，pipeline 顺序**固定为 `ClientDecoder` → `ClientEncoder` → `clientHandler`**（`clientHandler` 是 `@ChannelHandler.Sharable` 的单例 Bean，另两个每连接新建）。连到 `securityConfig.getFirstIp()` / `getFirstPort()`（配置 `security.firstIp` / `security.firstPort`），**全池共享一个 daemon `NioEventLoopGroup`**，`connect()` 改为监听器回调：成功即 `ChannelCache.set(future.channel())`，失败则计数回退后由重连任务再补。
+**判据（2026-11-18 r1319 起）**：连接数上限 = `security.channelPoolSize`，**不再是 `socketAsyncExecutor` 的线程数**；`PENDING_CONNECTS` 在途计数用于防「补齐时过冲」（超建连接）。**【已删除】** 旧实现每条连接独占一个 `socketAsyncExecutor` 线程并 `closeFuture().sync()` 阻塞到断开——判据已写在本条，**NEVER 把 `closeFuture` 等待挪回调用线程**。
 
 **2. 连接池就是 `ChannelCache` 的静态字段，没有第三方池**（`SEC/config/ChannelCache.java`，零注释，【无原文】）
-`CopyOnWriteArrayList<Channel> cacheList` + `Set<String> exclusiveChannelIds`（`HashSet`，靠方法级 `synchronized` 保护）+ `int index` 轮询游标 + `int size` 独立计数器。全部方法 `static synchronized`。
-- `get()`：从 `index` 起最多扫一圈，跳过 `!channel.isActive()` 与已在 `exclusiveChannelIds` 里的通道；池空抛 `HsmUnavailableException("no available channel")`，一圈没命中抛 `("no idle channel")`。
-- `acquireExclusive()` / `releaseExclusive(channel)`：raw 报文链路（见第 4 条）的**独占租借**，租借期间该通道对 `get()` 不可见。
-- `clear(channel)`：移除独占标记 → `channel.close()` → `cacheList.remove` 成功才 `size--`。
-- **坑：`size` 与 `cacheList.size()` 是两个数**。`set()` 无条件 `size++`，`clear()` 只在 remove 命中时 `size--`；而重连判据用的是 `getSize()`（下条），一旦两者漂移，**重连会永久停摆或永久重连**，且没有任何日志能直接看出来。
+`CopyOnWriteArrayList<Channel> cacheList` + `Set<String> exclusiveChannelIds`（`HashSet`）+ `Map<String,Long> lastActiveMap` 活跃时间 + `int index` 轮询游标，统一用 `ReentrantLock` + `Condition channelReleased` 保护（**不再是方法级 `synchronized`，也不再维护独立的 `size` 计数器**——`getSize()` 直接取 `cacheList.size()`）。
+- `get()`：从 `index` 起最多扫一圈，跳过 `!channel.isActive()` 与已在 `exclusiveChannelIds` 里的通道；池空抛 `HsmUnavailableException("no available channel")`，一圈没命中抛 `("no idle channel")`。**fail-fast，不等待**（旧 `sendMsg` 通路仍走它）。
+- `acquireExclusive(timeoutMs)` / `releaseExclusive(channel)`：raw 报文链路（见第 4 条）的**独占租借**，无空闲连接时**带超时阻塞等待**（有连接释放即被唤醒），超时才抛 `HsmUnavailableException`；`timeoutMs <= 0` 退化为立即失败。
+- `tryAcquireExclusive(channel)`：**只认指定那一条**连接（不轮询、不阻塞），池外/失活/已被独占一律返回 `false`，供空闲心跳逐条保活使用。
+- `clear(channel)`：移除独占标记与活跃时间 → `channel.close()` → 从 `cacheList` 摘除（幂等）。
+- **坑：`lastActiveMap` 只在 `set` / `acquireExclusive` / `releaseExclusive` / `touch` 时更新**；心跳的「空闲」判据完全依赖它，改这些方法 MUST 连带看 `HsmHeartbeatScheduler`。
 
-**3. 断线重连的链路与两个执行器**（`SEC/socket/ClientHandler.java`、`SEC/reconnect/**`）
+**3. 断线重连：全局单周期任务 + 按缺口补齐**（`SEC/socket/ClientHandler.java`、`SEC/reconnect/**`）
 `channelInactive` → 打「socket disconnected」→ `ChannelCache.clear(channel)` → 首次进入时用 `SpringBeanFactory.getBean("scheduledTask", ScheduledExecutorService.class)` 与 `getBean(ReConnectManager.class)` 补齐字段 → `reConnectManager.reConnect(ctx)`。
-`ReConnectManager.reConnect`（`SEC/reconnect/handle/ReConnectManager.java`，【保留】grep `Trigger reconnect job`）→ `scheduleAtFixedRate(new ReConnectJob(ctx), 2, 10, TimeUnit.SECONDS)`（**首次延迟 2 秒、之后每 10 秒一次，写死在代码里、没有配置项**）。
-`ReConnectJob.run` → `ClientHeartBeatHandlerImpl.process`（`SEC/reconnect/thread/ClientHeartBeatHandlerImpl.java`，【保留】grep `当前连接数达到最大值`）：`ChannelCache.getSize() < corePoolSize` 就 `ContextHolder.setReconnect(true)` + `client.start()`；否则 `reConnectManager.reConnectSuccess()`（即 `scheduledExecutorService.shutdown()`）。
-- **两个执行器并存、其中一个是死的**：`BeanConfig`（`SEC/reconnect/BeanConfig.java`）注册的 `"scheduledTask"` Bean 与 `ReConnectManager.buildExecutor()` 自建的执行器**线程名前缀都是 `reConnect-job-%d`**，但真正跑重连的是后者；`ClientHandler` 取到的 `scheduledTask` 赋给字段后**再没被使用过**。排查「重连线程是哪个」MUST 看 `ReConnectManager`，NEVER 按 Bean 名找。
+`ReConnectManager.reConnect`（`SEC/reconnect/handle/ReConnectManager.java`）**幂等**：同一时刻全局最多一个 `scheduleWithFixedDelay(new ReConnectJob(ctx), 2, 10, SECONDS)`（首次延迟 2 秒、之后每 10 秒一次，仍无配置项）；已有任务在跑就直接返回，**不再叠加任务**（这是 r1319 修掉的泄漏点）。
+`ReConnectJob.run` → `ClientHeartBeatHandlerImpl.process`（`SEC/reconnect/thread/ClientHeartBeatHandlerImpl.java`，【保留】grep `连接池补齐`）：`缺口 = security.channelPoolSize - ChannelCache.getSize() - SocketClient.getPendingConnects()`，缺口 > 0 就按缺口**一次性** `client.start()` 补 N 条；否则 `reConnectManager.reConnectSuccess()` 取消周期任务但**保留执行器复用**。
+- **两个执行器仍并存、其中一个是死的**：`BeanConfig`（`SEC/reconnect/BeanConfig.java`）注册的 `"scheduledTask"` Bean 与 `ReConnectManager.buildExecutor()` 自建的执行器线程名前缀都是 `reConnect-job-%d`，但真正跑重连的是后者；`ClientHandler` 取到的 `scheduledTask` 赋给字段后**再没被使用过**。排查「重连线程是哪个」MUST 看 `ReConnectManager`，NEVER 按 Bean 名找。
 - **`exceptionCaught` 只 `clear` 不重连**（`ClientHandler.java`）：异常关闭的连接要等下一次 `channelInactive` 或已在跑的重连任务捞回来。
-- **`ContextHolder`（`SEC/reconnect/thread/ContextHolder.java`）是 `ThreadLocal<Boolean>`，`setReconnect(true)` 与 `client.start()` 的 `@Async` 不在同一线程** —— 该标记在被读之前就已经跨线程失效，全仓也没有任何 `getReconnect()` 调用点。属**无效状态位**，改重连逻辑时 NEVER 依赖它。
+- **`ContextHolder`（`SEC/reconnect/thread/ContextHolder.java`）是 `ThreadLocal<Boolean>`，`setReconnect(true)` 与 `client.start()` 不在同一线程** —— 该标记在被读之前就已跨线程失效（`start()` 已改全非阻塞后更无意义），属**无效状态位**，改重连逻辑时 NEVER 依赖它。
+- **初始建连失败可自愈**：启动即挂池补齐任务，加密机不可达时按 10 秒周期重试，不需要重启服务。
 
 **4. 应答回收有两条并存的路径，超时口径不同**
 - **路径 A「用户保留域 + 忙轮询」（旧）**：`ClientSendMsg.sendMsg(...)`（`SEC/socket/ClientSendMsg.java`）只 `writeAndFlush` 后**立刻返回 Channel、不等应答**；`ClientHandler.channelRead` 把 `str.substring(2, 18)` 当成 userRetain，以 **`channel.id() + userRetain.toUpperCase()`** 为键写进 `LocalCache`；业务侧在 `getXxxResultVO` 里 `while (resultData == null)` + `Thread.sleep(Constant.OverTime.POLL_TIME)`（**1 毫秒**）忙等到 `Constant.OverTime.TIME`（**2000 毫秒，硬编码在 `SEC/config/Constant.java`**）判超时，返「加密机调用超时」。`LocalCache` 的默认过期是 **3 秒**（`SEC/config/LocalCache.java`，【保留】grep `缓存默认失效时间`），比 2 秒超时**只多 1 秒**：迟到的应答仍会落进缓存、但没人再来取，靠 1 秒一轮的清理线程回收。
-- **路径 B「独占通道 + Future」（新，raw 报文用）**：`ClientSendMsg.sendRawMsg(byte[], RawResponseSpec)`（同文件 ）→ `ChannelCache.acquireExclusive()` → 把 `RawRequestContext(responseSpec, future)` 挂到通道属性 `ClientDecoder.RAW_REQUEST_CONTEXT` → `writeAndFlush(msg).sync()` → `future.get(securityConfig.getReadOutTime(), MILLISECONDS)`（**配置 `security.readOutTime`，当前 3000**）；`finally` 清属性 + `releaseExclusive`。
+- **路径 B「独占通道 + Future」（新，raw 报文用）**：`ClientSendMsg.sendRawMsg(byte[], RawResponseSpec)`（同文件 ）→ `ChannelCache.acquireExclusive(securityConfig.getAcquireTimeoutMs())`（**配置 `security.acquireTimeoutMs`，当前 800，池满时排队等待而非立刻失败**）→ 把 `RawRequestContext(responseSpec, future)` 挂到通道属性 `ClientDecoder.RAW_REQUEST_CONTEXT` → `writeAndFlush(msg).sync()` → `future.get(securityConfig.getReadOutTime(), MILLISECONDS)`（**配置 `security.readOutTime`，当前 3000**）；`finally` 清属性 + `releaseExclusive`。
+- **`sendRawMsgOn(channel, msg, responseSpec)` 是「锁定那一条连接」的变体**（同文件，2026-11-18 新增）：用 `tryAcquireExclusive` 独占**调用方传入的**连接，拿不到返回 `null`（不阻塞、不抛异常）。**空闲心跳 MUST 走它**——`sendRawMsg` 会由池按游标另挑一条，心跳就打不到正在遍历的连接上（原实现即此缺陷，日志里的 `channelId` 与实际承载请求的连接不是同一条）。
 - **因此同一台加密机有两个超时值（2000 硬编码 / 3000 可配）**，排查「谁先超时」MUST 先确认走的是哪条路径。判据：调用方拿到的是 `Channel` 就是路径 A，拿到 `RawSocketResponse` 就是路径 B。
 
 **5. 解码器的魔数与分支**（`SEC/socket/ClientDecoder.java`，零注释，【无原文】）
@@ -285,6 +290,14 @@ Controller（**均无接口编号标注**）：
 **6. 另有一套短连接实现，与长连接完全并行**（`SEC/shortconnect/**`）
 `ShortConnectClient.getTacResult(byte[], String)`（，【保留】grep `加密机验证结果`）每次调用**新建 `NioEventLoopGroup` + 连接 + 发送 + `closeFuture().sync()` + `shutdownGracefully()`**，应答靠 `AttributeKey.valueOf(userRetain.toUpperCase())` 存在通道属性上取回，判成功同样是 `"41".equals(...)`。pipeline 只有 `ShortConnectClientEncoder` + `ShortConnectClientHandler`（**没有解码器**，handler 自己从 `ByteBuf` 读）。`ShortConnectClientHandler` 读完即 `ctx.close()`、并在 `finally` 里 `ReferenceCountUtil.release(buff)`（【保留】grep `手动释放`）。
 **全仓零调用方**（2026-09-16 grep：`ShortConnectClient` 只被自己的 handler/encoder 引用），属未接线的备用通路。
+
+**7. 空闲连接心跳保活（2026-11-18 新增）**（`SEC/socket/HsmHeartbeatScheduler.java`）
+- 调度：`@Scheduled(initialDelayString / fixedDelayString = "${security.heartbeatPeriodMs:30000}")`，由 `ExecutorConfig` 上的 `@EnableScheduling` 提供调度线程（线程名 `task-scheduler-N`）。
+- 判据链：`security.heartbeatEnabled=false` 直接返回；遍历 `ChannelCache.snapshot()`，跳过 `!channel.isActive()` 与 `now - getLastActive(channel) < heartbeatIdleSeconds*1000` 的连接。**「空闲」完全以 `lastActiveMap` 为准**（见第 2 条），业务请求经 `acquireExclusive`/`releaseExclusive` 刷新它。
+- 报文：`0x00`「请求返回系统信息」，应答按 `RawResponseSpec(false, [fixed(4), fixed(4), fixed(8)])` 解析（版本 4 字节 + 协议 4 字节 + 修订日期 8 字节），成功判据 `ansCode == 65`（ASCII `'A'`）。依据 SJJ1312-B 程序员手册。
+- **一条空闲连接一轮一次、与连接一一对应**：MUST 用 `sendRawMsgOn(channel, ...)` 锁定当前遍历到的连接；该连接正被业务独占时返回 `null` 跳过，下一轮再判。**满池 48 条全空闲时一轮就是 48 次 `0x00`（约 1.6 次/秒），这是设计值、不是重复发送**——每条长连都要各自保活。
+- 发送异常 → `WARN hsm heartbeat failed on channel ..., closing it` + `ChannelCache.clear(channel)` 摘除该连接，由重连任务按缺口补回。
+- 口径：心跳只发在**空闲**连接上，不占业务请求窗口；`security.heartbeatIdleSeconds` MUST 小于设备/网络侧的空闲回收时间（改造前实测约每 3 分钟被断一次）。
 
 ### 二、MAC 计算
 
@@ -409,12 +422,13 @@ Controller（**均无接口编号标注**）：
 
 ### 七、config 与 properties
 
-**1. `acc-security-server/src/main/resources/application.properties`（32 行，全文零注释）**
-- 服务：`server.port=9012`、`server.undertow.io-threads=10`、`server.undertow.worker-threads=10`、`spring.application.name=acc-security`。
+**1. `acc-security-server/src/main/resources/application.properties`（46 行）**
+- 服务：`server.port=8080`、`server.undertow.io-threads=8`、`server.undertow.worker-threads=200`（**拉码 2000QPS 口径，2026-11-18 由 10/10 调整**）、`spring.threads.virtual.enabled=false`、`spring.application.name=acc-security`。**注意 `server.port` 在文件里是 8080，与端口号 9012 的对外说法不同**：9012 是文档/接口口径，K8s Service 走 `targetPort 8080`，判断真实端口 MUST 看 `cloudos svc`。
 - 日志：`logging.level.root=info`、`logging.level.com.chinasofti=debug`、`logging.file.path=logs/acc-security`。**注意 `com.chinasofti` 是 debug**，而第四节那几处日志会打签名原文 / 公钥。
 - 文档：`knife4j.production=false`（**测试期口径，生产 MUST 改 true**；acc-secure 侧已是 true）。
-- HSM 连接：`security.firstIp` / `security.firstPort` / `security.secondPort` / `security.connectOutTime` / `security.readOutTime` / `security.index`。**`firstIp` / `firstPort` 是裸硬编码的加密机内网地址与端口、没有 `${ENV:}` 包装**，判断线上真实值 MUST 查 Deployment env（`AGENTS.md §7`）。`security.secondPort` 与 `security.connectOutTime` **在代码里有 getter 但没有任何读取方**（`SecurityConfig` 只被 `SocketClient` / `ShortConnectClient` / `ClientSendMsg` / `CertificateServiceImpl` 用到，分别只读 `firstIp` / `firstPort` / `readOutTime` / `privateKey` / `publicKey`）—— 属预留双机字段，**NEVER 以为配了 `secondPort` 就有备机**。
-- 线程池：`thread.corePoolSize=10` / `thread.maxPoolSize=10` / `thread.queueCapacity=99999` / `thread.socketNamePrefix=socket-connect`。`corePoolSize` **同时兼任「目标 HSM 连接数」**（第一节第 3 条），改它会连带改重连判据。
+- HSM 连接：`security.firstIp` / `security.firstPort` / `security.secondPort` / `security.connectOutTime` / `security.readOutTime` / `security.index`，以及 2026-11-18 新增的 `security.channelPoolSize=48` / `security.acquireTimeoutMs=800` / `security.heartbeatEnabled=true` / `security.heartbeatIdleSeconds=60` / `security.heartbeatPeriodMs=30000`。**`firstIp` / `firstPort` 是裸硬编码的加密机内网地址与端口、没有 `${ENV:}` 包装**，判断线上真实值 MUST 查 Deployment env（`AGENTS.md §7`）。`security.secondPort` 与 `security.connectOutTime` **在代码里有 getter 但没有任何读取方**——属预留双机字段，**NEVER 以为配了 `secondPort` 就有备机**。
+- 线程池：`thread.corePoolSize=10` / `thread.maxPoolSize=10` / `thread.queueCapacity=99999` / `thread.socketNamePrefix=socket-connect`。**`corePoolSize` 自 2026-11-18 起只管 `socketAsyncExecutor`，不再兼任「目标 HSM 连接数」**（连接数改由 `security.channelPoolSize` 决定，见第一节第 1、2 条）；改它不再影响重连判据。
+- **改这些键 MUST 同时改 Deployment env**：测试/生产环境的 Deployment 里逐条注入了同名 env（`server.undertow.*`、`thread.*`、`security.*` 等 35 项），**env 优先级高于本文件**——只改 jar 内配置而 env 仍是旧值，等于没改。改法：`itp-ops.sh --env <test|hongdao> cloudos env-set security-server KEY=VALUE ... --yes`（整份 env 回传，漏一条=删一条）。
 - **明文密钥项 4 个（键名、位置与用途见下表；值见 `docs/ops/environments/跨环境共性.md` §三.3 真源表）**：
   | 键名 | 位置 | 用途 | 现状 |
   |---|---|---|---|

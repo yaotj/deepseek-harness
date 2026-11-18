@@ -23,6 +23,21 @@ public class SecurityConfig {
 
     private String privateKey;
 
+    /** 加密机连接池目标大小（与 socket 线程池解耦，独立配置）。 */
+    private int channelPoolSize = 10;
+
+    /** 从连接池独占获取连接的最大排队等待毫秒数，超时抛 HsmUnavailableException。 */
+    private long acquireTimeoutMs = 800;
+
+    /** 是否开启空闲连接心跳保活（0x00 系统信息指令）。 */
+    private boolean heartbeatEnabled = true;
+
+    /** 连接空闲超过该秒数后对其发心跳。 */
+    private long heartbeatIdleSeconds = 60;
+
+    /** 心跳巡检周期（毫秒）。 */
+    private long heartbeatPeriodMs = 30000;
+
     public String getFirstIp() {
         return firstIp;
     }
@@ -85,5 +100,45 @@ public class SecurityConfig {
 
     public void setPrivateKey(String privateKey) {
         this.privateKey = privateKey;
+    }
+
+    public int getChannelPoolSize() {
+        return channelPoolSize;
+    }
+
+    public void setChannelPoolSize(int channelPoolSize) {
+        this.channelPoolSize = channelPoolSize;
+    }
+
+    public long getAcquireTimeoutMs() {
+        return acquireTimeoutMs;
+    }
+
+    public void setAcquireTimeoutMs(long acquireTimeoutMs) {
+        this.acquireTimeoutMs = acquireTimeoutMs;
+    }
+
+    public boolean isHeartbeatEnabled() {
+        return heartbeatEnabled;
+    }
+
+    public void setHeartbeatEnabled(boolean heartbeatEnabled) {
+        this.heartbeatEnabled = heartbeatEnabled;
+    }
+
+    public long getHeartbeatIdleSeconds() {
+        return heartbeatIdleSeconds;
+    }
+
+    public void setHeartbeatIdleSeconds(long heartbeatIdleSeconds) {
+        this.heartbeatIdleSeconds = heartbeatIdleSeconds;
+    }
+
+    public long getHeartbeatPeriodMs() {
+        return heartbeatPeriodMs;
+    }
+
+    public void setHeartbeatPeriodMs(long heartbeatPeriodMs) {
+        this.heartbeatPeriodMs = heartbeatPeriodMs;
     }
 }

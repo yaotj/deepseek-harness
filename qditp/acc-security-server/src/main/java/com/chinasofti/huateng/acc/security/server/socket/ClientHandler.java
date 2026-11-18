@@ -12,14 +12,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.ScheduledExecutorService;
-
 @Component
 @ChannelHandler.Sharable
 public class ClientHandler extends ChannelInboundHandlerAdapter {
     private static final Logger logger = LoggerFactory.getLogger(ClientHandler.class);
 
-    private ScheduledExecutorService scheduledExecutorService;
     private ReConnectManager reConnectManager;
 
     @Override
@@ -30,6 +27,7 @@ public class ClientHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         if (msg instanceof RawSocketResponse rawSocketResponse) {
+            ChannelCache.touch(ctx.channel());
             RawRequestContext rawRequestContext = ctx.channel().attr(ClientDecoder.RAW_REQUEST_CONTEXT).getAndSet(null);
             if (rawRequestContext != null) {
                 rawRequestContext.getFuture().complete(rawSocketResponse);
@@ -46,6 +44,7 @@ public class ClientHandler extends ChannelInboundHandlerAdapter {
         }
 
         logger.debug("receive socket response {}", msg);
+        ChannelCache.touch(ctx.channel());
         String str = (String) msg;
         String userRetain = str.substring(2, 18);
         logger.info("channelId {} userRetain {} socket response {}", ctx.channel().id(), userRetain, str);
@@ -59,8 +58,7 @@ public class ClientHandler extends ChannelInboundHandlerAdapter {
         super.channelInactive(ctx);
         ChannelCache.clear(channel);
 
-        if (scheduledExecutorService == null) {
-            scheduledExecutorService = SpringBeanFactory.getBean("scheduledTask", ScheduledExecutorService.class);
+        if (reConnectManager == null) {
             reConnectManager = SpringBeanFactory.getBean(ReConnectManager.class);
         }
         logger.info("socket disconnected, reconnect");
