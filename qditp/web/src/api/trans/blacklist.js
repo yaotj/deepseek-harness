@@ -63,3 +63,12 @@ export function compensateAddNotify(limit) {
     params: { limit }
   })
 }
+
+/** 查询黑名单操作记录。 */
+export function listBlacklistOperateLogs(cardId) {
+  return request({
+    url: '/blacklist-server/page/blacklist/operate-logs',
+    method: 'get',
+    params: { cardId }
+  })
+}

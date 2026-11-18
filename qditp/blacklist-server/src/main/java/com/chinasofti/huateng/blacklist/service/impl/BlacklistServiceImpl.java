@@ -341,4 +341,9 @@ public class BlacklistServiceImpl implements BlacklistService {
         }
         blacklistChannelSyncService.deliverAdd(rows.get(0));
     }
+
+    @Override
+    public List<BlacklistOperateLog> getOperateLogs(String cardId) {
+        return blacklistOperateLogMapper.selectByCardId(cardId);
+    }
 }

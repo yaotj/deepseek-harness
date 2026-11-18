@@ -140,6 +140,9 @@
               :disabled="row.status === STATUS_RELEASING"
               @click="handleRelease(row)"
             >解除</el-button>
+            <el-tooltip content="操作记录" placement="top">
+              <el-button link type="primary" icon="History" @click="handleOperateLog(row)" />
+            </el-tooltip>
           </el-tooltip>
         </template>
       </el-table-column>
@@ -260,6 +263,10 @@ const releasing = ref(false)
 const compensating = ref(false)
 const open = ref(false)
 const releaseOpen = ref(false)
+const operateLogOpen = ref(false)
+const operateLogLoading = ref(false)
+const operateLogs = ref([])
+const currentCardId = ref('')
 const blacklist = ref([])
 const total = ref(0)
 const queryError = ref('')
@@ -395,6 +402,19 @@ function submitForm() {
       getList()
     }).finally(() => { submitting.value = false })
   })
+}
+
+function handleOperateLog(row) {
+  currentCardId.value = row.cardId
+  operateLogOpen.value = true
+  loadOperateLogs()
+}
+
+function loadOperateLogs() {
+  operateLogLoading.value = true
+  listBlacklistOperateLogs(currentCardId.value).then((response) => {
+    operateLogs.value = response.data || []
+  }).finally(() => { operateLogLoading.value = false })
 }
 
 function handleRelease(row) {
