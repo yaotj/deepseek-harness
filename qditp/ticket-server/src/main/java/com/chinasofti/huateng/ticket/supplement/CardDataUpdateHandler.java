@@ -111,7 +111,7 @@ class CardDataUpdateHandler {
 
         NotifyVerifyResultReqDTO gateRequest = gateRequestAssembler.newBaseRequest(
                 currentStatus, cardId, userInfo.getThirdUserId(), trxType, optDate, updateStationCode,
-                userInfo.getCardType(), SupplementCodec.defaultString(userInfo.getChannel(), ""));
+                userInfo.getCardType(), SupplementCodec.defaultString(userInfo.getChannel(), ""), "02");
         gateRequest.setDeviceId(SupplementCodec.defaultString(request.getOperaterId(), ""));
         gateRequest.setAdviceOpt(adviceOpt);
         gateRequest.setReserve1(adviceOpt);

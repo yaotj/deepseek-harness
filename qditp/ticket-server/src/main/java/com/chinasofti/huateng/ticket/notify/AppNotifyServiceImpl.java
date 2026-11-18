@@ -18,15 +18,18 @@ public class AppNotifyServiceImpl implements AppNotifyService {
     private final IndustryDataNotifier industryDataNotifier;
     private final AlipayTripNotifier alipayTripNotifier;
     private final CountingTicketTimesNotifier countingTicketTimesNotifier;
+    private final CardTranNotifier cardTranNotifier;
 
     public AppNotifyServiceImpl(@Qualifier("appNotifyExecutor") Executor appNotifyExecutor,
                                 IndustryDataNotifier industryDataNotifier,
                                 AlipayTripNotifier alipayTripNotifier,
-                                CountingTicketTimesNotifier countingTicketTimesNotifier) {
+                                CountingTicketTimesNotifier countingTicketTimesNotifier,
+                                CardTranNotifier cardTranNotifier) {
         this.appNotifyExecutor = appNotifyExecutor;
         this.industryDataNotifier = industryDataNotifier;
         this.alipayTripNotifier = alipayTripNotifier;
         this.countingTicketTimesNotifier = countingTicketTimesNotifier;
+        this.cardTranNotifier = cardTranNotifier;
     }
 
     @Override
@@ -58,6 +61,17 @@ public class AppNotifyServiceImpl implements AppNotifyService {
                 countingTicketTimesNotifier.notifyCountingTimes(request, times);
             } catch (Exception e) {
                 log.error("异步推送多日票次数扣减通知异常, request={}", request, e);
+            }
+        });
+    }
+
+    @Override
+    public void notifyCardTran(NotifyVerifyResultReqDTO request, QRCodeStatus effectiveStatus, String countingFlag) {
+        appNotifyExecutor.execute(() -> {
+            try {
+                cardTranNotifier.notifyCardTran(request, effectiveStatus, countingFlag);
+            } catch (Exception e) {
+                log.error("异步推送卡片行程通知异常, request={}", request, e);
             }
         });
     }

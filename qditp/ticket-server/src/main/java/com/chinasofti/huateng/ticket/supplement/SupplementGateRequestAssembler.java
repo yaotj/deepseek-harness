@@ -10,7 +10,7 @@ class SupplementGateRequestAssembler {
 
     NotifyVerifyResultReqDTO newBaseRequest(QRCodeStatus currentStatus, String cardId, String decimalItpUserId,
                                             String trxType, String handleDateTime, String handleStationCode,
-                                            String cardType, String signChannelCode) {
+                                            String cardType, String signChannelCode, String channelType) {
         NotifyVerifyResultReqDTO request = new NotifyVerifyResultReqDTO();
         String issueChannelCode = SupplementCodec.defaultString(
                 currentStatus.getChannel(), SupplementCodec.ISSUE_CHANNEL_DEFAULT);
@@ -19,6 +19,8 @@ class SupplementGateRequestAssembler {
         request.setTrxType(trxType);
         request.setIssueChannelCode(issueChannelCode);
         request.setSignChannelCode(signChannelCode);
+        // R6 卡片行程通知要求 channelType：00 闸机 / 01 蓝牙(HCE，不推) / 02 BOM / 03 自助补站
+        request.setChannelType(channelType);
         request.setCardId(cardId);
         request.setCardType(cardType);
         request.setHandleDateTime(handleDateTime);

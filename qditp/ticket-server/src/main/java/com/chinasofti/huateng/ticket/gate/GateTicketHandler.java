@@ -20,6 +20,7 @@ import static com.chinasofti.huateng.model.enums.CardTypeCodeEnum.isHceCard;
 class GateTicketHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GateTicketHandler.class);
+    private static final String CHANNEL_TYPE_BLUETOOTH = "01";
 
     @Autowired
     private QRCodeStatusStore qrCodeStatusStore;
@@ -106,7 +107,7 @@ class GateTicketHandler {
         if (!writeResult.duplicate()) {
             dailyTicketCoordinator.markUsedOnExit(request, resolvedCardType);
 
-            pushDownstream(request, effectiveStatus, gateCardType);
+            pushDownstream(request, effectiveStatus, gateCardType, resolvedCardType);
         }
 
         responseAssembler.fillSuccessResponse(request, response, effectiveStatus, resolvedCardType);
@@ -132,7 +133,7 @@ class GateTicketHandler {
     }
 
     private void pushDownstream(NotifyVerifyResultReqDTO request, QRCodeStatus effectiveStatus,
-                                String gateCardType) {
+                                String gateCardType, String resolvedCardType) {
         String cardType = request.getCardType();
         if (isHceCard(cardType)) {
             log.info("IF1A-01 HCE卡数据回写, cardId={}, cardType={}", request.getCardId(), cardType);
@@ -140,6 +141,15 @@ class GateTicketHandler {
             return;
         }
         appNotifyService.notifyVerifyResult(request, effectiveStatus, gateCardType);
+
+        // R6 卡片行程通知（2026-11-17 APP 侧更正）：蓝牙 channelType=01 即 HCE，不推；其余卡型进出站/补站都推。
+        if (!CHANNEL_TYPE_BLUETOOTH.equals(request.getChannelType())) {
+            appNotifyService.notifyCardTran(request, effectiveStatus,
+                    dailyTicketCoordinator.resolveCountingFlag(resolvedCardType));
+        } else {
+            log.info("IF1A-01 蓝牙渠道不推卡片行程通知, cardId={}, cardType={}, channelType={}",
+                    request.getCardId(), cardType, request.getChannelType());
+        }
 
         if (IssueChannelCodeEnum.isAlipay(request.getIssueChannelCode())
                 && !CardTypeMapping.isAiShanDong(request.getCardType())) {

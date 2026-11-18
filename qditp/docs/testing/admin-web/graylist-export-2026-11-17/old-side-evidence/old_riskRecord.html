@@ -1,0 +1,110 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta content="webkit" name="renderer"/><meta http-equiv="X-UA-Compatible"
+content="IE=edge"><meta name="keywords" content="PoweredByJeeSiteV4.0"/><meta http-equiv="Cache-Control"
+content="no-cache, no-store, must-revalidate"/><meta name="description" content="PoweredByJeeSiteV4.0"/><meta
+content="no-cache" http-equiv="Pragma"/><meta http-equiv="Expires" content="0"/><meta
+content="width=device-width, initial-scale=1, user-scalable=1" name="viewport"/>
+<title>风险控制 操作记录管理 - 青岛地铁</title>
+<link rel="shortcut icon" href="/qd-omp/static/favicon.png" type="image/png">
+<script src="/qd-omp/global.min.js?ctx=/qd-omp/a"></script>
+<script src="/qd-omp/static/jquery/jquery-1.12.4.min.js"></script>
+<!-- <script src="/qd-omp/static/jquery/jquery-migrate-1.4.1.min.js"></script> -->
+<!--[if lt IE 9]><script src="/qd-omp/static/common/h5fix.min.js"></script><![endif]-->
+<link rel="stylesheet" href="/qd-omp/static/fonts/font-icons.min.css">
+<link rel="stylesheet" href="/qd-omp/static/bootstrap/css/bootstrap.min.css">
+<link rel="stylesheet" href="/qd-omp/static/select2/4.0/select2.css?V1.0-07201033">
+<link rel="stylesheet" href="/qd-omp/static/icheck/1.0/minimal/grey.css?V1.0-07201033">
+<link rel="stylesheet" href="/qd-omp/static/jqGrid/4.7/css/ui.jqgrid.css?V1.0-07201033">
+<link rel="stylesheet" href="/qd-omp/static/adminlte/css/AdminLTE.min.css?V1.0-07201033">
+<link rel="stylesheet" href="/qd-omp/static/common/jeesite.css?V1.0-07201033">
+<link rel="stylesheet" href="/qd-omp/static/common/common.css?V1.0-07201033">
+</head><body class="hold-transition ">
+<div class="wrapper"><div class="main-content">
+	<div class="box box-main">
+		<div class="box-header">
+			<div class="box-title">
+				<i class="fa fa-list-alt"></i> 风险控制 操作记录管理
+			</div>
+			<div class="box-tools pull-right">
+				<a href="#" class="btn btn-default" id="btnSearch" title="查询"><i class="fa fa-filter"></i> 查询</a>
+			</div>
+		</div>
+		<div class="box-body">
+<form id="searchForm" action="/qd-omp/a/risk/riskRecord/listData" method="post" class="form-inline hide" data-page-no="" data-page-size="" data-order-by="">
+				<div class="form-group">
+					<label class="control-label">逻辑卡号：</label>
+					<div class="control-inline">
+<input type="text" id="userId" name="userId" value="" maxlength="40" class="form-control width-120"/>
+					</div>
+				</div>
+				<div class="form-group">
+					<label class="control-label">用户订单：</label>
+					<div class="control-inline">
+<input type="text" id="userOrderNo" name="userOrderNo" value="" maxlength="40" class="form-control width-120"/>
+					</div>
+				</div>
+				<div class="form-group">
+					<label class="control-label">风险规则编码：</label>
+					<div class="control-inline width-160">
+<!-- 						<input type="text" id="rsikRuleId" name="rsikRuleId" value="" maxlength="40" class="form-control width-120"/>
+ -->
+<select id="rsikRuleId" name="rsikRuleId" class="form-control">
+<option value="">&nbsp;</option><option value="000001">重复进出站</option><option value="000002">出站规则</option><option value="000003">最大允许单边交易数</option><option value="000006">最大允许进入黑名单次数</option><option value="000007">单日累计允许自助处理次数</option><option value="000008">永久禁用本产品机制</option></select>					</div>
+				</div>
+<!-- 				<div class="form-group"> -->
+<!-- 					<label class="control-label">风险规则名称：</label> -->
+<!-- 					<div class="control-inline"> -->
+<!-- 						<input type="text" id="riskRuleName" name="riskRuleName" value="" maxlength="50" class="form-control width-120"/>
+ --><!-- 					</div> -->
+<!-- 				</div> -->
+				<div class="form-group">
+					<button type="submit" class="btn btn-primary btn-sm">查询</button>
+					<button type="reset" class="btn btn-default btn-sm">重置</button>
+				</div>
+</form>
+			<table id="dataGrid"></table>
+			<div id="dataGridPage"></div>
+		</div>
+	</div>
+</div>
+</div>
+
+<a id="scroll-up" href="#" class="btn btn-sm"><i class="fa fa-angle-double-up"></i></a>
+<script src="/qd-omp/static/bootstrap/js/bootstrap.min.js"></script>
+<script src="/qd-omp/static/select2/4.0/select2.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/select2/4.0/i18n/zh_CN.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/layer/3.1/layer.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/my97/WdatePicker.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/jqGrid/4.7/js/jquery.jqGrid.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/jqGrid/4.7/js/jquery.jqGrid.extend.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/jqGrid/4.7/js/i18n/zh_CN.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/common/jeesite.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/common/i18n/jeesite_zh_CN.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/common/common.js?V1.0-07201033"></script>
+<script>
+// 初始化DataGrid对象
+$('#dataGrid').dataGrid({
+	searchForm: $("#searchForm"),
+	columnModel: [
+		{header:'逻辑卡号', name:'userId', index:'a.user_id', width:150, align:"center", frozen:true, formatter: function(val, obj, row, act){
+			return '<a href="/qd-omp/a/risk/riskRecord/form?idNo='+row.idNo+'" class="btnList" data-title="编辑风险控制 操作记录">'+(val||row.userId)+'</a>';
+		}},
+		{header:'用户订单', name:'userOrderNo', index:'a.user_order_no', width:150, align:"center"},
+		{header:'风险规则编码', name:'rsikRuleId', index:'a.rsik_rule_id', width:150, align:"center"},
+		{header:'风险规则名称', name:'riskRuleName', index:'a.risk_rule_name', width:150, align:"center"},
+// 		{header:'风险规则描述', name:'riskRuleDesc', index:'a.risk_rule_desc', width:150, align:"left"},
+// 		{header:'风险等级', name:'riskLevel', index:'a.risk_level', width:150, align:"center"},
+		{header:'风险发生最后时间', name:'riskOccursDate', index:'a.risk_occurs_date', width:150, align:"center"},
+		//{header:'风险状态            0', name:'rsikStatus', index:'a.rsik_status', width:150, align:"center"},
+// 		{header:'风险处理时间', name:'riskHanleDate', index:'a.risk_hanle_date', width:150, align:"center"},
+		//{header:'风险处理描述', name:'riskHanleDesc', index:'a.risk_hanle_desc', width:150, align:"left"},
+		//{header:'处理人编码', name:'riskHanleManagerId', index:'a.risk_hanle_manager_id', width:150, align:"left"},
+		//{header:'risk_device_id', name:'riskDeviceId', index:'a.risk_device_id', width:150, align:"left"},
+// 		{header:'最近修改时间', name:'updateDate', index:'a.update_date', width:150, align:"center"},
+		{header:'入库时间', name:'regDate', index:'a.reg_date', width:150, align:"center"}
+	],
+	// 加载成功后执行事件
+	ajaxSuccess: function(data){
+		
+	}
+});
+</script>

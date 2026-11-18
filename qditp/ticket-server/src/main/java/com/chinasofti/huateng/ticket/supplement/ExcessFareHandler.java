@@ -76,7 +76,7 @@ class ExcessFareHandler {
 
         NotifyVerifyResultReqDTO bizData = gateRequestAssembler.newBaseRequest(
                 currentStatus, cardId, request.getThirdUserId(), upgradeAreaType,
-                upgradeDateTime, upgradeStationCode, request.getCardType(), "");
+                upgradeDateTime, upgradeStationCode, request.getCardType(), "", "03");
         bizData.setDeviceId(upgradeStationCode + "36" + "01");
         bizData.setExcessFareType(upgradeAreaType);
 

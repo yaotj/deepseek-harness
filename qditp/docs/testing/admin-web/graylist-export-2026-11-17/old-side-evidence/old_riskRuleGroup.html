@@ -1,0 +1,87 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta content="webkit" name="renderer"/><meta http-equiv="X-UA-Compatible"
+content="IE=edge"><meta name="keywords" content="PoweredByJeeSiteV4.0"/><meta http-equiv="Cache-Control"
+content="no-cache, no-store, must-revalidate"/><meta name="description" content="PoweredByJeeSiteV4.0"/><meta
+content="no-cache" http-equiv="Pragma"/><meta http-equiv="Expires" content="0"/><meta
+content="width=device-width, initial-scale=1, user-scalable=1" name="viewport"/>
+<title>risk_rule_group管理 - 青岛地铁</title>
+<link rel="shortcut icon" href="/qd-omp/static/favicon.png" type="image/png">
+<script src="/qd-omp/global.min.js?ctx=/qd-omp/a"></script>
+<script src="/qd-omp/static/jquery/jquery-1.12.4.min.js"></script>
+<!-- <script src="/qd-omp/static/jquery/jquery-migrate-1.4.1.min.js"></script> -->
+<!--[if lt IE 9]><script src="/qd-omp/static/common/h5fix.min.js"></script><![endif]-->
+<link rel="stylesheet" href="/qd-omp/static/fonts/font-icons.min.css">
+<link rel="stylesheet" href="/qd-omp/static/bootstrap/css/bootstrap.min.css">
+<link rel="stylesheet" href="/qd-omp/static/select2/4.0/select2.css?V1.0-07201033">
+<link rel="stylesheet" href="/qd-omp/static/icheck/1.0/minimal/grey.css?V1.0-07201033">
+<link rel="stylesheet" href="/qd-omp/static/jqGrid/4.7/css/ui.jqgrid.css?V1.0-07201033">
+<link rel="stylesheet" href="/qd-omp/static/adminlte/css/AdminLTE.min.css?V1.0-07201033">
+<link rel="stylesheet" href="/qd-omp/static/common/jeesite.css?V1.0-07201033">
+<link rel="stylesheet" href="/qd-omp/static/common/common.css?V1.0-07201033">
+</head><body class="hold-transition ">
+<div class="wrapper"><div class="main-content">
+	<div class="box box-main">
+		<div class="box-header">
+			<div class="box-title">
+				<i class="fa fa-list-alt"></i> 风险组管理
+			</div>
+			<div class="box-tools pull-right">
+				<a href="#" class="btn btn-default" id="btnSearch" title="查询"><i class="fa fa-filter"></i> 查询</a>
+					<a href="/qd-omp/a/risk/riskRuleGroup/form" class="btn btn-default btnTool" title="新增risk_rule_group"><i class="fa fa-plus"></i> 新增</a>
+			</div>
+		</div>
+		<div class="box-body">
+<form id="searchForm" action="/qd-omp/a/risk/riskRuleGroup/listData" method="post" class="form-inline hide" data-page-no="" data-page-size="" data-order-by="">
+				<div class="form-group">
+					<label class="control-label">风险组名称：</label>
+					<div class="control-inline">
+<input type="text" id="riskRuleGroupName" name="riskRuleGroupName" value="" maxlength="40" class="form-control width-120"/>
+					</div>
+				</div>
+				<div class="form-group">
+					<button type="submit" class="btn btn-primary btn-sm">查询</button>
+					<button type="reset" class="btn btn-default btn-sm">重置</button>
+				</div>
+</form>
+			<table id="dataGrid"></table>
+			<div id="dataGridPage"></div>
+		</div>
+	</div>
+</div>
+</div>
+
+<a id="scroll-up" href="#" class="btn btn-sm"><i class="fa fa-angle-double-up"></i></a>
+<script src="/qd-omp/static/bootstrap/js/bootstrap.min.js"></script>
+<script src="/qd-omp/static/select2/4.0/select2.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/select2/4.0/i18n/zh_CN.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/layer/3.1/layer.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/my97/WdatePicker.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/jqGrid/4.7/js/jquery.jqGrid.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/jqGrid/4.7/js/jquery.jqGrid.extend.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/jqGrid/4.7/js/i18n/zh_CN.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/common/jeesite.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/common/i18n/jeesite_zh_CN.js?V1.0-07201033"></script>
+<script src="/qd-omp/static/common/common.js?V1.0-07201033"></script>
+<script>
+// 初始化DataGrid对象
+$('#dataGrid').dataGrid({
+	searchForm: $("#searchForm"),
+	columnModel: [
+		{header:'风险组名称', name:'riskRuleGroupName', index:'a.risk_rule_group_name', width:150, align:"left", frozen:true, formatter: function(val, obj, row, act){
+			return '<a href="/qd-omp/a/risk/riskRuleGroup/form?riskRuleGroupId='+row.riskRuleGroupId+'" class="btnList" data-title="编辑风险组">'+(val||row.id)+'</a>';
+		}},
+		{header:'风险组描述', name:'riskRuleGroupDesc', index:'a.risk_rule_group_desc', width:150, align:"left"},
+		{header:'管理编码', name:'managerId', index:'a.manager_id', width:150, align:"left"},
+		{header:'入库时间', name:'regDate', index:'a.reg_date', width:150, align:"left"},
+		{header:'操作', name:'actions', width:120, sortable:false, title:false, formatter: function(val, obj, row, act){
+			var actions = [];
+				actions.push('<a href="/qd-omp/a/risk/riskRuleGroup/form?riskRuleGroupId='+row.riskRuleGroupId+'" class="btnList" title="编辑风险组"><i class="fa fa-pencil"></i></a>&nbsp;');
+				actions.push('<a href="/qd-omp/a/risk/riskRuleGroup/delete?riskRuleGroupId='+row.riskRuleGroupId+'" class="btnList" title="删除风险组" data-confirm="确认要删除该风险组吗？"><i class="fa fa-trash-o"></i></a>&nbsp;');
+			return actions.join('');
+		}}
+	],
+	// 加载成功后执行事件
+	ajaxSuccess: function(data){
+		
+	}
+});
+</script>

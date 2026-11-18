@@ -1,9 +1,11 @@
 package com.chinasofti.huateng.para.controller;
 
 import com.chinasofti.huateng.common.response.ResultVO;
+import com.chinasofti.huateng.para.entity.risk.GraylistRisk;
 import com.chinasofti.huateng.para.entity.risk.RiskControlLog;
 import com.chinasofti.huateng.para.entity.risk.RiskGroup;
 import com.chinasofti.huateng.para.entity.risk.RiskRule;
+import com.chinasofti.huateng.para.service.GraylistRiskService;
 import com.chinasofti.huateng.para.service.RiskManagementService;
 import com.github.pagehelper.PageInfo;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,9 +25,12 @@ import java.util.List;
 @RequestMapping("/page/risk")
 public class RiskManagementController {
     private final RiskManagementService riskManagementService;
+    private final GraylistRiskService graylistRiskService;
 
-    public RiskManagementController(RiskManagementService riskManagementService) {
+    public RiskManagementController(RiskManagementService riskManagementService, 
+                                     GraylistRiskService graylistRiskService) {
         this.riskManagementService = riskManagementService;
+        this.graylistRiskService = graylistRiskService;
     }
 
     @GetMapping("/groups")
@@ -78,5 +83,15 @@ public class RiskManagementController {
                                                                @RequestParam(defaultValue = "1") Integer pageNum,
                                                                @RequestParam(defaultValue = "10") Integer pageSize) {
         return riskManagementService.pageControlLogs(cardId, userOrderNo, ruleId, riskHitTimeBegin, riskHitTimeEnd, pageNum, pageSize);
+    }
+
+    @GetMapping("/graylist")
+    public ResultVO<PageInfo<GraylistRisk>> pageGraylist(@RequestParam(required = false) String cardId,
+                                                          @RequestParam(required = false) String ruleName,
+                                                          @RequestParam(required = false) String updateTimeBegin,
+                                                          @RequestParam(required = false) String updateTimeEnd,
+                                                          @RequestParam(defaultValue = "1") Integer pageNum,
+                                                          @RequestParam(defaultValue = "10") Integer pageSize) {
+        return graylistRiskService.page(cardId, ruleName, updateTimeBegin, updateTimeEnd, pageNum, pageSize);
     }
 }

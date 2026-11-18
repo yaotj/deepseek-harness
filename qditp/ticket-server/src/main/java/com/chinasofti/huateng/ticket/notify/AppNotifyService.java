@@ -13,4 +13,7 @@ public interface AppNotifyService {
 
 
     void notifyCountingTicketTimes(NotifyVerifyResultReqDTO request, int times);
+
+
+    void notifyCardTran(NotifyVerifyResultReqDTO request, QRCodeStatus effectiveStatus, String countingFlag);
 }

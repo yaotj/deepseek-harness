@@ -1,0 +1,25 @@
+{
+  "list": [
+    {
+      "id": "1001338411258368000",
+      "isNewRecord": false,
+      "riskRuleGroupId": "1001338411258368000",
+      "riskRuleGroupName": "风险组2",
+      "riskRuleGroupDesc": "描述",
+      "managerId": "system",
+      "regDate": "2018-05-29 13:44:15"
+    },
+    {
+      "id": "1001338326290157568",
+      "isNewRecord": false,
+      "riskRuleGroupId": "1001338326290157568",
+      "riskRuleGroupName": "风险组1",
+      "riskRuleGroupDesc": "描述描述",
+      "managerId": "system",
+      "regDate": "2018-05-29 13:43:55"
+    }
+  ],
+  "pageSize": 100,
+  "pageNo": 1,
+  "count": 2
+}

@@ -1,15 +1,42 @@
 import request from '@/utils/request'
 
-// 风险组、风险规则为可维护参数；风险控制记录为只读审计数据。
-export const listRiskGroups = (params) => request({ url: '/para-server/page/risk/groups', method: 'get', params })
-export const listRiskGroupOptions = () => request({ url: '/para-server/page/risk/groups/options', method: 'get' })
-export const addRiskGroup = (data) => request({ url: '/para-server/page/risk/groups', method: 'post', data })
-export const updateRiskGroup = (groupId, data) => request({ url: `/para-server/page/risk/groups/${groupId}`, method: 'put', data })
-export const delRiskGroup = (groupId) => request({ url: `/para-server/page/risk/groups/${groupId}`, method: 'delete' })
+// 风险组
+export function listRiskGroups(query) {
+  return request({ url: '/para-server/page/risk/groups', method: 'get', params: query })
+}
+export function listRiskGroupOptions() {
+  return request({ url: '/para-server/page/risk/groups/options', method: 'get' })
+}
+export function addRiskGroup(data) {
+  return request({ url: '/para-server/page/risk/groups', method: 'post', data })
+}
+export function updateRiskGroup(groupId, data) {
+  return request({ url: `/para-server/page/risk/groups/${groupId}`, method: 'put', data })
+}
+export function delRiskGroup(groupId) {
+  return request({ url: `/para-server/page/risk/groups/${groupId}`, method: 'delete' })
+}
 
-export const listRiskRules = (params) => request({ url: '/para-server/page/risk/rules', method: 'get', params })
-export const addRiskRule = (data) => request({ url: '/para-server/page/risk/rules', method: 'post', data })
-export const updateRiskRule = (ruleId, data) => request({ url: `/para-server/page/risk/rules/${encodeURIComponent(ruleId)}`, method: 'put', data })
-export const delRiskRule = (ruleId) => request({ url: `/para-server/page/risk/rules/${encodeURIComponent(ruleId)}`, method: 'delete' })
+// 风险规则
+export function listRiskRules(query) {
+  return request({ url: '/para-server/page/risk/rules', method: 'get', params: query })
+}
+export function addRiskRule(data) {
+  return request({ url: '/para-server/page/risk/rules', method: 'post', data })
+}
+export function updateRiskRule(ruleId, data) {
+  return request({ url: `/para-server/page/risk/rules/${ruleId}`, method: 'put', data })
+}
+export function delRiskRule(ruleId) {
+  return request({ url: `/para-server/page/risk/rules/${ruleId}`, method: 'delete' })
+}
 
-export const listRiskControlLogs = (params) => request({ url: '/para-server/page/risk/control-logs', method: 'get', params })
+// 风控记录
+export function listRiskControlLogs(query) {
+  return request({ url: '/para-server/page/risk/control-logs', method: 'get', params: query })
+}
+
+// 灰名单（风控规则台账）
+export function listGraylist(query) {
+  return request({ url: '/para-server/page/risk/graylist', method: 'get', params: query })
+}
