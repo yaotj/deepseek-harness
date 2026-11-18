@@ -367,6 +367,56 @@ def upgrade(token, base, app_uuid, version, version_id) -> str:
     return rollback_point
 
 
+def update_nginx_configmap(token: str, base: str, version: str, nginx_conf_path: Path) -> None:
+    """发版后更新 nginx configmap，写入自定义代理配置。
+
+    CloudOS 发版时会创建新的 configmap（websyspresetweb-version-{version}），
+    内容是默认配置（无代理设置）。本函数将仓库中的 nginx.conf 写入新 configmap。
+    """
+    import subprocess
+
+    # 读取 nginx.conf
+    if not nginx_conf_path.exists():
+        print(f"   ⚠ nginx.conf 不存在：{nginx_conf_path}，跳过 configmap 更新")
+        return
+
+    nginx_conf = nginx_conf_path.read_text(encoding="utf-8")
+
+    # 通过 kubectl 更新 configmap
+    cm_name = f"websyspresetweb-version-{version}"
+    print(f"   更新 configmap {cm_name}…")
+
+    # 导出当前 configmap
+    result = subprocess.run(
+        ["ssh", "k8s-master", f"kubectl get configmap {cm_name} -n itp -o yaml"],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"   ⚠ 获取 configmap 失败：{result.stderr[:200]}")
+        return
+
+    import yaml
+    cm = yaml.safe_load(result.stdout)
+    cm["data"]["nginx.conf"] = nginx_conf
+
+    # 写临时文件并 apply
+    tmp_file = Path(f"/tmp/configmap-{cm_name}.yaml")
+    with open(tmp_file, "w", encoding="utf-8") as f:
+        yaml.dump(cm, f, default_flow_style=False)
+
+    result = subprocess.run(
+        ["ssh", "k8s-master", f"kubectl apply -f -"],
+        input=tmp_file.read_text(encoding="utf-8"),
+        capture_output=True, text=True
+    )
+    tmp_file.unlink(missing_ok=True)
+
+    if result.returncode == 0:
+        print(f"   ✓ configmap {cm_name} 已更新")
+    else:
+        print(f"   ⚠ configmap 更新失败：{result.stderr[:200]}")
+
+
 # --------------------------------------------------------------------------- 入口
 CATALOG = {
     "name": "release",
@@ -486,6 +536,11 @@ def _main(argv: list[str] | None = None) -> int:
         raise OpsError(f"上传后仍查不到 {args.pkg}:{args.version} 的 version_id", EXIT_EXEC)
     print(f"4/4 升级 {args.app} → {args.version}")
     rollback = upgrade(token, base, app_uuid, args.version, vid)
+
+    # 更新 nginx configmap
+    nginx_conf_path = web_dir / "nginx.conf"
+    update_nginx_configmap(token, base, args.version, nginx_conf_path)
+
     print(f"\n完成：{args.app} @ {args.version}（回滚＝python3 {Path(__file__).name} {rollback} --yes --skip-build）")
     ui.result({"version": args.version, "app": args.app, "pkg": args.pkg,
                "rollback_point": rollback, "upgraded": True})
