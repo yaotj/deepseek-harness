@@ -49,6 +49,13 @@ public interface AppTerminationRequestMapper {
     int markSuccess(@Param("requestSignSeq") String requestSignSeq,
                     @Param("completeTime") LocalDateTime completeTime);
 
+    int markPendingSuccess(@Param("requestSignSeq") String requestSignSeq,
+                           @Param("completeTime") LocalDateTime completeTime);
+
+    int markPendingFailed(@Param("requestSignSeq") String requestSignSeq,
+                          @Param("failReason") String failReason,
+                          @Param("completeTime") LocalDateTime completeTime);
+
 
     int rejectScanning(@Param("requestSignSeq") String requestSignSeq,
                        @Param("failReason") String failReason,

@@ -50,6 +50,7 @@ public class TerminationResultCallbackHandler {
     private static final String STATUS_FAILED = TerminationStatus.FAILED.name();
     private static final String STATUS_SCANNING = TerminationStatus.SCANNING.name();
     private static final String STATUS_SUCCESS = TerminationStatus.SUCCESS.name();
+    private static final String STATUS_PENDING = TerminationStatus.PENDING.name();
     private static final String SIGN_LOG_STATUS_FAILED = SignStatus.FAILED.name();
 
     private final PaySignInfoMapper paySignInfoMapper;

@@ -238,6 +238,33 @@
           and TERMINATION_STATUS = 'SCANNING'
     </update>
 
+    <update id="markPendingSuccess">
+        update APP_TERMINATION_REQUEST
+        set TERMINATION_STATUS = 'SUCCESS',
+            COMPLETE_TIME = #{completeTime,jdbcType=TIMESTAMP},
+            NOTIFY_STATUS = 'PENDING',
+            NOTIFY_RETRY_COUNT = 0,
+            NOTIFY_TIME = null,
+            NOTIFY_RESULT = null,
+            UPDATE_TIME = sysdate
+        where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+          and TERMINATION_STATUS = 'PENDING'
+    </update>
+
+    <update id="markPendingFailed">
+        update APP_TERMINATION_REQUEST
+        set TERMINATION_STATUS = 'FAILED',
+            FAIL_REASON = #{failReason,jdbcType=VARCHAR},
+            COMPLETE_TIME = #{completeTime,jdbcType=TIMESTAMP},
+            NOTIFY_STATUS = 'PENDING',
+            NOTIFY_RETRY_COUNT = 0,
+            NOTIFY_TIME = null,
+            NOTIFY_RESULT = null,
+            UPDATE_TIME = sysdate
+        where REQUEST_SIGN_SEQ = #{requestSignSeq,jdbcType=VARCHAR}
+          and TERMINATION_STATUS = 'PENDING'
+    </update>
+
     <update id="rejectScanning">
         update APP_TERMINATION_REQUEST
         set TERMINATION_STATUS = 'FAILED',
