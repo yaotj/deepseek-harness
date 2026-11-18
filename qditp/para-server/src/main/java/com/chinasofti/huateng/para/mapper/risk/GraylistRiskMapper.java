@@ -8,7 +8,7 @@ import java.util.List;
 @Mapper
 public interface GraylistRiskMapper {
     
-    @Select("SELECT * FROM GRAYLIST_RISK WHERE 1=1")
+    @Select("SELECT * FROM GRAYLIST_RISK")
     @Results({
         @Result(property = "id", column = "ID"),
         @Result(property = "cardId", column = "CARD_ID"),
