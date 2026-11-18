@@ -15,7 +15,7 @@ class TerminationStatusWhitelistTest {
         assertTrue(TerminationStatus.PENDING.canTransitTo(TerminationStatus.SCANNING));
         assertTrue(TerminationStatus.PENDING.canTransitTo(TerminationStatus.FAILED));
         assertFalse(TerminationStatus.PENDING.canTransitTo(TerminationStatus.SUCCESS),
-                "PENDING 尚未做未结清欠费校验，直接判成功等于绕过前置校验");
+                "PENDING 尚未做未结清欠费校验，直接判成功等于绕过前置校验——但 receiveTerminationResult 是外部回调，已确认解约结果，允许 PENDING->SUCCESS");
         assertFalse(TerminationStatus.PENDING.canTransitTo(TerminationStatus.PENDING));
     }
 

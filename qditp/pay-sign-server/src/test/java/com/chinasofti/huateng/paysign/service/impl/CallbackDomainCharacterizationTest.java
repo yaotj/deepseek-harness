@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -19,6 +21,7 @@ import com.chinasofti.huateng.paysign.entity.PaySignRequest;
 import com.chinasofti.huateng.paysign.event.SignResultCommittedEvent;
 import com.chinasofti.huateng.model.app.ReceiveTerminationResultReqDTO;
 import com.chinasofti.huateng.paysign.model.response.BaseRespDTO;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -114,18 +117,22 @@ class CallbackDomainCharacterizationTest {
     }
 
     @Test
-    void terminationCallbackRejectsPendingRequest() {
+    void terminationCallbackAcceptsPendingRequestOnSuccess() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
         when(fixture.terminationRequestMapper.selectByRequestSignSeq(SEQ)).thenReturn(termination("PENDING"));
+        when(fixture.terminationRequestMapper.markPendingSuccess(eq(SEQ), any(LocalDateTime.class)))
+                .thenReturn(1);
 
         BaseRespDTO result = fixture.service.receiveTerminationResult(terminationResult("SUCCESS"), "01");
 
-        assertEquals(PaySignErrorCodeEnum.TERMINATION_REQUEST_NOT_FOUND.getCode(), result.getRetCode());
-        verify(fixture.paySignInfoMapper, never()).deleteByUserAndVendor(anyString(), anyString());
+        assertEquals(PaySignErrorCodeEnum.SUCCESS.getCode(), result.getRetCode());
+        verify(fixture.terminationRequestMapper).markPendingSuccess(eq(SEQ), any());
+        verify(fixture.terminationRequestMapper).initChannelSyncPending(SEQ);
+        verify(fixture.terminationNotifyService).asyncNotifyTerminationResult(any(), isNull(), any());
     }
 
     @Test
-    void terminationCallbackIsIdempotentOnTerminalStatus() {
+    void terminationCallbackIdempotentOnTerminalStatus() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
         when(fixture.terminationRequestMapper.selectByRequestSignSeq(SEQ)).thenReturn(termination("SUCCESS"));
 

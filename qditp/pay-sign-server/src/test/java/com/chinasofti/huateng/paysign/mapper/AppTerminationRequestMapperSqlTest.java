@@ -106,7 +106,7 @@ class AppTerminationRequestMapperSqlTest {
         while (matcher.find()) {
             assignments++;
         }
-        assertEquals(7, assignments,
+        assertEquals(9, assignments,
                 "TERMINATION_STATUS 的字面量赋值语句数变了，MUST 先确认新语句的 WHERE 带前置状态");
     }
 

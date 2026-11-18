@@ -131,6 +131,11 @@ public class TerminationResultCallbackHandler {
 
             resolveCardInfoFromTerminationRequest(request, terminationRequest);
 
+            if (STATUS_PENDING.equals(terminationRequest.getTerminationStatus())) {
+                handlePendingTerminationResult(request, terminationRequest, signChannel, response);
+                return response;
+            }
+
             if (!STATUS_SCANNING.equals(terminationRequest.getTerminationStatus())) {
                 fillError(response, PaySignErrorCodeEnum.TERMINATION_REQUEST_NOT_FOUND, "解约申请不存在或状态不正确");
                 auditLogger.write("RECEIVE_TERMINATION_RESULT", request.getThirdUserId(), request.getRequestSignSeq(), request.getPaymentVendor(), signChannel, request, response);
@@ -265,6 +270,75 @@ public class TerminationResultCallbackHandler {
             log.info("从解约申请表补充 cardType, requestSignSeq={}, cardType={}",
                     request.getRequestSignSeq(), terminationRequest.getCardType());
         }
+    }
+
+    private void handlePendingTerminationResult(ReceiveTerminationResultReqDTO request,
+                                                 AppTerminationRequest terminationRequest,
+                                                 String signChannel, BaseRespDTO response) {
+        boolean isSuccess = "SUCCESS".equalsIgnoreCase(request.getStatus());
+        if (isSuccess) {
+            TerminationStatusTransition.Result transit = transactionTemplate.execute(txStatus -> {
+                paySignInfoMapper.deleteByUserAndVendor(request.getThirdUserId(), request.getPaymentVendor());
+                auditLogger.writeTerminationResultNotifyPending(request, signChannel, STATUS_UNSIGNED);
+                TerminationStatusTransition.Result t = TerminationStatusTransition.classify(
+                        terminationRequestMapper.markPendingSuccess(request.getRequestSignSeq(), LocalDateTime.now()),
+                        TerminationStatus.SUCCESS,
+                        () -> terminationRequestMapper.selectTerminationStatusBySeq(request.getRequestSignSeq()));
+                if (t.isDone()) {
+                    terminationRequestMapper.initChannelSyncPending(request.getRequestSignSeq());
+                }
+                return t;
+            });
+            if (transit.isDone()) {
+                terminationNotifyService.asyncNotifyTerminationResult(terminationRequest, null, request);
+                channelSyncDeliverer.deliver(request.getRequestSignSeq(), request.getThirdUserId(),
+                        request.getPaymentVendor(), request.getCardId(), request.getCardType());
+            } else if (transit.isConflict()) {
+                log.error("PENDING 解约成功收口未命中，已跳过成功通知，MUST 人工核对, "
+                                + "requestSignSeq={}, outcome={}, observedStatus={}",
+                        request.getRequestSignSeq(), transit.outcome(), transit.observedStatus());
+                if (TerminationStatus.FAILED.name().equals(transit.observedStatus())) {
+                    int marked = terminationRequestMapper.markConflictForManualReview(
+                            request.getRequestSignSeq(),
+                            TerminationFailReason.successConflictNote(),
+                            TerminationFailReason.MANUAL_REVIEW_MARK);
+                    log.warn("PENDING 解约结果矛盾已留痕, requestSignSeq={}, markedRows={}",
+                            request.getRequestSignSeq(), marked);
+                }
+            } else {
+                log.info("PENDING 解约成功收口已由另一路完成，本次按幂等跳过, requestSignSeq={}, observedStatus={}",
+                        request.getRequestSignSeq(), transit.observedStatus());
+            }
+        } else {
+            String failReason = StringUtils.hasText(request.getStatus()) ? request.getStatus() : "支付平台解约失败";
+            TerminationStatusTransition.Result rejectTransit = TerminationStatusTransition.classify(
+                    terminationRequestMapper.markPendingFailed(request.getRequestSignSeq(), failReason, LocalDateTime.now()),
+                    TerminationStatus.FAILED,
+                    () -> terminationRequestMapper.selectTerminationStatusBySeq(request.getRequestSignSeq()));
+            if (rejectTransit.isDone()) {
+                NotifyTerminationFailedReqDTO failedNotifyRequest = new NotifyTerminationFailedReqDTO();
+                failedNotifyRequest.setThirdUserId(request.getThirdUserId());
+                failedNotifyRequest.setRequestSignSeq(request.getRequestSignSeq());
+                failedNotifyRequest.setPaymentVendor(request.getPaymentVendor());
+                failedNotifyRequest.setCardId(request.getCardId());
+                failedNotifyRequest.setCardType(request.getCardType());
+                failedNotifyRequest.setFailReason(failReason);
+                terminationNotifyService.asyncNotifyTerminationFailed(terminationRequest, failedNotifyRequest);
+            } else {
+                log.error("PENDING 解约失败收口未命中，已跳过失败通知, "
+                                + "requestSignSeq={}, outcome={}, observedStatus={}",
+                        request.getRequestSignSeq(), rejectTransit.outcome(), rejectTransit.observedStatus());
+                if (TerminationStatus.SUCCESS.name().equals(rejectTransit.observedStatus())) {
+                    int marked = terminationRequestMapper.markFailureConflictForManualReview(
+                            request.getRequestSignSeq(),
+                            TerminationFailReason.failureConflictNote(),
+                            TerminationFailReason.MANUAL_REVIEW_MARK);
+                    log.warn("PENDING 解约结果矛盾已留痕（本次答复失败、库内已成功）, requestSignSeq={}, markedRows={}",
+                            request.getRequestSignSeq(), marked);
+                }
+            }
+        }
+        fillSuccess(response);
     }
 
 }
