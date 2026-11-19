@@ -260,7 +260,7 @@
 | `tradeOrderNo` | String | 交易订单号 |
 | `payTradeOrderNo` | String | 支付交易订单号 |
 | `payOrderNoDate` | String | 支付订单日期 |
-| `debitRequestResult` | String | 扣款请求结果，值域 `0`（线上成功）/ `2`（失败或未收口）；**`1` 当前不产出**（旧 ITP 语义为「线下补款人工成功」，新仓暂无该数据来源，见 IT-082）。唯一数据源是 `GATE_TXN_PAY.DEBIT_STATUS`。注意：响应侧已改 0/2，但请求侧筛选仍为 0=成功 / 1=非成功，两侧暂不同源，MUST NOT 拿响应值当筛选入参 |
+| `debitRequestResult` | String | 扣款请求结果，值域 `0`（线上成功）/ `2`（失败或未收口）；**`1` 当前不产出**（旧 ITP 语义为「线下补款人工成功」，新仓暂无该数据来源，见 IT-082）。唯一数据源是 `GATE_TXN_PAY.DEBIT_STATUS`。请求侧筛选已收口为 `0`=成功 / `1` 或 `2`=非成功（两者等价，`1` 保留兼容存量 APP），与响应侧同源——回显的 `2` 可直接当筛选入参传回，见 IT-082 |
 | `companionFlag` | String | 同行票标识 |
 | `cardNum` | String | 逻辑卡号 |
 | `ticketCode` | String | 日票票号 |

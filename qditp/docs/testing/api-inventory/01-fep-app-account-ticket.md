@@ -496,7 +496,7 @@
 | totalPage | Integer | 同上 | 总页数（请求侧也有这个字段） |
 | startDate | String | 同上 | 开始日期 `yyyy-MM-dd`（非必填） |
 | endDate | String | 同上 | 结束日期 `yyyy-MM-dd`（非必填） |
-| debitRequestResult | String | 同上 | 扣款结果：空 = 全部，`0` 成功，`1` 失败 |
+| debitRequestResult | String | 同上 | 扣款结果（筛选入参）：空 = 全部，`0` 成功，`1` 失败（历史值，存量 APP 兼容），`2` 失败（IT-082 收口，与 `1` 等价；可接收响应回显的 `2`） |
 | ticketCode | String | 同上 | 日票票号 |
 
 **响应字段** — `RequestTransListResult`（**不继承 `CommonResult`**）
