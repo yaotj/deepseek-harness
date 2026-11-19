@@ -33,7 +33,7 @@ public class CertificateServiceImpl implements CertificateService {
         CardCertificateResult result = new CardCertificateResult();
         try {
             String publickey = TransformUtils.bytesToHex(Base64.getDecoder().decode(param.getPublickey()));
-            log.info("公钥为" + publickey);
+            log.debug("公钥已解析，长度={}字节", publickey.length());
 
             StringJoiner joiner = new StringJoiner("")
                     .add(param.getCert_format())
@@ -80,7 +80,7 @@ public class CertificateServiceImpl implements CertificateService {
                 .getHash(byteArrayOriginData, byteArrayUserID, byteArrayPublicKeyX, byteArrayPublicKeyY);
 
         byte[] byteArraySignData = sm2.sm2Sign(byteArrayHash, byteArraySm2PrivateKey);
-        log.info("签名数据：" + str + " \n签名HexString=========>" + TransformUtils.bytesToHex(byteArraySignData));
+        log.debug("签名完成，原文长度={}，签名长度={}", str.length(), byteArraySignData.length);
 
         return TransformUtils.bytesToHex(byteArraySignData);
     }
