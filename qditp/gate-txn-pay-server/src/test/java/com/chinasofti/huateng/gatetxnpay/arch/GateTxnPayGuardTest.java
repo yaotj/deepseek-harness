@@ -43,7 +43,7 @@ class GateTxnPayGuardTest {
     }
 
     @Test
-    void supplementConvergeWhitelistKeepsFailWhileCallbackOneDoesNot() throws IOException {
+    void supplementConvergeKeepsFailAndCallbackConvergesFailOnlyTowardsSuccess() throws IOException {
         String xml = stripXmlComments(Files.readString(MAPPER_XML, StandardCharsets.UTF_8));
 
         String callback = statementBody(xml, "convergeDebitStatus");
@@ -52,11 +52,20 @@ class GateTxnPayGuardTest {
         assertTrue(supplement.contains("FAIL"),
                 "补款专用收敛的白名单 MUST 含 FAIL，否则会出现「放行下单 + 补款支付成功 + 收敛不了」，"
                         + "钱已实收而行程仍挂欠费");
-        assertFalse(callback.contains("FAIL"),
-                "支付回调收敛的白名单 MUST NOT 含 FAIL：FAIL 在那条链路里是已到达的终态，"
-                        + "不该被回调改写。两条语句 NEVER 合并");
         assertEquals("SUCCESS", targetStatus(supplement),
                 "补款收敛的目标状态写死 SUCCESS、不做入参，少一个入参就少一处传错状态的可能");
+
+        String successBranch = branch(callback, "debitStatus == 'SUCCESS'");
+        String failBranch = branch(callback, "otherwise");
+        assertTrue(successBranch.contains("'FAIL'"),
+                "成功方向的回调收敛 MUST 含 FAIL（IT-081）：扣费单可能已被判 FAIL 终态，"
+                        + "而支付中心实际受理并随后回调成功，拒改会让钱已收、扣费域永久卡中间态");
+        assertFalse(failBranch.contains("'SUCCESS'"),
+                "失败方向的回调收敛 NEVER 含 SUCCESS：已支付的单不能被失败通知改写");
+        assertFalse(failBranch.contains("'FAIL'"),
+                "失败方向 NEVER 含 FAIL：FAIL 已被失败判定过，重写只会掩盖人工处置痕迹");
+        assertTrue(callback.contains("DEBIT_FAIL_CODE = NULL"),
+                "成功收敛 MUST 清 DEBIT_FAIL_CODE，否则成功单仍带着历史失败归因");
     }
 
     private static String statementBody(String xml, String id) {
@@ -66,6 +75,17 @@ class GateTxnPayGuardTest {
         int end = xml.indexOf("</update>", start);
         assertTrue(end > start, "语句 " + id + " 没有闭合的 update 标签");
         return xml.substring(start, end);
+    }
+
+    private static String branch(String body, String whenTest) {
+        boolean otherwise = "otherwise".equals(whenTest);
+        String marker = otherwise ? "<otherwise>" : "<when test=\"" + whenTest + "\"";
+        int start = body.indexOf(marker);
+        assertTrue(start >= 0, "收敛语句里找不到分支 " + whenTest + "：方向敏感白名单是本约束的核心，NEVER 压平成单一白名单");
+        String closer = otherwise ? "</otherwise>" : "</when>";
+        int end = body.indexOf(closer, start);
+        assertTrue(end > start, "分支 " + whenTest + " 没有闭合标签");
+        return body.substring(start, end);
     }
 
     private static String targetStatus(String body) {

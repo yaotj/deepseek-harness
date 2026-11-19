@@ -177,23 +177,40 @@
           AND DEBIT_STATUS = 'PROCESSING'
     </update>
 
-    <!-- 支付结果回调驱动的终态收敛：INIT / PROCESSING / RETRY 到 SUCCESS / FAIL。 -->
-    <!-- 回调侧白名单不含 FAIL、补款侧含，差异是有意的，改一侧会打挂另一侧（有守卫测试）。 -->
+    <!-- 支付结果回调驱动的终态收敛。方向敏感（IT-081，2026-11-19）： -->
+    <!-- SUCCESS 是资金事实，可从未终态与 FAIL 收敛——FAIL 只代表「本次请求被判失败」， -->
+    <!-- 支付中心仍可能实际受理并随后回调成功，此时拒改会把扣费单永久卡在 FAIL/中间态（钱已收、状态不收口）。 -->
+    <!-- 反向 FAIL 只从三个中间态收敛，NEVER 覆盖 SUCCESS，也 NEVER 重写 FAIL。 -->
+    <!-- 约束由 GateTxnPayGuardTest 与 GateTxnPayMapperSqlTest 双向守卫，改单侧必挂测试。 -->
     <update id="convergeDebitStatus">
         UPDATE GATE_TXN_PAY
         SET DEBIT_STATUS = #{debitStatus,jdbcType=VARCHAR},
             REMARK = #{remark,jdbcType=VARCHAR},
+            <if test="debitStatus == 'SUCCESS'">
+            DEBIT_FAIL_CODE = NULL,
+            DEBIT_FAIL_MSG = NULL,
+            </if>
             UPDATE_TIME = SYSTIMESTAMP
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
           AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
-          AND DEBIT_STATUS IN ('INIT', 'PROCESSING', 'RETRY')
+        <choose>
+            <when test="debitStatus == 'SUCCESS'">
+                AND DEBIT_STATUS IN ('INIT', 'PROCESSING', 'RETRY', 'FAIL')
+            </when>
+            <otherwise>
+                AND DEBIT_STATUS IN ('INIT', 'PROCESSING', 'RETRY')
+            </otherwise>
+        </choose>
     </update>
 
     <!-- 在线补款支付成功后的收敛，供 face-pay-server 经 POST /internal/gate-txn-pay/debit/converge 调用（2026-09-16 新增）。 -->
-    <!-- 补款侧白名单含 FAIL、回调侧不含，差异是有意的，改一侧会打挂另一侧（有守卫测试）。 -->
+    <!-- 补款侧白名单含 FAIL、回调侧成功方向也含 FAIL，但两者语义不同：补款是「另一笔钱收口原欠费」， -->
+    <!-- 回调是「原请求本身成功」。两条语句 NEVER 合并。 -->
     <update id="convergeDebitStatusForSupplement">
         UPDATE GATE_TXN_PAY
         SET DEBIT_STATUS = 'SUCCESS',
+            DEBIT_FAIL_CODE = NULL,
+            DEBIT_FAIL_MSG = NULL,
             REMARK = #{remark,jdbcType=VARCHAR},
             UPDATE_TIME = SYSTIMESTAMP
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}

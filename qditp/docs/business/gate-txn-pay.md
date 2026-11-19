@@ -266,7 +266,11 @@
 
 **【契约】补款收敛白名单含 `FAIL`，与支付回调收敛并存**（`GateTxnPayMapper.convergeDebitStatusForSupplement`，`mapper/GateTxnPayMapper.java`；SQL 在 `resources/mapper/GateTxnPayMapper.xml`）：允许 `INIT` / `PROCESSING` / `RETRY` / **`FAIL`** 更新为 `SUCCESS`。**与 `convergeDebitStatus` 并存、白名单多一个 `FAIL`，这是有意的**：补款下单校验放行的「欠费可补」口径包含 FAIL 单，能下单就必须能收敛，否则会出现「放行下单 + 补款支付成功 + 收敛不了」——钱已实收而行程仍挂欠费。目标状态**写死 `SUCCESS`**（不做入参）：补款成功是唯一走到这里的场景，少一个入参就少一处「传错状态把订单改成 FAIL」的可能。
 
-**【契约】支付回调收敛的白名单是三个中间态**（`GateTxnPayMapper.convergeDebitStatus`，`mapper/GateTxnPayMapper.java`；SQL 在 `resources/mapper/GateTxnPayMapper.xml`）：仅允许 `INIT` / `PROCESSING` / `RETRY` 更新为 `SUCCESS` / `FAIL`，`SUCCESS` / `FAIL` 不在白名单内、重复回调不改写终态。不能只用 `updateStatusIfProcessing`（只覆盖 `PROCESSING`）：调 pay-sign 的同步响应失败时订单停在 `RETRY`、异步线程未及推进时停在 `INIT`，而支付平台侧仍可能扣款成功并发来回调，这两个状态被漏掉就会永久停在中间态（**2026-08-26 生产实测各出现 1 笔**）。
+**【契约】支付回调收敛的白名单按方向敏感**（`GateTxnPayMapper.convergeDebitStatus`，`mapper/GateTxnPayMapper.java`；SQL 在 `resources/mapper/GateTxnPayMapper.xml`；**2026-11-19 修订，IT-081**）：
+- **成功方向**（`debitStatus=SUCCESS`）允许 `INIT` / `PROCESSING` / `RETRY` / **`FAIL`** 更新为 `SUCCESS`，并同时清空 `DEBIT_FAIL_CODE` / `DEBIT_FAIL_MSG`。`FAIL` 只代表「本次扣费请求被判失败」，支付中心仍可能实际受理并随后回调成功；旧口径把 `FAIL` 排除在外，回调返 `8003 订单状态不允许收敛`、pay-sign 标 `MANUAL`，而周期重试又把 `FAIL` 归一成 `RETRY → PROCESSING`，此后无回调再来 ⇒ 钱已收、扣费域永久卡中间态（测试环境 3 笔，`GT20261117144435890000081` / `GT20261117164231697000126` / `GT20261118143303624000081`）。
+- **失败方向**（`debitStatus=FAIL`）仍只允许 `INIT` / `PROCESSING` / `RETRY`，`SUCCESS` 与 `FAIL` 都不在前置白名单内：已支付单不能被失败通知改写，`FAIL` 也不被重写（重写只会掩盖人工处置痕迹）。
+- 不能只用 `updateStatusIfProcessing`（只覆盖 `PROCESSING`）：调 pay-sign 的同步响应失败时订单停在 `RETRY`、异步线程未及推进时停在 `INIT`，而支付平台侧仍可能扣款成功并发来回调，这两个状态被漏掉就会永久停在中间态（**2026-08-26 生产实测各出现 1 笔**）。
+- 方向敏感结构由 `GateTxnPayGuardTest`（XML 静态断言）与 `GateTxnPayMapperSqlTest`（MyBatis 渲染断言）双向守卫，**NEVER 压平成单一白名单**。
 
 **【契约】补款收敛响应的三分支判据 = `retCode` + `converged` + `debitStatus`**（`CompensationInternalController.convergeDebitStatusForSupplement`，`controller/internal/CompensationInternalController.java`；`GateTxnPayService.convergeDebitStatusForSupplement`，`service/GateTxnPayService.java`；实现在 `service/impl/GateTxnPayServiceImpl.java`）：调用方要靠三者分出「已结清 / 重复支付待退款 / 需人工核对」。实际三支是 ——
 - 改到行（`updated > 0`）：`retCode=0000`、`converged=true`、`debitStatus=SUCCESS`（`GateTxnPayServiceImpl.java`）；
@@ -276,7 +280,7 @@
 
 **【契约】`syncDebitStatus` 的 0 行处置与补款收敛不同**（`GateTxnPayServiceImpl.syncDebitStatus`，`service/impl/GateTxnPayServiceImpl.java`）：0 行有两种含义 —— 订单已是终态（重复回调，正常）或状态值意外。**已是同一终态即视为幂等成功返 `0000`**，其余情形回非 `0000` 让调用方留痕。正因为它把「本次真改了行」与「早已被别人收敛」压成同一结果，补款链路才**不能复用它**（`service/GateTxnPayService.java`）。
 
-**【决策】两条 converge 语句 NEVER 合并**（`mapper/GateTxnPayMapper.java`、`resources/mapper/GateTxnPayMapper.xml`、`writer/GateTxnPayWriter.java`、`service/GateTxnPayService.java`）：`convergeDebitStatus` 服务的是**支付结果回调**，语义是「中间态 到 终态」，在那条链路里 `FAIL` 是已到达的终态、不该被回调改写；`convergeDebitStatusForSupplement` 服务的是**补款支付成功**，必须能收 `FAIL` 单。原文：「**两条的白名单本就该不同，NEVER 合并成一条。**」「改任一条 MUST 想清楚是哪条链路在用。」
+**【决策】两条 converge 语句 NEVER 合并**（`mapper/GateTxnPayMapper.java`、`resources/mapper/GateTxnPayMapper.xml`、`writer/GateTxnPayWriter.java`、`service/GateTxnPayService.java`）：`convergeDebitStatus` 服务的是**支付结果回调**，语义是「中间态 到 终态」；`convergeDebitStatusForSupplement` 服务的是**补款支付成功**，目标是「另一笔钱收口原欠费」。两条前置白名单都含 `FAIL` 但**入口语义不同**：回调侧是「原请求本身成功」（`FAIL` 可被成功方向收敛，2026-11-19 IT-081 修订），补款侧是「用户另付一笔」（`FAIL` 本来就可补款）。原文：「**两条的白名单本就该不同，NEVER 合并成一条。**」「改任一条 MUST 想清楚是哪条链路在用。」
 
 **【决策】补款收敛语句 2026-09-16 从 face-pay-server 迁入本模块**（`mapper/GateTxnPayMapper.java`、`resources/mapper/GateTxnPayMapper.xml`）：那边原先自己持有一份同形 UPDATE、**跨域直写 owner 不是它的表**，随本次收口迁入。白名单多一个 `FAIL` 与补款下单校验的「欠费可补」口径一致（**2026-09-16 裁决**，`service/GateTxnPayService.java`）。
 

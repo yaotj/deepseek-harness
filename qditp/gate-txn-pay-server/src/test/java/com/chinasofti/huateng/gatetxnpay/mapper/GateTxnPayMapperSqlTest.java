@@ -118,11 +118,23 @@ class GateTxnPayMapperSqlTest {
                 "NEVER 把 PROCESSING 放进来：已受理单被降级回 RETRY 后会被 retryPay 重复扣款");
         assertTrue(sqlOf("updateStatusIfProcessing").contains("DEBIT_STATUS = 'PROCESSING'"),
                 "已受理单收敛的前置 MUST 恰好是 PROCESSING");
-        String converge = sqlOf("convergeDebitStatus");
-        assertTrue(converge.contains("DEBIT_STATUS IN ('INIT', 'PROCESSING', 'RETRY')"),
-                "回调收敛 MUST 覆盖三个中间态，漏掉 INIT / RETRY 会让订单永久卡中间态");
-        assertFalse(converge.contains("'SUCCESS',") || converge.contains("'FAIL'"),
-                "终态 NEVER 进前置白名单，否则重复回调会改写终态");
+        String convergeSuccess = sqlOf("convergeDebitStatus");
+        assertTrue(convergeSuccess.contains("DEBIT_STATUS IN ('INIT', 'PROCESSING', 'RETRY', 'FAIL')"),
+                "成功方向的回调收敛 MUST 覆盖三个中间态与 FAIL（IT-081）：只覆盖中间态时，"
+                        + "首次扣费被判 FAIL 而支付中心随后回调成功的单会永久卡住");
+        assertTrue(convergeSuccess.contains("DEBIT_FAIL_CODE = NULL"),
+                "成功收敛 MUST 清 DEBIT_FAIL_CODE，否则成功单仍带历史失败归因");
+        assertFalse(convergeSuccess.contains("'FAIL', 'SUCCESS')"),
+                "SUCCESS NEVER 进前置白名单，否则重复回调会改写终态");
+        assertTrue(convergeSuccess.contains(
+                        "DEBIT_FAIL_CODE = NULL, DEBIT_FAIL_MSG = NULL, UPDATE_TIME = SYSTIMESTAMP"),
+                "清失败码两个 SET 片段 MUST 拼接完整，逗号错位会让 UPDATE 语法失败");
+
+        String convergeFail = sqlWith("convergeDebitStatus", "debitStatus", "FAIL");
+        assertTrue(convergeFail.contains("DEBIT_STATUS IN ('INIT', 'PROCESSING', 'RETRY')"),
+                "失败方向的回调收敛 MUST 只覆盖三个中间态，保留「FAIL 不被失败通知重写」的口径");
+        assertFalse(convergeFail.contains("'FAIL'"),
+                "失败方向 NEVER 出现 FAIL 字面量：FAIL 已被失败判定过，重写会掩盖人工处置");
     }
 
     @Test
