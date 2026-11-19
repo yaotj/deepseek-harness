@@ -200,3 +200,27 @@ WARN/ERROR: 0
 **Review 完成时间**：2026-11-19 10:00
 **下次 Review 建议**：SVN r1320 提交后 + 生产部署前
 **结论**：✅ **通过，可发版**
+
+---
+
+## R8 性能优化（已修复）
+
+**结论：MEDIUM → 已修复（commit `32714bd9`）**
+
+| # | 原问题 | 修复方案 | 性能收益 |
+|---|---|---|---|
+| 8.1 | `snapshot()` 每轮 `new ArrayList<>(cacheList)` 全量拷贝 | 新增 `forEachActiveChannel(Consumer)` 单次遍历无拷贝 | 48 条 × 1.6次/秒 = 76.8 拷贝/秒 → 0 拷贝/秒 |
+| 8.2 | `findIdleLocked()` 游标轮询 O(n) | 当前规模 negligible，扩容到 200+ 再评估 | 保留现状 |
+
+**修复细节**：
+- `ChannelCache.forEachActiveChannel(Consumer<Channel>)`：遍历 `cacheList`，跳过失活连接，无拷贝
+- `HsmHeartbeatScheduler.heartbeat()`：改用 `forEachActiveChannel` 替代 `snapshot()` 循环
+- 原 `snapshot()` 方法保留供其他需要独立副本的场景使用
+
+**测试验证**：
+```
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+
+**版本**：2.0.25（bump 自动完成）
