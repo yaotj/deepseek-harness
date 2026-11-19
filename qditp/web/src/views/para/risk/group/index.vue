@@ -94,9 +94,9 @@ function remove(row) {
 // 管理规则弹窗逻辑
 function manageRules(row) {
   currentGroup.value = row
-  currentRuleIds.value = []
   ruleSearch.value = ''
   ruleOpen.value = true
+  // 弹窗打开后立即加载该组的规则，并等待完成后再回显勾选状态
   listGroupRuleIds(row.groupId).then(r => { currentRuleIds.value = r.data || [] })
 }
 const filteredRuleOptions = computed(() => {
