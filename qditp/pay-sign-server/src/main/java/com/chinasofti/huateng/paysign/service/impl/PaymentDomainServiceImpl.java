@@ -378,9 +378,18 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
             String mapped = convertPayStatus(stringValue(data.get("status"), null));
             return "SUCCESS".equals(mapped) || "FAIL".equals(mapped) ? mapped : null;
         }
-        if (reply instanceof GatewayReply.Rejected rejected
-                && rejected.messageOr("").contains("查无此交易")) {
-            return "FAIL";
+        if (reply instanceof GatewayReply.Rejected rejected) {
+            // payQuery 的「中心无此单」实测有两种文案：「查无此交易[2600000]」与「未找到数据」，
+            // 都带业务码 9999。NEVER 只按文案匹配——文案由供方定、随时会变。
+            // 误判为 FAIL 也可自愈：成功回调按方向敏感白名单能把 FAIL 收敛回 SUCCESS。
+            PaySignGatewayResponse raw = rejected.raw();
+            String msg = rejected.messageOr("");
+            boolean notFound = (raw != null && Integer.valueOf(9999).equals(raw.getCode()))
+                    || msg.contains("查无此交易") || msg.contains("未找到") || msg.contains("不存在");
+            if (notFound) {
+                log.info("支付中心查无此单，按失败收敛, msg={}", msg);
+                return "FAIL";
+            }
         }
         return null;
     }

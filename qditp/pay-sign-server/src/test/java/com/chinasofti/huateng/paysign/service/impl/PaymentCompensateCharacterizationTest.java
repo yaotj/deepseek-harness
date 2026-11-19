@@ -128,6 +128,47 @@ class PaymentCompensateCharacterizationTest {
         verify(fixture.payTxnDetailMapper, never()).updatePayCallback(any());
     }
 
+    @Test
+    void queryRejectedWith9999NotFoundDataIsTreatedAsFail() {
+        PaySignFacadeFixture fixture = fixtureWithQueryUrl();
+        when(fixture.payTxnDetailMapper.selectCompensablePayStatus(anyString(), anyInt(), anyInt()))
+                .thenReturn(List.of(pendingOrder()));
+        when(fixture.payCallbackLogMapper.countManualSince(anyString())).thenReturn(0);
+        when(fixture.payTxnDetailMapper.updatePayCallback(any(PayTxnDetail.class))).thenReturn(1);
+        gateTxnPayReturns(fixture, "0000");
+        fixture.gatewayReturns(rejectedResponse(9999, "未找到数据"));
+
+        CompensateNotifyRespDTO result = fixture.paymentDomainService.compensatePayStatus();
+
+        assertEquals(1, result.getSubmitted());
+        assertEquals(0, result.getSkipped());
+        ArgumentCaptor<PayTxnDetail> captor = ArgumentCaptor.forClass(PayTxnDetail.class);
+        verify(fixture.payTxnDetailMapper).updatePayCallback(captor.capture());
+        assertEquals("FAIL", captor.getValue().getPayStatus());
+    }
+
+    @Test
+    void queryRejectedWithBusinessErrorIsLeftForNextRound() {
+        PaySignFacadeFixture fixture = fixtureWithQueryUrl();
+        when(fixture.payTxnDetailMapper.selectCompensablePayStatus(anyString(), anyInt(), anyInt()))
+                .thenReturn(List.of(pendingOrder()));
+        when(fixture.payCallbackLogMapper.countManualSince(anyString())).thenReturn(0);
+        fixture.gatewayReturns(rejectedResponse(600, "操作失败"));
+
+        CompensateNotifyRespDTO result = fixture.paymentDomainService.compensatePayStatus();
+
+        assertEquals(0, result.getSubmitted());
+        assertEquals(1, result.getSkipped());
+        verify(fixture.payTxnDetailMapper, never()).updatePayCallback(any());
+    }
+
+    private PaySignGatewayResponse rejectedResponse(int code, String msg) {
+        PaySignGatewayResponse response = new PaySignGatewayResponse();
+        response.setCode(code);
+        response.setMsg(msg);
+        return response;
+    }
+
     private PaySignFacadeFixture fixtureWithQueryUrl() {
         PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
         fixture.properties.setPayQueryUrl(PaySignFacadeFixture.GATEWAY_URL_PREFIX + "pay/query");
