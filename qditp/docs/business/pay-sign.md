@@ -813,6 +813,11 @@ DDL 分两处，**改表结构前先确认改哪个脚本**：
     0 行的键，只会把「键传错」和「订单不存在」混成同一种现象」；已发生事故见 
     （「2026-08-26 免密扣款支付宝已扣款成功，回调 UPDATE 命中 0 行，PAY_STATUS 长期停在 PROCESSING，
     APP 显示扣费失败；生产库 4 笔受害（PAY_TXN_DETAIL 5103/5105/5107/5109）」）。
+    推论：**`status=FAIL` 的「下单失败」类通知不带支付中心 `orderNo`**（只带 `merchantOrderNo`），
+    入口 **MUST NOT** 校验 `orderNo` 非空，只校验 `merchantOrderNo`——早期按 `orderNo` 校验，把整条失败通知
+    挡在落库之前（2026-11-19 测试环境反馈后修复）。`PAY_CALLBACK_LOG.ORDER_NO` 列 NOT NULL，这类报文由
+    `PayTxnRules.buildPayCallbackLog` 回填 `merchantOrderNo` 保证回调证据必落库；本列仍**只作留痕**，
+    NEVER 参与订单定位。
 63. **`DEBIT_REQUEST_RESULT` 必须与 `PAY_STATUS` 同步回写** —— 同方法 ：
     「APP 侧（IF8A-05 列表、IF8A-34 详情）展示的扣费结果读的是这一列，不是 PAY_STATUS」；
     事故见 。SQL 侧口径在 `pay-sign-server/src/main/resources/mapper/PayTxnDetailMapper.xml`

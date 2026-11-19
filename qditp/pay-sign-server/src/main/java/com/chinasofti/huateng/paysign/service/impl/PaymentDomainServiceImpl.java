@@ -190,8 +190,12 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         PaySignCallbackResult response = new PaySignCallbackResult();
         int pushCount = 0;
         try {
-            if (request == null || !StringUtils.hasText(request.getOrderNo())) {
-                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "orderNo不能为空");
+            if (request == null) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "回调报文不能为空");
+                return response;
+            }
+            if (!StringUtils.hasText(request.getMerchantOrderNo()) && !StringUtils.hasText(request.getOrderNo())) {
+                fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "merchantOrderNo不能为空");
                 return response;
             }
             PayCallbackLog callbackLog = buildPayCallbackLog(request, rawBody);

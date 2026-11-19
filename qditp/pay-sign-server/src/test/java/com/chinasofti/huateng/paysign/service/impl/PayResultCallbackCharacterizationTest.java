@@ -2,6 +2,7 @@ package com.chinasofti.huateng.paysign.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -159,6 +160,35 @@ class PayResultCallbackCharacterizationTest {
         verify(fixture.payTxnDetailMapper).updatePayCallback(captor.capture());
         assertEquals("FAIL", captor.getValue().getPayStatus());
         assertEquals("FAIL", captor.getValue().getDebitRequestResult());
+    }
+
+    @Test
+    void failedCallbackWithoutPayCenterOrderNoIsAcceptedByMerchantOrderNo() {
+        PaySignFacadeFixture fixture = PaySignFacadeFixture.create();
+        when(fixture.payTxnDetailMapper.updatePayCallback(any(PayTxnDetail.class))).thenReturn(1);
+        gateTxnPayReturns(fixture, "0000");
+
+        ReceivePayResultReqDTO request = payResult("FAIL");
+        request.setOrderNo(null);
+        request.setChannelOrderNo(null);
+        request.setPayTime(null);
+
+        PaySignCallbackResult result = fixture.service.receivePayResult(request, RAW_BODY);
+
+        assertEquals(PaySignErrorCodeEnum.SUCCESS.getCode(), result.getRetCode());
+
+        ArgumentCaptor<PayTxnDetail> captor = ArgumentCaptor.forClass(PayTxnDetail.class);
+        verify(fixture.payTxnDetailMapper).updatePayCallback(captor.capture());
+        PayTxnDetail update = captor.getValue();
+        assertEquals(MERCHANT_ORDER_NO, update.getOrderNo());
+        assertEquals("FAIL", update.getPayStatus());
+        assertEquals("FAIL", update.getDebitRequestResult());
+        assertNull(update.getPayCenterOrderNo());
+
+        ArgumentCaptor<PayCallbackLog> logCaptor = ArgumentCaptor.forClass(PayCallbackLog.class);
+        verify(fixture.payCallbackLogMapper).insert(logCaptor.capture());
+        assertEquals(MERCHANT_ORDER_NO, logCaptor.getValue().getOrderNo());
+        assertEquals(MERCHANT_ORDER_NO, logCaptor.getValue().getMerchantOrderNo());
     }
 
     private void gateTxnPayReturns(PaySignFacadeFixture fixture, String retCode) {

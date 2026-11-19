@@ -51,7 +51,10 @@ public final class PayTxnRules {
 
     public static PayCallbackLog buildPayCallbackLog(ReceivePayResultReqDTO request, String rawBody) {
         PayCallbackLog logRecord = new PayCallbackLog();
-        logRecord.setOrderNo(request.getOrderNo());
+        // ORDER_NO 列 NOT NULL：支付中心「下单失败」类通知（status=FAIL）不带支付中心单号，只带商户单号，
+        // 此时回填 merchantOrderNo 保证回调证据必落库；订单定位键统一是 MERCHANT_ORDER_NO，NEVER 用本列定位。
+        logRecord.setOrderNo(StringUtils.hasText(request.getOrderNo())
+                ? request.getOrderNo() : request.getMerchantOrderNo());
         logRecord.setCallbackType("PAY");
         logRecord.setCallbackStatus(request.getStatus());
         logRecord.setMerchantOrderNo(request.getMerchantOrderNo());
