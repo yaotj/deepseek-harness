@@ -361,7 +361,7 @@ Controller（**均无接口编号标注**）：
 - `getCertificate` 把 9 段按 `StringJoiner("")` 顺序拼成签名原文：`cert_format` → `org_id` → `cert_expire_time` → `cert_seq` → `sign_algorithm` → `encrypt_algorithm` → `parameter_id` → `publickey_length` → 公钥 hex（公钥入参是 Base64，先 `Base64.getDecoder().decode` 再转 hex）。**这个顺序就是契约，NEVER 重排。**
 - `cert_index` **硬编码字符串 `"01"`**，没有读 `security.index`（配置里 `security.index` 恰好也是 `01`，**因此改配置不会生效** —— 属现状，改前 MUST 确认下游期望）。
 - `getSign` 用 `securityConfig.getPrivateKey()` / `getPublicKey()`（配置 `security.privateKey` / `security.publicKey`）做 SM2 签名；固定用户 ID 字符串 `"1234567812345678"`；公钥按前 32 / 后 32 字节切成 X、Y；签名原文按 **`HexStringToByteArr(str)`**（当 hex 解析）转字节。
-- **日志会打签名原文与签名结果 hex**（`log.info("签名数据：" + str + ...)`）；公钥也会 `log.info("公钥为" + publickey)`。属现状记录，**上生产前 MUST 评估是否降级为 debug**。
+- **日志已降级**（2026-11-19 IT-076 review）：`log.info("公钥为" + publickey)` → `log.debug`；`log.info("签名数据..." + byteArraySignData)` → `log.debug`。**线上默认 info 级别不再输出明文**。若需排查签名问题，临时调 `logging.level.com.chinasofti.huateng.acc.security.server.service.impl.CertificateServiceImpl=debug`。
 
 **2.「从加密机取证书」从未实现**（`SEC/service/impl/CertificateFromMachineServiceImpl.java`）
 该文件原本 **153 行全部是 `//` 注释掉的整类代码**（含 `package` / `import` / `@Service` / 方法体），本轮**已整体删除**、文件只留一行迁移标记。删除前的关键事实，全部记在此处：
