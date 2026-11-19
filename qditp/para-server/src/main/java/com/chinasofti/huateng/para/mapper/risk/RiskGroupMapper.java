@@ -12,6 +12,9 @@ public interface RiskGroupMapper {
 
     List<RiskGroup> selectOptions();
 
+    /** 按组名精确查询（自动加黑任务按组名识别风险组，名称区分大小写走 BINARY 等价语义由调用方保证）。 */
+    RiskGroup selectByName(@Param("groupName") String groupName);
+
     int insert(RiskGroup record);
 
     int update(RiskGroup record);

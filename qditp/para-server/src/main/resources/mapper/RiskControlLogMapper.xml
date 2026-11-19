@@ -47,6 +47,19 @@
             ORDER BY L.RISK_HIT_TIME DESC, L.LOG_ID DESC
         ) WHERE ROWNUM &lt;= #{limit}
     </select>
+    <select id="selectHitAggregationForBlacklist" resultType="com.chinasofti.huateng.para.entity.risk.RiskHitAggregation">
+        <!-- 自动加黑候选聚合：限定风险组绑定规则 + 窗口期，组内每条规则按自身阈值（RISK_LIMIT_VALUE）过滤。
+             HAVING 用 MAX(R.RISK_LIMIT_VALUE) 取自连接表同组常量列，规避 Oracle 对非聚合表达式在 HAVING 中的限制。 -->
+        SELECT L.CARD_ID AS cardId, L.RULE_ID AS ruleId,
+               MAX(R.RULE_NAME) AS ruleName, COUNT(*) AS hitCount
+        FROM TBL_RISK_CONTROL_LOG L
+        JOIN TBL_RISK_GROUP_RULE GR ON GR.RULE_ID = L.RULE_ID AND GR.GROUP_ID = #{groupId}
+        JOIN TBL_RISK_RULE R ON R.RULE_ID = L.RULE_ID
+        WHERE L.RISK_HIT_TIME &gt;= SYSDATE - #{windowDays}
+          AND L.CARD_ID IS NOT NULL
+        GROUP BY L.CARD_ID, L.RULE_ID
+        HAVING COUNT(*) &gt;= MAX(R.RISK_LIMIT_VALUE)
+    </select>
     <insert id="insert" parameterType="com.chinasofti.huateng.para.entity.risk.RiskControlLog">
         INSERT INTO TBL_RISK_CONTROL_LOG
             (CARD_ID, USER_ORDER_NO, RULE_ID, RULE_NAME_SNAP, RULE_DESC_SNAP, RISK_LEVEL_SNAP,

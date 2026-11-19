@@ -18,6 +18,11 @@
     <select id="selectOptions" resultMap="BaseResultMap">
         SELECT GROUP_ID, GROUP_NAME, GROUP_DESC, CREATE_TIME, UPDATE_TIME FROM TBL_RISK_GROUP ORDER BY GROUP_NAME
     </select>
+    <select id="selectByName" resultMap="BaseResultMap">
+        <!-- 组名精确匹配：自动加黑任务依赖组名作为跨环境稳定标识，不允许模糊命中。 -->
+        SELECT GROUP_ID, GROUP_NAME, GROUP_DESC, CREATE_TIME, UPDATE_TIME FROM TBL_RISK_GROUP
+        WHERE GROUP_NAME = #{groupName}
+    </select>
     <!-- 参数为 null 时 MyBatis 无法推断类型，Oracle 下按 OTHER(1111) 下发会报「无效的列类型」。
          GROUP_DESC 可空、页面留空时前端送的就是字面 null，因此所有参数 MUST 显式写 jdbcType。NEVER 删。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.para.entity.risk.RiskGroup">
