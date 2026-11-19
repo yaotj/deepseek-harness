@@ -107,9 +107,10 @@ class RiskRuleBlacklistSyncServiceImplTest {
         AddBlackListReqDTO added = captor.getAllValues().get(0);
         assertEquals("CARD_ADD", added.getCardId());
         assertEquals("01", added.getBlackSource(), "自动加黑 MUST 记 BLACK_SOURCE=01");
-        assertEquals("09", added.getBlackCause());
+        assertEquals("03", added.getBlackCause(), "风控规则命中 MUST 记 BLACK_CAUSE=03");
         assertEquals("riskRuleBlacklistSync", added.getCreateBy());
         assertEquals(true, added.getReason().contains("黑名单直拉规则组"));
+        assertEquals(true, added.getReason().contains("[000003]"), "REASON MUST 含稳定规则ID");
         assertEquals(true, added.getReason().contains("3 次"));
 
         assertEquals("ADDED", resp.getDetails().get(0).getAction());

@@ -31,7 +31,7 @@ public class RiskRuleBlacklistSyncServiceImpl implements RiskRuleBlacklistSyncSe
 
     private static final String SUCCESS_CODE = "0000";
     private static final String BLACK_SOURCE_AUTO = "01";
-    private static final String BLACK_CAUSE_OTHER = "09";
+    private static final String BLACK_CAUSE_RISK_RULE = "03";
     private static final String CREATE_BY = "riskRuleBlacklistSync";
     private static final String IN_BLACK_FLAG = "1";
 
@@ -148,9 +148,10 @@ public class RiskRuleBlacklistSyncServiceImpl implements RiskRuleBlacklistSyncSe
         AddBlackListReqDTO request = new AddBlackListReqDTO();
         request.setCardId(candidate.getCardId());
         request.setBlackSource(BLACK_SOURCE_AUTO);
-        request.setBlackCause(BLACK_CAUSE_OTHER);
+        request.setBlackCause(BLACK_CAUSE_RISK_RULE);
         request.setCreateBy(CREATE_BY);
-        request.setReason("规则「" + nullToEmpty(candidate.getRuleName()) + "」" + "窗口期命中 "
+        request.setReason("规则[" + nullToEmpty(candidate.getRuleId()) + "]「"
+                + nullToEmpty(candidate.getRuleName()) + "」窗口期命中 "
                 + candidate.getHitCount() + " 次（" + groupName + "自动加黑）");
         return blacklistClient.addBlackList(request);
     }
