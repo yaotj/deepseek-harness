@@ -227,6 +227,20 @@
           AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
     </update>
 
+    <!-- 跨域分叉核对（IT-081 P3）：只捞最近收口的成功单，避免全表扫描；与 pay-sign 的只读批量查询对账。 -->
+    <select id="selectSettledForDivergenceCheck" resultMap="BaseResultMap">
+        SELECT ORDER_NO, TXN_DATE, DEBIT_STATUS, REMARK, UPDATE_TIME
+        FROM (
+            SELECT ORDER_NO, TXN_DATE, DEBIT_STATUS, REMARK, UPDATE_TIME
+            FROM GATE_TXN_PAY
+            WHERE TXN_DATE &gt;= #{txnDateFrom,jdbcType=VARCHAR}
+              AND DEBIT_STATUS = 'SUCCESS'
+              AND UPDATE_TIME &gt;= SYSTIMESTAMP - NUMTODSINTERVAL(#{recentHours,jdbcType=INTEGER}, 'HOUR')
+            ORDER BY UPDATE_TIME DESC
+        )
+        WHERE ROWNUM &lt;= #{limit,jdbcType=INTEGER}
+    </select>
+
     <select id="selectOperationPage" resultMap="BaseResultMap">
         <bind name="offsetEnd" value="offset + limit" />
         SELECT *

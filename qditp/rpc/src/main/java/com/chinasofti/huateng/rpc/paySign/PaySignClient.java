@@ -225,6 +225,22 @@ public class PaySignClient extends ProxyWebClient {
     }
 
 
+    public CompensateNotifyRespDTO compensatePayStatus(Map<String, String> headers) {
+        String result = postJsonAndGetResponse("/internal/payment/compensatePayStatus", new java.util.HashMap<>(), headers);
+        return JSONUtil.toBean(result, new TypeReference<CompensateNotifyRespDTO>() {
+        }, true);
+    }
+
+
+    public PaySignCallbackResult replayPaymentCallback(String merchantOrderNo, Map<String, String> headers) {
+        String result = postJsonAndGetResponse(
+                "/internal/payment/replayCallback?merchantOrderNo=" + merchantOrderNo,
+                new java.util.HashMap<>(), headers);
+        return JSONUtil.toBean(result, new TypeReference<PaySignCallbackResult>() {
+        }, true);
+    }
+
+
     public RpcOutcome registerCompletedTxn(@RequestBody RegisterCompletedPayTxnReqDTO request) {
         String result;
         try {

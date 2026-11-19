@@ -1,6 +1,7 @@
 package com.chinasofti.huateng.quartz.task;
 
 import com.chinasofti.huateng.common.response.CommonResult;
+import com.chinasofti.huateng.model.paysign.CompensateNotifyRespDTO;
 import com.chinasofti.huateng.quartz.util.QuartzTraceUtils;
 import com.chinasofti.huateng.rpc.pay.GateTxnPayClient;
 import org.slf4j.Logger;
@@ -108,5 +109,31 @@ public class GateTxnPayQuartzTask
     public void processOneSideOrders()
     {
         QuartzTraceUtils.runWithTrace(this::processOneSideOrdersOnce);
+    }
+
+    public void checkDivergence()
+    {
+        QuartzTraceUtils.runWithTrace(this::checkDivergenceOnce);
+    }
+
+    private void checkDivergenceOnce(String traceId)
+    {
+        CompensateNotifyRespDTO response = gateTxnPayClient.checkDivergence(QuartzTraceUtils.traceHeaders(traceId));
+        if (response == null)
+        {
+            throw new IllegalStateException("gate-txn-pay-server 跨域分叉核对接口未返回响应");
+        }
+        if (!"0000".equals(response.getResultCode()))
+        {
+            throw new IllegalStateException("gate-txn-pay-server 跨域分叉核对失败: resultCode="
+                    + response.getResultCode() + ", resultMsg=" + response.getResultMsg());
+        }
+        if (response.getSkipped() > 0)
+        {
+            log.error("跨域分叉核对发现不一致，MUST 人工核对, scanned={}, 一致={}, 待核对={}",
+                    response.getScanned(), response.getSubmitted(), response.getSkipped());
+            return;
+        }
+        log.info("跨域分叉核对通过, scanned={}", response.getScanned());
     }
 }

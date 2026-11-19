@@ -48,6 +48,10 @@ public interface GateTxnPayMapper {
                      @Param("debitStatus") String debitStatus,
                      @Param("remark") String remark);
 
+    List<GateTxnPay> selectSettledForDivergenceCheck(@Param("txnDateFrom") String txnDateFrom,
+                                                     @Param("recentHours") int recentHours,
+                                                     @Param("limit") int limit);
+
     List<GateTxnPay> selectOperationPage(@Param("orderNo") String orderNo,
                                          @Param("cardId") String cardId,
                                          @Param("thirdUserId") String thirdUserId,

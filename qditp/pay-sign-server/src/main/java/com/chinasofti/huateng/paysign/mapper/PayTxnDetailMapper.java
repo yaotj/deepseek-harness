@@ -21,4 +21,8 @@ public interface PayTxnDetailMapper {
     int updatePayCallback(PayTxnDetail record);
 
     int updateRefundSummary(@Param("orderNo") String orderNo);
+
+    List<PayTxnDetail> selectCompensablePayStatus(@Param("txnDateFrom") String txnDateFrom,
+                                                  @Param("staleMinutes") int staleMinutes,
+                                                  @Param("limit") int limit);
 }

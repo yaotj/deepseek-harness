@@ -24,6 +24,7 @@ import com.chinasofti.huateng.model.pay.GateTxnPayRespDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPaySyncStatusReqDTO;
 import com.chinasofti.huateng.model.pay.OfflineCodeStatExportDTO;
 import com.chinasofti.huateng.model.pay.OvertimeRefundableExportDTO;
+import com.chinasofti.huateng.model.paysign.CompensateNotifyRespDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -203,6 +204,14 @@ public class GateTxnPayClient extends ProxyWebClient {
         String result = postJsonAndGetResponse("/internal/gate-txn-pay/retry-queue/consume",
                 Collections.emptyMap(), headers);
         return JSONUtil.toBean(result, new TypeReference<CommonResult>() {
+        }, true);
+    }
+
+
+    public CompensateNotifyRespDTO checkDivergence(Map<String, String> headers) {
+        String result = postJsonAndGetResponse("/internal/gate-txn-pay/divergenceCheck",
+                Collections.emptyMap(), headers);
+        return JSONUtil.toBean(result, new TypeReference<CompensateNotifyRespDTO>() {
         }, true);
     }
 

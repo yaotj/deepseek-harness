@@ -45,6 +45,59 @@
           AND CALLBACK_TYPE = #{callbackType,jdbcType=VARCHAR}
     </select>
 
+    <!-- 人工重放用：取该商户单号最近一条回调凭据（IT-081 P2）。 -->
+    <!-- RAW_BODY 是 CLOB，用 DBMS_LOB.SUBSTR 截前 2000 字符转 VARCHAR2；回调 DTO JSON 远小于该长度。 -->
+    <resultMap id="LatestCallbackResultMap" type="com.chinasofti.huateng.paysign.entity.PayCallbackLog">
+        <id column="ID" jdbcType="NUMERIC" property="id"/>
+        <result column="ORDER_NO" jdbcType="VARCHAR" property="orderNo"/>
+        <result column="MERCHANT_ORDER_NO" jdbcType="VARCHAR" property="merchantOrderNo"/>
+        <result column="CALLBACK_TYPE" jdbcType="VARCHAR" property="callbackType"/>
+        <result column="CALLBACK_STATUS" jdbcType="VARCHAR" property="callbackStatus"/>
+        <result column="CHANNEL_ORDER_NO" jdbcType="VARCHAR" property="channelOrderNo"/>
+        <result column="PAY_TIME" jdbcType="VARCHAR" property="payTime"/>
+        <result column="TOTAL_AMOUNT" jdbcType="NUMERIC" property="totalAmount"/>
+        <result column="CASH_AMOUNT" jdbcType="NUMERIC" property="cashAmount"/>
+        <result column="COUPON_AMOUNT" jdbcType="NUMERIC" property="couponAmount"/>
+        <result column="PAYMENT_VENDOR" jdbcType="VARCHAR" property="paymentVendor"/>
+        <result column="RAW_BODY" jdbcType="VARCHAR" property="rawBody"/>
+        <result column="HANDLE_STATUS" jdbcType="VARCHAR" property="handleStatus"/>
+        <result column="CREATE_TIME" jdbcType="TIMESTAMP" property="createTime"/>
+    </resultMap>
+    <select id="selectLatestByMerchantOrderNo" resultMap="LatestCallbackResultMap">
+        SELECT ID, ORDER_NO, MERCHANT_ORDER_NO, CALLBACK_TYPE, CALLBACK_STATUS, CHANNEL_ORDER_NO,
+               PAY_TIME, TOTAL_AMOUNT, CASH_AMOUNT, COUPON_AMOUNT, PAYMENT_VENDOR,
+               DBMS_LOB.SUBSTR(RAW_BODY, 2000, 1) AS RAW_BODY, HANDLE_STATUS, CREATE_TIME
+        FROM (
+            SELECT ID, ORDER_NO, MERCHANT_ORDER_NO, CALLBACK_TYPE, CALLBACK_STATUS, CHANNEL_ORDER_NO,
+                   PAY_TIME, TOTAL_AMOUNT, CASH_AMOUNT, COUPON_AMOUNT, PAYMENT_VENDOR,
+                   RAW_BODY, HANDLE_STATUS, CREATE_TIME
+            FROM PAY_CALLBACK_LOG
+            WHERE MERCHANT_ORDER_NO = #{merchantOrderNo,jdbcType=VARCHAR}
+              AND CALLBACK_TYPE = #{callbackType,jdbcType=VARCHAR}
+            ORDER BY CREATE_TIME DESC, ID DESC
+        )
+        WHERE ROWNUM = 1
+    </select>
+
+    <!-- MANUAL 巡检（IT-081 P2）：只数「该商户单号最新一条回调是 MANUAL」的单。 -->
+    <!-- 已人工重放的单会产生更新的 SUCCESS 行，老 MANUAL 行仍在表里，按行计数会长期误报，必须按单取最新。 -->
+    <select id="countManualSince" resultType="int">
+        SELECT COUNT(*)
+        FROM (
+            SELECT HANDLE_STATUS,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY MERCHANT_ORDER_NO
+                       ORDER BY CREATE_TIME DESC, ID DESC
+                   ) AS RN
+            FROM PAY_CALLBACK_LOG
+            WHERE TXN_DATE &gt;= #{txnDateFrom,jdbcType=VARCHAR}
+              AND CALLBACK_TYPE = 'PAY'
+              AND MERCHANT_ORDER_NO IS NOT NULL
+        )
+        WHERE RN = 1
+          AND HANDLE_STATUS = 'MANUAL'
+    </select>
+
     <update id="markManualByMerchantOrderNo">
         UPDATE PAY_CALLBACK_LOG
         SET HANDLE_STATUS = 'MANUAL',

@@ -20,4 +20,10 @@ public interface PayCallbackLogMapper {
 
     List<PayCallbackLog> selectLatestPayDiscountInfoByOrderNos(@Param("orderNos") List<String> orderNos,
                                                                @Param("callbackType") String callbackType);
+
+
+    PayCallbackLog selectLatestByMerchantOrderNo(@Param("merchantOrderNo") String merchantOrderNo,
+                                                 @Param("callbackType") String callbackType);
+
+    int countManualSince(@Param("txnDateFrom") String txnDateFrom);
 }

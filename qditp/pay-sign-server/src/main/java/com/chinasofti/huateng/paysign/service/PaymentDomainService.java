@@ -4,6 +4,7 @@ import com.chinasofti.huateng.model.app.PaySignCallbackResult;
 import com.chinasofti.huateng.model.app.ReceivePayResultReqDTO;
 import com.chinasofti.huateng.model.app.RequestPayReqDTO;
 import com.chinasofti.huateng.model.app.RequestPayResult;
+import com.chinasofti.huateng.model.paysign.CompensateNotifyRespDTO;
 import com.chinasofti.huateng.model.paysign.RegisterCompletedPayTxnReqDTO;
 import com.chinasofti.huateng.paysign.model.response.BaseRespDTO;
 
@@ -14,4 +15,10 @@ public interface PaymentDomainService {
 
 
     BaseRespDTO registerCompletedTxn(RegisterCompletedPayTxnReqDTO request);
+
+
+    CompensateNotifyRespDTO compensatePayStatus();
+
+
+    PaySignCallbackResult replayCallback(String merchantOrderNo);
 }

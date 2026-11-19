@@ -109,6 +109,21 @@
         </foreach>
     </select>
 
+    <!-- 支付状态主动查询收口（IT-081 P1）：只捞非终态且静默超过 staleMinutes 的单，避免与在途回调抢写。 -->
+    <select id="selectCompensablePayStatus" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM (
+            SELECT <include refid="Base_Column_List"/>
+            FROM PAY_TXN_DETAIL
+            WHERE PAY_STATUS IN ('INIT', 'PROCESSING', 'RETRY')
+              AND TXN_DATE &gt;= #{txnDateFrom,jdbcType=VARCHAR}
+              AND NVL(UPDATE_TIME, CREATE_TIME)
+                  &lt; SYSTIMESTAMP - NUMTODSINTERVAL(#{staleMinutes,jdbcType=INTEGER}, 'MINUTE')
+            ORDER BY NVL(UPDATE_TIME, CREATE_TIME)
+        )
+        WHERE ROWNUM &lt;= #{limit,jdbcType=INTEGER}
+    </select>
+
     <update id="markRequesting">
         UPDATE PAY_TXN_DETAIL
         SET REQUEST_COUNT = NVL(REQUEST_COUNT, 0) + 1,

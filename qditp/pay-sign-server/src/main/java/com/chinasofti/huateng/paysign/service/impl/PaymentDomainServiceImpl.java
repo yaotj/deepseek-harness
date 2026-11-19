@@ -13,6 +13,9 @@ import static com.chinasofti.huateng.paysign.support.PaySignValues.stringValue;
 import static com.chinasofti.huateng.paysign.support.PaymentChannels.isWallet;
 
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
+import com.chinasofti.huateng.model.domain.OutboxScan;
+import com.chinasofti.huateng.model.paysign.CompensateNotifyRespDTO;
 import com.chinasofti.huateng.model.app.AddBlackListReqDTO;
 import com.chinasofti.huateng.model.app.BlackListOperateResult;
 import com.chinasofti.huateng.model.app.PaySignCallbackResult;
@@ -44,9 +47,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -185,6 +192,14 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
 
     private static final int MAX_PAY_CALLBACK_PUSH = 2;
 
+    private static final int PAY_QUERY_SCAN_DAYS = 7;
+
+    private static final int PAY_QUERY_STALE_MINUTES = 10;
+
+    private static final int PAY_QUERY_BATCH_SIZE = 20;
+
+    private static final int PAY_QUERY_MANUAL_ALERT_DAYS = 2;
+
     @Override
     public PaySignCallbackResult receivePayResult(ReceivePayResultReqDTO request, String rawBody) {
         PaySignCallbackResult response = new PaySignCallbackResult();
@@ -265,6 +280,187 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
             return response;
         }
     }
+
+    @Override
+    public CompensateNotifyRespDTO compensatePayStatus() {
+        CompensateNotifyRespDTO response = new CompensateNotifyRespDTO();
+        try {
+            String txnDateFrom = LocalDate.now().minusDays(PAY_QUERY_SCAN_DAYS)
+                    .format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            List<PayTxnDetail> pending = payTxnDetailMapper.selectCompensablePayStatus(
+                    txnDateFrom, PAY_QUERY_STALE_MINUTES, PAY_QUERY_BATCH_SIZE);
+            if (pending == null || pending.isEmpty()) {
+                log.info("支付状态回查：无静默超过{}分钟的非终态单, txnDateFrom={}",
+                        PAY_QUERY_STALE_MINUTES, txnDateFrom);
+                alertManualCallbacks();
+                fillSuccess(response);
+                return response;
+            }
+            OutboxScan.Result scan = OutboxScan.run(pending,
+                    this::settlePayByQuery,
+                    row -> log.warn("支付状态回查本轮未收口（中心仍在途或查询失败，等下次重扫）, orderNo={}, payStatus={}",
+                            row.getOrderNo(), row.getPayStatus()),
+                    (row, e) -> log.error("单条支付状态回查异常，NEVER 因此中断整批, orderNo={}",
+                            row.getOrderNo(), e));
+            response.setScanned(scan.scanned());
+            response.setSubmitted(scan.success());
+            response.setSkipped(scan.failed());
+            log.info("支付状态回查补偿完成, txnDateFrom={}, scanned={}, settled={}, pendingAgain={}",
+                    txnDateFrom, scan.scanned(), scan.success(), scan.failed());
+            alertManualCallbacks();
+            fillSuccess(response);
+            return response;
+        } catch (Exception e) {
+            log.error("支付状态回查补偿异常", e);
+            fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, PaySignErrorCodeEnum.SYSTEM_ERROR.getMsg());
+            return response;
+        }
+    }
+
+
+    private boolean settlePayByQuery(PayTxnDetail row) {
+        GatewayReply reply = paymentGatewayPort.queryPayStatus(row.getOrderNo());
+        String resolvedStatus = resolveQueryPayStatus(reply);
+        log.info("支付状态回查支付中心返回, orderNo={}, 本地PAY_STATUS={}, 解析结果={}, gatewayResponse={}",
+                row.getOrderNo(), row.getPayStatus(), resolvedStatus, JSON.toJSONString(reply.raw()));
+        if (resolvedStatus == null) {
+            return false;
+        }
+        Map<String, Object> data = reply instanceof GatewayReply.Accepted accepted ? accepted.data() : null;
+        PayTxnDetail update = new PayTxnDetail();
+        update.setOrderNo(row.getOrderNo());
+        update.setPayStatus(resolvedStatus);
+        update.setDebitRequestResult(resolveDebitRequestResult(resolvedStatus));
+        update.setMerchantOrderNo(row.getOrderNo());
+        if (data != null) {
+            update.setPayCenterOrderNo(stringValue(data.get("orderNo"), null));
+            update.setChannelOrderNo(stringValue(data.get("channelOrderNo"), null));
+            update.setTotalAmount(intValue(data.get("totalAmount")));
+            update.setCashAmount(intValue(data.get("cashAmount")));
+            update.setCouponAmount(intValue(data.get("couponAmount")));
+            update.setPaymentVendor(stringValue(data.get("paymentVendor"), null));
+            update.setPayTime(stringValue(data.get("payDate"), null));
+        }
+        int affected = payTxnDetailMapper.updatePayCallback(update);
+        if (affected == 0) {
+            log.info("支付状态回查收敛命中 0 行，说明已被回调或其他路径收口, orderNo={}, 目标状态={}",
+                    row.getOrderNo(), resolvedStatus);
+            return true;
+        }
+        return syncGateTxnPayStatus(row.getOrderNo(), resolvedStatus);
+    }
+
+
+    private String resolveQueryPayStatus(GatewayReply reply) {
+        if (reply instanceof GatewayReply.Accepted accepted) {
+            Map<String, Object> data = accepted.data();
+            if (data == null) {
+                return null;
+            }
+            String mapped = convertPayStatus(stringValue(data.get("status"), null));
+            return "SUCCESS".equals(mapped) || "FAIL".equals(mapped) ? mapped : null;
+        }
+        if (reply instanceof GatewayReply.Rejected rejected
+                && rejected.messageOr("").contains("查无此交易")) {
+            return "FAIL";
+        }
+        return null;
+    }
+
+
+    private void alertManualCallbacks() {
+        try {
+            String txnDateFrom = LocalDate.now().minusDays(PAY_QUERY_MANUAL_ALERT_DAYS)
+                    .format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            int manual = payCallbackLogMapper.countManualSince(txnDateFrom);
+            if (manual > 0) {
+                log.error("存在 {} 条 HANDLE_STATUS=MANUAL 的支付回调（近{}天），MUST 人工重放："
+                                + "POST /internal/payment/replayCallback?merchantOrderNo=<单号>",
+                        manual, PAY_QUERY_MANUAL_ALERT_DAYS);
+            }
+        } catch (Exception e) {
+            log.warn("MANUAL 回调巡检失败，不影响本轮收口", e);
+        }
+    }
+
+
+    @Override
+    public PaySignCallbackResult replayCallback(String merchantOrderNo) {
+        PaySignCallbackResult response = new PaySignCallbackResult();
+        if (!StringUtils.hasText(merchantOrderNo)) {
+            fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "merchantOrderNo不能为空");
+            return response;
+        }
+        PayCallbackLog latest = payCallbackLogMapper.selectLatestByMerchantOrderNo(
+                merchantOrderNo.trim(), CALLBACK_TYPE_PAY);
+        if (latest == null) {
+            fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "无该商户单号的支付回调凭据，无法重放");
+            return response;
+        }
+        ReceivePayResultReqDTO dto = parseCallbackDto(latest.getRawBody());
+        if (dto == null || !StringUtils.hasText(dto.getMerchantOrderNo())) {
+            fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "回调凭据报文无法还原为支付结果，需人工核对");
+            return response;
+        }
+        log.warn("人工重放支付回调, merchantOrderNo={}, 最近回调状态={}, 回调时间={}, 原HANDLE_STATUS={}",
+                merchantOrderNo, latest.getCallbackStatus(), latest.getCreateTime(), latest.getHandleStatus());
+        return receivePayResult(dto, latest.getRawBody());
+    }
+
+
+    private ReceivePayResultReqDTO parseCallbackDto(String rawBody) {
+        if (!StringUtils.hasText(rawBody)) {
+            return null;
+        }
+        try {
+            JSONObject root = JSON.parseObject(rawBody);
+            if (root == null) {
+                return null;
+            }
+            if (root.containsKey("bizData")) {
+                Object bizData = root.get("bizData");
+                if (bizData instanceof JSONObject biz) {
+                    return biz.toJavaObject(ReceivePayResultReqDTO.class);
+                }
+                if (bizData instanceof String text && StringUtils.hasText(text)) {
+                    return JSON.parseObject(decodeIfBase64(text), ReceivePayResultReqDTO.class);
+                }
+            }
+            return root.toJavaObject(ReceivePayResultReqDTO.class);
+        } catch (Exception e) {
+            log.error("解析回调凭据报文失败, rawBody={}", rawBody, e);
+            return null;
+        }
+    }
+
+
+    private String decodeIfBase64(String text) {
+        String trimmed = text.trim();
+        if (trimmed.startsWith("{")) {
+            return trimmed;
+        }
+        try {
+            return new String(Base64.getDecoder().decode(trimmed), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            return trimmed;
+        }
+    }
+
+
+    private Integer intValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            return Integer.valueOf(String.valueOf(value).trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
 
     private String queryPayStatus(String orderNo) {
         try {

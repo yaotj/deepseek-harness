@@ -2,6 +2,7 @@ package com.chinasofti.huateng.gatetxnpay.controller.internal;
 
 import com.chinasofti.huateng.common.response.CommonResult;
 import com.chinasofti.huateng.gatetxnpay.service.GateTxnPayService;
+import com.chinasofti.huateng.gatetxnpay.service.impl.CrossDomainDivergenceService;
 import com.chinasofti.huateng.gatetxnpay.service.impl.DebitRetryProcessor;
 import com.chinasofti.huateng.gatetxnpay.service.impl.MetroTransferPushTaskProcessor;
 import com.chinasofti.huateng.gatetxnpay.service.impl.OneSideOrderProcessor;
@@ -9,6 +10,7 @@ import com.chinasofti.huateng.gatetxnpay.service.impl.OfflineFareRecoveryProcess
 import com.chinasofti.huateng.gatetxnpay.service.impl.RetryQueueConsumer;
 import com.chinasofti.huateng.model.pay.GateTxnPayDebitConvergeReqDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayDebitConvergeRespDTO;
+import com.chinasofti.huateng.model.paysign.CompensateNotifyRespDTO;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,19 +26,22 @@ public class CompensationInternalController {
     private final GateTxnPayService gateTxnPayService;
     private final RetryQueueConsumer retryQueueConsumer;
     private final OneSideOrderProcessor oneSideOrderProcessor;
+    private final CrossDomainDivergenceService crossDomainDivergenceService;
 
     public CompensationInternalController(OfflineFareRecoveryProcessor offlineFareRecoveryProcessor,
                                           MetroTransferPushTaskProcessor metroTransferPushTaskProcessor,
                                           DebitRetryProcessor debitRetryProcessor,
                                           GateTxnPayService gateTxnPayService,
                                           RetryQueueConsumer retryQueueConsumer,
-                                          OneSideOrderProcessor oneSideOrderProcessor) {
+                                          OneSideOrderProcessor oneSideOrderProcessor,
+                                          CrossDomainDivergenceService crossDomainDivergenceService) {
         this.offlineFareRecoveryProcessor = offlineFareRecoveryProcessor;
         this.metroTransferPushTaskProcessor = metroTransferPushTaskProcessor;
         this.debitRetryProcessor = debitRetryProcessor;
         this.gateTxnPayService = gateTxnPayService;
         this.retryQueueConsumer = retryQueueConsumer;
         this.oneSideOrderProcessor = oneSideOrderProcessor;
+        this.crossDomainDivergenceService = crossDomainDivergenceService;
     }
 
 
@@ -86,6 +91,12 @@ public class CompensationInternalController {
     public GateTxnPayDebitConvergeRespDTO convergeDebitStatusForSupplement(
             @RequestBody GateTxnPayDebitConvergeReqDTO request) {
         return gateTxnPayService.convergeDebitStatusForSupplement(request);
+    }
+
+
+    @PostMapping("/divergenceCheck")
+    public CompensateNotifyRespDTO divergenceCheck() {
+        return crossDomainDivergenceService.check();
     }
 
     private CommonResult describe(String taskName, int processed) {

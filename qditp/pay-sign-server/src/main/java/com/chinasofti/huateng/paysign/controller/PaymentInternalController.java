@@ -1,5 +1,6 @@
 package com.chinasofti.huateng.paysign.controller;
 
+import com.chinasofti.huateng.model.app.PaySignCallbackResult;
 import com.chinasofti.huateng.model.paysign.CompensateNotifyRespDTO;
 import com.chinasofti.huateng.model.paysign.RegisterCompletedPayTxnReqDTO;
 import com.chinasofti.huateng.paysign.model.response.BaseRespDTO;
@@ -54,5 +55,19 @@ public class PaymentInternalController {
     public BaseRespDTO queryRefundResult(@RequestParam("refundOrderNo") String refundOrderNo) {
         log.info("收到只读退款回查请求, refundOrderNo={}", refundOrderNo);
         return refundDomainService.queryRefundResult(refundOrderNo);
+    }
+
+
+    @PostMapping("/compensatePayStatus")
+    public CompensateNotifyRespDTO compensatePayStatus() {
+        log.info("收到支付状态主动回查补偿请求");
+        return paymentDomainService.compensatePayStatus();
+    }
+
+
+    @PostMapping("/replayCallback")
+    public PaySignCallbackResult replayCallback(@RequestParam("merchantOrderNo") String merchantOrderNo) {
+        log.warn("收到人工重放支付回调请求, merchantOrderNo={}", merchantOrderNo);
+        return paymentDomainService.replayCallback(merchantOrderNo);
     }
 }
