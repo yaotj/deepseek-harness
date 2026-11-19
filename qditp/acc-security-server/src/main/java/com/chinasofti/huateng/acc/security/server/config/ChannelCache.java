@@ -195,9 +195,28 @@ public class ChannelCache {
 
     /**
      * 当前池内连接快照（供心跳等遍历使用）。
+     *
+     * <p>返回独立副本，遍历期间池状态变化不影响循环。若调用方仅需计数或简单遍历
+     *（如心跳），可直接用 {@link #forEachActiveChannel(java.util.function.Consumer)} 避免拷贝。</p>
      */
     public static List<Channel> snapshot() {
         return new ArrayList<>(cacheList);
+    }
+
+    /**
+     * 遍历池内所有活跃连接（无拷贝，单次遍历）。
+     *
+     * <p>适合「对每条连接执行操作」的场景（如空闲心跳），避免 snapshot() 的全量拷贝开销。
+     * 遍历期间若连接被 clear，会安全跳过（CopyOnWriteArrayList 的迭代器是弱一致的）。</p>
+     *
+     * <p><b>注意</b>：调用方不得在 consumer 内修改池结构（add/remove），仅可读取或执行副作用。</p>
+     */
+    public static void forEachActiveChannel(java.util.function.Consumer<Channel> consumer) {
+        for (Channel channel : cacheList) {
+            if (channel.isActive()) {
+                consumer.accept(channel);
+            }
+        }
     }
 
     /**

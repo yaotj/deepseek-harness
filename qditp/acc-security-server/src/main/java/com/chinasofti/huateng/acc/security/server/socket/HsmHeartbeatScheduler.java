@@ -9,6 +9,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * 加密机空闲连接心跳保活。
@@ -46,25 +47,25 @@ public class HsmHeartbeatScheduler {
         }
         long idleThresholdMs = securityConfig.getHeartbeatIdleSeconds() * 1000L;
         long now = System.currentTimeMillis();
-        for (Channel channel : ChannelCache.snapshot()) {
-            if (!channel.isActive()) {
-                continue;
-            }
+
+        // 使用 forEachActiveChannel 避免 snapshot() 的全量拷贝开销
+        // 遍历期间若连接被 clear，会安全跳过（CopyOnWriteArrayList 迭代器弱一致）
+        ChannelCache.forEachActiveChannel(channel -> {
             if (now - ChannelCache.getLastActive(channel) < idleThresholdMs) {
-                continue;
+                return; // 不够空闲，跳过
             }
             try {
                 // MUST 在「这条」连接上发：sendRawMsg 会另从池里取一条，心跳就打不到正在遍历的连接上
                 RawSocketResponse response = clientSendMsg.sendRawMsgOn(channel, SYS_INFO_REQUEST, SYS_INFO_SPEC);
                 if (response == null) {
                     // 该连接正被业务独占，本轮跳过，下一轮再判
-                    continue;
+                    return;
                 }
                 log.info("hsm heartbeat ok, channelId {} ansCode {}", channel.id(), response.ansCode());
             } catch (Exception e) {
                 log.warn("hsm heartbeat failed on channel {}, closing it: {}", channel.id(), e.getMessage());
                 ChannelCache.clear(channel);
             }
-        }
+        });
     }
 }
