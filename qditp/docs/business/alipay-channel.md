@@ -151,6 +151,8 @@
 
 ## 查询乘车记录详情的 `debitRequestResult`（2026-09-14 修复，alipay-pay-sign 1.1.19）
 
+> **现行口径（IT-082，2026-11-19 用户裁定，已改代码）**：对外 `debitRequestResult` 值域由 `0`/`1` 改为 **`0`（线上成功）/ `2`（失败或未收口）**，`1` 当前不产出——旧 ITP 语义 `1`=线下补款人工成功（成功态），新仓暂无该数据来源，故失败不再用 1 兜底。下方 2026-09-14 / 09-20 的 `0`/`1` 描述均为**历史裁决快照**，保留供溯源，以本条为准。响应侧改 0/2 后与请求侧筛选（仍 `0`=成功 / `1`=非成功）暂不同源，MUST NOT 拿响应值当筛选入参。改动点：`alipay-pay-sign-server/.../PaymentQueryService.mapPayStatusToDebitResult`、`ticket-server/.../TransRecordAssembler.toAppDebitResult`、`trans-query-server/.../TransRecordAssembler.toAppDebitResult`，测试 `TravelDetailDebitResultTest`（7 例）与 `TransRecordAssemblerTest`。
+
 - **值域是对外契约的 `"0"`（扣费成功）/ `"1"`（未成功），NEVER 放渠道文案**。修复前 `PaymentQueryService.findTravelDetail` 填的是 `ALIPAY_PAY_LOG.RESULT_MSG`（如「支付成功」「渠道协议号不能为空,」），支付宝侧按 0/1 解析，**任何文案都被判成非 0 即失败，成功单也显示扣费未成功**。
 - 现在统一走 `payLog.getPayStatus()` → `mapPayStatusToDebitResult`（`SUCCESS` 忽略大小写 → `"0"`，其余含 null → `"1"`）。**同一套映射有三份**：`alipay-pay-sign-server/PaymentQueryService`、`fep-alipay-server/AlipayQueryServiceImpl:236`。跨模块无法复用（AGENTS.md §4.1 禁止新建工具类），**改一处 MUST 看齐其余两处**。
 - 该值域与 `PAY_TXN_DETAIL.DEBIT_REQUEST_RESULT` 列的值域（`SUCCESS`/`FAIL`/`PROCESSING`）**同名不同义**，NEVER 混用。闸机后付费侧的权威列是 `GATE_TXN_PAY.DEBIT_STATUS`，`PAY_TXN_DETAIL` 那一列只在前者为空时兜底（`ticket-server/TransRecordAssembler.toAppDebitResult`）。
