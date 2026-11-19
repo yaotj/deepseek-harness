@@ -61,7 +61,9 @@ public class PaySignClient extends ProxyWebClient {
 
     @Override
     protected Duration getResponseTimeout() {
-        return Duration.ofSeconds(30);
+        // 60s：支付状态回查（compensatePayStatus）单轮预算 45s，留给它留出余量；
+        // 其余接口是内网直连、正常毫秒级返回，放宽的只是上限。
+        return Duration.ofSeconds(60);
     }
 
 

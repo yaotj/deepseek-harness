@@ -14,7 +14,6 @@ import static com.chinasofti.huateng.paysign.support.PaymentChannels.isWallet;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
-import com.chinasofti.huateng.model.domain.OutboxScan;
 import com.chinasofti.huateng.model.paysign.CompensateNotifyRespDTO;
 import com.chinasofti.huateng.model.app.AddBlackListReqDTO;
 import com.chinasofti.huateng.model.app.BlackListOperateResult;
@@ -198,6 +197,8 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
 
     private static final int PAY_QUERY_BATCH_SIZE = 20;
 
+    private static final long PAY_QUERY_BUDGET_MILLIS = 45_000L;
+
     private static final int PAY_QUERY_MANUAL_ALERT_DAYS = 2;
 
     @Override
@@ -296,17 +297,34 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
                 fillSuccess(response);
                 return response;
             }
-            OutboxScan.Result scan = OutboxScan.run(pending,
-                    this::settlePayByQuery,
-                    row -> log.warn("支付状态回查本轮未收口（中心仍在途或查询失败，等下次重扫）, orderNo={}, payStatus={}",
-                            row.getOrderNo(), row.getPayStatus()),
-                    (row, e) -> log.error("单条支付状态回查异常，NEVER 因此中断整批, orderNo={}",
-                            row.getOrderNo(), e));
-            response.setScanned(scan.scanned());
-            response.setSubmitted(scan.success());
-            response.setSkipped(scan.failed());
-            log.info("支付状态回查补偿完成, txnDateFrom={}, scanned={}, settled={}, pendingAgain={}",
-                    txnDateFrom, scan.scanned(), scan.success(), scan.failed());
+            long deadline = System.nanoTime() + PAY_QUERY_BUDGET_MILLIS * 1_000_000L;
+            int settled = 0;
+            int skipped = 0;
+            int index = 0;
+            for (; index < pending.size(); index++) {
+                if (System.nanoTime() > deadline) {
+                    log.warn("支付状态回查时间预算{}ms用尽，剩余{}笔留待下一轮（cron 每5分钟、禁止并发）",
+                            PAY_QUERY_BUDGET_MILLIS, pending.size() - index);
+                    break;
+                }
+                PayTxnDetail row = pending.get(index);
+                try {
+                    if (settlePayByQuery(row)) {
+                        settled++;
+                    } else {
+                        skipped++;
+                    }
+                } catch (Exception e) {
+                    skipped++;
+                    log.error("单条支付状态回查异常，NEVER 因此中断整批, orderNo={}", row.getOrderNo(), e);
+                }
+            }
+            int untouched = pending.size() - index;
+            response.setScanned(pending.size());
+            response.setSubmitted(settled);
+            response.setSkipped(skipped + untouched);
+            log.info("支付状态回查补偿完成, txnDateFrom={}, scanned={}, settled={}, pendingAgain={}, 预算外未处理={}",
+                    txnDateFrom, pending.size(), settled, skipped, untouched);
             alertManualCallbacks();
             fillSuccess(response);
             return response;
