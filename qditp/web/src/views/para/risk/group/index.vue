@@ -29,7 +29,7 @@
     </el-dialog>
 
     <!-- 管理规则弹窗 -->
-    <el-dialog v-model="ruleOpen" title="管理风险组规则" width="700px" append-to-body destroy-on-close>
+    <el-dialog v-model="ruleOpen" title="管理风险组规则" width="700px" append-to-body @open="onRuleDialogOpen">
       <div class="mb8">
         <el-input v-model="ruleSearch" clearable placeholder="搜索规则编号/名称" style="width:260px;margin-right:8px"/>
         <span class="text-secondary">已选 <el-tag type="primary" size="small">{{ currentRuleIds.length }}</el-tag> / {{ ruleOptions.length }} 条</span>
@@ -96,8 +96,10 @@ function manageRules(row) {
   currentGroup.value = row
   ruleSearch.value = ''
   ruleOpen.value = true
-  // 弹窗打开后立即加载该组的规则，并等待完成后再回显勾选状态
-  listGroupRuleIds(row.groupId).then(r => { currentRuleIds.value = r.data || [] })
+}
+function onRuleDialogOpen() {
+  if (!currentGroup.value) return
+  listGroupRuleIds(currentGroup.value.groupId).then(r => { currentRuleIds.value = r.data || [] })
 }
 const filteredRuleOptions = computed(() => {
   if (!ruleSearch.value) return ruleOptions.value
