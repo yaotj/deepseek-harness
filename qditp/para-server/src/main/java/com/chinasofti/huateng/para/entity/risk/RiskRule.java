@@ -15,8 +15,6 @@ public class RiskRule {
 
     private BigDecimal riskLimitValue;
 
-    private String managerCode;
-
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;
@@ -33,8 +31,6 @@ public class RiskRule {
     public void setRiskLevel(Integer riskLevel) { this.riskLevel = riskLevel; }
     public BigDecimal getRiskLimitValue() { return riskLimitValue; }
     public void setRiskLimitValue(BigDecimal riskLimitValue) { this.riskLimitValue = riskLimitValue; }
-    public String getManagerCode() { return managerCode; }
-    public void setManagerCode(String managerCode) { this.managerCode = managerCode; }
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public LocalDateTime getUpdateTime() { return updateTime; }

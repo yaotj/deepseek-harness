@@ -225,7 +225,6 @@ public class RiskManagementServiceImpl implements RiskManagementService {
         if (request == null || !StringUtils.hasText(request.getGroupName())) return "风险组名称不能为空";
         if (request.getGroupName().trim().length() > 100) return "风险组名称不能超过100个字符";
         if (request.getGroupDesc() != null && request.getGroupDesc().length() > 500) return "风险组描述不能超过500个字符";
-        if (request.getManagerCode() != null && request.getManagerCode().length() > 64) return "管理编码不能超过64个字符";
         return null;
     }
 
@@ -239,21 +238,18 @@ public class RiskManagementServiceImpl implements RiskManagementService {
         if (request.getRiskLevel() == null || request.getRiskLevel() < 1 || request.getRiskLevel() > 5) return "风险等级必须在1到5之间";
         BigDecimal value = request.getRiskLimitValue();
         if (value == null || value.signum() < 0) return "风险规则最大值不能小于0";
-        if (request.getManagerCode() != null && request.getManagerCode().length() > 64) return "管理编码不能超过64个字符";
         return null;
     }
 
     private void normalizeGroup(RiskGroup request) {
         request.setGroupName(request.getGroupName().trim());
         request.setGroupDesc(trimToNull(request.getGroupDesc()));
-        request.setManagerCode(trimToNull(request.getManagerCode()));
     }
 
     private void normalizeRule(RiskRule request) {
         if (StringUtils.hasText(request.getRuleId())) request.setRuleId(request.getRuleId().trim());
         request.setRuleName(request.getRuleName().trim());
         request.setRuleDesc(trimToNull(request.getRuleDesc()));
-        request.setManagerCode(trimToNull(request.getManagerCode()));
     }
 
     private int safePageNum(Integer pageNum) { return pageNum == null || pageNum < 1 ? 1 : pageNum; }

@@ -9,8 +9,6 @@ public class RiskGroup {
 
     private String groupDesc;
 
-    private String managerCode;
-
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;
@@ -21,8 +19,6 @@ public class RiskGroup {
     public void setGroupName(String groupName) { this.groupName = groupName; }
     public String getGroupDesc() { return groupDesc; }
     public void setGroupDesc(String groupDesc) { this.groupDesc = groupDesc; }
-    public String getManagerCode() { return managerCode; }
-    public void setManagerCode(String managerCode) { this.managerCode = managerCode; }
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public LocalDateTime getUpdateTime() { return updateTime; }

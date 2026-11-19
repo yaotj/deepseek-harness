@@ -8,7 +8,6 @@
       <el-table-column label="序号" width="70" align="center"><template #default="s">{{ (query.pageNum - 1) * query.pageSize + s.$index + 1 }}</template></el-table-column>
       <el-table-column label="风险组名称" prop="groupName" min-width="180"/>
       <el-table-column label="风险组描述" prop="groupDesc" min-width="260" show-overflow-tooltip/>
-      <el-table-column label="管理编码" prop="managerCode" width="130"/>
       <el-table-column label="修改时间" width="160" align="center"><template #default="{ row }">{{ parseTime(row.updateTime) || '-' }}</template></el-table-column>
       <el-table-column label="操作" width="240" align="center">
         <template #default="{ row }">
@@ -25,7 +24,6 @@
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="风险组名称" prop="groupName"><el-input v-model="form.groupName" maxlength="100"/></el-form-item>
         <el-form-item label="风险组描述" prop="groupDesc"><el-input v-model="form.groupDesc" type="textarea" :rows="3" maxlength="500" show-word-limit/></el-form-item>
-        <el-form-item label="管理编码"><el-input v-model="form.managerCode" maxlength="64"/></el-form-item>
       </el-form>
       <template #footer><el-button @click="open=false">取消</el-button><el-button type="primary" :loading="saving" @click="submit">确定</el-button></template>
     </el-dialog>
@@ -60,7 +58,6 @@ const open = ref(false), editing = ref(false), title = ref(''), rows = ref([]), 
 const ruleOpen = ref(false), currentGroup = ref(null), currentRuleIds = ref([]), ruleSearch = ref('')
 
 const query = reactive({ groupName: '', pageNum: 1, pageSize: 10 })
-const form = reactive({ groupId: null, groupName: '', groupDesc: '', managerCode: '' })
 const rules = { groupName: [{ required: true, message: '请输入风险组名称', trigger: 'blur' }] }
 
 function load() {
@@ -74,14 +71,12 @@ function loadRuleOptions() {
 }
 function search() { query.pageNum = 1; load() }
 function resetQuery() { query.groupName = ''; search() }
-function resetForm() { Object.assign(form, { groupId: null, groupName: '', groupDesc: '', managerCode: '' }); proxy.resetForm('formRef') }
 function add() { resetForm(); editing.value = false; title.value = '新增风险组'; open.value = true }
 function edit(row) { resetForm(); Object.assign(form, row); editing.value = true; title.value = '修改风险组'; open.value = true }
 function submit() {
   proxy.$refs.formRef.validate(valid => {
     if (!valid) return
     saving.value = true
-    const data = { groupName: form.groupName.trim(), groupDesc: form.groupDesc.trim() || null, managerCode: form.managerCode.trim() || null }
     if (editing.value) {
       updateRiskGroup(form.groupId, data).then(() => { proxy.$modal.msgSuccess('修改成功'); open.value = false; load() })
         .catch(() => { proxy.$modal.msgError('保存风险组失败') }).finally(() => saving.value = false)

@@ -7,11 +7,10 @@
         <result column="RULE_DESC" property="ruleDesc"/>
         <result column="RISK_LEVEL" property="riskLevel"/>
         <result column="RISK_LIMIT_VALUE" property="riskLimitValue"/>
-        <result column="MANAGER_CODE" property="managerCode"/>
         <result column="CREATE_TIME" property="createTime"/>
         <result column="UPDATE_TIME" property="updateTime"/>
     </resultMap>
-    <sql id="columns">R.RULE_ID, R.RULE_NAME, R.RULE_DESC, R.RISK_LEVEL, R.RISK_LIMIT_VALUE, R.MANAGER_CODE, R.CREATE_TIME, R.UPDATE_TIME</sql>
+    <sql id="columns">R.RULE_ID, R.RULE_NAME, R.RULE_DESC, R.RISK_LEVEL, R.RISK_LIMIT_VALUE, R.CREATE_TIME, R.UPDATE_TIME</sql>
     <select id="selectPage" resultMap="BaseResultMap">
         <!-- 编号精确匹配，名称模糊匹配；按风险组筛选走多对多中间表。 -->
         SELECT <include refid="columns"/> FROM TBL_RISK_RULE R
@@ -27,14 +26,14 @@
     </select>
     <!-- 可空参数 MUST 显式写 jdbcType（Oracle 下 null + OTHER(1111) = 无效列类型）。NEVER 删。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.para.entity.risk.RiskRule">
-        INSERT INTO TBL_RISK_RULE (RULE_ID, RULE_NAME, RULE_DESC, RISK_LEVEL, RISK_LIMIT_VALUE, MANAGER_CODE, CREATE_TIME, UPDATE_TIME)
+        INSERT INTO TBL_RISK_RULE (RULE_ID, RULE_NAME, RULE_DESC, RISK_LEVEL, RISK_LIMIT_VALUE, CREATE_TIME, UPDATE_TIME)
         VALUES (#{ruleId,jdbcType=VARCHAR}, #{ruleName,jdbcType=VARCHAR}, #{ruleDesc,jdbcType=VARCHAR}, #{riskLevel,jdbcType=NUMERIC},
-            #{riskLimitValue,jdbcType=NUMERIC}, #{managerCode,jdbcType=VARCHAR}, SYSDATE, SYSDATE)
+            #{riskLimitValue,jdbcType=NUMERIC}, SYSDATE, SYSDATE)
     </insert>
     <update id="update" parameterType="com.chinasofti.huateng.para.entity.risk.RiskRule">
         UPDATE TBL_RISK_RULE SET RULE_NAME=#{ruleName,jdbcType=VARCHAR}, RULE_DESC=#{ruleDesc,jdbcType=VARCHAR},
             RISK_LEVEL=#{riskLevel,jdbcType=NUMERIC}, RISK_LIMIT_VALUE=#{riskLimitValue,jdbcType=NUMERIC},
-            MANAGER_CODE=#{managerCode,jdbcType=VARCHAR}, UPDATE_TIME=SYSDATE
+            UPDATE_TIME=SYSDATE
         WHERE RULE_ID=#{ruleId,jdbcType=VARCHAR}
     </update>
     <delete id="deleteById">DELETE FROM TBL_RISK_RULE WHERE RULE_ID = #{ruleId}</delete>
