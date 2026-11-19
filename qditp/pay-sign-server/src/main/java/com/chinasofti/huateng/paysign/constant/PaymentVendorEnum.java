@@ -10,6 +10,7 @@ public enum PaymentVendorEnum {
     WECHAT("04", "微信"),
     ALIPAY_TRAVEL("05", "支付宝出行"),
     LONG_PAY("06", "龙支付"),
+    UNION_PAY("07", "云闪付"),
     CMB_BANK("0601", "招商银行"),
     BOC_BANK("0602", "中国银行"),
     CBDC_CONSTRUCTION("08", "建行数币"),

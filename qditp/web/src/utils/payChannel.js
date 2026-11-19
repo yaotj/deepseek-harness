@@ -4,7 +4,7 @@ import { CARD_TYPE_LABELS } from '@/utils/cardType'
 /**
  * 支付渠道（签约渠道）码表 —— **唯一真源**。
  *
- * 与后端 `pay-sign-server` 的 `PaymentVendorEnum` 逐条一一对应（2026-10-15 逐项核对）。
+ * 与后端 `pay-sign-server` 的 `PaymentVendorEnum` 逐条一一对应（2026-11-19 补充云闪付 07）。
  * 收录页面：用户查询-ITP「默认渠道」、签约渠道管理「支付渠道」、用户查询-扣费信息「签约渠道」。
  *
  * 约定：
@@ -19,6 +19,7 @@ export const PAY_CHANNEL_LABELS = {
   '04': '微信',
   '05': '支付宝出行',
   '06': '龙支付',
+  '07': '云闪付',
   '0601': '招商银行',
   '0602': '中国银行',
   '08': '建行数币',

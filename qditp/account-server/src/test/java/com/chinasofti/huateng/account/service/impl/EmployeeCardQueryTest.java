@@ -3,6 +3,7 @@ package com.chinasofti.huateng.account.service.impl;
 import com.chinasofti.huateng.account.entity.UserAccEmployeeCard;
 import com.chinasofti.huateng.account.mapper.AccountExceptionTicketMapper;
 import com.chinasofti.huateng.account.mapper.UserAccEmployeeCardMapper;
+import com.chinasofti.huateng.account.mapper.UserItpRegInfoMapper;
 import com.chinasofti.huateng.account.service.EmployeeCardOutboundService;
 import com.chinasofti.huateng.account.service.EmployeeCardPersistenceService;
 import com.chinasofti.huateng.model.employee.EmployeeCardInfoDTO;
@@ -31,6 +32,7 @@ class EmployeeCardQueryTest {
     private AccountExceptionTicketMapper accountExceptionTicketMapper;
     private EmployeeCardPersistenceService persistenceService;
     private EmployeeCardOutboundService outboundService;
+    private UserItpRegInfoMapper userItpRegInfoMapper;
     private EmployeeCardServiceImpl service;
 
     @BeforeEach
@@ -39,8 +41,9 @@ class EmployeeCardQueryTest {
         accountExceptionTicketMapper = mock(AccountExceptionTicketMapper.class);
         persistenceService = mock(EmployeeCardPersistenceService.class);
         outboundService = mock(EmployeeCardOutboundService.class);
+        userItpRegInfoMapper = mock(UserItpRegInfoMapper.class);
         service = new EmployeeCardServiceImpl(employeeCardMapper, accountExceptionTicketMapper,
-                persistenceService, outboundService);
+                persistenceService, outboundService, userItpRegInfoMapper);
     }
 
     @Test

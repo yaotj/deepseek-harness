@@ -289,8 +289,15 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
         regInfo.setDelYn(1);
         regInfo.setUserName(request.getUserName());
         regInfo.setUserId(request.getUserId());
-        regInfo.setIssueOrgCode(registrationCommitService.normalizeIssueOrgCode(request.getCardIssueCode()));
-        regInfo.setCardIssueCode(CardIssueOrgEnum.toIssueChannelCode4(request.getCardIssueCode()));
+
+        // 验证发卡机构代码，未登记的代码使用默认渠道并记录日志
+        String cardIssueCode = request.getCardIssueCode();
+        if (!CardIssueOrgEnum.isRegistered(cardIssueCode)) {
+            log.warn("未登记的发卡机构代码: {}, 将使用默认发行渠道", cardIssueCode);
+        }
+        regInfo.setIssueOrgCode(registrationCommitService.normalizeIssueOrgCode(cardIssueCode));
+        regInfo.setCardIssueCode(CardIssueOrgEnum.toIssueChannelCode4(cardIssueCode));
+
         regInfo.setThirdPayId(request.getThirdPayId());
         regInfo.setChannel(resolveDefaultChannel(request));
         regInfo.setReqContractNo(request.getReqContractNo());
@@ -308,7 +315,43 @@ public class AccountRegistrationServiceImpl implements AccountRegistrationServic
         if (CardTypeCodeEnum.isDailyTicket(issueCardType) || CardTypeCodeEnum.isEmployeeCard(issueCardType)) {
             return request.getCardType().trim();
         }
-        return request.getChannel();
+        return normalizeChannel(request.getChannel());
+    }
+
+    /**
+     * 规范化渠道编码，确保存储的是有效的支付渠道编码
+     * 支持云闪付(UNION_PAY=07)等渠道
+     */
+    private String normalizeChannel(String channel) {
+        if (!StringUtils.hasText(channel)) {
+            return channel;
+        }
+        String normalized = channel.trim();
+        // 验证渠道编码是否有效，如果无效则记录警告日志
+        if (!isValidPaymentChannel(normalized)) {
+            log.warn("未知的支付渠道编码: {}, 将原样存储", normalized);
+        }
+        return normalized;
+    }
+
+    /**
+     * 检查支付渠道编码是否有效
+     */
+    private boolean isValidPaymentChannel(String channel) {
+        // 与 PaymentVendorEnum 保持一致
+        return "03".equals(channel) || // 支付宝
+               "04".equals(channel) || // 微信
+               "05".equals(channel) || // 支付宝出行
+               "06".equals(channel) || // 龙支付
+               "07".equals(channel) || // 云闪付
+               "0601".equals(channel) || // 招商银行
+               "0602".equals(channel) || // 中国银行
+               "08".equals(channel) || // 建行数币
+               "0801".equals(channel) || // 中行数币
+               "0802".equals(channel) || // 邮储数币
+               "0803".equals(channel) || // 交行数币
+               "0B".equals(channel) || // 钱包
+               "0C".equals(channel);   // 数币APP
     }
 
 }

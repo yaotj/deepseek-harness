@@ -4,6 +4,7 @@ import com.chinasofti.huateng.account.domain.EmployeeCardStatus;
 import com.chinasofti.huateng.account.entity.UserAccEmployeeCard;
 import com.chinasofti.huateng.account.mapper.AccountExceptionTicketMapper;
 import com.chinasofti.huateng.account.mapper.UserAccEmployeeCardMapper;
+import com.chinasofti.huateng.account.mapper.UserItpRegInfoMapper;
 import com.chinasofti.huateng.account.service.EmployeeCardOutboundService;
 import com.chinasofti.huateng.account.service.EmployeeCardPersistenceService;
 import com.chinasofti.huateng.common.response.CommonResult;
@@ -35,6 +36,7 @@ class EmployeeCardActivateWhitelistTest {
     private AccountExceptionTicketMapper accountExceptionTicketMapper;
     private EmployeeCardPersistenceService persistenceService;
     private EmployeeCardOutboundService outboundService;
+    private UserItpRegInfoMapper userItpRegInfoMapper;
     private EmployeeCardServiceImpl service;
 
     @BeforeEach
@@ -43,8 +45,9 @@ class EmployeeCardActivateWhitelistTest {
         accountExceptionTicketMapper = mock(AccountExceptionTicketMapper.class);
         persistenceService = mock(EmployeeCardPersistenceService.class);
         outboundService = mock(EmployeeCardOutboundService.class);
+        userItpRegInfoMapper = mock(UserItpRegInfoMapper.class);
         service = new EmployeeCardServiceImpl(employeeCardMapper, accountExceptionTicketMapper,
-                persistenceService, outboundService);
+                persistenceService, outboundService, userItpRegInfoMapper);
         when(outboundService.isActivationUrlConfigured()).thenReturn(true);
         when(outboundService.requestActivation(any())).thenReturn(ACC_OK);
         when(persistenceService.applyActivationResult(anyString(), anyInt(), anyBoolean(), anyString()))
