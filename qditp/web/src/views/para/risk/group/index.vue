@@ -34,7 +34,7 @@
         <el-input v-model="ruleSearch" clearable placeholder="搜索规则编号/名称" style="width:260px;margin-right:8px"/>
         <span class="text-secondary">已选 <el-tag type="primary" size="small">{{ currentRuleIds.length }}</el-tag> / {{ ruleOptions.length }} 条</span>
       </div>
-      <el-table :data="filteredRuleOptions" border size="small" max-height="360" @selection-change="onRuleSelectionChange">
+      <el-table ref="ruleTableRef" :data="filteredRuleOptions" row-key="ruleId" border size="small" max-height="360">
         <el-table-column type="selection" width="40"/>
         <el-table-column label="规则编号" prop="ruleId" width="130" align="center"/>
         <el-table-column label="规则名称" prop="ruleName" min-width="200"/>
@@ -55,7 +55,7 @@ const { proxy } = getCurrentInstance()
 const loading = ref(false), saving = ref(false), ruleSaving = ref(false)
 const open = ref(false), editing = ref(false), title = ref(''), rows = ref([]), total = ref(0), ruleOptions = ref([])
 // 规则管理弹窗
-const ruleOpen = ref(false), currentGroup = ref(null), currentRuleIds = ref([]), ruleSearch = ref('')
+const ruleOpen = ref(false), currentGroup = ref(null), currentRuleIds = ref([]), ruleSearch = ref(''), ruleTableRef = ref(null)
 
 const query = reactive({ groupName: '', pageNum: 1, pageSize: 10 })
 const rules = { groupName: [{ required: true, message: '请输入风险组名称', trigger: 'blur' }] }
@@ -99,7 +99,17 @@ function manageRules(row) {
 }
 function onRuleDialogOpen() {
   if (!currentGroup.value) return
-  listGroupRuleIds(currentGroup.value.groupId).then(r => { currentRuleIds.value = r.data || [] })
+  listGroupRuleIds(currentGroup.value.groupId).then(r => {
+    currentRuleIds.value = r.data || []
+    // 数据加载后，等 DOM 更新再设置表格勾选状态
+    nextTick(() => {
+      const table = ruleTableRef.value
+      if (!table) return
+      filteredRuleOptions.value.forEach(row => {
+        table.toggleRowSelection(row, currentRuleIds.value.includes(row.ruleId))
+      })
+    })
+  })
 }
 const filteredRuleOptions = computed(() => {
   if (!ruleSearch.value) return ruleOptions.value
