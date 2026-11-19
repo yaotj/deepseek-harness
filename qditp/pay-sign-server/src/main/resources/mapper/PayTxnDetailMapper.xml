@@ -124,6 +124,16 @@
         WHERE ROWNUM &lt;= #{limit,jdbcType=INTEGER}
     </select>
 
+    <!-- 回查退避（IT-081）：本轮查询无结论时刷新 UPDATE_TIME，使该单在 staleMinutes 内不再被捞到， -->
+    <!-- 否则长期在途单（钱包 PROCESSING 等）每轮都会被重查、吃满单轮预算，新单排不进去。 -->
+    <!-- 只刷新非终态行：终态单由 updatePayCallback 自己维护时间，NEVER 在这里碰。 -->
+    <update id="markPayQueryAttempt">
+        UPDATE PAY_TXN_DETAIL
+        SET UPDATE_TIME = SYSTIMESTAMP
+        WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
+          AND PAY_STATUS IN ('INIT', 'PROCESSING', 'RETRY')
+    </update>
+
     <update id="markRequesting">
         UPDATE PAY_TXN_DETAIL
         SET REQUEST_COUNT = NVL(REQUEST_COUNT, 0) + 1,

@@ -25,4 +25,6 @@ public interface PayTxnDetailMapper {
     List<PayTxnDetail> selectCompensablePayStatus(@Param("txnDateFrom") String txnDateFrom,
                                                   @Param("staleMinutes") int staleMinutes,
                                                   @Param("limit") int limit);
+
+    int markPayQueryAttempt(@Param("orderNo") String orderNo);
 }

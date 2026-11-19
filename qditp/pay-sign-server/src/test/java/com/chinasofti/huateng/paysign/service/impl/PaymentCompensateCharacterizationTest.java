@@ -76,6 +76,22 @@ class PaymentCompensateCharacterizationTest {
         assertEquals(1, result.getSkipped());
         verify(fixture.payTxnDetailMapper, never()).updatePayCallback(any());
         verify(fixture.gateTxnPayClient, never()).syncDebitStatus(any());
+        verify(fixture.payTxnDetailMapper).markPayQueryAttempt(ORDER_NO);
+    }
+
+    @Test
+    void settledOrderDoesNotMarkBackoff() {
+        PaySignFacadeFixture fixture = fixtureWithQueryUrl();
+        when(fixture.payTxnDetailMapper.selectCompensablePayStatus(anyString(), anyInt(), anyInt()))
+                .thenReturn(List.of(pendingOrder()));
+        when(fixture.payCallbackLogMapper.countManualSince(anyString())).thenReturn(0);
+        when(fixture.payTxnDetailMapper.updatePayCallback(any(PayTxnDetail.class))).thenReturn(1);
+        gateTxnPayReturns(fixture, "0000");
+        fixture.gatewayReturns(queryResponse("SUCCESS", "1", "1", "0", "04"));
+
+        fixture.paymentDomainService.compensatePayStatus();
+
+        verify(fixture.payTxnDetailMapper, never()).markPayQueryAttempt(anyString());
     }
 
     @Test

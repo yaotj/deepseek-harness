@@ -313,9 +313,11 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
                         settled++;
                     } else {
                         skipped++;
+                        markQueryAttempt(row.getOrderNo());
                     }
                 } catch (Exception e) {
                     skipped++;
+                    markQueryAttempt(row.getOrderNo());
                     log.error("单条支付状态回查异常，NEVER 因此中断整批, orderNo={}", row.getOrderNo(), e);
                 }
             }
@@ -392,6 +394,15 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
             }
         }
         return null;
+    }
+
+
+    private void markQueryAttempt(String orderNo) {
+        try {
+            payTxnDetailMapper.markPayQueryAttempt(orderNo);
+        } catch (Exception e) {
+            log.warn("回查退避标记失败（不影响本轮结果，下一轮可能重查）, orderNo={}", orderNo, e);
+        }
     }
 
 

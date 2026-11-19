@@ -73,6 +73,7 @@ public class CrossDomainDivergenceService {
             Map<String, String> payStatusByOrderNo = queryPayStatus(settled);
             int aligned = 0;
             int diverged = 0;
+            int supplementSettled = 0;
             int unknown = 0;
             for (GateTxnPay row : settled) {
                 String payStatus = payStatusByOrderNo.get(row.getOrderNo());
@@ -84,15 +85,18 @@ public class CrossDomainDivergenceService {
                     aligned++;
                     continue;
                 }
-                diverged++;
-                reportOnce(row, payStatus);
+                if (reportOnce(row, payStatus)) {
+                    diverged++;
+                } else {
+                    supplementSettled++;
+                }
             }
 
             response.setScanned(settled.size());
             response.setSubmitted(aligned);
             response.setSkipped(diverged + unknown);
-            log.info("跨域分叉核对完成, scanned={}, 一致={}, 分叉={}, 未取到支付域状态={}",
-                    settled.size(), aligned, diverged, unknown);
+            log.info("跨域分叉核对完成, scanned={}, 一致={}, 真分叉={}, 补款口径差异={}, 未取到支付域状态={}",
+                    settled.size(), aligned, diverged, supplementSettled, unknown);
             fillSuccess(response);
             return response;
         } catch (Exception e) {
@@ -142,22 +146,29 @@ public class CrossDomainDivergenceService {
     }
 
 
-    private void reportOnce(GateTxnPay row, String payStatus) {
+    /**
+     * 返回 true 表示真分叉（需人工核对）；false 表示「补款收口」这类已解释的口径差异。
+     * 补款单结清欠费时原单直扣本就没有发生，支付域非 SUCCESS 属预期，不能算故障——
+     * 否则每轮都往 skipped 里加 2，运维会把常态噪声当成告警（2026-11-19 实测）。
+     */
+    private boolean reportOnce(GateTxnPay row, String payStatus) {
         if (reported.size() > REPORTED_CAPACITY) {
             reported.clear();
         }
-        if (!reported.add(row.getOrderNo())) {
-            return;
-        }
         String remark = row.getRemark() == null ? "" : row.getRemark();
-        if (remark.contains(SUPPLEMENT_MARK)) {
-            log.warn("跨域口径差异（补款收口）：扣费域 SUCCESS 而支付域={}，原单支付本未发生，"
-                            + "对账以上口径为准, orderNo={}, txnDate={}, remark={}",
+        boolean supplementSettled = remark.contains(SUPPLEMENT_MARK);
+        if (!reported.add(row.getOrderNo())) {
+            return !supplementSettled;
+        }
+        if (supplementSettled) {
+            log.info("跨域口径差异（补款收口，非故障）：扣费域 SUCCESS 而支付域={}，原单直扣本未发生, "
+                            + "orderNo={}, txnDate={}, remark={}",
                     payStatus, row.getOrderNo(), row.getTxnDate(), remark);
-            return;
+            return false;
         }
         log.error("跨域分叉：扣费域 SUCCESS 而支付域={}，MUST 人工核对, orderNo={}, txnDate={}, remark={}",
                 payStatus, row.getOrderNo(), row.getTxnDate(), remark);
+        return true;
     }
 
 
