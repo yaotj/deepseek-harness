@@ -178,6 +178,48 @@ class PaymentCompensateCharacterizationTest {
         verify(fixture.payTxnDetailMapper, never()).updatePayCallback(any());
     }
 
+    @Test
+    void supplementSettledMarksNonTerminalOrderAsFail() {
+        PaySignFacadeFixture fixture = fixtureWithQueryUrl();
+        when(fixture.payTxnDetailMapper.selectByOrderNo(ORDER_NO)).thenReturn(pendingOrder());
+        when(fixture.payTxnDetailMapper.updatePayCallback(any(PayTxnDetail.class))).thenReturn(1);
+
+        PaySignCallbackResult result = fixture.paymentDomainService
+                .markSupplementSettled(ORDER_NO, "SP20261117143941056000384");
+
+        assertEquals(PaySignErrorCodeEnum.SUCCESS.getCode(), result.getRetCode());
+        ArgumentCaptor<PayTxnDetail> captor = ArgumentCaptor.forClass(PayTxnDetail.class);
+        verify(fixture.payTxnDetailMapper).updatePayCallback(captor.capture());
+        assertEquals("FAIL", captor.getValue().getPayStatus());
+        assertEquals("FAIL", captor.getValue().getDebitRequestResult());
+    }
+
+    @Test
+    void supplementSettledNeverRollsBackDirectSuccess() {
+        PaySignFacadeFixture fixture = fixtureWithQueryUrl();
+        PayTxnDetail settled = pendingOrder();
+        settled.setPayStatus("SUCCESS");
+        when(fixture.payTxnDetailMapper.selectByOrderNo(ORDER_NO)).thenReturn(settled);
+
+        PaySignCallbackResult result = fixture.paymentDomainService
+                .markSupplementSettled(ORDER_NO, "SP20261117143941056000384");
+
+        assertEquals(PaySignErrorCodeEnum.SUCCESS.getCode(), result.getRetCode());
+        verify(fixture.payTxnDetailMapper, never()).updatePayCallback(any());
+    }
+
+    @Test
+    void supplementSettledWithoutOrderIsRejected() {
+        PaySignFacadeFixture fixture = fixtureWithQueryUrl();
+        when(fixture.payTxnDetailMapper.selectByOrderNo(ORDER_NO)).thenReturn(null);
+
+        PaySignCallbackResult result = fixture.paymentDomainService
+                .markSupplementSettled(ORDER_NO, "SP20261117143941056000384");
+
+        assertEquals(PaySignErrorCodeEnum.INVALID_PARAM.getCode(), result.getRetCode());
+        verify(fixture.payTxnDetailMapper, never()).updatePayCallback(any());
+    }
+
     private PaySignGatewayResponse rejectedResponse(int code, String msg) {
         PaySignGatewayResponse response = new PaySignGatewayResponse();
         response.setCode(code);

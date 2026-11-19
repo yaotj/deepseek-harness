@@ -243,6 +243,20 @@ public class PaySignClient extends ProxyWebClient {
     }
 
 
+    public PaySignCallbackResult markSupplementSettled(String merchantOrderNo, String supplementOrderNo,
+                                                       Map<String, String> headers) {
+        String url = "/internal/payment/markSupplementSettled?merchantOrderNo="
+                + java.net.URLEncoder.encode(merchantOrderNo, java.nio.charset.StandardCharsets.UTF_8);
+        if (supplementOrderNo != null && !supplementOrderNo.isEmpty()) {
+            url += "&supplementOrderNo="
+                    + java.net.URLEncoder.encode(supplementOrderNo, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        String result = postJsonAndGetResponse(url, new java.util.HashMap<>(), headers);
+        return JSONUtil.toBean(result, new TypeReference<PaySignCallbackResult>() {
+        }, true);
+    }
+
+
     public RpcOutcome registerCompletedTxn(@RequestBody RegisterCompletedPayTxnReqDTO request) {
         String result;
         try {

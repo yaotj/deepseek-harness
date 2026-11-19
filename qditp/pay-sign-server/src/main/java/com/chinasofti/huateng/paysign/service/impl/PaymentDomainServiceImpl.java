@@ -446,6 +446,42 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
     }
 
 
+    /**
+     * 补款结清回写（IT-081 P3 的处置侧）：欠费已由补款单结清，原单直扣本就没有成功，
+     * 支付域应停在 FAIL 而不是长期 RETRY（RETRY 会被主动回查反复捞出、且让报表误以为在途）。
+     * 白名单由 updatePayCallback 保证（INIT/PROCESSING/RETRY/FAIL），SUCCESS 不动。
+     */
+    @Override
+    public PaySignCallbackResult markSupplementSettled(String merchantOrderNo, String supplementOrderNo) {
+        PaySignCallbackResult response = new PaySignCallbackResult();
+        if (!StringUtils.hasText(merchantOrderNo)) {
+            fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "merchantOrderNo不能为空");
+            return response;
+        }
+        PayTxnDetail existing = payTxnDetailMapper.selectByOrderNo(merchantOrderNo.trim());
+        if (existing == null) {
+            fillError(response, PaySignErrorCodeEnum.INVALID_PARAM, "未找到对应的支付流水");
+            return response;
+        }
+        if ("SUCCESS".equals(existing.getPayStatus())) {
+            log.info("补款结清回写跳过：支付域已是SUCCESS，NEVER 回退已成功的直扣, merchantOrderNo={}",
+                    merchantOrderNo);
+            fillSuccess(response);
+            return response;
+        }
+        PayTxnDetail update = new PayTxnDetail();
+        update.setOrderNo(existing.getOrderNo());
+        update.setPayStatus("FAIL");
+        update.setDebitRequestResult("FAIL");
+        update.setMerchantOrderNo(existing.getOrderNo());
+        int affected = payTxnDetailMapper.updatePayCallback(update);
+        log.warn("补款结清回写：原单直扣未成功，支付域收敛为FAIL, merchantOrderNo={}, 补款单号={}, 原状态={}, 命中行数={}",
+                merchantOrderNo, supplementOrderNo, existing.getPayStatus(), affected);
+        fillSuccess(response);
+        return response;
+    }
+
+
     private ReceivePayResultReqDTO parseCallbackDto(String rawBody) {
         if (!StringUtils.hasText(rawBody)) {
             return null;

@@ -2,6 +2,7 @@ package com.chinasofti.huateng.gatetxnpay.service.impl;
 
 import com.chinasofti.huateng.gatetxnpay.entity.GateTxnPay;
 import com.chinasofti.huateng.gatetxnpay.mapper.GateTxnPayMapper;
+import com.chinasofti.huateng.model.app.PaySignCallbackResult;
 import com.chinasofti.huateng.model.app.QueryPayTxnBatchReqDTO;
 import com.chinasofti.huateng.model.app.RequestPayTxnBatchResult;
 import com.chinasofti.huateng.model.paysign.CompensateNotifyRespDTO;
@@ -15,6 +16,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,10 +95,10 @@ public class CrossDomainDivergenceService {
             }
 
             response.setScanned(settled.size());
-            response.setSubmitted(aligned);
+            response.setSubmitted(aligned + supplementSettled);
             response.setSkipped(diverged + unknown);
-            log.info("跨域分叉核对完成, scanned={}, 一致={}, 真分叉={}, 补款口径差异={}, 未取到支付域状态={}",
-                    settled.size(), aligned, diverged, supplementSettled, unknown);
+            log.info("跨域分叉核对完成, scanned={}, 一致={}, 补款回写={}, 真分叉={}, 未取到支付域状态={}",
+                    settled.size(), aligned, supplementSettled, diverged, unknown);
             fillSuccess(response);
             return response;
         } catch (Exception e) {
@@ -156,19 +158,53 @@ public class CrossDomainDivergenceService {
             reported.clear();
         }
         String remark = row.getRemark() == null ? "" : row.getRemark();
-        boolean supplementSettled = remark.contains(SUPPLEMENT_MARK);
-        if (!reported.add(row.getOrderNo())) {
-            return !supplementSettled;
-        }
-        if (supplementSettled) {
-            log.info("跨域口径差异（补款收口，非故障）：扣费域 SUCCESS 而支付域={}，原单直扣本未发生, "
-                            + "orderNo={}, txnDate={}, remark={}",
-                    payStatus, row.getOrderNo(), row.getTxnDate(), remark);
+        if (remark.contains(SUPPLEMENT_MARK)) {
+            // 处置动作 MUST 每轮都执行：它是幂等回写，NEVER 被「日志去重」短路——
+            // 一旦被短路，上一轮没回写成功的单会永远不再尝试（2026-11-19 实测踩过）。
+            boolean written = markSupplementSettled(row.getOrderNo(), extractSupplementOrderNo(remark));
+            if (reported.add(row.getOrderNo()) || written) {
+                log.info("跨域口径差异（补款收口）：扣费域 SUCCESS 而支付域={}，原单直扣本未发生，"
+                                + "已回写支付域为 FAIL（幂等）, written={}, orderNo={}, txnDate={}, 补款单号={}",
+                        payStatus, written, row.getOrderNo(), row.getTxnDate(), extractSupplementOrderNo(remark));
+            }
             return false;
+        }
+        if (!reported.add(row.getOrderNo())) {
+            return true;
         }
         log.error("跨域分叉：扣费域 SUCCESS 而支付域={}，MUST 人工核对, orderNo={}, txnDate={}, remark={}",
                 payStatus, row.getOrderNo(), row.getTxnDate(), remark);
         return true;
+    }
+
+
+    private String extractSupplementOrderNo(String remark) {
+        int idx = remark.indexOf("补款单号");
+        if (idx < 0) {
+            return null;
+        }
+        String tail = remark.substring(idx);
+        int colon = tail.indexOf(':');
+        if (colon < 0) {
+            colon = tail.indexOf('：');
+        }
+        return colon < 0 ? null : tail.substring(colon + 1).trim();
+    }
+
+
+    /**
+     * 回写失败只记日志、不影响核对结论：下一轮会再试（幂等）。
+     * NEVER 因为回写失败把该单记成「真分叉」——它的事实（补款已收）在扣费域 REMARK 里，不会变。
+     */
+    private boolean markSupplementSettled(String orderNo, String supplementOrderNo) {
+        try {
+            PaySignCallbackResult result = paySignClient.markSupplementSettled(orderNo, supplementOrderNo,
+                    java.util.Collections.<String, String>emptyMap());
+            return result != null && SUCCESS_CODE.equals(result.getRetCode());
+        } catch (Exception e) {
+            log.warn("补款结清回写支付域异常，下一轮重试, orderNo={}", orderNo, e);
+            return false;
+        }
     }
 
 

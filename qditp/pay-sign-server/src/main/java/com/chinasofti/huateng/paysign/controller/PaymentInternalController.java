@@ -70,4 +70,14 @@ public class PaymentInternalController {
         log.warn("收到人工重放支付回调请求, merchantOrderNo={}", merchantOrderNo);
         return paymentDomainService.replayCallback(merchantOrderNo);
     }
+
+
+    @PostMapping("/markSupplementSettled")
+    public PaySignCallbackResult markSupplementSettled(
+            @RequestParam("merchantOrderNo") String merchantOrderNo,
+            @RequestParam(value = "supplementOrderNo", required = false) String supplementOrderNo) {
+        log.warn("收到补款结清回写请求, merchantOrderNo={}, supplementOrderNo={}",
+                merchantOrderNo, supplementOrderNo);
+        return paymentDomainService.markSupplementSettled(merchantOrderNo, supplementOrderNo);
+    }
 }

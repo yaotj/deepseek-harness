@@ -4,11 +4,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.chinasofti.huateng.gatetxnpay.entity.GateTxnPay;
 import com.chinasofti.huateng.gatetxnpay.mapper.GateTxnPayMapper;
+import com.chinasofti.huateng.model.app.PaySignCallbackResult;
 import com.chinasofti.huateng.model.app.RequestPayTxnBatchResult;
 import com.chinasofti.huateng.model.paysign.CompensateNotifyRespDTO;
 import com.chinasofti.huateng.model.paysign.PayTxnDetailDTO;
@@ -19,21 +23,30 @@ import org.junit.jupiter.api.Test;
 class CrossDomainDivergenceServiceTest {
 
     @Test
-    void supplementSettledRowIsExplainedInsteadOfCountedAsDivergence() {
+    void supplementSettledRowIsExplainedAndWrittenBackInsteadOfCountedAsDivergence() {
         GateTxnPayMapper mapper = mock(GateTxnPayMapper.class);
         PaySignClient paySignClient = mock(PaySignClient.class);
         when(mapper.selectSettledForDivergenceCheck(anyString(), anyInt(), anyInt()))
                 .thenReturn(List.of(row("GT_SUPP", "补款单号:SP20261117143941056000384"),
                         row("GT_REAL", "支付结果回调收敛：SUCCESS")));
         when(paySignClient.queryPayTxnBatch(any())).thenReturn(batch("GT_SUPP", "GT_REAL"));
+        PaySignCallbackResult ok = new PaySignCallbackResult();
+        ok.setRetCode("0000");
+        when(paySignClient.markSupplementSettled(eq("GT_SUPP"), eq("SP20261117143941056000384"), any()))
+                .thenReturn(ok);
+        CrossDomainDivergenceService service = new CrossDomainDivergenceService(mapper, paySignClient);
 
-        CompensateNotifyRespDTO result = new CrossDomainDivergenceService(mapper, paySignClient).check();
+        CompensateNotifyRespDTO result = service.check();
 
         assertEquals("0000", result.getResultCode());
         assertEquals(2, result.getScanned());
-        assertEquals(0, result.getSubmitted());
+        assertEquals(1, result.getSubmitted(), "补款行回写成功算已处置，与「一致」一起计入 submitted");
         assertEquals(1, result.getSkipped(),
                 "只有非补款的真分叉计入 skipped：补款收口下原单直扣本未发生，属口径差异不是故障");
+        verify(paySignClient).markSupplementSettled(eq("GT_SUPP"), eq("SP20261117143941056000384"), any());
+
+        service.check();
+        verify(paySignClient, times(2)).markSupplementSettled(eq("GT_SUPP"), eq("SP20261117143941056000384"), any());
     }
 
     @Test

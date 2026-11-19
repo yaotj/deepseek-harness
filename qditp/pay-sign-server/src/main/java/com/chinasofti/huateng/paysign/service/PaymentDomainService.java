@@ -21,4 +21,7 @@ public interface PaymentDomainService {
 
 
     PaySignCallbackResult replayCallback(String merchantOrderNo);
+
+
+    PaySignCallbackResult markSupplementSettled(String merchantOrderNo, String supplementOrderNo);
 }
