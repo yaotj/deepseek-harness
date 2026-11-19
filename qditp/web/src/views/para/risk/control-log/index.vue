@@ -4,6 +4,7 @@
       <el-form-item label="逻辑卡号"><el-input v-model="query.cardId" clearable placeholder="请输入逻辑卡号" @keyup.enter="search"/></el-form-item>
       <el-form-item label="用户订单"><el-input v-model="query.userOrderNo" clearable placeholder="请输入用户订单号" @keyup.enter="search"/></el-form-item>
       <el-form-item label="规则编号"><el-input v-model="query.ruleId" clearable placeholder="请输入风险规则编号" @keyup.enter="search"/></el-form-item>
+      <el-form-item label="风险状态"><el-input v-model="query.riskStatus" clearable placeholder="请输入风险状态" @keyup.enter="search"/></el-form-item>
       <el-form-item label="命中时间"><query-time-range v-model="query.dateRange" :value-format="DATE_FORMAT" @change="search" /></el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="search">查询</el-button>
@@ -27,38 +28,43 @@
       <el-table-column label="序号" width="70" align="center"><template #default="s">{{(query.pageNum-1)*query.pageSize+s.$index+1}}</template></el-table-column>
       <el-table-column label="逻辑卡号" prop="cardId" min-width="200" show-overflow-tooltip><template #default="{row}">{{row.cardId||'-'}}</template></el-table-column>
       <el-table-column label="用户订单" prop="userOrderNo" min-width="210" show-overflow-tooltip><template #default="{row}">{{row.userOrderNo||'-'}}</template></el-table-column>
-      <el-table-column label="风险规则编号" prop="ruleId" width="150" align="center"/>
-      <el-table-column label="风险规则名称" prop="ruleName" min-width="230"><template #default="{row}">{{row.ruleName||'-'}}</template></el-table-column>
-      <el-table-column label="风险发生最后时间" width="190" align="center"><template #default="{row}">{{parseTime(row.riskHitTime)||'-'}}</template></el-table-column>
-      <el-table-column label="入库时间" width="180" align="center"><template #default="{row}">{{parseTime(row.createTime)||'-'}}</template></el-table-column>
+      <el-table-column label="风险规则编号" prop="ruleId" width="140" align="center"/>
+      <el-table-column label="风险规则名称" prop="ruleNameSnap" min-width="200"><template #default="{row}">{{row.ruleNameSnap||'-'}}</template></el-table-column>
+      <el-table-column label="风险规则描述" prop="ruleDescSnap" min-width="240" show-overflow-tooltip><template #default="{row}">{{row.ruleDescSnap||'-'}}</template></el-table-column>
+      <el-table-column label="风险等级" prop="riskLevelSnap" width="90" align="center"/>
+      <el-table-column label="风险状态" prop="riskStatus" width="100" align="center"><template #default="{row}">{{row.riskStatus||'-'}}</template></el-table-column>
+      <el-table-column label="设备ID" prop="riskDeviceId" width="130" align="center"><template #default="{row}">{{row.riskDeviceId||'-'}}</template></el-table-column>
+      <el-table-column label="风险发生最后时间" width="180" align="center"><template #default="{row}">{{parseTime(row.riskHitTime)||'-'}}</template></el-table-column>
+      <el-table-column label="处理描述" prop="riskHandleDesc" min-width="180" show-overflow-tooltip><template #default="{row}">{{row.riskHandleDesc||'-'}}</template></el-table-column>
+      <el-table-column label="入库时间" width="170" align="center"><template #default="{row}">{{parseTime(row.createTime)||'-'}}</template></el-table-column>
     </el-table>
     <pagination v-show="total>0" v-model:page="query.pageNum" v-model:limit="query.pageSize" :total="total" @pagination="load"/>
   </div>
 </template>
 <script setup name="RiskControlLog">
-import { listRiskControlLogs } from '@/api/para/risk'
+import { exportRiskControlLogs, listRiskControlLogs } from '@/api/para/risk'
 import { defaultTodayRange, isEmptyRange } from '@/utils/dateRange'
 import { exportToExcel } from '@/utils/excelExport'
 
 /** 必须与模板里查询区间的 value-format 保持一致。 */
 const DATE_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 
-/** 导出单次上限：para 侧只有分页端点，逐页拉全量时必须给内存与请求数封顶。 */
-const EXPORT_PAGE_SIZE = 500
+/** 后端导出单次上限，与 RiskManagementServiceImpl.EXPORT_LIMIT 对齐。 */
 const EXPORT_MAX_ROWS = 20000
 
 const { proxy } = getCurrentInstance()
 // 风险命中记录为审计数据，只提供查询和分页浏览。
 const loading=ref(false),rows=ref([]),total=ref(0),exporting=ref(false),queryError=ref('')
-const query=reactive({cardId:'',userOrderNo:'',ruleId:'',dateRange:defaultTodayRange(DATE_FORMAT),pageNum:1,pageSize:10})
+const query=reactive({cardId:'',userOrderNo:'',ruleId:'',riskStatus:'',dateRange:defaultTodayRange(DATE_FORMAT),pageNum:1,pageSize:10})
 
-/** 把页面上的区间/分页字段摊平成接口参数；导出与列表查询共用同一套筛选口径。 */
+/** 把页面上的区间/筛选字段摊平成接口参数；导出与列表查询共用同一套筛选口径。 */
 function toParams(overrides) {
   const [riskHitTimeBegin, riskHitTimeEnd] = query.dateRange || []
   return {
     cardId: query.cardId,
     userOrderNo: query.userOrderNo,
     ruleId: query.ruleId,
+    riskStatus: query.riskStatus,
     riskHitTimeBegin,
     riskHitTimeEnd,
     ...overrides
@@ -74,43 +80,41 @@ function load(){
     .finally(()=>{loading.value=false})
 }
 function search(){query.pageNum=1;load()}
-function resetQuery(){Object.assign(query,{cardId:'',userOrderNo:'',ruleId:'',dateRange:defaultTodayRange(DATE_FORMAT)});search()}
+function resetQuery(){Object.assign(query,{cardId:'',userOrderNo:'',ruleId:'',riskStatus:'',dateRange:defaultTodayRange(DATE_FORMAT)});search()}
 
 const EXPORT_HEADERS = [
   { key: 'cardId', header: '逻辑卡号' },
   { key: 'userOrderNo', header: '用户订单' },
   { key: 'ruleId', header: '风险规则编号' },
-  { key: 'ruleName', header: '风险规则名称' },
+  { key: 'ruleNameSnap', header: '风险规则名称' },
+  { key: 'ruleDescSnap', header: '风险规则描述' },
+  { key: 'riskLevelSnap', header: '风险等级' },
+  { key: 'riskStatus', header: '风险状态' },
+  { key: 'riskDeviceId', header: '设备ID' },
+  { key: 'riskHandleDesc', header: '处理描述' },
   { key: 'riskHitTime', header: '风险发生最后时间' },
   { key: 'createTime', header: '入库时间' }
 ]
 
 /**
- * 按当前筛选逐页拉全量后导出。
- *
- * para 侧没有导出端点、异步导出框架也未注册 RISK_CONTROL_LOG 执行器，
- * 因此这里走前端聚合：命中行数超过 EXPORT_MAX_ROWS 时拒绝导出并要求收窄区间，
- * 避免把审计表整表拉进浏览器。
+ * 走后端导出端点一次性拉取（para 侧已实现 /control-logs/export，上限 20000 行）。
+ * 超过上限时后端会截断，前端提示收窄范围。
  */
 async function handleExport() {
-  if (isEmptyRange(query.dateRange) && !query.cardId && !query.userOrderNo && !query.ruleId) {
+  if (isEmptyRange(query.dateRange) && !query.cardId && !query.userOrderNo && !query.ruleId && !query.riskStatus) {
     proxy.$modal.msgWarning('请先设置命中时间范围或至少一个筛选条件，避免导出全表')
     return
   }
   exporting.value = true
   try {
-    const first = await listRiskControlLogs(toParams({ pageNum: 1, pageSize: EXPORT_PAGE_SIZE }))
-    const all = [...(first.data?.list || [])]
+    const first = await listRiskControlLogs(toParams({ pageNum: 1, pageSize: 1 }))
     const count = Number(first.data?.total || 0)
     if (count > EXPORT_MAX_ROWS) {
       proxy.$modal.msgWarning(`当前筛选命中 ${count} 条，超过单次导出上限 ${EXPORT_MAX_ROWS} 条，请收窄时间范围`)
       return
     }
-    const pages = Math.ceil(count / EXPORT_PAGE_SIZE)
-    for (let pageNum = 2; pageNum <= pages; pageNum++) {
-      const res = await listRiskControlLogs(toParams({ pageNum, pageSize: EXPORT_PAGE_SIZE }))
-      all.push(...(res.data?.list || []))
-    }
+    const res = await exportRiskControlLogs(toParams())
+    const all = res.data || []
     if (!all.length) {
       proxy.$modal.msgWarning('当前筛选没有可导出的记录')
       return
@@ -118,7 +122,8 @@ async function handleExport() {
     const data = all.map((row) => ({
       ...row,
       riskHitTime: proxy.parseTime(row.riskHitTime) || '',
-      createTime: proxy.parseTime(row.createTime) || ''
+      createTime: proxy.parseTime(row.createTime) || '',
+      riskHandleTime: proxy.parseTime(row.riskHandleTime) || ''
     }))
     exportToExcel(data, EXPORT_HEADERS, `风控记录_${new Date().toISOString().slice(0, 10)}`)
     proxy.$modal.msgSuccess(`已导出 ${data.length} 条风控记录`)

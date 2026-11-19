@@ -19,6 +19,10 @@ public interface RiskManagementService {
 
     ResultVO<Void> deleteGroup(Long groupId);
 
+    ResultVO<List<String>> listRuleIdsByGroup(Long groupId);
+
+    ResultVO<Void> bindRulesToGroup(Long groupId, List<String> ruleIds);
+
     ResultVO<PageInfo<RiskRule>> pageRules(String ruleId, String ruleName, Long groupId, Integer pageNum, Integer pageSize);
 
     ResultVO<Void> createRule(RiskRule request);
@@ -28,6 +32,11 @@ public interface RiskManagementService {
     ResultVO<Void> deleteRule(String ruleId);
 
     ResultVO<PageInfo<RiskControlLog>> pageControlLogs(String cardId, String userOrderNo, String ruleId,
-                                                       String riskHitTimeBegin, String riskHitTimeEnd,
+                                                       String riskStatus, String riskHitTimeBegin, String riskHitTimeEnd,
                                                        Integer pageNum, Integer pageSize);
+
+    ResultVO<List<RiskControlLog>> exportControlLogs(String cardId, String userOrderNo, String ruleId,
+                                                     String riskStatus, String riskHitTimeBegin, String riskHitTimeEnd);
+
+    ResultVO<Void> createControlLog(RiskControlLog request);
 }

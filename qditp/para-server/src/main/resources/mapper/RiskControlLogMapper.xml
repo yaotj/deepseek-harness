@@ -1,24 +1,62 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.chinasofti.huateng.para.mapper.risk.RiskControlLogMapper">
-    <!-- 审计日志使用左关联：规则删除后仍可查询历史命中记录。 -->
+    <!-- 审计日志：命中时快照优先，快照为空时左关联现查回退（D3 决策）。规则删除后仍可查询历史。 -->
     <resultMap id="BaseResultMap" type="com.chinasofti.huateng.para.entity.risk.RiskControlLog">
         <id column="LOG_ID" property="logId"/>
-        <result column="CARD_ID" property="cardId"/><result column="USER_ORDER_NO" property="userOrderNo"/>
-        <result column="RULE_ID" property="ruleId"/><result column="RULE_NAME" property="ruleName"/>
-        <result column="RISK_HIT_TIME" property="riskHitTime"/><result column="CREATE_TIME" property="createTime"/>
+        <result column="CARD_ID" property="cardId"/>
+        <result column="USER_ORDER_NO" property="userOrderNo"/>
+        <result column="RULE_ID" property="ruleId"/>
+        <result column="RULE_NAME" property="ruleNameSnap"/>
+        <result column="RULE_DESC" property="ruleDescSnap"/>
+        <result column="RISK_LEVEL" property="riskLevelSnap"/>
+        <result column="RISK_STATUS" property="riskStatus"/>
+        <result column="RISK_HANDLE_TIME" property="riskHandleTime"/>
+        <result column="RISK_HANDLE_DESC" property="riskHandleDesc"/>
+        <result column="RISK_HANDLE_MANAGER_ID" property="riskHandleManagerId"/>
+        <result column="RISK_DEVICE_ID" property="riskDeviceId"/>
+        <result column="RISK_HIT_TIME" property="riskHitTime"/>
+        <result column="CREATE_TIME" property="createTime"/>
+        <result column="UPDATE_TIME" property="updateTime"/>
     </resultMap>
-    <select id="selectPage" resultMap="BaseResultMap">
-        <!-- 命中时间倒序，便于运营人员优先处理最新风险。 -->
-        SELECT L.LOG_ID, L.CARD_ID, L.USER_ORDER_NO, L.RULE_ID, R.RULE_NAME, L.RISK_HIT_TIME, L.CREATE_TIME
-        FROM TBL_RISK_CONTROL_LOG L LEFT JOIN TBL_RISK_RULE R ON R.RULE_ID = L.RULE_ID
+    <sql id="viewColumns">L.LOG_ID, L.CARD_ID, L.USER_ORDER_NO, L.RULE_ID,
+        NVL(L.RULE_NAME_SNAP, R.RULE_NAME) RULE_NAME, NVL(L.RULE_DESC_SNAP, R.RULE_DESC) RULE_DESC,
+        NVL(L.RISK_LEVEL_SNAP, R.RISK_LEVEL) RISK_LEVEL,
+        L.RISK_STATUS, L.RISK_HANDLE_TIME, L.RISK_HANDLE_DESC, L.RISK_HANDLE_MANAGER_ID, L.RISK_DEVICE_ID,
+        L.RISK_HIT_TIME, L.CREATE_TIME, L.UPDATE_TIME</sql>
+    <sql id="viewFrom">FROM TBL_RISK_CONTROL_LOG L LEFT JOIN TBL_RISK_RULE R ON R.RULE_ID = L.RULE_ID</sql>
+    <sql id="viewWhere">
         <where>
             <if test="cardId != null and cardId != ''">AND L.CARD_ID = #{cardId}</if>
             <if test="userOrderNo != null and userOrderNo != ''">AND L.USER_ORDER_NO = #{userOrderNo}</if>
             <if test="ruleId != null and ruleId != ''">AND L.RULE_ID = #{ruleId}</if>
+            <if test="riskStatus != null and riskStatus != ''">AND L.RISK_STATUS = #{riskStatus}</if>
             <if test="riskHitTimeBegin != null and riskHitTimeBegin != ''">AND L.RISK_HIT_TIME &gt;= TO_DATE(#{riskHitTimeBegin}, 'YYYY-MM-DD HH24:MI:SS')</if>
             <if test="riskHitTimeEnd != null and riskHitTimeEnd != ''">AND L.RISK_HIT_TIME &lt;= TO_DATE(#{riskHitTimeEnd}, 'YYYY-MM-DD HH24:MI:SS')</if>
         </where>
+    </sql>
+    <select id="selectPage" resultMap="BaseResultMap">
+        <!-- 命中时间倒序，便于运营人员优先处理最新风险。 -->
+        SELECT <include refid="viewColumns"/> <include refid="viewFrom"/> <include refid="viewWhere"/>
         ORDER BY L.RISK_HIT_TIME DESC, L.LOG_ID DESC
     </select>
+    <select id="selectForExport" resultMap="BaseResultMap">
+        <!-- 后端导出：按筛选条件下拉全量，上限由 limit 控制（防止内存溢出）。 -->
+        SELECT * FROM (
+            SELECT <include refid="viewColumns"/> <include refid="viewFrom"/> <include refid="viewWhere"/>
+            ORDER BY L.RISK_HIT_TIME DESC, L.LOG_ID DESC
+        ) WHERE ROWNUM &lt;= #{limit}
+    </select>
+    <insert id="insert" parameterType="com.chinasofti.huateng.para.entity.risk.RiskControlLog">
+        INSERT INTO TBL_RISK_CONTROL_LOG
+            (CARD_ID, USER_ORDER_NO, RULE_ID, RULE_NAME_SNAP, RULE_DESC_SNAP, RISK_LEVEL_SNAP,
+             RISK_STATUS, RISK_HANDLE_TIME, RISK_HANDLE_DESC, RISK_HANDLE_MANAGER_ID, RISK_DEVICE_ID,
+             RISK_HIT_TIME, CREATE_TIME, UPDATE_TIME)
+        VALUES
+            (#{cardId,jdbcType=VARCHAR}, #{userOrderNo,jdbcType=VARCHAR}, #{ruleId,jdbcType=VARCHAR},
+             #{ruleNameSnap,jdbcType=VARCHAR}, #{ruleDescSnap,jdbcType=VARCHAR}, #{riskLevelSnap,jdbcType=NUMERIC},
+             #{riskStatus,jdbcType=VARCHAR}, #{riskHandleTime,jdbcType=TIMESTAMP}, #{riskHandleDesc,jdbcType=VARCHAR},
+             #{riskHandleManagerId,jdbcType=VARCHAR}, #{riskDeviceId,jdbcType=VARCHAR},
+             #{riskHitTime,jdbcType=TIMESTAMP}, SYSDATE, SYSDATE)
+    </insert>
 </mapper>

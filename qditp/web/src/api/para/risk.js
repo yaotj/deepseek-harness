@@ -16,6 +16,12 @@ export function updateRiskGroup(groupId, data) {
 export function delRiskGroup(groupId) {
   return request({ url: `/para-server/page/risk/groups/${groupId}`, method: 'delete' })
 }
+export function listGroupRuleIds(groupId) {
+  return request({ url: `/para-server/page/risk/groups/${groupId}/rules`, method: 'get' })
+}
+export function saveGroupRuleIds(groupId, ruleIds) {
+  return request({ url: `/para-server/page/risk/groups/${groupId}/rules`, method: 'put', data: ruleIds })
+}
 
 // 风险规则
 export function listRiskRules(query) {
@@ -34,6 +40,9 @@ export function delRiskRule(ruleId) {
 // 风控记录
 export function listRiskControlLogs(query) {
   return request({ url: '/para-server/page/risk/control-logs', method: 'get', params: query })
+}
+export function exportRiskControlLogs(query) {
+  return request({ url: '/para-server/page/risk/control-logs/export', method: 'get', params: query })
 }
 
 // 灰名单（风控规则台账）

@@ -7,19 +7,18 @@ public class RiskControlLog {
     private String cardId;
     private String userOrderNo;
     private String ruleId;
-    private String ruleName;
-    private String ruleDesc;
-    private Integer riskLevel;
-    private LocalDateTime riskHitTime;
-    private String rsikStatus;
-    private LocalDateTime riskHanleDate;
-    private String riskHanleDesc;
-    private String riskHanleManagerId;
+    private String ruleNameSnap;
+    private String ruleDescSnap;
+    private Integer riskLevelSnap;
+    private String riskStatus;
+    private LocalDateTime riskHandleTime;
+    private String riskHandleDesc;
+    private String riskHandleManagerId;
     private String riskDeviceId;
+    private LocalDateTime riskHitTime;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 
-    // Getters and Setters
     public Long getLogId() { return logId; }
     public void setLogId(Long logId) { this.logId = logId; }
     public String getCardId() { return cardId; }
@@ -28,24 +27,24 @@ public class RiskControlLog {
     public void setUserOrderNo(String userOrderNo) { this.userOrderNo = userOrderNo; }
     public String getRuleId() { return ruleId; }
     public void setRuleId(String ruleId) { this.ruleId = ruleId; }
-    public String getRuleName() { return ruleName; }
-    public void setRuleName(String ruleName) { this.ruleName = ruleName; }
-    public String getRuleDesc() { return ruleDesc; }
-    public void setRuleDesc(String ruleDesc) { this.ruleDesc = ruleDesc; }
-    public Integer getRiskLevel() { return riskLevel; }
-    public void setRiskLevel(Integer riskLevel) { this.riskLevel = riskLevel; }
-    public LocalDateTime getRiskHitTime() { return riskHitTime; }
-    public void setRiskHitTime(LocalDateTime riskHitTime) { this.riskHitTime = riskHitTime; }
-    public String getRsikStatus() { return rsikStatus; }
-    public void setRsikStatus(String rsikStatus) { this.rsikStatus = rsikStatus; }
-    public LocalDateTime getRiskHanleDate() { return riskHanleDate; }
-    public void setRiskHanleDate(LocalDateTime riskHanleDate) { this.riskHanleDate = riskHanleDate; }
-    public String getRiskHanleDesc() { return riskHanleDesc; }
-    public void setRiskHanleDesc(String riskHanleDesc) { this.riskHanleDesc = riskHanleDesc; }
-    public String getRiskHanleManagerId() { return riskHanleManagerId; }
-    public void setRiskHanleManagerId(String riskHanleManagerId) { this.riskHanleManagerId = riskHanleManagerId; }
+    public String getRuleNameSnap() { return ruleNameSnap; }
+    public void setRuleNameSnap(String ruleNameSnap) { this.ruleNameSnap = ruleNameSnap; }
+    public String getRuleDescSnap() { return ruleDescSnap; }
+    public void setRuleDescSnap(String ruleDescSnap) { this.ruleDescSnap = ruleDescSnap; }
+    public Integer getRiskLevelSnap() { return riskLevelSnap; }
+    public void setRiskLevelSnap(Integer riskLevelSnap) { this.riskLevelSnap = riskLevelSnap; }
+    public String getRiskStatus() { return riskStatus; }
+    public void setRiskStatus(String riskStatus) { this.riskStatus = riskStatus; }
+    public LocalDateTime getRiskHandleTime() { return riskHandleTime; }
+    public void setRiskHandleTime(LocalDateTime riskHandleTime) { this.riskHandleTime = riskHandleTime; }
+    public String getRiskHandleDesc() { return riskHandleDesc; }
+    public void setRiskHandleDesc(String riskHandleDesc) { this.riskHandleDesc = riskHandleDesc; }
+    public String getRiskHandleManagerId() { return riskHandleManagerId; }
+    public void setRiskHandleManagerId(String riskHandleManagerId) { this.riskHandleManagerId = riskHandleManagerId; }
     public String getRiskDeviceId() { return riskDeviceId; }
     public void setRiskDeviceId(String riskDeviceId) { this.riskDeviceId = riskDeviceId; }
+    public LocalDateTime getRiskHitTime() { return riskHitTime; }
+    public void setRiskHitTime(LocalDateTime riskHitTime) { this.riskHitTime = riskHitTime; }
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public LocalDateTime getUpdateTime() { return updateTime; }

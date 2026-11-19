@@ -54,6 +54,14 @@ public class RiskManagementController {
     @DeleteMapping("/groups/{groupId}")
     public ResultVO<Void> deleteGroup(@PathVariable Long groupId) { return riskManagementService.deleteGroup(groupId); }
 
+    @GetMapping("/groups/{groupId}/rules")
+    public ResultVO<List<String>> groupRules(@PathVariable Long groupId) { return riskManagementService.listRuleIdsByGroup(groupId); }
+
+    @PutMapping("/groups/{groupId}/rules")
+    public ResultVO<Void> bindGroupRules(@PathVariable Long groupId, @RequestBody List<String> ruleIds) {
+        return riskManagementService.bindRulesToGroup(groupId, ruleIds);
+    }
+
     @GetMapping("/rules")
     public ResultVO<PageInfo<RiskRule>> pageRules(@RequestParam(required = false) String ruleId,
                                                    @RequestParam(required = false) String ruleName,
@@ -78,11 +86,27 @@ public class RiskManagementController {
     public ResultVO<PageInfo<RiskControlLog>> pageControlLogs(@RequestParam(required = false) String cardId,
                                                                @RequestParam(required = false) String userOrderNo,
                                                                @RequestParam(required = false) String ruleId,
+                                                               @RequestParam(required = false) String riskStatus,
                                                                @RequestParam(required = false) String riskHitTimeBegin,
                                                                @RequestParam(required = false) String riskHitTimeEnd,
                                                                @RequestParam(defaultValue = "1") Integer pageNum,
                                                                @RequestParam(defaultValue = "10") Integer pageSize) {
-        return riskManagementService.pageControlLogs(cardId, userOrderNo, ruleId, riskHitTimeBegin, riskHitTimeEnd, pageNum, pageSize);
+        return riskManagementService.pageControlLogs(cardId, userOrderNo, ruleId, riskStatus, riskHitTimeBegin, riskHitTimeEnd, pageNum, pageSize);
+    }
+
+    @PostMapping("/control-logs")
+    public ResultVO<Void> createControlLog(@RequestBody RiskControlLog request) {
+        return riskManagementService.createControlLog(request);
+    }
+
+    @GetMapping("/control-logs/export")
+    public ResultVO<List<RiskControlLog>> exportControlLogs(@RequestParam(required = false) String cardId,
+                                                            @RequestParam(required = false) String userOrderNo,
+                                                            @RequestParam(required = false) String ruleId,
+                                                            @RequestParam(required = false) String riskStatus,
+                                                            @RequestParam(required = false) String riskHitTimeBegin,
+                                                            @RequestParam(required = false) String riskHitTimeEnd) {
+        return riskManagementService.exportControlLogs(cardId, userOrderNo, ruleId, riskStatus, riskHitTimeBegin, riskHitTimeEnd);
     }
 
     @GetMapping("/graylist")

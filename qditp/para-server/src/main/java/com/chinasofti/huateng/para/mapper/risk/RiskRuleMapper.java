@@ -11,11 +11,13 @@ public interface RiskRuleMapper {
     List<RiskRule> selectPage(@Param("ruleId") String ruleId, @Param("ruleName") String ruleName,
                               @Param("groupId") Long groupId);
 
+    List<RiskRule> selectAll();
+
     int insert(RiskRule record);
 
     int update(RiskRule record);
 
     int deleteById(@Param("ruleId") String ruleId);
 
-    int countByGroupId(@Param("groupId") Long groupId);
+    int countById(@Param("ruleId") String ruleId);
 }

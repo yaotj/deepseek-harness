@@ -310,6 +310,14 @@ RPC：`rpc/.../para/ParaClient.java`，路径与 APP 侧接口一一对应
 - para-server / `RiskControlLog` — `para-server/src/main/java/com/chinasofti/huateng/para/entity/risk/RiskControlLog.java`「风险规则命中审计记录，仅供运营端查询。」、「左关联当前规则表得到的规则名称，规则删除后可能为空。」、「风险发生或最后一次命中时间。」
 - para-server / `RiskManagementServiceImpl` 校验口径 — `para-server/src/main/java/com/chinasofti/huateng/para/service/impl/RiskManagementServiceImpl.java`「页面输入统一在此处做裁剪和边界校验，避免风险参数直接依赖数据库异常提示。」、「风险组名称唯一，重复时转为可读的业务错误。」、「删除前先判断规则引用，防止丢失规则归属关系。」、「新建规则时校验编号、等级与非负阈值。」、「规则编号取路径参数，防止请求体篡改主键。」、「删除规则配置；风险控制历史日志不会级联删除。」、「风险命中记录是审计数据，因此只提供查询。」
 - para-server / `RiskRuleMapper.countByGroupId` — `para-server/src/main/java/com/chinasofti/huateng/para/mapper/risk/RiskRuleMapper.java`：「统计风险组的引用规则数，用于删除保护。」
+
+> **⚠️ 2026-11-19 风控三表改造后，上述口径部分作废**（详见 `docs/design/新ITP风控三表需求-2026-11-18.md` §9）：
+> - **规则↔组改为多对多**：新增 `TBL_RISK_GROUP_RULE` 中间表 + `RiskGroupRuleMapper`；`TBL_RISK_RULE.GROUP_ID` 已移除，`RiskRuleMapper.countByGroupId` 改为 `RiskGroupRuleMapper.countByGroupId`（上面那条接口口径已迁移，不再是 RiskRuleMapper 的方法）。删组引用校验改查中间表。
+> - **规则描述**：`RiskRule` 的 `REMARK` 改为 `RULE_DESC`（旧系统 `riskRuleDesc`），实体加 `groupIds` 多选列表。
+> - **风险记录从只读变可写**：`RiskControlLogMapper` 新增 `insert`；Controller 加 `POST /page/risk/control-logs`（写入，自动补规则快照）与 `GET /page/risk/control-logs/export`（后端导出，上限 20000）。"仅允许分页查询"的说法不再成立。
+> - **快照策略**：`TBL_RISK_CONTROL_LOG` 补 `RULE_NAME_SNAP/RULE_DESC_SNAP/RISK_LEVEL_SNAP` 等列；查询用 `NVL(快照, 现查)` 回退，规则删除/改名不影响历史。旧实体里的 `rsikStatus`/`riskHanle*` 拼写死字段已改为正确列名 `riskStatus`/`riskHandle*`。
+> - **风险组**：`TBL_RISK_GROUP` 加 `MANAGER_CODE`（旧系统 `managerId`）。
+
 - para-server / `SingleTicketPurchaseLimitMapper` — `para-server/src/main/java/com/chinasofti/huateng/para/mapper/ticket/SingleTicketPurchaseLimitMapper.java`：「使用版本号更新，防止两个运营人员的修改相互覆盖。」
 - para-server / `OrderRefundCycle` — `para-server/src/main/java/com/chinasofti/huateng/para/entity/ticket/OrderRefundCycle.java`「票卡类型对应的订单自动退款周期参数，周期单位为天。」、「唯一票卡类型，作为该参数的业务主键。」、「自动退款等待周期，单位天。」
 - para-server / `OrderRefundCycleServiceImpl` — `para-server/src/main/java/com/chinasofti/huateng/para/service/impl/OrderRefundCycleServiceImpl.java`「退款周期参数校验与维护实现周期范围由服务层和表约束双重保证。」、「票卡类型为唯一配置键，查询使用精确匹配。」、「更新以路径票卡类型为准，防止请求体修改配置键。」、「删除不存在的配置时返回业务错误，避免误以为删除成功。」、「该范围与 TBL_ORDER_REFUND_CYCLE 的 CHECK 约束保持一致。」

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.para.mapper.risk.RiskGroupRuleMapper">
+    <select id="selectRuleIdsByGroupId" resultType="java.lang.String">
+        SELECT RULE_ID FROM TBL_RISK_GROUP_RULE WHERE GROUP_ID = #{groupId} ORDER BY RULE_ID
+    </select>
+    <select id="selectGroupIdsByRuleId" resultType="java.lang.Long">
+        SELECT GROUP_ID FROM TBL_RISK_GROUP_RULE WHERE RULE_ID = #{ruleId} ORDER BY GROUP_ID
+    </select>
+    <insert id="insert">
+        INSERT INTO TBL_RISK_GROUP_RULE (GROUP_ID, RULE_ID) VALUES (#{groupId,jdbcType=NUMERIC}, #{ruleId,jdbcType=VARCHAR})
+    </insert>
+    <delete id="deleteByGroupId">DELETE FROM TBL_RISK_GROUP_RULE WHERE GROUP_ID = #{groupId}</delete>
+    <delete id="deleteByRuleId">DELETE FROM TBL_RISK_GROUP_RULE WHERE RULE_ID = #{ruleId}</delete>
+    <delete id="deleteByGroupAndRule">DELETE FROM TBL_RISK_GROUP_RULE WHERE GROUP_ID = #{groupId} AND RULE_ID = #{ruleId}</delete>
+    <select id="countByGroupId" resultType="int">SELECT COUNT(1) FROM TBL_RISK_GROUP_RULE WHERE GROUP_ID = #{groupId}</select>
+</mapper>
