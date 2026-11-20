@@ -122,6 +122,25 @@ class AlipayIndustryDetailAssemblerTest {
     }
 
     @Test
+    @DisplayName("普通票 companionFlag=N：cumulativeType=01 正常累计")
+    void normalTicketWithNFlag() {
+        NotifyVerifyResultReqDTO request = normalExitRequest();
+        request.setCompanionFlag("N");
+        JSONObject detail = JSON.parseObject(assembler.assemble(request));
+        assertEquals("N", detail.getString("ticketFlag"));
+        assertEquals("01", detail.getString("cumulativeType"), "同行票标志 N = 普通票 = 01");
+    }
+
+    @Test
+    @DisplayName("companionFlag 为其他非空值（历史数据异常）：按普通票处理 cumulativeType=01")
+    void abnormalCompanionFlagTreatedAsNormal() {
+        NotifyVerifyResultReqDTO request = normalExitRequest();
+        request.setCompanionFlag("X"); // 非标准值，不应触发 03
+        JSONObject detail = JSON.parseObject(assembler.assemble(request));
+        assertEquals("01", detail.getString("cumulativeType"), "只有 Y/C 才是不参与累计，其他值按普通票处理");
+    }
+
+    @Test
     @DisplayName("手机号缺失：phone 置空串、整单 MUST NOT 失败（与 entryDeviceCode 同口径）")
     void missingPhoneFallsBackToBlank() {
         NotifyVerifyResultReqDTO request = normalExitRequest();
@@ -131,6 +150,28 @@ class AlipayIndustryDetailAssemblerTest {
 
         assertEquals("", detail.getString("phone"));
         assertEquals("0426091000000013", detail.getString("cardNum"), "其余键不受影响");
+    }
+
+    @Test
+    @DisplayName("NFC/HCE卡（0442/0443）：cumulativeType=03 不参与累计")
+    void nfcCardShouldReturnCumulativeType03() {
+        NotifyVerifyResultReqDTO request = normalExitRequest();
+        request.setCardType("0442"); // HCE卡
+        JSONObject detail = JSON.parseObject(assembler.assemble(request));
+        assertEquals("03", detail.getString("cumulativeType"), "HCE卡 = 不参与累计");
+
+        request.setCardType("0443"); // 新版HCE卡
+        detail = JSON.parseObject(assembler.assemble(request));
+        assertEquals("03", detail.getString("cumulativeType"), "新版HCE卡 = 不参与累计");
+    }
+
+    @Test
+    @DisplayName("普通二维码卡（0441）：cumulativeType=01 正常累计")
+    void qrCodeCardShouldReturnCumulativeType01() {
+        NotifyVerifyResultReqDTO request = normalExitRequest();
+        request.setCardType("0441"); // 二维码后付费
+        JSONObject detail = JSON.parseObject(assembler.assemble(request));
+        assertEquals("01", detail.getString("cumulativeType"), "二维码卡 = 正常累计");
     }
 
     @Test

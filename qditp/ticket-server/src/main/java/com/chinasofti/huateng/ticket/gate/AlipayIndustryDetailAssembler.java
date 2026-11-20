@@ -2,6 +2,7 @@ package com.chinasofti.huateng.ticket.gate;
 
 import com.alibaba.fastjson2.JSON;
 import com.chinasofti.huateng.model.app.RequestStationLineInfoResult;
+import com.chinasofti.huateng.model.enums.CardTypeCodeEnum;
 import com.chinasofti.huateng.model.enums.IssueChannelCodeEnum;
 import com.chinasofti.huateng.model.ticket.NotifyVerifyResultReqDTO;
 import com.chinasofti.huateng.ticket.entrytxn.EntryTxnQueryService;
@@ -142,7 +143,14 @@ class AlipayIndustryDetailAssembler {
 
 
     private String resolveCumulativeType(NotifyVerifyResultReqDTO request) {
-        if (StringUtils.hasText(request.getCompanionFlag())) {
+        String flag = request.getCompanionFlag();
+        if (flag != null) {
+            String trimmed = flag.trim();
+            if ("Y".equalsIgnoreCase(trimmed) || "C".equalsIgnoreCase(trimmed)) {
+                return "03";
+            }
+        }
+        if (CardTypeCodeEnum.isHceCard(request.getCardType())) {
             return "03";
         }
         return "03".equals(request.getTrxType()) ? "02" : "01";
