@@ -11,6 +11,9 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.Collections;
+import java.util.List;
+
 @Service
 public class OrderRefundCycleServiceImpl implements OrderRefundCycleService {
     private static final int MAX_REFUND_PERIOD_DAYS = 3650;
@@ -74,6 +77,12 @@ public class OrderRefundCycleServiceImpl implements OrderRefundCycleService {
             return ResultMapper.illegalParams("票卡类型不能为空");
         }
         return orderRefundCycleMapper.deleteByTicketType(ticketType.trim()) > 0 ? ResultMapper.ok() : ResultMapper.error("未找到待删除的退款周期配置");
+    }
+
+    @Override
+    public ResultVO<List<String>> listTicketTypes() {
+        List<String> types = orderRefundCycleMapper.selectDistinctTicketTypes();
+        return ResultMapper.ok(types != null ? types : Collections.emptyList());
     }
 
     private String validate(OrderRefundCycle request, boolean requireTicketType) {

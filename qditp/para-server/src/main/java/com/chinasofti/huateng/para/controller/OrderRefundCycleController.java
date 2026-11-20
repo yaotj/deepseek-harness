@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/page/order-refund-cycle")
 public class OrderRefundCycleController {
@@ -43,5 +45,10 @@ public class OrderRefundCycleController {
     @DeleteMapping("/{ticketType}")
     public ResultVO<Void> delete(@PathVariable String ticketType) {
         return orderRefundCycleService.delete(ticketType);
+    }
+
+    @GetMapping("/ticket-types")
+    public ResultVO<List<String>> ticketTypes() {
+        return orderRefundCycleService.listTicketTypes();
     }
 }

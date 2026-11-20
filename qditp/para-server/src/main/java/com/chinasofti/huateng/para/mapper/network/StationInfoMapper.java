@@ -13,4 +13,11 @@ public interface StationInfoMapper {
     int insertBatch(@Param("list") List<StationInfo> list);
 
     List<StationInfo> selectByParaVerNo(@Param("paraVerNo") Long paraVerNo);
+
+    List<StationInfo> selectByParaVerNoAndCondition(
+            @Param("paraVerNo") Long paraVerNo,
+            @Param("ownerLineId") String ownerLineId,
+            @Param("stationCode") String stationCode,
+            @Param("stationNm") String stationNm,
+            @Param("stationENm") String stationENm);
 }

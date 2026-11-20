@@ -1,5 +1,22 @@
 <template>
   <div class="app-container">
+    <el-form :model="queryParams" :inline="true">
+      <el-form-item label="参数类型">
+        <el-select v-model="queryParams.paraTypeName" clearable placeholder="请选择参数类型" style="width: 160px">
+          <el-option label="路网拓扑" value="路网拓扑" />
+          <el-option label="费率" value="费率" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="版本号">
+        <el-input v-model.number="queryParams.versionNo" clearable placeholder="请输入版本号" style="width: 160px"
+                  @keyup.enter="handleQuery" />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
+        <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+      </el-form-item>
+    </el-form>
+
     <el-table v-loading="loading" :data="versionList" border>
       <el-table-column label="序号" width="70" align="center">
         <template #default="scope">
@@ -44,7 +61,12 @@ import { listLineStationVersion } from '@/api/para/lineStationVersion'
 const loading = ref(false)
 const total = ref(0)
 const versionList = ref([])
-const queryParams = reactive({ pageNum: 1, pageSize: 20 })
+const queryParams = reactive({
+  pageNum: 1,
+  pageSize: 20,
+  paraTypeName: '',
+  versionNo: undefined
+})
 
 function formatDateTime(value) {
   return value ? value.replace('T', ' ') : ''
@@ -64,6 +86,18 @@ function getList() {
       total.value = Number(page.total || 0)
     })
     .finally(() => { loading.value = false })
+}
+
+function handleQuery() {
+  queryParams.pageNum = 1
+  getList()
+}
+
+function resetQuery() {
+  queryParams.pageNum = 1
+  queryParams.paraTypeName = ''
+  queryParams.versionNo = undefined
+  getList()
 }
 
 onMounted(getList)

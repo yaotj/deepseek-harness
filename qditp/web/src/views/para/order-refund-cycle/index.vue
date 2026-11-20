@@ -2,7 +2,9 @@
   <div class="app-container">
     <el-form :model="queryParams" :inline="true">
       <el-form-item label="票卡类型" prop="ticketType">
-        <el-input v-model="queryParams.ticketType" placeholder="请输入票卡类型" clearable style="width: 220px" @keyup.enter="handleQuery" />
+        <el-select v-model="queryParams.ticketType" clearable placeholder="请选择票卡类型" style="width: 220px">
+          <el-option v-for="type in ticketTypeOptions" :key="type" :label="type" :value="type" />
+        </el-select>
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
@@ -48,7 +50,9 @@
     <el-dialog v-model="open" :title="title" width="520px" append-to-body destroy-on-close>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="130px">
         <el-form-item label="票卡类型" prop="ticketType">
-          <el-input v-model="form.ticketType" :disabled="isEdit" maxlength="8" placeholder="请输入票卡类型" />
+          <el-select v-model="form.ticketType" :disabled="isEdit" clearable placeholder="请选择票卡类型" style="width: 100%">
+            <el-option v-for="type in ticketTypeOptions" :key="type" :label="type" :value="type" />
+          </el-select>
         </el-form-item>
         <el-form-item label="自动退款周期" prop="autoRefundPeriod">
           <el-input-number v-model="form.autoRefundPeriod" :min="0" :max="3650" :step="1" controls-position="right" />
@@ -67,7 +71,7 @@
 </template>
 
 <script setup name="OrderRefundCycle">
-import { addOrderRefundCycle, delOrderRefundCycle, listOrderRefundCycles, updateOrderRefundCycle } from '@/api/para/orderRefundCycle'
+import { addOrderRefundCycle, delOrderRefundCycle, listOrderRefundCycles, listTicketTypes, updateOrderRefundCycle } from '@/api/para/orderRefundCycle'
 // 票卡类型是退款周期的配置键，编辑时不允许改为另一票卡类型。
 
 const { proxy } = getCurrentInstance()
@@ -78,12 +82,12 @@ const isEdit = ref(false)
 const title = ref('')
 const cycleList = ref([])
 const total = ref(0)
+const ticketTypeOptions = ref([])
 const queryParams = reactive({ ticketType: '', pageNum: 1, pageSize: 10 })
 const form = reactive({ ticketType: '', autoRefundPeriod: 0, remark: '' })
 const rules = {
   ticketType: [
-    { required: true, message: '请输入票卡类型', trigger: 'blur' },
-    { max: 8, message: '票卡类型不能超过 8 个字符', trigger: 'blur' }
+    { required: true, message: '请选择票卡类型', trigger: 'change' }
   ],
   autoRefundPeriod: [
     { required: true, message: '请输入自动退款周期', trigger: 'change' },
@@ -150,7 +154,7 @@ function submitForm() {
 }
 
 function handleDelete(row) {
-  proxy.$modal.confirm(`确认删除票卡类型“${row.ticketType}”的退款周期配置吗？`).then(() => {
+  proxy.$modal.confirm(`确认删除票卡类型"${row.ticketType}"的退款周期配置吗？`).then(() => {
     return delOrderRefundCycle(row.ticketType)
   }).then(() => {
     proxy.$modal.msgSuccess('删除成功')
@@ -158,7 +162,17 @@ function handleDelete(row) {
   }).catch(() => {})
 }
 
-onMounted(getList)
+/** 加载票卡类型下拉选项。 */
+function loadTicketTypeOptions() {
+  listTicketTypes().then((res) => {
+    ticketTypeOptions.value = res.data || []
+  })
+}
+
+onMounted(() => {
+  loadTicketTypeOptions()
+  getList()
+})
 </script>
 
 <style scoped>

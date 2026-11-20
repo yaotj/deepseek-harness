@@ -34,3 +34,11 @@ export function delOrderRefundCycle(ticketType) {
     method: 'delete'
   })
 }
+
+/** 查询已配置的票卡类型列表（用于下拉选项）。 */
+export function listTicketTypes() {
+  return request({
+    url: '/para-server/page/order-refund-cycle/ticket-types',
+    method: 'get'
+  })
+}

@@ -7,9 +7,13 @@ import com.chinasofti.huateng.para.model.LineStationVersion;
 import com.github.pagehelper.PageInfo;
 
 public interface ParaPageService {
-    ResultVO<PageInfo<LineInfo>> pageLineInfo(Integer pageNum, Integer pageSize);
+    ResultVO<PageInfo<LineInfo>> pageLineInfo(Integer pageNum, Integer pageSize,
+                                               String lineCode, String lineNm);
 
-    ResultVO<PageInfo<StationInfo>> pageStationInfo(Integer pageNum, Integer pageSize);
+    ResultVO<PageInfo<StationInfo>> pageStationInfo(Integer pageNum, Integer pageSize,
+                                                     String ownerLineId, String stationCode,
+                                                     String stationNm, String stationENm);
 
-    ResultVO<PageInfo<LineStationVersion>> pageLineStationVersion(Integer pageNum, Integer pageSize);
+    ResultVO<PageInfo<LineStationVersion>> pageLineStationVersion(Integer pageNum, Integer pageSize,
+                                                                   String paraTypeName, Long versionNo);
 }

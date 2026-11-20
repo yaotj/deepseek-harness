@@ -1,5 +1,20 @@
 <template>
   <div class="app-container">
+    <el-form :model="queryParams" :inline="true">
+      <el-form-item label="线路代码">
+        <el-input v-model="queryParams.lineCode" clearable placeholder="请输入线路代码" style="width: 160px"
+                  @keyup.enter="handleQuery" />
+      </el-form-item>
+      <el-form-item label="中文线路名">
+        <el-input v-model="queryParams.lineNm" clearable placeholder="请输入中文线路名" style="width: 200px"
+                  @keyup.enter="handleQuery" />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" icon="Search" @click="handleQuery">查询</el-button>
+        <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+      </el-form-item>
+    </el-form>
+
     <el-table v-loading="loading" :data="lineList" border>
       <el-table-column label="序号" type="index" width="70" align="center">
         <template #default="scope">
@@ -29,7 +44,9 @@ const total = ref(0)
 const lineList = ref([])
 const queryParams = reactive({
   pageNum: 1,
-  pageSize: 10
+  pageSize: 10,
+  lineCode: '',
+  lineNm: ''
 })
 
 /** 查询当前生效路网版本的线路信息。 */
@@ -44,6 +61,18 @@ function getList() {
     .finally(() => {
       loading.value = false
     })
+}
+
+function handleQuery() {
+  queryParams.pageNum = 1
+  getList()
+}
+
+function resetQuery() {
+  queryParams.pageNum = 1
+  queryParams.lineCode = ''
+  queryParams.lineNm = ''
+  getList()
 }
 
 onMounted(getList)

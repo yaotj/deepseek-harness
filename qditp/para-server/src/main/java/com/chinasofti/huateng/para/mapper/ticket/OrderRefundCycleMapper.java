@@ -17,4 +17,6 @@ public interface OrderRefundCycleMapper {
     int update(OrderRefundCycle record);
 
     int deleteByTicketType(@Param("ticketType") String ticketType);
+
+    List<String> selectDistinctTicketTypes();
 }

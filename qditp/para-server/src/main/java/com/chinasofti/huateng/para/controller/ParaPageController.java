@@ -23,21 +23,29 @@ public class ParaPageController {
     @GetMapping("/line-info")
     public ResultVO<PageInfo<LineInfo>> pageLineInfo(
             @RequestParam(defaultValue = "1") Integer pageNum,
-            @RequestParam(defaultValue = "10") Integer pageSize) {
-        return paraPageService.pageLineInfo(pageNum, pageSize);
+            @RequestParam(defaultValue = "10") Integer pageSize,
+            @RequestParam(required = false) String lineCode,
+            @RequestParam(required = false) String lineNm) {
+        return paraPageService.pageLineInfo(pageNum, pageSize, lineCode, lineNm);
     }
 
     @GetMapping("/station-info")
     public ResultVO<PageInfo<StationInfo>> pageStationInfo(
             @RequestParam(defaultValue = "1") Integer pageNum,
-            @RequestParam(defaultValue = "10") Integer pageSize) {
-        return paraPageService.pageStationInfo(pageNum, pageSize);
+            @RequestParam(defaultValue = "10") Integer pageSize,
+            @RequestParam(required = false) String ownerLineId,
+            @RequestParam(required = false) String stationCode,
+            @RequestParam(required = false) String stationNm,
+            @RequestParam(required = false) String stationENm) {
+        return paraPageService.pageStationInfo(pageNum, pageSize, ownerLineId, stationCode, stationNm, stationENm);
     }
 
     @GetMapping("/line-station-version")
     public ResultVO<PageInfo<LineStationVersion>> pageLineStationVersion(
             @RequestParam(defaultValue = "1") Integer pageNum,
-            @RequestParam(defaultValue = "10") Integer pageSize) {
-        return paraPageService.pageLineStationVersion(pageNum, pageSize);
+            @RequestParam(defaultValue = "10") Integer pageSize,
+            @RequestParam(required = false) String paraTypeName,
+            @RequestParam(required = false) Long versionNo) {
+        return paraPageService.pageLineStationVersion(pageNum, pageSize, paraTypeName, versionNo);
     }
 }

@@ -45,4 +45,10 @@
         DELETE FROM TBL_ORDER_REFUND_CYCLE
         WHERE TICKET_TYPE = #{ticketType,jdbcType=VARCHAR}
     </delete>
+
+    <select id="selectDistinctTicketTypes" resultType="java.lang.String">
+        SELECT DISTINCT TICKET_TYPE
+        FROM TBL_ORDER_REFUND_CYCLE
+        ORDER BY TICKET_TYPE
+    </select>
 </mapper>

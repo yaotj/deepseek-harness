@@ -36,36 +36,51 @@ public class ParaPageServiceImpl implements ParaPageService {
     }
 
     @Override
-    public ResultVO<PageInfo<LineInfo>> pageLineInfo(Integer pageNum, Integer pageSize) {
+    public ResultVO<PageInfo<LineInfo>> pageLineInfo(Integer pageNum, Integer pageSize,
+                                                      String lineCode, String lineNm) {
         ParaVersion currentVersion = currentNetworkVersion();
         if (currentVersion == null) {
             return ResultMapper.ok(new PageInfo<>());
         }
         PageInfo<LineInfo> pageInfo = PageHelper.startPage(safePageNum(pageNum), safePageSize(pageSize))
-                .doSelectPageInfo(() -> lineInfoMapper.selectByParaVerNo(currentVersion.getCurrentVerNo()));
+                .doSelectPageInfo(() -> lineInfoMapper.selectByParaVerNoAndCondition(
+                        currentVersion.getCurrentVerNo(), lineCode, lineNm));
         return ResultMapper.ok(pageInfo);
     }
 
     @Override
-    public ResultVO<PageInfo<StationInfo>> pageStationInfo(Integer pageNum, Integer pageSize) {
+    public ResultVO<PageInfo<StationInfo>> pageStationInfo(Integer pageNum, Integer pageSize,
+                                                            String ownerLineId, String stationCode,
+                                                            String stationNm, String stationENm) {
         ParaVersion currentVersion = currentNetworkVersion();
         if (currentVersion == null) {
             return ResultMapper.ok(new PageInfo<>());
         }
         PageInfo<StationInfo> pageInfo = PageHelper.startPage(safePageNum(pageNum), safePageSize(pageSize))
-                .doSelectPageInfo(() -> stationInfoMapper.selectByParaVerNo(currentVersion.getCurrentVerNo()));
+                .doSelectPageInfo(() -> stationInfoMapper.selectByParaVerNoAndCondition(
+                        currentVersion.getCurrentVerNo(), ownerLineId, stationCode, stationNm, stationENm));
         return ResultMapper.ok(pageInfo);
     }
 
     @Override
-    public ResultVO<PageInfo<LineStationVersion>> pageLineStationVersion(Integer pageNum, Integer pageSize) {
+    public ResultVO<PageInfo<LineStationVersion>> pageLineStationVersion(Integer pageNum, Integer pageSize,
+                                                                          String paraTypeName, Long versionNo) {
         int safePageNum = safePageNum(pageNum);
         int safePageSize = safePageSize(pageSize);
+        ParaVersion networkVersion = paraVersionMapper.selectByParaType(NETWORK_PARA_TYPE);
+        ParaVersion rateVersion = paraVersionMapper.selectByParaType(RATE_PARA_TYPE);
+        LineStationVersion networkRow = buildVersionRow("路网拓扑", networkVersion);
+        LineStationVersion rateRow = buildVersionRow("费率", rateVersion);
         List<LineStationVersion> versions = new ArrayList<>();
-        versions.add(buildVersionRow("路网拓扑", paraVersionMapper.selectByParaType(NETWORK_PARA_TYPE)));
-        versions.add(buildVersionRow("费率", paraVersionMapper.selectByParaType(RATE_PARA_TYPE)));
-        versions.removeIf(Objects::isNull);
-
+        if (networkRow != null) versions.add(networkRow);
+        if (rateRow != null) versions.add(rateRow);
+        // 应用筛选
+        if (paraTypeName != null && !paraTypeName.isBlank()) {
+            versions.removeIf(v -> !paraTypeName.equals(v.getParaTypeName()));
+        }
+        if (versionNo != null) {
+            versions.removeIf(v -> v.getVersionNo() == null || !v.getVersionNo().equals(versionNo));
+        }
         List<LineStationVersion> pageRows = safePageNum > 1 ? Collections.emptyList() : versions;
         int total = versions.size();
         PageInfo<LineStationVersion> pageInfo = new PageInfo<>();

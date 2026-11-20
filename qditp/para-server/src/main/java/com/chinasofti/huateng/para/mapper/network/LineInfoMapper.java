@@ -14,4 +14,9 @@ public interface LineInfoMapper {
 
 
     List<LineInfo> selectByParaVerNo(@Param("paraVerNo") Long paraVerNo);
+
+    List<LineInfo> selectByParaVerNoAndCondition(
+            @Param("paraVerNo") Long paraVerNo,
+            @Param("lineCode") String lineCode,
+            @Param("lineNm") String lineNm);
 }

@@ -4,6 +4,8 @@ import com.chinasofti.huateng.common.response.ResultVO;
 import com.chinasofti.huateng.para.entity.ticket.OrderRefundCycle;
 import com.github.pagehelper.PageInfo;
 
+import java.util.List;
+
 public interface OrderRefundCycleService {
     ResultVO<PageInfo<OrderRefundCycle>> page(String ticketType, Integer pageNum, Integer pageSize);
 
@@ -12,4 +14,6 @@ public interface OrderRefundCycleService {
     ResultVO<Void> update(String ticketType, OrderRefundCycle request);
 
     ResultVO<Void> delete(String ticketType);
+
+    ResultVO<List<String>> listTicketTypes();
 }

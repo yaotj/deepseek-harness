@@ -24,4 +24,20 @@
         WHERE PARA_VER_NO = #{paraVerNo,jdbcType=NUMERIC}
         ORDER BY LINE_CODE
     </select>
+
+    <select id="selectByParaVerNoAndCondition" resultType="com.chinasofti.huateng.para.entity.network.LineInfo">
+        SELECT PARA_VER_NO paraVerNo,
+               LINE_CODE lineCode,
+               LINE_NM lineNm,
+               LINE_E_NM lineENm
+        FROM TBL_LINE_INFO
+        WHERE PARA_VER_NO = #{paraVerNo,jdbcType=NUMERIC}
+        <if test="lineCode != null and lineCode != ''">
+            AND LINE_CODE = #{lineCode,jdbcType=VARCHAR}
+        </if>
+        <if test="lineNm != null and lineNm != ''">
+            AND LINE_NM LIKE '%' || #{lineNm,jdbcType=VARCHAR} || '%'
+        </if>
+        ORDER BY LINE_CODE
+    </select>
 </mapper>
