@@ -147,9 +147,10 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
                 String transIn = reply.data() != null ? stringValue(reply.data().get("transIn"), null) : null;
                 updatePayRequestResult(request.getOrderNo(), "RETRY", response, transIn);
 
-                String paymentVendor = request.getPaymentVendor();
-                if (StringUtils.hasText(paymentVendor)
-                        && ("03".equals(paymentVendor) || "05".equals(paymentVendor))) {
+                // 加黑决策统一收口在本方法（IT-087）：不再按 vendor 白名单过滤——
+                // 「支付平台明确业务拒绝」对所有渠道（03/05/07/云闪付…）语义一致，
+                // 真正区分「该不该拉黑」的是方法内的二次确认（SUCCESS 才免黑），MUST 保持。
+                if (StringUtils.hasText(request.getPaymentVendor())) {
                     addBlacklistForPaymentFailure(request, gatewayResponse);
                 }
 
@@ -774,30 +775,48 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
 
     private void addBlacklistForPaymentFailure(RequestPayReqDTO request, PaySignGatewayResponse gatewayResponse) {
         try {
-            String confirmedStatus = queryGatewayPayStatus(request.getOrderNo());
-            if (!"FAIL".equals(confirmedStatus)) {
-                log.warn("支付调用失败但支付中心未确认为失败，跳过拉黑, orderNo={}, cardId={}, paymentVendor={}, 支付中心状态={}, 本次网关code={}, msg={}",
-                        request.getOrderNo(), request.getCardId(), request.getPaymentVendor(), confirmedStatus,
-                        gatewayResponse != null ? gatewayResponse.getCode() : "null",
-                        gatewayResponse != null ? gatewayResponse.getMsg() : "null");
-                return;
+            // 加黑判据以「支付中心真实订单状态」为准（用户 2026-11-20 裁定，IT-087）：
+            //   ① 已结清/已成功（SUCCESS）→ 本次「再次请求被拒」是幂等/重复扣款，钱已付出去，MUST 免黑；
+            //   ② 明确失败未结清（FAIL）或 查无签约/查无此单（业务结论：钱没付成）→ 真欠费，加黑；
+            //   ③ payQuery 未配置 / 异常 / 无应答（技术故障，问不出结果）→ 保守不加黑（宁可漏拉、不误拉已付费用户）。
+            // 三态互斥。MUST NOT 把「技术故障」和「查无签约」混同为 null——那会把该加的 IT-079 场景漏掉。
+            PayConfirmResult confirm = confirmPayStatus(request.getOrderNo());
+            switch (confirm.kind()) {
+                case SUCCESS -> {
+                    log.info("支付中心确认订单已结清（幂等/重复扣款），跳过拉黑, orderNo={}, cardId={}, paymentVendor={}",
+                            request.getOrderNo(), request.getCardId(), request.getPaymentVendor());
+                    return;
+                }
+                case UNKNOWN -> {
+                    log.warn("支付中心未能确认本单状态（技术故障/未配置，事实不明），按保守不加黑, orderNo={}, cardId={}, paymentVendor={}",
+                            request.getOrderNo(), request.getCardId(), request.getPaymentVendor());
+                    return;
+                }
+                case FAIL -> {
+                    // 明确失败（含查无签约/查无数据）→ 继续加黑
+                }
             }
 
             AddBlackListReqDTO blacklistRequest = new AddBlackListReqDTO();
             blacklistRequest.setCardId(request.getCardId());
             blacklistRequest.setCardType(request.getCardType());
             blacklistRequest.setThirdUserId(request.getThirdUserId());
-            blacklistRequest.setChannelCode("99");
+            // 欠费落 GATE_TXN_PAY → 走闸机欠费源，用 01 让 job 230「自动解除」能覆盖（099 口径 99 永解不掉，见 common-services.md §99）
+            blacklistRequest.setChannelCode("01");
             blacklistRequest.setBlackSource("01");
             blacklistRequest.setBlackCause("01");
             blacklistRequest.setBizNo(request.getOrderNo());
             blacklistRequest.setCreateBy("pay-sign-server");
 
+            // REASON 统一带 code+msg，便于人工到支付中心核对（msg 可能缺 code、code 可能缺 msg）
+            Integer gatewayCode = gatewayResponse != null ? gatewayResponse.getCode() : null;
             String gatewayMsg = gatewayResponse != null ? gatewayResponse.getMsg() : null;
-            if (StringUtils.hasText(gatewayMsg)) {
+            if (gatewayCode != null && StringUtils.hasText(gatewayMsg)) {
+                blacklistRequest.setReason("code=" + gatewayCode + "/" + gatewayMsg);
+            } else if (StringUtils.hasText(gatewayMsg)) {
                 blacklistRequest.setReason(gatewayMsg);
             } else {
-                blacklistRequest.setReason("支付中心返回非200, code=" + (gatewayResponse != null ? gatewayResponse.getCode() : "null"));
+                blacklistRequest.setReason("支付中心返回非200, code=" + gatewayCode);
             }
 
             log.warn("支付失败，准备添加黑名单, orderNo={}, cardId={}, paymentVendor={}, gatewayCode={}, gatewayMsg={}",
@@ -814,23 +833,49 @@ public class PaymentDomainServiceImpl implements PaymentDomainService {
         }
     }
 
-    private String queryGatewayPayStatus(String orderNo) {
+    /**
+     * 支付中心真实订单状态三态判定，专供「扣款失败是否加黑」决策（IT-087）。
+     * <ul>
+     *   <li>{@code SUCCESS}：payQuery 明确回已成功/已结清 → 本次是幂等/重复扣款，免黑；</li>
+     *   <li>{@code FAIL}：payQuery 明确回失败，或回「查无数据/查无签约」（业务结论：钱没付成，含 IT-079 签约分叉）→ 加黑；</li>
+     *   <li>{@code UNKNOWN}：payQuery 未配置 / 查询抛异常 / 无任何业务应答（技术故障，问不出结果）→ 保守不加黑。</li>
+     * </ul>
+     * 关键：「查无签约」是 payQuery 的<b>业务应答</b>（raw 非空、code 非成功），MUST 归 FAIL 而非 UNKNOWN——
+     * 否则 IT-079 签约分叉的欠费用户会被漏拉。
+     */
+    private PayConfirmResult confirmPayStatus(String orderNo) {
         if (!StringUtils.hasText(orderNo)) {
-            return null;
+            return new PayConfirmResult(PayConfirmKind.UNKNOWN, null);
         }
         try {
             GatewayReply reply = paymentGatewayPort.queryPayStatus(orderNo);
-            if (!(reply instanceof GatewayReply.Accepted accepted) || accepted.data() == null) {
-                return null;
+            if (reply instanceof GatewayReply.Accepted accepted && accepted.data() != null) {
+                String status = stringValue(accepted.data().get("status"), null);
+                if (!StringUtils.hasText(status)) {
+                    // payQuery 成功应答但未带 status（事实不明）→ 保守
+                    return new PayConfirmResult(PayConfirmKind.UNKNOWN, null);
+                }
+                String normalized = convertPayStatus(status);
+                return "SUCCESS".equals(normalized)
+                        ? new PayConfirmResult(PayConfirmKind.SUCCESS, normalized)
+                        : new PayConfirmResult(PayConfirmKind.FAIL, normalized);
             }
-            String status = stringValue(accepted.data().get("status"), null);
-            if (!StringUtils.hasText(status)) {
-                return null;
+            // Rejected：区分「有业务应答（查无数据/查无签约，raw 非空）」与「技术故障（raw 为 null，如未配置）」
+            if (reply instanceof GatewayReply.Rejected rejected) {
+                if (rejected.raw() != null) {
+                    return new PayConfirmResult(PayConfirmKind.FAIL, rejected.messageOr("支付中心未确认成功"));
+                }
+                return new PayConfirmResult(PayConfirmKind.UNKNOWN, null);
             }
-            return convertPayStatus(status);
+            return new PayConfirmResult(PayConfirmKind.UNKNOWN, null);
         } catch (Exception e) {
-            log.error("查询支付中心支付状态异常，按不拉黑处理, orderNo={}", orderNo, e);
-            return null;
+            log.error("查询支付中心支付状态异常，按事实不明保守处理, orderNo={}", orderNo, e);
+            return new PayConfirmResult(PayConfirmKind.UNKNOWN, null);
         }
+    }
+
+    private enum PayConfirmKind { SUCCESS, FAIL, UNKNOWN }
+
+    private record PayConfirmResult(PayConfirmKind kind, String detail) {
     }
 }
