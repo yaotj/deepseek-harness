@@ -707,7 +707,7 @@
 
 阶段一按「样板」跳过了这个文件的 `@param` / `@return`，但**它们不是样板** —— 参数说明里夹着分区裁剪要求、口径必须同步的对偶方法、返回值的判空与「0 行不等于失败」这类只能靠人记的约定。以下逐条（`mapper/GateTxnPayMapper.java`）：
 
-- **`@param debitRequestResult` 的三值口径**：「null 或空=全部，`"0"`=已扣款成功，`"1"`=未扣款成功。**口径落在 `DEBIT_STATUS` 上，与 `countFailedOrder` 的结清判定一致**」——即 IF8A-05 的「未扣款成功」与解约校验的「未结清」是同一条判据，改一处 MUST 同步另一处。
+- **`@param debitRequestResult` 的三值口径（请求侧筛选）**：「null 或空=全部，`"0"`=已扣款成功，`"1"` 或 `"2"`=未扣款成功（两者等价，`1` 兼容存量 APP）。**口径落在 `DEBIT_STATUS` 上，与 `countFailedOrder` 的结清判定一致**」——即 IF8A-05 的「未扣款成功」与解约校验的「未结清」是同一条判据，改一处 MUST 同步另一处。**响应侧值域与请求侧不同形**（IT-082 阶段三）：响应发 `0` / 空（在途 `INIT`/`PROCESSING`/`RETRY`）/ `2`，**空值 MUST NOT 回传筛选**（请求侧空 = 不过滤，回传等于查全部）。
 - **`@param cardTypeList` 为什么不能用单值**：「非空时按 `CARD_TYPE IN (...)` 过滤并**忽略** `cardType`。**APP 日票聚合码 05 会展开成 0445~0448**，因此不能用单值」。
 - **`selectTransStatistics` 的 `@return` 判空约定**：「**永不为 null**（`COUNT(1)` 保证有一行），但 `SUM()` 在零行时返回 NULL，**调用方 MUST 逐字段判空补 `"0.00"`**」。同一段还写清了**数据源选择的理由**：用 `GATE_TXN_PAY` 而非 `QRCODE_TXN_DETAIL`，因为本表同时有 `ORIGINAL_FARE`（地铁原价）/ `TRX_AMOUNT`（票价）/ `OVERTIME_AMOUNT`（超时加收）/ `TOTAL_AMOUNT`（实付 = 票价 + 超时费）四个量、单表算完不需跨服务合并；「两表的 `TRX_AMOUNT` / `OVERTIME_AMOUNT` **逐行相等**（2026-09-10 LEFT JOIN 8 行核对）」。过滤条件 MUST 与 `countTransList` 同口径，否则统计数与列表条数对不上。
 - **`convergeDebitStatusForSupplement` 的 `@return`：0 行不等于失败**——「调用方 MUST 回查当前状态区分『已被别人收敛（SUCCESS，属重复扣款）』与『状态不在白名单内（需人工）』」。同一处还记着**它是 2026-09-16 从 face-pay-server 迁入的**：「那边原先自己持有一份同形 UPDATE，直写本模块 owner 的表。**NEVER 在 face-pay 侧加回任何对 `GATE_TXN_PAY` 的写语句**」，以及白名单多一个 `FAIL` 的完整理由与「目标状态写死 `SUCCESS`、不做入参」。

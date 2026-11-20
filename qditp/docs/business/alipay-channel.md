@@ -151,10 +151,10 @@
 
 ## 查询乘车记录详情的 `debitRequestResult`（2026-09-14 修复，alipay-pay-sign 1.1.19）
 
-> **现行口径（IT-082，2026-11-19 用户裁定，已改代码）**：对外 `debitRequestResult` 值域由 `0`/`1` 改为 **`0`（线上成功）/ `2`（失败或未收口）**，`1` 当前不产出——旧 ITP 语义 `1`=线下补款人工成功（成功态），新仓暂无该数据来源，故失败不再用 1 兜底。下方 2026-09-14 / 09-20 的 `0`/`1` 描述均为**历史裁决快照**，保留供溯源，以本条为准。请求侧筛选已同步收口（`gate-txn-pay-server/.../GateTxnPayMapper.xml` 的 `Debit_Result_Filter`）：`0`=成功 / `1` 或 `2`=非成功（两者等价，`1` 保留兼容存量 APP），与响应侧同源——回显的 `2` 可直接当筛选入参传回。改动点：`alipay-pay-sign-server/.../PaymentQueryService.mapPayStatusToDebitResult`、`ticket-server/.../TransRecordAssembler.toAppDebitResult`、`trans-query-server/.../TransRecordAssembler.toAppDebitResult`（含活链路 `AlipayTravelQueryHandler.mapDebitStatusToResult`）、`gate-txn-pay-server/.../Debit_Result_Filter`；测试 `TravelDetailDebitResultTest`（7 例）、`TransRecordAssemblerTest`、`AlipayTravelDetailFromGateTxnPayTest`、`GateTxnPayMapperSqlTest`（16 例）。
+> **现行口径（IT-082 阶段三，2026-11-20 用户裁定 + APP 口径确认，已改代码未发版）**：对外 `debitRequestResult` 四态 —— **`0`（线上成功）/ 空（支付中）/ `2`（失败）**，`1` 当前不产出——旧 ITP 语义 `1`=线下补款人工成功（成功态），新仓暂无该数据来源。**「支付中」= `INIT` / `PROCESSING` / `RETRY` 三个在途态，出口 MUST 返回 null**（APP 按「空 = 支付中」渲染；旧 ITP 处理中即「不传值」，R6 响应侧未定值域，发空不违约）；`FAIL` / `CLOSED` / 未知值 / 两侧皆空一律 `2`（fail-closed，NEVER 当支付中兜底，否则脏数据永久转圈）。下方 2026-09-14 / 09-20 的 `0`/`1` 描述均为**历史裁决快照**，保留供溯源，以本条为准。请求侧筛选**未变**（`gate-txn-pay-server/.../GateTxnPayMapper.xml` 的 `Debit_Result_Filter`）：`0`=成功 / `1` 或 `2`=非成功（两者等价，`1` 保留兼容存量 APP），与响应侧同源——回显的 `2` 可直接当筛选入参传回，**但响应里的空值不可回传筛选（请求侧空 = 查全部）**。改动点：`alipay-pay-sign-server/.../PaymentQueryService.mapPayStatusToDebitResult`、`ticket-server/.../TransRecordAssembler.toAppDebitResult`、`trans-query-server/.../TransRecordAssembler.toAppDebitResult`（含活链路 `AlipayTravelQueryHandler.mapDebitStatusToResult`）、`gate-txn-pay-server/.../Debit_Result_Filter`；测试 `TravelDetailDebitResultTest`（8 例）、`TransRecordAssemblerTest`（trans-query 13 例 / ticket-server 2 例）、`AlipayTravelDetailFromGateTxnPayTest`（9 例）、`GateTxnPayMapperSqlTest`（16 例）。
 
-- **值域是对外契约的 `"0"`（扣费成功）/ `"1"`（未成功），NEVER 放渠道文案**。修复前 `PaymentQueryService.findTravelDetail` 填的是 `ALIPAY_PAY_LOG.RESULT_MSG`（如「支付成功」「渠道协议号不能为空,」），支付宝侧按 0/1 解析，**任何文案都被判成非 0 即失败，成功单也显示扣费未成功**。
-- 现在统一走 `payLog.getPayStatus()` → `mapPayStatusToDebitResult`（`SUCCESS` 忽略大小写 → `"0"`，其余含 null → `"1"`）。**同一套映射有三份**：`alipay-pay-sign-server/PaymentQueryService`、`fep-alipay-server/AlipayQueryServiceImpl:236`。跨模块无法复用（AGENTS.md §4.1 禁止新建工具类），**改一处 MUST 看齐其余两处**。
+- **值域是对外契约的 `"0"`（扣费成功）/ 空（支付中）/ `"2"`（未成功），NEVER 放渠道文案**。修复前 `PaymentQueryService.findTravelDetail` 填的是 `ALIPAY_PAY_LOG.RESULT_MSG`（如「支付成功」「渠道协议号不能为空,」），支付宝侧按 0/1 解析，**任何文案都被判成非 0 即失败，成功单也显示扣费未成功**。
+- 现在统一走 `payLog.getPayStatus()` → `mapPayStatusToDebitResult`（`SUCCESS` 忽略大小写 → `"0"`；`INIT`/`PROCESSING`/`RETRY` → `null`（支付中）；`FAIL`/`CLOSED`/null/未知 → `"2"`）。**同一套映射有多份**：`alipay-pay-sign-server/PaymentQueryService`、`fep-alipay-server/AlipayQueryServiceImpl:236`。跨模块无法复用（AGENTS.md §4.1 禁止新建工具类），**改一处 MUST 看齐其余各份**。
 - 该值域与 `PAY_TXN_DETAIL.DEBIT_REQUEST_RESULT` 列的值域（`SUCCESS`/`FAIL`/`PROCESSING`）**同名不同义**，NEVER 混用。闸机后付费侧的权威列是 `GATE_TXN_PAY.DEBIT_STATUS`，`PAY_TXN_DETAIL` 那一列只在前者为空时兜底（`ticket-server/TransRecordAssembler.toAppDebitResult`）。
 - 回归判据（2026-09-14 在 1.1.19 上实测，只读）：`POST /channel/findTravelDetail`，`GT20260727173242368542741`（`PAY_STATUS=SUCCESS`）返 `debitRequestResult="0"`，`GT20260911163450147542741`（`PAY_STATUS=FAIL`）返 `"1"`；单测见 `TravelDetailDebitResultTest`（6 例，含大小写与 null）。
 - ⚠️ **`ALIPAY_PAY_LOG` 没有 `CREATE_TIME` / `UPDATE_TIME` 列**（2026-09-14 查 `USER_TAB_COLS` 实测 31 列）。按时间排序 MUST 用 `TRANS_TIME` 或主键 `PAY_SEQ`；写 `ORDER BY CREATE_TIME` 会被 MCP 报成通用的 `McpToolException cannot be cast to java.util.Map`，看不出是列不存在。另注意 `TRANS_TIME` 是 VARCHAR 且**格式不统一**（存量里既有 `2026-07-28 16:59:55` 也有毫秒时间戳 `1785229085685`），**NEVER 直接当日期比较**。
@@ -414,7 +414,7 @@
 | 25 | `mapper/AlipayPayTxnDetailMapper.xml` | 关联查询 NEVER 去掉 `ORDER BY`；状态白名单 NEVER 把入参写进判断 | 能：前者靠 XML 文本断言；后者断言重复 SUCCESS 回调影响 0 行 |
 | 26 | `mapper/AlipayPayTxnDetailMapper.xml`、`sql/alipay-pay-txn-schema.sql` | 时间过滤 NEVER 退回 `TO_DATE(TRANS_TIME,...)`；最早分区 NEVER 改成 `P202609` | 部分：前者 XML 文本断言；后者只能做 DDL 文本 / `USER_TAB_PARTITIONS` 巡检 |
 | 27 | `mapper/AlipayPayCallbackLogMapper.xml` 等 5 处 XML 注释 | SQL 正文 NEVER 写行/块注释；XML 注释内 NEVER 出现连续两个减号 | 能：CI 里跑 `xmllint --noout` + 正则扫 `<select\|update\|insert>` 正文内的注释符 |
-| 28 | `alipay-pay-sign-server/.../entity/AlipayPayTxnDetail.java` | 新表金额 NEVER 改回 String；库内 `DEBIT_REQUEST_RESULT` 与对外 `debitRequestResult` NEVER 混用 | 能：反射断言字段类型为 `Integer`；值域断言分别 ∈ {PROCESSING,SUCCESS,FAIL} 与 {"0","1"} |
+| 28 | `alipay-pay-sign-server/.../entity/AlipayPayTxnDetail.java` | 新表金额 NEVER 改回 String；库内 `DEBIT_REQUEST_RESULT` 与对外 `debitRequestResult` NEVER 混用 | 能：反射断言字段类型为 `Integer`；值域断言分别 ∈ {PROCESSING,SUCCESS,FAIL} 与 {"0",null,"2"} |
 | 29 | `alipay-pay-sign-server/.../entity/AlipayRefundTxnDetail.java` | 退款 `txnDate` NEVER 复用原支付单日期；拿不到应答 NEVER 置 FAIL | 能：跨零点用例断言两个 txnDate 可不同；后者同第 11 条 |
 | 30 | `alipay-pay-sign-server/src/main/resources/application.properties` | NEVER 删 `OtlpAutoConfiguration` 排除行 | 能：断言该键值包含 `OtlpAutoConfiguration` |
 | 31 | `alipay-pay-sign-server/src/main/resources/sql/alipay-pay-txn-schema.sql` | NEVER 整段重跑本脚本；NEVER 为迁就 MCP 去掉分区或 LOCAL | 难：属操作纪律，只能巡检 `USER_TAB_PARTITIONS` / `USER_INDEXES.PARTITIONED` |
@@ -593,7 +593,7 @@ grep 锚点：`sql/alipay-pay-txn-schema.sql`、`sql/alipay-pay-txn-detail-rebui
 #### 1.11 单测钉住的两条不变量
 
 - `PayNotifyDebitStatusSyncTest`：钉住扣费回调的收敛口 —— 结果只写 `GATE_TXN_PAY.DEBIT_STATUS`，**NEVER 回退成读写 `ALIPAY_PAY_LOG`**（该表已停写，双写会让两边状态分叉）。
-- `TravelDetailDebitResultTest`：钉住 IF8A「查询乘车记录详情」的 `debitRequestResult` 值域只能 `"0"` / `"1"`。**上线前该字段填的就是 `RESULT_MSG`**，支付宝按 0/1 解析时成功单也显示扣费未成功。
+- `TravelDetailDebitResultTest`：钉住 IF8A「查询乘车记录详情」的 `debitRequestResult` 值域只能是 `"0"` / 空（支付中）/ `"2"`。**上线前该字段填的就是 `RESULT_MSG`**，支付宝按 0/1 解析时成功单也显示扣费未成功。
 
 ### 二、alipay-account-server
 

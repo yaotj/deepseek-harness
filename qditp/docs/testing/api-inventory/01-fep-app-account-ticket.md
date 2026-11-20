@@ -525,7 +525,7 @@
 | tradeOrderNo | String | 交易订单号 |
 | payTradeOrderNo | String | 支付交易订单号 |
 | payOrderNoDate | String | 支付订单日期 |
-| debitRequestResult | String | 扣款结果 |
+| debitRequestResult | String | 扣款结果（响应）：`0` 线上成功 / **空 = 支付中**（`INIT`/`PROCESSING`/`RETRY`）/ `2` 失败；`1` 当前不产出（IT-082 阶段三）。**空值不可回传做筛选**（请求侧空 = 查全部） |
 | discountFee | Integer | 优惠金额 |
 | discountInfo | String | 优惠信息 |
 | companionFlag | String | 同行标志 |
