@@ -108,7 +108,11 @@ def bump_pom(pom_dir: Path, kind: str, dry_run: bool, spring_boot: str = "3.2.6"
     pom_file = pom_dir / "pom.xml"
     if not pom_file.exists():
         raise OpsError(f"找不到 pom.xml：{pom_file}", EXIT_PRECONDITION)
-    raw = pom_file.read_text(encoding="utf-8")
+    # newline="" 保留原始换行符：仓库里 alipay-pay-sign-server / trans-query-server 的 pom 是 CRLF，
+    # 默认 read_text/write_text 走通用换行会把整份文件悄悄改成 LF，SVN/git 上表现为「整个文件被改」。
+    # 2026-11-20 发 ticket / trans-query / alipay 三个服务时实测踩到，只能手工再转回 CRLF。
+    with pom_file.open("r", encoding="utf-8", newline="") as fh:
+        raw = fh.read()
     m = re.search(r"<version>([^<]+)</version>", raw)
     if not m:
         raise OpsError(f"{pom_file} 没有 <version> 字段", EXIT_EXEC)
@@ -129,7 +133,8 @@ def bump_pom(pom_dir: Path, kind: str, dry_run: bool, spring_boot: str = "3.2.6"
     if dry_run:
         ui.out(f"  [dry-run] {pom_file}: {old} → {new}")
     else:
-        pom_file.write_text(new_raw, encoding="utf-8")
+        with pom_file.open("w", encoding="utf-8", newline="") as fh:
+            fh.write(new_raw)
         ui.out(f"  ✓ {pom_file}: {old} → {new}  (sb={spring_boot})")
     return new
 

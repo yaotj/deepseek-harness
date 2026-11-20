@@ -54,6 +54,28 @@ class BumpFileTest(unittest.TestCase):
             self.assertIn("<version>2.1.5</version>", text)
             self.assertIn("<parent><version>3.2.6</version></parent>", text)
 
+    def test_pom_bump_keeps_crlf(self):
+        """CRLF 的 pom MUST 原样保留换行符，NEVER 被改写成 LF。
+
+        仓库里 alipay-pay-sign-server / trans-query-server 的 pom 是 CRLF；
+        若 bump 把整份文件改成 LF，SVN/git 上会显示「整个文件被改」，
+        2026-11-20 发这三个服务时实测踩到，只能手工转回。
+        """
+        with tempfile.TemporaryDirectory() as td:
+            d = Path(td)
+            pom = d / "pom.xml"
+            pom.write_bytes(
+                b"<project>\r\n<version>1.0.32</version>\r\n"
+                b"<parent><version>3.2.6</version></parent>\r\n</project>\r\n"
+            )
+            with redirect_stdout(io.StringIO()):
+                new = bump.bump_pom(d, "normal", False)
+            raw = pom.read_bytes()
+            self.assertEqual(new, "1.0.33")
+            self.assertIn(b"<version>1.0.33</version>", raw)
+            self.assertEqual(raw.count(b"\r\n"), 4, "CRLF 行数 MUST 不变")
+            self.assertNotIn(b"\n", raw.replace(b"\r\n", b""), "NEVER 出现裸 LF")
+
     def test_package_json_bump(self):
         with tempfile.TemporaryDirectory() as td:
             d = Path(td)
