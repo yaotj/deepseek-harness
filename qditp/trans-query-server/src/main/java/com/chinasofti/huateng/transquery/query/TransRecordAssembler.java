@@ -84,7 +84,21 @@ public class TransRecordAssembler {
     static String toAppDebitResult(String gateDebitStatus, String payDebitRequestResult) {
         String authoritative = gateDebitStatus != null && !gateDebitStatus.isBlank()
                 ? gateDebitStatus : payDebitRequestResult;
-        return "SUCCESS".equals(authoritative) ? "0" : "1";
+        // IT-082 阶段三（2026-11-20 用户裁定，APP 侧口径已确认）：对外四态 ——
+        // 0=线上扣款成功、1=线下补款人工成功（暂不产出）、空=支付中、其他一律失败。
+        // 「支付中」MUST 返回 null（JSON 里该字段为 null，等同旧 ITP 的「不传值」），
+        // NEVER 用 1 / 3 / 占位串表达在途态 —— APP 把 1 当成功态、把非空非 0/1 一律判失败。
+        // 在途白名单只有 INIT / PROCESSING / RETRY 三个；CLOSED 与未知值 MUST 落 2，
+        // NEVER 反过来按「支付中」兜底 —— 那会让一条没有定论的脏数据在 APP 上永远显示「支付中」。
+        // 本方法与 ticket-server 同名方法 MUST 逐字一致（跨模块不能复用，见 AGENTS.md §4.1）。
+        if (authoritative == null || authoritative.isBlank()) {
+            return "2";
+        }
+        return switch (authoritative) {
+            case "SUCCESS" -> "0";
+            case "INIT", "PROCESSING", "RETRY" -> null;
+            default -> "2";
+        };
     }
 
     private static String toFen(Integer fen) {

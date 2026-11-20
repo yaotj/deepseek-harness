@@ -341,6 +341,21 @@ public class PaymentQueryService {
     }
 
     private String mapPayStatusToDebitResult(String payStatus) {
-        return "SUCCESS".equalsIgnoreCase(payStatus) ? "0" : "1";
+        // IT-082 阶段三：对外四态 0=线上成功 / 1=线下补款人工成功（暂不产出）/ 空=支付中 / 其他=失败。
+        // 入参只有 ALIPAY_PAY_LOG.PAY_STATUS；在途白名单与 trans-query / ticket-server 的
+        // TransRecordAssembler.toAppDebitResult 一致，改一处 MUST 同批改那两处。
+        // 「支付中」MUST 返回 null，NEVER 用 1 / 3 / 占位串（APP 把 1 当成功态）。
+        String status = payStatus == null ? "" : payStatus.trim();
+        if (status.isEmpty() || "CLOSED".equalsIgnoreCase(status)) {
+            return "2";
+        }
+        if ("SUCCESS".equalsIgnoreCase(status)) {
+            return "0";
+        }
+        if ("INIT".equalsIgnoreCase(status) || "PROCESSING".equalsIgnoreCase(status)
+                || "RETRY".equalsIgnoreCase(status)) {
+            return null;
+        }
+        return "2";
     }
 }

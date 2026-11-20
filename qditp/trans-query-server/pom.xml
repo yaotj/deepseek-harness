@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.chinasofti.huateng</groupId>
     <artifactId>trans-query-server</artifactId>
-    <version>1.0.31</version>
+    <version>1.0.32</version>
     <packaging>jar</packaging>
 
     <parent>

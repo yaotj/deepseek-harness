@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -39,21 +41,36 @@ class TravelDetailDebitResultTest {
     }
 
     @Test
-    void failPayStatusIsMappedToOne() {
-        assertEquals("1", debitResultOf("FAIL", "余额不足"),
-                "扣费失败 MUST 返 \"1\"");
+    void failPayStatusIsMappedToTwo() {
+        assertEquals("2", debitResultOf("FAIL", "余额不足"),
+                "IT-082：扣费失败 MUST 返 \"2\"，NEVER 用 \"1\"（旧语义是线下补款人工成功）");
     }
 
     @Test
-    void processingPayStatusIsMappedToOne() {
-        assertEquals("1", debitResultOf("PROCESSING", "处理中"),
-                "未收口的单 MUST 返 \"1\"，NEVER 提前报成功");
+    void processingPayStatusLeavesResultEmpty() {
+        assertNull(debitResultOf("PROCESSING", "处理中"),
+                "IT-082 阶段三：在途 MUST 返 null（APP 按「空 = 支付中」渲染），NEVER 提前报失败");
     }
 
     @Test
-    void nullPayStatusIsMappedToOne() {
-        assertEquals("1", debitResultOf(null, null),
-                "状态缺失 MUST 保守返 \"1\"，且 NEVER NPE");
+    void retryAndInitPayStatusAlsoLeaveResultEmpty() {
+        assertNull(debitResultOf("RETRY", null), "补偿重试中的单没有定论，MUST 按支付中");
+        assertNull(debitResultOf("INIT", null), "已落单未发起扣款 MUST 按支付中");
+    }
+
+    @Test
+    void nullPayStatusIsMappedToTwo() {
+        assertEquals("2", debitResultOf(null, null),
+                "IT-082：状态缺失属脏数据 MUST 保守返 \"2\"，NEVER 当成支付中永久转圈");
+    }
+
+    @Test
+    void IT082对外扣款结果只产出0空2且永不产出1和3() {
+        for (String status : new String[]{"SUCCESS", "FAIL", "PROCESSING", "RETRY", "INIT", "CLOSED", null, "", "UNKNOWN"}) {
+            String result = debitResultOf(status, "任意文案");
+            assertTrue(result == null || "0".equals(result) || "2".equals(result),
+                    () -> "payStatus=" + status + " 时只允许 0 / 空 / 2，实得 " + result);
+        }
     }
 
     @Test

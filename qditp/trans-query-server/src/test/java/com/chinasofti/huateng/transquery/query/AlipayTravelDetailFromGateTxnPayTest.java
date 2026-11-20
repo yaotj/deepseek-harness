@@ -116,6 +116,19 @@ class AlipayTravelDetailFromGateTxnPayTest {
     }
 
     @Test
+    void inFlightGateStatusLeavesDebitResultEmpty() {
+        GateTxnPayListDTO order = order();
+        order.setDebitStatus("PROCESSING");
+        when(gateTxnPayClient.queryByOrderNo("GT001")).thenReturn(order);
+        when(alipayPaySignClient.queryPayTxnBrief(anyList())).thenReturn(List.of());
+
+        AlipayTripTravelDetailDTO detail = handler.findTravelDetail(request("GT001")).getData();
+
+        assertNull(detail.getDebitRequestResult(),
+                "IT-082 阶段三：闸机侧在途 MUST 返 null（APP 按「空 = 支付中」渲染）");
+    }
+
+    @Test
     void missingBriefLeavesPaySideEmptyAndDebitResultStillFromGate() {
         GateTxnPayListDTO order = order();
         order.setDebitStatus("FAIL");
@@ -124,7 +137,8 @@ class AlipayTravelDetailFromGateTxnPayTest {
 
         AlipayTripTravelDetailDTO detail = handler.findTravelDetail(request("GT001")).getData();
 
-        assertEquals("1", detail.getDebitRequestResult());
+        assertEquals("2", detail.getDebitRequestResult(),
+                "IT-082：闸机侧 FAIL 对外返 2，NEVER 用 1（旧语义是线下补款人工成功）");
         assertNull(detail.getPayTradeOrderNo());
         assertNull(detail.getPayOrderNoDate());
         assertNull(detail.getInvoice());

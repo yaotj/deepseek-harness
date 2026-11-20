@@ -339,6 +339,21 @@ public class AlipayTravelQueryHandler {
 
 
     private String mapDebitStatusToResult(String debitStatus) {
-        return "SUCCESS".equalsIgnoreCase(debitStatus) ? "0" : "1";
+        // IT-082 阶段三：对外四态 0=线上成功 / 1=线下补款人工成功（暂不产出）/ 空=支付中 / 其他=失败。
+        // 本方法为支付宝出行活链路（列表 181 行 + 详情 280 行）共用出口；
+        // 入参只有 GATE_TXN_PAY.DEBIT_STATUS，在途白名单与 TransRecordAssembler 同名方法一致。
+        // 「支付中」MUST 返回 null，NEVER 用 1 / 3 / 占位串（APP 把 1 当成功态）。
+        String status = debitStatus == null ? "" : debitStatus.trim();
+        if (status.isEmpty() || "CLOSED".equalsIgnoreCase(status)) {
+            return "2";
+        }
+        if ("SUCCESS".equalsIgnoreCase(status)) {
+            return "0";
+        }
+        if ("INIT".equalsIgnoreCase(status) || "PROCESSING".equalsIgnoreCase(status)
+                || "RETRY".equalsIgnoreCase(status)) {
+            return null;
+        }
+        return "2";
     }
 }

@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TransRecordAssemblerTest {
 
@@ -40,14 +41,48 @@ class TransRecordAssemblerTest {
     }
 
     @Test
-    void 扣款结果以闸机侧为准仅SUCCESS映射为0() {
+    void 扣款结果以闸机侧为准成功映射0在途映射空其余映射2() {
         assertEquals("0", TransRecordAssembler.toAppDebitResult("SUCCESS", null));
-        assertEquals("1", TransRecordAssembler.toAppDebitResult("FAIL", null));
-        assertEquals("1", TransRecordAssembler.toAppDebitResult("PROCESSING", null));
+        assertEquals("2", TransRecordAssembler.toAppDebitResult("FAIL", null));
+        assertNull(TransRecordAssembler.toAppDebitResult("PROCESSING", null),
+                "IT-082 阶段三：在途 MUST 返 null（APP 按「空 = 支付中」渲染）");
+        assertNull(TransRecordAssembler.toAppDebitResult("RETRY", null),
+                "补偿重试中的单同样没有定论，MUST 按支付中");
+        assertNull(TransRecordAssembler.toAppDebitResult("INIT", null),
+                "已落单未发起扣款 MUST 按支付中");
+        assertEquals("2", TransRecordAssembler.toAppDebitResult("CLOSED", null),
+                "关单是终态失败，NEVER 当支付中，否则 APP 永远转圈");
+        assertEquals("2", TransRecordAssembler.toAppDebitResult("UNKNOWN", null),
+                "未知值 MUST fail-closed 落 2，NEVER 按支付中兜底");
         assertEquals("0", TransRecordAssembler.toAppDebitResult("SUCCESS", "FAIL"));
         assertEquals("0", TransRecordAssembler.toAppDebitResult(null, "SUCCESS"));
         assertEquals("0", TransRecordAssembler.toAppDebitResult("  ", "SUCCESS"));
-        assertEquals("1", TransRecordAssembler.toAppDebitResult(null, null));
+        assertNull(TransRecordAssembler.toAppDebitResult(null, "PROCESSING"));
+        assertEquals("2", TransRecordAssembler.toAppDebitResult(null, null));
+    }
+
+    @Test
+    void IT082对外扣款结果只产出0空2且永不产出1和3() {
+        // 旧 ITP 的 1=线下补款人工成功（成功态）、空=支付中；新仓暂无补款数据来源，1 不产出。
+        // APP 侧口径：0 成功、1 线下补款（成功）、空 支付中、其他一律失败。
+        String[] authoritativeStatuses = {"SUCCESS", "FAIL", "PROCESSING", "RETRY", "INIT", "CLOSED",
+                null, "", "  ", "UNKNOWN"};
+        for (String status : authoritativeStatuses) {
+            String result = TransRecordAssembler.toAppDebitResult(status, null);
+            assertTrue(result == null || "0".equals(result) || "2".equals(result),
+                    () -> "status=" + status + " 时只允许 0 / 空 / 2，实得 " + result);
+        }
+    }
+
+    @Test
+    void 闸机侧在途时整条记录不带扣款结果() {
+        GateTxnPayListDTO gate = gate();
+        gate.setDebitStatus("PROCESSING");
+
+        TransRecordDTO dto = TransRecordAssembler.assemble(gate, pay());
+
+        assertNull(dto.getDebitRequestResult(),
+                "闸机侧在途 MUST 覆盖支付明细的 SUCCESS，按「支付中」输出");
     }
 
     @Test
