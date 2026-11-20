@@ -8,6 +8,7 @@ import com.chinasofti.huateng.gatetxnpay.mapper.GateTxnPayMapper;
 import com.chinasofti.huateng.gatetxnpay.model.page.OfflineCodeStatView;
 import com.chinasofti.huateng.gatetxnpay.service.GateTxnPayQueryService;
 import com.chinasofti.huateng.model.app.CardUnsettledQueryRespDTO;
+import com.chinasofti.huateng.model.app.CardFailedCountRespDTO;
 import com.chinasofti.huateng.model.app.QueryActiveCardsReqDTO;
 import com.chinasofti.huateng.model.app.QueryActiveCardsResult;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
@@ -208,6 +209,24 @@ public class GateTxnPayQueryServiceImpl implements GateTxnPayQueryService {
         response.setResultMsg("成功");
         response.setHasUnsettled(count > 0);
         log.info("按卡查询未结清扣费订单完成, cardId={}, count={}", cardId, count);
+        return response;
+    }
+
+    @Override
+    public CardFailedCountRespDTO countFailedOrderByCard(String cardId) {
+        CardFailedCountRespDTO response = new CardFailedCountRespDTO();
+        if (!StringUtils.hasText(cardId)) {
+            log.warn("按卡统计扣费失败订单参数缺失, cardId={}", cardId);
+            response.setResultCode(RESULT_CODE_INVALID_PARAM);
+            response.setResultMsg("按卡统计扣费失败订单参数缺失");
+            response.setFailedCount(0);
+            return response;
+        }
+        int count = gateTxnPayMapper.countFailedOrderByCardId(cardId.trim());
+        response.setResultCode(RESULT_CODE_SUCCESS);
+        response.setResultMsg("成功");
+        response.setFailedCount(count);
+        log.info("按卡统计扣费失败订单完成, cardId={}, count={}", cardId, count);
         return response;
     }
 

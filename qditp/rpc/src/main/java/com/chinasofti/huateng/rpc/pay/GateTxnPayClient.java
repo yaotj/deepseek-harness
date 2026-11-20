@@ -7,6 +7,7 @@ import com.chinasofti.huateng.common.response.CommonResult;
 import com.chinasofti.huateng.micro.web.client.ProxyWebClient;
 import com.chinasofti.huateng.model.app.CardUnsettledQueryReqDTO;
 import com.chinasofti.huateng.model.app.CardUnsettledQueryRespDTO;
+import com.chinasofti.huateng.model.app.CardFailedCountRespDTO;
 import com.chinasofti.huateng.model.app.QueryTransListReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
@@ -73,6 +74,13 @@ public class GateTxnPayClient extends ProxyWebClient {
     public CardUnsettledQueryRespDTO hasUnsettledOrderByCard(@RequestBody CardUnsettledQueryReqDTO request) {
         String result = postJsonAndGetResponse("/ci/gateTxnPay/hasUnsettledOrderByCard", request);
         return JSONUtil.toBean(result, new TypeReference<CardUnsettledQueryRespDTO>() {
+        }, true);
+    }
+
+
+    public CardFailedCountRespDTO countFailedOrderByCard(@RequestBody CardUnsettledQueryReqDTO request) {
+        String result = postJsonAndGetResponse("/ci/gateTxnPay/countFailedOrderByCard", request);
+        return JSONUtil.toBean(result, new TypeReference<CardFailedCountRespDTO>() {
         }, true);
     }
 

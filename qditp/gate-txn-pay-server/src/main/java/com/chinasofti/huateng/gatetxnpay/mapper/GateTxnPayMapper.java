@@ -149,6 +149,8 @@ public interface GateTxnPayMapper {
 
     int countUnsettledOrderByCardId(@Param("cardId") String cardId);
 
+    int countFailedOrderByCardId(@Param("cardId") String cardId);
+
     RequestUserAccInfoResult countUserAccInfo(@Param("thirdUserId") String thirdUserId,
                                              @Param("startDate") String startDate);
 

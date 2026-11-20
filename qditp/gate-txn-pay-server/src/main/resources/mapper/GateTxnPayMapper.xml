@@ -456,14 +456,17 @@
           AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
     </select>
 
-    <!-- IF8A-05 请求参数 debitRequestResult 的过滤片段：空=全部，0=成功，1=失败（规范 R6 表13）。 -->
+    <!-- IF8A-05 请求参数 debitRequestResult 的过滤片段：空=全部，0=成功，1=失败，2=失败（IT-082 收口）。
+         1 是历史请求侧值（未扣款成功），存量 APP 仍在用，MUST 保留；2 是对外响应侧失败码（IT-082），
+         加 2 分支是为让「响应回显的 2 直接当筛选入参传回」仍能正确命中失败单，不再静默不过滤返全量。
+         注意：响应侧当前只发 0/2（不产出 1），但请求侧 1 与 2 语义等价、都筛非成功，两侧筛选口径已同源。 -->
     <sql id="Debit_Result_Filter">
         <if test='debitRequestResult != null and debitRequestResult != ""'>
             <choose>
                 <when test='debitRequestResult == "0"'>
                     AND DEBIT_STATUS = 'SUCCESS'
                 </when>
-                <when test='debitRequestResult == "1"'>
+                <when test='debitRequestResult == "1" or debitRequestResult == "2"'>
                     AND (DEBIT_STATUS IS NULL OR DEBIT_STATUS != 'SUCCESS')
                 </when>
             </choose>
@@ -619,6 +622,15 @@
         FROM GATE_TXN_PAY
         WHERE CARD_ID = #{cardId,jdbcType=VARCHAR}
           AND (DEBIT_STATUS IS NULL OR DEBIT_STATUS != 'SUCCESS')
+    </select>
+
+    <!-- 按 cardId 统计扣费失败订单数（FAIL/RETRY，全量、不分渠道、无时间窗口），供 blacklist queryBlackList 回填 failedCount（IT-087）。
+         白名单口径与 IF8A-35 countUserAccInfo 的 FAILURE_COUNT 同源（FAIL/RETRY），但按 cardId 且无账期窗口。 -->
+    <select id="countFailedOrderByCardId" resultType="java.lang.Integer">
+        SELECT COUNT(1)
+        FROM GATE_TXN_PAY
+        WHERE CARD_ID = #{cardId,jdbcType=VARCHAR}
+          AND DEBIT_STATUS IN ('FAIL', 'RETRY')
     </select>
 
     <resultMap id="UserAccInfoResultMap" type="com.chinasofti.huateng.model.app.RequestUserAccInfoResult">

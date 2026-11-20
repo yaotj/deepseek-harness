@@ -4,6 +4,7 @@ import com.chinasofti.huateng.gatetxnpay.service.GateTxnPayQueryService;
 import com.chinasofti.huateng.gatetxnpay.service.GateTxnPayService;
 import com.chinasofti.huateng.model.app.CardUnsettledQueryReqDTO;
 import com.chinasofti.huateng.model.app.CardUnsettledQueryRespDTO;
+import com.chinasofti.huateng.model.app.CardFailedCountRespDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayFailedOrderReqDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayFailedOrderRespDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayReqDTO;
@@ -73,6 +74,15 @@ public class GateTxnPayController {
         CardUnsettledQueryRespDTO response = gateTxnPayQueryService.hasUnsettledOrderByCard(
                 request != null ? request.getCardId() : null);
         log.info("按卡查询未结清扣费订单完成, 返回={}", response);
+        return response;
+    }
+
+    @PostMapping("/countFailedOrderByCard")
+    public CardFailedCountRespDTO countFailedOrderByCard(@RequestBody CardUnsettledQueryReqDTO request) {
+        log.info("按卡统计扣费失败订单, cardId={}", request != null ? request.getCardId() : null);
+        CardFailedCountRespDTO response = gateTxnPayQueryService.countFailedOrderByCard(
+                request != null ? request.getCardId() : null);
+        log.info("按卡统计扣费失败订单完成, 返回={}", response);
         return response;
     }
 

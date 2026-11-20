@@ -2,6 +2,7 @@ package com.chinasofti.huateng.gatetxnpay.service;
 
 import com.chinasofti.huateng.common.response.ResultVO;
 import com.chinasofti.huateng.model.app.CardUnsettledQueryRespDTO;
+import com.chinasofti.huateng.model.app.CardFailedCountRespDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsReqDTO;
 import com.chinasofti.huateng.model.app.RequestTransStatisticsResult;
 import com.chinasofti.huateng.model.app.RequestUserAccInfoReqDTO;
@@ -54,6 +55,8 @@ public interface GateTxnPayQueryService {
                                                 @Param("requestTime") LocalDateTime requestTime);
 
     CardUnsettledQueryRespDTO hasUnsettledOrderByCard(@Param("cardId") String cardId);
+
+    CardFailedCountRespDTO countFailedOrderByCard(@Param("cardId") String cardId);
 
     ResultVO<Map<String, Object>> offlineStats(String startDate, String endDate);
 

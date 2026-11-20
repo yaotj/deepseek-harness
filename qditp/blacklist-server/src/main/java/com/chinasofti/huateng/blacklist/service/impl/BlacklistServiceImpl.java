@@ -59,6 +59,9 @@ public class BlacklistServiceImpl implements BlacklistService {
     private BlacklistOperateLogMapper blacklistOperateLogMapper;
 
     @Autowired
+    private com.chinasofti.huateng.rpc.pay.GateTxnPayClient gateTxnPayClient;
+
+    @Autowired
     private WebClient.Builder webClientBuilder;
 
     @Value("${app.notify.blacklist-url:}")
@@ -100,10 +103,41 @@ public class BlacklistServiceImpl implements BlacklistService {
         }
 
         int blackCount = blacklistMapper.countByCardIds(cardIds);
+        boolean inBlack = blackCount > 0;
         result.setRetCode(BlacklistErrorCodeEnum.SUCCESS.getCode());
         result.setRetMsg("成功");
-        result.setInBlack(blackCount > 0 ? "1" : "0");
+        result.setInBlack(inBlack ? "1" : "0");
+        // IT-087：仅 inBlack=1 时回填该卡扣费失败订单数（按 cardId 全量 FAIL/RETRY，经 rpc 查 gate-txn-pay）；
+        // 非黑名单卡 failedCount 保持 0。查询失败/异常 fail-safe 回落 0，NEVER 让黑名单查询因此报错。
+        if (inBlack) {
+            result.setFailedCount(queryFailedCount(cardIds));
+        }
         return result;
+    }
+
+    /**
+     * 经 rpc 向 gate-txn-pay 查该卡扣费失败订单数（FAIL/RETRY）。
+     * 仅 inBlack=1 时调用；查询无成功应答 / 异常 → 回落 0（fail-safe），MUST NOT 抛给上层。
+     */
+    private int queryFailedCount(List<String> cardIds) {
+        int total = 0;
+        for (String cardId : cardIds) {
+            try {
+                com.chinasofti.huateng.model.app.CardUnsettledQueryReqDTO req =
+                        new com.chinasofti.huateng.model.app.CardUnsettledQueryReqDTO();
+                req.setCardId(cardId);
+                com.chinasofti.huateng.model.app.CardFailedCountRespDTO resp = gateTxnPayClient.countFailedOrderByCard(req);
+                if (resp != null && "0000".equals(resp.getResultCode())) {
+                    total += resp.getFailedCount();
+                } else {
+                    log.warn("查扣费失败数：gate-txn-pay 未答成功，按 0 处理, cardId={}, resp={}",
+                            cardId, resp == null ? "null" : resp.getResultCode());
+                }
+            } catch (Exception e) {
+                log.error("查扣费失败数：rpc 异常，按 0 处理, cardId={}", cardId, e);
+            }
+        }
+        return total;
     }
 
 
