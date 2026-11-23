@@ -25,6 +25,9 @@ public class BlacklistChannelSyncService {
 
     private static final String ROW_STATUS_RELEASING = "RELEASING";
 
+    /** 地铁App渠道代码：解黑通过 HCE 文件同步，无需实时通知支付宝。 */
+    private static final String CHANNEL_CODE_METRO_APP = "01";
+
     private static final int FAIL_REASON_MAX = 500;
 
     private final BlacklistMapper blacklistMapper;
@@ -110,6 +113,16 @@ public class BlacklistChannelSyncService {
 
 
     private boolean deliverReleaseRow(Blacklist row) {
+        // 地铁App渠道（01）的黑名单通过 HCE 文件同步到闸机，无需实时通知支付宝；
+        // 直接完成解黑收口，避免支付宝服务不可达时阻塞解黑流程。
+        if (CHANNEL_CODE_METRO_APP.equals(row.getChannelCode())) {
+            log.info("地铁App渠道解黑跳过支付宝通知，直接完成收口, id={}, cardId={}", row.getId(), row.getCardId());
+            int affected = blacklistReleaseFinalizer.completeRelease(row) ? 1 : 0;
+            if (affected == 0) {
+                log.info("解黑收口已被别处处理，跳过, id={}, cardId={}", row.getId(), row.getCardId());
+            }
+            return true;
+        }
         RpcOutcome outcome = alipayBlacklistNotifyPort.notifyBlackListChange(
                 row.getCardId(), row.getThirdUserId(), row.getCardType(), TYPE_RELEASE, row.getReleaseReason());
         return applyOutcome("解黑", row.getId(), row.getCardId(), outcome,

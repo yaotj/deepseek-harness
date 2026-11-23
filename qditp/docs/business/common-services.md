@@ -41,6 +41,12 @@ RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackL
 
 **为什么加黑不跟着改**：加黑的业务后果是「更严」，通知晚到不会放行不该放行的人；解除反过来 —— 通知没到就放行等于**欠费用户当场能过闸**。**NEVER 把加黑也改成两阶段。**
 
+### 出向通知按渠道分流（2026-11-23，blacklist-server 2.0.51，IT-102）
+解黑投递 `BlacklistChannelSyncService.deliverReleaseRow` 按 `CHANNEL_CODE` 分流：
+- **`01`（地铁App）不再调支付宝通道**，直接 `BlacklistReleaseFinalizer.completeRelease`（搬 `BLACKLIST_RELEASED` + 删主表行）。依据：`01` 的黑名单在 ITP 内部生效——判黑读 `BLACKLIST` 主表、HCE 票种另由 `sys_job` 355 生成全量文件，全都不依赖支付宝；把它挂在支付中心可用性上，等于让地铁侧乘客在支付中心故障时永远解不掉黑（IT-102 修复前 6 张卡 `RELEASING+FAILED`，`retry` 累计 20~878）。
+- **`02`（支付宝）与 `99`（未知）保持原逻辑**：调 `AlipayBlacklistNotifyPort`，**只有 `RpcOutcome.Ok` 才进阶段二**。
+- **加黑方向 `deliverAddRow` 未改**：`01` 的加黑仍只走支付宝通道，成功不了就停在 `CHANNEL_SYNC_STATUS='FAILED'`、`sys_job` 320 每 5 分钟重试；业务上不阻断（判黑与 HCE 文件都不看该状态），是否对称放行待业主裁决（IT-102 §5.5）。
+
 **`9001` MUST 判 `Unreachable`、NEVER 判 `BizRejected`**（`AlipayBlacklistNotifyPort`）：`REJECTED` 是终态且**不在补偿白名单 `IN ('PENDING','FAILED')` 里**，一旦把「支付中心网关抖动」判成业务拒绝，那张卡就**永久卡在 `RELEASING`、判黑恒命中、补偿再也扫不到**。2026-09-18 实测：支付中心返 HTTP 502 → `PayCenterClient` 吞成 null → alipay 侧统一返 `9001`，而**同一地址 7 分钟后返 `0000`**。真业务拒绝走 `9999` / `8001`。详见 ADR-D145 §五（含这条判据与 alipay 侧码分配的隐式耦合告示）。
 
 ### 表结构（2026-09-18 实测，`USER_TAB_COLS`）
