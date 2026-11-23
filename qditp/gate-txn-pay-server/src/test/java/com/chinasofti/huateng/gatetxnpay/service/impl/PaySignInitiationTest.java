@@ -326,6 +326,7 @@ class PaySignInitiationTest {
                 new MetroTransferPushTaskProcessor(null, null, false, 0, 0, 0L),
                 new GateTxnPayManualOpsService(mapper, paySignClient, alipayPaySignClient, initiator()),
                 noopStationNameBackfiller(),
+                null,
                 null);
     }
 
@@ -343,7 +344,8 @@ class PaySignInitiationTest {
         return new PaySignInitiator(writer,
                 new PayInitiationRpcAdapter(paySignClient, alipayPaySignClient),
                 new GatePayRequestFactory("AGM_GATE", "1", "地铁乘车扣费", "地铁乘车费用", 60L),
-                new AlipayTripPayRequestFactory("TRIP", "05", "1", "地铁乘车扣费", "地铁乘车费用", 60));
+                new AlipayTripPayRequestFactory("TRIP", "05", "1", "地铁乘车扣费", "地铁乘车费用", 60),
+                null);
     }
 
     private OfflineFareRecoveryServiceImpl recoveryService() {

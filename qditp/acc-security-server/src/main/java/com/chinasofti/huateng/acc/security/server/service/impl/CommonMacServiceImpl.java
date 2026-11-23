@@ -86,7 +86,8 @@ public class CommonMacServiceImpl implements CommonMacService {
             end = System.currentTimeMillis();
             resultData = (String) LocalCache.get(channel.id() + userReation.toUpperCase());
             if ((int) (end - start) >= Constant.OverTime.TIME) {
-                log.error("加密机调用超时，卡号{}用户保留域{}", cardNo, userReation.toUpperCase());
+                log.error("加密机调用超时，卡号{}保留域长度{}",
+                        maskCardNo(cardNo), userReation == null ? 0 : userReation.length());
                 return ResultMapper.error("加密机调用超时");
             } else {
                 Thread.sleep(Constant.OverTime.POLL_TIME);
@@ -159,7 +160,8 @@ public class CommonMacServiceImpl implements CommonMacService {
             end = System.currentTimeMillis();
             resultData = (String) LocalCache.get(channel.id() + userReation.toUpperCase());
             if ((int) (end - start) >= Constant.OverTime.TIME) {
-                log.error("加密机调用超时，卡号{}用户保留域{}", cardNo, userReation.toUpperCase());
+                log.error("加密机调用超时，卡号{}保留域长度{}",
+                        maskCardNo(cardNo), userReation == null ? 0 : userReation.length());
                 return ResultMapper.error("加密机调用超时");
             } else {
                 Thread.sleep(Constant.OverTime.POLL_TIME);
@@ -178,6 +180,16 @@ public class CommonMacServiceImpl implements CommonMacService {
             resultVO.setData("");
         }
         return resultVO;
+    }
+
+    /**
+     * 日志脱敏：卡号仅保留前 6 后 4 位，中间以 * 代替，禁止完整卡号落日志。
+     */
+    private static String maskCardNo(String cardNo) {
+        if (cardNo == null || cardNo.length() <= 10) {
+            return cardNo == null ? "-" : "****";
+        }
+        return cardNo.substring(0, 6) + "****" + cardNo.substring(cardNo.length() - 4);
     }
 
 }

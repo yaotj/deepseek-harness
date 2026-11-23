@@ -101,8 +101,7 @@ public class LogAspect
         }
         catch (Exception exp)
         {
-            log.error("异常信息:{}", exp.getMessage());
-            exp.printStackTrace();
+            log.error("记录操作日志失败", exp);
         }
         finally
         {

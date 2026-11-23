@@ -87,6 +87,29 @@ public class AlipayTxnRefundService {
     }
 
 
+    /**
+     * 并发冲突时回查在途退款单号，仅用于错误提示与人工对账。
+     * 在途态与 DDL 虚拟列 UK_ACTIVE_ORDER 的 CASE 谓词保持一致：INIT / PROCESSING / RETRY。
+     */
+    private String selectActiveRefundOrderNo(String orderNo) {
+        try {
+            java.util.List<AlipayRefundTxnDetail> rows = alipayRefundTxnDetailMapper.selectByOrderNo(orderNo);
+            if (rows != null) {
+                for (AlipayRefundTxnDetail row : rows) {
+                    String status = row.getRefundStatus();
+                    if (REFUND_STATUS_INIT.equals(status) || REFUND_STATUS_PROCESSING.equals(status)
+                            || "RETRY".equals(status)) {
+                        return row.getRefundOrderNo();
+                    }
+                }
+            }
+        } catch (RuntimeException queryError) {
+            log.warn("并发冲突后回查在途退款单号失败，仅影响错误提示, orderNo={}", orderNo, queryError);
+        }
+        return "未查到在途单（需人工核对）";
+    }
+
+
     private AlipayPayTxnDetail loadSettledPayTxn(String orderNo) {
         AlipayPayTxnDetail payTxn = alipayPayTxnDetailMapper.selectByOrderNo(orderNo);
         if (payTxn == null) {
@@ -167,8 +190,13 @@ public class AlipayTxnRefundService {
             if (!RefundLogRepository.isIntegrityViolation(e)) {
                 throw e;
             }
-            log.warn("退款明细插入命中唯一索引，判定为重复提交, orderNo={}, refundOrderNo={}", orderNo, refundOrderNo);
-            throw new BusinessException(FepAppErrorCodeEnum.FAIL.getCode(), "退款申请重复提交");
+            // 唯一索引冲突 = 同 ORDER_NO 已有在途退款（UK_ARTD_ACTIVE_ORDER，覆盖 INIT/PROCESSING/RETRY），
+            // 或同一 (REFUND_ORDER_NO,TXN_DATE) 重复。必须 fail-closed：绝不出网（出网即第二笔真实退款）。
+            String activeRefundOrderNo = selectActiveRefundOrderNo(orderNo);
+            log.error("退款申请并发冲突：同订单已有在途退款，本次拒绝且未出网, orderNo={}, 本笔单号={}, 在途单号={}",
+                    orderNo, refundOrderNo, activeRefundOrderNo);
+            throw new BusinessException(FepAppErrorCodeEnum.FAIL.getCode(),
+                    "该订单已有处理中的退款，请先确认上一笔结果（退款单号：" + activeRefundOrderNo + "）");
         }
         int marked = alipayRefundTxnDetailMapper.markRequesting(refundOrderNo, txnDate);
         if (marked == 0) {

@@ -310,8 +310,7 @@ public class SM2 {
                 System.arraycopy(y, 0, byteArraySm2KeyPair, d.length + x.length, y.length);
                 return byteArraySm2KeyPair;
             }
-            log.warn("生成的密钥IOS不能解析，继续生成新密钥,d={},x={},y={}", Hex.encodeHexString(d), Hex.encodeHexString(x),
-                    Hex.encodeHexString(y));
+            log.warn("生成的密钥IOS不能解析，继续生成新密钥（重试中，密钥材料不落日志）");
         }
         throw new RuntimeException("生成SM2密钥失败");
 

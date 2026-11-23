@@ -123,6 +123,11 @@ service:
   gateTxnPay:
     url: ${SERVICE_GATE_TXN_PAY_URL:http://gate-txn-pay-server-jomf4-svc.itp.svc:30019}
     openLogger: true
+  ## 补款付清后单卡实时解黑（ADR-D176/D177）。BlacklistClient 的 @Value 默认 'blacklist-service' 在集群内不存在，
+  ## 必须经这里绑定 env；CloudOS 注入的点分名 'service.blacklist.url' 无法被 @Value 读到，故走下划线大写 env。
+  blacklist:
+    url: ${SERVICE_BLACKLIST_URL:http://blacklist-server-internal.itp.svc:8080}
+    openLogger: true
 
 ## 日终对账抽取（本服务是第 4 个源，只出 ITP.PAY 与 ITP.BUS）。internal-token 暂无读取方、上线前 MUST 恢复；worker 默认 1，NEVER 随手放大。详见 附.三.5
 recon:

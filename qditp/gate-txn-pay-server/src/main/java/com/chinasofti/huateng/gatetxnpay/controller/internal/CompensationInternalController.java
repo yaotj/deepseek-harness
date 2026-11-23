@@ -1,6 +1,7 @@
 package com.chinasofti.huateng.gatetxnpay.controller.internal;
 
 import com.chinasofti.huateng.common.response.CommonResult;
+import com.chinasofti.huateng.gatetxnpay.notify.GateTxnPayNoticeService;
 import com.chinasofti.huateng.gatetxnpay.service.GateTxnPayService;
 import com.chinasofti.huateng.gatetxnpay.service.impl.CrossDomainDivergenceService;
 import com.chinasofti.huateng.gatetxnpay.service.impl.DebitRetryProcessor;
@@ -16,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/internal/gate-txn-pay")
 public class CompensationInternalController {
@@ -27,6 +30,7 @@ public class CompensationInternalController {
     private final RetryQueueConsumer retryQueueConsumer;
     private final OneSideOrderProcessor oneSideOrderProcessor;
     private final CrossDomainDivergenceService crossDomainDivergenceService;
+    private final GateTxnPayNoticeService gateTxnPayNoticeService;
 
     public CompensationInternalController(OfflineFareRecoveryProcessor offlineFareRecoveryProcessor,
                                           MetroTransferPushTaskProcessor metroTransferPushTaskProcessor,
@@ -34,7 +38,8 @@ public class CompensationInternalController {
                                           GateTxnPayService gateTxnPayService,
                                           RetryQueueConsumer retryQueueConsumer,
                                           OneSideOrderProcessor oneSideOrderProcessor,
-                                          CrossDomainDivergenceService crossDomainDivergenceService) {
+                                          CrossDomainDivergenceService crossDomainDivergenceService,
+                                          GateTxnPayNoticeService gateTxnPayNoticeService) {
         this.offlineFareRecoveryProcessor = offlineFareRecoveryProcessor;
         this.metroTransferPushTaskProcessor = metroTransferPushTaskProcessor;
         this.debitRetryProcessor = debitRetryProcessor;
@@ -42,6 +47,7 @@ public class CompensationInternalController {
         this.retryQueueConsumer = retryQueueConsumer;
         this.oneSideOrderProcessor = oneSideOrderProcessor;
         this.crossDomainDivergenceService = crossDomainDivergenceService;
+        this.gateTxnPayNoticeService = gateTxnPayNoticeService;
     }
 
 
@@ -97,6 +103,19 @@ public class CompensationInternalController {
     @PostMapping("/divergenceCheck")
     public CompensateNotifyRespDTO divergenceCheck() {
         return crossDomainDivergenceService.check();
+    }
+
+    /**
+     * 行程订单通知补偿重推：历史单漏推、对端临时故障后按订单号补发一次。
+     */
+    @PostMapping("/order-pay-notice/push")
+    public CommonResult pushOrderPayNotice(@RequestBody Map<String, String> request) {
+        String orderNo = request != null ? request.get("orderNo") : null;
+        String failure = gateTxnPayNoticeService.repush(orderNo);
+        CommonResult result = new CommonResult();
+        result.setRetCode(failure == null ? "0000" : "9999");
+        result.setRetMsg(failure == null ? "行程订单通知已受理" : "行程订单通知未受理：" + failure);
+        return result;
     }
 
     private CommonResult describe(String taskName, int processed) {

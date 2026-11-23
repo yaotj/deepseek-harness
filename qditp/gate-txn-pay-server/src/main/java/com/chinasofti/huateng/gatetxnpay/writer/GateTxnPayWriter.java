@@ -54,13 +54,14 @@ public class GateTxnPayWriter {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void updateOrderStatusFromPending(GateTxnPay order, String status, String reason) {
+    public int updateOrderStatusFromPending(GateTxnPay order, String status, String reason) {
         int updated = gateTxnPayMapper.updateStatusFromPending(
                 order.getOrderNo(), order.getTxnDate(), status, reason);
         if (updated == 0) {
             log.warn("订单不处于待支付态(INIT/RETRY)，跳过状态推进, orderNo={}, targetStatus={}, reason={}",
                     order.getOrderNo(), status, reason);
         }
+        return updated;
     }
 
     @Transactional(rollbackFor = Exception.class)

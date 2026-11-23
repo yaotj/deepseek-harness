@@ -6,7 +6,7 @@
 
 ## sys_job 220 行程扣费重试（非支付宝）
 
-- **cron**: `0 0 1 * * ?`
+- **cron**: `0 0 9,15 * * ?`（2026-11-20 对齐旧 ITP，每天 9:00 / 15:00 各一次；此前为 `0 0 1 * * ?`）
 - **触发目标**: `gateTxnPayQuartzTask.retryDefaultChannelDebits()`
 - **执行方**: `POST /internal/gate-txn-pay/debit/retry/default`
 - **状态**: 正常 / 禁止并发
@@ -15,14 +15,14 @@
   - 甲方需求 5
   - 只捞 `ISSUE_CHANNEL_CODE IS NULL 或 <> '07'` 的非支付宝渠道单（**NEVER 写成 `= '01'`**，该列可空且历史行有空值）
   - 扫 `GATE_TXN_PAY` 的 `DEBIT_STATUS IN (RETRY, FAIL)` + `DEBIT_RETRY_TIMES < maxTimes` + 退避时间已到
-  - 三道闸：`maxTimes=5` / `lookbackDays=7` / `backoffMinutes=720`（与 255 共用参数）
+  - 三道闸：`maxTimes=5` / `lookbackDays=7` / `backoffMinutes=300`（与 255 共用参数；2026-11-20 由 720 下调，配合 9/15 两次调度）
   - 出口走 `PaySignInitiator.retryAndConverge(GateTxnPay)` 打支付中心
   - 抢占语句 `prepareBatchRetry` 是**一条 UPDATE 同时做三件事**：CAS 抢占 + 次数记账 + 把终态 `FAIL` 归一成 `RETRY`（第三件必需，否则 `updateOrderStatusFromPending` CAS 白名单只认 `INIT/RETRY`，`FAIL` 那批的结果回写恒 0 行）
   - **NEVER 把归一那段删掉**
 - **配置键**:
   - `gate.debitRetry.maxTimes: 5` —— 重试次数上限，达到即不再被捞出
   - `gate.debitRetry.lookbackDays: 7` —— 回溯天数窗口
-  - `gate.debitRetry.backoffMinutes: 720` —— 退避时长（默认 12 小时）
+  - `gate.debitRetry.backoffMinutes: 300` —— 退避时长（默认 5 小时；2026-11-20 由 720 分钟下调，6 小时间隔内要让同一笔单能被两次窗口都命中）
   - `gate.debitRetry.batchSize` —— 单轮取行数（未提供默认值，需外部配置）
 - **关键约束**:
   - 本模块刻意不带 `@Scheduled`，由 web-admin `sys_job` 统一驱动；NEVER 在本模块内加
@@ -34,7 +34,7 @@
 
 ## sys_job 255 支付宝出行重试扣费
 
-- **cron**: `0 0 1 * * ?`（与 220 同时刻）
+- **cron**: `0 0 9,15 * * ?`（与 220 同时刻；2026-11-20 起）
 - **触发目标**: `gateTxnPayQuartzTask.retryAlipayChannelDebits()`
 - **执行方**: `POST /internal/gate-txn-pay/debit/retry/alipay`
 - **状态**: 正常 / 禁止并发
@@ -47,7 +47,7 @@
   - **拆分实质理由是故障隔离**：混在一条任务里时一侧渠道整体故障会拖慢另一侧
 - **配置键**:
   - `gate.debitRetry.enabled` / `gate.debitRetry.alipay-enabled` —— 各渠道独立开关（未显式列出，见 DebitRetryProcessor 源码）
-  - `gate.debitRetry.maxTimes: 5` / `lookbackDays: 7` / `backoffMinutes: 720` —— 与 220 共用
+  - `gate.debitRetry.maxTimes: 5` / `lookbackDays: 7` / `backoffMinutes: 300` —— 与 220 共用（2026-11-20 起）
 - **关键约束**:
   - 与 sys_job 220 **并行、NEVER 合并** —— 合并不仅丧失故障隔离，还会共用同一 AtomicBoolean，一侧 busy 会阻塞另一侧
   - 本模块刻意不带 `@Scheduled`，由 web-admin `sys_job` 统一驱动；NEVER 在本模块内加
@@ -95,24 +95,23 @@
 
 ## sys_job 345 补站扣费周期查询更新
 
-- **cron**: `0 0/1 * * * ?`
+- **cron**: `0 0 9,15 * * ?`（2026-11-20 对齐旧 ITP，每天 9:00 / 15:00 各一次；此前为 `0 0/1 * * * ?` 每分钟）
 - **触发目标**: `gateTxnPayQuartzTask.retryRecentUnpaidDebits()`
 - **执行方**: `POST /internal/gate-txn-pay/debit/retry/recent`
 - **状态**: 正常 / 禁止并发
-- **历史编号**: 2026-09-21 新增（ADR-D154）；编号先后为 135→265→235→345，**NEVER 回退成 135 / 265 / 235**
+- **历史编号**: 2026-09-21 新增（ADR-D154，cron 由 ADR-D176 取代）；编号先后为 135→265→235→345，**NEVER 回退成 135 / 265 / 235**
 - **实现要点**:
-  - 扫近 `windowMinutes=10` 分钟内 `DEBIT_STATUS IN (INIT, RETRY, FAIL)` 且落库超 `minAgeSeconds=60` 秒的单
+  - 2026-11-20 起**只捞 `DEBIT_STATUS = 'INIT'`**（卡在已落单、尚未发出的单）且落库超 `minAgeSeconds=60` 秒；`RETRY/FAIL` 归 220/255
   - 不分渠道、**不记账**（刻意不写 `DEBIT_RETRY_TIMES` / `DEBIT_NEXT_RETRY_TIME`，否则烧光 220/255 的次数预算）
   - 排除 `DISCOUNT_CALC_STATUS=OFFLINE_FARE_PENDING`
-  - 与 220 / 255 **并行、NEVER 合并**
+  - 与 220 / 255 **并行、NEVER 合并；两条任务 NEVER 抢同一批单**（345 只 INIT，220/255 只 RETRY/FAIL）
   - **甲方需求 5 衍生任务**，不是需求 13「补站扣费周期查询更新」（那是 ticket-server 侧的缺口）
 - **配置键**:
-  - `gate.debitRetry.recent.windowMinutes: 10` —— 扫描窗口（左右都闭），出窗交给 220/255 按 720 分钟退避慢跑
-  - `gate.debitRetry.recent.minAgeSeconds: 60` —— 下界，躲开正在走 RPC 的单；上界由 windowMinutes 控制
+  - `gate.debitRetry.recent.minAgeSeconds: 60` —— 下界，躲开正在走 RPC 的单；**上界已取消**（原 `windowMinutes=10` 已删除）
   - `gate.debitRetry.recent.batchSize` —— 单轮取行数（无默认值，需外部配置）
 - **关键约束**:
   - 本任务**只读不写** `DEBIT_RETRY_TIMES`：写就烧掉 220/255 的次数预算，两条日跑任务的闸会提前失效
-  - 真正的防线是两道：**`minAgeSeconds` 下界（躲正在走 RPC 的单）+ `windowMinutes` 上界（出窗即交给 220/255）**；删任何一道都是资损方向
+  - 真正的防线是两道：**`DEBIT_STATUS = 'INIT'` 状态隔离（不与 220/255 抢单）+ `minAgeSeconds` 下界（躲正在走 RPC 的单）**；删任何一道都是资损方向
   - 与 220/255 **并行、NEVER 合并** —— 合并后故障域重叠，一侧 channel 故障会阻塞另一侧
 - **判是否在跑**: 查 `SYS_JOB_LOG`，`JOB_ID=345`
 

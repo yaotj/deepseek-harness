@@ -24,11 +24,12 @@
 - `/internal/blacklist/inspectReleasable` — 「可解除性」**只读**盘点，无入参，NEVER 删除任何记录
 - `/internal/blacklist/channel-sync/compensate-add` — 补推**加黑**方向的渠道同步（扫 `STATUS='ACTIVE'` 且 `CHANNEL_SYNC_STATUS IN ('PENDING','FAILED')`）
 - `/internal/blacklist/channel-sync/compensate-release` — 补推**解黑**方向（扫**主表**里 `STATUS='RELEASING'` 且同白名单的行；**载体在主表、NEVER 据 `BLACKLIST_RELEASED` 的 `CHANNEL_SYNC_*` 扫表**）
-- `/internal/blacklist/auto-release` — **自动解除**（2026-09-21 新增，`sys_job` 230，见下面「自动解除」一节）。**这是本前缀下唯一会改黑名单本体的端点**，`limit` 是可选 `@RequestParam`
+- `/internal/blacklist/auto-release` — **自动解除**（2026-09-21 新增，`sys_job` 230，见下面「自动解除」一节），`limit` 是可选 `@RequestParam`
+- `/internal/blacklist/release-card-if-settled` — **单卡实时解黑**（2026-11-20 新增，blacklist-server 2.0.47），`cardId` 是必填 `@RequestParam`；由 face-pay 补款付清后调用，见下面「实时解黑」一节
 
-⚠️ **该前缀下现在已有三个写接口，但仍无验签** —— `BlacklistInternalController` 类注释里那句「当前只有一个只读盘点接口，因此无需鉴权」**已不成立**，与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突，上生产前 MUST 补，**且 MUST 优先覆盖 `/auto-release`**（误调等于把欠费卡提前放行）。四个端点现在**都有 `sys_job` 触发记录**：280 盘点 / 320 加黑补偿 / 325 解黑补偿 / 230 自动解除（**前三个 2026-09-21 随「200 以下全量重编号」由 105 / 125 / 126 改为 280 / 320 / 325，触发目标与 cron 均未变，NEVER 回退成旧号**）。
+⚠️ **该前缀下现在已有四个写接口，但仍无验签** —— `BlacklistInternalController` 类注释里那句「当前只有一个只读盘点接口，因此无需鉴权」**已不成立**，与 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」 冲突，上生产前 MUST 补，**且 MUST 优先覆盖 `/auto-release` 与 `/release-card-if-settled`**（误调等于把欠费卡提前放行）。前四个端点都有 `sys_job` 触发记录：280 盘点 / 320 加黑补偿 / 325 解黑补偿 / 230 自动解除（**前三个 2026-09-21 随「200 以下全量重编号」由 105 / 125 / 126 改为 280 / 320 / 325，触发目标与 cron 均未变，NEVER 回退成旧号**）；第五个实时解黑由 face-pay 补款链路直接调用、**无 `sys_job`**。
 
-RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackList`、`alipayTripReceiveBlackList`（内部复用查询）、`inspectReleasable`、`compensateChannelSyncAdd`、`compensateChannelSyncRelease`、`autoRelease`。**仍没有 `deleteBlackList`**：人工解除只能走 HTTP 或运营页，程序化解除只有 `autoRelease` 这一条（且被 `BLACK_CAUSE='01'` 收窄）。
+RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackList`、`alipayTripReceiveBlackList`（内部复用查询）、`inspectReleasable`、`compensateChannelSyncAdd`、`compensateChannelSyncRelease`、`autoRelease`、`releaseCardIfSettled`。**仍没有 `deleteBlackList`**：人工解除只能走 HTTP 或运营页，程序化解除只有 `autoRelease` / `releaseCardIfSettled` 两条（都被 `BLACK_CAUSE='01'` + 欠费判据收窄）。
 表：`BLACKLIST`、`BLACKLIST_OPERATE_LOG`、**`BLACKLIST_RELEASED`**（解除历史表）
 
 ### 解除是两阶段（2026-09-18，blacklist-server 2.0.29，已部署并端到端双分支验通，ADR-D145）
@@ -93,6 +94,17 @@ RPC：`rpc/.../blacklist/BlacklistClient.java` — `queryBlackList`、`addBlackL
 1. **NEVER 放宽 `BLACK_CAUSE='01'`** —— 自动解除的前提是「加黑原因已失效」，只有欠费类的失效条件能被机器证明；`02` 挂失补卡即便欠费清了也不能放行（旧卡恢复过闸），`09` 其他只有自由文本 `REASON`、无判据
 2. **NEVER 把 `null`（欠费查询未成功执行）当成已结清** —— 那等于「查不通就放行」
 3. **NEVER 在本类里自己 `markReleasing` + 删行** —— 会绕过渠道通知与操作日志，出现「本地已解除、支付宝侧仍拉黑」
+
+### 单卡实时解黑（2026-11-20，blacklist-server 2.0.47 + face-pay 1.1.6）
+
+- **问题**：`sys_job 230` 每天只跑 10:00 / 16:00 两次，补款在 16:00 之后付清的卡要等次日 10:00 才解黑（实测用户 17:19 付清、拉码已 0 欠费但黑名单仍 ACTIVE）。
+- **加速路径**：入口 `POST /internal/blacklist/release-card-if-settled?cardId=xxx` → `BlacklistAutoReleaseService.releaseCardIfSettled(cardId)`。按 `selectByCardIds` 取该卡记录，**只处理 `STATUS='ACTIVE' && BLACK_CAUSE='01'`**（`isRealtimeEligible`），逐条**复用全表 autoRelease 的 `handleOne` 判据**（按记录 `CHANNEL_CODE` 查对应欠费源，无欠费才解、查不通返 `null` 不解锁）。响应同为六计数 DTO。
+- **触发方**：face-pay `SupplementPayCenterFlow.settleSuccess` 全部明细收敛完成后调一次 `blacklistClient.releaseCardIfSettled(cardId)`（**仅补款付清场景**，非补款的支付回调收敛仍走 `sys_job 230` 兜底）。**失败只记 ERROR 日志、NEVER 阻断补款收敛主流程**——补款单已 SUCCESS、明细已 SETTLED，解黑只是体验加速，失败由每日全表 autoRelease 兜底，不需要同步重试、不落本地补偿表。
+- **与全表任务的关系**：并存、不替代。`sys_job 230` 仍是兜底（覆盖非补款付清、实时解黑失败、回调丢失等所有场景），**NEVER 因为它就停掉 230**。
+- **版本注意**：rpc 新增 `releaseCardIfSettled` 方法，face-pay 的 `<rpc.version>` 从 2.0.1 升到 **2.0.3**（仓库当前 rpc 版本，fep-app 已用）；纯增量新方法不改数据形状、引用面仅 face-pay，符合「引用面豁免」最小重打包，其它模块仍可留在 2.0.1。
+- **RPC 地址 MUST 经 application.yml 绑定**：`BlacklistClient` 的 `@Value("${service.blacklist.url:blacklist-service}")` 默认值 `blacklist-service` 在集群内不存在，会 `Failed to resolve 'blacklist-service'`（1.1.5 实测）；**CloudOS env-set 注入点分名 `service.blacklist.url` 无效**（Pod printenv 有值但 `@Value` 读不到）。必须在调用方 `application.yml` 的 `service` 段写 `blacklist.url: ${SERVICE_BLACKLIST_URL:http://blacklist-server-internal.itp.svc:8080}`（下划线大写 env，与 gateTxnPay/ticket 同范式）——face-pay 1.1.6 已加。其它要调 BlacklistClient 的服务照此核对。
+- **部署判据**：E2E 曾遇 blacklist-server 被平台异步收敛回滚到 2.0.0（新端点 404 `No static resource`），**改完 MUST 现查 Pod 级 image tag == 目标 且 endpoint 指向新 Pod**，NEVER 只看 deploy 命令的「已收敛」。
+- **NEVER**：①**NEVER 跳过欠费判据直接 `deleteBlackList`**——补款可能只付了部分欠费，直接解会放跑欠费乘客；②**NEVER 让解黑 RPC 异常冒泡打断补款收敛**；③**NEVER 处理 `RELEASING` / 非 `01` 原因码的记录**（解除中仍算黑名单、非欠费原因无失效判据）。
 
 与 `sys_job` 280 盘点**职责不同、NEVER 合并**：280 只读、覆盖全部加黑原因、结论交人工；230 会改数据、只覆盖能被机器证明的那一类。
 

@@ -70,8 +70,8 @@
 
 | 模块 | 状态 | 说明 |
 |---|---|---|
-| collect-pay-server | 2026-10-13 已下线（0 pod） | 入向流量、对账旧表源、`NoticeAppTask` 4 端点、web-admin 菜单均已切 face-pay；残留代码勿部署 |
-| collect-ticket-server | 未部署 | 无流量 |
+| collect-pay-server | **2026-11-20 起测试环境停服**（云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署） | 入向流量、对账旧表源、`NoticeAppTask` 4 端点、web-admin 菜单均已切 face-pay；恢复方法见 `docs/ops/environments/测试环境.md`「已下线 / 未部署」段 |
+| collect-ticket-server | **2026-11-22 已归档清理** | 从未部署、无流量；源码已移入 `archive/abandonedservices/collect-ticket-server`（与 git/SVN 双跟踪），根 `pom.xml` 已移除 module；原 IF8A-09/10/11 端点由 `para-server` + `face-pay-server` 承接 |
 | acc-secure-server | 未部署 | 死模块；未被任何模块调用 |
 
 ## 三、调用拓扑（按 `service.*.url`）
@@ -85,7 +85,7 @@
 | `AlipayPaySignClient` | `service.alipay-pay-sign.url` | alipay-pay-sign-server |
 | `BlacklistClient` | `service.blacklist.url` | blacklist-server |
 | `CardPoolClient` | `service.cardPool.url` | card-pool-server |
-| `CollectPayClient` | `service.collectPay.url` | collect-pay-server（已下线） |
+| `CollectPayClient` | `service.collectPay.url` | collect-pay-server（**2026-11-20 起测试环境停服**：云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署；该 Client 与配置键已于 2026-11-20 随 `fep-app` 改造删除，改由 `FacePayAppClient` + `service.facePay.url` 承载，见 `docs/business/app-gateway.md` §二②） |
 | `DailyTicketClient` | `service.dailyTicket.url` | daily-ticket-server |
 | `F2FClient` | `service.f2f.url` | face-pay-server |
 | `FacePayClient` | `service.facePay.url` | face-pay-server |
@@ -127,7 +127,7 @@
 - **card-pool-server** → 无 rpc Client
 - **web-server** → account、blacklist、cardPool、f2f、facePay、gateTxnPay、para、paySign、recon（共 9 个 `@EnableRpcXxx`）
 
-> `collectPay` 已下线，相关配置键属死配置；新增模块 / 切流后 MUST 回写本文。
+> `collectPay` 配置键与 `CollectPayClient` 已于 2026-11-20 随 `fep-app` 改造删除（改由 `service.facePay.url` + `FacePayAppClient` 承载 8 条 `AppPayGatewayController` 端点，见 `docs/business/app-gateway.md` §二②）；collect-pay-server 模块本身 2026-11-20 测试环境停服（云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署），如恢复部署 MUST 重新评估是否重建该 Client 与配置键。
 
 ### 配置现状红线
 

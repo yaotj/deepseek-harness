@@ -54,7 +54,7 @@
       <el-table-column label="原价" width="90" align="right"><template #default="{ row }">{{ formatAmount(row.originalFare) }}</template></el-table-column>
       <el-table-column label="扣费金额" width="95" align="right"><template #default="{ row }">{{ formatAmount(row.trxAmount) }}</template></el-table-column>
       <el-table-column label="超时费" width="95" align="right"><template #default="{ row }">{{ (row.overtimeAmount ?? 0) > 0 ? formatAmount(row.overtimeAmount) : '-' }}</template></el-table-column>
-      <el-table-column label="扣费状态" width="95" align="center"><template #default="{ row }"><el-tag :type="row.debitStatus === 'SUCCESS' ? 'success' : 'warning'">{{ row.debitStatus || '-' }}</el-tag></template></el-table-column>
+      <el-table-column label="扣费状态" width="110" align="center"><template #default="{ row }"><el-tag :type="row.debitStatus === 'SUCCESS' ? 'success' : 'warning'">{{ debitStatusLabel(row.debitStatus) }}</el-tag></template></el-table-column>
       <el-table-column label="票状态" prop="ticketStatus" width="80" align="center" />
       <el-table-column label="离线" width="70" align="center"><template #default="{ row }">{{ row.offlineFlag === 'Y' ? '是' : '否' }}</template></el-table-column>
       <el-table-column label="交易日期" prop="txnDate" width="100" align="center" />
@@ -68,6 +68,7 @@
 <script setup name="OneSideQuery">
 import { listOneSide } from '@/api/trans/oneSideQuery'
 import { defaultTodayRange } from '@/utils/dateRange'
+import { debitStatusLabel } from '@/utils/orderStatusLabels'
 
 /** 交易日期口径（TXN_DATE 存储格式 yyyyMMdd，后端兼容 yyyy-MM-dd 输入）。 */
 const DATE_FORMAT = 'YYYY-MM-DD'

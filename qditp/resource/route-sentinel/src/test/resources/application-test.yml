@@ -18,3 +18,8 @@ management:
 # 双发开启时的行为由 DualQueryE2ETest(properties 覆盖 enabled=true)单独钉住。
 dualquery:
   enabled: false
+
+# 写端点鉴权：E2E 通过本机回环地址操作路由，生产环境应改用 gateway.admin.token
+gateway:
+  admin:
+    allow-ips: 127.0.0.1

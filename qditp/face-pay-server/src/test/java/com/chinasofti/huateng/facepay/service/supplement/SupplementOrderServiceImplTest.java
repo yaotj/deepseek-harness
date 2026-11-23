@@ -6,6 +6,8 @@ import com.chinasofti.huateng.facepay.channel.paycenter.PayCenterProperties;
 import com.chinasofti.huateng.facepay.channel.paycenter.PayCenterRequest;
 import com.chinasofti.huateng.facepay.channel.paycenter.PayCenterResult;
 import com.chinasofti.huateng.facepay.channel.paycenter.PayCenterResults;
+import com.alibaba.fastjson2.JSONObject;
+import com.chinasofti.huateng.facepay.api.device.app.RequestPayInfoReqDTO;
 import com.chinasofti.huateng.facepay.entity.GateTxnPay;
 import com.chinasofti.huateng.facepay.entity.SupplementOrder;
 import com.chinasofti.huateng.facepay.mapper.GateTxnPayMapper;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -25,7 +28,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -98,7 +100,7 @@ class SupplementOrderServiceImplTest {
         void missingOrigOrdersRejected() {
             SupplementOrderReqDTO req = validReq();
             when(gateTxnPayMapper.selectByOrderNos(List.of(ORIG_1, ORIG_2))).thenReturn(List.of(
-                    gateTxnPay(ORIG_1, "INIT")
+                    gateTxnPay(ORIG_1, "RETRY")
             ));
 
             SupplementOrderRespDTO resp = service.requestPayOrder(req);
@@ -111,22 +113,60 @@ class SupplementOrderServiceImplTest {
         void settledOrigOrdersRejected() {
             SupplementOrderReqDTO req = validReq();
             when(gateTxnPayMapper.selectByOrderNos(List.of(ORIG_1, ORIG_2))).thenReturn(List.of(
-                    gateTxnPay(ORIG_1, "INIT"),
+                    gateTxnPay(ORIG_1, "RETRY"),
                     gateTxnPay(ORIG_2, "SUCCESS")
             ));
 
             SupplementOrderRespDTO resp = service.requestPayOrder(req);
 
             assertEquals("8003", resp.getRetCode());
-            assertEquals("部分订单已结清或状态不可补款", resp.getRetMsg());
+            assertEquals("部分订单已结清或正在扣费中，暂不可补款", resp.getRetMsg());
+        }
+
+        /**
+         * 2026-11-20 用户裁决：INIT（已落单、正在发往支付中心）不可补款 —— 发起中窗口里钱可能已在路上。
+         * 卡 INIT 的单由 DebitRetryProcessor 的定时扫描接管，不靠补款自救。
+         */
+        @Test
+        void initDebitOrderIsNotSupplementable() {
+            SupplementOrderReqDTO req = validReq();
+            when(gateTxnPayMapper.selectByOrderNos(List.of(ORIG_1, ORIG_2))).thenReturn(List.of(
+                    gateTxnPay(ORIG_1, "INIT"),
+                    gateTxnPay(ORIG_2, "FAIL")
+            ));
+
+            SupplementOrderRespDTO resp = service.requestPayOrder(req);
+
+            assertEquals("8003", resp.getRetCode());
+            assertEquals("部分订单已结清或正在扣费中，暂不可补款", resp.getRetMsg());
+            verifyLocalWriterNeverCalled();
+        }
+
+        /** PROCESSING 同样不可补款：已发往支付中心、正在等扣款结果。 */
+        @Test
+        void processingDebitOrderIsNotSupplementable() {
+            SupplementOrderReqDTO req = validReq();
+            when(gateTxnPayMapper.selectByOrderNos(List.of(ORIG_1, ORIG_2))).thenReturn(List.of(
+                    gateTxnPay(ORIG_1, "FAIL"),
+                    gateTxnPay(ORIG_2, "PROCESSING")
+            ));
+
+            SupplementOrderRespDTO resp = service.requestPayOrder(req);
+
+            assertEquals("8003", resp.getRetCode());
+            verifyLocalWriterNeverCalled();
+        }
+
+        private void verifyLocalWriterNeverCalled() {
+            verify(localWriter, never()).persist(any(), anyList(), any());
         }
 
         @Test
         void ownerMismatchRejected() {
             SupplementOrderReqDTO req = validReq();
             when(gateTxnPayMapper.selectByOrderNos(List.of(ORIG_1, ORIG_2))).thenReturn(List.of(
-                    gateTxnPayWithCard(ORIG_1, "INIT", "CARD_A"),
-                    gateTxnPayWithCard(ORIG_2, "INIT", "CARD_B")
+                    gateTxnPayWithCard(ORIG_1, "RETRY", "CARD_A"),
+                    gateTxnPayWithCard(ORIG_2, "RETRY", "CARD_B")
             ));
 
             SupplementOrderRespDTO resp = service.requestPayOrder(req);
@@ -140,8 +180,8 @@ class SupplementOrderServiceImplTest {
             SupplementOrderReqDTO req = validReq();
             req.setThirdUserId("OTHER_USER");
             when(gateTxnPayMapper.selectByOrderNos(List.of(ORIG_1, ORIG_2))).thenReturn(List.of(
-                    gateTxnPay(ORIG_1, "INIT"),
-                    gateTxnPay(ORIG_2, "INIT")
+                    gateTxnPay(ORIG_1, "RETRY"),
+                    gateTxnPay(ORIG_2, "RETRY")
             ));
 
             SupplementOrderRespDTO resp = service.requestPayOrder(req);
@@ -155,73 +195,160 @@ class SupplementOrderServiceImplTest {
     class HappyPath {
 
         @Test
-        void acceptedReturnsProcessing() {
+        void createsOrderAsInitWithoutPrepay() {
             SupplementOrderReqDTO req = validReq();
             setupOrigOrders();
-            when(localWriter.persist(any(), anyList(), any())).thenReturn(SupplementOrderLocalWriter.PersistResult.ok("SP202609150001"));
-            when(payCenterFlow.preOrder(any())).thenReturn(new com.chinasofti.huateng.rpc.outcome.RpcOutcome.Ok());
+            when(localWriter.persist(any(), anyList(), any())).thenReturn("SP202609150001");
 
             SupplementOrderRespDTO resp = service.requestPayOrder(req);
 
             assertEquals("0000", resp.getRetCode());
-            assertEquals("PROCESSING", resp.getPayStatus());
+            assertEquals("INIT", resp.getPayStatus());
             assertNotNull(resp.getOrderNo());
             assertEquals("SP", resp.getOrderNo().substring(0, 2));
+            // IF8A-26 报文没有渠道字段，预下单 MUST 留到 IF8A-11 按乘客所选渠道执行
+            verify(payCenterFlow, never()).preOrder(any(), anyString());
         }
 
         @Test
-        void unreachableReturnsInit() {
+        void doesNotInheritOriginalVendor() {
             SupplementOrderReqDTO req = validReq();
             setupOrigOrders();
-            when(localWriter.persist(any(), anyList(), any())).thenReturn(SupplementOrderLocalWriter.PersistResult.ok("SP202609150001"));
-            when(payCenterFlow.preOrder(any())).thenReturn(new com.chinasofti.huateng.rpc.outcome.RpcOutcome.Unreachable(new RuntimeException("timeout")));
+            when(localWriter.persist(any(), anyList(), any())).thenReturn("SP202609150001");
 
-            SupplementOrderRespDTO resp = service.requestPayOrder(req);
+            service.requestPayOrder(req);
 
-            assertEquals("0000", resp.getRetCode());
-            assertEquals("INIT", resp.getPayStatus());
-            assertNotNull(resp.getOrderNo());
+            ArgumentCaptor<SupplementOrder> captor = ArgumentCaptor.forClass(SupplementOrder.class);
+            verify(localWriter).persist(captor.capture(), anyList(), any());
+            assertEquals(VENDOR, captor.getValue().getPaymentVendor(),
+                    "PAYMENT_VENDOR 只作原支付方式留痕，不参与发报");
+        }
+
+        /**
+         * 建单不做业务防重（2026-11-20 裁决）：同一批欠费重复提交 MUST 各生成一张补款单
+         * （APP 侧本来就没有防重逻辑，补款是抢占式，谁先付款谁结清），NEVER 返回 8003。
+         */
+        @Test
+        void repeatedSubmitCreatesAnotherOrderInsteadOfRejecting() {
+            SupplementOrderReqDTO req = validReq();
+            setupOrigOrders();
+            when(localWriter.persist(any(), anyList(), any()))
+                    .thenReturn("SP202609150001")
+                    .thenReturn("SP202609150002");
+
+            SupplementOrderRespDTO first = service.requestPayOrder(req);
+            SupplementOrderRespDTO second = service.requestPayOrder(req);
+
+            assertEquals("0000", first.getRetCode());
+            assertEquals("0000", second.getRetCode());
+            assertEquals("SP202609150001", first.getOrderNo());
+            assertEquals("SP202609150002", second.getOrderNo(),
+                    "第二次提交 MUST 拿到自己的新单号，不能复用或回传别人的单号");
+            verify(localWriter, org.mockito.Mockito.times(2)).persist(any(), anyList(), any());
+            verify(payCenterFlow, never()).preOrder(any(), anyString());
+        }
+    }
+
+
+    @Nested
+    class RequestPayInfo {
+
+        private static final String SUP_ORDER = "SP202609150001";
+
+        @Test
+        void initPreordersWithPassengerChannel() {
+            when(supplementOrderMapper.selectByOrderNo(SUP_ORDER))
+                    .thenReturn(order("INIT", null, null))
+                    .thenReturn(order("PROCESSING", "04", "PAY_INFO_WX"));
+            when(payCenterFlow.preOrder(any(), anyString()))
+                    .thenReturn(new com.chinasofti.huateng.rpc.outcome.RpcOutcome.Ok());
+
+            JSONObject resp = service.requestPayInfo(payInfoReq(SUP_ORDER, "04"));
+
+            assertEquals("0000", resp.getString("retCode"));
+            assertEquals("04", resp.getString("payChannelCode"));
+            assertEquals("PAY_INFO_WX", resp.getString("paymentInfo"));
+            verify(payCenterFlow).preOrder(any(), eq("04"));
         }
 
         @Test
-        void bizRejectedReturnsInit() {
-            SupplementOrderReqDTO req = validReq();
-            setupOrigOrders();
-            when(localWriter.persist(any(), anyList(), any())).thenReturn(SupplementOrderLocalWriter.PersistResult.ok("SP202609150001"));
-            when(payCenterFlow.preOrder(any())).thenReturn(new com.chinasofti.huateng.rpc.outcome.RpcOutcome.BizRejected("9999", "商户号异常"));
-            when(supplementOrderMapper.updatePayStatusFromPending(anyString(), eq("INIT"), anyString())).thenReturn(1);
+        void initPrepayRejectedReturnsFail() {
+            when(supplementOrderMapper.selectByOrderNo(SUP_ORDER)).thenReturn(order("INIT", null, null));
+            when(payCenterFlow.preOrder(any(), anyString())).thenReturn(new com.chinasofti.huateng.rpc.outcome.RpcOutcome.BizRejected("9999", "渠道不支持"));
 
-            SupplementOrderRespDTO resp = service.requestPayOrder(req);
+            JSONObject resp = service.requestPayInfo(payInfoReq(SUP_ORDER, "04"));
 
-            assertEquals("8003", resp.getRetCode());
-            assertEquals("INIT", resp.getPayStatus());
+            assertEquals("9999", resp.getString("retCode"));
         }
 
         @Test
-        void persistRejectedReturns8003() {
-            SupplementOrderReqDTO req = validReq();
-            setupOrigOrders();
-            when(localWriter.persist(any(), anyList(), any())).thenReturn(SupplementOrderLocalWriter.PersistResult.rejected("SP202609150001"));
+        void processingSameChannelReplaysPaymentInfo() {
+            when(supplementOrderMapper.selectByOrderNo(SUP_ORDER))
+                    .thenReturn(order("PROCESSING", "04", "PAY_INFO_WX"));
 
-            SupplementOrderRespDTO resp = service.requestPayOrder(req);
+            JSONObject resp = service.requestPayInfo(payInfoReq(SUP_ORDER, "04"));
 
-            assertEquals("8003", resp.getRetCode());
-            assertEquals("补款单已存在，请勿重复提交", resp.getRetMsg());
-            verify(payCenterFlow, never()).preOrder(any());
+            assertEquals("0000", resp.getString("retCode"));
+            assertEquals("PAY_INFO_WX", resp.getString("paymentInfo"));
+            verify(payCenterFlow, never()).preOrder(any(), anyString());
         }
 
         @Test
-        void preOrderExceptionReturnsInit() {
-            SupplementOrderReqDTO req = validReq();
-            setupOrigOrders();
-            when(localWriter.persist(any(), anyList(), any())).thenReturn(SupplementOrderLocalWriter.PersistResult.ok("SP202609150001"));
-            when(payCenterFlow.preOrder(any())).thenThrow(new RuntimeException("connection refused"));
-            when(supplementOrderMapper.updatePayStatusFromPending(anyString(), eq("INIT"), anyString())).thenReturn(1);
+        void processingDifferentChannelRepreordersWithNewChannel() {
+            when(supplementOrderMapper.selectByOrderNo(SUP_ORDER))
+                    .thenReturn(order("PROCESSING", "07", "PAY_INFO_UNION"))
+                    .thenReturn(order("PROCESSING", "04", "PAY_INFO_WX"));
+            when(payCenterFlow.preOrder(any(), anyString()))
+                    .thenReturn(new com.chinasofti.huateng.rpc.outcome.RpcOutcome.Ok());
 
-            SupplementOrderRespDTO resp = service.requestPayOrder(req);
+            JSONObject resp = service.requestPayInfo(payInfoReq(SUP_ORDER, "04"));
 
-            assertEquals("8001", resp.getRetCode());
-            assertEquals("INIT", resp.getPayStatus());
+            assertEquals("0000", resp.getString("retCode"));
+            assertEquals("04", resp.getString("payChannelCode"));
+            assertEquals("PAY_INFO_WX", resp.getString("paymentInfo"));
+            verify(payCenterFlow).preOrder(any(), eq("04"));
+        }
+
+        @Test
+        void channelSwitchRefusedByPayCenterReturnsHumanMessage() {
+            when(supplementOrderMapper.selectByOrderNo(SUP_ORDER))
+                    .thenReturn(order("PROCESSING", "07", "PAY_INFO_UNION"));
+            when(payCenterFlow.preOrder(any(), anyString()))
+                    .thenReturn(new com.chinasofti.huateng.rpc.outcome.RpcOutcome.BizRejected(
+                            SupplementPayCenterFlow.CODE_CHANNEL_LOCKED, "支付中心仍挂旧渠道"));
+
+            JSONObject resp = service.requestPayInfo(payInfoReq(SUP_ORDER, "04"));
+
+            assertEquals("9999", resp.getString("retCode"));
+            assertEquals("支付方式未能切换，请稍后重试或联系工作人员", resp.getString("retMsg"));
+        }
+
+        @Test
+        void blankChannelRejected() {
+            when(supplementOrderMapper.selectByOrderNo(SUP_ORDER)).thenReturn(order("INIT", null, null));
+
+            JSONObject resp = service.requestPayInfo(payInfoReq(SUP_ORDER, " "));
+
+            assertEquals("9999", resp.getString("retCode"));
+            verify(payCenterFlow, never()).preOrder(any(), anyString());
+        }
+
+        private RequestPayInfoReqDTO payInfoReq(String orderNo, String channel) {
+            RequestPayInfoReqDTO req = new RequestPayInfoReqDTO();
+            req.setOrderNo(orderNo);
+            req.setPayChannelCode(channel);
+            return req;
+        }
+
+        private SupplementOrder order(String payStatus, String vendor, String paymentInfo) {
+            SupplementOrder o = new SupplementOrder();
+            o.setOrderNo(SUP_ORDER);
+            o.setPayStatus(payStatus);
+            o.setPaymentVendor(vendor);
+            o.setPayChannelCode(vendor);
+            o.setPaymentInfo(paymentInfo);
+            o.setTotalAmount(800L);
+            return o;
         }
     }
 
@@ -291,7 +418,7 @@ class SupplementOrderServiceImplTest {
 
     private void setupOrigOrders() {
         when(gateTxnPayMapper.selectByOrderNos(List.of(ORIG_1, ORIG_2))).thenReturn(List.of(
-                gateTxnPay(ORIG_1, "INIT"),
+                gateTxnPay(ORIG_1, "RETRY"),
                 gateTxnPay(ORIG_2, "RETRY")
         ));
     }

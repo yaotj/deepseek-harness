@@ -63,7 +63,12 @@ public class DynamicMybatisConfiguration implements EnvironmentAware, BeanDefini
 
         PageInterceptor interceptor = new PageInterceptor();
         Properties props = new Properties();
-        props.setProperty("helperDialect", env.getProperty("spring.datasource.druid." + dsName + ".page-type", "mysql"));
+        String pageType = env.getProperty("spring.datasource.druid." + dsName + ".page-type");
+        if (pageType == null || pageType.isEmpty()) {
+            log.warn("数据源 {} 未配置 page-type，分页方言回退默认值 mysql；若该源为 Oracle 请显式配置 page-type=oracle，否则分页 SQL 会静默报错", dsName);
+            pageType = "mysql";
+        }
+        props.setProperty("helperDialect", pageType);
         props.setProperty("reasonable", "true");
         interceptor.setProperties(props);
         values.add("plugins", interceptor);

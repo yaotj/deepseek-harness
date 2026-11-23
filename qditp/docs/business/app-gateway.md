@@ -31,7 +31,7 @@
 - 全局异常兜底在 `resource/micro/web/.../global/GlobalControllerExceptionHandler.java`。
 
 ## ⚠️ 验签现状（安全红线）
-`fep-app-server` **内部没有任何验签代码**，`sign` 被原样透传给下游（见 `CollectPayController.toFormDataMap()`）。
+`fep-app-server` **内部没有任何验签代码**，`sign` 被原样透传给下游（见 `AppPayGatewayController.toFormDataMap()`）。
 实际校验分散在下游：
 - `account-server/.../service/AccountRequestVerifier.java` — 校验 providerId/charset/format/timestamp/signType，`signType=00` 免签，用 `itp.signKey` 摘要，**不是 RSA**
 - `acc-security-server/.../itp/service/ItpRequestSignVerifier.java` — 参数排序 + `key=signKey`，SHA1/MD5
@@ -43,7 +43,7 @@
 ## Controller 与接口（真实映射）
 双别名（`/ci/app/...` + `/app/...`）**只存在于部分 Controller**，不是全模块惯例：
 - **有双别名**：`AppAccountController`、`AppParaController`、`AppTicketController`、`AppDailyTicketController`、`PhoneChangeController`、`GateTxnPayController`（IF8A-26 / IF8A-35 两条均为 `{"/ci/app/...", "/app/..."}`）
-- **只有 `/ci/app/` 单路径**：`CollectPayController`（8 个接口）、`IndustryDataController`（2 个）、`PaySignController`（除 `requestPay` 外）
+- **只有 `/ci/app/` 单路径**：`AppPayGatewayController`（8 个接口）、`IndustryDataController`（2 个）、`PaySignController`（除 `requestPay` 外）
 
 > ⚠️ 上述清单为 2026-09-16 按 `@PostMapping` 实测（fep-app-server 当时共 43 条映射 / 9 个 Controller；docs/ops/environments/scripts/itp-ops.sh analysis endpoints 复跑得 58 条方法级映射 / 9 个 Controller，此后接口有新增，数字随代码变动，改动前 MUST 以代码为准、或直接重跑脚本刷新）。**`GateTxnPayController` 此前未列入任何一类**，导致按「只有单路径」的旧认知去改它时会漏加 `/app/` 别名——**该 Controller 属双别名一类**。
 
@@ -55,7 +55,7 @@
 | `AppTicketController` | IF8A-73 `queryBlackList`、IF8A-29 `queryUserItinerary`、IF8A-04 `requestExcessFare`、IF8A-05 `requestTransList`、IF8A-34 `requestTransDetail`、IF8A-41 `requestTransStatistics` |
 | `AppParaController` | IF8A-09 `requestBuySinlgeTicketMaxNum`（拼写错误已保留，另有 `requestSingleTicketMaxNum` 别名）、IF8A-07 `requestLineCodeList`、IF8A-08 `requestStationCodeList`、IF8A-10 `requestTicketPriceByStation`、IF8A-17 `requestLineStationCodeVersion` |
 | `PaySignController` | IF8A-19 `requestPay`、IF8A-16 `requestSignInfo`、`receivePayResult`、IF8A-06 `requestTermination`、IF8A-22 `requestContractResult`、`receiveSignResult`、`receiveTerminationResult`（别名 `receiveUnsignResult`，同一方法、同一转发目标）、`queryPayTxnBatch`（供 ticket-server） |
-| `CollectPayController` | IF8A-20 `requestOrder`、IF8A-11 `requestPaymentInfo`、IF8A-18 `requestPayResult`、`requestRefundTicket`、`requestRefundTicketResult`、`requestPreActiveOrderList`、`requestActiveTicket`、`receiveRefundResult` |
+| `AppPayGatewayController` | IF8A-20 `requestOrder`、IF8A-11 `requestPaymentInfo`、IF8A-18 `requestPayResult`、`requestRefundTicket`、`requestRefundTicketResult`、`requestPreActiveOrderList`、`requestActiveTicket`、`receiveRefundResult`，**8 条全部转 face-pay**（`FacePayAppClient`，纯透传不判单号前缀；2026-11-20 改造，原名 `CollectPayController`、下游曾是已弃用的 collect-pay） |
 | `AppDailyTicketController` | `/ci/app/dailyTicket/*` 转发日票 IF8A-60/61/62/64/65/67/71 + 支付回调；另有 `/app/requestCountingOrder` 与 `/app/ticket/**` 别名；规范 R6 的扁平 `/app/payment/**` 已挂 `requestPay`、`requestPayResult`、`requestRefundTicket`（2026-09-11 补挂，APP 实调该地址）、`receivePayResult` |
 | `IndustryDataController` | IF8A-03 `requestIndustryData`、IF8D-03 `requestNoSignalData` |
 | `GateTxnPayController` | IF8A-26 `requestPayOrder`（只生成补款单、不发起支付）、IF8A-35 `requestUserAccInfo`（未支付订单数 + 扣费失败订单数）；**两条都是 `/ci/app` + `/app` 双别名**，详见 [gate-txn-pay.md](gate-txn-pay.md) |
@@ -109,8 +109,8 @@
 
 ### 四、下游路由与 `service.*.url`
 
-- **默认值一律用集群内网 Service 名**（`kubectl get svc -n itp` 实测，2026-09-11）；**NEVER 写 127.0.0.1（在 K8s 里等于打到自己），也 NEVER 删键（键缺失时 rpc 退化成默认服务名 `*-service`、DNS 解析不到）**；**Service 端口不统一**——account 9098 / ticket 9100 等于容器端口，security / paySign / blacklist / key 是 8080，para 30026 / gateTxnPay 30019 / industryData 30018 / dailyTicket 30027 / collectPay 30024 等于 NodePort 号；**照抄实测值，NEVER 按 `server.port` 推断**（`fep-app-server` `application.properties` 头部注释块，`fep-app-server/src/main/resources/application.properties`）。
-- **`service.collectPay.url` 是 2026-09-11 补齐的**：此键此前整条缺失，运行时落到 rpc 默认服务名 `collect-pay-service`、DNS 解析不到（`fep-app-server/src/main/resources/application.properties`）。
+- **默认值一律用集群内网 Service 名**（`kubectl get svc -n itp` 实测，2026-09-11）；**NEVER 写 127.0.0.1（在 K8s 里等于打到自己），也 NEVER 删键（键缺失时 rpc 退化成默认服务名 `*-service`、DNS 解析不到）**；**Service 端口不统一**——account 9098 / ticket 9100 等于容器端口，security / paySign / blacklist / key 是 8080，para 30026 / gateTxnPay 30019 / industryData 30018 / dailyTicket 30027 等于 NodePort 号（collectPay 30024 那条已于 2026-11-20 随键删除）；**照抄实测值，NEVER 按 `server.port` 推断**（`fep-app-server` `application.properties` 头部注释块，`fep-app-server/src/main/resources/application.properties`）。
+- **`service.collectPay.url` 已于 2026-11-20 随客户端一起删除**（键与 `rpc` 的 `CollectPayClient`、`@EnableRpcCollectPay` 三者同时移除）：该键 2026-09-11 首次补齐，2026-11-20 当天再次缺失并补回、随后发现补回的值指向已弃用的 collect-pay 僵尸实例（整站 403），当日改为**由 `service.facePay.url` 单地址承载 8 条 `AppPayGatewayController` 端点**（`FacePayAppClient`）。键缺失/改错的完整事故史见 §「矛盾与待裁决」② —— **那条史现降级为方法论，不再是现状**。
 - **`service.facePay.url` 2026-09-15 新增**：IF8A-26 补款下单已迁入 face-pay-server，**地址与 web-admin 的 `service.facePay.url` 保持一致**（`fep-app-server/src/main/resources/application.properties`）。
 - **`service.transQuery.url` 2026-09-14 新增**：IF8A-05 / IF8A-41 / IF8A-34 三个交易查询已由 ticket-server 切到 trans-query-server；默认值取实测的 `trans-query-57wpd-svc`（NodePort 与 Service 端口同为 30035）；**ticket-server 上那三个同路径端点仍在、未删，回滚只需把 `TicketAppServiceImpl` 的三处换回 `ticketClient`**（`fep-app-server/src/main/resources/application.properties`）。
 - **同一个 Service 层里两个 Client 并存、分工按方法划**：IF8A-05 / IF8A-41 / IF8A-34 三个交易查询已迁到 trans-query-server（9113），本类里只有那三个方法用它；乘车码状态机、自助补站、支付宝行程仍在 ticket-server，**NEVER 把 `ticketClient` 整个换掉**（`fep-app-server` `TicketAppServiceImpl` 字段注释，`fep-app-server/src/main/java/com/chinasofti/huateng/fep/app/service/impl/TicketAppServiceImpl.java`）。
@@ -118,7 +118,7 @@
 - **IF8A-26 只生成补款单并返回补款单号、不发起支付；归属校验在 face-pay-server 侧完成**：bizData 传了 thirdUserId / cardId 就按其校验，未传则从原订单反推（详见 `SupplementOrderReqDTO` 类注释）（`fep-app-server` `GateTxnPayController.requestPayOrder`，`.../controller/GateTxnPayController.java`）。
 - **IF8A-35 为什么落在 gate-txn-pay-server 而不是 account-server**（只读，供 APP 做欠费提醒：未支付订单数 + 扣费失败订单数）：数据源就是 `GATE_TXN_PAY`，account-server 没有任何账务表也没注入 `GateTxnPayClient`，经它中转只是多一跳；与同域的 IF8A-05 / IF8A-26 / IF8A-34 走同一条透传链路（`fep-app-server` `GateTxnPayController.requestUserAccInfo`，`.../controller/GateTxnPayController.java`）。
 - **薄网关定位（本模块只承接入口与编排、状态归下游）**：`AppDailyTicketController` 类注释记「本 Controller 只负责承接 APP 公共 FormData 报文、解析 bizData 并转发到 daily-ticket-server」（`.../controller/AppDailyTicketController.java`）；`DailyTicketAppServiceImpl` 类注释记「fep-app-server 只承接 APP 入口和服务编排，日票订单、支付、激活、退款等状态由 daily-ticket-server 维护」（`fep-app-server/src/main/java/com/chinasofti/huateng/fep/app/service/impl/DailyTicketAppServiceImpl.java`）。
-- **纯透传的三个 Controller，注释只声明转发目标**：`CollectPayController`「承接 APP 下单、支付、退款等请求，透传到 collect-pay-server」（`.../controller/CollectPayController.java`）；`PaySignController`「所有接口透传到 pay-sign-server」（`.../controller/PaySignController.java`）；`IndustryDataController`「涵盖 IF8A-03 请求行业数据、IF8D-03 请求离线码数据」（`.../controller/IndustryDataController.java`）。
+- **纯透传的两个 Controller，注释只声明转发目标**：`AppPayGatewayController`「承接 APP 下单、支付、退款等请求，透传到 face-pay-server」（`.../controller/AppPayGatewayController.java`）；`PaySignController`「所有接口透传到 pay-sign-server」（`.../controller/PaySignController.java`）；`IndustryDataController`「涵盖 IF8A-03 请求行业数据、IF8D-03 请求离线码数据」（`.../controller/IndustryDataController.java`）。
 - **行业数据链路上移到独立生码服务**：`buildCardDataRequest` 注释原文「组装独立生码服务请求，fep-app 不再本地拼接码体和调用签名」（`fep-app-server` `IndustryDataServiceImpl.buildCardDataRequest`，`fep-app-server/src/main/java/com/chinasofti/huateng/fep/app/service/impl/IndustryDataServiceImpl.java`）。
 - **HCE 卡数据由开户和闸机交易维护，不参与二维码行业数据生成与签名**（`fep-app-server` `IndustryDataServiceImpl.isHceCard`，`.../service/impl/IndustryDataServiceImpl.java`）。
 - **离线码请求统一使用 `signChannelCode=17`（离线码）**，写死在 IF8D-03 分支里（`fep-app-server` `IndustryDataServiceImpl` 行内注释，`.../service/impl/IndustryDataServiceImpl.java`）。
@@ -170,10 +170,10 @@
 
 **这是本次迁移里唯一「零源注释」的条目，也是风险最高的一条。**
 
-- **实测事实**：`fep-app-server/src/main/**` 全部 26 个文件的注释里（阶段一 89 行、阶段二完整 320 行两轮都确认过）**没有任何一处**提到「不验签」「`sign` 原样透传」或验签责任如何分布。代码层面唯一的物证是 `CollectPayController.toFormDataMap()` 里那句 `map.put("sign", request.getSign());`（可 grep 短语：`map.put("sign"`，原 `fep-app-server/src/main/java/com/chinasofti/huateng/fep/app/controller/CollectPayController.java`）—— 它**把上游送来的 `sign` 原值塞进出向 form-data 直接转给 collect-pay，中间没有任何校验分支**。
+- **实测事实**：`fep-app-server/src/main/**` 全部 26 个文件的注释里（阶段一 89 行、阶段二完整 320 行两轮都确认过）**没有任何一处**提到「不验签」「`sign` 原样透传」或验签责任如何分布。代码层面唯一的物证是 `AppPayGatewayController.toFormDataMap()` 里那句 `map.put("sign", request.getSign());`（可 grep 短语：`map.put("sign"`，原 `fep-app-server/src/main/java/com/chinasofti/huateng/fep/app/controller/AppPayGatewayController.java`）—— 它**把上游送来的 `sign` 原值塞进出向 form-data 直接转给 face-pay，中间没有任何校验分支**。
 - **为什么这是风险，而不只是「文档缺失」**：
   1. 本模块**没有** spring-security、**没有**全局验签拦截器、**没有** `*Verifier` 类。`fep-app-server` 的 43 条 `@PostMapping` 里**每一条都是裸暴露的状态变更或查询端点**，其中 `/app/cancelAccount`（销户）、`/userData/unbindAgreement`（解绑支付方式）、`/app/changePhone`（换手机号）、`/app/payment/requestRefundTicket`（退款）**都是按 `thirdUserId` / 订单号操作他人数据的写接口**。这直接撞上 security-sensitivity.md（已删除） §三「新增状态变更型接口 MUST 有鉴权与归属校验」（裸暴露的 POST 接口等于允许任何网络可达方按流水号操作任意用户数据）。
-  2. **「知识只在 docs、代码里零痕迹」本身就是缺陷放大器**：改本模块的人在代码里看不到任何「此处不验签、下游负责」的提示，于是会**默认接入层已经验过**。而下游的校验强度参差不齐 —— `AccountRequestVerifier` 在 `signType=00` 时**直接免签**，`ItpRequestSignVerifier` 是 SHA1/MD5，`CollectPayController` 这条链路则完全依赖 collect-pay / face-pay 自己的 `SignUtils`。**没有任何一层能保证「所有 43 条端点都被校验过至少一次」。**
+  2. **「知识只在 docs、代码里零痕迹」本身就是缺陷放大器**：改本模块的人在代码里看不到任何「此处不验签、下游负责」的提示，于是会**默认接入层已经验过**。而下游的校验强度参差不齐 —— `AccountRequestVerifier` 在 `signType=00` 时**直接免签**，`ItpRequestSignVerifier` 是 SHA1/MD5，`AppPayGatewayController` 这条链路则完全依赖 face-pay 自己的 `SignUtils`。**没有任何一层能保证「所有 43 条端点都被校验过至少一次」。**
   3. 阶段一已把这条记成「本模块注释无此记载」（本文件上一节 §三）。**本次迁移刻意没有把它写回代码**：写进注释等于在 40 处 Controller 方法上复制同一段话，且注释不是防线。**正确的收口是补一层真实的入向验签**，而不是加注释。
 - **MUST / NEVER**：
   - 改 `fep-app-server` 任何端点前 **MUST 先读本条**，NEVER 假定「接入层已验签」。
@@ -210,7 +210,7 @@
 | 路径族 | 谁在用 | 约束 |
 |---|---|---|
 | `/ci/app/**` + `/app/**` 双别名 | `AppAccountController`、`AppParaController`、`AppTicketController`、`AppDailyTicketController`、`GateTxnPayController` | 新增接口 MUST 与同 Controller 内其余方法保持一致 |
-| **只有 `/ci/app/**` 单路径** | `CollectPayController`（8 条）、`IndustryDataController`（2 条）、`PaySignController`（除 `unbindAgreement` 外全部） | **NEVER 给单路径 Controller 硬加 `/app/` 别名** |
+| **只有 `/ci/app/**` 单路径** | `AppPayGatewayController`（8 条）、`IndustryDataController`（2 条）、`PaySignController`（除 `unbindAgreement` 外全部） | **NEVER 给单路径 Controller 硬加 `/app/` 别名** |
 | `/app/ticket/**` 扁平别名 | `AppTicketController`（6 条 + `realName`）、`AppDailyTicketController`（每条都额外注册一个） | 成因：**APP 端把 `dailyTicket` 段写成了 `ticket`**（2026-09-09 20:03 实测 `/app/ticket/updateTicket` 无映射 → 落静态资源处理器报 `No static resource` → 响应退化成全局异常处理器的 UUID retCode → 日票激活失败）。**两个 Controller 的 `/app/ticket/**` 路径 NEVER 重名**（重名时 Spring 启动即报重复映射） |
 | `/app/payment/**` 扁平地址 | `AppDailyTicketController` 的 `requestPay` / `requestPayResult` / `requestRefundTicket` / `receivePayResult` / `receiveRefundResult` | 接口规范 R6 给定、**APP 与 daily-ticket-server 实际都在用这一条**，**NEVER 删扁平那条** |
 | `/userData/**` | 只有 `PaySignController.unbindAgreement` 一条 | IF8A-75，APP 实际在调，**NEVER 删，除非 APP 侧确认已切换** |
@@ -234,10 +234,13 @@
 
 本模块装配了 **14 个 `@EnableRpcXxx`**（`FepAppServer.java`，可 grep `@EnableRpcRoute`）：`Route / Blacklist / Key / Account / Security / PaySign / Ticket / IndustryData / Para / DailyTicket / CollectPay / GateTxnPay / TransQuery / FacePay`。`application.properties` 里现有 **13 组 `service.*.url`**（`Route` 不需要地址）。排查调用不通 **MUST 先按这 14 个注解逐个回头对键，NEVER 只顺着 properties 逐行看** —— 顺着看永远发现不了「压根没写」的那种。
 
-**② 键缺失 —— `service.collectPay.url`（本模块的活样例，已修）**
-- 该键**此前整条缺失**：`CollectPayController` 一直在注 `CollectPayClient`（8 条 IF8A 端点全走它），而 properties 里没有对应键。运行时 `rpc` 退化成**默认服务名 `collect-pay-service`**，集群里没有这个 Service ⇒ **CoreDNS 解析不到** ⇒ 8 条端点全废，且**仓库里连一个写错的键都没有**（与 `fep-dev-server` 缺 `service.key.url` 同型，是这一类里最难发现的形态）。
-- **2026-09-11 已补齐**：`service.collectPay.url=${SERVICE_COLLECT_PAY_URL:http://collect-pay-c23ku-svc.itp.svc:30024}`（迁移前 `application.properties`，可 grep `service.collectPay.url`）。
-- **本次迁移在该键上留了一行式护栏**（末节护栏 ②）：「本模块 NEVER 依赖 rpc 默认服务名，新增下游 MUST 显式配 `service.*.url`」。**这是唯一还留在代码里的这类告示，NEVER 删。**
+**② 键缺失 —— 8 条 APP 域端点曾经的下游键 `service.collectPay.url`（键已随客户端删除，留作方法论）**
+- 该键**此前整条缺失**：`CollectPayController`（2026-11-20 已改名 `AppPayGatewayController`）一直注 `CollectPayClient`（8 条 IF8A 端点全走它），而 properties 里没有对应键。运行时 `rpc` 退化成**默认服务名 `collect-pay-service`**，集群里没有这个 Service ⇒ **CoreDNS 解析不到** ⇒ 8 条端点全废，且**仓库里连一个写错的键都没有**（与 `fep-dev-server` 缺 `service.key.url` 同型，是这一类里最难发现的形态）。**别再"顺着 properties 逐行看"** —— 键缺失时 properties 里一行都没有，只有按 15 个 `@EnableRpcXxx` 回头对才能发现。
+- **2026-09-11 首次补齐**：`service.collectPay.url=${SERVICE_COLLECT_PAY_URL:http://collect-pay-c23ku-svc.itp.svc:30024}`（迁移前 `application.properties`）。
+- **2026-11-20 复查：该键再次整条缺失**。运行态实证：13:26 的 IF8A-11 转发 url=`collect-pay-service/ci/app/requestPaymentInfo`、`Failed to resolve 'collect-pay-service'`，APP 侧收到 UUID 形 `retCode` + `data=null`。
+- **同日二次订正：补回来的地址指错了对象。** 首次补回抄了代码默认值 `collect-pay-internal:8080`，而 `collect-pay-server` **2026-11-20 测试环境云管台 `Stopped` + K8s 副本 0**（Deployment / Service 资源保留未删；红岛从未部署）；该实例 `FirstFilter.checkUrlSafe` 把**整站**拦成 403（实例 env `other.web.unSafeUrlChars` 是字符串 `null` 却绑成了空串，`"".split(" ")` ⇒ `[""]` ⇒ `url.contains("")` 恒真，日志表现为 `contains unsafe char:` 后面是空的），实测 `/actuator/health`、`/ci/app/requestPaymentInfo`、`/foo/bar` 全部 `403 {"msg":"check url unSafe"}`。**正确目标一直是 `face-pay`**：`deploy/k8s/10-deployments/fep-app.yaml` 这一行本来就写 `http://172.20.211.23:30025`（= `face-pay-server-svc` 的 NodePort）。**NEVER 把下游指回 collect-pay：那个地址资源保留但无活 Pod、业务已死，只会把失败形态从「DNS 解析不到」换成「403」。**
+- **最终态（2026-11-20 落地）：键与客户端一并删除，不修僵尸。** `service.collectPay.url` / `service.collectPay.openLogger` 两键、`rpc` 的 `CollectPayClient`、`@EnableRpcCollectPay` 全部移除；8 条端点改由 `AppPayGatewayController` → `FacePayAppClient` 统一走 `service.facePay.url`（同一地址，`/ci/app` 7 条 + `/itptvm/ci/tvm/requestActiveTicket` 1 条）。**`requestActiveTicket` face-pay 是承接的**——早前「未承接会 404」的判断是错的，原因是它挂在 `TvmOrderController`（`/itptvm/ci/tvm`）而非 `AppOrderController`（`/ci/app`），实测从未 404；路径映射由 `FacePayAppClientPathTest` 逐条锁定。
+- **护栏（末节护栏 ②）保留**：「本模块 NEVER 依赖 rpc 默认服务名，新增下游 MUST 显式配 `service.*.url`」。**这是唯一还留在代码里的这类告示，NEVER 删。**
 
 **③ 键存在但值指向自身 Pod —— `service.gateTxnPay.url`**
 - `AGENTS.md §7`「Ops & Deployment (部署与运维，详见 docs/ops/)」 记录的形态是 `service.gateTxnPay.url=http://127.0.0.1:9106`（`fep-app-server/application.properties`，2026-09-08 实测）。在 K8s 里 `127.0.0.1` **等于打到自己这个 Pod**，`fep-app` 自己不听 9106 ⇒ 连接失败 ⇒ 响应退化成全局异常处理器的 **UUID `retCode`**（不是 404、不是超时，最难认的一种表现）。
@@ -258,9 +261,9 @@
 | 开关 | 位置 | 影响面 | 改法 |
 |---|---|---|---|
 | **设备域** | `fep-app-vr` VirtualService（ns `itp`）对应前缀那条 route 的 `destination.host` / `port.number` | 只影响**入向**流量（`/itptvm/`、`/itpbom/`、`/itpagm/` 等经网关进来的），内部链路一行不动 | `kubectl patch vs fep-app-vr -n itp --type=json`，**MUST 带 `test` op** 校验下标与原值 |
-| **APP 域** | **`fep-app` Deployment 的 env**，如 `service.collectPay.url` | 只影响 `fep-app` 转发给下游的目标，**会触发滚动重启** | `kubectl set env` / 改 Deployment yaml |
+| **APP 域** | **`fep-app` Deployment 的 env**，如 `service.facePay.url` | 只影响 `fep-app` 转发给下游的目标，**会触发滚动重启** | `kubectl set env` / 改 Deployment yaml |
 
-- **键名带点、不是下划线大写**：APP 域那个 env 的 key 是 **`service.collectPay.url`**，**NEVER 写成 `SERVICE_COLLECT_PAY_URL`**（Spring relaxed binding 两种都能读，但集群里现存的那条 env 用的是带点形式；照下划线形式新加一条会变成**两条键同时存在**、谁生效取决于 PropertySource 顺序，属于最难查的一类）。
+- **键名带点、不是下划线大写**：APP 域的 env key 用带点形式（如 **`service.facePay.url`**），**NEVER 另写一条下划线大写同义键**（Spring relaxed binding 两种都能读，但集群里现存的是带点形式；照下划线形式新加一条会变成**两条键同时存在**、谁生效取决于 PropertySource 顺序，属于最难查的一类）。**2026-11-20 起 `service.collectPay.*` 两条已随之删除**，集群里若还残留这两条 env 属清理项，代码已无消费者。
 - **「切一个业务域的全部流量」通常要动两处**（网关 route + `fep-app` env）。只改一处的典型后果：设备侧已切到新应用、APP 侧还打旧应用，**两边落到不同的表**（旧 `*_ORDER` vs 新 `F2F_*`），对账时才发现。
 - **NEVER 改 K8s Service selector 来切流量**：目标服务未必听同一个 `targetPort`（`collect-pay-c23ku-svc` 的 `targetPort` 是 8080，靠 Deployment env `server.port=8080` 顶掉 yml 里的 58101），且**翻 selector 会连带打断所有「直连该 Service、不经网关」的内部调用方**（recon 对账源、gate-txn-pay 补款、web-admin Quartz）。
 - **改前 MUST 记下原值作为回滚命令**；切完 MUST 用「同一份报文分别打新旧服务、比对 retCode」做契约基线核对，并在目标服务日志里确认落点。完整 Runbook：`docs/ops/流量切换Runbook.md`。
@@ -295,7 +298,7 @@
 - **边界原文（`DailyTicketAppServiceImpl.java`，可 grep `日票订单、支付、激活、退款等状态由daily-ticket-server维护`）**：「fep-app-server 只承接 APP 入口和服务编排，**日票订单、支付、激活、退款等状态由 daily-ticket-server 维护**」。同一句在 Controller 类注释上也有一份（`AppDailyTicketController.java`，「只负责承接 APP 公共 FormData 报文、解析 bizData 并转发到 daily-ticket-server」）。
 - **落地判据**：本模块**没有任何日票状态机、没有 `PAYING` / `PAID` 之类的状态字面量、没有金额计算、没有订单表**。`DailyTicketAppServiceImpl` 全部方法都是「转 DTO → 调 `dailyTicketClient` → 回传」。**NEVER 在本模块判断或改写日票订单状态**（改状态值 MUST 去 `daily-ticket-server`，并按 `docs/business/README.md` 全局事实 全局 grep 所有比较点）。
 - **两个回调方法的分工**：`handlePayResultCallback(requestBody)` 收**支付网关原始报文**（Controller 用 `@RequestBody String`）；`receiveRefundResult(dto)` 收**ITP 信封形态**（Controller 用 `@ModelAttribute` + `parseBizData`）。**两者不可互换**，理由见 §二末条。
-- 另有两条同形的「薄网关」声明，一并迁到此处：`CollectPayController` = 「承接 APP 下单、支付、退款等请求，**透传到 collect-pay-server**」；`PaySignController` = 「**所有接口透传到 pay-sign-server**」；`IndustryDataController` = 「涵盖 IF8A-03 请求行业数据、IF8D-03 请求离线码数据」。**NEVER 在这三个 Controller 里写业务规则、事务或直连 DB**（本模块无数据源）。
+- 另有两条同形的「薄网关」声明，一并迁到此处：`AppPayGatewayController` = 「承接 APP 下单、支付、退款等请求，**透传到 face-pay-server**」；`PaySignController` = 「**所有接口透传到 pay-sign-server**」；`IndustryDataController` = 「涵盖 IF8A-03 请求行业数据、IF8D-03 请求离线码数据」。**NEVER 在这三个 Controller 里写业务规则、事务或直连 DB**（本模块无数据源）。
 
 ### 八、其余接口级注释知识（逐条，均已从代码删除）
 
@@ -359,13 +362,13 @@
 - **每条都带 `路径:行号` + 可 grep 短语**：行号是**迁移前**位置，短语取自注释或代码原文，**代码里仍存在的短语**（如 `map.put("sign"`、`rawBizData`、`signChannelCode = "17"`、`bizData.containsKey("channelType")`、`<image.prefix>`）标注为可直接 grep 验证。
 - **未覆盖 / 有意丢弃**：复述方法名与参数名的纯 Javadoc（`FepAppServer` 的 `@param args`、`DailyTicketAppService` 11 个方法的「IF8A-xx 日票 XX」单句、`PhoneChangeAppService` 的 `@param`/`@return`）—— 这类**不承载知识、且本次未从代码删除**（属标准 Javadoc，按要求保留）。
 - **已知盲区 3 处**：①`pom.xml` 与 `docker/Dockerfile` 不在「注释抽取」范围内，§六那三条是**从 pom 结构 + `AGENTS.md §6`「Build & Run (构建与运行)」 反推**、非注释来源；②线上 `fep-app` Deployment 的 env 未在本次会话现查，§四 / §五涉及线上值的判断**MUST 自行现查**；③本模块**没有任何单元测试**（`src/test` 不存在），墓碑清单里标「能断言化」的 12 条**一条都还没写成测试**。
-- **删除侧实测（迁移闭环的另一半）**：`src/main` 注释行 **320 → 187，删除 133 行、涉 14 个文件**（`AppDailyTicketController` -41、`PaySignController` -23、`GateTxnPayController` -11、`AppTicketController` -10、`PhoneChangeController` -9、`AppAccountController` -8、`BaseAppController` -8、`application.properties` -7、`PhoneChangeAppServiceImpl` -4、`AppParaController` -3、`TicketAppServiceImpl` -3、`CollectPayController` -2、`IndustryDataController` -2、`DailyTicketAppServiceImpl` -2）。剩下的 187 行全部是标准 Javadoc + 4 条护栏里的 3 条。**不变量已自证**：python 逐文件剥注释（字符串/字符字面量感知的状态机）后与 `svn cat -r BASE` 比对，**26/26 文件代码逐行一致**，即本次改动**未触碰任何一行可执行代码**。
+- **删除侧实测（迁移闭环的另一半）**：`src/main` 注释行 **320 → 187，删除 133 行、涉 14 个文件**（`AppDailyTicketController` -41、`PaySignController` -23、`GateTxnPayController` -11、`AppTicketController` -10、`PhoneChangeController` -9、`AppAccountController` -8、`BaseAppController` -8、`application.properties` -7、`PhoneChangeAppServiceImpl` -4、`AppParaController` -3、`TicketAppServiceImpl` -3、`AppPayGatewayController` -2、`IndustryDataController` -2、`DailyTicketAppServiceImpl` -2）。剩下的 187 行全部是标准 Javadoc + 4 条护栏里的 3 条。**不变量已自证**：python 逐文件剥注释（字符串/字符字面量感知的状态机）后与 `svn cat -r BASE` 比对，**26/26 文件代码逐行一致**，即本次改动**未触碰任何一行可执行代码**。
 
 ### 保留的一行式护栏（代码里仅剩这 4 处告示，NEVER 删）
 
 | # | 位置 | 原文 | 说明 |
 |---|---|---|---|
 | ① | `application.properties` 的 `service.gateTxnPay.url` 行上方 | `# NEVER 回退成 127.0.0.1（K8s 里等于打到自身 Pod，表现为 UUID retCode）。MUST 用 kubectl get svc -n itp 实测地址。` | 按现值调整过措辞，见「矛盾」第 1 条 |
-| ② | `application.properties` 的 `service.collectPay.url` 行上方 | `# 本模块 NEVER 依赖 rpc 默认服务名，新增下游 MUST 显式配 service.*.url。` | 原「键此前整条缺失」的事故史已迁走，只留前瞻约束 |
+| ② | `application.properties` 的 `service.facePay` 注释块内（原 `service.collectPay.url` 行已随键删除） | `# 本模块 NEVER 依赖 rpc 默认服务名，新增下游 MUST 显式配 service.*.url。` | 原「键此前整条缺失」的事故史已迁走，只留前瞻约束 |
 | ③ | `BaseAppController.parseBizData` 的 Javadoc | `<p>能被本方法解析的 DTO 就是对外契约，NEVER 加字段。</p>` | 本模块无 DTO，挂在解析边界上；见「矛盾」第 6 条 |
 | ④ | —— | **N/A** | 本模块无 mapper XML、无 SQL，「SQL 正文禁写注释」那条无处可放；见「矛盾」第 7 条 |

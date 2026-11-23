@@ -51,6 +51,21 @@ public class BlacklistInternalController {
     }
 
 
+    /**
+     * 补款付清后的单卡实时解黑。只处理该卡 ACTIVE + 欠费类黑名单，逐条复用全表 autoRelease 的欠费判据。
+     * 调用方（face-pay）失败只记日志不阻断收敛；兜底仍是 sys_job 230 每天两次全表解除。
+     */
+    @PostMapping("/release-card-if-settled")
+    public BlacklistAutoReleaseRespDTO releaseCardIfSettled(@RequestParam String cardId) {
+        log.info("接收到单卡实时解黑请求, cardId={}", cardId);
+        BlacklistAutoReleaseRespDTO response = blacklistAutoReleaseService.releaseCardIfSettled(cardId);
+        log.info("单卡实时解黑响应, cardId={}, scanned={}, released={}, unsettled={}, unknown={}, skipped={}, failed={}",
+                cardId, response.getScanned(), response.getReleased(), response.getUnsettled(),
+                response.getUnknown(), response.getSkipped(), response.getFailed());
+        return response;
+    }
+
+
     @PostMapping("/inspectReleasable")
     public BlacklistReleaseInspectRespDTO inspectReleasable() {
         log.info("接收到黑名单可解除性盘点请求");

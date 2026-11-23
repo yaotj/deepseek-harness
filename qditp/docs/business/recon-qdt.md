@@ -72,8 +72,8 @@ ACC 票卡交易明细（充值）、打包上传琴岛通金额、差异；地�
 | 支付台账 | `PAY_TXN_DETAIL`：`PAY_STATUS` / `DEBIT_REQUEST_RESULT` / `REFUND_STATUS` / `REFUND_AMOUNT` / `MERCHANT_ORDER_NO` / `CHANNEL_ORDER_NO` / `DISCOUNT_FEE` | `pay-sign-server/src/main/resources/sql/pay-txn-schema.sql` |
 | 二维码 / 离线码流水 | `QRCODE_TXN_DETAIL` / `QRCODE_STATUS`（ticket-server），离线码 `signChannelCode="17"` | `docs/business/ride-code.md` |
 | 设备域充值 / 购票 / 非现金收款 | `F2F_ORDER` `BIZ_TYPE`：01 购票 / 02 充值 / 03 取票（不入对账）/ 04 非现金收款 | `face-pay-server/.../mapper/F2fReconExportMapper.xml` |
-| **琴岛通相关** | **全仓零实现**：无琴岛通接口、无上传通道、无表、无产品 | grep `qdt|QDT|琴岛通` 全仓仅 collect-pay（已下线）一处产品枚举 |
-| 互联互通卡 | **无产品**：全仓仅 collect-pay（已下线）`ProductType.communication("0A","一票通_交通部互联互通卡")` 枚举值；检票链路无分支 | `docs/testing/e-ticket/00-链路事实与状态字典.md` |
+| **琴岛通相关** | **全仓零实现**：无琴岛通接口、无上传通道、无表、无产品 | grep `qdt|QDT|琴岛通` 全仓仅 collect-pay（**2026-11-20 起测试环境停服**）一处产品枚举 |
+| 互联互通卡 | **无产品**：全仓仅 collect-pay（**2026-11-20 起测试环境停服**）`ProductType.communication("0A","一票通_交通部互联互通卡")` 枚举值；检票链路无分支 | `docs/testing/e-ticket/00-链路事实与状态字典.md` |
 | Apple Pay / APPLY PAY | **仓库零命中**，无产品无数据 | grep `Apple|APPLY` 全仓 |
 | 微信 / 龙支付渠道 | **仓库零命中**（显式实现的渠道为支付宝 `alipay-pay-sign`；通用侧走支付中心网关） | grep `微信|WECHAT|龙支付` 全仓 |
 | 结算 / 可疑 / 调整 / 挂账台账 | **全对账域无「结算」概念**（`RECON_THIRD_BILL.CLEARING_DATE` 除外），无可疑 / 调整 / 挂账 / 补账 / 拒付任何台账 | grep `结算|清算` recon-server |

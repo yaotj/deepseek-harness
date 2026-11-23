@@ -20,7 +20,9 @@ public class TransRecordAssembler {
         dto.setPayOrderNoDate(nullSafe(pay != null ? pay.getPayTime() : null));
         dto.setAttributableParty(nullSafe(gate.getAttributableParty()));
         dto.setReceivingParty(nullSafe(gate.getReceivingParty()));
-        dto.setPayChannelCode(nullSafe(pay != null ? pay.getPaymentVendor() : null));
+        // IT-082 阶段三：当 PAY_TXN_DETAIL 缺失时（如免扣费交易、站中出站等场景），
+        // 从 GATE_TXN_PAY.PAYMENT_VENDOR 兜底获取渠道信息，避免 payChannelCode 为空。
+        dto.setPayChannelCode(resolvePayChannelCode(pay, gate));
         dto.setDebitRequestResult(toAppDebitResult(gate.getDebitStatus(),
                 pay != null ? pay.getDebitRequestResult() : null));
         dto.setDiscountFee(resolveDiscountFee(pay));
@@ -99,6 +101,14 @@ public class TransRecordAssembler {
             case "INIT", "PROCESSING", "RETRY" -> null;
             default -> "2";
         };
+    }
+
+    private static String resolvePayChannelCode(PayTxnDetailDTO pay, GateTxnPayListDTO gate) {
+        if (pay != null && pay.getPaymentVendor() != null && !pay.getPaymentVendor().isBlank()) {
+            return pay.getPaymentVendor();
+        }
+        // 兜底：从闸机订单获取支付渠道
+        return gate.getPaymentVendor() != null ? gate.getPaymentVendor() : "";
     }
 
     private static String toFen(Integer fen) {

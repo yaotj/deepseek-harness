@@ -32,11 +32,11 @@
 | 闸机出站扣费（后付费） | [gate-txn-pay.md](gate-txn-pay.md) | gate-txn-pay-server |
 | 支付签约 / 解约 / 免密扣款 | [pay-sign.md](pay-sign.md) | pay-sign-server |
 | 支付宝渠道（碰一下 / 出行） | [alipay-channel.md](alipay-channel.md) | fep-alipay-server, alipay-pay-sign-server, alipay-account-server |
-| TVM / BOM 非现金购票、充值、退款 | [tvm-bom-pay.md](tvm-bom-pay.md) | **face-pay-server (58101)** = 本域现行主实现；**2026-09-16 17:31 起已承接设备域 + APP 域全部入向流量**（`fep-app-vr` 的 `/itptvm/`、`/itpbom/` 指向 `face-pay-server-svc:30025`，`fep-app` 的 env `service.collectPay.url` 已改指 30025，旧表数据已全量迁入 `F2F_*`，见 ADR-D116 / D117）。**NEVER 回退成「VS 仍指向 collect-pay / 设备流量还在旧应用」**——那是 ADR-D112 的当日口径、已被 D117 取代。判断流量归属 **MUST 现查 VS + `fep-app` env，NEVER 引用本行** |
-| APP 扫码取票（单程票） | [app-ticket-collect.md](app-ticket-collect.md) | collect-ticket-server |
+| TVM / BOM 非现金购票、充值、退款 | [tvm-bom-pay.md](tvm-bom-pay.md) | **face-pay-server (58101)** = 本域现行主实现；**2026-09-16 17:31 起已承接设备域 + APP 域全部入向流量**（`fep-app-vr` 的 `/itptvm/`、`/itpbom/` 指向 `face-pay-server-svc:30025`，`fep-app` 的 env 已改指 30025（现 `service.facePay.url`；原 `service.collectPay.url` 已于 2026-11-20 随客户端删除），旧表数据已全量迁入 `F2F_*`，见 ADR-D116 / D117）。**NEVER 回退成「VS 仍指向 collect-pay / 设备流量还在旧应用」**——那是 ADR-D112 的当日口径、已被 D117 取代。判断流量归属 **MUST 现查 VS + `fep-app` env，NEVER 引用本行** |
+| APP 扫码取票（单程票） | [app-ticket-collect.md](app-ticket-collect.md) | **已归档**（2026-11-22）：collect-ticket-server 从未部署，源码移入 `archive/abandonedservices/`；该域端点现由 `para-server`（IF8A-09/10）+ `face-pay-server`（IF8A-11 等）承接 |
 | 日票 / 多日计次票 | [daily-ticket.md](daily-ticket.md) | daily-ticket-server |
 | 逻辑卡号池（批次申请 / ACC 文件导入 / 卡号预占） | [card-pool.md](card-pool.md) | card-pool-server |
-| 日终对账（分片抽取 / 流式聚合 / FTP 投递） | [recon.md](recon.md) | recon-server + **三个源服务**：gate-txn-pay-server, daily-ticket-server, **face-pay-server**（collect-pay 旧表源 2026-10-13 随该模块下线移除；期望清单 MUST 现查 `recon-server` 的 `recon.orchestration.sources[*]`）。ticket-server 的对账代码保留、**不在期望清单** |
+| 日终对账（分片抽取 / 流式聚合 / FTP 投递） | [recon.md](recon.md) | recon-server + **三个源服务**：gate-txn-pay-server, daily-ticket-server, **face-pay-server**（collect-pay 旧表源随模块停服移除，**2026-11-20 测试环境云管台 `Stopped` + K8s 副本 0，Deployment / Service 资源保留未删；红岛从未部署**；期望清单 MUST 现查 `recon-server` 的 `recon.orchestration.sources[*]`）。ticket-server 的对账代码保留、**不在期望清单** |
 | 琴岛通对账（四方对账工作簿，**未立项**） | [recon-qdt.md](recon-qdt.md) | **代码零实现**。琴岛通《对账.xls》四表（消费 / 充值 / 互联互通 / 互联网支付）对齐评估：表 4 大部分可对齐、表 2 部分、表 1/3 当前不可对齐；阻塞在产品口径与琴岛通反馈通道。关联 IT-013。**原件已归档** `docs/testing/itp-acc/samples/琴岛通对账/对账.xls`；它是三方对账指标工作簿、非 ITP↔ACC 接口规格，全簿无接口 / FTP / 文件名定义，NEVER 与文件级契约混用。文档含 **六·A「打包上传琴岛通」上传契约会签清单（C1 格式 / C2 字段 / C3 路径 / C4 频率 / C5 账期，五项带建议值与会签栏）**，会签闭环后落 `recon-file-catalog.md` |
 | 公共能力（黑名单 / 密钥 / 参数） | [common-services.md](common-services.md) | blacklist-server, key-server, para-server |
 | 安全服务与加密机 | [security-hsm.md](security-hsm.md) | acc-security-server, acc-secure-server |
@@ -70,7 +70,7 @@
 **版本号 / 端口 / 任务编号 / 流量指向 MUST 现查**（`docs/提示词/工程与文档规范.md` §五），NEVER 引用上表文档里的数字当现状。
 
 - 服务间调用统一走 `rpc` 模块的 `ProxyWebClient`，地址取 `service.*.url`，无 Feign / Dubbo / 注册中心。
-- **项目不使用 Redis 与消息队列**。并发控制统一为「唯一索引 + `DuplicateKeyException` 兜底 + `MERGE INTO` + 状态终态短路」；异步补偿在形态上仍是「落库状态 + 扫表重试」，但**调度落点多数已不在模块内**：代码里带模块内 `@Scheduled` 的业务模块只剩 **`face-pay-server`（7 个、分布在 6 个类，在跑）与 `collect-pay-server`（`SingleTicketRefundTask` 4 处，但该模块 2026-10-13 已下线 0 pod、这 4 个都不在跑）**，`gate-txn-pay-server` 与 `recon-server` 代码里没有业务 `@Scheduled`（recon 那 1 个第三方对账默认关闭），`pay-sign-server` 也一个都没有（原有任务已迁到 web-admin `sys_job`，入口是各自的 `/internal/**` 端点）。 **排查「某个补偿有没有跑」MUST 查 `SYS_JOB_LOG` + 集群 Deployment 实况（是否 0 副本），NEVER 只在模块里找 `@Scheduled`、也 NEVER 只凭仓库有代码就当线上在跑**，完整清单见 `docs/architecture/web-server.md` §7.0.1。`resource/micro/rabbitmq-adaptor` 是历史遗留构件，业务模块中未引用，**NEVER** 新增引用。
+- **项目不使用 Redis 与消息队列**。并发控制统一为「唯一索引 + `DuplicateKeyException` 兜底 + `MERGE INTO` + 状态终态短路」；异步补偿在形态上仍是「落库状态 + 扫表重试」，但**调度落点多数已不在模块内**：代码里带模块内 `@Scheduled` 的业务模块只剩 **`face-pay-server`（7 个、分布在 6 个类，在跑）与 `collect-pay-server`（`SingleTicketRefundTask` 4 处，但该模块 **2026-11-20 测试环境云管台 `Stopped` + K8s 副本 0**、Deployment / Service 资源保留未删、红岛从未部署；这 4 个都不在跑）**，`gate-txn-pay-server` 与 `recon-server` 代码里没有业务 `@Scheduled`（recon 那 1 个第三方对账默认关闭），`pay-sign-server` 也一个都没有（原有任务已迁到 web-admin `sys_job`，入口是各自的 `/internal/**` 端点）。 **排查「某个补偿有没有跑」MUST 查 `SYS_JOB_LOG` + 集群 Deployment 实况（是否 0 副本），NEVER 只在模块里找 `@Scheduled`、也 NEVER 只凭仓库有代码就当线上在跑**，完整清单见 `docs/architecture/web-server.md` §7.0.1。`resource/micro/rabbitmq-adaptor` 是历史遗留构件，业务模块中未引用，**NEVER** 新增引用。
 - 多数模块用 String 字面量而非枚举表达状态，改动状态值时 **MUST** 全局 grep 确认调用方。
 - 部署与配置相关（生产环境清单）见 [`../ops/README.md`](../ops/README.md)。
 - 架构总览（真实端口、调用拓扑、部署链路）见 [`../architecture/overview.md`](../architecture/overview.md)；公共构件见 [`../architecture/common-components.md`](../architecture/common-components.md)。

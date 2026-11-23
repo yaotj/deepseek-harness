@@ -46,8 +46,8 @@ public class RoutePredicateFactory {
             }
             return result;
         } catch (Exception e) {
-            log.warn("解析 predicates 失败: {}", predicatesJson, e);
-            return null;
+            log.error("解析 predicates 失败，该路由不匹配任何请求: {}", predicatesJson, e);
+            return req -> false;
         }
     }
 }

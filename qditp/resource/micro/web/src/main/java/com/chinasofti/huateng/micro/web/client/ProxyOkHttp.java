@@ -83,7 +83,11 @@ public class ProxyOkHttp extends AbstractMicroHttp<OkHttpClient> {
         if (headers == null) {
             headers = new HashMap<>();
         }
-        headers.put("b3", MDC.get("traceId") + "-" + MDC.get("spanId") + "-1");
+        String traceId = MDC.get("traceId");
+        String spanId = MDC.get("spanId");
+        if (traceId != null && !traceId.isEmpty() && spanId != null && !spanId.isEmpty()) {
+            headers.put("b3", traceId + "-" + spanId + "-1");
+        }
 
         if (headers != null && !headers.isEmpty()) {
             for (Map.Entry<String, String> entry : headers.entrySet()) {

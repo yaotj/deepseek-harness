@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chinasofti.huateng.para.mapper.risk.RiskHitDeriveMapper">
+    <!-- IT-086 方案 B：批量派生三条查询。全部自带去重反连接，重复扫描不重复落行。
+         交易表时间列为字符串定宽格式，直接按字典序比较；NEVER 在 SQL 正文写注释。 -->
+    <select id="selectTimeoutExits" resultType="com.chinasofti.huateng.para.entity.risk.TimeoutExitEvent">
+        SELECT D.CARD_ID AS cardId,
+               D.DEVICE_ID AS deviceId,
+               D.HANDLE_DATE_TIME AS handleDateTime,
+               D.TICKET_TRANS_SEQ AS ticketTransSeq
+        FROM QRCODE_TXN_DETAIL D
+        WHERE D.TRX_TYPE IN ('02', '03')
+          AND NVL(D.OVERTIME_AMOUNT, 0) &gt; 0
+          AND D.TICKET_TRANS_SEQ IS NOT NULL
+          AND D.TXN_DATE &gt;= TO_CHAR(SYSDATE - #{windowDays}, 'YYYYMMDD')
+          AND NOT EXISTS (
+              SELECT 1
+              FROM TBL_RISK_CONTROL_LOG X
+              WHERE X.RULE_ID = #{ruleId}
+                AND X.CARD_ID = D.CARD_ID
+                AND X.USER_ORDER_NO = D.TICKET_TRANS_SEQ
+                AND X.RISK_HIT_TIME &gt;= SYSDATE - #{windowDays})
+    </select>
+    <select id="selectStuckEntries" resultType="com.chinasofti.huateng.para.entity.risk.StuckEntryEvent">
+        SELECT S.CARD_ID AS cardId,
+               S.GATE_IN_TIME AS gateInTime,
+               S.GATE_IN_STATION AS gateInStation
+        FROM QRCODE_STATUS S
+        WHERE S.CODE_STATUS = '04'
+          AND S.GATE_IN_TIME &lt;= TO_CHAR(SYSDATE - #{stuckHours} / 24, 'YYYYMMDDHH24MISS')
+          AND NOT EXISTS (
+              SELECT 1
+              FROM TBL_RISK_CONTROL_LOG X
+              WHERE X.RULE_ID = #{ruleId}
+                AND X.CARD_ID = S.CARD_ID
+                AND X.USER_ORDER_NO IS NULL
+                AND X.RISK_HIT_TIME &gt;= SYSDATE - #{stuckHours} / 24)
+    </select>
+    <select id="selectRepeatExitDays" resultType="com.chinasofti.huateng.para.entity.risk.RepeatExitDay">
+        SELECT K.CARD_ID AS cardId,
+               K.TXN_DATE AS txnDate,
+               K.EXIT_COUNT AS exitCount,
+               K.LAST_EXIT_TIME AS lastExitTime,
+               D2.TICKET_TRANS_SEQ AS lastExitSeq
+        FROM (
+            SELECT D.CARD_ID AS CARD_ID,
+                   D.TXN_DATE AS TXN_DATE,
+                   COUNT(*) AS EXIT_COUNT,
+                   MAX(D.HANDLE_DATE_TIME) AS LAST_EXIT_TIME,
+                   MAX(D.ID) AS LAST_EXIT_ID
+            FROM QRCODE_TXN_DETAIL D
+            WHERE D.TRX_TYPE IN ('02', '03')
+              AND D.TXN_DATE &gt;= TO_CHAR(SYSDATE - #{windowDays}, 'YYYYMMDD')
+            GROUP BY D.CARD_ID, D.TXN_DATE
+            HAVING COUNT(*) &gt;= #{threshold}
+        ) K
+        JOIN QRCODE_TXN_DETAIL D2 ON D2.ID = K.LAST_EXIT_ID
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM TBL_RISK_CONTROL_LOG X
+            WHERE X.RULE_ID = #{ruleId}
+              AND X.CARD_ID = K.CARD_ID
+              AND TRUNC(X.RISK_HIT_TIME) = TO_DATE(K.TXN_DATE, 'YYYYMMDD'))
+    </select>
+</mapper>

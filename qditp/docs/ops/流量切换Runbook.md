@@ -198,7 +198,7 @@ ssh k8s-master "kubectl logs -n itp-gateway <itp-gateway-pod> --since=5m | grep 
 - **判断「这笔到底落在哪」MUST 排除迁移行**：迁移单的 `REMARK` 一律以 `LEGACY-MIGRATION src=TBL_` 开头，
   查「某时段有没有新落单」时 **MUST 带 `AND REMARK NOT LIKE 'LEGACY-MIGRATION%'`**，
   否则会把迁进来的旧单误判成「新服务已经在收流量」。
-- `collect-pay-server` **2026-10-13 已下线（0 pod，按用户要求）**：它此前承担的四项（`/internal/recon/export` 对账源、`/internal/app-order/**` 补款、`NoticeAppTask` 4 个旧表通知端点、旧单退款）中，对账源已随 recon 改源移除、通知端点由 face-pay 逐字复刻承接（web-admin 已切并验证）、`fep-app` 已切并验证。**若还要把流量切回 collect-pay，MUST 先把它拉起来——它不是「停掉随时可再切」的状态**；切回前 MUST 复核 `fep-app` 的 `service.collectPay.url` 是否被回滚成 30024。
+- `collect-pay-server` **2026-11-20 起测试环境云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署（按用户要求停服）**：它此前承担的四项（`/internal/recon/export` 对账源、`/internal/app-order/**` 补款、`NoticeAppTask` 4 个旧表通知端点、旧单退款）中，对账源已随 recon 改源移除、通知端点由 face-pay 逐字复刻承接（web-admin 已切并验证）、`fep-app` 已切并验证。**若还要把流量切回 collect-pay，MUST 先把它拉起来（`act start` + `scale 1`，见 `docs/ops/environments/测试环境.md`「已下线 / 未部署」段）——它不是「停掉随时可再切」的状态**；切回前 MUST 复核 `fep-app` 的 `service.facePay.url` 是否被回滚成 30024（原 `service.collectPay.url` 已于 2026-11-20 随 `CollectPayClient` 删除）。
 
 
 ## 六、已实测记录（2026-09-16）

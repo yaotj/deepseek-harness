@@ -25,6 +25,10 @@ public class BlacklistAutoReleaseService {
     private static final String RELEASE_REASON = "欠费已结清自动解除";
     private static final String RELEASE_BY = "auto-release-job";
 
+    /** 欠费类黑名单原因码，与 selectForAutoRelease 的 BLACK_CAUSE='01' 同口径。 */
+    static final String BLACK_CAUSE_UNPAID = "01";
+    static final String STATUS_ACTIVE = "ACTIVE";
+
     private final BlacklistMapper blacklistMapper;
     private final BlacklistService blacklistService;
     private final CardUnsettledQuery cardUnsettledQuery;
@@ -79,6 +83,67 @@ public class BlacklistAutoReleaseService {
         return response;
     }
 
+
+    /**
+     * 单卡实时解黑：补款付清后由 face-pay 调用。
+     *
+     * <p>只处理该卡「ACTIVE + 欠费类（BLACK_CAUSE=01）」的黑名单记录，逐条复用 {@link #handleOne} 的判据
+     * （按记录的 CHANNEL_CODE 查对应欠费源，无欠费才解）——与全表 autoRelease 完全同源，
+     * NEVER 跳过欠费判据直接解黑：补款可能只付了部分欠费，直接解会放跑欠费乘客。
+     *
+     * <p>本方法是「尽早解」的加速路径，失败/异常由调用方仅记日志不阻断补款收敛；
+     * 兜底仍是每天两次的全表 {@link #autoRelease(Integer)}，两者并存不替代。
+     */
+    public BlacklistAutoReleaseRespDTO releaseCardIfSettled(String cardId) {
+        BlacklistAutoReleaseRespDTO response = new BlacklistAutoReleaseRespDTO();
+        response.setResultCode(BlacklistErrorCodeEnum.SUCCESS.getCode());
+        response.setResultMsg("成功");
+        if (cardId == null || cardId.isBlank()) {
+            log.warn("单卡实时解黑跳过: cardId 为空");
+            return response;
+        }
+
+        List<Blacklist> records = blacklistMapper.selectByCardIds(List.of(cardId));
+        if (records == null || records.isEmpty()) {
+            return response;
+        }
+
+        int released = 0;
+        int unsettled = 0;
+        int unknown = 0;
+        int skipped = 0;
+        int failed = 0;
+        for (Blacklist record : records) {
+            // 只认 ACTIVE + 欠费类；解除中(RELEASING)/已解除(表里不会有)及其它原因码一律不碰。
+            if (!isRealtimeEligible(record)) {
+                skipped++;
+                continue;
+            }
+            switch (handleOne(record)) {
+                case RELEASED -> released++;
+                case UNSETTLED -> unsettled++;
+                case UNKNOWN -> unknown++;
+                case SKIPPED -> skipped++;
+                case FAILED -> failed++;
+            }
+        }
+        response.setScanned(records.size());
+        response.setReleased(released);
+        response.setUnsettled(unsettled);
+        response.setUnknown(unknown);
+        response.setSkipped(skipped);
+        response.setFailed(failed);
+        log.info("单卡实时解黑完成, cardId={}, scanned={}, released={}, unsettled={}, unknown={}, skipped={}, failed={}",
+                cardId, records.size(), released, unsettled, unknown, skipped, failed);
+        return response;
+    }
+
+    /** 实时解黑的候选判据：仅 ACTIVE + 欠费类（01）；与全表 selectForAutoRelease 的 WHERE 同口径。 */
+    static boolean isRealtimeEligible(Blacklist record) {
+        return record != null
+                && STATUS_ACTIVE.equals(record.getStatus())
+                && BLACK_CAUSE_UNPAID.equals(record.getBlackCause());
+    }
 
     private Outcome handleOne(Blacklist record) {
         String cardId = record.getCardId();

@@ -40,6 +40,7 @@
         <foreach collection="cardIds" item="cardId" open="(" separator="," close=")">
             #{cardId,jdbcType=VARCHAR}
         </foreach>
+        AND STATUS != 'RELEASED'
     </select>
 
     <select id="selectByCardIds" resultMap="BaseResultMap">

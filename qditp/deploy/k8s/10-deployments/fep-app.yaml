@@ -61,7 +61,7 @@ spec:
           value: '0'
         - name: spring.autoconfigure.exclude
           value: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration
-        - name: service.collectPay.url
+        - name: service.facePay.url
           value: http://172.20.211.23:30025
         - name: service.blacklist.openLogger
           value: 'true'
@@ -89,7 +89,7 @@ spec:
           value: '0441'
         - name: service.ticket.openLogger
           value: 'true'
-        - name: service.collectPay.openLogger
+        - name: service.facePay.openLogger
           value: 'true'
         - name: other.web.enableLogTakeTimesInInterceptor
           value: 'true'

@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 import org.springframework.util.StringUtils;
 
 
@@ -111,7 +112,10 @@ public class SignResultCallbackHandler {
             fillSuccess(response);
             return response;
         } catch (Exception e) {
-            log.error("处理签约结果通知异常", e);
+            log.error("处理签约结果通知异常，标记事务回滚避免签约行与审计/事件分叉", e);
+            // 资金链路：insert 已落库但审计/事件失败时若照常提交会出现"签约行已写、审计/事件不一致"。
+            // 显式标记回滚，保证落库与审计/事件同生共死；幂等由 requestSignSeq 唯一键兜底，回调重入安全。
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
             fillError(response, PaySignErrorCodeEnum.SYSTEM_ERROR, PaySignErrorCodeEnum.SYSTEM_ERROR.getMsg());
             auditLogger.write("RECEIVE_SIGN_RESULT", request != null ? request.getThirdUserId() : null, request != null ? request.getRequestSignSeq() : null, request != null ? request.getPaymentVendor() : null, signChannel, request, response);
             return response;

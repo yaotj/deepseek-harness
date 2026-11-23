@@ -46,8 +46,6 @@ public class DebitRetryProcessor {
 
     private final int recentBatchSize;
 
-    private final int recentWindowMinutes;
-
     private final int recentMinAgeSeconds;
 
     public DebitRetryProcessor(GateTxnPayMapper gateTxnPayMapper,
@@ -58,10 +56,9 @@ public class DebitRetryProcessor {
                                @Value("${gate.debitRetry.alipay.batchSize:200}") int alipayChannelBatchSize,
                                @Value("${gate.debitRetry.maxTimes:5}") int maxTimes,
                                @Value("${gate.debitRetry.lookbackDays:7}") int lookbackDays,
-                               @Value("${gate.debitRetry.backoffMinutes:720}") int backoffMinutes,
+                               @Value("${gate.debitRetry.backoffMinutes:300}") int backoffMinutes,
                                @Value("${gate.debitRetry.recent.enabled:true}") boolean recentEnabled,
                                @Value("${gate.debitRetry.recent.batchSize:200}") int recentBatchSize,
-                               @Value("${gate.debitRetry.recent.windowMinutes:10}") int recentWindowMinutes,
                                @Value("${gate.debitRetry.recent.minAgeSeconds:60}") int recentMinAgeSeconds) {
         this.gateTxnPayMapper = gateTxnPayMapper;
         this.paySignInitiator = paySignInitiator;
@@ -74,7 +71,6 @@ public class DebitRetryProcessor {
         this.backoffMinutes = backoffMinutes;
         this.recentEnabled = recentEnabled;
         this.recentBatchSize = recentBatchSize;
-        this.recentWindowMinutes = recentWindowMinutes;
         this.recentMinAgeSeconds = recentMinAgeSeconds;
     }
 
@@ -91,27 +87,25 @@ public class DebitRetryProcessor {
 
     public int retryRecentUnpaidDebits() {
         if (!recentEnabled) {
-            log.info("近{}分钟未扣费重试开关未开启，本轮跳过", recentWindowMinutes);
+            log.info("卡单（INIT）补发开关未开启，本轮跳过");
             return -1;
         }
         List<GateTxnPay> candidates;
         try {
-            candidates = gateTxnPayMapper.selectRecentUnpaidCandidates(recentWindowMinutes,
-                    recentMinAgeSeconds, maxTimes, recentBatchSize);
+            candidates = gateTxnPayMapper.selectRecentUnpaidCandidates(recentMinAgeSeconds, recentBatchSize);
         } catch (RuntimeException e) {
-            log.error("近{}分钟未扣费重试扫表失败, minAgeSeconds={}", recentWindowMinutes, recentMinAgeSeconds, e);
+            log.error("卡单（INIT）补发扫表失败, minAgeSeconds={}", recentMinAgeSeconds, e);
             return -2;
         }
-        String taskDesc = "近" + recentWindowMinutes + "分钟未扣费";
+        String taskDesc = "卡在INIT的单";
         if (candidates.isEmpty()) {
-            log.info("{}重试本轮无候选, minAgeSeconds={}, maxTimes={}",
-                    taskDesc, recentMinAgeSeconds, maxTimes);
+            log.info("{}补发本轮无候选, minAgeSeconds={}", taskDesc, recentMinAgeSeconds);
             return 0;
         }
         int retried = runRound(taskDesc, candidates, this::prepareRecent,
                 com.chinasofti.huateng.gatetxnpay.paysign.AlipayTripPayRequestFactory.PAY_TRIGGER_FIRST);
-        log.info("{}重试本轮完成, 候选={}, 已重发={}, 窗口={}分钟, 最小年龄={}秒, 单批={}",
-                taskDesc, candidates.size(), retried, recentWindowMinutes, recentMinAgeSeconds, recentBatchSize);
+        log.info("{}补发本轮完成, 候选={}, 已重发={}, 最小年龄={}秒, 单批={}",
+                taskDesc, candidates.size(), retried, recentMinAgeSeconds, recentBatchSize);
         return retried;
     }
 
@@ -186,10 +180,10 @@ public class DebitRetryProcessor {
 
     private boolean prepareRecent(GateTxnPay order) {
         int prepared = gateTxnPayMapper.prepareRecentRetry(order.getOrderNo(), order.getTxnDate(),
-                maxTimes, "周期查询更新已发起，等支付结果");
+                "周期查询更新已发起，等支付结果");
         if (prepared == 0) {
-            log.warn("近{}分钟未扣费重试未抢到该笔（已被推进 / 次数用尽 / 退避未到 / 转成离线码待重算）, orderNo={}",
-                    recentWindowMinutes, order.getOrderNo());
+            log.warn("卡单（INIT）补发未抢到该笔（已被推进 / 转成离线码待重算）, orderNo={}",
+                    order.getOrderNo());
             return false;
         }
         order.setDebitStatus(DebitStatus.RETRY.code());

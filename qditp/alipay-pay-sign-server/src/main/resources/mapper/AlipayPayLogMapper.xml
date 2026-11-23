@@ -148,6 +148,7 @@
     </update>
 
     <select id="selectAlipayPayLogList" resultType="com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog">
+        <bind name="offsetEnd" value="offset + limit" />
         SELECT *
         FROM (
             SELECT
@@ -178,7 +179,7 @@
                   AND TO_DATE(TRANS_TIME, 'YYYY-MM-DD HH24:MI:SS') &lt; TO_DATE(#{endTime}, 'YYYY-MM-DD') + 1
               </if>
         )
-        WHERE rn > #{offset} AND rn &lt;= #{limit}
+        WHERE rn > #{offset} AND rn &lt;= #{offsetEnd}
     </select>
 
     <select id="countAlipayPayLogList" resultType="java.lang.Integer">

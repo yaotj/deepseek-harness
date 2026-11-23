@@ -40,7 +40,6 @@
         <module>card-pool-server</module>
         <module>acc-security-server</module>
         <module>acc-es-server</module>
-        <module>collect-ticket-server</module>
         <module>daily-ticket-server</module>
         <module>face-pay-server</module>
         <module>pay-sign-server</module>

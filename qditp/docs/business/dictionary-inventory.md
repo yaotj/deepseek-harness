@@ -46,7 +46,7 @@
 | `paysign.constant.SignChannelEnum` | [detail §2.2](dictionary-detail.md#_2-2-签约渠道) | 签约渠道 |
 | `paysign.constant.PaymentVendorEnum` | [detail §2.1](dictionary-detail.md#_2-1-支付渠道) | 支付渠道（含数币各银行） |
 
-### collect-pay-server（TVM/BOM 扫码购票 + 充值，**2026-10-13 已下线 0 pod**）
+### collect-pay-server（TVM/BOM 扫码购票 + 充值，**2026-11-20 起测试环境停服**：云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署；码值仅存历史表，恢复方法见 `docs/ops/environments/测试环境.md`「已下线 / 未部署」段）
 | 全限定类名 | detail 指针 | 业务含义 |
 |---|---|---|
 | `collectpay.constant.BusinessTypeEnum` | [detail §3.2](dictionary-detail.md#_3-2-tvm-扫码业务类型) | TVM 扫码业务类型 |

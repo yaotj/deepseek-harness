@@ -1,9 +1,12 @@
 ---
 业务域: APP 扫码取票（单程票）
 模块: collect-ticket-server
+状态: 已归档（2026-11-22）
 ---
 
 # 提示词：APP 扫码取票
+
+> ⚠️ **本模块已归档，不要按本文改代码**：`collect-ticket-server` 从未部署、无流量，2026-11-22 源码移入 `archive/abandonedservices/collect-ticket-server`，根 `pom.xml` 已移除 module。原 IF8A-09/10 由 `para-server`、IF8A-11 等由 `face-pay-server` 承接（见 `docs/business/README.md`、`tvm-bom-pay.md`）。以下正文是历史知识沉淀，仅供追溯旧链路，不再作为改动真源。
 
 ## 何时读本文件
 APP 端单程票购买张数限制、票价试算、下单、请求支付、取票订单查询、TVM 取票通知、取消订单、支付回调相关改动。
@@ -30,7 +33,7 @@ APP 端单程票购买张数限制、票价试算、下单、请求支付、取�
 
 ⚠️ IF8A-09/10 同时被 `para-server` 与 `fep-app-server/AppParaController` 实现，IF8A-11/20 同时被 `collect-pay-server/TvmAppOrderController` 实现。定位实现 **MUST** 确认调用方实际路由到哪个服务，**NEVER** 假设编号唯一对应一处代码。
 
-> ⚠️ **历史契约注记**：以下「与 collect-pay 的分工」段落是 2026-09-16 切流前形成的契约描述。**collect-pay-server 已于 2026-10-13 随模块下线（0 pod）**：入向流量在 2026-09-16 切 face-pay，对账旧表源当日已移除（recon 现三源），`NoticeAppTask` 4 个旧表通知端点由 face-pay 逐字复刻承接且 web-admin / `fep-app` 均已切并验证（见 ADR-D116 / D117 + `docs/business/tvm-bom-pay.md`）。**以下出向目标路径若以 `/collect-pay-server/` 为前缀，皆为历史契约描述，实际运行时 face-pay-server 已承接全部业务**。判断当前链路 **MUST 现查 `service.route.mapping` 配置 + kubectl 实况**，NEVER 引用本段当现状。
+> ⚠️ **历史契约注记**：以下「与 collect-pay 的分工」段落是 2026-09-16 切流前形成的契约描述。**collect-pay-server 已于 2026-11-20 测试环境停服**（云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署）：入向流量在 2026-09-16 切 face-pay，对账旧表源已移除（recon 现三源），`NoticeAppTask` 4 个旧表通知端点由 face-pay 逐字复刻承接且 web-admin / `fep-app` 均已切并验证（见 ADR-D116 / D117 + `docs/business/tvm-bom-pay.md`）。**以下出向目标路径若以 `/collect-pay-server/` 为前缀，皆为历史契约描述，实际运行时 face-pay-server 已承接全部业务**。判断当前链路 **MUST 现查 `service.route.mapping` 配置 + kubectl 实况**，NEVER 引用本段当现状。
 
 ## 核心类与流程
 - `service/impl/TicketCollectServiceImpl.java`（下单→支付→取票主流程集中在此）
@@ -193,7 +196,7 @@ APP 端单程票购买张数限制、票价试算、下单、请求支付、取�
 ### 三、与相邻模块的边界
 
 - **与 collect-pay**：出向四条路径**硬编码在 `client/CollectPayClient.java` 方法体内**、不是 `service.*.url` 形态 —— `/collect-pay-server/ci/app/requestPay`、 `.../payQuery`、 `.../requestRefund`、 `.../ticketCollectPayNotify`；走 `rpc` 的 `URLDynamicRouter.postProxy(path, request, null)`，**目标由路径首段 `/collect-pay-server/` 经动态路由解析**，而 `application.properties` 的 `service.route.mapping.default` **是空值**、整个文件**没有任何 `service.*.url`**（属 `AGENTS.md §7`「键缺失」那类形态，**判断线上真实目标 MUST 查 Deployment env**）。
-  - **与 face-pay 的关系是本轮新增的待裁决项**：TVM / BOM / APP 当面付主实现已于 2026-09-16 17:31 迁到 `face-pay-server`（ADR-D117），而本模块的支付出向仍打 `collect-pay` 的 `/ci/app/requestPay`。**collect-pay 已于 2026-10-13 下线（0 pod）、且 collect-ticket 本身集群未部署（无 Pod/Service）⇒ 这条出向链线上跑不到、不断也不通**；降级结论：仅当甲方上线 APP 扫码取票业务、要部署 collect-ticket 时，才需在 face-pay 补等价端点，届时「取票支付到底该落哪个应用」MUST 现查 + 向用户确认，见 §六-1。
+  - **与 face-pay 的关系是本轮新增的待裁决项**：TVM / BOM / APP 当面付主实现已于 2026-09-16 17:31 迁到 `face-pay-server`（ADR-D117），而本模块的支付出向仍打 `collect-pay` 的 `/ci/app/requestPay`。**collect-pay 已于 2026-11-20 测试环境停服（云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署）、且 collect-ticket 本身集群未部署（无 Pod/Service）⇒ 这条出向链线上跑不到、不断也不通**；降级结论：仅当甲方上线 APP 扫码取票业务、要部署 collect-ticket 时，才需在 face-pay 补等价端点，届时「取票支付到底该落哪个应用」MUST 现查 + 向用户确认，见 §六-1。
   - `payQuery` / `requestRefund` **在本模块零调用方**，而 `Ticket_Collect_Info` 的四个退款列（`REFUND_TMS` / `REFUND_AMT` / `REFUND_RESULT` / `REFUND_REASON`）齐全、Controller 又**没有任何退款端点** —— 判断「取票单退款走谁」**MUST 现查 collect-pay / face-pay 侧，NEVER 据本模块有 `requestRefund` 方法就认为链路在这里**。
   - `CollectPayClient` 四个方法**全部 `catch (Exception) { return null; }`**，属 `docs/architecture/transaction-and-consistency.md` §3「RPC 包装方法 MUST 返回 `RpcOutcome`，NEVER 返回 boolean」同一族：调用点 **MUST 显式判空**。现状：`requestPaymentInfo:149~153` 把 `null` 映射成 `8008 服务提供商不可用`（**接住了**）；`notifyPayResultToPayServer:488` 的返回值**被完全丢弃**（**没接住**，见 §四-6）。**新写 RPC 包装 MUST 返回 `RpcOutcome`、NEVER 再返回 null**。
 - **支付结果回调是双向的、且两个方向复用同一个 DTO**：入向是支付中心 → 本模块 `ticketCollectPayNotify`（DTO 类注释 `model/request/TicketCollectPayNotifyReqDTO.java` 自带反混淆判据「**注意：这里不是 IF8A-11 请求支付报文**」），出向是本模块 → collect-pay 的**同名端点**（`notifyPayResultToPayServer:479~492`）。**改这个 DTO 的字段会同时动两个方向的契约。**
@@ -225,7 +228,7 @@ APP 端单程票购买张数限制、票价试算、下单、请求支付、取�
 
 ### 六、矛盾与待裁决
 
-1. **取票支付的目标应用**：本模块出向仍打 `collect-pay` 的 `/collect-pay-server/ci/app/requestPay`，而 TVM / BOM / APP 当面付主实现已迁 `face-pay-server`（ADR-D117）。**collect-pay 2026-10-13 已下线、本模块也未部署 ⇒ 该出向链线上无流量**；「取票支付是否也要切到 face-pay」仍未裁决——仅当要部署 collect-ticket 时才需落地。届时 **MUST 现查** `fep-app` env 与 `fep-app-vr` 后向用户确认，**NEVER 自行改 `URLDynamicRouter` 的路径首段**（属改服务间路由）。
+1. **取票支付的目标应用**：本模块出向仍打 `collect-pay` 的 `/collect-pay-server/ci/app/requestPay`，而 TVM / BOM / APP 当面付主实现已迁 `face-pay-server`（ADR-D117）。**collect-pay 2026-11-20 起测试环境云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署；本模块也未部署 ⇒ 该出向链线上无流量**；「取票支付是否也要切到 face-pay」仍未裁决——仅当要部署 collect-ticket 时才需落地。届时 **MUST 现查** `fep-app` env 与 `fep-app-vr` 后向用户确认，**NEVER 自行改 `URLDynamicRouter` 的路径首段**（属改服务间路由）。
 2. **`PaySignUtils.verify` 的 fail-open**（§四-7）：公钥未配置即放过。待裁决：改成 fail-closed（未配置即拒绝，**推荐**）还是保留现状 + 在部署清单里列为强制 env。属安全红线，**MUST 由人裁决**。
 3. **`ORDER_STATUS` / `COLLECT_STATUS` 的失败态**（§四-4、§四-5）：代码从不写 `1~99`，「支付失败」「用户取消」在库里都退化成 `0`。待裁决：补失败态取值 + 取消态（需要 DDL）还是维持现状。**在裁决前 NEVER 拿 `ORDER_STATUS=0` 断言「用户没付过」。**
 4. **三张表无仓库 DDL**：`Ticket_Collect_Info` / `Ticket_Collect_Logs` / `Ticket_Collect_Log_Detail` 在 `collect-ticket-server` 下**没有 `sql/` 目录**，列长、非空、`ORDER_NO` 是否唯一索引**仓库内不可知**。待裁决：补 `*-schema.sql` + `*-migration.sql`（照 `AGENTS.md §7`「Ops & Deployment (部署与运维，详见 docs/ops/)」 那条），还是从 `AFCITPDB` 反查后回填文档。**在补齐前 NEVER 断言「靠唯一索引兜幂等」。**

@@ -24,7 +24,7 @@
 **必迁（24 个业务 Deployment）**，全部 `replicas=1`：
 
 - 接入层：`fep-app`（`itp/fep-app`）、`fep-dev-server`、`fep-acc`、`fep-alipay`
-- 业务层：`account`（`itp/account-server`）、`ticket-server`、`trans-query`、`pay-sign-server`、`gate-txn-pay-server`、`daily-ticket-server`、`face-pay-server`、`collect-pay`、`card-pool-server`、`recon-server`、`alipay-account-server`、`alipay-pay-sign-server`
+- 业务层：`account`（`itp/account-server`）、`ticket-server`、`trans-query`、`pay-sign-server`、`gate-txn-pay-server`、`daily-ticket-server`、`face-pay-server`、`collect-pay`（**2026-11-20 起测试环境云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署；不在新集群部署清单内，见 IT-095**）、`card-pool-server`、`recon-server`、`alipay-account-server`、`alipay-pay-sign-server`
 - 公共能力：`para-server`、`key-server`、`blacklist-server`、`industry-data-server`
 - ACC / 安全：`security-server`（`itp/acc-security-server`）、`es-server`（`itp/acc-es-server`）
 - 管理后台：`web-admin`、`web`（nginx，镜像在 `user/1df71957.../web-nginx1.20`，不在 `itp/` 仓库下）
@@ -37,7 +37,7 @@
 
 - 资源配额两档：`1C2Gi`（requests=limits）或 `limits 2C4Gi / requests 1C2Gi`。24 个业务服务合计 requests 约 **26 vCPU / 52Gi**，limits 约 **38 vCPU / 76Gi**（不含 sidecar）。新集群按 limits 留量。
 - **全部 Deployment 都没有 livenessProbe / readinessProbe**，也没有 HPA / PDB / NetworkPolicy / PeerAuthentication / AuthorizationPolicy。这是迁移**最该顺手补上**的一项（没有探针，「Pod Running 但端口不监听」这类故障只能靠人工探活发现，见 `AGENTS.md §6`）。
-- **单副本是强约束、NEVER 在新集群顺手扩副本**：`recon-server`（进程内 `AtomicBoolean` 无 DB 锁）、`web-admin`（Quartz 内存 JobStore）、`face-pay-server`（7 个 `@Scheduled`）、`collect-pay`（`SingleTicketRefundTask` 4 处）。
+- **单副本是强约束、NEVER 在新集群顺手扩副本**：`recon-server`（进程内 `AtomicBoolean` 无 DB 锁）、`web-admin`（Quartz 内存 JobStore）、`face-pay-server`（7 个 `@Scheduled`）（`collect-pay` 的 `SingleTicketRefundTask` 4 处 `@Scheduled` 随该模块 2026-11-20 测试环境停服 / 红岛从未部署，不在新集群部署清单内，如恢复部署 MUST 重新按单副本约束管理）。
 
 ### 1.3 网络与入向路由
 
@@ -145,7 +145,7 @@ Service 侧两个坑：
 - **R2 谁来建对象**：继续用 PaaS 控制台点，还是这次落 YAML/IaC？**建议落 YAML** —— 控制台生成的随机后缀 Service 名是本次最大改动面的根因，而且当前没有任何可复现的部署描述文件。
 - **R3 数据库**：新集群连哪个 Oracle？是「连同一个库（只改网络）」还是「新库 + 数据迁移」？后者要单独排 schema + 数据核对（110+ 张表），本文不覆盖。
 - **R4 日志**：victoria-logs 的 15Gi 历史日志带不带走？不带走则新集群起空实例即可。
-- **R5 切换方式**：双跑一段（新旧集群同时连同一个库，靠公网入口灰度）还是停机一次性切？**双跑有硬约束**：`recon-server` / `web-admin` / `face-pay-server` / `collect-pay` 的定时任务无分布式锁，两套同时跑会重复扣费、重复推通知、重复投对账文件 ⇒ **双跑期间新集群这 4 个服务 MUST 保持 0 副本或关掉 Quartz**。
+- **R5 切换方式**：双跑一段（新旧集群同时连同一个库，靠公网入口灰度）还是停机一次性切？**双跑有硬约束**：`recon-server` / `web-admin` / `face-pay-server` 的定时任务无分布式锁，两套同时跑会重复扣费、重复推通知、重复投对账文件 ⇒ **双跑期间新集群这 3 个服务 MUST 保持 0 副本或关掉 Quartz**（`collect-pay` 的 `SingleTicketRefundTask` 4 处 `@Scheduled` 随该模块 2026-11-20 测试环境停服关闭、不在双跑范围内；如恢复部署 MUST 重新纳入双跑约束）。
 
 ## 四、建议顺序
 
@@ -160,7 +160,7 @@ Service 侧两个坑：
 
 ## 五、NEVER 清单
 
-- **NEVER 在新集群把那 4 个单副本服务扩到 2 副本**（`recon-server` / `web-admin` / `face-pay-server` / `collect-pay`）
+- **NEVER 在新集群把那 3 个单副本服务扩到 2 副本**（`recon-server` / `web-admin` / `face-pay-server`；`collect-pay` 已停服、不在名单内，如恢复部署 MUST 重新按单副本约束管理）
 - **NEVER 双跑期间让两套集群的定时任务同时对同一个库生效**
 - **NEVER 把 Service 端口「统一规整」**——一堆 `service.*.url` 写死了现有端口号，改端口等于同时改几十条 env
 - **NEVER 照搬旧密钥值到新环境**；也 NEVER 在文档 / 提交信息 / 对话里回显这些值

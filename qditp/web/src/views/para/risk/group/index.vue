@@ -34,7 +34,7 @@
         <el-input v-model="ruleSearch" clearable placeholder="搜索规则编号/名称" style="width:260px;margin-right:8px"/>
         <span class="text-secondary">已选 <el-tag type="primary" size="small">{{ currentRuleIds.length }}</el-tag> / {{ ruleOptions.length }} 条</span>
       </div>
-      <el-table ref="ruleTableRef" :data="filteredRuleOptions" row-key="ruleId" border size="small" max-height="360">
+      <el-table ref="ruleTableRef" :data="filteredRuleOptions" row-key="ruleId" border size="small" max-height="360" @selection-change="onRuleSelectionChange">
         <el-table-column type="selection" width="40"/>
         <el-table-column label="规则编号" prop="ruleId" width="130" align="center"/>
         <el-table-column label="规则名称" prop="ruleName" min-width="200"/>
@@ -58,6 +58,7 @@ const open = ref(false), editing = ref(false), title = ref(''), rows = ref([]), 
 const ruleOpen = ref(false), currentGroup = ref(null), currentRuleIds = ref([]), ruleSearch = ref(''), ruleTableRef = ref(null)
 
 const query = reactive({ groupName: '', pageNum: 1, pageSize: 10 })
+const form = reactive({ groupId: undefined, groupName: '', groupDesc: '' })
 const rules = { groupName: [{ required: true, message: '请输入风险组名称', trigger: 'blur' }] }
 
 function load() {
@@ -71,12 +72,14 @@ function loadRuleOptions() {
 }
 function search() { query.pageNum = 1; load() }
 function resetQuery() { query.groupName = ''; search() }
+function resetForm() { Object.assign(form, { groupId: undefined, groupName: '', groupDesc: '' }); proxy.resetForm('formRef') }
 function add() { resetForm(); editing.value = false; title.value = '新增风险组'; open.value = true }
 function edit(row) { resetForm(); Object.assign(form, row); editing.value = true; title.value = '修改风险组'; open.value = true }
 function submit() {
   proxy.$refs.formRef.validate(valid => {
     if (!valid) return
     saving.value = true
+    const data = { groupName: form.groupName.trim(), groupDesc: form.groupDesc.trim() || null }
     if (editing.value) {
       updateRiskGroup(form.groupId, data).then(() => { proxy.$modal.msgSuccess('修改成功'); open.value = false; load() })
         .catch(() => { proxy.$modal.msgError('保存风险组失败') }).finally(() => saving.value = false)

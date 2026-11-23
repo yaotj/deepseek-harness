@@ -20,7 +20,7 @@ class GateCompanionFlagPersistenceTest {
         request.setCardType("0441");
         request.setHandleDateTime("20260917153000");
         request.setCompanionFlag(flag);
-        var service = new GateTxnPayServiceImpl(null, null, null, null, null, null, null, Runnable::run);
+        var service = new GateTxnPayServiceImpl(null, null, null, null, null, null, null, null, Runnable::run);
         GateTxnPay order = ReflectionTestUtils.invokeMethod(service, "buildOrder", request);
         assertNotNull(order);
         assertEquals(flag, order.getCompanionFlag());

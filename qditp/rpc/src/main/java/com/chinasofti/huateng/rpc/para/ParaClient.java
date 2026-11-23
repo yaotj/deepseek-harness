@@ -17,6 +17,7 @@ import com.chinasofti.huateng.model.app.RequestStationNameBatchReqDTO;
 import com.chinasofti.huateng.model.app.RequestStationNameBatchResult;
 import com.chinasofti.huateng.model.app.RequestStationNameReqDTO;
 import com.chinasofti.huateng.model.app.RequestStationNameResult;
+import com.chinasofti.huateng.model.para.RiskHitDeriveRespDTO;
 import com.chinasofti.huateng.model.para.RiskRuleBlacklistSyncRespDTO;
 import com.chinasofti.huateng.model.app.RequestTicketPriceByStationReqDTO;
 import com.chinasofti.huateng.model.app.RequestTicketPriceByStationResult;
@@ -131,6 +132,19 @@ public class ParaClient extends ProxyWebClient {
         log.info("调用para-server风险规则命中自动加黑接口返回 path={}, candidates={}, added={}, skipped={}, failed={}",
                 path, response == null ? null : response.getCandidates(), response == null ? null : response.getAdded(),
                 response == null ? null : response.getSkipped(), response == null ? null : response.getFailed());
+        return response;
+    }
+
+
+    public RiskHitDeriveRespDTO riskHitDerive(Map<String, String> headers) {
+        String path = "/internal/risk/hit-derive";
+        log.info("调用para-server风控命中批量派生接口 path={}", path);
+        String result = postJsonAndGetResponse(path, Collections.emptyMap(), headers);
+        RiskHitDeriveRespDTO response =
+                JSONUtil.toBean(result, new TypeReference<RiskHitDeriveRespDTO>() {}, true);
+        log.info("调用para-server风控命中批量派生接口返回 path={}, ruleCount={}, candidates={}, inserted={}, duplicates={}",
+                path, response == null ? null : response.getRuleCount(), response == null ? null : response.getCandidates(),
+                response == null ? null : response.getInserted(), response == null ? null : response.getDuplicates());
         return response;
     }
 }

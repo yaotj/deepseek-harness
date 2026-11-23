@@ -87,6 +87,13 @@
           AND PAY_STATUS IN ('INIT', 'PROCESSING')
     </update>
 
+    <!--
+      预下单结果回写。PAY_STATUS MUST 同时接受 INIT 与 PROCESSING：
+      INIT 是首次按乘客所选渠道下单；PROCESSING 是乘客在支付页改了支付方式后的「换渠道重下」
+      （APP 允许改支付方式，2026-11-20 用户确认）。2026-11-20 实测的缺陷正是这里只认 INIT ——
+      PROCESSING 换渠道时更新 0 行，新渠道参数没落库，调用方却把库里的旧渠道参数回给了乘客。
+      NEVER 收窄回只认 INIT。
+    -->
     <update id="updatePrepayResult">
         UPDATE SUPPLEMENT_ORDER
         SET PAY_CHANNEL_CODE = #{payChannelCode,jdbcType=VARCHAR},
@@ -95,7 +102,7 @@
             PAY_STATUS = 'PROCESSING',
             UPDATE_TIME = SYSTIMESTAMP
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
-          AND PAY_STATUS = 'INIT'
+          AND PAY_STATUS IN ('INIT', 'PROCESSING')
     </update>
 
     <insert id="insertItem" parameterType="com.chinasofti.huateng.facepay.entity.SupplementOrderItem">

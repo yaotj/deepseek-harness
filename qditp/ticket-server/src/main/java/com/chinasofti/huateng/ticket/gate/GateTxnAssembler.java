@@ -90,8 +90,22 @@ class GateTxnAssembler {
                 ? request.getIssueChannelCode() : currentStatus.getChannel());
         nextStatus.setCodeStatus(codeStatusResolver.resolveCodeStatus(
                 request.getTrxType(), request.getExcessFareType(), request.getAdviceOpt()));
-        nextStatus.setLastTxnTime(request.getHandleDateTime());
-        nextStatus.setLastTxnStation(request.getHandleStationCode());
+        // 入闸被拒绝时（状态08免费更新/FF进站失败），不更新 lastTxnTime/lastTxnStation
+        // 避免后续出闸时误用被拒的入闸时间作为 IN_TIME
+        boolean entryRejected = (TrxTypeCodeEnum.isEntryTxn(request.getTrxType())
+                || TrxTypeCodeEnum.ENTRY_FAIL.getCode().equals(request.getTrxType()))
+                && (QRCodeStatusEnum.UPDATE_FREE.getCode().equals(nextStatus.getCodeStatus())
+                        || QRCodeStatusEnum.ENTRY_FAIL.getCode().equals(nextStatus.getCodeStatus()));
+        if (entryRejected) {
+            nextStatus.setLastTxnTime(currentStatus.getLastTxnTime());
+            nextStatus.setLastTxnStation(currentStatus.getLastTxnStation());
+            log.warn("IF1A-01 入闸被拒绝，保留上次有效入闸信息, cardId={}, rejectedStatus={}, lastTxnTime={}, lastTxnStation={}",
+                    request.getCardId(), nextStatus.getCodeStatus(),
+                    currentStatus.getLastTxnTime(), currentStatus.getLastTxnStation());
+        } else {
+            nextStatus.setLastTxnTime(request.getHandleDateTime());
+            nextStatus.setLastTxnStation(request.getHandleStationCode());
+        }
         nextStatus.setTxnSeq(incrementTxnSeq(currentStatus.getTxnSeq()));
         nextStatus.setCreateTime(currentStatus.getCreateTime());
         nextStatus.setUpdateTime(LocalDateTime.now());

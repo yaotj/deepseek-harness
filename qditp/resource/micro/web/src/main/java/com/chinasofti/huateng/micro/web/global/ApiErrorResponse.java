@@ -11,10 +11,11 @@ public class ApiErrorResponse extends ASimpleResultVo {
 
     public ApiErrorResponse(String url, Exception ex) {
         super.setRetCode(UUID.randomUUID().toString());
-        if (ex.getMessage().length() > 20) {
-            log.error("{} {}",url, ex.getMessage());
+        String message = ex.getMessage();
+        if (message != null && message.length() > 20) {
+            log.error("{} {}", url, message);
         } else {
-            log.error(url, ex);
+            log.error("{}", url, ex);
         }
 
     }

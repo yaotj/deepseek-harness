@@ -1,6 +1,6 @@
 # collect-pay-server 定时任务
 
-> ⚠️ **部署状态**：`collect-pay-server` 模块代码与 Deployment yaml（`deploy/k8s/10-deployments/collect-pay.yaml`）仍在仓库，但 **2026-10-13 起集群内 0 pod（已下线，按用户要求）**。因此下文 4 个 `@Scheduled` 任务**当前不在运行**；本文件的「NEVER 停」「MUST 单副本」等约束**仅在模块被重新拉起后才生效**。若需切回，MUST 先复核 `fep-app` 的 `service.collectPay.url` 是否被回滚成 30024（见 `docs/ops/流量切换Runbook.md`）。
+> ⚠️ **部署状态**：`collect-pay-server` 模块代码与 Deployment yaml（`deploy/k8s/10-deployments/collect-pay.yaml`）仍在仓库，但 **2026-11-20 起测试环境云管台 `Stopped` + K8s 副本 0**（Deployment / Service 资源保留未删；红岛从未部署）。因此下文 4 个 `@Scheduled` 任务**当前不在运行**；本文件的「NEVER 停」「MUST 单副本」等约束**仅在模块被重新拉起后才生效**。恢复方法：`itp-ops.sh cloudos act collect-pay start --env test --yes` + `scale 1 --yes`（见 `docs/ops/environments/测试环境.md`「已下线 / 未部署」段）。
 
 > 对应模块内 @Scheduled 4 处。覆盖 TBL_TVM_APP_ORDER / TBL_TVM_ORDER_TOPUP / TBL_BOM_ORDER_PAY 旧表存量。**仅覆盖旧表，新表 F2F_* 由 sys_job 200/205/210 覆盖，两套覆盖面互不重叠。**
 

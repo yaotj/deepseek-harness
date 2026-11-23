@@ -2,6 +2,7 @@ package com.chinasofti.huateng.gatetxnpay.paysign;
 
 import com.chinasofti.huateng.gatetxnpay.constant.DebitStatus;
 import com.chinasofti.huateng.gatetxnpay.entity.GateTxnPay;
+import com.chinasofti.huateng.gatetxnpay.notify.GateTxnPayNoticeService;
 import com.chinasofti.huateng.gatetxnpay.writer.GateTxnPayWriter;
 import com.chinasofti.huateng.model.alipaytrip.AlipayTripRequestPayReqDTO;
 import com.chinasofti.huateng.model.app.GatePayRequestDTO;
@@ -28,16 +29,19 @@ public class PaySignInitiator {
     private final PayInitiationRpcAdapter payInitiationRpcAdapter;
     private final GatePayRequestFactory gatePayRequestFactory;
     private final AlipayTripPayRequestFactory alipayTripPayRequestFactory;
+    private final GateTxnPayNoticeService gateTxnPayNoticeService;
 
     public PaySignInitiator(
             GateTxnPayWriter gateTxnPayWriter,
             PayInitiationRpcAdapter payInitiationRpcAdapter,
             GatePayRequestFactory gatePayRequestFactory,
-            AlipayTripPayRequestFactory alipayTripPayRequestFactory) {
+            AlipayTripPayRequestFactory alipayTripPayRequestFactory,
+            GateTxnPayNoticeService gateTxnPayNoticeService) {
         this.gateTxnPayWriter = gateTxnPayWriter;
         this.payInitiationRpcAdapter = payInitiationRpcAdapter;
         this.gatePayRequestFactory = gatePayRequestFactory;
         this.alipayTripPayRequestFactory = alipayTripPayRequestFactory;
+        this.gateTxnPayNoticeService = gateTxnPayNoticeService;
     }
 
     public void initiateAsync(GateTxnPay order, GateTxnPayReqDTO request) {
@@ -114,7 +118,10 @@ public class PaySignInitiator {
         String channel = alipayChannel ? CHANNEL_ALIPAY : CHANNEL_PAY_SIGN;
         RpcOutcome outcome = alipayChannel ? requestAlipayTripPay(order, payTriggerType) : requestPaySign(order, request, payTriggerType);
         Landing landing = land(order, scene, channel, outcome);
-        gateTxnPayWriter.updateOrderStatusFromPending(order, landing.status(), landing.reason());
+        int updated = gateTxnPayWriter.updateOrderStatusFromPending(order, landing.status(), landing.reason());
+        if (updated > 0 && DebitStatus.FAIL.is(landing.status())) {
+            gateTxnPayNoticeService.notifySettled(order, landing.status(), scene + "被" + channel + "业务拒绝");
+        }
         return landing.status();
     }
 

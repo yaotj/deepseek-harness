@@ -10,8 +10,10 @@ import com.chinasofti.huateng.facepay.channel.paycenter.PayCenterStatus;
 import com.chinasofti.huateng.facepay.entity.SupplementOrder;
 import com.chinasofti.huateng.facepay.entity.SupplementOrderItem;
 import com.chinasofti.huateng.facepay.mapper.SupplementOrderMapper;
+import com.chinasofti.huateng.model.app.BlacklistAutoReleaseRespDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayDebitConvergeReqDTO;
 import com.chinasofti.huateng.model.pay.GateTxnPayDebitConvergeRespDTO;
+import com.chinasofti.huateng.rpc.blacklist.BlacklistClient;
 import com.chinasofti.huateng.rpc.pay.GateTxnPayClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -35,6 +37,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -53,6 +56,7 @@ class SupplementPayCenterFlowTest {
     @Mock private PayCenterMessageFactory messageFactory;
     @Mock private SupplementOrderMapper supplementOrderMapper;
     @Mock private GateTxnPayClient gateTxnPayClient;
+    @Mock private BlacklistClient blacklistClient;
     @Mock private PayCenterProperties payCenterProperties;
     @Mock private PayCenterRequest payRequest;
     @Mock private PayCenterRequest queryRequest;
@@ -61,7 +65,8 @@ class SupplementPayCenterFlowTest {
 
     @BeforeEach
     void setUp() {
-        flow = new SupplementPayCenterFlow(payCenterClient, messageFactory, supplementOrderMapper, gateTxnPayClient);
+        flow = new SupplementPayCenterFlow(payCenterClient, messageFactory, supplementOrderMapper,
+                gateTxnPayClient, blacklistClient);
         when(payCenterClient.properties()).thenReturn(payCenterProperties);
         when(payCenterProperties.getPayUrl()).thenReturn("http://paycenter/pay");
         when(payCenterProperties.getQueryUrl()).thenReturn("http://paycenter/query");
@@ -100,22 +105,26 @@ class SupplementPayCenterFlowTest {
             when(payCenterClient.execute(eq("http://paycenter/pay"), eq(payRequest))).thenReturn(result);
             when(supplementOrderMapper.updatePrepayResult(eq(SUP_ORDER), any(), anyString(), anyString())).thenReturn(1);
 
-            var outcome = flow.preOrder(order);
+            var outcome = flow.preOrder(order, "WECHAT");
 
             assertInstanceOf(com.chinasofti.huateng.rpc.outcome.RpcOutcome.Ok.class, outcome);
-            verify(supplementOrderMapper).updatePrepayResult(eq(SUP_ORDER), org.mockito.ArgumentMatchers.isNull(), eq("PC20260914001"), eq("PAY_INFO_XXX"));
+            verify(supplementOrderMapper).updatePrepayResult(eq(SUP_ORDER), eq("WECHAT"), eq("PC20260914001"), eq("PAY_INFO_XXX"));
         }
 
         @Test
-        void updatePrepayResultZeroRowsIsIdempotent() {
+        void updatePrepayResultZeroRowsIsFailureNotIdempotentSuccess() {
+            // 0 行 = 本次渠道与参数没落库，库里还是上一版渠道。此时 MUST 当失败：
+            // 若当成功返回，调用方会拿库里的旧渠道参数回给乘客（2026-11-20 实测缺陷）。
             PayCenterResult result = PayCenterResults.answered("0", null, "PAY_INFO_XXX");
             when(messageFactory.buildPayRequest(any(), any())).thenReturn(payRequest);
             when(payCenterClient.execute(eq("http://paycenter/pay"), eq(payRequest))).thenReturn(result);
             when(supplementOrderMapper.updatePrepayResult(anyString(), anyString(), anyString(), anyString())).thenReturn(0);
 
-            var outcome = flow.preOrder(order);
+            var outcome = flow.preOrder(order, "WECHAT");
 
-            assertInstanceOf(com.chinasofti.huateng.rpc.outcome.RpcOutcome.Ok.class, outcome);
+            assertInstanceOf(com.chinasofti.huateng.rpc.outcome.RpcOutcome.BizRejected.class, outcome);
+            assertEquals(SupplementPayCenterFlow.CODE_CHANNEL_NOT_APPLIED,
+                    ((com.chinasofti.huateng.rpc.outcome.RpcOutcome.BizRejected) outcome).retCode());
         }
 
         @Test
@@ -123,7 +132,7 @@ class SupplementPayCenterFlowTest {
             when(messageFactory.buildPayRequest(any(), any())).thenReturn(payRequest);
             when(payCenterClient.execute(any(), eq(payRequest))).thenReturn(PayCenterResults.transportFailed("read timeout"));
 
-            var outcome = flow.preOrder(order);
+            var outcome = flow.preOrder(order, "WECHAT");
 
             assertInstanceOf(com.chinasofti.huateng.rpc.outcome.RpcOutcome.Unreachable.class, outcome);
             verify(supplementOrderMapper, never()).updatePrepayResult(anyString(), anyString(), anyString(), anyString());
@@ -135,10 +144,39 @@ class SupplementPayCenterFlowTest {
             when(messageFactory.buildPayRequest(any(), any())).thenReturn(payRequest);
             when(payCenterClient.execute(any(), eq(payRequest))).thenReturn(result);
 
-            var outcome = flow.preOrder(order);
+            var outcome = flow.preOrder(order, "WECHAT");
 
             assertInstanceOf(com.chinasofti.huateng.rpc.outcome.RpcOutcome.BizRejected.class, outcome);
             verify(supplementOrderMapper, never()).updatePrepayResult(anyString(), anyString(), anyString(), anyString());
+        }
+
+        @Test
+        void channelNotHonoredIsRejectedAndNeverTouchesDb() {
+            // 换渠道重下时支付中心仍回旧渠道（同一订单号下挂着旧待支付单）：MUST 拒绝且不写库，
+            // 否则乘客在支付页看到的渠道与实际可付渠道不一致。
+            PayCenterResult result = PayCenterResults.answeredWithChannel("0", "PAY_INFO_OLD", "UNIONPAY");
+            when(messageFactory.buildPayRequest(any(), any())).thenReturn(payRequest);
+            when(payCenterClient.execute(eq("http://paycenter/pay"), eq(payRequest))).thenReturn(result);
+
+            var outcome = flow.preOrder(order, "WECHAT");
+
+            assertInstanceOf(com.chinasofti.huateng.rpc.outcome.RpcOutcome.BizRejected.class, outcome);
+            assertEquals(SupplementPayCenterFlow.CODE_CHANNEL_LOCKED,
+                    ((com.chinasofti.huateng.rpc.outcome.RpcOutcome.BizRejected) outcome).retCode());
+            verify(supplementOrderMapper, never()).updatePrepayResult(anyString(), anyString(), anyString(), anyString());
+        }
+
+        @Test
+        void channelEchoMatchingRequestIsAccepted() {
+            PayCenterResult result = PayCenterResults.answeredWithChannel("0", "PAY_INFO_WX", "WECHAT");
+            when(messageFactory.buildPayRequest(any(), any())).thenReturn(payRequest);
+            when(payCenterClient.execute(eq("http://paycenter/pay"), eq(payRequest))).thenReturn(result);
+            when(supplementOrderMapper.updatePrepayResult(eq(SUP_ORDER), any(), anyString(), anyString())).thenReturn(1);
+
+            var outcome = flow.preOrder(order, "WECHAT");
+
+            assertInstanceOf(com.chinasofti.huateng.rpc.outcome.RpcOutcome.Ok.class, outcome);
+            verify(supplementOrderMapper).updatePrepayResult(eq(SUP_ORDER), eq("WECHAT"), anyString(), eq("PAY_INFO_WX"));
         }
     }
 
@@ -188,6 +226,63 @@ class SupplementPayCenterFlowTest {
             inOrder.verify(supplementOrderMapper).updatePayStatusFromPending(eq(SUP_ORDER), eq("SUCCESS"), anyString());
             inOrder.verify(gateTxnPayClient).convergeDebitStatusForSupplement(any(GateTxnPayDebitConvergeReqDTO.class));
             inOrder.verify(supplementOrderMapper).updateItemSettleStatus(eq(SUP_ORDER), eq(ORIG_ORDER), eq("SETTLED"), any());
+        }
+
+        @Test
+        void settledOrderTriggersRealtimeBlacklistRelease() {
+            order.setCardId("0426090949000508");
+            when(supplementOrderMapper.selectByOrderNo(SUP_ORDER)).thenReturn(order);
+            when(messageFactory.buildQueryRequest(SUP_ORDER)).thenReturn(queryRequest);
+            when(payCenterClient.execute(any(), eq(queryRequest)))
+                    .thenReturn(PayCenterResults.answered("0", PayCenterStatus.SUCCESS, null));
+            when(supplementOrderMapper.updatePayStatusFromPending(eq(SUP_ORDER), eq("SUCCESS"), anyString())).thenReturn(1);
+            when(supplementOrderMapper.selectItemsByOrderNo(SUP_ORDER)).thenReturn(List.of(item));
+            when(gateTxnPayClient.convergeDebitStatusForSupplement(any(GateTxnPayDebitConvergeReqDTO.class)))
+                    .thenReturn(convergeResp("0000", true, "SUCCESS"));
+            BlacklistAutoReleaseRespDTO releaseResp = new BlacklistAutoReleaseRespDTO();
+            releaseResp.setReleased(1);
+            when(blacklistClient.releaseCardIfSettled(eq("0426090949000508"), any())).thenReturn(releaseResp);
+
+            flow.handlePayNotice(SUP_ORDER);
+
+            verify(blacklistClient).releaseCardIfSettled(eq("0426090949000508"), any());
+        }
+
+        @Test
+        void blacklistReleaseFailureDoesNotBreakConverge() {
+            order.setCardId("0426090949000508");
+            when(supplementOrderMapper.selectByOrderNo(SUP_ORDER)).thenReturn(order);
+            when(messageFactory.buildQueryRequest(SUP_ORDER)).thenReturn(queryRequest);
+            when(payCenterClient.execute(any(), eq(queryRequest)))
+                    .thenReturn(PayCenterResults.answered("0", PayCenterStatus.SUCCESS, null));
+            when(supplementOrderMapper.updatePayStatusFromPending(eq(SUP_ORDER), eq("SUCCESS"), anyString())).thenReturn(1);
+            when(supplementOrderMapper.selectItemsByOrderNo(SUP_ORDER)).thenReturn(List.of(item));
+            when(gateTxnPayClient.convergeDebitStatusForSupplement(any(GateTxnPayDebitConvergeReqDTO.class)))
+                    .thenReturn(convergeResp("0000", true, "SUCCESS"));
+            doThrow(new RuntimeException("blacklist down"))
+                    .when(blacklistClient).releaseCardIfSettled(eq("0426090949000508"), any());
+
+            // 解黑 RPC 抛异常也不能把已成功的补款收敛变成异常（兜底交给每日全表解黑任务）。
+            flow.handlePayNotice(SUP_ORDER);
+
+            verify(supplementOrderMapper).updateItemSettleStatus(eq(SUP_ORDER), eq(ORIG_ORDER), eq("SETTLED"), any());
+        }
+
+        @Test
+        void noCardIdSkipsRealtimeRelease() {
+            // order 未设 cardId，收敛成功但不应触发解黑（cardId 为空）。
+            when(supplementOrderMapper.selectByOrderNo(SUP_ORDER)).thenReturn(order);
+            when(messageFactory.buildQueryRequest(SUP_ORDER)).thenReturn(queryRequest);
+            when(payCenterClient.execute(any(), eq(queryRequest)))
+                    .thenReturn(PayCenterResults.answered("0", PayCenterStatus.SUCCESS, null));
+            when(supplementOrderMapper.updatePayStatusFromPending(eq(SUP_ORDER), eq("SUCCESS"), anyString())).thenReturn(1);
+            when(supplementOrderMapper.selectItemsByOrderNo(SUP_ORDER)).thenReturn(List.of(item));
+            when(gateTxnPayClient.convergeDebitStatusForSupplement(any(GateTxnPayDebitConvergeReqDTO.class)))
+                    .thenReturn(convergeResp("0000", true, "SUCCESS"));
+
+            flow.handlePayNotice(SUP_ORDER);
+
+            verifyNoInteractions(blacklistClient);
         }
 
         @Test

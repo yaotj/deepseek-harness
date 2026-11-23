@@ -19,7 +19,6 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 @EnableRpcIndustryData
 @EnableRpcPara
 @EnableRpcDailyTicket
-@EnableRpcCollectPay
 @EnableRpcGateTxnPay
 @EnableRpcTransQuery
 @EnableRpcFacePay

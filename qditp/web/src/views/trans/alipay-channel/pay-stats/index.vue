@@ -48,8 +48,8 @@
       <el-table-column label="票款" width="95" align="right"><template #default="{ row }">{{ formatAmount(row.trxAmount) }}</template></el-table-column>
       <el-table-column label="超时费" width="90" align="right"><template #default="{ row }">{{ (row.overtimeAmount ?? 0) > 0 ? formatAmount(row.overtimeAmount) : '-' }}</template></el-table-column>
       <el-table-column label="合计" width="95" align="right"><template #default="{ row }">{{ formatAmount(row.totalAmount) }}</template></el-table-column>
-      <el-table-column label="扣费状态" width="100" align="center"><template #default="{ row }"><el-tag :type="row.debitStatus === 'SUCCESS' ? 'success' : 'warning'">{{ row.debitStatus }}</el-tag></template></el-table-column>
-      <el-table-column label="发行渠道" width="90" align="center"><template #default="{ row }">{{ row.issueChannelCode === '07' ? '支付宝出行' : (row.issueChannelCode || '-') }}</template></el-table-column>
+      <el-table-column label="扣费状态" width="110" align="center"><template #default="{ row }"><el-tag :type="row.debitStatus === 'SUCCESS' ? 'success' : 'warning'">{{ debitStatusLabel(row.debitStatus) }}</el-tag></template></el-table-column>
+      <el-table-column label="发行渠道" width="90" align="center"><template #default="{ row }">{{ issueChannelLabels[row.issueChannelCode] || row.issueChannelCode || '-' }}</template></el-table-column>
       <el-table-column label="交易日期" prop="txnDate" width="100" align="center" />
       <el-table-column label="出站时间" prop="outTime" width="170" align="center" />
     </el-table>
@@ -61,8 +61,11 @@
 <script setup name="AlipayPayStats">
 import { listGateTxnPays } from '@/api/trans/userSearch'
 import { defaultTodayRange } from '@/utils/dateRange'
+import { debitStatusLabel } from '@/utils/orderStatusLabels'
 
 const DATE_FORMAT = 'YYYY-MM-DD'
+// 发卡渠道码表（IssueChannelCodeEnum）：07=支付宝。与支付渠道码表（@/utils/payChannel）码值空间不同，禁止套用。
+const issueChannelLabels = { '01': '正常渠道', '07': '支付宝' }
 const { proxy } = getCurrentInstance()
 const loading = ref(false)
 const total = ref(0)

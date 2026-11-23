@@ -3,13 +3,17 @@ package com.chinasofti.huateng.alipay.paysign.service.impl.refund;
 import com.chinasofti.huateng.alipay.paysign.entity.AlipayPayLog;
 import com.chinasofti.huateng.alipay.paysign.config.PayCenterProperties;
 import com.chinasofti.huateng.alipay.paysign.exception.BusinessException;
+import com.chinasofti.huateng.alipay.paysign.entity.AlipayRefundLog;
 import com.chinasofti.huateng.alipay.paysign.mapper.AlipayPayLogMapper;
+import com.chinasofti.huateng.alipay.paysign.mapper.AlipayRefundLogMapper;
 import com.chinasofti.huateng.alipay.paysign.mapper.AlipaySignInfoMapper;
+import org.springframework.dao.DuplicateKeyException;
 import com.chinasofti.huateng.alipay.paysign.model.request.AlipayTripRequestRefundReqDTO;
 import com.chinasofti.huateng.alipay.paysign.model.response.AlipayTripRequestRefundRespDTO;
 import com.chinasofti.huateng.alipay.paysign.port.PayCenterPort;
 import com.chinasofti.huateng.alipay.paysign.port.PayCenterReply;
 import com.chinasofti.huateng.alipay.paysign.service.impl.support.RefundAmountCalculator;
+import com.chinasofti.huateng.common.constant.FepAppErrorCodeEnum;
 import com.chinasofti.huateng.model.alipaytrip.AlipaySignInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +25,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -194,6 +199,48 @@ class AlipayPayRefundServiceImplTest {
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
         verify(payCenterPort).requestRefund(captor.capture());
         assertEquals(REFUND_NOTIFY_URL, captor.getValue().get("notifyUrl"));
+    }
+
+    // ===== 旧表并发冲突（RefundLogRepository 层，fail-closed 不出网） =====
+
+    @Test
+    void legacyConcurrentInsertConflictRejectsAndCarriesActiveRefundOrderNo() {
+        AlipayRefundLogMapper refundMapper = mock(AlipayRefundLogMapper.class);
+        AlipayPayLogMapper payLogMapper = mock(AlipayPayLogMapper.class);
+        RefundLogRepository repository = new RefundLogRepository(refundMapper, payLogMapper);
+
+        when(refundMapper.insert(any())).thenThrow(new DuplicateKeyException("UK_ARL_ACTIVE_ORDER"));
+        AlipayRefundLog active = new AlipayRefundLog();
+        active.setOrderNo(ORDER_NO);
+        active.setRefundOrderNo("R-existing-active");
+        active.setRefundStatus("PROCESSING");
+        when(refundMapper.selectProcessingByOrderNo(ORDER_NO)).thenReturn(active);
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> repository.openRefund(RefundCommand.from(request(null)), payLog("SUCCESS"),
+                        CHANNEL_AGREEMENT_NO, "300", "R-new", "{}"));
+
+        assertEquals(FepAppErrorCodeEnum.FAIL.getCode(), error.getCode());
+        assertTrue(error.getMessage().contains("R-existing-active"), "错误文案 MUST 带出在途单号供对账");
+        verify(refundMapper).selectProcessingByOrderNo(ORDER_NO);
+    }
+
+    @Test
+    void legacyConcurrentConflictIgnoresNestedCauseChainViolation() {
+        AlipayRefundLogMapper refundMapper = mock(AlipayRefundLogMapper.class);
+        AlipayPayLogMapper payLogMapper = mock(AlipayPayLogMapper.class);
+        RefundLogRepository repository = new RefundLogRepository(refundMapper, payLogMapper);
+
+        // 沿 cause 链判：最外层 IllegalStateException 包着 DuplicateKeyException（tracing 场景）
+        when(refundMapper.insert(any()))
+                .thenThrow(new IllegalStateException("包一层", new DuplicateKeyException("UK_ARL_ACTIVE_ORDER")));
+        when(refundMapper.selectProcessingByOrderNo(ORDER_NO)).thenReturn(null);
+
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> repository.openRefund(RefundCommand.from(request(null)), payLog("SUCCESS"),
+                        CHANNEL_AGREEMENT_NO, "300", "R-new", "{}"));
+
+        assertTrue(error.getMessage().contains("需人工核对"), "回查不到在途单时 MUST 明示需人工核对，NEVER 编造单号");
     }
 
     private PayCenterReply accepted(String retCode, String retMsg) {

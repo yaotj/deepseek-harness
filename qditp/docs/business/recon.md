@@ -5,7 +5,7 @@
 > `docs/接口规范文档/ACC与ITP之间的文件.docx` §一「对账文件」（规格原文一直在仓库内，
 > 本文此前记为「甲方规格缺失、行格式是本项目自定义 v1」，**该结论是错的，已于 2026-09-11 全部返工**）。
 > 行格式是**跨五个模块的契约**，改一处必须同时改 recon-server 与各源服务（源清单 MUST 现查 `recon.orchestration.sources[*]`）
-> （`face-pay` 2026-09-16 接入为当时第 4 个源；**本文前半部分此前通篇写「三个源」，已于 2026-09-22 全量订正；2026-10-13 collect-pay 旧表源随该模块下线移除，现为三源，「四个源」自此是过期口径**。
+> （`face-pay` 2026-09-16 接入为当时第 4 个源；**本文前半部分此前通篇写「三个源」，已于 2026-09-22 全量订正；collect-pay 旧表源随该模块下线移除（2026-11-20 测试环境停服 + 红岛从未部署），现为三源，「四个源」自此是过期口径**。
 > ticket-server 侧的保留代码也要跟着改，否则将来启用即错位）。
 
 ## 涉及模块与端口
@@ -14,7 +14,7 @@
 |---|---|---|---|
 | recon-server | 8080（默认；容器见 overview §二） | `1.0.24`（2026-10-13 现查仓库 pom） | 批次编排、分片接收、流式聚合、FTP 投递；**自身无调度**，由 web-admin `sys_job` 225「给ACC上传扣费交易」每日触发 |
 | gate-txn-pay-server | 8080（默认；容器见 overview §二） | `2.0.103`（2026-10-13 现查仓库 pom） | 源 `gate-txn-pay`，产出 **EXP、PAY、BUS、DETAIL** 四类 |
-| collect-pay-server | 58101 | `1.1.89`（2026-10-13 现查仓库 pom） | 源 `collect-pay`（**2026-10-13 已随该模块下线移除，本行留作历史记录**），产出 **PAY、BUS**（原有的 DETAIL 导出已删除）。**旧表口径，与 `face-pay` 并列、NEVER 二选一** |
+| collect-pay-server | 58101 | `1.1.89`（2026-10-13 现查仓库 pom） | 源 `collect-pay`（**collect-pay-server 已停服：2026-11-20 测试环境云管台 `Stopped` + K8s 副本 0，Deployment / Service 资源保留未删；红岛从未部署；本行留作历史记录**），产出 **PAY、BUS**（原有的 DETAIL 导出已删除）。**旧表口径，与 `face-pay` 并列、NEVER 二选一** |
 | face-pay-server | 58101 | `1.0.70`（2026-10-13 现查仓库 pom） | 源 `face-pay`（2026-09-16 接入），产出 **PAY、BUS**，口径来自 `F2F_ORDER join F2F_PAYMENT`。**切流后的新单只进 `F2F_*`，只有这个源导得出来** |
 | daily-ticket-server | 9108 | `1.0.66`（2026-10-13 现查仓库 pom） | 源 `daily-ticket`，产出 **PAY、DETAIL** |
 | ticket-server | 8080（默认；容器见 overview §二） | `2.1.109`（2026-10-13 现查仓库 pom） | **不在期望清单内**。`ReconExportController` / `ReconExportService` / `ReconExportMapper` + XML 与 `recon.*` 配置**全部保留未删**，只是 `recon.orchestration.sources` 里没有它，因此永远收不到抽取指令 |
@@ -59,7 +59,7 @@ execution id `build-image-remote`、`<phase>package</phase>`、goals 是未注�
    |      gate-txn-pay      |   daily-ticket   |    face-pay    |  ← 受理即返回 accepted
    | EXP  PAY  BUS  DETAIL  |   PAY  DETAIL   |    PAY  BUS     |    PAY  BUS    |    抽取跑在平台线程池 recon-export
    +------------------------+----------------+------------------+----------------+
-                        （face-pay = 新表；collect-pay 旧表源已于 2026-10-13 移除）
+                        （face-pay = 新表；collect-pay 旧表源随模块停服移除，2026-11-20 测试环境云管台 `Stopped` + 红岛从未部署）
         Keyset 分页读库 / 库内 GROUP BY → ReconRecord.line(...) 拼管道分隔文本
         → ReconPartUploader/ReconPartSink 按 20 万行或 64MB 滚片、边写边算 SHA-256
                                     |
@@ -98,7 +98,7 @@ execution id `build-image-remote`、`<phase>package</phase>`、goals 是未注�
 | R-08 | POST | `/internal/recon/batches/{batchId}/files/{fileType}/upload` | recon-server | FTP 投递最终文件 |
 | R-09 | POST | `/internal/recon/batches/{batchId}/advance` | recon-server | 人工推进一个批次，等价编排器的一轮 |
 | R-10 | POST | `/internal/recon/export` | gate-txn-pay-server | 受理抽取指令即返回，实际抽取转平台线程池 |
-| R-11 | POST | `/internal/recon/export` | collect-pay-server | 同上（**该模块 2026-10-13 已下线，端点不可达；源已移除**） |
+| R-11 | POST | `/internal/recon/export` | collect-pay-server | 同上（**collect-pay-server 已停服：2026-11-20 测试环境云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署 ⇒ 端点不可达；源已移除**） |
 | R-12 | POST | `/internal/recon/export` | daily-ticket-server | 同上 |
 | R-12A | POST | `/internal/recon/export` | face-pay-server | 同上（2026-09-16 接入；`F2F_*` 新表口径） |
 | R-13 | POST | `/internal/recon/export` | ticket-server | **接口存在但从不被调用**（`ticket` 不在期望清单），保留待甲方要求全量过闸明细时启用 |
@@ -485,7 +485,7 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
 
 ## 各源抽取口径
 
-三个源的共性（`face-pay` 为 TVM/BOM 域新表源，collect-pay 旧表源已于 2026-10-13 移除）：
+三个源的共性（`face-pay` 为 TVM/BOM 域新表源，collect-pay 旧表源随模块停服移除——2026-11-20 测试环境云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署）：
 - 入口都是 `POST /internal/recon/export`，**受理即返回**（`accepted`），
   真正的抽取提交到名为 `recon-export` 的**固定大小平台线程池**（`recon.export.worker`，默认 1）。
   **NEVER 在请求线程上抽取**——请求线程阻塞在 ojdbc8 上会拖垮平台线程池（历史上全服务 `spring.threads.virtual.enabled=true` 时更会 pin 住载体线程，2026-10-20 起已禁用，约束仍保留）。
@@ -568,7 +568,7 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
   而这两个域当前都没有向 `ITP.EXP` 供数的源** —— 这是**结构性缺失**（不是缺陷、也不是配置问题）：
   想补必须新加源或让现有源产出 EXP，**在甲方明确要这几类之前 NEVER 自行往 EXP 里塞数据**。
 
-### 源 `collect-pay`（collect-pay-server，四张表）→ PAY / BUS —— **对账源已于 2026-10-13 移除**
+### 源 `collect-pay`（collect-pay-server，四张表）→ PAY / BUS —— **对账源已随模块停服移除（2026-11-20 测试环境云管台 `Stopped` + K8s 副本 0，Deployment / Service 资源保留未删；红岛从未部署）**
 
 四张表：`TBL_TVM_ORDER_PAY` / `TBL_TVM_ORDER_TOPUP` / `TBL_TVM_APP_ORDER` / `TBL_BOM_ORDER_PAY`。
 窗口列一律 `CREATE_TIME`（**VARCHAR2(100) 存 `yyyy-MM-dd HH:mm:ss`，直接字符串比较**，左闭右开，
@@ -605,7 +605,7 @@ W3C 头（`QuartzTraceUtils.traceHeaders` 生成 `traceparent` + `X-Vlogs-Captur
 
 ### 源 `face-pay`（face-pay-server，新表 `F2F_ORDER` join `F2F_PAYMENT`）→ PAY / BUS
 
-**2026-09-16 新增，原为第 4 个源、与 `collect-pay` 旧表并列；collect-pay 源已于 2026-10-13 移除，face-pay 现为 TVM/BOM 域唯一新表源**。
+**2026-09-16 新增，原为第 4 个源、与 `collect-pay` 旧表并列；collect-pay 源随模块停服移除（2026-11-20 测试环境云管台 `Stopped` + K8s 副本 0，Deployment / Service 资源保留未删；红岛从未部署），face-pay 现为 TVM/BOM 域唯一新表源**。
 口径来自 `F2F_ORDER O JOIN F2F_PAYMENT P ON P.ORDER_NO = O.ORDER_NO AND P.PAY_STATUS = 'SUCCESS'`，
 窗口 `O.PAID_TMS` 左闭右开。核心类：`face-pay-server/.../facepay/service/ReconExportService.java`
 （grep `SOURCE = "face-pay"`）、`.../controller/internal/ReconExportController.java`、
@@ -761,7 +761,7 @@ recon-server（`recon-server/src/main/resources/application.properties`）：
   web-admin `sys_job` 225 的 cron 决定，本模块没有任何 cron 配置。
 - `recon.orchestration.sources[N].name` / `.url` / `.file-types`，**N=0..2 三个源**：
   `gate-txn-pay`（EXP,PAY,BUS,DETAIL）、`daily-ticket`（PAY,DETAIL）、
-  **`face-pay`（PAY,BUS，2026-09-16 新增）**。collect-pay 旧表源已于 **2026-10-13 移除**：旧表在 2026-09-18 账期起已落在对账窗口外、不再有新数据，其 PAY/BUS 由 face-pay 承接，删源不会让任何账期少数据。
+  **`face-pay`（PAY,BUS，2026-09-16 新增）**。collect-pay 旧表源随模块停服移除（**2026-11-20 测试环境云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署**）：旧表在 2026-09-18 账期起已落在对账窗口外、不再有新数据，其 PAY/BUS 由 face-pay 承接，删源不会让任何账期少数据。
 - **`service.recon.self-url` 已删除**（2026-09-11）：`ReconExportClient` 的 baseUrl 现在固定为空串，
   复用 `URLDynamicRouter` 的动态路由做法，下发地址只来自 `recon.orchestration.sources[].url` 的绝对 URL。
   原占位 baseUrl 让 `InternalMicroHttp` 的 INFO 日志打出
@@ -1206,7 +1206,7 @@ properties 中没有显式列出的滚片阈值：`recon.export.max-part-records
 - **`ReconExportClient` 的 `baseUrl` 固定为空串，不需要自身地址配置项**（`application.properties`）：下发地址一律取 `recon.orchestration.sources[].url` 的绝对 URL。原 `service.recon.self-url` 已删除——它只是占位 baseUrl，却让 `InternalMicroHttp` 的 INFO 日志打出 `http://127.0.0.1:9112/http://<源服务>/internal/recon/export` 这种双份地址（2026-09-11 实录）。
 - **`InternalMicroHttp` 的 logger 被压到 WARN**（`application.properties`）：它会把整个请求头 Map 直接打进 INFO 日志，其中包含内部令牌明文；公共构件 `resource/micro` 不改，改这里避免令牌落进日志文件与日志采集。
 - **期望清单当前是三个源**（`application.properties` 的 `recon.orchestration.sources[0..2]`）：`sources[0] gate-txn-pay` = EXP,PAY,BUS,DETAIL；`sources[1] daily-ticket` = PAY,DETAIL；`sources[2] face-pay`（2026-09-16 新增）= PAY,BUS，口径来自 `F2F_ORDER join F2F_PAYMENT`。地址是 `kubectl get svc -n itp` 实测值（Service 端口等于 NodePort 号），**线上仍以 Deployment env 覆盖为准**。
-- **collect-pay（旧表）源已于 2026-10-13 移除**：旧表在 2026-09-18 账期起已落在对账窗口外、不再有新数据，其 PAY/BUS 由 face-pay 承接；故「face-pay 与 collect-pay NEVER 二选一」不再适用于当前配置——该原则仅用于解释历史上为何同时保留两源、以及为何 NEVER 手工补跑 2026-09-16 及之前账期。
+- **collect-pay（旧表）源随模块停服移除（2026-11-20 测试环境云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署）**：旧表在 2026-09-18 账期起已落在对账窗口外、不再有新数据，其 PAY/BUS 由 face-pay 承接；故「face-pay 与 collect-pay NEVER 二选一」不再适用于当前配置——该原则仅用于解释历史上为何同时保留两源、以及为何 NEVER 手工补跑 2026-09-16 及之前账期。
 - **ticket-server 的 `ReconExportMapper` / `ReconExportService` 代码保留但不在期望清单内**（`application.properties`）：甲方四类文件中没有 ticket 源的位置（过闸笔数与金额由 gate-txn-pay 出，`QRCODE_TXN_DETAIL` 不参）。如后续甲方需要过闸明细，把 ticket 源加回清单即可，**勿删源服务代码**。
 - **编排总开关**（`recon.orchestration.enabled`，`application.properties`；`ReconOrchestrationProperties.java`）：关掉后 `runDailyBatch` 与 `advance` 都直接返回，单批次人工接口仍可用。
 - **期望清单为空属配置缺失**（`ReconOrchestrationProperties.java`）：dispatch 无事可做，MUST 在部署清单里核对。

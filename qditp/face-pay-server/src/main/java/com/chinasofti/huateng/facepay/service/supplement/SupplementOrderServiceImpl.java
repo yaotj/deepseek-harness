@@ -31,7 +31,15 @@ public class SupplementOrderServiceImpl implements SupplementOrderService {
     private static final String SUPPLEMENT_INIT = "INIT";
     private static final String SUPPLEMENT_PROCESSING = "PROCESSING";
 
-    private static final List<String> DEBIT_PENDING = List.of("INIT", "RETRY", "FAIL");
+    // 可补款的原订单状态白名单。
+    // 2026-11-20 用户裁决：INIT 不可补款 —— 出站落单后订单先以 INIT 落库、随后由异步任务发往支付中心接，
+    // 这段「发起中」窗口里钱可能已经在路上（接口对外也已回 payStatus=PROCESSING），此时让它可补款就是双付口子。
+    // 卡在 INIT 的单也不需要人工补款自救：DebitRetryProcessor 的 scan（sys_job 220/255）每轮都扫
+    // INIT/RETRY/FAIL（带 minAgeSeconds=60 的观察期），必然接管；`OFFLINE_FARE_PENDING`（离线码金额待重算）
+    // 同样以 INIT 落库且金额为 0，一并挡在外面（自动重试与 requestPayFailOrder 早就排除了它，补款此前漏排除）。
+    // 与 trans-query / gate-txn-pay「地铁未扣费订单」的 Debit_Result_Filter 白名单 MUST 同源：
+    // 列表里能看到的每一笔都真的可补款，否则就是今天这个「列出来、点了必 8003」的死循环。
+    private static final List<String> DEBIT_PENDING = List.of("RETRY", "FAIL");
 
     private static final DateTimeFormatter ORDER_NO_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
@@ -110,8 +118,9 @@ public class SupplementOrderServiceImpl implements SupplementOrderService {
             return buildResp(CODE_INVALID_PARAM, "存在无效的原订单号", null, null, null);
         }
         if (!notPending.isEmpty()) {
-            log.warn("补款下单校验失败：部分原订单状态不可补款（非 INIT/RETRY/FAIL）, notPendingCount={}", notPending.size());
-            return buildResp(CODE_STATUS_REJECTED, "部分订单已结清或状态不可补款", null, null, null);
+            log.warn("补款下单校验失败：部分原订单状态不可补款（非 RETRY/FAIL：已结清或正在扣费中）, notPendingCount={}",
+                    notPending.size());
+            return buildResp(CODE_STATUS_REJECTED, "部分订单已结清或正在扣费中，暂不可补款", null, null, null);
         }
         if (!ownerMismatch.isEmpty()) {
             log.warn("补款下单校验失败：订单归属不一致, mismatchCount={}", ownerMismatch.size());
@@ -136,45 +145,28 @@ public class SupplementOrderServiceImpl implements SupplementOrderService {
         order.setQuantity(1);
         order.setTotalAmount(totalAmount);
         order.setOrderCount(orderNos.size());
+        // PAYMENT_VENDOR 只是「原支付方式」留痕（IT-014），NEVER 拿它发报：
+        // 补款允许乘客自选渠道（设计要求），实际渠道由 IF8A-11 的 payChannelCode 决定，
+        // 落在 PAY_CHANNEL_CODE。若拿这一列发报，乘客选的 04 会被顶成原单的 07（2026-11-20 实测）。
         order.setPaymentVendor(expectedPaymentVendor);
         order.setSignChannelCode(expectedSignChannelCode);
         order.setTxnDate(LocalDateTime.now().format(DateTimeFormatter.BASIC_ISO_DATE));
         order.setCreateTime(LocalDateTime.now());
         order.setUpdateTime(LocalDateTime.now());
 
-        SupplementOrderLocalWriter.PersistResult persistResult = localWriter.persist(order, orderNos, orderIndex);
-        if (!persistResult.persisted()) {
-            return buildResp(CODE_STATUS_REJECTED, "补款单已存在，请勿重复提交",
-                    supplementOrderNo, null, totalAmount);
-        }
+        // 建单不做业务防重（2026-11-20 裁决）：APP 侧本身没有防重逻辑（旧流程就是靠重复下单，
+        // 只是重复的那几张不付费而已），补款是抢占式 —— 同一批欠费允许生成多张补款单，
+        // 谁先付款谁结清：GATE_TXN_PAY 的 DEBIT_STATUS 条件更新 + 明细 SETTLED 抢占兜底，
+        // 后到的重复支付由回调侧标「重复支付待退款」（IT-089）。
+        // 因此这里 NEVER 再返回「补款单已存在，请勿重复提交」，也 NEVER 把生成的单号回给调用方
+        // 却没落库（旧代码在拒绝分支里返回了一个库里不存在的 orderNo，APP 拿去调 IF8A-11 只会得到
+        // 「订单号错误」）。
+        supplementOrderNo = localWriter.persist(order, orderNos, orderIndex);
 
-        RpcOutcome outcome;
-        try {
-            outcome = payCenterFlow.preOrder(order);
-        } catch (Exception e) {
-            log.error("补款预下单异常, orderNo={}", supplementOrderNo, e);
-            supplementOrderMapper.updatePayStatusFromPending(
-                    supplementOrderNo, SUPPLEMENT_INIT, "预下单异常: " + truncate(e.getMessage()));
-            return buildResp(CODE_INVALID_PARAM, "补款预下单异常", supplementOrderNo, SUPPLEMENT_INIT, totalAmount);
-        }
-
-        return switch (outcome) {
-            case RpcOutcome.Ok ok -> buildResp(CODE_SUCCESS, "成功", supplementOrderNo,
-                    SUPPLEMENT_PROCESSING, totalAmount);
-            case RpcOutcome.BizRejected rejected -> {
-                supplementOrderMapper.updatePayStatusFromPending(
-                        supplementOrderNo, SUPPLEMENT_INIT,
-                        "支付中心拒绝: " + truncate(rejected.retMsg()));
-                yield buildResp(CODE_STATUS_REJECTED,
-                        "支付中心拒绝: " + rejected.retMsg(),
-                        supplementOrderNo, SUPPLEMENT_INIT, totalAmount);
-            }
-            case RpcOutcome.Unreachable unreachable -> {
-                log.error("补款预下单支付中心不可达, orderNo={}", supplementOrderNo, unreachable.cause());
-                yield buildResp(CODE_SUCCESS, "补款单已生成，待支付中心受理",
-                        supplementOrderNo, SUPPLEMENT_INIT, totalAmount);
-            }
-        };
+        // IF8A-26 只落单、不预下单：渠道此时还不知道（APP 在支付页才选），
+        // 预下单 MUST 留到 IF8A-11 按乘客所选 payChannelCode 执行，见 requestPayInfo。
+        log.info("补款单落单完成，等待 IF8A-11 按乘客所选渠道预下单, orderNo={}", supplementOrderNo);
+        return buildResp(CODE_SUCCESS, "成功", supplementOrderNo, SUPPLEMENT_INIT, totalAmount);
     }
 
     @Override
@@ -196,26 +188,36 @@ public class SupplementOrderServiceImpl implements SupplementOrderService {
             return AppResponses.failMessage("订单金额异常，请联系工作人员");
         }
 
-        String vendor = order.getPaymentVendor();
+        // PAY_CHANNEL_CODE 才是本次实际预下单用的渠道（乘客选的）；PAYMENT_VENDOR 是原支付方式留痕。
+        String orderedChannel = order.getPayChannelCode();
         String requested = request.getPayChannelCode();
-        if (requested != null && !requested.isBlank() && vendor != null && !requested.equals(vendor)) {
-            log.warn("补款单请求支付信息 通道与下单时不一致, orderNo={}, orderVendor={}, requested={}",
-                    orderNo, vendor, requested);
-            return AppResponses.failMessage("支付方式与下单时不一致，请重新发起补款");
+        if (requested == null || requested.isBlank()) {
+            log.warn("补款单请求支付信息 未传渠道, orderNo={}", orderNo);
+            return AppResponses.failMessage("支付方式不能为空");
+        }
+        // APP 支付页允许乘客改支付方式（2026-11-20 用户确认：可以和原支付方式不一样，
+        // 也可以和上一次已预下单的渠道不一样）。因此这里**不锁渠道**：
+        // 同渠道走回放（避免重复下单），异渠道按新渠道重下（旧参数由支付中心同订单号覆盖）。
+        boolean sameChannel = requested.equals(orderedChannel);
+        boolean needPreOrder = SUPPLEMENT_INIT.equals(payStatus) || !sameChannel;
+        if (SUPPLEMENT_PROCESSING.equals(payStatus) && !sameChannel) {
+            log.info("补款单换渠道重下, orderNo={}, from={}, to={}", orderNo, orderedChannel, requested);
         }
 
-        if (SUPPLEMENT_INIT.equals(payStatus)) {
+        if (needPreOrder) {
+            // 补款允许乘客自选渠道：预下单 MUST 用本次 IF8A-11 传入的 payChannelCode。
             RpcOutcome outcome;
             try {
-                outcome = payCenterFlow.preOrder(order);
+                outcome = payCenterFlow.preOrder(order, requested);
             } catch (Exception e) {
-                log.error("补款单请求支付信息 预下单异常, orderNo={}", orderNo, e);
+                log.error("补款单请求支付信息 预下单异常, orderNo={}, vendor={}", orderNo, requested, e);
                 return AppResponses.failMessage("支付中心暂时不可用，请稍后重试");
             }
             JSONObject rejected = switch (outcome) {
                 case RpcOutcome.Ok ok -> null;
-                case RpcOutcome.BizRejected biz ->
-                        AppResponses.failMessage("获取支付信息失败[" + biz.retCode() + "]");
+                case RpcOutcome.BizRejected biz -> isChannelSwitchFailure(biz.retCode())
+                        ? AppResponses.failMessage("支付方式未能切换，请稍后重试或联系工作人员")
+                        : AppResponses.failMessage("获取支付信息失败[" + biz.retCode() + "]");
                 case RpcOutcome.Unreachable unreachable ->
                         AppResponses.failMessage("支付中心暂时不可用，请稍后重试");
             };
@@ -283,6 +285,15 @@ public class SupplementOrderServiceImpl implements SupplementOrderService {
         return closed;
     }
 
+    /**
+     * 换渠道失败的两种标记码（支付中心不认新渠道 / 本地没接住），对乘客给同一句人话。
+     * 两种都不改库：失败时库里的渠道与支付参数仍是上一版可用的那一份。
+     */
+    private boolean isChannelSwitchFailure(String retCode) {
+        return SupplementPayCenterFlow.CODE_CHANNEL_LOCKED.equals(retCode)
+                || SupplementPayCenterFlow.CODE_CHANNEL_NOT_APPLIED.equals(retCode);
+    }
+
     private List<String> deduplicate(List<String> orderNos) {
         if (orderNos == null || orderNos.isEmpty()) {
             return List.of();
@@ -322,12 +333,5 @@ public class SupplementOrderServiceImpl implements SupplementOrderService {
             return a == null && b == null;
         }
         return a.equals(b);
-    }
-
-    private static String truncate(String s) {
-        if (s == null) {
-            return null;
-        }
-        return s.length() <= 256 ? s : s.substring(0, 256);
     }
 }

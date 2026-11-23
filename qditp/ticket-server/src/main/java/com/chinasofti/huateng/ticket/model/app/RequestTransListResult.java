@@ -10,6 +10,7 @@ public class RequestTransListResult {
     private String pageNumber;
     private String pageSize;
     private String totalPage;
+    private String totalCount;
     private List<TransRecordDTO> ticketTransRecord;
     private String signType;
     private String sign;
@@ -24,6 +25,8 @@ public class RequestTransListResult {
     public void setPageSize(String pageSize) { this.pageSize = pageSize; }
     public String getTotalPage() { return totalPage; }
     public void setTotalPage(String totalPage) { this.totalPage = totalPage; }
+    public String getTotalCount() { return totalCount; }
+    public void setTotalCount(String totalCount) { this.totalCount = totalCount; }
     public List<TransRecordDTO> getTicketTransRecord() { return ticketTransRecord; }
     public void setTicketTransRecord(List<TransRecordDTO> ticketTransRecord) { this.ticketTransRecord = ticketTransRecord; }
     public String getSignType() { return signType; }

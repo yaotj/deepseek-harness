@@ -73,12 +73,18 @@ public class UserRouteConfig {
         }
         userRouteService.reloadSplitPaths();
         RouterFunction<ServerResponse> result = null;
+        int skipped = 0;
         for (RouteDef r : routes) {
             RequestPredicate pathPredicate = routePredicateFactory.parse(r.predicates());
-            RequestPredicate pathOrTrue = pathPredicate != null ? pathPredicate : req -> true;
+            if (pathPredicate == null) {
+                skipped++;
+                log.error("路由 {} 的 predicates 解析失败，跳过该路由（不匹配任何请求），predicates={}",
+                        r.id(), r.predicates());
+                continue;
+            }
             RequestPredicate predicate = r.legacy()
-                ? routePredicateStrategy.legacyPredicate().and(pathOrTrue)
-                : pathOrTrue;
+                ? routePredicateStrategy.legacyPredicate().and(pathPredicate)
+                : pathPredicate;
 
             var routeBuilder = route(r.id())
                 .route(predicate, http())
@@ -94,8 +100,12 @@ public class UserRouteConfig {
                 .build();
             result = result == null ? rf : result.and(rf);
         }
-        current = result == null ? request -> Optional.empty() : result;
-        log.info("已从 DB 重建 {} 条路由", routes.size());
+        if (result == null) {
+            log.error("所有 {} 条路由均解析失败，保留上一次可用的 RouterFunction", routes.size());
+            return;
+        }
+        current = result;
+        log.info("已从 DB 重建 {} 条路由，跳过解析失败 {} 条", routes.size() - skipped, skipped);
     }
 
     @org.springframework.context.annotation.Bean

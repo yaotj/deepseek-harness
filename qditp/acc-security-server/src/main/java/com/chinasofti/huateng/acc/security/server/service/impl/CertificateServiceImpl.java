@@ -54,7 +54,7 @@ public class CertificateServiceImpl implements CertificateService {
             result.setCert_sign(Base64.getEncoder().encodeToString(Util.hexStringToBytes(sign)));
 
         } catch (Exception e) {
-            log.error(e.getMessage());
+            log.error("获取卡片证书异常", e);
             return ResultMapper.error("程序异常");
         }
         return ResultMapper.ok(result);

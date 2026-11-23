@@ -24,12 +24,13 @@ public class DefaultMvcConfigurer implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
+        // CORS 已在 Filter 层（CORSFilter）统一处理；此处仅保留与之一致的兜底。
+        // NEVER use allowedOrigins("**")（Spring 不接受）+ allowCredentials(true)：该组合静默失效且存在凭证泄漏风险。
         registry.addMapping("/**")
-                .allowCredentials(true)
-                .allowedOrigins("**")
+                .allowedOriginPatterns("*")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("**")
-                .exposedHeaders("**");
+                .allowedHeaders("content-type", "Authorization")
+                .exposedHeaders("*");
     }
 
     public void addResourceHandlers(ResourceHandlerRegistry registry) {

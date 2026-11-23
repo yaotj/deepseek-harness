@@ -460,6 +460,16 @@
          1 是历史请求侧值（未扣款成功），存量 APP 仍在用，MUST 保留；2 是对外响应侧失败码（IT-082），
          加 2 分支是为让「响应回显的 2 直接当筛选入参传回」仍能正确命中失败单，不再静默不过滤返全量。
          注意：响应侧当前只发 0/2（不产出 1），但请求侧 1 与 2 语义等价、都筛非成功，两侧筛选口径已同源。 -->
+    <!-- 扣款结果筛选（IF8A-05 / requestTransList / countTransList 共用）。
+         0 = 成功；1 或 2 = 非成功（两者等价，1 保留兼容存量 APP）。
+         非成功分支 2026-11-20 起是白名单 RETRY/FAIL（IT-094 用户裁决），**既不含 PROCESSING 也不含 INIT**：
+         · PROCESSING = 已发往支付中心、正在等扣款结果；INIT = 已落单、异步任务正在发往支付中心
+           （出站接口对外已回 payStatus=PROCESSING，但库里此刻仍是 INIT）—— 两者都属「钱可能已在路上」，
+           列进「地铁未扣费订单」会让乘客点「一键补扣」必吃 8003（face-pay 补款白名单同样只认 RETRY/FAIL）。
+         · 卡在 INIT/RETRY/FAIL 的单都有 DebitRetryProcessor（sys_job 220/255）兜底重发，不需要人工补款自救。
+         这两态与 face-pay 的 SupplementOrderServiceImpl.DEBIT_PENDING 完全同源：**列表里能列出来的每一笔都真的可补款**。
+         NEVER 退回黑名单写法（`IS NULL OR != 'SUCCESS'`）—— 那会把 PROCESSING/INIT 一起捞进来，
+         且 NULL 脏数据也会冒充「未扣费」。INIT/RETRY/FAIL 的完整在途视图去「交易记录」页（不带本过滤）看。 -->
     <sql id="Debit_Result_Filter">
         <if test='debitRequestResult != null and debitRequestResult != ""'>
             <choose>
@@ -467,7 +477,7 @@
                     AND DEBIT_STATUS = 'SUCCESS'
                 </when>
                 <when test='debitRequestResult == "1" or debitRequestResult == "2"'>
-                    AND (DEBIT_STATUS IS NULL OR DEBIT_STATUS != 'SUCCESS')
+                    AND DEBIT_STATUS IN ('RETRY', 'FAIL')
                 </when>
             </choose>
         </if>
@@ -787,19 +797,19 @@
           AND (DEBIT_NEXT_RETRY_TIME IS NULL OR DEBIT_NEXT_RETRY_TIME &lt;= SYSTIMESTAMP)
     </update>
 
-    <!-- 近 N 分钟未扣费候选（sys_job 345 补站扣费周期查询更新，2026-09-21 编号先后为 135、265、235、345）。与上面那条日跑任务的三处差别：
-         不分渠道、多捞 INIT、按 CREATE_TIME 收窄。下界 minAgeSeconds 是防重扣的关键一道：
-         刚落库几秒的单可能正在走扣费 RPC，立刻再发一笔就是重复扣款。
-         排除 OFFLINE_FARE_PENDING 是第二道：那是离线码待重算态，金额还没算准，扣下去就是扣错钱。 -->
+    <!-- 卡在 INIT 的单补发（sys_job 345 补站扣费周期查询更新，2026-09-21 编号先后为 135、265、235、345）。
+         2026-11-20 按业主裁决「对齐旧 ITP：每天 9 点、15 点各重试一次」收窄为**只捞 INIT**：
+         ① 重试时序归 220/255 的日跑任务（每天 9/15 两次），本条不再捞 RETRY/FAIL，避免同一笔被两条任务同时 prepare；
+         ② 候选去掉原「近 10 分钟创建」下窗口 —— 那条窗口是为每分钟跑设计的，改成每天两次后窗口会把绝大多数卡单挡在外面，
+            而 INIT 卡死（异步发起丢失）恰恰可能发生在任意时刻；
+         ③ 下界 minAgeSeconds 保留：刚落库几秒的单可能正在走扣费 RPC，立刻再发一笔就是重复扣款；
+         ④ 继续排除 OFFLINE_FARE_PENDING：离线码待重算态金额还没算准，扣下去就是扣错钱。 -->
     <select id="selectRecentUnpaidCandidates" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM GATE_TXN_PAY
-        WHERE DEBIT_STATUS IN ('INIT', 'RETRY', 'FAIL')
+        WHERE DEBIT_STATUS = 'INIT'
           AND (DISCOUNT_CALC_STATUS IS NULL OR DISCOUNT_CALC_STATUS &lt;&gt; 'OFFLINE_FARE_PENDING')
-          AND CREATE_TIME &gt;= SYSTIMESTAMP - NUMTODSINTERVAL(#{windowMinutes,jdbcType=INTEGER}, 'MINUTE')
           AND CREATE_TIME &lt;= SYSTIMESTAMP - NUMTODSINTERVAL(#{minAgeSeconds,jdbcType=INTEGER}, 'SECOND')
-          AND DEBIT_RETRY_TIMES &lt; #{maxTimes,jdbcType=INTEGER}
-          AND (DEBIT_NEXT_RETRY_TIME IS NULL OR DEBIT_NEXT_RETRY_TIME &lt;= SYSTIMESTAMP)
         ORDER BY CREATE_TIME
         FETCH FIRST #{limit,jdbcType=INTEGER} ROWS ONLY
     </select>
@@ -822,9 +832,11 @@
         FETCH FIRST #{limit,jdbcType=INTEGER} ROWS ONLY
     </select>
 
-    <!-- 只把 INIT / FAIL 归一成 RETRY（否则 updateStatusFromPending 的 CAS 白名单回写不进去），
-         刻意不动 DEBIT_RETRY_TIMES 与 DEBIT_NEXT_RETRY_TIME 这两个记账列：
-         本任务每分钟一轮，记账会在 10 分钟内烧光 sys_job 220 / 255 的次数预算。见 ADR-D154。 -->
+    <!-- 把 INIT 归一成 RETRY（否则 updateStatusFromPending 的 CAS 白名单回写不进去），
+         刻意不动 DEBIT_RETRY_TIMES 与 DEBIT_NEXT_RETRY_TIME 这两个记账列：本任务只管「异步发起丢了、卡在 INIT」的单，
+         它从没被批量任务挑过（RETRY_TIMES 恒 0），记账无意义，反而会和 220/255 的次数预算互相干扰。见 ADR-D154。
+         2026-11-20 起前置白名单收窄为**只认 INIT**：RETRY/FAIL 由 220/255 的日跑任务负责，
+         两条任务各管一段状态，NEVER 抢同一批单。 -->
     <update id="prepareRecentRetry">
         UPDATE GATE_TXN_PAY
         SET DEBIT_STATUS = 'RETRY',
@@ -833,10 +845,8 @@
             UPDATE_TIME = SYSTIMESTAMP
         WHERE ORDER_NO = #{orderNo,jdbcType=VARCHAR}
           AND TXN_DATE = #{txnDate,jdbcType=VARCHAR}
-          AND DEBIT_STATUS IN ('INIT', 'RETRY', 'FAIL')
+          AND DEBIT_STATUS = 'INIT'
           AND (DISCOUNT_CALC_STATUS IS NULL OR DISCOUNT_CALC_STATUS &lt;&gt; 'OFFLINE_FARE_PENDING')
-          AND DEBIT_RETRY_TIMES &lt; #{maxTimes,jdbcType=INTEGER}
-          AND (DEBIT_NEXT_RETRY_TIME IS NULL OR DEBIT_NEXT_RETRY_TIME &lt;= SYSTIMESTAMP)
     </update>
 
     <!-- 用户主动重试扣费抢占：归一成 RETRY、清空失败码与原因，不碰记账列、不卡次数上限。

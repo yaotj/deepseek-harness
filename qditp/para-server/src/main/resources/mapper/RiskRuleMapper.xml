@@ -10,10 +10,11 @@
         <result column="CREATE_TIME" property="createTime"/>
         <result column="UPDATE_TIME" property="updateTime"/>
     </resultMap>
-    <sql id="columns">R.RULE_ID, R.RULE_NAME, R.RULE_DESC, R.RISK_LEVEL, R.RISK_LIMIT_VALUE, R.CREATE_TIME, R.UPDATE_TIME</sql>
+    <sql id="columns">RULE_ID, RULE_NAME, RULE_DESC, RISK_LEVEL, RISK_LIMIT_VALUE, CREATE_TIME, UPDATE_TIME</sql>
     <select id="selectPage" resultMap="BaseResultMap">
         <!-- 编号精确匹配，名称模糊匹配；按风险组筛选走多对多中间表。 -->
-        SELECT <include refid="columns"/> FROM TBL_RISK_RULE R
+        SELECT R.RULE_ID, R.RULE_NAME, R.RULE_DESC, R.RISK_LEVEL, R.RISK_LIMIT_VALUE, R.CREATE_TIME, R.UPDATE_TIME
+        FROM TBL_RISK_RULE R
         <where>
             <if test="ruleId != null and ruleId != ''">AND R.RULE_ID = #{ruleId}</if>
             <if test="ruleName != null and ruleName != ''">AND R.RULE_NAME LIKE '%' || #{ruleName} || '%'</if>
@@ -22,7 +23,8 @@
         ORDER BY R.UPDATE_TIME DESC, R.RULE_ID
     </select>
     <select id="selectAll" resultMap="BaseResultMap">
-        SELECT <include refid="columns"/> FROM TBL_RISK_RULE ORDER BY RULE_ID
+        SELECT R.RULE_ID, R.RULE_NAME, R.RULE_DESC, R.RISK_LEVEL, R.RISK_LIMIT_VALUE, R.CREATE_TIME, R.UPDATE_TIME
+        FROM TBL_RISK_RULE R ORDER BY R.RULE_ID
     </select>
     <!-- 可空参数 MUST 显式写 jdbcType（Oracle 下 null + OTHER(1111) = 无效列类型）。NEVER 删。 -->
     <insert id="insert" parameterType="com.chinasofti.huateng.para.entity.risk.RiskRule">

@@ -67,9 +67,14 @@ class RefundLogRepository {
             if (!isIntegrityViolation(e)) {
                 throw e;
             }
-            log.warn("退款明细插入命中唯一索引，判定为重复提交, orderNo={}, refundOrderNo={}",
-                    command.orderNo(), refundOrderNo);
-            throw new BusinessException(FepAppErrorCodeEnum.FAIL.getCode(), "退款申请重复提交");
+            // 唯一索引冲突 = 同 ORDER_NO 已有在途退款（UK_ARL_ACTIVE_ORDER），或同一随机单号重复。
+            // 必须 fail-closed：绝不出网（出网即第二笔真实退款）。回查上一笔单号供人工对账。
+            AlipayRefundLog active = alipayRefundLogMapper.selectProcessingByOrderNo(command.orderNo());
+            String activeRefundOrderNo = active != null ? active.getRefundOrderNo() : "未查到在途单（需人工核对）";
+            log.error("退款申请并发冲突：同订单已有在途退款，本次拒绝且未出网, orderNo={}, 本笔单号={}, 在途单号={}",
+                    command.orderNo(), refundOrderNo, activeRefundOrderNo);
+            throw new BusinessException(FepAppErrorCodeEnum.FAIL.getCode(),
+                    "该订单已有处理中的退款，请先确认上一笔结果（退款单号：" + activeRefundOrderNo + "）");
         }
         return refundLog.getRefundSeq();
     }

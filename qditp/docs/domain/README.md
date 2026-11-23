@@ -19,7 +19,7 @@
 | 领域 | 目标库 | 聚合与主要表 | owner 服务 |
 |---|---|---|---|
 | **账户 Account** | `itp_account` | ItpUser(`USER_ITP_REG_INFO`)、PayChannel(`APP_USER_PAY_CHANNEL`)、EmployeeCard(`USER_ACC_EMPLOYEE_CARD*`)、CardPool(`LOGIC_CARD_POOL_*`) | account-server、alipay-account-server、card-pool-server |
-| **销售 Sales** | `itp_sale` | SalesOrder(`F2F_ORDER` / `TBL_TVM_*` / `TBL_BOM_*` / `TICKET_COLLECT_*`)、DailyTicketOrder、TravelTicketOrder、RefundRequest | face-pay-server、daily-ticket-server（`collect-pay-server` 2026-10-13 已下线、`collect-ticket-server` 未部署，见 `docs/ops/environments/跨环境共性.md` §一） |
+| **销售 Sales** | `itp_sale` | SalesOrder(`F2F_ORDER` / `TBL_TVM_*` / `TBL_BOM_*` / `TICKET_COLLECT_*`)、DailyTicketOrder、TravelTicketOrder、RefundRequest | face-pay-server、daily-ticket-server（`collect-pay-server` **2026-11-20 起测试环境云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署**、`collect-ticket-server` 未部署，见 `docs/ops/environments/跨环境共性.md` §一） |
 | **行程 Journey** | `itp_journey` | RideCode(`QRCODE_STATUS`)、GateTxn(`QRCODE_TXN_DETAIL`)、GateTxnPay(`GATE_TXN_PAY` + `SUPPLEMENT_ORDER*`)、TicketInstance(`F2F_TICKET` / `DAILY_TICKET_INSTANCE`)、`STATION_INFO` | ticket-server、gate-txn-pay-server |
 | **支付 Payment** | `itp_pay` | PayTxn(`PAY_TXN_DETAIL`)、PayRefund(`PAY_REFUND_DETAIL`)、PayCallback(`PAY_CALLBACK_LOG`)、ChannelContract(`APP_PAY_SIGN_INFO` + `APP_TERMINATION_REQUEST`)、`ALIPAY_PAY_*` | pay-sign-server、alipay-pay-sign-server |
 | **参数 Reference** | `itp_common` | 25 张 `TBL_PARA_*` / 票价 / 风控、`METRO_*` 密钥、`BLACKLIST*` | para-server、key-server、blacklist-server |

@@ -186,7 +186,8 @@ class OfflineFareRecoveryTest {
                 new PaySignInitiator(writer,
                         new PayInitiationRpcAdapter(paySignClient, alipayPaySignClient),
                         new GatePayRequestFactory("AGM_GATE", "1", "地铁乘车扣费", "地铁乘车费用", 60L),
-                        new AlipayTripPayRequestFactory("TRIP", "05", "1", "地铁乘车扣费", "地铁乘车费用", 60)),
+                        new AlipayTripPayRequestFactory("TRIP", "05", "1", "地铁乘车扣费", "地铁乘车费用", 60),
+                        null),
                 new MetroTransferPushTaskProcessor(null, null, false, 0, 0, 0L),
                 noopStationNameBackfiller());
     }

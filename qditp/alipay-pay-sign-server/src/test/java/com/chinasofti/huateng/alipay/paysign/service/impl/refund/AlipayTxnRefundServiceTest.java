@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -25,6 +26,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -178,6 +180,53 @@ class AlipayTxnRefundServiceTest {
 
         ArgumentCaptor<AlipayRefundTxnDetail> settled = statusWrites();
         assertEquals("PROCESSING", settled.getValue().getRefundStatus());
+    }
+
+    @Test
+    void concurrentInsertConflictFailsClosedWithoutOutbound() {
+        // 并发：两笔都过了 count=0，第二笔 insert 命中 UK_ARTD_ACTIVE_ORDER。
+        when(refundTxnDetailMapper.insert(any())).thenThrow(new DuplicateKeyException("UK_ARTD_ACTIVE_ORDER"));
+
+        BusinessException error = assertThrows(BusinessException.class, () -> service.requestRefund(request(null)));
+
+        assertEquals(FepAppErrorCodeEnum.FAIL.getCode(), error.getCode());
+        assertTrue(error.getMessage().contains("已有处理中的退款"),
+                "冲突提示 MUST 明确是「已有在途退款」，NEVER 只说模糊的重复提交");
+        // 核心断言：绝不出网（出网 = 第二笔真实退款 = 资损）
+        verify(payCenterPort, never()).requestRefund(any());
+        verify(refundTxnDetailMapper, never()).markRequesting(anyString(), anyString());
+    }
+
+    @Test
+    void concurrentConflictErrorMessageCarriesExistingRefundOrderNo() {
+        when(refundTxnDetailMapper.insert(any())).thenThrow(new DuplicateKeyException("UK_ARTD_ACTIVE_ORDER"));
+        AlipayRefundTxnDetail active = new AlipayRefundTxnDetail();
+        active.setRefundOrderNo("R-existing-active");
+        active.setOrderNo(ORDER_NO);
+        active.setRefundStatus("INIT");
+        when(refundTxnDetailMapper.selectByOrderNo(ORDER_NO)).thenReturn(java.util.List.of(active));
+
+        BusinessException error = assertThrows(BusinessException.class, () -> service.requestRefund(request(null)));
+
+        assertTrue(error.getMessage().contains("R-existing-active"),
+                "错误文案 MUST 带出在途退款单号供人工对账");
+        verify(payCenterPort, never()).requestRefund(any());
+    }
+
+    @Test
+    void concurrentConflictIgnoresTerminalRowsWhenLookingForActive() {
+        when(refundTxnDetailMapper.insert(any())).thenThrow(new DuplicateKeyException("UK_ARTD_ACTIVE_ORDER"));
+        AlipayRefundTxnDetail settled = new AlipayRefundTxnDetail();
+        settled.setRefundOrderNo("R-settled");
+        settled.setOrderNo(ORDER_NO);
+        settled.setRefundStatus("SUCCESS");
+        when(refundTxnDetailMapper.selectByOrderNo(ORDER_NO)).thenReturn(java.util.List.of(settled));
+
+        BusinessException error = assertThrows(BusinessException.class, () -> service.requestRefund(request(null)));
+
+        assertTrue(error.getMessage().contains("需人工核对"),
+                "只有终态行时 MUST NOT 误报某笔终态单为在途");
+        verify(payCenterPort, never()).requestRefund(any());
     }
 
     private ArgumentCaptor<AlipayRefundTxnDetail> statusWrites() {

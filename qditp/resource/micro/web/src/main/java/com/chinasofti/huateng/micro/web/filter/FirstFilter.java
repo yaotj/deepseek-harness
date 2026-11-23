@@ -88,54 +88,64 @@ public class FirstFilter implements Filter {
 
     @Override
     public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
-        if (servletRequest instanceof HttpServletRequest) {
-            HttpServletRequest request = (HttpServletRequest) servletRequest;
-            Enumeration<String> headerNamesI = request.getHeaderNames();
-            Map<String, String> headers = new HashMap<>();
-            while (headerNamesI.hasMoreElements()) {
-                String key = headerNamesI.nextElement().toLowerCase();
-                headers.put(key, request.getHeader(key));
-                MDC.put(key, request.getHeader(key));
-            }
+        try {
+            if (servletRequest instanceof HttpServletRequest) {
+                HttpServletRequest request = (HttpServletRequest) servletRequest;
+                Enumeration<String> headerNamesI = request.getHeaderNames();
+                Map<String, String> headers = new HashMap<>();
+                while (headerNamesI.hasMoreElements()) {
+                    String key = headerNamesI.nextElement().toLowerCase();
+                    headers.put(key, request.getHeader(key));
+                    MDC.put(key, request.getHeader(key));
+                }
 
-            if (webconfig.isEnableLogRequestInFilter()) {
-                String request_url = request.getRequestURI();
-                if (!request_url.startsWith("/actuator")) {
-                    String queryString = request.getQueryString();
-                    if (queryString != null) {
-                        try {
-                            queryString = "?" + URLDecoder.decode(queryString, "UTF-8");
-                        } catch (UnsupportedEncodingException e) {
-                            log.error("{}", e.getMessage(), e);
+                if (webconfig.isEnableLogRequestInFilter()) {
+                    String request_url = request.getRequestURI();
+                    if (!request_url.startsWith("/actuator")) {
+                        String queryString = request.getQueryString();
+                        if (queryString != null) {
+                            try {
+                                queryString = "?" + URLDecoder.decode(queryString, "UTF-8");
+                            } catch (UnsupportedEncodingException e) {
+                                log.error("{}", e.getMessage(), e);
+                            }
+                        } else {
+                            queryString = "";
                         }
-                    } else {
-                        queryString = "";
-                    }
-                    if (!(skipHeartbeat && HeartbeatUrlUtil.isHeartbeat(request_url))) {
-                        log.info("receive request url={}{} method={} header={}", request_url, queryString, request.getMethod(), headers);
+                        if (!(skipHeartbeat && HeartbeatUrlUtil.isHeartbeat(request_url))) {
+                            Map<String, String> logHeaders = new HashMap<>(headers);
+                            for (String sensitive : new String[]{"authorization", "authentication", "token", "cookie"}) {
+                                if (logHeaders.containsKey(sensitive)) {
+                                    logHeaders.put(sensitive, "****");
+                                }
+                            }
+                            log.info("receive request url={}{} method={} header={}", request_url, queryString, request.getMethod(), logHeaders);
+                        }
                     }
                 }
+
+                if (!checkUrlSafe(request)) {
+                    FilterUtils.fastJsonResponse(servletResponse, 403, "{\"msg\":\"check url unSafe\"}");
+                    return;
+                }
+
+                if (!checkToken(request, headers.get("Authentication"))) {
+                    FilterUtils.fastJsonResponse(servletResponse, 403, "{\"msg\":\"check token error\"}");
+                    return;
+                }
+
+                if (forbidden(request)) {
+                    FilterUtils.fastJsonResponse(servletResponse, 403, "{\"msg\":\"ok\"}");
+                    log.warn("url={} is forbidden,fast return status=403 ", request.getRequestURI());
+                    return;
+                }
+            } else {
+                log.warn("servletRequest not instanceof HttpServletRequest");
             }
 
-            if (!checkUrlSafe(request)) {
-                FilterUtils.fastJsonResponse(servletResponse, 403, "{\"msg\":\"check url unSafe\"}");
-                return;
-            }
-
-            if (!checkToken(request, headers.get("Authentication"))) {
-                FilterUtils.fastJsonResponse(servletResponse, 403, "{\"msg\":\"check token error\"}");
-                return;
-            }
-
-            if (forbidden(request)) {
-                FilterUtils.fastJsonResponse(servletResponse, 403, "{\"msg\":\"ok\"}");
-                log.warn("url={} is forbidden,fast return status=403 ", request.getRequestURI());
-                return;
-            }
-        } else {
-            log.warn("servletRequest not instanceof HttpServletRequest");
+            filterChain.doFilter(servletRequest, servletResponse);
+        } finally {
+            MDC.clear();
         }
-
-        filterChain.doFilter(servletRequest, servletResponse);
     }
 }

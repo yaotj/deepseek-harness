@@ -272,6 +272,12 @@ public class GateTxnPayServiceImpl implements GateTxnPayService {
                 order.getCompanionFlag(), order.getTicketCode(), order.getCountingTimes(),
                 order.getCountingFlag(), order.getAttributableParty(), order.getReceivingParty(),
                 order.getEntryStationName(), order.getExitStationName());
+        
+        // 监控日志：记录所有出站订单的 THIRD_USER_ID 与 CARD_ID 映射，便于排查数据不一致
+        log.warn("IF1A-01-MONITOR 用户-卡号映射监控, thirdUserId={}, cardId={}, orderNo={}, deviceNo={}, inStation={}, outStation={}",
+                order.getThirdUserId(), order.getCardId(), order.getOrderNo(), order.getDeviceId(),
+                order.getInStation(), order.getOutStation());
+        
         return order;
     }
 

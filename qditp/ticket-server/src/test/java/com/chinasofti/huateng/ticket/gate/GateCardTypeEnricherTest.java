@@ -14,7 +14,9 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -339,5 +341,93 @@ class GateCardTypeEnricherTest {
         request.setReserve1("A1B2C3");
 
         enricher.updateHceDataFromGateTransaction(request);
+    }
+
+    // ===== rejectUnsignedPostpaid 测试 =====
+
+    @Test
+    @DisplayName("后付费卡种未签约（requestSignSeq 为空）时拒绝过闸")
+    void 后付费卡种未签约拒绝过闸() {
+        NotifyVerifyResultReqDTO request = gateRequest();
+        request.setCardType("0441");
+        request.setRequestSignSeq(null); // 未签约
+        NotifyVerifyResultRespDTO response = new NotifyVerifyResultRespDTO();
+
+        boolean rejected = enricher.rejectUnsignedPostpaid(request, response);
+
+        assertTrue(rejected, "0441 未签约 MUST 拒绝");
+        // 闸机侧报文不能改，retCode 不设置
+        assertNull(response.getRetCode(), "拒绝时 MUST NOT 设置 retCode（闸机侧报文不可改）");
+    }
+
+    @Test
+    @DisplayName("后付费卡种已签约（requestSignSeq 有值）时放行")
+    void 后付费卡种已签约放行() {
+        NotifyVerifyResultReqDTO request = gateRequest();
+        request.setCardType("0441");
+        request.setRequestSignSeq("SIGN20260914001"); // 已签约
+        NotifyVerifyResultRespDTO response = new NotifyVerifyResultRespDTO();
+
+        boolean rejected = enricher.rejectUnsignedPostpaid(request, response);
+
+        assertFalse(rejected, "0441 已签约 MUST 放行");
+    }
+
+    @Test
+    @DisplayName("免费卡种无需签约，直接放行")
+    void 免费卡种无需签约直接放行() {
+        for (String freeCardType : new String[]{"0444", "0445", "0446", "0447", "0448"}) {
+            NotifyVerifyResultReqDTO request = gateRequest();
+            request.setCardType(freeCardType);
+            request.setRequestSignSeq(null); // 未签约也没关系
+            NotifyVerifyResultRespDTO response = new NotifyVerifyResultRespDTO();
+
+            boolean rejected = enricher.rejectUnsignedPostpaid(request, response);
+
+            assertFalse(rejected, freeCardType + " 免费卡种 MUST 放行");
+        }
+    }
+
+    @Test
+    @DisplayName("HCE 后付费卡种未签约时拒绝")
+    void HCE后付费未签约拒绝() {
+        for (String hceType : new String[]{"0442", "0443"}) {
+            NotifyVerifyResultReqDTO request = gateRequest();
+            request.setCardType(hceType);
+            request.setRequestSignSeq(null);
+            NotifyVerifyResultRespDTO response = new NotifyVerifyResultRespDTO();
+
+            boolean rejected = enricher.rejectUnsignedPostpaid(request, response);
+
+            assertTrue(rejected, hceType + " HCE 后付费未签约 MUST 拒绝");
+        }
+    }
+
+    @Test
+    @DisplayName("BOM 补站单（adviceOpt=005）不要求签约，直接放行")
+    void BOM补站单不要求签约() {
+        NotifyVerifyResultReqDTO request = gateRequest();
+        request.setCardType("0441");
+        request.setRequestSignSeq(null);
+        request.setAdviceOpt("005"); // BOM 补站
+        NotifyVerifyResultRespDTO response = new NotifyVerifyResultRespDTO();
+
+        boolean rejected = enricher.rejectUnsignedPostpaid(request, response);
+
+        assertFalse(rejected, "BOM 补站单现场已收款，MUST 放行");
+    }
+
+    @Test
+    @DisplayName("离线码（signChannelCode=17）不要求签约，直接放行")
+    void 离线码不要求签约() {
+        NotifyVerifyResultReqDTO request = gateRequest();
+        request.setCardType("0441");
+        request.setRequestSignSeq(null);
+        request.setSignChannelCode("17"); // 离线码
+        NotifyVerifyResultRespDTO response = new NotifyVerifyResultRespDTO();
+
+        boolean rejected = enricher.rejectUnsignedPostpaid(request, response);
+
+        assertFalse(rejected, "离线码无网络，签约信息可能缺失，MUST 放行");
     }
 }

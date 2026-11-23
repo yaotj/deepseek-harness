@@ -76,7 +76,7 @@ public class SecurityConfig
                 permitAllUrl.getUrls().forEach(url -> requests.requestMatchers(antMatcher(url)).permitAll());
                 requests.requestMatchers(antMatchers("/login", "/register", "/captchaImage")).permitAll()
                     .requestMatchers(antMatchers("/", "/*.html", "/**/*.html", "/**/*.css", "/**/*.js", "/profile/**")).permitAll()
-                    .requestMatchers(antMatchers("/swagger-ui/**", "/v3/api-docs/**", "/druid/**")).permitAll()
+                    .requestMatchers(antMatchers("/swagger-ui/**", "/v3/api-docs/**")).permitAll()
                     .anyRequest().authenticated();
             })
             .logout(logout -> logout.logoutUrl("/logout").logoutSuccessHandler(logoutSuccessHandler))

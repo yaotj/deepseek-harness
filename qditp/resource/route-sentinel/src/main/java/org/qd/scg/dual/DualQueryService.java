@@ -229,6 +229,12 @@ public class DualQueryService {
         if (fwd.traceId() != null) {
             builder.header(RouteConstants.TRACE_ID_HEADER, fwd.traceId());
         }
+        if (fwd.traceparent() != null && !fwd.traceparent().isBlank()) {
+            builder.header(RouteConstants.TRACE_PARENT_HEADER, fwd.traceparent());
+        }
+        if (fwd.b3() != null && !fwd.b3().isBlank()) {
+            builder.header(RouteConstants.B3_HEADER, fwd.b3());
+        }
         if ("GET".equalsIgnoreCase(fwd.method())) {
             if (fwd.queryString() != null && !fwd.queryString().isBlank()) {
                 builder.uri(URI.create(url.append('?').append(fwd.queryString()).toString()));
@@ -258,7 +264,8 @@ public class DualQueryService {
             }
         }
         return new ForwardRequest(sr.getMethod(), sr.getRequestURI(), sr.getQueryString(),
-                sr.getContentType(), body, sr.getHeader(RouteConstants.TRACE_ID_HEADER));
+                sr.getContentType(), body, sr.getHeader(RouteConstants.TRACE_ID_HEADER),
+                sr.getHeader(RouteConstants.TRACE_PARENT_HEADER), sr.getHeader(RouteConstants.B3_HEADER));
     }
 
     static boolean isPositive(String body) {
@@ -307,7 +314,12 @@ public class DualQueryService {
     enum Side { NEW, LEGACY }
 
     record ForwardRequest(String method, String path, String queryString,
-                          String contentType, String body, String traceId) {
+                          String contentType, String body, String traceId,
+                          String traceparent, String b3) {
+        ForwardRequest(String method, String path, String queryString,
+                       String contentType, String body, String traceId) {
+            this(method, path, queryString, contentType, body, traceId, null, null);
+        }
     }
 
     record SideResult(Side side, Kind kind, String body, long elapsedMs, String error) {

@@ -189,15 +189,17 @@ public interface GateTxnPayMapper {
                           @Param("failMsg") String failMsg);
 
 
-    List<GateTxnPay> selectRecentUnpaidCandidates(@Param("windowMinutes") int windowMinutes,
-                                                 @Param("minAgeSeconds") int minAgeSeconds,
-                                                 @Param("maxTimes") int maxTimes,
+    /**
+     * 卡在 INIT 的过闸单（2026-11-20 起只捞 INIT，RETRY/FAIL 归 220/255 的日跑任务）。
+     *
+     * @param minAgeSeconds 落库至少多少秒才允许补发；刚落库的单可能正在走扣费 RPC，立刻再发一笔就是重复扣款
+     */
+    List<GateTxnPay> selectRecentUnpaidCandidates(@Param("minAgeSeconds") int minAgeSeconds,
                                                  @Param("limit") int limit);
 
 
     int prepareRecentRetry(@Param("orderNo") String orderNo,
                            @Param("txnDate") String txnDate,
-                           @Param("maxTimes") int maxTimes,
                            @Param("failMsg") String failMsg);
 
     int updateDebitFailInfo(@Param("orderNo") String orderNo,

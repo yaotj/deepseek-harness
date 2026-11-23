@@ -86,6 +86,13 @@ class GateTicketHandler {
                 request.getCardId(), gateCardType, request.getCardType(), resolvedCardType,
                 request.getSignChannelCode());
 
+        // 后付费卡种必须已签约，未签约拒绝过闸
+        if (cardTypeEnricher.rejectUnsignedPostpaid(request, response)) {
+            log.warn("IF1A-01 后付费卡种未签约，拒绝过闸, cardId={}, resolvedCardType={}",
+                    request.getCardId(), resolvedCardType);
+            return;
+        }
+
         if (!dailyTicketCoordinator.checkEntryAllowed(request, response, resolvedCardType)) {
             return;
         }

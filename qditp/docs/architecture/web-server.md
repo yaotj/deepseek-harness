@@ -115,13 +115,13 @@ web/src/
 | 205 | TVM充值未到账批量退款 | `f2fBatchRefundQuartzTask.refundTopup()` | `0 0 20 * * ?` | 正常 |
 | 210 | 非现金收款批量退款 | `f2fBatchRefundQuartzTask.refundNoCash()` | `0 0 9,15,21 * * ?` | 正常 |
 | 215 | 解约申请确认 | `terminationQuartzTask.confirmTermination('20260923112600', 0)` | `0 0 4 * * ?` | 正常 |
-| 220 | 行程扣费重试（非支付宝） | `gateTxnPayQuartzTask.retryDefaultChannelDebits()` | `0 0 1 * * ?` | 正常 |
+| 220 | 行程扣费重试（非支付宝） | `gateTxnPayQuartzTask.retryDefaultChannelDebits()` | `0 0 9,15 * * ?`（2026-11-20 改） | 正常 |
 | 225 | 给ACC上传扣费交易（日终对账） | `reconQuartzTask.runDailyBatch()` | `0 0 2 * * ?` | 正常 |
 | 230 | 自动解除黑名单 | `blacklistAutoReleaseQuartzTask.autoRelease()` | `0 0 10,16 * * ?` | 正常 |
 | 240 | 卡池数据导入 | `cardPoolQuartzTask.runMaintenance()` | `0 0/5 * * ?` | 正常 |
 | 245 | 多日票批量退款(当日) | `dailyTicketBatchRefundQuartzTask.refundDaily()` | `0 0 20 * * ?` | 正常 |
 | 250 | 多日票批量退款(月度) | `dailyTicketBatchRefundQuartzTask.refundMonthly()` | `0 0 20 L * ?` | 正常 |
-| 255 | 支付宝出行重试扣费 | `gateTxnPayQuartzTask.retryAlipayChannelDebits()` | `0 0 1 * * ?` | 正常 |
+| 255 | 支付宝出行重试扣费 | `gateTxnPayQuartzTask.retryAlipayChannelDebits()` | `0 0 9,15 * * ?`（2026-11-20 改） | 正常 |
 | 260 | 支付宝出行销卡 | `alipayTerminationQuartzTask.cancelCard()` | `0 30 2 * * ?` | 正常 |
 | 270 | 签约结果通知补发 | `notifyCompensateQuartzTask.compensateSignNotify()` | `0 0/10 * * * ?` | 正常 |
 | 275 | 解约结果通知补发 | `notifyCompensateQuartzTask.compensateTerminationNotify()` | `0 5/10 * * * ?` | 正常 |
@@ -138,7 +138,7 @@ web/src/
 | 330 | 日票支付结果通知补偿 | `dailyTicketQuartzTask.compensatePayNotify()` | `0 0/5 * * ?` | 正常 |
 | 335 | 日票ACC发售通知补偿 | `dailyTicketQuartzTask.compensateAccActiveNotify()` | `0 0/5 * * ?` | 正常 |
 | 340 | 支付宝退款回查补偿 | `alipayRefundQueryQuartzTask.compensate()` | `0 0/10 * * * ?` | 正常 |
-| 345 | 补站扣费周期查询更新 | `gateTxnPayQuartzTask.retryRecentUnpaidDebits()` | `0 0/1 * * ?` | 正常 |
+| 345 | 补站扣费周期查询更新 | `gateTxnPayQuartzTask.retryRecentUnpaidDebits()` | `0 0 9,15 * * ?`（2026-11-20 改；只捞 INIT） | 正常 |
 | 350 | 日票过期状态收敛 | `dailyTicketQuartzTask.convergeExpiredTickets()` | `0 5 * * ?` | 暂停 |
 | 400 | 用户主动重试扣费队列消费 | `gateTxnPayQuartzTask.consumeRetryQueue()` | `0 0/5 * * * ?` | 正常 |
 | 405 | 异步导出任务调度 | `asyncExportQuartzTask.execute()` | `0 */5 * * * ?` | 正常 |
@@ -171,15 +171,15 @@ web/src/
 | `/retry-queue/consume` | 400 用户主动重试扣费队列消费 | APP 主动发起重试的队列消费，ADR-D169 |
 | `/oneside/process` | 单边订单处理（未取号，见 IT-066） | 处理单边入(1)/单边出(2)订单，每日3点执行 |
 
-**220 / 255 / 345 三条并行且不可相互替代、NEVER 合并**（cron 均 `0 0 1 * * ?`，ADR-D149）。
-其中 **345 有两条 MUST 保留的设计约束**（ADR-D80）：
+**220 / 255 / 345 三条并行且不可相互替代、NEVER 合并**（cron 自 2026-11-20 起统一 `0 0 9,15 * * ?`，每天 9/15 各一次，对齐旧 ITP；ADR-D149 + ADR-D176）。
+其中 **345 有两条 MUST 保留的设计约束**（ADR-D80，D176 收窄）：
 
 - **业主裁决不设退避**：`prepareRecentRetry` 刻意**不写** `DEBIT_RETRY_TIMES` / `DEBIT_NEXT_RETRY_TIME`
-  （否则 10 分钟内烧光 220 / 255 的次数预算）。代价是一笔落 `RETRY` 的单在窗口内最多被重发 10 次 ——
-  **这是已知并接受的代价、不是缺陷**。
-- **防重扣只剩三道闸，三者 NEVER 删任何一个**：`gate.debitRetry.recent.minAgeSeconds=60` 下界、
-  `windowMinutes=10` 上界、排除 `DISCOUNT_CALC_STATUS='OFFLINE_FARE_PENDING'`（离线码金额未算准，扣下去就是扣错钱）。
-  要收紧只能调那两个键或 cron，**NEVER 在这条链路上加记账**。
+  （否则烧光 220 / 255 的次数预算）。2026-11-20 起 345 **只捞 `INIT`**、220/255 只捞 `RETRY/FAIL`，
+  两条任务 NEVER 抢同一批单，否则同一笔欠费双发扣款。
+- **防重扣只剩两道闸，两者 NEVER 删任何一个**：`gate.debitRetry.recent.minAgeSeconds=60` 下界（躲正在走 RPC 的单）、
+  排除 `DISCOUNT_CALC_STATUS='OFFLINE_FARE_PENDING'`（离线码金额未算准，扣下去就是扣错钱）。
+  原 `windowMinutes=10` 上界已删除，频率由 cron 控制；要收紧只能调这两个键或 cron，**NEVER 在这条链路上加记账**。
 
 **400 与 220/255/345 也是并行关系、不替代**：它消费的是 APP 主动发起重试（`/app/payment/requestPayFailOrder`，
 ADR-D169）落下的 `GATE_RETRY_QUEUE` 队列表（`PENDING→PROCESSING→DONE/FAILED`，(ORDER_NO,TXN_DATE) 唯一索引，
@@ -192,7 +192,7 @@ ADR-D169）落下的 `GATE_RETRY_QUEUE` 队列表（`PENDING→PROCESSING→DONE
 | 模块 | `@Scheduled` 数 | 说明 |
 |---|---|---|
 | `face-pay-server` | **7 个 / 6 类** | `F2fNotifyJob`、`F2fRefundReconcileJob`、`SupplementOrderCloseProcessor`（`converge` + `closeTimeout` 两个）、`F2fDeviceOfflineJob`、`F2fOrderExpireJob`、`F2fReportRecoveryJob` |
-| `collect-pay-server` | **4 个 / 1 类** | 全在 `task/SingleTicketRefundTask.java`；**该模块 2026-10-13 已下线（0 pod）⇒ 这 4 个当前都不在跑**，重启前 MUST 先与用户确认 |
+| `collect-pay-server` | **4 个 / 1 类** | 全在 `task/SingleTicketRefundTask.java`；**该模块 2026-11-20 起测试环境云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署 ⇒ 这 4 个当前都不在跑**，重启前 MUST 先与用户确认（恢复方法见 `docs/ops/environments/测试环境.md`「已下线 / 未部署」段） |
 | `recon-server` | **1 个（默认关闭）** | `thirdparty/ThirdPartyReconScheduler.scheduledRun()`，cron `${recon.thirdparty.scheduler.cron:0 30 3 * * ?}`；`recon.thirdparty.enabled` 与 `recon.thirdparty.scheduler.enabled` **默认都是 `false`**，生产由 `sys_job` 调 `/internal/recon/thirdparty/run` |
 | `gate-txn-pay-server` | **0** | 原 `SupplementOrderCloseProcessor` 的补款任务已随该类整体迁到 `face-pay-server`；`OfflineFareRecoveryProcessor` / `MetroTransferPushTaskProcessor` 留类但已迁 `sys_job` 295 / 300 |
 | `pay-sign-server` | **0** | 10 个 `/internal/**` 补偿端点全部由本处 `sys_job` 触发（`/internal/termination/**` 6 + `/internal/paySign/**` 2 + `/internal/payment/**` 2，对应 305 / 310） |
@@ -1391,7 +1391,7 @@ grep 「cron 每打密一档那张表日增行数就翻一档」）。295 / 300 
    后者 URL 是 `/face-pay-server/page/face-pay/devices`，**前缀复用同一条 `location`、nginx 侧无需改动**；
    `location /key-server` → ↔ `web/src/api/trans/keyVersion.js` 的 `/key-server/page/key/versions`
    **以及 `web/src/api/monitor/deviceKeySync.js` 的 `/key-server/page/key/device-sync/list`**。
-   `location /collect-pay-server` → 原指向 collect-pay（30024），**该模块 2026-10-13 已下线（0 pod）、旧单页面当前不可用**；
+   `location /collect-pay-server` → 原指向 collect-pay（30024），**该模块 2026-11-20 起测试环境云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署，旧单页面当前不可用**；
    **NEVER 改指向 30025**——face-pay 上没有那些旧表单。`card-pool-server` 那条**唯一用的是 Service DNS**
    （`card-pool-server-86mc1-svc.itp.svc:30033`），其余都是 `172.20.211.23:<NodePort>`。
    另有 `/para1-server` 与 `/para-server` **两条前缀指向同一个 **（历史别名，见「矛盾与待裁决」）。
@@ -1468,8 +1468,7 @@ grep 「cron 每打密一档那张表日增行数就翻一档」）。295 / 300 
    **不可断言**（该值只增不减、是时点快照），只能保留「NEVER 写死数字」这条判据。
 5. **`ParaQuartzTask` 里的自我更正**「此前写『只有 pay-sign-server 打开 tracing』是旧快照」——
    **可断言（弱）**：断言该模块 `management.tracing.enabled` 的实际取值，而不是断言名单。
-6. **`web/nginx.conf` 的 `/collect-pay-server` 段**「2026-10-13 已下线（0 pod）、
-   **NEVER 再指向 30025**」—— 记录的是一次已完成的迁移（当面付订单页 2026-09-15 改走 face-pay）。
+6. **`web/nginx.conf` 的 `/collect-pay-server` 段**「2026-11-20 起测试环境云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署、**NEVER 再指向 30025**」—— 记录的是一次已完成的迁移（当面付订单页 2026-09-15 改走 face-pay）。
    **可断言**：该 location 的 `proxy_pass` 端口是 30024。**注意该文件不在本轮删除范围，注释仍在原处。**
 7. **`log4j2-web-admin.xml` 的整段「为什么不用公共配置」+「status 别改回 off」** ——
    记录的是 2026-09-08 那次「配置重载成功但 VictoriaLogs 零上报」的排查史。

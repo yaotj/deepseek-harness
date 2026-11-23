@@ -57,6 +57,9 @@ class GateTxnPayMapperSqlTest {
 
     private static final int ALLOWED_OFFLINE_PENDING_LITERALS = 9;
 
+    /** 「未扣费/失败」筛选的白名单：与 face-pay 补款侧 DEBIT_PENDING 同源，不含支付中（INIT/PROCESSING）。 */
+    private static final String NON_SUCCESS_WHITELIST = "DEBIT_STATUS IN ('RETRY', 'FAIL')";
+
     private final Configuration configuration = parseMapper();
 
     @Test
@@ -85,8 +88,43 @@ class GateTxnPayMapperSqlTest {
                         .contains("DEBIT_STATUS = 'SUCCESS'"),
                 "debitRequestResult=0 MUST 过滤出成功单");
         assertTrue(sqlWith("countTransList", "debitRequestResult", "1")
-                        .contains("(DEBIT_STATUS IS NULL OR DEBIT_STATUS != 'SUCCESS')"),
+                        .contains(NON_SUCCESS_WHITELIST),
                 "debitRequestResult=1 MUST 与解约口径一致，否则同一笔在 APP 页签里凭空消失");
+    }
+
+    @Test
+    void debitResultFilterAcceptsTwoAsFailureCodeForResponseRoundTrip() {
+        // IT-082：响应侧现在发 0/2（失败是 2），把回显的 2 当筛选入参传回 MUST 仍能命中失败单。
+        for (String id : new String[] {"selectTransList", "countTransList"}) {
+            assertTrue(sqlWith(id, "debitRequestResult", "2").contains(NON_SUCCESS_WHITELIST),
+                    id + " 传 debitRequestResult=2 MUST 过滤出非成功单（与 1 等价），否则响应回显的 2 回传会静默返全量");
+            assertTrue(sqlWith(id, "debitRequestResult", "1").contains(NON_SUCCESS_WHITELIST),
+                    id + " 传 debitRequestResult=1 仍 MUST 按历史口径过滤（存量 APP 兼容）");
+        }
+        // 0 仍只筛成功，NEVER 被 2 的分支污染。
+        assertTrue(sqlWith("selectTransList", "debitRequestResult", "0")
+                        .contains("DEBIT_STATUS = 'SUCCESS'"),
+                "debitRequestResult=0 MUST 仍只筛成功单");
+    }
+
+    /**
+     * IT-094（2026-11-20 用户裁决）：非成功筛选 MUST 只含 RETRY/FAIL ——
+     * PROCESSING（支付中）与 INIT（已落单、正在发往支付中心）都不可补款，列进「地铁未扣费订单」会让「一键补扣」必吃 8003。
+     * 断言用「白名单两段」而非「不含某值」，防止再退回 `IS NULL OR != 'SUCCESS'` 黑名单写法。
+     */
+    @Test
+    void debitResultFilterNeverIncludesProcessingOrInit() {
+        for (String id : new String[] {"selectTransList", "countTransList"}) {
+            String sql = sqlWith(id, "debitRequestResult", "1");
+            assertTrue(sql.contains(NON_SUCCESS_WHITELIST),
+                    id + " 非成功筛选 MUST 是 RETRY/FAIL 白名单");
+            assertFalse(sql.contains("PROCESSING"),
+                    id + " 非成功筛选 NEVER 包含支付中（PROCESSING）");
+            assertFalse(sql.contains("'INIT'"),
+                    id + " 非成功筛选 NEVER 包含 INIT（正在发往支付中心，不可补款）");
+            assertFalse(sql.contains("!= 'SUCCESS'"),
+                    id + " NEVER 退回黑名单写法：它会连带捞进 PROCESSING/INIT 与 NULL 脏数据");
+        }
     }
 
     @Test
@@ -166,7 +204,7 @@ class GateTxnPayMapperSqlTest {
         }
         assertEquals(ALLOWED_OFFLINE_PENDING_LITERALS, literals,
                 "OFFLINE_FARE_PENDING 字面量只允许出现在捞单、抢占回写、失败留痕三条语句（包含），"
-                        + "以及近 N 分钟未扣费那条任务的扫表与抢占两条语句（排除）里");
+                        + "以及卡在 INIT 补发那条任务的扫表与抢占两条语句（排除）里");
     }
 
     @Test
@@ -189,7 +227,28 @@ class GateTxnPayMapperSqlTest {
         assertFalse(setClause.contains("DEBIT_NEXT_RETRY_TIME"),
                 "prepareRecentRetry 的 SET 子句 NEVER 出现 DEBIT_NEXT_RETRY_TIME");
         assertTrue(setClause.contains("DEBIT_STATUS = 'RETRY'"),
-                "INIT / FAIL MUST 归一成 RETRY，否则 updateStatusFromPending 的 CAS 白名单回写不进去");
+                "卡在 INIT 的单 MUST 归一成 RETRY，否则 updateStatusFromPending 的 CAS 白名单回写不进去");
+    }
+
+    /**
+     * 2026-11-20 对齐旧 ITP「每天 9/15 各重试一次」后，345 收窄为只捞卡在 INIT 的单：
+     * RETRY/FAIL 归 220/255 按退避慢跑，两条任务 NEVER 抢同一批单，否则同一笔欠费会双发扣款。
+     */
+    @Test
+    void recentRetryOnlyClaimsStuckInitOrders() {
+        String select = sqlOf("selectRecentUnpaidCandidates");
+        assertTrue(select.contains("DEBIT_STATUS = 'INIT'"),
+                "345 扫表 MUST 只捞 INIT，NEVER 与 220/255 抢 RETRY/FAIL");
+        assertFalse(select.contains("DEBIT_STATUS IN"),
+                "345 扫表 NEVER 退回多状态白名单，否则与 220/255 对同一笔双发扣款");
+        assertFalse(select.contains("CREATE_TIME >="),
+                "345 已取消「近 N 分钟」上界，只保留 minAgeSeconds 下界 + 每天 9/15 两次 cron");
+
+        String claim = sqlOf("prepareRecentRetry");
+        assertTrue(claim.contains("DEBIT_STATUS = 'INIT'"),
+                "345 抢占 CAS MUST 仍以 INIT 为前置，避免推进已被别的任务改过的单");
+        assertFalse(claim.contains("DEBIT_RETRY_TIMES") || claim.contains("DEBIT_NEXT_RETRY_TIME"),
+                "345 抢占 NEVER 记账，否则几分钟内就烧光 220/255 的次数预算");
     }
 
     @Test

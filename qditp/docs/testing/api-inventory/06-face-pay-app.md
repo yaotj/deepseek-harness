@@ -203,7 +203,7 @@ APP 域码族（`AppResponses` 常量，实测值）：`0000` 成功；**`8001`*
 
 | 外部真实入口 URL | fep-app 侧 handler | RPC 出向路径 | face-pay 侧 handler |
 |---|---|---|---|
-| `POST /fep-app/ci/app/requestOrder` | `CollectPayController#requestOrder`（`fep-app-server/src/main/java/com/chinasofti/huateng/fep/app/controller/CollectPayController.java:28`，form 原样透传） | `CollectPayClient:33` `/ci/app/requestOrder` | `AppOrderController#requestOrder`（`:47`） |
+| `POST /fep-app/ci/app/requestOrder` | `AppPayGatewayController#requestOrder`（`fep-app-server/src/main/java/com/chinasofti/huateng/fep/app/controller/AppPayGatewayController.java`，form 原样透传） | `CollectPayClient:33` `/ci/app/requestOrder` | `AppOrderController#requestOrder`（`:47`） |
 | `POST /fep-app/ci/app/requestPaymentInfo` | 同类 `:34` | `CollectPayClient:41` `/ci/app/requestPaymentInfo` | `AppOrderController#requestPaymentInfo`（`:76`） |
 | `POST /fep-app/ci/app/requestPayResult` | 同类 `:40` | `CollectPayClient:49` `/ci/app/requestPayResult` | `AppOrderController#requestPayResult`（`:93`） |
 | `POST /fep-app/ci/app/requestRefundTicket` | 同类 `:46` | `CollectPayClient:62` `/ci/app/requestRefundTicket` | `AppOrderController#requestRefundTicket`（`:122`） |
@@ -214,9 +214,9 @@ APP 域码族（`AppResponses` 常量，实测值）：`0000` 成功；**`8001`*
 
 **两条实测差异，写用例前 MUST 知道**：
 
-1. `CollectPayController` 那 7 条是**纯 form 透传**（`toFormDataMap` `:76` 把 8 个骨架字段原样打包，`bizData` 不解析），因此外部报文与 face-pay 收到的报文**逐字一致**。
+1. `AppPayGatewayController` 那 7 条是**纯 form 透传**（`toFormDataMap` `:76` 把 8 个骨架字段原样打包，`bizData` 不解析），因此外部报文与 face-pay 收到的报文**逐字一致**。
 2. **`requestPayOrder` 那条不是透传**：`fep-app` 用 `parseBizData(request, SupplementOrderReqDTO.class)` 把 form 的 `bizData` 解成 DTO、再以 **JSON body** 发给 face-pay。因此外部仍是 form-urlencoded、face-pay 侧收到的是 JSON。**给 `SupplementOrderReqDTO` 加字段时 fep-app 与 face-pay 两个镜像都要重建**，否则 Fastjson2 会静默丢字段。
-3. `fep-app` 的 `CollectPayController` **有 8 条 `/ci/app/**` 映射，比 face-pay 的 `AppOrderController` 多一条** —— 多出来的 `/ci/app/requestActiveTicket`（`:64`）在 `CollectPayClient:77` 转发到 **`/itptvm/ci/tvm/requestActiveTicket`**，落点是设备域 `TvmOrderController:189`，**不在本文件范围内**。NEVER 因为外部前缀是 `/ci/app/` 就去 `AppOrderController` 里找它。
+3. `fep-app` 的 `AppPayGatewayController` **有 8 条 `/ci/app/**` 映射，比 face-pay 的 `AppOrderController` 多一条** —— 多出来的 `/ci/app/requestActiveTicket`（`:64`）在 `CollectPayClient:77` 转发到 **`/itptvm/ci/tvm/requestActiveTicket`**，落点是设备域 `TvmOrderController:189`，**不在本文件范围内**。NEVER 因为外部前缀是 `/ci/app/` 就去 `AppOrderController` 里找它。
 
 ### 3. APP 取票下单（IF8A-20）
 

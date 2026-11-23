@@ -144,6 +144,55 @@ class GateCardTypeEnricher {
         applyFreeRideAmountReset(request, cardId, actualCardType, "(支付宝渠道)");
     }
 
+    /** BOM 补站单 adviceOpt 白名单（与 gate-txn-pay-server 保持一致） */
+    private static final Set<String> BOM_SUPPLEMENT_ADVICE_OPTS = Set.of("005", "006", "020");
+
+    /**
+     * 检查后付费卡种（0441/0442/0443）是否已签约。
+     * 未签约用户不允许扫码过闸，必须先在 APP 完成签约。
+     *
+     * 排除场景（不拒绝）：
+     * - 免费卡种（员工票 0444、日票族 0445-0448）：天然免扣费，无需签约
+     * - BOM 补站单（adviceOpt ∈ {005, 006, 020}）：现场已收款，不由 ITP 扣款
+     * - 离线码（signChannelCode = "17"）：无网络场景，签约信息可能缺失
+     * - accountClient 查询失败（保留闸机上送值）：降级放行，走补款流程
+     *
+     * @return true 表示未签约且非排除场景，应拒绝过闸
+     */
+    public boolean rejectUnsignedPostpaid(NotifyVerifyResultReqDTO request, NotifyVerifyResultRespDTO response) {
+        String cardType = request.getCardType();
+        // 免费卡种不需要签约
+        if (CardTypeCodeEnum.isEmployeeCard(cardType) || CardTypeCodeEnum.isDailyTicket(cardType)) {
+            return false;
+        }
+        // 后付费卡种必须已签约
+        if (CardTypeCodeEnum.QR_POSTPAID.getCode().equals(cardType)
+                || CardTypeCodeEnum.HCE_POSTPAID.getCode().equals(cardType)
+                || CardTypeCodeEnum.NEW_HCE_POSTPAID.getCode().equals(cardType)) {
+            // BOM 补站单：现场已收款，无需签约
+            if (isBomSupplement(request)) {
+                return false;
+            }
+            // 离线码：无网络，签约信息可能缺失，放行
+            if ("17".equals(request.getSignChannelCode())) {
+                return false;
+            }
+            // 以签约流水号（requestSignSeq）为判据，比 paymentVendor 更直接
+            if (!StringUtils.hasText(request.getRequestSignSeq())) {
+                log.warn("IF1A-01 后付费卡种未签约（requestSignSeq 为空），拒绝过闸, cardId={}, cardType={}",
+                        request.getCardId(), cardType);
+                // 不设置 retCode —— 闸机侧报文不能改，由 GateTicketHandler 直接 return 终止流程
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isBomSupplement(NotifyVerifyResultReqDTO request) {
+        String adviceOpt = request.getAdviceOpt();
+        return adviceOpt != null && BOM_SUPPLEMENT_ADVICE_OPTS.contains(adviceOpt.trim());
+    }
+
     private void applyFreeRideAmountReset(NotifyVerifyResultReqDTO request, String cardId,
                                           String actualCardType, String channelTag) {
         if (CardTypeCodeEnum.isEmployeeCard(actualCardType) || CardTypeCodeEnum.isDailyTicket(actualCardType)) {

@@ -2,7 +2,7 @@
 
 > **生成时间**：2026-09-22
 > **代码基线**：`main` 工作副本，仓库根 `/Users/tuanjie/workspace/company/chinasofti/qd/qditp`
-> **本文件覆盖的 Controller**：`PaySignController`（10 端点）、`AppDailyTicketController`（12 端点）、`CollectPayController`（8 端点）
+> **本文件覆盖的 Controller**：`PaySignController`（10 端点）、`AppDailyTicketController`（12 端点）、`AppPayGatewayController`（8 端点）
 > **模块**：`fep-app-server`（容器端口 9101，NodePort 由 `fep-app-hr32k-svc` 对外）
 > **公共报文骨架**：不在本文件逐端点重复，见 [README.md](README.md) 2 `ItpCommonFormRequest` 七字段表（sign / charset / format / timestamp / deviceId / signType / bizData）
 > **响应骨架与错误码**：见 [README.md](README.md) 3
@@ -234,7 +234,7 @@
 - **Content-Type**：`application/json`（`@RequestBody String`）
 - **入参形态**：`@RequestBody String` -> 双形态解析（同 #3 的逻辑）
 - **下游**：`PaySignClient.receiveRefundResult` -> pay-sign-server `POST /ci/app/receiveRefundResult`
-- **异常现象**：**URL 特意带 `paySign/payment` 中缀**，因为裸的 `/ci/app/receiveRefundResult` 已被 `CollectPayController`（#30）占用。javadoc 原文：「裸的 `/ci/app/receiveRefundResult` 已被 `CollectPayController` 占用（转发给 collect-pay / face-pay 的 TVM/BOM 退款通知），两者报文与下游完全不同、NEVER 复用同一条 URL」。**本端点没有验签**（2026-09-22 用户裁决「不补验签」），属已知待补的安全缺口，**NEVER 当成新增端点可以免签的先例**。
+- **异常现象**：**URL 特意带 `paySign/payment` 中缀**，因为裸的 `/ci/app/receiveRefundResult` 已被 `AppPayGatewayController`（#30）占用。javadoc 原文：「裸的 `/ci/app/receiveRefundResult` 已被 `AppPayGatewayController` 占用（转发给 collect-pay / face-pay 的 TVM/BOM 退款通知），两者报文与下游完全不同、NEVER 复用同一条 URL」。**本端点没有验签**（2026-09-22 用户裁决「不补验签」），属已知待补的安全缺口，**NEVER 当成新增端点可以免签的先例**。
 
 **bizData 请求字段（`ReceiveRefundResultReqDTO`，7 字段）**：
 
@@ -929,12 +929,12 @@ rawBody = requestBody;  // 原始报文整体保存
 
 ---
 
-## C. CollectPayController（8 端点）
+## C. AppPayGatewayController（8 端点）
 
-> 源文件：`fep-app-server/src/main/java/com/chinasofti/huateng/fep/app/controller/CollectPayController.java`（89 行）
+> 源文件：`fep-app-server/src/main/java/com/chinasofti/huateng/fep/app/controller/AppPayGatewayController.java`（纯透传，无业务分支）
 > 类级无 `@RequestMapping`
-> **本 Controller 不注 service，直接注 `CollectPayClient`**，用 `toFormDataMap` 把公共字段 + bizData 原样透传，返回 `JSONObject`。Controller 侧不解析 DTO。
-> **下游现为 face-pay-server**（`service.collectPay.url`，线上 env 已指向 `http://172.20.211.23:30025`）。
+> **本 Controller 不注 service，直接注 `FacePayAppClient`**，用 `toFormDataMap` 把公共字段 + bizData 原样透传，返回 `JSONObject`。Controller 侧不解析 DTO。
+> **下游只有 face-pay-server**（`service.facePay.url`；2026-11-20 前的 `service.collectPay.url` 键与 `CollectPayClient` 已删除）。**8 条端点全部转 face-pay，不判单号前缀**——补款单（SP）与非补款单的分流在 face-pay 内部完成。
 > **契约来源是下游 face-pay，fep-app 只透传。** 以下 bizData 字段表来自 face-pay 的 `AppOrderController` + `DeviceRequests.unwrap(form, XxxReqDTO.class)` 目标 DTO。
 >
 > 下游 face-pay APP 域错误码族（`AppResponses`）：`0000` 成功 / `8001` 下单与支付信息参数校验失败 / `8003` 查询类参数校验失败 / `8999` 支付中 / `9999` service 层通用失败。
@@ -943,10 +943,10 @@ rawBody = requestBody;  // 原始报文整体保存
 
 - **对外 URL**：`POST /fep-app/ci/app/requestOrder`
 - **容器内路径**：`/ci/app/requestOrder`
-- **Controller**：`CollectPayController:28`
+- **Controller**：`AppPayGatewayController`
 - **Content-Type**：`application/x-www-form-urlencoded`
 - **入参形态**：`@ModelAttribute ItpCommonFormRequest` -> `toFormDataMap` 原样透传
-- **下游**：`CollectPayClient.requestOrder` -> face-pay-server `POST /ci/app/requestOrder` -> `AppOrderController:47`
+- **下游**：`FacePayAppClient.requestOrder` -> face-pay-server `POST /ci/app/requestOrder` -> `AppOrderController:47`
 
 **bizData 请求字段（契约来源：face-pay `RequestOrderReqDTO extends BaseDeviceRequest`）**：
 
@@ -976,7 +976,7 @@ rawBody = requestBody;  // 原始报文整体保存
 ### 24. 请求支付信息（IF8A-11）
 
 - **对外 URL**：`POST /fep-app/ci/app/requestPaymentInfo`
-- **Controller**：`CollectPayController:34`
+- **Controller**：`AppPayGatewayController`
 - **下游**：face-pay `POST /ci/app/requestPaymentInfo` -> `AppOrderController:76`
 
 **bizData 请求字段（契约来源：face-pay `RequestPayInfoReqDTO`）**：
@@ -1006,7 +1006,7 @@ rawBody = requestBody;  // 原始报文整体保存
 ### 25. 支付结果查询（IF8A-18）
 
 - **对外 URL**：`POST /fep-app/ci/app/requestPayResult`
-- **Controller**：`CollectPayController:40`
+- **Controller**：`AppPayGatewayController`
 - **下游**：face-pay `POST /ci/app/requestPayResult` -> `AppOrderController:93`
 
 **bizData 请求字段（契约来源：face-pay `RequestAppPayResultReqDTO`，支付结果查询/请求退款/退款结果查询三端点共用）**：
@@ -1034,7 +1034,7 @@ rawBody = requestBody;  // 原始报文整体保存
 ### 26. 请求退款
 
 - **对外 URL**：`POST /fep-app/ci/app/requestRefundTicket`
-- **Controller**：`CollectPayController:46`
+- **Controller**：`AppPayGatewayController`
 - **下游**：face-pay `POST /ci/app/requestRefundTicket` -> `AppOrderController:122`
 
 **bizData 请求字段（契约来源：face-pay，Controller 只校验 `orderNo`）**：
@@ -1064,7 +1064,7 @@ rawBody = requestBody;  // 原始报文整体保存
 ### 27. 退款结果查询
 
 - **对外 URL**：`POST /fep-app/ci/app/requestRefundTicketResult`
-- **Controller**：`CollectPayController:52`
+- **Controller**：`AppPayGatewayController`
 - **下游**：face-pay `POST /ci/app/requestRefundTicketResult` -> `AppOrderController:133`
 
 **bizData 请求字段（契约来源：face-pay `RequestAppPayResultReqDTO`）**：
@@ -1083,7 +1083,7 @@ rawBody = requestBody;  // 原始报文整体保存
 ### 28. 查询激活订单列表
 
 - **对外 URL**：`POST /fep-app/ci/app/requestPreActiveOrderList`
-- **Controller**：`CollectPayController:58`
+- **Controller**：`AppPayGatewayController`
 - **下游**：face-pay `POST /ci/app/requestPreActiveOrderList` -> `AppOrderController:107`
 
 **bizData 请求字段（契约来源：face-pay `RequestQueryActiveOrderReqDTO`）**：
@@ -1108,9 +1108,9 @@ rawBody = requestBody;  // 原始报文整体保存
 ### 29. TVM 激活请求
 
 - **对外 URL**：`POST /fep-app/ci/app/requestActiveTicket`
-- **Controller**：`CollectPayController:64`
-- **下游**：`CollectPayClient.requestActiveTicket` -> face-pay-server `POST /itptvm/ci/tvm/requestActiveTicket`（**注意：下游路径是 `/itptvm/ci/tvm/` 前缀**，落在 face-pay 的 `TvmOrderController:189`，不是 `AppOrderController`）
-- **异常现象**：这是 CollectPayController 8 个端点中**唯一一个下游路径不是 `/ci/app/` 的**，落在 face-pay 的 TVM 域 `TvmOrderController`，错误码族是 TVM `2xxx`（`TvmResponses`），不是 APP `8xxx`。
+- **Controller**：`AppPayGatewayController`
+- **下游**：`FacePayAppClient.requestActiveTicket` -> face-pay-server `POST /itptvm/ci/tvm/requestActiveTicket`（**注意：下游路径是 `/itptvm/ci/tvm/` 前缀**，落在 face-pay 的 `TvmOrderController:189`，不是 `AppOrderController`）
+- **异常现象**：这是 AppPayGatewayController 8 个端点中**唯一一个下游路径不是 `/ci/app/` 的**，落在 face-pay 的 TVM 域 `TvmOrderController`，错误码族是 TVM `2xxx`（`TvmResponses`），不是 APP `8xxx`。
 
 **bizData 请求字段（契约来源：face-pay `RequestActiveTicketReqDTO extends BaseDeviceRequest`）**：
 
@@ -1137,8 +1137,8 @@ rawBody = requestBody;  // 原始报文整体保存
 ### 30. 接收退款结果通知
 
 - **对外 URL**：`POST /fep-app/ci/app/receiveRefundResult`
-- **Controller**：`CollectPayController:70`
-- **下游**：`CollectPayClient.receiveRefundResult` -> face-pay-server `POST /ci/app/receiveRefundResult` -> `AppOrderController:147`
+- **Controller**：`AppPayGatewayController`
+- **下游**：`FacePayAppClient.receiveRefundResult` -> face-pay-server `POST /ci/app/receiveRefundResult` -> `AppOrderController:147`
 - **注意**：此 URL 与 PaySignController #4 的退款回调路径冲突，因此 #4 特意加了 `paySign/payment` 中缀避让。
 
 **bizData 请求字段（契约来源：face-pay `AppRefundNotiResultReqDTO`，不继承 BaseDeviceRequest）**：

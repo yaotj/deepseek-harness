@@ -48,28 +48,45 @@ class SupplementOrderLocalWriterTest {
         SupplementOrder order = buildOrder();
         Map<String, GateTxnPay> index = buildIndex(ORIG_1, ORIG_2);
 
-        SupplementOrderLocalWriter.PersistResult result = writer.persist(order, List.of(ORIG_1, ORIG_2), index);
+        String orderNo = writer.persist(order, List.of(ORIG_1, ORIG_2), index);
 
-        assertTrue(result.persisted());
-        assertFalse(result.rejected());
-        assertEquals(SUP_ORDER, result.orderNo());
+        assertEquals(SUP_ORDER, orderNo);
         verify(mapper).insert(order);
         verify(mapper, times(2)).insertItem(any(SupplementOrderItem.class));
     }
 
+    /**
+     * 撞 ORDER_NO 唯一索引 MUST 换号重试而不是拒绝：补款建单不做业务防重（2026-11-20 裁决），
+     * 唯一键只是「同一张卡同一毫秒提交两次」的物理碰撞兜底。
+     */
     @Test
-    void mainTableDuplicateKeyReturnsRejected() {
+    void orderNoCollisionRetriesWithNewOrderNoAndStillPersists() {
         SupplementOrder order = buildOrder();
         Map<String, GateTxnPay> index = buildIndex(ORIG_1);
 
-        doThrow(new DuplicateKeyException("ORA-00001 unique constraint SUPPLEMENT_ORDER_UK"))
-                .when(mapper).insert(order);
+        doThrow(new DuplicateKeyException("ORA-00001 unique constraint UK_SUPPLEMENT_ORDER_NO"))
+                .doReturn(1)
+                .when(mapper).insert(org.mockito.ArgumentMatchers.any(SupplementOrder.class));
 
-        SupplementOrderLocalWriter.PersistResult result = writer.persist(order, List.of(ORIG_1), index);
+        String orderNo = writer.persist(order, List.of(ORIG_1), index);
 
-        assertFalse(result.persisted());
-        assertTrue(result.rejected());
-        assertEquals(SUP_ORDER, result.orderNo());
+        assertTrue(orderNo.startsWith(SUP_ORDER), "换号 MUST 保留原单号前缀，只追加随机位");
+        assertTrue(orderNo.length() > SUP_ORDER.length(), "换号后 MUST 与原单号不同");
+        verify(mapper, times(2)).insert(org.mockito.ArgumentMatchers.any(SupplementOrder.class));
+        verify(mapper).insertItem(any(SupplementOrderItem.class));
+    }
+
+    /** 连续撞满重试上限才放弃：这是真异常，MUST 抛出而不是静默返回一个库里没有的单号。 */
+    @Test
+    void orderNoCollisionExhaustedThrows() {
+        SupplementOrder order = buildOrder();
+        Map<String, GateTxnPay> index = buildIndex(ORIG_1);
+
+        doThrow(new DuplicateKeyException("ORA-00001 unique constraint UK_SUPPLEMENT_ORDER_NO"))
+                .when(mapper).insert(org.mockito.ArgumentMatchers.any(SupplementOrder.class));
+
+        org.junit.jupiter.api.Assertions.assertThrows(DuplicateKeyException.class,
+                () -> writer.persist(order, List.of(ORIG_1), index));
         verify(mapper, org.mockito.Mockito.never()).insertItem(any());
     }
 
@@ -90,9 +107,9 @@ class SupplementOrderLocalWriterTest {
         SupplementOrder order = buildOrder();
         Map<String, GateTxnPay> index = buildIndex(ORIG_1);
 
-        SupplementOrderLocalWriter.PersistResult result = writer.persist(order, List.of(ORIG_1, ORIG_2), index);
+        String orderNo = writer.persist(order, List.of(ORIG_1, ORIG_2), index);
 
-        assertTrue(result.persisted());
+        assertEquals(SUP_ORDER, orderNo);
         verify(mapper, org.mockito.Mockito.times(2)).insertItem(any(SupplementOrderItem.class));
     }
 

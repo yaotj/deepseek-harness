@@ -109,6 +109,7 @@ public class TransListQueryHandler {
         response.setPageNumber(String.valueOf(pageNumber));
         response.setPageSize(String.valueOf(pageSize));
         response.setTotalPage(String.valueOf(totalPage));
+        response.setTotalCount(String.valueOf(total));
         response.setTicketTransRecord(records);
         response.setSignType("00");
         response.setSign("");

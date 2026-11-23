@@ -4503,6 +4503,12 @@ APP 只能再调 IF8A-11，而那条路不认 `SP` 单。旧实现（gate-txn-pa
 而 **`-DskipTests` 不跳过 test 编译**，于是整个 `package` 直接 BUILD FAILURE、报的是一个与本次改动无关的错。
 **判据：给 mapper 方法加参数 MUST 同批 grep `src/test`**。
 
+**2026-11-20 修正（face-pay-server 1.1.4）——上面「尚未验证：秒级 SUCCESS」的结论被推翻，根因是回调解析缺 bizData**：
+- 本 ADR 只验证了「回调端点存在、恒返 success」，没验证业务字段解析。2026-11-20 用户实测补款 `SP20261120170624409000126` 付款成功后订单状态**延迟约 3 分钟**才变。查日志：17:08:05 支付中心回调到达、`SupplementPayNoticeController` 报 `补款回调缺少 orderNo / merchantOrderNo` 被吞；17:10:13 兜底 `converge()`（cron `0 */5 * * * ?`）才落 SUCCESS。
+- **根因**：真实回调业务字段包在 `bizData`（Base64 JSON），顶层只有 `apiVersion/bizData/charset/merchantNo/sign/signType`，没有 `orderNo`；旧 `extractOrderNo` 只读顶层 ⇒ 恒失败。该端点**恒返 success**（本 ADR 已记），所以支付中心认为送达、不会重推，回调永久失效，只能靠 5 分钟兜底。
+- **修法**：`extractOrderNo` 增解析 `bizData`（JSON 明文/Base64 双解，复用 `RefundNoticeController.parseCallbackBody` 范式），取 **`merchantOrderNo`** 作补款单号；日志字段同步从 bizData 取。**NEVER 取 `bizData.orderNo`**——那是支付中心单号（`2940...`），`handlePayNotice` 用它查 `SUPPLEMENT_ORDER` 查不到、`buildQueryRequest` 还会把它当 merchantOrderNo 上送导致回查错。断言锁 `SupplementPayNoticeControllerTest` 6 例。
+- **验证（1.1.4 测试环境）**：重放用户那笔真实回调 → Pod 日志 `补款支付中心回调, orderNo=SP...126, status=SUCCESS, totalAmount=3829, payTime=...`、无「缺少 orderNo」、1157ms 进入 `handlePayNotice` ⇒ 即时收敛链路打通，`converge()` 兜底保留不替代。face-pay 152 测全绿。
+
 ---
 
 ## ADR-D104：`F2F_RESULT_REPORT.PROCESSED` 补上唯一消费方 —— 出票上报的后续动作此前**没有任何自愈路径**（2026-09-16，face-pay-server 1.0.47）
@@ -7982,7 +7988,7 @@ kubectl set image deploy/alipay-pay-sign-server alipay-pay-sign-server=os-harbor
 | `sources[3]` face-pay | `http://face-pay-server-svc.itp.svc:30025` | `PAY,BUS` |
 
 - `sources[3]` 是 **2026-09-16 新增的第 4 个源**，配置文件注释原文：「face-pay（2026-09-16 新增第 4 个源），与 collect-pay 是新旧表并列，NEVER 二选一」。**NEVER 再把「三个源」当现状。**
-- **2026-10-13 变更**：`collect-pay-server` 当日下线（0 pod），其对账旧表源已从 recon 期望清单移除 ⇒ 现为**三源**（gate-txn-pay / daily-ticket / face-pay）；源个数与清单 **MUST 现查 `recon.orchestration.sources[*]`**，NEVER 引用本 ADR 的「四个源」当现状。
+- **2026-10-13 变更**：`collect-pay-server` 对账旧表源已从 recon 期望清单移除（**2026-11-20 起该模块测试环境云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署**）⇒ 现为**三源**（gate-txn-pay / daily-ticket / face-pay）；源个数与清单 **MUST 现查 `recon.orchestration.sources[*]`**，NEVER 引用本 ADR 的「四个源」当现状。
 - 四个源各自导出自己的数据（谁拥有表谁导出，见「撤回 10」）；recon-server 只做编排 + 聚合 + 投递。
 - **聚合是「逐列相加」，聚合键不含来源标识**：`joinKey` 只取前 5 段（日期 / 线路 / 车站 / 设备 / 支付方式），同键度量直接 `metrics[i] += ...`（`ReconFileGenerationService.java`）；**recon-server 侧没有任何跨源去重 / 互斥 / 优先级逻辑**（全模块 grep `face|f2f` 在 Java 侧零命中）。⇒ **跨源重叠一旦发生就是直接双算，不会自动去重。**
 - 运维常量：`RECON_FTP_ENABLED=true`（recon-server Deployment env）**保持不改为 `false`**；每天 02:30 的 `sys_job` 225 照常生成并投递四类文件到 `/itp/recon`。recon-server 部署地址 `recon-server-bjzdy-svc.itp.svc:30034`。
@@ -8461,3 +8467,50 @@ AND NVL(OUT_STATION, IN_STATION) = #{stationCode}   -- 可选
 - 本接口成为 account-server 销户（8023）的上游依赖后，**ticket-server / account-server 不可用会使销户 fail-closed 返 8024**——这是有意的取舍（宁可拒绝销户，不可放行未完成行程），NEVER 把 fail-closed 改成「聚合失败按 0 计」。
 - `app.acc-info.query-months`（3 个月）窗口只约束 `GATE_TXN_PAY` 订单侧；进行中行程是 `QRCODE_STATUS` 的当前状态快照，**不套该窗口**（旧于 3 个月的进站未出站仍算欠费，符合 D172）。
 - 发版 MUST 同时带 `model`（新增两个 internal DTO 类，版本仍 2.0.0）、`account-server`、`rpc`、`gate-txn-pay-server` 四个模块；只发后者会在运行时因找不到新 DTO 类而失败。
+
+---
+
+## ADR-D176：扣费三条重试任务 cron 统一为每天 9:00 / 15:00 各一次（对齐旧 ITP），345 同步收窄为只捞 `INIT`（2026-11-20，测试环境待发版）
+
+**诉求**：用户问「现在重试是什么时候重试的，我们对齐旧 ITP：定时任务每天重试两次，上午 9 点一次，下午 15 点一次」，随后明确下令「改为：定时任务每天重试两次，上午 9 点一次，下午 15 点一次」。旧 ITP 入参 `http://58.56.166.170:9080/qd-omp/a/login` 的历史口径即每天两次批处理。
+
+**现状（改前）**：`sys_job` 220「行程扣费重试」（非支付宝）与 255「支付宝出行重试扣费」cron 都是 `0 0 1 * * ?`（每天凌晨 1 点，2026-10-09 由每小时下调）；345「补站扣费周期查询更新」cron `0 0/1 * * * ?`（每分钟，扫近 10 分钟 `INIT/RETRY/FAIL`）。三者与用户所述「每天两次」都不符。
+
+**决策**：
+1. **三条 cron 统一 `0 0 9,15 * * ?`**——220 / 255 / 345 都在每天 09:00:00 与 15:00:00 各跑一次。cron 只写在 `sys_job` 与迁移脚本里，**NEVER 在模块内加 `@Scheduled`**（`GateTxnPayGuardTest` 会红）；改 cron 后 **MUST 重启 web-admin**（Quartz 内存 JobStore，不热加载）。
+2. **345 收窄为只捞 `DEBIT_STATUS = 'INIT'`**：`selectRecentUnpaidCandidates` 的 WHERE 由 `IN ('INIT','RETRY','FAIL')` 改为 `= 'INIT'`，`prepareRecentRetry` 的前置 CAS 同样改为 `= 'INIT'`；删除 `gate.debitRetry.recent.windowMinutes` 键与 `DebitRetryProcessor` 的 `recentWindowMinutes` 构造参数，只留 `minAgeSeconds=60` 下界。**RETRY/FAIL 归 220/255 按退避慢跑**——两条任务 NEVER 抢同一批单，否则同一笔欠费被双发扣款，正是 IT-092「重复支付待退款」的成因之一。断言锁在 `GateTxnPayMapperSqlTest.recentRetryOnlyClaimsStuckInitOrders`。
+3. **`gate.debitRetry.backoffMinutes` 默认 720 → 300**：两次调度间隔 6 小时，720 分钟（12 小时）退避会让同一笔 `RETRY` 单每天只赶上一次窗口，等于「两次」名存实亡；300 分钟（5 小时）保证两轮都能命中。`maxTimes=5` / `lookbackDays=7` 不变。
+4. **345 仍不设退避、不记账**（`prepareRecentRetry` 刻意不写 `DEBIT_RETRY_TIMES` / `DEBIT_NEXT_RETRY_TIME`），否则几分钟内烧光 220/255 的次数预算。原「10 分钟窗口最多重发约 10 次」的已知代价随上界删除一并消失。
+5. **迁移落地**：就地改 `web-server/web-quartz/src/main/resources/sql/web-quartz-{debit-retry,supplement-debit}-job-migration.sql`（延续 2026-10-09 的改法：改 cron + 改 remark 留痕），另加 `docs/ops/environments/scripts/migration/20261120_debit_retry_cron_9_15.sql` 用 UPDATE 应用到存量库（幂等，带校验 SELECT）。`docs/sql/02_qditp_data.sql` 与其派生的 `by-domain/02_data/QDITP_PLAT.sql` 是 2026-11-12 的全库导出快照，**不是配置源、NEVER 手改**（要改须重跑 `20261112_split_qditp_by_domain.py`，但那会覆盖整份快照，本次不做）。
+
+**对既有裁决的取代关系（NEVER 混淆）**：
+- D149 中「两条 cron 同为 `0 0 1 * * ?`」与「与 220 同为每天凌晨 1 点是业主选择」**作废**，两条按渠道拆分、独立 AtomicBoolean、出口不同的结论仍有效。
+- D154 中「cron `0 0/1 * * * ?`」「近 10 分钟窗口」「多捞 INIT/RETRY/FAIL」「不设退避三道闸（minAge + window + 离线码排除）」**作废**；345 的 job_id 编号沿革、不分渠道、不记账、与 220/255 并行的结论仍有效。
+- 用户「每天两次」只覆盖**扣费重试**；`recoverOfflineFare` / `pushMetroTransfer` / `sys_job 400` 用户主动重试队列消费仍是分钟级，**NEVER 顺带改**。
+
+**验证**：`mvn -o -pl gate-txn-pay-server test` **144 例全绿**（新增 `recentRetryOnlyClaimsStuckInitOrders`）；`docs/提示词/lint-prompts.py` ERROR 0。**2026-11-20 测试环境已发版**：起始版本现查 kubectl 实跑 `2.1.27`（与 pom 一致），`itp-ops.sh version bump --dir gate-txn-pay-server` → `2.1.28`，本机出 jar、平台 x86 buildx 出镜像（`digest=sha256:d59191c66da0cf669ddb2e6273791e219870578088882c0921376abb34fa77ff`）、`cloudos deploy --env test --yes` 切镜像；3 个 Pod 全部 Ready、image tag == 2.1.28。DB 侧三条 `SYS_JOB.CRON_EXPRESSION` 已 UPDATE 为 `0 0 9,15 * * ?`（另开连接复查持久化生效），web-admin 经 `kubectl rollout restart` 重启后日志确认 RAMJobStore 重新 `select ... from sys_job` 并启动调度；新 jar 手工触发 `POST /internal/gate-txn-pay/debit/retry/recent` 返 `0000`、日志 `卡在INIT的单补发本轮无候选, minAgeSeconds=60`，且新 web-admin 自 16:48 起不再每分钟触发 345。回滚：`cloudos deploy gate-txn-pay-server os-harbor-svc.default.svc.cloudos:443/itp/gate-txn-pay-server:2.1.27 --app-version 2.1.27 --yes` + 把三条 cron UPDATE 回旧值 + 重启 web-admin。红岛生产未涉及。
+
+---
+
+## ADR-D177：补款付清后单卡实时解黑 —— 补 `sys_job 230` 每天两次批处理的时延缺口（2026-11-20，blacklist-server 2.0.47 / face-pay 1.1.6）
+
+**现象**：用户补款付清（订单全部 SUCCESS、拉码 `unpaidCount=0`）后黑名单仍 `ACTIVE`。账号 `19900001231`（MSISDN → thirdUserId `00523018` / 卡 `0426090949000508`）5 笔欠费于 17:19:27 经补款单 `SP20261120171918345000508` 收敛为 SUCCESS，但 BLACKLIST 记录（ID=55，10:46:51 加黑，`BLACK_CAUSE=01`）直到手动触发才解除。
+
+**根因不是缺陷**：自动解黑 `sys_job 230` cron `0 0 10,16 * * ?`（每天 10:00 / 16:00 各一次），17:19 结清已过当天 16:00 那轮，下次要等次日 10:00——最长约 24 小时。`BlacklistAutoReleaseService` 的候选条件（`BLACK_CAUSE='01'`）与判据（`gateUnsettled(cardId)` 无欠费才解）本身正确：手动 `POST /internal/blacklist/auto-release` 验证 `scanned=3, released=1, unsettled=0`，释放的正是该卡。
+
+**决策**：
+1. **加速路径而非替代**：新增单卡实时解黑 `POST /internal/blacklist/release-card-if-settled?cardId=xxx` → `BlacklistAutoReleaseService.releaseCardIfSettled`。只处理该卡 `STATUS='ACTIVE' && BLACK_CAUSE='01'` 的记录（`isRealtimeEligible`），逐条**复用全表 autoRelease 的 `handleOne` 判据**（按 `CHANNEL_CODE` 查对应欠费源、`null` 不解锁）。**与 `sys_job 230` 并存、NEVER 停掉 230**——230 仍是兜底，覆盖非补款付清、实时解黑失败、回调丢失。
+2. **触发点选 face-pay 补款链路**：`SupplementPayCenterFlow.settleSuccess` 全部明细收敛完成后调一次。**范围裁决（用户 2026-11-20 确认）：仅补款付清触发**；非补款的支付回调收敛仍走 230 兜底。理由：语义正确（"补款付清"就是 settleSuccess 完成）、只触发一次、face-pay 构造点仅 1 个测试类改动面小（gate 侧有 5 个）。
+3. **失败只记日志、NEVER 阻断收敛**：解黑 RPC 异常/超时只记 ERROR，补款单已 SUCCESS、明细已 SETTLED，解黑只是体验加速；失败由 230 兜底，不重试、不落本地补偿表。用户裁决确认。
+4. **三条 NEVER**：①NEVER 跳过欠费判据直接 `deleteBlackList`（补款可能只付部分欠费，直接解放跑欠费乘客）；②NEVER 让解黑异常冒泡打断补款收敛；③NEVER 处理 `RELEASING` / 非 `01` 原因码（解除中仍算黑名单、非欠费原因无失效判据）。
+5. **版本**：rpc 新增 `releaseCardIfSettled` 方法，face-pay `<rpc.version>` 2.0.1 → **2.0.3**（仓库当前版本、fep-app 已用）；纯增量新方法不改数据形状、引用面仅 face-pay，符合「引用面豁免」最小重打包，其它模块留 2.0.1。
+
+**验证**：face-pay 155 测全绿（新增 `settledOrderTriggersRealtimeBlacklistRelease` / `blacklistReleaseFailureDoesNotBreakConverge` / `noCardIdSkipsRealtimeRelease`）；blacklist-server 新增 `BlacklistAutoReleaseServiceTest` 4 例锁候选判据（JDK 25 下 Mockito 无法 mock `CardUnsettledQuery`，故只测纯静态判据，编排由 face-pay 单测 + E2E 覆盖）；lint ERROR 0，YAML lint ERROR 0。
+
+**2026-11-20 测试环境发版（含 E2E 暴露的两个坑）**：
+- blacklist-server 2.0.46→**2.0.47**（digest `sha256:95ecac20e6246dcc3b18dfe606b3c36852715e6295f3eebd0a47c6ce0d60d315`）。
+- face-pay-server 1.1.4→1.1.5→**1.1.6**（最终 digest `sha256:4964f76970aac9b3743fb9dd58d86264ed2309790c4b79fae39345e7e51e9fbe`，jar 内嵌 `rpc-2.0.3.jar` 含新方法）。1.1.5→1.1.6 的改动见下面两个坑。
+- **坑 1（RPC 地址，IT-016 同型）**：1.1.5 上线后 E2E 发现 `Failed to resolve 'blacklist-service'`——`BlacklistClient` 的 `@Value("${service.blacklist.url:blacklist-service}")` 默认值在集群内不存在。先试 CloudOS `env-set service.blacklist.url=...`（点分名），Pod 里 printenv 有值但 `@Value` 读不到（Spring 不把点分 env 绑定到该属性）⇒ **必须在 face-pay `application.yml` 的 `service` 段加 `blacklist.url: ${SERVICE_BLACKLIST_URL:http://blacklist-server-internal.itp.svc:8080}`，走下划线大写 env**（与 `gateTxnPay.url` / `ticket.url` 同范式）。改后 1.1.6 生效。
+- **坑 2（平台回滚，IT-020 同型）**：1.1.5 部署后 blacklist-server 被 CloudOS 异步收敛**回滚到 2.0.0**（`cloudos deploy` 显示「应用版本 2.0.0 → 2.0.47」），导致新端点 404 `No static resource internal/blacklist/release-card-if-settled`、RPC 返 `code=500`。**重新部署 2.0.47 并确认 endpoint 指向新 Pod IP 后才通**。**判据：部署后 MUST 现查 Pod 级 image tag 与 endpoint，NEVER 只看 `cloudos deploy` 的「已收敛」**。
+
+**完整链路 E2E（17:47，同一 traceId `a9d120bbb79c171bb8ea72bb507746b4`）**：重放用户 17:19 真实付清的补款单 `SP20261120171918345000508` 回调（黑名单重置 ACTIVE、补款单重置 PROCESSING）→ face-pay 回查支付中心返 SUCCESS → `settleSuccess` 收敛 5 条明细 → 自动调 `releaseCardIfSettled(cardId=0426090949000508)` → blacklist `scanned=1, released=1, unsettled=0` → 黑名单秒级 **ACTIVE→RELEASING**（`RELEASE_REASON=欠费已结清自动解除`、`RELEASE_BY=auto-release-job`）。另验证 `RELEASING` 与 `CHANNEL_CODE=99`（未知渠道）记录被正确 skipped。测试数据已还原终态（补款单 SUCCESS、明细 SETTLED、黑名单 RELEASING）。回滚：两服务 `cloudos deploy ... --app-version` 指回 2.0.46 / 1.1.5。红岛生产未涉及。

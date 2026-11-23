@@ -12,4 +12,8 @@ public final class RouteConstants {
     public static final String ACTUATOR_PATH = "/actuator/**";
 
     public static final String TRACE_ID_HEADER = "X-Request-Id";
+
+    public static final String TRACE_PARENT_HEADER = "traceparent";
+
+    public static final String B3_HEADER = "b3";
 }

@@ -1,8 +1,13 @@
 package com.chinasofti.huateng.acc.security.server.util;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.UnsupportedEncodingException;
 
 public class TransformUtils {
+
+    private static final Logger log = LoggerFactory.getLogger(TransformUtils.class);
 
     private static char[] hexChar = new char[]{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
 
@@ -173,7 +178,7 @@ public class TransformUtils {
                 sb.append(byteToChar(data[offset + i]));
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("字节转字符串越界, offset={}, length={}, dataLen={}", offset, length, data == null ? 0 : data.length, e);
         }
         return sb.toString();
     }
@@ -190,7 +195,7 @@ public class TransformUtils {
                 sb.append(byteToBcd(data[offset + i]));
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("字节转BCD越界, offset={}, length={}, dataLen={}", offset, length, data == null ? 0 : data.length, e);
         }
         return sb.toString();
     }

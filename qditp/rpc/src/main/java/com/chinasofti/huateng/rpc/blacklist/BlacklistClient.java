@@ -78,6 +78,18 @@ public class BlacklistClient extends ProxyWebClient {
     }
 
 
+    /**
+     * 补款付清后的单卡实时解黑（ACTIVE + 欠费类，复用全表 autoRelease 的欠费判据）。
+     * 失败由调用方仅记日志不阻断补款收敛；每天两次的全表 {@link #autoRelease} 仍是兜底。
+     */
+    public BlacklistAutoReleaseRespDTO releaseCardIfSettled(String cardId, Map<String, String> headers) {
+        String url = "/internal/blacklist/release-card-if-settled?cardId=" + cardId;
+        String result = postJsonAndGetResponse(url, new HashMap<>(), headers);
+        return JSONUtil.toBean(result, new TypeReference<BlacklistAutoReleaseRespDTO>() {
+        }, true);
+    }
+
+
     public OutboxScan.Result compensateChannelSyncAdd(Integer limit, Map<String, String> headers) {
         return postOutboxScan("/internal/blacklist/channel-sync/compensate-add", limit, headers);
     }

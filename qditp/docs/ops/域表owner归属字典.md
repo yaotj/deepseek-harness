@@ -19,7 +19,7 @@
 | 表名前缀 | 业务域 | owner 模块（代码侧） | 备注 |
 |---|---|---|---|
 | `F2F_*` | 当面付 / 扫码取票（新表） | `face-pay-server` | 带 **GLOBAL 唯一索引**，`DROP PARTITION` 致其 `UNUSABLE`；新表由 sys_job 200/205/210 覆盖 |
-| `TBL_TVM_APP_ORDER` / `TBL_TVM_ORDER_TOPUP` / `TBL_BOM_ORDER_PAY` | 旧 TVM/BOM 订单 | `collect-pay-server`（**已 2026-10-13 下线，0 pod**） | 旧表存量；collect-pay 的 4 个 `@Scheduled` 仅覆盖此三表，与 F2F_* 覆盖面互不重叠 |
+| `TBL_TVM_APP_ORDER` / `TBL_TVM_ORDER_TOPUP` / `TBL_BOM_ORDER_PAY` | 旧 TVM/BOM 订单 | `collect-pay-server`（**2026-11-20 起测试环境停服**：云管台 `Stopped` + K8s 副本 0、Deployment / Service 资源保留未删；红岛从未部署） | 旧表存量；collect-pay 的 4 个 `@Scheduled` 仅覆盖此三表（**停服后不在运行**，恢复方法见 `docs/ops/environments/测试环境.md`「已下线 / 未部署」段），与 F2F_* 覆盖面互不重叠 |
 | `PAY_*` | 支付 | `pay-sign-server` / `gate-txn-pay-server` | `PAY_TXN_DETAIL.PAY_TIME` 为 VARCHAR2，勿 `TO_CHAR` |
 | `QRCODE_*` | 二维码 | `fep-app` / `face-pay-server` | `QRCODE_STATUS` / `QRCODE_TXN_DETAIL` 的 `CREATE_TIME/UPDATE_TIME` 2026-09-23 12:00 前 UTC、之后北京时间 |
 | `DAILY_TICKET_*` | 日次票 | `daily-ticket-server` | `DAILY_TICKET_INSTANCE.COUNTING_*` 为 VARCHAR2，勿 `TO_CHAR` |

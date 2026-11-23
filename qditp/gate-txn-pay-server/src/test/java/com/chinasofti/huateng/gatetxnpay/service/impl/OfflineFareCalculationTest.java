@@ -269,7 +269,7 @@ class OfflineFareCalculationTest {
             Method method = GateTxnPayServiceImpl.class.getDeclaredMethod(name, signature);
             method.setAccessible(true);
             GateTxnPayServiceImpl service = new GateTxnPayServiceImpl(
-                    null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null);
             return (T) method.invoke(service, args);
         } catch (InvocationTargetException e) {
             if (e.getCause() instanceof RuntimeException cause) {

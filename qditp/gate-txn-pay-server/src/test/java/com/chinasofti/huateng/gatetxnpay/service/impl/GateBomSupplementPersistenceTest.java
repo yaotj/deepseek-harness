@@ -23,7 +23,7 @@ class GateBomSupplementPersistenceTest {
         request.setHandleDateTime("20260922153642");
         request.setTrxAmount("200");
         request.setAdviceOpt(adviceOpt);
-        var service = new GateTxnPayServiceImpl(null, null, null, null, null, null, null, Runnable::run);
+        var service = new GateTxnPayServiceImpl(null, null, null, null, null, null, null, null, Runnable::run);
         GateTxnPay order = ReflectionTestUtils.invokeMethod(service, "buildOrder", request);
         assertNotNull(order);
         assertEquals(adviceOpt, order.getAdviceOpt());
@@ -50,7 +50,7 @@ class GateBomSupplementPersistenceTest {
         request.setHandleDateTime("20260922153642");
         request.setTrxAmount("200");
         request.setAdviceOpt(adviceOpt);
-        var service = new GateTxnPayServiceImpl(null, null, null, null, null, null, null, Runnable::run);
+        var service = new GateTxnPayServiceImpl(null, null, null, null, null, null, null, null, Runnable::run);
         GateTxnPay order = ReflectionTestUtils.invokeMethod(service, "buildOrder", request);
         assertNotNull(order);
         assertEquals(Boolean.FALSE, ReflectionTestUtils.invokeMethod(service, "isBomSupplement", order));
