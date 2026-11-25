@@ -9,10 +9,13 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * AGM（闸机）心跳接口
- * 兼容原 IF1A-03 路径：/fep-dev/ci/agm/deviceHeartbeat
+ * 路径 = 老服务 fep-dev-server 的 FepAgmController 路径（照抄）：
+ *   /ci/agm/{deviceHeartbeat,notiDeviceHeard}
+ * 网关 /itpagm/ 与 /fep-dev/ 两条前缀均 rewrite=/，服务实际收到 /ci/agm/...；
+ * 网关 exact 路由把 /itpagm/ci/agm/* 与 /fep-dev/ci/agm/* rewrite 到本路径后劫持到本服务。
  */
 @RestController
-@RequestMapping("/heartbeat/agm")
+@RequestMapping("/ci/agm")
 public class AgmHeartbeatController {
     private static final Logger log = LoggerFactory.getLogger(AgmHeartbeatController.class);
     private static final String CHANNEL = "04";

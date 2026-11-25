@@ -9,10 +9,13 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * BOM（半自动售票机）心跳接口
- * 兼容原路径：/itpbom/ci/bom/notiDeviceHeard
+ * 路径 = 老服务 face-pay-server 的 BomOrderController 路径（照抄，@RequestMapping 多值）：
+ *   /itpbom/ci/bom/{notiDeviceHeard,deviceHeartbeat}
+ *   /itptvm/ci/bom/{notiDeviceHeard,deviceHeartbeat}
+ * 网关 exact 路由把这两条老路径直接劫持到本服务，无 rewrite。
  */
 @RestController
-@RequestMapping("/heartbeat/bom")
+@RequestMapping({"/itpbom/ci/bom", "/itptvm/ci/bom"})
 public class BomHeartbeatController {
     private static final Logger log = LoggerFactory.getLogger(BomHeartbeatController.class);
     private static final String CHANNEL = "03";

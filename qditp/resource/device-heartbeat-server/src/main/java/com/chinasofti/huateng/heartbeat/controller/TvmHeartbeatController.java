@@ -9,10 +9,13 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * TVM（自动售票机）心跳接口
- * 兼容原 IF2A-04 路径：/itptvm/ci/tvm/notiDeviceHeard
+ * 路径 = 老服务 face-pay-server 的 TvmOrderController 路径（照抄，@RequestMapping 多值）：
+ *   /itptvm/ci/tvm/{notiDeviceHeard,deviceHeartbeat}
+ *   /itpbom/ci/tvm/{notiDeviceHeard,deviceHeartbeat}
+ * 网关 exact 路由把这两条老路径直接劫持到本服务，无 rewrite。
  */
 @RestController
-@RequestMapping("/heartbeat/tvm")
+@RequestMapping({"/itptvm/ci/tvm", "/itpbom/ci/tvm"})
 public class TvmHeartbeatController {
     private static final Logger log = LoggerFactory.getLogger(TvmHeartbeatController.class);
     private static final String CHANNEL = "02";

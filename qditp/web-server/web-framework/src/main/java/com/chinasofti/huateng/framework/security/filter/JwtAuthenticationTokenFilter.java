@@ -16,6 +16,7 @@ import com.chinasofti.huateng.common.constant.HttpStatus;
 import com.chinasofti.huateng.common.core.domain.AjaxResult;
 import com.chinasofti.huateng.common.core.domain.model.LoginUser;
 import com.chinasofti.huateng.common.utils.ServletUtils;
+import com.chinasofti.huateng.common.utils.SecurityUtils;
 import com.chinasofti.huateng.common.utils.StringUtils;
 import com.chinasofti.huateng.framework.web.service.TokenService;
 

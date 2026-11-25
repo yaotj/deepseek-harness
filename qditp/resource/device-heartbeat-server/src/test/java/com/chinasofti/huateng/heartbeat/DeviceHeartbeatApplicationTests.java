@@ -29,7 +29,7 @@ class DeviceHeartbeatApplicationTests {
 
     @Test
     void testAgmHeartbeat() throws Exception {
-        mockMvc.perform(post("/heartbeat/agm/deviceHeartbeat")
+        mockMvc.perform(post("/ci/agm/deviceHeartbeat")
                         .param("deviceId", "06220801")
                         .param("bizData", "{\"test\":\"data\"}"))
                 .andExpect(status().isOk())
@@ -39,7 +39,7 @@ class DeviceHeartbeatApplicationTests {
 
     @Test
     void testTvmHeartbeat() throws Exception {
-        mockMvc.perform(post("/heartbeat/tvm/notiDeviceHeard")
+        mockMvc.perform(post("/itptvm/ci/tvm/notiDeviceHeard")
                         .param("deviceId", "06220802"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.retCode").value("0000"))
@@ -48,7 +48,7 @@ class DeviceHeartbeatApplicationTests {
 
     @Test
     void testBomHeartbeat() throws Exception {
-        mockMvc.perform(post("/heartbeat/bom/deviceHeartbeat")
+        mockMvc.perform(post("/itpbom/ci/bom/deviceHeartbeat")
                         .param("deviceId", "06220803"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.retCode").value("0000"))
@@ -57,7 +57,7 @@ class DeviceHeartbeatApplicationTests {
 
     @Test
     void testHeartbeatWithNullDeviceId() throws Exception {
-        mockMvc.perform(post("/heartbeat/agm/deviceHeartbeat"))
+        mockMvc.perform(post("/ci/agm/deviceHeartbeat"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.retCode").value("0000"));
     }
