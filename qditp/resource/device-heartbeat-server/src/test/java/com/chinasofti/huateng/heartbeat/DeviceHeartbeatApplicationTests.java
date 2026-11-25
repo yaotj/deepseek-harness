@@ -49,7 +49,7 @@ class DeviceHeartbeatApplicationTests {
     @Test
     void testBomHeartbeat() throws Exception {
         mockMvc.perform(post("/heartbeat/bom/deviceHeartbeat")
-                        .param("deviceId", "06220803")))
+                        .param("deviceId", "06220803"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.retCode").value("0000"))
                 .andExpect(jsonPath("$.retMsg").value("成功"));

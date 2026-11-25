@@ -5,7 +5,7 @@
 
     <groupId>com.chinasofti.huateng</groupId>
     <artifactId>rpc</artifactId>
-    <version>2.0.3</version>
+    <version>2.0.4</version>
     <packaging>jar</packaging>
 
     <parent>

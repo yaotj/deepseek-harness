@@ -28,7 +28,7 @@ public class AgmHeartbeatController {
         String deviceId = request == null ? null : request.getDeviceId();
         log.info("IF1A-03 AGM设备心跳, deviceId={}", deviceId);
         if (request != null) {
-            heartbeatService.recordHeartbeat(CHANNEL, deviceId, request.getBizData());
+            heartbeatService.recordHeartbeat(CHANNEL, deviceId);
         }
         return HeartbeatResponse.success();
     }

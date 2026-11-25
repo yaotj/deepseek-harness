@@ -28,7 +28,7 @@ public class TvmHeartbeatController {
         String deviceId = request == null ? null : request.getDeviceId();
         log.debug("TVM设备心跳, deviceId={}", deviceId);
         if (request != null) {
-            heartbeatService.recordHeartbeat(CHANNEL, deviceId, null);
+            heartbeatService.recordHeartbeat(CHANNEL, deviceId);
         }
         return HeartbeatResponse.success();
     }

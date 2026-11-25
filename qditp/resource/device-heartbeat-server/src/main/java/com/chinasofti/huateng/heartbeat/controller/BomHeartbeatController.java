@@ -28,7 +28,7 @@ public class BomHeartbeatController {
         String deviceId = request == null ? null : request.getDeviceId();
         log.debug("BOM设备心跳, deviceId={}", deviceId);
         if (request != null) {
-            heartbeatService.recordHeartbeat(CHANNEL, deviceId, null);
+            heartbeatService.recordHeartbeat(CHANNEL, deviceId);
         }
         return HeartbeatResponse.success();
     }

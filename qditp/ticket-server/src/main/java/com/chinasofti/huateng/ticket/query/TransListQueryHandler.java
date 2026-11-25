@@ -82,7 +82,7 @@ public class TransListQueryHandler {
             List<TransRecordDTO> finalRecords = CollectionUtils.isEmpty(gateRecords)
                     ? Collections.emptyList()
                     : assembleRecords(gateRecords);
-            fillPageSuccess(response, pageNumber, pageSize, totalPage, finalRecords);
+            fillPageSuccess(response, pageNumber, pageSize, totalPage, total, finalRecords);
         } catch (IllegalArgumentException e) {
             log.warn("IF8A-05 查询交易记录参数非法, request={}", request, e);
             response.setRetCode(TicketErrorCodeEnum.INVALID_PARAM.getCode());
@@ -103,7 +103,7 @@ public class TransListQueryHandler {
     }
 
     private void fillPageSuccess(RequestTransListResult response, int pageNumber, int pageSize,
-                                 int totalPage, List<TransRecordDTO> records) {
+                                 int totalPage, int total, List<TransRecordDTO> records) {
         response.setRetCode(TicketErrorCodeEnum.SUCCESS.getCode());
         response.setRetMsg(TicketErrorCodeEnum.SUCCESS.getMsg());
         response.setPageNumber(String.valueOf(pageNumber));

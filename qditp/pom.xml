@@ -61,4 +61,10 @@
         <module>web-server</module>
     </modules>
 
+    <dependencyManagement>
+        <dependencies>
+            <!-- Lombok 版本由各项目自行管理，根 pom 不强制指定 -->
+        </dependencies>
+    </dependencyManagement>
+
 </project>

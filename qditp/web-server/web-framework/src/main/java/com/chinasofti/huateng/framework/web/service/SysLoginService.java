@@ -2,6 +2,7 @@ package com.chinasofti.huateng.framework.web.service;
 
 import jakarta.annotation.Resource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Component;
 import com.chinasofti.huateng.common.constant.CacheConstants;
 import com.chinasofti.huateng.common.constant.Constants;
 import com.chinasofti.huateng.common.constant.UserConstants;
+import com.chinasofti.huateng.common.core.domain.entity.SysUser;
 import com.chinasofti.huateng.common.core.domain.model.LoginUser;
 import com.chinasofti.huateng.common.core.cache.LocalCache;
 import com.chinasofti.huateng.common.exception.ServiceException;
@@ -17,6 +19,7 @@ import com.chinasofti.huateng.common.exception.user.BlackListException;
 import com.chinasofti.huateng.common.exception.user.CaptchaException;
 import com.chinasofti.huateng.common.exception.user.CaptchaExpireException;
 import com.chinasofti.huateng.common.exception.user.UserNotExistsException;
+import com.chinasofti.huateng.common.exception.user.UserPasswordRetryLimitExceedException;
 import com.chinasofti.huateng.common.exception.user.UserPasswordNotMatchException;
 import com.chinasofti.huateng.common.utils.DateUtils;
 import com.chinasofti.huateng.common.utils.MessageUtils;
@@ -27,6 +30,7 @@ import com.chinasofti.huateng.framework.manager.factory.AsyncFactory;
 import com.chinasofti.huateng.framework.security.context.AuthenticationContextHolder;
 import com.chinasofti.huateng.system.service.ISysConfigService;
 import com.chinasofti.huateng.system.service.ISysUserService;
+import com.chinasofti.huateng.framework.web.service.SysPasswordService;
 
 
 @Component
@@ -46,6 +50,12 @@ public class SysLoginService
 
     @Autowired
     private ISysConfigService configService;
+
+    @Autowired
+    private SysPasswordService passwordService;
+
+    @Value("${user.password.expireDays}")
+    private int expireDays;
 
 
     public String login(String username, String password, String code, String uuid)
@@ -75,6 +85,18 @@ public class SysLoginService
         finally
         {
             AuthenticationContextHolder.clearContext();
+        }
+        // 序号2: 登录失败处理 - 登录成功后清除失败计数缓存
+        passwordService.clearLoginRecordCache(username);
+        // 序号1: 密码过期检查
+        SysUser user = userService.selectUserByUserName(username);
+        if (user != null && expireDays > 0 && user.getPwdUpdateDate() != null)
+        {
+            if (DateUtils.differentDaysByMillisecond(user.getPwdUpdateDate(), DateUtils.getNowDate()) > expireDays)
+            {
+                AsyncManager.me().execute(AsyncFactory.recordLogininfor(username, Constants.LOGIN_FAIL, "密码已过期"));
+                throw new UserPasswordNotMatchException();
+            }
         }
         AsyncManager.me().execute(AsyncFactory.recordLogininfor(username, Constants.LOGIN_SUCCESS, MessageUtils.message("user.login.success")));
         LoginUser loginUser = (LoginUser) authentication.getPrincipal();
